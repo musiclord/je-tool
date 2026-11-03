@@ -17,10 +17,10 @@ public sealed class SqlServerAccountUsageExportRepository(SqlServerProjectDataba
         await using var command = database.CreateCommand(
             connection,
             projectId,
-            "SELECT COALESCE(account_code, ''), MAX(account_name), COUNT_BIG(*), " +
+            "SELECT COALESCE(account_number, ''), MAX(account_name), COUNT_BIG(*), " +
             "COALESCE(SUM(debit_amount_scaled), 0), COALESCE(SUM(credit_amount_scaled), 0) " +
-            $"FROM {{s}}.target_gl_entry WHERE {GlEffectivePopulation.SqlPredicate()} " +
-            "GROUP BY account_code ORDER BY COUNT_BIG(*), account_code;");
+            $"FROM {{s}}.gl WHERE {GlExcludedPopulation.SqlPredicate()} " +
+            "GROUP BY account_number ORDER BY COUNT_BIG(*), account_number;");
         return await LocalAccountUsageExportRepository.ReadAsync(command, cancellationToken);
     }
 }

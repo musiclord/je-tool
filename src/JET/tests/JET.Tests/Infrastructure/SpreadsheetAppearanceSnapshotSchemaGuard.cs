@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Fail-closed policy for the only real-sample derivative that may be tracked by Stage 9.
+/// Fail-closed policy for the only real-sample derivative that may be tracked in the repository.
 /// The validator never includes rejected JSON keys or values in exceptions because those
 /// tokens are untrusted until the closed appearance vocabulary accepts them.
 /// </summary>
@@ -874,7 +874,7 @@ internal static class SpreadsheetAppearanceSnapshotSchemaGuard
 
         // A2-A4 are fixed legacy ExportDatabase sheet identities. JET deliberately
         // represents their current outcome in the summary instead of creating those
-        // worksheets, but Stage 9 must still be able to validate a legacy oracle that
+        // worksheets, but this guard must still be able to validate a legacy oracle that
         // contains them. step1-3 is likewise a fixed legacy conditional sheet that can
         // be absent from both real cases while remaining script-proven.
         if (report == LegacyReportKind.PrescreenReport

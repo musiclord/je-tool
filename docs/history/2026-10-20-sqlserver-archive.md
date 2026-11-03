@@ -340,3 +340,122 @@ SQL Server 專屬倉儲這輪只改了三處：`SqlServerNullRecordsPageReposito
   和本機同一組固定答案，下次執行 `Provider` 才會跑到；值是 `NVARCHAR(MAX)` 時視窗函數的寫法也要在那時確認。
 - 以上 SQL Server 的部分都沒有測試執行到；SQLite 與 DuckDB 由 `GlFillDownWorkflowTests`、`MappingMetadataCodecTests`、
   `MappingValueProfileProviderParityTests` 與 GL 範圍的掃描檢查核對。
+
+2026-10-30 專案紀錄收斂計畫階段四第一步和 SQL Server 有關的修改如下，依使用者裁定只經編譯，都沒有啟動服務執行：
+
+- `SqlServerProjectDatabase.EnsureCreatedAsync` 遇到既有 schema 時只檢查版本，不再升版：拿掉 `MigrateExistingSchemaToCurrentAsync`
+  的分版補資料段，以及它用到的 `BumpSchemaVersionSql`、`WidenMessageLogLevelCheckSql`、`PinAuditTextCollationSql`、
+  `BackfillAccountMappingCategoryIdsSql` 與測試用的 `MigrationFaultHookForTests`。版本比現行第 16 版舊時回舊版案件的訊息，
+  請審計員刪除案件後重建；版本值讀不出來或比現行版本新時，回版本資訊無法辨識。兩句訊息和本機資料庫共用 `ProjectFolderMessages`。
+  新 schema 的建表語句 `SchemaSql` 沒有改，裡面守欄補欄的寫法留到統一改名時一起整理。
+- 本機與 SQL Server 共用的升版程式 `AccountClassificationMigration`、`GlExclusionReasonMigration` 整個刪除，
+  `AuditMutation` 拿掉升版專用的 `SchemaV7Migration` 與 `TextComparisonMigration`。
+- `SqlServerProjectRegistry` 讀線上登錄的案件設定時，和本機設定檔一樣先檢查 `schemaVersion` 是第 2 版，不是就回舊版案件的訊息。
+- `SqlServerSchemaMigrationTests` 刪掉只測升版補資料的五則連線測試，以及不連線測試裡對已刪除常數的三處檢查，
+  新增一則連線測試核對舊版本被拒絕且資料不變；以上只經編譯，沒有執行。
+- 匯入批次表的舊欄名 `source_file_path`（實際只存檔名）這次沒有改，留到統一改名時處理。
+
+2026-10-30 專案紀錄收斂計畫階段四第二步統一改名時，和 SQL Server 有關的修改如下。依使用者裁定只經編譯，
+都沒有啟動服務執行，也沒有在 SQL Server 上實際驗證；SQLite 與 DuckDB 的同一段改動由合成資料測試核對。
+
+- `gl` 表的 `is_effective` 改成意思相反的 `is_excluded`：建表語句與補欄語句改名，`GlProjectionDataReader` 寫入時改寫
+  「沒有納入測試」為 1，`SqlServerValidationRunRepository` 的母體摘要與 `SqlServerDataPreviewRepository` 的 GL(未納入測試) 統計跟著反轉條件。
+  共用的 `GlExcludedPopulation.SqlPredicate` 與 `DataPreviewGlQuery` 也已反轉，SQL Server 的查詢隨共用程式改變。
+- `gl_control_total` 原本存同一個數字的 `source_row_count` 與 `raw_row_count` 併成 `pbc_row_count`：建表語句只留一欄，
+  `SqlServerGlRepository` 的 MERGE 只寫一次，拿掉這一欄的補欄語句；`GlProjectionDataReader.SourceRowCount` 改名 `PbcRowCount`。
+- 驗證與預篩選的執行結果從 `result_rule_run` 分成 `validation_result` 與 `prescreen_result` 兩張表，欄位是 `result_id`、
+  `generated_utc` 與 `summary_json`，拿掉 `run_kind` 與它的索引。`SqlServerResultStore` 依結果種類寫入與讀取各自的表，
+  清除與失效的共用程式 `ResultReset`、`ResultStaleStateSql` 改成直接清或查各自的表。抽樣表 `inf_sample` 的 `run_id` 改名 `result_id`，
+  `SqlServerInfSamplePageRepository` 跟著改。
+- 完整性差異的共用 CTE 改由 `ValidationProcedures.CompletenessDiffCteFor` 在定義處組好 schema 限定的表名，不再用字串取代
+  `FROM gl` 加前綴；CTE 的中間結果改名 `gl_by_account` 與 `tb_by_account`，避開和表名 `gl`、`tb` 相同。
+  `SqlServerAccountMappingExportRepository`、兩個完整性分頁倉儲與 `SqlServerValidationRunRepository` 隨共用程式改變。
+- SQL Server 的資料表隔離檢查改成只看 SQL 裡表引用的位置，`dbo.` 開頭的控制平面表視為已限定；這次沒有找到真的少了 schema 限定的地方。
+- `SqlServerCollationProbeTests`、`SqlServerGlRepositoryTests` 等 SQL Server 測試的表名與欄名跟著改，以上只經編譯，沒有執行。
+- 科目分類的程式名稱改掉 taxonomy：`SqlServerAccountCategoryStore` 記錄修改事件改用 `AuditMutation.AccountCategory`，
+  分類仍被科目配對使用時回的錯誤碼改成 `category_in_use`；`PrescreenMonthlyAggregationBenchmarkTests` 的 SQL Server 版
+  改用 `ProjectRepositories.AccountCategories` 組裝。SQL 沒有變，以上只經編譯，沒有執行。
+- `gl` 表的傳票摘要欄 `document_description` 改名 `description`：建表語句、`GlProjectionDataReader` 的寫入欄清單，以及
+  空值明細、篩選命中、INF 樣本、預篩選分頁與驗證摘要的 SQL Server 查詢跟著改；共用的 `ResultPageSorting`、`GlRulePredicates`、
+  `FilterCompilation` 與欄位目錄也改用新欄名。這些查詢都只讀 `gl` 一張表，沒有和欄位資訊表 `field_info` 的 `description` 欄合併查詢。
+- `SqlServerGlRepository` 寫入 `gl_control_total` 時，GL 筆數的參數 `@effective` 改名 `@glRowCount`。
+- 攸關資料元素值型別的程式值從 `money` 改成 `amount`，和上一項已改的建表 CHECK 一致；SQL Server 的寫入與條件隨共用程式改變。
+- `SqlServerSchemaMigrationTests` 的定序檢查改成只看指定資料表的建表與補欄語句，避免把 `field_info.description` 算進 `gl` 的欄；
+  `SqlServerCollationProbeTests` 與 `SqlServerDataPreviewRepositoryTests` 的欄名與回應鍵跟著改，以上只經編譯，沒有執行。
+- 改名改了表名、欄名與 CHECK 值，`SqlServerProjectDatabase.SchemaVersion` 由第 16 版升到第 17 版，`SchemaSql` 寫入的版本跟著改，
+  改名前建立的 SQL Server 案件開啟時會看到舊版案件的訊息。`SqlServerSchemaMigrationTests` 兩則不連線的版本檢查改成 17，
+  在本機的全部 C# 測試裡執行並通過；要連線的測試只經編譯，沒有執行。
+- SQL Server 的資料表隔離檢查補上兩種寫法：逗號分隔的 FROM 清單裡逗號後面的表，以及省略 INTO 的 `INSERT 表名`。
+  補上後掃描現有的 SQL Server 程式，沒有找到少了 schema 限定的地方。
+- 三種資料庫共用的傳票明細不再回 `evidenceConditions`，條件述詞的 `Primary` 旗標也拿掉，因為現行寫法只產生主要條件與整張傳票條件；
+  SQL Server 的傳票明細隨共用程式改變，沒有 SQL Server 測試執行到。
+- `FilterHitLoggingTests`、`ValidationRunLoggingTests` 與 `PrescreenRunLoggingTests` 的 SQLite 與 DuckDB 摘要值依改名後的 SQL 更新；
+  SQL Server 的摘要值維持原值，下次執行 `Provider` 時預期先失敗一次，再依實際 SQL 更新。
+- 控制平面的操作紀錄表 `dbo.audit_log` 改名 `dbo.operation_log`，寫入它的 `SqlServerAuditLog` 改名 `SqlServerOperationLog`，和本機資料庫的
+  `operation_log` 同名。建表語句仍是表不存在才建立，所以已經建好控制平面的 SQL Server 會另外建一張空的 `dbo.operation_log`，
+  舊的 `dbo.audit_log` 留在資料庫裡，不再寫入；重新啟動 SQL Server 開發時，要決定舊紀錄搬不搬、舊表刪不刪。
+  支援日誌的寫入失敗事件 `audit_log.append_failed` 也改成 `operation_log.append_failed`。
+- 操作種類的常數類別 `ProjectAuditOperations` 改名 `ProjectOperations`，`SqlServerProjectOperationLog` 跟著改；
+  建表語句裡高風險條件彙總那個索引的註解，不再寫「tag 矩陣」。以上只經編譯，沒有執行。
+
+2026-10-31 專案紀錄收斂計畫階段四第三步把三條預篩選規則改成和舊版 IDEA 相同，和 SQL Server 有關的修改如下。
+依使用者裁定只經編譯，都沒有啟動服務執行，也沒有在 SQL Server 上實際驗證；SQLite 與 DuckDB 的同一段改動由合成資料測試核對。
+
+- 第四步拿掉編製分錄較少的人員與使用較少的科目兩條規則：`SqlServerPrescreenRunRepository` 刪掉這兩條的計數查詢，
+  以及在全部 GL 計算 11 筆以下相異科目數的查詢，回應不再帶這三個數字。
+- 未預期借貸組合要求同張傳票至少有一筆金額大於 0 的分錄，這個條件加在共用的 `GlRulePredicates.UnexpectedAccountPair`，
+  SQL Server 的第四步計數、第四步明細、預篩選報告與第五步條件隨共用程式改變。
+- 第四步計數、明細與預篩選報告的 R3 改成列出命中傳票的全部分錄：`SqlServerPrescreenRunRepository` 與
+  `SqlServerPrescreenPageRepository` 改用和本機相同的 `LocalPrescreenPageRepository.HitRowsPredicate` 包住規則述詞，
+  子查詢的表名帶 schema 限定。
+- `ProviderParityJourneyTests` 刪掉只在 SQL Server 執行的使用較少的科目跨資料庫比對，`DemoRuleOracleTests` 的 SQL Server 版
+  拿掉兩條規則的斷言，未預期借貸組合改數整張傳票；`SqlServerGlPopulationScopeGoldenTests` 的未預期借貸組合改成不命中，
+  和本機版相同。以上只經編譯，沒有執行。
+- `PrescreenRunLoggingTests` 的 SQLite 與 DuckDB 摘要值依新的 SQL 更新；SQL Server 的摘要值維持原值，
+  下次執行 `Provider` 時預期先失敗一次，再依實際 SQL 更新。
+
+2026-10-31 專案紀錄收斂計畫階段四第四步拿掉三處依業務擋下審計員的檢查：沒有 TB 也能往下做、情境名稱與動機留白時自動補上、
+沒有勾選或沒有儲存篩選情境也能匯出底稿。這一步沒有改到只給 SQL Server 用的程式，SQL Server 隨三種資料庫共用的程式一起改變，
+依使用者裁定只經編譯，沒有啟動服務執行，也沒有在 SQL Server 上實際驗證；SQLite 與 DuckDB 的同一段改動由合成資料測試核對。
+
+- 資料驗證多讀 TB 的匯入紀錄，用來分辨沒有匯入 TB 與 TB 欄位配對還沒確認；逐科目比對無法執行時，資料驗證報告與底稿的
+  `WorkingPaperPlanningFactsPort` 不再讀差異科目，底稿也不再要求 TB 的欄位定義。這些都是 SQL Server 與本機共用的程式。
+- 底稿沒有勾選情境時，第三步與第四步的查詢沿用共用的 `HighRiskSummaryScenarioSqlScope`，它本來就把空的情境清單當成沒有資料。
+- 情境名稱與動機的自動文字在 Application 層產生，和資料庫無關。
+
+2026-10-31 專案紀錄收斂計畫階段四第五步照裁定 2026-10-30-20 改寫畫面上的「可能」，其中一句只在 SQL Server 案件出現：
+建立 SQL Server 案件時，名稱在 SQL Server 上已有資料、這台電腦卻沒有登記。`ProjectCreateFactsPort` 的訊息改成
+「…但這台電腦沒有這個案件的登記，例如案件資料夾被刪除過，或案件是在其他電腦建立的。請改用其他名稱；要沿用這個名稱，先清除 SQL Server 上的舊資料。」
+`DualSourceProjectTests` 與 `ProjectHandlersTests` 裡三個 SQL Server 測試的比對字串跟著改成「這台電腦沒有這個案件的登記」。
+依使用者裁定只經編譯，沒有啟動服務執行這三個測試，也沒有在 SQL Server 上實際驗證。
+同一步照裁定 2026-10-30-19 讓畫面上的數量加千分位，SQL Server 連線後的容量提醒「資料庫容量偏大：單庫 … MB」裡的容量、線上案件數與門檻也改經 `Ui.countText`，
+這一句同樣沒有在 SQL Server 上實際看過。
+
+2026-10-31 專案紀錄收斂計畫階段四第六步讓儲存情境時只計算並存下這一個情境的結果，檢視、移除與匯出都讀存好的結果。
+SQL Server 照同樣的規則改，依使用者裁定只經編譯，沒有啟動服務執行，也沒有在 SQL Server 上實際驗證；
+SQLite 與 DuckDB 的同一段改動由合成資料測試核對。
+
+- 建表程式 `SqlServerProjectDatabase.Schema.cs`：`filter_scenario` 改用不變的情境編號 `scenario_id` 當主鍵，`position` 只記畫面順序；
+  `filter_hit` 的 `scenario_position` 改成 `scenario_id`，索引 `idx_filter_hit_entry` 跟著改；新增 `filter_hit_condition`，
+  存命中傳票裡每筆分錄符合第幾組第幾條。結構版本由 17 升到 18，舊案件照現行訊息請審計員刪除後重新建立。
+- `SqlServerFilterCommitRepository` 新增只儲存一個情境的寫法，整批發布也一起寫 `filter_hit_condition`；
+  `SqlServerFilterScenarioStore` 新增移除一個情境的寫法，同一個交易刪掉它的定義與結果，後面的情境順序往前補；
+  `SqlServerFilterHitMaterializer` 改用和本機共用的 `FilterHitInsertSql` 寫入兩張結果表。
+- `SqlServerFilterVoucherRepository` 新增讀已儲存情境的傳票頁，SQL 和本機共用 `FilterVoucherPageReader`。
+- 讀 `filter_hit` 的查詢，包括 `SqlServerFilterHitsPageRepository`、`SqlServerHighRiskSummaryScenariosRepository`、
+  共用的高風險條件彙總與底稿第四步查詢，都改成接上 `filter_scenario` 取情境位置。
+- 記錄 SQL 雜湊的測試只鎖預覽、資料驗證與預篩選的 SQL，這一步沒有改到這些 SQL；SQLite 與 DuckDB 的雜湊照舊通過，
+  SQL Server 的雜湊沒有改，也沒有執行核對。
+
+2026-10-31 專案紀錄收斂計畫階段四第七步拿掉建表程式 `SqlServerProjectDatabase.Schema.cs` 裡剩下的 16 處補欄語句，
+也就是欄位不存在時用 `ALTER TABLE` 補上的寫法；這照第四階段確認頁 5-2 的回答「改成一份建表程式，只留版本檢查」與 5-3「一起改，只經編譯並記錄」。
+其中 14 處的欄位本來就寫在建表語句裡。`account_category.parent_category_id` 與 `account_mapping.classification_explicit`
+原本只靠補欄語句加上，先照 SQLite 的寫法併進建表語句的最後一欄，再拿掉補欄語句。新建案件的資料表和改之前相同，所以結構版本不變。
+依使用者裁定只經編譯，沒有啟動服務執行，也沒有在 SQL Server 上實際驗證。
+
+2026-11-01 專案紀錄收斂計畫照第三個停點的回覆改名：驗證摘要裡同一傳票號碼出現在不同總帳日期的鍵名改用 voucher，
+條件的錯誤碼與支援日誌欄位改用 condition，錯誤碼 `no_target_data` 改成 `gl_mapping_not_confirmed`。
+SQL Server 的驗證讀取程式 `SqlServerValidationRunRepository` 跟著改名；存好的驗證摘要和舊案件不同，
+所以建表程式 `SqlServerProjectDatabase.Schema.cs` 的結構版本由 18 升到 19，舊案件照現行訊息請審計員刪除後重新建立。
+同一次照第三個停點 2-2 的回覆，共用資料庫的六張管理表照現行名稱列進名詞表，名稱檢查一併核對共用資料庫的建表程式
+`SqlServerControlPlaneSchema.cs` 與 `SqlServerUserDirectory.cs`。依使用者裁定只經編譯，沒有啟動服務執行，也沒有在 SQL Server 上實際驗證。

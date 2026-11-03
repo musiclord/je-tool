@@ -21,12 +21,12 @@ internal static class ProjectionFailureText
     {
         ArgumentNullException.ThrowIfNull(projection);
         var errors = projection.Errors;
-        // 使用者 2026-10-13 勾選頁確認：開頭一句，清單只列一部分時再接一句；不再寫「以下依前 k 列整理」。
+        // 裁定 2026-10-13-28 確認了用字：開頭一句，清單只列一部分時再接一句；不再寫「以下依前 k 列整理」。
         var partial = projection.ErrorGroups is null
             ? projection.TotalErrorCount > errors.Count && errors.Count > 0
             : projection.ErrorGroups.Any(group => group.OmittedValueRowCount > 0
                 || group.Values.Any(value => value.Count > value.Rows.Count));
-        var lead = $"有 {projection.TotalErrorCount} 列的值無法讀取，本次配對未儲存。";
+        var lead = $"有 {CountText.Format(projection.TotalErrorCount)} 列的值無法讀取，本次配對未儲存。";
         if (partial)
             lead += "以下僅列出部分的值與列號。";
 
@@ -58,14 +58,14 @@ internal static class ProjectionFailureText
         {
             var rowsText = RowsText(value.Rows, countAlreadyStated: true);
             if (value.Count > value.Rows.Count)
-                rowsText += singleValue ? "等" : $"，共 {value.Count} 列";
+                rowsText += singleValue ? "等" : $"，共 {CountText.Format(value.Count)} 列";
             if (singleValue && value.Value.Length == 0) return rowsText;
             var where = rowsText.StartsWith('第') ? "在" + rowsText : "在 " + rowsText;
             return Quote(value.Value) + where;
         }));
         if (group.OmittedValueRowCount > 0)
-            located += $"；另有 {group.OmittedValueRowCount} 列的值未列出";
-        var text = $"來源欄「{group.Field}」有 {group.Count} 列{problem}：{located}。";
+            located += $"；另有 {CountText.Format(group.OmittedValueRowCount)} 列的值未列出";
+        var text = $"來源欄「{group.Field}」有 {CountText.Format(group.Count)} 列{problem}：{located}。";
         return instruction.Length == 0 ? text : text + instruction + "。";
     }
 
@@ -94,11 +94,11 @@ internal static class ProjectionFailureText
             }));
             if (values.Count > MaxValuesPerGroup)
             {
-                located += $"；另有 {values.Count - MaxValuesPerGroup} 個值";
+                located += $"；另有 {CountText.Format(values.Count - MaxValuesPerGroup)} 個值";
             }
         }
 
-        var text = $"來源欄「{field}」有 {rows.Count} 列{problem}：{located}。";
+        var text = $"來源欄「{field}」有 {CountText.Format(rows.Count)} 列{problem}：{located}。";
         return instruction.Length == 0 ? text : text + instruction + "。";
     }
 
@@ -114,7 +114,7 @@ internal static class ProjectionFailureText
                 var text = $"第 {shown} 列";
                 if (numbers.Count > MaxRowsPerValue)
                 {
-                    text += countAlreadyStated ? "等" : $"，共 {numbers.Count} 列";
+                    text += countAlreadyStated ? "等" : $"，共 {CountText.Format(numbers.Count)} 列";
                 }
                 return source.Key is null ? text : $"{source.Key} {text}";
             }));

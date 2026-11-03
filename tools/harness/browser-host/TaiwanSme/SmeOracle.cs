@@ -36,7 +36,7 @@ internal sealed class SmeOracle
             categories[category.Label] = (category.Parent, category.Role);
         }
 
-        // 分類留白的科目視為 Others（2026-09-07 裁定）。
+        // 分類留白的科目視為 Others（裁定 2026-09-07-03）。
         categoryOfAccount = smeCase.Accounts.ToDictionary(
             account => account.Code,
             account => string.IsNullOrEmpty(account.Category) ? SmeChart.Others : account.Category,
@@ -48,12 +48,12 @@ internal sealed class SmeOracle
 
     public static string Key(SmeLine line) => $"{line.VoucherNo}|{line.LineNo}";
 
-    public string Role(SmeLine line) => categories[categoryOfAccount[line.AccountCode]].Role;
+    public string Role(SmeLine line) => categories[categoryOfAccount[line.AccountNumber]].Role;
 
     /// <summary>科目的分類是否為指定分類本身或其下層（「包含下層」）。</summary>
     public bool InSubtree(SmeLine line, params string[] roots)
     {
-        string? current = categoryOfAccount[line.AccountCode];
+        string? current = categoryOfAccount[line.AccountNumber];
         while (current is not null)
         {
             if (roots.Contains(current, StringComparer.Ordinal))
@@ -89,31 +89,35 @@ internal sealed class SmeOracle
             .GroupBy(line => line.CreatedBy.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
-    public Dictionary<string, int> AccountCounts() =>
-        Population.GroupBy(line => line.AccountCode, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
-
-    /// <summary>第四步預篩選 12 項規則各自應選到的分錄。</summary>
+    /// <summary>
+    /// 第四步預篩選 10 項逐筆規則各自應選到的分錄。裁定 2026-10-29-27 照舊版拿掉編製分錄較少的人員與使用較少的科目；
+    /// 未預期借貸組合照舊版 IDEA R3 要求同張傳票至少有一筆借方金額大於 0 的分錄，第四步列出命中傳票的全部分錄。
+    /// </summary>
     public IReadOnlyDictionary<string, HashSet<string>> Prescreen()
     {
-        var preparers = PreparerCounts();
-        var accounts = AccountCounts();
         var authorized = SmePeople.Authorized.ToHashSet(StringComparer.OrdinalIgnoreCase);
         return new Dictionary<string, HashSet<string>>(StringComparer.Ordinal)
         {
-            ["postPeriodApproval"] = Select(line => line.ApprovalDate >= SmeCalendar.PreparationDate),
+            ["prepPeriodApproval"] = Select(line => line.ApprovalDate >= SmeCalendar.PreparationDate),
             ["suspiciousKeywords"] = Select(line => ContainsAny(line.Description, DefaultKeywords)),
-            ["unexpectedAccountPair"] = Select(line => RevenueCreditWithout(line, ["receivables", "cash", "receipt_in_advance"])),
+            ["unexpectedAccountPair"] = WholeVouchers(line =>
+                RevenueCreditWithout(line, ["receivables", "cash", "receipt_in_advance"])
+                && VoucherOf(line).Any(other => other.Debit > 0m)),
             ["trailingZeros"] = Select(line => WholeAmount(line) != 0 && WholeAmount(line) % 1_000_000 == 0),
-            ["weekendPosting"] = Select(line => SmeCalendar.IsWeekend(line.PostDate)),
+            ["weekendPosting"] = Select(line => SmeCalendar.IsWeekend(line.GlDate)),
             ["weekendApproval"] = Select(line => line.ApprovalDate is { } approval && SmeCalendar.IsWeekend(approval)),
-            ["holidayPosting"] = Select(line => SmeCalendar.IsHoliday(line.PostDate)),
+            ["holidayPosting"] = Select(line => SmeCalendar.IsHoliday(line.GlDate)),
             ["holidayApproval"] = Select(line => line.ApprovalDate is { } approval && SmeCalendar.IsHoliday(approval)),
             ["blankDescription"] = Select(line => IsBlank(line.Description)),
             ["nonAuthorizedPreparer"] = Select(line => !IsBlank(line.CreatedBy) && !authorized.Contains(line.CreatedBy.Trim())),
-            ["lowFrequencyPreparer"] = Select(line => !IsBlank(line.CreatedBy) && preparers[line.CreatedBy.Trim()] <= 11),
-            ["lowFrequencyAccount"] = Select(line => accounts[line.AccountCode] <= 11),
         };
+    }
+
+    /// <summary>有任何一筆分錄符合條件的傳票，列出這些傳票的全部分錄。</summary>
+    public HashSet<string> WholeVouchers(Func<SmeLine, bool> predicate)
+    {
+        var hitVouchers = Population.Where(predicate).Select(line => line.VoucherNo).ToHashSet(StringComparer.Ordinal);
+        return Population.Where(line => hitVouchers.Contains(line.VoucherNo)).Select(Key).ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>收入貸方，且同一張傳票沒有任何屬於指定用途的借方分錄。</summary>

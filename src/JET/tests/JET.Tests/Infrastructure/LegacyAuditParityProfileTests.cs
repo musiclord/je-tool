@@ -29,7 +29,7 @@ public sealed class LegacyAuditParityProfileTests
         Assert.Equal("case-A", profile.ToString());
         Assert.Equal(new DateOnly(2031, 1, 1), profile.PeriodStart);
         Assert.Equal(new DateOnly(2031, 12, 31), profile.PeriodEnd);
-        Assert.Equal(new DateOnly(2031, 12, 1), profile.LastPeriodStart);
+        Assert.Equal(new DateOnly(2031, 12, 1), profile.PrepStartDate);
         Assert.Equal(2, profile.GlSources.Count);
         Assert.Single(profile.TbSources);
         Assert.All(profile.GlSources, source => Assert.True(source.DataRowCount > 0));
@@ -37,15 +37,15 @@ public sealed class LegacyAuditParityProfileTests
         Assert.Equal(1, profile.TbSources[0].DataRowCount);
         Assert.Equal(GlAmountMode.SignedAmount, profile.GlAmountMode);
         Assert.Equal(TbChangeMode.DirectChange, profile.TbChangeMode);
-        Assert.Equal("gl-doc", profile.GlMapping[GlMappingKeys.DocNum]);
-        Assert.Equal("tb-change", profile.TbMapping[TbMappingKeys.Amount]);
+        Assert.Equal("gl-doc", profile.GlMapping[GlMappingKeys.VoucherNumber]);
+        Assert.Equal("tb-change", profile.TbMapping[TbMappingKeys.ChangeAmount]);
         AssertMappingsEqual(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "gl-doc",
-                [GlMappingKeys.PostDate] = "gl-post",
-                [GlMappingKeys.AccNum] = "gl-account",
-                [GlMappingKeys.AccName] = "gl-account-name",
+                [GlMappingKeys.VoucherNumber] = "gl-doc",
+                [GlMappingKeys.GlDate] = "gl-post",
+                [GlMappingKeys.AccountNumber] = "gl-account",
+                [GlMappingKeys.AccountName] = "gl-account-name",
                 [GlMappingKeys.Description] = "gl-description",
                 [GlMappingKeys.Amount] = "gl-amount",
             },
@@ -54,9 +54,9 @@ public sealed class LegacyAuditParityProfileTests
         AssertMappingsEqual(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [TbMappingKeys.AccNum] = "tb-code",
-                [TbMappingKeys.AccName] = "tb-name",
-                [TbMappingKeys.Amount] = "tb-change",
+                [TbMappingKeys.AccountNumber] = "tb-code",
+                [TbMappingKeys.AccountName] = "tb-name",
+                [TbMappingKeys.ChangeAmount] = "tb-change",
             },
             profile.TbMapping,
             "Synthetic TB mapping values changed from the stage-3 fixture baseline.");
@@ -195,10 +195,10 @@ public sealed class LegacyAuditParityProfileTests
             workspace.Path,
             CancellationToken.None);
 
-        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccountNumber]);
         Assert.Equal(
             LegacyMappingResolutionSource.NormalizedHeaderIdentity,
-            profile.GlMappingResolutionSources[GlMappingKeys.AccNum]);
+            profile.GlMappingResolutionSources[GlMappingKeys.AccountNumber]);
         AssertResolutionSourcesMatchMappings(
             profile.GlMapping,
             profile.GlMappingResolutionSources);
@@ -220,8 +220,8 @@ public sealed class LegacyAuditParityProfileTests
             workspace.Path,
             CancellationToken.None);
 
-        Assert.Equal("gl-doc", profile.GlMapping[GlMappingKeys.DocNum]);
-        Assert.Equal("gl-post", profile.GlMapping[GlMappingKeys.PostDate]);
+        Assert.Equal("gl-doc", profile.GlMapping[GlMappingKeys.VoucherNumber]);
+        Assert.Equal("gl-post", profile.GlMapping[GlMappingKeys.GlDate]);
         Assert.Equal("gl-description", profile.GlMapping[GlMappingKeys.Description]);
         Assert.Equal("gl-amount", profile.GlMapping[GlMappingKeys.Amount]);
     }
@@ -318,7 +318,7 @@ public sealed class LegacyAuditParityProfileTests
             CancellationToken.None);
 
         Assert.Equal(2, profile.GlSources.Count);
-        Assert.Equal("gl-doc", profile.GlMapping[GlMappingKeys.DocNum]);
+        Assert.Equal("gl-doc", profile.GlMapping[GlMappingKeys.VoucherNumber]);
         Assert.Equal("gl-amount", profile.GlMapping[GlMappingKeys.Amount]);
     }
 
@@ -339,7 +339,7 @@ public sealed class LegacyAuditParityProfileTests
             CancellationToken.None);
 
         Assert.Equal(2, profile.GlSources.Count);
-        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccountNumber]);
     }
 
     [Fact]
@@ -410,7 +410,7 @@ public sealed class LegacyAuditParityProfileTests
 
         Assert.Single(profile.GlSources);
         Assert.Equal(1, profile.GlSources[0].DataRowCount);
-        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccountNumber]);
     }
 
     [Fact]
@@ -477,10 +477,10 @@ public sealed class LegacyAuditParityProfileTests
             workspace.Path,
             CancellationToken.None);
 
-        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccountNumber]);
         Assert.Equal(
             LegacyMappingResolutionSource.BilateralRoleAgreement,
-            profile.GlMappingResolutionSources[GlMappingKeys.AccNum]);
+            profile.GlMappingResolutionSources[GlMappingKeys.AccountNumber]);
     }
 
     [Fact]
@@ -524,10 +524,10 @@ public sealed class LegacyAuditParityProfileTests
             workspace.Path,
             CancellationToken.None);
 
-        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("gl-account", profile.GlMapping[GlMappingKeys.AccountNumber]);
         Assert.Equal(
             LegacyMappingResolutionSource.BipartiteUniqueSolution,
-            profile.GlMappingResolutionSources[GlMappingKeys.AccNum]);
+            profile.GlMappingResolutionSources[GlMappingKeys.AccountNumber]);
     }
 
     [Fact]
@@ -548,10 +548,10 @@ public sealed class LegacyAuditParityProfileTests
             workspace.Path,
             CancellationToken.None);
 
-        Assert.Equal("correct-account-code", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("correct-account-code", profile.GlMapping[GlMappingKeys.AccountNumber]);
         Assert.Equal(
             LegacyMappingResolutionSource.CrossDatasetAccountTotalReconciliation,
-            profile.GlMappingResolutionSources[GlMappingKeys.AccNum]);
+            profile.GlMappingResolutionSources[GlMappingKeys.AccountNumber]);
         Assert.Equal(2, profile.GlSources.Count);
     }
 
@@ -573,10 +573,10 @@ public sealed class LegacyAuditParityProfileTests
             workspace.Path,
             CancellationToken.None);
 
-        Assert.Equal("correct-account-code", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("correct-account-code", profile.GlMapping[GlMappingKeys.AccountNumber]);
         Assert.Equal(
             LegacyMappingResolutionSource.CrossDatasetAccountTotalReconciliation,
-            profile.GlMappingResolutionSources[GlMappingKeys.AccNum]);
+            profile.GlMappingResolutionSources[GlMappingKeys.AccountNumber]);
     }
 
     [Fact]
@@ -627,14 +627,14 @@ public sealed class LegacyAuditParityProfileTests
             workspace.Path,
             CancellationToken.None);
 
-        Assert.Equal("document-code", profile.GlMapping[GlMappingKeys.DocNum]);
-        Assert.Equal("document-account-code", profile.GlMapping[GlMappingKeys.AccNum]);
+        Assert.Equal("document-code", profile.GlMapping[GlMappingKeys.VoucherNumber]);
+        Assert.Equal("document-account-code", profile.GlMapping[GlMappingKeys.AccountNumber]);
         Assert.Equal(
             LegacyMappingResolutionSource.BipartiteUniqueSolution,
-            profile.GlMappingResolutionSources[GlMappingKeys.DocNum]);
+            profile.GlMappingResolutionSources[GlMappingKeys.VoucherNumber]);
         Assert.Equal(
             LegacyMappingResolutionSource.BipartiteUniqueSolution,
-            profile.GlMappingResolutionSources[GlMappingKeys.AccNum]);
+            profile.GlMappingResolutionSources[GlMappingKeys.AccountNumber]);
     }
 
     [Fact]
@@ -778,7 +778,7 @@ public sealed class LegacyAuditParityProfileTests
         var scenario = AssertScenario(result);
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
         Assert.Equal("AND", group.GetProperty("join").GetString());
-        var rules = group.GetProperty("rules").EnumerateArray().ToArray();
+        var rules = group.GetProperty("conditions").EnumerateArray().ToArray();
         Assert.Equal(4, rules.Length);
         Assert.All(rules, rule => Assert.Equal("AND", rule.GetProperty("join").GetString()));
         Assert.Equal("text", rules[0].GetProperty("type").GetString());
@@ -801,7 +801,7 @@ public sealed class LegacyAuditParityProfileTests
 
         var scenario = AssertScenario(result);
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
-        var rule = Assert.Single(group.GetProperty("rules").EnumerateArray());
+        var rule = Assert.Single(group.GetProperty("conditions").EnumerateArray());
         Assert.Equal("accountPair", rule.GetProperty("type").GetString());
         Assert.Equal(AccountPairModes.Exact, rule.GetProperty("pairMode").GetString());
     }
@@ -820,9 +820,9 @@ public sealed class LegacyAuditParityProfileTests
             "scenario-01-criteria-log");
 
         var group = Assert.Single(AssertScenario(result).GetProperty("groups").EnumerateArray());
-        var rule = Assert.Single(group.GetProperty("rules").EnumerateArray());
-        Assert.Equal(new[] { AccountTaxonomyBuiltIns.CashId }, CategoryIds(rule, "debitCategoryIds"));
-        Assert.Equal(new[] { AccountTaxonomyBuiltIns.RevenueId }, CategoryIds(rule, "creditCategoryIds"));
+        var rule = Assert.Single(group.GetProperty("conditions").EnumerateArray());
+        Assert.Equal(new[] { AccountCategoryBuiltIns.CashId }, CategoryIds(rule, "debitCategoryIds"));
+        Assert.Equal(new[] { AccountCategoryBuiltIns.RevenueId }, CategoryIds(rule, "creditCategoryIds"));
         Assert.False(rule.TryGetProperty("debitCategory", out _));
         Assert.False(rule.TryGetProperty("creditCategory", out _));
     }
@@ -840,11 +840,11 @@ public sealed class LegacyAuditParityProfileTests
             "scenario-01-criteria-log");
 
         var group = Assert.Single(AssertScenario(result).GetProperty("groups").EnumerateArray());
-        var rule = Assert.Single(group.GetProperty("rules").EnumerateArray());
+        var rule = Assert.Single(group.GetProperty("conditions").EnumerateArray());
         Assert.Equal("specialAccountCategoryPair", rule.GetProperty("type").GetString());
         Assert.Equal(SpecialAccountCategoryPairModes.DrNotCr, rule.GetProperty("pairMode").GetString());
-        Assert.Equal(new[] { AccountTaxonomyBuiltIns.CashId }, CategoryIds(rule, "debitCategoryIds"));
-        Assert.Equal(new[] { AccountTaxonomyBuiltIns.RevenueId }, CategoryIds(rule, "creditCategoryIds"));
+        Assert.Equal(new[] { AccountCategoryBuiltIns.CashId }, CategoryIds(rule, "debitCategoryIds"));
+        Assert.Equal(new[] { AccountCategoryBuiltIns.RevenueId }, CategoryIds(rule, "creditCategoryIds"));
         Assert.False(rule.TryGetProperty("debitCategory", out _));
         Assert.False(rule.TryGetProperty("creditCategory", out _));
     }
@@ -884,7 +884,7 @@ public sealed class LegacyAuditParityProfileTests
         Assert.Equal("legacy-scenario-02", scenario.GetProperty("name").GetString());
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
         Assert.Equal("row", group.GetProperty("matchScope").GetString());
-        var rule = Assert.Single(group.GetProperty("rules").EnumerateArray());
+        var rule = Assert.Single(group.GetProperty("conditions").EnumerateArray());
         Assert.Equal("text", rule.GetProperty("type").GetString());
         Assert.Equal("notContains", rule.GetProperty("mode").GetString());
         Assert.Equal("alphaone,beta.*", rule.GetProperty("keywords").GetString());
@@ -915,7 +915,7 @@ public sealed class LegacyAuditParityProfileTests
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
         // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Historical anchor order now has explicit voucher witnesses.
         Assert.Equal("row", group.GetProperty("matchScope").GetString());
-        var rules = group.GetProperty("rules").EnumerateArray().ToArray();
+        var rules = group.GetProperty("conditions").EnumerateArray().ToArray();
         Assert.Equal(3, rules.Length);
         Assert.Equal("drCrOnly", rules[0].GetProperty("type").GetString());
         foreach (var witness in rules.Skip(1))
@@ -923,7 +923,7 @@ public sealed class LegacyAuditParityProfileTests
             Assert.Equal("voucher", witness.GetProperty("type").GetString());
             Assert.Equal("any", witness.GetProperty("quantifier").GetString());
             Assert.False(witness.TryGetProperty("side", out _));
-            var rule = Assert.Single(witness.GetProperty("rules").EnumerateArray());
+            var rule = Assert.Single(witness.GetProperty("conditions").EnumerateArray());
             Assert.Equal("textSet", rule.GetProperty("type").GetString());
             Assert.Equal("preserve", rule.GetProperty("normalization").GetString());
         }
@@ -935,7 +935,7 @@ public sealed class LegacyAuditParityProfileTests
         var description = JetFieldCatalog.GlFields.Single(
             static field => field.SemanticIdentity == JetFieldCatalog.GlDescription).LegacyFieldName!;
         var accountName = JetFieldCatalog.GlFields.Single(
-            static field => field.SemanticIdentity == JetFieldCatalog.GlAccName).LegacyFieldName!;
+            static field => field.SemanticIdentity == JetFieldCatalog.GlAccountName).LegacyFieldName!;
         var result = LegacyCriteriaLogParser.TryParse(
             $"#1. 文字欄位【{description}】值為 - alpha #2. 文字欄位【{accountName}】值為 - beta,gamma",
             "legacy-scenario-04",
@@ -947,11 +947,11 @@ public sealed class LegacyAuditParityProfileTests
         var scenario = AssertScenario(result);
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
         Assert.Equal("row", group.GetProperty("matchScope").GetString());
-        var rules = group.GetProperty("rules").EnumerateArray().ToArray();
+        var rules = group.GetProperty("conditions").EnumerateArray().ToArray();
         Assert.Equal(2, rules.Length);
         Assert.Equal("voucher", rules[1].GetProperty("type").GetString());
         Assert.Equal("any", rules[1].GetProperty("quantifier").GetString());
-        Assert.All(new[] { rules[0], Assert.Single(rules[1].GetProperty("rules").EnumerateArray()) }, rule =>
+        Assert.All(new[] { rules[0], Assert.Single(rules[1].GetProperty("conditions").EnumerateArray()) }, rule =>
         {
             Assert.Equal("textSet", rule.GetProperty("type").GetString());
             Assert.Equal("preserve", rule.GetProperty("normalization").GetString());
@@ -960,7 +960,7 @@ public sealed class LegacyAuditParityProfileTests
 
     [Theory]
     [InlineData((int)LegacyParityCase.CaseA, 2, "row", "removeAsciiSpaces")]
-    [InlineData((int)LegacyParityCase.CaseA, 3, "sameVoucher", "preserve")]
+    [InlineData((int)LegacyParityCase.CaseA, 3, "voucherWitnesses", "preserve")]
     public void CriteriaLog_CustomDescriptionList_UsesClosedTextSetPolicy(
         int caseValue,
         int legacyPosition,
@@ -979,9 +979,9 @@ public sealed class LegacyAuditParityProfileTests
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
         Assert.Equal("row", group.GetProperty("matchScope").GetString());
         var rule = Assert.Single(
-            group.GetProperty("rules").EnumerateArray().Select(candidate =>
-                matchScope == "sameVoucher" && candidate.GetProperty("type").GetString() == "voucher"
-                    ? Assert.Single(candidate.GetProperty("rules").EnumerateArray()) : candidate),
+            group.GetProperty("conditions").EnumerateArray().Select(candidate =>
+                matchScope == "voucherWitnesses" && candidate.GetProperty("type").GetString() == "voucher"
+                    ? Assert.Single(candidate.GetProperty("conditions").EnumerateArray()) : candidate),
             candidate => candidate.GetProperty("type").GetString() == "textSet");
         Assert.Equal(GlMappingKeys.Description, rule.GetProperty("field").GetString());
         Assert.Equal(normalization, rule.GetProperty("normalization").GetString());
@@ -1005,12 +1005,12 @@ public sealed class LegacyAuditParityProfileTests
         var scenario = AssertScenario(result);
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
         Assert.Equal("row", group.GetProperty("matchScope").GetString());
-        var rules = group.GetProperty("rules").EnumerateArray().ToArray();
+        var rules = group.GetProperty("conditions").EnumerateArray().ToArray();
         Assert.Equal(2, rules.Length);
         Assert.Equal("numRange", rules[0].GetProperty("type").GetString());
         Assert.Equal("voucher", rules[1].GetProperty("type").GetString());
         Assert.Equal("any", rules[1].GetProperty("quantifier").GetString());
-        Assert.Equal("textSet", Assert.Single(rules[1].GetProperty("rules").EnumerateArray()).GetProperty("type").GetString());
+        Assert.Equal("textSet", Assert.Single(rules[1].GetProperty("conditions").EnumerateArray()).GetProperty("type").GetString());
     }
 
     [Fact]
@@ -1185,8 +1185,8 @@ public sealed class LegacyAuditParityProfileTests
             fieldInfo.Cell("A2").Value = "TB檔案配對前後欄位對照表";
             fieldInfo.Cell("A3").Value = "配對前欄位名稱";
             fieldInfo.Cell("E3").Value = "配對後欄位名稱";
-            AddFieldInfoRow(fieldInfo, 4, "tb-code", LegacyName(DatasetKind.Tb, JetFieldCatalog.TbAccNum));
-            AddFieldInfoRow(fieldInfo, 5, "tb-name", LegacyName(DatasetKind.Tb, JetFieldCatalog.TbAccName));
+            AddFieldInfoRow(fieldInfo, 4, "tb-code", LegacyName(DatasetKind.Tb, JetFieldCatalog.TbAccountNumber));
+            AddFieldInfoRow(fieldInfo, 5, "tb-name", LegacyName(DatasetKind.Tb, JetFieldCatalog.TbAccountName));
             AddFieldInfoRow(fieldInfo, 6, "tb-change", LegacyName(DatasetKind.Tb, JetFieldCatalog.TbChangeAmount));
 
             fieldInfo.Cell("A8").Value = "GL檔案配對前後欄位對照表";
@@ -1199,8 +1199,8 @@ public sealed class LegacyAuditParityProfileTests
                     or SyntheticGlShape.OverlappingRequiredRolesAmbiguous
                         ? "mapped-required-a"
                         : "gl-doc",
-                LegacyName(DatasetKind.Gl, JetFieldCatalog.GlDocNum));
-            AddFieldInfoRow(fieldInfo, 11, "gl-post", LegacyName(DatasetKind.Gl, JetFieldCatalog.GlPostDate));
+                LegacyName(DatasetKind.Gl, JetFieldCatalog.GlVoucherNumber));
+            AddFieldInfoRow(fieldInfo, 11, "gl-post", LegacyName(DatasetKind.Gl, JetFieldCatalog.GlDate));
             AddFieldInfoRow(
                 fieldInfo,
                 12,
@@ -1220,14 +1220,14 @@ public sealed class LegacyAuditParityProfileTests
                         "unrelated-required-display",
                     _ => "gl-account",
                 },
-                LegacyName(DatasetKind.Gl, JetFieldCatalog.GlAccNum));
+                LegacyName(DatasetKind.Gl, JetFieldCatalog.GlAccountNumber));
             AddFieldInfoRow(
                 fieldInfo,
                 13,
                 glShape == SyntheticGlShape.GenericAccountNameFallback
                     ? "legacy-account-name-display"
                     : "gl-account-name",
-                LegacyName(DatasetKind.Gl, JetFieldCatalog.GlAccName));
+                LegacyName(DatasetKind.Gl, JetFieldCatalog.GlAccountName));
             AddFieldInfoRow(
                 fieldInfo,
                 14,
@@ -1244,7 +1244,7 @@ public sealed class LegacyAuditParityProfileTests
                         fieldInfo,
                         row,
                         $"duplicate-document-target-{row - 15:00}",
-                        LegacyName(DatasetKind.Gl, JetFieldCatalog.GlDocNum));
+                        LegacyName(DatasetKind.Gl, JetFieldCatalog.GlVoucherNumber));
                 }
             }
             if (glShape == SyntheticGlShape.MissingNamedColumnPartition)

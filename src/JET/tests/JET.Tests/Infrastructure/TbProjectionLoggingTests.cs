@@ -3,8 +3,8 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
-// 第 9 批中低 9：TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -18,10 +18,10 @@ public sealed class TbProjectionLoggingTests
     private static TbMappingSpec Spec() => new(
         new Dictionary<string, string>
         {
-            [TbMappingKeys.AccNum] = "acc",
-            [TbMappingKeys.AccName] = "name",
-            [TbMappingKeys.DebitAmt] = "dr",
-            [TbMappingKeys.CreditAmt] = "cr"
+            [TbMappingKeys.AccountNumber] = "acc",
+            [TbMappingKeys.AccountName] = "name",
+            [TbMappingKeys.DebitAmount] = "dr",
+            [TbMappingKeys.CreditAmount] = "cr"
         },
         TbChangeMode.DebitCredit);
 
@@ -66,8 +66,8 @@ public sealed class TbProjectionLoggingTests
         // 一次性 SQL 僅 clear DELETE + staging SELECT；逐列 INSERT 不記事件（不隨母體列數成長）
         Assert.Equal(2, sql.Count);
         Assert.All(sql, e => Assert.Equal(expectedProvider, e.Fields["provider"]?.ToString()));
-        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"DELETE FROM {schemaPrefix}target_tb_balance"));
-        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"{schemaPrefix}staging_tb_raw_row"));
+        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"DELETE FROM {schemaPrefix}tb"));
+        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"{schemaPrefix}pbc_tb"));
 
         var begin = entries.Single(e => e.EventName == "tx.begin");
         var commit = entries.Single(e => e.EventName == "tx.commit");

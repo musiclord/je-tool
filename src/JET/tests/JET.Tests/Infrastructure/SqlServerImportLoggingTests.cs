@@ -3,7 +3,7 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -55,7 +55,7 @@ public sealed class SqlServerImportLoggingTests
         Assert.All(sql, e => Assert.Equal("sqlServer", e.Fields["provider"]?.ToString()));
 
         // SqlBulkCopy 不逐列記事件
-        Assert.DoesNotContain(sql, e => e.Fields["sql"]!.ToString()!.Contains("INSERT INTO staging_gl_raw_row"));
+        Assert.DoesNotContain(sql, e => e.Fields["sql"]!.ToString()!.Contains("INSERT INTO pbc_gl"));
 
         // 一次性語句逐筆記錄：INSERT import_batch 帶 @columnsJson 參數值（欄名）、rows_affected=1
         var batchInsert = sql.First(e => e.Fields["parameters"]!.ToString()!.Contains("@columnsJson"));

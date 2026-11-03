@@ -17,14 +17,14 @@ public sealed class MappingRestoreDraftHandlerTests
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
         var (gl, tb) = CommittedFrom(before);
         var badTb = tb.Mapping.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        badTb[TbMappingKeys.AccNum] = "目前批次不存在的欄位";
+        badTb[TbMappingKeys.AccountNumber] = "目前批次不存在的欄位";
         var path = Workbook(MappingMetadataCodec.Encode(
             gl,
             tb with { Mapping = badTb }));
         var glRows = await DemoProjectPipeline.QueryScalarAsync(
-            host, context.ProjectId, "SELECT COUNT(*) FROM target_gl_entry;");
+            host, context.ProjectId, "SELECT COUNT(*) FROM gl;");
         var tbRows = await DemoProjectPipeline.QueryScalarAsync(
-            host, context.ProjectId, "SELECT COUNT(*) FROM target_tb_balance;");
+            host, context.ProjectId, "SELECT COUNT(*) FROM tb;");
 
         try
         {
@@ -36,9 +36,9 @@ public sealed class MappingRestoreDraftHandlerTests
                 "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
             Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());
             Assert.Equal(glRows, await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM target_gl_entry;"));
+                host, context.ProjectId, "SELECT COUNT(*) FROM gl;"));
             Assert.Equal(tbRows, await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM target_tb_balance;"));
+                host, context.ProjectId, "SELECT COUNT(*) FROM tb;"));
         }
         finally
         {
@@ -58,10 +58,10 @@ public sealed class MappingRestoreDraftHandlerTests
             static pair => pair.Key,
             static pair => pair.Value,
             StringComparer.Ordinal);
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：示範資料不再有「傳票日期」欄。
-        // 改用「傳票核准日」當自訂日期欄，先移除 core docDate 配對並把核准日設為未配對，避免同一來源重複指派；
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：示範資料不再有「傳票日期」欄。
+        // 改用「傳票核准日」當自訂日期欄，先移除 core approvalDate 配對並把核准日設為未配對，避免同一來源重複指派；
         // stable ID 與 round-trip 斷言全部保留。
-        mapping.Remove(GlMappingKeys.DocDate);
+        mapping.Remove(GlMappingKeys.ApprovalDate);
         var committed = await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
             mapping,
@@ -113,9 +113,9 @@ public sealed class MappingRestoreDraftHandlerTests
                 fileName = glFile.GetProperty("fileName").GetString()
             }));
             Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM config_gl_rde_field;"));
+                host, context.ProjectId, "SELECT COUNT(*) FROM gl_rde_field;"));
             Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM target_gl_rde_value;"));
+                host, context.ProjectId, "SELECT COUNT(*) FROM gl_rde_value;"));
 
             var restored = await host.DispatchAsync(
                 "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
@@ -126,9 +126,9 @@ public sealed class MappingRestoreDraftHandlerTests
                 stableId,
                 recommitted.GetProperty("rdeFields")[0].GetProperty("fieldId").GetString());
             Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM config_gl_rde_field;"));
+                host, context.ProjectId, "SELECT COUNT(*) FROM gl_rde_field;"));
             Assert.True(await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM target_gl_rde_value;") > 0);
+                host, context.ProjectId, "SELECT COUNT(*) FROM gl_rde_value;") > 0);
         }
         finally
         {
@@ -145,7 +145,7 @@ public sealed class MappingRestoreDraftHandlerTests
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
         var (gl, tb) = CommittedFrom(loaded);
         var incomplete = gl.Mapping.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        incomplete.Remove(GlMappingKeys.DocNum);
+        incomplete.Remove(GlMappingKeys.VoucherNumber);
         var path = Workbook(MappingMetadataCodec.Encode(gl with { Mapping = incomplete }, tb));
 
         try
@@ -160,6 +160,25 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
+    // 裁定 2026-10-30-20：讀不到報告時不寫「可能」，改寫審計員接下來能做什麼。改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
+    [Fact]
+    public async Task RestoreDraft_UnreadableReport_SaysWhatToCheckWithoutGuessing()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "jet-restore-" + Guid.NewGuid().ToString("N") + ".xlsx");
+        await File.WriteAllBytesAsync(path, "not-an-xlsx"u8.ToArray(), CancellationToken.None);
+        try
+        {
+            var ex = await Assert.ThrowsAsync<JetActionException>(() =>
+                new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None));
+            Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
+            Assert.Equal("無法讀取欄位配對報告。請確認檔案沒有被其他程式開啟，而且是 JET 匯出的 xlsx 檔。", ex.Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task RestoreDraft_WithoutCurrentImports_RejectsBeforeReturningDrafts()
     {
@@ -167,7 +186,7 @@ public sealed class MappingRestoreDraftHandlerTests
         await host.DispatchAsync("project.create", """
         {
           "projectCode":"P2-NO-IMPORT",
-          "entityName":"P2 合成案件",
+          "clientName":"P2 合成案件",
           "operatorId":"p2-auditor",
           "periodStart":"2025-01-01",
           "periodEnd":"2025-12-31",
@@ -230,10 +249,10 @@ public sealed class MappingRestoreDraftHandlerTests
         DatasetKind.Gl,
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "Document",
-            [GlMappingKeys.PostDate] = "PostDate",
-            [GlMappingKeys.AccNum] = "Account",
-            [GlMappingKeys.AccName] = "AccountName",
+            [GlMappingKeys.VoucherNumber] = "Document",
+            [GlMappingKeys.GlDate] = "GlDate",
+            [GlMappingKeys.AccountNumber] = "Account",
+            [GlMappingKeys.AccountName] = "AccountName",
             [GlMappingKeys.Description] = "Description",
             [GlMappingKeys.Amount] = "Amount"
         },
@@ -245,9 +264,9 @@ public sealed class MappingRestoreDraftHandlerTests
         DatasetKind.Tb,
         new Dictionary<string, string>
         {
-            [TbMappingKeys.AccNum] = "Account",
-            [TbMappingKeys.AccName] = "AccountName",
-            [TbMappingKeys.Amount] = "Movement"
+            [TbMappingKeys.AccountNumber] = "Account",
+            [TbMappingKeys.AccountName] = "AccountName",
+            [TbMappingKeys.ChangeAmount] = "Movement"
         },
         TbChangeModeNames.Direct,
         "tb-batch",

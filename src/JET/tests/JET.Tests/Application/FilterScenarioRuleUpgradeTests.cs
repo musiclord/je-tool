@@ -13,7 +13,7 @@ namespace JET.Tests.Application;
 public sealed class FilterScenarioRuleUpgradeTests
 {
     private static readonly FilterValidationContext Context =
-        new(HasLastPeriodStart: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
+        new(HasPrepStartDate: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
 
     private static readonly DateTimeOffset SavedUtc = new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset NowUtc = new(2026, 10, 2, 9, 30, 0, TimeSpan.Zero);
@@ -32,7 +32,7 @@ public sealed class FilterScenarioRuleUpgradeTests
         {
             "\"name\":\"合成情境\"",
             "\"rationale\":\"合成動機\"",
-            $"\"groups\":[{{\"join\":\"AND\",\"rules\":[{rule}]}}]"
+            $"\"groups\":[{{\"join\":\"AND\",\"conditions\":[{rule}]}}]"
         };
         if (logicVersion is not null) properties.Add($"\"logicVersion\":{JsonSerializer.Serialize(logicVersion)}");
         if (populationScope is not null) properties.Add($"\"populationScope\":{JsonSerializer.Serialize(populationScope)}");
@@ -59,7 +59,7 @@ public sealed class FilterScenarioRuleUpgradeTests
     [Fact]
     public void CurrentBatch_IsRevalidatedOnLoad()
     {
-        // 改動原因：使用者 2026-10-13 裁定「開案也逐一檢查」，拿掉「已是目前版本就不驗證」的捷徑；原本斷言 Current
+        // 改動原因：裁定 2026-10-13-25 要求開案也逐一檢查，拿掉「已是目前版本就不驗證」的捷徑；原本斷言 Current
         // （問題留給補算時回報）。第一次失敗：Focused 收據 20261013-133703293-a159a47c0ec64441a7dbc9702c86d15a。
         // 同一個不合格的目前版本情境，現在開案就列在待修正清單；合格的目前版本仍回 Current，見 CurrentValidBatch_StaysCurrentWithoutNewVersions。
         var result = Evaluate(Saved(1, Definition(RuleLogicVersions.Filter, rule: UnknownRdeRule)));
@@ -71,7 +71,7 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.Equal("情境1", problem.Name);
     }
 
-    // 使用者 2026-10-13 裁定「開案也逐一檢查」：已是目前版本、但因其他資料改變而不合格的情境，開案時就列在待修正清單；
+    // 開案也逐一檢查（裁定 2026-10-13-25）：已是目前版本、但因其他資料改變而不合格的情境，開案時就列在待修正清單；
     // 合格的目前版本照舊回 Current，不重新蓋版本。
     [Fact]
     public void CurrentVersionThatNoLongerValidates_IsListedOnLoad()
@@ -158,16 +158,6 @@ public sealed class FilterScenarioRuleUpgradeTests
     }
 
     [Fact]
-    public void RemovedExclusions_NeedsEditWithParserMessage()
-    {
-        var result = Evaluate(Saved(1, Definition(extra: "\"exclusions\":[" + DebitRule + "]")));
-
-        Assert.Equal(FilterScenarioUpgradeStatus.NeedsEdit, result.Status);
-        var message = Assert.Single(Assert.Single(result.Problems).Messages);
-        Assert.Contains("排除區域", message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void OneInvalidScenario_KeepsTheWholeBatchAndListsOnlyThatScenario()
     {
         var result = Evaluate(
@@ -182,15 +172,19 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.NotEmpty(problem.Messages);
     }
 
+    // 改動原因：2026-10-31 起每個情境各自儲存，保存時間本來就不同，不再算成整批不一致；
+    // 原斷言（Status 為 Inconsistent）的第一次失敗：收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+    // 改成和其他合格的舊版本情境相同，整批改用目前規則，情境編號照舊。
     [Fact]
-    public void MixedSavedTimes_AreInconsistent()
+    public void MixedSavedTimes_AreUpgradedLikeAnyOtherBatch()
     {
         var result = Evaluate(
             Saved(1, Definition()),
-            Saved(2, Definition(), SavedUtc.AddSeconds(1)));
+            Saved(2, Definition(), SavedUtc.AddSeconds(1)) with { ScenarioId = 5 });
 
-        Assert.Equal(FilterScenarioUpgradeStatus.Inconsistent, result.Status);
-        Assert.Null(result.Scenarios);
+        Assert.Equal(FilterScenarioUpgradeStatus.Upgraded, result.Status);
+        Assert.Equal([1, 5], result.Scenarios!.Select(scenario => scenario.ScenarioId));
+        Assert.All(result.Scenarios!, scenario => Assert.Equal(NowUtc, scenario.SavedUtc));
         Assert.Empty(result.Problems);
     }
 
@@ -205,7 +199,7 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.Equal(FilterScenarioUpgradeStatus.Inconsistent, result.Status);
     }
 
-    // 改動原因：使用者 2026-10-13「損毀的情境」裁定開案清單一律寫「條件內容讀不出來」，「情境卡住」裁定待修正的情境要能一個一個刪；
+    // 改動原因：裁定 2026-10-13-21 讓開案清單把損毀的情境一律寫成「條件內容讀不出來」，裁定 2026-10-13-24 讓待修正的情境能一個一個刪；
     // 讀不出來的情境因此改列成這個情境的一筆問題，不再讓整批變成沒有清單的 Inconsistent（保存時間與位置的結構問題仍是 Inconsistent）。
     // 原斷言（Status 為 Inconsistent）的第一次失敗：Public 收據 20261013-103826650-632ded11dde247d0b97d4e5ea6dd63bf。
     // 預期的訊息常數與位置、名稱都寫死，整批照舊不動（Scenarios 為 null）。
@@ -222,7 +216,7 @@ public sealed class FilterScenarioRuleUpgradeTests
         var problem = Assert.Single(result.Problems);
         Assert.Equal(2, problem.Position);
         Assert.Equal("情境2", problem.Name);
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：B3 改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 裁定 2026-10-13-28 確認了用字，改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal(["條件內容無法讀取"], problem.Messages);
     }
 
@@ -282,7 +276,7 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.True(RuleLogicVersions.IsCurrent(write.Rows[1]));
         Assert.Equal("not json", write.Rows[2].DefinitionJson);
         Assert.Equal([1, 3], write.Problems.Select(problem => problem.Position));
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：B3 改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 裁定 2026-10-13-28 確認了用字，改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal(["條件內容無法讀取"], write.Problems[1].Messages);
         Assert.Equal(1, write.UpgradedOthers);
     }

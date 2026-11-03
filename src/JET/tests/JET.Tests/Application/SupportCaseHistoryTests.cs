@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 使用者 2026-10-21 要求離開案件、之後再回到同一案件時，匯出的支援日誌不缺一開始的事件。每個情境先寫出完整的預期事件順序，
+/// 離開案件、之後再回到同一案件時，匯出的支援日誌不能缺一開始的事件（裁定 2026-10-21-07）。每個情境先寫出完整的預期事件順序，
 /// 再只讀匯出檔核對：重新開啟、沒有正常離開與寫到一半的行、紀錄檔被占用或唯讀、另一個程式開不了案件、切換案件、
 /// 刪除後重建同名案件、舊案件第一次開啟，以及寫不進去的事件超過保留上限。程式真的重新啟動與被強制結束的情境見
 /// <see cref="SupportCaseHistoryProcessTests"/>。
@@ -294,7 +294,7 @@ public sealed class SupportCaseHistoryTests
     {
         using var root = new TempProjectRoot();
         var id = await CreateOldCaseAsync(root.Path, "Synthetic history broken old case");
-        await File.WriteAllTextAsync(Path.Combine(root.Path, id, "project.json"), "{\"entityName\":");
+        await File.WriteAllTextAsync(Path.Combine(root.Path, id, "project.json"), "{\"clientName\":");
         var directory = Path.Combine(root.Path, id, SupportCaseHistoryStore.DirectoryName);
 
         using (var host = new HandlerTestHost(enableDevTools: false, projectsRootPath: root.Path))
@@ -461,7 +461,7 @@ public sealed class SupportCaseHistoryTests
     internal static async Task<string> CreateAsync(HandlerTestHost host, string provider, string name, string correlationId)
     {
         var result = await host.DispatchAsync("project.create", Json(new
-        { caseName = name, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }),
+        { projectName = name, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }),
             correlationId: correlationId);
         return result.GetProperty("projectId").GetString()!;
     }

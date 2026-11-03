@@ -3,7 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -60,7 +60,7 @@ public sealed class LocalImportCancellationTests
         Assert.Equal(2, source.RowCount);
 
         Assert.Equal(2, await ScalarAsync(database, projectId,
-            "SELECT COUNT(*) FROM staging_gl_raw_row;"));
+            "SELECT COUNT(*) FROM pbc_gl;"));
         Assert.Equal(1, await ScalarAsync(database, projectId,
             "SELECT COUNT(*) FROM import_batch WHERE dataset_kind = 'gl';"));
         Assert.Equal(1, await ScalarAsync(database, projectId,

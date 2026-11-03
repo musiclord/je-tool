@@ -14,11 +14,11 @@ public sealed class CalendarNonWorkingDaysHandlerTests
         """
         {
           "projectCode": "ENG-2024-001",
-          "entityName": "範例股份有限公司",
+          "clientName": "範例股份有限公司",
           "operatorId": "auditor01",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
-          "lastPeriodStart": "2024-12-31"
+          "prepStartDate": "2024-12-31"
         }
         """;
 

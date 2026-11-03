@@ -96,7 +96,7 @@ internal static class MappingMetadataCodec
                 "manualAutoPolicy",
                 "rdeFields"
             ],
-            // 往下填補的欄位（階段六）與填了幾格（2026-10-28）是後來加的，改版前寫出的報告沒有這兩項。
+            // 往下填補的欄位與填了幾格是後來加的，改版前寫出的報告沒有這兩項。
             ["fillDownFields", "fillDownCount"]);
         var mapping = JsonContractReader.ReadMapping(
             value.GetProperty("mapping"),
@@ -236,7 +236,7 @@ internal static class GlMappingOptionsJsonCodec
                 document.RootElement,
                 "options",
                 ["approvalDateMode", "postingStatusPolicy", "manualAutoPolicy", "rdeFields"],
-                // 往下填補的欄位（階段六）與填了幾格（2026-10-28）是後來加的，改版前確認的配對沒有這兩項。
+                // 往下填補的欄位與填了幾格是後來加的，改版前確認的配對沒有這兩項。
                 ["fillDownFields", "fillDownCount"]);
             return ReadProperties(root, mapping, "options.");
         }
@@ -367,17 +367,17 @@ internal static class GlMappingOptionsJsonCodec
         {
             throw new MappingMetadataFormatException("gl.approvalDateMode 不是正準值。");
         }
-        var approvalDateMapped = mapping.TryGetValue(GlMappingKeys.DocDate, out var approvalDateColumn)
+        var approvalDateMapped = mapping.TryGetValue(GlMappingKeys.ApprovalDate, out var approvalDateColumn)
                                  && !string.IsNullOrWhiteSpace(approvalDateColumn);
         if (options.ApprovalDateMode == ApprovalDateModeNames.Mapped && !approvalDateMapped)
         {
             throw new MappingMetadataFormatException(
-                "gl.approvalDateMode 為 mapped 時必須配對 docDate。");
+                "gl.approvalDateMode 為 mapped 時必須配對 approvalDate。");
         }
         if (options.ApprovalDateMode != ApprovalDateModeNames.Mapped && approvalDateMapped)
         {
             throw new MappingMetadataFormatException(
-                $"gl.approvalDateMode 為 {options.ApprovalDateMode} 時不得配對 docDate。");
+                $"gl.approvalDateMode 為 {options.ApprovalDateMode} 時不得配對 approvalDate。");
         }
         if (options.PostingStatusPolicy is not null)
         {

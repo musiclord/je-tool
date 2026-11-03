@@ -1,0 +1,448 @@
+using JET.Application;
+using JET.Domain;
+using Xunit;
+
+namespace JET.Tests.Application;
+
+public sealed class FilterHitMaterializeServiceGateTests
+{
+    [Fact]
+    public async Task ConcurrentMaterialization_WhenExclusiveGateIsHeld_FailsFastWithoutReadingOrWriting()
+    {
+        var gate = new ActionExecutionGate();
+        using var held = Assert.IsAssignableFrom<IDisposable>(gate.TryAcquire());
+        var projectStore = new StubProjectStore(Document());
+        var materializer = new RecordingMaterializer();
+        var session = ActiveSession();
+        var service = new FilterHitMaterializeService(
+            materializer,
+            projectStore,
+            new StubScenarioStore([Scenario()]),
+            new AmountMappedGlStore(),
+            gate,
+            session,
+            resultStaleStateStore: new FixedStaleStore(true));
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(
+            () => service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.OperationInProgress, exception.Code);
+        Assert.Equal(0, projectStore.FindCalls);
+        Assert.Equal(0, materializer.Calls);
+
+        held.Dispose();
+        var snapshot = await service.MaterializeForConcurrentQueryAsync(
+            "project-1",
+            CancellationToken.None);
+        Assert.NotNull(snapshot);
+        Assert.Equal("project-1", snapshot.Document.ProjectId);
+        Assert.Single(snapshot.Scenarios);
+        Assert.Equal(1, materializer.Calls);
+    }
+
+    [Fact]
+    public async Task ConcurrentMaterialization_WhenCancelled_ReleasesGateForImmediateRetry()
+    {
+        var gate = new ActionExecutionGate();
+        var materializer = new RecordingMaterializer();
+        var session = ActiveSession();
+        var service = new FilterHitMaterializeService(
+            materializer,
+            new StubProjectStore(Document()),
+            new StubScenarioStore([Scenario()]),
+            new AmountMappedGlStore(),
+            gate,
+            session,
+            resultStaleStateStore: new FixedStaleStore(true));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.MaterializeForConcurrentQueryAsync("project-1", cancellation.Token));
+
+        var retried = await service.MaterializeForConcurrentQueryAsync(
+            "project-1",
+            CancellationToken.None);
+        Assert.NotNull(retried);
+        Assert.Equal("project-1", retried.Document.ProjectId);
+        Assert.Equal(2, materializer.Calls);
+    }
+
+    [Fact]
+    public async Task ConcurrentMaterialization_WithoutSharedSession_FailsClosedBeforeReadingOrWriting()
+    {
+        var projectStore = new StubProjectStore(Document());
+        var materializer = new RecordingMaterializer();
+        var service = new FilterHitMaterializeService(
+            materializer,
+            projectStore,
+            new StubScenarioStore([Scenario()]),
+            new AmountMappedGlStore(),
+            new ActionExecutionGate());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
+
+        Assert.Equal(0, projectStore.FindCalls);
+        Assert.Equal(0, materializer.Calls);
+    }
+
+    [Fact]
+    public async Task ConcurrentMaterialization_AfterReleaseWins_DoesNotReadOrWriteFormerProject()
+    {
+        var gate = new ActionExecutionGate();
+        var locks = new RecordingLockService();
+        var session = ActiveSession(locks);
+        var projectStore = new StubProjectStore(Document());
+        var materializer = new RecordingMaterializer();
+        var service = new FilterHitMaterializeService(
+            materializer,
+            projectStore,
+            new StubScenarioStore([Scenario()]),
+            new AmountMappedGlStore(),
+            gate,
+            session,
+            resultStaleStateStore: new FixedStaleStore(true));
+        var release = new ProjectReleaseLockHandler(
+            new CurrentPrincipal("CONTOSO\\auditor"),
+            session,
+            gate);
+
+        // 模擬 concurrent query 已在進閘前捕捉 project-1；release 先取得同一把閘並完成離場。
+        await release.HandleAsync(EmptyPayload(), CancellationToken.None);
+        var exception = await Assert.ThrowsAsync<JetActionException>(
+            () => service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.NoActiveProject, exception.Code);
+        Assert.Null(session.CurrentProjectId);
+        Assert.Equal(1, locks.ReleaseCalls);
+        Assert.Equal(0, projectStore.FindCalls);
+        Assert.Equal(0, materializer.Calls);
+    }
+
+    [Fact]
+    public async Task ConcurrentMaterialization_PreGlScenario_FailsStaleWithoutWritingHits()
+    {
+        var projectStore = new StubProjectStore(Document());
+        var materializer = new RecordingMaterializer();
+        var service = new FilterHitMaterializeService(
+            materializer,
+            projectStore,
+            new StubScenarioStore([Scenario("filter-2026-08-04-v6")]),
+            new AmountMappedGlStore(),
+            new ActionExecutionGate(),
+            ActiveSession(),
+            resultStaleStateStore: new FixedStaleStore(true));
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(
+            () => service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
+        Assert.Equal(1, projectStore.FindCalls);
+        Assert.Equal(0, materializer.Calls);
+    }
+
+    [Fact]
+    public async Task ConcurrentMaterialization_CurrentResult_DoesNotAcquireGateOrReadProject()
+    {
+        var gate = new ActionExecutionGate();
+        using var held = Assert.IsAssignableFrom<IDisposable>(gate.TryAcquire());
+        var projectStore = new StubProjectStore(Document());
+        var materializer = new RecordingMaterializer();
+        var service = new FilterHitMaterializeService(materializer, projectStore,
+            new StubScenarioStore([Scenario()]), new AmountMappedGlStore(), gate, ActiveSession(),
+            resultStaleStateStore: new FixedStaleStore(false));
+
+        Assert.Null(await service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
+        Assert.Equal(0, projectStore.FindCalls);
+        Assert.Equal(0, materializer.Calls);
+    }
+
+    [Fact]
+    public async Task ConcurrentMaterialization_AnotherRequestRefreshedBeforeGate_RechecksBeforeWriting()
+    {
+        var projectStore = new StubProjectStore(Document());
+        var materializer = new RecordingMaterializer();
+        var staleStore = new SequenceStaleStore();
+        var service = new FilterHitMaterializeService(materializer, projectStore,
+            new StubScenarioStore([Scenario()]), new AmountMappedGlStore(), new ActionExecutionGate(), ActiveSession(),
+            resultStaleStateStore: staleStore);
+
+        Assert.NotNull(await service.MaterializeForConcurrentQueryAsync("project-1", CancellationToken.None));
+        Assert.Equal(2, staleStore.ReadCalls);
+        Assert.Equal(1, projectStore.FindCalls);
+        Assert.Equal(0, materializer.Calls);
+    }
+
+    [Theory]
+    [InlineData("data")]
+    [InlineData("definition")]
+    [InlineData("project")]
+    public async Task ScenarioSummary_WhenGenerationChangesDuringCountRead_DoesNotReturnMixedResults(string change)
+    {
+        var session = new ProjectSession();
+        var projectStore = new StubProjectStore(Document());
+        var scenarioStore = new StubScenarioStore([Scenario()]);
+        var staleStore = new MutableStaleStore();
+        var materializer = new RecordingMaterializer();
+        var gate = new ActionExecutionGate();
+        using var held = Assert.IsAssignableFrom<IDisposable>(gate.TryAcquire());
+        var service = new FilterHitMaterializeService(materializer, projectStore,
+            scenarioStore, new AmountMappedGlStore(), gate, session, resultStaleStateStore: staleStore);
+        var repository = new CountReadRepository(() =>
+        {
+            if (change == "data") { staleStore.DataRevision = "2"; }
+            else if (change == "definition")
+            {
+                var previous = Scenario();
+                scenarioStore.Scenarios = [previous with { SavedUtc = previous.SavedUtc.AddSeconds(1) }];
+            }
+            else { session.Leave("project-1"); }
+        });
+        // handler 從作用中案件的資料庫組取 repository 與共用補算服務，替身放進資料庫組後再進入 session。
+        session.Enter(
+            "project-1",
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                HighRiskSummaryScenarios = repository,
+                FilterScenarios = scenarioStore,
+                FilterHitMaterializeService = service,
+            });
+        var handler = new QueryHighRiskSummaryScenariosHandler(projectStore, session);
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            handler.HandleAsync(EmptyPayload(), CancellationToken.None));
+
+        Assert.Equal(change == "project" ? JetErrorCodes.NoActiveProject : JetErrorCodes.StaleResult, exception.Code);
+        Assert.Equal(1, repository.Calls);
+        Assert.Equal(0, materializer.Calls);
+    }
+
+    private sealed class CountReadRepository(Action onRead) : IHighRiskSummaryScenariosRepository
+    {
+        public int Calls { get; private set; }
+        public Task<IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)>> GetCountsAsync(
+            string projectId, CancellationToken cancellationToken)
+        {
+            Calls++;
+            onRead();
+            return Task.FromResult<IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)>>(
+                new Dictionary<int, (long, long)> { [1] = (3, 5) });
+        }
+
+        // 這裡的情境不是整張傳票計數，處理程式傳入空的位置清單。
+        public Task<IReadOnlyDictionary<int, long>> GetWholeVoucherRowCountsAsync(
+            string projectId, IReadOnlyList<int> scenarioPositions, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<int, long>>(new Dictionary<int, long>());
+    }
+
+    private sealed class MutableStaleStore : IResultStaleStateStore
+    {
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public string DataRevision { get; set; } = "1";
+        public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
+            Task.FromResult(DataRevision);
+        public Task<AuditResultStaleState> ReadAsync(string projectId, CancellationToken cancellationToken) =>
+            Task.FromResult(new AuditResultStaleState(false, false, false));
+    }
+
+    private sealed class FixedStaleStore(bool filter) : IResultStaleStateStore
+    {
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
+            Task.FromResult("0");
+        public Task<AuditResultStaleState> ReadAsync(string projectId, CancellationToken cancellationToken) =>
+            Task.FromResult(new AuditResultStaleState(false, false, filter));
+    }
+
+    private sealed class SequenceStaleStore : IResultStaleStateStore
+    {
+        public Task InvalidateForPreparationDateChangeAsync(string projectId, Func<CancellationToken, Task> saveSettings, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<string> ReadFilterDataRevisionAsync(string projectId, CancellationToken cancellationToken) =>
+            Task.FromResult("0");
+        public int ReadCalls { get; private set; }
+        public Task<AuditResultStaleState> ReadAsync(string projectId, CancellationToken cancellationToken) =>
+            Task.FromResult(new AuditResultStaleState(false, false, ++ReadCalls == 1));
+    }
+
+    // 2026-10-02 資料庫分流簡化：只設案件編號的舊 Enter(string) 已移除，改帶資料庫組進入；
+    // releaseLock 從資料庫組取鎖服務，所以需要時把替身鎖放進去。
+    private static ProjectSession ActiveSession(ILockService? locks = null)
+    {
+        var session = new ProjectSession();
+        session.Enter(
+            "project-1",
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
+            {
+                LockService = locks!,
+            });
+        return session;
+    }
+
+    private static System.Text.Json.JsonElement EmptyPayload()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("{}");
+        return document.RootElement.Clone();
+    }
+
+    private static ProjectDocument Document() => new(
+        ProjectId: "project-1",
+        ProjectCode: "P-1",
+        ClientName: "共享閘測試",
+        OperatorId: "tester",
+        PeriodStart: "2025-01-01",
+        PeriodEnd: "2025-12-31",
+        LastAccountingPeriodDate: "2024-12-31",
+        MoneyScale: ProjectDocument.DefaultMoneyScale,
+        RoundingMode: ProjectDocument.DefaultRoundingMode,
+        CreatedUtc: new DateTimeOffset(2026, 7, 14, 0, 0, 0, TimeSpan.Zero),
+        CurrentStep: 4,
+        SchemaVersion: ProjectDocument.CurrentSchemaVersion);
+
+    private static SavedFilterScenario Scenario(string logicVersion = RuleLogicVersions.Filter) => new(
+        Position: 1,
+        Name: "借方",
+        Rationale: "共享閘測試",
+        DefinitionJson:
+            $$"""
+            {
+              "name": "借方",
+              "rationale": "共享閘測試",
+              "groups": [
+                {
+                  "join": "AND",
+                  "conditions": [
+                    { "join": "AND", "type": "drCrOnly", "drCr": "debit" }
+                  ]
+                }
+              ],
+              "populationScope": "auditPeriod",
+              "logicVersion": "{{logicVersion}}"
+            }
+            """,
+        SavedUtc: new DateTimeOffset(2026, 7, 14, 0, 0, 0, TimeSpan.Zero));
+
+    private sealed class RecordingMaterializer : IFilterHitMaterializer
+    {
+        public int Calls { get; private set; }
+
+        public Task MaterializeAsync(
+            string projectId,
+            IReadOnlyList<MaterializableScenario> scenarios,
+            FilterConditionContext context,
+            CancellationToken cancellationToken,
+            bool replaceAll = true)
+        {
+            Calls++;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingLockService : ILockService
+    {
+        public int ReleaseCalls { get; private set; }
+
+        public Task<LockOutcome> AcquireAsync(
+            string projectId,
+            string principal,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<LockOutcome>(new LockOutcome.Acquired());
+
+        public Task RenewAsync(
+            string projectId,
+            string principal,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ReleaseAsync(
+            string projectId,
+            string principal,
+            CancellationToken cancellationToken)
+        {
+            ReleaseCalls++;
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ProjectLockInfo>> ListActiveAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProjectLockInfo>>([]);
+    }
+
+    private sealed class StubScenarioStore(IReadOnlyList<SavedFilterScenario> scenarios)
+        : IFilterScenarioStore
+    {
+        public IReadOnlyList<SavedFilterScenario> Scenarios { get; set; } = scenarios;
+        public Task ReplaceAllAsync(
+            string projectId,
+            IReadOnlyList<SavedFilterScenario> replacement,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task RemoveAsync(
+            string projectId,
+            SavedFilterScenario scenario,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SavedFilterScenario>> ListAsync(
+            string projectId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Scenarios);
+    }
+
+    private sealed class StubProjectStore(ProjectDocument document) : IProjectStore
+    {
+        public int FindCalls { get; private set; }
+
+        public Task CreateAsync(ProjectDocument created, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
+            ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
+
+        public Task<IReadOnlyList<ProjectDocument>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProjectDocument>>([document]);
+
+        public Task<ProjectDocument?> FindAsync(string projectId, CancellationToken cancellationToken)
+        {
+            FindCalls++;
+            return Task.FromResult<ProjectDocument?>(document);
+        }
+
+        public Task SaveAsync(ProjectDocument saved, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAsync(string projectId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    // 原本不提供任何配對。現在第五步不論比較方式都要求條件用到的欄位已配對，
+    // 情境的「借方」條件需要金額；這組測試檢查的是並行鎖，所以替身改成提供只配對金額的 GL 配對，讓情境照舊通過驗證。
+    // 正式流程重新配對 GL 會清掉已存情境，不會有沒有 GL 配對卻有情境的案件。
+    // 第一次失敗：Focused 收據 20261023-033450367-efcc5f97968c4691a01ae8ae6018b91a。
+    private sealed class AmountMappedGlStore : IMappingStateStore
+    {
+        public Task SaveAsync(
+            string projectId,
+            CommittedMapping mapping,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CommittedMapping?> FindAsync(
+            string projectId,
+            DatasetKind kind,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CommittedMapping?>(kind == DatasetKind.Gl
+                ? new CommittedMapping(
+                    DatasetKind.Gl,
+                    new Dictionary<string, string> { [JetFieldCatalog.GlAmount] = "金額" },
+                    string.Empty,
+                    string.Empty,
+                    DateTimeOffset.MinValue)
+                : null);
+    }
+}

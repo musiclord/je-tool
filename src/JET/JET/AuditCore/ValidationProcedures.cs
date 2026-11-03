@@ -5,62 +5,64 @@ namespace JET.AuditCore;
 /// <summary>
 /// 資料驗證 SQL 的單一事實來源（共用述詞與有效分錄母體）。
 ///
-/// <para><b>有效分錄母體</b>：驗證（doc_balance／一般 null_records／INF 抽樣）、預篩選、完整性 GL 彙總
-/// 一律只消費投影已落地的 <c>is_effective</c>，SQL 不重做期間或過帳狀態政策。唯一刻意的 raw
-/// source-quality 例外是 <c>nullPostDate</c>，只由 source-quality query／summary 消費。</para>
+/// <para><b>有效分錄母體</b>：驗證（voucher_balance／一般 blank_records／INF 抽樣）、預篩選、完整性 GL 彙總
+/// 一律只消費投影已落地的 <c>is_excluded</c>，SQL 不重做期間或過帳狀態政策。唯一刻意的 raw
+/// source-quality 例外是 <c>blankGlDate</c>，只由 source-quality query／summary 消費。</para>
 ///
-/// <para><b>共用片段</b>：<see cref="UnbalancedCore"/>（doc_balance 6 處共用的傳票彙總核心）、
+/// <para><b>共用片段</b>：<see cref="UnbalancedCore"/>（voucher_balance 6 處共用的傳票彙總核心）、
 /// <see cref="UnbalancedDetailCore"/>（借貸不平傳票回接有效 GL 的 count／page 共用核心）、
 /// <see cref="InfSampleInsert"/>（INF 抽樣 INSERT，Local/SqlServer 兩份逐字重複收斂為一，方言差
-/// 取 N 列走 <see cref="ISqlDialect.LimitClause"/> 既有縫）、null_records 四類述詞則以
-/// <c>NullRecordsCategoryPredicate</c> 為中心（計數/明細/分頁三形狀共用）。</para>
+/// 取 N 列走 <see cref="ISqlDialect.LimitClause"/> 既有縫）、blank_records 四類述詞則以
+/// <c>BlankRecordsCategoryPredicate</c> 為中心（計數/明細/分頁三形狀共用）。</para>
 ///
 /// <para><see cref="CompletenessDiffCte"/> 為「每科目 GL/TB 彙總差異」的 CTE；GL 側只取有效分錄，
 /// TB 側取全部（TB 本身即本期變動）。兩 provider CTE 文字相同（皆 ANSI、LEFT JOIN + UNION ALL 模擬 FULL OUTER JOIN），
 /// 故抽到此處由 ValidationRunRepository 與 completenessDiff/Account page repo、科目配對匯出共用。
-/// 輸出欄：account_code、account_name、tb_s、gl_s、not_in_tb。</para>
+/// 輸出欄：account_number、account_name、tb_s、gl_s、not_in_tb。</para>
 /// </summary>
 public static class ValidationProcedures
 {
-    public const string MissingTbMappingReason = CompletenessPartBProcedure.MissingTbMappingReason;
+    public const string MissingTbImportReason = AccountComparisonProcedure.MissingTbImportReason;
 
-    /// <summary>raw target 中缺過帳日的來源品質 finding；不得併回 null_records。</summary>
-    public const string NullPostDateSourceQualityPredicate = "post_date IS NULL";
+    public const string MissingTbMappingReason = AccountComparisonProcedure.MissingTbMappingReason;
 
-    public static string NullPostDateSourceQualityPredicateWith(string tableAlias)
+    /// <summary>raw target 中總帳日期空白的 finding；不得併回 blank_records。</summary>
+    public const string BlankGlDateSourceQualityPredicate = "gl_date IS NULL";
+
+    public static string BlankGlDateSourceQualityPredicateWith(string tableAlias)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableAlias);
-        return $"{tableAlias}.post_date IS NULL";
+        return $"{tableAlias}.gl_date IS NULL";
     }
 
     /// <summary>
-    /// doc_balance 共用的借貸不平母體核心（自 FROM 起）——有效母體、依傳票彙總、留借貸淨額≠0。
-    /// 六處呼叫（validate 計數/明細 × Local/SqlServer + docBalancePage × Local/SqlServer）共用此單一定義；
+    /// voucher_balance 共用的借貸不平母體核心（自 FROM 起）——只看納入測試的分錄、依傳票彙總、留借貸淨額≠0。
+    /// 六處呼叫（validate 計數/明細 × Local/SqlServer + voucherBalancePage × Local/SqlServer）共用此單一定義；
     /// 投影（COUNT 包裹 vs 明細欄）由各呼叫端在前綴 SELECT 決定，游標 keyset 由 <paramref name="extraFilter"/>
-    /// 併入 WHERE（分頁用 <c>" AND document_number &gt; @cursor"</c>，否則空）。
+    /// 併入 WHERE（分頁用 <c>" AND voucher_number &gt; @cursor"</c>，否則空）。
     /// </summary>
     public static string UnbalancedCore(string schemaPrefix = "", string extraFilter = "") =>
-        $"FROM {schemaPrefix}target_gl_entry WHERE {GlEffectivePopulation.SqlPredicate()} AND document_number IS NOT NULL{extraFilter} " +
-        "GROUP BY document_number HAVING SUM(amount_scaled) <> 0";
+        $"FROM {schemaPrefix}gl WHERE {GlExcludedPopulation.SqlPredicate()} AND voucher_number IS NOT NULL{extraFilter} " +
+        "GROUP BY voucher_number HAVING SUM(amount_scaled) <> 0";
 
     /// <summary>
     /// 同一號碼跨不同入帳日的提醒，只讀有效分錄。傳票身分與既有程序仍只看號碼；空白的傳票號碼和
     /// 空白傳票號碼類別用同一個判定（去掉頭尾空白後是空字串也算空白），不列入提醒。
     /// countFunction 只由 provider 傳 COUNT 或 COUNT_BIG，避免 SQL Server 大量列計數溢位。
     /// </summary>
-    internal static string DocumentDateReuseSummary(
+    internal static string VoucherNumberAcrossGlDatesSummary(
         ISqlDialect dialect,
         string schemaPrefix = "",
         string countFunction = "COUNT") =>
         $"SELECT {countFunction}(*), CAST(COALESCE(SUM(entry_count), 0) AS BIGINT) " +
-        $"FROM (SELECT document_number, {countFunction}(*) AS entry_count " +
-        $"FROM {schemaPrefix}target_gl_entry WHERE {GlEffectivePopulation.SqlPredicate()} " +
-        $"AND {SqlBlankText.IsNotBlank(dialect, "document_number")} " +
-        $"GROUP BY document_number HAVING {countFunction}(DISTINCT post_date) > 1) AS reused;";
+        $"FROM (SELECT voucher_number, {countFunction}(*) AS entry_count " +
+        $"FROM {schemaPrefix}gl WHERE {GlExcludedPopulation.SqlPredicate()} " +
+        $"AND {SqlBlankText.IsNotBlank(dialect, "voucher_number")} " +
+        $"GROUP BY voucher_number HAVING {countFunction}(DISTINCT gl_date) > 1) AS reused;";
 
     /// <summary>
     /// Validation workbook 借貸不平明細的單一母體核心：先以
-    /// <see cref="UnbalancedCore"/> 找出有效母體的不平傳票，再回接有效 target GL 的每一列。
+    /// <see cref="UnbalancedCore"/> 找出納入測試分錄裡的不平傳票，再回接 GL 裡納入測試的每一列。
     /// Planning count 與 export keyset page 必須共用此片段，確保 10,000 列明細上限檢查看的是
     /// writer 真正會讀取的有效 detail row count，而非 distinct voucher count。
     /// <paramref name="extraFilter"/> 只供外層 entry_id keyset，需自行包含前導 AND。
@@ -68,23 +70,23 @@ public static class ValidationProcedures
     public static string UnbalancedDetailCore(
         string schemaPrefix = "",
         string extraFilter = "") =>
-        $"FROM {schemaPrefix}target_gl_entry g " +
-        $"WHERE {GlEffectivePopulation.SqlPredicate("g")} " +
-        $"AND g.document_number IN (SELECT document_number {UnbalancedCore(schemaPrefix)}) " +
+        $"FROM {schemaPrefix}gl g " +
+        $"WHERE {GlExcludedPopulation.SqlPredicate("g")} " +
+        $"AND g.voucher_number IN (SELECT voucher_number {UnbalancedCore(schemaPrefix)}) " +
         extraFilter;
 
     /// <summary>
     /// 底稿 Step 1-1 明細：不平傳票的有效分錄依傳票號碼與總帳日期彙總借方與貸方（legacy
     /// idea-tool.bas:6686-6691）。不平的判定沿用 <see cref="UnbalancedDetailCore"/>，只看傳票號碼。
-    /// 輸出欄：document_number、post_date、debit_s、credit_s（貸方為非負合計）。
+    /// 輸出欄：voucher_number、gl_date、debit_s、credit_s（貸方為非負合計）。
     /// </summary>
     public static string UnbalancedVoucherDateSummary(string schemaPrefix = "") =>
-        "SELECT g.document_number, g.post_date, " +
+        "SELECT g.voucher_number, g.gl_date, " +
         "COALESCE(SUM(g.debit_amount_scaled), 0) AS debit_s, " +
         "COALESCE(SUM(g.credit_amount_scaled), 0) AS credit_s " +
         UnbalancedDetailCore(schemaPrefix) +
-        "GROUP BY g.document_number, g.post_date " +
-        "ORDER BY g.document_number, g.post_date";
+        "GROUP BY g.voucher_number, g.gl_date " +
+        "ORDER BY g.voucher_number, g.gl_date";
 
     /// <summary>
     /// INF 抽樣 INSERT 的共用定義：Local 與 SqlServer 共用主體，方言差由
@@ -100,63 +102,59 @@ public static class ValidationProcedures
 
         return
         $"""
-        INSERT INTO {schemaPrefix}result_inf_sampling_test_sample (run_id, entry_id, document_number, line_item)
-        SELECT @runId, entry_id, document_number, line_item
-        FROM {schemaPrefix}target_gl_entry
-        WHERE {GlEffectivePopulation.SqlPredicate()}
+        INSERT INTO {schemaPrefix}inf_sample (result_id, entry_id, voucher_number, line_item)
+        SELECT @resultId, entry_id, voucher_number, line_item
+        FROM {schemaPrefix}gl
+        WHERE {GlExcludedPopulation.SqlPredicate()}
         ORDER BY {orderingKey}, entry_id
         {dialect.LimitClause("@n")};
         """;
     }
 
-    /// <summary>完整性差異 CTE：GL 側只取有效分錄。</summary>
-    public static readonly string CompletenessDiffCte =
+    /// <summary>完整性差異 CTE：GL 側只取 GL，不含 GL(未納入測試)。SQLite 與 DuckDB 直接用這份。</summary>
+    public static readonly string CompletenessDiffCte = CompletenessDiffCteFor("");
+
+    /// <summary>
+    /// 完整性差異 CTE 的唯一定義。<paramref name="schemaPrefix"/> 是兩張資料表 gl、tb 前面的限定詞：
+    /// SQLite 與 DuckDB 傳空字串，SQL Server 傳 <c>SqlServerProjectSchema.QualifierFor</c> 的結果。
+    /// 中間結果另取 gl_by_account、tb_by_account 這兩個名字，不和資料表 gl、tb 同名，
+    /// 否則 SQLite 會把 CTE 裡的 FROM gl 當成引用自己。
+    /// </summary>
+    public static string CompletenessDiffCteFor(string schemaPrefix) =>
         $$"""
-        WITH gl AS (
-            SELECT account_code, MAX(account_name) AS account_name, SUM(amount_scaled) AS s
-            FROM target_gl_entry
-            WHERE {{GlEffectivePopulation.SqlPredicate()}}
-            GROUP BY account_code
+        WITH gl_by_account AS (
+            SELECT account_number, MAX(account_name) AS account_name, SUM(amount_scaled) AS s
+            FROM {{schemaPrefix}}gl
+            WHERE {{GlExcludedPopulation.SqlPredicate()}}
+            GROUP BY account_number
         ),
-        tb AS (
-            SELECT account_code, MAX(account_name) AS account_name, SUM(change_amount_scaled) AS s
-            FROM target_tb_balance
-            GROUP BY account_code
+        tb_by_account AS (
+            SELECT account_number, MAX(account_name) AS account_name, SUM(change_amount_scaled) AS s
+            FROM {{schemaPrefix}}tb
+            GROUP BY account_number
         ),
         diff AS (
-            SELECT tb.account_code            AS account_code,
-                   COALESCE(tb.account_name, gl.account_name) AS account_name,
-                   tb.s                       AS tb_s,
-                   COALESCE(gl.s, 0)          AS gl_s,
+            SELECT t.account_number            AS account_number,
+                   COALESCE(t.account_name, g.account_name) AS account_name,
+                   t.s                        AS tb_s,
+                   COALESCE(g.s, 0)           AS gl_s,
                    0                          AS not_in_tb
-            FROM tb
-            LEFT JOIN gl ON gl.account_code = tb.account_code
+            FROM tb_by_account t
+            LEFT JOIN gl_by_account g ON g.account_number = t.account_number
             UNION ALL
-            SELECT gl.account_code, gl.account_name, 0, gl.s, 1
-            FROM gl
-            LEFT JOIN tb ON tb.account_code = gl.account_code
-            WHERE tb.account_code IS NULL
+            SELECT g.account_number, g.account_name, 0, g.s, 1
+            FROM gl_by_account g
+            LEFT JOIN tb_by_account t ON t.account_number = g.account_number
+            WHERE t.account_number IS NULL
         )
         """;
 
-    /// <summary>
-    /// 與 <see cref="CompletenessDiffCte"/> 同一份 CTE，但把兩個專案事實表（target_gl_entry、
-    /// target_tb_balance）前綴 <paramref name="schemaPrefix"/> 以支援 SQL Server schema-per-project。
-    /// 預設 <c>""</c> 即逐字等於 <see cref="CompletenessDiffCte"/>（SQLite 路徑仍直接用常數，
-    /// 不需呼叫本方法）。CTE 文字為單一事實來源（此處僅就兩個 FROM 子句加限定詞，不複製 SQL 主體）；
-    /// SQL Server 呼叫端傳 <c>SqlServerProjectSchema.QualifierFor</c> 的結果。
-    /// </summary>
-    public static string CompletenessDiffCteFor(string schemaPrefix) =>
-        CompletenessDiffCte
-            .Replace("FROM target_gl_entry", $"FROM {schemaPrefix}target_gl_entry")
-            .Replace("FROM target_tb_balance", $"FROM {schemaPrefix}target_tb_balance");
-
     /// <summary>完整性測試的程序定義；slug 取既有 catalog。</summary>
-    public static ProcedureDefinition Definition => CompletenessPartBProcedure.Definition;
+    public static ProcedureDefinition Definition => AccountComparisonProcedure.Definition;
 
     /// <summary>TB 是完整性 GL 與 TB 逐科目比對的軟依賴；缺席時只判定該程序 N/A，不跳過其他 validation 程序。</summary>
-    public static ProcedureVerdict Evaluate(bool hasTbMapping) =>
-        CompletenessPartBProcedure.EvaluateApplicability(hasTbMapping);
+    public static ProcedureVerdict Evaluate(bool hasTbMapping, bool hasTbImport = false) =>
+        AccountComparisonProcedure.EvaluateApplicability(hasTbMapping, hasTbImport);
 }
 
 /// <summary>
@@ -178,13 +176,11 @@ internal static class InfSamplingPrf
         long? persistedSeed,
         int? persistedVersion)
     {
-        // 缺 sampleSeedVersion，或版本是現行版以前的正整數，都是舊版 JET 建立的案件；
-        // 目前版本不再保留舊排序法，也不替缺種子的案件補固定種子。
-        if (persistedVersion is null or (> 0 and < CurrentAlgorithmVersion))
+        // 只接受目前的抽樣演算法版本；缺版本或其他版本都是設定檔損壞。舊版 JET 建立的案件在讀設定檔版本時就擋下，
+        // 目前版本不保留舊排序法，也不替缺種子的案件補固定種子。
+        if (persistedVersion is null)
         {
-            return InfSamplingSeedResolution.Legacy(persistedVersion is null
-                ? "缺少 sampleSeedVersion"
-                : $"sampleSeedVersion 是舊版的 {persistedVersion}");
+            return InfSamplingSeedResolution.Invalid("缺少 sampleSeedVersion");
         }
 
         if (persistedVersion != CurrentAlgorithmVersion)
@@ -271,21 +267,10 @@ internal sealed record InfSamplingSeedResolution(
     bool IsValid,
     long Seed,
     int AlgorithmVersion,
-    string? Error,
-    bool IsLegacyProject = false)
+    string? Error)
 {
     internal static InfSamplingSeedResolution Invalid(string error) =>
         new(false, 0, 0, error);
-
-    /// <summary>舊版 JET 建立的案件：不是損壞，而是目前版本不再支援的設定。</summary>
-    internal static InfSamplingSeedResolution Legacy(string error) =>
-        new(false, 0, 0, error, IsLegacyProject: true);
-
-    /// <summary>
-    /// 舊版案件的使用者訊息（使用者 2026-10-14 第三輪勾選頁確認 R3-51）：不寫檔名、內部鍵名與缺了哪個設定。
-    /// </summary>
-    internal static string LegacyProjectMessage(string caseName) =>
-        $"案件「{caseName}」是舊版 JET 建立的，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。";
 }
 
 public static partial class JetAuditProgram

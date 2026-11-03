@@ -2,7 +2,7 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
 // 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
 
 /// <summary>
@@ -26,10 +26,10 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         Assert.Contains("class=\"visually-hidden\" for=\"manual-code-add\"", mapping, StringComparison.Ordinal);
         Assert.Contains("class=\"visually-hidden\" for=\"automatic-code-add\"", mapping, StringComparison.Ordinal);
         // 9/21 分類標籤改為直接可見，for 仍對應原本控制項的 id。
-        Assert.Contains("<label for=\"taxonomy-label-", validate, StringComparison.Ordinal);
-        Assert.Contains("<label for=\"taxonomy-role-", validate, StringComparison.Ordinal);
-        Assert.Contains("id=\"taxonomy-label-", validate, StringComparison.Ordinal);
-        Assert.Contains("id=\"taxonomy-role-", validate, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"category-label-", validate, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"category-role-", validate, StringComparison.Ordinal);
+        Assert.Contains("id=\"category-label-", validate, StringComparison.Ordinal);
+        Assert.Contains("id=\"category-role-", validate, StringComparison.Ordinal);
 
         // 移除鈕是純符號按鈕，必須帶可讀名稱。
         Assert.Contains("aria-label=\"移除 ", mapping, StringComparison.Ordinal);
@@ -69,11 +69,11 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         Assert.Contains("<legend class=\"map-options__legend\">", mapping, StringComparison.Ordinal);
         Assert.Contains("aria-describedby=\"gl-approval-help\"", mapping, StringComparison.Ordinal);
 
-        // 第二遍第 5 批改由共同分類樹輸出群組。首次失敗收據：
+        // 改由共同分類樹輸出群組。首次失敗收據：
         // 20261004-075340533-87179f5019724ec89d7c19b4243fdb09；仍要求實際輸出 fieldset、legend 及有名稱的控制項。
-        Assert.Contains("Ui.taxonomyPickerHtml(state, selected, idsKey, legend, view)", filter, StringComparison.Ordinal);
-        var pickerStart = core.IndexOf("function taxonomyPickerHtml(", StringComparison.Ordinal);
-        var pickerEnd = core.IndexOf("function bindTaxonomyPicker(", StringComparison.Ordinal);
+        Assert.Contains("Ui.categoryPickerHtml(state, selected, idsKey, legend, view)", filter, StringComparison.Ordinal);
+        var pickerStart = core.IndexOf("function categoryPickerHtml(", StringComparison.Ordinal);
+        var pickerEnd = core.IndexOf("function bindCategoryPicker(", StringComparison.Ordinal);
         Assert.True(pickerStart >= 0 && pickerEnd > pickerStart, "找不到共同分類樹的呈現函式。");
         var picker = core[pickerStart..pickerEnd];
         Assert.Contains("<fieldset class=\"category-select\" data-category-picker=", picker, StringComparison.Ordinal);
@@ -84,11 +84,11 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         Assert.Contains("<span>' + esc(category.label) + '</span></label>", picker, StringComparison.Ordinal);
         // 第九節 F 把展開按鈕移到三處共用的樹函式，fieldset 與勾選語意仍留在選取器。
         // 首次失敗：20261014-130014323-112f3ca2d352414ba9de606d2b6e0e09；仍檢查名稱及展開狀態。
-        Assert.Contains("taxonomyTreeHtml(state, view, function (category)", picker, StringComparison.Ordinal);
-        var treeStart = core.IndexOf("function taxonomyTreeHtml(", StringComparison.Ordinal);
+        Assert.Contains("categoryTreeHtml(state, view, function (category)", picker, StringComparison.Ordinal);
+        var treeStart = core.IndexOf("function categoryTreeHtml(", StringComparison.Ordinal);
         Assert.True(treeStart >= 0 && treeStart < pickerStart);
         var tree = core[treeStart..pickerStart];
-        // 使用者 2026-10-19 要求同功能元件只留一套：展開按鈕改用共用的 disclosureAttributes，名稱改說是哪一類的下層分類。
+        // 同功能的元件只留一套（裁定 2026-10-19-08）：展開按鈕改用共用的 disclosureAttributes，名稱改說是哪一類的下層分類。
         // 首次失敗：20261019-102446198-5198acd5b7e747feae8ed16dcfac32a3；仍檢查名稱及展開狀態。
         Assert.Contains("aria-label=\"' + esc(category.label) + '的下層分類\"' +", tree, StringComparison.Ordinal);
         Assert.Contains("disclosureAttributes(open) + '></button>'", tree, StringComparison.Ordinal);
@@ -106,7 +106,7 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
             ".map-options__group {",
             ".value-option {",
             ".rde-field {",
-            ".taxonomy-row {",
+            ".category-row {",
             ".category-select {"
         })
         {

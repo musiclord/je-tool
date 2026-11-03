@@ -7,7 +7,7 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
 
 public sealed class LegacyAuditParityJourneyTests
 {
@@ -44,15 +44,15 @@ public sealed class LegacyAuditParityJourneyTests
 
         if (checkpoint == LegacyAuditParityCheckpoint.Export)
         {
-            Assert.Equal(Enum.GetValues<LegacyReportKind>(), result.Artifacts.Select(artifact => artifact.Kind));
-            Assert.All(result.Artifacts, artifact => Assert.True(File.Exists(artifact.FullPath)));
+            Assert.Equal(Enum.GetValues<LegacyReportKind>(), result.Reports.Select(report => report.Kind));
+            Assert.All(result.Reports, report => Assert.True(File.Exists(report.FullPath)));
             Assert.True(result.ValidationCaptured);
             Assert.True(result.PrescreenCaptured);
             Assert.True(result.FilterCaptured);
-            Assert.True(result.TagMatrixCaptured);
+            Assert.True(result.HighRiskSummaryCaptured);
             Assert.NotNull(result.Observation);
             var serialized = JsonSerializer.Serialize(result);
-            Assert.DoesNotContain(fixture.Input.EntityName, serialized, StringComparison.Ordinal);
+            Assert.DoesNotContain(fixture.Input.ClientName, serialized, StringComparison.Ordinal);
             Assert.DoesNotContain(
                 fixture.Input.GlSources[0].FilePath,
                 serialized,
@@ -139,7 +139,7 @@ public sealed class LegacyAuditParityJourneyTests
 
         Assert.Equal("authorizedPreparerFile", error.FieldId);
         Assert.DoesNotContain(removedPath, error.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(fixture.Input.EntityName, error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixture.Input.ClientName, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public sealed class LegacyAuditParityJourneyTests
         var rendered = fixture.Input.ToString();
 
         Assert.Contains("case-A", rendered, StringComparison.Ordinal);
-        Assert.DoesNotContain(fixture.Input.EntityName, rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixture.Input.ClientName, rendered, StringComparison.Ordinal);
         Assert.DoesNotContain(fixture.Input.GlSources[0].FilePath, rendered, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(fixture.Input.FilterScenarios.GetRawText(), rendered, StringComparison.Ordinal);
     }
@@ -163,7 +163,7 @@ public sealed class LegacyAuditParityJourneyTests
         var rendered = JsonSerializer.Serialize(fixture.Input);
 
         Assert.Equal("{}", rendered);
-        Assert.DoesNotContain(fixture.Input.EntityName, rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixture.Input.ClientName, rendered, StringComparison.Ordinal);
         Assert.DoesNotContain(fixture.Input.GlSources[0].FilePath, rendered, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(fixture.Input.FilterScenarios.GetRawText(), rendered, StringComparison.Ordinal);
     }
@@ -279,7 +279,7 @@ public sealed class LegacyAuditParityJourneyTests
                         new
                         {
                             join = "AND",
-                            rules = new object[]
+                            conditions = new object[]
                             {
                                 new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "合成調整" } },
                             },
@@ -291,38 +291,38 @@ public sealed class LegacyAuditParityJourneyTests
             var input = new LegacyAuditParityJourneyInput(
                 CaseAlias: "case-A",
                 ProjectCode: "SYNTHETIC-PARITY",
-                EntityName: "synthetic parity entity",
+                ClientName: "synthetic parity entity",
                 OperatorId: "synthetic-operator",
                 PeriodStart: "2025-01-01",
                 PeriodEnd: "2025-12-31",
-                LastPeriodStart: "2025-12-31",
+                PrepStartDate: "2025-12-31",
                 SampleSeed: 48_271,
                 GlSources: [new LegacyAuditParityImportSource(glPath, "synthetic-gl.xlsx")],
                 GlImportMode: "replace",
                 GlMapping: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["docNum"] = "傳票號碼",
-                    ["postDate"] = "傳票日期",
-                    ["docDate"] = "核准日期",
-                    ["accNum"] = "科目代號",
-                    ["accName"] = "科目名稱",
+                    ["voucherNumber"] = "傳票號碼",
+                    ["glDate"] = "傳票日期",
+                    ["approvalDate"] = "核准日期",
+                    ["accountNumber"] = "科目代號",
+                    ["accountName"] = "科目名稱",
                     ["description"] = "摘要",
-                    ["createBy"] = "建立人員",
+                    ["createdBy"] = "建立人員",
                     ["amount"] = "金額",
-                    ["dcField"] = "借方旗標",
-                    ["dcDebitCode"] = "1",
-                    // R9 explicit two-code contract; this synthetic workbook uses 1/0.
+                    ["drCr"] = "借方旗標",
+                    ["drCrDebitCode"] = "1",
+                    // Explicit two-code contract; this synthetic workbook uses 1/0.
                     // First failure: 20261004-100911120-57efb95a0cae44beb892ec3c2d058592.
-                    ["dcCreditCode"] = "0",
+                    ["drCrCreditCode"] = "0",
                 },
                 GlAmountMode: "flag",
                 TbSources: [new LegacyAuditParityImportSource(tbPath, "synthetic-tb.xlsx")],
                 TbImportMode: "replace",
                 TbMapping: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["accNum"] = "科目代號",
-                    ["accName"] = "科目名稱",
-                    ["amount"] = "變動金額",
+                    ["accountNumber"] = "科目代號",
+                    ["accountName"] = "科目名稱",
+                    ["changeAmount"] = "變動金額",
                 },
                 TbChangeMode: "direct",
                 AccountMappingFile: new LegacyAuditParityReferenceFile(

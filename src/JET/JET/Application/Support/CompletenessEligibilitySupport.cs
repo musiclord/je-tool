@@ -10,23 +10,23 @@ namespace JET.Application;
 /// </summary>
 internal static class CompletenessEligibilitySupport
 {
-    internal static async Task<RuleRunRecord> RequireCurrentAsync(
-        IRuleRunStore runStore,
+    internal static async Task<ResultRecord> RequireCurrentAsync(
+        IResultStore resultStore,
         string projectId,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(runStore);
+        ArgumentNullException.ThrowIfNull(resultStore);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
 
-        var run = await runStore.FindLatestAsync(
+        var run = await resultStore.FindLatestAsync(
             projectId,
-            RuleRunKinds.Validate,
+            ResultKind.Validation,
             cancellationToken);
 
         return Require(run);
     }
 
-    internal static RuleRunRecord Require(RuleRunRecord? run)
+    internal static ResultRecord Require(ResultRecord? run)
     {
         var decision = EvaluateSummary(run);
         if (!decision.IsEligible)
@@ -42,29 +42,30 @@ internal static class CompletenessEligibilitySupport
         return run!;
     }
 
-    internal static CompletenessEligibilityDecision EvaluateSummary(RuleRunRecord? run)
+    internal static CompletenessEligibilityDecision EvaluateSummary(ResultRecord? run)
     {
-        if (run is null || !string.Equals(run.RunKind, RuleRunKinds.Validate, StringComparison.Ordinal))
+        if (run is null || run.Kind != ResultKind.Validation)
         {
             return JetAuditProgram.EvaluateCompletenessEligibility(
                 new CompletenessEligibilityFacts(
-                    HasCurrentValidationRun: false,
+                    HasCurrentValidationResult: false,
                     IsCurrentLogicVersion: false,
-                    PartARowCountMatch: null,
-                    PartAAmountMatch: null,
-                    PartBApplicable: null,
-                    PartBDifferenceAccountCount: null));
+                    StoredRowCountMatch: null,
+                    StoredAmountMatch: null,
+                    AccountComparisonApplicable: null,
+                    AccountComparisonDifferenceAccountCount: null));
         }
 
         var parsed = ParseSummaryFacts(run);
         return JetAuditProgram.EvaluateCompletenessEligibility(
             new CompletenessEligibilityFacts(
-                HasCurrentValidationRun: true,
+                HasCurrentValidationResult: true,
                 parsed.IsCurrentLogicVersion,
-                parsed.PartARowCountMatch,
-                parsed.PartAAmountMatch,
-                parsed.PartBApplicable,
-                parsed.PartBDifferenceAccountCount));
+                parsed.StoredRowCountMatch,
+                parsed.StoredAmountMatch,
+                parsed.AccountComparisonApplicable,
+                parsed.AccountComparisonDifferenceAccountCount,
+                parsed.AccountComparisonNaReason));
     }
 
     internal static CompletenessEligibilityWire ToWire(CompletenessEligibilityDecision decision)
@@ -77,7 +78,7 @@ internal static class CompletenessEligibilitySupport
     /// 回應邊界重寫「可否繼續後續步驟」判定：整個衍生判定依 raw facts 重算，
     /// 不能沿用存檔中的阻擋布林值。
     /// </summary>
-    internal static JsonElement ToWireSummary(RuleRunRecord run)
+    internal static JsonElement ToWireSummary(ResultRecord run)
     {
         ArgumentNullException.ThrowIfNull(run);
 
@@ -121,7 +122,7 @@ internal static class CompletenessEligibilitySupport
         return rendered.RootElement.Clone();
     }
 
-    private static ParsedSummaryFacts ParseSummaryFacts(RuleRunRecord run)
+    private static ParsedSummaryFacts ParseSummaryFacts(ResultRecord run)
     {
         try
         {
@@ -148,28 +149,32 @@ internal static class CompletenessEligibilitySupport
 
             if (!TryGetUniqueProperty(root, "completenessTest", out var completeness)
                 || completeness.ValueKind != JsonValueKind.Object
-                || !TryGetUniqueProperty(completeness, "partA", out var partA)
-                || partA.ValueKind != JsonValueKind.Object)
+                || !TryGetUniqueProperty(completeness, "storedTotals", out var storedTotals)
+                || storedTotals.ValueKind != JsonValueKind.Object)
             {
                 return new ParsedSummaryFacts(
                     isCurrentLogicVersion,
-                    PartARowCountMatch: null,
-                    PartAAmountMatch: null,
-                    PartBApplicable: null,
-                    PartBDifferenceAccountCount: null);
+                    StoredRowCountMatch: null,
+                    StoredAmountMatch: null,
+                    AccountComparisonApplicable: null,
+                    AccountComparisonDifferenceAccountCount: null);
             }
 
-            var rowCountMatch = ReadBoolean(partA, "rowCountMatch");
-            var amountMatch = ReadBoolean(partA, "amountMatch");
-            var applicable = ReadPartBApplicability(completeness);
+            var rowCountMatch = ReadBoolean(storedTotals, "rowCountMatch");
+            var amountMatch = ReadBoolean(storedTotals, "amountMatch");
+            var applicable = ReadAccountComparisonApplicability(completeness);
             var differenceCount = ReadNonNegativeInt64(completeness, "diffAccountCount");
+            var naReason = applicable is false && TryGetUniqueProperty(completeness, "naReason", out var reasonValue)
+                ? reasonValue.GetString()
+                : null;
 
             return new ParsedSummaryFacts(
                 isCurrentLogicVersion,
                 rowCountMatch,
                 amountMatch,
                 applicable,
-                differenceCount);
+                differenceCount,
+                naReason);
         }
         catch (Exception exception) when (exception is JsonException or FormatException or OverflowException)
         {
@@ -192,7 +197,7 @@ internal static class CompletenessEligibilitySupport
         };
     }
 
-    private static bool? ReadPartBApplicability(JsonElement completeness)
+    private static bool? ReadAccountComparisonApplicability(JsonElement completeness)
     {
         if (!TryGetUniqueProperty(completeness, "naReason", out var naReason))
         {
@@ -277,18 +282,19 @@ internal static class CompletenessEligibilitySupport
 
     private sealed record ParsedSummaryFacts(
         bool IsCurrentLogicVersion,
-        bool? PartARowCountMatch,
-        bool? PartAAmountMatch,
-        bool? PartBApplicable,
-        long? PartBDifferenceAccountCount)
+        bool? StoredRowCountMatch,
+        bool? StoredAmountMatch,
+        bool? AccountComparisonApplicable,
+        long? AccountComparisonDifferenceAccountCount,
+        string? AccountComparisonNaReason = null)
     {
         internal static ParsedSummaryFacts Invalid { get; } =
             new(
                 IsCurrentLogicVersion: false,
-                PartARowCountMatch: null,
-                PartAAmountMatch: null,
-                PartBApplicable: null,
-                PartBDifferenceAccountCount: null);
+                StoredRowCountMatch: null,
+                StoredAmountMatch: null,
+                AccountComparisonApplicable: null,
+                AccountComparisonDifferenceAccountCount: null);
     }
 }
 

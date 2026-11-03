@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 控制面第四輪 §3 <c>dbo.app_config</c> 跨專案系統設定 store 驗收（<see cref="SqlServerAppConfigStore"/>）。
+/// 控制面 <c>dbo.app_config</c> 跨專案系統設定 store 驗收（<see cref="SqlServerAppConfigStore"/>）。
 /// 全部 [SqlServerFact] 閘控（連 JET_Test）。隔離:每測試唯一 key。
 /// oracle：UPSERT 埠語意——不存在 key 回 null；Set 後 Get 取回同值；同 key 二次 Set 覆寫（不重複列）。
 /// </summary>

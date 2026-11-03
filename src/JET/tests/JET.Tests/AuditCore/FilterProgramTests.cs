@@ -23,7 +23,9 @@ public sealed class FilterProgramTests
     [Fact]
     public void Plan_InvalidScenario_UsesExistingDomainValidation()
     {
-        var invalid = Scenario() with { Name = string.Empty };
+        // 裁定 2026-10-29-16 拿掉名稱與動機必填，空白名稱或動機不再是驗證錯誤；這裡要的是一個驗證錯誤，
+        // 改用沒有條件組的情境。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+        var invalid = Scenario() with { Groups = [] };
 
         var exception = Assert.Throws<JetActionException>(() =>
             JetAuditProgram.Plan(Request(
@@ -55,7 +57,7 @@ public sealed class FilterProgramTests
         Assert.Equal(0, result.MaterializedScenarioCount);
     }
 
-    // 使用者 2026-10-16 要求第五步的分錄筆數和過往底稿相同：只用「未預期借貸組合」一個條件時用整張傳票的分錄數，
+    // 裁定 2026-10-16-08：第五步的分錄筆數和過往底稿相同；只用「未預期借貸組合」一個條件時用整張傳票的分錄數，
     // 判斷與 Criteria Selection 摘要相同；其他情境仍用直接符合的分錄數。
     [Fact]
     public void Finalize_Preview_UsesWholeVoucherRowsOnlyForTheUnexpectedAccountPairAlone()
@@ -133,7 +135,9 @@ public sealed class FilterProgramTests
     [Fact]
     public void Plan_Commit_StillAppliesSaveRules()
     {
-        var unnamed = Scenario() with { Name = string.Empty };
+        // 裁定 2026-10-29-16 拿掉名稱與動機必填，空白名稱或動機不再是驗證錯誤；這裡要的是一個驗證錯誤，
+        // 改用只在儲存時檢查的名稱長度上限。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+        var unnamed = Scenario() with { Name = new string('名', FilterScenarioLimits.MaxNameLength + 1) };
 
         var exception = Assert.Throws<JetActionException>(() =>
             JetAuditProgram.Plan(Request("filter.commit", [new CanonicalFilterDocument(1, "{}", unnamed)])));
@@ -144,7 +148,9 @@ public sealed class FilterProgramTests
     [Fact]
     public void Plan_CommitError_NamesTheScenarioItBelongsTo()
     {
-        var invalid = Scenario("第二個") with { Rationale = string.Empty };
+        // 裁定 2026-10-29-16 拿掉名稱與動機必填，空白名稱或動機不再是驗證錯誤；這裡要的是一個驗證錯誤，
+        // 改用沒有條件組的情境，名稱不變。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+        var invalid = Scenario("第二個") with { Groups = [] };
 
         var exception = Assert.Throws<JetActionException>(() =>
             JetAuditProgram.Plan(Request(
@@ -193,7 +199,7 @@ public sealed class FilterProgramTests
             action,
             "project",
             documents,
-            new FilterRuleContext(
+            new FilterConditionContext(
                 10_000,
                 "2024-12-31",
                 "2025-01-01",
@@ -201,7 +207,7 @@ public sealed class FilterProgramTests
                 [0, 6],
                 GlPopulationScope.AuditPeriod),
             new FilterValidationContext(
-                HasLastPeriodStart: true,
+                HasPrepStartDate: true,
                 HasAccountMapping: true,
                 HasAuthorizedPreparers: true,
                 PopulationScope: GlPopulationScope.AuditPeriod,
@@ -217,9 +223,9 @@ public sealed class FilterProgramTests
                 new FilterGroupSpec(
                     FilterJoin.And,
                     [
-                        new FilterRuleSpec(
+                        new FilterConditionSpec(
                             FilterJoin.And,
-                            FilterRuleType.DrCrOnly,
+                            FilterConditionType.DrCrOnly,
                             null,
                             null,
                             [],
@@ -241,9 +247,9 @@ public sealed class FilterProgramTests
                 new FilterGroupSpec(
                     FilterJoin.And,
                     [
-                        new FilterRuleSpec(
+                        new FilterConditionSpec(
                             FilterJoin.And,
-                            FilterRuleType.Prescreen,
+                            FilterConditionType.Prescreen,
                             PrescreenRuleKeys.UnexpectedAccountPair,
                             null,
                             [],

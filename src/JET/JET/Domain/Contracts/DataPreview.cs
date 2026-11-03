@@ -11,11 +11,11 @@ public enum DataPreviewDataset
     Gl,
     GlExcluded,
     Tb,
-    AccountMappings,
-    AuthorizedPreparers,
+    AccountMapping,
+    AuthorizedPreparer,
 
-    /// <summary>DATE_DIMENSION：事務所假日／補班日（staging_calendar_raw_day）。</summary>
-    DateDimension,
+    /// <summary>DATE_DIMENSION：事務所假日／補班日（calendar_day）。</summary>
+    Calendar,
 
     /// <summary>資料庫結構總覽：由 <c>JetSchemaCatalog</c> metadata 驅動，非任何資料表的列資料。</summary>
     SchemaOverview
@@ -42,14 +42,14 @@ public static class DataPreviewDatasetNames
             case "tb":
                 dataset = DataPreviewDataset.Tb;
                 return true;
-            case "accountMappings":
-                dataset = DataPreviewDataset.AccountMappings;
+            case "accountMapping":
+                dataset = DataPreviewDataset.AccountMapping;
                 return true;
-            case "authorizedPreparers":
-                dataset = DataPreviewDataset.AuthorizedPreparers;
+            case "authorizedPreparer":
+                dataset = DataPreviewDataset.AuthorizedPreparer;
                 return true;
-            case "dateDimension":
-                dataset = DataPreviewDataset.DateDimension;
+            case "calendar":
+                dataset = DataPreviewDataset.Calendar;
                 return true;
             case "schemaOverview":
                 dataset = DataPreviewDataset.SchemaOverview;
@@ -62,12 +62,12 @@ public static class DataPreviewDatasetNames
 }
 
 /// <summary>
-/// GL(未納入測試) 每一列的未納入原因。日期不符分成前三種（使用者 2026-10-21 裁定分開標示並各自計數，
+/// GL(未納入測試) 每一列的未納入原因。日期不符分成前三種，分開標示並各自計數（裁定 2026-10-21-04），
 /// 資料預覽可以只看其中一種）；GL 範圍與審計結果不變。
 /// </summary>
 public enum GlExclusionReason
 {
-    BlankPostDate,
+    BlankGlDate,
     BeforePeriod,
     AfterPeriod,
     PostingStatus
@@ -79,8 +79,8 @@ public static class GlExclusionReasonNames
     {
         switch (wireName)
         {
-            case "blankPostDate":
-                reason = GlExclusionReason.BlankPostDate;
+            case "blankGlDate":
+                reason = GlExclusionReason.BlankGlDate;
                 return true;
             case "beforePeriod":
                 reason = GlExclusionReason.BeforePeriod;
@@ -99,7 +99,7 @@ public static class GlExclusionReasonNames
 
     public static string ToWireName(GlExclusionReason reason) => reason switch
     {
-        GlExclusionReason.BlankPostDate => "blankPostDate",
+        GlExclusionReason.BlankGlDate => "blankGlDate",
         GlExclusionReason.BeforePeriod => "beforePeriod",
         GlExclusionReason.AfterPeriod => "afterPeriod",
         GlExclusionReason.PostingStatus => "postingStatus",
@@ -117,8 +117,8 @@ public abstract record DataPreviewStats;
 public sealed record GlPreviewStats(
     decimal AmountAbsMin,
     decimal AmountAbsMax,
-    string? PostDateMin,
-    string? PostDateMax,
+    string? GlDateMin,
+    string? GlDateMax,
     long VoucherCount) : DataPreviewStats;
 
 /// <summary>
@@ -126,14 +126,14 @@ public sealed record GlPreviewStats(
 /// 只看一種原因時，這四個數字仍描述全部未納入測試的分錄。
 /// </summary>
 public sealed record GlExcludedPreviewStats(
-    long BlankPostDateCount,
+    long BlankGlDateCount,
     long BeforePeriodCount,
     long AfterPeriodCount,
     long PostingStatusCount) : DataPreviewStats
 {
     public long CountOf(GlExclusionReason reason) => reason switch
     {
-        GlExclusionReason.BlankPostDate => BlankPostDateCount,
+        GlExclusionReason.BlankGlDate => BlankGlDateCount,
         GlExclusionReason.BeforePeriod => BeforePeriodCount,
         GlExclusionReason.AfterPeriod => AfterPeriodCount,
         GlExclusionReason.PostingStatus => PostingStatusCount,
@@ -162,7 +162,7 @@ public enum DataPreviewGlValueSource
 
 /// <summary>
 /// 資料預覽 GL 與 GL(未納入測試) 的一欄。Key 是回應 columns 的識別；Label 和欄位配對畫面同名；ValueType 是
-/// <see cref="RdeFieldValueTypeNames"/> 的 text、date 或 money。Storage 是分錄表的欄名，攸關資料元素欄位則是它的 field_id。
+/// <see cref="RdeFieldValueTypeNames"/> 的 text、date 或 amount。Storage 是分錄表的欄名，攸關資料元素欄位則是它的 field_id。
 /// 欄位清單由 <see cref="DataPreviewGlColumns"/> 依已確認的配對產生。
 /// </summary>
 public sealed record DataPreviewGlColumn(

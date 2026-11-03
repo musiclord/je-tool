@@ -84,11 +84,11 @@ internal static class DemoProjectPipeline
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = project.GetProperty("projectCode").GetString(),
-            entityName = project.GetProperty("entityName").GetString(),
+            clientName = project.GetProperty("clientName").GetString(),
             operatorId = project.GetProperty("operatorId").GetString(),
             periodStart = project.GetProperty("periodStart").GetString(),
             periodEnd = project.GetProperty("periodEnd").GetString(),
-            lastPeriodStart = project.GetProperty("lastPeriodStart").GetString(),
+            prepStartDate = project.GetProperty("prepStartDate").GetString(),
             databaseProvider
         }));
         var projectId = created.GetProperty("projectId").GetString()!;
@@ -123,7 +123,7 @@ internal static class DemoProjectPipeline
             {
                 filePath = apFile.GetProperty("filePath").GetString(),
                 fileName = apFile.GetProperty("fileName").GetString(),
-                // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留原示範流程的測試目的。
+                // sourceColumn 改成必填，後端不再猜人員欄；保留原示範流程的測試目的。
                 sourceColumn = "姓名"
             }));
         }

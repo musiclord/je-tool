@@ -7,21 +7,24 @@ using Xunit;
 
 namespace JET.Tests.AuditCore;
 
-/// <summary>Stage 5 provider-neutral SQL plan tests over synthetic conditions.</summary>
+/// <summary>Provider-neutral SQL plan tests over synthetic conditions.</summary>
 public sealed class AdvancedFilterAstCompilationTests
 {
-    private static readonly FilterRuleContext Context =
+    private static readonly FilterConditionContext Context =
         new(100, null, "2025-01-01", "2025-12-31", PopulationScope: GlPopulationScope.AuditPeriod);
 
+    // 原本用「同一傳票」比對範圍；這個寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
+    // 照它的重建方式把第一條以外的條件各自放進「整張傳票條件」並選「至少一筆符合」，斷言不變。
+    // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法改成無法讀取）。
     [Fact]
-    public void SameVoucher_BuildsAnchorAndOrderedEffectiveVoucherSets()
+    public void VoucherWitnesses_BuildAnchorAndOrderedEffectiveVoucherSets()
     {
         var scenario = Parse(
             """
-            {"name":"synthetic","rationale":"compile","groups":[{"matchScope":"sameVoucher","rules":[
-              {"join":"AND","type":"textSet","field":"accNum","values":["AN CHOR"],"mode":"exact","normalization":"removeAsciiSpaces"},
-              {"join":"AND","type":"textSet","field":"description","values":["EVI DENCE"],"mode":"contains","normalization":"removeAsciiSpaces"},
-              {"join":"AND","type":"numRange","field":"amount","from":"5"}
+            {"name":"synthetic","rationale":"compile","groups":[{"matchScope":"row","conditions":[
+              {"join":"AND","type":"textSet","field":"accountNumber","values":["AN CHOR"],"mode":"exact","normalization":"removeAsciiSpaces"},
+              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"textSet","field":"description","values":["EVI DENCE"],"mode":"contains","normalization":"removeAsciiSpaces"}]},
+              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"numRange","field":"amount","from":"5"}]}
             ]}]}
             """);
 
@@ -30,10 +33,10 @@ public sealed class AdvancedFilterAstCompilationTests
             Context,
             schemaPrefix: "prj_synthetic.");
 
-        Assert.Equal(2, Count(plan.Sql, "g.document_number IN ("));
-        Assert.Equal(2, Count(plan.Sql, "FROM prj_synthetic.target_gl_entry g"));
-        Assert.Equal(2, Count(plan.Sql, "g.is_effective = 1"));
-        Assert.DoesNotContain("JOIN prj_synthetic.target_gl_entry", plan.Sql, StringComparison.Ordinal);
+        Assert.Equal(2, Count(plan.Sql, "g.voucher_number IN ("));
+        Assert.Equal(2, Count(plan.Sql, "FROM prj_synthetic.gl g"));
+        Assert.Equal(2, Count(plan.Sql, "g.is_excluded = 0"));
+        Assert.DoesNotContain("JOIN prj_synthetic.gl", plan.Sql, StringComparison.Ordinal);
         Assert.Collection(
             plan.Parameters,
             parameter => AssertParameter(parameter, "@p0", "ANCHOR"),
@@ -46,7 +49,7 @@ public sealed class AdvancedFilterAstCompilationTests
     {
         const string group =
             """
-            "rules":[
+            "conditions":[
               {"join":"AND","type":"text","field":"description","keywords":"alpha","mode":"contains"},
               {"join":"OR","type":"manualAuto","isManual":true}
             ]
@@ -85,10 +88,10 @@ public sealed class AdvancedFilterAstCompilationTests
         var exception = Assert.Throws<JetActionException>(
             () => Builder().BuildPlan(rejected, Context));
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        Assert.Contains(
-            FilterScenarioLimits.MaxCompiledParameters.ToString(),
-            exception.Message,
-            StringComparison.Ordinal);
+        // 裁定 2026-10-30-19：訊息裡的上限是數量，加千分位。原本比對未加千分位的 2000；
+        // 改字後依預期失敗：Focused 收據 20261031-010547486-827e57fd9bfa4185b81c65114b864279。
+        Assert.Equal(2000, FilterScenarioLimits.MaxCompiledParameters);
+        Assert.Contains("超過 2,000 個", exception.Message, StringComparison.Ordinal);
     }
 
     private static GlFilterWhereBuilder Builder() =>
@@ -113,7 +116,7 @@ public sealed class AdvancedFilterAstCompilationTests
                 new
                 {
                     matchScope = "row",
-                    rules = valueCounts.Select((count, ruleIndex) => new
+                    conditions = valueCounts.Select((count, ruleIndex) => new
                     {
                         join = "AND",
                         type = "textSet",

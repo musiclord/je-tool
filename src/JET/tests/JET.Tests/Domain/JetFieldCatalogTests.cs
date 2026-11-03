@@ -5,7 +5,7 @@ namespace JET.Tests.Domain;
 
 public sealed class JetFieldCatalogTests
 {
-    // 2026-10-22 技術債一輪：目錄只給測試用的 FindGlMappingSlot 與 FindTbMappingSlot 已刪除，測試直接從槽位清單找。
+    // 2026-10-22 清理技術債：目錄只給測試用的 FindGlMappingSlot 與 FindTbMappingSlot 已刪除，測試直接從槽位清單找。
     private static JetMappingSlot GlSlot(string key) => JetFieldCatalog.GlMappingSlots.Single(slot => slot.Key == key);
 
     private static JetMappingSlot TbSlot(string key) => JetFieldCatalog.TbMappingSlots.Single(slot => slot.Key == key);
@@ -22,16 +22,16 @@ public sealed class JetFieldCatalogTests
     [Fact]
     public void CompatibilityMembers_PreservePublicShapes()
     {
-        var glDocNum = typeof(GlMappingKeys).GetField(nameof(GlMappingKeys.DocNum));
+        var glVoucherNumber = typeof(GlMappingKeys).GetField(nameof(GlMappingKeys.VoucherNumber));
         var glAll = typeof(GlMappingKeys).GetField(nameof(GlMappingKeys.All));
-        var tbAmount = typeof(TbMappingKeys).GetField(nameof(TbMappingKeys.Amount));
+        var tbAmount = typeof(TbMappingKeys).GetField(nameof(TbMappingKeys.ChangeAmount));
         var tbAll = typeof(TbMappingKeys).GetField(nameof(TbMappingKeys.All));
         var glCanonical = typeof(GlCanonicalNames).GetProperty(nameof(GlCanonicalNames.Gl));
         var tbCanonical = typeof(GlCanonicalNames).GetProperty(nameof(GlCanonicalNames.Tb));
 
-        Assert.NotNull(glDocNum);
-        Assert.True(glDocNum.IsLiteral);
-        Assert.Equal(typeof(string), glDocNum.FieldType);
+        Assert.NotNull(glVoucherNumber);
+        Assert.True(glVoucherNumber.IsLiteral);
+        Assert.Equal(typeof(string), glVoucherNumber.FieldType);
         Assert.NotNull(tbAmount);
         Assert.True(tbAmount.IsLiteral);
         Assert.Equal(typeof(string), tbAmount.FieldType);
@@ -60,44 +60,44 @@ public sealed class JetFieldCatalogTests
     {
         var expected = new[]
         {
-            Slot("docNum", "傳票號碼", 0, true, [], false, true,
-                "docNum", JetFieldValueKind.Text, "document_number", true, "傳票號碼_JE", true),
-            Slot("lineID", "傳票文件項次", 1, false, [], false, true,
-                "lineID", JetFieldValueKind.Text, "line_item", true, "傳票文件項次_JE_S", true),
-            Slot("postDate", "總帳日期", 2, true, [], false, true,
-                "postDate", JetFieldValueKind.Date, "post_date", true, "總帳日期_JE", true),
-            Slot("docDate", "傳票核准日", 3, false, [], false, true,
-                "docDate", JetFieldValueKind.Date, "approval_date", true, null, true),
-            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原本 order 4 的 voucherDate 拿掉，其餘順序值不重排。
-            Slot("accNum", "會計科目編號", 5, true, [], false, true,
-                "accNum", JetFieldValueKind.Text, "account_code", true, "會計科目編號_JE", true),
-            Slot("accName", "會計科目名稱", 6, true, [], false, true,
-                "accName", JetFieldValueKind.Text, "account_name", true, "會計科目名稱_JE", true),
+            Slot("voucherNumber", "傳票號碼", 0, true, [], false, true,
+                "voucherNumber", JetFieldValueKind.Text, "voucher_number", true, "傳票號碼_JE", true),
+            Slot("lineItem", "傳票文件項次", 1, false, [], false, true,
+                "lineItem", JetFieldValueKind.Text, "line_item", true, "傳票文件項次_JE_S", true),
+            Slot("glDate", "總帳日期", 2, true, [], false, true,
+                "glDate", JetFieldValueKind.Date, "gl_date", true, "總帳日期_JE", true),
+            Slot("approvalDate", "傳票核准日", 3, false, [], false, true,
+                "approvalDate", JetFieldValueKind.Date, "approval_date", true, null, true),
+            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，原本 order 4 的 voucherDate 拿掉，其餘順序值不重排。
+            Slot("accountNumber", "會計科目編號", 5, true, [], false, true,
+                "accountNumber", JetFieldValueKind.Text, "account_number", true, "會計科目編號_JE", true),
+            Slot("accountName", "會計科目名稱", 6, true, [], false, true,
+                "accountName", JetFieldValueKind.Text, "account_name", true, "會計科目名稱_JE", true),
             Slot("description", "傳票摘要", 7, true, [], false, true,
-                "description", JetFieldValueKind.Text, "document_description", true, "傳票摘要_JE", true),
-            Slot("jeSource", "分錄來源模組", 8, false, [], false, true,
-                "jeSource", JetFieldValueKind.Text, "source_module", true, null, true),
-            Slot("createBy", "傳票建立人員", 9, false, [], false, true,
-                "createBy", JetFieldValueKind.Text, "created_by", true, "傳票建立人員_JE", true),
-            Slot("approveBy", "傳票核准人員", 10, false, [], false, true,
-                "approveBy", JetFieldValueKind.Text, "approved_by", true, "傳票核准人員_JE", true),
-            Slot("manual", "人工/自動分錄", 11, false, [], false, false,
-                "manual", JetFieldValueKind.Boolean, "is_manual", true, null, false),
-            // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+                "description", JetFieldValueKind.Text, "description", true, "傳票摘要_JE", true),
+            Slot("sourceModule", "分錄來源模組", 8, false, [], false, true,
+                "sourceModule", JetFieldValueKind.Text, "source_module", true, null, true),
+            Slot("createdBy", "傳票建立人員", 9, false, [], false, true,
+                "createdBy", JetFieldValueKind.Text, "created_by", true, "傳票建立人員_JE", true),
+            Slot("approvedBy", "傳票核准人員", 10, false, [], false, true,
+                "approvedBy", JetFieldValueKind.Text, "approved_by", true, "傳票核准人員_JE", true),
+            Slot("isManual", "人工/自動分錄", 11, false, [], false, false,
+                "isManual", JetFieldValueKind.Boolean, "is_manual", true, null, false),
+            // 裁定 2026-10-13-18 把分錄金額改名為金額；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
             Slot("amount", "金額", 12, false, ["signed", "side", "flag"], false, true,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("debitAmount", "借方金額", 13, false, ["dual"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("creditAmount", "貸方金額", 14, false, ["dual"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            Slot("dcField", "借貸別", 15, false, ["side", "flag"], false, false,
+            Slot("drCr", "借貸別", 15, false, ["side", "flag"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            // 2026-10-02 使用者裁定 W5：欄位配對名稱「借方標識代碼」改成「借方代碼」。
-            Slot("dcDebitCode", "借方代碼", 16, false, ["side", "flag"], true, false,
+            // 裁定 2026-10-02-02：欄位配對名稱「借方標識代碼」改成「借方代碼」。
+            Slot("drCrDebitCode", "借方代碼", 16, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            // 2026-10-04 R9 加入必填貸方代碼；新增 slot，不改任何既有欄位的儲存語意。
+            // 2026-10-04 加入必填貸方代碼；新增 slot，不改任何既有欄位的儲存語意。
             // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
-            Slot("dcCreditCode", "貸方代碼", 17, false, ["side", "flag"], true, false,
+            Slot("drCrCreditCode", "貸方代碼", 17, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("postingStatus", "過帳狀態", 18, false, [], false, false,
                 "postingStatus", JetFieldValueKind.Text, "posting_status", true, null, false)
@@ -111,27 +111,27 @@ public sealed class JetFieldCatalogTests
     {
         var expected = new[]
         {
-            Slot("accNum", "會計科目編號", 0, true, [], false, true,
-                "accNum", JetFieldValueKind.Text, "account_code", true, "會計科目編號_TB", false),
-            Slot("accName", "會計科目名稱", 1, true, [], false, true,
-                "accName", JetFieldValueKind.Text, "account_name", true, "會計科目名稱_TB", false),
-            Slot("amount", "年度變動金額", 2, false, ["direct"], false, true,
+            Slot("accountNumber", "會計科目編號", 0, true, [], false, true,
+                "accountNumber", JetFieldValueKind.Text, "account_number", true, "會計科目編號_TB", false),
+            Slot("accountName", "會計科目名稱", 1, true, [], false, true,
+                "accountName", JetFieldValueKind.Text, "account_name", true, "會計科目名稱_TB", false),
+            Slot("changeAmount", "年度變動金額", 2, false, ["direct"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
-            Slot("debitAmt", "借方金額", 3, false, ["debitCredit"], false, true,
+            Slot("debitAmount", "借方金額", 3, false, ["debitCredit"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
-            Slot("creditAmt", "貸方金額", 4, false, ["debitCredit"], false, true,
+            Slot("creditAmount", "貸方金額", 4, false, ["debitCredit"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
             Slot("openingBalance", "期初餘額", 5, false, ["openClose"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
             Slot("closingBalance", "期末餘額", 6, false, ["openClose"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
-            Slot("openingDebit", "期初借方", 7, false, ["openCloseBySide"], false, true,
+            Slot("openingDebitBalance", "期初借方", 7, false, ["openCloseBySide"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
-            Slot("openingCredit", "期初貸方", 8, false, ["openCloseBySide"], false, true,
+            Slot("openingCreditBalance", "期初貸方", 8, false, ["openCloseBySide"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
-            Slot("closingDebit", "期末借方", 9, false, ["openCloseBySide"], false, true,
+            Slot("closingDebitBalance", "期末借方", 9, false, ["openCloseBySide"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false),
-            Slot("closingCredit", "期末貸方", 10, false, ["openCloseBySide"], false, true,
+            Slot("closingCreditBalance", "期末貸方", 10, false, ["openCloseBySide"], false, true,
                 "changeAmount", JetFieldValueKind.Amount, "change_amount_scaled", false, "試算表變動金額_TB", false)
         };
 
@@ -148,28 +148,28 @@ public sealed class JetFieldCatalogTests
 
         Assert.Equal(
             [
-                "docNum", "lineID", "postDate", "docDate", "accNum", "accName",
-                "description", "jeSource", "createBy", "approveBy", "manual", "amount",
-                "debitAmount", "creditAmount", "dcField", "dcDebitCode", "dcCreditCode", "postingStatus"
+                "voucherNumber", "lineItem", "glDate", "approvalDate", "accountNumber", "accountName",
+                "description", "sourceModule", "createdBy", "approvedBy", "isManual", "amount",
+                "debitAmount", "creditAmount", "drCr", "drCrDebitCode", "drCrCreditCode", "postingStatus"
             ],
             GlMappingKeys.All);
         Assert.Equal(
             [
-                "accNum", "accName", "amount", "debitAmt", "creditAmt", "openingBalance",
-                "closingBalance", "openingDebit", "openingCredit", "closingDebit", "closingCredit"
+                "accountNumber", "accountName", "changeAmount", "debitAmount", "creditAmount", "openingBalance",
+                "closingBalance", "openingDebitBalance", "openingCreditBalance", "closingDebitBalance", "closingCreditBalance"
             ],
             TbMappingKeys.All);
 
         Assert.Equal(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["docNum"] = "傳票號碼_JE",
-                ["lineID"] = "傳票文件項次_JE_S",
-                ["postDate"] = "總帳日期_JE",
-                ["createBy"] = "傳票建立人員_JE",
-                ["approveBy"] = "傳票核准人員_JE",
-                ["accNum"] = "會計科目編號_JE",
-                ["accName"] = "會計科目名稱_JE",
+                ["voucherNumber"] = "傳票號碼_JE",
+                ["lineItem"] = "傳票文件項次_JE_S",
+                ["glDate"] = "總帳日期_JE",
+                ["createdBy"] = "傳票建立人員_JE",
+                ["approvedBy"] = "傳票核准人員_JE",
+                ["accountNumber"] = "會計科目編號_JE",
+                ["accountName"] = "會計科目名稱_JE",
                 ["amount"] = "傳票金額_JE",
                 ["description"] = "傳票摘要_JE"
             },
@@ -177,29 +177,32 @@ public sealed class JetFieldCatalogTests
         Assert.Equal(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["accNum"] = "會計科目編號_TB",
-                ["accName"] = "會計科目名稱_TB",
+                ["accountNumber"] = "會計科目編號_TB",
+                ["accountName"] = "會計科目名稱_TB",
                 ["changeAmount"] = "試算表變動金額_TB"
             },
             GlCanonicalNames.Tb);
-        Assert.False(GlCanonicalNames.Tb.ContainsKey(TbMappingKeys.Amount));
+        // 原本斷言 TB 配對鍵 amount 不是語意欄鍵；名詞表把配對鍵改成 changeAmount，
+        // 和語意欄同名，改成確認兩者是同一個值。第一次失敗：Focused 收據 20261030-120941513-6c7d1b4be48e4af4a18bea06cc5f413d。
+        Assert.Equal(JetFieldCatalog.TbChangeAmount, TbMappingKeys.ChangeAmount);
+        Assert.True(GlCanonicalNames.Tb.ContainsKey(TbMappingKeys.ChangeAmount));
     }
 
     [Theory]
-    [InlineData(GlAmountMode.SignedAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount" })]
-    [InlineData(GlAmountMode.AmountWithSide, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
-    [InlineData(GlAmountMode.AmountWithFlag, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
-    [InlineData(GlAmountMode.DualAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "debitAmount", "creditAmount" })]
+    [InlineData(GlAmountMode.SignedAmount, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "amount" })]
+    [InlineData(GlAmountMode.AmountWithSide, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "amount", "drCr", "drCrDebitCode", "drCrCreditCode" })]
+    [InlineData(GlAmountMode.AmountWithFlag, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "amount", "drCr", "drCrDebitCode", "drCrCreditCode" })]
+    [InlineData(GlAmountMode.DualAmount, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "debitAmount", "creditAmount" })]
     public void GlRequiredKeyMatrix_IsExactAndOrdered(GlAmountMode mode, string[] expected)
     {
         Assert.Equal(expected, JetFieldCatalog.RequiredGlMappingKeys(mode));
     }
 
     [Theory]
-    [InlineData(TbChangeMode.DirectChange, new[] { "accNum", "accName", "amount" })]
-    [InlineData(TbChangeMode.DebitCredit, new[] { "accNum", "accName", "debitAmt", "creditAmt" })]
-    [InlineData(TbChangeMode.OpenClose, new[] { "accNum", "accName", "openingBalance", "closingBalance" })]
-    [InlineData(TbChangeMode.OpenCloseBySide, new[] { "accNum", "accName", "openingDebit", "openingCredit", "closingDebit", "closingCredit" })]
+    [InlineData(TbChangeMode.DirectChange, new[] { "accountNumber", "accountName", "changeAmount" })]
+    [InlineData(TbChangeMode.DebitCredit, new[] { "accountNumber", "accountName", "debitAmount", "creditAmount" })]
+    [InlineData(TbChangeMode.OpenClose, new[] { "accountNumber", "accountName", "openingBalance", "closingBalance" })]
+    [InlineData(TbChangeMode.OpenCloseBySide, new[] { "accountNumber", "accountName", "openingDebitBalance", "openingCreditBalance", "closingDebitBalance", "closingCreditBalance" })]
     public void TbRequiredKeyMatrix_IsExactAndOrdered(TbChangeMode mode, string[] expected)
     {
         Assert.Equal(expected, JetFieldCatalog.RequiredTbMappingKeys(mode));
@@ -209,32 +212,32 @@ public sealed class JetFieldCatalogTests
     public void UnknownModes_PreserveOnlyAlwaysRequiredKeys()
     {
         Assert.Equal(
-            ["docNum", "postDate", "accNum", "accName", "description"],
+            ["voucherNumber", "glDate", "accountNumber", "accountName", "description"],
             JetFieldCatalog.RequiredGlMappingKeys((GlAmountMode)int.MaxValue));
         Assert.Equal(
-            ["accNum", "accName"],
+            ["accountNumber", "accountName"],
             JetFieldCatalog.RequiredTbMappingKeys((TbChangeMode)int.MaxValue));
     }
 
     [Fact]
     public void MappingRequiredness_IsIndependentFromStorageNullability()
     {
-        var documentNumber = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.DocNum);
-        var postDate = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.PostDate);
-        var accountCode = JetFieldCatalog.FindTbSemanticFieldByMappingKey(TbMappingKeys.AccNum);
+        var voucherNumber = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.VoucherNumber);
+        var glDate = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.GlDate);
+        var accountNumber = JetFieldCatalog.FindTbSemanticFieldByMappingKey(TbMappingKeys.AccountNumber);
         var glAmount = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.Amount);
-        var tbAmount = JetFieldCatalog.FindTbSemanticFieldByMappingKey(TbMappingKeys.Amount);
+        var tbAmount = JetFieldCatalog.FindTbSemanticFieldByMappingKey(TbMappingKeys.ChangeAmount);
 
-        Assert.True(GlSlot(GlMappingKeys.DocNum).IsAlwaysRequired);
-        Assert.True(documentNumber.StorageNullable);
-        Assert.True(GlSlot(GlMappingKeys.PostDate).IsAlwaysRequired);
-        Assert.True(postDate.StorageNullable);
-        Assert.True(TbSlot(TbMappingKeys.AccNum).IsAlwaysRequired);
-        Assert.True(accountCode.StorageNullable);
+        Assert.True(GlSlot(GlMappingKeys.VoucherNumber).IsAlwaysRequired);
+        Assert.True(voucherNumber.StorageNullable);
+        Assert.True(GlSlot(GlMappingKeys.GlDate).IsAlwaysRequired);
+        Assert.True(glDate.StorageNullable);
+        Assert.True(TbSlot(TbMappingKeys.AccountNumber).IsAlwaysRequired);
+        Assert.True(accountNumber.StorageNullable);
 
         Assert.False(GlSlot(GlMappingKeys.Amount).IsAlwaysRequired);
         Assert.False(glAmount.StorageNullable);
-        Assert.False(TbSlot(TbMappingKeys.Amount).IsAlwaysRequired);
+        Assert.False(TbSlot(TbMappingKeys.ChangeAmount).IsAlwaysRequired);
         Assert.False(tbAmount.StorageNullable);
     }
 
@@ -242,14 +245,14 @@ public sealed class JetFieldCatalogTests
     public void LiteralAndFieldInfoCompatibility_AreExact()
     {
         Assert.Equal(
-            [GlMappingKeys.DcDebitCode, GlMappingKeys.DcCreditCode],
+            [GlMappingKeys.DrCrDebitCode, GlMappingKeys.DrCrCreditCode],
             JetFieldCatalog.GlMappingSlots.Where(static slot => slot.IsLiteral).Select(static slot => slot.Key));
         Assert.DoesNotContain(JetFieldCatalog.TbMappingSlots, static slot => slot.IsLiteral);
 
         Assert.Equal(
             [
-                "docNum", "lineID", "postDate", "docDate", "accNum", "accName",
-                "description", "jeSource", "createBy", "approveBy", "amount"
+                "voucherNumber", "lineItem", "glDate", "approvalDate", "accountNumber", "accountName",
+                "description", "sourceModule", "createdBy", "approvedBy", "amount"
             ],
             JetFieldCatalog.GlMappingSlots
                 .Where(static slot => slot.IncludeInFieldInfo)

@@ -72,7 +72,7 @@ internal static class LegacyWorkbookHeaderCatalog
             return SpreadsheetContentHeaderRule.Fixed(16);
         }
         // Validation v4（jet-guide §7.2）：blank post date 不建 V7，改由條件式
-        // `Source_Quality` 揭示來源品質明細。
+        // `Source_Quality` 揭示總帳日期空白明細。
         if (IsSeries(sheetName, "Source_Quality", localizedSuffix: false))
         {
             return SpreadsheetContentHeaderRule.Fixed(1);

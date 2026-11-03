@@ -21,9 +21,9 @@ public sealed class SqlServerCollationProbeTests
     /// 守衛範圍誠實聲明：本探針只守「已登記的欄仍釘著 BIN2」——登記後拆釘會紅燈；
     /// 但「新增鍵欄且完全忘記登記」偵測不到（allow-list 的固有限制）。
     /// 新表入 SchemaSql 時，靠 code review 紀律把鍵欄同步登記於此。
-    /// 刻意不釘（純顯示／payload）欄不在此列：day_name、mode_name、檔名路徑、*_json、app_message_log.*、
-    /// config_filter_scenario.*。line_item、account_name、document_description 與 source_module 會被文字條件、
-    /// 排序與 MAX 用到，2026-10-19 第 14 版起固定 BIN2（跨資料庫一致性計畫第三節 F），一併登記在下面。
+    /// 刻意不釘（純顯示／payload）欄不在此列：day_name、mode_name、檔名路徑、*_json、message_log.*、
+    /// filter_scenario.*。line_item、account_name、description 與 source_module 會被文字條件、
+    /// 排序與 MAX 用到，2026-10-19 第 14 版起固定 BIN2，讓三種資料庫一致，一併登記在下面。
     /// </summary>
     private static readonly (string Table, string Column)[] PinnedKeyColumns =
     [
@@ -32,55 +32,56 @@ public sealed class SqlServerCollationProbeTests
         ("import_batch", "dataset_kind"),
         ("import_batch", "imported_utc"),
         ("import_batch_source", "batch_id"),
-        ("import_field_definition", "batch_id"),
-        ("import_field_definition", "definition_scope"),
-        ("import_field_definition", "field_kind"),
-        ("staging_gl_raw_row", "batch_id"),
-        ("staging_tb_raw_row", "batch_id"),
-        ("staging_account_mapping_raw_row", "batch_id"),
-        ("staging_authorized_preparer_raw_row", "batch_id"),
-        ("config_field_mapping", "dataset_kind"),
-        ("config_field_mapping", "source_batch_id"),
-        ("config_gl_rde_field", "field_id"),
-        ("config_gl_rde_field", "value_type"),
-        ("config_account_taxonomy", "category_id"),
-        ("config_account_taxonomy", "semantic_role"),
-        ("staging_calendar_raw_day", "day_type"),
-        ("staging_calendar_raw_day", "date"),
-        ("target_gl_entry", "batch_id"),
-        ("target_gl_entry", "document_number"),
-        ("target_gl_entry", "post_date"),
-        ("target_gl_entry", "approval_date"),
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，現行 schema 不再有 voucher_date。
-        ("target_gl_entry", "account_code"),
-        ("target_gl_entry", "created_by"),
-        ("target_gl_entry", "approved_by"),
-        ("target_gl_entry", "posting_status"),
-        ("target_gl_entry", "exclusion_reason"),
-        ("target_gl_entry", "dr_cr"),
-        ("target_gl_rde_value", "field_id"),
-        ("target_gl_rde_value", "value_type"),
-        ("target_gl_rde_value", "text_value"),
-        ("target_gl_rde_value", "date_value"),
-        ("target_tb_balance", "batch_id"),
-        ("target_tb_balance", "account_code"),
-        ("result_rule_run", "run_id"),
-        ("result_rule_run", "run_kind"),
-        ("result_rule_run", "generated_utc"),
-        ("result_inf_sampling_test_sample", "run_id"),
-        ("result_inf_sampling_test_sample", "document_number"),
-        ("target_account_mapping", "batch_id"),
-        ("target_account_mapping", "account_code"),
-        ("target_account_mapping", "standardized_category"),
-        ("target_account_mapping", "category_id"),
-        ("target_authorized_preparer", "name"),
-        ("target_gl_entry", "line_item"),
-        ("target_gl_entry", "account_name"),
-        ("target_gl_entry", "document_description"),
-        ("target_gl_entry", "source_module"),
-        ("target_tb_balance", "account_name"),
-        ("target_account_mapping", "account_name"),
-        ("result_inf_sampling_test_sample", "line_item"),
+        ("field_info", "batch_id"),
+        ("field_info", "definition_scope"),
+        ("field_info", "field_kind"),
+        ("pbc_gl", "batch_id"),
+        ("pbc_tb", "batch_id"),
+        ("pbc_account_mapping", "batch_id"),
+        ("pbc_authorized_preparer", "batch_id"),
+        ("field_mapping", "dataset_kind"),
+        ("field_mapping", "source_batch_id"),
+        ("gl_rde_field", "field_id"),
+        ("gl_rde_field", "value_type"),
+        ("account_category", "category_id"),
+        ("account_category", "semantic_role"),
+        ("calendar_day", "day_type"),
+        ("calendar_day", "date"),
+        ("gl", "batch_id"),
+        ("gl", "voucher_number"),
+        ("gl", "gl_date"),
+        ("gl", "approval_date"),
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，現行 schema 不再有 voucher_date。
+        ("gl", "account_number"),
+        ("gl", "created_by"),
+        ("gl", "approved_by"),
+        ("gl", "posting_status"),
+        ("gl", "exclusion_reason"),
+        ("gl", "dr_cr"),
+        ("gl_rde_value", "field_id"),
+        ("gl_rde_value", "value_type"),
+        ("gl_rde_value", "text_value"),
+        ("gl_rde_value", "date_value"),
+        ("tb", "batch_id"),
+        ("tb", "account_number"),
+        ("validation_result", "result_id"),
+        ("validation_result", "generated_utc"),
+        ("prescreen_result", "result_id"),
+        ("prescreen_result", "generated_utc"),
+        ("inf_sample", "result_id"),
+        ("inf_sample", "voucher_number"),
+        ("account_mapping", "batch_id"),
+        ("account_mapping", "account_number"),
+        ("account_mapping", "standardized_category"),
+        ("account_mapping", "category_id"),
+        ("authorized_preparer", "name"),
+        ("gl", "line_item"),
+        ("gl", "account_name"),
+        ("gl", "description"),
+        ("gl", "source_module"),
+        ("tb", "account_name"),
+        ("account_mapping", "account_name"),
+        ("inf_sample", "line_item"),
     ];
 
     [SqlServerFact]
@@ -131,10 +132,10 @@ public sealed class SqlServerCollationProbeTests
     private static readonly string[] ProbeKeys = ["A001", "ADJ", "JV-001", "a001", "jv-001", "ＡＤＪ"];
 
     [SqlServerFact]
-    public async Task DocumentNumberGrouping_CaseAndWidthVariantKeys_MatchesSqliteBinarySemantics()
+    public async Task VoucherNumberGrouping_CaseAndWidthVariantKeys_MatchesSqliteBinarySemantics()
     {
         // oracle：SQLite BINARY 的分組結果（值＋身分＋順序）。
-        var sqliteGroups = SqliteGroupedDocumentNumbers();
+        var sqliteGroups = SqliteGroupedVoucherNumbers();
         Assert.Equal(6, sqliteGroups.Count); // oracle 自檢：6 鍵必為 6 組
 
         await using var sql = await TempSqlServerProject.TryCreateAsync();
@@ -149,8 +150,8 @@ public sealed class SqlServerCollationProbeTests
             connection,
             sql.ProjectId,
             $$"""
-            INSERT INTO {s}.target_gl_entry
-                (batch_id, source_row_number, document_number,
+            INSERT INTO {s}.gl
+                (batch_id, source_row_number, voucher_number,
                  amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
             VALUES
             {{insertValues}};
@@ -163,7 +164,7 @@ public sealed class SqlServerCollationProbeTests
         await using (var groupBy = sql.Database.CreateCommand(
             connection,
             sql.ProjectId,
-            "SELECT document_number FROM {s}.target_gl_entry GROUP BY document_number ORDER BY document_number;"))
+            "SELECT voucher_number FROM {s}.gl GROUP BY voucher_number ORDER BY voucher_number;"))
         {
             await using var reader = await groupBy.ExecuteReaderAsync();
             while (await reader.ReadAsync())
@@ -177,7 +178,7 @@ public sealed class SqlServerCollationProbeTests
     }
 
     /// <summary>SQLite oracle：同一組鍵值在 temp 專案 DB 的 GROUP BY／ORDER BY（BINARY 定序）結果。</summary>
-    private static List<string> SqliteGroupedDocumentNumbers()
+    private static List<string> SqliteGroupedVoucherNumbers()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -194,8 +195,8 @@ public sealed class SqlServerCollationProbeTests
             {
                 insert.CommandText =
                     """
-                    INSERT INTO target_gl_entry
-                        (batch_id, source_row_number, document_number,
+                    INSERT INTO gl
+                        (batch_id, source_row_number, voucher_number,
                          amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
                     VALUES
                     """ + string.Join(",\n", ProbeKeys.Select((key, i) => $"('b1', {i + 1}, '{key}', 100, 100, 0, 'DEBIT')")) + ";";
@@ -204,7 +205,7 @@ public sealed class SqlServerCollationProbeTests
 
             using var groupBy = connection.CreateCommand();
             groupBy.CommandText =
-                "SELECT document_number FROM target_gl_entry GROUP BY document_number ORDER BY document_number;";
+                "SELECT voucher_number FROM gl GROUP BY voucher_number ORDER BY voucher_number;";
             using var reader = groupBy.ExecuteReader();
             while (reader.Read())
             {

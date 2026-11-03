@@ -11,11 +11,11 @@ internal sealed record FilterSqlFragmentPlan(
     IReadOnlyList<FilterSqlParameter> Parameters)
 {
     /// <summary>每條規則自己的述詞，供傳票明細標示「本列符合哪些條件」；只在 includeEvidence 時產生。</summary>
-    internal IReadOnlyList<FilterRuleEvidenceSql> EvidencePredicates { get; init; } = [];
+    internal IReadOnlyList<FilterConditionEvidenceSql> EvidencePredicates { get; init; } = [];
 }
 
-internal sealed record FilterRuleEvidenceSql(FilterConditionPosition Position, bool Primary,
-    bool Voucher, string Predicate);
+/// <summary>一條條件自己的述詞；<paramref name="Voucher"/> 為真表示它是整張傳票條件，否則是決定命中列的主要條件。</summary>
+internal sealed record FilterConditionEvidenceSql(FilterConditionPosition Position, bool Voucher, string Predicate);
 
 /// <summary>One named value in an ordered filter SQL parameter plan.</summary>
 internal sealed record FilterSqlParameter(string Name, object Value);
@@ -72,7 +72,7 @@ internal sealed class FilterSqlParameterPlanBuilder(
         {
             throw new JetActionException(
                 JetErrorCodes.InvalidScenario,
-                $"此情境所有條件的值合計超過 {maximum} 個，請減少清單中的值，或拆成兩個情境");
+                $"此情境所有條件的值合計超過 {CountText.Format(maximum)} 個，請減少清單中的值，或拆成兩個情境");
         }
     }
 }

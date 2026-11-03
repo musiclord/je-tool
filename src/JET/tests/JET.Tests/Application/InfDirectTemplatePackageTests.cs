@@ -12,8 +12,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-public sealed class InfDirectTemplatePackageTests(ReportArtifactExportFixture fixture)
-    : IClassFixture<ReportArtifactExportFixture>
+public sealed class InfDirectTemplatePackageTests(ReportExportFixture fixture)
+    : IClassFixture<ReportExportFixture>
 {
     private const string MainSheet = "INF Testing 可靠性測試";
     private const string AllFieldsSheet = "可靠性樣本_所有欄位";
@@ -21,10 +21,10 @@ public sealed class InfDirectTemplatePackageTests(ReportArtifactExportFixture fi
     [Fact]
     public async Task InfReport_FillsOnlyTheTwoTemplateWorksheetsAndPreservesStaticReliabilityCells()
     {
-        var response = await fixture.ExportValidationArtifactsAsync();
-        var artifact = response.GetProperty("artifacts").EnumerateArray()
+        var response = await fixture.ExportValidationReportsAsync();
+        var report = response.GetProperty("publishedReports").EnumerateArray()
             .Single(item => item.GetProperty("kind").GetString() == "infReport");
-        var outputPath = fixture.ArtifactPath(artifact);
+        var outputPath = fixture.ReportPath(report);
         var templatePath = Path.Combine(
             FindRepositoryRoot(),
             "src",

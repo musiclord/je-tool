@@ -56,26 +56,11 @@ public sealed class RuleCatalogTests
     [Fact]
     public void PreparerRowTags_ArePresentAndFilterable()
     {
-        // 非授權編製人員與低頻編製者兩條 canonical row-tag 須登錄且納入可篩選鍵。
-        foreach (var key in new[] { PrescreenRuleKeys.NonAuthorizedPreparer, PrescreenRuleKeys.LowFrequencyPreparer })
-        {
-            Assert.Contains(RuleCatalog.All, r => r.WireKey == key && r.Shape == RuleShape.RowTag);
-            Assert.Contains(key, PrescreenRuleKeys.FilterableKeys);
-        }
-    }
-
-    [Fact]
-    public void Catalog_Contains_LowFrequencyAccount_AsRowTag()
-    {
-        // C9 低頻科目須登錄為 RowTag；guide §4 明載 legacy Step 3 無對應。
-        var descriptor = Assert.Single(
-            RuleCatalog.All, r => r.WireKey == PrescreenRuleKeys.LowFrequencyAccount);
-
-        Assert.Equal("low_frequency_account", descriptor.Slug);
-        Assert.Equal("使用較少的科目（11 筆以下）", descriptor.DisplayName);
-        Assert.Null(descriptor.LegacyCode);
-        Assert.Equal(RuleShape.RowTag, descriptor.Shape);
-        Assert.Contains(PrescreenRuleKeys.LowFrequencyAccount, PrescreenRuleKeys.FilterableKeys);
+        // 非授權編製人員須登錄且納入可篩選鍵。編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），
+        // 只測那兩條的 Catalog_Contains_RareAccount_AsRowTag 一併刪除，這裡改成確認兩個代號不在登錄裡；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+        Assert.Contains(RuleCatalog.All, r => r.WireKey == PrescreenRuleKeys.NonAuthorizedPreparer && r.Shape == RuleShape.RowTag);
+        Assert.Contains(PrescreenRuleKeys.NonAuthorizedPreparer, PrescreenRuleKeys.FilterableKeys);
+        Assert.DoesNotContain(RuleCatalog.All, r => r.Slug is "rare_preparer" or "rare_account");
     }
 
     [Fact]
@@ -87,9 +72,7 @@ public sealed class RuleCatalogTests
             PrescreenRuleKeys.WeekendApproval,
             PrescreenRuleKeys.HolidayPosting,
             PrescreenRuleKeys.HolidayApproval,
-            PrescreenRuleKeys.NonAuthorizedPreparer,
-            PrescreenRuleKeys.LowFrequencyPreparer,
-            PrescreenRuleKeys.LowFrequencyAccount
+            PrescreenRuleKeys.NonAuthorizedPreparer
         };
 
         Assert.All(noLegacyStep3Counterpart, key =>
@@ -102,12 +85,6 @@ public sealed class RuleCatalogTests
             RuleCatalog.All,
             rule => rule.WireKey == PrescreenRuleKeys.BlankDescription);
         Assert.Equal("R7", blankDescription.LegacyCode);
-    }
-
-    [Fact]
-    public void AccountFrequency_DefaultMaxEntries_Is_11()
-    {
-        Assert.Equal(11, AccountFrequency.DefaultMaxEntries);
     }
 
     [Fact]

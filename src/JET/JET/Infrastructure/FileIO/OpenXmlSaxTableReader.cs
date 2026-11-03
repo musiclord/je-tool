@@ -267,7 +267,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
 
     private readonly record struct ContentRow(int RowNumber, List<ContentCell> Cells);
 
-    /// <summary>略過前 N 個實際列號，再取第一個有內容的標頭；空白列也計入略過範圍（K7）。</summary>
+    /// <summary>略過前 N 個實際列號，再取第一個有內容的標頭；空白列也計入略過範圍。</summary>
     private static ContentRow? FindHeaderRow(
         WorksheetPart part, CellContext context, Action<string>? onDimension, int leadingRowsToSkip = 0)
     {

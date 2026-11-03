@@ -64,21 +64,21 @@ async function snapshot(page) {
   return page.evaluate(() => {
     const s = window.JetStore && JetStore.getState();
     if (!s) return { ready: false };
-    const prescreen = s.lastRuns && s.lastRuns.prescreen;
+    const prescreen = s.results && s.results.prescreen;
     return {
       view: s.view,
       step: s.currentStepIndex,
       busy: s.busy,
       busyLabel: s.busyLabel,
       saved: ((s.filter && s.filter.savedScenarios) || []).map(x => x.name),
-      draftCards: s.filter && s.filter.draft && (s.filter.draft.groups || []).map(g => (g.rules || []).map(r => r.__commonCard || r.type)),
+      draftCards: s.filter && s.filter.draft && (s.filter.draft.groups || []).map(g => (g.conditions || []).map(r => r.__commonCard || r.type)),
       stale: s.staleState,
       prescreen: prescreen && Object.fromEntries(Object.entries(prescreen)
         .filter(([, v]) => v && typeof v === 'object' && 'count' in v)
         .map(([k, v]) => [k, v.status === 'na' && v.naReason ? 'na:' + v.naReason : v.count])),
-      validateRows: s.lastRuns && s.lastRuns.validate && s.lastRuns.validate.stats && s.lastRuns.validate.stats.glRowCount,
-      lastPeriodStart: s.project && s.project.lastPeriodStart,
-      reports: (s.reportArtifacts || []).map(a => a.kind + (a.stale ? '(過期)' : '')),
+      validateRows: s.results && s.results.validate && s.results.validate.stats && s.results.validate.stats.glRowCount,
+      prepStartDate: s.project && s.project.prepStartDate,
+      reports: (s.reports || []).map(a => a.kind + (a.stale ? '(過期)' : '')),
     };
   });
 }
@@ -270,24 +270,26 @@ async function run(page, name, body) {
   await run(page, '05-change-preparation-date', async ({ check, note }) => {
     await goStep(page, 0);
     await click(page, '[data-action="edit-project-metadata"]');
-    await page.fill('input[name="lastPeriodStart"]', '2026-01-20');
+    await page.fill('input[name="prepStartDate"]', '2026-01-20');
     await page.getByRole('button', { name: '儲存案件資料' }).click();
     await page.waitForTimeout(500);
     await waitIdle(page);
     let s = await snapshot(page);
     note('改準備日後的報告清單：' + s.reports.join('、'));
-    check('準備日已存成 2026-01-20', s.lastPeriodStart === '2026-01-20', s.lastPeriodStart);
+    check('準備日已存成 2026-01-20', s.prepStartDate === '2026-01-20', s.prepStartDate);
     check('已儲存情境全部清除', s.saved.length === 0, s.saved.length);
     check('預篩選標成需要重算，驗證結果保留', s.stale && s.stale.prescreen === true && s.stale.validation === false, s.stale);
     await goStep(page, 5);
-    const notice = await page.locator('[data-bind="export-no-scenario"]').filter({ visible: true }).count();
-    check('第六步提醒目前沒有可匯出的情境', notice > 0, notice);
+    // 裁定 2026-10-29-16：沒有已儲存的情境也能匯出底稿，第六步不再提醒先儲存情境。
+    const notice = await page.locator('[data-bind="export-no-scenario"]').count();
+    const exportEnabled = await page.locator('[data-action="export-working-paper"]').isEnabled();
+    check('第六步沒有情境時仍能匯出底稿', notice === 0 && exportEnabled, { notice, exportEnabled });
     await goStep(page, 3);
     await click(page, '[data-action="run-prescreen"]');
     await waitIdle(page);
     s = await snapshot(page);
     // 2026-01-20 以後核准：存貨跌價與信用減損（1/20）、收入截止（1/21）、所得稅（2/6），共 9 筆分錄。
-    check('重算後財報準備日起核准為 9 筆', s.prescreen && s.prescreen.postPeriodApproval === 9, s.prescreen && s.prescreen.postPeriodApproval);
+    check('重算後財報準備日起核准為 9 筆', s.prescreen && s.prescreen.prepPeriodApproval === 9, s.prescreen && s.prescreen.prepPeriodApproval);
     check('重算後預篩選不再過期', s.stale && s.stale.prescreen === false, s.stale);
   });
 
@@ -303,7 +305,7 @@ async function run(page, name, body) {
     await toPicker(page).catch(() => {});
     await openCase(page, COMMON);
     s = await snapshot(page);
-    check('切回常用篩選案件後顯示它的準備日', s.lastPeriodStart === '2026-01-20', s.lastPeriodStart);
+    check('切回常用篩選案件後顯示它的準備日', s.prepStartDate === '2026-01-20', s.prepStartDate);
     check('常用篩選案件沒有帶入 DuckDB 案件的情境', s.saved.length === 0, s.saved);
     check('常用篩選案件驗證筆數正確', s.validateRows === 30479, s.validateRows);
     await openCase(page, CUSTOM);
@@ -312,7 +314,7 @@ async function run(page, name, body) {
     check('DuckDB 案件驗證未過期', s.stale && s.stale.validation === false, s.stale);
   });
 
-  // 使用者 2026-10-11 裁定：情境有修改還沒儲存時，開啟另一個已存情境前先詢問；沒有修改時直接換。
+  // 裁定 2026-10-11-02：情境有修改還沒儲存時，開啟另一個已存情境前先詢問；沒有修改時直接換。
   await run(page, '07-edit-a-then-open-b', async ({ check, note }) => {
     const savedJson = index => page.evaluate(i => JSON.stringify(JetStore.getState().filter.savedScenarios[i]), index);
     const draftInfo = () => page.evaluate(() => {
@@ -424,12 +426,12 @@ async function run(page, name, body) {
     check('儲存後共 10 個情境，名稱沒有重複', s.saved.length === 10 && new Set(s.saved).size === 10, s.saved);
   });
 
-  await run(page, '09-taxonomy-change-then-new-common', async ({ check }) => {
+  await run(page, '09-category-change-then-new-common', async ({ check }) => {
     await goStep(page, 3);
-    const toggle = page.locator('[data-action="toggle-taxonomy"]').filter({ visible: true }).first();
+    const toggle = page.locator('[data-action="toggle-category"]').filter({ visible: true }).first();
     if (await toggle.isVisible().catch(() => false)) await toggle.click();
     await page.waitForTimeout(400);
-    await click(page, '[data-action="add-taxonomy-category"]');
+    await click(page, '[data-action="add-category"]');
     await page.waitForTimeout(400);
     const inputs = page.locator('input[type="text"]').filter({ visible: true });
     let filled = false;
@@ -437,7 +439,7 @@ async function run(page, name, body) {
       if (!(await inputs.nth(i).inputValue())) { await inputs.nth(i).fill('其他應收款類'); filled = true; }
     }
     check('找到新增分類的名稱欄', filled, null);
-    await click(page, '[data-action="save-taxonomy"]');
+    await click(page, '[data-action="save-category"]');
     await page.waitForTimeout(500);
     await waitIdle(page);
     let s = await snapshot(page);
@@ -460,7 +462,7 @@ async function run(page, name, body) {
   await run(page, '10-reload-during-export', async ({ check, note }) => {
     await goStep(page, 5);
     const before = (await snapshot(page)).reports.filter(r => r.startsWith('workingPaper')).length;
-    await click(page, '[data-action="export-workpaper"]');
+    await click(page, '[data-action="export-working-paper"]');
     await page.waitForTimeout(150);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
@@ -471,9 +473,9 @@ async function run(page, name, body) {
     const s = await snapshot(page);
     const after = s.reports.filter(r => r.startsWith('workingPaper')).length;
     // 預篩選需要重算時，第六步會先重跑預篩選再匯出；重新整理會中斷前端後續的匯出呼叫，後端已收到的作業照常完成。
-    note(`重新整理前 Working Paper ${before} 份，之後 ${after} 份；預篩選過期：${s.stale && s.stale.prescreen}`);
+    note(`重新整理前工作底稿 ${before} 份，之後 ${after} 份；預篩選過期：${s.stale && s.stale.prescreen}`);
     check('重新整理後畫面不卡在處理中', s.busy === false, s.busyLabel);
-    check('Working Paper 份數沒有減少', after >= before, { before, after });
+    check('工作底稿份數沒有減少', after >= before, { before, after });
   });
 
   await run(page, '11-unsaved-account-category-then-leave', async ({ check, note }) => {
@@ -536,7 +538,7 @@ async function run(page, name, body) {
     await click(page, '[data-action="remap-gl"]');
     await page.waitForTimeout(800);
     // 取消「傳票來源」的配對，讓配對和已確認的不同，再重新確認。
-    const field = page.locator('select[data-mapping-key="jeSource"]').filter({ visible: true }).first();
+    const field = page.locator('select[data-mapping-key="sourceModule"]').filter({ visible: true }).first();
     await field.selectOption('');
     await page.waitForTimeout(500);
     await click(page, '[data-action="commit-gl"]');

@@ -44,14 +44,14 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
         using var txLog = DiagnosticDb.BeginTransaction(_log, Provider);
 
         await using (var clear = database.CreateCommand(connection, projectId,
-            "DELETE FROM {s}.target_tb_balance;"))
+            "DELETE FROM {s}.tb;"))
         {
             clear.Transaction = transaction;
             await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
         // 重投影改寫 target,既有規則結果失效(投影失敗 rollback 時清除一併回退)。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -63,7 +63,7 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
         await using var select = database.CreateCommand(connection, projectId,
             """
             SELECT row_number, source_no, source_row_number, row_json
-            FROM {s}.staging_tb_raw_row
+            FROM {s}.pbc_tb
             WHERE batch_id = @batchId
             ORDER BY row_number;
             """);
@@ -72,16 +72,16 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
 
         await using var insert = database.CreateCommand(connection, projectId,
             """
-            INSERT INTO {s}.target_tb_balance (
-                batch_id, source_row_number, account_code, account_name, change_amount_scaled)
-            VALUES (@batchId, @sourceRowNumber, @accountCode, @accountName, @changeScaled);
+            INSERT INTO {s}.tb (
+                batch_id, source_row_number, account_number, account_name, change_amount_scaled)
+            VALUES (@batchId, @sourceRowNumber, @accountNumber, @accountName, @changeScaled);
             """);
         insert.Transaction = transaction;
 
         var pBatch = insert.Parameters.Add("@batchId", SqlDbType.NVarChar, 64);
         var pRowNumber = insert.Parameters.Add("@sourceRowNumber", SqlDbType.BigInt);
-        var pAccCode = insert.Parameters.Add("@accountCode", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
-        var pAccName = insert.Parameters.Add("@accountName", SqlDbType.NVarChar, TextStorageLimits.TextUtf16CodeUnits);
+        var pAccCode = insert.Parameters.Add("@accountNumber", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
+        var pAccountName = insert.Parameters.Add("@accountName", SqlDbType.NVarChar, TextStorageLimits.TextUtf16CodeUnits);
         var pChange = insert.Parameters.Add("@changeScaled", SqlDbType.BigInt);
         pBatch.Value = batchId;
 
@@ -134,8 +134,8 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
             }
 
             pRowNumber.Value = rowNumber;
-            pAccCode.Value = (object?)projected!.AccountCode ?? DBNull.Value;
-            pAccName.Value = (object?)projected.AccountName ?? DBNull.Value;
+            pAccCode.Value = (object?)projected!.AccountNumber ?? DBNull.Value;
+            pAccountName.Value = (object?)projected.AccountName ?? DBNull.Value;
             pChange.Value = projected.ChangeAmountScaled;
 
             await insert.ExecuteNonQueryAsync(cancellationToken);
@@ -149,22 +149,22 @@ public sealed class SqlServerTbRepository(SqlServerProjectDatabase database, ILo
             return errors.FailedResult();
         }
 
-        var sourceDefinitions = await SqlServerFieldDefinitionPersistence.LoadStatesAsync(
+        var sourceDefinitions = await SqlServerFieldInfoPersistence.LoadStatesAsync(
             database,
             connection,
             transaction,
             projectId,
             batchId,
-            LegacyFieldDefinitionScope.Source,
+            FieldInfoScope.Source,
             cancellationToken);
-        await SqlServerFieldDefinitionPersistence.ReplaceAsync(
+        await SqlServerFieldInfoPersistence.ReplaceAsync(
             database,
             connection,
             transaction,
             projectId,
             batchId,
-            LegacyFieldDefinitionScope.Target,
-            LegacyFieldDefinitionProjector.ProjectTb(sourceDefinitions, spec, moneyScale),
+            FieldInfoScope.Target,
+            FieldInfoProjector.ProjectTb(sourceDefinitions, spec, moneyScale),
             cancellationToken);
 
         var warnings = await TbMappedColumnAudit.ReadAsync(connection, transaction, spec, insertedCount,

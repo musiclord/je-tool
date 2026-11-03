@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 控制面第四輪 §1 遷移驗收：一次性移除冗餘反查表 <c>dbo.project_schema_map</c>。
+/// 控制面遷移驗收：一次性移除冗餘反查表 <c>dbo.project_schema_map</c>。
 /// 全部 [SqlServerFact] 閘控（連 JET_Test，非 Express、≥ 2022）。
 /// oracle：遷移規格——bootstrap 後 map 已 DROP、registry 完好、且刻意不把 map 資料回填 registry（無聲吞）；
 /// 建案不再寫 map。<b>本測試是全套件唯一建立 project_schema_map 的地方</b>（生產碼已不建），

@@ -5,8 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 建案與修改案件畫面輸入時就近顯示的準備日提醒，是後端 <see cref="ProjectMetadataRules"/> 的副本；這裡比對句子。
-/// 判斷邊界兩邊各有固定答案：後端在 <c>Batch4ProjectCreationTests</c>，前端在 <c>tools/tests/frontend-workflow.test.cjs</c>。
-/// 低嚴重度事項 F7（使用者 2026-10-19 要求處理）。
+/// 判斷邊界兩邊各有固定答案：後端在 <c>ProjectCreationValidationTests</c>，前端在 <c>tools/tests/frontend-workflow.test.cjs</c>。
 /// </summary>
 public sealed class ProjectMetadataRuleMirrorFrontendTests
 {

@@ -30,7 +30,7 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
 
         var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
-                JetErrorCodes.NoTargetData,
+                JetErrorCodes.GlMappingNotConfirmed,
                 "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
@@ -47,7 +47,7 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
             await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers =
             await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
-        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
+        var categorySnapshot = await repositories.AccountCategories.ReadAsync(projectId, cancellationToken);
 
         var canonicalDocument = FilterScenarioPayloadParser.ParseDocument(
             scenarioElement,
@@ -59,8 +59,8 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
             accountMappingState,
             hasAuthorizedPreparers,
             populationScope,
-            taxonomy);
-        var ruleContext = new FilterRuleContext(
+            categorySnapshot);
+        var ruleContext = new FilterConditionContext(
             document.MoneyScale,
             document.LastAccountingPeriodDate,
             document.PeriodStart,
@@ -99,12 +99,12 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
                 countsWholeVoucherRows = plan.PreviewCountsWholeVoucherRows,
                 previewRows = preview.PreviewRows.Select(r => new
                 {
-                    documentNumber = r.DocumentNumber,
+                    voucherNumber = r.VoucherNumber,
                     lineItem = r.LineItem,
-                    postDate = r.PostDate,
-                    accountCode = r.AccountCode,
+                    glDate = r.GlDate,
+                    accountNumber = r.AccountNumber,
                     accountName = r.AccountName,
-                    documentDescription = r.DocumentDescription,
+                    description = r.Description,
                     amount = (decimal)r.AmountScaled / scale,
                     drCr = r.DrCr
                 }).ToArray()
@@ -115,7 +115,7 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
 
 /// <summary>
 /// filter.commit：保存情境定義（replace-all、≤10、名稱不可重複、逐情境重驗）。
-/// 保存時以同一 AST set-based 落地命中，並回傳與本批 SavedUtc 相同的 revision。
+/// 保存時以同一 AST set-based 落地命中，並回傳這一批的版本（見 FilterScenarioRevision）。
 /// </summary>
 public sealed class FilterCommitHandler : IApplicationActionHandler
 {
@@ -144,7 +144,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
         var (projectId, repositories) = session.RequireActive();
         SupportOperationStage.Enter("state_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
-            repositories.RuleRuns,
+            repositories.Results,
             projectId,
             cancellationToken);
 
@@ -153,7 +153,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 
         var glMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
-                JetErrorCodes.NoTargetData,
+                JetErrorCodes.GlMappingNotConfirmed,
                 "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
 
         if (payload.ValueKind != JsonValueKind.Object
@@ -176,11 +176,11 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers =
             await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
-        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
+        var categorySnapshot = await repositories.AccountCategories.ReadAsync(projectId, cancellationToken);
 
         SupportOperationStage.Enter("scenario_parse");
         var savedUtc = DateTimeOffset.UtcNow;
-        var revision = savedUtc.ToUniversalTime().ToString("O");
+        var generatedUtc = savedUtc.ToUniversalTime().ToString("O");
         var saved = new List<SavedFilterScenario>();
         var canonicalDocuments = new List<CanonicalFilterDocument>();
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
@@ -190,8 +190,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             accountMappingState,
             hasAuthorizedPreparers,
             populationScope,
-            taxonomy);
-        var ruleContext = new FilterRuleContext(
+            categorySnapshot);
+        var ruleContext = new FilterConditionContext(
             document.MoneyScale,
             document.LastAccountingPeriodDate,
             document.PeriodStart,
@@ -203,16 +203,22 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             DateParseOptions = document.DateParseOptions
         };
 
+        var metadataContext = FilterScenarioMetadataContext.Create(document, glMapping, categorySnapshot);
         foreach (var scenarioElement in scenariosElement.EnumerateArray())
         {
-            // 留痕替補唯一收斂點：常用篩選條件來源豁免名稱/動機必填，但
-            // config_filter_scenario.name/.rationale NOT NULL。先取得一基 position，讓同批空名
-            // 得到穩定且不同的替補；去重與持久化都用替補後的有效名稱。
+            // 裁定 2026-10-29-16：名稱或動機留白時依條件補上自動文字，和第五步畫面帶入的文字相同；
+            // 去重、錯誤標示與存檔都用補上後的名稱。
             var position = saved.Count + 1;
             var canonicalDocument = FilterScenarioPayloadParser.ParseDocument(
                 scenarioElement,
                 document.MoneyScale,
                 position);
+            var (persistName, persistRationale) = FilterScenarioAutomaticMetadata.Resolve(
+                scenarioElement, canonicalDocument.Spec, metadataContext, seenNames);
+            canonicalDocument = canonicalDocument with
+            {
+                Spec = canonicalDocument.Spec with { Name = persistName, Rationale = persistRationale }
+            };
             canonicalDocuments.Add(canonicalDocument);
             _ = JetAuditProgram.Plan(new FilterRequest(
                 Action,
@@ -220,10 +226,6 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
                 canonicalDocuments,
                 ruleContext,
                 validationContext));
-
-            var spec = canonicalDocument.Spec;
-            var (persistName, persistRationale) =
-                FilterScenarioSources.ResolvePersistable(spec, position);
 
             if (!seenNames.Add(persistName))
             {
@@ -274,8 +276,9 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             scenarios = saved.Select(FilterScenarioSummaryRenderer.Render).ToArray(),
             resultRef = new
             {
-                revision,
-                generatedUtc = revision,
+                // 整批的版本和逐一儲存相同，見 FilterScenarioRevision；沒有情境時沿用保存時間。
+                revision = saved.Count == 0 ? generatedUtc : FilterScenarioRevision.Of(saved),
+                generatedUtc,
                 logicVersion = RuleLogicVersions.Filter,
                 populationScope = GlPopulationScopeValues.ToValue(populationScope)
             }
@@ -295,9 +298,9 @@ internal static class FilterValidationContextFactory
         AccountMappingState? accountMappingState,
         bool hasAuthorizedPreparers,
         GlPopulationScope populationScope,
-        AccountTaxonomySnapshot? taxonomy = null) =>
+        AccountCategorySnapshot? categorySnapshot = null) =>
         new(
-            HasLastPeriodStart: document.LastAccountingPeriodDate is not null,
+            HasPrepStartDate: document.LastAccountingPeriodDate is not null,
             HasAccountMapping: accountMappingState is not null,
             HasAuthorizedPreparers: hasAuthorizedPreparers,
             PopulationScope: populationScope,
@@ -306,14 +309,14 @@ internal static class FilterValidationContextFactory
             HasCounterpartCategory: accountMappingState?.HasCounterpart ?? false)
         {
             AvailableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions),
-            TaxonomyCategoryIds = taxonomy is null
-                ? AccountTaxonomyCatalog.BuiltInSnapshot.Categories
+            CategoryIds = categorySnapshot is null
+                ? AccountCategoryCatalog.BuiltInSnapshot.Categories
                     .Select(static category => category.CategoryId)
                     .ToArray()
-                : taxonomy.Categories.Select(static category => category.CategoryId).ToArray(),
+                : categorySnapshot.Categories.Select(static category => category.CategoryId).ToArray(),
             RdeFields = glMapping.GlOptions?.RdeFields ?? [],
             MoneyScale = document.MoneyScale,
             DateParseOptions = document.DateParseOptions,
-            CategoryLabels = AccountCategoryLabels.From(taxonomy)
+            CategoryLabels = AccountCategoryLabels.From(categorySnapshot)
         };
 }

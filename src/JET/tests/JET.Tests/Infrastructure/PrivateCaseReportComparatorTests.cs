@@ -10,7 +10,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class PrivateCaseReportComparatorTests
 {
     [Fact]
-    public void K5_ManualAutoDisplayDecision_DoesNotAcceptUnlocalizedRowDifferences()
+    public void ManualAutoDisplayDecision_DoesNotAcceptUnlocalizedRowDifferences()
     {
         var decision = new PrivateCaseExplicitContentDecision("step41-manual-auto",
             LegacyAuditParityContentDimension.RowValues, PrivateCaseReportDifferencePolicy.ApprovedManualAutoDisplay);
@@ -195,7 +195,7 @@ public sealed class PrivateCaseReportComparatorTests
     [Fact]
     public void DifferencePolicy_FontScaledRowHeights_OnlyAcceptsTheApprovedHeightPerSheet()
     {
-        // 2026-10-29 使用者裁定 10 點明細頁列高 15 點、12 點頁 18 點；原本只放行 V_Report 5 的 18 點。
+        // 裁定 2026-10-29-08：10 點明細頁列高 15 點、12 點頁 18 點；原本只放行 V_Report 5 的 18 點。
         // 第一次失敗：Public 收據 20261029-033535234-ec60c658035b41ddba9416ad92c94a33。
         var group = new SpreadsheetAppearanceDifferenceGroup("V_Report 5", "row", "height", "12.5", "15", 1, "V_Report 5!row:1");
         Assert.Equal(PrivateCaseReportDifferencePolicy.FontScaledRowHeights,
@@ -208,6 +208,40 @@ public sealed class PrivateCaseReportComparatorTests
         Assert.Equal(PrivateCaseReportDifferencePolicy.FontScaledRowHeights,
             PrivateCaseReportDifferencePolicy.ResolveAppearance("inf-report", sample with { ActualValue = "18" }, [sample]));
         Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("inf-report", sample, [sample]));
+    }
+
+    // 外觀快照把等於 Excel 預設的 15 點工作表列高省略不記，所以 JET 照裁定 2026-10-29-08 寫的 15 點，
+    // 在差異裡的實際值是「<default>」，不是 15。上面那則測試直接造出實際值 15 的差異、沒有經過快照，
+    // 放行因此在真正的報表上沒有生效，到本機私人案件檢查才看到：PrivateCase 收據
+    // 20261102-233759432-7d4f1f8587a5457d809fdaf9c665abe9（SQLite）。這裡讓兩份合成工作簿走真正的快照再判斷。
+    [Fact]
+    public void DifferencePolicy_FontScaledRowHeights_AcceptsTheCapturedFifteenPointSheetDefault()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"jet-row-height-policy-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var legacy = Path.Combine(directory, "legacy.xlsx");
+            var formal = Path.Combine(directory, "formal.xlsx");
+            var other = Path.Combine(directory, "other.xlsx");
+            WriteDefaultRowHeightWorkbook(legacy, "R3", 12.5D);
+            WriteDefaultRowHeightWorkbook(formal, "R3", 15D);
+            WriteDefaultRowHeightWorkbook(other, "R3", 16.5D);
+            var expected = SpreadsheetAppearanceFingerprint.Capture(legacy);
+
+            var formalGroups = expected.DescribeDifferenceGroups(SpreadsheetAppearanceFingerprint.Capture(formal));
+            var formalHeight = Assert.Single(formalGroups);
+            Assert.Equal(("sheetFormat", "defaultRowHeight"), (formalHeight.ScopeKind, formalHeight.Property));
+            Assert.Equal(PrivateCaseReportDifferencePolicy.FontScaledRowHeights,
+                PrivateCaseReportDifferencePolicy.ResolveAppearance("prescreen-report", formalHeight, formalGroups));
+
+            var otherGroups = expected.DescribeDifferenceGroups(SpreadsheetAppearanceFingerprint.Capture(other));
+            Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("prescreen-report", Assert.Single(otherGroups), otherGroups));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Theory]
@@ -314,7 +348,7 @@ public sealed class PrivateCaseReportComparatorTests
             Directory.CreateDirectory(ownedRoot);
 
             var expectedFiles = new Dictionary<LegacyReportKind, string>();
-            var artifacts = new List<LegacyAuditParityJourneyArtifact>();
+            var journeyReports = new List<LegacyAuditParityJourneyReport>();
             foreach (var (kind, index) in Enum.GetValues<LegacyReportKind>().Select(
                          static (kind, index) => (kind, index)))
             {
@@ -334,7 +368,7 @@ public sealed class PrivateCaseReportComparatorTests
                 }
 
                 expectedFiles.Add(kind, expectedName);
-                artifacts.Add(new LegacyAuditParityJourneyArtifact(kind, actualName, actualPath));
+                journeyReports.Add(new LegacyAuditParityJourneyReport(kind, actualName, actualPath));
             }
 
             _workspace = PrivateCaseInputWorkspace.Create(ownedRoot);
@@ -343,7 +377,7 @@ public sealed class PrivateCaseReportComparatorTests
                 sourceRoot,
                 _workspace);
             var actual = PrivateCaseActualReportSet.Create(
-                artifacts,
+                journeyReports,
                 generatedRoot,
                 _workspace);
             Pairs = PrivateCaseReportPairSet.Create(expected, actual);
@@ -578,4 +612,23 @@ public sealed class PrivateCaseReportComparatorTests
         CellReference = reference,
         CellValue = new CellValue(value),
     };
+
+    private static void WriteDefaultRowHeightWorkbook(string path, string sheetName, double defaultRowHeight)
+    {
+        using var document = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook);
+        var workbookPart = document.AddWorkbookPart();
+        workbookPart.Workbook = new Workbook();
+        var worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+        worksheetPart.Worksheet = new Worksheet(
+            new SheetFormatProperties { DefaultRowHeight = defaultRowHeight, CustomHeight = true },
+            new SheetData(Row(1, InlineCell("A1", "synthetic"))));
+        worksheetPart.Worksheet.Save();
+        workbookPart.Workbook.AppendChild(new Sheets()).Append(new Sheet
+        {
+            Id = workbookPart.GetIdOfPart(worksheetPart),
+            SheetId = 1U,
+            Name = sheetName,
+        });
+        workbookPart.Workbook.Save();
+    }
 }

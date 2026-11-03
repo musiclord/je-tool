@@ -59,24 +59,25 @@ internal sealed class PrescreenMonthlyAggregationBenchmarkFactAttribute : FactAt
 /// </summary>
 public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper output)
 {
-    // 2026-10-22 技術債一輪：產品不再提供只給基準測試用的明示期間片段，基準自己寫這一句。
+    // 2026-10-22 清理技術債：產品不再提供只給基準測試用的明示期間片段，基準自己寫這一句。
     private static string PeriodBoundsWith(string columnPrefix) =>
-        $"({columnPrefix}post_date >= @periodStart AND {columnPrefix}post_date <= @periodEnd)";
+        $"({columnPrefix}gl_date >= @periodStart AND {columnPrefix}gl_date <= @periodEnd)";
 
     private const long SmallScaleRows = 20_000;
     private const long FirstStageRows = 5_000_000;
     private const long FullScaleRows = 20_000_000;
     private const int MeasurementRuns = 3;
-    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，target_gl_entry 少了 voucher_date 欄。
+    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，gl 少了 voucher_date 欄。
     private const int ExpectedTargetColumnCount = 22;
     private const int ExpectedMonthCount = 12;
-    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，列層規則由 13 條減為 12 條。
-    private const int ExpectedRuleCount = 12;
+    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，列層規則由 13 條減為 12 條。
+    // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），列層規則再減為 10 條；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+    private const int ExpectedRuleCount = 10;
     private const int MoneyScale = 10_000;
     private const string ProjectId = "prescreen-monthly-benchmark";
     private const string PeriodStart = "2025-01-01";
     private const string PeriodEnd = "2025-12-31";
-    private const string LastPeriodStart = "2025-12-31";
+    private const string PrepStartDate = "2025-12-31";
 
     private static readonly string[] OrderedRuleKeys =
         PrescreenRuleKeys.FilterableKeys
@@ -179,7 +180,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
     }
 
     [PrescreenMonthlyAggregationBenchmarkFact]
-    public async Task DuckDb_FiveMillionRows_ProducesD7GateEvidence()
+    public async Task DuckDb_FiveMillionRows_ProducesGrayBandFullScaleEvidence()
     {
         Assert.Contains(
             $"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}",
@@ -442,7 +443,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         JsonElement result) =>
         new Dictionary<string, long>(StringComparer.Ordinal)
         {
-            [PrescreenRuleKeys.PostPeriodApproval] = Count(result, "postPeriodApproval"),
+            [PrescreenRuleKeys.PrepPeriodApproval] = Count(result, "prepPeriodApproval"),
             [PrescreenRuleKeys.SuspiciousKeywords] = Count(result, "suspiciousKeywords"),
             [PrescreenRuleKeys.UnexpectedAccountPair] = Count(result, "unexpectedAccountPair"),
             [PrescreenRuleKeys.TrailingZeros] = Count(result, "trailingZeros"),
@@ -456,11 +457,8 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 Count(result, "holidayActivity", "approvalCount"),
             [PrescreenRuleKeys.BlankDescription] = Count(result, "blankDescription"),
             [PrescreenRuleKeys.NonAuthorizedPreparer] =
-                Count(result, "nonAuthorizedPreparer"),
-            [PrescreenRuleKeys.LowFrequencyPreparer] =
-                Count(result, "lowFrequencyPreparer"),
-            [PrescreenRuleKeys.LowFrequencyAccount] =
-                Count(result, "lowFrequencyAccount")
+                Count(result, "nonAuthorizedPreparer")
+            // 編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），這裡跟著少兩條；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
         };
 
     private static long Count(JsonElement result, string objectName) =>
@@ -487,13 +485,13 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             ProjectId,
             BenchmarkGlMapping(),
             cancellationToken);
-        var runStore = new LocalRuleRunStore(database);
-        await SeedEligibleValidationAsync(runStore, ProjectId, cancellationToken);
+        var resultStore = new LocalResultStore(database);
+        await SeedEligibleValidationAsync(resultStore, ProjectId, cancellationToken);
         // handler 從作用中案件的資料庫組取 repository，把這些物件放進該種資料庫組後再進入 session。
         var session = new ProjectSession();
         session.Enter(
             ProjectId,
-            // 預篩選收斂計畫階段四起預篩選多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
+            // 第四步的原因要寫分類名稱，所以預篩選多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
             // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7（處理器讀分類設定時遇到空參考）。
             TestProjectRepositories.Unconfigured(provider) with
             {
@@ -501,9 +499,9 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 MappingStates = mappingStore,
                 Calendar = new LocalCalendarStore(database),
                 AccountMappings = new LocalAccountMappingRepository(database),
-                AccountTaxonomy = new LocalAccountTaxonomyStore(database),
+                AccountCategories = new LocalAccountCategoryStore(database),
                 AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
-                RuleRuns = runStore,
+                Results = resultStore,
             });
 
         return new PrescreenRunHandler(projectStore, session);
@@ -524,8 +522,8 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             projectId,
             BenchmarkGlMapping(),
             cancellationToken);
-        var runStore = new SqlServerRuleRunStore(database);
-        await SeedEligibleValidationAsync(runStore, projectId, cancellationToken);
+        var resultStore = new SqlServerResultStore(database);
+        await SeedEligibleValidationAsync(resultStore, projectId, cancellationToken);
         // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQL Server 資料庫組後再進入 session。
         var session = new ProjectSession();
         session.Enter(
@@ -537,25 +535,25 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 MappingStates = mappingStore,
                 Calendar = new SqlServerCalendarStore(database),
                 AccountMappings = new SqlServerAccountMappingRepository(database),
-                AccountTaxonomy = new SqlServerAccountTaxonomyStore(database),
+                AccountCategories = new SqlServerAccountCategoryStore(database),
                 AuthorizedPreparers = new SqlServerAuthorizedPreparerRepository(database),
-                RuleRuns = runStore,
+                Results = resultStore,
             });
 
         return new PrescreenRunHandler(projectStore, session);
     }
 
     private static Task SeedEligibleValidationAsync(
-        IRuleRunStore runStore,
+        IResultStore resultStore,
         string projectId,
         CancellationToken cancellationToken)
     {
         var generatedUtc = new DateTimeOffset(2026, 7, 31, 0, 0, 0, TimeSpan.Zero);
-        return runStore.SaveAsync(
+        return resultStore.SaveAsync(
             projectId,
-            new RuleRunRecord(
+            new ResultRecord(
                 "benchmark-validation",
-                RuleRunKinds.Validate,
+                ResultKind.Validation,
                 generatedUtc,
                 CurrentValidationSummaryTestData.Create(
                     "benchmark-validation",
@@ -567,11 +565,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         new(
             ProjectId: projectId,
             ProjectCode: "S2A-BENCHMARK",
-            EntityName: "S2a synthetic benchmark",
+            ClientName: "S2a synthetic benchmark",
             OperatorId: "benchmark",
             PeriodStart,
             PeriodEnd,
-            LastAccountingPeriodDate: LastPeriodStart,
+            LastAccountingPeriodDate: PrepStartDate,
             MoneyScale,
             ProjectDocument.DefaultRoundingMode,
             CreatedUtc: DateTimeOffset.Parse("2026-07-30T00:00:00+08:00"),
@@ -584,7 +582,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
             SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
-    // 原本只寫傳票核准日與建立人員兩欄，因為預篩選只看這兩欄有沒有配對。預篩選收斂計畫階段四（2026-10-23）起
+    // 原本只寫傳票核准日與建立人員兩欄，因為預篩選只看這兩欄有沒有配對。後來
     // 能用的欄位改由整份欄位目錄判斷，必填欄沒有來源欄就算沒配對，總帳日期這一類規則因此變成不適用。正式流程確認配對時
     // 必填欄一定有來源欄，所以補上必填欄，讓配對和真實案件一樣；資料直接寫進資料庫，來源欄名稱不影響查詢。
     // 第一次失敗：Focused 收據 20261023-033930413-87a4245a648e47288e7acf0740bcd07a（假日過帳的回應是 0 筆，月份彙總是 220 筆）。
@@ -593,15 +591,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             DatasetKind.Gl,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "document_number",
-                [GlMappingKeys.LineId] = "line_item",
-                [GlMappingKeys.PostDate] = "post_date",
-                [GlMappingKeys.AccNum] = "account_code",
-                [GlMappingKeys.AccName] = "account_name",
-                [GlMappingKeys.Description] = "document_description",
+                [GlMappingKeys.VoucherNumber] = "voucher_number",
+                [GlMappingKeys.LineItem] = "line_item",
+                [GlMappingKeys.GlDate] = "gl_date",
+                [GlMappingKeys.AccountNumber] = "account_number",
+                [GlMappingKeys.AccountName] = "account_name",
+                [GlMappingKeys.Description] = "description",
                 [GlMappingKeys.Amount] = "amount",
-                [GlMappingKeys.DocDate] = "approval_date",
-                [GlMappingKeys.CreateBy] = "created_by"
+                [GlMappingKeys.ApprovalDate] = "approval_date",
+                [GlMappingKeys.CreatedBy] = "created_by"
             },
             GlAmountModeNames.Signed,
             "s2a-gl",
@@ -658,8 +656,8 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
     {
         var sql = database.Dialect.ProviderName == "duckdb"
             ? "SELECT COUNT(*) FROM information_schema.columns " +
-              "WHERE table_schema = 'main' AND table_name = 'target_gl_entry';"
-            : "SELECT COUNT(*) FROM pragma_table_info('target_gl_entry');";
+              "WHERE table_schema = 'main' AND table_name = 'gl';"
+            : "SELECT COUNT(*) FROM pragma_table_info('gl');";
         await using var connection = database.CreateConnection(ProjectId);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
@@ -746,9 +744,9 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         private readonly IProviderSqlDialect _dialect;
         private readonly string _schemaPrefix;
         private readonly Func<DbConnection> _connectionFactory;
-        private readonly FilterRuleContext _context = new(
+        private readonly FilterConditionContext _context = new(
             MoneyScale,
-            LastPeriodStart,
+            PrepStartDate,
             PeriodStart,
             PeriodEnd,
             [0, 6],
@@ -789,7 +787,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 command.CommandTimeout = 0;
                 command.CommandText =
                     $"SELECT {MonthExpression}, {CountAll}, {CountDistinctDocument} " +
-                    $"FROM {Table("target_gl_entry")} g " +
+                    $"FROM {Table("gl")} g " +
                     $"WHERE {PeriodBoundsWith("g.")} AND ({rule.Sql}) " +
                     $"GROUP BY {MonthExpression} ORDER BY {MonthExpression};";
                 Bind(command, CommonParameters.Concat(rule.Parameters));
@@ -824,7 +822,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 ",\n       ",
                 _rules.Select((_, index) =>
                     $"{SumBig($"f{index:00}")} AS hit_lines_{index:00}, " +
-                    $"CASE WHEN document_number IS NULL THEN 0 ELSE MAX(f{index:00}) END AS hit_voucher_{index:00}"));
+                    $"CASE WHEN voucher_number IS NULL THEN 0 ELSE MAX(f{index:00}) END AS hit_voucher_{index:00}"));
             var monthlyAggregates = string.Join(
                 ",\n       ",
                 _rules.Select((_, index) =>
@@ -835,18 +833,18 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 $"""
                 WITH flagged AS (
                     SELECT {MonthExpression} AS month_key,
-                           g.document_number,
+                           g.voucher_number,
                            {flags}
-                    FROM {Table("target_gl_entry")} g
+                    FROM {Table("gl")} g
                     WHERE {PeriodBoundsWith("g.")}
                 ),
                 voucher_flags AS (
                     SELECT month_key,
-                           document_number,
+                           voucher_number,
                            {CountAll} AS row_count,
                            {voucherAggregates}
                     FROM flagged
-                    GROUP BY month_key, document_number
+                    GROUP BY month_key, voucher_number
                 )
                 SELECT month_key,
                        {SumBig("row_count")} AS population,
@@ -887,7 +885,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             command.CommandTimeout = 0;
             command.CommandText =
                 $"SELECT {MonthExpression}, {CountAll} " +
-                $"FROM {Table("target_gl_entry")} g " +
+                $"FROM {Table("gl")} g " +
                 $"WHERE {PeriodBoundsWith("g.")} " +
                 $"GROUP BY {MonthExpression} ORDER BY {MonthExpression};";
             Bind(command, CommonParameters);
@@ -930,7 +928,9 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                         replacements[parameter.Name],
                         parameter.Value))
                     .ToArray();
-                rules.Add(new CompiledRule(key, sql, parameters));
+                // 第四步照舊版列整張命中傳票的規則（未預期借貸組合），月份格子和 prescreen.run 用同一個列出方式。
+                rules.Add(new CompiledRule(
+                    key, LocalPrescreenPageRepository.HitRowsPredicate(key, sql, _schemaPrefix), parameters));
             }
 
             return rules;
@@ -938,16 +938,16 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
 
         private string MonthExpression =>
             _provider == "sqlServer"
-                ? "LEFT(g.post_date, 7)"
-                : "SUBSTR(g.post_date, 1, 7)";
+                ? "LEFT(g.gl_date, 7)"
+                : "SUBSTR(g.gl_date, 1, 7)";
 
         private string CountAll =>
             _provider == "sqlServer" ? "COUNT_BIG(*)" : "COUNT(*)";
 
         private string CountDistinctDocument =>
             _provider == "sqlServer"
-                ? "COUNT_BIG(DISTINCT g.document_number)"
-                : "COUNT(DISTINCT g.document_number)";
+                ? "COUNT_BIG(DISTINCT g.voucher_number)"
+                : "COUNT(DISTINCT g.voucher_number)";
 
         private string SumBig(string expression) =>
             _provider == "sqlServer"
@@ -1149,10 +1149,10 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
     private const string DuckDbSeedSql =
         """
         BEGIN TRANSACTION;
-        DELETE FROM target_gl_entry;
-        DELETE FROM target_account_mapping;
-        DELETE FROM target_authorized_preparer;
-        DELETE FROM staging_calendar_raw_day;
+        DELETE FROM gl;
+        DELETE FROM account_mapping;
+        DELETE FROM authorized_preparer;
+        DELETE FROM calendar_day;
         DELETE FROM import_batch WHERE batch_id = 's2a-map';
 
         INSERT INTO import_batch
@@ -1161,11 +1161,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         VALUES
             ('s2a-map', 'account_mapping', 's2a-map.csv', 's2a-map.csv',
              '2026-07-30T00:00:00.0000000+08:00', 5,
-             '["account_code","account_name","standardized_category"]');
+             '["account_number","account_name","standardized_category"]');
 
         -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
-        INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
+        INSERT INTO account_mapping
+            (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
             ('s2a-map', 1, '1000', 'Cash', 'Cash', 'builtin.cash'),
             ('s2a-map', 2, '2000', 'Receivables', 'Receivables', 'builtin.receivables'),
@@ -1173,11 +1173,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             ('s2a-map', 4, '5000', 'Expense A', 'Others', 'builtin.others'),
             ('s2a-map', 5, '6000', 'Expense B', 'Others', 'builtin.others');
 
-        INSERT INTO target_authorized_preparer (name)
+        INSERT INTO authorized_preparer (name)
         SELECT printf('P%04d', i)
         FROM range(0, 500) AS preparers(i);
 
-        INSERT INTO staging_calendar_raw_day (day_type, date, day_name)
+        INSERT INTO calendar_day (day_type, date, day_name)
         VALUES
             ('holiday', '2025-01-01', 'New Year'),
             ('holiday', '2025-02-28', 'Holiday'),
@@ -1185,11 +1185,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             ('holiday', '2025-10-10', 'Holiday'),
             ('makeup', '2025-02-08', 'Make-up day');
 
-        INSERT INTO target_gl_entry
-            (batch_id, source_row_number, document_number, line_item,
-             line_item_numeric_sort_key, post_date, approval_date,
-             account_code, account_name, document_description, source_module,
-             created_by, approved_by, is_manual, is_effective, amount_scaled,
+        INSERT INTO gl
+            (batch_id, source_row_number, voucher_number, line_item,
+             line_item_numeric_sort_key, gl_date, approval_date,
+             account_number, account_name, description, source_module,
+             created_by, approved_by, is_manual, is_excluded, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
         SELECT
             's2a-gl',
@@ -1223,7 +1223,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             printf('P%04d', (i - 1) % 1000),
             printf('A%03d', (i - 1) % 100),
             CASE WHEN i % 3 = 0 THEN 1 ELSE 0 END,
-            1,
+            0,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN -100000000 ELSE 100000000 END,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 0 ELSE 100000000 END,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 100000000 ELSE 0 END,
@@ -1238,10 +1238,10 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
     private const string SqliteSeedSql =
         """
         BEGIN TRANSACTION;
-        DELETE FROM target_gl_entry;
-        DELETE FROM target_account_mapping;
-        DELETE FROM target_authorized_preparer;
-        DELETE FROM staging_calendar_raw_day;
+        DELETE FROM gl;
+        DELETE FROM account_mapping;
+        DELETE FROM authorized_preparer;
+        DELETE FROM calendar_day;
         DELETE FROM import_batch WHERE batch_id = 's2a-map';
 
         INSERT INTO import_batch
@@ -1250,11 +1250,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         VALUES
             ('s2a-map', 'account_mapping', 's2a-map.csv', 's2a-map.csv',
              '2026-07-30T00:00:00.0000000+08:00', 5,
-             '["account_code","account_name","standardized_category"]');
+             '["account_number","account_name","standardized_category"]');
 
         -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
-        INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
+        INSERT INTO account_mapping
+            (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
             ('s2a-map', 1, '1000', 'Cash', 'Cash', 'builtin.cash'),
             ('s2a-map', 2, '2000', 'Receivables', 'Receivables', 'builtin.receivables'),
@@ -1267,10 +1267,10 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             UNION ALL
             SELECT i + 1 FROM preparers WHERE i < 499
         )
-        INSERT INTO target_authorized_preparer (name)
+        INSERT INTO authorized_preparer (name)
         SELECT printf('P%04d', i) FROM preparers;
 
-        INSERT INTO staging_calendar_raw_day (day_type, date, day_name)
+        INSERT INTO calendar_day (day_type, date, day_name)
         VALUES
             ('holiday', '2025-01-01', 'New Year'),
             ('holiday', '2025-02-28', 'Holiday'),
@@ -1283,11 +1283,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             UNION ALL
             SELECT i + 1 FROM generated WHERE i < @rowCount
         )
-        INSERT INTO target_gl_entry
-            (batch_id, source_row_number, document_number, line_item,
-             line_item_numeric_sort_key, post_date, approval_date,
-             account_code, account_name, document_description, source_module,
-             created_by, approved_by, is_manual, is_effective, amount_scaled,
+        INSERT INTO gl
+            (batch_id, source_row_number, voucher_number, line_item,
+             line_item_numeric_sort_key, gl_date, approval_date,
+             account_number, account_name, description, source_module,
+             created_by, approved_by, is_manual, is_excluded, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
         SELECT
             's2a-gl',
@@ -1321,7 +1321,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             printf('P%04d', (i - 1) % 1000),
             printf('A%03d', (i - 1) % 100),
             CASE WHEN i % 3 = 0 THEN 1 ELSE 0 END,
-            1,
+            0,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN -100000000 ELSE 100000000 END,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 0 ELSE 100000000 END,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 100000000 ELSE 0 END,
@@ -1335,10 +1335,10 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
 
     private static string SqlServerSeedSql(string schemaPrefix) =>
         $"""
-        DELETE FROM {schemaPrefix}target_gl_entry;
-        DELETE FROM {schemaPrefix}target_account_mapping;
-        DELETE FROM {schemaPrefix}target_authorized_preparer;
-        DELETE FROM {schemaPrefix}staging_calendar_raw_day;
+        DELETE FROM {schemaPrefix}gl;
+        DELETE FROM {schemaPrefix}account_mapping;
+        DELETE FROM {schemaPrefix}authorized_preparer;
+        DELETE FROM {schemaPrefix}calendar_day;
         DELETE FROM {schemaPrefix}import_batch WHERE batch_id = N's2a-map';
 
         INSERT INTO {schemaPrefix}import_batch
@@ -1347,11 +1347,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         VALUES
             (N's2a-map', N'account_mapping', N's2a-map.csv', N's2a-map.csv',
              N'2026-07-30T00:00:00.0000000+08:00', 5,
-             N'["account_code","account_name","standardized_category"]');
+             N'["account_number","account_name","standardized_category"]');
 
         -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
-        INSERT INTO {schemaPrefix}target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
+        INSERT INTO {schemaPrefix}account_mapping
+            (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
             (N's2a-map', 1, N'1000', N'Cash', N'Cash', N'builtin.cash'),
             (N's2a-map', 2, N'2000', N'Receivables', N'Receivables', N'builtin.receivables'),
@@ -1364,12 +1364,12 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             UNION ALL
             SELECT i + 1 FROM preparers WHERE i < 499
         )
-        INSERT INTO {schemaPrefix}target_authorized_preparer (name)
+        INSERT INTO {schemaPrefix}authorized_preparer (name)
         SELECT CONCAT(N'P', RIGHT(REPLICATE(N'0', 4) + CAST(i AS nvarchar(10)), 4))
         FROM preparers
         OPTION (MAXRECURSION 0);
 
-        INSERT INTO {schemaPrefix}staging_calendar_raw_day (day_type, date, day_name)
+        INSERT INTO {schemaPrefix}calendar_day (day_type, date, day_name)
         VALUES
             (N'holiday', N'2025-01-01', N'New Year'),
             (N'holiday', N'2025-02-28', N'Holiday'),
@@ -1382,11 +1382,11 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             UNION ALL
             SELECT i + 1 FROM generated WHERE i < @rowCount
         )
-        INSERT INTO {schemaPrefix}target_gl_entry
-            (batch_id, source_row_number, document_number, line_item,
-             line_item_numeric_sort_key, post_date, approval_date,
-             account_code, account_name, document_description, source_module,
-             created_by, approved_by, is_manual, is_effective, amount_scaled,
+        INSERT INTO {schemaPrefix}gl
+            (batch_id, source_row_number, voucher_number, line_item,
+             line_item_numeric_sort_key, gl_date, approval_date,
+             account_number, account_name, description, source_module,
+             created_by, approved_by, is_manual, is_excluded, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
         SELECT
             N's2a-gl',
@@ -1420,7 +1420,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             CONCAT(N'P', RIGHT(REPLICATE(N'0', 4) + CAST((i - 1) % 1000 AS nvarchar(10)), 4)),
             CONCAT(N'A', RIGHT(REPLICATE(N'0', 3) + CAST((i - 1) % 100 AS nvarchar(10)), 3)),
             CASE WHEN i % 3 = 0 THEN 1 ELSE 0 END,
-            1,
+            0,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN -100000000 ELSE 100000000 END,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 0 ELSE 100000000 END,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 100000000 ELSE 0 END,
@@ -1428,6 +1428,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         FROM generated
         OPTION (MAXRECURSION 0);
 
-        UPDATE STATISTICS {schemaPrefix}target_gl_entry WITH FULLSCAN;
+        UPDATE STATISTICS {schemaPrefix}gl WITH FULLSCAN;
         """;
 }

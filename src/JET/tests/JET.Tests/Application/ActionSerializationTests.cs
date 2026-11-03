@@ -15,7 +15,7 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class ActionSerializationTests
 {
-    // 改動原因：使用者 2026-10-08 畫面註解要求移除假日範本入口，export.calendarTemplates 隨之移除；
+    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，export.calendarTemplates 隨之移除；
     // 原測試的 accountMappingTemplate 斷言仍有意義，所以保留並改名。
     [Fact]
     public void AccountMappingTemplateExport_RetainsProjectDatabase()
@@ -342,11 +342,11 @@ public sealed class ActionSerializationTests
     [InlineData("filter.scenario.save", true)]
     [InlineData("filter.scenario.remove", true)]
     [InlineData("filter.scenario.recheck", true)]
-    [InlineData("export.validationArtifacts", true)]
+    [InlineData("export.validationReports", true)]
     [InlineData("export.accountMappingTemplate", true)]
     [InlineData("export.prescreenReport", true)]
     [InlineData("export.criteriaSelectionReport", true)]
-    [InlineData("export.workpaperStream", true)]
+    [InlineData("export.workingPaperStream", true)]
     [InlineData("project.create", true)]
     [InlineData("project.update", true)]
     [InlineData("query.dataPreview", false)]

@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 把 result_rule_run 保存的 validation wire summary 重建成 report writer 所需的
+/// 把 validation_result 保存的 validation wire summary 重建成 report writer 所需的
 /// internal typed projection。Wire key 的解讀留在 Application；projection 不攜帶
 /// 完整 GL／TB 列集。
 /// </summary>
@@ -20,8 +20,8 @@ internal static class ValidationReportProjectionParser
             var root = document.RootElement;
             ValidationSummaryShapeValidator.Require(root);
             var stats = root.GetProperty("stats");
-            var nullRecords = root.GetProperty("nullRecordsTest");
-            var docBalance = root.GetProperty("docBalanceTest");
+            var blankRecords = root.GetProperty("blankRecordsTest");
+            var voucherBalance = root.GetProperty("voucherBalanceTest");
             var sourceQuality = root.GetProperty("sourceQuality");
 
             return new ValidationReportProjection(
@@ -33,17 +33,18 @@ internal static class ValidationReportProjectionParser
                     root,
                     "completenessTest",
                     "diffAccountCount"),
-                UnbalancedDocumentCount: GetLong(
-                    docBalance,
-                    "unbalancedDocumentCount"),
-                NullAccountCount: GetLong(nullRecords, "nullAccountCount"),
-                NullDocumentCount: GetLong(nullRecords, "nullDocumentCount"),
-                NullDescriptionCount: GetLong(nullRecords, "nullDescriptionCount"),
+                UnbalancedVoucherCount: GetLong(
+                    voucherBalance,
+                    "unbalancedVoucherCount"),
+                NullAccountCount: GetLong(blankRecords, "nullAccountCount"),
+                NullDocumentCount: GetLong(blankRecords, "nullDocumentCount"),
+                NullDescriptionCount: GetLong(blankRecords, "nullDescriptionCount"),
                 // 形狀檢查已確認筆數與原因恰好一個有值；筆數是 null 就是傳票核准日不可用。
-                OutOfRangeDateCount: nullRecords.GetProperty("outOfRangeDateCount").ValueKind == JsonValueKind.Null
+                ApprovalDateNotInPeriodCount: blankRecords.GetProperty("approvalDateNotInPeriodCount").ValueKind == JsonValueKind.Null
                     ? null
-                    : GetLong(nullRecords, "outOfRangeDateCount"),
-                SourceQualityFindingCount: GetLong(sourceQuality, "findingCount"));
+                    : GetLong(blankRecords, "approvalDateNotInPeriodCount"),
+                SourceQualityFindingCount: GetLong(sourceQuality, "findingCount"),
+                CompletenessNaNote: JET.AuditCore.AccountComparisonProcedure.ReportNote(CompletenessNaReason(root)));
         }
         catch (Exception exception) when (exception is JsonException or FormatException or OverflowException)
         {
@@ -53,6 +54,13 @@ internal static class ValidationReportProjectionParser
                 innerException: exception);
         }
     }
+
+    private static string? CompletenessNaReason(JsonElement root) =>
+        root.TryGetProperty("completenessTest", out var completeness)
+        && completeness.TryGetProperty("naReason", out var reason)
+        && reason.ValueKind == JsonValueKind.String
+            ? reason.GetString()
+            : null;
 
     private static long RuleCount(
         JsonElement root,

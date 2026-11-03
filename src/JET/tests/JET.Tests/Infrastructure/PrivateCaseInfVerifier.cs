@@ -20,7 +20,7 @@ internal sealed class PrivateCaseInfVerificationException : InvalidOperationExce
 
 internal sealed record PrivateCaseInfVerificationFacts(
     long RawPopulationRowCount,
-    long EffectivePopulationRowCount,
+    long GlRowCount,
     long ExcludedPopulationRowCount,
     long ExcludedByPeriodRowCount,
     long ExcludedByPostingStatusRowCount,
@@ -35,7 +35,7 @@ internal sealed record PrivateCaseInfVerificationFacts(
         {
             var population = RequiredObject(validation, "populationSummary");
             var raw = RequiredObject(population, "raw");
-            var effective = RequiredObject(population, "effective");
+            var effective = RequiredObject(population, "gl");
             var excluded = RequiredObject(population, "excluded");
             var inf = RequiredObject(validation, "infSamplingTest");
             return new PrivateCaseInfVerificationFacts(
@@ -93,7 +93,7 @@ internal sealed class PrivateCaseInfVerificationResult
         int requiredSampleLimit)
     {
         RawPopulationRowCount = facts.RawPopulationRowCount;
-        EffectivePopulationRowCount = facts.EffectivePopulationRowCount;
+        GlRowCount = facts.GlRowCount;
         ExcludedPopulationRowCount = facts.ExcludedPopulationRowCount;
         ExcludedByPeriodRowCount = facts.ExcludedByPeriodRowCount;
         ExcludedByPostingStatusRowCount = facts.ExcludedByPostingStatusRowCount;
@@ -102,17 +102,17 @@ internal sealed class PrivateCaseInfVerificationResult
         RequiredSampleLimit = requiredSampleLimit;
 
         PopulationPartitionMatches = RawPopulationRowCount
-            == checked(EffectivePopulationRowCount + ExcludedPopulationRowCount);
+            == checked(GlRowCount + ExcludedPopulationRowCount);
         ExcludedPartitionMatches = ExcludedPopulationRowCount
             == checked(ExcludedByPeriodRowCount + ExcludedByPostingStatusRowCount);
         SampleSizeMatchesRule = ReportedSampleSize
-            == Math.Min((long)requiredSampleLimit, EffectivePopulationRowCount);
-        EffectivePopulationPageMatchesRun = WalkedSampleRowCount == ReportedSampleSize;
+            == Math.Min((long)requiredSampleLimit, GlRowCount);
+        GlPageMatchesRun = WalkedSampleRowCount == ReportedSampleSize;
     }
 
     public long RawPopulationRowCount { get; }
 
-    public long EffectivePopulationRowCount { get; }
+    public long GlRowCount { get; }
 
     public long ExcludedPopulationRowCount { get; }
 
@@ -132,12 +132,12 @@ internal sealed class PrivateCaseInfVerificationResult
 
     public bool SampleSizeMatchesRule { get; }
 
-    public bool EffectivePopulationPageMatchesRun { get; }
+    public bool GlPageMatchesRun { get; }
 
     public bool Passed => PopulationPartitionMatches
         && ExcludedPartitionMatches
         && SampleSizeMatchesRule
-        && EffectivePopulationPageMatchesRun;
+        && GlPageMatchesRun;
 
     public override string ToString() => "private case INF verification";
 }
@@ -151,10 +151,10 @@ internal static class PrivateCaseInfVerifier
         ArgumentNullException.ThrowIfNull(facts);
         ArgumentNullException.ThrowIfNull(policy);
         if (policy.InfVerification
-                != PrivateCaseInfVerificationMode.RulesAndEffectivePopulation
+                != PrivateCaseInfVerificationMode.RulesAndGl
             || policy.InfSampleSize != PrivateCaseAcceptancePolicy.RequiredInfSampleSize
             || facts.RawPopulationRowCount < 0
-            || facts.EffectivePopulationRowCount < 0
+            || facts.GlRowCount < 0
             || facts.ExcludedPopulationRowCount < 0
             || facts.ExcludedByPeriodRowCount < 0
             || facts.ExcludedByPostingStatusRowCount < 0

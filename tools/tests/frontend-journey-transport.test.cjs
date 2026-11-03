@@ -1,36 +1,36 @@
 'use strict';
-// 情境 24：連線層與共用原語（收尾四項第一項第 4 批，2026-10-13）。
+// 情境 24：連線層與共用原語（2026-10-13）。
 //
 // 審計員不會直接操作這一層，但每個步驟都會經過它：畫面重新載入時還在等的動作要明確失敗，不能一直轉圈；
 // 後端的錯誤要帶著錯誤碼、追蹤編號、欄位與條件列位置回到畫面；客戶資料插進畫面時不能跳出 HTML 屬性；
 // 晚到的舊回應不能蓋過新的結果；還原欄位配對草稿時兩份草稿一次換掉，已確認的配對不動。
 //
 // 這個檔在 vm 載入正式的 jet-api.js、ui-core.js、state.js 與第五步畫面，斷言送出的請求、Promise 的結果、
-// Store 狀態與畫出來的節點，不比對原始碼字串。依據是使用者 2026-10-13 對第一項選的「照建議做」。
+// Store 狀態與畫出來的節點，不比對原始碼字串。依據是裁定 2026-10-13-14 選的「照建議做」。
 //
 // 取代的 C# 方法（src/JET/tests/JET.Tests/Architecture/）：
-//   FrontendEscapingTests.Esc_EscapesBothQuoteKinds_ForHtmlAttributeInterpolation（雙引號由第 7 批補齊，2026-10-14 第二、三波整併連同整檔刪除）
-//   MappingMetadataMirrorTests.RestoreState_AtomicallyReplacesBothDraftsAndPreservesCommittedSnapshots（2026-10-14 第一波整併已刪除）
+//   FrontendEscapingTests.Esc_EscapesBothQuoteKinds_ForHtmlAttributeInterpolation（雙引號由 frontend-journey-mapping.test.cjs 補齊，2026-10-14 整併時連同整檔刪除）
+//   MappingMetadataMirrorTests.RestoreState_AtomicallyReplacesBothDraftsAndPreservesCommittedSnapshots（2026-10-14 整併時已刪除）
 // 另外提供下列跨情境方法的連線層部分（其餘部分由別的情境補齊）：
-//   FrontendHardeningContractTests.JetApi_RejectsPendingOnUnload_AndProjectLoadIsCancellable（取消屬情境 22；2026-10-14 第二、三波整併已刪除）
+//   FrontendHardeningContractTests.JetApi_RejectsPendingOnUnload_AndProjectLoadIsCancellable（取消屬情境 22；2026-10-14 整併時已刪除）
 //   FrontendHardeningContractTests.LatestResponseGuard_IsSharedAcrossPreviewMappingAndFilterConsumers（各畫面的使用屬情境 6、13、21，
-//     都已補齊，2026-10-14 第二、三波整併已刪除）
+//     都已補齊，2026-10-14 整併時已刪除）
 //   ScreenBehaviorReviewFrontendTests.FrontendTransportErrors_UseChineseInsteadOfEnglishOriginals（訊息面板屬情境 22、23；各部分已齊全，
-//     原方法註解的第一次失敗收據在第 11 批補進 frontend-journey-operations，2026-10-14 第二、三波整併連同整檔刪除）
+//     原方法註解的第一次失敗收據已補進 frontend-journey-operations，2026-10-14 整併時連同整檔刪除）
 // ApprovedUxFrontendTests.CreateProjectFailure_UsesStructuredBackendFieldWithoutGuessingFromCodeOrMessage 的連線層部分在這裡，
-// 畫面標欄位的部分由 frontend-journey-case-setup.test.cjs（情境 2）補齊，2026-10-14 第一波整併已刪除該方法。
+// 畫面標欄位的部分由 frontend-journey-case-setup.test.cjs（情境 2）補齊，2026-10-14 整併時已刪除該方法。
 // FilterTemplatesFrontendTests.InvalidScenarioDetails_AreMarkedOnTheRuleRow 已由第五步修正刪除，取代測試見
 // artifacts/review/closing-four-items-20261013/impl-scenario-save.md 第 4 節；這裡的 details 測試只是額外守住連線層。
 //
 // 刻意不逐字比對的句子：jet-api.js 在後端沒附訊息、畫面重新載入、連線還沒就緒時的固定說明。
-// 這些句子正在依 2026-10-13「一起整理」與拿掉「輸出支援日誌」的裁定改寫，這裡只比對意思：是中文、不含英文代碼。
+// 這些句子依裁定 2026-10-13-31 的「一起整理」，以及拿掉「輸出支援日誌」的裁定 2026-10-13-26 改寫過，這裡只比對意思：是中文、不含英文代碼。
 // 全部資料都是程式生成的合成資料。
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const { readWwwroot, plain, settle, usageJourneyFixture, savedBlankDescription } = require('./support/frontend-fixtures.cjs');
 
-// 已退場的英文原文（ScreenBehaviorReviewFrontendTests.FrontendTransportErrors_… 的 W19 清單，原樣搬來）。
+// 已退場的英文原文（ScreenBehaviorReviewFrontendTests.FrontendTransportErrors_… 的清單，原樣搬來）。
 const RETIRED_ENGLISH = ['JET bridge request failed.', 'JET host bridge is not available.', 'JET host bridge was unloaded'];
 const HAN = /[一-鿿]/;
 
@@ -128,7 +128,7 @@ test('transport: a backend error carries code, correlationId, field and details 
   const details = [{ group: 1, rule: 2, message: '合成條件原因' }, { group: 2, rule: 1, message: '第二個合成原因' }];
   const box = f.track(f.api.filterPreview({ scenario: { groups: [] } }));
   f.reply({ requestId: box.requestId, ok: false, correlationId: 'corr-synthetic-1',
-    error: { code: 'invalid_scenario', message: '合成的後端訊息', field: 'caseName', details } });
+    error: { code: 'invalid_scenario', message: '合成的後端訊息', field: 'projectName', details } });
   await settle();
   assert.equal(box.state, 'rejected');
   const err = box.value;
@@ -136,7 +136,7 @@ test('transport: a backend error carries code, correlationId, field and details 
   assert.equal(err.message, '合成的後端訊息', 'a backend message is shown as sent');
   assert.equal(err.code, 'invalid_scenario');
   assert.equal(err.correlationId, 'corr-synthetic-1');
-  assert.equal(err.field, 'caseName');
+  assert.equal(err.field, 'projectName');
   assert.deepEqual(plain(err.details), details, 'details reach the step unchanged so the rule row can be marked');
 });
 
@@ -148,7 +148,7 @@ test('transport: missing or malformed error metadata becomes null instead of a g
     [{ code: 'invalid_payload', message: '合成訊息', field: null, details: { group: 1 } }, null]
   ];
   for (const [error, correlationId] of cases) {
-    const box = f.track(f.api.projectCreate({ caseName: '合成' }));
+    const box = f.track(f.api.projectCreate({ projectName: '合成' }));
     const message = { requestId: box.requestId, ok: false, error };
     if (correlationId !== undefined) message.correlationId = correlationId;
     f.reply(message); await settle();
@@ -168,7 +168,7 @@ test('transport: without a backend message the Error explains in Chinese and nev
     if (error) message.error = error;
     f.reply(message); await settle();
     assert.equal(box.state, 'rejected');
-    // 只比對意思：句子是中文，不含錯誤碼與已退場的英文原文。句子本身正在依 2026-10-13 的裁定改寫，不逐字鎖住。
+    // 只比對意思：句子是中文，不含錯誤碼與已退場的英文原文。句子本身依裁定 2026-10-13-31 的「一起整理」改寫過，不逐字鎖住。
     assert.match(box.value.message, HAN);
     assert.ok(!box.value.message.includes('synthetic_internal_code'), 'the wire code is not shown as the message');
     for (const english of RETIRED_ENGLISH) assert.ok(!box.value.message.includes(english));
@@ -213,7 +213,7 @@ test('primitives: a saved scenario name with quotes stays inside its HTML attrib
   const f = usageJourneyFixture('filter', { serialization: 'browser' });
   f.store.setSavedScenarios([savedBlankDescription(name)]);
   f.draw('filter');
-  // 2026-10-19 使用者要求同功能的元件只留一套，「操作」從 <details> 改成共用選單的按鈕，選單本身也帶同一個名稱，
+  // 裁定 2026-10-19-08：同功能的元件只留一套，「操作」從 <details> 改成共用選單的按鈕，選單本身也帶同一個名稱，
   // 所以改找共用選單的按鈕，並逐一列出它應有的屬性（第一次失敗：FrontendMapping 收據 20261019-095317346-4d75b1d78d9a4296a887c2e7cfb720df）。
   const toggle = f.$('.saved-scenario .jet-menu__toggle');
   assert.ok(toggle, 'saved scenario actions rendered');
@@ -250,13 +250,13 @@ test('primitives: a latest-response guard accepts only the newest issue and noth
 
 test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps the committed snapshots', () => {
   // Store.restoreMappingDrafts 目前沒有呼叫端（2026-09-22 撤下還原畫面，寫的是「直到報告還原流程談定」）；
-  // 函式保留期間由這個 Store 層級的行為測試守住，刪不刪函式由使用者決定（plan-item1-tests.md 第 4 節、第 10 節第 1 點）。
+  // 函式保留期間由這個 Store 層級的行為測試守住；裁定 2026-10-30-17 先保留後端、不做入口。
   const { store } = coreFixture();
   const state = store.getState();
-  const glCommitted = { mapping: { docNum: 'SynDoc' }, amountMode: 'dual', options: { rdeFields: [] } };
+  const glCommitted = { mapping: { voucherNumber: 'SynDoc' }, amountMode: 'dual', options: { rdeFields: [] } };
   const tbCommitted = { mapping: { account: 'SynAcct' }, changeMode: 'debitCredit' };
   state.mapping.gl.committed = glCommitted; state.mapping.tb.committed = tbCommitted;
-  state.mapping.gl.draft = { docNum: 'OldDoc' }; state.mapping.tb.draft = { account: 'OldAcct' };
+  state.mapping.gl.draft = { voucherNumber: 'OldDoc' }; state.mapping.tb.draft = { account: 'OldAcct' };
   const committedBefore = plain({ gl: glCommitted, tb: tbCommitted });
   const versionBefore = state.contentVersion;
   const seen = [];
@@ -264,19 +264,19 @@ test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps
 
   const rde = [{ fieldId: 'rde.synthetic1', sourceColumn: 'SynNote', label: '合成附註', valueType: 'text' }];
   const bundle = {
-    gl: { mapping: { docNum: 'NewDoc', amount: 'SynAmount' }, amountMode: 'signed', approvalDateMode: 'column',
+    gl: { mapping: { voucherNumber: 'NewDoc', amount: 'SynAmount' }, amountMode: 'signed', approvalDateMode: 'column',
       postingStatusPolicy: { column: 'SynStatus', postedValues: ['P'] }, manualAutoPolicy: { manualValues: ['M'], automaticValues: ['A'] }, rdeFields: rde },
     tb: { mapping: { account: 'NewAcct', change: 'SynChange' }, changeMode: 'netChange' }
   };
   store.restoreMappingDrafts(bundle);
 
   assert.equal(seen.length, 1, 'one notification: the screen never sees one draft restored and the other old');
-  assert.deepEqual(seen[0].gl, { docNum: 'NewDoc', amount: 'SynAmount' });
+  assert.deepEqual(seen[0].gl, { voucherNumber: 'NewDoc', amount: 'SynAmount' });
   assert.deepEqual(seen[0].tb, { account: 'NewAcct', change: 'SynChange' });
   assert.equal(seen[0].version, versionBefore + 1);
   assert.equal(state.mapping.gl.amountMode, 'signed');
   assert.equal(state.mapping.tb.changeMode, 'netChange');
-  // 預篩選收斂計畫階段六：還原的草稿多帶往下填補的欄位，報告沒有這一項時是空清單。第一次失敗收據 20261023-202627448-2cd39694cc43446f9ef415359d61b59a。
+  // 加入往下填補後，還原的草稿多帶往下填補的欄位，報告沒有這一項時是空清單。第一次失敗收據 20261023-202627448-2cd39694cc43446f9ef415359d61b59a。
   assert.deepEqual(plain(state.mapping.gl.options), {
     approvalDateMode: 'column', postingStatusPolicy: { column: 'SynStatus', postedValues: ['P'] },
     manualAutoPolicy: { manualValues: ['M'], automaticValues: ['A'] }, rdeFields: rde, fillDownFields: [] });
@@ -285,13 +285,13 @@ test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps
   assert.deepEqual(plain({ gl: state.mapping.gl.committed, tb: state.mapping.tb.committed }), committedBefore,
     'a restored draft does not pose as the effective mapping');
   // 草稿是複本：之後改 bundle 不會改到畫面的草稿。
-  bundle.gl.mapping.docNum = 'Mutated'; bundle.tb.mapping.account = 'Mutated'; rde.push({ fieldId: 'rde.extra' });
-  assert.equal(state.mapping.gl.draft.docNum, 'NewDoc');
+  bundle.gl.mapping.voucherNumber = 'Mutated'; bundle.tb.mapping.account = 'Mutated'; rde.push({ fieldId: 'rde.extra' });
+  assert.equal(state.mapping.gl.draft.voucherNumber, 'NewDoc');
   assert.equal(state.mapping.tb.draft.account, 'NewAcct');
   assert.equal(state.mapping.gl.options.rdeFields.length, 1);
 
   // 舊版報告沒有 v2 選項時，用固定的預設值，不沿用目前草稿的設定。
-  // 預篩選收斂計畫階段六：預設值多一個空的往下填補欄位清單。第一次失敗收據 20261024-032828783-5256aaa759b94e46a25201e84c769add。
+  // 加入往下填補後，預設值多一個空的往下填補欄位清單。第一次失敗收據 20261024-032828783-5256aaa759b94e46a25201e84c769add。
   store.restoreMappingDrafts({ gl: { mapping: {}, amountMode: 'dual' }, tb: { mapping: {}, changeMode: 'debitCredit' } });
   assert.deepEqual(plain(state.mapping.gl.options), {
     approvalDateMode: 'unmapped', postingStatusPolicy: null,

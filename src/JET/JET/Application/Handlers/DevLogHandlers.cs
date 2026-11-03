@@ -10,7 +10,7 @@ namespace JET.Application;
 /// 失敗、尚無 active session，仍能把該次 correlation 寫入使用者所選案件資料夾；內容是該案件跨次開啟的整份紀錄，
 /// 加上這個程序還沒寫進紀錄的事件（2026-10-21）。
 /// 省略 projectId 時是一般工具：匯出目前保留的全部去識別紀錄，寫到 JET 的日誌資料夾
-/// （<c>%LOCALAPPDATA%\JET\logs\</c>），不需要先開案件（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
+/// （<c>%LOCALAPPDATA%\JET\logs\</c>），不需要先開案件；支援日誌從錯誤框拿掉，改成一般工具（裁定 2026-10-13-26）。
 /// </summary>
 public sealed class SupportLogExportHandler(
     ISupportDiagnosticLogStore supportLog,
@@ -245,7 +245,7 @@ public sealed class DevLogExportFileHandler(
 
 internal static class ProjectLogFileWriter
 {
-    // 支援日誌寫不進資料夾時的句子（使用者 2026-10-14 第三輪勾選頁確認 R3-54），不寫例外型別。
+    // 支援日誌寫不進資料夾時的句子，不寫例外型別（裁定 2026-10-14-01 確認了用字）。
     private const string LogFolderWriteFailure = "支援日誌無法寫入 JET 的日誌資料夾。請確認磁碟空間與資料夾權限後再試一次。";
 
     public static async IAsyncEnumerable<string> ToAsyncLines(

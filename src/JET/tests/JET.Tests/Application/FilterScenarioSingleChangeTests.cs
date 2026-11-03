@@ -8,9 +8,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第五步篩選情境一次只存或刪一個（使用者 2026-10-13 對「情境卡住」選「本計畫內修好」）。
+/// 第五步篩選情境一次只存或刪一個（裁定 2026-10-13-24）。
 /// 開案時有情境不能套用目前規則，審計員仍要能一個一個改或刪：其他情境照資料庫原樣保留，不再整批重新檢查；
-/// 錯誤只會屬於正在編輯的情境；全部改好或刪掉之前，矩陣、報告與第六步照樣鎖住。SQLite 與 DuckDB 都要成立。
+/// 錯誤只會屬於正在編輯的情境；全部改好或刪掉之前，高風險條件彙總、報告與第六步照樣鎖住。SQLite 與 DuckDB 都要成立。
 /// </summary>
 /// <remarks>
 /// 每個操作都透過「照畫面送法」的輔助方法送出。輔助方法記住畫面上的已存清單（開案與每次回應的 <c>scenarios</c>），
@@ -23,7 +23,7 @@ public sealed class FilterScenarioSingleChangeTests
 
     private sealed record StoredScenario(int Position, string Name, string Rationale, string DefinitionJson, string SavedUtc);
 
-    // ── 使用者 2026-10-13 裁定「開案也逐一檢查」：開案與儲存用同一套檢查 ────────────────
+    // ── 開案也逐一檢查（裁定 2026-10-13-25）：開案與儲存用同一套檢查 ────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -38,7 +38,7 @@ public sealed class FilterScenarioSingleChangeTests
         }));
         // 規則版本仍是目前版本，只是條件用的攸關資料元素欄位已不在配對裡（合成的「其他資料改變」）。
         await RewriteDefinitionAsync(host, context.ProjectId, provider, 2, definition =>
-            definition["groups"]![0]!["rules"]!.AsArray().Insert(0, JsonNode.Parse(
+            definition["groups"]![0]!["conditions"]!.AsArray().Insert(0, JsonNode.Parse(
                 "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}")));
         var before = await ReadScenariosAsync(host, context.ProjectId, provider);
         Assert.All(before, row => Assert.True(IsCurrent(row)));
@@ -73,7 +73,7 @@ public sealed class FilterScenarioSingleChangeTests
             scenarios = new[] { Scenario("情境甲", "debit"), Scenario("情境乙", "credit") }
         }));
         var before = await ReadScenariosAsync(host, context.ProjectId, provider);
-        var hits = await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM result_filter_run;");
+        var hits = await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM filter_hit;");
 
         var loaded = await LoadAsync(host, context.ProjectId);
 
@@ -84,11 +84,11 @@ public sealed class FilterScenarioSingleChangeTests
             committed.GetProperty("resultRef").GetProperty("revision").GetString(),
             loaded.GetProperty("filterResultRef").GetProperty("revision").GetString());
         Assert.Equal(before, await ReadScenariosAsync(host, context.ProjectId, provider));
-        Assert.Equal(hits, await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(hits, await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(0, await StaleFlagAsync(host, context.ProjectId, provider));
     }
 
-    // ── 第一批：修正前會失敗（設計第 5.1 節第 1 到 5 項）──────────────────────────────
+    // ── 修正前會失敗的情況（設計第 5.1 節第 1 到 5 項）──────────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -201,9 +201,13 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal(2, check.GetProperty("recalculatedCount").GetInt32());
         Assert.Equal(2, response.GetProperty("position").GetInt32());
         var stored = await ReadScenariosAsync(host, projectId, provider);
-        Assert.Equal(stored[0].SavedUtc, response.GetProperty("resultRef").GetProperty("revision").GetString());
+        // 2026-10-31 起 revision 依順序把每個情境的「情境編號@保存時間」用分號接起來；原本斷言 revision 就是保存時間，
+        // 第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。情境由 filter.commit 建立，編號就是位置。
+        Assert.Equal(
+            string.Join(";", stored.Select(row => row.Position + "@" + row.SavedUtc)),
+            response.GetProperty("resultRef").GetProperty("revision").GetString());
         Assert.All(stored, row => Assert.True(IsCurrent(row)));
-        Assert.True(await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;") > 0);
+        Assert.True(await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;") > 0);
         Assert.Equal(0, await StaleFlagAsync(host, projectId, provider));
         Assert.False(response.GetProperty("staleState").GetProperty("filter").GetBoolean());
 
@@ -233,7 +237,7 @@ public sealed class FilterScenarioSingleChangeTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task TwoInvalid_FixingOneThenTheOther_UnlocksMatrixAndHits(string provider)
+    public async Task TwoInvalid_FixingOneThenTheOther_UnlocksHighRiskSummaryAndHits(string provider)
     {
         var (host, screen, _) = await TwoInvalidAsync(provider);
         using var _host = host;
@@ -243,8 +247,8 @@ public sealed class FilterScenarioSingleChangeTests
 
         Assert.Equal("needsEdit", first.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
         Assert.Equal("current", second.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
-        var matrix = await host.DispatchAsync("query.tagMatrixScenarios");
-        Assert.Equal(3, matrix.GetProperty("scenarios").GetArrayLength());
+        var summary = await host.DispatchAsync("query.highRiskSummaryScenarios");
+        Assert.Equal(3, summary.GetProperty("scenarios").GetArrayLength());
         var page = await host.DispatchAsync("query.filterHitsPage", JsonSerializer.Serialize(new { scenarioPosition = 3, pageSize = 20 }));
         Assert.NotEmpty(page.GetProperty("rows").EnumerateArray());
     }
@@ -284,24 +288,24 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal(before[2].DefinitionJson, after[2].DefinitionJson);
         Assert.Single(after.Select(row => row.SavedUtc).Distinct());
         Assert.NotEqual(before[0].SavedUtc, after[0].SavedUtc);
-        Assert.Equal(0, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(0, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(1, await StaleFlagAsync(host, projectId, provider));
 
         var hits = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "query.filterHitsPage", JsonSerializer.Serialize(new { scenarioPosition = 1 })));
         Assert.Equal(JetErrorCodes.StaleResult, hits.Code);
         Assert.Equal(FilterScenarioRuleMessages.NotYetUpgraded, hits.Message);
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString();
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString();
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString();
         var report = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("export.criteriaSelectionReport",
-            JsonSerializer.Serialize(new { validationRunId, prescreenRunId, revision = after[0].SavedUtc })));
+            JsonSerializer.Serialize(new { validationResultId, prescreenResultId, revision = after[0].SavedUtc })));
         Assert.Equal(JetErrorCodes.StaleResult, report.Code);
-        var workpaper = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("export.workpaperStream",
+        var workingPaper = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("export.workingPaperStream",
             JsonSerializer.Serialize(new
             {
-                validationRunId, prescreenRunId, scenarioRevision = after[0].SavedUtc, scenarioPositions = new[] { 1 }
+                validationResultId, prescreenResultId, scenarioRevision = after[0].SavedUtc, scenarioPositions = new[] { 1 }
             })));
-        Assert.Equal(JetErrorCodes.StaleResult, workpaper.Code);
+        Assert.Equal(JetErrorCodes.StaleResult, workingPaper.Code);
     }
 
     [Theory]
@@ -384,7 +388,7 @@ public sealed class FilterScenarioSingleChangeTests
         await RewriteDefinitionAsync(host, context.ProjectId, provider, 1, definition =>
         {
             definition["logicVersion"] = OlderVersion;
-            definition["groups"]![0]!["rules"]!.AsArray().Add(
+            definition["groups"]![0]!["conditions"]!.AsArray().Add(
                 JsonNode.Parse("""{"join":"AND","type":"prescreen","prescreenKey":"backdatedPosting"}"""));
         });
         var screen = await OpenAsync(host, context.ProjectId);
@@ -441,7 +445,7 @@ public sealed class FilterScenarioSingleChangeTests
         var check = response.GetProperty("filterScenarioCheck");
         Assert.Equal("current", check.GetProperty("status").GetString());
         Assert.Equal(3, check.GetProperty("recalculatedCount").GetInt32());
-        Assert.True(await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM result_filter_run;") > 0);
+        Assert.True(await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM filter_hit;") > 0);
         Assert.All(await ReadScenariosAsync(host, context.ProjectId, provider), row => Assert.True(IsCurrent(row)));
     }
 
@@ -454,7 +458,7 @@ public sealed class FilterScenarioSingleChangeTests
         using var _host = host;
         var before = await ReadScenariosAsync(host, projectId, provider);
         var stillInvalid = Wire(screen.Saved[0]);
-        stillInvalid["groups"]![0]!["rules"]!.AsArray().Add(JsonNode.Parse(
+        stillInvalid["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
             "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
 
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
@@ -551,7 +555,7 @@ public sealed class FilterScenarioSingleChangeTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task MixedSavedTimes_AreMadeConsistentByTheNextWrite(string provider)
+    public async Task MixedSavedTimes_AreAcceptedAndOthersKeepTheirOwnTimes(string provider)
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
@@ -560,10 +564,12 @@ public sealed class FilterScenarioSingleChangeTests
             scenarios = new[] { Scenario("情境甲", "debit"), Scenario("情境乙", "credit") }
         }));
         await ExecuteAsync(host, context.ProjectId, provider,
-            "UPDATE config_filter_scenario SET saved_utc = @savedUtc WHERE position = 2;",
+            "UPDATE filter_scenario SET saved_utc = @savedUtc WHERE position = 2;",
             ("@savedUtc", "2026-01-01T00:00:00.0000000+00:00"));
         var loaded = await LoadAsync(host, context.ProjectId);
-        Assert.Equal("inconsistent", loaded.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
+        // 2026-10-31 起每個情境各自儲存，保存時間本來就不同，不再算成不一致，下一次儲存也只換掉存的那一個；
+        // 原斷言（開案為 inconsistent、儲存後全部換成同一個時間）第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        Assert.Equal("current", loaded.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
         var screen = new Screen();
         screen.Show(loaded.GetProperty("filterScenarios"));
         var renamed = Wire(screen.Saved[0]);
@@ -572,81 +578,46 @@ public sealed class FilterScenarioSingleChangeTests
         var response = await SaveLikeTheScreenAsync(host, screen, 1, renamed);
 
         Assert.Equal("current", response.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
-        Assert.Single((await ReadScenariosAsync(host, context.ProjectId, provider)).Select(row => row.SavedUtc).Distinct());
+        var stored = await ReadScenariosAsync(host, context.ProjectId, provider);
+        Assert.NotEqual(stored[0].SavedUtc, stored[1].SavedUtc);
+        Assert.Equal("2026-01-01T00:00:00.0000000+00:00", stored[1].SavedUtc);
     }
 
+    // 裁定 2026-11-01-04：條件篩選報告的編製日期寫按下匯出的那一天，不寫最近一次儲存情境的日期。
+    // 情境的儲存時間改到很久以前，報告仍要寫匯出當天的本機日期。這是新增的測試，改程式前失敗：Focused 收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task OldScenarioWithExclusions_KeepsThemWhenAnotherScenarioIsSaved(string provider)
+    public async Task CriteriaReport_PreparedDateIsTheExportDay_NotWhenTheScenariosWereSaved(string provider)
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
+        var validation = await host.DispatchAsync("validate.run");
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString();
         await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
             scenarios = new[] { Scenario("情境甲", "debit"), Scenario("情境乙", "credit") }
         }));
-        await RewriteDefinitionAsync(host, context.ProjectId, provider, 2, definition =>
-        {
-            definition["logicVersion"] = OlderVersion;
-            definition["exclusions"] = new JsonArray(JsonNode.Parse("""{"type":"drCrOnly","drCr":"debit"}"""));
-        });
-        var screen = await OpenAsync(host, context.ProjectId);
-        var edited = Wire(screen.Saved[0]);
-        edited["rationale"] = "改動機";
+        await ExecuteAsync(host, context.ProjectId, provider,
+            "UPDATE filter_scenario SET saved_utc = @savedUtc;",
+            ("@savedUtc", "2020-01-02T00:00:00.0000000+00:00"));
+        var revision = (await LoadAsync(host, context.ProjectId))
+            .GetProperty("filterResultRef").GetProperty("revision").GetString();
 
-        var response = await SaveLikeTheScreenAsync(host, screen, 1, edited);
+        var before = DateTime.Now.Date;
+        await host.DispatchAsync("export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new { validationResultId, prescreenResultId, revision }));
+        var after = DateTime.Now.Date;
 
-        var stored = await ReadScenariosAsync(host, context.ProjectId, provider);
-        Assert.Contains("\"exclusions\"", stored[1].DefinitionJson, StringComparison.Ordinal);
-        var problem = Assert.Single(response.GetProperty("filterScenarioCheck").GetProperty("problems").EnumerateArray());
-        Assert.Equal("情境乙", problem.GetProperty("name").GetString());
-    }
-
-    // 預篩選收斂計畫階段四（2026-10-23）：10 月以前存下、帶排除區的舊情境，開案的摘要照原樣帶出排除區，編輯器才看得到。
-    // 審計員沒移除就儲存，畫面照原樣送回，後端照既有行為擋下並寫出原因；移除後才能儲存，存回去的定義不再有排除區。
-    // 原本摘要不帶排除區，修改這個情境後存回去就默默丟掉（2026-10-06 需求計畫第八節操作測試 F10）。
-    // 第一次失敗：Focused 收據 20261023-051033801-effa418fbc1c4f11bcd21566413ea49e（開案的摘要沒有排除區）。
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task OldScenarioWithExclusions_ShowsThemToTheEditorAndSavesOnlyAfterTheyAreRemoved(string provider)
-    {
-        using var host = new HandlerTestHost();
-        var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
-        await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
-        {
-            scenarios = new[] { Scenario("情境甲", "debit"), Scenario("情境乙", "credit") }
-        }));
-        var exclusions = JsonNode.Parse(
-            """[{"scope":"voucher","rule":{"type":"fieldValue","field":"postDate","operator":"in","values":["2025-01-15"]}}]""")!;
-        await RewriteDefinitionAsync(host, context.ProjectId, provider, 2, definition =>
-        {
-            definition["logicVersion"] = OlderVersion;
-            definition["exclusions"] = exclusions.DeepClone();
-        });
-        var before = await ReadScenariosAsync(host, context.ProjectId, provider);
-        var screen = await OpenAsync(host, context.ProjectId);
-
-        Assert.True(screen.Saved[1].TryGetProperty("exclusions", out var shown), "開案的摘要要帶出排除區");
-        Assert.True(JsonNode.DeepEquals(exclusions, JsonNode.Parse(shown.GetRawText())));
-        Assert.False(screen.Saved[0].TryGetProperty("exclusions", out _));
-        var edited = Wire(screen.Saved[1]);
-        edited["rationale"] = "改動機";
-        var error = await Assert.ThrowsAsync<JetActionException>(() =>
-            SaveLikeTheScreenAsync(host, screen, 2, (JsonObject)edited.DeepClone()));
-        Assert.Equal(JetErrorCodes.InvalidScenario, error.Code);
-        Assert.Contains("使用了已移除的「排除區域」，請改用條件中的「不屬於」或「不在區間」", error.Message, StringComparison.Ordinal);
-        Assert.Equal(before, await ReadScenariosAsync(host, context.ProjectId, provider));
-
-        edited.Remove("exclusions");
-        var response = await SaveLikeTheScreenAsync(host, screen, 2, edited);
-
-        var stored = await ReadScenariosAsync(host, context.ProjectId, provider);
-        Assert.DoesNotContain("\"exclusions\"", stored[1].DefinitionJson, StringComparison.Ordinal);
-        Assert.Equal("改動機", stored[1].Rationale);
-        Assert.Equal("current", response.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
-        Assert.False(screen.Saved[1].TryGetProperty("exclusions", out _));
+        var report = Assert.Single(CriteriaReports(await LoadAsync(host, context.ProjectId)));
+        using var workbook = new ClosedXML.Excel.XLWorkbook(report.GetProperty("fullPath").GetString()!);
+        var prepared = Assert.Single(workbook.Worksheets
+            .Select(sheet => sheet.Cell("D2").GetString())
+            .Where(text => text.StartsWith("Prepared date:", StringComparison.Ordinal)));
+        Assert.Contains(prepared, new[] { before, after }.Select(day =>
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Prepared date: {day:yyyy/MM/dd}")));
     }
 
     [Theory]
@@ -664,7 +635,7 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal("current", response.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
         Assert.Equal(
             preview.GetProperty("scenario").GetProperty("count").GetInt64(),
-            await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM result_filter_run WHERE scenario_position = 1;"));
+            await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM filter_hit WHERE scenario_id = 1;"));
         Assert.Equal(0, await StaleFlagAsync(host, context.ProjectId, provider));
     }
 
@@ -676,20 +647,20 @@ public sealed class FilterScenarioSingleChangeTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         var validation = await host.DispatchAsync("validate.run");
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString();
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString();
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString();
         var committed = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { Scenario("情境甲", "debit") } }));
         var oldRevision = committed.GetProperty("resultRef").GetProperty("revision").GetString();
         await host.DispatchAsync("export.criteriaSelectionReport",
-            JsonSerializer.Serialize(new { validationRunId, prescreenRunId, revision = oldRevision }));
+            JsonSerializer.Serialize(new { validationResultId, prescreenResultId, revision = oldRevision }));
         var report = Assert.Single(CriteriaReports(await LoadAsync(host, context.ProjectId)));
         var path = report.GetProperty("fullPath").GetString()!;
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
         await RewriteDefinitionAsync(host, context.ProjectId, provider, 1, definition =>
         {
             definition["logicVersion"] = OlderVersion;
-            definition["groups"]![0]!["rules"]!.AsArray().Add(
+            definition["groups"]![0]!["conditions"]!.AsArray().Add(
                 JsonNode.Parse("""{"join":"AND","type":"prescreen","prescreenKey":"backdatedPosting"}"""));
         });
         var screen = await OpenAsync(host, context.ProjectId);
@@ -819,7 +790,7 @@ public sealed class FilterScenarioSingleChangeTests
         host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
 
     private static JsonElement[] CriteriaReports(JsonElement loaded) =>
-        loaded.GetProperty("reportArtifacts").EnumerateArray()
+        loaded.GetProperty("reports").EnumerateArray()
             .Where(item => item.GetProperty("kind").GetString() == "criteriaSelectionReport")
             .ToArray();
 
@@ -828,7 +799,7 @@ public sealed class FilterScenarioSingleChangeTests
             DateTimeOffset.Parse(row.SavedUtc, System.Globalization.CultureInfo.InvariantCulture)));
 
     private static Task<long> StaleFlagAsync(HandlerTestHost host, string projectId, string provider) =>
-        ScalarAsync(host, projectId, provider, "SELECT filter_stale FROM config_result_stale_state WHERE singleton=1;");
+        ScalarAsync(host, projectId, provider, "SELECT filter_stale FROM result_stale_state WHERE singleton=1;");
 
     /// <summary>畫面上目前的已存清單：開案時取得，每次成功回應後換成回應的 <c>scenarios</c>。</summary>
     private sealed class Screen
@@ -873,7 +844,7 @@ public sealed class FilterScenarioSingleChangeTests
                         await RewriteDefinitionAsync(templateHost, context.ProjectId, provider, position, definition =>
                         {
                             definition["logicVersion"] = OlderVersion;
-                            var rules = definition["groups"]![0]!["rules"]!.AsArray();
+                            var rules = definition["groups"]![0]!["conditions"]!.AsArray();
                             if (position == 1 && invalidFirst)
                             {
                                 rules.Add(JsonNode.Parse("""{"join":"AND","type":"prescreen","prescreenKey":"backdatedPosting"}"""));
@@ -910,7 +881,7 @@ public sealed class FilterScenarioSingleChangeTests
     {
         name,
         rationale = name + "的合成動機",
-        groups = new[] { new { join = "AND", rules = new[] { new { join = "AND", type = "drCrOnly", drCr } } } }
+        groups = new[] { new { join = "AND", conditions = new[] { new { join = "AND", type = "drCrOnly", drCr } } } }
     };
 
     /// <summary>照前端 toWireScenario 的欄位規則，把畫面上的已存情境組成送出的形狀。</summary>
@@ -921,7 +892,7 @@ public sealed class FilterScenarioSingleChangeTests
             ["name"] = summary.GetProperty("name").GetString(),
             ["rationale"] = summary.GetProperty("rationale").GetString(),
             ["groups"] = new JsonArray(summary.GetProperty("groups").EnumerateArray()
-                .Where(group => group.TryGetProperty("rules", out var rules) && rules.GetArrayLength() > 0)
+                .Where(group => group.TryGetProperty("conditions", out var rules) && rules.GetArrayLength() > 0)
                 .Select(group => JsonNode.Parse(group.GetRawText()))
                 .ToArray())
         };
@@ -935,14 +906,6 @@ public sealed class FilterScenarioSingleChangeTests
             wire["source"] = source.GetString();
         }
 
-        // 前端 projectWireScenario 把草稿上的舊排除區原樣送出，讓後端擋下並寫出原因。預篩選收斂計畫階段四（2026-10-23）起
-        // 開案的摘要會帶出排除區，這裡跟著前端補上這一條；在那之前摘要沒有這個欄位，這一條不會作用。
-        if (summary.TryGetProperty("exclusions", out var exclusions)
-            && exclusions.ValueKind == JsonValueKind.Array && exclusions.GetArrayLength() > 0)
-        {
-            wire["exclusions"] = JsonNode.Parse(exclusions.GetRawText());
-        }
-
         return wire;
     }
 
@@ -950,7 +913,7 @@ public sealed class FilterScenarioSingleChangeTests
     private static JsonObject Fixed(Screen screen, int position)
     {
         var wire = Wire(screen.Saved[position - 1]);
-        var rules = wire["groups"]![0]!["rules"]!.AsArray();
+        var rules = wire["groups"]![0]!["conditions"]!.AsArray();
         foreach (var rule in rules.Where(rule => rule!["type"]!.GetValue<string>() != "drCrOnly").ToArray())
         {
             rules.Remove(rule);
@@ -1010,7 +973,7 @@ public sealed class FilterScenarioSingleChangeTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT position, name, rationale, definition_json, saved_utc FROM config_filter_scenario ORDER BY position;";
+            "SELECT position, name, rationale, definition_json, saved_utc FROM filter_scenario ORDER BY position;";
         var rows = new List<StoredScenario>();
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -1033,7 +996,7 @@ public sealed class FilterScenarioSingleChangeTests
         var definition = JsonNode.Parse(stored.DefinitionJson)!.AsObject();
         mutate(definition);
         await ExecuteAsync(host, projectId, provider,
-            "UPDATE config_filter_scenario SET definition_json = @definition WHERE position = @position;",
+            "UPDATE filter_scenario SET definition_json = @definition WHERE position = @position;",
             ("@definition", definition.ToJsonString()),
             ("@position", (long)position));
     }

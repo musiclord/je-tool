@@ -8,7 +8,7 @@ namespace JET.Tests.Architecture;
 /// 攸關資料元素（typed）條件建構器的前端守衛。operator 集合、operand carrier 與 blank 語意的
 /// 正本都在 Domain；本組只剩「畫面選單逐鍵鏡像」與比較基準選項鏡像。輸入形狀跟著欄位型別、
 /// 送出形狀不帶不適用的 carrier，以及新增條件不再提供舊式型別，2026-10-14 起改由
-/// <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 的 journey 15 核對。命中判定仍全在後端 SQL。
+/// <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 核對。命中判定仍全在後端 SQL。
 /// </summary>
 public sealed class TypedFilterFrontendTests
 {
@@ -19,7 +19,7 @@ public sealed class TypedFilterFrontendTests
 
         AssertOperatorSet(core, "TYPED_TEXT_OPERATORS", TypedFieldOperatorSets.Text);
         AssertOperatorSet(core, "TYPED_DATE_OPERATORS", TypedFieldOperatorSets.Date);
-        AssertOperatorSet(core, "TYPED_MONEY_OPERATORS", TypedFieldOperatorSets.Money);
+        AssertOperatorSet(core, "TYPED_AMOUNT_OPERATORS", TypedFieldOperatorSets.Amount);
     }
 
     [Fact]

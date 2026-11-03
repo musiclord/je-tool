@@ -104,7 +104,7 @@ internal static class PrivateCaseScenarioDiagnostics
                 .Cast<LegacyTextMatcher>()
                 .ToArray();
 
-            stage = "tag-matrix";
+            stage = "high-risk-summary";
             var expanded = await ReadExpandedVoucherRowsAsync(
                 scenarioArray.Length,
                 legacyTextMatchers,
@@ -199,16 +199,16 @@ internal static class PrivateCaseScenarioDiagnostics
         do
         {
             var page = await dispatchAsync(
-                "query.tagMatrixRowPage",
+                "query.highRiskSummaryRowPage",
                 JsonSerializer.Serialize(new { cursor, pageSize = PageSize })).ConfigureAwait(false);
             var rows = RequiredArray(page, "rows");
             foreach (var row in rows.EnumerateArray())
             {
-                var documentNumber = RequiredString(row, "documentNumber");
-                if (!documents.TryGetValue(documentNumber, out var document))
+                var voucherNumber = RequiredString(row, "voucherNumber");
+                if (!documents.TryGetValue(voucherNumber, out var document))
                 {
                     document = new DocumentFacts();
-                    documents.Add(documentNumber, document);
+                    documents.Add(voucherNumber, document);
                 }
                 document.RowCount++;
                 if (!row.TryGetProperty("description", out var description)
@@ -348,13 +348,13 @@ internal static class PrivateCaseScenarioDiagnostics
     {
         property = field switch
         {
-            GlMappingKeys.DocNum => "documentNumber",
-            GlMappingKeys.LineId => "lineItem",
-            GlMappingKeys.AccNum => "accountCode",
-            GlMappingKeys.AccName => "accountName",
+            GlMappingKeys.VoucherNumber => "voucherNumber",
+            GlMappingKeys.LineItem => "lineItem",
+            GlMappingKeys.AccountNumber => "accountNumber",
+            GlMappingKeys.AccountName => "accountName",
             GlMappingKeys.Description => "description",
-            GlMappingKeys.CreateBy => "createdBy",
-            GlMappingKeys.ApproveBy => "approvedBy",
+            GlMappingKeys.CreatedBy => "createdBy",
+            GlMappingKeys.ApprovedBy => "approvedBy",
             _ => string.Empty,
         };
         return property.Length > 0;
@@ -381,16 +381,16 @@ internal static class PrivateCaseScenarioDiagnostics
                 groupObject["matchScope"] = "row";
                 changed = true;
             }
-            else if (groupObject["rules"] is JsonArray rules && rules.Count > 1
+            else if (groupObject["conditions"] is JsonArray rules && rules.Count > 1
                 && rules.Skip(1).All(rule => rule is JsonObject witness && witness["type"]?.GetValue<string>() == "voucher"
                     && witness["quantifier"]?.GetValue<string>() == "any" && !witness.ContainsKey("side")
-                    && witness["rules"] is JsonArray { Count: 1 }))
+                    && witness["conditions"] is JsonArray { Count: 1 }))
             {
                 // 新寫法把每個佐證放進獨立的整張傳票條件；此診斷把它們展回同列，保留原本的對照問題。
                 for (var index = 1; index < rules.Count; index++)
                 {
                     var witness = rules[index]!.AsObject();
-                    var child = witness["rules"]![0]!.DeepClone();
+                    var child = witness["conditions"]![0]!.DeepClone();
                     child["join"] = witness["join"]?.DeepClone() ?? JsonValue.Create("AND");
                     rules[index] = child;
                 }
@@ -442,7 +442,7 @@ internal static class PrivateCaseScenarioDiagnostics
         {
             join = "OR",
             type = "dateRange",
-            field = "postDate",
+            field = "glDate",
             from = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             to = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         }));
@@ -456,7 +456,7 @@ internal static class PrivateCaseScenarioDiagnostics
                 {
                     name = "PrivateCase diagnostic",
                     rationale = "PrivateCase diagnostic",
-                    groups = new[] { new { join = "AND", rules } },
+                    groups = new[] { new { join = "AND", conditions = rules } },
                 },
             })).ConfigureAwait(false);
         if (!response.TryGetProperty("scenario", out var scenario))
@@ -483,7 +483,7 @@ internal static class PrivateCaseScenarioDiagnostics
     {
         foreach (var group in groups.EnumerateArray())
         {
-            if (group.ValueKind != JsonValueKind.Object || !group.TryGetProperty("rules", out var rules)
+            if (group.ValueKind != JsonValueKind.Object || !group.TryGetProperty("conditions", out var rules)
                 || rules.ValueKind != JsonValueKind.Array) continue;
             foreach (var rule in rules.EnumerateArray())
             {
@@ -491,7 +491,7 @@ internal static class PrivateCaseScenarioDiagnostics
                     && rule.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "voucher"
                     && rule.TryGetProperty("quantifier", out var quantifier) && quantifier.ValueKind == JsonValueKind.String && quantifier.GetString() == "any"
                     && !rule.TryGetProperty("side", out _)
-                    && rule.TryGetProperty("rules", out var children) && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() == 1)
+                    && rule.TryGetProperty("conditions", out var children) && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() == 1)
                     yield return children[0];
                 else yield return rule;
             }
@@ -508,7 +508,7 @@ internal static class PrivateCaseScenarioDiagnostics
         }
         var group = groups[0];
         return group.ValueKind == JsonValueKind.Object
-            && group.TryGetProperty("rules", out var rules)
+            && group.TryGetProperty("conditions", out var rules)
             && rules.ValueKind == JsonValueKind.Array
             && rules.GetArrayLength() == 1
             && IsPrescreenRule(rules[0], expected);

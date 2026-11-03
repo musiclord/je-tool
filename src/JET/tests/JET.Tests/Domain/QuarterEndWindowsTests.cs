@@ -15,7 +15,7 @@ public sealed class QuarterEndWindowsTests
     [InlineData("2025-12-01", "2025-12-31", "2025-12-27..2025-12-31")]
     [InlineData("2025-09-01", "2025-10-03", "2025-09-26..2025-10-03")]
     [InlineData("2025-09-01", "2025-10-05", "2025-09-26..2025-10-05")]
-    public void K1_PeriodEndWindow_IsIncludedWithoutDuplicatesAndMerged(string start, string end, string expected)
+    public void PeriodEndWindow_IsIncludedWithoutDuplicatesAndMerged(string start, string end, string expected)
     {
         Assert.Equal([expected], WindowStrings(start, end, 5));
     }
@@ -56,7 +56,7 @@ public sealed class QuarterEndWindowsTests
     [Fact]
     public void Compute_MaxWindowDays_IsAccepted()
     {
-        // BVA：X=92（上界）→ 相連或重疊的四季視窗合併（K1）。
+        // BVA：X=92（上界）→ 相連或重疊的四季視窗合併。
         Assert.Equal(["2024-12-30..2025-12-31"], WindowStrings("2025-01-01", "2025-12-31", 92));
     }
 

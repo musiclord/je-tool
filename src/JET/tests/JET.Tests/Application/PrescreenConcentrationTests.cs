@@ -20,7 +20,7 @@ public sealed class PrescreenConcentrationTests
     // 手算母體：C01..C12 依序 12、11 … 1 列（78 列），C13..C52 各 1 列（40 列）。
     private const int ExpectedPreparerCount = 52;
     private const int ExpectedEntryCount = 118;
-    private const int ExpectedListedCreators = 50;      // 既有彙總上限
+    private const int ExpectedListedPreparers = 50;      // 既有彙總上限
     private const int ExpectedListedEntryCount = 116;   // 上限內 50 位的合計（刻意小於全母體）
     private const int ExpectedAccountCount = 25;
 
@@ -130,14 +130,14 @@ public sealed class PrescreenConcentrationTests
 
         // 契約：取既有彙總（升冪、上限 50）的前 20 列，不另跑一次查詢、不重排。
         var existing = data.GetProperty("rareAccounts").GetProperty("accounts").EnumerateArray().Take(20)
-            .Select(a => a.GetProperty("accountCode").GetString()).ToList();
-        Assert.Equal(existing, rare.Select(a => a.GetProperty("accountCode").GetString()).ToList());
+            .Select(a => a.GetProperty("accountNumber").GetString()).ToList();
+        Assert.Equal(existing, rare.Select(a => a.GetProperty("accountNumber").GetString()).ToList());
     }
 
     [Fact]
-    public async Task PrescreenRun_Concentration_WithoutCreatorMapping_IsNotApplicableWithoutNumbers()
+    public async Task PrescreenRun_Concentration_WithoutPreparerMapping_IsNotApplicableWithoutNumbers()
     {
-        // 未配對「建立人員」→ creator_summary 為 na；集中度整塊 na，且不得回任何數值格。
+        // 未配對「建立人員」→ preparer_summary 為 na；集中度整塊 na，且不得回任何數值格。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(
             host,
@@ -152,7 +152,7 @@ public sealed class PrescreenConcentrationTests
 
         Assert.Equal("na", concentration.GetProperty("status").GetString());
         Assert.Equal(
-            data.GetProperty("creatorSummary").GetProperty("naReason").GetString(),
+            data.GetProperty("preparerSummary").GetProperty("naReason").GetString(),
             concentration.GetProperty("naReason").GetString());
         Assert.False(string.IsNullOrWhiteSpace(concentration.GetProperty("naReason").GetString()));
         Assert.Equal(JsonValueKind.Null, concentration.GetProperty("preparers").ValueKind);
@@ -173,11 +173,11 @@ public sealed class PrescreenConcentrationTests
         var loaded = await host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId }));
 
-        var resumed = loaded.GetProperty("latestRuns").GetProperty("prescreen");
+        var resumed = loaded.GetProperty("prescreenResult");
         Assert.Equal(7, resumed.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         Assert.Equal(
-            "GL 未配對核准日欄位（docDate）。",
-            resumed.GetProperty("postPeriodApproval").GetProperty("naReason").GetString());
+            "GL 未配對核准日欄位（approvalDate）。",
+            resumed.GetProperty("prepPeriodApproval").GetProperty("naReason").GetString());
         Assert.False(resumed.TryGetProperty("concentration", out _));
     }
 
@@ -191,21 +191,21 @@ public sealed class PrescreenConcentrationTests
         var folder = new JetProjectFolder(host.ProjectsRoot);
         ILocalProjectDatabase database = provider == "duckdb"
             ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
-        var store = new LocalRuleRunStore(database);
-        var runId = Guid.NewGuid().ToString("N");
+        var store = new LocalResultStore(database);
+        var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
         var savedJson = JsonSerializer.Serialize(new
         {
-            resultRef = new { runId, generatedUtc, logicVersion = RuleLogicVersions.Prescreen },
+            resultRef = new { resultId, generatedUtc, logicVersion = RuleLogicVersions.Prescreen },
             suspiciousKeywords = new { status = "V", count = 7 },
             rulePeriod = new { population = 12, rules = new[] { new { key = "suspiciousKeywords", hitLines = 7 } } },
             auditNote = "合成保留文字",
             positioning = new { aggregateGuidance = "先看依分錄編製者與較少使用科目的全期彙總；這兩項是常用的母體判讀面。" }
         });
-        await store.SaveAsync(projectId, new RuleRunRecord(runId, RuleRunKinds.Prescreen, generatedUtc, savedJson), CancellationToken.None);
+        await store.SaveAsync(projectId, new ResultRecord(resultId, ResultKind.Prescreen, generatedUtc, savedJson), CancellationToken.None);
 
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        var resumed = loaded.GetProperty("latestRuns").GetProperty("prescreen");
+        var resumed = loaded.GetProperty("prescreenResult");
         var guidance = resumed.GetProperty("positioning");
         Assert.Equal("查看編製人員與較少使用科目的分錄筆數及金額。", guidance.GetProperty("aggregateGuidance").GetString());
         Assert.Equal("預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。", guidance.GetProperty("exportDefaultGuidance").GetString());
@@ -214,7 +214,7 @@ public sealed class PrescreenConcentrationTests
         expected.Remove("positioning");
         actual.Remove("positioning");
         Assert.Equal(expected.ToJsonString(), actual.ToJsonString());
-        var persisted = await store.FindLatestAsync(projectId, RuleRunKinds.Prescreen, CancellationToken.None);
+        var persisted = await store.FindLatestAsync(projectId, ResultKind.Prescreen, CancellationToken.None);
         Assert.NotNull(persisted);
         Assert.Equal(savedJson, persisted!.SummaryJson);
     }
@@ -237,8 +237,8 @@ public sealed class PrescreenConcentrationTests
         Assert.Equal(ExpectedEntryCount, preparers.GetProperty("totalEntryCount").GetInt64());
 
         // 假綠防呆：既有彙總確實被 50 列上限截斷，兩個純量因此不可能由它加總得到。
-        var listed = data.GetProperty("creatorSummary").GetProperty("creators").EnumerateArray().ToList();
-        Assert.Equal(ExpectedListedCreators, listed.Count);
+        var listed = data.GetProperty("preparerSummary").GetProperty("preparers").EnumerateArray().ToList();
+        Assert.Equal(ExpectedListedPreparers, listed.Count);
         Assert.Equal(ExpectedListedEntryCount, listed.Sum(c => c.GetProperty("entryCount").GetInt64()));
 
         var top = preparers.GetProperty("top").EnumerateArray().ToList();
@@ -285,7 +285,7 @@ public sealed class PrescreenConcentrationTests
     private static void AddConcentrationRow(
         InlineGlWorkbookBuilder builder,
         ref int row,
-        string creator,
+        string preparer,
         bool manual)
     {
         var account = $"A{(row % ExpectedAccountCount) + 1:00}";
@@ -297,33 +297,33 @@ public sealed class PrescreenConcentrationTests
             "一般分錄",
             "100.00",
             1,
-            creator,
+            preparer,
             manual ? "1" : "0");
         row++;
     }
 
     /// <summary>
-    /// 直接落地一份「集中度欄位出現前」的 prescreen summary（同 result_rule_run 通道），
+    /// 直接落地一份「集中度欄位出現前」的 prescreen summary（同 prescreen_result 通道），
     /// 模擬使用者以舊版本執行後才升級的 resume 情境。
     /// </summary>
     private static async Task SaveLegacyPrescreenSummaryAsync(HandlerTestHost host, string projectId)
     {
-        var runId = Guid.NewGuid().ToString("N");
+        var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
         var summaryJson = JsonSerializer.Serialize(new
         {
-            postPeriodApproval = new
+            prepPeriodApproval = new
             {
                 status = "na",
-                naReason = "GL 未配對核准日欄位（docDate）。",
+                naReason = "GL 未配對核准日欄位（approvalDate）。",
                 count = 0
             },
             suspiciousKeywords = new { status = "V", count = 7 },
-            creatorSummary = new
+            preparerSummary = new
             {
                 status = "V",
                 naReason = (string?)null,
-                creators = new[]
+                preparers = new[]
                 {
                     new { createdBy = "C01", entryCount = 12, debitTotal = 1200.0, creditTotal = 0.0, manualCount = 1 }
                 }
@@ -334,23 +334,23 @@ public sealed class PrescreenConcentrationTests
                 distinctAccountCount = 25,
                 accounts = new[]
                 {
-                    new { accountCode = "A01", accountName = "科目 A01", entryCount = 4, debitTotal = 400.0, creditTotal = 0.0 }
+                    new { accountNumber = "A01", accountName = "科目 A01", entryCount = 4, debitTotal = 400.0, creditTotal = 0.0 }
                 }
             },
             // 規則判定與命中集合未變，因此 prescreen 的 logicVersion 不推進：
-            // 舊摘要仍屬「現行」而會被回放，只是少了本輪新增的顯示用彙總。
+            // 舊摘要仍屬「現行」而會被回放，只是少了後來新增的顯示用彙總。
             resultRef = new
             {
-                runId,
+                resultId,
                 generatedUtc,
                 logicVersion = RuleLogicVersions.Prescreen
             }
         });
 
-        var runStore = new LocalRuleRunStore(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
-        await runStore.SaveAsync(
+        var resultStore = new LocalResultStore(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
+        await resultStore.SaveAsync(
             projectId,
-            new RuleRunRecord(runId, RuleRunKinds.Prescreen, generatedUtc, summaryJson),
+            new ResultRecord(resultId, ResultKind.Prescreen, generatedUtc, summaryJson),
             CancellationToken.None);
     }
 }

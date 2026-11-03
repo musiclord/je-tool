@@ -42,7 +42,7 @@ public sealed class TaiwanSmeAccountCategoryTests
             databaseProvider: provider, validateForDownstream: true);
 
         // 自訂分類：固定資產（下層運輸設備）、在建工程（獨立一類，但分類用途也設成 ppe）、營業費用（下層修繕費）。
-        var categories = new JsonArray(AccountTaxonomyBuiltIns.All.Select(c => (JsonNode)Category(c.CategoryId, c.Label, c.Ordinal, c.SemanticRole, null)).ToArray())
+        var categories = new JsonArray(AccountCategoryBuiltIns.All.Select(c => (JsonNode)Category(c.CategoryId, c.Label, c.Ordinal, c.SemanticRole, null)).ToArray())
         {
             Category("draft-1", "固定資產", 5, "ppe", null),
             Category("draft-2", "運輸設備", 6, "ppe", "draft-1"),
@@ -50,8 +50,8 @@ public sealed class TaiwanSmeAccountCategoryTests
             Category("draft-4", "營業費用", 8, "operating_expense", null),
             Category("draft-5", "修繕費", 9, "operating_expense", "draft-4")
         };
-        var taxonomy = await host.DispatchAsync("accountTaxonomy.save", new JsonObject { ["revision"] = 1, ["categories"] = categories }.ToJsonString());
-        string Id(string label) => taxonomy.GetProperty("categories").EnumerateArray()
+        var categorySnapshot = await host.DispatchAsync("accountCategory.save", new JsonObject { ["revision"] = 1, ["categories"] = categories }.ToJsonString());
+        string Id(string label) => categorySnapshot.GetProperty("categories").EnumerateArray()
             .Single(c => c.GetProperty("label").GetString() == label).GetProperty("categoryId").GetString()!;
         var ppe = Id("固定資產");
         var opex = Id("營業費用");
@@ -71,7 +71,7 @@ public sealed class TaiwanSmeAccountCategoryTests
         var role = Pair("固定資產與費用 相同分類用途", "role");
         var noExpenseCredit = OneRule("貸方整張沒有營業費用",
             // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Preserve the fixed whole-voucher answers with explicit absence.
-            $$"""{"type":"voucher","quantifier":"none","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categorySelection":"subtree","categoryIds":["{{opex}}"]}]}""");
+            $$"""{"type":"voucher","quantifier":"none","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categorySelection":"subtree","categoryIds":["{{opex}}"]}]}""");
         // 這張卡預設包含下層：B1、B2、B6 三張。
         Assert.Equal((6L, 3L), await PreviewAsync(host, subtree));
         var hits = await CommitAndReadHitsAsync(host, subtree, node, role, noExpenseCredit);
@@ -134,8 +134,10 @@ public sealed class TaiwanSmeAccountCategoryTests
         await host.DispatchAsync("validate.run");
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        // 未預期借貸組合（應收、現金、預收都算正常對方科目）：只有 S4、S5 的收入貸方列，共 2 列。
-        Assert.Equal(2, prescreen.GetProperty("unexpectedAccountPair").GetProperty("count").GetInt64());
+        // 未預期借貸組合（應收、現金、預收都算正常對方科目）：命中 S4、S5。第四步照舊版列整張命中傳票，
+        // S4、S5 各 2 列，共 4 列（裁定 2026-10-29-29；原本只數收入貸方共 2 列，第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
+        // 第五步的判斷不變，下面 hits[0] 仍只有兩張傳票的收入貸方列。
+        Assert.Equal(4, prescreen.GetProperty("unexpectedAccountPair").GetProperty("count").GetInt64());
 
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("未預期借貸組合", """{"type":"prescreen","prescreenKey":"unexpectedAccountPair"}"""),

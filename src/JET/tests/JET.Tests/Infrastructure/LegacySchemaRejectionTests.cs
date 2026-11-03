@@ -6,29 +6,31 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 舊版 JET 建立的本機資料庫（schema 第 1 到第 5 版）不再升版：開啟時回報 invalid_project_schema，
-/// 而且在任何寫入之前就擋下，檔案內容保持原狀。版本值讀不出整數的資料庫同樣擋下。
-/// 新資料庫照舊從第 6 版建起再升到現行版。
+/// 本機案件資料庫只接受現行版本（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
+/// 比現行版本舊的資料庫開啟時回報 invalid_project_schema，訊息寫明刪除後重建，而且在任何寫入之前就擋下，檔案內容保持原狀。
+/// 版本值讀不出整數的資料庫同樣擋下。新資料庫直接建成現行版本。
 /// </summary>
 public sealed class LegacySchemaRejectionTests
 {
+    // 裁定 2026-10-30-23 要求舊版案件的訊息寫明下一步是刪除後重建，訊息由「請用目前版本重新建立案件」改成這一句。
+    // 第一次失敗收據 20261030-065928748-be3c29975faa4b92b43ff12519708767。
     private const string LegacySchemaMessage =
-        "這個案件的資料庫是舊版 JET 建立的格式，目前版本無法開啟。請用目前版本重新建立案件，再重新匯入資料。";
+        "這個案件是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
 
     private const string V5SchemaAndData =
         """
         CREATE TABLE schema_info (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         INSERT INTO schema_info (key, value) VALUES ('schema_version', '5');
 
-        CREATE TABLE target_gl_entry (
+        CREATE TABLE gl (
             entry_id              INTEGER PRIMARY KEY,
             batch_id              TEXT NOT NULL,
-            document_number       TEXT NULL,
+            voucher_number       TEXT NULL,
             line_item             TEXT NULL,
             amount_scaled         INTEGER NOT NULL
         );
 
-        INSERT INTO target_gl_entry (entry_id, batch_id, document_number, line_item, amount_scaled)
+        INSERT INTO gl (entry_id, batch_id, voucher_number, line_item, amount_scaled)
         VALUES (1, 'batch-v5', 'DOC-V5', '7', 1000000);
         """;
 
@@ -87,6 +89,56 @@ public sealed class LegacySchemaRejectionTests
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, ex.Code);
         Assert.Equal(LegacySchemaMessage, ex.Message);
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
+    }
+
+    [Theory]
+    [InlineData("sqlite", "14")]
+    [InlineData("duckdb", "14")]
+    [InlineData("sqlite", "15")]
+    [InlineData("duckdb", "15")]
+    [InlineData("sqlite", "16")]
+    [InlineData("duckdb", "16")]
+    [InlineData("sqlite", "17")]
+    [InlineData("duckdb", "17")]
+    public async Task PreviousSchemaVersion_IsRejectedAsLegacyProjectWithoutChangingTheFile(string provider, string olderVersion)
+    {
+        // 拿掉升版程式前的最後一版是第 14 版：結構和現行相同，只差版本號，也要當成舊版案件擋下，不再升版。
+        // 統一改名前建立的案件是第 15 版，同樣當成舊版案件擋下。
+        // 條件組結果改成依條件組編號儲存之前建立的案件是第 16 版，同樣當成舊版案件擋下。
+        // 驗證摘要的鍵名改成 voucherNumberAcrossGlDates 之前建立的案件是第 17 版，同樣當成舊版案件擋下（裁定 2026-11-01-01）。第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        ILocalProjectDatabase database = provider == "sqlite"
+            ? new SqliteProjectDatabase(folder)
+            : new DuckDbProjectDatabase(folder);
+        var projectId = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+
+        await using (var connection = database.CreateConnection(projectId))
+        {
+            await connection.OpenAsync();
+            await using var lower = connection.CreateCommand();
+            lower.CommandText = $"UPDATE schema_info SET value = '{olderVersion}' WHERE key = 'schema_version';"
+                + (provider == "duckdb" ? "\nCHECKPOINT;" : "\nPRAGMA wal_checkpoint(TRUNCATE);");
+            await lower.ExecuteNonQueryAsync();
+        }
+
+        SqliteConnection.ClearAllPools();
+        var reopened = provider == "sqlite"
+            ? (ILocalProjectDatabase)new SqliteProjectDatabase(folder)
+            : new DuckDbProjectDatabase(folder);
+        var path = reopened.GetDatabasePath(projectId);
+        var before = await File.ReadAllBytesAsync(path);
+
+        var ex = await Assert.ThrowsAsync<JetActionException>(
+            () => reopened.EnsureCreatedAsync(projectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, ex.Code);
+        Assert.Equal(LegacySchemaMessage, ex.Message);
+
+        SqliteConnection.ClearAllPools();
         Assert.Equal(before, await File.ReadAllBytesAsync(path));
     }
 
@@ -152,9 +204,18 @@ public sealed class LegacySchemaRejectionTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095708679-ad35db917ff24a45800e552e9bc7753c。
-        // 使用者 2026-10-21 裁定日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194708449-a199df52d31e49c882414cd4f37b05ba。
-        Assert.Equal("14", await command.ExecuteScalarAsync() as string);
+        // 裁定 2026-10-13-15 把訊息分三級，訊息紀錄的等級限制在第 12 版加上 error。第一次失敗收據 20261013-095708679-ad35db917ff24a45800e552e9bc7753c。
+        // 裁定 2026-10-21-04 把日期不符分成三種原因，本機 schema 再升到第 13 版。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        // 裁定 2026-10-22-15 讓每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，本機 schema 升到第 14 版。第一次失敗收據 20261023-194708449-a199df52d31e49c882414cd4f37b05ba。
+        // 裁定 2026-10-30-23：升版程式拿掉，新資料庫直接建成現行結構，版本推進到第 15 版，讓第 14 版以前的案件都當成舊版。
+        // 第一次失敗收據 20261030-065928748-be3c29975faa4b92b43ff12519708767。
+        // 統一改名改了表名、欄名與 CHECK 值，版本推進到第 16 版，讓改名前建立的第 15 版案件也當成舊版。
+        // 第一次失敗收據 20261030-135241888-3c45f8ad7a044419beee5d439bf6db8a。
+        // 條件組結果改成依條件組編號儲存，filter_scenario 加 scenario_id、新增 filter_hit_condition，版本推進到第 17 版，
+        // 讓第 16 版以前建立的案件也當成舊版。第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // 驗證摘要裡同一傳票號碼出現在不同總帳日期的鍵名改用 voucher（裁定 2026-11-01-01），存好的摘要和舊案件不同，
+        // 版本推進到第 18 版，讓第 17 版以前建立的案件也當成舊版。第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
+        Assert.Equal("18", await command.ExecuteScalarAsync() as string);
+        Assert.Equal("18", LocalSchemaReadiness.CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }

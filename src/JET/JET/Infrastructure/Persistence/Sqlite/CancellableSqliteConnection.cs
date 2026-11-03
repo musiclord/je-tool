@@ -21,8 +21,8 @@ internal sealed class CancellableSqliteConnection(string connectionString) : Sql
 
 /// <summary>
 /// 執行期間把取消接到 <c>sqlite3_interrupt</c>：SQLite 在最近的檢查點中止目前語句，交易內被中斷的寫入由 SQLite
-/// 整筆回復；中斷錯誤轉成 <see cref="OperationCanceledException"/>，和 DuckDB 一樣回報成取消
-/// （2026-10-19 跨資料庫一致性第二階段）。取消只在執行呼叫期間登記，呼叫返回前解除，
+/// 整筆回復；中斷錯誤轉成 <see cref="OperationCanceledException"/>，和 DuckDB 一樣回報成取消。
+/// 取消只在執行呼叫期間登記，呼叫返回前解除，
 /// 不會中斷之後在同一條連線上執行的其他語句。
 /// </summary>
 internal sealed class CancellableSqliteCommand : SqliteCommand

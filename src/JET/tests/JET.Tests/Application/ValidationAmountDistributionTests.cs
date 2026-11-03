@@ -63,7 +63,7 @@ public sealed class ValidationAmountDistributionTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task MappingCommitGl_EmptyEffectivePopulation_RollsBack(
+    public async Task MappingCommitGl_EmptyGl_RollsBack(
         string databaseProvider)
     {
         using var host = new HandlerTestHost();
@@ -71,7 +71,7 @@ public sealed class ValidationAmountDistributionTests
     }
 
     [SqlServerFact]
-    public async Task MappingCommitGl_SqlServerEmptyEffectivePopulation_RollsBack()
+    public async Task MappingCommitGl_SqlServerEmptyGl_RollsBack()
     {
         await WithSqlServerHostAsync(host => AssertEmptyPeriodAsync(host, "sqlServer"));
     }
@@ -79,7 +79,7 @@ public sealed class ValidationAmountDistributionTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task MappingCommitGl_AllZeroEffectivePopulation_IgnoresExcludedNonzeroForDegenerateGuard(
+    public async Task MappingCommitGl_AllZeroGl_IgnoresExcludedNonzeroForDegenerateGuard(
         string databaseProvider)
     {
         using var host = new HandlerTestHost();
@@ -87,7 +87,7 @@ public sealed class ValidationAmountDistributionTests
     }
 
     [SqlServerFact]
-    public async Task MappingCommitGl_SqlServerAllZeroEffectivePopulation_IgnoresExcludedNonzeroForDegenerateGuard()
+    public async Task MappingCommitGl_SqlServerAllZeroGl_IgnoresExcludedNonzeroForDegenerateGuard()
     {
         await WithSqlServerHostAsync(host => AssertAllZeroPeriodAsync(host, "sqlServer"));
     }
@@ -108,7 +108,7 @@ public sealed class ValidationAmountDistributionTests
                 periodStart: "2025-01-01",
                 periodEnd: "2025-12-31"));
 
-        Assert.Equal(JetErrorCodes.EmptyEffectivePopulation, exception.Code);
+        Assert.Equal(JetErrorCodes.EmptyGl, exception.Code);
     }
 
     private static async Task AssertAllZeroPeriodAsync(
@@ -123,7 +123,7 @@ public sealed class ValidationAmountDistributionTests
                         "傳票號碼", "傳票日期", "科目代號", "科目名稱",
                         "摘要", "金額", "借方旗標")
                     .AddRow("ZERO", "2025-06-30", "1101", "現金", "期內零元", "0.0000", 1)
-                    // 期外非零列仍會保留，但不得掩蓋有效母體退化為全零。
+                    // 期外非零列仍會保留，但不得掩蓋納入測試的分錄全是零元。
                     .AddRow("OUTSIDE", "2024-12-31", "4101", "收入", "界外非零", "1.0000", 0),
                 databaseProvider: databaseProvider,
                 periodStart: "2025-01-01",
@@ -143,7 +143,7 @@ public sealed class ValidationAmountDistributionTests
             "project.load",
             JsonSerializer.Serialize(new { projectId }));
 
-        var resumed = loaded.GetProperty("latestRuns").GetProperty("validate");
+        var resumed = loaded.GetProperty("validationResult");
         Assert.Equal(JsonValueKind.Null, resumed.ValueKind);
     }
 
@@ -273,7 +273,7 @@ public sealed class ValidationAmountDistributionTests
         HandlerTestHost host,
         string projectId)
     {
-        var runId = Guid.NewGuid().ToString("N");
+        var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
         var summaryJson = JsonSerializer.Serialize(new
         {
@@ -289,17 +289,17 @@ public sealed class ValidationAmountDistributionTests
             },
             resultRef = new
             {
-                runId,
+                resultId,
                 generatedUtc,
                 logicVersion = RuleLogicVersions.Validation
             }
         });
 
-        var runStore = new LocalRuleRunStore(
+        var resultStore = new LocalResultStore(
             new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
-        await runStore.SaveAsync(
+        await resultStore.SaveAsync(
             projectId,
-            new RuleRunRecord(runId, RuleRunKinds.Validate, generatedUtc, summaryJson),
+            new ResultRecord(resultId, ResultKind.Validation, generatedUtc, summaryJson),
             CancellationToken.None);
     }
 }

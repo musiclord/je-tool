@@ -2,7 +2,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -55,10 +55,10 @@ public sealed class SqliteImportAppendTests
     private static GlMappingSpec DualSpec() => new(
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"
@@ -109,7 +109,7 @@ public sealed class SqliteImportAppendTests
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT row_number, source_no, source_row_number FROM staging_gl_raw_row ORDER BY row_number;";
+                "SELECT row_number, source_no, source_row_number FROM pbc_gl ORDER BY row_number;";
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -188,7 +188,7 @@ public sealed class SqliteImportAppendTests
         Assert.Contains("credit", ex.Message);
 
         // 批次未被污染
-        Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM staging_gl_raw_row"));
+        Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM pbc_gl"));
         Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM import_batch_source"));
     }
 
@@ -205,7 +205,7 @@ public sealed class SqliteImportAppendTests
                 CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.EmptyWorkbook, ex.Code);
-        Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM staging_gl_raw_row"));
+        Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM pbc_gl"));
         Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM import_batch_source"));
         Assert.Equal(3, await env.ScalarAsync("SELECT row_count FROM import_batch"));
     }
@@ -233,7 +233,7 @@ public sealed class SqliteImportAppendTests
             env.ProjectId,
             new CommittedMapping(
                 DatasetKind.Tb,
-                new Dictionary<string, string> { [TbMappingKeys.AccNum] = "acc" },
+                new Dictionary<string, string> { [TbMappingKeys.AccountNumber] = "acc" },
                 "direct", "tb-batch", DateTimeOffset.UtcNow),
             CancellationToken.None);
 
@@ -243,7 +243,7 @@ public sealed class SqliteImportAppendTests
             CancellationToken.None);
 
         // 附加 = 母體改變 → 該 dataset 的 target 與 mapping 失效；TB mapping 不受影響
-        Assert.Equal(0, await env.ScalarAsync("SELECT COUNT(*) FROM target_gl_entry"));
+        Assert.Equal(0, await env.ScalarAsync("SELECT COUNT(*) FROM gl"));
         Assert.Null(await mappingStore.FindAsync(env.ProjectId, DatasetKind.Gl, CancellationToken.None));
         Assert.NotNull(await mappingStore.FindAsync(env.ProjectId, DatasetKind.Tb, CancellationToken.None));
     }
@@ -270,9 +270,9 @@ public sealed class SqliteImportAppendTests
         // target.source_row_number 存批次排序鍵（V3 抽樣基礎）：兩個來源的檔內列號 {2,3} 重複，
         // 排序鍵 {2,3,4,5,6} 必須唯一——否則 V3 抽樣排序不穩定
         Assert.Equal(5, await env.ScalarAsync(
-            "SELECT COUNT(DISTINCT source_row_number) FROM target_gl_entry"));
+            "SELECT COUNT(DISTINCT source_row_number) FROM gl"));
         Assert.Equal(2 + 3 + 4 + 5 + 6, await env.ScalarAsync(
-            "SELECT SUM(source_row_number) FROM target_gl_entry"));
+            "SELECT SUM(source_row_number) FROM gl"));
     }
 
     // ---- 欄位集合收斂（guide §3.1.5）。oracle：規格手算的小型固定資料集。----
@@ -383,7 +383,7 @@ public sealed class SqliteImportAppendTests
         Assert.Contains("COL_8", ex.Message);
 
         // rollback 斷言：staging 列數、來源紀錄數、批次 row_count 全部回到附加前
-        Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM staging_gl_raw_row"));
+        Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM pbc_gl"));
         Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM import_batch_source"));
         Assert.Equal(3, await env.ScalarAsync("SELECT row_count FROM import_batch"));
     }
@@ -409,7 +409,7 @@ public sealed class SqliteImportAppendTests
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);
         Assert.Contains("COL_3", ex.Message);
-        Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM staging_gl_raw_row"));
+        Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM pbc_gl"));
     }
 
     [Fact]

@@ -6,7 +6,7 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
 // 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
 
 /// <summary>
@@ -29,10 +29,11 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             .Select(item => item.Groups["word"].Value)
             .ToArray();
 
-        // 連順序一起比：自訂關鍵字條件的預設值是把這份清單依序以逗號串成輸入框內容（ui-core.js 的
-        // SUSPICIOUS_KEYWORD_DEFAULTS.join(',')），審計員在畫面上看到的就是這個順序。
+        // 連順序一起比：「特定摘要」卡片照這份清單的順序帶入字詞（ui-core.js 的 SUSPICIOUS_KEYWORD_DEFAULTS.slice()），
+        // 審計員在畫面上看到的就是這個順序。原本核對的是舊式關鍵字條件串成輸入框的寫法，那個型別已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
+        // 第一次失敗：Focused 收據 20261030-082953351-8f6cfb9ca280470f879987a234d3f782。
         Assert.Equal(SuspiciousKeywordDefaults.Defaults, frontend);
-        Assert.Contains("SUSPICIOUS_KEYWORD_DEFAULTS.join(',')", core, StringComparison.Ordinal);
+        Assert.Contains("values: SUSPICIOUS_KEYWORD_DEFAULTS.slice()", core, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -44,8 +45,9 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("TYPED_SET_MAX_VALUES: TYPED_SET_MAX_VALUES", core, StringComparison.Ordinal);
     }
 
-    // 低嚴重度事項 F8（使用者 2026-10-19 要求處理）：尾數比對每組的位數與尾數連續 0 的位數，上限都是後端同一個常數，
-    // 前端兩處都引用 Ui.TAIL_DIGITS_MAX，不寫數字。
+    // 尾數比對每組的位數與尾數連續 0 的位數，上限都是後端同一個常數，
+    // 前端兩處都引用 Ui.TAIL_DIGITS_MAX，不寫數字。舊式連續零尾數的輸入框連同型別一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
+    // 只剩尾數比對引用它。第一次失敗：Focused 收據 20261030-082953351-8f6cfb9ca280470f879987a234d3f782。
     [Fact]
     public void TailDigitsMax_MatchesBackendTrailingZeroLimit()
     {
@@ -57,16 +59,15 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("TAIL_DIGITS_MAX: TAIL_DIGITS_MAX", core, StringComparison.Ordinal);
         Assert.Contains("item.length > Ui.TAIL_DIGITS_MAX", values, StringComparison.Ordinal);
         Assert.Contains("' 組純數字，每組 1 到 ' + Ui.TAIL_DIGITS_MAX + ' 位'", values, StringComparison.Ordinal);
-        Assert.Contains("max=\"' + Ui.TAIL_DIGITS_MAX + '\" step=\"1\" aria-label=\"尾數連續 0 的位數\"", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("{1," + TrailingZeroThreshold.MaxCustomDigits + "}", values, StringComparison.Ordinal);
         Assert.DoesNotContain("max=\"" + TrailingZeroThreshold.MaxCustomDigits + "\"", filter, StringComparison.Ordinal);
     }
 
-    // 使用者 2026-10-19 裁定第五步檢查句寫出欄位目前的設定；後端的名稱要和第三步下拉選單的選項文字相同。
+    // 裁定 2026-10-19-14：第五步檢查句不用「型別」，寫出欄位目前的設定；後端的名稱要和第三步下拉選單的選項文字相同。
     [Theory]
     [InlineData(RdeFieldValueTypeNames.Text)]
     [InlineData(RdeFieldValueTypeNames.Date)]
-    [InlineData(RdeFieldValueTypeNames.Money)]
+    [InlineData(RdeFieldValueTypeNames.Amount)]
     public void RdeValueTypeDisplayName_MatchesTheMappingDropdown(string valueType)
     {
         var core = ReadFrontend("js", "ui-core.js");
@@ -81,7 +82,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     /// 文字值清單（舊式條件 textSet）每條的值數上限，前端副本必須等於後端 <c>FilterScenarioLimits.MaxTextSetValuesPerRule</c>。
     /// 2026-10-14 原樣搬自 <c>FilterAstFrontendContractTests.TextSet_UsesLineDelimitedTextareaAndClosedModeOptions</c>
     /// （收尾四項第一項第二、三波整併）。前端行為測試讀不到後端常數，只能在這裡比對原始碼；
-    /// 101 個值時預覽與儲存都擋下的行為，由 <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 的 journey 15 核對。
+    /// 101 個值時預覽與儲存都擋下的行為，由 <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 核對。
     /// </summary>
     [Fact]
     public void TextSetMaxValues_MatchesBackendTextSetLimit()
@@ -116,16 +117,16 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         // 首次失敗：20261014-130014323-112f3ca2d352414ba9de606d2b6e0e09；100 筆與重複日期由 frontend-shared-controls.test.cjs 操作驗證。
         Assert.Contains("!duplicate && selected.length >= Ui.TYPED_SET_MAX_VALUES", values, StringComparison.Ordinal);
         Assert.Contains("'最多選取 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同日期，請先移除不需要的日期。'", values, StringComparison.Ordinal);
-        // L81 counts the exact distinct strings that wire() sends, not a second uppercase-derived set.
+        // Counts the exact distinct strings that wire() sends, not a second uppercase-derived set.
         // First failure: 20261004-084834579-2436b90e840c4c53bec70aa81bf5a84b.
         // The Node behavior case also fixes the 100/101 mixed-case wire counts; keep this source-to-limit guard.
         var problem = ExtractFunctionBody(values, "problem(rule, state)");
         Assert.Contains("var value = wire(rule, state), mode = carrier(rule.operator, selected.type);", problem, StringComparison.Ordinal);
         Assert.Contains("var inputs = mode === 'set' ? value.values", problem, StringComparison.Ordinal);
-        // 第九節 G2 讓尾數與一般清單共用超限指引，計數仍用 wire 的值；首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
+        // 尾數與一般清單共用超限指引，計數仍用 wire 的值；首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
         Assert.Contains("count > Ui.TYPED_SET_MAX_VALUES", problem, StringComparison.Ordinal);
         Assert.DoesNotContain("toUpperCase", problem, StringComparison.Ordinal);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-08（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Contains("'請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值'", values, StringComparison.Ordinal);
     }
 
@@ -138,13 +139,13 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Equal(FilterScenarioLimits.MaxSavedScenarios, ReadIntVar(core, "FILTER_MAX_SAVED_SCENARIOS"));
         Assert.Contains("FILTER_MAX_SAVED_SCENARIOS: FILTER_MAX_SAVED_SCENARIOS", core, StringComparison.Ordinal);
         Assert.Contains("scenarios.length > Ui.FILTER_MAX_SAVED_SCENARIOS", filter, StringComparison.Ordinal);
-        // 情境名稱上限：前端輸入框鏡像後端的三種資料庫共用上限（使用者 2026-10-19 選「三種共用 400 字上限」）。
+        // 情境名稱上限：前端輸入框鏡像後端的三種資料庫共用上限（裁定 2026-10-19-26：三種共用 400 字上限）。
         Assert.Equal(FilterScenarioLimits.MaxNameLength, ReadIntVar(core, "FILTER_MAX_SCENARIO_NAME_LENGTH"));
         Assert.Contains("FILTER_MAX_SCENARIO_NAME_LENGTH: FILTER_MAX_SCENARIO_NAME_LENGTH", core, StringComparison.Ordinal);
         Assert.Contains("data-bind=\"scenario-name\" maxlength=\"' + Ui.FILTER_MAX_SCENARIO_NAME_LENGTH + '\"", filter, StringComparison.Ordinal);
-        // 2026-10-03 用語統一 W10：前後端訊息一起改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 用語統一以「已儲存」為準（裁定 2026-10-02-01），前後端訊息一起改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         Assert.Contains(
-            // 使用者 2026-10-13 勾選頁確認 60（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+            // 裁定 2026-10-13-28 確認了這句的用字（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
             "'最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。'",
             filter,
             StringComparison.Ordinal);
@@ -158,7 +159,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     /// <summary>
-    /// 預篩選收斂計畫階段四（2026-10-23）：第五步各入口的停用原因讀 ui-core.js 的規則需求表，這張表逐項鏡像後端
+    /// 第五步各入口的停用原因讀 ui-core.js 的規則需求表，這張表逐項鏡像後端
     /// <see cref="JetRuleRequirements"/>，順序也相同，因為原因依表列的順序寫。預篩選比對每一個可篩選的鍵；條件型別比對每一種型別，
     /// 需要條件自己所選 GL 欄位的型別另列一份清單；GL 語意欄位的清單比對欄位目錄。
     /// 第一次失敗：Focused 收據 20261023-043250303-106f37c3021445109eac5f58b7560bbc（前端還沒有這張表）。
@@ -183,12 +184,12 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         foreach (var type in FilterConditionLabels.RuleTypes.Keys.Where(type => type != "prescreen"))
         {
             var withoutField = Wire(BackendPrerequisites(new() { ["type"] = type }));
-            var withField = Wire(BackendPrerequisites(new() { ["type"] = type, ["field"] = JetFieldCatalog.GlCreateBy }));
+            var withField = Wire(BackendPrerequisites(new() { ["type"] = type, ["field"] = JetFieldCatalog.GlCreatedBy }));
             if (fieldTypes.Contains(type, StringComparer.Ordinal))
             {
                 Assert.False(types.ContainsKey(type), type + " 由條件自己選的欄位決定，不另列需求");
                 Assert.Empty(withoutField);
-                Assert.Equal(["gl:" + JetFieldCatalog.GlCreateBy], withField);
+                Assert.Equal(["gl:" + JetFieldCatalog.GlCreatedBy], withField);
             }
             else
             {
@@ -205,7 +206,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     /// <summary>
-    /// 同一階段：停用時的文字由後端的原因句決定，前端不另造句（計畫做法第 5 點）。不帶分類名稱的句子逐字出現在前端；
+    /// 停用時的文字由後端的原因句決定，前端不另造句。不帶分類名稱的句子逐字出現在前端；
     /// 帶分類名稱的句子用合成名稱算出後端的句子，名稱前後的文字也逐字出現在前端。GL 欄位的句子加上前端那句下一步再加句號，
     /// 就是第四步同一條規則的句子；欄位名稱和第三步欄位配對的名稱相同。
     /// 第一次失敗：同上收據。
@@ -217,8 +218,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         var reasons = ExtractFunctionBody(core, "rulePrerequisiteReason(state, prerequisite)");
         foreach (var kind in new[]
                  {
-                     JetRulePrerequisiteKind.LastPeriodStart, JetRulePrerequisiteKind.AccountMapping,
-                     JetRulePrerequisiteKind.AnyAccountCategory, JetRulePrerequisiteKind.AuthorizedPreparers,
+                     JetRulePrerequisiteKind.PrepStartDate, JetRulePrerequisiteKind.AccountMapping,
+                     JetRulePrerequisiteKind.AnyAccountCategory, JetRulePrerequisiteKind.AuthorizedPreparer,
                      JetRulePrerequisiteKind.HolidayCalendar
                  })
         {
@@ -228,9 +229,9 @@ public sealed class FilterBackendRuleMirrorFrontendTests
                 StringComparison.Ordinal);
         }
 
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-15（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）：
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）：
         // 前端和後端同一句，分類名稱取第四步分類設定裡目前的名稱。原本由 AssertFrontendPrescreenEligibilityExpression 核對 filter-step.js。
-        Assert.Contains("function label(role) { return taxonomyCategoryLabel(state, 'builtin.' + role); }", reasons, StringComparison.Ordinal);
+        Assert.Contains("function label(role) { return accountCategoryLabel(state, 'builtin.' + role); }", reasons, StringComparison.Ordinal);
 
         char[] sentinels = ['\u0001', '\u0002', '\u0003', '\u0004'];
         var labels = new AccountCategoryLabels("\u0001", "\u0002", "\u0003", "\u0004");
@@ -257,21 +258,9 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     /// <summary>
-    /// 預篩選收斂計畫階段四（2026-10-23）：第五步編輯器把舊情境的排除區畫成唯讀的「舊排除區」，原因照抄後端擋下它的那一句，
-    /// 前端不另造句。第一次失敗：Focused 收據 20261023-052228467-29884e1d40b84f99a4423752f808d8fb（前端還沒有這一句）。
-    /// </summary>
-    [Fact]
-    public void LegacyExclusionsReason_IsTheBackendSentence()
-    {
-        var filter = ProductSources.FilterStepFrontend();
-
-        Assert.Equal(FilterScenarioPayloadParser.RemovedExclusionsMessage, ReadStringVar(filter, "LEGACY_EXCLUSIONS_REASON"));
-    }
-
-    /// <summary>
     /// 第五步依 ui-core.js 的規則需求表與 rulePrerequisiteMet 停用條件；後端驗證器是權威。逐一把每個條件型別交給
     /// 後端驗證器，在每一種科目配對狀態下比對「前端可用」與「後端不因科目配對擋下」是否一致。
-    /// 預篩選收斂計畫階段四（2026-10-23）拿掉型別上的 accountMappingRequirement 與 filter-step.js 的 availableRuleTypes，
+    /// 型別上的 accountMappingRequirement 與 filter-step.js 的 availableRuleTypes 已拿掉，
     /// 前端可用改由需求表算；比對的型別與科目配對狀態不變。
     /// 第一次失敗：Focused 收據 20261023-045253734-62b9cd9c0604461dbc4f70ec63236833（filter-step.js 找不到 availableRuleTypes）。
     /// </summary>
@@ -347,7 +336,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             var rule = new Dictionary<string, object?> { ["type"] = "prescreen", ["prescreenKey"] = key };
             foreach (var facts in MappingFactStates)
             {
-                // R7 changed the actual frontend helper, not this metadata flag. The old test reproduced
+                // The fix changed the actual frontend helper, not this metadata flag. The old test reproduced
                 // only requiresAccountMapping and therefore missed the new two-summary-flag requirement.
                 // First failures: 20261004-084834579-2436b90e840c4c53bec70aa81bf5a84b,
                 // 20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11. Keep every snapshot and every key.
@@ -366,9 +355,9 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     /// 看後端是否因此擋下；條件自己選欄位的型別，每個 GL 欄位各比對一次。
     /// 2026-10-16 複審找到第五步「預篩選」分頁在沒有傳票建立人員時沒有停用「編製分錄較少的人員」與「非授權編製人員」，
     /// 按下後一預覽就被後端擋下，所以原本這裡逐一核對每個預篩選鍵的傳票建立人員需求（PrescreenKeyCreatedByRequirements_AgreeWithBackendValidator）。
-    /// 預篩選收斂計畫階段四（2026-10-23）拿掉 requiresCreateBy，第五步不能用任何 GL 沒有配對的欄位（使用者 2026-10-22 裁定），
+    /// 拿掉 requiresCreatedBy 後，第五步不能用任何 GL 沒有配對的欄位（裁定 2026-10-22-05），
     /// 這裡改成核對每個 GL 欄位，條件型別也一起核對。
-    /// 第一次失敗：同上收據（prescreenRequirementNote 裡找不到 requiresCreateBy 的判斷）。
+    /// 第一次失敗：同上收據（prescreenRequirementNote 裡找不到 requiresCreatedBy 的判斷）。
     /// </summary>
     [Fact]
     public void GlFieldRequirements_AgreeWithBackendValidator()
@@ -396,7 +385,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
                 continue;
             }
 
-            // 前端 filterRulePrerequisites：這幾種型別需要的是條件自己選的 GL 欄位。
+            // 前端 filterConditionPrerequisites：這幾種型別需要的是條件自己選的 GL 欄位。
             foreach (var field in allFields)
             {
                 samples.Add((type + "（" + field + "）", new Dictionary<string, object?> { ["type"] = type, ["field"] = field }, ["gl:" + field]));
@@ -444,12 +433,12 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             Regex.Matches(met, @"case '(?<kind>\w+)':").Select(match => match.Groups["kind"].Value).Order(StringComparer.Ordinal));
 
         var note = ExtractFunctionBody(core, "ruleRequirementNote(state, rules, ownOnly)");
-        Assert.Contains("filterRulePrerequisites(rule).forEach(function (prerequisite) {", note, StringComparison.Ordinal);
+        Assert.Contains("filterConditionPrerequisites(rule).forEach(function (prerequisite) {", note, StringComparison.Ordinal);
         Assert.Contains("rulePrerequisiteMet(state, prerequisite)", note, StringComparison.Ordinal);
     }
 
     // 預篩選分頁與預篩選條件卡都依 prescreenRequirementNote 停用；它把鍵交給同一張需求表，沒有任何鍵的特例。
-    // 原本這裡另外鎖住 R3-15 的句子，現在句子和分類名稱的來源由 RulePrerequisiteReasons_AreTheBackendSentences 核對。
+    // 原本這裡另外鎖住裁定 2026-10-14-01 確認的那一句，現在句子和分類名稱的來源由 RulePrerequisiteReasons_AreTheBackendSentences 核對。
     private static void AssertFrontendPrescreenEligibilityExpression(string filter)
     {
         var available = ExtractFunctionBody(filter, "availablePrescreenKeys()");
@@ -519,19 +508,19 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         {
             name = "synthetic scenario",
             rationale = "synthetic rationale",
-            groups = new[] { new { join = "AND", matchScope = "row", rules = new object[] { rule } } }
+            groups = new[] { new { join = "AND", matchScope = "row", conditions = new object[] { rule } } }
         };
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(scenario));
         var spec = FilterScenarioPayloadParser.Parse(document.RootElement, moneyScale: 100);
         var context = new FilterValidationContext(
-            HasLastPeriodStart: true,
+            HasPrepStartDate: true,
             HasAccountMapping: facts.Imported,
             HasAuthorizedPreparers: true,
             HasAnyAccountCategory: facts.HasAnyCategory,
             HasRevenueCategory: facts.HasRevenue,
             HasCounterpartCategory: facts.HasCounterpart)
         {
-            // 預篩選收斂計畫階段四拿掉四個欄位旗標，改由規則需求表讀可用欄位清單（2026-10-23）。
+            // 四個欄位旗標拿掉後，改由規則需求表讀可用欄位清單。
             // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
             AvailableGlFields = availableGlFields
         };
@@ -543,41 +532,41 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         "accountSide" => new()
         {
             ["type"] = type,
-            // 第九節 G1、G5：科目分類只判斷分類；首次失敗：20261014-135448833-0915d3416a0e48208774011f8499f528。
+            // 科目分類條件只判斷分類；首次失敗：20261014-135448833-0915d3416a0e48208774011f8499f528。
             ["categoryMode"] = "is",
             ["categorySelection"] = "node",
-            ["categoryIds"] = new[] { AccountTaxonomyBuiltIns.CashId }
+            ["categoryIds"] = new[] { AccountCategoryBuiltIns.CashId }
         },
         "accountPair" => new()
         {
             ["type"] = type,
             ["pairMode"] = AccountPairModes.Exact,
-            ["debitCategoryIds"] = new[] { AccountTaxonomyBuiltIns.CashId },
-            ["creditCategoryIds"] = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            ["debitCategoryIds"] = new[] { AccountCategoryBuiltIns.CashId },
+            ["creditCategoryIds"] = new[] { AccountCategoryBuiltIns.RevenueId }
         },
         "specialAccountCategoryPair" => new()
         {
             ["type"] = type,
             ["pairMode"] = SpecialAccountCategoryPairModes.DrAndCr,
-            ["debitCategoryIds"] = new[] { AccountTaxonomyBuiltIns.CashId },
-            ["creditCategoryIds"] = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            ["debitCategoryIds"] = new[] { AccountCategoryBuiltIns.CashId },
+            ["creditCategoryIds"] = new[] { AccountCategoryBuiltIns.RevenueId }
         },
         "revenueDebitNearQuarterEnd" => new() { ["type"] = type, ["windowDays"] = QuarterEndWindows.MinWindowDays },
         _ => new() { ["type"] = type }
     };
 
-    // 後端規則需求表對一條合成條件的答案：條件先經過正式的 payload 解析，再交給 JetRuleRequirements.ForFilterRule。
+    // 後端規則需求表對一條合成條件的答案：條件先經過正式的 payload 解析，再交給 JetRuleRequirements.ForFilterCondition。
     private static IReadOnlyList<JetRulePrerequisite> BackendPrerequisites(Dictionary<string, object?> rule)
     {
         var scenario = new
         {
             name = "synthetic scenario",
             rationale = "synthetic rationale",
-            groups = new[] { new { join = "AND", matchScope = "row", rules = new object[] { rule } } }
+            groups = new[] { new { join = "AND", matchScope = "row", conditions = new object[] { rule } } }
         };
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(scenario));
         var spec = FilterScenarioPayloadParser.Parse(document.RootElement, moneyScale: 100);
-        return JetRuleRequirements.ForFilterRule(spec.Groups[0].Rules[0]);
+        return JetRuleRequirements.ForFilterCondition(spec.Groups[0].Conditions[0]);
     }
 
     // 前端表的寫法：GL 欄位寫成「gl:語意欄位」，其他前置條件寫種類名稱，首字母小寫。
@@ -587,7 +576,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             : char.ToLowerInvariant(prerequisite.Kind.ToString()[0]) + prerequisite.Kind.ToString()[1..])
         .ToArray();
 
-    // 預篩選收斂計畫階段九：前端只留一份 PRESCREEN_RULES，每條規則的 prerequisites 寫在同一筆。
+    // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES，每條規則的 prerequisites 寫在同一筆。
     // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
     private static Dictionary<string, string[]> ReadPrescreenRuleTable(string source)
     {

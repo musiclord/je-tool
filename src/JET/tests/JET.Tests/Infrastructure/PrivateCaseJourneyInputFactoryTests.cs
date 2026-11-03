@@ -20,11 +20,11 @@ public sealed class PrivateCaseJourneyInputFactoryTests
 
         Assert.Equal("local-case-01", prepared.Input.CaseAlias);
         Assert.Equal("SYNTHETIC-PRIVATE-CASE", prepared.Input.ProjectCode);
-        Assert.Equal("Synthetic private case entity", prepared.Input.EntityName);
+        Assert.Equal("Synthetic private case entity", prepared.Input.ClientName);
         Assert.Equal("synthetic-private-operator", prepared.Input.OperatorId);
         Assert.Equal("2025-01-01", prepared.Input.PeriodStart);
         Assert.Equal("2025-12-31", prepared.Input.PeriodEnd);
-        Assert.Equal("2025-12-31", prepared.Input.LastPeriodStart);
+        Assert.Equal("2025-12-31", prepared.Input.PrepStartDate);
         Assert.Equal("dual", prepared.Input.GlAmountMode);
         Assert.Equal("direct", prepared.Input.TbChangeMode);
         Assert.Equal(3, prepared.PrivateSourceCount);
@@ -53,7 +53,7 @@ public sealed class PrivateCaseJourneyInputFactoryTests
         using var serializedDocument = JsonDocument.Parse(serialized);
         Assert.Equal(2, serializedDocument.RootElement.EnumerateObject().Count());
         Assert.DoesNotContain(fixture.SourceRoot, serialized, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(prepared.Input.EntityName, serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain(prepared.Input.ClientName, serialized, StringComparison.Ordinal);
         Assert.DoesNotContain(prepared.Input.FilterScenarios.GetRawText(), serialized, StringComparison.Ordinal);
     }
 
@@ -158,14 +158,14 @@ public sealed class PrivateCaseJourneyInputFactoryTests
                     [new PrivateCaseSource("gl.xlsx", "GL", firstRowIsFieldNames: true)],
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
-                        [GlMappingKeys.DocNum] = "doc",
+                        [GlMappingKeys.VoucherNumber] = "doc",
                     },
                     GlAmountMode.DualAmount),
                 new PrivateCaseTbSettings(
                     [new PrivateCaseSource("tb.xlsx", "TB", firstRowIsFieldNames: true)],
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
-                        [TbMappingKeys.AccNum] = "account",
+                        [TbMappingKeys.AccountNumber] = "account",
                     },
                     TbChangeMode.DirectChange),
                 referenceData,

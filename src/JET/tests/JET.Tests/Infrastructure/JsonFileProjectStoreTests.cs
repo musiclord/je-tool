@@ -20,7 +20,7 @@ public sealed class JsonFileProjectStoreTests
         createdUtc ?? DateTimeOffset.UtcNow,
         CurrentStep: 1,
         ProjectDocument.CurrentSchemaVersion,
-        // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
+        // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成設定檔損壞拒絕。
         SampleSeed: 1_234_567,
         SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
@@ -43,7 +43,7 @@ public sealed class JsonFileProjectStoreTests
         var found = await store.FindAsync(older.ProjectId, CancellationToken.None);
         Assert.NotNull(found);
         Assert.Equal(older.ProjectCode, found.ProjectCode);
-        Assert.Equal(older.EntityName, found.EntityName);
+        Assert.Equal(older.ClientName, found.ClientName);
         Assert.Equal(older.MoneyScale, found.MoneyScale);
         Assert.Equal(older.RoundingMode, found.RoundingMode);
         Assert.Equal(older.PeriodStart, found.PeriodStart);
@@ -158,16 +158,17 @@ public sealed class JsonFileProjectStoreTests
             store.FindAsync(document.ProjectId, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫鍵名與種子值。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫鍵名與種子值。
         Assert.Equal(
             $"案件「{document.ProjectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
     }
 
+    // 裁定 2026-10-30-23：舊版案件只看 project.json 的設定檔版本判斷，不再從 databaseProvider 缺席或 sampleSeedVersion
+    // 缺漏、小於 2 推斷。這則原本用那三種欄位當舊版案件，改成設定檔版本是第 1 版；三種欄位的情況改由下一則當成設定檔損壞。
+    // 第一次失敗收據 20261030-071032167-0e244dd947aa491c97bf0a76ee591a57。
     [Theory]
-    [InlineData("sampleSeedVersion", null)]
-    [InlineData("sampleSeedVersion", 1)]
-    [InlineData("databaseProvider", null)]
+    [InlineData("schemaVersion", 1)]
     public async Task LegacyProjectJson_FindRejectsAsOldProject_ListSkipsIt(
         string propertyName,
         int? legacyValue)
@@ -196,15 +197,51 @@ public sealed class JsonFileProjectStoreTests
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             store.FindAsync(legacy.ProjectId, CancellationToken.None));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫檔名與缺了哪個設定。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
+        // 裁定 2026-10-30-23 要求訊息寫明刪除後重建，句子跟著改（同上一則第一次失敗收據）。
         Assert.Equal(
-            $"案件「{legacy.ProjectId}」是舊版 JET 建立的，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
+            $"案件「{legacy.ProjectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
         Assert.DoesNotContain(propertyName, exception.Message, StringComparison.Ordinal);
-        Assert.Contains("請用目前版本重新建立案件", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("請在案件清單刪除這個案件", exception.Message, StringComparison.Ordinal);
 
         var listed = await store.ListAsync(CancellationToken.None);
         Assert.Equal(good.ProjectId, Assert.Single(listed).ProjectId);
+    }
+
+    // 設定檔版本是現行版本、卻缺了必要欄位或抽樣版本不對，是設定檔損壞：請審計員從備份還原，不當成舊版案件。
+    [Theory]
+    [InlineData("schemaVersion", null)]
+    [InlineData("sampleSeedVersion", null)]
+    [InlineData("sampleSeedVersion", 1)]
+    [InlineData("databaseProvider", null)]
+    public async Task CurrentProjectJson_WithMissingOrOldField_IsCorruptionNotOldProject(
+        string propertyName,
+        int? value)
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument();
+        await store.CreateAsync(document, CancellationToken.None);
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        Assert.True(node.ContainsKey(propertyName));
+        if (value is null)
+        {
+            node.Remove(propertyName);
+        }
+        else
+        {
+            node[propertyName] = value.Value;
+        }
+        await File.WriteAllTextAsync(path, node.ToJsonString());
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            store.FindAsync(document.ProjectId, CancellationToken.None));
+        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        Assert.DoesNotContain("舊版", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("請從備份還原案件資料夾", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -224,16 +261,16 @@ public sealed class JsonFileProjectStoreTests
             FileShare.ReadWrite | FileShare.Delete);
         using var reader = new StreamReader(openReader, leaveOpen: true);
 
-        var replacement = original with { EntityName = "原子取代後的公司" };
+        var replacement = original with { ClientName = "原子取代後的公司" };
         await store.SaveAsync(replacement, CancellationToken.None);
 
         openReader.Position = 0;
         var readerSnapshot = await reader.ReadToEndAsync(CancellationToken.None);
         var currentPathContent = await File.ReadAllTextAsync(path, CancellationToken.None);
-        Assert.Contains(original.EntityName, readerSnapshot, StringComparison.Ordinal);
-        Assert.DoesNotContain(replacement.EntityName, readerSnapshot, StringComparison.Ordinal);
-        Assert.Contains(replacement.EntityName, currentPathContent, StringComparison.Ordinal);
-        Assert.DoesNotContain(original.EntityName, currentPathContent, StringComparison.Ordinal);
+        Assert.Contains(original.ClientName, readerSnapshot, StringComparison.Ordinal);
+        Assert.DoesNotContain(replacement.ClientName, readerSnapshot, StringComparison.Ordinal);
+        Assert.Contains(replacement.ClientName, currentPathContent, StringComparison.Ordinal);
+        Assert.DoesNotContain(original.ClientName, currentPathContent, StringComparison.Ordinal);
         Assert.Empty(Directory.GetFiles(folder.GetProjectDirectory(original.ProjectId), "*.tmp"));
     }
 
@@ -256,7 +293,7 @@ public sealed class JsonFileProjectStoreTests
         {
             for (var i = 0; i < 400; i++)
             {
-                await store.SaveAsync(original with { EntityName = names[i % 2], CurrentStep = i % 6 }, CancellationToken.None);
+                await store.SaveAsync(original with { ClientName = names[i % 2], CurrentStep = i % 6 }, CancellationToken.None);
             }
 
             stop.Cancel();
@@ -268,7 +305,7 @@ public sealed class JsonFileProjectStoreTests
             {
                 var found = await store.FindAsync(original.ProjectId, CancellationToken.None);
                 Assert.NotNull(found);
-                Assert.Contains(found.EntityName, names.Append(original.EntityName));
+                Assert.Contains(found.ClientName, names.Append(original.ClientName));
                 reads++;
             }
 
@@ -300,7 +337,7 @@ public sealed class JsonFileProjectStoreTests
             () => store.FindAsync(original.ProjectId, CancellationToken.None));
 
         Assert.NotNull(found);
-        Assert.Equal(original.EntityName, found.EntityName);
+        Assert.Equal(original.ClientName, found.ClientName);
     }
 
     /// <summary>
@@ -373,13 +410,13 @@ public sealed class JsonFileProjectStoreTests
             await Task.Delay(60);
             await holder.DisposeAsync();
         });
-        var replacement = original with { EntityName = "對方關檔後寫入的公司" };
+        var replacement = original with { ClientName = "對方關檔後寫入的公司" };
 
         await store.SaveAsync(replacement, CancellationToken.None);
         await release;
 
         var found = await store.FindAsync(original.ProjectId, CancellationToken.None);
-        Assert.Equal(replacement.EntityName, found!.EntityName);
+        Assert.Equal(replacement.ClientName, found!.ClientName);
         Assert.Empty(Directory.GetFiles(folder.GetProjectDirectory(original.ProjectId), "*.tmp"));
     }
 
@@ -400,7 +437,7 @@ public sealed class JsonFileProjectStoreTests
 
         Assert.NotNull(found);
         Assert.Equal(document.ProjectId, found.ProjectId);
-        Assert.Equal(document.EntityName, found.EntityName);
+        Assert.Equal(document.ClientName, found.ClientName);
     }
 
     [Fact]

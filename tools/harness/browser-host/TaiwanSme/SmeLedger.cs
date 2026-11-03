@@ -6,9 +6,9 @@ namespace Jet.Harness.TaiwanSme;
 internal sealed record SmeLine(
     string VoucherNo,
     int LineNo,
-    DateOnly PostDate,
+    DateOnly GlDate,
     DateOnly? ApprovalDate,
-    string AccountCode,
+    string AccountNumber,
     string AccountName,
     string Description,
     decimal Debit,
@@ -26,7 +26,7 @@ internal sealed record SmeLine(
 
     /// <summary>JET 的 GL：總帳日期在查核期間內，且過帳狀態為已過帳。</summary>
     public bool InPopulation =>
-        IsPosted && PostDate >= SmeCalendar.PeriodStart && PostDate <= SmeCalendar.PeriodEnd;
+        IsPosted && GlDate >= SmeCalendar.PeriodStart && GlDate <= SmeCalendar.PeriodEnd;
 }
 
 /// <summary>固定種子的亂數（SplitMix64），跨 .NET 版本產生相同序列，案件每次重建都一樣。</summary>
@@ -96,13 +96,13 @@ internal sealed class SmeLedger(IReadOnlyDictionary<string, SmeAccount> accounts
 
     public SmeVoucher Voucher(
         string source,
-        DateOnly postDate,
+        DateOnly glDate,
         DateOnly? approvalDate,
         string createdBy,
         string approvedBy,
         string department,
         bool posted = true) =>
-        new(this, source, postDate, approvalDate, createdBy, approvedBy, department, posted);
+        new(this, source, glDate, approvalDate, createdBy, approvedBy, department, posted);
 
     internal SmeAccount Account(string code) =>
         accounts.TryGetValue(code, out var account)
@@ -125,17 +125,17 @@ internal sealed class SmeLedger(IReadOnlyDictionary<string, SmeAccount> accounts
         }
 
         var (prefix, isManual) = SourceInfo(voucher.Source);
-        var key = prefix + voucher.PostDate.ToString("yyMM", CultureInfo.InvariantCulture);
+        var key = prefix + voucher.GlDate.ToString("yyMM", CultureInfo.InvariantCulture);
         var next = sequences.GetValueOrDefault(key) + 1;
         sequences[key] = next;
         var number = $"{key}-{next:0000}";
         var inPeriod = voucher.Posted
-            && voucher.PostDate >= SmeCalendar.PeriodStart
-            && voucher.PostDate <= SmeCalendar.PeriodEnd;
+            && voucher.GlDate >= SmeCalendar.PeriodStart
+            && voucher.GlDate <= SmeCalendar.PeriodEnd;
         for (var i = 0; i < entries.Count; i++)
         {
             var entry = entries[i];
-            var account = Account(entry.AccountCode);
+            var account = Account(entry.AccountNumber);
             if (inPeriod)
             {
                 balances[account.Code] += entry.Debit - entry.Credit;
@@ -144,7 +144,7 @@ internal sealed class SmeLedger(IReadOnlyDictionary<string, SmeAccount> accounts
             lines.Add(new SmeLine(
                 number,
                 i + 1,
-                voucher.PostDate,
+                voucher.GlDate,
                 voucher.ApprovalDate,
                 account.Code,
                 account.Name,
@@ -164,35 +164,35 @@ internal sealed class SmeLedger(IReadOnlyDictionary<string, SmeAccount> accounts
 internal sealed class SmeVoucher(
     SmeLedger ledger,
     string source,
-    DateOnly postDate,
+    DateOnly glDate,
     DateOnly? approvalDate,
     string createdBy,
     string approvedBy,
     string department,
     bool posted)
 {
-    internal sealed record Entry(string AccountCode, decimal Debit, decimal Credit, string Description);
+    internal sealed record Entry(string AccountNumber, decimal Debit, decimal Credit, string Description);
 
     private readonly List<Entry> entries = [];
     private bool committed;
 
     public string Source { get; } = source;
-    public DateOnly PostDate { get; } = postDate;
+    public DateOnly GlDate { get; } = glDate;
     public DateOnly? ApprovalDate { get; } = approvalDate;
     public string CreatedBy { get; } = createdBy;
     public string ApprovedBy { get; } = approvedBy;
     public string Department { get; } = department;
     public bool Posted { get; } = posted;
 
-    public SmeVoucher Dr(string accountCode, decimal amount, string description)
+    public SmeVoucher Dr(string accountNumber, decimal amount, string description)
     {
-        Add(accountCode, amount, 0m, description);
+        Add(accountNumber, amount, 0m, description);
         return this;
     }
 
-    public SmeVoucher Cr(string accountCode, decimal amount, string description)
+    public SmeVoucher Cr(string accountNumber, decimal amount, string description)
     {
-        Add(accountCode, 0m, amount, description);
+        Add(accountNumber, 0m, amount, description);
         return this;
     }
 
@@ -207,15 +207,15 @@ internal sealed class SmeVoucher(
         ledger.Commit(this, entries, allowUnbalanced);
     }
 
-    private void Add(string accountCode, decimal debit, decimal credit, string description)
+    private void Add(string accountNumber, decimal debit, decimal credit, string description)
     {
         if (debit < 0m || credit < 0m || (debit == 0m && credit == 0m))
         {
-            throw new InvalidOperationException($"科目 {accountCode} 的分錄金額必須是正數。");
+            throw new InvalidOperationException($"科目 {accountNumber} 的分錄金額必須是正數。");
         }
 
-        _ = ledger.Account(accountCode);
-        entries.Add(new Entry(accountCode, debit, credit, description));
+        _ = ledger.Account(accountNumber);
+        entries.Add(new Entry(accountNumber, debit, credit, description));
     }
 }
 

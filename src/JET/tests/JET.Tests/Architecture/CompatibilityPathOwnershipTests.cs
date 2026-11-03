@@ -7,8 +7,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 只有測試或舊呼叫端在用的相容路徑已刪除，產品只留正式入口（使用者 2026-10-22 裁定「全部刪，測試改走正式入口」）：
-/// 預篩選倉儲只服務 facts 介面；四種報告寫出器各只有一個正式方法；底稿只依計畫寫出；WorkpaperContext 沒有舊欄位；
+/// 只有測試或舊呼叫端在用的相容路徑已刪除，產品只留正式入口（裁定 2026-10-22-17：全部刪，測試改走正式入口）：
+/// 預篩選倉儲只服務 facts 介面；四種報告寫出器各只有一個正式方法；底稿只依計畫寫出；WorkingPaperContext 沒有舊欄位；
 /// 沒有空的稽核紀錄實作；只有測試在用的方法移到測試或刪除；前端沒有 setFilterPopulationScope。
 /// </summary>
 public sealed class CompatibilityPathOwnershipTests
@@ -81,23 +81,23 @@ public sealed class CompatibilityPathOwnershipTests
     }
 
     [Fact]
-    public void WorkpaperWriter_OnlyWritesFromAPlan()
+    public void WorkingPaperWriter_OnlyWritesFromAPlan()
     {
-        Assert.Null(ProductSources.ProductType("JET.Domain.IWorkpaperWriter"));
-        Assert.Null(typeof(JET.Infrastructure.WorkpaperWriter).GetMethod("EmitCompatibilityFieldInfoSheet", AnyInstance));
-        Assert.Null(typeof(WorkpaperContext).GetProperty("ScenarioConditionLogic"));
+        Assert.Null(ProductSources.ProductType("JET.Domain.IWorkingPaperWriter"));
+        Assert.Null(typeof(JET.Infrastructure.WorkingPaperWriter).GetMethod("EmitCompatibilityFieldInfoSheet", AnyInstance));
+        Assert.Null(typeof(WorkingPaperContext).GetProperty("ScenarioConditionLogic"));
 
-        Assert.DoesNotContain("plan: null", ProductSources.Product("Infrastructure", "Export", "WorkpaperWriter.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("plan: null", ProductSources.Product("Infrastructure", "Export", "WorkingPaperWriter.cs"), StringComparison.Ordinal);
         Assert.DoesNotContain(
             "sample.CreditScaled > 0 ? \"CREDIT\"",
-            ProductSources.Product("Infrastructure", "Export", "WorkpaperWriter.Step2To41.cs"),
+            ProductSources.Product("Infrastructure", "Export", "WorkingPaperWriter.Step2To41.cs"),
             StringComparison.Ordinal);
     }
 
     [Fact]
     public void TestOnlyMembers_AreGone()
     {
-        Assert.Null(ProductSources.ProductType("JET.Domain.NullProjectAuditLog"));
+        Assert.Null(ProductSources.ProductType("JET.Domain.NullProjectOperationLog"));
         Assert.Null(typeof(ValidationProcedures).GetField("PeriodBounds", AnyStatic));
         Assert.Null(typeof(ValidationProcedures).GetMethod("PeriodBoundsWith", AnyStatic));
         Assert.Null(typeof(JetAuditProgram).GetMethod("ComputeInfSamplingOrderingKey", AnyStatic));

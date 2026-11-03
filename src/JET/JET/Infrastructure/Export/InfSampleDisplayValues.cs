@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// INF 報告主表與底稿第二步共用的「借貸代號」與「分錄來源」（使用者 2026-10-28 裁定往下填補後改讀整理後的值）。
+/// INF 報告主表與底稿第二步共用的「借貸代號」與「分錄來源」；往下填補後改讀整理後的值（裁定 2026-10-28-02）。
 /// 分錄來源讀 GL 整理後的值，和同一列的傳票號碼及第 4-1 頁一致。借貸代號照 PBC-GL 原樣寫出；
 /// 原始列空白而借貸別有往下填補時，依整理後的借貸方向寫已確認配對的借方或貸方代碼。
 /// 借貸別模式的金額正負號由代碼決定，所以整理後的方向就是填進去的代碼那一側；金額為 0 的列一律算借方，
@@ -25,10 +25,10 @@ internal sealed class InfSampleDisplayValues
             return;
         }
 
-        glMapping.Mapping.TryGetValue(GlMappingKeys.DcField, out directionColumn);
-        glMapping.Mapping.TryGetValue(GlMappingKeys.DcDebitCode, out debitCode);
-        glMapping.Mapping.TryGetValue(GlMappingKeys.DcCreditCode, out creditCode);
-        directionFilledDown = glMapping.GlOptions?.FillDownFields.Contains(GlMappingKeys.DcField) == true;
+        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCr, out directionColumn);
+        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCrDebitCode, out debitCode);
+        glMapping.Mapping.TryGetValue(GlMappingKeys.DrCrCreditCode, out creditCode);
+        directionFilledDown = glMapping.GlOptions?.FillDownFields.Contains(GlMappingKeys.DrCr) == true;
     }
 
     /// <summary>回傳這一列的借貸代號與分錄來源；raw 是同一列的 PBC-GL 原樣。</summary>

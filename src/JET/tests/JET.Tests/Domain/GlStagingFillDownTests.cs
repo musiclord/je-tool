@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 預篩選收斂計畫階段六「往下填補空白」的串流狀態與欄位規則。這兩個類別是本階段新加的，沒有可保存的第一次失敗；
+/// 「往下填補空白」的串流狀態與欄位規則。這兩個類別是新加的，沒有可保存的第一次失敗；
 /// 對外行為（確認配對的回應、投影結果、重開案件）由 GlFillDownWorkflowTests 保存第一次失敗。
 /// </summary>
 public sealed class GlStagingFillDownTests
@@ -12,14 +12,14 @@ public sealed class GlStagingFillDownTests
     private static GlMappingSpec Spec(params string[] fillDownFields) => new(
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "傳票號碼",
-            [GlMappingKeys.PostDate] = "傳票日期",
-            [GlMappingKeys.DocDate] = "傳票日期",
-            [GlMappingKeys.AccNum] = "科目代號",
+            [GlMappingKeys.VoucherNumber] = "傳票號碼",
+            [GlMappingKeys.GlDate] = "傳票日期",
+            [GlMappingKeys.ApprovalDate] = "傳票日期",
+            [GlMappingKeys.AccountNumber] = "科目代號",
             [GlMappingKeys.Amount] = "金額",
-            [GlMappingKeys.DcField] = "借方旗標",
-            [GlMappingKeys.DcDebitCode] = "1",
-            [GlMappingKeys.DcCreditCode] = "0"
+            [GlMappingKeys.DrCr] = "借方旗標",
+            [GlMappingKeys.DrCrDebitCode] = "1",
+            [GlMappingKeys.DrCrCreditCode] = "0"
         },
         GlAmountMode.AmountWithFlag)
     {
@@ -51,7 +51,7 @@ public sealed class GlStagingFillDownTests
     [Fact]
     public void Apply_FillsBlanksOfChosenColumnsFromThePreviousRow_AndLeavesOtherColumnsAlone()
     {
-        var fillDown = GlStagingFillDown.Create(Spec(GlMappingKeys.DocNum, GlMappingKeys.PostDate));
+        var fillDown = GlStagingFillDown.Create(Spec(GlMappingKeys.VoucherNumber, GlMappingKeys.GlDate));
         Assert.NotNull(fillDown);
 
         var first = Row(("傳票號碼", "JV-1"), ("傳票日期", "2025-03-01"), ("科目代號", "1000"), ("金額", "10"));
@@ -85,7 +85,7 @@ public sealed class GlStagingFillDownTests
     [Fact]
     public void Apply_DoesNotCarryValuesIntoTheNextSource()
     {
-        var fillDown = GlStagingFillDown.Create(Spec(GlMappingKeys.DocNum))!;
+        var fillDown = GlStagingFillDown.Create(Spec(GlMappingKeys.VoucherNumber))!;
         fillDown.Apply(1, Row(("傳票號碼", "JV-1")));
 
         // 追加的第二個來源從頭開始：第一列的空白就是空白。
@@ -99,7 +99,7 @@ public sealed class GlStagingFillDownTests
     [Fact]
     public void SourceColumns_TwoFieldsOnOneColumn_FillThatColumnOnce()
     {
-        var spec = Spec(GlMappingKeys.PostDate, GlMappingKeys.DocDate);
+        var spec = Spec(GlMappingKeys.GlDate, GlMappingKeys.ApprovalDate);
         Assert.Equal(["傳票日期"], GlStagingFillDown.SourceColumns(spec));
 
         var fillDown = GlStagingFillDown.Create(spec)!;
@@ -119,19 +119,19 @@ public sealed class GlStagingFillDownTests
     {
         var mapping = Spec().Mapping;
 
-        // 使用者 2026-10-28 裁定依來源欄成組：過帳日期與傳票日期都配到「傳票日期」，勾過帳日期時傳票日期也一起列入。
+        // 裁定 2026-10-28-04：往下填補依來源欄成組，總帳日期與傳票核准日都配到來源欄「傳票日期」，勾總帳日期時傳票核准日也一起列入。
         // 這行原本預期只有勾選的三個欄位，寫在裁定之前；結案前的完整 Public 才跑到它而失敗，預期值依裁定改寫。
         Assert.Equal(
-            [GlMappingKeys.DocNum, GlMappingKeys.PostDate, GlMappingKeys.DocDate, GlMappingKeys.AccNum],
+            [GlMappingKeys.VoucherNumber, GlMappingKeys.GlDate, GlMappingKeys.ApprovalDate, GlMappingKeys.AccountNumber],
             GlMappingOptionsRules.NormalizeFillDownFields(
                 mapping,
-                [GlMappingKeys.AccNum, GlMappingKeys.PostDate, GlMappingKeys.DocNum]));
+                [GlMappingKeys.AccountNumber, GlMappingKeys.GlDate, GlMappingKeys.VoucherNumber]));
         Assert.Empty(GlMappingOptionsRules.NormalizeFillDownFields(mapping, []));
 
         // 沒有來源欄、字面值、重複、不是 GL 欄位，都不能填。
-        Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeFillDownFields(mapping, [GlMappingKeys.ApproveBy]));
-        Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeFillDownFields(mapping, [GlMappingKeys.DcDebitCode]));
-        Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeFillDownFields(mapping, [GlMappingKeys.DocNum, GlMappingKeys.DocNum]));
+        Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeFillDownFields(mapping, [GlMappingKeys.ApprovedBy]));
+        Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeFillDownFields(mapping, [GlMappingKeys.DrCrDebitCode]));
+        Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeFillDownFields(mapping, [GlMappingKeys.VoucherNumber, GlMappingKeys.VoucherNumber]));
         Assert.Throws<ArgumentException>(() => GlMappingOptionsRules.NormalizeFillDownFields(mapping, ["notAField"]));
     }
 }

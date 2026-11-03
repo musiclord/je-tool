@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 第五步情境單獨出現的句子（使用者 2026-10-13 勾選頁確認）。這幾句不在待修正清單裡，畫面不會另外補下一步，
+/// 第五步情境單獨出現的句子（裁定 2026-10-13-28 確認了用字）。這幾句不在待修正清單裡，畫面不會另外補下一步，
 /// 所以各自保留下一步。
 /// </summary>
 internal static class FilterScenarioRuleMessages
@@ -40,7 +40,7 @@ internal enum FilterScenarioUpgradeStatus
     /// <summary>至少一個情境不符合目前規則，或條件內容讀不出來；整批不動，逐筆列出原因。</summary>
     NeedsEdit,
 
-    /// <summary>同一批的保存時間不一致，或位置重複、超出範圍；整批不動，也不逐筆列出。</summary>
+    /// <summary>位置重複或超出範圍；整批不動，也不逐筆列出。</summary>
     Inconsistent
 }
 
@@ -83,16 +83,20 @@ internal enum FilterScenarioWriteMode
 /// <summary>
 /// 一次處理一個情境後要寫回的整批。<see cref="AllValid"/> 為 true 時每一筆都已是目前規則版本，
 /// 可以連同命中一起發布；否則只寫定義，命中清空，結果維持鎖住。
+/// <see cref="KeepsOtherResults"/> 為 true 時，其他情境的定義、保存時間與存好的結果都照原樣，只寫這次存或刪的那一個。
 /// </summary>
 internal sealed record FilterScenarioBatchWrite(
     IReadOnlyList<SavedFilterScenario> Rows,
     bool AllValid,
     IReadOnlyList<FilterScenarioUpgradeProblem> Problems,
-    int UpgradedOthers);
+    int UpgradedOthers)
+{
+    internal bool KeepsOtherResults { get; init; }
+}
 
 /// <summary>
 /// 規則版本升級後，判斷已儲存情境能否直接改用目前規則。這是純函式：不讀寫資料庫，
-/// 檢查與 <see cref="FilterRunMaterializeService"/> 補算前相同（Parse 加 Validate，forSave 為 false），
+/// 檢查與 <see cref="FilterHitMaterializeService"/> 補算前相同（Parse 加 Validate，forSave 為 false），
 /// 避免「判斷可改版、補算卻失敗」。開案時只要一筆不符合，整批都不改版。
 /// 母體不是查核期間的情境不自動改版，因為改版會把母體默默改成查核期間。
 /// 逐筆檢查 <see cref="Review"/> 由開案與一次處理一個情境的三個動作共用。
@@ -102,7 +106,7 @@ internal static partial class FilterScenarioRuleUpgrade
     [GeneratedRegex(@"^filter-\d{4}-\d{2}-\d{2}-v(?<number>\d+)$", RegexOptions.CultureInvariant)]
     private static partial Regex KnownVersion();
 
-    // 待修正清單的原因句（使用者 2026-10-13 勾選頁確認）。清單格式是「情境 N「名稱」：原因；原因。」，
+    // 待修正清單的原因句（裁定 2026-10-13-28 確認了用字）。清單格式是「情境 N「名稱」：原因；原因。」，
     // 句尾句號由畫面統一處理；下一步由畫面在清單最後寫一次。
     internal const string NonAuditPeriodMessage =
         "篩選範圍不是查核期間內的分錄，不會自動改為查核期間";
@@ -110,7 +114,7 @@ internal static partial class FilterScenarioRuleUpgrade
     internal const string UnknownVersionMessage =
         "無法辨識儲存時的規則版本，不會自動更新";
 
-    /// <summary>整個定義讀不出來，或有損毀的條件；同一個情境只寫一次（使用者 2026-10-13 裁定「損毀的情境」）。</summary>
+    /// <summary>整個定義讀不出來，或有損毀的條件；同一個情境只寫一次（裁定 2026-10-13-21）。</summary>
     internal const string UnreadableDefinitionMessage =
         "條件內容無法讀取";
 
@@ -129,19 +133,15 @@ internal static partial class FilterScenarioRuleUpgrade
             return Current();
         }
 
-        var savedTimes = scenarios
-            .Select(scenario => scenario.SavedUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture))
-            .Distinct(StringComparer.Ordinal)
-            .Count();
+        // 每個情境各自儲存，保存時間本來就不同，只檢查位置。
         var positions = scenarios.Select(scenario => scenario.Position).ToHashSet();
-        if (savedTimes != 1
-            || positions.Count != scenarios.Count
+        if (positions.Count != scenarios.Count
             || positions.Any(position => position < 1 || position > FilterScenarioLimits.MaxSavedScenarios))
         {
             return Inconsistent();
         }
 
-        // 使用者 2026-10-13 裁定「開案也逐一檢查」：開案和儲存、移除、重新檢查用同一段逐筆檢查，已是目前版本的情境也檢查，
+        // 開案也逐一檢查（裁定 2026-10-13-25）：開案和儲存、移除、重新檢查用同一段逐筆檢查，已是目前版本的情境也檢查，
         // 因其他資料改變而不合格的情境開案時就列出，不會解鎖後查詢才失敗。條件內容讀不出來的情境也逐筆列出
         // （「損毀的情境」與「情境卡住」兩項裁定），審計員才能移除它。
         var problems = Problems(Review(scenarios, validationContext, moneyScale));
@@ -186,8 +186,10 @@ internal static partial class FilterScenarioRuleUpgrade
 
     /// <summary>
     /// 一次只存、刪或重新檢查一個情境後要寫回的整批。依 <paramref name="batch"/> 現有順序重新編號為 1 到 n，
-    /// 全部換成同一個保存時間 <paramref name="nowUtc"/>；原本保存時間不一致或位置超出範圍的舊資料，經過任何一次寫入就恢復一致。
-    /// 每一筆都逐筆檢查，讀不出來的情境算成一筆問題，不擋住其他情境。全部沒問題時整批改用目前規則
+    /// 每一筆都逐筆檢查，讀不出來的情境算成一筆問題，不擋住其他情境。
+    /// 儲存或移除時，全部沒問題、其他情境都已是目前規則版本，而且 <paramref name="othersResultsCurrent"/>
+    /// （存好的結果沒有過期）時，其他情境的定義、保存時間與結果都照原樣，只寫這次存或刪的那一個。
+    /// 其餘情形照整批處理：全部換成同一個保存時間 <paramref name="nowUtc"/>，全部沒問題時整批改用目前規則
     /// （名稱、動機與條件不變）；有問題時依 <paramref name="mode"/> 處理其他情境。
     /// </summary>
     /// <param name="editedPosition">這次編輯的那一個在 <paramref name="batch"/> 裡的位置（從 1 起算）；移除與重新檢查為 null。</param>
@@ -197,10 +199,23 @@ internal static partial class FilterScenarioRuleUpgrade
         FilterScenarioWriteMode mode,
         FilterValidationContext validationContext,
         int moneyScale,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        bool othersResultsCurrent = false)
     {
-        var renumbered = batch
-            .Select((scenario, index) => scenario with { Position = index + 1, SavedUtc = nowUtc })
+        var ordered = batch
+            .Select((scenario, index) => scenario with { Position = index + 1 })
+            .ToArray();
+        var orderedReview = Review(ordered, validationContext, moneyScale);
+        if (Problems(orderedReview).Count == 0
+            && mode == FilterScenarioWriteMode.KeepOthersVerbatim
+            && othersResultsCurrent
+            && orderedReview.All(item => item.Scenario.Position == editedPosition || item.IsCurrentVersion))
+        {
+            return new FilterScenarioBatchWrite(ordered, true, [], 0) { KeepsOtherResults = true };
+        }
+
+        var renumbered = ordered
+            .Select(scenario => scenario with { SavedUtc = nowUtc })
             .ToArray();
         var review = Review(renumbered, validationContext, moneyScale);
         var problems = Problems(review);
@@ -315,12 +330,12 @@ internal static partial class FilterScenarioRuleUpgrade
     private static SavedFilterScenario Stamp(SavedFilterScenario scenario, DateTimeOffset nowUtc)
     {
         using var document = JsonDocument.Parse(scenario.DefinitionJson);
-        return new SavedFilterScenario(
-            scenario.Position,
-            scenario.Name,
-            scenario.Rationale,
-            RuleLogicVersions.StampFilterDefinition(document.RootElement),
-            nowUtc);
+        // 情境編號照舊，存好的結果才對得上這個情境。
+        return scenario with
+        {
+            DefinitionJson = RuleLogicVersions.StampFilterDefinition(document.RootElement),
+            SavedUtc = nowUtc
+        };
     }
 
     private static (IReadOnlyList<string> Messages, IReadOnlyList<FilterScenarioCorruptReason> Corrupt) CheckDefinition(

@@ -4,12 +4,12 @@ namespace JET.Domain;
 
 /// <summary>
 /// 六份正式報表共用的 hidden workbook metadata 契約。內容只包含有界的案件政策、
-/// taxonomy revision 與目前 committed mapping snapshot，不攜帶任何 GL/TB 資料列。
+/// 科目分類 revision 與目前 committed mapping snapshot，不攜帶任何 GL/TB 資料列。
 /// </summary>
 internal sealed record ReportWorkbookMetadata(
     string PeriodStart,
     string PeriodEnd,
-    int TaxonomyRevision,
+    int CategoryRevision,
     CommittedMapping GlMapping,
     CommittedMapping? TbMapping);
 
@@ -33,9 +33,9 @@ internal static class ReportWorkbookMetadataInvariant
         {
             throw new ArgumentException("Report workbook metadata 的期間不是正準 ISO date range。", nameof(metadata));
         }
-        if (metadata.TaxonomyRevision < 1)
+        if (metadata.CategoryRevision < 1)
         {
-            throw new ArgumentOutOfRangeException(nameof(metadata), "Report workbook metadata 缺少 taxonomy revision。");
+            throw new ArgumentOutOfRangeException(nameof(metadata), "Report workbook metadata 缺少科目分類 revision。");
         }
 
         ValidateMapping(metadata.GlMapping, DatasetKind.Gl);

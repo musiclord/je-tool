@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>科目配對匯入與遷移共用；先認領確切標頭，再用關鍵字，最後補未認領欄位。</summary>
+/// <summary>科目配對匯入時辨識欄位；先認領確切標頭，再用關鍵字，最後補未認領欄位。</summary>
 internal static class AccountMappingColumnMatcher
 {
     private static readonly string[][] ExactNames =

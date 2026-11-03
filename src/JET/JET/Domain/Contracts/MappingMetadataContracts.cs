@@ -30,24 +30,24 @@ public static class ApprovalDateModeNames
 {
     public const string Unmapped = "unmapped";
     public const string Mapped = "mapped";
-    public const string SameAsPostDate = "sameAsPostDate";
+    public const string SameAsGlDate = "sameAsGlDate";
 
-    public static bool IsCanonical(string? value) => value is Unmapped or Mapped or SameAsPostDate;
+    public static bool IsCanonical(string? value) => value is Unmapped or Mapped or SameAsGlDate;
 }
 
 public static class RdeFieldValueTypeNames
 {
     public const string Text = "text";
     public const string Date = "date";
-    public const string Money = "money";
+    public const string Amount = "amount";
 
-    public static bool IsCanonical(string? value) => value is Text or Date or Money;
+    public static bool IsCanonical(string? value) => value is Text or Date or Amount;
 
     /// <summary>畫面與訊息上的名稱，和第三步下拉選單 ui-core.js 的 RDE_VALUE_TYPES 相同。</summary>
     public static string DisplayName(string? value) => value switch
     {
         Date => "日期",
-        Money => "金額",
+        Amount => "金額",
         _ => "文字"
     };
 }
@@ -71,7 +71,7 @@ public sealed record GlManualAutoPolicy(
     IReadOnlyList<string> ManualValues,
     IReadOnlyList<string> AutomaticValues)
 {
-    // 缺少設定的舊案件維持逐值判定；補集與空白必須由審計員分別指定。
+    // 沒有指定時逐值判定；補集與空白必須由審計員分別指定。
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? UnlistedValueKind { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -110,21 +110,21 @@ public sealed record GlMappingOptions(
     /// <summary>
     /// 確認配對時要「往下填補空白」的 GL 欄位（mapping key），照欄位目錄的順序、不重複，只能是有來源欄的非字面值欄位。
     /// 投影時把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 不動；舊配對沒有這份設定時是空清單
-    /// （預篩選收斂計畫階段六，使用者 2026-10-22 裁定放在第三步確認配對時）。
+    /// （放在第三步確認配對時，裁定 2026-10-22-16）。
     /// </summary>
     public IReadOnlyList<string> FillDownFields { get; init; } = [];
 
     /// <summary>
     /// 確認配對時往下填補了幾格。由投影算出，跟著配對保存，重開案件時第三步摘要與報告的配對資訊寫得出來，
-    /// 審計員據此記在 CAATs 文件（使用者 2026-10-28 裁定隨配對保存）。請求不帶這個數字；改版前確認的配對沒有時是 0。
+    /// 審計員據此記在 CAATs 文件（隨配對保存，裁定 2026-10-28-05）。請求不帶這個數字；改版前確認的配對沒有時是 0。
     /// </summary>
     public long FillDownCount { get; init; }
 
     public static GlMappingOptions NormalizeLegacy(IReadOnlyDictionary<string, string> mapping)
     {
         ArgumentNullException.ThrowIfNull(mapping);
-        var approvalDateMode = mapping.TryGetValue(GlMappingKeys.DocDate, out var docDate)
-                               && !string.IsNullOrWhiteSpace(docDate)
+        var approvalDateMode = mapping.TryGetValue(GlMappingKeys.ApprovalDate, out var approvalDate)
+                               && !string.IsNullOrWhiteSpace(approvalDate)
             ? ApprovalDateModeNames.Mapped
             : ApprovalDateModeNames.Unmapped;
 
@@ -151,22 +151,22 @@ public static class GlMappingOptionsRules
         if (!ApprovalDateModeNames.IsCanonical(options.ApprovalDateMode))
         {
             throw new ArgumentException(
-                "approvalDateMode 必須是 unmapped、mapped 或 sameAsPostDate。",
+                "approvalDateMode 必須是 unmapped、mapped 或 sameAsGlDate。",
                 nameof(options));
         }
 
-        var approvalMapped = HasMappedColumn(mapping, GlMappingKeys.DocDate);
+        var approvalMapped = HasMappedColumn(mapping, GlMappingKeys.ApprovalDate);
         if (options.ApprovalDateMode == ApprovalDateModeNames.Mapped && !approvalMapped)
         {
             throw new ArgumentException(
-                "approvalDateMode 為 mapped 時必須配對 docDate。",
+                "approvalDateMode 為 mapped 時必須配對 approvalDate。",
                 nameof(options));
         }
 
         if (options.ApprovalDateMode != ApprovalDateModeNames.Mapped && approvalMapped)
         {
             throw new ArgumentException(
-                $"approvalDateMode 為 {options.ApprovalDateMode} 時不得配對 docDate。",
+                $"approvalDateMode 為 {options.ApprovalDateMode} 時不得配對 approvalDate。",
                 nameof(options));
         }
 
@@ -244,7 +244,7 @@ public static class GlMappingOptionsRules
             if (!RdeFieldValueTypeNames.IsCanonical(field.ValueType))
             {
                 throw new ArgumentException(
-                    "rdeFields.valueType 必須是 text、date 或 money。",
+                    "rdeFields.valueType 必須是 text、date 或 amount。",
                     nameof(options));
             }
 
@@ -263,7 +263,7 @@ public static class GlMappingOptionsRules
     /// 往下填補的欄位只能是有來源欄的 GL 非字面值欄位，不重複；回傳照欄位目錄順序排好的清單。
     /// 借方、貸方代碼是字面值不是來源欄，傳票文件項次自動編號與「與總帳日期相同」的核准日沒有來源欄，都不能填。
     /// 填補是對來源欄做的，配到同一個來源欄的其他欄位實際上也被填補，所以一起列入
-    /// （使用者 2026-10-28 裁定依來源欄成組），回應、保存與摘要才寫得出全部被填的欄位。
+    /// （依來源欄成組，裁定 2026-10-28-04），回應、保存與摘要才寫得出全部被填的欄位。
     /// </summary>
     public static IReadOnlyList<string> NormalizeFillDownFields(
         IReadOnlyDictionary<string, string> mapping,

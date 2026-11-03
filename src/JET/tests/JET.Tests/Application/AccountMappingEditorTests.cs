@@ -31,16 +31,16 @@ public sealed class AccountMappingEditorTests
             var page = await host.DispatchAsync("query.accountMappingPage", JsonSerializer.Serialize(new { cursor, pageSize = 50 }));
             var rows = page.GetProperty("rows").EnumerateArray().ToArray();
             Assert.Equal(50, rows.Length);
-            Assert.Equal(expected[index].Item1, rows[0].GetProperty("accountCode").GetString());
-            Assert.Equal(expected[index].Item2, rows[^1].GetProperty("accountCode").GetString());
+            Assert.Equal(expected[index].Item1, rows[0].GetProperty("accountNumber").GetString());
+            Assert.Equal(expected[index].Item2, rows[^1].GetProperty("accountNumber").GetString());
             Assert.All(rows, row => Assert.Equal(JsonValueKind.Null, row.GetProperty("categoryId").ValueKind));
-            all.AddRange(rows.Select(row => row.GetProperty("accountCode").GetString()!));
+            all.AddRange(rows.Select(row => row.GetProperty("accountNumber").GetString()!));
             cursor = page.GetProperty("nextCursor").GetString();
             if (index < 2) Assert.False(string.IsNullOrEmpty(cursor)); else Assert.Null(cursor);
         }
         Assert.Equal(150, all.Distinct(StringComparer.Ordinal).Count());
         var repeated = await host.DispatchAsync("query.accountMappingPage", "{\"pageSize\":50}");
-        Assert.Equal("A000", repeated.GetProperty("rows")[0].GetProperty("accountCode").GetString());
+        Assert.Equal("A000", repeated.GetProperty("rows")[0].GetProperty("accountNumber").GetString());
         Assert.Equal(JsonValueKind.Null, repeated.GetProperty("rows")[0].GetProperty("categoryId").ValueKind);
     }
 
@@ -58,14 +58,14 @@ public sealed class AccountMappingEditorTests
             databaseProvider: provider, validateForDownstream: true);
         await Save(host, "z", "builtin.revenue");
         var saved = await host.DispatchAsync("accountMapping.save", """
-            {"changes":[{"accountCode":"a","categoryId":"builtin.cash"},{"accountCode":"b","categoryId":"builtin.cash"}]}
+            {"changes":[{"accountNumber":"a","categoryId":"builtin.cash"},{"accountNumber":"b","categoryId":"builtin.cash"}]}
             """);
         Assert.Equal(3, saved.GetProperty("rowCount").GetInt32());
         await host.DispatchAsync("project.releaseLock");
         await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         var page = await host.DispatchAsync("query.accountMappingPage");
         Assert.Equal(new[] { "a", "b", "z" }, page.GetProperty("rows").EnumerateArray()
-            .Select(row => row.GetProperty("accountCode").GetString()));
+            .Select(row => row.GetProperty("accountNumber").GetString()));
         Assert.Equal(new[] { "builtin.cash", "builtin.cash", "builtin.revenue" }, page.GetProperty("rows").EnumerateArray()
             .Select(row => row.GetProperty("categoryId").GetString()));
     }
@@ -83,11 +83,11 @@ public sealed class AccountMappingEditorTests
             .AddRow("V-2", "2025-01-02", "", "Missing", "Synthetic", 0, 1),
             databaseProvider: provider, validateForDownstream: true);
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        Assert.Equal(1, loaded.GetProperty("latestRuns").GetProperty("validate")
-            .GetProperty("nullRecordsTest").GetProperty("nullAccountCount").GetInt64());
+        Assert.Equal(1, loaded.GetProperty("validationResult")
+            .GetProperty("blankRecordsTest").GetProperty("nullAccountCount").GetInt64());
         var page = await host.DispatchAsync("query.accountMappingPage");
         Assert.Equal(new[] { "c", "r" }, page.GetProperty("rows").EnumerateArray()
-            .Select(row => row.GetProperty("accountCode").GetString()));
+            .Select(row => row.GetProperty("accountNumber").GetString()));
     }
 
     [Theory]
@@ -103,10 +103,10 @@ public sealed class AccountMappingEditorTests
             databaseProvider: provider, validateForDownstream: true);
 
         var page = await host.DispatchAsync("query.accountMappingPage", "{\"pageSize\":1}");
-        Assert.Equal("c", Assert.Single(page.GetProperty("rows").EnumerateArray()).GetProperty("accountCode").GetString());
+        Assert.Equal("c", Assert.Single(page.GetProperty("rows").EnumerateArray()).GetProperty("accountNumber").GetString());
         var next = await host.DispatchAsync("query.accountMappingPage", JsonSerializer.Serialize(new
         { pageSize = 1, cursor = page.GetProperty("nextCursor").GetString() }));
-        Assert.Equal("r", Assert.Single(next.GetProperty("rows").EnumerateArray()).GetProperty("accountCode").GetString());
+        Assert.Equal("r", Assert.Single(next.GetProperty("rows").EnumerateArray()).GetProperty("accountNumber").GetString());
         Assert.Equal(JsonValueKind.Null, next.GetProperty("nextCursor").ValueKind);
 
         var saved = await Save(host, "c", "builtin.cash");
@@ -117,23 +117,23 @@ public sealed class AccountMappingEditorTests
         Assert.True(saved.GetProperty("hasCounterpart").GetBoolean());
 
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("accountMapping.save", """
-            {"changes":[{"accountCode":"c","categoryId":"builtin.others"},{"accountCode":"missing","categoryId":"builtin.cash"}]}
+            {"changes":[{"accountNumber":"c","categoryId":"builtin.others"},{"accountNumber":"missing","categoryId":"builtin.cash"}]}
             """));
         await Assert.ThrowsAsync<JetActionException>(() => Save(host, "c", "unknown"));
 
-        // 第九節 G1、G3：明示借貸方向與傳票佐證，保留原固定答案；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+        // 借貸方向與傳票佐證改成明示寫法，保留原固定答案；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
         var scenario = JsonDocument.Parse("""
-          {"name":"Direct assignment","rationale":"Synthetic","groups":[{"rules":[
-            {"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
-            {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.revenue"]}]}]}]}
+          {"name":"Direct assignment","rationale":"Synthetic","groups":[{"conditions":[
+            {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
+            {"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.revenue"]}]}]}]}
           """).RootElement;
         var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         Assert.Equal(1, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
         await host.DispatchAsync("prescreen.run");
         await Save(host, "c", "builtin.others");
         var changed = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        Assert.Equal(JsonValueKind.Null, changed.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
-        Assert.NotEqual(JsonValueKind.Null, changed.GetProperty("latestRuns").GetProperty("validate").ValueKind);
+        Assert.Equal(JsonValueKind.Null, changed.GetProperty("prescreenResult").ValueKind);
+        Assert.NotEqual(JsonValueKind.Null, changed.GetProperty("validationResult").ValueKind);
         preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         Assert.Equal(0, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
         await Save(host, "c", "builtin.cash");
@@ -144,7 +144,7 @@ public sealed class AccountMappingEditorTests
         page = await host.DispatchAsync("query.accountMappingPage");
         Assert.Equal(new[] { "builtin.cash", "builtin.revenue" }, page.GetProperty("rows").EnumerateArray()
             .Select(row => row.GetProperty("categoryId").GetString()).ToArray());
-        var dataPreview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"accountMappings\",\"limit\":100}");
+        var dataPreview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"accountMapping\",\"limit\":100}");
         Assert.Equal(2, dataPreview.GetProperty("totalCount").GetInt64());
         Assert.Equal(new[] { "Cash", "Revenue" }, dataPreview.GetProperty("rows").EnumerateArray()
             .Select(row => row[2].GetString()).ToArray());
@@ -158,7 +158,7 @@ public sealed class AccountMappingEditorTests
 
     private static Task<JsonElement> Save(HandlerTestHost host, string code, string category) =>
         host.DispatchAsync("accountMapping.save", JsonSerializer.Serialize(new
-        { changes = new[] { new { accountCode = code, categoryId = category } } }));
+        { changes = new[] { new { accountNumber = code, categoryId = category } } }));
 
     [Theory]
     [InlineData("sqlite")]
@@ -182,10 +182,10 @@ public sealed class AccountMappingEditorTests
             await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
             await Save(host, "r", "builtin.revenue");
             var page = await host.DispatchAsync("query.accountMappingPage");
-            Assert.Equal(new[] { "c", "r", "z" }, page.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("accountCode").GetString()));
+            Assert.Equal(new[] { "c", "r", "z" }, page.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("accountNumber").GetString()));
             Assert.Equal(new[] { "builtin.cash", "builtin.revenue", "builtin.receivables" }, page.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("categoryId").GetString()));
             var search = await host.DispatchAsync("query.accountMappingPage", "{\"search\":\"Extra\"}");
-            Assert.Equal("z", Assert.Single(search.GetProperty("rows").EnumerateArray()).GetProperty("accountCode").GetString());
+            Assert.Equal("z", Assert.Single(search.GetProperty("rows").EnumerateArray()).GetProperty("accountNumber").GetString());
             var saved = await Save(host, "c", "builtin.others");
             Assert.Equal(3, saved.GetProperty("rowCount").GetInt32());
             await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));

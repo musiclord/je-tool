@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 控制面第四輪 §5 <c>dev.db.reconcile</c> 三方對帳驗收（manifest Dev Actions）。全部 [SqlServerFact] 閘控（連 JET_Test）。
+/// <c>dev.db.reconcile</c> 三方對帳驗收（manifest Dev Actions）。全部 [SqlServerFact] 閘控（連 JET_Test）。
 /// oracle：對帳規格——三種漂移各以獨立 fixture 造出後,回應對應清單須「含」該筆（共用 JET_Test 下用 Contains,
 /// 不斷言完整集合;zombieFolders 為 host 本地資料夾,故該筆可精確驗）。
 /// </summary>
@@ -112,7 +112,7 @@ public sealed class DevDbReconcileHandlerTests
             {
               "projectId": "{{projectId}}",
               "projectCode": "REC-1",
-              "entityName": "殭屍案",
+              "clientName": "殭屍案",
               "operatorId": "op",
               "periodStart": "2025-01-01",
               "periodEnd": "2025-12-31",
@@ -121,7 +121,7 @@ public sealed class DevDbReconcileHandlerTests
               "roundingMode": "AwayFromZero",
               "createdUtc": "2026-06-01T00:00:00+00:00",
               "currentStep": 1,
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "databaseProvider": "sqlServer",
               "sampleSeed": 1,
               "sampleSeedVersion": 2

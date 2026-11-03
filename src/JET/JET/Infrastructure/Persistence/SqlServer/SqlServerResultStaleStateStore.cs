@@ -12,7 +12,7 @@ public sealed class SqlServerResultStaleStateStore(SqlServerProjectDatabase data
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await RuleRunResultReset.ClearWithinAsync(connection, transaction, cancellationToken,
+        await ResultReset.ClearWithinAsync(connection, transaction, cancellationToken,
             AuditMutation.PreparationDate, SqlServerProjectSchema.QualifierFor(projectId));
         // 設定存不進去時直接離開，交易在釋放時回復。
         await saveSettings(cancellationToken);
@@ -41,7 +41,7 @@ public sealed class SqlServerResultStaleStateStore(SqlServerProjectDatabase data
             projectId,
             """
             SELECT validation_stale, prescreen_stale, filter_stale
-            FROM {s}.config_result_stale_state
+            FROM {s}.result_stale_state
             WHERE singleton = 1;
             """);
 

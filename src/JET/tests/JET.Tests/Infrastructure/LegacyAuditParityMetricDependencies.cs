@@ -24,15 +24,15 @@ internal static class LegacyAuditParityMetricDependencies
 
     private static readonly IReadOnlySet<LegacyMappingSlot> TbAmountSlots = new HashSet<LegacyMappingSlot>
     {
-        LegacyMappingSlot.TbAmount,
+        LegacyMappingSlot.TbChangeAmount,
         LegacyMappingSlot.TbDebitAmount,
         LegacyMappingSlot.TbCreditAmount,
         LegacyMappingSlot.TbOpeningBalance,
         LegacyMappingSlot.TbClosingBalance,
-        LegacyMappingSlot.TbOpeningDebit,
-        LegacyMappingSlot.TbOpeningCredit,
-        LegacyMappingSlot.TbClosingDebit,
-        LegacyMappingSlot.TbClosingCredit,
+        LegacyMappingSlot.TbOpeningDebitBalance,
+        LegacyMappingSlot.TbOpeningCreditBalance,
+        LegacyMappingSlot.TbClosingDebitBalance,
+        LegacyMappingSlot.TbClosingCreditBalance,
     };
 
     private static readonly IReadOnlySet<LegacyMappingSlot> AllGlSlots = Enum
@@ -93,11 +93,11 @@ internal static class LegacyAuditParityMetricDependencies
             return Empty();
         }
 
-        if (metricId is LegacyAuditParityMetricIds.PartASourceRowCount
-                or LegacyAuditParityMetricIds.PartARowCountMatch
-                or LegacyAuditParityMetricIds.PartAAmountMatch
+        if (metricId is LegacyAuditParityMetricIds.PbcRowCount
+                or LegacyAuditParityMetricIds.StoredRowCountMatch
+                or LegacyAuditParityMetricIds.StoredAmountMatch
                 or LegacyAuditParityMetricIds.FilterScenarioCount
-                or LegacyAuditParityMetricIds.CreatorSummaryNotApplicable
+                or LegacyAuditParityMetricIds.PreparerSummaryNotApplicable
                 or LegacyAuditParityMetricIds.RareAccountsNotApplicable)
         {
             return Empty();
@@ -120,9 +120,9 @@ internal static class LegacyAuditParityMetricDependencies
                 ]);
         }
 
-        if (metricId is LegacyAuditParityMetricIds.PartATargetRowCount
-            or LegacyAuditParityMetricIds.PartATotalDebit
-            or LegacyAuditParityMetricIds.PartATotalCredit)
+        if (metricId is LegacyAuditParityMetricIds.StoredRowCount
+            or LegacyAuditParityMetricIds.StoredTotalDebit
+            or LegacyAuditParityMetricIds.StoredTotalCredit)
         {
             return Set([LegacyMappingSlot.GlPostingDate, .. GlAmountSlots]);
         }
@@ -131,7 +131,7 @@ internal static class LegacyAuditParityMetricDependencies
         {
             return Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     .. GlAmountSlots,
                 ]);
@@ -148,7 +148,7 @@ internal static class LegacyAuditParityMetricDependencies
         {
             return Set(
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlApprovalDate,
             ]);
@@ -164,62 +164,55 @@ internal static class LegacyAuditParityMetricDependencies
 
             return rule switch
             {
-                LegacyPrescreenRuleId.PostPeriodApproval => Set(
+                LegacyPrescreenRuleId.PrepPeriodApproval => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     LegacyMappingSlot.GlApprovalDate,
                 ]),
                 LegacyPrescreenRuleId.SuspiciousKeywords => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     LegacyMappingSlot.GlDescription,
                 ]),
                 LegacyPrescreenRuleId.UnexpectedAccountPair => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     LegacyMappingSlot.GlAccountNumber,
                     .. GlAmountSlots,
                 ]),
                 LegacyPrescreenRuleId.TrailingZeros => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     .. GlAmountSlots,
                 ]),
                 LegacyPrescreenRuleId.WeekendPosting
                     or LegacyPrescreenRuleId.HolidayPosting => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                 ]),
                 LegacyPrescreenRuleId.WeekendApproval
                     or LegacyPrescreenRuleId.HolidayApproval => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     LegacyMappingSlot.GlApprovalDate,
                 ]),
                 LegacyPrescreenRuleId.BlankDescription => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     LegacyMappingSlot.GlDescription,
                 ]),
-                LegacyPrescreenRuleId.NonAuthorizedPreparer
-                    or LegacyPrescreenRuleId.LowFrequencyPreparer => Set(
+                LegacyPrescreenRuleId.NonAuthorizedPreparer => Set(
                 [
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingSlot.GlPostingDate,
                     LegacyMappingSlot.GlCreatedBy,
-                ]),
-                LegacyPrescreenRuleId.LowFrequencyAccount => Set(
-                [
-                    LegacyMappingSlot.GlDocumentNumber,
-                    LegacyMappingSlot.GlPostingDate,
-                    LegacyMappingSlot.GlAccountNumber,
                 ]),
                 _ => throw new ArgumentOutOfRangeException(nameof(metricId)),
             };
@@ -287,14 +280,14 @@ internal static class LegacyAuditParityMetricDependencies
             LegacyAuditParityReportFamily.ValidationNullDocumentDetail => Set(
             [
                 LegacyMappingSlot.GlPostingDate,
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
             ]),
             LegacyAuditParityReportFamily.ValidationNullDescriptionDetail => Set(
             [
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlDescription,
             ]),
-            LegacyAuditParityReportFamily.ValidationOutOfRangeApprovalDateDetail => Set(
+            LegacyAuditParityReportFamily.ValidationApprovalDateNotInPeriodDetail => Set(
             [
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlApprovalDate,
@@ -305,7 +298,7 @@ internal static class LegacyAuditParityMetricDependencies
             LegacyAuditParityReportFamily.ValidationUnbalancedGlDetail
                 or LegacyAuditParityReportFamily.WorkingPaperUnbalancedVouchers =>
                     UnbalancedVoucherSlots(),
-            LegacyAuditParityReportFamily.ValidationBlankPostDateDetail
+            LegacyAuditParityReportFamily.ValidationBlankGlDateDetail
                 or LegacyAuditParityReportFamily.ValidationSourceQuality =>
                 Set([LegacyMappingSlot.GlPostingDate]),
 
@@ -323,16 +316,16 @@ internal static class LegacyAuditParityMetricDependencies
                 or LegacyAuditParityReportFamily.WorkingPaperReliability =>
                     Set([LegacyMappingSlot.GlPostingDate]),
 
-            LegacyAuditParityReportFamily.PrescreenPostPeriodApprovalDetail =>
-                PrescreenSlots(LegacyPrescreenRuleId.PostPeriodApproval),
+            LegacyAuditParityReportFamily.PrescreenPrepPeriodApprovalDetail =>
+                PrescreenSlots(LegacyPrescreenRuleId.PrepPeriodApproval),
             LegacyAuditParityReportFamily.PrescreenSuspiciousKeywordsDetail =>
                 PrescreenSlots(LegacyPrescreenRuleId.SuspiciousKeywords),
             LegacyAuditParityReportFamily.PrescreenUnexpectedAccountPairDetail =>
                 PrescreenSlots(LegacyPrescreenRuleId.UnexpectedAccountPair),
             LegacyAuditParityReportFamily.PrescreenTrailingZerosDetail =>
                 PrescreenSlots(LegacyPrescreenRuleId.TrailingZeros),
-            LegacyAuditParityReportFamily.PrescreenCreatorSummaryDetail
-                or LegacyAuditParityReportFamily.WorkingPaperCreatorSummary => Set(
+            LegacyAuditParityReportFamily.PrescreenPreparerSummaryDetail
+                or LegacyAuditParityReportFamily.WorkingPaperPreparerSummary => Set(
             [
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlCreatedBy,
@@ -401,14 +394,14 @@ internal static class LegacyAuditParityMetricDependencies
 
     private static IReadOnlySet<LegacyMappingSlot> UnbalancedVoucherSlots() => Set(
     [
-        LegacyMappingSlot.GlDocumentNumber,
+        LegacyMappingSlot.GlVoucherNumber,
         LegacyMappingSlot.GlPostingDate,
         .. GlAmountSlots,
     ]);
 
     private static IReadOnlySet<LegacyMappingSlot> FilterScenarioSlots() => Set(
     [
-        LegacyMappingSlot.GlDocumentNumber,
+        LegacyMappingSlot.GlVoucherNumber,
         LegacyMappingSlot.GlLineIdentifier,
         LegacyMappingSlot.GlPostingDate,
         LegacyMappingSlot.GlApprovalDate,
@@ -424,7 +417,7 @@ internal static class LegacyAuditParityMetricDependencies
     private static IReadOnlySet<LegacyMappingSlot> PrescreenSlots(
         LegacyPrescreenRuleId rule) => rule switch
     {
-        LegacyPrescreenRuleId.PostPeriodApproval => Set(
+        LegacyPrescreenRuleId.PrepPeriodApproval => Set(
         [
             LegacyMappingSlot.GlPostingDate,
             LegacyMappingSlot.GlApprovalDate,
@@ -436,7 +429,7 @@ internal static class LegacyAuditParityMetricDependencies
         ]),
         LegacyPrescreenRuleId.UnexpectedAccountPair => Set(
         [
-            LegacyMappingSlot.GlDocumentNumber,
+            LegacyMappingSlot.GlVoucherNumber,
             LegacyMappingSlot.GlPostingDate,
             LegacyMappingSlot.GlAccountNumber,
             .. GlAmountSlots,

@@ -21,7 +21,7 @@ public sealed class QueryAccountMappingDifferencePageHandler(ProjectSession sess
         return new
         {
             kind,
-            rows = page.Rows.Select(row => new { accountCode = row.AccountCode, accountName = row.AccountName }).ToArray(),
+            rows = page.Rows.Select(row => new { accountNumber = row.AccountNumber, accountName = row.AccountName }).ToArray(),
             nextCursor = page.NextCursor,
             totalCount = page.TotalCount
         };

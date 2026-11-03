@@ -100,7 +100,7 @@ public class LayerDependencyTests
     {
         var expected = new[]
         {
-            "JET.AuditCore.AuditCaseSnapshot",
+            "JET.AuditCore.AuditProjectSnapshot",
             "JET.AuditCore.AuditExecutionPlan",
             "JET.AuditCore.AuditOutcome",
             "JET.AuditCore.AuditRunManifest",

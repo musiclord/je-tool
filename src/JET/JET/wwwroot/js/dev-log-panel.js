@@ -31,7 +31,7 @@
     Ui.run('輸出診斷日誌', function () {
       return global.JetApi.devLogExportFile({ projectId: project.projectId }).then(function (data) {
         Ui.setText('dev-log-info',
-          '已輸出 ' + Number(data.lineCount).toLocaleString() + ' 筆：' + data.filePath +
+          '已輸出 ' + Ui.countText(data.lineCount) + ' 筆：' + data.filePath +
           (data.source === 'ringBuffer' ? '（sink 檔不可讀，內容為 ring buffer 快照）' : ''));
       });
     });

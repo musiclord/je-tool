@@ -14,18 +14,19 @@ public sealed class PrescreenProgramTests
         var plan = JetAuditProgram.Plan(request);
 
         Assert.Same(request, plan.Request);
-        Assert.Equal(request.ProjectId, plan.ReviewPlan.CaseSnapshot.ProjectId);
-        Assert.Equal(request.PeriodStart, plan.ReviewPlan.CaseSnapshot.PeriodStart);
-        Assert.Equal(request.PeriodEnd, plan.ReviewPlan.CaseSnapshot.PeriodEnd);
-        Assert.Equal(request.MoneyScale, plan.ReviewPlan.CaseSnapshot.MoneyScale);
-        Assert.Equal(request.SampleSeed, plan.ReviewPlan.CaseSnapshot.SampleSeed);
-        Assert.Equal(request.RunId, plan.ReviewPlan.UserParameters.RunId);
+        Assert.Equal(request.ProjectId, plan.ReviewPlan.ProjectSnapshot.ProjectId);
+        Assert.Equal(request.PeriodStart, plan.ReviewPlan.ProjectSnapshot.PeriodStart);
+        Assert.Equal(request.PeriodEnd, plan.ReviewPlan.ProjectSnapshot.PeriodEnd);
+        Assert.Equal(request.MoneyScale, plan.ReviewPlan.ProjectSnapshot.MoneyScale);
+        Assert.Equal(request.SampleSeed, plan.ReviewPlan.ProjectSnapshot.SampleSeed);
+        Assert.Equal(request.ResultId, plan.ReviewPlan.UserParameters.ResultId);
         Assert.Equal(request.GeneratedUtc, plan.ReviewPlan.UserParameters.GeneratedUtc);
         Assert.Equal("prescreen.run", plan.ReviewPlan.UserParameters.ActionName);
-        // 預篩選收斂計畫階段九：尾零門檻是規則定義的一部分（TrailingZeroThreshold），計畫不再另帶一份，這一行斷言因此拿掉；
+        // 尾零門檻是規則定義的一部分（TrailingZeroThreshold），計畫不再另帶一份，這一行斷言因此拿掉；
         // 回應仍回報固定門檻，Finalize 的斷言保留。第一次失敗：收據 20261024-201207068-a0dbf5041d56436d812778236956c48e（編譯失敗）。
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
-        Assert.Equal(14, plan.ReviewPlan.Procedures.Count);
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
+        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），再減為 12 個；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        Assert.Equal(12, plan.ReviewPlan.Procedures.Count);
         Assert.All(plan.ReviewPlan.Procedures, verdict => Assert.True(verdict.IsApplicable));
     }
 
@@ -40,16 +41,16 @@ public sealed class PrescreenProgramTests
             hasRevenue: false,
             hasCounterpart: false,
             hasAuthorizedPreparers: false,
-            lastPeriodStart: null));
+            prepStartDate: null));
         var facts = Facts(nonZero: true);
 
         var result = JetAuditProgram.Finalize(plan, facts);
 
-        Assert.Equal(0, result.Data.PostPeriodApprovalCount);
+        Assert.Equal(0, result.Data.PrepPeriodApprovalCount);
         Assert.Equal(facts.SuspiciousKeywordsCount, result.Data.SuspiciousKeywordsCount);
         Assert.Equal(0, result.Data.UnexpectedAccountPairCount);
         Assert.Equal(facts.TrailingZerosCount, result.Data.TrailingZerosCount);
-        Assert.Empty(result.Data.Creators);
+        Assert.Empty(result.Data.Preparers);
         Assert.Equal(facts.DistinctAccountCount, result.Data.DistinctAccountCount);
         Assert.Same(facts.Accounts, result.Data.Accounts);
         Assert.Equal(facts.WeekendPostingCount, result.Data.WeekendPostingCount);
@@ -61,7 +62,7 @@ public sealed class PrescreenProgramTests
             TrailingZeroThreshold.DefaultZerosThreshold,
             result.Data.ZerosThreshold);
 
-        // 預篩選收斂計畫階段四把第四步的原因改由規則需求表產生（2026-10-23），原因常數已拿掉，預期值改寫成常數原本的固定文字。
+        // 第四步的原因改由規則需求表產生，原因常數已拿掉，預期值改寫成常數原本的固定文字。
         // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
         // 同一階段第 3、4 項要求第四步與第五步對同一條規則給同一個原因，畫面只顯示後端一句寫出缺什麼、到哪裡補的原因，
         // 預期值因此換成規則需求表的句子；一條規則缺幾項就依表列順序各寫一句，科目配對沒有匯入時只寫這一項。
@@ -71,7 +72,7 @@ public sealed class PrescreenProgramTests
         const string holidayCalendarMissing = "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。";
         AssertSkipped(
             result,
-            "post_period_approval",
+            "prep_period_approval",
             approvalDateMissing + "尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫。");
         AssertSkipped(
             result,
@@ -79,7 +80,7 @@ public sealed class PrescreenProgramTests
             "科目配對中尚無任何科目設定分類，請先在第四步設定。");
         AssertSkipped(
             result,
-            "creator_summary",
+            "preparer_summary",
             createdByMissing);
         AssertSkipped(
             result,
@@ -106,8 +107,9 @@ public sealed class PrescreenProgramTests
             JetAuditProgram.Plan(Request()),
             Facts());
 
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
-        Assert.Equal(14, result.Manifest.Procedures.Count);
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
+        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），再減為 12 個；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        Assert.Equal(12, result.Manifest.Procedures.Count);
         Assert.All(result.Manifest.Procedures, verdict =>
         {
             Assert.True(verdict.IsApplicable);
@@ -119,7 +121,7 @@ public sealed class PrescreenProgramTests
         Assert.Equal(0, result.Data.HolidayApprovalCount);
     }
 
-    // 預篩選收斂計畫階段九：尾零門檻是規則定義的一部分，計畫不再帶它；原本「Finalize 用計畫的門檻」那則隨之移除，
+    // 尾零門檻是規則定義的一部分，計畫不再帶它；原本「Finalize 用計畫的門檻」那則隨之移除，
     // 回應固定回報六個 0 的斷言留在上面那則（第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf 之後的建置）。
 
     [Fact]
@@ -131,9 +133,9 @@ public sealed class PrescreenProgramTests
             JetAuditProgram.Plan(Request()),
             facts);
 
-        Assert.Equal(facts.PostPeriodApprovalCount, result.Data.PostPeriodApprovalCount);
+        Assert.Equal(facts.PrepPeriodApprovalCount, result.Data.PrepPeriodApprovalCount);
         Assert.Equal(facts.UnexpectedAccountPairCount, result.Data.UnexpectedAccountPairCount);
-        Assert.Same(facts.Creators, result.Data.Creators);
+        Assert.Same(facts.Preparers, result.Data.Preparers);
         Assert.Equal(facts.WeekendApprovalCount, result.Data.WeekendApprovalCount);
         Assert.Equal(facts.HolidayPostingCount, result.Data.HolidayPostingCount);
         Assert.Equal(facts.HolidayApprovalCount, result.Data.HolidayApprovalCount);
@@ -214,22 +216,22 @@ public sealed class PrescreenProgramTests
 
         var rare = Assert.IsAssignableFrom<IReadOnlyList<AccountUsageRow>>(result.Concentration.RareAccounts);
         Assert.Equal(20, rare.Count);
-        Assert.Equal("A01", rare[0].AccountCode);
-        Assert.Equal("A20", rare[19].AccountCode);
+        Assert.Equal("A01", rare[0].AccountNumber);
+        Assert.Equal("A20", rare[19].AccountNumber);
         Assert.Equal(facts.DistinctAccountCount, result.Concentration.DistinctAccountCount);
     }
 
     [Fact]
     public void Finalize_Concentration_WithoutCreatedByMapping_IsNotApplicableWithoutNumbers()
     {
-        // 整塊沿用 creator_summary 裁定：前置不足時不帶任何數值格（與「結果為 0」語意不同）。
+        // 整塊沿用 preparer_summary 裁定：前置不足時不帶任何數值格（與「結果為 0」語意不同）。
         var plan = JetAuditProgram.Plan(Request(hasCreatedBy: false));
         var facts = ConcentrationFacts([9, 8], totalPreparerCount: 2, totalEntryCount: 17);
 
         var result = JetAuditProgram.Finalize(plan, facts);
 
         Assert.Equal("na", result.Concentration.Status);
-        // 預篩選收斂計畫階段四拿掉原因常數（2026-10-23），預期值改寫成常數原本的固定文字。
+        // 原因常數拿掉後，預期值改寫成常數原本的固定文字。
         // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
         // 同一階段要求第四步與第五步給同一個原因，預期值換成規則需求表的句子。
         // 第一次失敗：Focused 收據 20261023-032905578-e71aa86f3fec4304a919d55f3db25598。
@@ -240,9 +242,9 @@ public sealed class PrescreenProgramTests
     }
 
     [Fact]
-    public void Finalize_Concentration_EmptyCreatorSummary_IsNotApplicableWithoutReason()
+    public void Finalize_Concentration_EmptyPreparerSummary_IsNotApplicableWithoutReason()
     {
-        // 前置齊備但期間無分錄：creator_summary 依既有規則為 na 且無 N/A 原因，集中度同步。
+        // 前置齊備但期間無分錄：preparer_summary 依既有規則為 na 且無 N/A 原因，集中度同步。
         var result = JetAuditProgram.Finalize(JetAuditProgram.Plan(Request()), Facts());
 
         Assert.Equal("na", result.Concentration.Status);
@@ -258,7 +260,7 @@ public sealed class PrescreenProgramTests
         bool hasRevenue = true,
         bool hasCounterpart = true,
         bool hasAuthorizedPreparers = true,
-        string? lastPeriodStart = "2025-12-31") =>
+        string? prepStartDate = "2025-12-31") =>
         new(
             ProjectId: "project",
             HasGlMapping: true,
@@ -266,15 +268,15 @@ public sealed class PrescreenProgramTests
             PeriodEnd: "2025-12-31",
             MoneyScale: 10_000,
             SampleSeed: 48_271,
-            RunId: "run",
+            ResultId: "run",
             GeneratedUtc: new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero),
-            LastPeriodStart: lastPeriodStart,
-            // 預篩選收斂計畫階段四把核准日與建立人員兩個旗標換成可用欄位清單（2026-10-23）。
+            PrepStartDate: prepStartDate,
+            // 核准日與建立人員兩個旗標換成可用欄位清單。
             // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
             AvailableGlFields: JetFieldCatalog.GlFields
                 .Select(static field => field.SemanticIdentity)
-                .Where(field => (hasApprovalDate || field != JetFieldCatalog.GlDocDate)
-                    && (hasCreatedBy || field != JetFieldCatalog.GlCreateBy))
+                .Where(field => (hasApprovalDate || field != JetFieldCatalog.GlApprovalDate)
+                    && (hasCreatedBy || field != JetFieldCatalog.GlCreatedBy))
                 .ToArray(),
             HasHolidays: hasHolidays,
             HasAccountMapping: hasAccountMapping,
@@ -287,12 +289,12 @@ public sealed class PrescreenProgramTests
     {
         var count = nonZero ? 1 : 0;
         return new PrescreenFacts(
-            PostPeriodApprovalCount: count,
+            PrepPeriodApprovalCount: count,
             SuspiciousKeywordsCount: count,
             UnexpectedAccountPairCount: count,
             TrailingZerosCount: count,
-            Creators: nonZero
-                ? [new CreatorSummaryRow("creator", 1, 2, 3, 1)]
+            Preparers: nonZero
+                ? [new PreparerSummaryRow("creator", 1, 2, 3, 1)]
                 : [],
             DistinctAccountCount: count,
             Accounts: nonZero
@@ -304,8 +306,6 @@ public sealed class PrescreenProgramTests
             HolidayApprovalCount: count,
             BlankDescriptionCount: count,
             NonAuthorizedPreparerCount: count,
-            LowFrequencyPreparerCount: count,
-            LowFrequencyAccountCount: count,
             RuleVoucherCounts: PrescreenRuleKeys.FilterableKeys.ToDictionary(
                 key => key,
                 _ => (long)count,
@@ -315,22 +315,22 @@ public sealed class PrescreenProgramTests
     }
 
     /// <summary>
-    /// 集中度用 facts：<paramref name="creatorEntryCounts"/> 依遞減順序給定各編製者列數
+    /// 集中度用 facts：<paramref name="preparerEntryCounts"/> 依遞減順序給定各編製者列數
     /// （模擬 provider 已排序的 50 列上限彙總），人工筆數固定取序號以便對位斷言。
     /// </summary>
     private static PrescreenFacts ConcentrationFacts(
-        IReadOnlyList<long> creatorEntryCounts,
+        IReadOnlyList<long> preparerEntryCounts,
         long totalPreparerCount,
         long totalEntryCount,
         IReadOnlyList<AccountUsageRow>? accounts = null)
     {
-        var creators = creatorEntryCounts
-            .Select((count, index) => new CreatorSummaryRow($"C{index + 1:00}", count, 0, 0, index + 1))
+        var preparers = preparerEntryCounts
+            .Select((count, index) => new PreparerSummaryRow($"C{index + 1:00}", count, 0, 0, index + 1))
             .ToArray();
 
         return Facts() with
         {
-            Creators = creators,
+            Preparers = preparers,
             Accounts = accounts ?? [],
             DistinctAccountCount = accounts?.Count ?? 0,
             TotalPreparerCount = totalPreparerCount,

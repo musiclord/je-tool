@@ -14,12 +14,12 @@ public static class MappingValidator
         IReadOnlyCollection<string> availableColumns)
     {
         var required = JetFieldCatalog.RequiredGlMappingKeys(spec.AmountMode);
-        // 2026-10-08：借貸代碼至少一側；只填一側時，另一側是其餘所有來源值。
+        // 裁定 2026-10-08-11：借貸代碼至少填一側；只填一側時，另一側是其餘所有來源值。
         if (spec.AmountMode is GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag
-            && ((spec.Mapping.TryGetValue(GlMappingKeys.DcDebitCode, out var debit) && !string.IsNullOrWhiteSpace(debit))
-                || (spec.Mapping.TryGetValue(GlMappingKeys.DcCreditCode, out var credit) && !string.IsNullOrWhiteSpace(credit))))
+            && ((spec.Mapping.TryGetValue(GlMappingKeys.DrCrDebitCode, out var debit) && !string.IsNullOrWhiteSpace(debit))
+                || (spec.Mapping.TryGetValue(GlMappingKeys.DrCrCreditCode, out var credit) && !string.IsNullOrWhiteSpace(credit))))
         {
-            required = required.Where(key => key is not GlMappingKeys.DcDebitCode and not GlMappingKeys.DcCreditCode).ToArray();
+            required = required.Where(key => key is not GlMappingKeys.DrCrDebitCode and not GlMappingKeys.DrCrCreditCode).ToArray();
         }
         return Validate(
             spec.Mapping,
@@ -74,7 +74,7 @@ public static class MappingValidator
                 continue;
             }
 
-            // dcDebitCode 的值是借方代碼字面值（如 "D"、"1"），不是欄位名稱。
+            // drCrDebitCode 的值是借方代碼字面值（如 "D"、"1"），不是欄位名稱。
             if (isLiteralMappingKey(key))
             {
                 continue;

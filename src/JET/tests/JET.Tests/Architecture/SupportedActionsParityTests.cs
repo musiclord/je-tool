@@ -17,7 +17,7 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed class SupportedActionsParityTests
 {
-    // 改動原因：使用者 2026-10-08 畫面註解要求移除假日範本入口，K15 的 export.calendarTemplates 隨之移除；
+    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，export.calendarTemplates 隨之移除；
     // 原本確認它已註冊的測試，改成確認後端與前端都不再有這個 action。
     [Fact]
     public void RemovedCalendarTemplateAction_IsNotRegisteredOrSupported()
@@ -84,11 +84,11 @@ public sealed class SupportedActionsParityTests
 
         var formalExports = new[]
         {
-            "export.validationArtifacts",
+            "export.validationReports",
             "export.accountMappingTemplate",
             "export.prescreenReport",
             "export.criteriaSelectionReport",
-            "export.workpaperStream"
+            "export.workingPaperStream"
         };
         Assert.All(formalExports, action => Assert.Contains(action, cancellable));
 

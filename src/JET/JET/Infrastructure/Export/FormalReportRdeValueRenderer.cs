@@ -58,7 +58,7 @@ internal static class FormalReportRdeValueRenderer
                              DateTimeStyles.None,
                              out _)
                     => value.DateValue,
-                RdeFieldValueTypeNames.Money
+                RdeFieldValueTypeNames.Amount
                     when value.TextValue is null && value.DateValue is null && value.AmountScaled is not null
                     => ((decimal)value.AmountScaled.Value / moneyScale)
                         .ToString(CultureInfo.InvariantCulture),

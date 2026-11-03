@@ -23,7 +23,7 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         ReportWorkbookMetadataInvariant.Validate(workbookMetadata);
         return WritePlannedCoreAsync(
@@ -47,7 +47,7 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(fieldInfo);
@@ -72,7 +72,7 @@ public sealed partial class LegacyReportWriter
             _templates,
             ReportTemplateCatalog.Validation,
             output,
-            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkpaperSheetCatalog.Step13],
+            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.Step13],
             (editor, ct) => FillValidationTemplateAsync(
                 editor,
                 context,
@@ -101,7 +101,7 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var stats = new List<SheetStat>();
         var stylesPart = editor.Document.WorkbookPart?.WorkbookStylesPart
@@ -112,7 +112,7 @@ public sealed partial class LegacyReportWriter
             editor,
             context,
             projection,
-            plan.RequireDetail(ValidationReportDetailKind.UnbalancedGlEntry).Emit,
+            plan.RequireDetail(ValidationReportDetailKind.UnbalancedVoucherEntry).Emit,
             glBatch,
             tbBatch,
             operatorId,
@@ -141,24 +141,24 @@ public sealed partial class LegacyReportWriter
         var sheets = editor.Sheets;
         await EmitNullDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
-            ValidationReportDetailKind.NullAccount, NullRecordCategory.NullAccount,
+            ValidationReportDetailKind.NullAccount, BlankRecordCategory.NullAccount,
             "V_Report 1", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
         await EmitNullDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
-            ValidationReportDetailKind.NullDocument, NullRecordCategory.NullDocument,
+            ValidationReportDetailKind.NullDocument, BlankRecordCategory.NullDocument,
             "V_Report 2", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
         await EmitNullDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
-            ValidationReportDetailKind.NullDescription, NullRecordCategory.NullDescription,
+            ValidationReportDetailKind.NullDescription, BlankRecordCategory.NullDescription,
             "V_Report 3", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
         // 驗證時傳票核准日不可用，計畫就不讀這份明細。
         await EmitNullDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
-            ValidationReportDetailKind.OutOfRangeApprovalDate,
-            NullRecordCategory.OutOfRangeDate,
+            ValidationReportDetailKind.ApprovalDateNotInPeriod,
+            BlankRecordCategory.ApprovalDateNotInPeriod,
             "V_Report 4", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
 
@@ -168,11 +168,12 @@ public sealed partial class LegacyReportWriter
             sheets,
             stats,
             context.Project,
+            projection.CompletenessNaNote is null,
             legacyStyles,
             cancellationToken,
             progress).ConfigureAwait(false);
 
-        if (plan.RequireDetail(ValidationReportDetailKind.UnbalancedGlEntry).Emit)
+        if (plan.RequireDetail(ValidationReportDetailKind.UnbalancedVoucherEntry).Emit)
         {
             await EmitUnbalancedGlReportAsync(
                 document,
@@ -206,12 +207,12 @@ public sealed partial class LegacyReportWriter
         ReportDocumentContext context,
         ValidationReportPlan plan,
         ValidationReportDetailKind detailKind,
-        NullRecordCategory category,
+        BlankRecordCategory category,
         string sheetName,
         WorkbookStyleMap legacyStyles,
         RawSheetAutoFitMode autoFitMode,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var detail = plan.RequireDetail(detailKind);
         if (!detail.Emit)
@@ -244,7 +245,7 @@ public sealed partial class LegacyReportWriter
         CancellationToken cancellationToken)
     {
         // 「核准日不在期間」照驗證結果寫：筆數是 null 表示驗證時傳票核准日不可用，報告寫 N/A，不再自己看配對。
-        var outOfRangeDateCount = projection.OutOfRangeDateCount;
+        var approvalDateNotInPeriodCount = projection.ApprovalDateNotInPeriodCount;
         editor.RewriteWorksheetPart(
             "ValidationReport",
             (part, ct) =>
@@ -255,9 +256,14 @@ public sealed partial class LegacyReportWriter
                     "E9", "E10", "E11", "E12", "E13", "E14", "E15",
                     "D20", "D21", "D22", "D23", "D24", "D25"
                 };
-                if (outOfRangeDateCount is null)
+                if (approvalDateNotInPeriodCount is null)
                 {
                     allowed.Add("E23");
+                }
+
+                if (projection.CompletenessNaNote is not null)
+                {
+                    allowed.Add("E24");
                 }
 
                 var cells = new DirectTemplateCellEditor(
@@ -268,7 +274,7 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("E2", $"Year End: {context.Project.PeriodEnd}");
                 cells.Clear("E3");
                 cells.SetInlineString("E4", $"Prepared by: {operatorId}");
-                cells.SetInlineString("E5", string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}"));
+                cells.SetInlineString("E5", string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
                 cells.SetInlineString("E9", glBatch is null
                     ? "N/A"
                     : Path.GetFileName(glBatch.SourceFileName));
@@ -306,7 +312,7 @@ public sealed partial class LegacyReportWriter
                     projection.NullDescriptionCount > 0
                         ? ValidationSummaryDifferenceFill
                         : null);
-                if (outOfRangeDateCount is { } count)
+                if (approvalDateNotInPeriodCount is { } count)
                 {
                     cells.SetNumber(
                         "D23",
@@ -320,17 +326,26 @@ public sealed partial class LegacyReportWriter
                     cells.SetInlineString("D23", "N/A");
                     cells.SetInlineString("E23", "未設定傳票核准日欄位");
                 }
-                cells.SetNumber(
-                    "D24",
-                    projection.CompletenessDiffAccountCount,
-                    projection.CompletenessDiffAccountCount > 0
-                        ? ValidationSummaryDifferenceFill
-                        : null);
+                // 裁定 2026-10-29-16：沒有 TB 時逐科目比對無法執行，比照核准日那一列寫 N/A 並註明原因。
+                if (projection.CompletenessNaNote is { } completenessNote)
+                {
+                    cells.SetInlineString("D24", "N/A");
+                    cells.SetInlineString("E24", completenessNote);
+                }
+                else
+                {
+                    cells.SetNumber(
+                        "D24",
+                        projection.CompletenessDiffAccountCount,
+                        projection.CompletenessDiffAccountCount > 0
+                            ? ValidationSummaryDifferenceFill
+                            : null);
+                }
                 // public summary 的 distinct voucher count 維持不變；raw joined count
                 // 只存在 finalized plan，專供 V6 工作簿的明細列數上限檢查。
                 cells.SetNumber(
                     "D25",
-                    projection.UnbalancedDocumentCount,
+                    projection.UnbalancedVoucherCount,
                     emitUnbalancedDetail
                         ? ValidationSummaryDifferenceFill
                         : null);
@@ -352,7 +367,7 @@ public sealed partial class LegacyReportWriter
         var defaultStyle = styles.Map(FormalFieldInfoStyles.Default);
         var boldStyle = styles.Map(FormalFieldInfoStyles.Bold);
         var wrappedStyle = styles.Map(FormalFieldInfoStyles.Wrapped);
-        // 驗證報告其他頁都是 10 點、沒有藍底橫幅，版本列跟著所在報告只用粗體（使用者 2026-10-29 裁定）。
+        // 驗證報告其他頁都是 10 點、沒有藍底橫幅，版本列跟著所在報告只用粗體（裁定 2026-10-29-07）。
         var versionStyle = boldStyle;
         var tbHeaderStyle = editor.StylePatcher.Patch(
             boldStyle,
@@ -501,11 +516,11 @@ public sealed partial class LegacyReportWriter
         ReportDocumentContext context,
         bool emit,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         if (!emit)
         {
-            editor.RemoveWorksheet(WorkpaperSheetCatalog.Step13, cancellationToken);
+            editor.RemoveWorksheet(WorkingPaperSheetCatalog.Step13, cancellationToken);
             return;
         }
 
@@ -528,7 +543,7 @@ public sealed partial class LegacyReportWriter
 
         WorksheetPart? templatePart = null;
         editor.RewriteWorksheetPart(
-            WorkpaperSheetCatalog.Step13,
+            WorkingPaperSheetCatalog.Step13,
             (part, _) => templatePart = part,
             cancellationToken);
         var staticCells = new DirectTemplateCellEditor(
@@ -540,14 +555,14 @@ public sealed partial class LegacyReportWriter
             $"測試資料期間 :  {context.PeriodStart} ~ {context.PeriodEnd}");
         staticCells.SetInlineString(
             "A3",
-            $"財務報表準備期間 - 開始日 : {DisplayLastPeriodStart(context.LastPeriodStart)}");
+            $"財務報表準備期間 - 開始日 : {DisplayPrepStartDate(context.PrepStartDate)}");
         staticCells.EnsureAllAllowedCellsWereEdited();
         var cellStyles = ResolveCompletenessDiffCellStyles(editor, templatePart.Worksheet);
         var continuationPrototype = (Worksheet)templatePart.Worksheet.CloneNode(true);
 
         var partNumber = 1;
         uint rowIndex = 17;
-        var sheetName = WorkpaperSheetCatalog.Step13;
+        var sheetName = WorkingPaperSheetCatalog.Step13;
         DirectTemplateStreamingSheetWriter? sheet =
             new(sheetName, templatePart, firstDynamicRow: 17, ensureProtection: true);
         try
@@ -564,7 +579,7 @@ public sealed partial class LegacyReportWriter
 
                         partNumber++;
                         rowIndex = 17;
-                        sheetName = SeriesName(WorkpaperSheetCatalog.Step13, partNumber);
+                        sheetName = SeriesName(WorkingPaperSheetCatalog.Step13, partNumber);
                         var continuationPart = editor.AppendWorksheetClone(
                             templatePart,
                             continuationPrototype,
@@ -617,7 +632,7 @@ public sealed partial class LegacyReportWriter
         CompletenessDiffCellStyles styles) =>
         [
             DirectBlankCell(rowIndex, 1, styles.LeadingBlank),
-            DirectTextCell(rowIndex, 2, item.AccountCode, styles.AccountCode),
+            DirectTextCell(rowIndex, 2, item.AccountNumber, styles.AccountNumber),
             DirectTextCell(rowIndex, 3, item.AccountName, styles.AccountName),
             DirectNumberCell(rowIndex, 4, Display(item.DiffScaled, moneyScale), styles.Difference),
             DirectBlankCell(rowIndex, 5, styles.Explanation),
@@ -655,7 +670,7 @@ public sealed partial class LegacyReportWriter
 
     private sealed record CompletenessDiffCellStyles(
         uint LeadingBlank,
-        uint AccountCode,
+        uint AccountNumber,
         uint AccountName,
         uint Difference,
         uint Explanation,
@@ -706,13 +721,13 @@ public sealed partial class LegacyReportWriter
         Sheets sheets,
         List<SheetStat> stats,
         ReportDocumentContext context,
-        NullRecordCategory category,
+        BlankRecordCategory category,
         string sheetName,
         long count,
         WorkbookStyleMap legacyStyles,
         RawSheetAutoFitMode autoFitMode,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         if (count <= 0)
         {
@@ -725,7 +740,7 @@ public sealed partial class LegacyReportWriter
             stats,
             context.ProjectId,
             sheetName,
-            (page, ct) => nullRecords.GetPageAsync(
+            (page, ct) => blankRecords.GetPageAsync(
                 context.ProjectId, category, context.PeriodStart, context.PeriodEnd, page, ct),
             row => row.EntryId,
             legacyStyles,
@@ -742,7 +757,7 @@ public sealed partial class LegacyReportWriter
         string projectId,
         WorkbookStyleMap legacyStyles,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         const string baseName = "Source_Quality";
         string[] headers =
@@ -752,7 +767,7 @@ public sealed partial class LegacyReportWriter
             "SOURCE_LABEL",
             "DOCUMENT_NUMBER",
             "ACCOUNT_CODE",
-            "POST_DATE",
+            "GL_DATE",
             "DESCRIPTION"
         ];
         ReportSheetStarted(stats, baseName, progress);
@@ -845,9 +860,9 @@ public sealed partial class LegacyReportWriter
             row.Category,
             row.SourceRowNumber.ToString(CultureInfo.InvariantCulture),
             row.SourceLabel,
-            row.DocumentNumber,
-            row.AccountCode,
-            row.PostDate,
+            row.VoucherNumber,
+            row.AccountNumber,
+            row.GlDate,
             row.Description
         ];
     }
@@ -857,9 +872,10 @@ public sealed partial class LegacyReportWriter
         Sheets sheets,
         List<SheetStat> stats,
         ReportDocumentContext context,
+        bool accountComparisonApplicable,
         WorkbookStyleMap legacyStyles,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         string[] headers =
         [
@@ -871,7 +887,8 @@ public sealed partial class LegacyReportWriter
         ];
         using var spool = RawReportSpool.Create(headers);
         string? cursor = null;
-        do
+        // 逐科目比對無法執行時，調節表只留標題列，不把只有 GL 的科目當成差異列出。
+        if (accountComparisonApplicable) do
         {
             cancellationToken.ThrowIfCancellationRequested();
             var page = await completenessAccounts.GetPageAsync(
@@ -886,7 +903,7 @@ public sealed partial class LegacyReportWriter
                 cancellationToken.ThrowIfCancellationRequested();
                 spool.Append(
                 [
-                    item.AccountCode,
+                    item.AccountNumber,
                     item.AccountName,
                     FormatAmountForAutoFit(item.TbAmountScaled, context.MoneyScale),
                     FormatAmountForAutoFit(item.GlAmountScaled, context.MoneyScale),
@@ -1014,7 +1031,7 @@ public sealed partial class LegacyReportWriter
         ReportDocumentContext context,
         WorkbookStyleMap legacyStyles,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         // ideascript 4623-4631 將不平傳票清單回接 #GL# 並 IncludeAllPFields；
         // 因此 V_Report 6 必須是所有命中傳票的完整原始 GL 分錄，而非每傳票一列 aggregate。

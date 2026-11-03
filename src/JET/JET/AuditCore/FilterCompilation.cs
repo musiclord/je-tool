@@ -14,7 +14,7 @@ internal sealed partial class GlFilterWhereBuilder(
 {
     public FilterSqlFragmentPlan BuildPlan(
         FilterScenarioSpec scenario,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix = "",
         bool includePopulationParameters = true,
         bool includeEvidence = false)
@@ -39,20 +39,19 @@ internal sealed partial class GlFilterWhereBuilder(
         combined ??= "1 = 0";
 
         // 傳票明細的「本列符合哪些條件」：每條規則各自的述詞，兩值、不推算補分類後的可能性。
-        // sameVoucher 群組的第一條是決定命中列的主要條件，其餘是同傳票佐證；absent 模式是傳票層條件。
-        var evidence = new List<FilterRuleEvidenceSql>();
+        // 整張傳票條件是傳票層條件，其餘都是決定命中列的主要條件。
+        var evidence = new List<FilterConditionEvidenceSql>();
         if (includeEvidence)
         {
             for (var gi = 0; gi < scenario.Groups.Count; gi++)
             {
                 var group = scenario.Groups[gi];
-                for (var ri = 0; ri < group.Rules.Count; ri++)
+                for (var ri = 0; ri < group.Conditions.Count; ri++)
                 {
-                    var rule = group.Rules[ri];
+                    var rule = group.Conditions[ri];
                     var sql = BuildRule(parameters, rule, context, schemaPrefix);
                     var voucher = rule.IsVoucherCondition;
-                    evidence.Add(new(new(gi + 1, ri + 1), group.MatchScope != FilterGroupMatchScope.SameVoucher || ri == 0,
-                        voucher, $"({sql})"));
+                    evidence.Add(new(new(gi + 1, ri + 1), voucher, $"({sql})"));
                 }
             }
         }
@@ -63,18 +62,13 @@ internal sealed partial class GlFilterWhereBuilder(
         FilterSqlParameterPlanBuilder parameters,
         FilterGroupSpec group,
         int groupNo,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix)
     {
-        if (group.MatchScope == FilterGroupMatchScope.SameVoucher)
-        {
-            return BuildSameVoucherGroup(parameters, group, groupNo, context, schemaPrefix);
-        }
-
         string? combined = null;
-        for (var ruleIndex = 0; ruleIndex < group.Rules.Count; ruleIndex++)
+        for (var ruleIndex = 0; ruleIndex < group.Conditions.Count; ruleIndex++)
         {
-            var rule = group.Rules[ruleIndex];
+            var rule = group.Conditions[ruleIndex];
             var ruleSql = BuildLocatedRule(parameters, rule, groupNo, ruleIndex + 1, context, schemaPrefix);
             combined = combined is null
                 ? ruleSql
@@ -85,52 +79,15 @@ internal sealed partial class GlFilterWhereBuilder(
     }
 
     /// <summary>
-    /// Legacy 多條件群組：第一條規則只決定哪些外層 g 列是命中錨點；後續規則各自形成
-    /// 查核期間內的傳票號碼集合，再以 IN 半連接要求錨點傳票存在於每個集合。IN 不展開
-    /// 佐證列，因此一張傳票有多筆佐證時也不會複製錨點。子查詢刻意重用 alias g，讓既有
-    /// provider-neutral rule predicates 原封不動在子查詢 scope 內評估；使用者值仍全部參數化。
-    /// </summary>
-    private string BuildSameVoucherGroup(
-        FilterSqlParameterPlanBuilder parameters,
-        FilterGroupSpec group,
-        int groupNo,
-        FilterRuleContext context,
-        string schemaPrefix)
-    {
-        if (group.Rules.Count == 0)
-        {
-            return "(1 = 0)";
-        }
-
-        var combined = BuildLocatedRule(parameters, group.Rules[0], groupNo, 1, context, schemaPrefix);
-        for (var index = 1; index < group.Rules.Count; index++)
-        {
-            var evidence = BuildLocatedRule(
-                parameters,
-                group.Rules[index],
-                groupNo,
-                index + 1,
-                context,
-                schemaPrefix);
-            var voucherSet = $"g.document_number IN ("
-                + $"SELECT g.document_number FROM {schemaPrefix}target_gl_entry g "
-                + $"WHERE {GlPopulationScopeSql.Predicate(context, "g")} AND ({evidence}))";
-            combined = $"({combined} AND {voucherSet})";
-        }
-
-        return $"({combined})";
-    }
-
-    /// <summary>
     /// 第 N 組第 M 條的條件；編譯時的檢查沒過時把組號、條號記在例外上，供支援日誌使用
-    /// （使用者 2026-10-14 第三輪勾選頁確認 R3-62）。例外過濾器只記位置、不攔下例外。
+    /// （裁定 2026-10-14-01 確認了用字）。例外過濾器只記位置、不攔下例外。
     /// </summary>
     private string BuildLocatedRule(
         FilterSqlParameterPlanBuilder parameters,
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         int groupNo,
         int ruleNo,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix)
     {
         try
@@ -145,72 +102,73 @@ internal sealed partial class GlFilterWhereBuilder(
 
     private string BuildRule(
         FilterSqlParameterPlanBuilder parameters,
-        FilterRuleSpec rule,
-        FilterRuleContext context,
+        FilterConditionSpec rule,
+        FilterConditionContext context,
         string schemaPrefix) => parameters.GetOrAddFragment("rule", rule,
             () => BuildRuleCore(parameters, rule, context, schemaPrefix));
 
     private string BuildRuleCore(
         FilterSqlParameterPlanBuilder parameters,
-        FilterRuleSpec rule,
-        FilterRuleContext context,
+        FilterConditionSpec rule,
+        FilterConditionContext context,
         string schemaPrefix)
     {
         switch (rule.Type)
         {
-            case FilterRuleType.Group:
-                return BuildChildren(parameters, rule.Rules, context, schemaPrefix);
-            case FilterRuleType.Voucher:
-                var body = BuildChildren(parameters, rule.Rules, context, schemaPrefix);
-                var side = rule.Side switch { "debit" => "g.amount_scaled >= 0", "credit" => "g.amount_scaled < 0", null or "all" => "1 = 1", _ => throw new InvalidOperationException("傳票判斷範圍無效。") };
-                var population = $"{GlPopulationScopeSql.Predicate(context, "g")} AND {side}";
-                string Set(string predicate) => $"SELECT g.document_number FROM {schemaPrefix}target_gl_entry g WHERE g.document_number IS NOT NULL AND {population} AND ({predicate})";
+            case FilterConditionType.Group:
+                return BuildChildren(parameters, rule.Conditions, context, schemaPrefix);
+            case FilterConditionType.Voucher:
+                var body = BuildChildren(parameters, rule.Conditions, context, schemaPrefix);
+                // 借貸範圍是已拿掉的舊寫法，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
+                if (rule.Side is not null) throw new InvalidOperationException("傳票判斷範圍無效。");
+                var population = GlPopulationScopeSql.Predicate(context, "g");
+                string Set(string predicate) => $"SELECT g.voucher_number FROM {schemaPrefix}gl g WHERE g.voucher_number IS NOT NULL AND {population} AND ({predicate})";
                 // CASE is portable to SQL Server, whose predicates are not scalar booleans.
                 var matches = $"CASE WHEN {body} THEN 1 ELSE 0 END = 1";
                 var quantified = rule.Quantifier switch
                 {
-                    "any" => $"(g.document_number IN ({Set(matches)}))",
-                    "none" => $"(g.document_number NOT IN ({Set(matches)}))",
-                    "all" => $"(g.document_number IN ({Set("1 = 1")}) AND g.document_number NOT IN ({Set($"CASE WHEN {body} THEN 1 ELSE 0 END = 0")}))",
-                    _ => throw new InvalidOperationException("傳票分錄條件無效。")
+                    "any" => $"(g.voucher_number IN ({Set(matches)}))",
+                    "none" => $"(g.voucher_number NOT IN ({Set(matches)}))",
+                    "all" => $"(g.voucher_number IN ({Set("1 = 1")}) AND g.voucher_number NOT IN ({Set($"CASE WHEN {body} THEN 1 ELSE 0 END = 0")}))",
+                    _ => throw new InvalidOperationException("整張傳票條件無效。")
                 };
                 // 空白號碼不屬於任何傳票；尤其 NOT IN 空集合不能把它反轉成命中。
-                return $"(g.document_number IS NOT NULL AND {quantified})";
-            case FilterRuleType.FieldValue:
-                var fieldValue = predicates.FieldValue(parameters, rule, context, schemaPrefix);
-                return rule.DrCr is null ? fieldValue
-                    : $"({predicates.DrCrOnly(parameters, rule.DrCr)} AND ({fieldValue}))";
-            case FilterRuleType.AccountSide:
+                return $"(g.voucher_number IS NOT NULL AND {quantified})";
+            case FilterConditionType.FieldValue:
+                // 分錄方向是已拿掉的舊寫法，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
+                if (rule.DrCr is not null) throw new InvalidOperationException("欄位值條件不帶借貸方向。");
+                return predicates.FieldValue(parameters, rule, context, schemaPrefix);
+            case FilterConditionType.AccountSide:
                 return predicates.AccountSide(parameters, rule, context, schemaPrefix);
-            case FilterRuleType.Prescreen:
+            case FilterConditionType.Prescreen:
                 // 十二條預篩選規則的述詞只在 PrescreenRulePredicates 對應一次，第四步計數與這裡同一個方法。
                 return PrescreenRulePredicates.Build(predicates, rule.PrescreenKey!, parameters, context, schemaPrefix);
 
-            case FilterRuleType.Text:
+            case FilterConditionType.Text:
                 GlFieldWhitelist.TryResolve(rule.Field, out var textColumn);
                 return predicates.TextMatch(parameters, textColumn.Column, rule.Keywords, rule.Mode);
 
-            case FilterRuleType.TextSet:
+            case FilterConditionType.TextSet:
                 GlFieldWhitelist.TryResolve(rule.Field, out var textSetColumn);
                 var normalizedValues = rule.Values
                     .Select(value => TextSetValueNormalizer.Normalize(value, rule.Normalization))
                     .ToArray();
                 return predicates.TextMatch(parameters, textSetColumn.Column, normalizedValues, rule.Mode);
 
-            case FilterRuleType.DateRange:
+            case FilterConditionType.DateRange:
                 GlFieldWhitelist.TryResolve(rule.Field, out var dateColumn);
                 return predicates.DateRange(parameters, dateColumn.Column, rule.FromDate, rule.ToDate);
 
-            case FilterRuleType.NumRange:
+            case FilterConditionType.NumRange:
                 return predicates.AmountRange(parameters, rule.FromAmountScaled, rule.ToAmountScaled);
 
-            case FilterRuleType.DrCrOnly:
+            case FilterConditionType.DrCrOnly:
                 return predicates.DrCrOnly(parameters, rule.DrCr!);
 
-            case FilterRuleType.ManualAuto:
+            case FilterConditionType.ManualAuto:
                 return predicates.ManualAuto(parameters, rule.IsManual!.Value);
 
-            case FilterRuleType.AccountPair:
+            case FilterConditionType.AccountPair:
                 // 雙側都是分類身分的多選集合；legacy scalar 由 Domain 投影成單元素集合。
                 return predicates.AccountPair(
                     parameters,
@@ -220,7 +178,7 @@ internal sealed partial class GlFilterWhereBuilder(
                     context,
                     schemaPrefix, rule.CategorySelection);
 
-            case FilterRuleType.SpecialAccountCategoryPair:
+            case FilterConditionType.SpecialAccountCategoryPair:
                 // 考量特殊科目類別配對：顯式雙類別集合 + 否定（drAndCr/drNotCr/notDrCr，否定走述詞內 NOT EXISTS）。
                 return predicates.SpecialAccountCategoryPair(
                     parameters,
@@ -230,53 +188,29 @@ internal sealed partial class GlFilterWhereBuilder(
                     context,
                     schemaPrefix, rule.CategorySelection);
 
-            case FilterRuleType.CustomKeywords:
-                // 舊式自訂關鍵字：讀回舊情境用，和摘要特定描述同一個包含比對。
-                return predicates.ContainsAnyKeyword(parameters, "g.document_description", rule.Keywords);
-
-            case FilterRuleType.CustomTrailingZeros:
-                // 舊式連續零尾數：讀回舊情境用。和停用原因寫的重建方式相同：整數尾數符合 N 個 0，且金額絕對值至少 1 元
-                // （整數部分為 0 不命中；位數大於 1 時尾數條件本身就排除 0）。
-                return $"({predicates.TrailingDigits(parameters, [TrailingZeroThreshold.ZeroPattern(rule.Digits!.Value)], context.MoneyScale)}"
-                    + $" AND {predicates.AmountRange(parameters, context.MoneyScale, null)})";
-
-            case FilterRuleType.EntityFrequency:
+            case FilterConditionType.EntityFrequency:
                 return predicates.EntityFrequency(parameters, rule, context, schemaPrefix);
 
-            case FilterRuleType.CustomPreparerEntryCount:
-                // 舊式編製人員分錄筆數：讀回舊情境用，和「科目與人員統計」同一個方法。
-                return predicates.EntityFrequency(parameters, JetFieldCatalog.GlCreateBy, "entries", "lessThanOrEqual",
-                    rule.MaxEntries!.Value, null, context, schemaPrefix);
-
-            case FilterRuleType.CustomAccountEntryCount:
-                // 舊式科目分錄筆數：讀回舊情境用，和「科目與人員統計」同一個方法。
-                return predicates.EntityFrequency(parameters, JetFieldCatalog.GlAccNum, "entries", "lessThanOrEqual",
-                    rule.MaxEntries!.Value, null, context, schemaPrefix);
-
-            case FilterRuleType.RevenueDebitNearQuarterEnd:
+            case FilterConditionType.RevenueDebitNearQuarterEnd:
                 // 季末前借記收入：季底視窗由 Domain 純函式自查核期間 + windowDays 算出（識別字不來自使用者）。
                 return predicates.RevenueDebitNearQuarterEnd(
                     parameters,
                     QuarterEndWindows.Compute(context.PeriodStart, context.PeriodEnd, rule.WindowDays!.Value),
                     schemaPrefix);
 
-            case FilterRuleType.RevenueWithoutNormalCounterpart:
+            case FilterConditionType.RevenueWithoutNormalCounterpart:
                 // 收入無一般對方科目：unexpected_account_pair 的否定面（不含 Cash 為一般對方科目）。
                 return predicates.RevenueWithoutNormalCounterpart(parameters, context, schemaPrefix);
 
-            case FilterRuleType.ManualRevenueEntry:
+            case FilterConditionType.ManualRevenueEntry:
                 // 收入之人工分錄：科目 = Revenue ∧ is_manual = 1。
                 return predicates.ManualRevenueEntry(parameters, schemaPrefix);
 
-            case FilterRuleType.TrailingDigits:
-                // 特定金額尾數：尾數樣態重用 Keywords；顯示金額主單位整數尾數比對。
-                return predicates.TrailingDigits(parameters, rule.Keywords, context.MoneyScale);
-
-            case FilterRuleType.PreparerEqualsApprover:
+            case FilterConditionType.PreparerEqualsApprover:
                 // 編製與核准同一人：created_by = approved_by（皆非空）。
                 return predicates.PreparerEqualsApprover();
 
-            case FilterRuleType.TypedField:
+            case FilterConditionType.TypedField:
                 // typed dynamic rule（2026-08-14 凍結）：fieldId 經 context registry 解析、
                 // blank＝missing value row、負向 operator 不納入 blank；值全部參數綁定。
                 return predicates.TypedField(parameters, rule, context, schemaPrefix);
@@ -286,8 +220,8 @@ internal sealed partial class GlFilterWhereBuilder(
         }
     }
 
-    private string BuildChildren(FilterSqlParameterPlanBuilder parameters, IReadOnlyList<FilterRuleSpec> rules,
-        FilterRuleContext context, string schemaPrefix)
+    private string BuildChildren(FilterSqlParameterPlanBuilder parameters, IReadOnlyList<FilterConditionSpec> rules,
+        FilterConditionContext context, string schemaPrefix)
     {
         string? combined = null;
         foreach (var child in rules)
@@ -302,14 +236,14 @@ internal sealed partial class GlFilterWhereBuilder(
 }
 
 /// <summary>
-/// Filter／prescreen／tag-matrix 共用的 GL 母體 SQL。scope 是 Domain 值；欄位別名只由
-/// Infrastructure 常數傳入。期間與過帳政策已在投影形成 <c>is_effective</c>，下游不得重算。
+/// Filter／prescreen／高風險條件彙總共用的 GL 母體 SQL。scope 是 Domain 值；欄位別名只由
+/// Infrastructure 常數傳入。期間與過帳政策已在投影形成 <c>is_excluded</c>，下游不得重算。
 /// </summary>
 internal static class GlPopulationScopeSql
 {
     public static FilterSqlFragmentPlan Plan(
         ISqlDialect dialect,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string tableAlias) =>
         Plan(
             dialect,
@@ -329,7 +263,7 @@ internal static class GlPopulationScopeSql
         return parameters.Build(Predicate(context, tableAlias));
     }
 
-    public static string Predicate(FilterRuleContext context, string tableAlias) =>
+    public static string Predicate(FilterConditionContext context, string tableAlias) =>
         Predicate(new GlPopulationContext(
             context.PopulationScope,
             context.PeriodStart,
@@ -339,12 +273,12 @@ internal static class GlPopulationScopeSql
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableAlias);
         ValidateScope(context);
-        return GlEffectivePopulation.SqlPredicate(tableAlias);
+        return GlExcludedPopulation.SqlPredicate(tableAlias);
     }
 
     public static void AddParameters(
         FilterSqlParameterPlanBuilder parameters,
-        FilterRuleContext context) =>
+        FilterConditionContext context) =>
         AddParameters(parameters, new GlPopulationContext(
             context.PopulationScope,
             context.PeriodStart,
@@ -369,39 +303,39 @@ internal static class GlPopulationScopeSql
 }
 
 /// <summary>
-/// 空值/期外日期紀錄分頁的 category → WHERE 述詞對映(白名單封閉集合,無任意字串注入)。
+/// 資料缺漏輔助檢視分頁的 category → WHERE 述詞對映(白名單封閉集合,無任意字串注入)。
 /// 空白判定由方言的去空白方法產生，三種資料庫去掉的字元集合和 .NET 相同;
-/// outOfRangeDate 以 @periodStart/@periodEnd 綁參(述詞文字兩 provider 相同);
-/// 「日期區間外」以**核准日 approval_date**判定(2026-06-23 決策,對齊舊 JET 工具的
-/// 「Approval date out of period」;非過帳日)。核准日未配對(NULL)則不命中。
+/// approvalDateNotInPeriod 以 @periodStart/@periodEnd 綁參(述詞文字兩 provider 相同);
+/// 「核准日不在期間」以核准日 approval_date 判定，不看總帳日期，和舊版 JET 的「Approval date out of period」相同
+/// （裁定 2026-06-23-01）。核准日空白的分錄不命中。
 /// </summary>
-internal static class NullRecordsCategoryPredicate
+internal static class BlankRecordsCategoryPredicate
 {
-    /// <summary>四類述詞的固定順序；全部限有效母體。</summary>
-    public static readonly IReadOnlyList<NullRecordCategory> All =
+    /// <summary>四類述詞的固定順序；全部只看納入測試的分錄。</summary>
+    public static readonly IReadOnlyList<BlankRecordCategory> All =
     [
-        NullRecordCategory.NullAccount,
-        NullRecordCategory.NullDocument,
-        NullRecordCategory.NullDescription,
-        NullRecordCategory.OutOfRangeDate
+        BlankRecordCategory.NullAccount,
+        BlankRecordCategory.NullDocument,
+        BlankRecordCategory.NullDescription,
+        BlankRecordCategory.ApprovalDateNotInPeriod
     ];
 
     /// <summary>空白判定去掉的字元集合由方言決定（和 .NET Trim 相同），三個 provider 答案一致。</summary>
-    public static string For(NullRecordCategory category, ISqlDialect dialect) => Build(category, dialect);
+    public static string For(BlankRecordCategory category, ISqlDialect dialect) => Build(category, dialect);
 
-    public static string Scoped(NullRecordCategory category, ISqlDialect dialect) =>
+    public static string Scoped(BlankRecordCategory category, ISqlDialect dialect) =>
         Scope(category, For(category, dialect));
 
-    private static string Build(NullRecordCategory category, ISqlDialect dialect) => category switch
+    private static string Build(BlankRecordCategory category, ISqlDialect dialect) => category switch
     {
-        NullRecordCategory.NullAccount => SqlBlankText.IsBlank(dialect, "account_code"),
-        NullRecordCategory.NullDocument => SqlBlankText.IsBlank(dialect, "document_number"),
-        NullRecordCategory.NullDescription => SqlBlankText.IsBlank(dialect, "document_description"),
-        NullRecordCategory.OutOfRangeDate =>
+        BlankRecordCategory.NullAccount => SqlBlankText.IsBlank(dialect, "account_number"),
+        BlankRecordCategory.NullDocument => SqlBlankText.IsBlank(dialect, "voucher_number"),
+        BlankRecordCategory.NullDescription => SqlBlankText.IsBlank(dialect, "description"),
+        BlankRecordCategory.ApprovalDateNotInPeriod =>
             "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))",
         _ => throw new ArgumentOutOfRangeException(nameof(category), category, "未知的 null 紀錄 category。")
     };
 
-    private static string Scope(NullRecordCategory category, string predicate) =>
-        $"({GlEffectivePopulation.SqlPredicate()}) AND ({predicate})";
+    private static string Scope(BlankRecordCategory category, string predicate) =>
+        $"({GlExcludedPopulation.SqlPredicate()}) AND ({predicate})";
 }

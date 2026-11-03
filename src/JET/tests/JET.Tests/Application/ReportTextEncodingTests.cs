@@ -17,7 +17,7 @@ using static JET.Tests.Application.SupportCaseHistoryTests;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 使用者 2026-10-21 回報驗證報告匯出在寫入 XML 時失敗。來源文字檔帶進 XML 不允許的控制字元時，ValidationReport 與
+/// 驗證報告匯出曾在寫入 XML 時失敗。來源文字檔帶進 XML 不允許的控制字元時，ValidationReport 與
 /// INFReport 仍要產生，借貸不平照樣保留，報告讀回的文字與來源一字不差；Excel 的跳脫格式本身、Tab 與換行也不能被改掉。
 /// 寫入仍失敗時，支援日誌要指出工作表、儲存格與字元的碼位。JET 讀 Excel 檔時依同一規則還原，審計員在 Excel 看到什麼就匯入什麼。
 /// 文字全部是合成資料。
@@ -46,17 +46,17 @@ public sealed class ReportTextEncodingTests
         using var host = new HandlerTestHost(enableDevTools: false);
         var id = await CreateCaseFromTextFileAsync(host, provider);
         var validation = await host.DispatchAsync("validate.run");
-        Assert.Equal(1, validation.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
-        var runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        Assert.Equal(1, validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         // 預設金額倍率 10,000：借方 10、貸方 9，差額 1。
-        var unbalanced = new UnbalancedDocument("V1", 100_000, 90_000, 10_000);
+        var unbalanced = new UnbalancedVoucher("V1", 100_000, 90_000, 10_000);
         Assert.Equal(unbalanced, await UnbalancedAsync(host, provider, id));
 
-        var exported = await ExportReportsAsync(host, id, runId);
-        var artifacts = exported.GetProperty("artifacts").EnumerateArray()
+        var exported = await ExportReportsAsync(host, id, resultId);
+        var reports = exported.GetProperty("publishedReports").EnumerateArray()
             .ToDictionary(item => item.GetProperty("kind").GetString()!, item => item.GetProperty("fullPath").GetString()!);
-        Assert.Equal(["infReport", "validationReport"], artifacts.Keys.Order(StringComparer.Ordinal));
-        foreach (var path in artifacts.Values)
+        Assert.Equal(["infReport", "validationReport"], reports.Keys.Order(StringComparer.Ordinal));
+        foreach (var path in reports.Values)
         {
             var texts = ReadTexts(path);
             Assert.Contains(Description, texts);
@@ -67,11 +67,11 @@ public sealed class ReportTextEncodingTests
 
         // 匯出不改來源資料：借貸不平的傳票仍在，借貸合計與差額不變，報告也列出這張傳票的兩列原始金額。
         Assert.Equal(unbalanced, await UnbalancedAsync(host, provider, id));
-        var unbalancedRows = SheetRows(artifacts["validationReport"], "V_Report 6");
+        var unbalancedRows = SheetRows(reports["validationReport"], "V_Report 6");
         Assert.Equal(["10", "9"], unbalancedRows.Skip(1).Select(row => row[7]));
         Assert.All(unbalancedRows.Skip(1), row => Assert.Equal("V1", row[0]));
 
-        var restored = await host.DispatchAsync("mapping.restoreDraft", Json(new { filePath = artifacts["validationReport"] }));
+        var restored = await host.DispatchAsync("mapping.restoreDraft", Json(new { filePath = reports["validationReport"] }));
         Assert.Equal(DescriptionColumn, restored.GetProperty("gl").GetProperty("mapping").GetProperty("description").GetString());
     }
 
@@ -84,7 +84,7 @@ public sealed class ReportTextEncodingTests
         using var host = new HandlerTestHost(enableDevTools: false);
         await host.DispatchAsync("project.create", Json(new
         {
-            caseName = "Synthetic escaped source", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider,
+            projectName = "Synthetic escaped source", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider,
         }));
         var path = Path.Combine(host.ProjectsRoot, "synthetic-escaped.xlsx");
         WriteEscapedSourceWorkbook(path);
@@ -109,8 +109,8 @@ public sealed class ReportTextEncodingTests
         using var host = new HandlerTestHost(enableDevTools: false);
         await CreateCaseFromTextFileAsync(host, provider);
         var validation = await host.DispatchAsync("validate.run");
-        var runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
-        var export = await host.DispatchAsync("export.accountMappingTemplate", Json(new { runId }));
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var export = await host.DispatchAsync("export.accountMappingTemplate", Json(new { resultId }));
         var templatePath = export.GetProperty("filePath").GetString()!;
         var filledPath = Path.Combine(host.ProjectsRoot, "synthetic-filled.xlsx");
 
@@ -128,7 +128,7 @@ public sealed class ReportTextEncodingTests
 
         var imported = await host.DispatchAsync("import.accountMapping.fromFile", Json(new { filePath = filledPath, fileName = "synthetic-filled.xlsx" }));
         Assert.Equal(3, imported.GetProperty("rowCount").GetInt32());
-        var preview = await host.DispatchAsync("query.dataPreview", """{ "dataset": "accountMappings" }""");
+        var preview = await host.DispatchAsync("query.dataPreview", """{ "dataset": "accountMapping" }""");
         var mapped = preview.GetProperty("rows").EnumerateArray()
             .Select(row => row.EnumerateArray().Select(cell => cell.GetString()).ToArray())
             .Single(row => row[0] == "5000");
@@ -215,13 +215,13 @@ public sealed class ReportTextEncodingTests
     }
 
     [Fact]
-    public void WorkpaperRowWithTextThatBypassesTheEncoder_KeepsTheOriginalErrorAndRecordsSheetCellAndCodePoint()
+    public void WorkingPaperRowWithTextThatBypassesTheEncoder_KeepsTheOriginalErrorAndRecordsSheetCellAndCodePoint()
     {
         using var stream = new MemoryStream();
         using var document = CreateWorkbook(stream, out var parts, out var styles);
         var error = Record.Exception(() =>
         {
-            using var sheet = WorkpaperWriter.SheetWriter.CreateContinuation(
+            using var sheet = WorkingPaperWriter.SheetWriter.CreateContinuation(
                 "合成1", parts[0], styles, mapCellStyle: null, CancellationToken.None, pageSetupRelationshipId: null);
             sheet.WriteRow(3, [sheet.TextCell(3, 1, "合成"), RawTextCell("B3", "合成￿")]);
         });
@@ -245,7 +245,7 @@ public sealed class ReportTextEncodingTests
     }
 
     [Fact]
-    public void CancellationWhileWritingAWorkpaperSheet_IsNotRecordedAsAWorksheetFailure()
+    public void CancellationWhileWritingAWorkingPaperSheet_IsNotRecordedAsAWorksheetFailure()
     {
         using var stream = new MemoryStream();
         using var document = CreateWorkbook(stream, out var parts, out var styles);
@@ -265,7 +265,7 @@ public sealed class ReportTextEncodingTests
 
         var error = Record.Exception(() =>
         {
-            using var sheet = WorkpaperWriter.SheetWriter.OverlayTemplate("合成1", parts[0], plan, styles, mapCellStyle: null, cancellation.Token);
+            using var sheet = WorkingPaperWriter.SheetWriter.OverlayTemplate("合成1", parts[0], plan, styles, mapCellStyle: null, cancellation.Token);
             cancellation.Cancel();
             sheet.WriteRow(2, [sheet.TextCell(2, 1, "合成")]);
         });
@@ -318,7 +318,7 @@ public sealed class ReportTextEncodingTests
     {
         var created = await host.DispatchAsync("project.create", Json(new
         {
-            caseName = "Synthetic report text", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider,
+            projectName = "Synthetic report text", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider,
         }));
         var id = created.GetProperty("projectId").GetString()!;
 
@@ -350,9 +350,9 @@ public sealed class ReportTextEncodingTests
         {
             mapping = new Dictionary<string, string>
             {
-                ["docNum"] = "傳票號碼", ["postDate"] = "傳票日期", ["docDate"] = "核准日期", ["accNum"] = "科目代號",
-                ["accName"] = "科目名稱", ["description"] = DescriptionColumn, ["createBy"] = "建立人員", ["amount"] = "金額",
-                ["dcField"] = "借方旗標", ["dcDebitCode"] = "1", ["dcCreditCode"] = "0",
+                ["voucherNumber"] = "傳票號碼", ["glDate"] = "傳票日期", ["approvalDate"] = "核准日期", ["accountNumber"] = "科目代號",
+                ["accountName"] = "科目名稱", ["description"] = DescriptionColumn, ["createdBy"] = "建立人員", ["amount"] = "金額",
+                ["drCr"] = "借方旗標", ["drCrDebitCode"] = "1", ["drCrCreditCode"] = "0",
             },
             amountMode = "flag",
             manualAutoPolicy = new { manualValues = new[] { "true", "1" }, automaticValues = new[] { "false", "0" }, blankValueKind = "reject" },
@@ -406,23 +406,23 @@ public sealed class ReportTextEncodingTests
         CellValue = new CellValue(value.ToString(CultureInfo.InvariantCulture)),
     };
 
-    private static async Task<UnbalancedDocument> UnbalancedAsync(HandlerTestHost host, string provider, string id)
+    private static async Task<UnbalancedVoucher> UnbalancedAsync(HandlerTestHost host, string provider, string id)
     {
         ILocalProjectDatabase database = provider == "sqlite"
             ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
             : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        var page = await new LocalDocBalancePageRepository(database).GetPageAsync(
+        var page = await new LocalVoucherBalancePageRepository(database).GetPageAsync(
             id, ProjectDocument.DefaultMoneyScale, "2025-01-01", "2025-12-31", new PageRequest(null, 10), CancellationToken.None);
         Assert.Null(page.NextCursor);
         return Assert.Single(page.Rows);
     }
 
     /// <summary>匯出失敗時改以支援日誌記下的失敗欄位與例外說明失敗原因，測試輸出即是使用者匯出的日誌內容。</summary>
-    private static async Task<JsonElement> ExportReportsAsync(HandlerTestHost host, string id, string runId)
+    private static async Task<JsonElement> ExportReportsAsync(HandlerTestHost host, string id, string resultId)
     {
         try
         {
-            return await host.DispatchAsync("export.validationArtifacts", Json(new { runId }), correlationId: "report-text");
+            return await host.DispatchAsync("export.validationReports", Json(new { resultId }), correlationId: "report-text");
         }
         catch (Exception)
         {
@@ -448,7 +448,7 @@ public sealed class ReportTextEncodingTests
         workbookPart.Workbook = new Workbook();
         var stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
         stylesPart.Stylesheet = new Stylesheet();
-        styles = WorkbookStyleMap.Append(stylesPart, WorkpaperStyles.Build());
+        styles = WorkbookStyleMap.Append(stylesPart, WorkingPaperStyles.Build());
         var sheets = workbookPart.Workbook.AppendChild(new Sheets());
         parts = new WorksheetPart[2];
         for (var index = 0; index < parts.Length; index++)

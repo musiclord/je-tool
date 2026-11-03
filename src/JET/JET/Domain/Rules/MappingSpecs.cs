@@ -6,9 +6,9 @@ public sealed record GlMappingSpec(
 {
     public GlMappingOptions Options { get; init; } = GlMappingOptions.NormalizeLegacy(Mapping);
 
-    /// <summary>是否已把「傳票文件項次」(lineID)對應到來源欄;未對應時投影層會自動逐傳票編號。</summary>
+    /// <summary>是否已把「傳票文件項次」(lineItem)對應到來源欄;未對應時投影層會自動逐傳票編號。</summary>
     public bool HasLineItem =>
-        Mapping.TryGetValue(GlMappingKeys.LineId, out var column) && !string.IsNullOrWhiteSpace(column);
+        Mapping.TryGetValue(GlMappingKeys.LineItem, out var column) && !string.IsNullOrWhiteSpace(column);
 }
 
 public sealed record TbMappingSpec(
@@ -20,52 +20,45 @@ public sealed record TbMappingSpec(
 /// </summary>
 public static class GlMappingKeys
 {
-    public const string DocNum = JetFieldCatalog.GlDocNum;
-    public const string LineId = JetFieldCatalog.GlLineId;
-    public const string PostDate = JetFieldCatalog.GlPostDate;
-    public const string DocDate = JetFieldCatalog.GlDocDate;
-    public const string AccNum = JetFieldCatalog.GlAccNum;
-    public const string AccName = JetFieldCatalog.GlAccName;
+    public const string VoucherNumber = JetFieldCatalog.GlVoucherNumber;
+    public const string LineItem = JetFieldCatalog.GlLineItem;
+    public const string GlDate = JetFieldCatalog.GlDate;
+    public const string ApprovalDate = JetFieldCatalog.GlApprovalDate;
+    public const string AccountNumber = JetFieldCatalog.GlAccountNumber;
+    public const string AccountName = JetFieldCatalog.GlAccountName;
     public const string Description = JetFieldCatalog.GlDescription;
-    public const string JeSource = JetFieldCatalog.GlJeSource;
-    public const string CreateBy = JetFieldCatalog.GlCreateBy;
-    public const string ApproveBy = JetFieldCatalog.GlApproveBy;
-    public const string Manual = JetFieldCatalog.GlManual;
+    public const string SourceModule = JetFieldCatalog.GlSourceModule;
+    public const string CreatedBy = JetFieldCatalog.GlCreatedBy;
+    public const string ApprovedBy = JetFieldCatalog.GlApprovedBy;
+    public const string IsManual = JetFieldCatalog.GlManual;
     public const string PostingStatus = JetFieldCatalog.GlPostingStatus;
     public const string Amount = JetFieldCatalog.GlAmount;
     public const string DebitAmount = JetFieldCatalog.GlDebitAmount;
     public const string CreditAmount = JetFieldCatalog.GlCreditAmount;
-    public const string DcField = JetFieldCatalog.GlDcField;
-    public const string DcDebitCode = JetFieldCatalog.GlDcDebitCode;
-    public const string DcCreditCode = JetFieldCatalog.GlDcCreditCode;
+    public const string DrCr = JetFieldCatalog.GlDrCr;
+    public const string DrCrDebitCode = JetFieldCatalog.GlDrCrDebitCode;
+    public const string DrCrCreditCode = JetFieldCatalog.GlDrCrCreditCode;
 
     public static readonly IReadOnlyList<string> All = JetFieldCatalog.GlMappingKeys;
-
-    /// <summary>
-    /// 已移除的配對鍵。使用者 2026-10-08 裁定移除傳票日期（voucherDate）；舊案件讀出已存配對時略過這些鍵，
-    /// 重開後的草稿與重新確認都不會再帶上它們。
-    /// </summary>
-    internal static readonly IReadOnlySet<string> Retired =
-        new HashSet<string>(JetFieldCatalog.RetiredGlFieldLabels.Keys, StringComparer.Ordinal);
 }
 
 public static class TbMappingKeys
 {
-    public const string AccNum = JetFieldCatalog.TbAccNum;
-    public const string AccName = JetFieldCatalog.TbAccName;
-    public const string Amount = JetFieldCatalog.TbAmount;
-    public const string DebitAmt = JetFieldCatalog.TbDebitAmount;
-    public const string CreditAmt = JetFieldCatalog.TbCreditAmount;
+    public const string AccountNumber = JetFieldCatalog.TbAccountNumber;
+    public const string AccountName = JetFieldCatalog.TbAccountName;
+    public const string ChangeAmount = JetFieldCatalog.TbChangeAmount;
+    public const string DebitAmount = JetFieldCatalog.TbDebitAmount;
+    public const string CreditAmount = JetFieldCatalog.TbCreditAmount;
 
     // OpenClose（legacy SA=2）：期初 / 期末餘額兩欄。
     public const string OpeningBalance = JetFieldCatalog.TbOpeningBalance;
     public const string ClosingBalance = JetFieldCatalog.TbClosingBalance;
 
     // OpenCloseBySide（legacy SA=4）：期初借貸 + 期末借貸四欄。
-    public const string OpeningDebit = JetFieldCatalog.TbOpeningDebit;
-    public const string OpeningCredit = JetFieldCatalog.TbOpeningCredit;
-    public const string ClosingDebit = JetFieldCatalog.TbClosingDebit;
-    public const string ClosingCredit = JetFieldCatalog.TbClosingCredit;
+    public const string OpeningDebitBalance = JetFieldCatalog.TbOpeningDebitBalance;
+    public const string OpeningCreditBalance = JetFieldCatalog.TbOpeningCreditBalance;
+    public const string ClosingDebitBalance = JetFieldCatalog.TbClosingDebitBalance;
+    public const string ClosingCreditBalance = JetFieldCatalog.TbClosingCreditBalance;
 
     public static readonly IReadOnlyList<string> All = JetFieldCatalog.TbMappingKeys;
 }

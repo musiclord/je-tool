@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixture)
     : IClassFixture<DemoGoldenProviderFixture>
 {
-    // 第 9 批中低 13：只擴充 provider；兩個引擎必須符合下方同一份手寫固定答案。
+    // 只擴充 provider；兩個引擎必須符合下方同一份手寫固定答案。
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
@@ -37,7 +37,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
         IValidationFactsPort factsPort = new LocalValidationRunRepository(
             DatabaseFor(provider, host));
 
-        // 第9批中低9：走正式同交易port擷取facts；原固定verdict不變。
+        // 走正式同交易port擷取facts；原固定verdict不變。
         var facts = await JET.Tests.Infrastructure.ValidationExecutionTestData.ExecuteForFactsAsync(factsPort, plan, CancellationToken.None);
         var result = JetAuditProgram.Finalize(plan, facts);
 
@@ -45,9 +45,9 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
         AssertVerdicts(
             result.Manifest,
             ("completeness_test", "na", 0L),
-            ("doc_balance_test", "na", 0L),
+            ("voucher_balance_test", "na", 0L),
             ("inf_sampling_test", "V", 59L),
-            ("null_records_test", "V", 58L));
+            ("blank_records_test", "V", 58L));
     }
 
     [Theory]
@@ -69,10 +69,10 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
                 project.GetProperty("periodEnd").GetString()!,
                 project.GetProperty("moneyScale").GetInt32(),
                 project.GetProperty("sampleSeed").GetInt64(),
-                RunId: "audit-core-prescreen-explain-golden",
+                ResultId: "audit-core-prescreen-explain-golden",
                 GeneratedUtc: new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero),
-                LastPeriodStart: demoProject.GetProperty("lastPeriodStart").GetString(),
-                // 預篩選收斂計畫階段四把核准日與建立人員兩個旗標換成可用欄位清單（2026-10-23）；null 不檢查欄位，
+                PrepStartDate: demoProject.GetProperty("prepStartDate").GetString(),
+                // 核准日與建立人員兩個旗標換成可用欄位清單；null 不檢查欄位，
                 // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
                 AvailableGlFields: null,
                 HasHolidays: true,
@@ -90,21 +90,21 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
         AssertPeriod(result.Manifest);
         AssertVerdicts(
             result.Manifest,
-            ("post_period_approval", "V", 40L),
+            ("prep_period_approval", "V", 40L),
             ("suspicious_keywords", "V", 25L),
-            ("unexpected_account_pair", "V", 30L),
+            // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29）：範例的 30 張傳票各 2 列，筆數由 30 改為 60；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+            ("unexpected_account_pair", "V", 60L),
             ("trailing_zeros", "V", 30L),
-            ("creator_summary", "V", 8L),
+            ("preparer_summary", "V", 8L),
             ("rare_accounts", "V", 17L),
             ("weekend_posting", "V", 24L),
             ("weekend_approval", "V", 20L),
             ("holiday_posting", "V", 28L),
             ("holiday_approval", "V", 16L),
             ("blank_description", "V", 18L),
-            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再有 backdated_posting 程序。
-            ("non_authorized_preparer", "V", 32L),
-            ("low_frequency_preparer", "V", 10L),
-            ("low_frequency_account", "V", 6L));
+            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，不再有 backdated_posting 程序。
+            // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），不再有 rare_preparer 與 rare_account 兩個程序。
+            ("non_authorized_preparer", "V", 32L));
     }
 
     private static ILocalProjectDatabase DatabaseFor(string provider, HandlerTestHost host) => provider switch
@@ -116,8 +116,8 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
 
     private static void AssertPeriod(AuditRunManifest manifest)
     {
-        Assert.Equal("2025-01-01", manifest.Plan.CaseSnapshot.PeriodStart);
-        Assert.Equal("2025-12-31", manifest.Plan.CaseSnapshot.PeriodEnd);
+        Assert.Equal("2025-01-01", manifest.Plan.ProjectSnapshot.PeriodStart);
+        Assert.Equal("2025-12-31", manifest.Plan.ProjectSnapshot.PeriodEnd);
     }
 
     // 逐項比對程序順序、狀態與計數；demo 母體每項程序都適用，所以 N/A 原因一律為空。

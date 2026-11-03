@@ -6,8 +6,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 科目配對全列匯出(SQL Server,鏡像 <see cref="LocalAccountMappingExportRepository"/>;匯出底稿 sheet 15)。
-/// 自 <c>target_account_mapping</c> 取每一列,not-in-tb 旗標以 <see cref="ValidationProcedures.CompletenessDiffCte"/>
-/// 的 not_in_tb 為單一事實來源(GL 有 TB 無 = 1)。科目數有界,全載入、不分頁。排序鍵 account_code ASC。
+/// 自 <c>account_mapping</c> 取每一列,not-in-tb 旗標以 <see cref="ValidationProcedures.CompletenessDiffCte"/>
+/// 的 not_in_tb 為單一事實來源(GL 有 TB 無 = 1)。科目數有界,全載入、不分頁。排序鍵 account_number ASC。
 /// not_in_tb 旗標 SQL Server 用 GetInt32(CASE WHEN 回 int)。
 /// </summary>
 public sealed class SqlServerAccountMappingExportRepository(SqlServerProjectDatabase database)
@@ -24,14 +24,14 @@ public sealed class SqlServerAccountMappingExportRepository(SqlServerProjectData
             ValidationProcedures.CompletenessDiffCteFor(SqlServerProjectSchema.QualifierFor(projectId)) +
             """
 
-            SELECT m.account_code,
+            SELECT m.account_number,
                    m.account_name,
                    COALESCE(t.label, m.standardized_category),
-                   CASE WHEN m.account_code IN (SELECT account_code FROM diff WHERE not_in_tb = 1)
+                   CASE WHEN m.account_number IN (SELECT account_number FROM diff WHERE not_in_tb = 1)
                         THEN 1 ELSE 0 END AS not_in_tb
-            FROM {s}.target_account_mapping m
-            LEFT JOIN {s}.config_account_taxonomy t ON t.category_id = m.category_id
-            ORDER BY m.account_code;
+            FROM {s}.account_mapping m
+            LEFT JOIN {s}.account_category t ON t.category_id = m.category_id
+            ORDER BY m.account_number;
             """);
         var rows = new List<AccountMappingExportRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -54,14 +54,14 @@ public sealed class SqlServerAccountMappingExportRepository(SqlServerProjectData
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 範本與科目清單、差異清單共用可配對科目母體（排除空白科目編號），account_code 升冪。
+        // 範本與科目清單、差異清單共用可配對科目母體（排除空白科目編號），account_number 升冪。
         await using var command = database.CreateCommand(connection, projectId,
             AccountMappingPopulationQuery.Cte(SqlServerProjectSchema.QualifierFor(projectId), SqlServerDialect.Instance) +
             """
 
-            SELECT account_code, account_name
+            SELECT account_number, account_name
             FROM population
-            ORDER BY account_code;
+            ORDER BY account_number;
             """);
         var rows = new List<AccountMappingTemplateRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);

@@ -14,7 +14,7 @@ public sealed class UserFeedbackProjectCreationTests
             "project.create",
             """
             {
-              "caseName": "只填案件名稱",
+              "projectName": "只填案件名稱",
               "periodStart": "2026-01-01",
               "periodEnd": "2026-12-31"
             }
@@ -25,7 +25,7 @@ public sealed class UserFeedbackProjectCreationTests
             Path.Combine(host.ProjectsRoot, projectId, "project.json")));
 
         Assert.Equal(string.Empty, document.RootElement.GetProperty("projectCode").GetString());
-        Assert.Equal(string.Empty, document.RootElement.GetProperty("entityName").GetString());
+        Assert.Equal(string.Empty, document.RootElement.GetProperty("clientName").GetString());
         Assert.Equal("current.user", document.RootElement.GetProperty("operatorId").GetString());
     }
 
@@ -38,9 +38,9 @@ public sealed class UserFeedbackProjectCreationTests
             "project.create",
             """
             {
-              "caseName": "不能冒名的案件",
+              "projectName": "不能冒名的案件",
               "projectCode": "OPTIONAL-001",
-              "entityName": "選填客戶",
+              "clientName": "選填客戶",
               "operatorId": "someone.else",
               "periodStart": "2026-01-01",
               "periodEnd": "2026-12-31"

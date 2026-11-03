@@ -36,8 +36,8 @@ internal sealed class AgentGuiTestFixtures
         "seed-export-ready-project";
     internal const string SeedCompletenessIneligibleProjectId =
         "seed-completeness-ineligible-project";
-    internal const string SeedStaleArtifactProjectId =
-        "seed-stale-artifact-project";
+    internal const string SeedStaleReportProjectId =
+        "seed-stale-report-project";
     internal const string SeedSixStageCompleteProjectId =
         "seed-six-stage-complete-project";
     internal const string SeedEditedReportProjectId =
@@ -60,7 +60,7 @@ internal sealed class AgentGuiTestFixtures
     [
         SeedExportReadyProjectId,
         SeedCompletenessIneligibleProjectId,
-        SeedStaleArtifactProjectId,
+        SeedStaleReportProjectId,
         SeedSixStageCompleteProjectId,
         SeedEditedReportProjectId,
         SeedMappingReadyProjectId,
@@ -77,7 +77,7 @@ internal sealed class AgentGuiTestFixtures
 
     internal const string FakeOnlineProjectId = "agent-gui-fake-online";
     internal const string FakeOnlineProjectCode = "AGENT-GUI-ONLINE";
-    internal const string FakeOnlineEntityName = "Agent GUI Online Fixture";
+    internal const string FakeOnlineClientName = "Agent GUI Online Fixture";
     internal const string FakeOnlinePeriodStart = "2025-01-01";
     internal const string FakeOnlinePeriodEnd = "2025-12-31";
 
@@ -141,7 +141,7 @@ internal sealed class AgentGuiTestFixtures
             or ReleaseVisibleSurfaceId
             or SeedExportReadyProjectId
             or SeedCompletenessIneligibleProjectId
-            or SeedStaleArtifactProjectId
+            or SeedStaleReportProjectId
             or SeedSixStageCompleteProjectId
             or SeedEditedReportProjectId
             or SeedMappingReadyProjectId
@@ -175,12 +175,12 @@ internal sealed class AgentGuiTestFixtures
             var demo = DemoDataFactory.Create();
             await DispatchAsync(dispatcher, "project.create", new
             {
-                caseName = seed.ProjectId,
+                projectName = seed.ProjectId,
                 projectCode = seed.ProjectCode,
-                entityName = seed.EntityName,
+                clientName = seed.ClientName,
                 periodStart = demo.PeriodStart,
                 periodEnd = demo.PeriodEnd,
-                lastPeriodStart = demo.LastPeriodStart,
+                prepStartDate = demo.PrepStartDate,
                 databaseProvider = "sqlite",
             }, cancellationToken).ConfigureAwait(false);
 
@@ -216,7 +216,7 @@ internal sealed class AgentGuiTestFixtures
                 PrepareRecoverySource(glFile, activeDemo);
                 var mapping = new Dictionary<string, string>(activeDemo.GlMapping, StringComparer.Ordinal)
                 {
-                    [GlMappingKeys.ApproveBy] = "GUI核准人員"
+                    [GlMappingKeys.ApprovedBy] = "GUI核准人員"
                 };
                 activeDemo = activeDemo with { GlMapping = mapping };
             }
@@ -242,7 +242,7 @@ internal sealed class AgentGuiTestFixtures
             {
                 MakeRunOwnedTbCompletenessIneligible(
                     tbFile,
-                    activeDemo.TbMapping[TbMappingKeys.DebitAmt]);
+                    activeDemo.TbMapping[TbMappingKeys.DebitAmount]);
             }
             await DispatchAsync(dispatcher, "import.tb.fromFile", new
             {
@@ -272,7 +272,7 @@ internal sealed class AgentGuiTestFixtures
             {
                 filePath = preparerFile.GetProperty("filePath").GetString(),
                 fileName = preparerFile.GetProperty("fileName").GetString(),
-                // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；示範檔固定使用姓名欄。
+                // sourceColumn 必填，後端不再依關鍵字猜欄；示範檔固定使用姓名欄。
                 sourceColumn = "姓名",
             }, cancellationToken).ConfigureAwait(false);
 
@@ -314,13 +314,14 @@ internal sealed class AgentGuiTestFixtures
 
             var validation = await DispatchAsync(
                 dispatcher, "validate.run", new { }, cancellationToken).ConfigureAwait(false);
-            // 2026-10-29 以前儲存的情境：編輯來源是第 1 版，逐條記卡片字母；這一版對應不回卡片，編輯時顯示舊版說明。
+            // 已儲存、但條件沒有對應常用篩選條件的情境：編輯來源是第 2 版，卡片記 null，重開時不標記任何卡片。
+            // 已儲存情境的第 1 版編輯來源已拿掉（裁定 2026-10-30-25），這份合成情境改成第 2 版。
             if (IsEnabled(LegacyCardScenarioId))
                 await DispatchAsync(dispatcher, "filter.commit", new
                 {
-                    scenarios = new[] { new { name = "LEGACY-CARDS", rationale = "Synthetic legacy card origins",
-                        groups = new[] { new { rules = new[] { new { type = "prescreen", prescreenKey = "blankDescription" } } } },
-                        editorOrigins = new { version = 1, groups = new[] { new { letters = new[] { "G" } } } } } }
+                    scenarios = new[] { new { name = "LEGACY-CARDS", rationale = "Synthetic scenario without card origins",
+                        groups = new[] { new { conditions = new[] { new { type = "prescreen", prescreenKey = "blankDescription" } } } },
+                        editorOrigins = new { version = 2, groups = new[] { new { cards = new string?[] { null } } } } } }
                 }, cancellationToken).ConfigureAwait(false);
             if (seed.CompleteLifecycle)
             {
@@ -390,11 +391,11 @@ internal sealed class AgentGuiTestFixtures
                 EditReportOutsideJet: false,
                 MappingReadyOnly: false,
                 UseSmallMappingData: false),
-            SeedStaleArtifactProjectId => new(
-                SeedStaleArtifactProjectId,
-                "agent-gui-stale-artifact",
+            SeedStaleReportProjectId => new(
+                SeedStaleReportProjectId,
+                "agent-gui-stale-report",
                 "AGENT-GUI-STALE",
-                "Agent GUI Stale Artifact Fixture",
+                "Agent GUI Stale Report Fixture",
                 MakeCompletenessIneligible: false,
                 CompleteLifecycle: true,
                 RefreshValidationAfterReports: true,
@@ -478,15 +479,15 @@ internal sealed class AgentGuiTestFixtures
         using var workbook = new XLWorkbook(path);
         var sheet = workbook.Worksheets.First();
         int Column(string key) => sheet.Row(1).CellsUsed().Single(cell => cell.GetString() == demo.GlMapping[key]).Address.ColumnNumber;
-        var document = Column(GlMappingKeys.DocNum);
-        var account = Column(GlMappingKeys.AccNum);
+        var document = Column(GlMappingKeys.VoucherNumber);
+        var account = Column(GlMappingKeys.AccountNumber);
         var description = Column(GlMappingKeys.Description);
-        var creator = Column(GlMappingKeys.CreateBy);
+        var preparer = Column(GlMappingKeys.CreatedBy);
         var lastRow = sheet.LastRowUsed()!.RowNumber();
         var approval = sheet.LastColumnUsed()!.ColumnNumber() + 1;
         sheet.Cell(1, approval).Value = "GUI核准人員";
         for (var row = 2; row <= lastRow; row++) sheet.Cell(row, approval).Value = "GUI-OTHER";
-        sheet.Cell(2, approval).Value = sheet.Cell(2, creator).GetString();
+        sheet.Cell(2, approval).Value = sheet.Cell(2, preparer).GetString();
         for (var index = 0; index < 411; index++)
         {
             var row = lastRow + index + 1;
@@ -504,12 +505,12 @@ internal sealed class AgentGuiTestFixtures
         JsonElement validation,
         CancellationToken cancellationToken)
     {
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString()
-            ?? throw new InvalidOperationException("Validation fixture response did not contain a run id.");
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()
+            ?? throw new InvalidOperationException("Validation fixture response did not contain a result id.");
         await DispatchAsync(
             dispatcher,
-            "export.validationArtifacts",
-            new { runId = validationRunId },
+            "export.validationReports",
+            new { resultId = validationResultId },
             cancellationToken).ConfigureAwait(false);
 
         var prescreen = await DispatchAsync(
@@ -517,12 +518,12 @@ internal sealed class AgentGuiTestFixtures
             "prescreen.run",
             new { },
             cancellationToken).ConfigureAwait(false);
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()
-            ?? throw new InvalidOperationException("Prescreen fixture response did not contain a run id.");
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()
+            ?? throw new InvalidOperationException("Prescreen fixture response did not contain a result id.");
         await DispatchAsync(
             dispatcher,
             "export.prescreenReport",
-            new { runId = prescreenRunId },
+            new { resultId = prescreenResultId },
             cancellationToken).ConfigureAwait(false);
 
         var committed = await DispatchAsync(dispatcher, "filter.commit", new
@@ -538,10 +539,10 @@ internal sealed class AgentGuiTestFixtures
                         new
                         {
                             join = "AND",
-                            // 2026-10-14 篩選條件改成每條只表達一件事後，舊式摘要關鍵字條件已停用，filter.commit 會拒絕它；
+                            // 裁定 2026-10-14-08 把篩選條件改成每條只表達一件事後，舊式摘要關鍵字條件已停用，filter.commit 會拒絕它；
                             // 2026-10-15 完整 Gui 因此在預先建案時失敗（20261015-032807757-b2d1f5b4386941c2b1fbb9f59ef55fc0）。
                             // 改用停用訊息指定的「傳票摘要」「包含任一文字」，關鍵字不變，情境的用途相同。
-                            rules = new[]
+                            conditions = new[]
                             {
                                 new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } },
                             },
@@ -555,14 +556,14 @@ internal sealed class AgentGuiTestFixtures
 
         await DispatchAsync(dispatcher, "export.criteriaSelectionReport", new
         {
-            validationRunId,
-            prescreenRunId,
+            validationResultId,
+            prescreenResultId,
             revision,
         }, cancellationToken).ConfigureAwait(false);
-        await DispatchAsync(dispatcher, "export.workpaperStream", new
+        await DispatchAsync(dispatcher, "export.workingPaperStream", new
         {
-            validationRunId,
-            prescreenRunId,
+            validationResultId,
+            prescreenResultId,
             scenarioRevision = revision,
             scenarioPositions = new[] { 1 },
         }, cancellationToken).ConfigureAwait(false);
@@ -589,8 +590,7 @@ internal sealed class AgentGuiTestFixtures
     }
 
     /// <summary>
-    /// 模擬審計員在 JET 之外改過 Working Paper，並留下舊設計的 journal：新設計載入時要照常開啟、把
-    /// journal 清掉，並在第六步清單把那份底稿標示為「已在 JET 之外修改」。
+    /// 模擬審計員在 JET 之外改過工作底稿：載入時要照常開啟，並在第六步清單把那份底稿標示為「已在 JET 之外修改」。
     /// </summary>
     private async Task EditReportOutsideJetAsync(
         string projectId,
@@ -600,28 +600,24 @@ internal sealed class AgentGuiTestFixtures
         var projectDirectory = folder.GetProjectDirectory(projectId);
         var workingPaper = Directory.GetFiles(projectDirectory, "*_WorkingPaper_*.xlsx").Single();
         await File.AppendAllTextAsync(workingPaper, "edited outside JET", cancellationToken).ConfigureAwait(false);
-        var store = new ProjectReportArtifactStore(folder);
+        var store = new ProjectReportStore(folder);
         var original = (await store.ListAsync(projectId, cancellationToken).ConfigureAwait(false))
-            .Single(artifact => artifact.Kind == ReportArtifactKind.WorkingPaper);
-        var missing = await store.WriteAsync(projectId, new ReportArtifactWriteRequest(
-            ReportArtifactKind.WorkingPaper, original.SourceRef,
+            .Single(report => report.Kind == ReportKind.WorkingPaper);
+        var missing = await store.WriteAsync(projectId, new ReportWriteRequest(
+            ReportKind.WorkingPaper, original.SourceRef,
             (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), cancellationToken).ConfigureAwait(false);
         File.Delete(Path.Combine(projectDirectory, missing.RelativeFileName));
         // Only metadata and one-byte temporary stand-ins are needed for pagination; no extra workbook generation.
         for (var index = 0; index < 50; index++)
         {
-            var historicalStore = new ProjectReportArtifactStore(folder,
+            var historicalStore = new ProjectReportStore(folder,
                 new HistoryFixtureTimeProvider(original.GeneratedUtc.AddDays(-1).AddMinutes(index)));
-            var historical = await historicalStore.WriteAsync(projectId, new ReportArtifactWriteRequest(
-                ReportArtifactKind.WorkingPaper, original.SourceRef,
+            var historical = await historicalStore.WriteAsync(projectId, new ReportWriteRequest(
+                ReportKind.WorkingPaper, original.SourceRef,
                 (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), cancellationToken).ConfigureAwait(false);
             File.Delete(Path.Combine(projectDirectory, historical.RelativeFileName));
         }
-        await store.MarkStaleAsync(projectId, ReportArtifactKind.WorkingPaper, cancellationToken).ConfigureAwait(false);
-        await File.WriteAllTextAsync(
-            Path.Combine(projectDirectory, ProjectReportArtifactStore.JournalFileName),
-            """{ "formatVersion": 1, "operation": "writeBatch" }""",
-            cancellationToken).ConfigureAwait(false);
+        await store.MarkStaleAsync(projectId, ReportKind.WorkingPaper, cancellationToken).ConfigureAwait(false);
     }
 
     private sealed class HistoryFixtureTimeProvider(DateTimeOffset now) : TimeProvider
@@ -633,7 +629,7 @@ internal sealed class AgentGuiTestFixtures
         string FixtureId,
         string ProjectId,
         string ProjectCode,
-        string EntityName,
+        string ClientName,
         bool MakeCompletenessIneligible,
         bool CompleteLifecycle,
         bool RefreshValidationAfterReports,
@@ -679,7 +675,7 @@ internal sealed class AgentGuiTestFixtures
     }
 
     internal IApplicationActionHandler DecorateNullSearch(IApplicationActionHandler handler) =>
-        IsEnabled(FailNullSearchOnceId) && handler.Action == "query.nullRecordsPage"
+        IsEnabled(FailNullSearchOnceId) && handler.Action == "query.blankRecordsPage"
             ? new FailNullSearchHandler(handler, this) : handler;
 
     private sealed class FailNullSearchHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
@@ -717,7 +713,7 @@ internal sealed class AgentGuiTestFixtures
         public string Action => inner.Action;
         public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
         {
-            // 標題照第一步匯入卡片的資料名稱（import-step.js 的 bindDatasetCard）。2026-10-08 資料名稱統一後是 PBC-GL、PBC-TB；
+            // 標題照第一步匯入卡片的資料名稱（import-step.js 的 bindDatasetCard）。資料名稱照裁定 2026-10-08-04 統一後是 PBC-GL、PBC-TB；
             // 舊標題對不上時會打開真的 Windows 選檔視窗，Gui 情境停在那裡等到逾時（2026-10-14 實跑查到）。
             var title = payload.TryGetProperty("title", out var value) ? value.GetString() : null;
             if (Action == "host.selectFile")
@@ -760,7 +756,7 @@ internal sealed class AgentGuiTestFixtures
             return Task.FromResult<object?>(new { files = new[] { new { filePath = path, fileName = Path.GetFileName(path) } } });
         }
 
-        // 假日與補班檔第一列是標題、第二列是欄名（同 Batch9MutationStateTests）。假日落在 SYN-1 的總帳日期 2025-06-01，
+        // 假日與補班檔第一列是標題、第二列是欄名（同 MutationInvalidationStateTests）。假日落在 SYN-1 的總帳日期 2025-06-01，
         // 補班日是週六 2025-06-07。科目配對檔用合成 GL 的兩個科目與內建分類名稱。
         private Task<object?> SelectSingleFile(string? title, JsonElement payload, CancellationToken cancellationToken)
         {
@@ -1491,7 +1487,7 @@ internal sealed class AgentGuiTestFixtures
             new ProjectDocument(
                 FakeOnlineProjectId,
                 FakeOnlineProjectCode,
-                FakeOnlineEntityName,
+                FakeOnlineClientName,
                 AgentGuiTestProfile.IsolatedPrincipal,
                 FakeOnlinePeriodStart,
                 FakeOnlinePeriodEnd,
@@ -1503,7 +1499,7 @@ internal sealed class AgentGuiTestFixtures
                 ProjectDocument.CurrentSchemaVersion,
                 ProjectDocument.SqlServerDatabaseProvider,
                 LastOpenedUtc: FakeOnlineLastOpenedUtc,
-                // 目前版本的案件一定有 INF 抽樣種子與演算法版本；缺欄位會被當成舊版案件拒絕。
+                // 目前版本的案件一定有 INF 抽樣種子與演算法版本；缺欄位會被當成設定檔損壞拒絕。
                 SampleSeed: 1_234_567,
                 SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion,
                 CalendarImported: false),

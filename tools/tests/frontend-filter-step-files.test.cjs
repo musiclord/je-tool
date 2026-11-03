@@ -1,9 +1,9 @@
 'use strict';
 require('./support/resource-guard.cjs');
-// 第五步 filter-step.js 的拆檔（預篩選收斂計畫階段十，2026-10-25）。
+// 第五步 filter-step.js 的拆檔（2026-10-25）。
 //
 // 第五步的程式分成五個檔案：filter-step-view.js（檢視狀態與資料世代）、filter-step-sources.js（條件來源的挑選）、
-// filter-step-rules.js（條件列與摘要文字）、filter-step-saved.js（已存情境、矩陣與條件篩選報告）與 filter-step.js
+// filter-step-rules.js（條件列與摘要文字）、filter-step-saved.js（已存情境、高風險條件彙總與條件篩選報告）與 filter-step.js
 // （送出形狀、送出前檢查與畫面組裝）。各檔把自己的最外層函式掛在 JetUi.FilterStep，其他檔案透過它轉呼叫。
 // 這個檔固定拆檔後的結構：五個檔案都存在、index.html 依序載入、每個檔案都是獨立的 IIFE 並掛在 JetUi.FilterStep、
 // 同一個函式只在一個檔案定義、轉呼叫與常數別名都有人定義，而且依序載入後第五步照常註冊。

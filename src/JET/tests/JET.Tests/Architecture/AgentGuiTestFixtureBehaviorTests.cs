@@ -102,7 +102,7 @@ public sealed class AgentGuiTestFixtureBehaviorTests
                 {
                     AgentGuiTestFixtures.SeedExportReadyProjectId,
                     AgentGuiTestFixtures.SeedCompletenessIneligibleProjectId,
-                    AgentGuiTestFixtures.SeedStaleArtifactProjectId,
+                    AgentGuiTestFixtures.SeedStaleReportProjectId,
                     AgentGuiTestFixtures.SeedSixStageCompleteProjectId,
                     AgentGuiTestFixtures.SeedMappingReadyProjectId,
                     AgentGuiTestFixtures.SeedConflictedJournalProjectId,
@@ -125,7 +125,7 @@ public sealed class AgentGuiTestFixtureBehaviorTests
             var conflictingSeeds = CreateFixtures(
                 root,
                 AgentGuiTestFixtures.SeedCompletenessIneligibleProjectId,
-                AgentGuiTestFixtures.SeedStaleArtifactProjectId);
+                AgentGuiTestFixtures.SeedStaleReportProjectId);
             Assert.Throws<InvalidOperationException>(() => _ = conflictingSeeds.SeedsProjectState);
         }
         finally

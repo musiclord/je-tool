@@ -10,20 +10,20 @@ public sealed class PrivateCaseScenarioDiagnosticsTests
     public async Task ExplicitVoucherWitnesses_PreserveSameRowAndTextDiagnostics()
     {
         var scenarios = Element("""
-            [{"groups":[{"matchScope":"row","rules":[
+            [{"groups":[{"matchScope":"row","conditions":[
               {"type":"drCrOnly","drCr":"credit"},
-              {"type":"voucher","quantifier":"any","rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]},
-              {"type":"voucher","quantifier":"any","rules":[{"type":"textSet","field":"description","mode":"contains","values":["alpha"]}]}]}]}]
+              {"type":"voucher","quantifier":"any","conditions":[{"type":"prescreen","prescreenKey":"blankDescription"}]},
+              {"type":"voucher","quantifier":"any","conditions":[{"type":"textSet","field":"description","mode":"contains","values":["alpha"]}]}]}]}]
             """);
         var previews = 0;
         Task<JsonElement> Dispatch(string action, string payload)
         {
-            if (action == "query.tagMatrixRowPage") return Task.FromResult(Element("""
-                {"rows":[{"documentNumber":"synthetic","description":null,"matchedPositions":[1]},
-                 {"documentNumber":"synthetic","description":"alpha","matchedPositions":[]}],"nextCursor":null}
+            if (action == "query.highRiskSummaryRowPage") return Task.FromResult(Element("""
+                {"rows":[{"voucherNumber":"synthetic","description":null,"matchedPositions":[1]},
+                 {"voucherNumber":"synthetic","description":"alpha","matchedPositions":[]}],"nextCursor":null}
                 """));
             Assert.Equal("filter.preview", action);
-            var rules = Element(payload).GetProperty("scenario").GetProperty("groups")[0].GetProperty("rules");
+            var rules = Element(payload).GetProperty("scenario").GetProperty("groups")[0].GetProperty("conditions");
             Assert.Equal(new[] { "drCrOnly", "prescreen", "textSet" }, rules.EnumerateArray().Select(r => r.GetProperty("type").GetString()));
             previews++;
             return Task.FromResult(Element("""{"scenario":{"count":3,"voucherCount":2}}"""));
@@ -46,18 +46,18 @@ public sealed class PrivateCaseScenarioDiagnosticsTests
         using var scenarios = JsonDocument.Parse(
             """
             [
-              {"groups":[{"rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]},
-              {"groups":[{"rules":[{"type":"textSet","field":"description","mode":"contains","values":["synthetic-match"]}]}]}
+              {"groups":[{"conditions":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]},
+              {"groups":[{"conditions":[{"type":"textSet","field":"description","mode":"contains","values":["synthetic-match"]}]}]}
             ]
             """);
         var queryCount = 0;
 
         Task<JsonElement> Dispatch(string action, string payload)
         {
-            Assert.Equal("query.tagMatrixRowPage", action);
+            Assert.Equal("query.highRiskSummaryRowPage", action);
             queryCount++;
             return Task.FromResult(Element(hasUnmatchedRow
-                ? """{"rows":[{"documentNumber":"synthetic-unmatched","description":"ordinary","matchedPositions":[]}],"nextCursor":null}"""
+                ? """{"rows":[{"voucherNumber":"synthetic-unmatched","description":"ordinary","matchedPositions":[]}],"nextCursor":null}"""
                 : """{"rows":[],"nextCursor":null}"""));
         }
 
@@ -88,9 +88,9 @@ public sealed class PrivateCaseScenarioDiagnosticsTests
         using var scenarios = JsonDocument.Parse(
             """
             [
-              {"groups":[{"matchScope":"sameVoucher","rules":[{"type":"prescreen","prescreenKey":"unexpectedAccountPair"},{"type":"prescreen","prescreenKey":"blankDescription"}]}]},
-              {"groups":[{"rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]},
-              {"groups":[{"rules":[{"type":"prescreen","prescreenKey":"weekendPosting"}]}]}
+              {"groups":[{"matchScope":"sameVoucher","conditions":[{"type":"prescreen","prescreenKey":"unexpectedAccountPair"},{"type":"prescreen","prescreenKey":"blankDescription"}]}]},
+              {"groups":[{"conditions":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]},
+              {"groups":[{"conditions":[{"type":"prescreen","prescreenKey":"weekendPosting"}]}]}
             ]
             """);
         var actions = new List<string>();
@@ -101,17 +101,17 @@ public sealed class PrivateCaseScenarioDiagnosticsTests
             await Task.Yield();
             return action switch
             {
-                "query.tagMatrixRowPage" => Element(
+                "query.highRiskSummaryRowPage" => Element(
                     """
                     {
                       "rows":[
-                        {"documentNumber":"synthetic-1","description":"first","matchedPositions":[1]},
-                        {"documentNumber":"synthetic-1","description":"second","matchedPositions":[]},
-                        {"documentNumber":"synthetic-2","description":null,"matchedPositions":[2]},
-                        {"documentNumber":"synthetic-2","description":"filled","matchedPositions":[]},
-                        {"documentNumber":"synthetic-3","description":"direct hit","matchedPositions":[2]},
-                        {"documentNumber":"synthetic-3","description":null,"matchedPositions":[]},
-                        {"documentNumber":"synthetic-4","description":"weekend","matchedPositions":[3]}
+                        {"voucherNumber":"synthetic-1","description":"first","matchedPositions":[1]},
+                        {"voucherNumber":"synthetic-1","description":"second","matchedPositions":[]},
+                        {"voucherNumber":"synthetic-2","description":null,"matchedPositions":[2]},
+                        {"voucherNumber":"synthetic-2","description":"filled","matchedPositions":[]},
+                        {"voucherNumber":"synthetic-3","description":"direct hit","matchedPositions":[2]},
+                        {"voucherNumber":"synthetic-3","description":null,"matchedPositions":[]},
+                        {"voucherNumber":"synthetic-4","description":"weekend","matchedPositions":[3]}
                       ],
                       "nextCursor":null
                     }
@@ -143,7 +143,7 @@ public sealed class PrivateCaseScenarioDiagnosticsTests
         Assert.Equal(2, result.SelectedVoucherNumbersByPosition[2].Count);
         Assert.Equal(9L, result.Counts[0].SameRowRuleMatchRowCount);
         Assert.Equal(4L, result.Counts[0].SameRowRuleMatchVoucherCount);
-        Assert.Contains("query.tagMatrixRowPage", actions);
+        Assert.Contains("query.highRiskSummaryRowPage", actions);
         Assert.Contains("filter.preview", actions);
 
         var json = JsonSerializer.Serialize(result);
@@ -156,7 +156,7 @@ public sealed class PrivateCaseScenarioDiagnosticsTests
     public async Task CaptureAsync_MalformedProductEvidence_IsRejectedWithoutEchoingValues()
     {
         using var scenarios = JsonDocument.Parse(
-            """[{"groups":[{"rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]}]""");
+            """[{"groups":[{"conditions":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]}]""");
 
         var exception = await Assert.ThrowsAsync<PrivateCaseScenarioDiagnosticException>(() =>
             PrivateCaseScenarioDiagnostics.CaptureAsync(
@@ -174,13 +174,13 @@ public sealed class PrivateCaseScenarioDiagnosticsTests
     public async Task CaptureAsync_ProductError_RetainsOnlyStageAndRegisteredCode()
     {
         using var scenarios = JsonDocument.Parse(
-            """[{"groups":[{"matchScope":"sameVoucher","rules":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]}]""");
+            """[{"groups":[{"matchScope":"sameVoucher","conditions":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]}]""");
 
         var exception = await Assert.ThrowsAsync<PrivateCaseScenarioDiagnosticException>(() =>
             PrivateCaseScenarioDiagnostics.CaptureAsync(
                 scenarios.RootElement,
                 [],
-                (action, _) => action == "query.tagMatrixRowPage"
+                (action, _) => action == "query.highRiskSummaryRowPage"
                     ? Task.FromResult(Element("""{"rows":[],"nextCursor":null}"""))
                     : throw new JetActionException(
                         "synthetic_code",

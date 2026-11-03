@@ -7,8 +7,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 把屬於案件的支援事件持續附加到案件資料夾的 <c>support-log/events.ndjson</c>。使用者 2026-10-21 裁定
-/// 存在案件資料夾內、整個案件一個檔、只記啟動代號與版本、保留到刪除案件。
+/// 把屬於案件的支援事件持續附加到案件資料夾的 <c>support-log/events.ndjson</c>。
+/// 紀錄存在案件資料夾內、整個案件一個檔、只記啟動代號與版本、保留到刪除案件（裁定 2026-10-21-08）。
 /// <list type="bullet">
 /// <item>事件由背景寫入器依序附加，審計操作不等磁碟。每次附加都以只允許別人讀取的方式開檔，
 /// 兩個 JET 程式碰到同一案件時輪流寫入；檔案被占用時稍候重試。</item>
@@ -44,7 +44,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
     private readonly Task _writer;
 
     // 只有寫入器讀寫。
-    private readonly Dictionary<string, CaseState> _cases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ProjectState> _cases = new(StringComparer.OrdinalIgnoreCase);
 
     // 寫入器更新，匯出讀取。
     private readonly ConcurrentDictionary<string, SupportCaseHistoryWriteState> _writeStates =
@@ -385,7 +385,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
         }
     }
 
-    private void Publish(string projectId, CaseState state)
+    private void Publish(string projectId, ProjectState state)
     {
         if (state.Unsaved.Count == 0 && state.Dropped == 0 && state.LastFailure is null)
         {
@@ -404,7 +404,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
         _writeStates[projectId] = new SupportCaseHistoryWriteState(state.Unsaved.ToArray(), state.Dropped, failure);
     }
 
-    private static async Task AppendAsync(string path, CaseState state, string? processInstance, StringBuilder lines)
+    private static async Task AppendAsync(string path, ProjectState state, string? processInstance, StringBuilder lines)
     {
         for (var attempt = 0; ; attempt++)
         {
@@ -506,11 +506,11 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
     private static bool IsLinked(string directory) =>
         (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0;
 
-    private CaseState State(string projectId)
+    private ProjectState State(string projectId)
     {
         if (!_cases.TryGetValue(projectId, out var state))
         {
-            _cases[projectId] = state = new CaseState();
+            _cases[projectId] = state = new ProjectState();
         }
 
         return state;
@@ -526,7 +526,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
 
     private sealed record FlushItem(TaskCompletionSource Done) : WorkItem;
 
-    private sealed class CaseState
+    private sealed class ProjectState
     {
         /// <summary>這個程序開過這個案件，之後寫不進去都算缺口。</summary>
         public bool Prepared { get; set; }

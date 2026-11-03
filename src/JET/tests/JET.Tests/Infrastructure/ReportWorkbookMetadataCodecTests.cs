@@ -20,7 +20,7 @@ public sealed class ReportWorkbookMetadataCodecTests
         var metadata = new ReportWorkbookMetadata(
             "2026-01-01",
             "2026-12-31",
-            TaxonomyRevision: 7,
+            CategoryRevision: 7,
             gl,
             TbMapping: null);
 
@@ -28,12 +28,12 @@ public sealed class ReportWorkbookMetadataCodecTests
         var root = document.RootElement;
 
         Assert.Equal(
-            ["formatVersion", "approvalDateMode", "populationPolicy", "taxonomyRevision", "mapping"],
+            ["formatVersion", "approvalDateMode", "populationPolicy", "categoryRevision", "mapping"],
             root.EnumerateObject().Select(static property => property.Name).ToArray());
         Assert.Equal(ApprovalDateModeNames.Mapped, root.GetProperty("approvalDateMode").GetString());
         Assert.Equal("2026-01-01", root.GetProperty("populationPolicy").GetProperty("periodStart").GetString());
         Assert.True(root.GetProperty("populationPolicy").GetProperty("postingStatus").GetProperty("includeBlank").GetBoolean());
-        Assert.Equal(7, root.GetProperty("taxonomyRevision").GetInt32());
+        Assert.Equal(7, root.GetProperty("categoryRevision").GetInt32());
         Assert.Equal(MappingMetadataFormat.CurrentVersion, root.GetProperty("mapping").GetProperty("formatVersion").GetInt32());
         Assert.Equal("gl-batch", root.GetProperty("mapping").GetProperty("gl").GetProperty("sourceBatchId").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("mapping").GetProperty("tb").ValueKind);
@@ -50,9 +50,9 @@ public sealed class ReportWorkbookMetadataCodecTests
             DatasetKind.Tb,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [TbMappingKeys.AccNum] = "Account",
-                [TbMappingKeys.AccName] = "AccountName",
-                [TbMappingKeys.Amount] = "Movement"
+                [TbMappingKeys.AccountNumber] = "Account",
+                [TbMappingKeys.AccountName] = "AccountName",
+                [TbMappingKeys.ChangeAmount] = "Movement"
             },
             TbChangeModeNames.Direct,
             "tb-batch",
@@ -60,7 +60,7 @@ public sealed class ReportWorkbookMetadataCodecTests
         var metadata = new ReportWorkbookMetadata(
             "2026-01-01",
             "2026-12-31",
-            TaxonomyRevision: 7,
+            CategoryRevision: 7,
             GlMapping(),
             tb);
 
@@ -78,7 +78,7 @@ public sealed class ReportWorkbookMetadataCodecTests
         Assert.Equal("tb-batch", encodedTb.GetProperty("sourceBatchId").GetString());
         Assert.Equal(
             "Movement",
-            encodedTb.GetProperty("mapping").GetProperty(TbMappingKeys.Amount).GetString());
+            encodedTb.GetProperty("mapping").GetProperty(TbMappingKeys.ChangeAmount).GetString());
         Assert.Equal(TbChangeModeNames.Direct, encodedTb.GetProperty("changeMode").GetString());
     }
 
@@ -218,7 +218,7 @@ public sealed class ReportWorkbookMetadataCodecTests
     {
         var mapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocDate] = "ApprovedAt",
+            [GlMappingKeys.ApprovalDate] = "ApprovedAt",
             [GlMappingKeys.PostingStatus] = "PostingState"
         };
         var fields = Enumerable.Range(1, rdeFieldCount)
@@ -230,7 +230,7 @@ public sealed class ReportWorkbookMetadataCodecTests
                 {
                     0 => RdeFieldValueTypeNames.Text,
                     1 => RdeFieldValueTypeNames.Date,
-                    _ => RdeFieldValueTypeNames.Money
+                    _ => RdeFieldValueTypeNames.Amount
                 }))
             .ToArray();
         var sourceColumns = new[] { "ApprovedAt", "PostingState" }
@@ -256,7 +256,7 @@ public sealed class ReportWorkbookMetadataCodecTests
         return new ReportWorkbookMetadata(
             "2026-01-01",
             "2026-12-31",
-            TaxonomyRevision: 7,
+            CategoryRevision: 7,
             gl,
             TbMapping: null);
     }
@@ -275,7 +275,7 @@ public sealed class ReportWorkbookMetadataCodecTests
             DatasetKind.Gl,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocDate] = "ApprovedAt",
+                [GlMappingKeys.ApprovalDate] = "ApprovedAt",
                 [GlMappingKeys.PostingStatus] = "PostingState"
             },
             "debitCredit",

@@ -11,7 +11,7 @@ namespace JET.Tests.Application;
 /// 雙來源專案清單與線上登記的 Application 層驗收：
 /// project.list 三態合併＋online、project.create 登記＋授權、project.load 物化/lazy-heal/
 /// 幽靈擋下，以及 sqlite 可攜性不變式。SQL 相關全 [SqlServerFact] 閘控（連 JET_Test，非 Express、≥ 2022）。
-/// 隔離：每測試唯一 caseName/principal；finally 以 <see cref="TempSqlServerProject.DropDatabaseAsync"/>
+/// 隔離：每測試唯一 projectName/principal；finally 以 <see cref="TempSqlServerProject.DropDatabaseAsync"/>
 /// （drop schema ＋ 清 registry）清理。oracle：manifest project.* 契約 ＋ 檔案系統物證。
 /// </summary>
 public sealed class DualSourceProjectTests
@@ -20,9 +20,9 @@ public sealed class DualSourceProjectTests
 
     private static string Tag() => Guid.NewGuid().ToString("N")[..10];
 
-    private static string SqlServerPayload(string caseName, string code = "SRV-CODE") =>
+    private static string SqlServerPayload(string projectName, string code = "SRV-CODE") =>
         $$"""
-        { "caseName": "{{caseName}}", "projectCode": "{{code}}", "entityName": "線上實體", "operatorId": "op",
+        { "projectName": "{{projectName}}", "projectCode": "{{code}}", "clientName": "線上實體", "operatorId": "op",
           "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "sqlServer" }
         """;
 
@@ -129,7 +129,8 @@ public sealed class DualSourceProjectTests
                 () => host.DispatchAsync("project.create", SqlServerPayload(name)));
 
             Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-            Assert.Contains("本機沒有對應的案件登記", ex.Message);
+            // 裁定 2026-10-30-20：這句的「可能」照確認頁的表改寫。SQL Server 測試要連線才執行，這次只經編譯，沒有失敗收據。
+            Assert.Contains("這台電腦沒有這個案件的登記", ex.Message);
             // 檢查先於寫入：失敗嘗試不得留下本機資料夾。
             Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, name)));
         }
@@ -140,7 +141,7 @@ public sealed class DualSourceProjectTests
     }
 
     // ---- project.load：物化 serverOnly、幽靈擋下、lazy-heal、物化資料夾衝突 ----
-    // 2026-10-02 使用者裁定本機案件不查線上登錄：本機沒有案件資料夾時，project.load 只有在請求帶
+    // 本機案件不查線上登錄（裁定 2026-10-02-06）：本機沒有案件資料夾時，project.load 只有在請求帶
     // "databaseProvider":"sqlServer" 時才查登錄，所以下面本機無資料夾的四個載入請求補上這個欄位，
     // 讓它們照舊走登錄路徑，斷言不變。這些測試只在 SQL Server 路線執行；修改時 SQL Server 開發暫緩，
     // 沒有執行該路線，所以沒有修改前的失敗紀錄。
@@ -201,7 +202,7 @@ public sealed class DualSourceProjectTests
                     "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }"""));
 
             Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-            // 使用者 2026-10-14 第三輪勾選頁確認 R3-51。SQL Server 只經編譯，這個測試在 Provider 路線，這一批沒有執行。
+            // 裁定 2026-10-14-01 確認了這句的用字。SQL Server 只經編譯，這個測試在 Provider 路線，當時沒有執行。
             Assert.Contains("設定檔中的抽樣設定已損壞", exception.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
             Assert.Contains("不會重新產生", exception.Message, StringComparison.Ordinal);
@@ -296,8 +297,8 @@ public sealed class DualSourceProjectTests
         }
     }
 
-    // ---- 逐使用者操作隔離（2026-07-07 spec §4）：load/delete 授權前置、list noAccess、存在性不洩漏 ----
-    // 每測試唯一 caseName／owner／intruder principal（GUID 隔離）；owner 建案獲授權、intruder 為未授權的第二使用者。
+    // ---- 逐使用者操作隔離：load/delete 授權前置、list noAccess、存在性不洩漏 ----
+    // 每測試唯一 projectName／owner／intruder principal（GUID 隔離）；owner 建案獲授權、intruder 為未授權的第二使用者。
 
     /// <summary>
     /// ①：B 持有 A 案的本機快取（A 建案＋B 複製資料夾）→ B project.load 回 not_authorized。
@@ -396,7 +397,7 @@ public sealed class DualSourceProjectTests
 
     /// <summary>
     /// ④：B 對他人案（B 本機**無**快取）project.load → project_not_found（存在性不洩漏）。serverOnly 物化走
-    /// principal-scoped 的 FindVisibleAsync，不可見即當作不存在——鎖住現行為，不因本輪授權前置退化成 not_authorized。
+    /// principal-scoped 的 FindVisibleAsync，不可見即當作不存在——鎖住現行為，不因授權前置檢查退化成 not_authorized。
     /// </summary>
     [SqlServerFact]
     public async Task Load_OtherUsersProjectWithoutLocalCache_ThrowsProjectNotFound_DoesNotLeakExistence()
@@ -434,7 +435,7 @@ public sealed class DualSourceProjectTests
         var created = await source.DispatchAsync(
             "project.create",
             $$"""
-            { "caseName": "{{name}}", "projectCode": "PORT-1", "entityName": "可攜實體", "operatorId": "op",
+            { "projectName": "{{name}}", "projectCode": "PORT-1", "clientName": "可攜實體", "operatorId": "op",
               "periodStart": "2024-01-01", "periodEnd": "2024-12-31" }
             """);
         var id = created.GetProperty("projectId").GetString()!;
@@ -507,7 +508,7 @@ public sealed class DualSourceProjectTests
         var created = await source.DispatchAsync(
             "project.create",
             $$"""
-            { "caseName": "{{name}}", "projectCode": "PORT-D", "entityName": "可攜實體", "operatorId": "op",
+            { "projectName": "{{name}}", "projectCode": "PORT-D", "clientName": "可攜實體", "operatorId": "op",
               "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "duckdb" }
             """);
         var id = created.GetProperty("projectId").GetString()!;
@@ -560,7 +561,7 @@ public sealed class DualSourceProjectTests
             {
               "projectId": "{{projectId}}",
               "projectCode": "CACHE-1",
-              "entityName": "快取實體",
+              "clientName": "快取實體",
               "operatorId": "op",
               "periodStart": "2024-01-01",
               "periodEnd": "2024-12-31",
@@ -569,7 +570,7 @@ public sealed class DualSourceProjectTests
               "roundingMode": "AwayFromZero",
               "createdUtc": "2026-06-01T00:00:00+00:00",
               "currentStep": 1,
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "databaseProvider": "sqlServer",
               "sampleSeed": 1,
               "sampleSeedVersion": 2

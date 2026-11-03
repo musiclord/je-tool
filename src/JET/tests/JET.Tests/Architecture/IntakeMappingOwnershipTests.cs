@@ -29,22 +29,22 @@ public sealed class IntakeMappingOwnershipTests
             "JET.AuditCore.CalendarInlineRequest",
             "JET.AuditCore.CalendarPlan",
             "JET.AuditCore.CalendarResult",
-            "JET.AuditCore.CaseCreateFacts",
-            "JET.AuditCore.CaseCreatePlan",
-            "JET.AuditCore.CaseCreatePreflightRequest",
-            "JET.AuditCore.CaseCreateRequest",
-            "JET.AuditCore.CaseCreateResult",
-            "JET.AuditCore.CaseCreateBackendDifferentOwnerException",
-            "JET.AuditCore.CaseCreateExistingWorkLockException",
-            "JET.AuditCore.CaseCreateLockHeldException",
+            "JET.AuditCore.ProjectCreateFacts",
+            "JET.AuditCore.ProjectCreatePlan",
+            "JET.AuditCore.ProjectCreatePreflightRequest",
+            "JET.AuditCore.ProjectCreateRequest",
+            "JET.AuditCore.ProjectCreateResult",
+            "JET.AuditCore.ProjectCreateBackendDifferentOwnerException",
+            "JET.AuditCore.ProjectCreateExistingWorkLockException",
+            "JET.AuditCore.ProjectCreateLockHeldException",
             "JET.AuditCore.GlMappingPlan",
             "JET.AuditCore.GlMappingRequest",
             "JET.AuditCore.GlMappingResult",
             "JET.AuditCore.IAccountMappingImportPersistence",
             "JET.AuditCore.IAuthorizedPreparerImportPersistence",
-            "JET.AuditCore.ICaseCreateBackendAttempt",
-            "JET.AuditCore.ICaseCreateBackendPort",
-            "JET.AuditCore.ICaseCreateFactsPort",
+            "JET.AuditCore.IProjectCreateBackendAttempt",
+            "JET.AuditCore.IProjectCreateBackendPort",
+            "JET.AuditCore.IProjectCreateFactsPort",
             "JET.AuditCore.IIntakeFactsPort",
             "JET.AuditCore.IMappingFactsPort",
             "JET.AuditCore.IReferenceDataFactsPort",
@@ -75,7 +75,7 @@ public sealed class IntakeMappingOwnershipTests
 
     /// <remarks>
     /// 2026-10-02 資料庫分流簡化：建案 backend 轉接器本來就不經分流層選資料庫，分流層刪除時從
-    /// ProviderRoutingCaseCreateBackendPort 改名為 CaseCreateBackendPort，清單跟著改名，仍要求存在且為 internal。
+    /// ProviderRoutingProjectCreateBackendPort 改名為 ProjectCreateBackendPort，清單跟著改名，仍要求存在且為 internal。
     /// 第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
     /// </remarks>
     [Fact]
@@ -83,8 +83,8 @@ public sealed class IntakeMappingOwnershipTests
     {
         var expected = new[]
         {
-            "JET.Infrastructure.CaseCreateBackendPort",
-            "JET.Infrastructure.CaseCreateFactsPort",
+            "JET.Infrastructure.ProjectCreateBackendPort",
+            "JET.Infrastructure.ProjectCreateFactsPort",
             "JET.Infrastructure.IntakeFactsPort",
             "JET.Infrastructure.MappingFactsPort",
             "JET.Infrastructure.ReferenceDataFactsPort"
@@ -99,11 +99,11 @@ public sealed class IntakeMappingOwnershipTests
     }
 
     [Fact]
-    public void LegacyRuleRunResetScope_IsRemoved()
+    public void LegacyResultResetScope_IsRemoved()
     {
         Assert.Null(
             ProductionAssembly.GetType(
-                "JET.Infrastructure.RuleRunResultReset+Scope"));
+                "JET.Infrastructure.ResultReset+Scope"));
     }
 
     /// <remarks>

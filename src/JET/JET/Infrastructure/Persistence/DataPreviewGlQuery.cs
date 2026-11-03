@@ -10,13 +10,13 @@ namespace JET.Infrastructure;
 /// 先在分錄表依 entry_id 取當頁，再對每個攸關資料元素欄位 LEFT JOIN 一次取值；一頁最多 200 筆，
 /// 攸關資料元素的值表以分錄與欄位為主鍵，每格只對到一列。本機與 SQL Server 只差資料表前綴與分頁語法，
 /// 欄位、別名、參數名稱與讀值轉換都在這裡。
-/// 表名和母體條件寫在同一個 return 陳述句：表名不從參數傳入，GL 頁的條件由 <see cref="GlEffectivePopulation.SqlPredicate"/> 產生，
-/// GlEffectivePopulationReadGuardTests 才看得到這段讀取有沒有限定母體（2026-10-28 複審）。
+/// 表名和母體條件寫在同一個 return 陳述句：表名不從參數傳入，GL 頁的條件由 <see cref="GlExcludedPopulation.SqlPredicate"/> 產生，
+/// GlExcludedPopulationReadGuardTests 才看得到這段讀取有沒有限定母體（2026-10-28 複審）。
 /// </summary>
 internal static class DataPreviewGlQuery
 {
     /// <param name="tablePrefix">資料表前綴：本機是空字串，SQL Server 是 <c>{s}.</c>。</param>
-    /// <param name="page">GL 頁讀有效母體；GL(未納入測試) 頁讀未納入的列，限定單一原因時另綁 <c>@exclusionReason</c>。</param>
+    /// <param name="page">GL 頁讀納入測試的分錄；GL(未納入測試) 頁讀未納入的列，限定單一原因時另綁 <c>@exclusionReason</c>。</param>
     /// <param name="paging">分頁語法，接在分錄表的 <c>ORDER BY entry_id</c> 後面。</param>
     internal static string Select(
         IReadOnlyList<DataPreviewGlColumn> columns,
@@ -26,9 +26,9 @@ internal static class DataPreviewGlQuery
     {
         var population = page switch
         {
-            DataPreviewGlPage.Gl => GlEffectivePopulation.SqlPredicate(),
-            DataPreviewGlPage.Excluded => "is_effective = 0",
-            DataPreviewGlPage.ExcludedForOneReason => "is_effective = 0 AND exclusion_reason = @exclusionReason",
+            DataPreviewGlPage.Gl => GlExcludedPopulation.SqlPredicate(),
+            DataPreviewGlPage.Excluded => "is_excluded = 1",
+            DataPreviewGlPage.ExcludedForOneReason => "is_excluded = 1 AND exclusion_reason = @exclusionReason",
             _ => throw new ArgumentOutOfRangeException(nameof(page), page, "未知的資料預覽 GL 頁。")
         };
         var entryColumns = columns
@@ -40,14 +40,14 @@ internal static class DataPreviewGlQuery
             : "p." + column.Storage);
         var joins = columns
             .Select((column, index) => column.Source == DataPreviewGlValueSource.Rde
-                ? $"LEFT JOIN {tablePrefix}target_gl_rde_value r{index} ON r{index}.entry_id = p.entry_id"
+                ? $"LEFT JOIN {tablePrefix}gl_rde_value r{index} ON r{index}.entry_id = p.entry_id"
                   + $" AND r{index}.field_id = {RdeFieldParameter(index)} AND r{index}.value_type = {RdeTypeParameter(index)}\n"
                 : string.Empty);
 
         return "SELECT " + string.Join(", ", selectList) + "\n"
             + "FROM (\n"
             + "    SELECT entry_id, " + string.Join(", ", entryColumns) + "\n"
-            + $"    FROM {tablePrefix}target_gl_entry\n"
+            + $"    FROM {tablePrefix}gl\n"
             + $"    WHERE {population}\n"
             + "    ORDER BY entry_id\n"
             + "    " + paging + "\n"
@@ -97,7 +97,7 @@ internal static class DataPreviewGlQuery
         if (column.Source == DataPreviewGlValueSource.EntryExclusionReason)
         {
             return GlExclusionReasonNames.ToWireName(
-                GlEffectivePopulation.ReasonOfStorage(reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal)));
+                GlExcludedPopulation.ReasonOfStorage(reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal)));
         }
 
         if (reader.IsDBNull(ordinal))
@@ -110,7 +110,7 @@ internal static class DataPreviewGlQuery
             DataPreviewGlValueSource.EntryAmount => AmountText(reader.GetInt64(ordinal), moneyScale),
             DataPreviewGlValueSource.EntryManualAuto =>
                 Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) == 1 ? "manual" : "automatic",
-            DataPreviewGlValueSource.Rde when column.ValueType == RdeFieldValueTypeNames.Money =>
+            DataPreviewGlValueSource.Rde when column.ValueType == RdeFieldValueTypeNames.Amount =>
                 AmountText(reader.GetInt64(ordinal), moneyScale),
             _ => reader.GetString(ordinal)
         };
@@ -120,7 +120,7 @@ internal static class DataPreviewGlQuery
     {
         RdeFieldValueTypeNames.Text => "text_value",
         RdeFieldValueTypeNames.Date => "date_value",
-        RdeFieldValueTypeNames.Money => "amount_scaled",
+        RdeFieldValueTypeNames.Amount => "amount_scaled",
         _ => throw new ArgumentOutOfRangeException(nameof(valueType), valueType, "未知的攸關資料元素型別。")
     };
 
@@ -129,7 +129,7 @@ internal static class DataPreviewGlQuery
     private static string RdeTypeParameter(int index) => "@rdeType" + index.ToString(CultureInfo.InvariantCulture);
 }
 
-/// <summary>資料預覽 GL 查詢讀哪一群列：GL 的有效母體、GL(未納入測試) 全部，或其中單一原因。</summary>
+/// <summary>資料預覽 GL 查詢讀哪一群列：GL 納入測試的分錄、GL(未納入測試) 全部，或其中單一原因。</summary>
 internal enum DataPreviewGlPage
 {
     Gl,

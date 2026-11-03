@@ -22,7 +22,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         bool expectedDetailSheet)
     {
         using var host = new HandlerTestHost();
-        var projectId = await ReportArtifactExportFixture.SetupProjectAsync(host);
+        var projectId = await ReportExportFixture.SetupProjectAsync(host);
         var database = new SqliteProjectDatabase(
             new JetProjectFolder(host.ProjectsRoot));
         var pages = new TrackingPrescreenPageRepository(
@@ -143,11 +143,11 @@ public sealed class PrescreenDirectTemplatePackageTests
     public async Task AggregateSheets_AutoFitAllRowsReuseWidthsAcrossContinuationsAndPreserveNumericStyles()
     {
         const int rowCount = 17;
-        var longCreator = new string('編', 40);
+        var longPreparer = new string('編', 40);
         var longAccountName = new string('科', 40);
-        var creators = Enumerable.Range(0, rowCount)
-            .Select(index => new CreatorSummaryExportRow(
-                index == rowCount - 1 ? longCreator : $"creator-{index + 1}",
+        var preparers = Enumerable.Range(0, rowCount)
+            .Select(index => new PreparerSummaryExportRow(
+                index == rowCount - 1 ? longPreparer : $"creator-{index + 1}",
                 index == rowCount - 1 ? long.MaxValue : index + 1,
                 index == rowCount - 1 ? long.MaxValue : 10_000,
                 index == rowCount - 1 ? long.MinValue : -10_000))
@@ -160,8 +160,11 @@ public sealed class PrescreenDirectTemplatePackageTests
                 index == rowCount - 1 ? long.MaxValue : 10_000,
                 index == rowCount - 1 ? long.MinValue : -10_000))
             .ToArray();
+        // 每次用新的暫存資料夾：固定放在系統暫存資料夾時，前一次執行留下的資料庫會被下一次沿用，
+        // 案件資料庫推進版本後就被當成舊版案件拒絕（收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c）。
+        using var root = new TempProjectRoot();
         var database = new SqliteProjectDatabase(
-            new JetProjectFolder(Path.GetTempPath()));
+            new JetProjectFolder(root.Path));
         // R6 標題沿用 committed GL mapping 的來源欄名（欄位來源忠實性），
         // writer 層 fixture 因此需要既有 mapping state。
         await new LocalMappingStateStore(database).SaveAsync(
@@ -170,8 +173,8 @@ public sealed class PrescreenDirectTemplatePackageTests
                 DatasetKind.Gl,
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    [GlMappingKeys.AccNum] = "科目代號",
-                    [GlMappingKeys.AccName] = "科目名稱"
+                    [GlMappingKeys.AccountNumber] = "科目代號",
+                    [GlMappingKeys.AccountName] = "科目名稱"
                 },
                 "flag",
                 "aggregate-width-batch",
@@ -181,7 +184,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             database,
             new LocalPrescreenPageRepository(database),
             new LegacyReportWriterOptions(17),
-            new FixedCreatorSummaryRepository(creators),
+            new FixedPreparerSummaryRepository(preparers),
             new FixedAccountUsageRepository(accounts));
         var projection = Projection(0);
         var plan = Plan("aggregate-width-project", projection, 0);
@@ -281,7 +284,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                 null,
                 10_000),
             "revision",
-            new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
+            new DateOnly(2025, 12, 31),
             [],
             new Dictionary<int, string>());
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -366,7 +369,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                 null,
                 10_000),
             revision,
-            scenarios[0].SavedUtc,
+            DateOnly.FromDateTime(scenarios[0].SavedUtc.UtcDateTime),
             scenarios,
             new Dictionary<int, string>
             {
@@ -404,7 +407,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                     "#Criteria Select 1 (2)",
                     "#Criteria Select 2",
                     "#Criteria Select 2 (2)",
-                    // 2026-10-22 技術債一輪：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-075335566）。
+                    // 2026-10-22 清理技術債：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-075335566）。
                     ReportWorkbookMetadataFormat.WorksheetName
                 },
                 workbook.Worksheets.Select(sheet => sheet.Name).ToArray());
@@ -517,7 +520,7 @@ public sealed class PrescreenDirectTemplatePackageTests
     }
 
     [Fact]
-    public async Task Stage9_CriteriaSevenThroughTen_ProjectTheClosedExportDatabaseAppearanceFamily()
+    public async Task CriteriaSevenThroughTen_ProjectTheClosedExportDatabaseAppearanceFamily()
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -583,7 +586,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                 null,
                 10_000),
             revision,
-            scenarios[0].SavedUtc,
+            DateOnly.FromDateTime(scenarios[0].SavedUtc.UtcDateTime),
             scenarios,
             Enumerable.Range(1, 10).ToDictionary(
                 position => position,
@@ -660,11 +663,11 @@ public sealed class PrescreenDirectTemplatePackageTests
         AssertProviderOracleEqual(sqlite, sqlServer);
     }
 
-    // 使用者 2026-10-19 裁定：傳票號碼空白的命中算進摘要頁的行層命中數，明細表不列，摘要頁加一列說明，數字不動。
+    // 裁定 2026-10-19-12：傳票號碼空白的命中算進摘要頁的行層命中數，明細表不列，摘要頁加一列說明，數字不動。
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task Criteria_BlankDocumentNumberHits_AreExplainedOnTheSummary(string provider)
+    public async Task Criteria_BlankVoucherNumberHits_AreExplainedOnTheSummary(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
@@ -688,12 +691,12 @@ public sealed class PrescreenDirectTemplatePackageTests
             "export.criteriaSelectionReport",
             JsonSerializer.Serialize(new
             {
-                validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString(),
-                prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString(),
+                validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString(),
                 revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()
             }));
         using var workbook = new XLWorkbook(Path.Combine(
-            host.ProjectsRoot, projectId, response.GetProperty("artifact").GetProperty("fileName").GetString()!));
+            host.ProjectsRoot, projectId, response.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
 
         var summary = workbook.Worksheet("Summary Inforamtion");
         Assert.Equal(1, summary.Cell("C5").GetValue<long>());
@@ -708,7 +711,7 @@ public sealed class PrescreenDirectTemplatePackageTests
 
     // 沒有空白傳票號碼的命中時不加說明列。
     [Fact]
-    public async Task Criteria_WithoutBlankDocumentNumberHits_AddsNoExplanationRow()
+    public async Task Criteria_WithoutBlankVoucherNumberHits_AddsNoExplanationRow()
     {
         var oracle = await ExportCriteriaOracleAsync("sqlite", connectionString: null);
 
@@ -722,18 +725,18 @@ public sealed class PrescreenDirectTemplatePackageTests
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedGlEntryPageRepository(database),
-            new LocalNullRecordsPageRepository(database),
+            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             pages,
             new LocalRawGlExportRepository(database),
             new LocalImportRepository(database),
             new LocalMappingStateStore(database),
-            new LocalCreatorSummaryExportRepository(database),
+            new LocalPreparerSummaryExportRepository(database),
             new LocalAccountUsageExportRepository(database),
-            new LocalTagMatrixScenariosRepository(database),
+            new LocalHighRiskSummaryScenariosRepository(database),
             new LocalSourceQualityPageRepository(database),
-            new LocalTagMatrixRowPageRepository(database));
+            new LocalHighRiskSummaryRowPageRepository(database));
 
     private static LegacyReportWriter CreateWriter(
         SqliteProjectDatabase database,
@@ -743,30 +746,30 @@ public sealed class PrescreenDirectTemplatePackageTests
             database,
             pages,
             options,
-            new LocalCreatorSummaryExportRepository(database),
+            new LocalPreparerSummaryExportRepository(database),
             new LocalAccountUsageExportRepository(database));
 
     private static LegacyReportWriter CreateWriter(
         SqliteProjectDatabase database,
         IPrescreenPageRepository pages,
         LegacyReportWriterOptions options,
-        ICreatorSummaryExportRepository creatorSummaries,
+        IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage) =>
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedGlEntryPageRepository(database),
-            new LocalNullRecordsPageRepository(database),
+            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             pages,
             new LocalRawGlExportRepository(database),
             new LocalImportRepository(database),
             new LocalMappingStateStore(database),
-            creatorSummaries,
+            preparerSummaries,
             accountUsage,
-            new LocalTagMatrixScenariosRepository(database),
+            new LocalHighRiskSummaryScenariosRepository(database),
             new LocalSourceQualityPageRepository(database),
-            new LocalTagMatrixRowPageRepository(database),
+            new LocalHighRiskSummaryRowPageRepository(database),
             options);
 
     private static object KeywordScenario(string name, string keyword) => new
@@ -778,12 +781,12 @@ public sealed class PrescreenDirectTemplatePackageTests
             new
             {
                 join = "AND",
-                rules = new[]
+                conditions = new[]
                 {
                     new
                     {
                         join = "AND",
-                        // 第九節 G2、G5：保留範本與套件斷言，改用欄位條件；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+                        // 舊式條件停用後改用欄位條件，保留範本與套件斷言；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
                         type = "fieldValue", field = "description", @operator = "contains",
                         values = new[] { keyword }
                     }
@@ -884,17 +887,17 @@ public sealed class PrescreenDirectTemplatePackageTests
                 "export.criteriaSelectionReport",
                 JsonSerializer.Serialize(new
                 {
-                    validationRunId = validation.GetProperty("resultRef")
-                        .GetProperty("runId")
+                    validationResultId = validation.GetProperty("resultRef")
+                        .GetProperty("resultId")
                         .GetString(),
-                    prescreenRunId = prescreen.GetProperty("resultRef")
-                        .GetProperty("runId")
+                    prescreenResultId = prescreen.GetProperty("resultRef")
+                        .GetProperty("resultId")
                         .GetString(),
                     revision = committed.GetProperty("resultRef")
                         .GetProperty("revision")
                         .GetString()
                 }));
-            var fileName = response.GetProperty("artifact")
+            var fileName = response.GetProperty("publishedReport")
                 .GetProperty("fileName")
                 .GetString()!;
             using var workbook = new XLWorkbook(Path.Combine(
@@ -949,11 +952,11 @@ public sealed class PrescreenDirectTemplatePackageTests
             "na",
             "測試未執行");
         return new PrescreenReportProjection(
-            PostPeriodApproval: new("V", null, rowCount),
+            PrepPeriodApproval: new("V", null, rowCount),
             SuspiciousKeywords: notApplicable,
             UnexpectedAccountPair: notApplicable,
             TrailingZeros: notApplicable,
-            CreatorSummary: new("V", null, 1),
+            PreparerSummary: new("V", null, 1),
             RareAccounts: new("V", null, 2),
             BlankDescription: notApplicable);
     }
@@ -965,12 +968,12 @@ public sealed class PrescreenDirectTemplatePackageTests
     {
         var unfinalized = JetAuditProgram.Plan(new PrescreenReportRequest(
             projectId,
-            new FilterRuleContext(
+            new FilterConditionContext(
                 10_000,
                 "2025-12-31",
                 "2025-01-01",
                 "2025-12-31"),
-            projection.PostPeriodApproval.NaReason,
+            projection.PrepPeriodApproval.NaReason,
             projection.SuspiciousKeywords.NaReason,
             projection.UnexpectedAccountPair.NaReason,
             projection.TrailingZeros.NaReason,
@@ -980,7 +983,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             new PrescreenReportPlanningFacts(
                 new Dictionary<PrescreenReportDetailKind, PrescreenHitCounts>
                 {
-                    [PrescreenReportDetailKind.PostPeriodApproval] =
+                    [PrescreenReportDetailKind.PrepPeriodApproval] =
                         new(VoucherHitCount: 1, RowHitCount: rowCount)
                 }));
     }
@@ -994,7 +997,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             "2025-12-31",
             10_000),
         "prescreen-run-must-not-be-visible",
-        new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
+        new DateOnly(2025, 12, 31),
         "{}");
 
     private static async Task<byte[]> TemplateBytesAsync(string templateName)
@@ -1221,7 +1224,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         public Task<PageResult<PrescreenHitRow>> GetPageAsync(
             string projectId,
             string ruleKey,
-            FilterRuleContext context,
+            FilterConditionContext context,
             PageRequest request,
             CancellationToken cancellationToken)
         {
@@ -1243,17 +1246,17 @@ public sealed class PrescreenDirectTemplatePackageTests
         public Task<PrescreenHitCounts> GetCountsAsync(
             string projectId,
             string ruleKey,
-            FilterRuleContext context,
+            FilterConditionContext context,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
                 "Infrastructure writer must not acquire Pre-screening counts.");
     }
 
-    private sealed class FixedCreatorSummaryRepository(
-        IReadOnlyList<CreatorSummaryExportRow> rows)
-        : ICreatorSummaryExportRepository
+    private sealed class FixedPreparerSummaryRepository(
+        IReadOnlyList<PreparerSummaryExportRow> rows)
+        : IPreparerSummaryExportRepository
     {
-        public Task<IReadOnlyList<CreatorSummaryExportRow>> FetchAllAsync(
+        public Task<IReadOnlyList<PreparerSummaryExportRow>> FetchAllAsync(
             string projectId,
             string periodStart,
             string periodEnd,

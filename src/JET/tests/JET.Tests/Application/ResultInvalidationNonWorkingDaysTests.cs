@@ -47,9 +47,9 @@ public sealed class ResultInvalidationNonWorkingDaysTests
         using var reopened = new HandlerTestHost(projectsRootPath: root.Path);
         var loaded = await LoadAsync(reopened, projectId);
 
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(loaded, "validate"));
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(loaded, "prescreen"));
-        // 使用者 2026-10-07 裁定上游修改清除下游：改非工作日會清掉已存情境，重新儲存後命中才依新設定計算。
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(loaded, "validate"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(loaded, "prescreen"));
+        // 上游修改會清除下游（裁定 2026-10-07-03）：改非工作日會清掉已存情境，重新儲存後命中才依新設定計算。
         // 原本斷言情境保留，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
         Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         await CommitWeekendScenarioAsync(reopened);
@@ -87,8 +87,8 @@ public sealed class ResultInvalidationNonWorkingDaysTests
         using var reopened = new HandlerTestHost(projectsRootPath: root.Path);
         var loaded = await LoadAsync(reopened, projectId);
 
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(loaded, "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(loaded, "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(loaded, "validate"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(loaded, "prescreen"));
         Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
 
         var hits = await reopened.DispatchAsync(

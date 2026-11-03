@@ -29,14 +29,16 @@ public sealed class QueryFilterVoucherRowsPageHandler(ProjectSession session) : 
 }
 
 /// <summary>
-/// 命中傳票分頁（傳票摘要與展開分錄）。草稿與已存情境用同一個編譯器；每一頁綁定情境、資料版本與查詢版本，
-/// 上游變更後游標失效。只有命中傳票，沒有待判定（2026-09-07 裁定）。
+/// 命中傳票分頁（傳票摘要與展開分錄）。草稿用同一個編譯器即時判斷條件；已儲存的情境讀儲存時存下的命中與
+/// 符合第幾組第幾條，不再判斷條件。每一頁綁定情境、資料版本與查詢版本，上游變更後游標失效；
+/// 已儲存情境的頁面只綁這個情境自己的版本，存或移除別的情境不會讓它過期。只有命中傳票，沒有待判定（裁定 2026-09-07-03）。
 /// 每種資料庫各有一個實例，放在該種資料庫組裡；案件編號由 handler 從作用中案件快照傳入。
 /// </summary>
 public sealed class FilterVoucherQueryService(IFilterVoucherRepository repository, IFilterScenarioStore scenarioStore,
     IMappingStateStore mappingStore, IAccountMappingStore accountMappingStore,
-    IAuthorizedPreparerStore authorizedPreparerStore, IAccountTaxonomyStore taxonomyStore,
-    IProjectStore projectStore, ProjectSession session, IResultPageRdeValuesPort rdeValuesPort)
+    IAuthorizedPreparerStore authorizedPreparerStore, IAccountCategoryStore categoryStore,
+    IProjectStore projectStore, ProjectSession session, IResultPageRdeValuesPort rdeValuesPort,
+    FilterHitMaterializeService? materializeService = null, IHighRiskSummaryScenariosRepository? scenarioCounts = null)
 {
     public async Task<object?> ReadAsync(string projectId, JsonElement payload, bool detail, CancellationToken ct)
     {
@@ -44,31 +46,40 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         var project = await projectStore.FindAsync(projectId, ct)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, "尚未開啟案件。");
         var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, ct)
-            ?? throw new JetActionException(JetErrorCodes.NoTargetData, "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
+            ?? throw new JetActionException(JetErrorCodes.GlMappingNotConfirmed, "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
         var position = PayloadReader.GetOptionalInt(payload, "scenarioPosition");
         var hasDraft = payload.TryGetProperty("scenario", out var scenarioJson);
         if (hasDraft == position.HasValue)
             throw new JetActionException(JetErrorCodes.InvalidPayload, "請提供草稿或已儲存情境的位置，兩者擇一。");
+        SavedFilterScenario? savedScenario = null;
         string? savedRevision = null;
         if (position is int selected)
         {
             var saved = await scenarioStore.ListAsync(projectId, ct);
-            var current = FilterPopulationScopeParser.RequireCurrentRevision(saved);
-            savedRevision = current.Revision;
-            if (PayloadReader.GetOptionalString(payload, "scenarioRevision") != savedRevision || !current.Positions.Contains(selected))
+            _ = FilterPopulationScopeParser.RequireCurrentRevision(saved);
+            // 結果標成過期時（例如開案時整批改用新規則），和高風險條件彙總一樣先用目前規則重算全部情境，再讀存好的結果。
+            if (materializeService is not null
+                && await materializeService.MaterializeForConcurrentQueryAsync(projectId, ct) is { } refreshed)
+            {
+                saved = refreshed.Scenarios;
+            }
+            savedScenario = saved.SingleOrDefault(item => item.Position == selected);
+            if (savedScenario is null
+                || !FilterScenarioRevision.Covers(PayloadReader.GetOptionalString(payload, "scenarioRevision"), selected, savedScenario))
                 throw Stale();
-            using var document = JsonDocument.Parse(saved.Single(item => item.Position == selected).DefinitionJson);
+            savedRevision = FilterScenarioRevision.OfScenario(savedScenario);
+            using var document = JsonDocument.Parse(savedScenario.DefinitionJson);
             scenarioJson = document.RootElement.Clone();
         }
         var spec = FilterScenarioPayloadParser.Parse(scenarioJson, project.MoneyScale);
         var accountMapping = await accountMappingStore.FindStateAsync(projectId, ct);
-        var taxonomy = await taxonomyStore.ReadAsync(projectId, ct);
+        var categorySnapshot = await categoryStore.ReadAsync(projectId, ct);
         var hasPreparers = await authorizedPreparerStore.CountAsync(projectId, ct) > 0;
         var scope = FilterPopulationScopeParser.ReadPayload(payload);
-        var validation = FilterValidationContextFactory.Create(project, mapping, accountMapping, hasPreparers, scope, taxonomy);
+        var validation = FilterValidationContextFactory.Create(project, mapping, accountMapping, hasPreparers, scope, categorySnapshot);
         var errors = FilterScenarioValidator.Validate(spec, validation, forSave: false);
         if (errors.Count > 0) throw FilterScenarioErrorDetails.InvalidScenario(errors);
-        var context = new FilterRuleContext(project.MoneyScale, project.LastAccountingPeriodDate,
+        var context = new FilterConditionContext(project.MoneyScale, project.LastAccountingPeriodDate,
             project.PeriodStart, project.PeriodEnd, project.NonWorkingDays, scope)
         {
             RdeFields = mapping.GlOptions?.RdeFields ?? [],
@@ -81,8 +92,8 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         }))));
         var requiredRevision = PayloadReader.GetOptionalString(payload, "queryRevision");
         if (requiredRevision is not null && requiredRevision != queryRevision) throw Stale();
-        var documentNumber = detail ? PayloadReader.GetOptionalString(payload, "documentNumber") : null;
-        if (detail && string.IsNullOrEmpty(documentNumber))
+        var voucherNumber = detail ? PayloadReader.GetOptionalString(payload, "voucherNumber") : null;
+        if (detail && string.IsNullOrEmpty(voucherNumber))
             throw new JetActionException(JetErrorCodes.InvalidPayload, "請先選擇要展開的傳票。");
         if (detail && requiredRevision is null) throw Stale();
         string? key = null;
@@ -93,7 +104,7 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             try
             {
                 var parsed = JsonSerializer.Deserialize<VoucherCursor>(decoded);
-                if (parsed is null || parsed.QueryRevision != queryRevision || parsed.DocumentNumber != documentNumber) throw Stale();
+                if (parsed is null || parsed.QueryRevision != queryRevision || parsed.VoucherNumber != voucherNumber) throw Stale();
                 key = parsed.Key;
             }
             catch (JsonException exception) { throw Stale(exception); }
@@ -105,62 +116,88 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         // 只用「未預期借貸組合」一個條件時，Criteria Selection 摘要與工作底稿都以整張傳票計算；
         // 這裡的符合分錄數與展開分錄用同一個判斷，畫面才不會和報告不同。
         var wholeVoucher = JetAuditProgram.UsesLegacyWholeVoucherRows(spec);
-        var page = await repository.ReadAsync(projectId, spec, context, documentNumber, pageRequest, wholeVoucher, ct);
+        var page = savedScenario is null
+            ? await repository.ReadAsync(projectId, spec, context, voucherNumber, pageRequest, wholeVoucher, ct)
+            : await repository.ReadSavedAsync(projectId, savedScenario.ScenarioId, spec, context, voucherNumber, pageRequest, wholeVoucher, ct);
+        // 已儲存情境打開時的兩個數字讀存好的結果，和高風險條件彙總同一個口徑；畫面不必再即時預覽一次。
+        (long VoucherCount, long SummaryRowCount)? savedCounts = null;
+        if (savedScenario is not null && scenarioCounts is not null && !detail && cursor is null)
+        {
+            var counts = (await scenarioCounts.GetCountsAsync(projectId, ct)).GetValueOrDefault(savedScenario.Position);
+            var summaryRowCount = wholeVoucher
+                ? (await scenarioCounts.GetWholeVoucherRowCountsAsync(projectId, [savedScenario.Position], ct))
+                    .GetValueOrDefault(savedScenario.Position)
+                : counts.RowHitCount;
+            savedCounts = (counts.VoucherHitCount, summaryRowCount);
+        }
         var columnPlan = ResultPageColumnRegistry.ForFilter(new SavedFilterScenario(1, spec.Name, spec.Rationale,
             scenarioJson.GetRawText(), DateTimeOffset.MinValue), mapping, project.MoneyScale);
         var entryIds = page.Details.Select(row => row.EntryId).ToArray();
         var customValues = ResultPageCustomValueRenderer.Render(entryIds,
             await rdeValuesPort.ReadAsync(projectId, entryIds, ct), columnPlan, project.MoneyScale);
         if (session.CurrentProjectId != projectId || await repository.ReadRevisionAsync(projectId, ct) != revision) throw Stale();
-        if (savedRevision is not null)
+        if (savedScenario is not null)
         {
-            var current = FilterPopulationScopeParser.RequireCurrentRevision(await scenarioStore.ListAsync(projectId, ct));
-            if (current.Revision != savedRevision) throw Stale();
+            var current = (await scenarioStore.ListAsync(projectId, ct)).SingleOrDefault(item => item.Position == savedScenario.Position);
+            if (current is null || FilterScenarioRevision.OfScenario(current) != savedRevision) throw Stale();
         }
-        // 整個情境只有傳票分錄條件或不存在分類等傳票層條件時，列說明用「傳票條件成立」。
+        // 整個情境只有整張傳票條件或不存在分類等傳票層條件時，列說明用「整張傳票條件成立」。
         var voucherConditionOnly = spec.Groups.Count > 0 && spec.Groups.All(group =>
-            group.Rules.All(rule => rule.IsVoucherCondition));
-        var categoryLabels = taxonomy.Categories.ToDictionary(item => item.CategoryId, item => item.Label);
+            group.Conditions.All(rule => rule.IsVoucherCondition));
+        var categoryLabels = categorySnapshot.Categories.ToDictionary(item => item.CategoryId, item => item.Label);
         var fieldLabels = context.RdeFields.ToDictionary(item => item.FieldId, item => item.Label);
         string Condition(FilterConditionPosition position) => $"第 {position.Group} 組條件 {position.Rule}："
-            + FilterConditionRenderer.Render(JsonSerializer.SerializeToElement(new { groups = new[] { new { rules = new[] {
-                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("rules")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd);
+            + FilterConditionRenderer.Render(JsonSerializer.SerializeToElement(new { groups = new[] { new { conditions = new[] {
+                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("conditions")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd);
         string Describe(FilterVoucherDetail row)
         {
             var descriptions = new List<string>();
-            if (row.IsHit) descriptions.Add(voucherConditionOnly ? "傳票條件成立" : "符合條件的分錄");
+            if (row.IsHit) descriptions.Add(voucherConditionOnly ? "整張傳票條件成立" : "符合條件的分錄");
             if (row.PrimaryConditions.Count > 0) descriptions.Add("符合主要條件：" + string.Join("；", row.PrimaryConditions.Select(Condition)));
-            if (row.EvidenceConditions.Count > 0) descriptions.Add("提供佐證：" + string.Join("；", row.EvidenceConditions.Select(Condition)));
-            if (row.VoucherConditions.Count > 0) descriptions.Add("傳票條件成立：" + string.Join("；", row.VoucherConditions.Select(Condition)));
+            if (row.VoucherConditions.Count > 0) descriptions.Add("整張傳票條件成立：" + string.Join("；", row.VoucherConditions.Select(Condition)));
             if (descriptions.Count > 0) return string.Join("；", descriptions);
             return wholeVoucher ? "同一張傳票的其他分錄，整張傳票列入結果" : "同傳票的參考分錄";
         }
         var rows = detail
             ? page.Details.Select(row => (object)new
             {
-                documentNumber = row.DocumentNumber, lineItem = row.LineItem, postDate = row.PostDate,
-                approvalDate = row.ApprovalDate, accountCode = row.AccountCode, accountName = row.AccountName,
+                voucherNumber = row.VoucherNumber, lineItem = row.LineItem, glDate = row.GlDate,
+                approvalDate = row.ApprovalDate, accountNumber = row.AccountNumber, accountName = row.AccountName,
                 description = row.Description, amount = (decimal)row.AmountScaled / project.MoneyScale, drCr = row.DrCr,
                 isHit = row.IsHit || wholeVoucher,
-                primaryConditions = row.PrimaryConditions, evidenceConditions = row.EvidenceConditions,
+                primaryConditions = row.PrimaryConditions,
                 voucherConditions = row.VoucherConditions,
                 customValues = customValues[row.EntryId],
                 matchDescription = Describe(row)
             }).ToArray()
-            : page.Vouchers.Select(row => (object)new { documentNumber = row.DocumentNumber, postDate = row.PostDate,
+            : page.Vouchers.Select(row => (object)new { voucherNumber = row.VoucherNumber, glDate = row.GlDate,
                 hitRowCount = row.HitRowCount, totalRowCount = row.TotalRowCount,
                 voucherTotal = (decimal)row.VoucherTotalScaled / project.MoneyScale }).ToArray();
+        var columns = columnPlan.Columns.Select(column => new { key = column.Key, label = column.Label,
+            valueType = column.ValueType, isCustom = column.IsCustom }).ToArray();
+        var conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd);
+        var nextCursor = page.NextKey is null ? null : PageCursor.Encode(JsonSerializer.Serialize(new VoucherCursor(queryRevision, voucherNumber, page.NextKey)));
+        if (savedCounts is null)
+        {
+            return new
+            {
+                rows, totalCount = page.TotalCount, queryRevision, scenarioRevision = savedRevision,
+                columns, conditionText, nextCursor
+            };
+        }
+
+        // 已儲存情境的第一頁另外帶存好的筆數，畫面打開情境時直接顯示，不再即時預覽。
         return new
         {
             rows, totalCount = page.TotalCount, queryRevision, scenarioRevision = savedRevision,
-            columns = columnPlan.Columns.Select(column => new { key = column.Key, label = column.Label,
-                valueType = column.ValueType, isCustom = column.IsCustom }).ToArray(),
-            conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, taxonomy.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd),
-            nextCursor = page.NextKey is null ? null : PageCursor.Encode(JsonSerializer.Serialize(new VoucherCursor(queryRevision, documentNumber, page.NextKey)))
+            columns, conditionText, nextCursor,
+            voucherCount = savedCounts.Value.VoucherCount,
+            summaryRowCount = savedCounts.Value.SummaryRowCount,
+            countsWholeVoucherRows = wholeVoucher
         };
     }
 
-    private sealed record VoucherCursor(string QueryRevision, string? DocumentNumber, string Key);
+    private sealed record VoucherCursor(string QueryRevision, string? VoucherNumber, string Key);
     private static JetActionException Stale(Exception? innerException = null) =>
         new(JetErrorCodes.StaleResult, "資料或條件已改變，請重新預覽再查看傳票。", innerException: innerException);
 }

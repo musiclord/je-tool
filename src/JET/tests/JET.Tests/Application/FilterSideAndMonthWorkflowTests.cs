@@ -28,23 +28,23 @@ public sealed class FilterSideAndMonthWorkflowTests
             databaseProvider: provider, validateForDownstream: true);
         // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Keep fixed hits and report coverage; wording follows the approved explicit conditions.
         var pair = JsonElement.Parse("""
-            {"name":"指定借貸科目","rationale":"固定答案","groups":[{"rules":[
-            {"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"fieldValue","field":"accNum","operator":"in","values":["A"]}]},
-            {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"fieldValue","field":"accNum","operator":"in","values":["B"]}]}]}]}
+            {"name":"指定借貸科目","rationale":"固定答案","groups":[{"conditions":[
+            {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"fieldValue","field":"accountNumber","operator":"in","values":["A"]}]},
+            {"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"fieldValue","field":"accountNumber","operator":"in","values":["B"]}]}]}]}
             """);
         var dates = JsonElement.Parse("""
-            {"name":"月底排除核准月初","rationale":"兩個日期各自判斷","groups":[{"rules":[
-            {"type":"fieldValue","field":"postDate","operator":"monthEndDays","value":"2"},
-            {"type":"fieldValue","field":"docDate","operator":"notMonthStartDays","value":"2"}]}]}
+            {"name":"月底排除核准月初","rationale":"兩個日期各自判斷","groups":[{"conditions":[
+            {"type":"fieldValue","field":"glDate","operator":"monthEndDays","value":"2"},
+            {"type":"fieldValue","field":"approvalDate","operator":"notMonthStartDays","value":"2"}]}]}
             """);
         var pairPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = pair }));
         Assert.Equal(2, pairPreview.GetProperty("scenario").GetProperty("count").GetInt64());
         var datePreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = dates }));
         Assert.Equal(2, datePreview.GetProperty("scenario").GetProperty("count").GetInt64());
         var page = await host.DispatchAsync("query.filterVoucherPage", JsonSerializer.Serialize(new { scenario = pair }));
-        Assert.Equal(["V2", "V4"], page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("documentNumber").GetString()).Order());
+        Assert.Equal(["V2", "V4"], page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("voucherNumber").GetString()).Order());
         var detail = await host.DispatchAsync("query.filterVoucherRowsPage", JsonSerializer.Serialize(new
-        { scenario = pair, documentNumber = "V4", queryRevision = page.GetProperty("queryRevision").GetString() }));
+        { scenario = pair, voucherNumber = "V4", queryRevision = page.GetProperty("queryRevision").GetString() }));
         var rows = detail.GetProperty("rows").EnumerateArray().ToArray();
         Assert.Equal(3, rows.Length);
         Assert.Single(rows, row => row.GetProperty("isHit").GetBoolean());
@@ -60,25 +60,25 @@ public sealed class FilterSideAndMonthWorkflowTests
         await host.DispatchAsync("project.releaseLock");
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
         var saved = loaded.GetProperty("filterScenarios");
-        Assert.Equal("debit", saved[0].GetProperty("groups")[0].GetProperty("rules")[0].GetProperty("rules")[0].GetProperty("drCr").GetString());
-        Assert.Equal("credit", saved[0].GetProperty("groups")[0].GetProperty("rules")[1].GetProperty("rules")[0].GetProperty("drCr").GetString());
-        Assert.Equal("notMonthStartDays", saved[1].GetProperty("groups")[0].GetProperty("rules")[1].GetProperty("operator").GetString());
-        Assert.Equal("2", saved[1].GetProperty("groups")[0].GetProperty("rules")[0].GetProperty("value").GetString());
+        Assert.Equal("debit", saved[0].GetProperty("groups")[0].GetProperty("conditions")[0].GetProperty("conditions")[0].GetProperty("drCr").GetString());
+        Assert.Equal("credit", saved[0].GetProperty("groups")[0].GetProperty("conditions")[1].GetProperty("conditions")[0].GetProperty("drCr").GetString());
+        Assert.Equal("notMonthStartDays", saved[1].GetProperty("groups")[0].GetProperty("conditions")[1].GetProperty("operator").GetString());
+        Assert.Equal("2", saved[1].GetProperty("groups")[0].GetProperty("conditions")[0].GetProperty("value").GetString());
         foreach (var item in new[] { (Position: 1, Expected: new[] { "V2|1", "V4|1" }), (Position: 2, Expected: new[] { "V3|1", "V3|2" }) })
         {
             var hits = await host.DispatchAsync("query.filterHitsPage", JsonSerializer.Serialize(new
             { scenarioPosition = item.Position, scenarioRevision = revision, pageSize = 50 }));
             Assert.Equal(item.Expected, hits.GetProperty("rows").EnumerateArray().Select(row =>
-                row.GetProperty("documentNumber").GetString() + "|" + row.GetProperty("lineItem").GetString()).Order());
+                row.GetProperty("voucherNumber").GetString() + "|" + row.GetProperty("lineItem").GetString()).Order());
         }
         // Retry the corrected definition through the same action, then export the resulting revision.
         committed = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { pair, dates } }));
         revision = committed.GetProperty("resultRef").GetProperty("revision").GetString();
-        var validationRunId = loaded.GetProperty("latestRuns").GetProperty("validate").GetProperty("resultRef").GetProperty("runId").GetString();
-        var report = await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new { validationRunId, revision }));
-        await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new { validationRunId, scenarioRevision = revision, scenarioPositions = new[] { 1, 2 } }));
-        var workpaper = Assert.Single(Directory.GetFiles(Path.Combine(host.ProjectsRoot, id), "*WorkingPaper*.xlsx"));
-        foreach (var path in new[] { report.GetProperty("artifact").GetProperty("fullPath").GetString()!, workpaper })
+        var validationResultId = loaded.GetProperty("validationResult").GetProperty("resultRef").GetProperty("resultId").GetString();
+        var report = await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new { validationResultId, revision }));
+        await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new { validationResultId, scenarioRevision = revision, scenarioPositions = new[] { 1, 2 } }));
+        var workingPaper = Assert.Single(Directory.GetFiles(Path.Combine(host.ProjectsRoot, id), "*WorkingPaper*.xlsx"));
+        foreach (var path in new[] { report.GetProperty("publishedReport").GetProperty("fullPath").GetString()!, workingPaper })
         {
             using var workbook = new XLWorkbook(path);
             var text = string.Join("\n", workbook.Worksheets.Where(sheet => sheet.Visibility == XLWorksheetVisibility.Visible)

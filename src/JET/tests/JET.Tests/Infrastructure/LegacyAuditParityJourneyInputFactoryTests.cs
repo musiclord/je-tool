@@ -21,12 +21,12 @@ public sealed class LegacyAuditParityJourneyInputFactoryTests
         Assert.Equal(4, prepared.ExpectedTbImportedRowCount);
         Assert.Equal("case-A", prepared.Input.CaseAlias);
         Assert.Equal("PARITY-CASE-A", prepared.Input.ProjectCode);
-        Assert.Equal("legacy parity case A", prepared.Input.EntityName);
+        Assert.Equal("legacy parity case A", prepared.Input.ClientName);
         Assert.Equal("legacy-parity", prepared.Input.OperatorId);
         Assert.Equal(1_600_001, prepared.Input.SampleSeed);
         Assert.Equal("2031-01-01", prepared.Input.PeriodStart);
         Assert.Equal("2031-12-31", prepared.Input.PeriodEnd);
-        Assert.Equal("2031-12-01", prepared.Input.LastPeriodStart);
+        Assert.Equal("2031-12-01", prepared.Input.PrepStartDate);
         Assert.Equal("signed", prepared.Input.GlAmountMode);
         Assert.Equal("direct", prepared.Input.TbChangeMode);
         Assert.Equal(new[] { "gl-source-001.xlsx", "gl-source-002.csv" },
@@ -128,11 +128,11 @@ public sealed class LegacyAuditParityJourneyInputFactoryTests
 
         var glMapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "synthetic-column",
+            [GlMappingKeys.VoucherNumber] = "synthetic-column",
         };
         var tbMapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [TbMappingKeys.AccNum] = "synthetic-column",
+            [TbMappingKeys.AccountNumber] = "synthetic-column",
         };
         var scenarios = new[]
         {
@@ -145,13 +145,17 @@ public sealed class LegacyAuditParityJourneyInputFactoryTests
                     new
                     {
                         join = "AND",
-                        rules = new[]
+                        conditions = new[]
                         {
+                            // 舊式關鍵字條件已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），合成情境改用「傳票摘要」的「包含任一文字」。
+                            // 這次改的是測試資料，不是因為測試失敗。
                             new
                             {
                                 join = "AND",
-                                type = "customKeywords",
-                                keywords = "synthetic",
+                                type = "fieldValue",
+                                field = "description",
+                                @operator = "contains",
+                                values = new[] { "synthetic" },
                             },
                         },
                     },

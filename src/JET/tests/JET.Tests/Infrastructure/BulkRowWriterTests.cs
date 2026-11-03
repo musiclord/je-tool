@@ -12,13 +12,13 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public abstract class BulkRowWriterTests : IDisposable
 {
-    // target_gl_entry 的 17 個可寫欄（不含 entry_id auto-id；與 LocalGlRepository.TargetColumns 對齊）。
-    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再寫 voucher_date。
+    // gl 的 17 個可寫欄（不含 entry_id auto-id；與 LocalGlRepository.TargetColumns 對齊）。
+    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，不再寫 voucher_date。
     private static readonly string[] TargetGlColumns =
     [
         "batch_id", "source_row_number",
-        "document_number", "line_item", "post_date", "approval_date",
-        "account_code", "account_name", "document_description",
+        "voucher_number", "line_item", "gl_date", "approval_date",
+        "account_number", "account_name", "description",
         "source_module", "created_by", "approved_by", "is_manual",
         "amount_scaled", "debit_amount_scaled", "credit_amount_scaled", "dr_cr"
     ];
@@ -48,7 +48,7 @@ public abstract class BulkRowWriterTests : IDisposable
         await connection.OpenAsync(CancellationToken.None);
         await using var transaction = await connection.BeginTransactionAsync(CancellationToken.None);
 
-        await using (var writer = _db.CreateBulkRowWriter(connection, transaction, "staging_gl_raw_row", StagingColumns))
+        await using (var writer = _db.CreateBulkRowWriter(connection, transaction, "pbc_gl", StagingColumns))
         {
             // 混入 int（row_number 是 BIGINT）與 long（source_row_number 是 INTEGER）——寫入器依欄型別強制轉換。
             await writer.AppendAsync(["b1", 1, 1, 10L, "{\"a\":\"1\"}"], CancellationToken.None);
@@ -57,15 +57,15 @@ public abstract class BulkRowWriterTests : IDisposable
         }
 
         // 同交易內可見（DuckDB Appender flush 於 Close 後、同交易可見；本機探針實證）。
-        Assert.Equal(2L, await ScalarAsync(connection, transaction, "SELECT COUNT(*) FROM staging_gl_raw_row;"));
+        Assert.Equal(2L, await ScalarAsync(connection, transaction, "SELECT COUNT(*) FROM pbc_gl;"));
         // row_number(BIGINT) 收 int 1,2 → 3；source_row_number(INTEGER) 收 long 10,int 20 → 30（型別強制轉換落值正確）。
-        Assert.Equal(3L, await ScalarAsync(connection, transaction, "SELECT SUM(row_number) FROM staging_gl_raw_row;"));
-        Assert.Equal(30L, await ScalarAsync(connection, transaction, "SELECT SUM(source_row_number) FROM staging_gl_raw_row;"));
+        Assert.Equal(3L, await ScalarAsync(connection, transaction, "SELECT SUM(row_number) FROM pbc_gl;"));
+        Assert.Equal(30L, await ScalarAsync(connection, transaction, "SELECT SUM(source_row_number) FROM pbc_gl;"));
 
         await transaction.CommitAsync(CancellationToken.None);
 
         // commit 後持久化。
-        Assert.Equal(2L, await ScalarAsync(connection, transaction: null, "SELECT COUNT(*) FROM staging_gl_raw_row;"));
+        Assert.Equal(2L, await ScalarAsync(connection, transaction: null, "SELECT COUNT(*) FROM pbc_gl;"));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public abstract class BulkRowWriterTests : IDisposable
         await connection.OpenAsync(CancellationToken.None);
         await using var transaction = await connection.BeginTransactionAsync(CancellationToken.None);
 
-        await using (var writer = _db.CreateBulkRowWriter(connection, transaction, "target_gl_entry", TargetGlColumns))
+        await using (var writer = _db.CreateBulkRowWriter(connection, transaction, "gl", TargetGlColumns))
         {
             // line_item / approval_date / source_module / approved_by 為 null → 寫入器轉 NULL。
             await writer.AppendAsync(
@@ -90,8 +90,8 @@ public abstract class BulkRowWriterTests : IDisposable
         await using var read = connection.CreateCommand();
         read.Transaction = transaction;
         read.CommandText =
-            "SELECT entry_id, document_number, line_item, is_manual, amount_scaled, dr_cr " +
-            "FROM target_gl_entry ORDER BY entry_id;";
+            "SELECT entry_id, voucher_number, line_item, is_manual, amount_scaled, dr_cr " +
+            "FROM gl ORDER BY entry_id;";
         await using var reader = await read.ExecuteReaderAsync(CancellationToken.None);
 
         // 第一列：entry_id 由引擎自 MAX(0)+1 = 1 起編、line_item NULL、is_manual 0、amount 100。
@@ -121,7 +121,7 @@ public abstract class BulkRowWriterTests : IDisposable
         await connection.OpenAsync(CancellationToken.None);
         await using var transaction = await connection.BeginTransactionAsync(CancellationToken.None);
 
-        await using (var first = _db.CreateBulkRowWriter(connection, transaction, "target_gl_entry", TargetGlColumns))
+        await using (var first = _db.CreateBulkRowWriter(connection, transaction, "gl", TargetGlColumns))
         {
             await first.AppendAsync(TargetRow("D01", 1L), CancellationToken.None);
             await first.AppendAsync(TargetRow("D02", 2L), CancellationToken.None);
@@ -129,14 +129,14 @@ public abstract class BulkRowWriterTests : IDisposable
         }
 
         // 第二個寫入器建構時查 MAX(entry_id)+1，看得到第一個寫入器已 flush 的列（同交易可見）→ 續編 3。
-        await using (var second = _db.CreateBulkRowWriter(connection, transaction, "target_gl_entry", TargetGlColumns))
+        await using (var second = _db.CreateBulkRowWriter(connection, transaction, "gl", TargetGlColumns))
         {
             await second.AppendAsync(TargetRow("D03", 3L), CancellationToken.None);
             await second.CompleteAsync(CancellationToken.None);
         }
 
-        Assert.Equal(3L, await ScalarAsync(connection, transaction, "SELECT MAX(entry_id) FROM target_gl_entry;"));
-        Assert.Equal(3L, await ScalarAsync(connection, transaction, "SELECT COUNT(DISTINCT entry_id) FROM target_gl_entry;"));
+        Assert.Equal(3L, await ScalarAsync(connection, transaction, "SELECT MAX(entry_id) FROM gl;"));
+        Assert.Equal(3L, await ScalarAsync(connection, transaction, "SELECT COUNT(DISTINCT entry_id) FROM gl;"));
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public abstract class BulkRowWriterTests : IDisposable
         await using var transaction = await connection.BeginTransactionAsync(CancellationToken.None);
 
         var values = TargetRow("D01", 1L);
-        await using (var writer = _db.CreateBulkRowWriter(connection, transaction, "target_gl_entry", TargetGlColumns))
+        await using (var writer = _db.CreateBulkRowWriter(connection, transaction, "gl", TargetGlColumns))
         {
             await writer.AppendAsync(values, CancellationToken.None);
 
@@ -163,8 +163,8 @@ public abstract class BulkRowWriterTests : IDisposable
         await using var read = connection.CreateCommand();
         read.Transaction = transaction;
         read.CommandText =
-            "SELECT source_row_number, document_number, line_item " +
-            "FROM target_gl_entry ORDER BY entry_id;";
+            "SELECT source_row_number, voucher_number, line_item " +
+            "FROM gl ORDER BY entry_id;";
         await using var reader = await read.ExecuteReaderAsync(CancellationToken.None);
 
         Assert.True(await reader.ReadAsync(CancellationToken.None));
@@ -187,7 +187,7 @@ public abstract class BulkRowWriterTests : IDisposable
         await connection.OpenAsync(CancellationToken.None);
         await using var transaction = await connection.BeginTransactionAsync(CancellationToken.None);
 
-        await using var writer = _db.CreateBulkRowWriter(connection, transaction, "staging_gl_raw_row", StagingColumns);
+        await using var writer = _db.CreateBulkRowWriter(connection, transaction, "pbc_gl", StagingColumns);
 
         // 4 個值 vs 5 欄 → fail loud。
         await Assert.ThrowsAsync<ArgumentException>(
@@ -245,12 +245,12 @@ public sealed class DuckDbBulkRowWriterTests : BulkRowWriterTests
             // 省略必填無預設欄 dr_cr（NOT NULL、無 nextval 預設）→ 建構時 fail loud，不靜默錯位。
             var columns = new[]
             {
-                "batch_id", "source_row_number", "document_number", "account_code",
+                "batch_id", "source_row_number", "voucher_number", "account_number",
                 "amount_scaled", "debit_amount_scaled", "credit_amount_scaled"
             };
 
             Assert.Throws<InvalidOperationException>(
-                () => db.CreateBulkRowWriter(connection, transaction, "target_gl_entry", columns));
+                () => db.CreateBulkRowWriter(connection, transaction, "gl", columns));
         }
         finally
         {

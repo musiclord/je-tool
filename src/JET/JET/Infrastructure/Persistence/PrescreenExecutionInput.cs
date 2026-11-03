@@ -7,13 +7,13 @@ namespace JET.Infrastructure;
 /// Provider prescreen repositories 共用的純技術執行輸入，只由 AuditCore plan 已裁定的 gates 建立。
 /// </summary>
 internal sealed record PrescreenExecutionInput(
-    string? LastPeriodStart,
+    string? PrepStartDate,
     string PeriodStart,
     string PeriodEnd,
     int MoneyScale,
     IReadOnlyList<int>? NonWorkingDays,
-    bool RunPostPeriodApproval,
-    bool RunCreatorSummary,
+    bool RunPrepPeriodApproval,
+    bool RunPreparerSummary,
     bool RunUnexpectedAccountPair,
     bool RunWeekendApproval,
     bool RunHolidayPosting,
@@ -26,13 +26,13 @@ internal sealed record PrescreenExecutionInput(
 
         var request = plan.Request;
         return new PrescreenExecutionInput(
-            request.LastPeriodStart,
+            request.PrepStartDate,
             request.PeriodStart,
             request.PeriodEnd,
             request.MoneyScale,
             request.NonWorkingDays,
-            plan.RunPostPeriodApproval,
-            plan.RunCreatorSummary,
+            plan.RunPrepPeriodApproval,
+            plan.RunPreparerSummary,
             plan.RunUnexpectedAccountPair,
             plan.RunWeekendApproval,
             plan.RunHolidayPosting,

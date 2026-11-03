@@ -11,19 +11,19 @@ public sealed class LegacyAuditParityObservationsTests
     {
         var observation = new LegacyCompletenessObservation(
             differenceAccountCount: 0,
-            partASourceRowCount: null,
-            partATargetRowCount: 0,
-            partATotalDebit: 0m,
-            partATotalCredit: 0m,
-            partARowCountMatch: null,
-            partAAmountMatch: null);
+            pbcRowCount: null,
+            storedRowCount: 0,
+            storedTotalDebit: 0m,
+            storedTotalCredit: 0m,
+            storedRowCountMatch: null,
+            storedAmountMatch: null);
 
-        Assert.Equal(LegacyObservedCountState.NotExecuted, observation.PartASourceRowCount.State);
-        Assert.Equal(LegacyObservedCountState.ExecutedZero, observation.PartATargetRowCount.State);
-        Assert.Equal(LegacyObservedBooleanState.NotExecuted, observation.PartARowCountMatch.State);
+        Assert.Equal(LegacyObservedCountState.NotExecuted, observation.PbcRowCount.State);
+        Assert.Equal(LegacyObservedCountState.ExecutedZero, observation.StoredRowCount.State);
+        Assert.Equal(LegacyObservedBooleanState.NotExecuted, observation.StoredRowCountMatch.State);
         Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
-            observation.PartARowCountMatch.RequireValue(
-                LegacyAuditParityMetricIds.PartARowCountMatch));
+            observation.StoredRowCountMatch.RequireValue(
+                LegacyAuditParityMetricIds.StoredRowCountMatch));
     }
 
     [Fact]
@@ -70,16 +70,16 @@ public sealed class LegacyAuditParityObservationsTests
     {
         var left = ProviderObservation(
             LegacyAuditParityProvider.Sqlite,
-            missingRule: LegacyPrescreenRuleId.PostPeriodApproval);
+            missingRule: LegacyPrescreenRuleId.PrepPeriodApproval);
         var right = ProviderObservation(
             LegacyAuditParityProvider.DuckDb,
-            missingRule: LegacyPrescreenRuleId.PostPeriodApproval);
+            missingRule: LegacyPrescreenRuleId.PrepPeriodApproval);
 
         var error = Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
             LegacyAuditParityComparator.CompareProviders([left, right]));
 
         Assert.Equal(
-            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PostPeriodApproval),
+            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PrepPeriodApproval),
             error.MetricId);
     }
 
@@ -265,7 +265,7 @@ public sealed class LegacyAuditParityObservationsTests
         [
             new(
                 LegacyMappingDataset.Gl,
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingResolutionSource.NormalizedHeaderIdentity),
             new(
                 LegacyMappingDataset.Tb,
@@ -420,8 +420,8 @@ public sealed class LegacyAuditParityObservationsTests
                 20,
                 987654321.125m,
                 987654321.125m,
-                partARowCountMatch: true,
-                partAAmountMatch: true),
+                storedRowCountMatch: true,
+                storedAmountMatch: true),
             unbalancedVoucherCount: 0,
             new LegacyInfObservation(
                 1,
@@ -448,7 +448,7 @@ public sealed class LegacyAuditParityObservationsTests
         LegacyReportKind.InfReport =>
             LegacyAuditParityReportFamily.InfReliability,
         LegacyReportKind.PrescreenReport =>
-            LegacyAuditParityReportFamily.PrescreenPostPeriodApprovalDetail,
+            LegacyAuditParityReportFamily.PrescreenPrepPeriodApprovalDetail,
         LegacyReportKind.CriteriaSelectionReport =>
             LegacyAuditParityReportFamily.CriteriaScenario001,
         LegacyReportKind.WorkingPaper =>

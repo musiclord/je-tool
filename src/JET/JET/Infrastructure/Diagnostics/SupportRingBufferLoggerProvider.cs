@@ -90,17 +90,16 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "import.account_mapping.summary_failed",
         "import.multiline_fields",
         "projection.milestone",
-        "artifact.recovery.conflict",
-        "artifact.journal.discarded",
-        "artifact.manifest.reset",
+        "report.recovery.conflict",
+        "report.manifest.reset",
         "project_audit.write_failed",
         // 資料已提交後寫不進操作紀錄，或讀不回結果狀態、授權清單比對：只記操作代號、讀取階段與錯誤類型（2026-10-19）。
-        "audit_log.append_failed",
+        "operation_log.append_failed",
         "workflow_state.read_failed",
         "sql_server.unreachable",
         "filter.scenario_unreadable",
         "filter.compile_check_failed",
-        // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑（使用者 2026-10-21 裁定）。
+        // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑（裁定 2026-10-21-08）。
         SupportEventNames.CaseOpened,
     };
 
@@ -116,7 +115,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "operation",
         "manifest_state",
         "transition_role",
-        "artifact_kind",
+        "report_kind",
         "stage_state",
         "final_state",
         "quarantine_state",
@@ -138,7 +137,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "worksheet_count",
         "encoding",
         "delimiter_codepoint",
-        // import.multiline_fields：用引號包住、內含換行的資料筆數與前幾個列號（V11）；只有位置，沒有內容。
+        // import.multiline_fields：用引號包住、內含換行的資料筆數與前幾個列號；只有位置，沒有內容。
         "source_no",
         "multiline_record_count",
         "multiline_record_rows",
@@ -149,7 +148,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         // filter.scenario_unreadable：第五步損毀條件的位置與程式寫死的原因代號，不含情境名稱或條件內容。
         "scenario_position",
         "group_no",
-        "rule_no",
+        "condition_no",
         "reason_code",
         // filter.compile_check_failed：篩選條件編譯時沒過的檢查代號，程式寫死，不含欄位名稱或輸入值。
         "compile_check",
@@ -284,16 +283,15 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             "import.account_mapping.summary_failed" => "account mapping saved; difference summary unavailable",
             "import.multiline_fields" => $"import source {fields.GetValueOrDefault("source_no") ?? "n/a"} has {fields.GetValueOrDefault("multiline_record_count") ?? 0} records with quoted line breaks",
             "projection.milestone" => $"projection milestone {fields.GetValueOrDefault("phase") ?? "unknown"}",
-            "artifact.recovery.conflict" => "report artifact recovery conflict",
-            "artifact.journal.discarded" => "discarded a leftover report journal from the previous store design",
-            "artifact.manifest.reset" => "report manifest was unreadable and has been set aside",
+            "report.recovery.conflict" => "report recovery conflict",
+            "report.manifest.reset" => "report manifest was unreadable and has been set aside",
             "project_audit.write_failed" => "project operation record not written",
             "sql_server.unreachable" => $"sql server unreachable: {fields.GetValueOrDefault("failure_category") ?? "unknown"}",
             "filter.scenario_unreadable" => $"action {action} filter scenario {fields.GetValueOrDefault("scenario_position") ?? "n/a"} "
-                + $"group {fields.GetValueOrDefault("group_no") ?? "n/a"} rule {fields.GetValueOrDefault("rule_no") ?? "n/a"} "
+                + $"group {fields.GetValueOrDefault("group_no") ?? "n/a"} condition {fields.GetValueOrDefault("condition_no") ?? "n/a"} "
                 + $"unreadable: {fields.GetValueOrDefault("reason_code") ?? "unknown"}",
             "filter.compile_check_failed" => $"action {action} filter group {fields.GetValueOrDefault("group_no") ?? "n/a"} "
-                + $"rule {fields.GetValueOrDefault("rule_no") ?? "n/a"} compile check failed: {fields.GetValueOrDefault("compile_check") ?? "unknown"}",
+                + $"condition {fields.GetValueOrDefault("condition_no") ?? "n/a"} compile check failed: {fields.GetValueOrDefault("compile_check") ?? "unknown"}",
             SupportEventNames.CaseOpened => $"case opened by {fields.GetValueOrDefault("opened_by") ?? "unknown"} "
                 + $"provider={fields.GetValueOrDefault("database_provider") ?? "unknown"}",
             _ => eventName,

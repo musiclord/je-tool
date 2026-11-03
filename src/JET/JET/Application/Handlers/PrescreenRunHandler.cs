@@ -9,7 +9,7 @@ namespace JET.Application;
 /// prescreen.run：預篩選規則以 set-based SQL 執行，wire key 見 <see cref="PrescreenRuleKeys"/>。
 /// 前置條件不足時標 na，由 AuditCore 的 Plan 階段決定：
 /// 0 命中也標 na（count 仍回 0）；naReason 只在前置不足時提供。
-/// 完整 response 存 result_rule_run 供 resume。
+/// 完整 response 存 prescreen_result 供 resume。
 /// </summary>
 public sealed class PrescreenRunHandler : IApplicationActionHandler
 {
@@ -36,7 +36,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         var (projectId, repositories) = session.RequireActive();
         SupportOperationStage.Enter("state_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
-            repositories.RuleRuns,
+            repositories.Results,
             projectId,
             cancellationToken);
 
@@ -49,13 +49,13 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         // 能使用的欄位和第五步、前端停用說明讀同一份欄位目錄的答案。
         var availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions);
         var hasHolidays = await repositories.Calendar.CountAsync(projectId, CalendarDayType.Holiday, cancellationToken) > 0;
-        var lastPeriodStart = document.LastAccountingPeriodDate;
+        var prepStartDate = document.LastAccountingPeriodDate;
 
         var accountMappingState = await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers = await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
-        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
+        var categorySnapshot = await repositories.AccountCategories.ReadAsync(projectId, cancellationToken);
 
-        var runId = Guid.NewGuid().ToString("N");
+        var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
         var plan = JetAuditProgram.Plan(
             new PrescreenRequest(
@@ -65,9 +65,9 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 document.PeriodEnd,
                 document.MoneyScale,
                 document.SampleSeed.GetValueOrDefault(),
-                runId,
+                resultId,
                 generatedUtc,
-                LastPeriodStart: lastPeriodStart,
+                PrepStartDate: prepStartDate,
                 AvailableGlFields: availableGlFields,
                 HasHolidays: hasHolidays,
                 HasAccountMapping: accountMappingState is not null,
@@ -75,7 +75,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 HasCounterpart: accountMappingState?.HasCounterpart ?? false,
                 HasAuthorizedPreparers: hasAuthorizedPreparers,
                 NonWorkingDays: document.NonWorkingDays,
-                CategoryLabels: AccountCategoryLabels.From(taxonomy)));
+                CategoryLabels: AccountCategoryLabels.From(categorySnapshot)));
         SupportOperationStage.Enter("prescreen_facts");
         var facts = await repositories.PrescreenFacts.ExecuteAsync(plan, cancellationToken);
         SupportOperationStage.Enter("summary");
@@ -85,9 +85,9 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         var result = prescreen.Data;
         var scale = document.MoneyScale;
 
-        var postPeriodApproval = Verdict(runManifest, "post_period_approval");
+        var prepPeriodApproval = Verdict(runManifest, "prep_period_approval");
         var unexpectedAccountPair = Verdict(runManifest, "unexpected_account_pair");
-        var creatorSummary = Verdict(runManifest, "creator_summary");
+        var preparerSummary = Verdict(runManifest, "preparer_summary");
         var weekendPosting = Verdict(runManifest, "weekend_posting");
         var weekendApproval = Verdict(runManifest, "weekend_approval");
         var holidayPosting = Verdict(runManifest, "holiday_posting");
@@ -96,7 +96,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
 
         var dto = new
         {
-            postPeriodApproval = RuleStatus(result.PostPeriodApprovalCount, postPeriodApproval),
+            prepPeriodApproval = RuleStatus(result.PrepPeriodApprovalCount, prepPeriodApproval),
             suspiciousKeywords = new
             {
                 status = Verdict(runManifest, "suspicious_keywords").Status!,
@@ -109,13 +109,13 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 count = result.TrailingZerosCount,
                 zerosThreshold = result.ZerosThreshold
             },
-            creatorSummary = new
+            preparerSummary = new
             {
-                status = creatorSummary.Status!,
-                naReason = creatorSummary.NaReason,
-                // V9：creators 最多 50 列；人數用查核期間的完整人數（空白人員算一組），不適用時為 null，不以 0 冒充。
-                totalPreparerCount = creatorSummary.NaReason is null ? facts.TotalPreparerCount : (long?)null,
-                creators = result.Creators.Select(c => new
+                status = preparerSummary.Status!,
+                naReason = preparerSummary.NaReason,
+                // preparers 最多 50 列；人數用查核期間的完整人數（空白人員算一組），不適用時為 null，不以 0 冒充。
+                totalPreparerCount = preparerSummary.NaReason is null ? facts.TotalPreparerCount : (long?)null,
+                preparers = result.Preparers.Select(c => new
                 {
                     createdBy = c.CreatedBy,
                     entryCount = c.EntryCount,
@@ -128,10 +128,9 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
             {
                 status = Verdict(runManifest, "rare_accounts").Status!,
                 distinctAccountCount = result.DistinctAccountCount,
-                lowFrequencyAccountCount = result.LowFrequencyDistinctAccountCount,
                 accounts = result.Accounts.Select(a => new
                 {
-                    accountCode = a.AccountCode,
+                    accountNumber = a.AccountNumber,
                     accountName = a.AccountName,
                     entryCount = a.EntryCount,
                     debitTotal = ToDisplay(a.DebitTotalScaled, scale),
@@ -160,23 +159,17 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 count = result.BlankDescriptionCount
             },
             nonAuthorizedPreparer = RuleStatus(result.NonAuthorizedPreparerCount, nonAuthorizedPreparer),
-            lowFrequencyPreparer = RuleStatus(result.LowFrequencyPreparerCount, Verdict(runManifest, "low_frequency_preparer")),
-            lowFrequencyAccount = new
-            {
-                status = Verdict(runManifest, "low_frequency_account").Status!,
-                count = result.LowFrequencyAccountCount
-            },
             concentration = ConcentrationWire(prescreen.Concentration),
             rulePeriod = RulePeriodWire(prescreen.RulePeriod),
             positioning = PositioningWire(positioning),
-            resultRef = new { runId, generatedUtc, logicVersion = RuleLogicVersions.Prescreen }
+            resultRef = new { resultId, generatedUtc, logicVersion = RuleLogicVersions.Prescreen }
         };
 
         var summaryJson = JsonSerializer.Serialize(dto, JetJsonStorage.Options);
         SupportOperationStage.Enter("run_save");
-        await repositories.RuleRuns.SaveAsync(
+        await repositories.Results.SaveAsync(
             projectId,
-            new RuleRunRecord(runId, RuleRunKinds.Prescreen, generatedUtc, summaryJson),
+            new ResultRecord(resultId, ResultKind.Prescreen, generatedUtc, summaryJson),
             CancellationToken.None);
 
         SupportOperationStage.Enter("after_commit");
@@ -214,7 +207,7 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
         },
         rareAccounts = concentration.RareAccounts?.Select(account => new
         {
-            accountCode = account.AccountCode,
+            accountNumber = account.AccountNumber,
             accountName = account.AccountName,
             entryCount = account.EntryCount
         }).ToArray(),

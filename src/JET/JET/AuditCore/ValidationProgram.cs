@@ -4,7 +4,7 @@ namespace JET.AuditCore;
 
 /// <summary>
 /// Validation typed lifecycle 的 Application 輸入。只攜帶有界案件事實、run identity
-/// 與抽樣參數，不攜帶 GL／TB 完整列集。可用欄位的意義同 <see cref="AuditCaseSnapshot"/>。
+/// 與抽樣參數，不攜帶 GL／TB 完整列集。可用欄位的意義同 <see cref="AuditProjectSnapshot"/>。
 /// </summary>
 internal sealed record ValidationRequest(
     string ProjectId,
@@ -14,11 +14,12 @@ internal sealed record ValidationRequest(
     string PeriodEnd,
     int MoneyScale,
     long SampleSeed,
-    string RunId,
+    string ResultId,
     DateTimeOffset GeneratedUtc,
     int SampleSize,
     int SampleSeedVersion = InfSamplingPrf.CurrentAlgorithmVersion,
-    IReadOnlyList<string>? AvailableGlFields = null);
+    IReadOnlyList<string>? AvailableGlFields = null,
+    bool HasTbImport = false);
 
 /// <summary>
 /// Validation typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
@@ -32,7 +33,7 @@ internal sealed record ValidationPlan(
     string? OutOfPeriodApprovalNaReason = null)
 {
     internal bool RunCompleteness =>
-        CompletenessPartBProcedure.RequirePlan(ReviewPlan).IsApplicable;
+        AccountComparisonProcedure.RequirePlan(ReviewPlan).IsApplicable;
 
     internal bool RunOutOfPeriodApproval => OutOfPeriodApprovalNaReason is null;
 }
@@ -156,7 +157,7 @@ internal static class ValidationAmountDistributionCatalog
 
 /// <summary>
 /// gl_control_total 中納入核對的來源控制總數。Match flags 不在 Infrastructure 計算，
-/// 由 AuditCore Finalize 依目前 effective-target facts 裁定。
+/// 由 AuditCore Finalize 依目前 GL 那一側的 facts 裁定。
 /// </summary>
 internal sealed record ValidationControlTotalsFacts(
     long EligibleSourceRowCount,
@@ -171,18 +172,18 @@ internal sealed record ValidationFacts(
     GlPopulationSummary PopulationSummary,
     long CompletenessDiffAccountCount,
     IReadOnlyList<CompletenessDiffAccount> CompletenessDiffAccounts,
-    long UnbalancedDocumentCount,
+    long UnbalancedVoucherCount,
     int InfSampleCount,
     long NullAccountCount,
     long NullDocumentCount,
     long NullDescriptionCount,
-    long OutOfRangeDateCount,
+    long ApprovalDateNotInPeriodCount,
     long SourceQualityFindingCount,
-    IReadOnlyList<UnbalancedDocument> UnbalancedDocuments,
-    IReadOnlyList<NullRecordRow> NullRecordRows,
+    IReadOnlyList<UnbalancedVoucher> UnbalancedVouchers,
+    IReadOnlyList<BlankRecordRow> BlankRecordRows,
     ValidationControlTotalsFacts? ControlTotals,
     IReadOnlyList<ValidationAmountBinCount> AmountBinCounts,
-    DocumentDateReuseCounts? DocumentDateReuse = null,
+    VoucherNumberAcrossGlDatesCounts? VoucherNumberAcrossGlDates = null,
     IReadOnlyList<SourceQualityFindingRow>? SourceQualitySampleRows = null);
 
 /// <summary>
@@ -200,8 +201,8 @@ internal sealed record ValidationResult(
 /// </summary>
 internal interface IValidationFactsPort
 {
-    Task<RuleRunRecord> ExecuteAsync(
+    Task<ResultRecord> ExecuteAsync(
         ValidationPlan plan,
-        Func<ValidationFacts, RuleRunRecord> finalize,
+        Func<ValidationFacts, ResultRecord> finalize,
         CancellationToken cancellationToken);
 }

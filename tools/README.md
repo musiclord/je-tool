@@ -98,7 +98,7 @@ try {
 
 ## 日常資料庫測試與服務收尾
 
-2026-09-02 使用者確認，SQL Server 開發目前暫緩，日常工作集中在 SQLite 和 DuckDB。依修改範圍選擇
+SQL Server 開發目前暫緩（裁定 2026-09-02-04），日常工作集中在 SQLite 和 DuckDB。依修改範圍選擇
 `Focused` 或 `Public`；需要比較兩個本機資料庫時，可用 `Focused -Filter 'ProviderParity'`。
 `Provider` 包含 live SQL Server 測試，只有使用者當次明示需要時才執行，也不為了補齊一般開發驗證而啟動。
 `PrivateCase` 讀取本機私人案件的授權是常設的，不必每次再問；但選擇 SQL Server 不能從既有連線設定推定。
@@ -149,6 +149,8 @@ Git 路徑查詢範圍，亦不讀取案件內容。它不建立收據、不拿�
 缺少來源只列提示，其他資訊照常輸出。近期收據僅查看最新二十個執行目錄，不代表完整驗證歷史。
 相同命令、組態、篩選及情境只列最近一次，避免重複文件檢查擠掉其他結果；最新失敗也保留，不退回較舊的通過。
 輸出會說明截斷及未確認的部分；相同 HEAD 的既有收據仍不保證目前未提交內容已驗證。
+它也列出裁定總表 `docs/rulings.md` 與名詞表 `docs/glossary.md` 的位置、則數，以及還在等使用者確認的則數；
+只回傳數字，內容由 Agent 依本次任務去讀。
 
 計畫可用 `<!-- jet-context:start -->` 和 `<!-- jet-context:end -->` 標出簡短接續摘要；沒有標記則使用第一節，
 最多回傳 7,000 字元並標明是否截斷。摘要分清本輪成果與產品工作順序，仍保存於原計畫，不另建狀態檔。
@@ -170,7 +172,7 @@ Context 不判定摘要是否完整或需求是否完成；範圍與來源仍由
 只用正式 action 建一次，之後每個測試把案件資料夾複製到自己的暫存目錄再開啟，做法在
 `src/JET/tests/JET.Tests/Application/CaseTemplates.cs`。SQL Server 的資料在伺服器上，照舊從頭建案。
 每個測試仍有自己的案件，可以任意寫入。要檢查建案者身分或建案過程本身的測試，例如進度事件、稽核紀錄與日誌，
-呼叫 `DemoProjectPipeline.SetupAsync` 或 `Batch9ArtifactStateTests.PrepareAsync` 時加 `fromScratch: true`。
+呼叫 `DemoProjectPipeline.SetupAsync` 或 `ReportRevisionStateTests.PrepareAsync` 時加 `fromScratch: true`。
 2026-10-15 依使用者的選擇改成這樣後，`Public` 的 .NET 測試從 260 到 310 秒縮短為 170 到 195 秒。
 
 平行執行時，同時執行的類別數等於 CPU 執行緒數；一個類別跑完，才照順序放行下一個。xUnit 4.0 的預設順序依各類別的
@@ -207,7 +209,7 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Mutation -Configuration Release 
 其中 CompileError 可能包含上游批次編譯連帶回復的變異，不能直接推論每一項替換都無法獨立編譯。
 本輪的實際量測與工具限制記在現行計畫。
 
-`artifacts/harness/mutation/` 的資料有保留期限，做法比照收據，是使用者 2026-10-15 的裁定；當時這個資料夾約 7 GB，沒有上限。
+`artifacts/harness/mutation/` 的資料有保留期限，做法比照收據，這是裁定 2026-10-15-01 的其中一項；當時這個資料夾約 7 GB，沒有上限。
 每個使用共享鎖的命令結束前整理一次。`Mutation` 也要拿這把鎖，所以整理時不會有進行中的改壞檢查。
 
 - `r/` 每次執行一個資料夾，完整的約 1 GB，大部分是工作樹副本。同一個範圍只完整保留最新 2 次；更舊的只留最上層的摘要檔，
@@ -229,8 +231,8 @@ stderr 與 TRX 也會在保存前遮蔽。
 
 `Package` 固定使用 Release。它先檢查可追蹤設定沒有憑證，再執行建置、70 項以上的範本與報告測試，最後在
 本次專屬暫存目錄使用 FolderProfile 發布。驗證會核對 x64 單檔執行檔、八份範本、`wwwroot`、安全設定及
-禁止出現的執行期資料。測試範圍固定包含 `ReportArtifactTrustJourneyTests` 與
-`ProjectReportArtifactStoreTests`，檢查範本原檔往返、版本保留、同名覆蓋及失敗後重試；框架自身測試會確認
+禁止出現的執行期資料。測試範圍固定包含 `ReportTrustJourneyTests` 與
+`ProjectReportStoreTests`，檢查範本原檔往返、版本保留、同名覆蓋及失敗後重試；框架自身測試會確認
 這兩組沒有從封裝選取條件中消失。清單以本次現行來源產生，不沿用舊專案留下的封裝基準。暫存封裝完成後會自動移除，只保留清單
 與有限大小的紀錄。實際 publish 會占用較多 CPU 與磁碟，執行前應先確認本機負載。
 
@@ -250,7 +252,7 @@ stderr 與 TRX 也會在保存前遮蔽。
 - `synthetic-sqlite-create`：從可見畫面只以鍵盤輸入建立 SQLite 案件，案件編號與客戶名稱留白，再核對畫面
   上的案件名稱、本次暫存目錄中的 `project.json` 與 `jet.db`、兩個選填欄位保存為空白，以及操作人員是否為
   隔離測試帳號。
-- `case-to-workpaper`：從空白 SQLite 案件開始，在畫面匯入兩張工作表的合成 GL 與一份 TB，首次確認兩種配對、
+- `case-to-working-paper`：從空白 SQLite 案件開始，在畫面匯入兩張工作表的合成 GL 與一份 TB，首次確認兩種配對、
   執行驗證、儲存 G 情境並匯出，重開確認完成狀態。接著回頭修改上游資料，核對每一步清除與保留的狀態。
   用 Excel 匯入科目配對後，資料驗證保留，預篩選與已存情境清除，底稿標成過期。匯入假日後，資料驗證與科目配對都保留；
   再匯入補班日，資料驗證仍保留。附加一次 GL 後，GL 配對、資料驗證與科目配對都清除，畫面提醒確認是否重複匯入。
@@ -259,16 +261,16 @@ stderr 與 TRX 也會在保存前遮蔽。
 - `mapping-required-sync`：從已提交的合成 mapping 進入「重新配對」，先把借方代碼改成另一個值，不離開
   輸入框就用滑鼠點一次「重新確認配對」，確認第一次點擊就完成配對；再清空並補回同一個必填欄位兩次，
   每次確認右側缺漏狀態、提交資格與焦點同步。原本十次，2026-10-15 依使用者選擇減為兩次。
-- `edited-report-still-loads`：先在 JET 之外改寫已發布的 Working Paper 並放回舊版輸出紀錄檔，再從 Release
-  可見介面開啟案件，確認能載入、第六步標示「已在 JET 之外修改」、匯出仍可用、支援日誌含
-  `artifact.journal.discarded`，且過期與缺檔的歷史紀錄不被當成目前流程已完成。
+- `edited-report-still-loads`：先在 JET 之外改寫已發布的工作底稿，再從 Release
+  可見介面開啟案件，確認能載入、第六步標示「已在 JET 之外修改」、匯出仍可用、支援日誌寫得出來且不洩漏檔名與路徑，
+  且過期與缺檔的歷史紀錄不被當成目前流程已完成。
 - `approval-mapping-modes`：操作兩種配對畫面的核准日方式與來源欄，確認同步、未提交提示、取消後的政策
   重設、完整還原及缺漏欄位定位；還原結果以第一次編輯前保存的獨立快照核對。
 - `validation-auto-outputs`：執行驗證，確認兩份報告與科目配對範本自動產生，再填入合成分類並重新驗證，
   核對已填範本逐位元組保留。
 - `filter-auditor-journey`：走一遍審計員在第五步的路，從範本「借現金、貸非現金」開始，加條件、切換作用中
   的組、預覽、排序命中傳票、保存並核對讀回文字，也檢查多選日期、期末天數、錯誤標示、版面與草稿名稱。
-- `filter-common-editing`：檢查用了常用篩選條件卡片的情境保存後重開案件能還原卡片，「非營業日之分錄」留在目前組的條件括號，
+- `filter-common-editing`：檢查用了常用篩選條件卡片的情境保存後重開案件能還原卡片，「非營業日之分錄」留在目前組的子條件組，
   2026-10-29 以前儲存的舊版情境重開時不還原卡片、保留原條件，重新儲存後改存第 2 版編輯來源，
   以及移除、取消、金額門檻、文字排除與自動命名的行為。逐張加入前五張卡核對預設動機、固定資產與費用那張卡加入的條件，
   2026-10-15 依使用者選擇改由前端點擊測試核對，這個情境不再重複。
@@ -289,7 +291,7 @@ stderr 與 TRX 也會在保存前遮蔽。
   核對固定筆數、預覽、保存、取消修改、返回、兩種報表及重開。夾具只有一個文字型攸關資料元素欄位，
   所以部門範例核對自動帶入該欄位；切換「依審計目的」的分類不應清除已有預覽。
 - 其他情境加入自訂條件時，改點欄位按鈕（`data-add-field`）、「依審計目的」的「加入」（`data-add-check`）或
-  每組標頭的「加入子條件組」與「加入整張傳票條件」（`data-add-compound`），共用 `GuiDataRecoveryScenarios.cs` 的 `AddCustomConditionAsync`。
+  每組標頭的「子條件組」與「整張傳票」（`data-add-compound`），共用 `GuiDataRecoveryScenarios.cs` 的 `AddCustomConditionAsync`。
 
 `null-details-recovery`、`common-remap-recovery`、`authorized-list-recovery` 與 `extended-conditions` 全部沿
 正式前端及 action 操作，CDP 評估只讀取畫面與狀態。中文組字透過 WebView2 的
@@ -313,7 +315,7 @@ CDP 組字事件驗證，沒有變更 Windows 輸入法，也不代表已實測�
 框架會確認來源檔沒有改變、重算後公式錯誤沒有
 增加、副本沒有外部連結，而且 PDF 結構可讀。
 
-Excel 輸入由 `SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate`
+Excel 輸入由 `SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate`
 產生。這個旅程先填寫範本原檔、匯回、重新開啟案件，再匯出兩份驗證報告與後續報告；範本保留填好的內容。
 合成案件包含兩張傳票，以借貸分類、多日期、金額區間及排除條件核對預覽、報告文字及底稿數字。
 「分類與指定日期」情境將分類留白的貸方科目視為 Others，兩張都命中；篩選相關報告不得出現「待判定」。
@@ -359,6 +361,12 @@ Restore、Gui 與 Excel 驅動程式自己管理的程序，以及 `Mutation` �
 `Documentation` 會檢查目前仍有效的文件與 AI Agent 轉接檔。缺檔、必要指向缺漏及已確認過時的事實會
 失敗；不自然用語只列為 warning。`documentation-check.json` 的 `styleWarnings` 比對固定片語，
 `stylePatterns` 用正規表示式抓符號代句與工作用語，命中時附一句修正提示，程式碼區塊與行內程式碼不檢查。
+`sizeLimits` 依文件類型設長度上限：現行計畫 120 KiB；裁定總表 320 KiB；系統規格、action 契約、前端說明與名詞表 160 KiB；
+其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限。目前超過只列為 warning，專案紀錄收斂計畫第七階段結案時改成失敗（裁定 2026-11-02-04）。
+`rulingLocations` 核對裁定總表「落實位置」欄寫的檔案都存在，檔案改名或刪除時要一起更新總表。
+`rulingReferences` 核對 `src/JET` 與 `tools` 裡寫的「裁定 編號」都是總表裡現行的裁定，已被取代的裁定與 Agent 定的做法不算。
+`retiredNames` 在產品程式 `src/JET/JET` 裡找名詞表「不再使用的名稱」一節列的舊名稱，註解也算，找到就失敗；比對方式寫在那一節的表格。
+`tableNames` 核對 SQLite、DuckDB 與 SQL Server 的案件資料庫建立的表，都列在名詞表「資料庫表名」一節，名詞表列的表也都還存在。
 這個命令不會替人判斷文章品質；執行通過後，仍要把本次改動的段落完整讀一次。
 
 架構文件另由 [architecture/](harness/architecture/README.md)檢查固定圖表包的雜湊、來源版本與 17 組類別關係，
@@ -387,7 +395,7 @@ Restore 因 `NU1301` 無法讀取 NuGet 來源時，會回報 `blocked`，因為
 每次命令寫好收據後，框架會整理 `artifacts/harness/runs/` 的舊執行。同一種檢查只完整保留最新 10 次執行；
 命令相同時，只跑單一情境或篩選的執行另外計算。更舊的執行只留下 `receipt.json`、各步驟的 `*.receipt.json` 與擁有者標記，
 TRX、記錄檔、截圖與暫存都會刪掉，所以文件或測試註解引用的舊收據仍讀得到結論與第一個失敗。
-還沒寫好收據的執行不會被碰到，整理失敗也不影響這次的結果。這是使用者 2026-10-14 裁定的保留期限，
+還沒寫好收據的執行不會被碰到，整理失敗也不影響這次的結果。這是裁定 2026-10-14-14 定的保留期限，
 當時本機累積 3,226 次執行、2.9 GB，整理後約 225 MB。改壞檢查放在 `artifacts/harness/mutation/` 的資料另有保留期限，
 寫在「需要時執行變異測試」一節。
 

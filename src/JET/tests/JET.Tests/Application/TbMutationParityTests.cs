@@ -10,13 +10,13 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 預期值來自 2026-10-06 需求計畫第八節「TB 修改改成比照 GL（2026-10-07）」：
+/// 預期值來自裁定 2026-10-07-04，TB 修改比照 GL：
 /// TB 匯入與配對確認使驗證、預篩選、命中及全部情境一起失效；失敗則整筆回復。
 /// 舊報告標成過期，已匯出的檔案不改寫。不從被測政策讀取預期值。
 /// </summary>
 public sealed class TbMutationParityTests
 {
-    private const string Scenarios = """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]},{"name":"合成貸方","rationale":"固定答案","groups":[{"rules":[{"type":"drCrOnly","drCr":"credit"}]}]}]}""";
+    private const string Scenarios = """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]},{"name":"合成貸方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"credit"}]}]}]}""";
 
     public static IEnumerable<object[]> SuccessfulCases() =>
         from provider in new[] { "sqlite", "duckdb" }
@@ -47,12 +47,12 @@ public sealed class TbMutationParityTests
         string provider, string change)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         var saved = await host.DispatchAsync("filter.commit", Scenarios);
         prepared = prepared with { Revision = saved.GetProperty("resultRef").GetProperty("revision").GetString()! };
         var before = await LoadAsync(host, prepared.Id);
         Assert.Equal(2, before.GetProperty("filterScenarios").GetArrayLength());
-        Assert.Equal(2, await CountAsync(host, prepared.Id, provider, "result_filter_run"));
+        Assert.Equal(2, await CountAsync(host, prepared.Id, provider, "filter_hit"));
         var reports = await ExportBothAsync(host, prepared);
         var controlTotal = await SnapshotRowsAsync(host, prepared.Id, provider, "gl_control_total");
 
@@ -78,15 +78,15 @@ public sealed class TbMutationParityTests
         Assert.All(invalidated.EnumerateObject(), item => Assert.True(item.Value.GetBoolean(), item.Name));
         AssertClearedState(response);
         AssertReports(reports, response, stale: true);
-        foreach (var table in new[] { "result_rule_run", "result_inf_sampling_test_sample", "result_filter_run", "config_filter_scenario" })
+        foreach (var table in new[] { "validation_result", "prescreen_result", "inf_sample", "filter_hit", "filter_scenario" })
             Assert.Equal(0, await CountAsync(host, prepared.Id, provider, table));
         Assert.Equal(controlTotal, await SnapshotRowsAsync(host, prepared.Id, provider, "gl_control_total"));
 
         var reopened = await LoadAsync(host, prepared.Id);
         AssertClearedState(reopened);
         Assert.Empty(reopened.GetProperty("filterScenarios").EnumerateArray());
-        Assert.Equal(JsonValueKind.Null, reopened.GetProperty("latestRuns").GetProperty("validate").ValueKind);
-        Assert.Equal(JsonValueKind.Null, reopened.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
+        Assert.Equal(JsonValueKind.Null, reopened.GetProperty("validationResult").ValueKind);
+        Assert.Equal(JsonValueKind.Null, reopened.GetProperty("prescreenResult").ValueKind);
         AssertReports(reports, reopened, stale: true);
     }
 
@@ -95,22 +95,22 @@ public sealed class TbMutationParityTests
     public async Task FailedTbChange_RollsBackSourceMappingResultsAndScenarios(string provider, string change)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         var saved = await host.DispatchAsync("filter.commit", Scenarios);
         prepared = prepared with { Revision = saved.GetProperty("resultRef").GetProperty("revision").GetString()! };
         var reports = await ExportBothAsync(host, prepared);
         var before = await LoadAsync(host, prepared.Id);
-        var tables = new[] { "staging_tb_raw_row", "target_tb_balance", "result_rule_run", "result_inf_sampling_test_sample", "result_filter_run", "config_filter_scenario", "gl_control_total" };
+        var tables = new[] { "pbc_tb", "tb", "validation_result", "prescreen_result", "inf_sample", "filter_hit", "filter_scenario", "gl_control_total" };
         var rows = new Dictionary<string, string[]>();
         foreach (var table in tables) rows[table] = await SnapshotRowsAsync(host, prepared.Id, provider, table);
-        Assert.Equal(2, rows["config_filter_scenario"].Length);
-        Assert.Equal(2, rows["result_filter_run"].Length);
+        Assert.Equal(2, rows["filter_scenario"].Length);
+        Assert.Equal(2, rows["filter_hit"].Length);
 
         if (change == "mapping")
         {
             var mapping = JsonNode.Parse(before.GetProperty("mapping").GetProperty("tb").GetRawText())!;
             // 已存在的文字來源欄讓投影進入交易後失敗，而不是在 payload 檢查時被拒絕。
-            mapping["mapping"]!["amount"] = "科目名稱";
+            mapping["mapping"]!["changeAmount"] = "科目名稱";
             var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.tb", mapping.ToJsonString()));
             Assert.Equal("projection_failed", error.Code);
         }
@@ -125,7 +125,7 @@ public sealed class TbMutationParityTests
         }
 
         var after = await LoadAsync(host, prepared.Id);
-        foreach (var property in new[] { "filterScenarios", "mapping", "latestRuns", "staleState", "importState" })
+        foreach (var property in new[] { "filterScenarios", "mapping", "validationResult", "prescreenResult", "staleState", "importState" })
             Assert.Equal(before.GetProperty(property).GetRawText(), after.GetProperty(property).GetRawText());
         foreach (var table in tables)
             Assert.Equal(rows[table], await SnapshotRowsAsync(host, prepared.Id, provider, table));
@@ -145,19 +145,19 @@ public sealed class TbMutationParityTests
 
     private sealed record Exported(string Id, string Path, byte[] Bytes);
 
-    private static async Task<Exported[]> ExportBothAsync(HandlerTestHost host, Batch9ArtifactStateTests.Prepared prepared)
+    private static async Task<Exported[]> ExportBothAsync(HandlerTestHost host, ReportRevisionStateTests.Prepared prepared)
     {
         var criteria = await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new
-        { validationRunId = prepared.ValidationRunId, revision = prepared.Revision }));
-        var paper = await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new
-        { validationRunId = prepared.ValidationRunId, scenarioRevision = prepared.Revision, scenarioPositions = new[] { 1, 2 } }));
+        { validationResultId = prepared.ValidationResultId, revision = prepared.Revision }));
+        var paper = await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
+        { validationResultId = prepared.ValidationResultId, scenarioRevision = prepared.Revision, scenarioPositions = new[] { 1, 2 } }));
         return new[] { criteria, paper }.Select(response =>
         {
-            var artifact = response.GetProperty("artifact");
-            Assert.False(artifact.GetProperty("stale").GetBoolean());
-            var path = artifact.GetProperty("fullPath").GetString()!;
+            var report = response.GetProperty("publishedReport");
+            Assert.False(report.GetProperty("stale").GetBoolean());
+            var path = report.GetProperty("fullPath").GetString()!;
             Assert.InRange(new FileInfo(path).Length, 1, 10_000_000);
-            return new Exported(artifact.GetProperty("artifactId").GetString()!, path, File.ReadAllBytes(path));
+            return new Exported(report.GetProperty("reportId").GetString()!, path, File.ReadAllBytes(path));
         }).ToArray();
     }
 
@@ -165,8 +165,8 @@ public sealed class TbMutationParityTests
     {
         foreach (var report in reports)
         {
-            var entry = response.GetProperty("reportArtifacts").EnumerateArray()
-                .Single(item => item.GetProperty("artifactId").GetString() == report.Id);
+            var entry = response.GetProperty("reports").EnumerateArray()
+                .Single(item => item.GetProperty("reportId").GetString() == report.Id);
             Assert.Equal(stale, entry.GetProperty("stale").GetBoolean());
             Assert.Equal(report.Bytes, File.ReadAllBytes(report.Path));
         }

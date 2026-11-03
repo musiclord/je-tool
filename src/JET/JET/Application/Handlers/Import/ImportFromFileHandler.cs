@@ -81,7 +81,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             }
         }
 
-        // V11：每個來源各記一份「欄位內含換行」的筆數與前幾個列號，匯入完成後寫進提醒與支援日誌。
+        // 每個來源各記一份「欄位內含換行」的筆數與前幾個列號，匯入完成後寫進提醒與支援日誌。
         var lineBreakTallies = sourceRequests.Select(static _ => new QuotedLineBreakTally()).ToArray();
 
         // 檔案讀取 + bulk insert 移出 UI thread，避免匯入期間介面凍結
@@ -166,15 +166,15 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         await AdvanceStepAsync(projectId, WorkflowStep, CancellationToken.None);
 
         var batch = result.Data.Batch;
-        string? auditLogWarning = null;
+        string? operationLogWarning = null;
         if (replacesExistingBatch)
         {
-            auditLogWarning = await CommittedAuditLog.AppendAsync(
-                repositories.ProjectAuditLog,
+            operationLogWarning = await CommittedOperationLog.AppendAsync(
+                repositories.ProjectOperationLog,
                 projectId,
-                ProjectAuditEvent.Create(
-                    ProjectAuditOperations.DataReimport,
-                    ProjectAuditTargetTypes.Dataset,
+                ProjectOperationEvent.Create(
+                    ProjectOperations.DataReimport,
+                    ProjectOperationTargetTypes.Dataset,
                     Kind.ToStorageName(),
                     batch.RowCount,
                     replacedCount: 1),
@@ -185,11 +185,11 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
         [
             .. DuplicateSourceWarnings(plan.Operation, previous, batch),
             .. QuotedLineBreakWarnings(sourceRequests, lineBreakTallies),
-            .. auditLogWarning is null ? Array.Empty<string>() : [auditLogWarning]
+            .. operationLogWarning is null ? Array.Empty<string>() : [operationLogWarning]
         ];
 
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         return new
         {
             batchId = batch.BatchId,
@@ -200,12 +200,12 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             warnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning
         };
     }
 
-    /// <summary>V11：每個有引號內換行的來源各寫一則提醒與一筆支援日誌，統計與句子見 <see cref="QuotedLineBreakTally"/>。</summary>
+    /// <summary>每個有引號內換行的來源各寫一則提醒與一筆支援日誌，統計與句子見 <see cref="QuotedLineBreakTally"/>。</summary>
     private string[] QuotedLineBreakWarnings(
         IReadOnlyList<(ImportFileSourcePayload Payload, TabularSourceRequest Request)> sources,
         IReadOnlyList<QuotedLineBreakTally> tallies)
@@ -233,8 +233,8 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             .Select(source =>
             {
                 var label = source.SheetName is null ? $"「{source.FileName}」" : $"「{source.FileName}」的工作表「{source.SheetName}」";
-                // 使用者 2026-10-13 勾選頁確認：寫實際比對的結果，不寫「可能」。比對的是來源檔的列數，
-                // 依 2026-10-19 裁定的「來源檔用列，分錄用筆」寫成「列數」。
+                // 裁定 2026-10-13-28 確認了用字：寫實際比對的結果，不寫「可能」。比對的是來源檔的列數，
+                // 依裁定 2026-10-19-16 的「來源檔用列，分錄用筆」寫成「列數」。
                 return $"{label}與已匯入的來源檔名、工作表及列數皆相同，已照常加入；請確認是否重複匯入。";
             }).ToArray();
     }

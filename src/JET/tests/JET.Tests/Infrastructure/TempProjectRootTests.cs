@@ -3,7 +3,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 2026-10-20 使用者選擇在測試清理加上查出持有者的診斷：刪不掉暫存根目錄時照樣失敗，
+/// 裁定 2026-10-20-05：測試清理加上查出持有者的診斷，刪不掉暫存根目錄時照樣失敗，
 /// 訊息要列出還留著的檔案與開著它的程序；這裡由測試程序自己開著一個合成鎖檔。
 /// </summary>
 public sealed class TempProjectRootTests
@@ -13,7 +13,7 @@ public sealed class TempProjectRootTests
     {
         var root = new TempProjectRoot();
         Directory.CreateDirectory(root.Path);
-        var lockPath = Path.Combine(root.Path, ".report-artifacts-synthetic.lock");
+        var lockPath = Path.Combine(root.Path, ".reports-synthetic.lock");
         try
         {
             using (new FileStream(lockPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
@@ -23,7 +23,7 @@ public sealed class TempProjectRootTests
                 var original = Assert.IsType<IOException>(exception.InnerException);
                 Assert.StartsWith(original.Message, exception.Message, StringComparison.Ordinal);
                 var diagnostics = exception.Message[original.Message.Length..];
-                Assert.Contains(".report-artifacts-synthetic.lock：0 位元組", diagnostics, StringComparison.Ordinal);
+                Assert.Contains(".reports-synthetic.lock：0 位元組", diagnostics, StringComparison.Ordinal);
                 // 同一時間 Defender 之類的程序也可能開著這個新檔，所以只要求列出測試程序本身，不要求它排第一個。
                 Assert.Contains("開著它的程序：", diagnostics, StringComparison.Ordinal);
                 Assert.Contains($"測試程序本身 pid {Environment.ProcessId}", diagnostics, StringComparison.Ordinal);

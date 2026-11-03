@@ -64,10 +64,10 @@ public sealed class DemoWorkbookWriter : IDemoFileWriter
         foreach (var row in data.GlRows)
         {
             rowNumber++;
-            worksheet.Cell(rowNumber, 1).Value = row.PostDate.ToDateTime(TimeOnly.MinValue);
+            worksheet.Cell(rowNumber, 1).Value = row.GlDate.ToDateTime(TimeOnly.MinValue);
             worksheet.Cell(rowNumber, 2).Value = row.VoucherNumber;
             worksheet.Cell(rowNumber, 3).Value = row.LineNumber;
-            worksheet.Cell(rowNumber, 4).Value = row.AccountCode;
+            worksheet.Cell(rowNumber, 4).Value = row.AccountNumber;
             worksheet.Cell(rowNumber, 5).Value = row.AccountName;
             worksheet.Cell(rowNumber, 6).Value = row.Description;
             worksheet.Cell(rowNumber, 7).Value = row.Amount;
@@ -93,7 +93,7 @@ public sealed class DemoWorkbookWriter : IDemoFileWriter
         foreach (var row in data.TbRows)
         {
             rowNumber++;
-            worksheet.Cell(rowNumber, 1).Value = row.AccountCode;
+            worksheet.Cell(rowNumber, 1).Value = row.AccountNumber;
             worksheet.Cell(rowNumber, 2).Value = row.AccountName;
             worksheet.Cell(rowNumber, 3).Value = row.OpeningBalance;
             worksheet.Cell(rowNumber, 4).Value = row.DebitTotal;
@@ -119,7 +119,7 @@ public sealed class DemoWorkbookWriter : IDemoFileWriter
         foreach (var row in data.AccountMappingRows)
         {
             rowNumber++;
-            worksheet.Cell(rowNumber, 1).Value = row.AccountCode;
+            worksheet.Cell(rowNumber, 1).Value = row.AccountNumber;
             worksheet.Cell(rowNumber, 2).Value = row.AccountName;
             worksheet.Cell(rowNumber, 3).Value = row.Category;
         }

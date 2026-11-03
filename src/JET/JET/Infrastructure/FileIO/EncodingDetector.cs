@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 /// 而非默默替換成 U+FFFD 汙染審計資料。
 /// 讀取端的 StreamReader 會認 BOM：BOM 和這裡給的編碼的前導位元組相同時沿用這個嚴格編碼，
 /// 不同時會換成 .NET 預設、遇到壞位元組就默默替換的編碼。所以 UTF-8 與 UTF-16 的嚴格編碼都帶前導位元組，
-/// 指定「utf-16」時也照 BOM 選大端或小端（低嚴重度事項 A3，使用者 2026-10-19 要求處理）。
+/// 指定「utf-16」時也照 BOM 選大端或小端。
 /// </summary>
 public static class EncodingDetector
 {

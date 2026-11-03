@@ -95,7 +95,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
         AssertAppearsInOrder(
             detailPath,
             "var population = new GlPopulationContext(",
-            "tagMatrixRows.GetPageAsync(");
+            "highRiskSummaryRows.GetPageAsync(");
         Assert.Contains(
             "[scenarioPosition]",
             detailPath,
@@ -109,7 +109,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "await EmitRawPagedSheetsAsync(",
             "ReadCriteriaVoucherRowsAsync(",
             "RawSheetAutoFitMode.LegacyFirstTwentyWhenAtMostOneMillion,");
-        // 2026-10-29 使用者裁定 10 點明細頁統一 15 點，寫死的 12.5 改由 LegacyReportStyles.ExportDatabaseRowHeight 提供；
+        // 裁定 2026-10-29-08：10 點明細頁統一 15 點，寫死的 12.5 改由 LegacyReportStyles.ExportDatabaseRowHeight 提供；
         // 守衛核對的仍是同一段呼叫順序，只把列高的寫法換成現行的。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
         AssertAppearsInOrder(
             writerSource,
@@ -157,9 +157,9 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
         var lifecycle = Slice(
             handler,
             "var unfinalizedReportPlan = JetAuditProgram.Plan(",
-            "var request = new ReportArtifactWriteRequest(");
+            "var request = new ReportWriteRequest(");
 
-        // 2026-10-22 技術債一輪：報告寫出器只剩一個正式入口，handler 不再依型別挑路徑；確認它把 Finalize 後的計畫交給寫出器。
+        // 2026-10-22 清理技術債：報告寫出器只剩一個正式入口，handler 不再依型別挑路徑；確認它把 Finalize 後的計畫交給寫出器。
         Assert.Contains(
             "writer.WriteAsync(",
             handler,

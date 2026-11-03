@@ -11,53 +11,57 @@ namespace JET.AuditCore;
 /// </summary>
 internal sealed partial class GlRulePredicates(
     ISqlDialect dialect,
-    Func<FilterRuleContext, string, string> populationScopePredicate)
+    Func<FilterConditionContext, string, string> populationScopePredicate)
 {
-    /// <summary>期末後核准（post_period_approval）：核准日 ≥ 期末財報準備日。</summary>
-    public string PostPeriodApproval(FilterSqlParameterPlanBuilder command, string lastPeriodStart)
+    /// <summary>期末後核准（prep_period_approval）：核准日 ≥ 期末財報準備日。</summary>
+    public string PrepPeriodApproval(FilterSqlParameterPlanBuilder command, string prepStartDate)
     {
-        var p = NextParam(command, lastPeriodStart);
+        var p = NextParam(command, prepStartDate);
         return $"g.approval_date >= {p}";
     }
 
     /// <summary>摘要特定描述（suspicious_keywords）：摘要含任一預設關鍵字，和第五步「傳票摘要」的「包含任一文字」同一個比對。</summary>
     public string SuspiciousKeywords(FilterSqlParameterPlanBuilder command)
     {
-        return ContainsAnyKeyword(command, "g.document_description", SuspiciousKeywordDefaults.Defaults);
+        return ContainsAnyKeyword(command, "g.description", SuspiciousKeywordDefaults.Defaults);
     }
 
     /// <summary>
-    /// 未預期借貸組合（unexpected_account_pair，否定面）：本列為 Revenue 貸方
-    /// （amount_scaled &lt; 0），但其所在傳票**無任何**「借方（amount_scaled > 0）且分類 ∈
-    /// {Receivables, Cash, Receipt in advance}」的分錄——收入貸記卻缺正常對方科目才命中，
-    /// 正常銷售（貸收入、借應收/現金/預收）不命中。tag 只落在 Revenue 貸方列（與「收入無一般對方科目」
-    /// 標記慣例一致；2026-07-03 裁決）。對方集合含 Cash，故較「收入無一般對方科目」
-    /// （不含 Cash）嚴，命中集是它的子集（現銷傳票它命中、本規則不命中）。
-    /// 零元邊界（本規則專屬）：正常對方科目的借方 counterpart 採 `amount_scaled > 0`，
-    /// 0 元分錄不算「已收到對價」，因此不足以消解「收入貸記缺正常對方科目」的疑慮。
-    /// 其他借貸組合規則（accountPair、specialAccountCategoryPair、收入無一般對方科目）維持
-    /// `amount_scaled >= 0` 屬借方側的統一判定（2026-06-11 裁決），本例外只在此處。
-    /// 需科目配對已匯入。ANSI 共通（EXISTS + NOT EXISTS）。
+    /// 未預期借貸組合（unexpected_account_pair）照舊版 IDEA R3 寫：本列是收入貸方（amount_scaled &lt; 0），
+    /// 同一張傳票、同一個母體範圍裡，沒有應收款項、現金或預收款且金額大於 0 的分錄（舊版 idea-tool.bas 第 8370 行），
+    /// 但至少有一筆金額大於 0 的分錄（第 8380 到 8388 行先取這類傳票裡金額大於 0 的分錄，第 8434 到 8442 行再依傳票號碼和收入貸方對上；
+    /// 裁定 2026-10-29-29 改成和舊版一樣）。整張傳票沒有正金額分錄時借貸一定不平，借貸不平測試會列出來，這條規則不挑。
+    /// 正常對方科目要大於 0，0 元的應收或現金不算有正常對方科目，和舊版相同。
+    /// 直接命中的只有收入貸方這一列；第四步與預篩選報告要列整張傳票，由列出命中分錄的地方處理，判斷式不變。
+    /// 「收入無一般對方科目」是另一條常用篩選條件：對方科目不含現金，借方側採 amount_scaled >= 0，也不要求正金額分錄。
+    /// 現銷傳票與沒有正金額分錄的傳票只有它挑中；傳票的應收或預收借方只有 0 元、另有其他正金額分錄時，只有這條規則挑中。
+    /// 其他借貸組合條件（accountPair、specialAccountCategoryPair）照樣以 amount_scaled >= 0 判定借方側。
+    /// 需科目配對已匯入。三種資料庫共用同一段 SQL（EXISTS 與 NOT EXISTS）。
     /// </summary>
     public string UnexpectedAccountPair(
         FilterSqlParameterPlanBuilder command,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix = "")
     {
-        var revenue = NextParam(command, AccountTaxonomyBuiltIns.RevenueRole);
+        var revenue = NextParam(command, AccountCategoryBuiltIns.RevenueRole);
         var counterparts = CategoryListParams(command);
 
         return $"""
-            (g.document_number IS NOT NULL
-             AND EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
-                     {TaxonomyJoin(schemaPrefix, "m", "tm")}
-                     WHERE m.account_code = g.account_code AND tm.semantic_role = {revenue})
+            (g.voucher_number IS NOT NULL
+             AND EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m
+                     {CategoryJoin(schemaPrefix, "m", "tm")}
+                     WHERE m.account_number = g.account_number AND tm.semantic_role = {revenue})
              AND g.amount_scaled < 0
+             AND EXISTS (
+                 SELECT 1 FROM {schemaPrefix}gl p
+                 WHERE p.voucher_number = g.voucher_number
+                   AND {populationScopePredicate(context, "p")}
+                   AND p.amount_scaled > 0)
              AND NOT EXISTS (
-                 SELECT 1 FROM {schemaPrefix}target_gl_entry d
-                 JOIN {schemaPrefix}target_account_mapping md ON md.account_code = d.account_code
-                 {TaxonomyJoin(schemaPrefix, "md", "td")}
-                 WHERE d.document_number = g.document_number
+                 SELECT 1 FROM {schemaPrefix}gl d
+                 JOIN {schemaPrefix}account_mapping md ON md.account_number = d.account_number
+                 {CategoryJoin(schemaPrefix, "md", "td")}
+                 WHERE d.voucher_number = g.voucher_number
                    AND {populationScopePredicate(context, "d")}
                    AND d.amount_scaled > 0
                    AND td.semantic_role IN ({counterparts})))
@@ -69,9 +73,9 @@ internal sealed partial class GlRulePredicates(
         return string.Join(", ",
             new[]
             {
-                AccountTaxonomyBuiltIns.ReceivablesRole,
-                AccountTaxonomyBuiltIns.CashRole,
-                AccountTaxonomyBuiltIns.ReceiptInAdvanceRole
+                AccountCategoryBuiltIns.ReceivablesRole,
+                AccountCategoryBuiltIns.CashRole,
+                AccountCategoryBuiltIns.ReceiptInAdvanceRole
             }.Select(role => NextParam(command, role)));
     }
 
@@ -85,7 +89,7 @@ internal sealed partial class GlRulePredicates(
         string pairMode,
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix = "", string? categorySelection = null)
     {
         var side = CategorySides(command, debitCategoryIds, creditCategoryIds, context, schemaPrefix, categorySelection);
@@ -119,7 +123,7 @@ internal sealed partial class GlRulePredicates(
         string pairMode,
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix = "", string? categorySelection = null)
     {
         var side = CategorySides(command, debitCategoryIds, creditCategoryIds, context, schemaPrefix, categorySelection);
@@ -149,33 +153,33 @@ internal sealed partial class GlRulePredicates(
         FilterSqlParameterPlanBuilder command,
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix = "", string? categorySelection = null)
     {
         string RowIsDebitSide() =>
             $"""
-            (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
-                     {TaxonomyJoin(schemaPrefix, "m", "tm")}
-                     WHERE m.account_code = g.account_code
+            (EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m
+                     {CategoryJoin(schemaPrefix, "m", "tm")}
+                     WHERE m.account_number = g.account_number
                        AND {CategorySelectionRoles(command, "tm", debitCategoryIds, "借方", schemaPrefix, categorySelection)})
              AND g.amount_scaled >= 0)
             """;
 
         string RowIsCreditSide() =>
             $"""
-            (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
-                     {TaxonomyJoin(schemaPrefix, "m", "tm")}
-                     WHERE m.account_code = g.account_code
+            (EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m
+                     {CategoryJoin(schemaPrefix, "m", "tm")}
+                     WHERE m.account_number = g.account_number
                        AND {CategorySelectionRoles(command, "tm", creditCategoryIds, "貸方", schemaPrefix, categorySelection)})
              AND g.amount_scaled < 0)
             """;
 
         string DocHasDebitSide() =>
             $"""
-            EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_entry d
-                    JOIN {schemaPrefix}target_account_mapping md ON md.account_code = d.account_code
-                    {TaxonomyJoin(schemaPrefix, "md", "td")}
-                    WHERE d.document_number = g.document_number
+            EXISTS (SELECT 1 FROM {schemaPrefix}gl d
+                    JOIN {schemaPrefix}account_mapping md ON md.account_number = d.account_number
+                    {CategoryJoin(schemaPrefix, "md", "td")}
+                    WHERE d.voucher_number = g.voucher_number
                       AND {populationScopePredicate(context, "d")}
                       AND {CategorySelectionRoles(command, "td", debitCategoryIds, "借方", schemaPrefix, categorySelection)}
                       AND d.amount_scaled >= 0)
@@ -183,10 +187,10 @@ internal sealed partial class GlRulePredicates(
 
         string DocHasCreditSide() =>
             $"""
-            EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_entry c
-                    JOIN {schemaPrefix}target_account_mapping mc ON mc.account_code = c.account_code
-                    {TaxonomyJoin(schemaPrefix, "mc", "tc")}
-                    WHERE c.document_number = g.document_number
+            EXISTS (SELECT 1 FROM {schemaPrefix}gl c
+                    JOIN {schemaPrefix}account_mapping mc ON mc.account_number = c.account_number
+                    {CategoryJoin(schemaPrefix, "mc", "tc")}
+                    WHERE c.voucher_number = g.voucher_number
                       AND {populationScopePredicate(context, "c")}
                       AND {CategorySelectionRoles(command, "tc", creditCategoryIds, "貸方", schemaPrefix, categorySelection)}
                       AND c.amount_scaled < 0)
@@ -204,7 +208,7 @@ internal sealed partial class GlRulePredicates(
     /// </summary>
     private static string CategorySelectionRoles(
         FilterSqlParameterPlanBuilder command,
-        string taxonomyAlias,
+        string categoryAlias,
         IReadOnlyList<string> categoryIds,
         string sideLabel,
         string schemaPrefix, string? categorySelection = null)
@@ -215,11 +219,11 @@ internal sealed partial class GlRulePredicates(
         }
 
         var parameters = string.Join(", ", categoryIds.Select(categoryId => NextParam(command, categoryId)));
-        if (categorySelection == "node") return $"{taxonomyAlias}.category_id IN ({parameters})";
-        if (categorySelection == "subtree") return $"{taxonomyAlias}.category_id IN (SELECT descendant_id FROM {schemaPrefix}config_account_taxonomy_path WHERE ancestor_id IN ({parameters}))";
+        if (categorySelection == "node") return $"{categoryAlias}.category_id IN ({parameters})";
+        if (categorySelection == "subtree") return $"{categoryAlias}.category_id IN (SELECT descendant_id FROM {schemaPrefix}account_category_path WHERE ancestor_id IN ({parameters}))";
         if (categorySelection is not (null or "role")) throw new InvalidOperationException("分類選取方式無效。");
-        return $"{taxonomyAlias}.semantic_role IN ("
-            + $"SELECT ts.semantic_role FROM {schemaPrefix}config_account_taxonomy ts "
+        return $"{categoryAlias}.semantic_role IN ("
+            + $"SELECT ts.semantic_role FROM {schemaPrefix}account_category ts "
             + $"WHERE ts.category_id IN ({parameters}))";
     }
 
@@ -232,19 +236,19 @@ internal sealed partial class GlRulePredicates(
 
     /// <summary>
     /// typed dynamic rule（type:"typed"，2026-08-14 契約凍結）：committed RDE 欄位的有型別述詞。
-    /// blank＝沒有 <c>target_gl_rde_value</c> row；所有比較 operator（含負向 notEquals／notContains／
+    /// blank＝沒有 <c>gl_rde_value</c> row；所有比較 operator（含負向 notEquals／notContains／
     /// notIn）都以「存在 value row 且 row 值滿足述詞」的 EXISTS 表達——(entry_id, field_id) 是主鍵、
     /// 每列至多一筆值，因此負向 operator 是 evidence row 自身的述詞、blank 永不命中；`isBlank`／
     /// `isNotBlank` 專門判 missing／存在 value row。text 比較 trim＋不分大小寫（同 TextMatch 家族的
-    /// UPPER(TRIM(...))）；date 以正規化 ISO 字串精確比較；money 在 scaled integer 域比較並依
+    /// UPPER(TRIM(...))）；date 以正規化 ISO 字串精確比較；amount 在 scaled integer 域比較並依
     /// amountBasis 決定 signed／ABS。fieldId 與所有 operand 一律參數綁定，永不成為 SQL identifier。
     /// registry 缺欄位或 operator 型別不相容時 fail loud 擲 invalid_scenario 並指名 field——
     /// validator 是第一道，本層是未經驗證回放路徑的最後一道。ANSI 共通（EXISTS／NOT EXISTS）。
     /// </summary>
     public string TypedField(
         FilterSqlParameterPlanBuilder command,
-        FilterRuleSpec rule,
-        FilterRuleContext context,
+        FilterConditionSpec rule,
+        FilterConditionContext context,
         string schemaPrefix = "")
     {
         if (string.IsNullOrEmpty(rule.FieldId))
@@ -266,7 +270,7 @@ internal sealed partial class GlRulePredicates(
         if (TypedFieldOperatorSets.IsBlankFamily(op))
         {
             var existence = op == TypedFieldOperatorSets.IsNotBlank ? "EXISTS" : "NOT EXISTS";
-            return $"{existence} (SELECT 1 FROM {schemaPrefix}target_gl_rde_value v "
+            return $"{existence} (SELECT 1 FROM {schemaPrefix}gl_rde_value v "
                 + $"WHERE v.entry_id = g.entry_id AND v.field_id = {fieldParam})";
         }
 
@@ -275,18 +279,18 @@ internal sealed partial class GlRulePredicates(
         {
             RdeFieldValueTypeNames.Text => TypedTextPredicate(command, rule, op),
             RdeFieldValueTypeNames.Date => TypedDatePredicate(command, rule, op, context.DateParseOptions),
-            RdeFieldValueTypeNames.Money => TypedMoneyPredicate(command, rule, op, context.MoneyScale),
+            RdeFieldValueTypeNames.Amount => TypedMoneyPredicate(command, rule, op, context.MoneyScale),
             _ => throw Invalid("typed_value_type_unsupported")
         };
 
-        return $"EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_rde_value v "
+        return $"EXISTS (SELECT 1 FROM {schemaPrefix}gl_rde_value v "
             + $"WHERE v.entry_id = g.entry_id AND v.field_id = {fieldParam} "
             + $"AND v.value_type = {typeParam} AND {valuePredicate})";
     }
 
     private string TypedTextPredicate(
         FilterSqlParameterPlanBuilder command,
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         string op)
     {
         // 儲存的 text_value 恆非空白但可能帶前後空白（投影原樣保存）；比較兩側都 trim＋upper，去空白的字元集合和 .NET 相同。
@@ -328,7 +332,7 @@ internal sealed partial class GlRulePredicates(
 
     private string TypedDatePredicate(
         FilterSqlParameterPlanBuilder command,
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         string op,
         DateParseOptions dateOptions)
     {
@@ -354,7 +358,7 @@ internal sealed partial class GlRulePredicates(
 
     private string TypedMoneyPredicate(
         FilterSqlParameterPlanBuilder command,
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         string op,
         int moneyScale)
     {
@@ -409,7 +413,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     private static IReadOnlyList<string> TypedSetOperandKeys(
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         Func<string, string> normalize)
     {
         var values = rule.TypedValues;
@@ -423,7 +427,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     // 驗證器已先檢查過同樣的條件；走到這裡是驗證器與執行時檢查不一致的程式錯誤。畫面只顯示非預期錯誤那一句，
-    // 檢查代號記進支援日誌（使用者 2026-10-14 第三輪勾選頁確認 R3-62）。check 只能是程式寫死的代號。
+    // 檢查代號記進支援日誌（裁定 2026-10-14-01 確認了用字）。check 只能是程式寫死的代號。
     private static JetActionException Invalid(string check) => FilterCompileCheck.Create(check);
 
     /// <summary>週末（weekend_*）：日期落在案件設定的週末日，補班日仍納入。dateExpr 只接受本層常數或欄位目錄解析出的欄位。</summary>
@@ -439,23 +443,23 @@ internal sealed partial class GlRulePredicates(
     public string MakeupDay(string dateExpr, string schemaPrefix = "") => CalendarDay(dateExpr, "makeup", schemaPrefix);
 
     private static string CalendarDay(string dateExpr, string dayType, string schemaPrefix) =>
-        $"EXISTS (SELECT 1 FROM {schemaPrefix}staging_calendar_raw_day d WHERE d.day_type = '{dayType}' AND d.date = {dateExpr})";
+        $"EXISTS (SELECT 1 FROM {schemaPrefix}calendar_day d WHERE d.day_type = '{dayType}' AND d.date = {dateExpr})";
 
     /// <summary>文字欄位空白：NULL 或去空白後為空。去空白的字元集合和 .NET 相同（dialect.Trim），兩個本地資料庫結果一致。</summary>
     public string BlankText(string columnExpr) => SqlBlankText.IsBlank(dialect, columnExpr);
 
-    /// <summary>摘要空白（blank_description）：和第五步「傳票摘要」的「空白」同一個判斷。</summary>
-    public string BlankDescription() => BlankText("g.document_description");
+    /// <summary>空白摘要（blank_description）：和第五步「傳票摘要」的「空白」同一個判斷。</summary>
+    public string BlankDescription() => BlankText("g.description");
 
     /// <summary>非授權編製人員（non_authorized_preparer）：created_by 非空白且不在授權清單。
-    /// 人員識別值的比對去頭尾空白、不分大小寫，和人員清單、編製等於核准同一規則（2026-10-04 裁定 C3）。
+    /// 人員識別值的比對去頭尾空白、不分大小寫，和人員清單、編製等於核准同一規則（裁定 2026-10-04-01）。
     /// 前綴 EXISTS 自保:授權清單為空時 `x NOT IN (空集合)` 會反轉成全命中,
     /// 故名單空 → 整體述詞 FALSE(無命中,與 prescreen.run 的 na 語意對齊),
     /// 即便 validator 或 handler 的前置檢查被繞過仍安全。</summary>
     public string NonAuthorizedPreparer(string schemaPrefix = "") =>
-        $"(EXISTS (SELECT 1 FROM {schemaPrefix}target_authorized_preparer) " +
+        $"(EXISTS (SELECT 1 FROM {schemaPrefix}authorized_preparer) " +
         $"AND {SqlBlankText.IsNotBlank(dialect, "g.created_by")} " +
-        $"AND {dialect.Upper(dialect.Trim("g.created_by"))} NOT IN (SELECT {dialect.Upper(dialect.Trim("name"))} FROM {schemaPrefix}target_authorized_preparer))";
+        $"AND {dialect.Upper(dialect.Trim("g.created_by"))} NOT IN (SELECT {dialect.Upper(dialect.Trim("name"))} FROM {schemaPrefix}authorized_preparer))";
 
     /// <summary>filter text 條件：關鍵字以 OR 串接；NOT 模式整體取反（COALESCE 保住 NULL 列）。</summary>
     public string TextMatch(
@@ -523,7 +527,7 @@ internal sealed partial class GlRulePredicates(
 
     /// <summary>
     /// 季末前借記收入(revenue_debit_near_quarter_end):科目分類 = Revenue 且借方側
-    /// (amount_scaled >= 0),且 post_date 落在任一季底視窗內。視窗由 Domain QuarterEndWindows 算出,
+    /// (amount_scaled >= 0),且 gl_date 落在任一季底視窗內。視窗由 Domain QuarterEndWindows 算出,
     /// 邊界參數綁定。視窗為空(X 非法或與期間無交集)→ 零命中。需科目配對已匯入。ANSI 共通。
     /// </summary>
     public string RevenueDebitNearQuarterEnd(
@@ -536,14 +540,14 @@ internal sealed partial class GlRulePredicates(
             return "1 = 0";
         }
 
-        var revenue = NextParam(command, AccountTaxonomyBuiltIns.RevenueRole);
+        var revenue = NextParam(command, AccountCategoryBuiltIns.RevenueRole);
         var windowClauses = string.Join(" OR ", windows.Select(w =>
-            $"(g.post_date >= {NextParam(command, w.FromIso)} AND g.post_date <= {NextParam(command, w.ToIso)})"));
+            $"(g.gl_date >= {NextParam(command, w.FromIso)} AND g.gl_date <= {NextParam(command, w.ToIso)})"));
 
         return $"""
-            (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
-                     {TaxonomyJoin(schemaPrefix, "m", "tm")}
-                     WHERE m.account_code = g.account_code AND tm.semantic_role = {revenue})
+            (EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m
+                     {CategoryJoin(schemaPrefix, "m", "tm")}
+                     WHERE m.account_number = g.account_number AND tm.semantic_role = {revenue})
              AND g.amount_scaled >= 0
              AND ({windowClauses}))
             """;
@@ -552,29 +556,31 @@ internal sealed partial class GlRulePredicates(
     /// <summary>
     /// 收入無一般對方科目(revenue_without_normal_counterpart):本列為 Revenue 貸方
     /// (amount_scaled &lt; 0),但其所在傳票無任何「借方側(amount_scaled >= 0)且分類 ∈
-    /// {Receivables, Receipt in advance}」的分錄(不含 Cash)——unexpected_account_pair 的否定面。
+    /// {Receivables, Receipt in advance}」的分錄(不含 Cash)。
+    /// 和未預期借貸組合(<see cref="UnexpectedAccountPair"/>)不同：對方科目不含現金、0 元的借方也算對方科目，
+    /// 也不要求傳票裡有正金額分錄。現銷傳票與沒有正金額分錄的傳票只有這條挑中；應收或預收借方只有 0 元、另有其他正金額分錄時，只有未預期借貸組合挑中。
     /// ANSI 共通(EXISTS + NOT EXISTS)。需科目配對已匯入。
     /// </summary>
     public string RevenueWithoutNormalCounterpart(
         FilterSqlParameterPlanBuilder command,
-        FilterRuleContext context,
+        FilterConditionContext context,
         string schemaPrefix = "")
     {
-        var revenue = NextParam(command, AccountTaxonomyBuiltIns.RevenueRole);
-        var receivables = NextParam(command, AccountTaxonomyBuiltIns.ReceivablesRole);
-        var receiptInAdvance = NextParam(command, AccountTaxonomyBuiltIns.ReceiptInAdvanceRole);
+        var revenue = NextParam(command, AccountCategoryBuiltIns.RevenueRole);
+        var receivables = NextParam(command, AccountCategoryBuiltIns.ReceivablesRole);
+        var receiptInAdvance = NextParam(command, AccountCategoryBuiltIns.ReceiptInAdvanceRole);
 
         return $"""
-            (g.document_number IS NOT NULL
-             AND EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
-                     {TaxonomyJoin(schemaPrefix, "m", "tm")}
-                     WHERE m.account_code = g.account_code AND tm.semantic_role = {revenue})
+            (g.voucher_number IS NOT NULL
+             AND EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m
+                     {CategoryJoin(schemaPrefix, "m", "tm")}
+                     WHERE m.account_number = g.account_number AND tm.semantic_role = {revenue})
              AND g.amount_scaled < 0
              AND NOT EXISTS (
-                 SELECT 1 FROM {schemaPrefix}target_gl_entry d
-                 JOIN {schemaPrefix}target_account_mapping md ON md.account_code = d.account_code
-                 {TaxonomyJoin(schemaPrefix, "md", "td")}
-                 WHERE d.document_number = g.document_number
+                 SELECT 1 FROM {schemaPrefix}gl d
+                 JOIN {schemaPrefix}account_mapping md ON md.account_number = d.account_number
+                 {CategoryJoin(schemaPrefix, "md", "td")}
+                 WHERE d.voucher_number = g.voucher_number
                    AND {populationScopePredicate(context, "d")}
                    AND d.amount_scaled >= 0
                    AND td.semantic_role IN ({receivables}, {receiptInAdvance})))
@@ -587,25 +593,25 @@ internal sealed partial class GlRulePredicates(
     /// </summary>
     public string ManualRevenueEntry(FilterSqlParameterPlanBuilder command, string schemaPrefix = "")
     {
-        var revenue = NextParam(command, AccountTaxonomyBuiltIns.RevenueRole);
+        var revenue = NextParam(command, AccountCategoryBuiltIns.RevenueRole);
         return $"""
-            (EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m
-                     {TaxonomyJoin(schemaPrefix, "m", "tm")}
-                     WHERE m.account_code = g.account_code AND tm.semantic_role = {revenue})
+            (EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m
+                     {CategoryJoin(schemaPrefix, "m", "tm")}
+                     WHERE m.account_number = g.account_number AND tm.semantic_role = {revenue})
              AND g.is_manual = 1)
             """;
     }
 
     /// <summary>
     /// 科目配對一律以 category_id 連到分類表；兩條寫入路徑都一定寫入 category_id。
-    /// 進入 taxonomy 後的所有商業比較一律看 semantic_role，不比較顯示 label。
+    /// 進入科目分類後的所有商業比較一律看 semantic_role，不比較顯示 label。
     /// </summary>
-    private static string TaxonomyJoin(
+    private static string CategoryJoin(
         string schemaPrefix,
         string mappingAlias,
-        string taxonomyAlias) =>
-        $"JOIN {schemaPrefix}config_account_taxonomy {taxonomyAlias} ON "
-        + $"{taxonomyAlias}.category_id = {mappingAlias}.category_id";
+        string categoryAlias) =>
+        $"JOIN {schemaPrefix}account_category {categoryAlias} ON "
+        + $"{categoryAlias}.category_id = {mappingAlias}.category_id";
 
     /// <summary>
     /// 特定金額尾數(trailing_digits):純機械式尾數比對——把金額主單位整數(捨去小數)的末 k 位,
@@ -664,7 +670,7 @@ internal sealed partial class GlRulePredicates(
 
     /// <summary>
     /// 編製與核准同一人(preparer_equals_approver):created_by 與 approved_by 皆非空白
-    /// 且(忽略大小寫與前後空白)相等。createBy/approveBy 未配對時對應欄為 NULL,零命中。
+    /// 且(忽略大小寫與前後空白)相等。createdBy/approvedBy 未配對時對應欄為 NULL,零命中。
     /// 純 ANSI 欄位比較,雙 provider 相同。
     /// </summary>
     public string PreparerEqualsApprover() =>

@@ -8,8 +8,8 @@ public sealed class FilterResultCursorRevisionTests
 {
     private const string Definitions = """
         {"scenarios":[
-          {"name":"借方","rationale":"合成游標版本","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]},
-          {"name":"貸方","rationale":"合成游標版本","groups":[{"rules":[{"type":"drCrOnly","drCr":"credit"}]}]}
+          {"name":"借方","rationale":"合成游標版本","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]},
+          {"name":"貸方","rationale":"合成游標版本","groups":[{"conditions":[{"type":"drCrOnly","drCr":"credit"}]}]}
         ]}
         """;
 
@@ -26,7 +26,7 @@ public sealed class FilterResultCursorRevisionTests
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         var saved = await host.DispatchAsync("filter.commit", Definitions);
         var cursors = new Dictionary<string, string>();
-        foreach (var action in new[] { "query.filterHitsPage", "query.tagMatrixVoucherPage", "query.tagMatrixRowPage" })
+        foreach (var action in new[] { "query.filterHitsPage", "query.highRiskSummaryVoucherPage", "query.highRiskSummaryRowPage" })
         {
             var first = await host.DispatchAsync(action, Request(action));
             var cursor = first.GetProperty("nextCursor").GetString();
@@ -40,7 +40,7 @@ public sealed class FilterResultCursorRevisionTests
         }
         else
         {
-            // 使用者 2026-10-07 裁定上游修改清除下游：行事曆修改會清掉已存情境，審計員要重新儲存同一組情境；
+            // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改會清掉已存情境，審計員要重新儲存同一組情境；
             // 重新儲存會重算全部情境，因此不再有「只重算選定情境、全案仍待重跑」的狀態，filter 一律不是待重跑。
             // 仍要確認上游修改前取得的游標不能接到新結果。第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
             await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
@@ -48,17 +48,17 @@ public sealed class FilterResultCursorRevisionTests
             if (change == "selected")
             {
                 var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
-                await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new
+                await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
                 {
-                    validationRunId = loaded.GetProperty("latestRuns").GetProperty("validate")
-                        .GetProperty("resultRef").GetProperty("runId").GetString(),
+                    validationResultId = loaded.GetProperty("validationResult")
+                        .GetProperty("resultRef").GetProperty("resultId").GetString(),
                     scenarioRevision = saved.GetProperty("resultRef").GetProperty("revision").GetString(),
                     scenarioPositions = new[] { 1 }
                 }));
             }
             else
             {
-                await host.DispatchAsync("query.tagMatrixScenarios");
+                await host.DispatchAsync("query.highRiskSummaryScenarios");
             }
         }
         var after = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
@@ -75,13 +75,13 @@ public sealed class FilterResultCursorRevisionTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task MatrixContinuation_AfterLastScenarioIsRemoved_RequiresFirstPage(string provider)
+    public async Task HighRiskSummaryContinuation_AfterLastScenarioIsRemoved_RequiresFirstPage(string provider)
     {
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await host.DispatchAsync("filter.commit", Definitions);
         var cursors = new Dictionary<string, string>();
-        foreach (var action in new[] { "query.tagMatrixVoucherPage", "query.tagMatrixRowPage" })
+        foreach (var action in new[] { "query.highRiskSummaryVoucherPage", "query.highRiskSummaryRowPage" })
         {
             var first = await host.DispatchAsync(action, Request(action));
             var cursor = first.GetProperty("nextCursor").GetString();

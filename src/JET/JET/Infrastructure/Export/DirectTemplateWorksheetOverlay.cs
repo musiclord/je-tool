@@ -910,7 +910,7 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
     {
         var path = Path.Combine(
             Path.GetTempPath(),
-            $".jet-workpaper-worksheet-{Guid.NewGuid():N}.tmp");
+            $".jet-working-paper-worksheet-{Guid.NewGuid():N}.tmp");
         return new FileStream(
             path,
             FileMode.CreateNew,

@@ -3,7 +3,7 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -71,7 +71,7 @@ public sealed class SqlExecutionLoggingTests
         Assert.All(sql, e => Assert.Equal("sqlite", e.Fields["provider"]?.ToString()));
 
         // staging 逐列 INSERT 改為 milestone-only（與 SqlServer 的 SqlBulkCopy 路徑事件等價）→ 不再逐筆記事件
-        Assert.DoesNotContain(sql, e => e.Fields["sql"]!.ToString()!.Contains("INSERT INTO staging_gl_raw_row"));
+        Assert.DoesNotContain(sql, e => e.Fields["sql"]!.ToString()!.Contains("INSERT INTO pbc_gl"));
 
         // 一次性語句仍逐筆記錄：INSERT import_batch 帶 @columnsJson 參數值（欄名）、rows_affected=1
         var batchInsert = sql.First(e => e.Fields["parameters"]!.ToString()!.Contains("@columnsJson"));
@@ -152,11 +152,11 @@ public sealed class SqlExecutionLoggingTests
         await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" },
             Stream(rows))], CancellationToken.None);
 
-        // 第 9 批中低 14：首敗 20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
+        // 首敗 20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
         // 已移除的單來源入口自行組來源資訊；正式 batch 入口在 commit 前只查一次 import_batch_source。
         var sql = env.Diagnostic.Snapshot().Where(e => e.EventName == "sql.executed").ToList();
         Assert.Equal(6, sql.Count); // 20 與 200 列皆為 6，不因 staging 列數增加。
-        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源多存欄名在第幾列，這一句查詢多讀 header_row。
+        // 裁定 2026-10-22-15 讓每個來源多存欄名在第幾列，這一句查詢多讀 header_row。
         // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
         const string expectedSourceQuery = """
             SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc, header_row

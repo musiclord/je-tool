@@ -16,7 +16,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
 
     private FilterPredicateProviderFixture(
         string projectId,
-        IFilterRunRepository repository,
+        IFilterHitRepository repository,
         TempProjectRoot? root = null,
         TempSqlServerProject? sqlServer = null)
     {
@@ -28,7 +28,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
 
     public string ProjectId { get; }
 
-    public IFilterRunRepository Repository { get; }
+    public IFilterHitRepository Repository { get; }
     public IFilterVoucherRepository? Vouchers { get; private init; }
 
     public static async Task<FilterPredicateProviderFixture> CreateLocalAsync(
@@ -59,7 +59,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
 
             return new FilterPredicateProviderFixture(
                 projectId,
-                new LocalFilterRunRepository(database),
+                new LocalFilterHitRepository(database),
                 root: root) { Vouchers = new LocalFilterVoucherRepository(database) };
         }
         catch
@@ -90,7 +90,7 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
 
             return new FilterPredicateProviderFixture(
                 sqlServer.ProjectId,
-                new SqlServerFilterRunRepository(sqlServer.Database),
+                new SqlServerFilterHitRepository(sqlServer.Database),
                 sqlServer: sqlServer) { Vouchers = new SqlServerFilterVoucherRepository(sqlServer.Database) };
         }
         catch
@@ -110,10 +110,10 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
                 "'[^']*'",
                 match => "N" + match.Value)
             .Replace("INSERT INTO ", "INSERT INTO {s}.", StringComparison.Ordinal)
-            .Replace("UPDATE target_gl_entry", "UPDATE {s}.target_gl_entry", StringComparison.Ordinal)
+            .Replace("UPDATE gl", "UPDATE {s}.gl", StringComparison.Ordinal)
             // INSERT..SELECT 形式的 fixture（如 typed RDE 值以 source_row_number 對應 entry）
-            // 也要 schema 限定子查詢中的 target_gl_entry。
-            .Replace("FROM target_gl_entry", "FROM {s}.target_gl_entry", StringComparison.Ordinal);
+            // 也要 schema 限定子查詢中的 gl。
+            .Replace("FROM gl", "FROM {s}.gl", StringComparison.Ordinal);
 
     public async ValueTask DisposeAsync()
     {

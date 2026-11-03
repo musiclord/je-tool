@@ -3,13 +3,13 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// GL 投影診斷日誌（TDD #1 SQL；#2 per-row 不逐筆記；transaction 共享 id；projection.milestone）。
 /// oracle：規格——ProjectStagingToTargetAsync 只逐筆記一次性的 clear DELETE + staging SELECT
-/// + lineID 未對應時的逐傳票編號 UPDATE；逐列 INSERT（SQLite）/ SqlBulkCopy（SqlServer）不產生
+/// + lineItem 未對應時的逐傳票編號 UPDATE；逐列 INSERT（SQLite）/ SqlBulkCopy（SqlServer）不產生
 /// sql.executed → 事件數為常數 3（與母體列數無關）；投影結束記一筆 projection.milestone。
 /// 斷言鎖 SQL 內容、共享 id、phase、列數。SqlServer 側 LocalDB 閘控。
 /// </summary>
@@ -18,10 +18,10 @@ public sealed class GlProjectionLoggingTests
     private static GlMappingSpec DualSpec() => new(
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"
@@ -74,12 +74,12 @@ public sealed class GlProjectionLoggingTests
         var entries = diagnostic.Snapshot();
         var sql = entries.Where(e => e.EventName == "sql.executed").ToList();
 
-        // 一次性 SQL：clear DELETE + staging SELECT + lineID 未對應時的逐傳票編號 UPDATE；
+        // 一次性 SQL：clear DELETE + staging SELECT + lineItem 未對應時的逐傳票編號 UPDATE；
         // 逐列 INSERT / bulk 不記事件（不隨母體列數成長，故 DualSpec 下事件數為常數 3）。
         Assert.Equal(3, sql.Count);
         Assert.All(sql, e => Assert.Equal(expectedProvider, e.Fields["provider"]?.ToString()));
-        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"DELETE FROM {schemaPrefix}target_gl_entry"));
-        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"{schemaPrefix}staging_gl_raw_row"));
+        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"DELETE FROM {schemaPrefix}gl"));
+        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains($"{schemaPrefix}pbc_gl"));
         Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("line_item"));
 
         // transaction：begin + commit + 其間 SQL 共享同一 transaction_id

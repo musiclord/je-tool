@@ -21,25 +21,16 @@
 | CaseWare IDEA 的替代範圍與完成條件 | [`idea-replacement-scope.md`](idea-replacement-scope.md) |
 | `data/` 工作簿、程式隨附範本、`legacy/` 與來源專案 | [`data-and-legacy.md`](data-and-legacy.md) |
 | 業務邏輯從哪裡來、衝突時如何裁決 | [`business-logic-provenance.md`](business-logic-provenance.md) |
+| 使用者裁定了什麼、原話在哪裡 | [`rulings.md`](rulings.md) |
+| 每個業務概念在畫面、程式與資料庫各叫什麼 | [`glossary.md`](glossary.md) |
 | SQL Server 封存的延後事項、已知安全缺口與暫緩期間的修改 | [`history/2026-10-20-sqlserver-archive.md`](history/2026-10-20-sqlserver-archive.md) |
 
 ## 計畫
 
 `specs/` 放進行中的大型計畫，以及已經建檔、等現行計畫結案才開始的下一份計畫；
-目前是哪一份，以 `development-status.md` 的「目前大型計畫」為準。
-[預篩選收斂、技術債與延後事項計畫](history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md)2026-10-30 結案，移到歷史文件。
-2026-10-20 使用者指示收尾並提交推送，
-[資料表分頁與 Agent 文件整理](history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md)、
-[跨資料庫審計結果一致性整合](history/specs/2026-10-19-cross-database-consistency-plan.md)與
-[延後事項清理](history/specs/2026-10-19-deferred-items-cleanup-plan.md)三份計畫移回歷史文件。
-本輪先收錄既有圖表、共用分析流程與關係檢查，下一階段由 Claude 重繪。
-[介面動態與驗證循環整理計畫](history/specs/2026-10-15-motion-and-verification-plan.md)2026-10-16 結案，移回歷史文件。
-[KCT 總帳資料整理需求與新版 JET 對照](history/specs/2026-10-06-kct-gl-requirements-plan.md)已完成第九節的驗收回饋修正與獨立複審，移回歷史文件，成果待使用者驗收。
-原定的下一階段工作計畫中，Gui、驗證框架瘦身與前後端契合度測試已在 2026-10-15 併入介面動態與驗證循環整理計畫並完成，其餘等使用者指示才開始。
-試用重點見[測試環境交付說明](test-environment-notes.md)。
-[使用者回饋與操作流程一致性修正計畫](history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)另依原安排驗收，
-2026-10-05 完成交付前修正後移到歷史文件，成果待使用者驗收。接手先讀 `development-status.md` 的「目前大型計畫」。
-已結束的計畫在 `history/specs/`，清單與歸屬見 [`history/README.md`](history/README.md)。
+目前是哪一份，以 `development-status.md` 的「目前大型計畫」為準，接手先讀那一節。
+已結束的計畫在 `history/specs/`，清單與歸屬見 [`history/README.md`](history/README.md)；
+還在等使用者驗收的，列在 `development-status.md` 的「已結束、待使用者驗收的計畫」。
 
 ## 文件權威
 
@@ -47,6 +38,8 @@
 - 需要精確規則或遷移差異時，依 `business-logic-provenance.md` 的順序使用現行程式、測試、歷史副本與 legacy 證據。
 - `history/` 與 `legacy/` 已按目前檔名正規化，能解釋來歷，但不是逐位原文；哪些地方改過寫在 `history/README.md`。
 - `jet-template-v1.html` 與 `jet-template-v2.html` 是使用者裁定保留的版本，不參與一般文件重寫。
+- 使用者裁定了什麼以 [`rulings.md`](rulings.md) 為準，每則附原話與出處；業務概念在各層叫什麼以
+  [`glossary.md`](glossary.md) 為準，新的名稱先寫進名詞表，經使用者確認後才用。
 
 ## 寫作規範
 
@@ -64,11 +57,13 @@
   找不到出處的聲明刪掉或標成待確認。
 - 新名詞的准入條件：程式、UI、資料結構或外部標準本來就存在的名稱，或確實會反覆使用且能用一句白話定義的概念。
   其他情況用普通中文說清楚，不替它命名。
+- 文件長度依類型設上限：現行計畫 120 KiB；裁定總表 320 KiB；系統規格、action 契約、前端說明與名詞表 160 KiB；
+  其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限。超過時文件檢查先給提醒，專案紀錄收斂計畫第七階段結案時改成檢查失敗（裁定 2026-11-02-04）。
 
 ## 文件完成前
 
 1. 執行 `pwsh -NoProfile -File tools/verify.ps1 -Command Documentation`。它會檢查缺檔、失效的相對連結與錨點、
-   必要的指向、已確認過時的說法，並對不自然的用語給 warning。
+   必要的指向、已確認過時的說法，以及裁定總表寫的落實位置是否存在，並對不自然的用語與超過長度上限的文件給 warning。
 2. 把本次改動的段落完整讀一次。每一條 warning 都要有結論：改掉，或說明為什麼保留。命令通過不代表文句自然，
    也不代表沒有形近錯字。
 3. 確認現況與歷史沒有混寫；歷史副本要標示已正規化，不宣稱與來源逐位相同。

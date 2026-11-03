@@ -3,7 +3,7 @@ using static JET.Tests.Application.TaiwanSmeScenarioSupport;
 
 namespace JET.Tests.Application;
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
 /// 台灣中小企業常見的調整分錄摘要、整數與重複尾數金額、編製與核准人員，以及使用次數少的人員與科目。
@@ -41,7 +41,7 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
         var validation = await host.DispatchAsync("validate.run");
         // 摘要空白：K09 與只含全形空白的 K11，共 4 列。
-        Assert.Equal(4, validation.GetProperty("nullRecordsTest").GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(4, validation.GetProperty("blankRecordsTest").GetProperty("nullDescriptionCount").GetInt64());
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 預設 25 個字詞含 ADJ、調整、迴轉、沖銷、重分類，不含更正、補登、暫估：K01、K02、K03、K04、K10，共 10 列。
         Assert.Equal(10, prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
@@ -99,12 +99,12 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("特定尾數 999999 或 000000", """{"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"999999、000000","amountBasis":"absolute"}"""),
-            OneRule("尾數 3 個 0", """{"type":"group","rules":[{"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"000","amountBasis":"absolute"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}"""),
+            OneRule("尾數 3 個 0", """{"type":"group","conditions":[{"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"000","amountBasis":"absolute"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}"""),
             OneRule("一百萬以上", """{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1000000","amountBasis":"absolute"}"""),
             OneRule("超過一百萬", """{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"1000000","amountBasis":"absolute"}"""),
             OneRule("一百萬邊界區間", """{"type":"fieldValue","field":"amount","operator":"between","from":"999999","to":"1000000","amountBasis":"absolute"}"""),
-            OneRule("貸方一百萬以上含正負號", """{"type":"group","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1000000","amountBasis":"absolute"}]}"""),
-            OneRule("貸方五百萬以上", """{"type":"group","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"5000000","amountBasis":"absolute"}]}"""),
+            OneRule("貸方一百萬以上含正負號", """{"type":"group","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1000000","amountBasis":"absolute"}]}"""),
+            OneRule("貸方五百萬以上", """{"type":"group","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"5000000","amountBasis":"absolute"}]}"""),
             OneRule("尾數 500 或 999", """{"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"500、999","amountBasis":"absolute"}"""));
         // 000000 需整數至少 6 位且末 6 位為 0：R1、R3、R5、R7；999999：R2。
         Assert.Equal(Keys("R1:1,2;R2:1,2;R3:1,2;R5:1,2;R7:1,2"), hits[0]);
@@ -133,10 +133,10 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         await InlineWorkbookProject.SetupAsync(host, b =>
         {
             b.WithColumns("傳票號碼", "傳票項次", "傳票日期", "科目代號", "科目名稱", "摘要", "建立人員", "核准人員", "金額", "借方旗標");
-            void Voucher(string doc, string? creator, string? approver)
+            void Voucher(string doc, string? preparer, string? approver)
             {
-                b.AddRow(doc, "1", "2025-09-10", "6112", "營業費用", "人員測試", creator, approver, 2000, 1);
-                b.AddRow(doc, "2", "2025-09-10", "1102", "銀行存款", "人員測試", creator, approver, 2000, 0);
+                b.AddRow(doc, "1", "2025-09-10", "6112", "營業費用", "人員測試", preparer, approver, 2000, 1);
+                b.AddRow(doc, "2", "2025-09-10", "1102", "銀行存款", "人員測試", preparer, approver, 2000, 0);
             }
 
             Voucher("E1", "陳會計", "林經理");
@@ -160,12 +160,12 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         // 非授權編製人員：只有 temp99 的 E7 兩列；cfo01 對 CFO01、GM01 對 gm01 都算已授權，空白人員不列入。
         Assert.Equal(2, prescreen.GetProperty("nonAuthorizedPreparer").GetProperty("count").GetInt64());
         // 編製者共 6 組：陳會計、林經理、cfo01、GM01、temp99，加上空白人員一組。
-        Assert.Equal(6, prescreen.GetProperty("creatorSummary").GetProperty("totalPreparerCount").GetInt64());
+        Assert.Equal(6, prescreen.GetProperty("preparerSummary").GetProperty("totalPreparerCount").GetInt64());
 
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("非授權編製人員", """{"type":"prescreen","prescreenKey":"nonAuthorizedPreparer"}"""),
             OneRule("編製與核准同一人", """{"type":"preparerEqualsApprover"}"""),
-            OneRule("特定人員 財務長與總經理", """{"type":"text","field":"createBy","mode":"exact","keywords":"CFO01、gm01"}"""));
+            OneRule("特定人員 財務長與總經理", """{"type":"text","field":"createdBy","mode":"exact","keywords":"CFO01、gm01"}"""));
         Assert.Equal(Keys("E7:1,2"), hits[0]);
         // E2 同為林經理；E3 的 cfo01 與 CFO01 視為同一人；E5、E6 有空白，不命中。
         Assert.Equal(Keys("E2:1,2;E3:1,2"), hits[1]);
@@ -176,7 +176,7 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task LowFrequencyPreparersAndAccounts_ElevenEntriesHitTwelveDoNot(string provider)
+    public async Task RarePreparersAndAccounts_ElevenEntriesHitTwelveDoNot(string provider)
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, b =>
@@ -186,9 +186,9 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
             for (var i = 1; i <= 11; i++)
             {
                 var doc = $"L{i:00}";
-                var creator = i <= 6 ? "李大華" : "Amy";
-                b.AddRow(doc, "1", "2025-10-01", "6120", "文具用品", "購買文具", creator, 100, 1);
-                b.AddRow(doc, "2", "2025-10-01", "1102", "銀行存款", "購買文具", creator, 100, 0);
+                var preparer = i <= 6 ? "李大華" : "Amy";
+                b.AddRow(doc, "1", "2025-10-01", "6120", "文具用品", "購買文具", preparer, 100, 1);
+                b.AddRow(doc, "2", "2025-10-01", "1102", "銀行存款", "購買文具", preparer, 100, 0);
             }
 
             // L12：銀行存款轉零用金；第 1 列編製者寫成小寫加尾端空白，第 2 列編製者空白。
@@ -198,29 +198,32 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
         await host.DispatchAsync("validate.run");
         var prescreen = await host.DispatchAsync("prescreen.run");
-        // 科目筆數：6120 有 11 列、1102 有 11 + 1 = 12 列、1101 有 1 列。11 筆以下的是 6120 與 1101，共 12 列。
-        Assert.Equal(12, prescreen.GetProperty("lowFrequencyAccount").GetProperty("count").GetInt64());
-        Assert.Equal(2, prescreen.GetProperty("rareAccounts").GetProperty("lowFrequencyAccountCount").GetInt64());
+        // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，第四步不再有 rareAccount、rarePreparer 與 rareAccountCount，原本的三項計數斷言拿掉；
+        // 11 筆以下的邊界改由下面第五步依審計目的的統計條件（預設 11 筆以下）核對同一組命中列。
+        // 第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        Assert.False(prescreen.TryGetProperty("rareAccount", out _));
+        Assert.False(prescreen.TryGetProperty("rarePreparer", out _));
+        // 科目筆數：6120 有 11 列、1102 有 11 + 1 = 12 列、1101 有 1 列，共 3 個科目。
         Assert.Equal(3, prescreen.GetProperty("rareAccounts").GetProperty("distinctAccountCount").GetInt64());
-        // 人員筆數：李大華 12 列；Amy 10 列加 L12 的 amy 1 列 = 11 列；空白 1 列不列入。只有 Amy 的 11 列命中。
-        Assert.Equal(11, prescreen.GetProperty("lowFrequencyPreparer").GetProperty("count").GetInt64());
         // 編製者彙總：李大華、Amy（含 amy），以及空白人員一組。
-        Assert.Equal(3, prescreen.GetProperty("creatorSummary").GetProperty("totalPreparerCount").GetInt64());
+        Assert.Equal(3, prescreen.GetProperty("preparerSummary").GetProperty("totalPreparerCount").GetInt64());
 
-        // 預篩選收斂計畫階段九把兩種舊式筆數條件列為停用寫法，這裡改成等價的「科目與人員統計」；預期命中不變。
+        // 兩種舊式筆數條件已列為停用寫法，這裡改成等價的「科目與人員統計」；預期命中不變。
         // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
-        var tenEntries = OneRule("編製者 10 筆以下", """{"type":"entityFrequency","field":"createBy","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}""");
+        var tenEntries = OneRule("編製者 10 筆以下", """{"type":"entityFrequency","field":"createdBy","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}""");
         // Amy 有 11 列，李大華 12 列，門檻 10 時沒有人命中。
         Assert.Equal((0L, 0L), await PreviewAsync(host, tenEntries));
         var hits = await CommitAndReadHitsAsync(host,
-            OneRule("使用較少的科目", """{"type":"prescreen","prescreenKey":"lowFrequencyAccount"}"""),
-            OneRule("編製分錄較少的人員", """{"type":"prescreen","prescreenKey":"lowFrequencyPreparer"}"""),
-            OneRule("科目 10 筆以下", """{"type":"entityFrequency","field":"accNum","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}"""),
-            OneRule("編製者剛好 12 筆", """{"type":"entityFrequency","field":"createBy","countUnit":"entries","countOperator":"equals","countFrom":12}"""),
-            OneRule("科目出現在 12 張以上傳票", """{"type":"entityFrequency","field":"accNum","countUnit":"vouchers","countOperator":"greaterThanOrEqual","countFrom":12}"""));
-        // 6120 的 11 列（L01 到 L11 第 1 列）與 1101 的 1 列（L12 第 2 列）。
+            // 第五步依審計目的的「較少使用的科目」與「編製分錄較少的人員」預設 11 筆以下；原本用第四步的預篩選寫法。
+            OneRule("較少使用的科目", """{"type":"entityFrequency","field":"accountNumber","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":11}"""),
+            OneRule("編製分錄較少的人員", """{"type":"entityFrequency","field":"createdBy","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":11}"""),
+            OneRule("科目 10 筆以下", """{"type":"entityFrequency","field":"accountNumber","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}"""),
+            OneRule("編製者剛好 12 筆", """{"type":"entityFrequency","field":"createdBy","countUnit":"entries","countOperator":"equals","countFrom":12}"""),
+            OneRule("科目出現在 12 張以上傳票", """{"type":"entityFrequency","field":"accountNumber","countUnit":"vouchers","countOperator":"greaterThanOrEqual","countFrom":12}"""));
+        // 11 筆以下的科目是 6120 與 1101：6120 的 11 列（L01 到 L11 第 1 列）與 1101 的 1 列（L12 第 2 列）。
         Assert.Equal(Keys("L01:1;L02:1;L03:1;L04:1;L05:1;L06:1;L07:1;L08:1;L09:1;L10:1;L11:1;L12:2"), hits[0]);
-        // Amy 的 11 列：L07 到 L11 兩列，加 L12 第 1 列。
+        // 人員筆數：李大華 12 列；Amy 10 列加 L12 的 amy 1 列 = 11 列；空白 1 列不列入。只有 Amy 的 11 列命中：
+        // L07 到 L11 兩列，加 L12 第 1 列。
         Assert.Equal(Keys("L07:1,2;L08:1,2;L09:1,2;L10:1,2;L11:1,2;L12:1"), hits[1]);
         // 門檻 10 時只剩 1101。
         Assert.Equal(Keys("L12:2"), hits[2]);

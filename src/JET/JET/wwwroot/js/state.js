@@ -48,10 +48,10 @@
     pickerFeedbackContext: null, // { projectId, errorCode, correlationId, devExportedPath }；只供 Debug 組建的 DEV 診斷日誌匯出
     // 案件清單操作列「輸出支援日誌」最近一次輸出的檔案位置（純 picker 呈現；不持久化、不進後端 payload）。
     pickerSupportLogPath: null,
-    // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色提示，不寫「無法完成操作」（使用者 2026-10-13 裁定訊息分三級）。
+    // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色提示，不寫「無法完成操作」（訊息分三級，裁定 2026-10-13-15）。
     pickerFeedbackLevel: 'error',
     // 審計員自己按的操作失敗或被阻擋、而且那個操作沒有自己的就地錯誤框時，在目前步驟標題下方顯示一次
-    // { id, label, message, level: 'error' | 'warn', stepIndex }（使用者 2026-10-13 裁定）。純畫面狀態：
+    // { id, label, message, level: 'error' | 'warn', stepIndex }（裁定 2026-10-13-16）。純畫面狀態：
     // 不持久化、不進後端 payload；任何 Ui.run 開始、換步驟、開案、換案與回案件清單時清掉。
     operationFailure: null,
     // project.list 的頂層 online 區塊 { reachable, principal, message? }（僅手動線上同步後存在）。
@@ -79,25 +79,22 @@
       },
       tb: { draft: {}, changeMode: 'debitCredit', committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: [] }
     },
-    // 專案科目分類（project.load.taxonomy）：{ revision, categories }；尚未載入時為 null。
-    taxonomy: null,
-    // 已移除的 GL 欄位與畫面名稱，由 project.load 帶來（正本是後端 JetFieldCatalog.RetiredGlFieldLabels），
-    // 只用來在舊情境的條件標題與讀回寫出名稱，不印程式代號（使用者 2026-10-14 第三輪勾選頁確認 R3-03）。
-    retiredGlFieldLabels: {},
+    // 專案科目分類（project.load.accountCategory）：{ revision, categories }；尚未載入時為 null。
+    accountCategory: null,
     // 後端判定的結果失效狀態（project.load.staleState）：三個獨立布林，
-    // 不得以 latestRuns === null 或 artifact stale 代算。
+    // 不得以 validationResult、prescreenResult 是 null 或報告的 stale 代算。
     staleState: { validation: false, prescreen: false, filter: false },
     // 欄位配對介面偏好（session 級；不被 resetWorkflow 清除）。'classic'（預設三欄表）| 'grid'（二維表）
     mappingUiMode: 'classic',
-    // 最近一次 validate.run / prescreen.run 的 response（resume 自 project.load.latestRuns）。
-    lastRuns: { validate: null, prescreen: null },
+    // 最近一次 validate.run / prescreen.run 的 response（resume 自 project.load 的 validationResult、prescreenResult）。
+    results: { validate: null, prescreen: null },
     // 篩選結果版本與專案內報告索引（resume 自 project.load）。
-    // artifact 只保留 wire metadata，不存絕對路徑或報告內容。
+    // 報告只保留 wire metadata，不存絕對路徑或報告內容。
     filterResultRef: null,
     // 開案時用目前規則檢查已儲存情境的結果（project.load.filterScenarioCheck）；
     // 只用來說明哪些情境無法套用、下一步怎麼做，不參與步驟判定。
     filterScenarioCheck: null,
-    reportArtifacts: [],
+    reports: [],
     validationOutput: { reports: null, template: null },
     // 進階條件篩選：populationScope 是尚未提交的母體選擇；已提交母體只讀
     // filterResultRef.populationScope，兩者不得混成同一個狀態。AST 草稿恆為物件。
@@ -115,7 +112,7 @@
     // 不適合當「資料是否真的變了」的判準；dataGeneration 只對真正的資料落地事件跳，
     // 供資料預覽面板據此精準作廢快取並重抓（避免每個 action 都盲目重抓大母體）。
     dataGeneration: 0,
-    // 後端回報篩選命中失效的次數（V7）。第五步據此清掉已載入的命中；修改案件資料不再換掉 project 物件，
+    // 後端回報篩選命中失效的次數。第五步據此清掉已載入的命中；修改案件資料不再換掉 project 物件，
     // 所以不能再靠「換了案件」順便清掉。
     filterResultGeneration: 0
   };
@@ -138,7 +135,7 @@
 
   // 人工／自動代碼是某一個來源欄的解讀方式，不得在取消配對或換欄後沿用到另一個欄位。
   function resetManualAutoPolicyIfSourceChanged(previousSource) {
-    var currentSource = state.mapping.gl.draft.manual || null;
+    var currentSource = state.mapping.gl.draft.isManual || null;
     if ((previousSource || null) !== currentSource) {
       state.mapping.gl.options.manualAutoPolicy = freshManualAutoPolicy();
     }
@@ -157,7 +154,7 @@
     var draft = state.mapping.gl.draft;
     Object.keys(draft).forEach(function (key) {
       var value = draft[key];
-      if (key !== 'dcDebitCode' && key !== 'dcCreditCode' && value) { used[value] = true; }
+      if (key !== 'drCrDebitCode' && key !== 'drCrCreditCode' && value) { used[value] = true; }
     });
     return used;
   }
@@ -171,15 +168,15 @@
     });
   }
 
-  // 往下填補只對有來源欄的欄位有意義（階段六）：欄位的來源欄被拿掉時，勾選跟著消失；借方、貸方代碼是字面值，不會在清單裡。
+  // 往下填補只對有來源欄的欄位有意義：欄位的來源欄被拿掉時，勾選跟著消失；借方、貸方代碼是字面值，不會在清單裡。
   function removeUnmappedFillDownFields() {
     var draft = state.mapping.gl.draft;
     state.mapping.gl.options.fillDownFields = (state.mapping.gl.options.fillDownFields || []).filter(function (key) {
-      return key !== 'dcDebitCode' && key !== 'dcCreditCode' && !!draft[key];
+      return key !== 'drCrDebitCode' && key !== 'drCrCreditCode' && !!draft[key];
     });
   }
 
-  // 往下填補是對來源欄做的（使用者 2026-10-28 裁定依來源欄成組），畫面上和已勾欄位配同一個來源欄的欄位也顯示勾選。
+  // 往下填補是對來源欄做的，依來源欄成組（裁定 2026-10-28-04），畫面上和已勾欄位配同一個來源欄的欄位也顯示勾選。
   // 改某個欄位的來源欄之前，先把清單補成畫面上看到的勾選，勾選才會跟著那個欄位走，不因為先勾哪一個欄位而不同。
   // 借方、貸方代碼是字面值，不算來源欄。
   function expandFillDownFieldsByColumn() {
@@ -188,7 +185,7 @@
     var columns = Object.create(null);
     keys.forEach(function (key) { if (draft[key]) { columns[draft[key]] = true; } });
     Object.keys(draft).forEach(function (key) {
-      if (key !== 'dcDebitCode' && key !== 'dcCreditCode' && draft[key] && columns[draft[key]] && keys.indexOf(key) < 0) {
+      if (key !== 'drCrDebitCode' && key !== 'drCrCreditCode' && draft[key] && columns[draft[key]] && keys.indexOf(key) < 0) {
         keys.push(key);
       }
     });
@@ -197,7 +194,7 @@
 
   function syncApprovalSource() {
     var gl = state.mapping.gl;
-    if (gl.draft.docDate) {
+    if (gl.draft.approvalDate) {
       gl.options.approvalDateMode = 'mapped';
     } else if (gl.options.approvalDateMode === 'mapped') {
       gl.options.approvalDateMode = 'unmapped';
@@ -206,7 +203,7 @@
 
   // 整份換掉配對草稿，並讓核准日、人工／自動與過帳狀態的設定跟著來源欄。只改狀態，由呼叫的一方 bump。
   function applyMappingDraft(kind, draft) {
-    var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.manual : null;
+    var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.isManual : null;
     var previousPostingSource = kind === 'gl' ? state.mapping.gl.draft.postingStatus : null;
     state.mapping[kind].draft = Object.assign({}, draft || {});
     if (kind === 'gl') {
@@ -228,17 +225,17 @@
 
   // 來源資料換過之後，草稿只留新資料仍有的來源欄；拿掉的記在 droppedFields，配對畫面據此請審計員重新選。
   // 借方與貸方代碼都是字面值，不受來源欄改變影響。人工/自動與過帳狀態的來源欄被拿掉時，
-  // 它們的代碼設定跟著清掉，和審計員自己取消那個欄位的結果一樣（D16）。
+  // 它們的代碼設定跟著清掉，和審計員自己取消那個欄位的結果一樣。
   function reconcileDraftWithColumns(kind, columns) {
     var available = Object.create(null);
     (columns || []).forEach(function (column) { available[column] = true; });
     var mapping = state.mapping[kind];
     var dropped = [];
-    var previousManualSource = kind === 'gl' ? mapping.draft.manual : null;
+    var previousManualSource = kind === 'gl' ? mapping.draft.isManual : null;
     var previousPostingSource = kind === 'gl' ? mapping.draft.postingStatus : null;
     Object.keys(mapping.draft).forEach(function (key) {
       var column = mapping.draft[key];
-      if (key === 'dcDebitCode' || key === 'dcCreditCode' || !column || available[column]) { return; }
+      if (key === 'drCrDebitCode' || key === 'drCrCreditCode' || !column || available[column]) { return; }
       dropped.push({ key: key, column: column });
       delete mapping.draft[key];
     });
@@ -278,10 +275,10 @@
   // 提示等衍生畫面在互動結束時對齊。select／radio／checkbox 是離散提交，永遠直接 bump。
   // 重建後的輸入焦點與捲動由 app.js renderContent 依焦點識別屬性與 data-preserve-scroll 統一
   // 還原，步驟模組不得各自發明保留機制。已文件化的例外：filter-step 規則值編輯
-  // （patchFilterRule＋softRefreshReadback／softExpirePreviewPane，連續輸入且重建成本高）；
+  // （patchFilterCondition＋softRefreshReadback／softExpirePreviewPane，連續輸入且重建成本高）；
   // 欄位配對的借方代碼與攸關資料元素顯示名稱（setMappingLiteralQuiet、patchGlMappingOptionsQuiet）。
   // 後者每次 input 就地更新必填清單、提示與「確認配對」可用性，失焦時不重建：滑鼠按下確認鈕會先讓
-  // 輸入框失焦，若此時重建，按鈕會在按下與放開之間被換掉，第一次點擊就不會送出（2026-10-02 W3）。
+  // 輸入框失焦，若此時重建，按鈕會在按下與放開之間被換掉，第一次點擊就不會送出。
   function notify() {
     for (var i = 0; i < listeners.length; i++) {
       listeners[i](state);
@@ -301,7 +298,7 @@
   }
 
   // 第五步有沒有會被上游修改清掉的設定：已存情境，或已加入條件的草稿。上游畫面的提醒、清除後的訊息與
-  // 科目分類對話框都用這一個判斷（使用者 2026-10-15 裁定只有草稿時也要提醒）。
+  // 科目分類對話框都用這一個判斷；只有草稿時也要提醒（裁定 2026-10-15-01）。
   function hasFilterWork(filter) {
     return !!filter && ((filter.savedScenarios || []).length > 0 || ((filter.draft && filter.draft.groups) || []).length > 0);
   }
@@ -316,19 +313,19 @@
     var clearPrescreen = !!(options && options.prescreen);
     var clearFilter = !!(options && options.filter);
     if (clearValidation) {
-      state.lastRuns.validate = null;
-      // 科目配對檔的狀態描述的是上一次驗證準備的檔案，驗證清掉後一起收起（使用者 2026-10-15 裁定）。
+      state.results.validate = null;
+      // 科目配對檔的狀態描述的是上一次驗證準備的檔案，驗證清掉後一起收起（裁定 2026-10-15-01）。
       state.validationOutput = { reports: null, template: null };
     }
-    if (clearPrescreen) { state.lastRuns.prescreen = null; }
+    if (clearPrescreen) { state.results.prescreen = null; }
     // 只有命中失效時清掉預覽；已存情境是否一起清除，由後端的 filterScenarios 決定。
-    // 新 WorkingPaper 還記錄 filterDataRevision，因此部分情境重算不必偽造全案已更新。
+    // WorkingPaper 記錄 filterDataRevision，因此部分情境重算不必偽造全案已更新。
     if (clearFilter) {
       state.filter.preview = null;
       filterDraftRev++;
       state.filterResultGeneration++;
     }
-    // 使用者 2026-10-07 裁定：上游修改會清除後面步驟的篩選情境，第五步回到預設狀態。
+    // 上游修改會清除後面步驟的篩選情境，第五步回到預設狀態（裁定 2026-10-07-03）。
     if (options && options.filterScenarios) {
       var hadScenarios = hasFilterWork(state.filter);
       state.filter.savedScenarios = [];
@@ -338,8 +335,8 @@
       state.filterResultRef = null;
       state.filterScenarioCheck = null;
       filterDraftRev++;
-      // 審計員要回第五步重做，屬於「需要注意」（使用者 2026-10-13 裁定訊息分三級）。
-      // 句子照使用者 2026-10-13 勾選頁確認 12。
+      // 審計員要回第五步重做，屬於「需要注意」（訊息分三級，裁定 2026-10-13-15）。
+      // 裁定 2026-10-13-28 確認了這句的用字。
       if (hadScenarios) { Store.addMessage('前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。', 'warn'); }
     }
   }
@@ -475,13 +472,13 @@
       state.project = project;
       // 案件名稱是唯一必要識別；案件編號已是選填，不能再拿空白案件編號當頂部主識別。
       state.caseId = project ? project.projectId : null;
-      state.caseClient = project ? project.entityName : null;
+      state.caseClient = project ? project.clientName : null;
       bump();
     },
 
     // 修改案件資料只更新後端回傳的摘要與失效狀態，不套用開案流程，也不丟棄未儲存的篩選草稿。
     updateProjectMetadata: function (result) {
-      // V7：同一個案件只更新原本 project 物件的欄位。各步驟以物件身分判斷「是否換了案件」，
+      // 同一個案件只更新原本 project 物件的欄位。各步驟以物件身分判斷「是否換了案件」，
       // 換掉物件會把值摘要、已載入的明細與展開的結果都當成舊案件清掉。該清的結果由下方依後端失效清單處理。
       var current = state.project;
       if (current && result.project && current.projectId === result.project.projectId) {
@@ -493,11 +490,8 @@
       }
       state.project = result.project;
       state.caseId = result.project.projectId;
-      state.caseClient = result.project.entityName;
-      // 舊 project.update 回應只帶 artifacts；新契約的 null 是尚未讀到清單，不可用 alias 冒充成功。
-      var response = Object.prototype.hasOwnProperty.call(result, 'reportArtifacts') ? result
-        : Object.assign({}, result, { reportArtifacts: result.artifacts });
-      Store.applyMutationEffects(response);
+      state.caseClient = result.project.clientName;
+      Store.applyMutationEffects(result);
     },
 
     applyMutationEffects: function (result) {
@@ -508,8 +502,8 @@
         state.staleState = { validation: !!result.staleState.validation,
           prescreen: !!result.staleState.prescreen, filter: !!result.staleState.filter };
       }
-      if (Array.isArray(result.reportArtifacts)) { state.reportArtifacts = result.reportArtifacts.slice(); }
-      if (result.reportArtifactWarning) { Store.addMessage(result.reportArtifactWarning, 'warn'); }
+      if (Array.isArray(result.reports)) { state.reports = result.reports.slice(); }
+      if (result.reportWarning) { Store.addMessage(result.reportWarning, 'warn'); }
       if (invalidated.validation || invalidated.prescreen || invalidated.filter) { bumpData(); } else { bump(); }
     },
 
@@ -527,13 +521,12 @@
         },
         tb: { draft: {}, changeMode: 'debitCredit', committed: null, invalidatedByImport: false, reimportDraftOrigin: null, droppedFields: [] }
       };
-      state.taxonomy = null;
-      state.retiredGlFieldLabels = {};
+      state.accountCategory = null;
       state.staleState = { validation: false, prescreen: false, filter: false };
-      state.lastRuns = { validate: null, prescreen: null };
+      state.results = { validate: null, prescreen: null };
       state.filterResultRef = null;
       state.filterScenarioCheck = null;
-      state.reportArtifacts = [];
+      state.reports = [];
       state.validationOutput = { reports: null, template: null };
       state.filter = {
         populationScope: 'auditPeriod',
@@ -574,19 +567,19 @@
 
     setCalendarState: function (info) {
       state.importState.calendar = info;
-      bumpData(); // 假日／補班／非工作日：dateDimension 預覽內容已變
+      bumpData(); // 假日／補班／非工作日：calendar 預覽內容已變
     },
 
     // 科目配對（無欄位配對步驟，匯入即投影；不影響 GL/TB 配對狀態）。
     setAccountMappingState: function (info) {
       state.importState.accountMapping = info;
-      bumpData(); // 科目配對匯入：accountMappings 預覽內容已變
+      bumpData(); // 科目配對匯入：accountMapping 預覽內容已變
     },
 
     // 授權編製人員清單（整份替換的設定檔，匯入即生效；不影響 GL/TB 配對狀態）。
     setAuthorizedPreparerState: function (info) {
       state.importState.authorizedPreparer = info;
-      bumpData(); // 授權編製人員清單匯入：authorizedPreparers 預覽內容已變
+      bumpData(); // 授權編製人員清單匯入：authorizedPreparer 預覽內容已變
     },
 
     // GL 配對回傳的最新比對摘要；名單內容沒有改變，不再清除相依計算結果。
@@ -595,11 +588,10 @@
       bump();
     },
 
-    // 執行完成只清自己那一項過期旗標，對應後端 ResultStaleStateSql.ClearRuleRunWithinAsync 與 ClearFilterWithinAsync。
-    // 執行結果的回應就是保存的結果摘要，不另帶 staleState；開案時由 setStaleState 套用後端讀回的旗標
-    // （低嚴重度事項 F6，使用者 2026-10-19 要求處理時查明）。
-    setLastRun: function (kind, summary) {
-      state.lastRuns[kind] = summary || null;
+    // 執行完成只清自己那一項過期旗標，對應後端 ResultStaleStateSql.ClearResultWithinAsync 與 ClearFilterWithinAsync。
+    // 執行結果的回應就是保存的結果摘要，不另帶 staleState；開案時由 setStaleState 套用後端讀回的旗標。
+    setResult: function (kind, summary) {
+      state.results[kind] = summary || null;
       if (summary) { state.staleState[kind === 'validate' ? 'validation' : kind] = false; }
       bump();
     },
@@ -615,8 +607,8 @@
       bump();
     },
 
-    setReportArtifacts: function (artifacts) {
-      state.reportArtifacts = (artifacts || []).slice();
+    setReports: function (reports) {
+      state.reports = (reports || []).slice();
       bump();
     },
 
@@ -626,50 +618,50 @@
     },
 
       applyReportExport: function (data) {
-        var published = data.artifacts || (data.artifact ? [data.artifact] : []);
-        // Only the just-published artifact proves successful calculation; a catalog may contain old files.
-        published.forEach(function (artifact) {
-          if (artifact.stale) { return; }
-          if (artifact.kind === 'criteriaSelectionReport' ||
-              (artifact.kind === 'workingPaper' && data.filterResultsCurrent !== false)) { state.staleState.filter = false; }
-        if (artifact.kind === 'prescreenReport') { state.staleState.prescreen = false; }
+        var published = data.publishedReports || (data.publishedReport ? [data.publishedReport] : []);
+        // Only the just-published report proves successful calculation; a catalog may contain old files.
+        published.forEach(function (report) {
+          if (report.stale) { return; }
+          if (report.kind === 'criteriaSelectionReport' ||
+              (report.kind === 'workingPaper' && data.filterResultsCurrent !== false)) { state.staleState.filter = false; }
+        if (report.kind === 'prescreenReport') { state.staleState.prescreen = false; }
       });
-        var catalogComplete = Array.isArray(data.reportArtifacts) && published.every(function (artifact) {
-          return data.reportArtifacts.some(function (item) { return item.artifactId === artifact.artifactId; });
+        var catalogComplete = Array.isArray(data.reports) && published.every(function (report) {
+          return data.reports.some(function (item) { return item.reportId === report.reportId; });
         });
         if (catalogComplete) {
-          Store.setReportArtifacts(data.reportArtifacts);
+          Store.setReports(data.reports);
         } else {
-          var warning = data.reportArtifactWarning || (Array.isArray(data.reportArtifacts)
+          var warning = data.reportWarning || (Array.isArray(data.reports)
             ? '檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。' : '');
-          Store.upsertReportArtifacts(published.map(function (artifact, index) {
+          Store.upsertReports(published.map(function (report, index) {
             return index === 0 && warning
-              ? Object.assign({}, artifact, { catalogWarning: warning }) : artifact;
+              ? Object.assign({}, report, { catalogWarning: warning }) : report;
           }));
       }
-        // 報告已產生、卻寫不進操作紀錄時，回應的 warnings 帶提醒（使用者 2026-10-19 裁定回報成功並提醒）。
+        // 報告已產生、卻寫不進操作紀錄時，回應的 warnings 帶提醒（裁定 2026-10-19-20：回報成功並提醒）。
         (data.warnings || []).forEach(function (text) { Store.addMessage(text, 'warn'); });
     },
 
-    // 一般報告同名覆蓋；Working Paper 每次新增版本，只更新同一 artifactId。
-    upsertReportArtifacts: function (artifacts) {
-      var incoming = (artifacts || []).filter(Boolean);
+    // 一般報告同名覆蓋；工作底稿每次新增版本，只更新同一 reportId。
+    upsertReports: function (reports) {
+      var incoming = (reports || []).filter(Boolean);
       if (incoming.length === 0) { return; }
 
       var incomingKinds = {};
       var incomingIds = {};
-      incoming.forEach(function (artifact) {
-        if (artifact.kind !== 'workingPaper') { incomingKinds[artifact.kind] = true; }
-        incomingIds[artifact.artifactId] = true;
+      incoming.forEach(function (report) {
+        if (report.kind !== 'workingPaper') { incomingKinds[report.kind] = true; }
+        incomingIds[report.reportId] = true;
       });
 
-      var next = state.reportArtifacts
-        .filter(function (artifact) {
-          return !incomingKinds[artifact.kind] && !incomingIds[artifact.artifactId];
+      var next = state.reports
+        .filter(function (report) {
+          return !incomingKinds[report.kind] && !incomingIds[report.reportId];
         })
         .concat(incoming);
 
-      state.reportArtifacts = next;
+      state.reports = next;
       bump();
     },
 
@@ -686,12 +678,12 @@
 
     // 規則值編輯（input/select）只 notify 不重建面板，避免輸入焦點被吃掉。
     // 值編輯同樣改變命中集合：舊預覽即刻失效（清空），版本遞增讓在途的預覽回應作廢。
-    patchFilterRule: function (groupIndex, ruleIndex, patch) {
+    patchFilterCondition: function (groupIndex, ruleIndex, patch) {
       var draft = state.filter.draft;
-      if (!draft.groups[groupIndex] || !draft.groups[groupIndex].rules[ruleIndex]) {
+      if (!draft.groups[groupIndex] || !draft.groups[groupIndex].conditions[ruleIndex]) {
         return;
       }
-      Object.assign(draft.groups[groupIndex].rules[ruleIndex], patch);
+      Object.assign(draft.groups[groupIndex].conditions[ruleIndex], patch);
       state.filter.previewExpired = !!state.filter.preview || !!state.filter.previewExpired;
       state.filter.preview = null;
       filterDraftRev++;
@@ -724,7 +716,7 @@
       state.filter.savedScenarios = data.scenarios || [];
       state.filterResultRef = state.filter.savedScenarios.length ? data.resultRef || null : null;
       // 一次只存或刪一個情境時，後端回傳寫入後的待修正清單與結果狀態；還有情境要修改時 resultRef 是 null，
-      // 矩陣、報告與第六步照樣鎖住。舊的整批儲存回應沒有這兩項，視為全部已通過。
+      // 高風險條件彙總、報告與第六步照樣鎖住。舊的整批儲存回應沒有這兩項，視為全部已通過。
       state.filterScenarioCheck = data.filterScenarioCheck || null;
       state.staleState.filter = data.staleState ? !!data.staleState.filter : false;
       if (clearDraft) {
@@ -749,7 +741,7 @@
       Object.assign(state.mapping.gl.options, patch);
       if (Object.prototype.hasOwnProperty.call(patch, 'approvalDateMode')
           && patch.approvalDateMode !== 'mapped') {
-        delete state.mapping.gl.draft.docDate;
+        delete state.mapping.gl.draft.approvalDate;
       }
       bump();
     },
@@ -765,19 +757,14 @@
       bump();
     },
 
-    // project.load.taxonomy 的鏡像；科目分類 mutation 只使 prescreen 與 filter 命中失效。
-    setRetiredGlFieldLabels: function (labels) {
-      state.retiredGlFieldLabels = labels && typeof labels === 'object' ? Object.assign({}, labels) : {};
+    // project.load.accountCategory 的鏡像；科目分類 mutation 只使 prescreen 與 filter 命中失效。
+    setCategory: function (snapshot) {
+      state.accountCategory = snapshot || null;
       bump();
     },
 
-    setTaxonomy: function (snapshot) {
-      state.taxonomy = snapshot || null;
-      bump();
-    },
-
-    setTaxonomyAfterSave: function (snapshot) {
-      state.taxonomy = snapshot || null;
+    setCategoryAfterSave: function (snapshot) {
+      state.accountCategory = snapshot || null;
       bumpData(); // 科目分類改變：科目配對預覽的顯示分類已變
     },
 
@@ -804,7 +791,7 @@
     },
 
     setMappingDraft: function (kind, key, column) {
-      var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.manual : null;
+      var previousManualSource = kind === 'gl' ? state.mapping.gl.draft.isManual : null;
       var previousPostingSource = kind === 'gl' ? state.mapping.gl.draft.postingStatus : null;
       if (kind === 'gl') { expandFillDownFieldsByColumn(); }
       if (column) {
@@ -813,7 +800,7 @@
         delete state.mapping[kind].draft[key];
       }
       if (kind === 'gl') {
-        if (key === 'docDate') { syncApprovalSource(); }
+        if (key === 'approvalDate') { syncApprovalSource(); }
         resetManualAutoPolicyIfSourceChanged(previousManualSource);
         resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
         removeCoreMappedRdeFields();
@@ -829,8 +816,8 @@
     assignColumnToField: function (kind, column, fieldKey, literalKeys) {
       var skip = literalKeys || [];
       var draft = state.mapping[kind].draft;
-      var previousApprovalColumn = draft.docDate;
-      var previousManualSource = kind === 'gl' ? draft.manual : null;
+      var previousApprovalColumn = draft.approvalDate;
+      var previousManualSource = kind === 'gl' ? draft.isManual : null;
       var previousPostingSource = kind === 'gl' ? draft.postingStatus : null;
       if (kind === 'gl') { expandFillDownFieldsByColumn(); }
       Object.keys(draft).forEach(function (k) {
@@ -838,7 +825,7 @@
       });
       if (fieldKey) { draft[fieldKey] = column; }
       if (kind === 'gl') {
-        if (previousApprovalColumn !== draft.docDate) { syncApprovalSource(); }
+        if (previousApprovalColumn !== draft.approvalDate) { syncApprovalSource(); }
         resetManualAutoPolicyIfSourceChanged(previousManualSource);
         resetPostingStatusPolicyIfSourceChanged(previousPostingSource);
         removeCoreMappedRdeFields();
@@ -895,7 +882,7 @@
     },
 
     // 換金額欄位格式：清掉不適用新格式的欄位指派與換格式是同一個操作，只 bump 一次。
-    // 分成兩次寫入時，同一次點擊會整段重繪兩次，主執行緒多卡一倍，切換的動態也晚一拍才開始（使用者 2026-10-12）。
+    // 分成兩次寫入時，同一次點擊會整段重繪兩次，主執行緒多卡一倍，切換的動態也晚一拍才開始（裁定 2026-10-12-03）。
     changeMappingMode: function (kind, draft, mode) {
       applyMappingDraft(kind, draft);
       applyMappingMode(kind, mode);
@@ -937,7 +924,7 @@
       bumpData(); // 配對提交（或載入還原）：GL 與 TB 預覽（gl、tb）內容已變
     },
 
-    // 訊息分三級（使用者 2026-10-13 裁定）：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
+    // 訊息分三級（裁定 2026-10-13-15）：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
     // 其他值與空白文字照舊不加入。
     addMessage: function (text, level) {
       if (level === undefined) { level = 'info'; }
@@ -948,7 +935,7 @@
         level: level,
         time: new Date().toLocaleTimeString('zh-Hant', { hour12: false })
       });
-      // 僅保留最近數則訊息，避免無上限累積（完整歷史持久化於專案資料庫 app_message_log）。
+      // 僅保留最近數則訊息，避免無上限累積（完整歷史持久化於專案資料庫 message_log）。
       state.messages = state.messages.slice(0, 30);
 
       if (!state.messagesPanelOpen) {
@@ -995,7 +982,7 @@
         mapped[i] = {
           id: ++messageSeq,
           text: source[i].text,
-          // 讀回舊案件或格式不明的紀錄時，不認得的等級一律當一般說明，不把未知字串拼進 class。
+          // 不認得的等級一律當一般說明，不把未知字串拼進 class。
           level: MESSAGE_LEVELS.indexOf(source[i].level) >= 0 ? source[i].level : 'info',
           time: new Date(source[i].occurredUtc).toLocaleTimeString('zh-Hant', { hour12: false }),
           fromLog: true

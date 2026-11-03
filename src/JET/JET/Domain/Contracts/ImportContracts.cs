@@ -30,7 +30,7 @@ public sealed record StagingRow(
     /// <summary>與 Values 同列的非空 cell 型態證據；空 cell 不產生 observation。</summary>
     internal IReadOnlyList<TabularCellObservation> FieldObservations { get; init; } = [];
 
-    /// <summary>文字檔這一列有用引號包住、內含換行的欄位（V11）。其他格式一律是 false。</summary>
+    /// <summary>文字檔這一列有用引號包住、內含換行的欄位。其他格式一律是 false。</summary>
     internal bool HasQuotedLineBreak { get; init; }
 
     internal StagingRow(
@@ -127,7 +127,7 @@ public sealed record ImportSourceInfo(
 
 /// <summary>
 /// 匯入批次。一個 GL/TB 資料集對應一個批次，可由多個來源組成。
-/// SourceFileName = 第一個來源檔名（向後相容的顯示欄位）；權威來源清單在 Sources。
+/// SourceFileName = 第一個來源檔名（顯示用）；權威來源清單在 Sources。
 /// </summary>
 public sealed record ImportBatchInfo(
     string BatchId,
@@ -176,7 +176,7 @@ public static class TabularSourceNotices
 {
     /// <summary>
     /// 文字檔只讀到一欄時的提醒；報表格式的文字檔多半會落到這裡。不擋匯入。
-    /// 標題列在欄名前面時，待匯入清單的「欄名在第幾列」就能處理（階段六）；用空白對齊的報表格式才需要先在 Excel 整理。
+    /// 標題列在欄名前面時，待匯入清單的「欄名在第幾列」就能處理；用空白對齊的報表格式才需要先在 Excel 整理。
     /// </summary>
     public const string SingleColumn =
         "只讀到一欄。若檔案上方有公司名稱或報表標題列，請把這一列的「欄名在第幾列」改成欄名所在的列；" +

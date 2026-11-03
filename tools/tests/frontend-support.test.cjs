@@ -1,6 +1,6 @@
 'use strict';
-// 前端情境測試共用夾具的自我測試（收尾四項第一項第 0 批，2026-10-13）。
-// tools/tests/support/frontend-fixtures.cjs 是後面各批情境測試的基礎；這裡確認第 0 批補上的假 DOM 能力、
+// 前端情境測試共用夾具的自我測試（2026-10-13）。
+// tools/tests/support/frontend-fixtures.cjs 是各情境測試的基礎；這裡確認建立支援模組時補上的假 DOM 能力、
 // 新夾具與改壞檢查工具本身照設計運作。夾具壞了，情境測試的通過或失敗都不可信，所以這些測試和情境測試走同一條 FrontendMapping 路線。
 // 全部使用程式生成的合成資料。
 const { test } = require('node:test');
@@ -34,11 +34,11 @@ test('fake DOM matches unquoted, single-quoted and double-quoted attribute selec
 
 test('fake DOM exposes attributes, id and select() the way app.js reads them', () => {
   const dom = batch9TreeDom();
-  dom.content.innerHTML = '<button type="button" id="synthetic-id" data-focus-mapping-field="postDate" aria-label="合成">合成</button><textarea>abc</textarea>';
+  dom.content.innerHTML = '<button type="button" id="synthetic-id" data-focus-mapping-field="glDate" aria-label="合成">合成</button><textarea>abc</textarea>';
   const button = dom.content.querySelector('button');
   assert.deepEqual(plain(button.attributes), [
     { name: 'type', value: 'button' }, { name: 'id', value: 'synthetic-id' },
-    { name: 'data-focus-mapping-field', value: 'postDate' }, { name: 'aria-label', value: '合成' }]);
+    { name: 'data-focus-mapping-field', value: 'glDate' }, { name: 'aria-label', value: '合成' }]);
   assert.equal(button.id, 'synthetic-id');
   button.id = 'renamed';
   assert.equal(button.getAttribute('id'), 'renamed');
@@ -221,17 +221,17 @@ test('mapping render fixture goes through app.js renderContent and restores focu
   f.store.setImportResult('gl', { batchId: 'gl-synthetic', columns: ['Doc', 'Date', 'Code', 'Name', 'Memo', 'Amount'], rowCount: 2 });
   f.store.setMappingUiMode('classic');
   assert.ok(f.body(), 'the mapping step is drawn inside the current step body');
-  const select = f.body().querySelector('select[data-mapping-key="docNum"]');
+  const select = f.body().querySelector('select[data-mapping-key="voucherNumber"]');
   assert.ok(select);
   select.focus(); select.value = 'Doc';
   const before = f.contentVersion(), renders = f.renderCount();
   select.dispatch('change');
   assert.equal(f.contentVersion(), before + 1);
   assert.ok(f.renderCount() > renders);
-  const rebuilt = f.body().querySelector('select[data-mapping-key="docNum"]');
+  const rebuilt = f.body().querySelector('select[data-mapping-key="voucherNumber"]');
   assert.ok(rebuilt !== select, 'the step was rebuilt');
   assert.ok(f.dom.document.activeElement === rebuilt, 'focus moved to the rebuilt select');
-  assert.equal(f.store.getState().mapping.gl.draft.docNum, 'Doc');
+  assert.equal(f.store.getState().mapping.gl.draft.voucherNumber, 'Doc');
 });
 
 test('message panel fixture binds the real copy button and falls back to execCommand when the clipboard refuses', async () => {
@@ -286,7 +286,7 @@ test('fake DOM elements keep links and computed properties out of what a failure
   assert.equal(row.textContent, '已改', 'computed properties still write and read');
 });
 
-// 第 11 批（2026-10-14）：parentNode 與 removeChild 改成一律提供，第五步欄位提示（setFieldError 經 input.parentNode）才看得到。
+// 2026-10-14 整併時：parentNode 與 removeChild 改成一律提供，第五步欄位提示（setFieldError 經 input.parentNode）才看得到。
 test('fake DOM elements have parentNode and removeChild like the browser, without listing the link', () => {
   const dom = batch9TreeDom();
   dom.content.innerHTML = '<div class="form__row"><input name="scenario-name"></div>';
@@ -314,9 +314,9 @@ test('flush waits several settle rounds and noDunderKeys rejects payloads carryi
   assert.equal(support.noDunderKeys({ name: '合成', nested: [{ __draftId: 'x' }] }), false);
 });
 
-// 第 11 批（2026-10-14）：fullAppFixture 與 bootFullApp 從 frontend-journey-picker、-export、-operations 收進模組。
+// 2026-10-14 整併時：fullAppFixture 與 bootFullApp 從 frontend-journey-picker、-export、-operations 收進模組。
 test('full app fixture runs init() through the real jet-api.js and boot stops at the local case list', async () => {
-  const f = await support.bootFullApp([{ projectId: '合成甲案', entityName: '合成客戶甲', databaseProvider: 'sqlite' }]);
+  const f = await support.bootFullApp([{ projectId: '合成甲案', clientName: '合成客戶甲', databaseProvider: 'sqlite' }]);
   assert.deepEqual(f.posted.slice(0, 4).map(request => request.action), ['system.ping', 'system.databaseInfo', 'system.whoAmI', 'project.listLocal']);
   assert.equal(f.sent('project.listLocal').length, 1, 'the first list read is the local one');
   assert.equal(f.sent('project.listOnline').length, 0);
@@ -356,7 +356,7 @@ test('resource guard stops a test process that keeps growing or keeps running, a
   assert.doesNotMatch(wrong.stdout, /ran/);
 });
 
-test('mutation tool applies exactly the requested change, stays under its artifact folder and only counts new failures', () => {
+test('mutation tool applies exactly the requested change, stays under its report folder and only counts new failures', () => {
   assert.equal(mutation.applyMutation('a();b();', 'b();', 'c();'), 'a();c();');
   assert.equal(mutation.applyMutation('x x', 'x', 'y', 2), 'y y');
   assert.throws(() => mutation.applyMutation('a();', 'missing', 'x'), /exactly 1 time/);
@@ -404,7 +404,7 @@ test('frontend test runs cap how many test files run at once, so the total stays
 });
 
 test('mutation tool itself runs outside the test-process limits, so a long list is not stopped halfway', () => {
-  // 2026-10-13 第 2 批一次跑整份改壞清單時，工具載入了測試程序的資源上限，在第 900 秒把自己停掉，只完成 37 個。
+  // 2026-10-13 一次跑整份改壞清單時，工具載入了測試程序的資源上限，在第 900 秒把自己停掉，只完成 37 個。
   // 每次執行 node --test 已有工具自己的逾時與子程序清理，測試程序也各自載入上限；工具程序本身只讀標記，不啟動上限。
   const toolPath = path.join(__dirname, 'support', 'mutate-frontend.cjs');
   const { MARKER } = require('./support/resource-guard.cjs');

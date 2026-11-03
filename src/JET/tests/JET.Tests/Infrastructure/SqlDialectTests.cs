@@ -74,7 +74,7 @@ public sealed class SqlDialectTests
 
         var actual = dialect.WeekendPredicate("gl.posting_date", new[] { 0, 6 });
 
-        // 2026-10-19 跨資料庫一致性計畫第三節 E：1900 年以前天數為負，SQL Server 的餘數也是負數，週末判斷不到。
+        // 1900 年以前天數為負，SQL Server 的餘數也是負數，週末判斷不到。
         // 原本預期 "(DATEDIFF(...) % 7) IN (5, 6)"；改成先加 7 再取餘數，第一次失敗的收據寫在下一個測試。
         Assert.Equal("((DATEDIFF(day, '19000101', CONVERT(date, gl.posting_date)) % 7 + 7) % 7) IN (5, 6)", actual);
     }
@@ -119,7 +119,7 @@ public sealed class SqlDialectTests
 
         var actual = dialect.ContainsIgnoreCase("gl.description", "@p2");
 
-        // 2026-10-19 跨資料庫一致性計畫第三節 D：SQL Server 的轉大寫改用 Latin1_General_100_BIN2 的對照表，
+        // 裁定 2026-10-19-30：SQL Server 的轉大寫改用 Latin1_General_100_BIN2 的對照表，
         // 和 .NET 的差異從 546 個字元降到 308 個。原本預期 "CHARINDEX(@p2, UPPER(COALESCE(gl.description, N''))) > 0"。
         // 第一次失敗：20261019-025254236-2c1646c01c27451a9f17a38cd88ee561，方言修改前失敗。
         Assert.Equal("CHARINDEX(@p2, UPPER((COALESCE(gl.description, N'')) COLLATE Latin1_General_100_BIN2)) > 0", actual);

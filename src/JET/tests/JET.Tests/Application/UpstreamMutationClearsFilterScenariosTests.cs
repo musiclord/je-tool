@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 使用者 2026-10-07 裁定上游修改清除下游：會讓篩選結果過期的上游修改，要在同一筆交易內清掉全部已存篩選情境與命中，
+/// 上游修改會清除下游（裁定 2026-10-07-03）：會讓篩選結果過期的上游修改，要在同一筆交易內清掉全部已存篩選情境與命中，
 /// 回應以 <c>invalidatedResults.filterScenarios</c> 告知畫面；試算表與總帳的修改使用同一條規則。
 /// </summary>
 public sealed class UpstreamMutationClearsFilterScenariosTests
@@ -16,7 +16,7 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     private static readonly string[] ClearingActions =
     [
         "import.gl.fromFile", "mapping.commit.gl", "import.tb.fromFile", "mapping.commit.tb", "import.accountMapping.fromFile", "accountMapping.save",
-        "accountTaxonomy.save", "import.authorizedPreparer.fromFile", "import.authorizedPreparer.clear",
+        "accountCategory.save", "import.authorizedPreparer.fromFile", "import.authorizedPreparer.clear",
         "import.holiday", "import.makeupDay", "import.holiday.fromFile", "import.makeupDay.fromFile",
         "calendar.setNonWorkingDays", "project.update.date"
     ];
@@ -45,7 +45,7 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         }
         Assert.True(AuditDependencyPolicy.For(AuditMutation.TbImport).InvalidateFilterScenarioDefinitions);
         Assert.True(AuditDependencyPolicy.For(AuditMutation.TbProjection).InvalidateFilterScenarioDefinitions);
-        Assert.True(AuditDependencyPolicy.For(AuditMutation.AccountTaxonomy).InvalidateFilterScenarioDefinitions);
+        Assert.True(AuditDependencyPolicy.For(AuditMutation.AccountCategory).InvalidateFilterScenarioDefinitions);
     }
 
     [Theory]
@@ -53,11 +53,11 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     public async Task ClearingAction_RemovesEverySavedScenarioAndHit(string provider, string action)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
-        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
-        Assert.True(await CountAsync(host, prepared.Id, provider, "result_filter_run") > 0);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
+        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "filter_scenario"));
+        Assert.True(await CountAsync(host, prepared.Id, provider, "filter_hit") > 0);
 
-        var response = await Batch9MutationStateTests.MutateAsync(host, prepared.Id, action);
+        var response = await MutationInvalidationStateTests.MutateAsync(host, prepared.Id, action);
 
         var invalidated = response.GetProperty("invalidatedResults");
         Assert.Equal(
@@ -70,8 +70,8 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
             invalidated.GetProperty("accountMapping").GetBoolean());
         // 情境已清掉，沒有可以重跑的篩選；第五步回到從未執行的預設狀態。
         Assert.False(response.GetProperty("staleState").GetProperty("filter").GetBoolean());
-        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
-        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "result_filter_run"));
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "filter_scenario"));
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "filter_hit"));
 
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
         Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
@@ -83,17 +83,17 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     public async Task UnchangedAction_KeepsSavedScenariosAndHits(string provider, string action)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
-        var hitsBefore = await CountAsync(host, prepared.Id, provider, "result_filter_run");
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
+        var hitsBefore = await CountAsync(host, prepared.Id, provider, "filter_hit");
         Assert.True(hitsBefore > 0);
 
-        var response = await Batch9MutationStateTests.MutateAsync(host, prepared.Id, action);
+        var response = await MutationInvalidationStateTests.MutateAsync(host, prepared.Id, action);
 
         var invalidated = response.GetProperty("invalidatedResults");
         Assert.False(invalidated.GetProperty("filter").GetBoolean());
         Assert.False(invalidated.GetProperty("filterScenarios").GetBoolean());
-        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
-        Assert.Equal(hitsBefore, await CountAsync(host, prepared.Id, provider, "result_filter_run"));
+        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "filter_scenario"));
+        Assert.Equal(hitsBefore, await CountAsync(host, prepared.Id, provider, "filter_hit"));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
         Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
     }
@@ -110,13 +110,13 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         {
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
-            await RuleRunResultReset.ClearWithinAsync(connection, transaction, CancellationToken.None, mutation);
+            await ResultReset.ClearWithinAsync(connection, transaction, CancellationToken.None, mutation);
             await transaction.CommitAsync();
         }
 
         var cleared = AuditDependencyPolicy.For(mutation).InvalidateFilterHits;
-        Assert.Equal(cleared ? 0 : 1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM config_filter_scenario;"));
-        Assert.Equal(cleared ? 0 : 1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(cleared ? 0 : 1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM filter_scenario;"));
+        Assert.Equal(cleared ? 0 : 1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM filter_hit;"));
         if (cleared)
         {
             Assert.False((await new LocalResultStaleStateStore(database).ReadAsync(projectId, CancellationToken.None)).Filter);
@@ -136,19 +136,19 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         {
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
-            await RuleRunResultReset.ClearWithinAsync(connection, transaction, CancellationToken.None, mutation);
+            await ResultReset.ClearWithinAsync(connection, transaction, CancellationToken.None, mutation);
             await using (var inside = connection.CreateCommand())
             {
                 inside.Transaction = transaction;
-                inside.CommandText = "SELECT COUNT(*) FROM config_filter_scenario;";
+                inside.CommandText = "SELECT COUNT(*) FROM filter_scenario;";
                 var expectedInside = AuditDependencyPolicy.For(mutation).InvalidateFilterHits ? 0 : 1;
                 Assert.Equal(expectedInside, Convert.ToInt64(await inside.ExecuteScalarAsync()));
             }
             await transaction.RollbackAsync();
         }
 
-        Assert.Equal(1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM config_filter_scenario;"));
-        Assert.Equal(1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM filter_scenario;"));
+        Assert.Equal(1, await ScalarAsync(database.CreateConnection(projectId), "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(staleBefore, await new LocalResultStaleStateStore(database).ReadAsync(projectId, CancellationToken.None));
     }
 
@@ -158,8 +158,8 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     public async Task FailedAccountMappingImport_RollsBackAndKeepsSavedScenariosAndHits(string provider)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
-        var hitsBefore = await CountAsync(host, prepared.Id, provider, "result_filter_run");
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
+        var hitsBefore = await CountAsync(host, prepared.Id, provider, "filter_hit");
         var badPath = Path.Combine(Path.GetTempPath(), "jet-upstream-clear-tests", Guid.NewGuid().ToString("N") + ".csv");
         Directory.CreateDirectory(Path.GetDirectoryName(badPath)!);
         await File.WriteAllTextAsync(badPath, "科目代號,科目名稱,標準化分類\n1000,合成資產,Cash\n9999,合成科目,NotACategory\n");
@@ -171,13 +171,13 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         }
         finally { File.Delete(badPath); }
 
-        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
-        Assert.Equal(hitsBefore, await CountAsync(host, prepared.Id, provider, "result_filter_run"));
+        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "filter_scenario"));
+        Assert.Equal(hitsBefore, await CountAsync(host, prepared.Id, provider, "filter_hit"));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
         Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
     }
 
-    // 上方的清除案例只用取代匯入。附加匯入走同一條規則：使用者 2026-10-07 裁定清除已存情境，2026-10-08 裁定清除科目配對。
+    // 上方的清除案例只用取代匯入。附加匯入走同一條規則：清除已存情境（裁定 2026-10-07-03），也清除科目配對（裁定 2026-10-08-12）。
     // 附加要求欄名和既有資料相同，所以照 PrepareAsync 的 GL 欄名與 InlineTbWorkbookBuilder 的 TB 欄名另寫一列合成資料。
     [Theory]
     [InlineData("sqlite", "gl")]
@@ -187,14 +187,14 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     public async Task AppendImport_RemovesSavedScenariosHitsAndAccountMapping(string provider, string kind)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         // 先匯入科目配對；這一步本身會清掉情境，所以再跑一次預篩選並重存同一個情境。
-        await Batch9MutationStateTests.MutateAsync(host, prepared.Id, "import.accountMapping.fromFile");
+        await MutationInvalidationStateTests.MutateAsync(host, prepared.Id, "import.accountMapping.fromFile");
         await host.DispatchAsync("prescreen.run");
-        await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
-        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
-        Assert.True(await CountAsync(host, prepared.Id, provider, "result_filter_run") > 0);
-        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "target_account_mapping"));
+        await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
+        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "filter_scenario"));
+        Assert.True(await CountAsync(host, prepared.Id, provider, "filter_hit") > 0);
+        Assert.Equal(1, await CountAsync(host, prepared.Id, provider, "account_mapping"));
 
         var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
@@ -217,9 +217,9 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         var invalidated = response.GetProperty("invalidatedResults");
         foreach (var name in new[] { "validation", "prescreen", "filter", "filterScenarios", "accountMapping" })
             Assert.True(invalidated.GetProperty(name).GetBoolean(), name);
-        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "config_filter_scenario"));
-        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "result_filter_run"));
-        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "target_account_mapping"));
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "filter_scenario"));
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "filter_hit"));
+        Assert.Equal(0, await CountAsync(host, prepared.Id, provider, "account_mapping"));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
         Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, loaded.GetProperty("importState").GetProperty("accountMapping").ValueKind);
@@ -228,31 +228,31 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task TaxonomySave_DeletesCategoryUsedOnlyByScenario_AndClearsScenarios(string provider)
+    public async Task CategorySave_DeletesCategoryUsedOnlyByScenario_AndClearsScenarios(string provider)
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "合成分類刪除", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "合成分類刪除", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var projectId = created.GetProperty("projectId").GetString()!;
-        var builtIns = AccountTaxonomyBuiltIns.All
+        var builtIns = AccountCategoryBuiltIns.All
             .Select(item => (object)new { categoryId = item.CategoryId, label = item.Label, ordinal = item.Ordinal, semanticRole = item.SemanticRole })
             .ToArray();
-        var saved = await host.DispatchAsync("accountTaxonomy.save", JsonSerializer.Serialize(new
+        var saved = await host.DispatchAsync("accountCategory.save", JsonSerializer.Serialize(new
         {
             revision = 1,
-            categories = builtIns.Append(new { label = "合成合約資產", ordinal = 5, semanticRole = AccountTaxonomyBuiltIns.ReceivablesRole })
+            categories = builtIns.Append(new { label = "合成合約資產", ordinal = 5, semanticRole = AccountCategoryBuiltIns.ReceivablesRole })
         }));
         var customId = saved.GetProperty("categories").EnumerateArray()
             .Single(item => !item.GetProperty("isBuiltIn").GetBoolean())
             .GetProperty("categoryId").GetString()!;
-        await Batch9ArtifactStateTests.ExecuteAsync(host, projectId, provider,
-            "INSERT INTO config_filter_scenario (position, name, rationale, definition_json, saved_utc) "
-            + "VALUES (1, '合成情境', '合成理由', @definition, '2026-10-07T00:00:00Z');",
+        await ReportRevisionStateTests.ExecuteAsync(host, projectId, provider,
+            "INSERT INTO filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc) "
+            + "VALUES (1, 1, '合成情境', '合成理由', @definition, '2026-10-07T00:00:00Z');",
             ("@definition", JsonSerializer.Serialize(new { debitCategoryIds = new[] { customId } })));
 
-        var response = await host.DispatchAsync("accountTaxonomy.save", JsonSerializer.Serialize(new
+        var response = await host.DispatchAsync("accountCategory.save", JsonSerializer.Serialize(new
         {
             revision = saved.GetProperty("revision").GetInt32(),
             categories = builtIns
@@ -261,7 +261,7 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         Assert.DoesNotContain(response.GetProperty("categories").EnumerateArray(),
             item => item.GetProperty("categoryId").GetString() == customId);
         Assert.True(response.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
-        Assert.Equal(0, await CountAsync(host, projectId, provider, "config_filter_scenario"));
+        Assert.Equal(0, await CountAsync(host, projectId, provider, "filter_scenario"));
     }
 
     private static TheoryData<string, string> Cross(IEnumerable<string> actions)
@@ -304,9 +304,9 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
             await using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO config_filter_scenario (position, name, rationale, definition_json, saved_utc)
-                VALUES (1, 'synthetic', 'synthetic', '{}', '2026-10-07T00:00:00Z');
-                INSERT INTO result_filter_run (scenario_position, entry_id) VALUES (1, 101);
+                INSERT INTO filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc)
+                VALUES (1, 1, 'synthetic', 'synthetic', '{}', '2026-10-07T00:00:00Z');
+                INSERT INTO filter_hit (scenario_id, entry_id) VALUES (1, 101);
                 """;
             await command.ExecuteNonQueryAsync();
         }

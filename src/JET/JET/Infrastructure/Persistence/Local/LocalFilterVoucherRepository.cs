@@ -11,13 +11,22 @@ public sealed class LocalFilterVoucherRepository(ILocalProjectDatabase database)
         await connection.OpenAsync(ct);
         return await FilterVoucherPageReader.ReadRevisionAsync(connection, "", ct);
     }
-    public async Task<FilterVoucherPage> ReadAsync(string projectId, FilterScenarioSpec scenario, FilterRuleContext context,
-        string? documentNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
+    public async Task<FilterVoucherPage> ReadAsync(string projectId, FilterScenarioSpec scenario, FilterConditionContext context,
+        string? voucherNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
     {
         await database.EnsureReadyAsync(projectId, ct);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(ct);
-        return await FilterVoucherPageReader.ReadAsync(connection, database.Dialect, "", scenario, context, documentNumber, request,
+        return await FilterVoucherPageReader.ReadAsync(connection, database.Dialect, "", scenario, context, voucherNumber, request,
             countWholeVoucherRows, ct);
+    }
+    public async Task<FilterVoucherPage> ReadSavedAsync(string projectId, int scenarioId, FilterScenarioSpec scenario,
+        FilterConditionContext context, string? voucherNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
+    {
+        await database.EnsureReadyAsync(projectId, ct);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(ct);
+        return await FilterVoucherPageReader.ReadSavedAsync(connection, database.Dialect, "", scenarioId, scenario, context,
+            voucherNumber, request, countWholeVoucherRows, ct);
     }
 }

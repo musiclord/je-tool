@@ -48,7 +48,7 @@ public sealed class DispatcherDiagnosticsTests
     {
         using var host = new HandlerTestHost(enableDevTools: true);
         await host.DispatchAsync("project.create",
-            """{ "projectCode":"C","entityName":"關聯案","operatorId":"smoke","periodStart":"2025-01-01","periodEnd":"2025-12-31" }""");
+            """{ "projectCode":"C","clientName":"關聯案","operatorId":"smoke","periodStart":"2025-01-01","periodEnd":"2025-12-31" }""");
 
         // 真檔匯入(sqlite 預設 provider)→ 觸發 LocalImportRepository 的 sql.executed,應帶 import dispatch 的 correlation_id
         var csvPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".csv");

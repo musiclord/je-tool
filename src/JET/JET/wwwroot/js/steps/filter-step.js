@@ -2,12 +2,12 @@
   第五步：進階條件篩選。
   前端只組裝 AST 與渲染；條件由後端轉參數化 SQL 評估，前端不計算規則。
 
-  條件入口與本次篩選並排；命名在保存時出現。已保存情境和矩陣另有檢視入口。
+  條件入口與本次篩選並排；命名在保存時出現。已保存情境和高風險條件彙總另有檢視入口。
   純檢視狀態留在第五步的檔案裡，切換不改 AST；常用篩選條件、自訂條件與報告的業務判定由後端負責。
 
   第五步的程式分成五個檔案，index.html 依序載入：
   filter-step-view.js（檢視狀態與資料世代）、filter-step-sources.js（條件來源的挑選）、filter-step-rules.js（條件列與摘要文字）、
-  filter-step-saved.js（已存情境、矩陣與條件篩選報告），以及本檔（送出形狀、送出前檢查、畫面組裝與事件綁定的順序）。
+  filter-step-saved.js（已存情境、高風險條件彙總與條件篩選報告），以及本檔（送出形狀、送出前檢查、畫面組裝與事件綁定的順序）。
   各檔把自己的最外層函式與常數掛在 JetUi.FilterStep，其他檔案透過它轉呼叫；共用的檢視狀態也放在那裡。
 */
 (function (global) {
@@ -30,13 +30,12 @@
   var prescreenRequirementNote = forward('prescreenRequirementNote');
   var hasCommonMarker = forward('hasCommonMarker');
   var scenarioSource = forward('scenarioSource');
-  var requiresScenarioMetadata = forward('requiresScenarioMetadata');
   var fillSmoothly = forward('fillSmoothly');
   var smoothScroll = forward('smoothScroll');
   var commonPickerHtml = forward('commonPickerHtml');
   var customPickerHtml = forward('customPickerHtml');
   var prescreenPickerHtml = forward('prescreenPickerHtml');
-  var effectiveRuleJoin = forward('effectiveRuleJoin');
+  var effectiveConditionJoin = forward('effectiveConditionJoin');
   var readBackHtml = forward('readBackHtml');
   var populationScopeHtml = forward('populationScopeHtml');
   var syncSuggestedMetadata = forward('syncSuggestedMetadata');
@@ -51,7 +50,7 @@
   var keywordValues = forward('keywordValues');
   var savedScenariosHtml = forward('savedScenariosHtml');
   var criteriaReportHtml = forward('criteriaReportHtml');
-  var tagMatrixHtml = forward('tagMatrixHtml');
+  var highRiskSummaryHtml = forward('highRiskSummaryHtml');
   var paneButton = forward('paneButton');
   var sourceButton = forward('sourceButton');
   var conditionPaneAttributes = forward('conditionPaneAttributes');
@@ -80,15 +79,15 @@
       name: s.name,
       rationale: s.rationale,
       // 過濾掉沒有條件的群組：使用者「＋ 另一組條件」建到一半的空 set 不送出，後端不會報「群組沒有規則」。
-      groups: ordered.filter(function (g) { return (g.rules || []).length > 0; }).map(function (g) {
+      groups: ordered.filter(function (g) { return (g.conditions || []).length > 0; }).map(function (g) {
         return {
           join: g.join,
           matchScope: g.matchScope,
-          rules: (g.rules || []).map(function (r) {
+          conditions: (g.conditions || []).map(function (r) {
             var clean = {};
             Object.keys(r).forEach(function (k) {
               // 剝除所有 __ 前綴鍵（UI-only 慣例，如 __commonCard）——按前綴而非逐鍵點名，未來新增
-              // UI 鍵不會漏剝而洩進 wire。後端儲存時雖只留各條件類型用得到的欄位（FilterRuleWireFields.cs），
+              // UI 鍵不會漏剝而洩進 wire。後端儲存時雖只留各條件類型用得到的欄位（FilterConditionWireFields.cs），
               // 預覽、查詢與草稿是否已儲存的比對也都用這份資料，畫面標記一律不送出。
               if (k.indexOf('__') !== 0) {
                 clean[k] = Array.isArray(r[k]) ? r[k].slice() : r[k];
@@ -99,23 +98,19 @@
         };
       })
     };
-    // 2026-09-05 到 06 那一輪保存的情境可能還帶 exclusions；已存情境的摘要照原樣帶出，編輯器畫成唯讀的「舊排除區」。
-    // 草稿帶著就原樣送出，讓後端以 invalid_scenario 指路改用否定模式，不在畫面默默丟掉；審計員按「移除」後才不再送。
-    // 儲存或移除別的情境時不回送已存情境，資料庫裡帶排除區的舊情境原文保留，列在待修正清單，直到審計員修改或移除它。
-    if (Array.isArray(s.exclusions) && s.exclusions.length) { wire.exclusions = s.exclusions; }
     var source = scenarioSource(s);
-    var originGroups = ordered.filter(function (g) { return (g.rules || []).length > 0; });
+    var originGroups = ordered.filter(function (g) { return (g.conditions || []).length > 0; });
     if (s.editorOrigins && !s.__restoredOrigins) { wire.editorOrigins = JSON.parse(JSON.stringify(s.editorOrigins)); }
     // 第 2 版的編輯來源逐條記卡片代號（2026-10-29 起）；第 1 版記的是字母，這一版只原樣送回、不再讀取。
     // 舊版情境重新編輯後一律改存第 2 版，卡片要審計員重新點選（見 filter-step-saved 的 editScenario）。
     else if (hasCommonMarker(s) || s.__restoredOrigins || isDraft) {
       wire.editorOrigins = { version: 2,
         nameIsAutomatic: !s.__nameDirty, rationaleIsAutomatic: !s.__rationaleDirty, groups: originGroups.map(function (g) {
-        return { cards: g.rules.map(function (r) { return r[COMMON_CARD_KEY] || null; }) };
+        return { cards: g.conditions.map(function (r) { return r[COMMON_CARD_KEY] || null; }) };
       }) };
     }
     wire.groups.forEach(function (group) {
-      group.rules = group.rules.map(nestedWireRule);
+      group.conditions = group.conditions.map(nestedWireRule);
     });
     if (source) { wire.source = source; }
     return wire;
@@ -135,7 +130,7 @@
     if (carrier === 'value') { wire.value = clean.value; }
     if (carrier === 'range') { wire.from = clean.from; wire.to = clean.to; }
     if (carrier === 'set') { wire.values = (clean.values || []).slice(); }
-    if (rdeFieldValueType(clean.fieldId) === 'money') {
+    if (rdeFieldValueType(clean.fieldId) === 'amount') {
       wire.amountBasis = clean.amountBasis;
     }
     return wire;
@@ -144,9 +139,9 @@
   function nestedWireRule(rule) {
     var clean = {};
     Object.keys(rule).forEach(function (key) { if (key.indexOf('__') !== 0) { clean[key] = rule[key]; } });
-    if (clean.rules) { clean.rules = clean.rules.map(nestedWireRule); }
+    if (clean.conditions) { clean.conditions = clean.conditions.map(nestedWireRule); }
     if (clean.type === 'fieldValue') { return Ui.FilterValues.wire(clean, Store.getState()); }
-    if (['customKeywords', 'trailingDigits', 'text'].indexOf(clean.type) >= 0) {
+    if (clean.type === 'text') {
       clean.keywords = keywordValues(clean).join(',');
     }
     return clean.type === 'typed' ? typedWireRule(clean) : clean;
@@ -155,14 +150,8 @@
   // 群組組合器：群組內規則 join 的一致值——任一規則為 OR 即「任一(OR)」，否則「全部(AND)」。空群組
   // 回退「全部」。組合器＝把群組內各規則 join 設為同值，後端逐條 join 評估等價（全 AND＝符合全部、全 OR＝任一）。
   function groupCombinator(group) {
-    var rules = group.rules.length > 1 ? group.rules.slice(1) : group.rules;
-    return rules.some(function (r) { return effectiveRuleJoin(r) === 'OR'; }) ? 'OR' : 'AND';
-  }
-
-  // 舊 AST 省略 matchScope 時維持 row；只有明示 sameVoucher 才切換傳票錨定呈現。
-  // 未知非空值仍由 wire 原樣送回後端 validator，不在前端靜默修正。
-  function groupMatchScope(group) {
-    return group && group.matchScope === 'sameVoucher' ? 'sameVoucher' : 'row';
+    var rules = group.conditions.length > 1 ? group.conditions.slice(1) : group.conditions;
+    return rules.some(function (r) { return effectiveConditionJoin(r) === 'OR'; }) ? 'OR' : 'AND';
   }
 
   // 有效組間運算子（單一情境層運算子的唯一推導點）：段控顯示、read-back、新組繼承、wire normalize
@@ -171,7 +160,7 @@
   // 顯示一致。
   function scenarioJoin(draft) {
     var groups = draft.groups || [];
-    return groups[1] ? effectiveRuleJoin(groups[1]) : 'OR';
+    return groups[1] ? effectiveConditionJoin(groups[1]) : 'OR';
   }
 
   // 草稿送出點專用投影：先把所有條件組的 join 收斂成有效組間運算子（單一情境層運算子模型），再走
@@ -191,7 +180,7 @@
     var body;
     if (!preview) {
       var filter = Store.getState().filter;
-      var hasConditions = filter.draft.groups.some(function (group) { return group.rules.length > 0; });
+      var hasConditions = filter.draft.groups.some(function (group) { return group.conditions.length > 0; });
       body = '<p class="empty-state">' + (filter.previewExpired && hasConditions
         ? '條件已變更。按「查看符合的傳票」更新結果。'
         : '選好條件後，按「查看符合的傳票」。') + '</p>';
@@ -223,7 +212,7 @@
         '<h2 class="panel__title">進階條件篩選</h2>' +
         populationScopeHtml(state) +
         '<div class="filter-work-tabs" role="tablist" aria-label="篩選工作區">' +
-          paneButton('filter', '篩選與檢視') + paneButton('saved', '已儲存情境與矩陣（' + saved.length + '）') + '</div>' +
+          paneButton('filter', '篩選與檢視') + paneButton('saved', '已儲存情境（' + saved.length + '）') + '</div>' +
         '<section data-filter-pane="filter" id="filter-pane-filter" role="tabpanel" aria-labelledby="filter-tab-filter" data-motion-pane data-motion-key="filter-pane-filter"' + (FilterStep.viewState.workspacePane === 'filter' ? '' : ' hidden') + '>' +
           '<div class="filter-workbench"><aside class="filter-entry" tabindex="-1" aria-label="加入篩選條件">' +
             '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3></div>' + conditionTargetHtml(draft) +
@@ -236,7 +225,7 @@
           '</div></aside><div class="filter-current">' + scenarioBuilderHtml(draft) + previewPaneHtml(state.filter.preview) + '</div></div>' +
         '</section>' +
         '<section data-filter-pane="saved" id="filter-pane-saved" role="tabpanel" aria-labelledby="filter-tab-saved" data-motion-pane data-motion-key="filter-pane-saved"' + (FilterStep.viewState.workspacePane === 'saved' ? '' : ' hidden') + '>' +
-          savedScenariosHtml(state) + tagMatrixHtml(state) + criteriaReportHtml(state) + '</section>' +
+          savedScenariosHtml(state) + highRiskSummaryHtml(state) + criteriaReportHtml(state) + '</section>' +
         Ui.stepFooterHtml(state) + '</div>';
 
     bind(container);
@@ -247,7 +236,7 @@
   // 不做任何命中語意。preview/save 仍會由後端以同一上限與完整 SQL plan 預算驗證。
   function hasOversizedTextSet(draft) {
     return draft.groups.some(function (group) {
-      return group.rules.some(function (rule) {
+      return group.conditions.some(function (rule) {
         return rule.type === 'textSet' && Array.isArray(rule.values) &&
           rule.values.length > Ui.TEXT_SET_MAX_VALUES;
       });
@@ -257,7 +246,7 @@
   // 尚未選欄位或比較方式的攸關資料元素條件：先在畫面擋下，避免送出必被拒絕的形狀。
   function hasIncompleteTypedRule(draft) {
     return draft.groups.some(function (group) {
-      return group.rules.some(function (rule) {
+      return group.conditions.some(function (rule) {
         return rule.type === 'typed' && (!rule.fieldId || !rule.operator);
       });
     });
@@ -266,14 +255,14 @@
   // 攸關資料元素條件的值清單上限（與後端相同，1 到 100）；後端仍是權威。
   function hasOversizedTypedSet(draft) {
     return draft.groups.some(function (group) {
-      return group.rules.some(function (rule) {
+      return group.conditions.some(function (rule) {
         return rule.type === 'typed' && Array.isArray(rule.values) &&
           rule.values.length > Ui.TYPED_SET_MAX_VALUES;
       });
     });
   }
 
-  // 條件在畫面上的位置：第幾組第幾條；條件括號或傳票條件內的子條件再寫「的第幾項」。
+  // 條件在畫面上的位置：第幾組第幾條；子條件組或傳票條件內的子條件再寫「的第幾項」。
   // 組號與條件組標頭「第 N 組」相同（草稿順序），條件號是組內順序。
   function conditionPositionText(gi, path) {
     var text = '第 ' + (gi + 1) + ' 組第 ' + (path[0] + 1) + ' 條';
@@ -305,7 +294,7 @@
       label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'dateRange'; }) || {}).label || '';
       message = '起日晚於迄日';
     } else if (rule.type === 'textSet' && Array.isArray(rule.values) && rule.values.length > Ui.TEXT_SET_MAX_VALUES) {
-      // 清單超過上限時逐條寫出是哪一條條件，和欄位條件同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-08）。
+      // 清單超過上限時逐條寫出是哪一條條件，和欄位條件同一句（裁定 2026-10-14-01）。
       label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'textSet'; }) || {}).label || '';
       message = '請填 1 到 ' + Ui.TEXT_SET_MAX_VALUES + ' 個值';
     } else if (rule.type === 'typed' && Array.isArray(rule.values) && rule.values.length > Ui.TYPED_SET_MAX_VALUES) {
@@ -317,7 +306,7 @@
     return { label: label, message: message };
   }
 
-  // 依畫面順序列出草稿中每一條有問題的條件，含條件括號與傳票條件內的子條件。
+  // 依畫面順序列出草稿中每一條有問題的條件，含子條件組與傳票條件內的子條件。
   function draftRuleProblems(draft) {
     var found = [];
     function visit(rules, gi, path) {
@@ -328,10 +317,10 @@
           found.push({ gi: gi, path: at, text: conditionPositionText(gi, at) +
             (problem.label ? '「' + problem.label + '」' : '：') + problem.message });
         }
-        if (rule.type === 'group' || rule.type === 'voucher') { visit(rule.rules, gi, at); }
+        if (rule.type === 'group' || rule.type === 'voucher') { visit(rule.conditions, gi, at); }
       });
     }
-    (draft.groups || []).forEach(function (group, gi) { visit(group.rules, gi, []); });
+    (draft.groups || []).forEach(function (group, gi) { visit(group.conditions, gi, []); });
     return found;
   }
 
@@ -348,9 +337,9 @@
       .filter(function (control) { return control.closest('.rule-row') === row; }).find(visible) || null;
   }
 
-  // 預覽／保存前的前端引導：名稱、動機或至少一條件未補齊時，於欄位旁（紅框＋紅字）
+  // 預覽／保存前的前端引導：條件未補齊或名稱重複時，於欄位旁（紅框＋紅字）
   // 與按鈕上方（form-notice）就近提示並不送出。純呈現——後端 invalid_scenario 仍是權威。
-  // 純自訂情境名稱/動機必填；有常用篩選條件卡片的草稿只要仍有標記就可留白，後端保存時產生正準留痕替補。
+  // 名稱與動機不必填：留白時後端補上依條件自動帶入的文字（裁定 2026-10-29-16、2026-10-30-14）。
   function scenarioGate(container, includeSavedScenarios, skipDuplicateName) {
     var draft = Store.getState().filter.draft;
     var nameInput = container.querySelector('[data-bind="scenario-name"]');
@@ -358,19 +347,12 @@
     var notice = container.querySelector('[data-bind="scenario-notice"]');
 
     var nameError = '';
-    var rationaleError = '';
-
-    var nameEmpty = !draft.name || !draft.name.trim();
-    var rationaleEmpty = !draft.rationale || !draft.rationale.trim();
-    var metadataRequired = includeSavedScenarios && requiresScenarioMetadata(draft);
     var noCondition = (draft.groups.length === 0 ||
-      draft.groups.every(function (g) { return g.rules.length === 0; }));
+      draft.groups.every(function (g) { return g.conditions.length === 0; }));
     var incompleteTyped = hasIncompleteTypedRule(draft);
 
-    // 每條缺值都寫出第幾組第幾條與條件名稱（W20），審計員不必逐條找。
+    // 每條缺值都寫出第幾組第幾條與條件名稱，審計員不必逐條找。
     var problems = draftRuleProblems(draft).map(function (item) { return item.text; });
-    if (metadataRequired && nameEmpty) { nameError = '請先填寫情境名稱'; problems.push('情境名稱'); }
-    if (metadataRequired && rationaleEmpty) { rationaleError = '請先填寫篩選動機說明'; problems.push('篩選動機'); }
     if (noCondition) { problems.push('至少一條篩選條件'); }
     if (incompleteTyped) {
       problems.push('攸關資料元素欄位條件需選定欄位與比較方式');
@@ -383,7 +365,7 @@
     if (duplicate) { nameError = duplicateText; }
     // 已經顯示的錯誤說明直接換字，不先收起再長出來；補齊的才收回去。
     if (nameError) { setFieldError(nameInput, nameError); } else { clearFieldError(nameInput); }
-    if (rationaleError) { setFieldError(rationaleInput, rationaleError); } else { clearFieldError(rationaleInput); }
+    clearFieldError(rationaleInput);
 
     // 提示收起時字留著，跟著一起收回去，不會先變成一個空框。
     if (problems.length === 0 && !duplicate) {
@@ -396,9 +378,8 @@
       notice.classList.remove('form-notice--warning');
       notice.hidden = false;
     }
-    // 聚焦第一個有問題的欄位（名稱 → 動機）；只缺條件時不搶焦點。
-    if ((metadataRequired && nameEmpty) || duplicate) { nameInput.focus(); }
-    else if (metadataRequired && rationaleEmpty) { rationaleInput.focus(); }
+    // 名稱重複時聚焦名稱；只缺條件時不搶焦點。
+    if (duplicate) { nameInput.focus(); }
     return false;
   }
 
@@ -423,22 +404,19 @@
     var nameInput = container.querySelector('[data-bind="scenario-name"]');
     var rationaleInput = container.querySelector('[data-bind="scenario-rationale"]');
     var notice = container.querySelector('[data-bind="scenario-notice"]');
-    var metadataRequired = requiresScenarioMetadata(draft);
 
     var duplicate = duplicateScenarioName(draft);
-    if (draft.name && draft.name.trim() && !duplicate) { clearFieldError(nameInput); }
-    if (draft.rationale && draft.rationale.trim()) { clearFieldError(rationaleInput); }
+    if (!duplicate) { clearFieldError(nameInput); }
+    clearFieldError(rationaleInput);
 
     var noCondition = (draft.groups.length === 0 ||
-      draft.groups.every(function (g) { return g.rules.length === 0; }));
+      draft.groups.every(function (g) { return g.conditions.length === 0; }));
     var oversizedTextSet = hasOversizedTextSet(draft);
-    var stillMissing = (metadataRequired && (!draft.name || !draft.name.trim())) ||
-      (metadataRequired && (!draft.rationale || !draft.rationale.trim())) ||
-      noCondition || oversizedTextSet || hasOversizedTypedSet(draft) || hasIncompleteTypedRule(draft) || !!duplicate;
+    var stillMissing = noCondition || oversizedTextSet || hasOversizedTypedSet(draft) || hasIncompleteTypedRule(draft) || !!duplicate;
     if (!stillMissing && notice) { notice.hidden = true; }
   }
 
-  // 規則「值編輯」後即時刷新藍色 read-back：值編輯走 patchFilterRule（只 notify、不重建面板以保住輸入
+  // 規則「值編輯」後即時刷新藍色 read-back：值編輯走 patchFilterCondition（只 notify、不重建面板以保住輸入
   // 焦點），故 read-back（整段算好的 HTML）不會自己更新——這裡只抽換 .scenario-readback 這一段，不碰
   // 任何輸入框，焦點不受影響（read-back 是條件清單之後的獨立節點）。
   function softRefreshReadback(container) {
@@ -452,7 +430,7 @@
     });
   }
 
-  // 值編輯後把預覽面板軟更新為「已失效」空狀態：patchFilterRule 已把 Store 的預覽清掉（值編輯改變
+  // 值編輯後把預覽面板軟更新為「已失效」空狀態：patchFilterCondition 已把 Store 的預覽清掉（值編輯改變
   // 命中集合），但它只 notify 不重繪（保住輸入焦點），畫面上的舊命中數不會自己消失——這裡只抽換
   // 預覽面板的內容區，不碰任何輸入框。已是空狀態時直接返回（冪等，連續打字不重複動 DOM、不抖動）。
   function softExpirePreviewPane(container) {
@@ -520,8 +498,8 @@
           return data.scenario;
         }).catch(function (error) { if (!acceptResponse()) { return; } previewMarked = markRuleErrors(container, error); throw error; });
       }, { inlineError: function () { return previewMarked > 0; }, completionMessage: function (scenario) {
-        // 訊息句子是使用者 2026-10-13 勾選頁確認維持的原句；分錄數用和預覽摘要同一個 summaryRowCount。
-        return scenario ? '情境預覽：符合條件 ' + scenario.summaryRowCount + ' 筆分錄，' + scenario.voucherCount + ' 張傳票。' : '';
+        // 訊息句子維持原句（裁定 2026-10-13-28）；分錄數用和預覽摘要同一個 summaryRowCount。
+        return scenario ? '情境預覽：符合條件 ' + Ui.countText(scenario.summaryRowCount) + ' 筆分錄，' + Ui.countText(scenario.voucherCount) + ' 張傳票。' : '';
       } });
     });
 
@@ -534,12 +512,12 @@
         row.classList.remove('rule-row--invalid');
         var old = row.querySelector('[data-rule-error]:not([data-motion-folding])');
         if (!old) { return; }
-        // 舊的說明收回去再拿掉，新的從條件下面長出來（使用者 2026-10-13 要求出現與消失都有動態）。
+        // 舊的說明收回去再拿掉，新的從條件下面長出來（裁定 2026-10-13-11：出現與消失都要有動態）。
         if (global.JetMotion && typeof global.JetMotion.fold === 'function') { global.JetMotion.fold(old, function () { old.remove(); }); } else { old.remove(); }
       });
       if (!error || !Array.isArray(error.details)) { return 0; }
       var sentGroups = [];
-      Store.getState().filter.draft.groups.forEach(function (group, gi) { if ((group.rules || []).length) { sentGroups.push(gi); } });
+      Store.getState().filter.draft.groups.forEach(function (group, gi) { if ((group.conditions || []).length) { sentGroups.push(gi); } });
       var first = null, marked = 0;
       error.details.forEach(function (detail) {
         if (!detail || typeof detail.group !== 'number' || typeof detail.rule !== 'number') { return; }
@@ -562,7 +540,7 @@
     }
 
     // 儲存沒有送出或失敗時，原因寫在儲存按鈕上方，不只留在訊息紀錄。
-    // 清單已變更與已滿 10 個只是需要注意，用琥珀色；儲存失敗用紅色（使用者 2026-10-13 裁定訊息分三級）。
+    // 清單已變更與已滿 10 個只是需要注意，用琥珀色；儲存失敗用紅色（訊息分三級，裁定 2026-10-13-15）。
     function showSaveNotice(text, warning) {
       var notice = container.querySelector('[data-bind="scenario-notice"]');
       if (!notice) { return; }
@@ -573,7 +551,7 @@
     var SAVE_NOT_SENT = { notSent: true };
 
     // 回傳儲存作業的 Promise，讓「儲存並開啟」這類對話框等儲存結束再決定要不要繼續。
-    // 只送這一個情境（使用者 2026-10-13 對「情境卡住」選「本計畫內修好」）：其他已存情境由後端照資料庫原樣保留，
+    // 只送這一個情境，儲存情境才不會卡住（裁定 2026-10-13-24）：其他已存情境由後端照資料庫原樣保留，
     // 開案時無法套用目前規則的情境不會擋住這次儲存。
     function saveScenario(asCopy) {
       syncSuggestedMetadata(container);
@@ -597,7 +575,7 @@
         var position = null;
         if (typeof editingIndex === 'number') {
           if (current.draft.__editingSavedRef !== current.savedScenarios) {
-            // 訊息面板與儲存鈕上方的提示用同一句（使用者 2026-10-13 勾選頁確認 59、60）。
+            // 訊息面板與儲存鈕上方的提示用同一句（裁定 2026-10-13-28）。
             var staleText = '已儲存的情境清單已變更，請重新選擇要編輯的情境；目前的草稿仍保留。';
             Store.addMessage(staleText, 'warn'); showSaveNotice(staleText, true);
             return Promise.resolve(SAVE_NOT_SENT);
@@ -616,7 +594,7 @@
         if (position !== null) { payload.expectedName = current.savedScenarios[editingIndex].name; }
         var saveSnapshot = filterCommitSnapshot(commitState);
         return global.JetApi.filterScenarioSave(payload).then(function (data) {
-          // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）；回應已過時就不記。
+          // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）；回應已過時就不記。
           return completeScenarioSave(saveSnapshot, data, data.position - 1, authored) ? data : null;
         }).catch(function (error) {
           if (!acceptsFilterCommit(saveSnapshot)) { return; }
@@ -641,7 +619,7 @@
 
   // 事件綁定分到五個檔案，各綁自己畫的那一塊；開頭幾行和各段的先後照原本的 bind。
   function bind(container) {
-    Ui.bindReportArtifacts(container);
+    Ui.bindReports(container);
     syncSuggestedMetadata(container);
     // 自動名稱與卡片身分在上一行收斂後，才記下換成這份草稿時沒有修改的內容。
     if (FilterStep.viewState.cleanDraftKey === null) { FilterStep.viewState.cleanDraftKey = draftContentKey(Store.getState().filter.draft); }
@@ -662,7 +640,6 @@
   FilterStep.typedWireRule = typedWireRule;
   FilterStep.nestedWireRule = nestedWireRule;
   FilterStep.groupCombinator = groupCombinator;
-  FilterStep.groupMatchScope = groupMatchScope;
   FilterStep.scenarioJoin = scenarioJoin;
   FilterStep.toWireDraft = toWireDraft;
   FilterStep.previewPaneHtml = previewPaneHtml;

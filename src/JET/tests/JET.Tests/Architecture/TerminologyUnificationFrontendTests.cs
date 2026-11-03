@@ -6,7 +6,7 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
 // 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
 
 /// <summary>
@@ -17,17 +17,15 @@ namespace JET.Tests.Architecture;
 public sealed class TerminologyUnificationFrontendTests
 {
     [Fact]
-    public void T1_TestScope_ReplacesPopulationWordingOnScreenAndInReadback()
+    public void TestScope_ReplacesPopulationWordingOnScreenAndInReadback()
     {
-        // 使用者 2026-09-22：「我覺得你可以重新考慮有沒有測試母體以外的名詞，這不管怎麼聽都不太對勁」。
+        // 裁定 2026-09-22-04：「我覺得你可以重新考慮有沒有測試母體以外的名詞，這不管怎麼聽都不太對勁」。
         var filter = ProductSources.FilterStepFrontend();
-        // 使用者 2026-10-08 裁定資料名稱全系統統一：指納入測試的分錄時，「分錄測試範圍」改為 GL。
-        // 預篩選收斂計畫階段九：已停用型別的標題只在 ui-core.js 的 RETIRED_RULE_TYPE_LABELS 寫一次。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
-        var core = ReadFrontend("js", "ui-core.js");
-        Assert.Contains("customPreparerEntryCount: 'GL 中編製人員分錄筆數 ≤'", core, StringComparison.Ordinal);
-        Assert.Contains("customAccountEntryCount: 'GL 中科目分錄筆數 ≤'", core, StringComparison.Ordinal);
+        // 裁定 2026-10-08-04 統一全系統的資料名稱：指納入測試的分錄時，「分錄測試範圍」改為 GL。
+        // 兩種舊式筆數條件的標題與讀回句子連同型別一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），這則不再核對它們。
+        // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
         Assert.Contains("在 GL 中依匯入後的科目或人員分組；空白欄位不列入。", filter, StringComparison.Ordinal);
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：舊目錄的說明不再上畫面，留在測試夾具，用語隨更名改成 GL；
+        // 裁定 2026-10-08-06 重新設計自訂篩選條件：舊目錄的說明不再上畫面，留在測試夾具，用語隨更名改成 GL；
         // 畫面上的統計條件說明由上面「在 GL 中依匯入後的科目或人員分組」那一句承擔。
         Assert.Contains("統計以 GL 為準。", ReadLegacyCatalogueFixture(), StringComparison.Ordinal);
         Assert.Contains("'<p class=\"rule-explanation\">在 GL 中依匯入後的科目或人員分組；空白欄位不列入。'", filter, StringComparison.Ordinal);
@@ -38,32 +36,27 @@ public sealed class TerminologyUnificationFrontendTests
         Assert.Contains("overviewGuidance: '" + guidance + "'", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
         Assert.Contains("\"" + guidance + "\"", ReadSource("AuditCore", "PrescreenPositioningRenderer.cs"), StringComparison.Ordinal);
 
-        Assert.Equal("GL 中編製人員分錄筆數 ≤ 11",
-            RenderAtom("""{"join":"AND","type":"customPreparerEntryCount","maxEntries":"11"}"""));
-        Assert.Equal("GL 中科目分錄筆數 ≤ 11",
-            RenderAtom("""{"join":"AND","type":"customAccountEntryCount","maxEntries":"11"}"""));
-
         var parser = StripComments(ReadSource("Application", "Support", "FilterPopulationScopeParser.cs"), js: false);
         Assert.Contains("已儲存的篩選情境和目前版本不一致，請到第五步重新儲存篩選情境。", parser, StringComparison.Ordinal);
         Assert.DoesNotContain("母體", parser, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void T2_RelevantDataElementField_ReplacesExtraFieldWording()
+    public void RelevantDataElementField_ReplacesExtraFieldWording()
     {
         var core = ReadFrontend("js", "ui-core.js");
         Assert.Contains("quickLabel: '攸關資料元素欄位條件'", core, StringComparison.Ordinal);
-        // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。第五步選單不再寫「攸關資料元素欄位」，只加註來源欄。
+        // 裁定 2026-10-13-18 改名；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。第五步選單不再寫「攸關資料元素欄位」，只加註來源欄。
         Assert.Contains("function rdeFieldOptionLabel(field) {", core, StringComparison.Ordinal);
         Assert.DoesNotContain("withKind", core, StringComparison.Ordinal);
         Assert.Contains("Ui.rdeFieldOptionLabel(item)", ReadFrontend("js", "filter-values.js"), StringComparison.Ordinal);
         var filter = ProductSources.FilterStepFrontend();
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：範例專用的欄位下拉移除；欄位按鈕與範例就地選欄位的完整說明
+        // 裁定 2026-10-08-06 重新設計自訂篩選條件：範例專用的欄位下拉移除；欄位按鈕與範例就地選欄位的完整說明
         // 只加註來源欄（rdeFieldOptionLabel）。
         Assert.DoesNotContain("請選已配對的文字型攸關資料元素欄位", filter, StringComparison.Ordinal);
         Assert.Contains("var full = field.extra ? Ui.rdeFieldOptionLabel(field) : field.label;", filter, StringComparison.Ordinal);
         Assert.Contains("'此攸關資料元素欄位條件沿用原設定：不納入空白值。'", filter, StringComparison.Ordinal);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-08（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 提示框改成逐條寫出位置，
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。提示框改成逐條寫出位置，
         // 清單超過上限的句子和欄位條件同一句；用語仍是「攸關資料元素欄位」，不再出現「額外欄位」。
         Assert.Contains("'所用的攸關資料元素欄位已不在欄位配對中，請重新選擇欄位或刪除此條件'", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("值清單每組最多", filter, StringComparison.Ordinal);
@@ -76,19 +69,20 @@ public sealed class TerminologyUnificationFrontendTests
     }
 
     [Fact]
-    public void T5_VoucherCount_SaysSameNumberCountsOnce_OnBothSides()
+    public void VoucherCount_SaysSameNumberCountsOnce_OnBothSides()
     {
         var filter = ProductSources.FilterStepFrontend();
         Assert.Contains("['vouchers', '傳票張數（同號只算一張）']", filter, StringComparison.Ordinal);
         Assert.Contains("(rule.countUnit === 'vouchers' ? '傳票張數（同號只算一張）' : '分錄筆數')", filter, StringComparison.Ordinal);
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：舊目錄說明移到測試夾具，原文不變；畫面上的計算單位選項仍是上面那一句。
+        // 裁定 2026-10-08-06 重新設計自訂篩選條件：舊目錄說明移到測試夾具，原文不變；畫面上的計算單位選項仍是上面那一句。
         Assert.Contains("要計張時改選傳票張數（同號只算一張）。", ReadLegacyCatalogueFixture(), StringComparison.Ordinal);
-        Assert.Contains("'傳票 ' + fmtNum(item.hitVouchers) + ' 張（同號只算一張）'", ReadFrontend("js", "overview-bi.js"), StringComparison.Ordinal);
+        // 裁定 2026-10-30-19：overview-bi.js 自己的 fmtNum 併進共用的 Ui.countText，句子不變；改名後依預期失敗：Focused 收據 20261031-010547486-827e57fd9bfa4185b81c65114b864279。
+        Assert.Contains("'傳票 ' + Ui.countText(item.hitVouchers) + ' 張（同號只算一張）'", ReadFrontend("js", "overview-bi.js"), StringComparison.Ordinal);
 
-        // 使用者 2026-10-08 裁定資料名稱全系統統一。
+        // 裁定 2026-10-08-04 統一全系統的資料名稱。
         Assert.Equal("GL 中「會計科目編號」傳票張數（同號只算一張） 介於 1～2（含端點）",
-            RenderAtom("""{"join":"AND","type":"entityFrequency","field":"accNum","countUnit":"vouchers","countOperator":"between","countFrom":"1","countTo":"2"}"""));
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：計算單位不在允許值只會是內容損毀，後端不再顯示這句，改記原因代號；
+            RenderAtom("""{"join":"AND","type":"entityFrequency","field":"accountNumber","countUnit":"vouchers","countOperator":"between","countFrom":"1","countTo":"2"}"""));
+        // 計算單位不在允許值只會是內容損毀，後端不再顯示這句，改記原因代號；
         // 畫面上的說法以上面前端的選項為準。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("FilterScenarioCorruption.Add(errors, label, \"entity_frequency_unit_invalid\")",
             ReadSource("Domain", "Rules", "EntityFrequencyConditions.cs"), StringComparison.Ordinal);
@@ -97,37 +91,36 @@ public sealed class TerminologyUnificationFrontendTests
     }
 
     [Fact]
-    public void T6_TrailingDigits_ReadsAsIntegerPartWithoutDecimals_OnBothSides()
+    public void TrailingDigits_ReadsAsIntegerPartWithoutDecimals_OnBothSides()
     {
-        Assert.Contains("return prefix + '金額整數部分（不含小數）' + tdAtoms.join(' 或 ');",
-            ProductSources.FilterStepFrontend(), StringComparison.Ordinal);
-        // L59 fixes the six-zero wording and shares the fourth/fifth-step explanation without changing tails.
+        // 舊式金額尾數的讀回句子連同型別一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），這則只留預篩選尾零的說明。
+        // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+        // Fixes the six-zero wording and shares the fourth/fifth-step explanation without changing tails.
         // First failure: 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d.
         Assert.Contains("desc: Ui.prescreenConditionDescription('trailingZeros')",
             ReadFrontend("js", "steps", "validate-step.js"), StringComparison.Ordinal);
-        // 第9批僅集中門檻，完整句不變；原source literal斷言在插值處截斷。
+        // 這裡只把門檻集中成常數，完整句不變；原本的 source literal 斷言在插值處截斷。
         // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
         Assert.Equal("依本次測試的分錄，找出金額整數部分尾數連續 6 個 0 的分錄；不含小數，整數部分為 0 不列入。",
-            // 預篩選收斂計畫階段九：說明文字搬進 PRESCREEN_RULES 的 description。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+            // 一條規則只有一個定義，說明文字搬進 PRESCREEN_RULES 的 description。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
             FrontendConstantTextReader.ValueProperty(ReadFrontend("js", "ui-core.js"), "PRESCREEN_RULES", "trailingZeros", "description"));
-        Assert.Equal("金額整數部分（不含小數）末 6 位 = 000000 或 末 2 位 = 99",
-            RenderAtom("""{"join":"AND","type":"trailingDigits","keywords":"000000,99"}"""));
     }
 
     [Fact]
-    public void W10_SaveWording_UsesStoreVerb_AndBlankSummaryIsOneName()
+    public void SaveWording_UsesStoreVerb_AndBlankSummaryIsOneName()
     {
-        // 使用者裁定以「已儲存」為準；空白摘要卡片與空值項目已經叫「空白摘要」。
+        // 裁定 2026-10-02-01 定用「已儲存」；空白摘要卡片與空值項目已經叫「空白摘要」。
         var filter = ProductSources.FilterStepFrontend();
         Assert.Contains("'已儲存「' + Ui.esc(draft.name) + '」。' : '條件或說明已變更，尚未儲存。'", filter, StringComparison.Ordinal);
         Assert.Contains("(editing ? '儲存變更' : '儲存情境')", filter, StringComparison.Ordinal);
-        Assert.Contains("paneButton('saved', '已儲存情境與矩陣（'", filter, StringComparison.Ordinal);
+        // 裁定 2026-10-30-34 把「矩陣」改稱高風險條件彙總，頁籤只寫「已儲存情境（N）」。第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
+        Assert.Contains("paneButton('saved', '已儲存情境（'", filter, StringComparison.Ordinal);
         Assert.Contains("'配對已修改，請按「重新確認配對」儲存。'", ReadFrontend("js", "steps", "mapping-step.js"), StringComparison.Ordinal);
         Assert.Contains("'已儲存 ' + n + ' 個篩選情境' : '設定並儲存篩選情境'", ReadFrontend("js", "app.js"), StringComparison.Ordinal);
         Assert.Contains("條件儲存時間：", ReadFrontend("js", "steps", "export-step.js"), StringComparison.Ordinal);
 
         Assert.Equal("空白摘要", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.BlankDescription]);
-        // 預篩選收斂計畫階段九：預篩選規則一條一筆寫在 PRESCREEN_RULES，標籤後面接需求與說明。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        // 一條規則只有一個定義，預篩選規則一條一筆寫在 PRESCREEN_RULES，標籤後面接需求與說明。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
         Assert.Contains("{ value: 'blankDescription', label: '空白摘要', prerequisites:", ReadFrontend("js", "ui-core.js"), StringComparison.Ordinal);
         Assert.Equal("預篩選：空白摘要",
             RenderAtom("""{"join":"AND","type":"prescreen","prescreenKey":"blankDescription"}"""));
@@ -142,12 +135,12 @@ public sealed class TerminologyUnificationFrontendTests
     }
 
     [Fact]
-    public void S9_SummariesSeparatorsStageNumbersAndFileSize_FollowEarlierUserRulings()
+    public void SummariesSeparatorsStepNumbersAndFileSize_FollowEarlierUserRulings()
     {
         var app = ReadFrontend("js", "app.js");
-        // 使用者 2026-09-21：「把符號 "、" 改成 "/" 就好」。
+        // 裁定 2026-09-21-01：「把符號 "、" 改成 "/" 就好」。
         Assert.Contains("return seg.length ? seg.join(' / ') : '匯入總帳明細與試算表';", app, StringComparison.Ordinal);
-        // L24/Q8 now states GL and TB separately; the user's slash separator remains required.
+        // The summary now states GL and TB separately; the user's slash separator remains required.
         // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
         var mappingStart = app.IndexOf("if (id === 'mapping')", StringComparison.Ordinal);
         var mappingEnd = app.IndexOf("if (id === 'validate')", mappingStart + 1, StringComparison.Ordinal);
@@ -155,30 +148,30 @@ public sealed class TerminologyUnificationFrontendTests
         var mappingSummary = app[mappingStart..mappingEnd];
         Assert.Contains("return ['gl', 'tb'].map(function (kind)", mappingSummary, StringComparison.Ordinal);
         Assert.Contains("if (state.mapping[kind].committed) { return label + ' 已確認配對'; }", mappingSummary, StringComparison.Ordinal);
-        // 使用者 2026-10-08 裁定資料名稱全系統統一：還沒匯入的是檔案本身，所以寫 PBC-GL、PBC-TB；
+        // 裁定 2026-10-08-04 統一全系統的資料名稱：還沒匯入的是檔案本身，所以寫 PBC-GL、PBC-TB；
         // 配對狀態沿用使用者選的「GL 欄位配對」說法，仍寫 GL、TB。第一次失敗：20261008-074956950-4d833de82b5147349eca080a7ab0d4e8。
-        // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。「PBC GL」「PBC TB」改成「PBC-GL」「PBC-TB」。
+        // 裁定 2026-10-13-19 改名；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。「PBC GL」「PBC TB」改成「PBC-GL」「PBC-TB」。
         Assert.Contains("if (!imp[kind]) { return 'PBC-' + label + ' 尚未匯入'; }", mappingSummary, StringComparison.Ordinal);
         Assert.Contains("return label + ' 待確認配對';", mappingSummary, StringComparison.Ordinal);
         Assert.Contains("}).join(' / ');", mappingSummary, StringComparison.Ordinal);
-        // 使用者 2026-09-21：不需要強調 01、02、03 這樣的數字；總覽階段卡跟中央流程列一致。
+        // 裁定 2026-09-21-02：不需要強調 01、02、03 這樣的數字；總覽階段卡跟中央流程列一致。
         Assert.DoesNotContain("overview-stage__num", app, StringComparison.Ordinal);
         Assert.DoesNotContain("pad2(", app, StringComparison.Ordinal);
         Assert.DoesNotContain(".overview-stage__num", ReadFrontend("css", "app.css"), StringComparison.Ordinal);
-        // 使用者 2026-09-22：「位元組直接改成顯示 MB 就好」；與報告清單共用同一個格式化函式。
-        Assert.Contains("Ui.fileSizeMbText(workpaper.bytes)", app, StringComparison.Ordinal);
+        // 裁定 2026-09-22-05：「位元組直接改成顯示 MB 就好」；與報告清單共用同一個格式化函式。
+        Assert.Contains("Ui.fileSizeMbText(workingPaper.bytes)", app, StringComparison.Ordinal);
         Assert.DoesNotContain("位元組", StripComments(app, js: true), StringComparison.Ordinal);
         var core = ReadFrontend("js", "ui-core.js");
         Assert.Contains("function fileSizeMbText(value)", core, StringComparison.Ordinal);
-        Assert.Contains("var bytesText = fileSizeMbText(artifact.bytes);", core, StringComparison.Ordinal);
+        Assert.Contains("var bytesText = fileSizeMbText(report.bytes);", core, StringComparison.Ordinal);
         Assert.Contains("fileSizeMbText: fileSizeMbText", core, StringComparison.Ordinal);
-        // 使用者 2026-09-21：「・」這類符號是 AI 味；匯入徽章改用括號放時間。
+        // 裁定 2026-09-21-03：「・」這類符號是 AI 味；匯入徽章改用括號放時間。
         var import = ReadFrontend("js", "steps", "import-step.js");
         Assert.Contains("+ label + '（' +", import, StringComparison.Ordinal);
         Assert.DoesNotContain("label + '·'", import, StringComparison.Ordinal);
 
         // 條件讀回與畫面一致：借方與貸方用逗號分開，收入條件寫完整句子。
-        // 2026-10-04 C4：舊條件未指定 categorySelection 時明說相同分類用途，保留完整固定預期。
+        // 舊條件未指定 categorySelection 時明說相同分類用途，保留完整固定預期。
         // 第一次失敗收據：20261004-075340533-87179f5019724ec89d7c19b4243fdb09。
         Assert.Equal("相同分類用途：借貸科目組合：借方是 A 且貸方是 B（借方 Receivables，貸方 Revenue）",
             RenderAtom("""{"join":"AND","type":"accountPair","pairMode":"exact","debitCategoryIds":["builtin.receivables"],"creditCategoryIds":["builtin.revenue"]}"""));
@@ -192,7 +185,7 @@ public sealed class TerminologyUnificationFrontendTests
     [Fact]
     public void FrontendScreenCode_NoLongerContainsRetiredWording()
     {
-        // Keep the existing locked-status icon exception, plus only the exact U23 user sentence in its own file.
+        // Keep the existing locked-status icon exception, plus only the exact user-authored sentence in its own file.
         // 「輔助訊號」2026-10-14 從 PrescreenPositioningFrontendTests.Overview_PrioritizesConcentrationAndUsesAuxiliarySignalAndRecordLanguage
         // 原樣搬來（原本只查 app.js 與 overview-bi.js）。改名前的用語整個前端都不得再出現；流程總覽的行為測試
         // tools/tests/frontend-journey-overview.test.cjs 只看得到測過的畫面，管不到其他檔新加的字樣，所以留在這份清單。
@@ -212,12 +205,14 @@ public sealed class TerminologyUnificationFrontendTests
         foreach (var file in files)
         {
             var code = StripComments(File.ReadAllText(file), js: true).Replace(lockedMark, string.Empty, StringComparison.Ordinal);
-            // U23 restores this one user-authored interpretation sentence, verified against HEAD.
+            // Restores this one user-authored interpretation sentence, verified against HEAD.
             // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
+            // 裁定 2026-10-30-20：這句的「可能」照確認頁的表改寫，例外跟著換成改寫後的句子；
+            // 改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
             // Do not remove the retired term globally, or exempt any other text/file containing it.
             if (Path.GetRelativePath(root, file) == Path.Combine("js", "steps", "validate-step.js"))
             {
-                const string approvedSentence = "金額不符代表總帳母體可能缺漏。";
+                const string approvedSentence = "金額不符時，要確認總帳母體是否完整。";
                 Assert.Contains(approvedSentence, code, StringComparison.Ordinal);
                 Assert.Equal(code.IndexOf(approvedSentence, StringComparison.Ordinal), code.LastIndexOf(approvedSentence, StringComparison.Ordinal));
                 code = code.Replace(approvedSentence, string.Empty, StringComparison.Ordinal);
@@ -229,15 +224,15 @@ public sealed class TerminologyUnificationFrontendTests
 
         // 防止移除註解時誤吞整段程式：去註解後仍看得到各檔後段的畫面字樣。
         var strippedFilter = StripComments(ProductSources.FilterStepFrontend(), js: true);
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：原檢查點所在的舊目錄範例已移除，改用綁定區段後段仍在的提示字樣。
+        // 裁定 2026-10-08-06 重新設計自訂篩選條件：原檢查點所在的舊目錄範例已移除，改用綁定區段後段仍在的提示字樣。
         // 2026-10-13 第五步一次只存或刪一個情境：「重新檢查並儲存情境」的完成句改寫，原檢查點字樣已不存在
         // （第一次失敗：Public 收據 20261013-103826650-632ded11dde247d0b97d4e5ea6dd63bf）。改用同樣位在綁定區段後段、
         // 移除情境完成時的字樣當檢查點；這個斷言只確認去註解沒有吞掉後段程式。
         Assert.Contains("'已移除情境（剩餘 '", strippedFilter, StringComparison.Ordinal);
-        // 2026-10-03 主線審查把這句的半形分號改成全形逗號，這裡跟著改用新字樣當檢查點
+        // 2026-10-03 審查時把這句的半形分號改成全形逗號，這裡跟著改用新字樣當檢查點
         // （第一次失敗：收據 20261003-025601604-276084fa725a4007a4587e23efcf3f08）。
         Assert.Contains("尚無可用情境，請先在上方儲存篩選情境。</p>'", strippedFilter, StringComparison.Ordinal);
-        Assert.Contains("Ui.fileSizeMbText(workpaper.bytes)", StripComments(ReadFrontend("js", "app.js"), js: true), StringComparison.Ordinal);
+        Assert.Contains("Ui.fileSizeMbText(workingPaper.bytes)", StripComments(ReadFrontend("js", "app.js"), js: true), StringComparison.Ordinal);
 
         var html = StripHtmlComments(File.ReadAllText(Path.Combine(root, "index.html")));
         hits.AddRange(retired.Where(term => html.Contains(term, StringComparison.Ordinal)).Select(term => "index.html：" + term));
@@ -249,7 +244,7 @@ public sealed class TerminologyUnificationFrontendTests
     public void BackendMessages_ShownToAuditors_NoLongerContainRetiredWording()
     {
         // 系統端回給畫面或寫進條件讀回的字串。底稿範本原文不在檢查範圍：「JE測試母體」「RDE欄位」等固定文字
-        // 不會被下列字樣誤判（它們不含這些字串）；只在程式錯誤時出現的「GL 有效母體」也不含這些字串。
+        // 不會被下列字樣誤判（它們不含這些字串）；只在程式錯誤時出現的訊息也不含這些字串。
         var retired = new[]
         {
             "所選母體", "母體分布", "測試母體版本", "去重傳票張數", "主單位整數", "額外欄位", "RDE 欄位", "摘要空白",
@@ -302,7 +297,7 @@ public sealed class TerminologyUnificationFrontendTests
 
     private static string RenderAtom(string ruleJson)
     {
-        using var document = JsonDocument.Parse($$"""{"groups":[{"join":"AND","rules":[{{ruleJson}}]}]}""");
+        using var document = JsonDocument.Parse($$"""{"groups":[{"join":"AND","conditions":[{{ruleJson}}]}]}""");
         return FilterConditionRenderer.Render(document.RootElement);
     }
 

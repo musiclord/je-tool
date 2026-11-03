@@ -26,7 +26,7 @@ public sealed class PayloadReaderTests
             () => PayloadReader.GetStringMap(document.RootElement, "mapping"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-        // 使用者 2026-10-19 要求前端不露出系統用詞：訊息改為非預期錯誤那一句，不再寫出欄位名稱。
+        // 前端不露出系統用詞（裁定 2026-10-19-04）：訊息改為非預期錯誤那一句，不再寫出欄位名稱。
         // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
         Assert.Equal("payload_required_object_missing", JetPayloadRejection.CheckOf(exception));
@@ -56,8 +56,8 @@ public sealed class PayloadReaderTests
         Assert.Equal("摘要", result["description"]);
     }
 
-    // 2026-10-04 第 6 批 L20：自動猜欄已沒有正式入口，GetFieldDefinitions 及其兩個測試隨死碼移除。
-    // 仍使用中的字典、整數與字串清單解析斷言保留；Batch6ValueProfileTests 核對退役 API 不再隨程式發布。
+    // 自動猜欄已沒有正式入口，GetFieldDefinitions 及其兩個測試隨死碼移除。
+    // 仍使用中的字典、整數與字串清單解析斷言保留；MappingValueProfileTests 核對退役 API 不再隨程式發布。
 
     [Fact]
     public void GetStringList_MissingArrayField_ThrowsInvalidPayload()
@@ -68,7 +68,7 @@ public sealed class PayloadReaderTests
             () => PayloadReader.GetStringList(document.RootElement, "items"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-        // 使用者 2026-10-19 要求前端不露出系統用詞：訊息改為非預期錯誤那一句，不再寫出欄位名稱。
+        // 前端不露出系統用詞（裁定 2026-10-19-04）：訊息改為非預期錯誤那一句，不再寫出欄位名稱。
         // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
         Assert.Equal("payload_required_array_missing", JetPayloadRejection.CheckOf(exception));

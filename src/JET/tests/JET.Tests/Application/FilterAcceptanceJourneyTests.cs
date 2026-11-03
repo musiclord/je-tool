@@ -28,12 +28,12 @@ public sealed class FilterAcceptanceJourneyTests
         }, databaseProvider: provider, validateForDownstream: true);
         await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
-            mapping = source!.BuildFlagModeMapping(), amountMode = "flag", approvalDateMode = "sameAsPostDate"
+            mapping = source!.BuildFlagModeMapping(), amountMode = "flag", approvalDateMode = "sameAsGlDate"
         }));
         await host.DispatchAsync("validate.run");
         foreach (var item in new[] { (Operator: "isBlank", Count: 0), (Operator: "isNotBlank", Count: 2) })
         {
-            var scenario = Scenario($$"""{"type":"fieldValue","field":"docDate","operator":"{{item.Operator}}"}""");
+            var scenario = Scenario($$"""{"type":"fieldValue","field":"approvalDate","operator":"{{item.Operator}}"}""");
             var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
             Assert.Equal(item.Count, preview.GetProperty("scenario").GetProperty("count").GetInt64());
         }
@@ -87,7 +87,7 @@ public sealed class FilterAcceptanceJourneyTests
     }
 
     private static JsonElement Scenario(string rules) => JsonElement.Parse($$"""
-        {"name":"合成驗收","rationale":"固定答案","groups":[{"rules":[{{rules}}]}]}
+        {"name":"合成驗收","rationale":"固定答案","groups":[{"conditions":[{{rules}}]}]}
         """);
 
     private static async Task<string[]> SavedRowsAsync(HandlerTestHost host, string direction = "asc", string? search = null)
@@ -102,7 +102,7 @@ public sealed class FilterAcceptanceJourneyTests
                 scenarioPosition = 1, pageSize = 2, cursor, sort = new { key = "amount", direction }, search
             }));
             rows.AddRange(page.GetProperty("rows").EnumerateArray().Select(row =>
-                row.GetProperty("documentNumber").GetString() + "|" + row.GetProperty("lineItem").GetString()));
+                row.GetProperty("voucherNumber").GetString() + "|" + row.GetProperty("lineItem").GetString()));
             cursor = page.GetProperty("nextCursor").GetString();
             if (cursor is not null) Assert.True(cursors.Add(cursor), "游標重複，分頁未前進。");
             Assert.True(rows.Count <= 12, "分頁重複資料。");
@@ -119,16 +119,16 @@ public sealed class FilterAcceptanceJourneyTests
         var dateId = await SetupAsync(host, provider);
         var cases = new (string Rules, string[] Rows)[]
         {
-            ("""{"type":"fieldValue","field":"docDate","operator":"dayOfMonthNotIn","values":["28","31"]}""",
+            ("""{"type":"fieldValue","field":"approvalDate","operator":"dayOfMonthNotIn","values":["28","31"]}""",
                 ["A|1", "A|2", "B|1", "B|2", "E|1", "E|2"]),
-            ("""{"type":"fieldValue","field":"docDate","operator":"in","values":["2025-12-24","2025-12-28","2025-12-31"]}""",
+            ("""{"type":"fieldValue","field":"approvalDate","operator":"in","values":["2025-12-24","2025-12-28","2025-12-31"]}""",
                 ["A|1", "A|2", "C|1", "C|2", "D|1", "D|2"]),
             ($$"""{"type":"fieldValue","fieldId":"{{dateId}}","operator":"notIn","values":["2025-12-28","2025-12-31"]}""",
                 ["A|1", "A|2", "B|1", "B|2", "E|1", "E|2"]),
-            ("""{"type":"fieldValue","field":"createBy","operator":"notIn","values":["maker1","maker2"]}""",
+            ("""{"type":"fieldValue","field":"createdBy","operator":"notIn","values":["maker1","maker2"]}""",
                 ["C|1", "C|2", "E|1", "E|2", "F|1", "F|2"]),
-            ("""{"type":"fieldValue","field":"approveBy","operator":"isBlank"}""", ["F|1", "F|2"]),
-            ("""{"type":"fieldValue","field":"postDate","operator":"between","from":"2025-12-25","to":"2025-12-31"}""",
+            ("""{"type":"fieldValue","field":"approvedBy","operator":"isBlank"}""", ["F|1", "F|2"]),
+            ("""{"type":"fieldValue","field":"glDate","operator":"between","from":"2025-12-25","to":"2025-12-31"}""",
                 ["B|1", "B|2", "C|1", "C|2", "D|1", "D|2", "E|1", "E|2", "F|1", "F|2"]),
             ("""{"type":"specialAccountCategoryPair","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.cash"],"pairMode":"drNotCr"}""",
                 ["A|1", "B|1", "C|1", "D|1", "E|1", "F|1"])
@@ -157,8 +157,8 @@ public sealed class FilterAcceptanceJourneyTests
         foreach (var firstJoin in new[] { "AND", "OR" })
         {
             var scenario = Scenario($$"""
-                {"join":"{{firstJoin}}","type":"fieldValue","field":"docNum","operator":"equals","value":"A"},
-                {"join":"OR","type":"fieldValue","field":"docNum","operator":"equals","value":"B"},
+                {"join":"{{firstJoin}}","type":"fieldValue","field":"voucherNumber","operator":"equals","value":"A"},
+                {"join":"OR","type":"fieldValue","field":"voucherNumber","operator":"equals","value":"B"},
                 {"join":"AND","type":"drCrOnly","drCr":"debit"}
                 """);
             var text = FilterConditionRenderer.Render(scenario);
@@ -176,11 +176,11 @@ public sealed class FilterAcceptanceJourneyTests
         Assert.NotNull(error.Details);
         Assert.Contains(error.Details, detail => detail.Group == 1 && detail.Rule == 1);
         Assert.Equal(["A|1", "B|1"], await SavedRowsAsync(host)); // 失敗不能覆蓋既有情境。
-        var unmapped = Scenario("""{"type":"fieldValue","field":"jeSource","operator":"isBlank"}""");
+        var unmapped = Scenario("""{"type":"fieldValue","field":"sourceModule","operator":"isBlank"}""");
         var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview",
             JsonSerializer.Serialize(new { scenario = unmapped })));
         Assert.Equal(JetErrorCodes.InvalidScenario, missing.Code);
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：原因只寫「「欄位」尚未選擇來源欄」，不再寫回欄位配對的下一步。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 裁定 2026-10-13-28 確認了用字：原因只寫「「欄位」尚未選擇來源欄」，不再寫回欄位配對的下一步。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("尚未選擇來源欄", missing.Message, StringComparison.Ordinal);
     }
 }

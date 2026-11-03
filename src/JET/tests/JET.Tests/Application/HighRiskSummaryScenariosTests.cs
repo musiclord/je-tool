@@ -1,0 +1,179 @@
+using System.Linq;
+using System.Text.Json;
+using Xunit;
+
+namespace JET.Tests.Application;
+
+/// <summary>
+/// query.highRiskSummaryScenarios 驗收。
+/// 每測試自建 host(filter.commit 改狀態,不可共用唯讀 fixture)。
+///
+/// 設計技術:狀態轉換(commit 多情境 → 摘要)+ metamorphic recount oracle。
+///   - oracle:每個 position 的 voucherHitCount == filter_hit JOIN gl 的
+///     COUNT(DISTINCT voucher_number) 獨立 recount;rowHitCount == filter_hit 的
+///     COUNT(*) 獨立 recount(非以 C# 重實作規則,故為有效 oracle)。
+///   - 0 命中情境:commit 一個刻意打不中(amount ≥ 天價)的情境,斷言其仍列出且兩 count 皆 0。
+///   - 惰性補算:清空 filter_hit 後不重 commit 直接呼叫,仍能算出與 recount 相等。
+/// </summary>
+public sealed class HighRiskSummaryScenariosTests
+{
+    /// <summary>命中(nonAuthorizedPreparer)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>
+    private static string ThreeScenarioPayload() =>
+        JsonSerializer.Serialize(new
+        {
+            scenarios = new object[]
+            {
+                new {
+                    name = "非授權編製人員", rationale = "命中情境",
+                    groups = new[] { new { join = "and", conditions = new object[] {
+                        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
+                new {
+                    name = "廣域金額", rationale = "命中情境",
+                    groups = new[] { new { join = "and", conditions = new object[] {
+                        new { join = "and", type = "numRange", field = "amount", from = "0" } } } } },
+                new {
+                    name = "天價(打不中)", rationale = "0 命中情境",
+                    groups = new[] { new { join = "and", conditions = new object[] {
+                        new { join = "and", type = "numRange", field = "amount", from = "999999999999" } } } } }
+            }
+        });
+
+    private static long PositionOf(JsonElement scenarios, int position) =>
+        scenarios.EnumerateArray().Single(s => s.GetProperty("position").GetInt32() == position).GetProperty("voucherHitCount").GetInt64();
+
+    [Fact]
+    public async Task Summary_CountsEqualIndependentRecount_AndZeroHitListed()
+    {
+        using var host = new HandlerTestHost();
+        var ctx = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("filter.commit", ThreeScenarioPayload());
+
+        var data = await host.DispatchAsync("query.highRiskSummaryScenarios");
+        var scenarios = data.GetProperty("scenarios");
+
+        // 三情境全列出、依 position 升冪。
+        var positions = scenarios.EnumerateArray().Select(s => s.GetProperty("position").GetInt32()).ToArray();
+        Assert.Equal(new[] { 1, 2, 3 }, positions);
+        Assert.Equal("非授權編製人員", scenarios[0].GetProperty("name").GetString());
+
+        // 每個 position 的兩 count == 獨立 ANSI recount(由 filter_hit 即時算)。
+        foreach (var s in scenarios.EnumerateArray())
+        {
+            var pos = s.GetProperty("position").GetInt32();
+            var voucherRecount = await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
+                "SELECT COUNT(DISTINCT g.voucher_number) FROM filter_hit r " +
+                "JOIN gl g ON g.entry_id = r.entry_id WHERE r.scenario_id = @pos;",
+                ("@pos", pos));
+            var rowRecount = await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
+                "SELECT COUNT(*) FROM filter_hit WHERE scenario_id = @pos;",
+                ("@pos", pos));
+
+            Assert.Equal(voucherRecount, s.GetProperty("voucherHitCount").GetInt64());
+            Assert.Equal(rowRecount, s.GetProperty("rowHitCount").GetInt64());
+        }
+
+        // 命中情境確有命中(避免空跑假性通過)。
+        Assert.True(PositionOf(scenarios, 1) > 0);
+        Assert.True(PositionOf(scenarios, 2) > 0);
+
+        // 0 命中情境(position 3)仍列出,兩 count 皆 0。
+        var zeroHit = scenarios[2];
+        Assert.Equal("天價(打不中)", zeroHit.GetProperty("name").GetString());
+        Assert.Equal(0, zeroHit.GetProperty("voucherHitCount").GetInt64());
+        Assert.Equal(0, zeroHit.GetProperty("rowHitCount").GetInt64());
+    }
+
+    [Fact]
+    public async Task LazyMaterialize_WhenResultEmptyButScenariosExist_BackfillsThenCounts()
+    {
+        // 惰性補算:情境定義存在於 filter_scenario,但 filter_hit 被清空
+        // (模擬重投影後尚未重跑 filter.commit),highRiskSummaryScenarios 取摘要前應重用 materializer 補算後回取。
+        using var host = new HandlerTestHost();
+        var ctx = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("filter.commit", ThreeScenarioPayload());
+
+        // 透過正式流程使結果失效；情境定義保留，不把手動刪表當作產品失效流程。
+        // 上游修改會清除下游（裁定 2026-10-07-03），所以行事曆修改會連情境一起清掉；改用開案規則升版的情境整批取代。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(host, ctx.ProjectId);
+        Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
+            "SELECT COUNT(*) FROM filter_hit;"));
+
+        var data = await host.DispatchAsync("query.highRiskSummaryScenarios");
+        var scenarios = data.GetProperty("scenarios");
+
+        // 補算後 position 1/2 仍命中、與重取後 recount 相等。
+        foreach (var s in scenarios.EnumerateArray())
+        {
+            var pos = s.GetProperty("position").GetInt32();
+            var rowRecount = await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
+                "SELECT COUNT(*) FROM filter_hit WHERE scenario_id = @pos;",
+                ("@pos", pos));
+            Assert.Equal(rowRecount, s.GetProperty("rowHitCount").GetInt64());
+        }
+
+        Assert.True(PositionOf(scenarios, 1) > 0, "惰性補算後 nonAuthorizedPreparer 應仍命中");
+    }
+
+    // 第五步的分錄筆數要和過往底稿相同（裁定 2026-10-16-08）。只用「未預期借貸組合」一個條件時，預覽、
+    // 已存情境摘要與傳票清單都用整張命中傳票的分錄數（和 Criteria Selection 摘要同一個判斷）；其他情境維持直接符合的分錄數。
+    // 獨立答案：傳票清單逐張列出的期間內全部分錄加總，走的是另一條 GROUP BY 查詢。
+    [Fact]
+    public async Task UnexpectedAccountPairAlone_ScreensCountWholeVoucherRows_OtherScenariosKeepDirectRows()
+    {
+        using var host = new HandlerTestHost();
+        await DemoProjectPipeline.SetupAsync(host);
+        var pair = new
+        {
+            name = "未預期借貸組合", rationale = "整張傳票計數",
+            groups = new[] { new { join = "and", conditions = new object[] {
+                new { join = "and", type = "prescreen", prescreenKey = "unexpectedAccountPair" } } } }
+        };
+        var preparer = new
+        {
+            name = "非授權編製人員", rationale = "直接符合計數",
+            groups = new[] { new { join = "and", conditions = new object[] {
+                new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } }
+        };
+
+        var preview = (await host.DispatchAsync("filter.preview",
+            JsonSerializer.Serialize(new { populationScope = "auditPeriod", scenario = pair }))).GetProperty("scenario");
+        long wholeRows = 0, totalRows = 0;
+        string? cursor = null;
+        do
+        {
+            var page = await host.DispatchAsync("query.filterVoucherPage",
+                JsonSerializer.Serialize(new { populationScope = "auditPeriod", scenario = pair, pageSize = 500, cursor }));
+            foreach (var voucher in page.GetProperty("rows").EnumerateArray())
+            {
+                wholeRows += voucher.GetProperty("hitRowCount").GetInt64();
+                totalRows += voucher.GetProperty("totalRowCount").GetInt64();
+            }
+            cursor = page.GetProperty("nextCursor").ValueKind == JsonValueKind.Null ? null : page.GetProperty("nextCursor").GetString();
+        } while (cursor is not null);
+
+        Assert.True(preview.GetProperty("countsWholeVoucherRows").GetBoolean());
+        Assert.Equal(totalRows, wholeRows);
+        Assert.Equal(totalRows, preview.GetProperty("summaryRowCount").GetInt64());
+        Assert.True(totalRows > preview.GetProperty("count").GetInt64(), "示範資料每張傳票還有一列借方，整張傳票的分錄數應多於直接符合的列");
+
+        await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new object[] { pair, preparer } }));
+        var scenarios = (await host.DispatchAsync("query.highRiskSummaryScenarios")).GetProperty("scenarios");
+        Assert.True(scenarios[0].GetProperty("countsWholeVoucherRows").GetBoolean());
+        Assert.Equal(totalRows, scenarios[0].GetProperty("summaryRowCount").GetInt64());
+        Assert.Equal(preview.GetProperty("count").GetInt64(), scenarios[0].GetProperty("rowHitCount").GetInt64());
+        Assert.False(scenarios[1].GetProperty("countsWholeVoucherRows").GetBoolean());
+        Assert.Equal(scenarios[1].GetProperty("rowHitCount").GetInt64(), scenarios[1].GetProperty("summaryRowCount").GetInt64());
+    }
+
+    [Fact]
+    public async Task NoScenarios_ReturnsEmptyList()
+    {
+        using var host = new HandlerTestHost();
+        await DemoProjectPipeline.SetupAsync(host);
+
+        var data = await host.DispatchAsync("query.highRiskSummaryScenarios");
+        Assert.Equal(0, data.GetProperty("scenarios").GetArrayLength());
+    }
+}

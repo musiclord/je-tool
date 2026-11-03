@@ -76,7 +76,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                "無法讀取欄位配對報告；檔案可能損壞、被鎖定或不是有效的 xlsx。",
+                "無法讀取欄位配對報告。請確認檔案沒有被其他程式開啟，而且是 JET 匯出的 xlsx 檔。",
                 innerException: ex);
         }
     }

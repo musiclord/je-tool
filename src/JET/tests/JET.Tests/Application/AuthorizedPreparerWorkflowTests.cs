@@ -10,7 +10,7 @@ public sealed class AuthorizedPreparerWorkflowTests
     private static readonly object Scenario = new
     {
         name = "Synthetic authorization", rationale = "Identifier comparison",
-        groups = new[] { new { rules = new[] {
+        groups = new[] { new { conditions = new[] {
             new { type = "prescreen", prescreenKey = "nonAuthorizedPreparer" }
         } } }
     };
@@ -31,7 +31,7 @@ public sealed class AuthorizedPreparerWorkflowTests
             Assert.Equal(4, imported.GetProperty("sourceRowCount").GetInt32());
             Assert.Equal(1, imported.GetProperty("blankRowCount").GetInt32());
             Assert.Equal(1, imported.GetProperty("duplicateRowCount").GetInt32());
-            var preview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparers\"}");
+            var preview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparer\"}");
             Assert.Equal(new[] { "E01", "E02" }, preview.GetProperty("rows").EnumerateArray()
                 .Select(row => row[0].GetString()).ToArray());
             var filtered = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = Scenario }));
@@ -42,7 +42,7 @@ public sealed class AuthorizedPreparerWorkflowTests
             var reopened = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
             Assert.Equal(2, reopened.GetProperty("importState").GetProperty("authorizedPreparer").GetProperty("rowCount").GetInt32());
             Assert.Equal("員工代碼", reopened.GetProperty("importState").GetProperty("authorizedPreparer").GetProperty("sourceColumn").GetString());
-            var after = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparers\"}");
+            var after = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparer\"}");
             Assert.Equal(preview.GetProperty("rows").GetRawText(), after.GetProperty("rows").GetRawText());
         }
         finally { TestWorkbookBuilder.Delete(path); }
@@ -65,11 +65,11 @@ public sealed class AuthorizedPreparerWorkflowTests
             Assert.True(cleared.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
             var reopened = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
             Assert.Equal(JsonValueKind.Null, reopened.GetProperty("importState").GetProperty("authorizedPreparer").ValueKind);
-            Assert.Equal(JsonValueKind.Object, reopened.GetProperty("latestRuns").GetProperty("validate").ValueKind);
-            Assert.Equal(JsonValueKind.Null, reopened.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
-            var preview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparers\"}");
+            Assert.Equal(JsonValueKind.Object, reopened.GetProperty("validationResult").ValueKind);
+            Assert.Equal(JsonValueKind.Null, reopened.GetProperty("prescreenResult").ValueKind);
+            var preview = await host.DispatchAsync("query.dataPreview", "{\"dataset\":\"authorizedPreparer\"}");
             Assert.Empty(preview.GetProperty("rows").EnumerateArray());
-            // 使用者 2026-10-07 裁定上游修改清除下游：移除授權名單會清掉已存情境，重新匯入也不會自動恢復；
+            // 上游修改會清除下游（裁定 2026-10-07-03）：移除授權名單會清掉已存情境，重新匯入也不會自動恢復；
             // 審計員重新儲存情境後才有命中。原本斷言情境保留並在重新匯入後恢復，第一次失敗收據
             // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
             Assert.Empty(reopened.GetProperty("filterScenarios").EnumerateArray());
@@ -79,7 +79,7 @@ public sealed class AuthorizedPreparerWorkflowTests
             Assert.Empty(reimported.GetProperty("filterScenarios").EnumerateArray());
             await host.DispatchAsync("prescreen.run");
             await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { Scenario } }));
-            var restored = await host.DispatchAsync("query.tagMatrixScenarios");
+            var restored = await host.DispatchAsync("query.highRiskSummaryScenarios");
             Assert.Contains("Synthetic authorization", restored.GetRawText(), StringComparison.Ordinal);
         }
         finally { TestWorkbookBuilder.Delete(path); }

@@ -35,9 +35,9 @@ internal sealed class PrivateCaseScenarioVerificationFacts
     [JsonIgnore]
     internal IReadOnlyList<PrivateCaseScenarioActualCount> Counts { get; }
 
-    internal static PrivateCaseScenarioVerificationFacts Capture(JsonElement tagMatrix)
+    internal static PrivateCaseScenarioVerificationFacts Capture(JsonElement highRiskSummary)
     {
-        if (!tagMatrix.TryGetProperty("scenarios", out var scenarios)
+        if (!highRiskSummary.TryGetProperty("scenarios", out var scenarios)
             || scenarios.ValueKind != JsonValueKind.Array
             || scenarios.GetArrayLength() is < 1 or > 10)
         {

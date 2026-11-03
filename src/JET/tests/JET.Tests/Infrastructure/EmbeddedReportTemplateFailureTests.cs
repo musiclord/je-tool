@@ -8,13 +8,13 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 內嵌正式報表範本的失敗邊界。
-/// oracle：缺失或無效的 xlsx 一律回報 file_read_error，且 writer 在 artifact staging
+/// oracle：缺失或無效的 xlsx 一律回報 file_read_error，且 writer 在報告暫存
 /// 階段失敗時不得取代既有正式檔或 manifest。
 /// </summary>
 public sealed class EmbeddedReportTemplateFailureTests
 {
     private const string ProjectId = "內嵌範本失敗邊界案件";
-    private const string ValidationRunId = "11111111111111111111111111111111";
+    private const string ValidationResultId = "11111111111111111111111111111111";
 
     [Fact]
     public async Task MissingEmbeddedTemplate_ReportsFileReadError()
@@ -27,6 +27,8 @@ public sealed class EmbeddedReportTemplateFailureTests
             FillValidationTemplateAsync(catalog, output));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        // 裁定 2026-10-30-20：訊息不寫「可能」，改寫審計員接下來能做什麼。改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
+        Assert.Equal("無法讀取 JET 內附的範本「ValidationReport.xlsx」。請重新下載 JET 後再匯出。", exception.Message);
     }
 
     [Fact]
@@ -44,6 +46,8 @@ public sealed class EmbeddedReportTemplateFailureTests
             FillValidationTemplateAsync(catalog, output));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        // 裁定 2026-10-30-20：訊息不寫「可能」，改寫審計員接下來能做什麼。改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
+        Assert.Equal("無法填入 JET 內附的範本「ValidationReport.xlsx」。請重新下載 JET 後再匯出。", exception.Message);
     }
 
     [Fact]
@@ -141,7 +145,7 @@ public sealed class EmbeddedReportTemplateFailureTests
                 catalog,
                 ReportTemplateCatalog.Validation,
                 result,
-                ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkpaperSheetCatalog.Step13],
+                ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.Step13],
                 (editor, cancellationToken) =>
                 {
                     Assert.NotNull(editor);
@@ -153,36 +157,36 @@ public sealed class EmbeddedReportTemplateFailureTests
     }
 
     [Fact]
-    public async Task MissingTemplateDuringReplacement_PreservesExistingArtifactAndManifest()
+    public async Task MissingTemplateDuringReplacement_PreservesExistingReportAndManifest()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
         var projectDirectory = System.IO.Path.GetFullPath(folder.GetProjectDirectory(ProjectId));
         Directory.CreateDirectory(projectDirectory);
-        var store = new ProjectReportArtifactStore(folder);
-        var sourceRefs = new ReportArtifactSourceRefs(ValidationRunId: ValidationRunId);
+        var store = new ProjectReportStore(folder);
+        var sourceRefs = new ReportSourceRefs(ValidationResultId: ValidationResultId);
         var originalBytes = "existing-validation-report"u8.ToArray();
         var original = await store.WriteAsync(
             ProjectId,
-            new ReportArtifactWriteRequest(
-                ReportArtifactKind.ValidationReport,
+            new ReportWriteRequest(
+                ReportKind.ValidationReport,
                 sourceRefs,
                 (output, cancellationToken) =>
                     output.WriteAsync(originalBytes, cancellationToken).AsTask()),
             CancellationToken.None);
-        var artifactPath = System.IO.Path.Combine(projectDirectory, original.RelativeFileName);
+        var reportPath = System.IO.Path.Combine(projectDirectory, original.RelativeFileName);
         var manifestPath = System.IO.Path.Combine(
             projectDirectory,
-            ProjectReportArtifactStore.ManifestFileName);
-        var artifactBefore = await File.ReadAllBytesAsync(artifactPath, CancellationToken.None);
+            ProjectReportStore.ManifestFileName);
+        var reportBefore = await File.ReadAllBytesAsync(reportPath, CancellationToken.None);
         var manifestBefore = await File.ReadAllBytesAsync(manifestPath, CancellationToken.None);
 
         using var templates = new TemporaryDirectory();
         var missingCatalog = new ReportTemplateCatalog(templates.Path);
         var exception = await Assert.ThrowsAsync<JetActionException>(() => store.WriteAsync(
             ProjectId,
-            new ReportArtifactWriteRequest(
-                ReportArtifactKind.ValidationReport,
+            new ReportWriteRequest(
+                ReportKind.ValidationReport,
                 sourceRefs,
                 async (output, cancellationToken) =>
                 {
@@ -195,15 +199,15 @@ public sealed class EmbeddedReportTemplateFailureTests
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
         Assert.Equal(
-            artifactBefore,
-            await File.ReadAllBytesAsync(artifactPath, CancellationToken.None));
+            reportBefore,
+            await File.ReadAllBytesAsync(reportPath, CancellationToken.None));
         Assert.Equal(
             manifestBefore,
             await File.ReadAllBytesAsync(manifestPath, CancellationToken.None));
         var current = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
-        Assert.Equal(original.ArtifactId, current.ArtifactId);
+        Assert.Equal(original.ReportId, current.ReportId);
         Assert.Equal(original.Bytes, current.Bytes);
-        Assert.Equal(ReportArtifactFileState.AsPublished, current.FileState);
+        Assert.Equal(ReportFileState.AsPublished, current.FileState);
     }
 
     private static Task<ExportStats> FillValidationTemplateAsync(
@@ -214,7 +218,7 @@ public sealed class EmbeddedReportTemplateFailureTests
             catalog,
             ReportTemplateCatalog.Validation,
             output,
-            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkpaperSheetCatalog.Step13],
+            ["ValidationReport", MappingMetadataFormat.WorksheetName, WorkingPaperSheetCatalog.Step13],
             static (_, _) => throw new Xunit.Sdk.XunitException(
                 "範本驗證失敗前不應啟動 direct writer。"),
             cancellationToken);

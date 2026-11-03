@@ -27,7 +27,7 @@ public sealed class PrescreenPreviewParityTests
                     new
                     {
                         join = "AND",
-                        rules = new object[]
+                        conditions = new object[]
                         {
                             new { join = "AND", type = "prescreen", prescreenKey }
                         }
@@ -38,9 +38,9 @@ public sealed class PrescreenPreviewParityTests
 
     /// <summary>
     /// 涵蓋：suspiciousKeywords、trailingZeros、blankDescription、weekendPosting、
-    /// weekendApproval、postPeriodApproval、holidayPosting。
+    /// weekendApproval、prepPeriodApproval、holidayPosting。
     ///
-    /// 播種內容（lastPeriodStart = 2025-12-31）：
+    /// 播種內容（prepStartDate = 2025-12-31）：
     ///   JV-001  過帳 2025-01-01（週三）  核准 2026-01-10（期末後）  摘要＝調整分錄（關鍵字）  金額 5000000（6 個尾數 0 = 固定預設門檻）
     ///   JV-002  過帳 2025-01-04（週六）  核准 2025-01-06（週一）  摘要＝進貨            金額 999
     ///   JV-003  過帳 2025-01-01（週三）  核准 2025-01-04（週六週末核准）  摘要＝（空白）
@@ -53,8 +53,8 @@ public sealed class PrescreenPreviewParityTests
     {
         using var host = new HandlerTestHost();
 
-        // 播種方式一：InlineWorkbookProject（lastPeriodStart、holidays）
-        // 使用「核准日期」欄位（InlineGlWorkbookBuilder 的 "核准日期" → docDate）。
+        // 播種方式一：InlineWorkbookProject（prepStartDate、holidays）
+        // 使用「核准日期」欄位（InlineGlWorkbookBuilder 的 "核准日期" → approvalDate）。
         // 借方旗標欄 1 = 借方。
         await InlineWorkbookProject.SetupAsync(
             host,
@@ -73,7 +73,7 @@ public sealed class PrescreenPreviewParityTests
                 // JV-004：假日過帳（2025-01-27 台灣農曆年前假日）、假日核准（2025-01-28）、金額 200
                 .AddRow("JV-004", "2025-01-27", "2025-01-28", "1101", "現金",     "假日過帳測試", "200.00", 1)
                 .AddRow("JV-004", "2025-01-27", "2025-01-28", "4101", "銷貨收入", "假日過帳測試", "200.00", 0),
-            lastPeriodStart: "2025-12-31",
+            prepStartDate: "2025-12-31",
             holidays: ["2025-01-27", "2025-01-28"],
             validateForDownstream: true);
 
@@ -107,10 +107,10 @@ public sealed class PrescreenPreviewParityTests
         var waPreview = await host.DispatchAsync("filter.preview", PreviewPayload("weekendApproval"));
         Assert.Equal(waCount, waPreview.GetProperty("scenario").GetProperty("count").GetInt64());
 
-        // --- 6. postPeriodApproval ---
-        // 需 lastPeriodStart 已設定（已於 project.create 傳入 "2025-12-31"）。
-        var ppCount = prescreen.GetProperty("postPeriodApproval").GetProperty("count").GetInt64();
-        var ppPreview = await host.DispatchAsync("filter.preview", PreviewPayload("postPeriodApproval"));
+        // --- 6. prepPeriodApproval ---
+        // 需 prepStartDate 已設定（已於 project.create 傳入 "2025-12-31"）。
+        var ppCount = prescreen.GetProperty("prepPeriodApproval").GetProperty("count").GetInt64();
+        var ppPreview = await host.DispatchAsync("filter.preview", PreviewPayload("prepPeriodApproval"));
         Assert.Equal(ppCount, ppPreview.GetProperty("scenario").GetProperty("count").GetInt64());
 
         // --- 7. holidayPosting ---
@@ -124,7 +124,7 @@ public sealed class PrescreenPreviewParityTests
         Assert.True(bdCount > 0, "blankDescription 應有命中（JV-003 摘要為空白）");
         Assert.True(wpCount > 0, "weekendPosting 應有命中（JV-002 過帳日 2025-01-04 週六）");
         Assert.True(waCount > 0, "weekendApproval 應有命中，否則等式為 0==0 無意義（JV-003 核准日 2025-01-11 週六）");
-        Assert.True(ppCount > 0, "postPeriodApproval 應有命中（JV-001 核准日 2026-01-10）");
+        Assert.True(ppCount > 0, "prepPeriodApproval 應有命中（JV-001 核准日 2026-01-10）");
         Assert.True(hpCount > 0, "holidayPosting 應有命中（JV-004 過帳日 2025-01-27 假日）");
     }
 
@@ -152,7 +152,12 @@ public sealed class PrescreenPreviewParityTests
         var uapCount = prescreen.GetProperty("unexpectedAccountPair").GetProperty("count").GetInt64();
         var uapPreview = await host.DispatchAsync("filter.preview", PreviewPayload("unexpectedAccountPair"));
 
-        Assert.Equal(uapCount, uapPreview.GetProperty("scenario").GetProperty("count").GetInt64());
+        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29），第四步的筆數改和第五步只用這一個條件時畫面的分錄筆數（summaryRowCount）比，傳票張數仍相同；
+        // 原本和直接命中的 count 比。第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        Assert.Equal(uapCount, uapPreview.GetProperty("scenario").GetProperty("summaryRowCount").GetInt64());
+        var uapPeriod = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
+            .Single(rule => rule.GetProperty("key").GetString() == "unexpectedAccountPair");
+        Assert.Equal(uapPeriod.GetProperty("hitVouchers").GetInt64(), uapPreview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
         Assert.True(uapCount > 0, "unexpectedAccountPair 應有命中（demo 含 Revenue 對方分類科目組合）");
     }
 }

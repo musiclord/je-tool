@@ -17,7 +17,7 @@ public sealed class MappingProjectionPolicyFrontendTests
         var modes = ExtractValueLabelMap(core, "GL_APPROVAL_DATE_MODES");
 
         Assert.Equal(
-            new[] { "unmapped", "mapped", "sameAsPostDate" },
+            new[] { "unmapped", "mapped", "sameAsGlDate" },
             modes.Keys.ToArray());
         Assert.All(modes.Values, label => Assert.False(string.IsNullOrWhiteSpace(label)));
     }

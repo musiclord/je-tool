@@ -37,8 +37,8 @@ internal sealed class PrescreenReportPlanningFactsPort(IPrescreenPageRepository 
 
     private static string RuleKey(PrescreenReportDetailKind kind) => kind switch
     {
-        PrescreenReportDetailKind.PostPeriodApproval =>
-            PrescreenRuleKeys.PostPeriodApproval,
+        PrescreenReportDetailKind.PrepPeriodApproval =>
+            PrescreenRuleKeys.PrepPeriodApproval,
         PrescreenReportDetailKind.SuspiciousKeywords =>
             PrescreenRuleKeys.SuspiciousKeywords,
         PrescreenReportDetailKind.UnexpectedAccountPair =>

@@ -21,7 +21,7 @@ public sealed class LegacyKeywordWorkflowTests
         Assert.Equal(11, prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         var filtered = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
         {
-            scenario = new { groups = new[] { new { rules = new[] { new { type = "prescreen", prescreenKey = "suspiciousKeywords" } } } } }
+            scenario = new { groups = new[] { new { conditions = new[] { new { type = "prescreen", prescreenKey = "suspiciousKeywords" } } } } }
         }));
         Assert.Equal(11, filtered.GetProperty("scenario").GetProperty("count").GetInt64());
     }

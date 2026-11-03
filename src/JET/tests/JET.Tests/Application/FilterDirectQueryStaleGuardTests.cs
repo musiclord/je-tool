@@ -5,7 +5,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 已落地命中不能掩護舊版 definition。四支直接讀 filter 結果的 query 都必須先驗證目前 revision，
-/// 再碰 result_filter_run；否則非空舊資料會繞過「空頁才惰性補算」的既有守衛。
+/// 再碰 filter_hit；否則非空舊資料會繞過「空頁才惰性補算」的既有守衛。
 /// </summary>
 public sealed class FilterDirectQueryStaleGuardTests
 {
@@ -20,7 +20,7 @@ public sealed class FilterDirectQueryStaleGuardTests
               "groups": [
                 {
                   "join": "AND",
-                  "rules": [
+                  "conditions": [
                     { "join": "AND", "type": "drCrOnly", "drCr": "debit" }
                   ]
                 }
@@ -33,9 +33,9 @@ public sealed class FilterDirectQueryStaleGuardTests
     // 狀態轉換：current commit（非空 hits）→ 只把 definition logicVersion 降版 → 任一直接 query 都 stale。
     [Theory]
     [InlineData("query.filterHitsPage", "{\"scenarioPosition\":1,\"pageSize\":50}")]
-    [InlineData("query.tagMatrixScenarios", "{}")]
-    [InlineData("query.tagMatrixRowPage", "{\"pageSize\":50}")]
-    [InlineData("query.tagMatrixVoucherPage", "{\"pageSize\":50}")]
+    [InlineData("query.highRiskSummaryScenarios", "{}")]
+    [InlineData("query.highRiskSummaryRowPage", "{\"pageSize\":50}")]
+    [InlineData("query.highRiskSummaryVoucherPage", "{\"pageSize\":50}")]
     public async Task DirectQuery_NonEmptyOldVersionHits_RejectsStaleResult(
         string action,
         string payloadJson)
@@ -48,9 +48,9 @@ public sealed class FilterDirectQueryStaleGuardTests
             host,
             context.ProjectId,
             """
-            UPDATE config_filter_scenario
+            UPDATE filter_scenario
             SET definition_json = json_set(definition_json, '$.logicVersion', 'old-filter-version');
-            SELECT COUNT(*) FROM result_filter_run;
+            SELECT COUNT(*) FROM filter_hit;
             """);
         Assert.True(retainedHitCount > 0);
 

@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 本機資料庫的建表與升版檢查在同一程序內只做一次；建案、載入案件、檔案消失或刪除案件時重新檢查。
+/// 本機資料庫的建表與版本檢查在同一程序內只做一次；建案、載入案件、檔案消失或刪除案件時重新檢查。
 /// </summary>
 public sealed class LocalSchemaReadinessTests : IDisposable
 {

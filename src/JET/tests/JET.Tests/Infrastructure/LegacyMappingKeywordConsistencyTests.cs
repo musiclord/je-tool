@@ -4,7 +4,7 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class LegacyMappingKeywordConsistencyTests
 {
-    // 2026-10-04 第 6 批 L20：退役的自動猜欄 Hint 表不再是正式來源，移除反射比較。
+    // 退役的自動猜欄 Hint 表不再是正式來源，移除反射比較。
     // 逐字保留原有 profile 詞彙固定答案，並保留原來每個接受及拒絕案例，直接驗證 PrivateCase 使用的 helper。
     private const string ExpectedProfileKeywordCatalog =
         "Identifier=Token:number|Token:num|Token:no|Token:code|Token:id|Token:identifier|"

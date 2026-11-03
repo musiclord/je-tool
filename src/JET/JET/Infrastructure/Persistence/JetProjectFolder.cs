@@ -36,6 +36,15 @@ public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
         => Path.Combine(GetProjectDirectory(projectId), ProjectJsonFileName);
 
     /// <summary>
+    /// 案件鎖檔的位置：放在案件根目錄、案件資料夾旁邊，檔名是用途前綴加案件資料夾名。
+    /// 同一個根目錄裡資料夾名不會重複，鎖檔名也就不會重複；案件名稱不能含「.」，所以鎖檔也不會和案件資料夾同名。
+    /// 鎖檔放在案件資料夾外，持鎖時仍能刪掉整個案件資料夾。
+    /// <paramref name="normalizedRootPath"/> 與 <paramref name="projectDirectory"/> 由呼叫端正規化並確認後者是前者的直接子資料夾。
+    /// </summary>
+    public static string GetLockPathBesideProject(string normalizedRootPath, string projectDirectory, string purposePrefix)
+        => Path.Combine(normalizedRootPath, purposePrefix + Path.GetFileName(projectDirectory) + ".lock");
+
+    /// <summary>
     /// 列出名稱合法的案件資料夾。資料夾裡有沒有 project.json，由 <see cref="JsonFileProjectStore"/> 在讀寫共用的鎖裡判斷：
     /// 儲存換檔的一瞬間正式檔名會暫時不存在，在這裡判斷會讓正在儲存的案件從案件清單上消失。
     /// </summary>

@@ -19,24 +19,24 @@ internal static class ResultPageColumnRegistry
 {
     private static readonly IReadOnlyList<ResultPageColumn> FilterFixed =
     [
-        new("documentNumber", "傳票號碼", RdeFieldValueTypeNames.Text, false),
+        new("voucherNumber", "傳票號碼", RdeFieldValueTypeNames.Text, false),
         new("lineItem", "傳票文件項次", RdeFieldValueTypeNames.Text, false),
-        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
-        new("accountCode", "會計科目編號", RdeFieldValueTypeNames.Text, false),
+        new("glDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
+        new("accountNumber", "會計科目編號", RdeFieldValueTypeNames.Text, false),
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
-        new("amount", "金額", RdeFieldValueTypeNames.Money, false),
+        new("amount", "金額", RdeFieldValueTypeNames.Amount, false),
         new("drCr", "借貸別", RdeFieldValueTypeNames.Text, false),
         new("description", "傳票摘要", RdeFieldValueTypeNames.Text, false)
     ];
 
     private static readonly IReadOnlyList<ResultPageColumn> InfFixed =
     [
-        new("documentNumber", "傳票號碼", RdeFieldValueTypeNames.Text, false),
-        new("accountCode", "會計科目編號", RdeFieldValueTypeNames.Text, false),
+        new("voucherNumber", "傳票號碼", RdeFieldValueTypeNames.Text, false),
+        new("accountNumber", "會計科目編號", RdeFieldValueTypeNames.Text, false),
         new("accountName", "會計科目名稱", RdeFieldValueTypeNames.Text, false),
-        new("debit", "借方金額", RdeFieldValueTypeNames.Money, false),
-        new("credit", "貸方金額", RdeFieldValueTypeNames.Money, false),
-        new("postDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
+        new("debit", "借方金額", RdeFieldValueTypeNames.Amount, false),
+        new("credit", "貸方金額", RdeFieldValueTypeNames.Amount, false),
+        new("glDate", "總帳日期", RdeFieldValueTypeNames.Date, false),
         new("approvalDate", "傳票核准日", RdeFieldValueTypeNames.Date, false),
         new("createdBy", "傳票建立人員", RdeFieldValueTypeNames.Text, false),
         new("approvedBy", "傳票核准人員", RdeFieldValueTypeNames.Text, false),
@@ -74,9 +74,9 @@ internal static class ResultPageColumnRegistry
             throw Stale("已儲存的篩選情境無法套用目前規則，請到第五步修改後重新儲存情境。", exception);
         }
 
-        foreach (var rule in spec.Groups.SelectMany(static group => group.Rules).SelectMany(rule => rule.DescendantsAndSelf())
-                     .Where(static rule => rule.Type == FilterRuleType.TypedField
-                         || rule.Type == FilterRuleType.FieldValue && rule.FieldId is not null))
+        foreach (var rule in spec.Groups.SelectMany(static group => group.Conditions).SelectMany(rule => rule.DescendantsAndSelf())
+                     .Where(static rule => rule.Type == FilterConditionType.TypedField
+                         || rule.Type == FilterConditionType.FieldValue && rule.FieldId is not null))
         {
             if (rule.FieldId is null || !byFieldId.TryGetValue(rule.FieldId, out var field))
             {
@@ -84,7 +84,7 @@ internal static class ResultPageColumnRegistry
             }
 
             if (rule.TypedOperator is null
-                || !(rule.Type == FilterRuleType.FieldValue ? FieldValueConditions.Operators(field.ValueType) : TypedFieldOperatorSets.ForValueType(field.ValueType))
+                || !(rule.Type == FilterConditionType.FieldValue ? FieldValueConditions.Operators(field.ValueType) : TypedFieldOperatorSets.ForValueType(field.ValueType))
                     .Contains(rule.TypedOperator, StringComparer.Ordinal))
             {
                 throw Stale("篩選情境用到的攸關資料元素欄位，目前的設定已不適用原本的比較方式。請到第五步重新選擇比較方式後儲存情境。");
@@ -195,7 +195,7 @@ internal static class ResultPageCustomValueRenderer
                          DateTimeStyles.None,
                          out _)
                 => value.DateValue,
-            RdeFieldValueTypeNames.Money
+            RdeFieldValueTypeNames.Amount
                 when value.TextValue is null && value.DateValue is null && value.AmountScaled is not null
                 => (decimal)value.AmountScaled.Value / moneyScale,
             _ => throw Stale()

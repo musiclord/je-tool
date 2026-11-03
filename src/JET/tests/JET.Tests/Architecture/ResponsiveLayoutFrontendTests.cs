@@ -182,7 +182,7 @@ public sealed class ResponsiveLayoutFrontendTests
     }
 
     /// <summary>
-    /// 使用者 2026-10-27 指出視窗放大縮小時對不齊：寬視窗中欄右側空出一塊、單列標題列的案件摘要比標誌與操作組高、
+    /// 裁定 2026-10-27-02：視窗放大縮小時對不齊，寬視窗中欄右側空出一塊、單列標題列的案件摘要比標誌與操作組高、
     /// 窄視窗時步驟列的箭頭掉到下一行、案件摘要換行後下一行縮排、驗證清單沒有「檢視」時狀態標籤沒有貼齊右緣、
     /// 長狀態文字把「檢視」推出卡片。這裡鎖住讓這些對齊線在任何寬度下都不移動的版面原語。
     /// </summary>
@@ -214,12 +214,35 @@ public sealed class ResponsiveLayoutFrontendTests
 
         // 狀態標籤可以縮窄換行，不把「檢視」推出卡片；整張卡片都沒有「檢視」時不保留那一欄的空位。
         // 2026-10-28 複審時範圍由清單改成卡片：以清單為範圍時，預篩選卡片的上下清單只要一份有「檢視」就會錯開。
-        AssertDeclaration(css, ".rule-item__aside", "grid-template-columns", @"minmax\(\s*0[^;]*");
+        // 裁定 2026-10-30-36 拿掉「檢視」，有明細的規則整列就是開關，每一列都只剩標題與狀態，不必再依卡片保留空位。
+        // 改核對現在的守衛：標題那一欄可以縮窄、狀態靠右、狀態字可換行，清單很窄時狀態移到標題下方。
+        // 第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
+        AssertDeclaration(css, ".rule-item > .rule-item__head", "grid-template-columns", @"10px\s+minmax\(\s*0\s*,\s*1fr\)\s+auto");
+        AssertDeclaration(css, ".rule-item__aside", "justify-content", @"flex-end");
         AssertDeclaration(css, ".rule-item__aside > .rule-status", "white-space", @"normal");
-        Assert.Contains(
-            ".rule-card:not(:has(.rule-item__aside > :not(.rule-status))) .rule-item__aside",
-            css,
-            StringComparison.Ordinal);
+        Assert.Contains("@container rule-list (max-width: 360px)", css, StringComparison.Ordinal);
+        Assert.DoesNotContain(".rule-card:not(:has(.rule-item__aside > :not(.rule-status)))", css, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 同一份清單裡有的列整列可點、有的列沒有明細時，名稱與數字仍要上下對齊。裁定 2026-10-30-36 改成整列可點後，
+    /// 「用 Excel 配對」第一列沒有箭頭，名稱比其他列早開始，科目數也被「資料預覽」往左推；2026-10-31 在預覽主機量到後，
+    /// 改成和第四步規則清單一樣的固定箭頭欄。傳票表的分錄和傳票共用「符合情形」欄（裁定 2026-10-30-37），
+    /// 原本分錄另開一張表時留下的固定寬度會撐開整張表，金額要橫向捲動才看得到。
+    /// </summary>
+    [Fact]
+    public void RowsWithAndWithoutToggle_KeepNamesAndNumbersAligned()
+    {
+        var css = ReadFrontend("css", "app.css");
+
+        AssertDeclaration(css, ".excel-mapping__result", "grid-template-columns", @"10px\s+auto\s+minmax\(\s*0\s*,\s*1fr\)\s+auto");
+        AssertDeclaration(css, ".excel-mapping__label", "grid-column", @"2");
+        AssertDeclaration(css, ".excel-mapping__result > .jet-view", "grid-column", @"3");
+        AssertDeclaration(css, ".excel-mapping__value", "grid-column", @"4");
+
+        Assert.False(
+            HasProperty(RuleBodies(css, ".filter-workspace .filter-match-reason > p"), "width", @"[^;]+"),
+            "符合第幾組第幾條那一行跟著欄寬換行，不固定寬度。");
     }
 
     private static string ReadFrontend(params string[] relativeParts) =>

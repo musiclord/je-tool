@@ -7,7 +7,7 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// 第9批中低9：呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
+// 呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
 
 /// <summary>
 /// Validation facts port 的交易失敗邊界。故障只在 INF 樣本 INSERT 已完成並寫出
@@ -15,8 +15,8 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class ValidationFactsPortTransactionTests
 {
-    private const string ValidationRunId = "validation-fault-run";
-    private const string ExistingRunId = "existing-validation-run";
+    private const string ValidationResultId = "validation-fault-run";
+    private const string ExistingResultId = "existing-validation-run";
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
@@ -101,7 +101,7 @@ public sealed class ValidationFactsPortTransactionTests
             PeriodEnd: "2025-12-31",
             MoneyScale: ProjectDocument.DefaultMoneyScale,
             SampleSeed: 7,
-            RunId: ValidationRunId,
+            ResultId: ValidationResultId,
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 1));
 
@@ -128,17 +128,17 @@ public sealed class ValidationFactsPortTransactionTests
             await using var command = connection.CreateCommand();
             command.CommandText =
                 $"""
-                INSERT INTO {schemaPrefix}target_gl_entry
-                    (batch_id, source_row_number, document_number, line_item, post_date, account_code,
-                     is_effective, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
+                INSERT INTO {schemaPrefix}gl
+                    (batch_id, source_row_number, voucher_number, line_item, gl_date, account_number,
+                     is_excluded, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
                 VALUES
                     ('seed-batch', 1, 'DOC-1', '1', '2025-06-30', '1101',
-                     1, 100, 100, 0, 'DEBIT');
+                     0, 100, 100, 0, 'DEBIT');
 
-                INSERT INTO {schemaPrefix}result_inf_sampling_test_sample
-                    (run_id, entry_id, document_number, line_item)
+                INSERT INTO {schemaPrefix}inf_sample
+                    (result_id, entry_id, voucher_number, line_item)
                 VALUES
-                    ('{ExistingRunId}', 999999, 'EXISTING', '1');
+                    ('{ExistingResultId}', 999999, 'EXISTING', '1');
                 """;
             await command.ExecuteNonQueryAsync();
         }
@@ -163,9 +163,9 @@ public sealed class ValidationFactsPortTransactionTests
                 $"""
                 SELECT
                     COUNT(*),
-                    COALESCE(SUM(CASE WHEN run_id = '{ExistingRunId}' AND entry_id = 999999 THEN 1 ELSE 0 END), 0),
-                    COALESCE(SUM(CASE WHEN run_id = '{ValidationRunId}' THEN 1 ELSE 0 END), 0)
-                FROM {schemaPrefix}result_inf_sampling_test_sample;
+                    COALESCE(SUM(CASE WHEN result_id = '{ExistingResultId}' AND entry_id = 999999 THEN 1 ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN result_id = '{ValidationResultId}' THEN 1 ELSE 0 END), 0)
+                FROM {schemaPrefix}inf_sample;
                 """;
 
             await using var reader = await command.ExecuteReaderAsync();
@@ -218,7 +218,7 @@ public sealed class ValidationFactsPortTransactionTests
 
             if (eventId.Id != 2000
                 || !message.Contains("INSERT INTO", StringComparison.Ordinal)
-                || !message.Contains("result_inf_sampling_test_sample", StringComparison.Ordinal)
+                || !message.Contains("inf_sample", StringComparison.Ordinal)
                 || Interlocked.Exchange(ref _faultInjected, 1) != 0)
             {
                 return;

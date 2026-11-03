@@ -11,52 +11,50 @@ namespace JET.Application;
 /// <see cref="CriteriaSelectionReportContext.ScenarioConditionLogic"/> 傳入 writer）。
 ///
 /// 為什麼吃「原始 JSON」而非 <see cref="FilterScenarioSpec"/>：read-back 顯示的是使用者輸入的**顯示字串**
-/// （numRange 的 from/to、text/customKeywords 的 keywords 原文），而解析成 spec 後金額已 scaled、關鍵字已切分，
-/// 顯示原文遺失；要真正同構就必須讀原始 wire。層級：JSON 形狀處理與 <see cref="FilterScenarioPayloadParser"/>
+/// （numRange 的 from/to 原文），而解析成 spec 後金額已 scaled，顯示原文遺失；要真正同構就必須讀原始 wire。
+/// 文字條件的關鍵字照前端的寫法拆開、去掉重複再接回，見 <c>TextKeywords</c>。層級：JSON 形狀處理與 <see cref="FilterScenarioPayloadParser"/>
 /// 同屬 Application；中文標籤的唯一正本在 Domain <see cref="FilterConditionLabels"/>（前端鏡像、測試守衛）。
 ///
-/// 非營業日卡片保留條件括號，內含排除補班日的日期條件。舊版「週末過帳 或 假日過帳」
+/// 非營業日卡片保留子條件組，內含排除補班日的日期條件。舊版「週末過帳 或 假日過帳」
 /// 仍按原樹描述，不改成新版定義，也不搬到其他位置；本類只影響顯示文字。
 /// </summary>
 public static class FilterConditionRenderer
 {
-    private const string ScenarioAndOp = " 且 ";
-
     public static string Render(JsonElement scenario) => Render(scenario, null);
 
     /// <summary>
-    /// <paramref name="categoryLabels"/> 是目前專案 taxonomy 的 categoryId → 顯示 label 對照，
+    /// <paramref name="categoryLabels"/> 是目前專案科目分類的 categoryId → 顯示 label 對照，
     /// 供科目配對多選讀回。省略時只還原內建分類的預設 label，未知身分提示重新選擇；正式報表一律
-    /// 傳入專案 taxonomy，才會反映使用者改過的顯示名稱。
+    /// 傳入專案的科目分類，才會反映使用者改過的顯示名稱。
     /// <paramref name="rdeFieldLabels"/> 是目前 committed RDE 欄位的 fieldId → 顯示 label 對照，
     /// 供 typed 條件讀回（凍結裁決：renderer 用目前 metadata，僅 label 改名時顯示新名稱）；
-    /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId（使用者 2026-10-14 第三輪勾選頁確認 R3-03）。
-    /// <paramref name="taxonomyCategories"/> 帶完整分類用途與階層，才能列出實際納入分類。省略時不猜分類範圍。
+    /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId（裁定 2026-10-14-01）。
+    /// <paramref name="accountCategories"/> 帶完整分類用途與階層，才能列出實際納入分類。省略時不猜分類範圍。
     /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只供讀回說明，不寫入條件 AST。
     /// </summary>
     public static string Render(
         JsonElement scenario,
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels = null,
-        IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories = null,
-        string? preparationDate = null, string? periodStart = null, string? periodEnd = null)
+        IReadOnlyList<AccountCategory>? accountCategories = null,
+        string? preparationDate = null, string? periodStart = null, string? periodEnd = null, bool compact = false)
     {
         var editable = ArrayItems(scenario, "groups");
 
         // read-back 的 `ne`：只看「有規則」的可編輯組（wire 已濾空組，此處再守一次亦無害）。
-        var ne = editable.Where(g => ArrayItems(g, "rules").Count > 0).ToList();
+        var ne = editable.Where(g => ArrayItems(g, "conditions").Count > 0).ToList();
 
         var expr = string.Empty;
         if (ne.Count == 1)
         {
-            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd).Text;
+            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact).Text;
         }
         else if (ne.Count >= 2)
         {
             var sop = ScenarioJoin(ne); // Empty editor groups do not contribute an operand or a join to the wire.
             var parts = ne.Select(g =>
             {
-                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd);
+                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact);
                 return rendered.AtomCount > 1 && !rendered.IsExactLeftFold
                     ? "（" + rendered.Text + "）"
                     : rendered.Text; // mixed 已逐邊累積精確括號；uniform 多原子組維持既有單層括號
@@ -73,11 +71,37 @@ public static class FilterConditionRenderer
         return expr;
     }
 
+    /// <summary>
+    /// 單一條件的讀回文字，等同前端 <c>ruleSummaryLabel(rule, 0, compact)</c>。自動名稱逐條取條件說明時用。
+    /// </summary>
+    internal static string RenderCondition(
+        JsonElement rule,
+        IReadOnlyDictionary<string, string>? categoryLabels,
+        IReadOnlyDictionary<string, string>? rdeFieldLabels,
+        IReadOnlyList<AccountCategory>? accountCategories,
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact) =>
+        ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact);
+
+    /// <summary>欄位值條件選的欄位名稱，等同前端 <c>FilterValues.field(rule).label</c>；欄位不在可選清單時是 null。</summary>
+    internal static string? FieldValueFieldLabel(JsonElement rule, IReadOnlyDictionary<string, string>? rdeFieldLabels)
+    {
+        var fieldId = Str(rule, "fieldId");
+        if (fieldId.Length > 0)
+        {
+            return rdeFieldLabels is not null && rdeFieldLabels.TryGetValue(fieldId, out var label) ? label : null;
+        }
+
+        var glKey = Str(rule, "field");
+        return glKey == "amount" ? "金額"
+            : FilterConditionLabels.GlFields.ContainsKey(glKey) ? FilterConditionLabels.GlFieldReadback(glKey)
+            : null;
+    }
+
     // ---- 群組層 ----
 
     /// <summary>只讀第一條之後的有效結合，大小寫規則與後端相同。</summary>
     private static string GroupCombinator(JsonElement group) =>
-        ArrayItems(group, "rules").Skip(1).Any(r => EffectiveRuleJoin(r) == "OR") ? "OR" : "AND";
+        ArrayItems(group, "conditions").Skip(1).Any(r => EffectiveRuleJoin(r) == "OR") ? "OR" : "AND";
 
     /// <summary>
     /// 既有主前端會把組內 join 收斂為單一運算子，所以 uniform 組仍沿用原來的
@@ -88,16 +112,11 @@ public static class FilterConditionRenderer
         JsonElement group,
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
-        IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories,
-        string? preparationDate, string? periodStart, string? periodEnd)
+        IReadOnlyList<AccountCategory>? accountCategories,
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact)
     {
-        var rules = ArrayItems(group, "rules");
-        var atoms = rules.Select(rule => RuleAtom(rule, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd)).ToList();
-        if (Str(group, "matchScope") == "sameVoucher")
-        {
-            return SameVoucherGroupExpression(atoms);
-        }
-
+        var rules = ArrayItems(group, "conditions");
+        var atoms = rules.Select(rule => ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact)).ToList();
         if (!HasMixedEffectiveRuleJoins(rules))
         {
             return new GroupRendering(
@@ -121,24 +140,6 @@ public static class FilterConditionRenderer
         return new GroupRendering(expression, atoms.Count, IsExactLeftFold: true);
     }
 
-    private static GroupRendering SameVoucherGroupExpression(IReadOnlyList<string> atoms)
-    {
-        if (atoms.Count == 0)
-        {
-            return new GroupRendering(string.Empty, 0, IsExactLeftFold: false);
-        }
-
-        var expression = FilterConditionLabels.SameVoucherOutputAnchor + "：" + atoms[0];
-        if (atoms.Count > 1)
-        {
-            expression += ScenarioAndOp
-                + FilterConditionLabels.SameVoucherEvidenceExplanation
-                + "："
-                + string.Join(ScenarioAndOp, atoms.Skip(1));
-        }
-
-        return new GroupRendering(expression, atoms.Count, IsExactLeftFold: false);
-    }
 
     private static bool HasMixedEffectiveRuleJoins(IReadOnlyList<JsonElement> rules)
     {
@@ -184,7 +185,7 @@ public static class FilterConditionRenderer
         bool IsExactLeftFold);
 
     /// <summary>
-    /// 舊週末或假日括號辨識：條件括號（type "group"）恰有兩條子條件，都是預篩選，鍵集合恰為
+    /// 舊週末或假日括號辨識：子條件組（type "group"）恰有兩條子條件，都是預篩選，鍵集合恰為
     /// {weekendPosting, holidayPosting}，且第二條的有效連接是「或」（第一條的 join 沒有左側條件，不算）。
     /// 符合時語意仍是「週末或假日」，不聲稱已排除補班日；
     /// 「週末 且 假日」語意不同，照一般括號讀回。前端 filter-step-rules.js 的 isNonBusinessDayBracket 逐字鏡像。
@@ -196,7 +197,7 @@ public static class FilterConditionRenderer
             return false;
         }
 
-        var children = ArrayItems(rule, "rules");
+        var children = ArrayItems(rule, "conditions");
         if (children.Count != 2 || EffectiveRuleJoin(children[1]) != "OR")
         {
             return false;
@@ -219,22 +220,22 @@ public static class FilterConditionRenderer
     private static bool IsNonBusinessDayBracket(JsonElement rule)
     {
         if (Str(rule, "type") != "group") return false;
-        var children = ArrayItems(rule, "rules");
+        var children = ArrayItems(rule, "conditions");
         if (children.Count != 1) return false;
         var child = children[0];
-        return Str(child, "type") == "fieldValue" && Str(child, "field") == "postDate"
+        return Str(child, "type") == "fieldValue" && Str(child, "field") == "glDate"
             && Str(child, "fieldId").Length == 0 && Str(child, "operator") == "isNonBusinessDay"
             && Str(child, "drCr").Length == 0 && Str(child, "includeBlank") != "true";
     }
 
     // ---- 規則原子（等同前端 ruleSummaryLabel(rule, 0)：index 0＝不加 (AND)/(OR) 前綴）----
 
-    private static string RuleAtom(
+    private static string ConditionAtom(
         JsonElement r,
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
-        IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories,
-        string? preparationDate, string? periodStart, string? periodEnd)
+        IReadOnlyList<AccountCategory>? accountCategories,
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact)
     {
         var type = Str(r, "type");
         var text = type switch
@@ -243,11 +244,11 @@ public static class FilterConditionRenderer
             "group" when IsWeekendOrHolidayBracket(r) => "（"
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.WeekendPosting) + " 或 "
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.HolidayPosting) + "）",
-            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd),
-            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, taxonomyCategories, preparationDate, periodStart, periodEnd),
+            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact),
+            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact),
             "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate),
             "text" => FilterConditionLabels.GlFieldReadback(Str(r, "field")) + " "
-                + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + Str(r, "keywords") + "」",
+                + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + TextKeywords(r) + "」",
             "textSet" => TextSetAtom(r),
             "dateRange" => FilterConditionLabels.GlFieldReadback(Str(r, "field")) + " "
                 + Ellipsis(Str(r, "from")) + "～" + Ellipsis(Str(r, "to")),
@@ -259,10 +260,6 @@ public static class FilterConditionRenderer
                 + FilterConditionLabels.SpecialPairModeLabel(Str(r, "pairMode")) + "（借方 "
                 + CategorySelection(r, "debitCategoryIds", categoryLabels) + "，貸方 "
                 + CategorySelection(r, "creditCategoryIds", categoryLabels) + "）",
-            "customKeywords" => "自訂關鍵字「" + Str(r, "keywords") + "」",
-            "customTrailingZeros" => "金額尾數連續 " + Str(r, "digits") + " 個 0",
-            "customPreparerEntryCount" => "GL 中編製人員分錄筆數 ≤ " + Str(r, "maxEntries"),
-            "customAccountEntryCount" => "GL 中科目分錄筆數 ≤ " + Str(r, "maxEntries"),
             "entityFrequency" => "GL 中「" + JetFieldCatalog.GlSemanticFieldMappingLabel(Str(r, "field")) + "」" +
                 (Str(r, "countUnit") == "vouchers" ? "傳票張數（同號只算一張）" : "分錄筆數") + " " +
                 (EntityFrequencyConditions.Operators.TryGetValue(Str(r, "countOperator"), out var countLabel) ? countLabel : "") + " " +
@@ -270,20 +267,19 @@ public static class FilterConditionRenderer
             "revenueDebitNearQuarterEnd" => QuarterEndAtom(r, periodStart, periodEnd),
             "revenueWithoutNormalCounterpart" => "貸方為收入，借方非應收或預收",
             "manualRevenueEntry" => "收入之人工分錄",
-            "trailingDigits" => TrailingDigitsAtom(Str(r, "keywords")),
             "preparerEqualsApprover" => "編製＝核准同一人",
             "typed" => TypedFieldAtom(r, rdeFieldLabels),
-            "fieldValue" => FieldValueAtom(r, rdeFieldLabels),
-            "accountSide" => AccountSideAtom(r, categoryLabels, taxonomyCategories),
+            "fieldValue" => FieldValueAtom(r, rdeFieldLabels, compact),
+            "accountSide" => AccountSideAtom(r, categoryLabels, accountCategories),
             _ => FilterConditionLabels.RetiredCondition,
         };
         if (type is not ("accountPair" or "specialAccountCategoryPair")) return text;
         text = CategorySelectionModeLabel(r) + "：" + text;
-        if (taxonomyCategories is null) return text;
+        if (accountCategories is null) return text;
         if (type != "accountPair" || Str(r, "pairMode") != AccountPairModes.CreditAnchor)
-            text += "；借方實際納入分類：" + ExpandedCategoryLabels(r, "debitCategoryIds", taxonomyCategories);
+            text += "；借方實際納入分類：" + ExpandedCategoryLabels(r, "debitCategoryIds", accountCategories);
         if (type != "accountPair" || Str(r, "pairMode") != AccountPairModes.DebitAnchor)
-            text += "；貸方實際納入分類：" + ExpandedCategoryLabels(r, "creditCategoryIds", taxonomyCategories);
+            text += "；貸方實際納入分類：" + ExpandedCategoryLabels(r, "creditCategoryIds", accountCategories);
         return text;
     }
 
@@ -301,38 +297,35 @@ public static class FilterConditionRenderer
     private static string PrescreenAtom(string key, string? preparationDate)
     {
         var text = "預篩選：" + FilterConditionLabels.PrescreenLabel(key);
-        return key == PrescreenRuleKeys.PostPeriodApproval && !string.IsNullOrWhiteSpace(preparationDate)
+        return key == PrescreenRuleKeys.PrepPeriodApproval && !string.IsNullOrWhiteSpace(preparationDate)
             ? text + "（" + preparationDate + " 起，含當日）"
             : text;
     }
 
     private static string AccountSideAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels,
-        IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories)
+        IReadOnlyList<AccountCategory>? accountCategories)
     {
-        var side = Str(rule, "drCr") switch { "debit" => "借方", "credit" => "貸方", "any" => "不限借貸", _ => "" };
         var categories = CategorySelection(rule, "categoryIds", labels);
         var text = Str(rule, "categoryMode") switch
         {
-            "is" => side + "科目屬於「" + categories + "」",
-            "isNot" => side + "科目不屬於「" + categories + "」",
-            "absent" => side == "不限借貸" ? "整張傳票都沒有屬於「" + categories + "」的科目"
-                : "整張傳票的" + side + "都不屬於「" + categories + "」",
-            _ => side + "尚未選擇分類條件"
+            "is" => "科目屬於「" + categories + "」",
+            "isNot" => "科目不屬於「" + categories + "」",
+            _ => "尚未選擇分類條件"
         };
         text += "（" + CategorySelectionModeLabel(rule) + "）";
-        return taxonomyCategories is null ? text
-            : text + "；實際納入分類：" + ExpandedCategoryLabels(rule, "categoryIds", taxonomyCategories);
+        return accountCategories is null ? text
+            : text + "；實際納入分類：" + ExpandedCategoryLabels(rule, "categoryIds", accountCategories);
     }
 
     private static string NestedAtom(JsonElement rule, IReadOnlyDictionary<string, string>? categories,
-        IReadOnlyDictionary<string, string>? fields, IReadOnlyList<AccountTaxonomyCategory>? taxonomyCategories,
-        string? preparationDate, string? periodStart, string? periodEnd)
+        IReadOnlyDictionary<string, string>? fields, IReadOnlyList<AccountCategory>? accountCategories,
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact)
     {
-        var children = ArrayItems(rule, "rules");
+        var children = ArrayItems(rule, "conditions");
         var text = string.Empty;
         foreach (var child in children)
         {
-            var atom = RuleAtom(child, categories, fields, taxonomyCategories, preparationDate, periodStart, periodEnd);
+            var atom = ConditionAtom(child, categories, fields, accountCategories, preparationDate, periodStart, periodEnd, compact);
             text = text.Length == 0 ? atom : "（" + text + " " + JoinLabel(EffectiveRuleJoin(child)) + " " + atom + "）";
         }
         if (Str(rule, "type") == "group")
@@ -341,22 +334,21 @@ public static class FilterConditionRenderer
                 : children.Any(ContainsExplicitVoucherCondition) ? "條件組合" : "同一分錄";
             return scope + "（" + text + "）";
         }
-        var side = Str(rule, "side") switch { "debit" => "借方", "credit" => "貸方", _ => "整張傳票" };
         var quantifier = Str(rule, "quantifier") switch { "all" => "全部符合（至少有一筆）", "none" => "不存在符合", _ => "至少一筆符合" };
-        return side + quantifier + "：" + (children.Count == 1 ? text : "同一分錄（" + text + "）");
+        return "整張傳票" + quantifier + "：" + (children.Count == 1 ? text : "同一分錄（" + text + "）");
     }
 
     private static bool IsExplicitVoucherCondition(JsonElement rule) => Str(rule, "type") == "voucher"
-        || Str(rule, "type") == "group" && ArrayItems(rule, "rules") is { Count: > 0 } children && children.All(IsExplicitVoucherCondition);
+        || Str(rule, "type") == "group" && ArrayItems(rule, "conditions") is { Count: > 0 } children && children.All(IsExplicitVoucherCondition);
 
     private static bool ContainsExplicitVoucherCondition(JsonElement rule) => Str(rule, "type") == "voucher"
-        || ArrayItems(rule, "rules").Any(ContainsExplicitVoucherCondition);
+        || ArrayItems(rule, "conditions").Any(ContainsExplicitVoucherCondition);
 
-    private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels)
+    private static string FieldValueAtom(JsonElement rule, IReadOnlyDictionary<string, string>? labels, bool compact)
     {
         var fieldId = Str(rule, "fieldId");
         var glKey = Str(rule, "field");
-        // 欄位已不存在時寫畫面名稱、不接金額比較基準（使用者 2026-10-14 第三輪勾選頁確認 R3-03，前端 FilterValues.summary 同構）。
+        // 欄位已不存在時寫畫面名稱、不接金額比較基準（裁定 2026-10-14-01）；前端 FilterValues.summary 同構。
         var fieldKnown = fieldId.Length == 0
             ? glKey == "amount" || FilterConditionLabels.GlFields.ContainsKey(glKey)
             : labels is not null && labels.ContainsKey(fieldId);
@@ -376,17 +368,17 @@ public static class FilterConditionRenderer
             : "「" + Str(rule, "value") + "」";
         if (fieldKnown && op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op))
             field += Str(rule, "amountBasis") switch { "absolute" => "絕對值", "signed" => "含正負號", _ => "" };
-        // 空白預設不列入（2026-09-04 裁定），與 GlRulePredicates.FieldValue 的預設一致。
+        // 空白預設不列入（裁定 2026-10-14-15），與 GlRulePredicates.FieldValue 的預設一致。
         var includeBlank = rule.TryGetProperty("includeBlank", out var blank) && blank.ValueKind == JsonValueKind.True;
-        var blankText = op is "isBlank" or "isNotBlank" ? "" : includeBlank ? "；空白也符合" : "；空白不列入";
-        var side = Str(rule, "drCr") switch { "debit" => "借方分錄：", "credit" => "貸方分錄：", _ => "" };
-        return side + field + " " + opLabel + operand + (FieldValueConditions.IsMonthWindow(op) ? " 天" : "") + blankText;
+        // 精簡讀回（自動名稱與動機用）只寫「空白也符合」，不寫預設的「空白不列入」，和前端 FilterValues.summary 的 compact 相同。
+        var blankText = op is "isBlank" or "isNotBlank" ? "" : includeBlank ? "；空白也符合" : compact ? "" : "；空白不列入";
+        return field + " " + opLabel + operand + (FieldValueConditions.IsMonthWindow(op) ? " 天" : "") + blankText;
     }
 
     /// <summary>
     /// typed 條件讀回：RDE 欄位以目前 metadata 的顯示 label 呈現（僅 label 改名時自動跟進）；
-    /// 欄位已不存在或未提供對照時寫「已不在欄位配對中的攸關資料元素欄位」，不接比較基準（R3-03）；
-    /// operand 依 carrier 呈現原始 wire 字串；money 條件附 amountBasis 標示。標籤正本在 Domain <see cref="FilterConditionLabels.TypedOperators"/>。
+    /// 欄位已不存在或未提供對照時寫「已不在欄位配對中的攸關資料元素欄位」，不接比較基準；
+    /// operand 依 carrier 呈現原始 wire 字串；amount 條件附 amountBasis 標示。標籤正本在 Domain <see cref="FilterConditionLabels.TypedOperators"/>。
     /// </summary>
     private static string TypedFieldAtom(
         JsonElement r,
@@ -426,6 +418,13 @@ public static class FilterConditionRenderer
 
         return fieldLabel + " " + opLabel + operand + basis;
     }
+
+    /// <summary>
+    /// 裁定 2026-11-03-01：文字條件的關鍵字用比對時的同一套分隔字元拆開、去掉重複，再用半形逗號接回，
+    /// 和前端讀回與送出的寫法相同，自動名稱與動機、報告與底稿的條件說明因此和畫面一致。
+    /// </summary>
+    private static string TextKeywords(JsonElement r) =>
+        string.Join(",", FieldValueConditions.SplitInputList(Str(r, "keywords")).Distinct(StringComparer.Ordinal));
 
     private static string NumRangeAtom(JsonElement r)
     {
@@ -472,7 +471,7 @@ public static class FilterConditionRenderer
     }
 
     /// <summary>
-    /// 單側分類的讀回：帶 ID 陣列時逐一還原成 taxonomy 顯示 label，並依使用者選取順序串接
+    /// 單側分類的讀回：帶 ID 陣列時逐一還原成科目分類的顯示 label，並依使用者選取順序串接
     /// （分隔字元的正本在 Domain <see cref="FilterConditionLabels.CategoryListSeparator"/>）；
     /// 沒有陣列或陣列為空時讀回空字串。
     /// </summary>
@@ -505,7 +504,7 @@ public static class FilterConditionRenderer
             return label;
         }
 
-        var builtIn = AccountTaxonomyBuiltIns.All.SingleOrDefault(
+        var builtIn = AccountCategoryBuiltIns.All.SingleOrDefault(
             item => string.Equals(item.CategoryId, categoryId, StringComparison.Ordinal));
         return builtIn?.Label ?? "已刪除的分類，請重新選擇";
     }
@@ -516,7 +515,7 @@ public static class FilterConditionRenderer
     };
 
     private static string ExpandedCategoryLabels(JsonElement rule, string idsProperty,
-        IReadOnlyList<AccountTaxonomyCategory> categories)
+        IReadOnlyList<AccountCategory> categories)
     {
         var selected = StringArrayItems(rule, idsProperty).ToHashSet(StringComparer.Ordinal);
         var mode = Str(rule, "categorySelection");
@@ -542,26 +541,6 @@ public static class FilterConditionRenderer
             .OrderBy(category => category.Ordinal).ThenBy(category => category.CategoryId, StringComparer.Ordinal)
             .Select(category => category.Label).ToArray();
         return labels.Length == 0 ? "無" : string.Join(FilterConditionLabels.CategoryListSeparator, labels);
-    }
-
-    /// <summary>
-    /// 尾數比對讀回：金額整數部分（不含小數）末 k 位 = 樣態,k 為樣態字元數;多樣態以「或」串接。
-    /// 講清楚「先捨小數取整數、再比末 k 位」,不是比對顯示金額或小數。前端 ruleSummary 的
-    /// trailingDigits 分支需產生逐字相同字串（讀回與 CriteriaSelection summary 同構）。
-    /// </summary>
-    private static string TrailingDigitsAtom(string keywords)
-    {
-        var atoms = new List<string>();
-        foreach (var raw in FieldValueConditions.SplitInputList(keywords))
-        {
-            var p = raw.Trim();
-            if (p.Length > 0)
-            {
-                atoms.Add($"末 {p.Length} 位 = {p}");
-            }
-        }
-
-        return "金額整數部分（不含小數）" + string.Join(" 或 ", atoms);
     }
 
     /// <summary>空值以刪節號替代（同前端 <c>rule.from || '…'</c>）。</summary>

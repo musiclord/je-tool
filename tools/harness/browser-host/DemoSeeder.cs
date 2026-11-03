@@ -27,22 +27,22 @@ internal static class DemoSeeder
 
     private static async Task SeedAsync(
         ActionDispatcher dispatcher,
-        string caseName,
+        string projectName,
         string projectCode,
         bool throughValidation)
     {
-        Console.WriteLine($"[seed] 建立 {caseName} …");
+        Console.WriteLine($"[seed] 建立 {projectName} …");
         try
         {
             var demo = DemoDataFactory.Create();
             await DispatchAsync(dispatcher, "project.create", new
             {
-                caseName,
+                projectName,
                 projectCode,
-                entityName = demo.EntityName,
+                clientName = demo.ClientName,
                 periodStart = demo.PeriodStart,
                 periodEnd = demo.PeriodEnd,
-                lastPeriodStart = demo.LastPeriodStart,
+                prepStartDate = demo.PrepStartDate,
                 databaseProvider = "sqlite",
             }).ConfigureAwait(false);
             await ImportDemoFileAsync(dispatcher, "demo.exportGlFile", "import.gl.fromFile").ConfigureAwait(false);
@@ -69,14 +69,14 @@ internal static class DemoSeeder
                 await ImportDemoFileAsync(
                     dispatcher, "demo.exportAccountMappingFile", "import.accountMapping.fromFile").ConfigureAwait(false);
                 var validation = await DispatchAsync(dispatcher, "validate.run", new { }).ConfigureAwait(false);
-                await DispatchAsync(dispatcher, "export.validationArtifacts", new
+                await DispatchAsync(dispatcher, "export.validationReports", new
                 {
-                    runId = validation.GetProperty("resultRef").GetProperty("runId").GetString(),
+                    resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString(),
                 }).ConfigureAwait(false);
                 var prescreen = await DispatchAsync(dispatcher, "prescreen.run", new { }).ConfigureAwait(false);
                 await DispatchAsync(dispatcher, "export.prescreenReport", new
                 {
-                    runId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString(),
+                    resultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString(),
                 }).ConfigureAwait(false);
             }
 
@@ -86,12 +86,12 @@ internal static class DemoSeeder
                 currentStep = throughValidation ? 4 : 2,
             }).ConfigureAwait(false);
             await DispatchAsync(dispatcher, "project.releaseLock", new { }).ConfigureAwait(false);
-            Console.WriteLine($"[seed] {caseName} 完成。");
+            Console.WriteLine($"[seed] {projectName} 完成。");
         }
         catch (Exception exception)
         {
             var error = JetWebMessageBridge.ToErrorDto(exception);
-            Console.WriteLine($"[seed] {caseName} 建立失敗 code={error.Code}: {error.Message}");
+            Console.WriteLine($"[seed] {projectName} 建立失敗 code={error.Code}: {error.Message}");
         }
     }
 
@@ -103,7 +103,7 @@ internal static class DemoSeeder
         {
             filePath = file.GetProperty("filePath").GetString(),
             fileName = file.GetProperty("fileName").GetString(),
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；授權名單指定示範檔的姓名欄。
+            // sourceColumn 改成必填，後端不再猜人員欄；授權名單指定示範檔的姓名欄。
             sourceColumn,
         }).ConfigureAwait(false);
     }

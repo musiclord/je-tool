@@ -12,7 +12,7 @@ public sealed class ImportCalendarHandlersTests
         """
         {
           "projectCode": "CAL-001",
-          "entityName": "假日測試公司",
+          "clientName": "假日測試公司",
           "operatorId": "dev",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31"
@@ -40,7 +40,7 @@ public sealed class ImportCalendarHandlersTests
             () => host.DispatchAsync("import.holiday", """{ "dates": ["2025/01/01"] }"""));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送檔案，不送日期清單；
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送檔案，不送日期清單；
         // 只有程式送錯資料才會走到，畫面顯示非預期錯誤那一句，送出的值不出現在訊息。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("calendar_date_invalid", JetPayloadRejection.CheckOf(ex));
@@ -258,7 +258,7 @@ public sealed class ImportCalendarHandlersTests
 
             Assert.Equal(JetErrorCodes.ProjectionFailed, ex.Code);
             Assert.Equal(
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                                 "檔案有 1 列無法讀取：第 3 列：日期「2025/01/01」不是 2026-12-31 這種格式",
                 ex.Message);
         }
@@ -307,7 +307,7 @@ public sealed class ImportCalendarHandlersTests
             "import.holiday.fromFile", JsonSerializer.Serialize(new { filePath = path })));
 
         Assert.Equal(JetErrorCodes.FileNotFound, ex.Code);
-        // 第9批中低12；Public首敗105344715：錯誤只顯示檔名，保留FileNotFound並新增完整路徑不得外洩的斷言。
+        // Public首敗105344715：錯誤只顯示檔名，保留FileNotFound並新增完整路徑不得外洩的斷言。
         Assert.Contains(Path.GetFileName(path), ex.Message);
         Assert.DoesNotContain(path, ex.Message);
     }

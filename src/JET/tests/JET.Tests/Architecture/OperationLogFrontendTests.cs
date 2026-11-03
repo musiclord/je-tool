@@ -3,7 +3,7 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
 // 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
 
 /// <summary>
@@ -27,7 +27,7 @@ public sealed class OperationLogFrontendTests
             "匯入授權編製人員清單",
             "上傳假日檔",
             "上傳補班檔",
-            // 使用者 2026-10-13 勾選頁確認 L29、L27（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+            // 裁定 2026-10-13-28 確認了這兩個操作名稱（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
             "匯入科目配對檔",
             "重建科目配對檔",
             "產生驗證階段報告",
@@ -35,9 +35,9 @@ public sealed class OperationLogFrontendTests
             "執行驗證並產生報告",
             "執行預篩選",
             "預覽篩選情境",
-            // 2026-10-03 用語統一 W10：使用者裁定以「已儲存」為準，操作名稱改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+            // 用語統一以「已儲存」為準（裁定 2026-10-02-01），操作名稱改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
             "儲存篩選情境",
-            // 2026-10-02 整體複審 W13：按鈕與操作名稱改成「產生條件篩選報告」，不再重複「完成」。
+            // 整體複審後，按鈕與操作名稱改成「產生條件篩選報告」，不再重複「完成」。
             "產生條件篩選報告",
             "產生工作底稿",
             "產生工作底稿與預篩選報告"
@@ -46,7 +46,7 @@ public sealed class OperationLogFrontendTests
             Assert.Contains($"Ui.run('{label}'", combined, StringComparison.Ordinal);
         }
 
-        // 使用者 2026-10-13 裁定成功時只留一則：有自己完成句的操作改用 completionMessage，由 Ui.run 接上耗時記一則；
+        // 裁定 2026-10-13-17：成功時只留一則：有自己完成句的操作改用 completionMessage，由 Ui.run 接上耗時記一則；
         // 沒有選檔這類 resolved no-op 由 completionMessage 回傳空字串排除。第一次失敗收據 20261013-095529696-bc66ff9ab56e4bd29575a25a71138c23。
         Assert.True(
             Regex.Matches(combined, @"logCompletion\s*:\s*true|completionMessage\s*:").Count >= 13,

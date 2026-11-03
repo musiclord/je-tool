@@ -19,25 +19,25 @@ public sealed class ProjectUpdateHandler(
         var (projectId, repositories) = session.RequireActive();
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
-        var entityName = ReadText(payload, "entityName", "客戶名稱", document.EntityName) ?? string.Empty;
+        var clientName = ReadText(payload, "clientName", "客戶名稱", document.ClientName) ?? string.Empty;
         var projectCode = ReadText(payload, "projectCode", "案件編號", document.ProjectCode) ?? string.Empty;
-        var lastPeriodStart = document.LastAccountingPeriodDate;
-        if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("lastPeriodStart", out _))
+        var prepStartDate = document.LastAccountingPeriodDate;
+        if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("prepStartDate", out _))
         {
-            _ = ReadText(payload, "lastPeriodStart", "期末財報準備日", lastPeriodStart);
-            lastPeriodStart = PayloadReader.GetOptionalDate(payload, "lastPeriodStart");
+            _ = ReadText(payload, "prepStartDate", "期末財報準備日", prepStartDate);
+            prepStartDate = PayloadReader.GetOptionalDate(payload, "prepStartDate");
         }
 
-        var dateChanged = !string.Equals(lastPeriodStart, document.LastAccountingPeriodDate, StringComparison.Ordinal);
+        var dateChanged = !string.Equals(prepStartDate, document.LastAccountingPeriodDate, StringComparison.Ordinal);
         var effects = dateChanged ? AuditMutationEffects.For(AuditMutation.PreparationDate) : null;
         var changed = dateChanged
-            || !string.Equals(entityName, document.EntityName, StringComparison.Ordinal)
+            || !string.Equals(clientName, document.ClientName, StringComparison.Ordinal)
             || !string.Equals(projectCode, document.ProjectCode, StringComparison.Ordinal);
         var updated = document with
         {
-            EntityName = entityName,
+            ClientName = clientName,
             ProjectCode = projectCode,
-            LastAccountingPeriodDate = lastPeriodStart
+            LastAccountingPeriodDate = prepStartDate
         };
 
         // project.json 與案件資料庫無法共用交易，所以改日期時把存檔放進清除結果的交易裡：
@@ -50,7 +50,7 @@ public sealed class ProjectUpdateHandler(
             {
                 await repositories.ResultStaleStates.InvalidateForPreparationDateChangeAsync(projectId, async token =>
                 {
-                    await repositories.ReportArtifactStore.MarkStaleAsync(projectId, _ => true, token);
+                    await repositories.ReportStore.MarkStaleAsync(projectId, _ => true, token);
                     await projectStore.SaveAsync(updated, token);
                     settingsSaved = true;
                 }, cancellationToken);
@@ -63,7 +63,7 @@ public sealed class ProjectUpdateHandler(
         }
         else if (changed)
         {
-            await repositories.ReportArtifactStore.MarkStaleAsync(projectId, _ => true, cancellationToken);
+            await repositories.ReportStore.MarkStaleAsync(projectId, _ => true, cancellationToken);
             await projectStore.SaveAsync(updated, cancellationToken);
         }
 
@@ -73,19 +73,19 @@ public sealed class ProjectUpdateHandler(
             await projectRegistry.UpdateDocumentAsync(updated, CancellationToken.None);
         }
 
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, effects, logger);
         return new
         {
             project = new
             {
                 projectId = updated.ProjectId,
                 projectCode = updated.ProjectCode,
-                entityName = updated.EntityName,
+                clientName = updated.ClientName,
                 operatorId = updated.OperatorId,
                 periodStart = updated.PeriodStart,
                 periodEnd = updated.PeriodEnd,
-                lastPeriodStart = updated.LastAccountingPeriodDate,
+                prepStartDate = updated.LastAccountingPeriodDate,
                 moneyScale = updated.MoneyScale,
                 roundingMode = updated.RoundingMode,
                 databaseProvider = updated.DatabaseProvider,
@@ -93,12 +93,11 @@ public sealed class ProjectUpdateHandler(
                 createdUtc = updated.CreatedUtc,
                 currentStep = updated.CurrentStep
             },
-            warnings = ProjectMetadataRules.GetWarnings(updated.PeriodStart, updated.PeriodEnd, lastPeriodStart),
+            warnings = ProjectMetadataRules.GetWarnings(updated.PeriodStart, updated.PeriodEnd, prepStartDate),
             staleState = mutationState.StaleState,
             invalidatedResults = mutationState.InvalidatedResults,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning,
-            artifacts = mutationState.ReportArtifacts
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning
         };
     }
 

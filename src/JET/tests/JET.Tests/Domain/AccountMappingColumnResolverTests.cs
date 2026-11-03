@@ -29,7 +29,7 @@ public sealed class AccountMappingColumnResolverTests
 
     [Theory]
     [MemberData(nameof(K7HeaderOrders))]
-    public void K7_ExactNamesThenUnclaimedKeywordsThenPositions(
+    public void ResolvesExactNamesThenUnclaimedKeywordsThenPositions(
         string[] columns, string code, string name, string category)
     {
         var result = AccountMappingColumnResolver.Resolve(columns);

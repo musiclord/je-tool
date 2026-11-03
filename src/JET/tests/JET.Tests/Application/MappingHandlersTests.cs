@@ -14,7 +14,7 @@ public sealed class MappingHandlersTests
         """
         {
           "projectCode": "ENG-2025-001",
-          "entityName": "範例股份有限公司",
+          "clientName": "範例股份有限公司",
           "operatorId": "auditor01",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31"
@@ -35,7 +35,7 @@ public sealed class MappingHandlersTests
         Assert.NotNull(stored);
         Assert.Equal(MappingMetadataFormat.CurrentVersion, stored.FormatVersion);
         Assert.NotNull(stored.GlOptions);
-        var expectedApprovalMode = stored.Mapping.ContainsKey(GlMappingKeys.DocDate)
+        var expectedApprovalMode = stored.Mapping.ContainsKey(GlMappingKeys.ApprovalDate)
             ? ApprovalDateModeNames.Mapped
             : ApprovalDateModeNames.Unmapped;
         Assert.Equal(expectedApprovalMode, stored.GlOptions.ApprovalDateMode);
@@ -87,7 +87,7 @@ public sealed class MappingHandlersTests
             {
                 new { sourceColumn = "自訂文字", label = "自訂文字", valueType = "text" },
                 new { sourceColumn = "自訂日期", label = "自訂日期", valueType = "date" },
-                new { sourceColumn = "自訂金額", label = "自訂金額", valueType = "money" }
+                new { sourceColumn = "自訂金額", label = "自訂金額", valueType = "amount" }
             }
         }));
 
@@ -97,7 +97,7 @@ public sealed class MappingHandlersTests
             committed.GetProperty("rdeFields").EnumerateArray(),
             field => Assert.Matches("^rde\\.[0-9a-f]{32}$", field.GetProperty("fieldId").GetString()));
         Assert.Equal(3, await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, "SELECT COUNT(*) FROM target_gl_rde_value;"));
+            host, projectId, "SELECT COUNT(*) FROM gl_rde_value;"));
 
         var ids = committed.GetProperty("rdeFields")
             .EnumerateArray()
@@ -117,7 +117,7 @@ public sealed class MappingHandlersTests
             {
                 new { fieldId = ids[0], sourceColumn = "自訂文字", label = "自訂文字", valueType = "text" },
                 new { fieldId = ids[1], sourceColumn = "自訂日期", label = "自訂日期", valueType = "date" },
-                new { fieldId = ids[2], sourceColumn = "自訂金額", label = "自訂金額", valueType = "money" }
+                new { fieldId = ids[2], sourceColumn = "自訂金額", label = "自訂金額", valueType = "amount" }
             }
         }));
         Assert.Equal(
@@ -155,7 +155,7 @@ public sealed class MappingHandlersTests
     }
 
     [Fact]
-    public async Task CommitGl_PostingStatusPolicy_RetainsRawRowsAndPartitionsEffectivePopulation()
+    public async Task CommitGl_PostingStatusPolicy_RetainsRawRowsAndPartitionsGl()
     {
         using var host = new HandlerTestHost();
         var builder = new InlineGlWorkbookBuilder()
@@ -196,16 +196,16 @@ public sealed class MappingHandlersTests
 
         Assert.Equal(2, committed.GetProperty("projectedRowCount").GetInt32());
         Assert.Equal(2, await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, "SELECT COUNT(*) FROM target_gl_entry;"));
+            host, projectId, "SELECT COUNT(*) FROM gl;"));
         Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, "SELECT COUNT(*) FROM target_gl_entry WHERE is_effective = 1;"));
+            host, projectId, "SELECT COUNT(*) FROM gl WHERE is_excluded = 0;"));
         Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
             host, projectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE exclusion_reason = 'posting_status';"));
+            "SELECT COUNT(*) FROM gl WHERE exclusion_reason = 'posting_status';"));
     }
 
     [Fact]
-    public async Task QuerySourceQualityPage_PagesBlankPostDatesFromRawSuccessfulGeneration()
+    public async Task QuerySourceQualityPage_PagesBlankGlDatesFromRawSuccessfulGeneration()
     {
         using var host = new HandlerTestHost();
         var builder = new InlineGlWorkbookBuilder()
@@ -239,7 +239,7 @@ public sealed class MappingHandlersTests
             "query.sourceQualityPage",
             """{ "pageSize": 1 }""");
         var firstRow = Assert.Single(first.GetProperty("rows").EnumerateArray());
-        Assert.Equal("nullPostDate", firstRow.GetProperty("category").GetString());
+        Assert.Equal("blankGlDate", firstRow.GetProperty("category").GetString());
         Assert.Equal(2, firstRow.GetProperty("sourceRowNumber").GetInt32());
         Assert.Contains("source-quality.xlsx", firstRow.GetProperty("sourceLabel").GetString(), StringComparison.Ordinal);
         var cursor = first.GetProperty("nextCursor").GetString();
@@ -269,7 +269,7 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "amountMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 
@@ -284,7 +284,7 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "changeMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 
@@ -293,10 +293,10 @@ public sealed class MappingHandlersTests
     {
         var mapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "document",
-            [GlMappingKeys.PostDate] = "post_date",
-            [GlMappingKeys.AccNum] = "account",
-            [GlMappingKeys.AccName] = "account_name",
+            [GlMappingKeys.VoucherNumber] = "document",
+            [GlMappingKeys.GlDate] = "gl_date",
+            [GlMappingKeys.AccountNumber] = "account",
+            [GlMappingKeys.AccountName] = "account_name",
             [GlMappingKeys.Description] = "missing_column",
             [GlMappingKeys.Amount] = "typo_column"
         };
@@ -307,7 +307,7 @@ public sealed class MappingHandlersTests
                 "batch",
                 mapping,
                 GlAmountMode.SignedAmount,
-                ["document", "post_date", "account", "account_name"],
+                ["document", "gl_date", "account", "account_name"],
                 ProjectDocument.DefaultMoneyScale,
                 DateParseOptions.Default)));
 

@@ -36,7 +36,7 @@ public sealed class TaiwanSmeLargeCaseTests
     {
         var (smeCase, _, oracle) = Fixture.Value;
 
-        // 使用者 2026-10-11 要求至少 1 萬張傳票與 200 個科目的試算表。
+        // 裁定 2026-10-11-01 要求至少 1 萬張傳票與 200 個科目的試算表。
         Assert.True(oracle.Population.Select(line => line.VoucherNo).Distinct().Count() >= 10_000);
         Assert.Equal(200, smeCase.Accounts.Count);
         // 期初試算表平衡；GL 內每張傳票借貸相等，所以期末試算表也平衡。
@@ -71,7 +71,9 @@ public sealed class TaiwanSmeLargeCaseTests
 
         // 失敗時訊息列出每一項的預期與 JET 結果，以及雙方各自多出來的前五筆分錄。
         Assert.True(log.AllMatched, log.ToString());
-        // 驗證摘要 14 項、預篩選 12 項、情境 10 個，缺任何一項都代表比對沒有完整執行。
-        Assert.Equal(36, log.MatchedCount);
+        // 驗證摘要 14 項、預篩選 10 項、情境 10 個，缺任何一項都代表比對沒有完整執行。
+        // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，預篩選由 12 項減為 10 項；
+        // 原本是 36，第一次失敗：Focused 收據 20261030-165407068-719c351124b94328bcd2dc27ed541d5b（其餘比對全部相符，只有項數差 2）。
+        Assert.Equal(34, log.MatchedCount);
     }
 }

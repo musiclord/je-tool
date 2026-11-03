@@ -14,14 +14,14 @@ public sealed class HostOpenFolderHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         if (payload.ValueKind != JsonValueKind.Object
-            || payload.EnumerateObject().Any(property => property.Name is not ("artifactId" or "target")))
+            || payload.EnumerateObject().Any(property => property.Name is not ("reportId" or "target")))
         {
             throw InvalidTarget();
         }
 
-        var hasArtifactId = payload.TryGetProperty("artifactId", out _);
+        var hasReportId = payload.TryGetProperty("reportId", out _);
         var hasTarget = payload.TryGetProperty("target", out _);
-        if (hasArtifactId == hasTarget)
+        if (hasReportId == hasTarget)
         {
             throw InvalidTarget();
         }
@@ -41,18 +41,18 @@ public sealed class HostOpenFolderHandler(
             return new { ok = true };
         }
 
-        var artifactId = PayloadReader.GetRequiredString(payload, "artifactId");
+        var reportId = PayloadReader.GetRequiredString(payload, "reportId");
         string path;
         try
         {
-            path = await repositories.ReportArtifactStore.ResolvePathAsync(projectId, artifactId, cancellationToken);
+            path = await repositories.ReportStore.ResolvePathAsync(projectId, reportId, cancellationToken);
         }
         catch (JetActionException exception) when (
             exception.Code is JetErrorCodes.FileNotFound or JetErrorCodes.FileReadError)
         {
             throw new JetActionException(
-                JetErrorCodes.ArtifactNotFound,
-                ReportArtifactMessages.FileMissing,
+                JetErrorCodes.ReportNotFound,
+                ReportMessages.FileMissing,
                 innerException: exception);
         }
 

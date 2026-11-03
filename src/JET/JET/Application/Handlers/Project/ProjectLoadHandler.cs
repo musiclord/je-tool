@@ -77,7 +77,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         }
 
         var lockService = repositories.LockService;
-        var reportArtifactStore = repositories.ReportArtifactStore;
+        var reportStore = repositories.ReportStore;
 
         // 授權通過後、進入 session 前取工作鎖。sqlServer 走租約表，本地走跨程序檔案鎖。
         // Held → project_locked；不設 session、不進 workflow、不戳 last_opened。
@@ -97,8 +97,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // 由這裡在取得工作鎖之後才開始持有；離開 try 區塊就釋放，早於載入失敗時的放鎖。
             using var retainedDatabase = databaseRetention?.TryRetain(document.ProjectId);
 
-            // 載入時完整檢查一次建表與升版；之後同一程序內的讀寫只確認檔案仍在。
-            // 程式開著時用備份覆蓋已關閉的案件，這裡會重新升版。
+            // 載入時完整檢查一次建表與版本；之後同一程序內的讀寫只確認檔案仍在。
+            // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本並拒絕舊版。
             SupportOperationStage.Enter("database_open");
             await repositories.DatabaseInitializer.EnsureCreatedAsync(document.ProjectId, cancellationToken);
 
@@ -119,13 +119,13 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var tbPrevious = tbMapping is null && tbBatch is not null
                 ? await repositories.MappingStates.FindPreviousAsync(document.ProjectId, DatasetKind.Tb, cancellationToken)
                 : null;
-            var taxonomy = await repositories.AccountTaxonomy.ReadAsync(document.ProjectId, cancellationToken);
+            var categorySnapshot = await repositories.AccountCategories.ReadAsync(document.ProjectId, cancellationToken);
             var staleState = await repositories.ResultStaleStates.ReadAsync(document.ProjectId, cancellationToken);
             var filterDataRevision = await repositories.ResultStaleStates.ReadFilterDataRevisionAsync(document.ProjectId, cancellationToken);
             var holidayCount = await repositories.Calendar.CountAsync(document.ProjectId, CalendarDayType.Holiday, cancellationToken);
             var makeupDayCount = await repositories.Calendar.CountAsync(document.ProjectId, CalendarDayType.Makeup, cancellationToken);
-            var latestValidate = await repositories.RuleRuns.FindLatestAsync(document.ProjectId, RuleRunKinds.Validate, cancellationToken);
-            var latestPrescreen = await repositories.RuleRuns.FindLatestAsync(document.ProjectId, RuleRunKinds.Prescreen, cancellationToken);
+            var latestValidate = await repositories.Results.FindLatestAsync(document.ProjectId, ResultKind.Validation, cancellationToken);
+            var latestPrescreen = await repositories.Results.FindLatestAsync(document.ProjectId, ResultKind.Prescreen, cancellationToken);
             var savedScenarios = await repositories.FilterScenarios.ListAsync(document.ProjectId, cancellationToken);
 
             // 篩選規則更新後，先用目前規則逐一檢查已儲存情境。全部仍然有效才整批改用新規則：
@@ -134,7 +134,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             // 改版寫在戳記上次開啟時間之前；之後載入失敗時改版仍保留，重做的結果相同。
             SupportOperationStage.Enter("scenario_check");
             var scenarioUpgrade = await EvaluateScenarioUpgradeAsync(
-                document, repositories, savedScenarios, glMapping, accountMappingState, taxonomy, cancellationToken);
+                document, repositories, savedScenarios, glMapping, accountMappingState, categorySnapshot, cancellationToken);
             // 損毀的條件在清單上只寫「條件內容無法讀取」，哪一條、哪一種記進支援日誌。
             FilterScenarioDiagnostics.LogProblems(logger, Action, scenarioUpgrade.Problems);
             if (scenarioUpgrade.Status == FilterScenarioUpgradeStatus.Upgraded)
@@ -148,10 +148,10 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var currentResults = WorkflowResultStateSupport.Resolve(
                 staleState, latestValidate, latestPrescreen, savedScenarios, filterDataRevision);
             staleState = currentResults.StaleState;
-            latestValidate = currentResults.ValidationRun;
-            latestPrescreen = currentResults.PrescreenRun;
+            latestValidate = currentResults.ValidationRecord;
+            latestPrescreen = currentResults.PrescreenRecord;
             var currentFilterRevision = currentResults.FilterRevision;
-            // 使用者 2026-10-13 裁定「開案也逐一檢查」：已是目前版本、但因其他資料改變而不合格的情境，版本檢查會通過，
+            // 開案也逐一檢查（裁定 2026-10-13-25）：已是目前版本、但因其他資料改變而不合格的情境，版本檢查會通過，
             // 這裡照待修正的規則把篩選結果視為不可用，畫面維持鎖住並列出要修改的情境，報告依此標成過期。
             if (scenarioUpgrade.Status == FilterScenarioUpgradeStatus.NeedsEdit && currentFilterRevision is not null)
             {
@@ -161,10 +161,10 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var filterPositions = currentResults.ScenarioPositions;
 
             SupportOperationStage.Enter("report_state");
-            await reportArtifactStore.MarkStaleAsync(
+            await reportStore.MarkStaleAsync(
                 document.ProjectId,
-                artifact => ReportExportSupport.IsSourceStale(
-                    artifact,
+                report => ReportExportSupport.IsSourceStale(
+                    report,
                     latestValidate,
                     latestPrescreen,
                     staleState.Filter,
@@ -172,7 +172,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                     filterPositions,
                     filterDataRevision),
                 cancellationToken);
-            var reportArtifacts = await reportArtifactStore.ListAsync(document.ProjectId, cancellationToken);
+            var reports = await reportStore.ListAsync(document.ProjectId, cancellationToken);
 
             var glOptions = glMapping is null
                 ? null
@@ -184,11 +184,11 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                 {
                     projectId = document.ProjectId,
                     projectCode = document.ProjectCode,
-                    entityName = document.EntityName,
+                    clientName = document.ClientName,
                     operatorId = document.OperatorId,
                     periodStart = document.PeriodStart,
                     periodEnd = document.PeriodEnd,
-                    lastPeriodStart = document.LastAccountingPeriodDate,
+                    prepStartDate = document.LastAccountingPeriodDate,
                     moneyScale = document.MoneyScale,
                     roundingMode = document.RoundingMode,
                     databaseProvider = document.DatabaseProvider,
@@ -206,9 +206,9 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         postingStatusPolicy = glOptions!.PostingStatusPolicy,
                         manualAutoPolicy = glOptions!.ManualAutoPolicy,
                         rdeFields = glOptions!.RdeFields,
-                        // 確認配對時往下填補空白的欄位（階段六），重開案件帶回摘要與草稿。
+                        // 確認配對時往下填補空白的欄位，重開案件帶回摘要與草稿。
                         fillDownFields = glOptions!.FillDownFields,
-                        // 確認配對時填了幾格（使用者 2026-10-28 裁定隨配對保存），第三步摘要列出來。
+                        // 確認配對時填了幾格隨配對保存（裁定 2026-10-28-05），第三步摘要列出來。
                         fillDownCount = glOptions!.FillDownCount,
                         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
                         availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glOptions),
@@ -234,10 +234,10 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         committedUtc = tbPrevious.CommittedUtc
                     }
                 },
-                taxonomy = new
+                accountCategory = new
                 {
-                    revision = taxonomy.Revision,
-                    categories = taxonomy.Categories
+                    revision = categorySnapshot.Revision,
+                    categories = categorySnapshot.Categories
                 },
                 staleState = new
                 {
@@ -280,16 +280,13 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         nonWorkingDaysConfigured = document.NonWorkingDays is not null
                     }
                 },
-                latestRuns = new
-                {
-                    validate = ToValidationRunSummary(latestValidate),
-                    prescreen = ToPrescreenRunSummary(latestPrescreen)
-                },
+                validationResult = ToValidationResultSummary(latestValidate),
+                prescreenResult = ToPrescreenResultSummary(latestPrescreen),
                 filterScenarios = savedScenarios.Select(FilterScenarioSummaryRenderer.Render).ToArray(),
                 filterResultRef = currentFilterRevision is null ? null : (object)new
                 {
                     revision = currentFilterRevision.Revision,
-                    generatedUtc = currentFilterRevision.Revision,
+                    generatedUtc = currentFilterRevision.GeneratedUtc,
                     logicVersion = RuleLogicVersions.Filter,
                     populationScope = GlPopulationScopeValues.ToValue(currentFilterRevision.PopulationScope)
                 },
@@ -306,10 +303,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         messages = problem.Messages
                     }).ToArray()
                 },
-                reportArtifacts = reportArtifacts.Select(ReportExportSupport.ArtifactWire).ToArray(),
-                // 已移除的 GL 欄位與畫面名稱，第五步舊情境的條件標題與讀回用它寫出名稱、不印程式代號
-                // （使用者 2026-10-14 第三輪勾選頁確認 R3-03）；正本只在 JetFieldCatalog。
-                retiredGlFieldLabels = JetFieldCatalog.RetiredGlFieldLabels,
+                reports = reports.Select(ReportExportSupport.ReportWire).ToArray(),
                 heartbeatSeconds
             };
 
@@ -367,7 +361,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         IReadOnlyList<SavedFilterScenario> savedScenarios,
         CommittedMapping? glMapping,
         AccountMappingState? accountMappingState,
-        AccountTaxonomySnapshot taxonomy,
+        AccountCategorySnapshot categorySnapshot,
         CancellationToken cancellationToken)
     {
         if (savedScenarios.Count == 0)
@@ -386,7 +380,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             accountMappingState,
             hasAuthorizedPreparers,
             GlPopulationScope.AuditPeriod,
-            taxonomy);
+            categorySnapshot);
         return FilterScenarioRuleUpgrade.Evaluate(
             savedScenarios, validationContext, document.MoneyScale, DateTimeOffset.UtcNow);
     }
@@ -520,16 +514,16 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     }
 
     /// <summary>
-    /// validation resume 用：控制總數核對與 GL、TB 逐科目比對的原始結果不重算，只由共用後端 renderer
+    /// validation resume 用：存入筆數與合計核對、GL 與 TB 逐科目比對的原始結果不重算，只由共用後端 renderer
     /// 補上或覆寫衍生的「可否繼續後續步驟」判定。
     /// </summary>
-    private static object? ToValidationRunSummary(RuleRunRecord? record) =>
+    private static object? ToValidationResultSummary(ResultRecord? record) =>
         record is null || !ValidationSummaryShapeValidator.IsValid(record.SummaryJson)
             ? null
             : CompletenessEligibilitySupport.ToWireSummary(record);
 
     /// <summary>prescreen resume 用：結果原樣回放，只由 AuditCore renderer 補上目前的定位說明。</summary>
-    private static object? ToPrescreenRunSummary(RuleRunRecord? record) =>
+    private static object? ToPrescreenResultSummary(ResultRecord? record) =>
         record is null ? null : JetAuditProgram.RenderPrescreenSummary(record.SummaryJson);
 
     private static object? PreviousGlMappingShape(CommittedMapping? previous)

@@ -9,7 +9,7 @@ public sealed class PrescreenReportProgramTests
 {
     private static readonly PrescreenReportDetailKind[] DetailKinds =
     [
-        PrescreenReportDetailKind.PostPeriodApproval,
+        PrescreenReportDetailKind.PrepPeriodApproval,
         PrescreenReportDetailKind.SuspiciousKeywords,
         PrescreenReportDetailKind.UnexpectedAccountPair,
         PrescreenReportDetailKind.TrailingZeros,
@@ -49,14 +49,14 @@ public sealed class PrescreenReportProgramTests
     public void Finalize_UsesRowCountRatherThanVoucherCountForThreshold()
     {
         var counts = Counts(voucherHitCount: 0, rowHitCount: 0);
-        counts[PrescreenReportDetailKind.PostPeriodApproval] =
+        counts[PrescreenReportDetailKind.PrepPeriodApproval] =
             new PrescreenHitCounts(VoucherHitCount: 1, RowHitCount: 10_000);
 
         var plan = JetAuditProgram.Finalize(
             JetAuditProgram.Plan(Request()),
             new PrescreenReportPlanningFacts(counts));
 
-        var detail = plan.RequireDetail(PrescreenReportDetailKind.PostPeriodApproval);
+        var detail = plan.RequireDetail(PrescreenReportDetailKind.PrepPeriodApproval);
         Assert.Equal(1L, detail.Counts?.VoucherHitCount);
         Assert.Equal(10_000L, detail.Counts?.RowHitCount);
         Assert.Equal(
@@ -69,13 +69,13 @@ public sealed class PrescreenReportProgramTests
     {
         const string naReason = "未設定核准日期欄位";
         var counts = Counts(voucherHitCount: 0, rowHitCount: 0);
-        counts.Remove(PrescreenReportDetailKind.PostPeriodApproval);
+        counts.Remove(PrescreenReportDetailKind.PrepPeriodApproval);
 
         var plan = JetAuditProgram.Finalize(
-            JetAuditProgram.Plan(Request(postPeriodApprovalNaReason: naReason)),
+            JetAuditProgram.Plan(Request(prepPeriodApprovalNaReason: naReason)),
             new PrescreenReportPlanningFacts(counts));
 
-        var detail = plan.RequireDetail(PrescreenReportDetailKind.PostPeriodApproval);
+        var detail = plan.RequireDetail(PrescreenReportDetailKind.PrepPeriodApproval);
         Assert.False(detail.IsApplicable);
         Assert.Equal(naReason, detail.NaReason);
         Assert.Null(detail.Counts);
@@ -92,7 +92,7 @@ public sealed class PrescreenReportProgramTests
         long rowHitCount)
     {
         var counts = Counts(voucherHitCount: 0, rowHitCount: 0);
-        counts[PrescreenReportDetailKind.PostPeriodApproval] =
+        counts[PrescreenReportDetailKind.PrepPeriodApproval] =
             new PrescreenHitCounts(voucherHitCount, rowHitCount);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => JetAuditProgram.Finalize(
@@ -140,7 +140,7 @@ public sealed class PrescreenReportProgramTests
         var plan = JetAuditProgram.Plan(Request());
 
         Assert.Throws<InvalidOperationException>(() =>
-            plan.RequireDetail(PrescreenReportDetailKind.PostPeriodApproval));
+            plan.RequireDetail(PrescreenReportDetailKind.PrepPeriodApproval));
     }
 
     // 已 Finalize 的 plan 不得再查計數。AuditCore 的轉手方法移除後，這個防呆改由 planning port 開頭負責，
@@ -176,19 +176,19 @@ public sealed class PrescreenReportProgramTests
     }
 
     private static PrescreenReportRequest Request(
-        string? postPeriodApprovalNaReason = null,
+        string? prepPeriodApprovalNaReason = null,
         string? suspiciousKeywordsNaReason = null,
         string? unexpectedAccountPairNaReason = null,
         string? trailingZerosNaReason = null,
         string? blankDescriptionNaReason = null) =>
         new(
             ProjectId: "project-1",
-            RuleContext: new FilterRuleContext(
+            RuleContext: new FilterConditionContext(
                 MoneyScale: 100,
-                LastPeriodStart: null,
+                PrepStartDate: null,
                 PeriodStart: "2025-01-01",
                 PeriodEnd: "2025-12-31"),
-            PostPeriodApprovalNaReason: postPeriodApprovalNaReason,
+            PrepPeriodApprovalNaReason: prepPeriodApprovalNaReason,
             SuspiciousKeywordsNaReason: suspiciousKeywordsNaReason,
             UnexpectedAccountPairNaReason: unexpectedAccountPairNaReason,
             TrailingZerosNaReason: trailingZerosNaReason,
@@ -213,7 +213,7 @@ public sealed class PrescreenReportProgramTests
         public Task<PageResult<PrescreenHitRow>> GetPageAsync(
             string projectId,
             string ruleKey,
-            FilterRuleContext context,
+            FilterConditionContext context,
             PageRequest request,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -221,7 +221,7 @@ public sealed class PrescreenReportProgramTests
         public Task<PrescreenHitCounts> GetCountsAsync(
             string projectId,
             string ruleKey,
-            FilterRuleContext context,
+            FilterConditionContext context,
             CancellationToken cancellationToken)
         {
             Tokens.Add(cancellationToken);

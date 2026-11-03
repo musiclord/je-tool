@@ -6,58 +6,58 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 2026-10-22 技術債一輪：預篩選報告寫出器只剩一個正式入口，handler 一定先規劃並載入工作簿中繼資料，
+// 預篩選報告寫出器只剩一個正式入口，handler 一定先規劃並載入工作簿中繼資料，
 // 原本依 writer 型別退回的 typed 與 public 路徑都刪除；兩則測試各自守住投影與計畫的內容。
 // 第一次失敗是刪掉入口後測試專案建置失敗，那次沒有保存收據。
 public sealed class ExportPrescreenReportTypedSeamTests
 {
     [Fact]
-    public async Task ArtifactExecutionPort_RejectsContentRequestsOutsidePlanBeforeStoreWrite()
+    public async Task ReportExecutionPort_RejectsContentRequestsOutsidePlanBeforeStoreWrite()
     {
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             "export.prescreenReport",
             "typed-prescreen-export",
-            PrescreenRunId: "prescreen-run"));
-        IReadOnlyList<ReportArtifactWriteRequest>[] mismatches =
+            PrescreenResultId: "prescreen-run"));
+        IReadOnlyList<ReportWriteRequest>[] mismatches =
         [
             [],
             [
-                new ReportArtifactWriteRequest(
-                    ReportArtifactKind.ValidationReport,
+                new ReportWriteRequest(
+                    ReportKind.ValidationReport,
                     plan.SourceRef,
                     static (_, _) => Task.CompletedTask)
             ],
             [
-                new ReportArtifactWriteRequest(
-                    ReportArtifactKind.PrescreenReport,
-                    new ReportArtifactSourceRefs(PrescreenRunId: "other-run"),
+                new ReportWriteRequest(
+                    ReportKind.PrescreenReport,
+                    new ReportSourceRefs(PrescreenResultId: "other-run"),
                     static (_, _) => Task.CompletedTask)
             ]
         ];
 
         foreach (var requests in mismatches)
         {
-            var store = new ExecutingArtifactStore(
+            var store = new ExecutingReportStore(
                 "typed-prescreen-export",
                 new DateTimeOffset(2026, 7, 19, 0, 0, 0, TimeSpan.Zero));
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new ReportArtifactExecutionPort(store, requests)
+                new ReportExecutionPort(store, requests)
                     .ExecuteAsync(plan, CancellationToken.None));
             Assert.Empty(store.Requests);
         }
     }
 
     [Fact]
-    public async Task CurrentPrescreenRun_UsesTypedWriterWithNamedProjectionParsedFromSavedSummary()
+    public async Task CurrentPrescreenResult_UsesTypedWriterWithNamedProjectionParsedFromSavedSummary()
     {
         const string projectId = "typed-prescreen-export";
-        const string runId = "prescreen-run";
+        const string resultId = "prescreen-run";
         var generatedUtc = new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero);
         var summaryJson = JsonSerializer.Serialize(
             new
             {
-                postPeriodApproval = new { status = "na", naReason = (string?)null, count = 0L },
+                prepPeriodApproval = new { status = "na", naReason = (string?)null, count = 0L },
                 suspiciousKeywords = new { status = "V", count = 3L },
                 unexpectedAccountPair = new
                 {
@@ -66,11 +66,15 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     count = 0L
                 },
                 trailingZeros = new { status = "V", count = 4L, zerosThreshold = 3 },
-                creatorSummary = new
+                // 裁定 2026-11-02-06 拿掉舊結果沒有人員數時「改用清單列數」的退路，新的預篩選結果一定帶 totalPreparerCount。
+                // 原本這份摘要沒有這個欄位，靠清單的 2 列得到 2；改成照現在的形狀帶人員數，預期值不變。
+                // 第一次失敗：Public 收據 20261102-045345739-be7a7f1137474a3dbf96d8a0f0a3a01a。
+                preparerSummary = new
                 {
                     status = "V",
                     naReason = (string?)null,
-                    creators = new[]
+                    totalPreparerCount = 2L,
+                    preparers = new[]
                     {
                         new { createdBy = "A" },
                         new { createdBy = "B" }
@@ -89,56 +93,56 @@ public sealed class ExportPrescreenReportTypedSeamTests
         var session = new ProjectSession();
         var writer = new RecordingPrescreenWriter();
         using var cancellation = new CancellationTokenSource();
-        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc, cancellation.Cancel);
+        var reportStore = new ExecutingReportStore(projectId, generatedUtc, cancellation.Cancel);
         var handler = CreateHandler(
             projectId,
             writer,
             new FixedRunStore(
-                new RuleRunRecord(
-                    runId,
-                    RuleRunKinds.Prescreen,
+                new ResultRecord(
+                    resultId,
+                    ResultKind.Prescreen,
                     generatedUtc,
                     summaryJson),
-                EligibleValidationRun(generatedUtc)),
+                EligibleValidationResult(generatedUtc)),
             new FixedProjectStore(Project(projectId)),
-            artifactStore,
+            reportStore,
             session,
             new NullEventPublisher(),
             new RecordingPlanningFactsPort());
-        using var payload = JsonDocument.Parse($$"""{"runId":"{{runId}}"}""");
+        using var payload = JsonDocument.Parse($$"""{"resultId":"{{resultId}}"}""");
 
         var response = await handler.HandleAsync(payload.RootElement, cancellation.Token);
         Assert.True(cancellation.IsCancellationRequested);
-        AssertPublishedCatalog(response, artifactStore);
+        AssertPublishedCatalog(response, reportStore);
 
         Assert.Equal(1, writer.Calls);
         Assert.NotNull(writer.Plan);
         Assert.NotNull(writer.WorkbookMetadata);
         Assert.Equal(
             new PrescreenReportProjection(
-                PostPeriodApproval: new("na", null),
+                PrepPeriodApproval: new("na", null),
                 SuspiciousKeywords: new("V", null, 3),
                 UnexpectedAccountPair: new(
                     "na",
                     "尚未完成科目配對或缺少必要分類"),
                 TrailingZeros: new("V", null, 4),
-                CreatorSummary: new("V", null, 2),
+                PreparerSummary: new("V", null, 2),
                 RareAccounts: new("V", null, 11),
                 BlankDescription: new("na", null)),
             writer.Projection);
         Assert.Equal(summaryJson, writer.Context?.SummaryJson);
-        Assert.Equal(runId, writer.Context?.RunId);
+        Assert.Equal(resultId, writer.Context?.ResultId);
         Assert.Equal("tester", writer.OperatorId);
-        var request = Assert.Single(artifactStore.Requests);
-        Assert.Equal(ReportArtifactKind.PrescreenReport, request.Kind);
-        Assert.Equal(runId, request.SourceRef.PrescreenRunId);
+        var request = Assert.Single(reportStore.Requests);
+        Assert.Equal(ReportKind.PrescreenReport, request.Kind);
+        Assert.Equal(resultId, request.SourceRef.PrescreenResultId);
     }
 
     [Fact]
-    public async Task CurrentPrescreenRun_FinalizesPlanningFactsBeforeCallingPlannedWriter()
+    public async Task CurrentPrescreenResult_FinalizesPlanningFactsBeforeCallingPlannedWriter()
     {
         const string projectId = "planned-prescreen-export";
-        const string runId = "prescreen-run";
+        const string resultId = "prescreen-run";
         var generatedUtc = new DateTimeOffset(
             2025,
             12,
@@ -150,7 +154,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
         var summaryJson = JsonSerializer.Serialize(
             new
             {
-                postPeriodApproval = new
+                prepPeriodApproval = new
                 {
                     status = "na",
                     naReason = (string?)null,
@@ -164,10 +168,10 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     count = 0L
                 },
                 trailingZeros = new { status = "V", count = 10_000L },
-                creatorSummary = new
+                preparerSummary = new
                 {
                     status = "V",
-                    creators = Array.Empty<object>()
+                    preparers = Array.Empty<object>()
                 },
                 rareAccounts = new
                 {
@@ -181,29 +185,29 @@ public sealed class ExportPrescreenReportTypedSeamTests
         var session = new ProjectSession();
         var writer = new RecordingPrescreenWriter();
         var factsPort = new RecordingPlanningFactsPort();
-        var artifactStore = new ExecutingArtifactStore(projectId, generatedUtc);
+        var reportStore = new ExecutingReportStore(projectId, generatedUtc);
         var handler = CreateHandler(
             projectId,
             writer,
             new FixedRunStore(
-                new RuleRunRecord(
-                    runId,
-                    RuleRunKinds.Prescreen,
+                new ResultRecord(
+                    resultId,
+                    ResultKind.Prescreen,
                     generatedUtc,
                     summaryJson),
-                EligibleValidationRun(generatedUtc)),
+                EligibleValidationResult(generatedUtc)),
             new FixedProjectStore(Project(projectId)),
-            artifactStore,
+            reportStore,
             session,
             new NullEventPublisher(),
             factsPort);
         using var payload = JsonDocument.Parse(
-            $$"""{"runId":"{{runId}}"}""");
+            $$"""{"resultId":"{{resultId}}"}""");
 
         var response = await handler.HandleAsync(
             payload.RootElement,
             CancellationToken.None);
-        AssertPublishedCatalog(response, artifactStore);
+        AssertPublishedCatalog(response, reportStore);
 
         Assert.Equal(1, factsPort.Calls);
         Assert.Equal(1, writer.Calls);
@@ -212,7 +216,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
         Assert.Equal(
             PrescreenReportDetailDisposition.Omit,
             plan.RequireDetail(
-                PrescreenReportDetailKind.PostPeriodApproval).Disposition);
+                PrescreenReportDetailKind.PrepPeriodApproval).Disposition);
         Assert.Equal(
             PrescreenReportDetailDisposition.Emit,
             plan.RequireDetail(
@@ -234,13 +238,13 @@ public sealed class ExportPrescreenReportTypedSeamTests
     }
 
     // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、
-    // session 與事件。2026-10-22 技術債一輪：退回路徑已刪除，規劃替身與中繼資料用的 store 都必須提供。
+    // session 與事件。2026-10-22 清理技術債：退回路徑已刪除，規劃替身與中繼資料用的 store 都必須提供。
     private static ExportPrescreenReportHandler CreateHandler(
         string projectId,
         IPrescreenReportWriter writer,
-        IRuleRunStore runStore,
+        IResultStore resultStore,
         IProjectStore projectStore,
-        IReportArtifactStore artifactStore,
+        IReportStore reportStore,
         ProjectSession session,
         IJetEventPublisher eventPublisher,
         IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort)
@@ -250,14 +254,14 @@ public sealed class ExportPrescreenReportTypedSeamTests
             TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
             {
                 PrescreenReportWriter = writer,
-                RuleRuns = runStore,
-                ReportArtifactStore = artifactStore,
-                // 第9批高3；Public首敗100911120後補目前來源的明示空替身。
+                Results = resultStore,
+                ReportStore = reportStore,
+                // Public首敗100911120後補目前來源的明示空替身。
                 ResultStaleStates = EmptyReportStateTestData.StaleStates,
                 FilterScenarios = EmptyReportStateTestData.Scenarios,
                 PrescreenReportPlanningFacts = prescreenReportPlanningFactsPort,
                 MappingStates = new ReportWriterTestSupport.FixedMetadataMappingStore(),
-                AccountTaxonomy = new ReportWriterTestSupport.BuiltInAccountTaxonomyStore(),
+                AccountCategories = new ReportWriterTestSupport.BuiltInAccountCategoryStore(),
             });
         return new ExportPrescreenReportHandler(projectStore, session, eventPublisher);
     }
@@ -265,7 +269,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
     private static ProjectDocument Project(string projectId) => new(
         ProjectId: projectId,
         ProjectCode: "TYPED-PRESCREEN",
-        EntityName: "Typed Prescreen Entity",
+        ClientName: "Typed Prescreen Entity",
         OperatorId: "tester",
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",
@@ -276,10 +280,10 @@ public sealed class ExportPrescreenReportTypedSeamTests
         CurrentStep: 4,
         SchemaVersion: ProjectDocument.CurrentSchemaVersion);
 
-    private static RuleRunRecord EligibleValidationRun(DateTimeOffset generatedUtc) =>
+    private static ResultRecord EligibleValidationResult(DateTimeOffset generatedUtc) =>
         new(
             "validation-run",
-            RuleRunKinds.Validate,
+            ResultKind.Validation,
             generatedUtc,
             CurrentValidationSummaryTestData.Create(
                 "validation-run",
@@ -307,7 +311,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
             ReportWorkbookMetadata workbookMetadata,
             string operatorId,
             CancellationToken cancellationToken,
-            Action<WorkpaperProgress>? progress = null)
+            Action<WorkingPaperProgress>? progress = null)
         {
             Calls++;
             Context = context;
@@ -340,7 +344,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     PrescreenReportDetailKind,
                     PrescreenHitCounts>
                 {
-                    [PrescreenReportDetailKind.PostPeriodApproval] =
+                    [PrescreenReportDetailKind.PrepPeriodApproval] =
                         new(0, 0),
                     [PrescreenReportDetailKind.SuspiciousKeywords] =
                         new(2, 3),
@@ -352,20 +356,20 @@ public sealed class ExportPrescreenReportTypedSeamTests
         }
     }
 
-    private sealed class FixedRunStore(params RuleRunRecord[] runs) : IRuleRunStore
+    private sealed class FixedRunStore(params ResultRecord[] runs) : IResultStore
     {
         public Task SaveAsync(
             string projectId,
-            RuleRunRecord record,
+            ResultRecord record,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RuleRunRecord?> FindLatestAsync(
+        public Task<ResultRecord?> FindLatestAsync(
             string projectId,
-            string runKind,
+            ResultKind kind,
             CancellationToken cancellationToken) =>
-            Task.FromResult<RuleRunRecord?>(runs.SingleOrDefault(run =>
-                string.Equals(run.RunKind, runKind, StringComparison.Ordinal)));
+            Task.FromResult<ResultRecord?>(runs.SingleOrDefault(run =>
+                run.Kind == kind));
     }
 
     private sealed class FixedProjectStore(ProjectDocument document) : IProjectStore
@@ -375,7 +379,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
@@ -399,28 +403,28 @@ public sealed class ExportPrescreenReportTypedSeamTests
             throw new NotSupportedException();
     }
 
-    private static void AssertPublishedCatalog(object? response, ExecutingArtifactStore store)
+    private static void AssertPublishedCatalog(object? response, ExecutingReportStore store)
     {
         Assert.Equal(new[] { "content-written", "published", "catalog-read" }, store.CatalogOrder);
         var data = JsonSerializer.SerializeToElement(response, JetJsonStorage.Options);
-        var published = Assert.Single(data.GetProperty("reportArtifacts").EnumerateArray());
-        Assert.Equal("artifact", published.GetProperty("artifactId").GetString());
+        var published = Assert.Single(data.GetProperty("reports").EnumerateArray());
+        Assert.Equal("report", published.GetProperty("reportId").GetString());
         Assert.Equal("prescreenReport", published.GetProperty("kind").GetString());
-        Assert.Equal(data.GetProperty("artifact").GetRawText(), published.GetRawText());
+        Assert.Equal(data.GetProperty("publishedReport").GetRawText(), published.GetRawText());
     }
 
-    private sealed class ExecutingArtifactStore(
+    private sealed class ExecutingReportStore(
         string expectedProjectId,
         DateTimeOffset generatedUtc,
-        Action? afterPublication = null) : IReportArtifactStore
+        Action? afterPublication = null) : IReportStore
     {
-        internal IReadOnlyList<ReportArtifactWriteRequest> Requests { get; private set; } = [];
+        internal IReadOnlyList<ReportWriteRequest> Requests { get; private set; } = [];
         internal List<string> CatalogOrder { get; } = [];
-        private IReadOnlyList<ReportArtifact> _published = [];
+        private IReadOnlyList<Report> _published = [];
 
-        public async Task<ReportArtifact> WriteAsync(
+        public async Task<Report> WriteAsync(
             string projectId,
-            ReportArtifactWriteRequest request,
+            ReportWriteRequest request,
             CancellationToken cancellationToken)
         {
             Assert.Equal(expectedProjectId, projectId);
@@ -428,28 +432,28 @@ public sealed class ExportPrescreenReportTypedSeamTests
             await using var output = new MemoryStream();
             await request.WriteContentAsync(output, cancellationToken);
             CatalogOrder.Add("content-written");
-            var artifact = new ReportArtifact(
-                "artifact",
+            var report = new Report(
+                "report",
                 request.Kind,
-                $"{ReportArtifactKindValues.ToValue(request.Kind)}.xlsx",
+                $"{ReportKindValues.ToValue(request.Kind)}.xlsx",
                 request.SourceRef,
                 generatedUtc,
                 output.Length,
                 LastWriteUtc: null,
                 Stale: false);
-            _published = [artifact];
+            _published = [report];
             CatalogOrder.Add("published");
             afterPublication?.Invoke();
-            return artifact;
+            return report;
         }
 
-        public Task<IReadOnlyList<ReportArtifact>> WriteBatchAsync(
+        public Task<IReadOnlyList<Report>> WriteBatchAsync(
             string projectId,
-            IReadOnlyList<ReportArtifactWriteRequest> requests,
+            IReadOnlyList<ReportWriteRequest> requests,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<ReportArtifact>> ListAsync(
+        public Task<IReadOnlyList<Report>> ListAsync(
             string projectId,
             CancellationToken cancellationToken)
         {
@@ -460,30 +464,30 @@ public sealed class ExportPrescreenReportTypedSeamTests
             Assert.Equal(new[] { "content-written", "published" }, CatalogOrder);
             Assert.Single(_published);
             CatalogOrder.Add("catalog-read");
-            return Task.FromResult<IReadOnlyList<ReportArtifact>>(_published.ToArray());
+            return Task.FromResult<IReadOnlyList<Report>>(_published.ToArray());
         }
 
         public Task<string> ResolvePathAsync(
             string projectId,
-            string artifactId,
+            string reportId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<int> MarkStaleAsync(
             string projectId,
-            ReportArtifactKind kind,
+            ReportKind kind,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 第9批高3：正式匯出會重判索引；替身套用相同predicate，不省略任何原writer、發布順序或catalog斷言。
+        // 正式匯出會重判索引；替身套用相同predicate，不省略任何原writer、發布順序或catalog斷言。
         public Task<int> MarkStaleAsync(
             string projectId,
-            Func<ReportArtifact, bool> predicate,
+            Func<Report, bool> predicate,
             CancellationToken cancellationToken)
         {
             Assert.Equal(expectedProjectId, projectId);
-            var changed = _published.Count(artifact => !artifact.Stale && predicate(artifact));
-            _published = _published.Select(artifact => predicate(artifact) ? artifact with { Stale = true } : artifact).ToArray();
+            var changed = _published.Count(report => !report.Stale && predicate(report));
+            _published = _published.Select(report => predicate(report) ? report with { Stale = true } : report).ToArray();
             return Task.FromResult(changed);
         }
 

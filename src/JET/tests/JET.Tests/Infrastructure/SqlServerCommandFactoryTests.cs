@@ -14,8 +14,8 @@ public sealed class SqlServerCommandFactoryTests
     {
         using var conn = new SqlConnection();
         var schema = SqlServerProjectSchema.For("ACME-FY2025");
-        using var cmd = NewDb().CreateCommand(conn, "ACME-FY2025", "SELECT * FROM {s}.target_gl_entry");
-        Assert.Equal($"SELECT * FROM [{schema}].target_gl_entry", cmd.CommandText);
+        using var cmd = NewDb().CreateCommand(conn, "ACME-FY2025", "SELECT * FROM {s}.gl");
+        Assert.Equal($"SELECT * FROM [{schema}].gl", cmd.CommandText);
         Assert.DoesNotContain("{s}", cmd.CommandText);
     }
 }

@@ -14,15 +14,11 @@ internal enum AuditMutation
     AccountMapping,
     AuthorizedPreparer,
     PreparationDate,
-    SchemaV7Migration,
-    AccountTaxonomy,
-    // SQL Server 第 14 版把 GL、TB 與科目配對的文字欄固定成位元序定序，轉大寫也改用新版對照表；
-    // 既有結果可能是用舊規則比對算出來的。
-    TextComparisonMigration
+    AccountCategory
 }
 
 /// <summary>
-/// 上游 mutation 對衍生審計資料的精確影響。使用者 2026-10-07 裁定上游修改清除下游：
+/// 上游 mutation 對衍生審計資料的精確影響。上游修改清除下游（裁定 2026-10-07-03）：
 /// 會讓篩選命中過期的修改，同時清掉全部已存篩選情境定義，不保留需要逐一修正的舊情境。
 /// GL control total 仍是明列的保留例外，避免呼叫端以方便為由擴大清除。
 /// </summary>
@@ -46,9 +42,7 @@ internal static class AuditDependencyPolicy
             Impact(validation: true, prescreen: true, filterHits: true, clearAccountMapping: true),
         AuditMutation.Calendar or AuditMutation.AccountMapping or AuditMutation.AuthorizedPreparer or AuditMutation.PreparationDate =>
             Impact(validation: false, prescreen: true, filterHits: true),
-        AuditMutation.SchemaV7Migration or AuditMutation.TextComparisonMigration =>
-            Impact(validation: true, prescreen: true, filterHits: true),
-        AuditMutation.AccountTaxonomy =>
+        AuditMutation.AccountCategory =>
             Impact(validation: false, prescreen: true, filterHits: true),
         _ => throw new ArgumentOutOfRangeException(nameof(mutation), mutation, null)
     };

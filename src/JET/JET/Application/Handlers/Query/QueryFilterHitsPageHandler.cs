@@ -5,12 +5,12 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.filterHitsPage：已存篩選情境(result_filter_run)命中行層明細的 keyset 分頁。
+/// query.filterHitsPage：已存篩選情境(filter_hit)命中行層明細的 keyset 分頁。
 /// 請求 <c>scenarioPosition</c> **必填**(缺則 invalid_payload);排序鍵 entry_id ASC、cursor opaque、
 /// pageSize 預設 200/上限 500。金額由 scaled 整數換算顯示值((decimal)scaled / moneyScale,沿用 DataPreview)。
 ///
 /// 惰性補算:首頁(無 cursor)的持久化結果已失效時(例如重投影清空命中後尚未重跑 filter.commit),
-/// 重用 filter.commit 同源的 <see cref="IFilterRunMaterializer"/>
+/// 重用 filter.commit 同源的 <see cref="IFilterHitMaterializer"/>
 /// 對全部已存情境落地後再取一次。解析 definition JSON → spec 屬 Application 層
 /// (<see cref="FilterScenarioPayloadParser"/>),materializer 只吃 Domain 型別,維持 Infrastructure
 /// 不反向依賴 Application。
@@ -24,7 +24,7 @@ public sealed class QueryFilterHitsPageHandler(
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
-        var dataRevision = await repositories.FilterRunMaterializeService.ReadQueryDataRevisionAsync(projectId, cancellationToken);
+        var dataRevision = await repositories.FilterHitMaterializeService.ReadQueryDataRevisionAsync(projectId, cancellationToken);
         var scenarioPosition = PayloadReader.GetOptionalInt(payload, "scenarioPosition")
             ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "scenario_position_missing");
         var request = PageRequestReader.Read(payload, ResultPageSorting.GlEntryRows);
@@ -45,7 +45,7 @@ public sealed class QueryFilterHitsPageHandler(
         // 搜尋無結果和零筆命中都是有效答案；只有持久化失效旗標要求重算。
         if (cursor is null)
         {
-            var refreshed = await repositories.FilterRunMaterializeService.MaterializeForConcurrentQueryAsync(
+            var refreshed = await repositories.FilterHitMaterializeService.MaterializeForConcurrentQueryAsync(
                 projectId,
                 cancellationToken);
             if (refreshed is not null)
@@ -68,7 +68,7 @@ public sealed class QueryFilterHitsPageHandler(
         var query = FilterResultQuerySnapshot.Bind(projectId, Action, scenarioPosition,
             dataRevision, currentRevision.Revision, request);
         request = query.Request;
-        await repositories.FilterRunMaterializeService.EnsureQueryCurrentAsync(projectId, query.DataRevision, query.ScenarioRevision, cancellationToken);
+        await repositories.FilterHitMaterializeService.EnsureQueryCurrentAsync(projectId, query.DataRevision, query.ScenarioRevision, cancellationToken);
         var page = await Task.Run(
             () => repositories.FilterHitsPages.GetPageAsync(projectId, scenarioPosition, document.MoneyScale, request, cancellationToken),
             cancellationToken);
@@ -77,7 +77,7 @@ public sealed class QueryFilterHitsPageHandler(
         var entryIds = page.Rows.Select(static row => row.EntryId).ToArray();
         var rdeValues = await repositories.ResultPageRdeValues.ReadAsync(projectId, entryIds, cancellationToken);
         var customValues = ResultPageCustomValueRenderer.Render(entryIds, rdeValues, columnPlan, scale);
-        await repositories.FilterRunMaterializeService.EnsureQueryCurrentAsync(projectId, query.DataRevision, query.ScenarioRevision, cancellationToken);
+        await repositories.FilterHitMaterializeService.EnsureQueryCurrentAsync(projectId, query.DataRevision, query.ScenarioRevision, cancellationToken);
         return new
         {
             columns = columnPlan.Columns.Select(static column => new
@@ -90,10 +90,10 @@ public sealed class QueryFilterHitsPageHandler(
             }).ToArray(),
             rows = page.Rows.Select(r => (object)new
             {
-                documentNumber = r.DocumentNumber,
+                voucherNumber = r.VoucherNumber,
                 lineItem = r.LineItem,
-                postDate = r.PostDate,
-                accountCode = r.AccountCode,
+                glDate = r.GlDate,
+                accountNumber = r.AccountNumber,
                 accountName = r.AccountName,
                 amount = (decimal)r.AmountScaled / scale,
                 drCr = r.DrCr,

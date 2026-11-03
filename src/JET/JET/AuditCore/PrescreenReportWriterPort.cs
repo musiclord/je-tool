@@ -16,5 +16,5 @@ internal interface IPrescreenReportWriter
         ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
+        Action<WorkingPaperProgress>? progress = null);
 }

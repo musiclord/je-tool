@@ -25,16 +25,16 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     [Fact]
-    public async Task ValidateRun_BeforeMappingCommit_ThrowsNoTargetData()
+    public async Task ValidateRun_BeforeMappingCommit_ThrowsGlMappingNotConfirmed()
     {
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, commitGl: false, commitTb: false);
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("validate.run"));
 
-        Assert.Equal("no_target_data", ex.Code);
-        // 2026-10-02 整體複審 T4：畫面不再說「提交」欄位配對，改用「完成」；斷言改鎖新句子。
-        // 2026-10-04 第 8 批 Q8 再統一為「確認配對」；錯誤碼與完整訊息斷言保留。
+        Assert.Equal("gl_mapping_not_confirmed", ex.Code);
+        // 畫面不再說「提交」欄位配對，改用「完成」；斷言改鎖新句子。
+        // 之後再統一為「確認配對」；錯誤碼與完整訊息斷言保留。
         // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Equal(
             "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。",
@@ -48,19 +48,19 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
 
         var rawRowCount = (long)DemoDataFactory.GlVoucherCount * DemoDataFactory.LinesPerVoucher;
         var excludedByPeriod = (long)DemoDataFactory.OutOfPeriodVouchers * DemoDataFactory.LinesPerVoucher;
-        var effectiveRowCount = rawRowCount - excludedByPeriod;
+        var glRowCount = rawRowCount - excludedByPeriod;
         var stats = data.GetProperty("stats");
-        Assert.Equal(effectiveRowCount, stats.GetProperty("glRowCount").GetInt64());
+        Assert.Equal(glRowCount, stats.GetProperty("glRowCount").GetInt64());
         Assert.Equal(0m, stats.GetProperty("net").GetDecimal());
 
         // Demo 的四筆排除列全是刻意設計的兩張期外傳票；沒有空白過帳日或
-        // posting-status 排除。raw = effective + excluded 必須由 wire 摘要直接鎖住。
+        // posting-status 排除。raw = gl + excluded 必須由 wire 摘要直接鎖住。
         var population = data.GetProperty("populationSummary");
         var raw = population.GetProperty("raw");
-        var effective = population.GetProperty("effective");
+        var effective = population.GetProperty("gl");
         var excluded = population.GetProperty("excluded");
         Assert.Equal(rawRowCount, raw.GetProperty("rowCount").GetInt64());
-        Assert.Equal(effectiveRowCount, effective.GetProperty("rowCount").GetInt64());
+        Assert.Equal(glRowCount, effective.GetProperty("rowCount").GetInt64());
         Assert.Equal(excludedByPeriod, excluded.GetProperty("rowCount").GetInt64());
         Assert.Equal(excludedByPeriod, excluded.GetProperty("byPeriodCount").GetInt64());
         Assert.Equal(0, excluded.GetProperty("byPostingStatusCount").GetInt64());
@@ -77,7 +77,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(DISTINCT document_number) FROM target_gl_entry WHERE is_effective = 1;");
+            "SELECT COUNT(DISTINCT voucher_number) FROM gl WHERE is_excluded = 0;");
 
         Assert.Equal(recount, data.GetProperty("stats").GetProperty("voucherCount").GetInt64());
     }
@@ -102,15 +102,15 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     [Fact]
-    public async Task ValidateRun_DemoFixture_DocBalanceHasNoUnbalancedDocuments()
+    public async Task ValidateRun_DemoFixture_VoucherBalanceHasNoUnbalancedVouchers()
     {
         var data = await fixture.Host.DispatchAsync("validate.run");
 
-        Assert.Equal(0, data.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
+        Assert.Equal(0, data.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
     }
 
     [Fact]
-    public async Task ValidateRun_UnbalancedWorkbook_DocBalanceCountsDocument()
+    public async Task ValidateRun_UnbalancedWorkbook_VoucherBalanceCountsDocument()
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder
@@ -122,16 +122,16 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
 
         var data = await host.DispatchAsync("validate.run");
 
-        Assert.Equal(1, data.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
+        Assert.Equal(1, data.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
     }
 
     /// <summary>
-    /// part(a) 控制總數核對：投影為無損（每列皆成功插入）時,落地的控制總數
+    /// 存入筆數與合計核對：投影為無損（每列皆成功插入）時,落地的控制總數
     /// （來源列數、母體借/貸總額）對上 target 現值,rowCountMatch / amountMatch 皆為 true。
     /// oracle：手算小母體——2 列皆成功投影,故來源列數 == 母體列數;金額亦逐筆落地。
     /// </summary>
     [Fact]
-    public async Task ValidateRun_PartA_MatchesWhenProjectionLossless()
+    public async Task ValidateRun_StoredTotals_MatchesWhenProjectionLossless()
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder
@@ -141,12 +141,12 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
 
         var data = await host.DispatchAsync("validate.run");
 
-        var partA = data.GetProperty("completenessTest").GetProperty("partA");
-        Assert.True(partA.GetProperty("rowCountMatch").GetBoolean());
-        Assert.True(partA.GetProperty("amountMatch").GetBoolean());
+        var storedTotals = data.GetProperty("completenessTest").GetProperty("storedTotals");
+        Assert.True(storedTotals.GetProperty("rowCountMatch").GetBoolean());
+        Assert.True(storedTotals.GetProperty("amountMatch").GetBoolean());
         // 兩列皆無損投影：來源列數 == 母體列數 == 2。
-        Assert.Equal(2, partA.GetProperty("eligibleSource").GetProperty("rowCount").GetInt64());
-        Assert.Equal(2, partA.GetProperty("effectiveTarget").GetProperty("rowCount").GetInt64());
+        Assert.Equal(2, storedTotals.GetProperty("eligibleSource").GetProperty("rowCount").GetInt64());
+        Assert.Equal(2, storedTotals.GetProperty("gl").GetProperty("rowCount").GetInt64());
     }
 
     /// <summary>
@@ -178,21 +178,21 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var diffs = data.GetProperty("completenessTest").GetProperty("diffAccounts");
 
         var notInTb = diffs.EnumerateArray()
-            .First(e => e.GetProperty("accountCode").GetString() == "9999");
+            .First(e => e.GetProperty("accountNumber").GetString() == "9999");
         Assert.True(notInTb.GetProperty("notInTb").GetBoolean());
 
         var amountDiff = diffs.EnumerateArray()
-            .First(e => e.GetProperty("accountCode").GetString() == "1101");
+            .First(e => e.GetProperty("accountNumber").GetString() == "1101");
         Assert.False(amountDiff.GetProperty("notInTb").GetBoolean());
     }
 
     /// <summary>
-    /// part(a) 在「已投影、TB 未配對」時仍出現且核對通過——part(a) 是 GL 控制總數對 GL 母體現值,
-    /// 與 TB 是否存在無關（completeness 整段雖 na,partA 子物件仍在 na 形狀內回報）。
+    /// 存入筆數與合計核對在「已投影、TB 未配對」時仍出現且核對通過——它比對 GL 控制總數和 GL 母體現值,
+    /// 與 TB 是否存在無關（completeness 整段雖 na,storedTotals 子物件仍在 na 形狀內回報）。
     /// oracle：demo 母體無損投影,故 rowCountMatch / amountMatch 皆 true。
     /// </summary>
     [Fact]
-    public async Task ValidateRun_PartA_PresentEvenWhenCompletenessNa()
+    public async Task ValidateRun_StoredTotals_PresentEvenWhenCompletenessNa()
     {
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, commitTb: false);
@@ -201,19 +201,19 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var completeness = data.GetProperty("completenessTest");
 
         Assert.Equal("na", completeness.GetProperty("status").GetString());
-        var partA = completeness.GetProperty("partA");
-        Assert.True(partA.GetProperty("rowCountMatch").GetBoolean());
-        Assert.True(partA.GetProperty("amountMatch").GetBoolean());
+        var storedTotals = completeness.GetProperty("storedTotals");
+        Assert.True(storedTotals.GetProperty("rowCountMatch").GetBoolean());
+        Assert.True(storedTotals.GetProperty("amountMatch").GetBoolean());
     }
 
     /// <summary>
-    /// 失效範圍收斂（2026-06-22 實務稽核）：gl_control_total（part(a) 控制總數）的上游只有 GL target，
-    /// 由 GL 投影（mapping.commit.gl）隨 target 一起 upsert，與 target_gl_entry 恆一致。與 GL 無關的
-    /// 資料變動（行事曆／授權清單／TB 投影／科目配對匯入）雖同交易走 RuleRunResultReset 清規則結果，
-    /// 但**不得**連帶清掉 gl_control_total——否則完整性 part(a) 會在常見的「先 commit GL、後做其他匯入」
+    /// 失效範圍收斂（2026-06-22 實務稽核）：gl_control_total（存入筆數與合計核對的控制總數）的上游只有 GL，
+    /// 由 GL 投影（mapping.commit.gl）隨 gl 一起 upsert，與 gl 恆一致。與 GL 無關的
+    /// 資料變動（行事曆／授權清單／TB 投影／科目配對匯入）雖同交易走 ResultReset 清規則結果，
+    /// 但**不得**連帶清掉 gl_control_total——否則存入筆數與合計核對會在常見的「先 commit GL、後做其他匯入」
     /// 順序下變全 null（控制總數核對形同沒跑），這是稽核發現的失效範圍過廣（已收斂）。
     /// 此處用 import.holiday（與 GL 無關）走清除路徑，驗證 gl_control_total 存活。
-    /// oracle：規格（gl_control_total 上游只有 GL target；收斂後 RuleRunResultReset 不再清它）。
+    /// oracle：規格（gl_control_total 上游只有 GL target；收斂後 ResultReset 不再清它）。
     /// </summary>
     [Fact]
     public async Task GlControlTotal_SurvivesGlUnrelatedDataChange()
@@ -237,7 +237,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             dates = new[] { "2025-03-10" }
         }));
 
-        // 收斂後不變量:gl_control_total 不受行事曆匯入影響,仍存活(part(a) 控制總數仍可核對)。
+        // 收斂後不變量:gl_control_total 不受行事曆匯入影響,仍存活(存入筆數與合計仍可核對)。
         var after = await DemoProjectPipeline.QueryScalarAsync(
             host, projectId, "SELECT COUNT(*) FROM gl_control_total;");
         Assert.Equal(1, after);
@@ -247,12 +247,12 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     public async Task ValidateRun_DemoFixture_InfSamplingPersistsFiftyNineSampleRows()
     {
         var data = await fixture.Host.DispatchAsync("validate.run");
-        var runId = data.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var resultId = data.GetProperty("resultRef").GetProperty("resultId").GetString()!;
 
         var persisted = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM result_inf_sampling_test_sample WHERE run_id = @runId;",
-            ("@runId", runId));
+            "SELECT COUNT(*) FROM inf_sample WHERE result_id = @resultId;",
+            ("@resultId", resultId));
 
         Assert.Equal(59, persisted);
     }
@@ -275,8 +275,8 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     /// <summary>
-    /// sampleSeed 欄位問世前建立的舊專案（project.json 缺該欄位）→ validate.run 明確拒絕，
-    /// 不再回退固定種子。fixture：建正常 inline 專案後移除 project.json 的 sampleSeed 欄位。
+    /// sampleSeed 欄位問世前建立的舊專案 → validate.run 明確拒絕，不再回退固定種子。
+    /// fixture：建正常 inline 專案後移除 project.json 的 sampleSeed 欄位，並把設定檔版本改回第 1 版。
     /// </summary>
     [Fact]
     public async Task ValidateRun_LegacyProjectWithoutSampleSeed_RejectsAsOldProject()
@@ -288,19 +288,23 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             .AddRow("JV-001", "2025-03-05", "4101", "銷貨收入", "貸方", "100.00", 0));
 
         // 模擬舊專案：把 project.json 的 sampleSeed 與版本欄位一併移除（欄位問世前的形狀）。
+        // 裁定 2026-10-30-23：舊版案件改由設定檔版本判斷，缺抽樣欄位但版本是現行的設定檔算損壞；
+        // 所以這裡另把設定檔版本改回舊版 JET 寫的第 1 版。第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c。
         var path = Path.Combine(host.ProjectsRoot, projectId, "project.json");
         var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         node.Remove("sampleSeed");
         node.Remove("sampleSeedVersion");
+        node["schemaVersion"] = 1;
         await File.WriteAllTextAsync(path, node.ToJsonString());
 
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫檔名與缺了哪個設定。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
+        // 裁定 2026-10-30-23 要求訊息寫明刪除後重建，句子跟著改（第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c）。
         Assert.Equal(
-            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
+            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
     }
 
@@ -327,7 +331,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -352,7 +356,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -372,61 +376,61 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var first = await fixture.Host.DispatchAsync("validate.run");
         var second = await fixture.Host.DispatchAsync("validate.run");
 
-        var firstRunId = first.GetProperty("resultRef").GetProperty("runId").GetString()!;
-        var secondRunId = second.GetProperty("resultRef").GetProperty("runId").GetString()!;
-        Assert.NotEqual(firstRunId, secondRunId);
+        var firstResultId = first.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var secondResultId = second.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        Assert.NotEqual(firstResultId, secondResultId);
 
-        // 兩次 run 的抽中 (document_number, line_item) 集合必須完全一致（可重現性）。
+        // 兩次 run 的抽中 (voucher_number, line_item) 集合必須完全一致（可重現性）。
         var differing = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             """
             SELECT COUNT(*) FROM (
-                SELECT document_number, line_item FROM result_inf_sampling_test_sample WHERE run_id = @first
+                SELECT voucher_number, line_item FROM inf_sample WHERE result_id = @first
                 EXCEPT
-                SELECT document_number, line_item FROM result_inf_sampling_test_sample WHERE run_id = @second
+                SELECT voucher_number, line_item FROM inf_sample WHERE result_id = @second
             );
             """,
-            ("@first", firstRunId), ("@second", secondRunId));
+            ("@first", firstResultId), ("@second", secondResultId));
 
         Assert.Equal(0, differing);
     }
 
     [Fact]
-    public async Task ValidateRun_DemoFixture_NullRecordsBlankDescriptionsAndOutOfPeriodApproval()
+    public async Task ValidateRun_DemoFixture_BlankRecordsBlankDescriptionsAndOutOfPeriodApproval()
     {
         // demo 母體刻意埋兩種「空值/期外」:(1)「摘要空白」種子(借方行空白)→ nullDescription 命中數
         // 恰等於該種子張數;(2)「期末後核准」種子(20 張、核准日 2026-01-15 在期末 2025-12-31 之後),
         // 每張 2 列 → 核准日離期 40 列。科目/傳票號皆完整 → 其餘兩類為 0。
-        // 「日期區間外」第四旗標以**核准日**判定(2026-06-23 決策,對齊舊 JET 工具)。
+        // 「核准日不在期間」以核准日判定，和舊版 JET 相同(裁定 2026-06-23-01)。
         var data = await fixture.Host.DispatchAsync("validate.run");
 
-        var nullRecords = data.GetProperty("nullRecordsTest");
-        Assert.Equal(DemoDataFactory.BlankDescriptionVouchers, nullRecords.GetProperty("nullDescriptionCount").GetInt64());
-        Assert.Equal(0, nullRecords.GetProperty("nullAccountCount").GetInt64()
-            + nullRecords.GetProperty("nullDocumentCount").GetInt64());
+        var blankRecords = data.GetProperty("blankRecordsTest");
+        Assert.Equal(DemoDataFactory.BlankDescriptionVouchers, blankRecords.GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("nullAccountCount").GetInt64()
+            + blankRecords.GetProperty("nullDocumentCount").GetInt64());
         // 核准日離期 = 期末後核准種子張數 × 每張 2 列。
         Assert.Equal(
-            2L * DemoDataFactory.PostPeriodApprovalVouchers,
-            nullRecords.GetProperty("outOfRangeDateCount").GetInt64());
+            2L * DemoDataFactory.PrepPeriodApprovalVouchers,
+            blankRecords.GetProperty("approvalDateNotInPeriodCount").GetInt64());
     }
 
     [Fact]
-    public async Task ValidateRun_PersistsLatestRunForResume()
+    public async Task ValidateRun_PersistsLatestResultForResume()
     {
         await fixture.Host.DispatchAsync("validate.run");
 
         var loaded = await fixture.Host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId = fixture.ProjectId }));
 
-        var resumed = loaded.GetProperty("latestRuns").GetProperty("validate");
-        var effectiveRowCount =
+        var resumed = loaded.GetProperty("validationResult");
+        var glRowCount =
             ((long)DemoDataFactory.GlVoucherCount - DemoDataFactory.OutOfPeriodVouchers)
             * DemoDataFactory.LinesPerVoucher;
-        Assert.Equal(effectiveRowCount, resumed.GetProperty("stats").GetProperty("glRowCount").GetInt64());
+        Assert.Equal(glRowCount, resumed.GetProperty("stats").GetProperty("glRowCount").GetInt64());
     }
 
     /// <summary>
-    /// 回應的 docBalanceTest.unbalancedDocuments 與 nullRecordsTest.nullRows 要出現在 wire JSON，
+    /// 回應的 voucherBalanceTest.unbalancedVouchers 與 blankRecordsTest.nullRows 要出現在 wire JSON，
     /// 且內容與母體一致；既有純量欄位（counts）數值不能改變。
     /// </summary>
     [Fact]
@@ -439,7 +443,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             // JV-001：借 300、貸 100 → 不平，差額 200（正值）
             .AddRow("JV-001", "2025-03-05", "1101", "現金",     "借方",   "300.00", 1)
             .AddRow("JV-001", "2025-03-05", "4101", "銷貨收入", "貸方",   "100.00", 0)
-            // JV-002：借 50、貸 50 → 平衡（不應出現在 unbalancedDocuments）
+            // JV-002：借 50、貸 50 → 平衡（不應出現在 unbalancedVouchers）
             .AddRow("JV-002", "2025-03-06", "1101", "現金",     "借方",   "50.00",  1)
             .AddRow("JV-002", "2025-03-06", "4101", "銷貨收入", "貸方",   "50.00",  0)
             // JV-003：空科目 → 應出現在 nullRows，NullAccount=true
@@ -448,34 +452,34 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
 
         var data = await host.DispatchAsync("validate.run");
 
-        // --- docBalanceTest ---
-        var docBalance = data.GetProperty("docBalanceTest");
+        // --- voucherBalanceTest ---
+        var voucherBalance = data.GetProperty("voucherBalanceTest");
         // 純量欄位不變
-        Assert.Equal(1, docBalance.GetProperty("unbalancedDocumentCount").GetInt64());
+        Assert.Equal(1, voucherBalance.GetProperty("unbalancedVoucherCount").GetInt64());
         // 新明細清單：JV-001 出現在第 0 筆
-        var unbalancedDocs = docBalance.GetProperty("unbalancedDocuments");
-        Assert.True(unbalancedDocs.GetArrayLength() >= 1, "unbalancedDocuments 應至少有 1 筆");
+        var unbalancedDocs = voucherBalance.GetProperty("unbalancedVouchers");
+        Assert.True(unbalancedDocs.GetArrayLength() >= 1, "unbalancedVouchers 應至少有 1 筆");
         var firstDoc = unbalancedDocs[0];
-        Assert.Equal("JV-001", firstDoc.GetProperty("documentNumber").GetString());
+        Assert.Equal("JV-001", firstDoc.GetProperty("voucherNumber").GetString());
         // debit=300.00, credit=100.00 → scaled: 3_000_000 / 100_000 (DefaultMoneyScale=10_000)
         // ToDisplay: 3_000_000/10_000=300.00, 1_000_000/10_000=100.00, diff=2_000_000/10_000=200.00
         Assert.Equal(300.00m, firstDoc.GetProperty("debit").GetDecimal());
         Assert.Equal(100.00m, firstDoc.GetProperty("credit").GetDecimal());
         Assert.Equal(200.00m, firstDoc.GetProperty("diff").GetDecimal());
 
-        // --- nullRecordsTest ---
-        var nullRecords = data.GetProperty("nullRecordsTest");
+        // --- blankRecordsTest ---
+        var blankRecords = data.GetProperty("blankRecordsTest");
         // 純量欄位：空科目 ≥ 1（JV-003 那列）
-        Assert.True(nullRecords.GetProperty("nullAccountCount").GetInt64() >= 1);
+        Assert.True(blankRecords.GetProperty("nullAccountCount").GetInt64() >= 1);
         // 新明細清單：至少 1 筆
-        var nullRows = nullRecords.GetProperty("nullRows");
+        var nullRows = blankRecords.GetProperty("nullRows");
         Assert.True(nullRows.GetArrayLength() >= 1, "nullRows 應至少有 1 筆");
         var firstRow = nullRows[0];
         // nullRows 依 source_row_number, entry_id 排序；seed 中 JV-003 的 null-account 列
         // 是工作簿第 5 列（header 後第 4 筆）,排在 JV-003 第 6 列之前,故第一筆為 JV-003。
-        Assert.Equal("JV-003", firstRow.GetProperty("documentNumber").GetString());
-        Assert.True(firstRow.TryGetProperty("accountCode", out _),    "應有 accountCode");
-        Assert.True(firstRow.TryGetProperty("postDate", out _),       "應有 postDate");
+        Assert.Equal("JV-003", firstRow.GetProperty("voucherNumber").GetString());
+        Assert.True(firstRow.TryGetProperty("accountNumber", out _),    "應有 accountNumber");
+        Assert.True(firstRow.TryGetProperty("glDate", out _),       "應有 glDate");
         Assert.True(firstRow.TryGetProperty("description", out _),    "應有 description");
         // issues 是陣列，且包含 "account"（因為科目是空的）
         var issues = firstRow.GetProperty("issues");

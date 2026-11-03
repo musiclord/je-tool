@@ -474,7 +474,7 @@ try {
             Add-ValidationError -Code 'loose_binary_or_symbols_forbidden' -Path $relative
         }
         $runtimeDirectory = $lowerRelative -match '(^|/)(projects|\.jet-locks?)(/|$)'
-        $runtimeName = @('project.json', 'report-artifacts.json') -ccontains $fileName
+        $runtimeName = @('project.json', 'reports.json') -ccontains $fileName
         $runtimeExtension = @('.db', '.sqlite', '.sqlite3', '.duckdb', '.wal', '.shm', '.journal', '.tmp') -ccontains $extension
         $runtimeSuffix = $lowerRelative -match '(-wal|-shm|-journal)$'
         $unexpectedWorkbook = $extension -ceq '.xlsx' -and -not $expected.ContainsKey($relative)

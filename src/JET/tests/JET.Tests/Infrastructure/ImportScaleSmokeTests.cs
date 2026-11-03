@@ -4,7 +4,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -80,9 +80,9 @@ public sealed class ImportScaleSmokeTests(ITestOutputHelper output)
             await using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                SELECT row_json FROM staging_gl_raw_row WHERE source_row_number = 2
+                SELECT row_json FROM pbc_gl WHERE source_row_number = 2
                 UNION ALL
-                SELECT row_json FROM staging_gl_raw_row WHERE source_row_number = @last;
+                SELECT row_json FROM pbc_gl WHERE source_row_number = @last;
                 """;
             command.AddWithValue("@last", RowCount + 1);
 

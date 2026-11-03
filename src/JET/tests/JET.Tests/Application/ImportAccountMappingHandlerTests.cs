@@ -16,12 +16,12 @@ public sealed class ImportAccountMappingHandlerTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task K7_ThirdRowHeaderWithAutoFilterAndHiddenRow_ImportsEveryAccount(string provider)
+    public async Task ThirdRowHeaderWithAutoFilterAndHiddenRow_ImportsEveryAccount(string provider)
     {
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "合成篩選工作簿", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "合成篩選工作簿", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
@@ -36,7 +36,7 @@ public sealed class ImportAccountMappingHandlerTests
         {
             var imported = await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
             Assert.Equal(2, imported.GetProperty("rowCount").GetInt32());
-            var preview = await host.DispatchAsync("query.dataPreview", """{"dataset":"accountMappings"}""");
+            var preview = await host.DispatchAsync("query.dataPreview", """{"dataset":"accountMapping"}""");
             Assert.Equal(new[] { "A|Visible|Cash", "B|Hidden|Revenue" },
                 preview.GetProperty("rows").EnumerateArray().Select(r => string.Join("|", r.EnumerateArray().Select(c => c.GetString()))));
         }
@@ -44,13 +44,13 @@ public sealed class ImportAccountMappingHandlerTests
     }
 
     [Fact]
-    public async Task K6_DifferenceQuery_RequiresProjectAndRejectsWrongListOrCursor()
+    public async Task DifferenceQuery_RequiresProjectAndRejectsWrongListOrCursor()
     {
         using var host = new HandlerTestHost();
         var noProject = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "query.accountMappingDifferencePage", """{"kind":"mappingOnly"}"""));
         Assert.Equal(JetErrorCodes.NoActiveProject, noProject.Code);
-        await host.DispatchAsync("project.create", """{"caseName":"合成差異查詢","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        await host.DispatchAsync("project.create", """{"projectName":"合成差異查詢","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
         foreach (var payload in new[]
         {
             """{"kind":"not-a-list"}""",
@@ -66,7 +66,7 @@ public sealed class ImportAccountMappingHandlerTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task K6_ImportCountsAndPages_UseEffectiveGlUnionTb_NotTheMappingEditorUnion(string provider)
+    public async Task ImportCountsAndPages_UseGlUnionTb_NotTheMappingEditorUnion(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, b => b
@@ -101,7 +101,7 @@ public sealed class ImportAccountMappingHandlerTests
                     if (cursor is null) Assert.Equal(expected.Length, page.GetProperty("totalCount").GetInt64());
                     else Assert.Equal(JsonValueKind.Null, page.GetProperty("totalCount").ValueKind);
                     var row = Assert.Single(page.GetProperty("rows").EnumerateArray());
-                    rows.Add(row.GetProperty("accountCode").GetString() + "|" + row.GetProperty("accountName").GetString());
+                    rows.Add(row.GetProperty("accountNumber").GetString() + "|" + row.GetProperty("accountName").GetString());
                     cursor = page.GetProperty("nextCursor").GetString();
                     Assert.True(rows.Count <= expected.Length);
                 } while (cursor is not null);
@@ -153,12 +153,12 @@ public sealed class ImportAccountMappingHandlerTests
         Assert.True(data.GetProperty("hasCounterpart").GetBoolean());
 
         var targetCount = await DemoProjectPipeline.QueryScalarAsync(
-            host, context.ProjectId, "SELECT COUNT(*) FROM target_account_mapping;");
+            host, context.ProjectId, "SELECT COUNT(*) FROM account_mapping;");
         Assert.Equal(DemoDataFactory.TbAccountCount, targetCount);
 
         var cashCount = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
-            "SELECT COUNT(*) FROM target_account_mapping WHERE standardized_category = 'Cash';");
+            "SELECT COUNT(*) FROM account_mapping WHERE standardized_category = 'Cash';");
         Assert.Equal(2, cashCount);
     }
 
@@ -185,7 +185,7 @@ public sealed class ImportAccountMappingHandlerTests
             Assert.Equal(2, await DemoProjectPipeline.QueryScalarAsync(
                 host,
                 context.ProjectId,
-                "SELECT COUNT(*) FROM target_account_mapping WHERE category_id = 'builtin.others';"));
+                "SELECT COUNT(*) FROM account_mapping WHERE category_id = 'builtin.others';"));
         }
         finally
         {
@@ -220,10 +220,10 @@ public sealed class ImportAccountMappingHandlerTests
             Assert.Equal(3, data.GetProperty("rowCount").GetInt32());
             Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
                 host, context.ProjectId,
-                "SELECT COUNT(*) FROM target_account_mapping WHERE account_code='4001' AND standardized_category='Revenue';"));
+                "SELECT COUNT(*) FROM account_mapping WHERE account_number='4001' AND standardized_category='Revenue';"));
             Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
                 host, context.ProjectId,
-                "SELECT COUNT(*) FROM target_account_mapping WHERE account_code='1201' AND standardized_category='Receivables';"));
+                "SELECT COUNT(*) FROM account_mapping WHERE account_number='1201' AND standardized_category='Receivables';"));
         }
         finally
         {
@@ -263,16 +263,16 @@ public sealed class ImportAccountMappingHandlerTests
 
         Assert.Equal("projection_failed", ex.Code);
         Assert.Equal(
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                         "科目配對檔有 1 列無法讀取，本次匯入未儲存："
-            // 使用者 2026-10-14 第三輪勾選頁確認 R3-60（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+            // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
             + "第 3 列：分類「NotACategory」不在本案件的科目分類中"
             + "（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。",
             ex.Message);
 
         // 整批 rollback：target 與批次皆不留殘骸。
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
-            host, context.ProjectId, "SELECT COUNT(*) FROM target_account_mapping;"));
+            host, context.ProjectId, "SELECT COUNT(*) FROM account_mapping;"));
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             "SELECT COUNT(*) FROM import_batch WHERE dataset_kind = 'account_mapping';"));
@@ -294,7 +294,7 @@ public sealed class ImportAccountMappingHandlerTests
     }
 
     [Fact]
-    public async Task ImportAccountMapping_DuplicateAccountCode_LastRowWins()
+    public async Task ImportAccountMapping_DuplicateAccountNumber_LastRowWins()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -304,10 +304,10 @@ public sealed class ImportAccountMappingHandlerTests
         await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
 
         Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
-            host, context.ProjectId, "SELECT COUNT(*) FROM target_account_mapping;"));
+            host, context.ProjectId, "SELECT COUNT(*) FROM account_mapping;"));
         Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
-            "SELECT COUNT(*) FROM target_account_mapping WHERE account_code = '1101' AND standardized_category = 'Revenue';"));
+            "SELECT COUNT(*) FROM account_mapping WHERE account_number = '1101' AND standardized_category = 'Revenue';"));
     }
 
     [Fact]
@@ -319,19 +319,24 @@ public sealed class ImportAccountMappingHandlerTests
         var data = await host.DispatchAsync("prescreen.run");
 
         // 獨立 recount（guide §5 否定面；寫法獨立於述詞：貸方 Revenue 列 JOIN 取得，
-        // 「同傳票有正常對方借方」以 document_number NOT IN 反查表達，等價於述詞的 NOT EXISTS）。
+        // 「同傳票有正常對方借方」以 voucher_number NOT IN 反查表達，等價於述詞的 NOT EXISTS）。
+        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29），並要求傳票裡有金額大於 0 的分錄（舊版 idea-tool.bas 第 8370、8385 行），
+        // recount 改數命中傳票的全部分錄；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry g
-            JOIN target_account_mapping m
-              ON m.account_code = g.account_code AND m.standardized_category = 'Revenue'
-            WHERE g.amount_scaled < 0
-              AND g.document_number NOT IN (
-                  SELECT d.document_number FROM target_gl_entry d
-                  JOIN target_account_mapping md ON md.account_code = d.account_code
-                  WHERE d.amount_scaled >= 0
-                    AND md.standardized_category IN ('Receivables','Cash','Receipt in advance'));
+            SELECT COUNT(*) FROM gl w
+            WHERE w.voucher_number IN (
+                SELECT g.voucher_number FROM gl g
+                JOIN account_mapping m
+                  ON m.account_number = g.account_number AND m.standardized_category = 'Revenue'
+                WHERE g.amount_scaled < 0
+                  AND g.voucher_number IN (SELECT p.voucher_number FROM gl p WHERE p.amount_scaled > 0)
+                  AND g.voucher_number NOT IN (
+                      SELECT d.voucher_number FROM gl d
+                      JOIN account_mapping md ON md.account_number = d.account_number
+                      WHERE d.amount_scaled > 0
+                        AND md.standardized_category IN ('Receivables','Cash','Receipt in advance')));
             """);
 
         var rule = data.GetProperty("unexpectedAccountPair");
@@ -375,7 +380,7 @@ public sealed class ImportAccountMappingHandlerTests
                     new
                     {
                         join = "AND",
-                        rules = new object[]
+                        conditions = new object[]
                         {
                             new { join = "AND", type = "prescreen", prescreenKey = "unexpectedAccountPair" }
                         }
@@ -384,9 +389,10 @@ public sealed class ImportAccountMappingHandlerTests
             }
         }));
 
+        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29），第四步的筆數改和第五步畫面的分錄筆數（summaryRowCount）比；原本和直接命中的 count 比。第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
         Assert.Equal(
             prescreen.GetProperty("unexpectedAccountPair").GetProperty("count").GetInt64(),
-            preview.GetProperty("scenario").GetProperty("count").GetInt64());
+            preview.GetProperty("scenario").GetProperty("summaryRowCount").GetInt64());
     }
 
     [Fact]
@@ -407,7 +413,7 @@ public sealed class ImportAccountMappingHandlerTests
                         new
                         {
                             join = "AND",
-                            rules = new object[]
+                            conditions = new object[]
                             {
                                 new { join = "AND", type = "prescreen", prescreenKey = "unexpectedAccountPair" }
                             }
@@ -426,11 +432,11 @@ public sealed class ImportAccountMappingHandlerTests
         await DemoProjectPipeline.SetupAsync(host);
 
         var data = await host.DispatchAsync(
-            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "accountMappings" }));
+            "query.dataPreview", JsonSerializer.Serialize(new { dataset = "accountMapping" }));
 
         Assert.Equal(DemoDataFactory.TbAccountCount, data.GetProperty("totalCount").GetInt64());
         Assert.Equal(
-            new[] { "accountCode", "accountName", "standardizedCategory" },
+            new[] { "accountNumber", "accountName", "standardizedCategory" },
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
         // 2026-10-16 明細改為每頁最多 200 筆，這份固定合成母體的 150 筆應在同一頁。
         // 首次失敗：20261016-095520371-60c9a9002376403f857a74b0ae85b6b8。

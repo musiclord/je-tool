@@ -5,8 +5,8 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 預篩選收斂計畫階段九：預篩選收尾丟棄不適用規則的計數時，改讀規則需求表的判定，不再只依手列的清單。
-/// 階段四查到只需要必填欄的六條規則即使判定不適用，計數也照傳；這裡讓每一條規則都照同一個判定。
+/// 預篩選收尾丟棄不適用規則的計數時，改讀規則需求表的判定，不再只依手列的清單。
+/// 先前查到只需要必填欄的六條規則即使判定不適用，計數也照傳；這裡讓每一條規則都照同一個判定。
 /// 第一次失敗：收據 20261024-190913880-a45e823f31e745139f977c5c3481bdb3。
 /// </summary>
 public sealed class PrescreenFinalizeApplicabilityTests
@@ -22,10 +22,10 @@ public sealed class PrescreenFinalizeApplicabilityTests
             PeriodEnd: "2025-12-31",
             MoneyScale: 2,
             SampleSeed: 1,
-            RunId: "run",
+            ResultId: "run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
-            LastPeriodStart: "2025-12-01",
-            AvailableGlFields: ["docNum", "docDate", "amount"],
+            PrepStartDate: "2025-12-01",
+            AvailableGlFields: ["voucherNumber", "approvalDate", "amount"],
             HasHolidays: true,
             HasAccountMapping: false,
             HasRevenue: false,
@@ -35,11 +35,11 @@ public sealed class PrescreenFinalizeApplicabilityTests
         var plan = JetAuditProgram.Plan(request);
         var voucherCounts = PrescreenRuleKeys.FilterableKeys.ToDictionary(key => key, _ => 5L, StringComparer.Ordinal);
         var facts = new PrescreenFacts(
-            PostPeriodApprovalCount: 5,
+            PrepPeriodApprovalCount: 5,
             SuspiciousKeywordsCount: 5,
             UnexpectedAccountPairCount: 5,
             TrailingZerosCount: 5,
-            Creators: [new CreatorSummaryRow("u", 5, 500, 0, 0)],
+            Preparers: [new PreparerSummaryRow("u", 5, 500, 0, 0)],
             DistinctAccountCount: 5,
             Accounts: [new AccountUsageRow("A", "Synthetic", 5, 500, 0)],
             WeekendPostingCount: 5,
@@ -48,17 +48,14 @@ public sealed class PrescreenFinalizeApplicabilityTests
             HolidayApprovalCount: 5,
             BlankDescriptionCount: 5,
             NonAuthorizedPreparerCount: 5,
-            LowFrequencyPreparerCount: 5,
-            LowFrequencyAccountCount: 5,
             RuleVoucherCounts: voucherCounts,
             TotalPreparerCount: 5,
-            TotalEntryCount: 50)
-        { LowFrequencyDistinctAccountCount = 5 };
+            TotalEntryCount: 50);
 
         var data = JetAuditProgram.Finalize(plan, facts).Data;
 
         // 可以執行的三條照傳。
-        Assert.Equal(5, data.PostPeriodApprovalCount);
+        Assert.Equal(5, data.PrepPeriodApprovalCount);
         Assert.Equal(5, data.TrailingZerosCount);
         Assert.Equal(5, data.WeekendApprovalCount);
         Assert.Equal(5, data.HolidayApprovalCount);
@@ -67,12 +64,10 @@ public sealed class PrescreenFinalizeApplicabilityTests
         Assert.Equal(0, data.BlankDescriptionCount);
         Assert.Equal(0, data.WeekendPostingCount);
         Assert.Equal(0, data.HolidayPostingCount);
-        Assert.Equal(0, data.LowFrequencyPreparerCount);
-        Assert.Equal(0, data.LowFrequencyAccountCount);
-        Assert.Null(data.LowFrequencyDistinctAccountCount);
+        // 編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），三個計數跟著不在結果裡；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
         Assert.Equal(0, data.DistinctAccountCount);
         Assert.Empty(data.Accounts);
-        Assert.Empty(data.Creators);
+        Assert.Empty(data.Preparers);
         Assert.Equal(0, data.UnexpectedAccountPairCount);
         Assert.Equal(0, data.NonAuthorizedPreparerCount);
     }

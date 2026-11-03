@@ -4,13 +4,13 @@ namespace JET.Domain;
 
 public sealed record GlProjectedRow(
     int SourceRowNumber,
-    string? DocumentNumber,
+    string? VoucherNumber,
     string? LineItem,
-    string? PostDate,
+    string? GlDate,
     string? ApprovalDate,
-    string? AccountCode,
+    string? AccountNumber,
     string? AccountName,
-    string? DocumentDescription,
+    string? Description,
     string? SourceModule,
     string? CreatedBy,
     string? ApprovedBy,
@@ -109,8 +109,8 @@ public static class GlRowProjector
             return false;
         }
 
-        if (!TryProjectDate(row, spec, GlMappingKeys.PostDate, dateOptions, out var postDate, out error)
-            || !TryProjectApprovalDate(row, spec, postDate, dateOptions, out var approvalDate, out error)
+        if (!TryProjectDate(row, spec, GlMappingKeys.GlDate, dateOptions, out var glDate, out error)
+            || !TryProjectApprovalDate(row, spec, glDate, dateOptions, out var approvalDate, out error)
             || !TryProjectManual(row, spec, out var isManual, out error)
             || !TryProjectRdeValues(
                 row,
@@ -138,16 +138,16 @@ public static class GlRowProjector
 
         projected = new GlProjectedRow(
             row.SourceRowNumber,
-            GetMappedValue(row, spec, GlMappingKeys.DocNum),
-            GetMappedValue(row, spec, GlMappingKeys.LineId),
-            postDate,
+            GetMappedValue(row, spec, GlMappingKeys.VoucherNumber),
+            GetMappedValue(row, spec, GlMappingKeys.LineItem),
+            glDate,
             approvalDate,
-            GetMappedValue(row, spec, GlMappingKeys.AccNum),
-            GetMappedValue(row, spec, GlMappingKeys.AccName),
+            GetMappedValue(row, spec, GlMappingKeys.AccountNumber),
+            GetMappedValue(row, spec, GlMappingKeys.AccountName),
             GetMappedValue(row, spec, GlMappingKeys.Description),
-            GetMappedValue(row, spec, GlMappingKeys.JeSource),
-            GetMappedValue(row, spec, GlMappingKeys.CreateBy),
-            GetMappedValue(row, spec, GlMappingKeys.ApproveBy),
+            GetMappedValue(row, spec, GlMappingKeys.SourceModule),
+            GetMappedValue(row, spec, GlMappingKeys.CreatedBy),
+            GetMappedValue(row, spec, GlMappingKeys.ApprovedBy),
             isManual,
             GetMappedValue(row, spec, GlMappingKeys.PostingStatus),
             amountScaled,
@@ -185,16 +185,16 @@ public static class GlRowProjector
 
                 // 借方與貸方代碼都是字面值；side / flag 兩模式共用
                 // trim + 不分大小寫的文字相等比對（涵蓋 "D"/"d" 與 "1"/"0"）。
-                var dcValue = GetMappedValue(row, spec, GlMappingKeys.DcField);
-                spec.Mapping.TryGetValue(GlMappingKeys.DcDebitCode, out var debitCode);
-                spec.Mapping.TryGetValue(GlMappingKeys.DcCreditCode, out var creditCode);
+                var dcValue = GetMappedValue(row, spec, GlMappingKeys.DrCr);
+                spec.Mapping.TryGetValue(GlMappingKeys.DrCrDebitCode, out var debitCode);
+                spec.Mapping.TryGetValue(GlMappingKeys.DrCrCreditCode, out var creditCode);
                 var hasDebitCode = !string.IsNullOrWhiteSpace(debitCode);
                 var hasCreditCode = !string.IsNullOrWhiteSpace(creditCode);
 
                 if (string.IsNullOrWhiteSpace(dcValue) && hasDebitCode == hasCreditCode)
                 {
                     error = new RowProjectionError(row.SourceRowNumber,
-                        MappedColumnOrKey(spec, GlMappingKeys.DcField), dcValue ?? string.Empty,
+                        MappedColumnOrKey(spec, GlMappingKeys.DrCr), dcValue ?? string.Empty,
                         ProjectionErrorReasons.DebitCreditBlank) { ReasonCode = ProjectionErrorCodes.DebitCreditBlank };
                     return false;
                 }
@@ -204,13 +204,13 @@ public static class GlRowProjector
                     debitCode?.Trim(),
                     StringComparison.OrdinalIgnoreCase);
                 var isCredit = hasCreditCode && string.Equals(dcValue?.Trim(), creditCode?.Trim(), StringComparison.OrdinalIgnoreCase);
-                // 單邊代碼依使用者裁定取補集，包含空白；雙邊代碼仍拒絕未定義值。
+                // 只設單邊代碼時，其餘的值都歸另一側，空白也算（裁定 2026-10-08-11）；兩邊都設時仍拒絕未定義的值。
                 if (hasDebitCode && !hasCreditCode) { isCredit = !isDebit; }
                 if (hasCreditCode && !hasDebitCode) { isDebit = !isCredit; }
                 if (!isDebit && !isCredit)
                 {
                     error = new RowProjectionError(row.SourceRowNumber,
-                        MappedColumnOrKey(spec, GlMappingKeys.DcField), dcValue,
+                        MappedColumnOrKey(spec, GlMappingKeys.DrCr), dcValue,
                         ProjectionErrorReasons.DebitCreditUnlisted) { ReasonCode = ProjectionErrorCodes.DebitCreditUnlisted };
                     return false;
                 }
@@ -293,7 +293,7 @@ public static class GlRowProjector
     private static bool TryProjectApprovalDate(
         StagingRow row,
         GlMappingSpec spec,
-        string? postDate,
+        string? glDate,
         DateParseOptions dateOptions,
         out string? approvalDate,
         out RowProjectionError? error)
@@ -308,12 +308,12 @@ public static class GlRowProjector
                 return TryProjectDate(
                     row,
                     spec,
-                    GlMappingKeys.DocDate,
+                    GlMappingKeys.ApprovalDate,
                     dateOptions,
                     out approvalDate,
                     out error);
-            case ApprovalDateModeNames.SameAsPostDate:
-                approvalDate = postDate;
+            case ApprovalDateModeNames.SameAsGlDate:
+                approvalDate = glDate;
                 error = null;
                 return true;
             default:
@@ -337,7 +337,7 @@ public static class GlRowProjector
     {
         isManual = null;
         error = null;
-        if (!spec.Mapping.TryGetValue(GlMappingKeys.Manual, out var sourceColumn)
+        if (!spec.Mapping.TryGetValue(GlMappingKeys.IsManual, out var sourceColumn)
             || string.IsNullOrWhiteSpace(sourceColumn))
         {
             return true;
@@ -451,7 +451,7 @@ public static class GlRowProjector
                         dateValue,
                         null));
                     break;
-                case RdeFieldValueTypeNames.Money:
+                case RdeFieldValueTypeNames.Amount:
                     if (!MoneyScaling.TryParseAmount(raw, out var amount)
                         || !MoneyScaling.TryToScaled(amount, moneyScale, out var scaled))
                     {
@@ -484,13 +484,13 @@ public static class GlRowProjector
     /// <summary>標準文字欄的共用上限（<see cref="TextStorageLimits"/>）；摘要沒有上限，不列入。</summary>
     private static readonly (string Key, int Limit)[] TextLengthLimits =
     [
-        (GlMappingKeys.DocNum, TextStorageLimits.KeyUtf16CodeUnits),
-        (GlMappingKeys.LineId, TextStorageLimits.TextUtf16CodeUnits),
-        (GlMappingKeys.AccNum, TextStorageLimits.KeyUtf16CodeUnits),
-        (GlMappingKeys.AccName, TextStorageLimits.TextUtf16CodeUnits),
-        (GlMappingKeys.JeSource, TextStorageLimits.TextUtf16CodeUnits),
-        (GlMappingKeys.CreateBy, TextStorageLimits.TextUtf16CodeUnits),
-        (GlMappingKeys.ApproveBy, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.VoucherNumber, TextStorageLimits.KeyUtf16CodeUnits),
+        (GlMappingKeys.LineItem, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.AccountNumber, TextStorageLimits.KeyUtf16CodeUnits),
+        (GlMappingKeys.AccountName, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.SourceModule, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.CreatedBy, TextStorageLimits.TextUtf16CodeUnits),
+        (GlMappingKeys.ApprovedBy, TextStorageLimits.TextUtf16CodeUnits),
         (GlMappingKeys.PostingStatus, TextStorageLimits.TextUtf16CodeUnits)
     ];
 

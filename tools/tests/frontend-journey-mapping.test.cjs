@@ -1,11 +1,11 @@
 'use strict';
 require('./support/resource-guard.cjs');
-// 第三步欄位配對的情境測試（收尾四項第一項第 7 批，2026-10-13）。
+// 第三步欄位配對的情境測試（2026-10-13）。
 //
 // 情境 5「第三步配對內容與確認」：審計員在簡易清單指派過帳狀態欄、讀來源值、沒選值時想確認、選值後確認；
 // 設定人工與自動代碼（只列一側、兩側都列）；勾新的攸關資料元素欄、確認、拿到後端發的識別碼、改名再確認；
 // 取消指派過帳狀態欄後再確認；在簡易清單與對照表格比較能不能確認；切換金額格式。
-// 另外補第 0 批留下的兩段：傳票核准日只有一個來源選擇（清掉來源欄、舊草稿互相矛盾、取消變更），
+// 另外補先前核對時留下的兩段：傳票核准日只有一個來源選擇（清掉來源欄、舊草稿互相矛盾、取消變更），
 // 以及確認失敗後在文字框打字要標成「設定已修改」。
 // 情境 6「第三步重繪、焦點、捲動與連續輸入」：全新草稿用下拉選欄；表格捲到一半後選欄；改借方代碼與攸關資料元素名稱，
 // 不離開輸入框直接按確認；確認後按重新配對再改一次；欄名含引號時選欄；重新匯入時舊的表格預覽晚到。
@@ -16,7 +16,7 @@ require('./support/resource-guard.cjs');
 //
 // 斷言規則照 artifacts/review/closing-four-items-20261013/plan-item1-tests.md 第 1 節：
 // 只有使用者裁定過的文字逐字比對，出處寫在該斷言旁；其他文字只比對意思；預期值寫死，不由被測程式算出；
-// 送出的 payload 精確比對，而且不得帶 `__` 開頭的鍵。訊息面板的句子留給第 10 批，這個檔不寫。
+// 送出的 payload 精確比對，而且不得帶 `__` 開頭的鍵。訊息面板的句子在本檔最後另外核對。
 //
 // 取代的 C# 方法（src/JET/tests/JET.Tests/Architecture/，2026-10-14 第二、三波整併已刪除，紀錄見 impl-item1-wave23-consolidation.md）：
 //   情境 5：FrontendHardeningContractTests.MappingEditors_ShareCommitEligibility_AndClassicShowsMissingRail、
@@ -26,9 +26,9 @@ require('./support/resource-guard.cjs');
 //     StoreNotificationConventionFrontendTests.MappingModeSwitch_…、UserFeedbackStepsOneToFourFrontendTests.MappingUi_ShowsCommitFailure…。
 //   情境 6：FrontendEscapingTests.MappingColumnAttributes_…、StoreNotificationConventionFrontendTests 其餘六個方法。
 //   另補 FrontendHardeningContractTests.LatestResponseGuard_… 與 WorkflowControlsAccessibilityFrontendTests.DisabledControlsExplainWhy…
-//   的第三步部分；這兩個方法的其他步驟由別批補齊後，也已在 2026-10-14 第二、三波整併刪除。
+//   的第三步部分；這兩個方法的其他步驟由其他情境測試補齊後，也已在 2026-10-14 整併刪除。
 // 第三步的重繪慣例（原本寫在已刪除的 StoreNotificationConventionFrontendTests 說明裡）：會改變衍生畫面的寫入一律重繪；借方代碼與攸關資料元素名稱
-// 是例外，輸入時就地更新衍生畫面、失焦不重建，避免確認鈕在滑鼠按下與放開之間被換掉（2026-10-02 W3）。重建後的焦點與捲動
+// 是例外，輸入時就地更新衍生畫面、失焦不重建，避免確認鈕在滑鼠按下與放開之間被換掉（裁定 2026-10-02-01）。重建後的焦點與捲動
 // 由 app.js 的 renderContent 統一還原。歷史根因與收斂裁定見 docs/history/specs/2026-09-01-frontend-sync-devlog-mutation-plan.md。
 // 對照表與改壞檢查紀錄見 artifacts/review/closing-four-items-20261013/impl-item1-batch7.md。
 const test = require('node:test');
@@ -38,16 +38,16 @@ const { mappingRenderFixture, plain, settle, readWwwroot } = require('./support/
 const GL_COLUMNS = ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Debit', 'Credit', 'Amount', 'Side', 'Manual', 'Posting', 'Approve', 'Dept', 'Region'];
 const TB_COLUMNS = ['TbAccount', 'TbName', 'TbDebit', 'TbCredit'];
 // 分別設定借貸金額格式的全部必填欄位。
-const DUAL = { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', debitAmount: 'Debit', creditAmount: 'Credit' };
+const DUAL = { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', debitAmount: 'Debit', creditAmount: 'Credit' };
 const DEFAULT_MANUAL = { manualValues: ['1'], automaticValues: ['0'] };
 // 單欄金額加借貸別格式、而且借方代碼已填的完整草稿。
-const SIDE_DONE = { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side', dcDebitCode: 'D' };
+const SIDE_DONE = { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' };
 
 const settleAll = async (times = 4) => { for (let i = 0; i < times; i++) await settle(); };
 
-// 2026-10-16：使用者要求來源資料每頁 200 筆，取消對照表只列十筆的限制；既有失效及焦點檢查保留。
+// 裁定 2026-10-16-03：來源資料每頁 200 筆，取消對照表只列十筆的限制；既有失效及焦點檢查保留。
 test('mapping grid pages 201 source rows as 200 and one while preserving every mapping choice', async () => {
-  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { voucherNumber: 'Doc' } });
   const first = f.last('queryDataPreview');
   assert.deepEqual(plain(first.payload), { dataset: 'pbcGl', limit: 200, offset: 0 });
   const firstRows = Array.from({ length: 200 }, (_, i) => ['MAPPING-' + (i + 1)]);
@@ -73,7 +73,7 @@ test('mapping grid pages 201 source rows as 200 and one while preserving every m
 });
 
 test('mapping next-page failure preserves the successful page and retries the failed offset', async () => {
-  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { voucherNumber: 'Doc' } });
   f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: [['KEPT-MAPPING']], totalCount: 201 }); await settleAll();
   f.press('[data-source-next]');
   assert.equal(f.need('.map-grid tbody').textContent, 'KEPT-MAPPING');
@@ -88,7 +88,7 @@ test('mapping next-page failure preserves the successful page and retries the fa
   assert.equal(f.need('.map-grid tbody').textContent, 'RETRIED-MAPPING');
   assert.equal(f.need('[data-page-position]').textContent, '2/2');
   assert.equal(f.$('[data-source-retry]'), null);
-  assert.deepEqual(f.draftNow(), { docNum: 'Doc' });
+  assert.deepEqual(f.draftNow(), { voucherNumber: 'Doc' });
 });
 
 // 本檔的夾具：建立在共用的 mappingRenderFixture 上，先匯入合成的 GL（需要時加 TB），再依參數放好草稿。
@@ -137,15 +137,15 @@ function commitReply(options = {}) {
     manualAutoPolicy: plain(DEFAULT_MANUAL), rdeFields: [], ...options };
 }
 
-// 送出的 payload 不得帶 __ 開頭的鍵（計畫第 1 節第 3 點）。
+// 送出的 payload 不得帶 __ 開頭的鍵。
 function assertNoInternalKeys(payload) {
   assert.ok(!JSON.stringify(payload).includes('"__'), 'payload has no __ keys: ' + JSON.stringify(payload));
 }
 
 /* ---- 情境 5：第三步配對內容與確認 ------------------------------------------------ */
 
-for (const kind of ['posting', 'manual']) test('section 9 F: ' + kind + ' source read failures use the shared notice and retry wording', async () => {
-  const f = journey({ draft: { ...DUAL, postingStatus: 'Posting', manual: 'Manual' } });
+for (const kind of ['posting', 'manual']) test('' + kind + ' source read failures use the shared notice and retry wording', async () => {
+  const f = journey({ draft: { ...DUAL, postingStatus: 'Posting', isManual: 'Manual' } });
   f.press('[data-action="load-' + kind + '-profile"]');
   f.last('mappingValueProfile').reject(new Error('synthetic read failure'));
   await settleAll();
@@ -157,11 +157,11 @@ for (const kind of ['posting', 'manual']) test('section 9 F: ' + kind + ' source
   assert.equal(f.sent('mappingValueProfile').length, before + 1);
 });
 
-// 預篩選收斂計畫階段八（使用者 2026-10-22 裁定）：按「讀取來源值」後按鈕換成讀取中的提示，焦點原本掉到頁面本身，外層有時把讀出的清單捲出畫面
+// 按「讀取來源值」後按鈕換成讀取中的提示，焦點原本掉到頁面本身，外層有時把讀出的清單捲出畫面
 //（2026-10-14 正式整合時在 Gui 查到）。現在按鈕用 data-focus-successor 宣告接替者：焦點先交給能拿焦點的讀取中提示，讀完交給值清單的第一個控制項，
 // 接替的控制項在內容捲軸還原之後再捲進畫面。第一次失敗：FrontendMapping 收據 20261024-144702429-ebf33c64aa474c5bb12ca3afb1c2df7f。
 for (const kind of ['manual', 'posting']) test('mapping: reading ' + kind + ' source values hands focus to the loading hint, then to the first value control, and keeps the list in view', async () => {
-  const f = journey({ draft: { ...DUAL, postingStatus: 'Posting', manual: 'Manual' } });
+  const f = journey({ draft: { ...DUAL, postingStatus: 'Posting', isManual: 'Manual' } });
   const button = f.need('[data-action="load-' + kind + '-profile"]');
   button.focus();
   f.press('[data-action="load-' + kind + '-profile"]');
@@ -181,9 +181,9 @@ for (const kind of ['manual', 'posting']) test('mapping: reading ' + kind + ' so
 });
 
 // 2026-10-28 複審補的兩條接替路線：讀取失敗時焦點交給「重新載入」，讀出空清單時交給清單本身，兩者都捲進畫面。
-// 實作在階段八已經寫好，這兩則是事後補的，第一次就通過，沒有第一次失敗的收據。
+// 實作在修正讀取來源值後的焦點時已經寫好，這兩則是事後補的，第一次就通過，沒有第一次失敗的收據。
 for (const kind of ['manual', 'posting']) test('mapping: when reading ' + kind + ' source values fails or finds none, focus goes to the reload button or the empty list and stays in view', async () => {
-  const failed = journey({ draft: { ...DUAL, postingStatus: 'Posting', manual: 'Manual' } });
+  const failed = journey({ draft: { ...DUAL, postingStatus: 'Posting', isManual: 'Manual' } });
   failed.need('[data-action="load-' + kind + '-profile"]').focus();
   failed.press('[data-action="load-' + kind + '-profile"]');
   assert.ok(failed.dom.document.activeElement === failed.need('[data-values-loading="' + kind + '"]'), 'focus waits on the loading hint');
@@ -193,7 +193,7 @@ for (const kind of ['manual', 'posting']) test('mapping: when reading ' + kind +
   assert.ok(failed.dom.document.activeElement === reload, 'focus moves to the reload button');
   assert.deepEqual(plain(reload.scrolledIntoView), [{ block: 'nearest' }]);
 
-  const empty = journey({ draft: { ...DUAL, postingStatus: 'Posting', manual: 'Manual' } });
+  const empty = journey({ draft: { ...DUAL, postingStatus: 'Posting', isManual: 'Manual' } });
   empty.need('[data-action="load-' + kind + '-profile"]').focus();
   empty.press('[data-action="load-' + kind + '-profile"]');
   empty.last('mappingValueProfile').resolve({ blankCount: 0, distinctCount: 0, truncated: false, values: [], comparisonGroups: [], missingComparisonValues: [] });
@@ -204,10 +204,10 @@ for (const kind of ['manual', 'posting']) test('mapping: when reading ' + kind +
 });
 
 test('mapping: every control has a distinguishable name, the preview button reads 預覽 and the list uses the ruled field names', async () => {
-  const f = journey({ tb: TB_COLUMNS, mode: 'side', draft: { manual: 'Manual', postingStatus: 'Posting' } });
+  const f = journey({ tb: TB_COLUMNS, mode: 'side', draft: { isManual: 'Manual', postingStatus: 'Posting' } });
 
-  // 2026-10-02 主線實測 W6：下拉、借方代碼、逐值選項與三個「加入」按鈕都要有可分辨的名稱，名稱取自欄位目錄或來源值。
-  // 名稱的寫法沒有使用者逐字裁定，只比對意思（docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md「W6 只加無障礙名稱」）。
+  // 2026-10-02 主線實測後補上：下拉、借方代碼、逐值選項與三個「加入」按鈕都要有可分辨的名稱，名稱取自欄位目錄或來源值。
+  // 名稱的寫法沒有使用者逐字裁定，只比對意思（docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md 第 4311 行）。
   // 對照表格下拉名稱改用「JET 欄位」時的第一次失敗收據：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
   // 簡易清單：每一列的控制項都以那一列的 JET 欄位命名，名稱彼此不同。
   const rows = f.$$('tr.mapping-table__row');
@@ -225,16 +225,18 @@ test('mapping: every control has a distinguishable name, the preview button read
   const tbNames = f.$$('select[data-mapping-key]', 'tb').map(select => select.getAttribute('aria-label'));
   assert.ok(tbNames.length > 0 && tbNames.every(Boolean), 'TB list selects are named too');
 
-  // 使用者 2026-10-13 裁定改名（docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「收尾四項：調查與裁定（2026-10-13）」
+  // 裁定 2026-10-13-18 改名（docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「收尾四項：調查與裁定（2026-10-13）」
   // 選項「分錄金額（單欄）改成金額,借貸別欄位改成借貸別,分錄測試欄位改成 JET 欄位」），表頭與欄位名稱逐字比對。
   assert.equal(f.$('.mapping-table thead th').textContent, 'JET 欄位');
   const labels = rows.map(row => row.querySelector('.mapping-table__label').textContent.replace('*', '').trim());
   assert.ok(labels.includes('金額'), 'the single amount field is named 金額');
   assert.ok(labels.includes('借貸別'), 'the debit-credit field is named 借貸別');
   assert.ok(!labels.some(label => /分錄金額|借貸別欄位|分錄測試欄位/.test(label)), 'old names are gone');
-  // 使用者 2026-09-21 第 8 則畫面註解：按鈕命名成「預覽」就好。紀錄見 docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md
+  // 原本依使用者的畫面註解，按鈕命名成「預覽」就好。紀錄見 docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md
   // 「兩處文字：簡易清單的「預覽來源資料」改「預覽」」與「09-21 十九則……第 8 則「預覽」是本批改的」。
-  assert.equal(f.need('[data-action="preview-source-gl"]').textContent, '預覽');
+  // 裁定 2026-10-30-36 取代這一句：打開右側資料預覽的檢視一律寫「資料預覽」，和面板標題同一個詞，仍不另加說明。
+  // 第一次失敗：FrontendMapping 收據 20261031-095121839-24d9cd622b3242889605b39228f69a2e。
+  assert.equal(f.need('[data-action="preview-source-gl"]').textContent, '資料預覽');
 
   // 逐值選項：每個來源值的一組選項以那個值命名。
   f.press('[data-action="load-manual-profile"]');
@@ -273,27 +275,27 @@ test('mapping: every control has a distinguishable name, the preview button read
     const name = select.getAttribute('aria-label');
     assert.ok(name.includes(select.getAttribute('data-map-col')) && name.includes('JET 欄位'), 'grid select named after its column: ' + name);
   }
-  const literal = f.need('input[data-mapping-key="dcDebitCode"]');
+  const literal = f.need('input[data-mapping-key="drCrDebitCode"]');
   assert.match(literal.getAttribute('aria-label'), /借方代碼/);
-  // 使用者 2026-09-22：「操作系統不需要繞口難讀的文言文」，提示不再寫「字面值（不是欄位名稱）」。提示句本身沒有使用者原話，只比對意思：
+  // 裁定 2026-09-22-06：「操作系統不需要繞口難讀的文言文」，提示不再寫「字面值（不是欄位名稱）」。提示句本身沒有使用者原話，只比對意思：
   // 說明是哪一方的代碼，並舉例。借、貸兩個代碼共用一段畫法時的第一次失敗收據：20261004-100752118-a195c091201e444d858ec7d7bee3d291。
   const hint = f.need('#' + literal.getAttribute('aria-describedby'));
   assert.match(hint.textContent, /借方/, 'the grid code hint explains which side the code stands for');
   assert.match(hint.textContent, /例如.*D/, 'and gives an example code');
-  const creditHint = f.need('#' + f.need('input[data-mapping-key="dcCreditCode"]').getAttribute('aria-describedby'));
+  const creditHint = f.need('#' + f.need('input[data-mapping-key="drCrCreditCode"]').getAttribute('aria-describedby'));
   assert.match(creditHint.textContent, /貸方/);
   assert.ok(!f.section().textContent.includes('字面值'), 'the grid hint uses plain words');
 });
 
 test('mapping: the manual and automatic block uses the same half-width slash as its field name', () => {
-  // 使用者 2026-10-03 對 O7「「人工／自動分錄代碼」用全形斜線」選「要修」；處理方式是改成和欄位名稱「人工/自動分錄」同一種斜線，
-  // 見 docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md「第三步人工/自動設定區的標題（O7）」。
+  // 裁定 2026-10-03-01 對「「人工／自動分錄代碼」用全形斜線」選「要修」；處理方式是改成和欄位名稱「人工/自動分錄」同一種斜線，
+  // 見 docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md 第 4556 行。
   const f = journey();
   const label = f.$$('tr.mapping-table__row').map(row => row.querySelector('.mapping-table__label').textContent.trim())
     .find(text => text.startsWith('人工'));
   assert.equal(label, '人工/自動分錄');
   assert.ok(f.legendGroup('人工/自動分錄代碼') !== null, 'the block title matches before a source is chosen');
-  f.choose('select[data-mapping-key="manual"]', 'Manual');
+  f.choose('select[data-mapping-key="isManual"]', 'Manual');
   assert.ok(f.legendGroup('人工/自動分錄代碼') !== null, 'and after a source is chosen');
   assert.ok(!f.$$('legend').some(legend => legend.textContent.includes('／')), 'no full-width slash in the block titles');
 });
@@ -325,14 +327,14 @@ test('mapping: reading source values asks the backend for fifty values of the ch
   assert.ok(!/讀取來源值中/.test(posting().textContent));
 
   // 人工/自動分錄的來源值另外核對清單代碼是否出現在完整來源（不是只看畫面上的 50 種）。
-  f.choose('select[data-mapping-key="manual"]', 'Manual');
+  f.choose('select[data-mapping-key="isManual"]', 'Manual');
   f.press('[data-action="load-manual-profile"]');
   assert.deepEqual(plain(f.last('mappingValueProfile').payload),
     { dataset: 'gl', sourceColumn: 'Manual', limit: 50, comparisonValues: ['1', '0'], checkSourceValues: true });
 });
 
 test('mapping: a code added by hand is compared by the backend and then checked against the whole source with the same fifty-value limit', async () => {
-  const f = journey({ draft: { ...DUAL, manual: 'Manual' } });
+  const f = journey({ draft: { ...DUAL, isManual: 'Manual' } });
   f.press('[data-action="load-manual-profile"]');
   f.last('mappingValueProfile').resolve({ blankCount: 0, distinctCount: 2, truncated: false, values: [{ value: '1', count: 3 }, { value: '0', count: 4 }],
     comparisonGroups: [['1'], ['0']], missingComparisonValues: [] });
@@ -407,7 +409,7 @@ test('mapping: a mapped posting status needs an accepted value or blank before c
 });
 
 test('mapping: manual and automatic codes each need a value unless one side is listed alone', async () => {
-  const f = journey({ draft: { ...DUAL, manual: 'Manual' } });
+  const f = journey({ draft: { ...DUAL, isManual: 'Manual' } });
   assert.ok(f.commitDisabled() === false, 'the default codes 1 and 0 are enough');
   const commit = f.need('[data-action="commit-gl"]');
   const version = f.contentVersion();
@@ -434,7 +436,7 @@ test('mapping: whether two codes are the same comes from the backend comparison,
   // 2026-09-23 固定的 Unicode 案例證明 JS 的大寫展開和 .NET OrdinalIgnoreCase 不等價：代碼是否相同由後端比對決定，
   // 人工與自動重疊也由後端確認時判定，前端不另擋。
   for (const [groups, expected] of [[[['m'], ['M'], ['0']], 'none'], [[['m', 'M'], ['0']], 'manual']]) {
-    const f = journey({ draft: { ...DUAL, manual: 'Manual' } });
+    const f = journey({ draft: { ...DUAL, isManual: 'Manual' } });
     f.type('[data-manual-code-edit="manual:0"]', 'm');
     f.press('[data-action="load-manual-profile"]');
     assert.deepEqual(plain(f.last('mappingValueProfile').payload).comparisonValues, ['m', '0']);
@@ -463,7 +465,7 @@ test('mapping: a new relevant data element field is sent without an id and the i
   assert.ok(candidates().includes('Dept') && candidates().includes('Region'));
   f.tick('[data-rde-column="Dept"]', true);
   const typeSelect = f.need('[data-rde-type="Dept"]');
-  assert.deepEqual(typeSelect.querySelectorAll('option').map(option => option.getAttribute('value')), ['text', 'date', 'money']);
+  assert.deepEqual(typeSelect.querySelectorAll('option').map(option => option.getAttribute('value')), ['text', 'date', 'amount']);
   const typeLabels = typeSelect.querySelectorAll('option').map(option => option.textContent);
   assert.ok(/文字/.test(typeLabels[0]) && /日期/.test(typeLabels[1]) && /金額/.test(typeLabels[2]), 'type names: ' + typeLabels.join('、'));
   f.press('[data-action="commit-gl"]');
@@ -484,16 +486,16 @@ test('mapping: a new relevant data element field is sent without an id and the i
   // 把攸關資料元素用的來源欄改配給核心欄位時，那個攸關資料元素欄位就拿掉，不會送出後端必定拒絕的草稿。
   f.last('mappingCommitGl').reject(new Error('synthetic'));
   await settleAll();
-  f.choose('select[data-mapping-key="jeSource"]', 'Dept');
+  f.choose('select[data-mapping-key="sourceModule"]', 'Dept');
   assert.deepEqual(f.optionsNow().rdeFields, []);
   assert.ok(!candidates().includes('Dept'));
 });
 
 test('mapping: a debit or credit code is a typed value, not a source column, and does not hide that column from the extra fields', () => {
-  // 第二遍第 9 批新增貸方代碼：兩個代碼都不佔用同名來源欄。第一次失敗收據：20261004-100752118-a195c091201e444d858ec7d7bee3d291。
-  const f = journey({ mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side' } });
-  f.type('input[data-mapping-key="dcDebitCode"]', 'Dept');
-  f.type('input[data-mapping-key="dcCreditCode"]', 'Region');
+  // 新增貸方代碼：兩個代碼都不佔用同名來源欄。第一次失敗收據：20261004-100752118-a195c091201e444d858ec7d7bee3d291。
+  const f = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } });
+  f.type('input[data-mapping-key="drCrDebitCode"]', 'Dept');
+  f.type('input[data-mapping-key="drCrCreditCode"]', 'Region');
   assert.ok(f.$('[data-rde-column="Dept"]') !== null && f.$('[data-rde-column="Region"]') !== null, 'typed codes do not use up source columns');
   f.press('[data-action="select-all-rde"]');
   const selected = f.optionsNow().rdeFields.map(field => field.sourceColumn);
@@ -506,15 +508,15 @@ test('mapping: source columns named like built-in object keys are still offered 
   const candidates = f.$$('[data-rde-column]').map(box => box.getAttribute('data-rde-column'));
   for (const column of ['constructor', 'toString', '__proto__']) assert.ok(candidates.includes(column), column + ' is offered');
   f.tick('[data-rde-column="constructor"]', true);
-  f.choose('select[data-mapping-key="jeSource"]', 'Dept');
+  f.choose('select[data-mapping-key="sourceModule"]', 'Dept');
   assert.deepEqual(f.optionsNow().rdeFields.map(field => field.sourceColumn), ['constructor'], 'mapping another column keeps the field');
 });
 
 test('mapping: the list and the grid agree on the reason and on whether confirm can be pressed in three states', () => {
   const states = [
-    { name: 'missing required', mode: 'dual', draft: { docNum: 'Doc' } },
-    { name: 'settings incomplete', mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side' } },
-    { name: 'complete', mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side', dcDebitCode: 'D' } }
+    { name: 'missing required', mode: 'dual', draft: { voucherNumber: 'Doc' } },
+    { name: 'settings incomplete', mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } },
+    { name: 'complete', mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' } }
   ];
   for (const state of states) {
     const seen = {};
@@ -542,9 +544,9 @@ test('mapping: the list and the grid agree on the reason and on whether confirm 
 });
 
 test('mapping: switching the amount format prunes fields the new format does not use in a single redraw', () => {
-  // 使用者 2026-10-12 指出第三步換金額欄位格式時選取一閃而過：原本同一次點擊先換草稿、再換格式，整段重繪兩次。
+  // 裁定 2026-10-12-03 指出第三步換金額欄位格式時選取一閃而過：原本同一次點擊先換草稿、再換格式，整段重繪兩次。
   // 清掉不適用的欄位與換格式是同一個操作，只重繪一次。
-  const f = journey({ draft: { ...DUAL, manual: 'Manual' } });
+  const f = journey({ draft: { ...DUAL, isManual: 'Manual' } });
   const version = f.contentVersion();
   const radio = f.need('input[name="mode-gl"][value="signed"]');
   radio.checked = true; radio.dispatch('change');
@@ -552,16 +554,16 @@ test('mapping: switching the amount format prunes fields the new format does not
   assert.equal(f.store.getState().mapping.gl.amountMode, 'signed');
   const draft = f.draftNow();
   assert.ok(!('debitAmount' in draft) && !('creditAmount' in draft), 'debit and credit columns are pruned');
-  assert.equal(draft.manual, 'Manual', 'fields shared by both formats stay');
+  assert.equal(draft.isManual, 'Manual', 'fields shared by both formats stay');
   assert.deepEqual(f.railItems().filter(item => !item.done).map(item => item.label), ['金額']);
 });
 
 test('mapping: approval date has a single source choice; clearing the source means no approval date and old contradictions block confirming', async () => {
   // 2026-09-05 指定來源欄即切換模式，互斥由一次 Store 更新維持；2026-09-23 起兩種介面共用完整適用欄位；
-  // 使用者 2026-10-08 畫面註解：核准日只留一個下拉，選來源欄即代表由來源欄提供。
-  // 第 0 批核對時沒有行為測試的三件事在這裡補：清掉來源欄後回到「沒有核准日」、舊草稿互相矛盾時擋下確認，以及下一個測試的取消變更。
+  // 裁定 2026-10-08-09：核准日只留一個下拉，選來源欄即代表由來源欄提供。
+  // 先前核對時沒有行為測試的三件事在這裡補：清掉來源欄後回到「沒有核准日」、舊草稿互相矛盾時擋下確認，以及下一個測試的取消變更。
   const grid = journey({ ui: 'grid', draft: DUAL });
-  grid.choose('select[data-map-col="Approve"]', 'docDate');
+  grid.choose('select[data-map-col="Approve"]', 'approvalDate');
   assert.equal(grid.optionsNow().approvalDateMode, 'mapped');
   grid.choose('select[data-map-col="Approve"]', '');
   assert.equal(grid.optionsNow().approvalDateMode, 'unmapped', 'clearing the source column means no approval date');
@@ -569,7 +571,7 @@ test('mapping: approval date has a single source choice; clearing the source mea
   grid.press('[data-action="commit-gl"]');
   const payload = plain(grid.last('mappingCommitGl').payload);
   assert.equal(payload.approvalDateMode, 'unmapped');
-  assert.ok(!('docDate' in payload.mapping));
+  assert.ok(!('approvalDate' in payload.mapping));
 
   // 簡易清單只有一個核准日下拉：選來源欄、改選與總帳日期相同、重新匯入後來源欄不見。
   const list = journey({ draft: DUAL });
@@ -578,25 +580,25 @@ test('mapping: approval date has a single source choice; clearing the source mea
   const approvalRow = list.$$('tr.mapping-table__row').find(row => row.querySelector('.mapping-table__label').textContent.includes('傳票核准日'));
   assert.ok(approvalRow !== undefined, 'the list has an approval date row');
   assert.equal(approvalRow.querySelectorAll('select, input').length, 1, 'approval date is set through one control');
-  assert.equal(list.$$('[data-mapping-key="docDate"]').length, 1, 'no second control writes the approval date source');
+  assert.equal(list.$$('[data-mapping-key="approvalDate"]').length, 1, 'no second control writes the approval date source');
   const choiceLabels = list.need('[data-approval-choice]').querySelectorAll('option').map(option => option.textContent);
   assert.equal(choiceLabels.length, 2 + GL_COLUMNS.length);
   assert.ok(choiceLabels.slice(0, 2).some(label => /總帳日期/.test(label)), 'the dropdown offers the same date as the posting date: ' + choiceLabels.slice(0, 2).join('、'));
   assert.deepEqual(choiceLabels.slice(2), GL_COLUMNS, 'and every source column');
   list.choose('[data-approval-choice]', 'column:Approve');
-  assert.deepEqual([list.optionsNow().approvalDateMode, list.draftNow().docDate], ['mapped', 'Approve']);
+  assert.deepEqual([list.optionsNow().approvalDateMode, list.draftNow().approvalDate], ['mapped', 'Approve']);
   assert.equal(list.need('[data-approval-choice]').value, 'column:Approve');
-  list.choose('[data-approval-choice]', 'mode:sameAsPostDate');
-  assert.deepEqual([list.optionsNow().approvalDateMode, list.draftNow().docDate], ['sameAsPostDate', undefined]);
+  list.choose('[data-approval-choice]', 'mode:sameAsGlDate');
+  assert.deepEqual([list.optionsNow().approvalDateMode, list.draftNow().approvalDate], ['sameAsGlDate', undefined]);
   list.choose('[data-approval-choice]', 'column:Approve');
   list.store.setImportResult('gl', { batchId: 'gl-2', columns: GL_COLUMNS.filter(column => column !== 'Approve'), rowCount: 3 });
-  assert.deepEqual([list.optionsNow().approvalDateMode, list.draftNow().docDate], ['unmapped', undefined], 'a dropped source column also means no approval date');
+  assert.deepEqual([list.optionsNow().approvalDateMode, list.draftNow().approvalDate], ['unmapped', undefined], 'a dropped source column also means no approval date');
   assert.ok(list.commitDisabled() === false);
 
   // 舊草稿的核准日設定互相矛盾時，確認前就指出要改哪一項（後端仍會拒絕）。
   const contradictions = [
-    { approvalDateMode: 'sameAsPostDate', mapping: { ...DUAL, docDate: 'Approve' } },
-    { approvalDateMode: 'unmapped', mapping: { ...DUAL, docDate: 'Approve' } },
+    { approvalDateMode: 'sameAsGlDate', mapping: { ...DUAL, approvalDate: 'Approve' } },
+    { approvalDateMode: 'unmapped', mapping: { ...DUAL, approvalDate: 'Approve' } },
     { approvalDateMode: 'mapped', mapping: DUAL }
   ];
   for (const old of contradictions) {
@@ -611,7 +613,7 @@ test('mapping: approval date has a single source choice; clearing the source mea
   }
 });
 
-// 低嚴重度事項 D18（使用者 2026-10-19 要求處理）：配對完成後一律寫「已確認配對」，時間寫「確認於」，不再寫「完成於」；
+// 配對完成後一律寫「已確認配對」，時間寫「確認於」，不再寫「完成於」；
 // 科目分類在 GL 確認配對前的提示也用同一個說法。
 test('mapping: the confirmed summary and the classification gate both say the mapping was confirmed', () => {
   const f = journey();
@@ -626,17 +628,17 @@ test('mapping: the confirmed summary and the classification gate both say the ma
     '<p class="rule-card__gate">GL 確認配對後，即可設定科目分類。</p>');
 });
 
-// 預篩選收斂計畫階段四（2026-10-23）：第五步依後端算好的可用欄位停用入口。開案與確認配對的回應都帶 availableGlFields，
+// 2026-10-23 起第五步依後端算好的可用欄位停用入口。開案與確認配對的回應都帶 availableGlFields，
 // 畫面原樣存進已確認的配對，不由配對內容自己推。清單照後端在對應情況下會送的內容寫死。
 test('mapping: the confirmed GL mapping keeps the available fields the backend sends when the case opens and when the mapping is confirmed', async () => {
   const f = journey();
-  const onOpen = ['docNum', 'lineID', 'postDate', 'accNum', 'accName', 'description', 'amount'];
+  const onOpen = ['voucherNumber', 'lineItem', 'glDate', 'accountNumber', 'accountName', 'description', 'amount'];
   f.window.JetUi.applyLoadedProject({ project: { projectId: 'available', currentStep: 2 },
     importState: { gl: { batchId: 'gl-a', columns: GL_COLUMNS, rowCount: 3 } },
     mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', committedUtc: '2025-12-31T00:00:00Z', availableGlFields: onOpen } } },
   { stayOnCurrentStep: true });
   assert.deepEqual(plain(f.store.getState().mapping.gl.committed).availableGlFields, onOpen);
-  const onConfirm = ['docNum', 'lineID', 'postDate', 'docDate', 'accNum', 'accName', 'description', 'amount'];
+  const onConfirm = ['voucherNumber', 'lineItem', 'glDate', 'approvalDate', 'accountNumber', 'accountName', 'description', 'amount'];
   f.press('[data-action="remap-gl"]');
   f.press('[data-action="commit-gl"]');
   f.last('mappingCommitGl').resolve(commitReply({ availableGlFields: onConfirm }));
@@ -648,7 +650,7 @@ test('mapping: cancelling changes restores a separate copy of the confirmed sett
   const f = journey();
   f.window.JetUi.applyLoadedProject({ project: { projectId: 'restore', currentStep: 2 },
     importState: { gl: { batchId: 'gl-r', columns: GL_COLUMNS, rowCount: 3 } },
-    mapping: { gl: { mapping: { ...DUAL, manual: 'Manual' }, amountMode: 'dual', approvalDateMode: 'unmapped',
+    mapping: { gl: { mapping: { ...DUAL, isManual: 'Manual' }, amountMode: 'dual', approvalDateMode: 'unmapped',
       manualAutoPolicy: { manualValues: ['1'], automaticValues: ['0'], blankValueKind: 'reject' }, committedUtc: '2025-12-31T00:00:00Z' } } },
   { stayOnCurrentStep: true });
   const confirmed = plain(f.store.getState().mapping.gl.committed.options);
@@ -668,28 +670,28 @@ test('mapping: cancelling changes restores a separate copy of the confirmed sett
 });
 
 test('mapping: a failed confirm is shown in place, and typing afterwards marks it as changed without rebuilding', async () => {
-  const f = journey({ mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side', dcDebitCode: 'D' } });
+  const f = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' } });
   f.press('[data-action="commit-gl"]');
-  // 後端沒有附原因：使用者 2026-10-13 第二輪勾選頁確認的 M1（final-wording.json 編號 M1）。
+  // 後端沒有附原因：裁定 2026-10-13-29 確認的句子（final-wording.json）。
   f.last('mappingCommitGl').reject(Object.assign(new Error(''), { code: 'mapping_failed' }));
   await settleAll();
   const error = () => f.need('[data-bind="mapping-commit-error-gl"]');
   assert.ok(error().textContent.includes('確認配對未完成，請再試一次。'));
   assert.equal(error().getAttribute('role'), 'alert');
-  // 使用者 2026-10-13「失敗提示」選項說明：已經有就地錯誤框的操作，例如確認欄位配對，維持原樣，不另外顯示步驟提示框。
+  // 裁定 2026-10-13-16「失敗提示」選項說明：已經有就地錯誤框的操作，例如確認欄位配對，維持原樣，不另外顯示步驟提示框。
   assert.ok(f.store.getState().operationFailure === null, 'no extra step notice for a mapping failure');
 
   f.press('[data-action="commit-gl"]');
   f.last('mappingCommitGl').reject(Object.assign(new Error('有 2 列的值無法讀取，本次配對未儲存。 第 3 列：借貸別是空白。'), {
     details: [{ sourceColumn: 'Side', reasonCode: 'dc_blank', message: '第 3 列：借貸別是空白。' }] }));
   await settleAll();
-  // 第二遍第 6 批裁定：修改設定後保留上次各組錯誤與「前往設定」，改標成需要重新確認，不整份清掉。
-  // 第一次失敗收據：20261004-081808251-028419be00a44696b3d2d8e01e72927f。第 0 批核對時沒有測試在確認失敗後用打字修改設定，這裡補上。
-  assert.ok(f.$('[data-bind="mapping-commit-error-gl"] [data-focus-mapping-field="dcField"]') !== null, 'the problem has a jump to its setting');
+  // 修改設定後保留上次各組錯誤與「前往設定」，改標成需要重新確認，不整份清掉。
+  // 第一次失敗收據：20261004-081808251-028419be00a44696b3d2d8e01e72927f。先前核對時沒有測試在確認失敗後用打字修改設定，這裡補上。
+  assert.ok(f.$('[data-bind="mapping-commit-error-gl"] [data-focus-mapping-field="drCr"]') !== null, 'the problem has a jump to its setting');
   assert.ok(!/已修改/.test(error().textContent));
   const commit = f.need('[data-action="commit-gl"]');
   const version = f.contentVersion();
-  f.type('input[data-mapping-key="dcDebitCode"]', 'DR');
+  f.type('input[data-mapping-key="drCrDebitCode"]', 'DR');
   assert.match(error().textContent, /已修改/, 'typing marks the shown problems as from before the change');
   assert.match(error().textContent, /重新確認/);
   assert.ok(error().textContent.includes('第 3 列'), 'the last problems stay visible');
@@ -723,9 +725,9 @@ test('redraw: choosing a column redraws once, updates the required list and conf
   f.press('[data-action="remap-gl"]');
   f.timers.run();
   const version = f.contentVersion();
-  f.choose('select[data-mapping-key="accName"]', '');
+  f.choose('select[data-mapping-key="accountName"]', '');
   assert.equal(f.contentVersion(), version + 1, 'after remap a choice still redraws');
-  assert.ok(f.dom.document.activeElement === f.need('select[data-mapping-key="accName"]'));
+  assert.ok(f.dom.document.activeElement === f.need('select[data-mapping-key="accountName"]'));
   assert.deepEqual(f.railItems().filter(item => !item.done).map(item => item.label), ['會計科目名稱']);
   assert.ok(f.commitDisabled() === true);
   assert.match(f.need('[data-bind="mapping-banner-gl"]').textContent, /修改/);
@@ -733,7 +735,7 @@ test('redraw: choosing a column redraws once, updates the required list and conf
   // 對照表格的表頭下拉也一樣。
   const grid = journey({ ui: 'grid' });
   const version2 = grid.contentVersion();
-  const old = grid.choose('select[data-map-col="Doc"]', 'docNum');
+  const old = grid.choose('select[data-map-col="Doc"]', 'voucherNumber');
   assert.equal(grid.contentVersion(), version2 + 1);
   const fresh = grid.need('select[data-map-col="Doc"]');
   assert.ok(fresh !== old && grid.dom.document.activeElement === fresh);
@@ -746,7 +748,7 @@ test('redraw: the grid and list keep their scroll positions when a column is cho
   grid.need('.map-grid-wrap').scrollLeft = 300;
   grid.need('.map-grid-wrap', 'tb').scrollLeft = 80;
   const old = grid.need('.map-grid-wrap');
-  grid.choose('select[data-map-col="Doc"]', 'docNum');
+  grid.choose('select[data-map-col="Doc"]', 'voucherNumber');
   assert.ok(grid.need('.map-grid-wrap') !== old, 'the grid was rebuilt');
   assert.equal(grid.need('.map-grid-wrap').scrollLeft, 300, 'GL grid keeps its horizontal position');
   assert.equal(grid.need('.map-grid-wrap', 'tb').scrollLeft, 80, 'TB grid keeps its horizontal position');
@@ -754,17 +756,17 @@ test('redraw: the grid and list keep their scroll positions when a column is cho
   const list = journey();
   list.need('.mapping-table-wrap').scrollTop = 120;
   const before = list.need('.mapping-table-wrap');
-  list.choose('select[data-mapping-key="docNum"]', 'Doc');
+  list.choose('select[data-mapping-key="voucherNumber"]', 'Doc');
   assert.ok(list.need('.mapping-table-wrap') !== before);
   assert.equal(list.need('.mapping-table-wrap').scrollTop, 120, 'the list keeps its vertical position');
 });
 
 test('redraw: focus goes back only to a control that is still the only one of its kind', async () => {
-  // 2026-10-13 起重繪後也放回沒標 data-focus-key 的控制項（使用者 2026-10-13 交接的「重繪後鍵盤焦點與展開狀態沒有留住」），
+  // 2026-10-13 起重繪後也放回沒標 data-focus-key 的控制項（原本重繪後鍵盤焦點與展開狀態沒有留住），
   // 身分在重繪前後都只有一個符合才放回，同名的控制項不猜。原字串測試改版時的第一次失敗收據：
   // 20261013-023526095-82a54d8da59f4ae59b006538d70926fe。文字選取與輸入法組字的還原由 frontend-mapping.test.cjs 的
   // 「content refresh preserves text selection…」等既有測試守住；組字期間換步驟另見本檔的 input method 測試。
-  const f = journey({ mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side', dcDebitCode: 'D' } });
+  const f = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' } });
   // 沒有 data-focus-key 的確認鈕：畫面上只有一個，重繪後放回新的確認鈕。
   const commit = f.need('[data-action="commit-gl"]');
   commit.focus();
@@ -787,7 +789,7 @@ test('redraw: focus goes back only to a control that is still the only one of it
   assert.ok(!after.includes(f.dom.document.activeElement), 'two identical buttons: focus is not guessed');
 
   // 問題只有一組時「前往設定」是唯一的；等待下一次確認時焦點停在它上面，回來兩組一樣的問題，也不猜。
-  const g = journey({ mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side', dcDebitCode: 'D' } });
+  const g = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' } });
   g.press('[data-action="commit-gl"]');
   g.last('mappingCommitGl').reject(Object.assign(new Error('有 1 列的值無法讀取。 第 3 列：A'), {
     details: [{ sourceColumn: 'Amount', reasonCode: 'invalid_amount', message: '第 3 列：A' }] }));
@@ -820,7 +822,7 @@ test('redraw: focus goes back only to a control that is still the only one of it
 
 test('redraw: switching between typing codes and choosing source values keeps focus on the switch button', async () => {
   // 切換按鈕的動作與文字會跟著換，焦點仍要回到同一個按鈕（重繪後由 data-focus-key 認出它）。
-  const f = journey({ draft: { ...DUAL, manual: 'Manual' } });
+  const f = journey({ draft: { ...DUAL, isManual: 'Manual' } });
   f.press('[data-action="load-manual-profile"]');
   f.last('mappingValueProfile').resolve({ blankCount: 0, distinctCount: 2, truncated: false, values: [{ value: '1', count: 3 }, { value: '0', count: 4 }],
     comparisonGroups: [['1'], ['0']], missingComparisonValues: [] });
@@ -861,14 +863,14 @@ test('redraw: clearing a field name blocks confirm with a reason in place, and n
 });
 
 test('redraw: typing a debit code or a field name and pressing confirm without leaving the box sends exactly once', async () => {
-  // 2026-10-02 W3：借方代碼輸入框改值後直接用滑鼠點確認鈕，第一次就要送出。原本失焦後延遲重建整步，會在按下與放開之間換掉確認鈕。
+  // 裁定 2026-10-02-01：借方代碼輸入框改值後直接用滑鼠點確認鈕，第一次就要送出。原本失焦後延遲重建整步，會在按下與放開之間換掉確認鈕。
   // 攸關資料元素名稱改成輸入時就地更新的第一次失敗收據：20261003-020747009-ee4dd9fbeb694d50bc7947d8930b79df。
   // 就地更新必填清單與提示多帶第三步識別時的第一次失敗收據：20261012-120854522-9077f25bbd704735a207ea7f954e02b5、
   // 20261012-120943218-2a02481dd9254d92b981b7d8d67a6816。
   for (const target of ['literal', 'rde']) {
-    const f = journey({ mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side', dcDebitCode: 'D' },
+    const f = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' },
       options: { rdeFields: [{ sourceColumn: 'Dept', label: 'Dept', valueType: 'text' }] } });
-    const selector = target === 'literal' ? 'input[data-mapping-key="dcCreditCode"]' : '[data-rde-label="Dept"]';
+    const selector = target === 'literal' ? 'input[data-mapping-key="drCrCreditCode"]' : '[data-rde-label="Dept"]';
     const commit = f.need('[data-action="commit-gl"]');
     const version = f.contentVersion();
     const input = f.need(selector);
@@ -885,7 +887,7 @@ test('redraw: typing a debit code or a field name and pressing confirm without l
     await settleAll();
     assert.equal(f.sent('mappingCommitGl').length, 1, target + ': one click sends one confirm');
     const payload = plain(f.last('mappingCommitGl').payload);
-    if (target === 'literal') assert.equal(payload.mapping.dcCreditCode, 'Cr');
+    if (target === 'literal') assert.equal(payload.mapping.drCrCreditCode, 'Cr');
     else assert.deepEqual(payload.rdeFields, [{ sourceColumn: 'Dept', label: 'Cr', valueType: 'text' }]);
   }
 });
@@ -900,15 +902,15 @@ test('redraw: typing a code after remap shows and hides the changed-mapping noti
   f.timers.run();
   assert.ok(f.$('[data-bind="mapping-banner-gl"]') === null, 'nothing has changed yet');
   const commit = f.need('[data-action="commit-gl"]');
-  const input = f.need('input[data-mapping-key="dcDebitCode"]');
+  const input = f.need('input[data-mapping-key="drCrDebitCode"]');
   const version = f.contentVersion();
-  f.type('input[data-mapping-key="dcDebitCode"]', 'DR');
+  f.type('input[data-mapping-key="drCrDebitCode"]', 'DR');
   assert.match(f.need('[data-bind="mapping-banner-gl"]').textContent, /修改/, 'the notice appears while typing');
   assert.ok(commit.disabled === false && f.need('[data-action="commit-gl"]') === commit, 'the confirm button stays the same node');
-  f.type('input[data-mapping-key="dcDebitCode"]', 'D');
+  f.type('input[data-mapping-key="drCrDebitCode"]', 'D');
   assert.ok(f.$('[data-bind="mapping-banner-gl"]') === null, 'typing the confirmed code back removes the notice');
   assert.equal(f.contentVersion(), version, 'no rebuild while typing');
-  assert.ok(f.need('input[data-mapping-key="dcDebitCode"]') === input);
+  assert.ok(f.need('input[data-mapping-key="drCrDebitCode"]') === input);
 });
 
 test('redraw: while an input method is composing, background updates wait, but changing step does not', () => {
@@ -931,18 +933,18 @@ test('redraw: while an input method is composing, background updates wait, but c
   composing.dispatch('compositionstart');
   // 第四步的統計列會量版面；vm 沒有版面，給一個沒有欄位設定的樣式。
   g.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
-  g.store.setLastRun('validate', null);
+  g.store.setResult('validate', null);
   g.store.setStepIndex(g.store.STEPS.findIndex(step => step.id === 'validate'));
   assert.ok(g.section() === null, 'the next step is drawn even while composing');
 });
 
 test('redraw: moving to the next step starts at its top and does not bring back step three focus', () => {
-  const f = journey({ draft: { docNum: 'Doc' } });
+  const f = journey({ draft: { voucherNumber: 'Doc' } });
   f.dom.content.scrollTop = 400;
-  f.need('select[data-mapping-key="docNum"]').focus();
+  f.need('select[data-mapping-key="voucherNumber"]').focus();
   f.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
   // 清掉第四步結果本身會重繪第三步，這次焦點與捲動照常放回；之後換步驟才是要看的重繪。
-  f.store.setLastRun('validate', null);
+  f.store.setResult('validate', null);
   assert.equal(f.dom.content.scrollTop, 400, 'a redraw inside step three keeps the page position');
   const focused = focusHistory(f);
   f.store.setStepIndex(f.store.STEPS.findIndex(step => step.id === 'validate'));
@@ -953,7 +955,7 @@ test('redraw: moving to the next step starts at its top and does not bring back 
   assert.ok(active !== null && active.getAttribute('data-bind') === 'current-step-title', 'the new step title takes focus');
 });
 
-// 使用者 2026-10-15 反映換步驟時「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」。
+// 裁定 2026-10-15-09：換步驟時「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」。
 // 原因之一是中欄在第一格就從原本的捲動位置一下跳到頂部，接著才開始收放。可以播動態時，第一格停在原位，
 // 之後每一格朝頂部捲，一路不回頭；新步驟的標題照樣拿到焦點。
 // 第一次失敗：FrontendMapping 20261015-154041325-f772787e8a3140dd8bbf251f9e2cee27，第一格就跳到 0。
@@ -963,7 +965,7 @@ test('redraw: switching steps from a scrolled page glides back to the top instea
   f.window.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
   f.window.cancelAnimationFrame = () => {};
   f.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
-  f.store.setLastRun('validate', null);
+  f.store.setResult('validate', null);
   f.dom.content.scrollTop = 400;
   f.store.setStepIndex(f.store.STEPS.findIndex(step => step.id === 'validate'));
   assert.equal(f.dom.content.scrollTop, 400, 'the first frame keeps the page where it was');
@@ -985,7 +987,7 @@ test('redraw: redrawing the same step or shortening it while gliding home keeps 
   f.window.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
   f.window.cancelAnimationFrame = () => {};
   f.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
-  f.store.setLastRun('validate', null);
+  f.store.setResult('validate', null);
   f.dom.content.scrollTop = 400;
   f.store.setStepIndex(f.store.STEPS.findIndex(step => step.id === 'validate'));
   f.timers.run();
@@ -1011,36 +1013,36 @@ test('redraw: redrawing the same step or shortening it while gliding home keeps 
 });
 
 test('redraw: after typing replaces the required list, its jump buttons still move focus to the matching select', () => {
-  const f = journey({ ui: 'grid', mode: 'side', draft: { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side' } });
+  const f = journey({ ui: 'grid', mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } });
   const oldRail = f.need('.map-rail');
-  f.type('input[data-mapping-key="dcDebitCode"]', 'D');
+  f.type('input[data-mapping-key="drCrDebitCode"]', 'D');
   assert.ok(f.need('.map-rail') !== oldRail, 'typing replaced the required list in place');
   assert.match(f.need('.map-rail__title').textContent, /皆已/, 'the list title follows the draft');
-  const jump = f.need('[data-focus-mapping-field="accName"]');
+  const jump = f.need('[data-focus-mapping-field="accountName"]');
   jump.dispatch('click');
   f.timers.run();
-  const select = f.need('select[data-mapping-key="accName"]');
+  const select = f.need('select[data-mapping-key="accountName"]');
   assert.equal(f.store.getState().mappingUiMode, 'classic', 'jumping opens the list where every field has its own select');
   assert.ok(f.dom.document.activeElement === select, 'focus lands on the matching select');
 
   // 按下後還沒定位就換了案件：不把焦點放到新案件的畫面。之後的步驟標題會接手焦點，所以記下每一次焦點落在哪裡。
-  const g = journey({ draft: { docNum: 'Doc' } });
-  g.need('[data-focus-mapping-field="postDate"]').dispatch('click');
+  const g = journey({ draft: { voucherNumber: 'Doc' } });
+  g.need('[data-focus-mapping-field="glDate"]').dispatch('click');
   g.store.setProject({ projectId: 'another-case', periodStart: '2025-01-01', periodEnd: '2025-12-31' });
   g.store.setImportResult('gl', { batchId: 'gl-other', columns: GL_COLUMNS, rowCount: 3 });
   const focusedInG = focusHistory(g);
   g.timers.run();
-  assert.ok(!focusedInG.some(node => node.getAttribute('data-mapping-key') === 'postDate'), 'focus does not move into another case');
+  assert.ok(!focusedInG.some(node => node.getAttribute('data-mapping-key') === 'glDate'), 'focus does not move into another case');
   // 換到第四步之後也不定位。
-  const h = journey({ draft: { docNum: 'Doc' } });
-  h.need('[data-focus-mapping-field="postDate"]').dispatch('click');
+  const h = journey({ draft: { voucherNumber: 'Doc' } });
+  h.need('[data-focus-mapping-field="glDate"]').dispatch('click');
   // 第四步的統計列會量版面；vm 沒有版面，給一個沒有欄位設定的樣式。
   h.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
-  h.store.setLastRun('validate', null);
+  h.store.setResult('validate', null);
   h.store.setStepIndex(h.store.STEPS.findIndex(step => step.id === 'validate'));
   const focusedInH = focusHistory(h);
   h.timers.run();
-  assert.ok(!focusedInH.some(node => node.getAttribute('data-mapping-key') === 'postDate'), 'focus is not sent back to step three');
+  assert.ok(!focusedInH.some(node => node.getAttribute('data-mapping-key') === 'glDate'), 'focus is not sent back to step three');
 });
 
 test('redraw: source columns with quotes stay whole in both views and are chosen as written', () => {
@@ -1137,11 +1139,11 @@ test('redraw: after a new import, the old grid preview is never shown whether it
   assert.ok(!f.need('.map-grid').textContent.includes('BEFORE-REOPEN'), 'a reply from before reopening is not shown');
 });
 
-/* ---- 第 10 批補：確認欄位配對後訊息面板的句子（收尾四項第一項第 10 批，2026-10-14） ---------------- */
-// 第 7 批刻意不斷言訊息面板，留給第 10 批在文字確認並改進產品後補上。逐字比對的句子都寫出 final-wording.json 的編號；
-// 後端提醒與原因一律用合成字串。R3-36（讀取來源值時來源欄已不在匯入資料中）是後端的句子，畫面只照原樣顯示，這裡不比對；
-// R3-42 已由文字批次 D 在 frontend-mapping 的「V3 single-side codes…」逐字比對，R3-43 在 frontend-workflow，這裡不重寫；
-// R3-47（預覽沒有資料列）列在盤點報告「碰不到的句子」，不另造情境。
+/* ---- 確認欄位配對後訊息面板的句子（2026-10-14 補上） ---------------- */
+// 前面的測試刻意不斷言訊息面板，等文字確認並改進產品後才補上。逐字比對的句子都註明出自 final-wording.json；
+// 後端提醒與原因一律用合成字串。讀取來源值時來源欄已不在匯入資料中的句子由後端產生，畫面只照原樣顯示，這裡不比對；
+// 只設單邊代碼的句子已在 frontend-mapping 的「V3 single-side codes…」逐字比對，另一句在 frontend-workflow，這裡不重寫；
+// 預覽沒有資料列的句子列在盤點報告「碰不到的句子」，不另造情境。
 const ELAPSED = /耗時(?: \d+\.\d 秒|不到 0\.1 秒|\d+ 分 \d+ 秒)/.source;
 const messageList = f => plain(f.store.getState().messages.map(m => ({ text: m.text, level: m.level })));
 
@@ -1151,15 +1153,15 @@ test('mapping messages: a confirmed mapping logs the row count with the elapsed 
   f.last('mappingCommitGl').resolve(commitReply({ projectedRowCount: 12345, warnings: ['合成提醒一。', '合成提醒二。'] }));
   await settleAll();
   const messages = messageList(f);
-  // 使用者 2026-10-13 勾選頁確認 38（完成句，維持原句的寫法）與 39（配對提醒，維持原句）（final-wording.json）；
-  // 耗時的寫法是同日「保留，改成秒並合併」的裁定與 2026-10-14 第三輪 R3-26。
+  // 裁定 2026-10-13-28 維持完成句與配對提醒的原句（final-wording.json）；
+  // 耗時的寫法是裁定 2026-10-13-17「保留，改成秒並合併」，以及裁定 2026-10-14-01 確認的用字。
   assert.match(messages[0].text, new RegExp('^GL 已確認配對，共 12,345 筆，' + ELAPSED + '。$'));
   assert.equal(messages[0].level, 'info');
   assert.deepEqual(messages.slice(1, 3), [{ text: 'GL 配對提醒：合成提醒二。', level: 'warn' }, { text: 'GL 配對提醒：合成提醒一。', level: 'warn' }]);
   assert.equal(messages.filter(m => m.text.includes('已確認配對')).length, 1, 'one completion line');
 
   // TB 用自己的名稱。
-  for (const [key, column] of [['accNum', 'TbAccount'], ['accName', 'TbName'], ['debitAmt', 'TbDebit'], ['creditAmt', 'TbCredit']]) {
+  for (const [key, column] of [['accountNumber', 'TbAccount'], ['accountName', 'TbName'], ['debitAmount', 'TbDebit'], ['creditAmount', 'TbCredit']]) {
     f.choose('select[data-mapping-key="' + key + '"]', column, 'tb');
   }
   f.timers.run();
@@ -1168,7 +1170,7 @@ test('mapping messages: a confirmed mapping logs the row count with the elapsed 
   await settleAll();
   assert.match(messageList(f)[0].text, new RegExp('^TB 已確認配對，共 7 筆，' + ELAPSED + '。$'));
 
-  // 失敗：原因寫在配對區的錯誤框（第 7 批已測），訊息面板留一則錯誤。使用者 2026-10-13 勾選頁確認 19，2026-10-14 第三輪 R3-27。
+  // 失敗：原因寫在配對區的錯誤框（前面的測試已測），訊息面板留一則錯誤。用字由裁定 2026-10-13-28 確認，裁定 2026-10-14-01 在括號後加句號。
   f.press('[data-action="remap-gl"]'); f.timers.run();
   f.press('[data-action="commit-gl"]');
   f.last('mappingCommitGl').reject(Object.assign(new Error('合成：配對未通過檢查。'), { code: 'mapping_failed' }));
@@ -1181,7 +1183,7 @@ test('mapping messages: a confirmed mapping logs the row count with the elapsed 
 // 2026-10-16：總筆數只在第一頁計算，續頁回 null（docs/action-contract-manifest.md 的 query.dataPreview）；
 // 對照表格換頁後仍沿用第一頁的總頁數，不會因為續頁沒有總數就失去頁碼。
 test('mapping grid keeps the first page count when the next page arrives without a total', async () => {
-  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { voucherNumber: 'Doc' } });
   f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: Array.from({ length: 200 }, (_, i) => ['FIRST-' + (i + 1)]), totalCount: 401 });
   await settleAll();
   assert.equal(f.need('[data-page-position]').textContent, '1/3');
@@ -1193,10 +1195,10 @@ test('mapping grid keeps the first page count when the next page arrives without
   assert.equal(f.need('[data-source-next]').disabled, false, 'the third page is still reachable');
 });
 
-// 使用者 2026-10-16（圖一）：「GL和TB在欄位配對時的資料表高度至少要大於必填欄位的高度」。對照表格與必填清單放在同一列，
+// 裁定 2026-10-16-10：「GL和TB在欄位配對時的資料表高度至少要大於必填欄位的高度」。對照表格與必填清單放在同一列，
 // 分頁列排在表格下方；表格至少 480px，清單較長時表格跟著加高，兩者等高。實際高度只有瀏覽器量得到，這裡核對結構與樣式規則。
 test('mapping grid sits beside the required list in one row, with the pager below the table', async () => {
-  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { docNum: 'Doc' } });
+  const f = journey({ ui: 'grid', columns: ['Doc'], draft: { voucherNumber: 'Doc' } });
   f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: Array.from({ length: 200 }, (_, i) => ['ROW-' + (i + 1)]), totalCount: 401 });
   await settleAll();
   const layout = f.need('.map-layout--grid');
@@ -1211,7 +1213,7 @@ test('mapping grid sits beside the required list in one row, with the pager belo
   assert.match(css, /\.map-layout--grid > \.map-rail \{ grid-column: 2; grid-row: 1; \}/);
 });
 
-// 使用者 2026-10-16（圖三）：「按鈕 `預覽` 和 `重新配對` 相隔太遠，短時間比較難察覺到這兩個按鈕的存在」。
+// 裁定 2026-10-16-12：「按鈕 `預覽` 和 `重新配對` 相隔太遠，短時間比較難察覺到這兩個按鈕的存在」。
 test('the confirmed mapping summary keeps preview and remap side by side', async () => {
   const f = journey({ draft: DUAL });
   f.press('[data-action="commit-gl"]');
@@ -1219,33 +1221,35 @@ test('the confirmed mapping summary keeps preview and remap side by side', async
   const remap = f.need('[data-action="remap-gl"]');
   const actions = remap.parentNode;
   assert.ok(actions.getAttribute('class').split(/\s+/).includes('panel__actions--start'), 'both buttons start from the left');
-  assert.deepEqual(actions.children.map(node => node.textContent), ['預覽', '重新配對']);
+  // 裁定 2026-10-30-36：打開右側資料預覽的檢視一律寫「資料預覽」，兩個仍並排。
+  // 第一次失敗：FrontendMapping 收據 20261031-095121839-24d9cd622b3242889605b39228f69a2e。
+  assert.deepEqual(actions.children.map(node => node.textContent), ['資料預覽', '重新配對']);
   assert.equal(actions.querySelector('.panel__action--start'), null, 'no button pushes the other to the far side');
 });
 
-/* ---- 階段六：確認配對時往下填補空白 ------------------------------------------------ */
+/* ---- 確認配對時往下填補空白 ------------------------------------------------ */
 
-// 預篩選收斂計畫階段六（使用者 2026-10-22 裁定放在第三步確認配對時）：審計員勾選已配對的欄位，確認配對時只送勾選的欄位，
+// 裁定 2026-10-22-16 把往下填補放在第三步確認配對時：審計員勾選已配對的欄位，確認配對時只送勾選的欄位，
 // 沒勾選就不帶這個鍵（配到同一個來源欄的欄位算一起勾選，見後面成組的那則）；後端回填了幾格，摘要與完成訊息寫出來；拿掉欄位的來源欄時勾選跟著消失。借方、貸方代碼是字面值，不在清單裡。
 // 第一次失敗：Contract FrontendMapping 收據 20261023-201807485-4e9d37982bac42228c3b6fc55cbb1333。
 test('mapping: fill-down ticks follow the mapped fields, go out only when chosen and come back with the filled count', async () => {
   const f = journey({ draft: DUAL });
   assert.ok(f.legendGroup('往下填補空白') !== null, 'the fill-down group is rendered');
   const offered = () => f.$$('[data-fill-down-field]').map(box => box.getAttribute('data-fill-down-field'));
-  assert.deepEqual(offered(), ['docNum', 'postDate', 'accNum', 'accName', 'description', 'debitAmount', 'creditAmount'],
+  assert.deepEqual(offered(), ['voucherNumber', 'glDate', 'accountNumber', 'accountName', 'description', 'debitAmount', 'creditAmount'],
     'only fields with a source column, in field order');
-  const row = f.need('[data-fill-down-field="docNum"]').closest('li');
+  const row = f.need('[data-fill-down-field="voucherNumber"]').closest('li');
   assert.match(row.textContent, /傳票號碼/); assert.match(row.textContent, /Doc/);
 
-  f.tick('[data-fill-down-field="postDate"]', true);
-  f.tick('[data-fill-down-field="docNum"]', true);
-  assert.deepEqual(f.optionsNow().fillDownFields, ['docNum', 'postDate'], 'ticks are kept in field order');
+  f.tick('[data-fill-down-field="glDate"]', true);
+  f.tick('[data-fill-down-field="voucherNumber"]', true);
+  assert.deepEqual(f.optionsNow().fillDownFields, ['voucherNumber', 'glDate'], 'ticks are kept in field order');
   f.press('[data-action="commit-gl"]');
   const first = plain(f.last('mappingCommitGl').payload);
   assertNoInternalKeys(first);
   assert.deepEqual(first, { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [],
-    fillDownFields: ['docNum', 'postDate'] });
-  f.last('mappingCommitGl').resolve(commitReply({ fillDownFields: ['docNum', 'postDate'], fillDownCount: 6 }));
+    fillDownFields: ['voucherNumber', 'glDate'] });
+  f.last('mappingCommitGl').resolve(commitReply({ fillDownFields: ['voucherNumber', 'glDate'], fillDownCount: 6 }));
   await settleAll();
   f.timers.run();
   const facts = f.$$('[data-bind="gl-committed-options"] li').map(item => item.textContent);
@@ -1256,8 +1260,8 @@ test('mapping: fill-down ticks follow the mapped fields, go out only when chosen
 
   // 重新配對後全部取消：送出時不帶 fillDownFields。
   f.press('[data-action="remap-gl"]');
-  f.tick('[data-fill-down-field="docNum"]', false);
-  f.tick('[data-fill-down-field="postDate"]', false);
+  f.tick('[data-fill-down-field="voucherNumber"]', false);
+  f.tick('[data-fill-down-field="glDate"]', false);
   f.press('[data-action="commit-gl"]');
   const second = plain(f.last('mappingCommitGl').payload);
   assert.ok(!Object.hasOwn(second, 'fillDownFields'), 'nothing chosen, nothing sent');
@@ -1265,54 +1269,54 @@ test('mapping: fill-down ticks follow the mapped fields, go out only when chosen
   await settleAll();
 
   // 拿掉欄位的來源欄，勾選跟著消失，清單也不再列它。
-  f.tick('[data-fill-down-field="accNum"]', true);
-  assert.deepEqual(f.optionsNow().fillDownFields, ['accNum']);
-  f.choose('select[data-mapping-key="accNum"]', '');
+  f.tick('[data-fill-down-field="accountNumber"]', true);
+  assert.deepEqual(f.optionsNow().fillDownFields, ['accountNumber']);
+  f.choose('select[data-mapping-key="accountNumber"]', '');
   assert.deepEqual(f.optionsNow().fillDownFields, []);
-  assert.ok(!offered().includes('accNum'));
+  assert.ok(!offered().includes('accountNumber'));
 });
 
 // 2026-10-28 複審：前端說明改寫成和程式一致後補的兩則。改選另一個來源欄時勾選保留，改填新的來源欄；
 // 重新匯入後新資料沒有那個來源欄時勾選跟著消失。程式本來就這樣處理，第一次就通過，沒有第一次失敗的收據。
 test('mapping: a fill-down tick stays when the field moves to another source column and goes when a reimport drops the column', () => {
   const f = journey({ draft: DUAL });
-  f.tick('[data-fill-down-field="accName"]', true);
-  f.choose('select[data-mapping-key="accName"]', 'Dept');
-  assert.deepEqual(f.optionsNow().fillDownFields, ['accName'], 'the tick follows the field to its new source column');
-  assert.equal(f.need('[data-fill-down-field="accName"]').checked, true);
+  f.tick('[data-fill-down-field="accountName"]', true);
+  f.choose('select[data-mapping-key="accountName"]', 'Dept');
+  assert.deepEqual(f.optionsNow().fillDownFields, ['accountName'], 'the tick follows the field to its new source column');
+  assert.equal(f.need('[data-fill-down-field="accountName"]').checked, true);
   f.store.setImportResult('gl', { batchId: 'gl-2', columns: GL_COLUMNS.filter(column => column !== 'Dept'), rowCount: 3 });
   assert.deepEqual(f.optionsNow().fillDownFields, [], 'a reimport without the source column drops the tick');
 });
 
 test('mapping: a reopened case shows its fill-down choices ticked', () => {
-  const f = journey({ draft: DUAL, options: { fillDownFields: ['postDate'] } });
-  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true);
-  assert.equal(f.need('[data-fill-down-field="docNum"]').checked, false);
+  const f = journey({ draft: DUAL, options: { fillDownFields: ['glDate'] } });
+  assert.equal(f.need('[data-fill-down-field="glDate"]').checked, true);
+  assert.equal(f.need('[data-fill-down-field="voucherNumber"]').checked, false);
 });
 
-// 使用者 2026-10-28 裁定依來源欄成組：填補是對來源欄做的，配到同一個來源欄的欄位一起勾、一起取消，送出時也一起送。
+// 裁定 2026-10-28-04 依來源欄成組：填補是對來源欄做的，配到同一個來源欄的欄位一起勾、一起取消，送出時也一起送。
 // 改程式之後才補，沒有第一次失敗的收據；後端的成組規則在 GlFillDownWorkflowTests 保存了第一次失敗。
 test('mapping: fields sharing one source column are ticked, unticked and sent together for fill-down', async () => {
-  const f = journey({ draft: { ...DUAL, docDate: 'Date' } });
-  f.tick('[data-fill-down-field="postDate"]', true);
-  assert.deepEqual(f.optionsNow().fillDownFields, ['postDate', 'docDate'], 'the other field on the same source column joins');
-  assert.equal(f.need('[data-fill-down-field="docDate"]').checked, true);
+  const f = journey({ draft: { ...DUAL, approvalDate: 'Date' } });
+  f.tick('[data-fill-down-field="glDate"]', true);
+  assert.deepEqual(f.optionsNow().fillDownFields, ['glDate', 'approvalDate'], 'the other field on the same source column joins');
+  assert.equal(f.need('[data-fill-down-field="approvalDate"]').checked, true);
   f.press('[data-action="commit-gl"]');
-  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['postDate', 'docDate']);
+  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['glDate', 'approvalDate']);
   f.last('mappingCommitGl').reject(new Error('synthetic'));
   await settleAll();
-  f.tick('[data-fill-down-field="docDate"]', false);
+  f.tick('[data-fill-down-field="approvalDate"]', false);
   assert.deepEqual(f.optionsNow().fillDownFields, [], 'unticking one unticks the other on the same source column');
-  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, false);
+  assert.equal(f.need('[data-fill-down-field="glDate"]').checked, false);
 });
 
-// 使用者 2026-10-28 裁定填補格數隨配對保存：重開案件時第三步摘要照樣列出填了幾格。
+// 裁定 2026-10-28-05：填補格數隨配對保存，重開案件時第三步摘要照樣列出填了幾格。
 // 改程式之後才補，沒有第一次失敗的收據；後端保存格數在 GlFillDownWorkflowTests 保存了第一次失敗。
 test('mapping: a reopened case lists how many blank cells the confirmed mapping filled', () => {
   const f = journey();
   f.window.JetUi.applyLoadedProject({ project: { projectId: 'filled', currentStep: 2 },
     importState: { gl: { batchId: 'gl-f', columns: GL_COLUMNS, rowCount: 3 } },
-    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', fillDownFields: ['docNum'], fillDownCount: 4,
+    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', fillDownFields: ['voucherNumber'], fillDownCount: 4,
       committedUtc: '2025-12-31T00:00:00Z' } } },
   { stayOnCurrentStep: true });
   assert.match(f.need('.mapping-summary__facts').textContent, /往下填補 4 格空白/);
@@ -1320,13 +1324,13 @@ test('mapping: a reopened case lists how many blank cells the confirmed mapping 
   assert.ok(facts.includes('往下填補空白：傳票號碼'), facts.join(' | '));
 });
 
-// 使用者 2026-10-28 裁定「讀取來源值」依勾選先填補再計數：來源欄勾了往下填補時請求帶 fillDown，畫面寫填補後的列數與空白提醒；
+// 裁定 2026-10-28-03：「讀取來源值」依勾選先填補再計數，來源欄勾了往下填補時請求帶 fillDown，畫面寫填補後的列數與空白提醒；
 // 改勾選時就地重新計數，清單留在原處並說明正在重新計數，回覆到了才換成新的列數。沒勾時請求不帶這一項，和以前相同。
 // 第一次失敗：Contract FrontendMapping 收據 20261028-044026868-403677e2f35346af9b622d4fbd8c2689，這則與下一則都失敗。
 test('mapping: reading source values of a filled-down column counts after filling and recounts in place when the tick changes', async () => {
-  const f = journey({ draft: { ...DUAL, manual: 'Manual' } });
+  const f = journey({ draft: { ...DUAL, isManual: 'Manual' } });
   const manual = () => f.legendGroup('人工/自動分錄代碼');
-  f.tick('[data-fill-down-field="manual"]', true);
+  f.tick('[data-fill-down-field="isManual"]', true);
   f.press('[data-action="load-manual-profile"]');
   assert.deepEqual(plain(f.last('mappingValueProfile').payload),
     { dataset: 'gl', sourceColumn: 'Manual', limit: 50, comparisonValues: ['1', '0'], checkSourceValues: true, fillDown: true });
@@ -1337,7 +1341,7 @@ test('mapping: reading source values of a filled-down column counts after fillin
   assert.match(manual().textContent, /來源有 1 列空白/);
 
   const before = f.sent('mappingValueProfile').length;
-  f.tick('[data-fill-down-field="manual"]', false);
+  f.tick('[data-fill-down-field="isManual"]', false);
   await settleAll();
   const recounts = f.sent('mappingValueProfile').slice(before).filter(request => !plain(request.payload).comparisonOnly);
   assert.equal(recounts.length, 1, 'unticking asks for the counts again once');
@@ -1372,28 +1376,28 @@ test('mapping: reading posting-status values asks for filled counts when its sou
 test('mapping: remapping a field that shares a filled-down source column keeps what the screen showed ticked', async () => {
   // 先勾傳票號碼，再把總帳日期也配到同一個來源欄，畫面兩個都勾；把總帳日期配回原本的來源欄，勾選跟著它過去。
   const f = journey({ draft: DUAL });
-  f.tick('[data-fill-down-field="docNum"]', true);
-  f.choose('select[data-mapping-key="postDate"]', 'Doc');
-  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true, 'the field on the same source column shows ticked');
-  f.choose('select[data-mapping-key="postDate"]', 'Date');
-  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true, 'the tick follows the field to its new source column');
+  f.tick('[data-fill-down-field="voucherNumber"]', true);
+  f.choose('select[data-mapping-key="glDate"]', 'Doc');
+  assert.equal(f.need('[data-fill-down-field="glDate"]').checked, true, 'the field on the same source column shows ticked');
+  f.choose('select[data-mapping-key="glDate"]', 'Date');
+  assert.equal(f.need('[data-fill-down-field="glDate"]').checked, true, 'the tick follows the field to its new source column');
   f.press('[data-action="commit-gl"]');
-  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['docNum', 'postDate']);
+  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['voucherNumber', 'glDate']);
 });
 
 test('mapping: taking a field off a filled-down source column and putting it back matches the confirmed mapping again', async () => {
-  const f = journey({ draft: { ...DUAL, postDate: 'Doc' } });
-  f.tick('[data-fill-down-field="docNum"]', true);
+  const f = journey({ draft: { ...DUAL, glDate: 'Doc' } });
+  f.tick('[data-fill-down-field="voucherNumber"]', true);
   f.press('[data-action="commit-gl"]');
-  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['docNum', 'postDate']);
-  f.last('mappingCommitGl').resolve(commitReply({ fillDownFields: ['docNum', 'postDate'], fillDownCount: 2 }));
+  assert.deepEqual(plain(f.last('mappingCommitGl').payload).fillDownFields, ['voucherNumber', 'glDate']);
+  f.last('mappingCommitGl').resolve(commitReply({ fillDownFields: ['voucherNumber', 'glDate'], fillDownCount: 2 }));
   await settleAll();
   f.timers.run();
   f.press('[data-action="remap-gl"]');
   f.timers.run();
-  f.choose('select[data-mapping-key="postDate"]', '');
+  f.choose('select[data-mapping-key="glDate"]', '');
   assert.match(f.need('[data-bind="mapping-banner-gl"]').textContent, /修改/);
-  f.choose('select[data-mapping-key="postDate"]', 'Doc');
+  f.choose('select[data-mapping-key="glDate"]', 'Doc');
   assert.ok(f.$('[data-bind="mapping-banner-gl"]') === null, 'putting the field back on the same source column is no change');
-  assert.equal(f.need('[data-fill-down-field="postDate"]').checked, true);
+  assert.equal(f.need('[data-fill-down-field="glDate"]').checked, true);
 });

@@ -15,14 +15,14 @@ public sealed class FilterCompletenessTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task AutonomousAudit_UnicodeTextCase_MatchesBothSpellings(string provider)
+    public async Task UnicodeTextCase_MatchesBothSpellings(string provider)
     {
         const string seed = """
-          INSERT INTO target_gl_entry(batch_id,source_row_number,document_number,line_item,post_date,
-            account_code,document_description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective)
-          VALUES ('unicode',1,'U1','1','2025-01-01','001','CAFÉ',100,100,0,'DEBIT',1),
-                 ('unicode',2,'U2','1','2025-01-01','001','café',100,100,0,'DEBIT',1),
-                 ('unicode',3,'U3','1','2025-01-01','001','其他',100,100,0,'DEBIT',1);
+          INSERT INTO gl(batch_id,source_row_number,voucher_number,line_item,gl_date,
+            account_number,description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_excluded)
+          VALUES ('unicode',1,'U1','1','2025-01-01','001','CAFÉ',100,100,0,'DEBIT',0),
+                 ('unicode',2,'U2','1','2025-01-01','001','café',100,100,0,'DEBIT',0),
+                 ('unicode',3,'U3','1','2025-01-01','001','其他',100,100,0,'DEBIT',0);
           """;
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, seed);
         var mismatches = new List<string>();
@@ -31,8 +31,8 @@ public sealed class FilterCompletenessTests
             var rule = JsonSerializer.Serialize(new { type="fieldValue", field="description", @operator=op, value="café" });
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, Scenario(rule), Context, CancellationToken.None);
             string[] expected = op.StartsWith("not", StringComparison.Ordinal) ? ["U3"] : ["U1","U2"];
-            if (!expected.SequenceEqual(result.PreviewRows.Select(r=>r.DocumentNumber).Order()))
-                mismatches.Add($"{provider}/{op}: expected {string.Join(',',expected)}; actual {string.Join(',',result.PreviewRows.Select(r=>r.DocumentNumber))}");
+            if (!expected.SequenceEqual(result.PreviewRows.Select(r=>r.VoucherNumber).Order()))
+                mismatches.Add($"{provider}/{op}: expected {string.Join(',',expected)}; actual {string.Join(',',result.PreviewRows.Select(r=>r.VoucherNumber))}");
         }
         Assert.True(mismatches.Count == 0, string.Join("; ", mismatches));
     }
@@ -45,13 +45,13 @@ public sealed class FilterCompletenessTests
     {
         const string fieldId = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";
         const string seed = """
-          INSERT INTO target_gl_entry(batch_id,source_row_number,document_number,line_item,post_date,
-            account_code,document_description,created_by,approved_by,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective)
-          VALUES ('unicode',1,'U1','1','2025-01-01','001','CAFÉ','élise','ÉLISE',100,100,0,'DEBIT',1),
-                 ('unicode',2,'U2','1','2025-01-01','001','café','ÉLISE','élise',100,100,0,'DEBIT',1),
-                 ('unicode',3,'U3','1','2025-01-01','001','其他','élise','other',100,100,0,'DEBIT',1);
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'rde.aaaa0000aaaa0000aaaa0000aaaa0000','text',document_description,NULL,NULL FROM target_gl_entry;
+          INSERT INTO gl(batch_id,source_row_number,voucher_number,line_item,gl_date,
+            account_number,description,created_by,approved_by,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_excluded)
+          VALUES ('unicode',1,'U1','1','2025-01-01','001','CAFÉ','élise','ÉLISE',100,100,0,'DEBIT',0),
+                 ('unicode',2,'U2','1','2025-01-01','001','café','ÉLISE','élise',100,100,0,'DEBIT',0),
+                 ('unicode',3,'U3','1','2025-01-01','001','其他','élise','other',100,100,0,'DEBIT',0);
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'rde.aaaa0000aaaa0000aaaa0000aaaa0000','text',description,NULL,NULL FROM gl;
           """;
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, seed);
         var context = Context with { RdeFields = [new(fieldId,"extra","extra","text")] };
@@ -65,13 +65,15 @@ public sealed class FilterCompletenessTests
             ("""{"type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"notEquals","value":"café"}""", ["U3"]),
             ("""{"type":"text","field":"description","mode":"exact","keywords":"café"}""", ["U1","U2"]),
             ("""{"type":"textSet","field":"description","mode":"notContains","values":["café"]}""", ["U3"]),
-            ("""{"type":"customKeywords","keywords":"café"}""", ["U1","U2"]),
+            // 舊式關鍵字已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），照它的重建方式改用「傳票摘要」的「包含任一文字」，固定答案不變。
+            // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+            ("""{"type":"fieldValue","field":"description","operator":"contains","values":["café"]}""", ["U1","U2"]),
             ("""{"type":"preparerEqualsApprover"}""", ["U1","U2"])
         ];
         foreach (var c in cases)
         {
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, Scenario(c.Json), context, CancellationToken.None);
-            Assert.Equal(c.Expected, result.PreviewRows.Select(r=>r.DocumentNumber).Order());
+            Assert.Equal(c.Expected, result.PreviewRows.Select(r=>r.VoucherNumber).Order());
             Assert.Equal(c.Expected.Length, result.Count);
         }
     }
@@ -79,36 +81,36 @@ public sealed class FilterCompletenessTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task AutonomousAudit_AllValueOperatorsMatchIndependentOracle(string provider)
+    public async Task AllValueOperatorsMatchIndependentOracle(string provider)
     {
         const string textId = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";
         const string dateId = "rde.bbbb0000bbbb0000bbbb0000bbbb0000";
         const string moneyId = "rde.cccc0000cccc0000cccc0000cccc0000";
         const string seed = """
-          INSERT INTO target_gl_entry(batch_id,source_row_number,document_number,line_item,post_date,approval_date,
-            account_code,document_description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective)
+          INSERT INTO gl(batch_id,source_row_number,voucher_number,line_item,gl_date,approval_date,
+            account_number,description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_excluded)
           VALUES
-          ('oracle',1,'R1','1','2025-01-01','2024-02-28','001',' alpha ',-1001,0,1001,'CREDIT',1),
-          ('oracle',2,'R2','1','2025-01-01','2024-02-29','001','ALPHA beta',-1000,0,1000,'CREDIT',1),
-          ('oracle',3,'R3','1','2025-01-01','2024-03-01','001','%_[',0,0,0,'DEBIT',1),
-          ('oracle',4,'R4','1','2025-01-01','2024-03-31','001','',1000,1000,0,'DEBIT',1),
-          ('oracle',5,'R5','1','2025-01-01','2024-04-30','001',NULL,1001,1001,0,'DEBIT',1),
-          ('oracle',6,'R6','1','2025-01-01',NULL,'001','beta',2000,2000,0,'DEBIT',1),
-          ('oracle',7,'R7','1','2025-01-01',NULL,'001','   ',0,0,0,'DEBIT',1),
-          ('oracle',8,'OUT','1','2024-12-31','2024-02-29','001','alpha',1000,1000,0,'DEBIT',0);
-          INSERT INTO staging_calendar_raw_day(day_type,date) VALUES ('holiday','2024-02-29'),
+          ('oracle',1,'R1','1','2025-01-01','2024-02-28','001',' alpha ',-1001,0,1001,'CREDIT',0),
+          ('oracle',2,'R2','1','2025-01-01','2024-02-29','001','ALPHA beta',-1000,0,1000,'CREDIT',0),
+          ('oracle',3,'R3','1','2025-01-01','2024-03-01','001','%_[',0,0,0,'DEBIT',0),
+          ('oracle',4,'R4','1','2025-01-01','2024-03-31','001','',1000,1000,0,'DEBIT',0),
+          ('oracle',5,'R5','1','2025-01-01','2024-04-30','001',NULL,1001,1001,0,'DEBIT',0),
+          ('oracle',6,'R6','1','2025-01-01',NULL,'001','beta',2000,2000,0,'DEBIT',0),
+          ('oracle',7,'R7','1','2025-01-01',NULL,'001','   ',0,0,0,'DEBIT',0),
+          ('oracle',8,'OUT','1','2024-12-31','2024-02-29','001','alpha',1000,1000,0,'DEBIT',1);
+          INSERT INTO calendar_day(day_type,date) VALUES ('holiday','2024-02-29'),
             ('holiday','2024-03-01'),('makeup','2024-02-29'),('makeup','2024-03-31');
           """;
         var extraSeed = $"""
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{textId}','text',document_description,NULL,NULL FROM target_gl_entry WHERE source_row_number<>7 AND document_description IS NOT NULL;
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{dateId}','date',NULL,approval_date,NULL FROM target_gl_entry WHERE source_row_number<>7 AND approval_date IS NOT NULL;
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{moneyId}','money',NULL,NULL,amount_scaled FROM target_gl_entry WHERE source_row_number<>7;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{textId}','text',description,NULL,NULL FROM gl WHERE source_row_number<>7 AND description IS NOT NULL;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{dateId}','date',NULL,approval_date,NULL FROM gl WHERE source_row_number<>7 AND approval_date IS NOT NULL;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{moneyId}','amount',NULL,NULL,amount_scaled FROM gl WHERE source_row_number<>7;
           """;
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, seed + extraSeed);
-        var context = Context with { RdeFields = [new(textId,"text","text","text"),new(dateId,"date","date","date"),new(moneyId,"money","money","money")] };
+        var context = Context with { RdeFields = [new(textId,"text","text","text"),new(dateId,"date","date","date"),new(moneyId,"money","money","amount")] };
         (string Op, string Operand, int[] Hits)[] textCases =
         [
             ("equals", "\"value\":\"ALPHA\"", [1]), ("notEquals", "\"value\":\"alpha\"", [2,3,6]),
@@ -169,9 +171,9 @@ public sealed class FilterCompletenessTests
         foreach (var (type, core, extra, cases, blanks, basis) in new[]
         {
             ("text","description",textId,textCases,new[]{4,5,7}, (string?)null),
-            ("date","docDate",dateId,dateCases,new[]{6,7}, (string?)null),
-            ("money","amount",moneyId,signedCases,new[]{7}, "signed"),
-            ("money","amount",moneyId,absoluteCases,new[]{7}, "absolute")
+            ("date","approvalDate",dateId,dateCases,new[]{6,7}, (string?)null),
+            ("amount","amount",moneyId,signedCases,new[]{7}, "signed"),
+            ("amount","amount",moneyId,absoluteCases,new[]{7}, "absolute")
         })
         {
             // Fail if a new UI/backend operator is added without an independently specified answer.
@@ -182,7 +184,7 @@ public sealed class FilterCompletenessTests
             {
                 var expected = c.Hits.ToList();
                 // Core amount has a real zero in R7; the extra amount has no row there.
-                if (type == "money" && !isExtra)
+                if (type == "amount" && !isExtra)
                 {
                     expected.Remove(7);
                     if (c.Op is "notEquals" or "lessThan" or "lessThanOrEqual" or "between" or "notIn" or "notEndsWithDigits" or "isNotBlank") expected.Add(7);
@@ -194,12 +196,14 @@ public sealed class FilterCompletenessTests
                 var scenario = Scenario(rule);
                 var errors = FilterScenarioValidator.Validate(scenario, new(false,true,false) { MoneyScale=100, RdeFields=context.RdeFields });
                 // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Core signed amounts are retired; keep compiler answers for historical definitions and validate the rejection exactly.
+                // 核心金額的「含正負號」不再寫重建方式，當成無法讀取的內容（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
+                // 第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（停用寫法的常數已不存在，無法編譯）。
                 if (basis == "signed" && !isExtra)
-                    Assert.Equal("第 1 組第 1 條：" + FilterSinglePurposeRules.SignedAmount, Assert.Single(errors));
+                    Assert.Equal("第 1 組第 1 條：" + FilterScenarioCorruption.RuleMessage, Assert.Single(errors));
                 else Assert.Empty(errors);
                 var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, context, CancellationToken.None);
                 var ids = expected.Distinct().Order().Select(i=>"R"+i).ToArray();
-                Assert.True(ids.SequenceEqual(result.PreviewRows.Select(r=>r.DocumentNumber).Order()), $"{provider}/{type}/{basis}/{isExtra}/{includeBlank}/{c.Op}");
+                Assert.True(ids.SequenceEqual(result.PreviewRows.Select(r=>r.VoucherNumber).Order()), $"{provider}/{type}/{basis}/{isExtra}/{includeBlank}/{c.Op}");
                 Assert.Equal(ids.Length, result.Count);
                 Assert.Equal(ids.Length, result.VoucherCount);
             }
@@ -209,38 +213,38 @@ public sealed class FilterCompletenessTests
     // A: Cash debit / Others credit. B: both kinds on both sides. C: unmapped (999) credit.
     // D: Cash credit plus unmapped credit. E: custom category with Cash role, no credit.
     private const string Seed = """
-        INSERT INTO config_account_taxonomy (category_id,label,ordinal,semantic_role,is_builtin,revision)
+        INSERT INTO account_category (category_id,label,ordinal,semantic_role,is_builtin,revision)
         VALUES ('custom.0123456789abcdef0123456789abcdef','Petty cash',5,'cash',0,2);
-        INSERT INTO target_account_mapping (batch_id,source_row_number,account_code,account_name,standardized_category,category_id)
+        INSERT INTO account_mapping (batch_id,source_row_number,account_number,account_name,standardized_category,category_id)
         VALUES ('m',1,'001','Cash','Cash','builtin.cash'),('m',2,'002','Other','Others','builtin.others'),
                ('m',3,'003','Petty','Cash','custom.0123456789abcdef0123456789abcdef');
-        UPDATE target_account_mapping SET classification_explicit = 1;
-        INSERT INTO target_gl_entry (batch_id,source_row_number,document_number,line_item,post_date,approval_date,
-          account_code,document_description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective)
+        UPDATE account_mapping SET classification_explicit = 1;
+        INSERT INTO gl (batch_id,source_row_number,voucher_number,line_item,gl_date,approval_date,
+          account_number,description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_excluded)
         VALUES
-          ('f',1,'A','1','2025-01-01','2024-02-29','001','start 100%_[ end',10000,10000,0,'DEBIT',1),
-          ('f',2,'A','2','2025-02-01',NULL,'002',NULL,-10000,0,10000,'CREDIT',1),
-          ('f',3,'B','1','2025-01-01','2025-01-01','001','literal',10000,10000,0,'DEBIT',1),
-          ('f',4,'B','2','2025-02-01','2025-01-01','002','literal',-10000,0,10000,'CREDIT',1),
-          ('f',5,'B','3','2025-02-01','2025-01-01','002','literal',5000,5000,0,'DEBIT',1),
-          ('f',6,'B','4','2025-03-01','2025-01-01','001','literal',-5000,0,5000,'CREDIT',1),
-          ('f',7,'C','1','2025-01-01','2025-01-01','001','literal',10000,10000,0,'DEBIT',1),
-          ('f',8,'C','2','2025-02-01','2025-01-01','999','literal',-10000,0,10000,'CREDIT',1),
-          ('f',9,'D','1','2025-01-01','2025-01-01','001','literal',10000,10000,0,'DEBIT',1),
-          ('f',10,'D','2','2025-03-01','2025-01-01','001','literal',-5000,0,5000,'CREDIT',1),
-          ('f',11,'D','3','2025-02-01','2025-01-01','999','literal',-5000,0,5000,'CREDIT',1),
-          ('f',12,'E','1','2025-01-01','2025-01-01','003','literal',0,0,0,'DEBIT',1);
+          ('f',1,'A','1','2025-01-01','2024-02-29','001','start 100%_[ end',10000,10000,0,'DEBIT',0),
+          ('f',2,'A','2','2025-02-01',NULL,'002',NULL,-10000,0,10000,'CREDIT',0),
+          ('f',3,'B','1','2025-01-01','2025-01-01','001','literal',10000,10000,0,'DEBIT',0),
+          ('f',4,'B','2','2025-02-01','2025-01-01','002','literal',-10000,0,10000,'CREDIT',0),
+          ('f',5,'B','3','2025-02-01','2025-01-01','002','literal',5000,5000,0,'DEBIT',0),
+          ('f',6,'B','4','2025-03-01','2025-01-01','001','literal',-5000,0,5000,'CREDIT',0),
+          ('f',7,'C','1','2025-01-01','2025-01-01','001','literal',10000,10000,0,'DEBIT',0),
+          ('f',8,'C','2','2025-02-01','2025-01-01','999','literal',-10000,0,10000,'CREDIT',0),
+          ('f',9,'D','1','2025-01-01','2025-01-01','001','literal',10000,10000,0,'DEBIT',0),
+          ('f',10,'D','2','2025-03-01','2025-01-01','001','literal',-5000,0,5000,'CREDIT',0),
+          ('f',11,'D','3','2025-02-01','2025-01-01','999','literal',-5000,0,5000,'CREDIT',0),
+          ('f',12,'E','1','2025-01-01','2025-01-01','003','literal',0,0,0,'DEBIT',0);
         """;
-    private static readonly FilterRuleContext Context = new(100, null, "2025-01-01", "2025-12-31");
-    private const string CashDebit = """{"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
-    private const string OtherCredit = """{"type":"group","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]}""";
-    private const string NoCashCredit = """{"type":"voucher","quantifier":"none","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
-    private static string Witness(string rule) => $$"""{"type":"voucher","quantifier":"any","rules":[{{rule}}]}""";
+    private static readonly FilterConditionContext Context = new(100, null, "2025-01-01", "2025-12-31");
+    private const string CashDebit = """{"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
+    private const string OtherCredit = """{"type":"group","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]}""";
+    private const string NoCashCredit = """{"type":"voucher","quantifier":"none","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
+    private static string Witness(string rule) => $$"""{"type":"voucher","quantifier":"any","conditions":[{{rule}}]}""";
 
     internal static FilterScenarioSpec Scenario(string rules, string scope = "row", string? secondGroupRules = null) =>
         FilterScenarioPayloadParser.Parse(JsonDocument.Parse($$"""
-        {"name":"Synthetic selection","rationale":"Fixed expected identities","groups":[{"matchScope":"{{scope}}","rules":[{{rules}}]}
-        {{(secondGroupRules is null ? "" : $$""",{"join":"AND","rules":[{{secondGroupRules}}]}""")}}]}
+        {"name":"Synthetic selection","rationale":"Fixed expected identities","groups":[{"matchScope":"{{scope}}","conditions":[{{rules}}]}
+        {{(secondGroupRules is null ? "" : $$""",{"join":"AND","conditions":[{{secondGroupRules}}]}""")}}]}
         """).RootElement, 100);
 
     [Theory]
@@ -253,7 +257,7 @@ public sealed class FilterCompletenessTests
         {
             Assert.Empty(FilterScenarioValidator.Validate(scenario, new(false, true, false, HasAnyAccountCategory: true) { MoneyScale = 100 }));
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, Context, CancellationToken.None);
-            Assert.Equal(rows, result.PreviewRows.Select(row => $"{row.DocumentNumber}|{row.LineItem}").Order().ToArray());
+            Assert.Equal(rows, result.PreviewRows.Select(row => $"{row.VoucherNumber}|{row.LineItem}").Order().ToArray());
             Assert.Equal(rows.Length, result.Count);
             Assert.Equal(rows.Select(row => row.Split('|')[0]).Distinct().Count(), result.VoucherCount);
         }
@@ -268,17 +272,17 @@ public sealed class FilterCompletenessTests
         await Check(Scenario("""{"join":"or","type":"drCrOnly","drCr":"debit"},{"join":"or","type":"drCrOnly","drCr":"credit"}"""),
             ["A|1", "A|2", "B|1", "B|2", "B|3", "B|4", "C|1", "C|2", "D|1", "D|2", "D|3", "E|1"]);
         var four = CashDebit + "," + Witness(OtherCredit) + "," +
-            """{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]},{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
+            """{"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"]}]},{"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]}""";
         await Check(Scenario(four), ["B|1"]);
         await Check(Scenario(OtherCredit + "," + Witness(CashDebit)), ["A|2", "B|2", "C|2", "D|3"]);
         // 排除日期用一般條件的「不在清單中」放在另一組（列層級 AND），傳票層判斷不受影響。
-        const string notMarch = """{"type":"fieldValue","field":"postDate","operator":"notIn","values":["2025-03-01"]}""";
+        const string notMarch = """{"type":"fieldValue","field":"glDate","operator":"notIn","values":["2025-03-01"]}""";
         await Check(Scenario(CashDebit + "," + NoCashCredit, secondGroupRules: notMarch), ["A|1", "C|1", "E|1"]);
-        const string notFebruary = """{"type":"fieldValue","field":"postDate","operator":"notIn","values":["2025-02-01"]}""";
+        const string notFebruary = """{"type":"fieldValue","field":"glDate","operator":"notIn","values":["2025-02-01"]}""";
         await Check(Scenario("""{"type":"drCrOnly","drCr":"debit"}""", secondGroupRules: notFebruary), ["A|1", "B|1", "C|1", "D|1", "E|1"]);
-        var onlyA = """{"type":"fieldValue","field":"docNum","operator":"equals","value":"A"}""";
+        var onlyA = """{"type":"fieldValue","field":"voucherNumber","operator":"equals","value":"A"}""";
         await Check(Scenario(NoCashCredit + "," + onlyA), ["A|1", "A|2"]);
-        var onlyCOr = """{"join":"OR","type":"fieldValue","field":"docNum","operator":"equals","value":"C"}""";
+        var onlyCOr = """{"join":"OR","type":"fieldValue","field":"voucherNumber","operator":"equals","value":"C"}""";
         await Check(Scenario(NoCashCredit + "," + onlyCOr), ["A|1", "A|2", "C|1", "C|2", "E|1"]);
     }
 
@@ -305,18 +309,18 @@ public sealed class FilterCompletenessTests
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
         var definition = JsonDocument.Parse("""
-          {"name":"Blank default","rationale":"Synthetic","groups":[{"rules":[
+          {"name":"Blank default","rationale":"Synthetic","groups":[{"conditions":[
             {"type":"fieldValue","field":"description","operator":"notIn","values":["literal"]}]}]}
           """).RootElement;
         var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, FilterScenarioPayloadParser.Parse(definition, 100), Context, CancellationToken.None);
-        Assert.Equal("A|1", $"{Assert.Single(result.PreviewRows).DocumentNumber}|{result.PreviewRows[0].LineItem}");
+        Assert.Equal("A|1", $"{Assert.Single(result.PreviewRows).VoucherNumber}|{result.PreviewRows[0].LineItem}");
         Assert.Contains("空白不列入", FilterConditionRenderer.Render(definition), StringComparison.Ordinal);
         var withBlank = JsonDocument.Parse("""
-          {"name":"Blank included","rationale":"Synthetic","groups":[{"rules":[
+          {"name":"Blank included","rationale":"Synthetic","groups":[{"conditions":[
             {"type":"fieldValue","field":"description","operator":"notIn","values":["literal"],"includeBlank":true}]}]}
           """).RootElement;
         var included = await fixture.Repository.PreviewAsync(fixture.ProjectId, FilterScenarioPayloadParser.Parse(withBlank, 100), Context, CancellationToken.None);
-        Assert.Equal(["A|1", "A|2"], included.PreviewRows.Select(row => $"{row.DocumentNumber}|{row.LineItem}").Order());
+        Assert.Equal(["A|1", "A|2"], included.PreviewRows.Select(row => $"{row.VoucherNumber}|{row.LineItem}").Order());
         Assert.Contains("空白也符合", FilterConditionRenderer.Render(withBlank), StringComparison.Ordinal);
     }
 
@@ -329,22 +333,22 @@ public sealed class FilterCompletenessTests
         async Task Check(string rule, string[] rows)
         {
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, Scenario(rule), Context, CancellationToken.None);
-            Assert.Equal(rows, result.PreviewRows.Select(row => $"{row.DocumentNumber}|{row.LineItem}").Order().ToArray());
+            Assert.Equal(rows, result.PreviewRows.Select(row => $"{row.VoucherNumber}|{row.LineItem}").Order().ToArray());
         }
-        await Check("""{"type":"fieldValue","field":"docDate","operator":"in","values":["2024-02-29","2024-02-29"]}""", ["A|1"]);
-        await Check("""{"type":"fieldValue","field":"docDate","operator":"notIn","values":["2025-01-01"]}""", ["A|1"]);
-        await Check("""{"type":"fieldValue","field":"docDate","operator":"notIn","values":["2025-01-01"],"includeBlank":true}""", ["A|1", "A|2"]);
+        await Check("""{"type":"fieldValue","field":"approvalDate","operator":"in","values":["2024-02-29","2024-02-29"]}""", ["A|1"]);
+        await Check("""{"type":"fieldValue","field":"approvalDate","operator":"notIn","values":["2025-01-01"]}""", ["A|1"]);
+        await Check("""{"type":"fieldValue","field":"approvalDate","operator":"notIn","values":["2025-01-01"],"includeBlank":true}""", ["A|1", "A|2"]);
         await Check("""{"type":"fieldValue","field":"description","operator":"startsWith","value":"start 100%_["}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"description","operator":"endsWith","value":"_[ end"}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"description","operator":"isBlank"}""", ["A|2"]);
         await Check("""{"type":"fieldValue","field":"amount","amountBasis":"signed","operator":"in","values":["-50","0"]}""", ["B|4", "D|2", "D|3", "E|1"]);
         await Check("""{"type":"fieldValue","field":"amount","amountBasis":"absolute","operator":"notBetween","from":"1","to":"100"}""", ["E|1"]);
-        await Check("""{"type":"fieldValue","field":"accNum","operator":"equals","value":"1"}""", []);
-        // 每月幾日（2026-09-04 裁定）：核准日 29 日只有 A|1；排除 1 日時核准日空白的 A|2 預設不列入。
-        await Check("""{"type":"fieldValue","field":"docDate","operator":"dayOfMonthIn","values":["29"]}""", ["A|1"]);
-        await Check("""{"type":"fieldValue","field":"docDate","operator":"dayOfMonthNotIn","values":["1","01"]}""", ["A|1"]);
-        await Check("""{"type":"fieldValue","field":"docDate","operator":"dayOfMonthNotIn","values":["1"],"includeBlank":true}""", ["A|1", "A|2"]);
-        await Check("""{"type":"fieldValue","field":"postDate","operator":"dayOfMonthIn","values":["28","31"]}""", []);
+        await Check("""{"type":"fieldValue","field":"accountNumber","operator":"equals","value":"1"}""", []);
+        // 每月幾日（裁定 2026-09-04-01）：核准日 29 日只有 A|1；排除 1 日時核准日空白的 A|2 預設不列入。
+        await Check("""{"type":"fieldValue","field":"approvalDate","operator":"dayOfMonthIn","values":["29"]}""", ["A|1"]);
+        await Check("""{"type":"fieldValue","field":"approvalDate","operator":"dayOfMonthNotIn","values":["1","01"]}""", ["A|1"]);
+        await Check("""{"type":"fieldValue","field":"approvalDate","operator":"dayOfMonthNotIn","values":["1"],"includeBlank":true}""", ["A|1", "A|2"]);
+        await Check("""{"type":"fieldValue","field":"glDate","operator":"dayOfMonthIn","values":["28","31"]}""", []);
         // 包含任一文字接受多個關鍵字；不包含任何文字是它的否定，摘要空白的 A|2 預設不列入。
         await Check("""{"type":"fieldValue","field":"description","operator":"contains","values":["START","nothing"]}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"description","operator":"notContains","values":["start","LITERAL"]}""", []);
@@ -371,7 +375,7 @@ public sealed class FilterCompletenessTests
         var scenario = Scenario(CashDebit);
         var first = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(null, 1), countWholeVoucherRows: false, CancellationToken.None);
         Assert.Equal(new FilterVoucherSummary("A", "2025-01-01", 1, 2, 10000), Assert.Single(first.Vouchers));
-        // 2026-09-07 工作包 G：傳票摘要頁改走共用 keyset 分頁，下一頁鍵成為 opaque 游標，內容仍是末列的傳票號碼。
+        // 2026-09-07 起傳票摘要頁改走共用 keyset 分頁，下一頁鍵成為 opaque 游標，內容仍是末列的傳票號碼。
         Assert.True(PageCursor.TryDecode(first.NextKey, out var firstKey));
         Assert.Equal("A", firstKey);
         var second = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(first.NextKey, 1), countWholeVoucherRows: false, CancellationToken.None);
@@ -396,16 +400,16 @@ public sealed class FilterCompletenessTests
         {
             var sortedPage = await repository.ReadAsync(id, scenario, Context, null,
                 new PageRequest(sortCursor, 1, new PageSort("totalRowCount", PageSortDirection.Descending)), countWholeVoucherRows: false, CancellationToken.None);
-            order.Add(Assert.Single(sortedPage.Vouchers).DocumentNumber);
+            order.Add(Assert.Single(sortedPage.Vouchers).VoucherNumber);
             sortCursor = sortedPage.NextKey;
         } while (sortCursor is not null);
         Assert.Equal(["B", "D", "C", "A", "E"], order);
         var searched = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(null, 10, null, "a"), countWholeVoucherRows: false, CancellationToken.None);
-        Assert.Equal("A", Assert.Single(searched.Vouchers).DocumentNumber);
+        Assert.Equal("A", Assert.Single(searched.Vouchers).VoucherNumber);
         // 傳票總額（借方總額）升冪：E 0、A 10000、C 10000、D 10000、B 15000；同值時穩定鍵升冪。
         var byTotal = await repository.ReadAsync(id, scenario, Context, null,
             new PageRequest(null, 10, new PageSort("voucherTotal", PageSortDirection.Ascending)), countWholeVoucherRows: false, CancellationToken.None);
-        Assert.Equal(["E", "A", "C", "D", "B"], byTotal.Vouchers.Select(row => row.DocumentNumber).ToArray());
+        Assert.Equal(["E", "A", "C", "D", "B"], byTotal.Vouchers.Select(row => row.VoucherNumber).ToArray());
         Assert.Equal([0L, 10000L, 10000L, 10000L, 15000L], byTotal.Vouchers.Select(row => row.VoucherTotalScaled).ToArray());
     }
 
@@ -418,22 +422,22 @@ public sealed class FilterCompletenessTests
         const string dateId = "rde.bbbb0000bbbb0000bbbb0000bbbb0000";
         const string moneyId = "rde.cccc0000cccc0000cccc0000cccc0000";
         var sql = Seed + $"""
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{textId}','text','BEGIN%_END',NULL,NULL FROM target_gl_entry WHERE source_row_number=1;
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{textId}','text','other',NULL,NULL FROM target_gl_entry WHERE source_row_number=2;
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{dateId}','date',NULL,'2024-02-29',NULL FROM target_gl_entry WHERE source_row_number=1;
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{dateId}','date',NULL,'2025-12-31',NULL FROM target_gl_entry WHERE source_row_number=2;
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{moneyId}','money',NULL,NULL,5000 FROM target_gl_entry WHERE source_row_number=1;
-          INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
-          SELECT entry_id,'{moneyId}','money',NULL,NULL,-5000 FROM target_gl_entry WHERE source_row_number=2;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{textId}','text','BEGIN%_END',NULL,NULL FROM gl WHERE source_row_number=1;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{textId}','text','other',NULL,NULL FROM gl WHERE source_row_number=2;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{dateId}','date',NULL,'2024-02-29',NULL FROM gl WHERE source_row_number=1;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{dateId}','date',NULL,'2025-12-31',NULL FROM gl WHERE source_row_number=2;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{moneyId}','amount',NULL,NULL,5000 FROM gl WHERE source_row_number=1;
+          INSERT INTO gl_rde_value(entry_id,field_id,value_type,text_value,date_value,amount_scaled)
+          SELECT entry_id,'{moneyId}','amount',NULL,NULL,-5000 FROM gl WHERE source_row_number=2;
           """;
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, sql);
         var context = Context with { RdeFields = [new(textId, "Extra text", "Extra text", "text"),
-            new(dateId, "Extra date", "Extra date", "date"), new(moneyId, "Extra amount", "Extra amount", "money")] };
+            new(dateId, "Extra date", "Extra date", "date"), new(moneyId, "Extra amount", "Extra amount", "amount")] };
         async Task Check(object rule, long expected)
         {
             var scenario = Scenario(JsonSerializer.Serialize(rule));
@@ -457,122 +461,18 @@ public sealed class FilterCompletenessTests
     }
 
     [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task V10Migration_RecoversBlankProvenanceAndKeepsLegacyResults(string provider)
-    {
-        using var root = new TempProjectRoot(); var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase Database() => provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
-        var db = Database(); const string id = "classification-upgrade";
-        Directory.CreateDirectory(folder.GetProjectDirectory(id));
-        await db.EnsureCreatedAsync(id, CancellationToken.None);
-        await using (var connection = db.CreateConnection(id))
-        {
-            await connection.OpenAsync(); await using var seed = connection.CreateCommand();
-            seed.CommandText = Seed + """
-                INSERT INTO import_batch (batch_id,dataset_kind,source_file_path,source_file_name,imported_utc,row_count,columns_json)
-                VALUES ('m','account_mapping','synthetic.csv','synthetic.csv','2025-01-01',3,'["Code","Name","Category"]');
-                INSERT INTO staging_account_mapping_raw_row (batch_id,row_number,source_row_number,row_json)
-                VALUES ('m',1,1,'{"Code":"001","Name":"Cash","Category":"Cash"}'),
-                       ('m',2,2,'{"Code":"002","Name":"Other","Category":"  "}'),
-                       ('m',3,3,'{"Code":"003","Name":"Petty","Category":"Petty cash"}');
-                ALTER TABLE target_account_mapping DROP COLUMN classification_explicit;
-                UPDATE schema_info SET value = '9' WHERE key = 'schema_version';
-                """;
-            await seed.ExecuteNonQueryAsync();
-        }
-        var upgraded = Database(); await upgraded.EnsureCreatedAsync(id, CancellationToken.None);
-        await using (var connection = upgraded.CreateConnection(id))
-        {
-            await connection.OpenAsync(); await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT classification_explicit FROM target_account_mapping ORDER BY account_code";
-            await using var reader = await command.ExecuteReaderAsync();
-            var explicitValues = new List<int>(); while (await reader.ReadAsync()) explicitValues.Add(Convert.ToInt32(reader.GetValue(0)));
-            Assert.Equal([1, 0, 1], explicitValues);
-        }
-        var repository = new LocalFilterRunRepository(upgraded);
-        var old = Scenario("""{"type":"specialAccountCategoryPair","pairMode":"drNotCr","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.cash"]}""");
-        var oldResult = await repository.PreviewAsync(id, old, Context, CancellationToken.None);
-        Assert.Equal(["A|1", "C|1", "E|1"], oldResult.PreviewRows.Select(row => row.DocumentNumber + "|" + row.LineItem).Order());
-        // 分類留白的 002 視為 Others：新條件與舊配對條件對同一批傳票給出同一個答案。
-        var current = await repository.PreviewAsync(id, Scenario(CashDebit + "," + NoCashCredit, "sameVoucher"), Context, CancellationToken.None);
-        Assert.Equal(["A|1", "C|1", "E|1"], current.PreviewRows.Select(row => row.DocumentNumber + "|" + row.LineItem).Order());
-        var second = Database(); await second.EnsureCreatedAsync(id, CancellationToken.None);
-        var again = await new LocalFilterRunRepository(second).PreviewAsync(id, old, Context, CancellationToken.None);
-        Assert.Equal(oldResult.Count, again.Count);
-    }
-
-    // 已存配對是唯一來源：升級時不用目前的欄名規則猜分類欄，而是找出和已存分類一致的來源欄。
-    // 第一組：目前規則會因關鍵字選到「Category remark」，但已存分類只和「Group」一致。
-    // 第二組：「Category」與「Group」都和已存分類一致，002 卻一欄空白、一欄寫 Others，無從判斷，不計入留白。
-    [Theory]
-    [InlineData("sqlite", """["Code","Name","Group","Category remark"]""",
-        """{"Code":"001","Name":"Cash","Group":"Cash","Category remark":""}""",
-        """{"Code":"002","Name":"Other","Group":"","Category remark":"confirm with client"}""",
-        """{"Code":"003","Name":"Petty","Group":"Petty cash","Category remark":""}""", "1,0,1")]
-    [InlineData("duckdb", """["Code","Name","Group","Category remark"]""",
-        """{"Code":"001","Name":"Cash","Group":"Cash","Category remark":""}""",
-        """{"Code":"002","Name":"Other","Group":"","Category remark":"confirm with client"}""",
-        """{"Code":"003","Name":"Petty","Group":"Petty cash","Category remark":""}""", "1,0,1")]
-    [InlineData("sqlite", """["Code","Name","Category","Group"]""",
-        """{"Code":"001","Name":"Cash","Category":"Cash","Group":"Cash"}""",
-        """{"Code":"002","Name":"Other","Category":"","Group":"Others"}""",
-        """{"Code":"003","Name":"Petty","Category":"Petty cash","Group":"Petty cash"}""", "1,null,1")]
-    public async Task V10Migration_ReadsBlankProvenanceFromTheColumnConsistentWithTheSavedMapping(
-        string provider, string columnsJson, string row1, string row2, string row3, string expected)
-    {
-        using var root = new TempProjectRoot(); var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase Database() => provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
-        var db = Database(); const string id = "classification-saved-source";
-        Directory.CreateDirectory(folder.GetProjectDirectory(id));
-        await db.EnsureCreatedAsync(id, CancellationToken.None);
-        await using (var connection = db.CreateConnection(id))
-        {
-            await connection.OpenAsync(); await using var seed = connection.CreateCommand();
-            seed.CommandText = Seed + $"""
-                INSERT INTO import_batch (batch_id,dataset_kind,source_file_path,source_file_name,imported_utc,row_count,columns_json)
-                VALUES ('m','account_mapping','synthetic.csv','synthetic.csv','2025-01-01',3,'{columnsJson}');
-                INSERT INTO staging_account_mapping_raw_row (batch_id,row_number,source_row_number,row_json)
-                VALUES ('m',1,1,'{row1}'),('m',2,2,'{row2}'),('m',3,3,'{row3}');
-                ALTER TABLE target_account_mapping DROP COLUMN classification_explicit;
-                UPDATE schema_info SET value = '9' WHERE key = 'schema_version';
-                """;
-            await seed.ExecuteNonQueryAsync();
-        }
-        var upgraded = Database(); await upgraded.EnsureCreatedAsync(id, CancellationToken.None);
-        await using (var connection = upgraded.CreateConnection(id))
-        {
-            await connection.OpenAsync(); await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT classification_explicit FROM target_account_mapping ORDER BY account_code";
-            await using var reader = await command.ExecuteReaderAsync();
-            var values = new List<string>();
-            while (await reader.ReadAsync()) values.Add(reader.IsDBNull(0) ? "null" : Convert.ToInt32(reader.GetValue(0)).ToString());
-            Assert.Equal(expected, string.Join(",", values));
-        }
-    }
-
-    [Theory]
-    [InlineData("""{"type":"fieldValue","field":"postDate","operator":"in","values":["2025-02-29"]}""")]
-    [InlineData("""{"type":"fieldValue","field":"postDate","operator":"between","from":"2025-03-01","to":"2025-01-01"}""")]
+    [InlineData("""{"type":"fieldValue","field":"glDate","operator":"in","values":["2025-02-29"]}""")]
+    [InlineData("""{"type":"fieldValue","field":"glDate","operator":"between","from":"2025-03-01","to":"2025-01-01"}""")]
     [InlineData("""{"type":"fieldValue","field":"amount","operator":"in","values":["bad"],"amountBasis":"signed"}""")]
     [InlineData("""{"type":"fieldValue","field":"amount","operator":"startsWith","value":"10","amountBasis":"signed"}""")]
     [InlineData("""{"type":"accountSide","drCr":"credit","categoryMode":"absent","categoryIds":[]}""")]
     [InlineData("""{"type":"accountSide","drCr":"credit","categoryMode":"unclassified","categoryIds":["builtin.cash"]}""")]
-    [InlineData("""{"type":"fieldValue","field":"postDate","operator":"dayOfMonthIn","values":["32"]}""")]
-    [InlineData("""{"type":"fieldValue","field":"postDate","operator":"dayOfMonthNotIn","values":["0","5"]}""")]
-    [InlineData("""{"type":"fieldValue","field":"postDate","operator":"dayOfMonthIn","values":[]}""")]
+    [InlineData("""{"type":"fieldValue","field":"glDate","operator":"dayOfMonthIn","values":["32"]}""")]
+    [InlineData("""{"type":"fieldValue","field":"glDate","operator":"dayOfMonthNotIn","values":["0","5"]}""")]
+    [InlineData("""{"type":"fieldValue","field":"glDate","operator":"dayOfMonthIn","values":[]}""")]
     [InlineData("""{"type":"fieldValue","field":"amount","operator":"dayOfMonthIn","values":["5"],"amountBasis":"signed"}""")]
     [InlineData("""{"type":"fieldValue","field":"description","operator":"contains","values":["", "x"]}""")]
     public void InvalidConditions_ExplainWhatMustBeCorrected(string rule) =>
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rule), new(false, true, false, HasAnyAccountCategory: true) { MoneyScale = 100 }));
 
-    [Fact]
-    public void RemovedExclusionRegion_FailsLoudInsteadOfSilentlyWidening()
-    {
-        var error = Assert.Throws<JetActionException>(() => FilterScenarioPayloadParser.Parse(JsonDocument.Parse("""
-          {"name":"Legacy exclusion","rationale":"Synthetic","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}],
-           "exclusions":[{"scope":"row","rule":{"type":"fieldValue","field":"postDate","operator":"in","values":["2025-03-01"]}}]}
-          """).RootElement, 100));
-        Assert.Contains("排除區域", error.Message, StringComparison.Ordinal);
-    }
 }

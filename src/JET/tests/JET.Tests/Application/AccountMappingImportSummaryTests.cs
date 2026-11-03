@@ -30,11 +30,11 @@ public sealed class AccountMappingImportSummaryTests
         var session = new ProjectSession();
         session.Enter(id, TestProjectRepositories.Unconfigured("sqlite") with
         {
-            AccountTaxonomy = new LocalAccountTaxonomyStore(db),
+            AccountCategories = new LocalAccountCategoryStore(db),
             ReferenceDataFacts = new ReferenceDataFactsPort(mappings, new LocalAuthorizedPreparerRepository(db), new LocalCalendarStore(db)),
-            RuleRuns = new LocalRuleRunStore(db), ResultStaleStates = new LocalResultStaleStateStore(db),
+            Results = new LocalResultStore(db), ResultStaleStates = new LocalResultStaleStateStore(db),
             FilterScenarios = new LocalFilterScenarioStore(db), AccountMappingDifferences = differences,
-            ReportArtifactStore = new ProjectReportArtifactStore(folder)
+            ReportStore = new ProjectReportStore(folder)
         });
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
@@ -58,7 +58,7 @@ public sealed class AccountMappingImportSummaryTests
         finally { TestWorkbookBuilder.Delete(path); }
     }
 
-    // 低嚴重度事項 E3（使用者 2026-10-19 要求處理）：匯入已提交後讀不回結果狀態，回應仍成功；結果狀態與報告清單回 null，
+    // 匯入已提交後讀不回結果狀態時，回應仍成功（裁定 2026-10-19-18）；結果狀態與報告清單回 null，
     // 前端保留畫面上的值，提醒變更已儲存、重新開啟案件就會更新。這條路徑是所有變更動作共用的提交後讀取。
     // 獨立複審後加上支援日誌的斷言：讀不回狀態時改成回報成功，原本由失敗動作留下的錯誤紀錄不能跟著消失
     // （修正前的失敗收據 20261019-134414012-42d09703a21d4bd5b6fdc0dd9308624e）。
@@ -75,11 +75,11 @@ public sealed class AccountMappingImportSummaryTests
         var session = new ProjectSession();
         session.Enter(id, TestProjectRepositories.Unconfigured("sqlite") with
         {
-            AccountTaxonomy = new LocalAccountTaxonomyStore(db),
+            AccountCategories = new LocalAccountCategoryStore(db),
             ReferenceDataFacts = new ReferenceDataFactsPort(mappings, new LocalAuthorizedPreparerRepository(db), new LocalCalendarStore(db)),
-            RuleRuns = new LocalRuleRunStore(db), ResultStaleStates = new FailingStateReads(new LocalResultStaleStateStore(db)),
+            Results = new LocalResultStore(db), ResultStaleStates = new FailingStateReads(new LocalResultStaleStateStore(db)),
             FilterScenarios = new LocalFilterScenarioStore(db), AccountMappingDifferences = new FailingCounts(new CancellationTokenSource(), cancel: false),
-            ReportArtifactStore = new ProjectReportArtifactStore(folder)
+            ReportStore = new ProjectReportStore(folder)
         });
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
@@ -95,9 +95,9 @@ public sealed class AccountMappingImportSummaryTests
             Assert.Equal(1, result.GetProperty("rowCount").GetInt32());
             Assert.NotNull(await mappings.FindStateAsync(id, CancellationToken.None));
             Assert.Equal(JsonValueKind.Null, result.GetProperty("staleState").ValueKind);
-            Assert.Equal(JsonValueKind.Null, result.GetProperty("reportArtifacts").ValueKind);
+            Assert.Equal(JsonValueKind.Null, result.GetProperty("reports").ValueKind);
             Assert.Equal("變更已儲存，但畫面上的結果狀態與報告清單沒有更新；重新開啟案件就會更新，不必重做變更。",
-                result.GetProperty("reportArtifactWarning").GetString());
+                result.GetProperty("reportWarning").GetString());
             Assert.True(result.GetProperty("invalidatedResults").GetProperty("Filter").GetBoolean());
             var stateEvent = Assert.Single(log.Snapshot(), entry => entry.EventName == "workflow_state.read_failed");
             Assert.Equal("result_state", stateEvent.Fields["phase"]);
@@ -147,7 +147,7 @@ public sealed class AccountMappingImportSummaryTests
             databaseProvider: provider, configureTb: b => b.AddRow("A", "Account A", -10));
         var page = await host.DispatchAsync("query.accountMappingDifferencePage", """{"kind":"unmapped"}""");
         Assert.DoesNotContain(page.GetProperty("rows").EnumerateArray(), row =>
-            string.IsNullOrWhiteSpace(row.GetProperty("accountCode").GetString()));
+            string.IsNullOrWhiteSpace(row.GetProperty("accountNumber").GetString()));
     }
 
     private static string? FirstUsefulReadFailure(IEnumerable<string> failures)
@@ -189,8 +189,8 @@ public sealed class AccountMappingImportSummaryTests
             try
             {
                 var page = await repository.GetPageAsync(projectId, AccountMappingDifferenceKinds.Unmapped, new PageRequest(null, 200, IncludeTotalCount: true), ct);
-                if (page.TotalCount != 2 || string.Join(",", page.Rows.Select(row => row.AccountCode)) != "1101,5101")
-                    failures.Enqueue($"total {page.TotalCount}, rows {string.Join(",", page.Rows.Select(row => row.AccountCode))}");
+                if (page.TotalCount != 2 || string.Join(",", page.Rows.Select(row => row.AccountNumber)) != "1101,5101")
+                    failures.Enqueue($"total {page.TotalCount}, rows {string.Join(",", page.Rows.Select(row => row.AccountNumber))}");
             }
             catch (Exception exception) { failures.Enqueue(exception.GetType().Name + ": " + exception.Message.Split('\n')[0]); }
         });
@@ -205,7 +205,7 @@ public sealed class AccountMappingImportSummaryTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "合成配對預覽", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "合成配對預覽", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
@@ -215,7 +215,7 @@ public sealed class AccountMappingImportSummaryTests
         try
         {
             var imported = await host.DispatchAsync("import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
-            var preview = await host.DispatchAsync("query.dataPreview", """{"dataset":"accountMappings"}""");
+            var preview = await host.DispatchAsync("query.dataPreview", """{"dataset":"accountMapping"}""");
             Assert.Equal(new[] { "A", "Account A", "Others" }, Assert.Single(preview.GetProperty("rows").EnumerateArray())
                 .EnumerateArray().Select(c => c.GetString()));
             Assert.True(imported.TryGetProperty("columnMappingWarning", out var warning));

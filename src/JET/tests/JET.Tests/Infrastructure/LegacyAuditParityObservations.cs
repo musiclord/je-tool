@@ -184,7 +184,7 @@ internal readonly record struct LegacyObservedAmountFingerprint
 
 internal enum LegacyPrescreenRuleId
 {
-    PostPeriodApproval,
+    PrepPeriodApproval,
     SuspiciousKeywords,
     UnexpectedAccountPair,
     TrailingZeros,
@@ -194,8 +194,6 @@ internal enum LegacyPrescreenRuleId
     HolidayApproval,
     BlankDescription,
     NonAuthorizedPreparer,
-    LowFrequencyPreparer,
-    LowFrequencyAccount,
 }
 
 internal static class LegacyPrescreenRuleCatalog
@@ -207,7 +205,7 @@ internal static class LegacyPrescreenRuleCatalog
 
     internal static LegacyPrescreenRuleId FromWireKey(string wireKey) => wireKey switch
     {
-        "postPeriodApproval" => LegacyPrescreenRuleId.PostPeriodApproval,
+        "prepPeriodApproval" => LegacyPrescreenRuleId.PrepPeriodApproval,
         "suspiciousKeywords" => LegacyPrescreenRuleId.SuspiciousKeywords,
         "unexpectedAccountPair" => LegacyPrescreenRuleId.UnexpectedAccountPair,
         "trailingZeros" => LegacyPrescreenRuleId.TrailingZeros,
@@ -217,8 +215,6 @@ internal static class LegacyPrescreenRuleCatalog
         "holidayApproval" => LegacyPrescreenRuleId.HolidayApproval,
         "blankDescription" => LegacyPrescreenRuleId.BlankDescription,
         "nonAuthorizedPreparer" => LegacyPrescreenRuleId.NonAuthorizedPreparer,
-        "lowFrequencyPreparer" => LegacyPrescreenRuleId.LowFrequencyPreparer,
-        "lowFrequencyAccount" => LegacyPrescreenRuleId.LowFrequencyAccount,
         _ => throw new ArgumentException(
             "Prescreen observation contained an unknown canonical rule key.",
             nameof(wireKey)),
@@ -253,16 +249,16 @@ internal sealed class LegacyCompletenessObservation
 {
     internal LegacyCompletenessObservation(
         long differenceAccountCount,
-        long? partASourceRowCount,
-        long? partATargetRowCount,
-        decimal? partATotalDebit,
-        decimal? partATotalCredit,
-        bool? partARowCountMatch,
-        bool? partAAmountMatch)
+        long? pbcRowCount,
+        long? storedRowCount,
+        decimal? storedTotalDebit,
+        decimal? storedTotalCredit,
+        bool? storedRowCountMatch,
+        bool? storedAmountMatch)
     {
         if (differenceAccountCount < 0
-            || partASourceRowCount is < 0
-            || partATargetRowCount is < 0)
+            || pbcRowCount is < 0
+            || storedRowCount is < 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(differenceAccountCount),
@@ -270,34 +266,34 @@ internal sealed class LegacyCompletenessObservation
         }
 
         DifferenceAccountCount = LegacyObservedCount.Executed(differenceAccountCount);
-        PartASourceRowCount = partASourceRowCount.HasValue
-            ? LegacyObservedCount.Executed(partASourceRowCount.Value)
+        PbcRowCount = pbcRowCount.HasValue
+            ? LegacyObservedCount.Executed(pbcRowCount.Value)
             : LegacyObservedCount.NotExecuted;
-        PartATargetRowCount = partATargetRowCount.HasValue
-            ? LegacyObservedCount.Executed(partATargetRowCount.Value)
+        StoredRowCount = storedRowCount.HasValue
+            ? LegacyObservedCount.Executed(storedRowCount.Value)
             : LegacyObservedCount.NotExecuted;
-        PartATotalDebit = partATotalDebit.HasValue
-            ? LegacyObservedAmountFingerprint.Executed(partATotalDebit.Value)
+        StoredTotalDebit = storedTotalDebit.HasValue
+            ? LegacyObservedAmountFingerprint.Executed(storedTotalDebit.Value)
             : LegacyObservedAmountFingerprint.NotExecuted;
-        PartATotalCredit = partATotalCredit.HasValue
-            ? LegacyObservedAmountFingerprint.Executed(partATotalCredit.Value)
+        StoredTotalCredit = storedTotalCredit.HasValue
+            ? LegacyObservedAmountFingerprint.Executed(storedTotalCredit.Value)
             : LegacyObservedAmountFingerprint.NotExecuted;
-        PartARowCountMatch = partARowCountMatch.HasValue
-            ? LegacyObservedBoolean.Executed(partARowCountMatch.Value)
+        StoredRowCountMatch = storedRowCountMatch.HasValue
+            ? LegacyObservedBoolean.Executed(storedRowCountMatch.Value)
             : LegacyObservedBoolean.NotExecuted;
-        PartAAmountMatch = partAAmountMatch.HasValue
-            ? LegacyObservedBoolean.Executed(partAAmountMatch.Value)
+        StoredAmountMatch = storedAmountMatch.HasValue
+            ? LegacyObservedBoolean.Executed(storedAmountMatch.Value)
             : LegacyObservedBoolean.NotExecuted;
     }
 
     internal LegacyCompletenessObservation(
         LegacyObservedCount differenceAccountCount,
-        LegacyObservedCount partASourceRowCount,
-        LegacyObservedCount partATargetRowCount,
-        LegacyObservedAmountFingerprint partATotalDebit,
-        LegacyObservedAmountFingerprint partATotalCredit,
-        LegacyObservedBoolean partARowCountMatch,
-        LegacyObservedBoolean partAAmountMatch)
+        LegacyObservedCount pbcRowCount,
+        LegacyObservedCount storedRowCount,
+        LegacyObservedAmountFingerprint storedTotalDebit,
+        LegacyObservedAmountFingerprint storedTotalCredit,
+        LegacyObservedBoolean storedRowCountMatch,
+        LegacyObservedBoolean storedAmountMatch)
     {
         if (!differenceAccountCount.HasExactValue)
         {
@@ -306,27 +302,27 @@ internal sealed class LegacyCompletenessObservation
         }
 
         DifferenceAccountCount = differenceAccountCount;
-        PartASourceRowCount = partASourceRowCount;
-        PartATargetRowCount = partATargetRowCount;
-        PartATotalDebit = partATotalDebit;
-        PartATotalCredit = partATotalCredit;
-        PartARowCountMatch = partARowCountMatch;
-        PartAAmountMatch = partAAmountMatch;
+        PbcRowCount = pbcRowCount;
+        StoredRowCount = storedRowCount;
+        StoredTotalDebit = storedTotalDebit;
+        StoredTotalCredit = storedTotalCredit;
+        StoredRowCountMatch = storedRowCountMatch;
+        StoredAmountMatch = storedAmountMatch;
     }
 
     internal LegacyObservedCount DifferenceAccountCount { get; }
 
-    internal LegacyObservedCount PartASourceRowCount { get; }
+    internal LegacyObservedCount PbcRowCount { get; }
 
-    internal LegacyObservedCount PartATargetRowCount { get; }
+    internal LegacyObservedCount StoredRowCount { get; }
 
-    internal LegacyObservedAmountFingerprint PartATotalDebit { get; }
+    internal LegacyObservedAmountFingerprint StoredTotalDebit { get; }
 
-    internal LegacyObservedAmountFingerprint PartATotalCredit { get; }
+    internal LegacyObservedAmountFingerprint StoredTotalCredit { get; }
 
-    internal LegacyObservedBoolean PartARowCountMatch { get; }
+    internal LegacyObservedBoolean StoredRowCountMatch { get; }
 
-    internal LegacyObservedBoolean PartAAmountMatch { get; }
+    internal LegacyObservedBoolean StoredAmountMatch { get; }
 
     public override string ToString() => "[redacted-completeness-observation]";
 }
@@ -772,7 +768,7 @@ internal sealed class LegacyAuditParityMetrics
         IReadOnlyDictionary<LegacyFilterScenarioId, LegacyRowVoucherCounts> filterScenarios,
         IReadOnlyDictionary<LegacyReportKind, LegacyReportObservation> reports,
         LegacyRowVoucherCounts? weekendUnion = null,
-        LegacyMetricApplicability creatorSummaryLegacyApplicability =
+        LegacyMetricApplicability preparerSummaryLegacyApplicability =
             LegacyMetricApplicability.NotExecuted,
         LegacyMetricApplicability rareAccountsLegacyApplicability =
             LegacyMetricApplicability.NotExecuted)
@@ -786,9 +782,9 @@ internal sealed class LegacyAuditParityMetrics
         {
             throw new ArgumentOutOfRangeException(nameof(unbalancedVoucherCount));
         }
-        if (!Enum.IsDefined(creatorSummaryLegacyApplicability)
+        if (!Enum.IsDefined(preparerSummaryLegacyApplicability)
             || !Enum.IsDefined(rareAccountsLegacyApplicability)
-            || creatorSummaryLegacyApplicability == LegacyMetricApplicability.Applicable
+            || preparerSummaryLegacyApplicability == LegacyMetricApplicability.Applicable
             || rareAccountsLegacyApplicability == LegacyMetricApplicability.Applicable)
         {
             throw new ArgumentException(
@@ -828,7 +824,7 @@ internal sealed class LegacyAuditParityMetrics
             ?? new LegacyRowVoucherCounts(
                 LegacyObservedCount.NotExecuted,
                 LegacyObservedCount.NotExecuted);
-        CreatorSummaryLegacyApplicability = creatorSummaryLegacyApplicability;
+        PreparerSummaryLegacyApplicability = preparerSummaryLegacyApplicability;
         RareAccountsLegacyApplicability = rareAccountsLegacyApplicability;
     }
 
@@ -846,7 +842,7 @@ internal sealed class LegacyAuditParityMetrics
 
     internal LegacyRowVoucherCounts WeekendUnion { get; }
 
-    internal LegacyMetricApplicability CreatorSummaryLegacyApplicability { get; }
+    internal LegacyMetricApplicability PreparerSummaryLegacyApplicability { get; }
 
     internal LegacyMetricApplicability RareAccountsLegacyApplicability { get; }
 

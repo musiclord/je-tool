@@ -17,12 +17,12 @@ internal static class SourceQualityPageReader
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         command.CommandText =
             "SELECT s.source_row_number, bs.source_file_name, bs.sheet_name, "
-            + "g.document_number, g.account_code, g.post_date, g.document_description, g.entry_id" + paging.SelectSuffix + " "
-            + $"FROM {schemaPrefix}target_gl_entry g "
-            + $"JOIN {schemaPrefix}staging_gl_raw_row s ON s.batch_id = g.batch_id "
+            + "g.voucher_number, g.account_number, g.gl_date, g.description, g.entry_id" + paging.SelectSuffix + " "
+            + $"FROM {schemaPrefix}gl g "
+            + $"JOIN {schemaPrefix}pbc_gl s ON s.batch_id = g.batch_id "
             + "AND s.row_number = g.source_row_number "
             + $"JOIN {schemaPrefix}import_batch_source bs ON bs.batch_id = s.batch_id AND bs.source_no = s.source_no "
-            + "WHERE " + ValidationProcedures.NullPostDateSourceQualityPredicateWith("g") + paging.Predicate + " "
+            + "WHERE " + ValidationProcedures.BlankGlDateSourceQualityPredicateWith("g") + paging.Predicate + " "
             + paging.OrderBy + " " + dialect.LimitClause("@pageSize") + ";";
         var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<SourceQualityFindingRow>();
@@ -31,7 +31,7 @@ internal static class SourceQualityPageReader
         {
             var fileName = reader.GetString(1);
             var sourceLabel = reader.IsDBNull(2) ? fileName : $"{fileName} [{reader.GetString(2)}]";
-            buffer.Add(new SourceQualityFindingRow("nullPostDate", reader.GetInt32(0), sourceLabel,
+            buffer.Add(new SourceQualityFindingRow("blankGlDate", reader.GetInt32(0), sourceLabel,
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
                 reader.IsDBNull(5) ? null : reader.GetString(5),

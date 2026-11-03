@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>分類欄留白科目的 keyset 分頁（本地引擎）：排序鍵 account_code ASC，游標為展開布林式。</summary>
+/// <summary>分類欄留白科目的 keyset 分頁（本地引擎）：排序鍵 account_number ASC，游標為展開布林式。</summary>
 public sealed class LocalAccountMappingBlankPageRepository(ILocalProjectDatabase database)
     : IAccountMappingBlankPageRepository
 {
@@ -22,12 +22,12 @@ public sealed class LocalAccountMappingBlankPageRepository(ILocalProjectDatabase
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         command.CommandText =
-            "SELECT account_code, account_name FROM target_account_mapping "
-            + "WHERE classification_explicit = 0 " + (hasCursor ? "AND account_code > @cursor " : string.Empty)
-            + "ORDER BY account_code " + database.Dialect.LimitClause("@pageSize") + ";";
+            "SELECT account_number, account_name FROM account_mapping "
+            + "WHERE classification_explicit = 0 " + (hasCursor ? "AND account_number > @cursor " : string.Empty)
+            + "ORDER BY account_number " + database.Dialect.LimitClause("@pageSize") + ";";
 
         var totalCount = await PageTotalCount.ReadAsync(command, request,
-            "SELECT COUNT(*) FROM target_account_mapping WHERE classification_explicit = 0;", cancellationToken);
+            "SELECT COUNT(*) FROM account_mapping WHERE classification_explicit = 0;", cancellationToken);
         var rows = new List<AccountMappingBlankAccount>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -43,6 +43,6 @@ public sealed class LocalAccountMappingBlankPageRepository(ILocalProjectDatabase
             rows.RemoveAt(rows.Count - 1);
         }
 
-        return new PageResult<AccountMappingBlankAccount>(rows, hasMore ? PageCursor.Encode(rows[^1].AccountCode) : null, totalCount);
+        return new PageResult<AccountMappingBlankAccount>(rows, hasMore ? PageCursor.Encode(rows[^1].AccountNumber) : null, totalCount);
     }
 }

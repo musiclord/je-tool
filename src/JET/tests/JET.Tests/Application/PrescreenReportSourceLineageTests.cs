@@ -11,15 +11,15 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 底稿欄位來源忠實性 synthetic regression（master spec「正式底稿欄位來源忠實性」節）。
 /// R2 的欄位集合、實際名稱與 ordinal 由獨立的資料庫 schema metadata
-/// （import_field_definition 的 source scope，依 ordinal）驗證，且必須包含未被欄位配對
+/// （field_info 的 source scope，依 ordinal）驗證，且必須包含未被欄位配對
 /// 選中的來源欄位；R6 取自 GL 來源欄位的標題必須沿用與 R2 相同的 schema lineage，
 /// 任意合法來源欄名都不得被改寫成 ACCOUNT_CODE／ACCOUNT_NAME 等固定 alias；
 /// 彙總結果本身的衍生欄位維持既有輸出契約名稱，不冒充來源欄位。
 /// </summary>
 public sealed class PrescreenReportSourceLineageTests
 {
-    private const string DocNumColumn = "傳票 No.";
-    private const string PostDateColumn = "過帳日※";
+    private const string VoucherNumberColumn = "傳票 No.";
+    private const string GlDateColumn = "過帳日※";
     private const string UnmappedNoteColumn = "備註-未配對";
     private const string DescriptionColumn = "摘要說明";
     private const string AmountColumn = "金額NTD";
@@ -31,15 +31,15 @@ public sealed class PrescreenReportSourceLineageTests
         using var host = new HandlerTestHost();
         var project = await SetupAndExportAsync(
             host,
-            accountCodeColumn: "科目代號#1",
+            accountNumberColumn: "科目代號#1",
             accountNameColumn: "科目名稱※中",
             unmappedTrapColumn: "ACCOUNT_NAME");
 
-        // 獨立 schema metadata oracle：import_field_definition（source scope）依 ordinal。
+        // 獨立 schema metadata oracle：field_info（source scope）依 ordinal。
         var catalog = await ReadSourceSchemaCatalogAsync(host, project.ProjectId);
         Assert.Equal(project.Columns, catalog);
 
-        using var workbook = new XLWorkbook(project.ArtifactPath);
+        using var workbook = new XLWorkbook(project.ReportPath);
         var r2 = workbook.Worksheet("R2");
         var headers = Enumerable.Range(1, catalog.Count)
             .Select(column => r2.Cell(1, column).GetString())
@@ -66,17 +66,17 @@ public sealed class PrescreenReportSourceLineageTests
     [InlineData("科目代號#1", "科目名稱※中")]
     [InlineData("Acct No.(1)", "Acct Desc-中文")]
     public async Task R6_SourceDerivedHeaders_UseActualMappedSourceColumnNames(
-        string accountCodeColumn,
+        string accountNumberColumn,
         string accountNameColumn)
     {
         using var host = new HandlerTestHost();
         var project = await SetupAndExportAsync(
             host,
-            accountCodeColumn,
+            accountNumberColumn,
             accountNameColumn,
             unmappedTrapColumn: "ACCOUNT_NAME");
 
-        using var workbook = new XLWorkbook(project.ArtifactPath);
+        using var workbook = new XLWorkbook(project.ReportPath);
         var r6 = workbook.Worksheet("R6");
         var headers = Enumerable.Range(1, 5)
             .Select(column => r6.Cell(1, column).GetString())
@@ -86,7 +86,7 @@ public sealed class PrescreenReportSourceLineageTests
         Assert.Equal(
             new[]
             {
-                accountCodeColumn,
+                accountNumberColumn,
                 accountNameColumn,
                 "ENTRY_COUNT",
                 "DEBIT_TOTAL",
@@ -113,11 +113,11 @@ public sealed class PrescreenReportSourceLineageTests
         using var host = new HandlerTestHost();
         var project = await SetupAndExportAsync(
             host,
-            accountCodeColumn: "ACCOUNT_CODE",
+            accountNumberColumn: "ACCOUNT_CODE",
             accountNameColumn: "ACCOUNT_NAME",
             unmappedTrapColumn: "OTHER_NOTE");
 
-        using var workbook = new XLWorkbook(project.ArtifactPath);
+        using var workbook = new XLWorkbook(project.ReportPath);
         var r6 = workbook.Worksheet("R6");
 
         // 底層資料表確實存在同名欄位時，同名輸出是 lineage 的自然結果，不是 alias。
@@ -163,20 +163,20 @@ public sealed class PrescreenReportSourceLineageTests
 
     private sealed record LineageProject(
         string ProjectId,
-        string ArtifactPath,
+        string ReportPath,
         IReadOnlyList<string> Columns);
 
     private static async Task<LineageProject> SetupAndExportAsync(
         HandlerTestHost host,
-        string accountCodeColumn,
+        string accountNumberColumn,
         string accountNameColumn,
         string unmappedTrapColumn)
     {
         var columns = new[]
         {
-            DocNumColumn,
-            PostDateColumn,
-            accountCodeColumn,
+            VoucherNumberColumn,
+            GlDateColumn,
+            accountNumberColumn,
             UnmappedNoteColumn,
             accountNameColumn,
             unmappedTrapColumn,
@@ -187,7 +187,7 @@ public sealed class PrescreenReportSourceLineageTests
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "LINEAGE-2025-001",
-            entityName = "欄位來源忠實性案件",
+            clientName = "欄位來源忠實性案件",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",
@@ -236,17 +236,17 @@ public sealed class PrescreenReportSourceLineageTests
         {
             mapping = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["docNum"] = DocNumColumn,
-                ["postDate"] = PostDateColumn,
-                ["accNum"] = accountCodeColumn,
-                ["accName"] = accountNameColumn,
+                ["voucherNumber"] = VoucherNumberColumn,
+                ["glDate"] = GlDateColumn,
+                ["accountNumber"] = accountNumberColumn,
+                ["accountName"] = accountNameColumn,
                 ["description"] = DescriptionColumn,
                 ["amount"] = AmountColumn,
-                ["dcField"] = DebitFlagColumn,
-                // 2026-10-04 R9：上方合成來源明確使用 1/0，補貸方 0，來源與報告固定預期不變。
+                ["drCr"] = DebitFlagColumn,
+                // 上方合成來源明確使用 1/0，補貸方 0，來源與報告固定預期不變。
                 // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
-                ["dcDebitCode"] = "1",
-                ["dcCreditCode"] = "0"
+                ["drCrDebitCode"] = "1",
+                ["drCrCreditCode"] = "0"
             },
             amountMode = "flag"
         }));
@@ -258,11 +258,11 @@ public sealed class PrescreenReportSourceLineageTests
 
         await host.DispatchAsync("validate.run");
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var runId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString();
+        var resultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString();
         var exported = await host.DispatchAsync(
             "export.prescreenReport",
-            JsonSerializer.Serialize(new { runId }));
-        var fileName = exported.GetProperty("artifact").GetProperty("fileName").GetString()!;
+            JsonSerializer.Serialize(new { resultId }));
+        var fileName = exported.GetProperty("publishedReport").GetProperty("fileName").GetString()!;
 
         return new LineageProject(
             projectId,
@@ -281,7 +281,7 @@ public sealed class PrescreenReportSourceLineageTests
         command.CommandText =
             """
             SELECT d.field_name
-            FROM import_field_definition d
+            FROM field_info d
             JOIN import_batch b ON b.batch_id = d.batch_id
             WHERE b.dataset_kind = 'gl' AND d.definition_scope = 'source'
             ORDER BY d.ordinal;
@@ -313,28 +313,28 @@ public sealed class PrescreenReportSourceLineageTests
         new(
             new LocalCompletenessAccountPageRepository(database),
             new LocalCompletenessDiffPageRepository(database),
-            new LocalUnbalancedGlEntryPageRepository(database),
-            new LocalNullRecordsPageRepository(database),
+            new LocalUnbalancedVoucherPageRepository(database),
+            new LocalBlankRecordsPageRepository(database),
             new LocalInfSamplePageRepository(database),
             new LocalPrescreenPageRepository(database),
             new LocalRawGlExportRepository(database),
             new LocalImportRepository(database),
             new LocalMappingStateStore(database),
-            new LocalCreatorSummaryExportRepository(database),
+            new LocalPreparerSummaryExportRepository(database),
             new LocalAccountUsageExportRepository(database),
-            new LocalTagMatrixScenariosRepository(database),
+            new LocalHighRiskSummaryScenariosRepository(database),
             new LocalSourceQualityPageRepository(database),
-            new LocalTagMatrixRowPageRepository(database));
+            new LocalHighRiskSummaryRowPageRepository(database));
 
     private static PrescreenReportProjection ZeroHitProjection()
     {
         var notApplicable = new PrescreenReportRuleProjection("na", "測試未執行");
         return new PrescreenReportProjection(
-            PostPeriodApproval: new("V", null, 0),
+            PrepPeriodApproval: new("V", null, 0),
             SuspiciousKeywords: notApplicable,
             UnexpectedAccountPair: notApplicable,
             TrailingZeros: notApplicable,
-            CreatorSummary: new("V", null, 0),
+            PreparerSummary: new("V", null, 0),
             RareAccounts: new("V", null, 0),
             BlankDescription: notApplicable);
     }
@@ -345,8 +345,8 @@ public sealed class PrescreenReportSourceLineageTests
     {
         var unfinalized = JetAuditProgram.Plan(new PrescreenReportRequest(
             projectId,
-            new FilterRuleContext(10_000, "2025-12-31", "2025-01-01", "2025-12-31"),
-            projection.PostPeriodApproval.NaReason,
+            new FilterConditionContext(10_000, "2025-12-31", "2025-01-01", "2025-12-31"),
+            projection.PrepPeriodApproval.NaReason,
             projection.SuspiciousKeywords.NaReason,
             projection.UnexpectedAccountPair.NaReason,
             projection.TrailingZeros.NaReason,
@@ -356,7 +356,7 @@ public sealed class PrescreenReportSourceLineageTests
             new PrescreenReportPlanningFacts(
                 new Dictionary<PrescreenReportDetailKind, PrescreenHitCounts>
                 {
-                    [PrescreenReportDetailKind.PostPeriodApproval] = new(0, 0)
+                    [PrescreenReportDetailKind.PrepPeriodApproval] = new(0, 0)
                 }));
     }
 
@@ -369,6 +369,6 @@ public sealed class PrescreenReportSourceLineageTests
             "2025-12-31",
             10_000),
         "prescreen-run",
-        new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
+        new DateOnly(2025, 12, 31),
         "{}");
 }

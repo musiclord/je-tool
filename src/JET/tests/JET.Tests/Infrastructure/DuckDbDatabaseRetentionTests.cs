@@ -28,7 +28,7 @@ public sealed class DuckDbDatabaseRetentionTests
             await connection.OpenAsync();
             await using var insert = connection.CreateCommand();
             insert.CommandText =
-                "INSERT INTO app_message_log (occurred_utc, level, text) VALUES ('2024-01-01T00:00:00Z', 'info', 'retained');";
+                "INSERT INTO message_log (occurred_utc, level, text) VALUES ('2024-01-01T00:00:00Z', 'info', 'retained');";
             await insert.ExecuteNonQueryAsync();
         }
 
@@ -47,7 +47,7 @@ public sealed class DuckDbDatabaseRetentionTests
         await using var verify = database.CreateConnection(projectId);
         await verify.OpenAsync();
         await using var count = verify.CreateCommand();
-        count.CommandText = "SELECT COUNT(*) FROM app_message_log WHERE text = 'retained';";
+        count.CommandText = "SELECT COUNT(*) FROM message_log WHERE text = 'retained';";
         Assert.Equal(1L, Convert.ToInt64(await count.ExecuteScalarAsync()));
     }
 

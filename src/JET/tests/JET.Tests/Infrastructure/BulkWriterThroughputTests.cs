@@ -3,7 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -14,15 +14,15 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class BulkWriterThroughputTests(ITestOutputHelper output)
 {
-    // lineID 已對應（避免投影的逐傳票編號 UPDATE 路徑）——聚焦於寫入路徑本身的吞吐。
+    // lineItem 已對應（避免投影的逐傳票編號 UPDATE 路徑）——聚焦於寫入路徑本身的吞吐。
     private static GlMappingSpec Spec() => new(
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.LineId] = "line",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.LineItem] = "line",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"

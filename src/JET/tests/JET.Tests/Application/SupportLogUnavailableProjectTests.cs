@@ -43,7 +43,7 @@ public sealed class SupportLogUnavailableProjectTests
             JsonSerializer.Serialize(new { projectId = id }), correlationId: selectedCorrelation));
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load",
             """{"projectId":"Different missing case"}""", correlationId: "unrelated-load-error"));
-        var noActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.nullRecordsPage"));
+        var noActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.blankRecordsPage"));
         Assert.Equal(JetErrorCodes.NoActiveProject, noActive.Code);
 
         var exported = await host.DispatchAsync(action, JsonSerializer.Serialize(new { projectId = id, correlationId = selectedCorrelation }));
@@ -75,7 +75,7 @@ public sealed class SupportLogUnavailableProjectTests
         if (metadataBefore is null) Assert.False(File.Exists(metadata));
         else Assert.Equal(metadataBefore, await File.ReadAllBytesAsync(metadata));
         Assert.Empty(Directory.GetFiles(folder, ".JET-*.tmp"));
-        var stillNoActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.nullRecordsPage"));
+        var stillNoActive = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.blankRecordsPage"));
         Assert.Equal(JetErrorCodes.NoActiveProject, stillNoActive.Code);
     }
 
@@ -155,7 +155,7 @@ public sealed class SupportLogUnavailableProjectTests
     private static async Task<string> CreateAsync(HandlerTestHost host, string provider, string name)
     {
         var result = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
-        { caseName = name, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
+        { projectName = name, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
         return result.GetProperty("projectId").GetString()!;
     }
 }

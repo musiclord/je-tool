@@ -23,7 +23,7 @@ public sealed class CompletenessEligibilitySupportTests
     }
 
     [Fact]
-    public async Task RequireCurrentAsync_WithoutValidationRun_ThrowsDedicatedError()
+    public async Task RequireCurrentAsync_WithoutValidationResult_ThrowsDedicatedError()
     {
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             CompletenessEligibilitySupport.RequireCurrentAsync(
@@ -39,10 +39,10 @@ public sealed class CompletenessEligibilitySupportTests
     [InlineData("{ \"amountMatch\": true }")]
     [InlineData("{ \"rowCountMatch\": \"true\", \"amountMatch\": true }")]
     [InlineData("null")]
-    public void Require_WithMalformedPartA_FailsClosed(string partAJson)
+    public void Require_WithMalformedStoredTotals_FailsClosed(string storedTotalsJson)
     {
         var summary = CurrentSummaryNode();
-        summary["completenessTest"]!["partA"] = JsonNode.Parse(partAJson);
+        summary["completenessTest"]!["storedTotals"] = JsonNode.Parse(storedTotalsJson);
         var run = Run(summary.ToJsonString(JetJsonStorage.Options));
 
         var exception = Assert.Throws<JetActionException>(() =>
@@ -52,7 +52,7 @@ public sealed class CompletenessEligibilitySupportTests
     }
 
     [Fact]
-    public void Require_WithoutPartBApplicabilityFact_FailsClosed()
+    public void Require_WithoutAccountComparisonApplicabilityFact_FailsClosed()
     {
         var summary = CurrentSummaryNode();
         summary["completenessTest"]!.AsObject().Remove("naReason");
@@ -65,7 +65,7 @@ public sealed class CompletenessEligibilitySupportTests
     }
 
     [Fact]
-    public void Require_WithInvalidPartBDifferenceCount_FailsClosed()
+    public void Require_WithInvalidAccountComparisonDifferenceCount_FailsClosed()
     {
         var run = Run(CurrentValidationSummaryTestData.Create(
             completenessDifferenceCount: -1,
@@ -131,43 +131,46 @@ public sealed class CompletenessEligibilitySupportTests
         Assert.Equal(JsonValueKind.Null, eligibility.GetProperty("reason").ValueKind);
     }
 
-    private static RuleRunRecord Run(string summaryJson) =>
+    private static ResultRecord Run(string summaryJson) =>
         new(
             "validation-run",
-            RuleRunKinds.Validate,
+            ResultKind.Validation,
             new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero),
             summaryJson);
 
     [Fact]
     public void Require_CompletedValidationWithoutHistoricImportTotals_AllowsContinuationWithWarning()
     {
-        // validate.run 明確允許舊案件缺少控制總數，並輸出這個完整的 null 形狀；不是壞掉的摘要。
+        // 沒有存入筆數與合計時，validate.run 輸出這個完整的 null 形狀；不是壞掉的摘要，審計員仍可繼續。
         var summary = CurrentSummaryNode();
-        summary["completenessTest"]!["partA"] = JsonNode.Parse(
-            """{"eligibleSource":null,"effectiveTarget":null,"rowCountMatch":null,"amountMatch":null}""");
+        summary["completenessTest"]!["storedTotals"] = JsonNode.Parse(
+            """{"eligibleSource":null,"gl":null,"rowCountMatch":null,"amountMatch":null}""");
         var run = Run(summary.ToJsonString(JetJsonStorage.Options));
         Assert.Same(run, CompletenessEligibilitySupport.Require(run));
         var eligibility = CompletenessEligibilitySupport.ToWireSummary(run)
             .GetProperty("completenessTest").GetProperty("eligibility");
         Assert.True(eligibility.GetProperty("isEligible").GetBoolean());
-        // 2026-10-05 V2 裁定：提醒照實說明比對的是確認配對時算出的數字，不再用「控制總數」這個術語。
-        Assert.Contains("沒有確認欄位配對時算出的數字", eligibility.GetProperty("warning").GetString());
+        // 裁定 2026-10-05-01：提醒照實說明比對的是確認配對時算出的數字，不再用「控制總數」這個術語。
+        // 裁定 2026-11-02-06 拿掉只為舊案件留下的「沒有確認欄位配對時算出的數字」提醒：新案件確認 GL 欄位配對時一定會算出這組數字，
+        // 萬一缺了，提醒和核對未通過相同，請審計員重新確認 GL 欄位配對。原本斷言提醒含「沒有確認欄位配對時算出的數字」；
+        // 第一次失敗：Focused 收據 20261102-044746069-f5a1803bbf3148b49a605ea96fc3cbf2。
+        Assert.StartsWith("存入筆數與合計核對未通過：", eligibility.GetProperty("warning").GetString(), StringComparison.Ordinal);
     }
 
     private static JsonObject CurrentSummaryNode() =>
         JsonNode.Parse(CurrentValidationSummaryTestData.Create())!.AsObject();
 
-    private sealed class FixedRunStore(RuleRunRecord? run) : IRuleRunStore
+    private sealed class FixedRunStore(ResultRecord? run) : IResultStore
     {
         public Task SaveAsync(
             string projectId,
-            RuleRunRecord record,
+            ResultRecord record,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        public Task<RuleRunRecord?> FindLatestAsync(
+        public Task<ResultRecord?> FindLatestAsync(
             string projectId,
-            string runKind,
+            ResultKind kind,
             CancellationToken cancellationToken) =>
             Task.FromResult(run);
     }

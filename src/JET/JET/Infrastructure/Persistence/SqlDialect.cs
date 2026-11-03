@@ -167,12 +167,12 @@ public sealed class SqlServerDialect : IProviderSqlDialect
         $"CHARINDEX({parameterName}, {Upper($"COALESCE({columnExpr}, N'')")}) > 0";
 
     // 文字欄固定 Latin1_General_BIN2，它的大小寫對照表較舊，和 .NET 有 546 個字元不同；轉大寫時改用
-    // Latin1_General_100_BIN2，降到 308 個罕用字元（使用者 2026-10-19 裁定，跨資料庫一致性計畫第三節 D）。
+    // Latin1_General_100_BIN2，降到 308 個罕用字元（裁定 2026-10-19-30）。
     // 兩種定序都依字元碼比較，欄位本身的比較與排序不受影響。
     public string Upper(string expr) => $"UPPER(({expr}) COLLATE Latin1_General_100_BIN2)";
 
     // TRIM(characters FROM string) 需要相容性層級 140 以上（SQL Server 2017）；值概況查詢已用同一寫法。
-    // 2026-10-19 在本機 SQL Server 2022（相容性層級 160）的 Provider 執行過：CommonConditionPredicateProviderTests 與
+    // 2026-10-19 在本機 SQL Server 2022（相容性層級 160）的 Provider 執行過：CommonFilterPredicateProviderTests 與
     // FilterSinglePurposeEquivalenceTests 的 SQL Server 版只用半形空白核對修剪結果；全形空白、不換行空格與 Tab
     // 只有 SQLite 與 DuckDB 的 WhitespaceAndCaseConsistencyTests 核對。
     public string Trim(string expr) => $"TRIM({SqlWhitespaceList.SqlServer} FROM {expr})";

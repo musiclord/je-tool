@@ -9,9 +9,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 2026-10-04 第二遍回饋審閱第 2 批（C3，使用者裁定「要修」）：同一份資料不論從 .csv、.xlsx 或 .xls 匯入、存進 SQLite 或 DuckDB，
+/// 裁定 2026-10-04-01 要求修正空白與大小寫的比較：同一份資料不論從 .csv、.xlsx 或 .xls 匯入、存進 SQLite 或 DuckDB，
 /// 人員識別值去掉頭尾空白（含全形空白、不換行空格與 Tab）、只含空白的值當成空白、比對與分組一律不分大小寫，固定答案都相同。
-/// 涵蓋審閱 U08、U30、U39、U42、U44、U56、U66 與 L17、L56、L76、L80、L86。Access 以讀取器替身另測（AccessTableReaderTests）。
+/// Access 以讀取器替身另測（AccessTableReaderTests）。
 /// </summary>
 public sealed class WhitespaceAndCaseConsistencyTests
 {
@@ -42,10 +42,11 @@ public sealed class WhitespaceAndCaseConsistencyTests
             rows.Add([$"JV-{++n}", "2025-03-01", "1000", "Synthetic A", $"row {n}", "10", blank]);
         await SetupAsync(host, provider, format, rows, tbTotal: 10m * rows.Count);
 
-        Assert.Equal(12, await CountAsync(host, new { type = "entityFrequency", field = "createBy", countUnit = "entries", countOperator = "equals", countFrom = 12 }));
-        Assert.Equal(12, await CountAsync(host, new { type = "fieldValue", field = "createBy", @operator = "in", values = new[] { " u1 " } }));
-        Assert.Equal(2, await CountAsync(host, new { type = "fieldValue", field = "createBy", @operator = "isBlank" }));
-        Assert.Equal(1, await CountAsync(host, new { type = "prescreen", prescreenKey = "lowFrequencyPreparer" }));
+        Assert.Equal(12, await CountAsync(host, new { type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "equals", countFrom = 12 }));
+        Assert.Equal(12, await CountAsync(host, new { type = "fieldValue", field = "createdBy", @operator = "in", values = new[] { " u1 " } }));
+        Assert.Equal(2, await CountAsync(host, new { type = "fieldValue", field = "createdBy", @operator = "isBlank" }));
+        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27）：原本用預篩選條件 rarePreparer，改成第五步預設 11 筆以下的同一個統計條件；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        Assert.Equal(1, await CountAsync(host, new { type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }));
 
         var list = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
@@ -64,12 +65,12 @@ public sealed class WhitespaceAndCaseConsistencyTests
         Assert.Equal(1, await CountAsync(host, new { type = "prescreen", prescreenKey = "nonAuthorizedPreparer" }));
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var creators = prescreen.GetProperty("creatorSummary").GetProperty("creators").EnumerateArray()
+        var preparers = prescreen.GetProperty("preparerSummary").GetProperty("preparers").EnumerateArray()
             .ToDictionary(c => c.GetProperty("createdBy").GetString()!, c => c.GetProperty("entryCount").GetInt64());
-        Assert.Equal(12, creators["U1"]);
-        Assert.Equal(1, creators["U2"]);
-        Assert.Equal(2, creators[""]);
-        Assert.Equal(3, creators.Count);
+        Assert.Equal(12, preparers["U1"]);
+        Assert.Equal(1, preparers["U2"]);
+        Assert.Equal(2, preparers[""]);
+        Assert.Equal(3, preparers.Count);
     }
 
     [Theory]
@@ -77,7 +78,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
     [InlineData("duckdb")]
     public async Task RowsStoredBeforeThisChange_AreNormalizedTheSameWayInBothDatabases(string provider)
     {
-        // 這一批之前匯入的案件，資料庫裡的文字可能還帶著頭尾空白；SQL 端去掉的空白字元要和 .NET 相同，兩個資料庫一樣。
+        // 這次修正之前匯入的案件，資料庫裡的文字可能還帶著頭尾空白；SQL 端去掉的空白字元要和 .NET 相同，兩個資料庫一樣。
         using var host = new HandlerTestHost();
         var rows = new List<string?[]>
         {
@@ -93,21 +94,21 @@ public sealed class WhitespaceAndCaseConsistencyTests
         await UpdateCreatedByAsync(host, provider, id, "legacy-b", "\tU1 ");
         await UpdateCreatedByAsync(host, provider, id, "legacy-blank", "　\t");
 
-        Assert.Equal(5, await CountAsync(host, new { type = "fieldValue", field = "createBy", @operator = "in", values = new[] { "U1" } }));
-        Assert.Equal(5, await CountAsync(host, new { type = "entityFrequency", field = "createBy", countUnit = "entries", countOperator = "equals", countFrom = 5 }));
-        Assert.Equal(1, await CountAsync(host, new { type = "fieldValue", field = "createBy", @operator = "isBlank" }));
+        Assert.Equal(5, await CountAsync(host, new { type = "fieldValue", field = "createdBy", @operator = "in", values = new[] { "U1" } }));
+        Assert.Equal(5, await CountAsync(host, new { type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "equals", countFrom = 5 }));
+        Assert.Equal(1, await CountAsync(host, new { type = "fieldValue", field = "createdBy", @operator = "isBlank" }));
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var creators = prescreen.GetProperty("creatorSummary").GetProperty("creators").EnumerateArray()
+        var preparers = prescreen.GetProperty("preparerSummary").GetProperty("preparers").EnumerateArray()
             .ToDictionary(c => c.GetProperty("createdBy").GetString()!, c => c.GetProperty("entryCount").GetInt64());
-        Assert.Equal(5, creators["U1"]);
-        Assert.Equal(1, creators[""]);
-        Assert.Equal(2, creators.Count);
+        Assert.Equal(5, preparers["U1"]);
+        Assert.Equal(1, preparers[""]);
+        Assert.Equal(2, preparers.Count);
     }
 
     private static async Task<long> CountAsync(HandlerTestHost host, object rule)
     {
-        var scenario = new { name = "Synthetic", rationale = "fixed answer", groups = new[] { new { rules = new[] { rule } } } };
+        var scenario = new { name = "Synthetic", rationale = "fixed answer", groups = new[] { new { conditions = new[] { rule } } } };
         var preview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario }));
         return preview.GetProperty("scenario").GetProperty("count").GetInt64();
     }
@@ -122,20 +123,20 @@ public sealed class WhitespaceAndCaseConsistencyTests
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE target_gl_entry SET created_by = @value WHERE document_description = @description;";
+            command.CommandText = "UPDATE gl SET created_by = @value WHERE description = @description;";
             command.AddWithValue("@value", value);
             command.AddWithValue("@description", description);
             Assert.Equal(1, await command.ExecuteNonQueryAsync());
         }
     }
 
-    private static readonly string[] Columns = ["Document", "Date", "Account", "Name", "Description", "Amount", "Creator"];
+    private static readonly string[] Columns = ["Document", "Date", "Account", "Name", "Description", "Amount", "Preparer"];
 
     private static async Task<string> SetupAsync(HandlerTestHost host, string provider, string format, List<string?[]> rows, decimal tbTotal)
     {
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "whitespace-" + format, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "whitespace-" + format, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var id = created.GetProperty("projectId").GetString()!;
         Directory.CreateDirectory(host.ProjectsRoot);
@@ -148,11 +149,11 @@ public sealed class WhitespaceAndCaseConsistencyTests
         await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
             amountMode = "signed",
-            mapping = new { docNum = "Document", postDate = "Date", accNum = "Account", accName = "Name", description = "Description", amount = "Amount", createBy = "Creator" }
+            mapping = new { voucherNumber = "Document", glDate = "Date", accountNumber = "Account", accountName = "Name", description = "Description", amount = "Amount", createdBy = "Preparer" }
         }));
         await host.DispatchAsync("mapping.commit.tb", JsonSerializer.Serialize(new
         {
-            mapping = new { accNum = "Account", accName = "Name", amount = "Change" }, changeMode = "direct"
+            mapping = new { accountNumber = "Account", accountName = "Name", changeAmount = "Change" }, changeMode = "direct"
         }));
         await host.DispatchAsync("validate.run");
         return id;

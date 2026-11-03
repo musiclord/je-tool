@@ -17,7 +17,7 @@ internal sealed record FilterRequest(
     string ActionName,
     string ProjectId,
     IReadOnlyList<CanonicalFilterDocument> Documents,
-    FilterRuleContext RuleContext,
+    FilterConditionContext RuleContext,
     FilterValidationContext ValidationContext);
 
 /// <summary>AuditCore-owned filter plan shared by preview and materialization.</summary>
@@ -30,6 +30,12 @@ internal sealed record FilterPlan(
     /// 工作底稿逐列標記相同（<see cref="JetAuditProgram.UsesLegacyWholeVoucherRows"/>），畫面才不會和報告不同。
     /// </summary>
     internal bool PreviewCountsWholeVoucherRows { get; init; }
+
+    /// <summary>
+    /// 只儲存或修改一個情境：換掉這個情境的定義與結果，其他情境的定義與存好的結果照原樣，不重算。
+    /// 由 <see cref="JetAuditProgram.PlanOneScenario"/> 設定。
+    /// </summary>
+    internal bool SavesOneScenario { get; init; }
 }
 
 /// <summary>Raw execution facts returned by the Infrastructure filter port.</summary>
@@ -129,7 +135,7 @@ public static partial class JetAuditProgram
                     : FilterScenarioErrorDetails.InvalidScenario(
                         errors,
                         document.Position,
-                        FilterScenarioSources.ResolvePersistable(document.Spec, document.Position).Name);
+                        document.Spec.Name);
             }
         }
 
@@ -187,6 +193,23 @@ public static partial class JetAuditProgram
         {
             PreviewCountsWholeVoucherRows = isPreview && UsesLegacyWholeVoucherRows(request.Documents[0].Spec)
         };
+    }
+
+    /// <summary>
+    /// 一次只存或改一個情境、其他情境的結果仍可用時的計畫：只帶這一個情境的定義，檢查與整批發布相同，
+    /// 執行時只換掉它自己的定義與結果。
+    /// </summary>
+    internal static FilterPlan PlanOneScenario(
+        FilterRequest request,
+        SavedFilterScenario definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (!ReviewedBatchActions.Contains(request.ActionName) || request.Documents.Count != 1)
+        {
+            throw new InvalidOperationException($"{request.ActionName} 只儲存一個情境時必須且只能規劃一個情境。");
+        }
+
+        return Plan(request, [definition]) with { SavesOneScenario = true };
     }
 
     /// <summary>Finalizes raw facts without changing preview or hit-set semantics.</summary>

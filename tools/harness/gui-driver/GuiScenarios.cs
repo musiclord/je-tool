@@ -62,9 +62,9 @@ internal static partial class GuiScenarios
             view: state ? state.view : null,
             sqlServerConfigured: state ? state.sqlServerConfigured : null,
             userResolved: !!(state && state.currentUser),
-            caseName: field('caseName'),
+            projectName: field('projectName'),
             projectCode: field('projectCode'),
-            entityName: field('entityName'),
+            clientName: field('clientName'),
             periodStart: field('periodStart'),
             periodEnd: field('periodEnd'),
             databaseProvider: field('databaseProvider'),
@@ -124,8 +124,8 @@ internal static partial class GuiScenarios
           var requiredSelect = section
             ? section.querySelector('.mapping-table__row.is-required select[data-mapping-key]')
             : null;
-          var literal = section ? section.querySelector('input[data-mapping-key="dcDebitCode"]') : null;
-          var creditLiteral = section ? section.querySelector('input[data-mapping-key="dcCreditCode"]') : null;
+          var literal = section ? section.querySelector('input[data-mapping-key="drCrDebitCode"]') : null;
+          var creditLiteral = section ? section.querySelector('input[data-mapping-key="drCrCreditCode"]') : null;
           var committedMapping = state.mapping.gl.committed ? state.mapping.gl.committed.mapping || {} : {};
           var exit = document.querySelector('[data-action="app-exit"]');
           var suggestPoint = point(suggest);
@@ -158,8 +158,8 @@ internal static partial class GuiScenarios
             literalValue: literal ? literal.value : '',
             creditLiteralFocused: !!creditLiteral && document.activeElement === creditLiteral,
             creditLiteralValue: creditLiteral ? creditLiteral.value : '',
-            committedDebitCode: committedMapping.dcDebitCode || '',
-            committedCreditCode: committedMapping.dcCreditCode || '',
+            committedDebitCode: committedMapping.drCrDebitCode || '',
+            committedCreditCode: committedMapping.drCrCreditCode || '',
             exitVisible: visible(exit),
             exitX: exitPoint.x,
             exitY: exitPoint.y
@@ -208,13 +208,13 @@ internal static partial class GuiScenarios
             return Array.prototype.slice.call(document.querySelectorAll(selector))
               .map(function (element) { return element.textContent.trim(); });
           }
-          var states = texts('.report-artifact__state');
-          var historyRows = Array.prototype.slice.call(document.querySelectorAll('.report-artifact'));
-          var stateArtifacts = window.JetStore.getState().reportArtifacts || [];
-          var firstId = historyRows.length ? historyRows[0].getAttribute('data-artifact-id') : null;
-          var firstArtifact = stateArtifacts.find(function (artifact) { return artifact.artifactId === firstId; });
-          var workpaperButton = document.querySelector('[data-action="export-workpaper"]');
-          var workpaperPoint = point(workpaperButton);
+          var states = texts('.report-item__state');
+          var historyRows = Array.prototype.slice.call(document.querySelectorAll('.report-item'));
+          var stateReports = window.JetStore.getState().reports || [];
+          var firstId = historyRows.length ? historyRows[0].getAttribute('data-report-id') : null;
+          var firstReport = stateReports.find(function (report) { return report.reportId === firstId; });
+          var workingPaperButton = document.querySelector('[data-action="export-working-paper"]');
+          var workingPaperPoint = point(workingPaperButton);
           var messages = texts('.messages__list .messages__text');
           var feedback = document.querySelector('.picker-feedback');
           var rail = document.querySelector('.messages__rail[data-action="messages-toggle"]');
@@ -227,24 +227,24 @@ internal static partial class GuiScenarios
           var drawer = document.querySelector('.messages__panel');
           var exportHit = exportButton && visible(exportButton) ? document.elementFromPoint(exportPoint.x, exportPoint.y) : null;
           return {
-            artifactCount: document.querySelectorAll('.report-artifact').length,
-            totalWorkpaperCount: stateArtifacts.filter(function (artifact) { return artifact.kind === 'workingPaper'; }).length,
-            totalHistoricalCount: stateArtifacts.filter(function (artifact) { return artifact.kind === 'workingPaper' && artifact.stale; }).length,
+            reportCount: document.querySelectorAll('.report-item').length,
+            totalWorkingPaperCount: stateReports.filter(function (report) { return report.kind === 'workingPaper'; }).length,
+            totalHistoricalCount: stateReports.filter(function (report) { return report.kind === 'workingPaper' && report.stale; }).length,
             previousPageEnabled: !!document.querySelector('[data-history-page="-1"]:not(:disabled)'),
             nextPageEnabled: !!document.querySelector('[data-history-page="1"]:not(:disabled)'),
-            historicalCount: document.querySelectorAll('.report-artifact__validity').length,
+            historicalCount: document.querySelectorAll('.report-item__validity').length,
             completionVisible: !!document.querySelector('.completion'),
             oldVersionRevealAvailable: historyRows.some(function (row) {
-              return row.querySelector('.report-artifact__validity') && row.querySelector('[data-open-artifact]:not(:disabled)');
+              return row.querySelector('.report-item__validity') && row.querySelector('[data-open-report]:not(:disabled)');
             }),
             missingVersionRevealDisabled: historyRows.some(function (row) {
-              return row.textContent.indexOf('檔案不存在') >= 0 && row.querySelector('[data-open-artifact]:disabled');
+              return row.textContent.indexOf('檔案不存在') >= 0 && row.querySelector('[data-open-report]:disabled');
             }),
-            newestCurrentFirst: !!firstArtifact && !firstArtifact.stale && firstArtifact.fileState === 'asPublished',
-            workpaperX: workpaperPoint.x,
-            workpaperY: workpaperPoint.y,
+            newestCurrentFirst: !!firstReport && !firstReport.stale && firstReport.fileState === 'asPublished',
+            workingPaperX: workingPaperPoint.x,
+            workingPaperY: workingPaperPoint.y,
             modifiedOutsideVisible: states.some(function (text) { return text.indexOf('已在 JET 之外修改') >= 0; }),
-            workpaperExportEnabled: !!document.querySelector('[data-action="export-workpaper"]:not(:disabled)'),
+            workingPaperExportEnabled: !!document.querySelector('[data-action="export-working-paper"]:not(:disabled)'),
             cleanupPanelAbsent: !document.querySelector('[data-action^="report-cleanup"]')
               && document.body.innerText.indexOf('清理舊報告版本') < 0,
             pickerFeedbackVisible: visible(feedback),
@@ -295,7 +295,7 @@ internal static partial class GuiScenarios
             GuiScenarioCatalog.AuthorizedListRecovery => ExecuteAuthorizedListRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.CommonRemapRecovery => ExecuteCommonRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.UpstreamChangeAfterExport => ExecuteUpstreamChangeAfterExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
-            GuiScenarioCatalog.CaseToWorkpaper => ExecuteCaseToWorkpaperAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
+            GuiScenarioCatalog.CaseToWorkingPaper => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.NullDetailsRecovery => ExecuteNullDetailsRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.FilterCommonEditing or GuiScenarioCatalog.FilterAuditorJourney =>
                 ExecuteFilterWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
@@ -312,16 +312,16 @@ internal static partial class GuiScenarios
           var section = document.querySelector('[data-bind="mapping-gl"]');
           var approvalSelect = section ? section.querySelector('[data-approval-choice]') : null;
           var approvalColumn = section ? Array.prototype.find.call(section.querySelectorAll('[data-map-col]'), function (select) {
-            return visible(select) && select.value === 'docDate';
+            return visible(select) && select.value === 'approvalDate';
           }) : null;
           var approvalSameDate = section ? section.querySelector('[data-approval-same-date]') : null;
           return {
             mode: mapping.options.approvalDateMode,
             approvalChoice: visible(approvalSelect) ? approvalSelect.value : approvalColumn ? 'column:' + approvalColumn.getAttribute('data-map-col') :
-              visible(approvalSameDate) ? (approvalSameDate.checked ? 'mode:sameAsPostDate' : 'mode:unmapped') : '',
+              visible(approvalSameDate) ? (approvalSameDate.checked ? 'mode:sameAsGlDate' : 'mode:unmapped') : '',
             approvalFieldPresent: visible(approvalSelect) || !!approvalColumn || visible(approvalSameDate),
-            source: mapping.draft.docDate || '',
-            manualSource: mapping.draft.manual || '',
+            source: mapping.draft.approvalDate || '',
+            manualSource: mapping.draft.isManual || '',
             manualPolicy: JSON.stringify(mapping.options.manualAutoPolicy || {}),
             postingPolicyCleared: mapping.options.postingStatusPolicy === null,
             postingIncludesBlank: !!mapping.options.postingStatusPolicy && mapping.options.postingStatusPolicy.includeBlank,
@@ -353,17 +353,17 @@ internal static partial class GuiScenarios
           /* shared GUI helpers */
           var state = window.JetStore.getState();
           var output = state.validationOutput || {};
-          var run = state.lastRuns.validate;
-          var id = run && run.resultRef ? run.resultRef.runId : '';
-          var reports = (state.reportArtifacts || []).filter(function (artifact) {
-            return !artifact.stale && (artifact.kind === 'validationReport' || artifact.kind === 'infReport')
-              && artifact.sourceRef.validationRunId === id;
+          var run = state.results.validate;
+          var id = run && run.resultRef ? run.resultRef.resultId : '';
+          var reports = (state.reports || []).filter(function (report) {
+            return !report.stale && (report.kind === 'validationReport' || report.kind === 'infReport')
+              && report.sourceRef.validationResultId === id;
           });
           var template = document.querySelector('[data-validation-output="template"]');
           return {
-            runId: id,
-            reportsReady: !!output.reports && output.reports.runId === id && output.reports.status === 'ready' && reports.length === 2,
-            templateReady: !!output.template && output.template.runId === id && output.template.status === 'ready',
+            resultId: id,
+            reportsReady: !!output.reports && output.reports.resultId === id && output.reports.status === 'ready' && reports.length === 2,
+            templateReady: !!output.template && output.template.resultId === id && output.template.status === 'ready',
             templateKept: !!template && template.textContent.indexOf('已保留') >= 0,
             validateEnabled: !!document.querySelector('[data-action="run-validate"]:not(:disabled)')
           };
@@ -416,10 +416,10 @@ internal static partial class GuiScenarios
                 ReadString(probe, "optionsSnapshot"), ReadString(probe, "amountMode"));
             using var mapping = JsonDocument.Parse(original.Draft);
             using var options = JsonDocument.Parse(original.Options);
-            // 第8批DemoDataFactory已把來源欄名改為「傳票核准日」；只同步合成來源名，完整快照比較不變。
+            // DemoDataFactory 已把來源欄名改為「傳票核准日」；只同步合成來源名，完整快照比較不變。
             // 正式Gui首次失敗：20261004-111741426-5fa862bc36134c549ff230bfdcd99efb。
-            if (mapping.RootElement.GetProperty("docNum").GetString() != "傳票號碼"
-                || mapping.RootElement.GetProperty("docDate").GetString() != "傳票核准日"
+            if (mapping.RootElement.GetProperty("voucherNumber").GetString() != "傳票號碼"
+                || mapping.RootElement.GetProperty("approvalDate").GetString() != "傳票核准日"
                 || options.RootElement.GetProperty("approvalDateMode").GetString() != "mapped"
                 || original.AmountMode != "flag" || !original.MatchesCommitted(probe))
             {
@@ -471,7 +471,7 @@ internal static partial class GuiScenarios
             cancellationToken, outcome, original).ConfigureAwait(false);
         outcome.Assertions.MappingOptionsDirtyStateVisible = true;
         outcome.RecordStage("manual-source-lifecycle");
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"manual\"]", string.Empty, outcome, cancellationToken)
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=\"isManual\"]", string.Empty, outcome, cancellationToken)
             .ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process,
             probe => string.IsNullOrEmpty(ReadString(probe, "manualSource"))
@@ -502,14 +502,14 @@ internal static partial class GuiScenarios
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"restore-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"remap-gl\"]", outcome, cancellationToken).ConfigureAwait(false);
         outcome.RecordStage("classic-approval-modes");
-        // 使用者 2026-10-08 畫面註解：傳票核准日只有一個下拉，選來源欄即代表由來源欄提供。
+        // 裁定 2026-10-08-09：傳票核准日只有一個下拉，選來源欄即代表由來源欄提供。
         var approvalChoice = GlSection + "[data-approval-choice]";
         await ChooseOptionAsync(cdp, process, approvalChoice, "mode:unmapped", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, approvalChoice, "column:傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, approvalChoice, "mode:sameAsPostDate", outcome, cancellationToken).ConfigureAwait(false);
-        await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, approvalChoice, "mode:sameAsGlDate", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "sameAsGlDate", "", cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process, probe => ReadBoolean(probe, "dirtyWarningVisible"),
             cancellationToken, outcome).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, approvalChoice, "column:傳票核准日", outcome, cancellationToken).ConfigureAwait(false);
@@ -521,17 +521,17 @@ internal static partial class GuiScenarios
         outcome.RecordStage("grid-approval-modes");
         await ClickControlAsync(cdp, process, GlSection + "[data-ui-mode=\"grid\"]", outcome, cancellationToken).ConfigureAwait(false);
         var gridSource = GlSection + "[data-map-col=\"傳票核准日\"]";
-        await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, gridSource, "approvalDate", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         await ChooseOptionAsync(cdp, process, gridSource, "", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "unmapped", "", cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, gridSource, "approvalDate", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         // 對照表格只在表頭選來源；解除來源後才顯示同日勾選，不借用簡易清單的下拉。
         await ChooseOptionAsync(cdp, process, gridSource, "", outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, GlSection + "[data-approval-same-date]", outcome, cancellationToken).ConfigureAwait(false);
-        await ExpectApprovalAsync(cdp, process, "sameAsPostDate", "", cancellationToken).ConfigureAwait(false);
-        await ChooseOptionAsync(cdp, process, gridSource, "docDate", outcome, cancellationToken).ConfigureAwait(false);
+        await ExpectApprovalAsync(cdp, process, "sameAsGlDate", "", cancellationToken).ConfigureAwait(false);
+        await ChooseOptionAsync(cdp, process, gridSource, "approvalDate", outcome, cancellationToken).ConfigureAwait(false);
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         outcome.Assertions.GridApprovalModesCoherent = true;
 
@@ -540,9 +540,9 @@ internal static partial class GuiScenarios
         await WaitForMappingPolicyAsync(cdp, process,
             probe => ReadInt32(probe, "missingCount") == 1 && !original.MatchesDraft(probe)
                 && original.MatchesCommitted(probe), cancellationToken, outcome, original).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, GlSection + "[data-focus-mapping-field=\"docNum\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-focus-mapping-field=\"voucherNumber\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process,
-            probe => ReadString(probe, "uiMode") == "classic" && ReadString(probe, "focusedMappingKey") == "docNum",
+            probe => ReadString(probe, "uiMode") == "classic" && ReadString(probe, "focusedMappingKey") == "voucherNumber",
             cancellationToken, outcome, original).ConfigureAwait(false);
         outcome.Assertions.RequiredFieldJumpFocused = true;
 
@@ -553,7 +553,7 @@ internal static partial class GuiScenarios
         await ClickControlAsync(cdp, process, GlSection + "[data-action=\"select-all-rde\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process,
             probe => ReadInt32(probe, "rdeCount") > 0 && ReadInt32(probe, "rdeCount") == ReadInt32(probe, "rdeAvailableCount"), cancellationToken).ConfigureAwait(false);
-        // C7: a full rerender must not leave focus on body after Select All becomes disabled.
+        // A full rerender must not leave focus on body after Select All becomes disabled.
         // 前端重畫後用 setTimeout(0) 把焦點移到第一個攸關資料元素欄位，所以等那一步執行完再判斷，最多 2 秒。
         // 2026-10-07 起立即檢查會比延後的焦點移動早幾毫秒執行（收據 20261007-040407746-edd2654f66924d26b2a061f1aea020c8）。
         const string rdeFocusScript = "!!document.activeElement?.closest('.map-options__group') && document.activeElement!==document.body && !document.activeElement.disabled";
@@ -604,16 +604,18 @@ internal static partial class GuiScenarios
         await WaitForFixtureEventAsync(ownedRun, process, "fill-template-after-auto-export", "template.filled", cancellationToken).ConfigureAwait(false);
         outcome.Assertions.AutomaticValidationReportsCreated = true;
         outcome.Assertions.AutomaticMappingTemplateCreated = true;
-        var firstRun = ReadString(first, "runId");
+        var firstResultId = ReadString(first, "resultId");
         // The template status is shown on the Excel tab; the account mapping card opens on the JET tab.
         await ClickControlAsync(cdp, process, "[data-action=\"toggle-account-excel\"]", outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, "[data-action=\"run-validate\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForProbeAsync(cdp, process, ValidationOutputProbeScript, value => value,
-            probe => ReadString(probe, "runId") != firstRun && ReadBoolean(probe, "reportsReady")
+            probe => ReadString(probe, "resultId") != firstResultId && ReadBoolean(probe, "reportsReady")
                 && ReadBoolean(probe, "templateReady") && ReadBoolean(probe, "templateKept") && ReadBoolean(probe, "validateEnabled"),
             "application_exited_during_repeated_validation", cancellationToken).ConfigureAwait(false);
         await WaitForFixtureEventAsync(ownedRun, process, "fill-template-after-auto-export", "template.preserved", cancellationToken).ConfigureAwait(false);
         outcome.Assertions.FilledTemplatePreservedAfterValidation = true;
+        // 裁定 2026-10-30-35：會清空分類的「重建科目配對檔」收進「更多」選單，先打開選單才點得到；操作次數因此由 6 次變 7 次。
+        await ClickControlAsync(cdp, process, "[aria-controls=\"account-mapping-more\"]", outcome, cancellationToken).ConfigureAwait(false);
         await FindControlPointAsync(cdp, process, "[data-action=\"download-account-mapping-template\"]", cancellationToken).ConfigureAwait(false);
         await CaptureScreenshotAsync(cdp, outcome, cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, "[data-action=\"app-exit\"]", outcome, cancellationToken).ConfigureAwait(false);
@@ -651,7 +653,7 @@ internal static partial class GuiScenarios
         CancellationToken cancellationToken)
     {
         var suffix = ownedRun.RunId[..12];
-        var caseName = "AgentGui-" + suffix;
+        var projectName = "AgentGui-" + suffix;
         const string periodStart = "2025-01-01";
         const string periodEnd = "2025-12-31";
 
@@ -666,7 +668,7 @@ internal static partial class GuiScenarios
         outcome.Assertions.CreateFormVisible = true;
 
         form = await FillTextFieldAsync(
-            cdp, process, form, CreateField.CaseName, caseName, outcome, cancellationToken)
+            cdp, process, form, CreateField.ProjectName, projectName, outcome, cancellationToken)
             .ConfigureAwait(false);
         form = await FillDateFieldAsync(
             cdp, process, form, CreateField.PeriodStart, periodStart, outcome, cancellationToken)
@@ -676,9 +678,9 @@ internal static partial class GuiScenarios
             .ConfigureAwait(false);
 
         outcome.Assertions.RequiredFieldsEntered =
-            form.CaseName.Value == caseName
+            form.ProjectName.Value == projectName
             && form.ProjectCode.Value.Length == 0
-            && form.EntityName.Value.Length == 0
+            && form.ClientName.Value.Length == 0
             && form.PeriodStart.Value == periodStart
             && form.PeriodEnd.Value == periodEnd;
         outcome.Assertions.SqliteSelected = form.DatabaseProvider.Value == "sqlite";
@@ -689,21 +691,21 @@ internal static partial class GuiScenarios
 
         await ClickControlAsync(cdp, process, "[data-bind=\"create-form\"] [type=\"submit\"]", outcome, cancellationToken)
             .ConfigureAwait(false);
-        var created = await WaitForCreatedProjectAsync(cdp, process, caseName, cancellationToken)
+        var created = await WaitForCreatedProjectAsync(cdp, process, projectName, cancellationToken)
             .ConfigureAwait(false);
         outcome.Assertions.ProjectCreated = created.FormAbsent;
         outcome.Assertions.ImportStepVisible = created.ImportStepVisible
             && created.CaseStepText == "匯入資料";
-        outcome.Assertions.CaseNameVisible = created.CaseIdVisible
-            && created.CaseIdText == caseName;
+        outcome.Assertions.ProjectNameVisible = created.CaseIdVisible
+            && created.CaseIdText == projectName;
         if (!outcome.Assertions.ProjectCreated
             || !outcome.Assertions.ImportStepVisible
-            || !outcome.Assertions.CaseNameVisible)
+            || !outcome.Assertions.ProjectNameVisible)
         {
             throw new GuiCheckException("created_project_ui_invalid");
         }
 
-        ValidateSyntheticProjectFiles(ownedRun, caseName, outcome.Assertions);
+        ValidateSyntheticProjectFiles(ownedRun, projectName, outcome.Assertions);
         await CaptureScreenshotAsync(cdp, outcome, cancellationToken).ConfigureAwait(false);
 
         await ClickAsync(cdp, created.ExitX, created.ExitY, outcome, cancellationToken)
@@ -766,14 +768,14 @@ internal static partial class GuiScenarios
             throw new GuiCheckException("mapping_focus_key_missing");
         }
 
-        // 2026-10-02 主線實測 W3：借方代碼改值後不先離開輸入框，直接用滑鼠點一次「重新確認配對」，
+        // 裁定 2026-10-02-01：借方代碼改值後不先離開輸入框，直接用滑鼠點一次「重新確認配對」，
         // 後端就要完成配對。舊版在失焦時重建整步，按鈕在按下與放開之間被換掉，第一次點擊沒有送出。
         // 已確認配對只在 mapping.commit.gl 成功後寫入，所以用它的借方代碼判定後端已收到這次確認。
         outcome.RecordStage("mapping-literal-direct-commit");
-        // 第9批要求借、貸兩碼明確且不同；舊測把借方1改0會和貸方0重複，應被拒絕。
+        // 借、貸兩碼要明確且不同；舊測把借方1改0會和貸方0重複，應被拒絕。
         // 首次失敗：20261004-111252505-f9d81c2da7b7433884b572c1facb9c63。
         // 先用四個真鍵鼠動作把貸方0改1，再沿原借方1改0的一擊提交測試；不放寬期限或預算。
-        await ClickControlAsync(cdp, process, GlSection + "input[data-mapping-key=\"dcCreditCode\"]", outcome, cancellationToken)
+        await ClickControlAsync(cdp, process, GlSection + "input[data-mapping-key=\"drCrCreditCode\"]", outcome, cancellationToken)
             .ConfigureAwait(false);
         await PressKeyAsync(cdp, "End", outcome, cancellationToken).ConfigureAwait(false);
         await PressKeyAsync(cdp, "Backspace", outcome, cancellationToken).ConfigureAwait(false);
@@ -785,7 +787,7 @@ internal static partial class GuiScenarios
             probe => ReadBoolean(probe, "creditLiteralFocused") && ReadString(probe, "creditLiteralValue") == "1"
                 && ReadString(probe, "committedDebitCode") == "1" && ReadString(probe, "committedCreditCode") == "0",
             cancellationToken, outcome).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, GlSection + "input[data-mapping-key=\"dcDebitCode\"]", outcome, cancellationToken)
+        await ClickControlAsync(cdp, process, GlSection + "input[data-mapping-key=\"drCrDebitCode\"]", outcome, cancellationToken)
             .ConfigureAwait(false);
         await PressKeyAsync(cdp, "End", outcome, cancellationToken).ConfigureAwait(false);
         await PressKeyAsync(cdp, "Backspace", outcome, cancellationToken).ConfigureAwait(false);
@@ -830,8 +832,8 @@ internal static partial class GuiScenarios
             cancellationToken, outcome).ConfigureAwait(false);
 
         const string requiredSelect = GlSection + ".mapping-table__row.is-required select[data-mapping-key]";
-        // 人工驗收第 1 項：清空和補回兩次，每次核對缺漏、按鈕與焦點。原本十次，使用者 2026-10-15 在勾選頁選
-        // 減為兩次（S1）：全程只在前端，逐欄同步另有前端測試；這裡保留真實鍵盤與 WebView2 焦點的檢查。
+        // 人工驗收的清空和補回：做兩次，每次核對缺漏、按鈕與焦點。原本十次，裁定 2026-10-15-01
+        // 減為兩次：全程只在前端，逐欄同步另有前端測試；這裡保留真實鍵盤與 WebView2 焦點的檢查。
         outcome.RecordStage("mapping-two-roundtrips");
         for (var cycle = 0; cycle < 2; cycle++)
         {
@@ -882,7 +884,7 @@ internal static partial class GuiScenarios
         GuiRunOutcome outcome,
         CancellationToken cancellationToken)
     {
-        // 預設審計員可信：Working Paper 在 JET 之外被改過、舊版輸出紀錄檔還留著，案件仍要能開。
+        // 預設審計員可信：工作底稿在 JET 之外被改過、舊版輸出紀錄檔還留著，案件仍要能開。
         const string projectId = "agent-gui-edited-report";
         await WaitForFixtureEventAsync(
             ownedRun,
@@ -907,67 +909,67 @@ internal static partial class GuiScenarios
         var exportStep = await WaitForEditedReportStepAsync(
             cdp,
             process,
-            probe => ReadInt32(probe, "artifactCount") > 0
+            probe => ReadInt32(probe, "reportCount") > 0
                 && ReadBoolean(probe, "modifiedOutsideVisible"),
             cancellationToken).ConfigureAwait(false);
         outcome.Assertions.EditedReportLoaded = !ReadBoolean(exportStep, "pickerFeedbackVisible");
         outcome.Assertions.ModifiedOutsideVisible = ReadBoolean(exportStep, "modifiedOutsideVisible");
-        outcome.Assertions.WorkpaperExportEnabled = ReadBoolean(exportStep, "workpaperExportEnabled");
+        outcome.Assertions.WorkingPaperExportEnabled = ReadBoolean(exportStep, "workingPaperExportEnabled");
         outcome.Assertions.CleanupPanelAbsent = ReadBoolean(exportStep, "cleanupPanelAbsent");
         if (!outcome.Assertions.EditedReportLoaded)
         {
             throw new GuiCheckException("edited_report_load_feedback_visible");
         }
         if (!outcome.Assertions.ModifiedOutsideVisible
-            || !outcome.Assertions.WorkpaperExportEnabled
+            || !outcome.Assertions.WorkingPaperExportEnabled
             || !outcome.Assertions.CleanupPanelAbsent)
         {
             throw new GuiCheckException("edited_report_workflow_contract_failed");
         }
 
-        outcome.Assertions.WorkpaperHistoryVisible = ReadInt32(exportStep, "artifactCount") == 50
+        outcome.Assertions.WorkingPaperHistoryVisible = ReadInt32(exportStep, "reportCount") == 50
             && ReadInt32(exportStep, "historicalCount") == 50
-            && ReadInt32(exportStep, "totalWorkpaperCount") == 52;
+            && ReadInt32(exportStep, "totalWorkingPaperCount") == 52;
         outcome.Assertions.HistoryDoesNotCompleteCurrentRun = !ReadBoolean(exportStep, "completionVisible");
         outcome.Assertions.OldVersionRevealAvailable = ReadBoolean(exportStep, "oldVersionRevealAvailable");
         outcome.Assertions.MissingVersionRevealDisabled = ReadBoolean(exportStep, "missingVersionRevealDisabled");
-        if (!outcome.Assertions.WorkpaperHistoryVisible || !outcome.Assertions.HistoryDoesNotCompleteCurrentRun
+        if (!outcome.Assertions.WorkingPaperHistoryVisible || !outcome.Assertions.HistoryDoesNotCompleteCurrentRun
             || !outcome.Assertions.OldVersionRevealAvailable || !outcome.Assertions.MissingVersionRevealDisabled)
         {
-            throw new GuiCheckException("workpaper_history_before_export_failed");
+            throw new GuiCheckException("working_paper_history_before_export_failed");
         }
         await ClickControlAsync(cdp, process, "[data-history-page=\"1\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForEditedReportStepAsync(cdp, process,
-            probe => ReadInt32(probe, "artifactCount") == 2 && ReadInt32(probe, "historicalCount") == 2
+            probe => ReadInt32(probe, "reportCount") == 2 && ReadInt32(probe, "historicalCount") == 2
                 && ReadBoolean(probe, "previousPageEnabled") && !ReadBoolean(probe, "nextPageEnabled"),
             cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, "[data-history-page=\"-1\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForEditedReportStepAsync(cdp, process,
-            probe => ReadInt32(probe, "artifactCount") == 50 && !ReadBoolean(probe, "previousPageEnabled"),
+            probe => ReadInt32(probe, "reportCount") == 50 && !ReadBoolean(probe, "previousPageEnabled"),
             cancellationToken).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, "[data-action=\"export-workpaper\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, "[data-action=\"export-working-paper\"]", outcome, cancellationToken).ConfigureAwait(false);
         exportStep = await WaitForEditedReportStepAsync(cdp, process,
-            probe => ReadInt32(probe, "artifactCount") == 50 && ReadInt32(probe, "totalWorkpaperCount") == 53
+            probe => ReadInt32(probe, "reportCount") == 50 && ReadInt32(probe, "totalWorkingPaperCount") == 53
                 && ReadBoolean(probe, "completionVisible"),
             cancellationToken).ConfigureAwait(false);
-        outcome.Assertions.WorkpaperHistoryRetainedAfterExport = ReadInt32(exportStep, "historicalCount") == 49
+        outcome.Assertions.WorkingPaperHistoryRetainedAfterExport = ReadInt32(exportStep, "historicalCount") == 49
             && ReadInt32(exportStep, "totalHistoricalCount") == 52
             && ReadBoolean(exportStep, "oldVersionRevealAvailable") && ReadBoolean(exportStep, "missingVersionRevealDisabled");
-        outcome.Assertions.NewestWorkpaperFirst = ReadBoolean(exportStep, "newestCurrentFirst");
-        if (!outcome.Assertions.WorkpaperHistoryRetainedAfterExport || !outcome.Assertions.NewestWorkpaperFirst)
+        outcome.Assertions.NewestWorkingPaperFirst = ReadBoolean(exportStep, "newestCurrentFirst");
+        if (!outcome.Assertions.WorkingPaperHistoryRetainedAfterExport || !outcome.Assertions.NewestWorkingPaperFirst)
         {
-            throw new GuiCheckException("workpaper_history_after_export_failed");
+            throw new GuiCheckException("working_paper_history_after_export_failed");
         }
         await ClickControlAsync(cdp, process, "[data-history-page=\"1\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForEditedReportStepAsync(cdp, process,
-            probe => ReadInt32(probe, "artifactCount") == 3 && ReadInt32(probe, "historicalCount") == 3
+            probe => ReadInt32(probe, "reportCount") == 3 && ReadInt32(probe, "historicalCount") == 3
                 && ReadBoolean(probe, "previousPageEnabled") && !ReadBoolean(probe, "nextPageEnabled"),
             cancellationToken).ConfigureAwait(false);
         await ClickControlAsync(cdp, process, "[data-history-page=\"-1\"]", outcome, cancellationToken).ConfigureAwait(false);
         exportStep = await WaitForEditedReportStepAsync(cdp, process,
-            probe => ReadInt32(probe, "artifactCount") == 50 && ReadBoolean(probe, "newestCurrentFirst"),
+            probe => ReadInt32(probe, "reportCount") == 50 && ReadBoolean(probe, "newestCurrentFirst"),
             cancellationToken).ConfigureAwait(false);
-        outcome.Assertions.WorkpaperHistoryPaginationVerified = true;
+        outcome.Assertions.WorkingPaperHistoryPaginationVerified = true;
 
         if (!ReadBoolean(exportStep, "exportVisible"))
         {
@@ -999,14 +1001,6 @@ internal static partial class GuiScenarios
             cancellationToken).ConfigureAwait(false);
 
         ValidateSupportLog(ownedRun, projectId, outcome.Assertions);
-
-        var projectDirectory = Path.Combine(ownedRun.ProjectsRootPath, projectId);
-        outcome.Assertions.LegacyJournalDiscarded = Directory.Exists(projectDirectory)
-            && !File.Exists(Path.Combine(projectDirectory, ".report-artifacts.mutation-v1.json"));
-        if (!outcome.Assertions.LegacyJournalDiscarded)
-        {
-            throw new GuiCheckException("legacy_journal_retained");
-        }
 
         await ClickAsync(
             cdp,
@@ -1229,7 +1223,7 @@ internal static partial class GuiScenarios
     {
         await ClickControlAsync(cdp, process, selector, outcome, cancellationToken).ConfigureAwait(false);
         // 方向鍵會跳過停用的選項，所以要按幾次是目標前面「能選的」選項個數，不是目標的位置。
-        // 預篩選收斂計畫階段四讓 GL 沒有配對的欄位在選單裡停用，原本照位置按，子條件選單選到後面的選項
+        // 2026-10-23 起 GL 沒有配對的欄位在選單裡停用，原本照位置按，子條件選單選到後面的選項
         // （2026-10-28 跨月與巢狀傳票兩個情境，第一次失敗收據 20261028-071425870-02f055e1dbe949d9a7e96007a028cd4b
         // 與 20261028-071837262-5a7dde054ed848f094853b061a0a3894）。目標本身停用時直接回報，不選到別的選項。
         var optionPosition = await cdp.EvaluateAsync("(function () { var select = document.querySelector(" +
@@ -1470,7 +1464,6 @@ internal static partial class GuiScenarios
         var text = string.Join('\n', lines).Replace("\\\\", "\\", StringComparison.Ordinal);
         assertions.SupportLogSafe =
             eventNames.Contains("support.snapshot", StringComparer.Ordinal)
-            && eventNames.Contains("artifact.journal.discarded", StringComparer.Ordinal)
             && !eventNames.Contains("action.error", StringComparer.Ordinal)
             && correlations.Count >= 1
             && !text.Contains(projectId, StringComparison.OrdinalIgnoreCase)
@@ -1506,23 +1499,23 @@ internal static partial class GuiScenarios
             });
 
     private static Task<CreatedProjectProbe> WaitForCreatedProjectAsync(
-        CdpSession cdp, Process process, string caseName, CancellationToken cancellationToken) =>
+        CdpSession cdp, Process process, string projectName, CancellationToken cancellationToken) =>
         WaitForProbeAsync(cdp, process, CreatedProjectProbeScript, value => new CreatedProjectProbe(
             ReadBoolean(value, "formAbsent"), ReadBoolean(value, "caseStepVisible"), ReadString(value, "caseStepText"),
             ReadBoolean(value, "caseIdVisible"), ReadString(value, "caseIdText"), ReadBoolean(value, "importStepVisible"),
             ReadBoolean(value, "exitButtonVisible"), ReadDouble(value, "exitX"), ReadDouble(value, "exitY")),
-            probe => probe.FormAbsent && probe.CaseStepVisible && probe.CaseIdVisible && probe.CaseIdText == caseName
+            probe => probe.FormAbsent && probe.CaseStepVisible && probe.CaseIdVisible && probe.CaseIdText == projectName
                 && probe.ImportStepVisible && probe.ExitButtonVisible && double.IsFinite(probe.ExitX)
                 && double.IsFinite(probe.ExitY) && probe.ExitX > 0 && probe.ExitY > 0,
             "application_exited_before_project_created", cancellationToken);
 
     private static void ValidateSyntheticProjectFiles(
         OwnedGuiRun ownedRun,
-        string caseName,
+        string projectName,
         GuiAssertions assertions)
     {
         var projectsRoot = Path.GetFullPath(ownedRun.ProjectsRootPath);
-        var projectRoot = Path.GetFullPath(Path.Combine(projectsRoot, caseName));
+        var projectRoot = Path.GetFullPath(Path.Combine(projectsRoot, projectName));
         if (!Path.GetDirectoryName(projectRoot)!.Equals(projectsRoot, StringComparison.OrdinalIgnoreCase)
             || !Directory.Exists(projectRoot))
         {
@@ -1552,11 +1545,11 @@ internal static partial class GuiScenarios
         using var document = JsonDocument.Parse(File.ReadAllBytes(documentPath));
         var root = document.RootElement;
         assertions.StoredProjectMatches =
-            ReadRequiredDocumentString(root, "projectId") == caseName
+            ReadRequiredDocumentString(root, "projectId") == projectName
             && ReadRequiredDocumentString(root, "databaseProvider") == "sqlite";
         assertions.StoredOptionalMetadataBlank =
             ReadDocumentStringAllowingEmpty(root, "projectCode").Length == 0
-            && ReadDocumentStringAllowingEmpty(root, "entityName").Length == 0;
+            && ReadDocumentStringAllowingEmpty(root, "clientName").Length == 0;
         assertions.StoredOperatorMatches =
             ReadRequiredDocumentString(root, "operatorId") == "agent-gui";
         if (!assertions.StoredProjectMatches
@@ -1571,9 +1564,9 @@ internal static partial class GuiScenarios
     {
         return new CreateFormProbe(
             ReadBoolean(value, "formVisible"),
-            ReadField(value, "caseName"),
+            ReadField(value, "projectName"),
             ReadField(value, "projectCode"),
-            ReadField(value, "entityName"),
+            ReadField(value, "clientName"),
             ReadField(value, "periodStart"),
             ReadField(value, "periodEnd"),
             ReadField(value, "databaseProvider"),
@@ -1666,9 +1659,9 @@ internal static partial class GuiScenarios
 
     private enum CreateField
     {
-        CaseName,
+        ProjectName,
         ProjectCode,
-        EntityName,
+        ClientName,
         PeriodStart,
         PeriodEnd
     }
@@ -1684,9 +1677,9 @@ internal static partial class GuiScenarios
 
     private sealed record CreateFormProbe(
         bool FormVisible,
-        FieldProbe CaseName,
+        FieldProbe ProjectName,
         FieldProbe ProjectCode,
-        FieldProbe EntityName,
+        FieldProbe ClientName,
         FieldProbe PeriodStart,
         FieldProbe PeriodEnd,
         FieldProbe DatabaseProvider,
@@ -1696,9 +1689,9 @@ internal static partial class GuiScenarios
         JsonElement Diagnostics)
     {
         internal bool IsReady => FormVisible
-            && CaseName.IsReady
+            && ProjectName.IsReady
             && ProjectCode.IsReady
-            && EntityName.IsReady
+            && ClientName.IsReady
             && PeriodStart.IsReady
             && PeriodEnd.IsReady
             && DatabaseProvider.IsReady
@@ -1710,9 +1703,9 @@ internal static partial class GuiScenarios
 
         internal FieldProbe Get(CreateField field) => field switch
         {
-            CreateField.CaseName => CaseName,
+            CreateField.ProjectName => ProjectName,
             CreateField.ProjectCode => ProjectCode,
-            CreateField.EntityName => EntityName,
+            CreateField.ClientName => ClientName,
             CreateField.PeriodStart => PeriodStart,
             CreateField.PeriodEnd => PeriodEnd,
             _ => throw new ArgumentOutOfRangeException(nameof(field), field, null)

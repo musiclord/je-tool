@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 排序、搜尋與複合游標的組譯守衛（2026-09-07 工作包 G）。這裡只鎖 SQL 文字的形狀與游標的往返，
+/// 排序、搜尋與複合游標的組譯守衛。這裡只鎖 SQL 文字的形狀與游標的往返，
 /// 真正跑在 SQLite 與 DuckDB 上的結果由 Application 與 Infrastructure 的走訪測試負責。
 /// </summary>
 public sealed class KeysetPagingTests
@@ -17,7 +17,7 @@ public sealed class KeysetPagingTests
             new SortColumn("amount", "g.amount_scaled", SortValueKind.Integer),
             new SortColumn("approvedBy", "g.approved_by", SortValueKind.Text)
         ],
-        "g.document_number");
+        "g.voucher_number");
 
     [Fact]
     public void NoSort_KeepsStableKeyOrderAndPlainCursor()
@@ -86,11 +86,11 @@ public sealed class KeysetPagingTests
     {
         var plan = KeysetPaging.Plan(SqlServerDialect.Instance, new PageRequest(null, 10, null, " v-00a "), Catalog);
 
-        // 2026-10-19 跨資料庫一致性計畫第三節 D：SQL Server 的轉大寫改用 Latin1_General_100_BIN2 的對照表，
-        // 原本預期 " AND (CHARINDEX(@pageSearch, UPPER(COALESCE(g.document_number, N''))) > 0)"。
+        // 裁定 2026-10-19-30：SQL Server 的轉大寫改用 Latin1_General_100_BIN2 的對照表，
+        // 原本預期 " AND (CHARINDEX(@pageSearch, UPPER(COALESCE(g.voucher_number, N''))) > 0)"。
         // 第一次失敗：20261019-025219572-8db61eaea8e248329c0efa0328ca3212，方言修改前失敗。
         Assert.Equal(
-            " AND (CHARINDEX(@pageSearch, UPPER((COALESCE(g.document_number, N'')) COLLATE Latin1_General_100_BIN2)) > 0)",
+            " AND (CHARINDEX(@pageSearch, UPPER((COALESCE(g.voucher_number, N'')) COLLATE Latin1_General_100_BIN2)) > 0)",
             plan.Predicate);
         Assert.Equal("V-00A", Assert.Single(plan.Parameters).Value);
     }
@@ -126,7 +126,7 @@ public sealed class KeysetPagingTests
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(null, 10, new PageSort("entry_id; DROP TABLE x", PageSortDirection.Ascending)), Catalog));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送表頭上的排序鍵，
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送表頭上的排序鍵，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現，檢查代號記進支援日誌。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
         Assert.Equal("sort_key_invalid", JetPayloadRejection.CheckOf(error));
@@ -161,9 +161,9 @@ public sealed class KeysetPagingTests
         // 目錄鍵名就是前端表頭要用的 wire 欄位名，不能夾雜 SQL 識別字。
         foreach (var catalog in new[]
                  {
-                     ResultPageSorting.CompletenessDiff, ResultPageSorting.DocBalance, ResultPageSorting.NullRecords,
+                     ResultPageSorting.CompletenessDiff, ResultPageSorting.VoucherBalance, ResultPageSorting.BlankRecords,
                      ResultPageSorting.SourceQuality, ResultPageSorting.InfSample, ResultPageSorting.GlEntryRows,
-                     ResultPageSorting.TagMatrixVoucher, ResultPageSorting.TagMatrixRow, ResultPageSorting.FilterVoucher
+                     ResultPageSorting.HighRiskSummaryVoucher, ResultPageSorting.HighRiskSummaryRow, ResultPageSorting.FilterVoucher
                  })
         {
             Assert.Equal(catalog.Keys.Count, catalog.Keys.Distinct(StringComparer.Ordinal).Count());

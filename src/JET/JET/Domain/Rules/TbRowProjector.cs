@@ -4,7 +4,7 @@ namespace JET.Domain;
 
 public sealed record TbProjectedRow(
     int SourceRowNumber,
-    string? AccountCode,
+    string? AccountNumber,
     string? AccountName,
     long ChangeAmountScaled);
 
@@ -26,7 +26,7 @@ public static class TbRowProjector
         {
             case TbChangeMode.DirectChange:
             {
-                if (!TryParseAmountCell(row, spec, TbMappingKeys.Amount, out change, out error))
+                if (!TryParseAmountCell(row, spec, TbMappingKeys.ChangeAmount, out change, out error))
                 {
                     return false;
                 }
@@ -36,8 +36,8 @@ public static class TbRowProjector
 
             case TbChangeMode.DebitCredit:
             {
-                if (!TryParseAmountCell(row, spec, TbMappingKeys.DebitAmt, out var debit, out error)
-                    || !TryParseAmountCell(row, spec, TbMappingKeys.CreditAmt, out var credit, out error))
+                if (!TryParseAmountCell(row, spec, TbMappingKeys.DebitAmount, out var debit, out error)
+                    || !TryParseAmountCell(row, spec, TbMappingKeys.CreditAmount, out var credit, out error))
                 {
                     return false;
                 }
@@ -62,10 +62,10 @@ public static class TbRowProjector
             case TbChangeMode.OpenCloseBySide:
             {
                 // legacy SA=4（idea-script.bas:11283）：本期變動 = (期末借 − 期末貸) − (期初借 − 期初貸)。
-                if (!TryParseAmountCell(row, spec, TbMappingKeys.OpeningDebit, out var openingDr, out error)
-                    || !TryParseAmountCell(row, spec, TbMappingKeys.OpeningCredit, out var openingCr, out error)
-                    || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingDebit, out var closingDr, out error)
-                    || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingCredit, out var closingCr, out error))
+                if (!TryParseAmountCell(row, spec, TbMappingKeys.OpeningDebitBalance, out var openingDr, out error)
+                    || !TryParseAmountCell(row, spec, TbMappingKeys.OpeningCreditBalance, out var openingCr, out error)
+                    || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingDebitBalance, out var closingDr, out error)
+                    || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingCreditBalance, out var closingCr, out error))
                 {
                     return false;
                 }
@@ -82,24 +82,24 @@ public static class TbRowProjector
         {
             error = new RowProjectionError(
                 row.SourceRowNumber,
-                MappedColumnOrKey(spec, TbMappingKeys.Amount),
+                MappedColumnOrKey(spec, TbMappingKeys.ChangeAmount),
                 change.ToString(CultureInfo.InvariantCulture),
                 ProjectionErrorReasons.AmountOutOfRange);
             return false;
         }
 
-        var accountCode = GetMappedValue(row, spec, TbMappingKeys.AccNum);
-        var accountName = GetMappedValue(row, spec, TbMappingKeys.AccName);
+        var accountNumber = GetMappedValue(row, spec, TbMappingKeys.AccountNumber);
+        var accountName = GetMappedValue(row, spec, TbMappingKeys.AccountName);
         // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就回列錯誤，不截斷。
-        if (TextTooLong(row, spec, TbMappingKeys.AccNum, accountCode, TextStorageLimits.KeyUtf16CodeUnits, out error)
-            || TextTooLong(row, spec, TbMappingKeys.AccName, accountName, TextStorageLimits.TextUtf16CodeUnits, out error))
+        if (TextTooLong(row, spec, TbMappingKeys.AccountNumber, accountNumber, TextStorageLimits.KeyUtf16CodeUnits, out error)
+            || TextTooLong(row, spec, TbMappingKeys.AccountName, accountName, TextStorageLimits.TextUtf16CodeUnits, out error))
         {
             return false;
         }
 
         projected = new TbProjectedRow(
             row.SourceRowNumber,
-            accountCode,
+            accountNumber,
             accountName,
             changeScaled);
 

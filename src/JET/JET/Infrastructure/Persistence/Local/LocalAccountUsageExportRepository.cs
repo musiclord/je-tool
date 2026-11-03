@@ -16,10 +16,10 @@ public sealed class LocalAccountUsageExportRepository(ILocalProjectDatabase data
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText =
-            $"SELECT COALESCE(account_code, ''), MAX(account_name), COUNT(*), " +
+            $"SELECT COALESCE(account_number, ''), MAX(account_name), COUNT(*), " +
             "COALESCE(SUM(debit_amount_scaled), 0), COALESCE(SUM(credit_amount_scaled), 0) " +
-            $"FROM target_gl_entry WHERE {GlEffectivePopulation.SqlPredicate()} " +
-            "GROUP BY account_code ORDER BY COUNT(*), account_code;";
+            $"FROM gl WHERE {GlExcludedPopulation.SqlPredicate()} " +
+            "GROUP BY account_number ORDER BY COUNT(*), account_number;";
         return await ReadAsync(command, cancellationToken);
     }
 

@@ -13,7 +13,7 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 匯入批次的 SQL Server 實作(對應 <see cref="LocalImportRepository"/>,一個批次可由多個來源組成)。
 /// 語意與 SQLite 一致:replace 沿用來源列號為 row_number、append 從最大值續編;任一空檔 rollback;
-/// replace/append 皆使下游(target/config_field_mapping)與規則結果失效。
+/// replace/append 皆使下游(target/field_mapping)與規則結果失效。
 /// 純輔助(欄位集合檢查、表名映射、來源資訊組裝)重用 <see cref="LocalImportRepository"/> 的 internal static。
 /// staging 寫入採 <see cref="SqlBulkCopy"/> 串流(對齊 GL 投影;來源 IAsyncEnumerable 經有界 channel
 /// producer-consumer 橋接到 DbDataReader.ReadAsync)。進度推播在 handler 層。
@@ -39,7 +39,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         CancellationToken cancellationToken)
     {
         ValidateBatchSources(sources);
-        // 和本機同一規則：呼叫端給的檔名只取最後一段（2026-10-19 跨資料庫一致性第二階段）。
+        // 和本機同一規則：呼叫端給的檔名只取最後一段。
         sources = LocalImportRepository.NormalizeSources(sources);
         EnsureNamedColumnsMatchFirstSource(sources);
 
@@ -51,7 +51,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         var kindName = kind.ToStorageName();
         var stagingTable = LocalImportRepository.StagingTableFor(kind);
         var targetTable = LocalImportRepository.TargetTableFor(kind);
-        var fieldDefinitions = LegacyFieldDefinitionAccumulator.Create(first.Columns);
+        var fieldInfos = FieldInfoAccumulator.Create(first.Columns);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -66,11 +66,11 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                     WHERE batch_id IN (SELECT batch_id FROM {s}.import_batch WHERE dataset_kind = @kind);
                     DELETE FROM {s}.import_batch_source
                     WHERE batch_id IN (SELECT batch_id FROM {s}.import_batch WHERE dataset_kind = @kind);
-                    DELETE FROM {s}.import_field_definition
+                    DELETE FROM {s}.field_info
                     WHERE batch_id IN (SELECT batch_id FROM {s}.import_batch WHERE dataset_kind = @kind);
                     DELETE FROM {s}.import_batch WHERE dataset_kind = @kind;
-                    DELETE FROM {s}.target_gl_rde_value WHERE @kind = 'gl';
-                    DELETE FROM {s}.config_gl_rde_field WHERE @kind = 'gl';
+                    DELETE FROM {s}.gl_rde_value WHERE @kind = 'gl';
+                    DELETE FROM {s}.gl_rde_field WHERE @kind = 'gl';
                     DELETE FROM {s}.{{targetTable}};
                     {{SqlServerMappingStateStore.RetireCommittedMappingSql}}
                     """))
@@ -81,7 +81,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 await cleanup.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
             }
 
-            await RuleRunResultReset.ClearWithinAsync(
+            await ResultReset.ClearWithinAsync(
                 connection,
                 transaction,
                 cancellationToken,
@@ -98,7 +98,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 insertBatch.Transaction = transaction;
                 insertBatch.Parameters.AddWithValue("@batchId", batchId);
                 insertBatch.Parameters.AddWithValue("@kind", kindName);
-                // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑（2026-10-19 跨資料庫一致性第二階段）。
+                // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑。
                 insertBatch.Parameters.AddWithValue("@filePath", first.Source.FileName);
                 insertBatch.Parameters.AddWithValue("@fileName", first.Source.FileName);
                 insertBatch.Parameters.AddWithValue("@importedUtc", batchImportedUtc.ToString("O"));
@@ -139,7 +139,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                         isAppend: index > 0,
                         appendStartRowNumber: nextRowNumber,
                         input.Rows,
-                        fieldDefinitions,
+                        fieldInfos,
                         cancellationToken);
                     bulkStopwatch.Stop();
                     nextRowNumber = write.NextRowNumber;
@@ -203,14 +203,14 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 }
             }
 
-            await SqlServerFieldDefinitionPersistence.ReplaceAsync(
+            await SqlServerFieldInfoPersistence.ReplaceAsync(
                 database,
                 connection,
                 transaction,
                 projectId,
                 batchId,
-                LegacyFieldDefinitionScope.Source,
-                fieldDefinitions.Build(batchColumns),
+                FieldInfoScope.Source,
+                fieldInfos.Build(batchColumns),
                 cancellationToken);
 
             var importedSources = await LoadSourcesAsync(
@@ -325,13 +325,13 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 }
             }
 
-            var existingDefinitions = await SqlServerFieldDefinitionPersistence.LoadStatesAsync(
+            var existingDefinitions = await SqlServerFieldInfoPersistence.LoadStatesAsync(
                 database,
                 connection,
                 transaction,
                 projectId,
                 batchId,
-                LegacyFieldDefinitionScope.Source,
+                FieldInfoScope.Source,
                 cancellationToken);
             if (existingDefinitions.Count == 0)
             {
@@ -340,7 +340,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                     $"{kindName.ToUpperInvariant()} 批次缺少 Legacy 欄位定義；本版不反推舊批次，請以 mode 'replace' 重新匯入。");
             }
 
-            var fieldDefinitions = LegacyFieldDefinitionAccumulator.Restore(existingDefinitions);
+            var fieldInfos = FieldInfoAccumulator.Restore(existingDefinitions);
             int nextSourceNo;
             long nextRowNumber;
             await using (var maxQuery = database.CreateCommand(connection, projectId,
@@ -388,7 +388,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                         isAppend: true,
                         appendStartRowNumber: nextRowNumber,
                         input.Rows,
-                        fieldDefinitions,
+                        fieldInfos,
                         cancellationToken);
                     bulkStopwatch.Stop();
                     nextRowNumber = write.NextRowNumber;
@@ -433,29 +433,29 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 }
             }
 
-            await SqlServerFieldDefinitionPersistence.ReplaceAsync(
+            await SqlServerFieldInfoPersistence.ReplaceAsync(
                 database,
                 connection,
                 transaction,
                 projectId,
                 batchId,
-                LegacyFieldDefinitionScope.Source,
-                fieldDefinitions.Build(batchColumns),
+                FieldInfoScope.Source,
+                fieldInfos.Build(batchColumns),
                 cancellationToken);
-            await SqlServerFieldDefinitionPersistence.ReplaceAsync(
+            await SqlServerFieldInfoPersistence.ReplaceAsync(
                 database,
                 connection,
                 transaction,
                 projectId,
                 batchId,
-                LegacyFieldDefinitionScope.Target,
+                FieldInfoScope.Target,
                 [],
                 cancellationToken);
 
             await using (var invalidate = database.CreateCommand(connection, projectId,
                 $$"""
-                    DELETE FROM {s}.target_gl_rde_value WHERE @kind = 'gl';
-                    DELETE FROM {s}.config_gl_rde_field WHERE @kind = 'gl';
+                    DELETE FROM {s}.gl_rde_value WHERE @kind = 'gl';
+                    DELETE FROM {s}.gl_rde_field WHERE @kind = 'gl';
                     DELETE FROM {s}.{{targetTable}};
                     {{SqlServerMappingStateStore.RetireCommittedMappingSql}}
                     """))
@@ -466,7 +466,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 await invalidate.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
             }
 
-            await RuleRunResultReset.ClearWithinAsync(
+            await ResultReset.ClearWithinAsync(
                 connection,
                 transaction,
                 cancellationToken,
@@ -619,13 +619,13 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         command.Transaction = transaction;
         command.Parameters.AddWithValue("@batchId", batchId);
         command.Parameters.AddWithValue("@sourceNo", sourceNo);
-        // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑（2026-10-19 跨資料庫一致性第二階段）。
+        // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑。
         command.Parameters.AddWithValue("@filePath", source.FileName);
         command.Parameters.AddWithValue("@fileName", source.FileName);
         command.Parameters.AddWithValue("@sheetName", (object?)source.SheetName ?? DBNull.Value);
         command.Parameters.AddWithValue("@encoding", (object?)source.EncodingName ?? DBNull.Value);
         command.Parameters.AddWithValue("@delimiter", (object?)source.Delimiter ?? DBNull.Value);
-        // 欄名在第幾列（預篩選收斂計畫階段六）；SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
+        // 欄名在第幾列；SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
         command.Parameters.AddWithValue("@headerRow", (object?)source.HeaderRow ?? DBNull.Value);
         command.Parameters.AddWithValue("@importedUtc", importedUtc.ToString("O"));
         await command.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
@@ -648,7 +648,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
         bool isAppend,
         long appendStartRowNumber,
         IAsyncEnumerable<StagingRow> rows,
-        LegacyFieldDefinitionAccumulator fieldDefinitions,
+        FieldInfoAccumulator fieldInfos,
         CancellationToken cancellationToken)
     {
         var observedKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -669,7 +669,7 @@ public sealed class SqlServerImportRepository(SqlServerProjectDatabase database,
                 await foreach (var row in rows.WithCancellation(producerCts.Token).ConfigureAwait(false))
                 {
                     observedKeys.UnionWith(row.Values.Keys);
-                    fieldDefinitions.Observe(row);
+                    fieldInfos.Observe(row);
                     var json = JsonSerializer.Serialize(row.Values, JsonOptions);
                     var assigned = isAppend ? nextRowNumber++ : row.SourceRowNumber;
                     if (!isAppend)

@@ -1,55 +1,39 @@
-# 全量明細基礎設施設計(子專案 D1)
+# 全量明細基礎設施設計（子專案 D1）
 
-> **狀態:已實作,待 GUI 驗收。** 實作完成、自動化測試全綠(本機 588、SQL Server parity 實跑),GUI 五處「載入更多」待使用者人工驗收。屬「匯出底稿」里程碑的子專案 **D1(全量明細基礎設施)**。權威描述已轉移到 `docs/jet-guide.md`(§13 全量明細 keyset 分頁)、`docs/action-contract-manifest.md`、`docs/development-status.md`;GUI 驗收通過後依慣例去日期前綴或刪除。
->
-> **盤查依據:** `.git/sdd/bcde-scope-draft.md`(D 拆 D1/D2)。**效率與雙 provider 實務**經 Microsoft Learn 文件查證(見「分頁機制」一節引用)。
+這份是 2026-11-01 壓縮後的摘要。使用者原話、題目與回答、日期、數字與裁定照原文保留；實作經過、驗證收據與重跑過程壓成結果。
+壓縮前的全文在提交 `85af454`，可用 `git show 85af454:docs/history/specs/2026-06-20-full-detail-pagination-design.md` 取回。
 
-## 背景與動機
+## 狀態與依據
 
-匯出底稿需要「全部」明細,但 JET 現況各明細查詢一律截 `LIMIT 50` / `TOP (50)`、篩選命中不落地、INF 抽樣只回筆數+種子。D1 補上**全量取得的基礎設施**,給後續 D2(多情境 tag 矩陣)與 E(匯出 writer)使用,並讓 GUI 既有明細檢視能「載入更多」。**D1 不做 tag 矩陣**(屬 D2)、不做匯出 writer(屬 E)。
+原文狀態是「已實作，待 GUI 驗收」：實作完成，自動化測試全部通過（本機 588 項，SQL Server 等價測試實際執行），
+GUI 五處「載入更多」待使用者人工驗收。這是「匯出底稿」里程碑的子專案 D1（全量明細基礎設施）。權威描述當時已轉到
+`docs/jet-guide.md`（§13 全量明細 keyset 分頁）、`docs/action-contract-manifest.md` 與 `docs/development-status.md`。
 
-現況五個截斷點(驗證員核實):完整性全科目差異、借貸不平、空值紀錄、篩選命中(`filter.preview` ≤50)、INF 抽樣明細(無讀回路徑)。
+盤查依據是 `.git/sdd/bcde-scope-draft.md`（D 拆成 D1 與 D2）。分頁效率與兩種資料庫的做法經 Microsoft Learn 文件查證。
 
-## 目標與範圍
+## 背景
 
-### 做
+匯出底稿需要全部明細，但當時各明細查詢一律截 `LIMIT 50` 或 `TOP (50)`，篩選命中不落地，INF 抽樣只回筆數與種子。
+當時有五個截斷點：完整性全科目差異、借貸不平、空值紀錄、篩選命中（`filter.preview` ≤50）、INF 抽樣明細（沒有讀回路徑）。
+D1 補上全量取得的基礎設施，給後續 D2（多情境 tag 矩陣）與 E（匯出 writer）使用，並讓 GUI 既有明細檢視能「載入更多」。
 
-1. **keyset 游標分頁查詢**(新 `query.*Page` action,五個):完整性差異、借貸不平、空值紀錄、篩選命中、INF 抽樣明細——各支援全量走訪(一頁 + 下一頁游標)。
-2. **`result_filter_run` 落地(精簡參照)**:已保存篩選情境(C1–C10)的命中 `entry_id` 持久化;`filterHitsPage` 讀它 join 回 `target_gl_entry`。
-3. **INF 60 行明細回取**:`infSamplePage` 讀 `result_inf_sampling_test_sample` join 回 target,回 step2 攸關欄(借/貸拆欄、過帳日、核准日、編製人員、核准人員)。
-4. **GUI「載入更多」**:五個明細檢視加游標式分頁(非同步接列、不整表載入)。
+## 範圍
 
-### 不做(移交 / YAGNI)
+要做的四件事：
 
-- **多情境 × 逐列 tag 矩陣**(step4 傳票層布林 / step4-1 行層 C*_TAG)→ D2。D1 只提供「單一情境命中的全量明細」與其落地。
-- **匯出 writer / `*_JE` 正準名對照** → E。
-- **跳頁碼(random-access offset 分頁)**:keyset 不支援任意跳頁;經評估底稿匯出與 GUI 審閱皆只需「下一頁」前進,YAGNI。
-- 既有 `validate.run` / `filter.preview` 的 ≤50 快速預覽**保留不動**(互動審閱仍用它;Page 系列另負責全量走訪)。
+1. 五個 keyset 游標分頁查詢，也就是新的 `query.*Page` action：完整性差異、借貸不平、空值紀錄、篩選命中、INF 抽樣明細，都能一頁接一頁走訪到底。
+2. `result_filter_run` 落地：已保存篩選情境（C1–C10）的命中 `entry_id` 寫進資料庫，`filterHitsPage` 讀它再接回 `target_gl_entry`。
+3. INF 60 行明細回取：`infSamplePage` 讀 `result_inf_sampling_test_sample`，回傳 step2 需要的欄位。
+4. GUI 五個明細檢視加「載入更多」。
 
-## 開發原則與邊界(harness — 本 spec 的 Global Constraints)
+不做的事：多情境逐列 tag 矩陣屬 D2；匯出 writer 與 `*_JE` 正準名對照屬 E；不做任意跳頁，因為底稿匯出與 GUI 審閱都只需要往下一頁。
+既有 `validate.run` 與 `filter.preview` 的 ≤50 快速預覽保留不動，互動審閱仍用它。
 
-- **分層**:`Bridge/Form1 → Application → Domain ← Infrastructure`。游標編解碼/契約型別為 Domain;SQL 與分頁述詞在 Infrastructure;**provider 分支只在 Infrastructure**。
-- **前端零商業邏輯**:不在前端/Form1/HTML/CSS/JS 做 SQL、計算、命中判定;「載入更多」只呼叫 Page action、把回傳列接到既有清單。
-- **postMessage 邊界**:不在 `jet-api.js` 以外呼叫 `window.chrome.webview.postMessage`。
-- **查詢 = 參數化集合式 SQL**:識別字只來自白名單/常數,游標值與頁大小一律參數綁定;DbCommand,provider 中立(方言差異走 `ISqlDialect`)。
-- **契約先行**:新 `query.*Page` action 形狀**先改 `docs/action-contract-manifest.md`**;ActionContractTests 鎖回應形狀。
-- **雙 provider 等價**:SQLite 與 SQL Server 兩側同步;**游標述詞用展開布林式(見下),不得用元組比較**;SQL Server 測試走 LocalDB 閘控。
-- **結果失效不變量**:`result_filter_run` 與既有失效集一致——重投影(清 `target_gl_entry`)時一併清除(納入 `RuleRunResultReset.ClearWithinAsync`,同 B 的 `gl_control_total` 模式);不破壞 `result_rule_run` 回放。
-- **不編輯** WinForms designer 產生檔。
-- **測試邊界(jet-testing 三層)**:Domain 純函式單元(游標編解碼、頁大小夾擠)+ Application 驗收(`HandlerTestHost`,對 manifest wire:分頁走訪到底無漏無重、result_filter_run 命中正確、INF 明細欄位)+ Infrastructure/parity(真 SQLite,SQL Server LocalDB 閘控)。
-- **TDD**;**不自行 commit**(版本控制由使用者親自下令;subagent 執行階段亦不 commit,用 tree-diff 隔離)。
+## 設計決定
 
----
+**一律用 keyset，不用 OFFSET。** Microsoft Learn 說明 OFFSET 分頁要先處理被略過的列再丟棄，略過越多越慢，並發變動還會跳列或重複。JET 母體可達百萬列等級。
 
-## 分頁機制(keyset 游標)— 效率與雙 provider 的核心
-
-### 為何 keyset 而非 OFFSET/FETCH
-
-Microsoft Learn(EF Core Pagination、T-SQL ORDER BY OFFSET/FETCH)明示:OFFSET 分頁要資料庫「先處理被略過的列再丟棄」,略過越多越慢,且並發變動會跳列/重複;**keyset(seek)以 `WHERE` 帶上一頁最後一列的鍵跳過**,有索引時非常高效且對並發穩定。JET 母體達 140 萬列,故一律用 keyset。
-
-### 跨 provider 游標述詞:展開布林式(不可用元組)
-
-多數資料庫(含 SQLite)支援 row-value 元組比較 `WHERE (k1, k2) > (@k1, @k2)`,但 **SQL Server(T-SQL)不支援**(MS-TSQLISO F641:row/table constructor「limited support」)。因此 D1 的游標述詞**一律寫成展開布林式**,兩 provider 共用:
+**游標述詞寫成展開布林式。** SQL Server 不支援 row-value 元組比較（MS-TSQLISO F641），所以兩種資料庫共用下面的寫法：
 
 ```sql
 -- 單鍵游標(entry_id / account_code / document_number):
@@ -58,119 +42,56 @@ WHERE <key> > @cursorKey
 WHERE k1 > @c1 OR (k1 = @c1 AND k2 > @c2)
 ```
 
-頁取數用各 provider 既有方言:SQLite `LIMIT @pageSize`、SQL Server `ORDER BY ... OFFSET 0 ROWS FETCH NEXT @pageSize ROWS ONLY`(OFFSET 恆 0,僅作 TOP-N;非 offset 分頁)。`ISqlDialect` 出 limit 子句。
+取一頁的筆數用各自的方言：SQLite 用 `LIMIT @pageSize`，SQL Server 用 `ORDER BY ... OFFSET 0 ROWS FETCH NEXT @pageSize ROWS ONLY`。
+OFFSET 固定是 0，只當取前幾筆用，不是 offset 分頁。方言差異由 `ISqlDialect` 處理。
 
-### 排序鍵唯一性與索引(必要)
+**排序鍵必須唯一，而且要有索引。** `target_gl_entry` 既有索引是 PK `entry_id`、`account_code` 與 `document_number`；`result_filter_run` 以 `(scenario_position, entry_id)` 為 PK。
 
-- **排序鍵必須唯一**(否則翻頁漏/重)。各查詢採天然唯一鍵(見下表)。
-- **每個游標鍵須有對應索引**(seek 不全掃)。`target_gl_entry` 既有索引:PK `entry_id`、`ix_..._account(account_code)`、`ix_..._doc(document_number)`。`result_filter_run` 以 `(scenario_position, entry_id)` 為 PK(天然覆蓋)。不足者於本輪補索引。
+| Page action | 資料 | 排序與游標鍵 |
+|:--|:--|:--|
+| `query.completenessDiffPage` | TB 與 GL 逐科目差異（diff≠0） | `account_code` ASC |
+| `query.docBalancePage` | 借貸不平傳票 | `document_number` ASC |
+| `query.nullRecordsPage` | 空值紀錄（日期區間外、空白摘要、空白傳票號或科目） | `entry_id` ASC，另帶分類參數 |
+| `query.filterHitsPage` | 單一已存情境的行層命中 | `entry_id` ASC |
+| `query.infSamplePage` | INF 抽樣 60 行明細 | `entry_id` ASC |
 
-### 五個分頁查詢的鍵與排序
+完整性差異的全量走訪用 `account_code` 排序；既有 ≤50 預覽維持 `ABS(diff) DESC`，最大差異排前面。預覽看重點，分頁走全量。
 
-| Page action | 資料 | 排序/游標鍵(唯一) | 索引 |
-|:--|:--|:--|:--|
-| `query.completenessDiffPage` | TB+GL 逐科目差異(diff≠0) | `account_code` ASC | 既有 account 索引 |
-| `query.docBalancePage` | 借貸不平傳票(GROUP BY 傳票 HAVING 淨額≠0) | `document_number` ASC | 既有 doc 索引 |
-| `query.nullRecordsPage` | 空值紀錄(分類:日期區間外/空白摘要/空白傳票號·科目) | `entry_id` ASC(+ 分類參數) | PK |
-| `query.filterHitsPage` | 單一已存情境命中(行層) | `entry_id` ASC | result_filter_run PK |
-| `query.infSamplePage` | INF 抽樣 60 行明細 | `entry_id` ASC | PK + sample PK |
+**游標格式。** 回應是 `{ rows: [...], nextCursor: string|null }`。`nextCursor` 是 Domain 純函式把末列鍵編成的字串，`null` 表示已到底；首頁傳 `cursor: null`。
+`pageSize` 預設 **200**、上限 **500**。游標格式不符時回錯誤，讓 handler 報參數錯，不靜默略過。
 
-> 注:`completenessDiffPage` 全量走訪用 `account_code` ASC(可索引、唯一、穩定);既有 ≤50 預覽維持 `ABS(diff) DESC`(最大差異優先)語意不變——預覽看重點、Page 走全量,職責分離。
+**`result_filter_run` 只存參照。** 新表隨基底 schema 以 `IF NOT EXISTS` 建立，不升版：
 
-### 游標契約(opaque)
-
-- Page 回應:`{ rows: [...], nextCursor: string|null }`。`nextCursor` 為 opaque 字串(Domain 純函式編碼末列鍵;`null` 表已到底)。首頁傳 `cursor: null`。
-- 頁大小:`pageSize` 預設 **200**、上限 **500**(Domain 夾擠);防一次拉太多。
-- 游標編解碼為 Domain 純函式(可單元測試):編碼末列鍵 → 字串;解碼 → 強型別鍵;格式不符回錯(讓 handler 報參數錯,不靜默)。
-
----
-
-## `result_filter_run` 落地(精簡參照)
-
-- **新表**(雙 provider,隨基底 schema `IF NOT EXISTS` 建,不需升版——同 `app_message_log`/`gl_control_total` 先例):
-
-  ```sql
-  CREATE TABLE IF NOT EXISTS result_filter_run (
-      scenario_position INTEGER NOT NULL,
-      entry_id          INTEGER NOT NULL,
-      PRIMARY KEY (scenario_position, entry_id)
-  );
-  ```
-
-  只存「哪個情境、命中哪些 `entry_id`」(行層參照);傳票層 = `filterHitsPage` 取 distinct `document_number`。**不存去正規化整列**(避免重複與失同步)。
-- **落地時機**:`filter.commit`(保存情境)時,以既有 `GlFilterWhereBuilder` 對該情境 AST 組命中述詞,把命中 `entry_id` 寫入 `result_filter_run`(該 `scenario_position` 先刪後插,冪等)。情境刪除/覆寫時同步刪該 position 的列。
-- **惰性補materialize**:`filterHitsPage` 讀取時若該 position 無落地列(如 D1 之前保存的舊情境),即時以同述詞補算並落地後再回(robust;一次性)。
-- **失效**:重投影清 `target_gl_entry` 時,於 `RuleRunResultReset.ClearWithinAsync` 一併 `DELETE FROM result_filter_run`(同交易),確保命中參照永不指向已失效母體。
-
-## INF 60 行明細回取
-
-- `infSamplePage` 讀既有 `result_inf_sampling_test_sample`(已存抽樣 `entry_id`)join `target_gl_entry`,ORDER BY `entry_id` ASC、keyset。
-- 回傳 step2 攸關欄:傳票號、科目編號/名稱、**借方金額、貸方金額(由 signed amount 拆兩欄)**、過帳日、核准日、編製人員、核准人員、摘要。金額以既有 `debit_amount_scaled`/`credit_amount_scaled` 出、顯示層 ToDisplay。
-- 不重抽樣(seed 已固定落地);只讀回。
-
-## GUI「載入更多」(效率與不卡頓)
-
-- 五個明細檢視(完整性差異、借貸不平、空值、篩選情境命中明細、INF 抽樣)在既有 ≤50 預覽下方加「載入更多」鈕。
-- 行為:點擊 → 帶當前 `nextCursor` 呼叫對應 `query.*Page`(經 `jet-api`)→ 把回傳 `rows` **接在**現有列之後 → 更新 `nextCursor`;`null` 時隱藏鈕(已到底)。
-- **不卡頓**:游標增量載入、不整表拉取;載入期間鈕顯示載入中態(disabled + 旋圈)、非同步、不凍結 UI;沿用 `minimalist-ui` 既有清單樣式,不新增重樣式。
-- **前端零邏輯**:不在前端判命中/算差異/組 SQL;只發 action、接列、管游標與載入態。
-
-## 受影響的現行碼與新增(盤查)
-
-| 位置 | 動作 |
-|:--|:--|
-| `docs/action-contract-manifest.md` | 先行:5 個 `query.*Page` action(請求 `{cursor,pageSize,...}`、回應 `{rows,nextCursor}`)、各 row 形狀 |
-| `Domain/`(新)`PageCursor` 編解碼 + `PageRequest`/`PageResult<T>` 契約 + pageSize 夾擠常數 | keyset 游標純函式 |
-| `Domain/` 各 Page 的 row record(完整性/借貸不平/空值/篩選命中/INF 明細) | 強型別回傳 |
-| `Infrastructure/{Sqlite,SqlServer}` 各 Page 查詢倉儲 | keyset SQL(展開布林式 + 方言 limit);雙 provider |
-| `Infrastructure/{Jet,SqlServer}ProjectDatabase.cs` | `result_filter_run` 建表(IF NOT EXISTS / IF OBJECT_ID);必要索引 |
-| `Infrastructure/RuleRunResultReset.cs` | 失效集加 `DELETE FROM result_filter_run` |
-| `Infrastructure/`(filter.commit 落地路徑) | 保存情境時 materialize 命中 entry_id |
-| `Application/` 5 個 Page handler + filter.commit 擴充 | 對 manifest wire |
-| `Application/` INF handler | infSamplePage |
-| `wwwroot/js/steps/*`、對應 css | 五處「載入更多」(零邏輯) |
-| `docs/jet-guide.md` / `development-status.md` / `development-log.md` | 落地回寫 |
-
-## 新增/更新測試(TDD,三層)
-
-- **Domain**:`PageCursor` 編碼→解碼 round-trip(entry_id / account_code / document_number);壞游標字串回錯;`pageSize` 夾擠(0/負→預設、>500→500)。
-- **Application 驗收**(`HandlerTestHost`,對 manifest wire):
-  - 各 Page action 分頁走訪到底:逐頁串接 == 一次性全量集合(**無漏、無重、order 穩定**);`nextCursor` 末頁為 null。
-  - `result_filter_run`:filter.commit 後該情境命中 entry_id 落地正確(對 demo 獨立 recount);filterHitsPage 行層 == recount、傳票層 distinct doc 正確;惰性補materialize 對舊情境成立。
-  - `infSamplePage`:回 60 行(或實際樣本數)、借/貸拆欄與日期/人員欄正確。
-  - 失效:重投影後 `result_filter_run` 清空(同 gl_control_total 不變量測試模式)。
-- **Infrastructure/parity**:每個 Page 查詢 SQLite vs SQL Server 逐頁等價(同游標→同頁、同 nextCursor);游標述詞展開布林式兩 provider 同結果(LocalDB 閘控)。
-- **前端**:不寫 JS 業務規則測試(邊界);「載入更多」屬 GUI 行為,列 windows-handoff 人工驗收。
-
-## 交付物
-
-| 檔案/位置 | 變更 |
-|:--|:--|
-| `docs/action-contract-manifest.md` | 5 個 query.*Page + filter.commit 落地說明 |
-| `src/JET/JET/Domain/`(新增 PageCursor / PageRequest / PageResult / row records) | 游標與契約 |
-| `src/JET/JET/Infrastructure/{Sqlite,SqlServer}*`(Page 查詢、result_filter_run 建表/落地/失效、索引) | keyset SQL 雙 provider |
-| `src/JET/JET/Application/`(5 Page handler、filter.commit 擴充、INF) | wire |
-| `src/JET/JET/wwwroot/js/steps/*` + css | 五處「載入更多」 |
-| `src/JET/tests/JET.Tests/...` | 上述三層測試 |
-| `docs/jet-guide.md`、`docs/development-status.md`、`docs/development-log.md` | 落地回寫 |
-
-## 驗證指令
-
-```bash
-dotnet build src/JET/JET.slnx --no-restore --nologo
-dotnet test src/JET/tests/JET.Tests/JET.Tests.csproj --no-build --nologo
+```sql
+CREATE TABLE IF NOT EXISTS result_filter_run (
+    scenario_position INTEGER NOT NULL,
+    entry_id          INTEGER NOT NULL,
+    PRIMARY KEY (scenario_position, entry_id)
+);
 ```
 
-SQL Server 等價測試需本機 LocalDB 並設 `JET_SQLSERVER_CONNECTION`(閘控)。
+- 只存哪個情境命中哪些 `entry_id`；傳票層由 `filterHitsPage` 取 distinct `document_number`。不存整列，避免重複與不同步。
+- `filter.commit` 保存情境時，以既有 `GlFilterWhereBuilder` 組命中述詞寫入；同一 `scenario_position` 先刪後插。情境刪除或覆寫時同步刪掉該 position 的列。
+- `filterHitsPage` 讀取時若該 position 沒有落地列，例如 D1 之前保存的舊情境，當場以同一述詞補算並落地。
+- 重投影清掉 `target_gl_entry` 時，在 `RuleRunResultReset.ClearWithinAsync` 的同一交易一併 `DELETE FROM result_filter_run`。
 
-## Windows 端待驗任務(落地時寫入 windows-handoff.md)
+**INF 明細只讀回，不重抽樣。** 依 `entry_id` 排序分頁，回傳傳票號、科目編號與名稱、借方金額、貸方金額（由 signed amount 拆兩欄）、
+過帳日、核准日、編製人員、核准人員與摘要。金額取既有 `debit_amount_scaled` 與 `credit_amount_scaled`。
 
-- 五個明細檢視(完整性差異、借貸不平、空值、篩選情境命中明細、INF 抽樣)出現「載入更多」,點擊接續載入下一頁、到底隱藏、載入中不卡頓。
-- 大母體(140 萬列)下載入流暢,無整表卡頓。
+**GUI「載入更多」。** 按下後帶目前的 `nextCursor` 呼叫對應的 `query.*Page`，把回傳列接在現有列之後；`nextCursor` 為 `null` 時隱藏按鈕。
+載入中按鈕停用並顯示旋圈，不凍結畫面。前端不判命中、不算差異、不組 SQL。
 
-## 與其他子專案的邊界
+## 邊界與驗收
 
-- **D2**:用 D1 的 `result_filter_run`(單情境命中)組「每傳票/每行 × C1–C10」tag 矩陣;D1 不做矩陣。
-- **E**:用 D1 的 Page 系列走訪全量寫 15 表(step1 全科目、step2 INF 60、step4/4-1 命中明細)。
-- **A/B**:已完成;回溯 row-tag(B)可作為情境之一,其命中經 D1 落地。
-- **方法學**:INF 最少 60 樣本(已固定);本輪只回取,不改抽樣。
+架構邊界沿用專案規則：provider 分支只在 Infrastructure，前端沒有商業邏輯，action 形狀先寫進 `docs/action-contract-manifest.md`，
+SQLite 與 SQL Server 結果等價，先寫測試，不自行 commit。測試分 Domain、Application 驗收與資料庫等價三層，
+重點是逐頁串接的結果等於一次全量、沒有漏也沒有重複，以及重投影後 `result_filter_run` 會清空。
+
+Windows 端待人工驗收：五個明細檢視出現「載入更多」，可以接續載入、到底隱藏、載入中不卡頓；百萬列等級的大母體下載入流暢。
+
+## 與其他子專案的關係
+
+- D2 用 `result_filter_run` 組「每傳票或每行 × C1–C10」的 tag 矩陣。
+- E 用分頁查詢走訪全量，寫 15 表（step1 全科目、step2 INF 60、step4 與 step4-1 命中明細）。
+- A 與 B 已完成；B 的回溯 row-tag 可以當情境之一。
+- INF 最少 60 樣本已固定，本輪只回取，不改抽樣。

@@ -37,7 +37,7 @@ public sealed class SqlServerProjectCreateRollbackTests
                 CancellationToken.None);
         });
 
-        ICaseCreateBackendAttempt? secondAttempt = null;
+        IProjectCreateBackendAttempt? secondAttempt = null;
         try
         {
             await secondStarted.Task;
@@ -92,7 +92,7 @@ public sealed class SqlServerProjectCreateRollbackTests
             await firstAttempt.PrepareAsync(CancellationToken.None);
             await firstAttempt.CommitAsync(CancellationToken.None);
 
-            await Assert.ThrowsAsync<CaseCreateBackendDifferentOwnerException>(
+            await Assert.ThrowsAsync<ProjectCreateBackendDifferentOwnerException>(
                 () => secondDatabase.BeginCreateProjectAsync(
                     secondDocument,
                     Unique("loser-principal"),
@@ -262,7 +262,7 @@ public sealed class SqlServerProjectCreateRollbackTests
         await using var connection = await OpenAsync(baseConnectionString);
         await using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT COUNT(*) FROM dbo.audit_log WHERE project_id = @id AND action = @action;";
+            "SELECT COUNT(*) FROM dbo.operation_log WHERE project_id = @id AND action = @action;";
         command.Parameters.AddWithValue("@id", projectId);
         command.Parameters.AddWithValue("@action", action);
         return Convert.ToInt64(await command.ExecuteScalarAsync());

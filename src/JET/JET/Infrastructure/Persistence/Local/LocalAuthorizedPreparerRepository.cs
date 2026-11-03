@@ -9,7 +9,7 @@ namespace JET.Infrastructure;
 /// 授權編製人員清單的匯入與計數（import.authorizedPreparer.fromFile）。
 /// 授權清單就是一個 name 集合——staging 寫入與 target 投影在**同一 transaction**完成。
 /// 鏡射 <see cref="LocalAccountMappingRepository"/> 但不寫 import_batch（不入 dataset_kind 體系，
-/// 避開 CHECK 升版）；batchId 僅供 response、不持久化。replace-only。
+/// 也就不必改 CHECK 約束）；batchId 僅供 response、不持久化。replace-only。
 /// </summary>
 public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase database)
     : IAuthorizedPreparerStore, IAuthorizedPreparerImportPersistence
@@ -72,14 +72,14 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
             cleanup.Transaction = transaction;
             cleanup.CommandText =
                 """
-                DELETE FROM staging_authorized_preparer_raw_row;
-                DELETE FROM target_authorized_preparer;
+                DELETE FROM pbc_authorized_preparer;
+                DELETE FROM authorized_preparer;
                 """;
             await cleanup.ExecuteNonQueryAsync(cancellationToken);
         }
 
         // 授權清單換版,非授權編製人員等規則結果即失效。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -93,7 +93,7 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
             insertRow.Transaction = transaction;
             insertRow.CommandText =
                 """
-                INSERT INTO staging_authorized_preparer_raw_row
+                INSERT INTO pbc_authorized_preparer
                     (batch_id, row_number, source_no, source_row_number, row_json)
                 VALUES (@batchId, @rowNumber, 1, @sourceRowNumber, @rowJson);
                 """;
@@ -128,7 +128,7 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
         {
             insertTarget.Transaction = transaction;
             insertTarget.CommandText =
-                "INSERT INTO target_authorized_preparer (name) VALUES (@name);";
+                "INSERT INTO authorized_preparer (name) VALUES (@name);";
             var nameParam = insertTarget.AddParameter("@name", DbType.String);
 
             foreach (var name in names)
@@ -160,10 +160,10 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "DELETE FROM staging_authorized_preparer_raw_row; DELETE FROM target_authorized_preparer;";
+        command.CommandText = "DELETE FROM pbc_authorized_preparer; DELETE FROM authorized_preparer;";
         await command.ExecuteNonQueryAsync(cancellationToken);
         await AuthorizedPreparerMetadataSql.WriteAsync(connection, transaction, null, cancellationToken);
-        await RuleRunResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.AuthorizedPreparer);
+        await ResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.AuthorizedPreparer);
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -175,7 +175,7 @@ public sealed class LocalAuthorizedPreparerRepository(ILocalProjectDatabase data
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM target_authorized_preparer;";
+        command.CommandText = "SELECT COUNT(*) FROM authorized_preparer;";
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result is null or DBNull ? 0L : Convert.ToInt64(result);
     }

@@ -18,20 +18,20 @@ internal static class LegacyAuditParityJourneyContract
         "import.makeupDay.fromFile",
         "mapping.commit.gl",
         "mapping.commit.tb",
-        // 確認配對會清除科目配對（使用者 2026-10-08 裁定），所以科目配對檔排在確認之後；原因見 LegacyAuditParityJourney。
+        // 確認配對會清除科目配對（裁定 2026-10-08-12），所以科目配對檔排在確認之後；原因見 LegacyAuditParityJourney。
         "import.accountMapping.fromFile",
         "validate.run",
         "query.infSamplePage",
-        "export.validationArtifacts",
+        "export.validationReports",
         "export.accountMappingTemplate",
         "prescreen.run",
         "query.prescreenPage",
         "query.prescreenPage",
         "export.prescreenReport",
         "filter.commit",
-        "query.tagMatrixScenarios",
+        "query.highRiskSummaryScenarios",
         "export.criteriaSelectionReport",
-        "export.workpaperStream",
+        "export.workingPaperStream",
     ];
 
     internal static IReadOnlyList<string> DecidedNotProvidedFullActionOrder { get; } =

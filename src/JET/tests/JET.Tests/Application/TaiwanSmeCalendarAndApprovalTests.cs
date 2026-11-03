@@ -30,10 +30,10 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
         await InlineWorkbookProject.SetupAsync(host, b =>
         {
             b.WithColumns("傳票號碼", "傳票項次", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標");
-            void Voucher(string doc, string postDate, string approvalDate, string description)
+            void Voucher(string doc, string glDate, string approvalDate, string description)
             {
-                b.AddRow(doc, "1", postDate, approvalDate, "6112", "租金支出", description, 1000, 1);
-                b.AddRow(doc, "2", postDate, approvalDate, "1102", "銀行存款", description, 1000, 0);
+                b.AddRow(doc, "1", glDate, approvalDate, "6112", "租金支出", description, 1000, 1);
+                b.AddRow(doc, "2", glDate, approvalDate, "1102", "銀行存款", description, 1000, 0);
             }
 
             Voucher("C1", "2025-01-02", "2025-01-02", "一般工作日");          // 星期四，工作日
@@ -61,22 +61,22 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
         Assert.Equal(2, holiday.GetProperty("approvalCount").GetInt64());
 
         var nonBusinessDay = Scenario("非營業日之分錄", """
-            [{"join":"AND","matchScope":"row","rules":[
-              {"type":"group","rules":[{"type":"fieldValue","field":"postDate","operator":"isNonBusinessDay","join":"AND"}]}]}]
+            [{"join":"AND","matchScope":"row","conditions":[
+              {"type":"group","conditions":[{"type":"fieldValue","field":"glDate","operator":"isNonBusinessDay","join":"AND"}]}]}]
             """);
         var approvalNonBusiness = OneRule("核准日在非營業日",
-            """{"type":"fieldValue","field":"docDate","operator":"isNonBusinessDay"}""");
-        var makeup = OneRule("補班日過帳", """{"type":"fieldValue","field":"postDate","operator":"isMakeupDay"}""");
-        var weekendPosting = OneRule("週末過帳", """{"type":"fieldValue","field":"postDate","operator":"isWeekend"}""");
+            """{"type":"fieldValue","field":"approvalDate","operator":"isNonBusinessDay"}""");
+        var makeup = OneRule("補班日過帳", """{"type":"fieldValue","field":"glDate","operator":"isMakeupDay"}""");
+        var weekendPosting = OneRule("週末過帳", """{"type":"fieldValue","field":"glDate","operator":"isWeekend"}""");
         var lunarNewYear = Scenario("春節連假期間的非營業日過帳", """
-            [{"join":"AND","matchScope":"row","rules":[
-              {"type":"fieldValue","field":"postDate","operator":"between","from":"2025-01-25","to":"2025-02-02"},
-              {"type":"fieldValue","field":"postDate","operator":"isNonBusinessDay","join":"AND"}]}]
+            [{"join":"AND","matchScope":"row","conditions":[
+              {"type":"fieldValue","field":"glDate","operator":"between","from":"2025-01-25","to":"2025-02-02"},
+              {"type":"fieldValue","field":"glDate","operator":"isNonBusinessDay","join":"AND"}]}]
             """);
         var overtimeException = Scenario("非營業日但排除核定加班日", """
-            [{"join":"AND","matchScope":"row","rules":[
-              {"type":"fieldValue","field":"postDate","operator":"isNonBusinessDay"},
-              {"type":"fieldValue","field":"postDate","operator":"notIn","values":["2025-10-11"],"join":"AND"}]}]
+            [{"join":"AND","matchScope":"row","conditions":[
+              {"type":"fieldValue","field":"glDate","operator":"isNonBusinessDay"},
+              {"type":"fieldValue","field":"glDate","operator":"notIn","values":["2025-10-11"],"join":"AND"}]}]
             """);
         var hits = await CommitAndReadHitsAsync(host, nonBusinessDay, approvalNonBusiness, makeup, weekendPosting, lunarNewYear, overtimeException);
         // 非營業日之分錄：週末或假日再排除補班日 → C2、C3、C4、C7、C8；C5 是補班日，不算非營業日。
@@ -102,10 +102,10 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
         await InlineWorkbookProject.SetupAsync(host, b =>
         {
             b.WithColumns("傳票號碼", "傳票項次", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標");
-            void Voucher(string doc, string postDate, string? approvalDate, string description)
+            void Voucher(string doc, string glDate, string? approvalDate, string description)
             {
-                b.AddRow(doc, "1", postDate, approvalDate, "6112", "租金支出", description, 5000, 1);
-                b.AddRow(doc, "2", postDate, approvalDate, "2171", "應付費用", description, 5000, 0);
+                b.AddRow(doc, "1", glDate, approvalDate, "6112", "租金支出", description, 5000, 1);
+                b.AddRow(doc, "2", glDate, approvalDate, "2171", "應付費用", description, 5000, 0);
             }
 
             Voucher("A0", "2025-01-02", "2024-12-31", "期初核准");             // 核准早於查核期間
@@ -115,19 +115,19 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
             Voucher("A4", "2025-12-31", "2026-02-10", "查核期間後補核准");
             Voucher("A5", "2025-11-28", null, "尚未核准");
             Voucher("A6", "2026-01-20", "2026-01-20", "次年度分錄");          // 總帳日期在期外，不在 GL
-        }, lastPeriodStart: "2026-01-15", databaseProvider: provider, validateForDownstream: true);
+        }, prepStartDate: "2026-01-15", databaseProvider: provider, validateForDownstream: true);
 
         var validation = await host.DispatchAsync("validate.run");
         // 核准日不在查核期間：A0（2024-12-31）、A2、A3、A4（2026 年），各兩列共 8 列；A5 空白不計，A6 不在 GL。
-        Assert.Equal(8, validation.GetProperty("nullRecordsTest").GetProperty("outOfRangeDateCount").GetInt64());
+        Assert.Equal(8, validation.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetInt64());
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 財報準備日起核准：核准日 >= 2026-01-15，即 A3（當天）、A4，共 4 列；A2 早一天不算。
-        Assert.Equal(4, prescreen.GetProperty("postPeriodApproval").GetProperty("count").GetInt64());
+        Assert.Equal(4, prescreen.GetProperty("prepPeriodApproval").GetProperty("count").GetInt64());
 
         var hits = await CommitAndReadHitsAsync(host,
-            OneRule("財報準備日起核准", """{"type":"prescreen","prescreenKey":"postPeriodApproval"}"""),
-            OneRule("核准日當日或以後", """{"type":"fieldValue","field":"docDate","operator":"onOrAfter","value":"2026-01-15"}"""),
-            OneRule("核准日當日或以後含空白", """{"type":"fieldValue","field":"docDate","operator":"onOrAfter","value":"2026-01-15","includeBlank":true}"""));
+            OneRule("財報準備日起核准", """{"type":"prescreen","prescreenKey":"prepPeriodApproval"}"""),
+            OneRule("核准日當日或以後", """{"type":"fieldValue","field":"approvalDate","operator":"onOrAfter","value":"2026-01-15"}"""),
+            OneRule("核准日當日或以後含空白", """{"type":"fieldValue","field":"approvalDate","operator":"onOrAfter","value":"2026-01-15","includeBlank":true}"""));
         Assert.Equal(Keys("A3:1,2;A4:1,2"), hits[0]);
         // 欄位條件結果相同；核准日空白的 A5 預設不列入。
         Assert.Equal(Keys("A3:1,2;A4:1,2"), hits[1]);

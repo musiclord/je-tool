@@ -19,11 +19,11 @@ internal sealed class PrivateCaseJourneyResult
         ValidationCaptured = result.ValidationCaptured;
         PrescreenCaptured = result.PrescreenCaptured;
         FilterCaptured = result.FilterCaptured;
-        TagMatrixCaptured = result.TagMatrixCaptured;
-        ArtifactCount = result.Artifacts.Count;
+        HighRiskSummaryCaptured = result.HighRiskSummaryCaptured;
+        ReportCount = result.Reports.Count;
         ActionNames = result.ActionNames;
         Elapsed = result.Elapsed;
-        Artifacts = result.Artifacts;
+        Reports = result.Reports;
         ProjectId = result.ProjectId;
         InfVerification = result.InfVerificationFacts is null
             ? null
@@ -54,9 +54,9 @@ internal sealed class PrivateCaseJourneyResult
 
     public bool FilterCaptured { get; }
 
-    public bool TagMatrixCaptured { get; }
+    public bool HighRiskSummaryCaptured { get; }
 
-    public int ArtifactCount { get; }
+    public int ReportCount { get; }
 
     public IReadOnlyList<string> ActionNames { get; }
 
@@ -74,7 +74,7 @@ internal sealed class PrivateCaseJourneyResult
     internal string? ProjectId { get; }
 
     [JsonIgnore]
-    internal IReadOnlyList<LegacyAuditParityJourneyArtifact> Artifacts { get; }
+    internal IReadOnlyList<LegacyAuditParityJourneyReport> Reports { get; }
 
     public override string ToString() =>
         $"private case journey result ({CaseAlias}, {Provider}, {CompletedCheckpoint})";
@@ -97,11 +97,11 @@ internal static class PrivateCaseJourney
         var journeyInput = new LegacyAuditParityJourneyInput(
             input.CaseAlias,
             input.ProjectCode,
-            input.EntityName,
+            input.ClientName,
             input.OperatorId,
             input.PeriodStart,
             input.PeriodEnd,
-            input.LastPeriodStart,
+            input.PrepStartDate,
             input.SampleSeed,
             input.GlSources.Select(ConvertSource).ToArray(),
             "replace",

@@ -6,11 +6,11 @@ namespace JET.Domain;
 /// 條件 A「季底或查核期末前 X 天借記收入」(filter type revenueDebitNearQuarterEnd) 的視窗計算（純函式）。
 /// 給定查核期間與天數 X，列出各曆年季底（3/31、6/30、9/30、12/31）前 X 天
 /// （含季底當日，即季底回推 X−1 天）的日期視窗，另納入查核期末前 X 天。
-/// 只保留與查核期間有交集的視窗，重疊或相連者合併。依 2026-10-06 K1 裁定。
+/// 只保留與查核期間有交集的視窗，重疊或相連者合併（裁定 2026-10-06-02）。
 /// 回傳 ISO yyyy-MM-dd 邊界字串，由 Infrastructure 以參數綁定組成 OR 述詞
 /// （SQL 識別字不來自此處，使用者值只進參數）。日期邏輯純 C#、provider 無關。
 /// 解析與輸出都指定 InvariantCulture：Windows 日曆設成中華民國曆時，沒有指定會把西元年當成民國年，
-/// 2 月 29 日解析失敗、視窗變空（低嚴重度事項 G，使用者 2026-10-19 要求處理）。
+/// 2 月 29 日解析失敗、視窗變空。
 /// </summary>
 public static class QuarterEndWindows
 {

@@ -35,7 +35,7 @@ public static partial class JetAuditProgram
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var snapshot = new AuditCaseSnapshot(
+        var snapshot = new AuditProjectSnapshot(
             request.ProjectId,
             request.HasGlMapping,
             request.HasTbMapping,
@@ -44,11 +44,12 @@ public static partial class JetAuditProgram
             request.MoneyScale,
             request.SampleSeed,
             AvailableGlFields: request.AvailableGlFields,
-            SampleSeedVersion: request.SampleSeedVersion);
+            SampleSeedVersion: request.SampleSeedVersion,
+            HasTbImport: request.HasTbImport);
         var reviewPlan = Plan(
             snapshot,
             new AuditUserParameters(
-                request.RunId,
+                request.ResultId,
                 request.GeneratedUtc,
                 request.SampleSize,
                 ValidationAction));
@@ -75,26 +76,26 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(facts);
 
         ValidatePopulationSummary(facts.PopulationSummary);
-        var effective = facts.PopulationSummary.Effective;
+        var gl = facts.PopulationSummary.Gl;
         var stats = new GlPopulationStats(
-            effective.RowCount,
-            effective.VoucherCount,
-            effective.TotalDebitScaled,
-            effective.TotalCreditScaled,
-            effective.NetScaled);
-        var partA = facts.ControlTotals is { } control
-            ? new CompletenessPartA(
+            gl.RowCount,
+            gl.VoucherCount,
+            gl.TotalDebitScaled,
+            gl.TotalCreditScaled,
+            gl.NetScaled);
+        var storedTotals = facts.ControlTotals is { } control
+            ? new CompletenessStoredTotals(
                 new CompletenessPopulationTotals(
                     control.EligibleSourceRowCount,
                     control.EligibleSourceDebitScaled,
                     control.EligibleSourceCreditScaled),
                 new CompletenessPopulationTotals(
-                    effective.RowCount,
-                    effective.TotalDebitScaled,
-                    effective.TotalCreditScaled),
-                RowCountMatch: control.EligibleSourceRowCount == effective.RowCount,
-                AmountMatch: control.EligibleSourceDebitScaled == effective.TotalDebitScaled
-                    && control.EligibleSourceCreditScaled == effective.TotalCreditScaled)
+                    gl.RowCount,
+                    gl.TotalDebitScaled,
+                    gl.TotalCreditScaled),
+                RowCountMatch: control.EligibleSourceRowCount == gl.RowCount,
+                AmountMatch: control.EligibleSourceDebitScaled == gl.TotalDebitScaled
+                    && control.EligibleSourceCreditScaled == gl.TotalCreditScaled)
             : null;
 
         var data = new ValidationRunResult(
@@ -102,18 +103,18 @@ public static partial class JetAuditProgram
             facts.PopulationSummary,
             facts.CompletenessDiffAccountCount,
             facts.CompletenessDiffAccounts,
-            facts.UnbalancedDocumentCount,
+            facts.UnbalancedVoucherCount,
             facts.InfSampleCount,
             facts.NullAccountCount,
             facts.NullDocumentCount,
             facts.NullDescriptionCount,
-            // 傳票核准日不可用時不能判斷，筆數是 null，不以 0 冒充通過（使用者 2026-10-23 裁定）。
-            plan.RunOutOfPeriodApproval ? facts.OutOfRangeDateCount : null,
+            // 傳票核准日不可用時不能判斷，筆數是 null，不以 0 冒充通過（裁定 2026-10-23-01）。
+            plan.RunOutOfPeriodApproval ? facts.ApprovalDateNotInPeriodCount : null,
             facts.SourceQualityFindingCount,
-            facts.UnbalancedDocuments,
-            facts.NullRecordRows,
-            partA,
-            facts.DocumentDateReuse);
+            facts.UnbalancedVouchers,
+            facts.BlankRecordRows,
+            storedTotals,
+            facts.VoucherNumberAcrossGlDates);
         var manifest = Finalize(plan.ReviewPlan, new AuditOutcome(data));
         var amountDistribution = FinalizeAmountDistribution(facts.AmountBinCounts);
 
@@ -124,24 +125,24 @@ public static partial class JetAuditProgram
     {
         ArgumentNullException.ThrowIfNull(summary);
         ArgumentNullException.ThrowIfNull(summary.Raw);
-        ArgumentNullException.ThrowIfNull(summary.Effective);
+        ArgumentNullException.ThrowIfNull(summary.Gl);
         ArgumentNullException.ThrowIfNull(summary.Excluded);
 
         if (summary.Raw.RowCount < 0
-            || summary.Effective.RowCount < 0
-            || summary.Effective.VoucherCount < 0
+            || summary.Gl.RowCount < 0
+            || summary.Gl.VoucherCount < 0
             || summary.Excluded.RowCount < 0
             || summary.Excluded.ByPeriodCount < 0
             || summary.Excluded.ByPostingStatusCount < 0
-            || summary.Effective.VoucherCount > summary.Effective.RowCount
-            || summary.Raw.RowCount != checked(summary.Effective.RowCount + summary.Excluded.RowCount)
+            || summary.Gl.VoucherCount > summary.Gl.RowCount
+            || summary.Raw.RowCount != checked(summary.Gl.RowCount + summary.Excluded.RowCount)
             || summary.Excluded.RowCount != checked(
                 summary.Excluded.ByPeriodCount + summary.Excluded.ByPostingStatusCount)
-            || summary.Effective.NetScaled != checked(
-                summary.Effective.TotalDebitScaled - summary.Effective.TotalCreditScaled))
+            || summary.Gl.NetScaled != checked(
+                summary.Gl.TotalDebitScaled - summary.Gl.TotalCreditScaled))
         {
             throw new InvalidOperationException(
-                "Validation population summary 不符合 raw／effective／excluded 互斥分區 invariant。");
+                "Validation population summary 不符合 raw／gl／excluded 互斥分區 invariant。");
         }
     }
 
@@ -207,7 +208,7 @@ public static partial class JetAuditProgram
 
     /// <summary>
     /// Validation／prescreen 共用的 GL target 前置條件。Application 可在讀取其他
-    /// 案件 metadata 前先呼叫，以維持既有 no_target_data 錯誤優先序；實際裁定
+    /// 案件 metadata 前先呼叫，以維持既有 gl_mapping_not_confirmed 錯誤優先序；實際裁定
     /// 仍只有 AuditCore 這一份。
     /// </summary>
     internal static void RequireGlMapping([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool hasGlMapping)
@@ -215,14 +216,14 @@ public static partial class JetAuditProgram
         if (!hasGlMapping)
         {
             throw new JetActionException(
-                JetErrorCodes.NoTargetData,
+                JetErrorCodes.GlMappingNotConfirmed,
                 "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。");
         }
     }
 
     /// <summary>依 action 選取 validation／prescreen 家族，裁定 N/A，並綁定執行參數。</summary>
     public static AuditExecutionPlan Plan(
-        AuditCaseSnapshot caseSnapshot,
+        AuditProjectSnapshot caseSnapshot,
         AuditUserParameters userParameters)
     {
         ArgumentNullException.ThrowIfNull(caseSnapshot);
@@ -273,13 +274,13 @@ public static partial class JetAuditProgram
     private static IReadOnlyList<ProcedureDefinition> BuildProgram()
     {
         // 正式流程只用這張表挑出 validate.run 與 prescreen.run 兩個家族的程序；
-        // 規則 slug 一律取 RuleCatalog；預篩選十四條照規則登錄的順序加入，不再另列一份。
+        // 規則 slug 一律取 RuleCatalog；預篩選十二條照規則登錄的順序加入，不再另列一份。
         var definitions = new List<ProcedureDefinition>
         {
             ValidationProcedures.Definition,
-            ValidationDefinition("doc_balance_test"),
+            ValidationDefinition("voucher_balance_test"),
             ValidationDefinition("inf_sampling_test"),
-            ValidationDefinition("null_records_test")
+            ValidationDefinition("blank_records_test")
         };
         definitions.AddRange(PrescreenRuleDefinitions.All.Select(rule => PrescreenDefinition(rule.Slug)));
 
@@ -288,20 +289,20 @@ public static partial class JetAuditProgram
 
     private static ProcedureVerdict PlanValidation(
         ProcedureDefinition definition,
-        AuditCaseSnapshot snapshot)
+        AuditProjectSnapshot snapshot)
     {
         if (string.Equals(definition.Slug, "completeness_test", StringComparison.Ordinal))
         {
-            return CompletenessPartBProcedure.Plan(new CompletenessPartBRequest(
-                snapshot.HasTbMapping)).Verdict;
+            return AccountComparisonProcedure.Plan(new AccountComparisonRequest(
+                snapshot.HasTbMapping, snapshot.HasTbImport)).Verdict;
         }
 
         if (string.Equals(definition.Slug, "inf_sampling_test", StringComparison.Ordinal))
         {
-            // 只支援目前的 INF 抽樣演算法；沒有版本或舊版本的案件不得靜默改用新排序。
+            // 只支援目前的 INF 抽樣演算法；沒有版本或其他版本的案件不得靜默改用新排序。
             if (snapshot.SampleSeedVersion != InfSamplingPrf.CurrentAlgorithmVersion)
             {
-                // 開案時已擋下舊版案件，畫面照正常操作走不到這裡（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
+                // 開案與資料驗證前都已擋下抽樣設定不對的案件，畫面照正常操作走不到這裡（裁定 2026-10-14-01 確認了用字）。
                 throw JetPayloadRejection.Create(JetErrorCodes.InvalidProjectSchema, "inf_algorithm_version_legacy");
             }
         }
@@ -318,9 +319,9 @@ public static partial class JetAuditProgram
     {
         var result = outcome.Validation
             ?? throw new InvalidOperationException("validation plan 未收到 ValidationRunResult。");
-        var completeness = CompletenessPartBProcedure.Finalize(
-            CompletenessPartBProcedure.RequirePlan(plan),
-            new CompletenessPartBFacts(result.CompletenessDiffAccountCount));
+        var completeness = AccountComparisonProcedure.Finalize(
+            AccountComparisonProcedure.RequirePlan(plan),
+            new AccountComparisonFacts(result.CompletenessDiffAccountCount));
 
         return plan.Procedures
             .Select(verdict => string.Equals(
@@ -363,20 +364,20 @@ public static partial class JetAuditProgram
 
     private static long CountForValidation(string slug, ValidationRunResult result) => slug switch
     {
-        "doc_balance_test" => result.UnbalancedDocumentCount,
+        "voucher_balance_test" => result.UnbalancedVoucherCount,
         "inf_sampling_test" => result.InfSampleCount,
-        "null_records_test" => result.NullAccountCount + result.NullDocumentCount
-            + result.NullDescriptionCount + (result.OutOfRangeDateCount ?? 0L),
+        "blank_records_test" => result.NullAccountCount + result.NullDocumentCount
+            + result.NullDescriptionCount + (result.ApprovalDateNotInPeriodCount ?? 0L),
         _ => throw new InvalidOperationException($"Finalize 不支援未登錄的驗證程序 '{slug}'。")
     };
 
     private static long CountForPrescreen(string slug, PrescreenRunResult result) => slug switch
     {
-        "post_period_approval" => result.PostPeriodApprovalCount,
+        "prep_period_approval" => result.PrepPeriodApprovalCount,
         "suspicious_keywords" => result.SuspiciousKeywordsCount,
         "unexpected_account_pair" => result.UnexpectedAccountPairCount,
         "trailing_zeros" => result.TrailingZerosCount,
-        "creator_summary" => result.Creators.Count,
+        "preparer_summary" => result.Preparers.Count,
         "rare_accounts" => result.DistinctAccountCount,
         "weekend_posting" => result.WeekendPostingCount,
         "weekend_approval" => result.WeekendApprovalCount ?? 0L,
@@ -384,8 +385,6 @@ public static partial class JetAuditProgram
         "holiday_approval" => result.HolidayApprovalCount ?? 0L,
         "blank_description" => result.BlankDescriptionCount,
         "non_authorized_preparer" => result.NonAuthorizedPreparerCount,
-        "low_frequency_preparer" => result.LowFrequencyPreparerCount,
-        "low_frequency_account" => result.LowFrequencyAccountCount,
         _ => throw new InvalidOperationException($"Finalize 不支援未登錄的預篩選程序 '{slug}'。")
     };
 

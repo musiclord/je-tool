@@ -2,12 +2,13 @@ namespace JET.Domain;
 
 /// <summary>
 /// 專案 metadata，持久化為 projects/{projectId}/project.json。
-/// ProjectCode 和 EntityName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
+/// ProjectCode 和 ClientName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
-/// DatabaseProvider 標示會計資料所在引擎（"sqlite"／"duckdb" 本地檔；"sqlServer" 單庫）；
-/// project.json 缺此欄位代表舊版 JET 建立的案件，store 讀取時明確拒絕。
+/// SchemaVersion 是案件設定檔的格式版本；不是 <see cref="CurrentSchemaVersion"/> 的案件是舊版 JET 建立的，讀取時明確拒絕，
+/// 請審計員刪除後重建（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
+/// DatabaseProvider 標示會計資料所在引擎（"sqlite"／"duckdb" 本地檔；"sqlServer" 單庫）；目前版本的設定檔一定寫明，缺欄位是設定檔損壞。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；
-/// SampleSeedVersion 是 INF 抽樣演算法版本。兩者由建案寫入，缺任一欄位都代表舊版 JET 建立的案件，
+/// SampleSeedVersion 是 INF 抽樣演算法版本。兩者由建案寫入，缺任一欄位或版本不對都是設定檔損壞，
 /// 讀取 project.json 時明確拒絕，不回退固定種子或舊排序法。
 /// CalendarImported 是日期檔成功 replace 的持久 marker；新案件一律明寫 false，讓合法零筆匯入與
 /// 從未匯入可區分。缺欄位時一律視為尚未匯入。
@@ -15,7 +16,7 @@ namespace JET.Domain;
 public sealed record ProjectDocument(
     string ProjectId,
     string ProjectCode,
-    string EntityName,
+    string ClientName,
     string OperatorId,
     string PeriodStart,
     string PeriodEnd,
@@ -35,7 +36,10 @@ public sealed record ProjectDocument(
 {
     public const int DefaultMoneyScale = 10_000;
     public const string DefaultRoundingMode = "AwayFromZero";
-    public const int CurrentSchemaVersion = 1;
+    /// <summary>
+    /// 案件設定檔的格式版本。第 1 版是拿掉案件資料庫升版程式之前建立的案件，第 2 版起只用現行結構的資料庫。
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
     public const string DefaultDatabaseProvider = "sqlite";
     public const string SqlServerDatabaseProvider = "sqlServer";
     /// <summary>第二本地引擎（每專案一個 jet.duckdb；與 sqlite 共用本地 repository 家族與可攜性語意）。</summary>
@@ -44,9 +48,18 @@ public sealed record ProjectDocument(
     /// <summary>INF 抽樣 seed 的排他上界（模數 2147483647）。種子取 [1, 2147483646]。</summary>
     public const long SampleSeedExclusiveUpperBound = 2147483647;
 
-    /// <summary>日期解析選項。RocDateEnabled 缺欄位時 JSON 反序列化採預設 true，舊 project.json 免遷移。</summary>
+    /// <summary>日期解析選項。RocDateEnabled 缺欄位時預設 true，民國年日期照樣能解析。</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public DateParseOptions DateParseOptions => new(RocDateEnabled);
+
+    /// <summary>設定檔版本不是目前版本時，是舊版 JET 建立的案件：拒絕開啟，訊息寫明刪除後重建。</summary>
+    internal void RequireCurrentSchemaVersion(string projectName)
+    {
+        if (SchemaVersion != CurrentSchemaVersion)
+        {
+            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.OldVersionProject(projectName));
+        }
+    }
 
     /// <summary>
     /// 新案件的純 Domain policy。Clock、entropy、provider 選擇、名稱、路徑、
@@ -56,7 +69,7 @@ public sealed record ProjectDocument(
     internal static ProjectDocument CreateNew(
         string projectId,
         string projectCode,
-        string entityName,
+        string clientName,
         string operatorId,
         string periodStart,
         string periodEnd,
@@ -68,7 +81,7 @@ public sealed record ProjectDocument(
         new(
             projectId,
             projectCode,
-            entityName,
+            clientName,
             operatorId,
             periodStart,
             periodEnd,
@@ -113,7 +126,7 @@ public interface IProjectStore
     Task DeleteAsync(string projectId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// 設定檔讀不通時，只為了刪除案件判斷它用哪一種本機資料庫：原始設定檔有記錄就照記錄，沒有記錄的舊版案件看資料夾裡的資料庫檔。
+    /// 設定檔讀不通時，只為了刪除案件判斷它用哪一種本機資料庫：原始設定檔有記錄就照記錄，沒有記錄時看資料夾裡的資料庫檔。
     /// 是 SQL Server 或判斷不出來時回 null。
     /// </summary>
     Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)

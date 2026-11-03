@@ -16,7 +16,7 @@ public sealed partial class SqlServerProjectDatabase
     /// 永久刪除該專案:<b>單一連線、單一顯式交易</b>(原子)——單庫是 sqlServer 專案的唯一管家,
     /// 故本方法同時清 schema 與 dbo 管理表中的登記,不再分兩連線兩交易。同交易內依序:
     /// (1) drop 該 schema 內所有表 → <c>DROP SCHEMA</c>(SQL Server 要求 schema 清空才能 drop);
-    /// (2) 寫 <c>dbo.audit_log</c> 留痕(project.delete);(3) 刪 <c>dbo.project_access</c>;(4) 刪 <c>dbo.project_registry</c>;
+    /// (2) 寫 <c>dbo.operation_log</c> 留痕(project.delete);(3) 刪 <c>dbo.project_access</c>;(4) 刪 <c>dbo.project_registry</c>;
     /// (5) 刪 <c>dbo.project_lock</c> 租約鎖(刪案即清鎖)。
     /// SCHEMA_ID 守使 drop 冪等(schema 不存在則 no-op,但登記列仍清);schema 名不合法時直接 return(無從衍生則無從刪)。
     /// 單庫尚未建立(切換伺服器/全新環境)時整段 no-op:無庫即無 schema/登記可清,視為已刪除。
@@ -38,7 +38,7 @@ public sealed partial class SqlServerProjectDatabase
 
         await using var conn = CreateSingleDbConnection();
         await conn.OpenAsync(cancellationToken);
-        // 確保 dbo 管理表就位:刪案交易要寫 audit_log 並刪 registry/access,這些 dbo 表可能尚未 bootstrap(如全新單庫)。
+        // 確保 dbo 管理表就位:刪案交易要寫 operation_log 並刪 registry/access,這些 dbo 表可能尚未 bootstrap(如全新單庫)。
         await SqlServerControlPlaneSchema.EnsureAsync(conn, cancellationToken);
 
         await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
@@ -70,7 +70,7 @@ public sealed partial class SqlServerProjectDatabase
         }
 
         // (2) 同交易留痕(project.delete):失敗回滾則留痕一併回滾,無「刪一半卻留痕」。
-        await SqlServerAuditLog.WriteAsync(conn, tx, projectId, "project.delete", detailJson: null, cancellationToken);
+        await SqlServerOperationLog.WriteAsync(conn, tx, projectId, "project.delete", detailJson: null, cancellationToken);
 
         // (3) 刪 access。
         await using (var deleteAccess = conn.CreateCommand())

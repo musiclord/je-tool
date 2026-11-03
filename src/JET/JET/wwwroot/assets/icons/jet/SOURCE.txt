@@ -1,0 +1,3 @@
+JET 自己畫的圖示，畫法比照同層 fluent 資料夾的 20px regular 圖示，只用 svg 與 path 元素。
+panel_right_20_regular.svg：打開右側資料預覽的檢視字後面接的面板圖示。外框是視窗，右邊那一格是面板。
+本機打包的 Fluent UI System Icons 沒有這個圖示，所以自己畫。

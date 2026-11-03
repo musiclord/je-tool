@@ -46,7 +46,7 @@ internal static class ReportWorkbookMetadataCodec
             writer.WriteBoolean("includeBlank", options.PostingStatusPolicy?.IncludeBlank ?? false);
             writer.WriteEndObject();
             writer.WriteEndObject();
-            writer.WriteNumber("taxonomyRevision", metadata.TaxonomyRevision);
+            writer.WriteNumber("categoryRevision", metadata.CategoryRevision);
             writer.WritePropertyName("mapping");
             writer.WriteStartObject();
             writer.WriteNumber("formatVersion", MappingMetadataFormat.CurrentVersion);

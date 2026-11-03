@@ -6,86 +6,20 @@ namespace JET.Infrastructure;
 
 public sealed partial class SqlServerProjectDatabase
 {
-    // 目前 schema 版本。Fresh schema 由 SchemaSql 直接寫現行版；既有 schema 的版本則只在
-    // MigrateExistingSchemaToCurrentAsync 完成 shape、data rewrite 與結果失效後最後寫回。
-    internal const string SchemaVersion = "16";
-
-    internal const string BumpSchemaVersionSql =
-        "UPDATE {s}.schema_info SET [value] = '16' WHERE [key] = 'schema_version';";
-
-    /// <summary>
-    /// 第 12 版到第 13 版：<c>app_message_log.level</c> 的限制加上 <c>error</c>（使用者 2026-10-13 裁定訊息分三級）。
-    /// 舊表的 CHECK 是建表時未命名的欄位限制，名稱由 SQL Server 產生，所以先從系統目錄找出還不允許 <c>error</c>
-    /// 的那一條再換掉；新建的 schema 由 <see cref="SchemaSql"/> 直接建出新限制，這段不做事。舊紀錄不動。
-    /// 和 <see cref="BackfillAccountMappingCategoryIdsSql"/> 一樣在 SchemaSql 之後另外執行，仍在同一個遷移交易內。
-    /// 2026-10-19 的 Provider 中，從第 13 版以前升級的 <c>SqlServerSchemaMigrationTests</c> 會執行這段；但這些測試的
-    /// <c>app_message_log</c> 都由 <see cref="SchemaSql"/> 建出新限制，所以找出舊限制再換掉的那一段沒有執行到。
-    /// </summary>
-    internal const string WidenMessageLogLevelCheckSql =
-        """
-        DECLARE @levelCheck sysname = (
-            SELECT TOP (1) cc.name
-            FROM sys.check_constraints cc
-            JOIN sys.columns c ON c.object_id = cc.parent_object_id AND c.column_id = cc.parent_column_id
-            WHERE cc.parent_object_id = OBJECT_ID(N'{s}.app_message_log') AND c.name = N'level'
-              AND cc.definition NOT LIKE N'%''error''%');
-        IF @levelCheck IS NOT NULL
-        BEGIN
-            DECLARE @dropLevelCheck nvarchar(400) =
-                N'ALTER TABLE {s}.app_message_log DROP CONSTRAINT ' + QUOTENAME(@levelCheck) + N';';
-            EXEC sys.sp_executesql @dropLevelCheck;
-            ALTER TABLE {s}.app_message_log
-                ADD CONSTRAINT ck_app_message_log_level CHECK (level IN ('info','warn','error'));
-        END;
-        """;
-
-    /// <summary>
-    /// 第 13 版到第 14 版：GL、TB 與科目配對的文字欄改成固定 <c>Latin1_General_BIN2</c>，不再沿用資料庫預設定序
-    /// （跨資料庫一致性計畫第三節 F，使用者 2026-10-19 選「SQL Server 實機才能確認的項」）。這些欄位會被文字條件、
-    /// 排序與 <c>MAX(account_name)</c> 用到；資料庫預設若是不分大小寫或全形半形的定序，結果會和本機不同。
-    /// 欄位沒有索引或限制，可以直接改定序；新建的 schema 由 <see cref="SchemaSql"/> 直接建出，這段重跑也沒有副作用。
-    /// </summary>
-    internal const string PinAuditTextCollationSql =
-        """
-        ALTER TABLE {s}.target_gl_entry ALTER COLUMN line_item NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
-        ALTER TABLE {s}.target_gl_entry ALTER COLUMN account_name NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
-        ALTER TABLE {s}.target_gl_entry ALTER COLUMN document_description NVARCHAR(MAX) COLLATE Latin1_General_BIN2 NULL;
-        ALTER TABLE {s}.target_gl_entry ALTER COLUMN source_module NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
-        ALTER TABLE {s}.target_tb_balance ALTER COLUMN account_name NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
-        ALTER TABLE {s}.target_account_mapping ALTER COLUMN account_name NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
-        ALTER TABLE {s}.result_inf_sampling_test_sample ALTER COLUMN line_item NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
-        """;
-
-    // SQL Server compiles a batch before executing its ALTER TABLE statements, so the v6 backfill must run
-    // as a separate command after SchemaSql has added category_id. It remains inside the migration transaction.
-    internal const string BackfillAccountMappingCategoryIdsSql =
-        """
-        UPDATE {s}.target_account_mapping
-        SET category_id = CASE standardized_category
-            WHEN 'Revenue' THEN 'builtin.revenue'
-            WHEN 'Receivables' THEN 'builtin.receivables'
-            WHEN 'Cash' THEN 'builtin.cash'
-            WHEN 'Receipt in advance' THEN 'builtin.receipt_in_advance'
-            WHEN 'Others' THEN 'builtin.others'
-            ELSE category_id
-        END
-        WHERE category_id IS NULL;
-        """;
-
-    /// <summary>測試專用：在 v7 data rewrite 後及 result reset 後兩個交易邊界注入 fault。</summary>
-    internal Action<string>? MigrationFaultHookForTests { get; set; }
+    // 目前 schema 版本。新 schema 由 SchemaSql 直接寫現行版；既有 schema 只檢查版本，不升版。
+    internal const string SchemaVersion = "19";
 
     public async Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken)
     {
         var schema = SqlServerProjectSchema.For(projectId);
 
-        // 1) 確保單庫存在 + dbo 管理表就位(registry/access/app_config/audit_log/project_lock)。
+        // 1) 確保單庫存在 + dbo 管理表就位(registry/access/app_config/operation_log/project_lock)。
         await EnsureSingleDatabaseAndControlPlaneAsync(cancellationToken);
 
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 2) schema 已存在 → 讀版本，落後才跑守欄冪等遷移（不再無條件 early-return，否則既有 schema 永遠不會升版）。
+        // 2) schema 已存在 → 只檢查版本，不是現行版本就擋下，不改動既有內容。
         bool schemaExists;
         await using (var exists = connection.CreateCommand())
         {
@@ -96,7 +30,7 @@ public sealed partial class SqlServerProjectDatabase
 
         if (schemaExists)
         {
-            await MigrateExistingSchemaToCurrentAsync(connection, projectId, cancellationToken);
+            RejectUnsupportedSchemaVersion(await ReadSchemaVersionAsync(connection, projectId, cancellationToken));
             return;
         }
 
@@ -118,124 +52,29 @@ public sealed partial class SqlServerProjectDatabase
     }
 
     /// <summary>
-    /// 既有 schema 的版本化遷移（修正 <see cref="EnsureCreatedAsync"/> 遇到既有 schema 就提早返回、永遠不升版的問題；
-    /// 比照 SQLite 版本鏈，用 SQL script 遷移，不用 EF migrations）。讀
-    /// <c>{s}.schema_info</c> 的 <c>schema_version</c>：
-    /// <list type="bullet">
-    /// <item>＝現行 <see cref="SchemaVersion"/> → no-op（冪等：重跑既不重複 ALTER、也不開交易）。</item>
-    /// <item>&lt; 現行（或版本列缺失）→ 於單一交易內重跑<b>守欄冪等</b>的 <see cref="SchemaSql"/>（每表
-    /// <c>IF OBJECT_ID … IS NULL</c>、每欄 <c>IF COL_LENGTH … IS NULL ALTER … ADD</c>、每索引 <c>IF NOT EXISTS(sys.indexes)</c>），
-    /// 補齊落後形狀並把 <c>schema_version</c> 回填現行；既有資料列不受影響（DDL 只補缺、不搬既有列）。</item>
-    /// <item>&gt; 現行（理論上不會發生——schema 一路 forward-only）→ 不動。</item>
-    /// </list>
-    /// 既有 v5 schema 會以同一機制 additive 補入 line-item numeric sort key；之後 schema
-    /// 版本 bump 仍可沿用這條路線惰性升級（碰到才升，不做啟動時全庫掃描）。
-    /// <see cref="SchemaVersion"/> 常數自此有真實讀者（不再是 DDL 硬寫值的死碼）。
+    /// 既有 schema 只接受現行版本，和本機資料庫同一套說法（裁定 2026-10-30-24：SQL Server 的程式跟著改，只經編譯）。
+    /// 低於現行版本是舊版 JET 建立的案件，請審計員刪除後重建；版本值缺漏、讀不出整數或高於現行版本時，當成版本資訊無法辨識。
+    /// SQL Server 開發暫緩期間改成這樣，沒有在 SQL Server 上實際執行過。
     /// </summary>
-    private async Task MigrateExistingSchemaToCurrentAsync(
-        SqlConnection connection, string projectId, CancellationToken cancellationToken)
+    private static void RejectUnsupportedSchemaVersion(string? existingVersion)
     {
-        var existingVersion = await ReadSchemaVersionAsync(connection, projectId, cancellationToken);
         var currentVersion = int.Parse(SchemaVersion, System.Globalization.CultureInfo.InvariantCulture);
-
-        // 版本列缺失（null / 不可解析）視為 0（＜現行 → 需補建 schema_info 並升級）。
-        var parsedExisting = int.TryParse(existingVersion, out var v) ? v : 0;
-        if (parsedExisting >= currentVersion)
+        if (!int.TryParse(existingVersion, System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var version)
+            || version > currentVersion)
         {
-            return; // 已達現行（或更新）→ no-op：不重跑 DDL、不重複 ALTER、不開交易。
+            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.UnreadableDatabaseVersion);
         }
 
-        await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
-        try
+        if (version < currentVersion)
         {
-            await using (var ddl = CreateCommand(connection, projectId, SchemaSql))
-            {
-                ddl.Transaction = tx;
-                await ddl.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            if (parsedExisting < 7)
-            {
-                await using (var backfill = CreateCommand(connection, projectId, BackfillAccountMappingCategoryIdsSql))
-                {
-                    backfill.Transaction = tx;
-                    await backfill.ExecuteNonQueryAsync(cancellationToken);
-                }
-
-                await RuleRunResultReset.ClearWithinAsync(
-                    connection,
-                    tx,
-                    cancellationToken,
-                    AuditMutation.SchemaV7Migration,
-                    SqlServerProjectSchema.QualifierFor(projectId));
-
-                MigrationFaultHookForTests?.Invoke("after-v7-result-reset");
-            }
-
-            if (parsedExisting < 10)
-                await AccountClassificationMigration.BackfillAsync(connection, tx,
-                    SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
-
-            if (parsedExisting < 13)
-            {
-                await using var widen = CreateCommand(connection, projectId, WidenMessageLogLevelCheckSql);
-                widen.Transaction = tx;
-                await widen.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            if (parsedExisting < 14)
-            {
-                await using (var pin = CreateCommand(connection, projectId, PinAuditTextCollationSql))
-                {
-                    pin.Transaction = tx;
-                    await pin.ExecuteNonQueryAsync(cancellationToken);
-                }
-
-                // 既有結果可能是用舊定序比對、或用舊的大寫對照表算出來的（方言同版改用 Latin1_General_100_BIN2 轉大寫），
-                // 和第 7 版升級一樣清除後由審計員重跑。
-                await RuleRunResultReset.ClearWithinAsync(
-                    connection,
-                    tx,
-                    cancellationToken,
-                    AuditMutation.TextComparisonMigration,
-                    SqlServerProjectSchema.QualifierFor(projectId));
-            }
-
-            // 第 14 版到第 15 版：日期不符分成三種原因，和本機第 13 版同一句轉換（使用者 2026-10-21 裁定）。
-            // SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
-            if (parsedExisting < 15)
-                await GlExclusionReasonMigration.SplitPeriodReasonAsync(connection, tx,
-                    SqlServerProjectSchema.QualifierFor(projectId), cancellationToken);
-
-            // 第 15 版到第 16 版：匯入來源表多一欄 header_row（欄名在第幾列），由上方守欄冪等的 SchemaSql 補欄，
-            // 和本機第 14 版相同；既有來源的欄名列是空值。SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
-
-            await using (var bump = CreateCommand(connection, projectId, BumpSchemaVersionSql))
-            {
-                bump.Transaction = tx;
-                await bump.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await tx.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            try
-            {
-                await tx.RollbackAsync(CancellationToken.None);
-            }
-            catch
-            {
-                // Preserve the migration failure; disposal remains the final rollback backstop.
-            }
-
-            throw;
+            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.OldVersionProject());
         }
     }
 
     /// <summary>
-    /// 讀該專案 schema 的 <c>schema_version</c>（<c>{s}.schema_info</c>）。schema_info 表尚不存在（極舊形狀或被卸）
-    /// 時回 null，交由 <see cref="MigrateExistingSchemaToCurrentAsync"/> 當作「低於現行、需遷移」。schema 名經
+    /// 讀該專案 schema 的 <c>schema_version</c>（<c>{s}.schema_info</c>）。schema_info 表不存在時回 null，
+    /// 由 <see cref="RejectUnsupportedSchemaVersion"/> 當成版本資訊無法辨識。schema 名經
     /// <see cref="CreateCommand"/> 的白名單守衛後拼入識別字（不可參數化），值鍵仍走參數化字面。
     /// </summary>
     private async Task<string?> ReadSchemaVersionAsync(
@@ -259,9 +98,9 @@ public sealed partial class SqlServerProjectDatabase
     /// 定序契約(定序雙保險之二):凡參與 JOIN/WHERE/GROUP BY/UNIQUE/ORDER BY 的文字鍵欄,
     /// 一律顯式 COLLATE Latin1_General_BIN2(＝SQLite BINARY 位元序;BMP 中文＝碼位序)——即使庫層
     /// 預設定序不對(既有庫等環境重置),專案表行為仍正確,且意圖進版本控制。GL、TB 與科目配對的文字欄
-    /// (line_item、account_name、document_description、source_module)會被文字條件、排序與 MAX 用到,
-    /// 第 14 版起也固定 BIN2(跨資料庫一致性計畫第三節 F)。其餘純顯示/payload 欄(day_name、mode_name、
-    /// 檔名路徑、*_json、app_message_log、config_filter_scenario 文字欄)沿用庫層預設。
+    /// (line_item、account_name、description、source_module)會被文字條件、排序與 MAX 用到,
+    /// 也固定 BIN2。其餘純顯示/payload 欄(day_name、mode_name、
+    /// 檔名路徑、*_json、message_log、filter_scenario 文字欄)沿用庫層預設。
     /// line_item_numeric_sort_key 會參與 step4-1 ORDER BY／keyset，故固定 BIN2。
     /// 釘欄清單的機器守衛:SqlServerCollationProbeTests。
     /// </summary>
@@ -271,7 +110,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '16');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '19');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
@@ -302,11 +141,9 @@ public sealed partial class SqlServerProjectDatabase
                 imported_utc     NVARCHAR(40) NOT NULL,
                 PRIMARY KEY (batch_id, source_no)
             );
-        IF COL_LENGTH('{s}.import_batch_source','header_row') IS NULL
-            ALTER TABLE {s}.import_batch_source ADD header_row INT NULL;
 
-        IF OBJECT_ID(N'{s}.import_field_definition','U') IS NULL
-            CREATE TABLE {s}.import_field_definition (
+        IF OBJECT_ID(N'{s}.field_info','U') IS NULL
+            CREATE TABLE {s}.field_info (
                 batch_id            NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 definition_scope     NVARCHAR(16) COLLATE Latin1_General_BIN2 NOT NULL
                     CHECK (definition_scope IN ('source','target')),
@@ -322,8 +159,8 @@ public sealed partial class SqlServerProjectDatabase
                 PRIMARY KEY (batch_id, definition_scope, ordinal)
             );
 
-        IF OBJECT_ID(N'{s}.staging_gl_raw_row','U') IS NULL
-            CREATE TABLE {s}.staging_gl_raw_row (
+        IF OBJECT_ID(N'{s}.pbc_gl','U') IS NULL
+            CREATE TABLE {s}.pbc_gl (
                 batch_id          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 row_number        BIGINT NOT NULL,
                 source_no         INT NOT NULL DEFAULT 1,
@@ -332,8 +169,8 @@ public sealed partial class SqlServerProjectDatabase
                 PRIMARY KEY (batch_id, row_number)
             );
 
-        IF OBJECT_ID(N'{s}.staging_tb_raw_row','U') IS NULL
-            CREATE TABLE {s}.staging_tb_raw_row (
+        IF OBJECT_ID(N'{s}.pbc_tb','U') IS NULL
+            CREATE TABLE {s}.pbc_tb (
                 batch_id          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 row_number        BIGINT NOT NULL,
                 source_no         INT NOT NULL DEFAULT 1,
@@ -342,8 +179,8 @@ public sealed partial class SqlServerProjectDatabase
                 PRIMARY KEY (batch_id, row_number)
             );
 
-        IF OBJECT_ID(N'{s}.config_field_mapping','U') IS NULL
-            CREATE TABLE {s}.config_field_mapping (
+        IF OBJECT_ID(N'{s}.field_mapping','U') IS NULL
+            CREATE TABLE {s}.field_mapping (
                 dataset_kind    NVARCHAR(20) COLLATE Latin1_General_BIN2 PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
                 mapping_json    NVARCHAR(MAX) NOT NULL,
                 mode_name       NVARCHAR(40) NOT NULL,
@@ -352,13 +189,9 @@ public sealed partial class SqlServerProjectDatabase
                 format_version  INT NOT NULL DEFAULT 1,
                 options_json    NVARCHAR(MAX) NULL
             );
-        IF COL_LENGTH('{s}.config_field_mapping','format_version') IS NULL
-            ALTER TABLE {s}.config_field_mapping ADD format_version INT NOT NULL DEFAULT 1 WITH VALUES;
-        IF COL_LENGTH('{s}.config_field_mapping','options_json') IS NULL
-            ALTER TABLE {s}.config_field_mapping ADD options_json NVARCHAR(MAX) NULL;
 
-        IF OBJECT_ID(N'{s}.config_field_mapping_previous','U') IS NULL
-            CREATE TABLE {s}.config_field_mapping_previous (
+        IF OBJECT_ID(N'{s}.field_mapping_previous','U') IS NULL
+            CREATE TABLE {s}.field_mapping_previous (
                 dataset_kind    NVARCHAR(20) COLLATE Latin1_General_BIN2 PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
                 mapping_json    NVARCHAR(MAX) NOT NULL,
                 mode_name       NVARCHAR(40) NOT NULL,
@@ -368,74 +201,64 @@ public sealed partial class SqlServerProjectDatabase
                 options_json    NVARCHAR(MAX) NULL
             );
 
-        IF OBJECT_ID(N'{s}.staging_calendar_raw_day','U') IS NULL
-            CREATE TABLE {s}.staging_calendar_raw_day (
+        IF OBJECT_ID(N'{s}.calendar_day','U') IS NULL
+            CREATE TABLE {s}.calendar_day (
                 day_type NVARCHAR(10) COLLATE Latin1_General_BIN2 NOT NULL CHECK (day_type IN ('holiday','makeup')),
                 date     NVARCHAR(32) COLLATE Latin1_General_BIN2 NOT NULL,
                 day_name NVARCHAR(256) NULL,
                 PRIMARY KEY (day_type, date)
             );
-        IF COL_LENGTH('{s}.staging_calendar_raw_day','day_name') IS NULL
-            ALTER TABLE {s}.staging_calendar_raw_day ADD day_name NVARCHAR(256) NULL;
-        IF OBJECT_ID(N'{s}.target_gl_entry','U') IS NULL
-            CREATE TABLE {s}.target_gl_entry (
+        IF OBJECT_ID(N'{s}.gl','U') IS NULL
+            CREATE TABLE {s}.gl (
                 entry_id              BIGINT IDENTITY(1,1) PRIMARY KEY,
                 batch_id              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 source_row_number     BIGINT NOT NULL,
-                document_number       NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
+                voucher_number       NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
                 line_item             NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 line_item_numeric_sort_key NVARCHAR(40) COLLATE Latin1_General_BIN2 NULL,
-                post_date             NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
+                gl_date             NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
                 approval_date         NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
-                account_code          NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
+                account_number          NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
                 account_name          NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
-                document_description  NVARCHAR(MAX) COLLATE Latin1_General_BIN2 NULL,
+                description           NVARCHAR(MAX) COLLATE Latin1_General_BIN2 NULL,
                 source_module         NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 created_by            NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 approved_by           NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 is_manual             INT NULL,
                 posting_status        NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
-                is_effective          BIT NULL,
+                is_excluded           BIT NULL,
                 exclusion_reason      NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL,
                 amount_scaled         BIGINT NOT NULL,
                 debit_amount_scaled   BIGINT NOT NULL,
                 credit_amount_scaled  BIGINT NOT NULL,
                 dr_cr                 NVARCHAR(10) COLLATE Latin1_General_BIN2 NOT NULL CHECK (dr_cr IN ('DEBIT','CREDIT'))
             );
-        IF COL_LENGTH('{s}.target_gl_entry','line_item_numeric_sort_key') IS NULL
-            ALTER TABLE {s}.target_gl_entry ADD line_item_numeric_sort_key NVARCHAR(40) COLLATE Latin1_General_BIN2 NULL;
-        IF COL_LENGTH('{s}.target_gl_entry','posting_status') IS NULL
-            ALTER TABLE {s}.target_gl_entry ADD posting_status NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL;
-        IF COL_LENGTH('{s}.target_gl_entry','is_effective') IS NULL
-            ALTER TABLE {s}.target_gl_entry ADD is_effective BIT NULL;
-        IF COL_LENGTH('{s}.target_gl_entry','exclusion_reason') IS NULL
-            ALTER TABLE {s}.target_gl_entry ADD exclusion_reason NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL;
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_gl_entry_doc' AND object_id = OBJECT_ID(N'{s}.target_gl_entry'))
-            CREATE INDEX ix_target_gl_entry_doc ON {s}.target_gl_entry (document_number);
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_gl_entry_account' AND object_id = OBJECT_ID(N'{s}.target_gl_entry'))
-            CREATE INDEX ix_target_gl_entry_account ON {s}.target_gl_entry (account_code);
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_gl_entry_post_date' AND object_id = OBJECT_ID(N'{s}.target_gl_entry'))
-            CREATE INDEX ix_target_gl_entry_post_date ON {s}.target_gl_entry (post_date);
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_gl_entry_approval_date' AND object_id = OBJECT_ID(N'{s}.target_gl_entry'))
-            CREATE INDEX ix_target_gl_entry_approval_date ON {s}.target_gl_entry (approval_date);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_gl_voucher' AND object_id = OBJECT_ID(N'{s}.gl'))
+            CREATE INDEX ix_gl_voucher ON {s}.gl (voucher_number);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_gl_account' AND object_id = OBJECT_ID(N'{s}.gl'))
+            CREATE INDEX ix_gl_account ON {s}.gl (account_number);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_gl_gl_date' AND object_id = OBJECT_ID(N'{s}.gl'))
+            CREATE INDEX ix_gl_gl_date ON {s}.gl (gl_date);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_gl_approval_date' AND object_id = OBJECT_ID(N'{s}.gl'))
+            CREATE INDEX ix_gl_approval_date ON {s}.gl (approval_date);
 
-        IF OBJECT_ID(N'{s}.config_gl_rde_field','U') IS NULL
-            CREATE TABLE {s}.config_gl_rde_field (
+        IF OBJECT_ID(N'{s}.gl_rde_field','U') IS NULL
+            CREATE TABLE {s}.gl_rde_field (
                 field_id      NVARCHAR(64) COLLATE Latin1_General_BIN2 PRIMARY KEY,
                 source_column NVARCHAR(MAX) NOT NULL,
                 label         NVARCHAR(400) NOT NULL,
                 value_type    NVARCHAR(10) COLLATE Latin1_General_BIN2 NOT NULL
-                    CHECK (value_type IN ('text','date','money')),
+                    CHECK (value_type IN ('text','date','amount')),
                 ordinal       INT NOT NULL,
                 is_rde        BIT NOT NULL
             );
 
-        IF OBJECT_ID(N'{s}.target_gl_rde_value','U') IS NULL
-            CREATE TABLE {s}.target_gl_rde_value (
+        IF OBJECT_ID(N'{s}.gl_rde_value','U') IS NULL
+            CREATE TABLE {s}.gl_rde_value (
                 entry_id      BIGINT NOT NULL,
                 field_id      NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 value_type    NVARCHAR(10) COLLATE Latin1_General_BIN2 NOT NULL
-                    CHECK (value_type IN ('text','date','money')),
+                    CHECK (value_type IN ('text','date','amount')),
                 text_value    NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
                 date_value    NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
                 amount_scaled BIGINT NULL,
@@ -446,70 +269,74 @@ public sealed partial class SqlServerProjectDatabase
                      + CASE WHEN amount_scaled IS NULL THEN 0 ELSE 1 END) = 1
                     AND ((value_type = 'text' AND text_value IS NOT NULL)
                       OR (value_type = 'date' AND date_value IS NOT NULL)
-                      OR (value_type = 'money' AND amount_scaled IS NOT NULL))
+                      OR (value_type = 'amount' AND amount_scaled IS NOT NULL))
                 )
             );
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_gl_rde_value_text' AND object_id = OBJECT_ID(N'{s}.target_gl_rde_value'))
-            CREATE INDEX ix_target_gl_rde_value_text ON {s}.target_gl_rde_value (field_id, value_type, text_value, entry_id);
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_gl_rde_value_date' AND object_id = OBJECT_ID(N'{s}.target_gl_rde_value'))
-            CREATE INDEX ix_target_gl_rde_value_date ON {s}.target_gl_rde_value (field_id, value_type, date_value, entry_id);
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_gl_rde_value_amount' AND object_id = OBJECT_ID(N'{s}.target_gl_rde_value'))
-            CREATE INDEX ix_target_gl_rde_value_amount ON {s}.target_gl_rde_value (field_id, value_type, amount_scaled, entry_id);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_gl_rde_value_text' AND object_id = OBJECT_ID(N'{s}.gl_rde_value'))
+            CREATE INDEX ix_gl_rde_value_text ON {s}.gl_rde_value (field_id, value_type, text_value, entry_id);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_gl_rde_value_date' AND object_id = OBJECT_ID(N'{s}.gl_rde_value'))
+            CREATE INDEX ix_gl_rde_value_date ON {s}.gl_rde_value (field_id, value_type, date_value, entry_id);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_gl_rde_value_amount' AND object_id = OBJECT_ID(N'{s}.gl_rde_value'))
+            CREATE INDEX ix_gl_rde_value_amount ON {s}.gl_rde_value (field_id, value_type, amount_scaled, entry_id);
 
-        IF OBJECT_ID(N'{s}.target_tb_balance','U') IS NULL
-            CREATE TABLE {s}.target_tb_balance (
+        IF OBJECT_ID(N'{s}.tb','U') IS NULL
+            CREATE TABLE {s}.tb (
                 balance_id            BIGINT IDENTITY(1,1) PRIMARY KEY,
                 batch_id              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 source_row_number     BIGINT NOT NULL,
-                account_code          NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
+                account_number          NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
                 account_name          NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 change_amount_scaled  BIGINT NOT NULL
             );
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_tb_balance_account' AND object_id = OBJECT_ID(N'{s}.target_tb_balance'))
-            CREATE INDEX ix_target_tb_balance_account ON {s}.target_tb_balance (account_code);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_tb_account' AND object_id = OBJECT_ID(N'{s}.tb'))
+            CREATE INDEX ix_tb_account ON {s}.tb (account_number);
 
-        IF OBJECT_ID(N'{s}.result_rule_run','U') IS NULL
-            CREATE TABLE {s}.result_rule_run (
-                run_id        NVARCHAR(64) COLLATE Latin1_General_BIN2 PRIMARY KEY,
-                run_kind      NVARCHAR(20) COLLATE Latin1_General_BIN2 NOT NULL CHECK (run_kind IN ('validate','prescreen')),
+        IF OBJECT_ID(N'{s}.validation_result','U') IS NULL
+            CREATE TABLE {s}.validation_result (
+                result_id     NVARCHAR(64) COLLATE Latin1_General_BIN2 PRIMARY KEY,
                 generated_utc NVARCHAR(40) COLLATE Latin1_General_BIN2 NOT NULL,
                 summary_json  NVARCHAR(MAX) NOT NULL
             );
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_result_rule_run_kind' AND object_id = OBJECT_ID(N'{s}.result_rule_run'))
-            CREATE INDEX ix_result_rule_run_kind ON {s}.result_rule_run (run_kind, generated_utc);
-
-        IF OBJECT_ID(N'{s}.result_inf_sampling_test_sample','U') IS NULL
-            CREATE TABLE {s}.result_inf_sampling_test_sample (
-                run_id          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
-                entry_id        BIGINT NOT NULL,
-                document_number NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                line_item       NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
-                PRIMARY KEY (run_id, entry_id)
+        IF OBJECT_ID(N'{s}.prescreen_result','U') IS NULL
+            CREATE TABLE {s}.prescreen_result (
+                result_id     NVARCHAR(64) COLLATE Latin1_General_BIN2 PRIMARY KEY,
+                generated_utc NVARCHAR(40) COLLATE Latin1_General_BIN2 NOT NULL,
+                summary_json  NVARCHAR(MAX) NOT NULL
             );
 
-        IF OBJECT_ID(N'{s}.config_result_stale_state','U') IS NULL
-            CREATE TABLE {s}.config_result_stale_state (
+        IF OBJECT_ID(N'{s}.inf_sample','U') IS NULL
+            CREATE TABLE {s}.inf_sample (
+                result_id       NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
+                entry_id        BIGINT NOT NULL,
+                voucher_number NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
+                line_item       NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
+                PRIMARY KEY (result_id, entry_id)
+            );
+
+        IF OBJECT_ID(N'{s}.result_stale_state','U') IS NULL
+            CREATE TABLE {s}.result_stale_state (
                 singleton        INT PRIMARY KEY CHECK (singleton = 1),
                 validation_stale BIT NOT NULL,
                 prescreen_stale  BIT NOT NULL,
                 filter_stale     BIT NOT NULL
             );
-        IF NOT EXISTS (SELECT 1 FROM {s}.config_result_stale_state WHERE singleton = 1)
-            INSERT INTO {s}.config_result_stale_state
+        IF NOT EXISTS (SELECT 1 FROM {s}.result_stale_state WHERE singleton = 1)
+            INSERT INTO {s}.result_stale_state
                 (singleton, validation_stale, prescreen_stale, filter_stale)
             VALUES (1, 0, 0, 0);
 
-        IF OBJECT_ID(N'{s}.config_filter_scenario','U') IS NULL
-            CREATE TABLE {s}.config_filter_scenario (
-                position        INT PRIMARY KEY,
+        IF OBJECT_ID(N'{s}.filter_scenario','U') IS NULL
+            CREATE TABLE {s}.filter_scenario (
+                scenario_id     INT PRIMARY KEY,
+                position        INT NOT NULL,
                 name            NVARCHAR(400) NOT NULL,
                 rationale       NVARCHAR(MAX) NOT NULL,
                 definition_json NVARCHAR(MAX) NOT NULL,
                 saved_utc       NVARCHAR(40) NOT NULL
             );
 
-        IF OBJECT_ID(N'{s}.staging_account_mapping_raw_row','U') IS NULL
-            CREATE TABLE {s}.staging_account_mapping_raw_row (
+        IF OBJECT_ID(N'{s}.pbc_account_mapping','U') IS NULL
+            CREATE TABLE {s}.pbc_account_mapping (
                 batch_id          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 row_number        BIGINT NOT NULL,
                 source_no         INT NOT NULL DEFAULT 1,
@@ -518,56 +345,52 @@ public sealed partial class SqlServerProjectDatabase
                 PRIMARY KEY (batch_id, row_number)
             );
 
-        IF OBJECT_ID(N'{s}.config_account_taxonomy','U') IS NULL
-            CREATE TABLE {s}.config_account_taxonomy (
+        IF OBJECT_ID(N'{s}.account_category','U') IS NULL
+            CREATE TABLE {s}.account_category (
                 category_id   NVARCHAR(64) COLLATE Latin1_General_BIN2 PRIMARY KEY,
                 label         NVARCHAR(400) NOT NULL,
                 ordinal       INT NOT NULL UNIQUE,
                 semantic_role NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 is_builtin    BIT NOT NULL,
-                revision      INT NOT NULL
+                revision      INT NOT NULL,
+                parent_category_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL
             );
-        IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.revenue')
-            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.revenue', 'Revenue', 0, 'revenue', 1, 1);
-        IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.receivables')
-            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.receivables', 'Receivables', 1, 'receivables', 1, 1);
-        IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.cash')
-            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.cash', 'Cash', 2, 'cash', 1, 1);
-        IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.receipt_in_advance')
-            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1);
-        IF NOT EXISTS (SELECT 1 FROM {s}.config_account_taxonomy WHERE category_id = 'builtin.others')
-            INSERT INTO {s}.config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.others', 'Others', 4, 'others', 1, 1);
+        IF NOT EXISTS (SELECT 1 FROM {s}.account_category WHERE category_id = 'builtin.revenue')
+            INSERT INTO {s}.account_category (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.revenue', 'Revenue', 0, 'revenue', 1, 1);
+        IF NOT EXISTS (SELECT 1 FROM {s}.account_category WHERE category_id = 'builtin.receivables')
+            INSERT INTO {s}.account_category (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.receivables', 'Receivables', 1, 'receivables', 1, 1);
+        IF NOT EXISTS (SELECT 1 FROM {s}.account_category WHERE category_id = 'builtin.cash')
+            INSERT INTO {s}.account_category (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.cash', 'Cash', 2, 'cash', 1, 1);
+        IF NOT EXISTS (SELECT 1 FROM {s}.account_category WHERE category_id = 'builtin.receipt_in_advance')
+            INSERT INTO {s}.account_category (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1);
+        IF NOT EXISTS (SELECT 1 FROM {s}.account_category WHERE category_id = 'builtin.others')
+            INSERT INTO {s}.account_category (category_id, label, ordinal, semantic_role, is_builtin, revision) VALUES ('builtin.others', 'Others', 4, 'others', 1, 1);
 
-        IF COL_LENGTH('{s}.config_account_taxonomy','parent_category_id') IS NULL
-            ALTER TABLE {s}.config_account_taxonomy ADD parent_category_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL;
-        IF OBJECT_ID(N'{s}.config_account_taxonomy_path','U') IS NULL
+        IF OBJECT_ID(N'{s}.account_category_path','U') IS NULL
         BEGIN
-            CREATE TABLE {s}.config_account_taxonomy_path (
+            CREATE TABLE {s}.account_category_path (
                 ancestor_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 descendant_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 PRIMARY KEY (ancestor_id, descendant_id));
-            INSERT INTO {s}.config_account_taxonomy_path SELECT category_id, category_id FROM {s}.config_account_taxonomy;
+            INSERT INTO {s}.account_category_path SELECT category_id, category_id FROM {s}.account_category;
         END
-        IF OBJECT_ID(N'{s}.target_account_mapping','U') IS NULL
-            CREATE TABLE {s}.target_account_mapping (
+        IF OBJECT_ID(N'{s}.account_mapping','U') IS NULL
+            CREATE TABLE {s}.account_mapping (
                 mapping_id            BIGINT IDENTITY(1,1) PRIMARY KEY,
                 batch_id              NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 source_row_number     INT NOT NULL,
-                account_code          NVARCHAR(450) COLLATE Latin1_General_BIN2 NOT NULL,
+                account_number          NVARCHAR(450) COLLATE Latin1_General_BIN2 NOT NULL,
                 account_name          NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
                 standardized_category NVARCHAR(40) COLLATE Latin1_General_BIN2 NOT NULL
                     CHECK (standardized_category IN ('Revenue','Receivables','Cash','Receipt in advance','Others')),
-                category_id           NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL
+                category_id           NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL,
+                classification_explicit INT NULL
             );
-        IF COL_LENGTH('{s}.target_account_mapping','category_id') IS NULL
-            ALTER TABLE {s}.target_account_mapping ADD category_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NULL;
-        IF COL_LENGTH('{s}.target_account_mapping','classification_explicit') IS NULL
-            ALTER TABLE {s}.target_account_mapping ADD classification_explicit INT NULL;
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_target_account_mapping_code' AND object_id = OBJECT_ID(N'{s}.target_account_mapping'))
-            CREATE UNIQUE INDEX ix_target_account_mapping_code ON {s}.target_account_mapping (account_code);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_account_mapping_number' AND object_id = OBJECT_ID(N'{s}.account_mapping'))
+            CREATE UNIQUE INDEX ix_account_mapping_number ON {s}.account_mapping (account_number);
 
-        IF OBJECT_ID(N'{s}.staging_authorized_preparer_raw_row','U') IS NULL
-            CREATE TABLE {s}.staging_authorized_preparer_raw_row (
+        IF OBJECT_ID(N'{s}.pbc_authorized_preparer','U') IS NULL
+            CREATE TABLE {s}.pbc_authorized_preparer (
                 batch_id          NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
                 row_number        BIGINT NOT NULL,
                 source_no         INT NOT NULL DEFAULT 1,
@@ -576,21 +399,21 @@ public sealed partial class SqlServerProjectDatabase
                 PRIMARY KEY (batch_id, row_number)
             );
 
-        IF OBJECT_ID(N'{s}.target_authorized_preparer','U') IS NULL
-            CREATE TABLE {s}.target_authorized_preparer (
+        IF OBJECT_ID(N'{s}.authorized_preparer','U') IS NULL
+            CREATE TABLE {s}.authorized_preparer (
                 name NVARCHAR(450) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY
             );
 
-        IF OBJECT_ID(N'{s}.app_message_log','U') IS NULL
-            CREATE TABLE {s}.app_message_log (
+        IF OBJECT_ID(N'{s}.message_log','U') IS NULL
+            CREATE TABLE {s}.message_log (
                 message_id   BIGINT IDENTITY(1,1) PRIMARY KEY,
                 occurred_utc NVARCHAR(40) NOT NULL,
                 level        NVARCHAR(10) NOT NULL CHECK (level IN ('info','warn','error')),
                 text         NVARCHAR(MAX) NOT NULL
             );
 
-        IF OBJECT_ID(N'{s}.audit_event_log','U') IS NULL
-            CREATE TABLE {s}.audit_event_log (
+        IF OBJECT_ID(N'{s}.operation_log','U') IS NULL
+            CREATE TABLE {s}.operation_log (
                 event_id       NVARCHAR(32) COLLATE Latin1_General_BIN2 PRIMARY KEY,
                 occurred_utc   NVARCHAR(40) COLLATE Latin1_General_BIN2 NOT NULL,
                 operation      NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
@@ -599,14 +422,14 @@ public sealed partial class SqlServerProjectDatabase
                 subject_count  BIGINT NOT NULL CHECK (subject_count >= 0),
                 replaced_count BIGINT NOT NULL CHECK (replaced_count >= 0)
             );
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_audit_event_log_occurred' AND object_id = OBJECT_ID(N'{s}.audit_event_log'))
-            CREATE INDEX ix_audit_event_log_occurred ON {s}.audit_event_log (occurred_utc, event_id);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_operation_log_occurred' AND object_id = OBJECT_ID(N'{s}.operation_log'))
+            CREATE INDEX ix_operation_log_occurred ON {s}.operation_log (occurred_utc, event_id);
 
-        -- schema v9：{s}.audit_event_log 的 append-only 由引擎強制。INSTEAD OF UPDATE, DELETE
+        -- schema v9：{s}.operation_log 的 append-only 由引擎強制。INSTEAD OF UPDATE, DELETE
         -- trigger 讓任何改與刪直接 THROW，INSERT 不受影響。CREATE TRIGGER 必須是 batch 內第一個
         -- 敘述，故沿用本檔既有的 EXEC() 動態 DDL 慣例（同 CREATE SCHEMA）。
-        IF OBJECT_ID(N'{s}.trg_audit_event_log_append_only','TR') IS NULL
-            EXEC('CREATE TRIGGER {s}.trg_audit_event_log_append_only ON {s}.audit_event_log
+        IF OBJECT_ID(N'{s}.trg_operation_log_append_only','TR') IS NULL
+            EXEC('CREATE TRIGGER {s}.trg_operation_log_append_only ON {s}.operation_log
                 INSTEAD OF UPDATE, DELETE
                 AS
                 BEGIN
@@ -617,40 +440,37 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.gl_control_total','U') IS NULL
             CREATE TABLE {s}.gl_control_total (
                 singleton        INT PRIMARY KEY CHECK (singleton = 1),
-                source_row_count BIGINT NOT NULL,
-                target_row_count BIGINT NOT NULL,
-                target_debit_scaled  BIGINT NOT NULL,
-                target_credit_scaled BIGINT NOT NULL,
-                raw_row_count        BIGINT NULL,
-                effective_row_count  BIGINT NULL,
+                pbc_row_count BIGINT NOT NULL,
+                stored_row_count BIGINT NOT NULL,
+                stored_debit_scaled  BIGINT NOT NULL,
+                stored_credit_scaled BIGINT NOT NULL,
+                gl_row_count  BIGINT NULL,
                 excluded_by_period_count BIGINT NULL,
                 excluded_by_posting_status_count BIGINT NULL,
-                effective_debit_scaled  BIGINT NULL,
-                effective_credit_scaled BIGINT NULL
+                gl_debit_scaled  BIGINT NULL,
+                gl_credit_scaled BIGINT NULL
             );
-        IF COL_LENGTH('{s}.gl_control_total','raw_row_count') IS NULL
-            ALTER TABLE {s}.gl_control_total ADD raw_row_count BIGINT NULL;
-        IF COL_LENGTH('{s}.gl_control_total','effective_row_count') IS NULL
-            ALTER TABLE {s}.gl_control_total ADD effective_row_count BIGINT NULL;
-        IF COL_LENGTH('{s}.gl_control_total','excluded_by_period_count') IS NULL
-            ALTER TABLE {s}.gl_control_total ADD excluded_by_period_count BIGINT NULL;
-        IF COL_LENGTH('{s}.gl_control_total','excluded_by_posting_status_count') IS NULL
-            ALTER TABLE {s}.gl_control_total ADD excluded_by_posting_status_count BIGINT NULL;
-        IF COL_LENGTH('{s}.gl_control_total','effective_debit_scaled') IS NULL
-            ALTER TABLE {s}.gl_control_total ADD effective_debit_scaled BIGINT NULL;
-        IF COL_LENGTH('{s}.gl_control_total','effective_credit_scaled') IS NULL
-            ALTER TABLE {s}.gl_control_total ADD effective_credit_scaled BIGINT NULL;
 
-        IF OBJECT_ID(N'{s}.result_filter_run', N'U') IS NULL
-            CREATE TABLE {s}.result_filter_run (
-                scenario_position INT NOT NULL,
-                entry_id          BIGINT NOT NULL,
-                PRIMARY KEY (scenario_position, entry_id)
+        IF OBJECT_ID(N'{s}.filter_hit', N'U') IS NULL
+            CREATE TABLE {s}.filter_hit (
+                scenario_id INT NOT NULL,
+                entry_id    BIGINT NOT NULL,
+                PRIMARY KEY (scenario_id, entry_id)
             );
-        -- tag 矩陣查詢的輔助索引，與 SQLite 的 idx_result_filter_run_entry 相同：以 entry_id 開頭，
-        -- 讓「這筆分錄有沒有命中」與「一段 entry_id 範圍命中了哪些情境」都能走索引；主鍵以 scenario_position 開頭，
-        -- 不適合這兩種查詢。先查 sys.indexes 確認索引不存在才建立，不需升 schema 版本。
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_result_filter_run_entry' AND object_id = OBJECT_ID(N'{s}.result_filter_run'))
-            CREATE INDEX idx_result_filter_run_entry ON {s}.result_filter_run (entry_id, scenario_position);
+        -- 高風險條件彙總查詢的輔助索引，與 SQLite 的 idx_filter_hit_entry 相同：以 entry_id 開頭，
+        -- 讓「這筆分錄有沒有命中」與「一段 entry_id 範圍命中了哪些情境」都能走索引；主鍵以 scenario_id 開頭，
+        -- 不適合這兩種查詢。先查 sys.indexes 確認索引不存在才建立。
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_filter_hit_entry' AND object_id = OBJECT_ID(N'{s}.filter_hit'))
+            CREATE INDEX idx_filter_hit_entry ON {s}.filter_hit (entry_id, scenario_id);
+
+        -- 命中傳票裡每筆分錄符合第幾組第幾條，與 SQLite 的 filter_hit_condition 相同。
+        IF OBJECT_ID(N'{s}.filter_hit_condition', N'U') IS NULL
+            CREATE TABLE {s}.filter_hit_condition (
+                scenario_id  INT NOT NULL,
+                entry_id     BIGINT NOT NULL,
+                group_no     INT NOT NULL,
+                condition_no INT NOT NULL,
+                PRIMARY KEY (scenario_id, entry_id, group_no, condition_no)
+            );
         """;
 }

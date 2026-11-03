@@ -15,10 +15,9 @@
   var historyPage = 0;
   var historyNewestId = null;
   var HISTORY_PAGE_SIZE = Ui.REPORT_HISTORY_PAGE_SIZE;
-  var NO_SCENARIO_NOTICE = '還沒有已儲存的篩選情境，請先到「進階條件篩選」儲存，再匯出工作底稿。';
-  // 只在第五步真的有尚未儲存的條件時出現，取代原本常駐的「草稿不會自動納入」（使用者 2026-10-29 指出常駐說明太多）。
+  // 只在第五步真的有尚未儲存的條件時出現，取代原本常駐的「草稿不會自動納入」，常駐說明不再多寫（裁定 2026-10-29-02）。
   var UNSAVED_DRAFT_NOTICE = '「進階條件篩選」還有尚未儲存的條件，儲存成情境後才會納入底稿。';
-  // Pre-screening Report 預設納入輸出家族；使用者可取消，取消後只影響這一份。
+  // 預篩選報告預設納入輸出家族；使用者可取消，取消後只影響這一份。
   var includePrescreenReport = true;
 
   Ui.registerWorkflowReset(function () {
@@ -30,28 +29,28 @@
     includePrescreenReport = true;
   });
 
-  function runId(run) {
-    return run && run.resultRef ? run.resultRef.runId : null;
+  function resultId(run) {
+    return run && run.resultRef ? run.resultRef.resultId : null;
   }
 
-  /* Pre-screening Report 的匯出面決策。文案一律取自後端 renderer（Ui.prescreenPositioningCopy）；
+  /* 預篩選報告的匯出面決策。文案一律取自後端 renderer（Ui.prescreenPositioningCopy）；
      這裡只決定「勾了沒」「有沒有現行 prescreen run」「完整性適不適格」三個既有狀態的組合。 */
   function prescreenExportPlan(state) {
-    var eligibility = Ui.completenessEligibility(state.lastRuns.validate);
-    var currentRunId = state.staleState && state.staleState.prescreen ? null : runId(state.lastRuns.prescreen);
+    var eligibility = Ui.completenessEligibility(state.results.validate);
+    var currentResultId = state.staleState && state.staleState.prescreen ? null : resultId(state.results.prescreen);
     return {
-      positioning: Ui.prescreenPositioningCopy(state.lastRuns.prescreen),
+      positioning: Ui.prescreenPositioningCopy(state.results.prescreen),
       isEligible: eligibility.isEligible,
       gateReason: eligibility.reason,
-      currentRunId: currentRunId,
-      // 不適格時無法補跑，勾選也不生效：只產出 Working Paper。
-      included: includePrescreenReport && (!!currentRunId || eligibility.isEligible),
-      needsRun: includePrescreenReport && !currentRunId && eligibility.isEligible
+      currentResultId: currentResultId,
+      // 不適格時無法補跑，勾選也不生效：只產出工作底稿。
+      included: includePrescreenReport && (!!currentResultId || eligibility.isEligible),
+      needsRun: includePrescreenReport && !currentResultId && eligibility.isEligible
     };
   }
 
   function prescreenExportOptionHtml(plan) {
-    var blocked = includePrescreenReport && !plan.currentRunId && !plan.isEligible;
+    var blocked = includePrescreenReport && !plan.currentResultId && !plan.isEligible;
     var notice = plan.needsRun
       ? plan.positioning.exportPendingRunGuidance
       : (blocked
@@ -82,9 +81,10 @@
     return plan.included ? '產生工作底稿與預篩選報告' : '產生工作底稿';
   }
 
-  // 動機照列；只用自訂條件時自動產生的動機只是把條件再念一次，改列條件本身，和第五步的已儲存情境一致。
+  // 動機和第五步的已儲存情境用同一個列法（Ui.scenarioRationaleText）；沒有要列的動機時，改列條件本身。
   function scenarioOptionMetaHtml(scenario) {
-    if (!Ui.isGeneratedRationale(scenario.rationale)) { return Ui.esc(scenario.rationale); }
+    var rationale = Ui.scenarioRationaleText(scenario);
+    if (rationale) { return Ui.esc(rationale); }
     var readBack = Ui.FilterStep && Ui.FilterStep.readBackExpressionHtml;
     return (readBack && readBack({ groups: scenario.groups || [], __preserveJoins: true }, true)) || '已儲存篩選情境';
   }
@@ -93,6 +93,14 @@
     var resultRef = state.filterResultRef;
     if (!resultRef || resultRef.populationScope !== 'auditPeriod') { return null; }
     return resultRef.revision || null;
+  }
+
+  // 匯出按鈕可用的條件：有目前可用的資料驗證結果，而且已儲存的情境都能套用目前規則。沒有情境、或一個都沒勾選，
+  // 照樣能產生底稿（裁定 2026-10-29-16、2026-10-30-15）。
+  function canExportWorkingPaper(state) {
+    var hasScenarios = (state.filter.savedScenarios || []).length > 0;
+    return !!resultId(state.results.validate) && (!hasScenarios || !!filterRevision(state)) &&
+      Ui.completenessEligibility(state.results.validate).isEligible;
   }
 
   function allScenarioPositions(state) {
@@ -131,7 +139,6 @@
       );
     }).join('');
 
-    var empty = selectedScenarioPositions.length === 0;
     return (
       '<section class="scenario-export-selection" aria-labelledby="scenario-export-heading">' +
         '<div class="scenario-export-selection__head">' +
@@ -151,19 +158,17 @@
         '<div class="scenario-export-grid">' + options + '</div>' +
         '<p class="scenario-export-selection__count" data-bind="selected-scenario-count">已選 ' +
           selectedScenarioPositions.length + ' / ' + scenarios.length + ' 個情境</p>' +
-        '<p class="form-notice" data-bind="scenario-selection-error" data-collapsible' + (empty ? '' : ' hidden') +
-          '>請至少選擇一個已儲存篩選情境。</p>' +
       '</section>'
     );
   }
 
   // 工作表與資料列數描述的是某一版已存情境的匯出；上游修改清掉情境、或情境換了版本後就不再顯示
-  // （使用者 2026-10-15 裁定）。
+  // （裁定 2026-10-15-01）。
   function sheetStatsHtml(state) {
     if (!lastSheetStats || lastSheetStats.sheets.length === 0 || lastSheetStats.revision !== filterRevision(state)) { return ''; }
     var rows = lastSheetStats.sheets.map(function (sheet) {
       return '<tr><td>' + Ui.esc(sheet.sheetName) + '</td><td class="preview-table__amount">' +
-        Number(sheet.rowsWritten).toLocaleString('en-US') + '</td></tr>';
+        Ui.countText(sheet.rowsWritten) + '</td></tr>';
     }).join('');
     return (
       '<div class="preview-table__wrap">' +
@@ -178,11 +183,11 @@
   /* 完成摘要。
      設計稿把「完成」畫成第六個步驟；此處刻意只轉成本步驟內的完成狀態——
      流程仍是六步（最後一步＝匯出底稿），STEPS、閘門、進度持久化與 action 語意皆不變。
-     出現條件＝目前版本的工作底稿已產生（Ui.currentWorkpaperArtifact），與左側進度、流程總覽同一個判斷。
+     出現條件＝目前版本的工作底稿已產生（Ui.currentWorkingPaperReport），與左側進度、流程總覽同一個判斷。
      條件篩選報告是獨立輸出，不再是前置。 */
-  function completionSummaryHtml(criteriaArtifact, currentWorkpaper) {
-    if (!currentWorkpaper) { return ''; }
-    var tags = (criteriaArtifact ? ['條件篩選報告', '工作底稿'] : ['工作底稿']).map(function (kind) {
+  function completionSummaryHtml(criteriaReport, currentWorkingPaper) {
+    if (!currentWorkingPaper) { return ''; }
+    var tags = (criteriaReport ? ['條件篩選報告', '工作底稿'] : ['工作底稿']).map(function (kind) {
       return '<span class="completion__tag">' + Ui.esc(kind) + '</span>';
     }).join('');
     return (
@@ -207,40 +212,37 @@
 
     ensureScenarioSelection(state);
 
-    var validationRunId = runId(state.lastRuns.validate);
+    var validationResultId = resultId(state.results.validate);
     var scenarioRevision = filterRevision(state);
     var needsScenarioResave = state.filter.savedScenarios.length > 0 && !scenarioRevision;
-    // 沒有已儲存的情境時，第六步仍可因既有版本紀錄而進入查看，但不能匯出。
+    // 裁定 2026-10-29-16：沒有已儲存的情境也能產生工作底稿，第三、四步留空，由審計員在底稿說明。
     var noScenario = state.filter.savedScenarios.length === 0;
-    var criteriaArtifact = scenarioRevision
-      ? Ui.findCurrentReportArtifact(state, 'criteriaSelectionReport', {
-          validationRunId: validationRunId,
+    var criteriaReport = scenarioRevision
+      ? Ui.findCurrentReport(state, 'criteriaSelectionReport', {
+          validationResultId: validationResultId,
           scenarioRevision: scenarioRevision,
           scenarioPositions: allScenarioPositions(state)
         })
       : null;
-    var currentWorkpaper = Ui.currentWorkpaperArtifact(state);
-    var workpapers = Ui.reportArtifactHistory(state, 'workingPaper');
-    var newestId = workpapers.length ? workpapers[0].artifactId : null;
+    var currentWorkingPaper = Ui.currentWorkingPaperReport(state);
+    var workingPapers = Ui.reportHistory(state, 'workingPaper');
+    var newestId = workingPapers.length ? workingPapers[0].reportId : null;
     if (historyNewestId !== newestId) { historyPage = 0; historyNewestId = newestId; }
-    var pageCount = Math.max(1, Math.ceil(workpapers.length / HISTORY_PAGE_SIZE));
+    var pageCount = Math.max(1, Math.ceil(workingPapers.length / HISTORY_PAGE_SIZE));
     historyPage = Math.min(historyPage, pageCount - 1);
-    var visibleWorkpapers = workpapers.slice(historyPage * HISTORY_PAGE_SIZE, (historyPage + 1) * HISTORY_PAGE_SIZE);
-    var canExport = !!validationRunId && !!scenarioRevision &&
-      Ui.completenessEligibility(state.lastRuns.validate).isEligible && selectedScenarioPositions.length > 0;
+    var visibleWorkingPapers = workingPapers.slice(historyPage * HISTORY_PAGE_SIZE, (historyPage + 1) * HISTORY_PAGE_SIZE);
+    var canExport = canExportWorkingPaper(state);
     var prescreenPlan = prescreenExportPlan(state);
 
     container.innerHTML =
       '<div class="panel" data-motion-key="export-panel">' +
         '<h2 class="panel__title">匯出底稿</h2>' +
         (needsScenarioResave ? Ui.filterScenarioProblemsHtml(state) : '') +
-        // 還沒儲存情境是使用者接下來要去做的事，用琥珀色；紅色只留給執行失敗與資料錯誤（使用者 2026-10-11 裁定）。
-        (noScenario ? '<p class="form-notice form-notice--warning" data-bind="export-no-scenario">' + Ui.esc(NO_SCENARIO_NOTICE) + '</p>' : '') +
-        completionSummaryHtml(criteriaArtifact, currentWorkpaper) +
+        completionSummaryHtml(criteriaReport, currentWorkingPaper) +
         (noScenario ? '' : scenarioSelectionHtml(state)) +
         prescreenExportOptionHtml(prescreenPlan) +
         '<div class="panel__actions export-actions">' +
-          '<button type="button" class="btn" data-action="export-workpaper"' +
+          '<button type="button" class="btn" data-action="export-working-paper"' +
             (canExport ? '' : ' disabled') + '>' + Ui.esc(exportButtonLabel(prescreenPlan)) +
             '</button>' +
         '</div>' +
@@ -249,11 +251,11 @@
             '<h3 class="report-output__title">工作底稿版本紀錄</h3>' +
           '</div>' +
           // 翻頁是整頁換掉：新的一頁只淡入，不讓五十份文件卡一起收起又長出來；同一頁裡新產生的底稿才長出來。
-          '<div data-motion="fade" data-motion-key="workpapers-page-' + historyPage + '">' +
-          Ui.reportArtifactListHtml(visibleWorkpapers, '尚未產生工作底稿。', { history: true, reveal: true, motion: 'workpapers' }) +
+          '<div data-motion="fade" data-motion-key="workingPapers-page-' + historyPage + '">' +
+          Ui.reportListHtml(visibleWorkingPapers, '尚未產生工作底稿。', { history: true, reveal: true, motion: 'workingPapers' }) +
           '</div>' +
-          // 換頁沿用明細表的共用分頁外觀（使用者 2026-10-16 要求統一）；一頁仍是 50 份文件，只有一頁時不顯示。
-          Ui.pageControlsHtml(historyPage + 1, workpapers.length, { pageSize: HISTORY_PAGE_SIZE,
+          // 換頁沿用明細表的共用分頁外觀（裁定 2026-10-16-03）；一頁仍是 50 份文件，只有一頁時不顯示。
+          Ui.pageControlsHtml(historyPage + 1, workingPapers.length, { pageSize: HISTORY_PAGE_SIZE,
             previousAttribute: 'data-history-page="-1"', nextAttribute: 'data-history-page="1"' }) +
           sheetStatsHtml(state) +
         '</section>' +
@@ -274,16 +276,8 @@
       if (count) {
         count.textContent = '已選 ' + selectedScenarioPositions.length + ' / ' + inputs.length + ' 個情境';
       }
-      var empty = selectedScenarioPositions.length === 0;
-      var notice = container.querySelector('[data-bind="scenario-selection-error"]');
-      if (notice) { notice.hidden = !empty; }
-      var exportButton = container.querySelector('[data-action="export-workpaper"]');
-      if (exportButton) {
-        var state = Store.getState();
-        var revision = filterRevision(state);
-        exportButton.disabled = empty || !runId(state.lastRuns.validate) ||
-          !revision || !Ui.completenessEligibility(state.lastRuns.validate).isEligible;
-      }
+      var exportButton = container.querySelector('[data-action="export-working-paper"]');
+      if (exportButton) { exportButton.disabled = !canExportWorkingPaper(Store.getState()); }
     }
 
     inputs.forEach(function (input) { input.addEventListener('change', sync); });
@@ -299,7 +293,7 @@
     var clearButton = container.querySelector('[data-action="clear-scenario-selection"]');
     if (clearButton) {
       clearButton.addEventListener('click', function () {
-        // 清除時被取消勾選的情境先輕微晃一下，讓使用者知道哪些被拿掉了（使用者 2026-10-13 要求）。
+        // 清除時被取消勾選的情境先輕微晃一下，讓使用者知道哪些被拿掉了（裁定 2026-10-13-13）。
         // 只晃原本有勾的；東西不會離開畫面，所以直接用 shake，不經過 removing。
         if (global.JetMotion && typeof global.JetMotion.shake === 'function') {
           var cleared = [];
@@ -328,10 +322,10 @@
   }
 
   /* 匯出面的既有 action 序列編排。三個 action 的 payload、response 與判定語意都不變：
-     沒有現行 prescreen run 時先 prescreen.run，再 export.prescreenReport，最後 export.workpaperStream。
+     沒有現行 prescreen run 時先 prescreen.run，再 export.prescreenReport，最後 export.workingPaperStream。
      任一步失敗或取消就停止後續；已完成的 action 保留其產物，各 action 各自維持原子性。 */
-  function exportPrescreenReportForRun(sourceRunId, project, payload) {
-    return global.JetApi.exportPrescreenReport({ runId: sourceRunId }).then(function (data) {
+  function exportPrescreenReportForRun(sourceResultId, project, payload) {
+    return global.JetApi.exportPrescreenReport({ resultId: sourceResultId }).then(function (data) {
       requireExportActive(project, payload, true);
       Store.applyReportExport(data);
       Store.addMessage('已在案件資料夾產生預篩選報告。', 'info');
@@ -342,15 +336,15 @@
   function runPrescreenForExport(project, payload) {
     return global.JetApi.prescreenRun({}).then(function (data) {
       requireExportActive(project, payload, true);
-      // 不再另記「預篩選已完成，接著產生預篩選報告」（使用者 2026-10-13 勾選頁確認刪除 50）。
-      Store.setLastRun('prescreen', data);
-      return runId(data);
+      // 不再另記「預篩選已完成，接著產生預篩選報告」（裁定 2026-10-13-28）。
+      Store.setResult('prescreen', data);
+      return resultId(data);
     });
   }
 
-  // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）。
-  function exportWorkpaper(payload, project) {
-    return global.JetApi.exportWorkpaperStream(payload).then(function (data) {
+  // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
+  function exportWorkingPaper(payload, project) {
+    return global.JetApi.exportWorkingPaperStream(payload).then(function (data) {
       requireExportActive(project, payload, true);
       lastSheetStats = { revision: payload.scenarioRevision, sheets: data.sheetStats || [] };
       Store.applyReportExport(data);
@@ -358,14 +352,14 @@
     });
   }
 
-  function workpaperCompletionMessage(data) {
+  function workingPaperCompletionMessage(data) {
     return data ? '已在案件資料夾產生工作底稿（' + (data.sheetStats || []).length + ' 張工作表）。' : '';
   }
 
   function requireExportActive(project, payload, completed) {
     var state = Store.getState();
     if ((!completed && state.cancellationRequested) || state.project !== project
-        || runId(state.lastRuns.validate) !== payload.validationRunId
+        || resultId(state.results.validate) !== payload.validationResultId
         || filterRevision(state) !== payload.scenarioRevision) {
       var error = new Error('後續底稿產生已取消，已完成的報告會保留。');
       error.code = 'operation_cancelled';
@@ -375,7 +369,7 @@
   }
 
   function bind(container) {
-    Ui.bindReportArtifacts(container);
+    Ui.bindReports(container);
     Array.prototype.forEach.call(container.querySelectorAll('[data-history-page]'), function (button) {
       button.addEventListener('click', function () {
         historyPage += Number(button.getAttribute('data-history-page'));
@@ -385,29 +379,28 @@
     bindScenarioSelection(container);
     bindPrescreenExportOption(container);
 
-    var button = container.querySelector('[data-action="export-workpaper"]');
+    var button = container.querySelector('[data-action="export-working-paper"]');
     if (!button) { return; }
     button.addEventListener('click', function () {
       var state = Store.getState();
       var project = state.project;
       var payload = {
-        validationRunId: runId(state.lastRuns.validate),
+        validationResultId: resultId(state.results.validate),
         scenarioRevision: filterRevision(state),
         scenarioPositions: selectedScenarioPositions.slice()
       };
-      if (!payload.validationRunId || !payload.scenarioRevision ||
-          payload.scenarioPositions.length === 0) { return; }
+      if (!canExportWorkingPaper(state)) { return; }
 
       var plan = prescreenExportPlan(state);
       if (!plan.included) {
         Ui.run('產生工作底稿', function () {
           requireExportActive(project, payload);
-          return exportWorkpaper(payload, project);
-        }, { completionMessage: workpaperCompletionMessage });
+          return exportWorkingPaper(payload, project);
+        }, { completionMessage: workingPaperCompletionMessage });
         return;
       }
 
-      // 要先補跑預篩選、第四步又有還沒儲存的科目分類時，和第四步的「執行預篩選」一樣先問（使用者 2026-10-15 裁定）。
+      // 要先補跑預篩選、第四步又有還沒儲存的科目分類時，和第四步的「執行預篩選」一樣先問（裁定 2026-10-15-01）。
       // 選「儲存並繼續」會清掉已存情境，這次匯出就不再送出。
       if (plan.needsRun && Ui.pendingAccountCategoryCount()) {
         Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存，直接執行').then(function (proceed) {
@@ -421,16 +414,16 @@
       function exportWithPrescreen() {
         Ui.run('產生工作底稿與預篩選報告', function () {
           requireExportActive(project, payload);
-          return Promise.resolve(plan.needsRun ? runPrescreenForExport(project, payload) : plan.currentRunId)
-            .then(function (sourceRunId) {
+          return Promise.resolve(plan.needsRun ? runPrescreenForExport(project, payload) : plan.currentResultId)
+            .then(function (sourceResultId) {
               requireExportActive(project, payload);
-              return exportPrescreenReportForRun(sourceRunId, project, payload);
+              return exportPrescreenReportForRun(sourceResultId, project, payload);
             })
             .then(function () {
               requireExportActive(project, payload);
-              return exportWorkpaper(payload, project);
+              return exportWorkingPaper(payload, project);
             });
-        }, { completionMessage: workpaperCompletionMessage });
+        }, { completionMessage: workingPaperCompletionMessage });
       }
     });
   }

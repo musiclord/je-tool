@@ -32,7 +32,7 @@
     if (!allowed.includes(action)) throw new Error('此操作需在 JET 桌面程式執行；目前頁面僅供畫面預覽。');
     const keys = ['populationScope', 'scenario'];
     if (action !== 'filter.preview') keys.push('pageSize', 'cursor', 'sort', 'search', 'queryRevision');
-    if (action === 'query.filterVoucherRowsPage') keys.push('documentNumber');
+    if (action === 'query.filterVoucherRowsPage') keys.push('voucherNumber');
     if (Object.keys(p).some(key => !keys.includes(key)) || p.populationScope !== 'auditPeriod' ||
         p.cursor != null || p.sort != null || (p.search != null && p.search !== '') ||
         (p.pageSize != null && p.pageSize !== 50)) throw new Error('此查詢尚未準備合成回應；預覽不會自行計算或排序。');
@@ -41,7 +41,7 @@
     if (p.queryRevision != null && p.queryRevision !== fixture.page.queryRevision) throw new Error('合成結果版本不符，請重新載入固定情境。');
     if (action === 'filter.preview') return structuredClone(fixture.preview);
     if (action === 'query.filterVoucherPage') return structuredClone(fixture.page);
-    if (!fixture.detail || p.documentNumber !== 'DEMO-B' || p.queryRevision !== fixture.page.queryRevision)
+    if (!fixture.detail || p.voucherNumber !== 'DEMO-B' || p.queryRevision !== fixture.page.queryRevision)
       throw new Error('此傳票尚未準備合成明細。');
     return structuredClone(fixture.detail);
   }

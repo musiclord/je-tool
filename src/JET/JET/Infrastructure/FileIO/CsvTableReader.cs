@@ -252,7 +252,7 @@ public sealed class CsvTableReader : ITabularFileReader
         }
         catch (DecoderFallbackException ex)
         {
-            // V8：自動偵測時，檢視、預覽與匯入的呼叫端不知道選了哪個編碼；這裡記下實際用來解碼的編碼，支援日誌才不是 unknown。
+            // 自動偵測時，檢視、預覽與匯入的呼叫端不知道選了哪個編碼；這裡記下實際用來解碼的編碼，支援日誌才不是 unknown。
             ImportFailureDiagnostics.Attach(ex, new ImportFailureContext(ImportFailureStage.Header,
                 Encoding: EncodingDetector.WireNameOf(encoding), ReaderVersion: ReaderVersion));
             throw SourceFileErrors.CannotDecode(filePath, encoding, ex);

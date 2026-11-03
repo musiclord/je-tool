@@ -7,7 +7,7 @@ internal sealed record SmeScenario(string Name, JsonObject Wire, Func<SmeOracle,
 
 /// <summary>
 /// 兩組情境：常用篩選條件的十項（SQLite 案件）與審計員自訂的十項（DuckDB 案件）。條件形狀比照前端
-/// newFilterRule 的預設欄位與送出前的整理，讓存進案件的定義和在畫面上操作存下的一樣。
+/// newFilterCondition 的預設欄位與送出前的整理，讓存進案件的定義和在畫面上操作存下的一樣。
 /// categoryIds 依分類名稱查表，分類 ID 由後端在分類設定儲存時產生。
 /// </summary>
 internal static class SmeScenarios
@@ -22,7 +22,7 @@ internal static class SmeScenarios
             CommonScenario("季底前 10 天借記收入",
                 "季底與期末前 10 天內收入科目有借方分錄，可能是認列後的不當迴轉；案件團隊依客戶退貨週期訂為 10 天。",
                 [Rule("revenueDebitNearQuarterEnd", rule => rule["windowDays"] = "10")], ["revenueDebitNearQuarterEnd"],
-                oracle => oracle.Select(line => oracle.Role(line) == "revenue" && line.Debit > 0m && SmeOracle.NearQuarterEnd(line.PostDate, 10))),
+                oracle => oracle.Select(line => oracle.Role(line) == "revenue" && line.Debit > 0m && SmeOracle.NearQuarterEnd(line.GlDate, 10))),
             CommonScenario("借記固定資產且貸記費用",
                 "借固定資產、貸營業費用或製造費用的組合不符合正常營業流程，可能把費用不當資本化；在建工程另列分類，不在固定資產底下。",
                 [Rule("specialAccountCategoryPair", rule =>
@@ -42,7 +42,7 @@ internal static class SmeScenarios
                 oracle => oracle.Select(line => oracle.Role(line) == "revenue" && line.IsManual)),
             CommonScenario("總經理與財務經理建立之分錄",
                 "高階主管不預期會自己編製傳票，且有能力直接或間接操縱會計紀錄。",
-                [FieldValue("createBy", "in", values: [SmePeople.GeneralManager, SmePeople.FinanceManager])], ["specificPreparer"],
+                [FieldValue("createdBy", "in", values: [SmePeople.GeneralManager, SmePeople.FinanceManager])], ["specificPreparer"],
                 oracle => oracle.Select(line => line.CreatedBy is SmePeople.GeneralManager or SmePeople.FinanceManager)),
             CommonScenario("特定摘要（預設字詞加更正、補登）",
                 "摘要出現調整、迴轉、沖銷、更正、補登等字詞的分錄，常是期末調整或事後補記。",
@@ -63,7 +63,7 @@ internal static class SmeScenarios
             CommonScenario("非營業日之分錄",
                 "週末與國定假日入帳的分錄；2 月 8 日補班日照常上班，不列入。",
                 [NonBusinessDayGroup()], ["nonBusinessDay"],
-                oracle => oracle.Select(line => SmeCalendar.IsNonBusinessDay(line.PostDate))),
+                oracle => oracle.Select(line => SmeCalendar.IsNonBusinessDay(line.GlDate))),
             CommonScenario("編製與核准同一人",
                 "同一人編製並核准傳票，缺少職能分工。",
                 [Rule("preparerEqualsApprover")], ["preparerEqualsApprover"],
@@ -85,27 +85,27 @@ internal static class SmeScenarios
                     Rule("numRange", rule => rule["from"] = "1000000"),
                 ]],
                 oracle => oracle.Select(line =>
-                    line.PostDate >= new DateOnly(2025, 12, 20) && line.IsManual && line.Amount >= 1_000_000m)),
+                    line.GlDate >= new DateOnly(2025, 12, 20) && line.IsManual && line.Amount >= 1_000_000m)),
             CustomScenario("非營業日重大交易或總經理經手",
                 "非營業日入帳且金額 50 萬元以上，或總經理親自建立的分錄，兩者擇一即列入覆核。",
                 [
                     [NonBusinessDayGroup(), Rule("numRange", rule => rule["from"] = "500000")],
                     [Rule("text", rule =>
                     {
-                        rule["field"] = "createBy";
+                        rule["field"] = "createdBy";
                         rule["mode"] = "exact";
                         rule["keywords"] = SmePeople.GeneralManager;
                     })],
                 ],
                 oracle => oracle.Select(line =>
-                    (SmeCalendar.IsNonBusinessDay(line.PostDate) && line.Amount >= 500_000m)
+                    (SmeCalendar.IsNonBusinessDay(line.GlDate) && line.Amount >= 500_000m)
                     || line.CreatedBy == SmePeople.GeneralManager),
                 secondGroupJoin: "OR"),
             CustomScenario("關係人資金往來",
                 "借記其他應收款-關係人的傳票，列出整張傳票檢查資金流向與核准。",
-                [[Voucher("debit", "any", FieldValue("accNum", "in", values: ["1191"]))]],
+                [[Voucher("debit", "any", FieldValue("accountNumber", "in", values: ["1191"]))]],
                 oracle => oracle.Select(line =>
-                    oracle.VoucherOf(line).Any(other => other.Debit > 0m && other.AccountCode == "1191"))),
+                    oracle.VoucherOf(line).Any(other => other.Debit > 0m && other.AccountNumber == "1191"))),
             CustomScenario("未授權人員建立之分錄",
                 "傳票建立人員不在 ERP 權限清單，包括總經理、工讀生與帳號未停用的離職人員。",
                 [[Rule("prescreen", rule => rule["prescreenKey"] = "nonAuthorizedPreparer")]],
@@ -113,12 +113,12 @@ internal static class SmeScenarios
             CustomScenario("應付帳款轉列其他收入",
                 "同一張傳票借記應付帳款、貸記其他收入，可能是把未付貨款私下轉成收入。",
                 [[
-                    FieldValue("accNum", "in", values: ["2170", "2171", "2180"], drCr: "debit"),
-                    FieldValue("accNum", "in", values: ["7190"], drCr: "credit"),
+                    FieldValue("accountNumber", "in", values: ["2170", "2171", "2180"], drCr: "debit"),
+                    FieldValue("accountNumber", "in", values: ["7190"], drCr: "credit"),
                 ]],
                 oracle => oracle.Select(line =>
-                    line.Debit > 0m && line.AccountCode is "2170" or "2171" or "2180"
-                    && oracle.VoucherOf(line).Any(other => other.Credit > 0m && other.AccountCode == "7190")),
+                    line.Debit > 0m && line.AccountNumber is "2170" or "2171" or "2180"
+                    && oracle.VoucherOf(line).Any(other => other.Credit > 0m && other.AccountNumber == "7190")),
                 voucherWitnesses: true),
             CustomScenario("現金及銀行支出未寫摘要",
                 "貸記現金或銀行存款卻沒有摘要的分錄，無法從帳上判斷付款用途。",
@@ -130,9 +130,9 @@ internal static class SmeScenarios
                     line.Credit > 0m && oracle.InSubtree(line, SmeChart.Cash) && SmeOracle.IsBlank(line.Description))),
             CustomScenario("分錄 20 筆以下的編製人員",
                 "全年分錄很少的編製人員不熟悉入帳流程，或是不應入帳的人員。",
-                // 預篩選收斂計畫階段九把舊式 customPreparerEntryCount 列為停用寫法，改成等價的「科目與人員統計」；獨立答案不變。
+                // 舊式 customPreparerEntryCount 在 2026-10-24 列為停用寫法，之後已從產品拿掉；這裡用等價的「科目與人員統計」，獨立答案不變。
                 // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（TaiwanSmeLargeCaseTests 的 custom 情境組儲存時回「已停用」）。
-                [[EntityFrequency("createBy", "entries", "lessThanOrEqual", "20")]],
+                [[EntityFrequency("createdBy", "entries", "lessThanOrEqual", "20")]],
                 oracle =>
                 {
                     var counts = oracle.PreparerCounts();
@@ -171,7 +171,7 @@ internal static class SmeScenarios
         ];
     }
 
-    /// <summary>前端 newFilterRule(type) 的預設欄位，再套上覆寫值。</summary>
+    /// <summary>前端 newFilterCondition(type) 的預設欄位，再套上覆寫值。</summary>
     public static JsonObject Rule(string type, Action<JsonObject>? overrides = null)
     {
         var rule = new JsonObject
@@ -179,8 +179,8 @@ internal static class SmeScenarios
             ["join"] = "AND",
             ["type"] = type,
             ["prescreenKey"] = "suspiciousKeywords",
-            ["field"] = type == "dateRange" ? "postDate" : type == "numRange" ? "amount" : "description",
-            ["keywords"] = type == "trailingDigits" ? "000000" : type == "customKeywords" ? KeywordText : string.Empty,
+            ["field"] = type == "dateRange" ? "glDate" : type == "numRange" ? "amount" : "description",
+            ["keywords"] = string.Empty,
             ["values"] = new JsonArray(),
             ["mode"] = "contains",
             ["normalization"] = "preserve",
@@ -201,14 +201,12 @@ internal static class SmeScenarios
         rule["operator"] = string.Empty;
         rule["amountBasis"] = "absolute";
         rule["value"] = string.Empty;
-        rule["digits"] = "3";
-        rule["maxEntries"] = type is "customPreparerEntryCount" or "customAccountEntryCount" ? "11" : string.Empty;
         rule["windowDays"] = string.Empty;
         overrides?.Invoke(rule);
         return rule;
     }
 
-    /// <summary>前端 newFilterRule('entityFrequency') 的形狀：統計對象、計算單位、比較方式與次數。</summary>
+    /// <summary>前端 newFilterCondition('entityFrequency') 的形狀：統計對象、計算單位、比較方式與次數。</summary>
     private static JsonObject EntityFrequency(string field, string countUnit, string countOperator, string countFrom) => new()
     {
         ["join"] = "AND",
@@ -253,22 +251,22 @@ internal static class SmeScenarios
     private static JsonObject Direction(string side) => new() { ["type"] = "drCrOnly", ["drCr"] = side, ["join"] = "AND" };
     private static JsonObject Group(params JsonObject[] rules) => new()
     {
-        ["type"] = "group", ["join"] = "AND", ["rules"] = new JsonArray(rules.Select(rule => (JsonNode)rule).ToArray())
+        ["type"] = "group", ["join"] = "AND", ["conditions"] = new JsonArray(rules.Select(rule => (JsonNode)rule).ToArray())
     };
 
-    /// <summary>非營業日卡片的條件括號：總帳日期是非營業日（排除補班日）。</summary>
+    /// <summary>非營業日卡片的子條件組：總帳日期是非營業日（排除補班日）。</summary>
     private static JsonObject NonBusinessDayGroup() => new()
     {
         ["type"] = "group",
         ["join"] = "AND",
-        ["rules"] = new JsonArray(FieldValue("postDate", "isNonBusinessDay")),
+        ["conditions"] = new JsonArray(FieldValue("glDate", "isNonBusinessDay")),
     };
 
     private static JsonObject Voucher(string side, string quantifier, params JsonObject[] rules) => new()
     {
         ["type"] = "voucher",
         ["join"] = "AND",
-        ["rules"] = new JsonArray(new[] { Direction(side) }.Concat(rules).Select(rule => (JsonNode)rule).ToArray()),
+        ["conditions"] = new JsonArray(new[] { Direction(side) }.Concat(rules).Select(rule => (JsonNode)rule).ToArray()),
         ["quantifier"] = quantifier,
     };
 
@@ -282,7 +280,7 @@ internal static class SmeScenarios
             ["groups"] = new JsonArray(new JsonObject
             {
                 ["join"] = "AND",
-                ["rules"] = new JsonArray(rules.Select(rule => (JsonNode)rule).ToArray()),
+                ["conditions"] = new JsonArray(rules.Select(rule => (JsonNode)rule).ToArray()),
             }),
             ["editorOrigins"] = Origins([cards]),
             ["source"] = "common",
@@ -302,8 +300,8 @@ internal static class SmeScenarios
         for (var i = 0; i < groups.Length; i++)
         {
             var group = new JsonObject { ["join"] = i > 0 && secondGroupJoin is not null ? secondGroupJoin : "AND" };
-            group["rules"] = new JsonArray(groups[i].Select((rule, index) => (JsonNode)(voucherWitnesses && index > 0
-                ? new JsonObject { ["type"] = "voucher", ["join"] = "AND", ["quantifier"] = "any", ["rules"] = new JsonArray(rule) }
+            group["conditions"] = new JsonArray(groups[i].Select((rule, index) => (JsonNode)(voucherWitnesses && index > 0
+                ? new JsonObject { ["type"] = "voucher", ["join"] = "AND", ["quantifier"] = "any", ["conditions"] = new JsonArray(rule) }
                 : rule)).ToArray());
             wireGroups.Add(group);
         }

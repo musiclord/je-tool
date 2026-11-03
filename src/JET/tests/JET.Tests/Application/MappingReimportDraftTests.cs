@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 2026-10-03 O3：重新匯入 GL 或 TB 之後、還沒重新確認以前，重開案件要帶回上次確認的配對當草稿；
+/// 重新匯入 GL 或 TB 之後、還沒重新確認以前，重開案件要帶回上次確認的配對當草稿；
 /// 草稿裡的攸關資料元素欄位身分要能原樣送回，已儲存情境裡指到這些欄位的條件才對得上。資料全是合成的。
 /// </summary>
 public sealed class MappingReimportDraftTests
@@ -44,13 +44,13 @@ public sealed class MappingReimportDraftTests
         Assert.Equal(JsonValueKind.Null, reopened.GetProperty("mapping").GetProperty("gl").ValueKind);
         Assert.Equal(JsonValueKind.Null, reopened.GetProperty("mapping").GetProperty("tb").ValueKind);
         var previousGl = reopened.GetProperty("previousMapping").GetProperty("gl");
-        Assert.Equal("Document", previousGl.GetProperty("mapping").GetProperty("docNum").GetString());
+        Assert.Equal("Document", previousGl.GetProperty("mapping").GetProperty("voucherNumber").GetString());
         Assert.Equal("signed", previousGl.GetProperty("amountMode").GetString());
         var previousRde = Assert.Single(previousGl.GetProperty("rdeFields").EnumerateArray());
         Assert.Equal(fieldId, previousRde.GetProperty("fieldId").GetString());
         Assert.Equal("Dept", previousRde.GetProperty("sourceColumn").GetString());
         var previousTb = reopened.GetProperty("previousMapping").GetProperty("tb");
-        Assert.Equal("Account", previousTb.GetProperty("mapping").GetProperty("accNum").GetString());
+        Assert.Equal("Account", previousTb.GetProperty("mapping").GetProperty("accountNumber").GetString());
         Assert.Equal("direct", previousTb.GetProperty("changeMode").GetString());
 
         // 草稿原樣送回：沿用上次發出的欄位身分，後端接受，身分不變。
@@ -107,13 +107,13 @@ public sealed class MappingReimportDraftTests
                 amountMode = "signed",
                 mapping = new
                 {
-                    docNum = "Document", postDate = "Date", accNum = "Account", accName = "Name",
-                    description = "Description", amount = "Amount", manual = "Flag"
+                    voucherNumber = "Document", glDate = "Date", accountNumber = "Account", accountName = "Name",
+                    description = "Description", amount = "Amount", isManual = "Flag"
                 }
             })));
 
         Assert.Equal(JET.Domain.JetErrorCodes.ProjectionFailed, error.Code);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.StartsWith("有 3 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
         Assert.Collection(
@@ -134,7 +134,7 @@ public sealed class MappingReimportDraftTests
     {
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "Synthetic reimport", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "Synthetic reimport", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         return created.GetProperty("projectId").GetString()!;
     }
@@ -147,7 +147,7 @@ public sealed class MappingReimportDraftTests
         amountMode = "signed",
         mapping = new
         {
-            docNum = "Document", postDate = "Date", accNum = "Account", accName = "Name",
+            voucherNumber = "Document", glDate = "Date", accountNumber = "Account", accountName = "Name",
             description = "Description", amount = "Amount"
         },
         rdeFields = new object[]
@@ -161,7 +161,7 @@ public sealed class MappingReimportDraftTests
     private static readonly string TbCommitPayload = JsonSerializer.Serialize(new
     {
         changeMode = "direct",
-        mapping = new { accNum = "Account", accName = "Name", amount = "Change" }
+        mapping = new { accountNumber = "Account", accountName = "Name", changeAmount = "Change" }
     });
 
     private static string[][] GlRows(string dept) =>

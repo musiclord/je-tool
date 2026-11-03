@@ -269,7 +269,7 @@ public sealed class AccountMappingTemplatePackageDiffTests
                 Assert.Equal(
                     new[] { $"A{rowNumber}", $"B{rowNumber}", $"C{rowNumber}" },
                     cells.Keys.Order(StringComparer.Ordinal).ToArray());
-                Assert.Equal(expectedRows[index].AccountCode, InlineText(cells[$"A{rowNumber}"]));
+                Assert.Equal(expectedRows[index].AccountNumber, InlineText(cells[$"A{rowNumber}"]));
                 Assert.Equal(15U, ParseUInt(cells[$"A{rowNumber}"].Attribute("s")));
                 Assert.Equal(expectedRows[index].AccountName ?? string.Empty, InlineText(cells[$"B{rowNumber}"]));
                 Assert.Equal(16U, ParseUInt(cells[$"B{rowNumber}"].Attribute("s")));

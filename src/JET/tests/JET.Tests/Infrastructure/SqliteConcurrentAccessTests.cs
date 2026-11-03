@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 2026-10-05 最後獨立複審 V6：第 9 批把長作業移到背景後，其他要求可以同時讀案件資料庫。
+/// 裁定 2026-10-05-01：長作業移到背景後，其他要求要能同時讀案件資料庫。
 /// SQLite 案件資料庫用 WAL；連線若共用快取，一條連線的寫入還沒提交時，別的連線讀同一張表要等到逾時才失敗。
 /// 這裡要求讀取不等寫入，讀到的是上一次提交的資料；兩條寫入仍然依序進行，前一條提交後下一條就完成。
 /// </summary>
@@ -23,7 +23,7 @@ public sealed class SqliteConcurrentAccessTests
         await connection.OpenAsync();
         await using var seed = connection.CreateCommand();
         seed.CommandText =
-            "INSERT INTO target_tb_balance (batch_id, source_row_number, account_code, account_name, change_amount_scaled) " +
+            "INSERT INTO tb (batch_id, source_row_number, account_number, account_name, change_amount_scaled) " +
             "VALUES ('committed', 1, '1101', '現金', 100);";
         await seed.ExecuteNonQueryAsync();
         return db;
@@ -42,7 +42,7 @@ public sealed class SqliteConcurrentAccessTests
         {
             insert.Transaction = transaction;
             insert.CommandText =
-                "INSERT INTO target_tb_balance (batch_id, source_row_number, account_code, account_name, change_amount_scaled) " +
+                "INSERT INTO tb (batch_id, source_row_number, account_number, account_name, change_amount_scaled) " +
                 "VALUES ('pending', 1, '2101', '應付帳款', -100);";
             await insert.ExecuteNonQueryAsync();
         }
@@ -50,7 +50,7 @@ public sealed class SqliteConcurrentAccessTests
         await using var reader = db.CreateConnection(ProjectId);
         await reader.OpenAsync();
         await using var count = reader.CreateCommand();
-        count.CommandText = "SELECT COUNT(*) FROM target_tb_balance;";
+        count.CommandText = "SELECT COUNT(*) FROM tb;";
         count.CommandTimeout = 5;
         var watch = Stopwatch.StartNew();
         var rows = Convert.ToInt64(await count.ExecuteScalarAsync());
@@ -74,7 +74,7 @@ public sealed class SqliteConcurrentAccessTests
         {
             insert.Transaction = transaction;
             insert.CommandText =
-                "INSERT INTO target_tb_balance (batch_id, source_row_number, account_code, account_name, change_amount_scaled) " +
+                "INSERT INTO tb (batch_id, source_row_number, account_number, account_name, change_amount_scaled) " +
                 "VALUES ('first', 1, '2101', '應付帳款', -100);";
             await insert.ExecuteNonQueryAsync();
         }
@@ -85,7 +85,7 @@ public sealed class SqliteConcurrentAccessTests
             await connection.OpenAsync();
             await using var append = connection.CreateCommand();
             append.CommandText =
-                "INSERT INTO app_message_log (occurred_utc, level, text) VALUES ('2026-10-05T00:00:00Z', 'info', '合成訊息');";
+                "INSERT INTO message_log (occurred_utc, level, text) VALUES ('2026-10-05T00:00:00Z', 'info', '合成訊息');";
             append.CommandTimeout = 10;
             await append.ExecuteNonQueryAsync();
         });
@@ -97,7 +97,7 @@ public sealed class SqliteConcurrentAccessTests
         await second.WaitAsync(TimeSpan.FromSeconds(10));
 
         await using var check = first.CreateCommand();
-        check.CommandText = "SELECT (SELECT COUNT(*) FROM target_tb_balance) * 10 + (SELECT COUNT(*) FROM app_message_log);";
+        check.CommandText = "SELECT (SELECT COUNT(*) FROM tb) * 10 + (SELECT COUNT(*) FROM message_log);";
         Assert.Equal(21L, Convert.ToInt64(await check.ExecuteScalarAsync()));
     }
 }

@@ -31,7 +31,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
-        var taxonomy = await repositories.AccountTaxonomy.ReadAsync(projectId, cancellationToken);
+        var categorySnapshot = await repositories.AccountCategories.ReadAsync(projectId, cancellationToken);
 
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
         var fileName = ImportSourceFileName.Resolve(
@@ -50,7 +50,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
 
         var request = new TabularSourceRequest(filePath);
         var source = new ImportSourceDescriptor(filePath, fileName, null, null, null);
-        // V11 的引號內換行提醒也適用科目配對檔（低嚴重度事項，使用者 2026-10-19 要求處理）。
+        // 引號內換行的提醒也適用科目配對檔（裁定 2026-10-19-06）。
         var lineBreaks = new QuotedLineBreakTally();
 
         var facts = await Task.Run(
@@ -61,7 +61,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                 AccountMappingProjection projection;
                 try
                 {
-                    projection = JetAuditProgram.PrepareAccountMappingProjection(columns, taxonomy);
+                    projection = JetAuditProgram.PrepareAccountMappingProjection(columns, categorySnapshot);
                 }
                 catch (JetActionException) when (extension == ".xlsx")
                 {
@@ -70,7 +70,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                     // 這兩列是舊範本固定的版面，不是審計員指定的欄名列（2026-10-28 複審）。
                     effectiveRequest = request with { LeadingRowsToSkip = 2, FixedLeadingRows = true };
                     columns = await reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
-                    projection = JetAuditProgram.PrepareAccountMappingProjection(columns, taxonomy);
+                    projection = JetAuditProgram.PrepareAccountMappingProjection(columns, categorySnapshot);
                 }
 
                 var rows = lineBreaks.Tally(reader.ReadRowsAsync(effectiveRequest, cancellationToken), cancellationToken);
@@ -86,8 +86,8 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
         var result = JetAuditProgram.Finalize(plan, facts);
         var lineBreakWarning = lineBreaks.Warning(fileName, sourceNo: 1, logger);
         string[] warnings = lineBreakWarning is null ? [] : [lineBreakWarning];
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         AccountMappingDifferenceCounts? differences = null;
         try
         {
@@ -115,8 +115,8 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             warnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning
         };
     }
 

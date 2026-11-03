@@ -46,40 +46,40 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
 
         // 案件的資料庫組在建案時就選定：建案過程與成功後的 session 都用這一組，不另外回頭讀 project.json。
         var repositories = repositoryCatalog.For(databaseProvider);
-        var caseCreateFactsPort = repositories.CaseCreateFacts;
+        var projectCreateFactsPort = repositories.ProjectCreateFacts;
 
-        // 選填 caseName:有值則驗證 + 唯一性檢查並作為 projectId/資料夾名;無值回退 GUID(既有程式化/測試建立行為)。
-        var caseNameRaw = PayloadReader.GetOptionalString(payload, "caseName");
+        // 選填 projectName:有值則驗證 + 唯一性檢查並作為 projectId/資料夾名;無值回退 GUID(既有程式化/測試建立行為)。
+        var projectNameRaw = PayloadReader.GetOptionalString(payload, "projectName");
         // 正式畫面明確送來的空白名稱應就地修正；未提供名稱的程式化建立仍保留既有GUID行為。
-        if (payload.TryGetProperty("caseName", out var caseNameValue)
-            && caseNameValue.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(caseNameRaw))
+        if (payload.TryGetProperty("projectName", out var projectNameValue)
+            && projectNameValue.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(projectNameRaw))
             throw new JetActionException(JetErrorCodes.InvalidPayload,
-                "案件名稱不可為空白。請輸入案件名稱後再建立。", JetErrorFields.CaseName);
+                "案件名稱不可為空白。請輸入案件名稱後再建立。", JetErrorFields.ProjectName);
         string projectId;
-        if (!string.IsNullOrWhiteSpace(caseNameRaw))
+        if (!string.IsNullOrWhiteSpace(projectNameRaw))
         {
-            var caseName = caseNameRaw.Trim();
-            var nameError = ProjectNameRules.Validate(caseName);
+            var projectName = projectNameRaw.Trim();
+            var nameError = ProjectNameRules.Validate(projectName);
             if (nameError is not null)
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidPayload,
                     nameError,
-                    JetErrorFields.CaseName);
+                    JetErrorFields.ProjectName);
             }
 
             // 同名資料夾即視為重複(provider 無關;sqlServer 的後端殘留檢查在 projectId 決定後、
             // 落檔前另行執行,見下)。
             SupportOperationStage.Enter("name_check");
-            if (await projectStore.FindAsync(caseName, cancellationToken) is not null)
+            if (await projectStore.FindAsync(projectName, cancellationToken) is not null)
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidPayload,
-                    $"案件名稱「{caseName}」已存在，請改用其他名稱。",
-                    JetErrorFields.CaseName);
+                    $"案件名稱「{projectName}」已存在，請改用其他名稱。",
+                    JetErrorFields.ProjectName);
             }
 
-            projectId = caseName;
+            projectId = projectName;
         }
         else
         {
@@ -89,24 +89,24 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         // 保留既有失敗優先序：SQL orphan preflight 先於 required payload
         // 解析；技術前置檢查不屬 Domain 案件政策，也不建立第二套 audit decision。
         SupportOperationStage.Enter("preflight");
-        await caseCreateFactsPort.PreflightAsync(
-            new CaseCreatePreflightRequest(
+        await projectCreateFactsPort.PreflightAsync(
+            new ProjectCreatePreflightRequest(
                 projectId,
                 databaseProvider,
-                HasUserSuppliedCaseName: !string.IsNullOrWhiteSpace(caseNameRaw)),
+                HasUserSuppliedProjectName: !string.IsNullOrWhiteSpace(projectNameRaw)),
             cancellationToken);
 
-        // 案件編號與客戶名稱是選填 metadata。保留欄位讓舊案件、清單與報告可繼續讀取，
-        // 但不能為了空白顯示資訊阻擋建案。
+        // 案件編號與客戶名稱是選填 metadata，沒有填時存空字串，清單與報告照樣讀得到；
+        // 不能為了空白顯示資訊阻擋建案。
         var projectCode = PayloadReader.GetOptionalString(payload, "projectCode")?.Trim() ?? string.Empty;
-        var entityName = PayloadReader.GetOptionalString(payload, "entityName")?.Trim() ?? string.Empty;
+        var clientName = PayloadReader.GetOptionalString(payload, "clientName")?.Trim() ?? string.Empty;
 
         // 操作人員只能來自 composition root 注入的目前 Windows 身分。舊版 payload 即使仍帶
         // operatorId 也不採用，避免前端欄位或其他 caller 冒名寫入案件 metadata。
         var operatorId = principal.ShortName;
         var periodStart = PayloadReader.GetRequiredDate(payload, "periodStart");
         var periodEnd = PayloadReader.GetRequiredDate(payload, "periodEnd");
-        var lastPeriodStart = PayloadReader.GetOptionalDate(payload, "lastPeriodStart");
+        var prepStartDate = PayloadReader.GetOptionalDate(payload, "prepStartDate");
         ProjectMetadataRules.RequireValidPeriod(periodStart, periodEnd);
         var createdUtc = DateTimeOffset.UtcNow;
         // INF 抽樣 per-project 種子由 Application entropy 產生一次，Domain 只套既有政策。
@@ -116,29 +116,29 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         var document = ProjectDocument.CreateNew(
             projectId,
             projectCode,
-            entityName,
+            clientName,
             operatorId,
             periodStart,
             periodEnd,
-            lastPeriodStart,
+            prepStartDate,
             databaseProvider,
             createdUtc,
             sampleSeed,
             JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
         var plan = JetAuditProgram.Plan(
-            new CaseCreateRequest(
+            new ProjectCreateRequest(
                 document,
-                HasUserSuppliedCaseName: !string.IsNullOrWhiteSpace(caseNameRaw),
+                HasUserSuppliedProjectName: !string.IsNullOrWhiteSpace(projectNameRaw),
                 principal.Name));
-        CaseCreateFacts facts;
+        ProjectCreateFacts facts;
         SupportOperationStage.Enter("case_create");
         try
         {
-            facts = await caseCreateFactsPort.ExecuteAsync(
+            facts = await projectCreateFactsPort.ExecuteAsync(
                 plan,
                 cancellationToken);
         }
-        catch (CaseCreateLockHeldException held)
+        catch (ProjectCreateLockHeldException held)
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectLocked,
@@ -148,7 +148,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                     held.LockedUtc),
                 innerException: held);
         }
-        catch (CaseCreateExistingWorkLockException exception)
+        catch (ProjectCreateExistingWorkLockException exception)
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectLocked,
@@ -163,11 +163,11 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             document = result.Document;
             // response 必須先完成物化；從這一行之後不再做可能失敗的 response parse／shape 工作。
             var response = new { projectId = document.ProjectId, ok = true,
-                warnings = ProjectMetadataRules.GetWarnings(periodStart, periodEnd, lastPeriodStart) };
+                warnings = ProjectMetadataRules.GetWarnings(periodStart, periodEnd, prepStartDate) };
             session.Enter(document.ProjectId, repositories);
             // SQL schema remains in an uncommitted create transaction until finalize／session are ready.
             // Final registry／access／create-audit publication ignores request cancellation and commits once.
-            await caseCreateFactsPort.CompleteAsync(facts, CancellationToken.None);
+            await projectCreateFactsPort.CompleteAsync(facts, CancellationToken.None);
             // 建案確定之後才建立支援紀錄資料夾並記下這次開啟；之前失敗時，回復刪除案件資料夾不受紀錄檔影響。
             SupportCaseDiagnostics.CaseOpened(
                 supportHistory, logger, document.ProjectId, document.DatabaseProvider, createdNow: true);
@@ -187,7 +187,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
 
             // Finalize／response 物化／session／final commit 任一步失敗，都沿同一不可取消
             // attempt seam 先釋放本次工作鎖，再 rollback backend transaction 與本機 folder。
-            await caseCreateFactsPort.RollbackAsync(facts, CancellationToken.None);
+            await projectCreateFactsPort.RollbackAsync(facts, CancellationToken.None);
             throw;
         }
     }

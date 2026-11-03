@@ -63,7 +63,7 @@ internal static class ExcelWorksheetConstraints
 /// 測試可縮小大型明細的換頁列上限；正式執行預設使用 Excel 1,048,576 列硬上限。
 /// 此選項只控制有續頁策略的明細，不會把其他固定版面誤縮到測試上限。
 /// </summary>
-internal sealed record WorkpaperWriterOptions(uint ContinuationRowLimit = ExcelWorksheetConstraints.MaxRows)
+internal sealed record WorkingPaperWriterOptions(uint ContinuationRowLimit = ExcelWorksheetConstraints.MaxRows)
 {
     public uint ValidateAndGetLimit()
     {
@@ -71,7 +71,7 @@ internal sealed record WorkpaperWriterOptions(uint ContinuationRowLimit = ExcelW
         {
             throw new ArgumentOutOfRangeException(
                 nameof(ContinuationRowLimit),
-                $"Workpaper continuation row limit must be between 20 and {ExcelWorksheetConstraints.MaxRows}.");
+                $"WorkingPaper continuation row limit must be between 20 and {ExcelWorksheetConstraints.MaxRows}.");
         }
 
         return ContinuationRowLimit;

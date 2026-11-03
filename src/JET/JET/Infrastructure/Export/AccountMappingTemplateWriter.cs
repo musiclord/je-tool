@@ -7,12 +7,12 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// legacy AccountMapping 版型：資料自第 4 列開始，A/B 鎖定，只有 C4:C(last) 解鎖並套分類下拉；
-/// 第二張 List 保存目前 project taxonomy labels。production 先複製固定範本，再 forward-only 重寫兩張授權 worksheet。
+/// 第二張 List 保存目前專案的科目分類 labels。production 先複製固定範本，再 forward-only 重寫兩張授權 worksheet。
 /// </summary>
 public sealed class AccountMappingTemplateWriter :
     IAccountMappingTemplateWriter,
     IAccountMappingTemplateProgressWriter,
-    IAccountMappingTaxonomyTemplateWriter,
+    IAccountMappingCategoryTemplateWriter,
     IFormalAccountMappingTemplateWriter
 {
     internal const int MaxDataRowsPerWorkbook = (int)ExcelWorksheetConstraints.MaxRows - 3;
@@ -38,7 +38,7 @@ public sealed class AccountMappingTemplateWriter :
         WriteCoreAsync(
             output,
             rows,
-            AccountTaxonomyBuiltIns.All,
+            AccountCategoryBuiltIns.All,
             workbookMetadata: null,
             cancellationToken,
             progress: null);
@@ -47,48 +47,48 @@ public sealed class AccountMappingTemplateWriter :
         Stream output,
         IReadOnlyList<AccountMappingTemplateRow> rows,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
+        Action<WorkingPaperProgress>? progress) =>
         WriteCoreAsync(
             output,
             rows,
-            AccountTaxonomyBuiltIns.All,
+            AccountCategoryBuiltIns.All,
             workbookMetadata: null,
             cancellationToken,
             progress);
 
-    Task IAccountMappingTaxonomyTemplateWriter.WriteAsync(
+    Task IAccountMappingCategoryTemplateWriter.WriteAsync(
         Stream output,
         IReadOnlyList<AccountMappingTemplateRow> rows,
-        IReadOnlyList<AccountTaxonomyCategory> categories,
+        IReadOnlyList<AccountCategory> categories,
         CancellationToken cancellationToken) =>
         WriteCoreAsync(output, rows, categories, workbookMetadata: null, cancellationToken, progress: null);
 
-    Task IAccountMappingTaxonomyTemplateWriter.WriteAsync(
+    Task IAccountMappingCategoryTemplateWriter.WriteAsync(
         Stream output,
         IReadOnlyList<AccountMappingTemplateRow> rows,
-        IReadOnlyList<AccountTaxonomyCategory> categories,
+        IReadOnlyList<AccountCategory> categories,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
+        Action<WorkingPaperProgress>? progress) =>
         WriteCoreAsync(output, rows, categories, workbookMetadata: null, cancellationToken, progress);
 
     Task IFormalAccountMappingTemplateWriter.WriteFormalAsync(
         Stream output,
         IReadOnlyList<AccountMappingTemplateRow> rows,
-        IReadOnlyList<AccountTaxonomyCategory> categories,
+        IReadOnlyList<AccountCategory> categories,
         ReportWorkbookMetadata workbookMetadata,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
+        Action<WorkingPaperProgress>? progress) =>
         WriteCoreAsync(output, rows, categories, workbookMetadata, cancellationToken, progress);
 
     private async Task WriteCoreAsync(
         Stream output,
         IReadOnlyList<AccountMappingTemplateRow> rows,
-        IReadOnlyList<AccountTaxonomyCategory> categories,
+        IReadOnlyList<AccountCategory> categories,
         ReportWorkbookMetadata? workbookMetadata,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
-        AccountTaxonomyInvariant.ValidateReplacement(categories);
+        AccountCategoryInvariant.ValidateReplacement(categories);
         var orderedCategories = categories
             .OrderBy(item => item.Ordinal)
             .ThenBy(item => item.CategoryId, StringComparer.Ordinal)
@@ -122,9 +122,9 @@ public sealed class AccountMappingTemplateWriter :
     private static IReadOnlyList<SheetStat> FillTemplate(
         DirectTemplateWorkbookEditor editor,
         IReadOnlyList<AccountMappingTemplateRow> rows,
-        IReadOnlyList<AccountTaxonomyCategory> categories,
+        IReadOnlyList<AccountCategory> categories,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var stats = new List<SheetStat>(2);
         var lastRow = checked((uint)rows.Count + 3);
@@ -181,7 +181,7 @@ public sealed class AccountMappingTemplateWriter :
         foreach (var row in rows)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            widths.Observe([row.AccountCode, row.AccountName, null]);
+            widths.Observe([row.AccountNumber, row.AccountName, null]);
         }
 
         return widths.Widths
@@ -202,7 +202,7 @@ public sealed class AccountMappingTemplateWriter :
             var rowNumber = (uint)index + 4;
             var row = CreateRow(prototype.DynamicRow, rowNumber, preserveFirstRowAttributes: index == 0);
             row.Add(
-                TextCell(rowNumber, "A", rows[index].AccountCode, prototype.ColumnStyles[1]),
+                TextCell(rowNumber, "A", rows[index].AccountNumber, prototype.ColumnStyles[1]),
                 TextCell(rowNumber, "B", rows[index].AccountName, prototype.ColumnStyles[2]),
                 BlankCell(rowNumber, "C", prototype.OriginalColumnStyles[3]));
             yield return row;
@@ -211,7 +211,7 @@ public sealed class AccountMappingTemplateWriter :
 
     private static IEnumerable<XElement> CreateCategoryRows(
         DirectTemplateWorksheetPrototype prototype,
-        IReadOnlyList<AccountTaxonomyCategory> categories,
+        IReadOnlyList<AccountCategory> categories,
         CancellationToken cancellationToken)
     {
         for (var index = 0; index < categories.Count; index++)
@@ -300,9 +300,9 @@ public sealed class AccountMappingTemplateWriter :
     private static void AddStat(
         List<SheetStat> stats,
         SheetStat stat,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         stats.Add(stat);
-        progress?.Invoke(new WorkpaperProgress(stat.SheetName, stats.Count, stat.RowsWritten));
+        progress?.Invoke(new WorkingPaperProgress(stat.SheetName, stats.Count, stat.RowsWritten));
     }
 }

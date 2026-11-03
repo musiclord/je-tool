@@ -26,7 +26,7 @@ public sealed class QueryAccountMappingPageHandler(
         var page = await Task.Run(() => repositories.AccountMappingEditor.GetPageAsync(
             projectId, request, search, cancellationToken, categoryId), cancellationToken);
         return new { rows = page.Rows.Select(row => new
-            { accountCode = row.AccountCode, accountName = row.AccountName, categoryId = row.CategoryId }).ToArray(),
+            { accountNumber = row.AccountNumber, accountName = row.AccountName, categoryId = row.CategoryId }).ToArray(),
             totalCount = page.TotalCount,
             nextCursor = page.NextCursor };
     }
@@ -35,7 +35,7 @@ public sealed class QueryAccountMappingPageHandler(
 public sealed class AccountMappingSaveHandler(
     ProjectSession session, ILogger? logger = null) : IApplicationActionHandler
 {
-    // 使用者 2026-10-19 在視窗內選擇題確認的句子，句型比照讀不回結果狀態時的提醒。
+    // 裁定 2026-10-19-21 確認了這句，句型比照讀不回結果狀態時的提醒。
     internal const string SummaryUnavailableWarning =
         "變更已儲存，但畫面上的科目配對摘要沒有更新；重新開啟案件就會更新，不必重做變更。";
 
@@ -53,7 +53,7 @@ public sealed class AccountMappingSaveHandler(
         {
             if (item.ValueKind != JsonValueKind.Object)
                 throw new JetActionException(JetErrorCodes.InvalidPayload, "科目分類資料格式不正確。");
-            var code = PayloadReader.GetRequiredString(item, "accountCode");
+            var code = PayloadReader.GetRequiredString(item, "accountNumber");
             var categoryId = PayloadReader.GetRequiredString(item, "categoryId");
             if (!codes.Add(code))
                 throw new JetActionException(JetErrorCodes.InvalidPayload, "同一科目只能指定一個分類。");
@@ -61,7 +61,7 @@ public sealed class AccountMappingSaveHandler(
         }
         await Task.Run(() => repositories.AccountMappingEditor.SaveAsync(projectId, changes, cancellationToken), cancellationToken);
         // 分類已經存好，之後的讀取不受取消影響。讀不回科目配對摘要時回報成功並提醒，回應不帶摘要欄位，
-        // 前端保留畫面上原本的摘要（使用者 2026-10-19 裁定）；支援日誌記下錯誤類型，不記訊息內容。
+        // 前端保留畫面上原本的摘要（裁定 2026-10-19-21）；支援日誌記下錯誤類型，不記訊息內容。
         AccountMappingState? state = null;
         try
         {
@@ -74,15 +74,15 @@ public sealed class AccountMappingSaveHandler(
         }
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
-            projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AccountMapping), logger);
+            projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, AuditMutationEffects.For(AuditMutation.AccountMapping), logger);
         if (state is null)
         {
             return new { warnings = new[] { SummaryUnavailableWarning },
                 invalidatedResults = mutationState.InvalidatedResults,
                 staleState = mutationState.StaleState,
-                reportArtifacts = mutationState.ReportArtifacts,
-                reportArtifactWarning = mutationState.ReportArtifactWarning };
+                reports = mutationState.Reports,
+                reportWarning = mutationState.ReportWarning };
         }
 
         return new { batchId = state.BatchId, rowCount = state.RowCount, fileName = state.FileName,
@@ -92,7 +92,7 @@ public sealed class AccountMappingSaveHandler(
             warnings = Array.Empty<string>(),
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning };
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning };
     }
 }

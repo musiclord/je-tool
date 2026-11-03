@@ -37,33 +37,33 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     }
 
     [Fact]
-    public async Task PrescreenRun_DemoFixture_PostPeriodApprovalMatchesSetBasedRecount()
+    public async Task PrescreenRun_DemoFixture_PrepPeriodApprovalMatchesSetBasedRecount()
     {
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
-        // recount 與 prescreen 母體同口徑（§2：限本期 post_date）——期外對照組核准日雖 ≥ 期末，
-        // 但過帳日期外不入母體，故不計。
+        // recount 與 prescreen 母體同口徑（§2：限本期 gl_date）——期外對照組核准日雖 ≥ 期末，
+        // 但總帳日期在查核期間外，不入母體，故不計。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE approval_date >= @lastPeriodStart " +
-            "AND post_date >= '2025-01-01' AND post_date <= '2025-12-31';",
-            ("@lastPeriodStart", "2025-12-31"));
+            "SELECT COUNT(*) FROM gl WHERE approval_date >= @prepStartDate " +
+            "AND gl_date >= '2025-01-01' AND gl_date <= '2025-12-31';",
+            ("@prepStartDate", "2025-12-31"));
 
-        Assert.Equal(recount, data.GetProperty("postPeriodApproval").GetProperty("count").GetInt64());
+        Assert.Equal(recount, data.GetProperty("prepPeriodApproval").GetProperty("count").GetInt64());
     }
 
     [Fact]
-    public async Task PrescreenRun_DemoFixture_PostPeriodApprovalHitsSeedVouchers()
+    public async Task PrescreenRun_DemoFixture_PrepPeriodApprovalHitsSeedVouchers()
     {
-        // R1 種子:核准日 2026-01-15(期末後)共 PostPeriodApprovalVouchers 張,過帳日在期內;
-        // baseline 核准日 = 過帳日(平日、< 期末),不可能跨入期末日。母體限本期 post_date（§2）：
+        // R1 種子:核准日 2026-01-15(期末後)共 PrepPeriodApprovalVouchers 張,過帳日在期內;
+        // baseline 核准日 = 過帳日(平日、< 期末),不可能跨入期末日。母體限本期 gl_date（§2）：
         // R1 過帳期內入母體；期外對照組（過帳 2026-01-05）核准日雖 ≥ 期末，但不入母體 → 不計。
         var distinctVouchers = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(DISTINCT document_number) FROM target_gl_entry WHERE approval_date >= '2025-12-31' " +
-            "AND post_date >= '2025-01-01' AND post_date <= '2025-12-31';");
+            "SELECT COUNT(DISTINCT voucher_number) FROM gl WHERE approval_date >= '2025-12-31' " +
+            "AND gl_date >= '2025-01-01' AND gl_date <= '2025-12-31';");
 
-        Assert.Equal(DemoDataFactory.PostPeriodApprovalVouchers, distinctVouchers);
+        Assert.Equal(DemoDataFactory.PrepPeriodApprovalVouchers, distinctVouchers);
     }
 
     [Fact]
@@ -86,8 +86,8 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         // 因此不加 > 0 守門,只證 handler 與獨立 SQL 同源。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry " +
-            "WHERE post_date >= '2025-01-01' AND post_date <= '2025-12-31' " +
+            "SELECT COUNT(*) FROM gl " +
+            "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31' " +
             "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) <> 0 " +
             "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) % 1000000 = 0;");
 
@@ -105,18 +105,18 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
                     "傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
                 .AddRow("JV-ZERO", "2025-02-03", "2025-02-03", "1101", "現金", "一般分錄", "12.34", 1)
                 .AddRow("JV-ZERO", "2025-02-03", "2025-02-03", "4101", "銷貨收入", "一般分錄", "12.34", 0),
-            lastPeriodStart: "2025-12-31",
+            prepStartDate: "2025-12-31",
             configureTb: tb => tb
                 .AddRow("1101", "現金", "12.34")
                 .AddRow("4101", "銷貨收入", "-12.34"));
         await host.DispatchAsync("validate.run");
 
         var data = await host.DispatchAsync("prescreen.run");
-        var postPeriodApproval = data.GetProperty("postPeriodApproval");
+        var prepPeriodApproval = data.GetProperty("prepPeriodApproval");
 
-        Assert.Equal("na", postPeriodApproval.GetProperty("status").GetString());
-        Assert.Equal(0, postPeriodApproval.GetProperty("count").GetInt64());
-        Assert.Equal(JsonValueKind.Null, postPeriodApproval.GetProperty("naReason").ValueKind);
+        Assert.Equal("na", prepPeriodApproval.GetProperty("status").GetString());
+        Assert.Equal(0, prepPeriodApproval.GetProperty("count").GetInt64());
+        Assert.Equal(JsonValueKind.Null, prepPeriodApproval.GetProperty("naReason").ValueKind);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry g
+            SELECT COUNT(*) FROM gl g
             WHERE strftime('%w', g.approval_date) IN ('0','6');
             """);
 
@@ -180,10 +180,10 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry g
+            SELECT COUNT(*) FROM gl g
             WHERE EXISTS (
-                SELECT 1 FROM staging_calendar_raw_day d
-                WHERE d.day_type = 'holiday' AND d.date = g.post_date);
+                SELECT 1 FROM calendar_day d
+                WHERE d.day_type = 'holiday' AND d.date = g.gl_date);
             """);
 
         Assert.True(recount > 0);
@@ -198,9 +198,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry g
+            SELECT COUNT(*) FROM gl g
             WHERE EXISTS (
-                SELECT 1 FROM staging_calendar_raw_day d
+                SELECT 1 FROM calendar_day d
                 WHERE d.day_type = 'holiday' AND d.date = g.approval_date);
             """);
 
@@ -233,7 +233,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     [Fact]
     public async Task PrescreenRun_MissingApprovalDateWithHolidayCalendar_PreservesCompositeWirePrecedence()
     {
-        // 決策表：缺 docDate＋有假日曆，週末核准保留 N/A，假日過帳命中則主導複合結果。
+        // 決策表：缺 approvalDate＋有假日曆，週末核准保留 N/A，假日過帳命中則主導複合結果。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(
             host,
@@ -249,35 +249,35 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         var data = await host.DispatchAsync("prescreen.run");
 
-        // 預篩選收斂計畫階段四第 4 項（2026-10-23）：兩張卡用同一個方法合併兩側的原因。缺傳票核准日的配對時，
+        // 兩張卡用同一個方法合併兩側的原因。缺傳票核准日的配對時，
         // 兩張卡都照常顯示總帳日期那一側，「只檢查了總帳日期」改放在 approvalNaReason，naReason 只在整張卡無法執行時才有。
         // 原本週末卡把核准側的說明放進 naReason，假日卡則沒有說明；狀態、筆數與優先序斷言不變。
         // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
-        const string onlyPostDateChecked = "只檢查了總帳日期。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
+        const string onlyGlDateChecked = "只檢查了總帳日期。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
         var weekendActivity = data.GetProperty("weekendActivity");
         Assert.Equal("na", weekendActivity.GetProperty("status").GetString());
-        // 2026-10-04 第 8 批 Q8：確認配對用語統一；複合狀態與優先序斷言不變。
+        // 確認配對用語統一後，複合狀態與優先序斷言不變。
         // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("naReason").ValueKind);
-        Assert.Equal(onlyPostDateChecked, weekendActivity.GetProperty("approvalNaReason").GetString());
+        Assert.Equal(onlyGlDateChecked, weekendActivity.GetProperty("approvalNaReason").GetString());
         Assert.Equal(0, weekendActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("approvalCount").ValueKind);
 
         var holidayActivity = data.GetProperty("holidayActivity");
         Assert.Equal("V", holidayActivity.GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("naReason").ValueKind);
-        Assert.Equal(onlyPostDateChecked, holidayActivity.GetProperty("approvalNaReason").GetString());
+        Assert.Equal(onlyGlDateChecked, holidayActivity.GetProperty("approvalNaReason").GetString());
         Assert.Equal(2, holidayActivity.GetProperty("postingCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("approvalCount").ValueKind);
     }
 
-    // 預篩選收斂計畫階段四第 4 項（2026-10-23）：整張卡無法執行時，原因列出兩側缺的每一項，一項一句、依表列順序，
+    // 整張卡無法執行時，原因列出兩側缺的每一項，一項一句、依表列順序，
     // 假日檔排在最前面；原本只寫假日檔那一句，測試名稱也從「假日檔原因勝出」改成「假日檔原因排在最前面」。
     // 狀態與筆數斷言不變。第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
     [Fact]
     public async Task PrescreenRun_MissingApprovalDateWithoutHolidayCalendar_HolidayCalendarReasonComesFirst()
     {
-        // 決策表：缺 docDate＋缺假日曆，複合 wire 的 N/A 原因以假日曆前置為準。
+        // 決策表：缺 approvalDate＋缺假日曆，複合 wire 的 N/A 原因以假日曆前置為準。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(
             host,
@@ -316,22 +316,22 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     }
 
     [Fact]
-    public async Task PrescreenRun_DemoFixture_CreatorSummaryCoversAllCreators()
+    public async Task PrescreenRun_DemoFixture_PreparerSummaryCoversAllPreparers()
     {
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
         // demo 編製者數遠少於彙總上限(50),故全員列出;名單基數 == 本期 distinct recount,
-        // 各人筆數合計 == 本期母體列數(§2：編製者彙總限本期 post_date；期外對照組 4 列不計)。
-        var distinctCreators = await DemoProjectPipeline.QueryScalarAsync(
+        // 各人筆數合計 == 本期母體列數(§2：編製者彙總限本期 gl_date；期外對照組 4 列不計)。
+        var distinctPreparers = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(DISTINCT created_by) FROM target_gl_entry " +
-            "WHERE post_date >= '2025-01-01' AND post_date <= '2025-12-31';");
+            "SELECT COUNT(DISTINCT created_by) FROM gl " +
+            "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31';");
 
-        var creators = data.GetProperty("creatorSummary").GetProperty("creators").EnumerateArray().ToList();
-        Assert.Equal(distinctCreators, creators.Count);
+        var preparers = data.GetProperty("preparerSummary").GetProperty("preparers").EnumerateArray().ToList();
+        Assert.Equal(distinctPreparers, preparers.Count);
         Assert.Equal(
             (DemoDataFactory.GlVoucherCount - DemoDataFactory.OutOfPeriodVouchers) * DemoDataFactory.LinesPerVoucher,
-            creators.Sum(c => c.GetProperty("entryCount").GetInt64()));
+            preparers.Sum(c => c.GetProperty("entryCount").GetInt64()));
     }
 
     [Fact]
@@ -341,7 +341,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(DISTINCT account_code) FROM target_gl_entry;");
+            "SELECT COUNT(DISTINCT account_number) FROM gl;");
 
         Assert.Equal(recount, data.GetProperty("rareAccounts").GetProperty("distinctAccountCount").GetInt64());
     }
@@ -402,16 +402,16 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         try
         {
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留非授權人員預篩選的原斷言。
+            // sourceColumn 改成必填，後端不再猜人員欄；保留非授權人員預篩選的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
 
             var data = await host.DispatchAsync("prescreen.run");
 
             var recount = await DemoProjectPipeline.QueryScalarAsync(host, context.ProjectId,
-                "SELECT COUNT(*) FROM target_gl_entry g WHERE g.created_by IS NOT NULL " +
+                "SELECT COUNT(*) FROM gl g WHERE g.created_by IS NOT NULL " +
                 "AND TRIM(g.created_by) <> '' " +
-                "AND TRIM(g.created_by) NOT IN (SELECT name FROM target_authorized_preparer);");
+                "AND TRIM(g.created_by) NOT IN (SELECT name FROM authorized_preparer);");
 
             var nonAuthorized = data.GetProperty("nonAuthorizedPreparer");
             Assert.True(recount > 0, "只授權部分編製者 → 應有非授權命中");
@@ -426,51 +426,23 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     }
 
     [Fact]
-    public async Task PrescreenRun_DemoFixture_LowFrequencyPreparerMatchesRecount()
-    {
-        // 低頻編製者無閘控、永遠跑：handler 計數須等於固定門檻 11 的獨立 recount。
-        var data = await fixture.Host.DispatchAsync("prescreen.run");
-
-        var recount = await DemoProjectPipeline.QueryScalarAsync(
-            fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry g WHERE g.created_by IN " +
-            "(SELECT created_by FROM target_gl_entry GROUP BY created_by HAVING COUNT(*) <= 11);");
-
-        Assert.Equal(recount, data.GetProperty("lowFrequencyPreparer").GetProperty("count").GetInt64());
-    }
-
-    [Fact]
-    public async Task PrescreenRun_LowFrequencyAccount_MatchesIndependentRecount()
-    {
-        // C9 無閘控、永遠跑:handler 計數須等於固定門檻 11 的獨立 recount。
-        var data = await fixture.Host.DispatchAsync("prescreen.run");
-
-        var recount = await DemoProjectPipeline.QueryScalarAsync(
-            fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry g WHERE g.account_code IN " +
-            "(SELECT account_code FROM target_gl_entry GROUP BY account_code HAVING COUNT(*) <= 11);");
-
-        Assert.Equal(recount, data.GetProperty("lowFrequencyAccount").GetProperty("count").GetInt64());
-    }
-
-    [Fact]
     public async Task FilterPreview_CustomPreparerEntryCount_MatchesRecount()
     {
         // 編製人員分錄筆數 200 以下：filter.preview 的命中數須等於同述詞的獨立 recount（handler 與獨立 SQL 同源，不另設命中量級假設）。
-        // 預篩選收斂計畫階段九把舊式 customPreparerEntryCount 列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
+        // 舊式 customPreparerEntryCount 已列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
         // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
         const int maxEntries = 200;
         var payload = JsonSerializer.Serialize(new
         {
             scenario = new
             {
-                name = "低頻編製者(自訂)",
+                name = "較少使用編製者(自訂)",
                 rationale = "自訂門檻軌驗收",
                 groups = new[]
                 {
-                    new { join = "AND", rules = new[]
+                    new { join = "AND", conditions = new[]
                     {
-                        new { join = "AND", type = "entityFrequency", field = "createBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = maxEntries }
+                        new { join = "AND", type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = maxEntries }
                     } }
                 }
             }
@@ -480,8 +452,8 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry g WHERE g.created_by IN " +
-            $"(SELECT created_by FROM target_gl_entry GROUP BY created_by HAVING COUNT(*) <= {maxEntries});");
+            "SELECT COUNT(*) FROM gl g WHERE g.created_by IN " +
+            $"(SELECT created_by FROM gl GROUP BY created_by HAVING COUNT(*) <= {maxEntries});");
 
         Assert.Equal(recount, data.GetProperty("scenario").GetProperty("count").GetInt64());
     }
@@ -489,21 +461,21 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     [Fact]
     public async Task FilterPreview_CustomAccountEntryCount_MatchesRecount()
     {
-        // 科目分錄筆數 11 以下：filter.preview 的命中數須等於同述詞的獨立 recount（述詞同 lowFrequencyAccount）。
-        // 預篩選收斂計畫階段九把舊式 customAccountEntryCount 列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
+        // 科目分錄筆數 11 以下：filter.preview 的命中數須等於同述詞的獨立 recount（和第五步依審計目的「較少使用的科目」的預設條件相同）。
+        // 舊式 customAccountEntryCount 已列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
         // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
         const int maxEntries = 11;
         var payload = JsonSerializer.Serialize(new
         {
             scenario = new
             {
-                name = "低頻科目(自訂)",
+                name = "較少使用科目(自訂)",
                 rationale = "自訂門檻軌驗收",
                 groups = new[]
                 {
-                    new { join = "AND", rules = new[]
+                    new { join = "AND", conditions = new[]
                     {
-                        new { join = "AND", type = "entityFrequency", field = "accNum", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = maxEntries }
+                        new { join = "AND", type = "entityFrequency", field = "accountNumber", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = maxEntries }
                     } }
                 }
             }
@@ -513,21 +485,21 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry g WHERE g.account_code IN " +
-            $"(SELECT account_code FROM target_gl_entry GROUP BY account_code HAVING COUNT(*) <= {maxEntries});");
+            "SELECT COUNT(*) FROM gl g WHERE g.account_number IN " +
+            $"(SELECT account_number FROM gl GROUP BY account_number HAVING COUNT(*) <= {maxEntries});");
 
         Assert.Equal(recount, data.GetProperty("scenario").GetProperty("count").GetInt64());
     }
 
     [Fact]
-    public async Task PrescreenRun_PersistsLatestRunForResume()
+    public async Task PrescreenRun_PersistsLatestResultForResume()
     {
         await fixture.Host.DispatchAsync("prescreen.run");
 
         var loaded = await fixture.Host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId = fixture.ProjectId }));
 
-        var resumed = loaded.GetProperty("latestRuns").GetProperty("prescreen");
+        var resumed = loaded.GetProperty("prescreenResult");
         Assert.Equal(DemoDataFactory.SuspiciousKeywordVouchers, resumed.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
     }
 
@@ -536,11 +508,11 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     {
         var folder = new JetProjectFolder(fixture.Host.ProjectsRoot);
         var database = new SqliteProjectDatabase(folder);
-        var runStore = new LocalRuleRunStore(database);
+        var resultStore = new LocalResultStore(database);
         var factsPort = new RecordingPrescreenFactsPort(
             new LocalPrescreenRunRepository(database));
         // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQLite 資料庫組後再進入 session。
-        // 預篩選收斂計畫階段四起預篩選多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
+        // 預篩選現在多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
         // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7（處理器讀分類設定時遇到空參考）。
         var session = new ProjectSession();
         session.Enter(
@@ -551,25 +523,25 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
                 MappingStates = new LocalMappingStateStore(database),
                 Calendar = new LocalCalendarStore(database),
                 AccountMappings = new LocalAccountMappingRepository(database),
-                AccountTaxonomy = new LocalAccountTaxonomyStore(database),
+                AccountCategories = new LocalAccountCategoryStore(database),
                 AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
-                RuleRuns = runStore,
+                Results = resultStore,
             });
         var handler = new PrescreenRunHandler(new JsonFileProjectStore(folder), session);
 
         await handler.HandleAsync(default, CancellationToken.None);
 
         var executedPlan = Assert.IsType<PrescreenPlan>(factsPort.ExecutedPlan);
-        var saved = await runStore.FindLatestAsync(
+        var saved = await resultStore.FindLatestAsync(
             fixture.ProjectId,
-            RuleRunKinds.Prescreen,
+            ResultKind.Prescreen,
             CancellationToken.None);
         Assert.NotNull(saved);
-        Assert.False(string.IsNullOrWhiteSpace(executedPlan.Request.RunId));
+        Assert.False(string.IsNullOrWhiteSpace(executedPlan.Request.ResultId));
         Assert.NotEqual(default, executedPlan.Request.GeneratedUtc);
         Assert.Equal(
             new AuditUserParameters(
-                saved!.RunId,
+                saved!.ResultId,
                 saved.GeneratedUtc,
                 SampleSize: 0,
                 ActionName: "prescreen.run"),
@@ -577,7 +549,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         using var summary = JsonDocument.Parse(saved.SummaryJson);
         var resultRef = summary.RootElement.GetProperty("resultRef");
-        Assert.Equal(saved.RunId, resultRef.GetProperty("runId").GetString());
+        Assert.Equal(saved.ResultId, resultRef.GetProperty("resultId").GetString());
         Assert.Equal(
             saved.GeneratedUtc,
             resultRef.GetProperty("generatedUtc").GetDateTimeOffset());

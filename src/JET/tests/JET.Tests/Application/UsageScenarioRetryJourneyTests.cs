@@ -15,28 +15,27 @@ public sealed class UsageScenarioRetryJourneyTests
     [InlineData("duckdb", "validate")]
     [InlineData("sqlite", "prescreen")]
     [InlineData("duckdb", "prescreen")]
-    public async Task RuleRunWriteFailure_PreservesPreviousResultsAndRetryPublishesNewRun(string provider, string kind)
+    public async Task ResultWriteFailure_PreservesPreviousResultsAndRetryPublishesNewRun(string provider, string kind)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
-        await Batch9ArtifactStateTests.ExecuteAsync(host, prepared.Id, provider,
-            "DELETE FROM result_rule_run WHERE run_kind='validate' AND run_id<>@id; DELETE FROM result_inf_sampling_test_sample WHERE run_id<>@id;",
-            ("@id", prepared.ValidationRunId));
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
+        await ReportRevisionStateTests.ExecuteAsync(host, prepared.Id, provider,
+            "DELETE FROM validation_result WHERE result_id<>@id; DELETE FROM inf_sample WHERE result_id<>@id;",
+            ("@id", prepared.ValidationResultId));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
-        var oldRun = loaded.GetProperty("latestRuns").GetProperty(kind).GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var oldRun = loaded.GetProperty(ResultInvalidationTestSupport.LoadedResultProperty(kind)).GetProperty("resultRef").GetProperty("resultId").GetString()!;
         var staleColumn = kind == "validate" ? "validation_stale" : "prescreen_stale";
-        await Batch9ArtifactStateTests.ExecuteAsync(host, prepared.Id, provider,
-            $"UPDATE config_result_stale_state SET {staleColumn}=1 WHERE singleton=1;");
-        var tables = new[] { "result_rule_run", "result_inf_sampling_test_sample", "config_result_stale_state", "config_filter_scenario", "result_filter_run" };
+        var resultTable = ResultInvalidationTestSupport.ResultTable(kind);
+        await ReportRevisionStateTests.ExecuteAsync(host, prepared.Id, provider,
+            $"UPDATE result_stale_state SET {staleColumn}=1 WHERE singleton=1;");
+        var tables = new[] { "validation_result", "prescreen_result", "inf_sample", "result_stale_state", "filter_scenario", "filter_hit" };
         var before = new Dictionary<string, string[]>();
         foreach (var table in tables) before[table] = await UsageScenarioMutationRollbackTests.ReadTableAsync(host, prepared.Id, provider, table);
-        await Batch9ArtifactStateTests.ExecuteAsync(host, prepared.Id, provider, $$"""
-            DROP INDEX IF EXISTS ix_result_rule_run_kind;
-            ALTER TABLE result_rule_run RENAME TO synthetic_saved_rule_run;
-            CREATE TABLE result_rule_run (run_id TEXT PRIMARY KEY, run_kind TEXT NOT NULL, generated_utc TEXT NOT NULL, summary_json TEXT NOT NULL,
-                CHECK (run_kind <> '{{kind}}' OR run_id = '{{oldRun}}'));
-            INSERT INTO result_rule_run SELECT * FROM synthetic_saved_rule_run;
-            CREATE INDEX ix_result_rule_run_kind ON result_rule_run (run_kind, generated_utc);
+        await ReportRevisionStateTests.ExecuteAsync(host, prepared.Id, provider, $$"""
+            ALTER TABLE {{resultTable}} RENAME TO synthetic_saved_result;
+            CREATE TABLE {{resultTable}} (result_id TEXT PRIMARY KEY, generated_utc TEXT NOT NULL, summary_json TEXT NOT NULL,
+                CHECK (result_id = '{{oldRun}}'));
+            INSERT INTO {{resultTable}} SELECT * FROM synthetic_saved_result;
             """);
 
         var error = await Record.ExceptionAsync(() => host.DispatchAsync(kind + ".run"));
@@ -44,47 +43,46 @@ public sealed class UsageScenarioRetryJourneyTests
         Assert.Contains("CHECK", error.ToString(), StringComparison.OrdinalIgnoreCase);
         foreach (var table in tables)
             Assert.Equal(before[table], await UsageScenarioMutationRollbackTests.ReadTableAsync(host, prepared.Id, provider, table));
-        await Batch9ArtifactStateTests.ExecuteAsync(host, prepared.Id, provider, """
-            DROP TABLE result_rule_run;
-            ALTER TABLE synthetic_saved_rule_run RENAME TO result_rule_run;
-            CREATE INDEX ix_result_rule_run_kind ON result_rule_run (run_kind, generated_utc);
+        await ReportRevisionStateTests.ExecuteAsync(host, prepared.Id, provider, $"""
+            DROP TABLE {resultTable};
+            ALTER TABLE synthetic_saved_result RENAME TO {resultTable};
             """);
 
         var retry = await host.DispatchAsync(kind + ".run");
-        var newRun = retry.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var newRun = retry.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         Assert.NotEqual(oldRun, newRun);
-        Assert.Equal(2, await Batch9TransactionBoundaryTests.ScalarAsync(host, prepared.Id, provider,
-            $"SELECT COUNT(*) FROM result_rule_run WHERE run_kind='{kind}';"));
-        Assert.Equal(0, await Batch9TransactionBoundaryTests.ScalarAsync(host, prepared.Id, provider,
-            $"SELECT {staleColumn} FROM config_result_stale_state WHERE singleton=1;"));
-        Assert.Equal(0, await Batch9TransactionBoundaryTests.ScalarAsync(host, prepared.Id, provider,
-            "SELECT COUNT(*) FROM result_inf_sampling_test_sample s WHERE NOT EXISTS (SELECT 1 FROM result_rule_run r WHERE r.run_id=s.run_id AND r.run_kind='validate');"));
+        Assert.Equal(2, await WriteFailureRollbackTests.ScalarAsync(host, prepared.Id, provider,
+            $"SELECT COUNT(*) FROM {resultTable};"));
+        Assert.Equal(0, await WriteFailureRollbackTests.ScalarAsync(host, prepared.Id, provider,
+            $"SELECT {staleColumn} FROM result_stale_state WHERE singleton=1;"));
+        Assert.Equal(0, await WriteFailureRollbackTests.ScalarAsync(host, prepared.Id, provider,
+            "SELECT COUNT(*) FROM inf_sample s WHERE NOT EXISTS (SELECT 1 FROM validation_result r WHERE r.result_id=s.result_id);"));
         var reopened = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
-        Assert.Equal(newRun, reopened.GetProperty("latestRuns").GetProperty(kind).GetProperty("resultRef").GetProperty("runId").GetString());
+        Assert.Equal(newRun, reopened.GetProperty(ResultInvalidationTestSupport.LoadedResultProperty(kind)).GetProperty("resultRef").GetProperty("resultId").GetString());
         Assert.Equal(loaded.GetProperty("filterScenarios").GetRawText(), reopened.GetProperty("filterScenarios").GetRawText());
     }
 
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task WorkpaperWriteFailure_PreservesPublishedVersionAndRetryPublishesAnother(string provider)
+    public async Task WorkingPaperWriteFailure_PreservesPublishedVersionAndRetryPublishesAnother(string provider)
     {
-        var events = new FailWorkpaperWriteOnce();
+        var events = new FailWorkingPaperWriteOnce();
         using var host = new HandlerTestHost(eventPublisher: events);
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         var payload = JsonSerializer.Serialize(new
-        { validationRunId = prepared.ValidationRunId, scenarioRevision = prepared.Revision, scenarioPositions = new[] { 1 } });
-        var first = await host.DispatchAsync("export.workpaperStream", payload);
-        var oldArtifact = first.GetProperty("artifact");
-        var path = oldArtifact.GetProperty("fullPath").GetString()!;
+        { validationResultId = prepared.ValidationResultId, scenarioRevision = prepared.Revision, scenarioPositions = new[] { 1 } });
+        var first = await host.DispatchAsync("export.workingPaperStream", payload);
+        var oldReport = first.GetProperty("publishedReport");
+        var path = oldReport.GetProperty("fullPath").GetString()!;
         var folder = Path.Combine(host.ProjectsRoot, prepared.Id);
-        var manifest = Path.Combine(folder, ProjectReportArtifactStore.ManifestFileName);
+        var manifest = Path.Combine(folder, ProjectReportStore.ManifestFileName);
         Assert.InRange(new FileInfo(path).Length, 1, 10_000_000);
         var oldFile = await File.ReadAllBytesAsync(path);
         var oldManifest = await File.ReadAllBytesAsync(manifest);
         events.Armed = true;
 
-        var error = await Record.ExceptionAsync(() => host.DispatchAsync("export.workpaperStream", payload));
+        var error = await Record.ExceptionAsync(() => host.DispatchAsync("export.workingPaperStream", payload));
         Assert.NotNull(error);
         // The public export boundary sanitizes I/O exceptions; the armed publisher proves
         // the injected failure occurred during writing instead of depending on leaked text.
@@ -92,20 +90,21 @@ public sealed class UsageScenarioRetryJourneyTests
         Assert.True(events.FailedDuringWriting);
         Assert.Equal(oldFile, await File.ReadAllBytesAsync(path));
         Assert.Equal(oldManifest, await File.ReadAllBytesAsync(manifest));
-        Assert.Single(WorkpaperExportTestSupport.FindWorkpapers(folder));
+        Assert.Single(WorkingPaperExportTestSupport.FindWorkingPapers(folder));
         Assert.Empty(Directory.GetFiles(folder, "*.tmp", SearchOption.AllDirectories));
-        Assert.False(File.Exists(Path.Combine(folder, ProjectReportArtifactStore.JournalFileName)));
+        // 原本只確認舊版的暫存檔 .report-artifacts.mutation-v1.json 不在；產品早已不寫這個檔，斷言一定通過。改成確認現行的暫存檔都沒有留下。
+        ReportStoreTempFiles.AssertNoneLeft(folder);
 
-        var retry = await host.DispatchAsync("export.workpaperStream", payload);
-        Assert.False(retry.GetProperty("artifact").GetProperty("stale").GetBoolean());
-        Assert.NotEqual(oldArtifact.GetProperty("artifactId").GetString(), retry.GetProperty("artifact").GetProperty("artifactId").GetString());
-        Assert.Equal(2, retry.GetProperty("reportArtifacts").GetArrayLength());
-        Assert.Equal(2, WorkpaperExportTestSupport.FindWorkpapers(folder).Count());
+        var retry = await host.DispatchAsync("export.workingPaperStream", payload);
+        Assert.False(retry.GetProperty("publishedReport").GetProperty("stale").GetBoolean());
+        Assert.NotEqual(oldReport.GetProperty("reportId").GetString(), retry.GetProperty("publishedReport").GetProperty("reportId").GetString());
+        Assert.Equal(2, retry.GetProperty("reports").GetArrayLength());
+        Assert.Equal(2, WorkingPaperExportTestSupport.FindWorkingPapers(folder).Count());
         Assert.Equal(oldFile, await File.ReadAllBytesAsync(path));
         Assert.Empty(Directory.GetFiles(folder, "*.tmp", SearchOption.AllDirectories));
     }
 
-    private sealed class FailWorkpaperWriteOnce : IJetEventPublisher
+    private sealed class FailWorkingPaperWriteOnce : IJetEventPublisher
     {
         public bool Armed { get; set; }
         public bool FailedDuringWriting { get; private set; }
@@ -113,11 +112,11 @@ public sealed class UsageScenarioRetryJourneyTests
         {
             if (!Armed || eventName != "export.progress") return;
             var progress = JsonSerializer.SerializeToElement(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-            if (progress.GetProperty("artifactKind").GetString() != "workingPaper"
+            if (progress.GetProperty("reportKind").GetString() != "workingPaper"
                 || progress.GetProperty("phase").GetString() != "writingSheet") return;
             Armed = false;
             FailedDuringWriting = true;
-            throw new IOException("synthetic-workpaper-write-failure");
+            throw new IOException("synthetic-working-paper-write-failure");
         }
     }
 }

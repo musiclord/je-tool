@@ -14,7 +14,7 @@ public sealed class PrescreenPageTests
         await DemoProjectPipeline.SetupAsync(sqlite, databaseProvider: "sqlite");
         await DemoProjectPipeline.SetupAsync(duckDb, databaseProvider: "duckdb");
 
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
         var sqliteRows = await WalkRowsAsync(sqlite, PrescreenRuleKeys.NonAuthorizedPreparer, pageSize: 3);
         var duckDbRows = await WalkRowsAsync(duckDb, PrescreenRuleKeys.NonAuthorizedPreparer, pageSize: 3);
 
@@ -55,7 +55,7 @@ public sealed class PrescreenPageTests
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
 
-        using var payload = JsonDocument.Parse("{\"ruleKey\":\"creatorSummary\"}");
+        using var payload = JsonDocument.Parse("{\"ruleKey\":\"preparerSummary\"}");
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
             host.Dispatcher.DispatchAsync(
                 "query.prescreenPage",
@@ -70,7 +70,7 @@ public sealed class PrescreenPageTests
     {
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用仍存在的規則鍵。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用仍存在的規則鍵。
         using var payload = JsonDocument.Parse("{\"ruleKey\":\"nonAuthorizedPreparer\",\"cursor\":\"not-base64\"}");
 
         var error = await Assert.ThrowsAsync<JetActionException>(() =>

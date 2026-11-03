@@ -14,20 +14,20 @@ internal sealed class InlineGlWorkbookBuilder
     private static readonly IReadOnlyDictionary<string, string> ColumnToKey =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["傳票號碼"] = "docNum",
-            ["傳票項次"] = "lineID",
-            ["傳票日期"] = "postDate",
-            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再有「傳票日期_僅條件_JE」對 voucherDate 的慣例。
-            ["核准日期"] = "docDate",
-            ["科目代號"] = "accNum",
-            ["科目名稱"] = "accName",
+            ["傳票號碼"] = "voucherNumber",
+            ["傳票項次"] = "lineItem",
+            ["傳票日期"] = "glDate",
+            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，不再有「傳票日期_僅條件_JE」對 voucherDate 的慣例。
+            ["核准日期"] = "approvalDate",
+            ["科目代號"] = "accountNumber",
+            ["科目名稱"] = "accountName",
             ["摘要"] = "description",
-            ["來源模組"] = "jeSource",
-            ["建立人員"] = "createBy",
-            ["核准人員"] = "approveBy",
-            ["人工傳票"] = "manual",
+            ["來源模組"] = "sourceModule",
+            ["建立人員"] = "createdBy",
+            ["核准人員"] = "approvedBy",
+            ["人工傳票"] = "isManual",
             ["金額"] = "amount",
-            ["借方旗標"] = "dcField"
+            ["借方旗標"] = "drCr"
         };
 
     private readonly List<object?[]> _rows = [];
@@ -99,12 +99,12 @@ internal sealed class InlineGlWorkbookBuilder
             .Where(ColumnToKey.ContainsKey)
             .ToDictionary(c => ColumnToKey[c], c => c, StringComparer.Ordinal);
 
-        if (mapping.ContainsKey("dcField"))
+        if (mapping.ContainsKey("drCr"))
         {
-            mapping["dcDebitCode"] = "1";
-            // R9 requires both codes. Receipt 20261004-100405726 preserves the first failure;
+            mapping["drCrDebitCode"] = "1";
+            // Both debit and credit codes are required. Receipt 20261004-100405726 preserves the first failure;
             // this synthetic fixture has always explicitly used 1/0, so no product fallback is introduced.
-            mapping["dcCreditCode"] = "0";
+            mapping["drCrCreditCode"] = "0";
         }
 
         return mapping;
@@ -115,13 +115,13 @@ internal sealed class InlineGlWorkbookBuilder
         string periodStart,
         string periodEnd)
     {
-        var postDateIndex = Array.IndexOf(_columns, "傳票日期");
-        var accountCodeIndex = Array.IndexOf(_columns, "科目代號");
+        var glDateIndex = Array.IndexOf(_columns, "傳票日期");
+        var accountNumberIndex = Array.IndexOf(_columns, "科目代號");
         var accountNameIndex = Array.IndexOf(_columns, "科目名稱");
         var amountIndex = Array.IndexOf(_columns, "金額");
         var debitFlagIndex = Array.IndexOf(_columns, "借方旗標");
-        if (postDateIndex < 0
-            || accountCodeIndex < 0
+        if (glDateIndex < 0
+            || accountNumberIndex < 0
             || amountIndex < 0
             || debitFlagIndex < 0)
         {
@@ -134,14 +134,14 @@ internal sealed class InlineGlWorkbookBuilder
         var totals = new Dictionary<string, (string? Name, decimal Total)>(StringComparer.Ordinal);
         foreach (var row in _rows)
         {
-            var postDate = ReadDate(row.ElementAtOrDefault(postDateIndex));
-            var accountCode = Convert.ToString(
-                row.ElementAtOrDefault(accountCodeIndex),
+            var glDate = ReadDate(row.ElementAtOrDefault(glDateIndex));
+            var accountNumber = Convert.ToString(
+                row.ElementAtOrDefault(accountNumberIndex),
                 CultureInfo.InvariantCulture);
-            if (postDate is null
-                || postDate < start
-                || postDate > end
-                || string.IsNullOrWhiteSpace(accountCode))
+            if (glDate is null
+                || glDate < start
+                || glDate > end
+                || string.IsNullOrWhiteSpace(accountNumber))
             {
                 continue;
             }
@@ -159,8 +159,8 @@ internal sealed class InlineGlWorkbookBuilder
                 ? Math.Abs(amount)
                 : -Math.Abs(amount);
 
-            totals.TryGetValue(accountCode, out var current);
-            totals[accountCode] = (current.Name ?? accountName, current.Total + signed);
+            totals.TryGetValue(accountNumber, out var current);
+            totals[accountNumber] = (current.Name ?? accountName, current.Total + signed);
         }
 
         if (totals.Count == 0)
@@ -169,9 +169,9 @@ internal sealed class InlineGlWorkbookBuilder
             return;
         }
 
-        foreach (var (accountCode, total) in totals.OrderBy(item => item.Key, StringComparer.Ordinal))
+        foreach (var (accountNumber, total) in totals.OrderBy(item => item.Key, StringComparer.Ordinal))
         {
-            tb.AddRow(accountCode, total.Name, total.Total);
+            tb.AddRow(accountNumber, total.Name, total.Total);
         }
     }
 
@@ -211,20 +211,20 @@ internal sealed class InlineGlWorkbookBuilder
 
 /// <summary>
 /// 測試內自含的小型 TB 工作簿（科目代號／科目名稱／變動金額），以 direct 變動模式 commit。
-/// 與 GL 並行宣告，供完整性測試（part(a) 控制總數、Not-in-TB）造對齊或刻意不齊的小母體。
-/// 欄名固定:科目代號→accNum、科目名稱→accName、變動金額→amount（單一帶號變動欄）。
+/// 與 GL 並行宣告，供完整性測試（存入筆數與合計核對、Not-in-TB）造對齊或刻意不齊的小母體。
+/// 欄名固定:科目代號→accountNumber、科目名稱→accountName、變動金額→amount（單一帶號變動欄）。
 /// </summary>
 internal sealed class InlineTbWorkbookBuilder
 {
     private const string AccCodeColumn = "科目代號";
-    private const string AccNameColumn = "科目名稱";
+    private const string AccountNameColumn = "科目名稱";
     private const string AmountColumn = "變動金額";
 
     private readonly List<(string? Code, string? Name, object Amount)> _rows = [];
 
-    public InlineTbWorkbookBuilder AddRow(string? accountCode, string? accountName, object changeAmount)
+    public InlineTbWorkbookBuilder AddRow(string? accountNumber, string? accountName, object changeAmount)
     {
-        _rows.Add((accountCode, accountName, changeAmount));
+        _rows.Add((accountNumber, accountName, changeAmount));
         return this;
     }
 
@@ -235,7 +235,7 @@ internal sealed class InlineTbWorkbookBuilder
         return TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
             sheet.Cell(1, 1).SetValue(AccCodeColumn);
-            sheet.Cell(1, 2).SetValue(AccNameColumn);
+            sheet.Cell(1, 2).SetValue(AccountNameColumn);
             sheet.Cell(1, 3).SetValue(AmountColumn);
 
             for (var r = 0; r < _rows.Count; r++)
@@ -258,9 +258,9 @@ internal sealed class InlineTbWorkbookBuilder
     internal static Dictionary<string, string> BuildDirectModeMapping() =>
         new(StringComparer.Ordinal)
         {
-            ["accNum"] = AccCodeColumn,
-            ["accName"] = AccNameColumn,
-            ["amount"] = AmountColumn
+            ["accountNumber"] = AccCodeColumn,
+            ["accountName"] = AccountNameColumn,
+            ["changeAmount"] = AmountColumn
         };
 }
 
@@ -269,7 +269,7 @@ internal static class InlineWorkbookProject
     public static async Task<string> SetupAsync(
         HandlerTestHost host,
         Action<InlineGlWorkbookBuilder> configure,
-        string? lastPeriodStart = null,
+        string? prepStartDate = null,
         IReadOnlyList<string>? holidays = null,
         IReadOnlyList<string>? makeupDays = null,
         string databaseProvider = "sqlite",
@@ -291,11 +291,11 @@ internal static class InlineWorkbookProject
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "INLINE-2025-001",
-            entityName = "測試自含案件",
+            clientName = "測試自含案件",
             operatorId = "tester",
             periodStart,
             periodEnd,
-            lastPeriodStart,
+            prepStartDate,
             databaseProvider
         }));
         var projectId = created.GetProperty("projectId").GetString()!;

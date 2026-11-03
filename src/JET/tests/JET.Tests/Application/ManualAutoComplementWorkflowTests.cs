@@ -23,7 +23,7 @@ public sealed class ManualAutoComplementWorkflowTests
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
         var gl = loaded.GetProperty("mapping").GetProperty("gl");
         var mapping = gl.GetProperty("mapping").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString()!);
-        mapping[GlMappingKeys.Manual] = "模式";
+        mapping[GlMappingKeys.IsManual] = "模式";
         var mode = gl.GetProperty("amountMode").GetString();
         Task<JsonElement> Commit(string unlisted, string blank) => host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
@@ -39,7 +39,7 @@ public sealed class ManualAutoComplementWorkflowTests
             var result = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
             {
                 scenario = new { name = "合成人工政策", rationale = "核對補集與空白選擇", groups = new[] { new
-                { rules = new[] { new { type = "manualAuto", isManual = manual } } } } }
+                { conditions = new[] { new { type = "manualAuto", isManual = manual } } } } }
             }));
             return result.GetProperty("scenario").GetProperty("count").GetInt64();
         }
@@ -92,7 +92,7 @@ public sealed class ManualAutoComplementWorkflowTests
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
         var gl = loaded.GetProperty("mapping").GetProperty("gl");
         var mapping = gl.GetProperty("mapping").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString()!);
-        mapping[GlMappingKeys.Manual] = "模式";
+        mapping[GlMappingKeys.IsManual] = "模式";
         var mode = gl.GetProperty("amountMode").GetString();
         Task<JsonElement> Commit(string blank) => host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
@@ -109,15 +109,15 @@ public sealed class ManualAutoComplementWorkflowTests
             var result = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
             {
                 scenario = new { name = "合成人工政策", rationale = "驗證手動選擇", groups = new[] { new
-                { rules = new[] { new { type = "manualAuto", isManual = manual } } } } }
+                { conditions = new[] { new { type = "manualAuto", isManual = manual } } } } }
             }));
             return result.GetProperty("scenario").GetProperty("count").GetInt64();
         }
         Assert.Equal(2, await Count(true));
         Assert.Equal(3, await Count(false));
-        var reports = await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new
-        { runId = validation.GetProperty("resultRef").GetProperty("runId").GetString() }));
-        var reportPath = reports.GetProperty("artifacts")[0].GetProperty("fullPath").GetString();
+        var reports = await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new
+        { resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString() }));
+        var reportPath = reports.GetProperty("publishedReports")[0].GetProperty("fullPath").GetString();
         var restored = await host.DispatchAsync("mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = reportPath }));
         Assert.Equal("automatic", restored.GetProperty("gl").GetProperty("manualAutoPolicy").GetProperty("unlistedValueKind").GetString());
         Assert.Equal("unclassified", restored.GetProperty("gl").GetProperty("manualAutoPolicy").GetProperty("blankValueKind").GetString());

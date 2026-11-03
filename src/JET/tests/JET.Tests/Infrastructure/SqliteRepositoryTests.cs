@@ -4,8 +4,8 @@ using JET.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
-// 第 9 批中低 9：TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 public sealed class SqliteRepositoryTests
@@ -49,10 +49,10 @@ public sealed class SqliteRepositoryTests
     private static GlMappingSpec DualSpec() => new(
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"
@@ -113,11 +113,11 @@ public sealed class SqliteRepositoryTests
         var names = overview.Tables.Select(t => t.Name).ToList();
         Assert.Contains("schema_info", names);
         Assert.Contains("import_batch", names);
-        Assert.Contains("staging_gl_raw_row", names);
-        Assert.Contains("staging_tb_raw_row", names);
-        Assert.Contains("config_field_mapping", names);
-        Assert.Contains("target_gl_entry", names);
-        Assert.Contains("target_tb_balance", names);
+        Assert.Contains("pbc_gl", names);
+        Assert.Contains("pbc_tb", names);
+        Assert.Contains("field_mapping", names);
+        Assert.Contains("gl", names);
+        Assert.Contains("tb", names);
     }
 
     [Fact]
@@ -136,10 +136,10 @@ public sealed class SqliteRepositoryTests
             await using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO config_field_mapping
+                INSERT INTO field_mapping
                     (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
                 VALUES
-                    ('gl', '{"docDate":"Approval Date"}', 'signed', 'legacy-batch',
+                    ('gl', '{"approvalDate":"Approval Date"}', 'signed', 'legacy-batch',
                      '1970-01-01T00:00:00.0000000+00:00', 1, NULL);
                 """;
             await command.ExecuteNonQueryAsync();
@@ -152,9 +152,10 @@ public sealed class SqliteRepositoryTests
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 2026-10-03 用語統一 W10：審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 用語統一以「已儲存」為準（裁定 2026-10-02-01），審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 裁定 2026-10-30-23：舊版案件的訊息全程式用同一句，寫明刪除後重建（第一次失敗收據 20261030-071032167-0e244dd947aa491c97bf0a76ee591a57）。
         Assert.Equal(
-            "這個案件的欄位配對是舊版 JET 儲存的格式，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
+            "這個案件是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
     }
 
@@ -195,7 +196,7 @@ public sealed class SqliteRepositoryTests
             projectId,
             new CommittedMapping(
                 DatasetKind.Tb,
-                new Dictionary<string, string> { [TbMappingKeys.AccNum] = "acc" },
+                new Dictionary<string, string> { [TbMappingKeys.AccountNumber] = "acc" },
                 "direct", "tb-batch", DateTimeOffset.UtcNow),
             CancellationToken.None);
 
@@ -209,8 +210,8 @@ public sealed class SqliteRepositoryTests
         Assert.Equal(2, batchB.RowCount);
 
         Assert.Equal(1, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM import_batch WHERE dataset_kind='gl'"));
-        Assert.Equal(2, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM staging_gl_raw_row"));
-        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM target_gl_entry"));
+        Assert.Equal(2, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM pbc_gl"));
+        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl"));
         Assert.Null(await mappingStore.FindAsync(projectId, DatasetKind.Gl, CancellationToken.None));
         Assert.NotNull(await mappingStore.FindAsync(projectId, DatasetKind.Tb, CancellationToken.None));
 
@@ -248,16 +249,16 @@ public sealed class SqliteRepositoryTests
 
         Assert.Empty(result.Errors);
         Assert.Equal(3, result.ProjectedRowCount);
-        Assert.Equal(3, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM target_gl_entry"));
-        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT SUM(amount_scaled) FROM target_gl_entry"));
+        Assert.Equal(3, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl"));
+        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT SUM(amount_scaled) FROM gl"));
         Assert.Equal(1, await ScalarAsync(db, projectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE dr_cr='CREDIT' AND credit_amount_scaled=1005000"));
+            "SELECT COUNT(*) FROM gl WHERE dr_cr='CREDIT' AND credit_amount_scaled=1005000"));
         Assert.Equal(0, await ScalarAsync(db, projectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE line_item IS NULL"));
+            "SELECT COUNT(*) FROM gl WHERE line_item IS NULL"));
     }
 
     [Fact]
-    public async Task GlProjection_LineIdUnmapped_AutoNumbersPerVoucher()
+    public async Task GlProjection_LineItemUnmapped_AutoNumbersPerVoucher()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -287,26 +288,26 @@ public sealed class SqliteRepositoryTests
 
         Assert.Empty(result.Errors);
         // 全部列都被編號(無 null)
-        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM target_gl_entry WHERE line_item IS NULL"));
+        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl WHERE line_item IS NULL"));
         // 逐傳票重設:D1 最後一列(source_row_number 最大)= "3"、D2 = "2"
         Assert.Equal(3, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry WHERE document_number='D1' ORDER BY source_row_number DESC LIMIT 1"));
+            "SELECT line_item FROM gl WHERE voucher_number='D1' ORDER BY source_row_number DESC LIMIT 1"));
         Assert.Equal(2, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry WHERE document_number='D2' ORDER BY source_row_number DESC LIMIT 1"));
+            "SELECT line_item FROM gl WHERE voucher_number='D2' ORDER BY source_row_number DESC LIMIT 1"));
         // D1 第一列 = "1"
         Assert.Equal(1, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry WHERE document_number='D1' ORDER BY source_row_number ASC LIMIT 1"));
+            "SELECT line_item FROM gl WHERE voucher_number='D1' ORDER BY source_row_number ASC LIMIT 1"));
     }
 
     /// <summary>
-    /// 設計不變量 #4:lineID 未對應時的逐傳票編號必須是冪等的——對同一批次重複投影,
-    /// 讀回的完整編號序列(依 document_number, source_row_number)兩次必須完全相同。
+    /// 設計不變量 #4:lineItem 未對應時的逐傳票編號必須是冪等的——對同一批次重複投影,
+    /// 讀回的完整編號序列(依 voucher_number, source_row_number)兩次必須完全相同。
     /// 投影會先 DELETE target 再重建,若編號依賴殘留的 rowid/插入順序而非 source_row_number,
     /// 重投影就會漂移;此測試以「兩次投影後序列字串相等」鎖住冪等性。
     /// oracle:metamorphic 關係(同輸入重跑 → 同輸出)。
     /// </summary>
     [Fact]
-    public async Task GlProjection_LineIdUnmapped_RenumberingIsIdempotent()
+    public async Task GlProjection_LineItemUnmapped_RenumberingIsIdempotent()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -315,7 +316,7 @@ public sealed class SqliteRepositoryTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
-        // 多傳票、交錯送入(無 lineID)。
+        // 多傳票、交錯送入(無 lineItem)。
         var batch = (await importRepo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
@@ -352,14 +353,14 @@ public sealed class SqliteRepositoryTests
     }
 
     /// <summary>
-    /// 設計 §39 / 邊角:document_number 為 NULL 時,逐傳票編號把所有 NULL-doc 列視為單一分區,
+    /// 設計 §39 / 邊角:voucher_number 為 NULL 時,逐傳票編號把所有 NULL-doc 列視為單一分區,
     /// 在該分區內依 source_row_number 決定性地編 1..k;真實傳票 "D1" 獨立編 1,2,互不干擾。
-    /// 為產生 NULL document_number,NULL-doc 列的 value 字典「不含」doc 鍵(present-but-blank ""
+    /// 為產生 NULL voucher_number,NULL-doc 列的 value 字典「不含」doc 鍵(present-but-blank ""
     /// 不是 null),故這些列以 inline StagingRow 建構,不用一律塞 doc 的 Row()。
-    /// oracle:規格(ROW_NUMBER OVER (PARTITION BY document_number ...);SQLite 將 NULL 視為同一分區)。
+    /// oracle:規格(ROW_NUMBER OVER (PARTITION BY voucher_number ...);SQLite 將 NULL 視為同一分區)。
     /// </summary>
     [Fact]
-    public async Task GlProjection_LineIdUnmapped_NullDocumentNumber_NumbersWithinNullGroup()
+    public async Task GlProjection_LineItemUnmapped_NullVoucherNumber_NumbersWithinNullGroup()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -368,7 +369,7 @@ public sealed class SqliteRepositoryTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
-        // 缺 doc 鍵 → 投影後 document_number 為 NULL(present-but-blank 不算);仍給 debit 確保列可投影。
+        // 缺 doc 鍵 → 投影後 voucher_number 為 NULL(present-but-blank 不算);仍給 debit 確保列可投影。
         StagingRow NoDocRow(int n, string debit) => new(n, new Dictionary<string, string>
         {
             ["date"] = "2024-01-01", ["acc"] = "1101", ["name"] = "現金", ["desc"] = "t", ["debit"] = debit
@@ -394,27 +395,27 @@ public sealed class SqliteRepositoryTests
             CancellationToken.None);
         Assert.Empty(result.Errors);
 
-        // 前置事實:NULL-doc 列確實落地為 document_number IS NULL(schema 允許 NULL;若失敗代表 NOT NULL,需另行回報)。
+        // 前置事實:NULL-doc 列確實落地為 voucher_number IS NULL(schema 允許 NULL;若失敗代表 NOT NULL,需另行回報)。
         Assert.Equal(3, await ScalarAsync(db, projectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE document_number IS NULL"));
+            "SELECT COUNT(*) FROM gl WHERE voucher_number IS NULL"));
 
         // 全部列(含 NULL-doc)都被編號:無 null line_item。
-        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM target_gl_entry WHERE line_item IS NULL"));
+        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl WHERE line_item IS NULL"));
 
         // NULL 分區內依 source_row_number 決定性編 1..3:最後一列(rn 最大)= "3"、第一列 = "1"。
         Assert.Equal(3, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry WHERE document_number IS NULL ORDER BY source_row_number DESC LIMIT 1"));
+            "SELECT line_item FROM gl WHERE voucher_number IS NULL ORDER BY source_row_number DESC LIMIT 1"));
         Assert.Equal(1, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry WHERE document_number IS NULL ORDER BY source_row_number ASC LIMIT 1"));
+            "SELECT line_item FROM gl WHERE voucher_number IS NULL ORDER BY source_row_number ASC LIMIT 1"));
 
         // D1 獨立分區編 1,2,不受 NULL 分區影響。
         Assert.Equal(2, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry WHERE document_number='D1' ORDER BY source_row_number DESC LIMIT 1"));
+            "SELECT line_item FROM gl WHERE voucher_number='D1' ORDER BY source_row_number DESC LIMIT 1"));
         Assert.Equal(1, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry WHERE document_number='D1' ORDER BY source_row_number ASC LIMIT 1"));
+            "SELECT line_item FROM gl WHERE voucher_number='D1' ORDER BY source_row_number ASC LIMIT 1"));
     }
 
-    /// <summary>讀回 line_item 序列(依 document_number, source_row_number 的逗號串接;text → 直接 group_concat)。</summary>
+    /// <summary>讀回 line_item 序列(依 voucher_number, source_row_number 的逗號串接;text → 直接 group_concat)。</summary>
     private static async Task<string> LineItemSequenceAsync(SqliteProjectDatabase db, string projectId)
     {
         await using var connection = db.CreateConnection(projectId);
@@ -422,13 +423,13 @@ public sealed class SqliteRepositoryTests
         await using var command = connection.CreateCommand();
         command.CommandText =
             "SELECT group_concat(line_item, ',') FROM " +
-            "(SELECT line_item FROM target_gl_entry ORDER BY document_number, source_row_number)";
+            "(SELECT line_item FROM gl ORDER BY voucher_number, source_row_number)";
         var result = await command.ExecuteScalarAsync();
         return result is DBNull or null ? string.Empty : (string)result;
     }
 
     [Fact]
-    public async Task GlProjection_LineIdMapped_KeepsSourceVerbatim()
+    public async Task GlProjection_LineItemMapped_KeepsSourceVerbatim()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -452,12 +453,12 @@ public sealed class SqliteRepositoryTests
 
         var spec = new GlMappingSpec(new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
-            [GlMappingKeys.LineId] = "ln",
+            [GlMappingKeys.LineItem] = "ln",
             [GlMappingKeys.DebitAmount] = "debit"
         }, GlAmountMode.DualAmount);
 
@@ -469,9 +470,9 @@ public sealed class SqliteRepositoryTests
 
         Assert.Empty(result.Errors);
         Assert.Equal(10, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry ORDER BY source_row_number ASC LIMIT 1"));
+            "SELECT line_item FROM gl ORDER BY source_row_number ASC LIMIT 1"));
         Assert.Equal(20, await ScalarAsync(db, projectId,
-            "SELECT line_item FROM target_gl_entry ORDER BY source_row_number DESC LIMIT 1"));
+            "SELECT line_item FROM gl ORDER BY source_row_number DESC LIMIT 1"));
     }
 
     [Fact]
@@ -499,7 +500,7 @@ public sealed class SqliteRepositoryTests
 
         Assert.Equal(JetErrorCodes.GlAmountsAllZero, ex.Code);
         // 整批 rollback:target 空(壞母體未落地)。
-        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM target_gl_entry"));
+        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl"));
     }
 
     /// <summary>
@@ -608,7 +609,7 @@ public sealed class SqliteRepositoryTests
         Assert.Equal(3, error.SourceRowNumber);
         Assert.Equal("debit", error.Field);
         Assert.Null(error.SourceLabel); // 單來源批次：錯誤訊息維持與單檔時代一致（無來源前綴）
-        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM target_gl_entry"));
+        Assert.Equal(0, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl"));
     }
 
     [Fact]
@@ -642,10 +643,10 @@ public sealed class SqliteRepositoryTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.DebitAmt] = "dr",
-                [TbMappingKeys.CreditAmt] = "cr"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.DebitAmount] = "dr",
+                [TbMappingKeys.CreditAmount] = "cr"
             },
             TbChangeMode.DebitCredit);
 
@@ -656,16 +657,16 @@ public sealed class SqliteRepositoryTests
         Assert.Empty(result.Errors);
         Assert.Equal(2, result.ProjectedRowCount);
         Assert.Equal(-14_910_000, await ScalarAsync(db, projectId,
-            "SELECT change_amount_scaled FROM target_tb_balance WHERE account_code='110202'"));
+            "SELECT change_amount_scaled FROM tb WHERE account_number='110202'"));
     }
 
     /// <summary>
-    /// 失效範圍收斂（2026-06-22 實務稽核發現）：part(a) 控制總數 gl_control_total 的上游只有 GL target，
-    /// 由 GL 投影隨 target 一起 upsert。TB 投影（及科目配對／行事曆／授權清單匯入）與 GL 無關，
+    /// 失效範圍收斂（2026-06-22 實務稽核發現）：存入筆數與合計核對的控制總數 gl_control_total 的上游只有 GL，
+    /// 由 GL 投影隨 gl 一起 upsert。TB 投影（及科目配對／行事曆／授權清單匯入）與 GL 無關，
     /// **不得**把它連帶清掉。否則 GUI 最自然的「先 commit GL、後 commit TB」順序，會讓 GL 投影落地的
-    /// 控制總數被 TB commit 清除，完整性 part(a) 變全 null（控制總數核對形同沒跑）。
+    /// 控制總數被 TB commit 清除，存入筆數與合計核對變全 null（控制總數核對形同沒跑）。
     /// 不變量：先投影 GL（寫入 gl_control_total）、再投影 TB，控制總數仍應存活且值不變。
-    /// oracle：規格（gl_control_total 上游只有 GL target；RuleRunResultReset 失效收斂後 TB 不碰它）。
+    /// oracle：規格（gl_control_total 上游只有 GL target；ResultReset 失效收斂後 TB 不碰它）。
     /// </summary>
     [Fact]
     public async Task TbProjection_DoesNotClearGlControlTotal()
@@ -677,7 +678,7 @@ public sealed class SqliteRepositoryTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
-        // 1) 先把 GL、TB 都匯入（GUI 順序），再投影 GL → gl_control_total 落地（target_row_count=2）。
+        // 1) 先把 GL、TB 都匯入（GUI 順序），再投影 GL → gl_control_total 落地（stored_row_count=2）。
         var glBatch = (await importRepo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl, [new ImportSourceInput(Source("gl.xlsx"),
             ["doc", "date", "acc", "name", "desc", "debit", "credit"],
@@ -701,26 +702,26 @@ public sealed class SqliteRepositoryTests
 
         Assert.Equal(1, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl_control_total"));
         Assert.Equal(2, await ScalarAsync(db, projectId,
-            "SELECT target_row_count FROM gl_control_total WHERE singleton = 1"));
+            "SELECT stored_row_count FROM gl_control_total WHERE singleton = 1"));
 
         // 2) 之後才投影 TB（最自然順序：先 commit GL、後 commit TB）。
         var tbSpec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.DebitAmt] = "dr",
-                [TbMappingKeys.CreditAmt] = "cr"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.DebitAmount] = "dr",
+                [TbMappingKeys.CreditAmount] = "cr"
             },
             TbChangeMode.DebitCredit);
         var tbRepo = new LocalTbRepository(db);
         await tbRepo.ProjectStagingToTargetAsync(
             projectId, tbBatch.BatchId, tbSpec, 10_000, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
 
-        // 不變量：TB 投影不得清掉 GL 的 part(a) 控制總數（收斂前此處 COUNT 會變 0 → part(a) 全 null）。
+        // 不變量：TB 投影不得清掉 GL 的控制總數（收斂前此處 COUNT 會變 0，存入筆數與合計核對全是 null）。
         Assert.Equal(1, await ScalarAsync(db, projectId, "SELECT COUNT(*) FROM gl_control_total"));
         Assert.Equal(2, await ScalarAsync(db, projectId,
-            "SELECT target_row_count FROM gl_control_total WHERE singleton = 1"));
+            "SELECT stored_row_count FROM gl_control_total WHERE singleton = 1"));
     }
 
     /// <summary>
@@ -767,35 +768,35 @@ public sealed class SqliteRepositoryTests
             PeriodEnd: "2024-12-31",
             MoneyScale: 10_000,
             SampleSeed: 1,
-            RunId: Guid.NewGuid().ToString("N"),
+            ResultId: Guid.NewGuid().ToString("N"),
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 10));
 
         var result = await ValidationExecutionTestData.ExecuteForFactsAsync(repo, plan, CancellationToken.None);
 
         // 只有 U1、U3 不平；U2 不出現
-        Assert.Equal(2, result.UnbalancedDocumentCount);
-        Assert.Equal(2, result.UnbalancedDocuments.Count);
+        Assert.Equal(2, result.UnbalancedVoucherCount);
+        Assert.Equal(2, result.UnbalancedVouchers.Count);
 
         // 第一筆：U1，|diff| 最大（200 > 30）
         const long Scale = 10_000;
-        var first = result.UnbalancedDocuments[0];
-        Assert.Equal("U1", first.DocumentNumber);
+        var first = result.UnbalancedVouchers[0];
+        Assert.Equal("U1", first.VoucherNumber);
         Assert.Equal(300 * Scale, first.DebitScaled);
         Assert.Equal(100 * Scale, first.CreditScaled);
         Assert.Equal(200 * Scale, first.DiffScaled);
 
         // 第二筆：U3，diff 為負（-30）
-        var second = result.UnbalancedDocuments[1];
-        Assert.Equal("U3", second.DocumentNumber);
+        var second = result.UnbalancedVouchers[1];
+        Assert.Equal("U3", second.VoucherNumber);
         Assert.Equal(-30 * Scale, second.DiffScaled);
-        Assert.DoesNotContain(result.UnbalancedDocuments, d => d.DocumentNumber == "U2");
+        Assert.DoesNotContain(result.UnbalancedVouchers, d => d.VoucherNumber == "U2");
     }
 
     /// <summary>
     /// 空值明細查詢對每列標示命中的旗標（可多項），且只回傳至少命中一項的列。
     /// 母體：一列空科目＋空摘要（雙旗標）、一列核准日超出期間（過帳日在期內）、一列全正常（不出現）。
-    /// oracle：規格（旗標邏輯與 ReadNullRecordsAsync 對稱；「日期區間外」以核准日判定；全正常列不出現；LIMIT 50）。
+    /// oracle：規格（旗標邏輯與 ReadBlankRecordsAsync 對稱；「核准日不在期間」以核准日判定；全正常列不出現；LIMIT 50）。
     /// </summary>
     [Fact]
     public async Task Validation_NullDetail_FlagsEachIssuePerRow_AndCaps()
@@ -807,17 +808,17 @@ public sealed class SqliteRepositoryTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
-        // 「日期區間外」第四旗標改以**核准日（approval_date / docDate→確認日期）**判定（2026-06-22 決策，
-        // 對齊舊 JET 工具的「Approval date out of period」）。故需配 docDate→approval 欄；NR2 的**過帳日在期內、
-        // 但核准日在期外**，藉此鎖住「此旗標看核准日、不看過帳日」。沿用 DualSpec 的借/貸欄並加 docDate。
+        // 「核准日不在期間」以核准日 approval_date 判定，配對鍵是 approvalDate，和舊版 JET 的「Approval date out of period」相同
+        // （裁定 2026-06-23-01）。故需配 approvalDate→approval 欄；NR2 的**過帳日在期內、
+        // 但核准日在期外**，藉此鎖住「此旗標看核准日、不看過帳日」。沿用 DualSpec 的借/貸欄並加 approvalDate。
         // 注意：StagingRow 值字典若缺鍵則投影時欄位為 NULL。
         var spec = new GlMappingSpec(new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.DocDate] = "approval",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.ApprovalDate] = "approval",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"
@@ -826,9 +827,9 @@ public sealed class SqliteRepositoryTests
         StagingRow NullAccNoDesc(int n) => new(n, new Dictionary<string, string>
         {
             ["doc"] = "NR1", ["date"] = "2024-06-01", ["approval"] = "2024-06-01",
-            /* acc 故意不填 → NULL account_code */
+            /* acc 故意不填 → NULL account_number */
             ["name"] = "無科目無摘要",
-            /* desc 故意不填 → NULL document_description */
+            /* desc 故意不填 → NULL description */
             ["debit"] = "10"
         });
         StagingRow OutOfRange(int n) => new(n, new Dictionary<string, string>
@@ -864,31 +865,31 @@ public sealed class SqliteRepositoryTests
             PeriodEnd: "2024-12-31",
             MoneyScale: 10_000,
             SampleSeed: 1,
-            RunId: Guid.NewGuid().ToString("N"),
+            ResultId: Guid.NewGuid().ToString("N"),
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 10));
 
         var result = await ValidationExecutionTestData.ExecuteForFactsAsync(repo, plan, CancellationToken.None);
 
         // 只有 NR1（空科目+空摘要）與 NR2（日期超出）出現；NR3 全正常不出現
-        Assert.Equal(2, result.NullRecordRows.Count);
+        Assert.Equal(2, result.BlankRecordRows.Count);
 
         // NR1：空科目（NullAccount=true）+ 空摘要（NullDescription=true）；文件號非空
-        var nr1 = result.NullRecordRows.Single(r => r.DocumentNumber == "NR1");
+        var nr1 = result.BlankRecordRows.Single(r => r.VoucherNumber == "NR1");
         Assert.True(nr1.NullAccount);
         Assert.False(nr1.NullDocument);
         Assert.True(nr1.NullDescription);
-        Assert.False(nr1.OutOfRangeDate);
+        Assert.False(nr1.ApprovalDateNotInPeriod);
 
-        // NR2：日期超出期間（OutOfRangeDate=true）；科目、傳票、摘要均正常
-        var nr2 = result.NullRecordRows.Single(r => r.DocumentNumber == "NR2");
+        // NR2：日期超出期間（ApprovalDateNotInPeriod=true）；科目、傳票、摘要均正常
+        var nr2 = result.BlankRecordRows.Single(r => r.VoucherNumber == "NR2");
         Assert.False(nr2.NullAccount);
         Assert.False(nr2.NullDocument);
         Assert.False(nr2.NullDescription);
-        Assert.True(nr2.OutOfRangeDate);
+        Assert.True(nr2.ApprovalDateNotInPeriod);
 
         // NR3 全正常，不出現
-        Assert.DoesNotContain(result.NullRecordRows, r => r.DocumentNumber == "NR3");
+        Assert.DoesNotContain(result.BlankRecordRows, r => r.VoucherNumber == "NR3");
     }
 
     [Fact]
@@ -911,26 +912,26 @@ public sealed class SqliteRepositoryTests
         var overview = await inspector.GetOverviewAsync(projectId, CancellationToken.None);
         Assert.True(overview.FileSizeBytes > 0);
         Assert.NotEmpty(overview.EngineVersion);
-        Assert.Equal(5, overview.Tables.Single(t => t.Name == "staging_gl_raw_row").RowCount);
+        Assert.Equal(5, overview.Tables.Single(t => t.Name == "pbc_gl").RowCount);
 
         // 白名單外：sqlite_master 被排除、不存在的表 → null
         Assert.Null(await inspector.GetTablePageAsync(projectId, "sqlite_master", 10, 0, CancellationToken.None));
         Assert.Null(await inspector.GetTablePageAsync(projectId, "nope; DROP TABLE x", 10, 0, CancellationToken.None));
 
-        var page = await inspector.GetTablePageAsync(projectId, "staging_gl_raw_row", 2, 2, CancellationToken.None);
+        var page = await inspector.GetTablePageAsync(projectId, "pbc_gl", 2, 2, CancellationToken.None);
         Assert.NotNull(page);
         Assert.Equal(5, page.TotalCount);
         Assert.Equal(2, page.Rows.Count);
         Assert.Contains("row_json", page.Columns);
 
-        // NULL cell → null（import_batch 無 NULL 欄，用 target_gl_entry 驗證）
+        // NULL cell → null（import_batch 無 NULL 欄，用 gl 驗證）
         var glRepo = new LocalGlRepository(db);
         var batch = await importRepo.GetLatestBatchAsync(projectId, DatasetKind.Gl, CancellationToken.None);
         await glRepo.ProjectStagingToTargetAsync(projectId, batch!.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
         postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
         CancellationToken.None);
 
-        var targetPage = await inspector.GetTablePageAsync(projectId, "target_gl_entry", 1, 0, CancellationToken.None);
+        var targetPage = await inspector.GetTablePageAsync(projectId, "gl", 1, 0, CancellationToken.None);
         var nullColIndex = targetPage!.Columns.ToList().IndexOf("source_module");
         Assert.Null(targetPage.Rows[0][nullColIndex]);
     }

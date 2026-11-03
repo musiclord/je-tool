@@ -4,7 +4,7 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
 // 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
 
 /// <summary>
@@ -17,48 +17,29 @@ namespace JET.Tests.Architecture;
 public sealed class FilterConditionLabelMirrorTests
 {
     [Fact]
-    public void FilterRuleTypes_MirrorDomainLabels_Bidirectional()
+    public void FilterConditionTypes_MirrorDomainLabels_Bidirectional()
     {
-        // 預篩選收斂計畫階段九：前端型別表不再列出已停用的型別（Domain FilterSinglePurposeRules.RetiredTypes），
-        // 其餘型別仍逐鍵相等；Domain 標籤表照舊涵蓋全部型別，舊情境讀回與停用原因還要用。
-        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        // 已停用的五種型別連同前端的 RETIRED_RULE_TYPES 一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
+        // 前後端型別表恢復逐鍵相等，Domain 標籤表仍涵蓋全部型別。第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（停用寫法的常數已不存在，無法編譯）。
         var frontend = ExtractValueLabelMap("FILTER_RULE_TYPES");
-        var retired = FilterSinglePurposeRules.RetiredTypes.Select(WireKey).ToHashSet(StringComparer.Ordinal);
-        Assert.All(retired, key => Assert.Contains(key, FilterConditionLabels.RuleTypes.Keys));
-
-        Assert.Equal(
-            FilterConditionLabels.RuleTypes
-                .Where(pair => !retired.Contains(pair.Key))
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
-            frontend);
-        Assert.Equal(Enum.GetValues<FilterRuleType>().Length, FilterConditionLabels.RuleTypes.Count);
-
-        // 已停用的清單前後端相同。
-        var retiredFrontend = Regex.Match(ReadUiCore(), @"var RETIRED_RULE_TYPES = \[(?<body>[^\]]*)\];");
-        Assert.True(retiredFrontend.Success, "ui-core.js 找不到 RETIRED_RULE_TYPES");
-        Assert.Equal(
-            retired.OrderBy(k => k, StringComparer.Ordinal),
-            Regex.Matches(retiredFrontend.Groups["body"].Value, @"'(?<type>[A-Za-z]+)'")
-                .Select(m => m.Groups["type"].Value)
-                .OrderBy(k => k, StringComparer.Ordinal));
+        Assert.Equal(FilterConditionLabels.RuleTypes, frontend);
+        Assert.Equal(Enum.GetValues<FilterConditionType>().Length, FilterConditionLabels.RuleTypes.Count);
+        Assert.DoesNotContain("RETIRED_RULE_TYPES", ReadUiCore(), StringComparison.Ordinal);
     }
-
-    /// <summary>型別列舉對應的 wire 鍵：首字母小寫；typed 條件的列舉名稱是 TypedField。</summary>
-    private static string WireKey(FilterRuleType type) =>
-        type == FilterRuleType.TypedField ? "typed" : char.ToLowerInvariant(type.ToString()[0]) + type.ToString()[1..];
 
     [Fact]
     public void PrescreenKeyOptions_MirrorDomainLabels_Bidirectional()
     {
-        // 第9批共用11/6門檻後，literal-only regex會把串接文字截斷，並非可見標籤變更。
+        // 共用 11 與 6 的門檻常數後，literal-only regex 會把串接文字截斷，並非可見標籤變更。
         // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
         // 從JS自己的常數求出完整文字；Domain只作另一側比對，全部鍵仍逐一核對。
-        // 預篩選收斂計畫階段九：前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
         var frontend = FrontendConstantTextReader.ValueLabels(ReadUiCore(), "PRESCREEN_RULES");
         Assert.Equal(FilterConditionLabels.PrescreenKeys, frontend);
         Assert.Equal("金額尾數連續 6 個 0", frontend["trailingZeros"]);
-        Assert.Equal("編製分錄較少的人員（11 筆以下）", frontend["lowFrequencyPreparer"]);
-        Assert.Equal("使用較少的科目（11 筆以下）", frontend["lowFrequencyAccount"]);
+        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），兩條規則的標籤跟著拿掉；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        Assert.False(frontend.ContainsKey("rarePreparer"));
+        Assert.False(frontend.ContainsKey("rareAccount"));
     }
 
     [Fact]

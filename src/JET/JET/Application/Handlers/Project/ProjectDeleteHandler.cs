@@ -51,8 +51,8 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         }
         catch (JetActionException error) when (error.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
         {
-            // 設定檔損壞、舊版或期間無效的案件，畫面請審計員從備份還原或另建案件，舊的這份也要能從案件清單刪掉
-            // （低嚴重度事項 E1，使用者 2026-10-19 要求處理）。只處理確定是本機資料庫的案件；SQL Server 案件還要清掉
+            // 設定檔損壞、舊版或期間無效的案件，畫面請審計員從備份還原或另建案件，舊的這份也要能從案件清單刪掉。
+            // 只處理確定是本機資料庫的案件；SQL Server 案件還要清掉
             // 伺服器上的資料，維持原本的錯誤（列在 SQL Server 的延後事項）。
             var localProvider = await projectStore.FindLocalDatabaseProviderAsync(projectId, cancellationToken);
             if (localProvider is null)
@@ -93,11 +93,11 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         // 未知種類在取刪案鎖之前回 unsupported_provider。
         var repositories = repositoryCatalog.For(databaseProvider);
         var deletionLockService = repositories.DeletionLockService;
-        var reportArtifactStore = repositories.ReportArtifactStore;
+        var reportStore = repositories.ReportStore;
         var databaseDeleter = repositories.DatabaseDeleter;
 
         // 本地案件以與 project.load 相同的 OS 檔案鎖做非阻塞試取；SQL Server arm 維持 no-op，
-        // 其租約仍只由既有刪案交易處理。Held 時在 artifact／DB／folder 任何變更之前止步。
+        // 其租約仍只由既有刪案交易處理。Held 時在報告檔、資料庫與案件資料夾有任何變更之前止步。
         SupportOperationStage.Enter("deletion_lock");
         var deletionLockOutcome = await deletionLockService.TryAcquireAsync(
             projectId,
@@ -113,15 +113,15 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         };
         await using var heldDeletionLease = deletionLease;
 
-        // 授權通過後才取得案件外的 artifact lease。刪案路徑只排除其他 artifact reader/writer，不先
+        // 授權通過後才取得案件外的報告租約。刪案路徑只排除其他讀寫報告檔的程式，不先
         // 讀取或復原即將一併刪除的 journal；lease 一路保持到 provider 資料與案件資料夾處理完成。
         SupportOperationStage.Enter("report_lease");
-        await using var artifactDeletionLease = await reportArtifactStore.AcquireProjectDeletionLeaseAsync(
+        await using var reportDeletionLease = await reportStore.AcquireProjectDeletionLeaseAsync(
             projectId,
             cancellationToken);
 
         // 1) 刪資料庫(須在刪資料夾前，資料夾裡的 project.json 記錄資料庫種類，失敗重試時仍要讀它)。sqlServer 走原子刪除:單一交易內
-        // drop schema → 寫 audit_log → 刪 dbo.project_access／project_registry（單庫的管理表統一在這裡清）,
+        // drop schema → 寫 operation_log → 刪 dbo.project_access／project_registry（單庫的管理表統一在這裡清）,
         // 故不再另呼 registry.UnregisterAsync（清單即時消失、可見性同步移除由同一交易保證,無兩連線半刪窗口）。
         // schema drop 失敗殘留的孤兒由建案預檢擋同名、待 dev.db.reconcile 清。sqlite/duckdb 刪本地檔、不觸及 registry。
         string? cleanupMessage = null;
@@ -137,7 +137,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             SupportOperationStage.Enter("folder_delete");
             try
             {
-                // 支援紀錄跟著案件資料夾刪除（使用者 2026-10-21 裁定保留到刪除案件）。先停止寫入這個案件，
+                // 支援紀錄保留到刪除案件，跟著案件資料夾刪除（裁定 2026-10-21-08）。先停止寫入這個案件，
                 // 紀錄檔不會在刪除時被占用；之後這個案件的事件只留在記憶體。
                 if (supportHistory is not null) await supportHistory.ForgetAsync(projectId, CancellationToken.None);
                 await projectStore.DeleteAsync(projectId, cancellationToken);
@@ -148,7 +148,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             }
             catch (Exception exception)
             {
-                // 使用者 2026-10-13 勾選頁確認的句子。支援日誌記下刪不掉的原因，例如檔案正被開啟（2026-10-21）。
+                // 裁定 2026-10-13-28 確認了這句的用字。支援日誌記下刪不掉的原因，例如檔案正被開啟（2026-10-21）。
                 if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "folder_delete", exception);
                 cleanupMessage = "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。";
             }

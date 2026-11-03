@@ -17,11 +17,11 @@ internal delegate Task<JsonElement> SmeDispatch(string action, JsonElement paylo
 /// </summary>
 internal static class SmePipeline
 {
-    public const string EntityName = "合成精密工業股份有限公司";
+    public const string ClientName = "合成精密工業股份有限公司";
 
     public static async Task RunCompleteAsync(
         SmeDispatch dispatch,
-        string caseName,
+        string projectName,
         string projectCode,
         string provider,
         SmeSourceFiles files,
@@ -29,7 +29,7 @@ internal static class SmePipeline
         Func<IReadOnlyDictionary<string, string>, IReadOnlyList<SmeScenario>> scenarios,
         SmeCaseLog log)
     {
-        await CreateAndImportAsync(dispatch, caseName, projectCode, provider, files, log).ConfigureAwait(false);
+        await CreateAndImportAsync(dispatch, projectName, projectCode, provider, files, log).ConfigureAwait(false);
         await log.DispatchAsync(dispatch, "import.authorizedPreparer.fromFile", new
         {
             filePath = files.AuthorizedPreparerFile,
@@ -41,7 +41,7 @@ internal static class SmePipeline
         await log.DispatchAsync(dispatch, "import.makeupDay", new { dates = SmeCalendar.MakeupDays.Select(SmeCalendar.Iso).ToArray() })
             .ConfigureAwait(false);
         await CommitMappingsAsync(dispatch, log).ConfigureAwait(false);
-        var categoryIds = await SaveTaxonomyAsync(dispatch, log).ConfigureAwait(false);
+        var categoryIds = await SaveCategoryAsync(dispatch, log).ConfigureAwait(false);
         await log.DispatchAsync(dispatch, "import.accountMapping.fromFile", new
         {
             filePath = files.AccountMappingFile,
@@ -50,11 +50,11 @@ internal static class SmePipeline
 
         var validation = await log.DispatchAsync(dispatch, "validate.run", new { }).ConfigureAwait(false);
         CompareValidation(validation, files.Case, oracle, log);
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString();
-        await log.DispatchAsync(dispatch, "export.validationArtifacts", new { runId = validationRunId }).ConfigureAwait(false);
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+        await log.DispatchAsync(dispatch, "export.validationReports", new { resultId = validationResultId }).ConfigureAwait(false);
         var prescreen = await log.DispatchAsync(dispatch, "prescreen.run", new { }).ConfigureAwait(false);
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString();
-        await log.DispatchAsync(dispatch, "export.prescreenReport", new { runId = prescreenRunId }).ConfigureAwait(false);
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString();
+        await log.DispatchAsync(dispatch, "export.prescreenReport", new { resultId = prescreenResultId }).ConfigureAwait(false);
         foreach (var (ruleKey, expected) in oracle.Prescreen())
         {
             var actual = await ReadAllKeysAsync(dispatch, "query.prescreenPage", new JsonObject { ["ruleKey"] = ruleKey })
@@ -80,14 +80,14 @@ internal static class SmePipeline
 
         await log.DispatchAsync(dispatch, "export.criteriaSelectionReport", new
         {
-            validationRunId,
-            prescreenRunId,
+            validationResultId,
+            prescreenResultId,
             revision,
         }).ConfigureAwait(false);
-        await log.DispatchAsync(dispatch, "export.workpaperStream", new
+        await log.DispatchAsync(dispatch, "export.workingPaperStream", new
         {
-            validationRunId,
-            prescreenRunId,
+            validationResultId,
+            prescreenResultId,
             scenarioRevision = revision,
             scenarioPositions = Enumerable.Range(1, definitions.Count).ToArray(),
         }).ConfigureAwait(false);
@@ -99,25 +99,25 @@ internal static class SmePipeline
 
     /// <summary>只建案與匯入兩個檔案，停在欄位配對，留給審計員自己操作第三步。</summary>
     public static async Task RunMappingPendingAsync(
-        SmeDispatch dispatch, string caseName, string projectCode, SmeSourceFiles files, SmeCaseLog log)
+        SmeDispatch dispatch, string projectName, string projectCode, SmeSourceFiles files, SmeCaseLog log)
     {
-        await CreateAndImportAsync(dispatch, caseName, projectCode, "sqlite", files, log).ConfigureAwait(false);
+        await CreateAndImportAsync(dispatch, projectName, projectCode, "sqlite", files, log).ConfigureAwait(false);
         // currentStep 2 是欄位配對。
         await log.DispatchAsync(dispatch, "project.saveProgress", new { currentStep = 2 }).ConfigureAwait(false);
         await log.DispatchAsync(dispatch, "project.releaseLock", new { }).ConfigureAwait(false);
     }
 
     private static async Task CreateAndImportAsync(
-        SmeDispatch dispatch, string caseName, string projectCode, string provider, SmeSourceFiles files, SmeCaseLog log)
+        SmeDispatch dispatch, string projectName, string projectCode, string provider, SmeSourceFiles files, SmeCaseLog log)
     {
         await log.DispatchAsync(dispatch, "project.create", new
         {
-            caseName,
+            projectName,
             projectCode,
-            entityName = EntityName,
+            clientName = ClientName,
             periodStart = SmeCalendar.Iso(SmeCalendar.PeriodStart),
             periodEnd = SmeCalendar.Iso(SmeCalendar.PeriodEnd),
-            lastPeriodStart = SmeCalendar.Iso(SmeCalendar.PreparationDate),
+            prepStartDate = SmeCalendar.Iso(SmeCalendar.PreparationDate),
             databaseProvider = provider,
         }).ConfigureAwait(false);
         // 上半年與下半年兩個 ERP 匯出檔一起匯入同一個 GL 資料集。
@@ -139,19 +139,19 @@ internal static class SmePipeline
         {
             mapping = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.PostDate] = columns[0],
-                [GlMappingKeys.DocNum] = columns[1],
-                [GlMappingKeys.LineId] = columns[2],
-                [GlMappingKeys.AccNum] = columns[3],
-                [GlMappingKeys.AccName] = columns[4],
+                [GlMappingKeys.GlDate] = columns[0],
+                [GlMappingKeys.VoucherNumber] = columns[1],
+                [GlMappingKeys.LineItem] = columns[2],
+                [GlMappingKeys.AccountNumber] = columns[3],
+                [GlMappingKeys.AccountName] = columns[4],
                 [GlMappingKeys.Description] = columns[5],
                 [GlMappingKeys.DebitAmount] = columns[6],
                 [GlMappingKeys.CreditAmount] = columns[7],
-                [GlMappingKeys.JeSource] = columns[9],
-                [GlMappingKeys.CreateBy] = columns[10],
-                [GlMappingKeys.ApproveBy] = columns[11],
-                [GlMappingKeys.DocDate] = columns[12],
-                [GlMappingKeys.Manual] = columns[13],
+                [GlMappingKeys.SourceModule] = columns[9],
+                [GlMappingKeys.CreatedBy] = columns[10],
+                [GlMappingKeys.ApprovedBy] = columns[11],
+                [GlMappingKeys.ApprovalDate] = columns[12],
+                [GlMappingKeys.IsManual] = columns[13],
                 [GlMappingKeys.PostingStatus] = columns[14],
             },
             amountMode = GlAmountModeNames.Dual,
@@ -166,27 +166,27 @@ internal static class SmePipeline
         {
             mapping = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [TbMappingKeys.AccNum] = tb[0],
-                [TbMappingKeys.AccName] = tb[1],
-                [TbMappingKeys.OpeningDebit] = tb[2],
-                [TbMappingKeys.OpeningCredit] = tb[3],
-                [TbMappingKeys.ClosingDebit] = tb[6],
-                [TbMappingKeys.ClosingCredit] = tb[7],
+                [TbMappingKeys.AccountNumber] = tb[0],
+                [TbMappingKeys.AccountName] = tb[1],
+                [TbMappingKeys.OpeningDebitBalance] = tb[2],
+                [TbMappingKeys.OpeningCreditBalance] = tb[3],
+                [TbMappingKeys.ClosingDebitBalance] = tb[6],
+                [TbMappingKeys.ClosingCreditBalance] = tb[7],
             },
             changeMode = TbChangeModeNames.OpenCloseBySide,
         }).ConfigureAwait(false);
     }
 
     /// <summary>新增案件分類，回傳分類名稱對應的正式分類 ID。新案件的分類設定版本是 1。</summary>
-    private static async Task<IReadOnlyDictionary<string, string>> SaveTaxonomyAsync(SmeDispatch dispatch, SmeCaseLog log)
+    private static async Task<IReadOnlyDictionary<string, string>> SaveCategoryAsync(SmeDispatch dispatch, SmeCaseLog log)
     {
         var builtIns = new (string Id, string Label, string Role)[]
         {
-            (AccountTaxonomyBuiltIns.RevenueId, SmeChart.Revenue, AccountTaxonomyBuiltIns.RevenueRole),
-            (AccountTaxonomyBuiltIns.ReceivablesId, SmeChart.Receivables, AccountTaxonomyBuiltIns.ReceivablesRole),
-            (AccountTaxonomyBuiltIns.CashId, SmeChart.Cash, AccountTaxonomyBuiltIns.CashRole),
-            (AccountTaxonomyBuiltIns.ReceiptInAdvanceId, SmeChart.ReceiptInAdvance, AccountTaxonomyBuiltIns.ReceiptInAdvanceRole),
-            (AccountTaxonomyBuiltIns.OthersId, SmeChart.Others, AccountTaxonomyBuiltIns.OthersRole),
+            (AccountCategoryBuiltIns.RevenueId, SmeChart.Revenue, AccountCategoryBuiltIns.RevenueRole),
+            (AccountCategoryBuiltIns.ReceivablesId, SmeChart.Receivables, AccountCategoryBuiltIns.ReceivablesRole),
+            (AccountCategoryBuiltIns.CashId, SmeChart.Cash, AccountCategoryBuiltIns.CashRole),
+            (AccountCategoryBuiltIns.ReceiptInAdvanceId, SmeChart.ReceiptInAdvance, AccountCategoryBuiltIns.ReceiptInAdvanceRole),
+            (AccountCategoryBuiltIns.OthersId, SmeChart.Others, AccountCategoryBuiltIns.OthersRole),
         };
         var draftIds = SmeChart.CustomCategories
             .Select((category, index) => (category.Label, Draft: $"draft-{index + 1}"))
@@ -206,7 +206,7 @@ internal static class SmePipeline
                 parentCategoryId = ParentId(category.Parent),
             }))
             .ToArray();
-        var saved = await log.DispatchAsync(dispatch, "accountTaxonomy.save", new { revision = 1, categories }).ConfigureAwait(false);
+        var saved = await log.DispatchAsync(dispatch, "accountCategory.save", new { revision = 1, categories }).ConfigureAwait(false);
         return saved.GetProperty("categories").EnumerateArray().ToDictionary(
             item => item.GetProperty("label").GetString()!,
             item => item.GetProperty("categoryId").GetString()!,
@@ -218,12 +218,12 @@ internal static class SmePipeline
     {
         var population = oracle.Population;
         var outOfPeriod = smeCase.Lines.Count(line =>
-            line.PostDate < SmeCalendar.PeriodStart || line.PostDate > SmeCalendar.PeriodEnd);
+            line.GlDate < SmeCalendar.PeriodStart || line.GlDate > SmeCalendar.PeriodEnd);
         var unposted = smeCase.Lines.Count(line =>
-            !line.IsPosted && line.PostDate >= SmeCalendar.PeriodStart && line.PostDate <= SmeCalendar.PeriodEnd);
+            !line.IsPosted && line.GlDate >= SmeCalendar.PeriodStart && line.GlDate <= SmeCalendar.PeriodEnd);
         var stats = validation.GetProperty("stats");
         var summary = validation.GetProperty("populationSummary");
-        var nulls = validation.GetProperty("nullRecordsTest");
+        var nulls = validation.GetProperty("blankRecordsTest");
         var completeness = validation.GetProperty("completenessTest");
         log.CompareNumber("驗證 GL 分錄筆數", population.Count, stats.GetProperty("glRowCount").GetInt64());
         log.CompareNumber("驗證 GL 傳票張數", population.Select(line => line.VoucherNo).Distinct().Count(),
@@ -236,19 +236,19 @@ internal static class SmePipeline
         log.CompareNumber("驗證 未過帳排除筆數", unposted,
             summary.GetProperty("excluded").GetProperty("byPostingStatusCount").GetInt64());
         log.CompareNumber("驗證 借貸不平傳票", 0,
-            validation.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
+            validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
         log.CompareNumber("驗證 科目空白", 0, nulls.GetProperty("nullAccountCount").GetInt64());
         log.CompareNumber("驗證 傳票號碼空白", 0, nulls.GetProperty("nullDocumentCount").GetInt64());
-        log.CompareNumber("驗證 摘要空白", population.Count(line => SmeOracle.IsBlank(line.Description)),
+        log.CompareNumber("驗證 空白摘要", population.Count(line => SmeOracle.IsBlank(line.Description)),
             nulls.GetProperty("nullDescriptionCount").GetInt64());
         log.CompareNumber("驗證 核准日不在查核期間",
             population.Count(line => line.ApprovalDate is { } approval
                 && (approval < SmeCalendar.PeriodStart || approval > SmeCalendar.PeriodEnd)),
-            nulls.GetProperty("outOfRangeDateCount").GetInt64());
+            nulls.GetProperty("approvalDateNotInPeriodCount").GetInt64());
         log.CompareNumber("驗證 GL 與 TB 有差異的科目", 0, completeness.GetProperty("diffAccountCount").GetInt64());
-        var partA = completeness.GetProperty("partA");
+        var storedTotals = completeness.GetProperty("storedTotals");
         log.CompareNumber("驗證 存入的分錄筆數與合計相符", 1,
-            partA.GetProperty("rowCountMatch").GetBoolean() && partA.GetProperty("amountMatch").GetBoolean() ? 1 : 0);
+            storedTotals.GetProperty("rowCountMatch").GetBoolean() && storedTotals.GetProperty("amountMatch").GetBoolean() ? 1 : 0);
     }
 
     private static async Task<HashSet<string>> ReadAllKeysAsync(SmeDispatch dispatch, string action, JsonObject request)
@@ -273,7 +273,7 @@ internal static class SmePipeline
             var result = await dispatch(action, JsonSerializer.SerializeToElement(page)).ConfigureAwait(false);
             foreach (var row in result.GetProperty("rows").EnumerateArray())
             {
-                keys.Add(row.GetProperty("documentNumber").GetString() + "|" + row.GetProperty("lineItem").GetString());
+                keys.Add(row.GetProperty("voucherNumber").GetString() + "|" + row.GetProperty("lineItem").GetString());
             }
 
             var next = result.GetProperty("nextCursor");
@@ -289,14 +289,14 @@ internal static class SmePipeline
 /// 一個案件的建案紀錄：每個動作的耗時、每項比對的結果與失敗原因。給了資料夾時另存每個動作的回應，
 /// 方便對照；echo 用來把不一致與失敗即時印到主機視窗。
 /// </summary>
-internal sealed class SmeCaseLog(string caseName, string? directory = null, Action<string>? echo = null)
+internal sealed class SmeCaseLog(string projectName, string? directory = null, Action<string>? echo = null)
 {
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
     private int sequence;
     private int matched;
     private int mismatched;
 
-    public string CaseName { get; } = caseName;
+    public string ProjectName { get; } = projectName;
     public List<string> Lines { get; } = [];
     public bool Failed { get; private set; }
     public bool AllMatched => mismatched == 0 && !Failed;
@@ -337,7 +337,7 @@ internal sealed class SmeCaseLog(string caseName, string? directory = null, Acti
         Lines.Add($"- {label}：不一致，預期 {expected.Count:N0} 筆、JET {actual.Count:N0} 筆；"
             + $"JET 少了 {missing.Count:N0} 筆（例如 {string.Join("、", missing.Take(5))}），"
             + $"多了 {extra.Count:N0} 筆（例如 {string.Join("、", extra.Take(5))}）");
-        echo?.Invoke($"[seed] {CaseName} {label} 不一致：預期 {expected.Count}、JET {actual.Count}。");
+        echo?.Invoke($"[seed] {ProjectName} {label} 不一致：預期 {expected.Count}、JET {actual.Count}。");
     }
 
     public void CompareNumber(string label, decimal expected, decimal actual)
@@ -351,7 +351,7 @@ internal sealed class SmeCaseLog(string caseName, string? directory = null, Acti
 
         mismatched++;
         Lines.Add($"- {label}：不一致，預期 {expected:N0}、JET {actual:N0}");
-        echo?.Invoke($"[seed] {CaseName} {label} 不一致：預期 {expected}、JET {actual}。");
+        echo?.Invoke($"[seed] {ProjectName} {label} 不一致：預期 {expected}、JET {actual}。");
     }
 
     public void Fail(Exception exception)
@@ -359,8 +359,8 @@ internal sealed class SmeCaseLog(string caseName, string? directory = null, Acti
         Failed = true;
         var error = JetWebMessageBridge.ToErrorDto(exception);
         Lines.Add($"- 失敗：code={error.Code}：{error.Message}");
-        echo?.Invoke($"[seed] {CaseName} 建立失敗 code={error.Code}: {error.Message}");
+        echo?.Invoke($"[seed] {ProjectName} 建立失敗 code={error.Code}: {error.Message}");
     }
 
-    public override string ToString() => $"## {CaseName}{Environment.NewLine}{string.Join(Environment.NewLine, Lines)}";
+    public override string ToString() => $"## {ProjectName}{Environment.NewLine}{string.Join(Environment.NewLine, Lines)}";
 }

@@ -17,7 +17,7 @@ internal sealed class CsvRecordReader(TextReader reader, char delimiter)
     /// <summary>最近一次 <see cref="ReadRecord"/> 讀到的記錄編號（1 起算）。</summary>
     public int RecordNumber { get; private set; }
 
-    /// <summary>最近一次讀到的記錄裡，有沒有用引號包住、內含換行的欄位（V11：匯入完成時提醒筆數與列號）。</summary>
+    /// <summary>最近一次讀到的記錄裡，有沒有用引號包住、內含換行的欄位（匯入完成時提醒筆數與列號）。</summary>
     public bool RecordSpansLines { get; private set; }
 
     /// <summary>讀下一筆記錄；到檔尾回 null。回傳的欄位是原始文字，沒有去空白。</summary>

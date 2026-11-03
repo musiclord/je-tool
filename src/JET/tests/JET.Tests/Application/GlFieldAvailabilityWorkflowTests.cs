@@ -9,12 +9,12 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 預篩選收斂計畫階段四的處理器固定答案。使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位、已存的情境列進待修正清單；
+/// GL 欄位可用性的處理器固定答案。第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05），用到這種欄位的已存情境列進待修正清單（裁定 2026-10-22-04）；
 /// 傳票文件項次自動編號與傳票核准日選「與總帳日期相同」都算已配對。第四步與第五步對同一條規則給同一個原因，
 /// 缺傳票核准日的配對時，週末與假日兩張卡照常顯示總帳日期那一側，並說明只檢查了總帳日期。
 /// 第一次失敗：Focused 收據 20261023-031239785-46183e1247de492ebc2157e840e38b45（10 則失敗，例如缺傳票核准日的配對時週末卡整張無法執行，
 /// 用到未配對欄位的已存情境開案時沒有列進待修正清單）。
-/// 使用者 2026-10-23 裁定追加：傳票核准日不可用時，第四步資料驗證的「核准日不在期間」無法執行並寫原因，
+/// 裁定 2026-10-23-01 追加：傳票核准日不可用時，第四步資料驗證的「核准日不在期間」無法執行並寫原因，
 /// 判斷讀欄位目錄算出的可用欄位，驗證報告照同一個結果寫 N/A。第一次失敗：Focused 收據
 /// 20261023-101047314-3a877fec42034e99b98965fd1a79c0b2（5 則失敗：沒有配對時筆數仍是 0、回應沒有原因欄、存下的結果還不接受原因欄）。
 /// </summary>
@@ -41,7 +41,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         {
             name = "合成欄位條件",
             rationale = "確認欄位配對前置",
-            groups = new[] { new { join = "AND", rules = new[] { rule } } }
+            groups = new[] { new { join = "AND", conditions = new[] { rule } } }
         }
     });
 
@@ -54,18 +54,18 @@ public sealed class GlFieldAvailabilityWorkflowTests
         await SetupAsync(host, provider);
         var cases = new (object Rule, string[] Labels)[]
         {
-            (new { join = "AND", type = "fieldValue", field = "createBy", @operator = "contains", values = new[] { "E0" } }, ["傳票建立人員"]),
-            (new { join = "AND", type = "fieldValue", field = "createBy", @operator = "equals", value = "E01" }, ["傳票建立人員"]),
-            (new { join = "AND", type = "fieldValue", field = "createBy", @operator = "in", values = new[] { "E01" } }, ["傳票建立人員"]),
-            (new { join = "AND", type = "fieldValue", field = "approveBy", @operator = "notEquals", value = "X" }, ["傳票核准人員"]),
-            (new { join = "AND", type = "fieldValue", field = "approveBy", @operator = "isNotBlank" }, ["傳票核准人員"]),
-            (new { join = "AND", type = "fieldValue", field = "jeSource", @operator = "startsWith", value = "GL" }, ["分錄來源模組"]),
-            (new { join = "AND", type = "fieldValue", field = "docDate", @operator = "after", value = "2025-01-01" }, ["傳票核准日"]),
-            (new { join = "AND", type = "fieldValue", field = "docDate", @operator = "isWeekend" }, ["傳票核准日"]),
-            (new { join = "AND", type = "fieldValue", field = "docDate", @operator = "between", from = "2025-01-01", to = "2025-12-31" }, ["傳票核准日"]),
-            (new { join = "AND", type = "text", field = "createBy", keywords = "E0", mode = "contains" }, ["傳票建立人員"]),
-            (new { join = "AND", type = "dateRange", field = "docDate", from = "2025-01-01", to = "2025-12-31" }, ["傳票核准日"]),
-            (new { join = "AND", type = "entityFrequency", field = "approveBy", countUnit = "entries", countOperator = "lessThan", countFrom = 3 }, ["傳票核准人員"]),
+            (new { join = "AND", type = "fieldValue", field = "createdBy", @operator = "contains", values = new[] { "E0" } }, ["傳票建立人員"]),
+            (new { join = "AND", type = "fieldValue", field = "createdBy", @operator = "equals", value = "E01" }, ["傳票建立人員"]),
+            (new { join = "AND", type = "fieldValue", field = "createdBy", @operator = "in", values = new[] { "E01" } }, ["傳票建立人員"]),
+            (new { join = "AND", type = "fieldValue", field = "approvedBy", @operator = "notEquals", value = "X" }, ["傳票核准人員"]),
+            (new { join = "AND", type = "fieldValue", field = "approvedBy", @operator = "isNotBlank" }, ["傳票核准人員"]),
+            (new { join = "AND", type = "fieldValue", field = "sourceModule", @operator = "startsWith", value = "GL" }, ["分錄來源模組"]),
+            (new { join = "AND", type = "fieldValue", field = "approvalDate", @operator = "after", value = "2025-01-01" }, ["傳票核准日"]),
+            (new { join = "AND", type = "fieldValue", field = "approvalDate", @operator = "isWeekend" }, ["傳票核准日"]),
+            (new { join = "AND", type = "fieldValue", field = "approvalDate", @operator = "between", from = "2025-01-01", to = "2025-12-31" }, ["傳票核准日"]),
+            (new { join = "AND", type = "text", field = "createdBy", keywords = "E0", mode = "contains" }, ["傳票建立人員"]),
+            (new { join = "AND", type = "dateRange", field = "approvalDate", from = "2025-01-01", to = "2025-12-31" }, ["傳票核准日"]),
+            (new { join = "AND", type = "entityFrequency", field = "approvedBy", countUnit = "entries", countOperator = "lessThan", countFrom = 3 }, ["傳票核准人員"]),
             (new { join = "AND", type = "manualAuto", isManual = true }, ["人工/自動分錄"]),
             (new { join = "AND", type = "preparerEqualsApprover" }, ["傳票建立人員", "傳票核准人員"])
         };
@@ -83,22 +83,22 @@ public sealed class GlFieldAvailabilityWorkflowTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task AutoNumberedLineItemAndApprovalDateSameAsPostDate_CountAsMapped(string provider)
+    public async Task AutoNumberedLineItemAndApprovalDateSameAsGlDate_CountAsMapped(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupAsync(host, provider);
 
         // 傳票項次沒有來源欄時逐張傳票自動編號，兩張傳票的第一筆都是 1。
         var lineItem = await host.DispatchAsync("filter.preview", Preview(
-            new { join = "AND", type = "fieldValue", field = "lineID", @operator = "equals", value = "1" }));
+            new { join = "AND", type = "fieldValue", field = "lineItem", @operator = "equals", value = "1" }));
         Assert.Equal(2, lineItem.GetProperty("scenario").GetProperty("count").GetInt64());
 
         // 傳票核准日改選「與總帳日期相同」；JV-1 的兩筆在星期六。
-        await RecommitApprovalDateSameAsPostDateAsync(host, projectId);
+        await RecommitApprovalDateSameAsGlDateAsync(host, projectId);
         await host.DispatchAsync("validate.run");
 
         var approval = await host.DispatchAsync("filter.preview", Preview(
-            new { join = "AND", type = "fieldValue", field = "docDate", @operator = "isWeekend" }));
+            new { join = "AND", type = "fieldValue", field = "approvalDate", @operator = "isWeekend" }));
         Assert.Equal(2, approval.GetProperty("scenario").GetProperty("count").GetInt64());
     }
 
@@ -115,18 +115,18 @@ public sealed class GlFieldAvailabilityWorkflowTests
             {
                 name = "舊欄位情境",
                 rationale = "合成舊案件",
-                groups = new[] { new { join = "AND", rules = new[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } } }
+                groups = new[] { new { join = "AND", conditions = new[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } } }
             } }
         }));
 
-        // 模擬 2026-10-22 裁定前存下的情境：條件用到沒有配對的傳票建立人員，當時的檢查不擋「包含任一文字」。
+        // 模擬裁定 2026-10-22-05 之前存下的情境：條件用到沒有配對的傳票建立人員，當時的檢查不擋「包含任一文字」。
         var definitionJson = await TextAsync(host, projectId, provider,
-            "SELECT definition_json FROM config_filter_scenario WHERE position = 1;");
+            "SELECT definition_json FROM filter_scenario WHERE position = 1;");
         var definition = JsonNode.Parse(definitionJson)!.AsObject();
-        definition["groups"]![0]!["rules"]!.AsArray().Add(JsonNode.Parse(
-            """{"join":"AND","type":"fieldValue","field":"createBy","operator":"contains","values":["E0"]}"""));
+        definition["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
+            """{"join":"AND","type":"fieldValue","field":"createdBy","operator":"contains","values":["E0"]}"""));
         await ExecuteAsync(host, projectId, provider,
-            "UPDATE config_filter_scenario SET definition_json = @json WHERE position = 1;",
+            "UPDATE filter_scenario SET definition_json = @json WHERE position = 1;",
             ("@json", definition.ToJsonString()));
 
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
@@ -149,7 +149,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
     public async Task Step4AndStep5_GiveTheSameReasonForTheSameRule(string provider)
     {
         using var host = new HandlerTestHost();
-        // 沒有期末財報準備日、科目配對與授權名單；假日檔已上傳，第五步照 2026-10-04 的裁定本來就不檢查假日檔。
+        // 沒有期末財報準備日、科目配對與授權名單；假日檔已上傳，第五步照裁定 2026-10-04-01 本來就不檢查假日檔。
         await SetupAsync(host, provider, holidays: ["2025-03-04"]);
         var prescreen = await host.DispatchAsync("prescreen.run");
         var step4 = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
@@ -158,12 +158,12 @@ public sealed class GlFieldAvailabilityWorkflowTests
                 static rule => rule.GetProperty("naReason").GetString(),
                 StringComparer.Ordinal);
 
-        const string lastPeriodStart = "尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫";
+        const string prepStartDate = "尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫";
         const string noCategory = "科目配對中尚無任何科目設定分類，請先在第四步設定";
         const string noPreparerList = "尚未匯入授權編製人員清單，請先在第二步匯入";
         var expected = new Dictionary<string, (string? Step4, string[] Step5)>(StringComparer.Ordinal)
         {
-            [PrescreenRuleKeys.PostPeriodApproval] = (ApprovalDateMissing + FieldFix + lastPeriodStart + "。", [ApprovalDateMissing, lastPeriodStart]),
+            [PrescreenRuleKeys.PrepPeriodApproval] = (ApprovalDateMissing + FieldFix + prepStartDate + "。", [ApprovalDateMissing, prepStartDate]),
             [PrescreenRuleKeys.SuspiciousKeywords] = (null, []),
             [PrescreenRuleKeys.UnexpectedAccountPair] = (noCategory + "。", [noCategory]),
             [PrescreenRuleKeys.TrailingZeros] = (null, []),
@@ -172,9 +172,8 @@ public sealed class GlFieldAvailabilityWorkflowTests
             [PrescreenRuleKeys.HolidayPosting] = (null, []),
             [PrescreenRuleKeys.HolidayApproval] = (ApprovalDateMissing + FieldFix, [ApprovalDateMissing]),
             [PrescreenRuleKeys.BlankDescription] = (null, []),
-            [PrescreenRuleKeys.NonAuthorizedPreparer] = (noPreparerList + "。" + CreatedByMissing + FieldFix, [noPreparerList, CreatedByMissing]),
-            [PrescreenRuleKeys.LowFrequencyPreparer] = (CreatedByMissing + FieldFix, [CreatedByMissing]),
-            [PrescreenRuleKeys.LowFrequencyAccount] = (null, [])
+            [PrescreenRuleKeys.NonAuthorizedPreparer] = (noPreparerList + "。" + CreatedByMissing + FieldFix, [noPreparerList, CreatedByMissing])
+            // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目兩條規則（裁定 2026-10-29-27），這裡跟著少兩列；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
         };
         Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), step4.Keys.Order(StringComparer.Ordinal));
 
@@ -193,14 +192,14 @@ public sealed class GlFieldAvailabilityWorkflowTests
         }
 
         // 人員彙總與集中度沿用同一條規則的原因。
-        Assert.Equal(CreatedByMissing + FieldFix, prescreen.GetProperty("creatorSummary").GetProperty("naReason").GetString());
+        Assert.Equal(CreatedByMissing + FieldFix, prescreen.GetProperty("preparerSummary").GetProperty("naReason").GetString());
         Assert.Equal(CreatedByMissing + FieldFix, prescreen.GetProperty("concentration").GetProperty("naReason").GetString());
     }
 
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task MissingApprovalDate_ActivityCardsShowPostingSideAndSayOnlyPostDateWasChecked(string provider)
+    public async Task MissingApprovalDate_ActivityCardsShowPostingSideAndSayOnlyGlDateWasChecked(string provider)
     {
         using var host = new HandlerTestHost();
         await SetupAsync(host, provider, holidays: ["2025-03-04"]);
@@ -250,20 +249,20 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
         var validation = await host.DispatchAsync("validate.run");
 
-        // 沒有傳票核准日就無法判斷核准日在不在期間：筆數不寫 0，改寫缺什麼、到哪裡補（使用者 2026-10-23 裁定）。
-        var nullRecords = validation.GetProperty("nullRecordsTest");
-        Assert.Equal(JsonValueKind.Null, nullRecords.GetProperty("outOfRangeDateCount").ValueKind);
-        Assert.Equal(ApprovalDateMissing + FieldFix, nullRecords.GetProperty("outOfRangeDateNaReason").GetString());
+        // 沒有傳票核准日就無法判斷核准日在不在期間：筆數不寫 0，改寫缺什麼、到哪裡補（裁定 2026-10-23-01）。
+        var blankRecords = validation.GetProperty("blankRecordsTest");
+        Assert.Equal(JsonValueKind.Null, blankRecords.GetProperty("approvalDateNotInPeriodCount").ValueKind);
+        Assert.Equal(ApprovalDateMissing + FieldFix, blankRecords.GetProperty("approvalDateNotInPeriodNaReason").GetString());
         // 其他三類照常檢查；合成資料沒有空白的科目、傳票號碼與摘要。
-        Assert.Equal(0, nullRecords.GetProperty("nullAccountCount").GetInt64());
-        Assert.Equal(0, nullRecords.GetProperty("nullDocumentCount").GetInt64());
-        Assert.Equal(0, nullRecords.GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("nullAccountCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("nullDocumentCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("nullDescriptionCount").GetInt64());
 
         // 重開案件讀回同一份結果。
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        var stored = loaded.GetProperty("latestRuns").GetProperty("validate").GetProperty("nullRecordsTest");
-        Assert.Equal(JsonValueKind.Null, stored.GetProperty("outOfRangeDateCount").ValueKind);
-        Assert.Equal(ApprovalDateMissing + FieldFix, stored.GetProperty("outOfRangeDateNaReason").GetString());
+        var stored = loaded.GetProperty("validationResult").GetProperty("blankRecordsTest");
+        Assert.Equal(JsonValueKind.Null, stored.GetProperty("approvalDateNotInPeriodCount").ValueKind);
+        Assert.Equal(ApprovalDateMissing + FieldFix, stored.GetProperty("approvalDateNotInPeriodNaReason").GetString());
 
         // 驗證報告照同一個結果寫 N/A，不產生核准日不在期間的明細頁。
         using var workbook = await ExportValidationReportAsync(host, projectId, validation);
@@ -276,18 +275,18 @@ public sealed class GlFieldAvailabilityWorkflowTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task ApprovalDateSameAsPostDate_OutOfPeriodApprovalRuns_AndTheReportWritesTheCount(string provider)
+    public async Task ApprovalDateSameAsGlDate_OutOfPeriodApprovalRuns_AndTheReportWritesTheCount(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupAsync(host, provider);
-        await RecommitApprovalDateSameAsPostDateAsync(host, projectId);
+        await RecommitApprovalDateSameAsGlDateAsync(host, projectId);
 
         var validation = await host.DispatchAsync("validate.run");
 
         // 欄位目錄把「與總帳日期相同」算成可用的傳票核准日，照常檢查；四筆分錄的總帳日期都在查核期間內。
-        var nullRecords = validation.GetProperty("nullRecordsTest");
-        Assert.Equal(0, nullRecords.GetProperty("outOfRangeDateCount").GetInt64());
-        Assert.Equal(JsonValueKind.Null, nullRecords.GetProperty("outOfRangeDateNaReason").ValueKind);
+        var blankRecords = validation.GetProperty("blankRecordsTest");
+        Assert.Equal(0, blankRecords.GetProperty("approvalDateNotInPeriodCount").GetInt64());
+        Assert.Equal(JsonValueKind.Null, blankRecords.GetProperty("approvalDateNotInPeriodNaReason").ValueKind);
 
         using var workbook = await ExportValidationReportAsync(host, projectId, validation);
         var summary = workbook.Worksheet("ValidationReport");
@@ -311,26 +310,26 @@ public sealed class GlFieldAvailabilityWorkflowTests
         Assert.False(IsValidWith(complete, count: null, reason: " "));
         Assert.False(IsValidWith(complete, count: -1, reason: null));
         var numericReason = complete.DeepClone().AsObject();
-        numericReason["nullRecordsTest"]!["outOfRangeDateCount"] = null;
-        numericReason["nullRecordsTest"]!["outOfRangeDateNaReason"] = 0;
+        numericReason["blankRecordsTest"]!["approvalDateNotInPeriodCount"] = null;
+        numericReason["blankRecordsTest"]!["approvalDateNotInPeriodNaReason"] = 0;
         Assert.False(ValidationSummaryShapeValidator.IsValid(numericReason.ToJsonString()));
         // 2026-10-23 以前的結果沒有原因欄，傳票核准日沒有配對時也寫 0，必須重新驗證。
         var withoutReason = complete.DeepClone().AsObject();
-        withoutReason["nullRecordsTest"]!.AsObject().Remove("outOfRangeDateNaReason");
-        withoutReason["nullRecordsTest"]!["outOfRangeDateCount"] = 0;
+        withoutReason["blankRecordsTest"]!.AsObject().Remove("approvalDateNotInPeriodNaReason");
+        withoutReason["blankRecordsTest"]!["approvalDateNotInPeriodCount"] = 0;
         Assert.False(ValidationSummaryShapeValidator.IsValid(withoutReason.ToJsonString()));
     }
 
     private static bool IsValidWith(JsonObject complete, long? count, string? reason)
     {
         var changed = complete.DeepClone().AsObject();
-        changed["nullRecordsTest"]!["outOfRangeDateCount"] = count;
-        changed["nullRecordsTest"]!["outOfRangeDateNaReason"] = reason;
+        changed["blankRecordsTest"]!["approvalDateNotInPeriodCount"] = count;
+        changed["blankRecordsTest"]!["approvalDateNotInPeriodNaReason"] = reason;
         return ValidationSummaryShapeValidator.IsValid(changed.ToJsonString());
     }
 
     // 確認配對時把傳票核准日改選「與總帳日期相同」，其他配對照舊。
-    private static async Task RecommitApprovalDateSameAsPostDateAsync(HandlerTestHost host, string projectId)
+    private static async Task RecommitApprovalDateSameAsGlDateAsync(HandlerTestHost host, string projectId)
     {
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         var gl = loaded.GetProperty("mapping").GetProperty("gl");
@@ -338,7 +337,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         {
             ["mapping"] = JsonNode.Parse(gl.GetProperty("mapping").GetRawText()),
             ["amountMode"] = gl.GetProperty("amountMode").GetString(),
-            ["approvalDateMode"] = ApprovalDateModeNames.SameAsPostDate,
+            ["approvalDateMode"] = ApprovalDateModeNames.SameAsGlDate,
             ["manualAutoPolicy"] = JsonNode.Parse(gl.GetProperty("manualAutoPolicy").GetRawText())
         };
         await host.DispatchAsync("mapping.commit.gl", recommit.ToJsonString());
@@ -346,11 +345,11 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     private static async Task<XLWorkbook> ExportValidationReportAsync(HandlerTestHost host, string projectId, JsonElement validation)
     {
-        var runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
-        var response = await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new { runId }));
-        var artifact = response.GetProperty("artifacts").EnumerateArray()
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var response = await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
+        var report = response.GetProperty("publishedReports").EnumerateArray()
             .Single(static item => item.GetProperty("kind").GetString() == "validationReport");
-        return new XLWorkbook(Path.Combine(host.ProjectsRoot, projectId, artifact.GetProperty("fileName").GetString()!));
+        return new XLWorkbook(Path.Combine(host.ProjectsRoot, projectId, report.GetProperty("fileName").GetString()!));
     }
 
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)

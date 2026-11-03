@@ -4,7 +4,7 @@ namespace JET.Tests.Architecture;
 
 public sealed class ReportExportOwnershipTests
 {
-    // 改動原因：使用者 2026-10-08 畫面註解要求移除假日範本入口，K15 的 ExportCalendarTemplatesHandler 隨之刪除，
+    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，ExportCalendarTemplatesHandler 隨之刪除，
     // 原本只檢查該 handler 的測試一併移除。
 
     private static readonly System.Reflection.Assembly ProductionAssembly =
@@ -12,7 +12,7 @@ public sealed class ReportExportOwnershipTests
 
     [Theory]
     [InlineData(
-        "ExportValidationArtifactsHandler",
+        "ExportValidationReportsHandler",
         "Application/Handlers/ExportReportHandlers.cs")]
     [InlineData(
         "ExportPrescreenReportHandler",
@@ -27,12 +27,12 @@ public sealed class ReportExportOwnershipTests
         var handler = ReadTypeSource(handlerName, relativePath);
 
         // 2026-10-02 起 AuditCore 不再提供只轉手給 port 的 ExecuteAsync，handler 直接呼叫
-        // ReportArtifactExecutionPort.ExecuteAsync。原本檢查 JetAuditProgram.ExecuteAsync( 的斷言改成檢查這個呼叫，
+        // ReportExecutionPort.ExecuteAsync。原本檢查 JetAuditProgram.ExecuteAsync( 的斷言改成檢查這個呼叫，
         // 並要求 Plan、建立 port、執行與 Finalize 依序出現，守住同一個 AuditCore 生命週期。
         AssertAppearsInOrder(
             handler,
             "JetAuditProgram.Plan(",
-            "new ReportArtifactExecutionPort(artifactStore,",
+            "new ReportExecutionPort(reportStore,",
             ".ExecuteAsync(plan, cancellationToken);",
             "JetAuditProgram.Finalize(plan, facts)");
     }
@@ -51,14 +51,14 @@ public sealed class ReportExportOwnershipTests
     [Fact]
     public void AccountMappingTemplateHandler_WritesWorkFileOutsideReportLifecycle()
     {
-        // 2026-09-02 裁定：範本是工作檔，不走報告 plan／artifact store，也不進 manifest。
+        // 裁定 2026-09-02-05：範本是工作檔，不走報告 plan 與報告 store，也不進 manifest。
         var handler = ReadTypeSource(
             "ExportAccountMappingTemplateHandler",
             "Application/Handlers/ExportAccountMappingTemplateHandler.cs");
 
         Assert.DoesNotContain("JetAuditProgram.Plan(", handler, StringComparison.Ordinal);
-        Assert.DoesNotContain("ReportArtifactExecutionPort", handler, StringComparison.Ordinal);
-        Assert.DoesNotContain("IReportArtifactStore", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportExecutionPort", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("IReportStore", handler, StringComparison.Ordinal);
         Assert.Contains("ProjectWorkFileWriter.WriteAsync(", handler, StringComparison.Ordinal);
         Assert.Contains("ProjectFileNames.AccountMappingTemplate(", handler, StringComparison.Ordinal);
     }
@@ -73,7 +73,7 @@ public sealed class ReportExportOwnershipTests
             "JET.AuditCore.ReportExportFacts",
             "JET.AuditCore.ReportExportResult",
             "JET.AuditCore.IReportExportFactsPort",
-            "JET.Application.ReportArtifactExecutionPort",
+            "JET.Application.ReportExecutionPort",
             "JET.Domain.IInfReportWriter",
             "JET.Domain.ICriteriaSelectionReportWriter"
         };
@@ -92,8 +92,8 @@ public sealed class ReportExportOwnershipTests
     {
         var source = ReadProduct("AuditCore", "ReportExportProgram.cs");
 
-        Assert.DoesNotContain("ReportArtifactWriteRequest", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("ReportArtifactContentWriter", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportWriteRequest", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReportContentWriter", source, StringComparison.Ordinal);
     }
 
     private static string ReadTypeSource(string typeName, string relativePath)

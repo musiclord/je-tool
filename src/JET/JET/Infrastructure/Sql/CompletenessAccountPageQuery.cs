@@ -17,9 +17,9 @@ internal static class CompletenessAccountPageQuery
     private const string OrderedCte = """
         ,
         ordered AS (
-            SELECT account_code, account_name, tb_s, gl_s, not_in_tb,
+            SELECT account_number, account_name, tb_s, gl_s, not_in_tb,
                    ROW_NUMBER() OVER (
-                       ORDER BY CASE WHEN account_code IS NULL THEN 0 ELSE 1 END, account_code, not_in_tb
+                       ORDER BY CASE WHEN account_number IS NULL THEN 0 ELSE 1 END, account_number, not_in_tb
                    ) AS page_row
             FROM diff
         )
@@ -32,7 +32,7 @@ internal static class CompletenessAccountPageQuery
     /// <param name="differencesOnly">差異表只列有差異的科目；全科目表列出全部。</param>
     public static string Sql(string diffCte, bool differencesOnly, KeysetPagePlan paging, ISqlDialect dialect) =>
         diffCte + OrderedCte +
-        "\nSELECT account_code, account_name, tb_s, gl_s, tb_s - gl_s AS difference_amount, not_in_tb, page_row" + paging.SelectSuffix + " " +
+        "\nSELECT account_number, account_name, tb_s, gl_s, tb_s - gl_s AS difference_amount, not_in_tb, page_row" + paging.SelectSuffix + " " +
         "FROM ordered WHERE " + (differencesOnly ? "tb_s <> gl_s" : "1 = 1") + paging.Predicate + " " +
         paging.OrderBy + " " + dialect.LimitClause("@pageSize") + ";";
 

@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQL Server 的 filter.commit 整批發布實作。definitions 與命中集合共用一條連線及
-/// transaction，只有 caller token 在 commit 邊界前仍有效；真正 commit 使用不可取消 token。
+/// SQL Server 的情境發布實作（對應 <see cref="LocalFilterCommitRepository"/>）。整批發布與儲存一個情境都在同一條連線及
+/// transaction 裡完成，只有 caller token 在 commit 邊界前仍有效；真正 commit 使用不可取消 token。
 /// </summary>
 public sealed class SqlServerFilterCommitRepository(
     SqlServerProjectDatabase database,
@@ -17,17 +17,12 @@ public sealed class SqlServerFilterCommitRepository(
 {
     private const string Provider = "sqlServer";
 
-    private static readonly GlFilterWhereBuilder WhereBuilder =
-        new(
-            SqlServerDialect.Instance,
-            new GlRulePredicates(SqlServerDialect.Instance, GlPopulationScopeSql.Predicate));
-
     private readonly ILogger _log = logger ?? NullLogger<SqlServerFilterCommitRepository>.Instance;
 
     public async Task CommitAsync(
         string projectId,
         IReadOnlyList<FilterCommitItem> items,
-        FilterRuleContext context,
+        FilterConditionContext context,
         CancellationToken cancellationToken)
     {
         ValidateBatch(items, context);
@@ -38,40 +33,23 @@ public sealed class SqlServerFilterCommitRepository(
         await using var transaction =
             (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-        await using (var clearHits = database.CreateCommand(
-            connection,
-            projectId,
-            "DELETE FROM {s}.result_filter_run;"))
+        foreach (var statement in FilterHitInsertSql.DeleteAll("{s}.").Append("DELETE FROM {s}.filter_scenario;"))
         {
-            clearHits.Transaction = transaction;
-            await clearHits.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
+            await using var clear = database.CreateCommand(connection, projectId, statement);
+            clear.Transaction = transaction;
+            await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
-        await using (var clearDefinitions = database.CreateCommand(
-            connection,
-            projectId,
-            "DELETE FROM {s}.config_filter_scenario;"))
+        foreach (var item in items)
         {
-            clearDefinitions.Transaction = transaction;
-            await clearDefinitions.ExecuteNonQueryLoggedAsync(
-                _log,
-                Provider,
-                cancellationToken);
+            await InsertDefinitionAsync(connection, transaction, projectId, item.Definition, cancellationToken);
         }
 
-        await InsertDefinitionsAsync(
-            connection,
-            transaction,
-            projectId,
-            items,
-            cancellationToken);
-        await InsertHitsAsync(
-            connection,
-            transaction,
-            projectId,
-            items,
-            context,
-            cancellationToken);
+        foreach (var item in items)
+        {
+            await InsertResultsAsync(connection, transaction, projectId, item, context, cancellationToken);
+        }
+
         await ResultStaleStateSql.ClearFilterWithinAsync(
             connection,
             transaction,
@@ -82,73 +60,83 @@ public sealed class SqlServerFilterCommitRepository(
         await transaction.CommitAsync(CancellationToken.None);
     }
 
-    private async Task InsertDefinitionsAsync(
+    public async Task SaveOneAsync(
+        string projectId,
+        FilterCommitItem item,
+        FilterConditionContext context,
+        CancellationToken cancellationToken)
+    {
+        ValidateBatch([item], context);
+
+        await database.EnsureCreatedAsync(projectId, cancellationToken);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction =
+            (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        foreach (var statement in FilterHitInsertSql.DeleteOne("{s}.")
+            .Append("DELETE FROM {s}.filter_scenario WHERE scenario_id = @scenarioId;"))
+        {
+            await using var clear = database.CreateCommand(connection, projectId, statement);
+            clear.Transaction = transaction;
+            clear.Parameters.AddWithValue("@scenarioId", item.Definition.ScenarioId);
+            await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
+        }
+
+        await InsertDefinitionAsync(connection, transaction, projectId, item.Definition, cancellationToken);
+        await InsertResultsAsync(connection, transaction, projectId, item, context, cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(CancellationToken.None);
+    }
+
+    private async Task InsertDefinitionAsync(
         SqlConnection connection,
         SqlTransaction transaction,
         string projectId,
-        IReadOnlyList<FilterCommitItem> items,
+        SavedFilterScenario definition,
         CancellationToken cancellationToken)
     {
         await using var insert = database.CreateCommand(
             connection,
             projectId,
             """
-            INSERT INTO {s}.config_filter_scenario (position, name, rationale, definition_json, saved_utc)
-            VALUES (@position, @name, @rationale, @definitionJson, @savedUtc);
+            INSERT INTO {s}.filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc)
+            VALUES (@scenarioId, @position, @name, @rationale, @definitionJson, @savedUtc);
             """);
         insert.Transaction = transaction;
-
-        var position = insert.Parameters.Add("@position", SqlDbType.Int);
-        var name = insert.Parameters.Add("@name", SqlDbType.NVarChar, FilterScenarioLimits.MaxNameLength);
-        var rationale = insert.Parameters.Add("@rationale", SqlDbType.NVarChar, -1);
-        var definitionJson = insert.Parameters.Add("@definitionJson", SqlDbType.NVarChar, -1);
-        var savedUtc = insert.Parameters.Add("@savedUtc", SqlDbType.NVarChar, 40);
-
-        foreach (var item in items)
-        {
-            var definition = item.Definition;
-            position.Value = definition.Position;
-            name.Value = definition.Name;
-            rationale.Value = definition.Rationale;
-            definitionJson.Value = definition.DefinitionJson;
-            savedUtc.Value = definition.SavedUtc.ToString("O");
-            await insert.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
-        }
+        insert.Parameters.Add("@scenarioId", SqlDbType.Int).Value = definition.ScenarioId;
+        insert.Parameters.Add("@position", SqlDbType.Int).Value = definition.Position;
+        insert.Parameters.Add("@name", SqlDbType.NVarChar, FilterScenarioLimits.MaxNameLength).Value = definition.Name;
+        insert.Parameters.Add("@rationale", SqlDbType.NVarChar, -1).Value = definition.Rationale;
+        insert.Parameters.Add("@definitionJson", SqlDbType.NVarChar, -1).Value = definition.DefinitionJson;
+        insert.Parameters.Add("@savedUtc", SqlDbType.NVarChar, 40).Value = definition.SavedUtc.ToString("O");
+        await insert.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
     }
 
-    private async Task InsertHitsAsync(
+    private Task InsertResultsAsync(
         SqlConnection connection,
         SqlTransaction transaction,
         string projectId,
-        IReadOnlyList<FilterCommitItem> items,
-        FilterRuleContext context,
-        CancellationToken cancellationToken)
-    {
-        var schemaPrefix = SqlServerProjectSchema.QualifierFor(projectId);
-
-        foreach (var item in items)
-        {
-            var plan = WhereBuilder.BuildPlan(
-                item.Spec,
-                context,
-                schemaPrefix);
-            await using var insert = database.CreateCommand(
-                connection,
-                projectId,
-                FilterRunHitInsertSql.Build(
-                    tablePrefix: "{s}.",
-                    populationPredicateSql: GlPopulationScopeSql.Predicate(context, "g"),
-                    scenarioPredicateSql: plan.Sql));
-            insert.Transaction = transaction;
-            plan.BindParametersTo(insert);
-            insert.Parameters.AddWithValue("@scenarioPosition", item.Definition.Position);
-            await insert.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
-        }
-    }
+        FilterCommitItem item,
+        FilterConditionContext context,
+        CancellationToken cancellationToken) =>
+        FilterHitInsertSql.InsertOneAsync(
+            sql => database.CreateCommand(connection, projectId, sql),
+            transaction,
+            SqlServerDialect.Instance,
+            tablePrefix: "{s}.",
+            schemaPrefix: SqlServerProjectSchema.QualifierFor(projectId),
+            item.Definition.ScenarioId,
+            item.Spec,
+            context,
+            _log,
+            Provider,
+            cancellationToken);
 
     private static void ValidateBatch(
         IReadOnlyList<FilterCommitItem> items,
-        FilterRuleContext context)
+        FilterConditionContext context)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(context);

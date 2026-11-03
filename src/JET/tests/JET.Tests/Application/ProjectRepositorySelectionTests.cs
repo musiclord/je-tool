@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 同一個 host 內切換不同資料庫種類的案件時，建案、載入與刪除都必須用該案件自己的資料庫。
-/// 這組測試在改成「案件建立或載入時選定 repository」之前先釘住現行行為（使用者 2026-10-02 選 A）；
+/// 這組測試在改成「案件建立或載入時選定 repository」之前先釘住現行行為（裁定 2026-10-02-07）；
 /// 斷言只看檔案、錯誤碼與 session 是否仍指向原案件，不看內部物件。
 /// </summary>
 public sealed class ProjectRepositorySelectionTests
@@ -49,7 +49,7 @@ public sealed class ProjectRepositorySelectionTests
         var overview = await host.DispatchAsync("dev.db.overview");
         Assert.Equal(ProjectDocument.DefaultDatabaseProvider, overview.GetProperty("databaseProvider").GetString());
         AssertDatabaseUnder(overview, root.Path, sqliteCase);
-        Assert.Equal(2L, TableRowCount(overview, "staging_gl_raw_row"));
+        Assert.Equal(2L, TableRowCount(overview, "pbc_gl"));
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public sealed class ProjectRepositorySelectionTests
         Assert.False(File.Exists(Path.Combine(projectDirectory, DatabaseFileName(firstProvider))));
         var overview = await host.DispatchAsync("dev.db.overview");
         Assert.Equal(recreatedProvider, overview.GetProperty("databaseProvider").GetString());
-        Assert.Equal(2L, TableRowCount(overview, "staging_gl_raw_row"));
+        Assert.Equal(2L, TableRowCount(overview, "pbc_gl"));
     }
 
     private static void AssertLockFree(string rootPath, string projectId)
@@ -310,9 +310,9 @@ public sealed class ProjectRepositorySelectionTests
     private static string CreatePayload(string projectId, string provider) =>
         JsonSerializer.Serialize(new
         {
-            caseName = projectId,
+            projectName = projectId,
             projectCode = "REPO-SELECT",
-            entityName = "資料庫選定測試",
+            clientName = "資料庫選定測試",
             operatorId = "auditor",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",

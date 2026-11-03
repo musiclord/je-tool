@@ -7,7 +7,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
 /// 五份報告與科目配對工作檔的完整旅程：驗證、填回範本原檔、重新匯出驗證報告，再完成篩選與底稿。
@@ -17,7 +17,7 @@ namespace JET.Tests.Application;
 public sealed class SixReportWorkflowJourneyTests
 {
     [Fact]
-    public async Task AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate()
+    public async Task AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate()
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host,
@@ -26,21 +26,21 @@ public sealed class SixReportWorkflowJourneyTests
                 .AddRow("JV-001","2025-03-05","2026-01-02","4101","收入",null,"2000000.00",0)
                 .AddRow("JV-002","2025-06-06","2026-01-02","1101","現金","調整分錄","100.00",1)
                 .AddRow("JV-002","2025-06-06","2026-01-02","5101","待分類科目",null,"100.00",0),
-            lastPeriodStart: "2025-12-31", configureTb: tb => tb.AddRow("1101","現金",2_000_100)
+            prepStartDate: "2025-12-31", configureTb: tb => tb.AddRow("1101","現金",2_000_100)
                 .AddRow("4101","收入",-2_000_000).AddRow("5101","待分類科目",-100));
 
         var validation = await host.DispatchAsync("validate.run");
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         var validationBatch = await host.DispatchAsync(
-            "export.validationArtifacts",
-            JsonSerializer.Serialize(new { runId = validationRunId }));
+            "export.validationReports",
+            JsonSerializer.Serialize(new { resultId = validationResultId }));
 
-        Assert.Equal(2, validationBatch.GetProperty("artifacts").GetArrayLength());
+        Assert.Equal(2, validationBatch.GetProperty("publishedReports").GetArrayLength());
         var projectDirectory = Path.Combine(host.ProjectsRoot, projectId);
         // 科目配對範本是工作檔，由第四步卡片單獨產生，不在驗證報告批次裡。
         var template = await host.DispatchAsync(
             "export.accountMappingTemplate",
-            JsonSerializer.Serialize(new { runId = validationRunId }));
+            JsonSerializer.Serialize(new { resultId = validationResultId }));
         var mappingPath = template.GetProperty("filePath").GetString()!;
         using (var workbook = new XLWorkbook(mappingPath))
         {
@@ -63,44 +63,44 @@ public sealed class SixReportWorkflowJourneyTests
             "project.load",
             JsonSerializer.Serialize(new { projectId }));
         Assert.Equal(
-            validationRunId,
-            afterMapping.GetProperty("latestRuns").GetProperty("validate")
-                .GetProperty("resultRef").GetProperty("runId").GetString());
-        Assert.Equal(JsonValueKind.Null, afterMapping.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
+            validationResultId,
+            afterMapping.GetProperty("validationResult")
+                .GetProperty("resultRef").GetProperty("resultId").GetString());
+        Assert.Equal(JsonValueKind.Null, afterMapping.GetProperty("prescreenResult").ValueKind);
 
         var regenerated = await host.DispatchAsync(
-            "export.validationArtifacts", JsonSerializer.Serialize(new { runId = validationRunId }));
-        Assert.Equal(new[] { "infReport", "validationReport" }, regenerated.GetProperty("artifacts").EnumerateArray()
-            .Select(artifact => artifact.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
+            "export.validationReports", JsonSerializer.Serialize(new { resultId = validationResultId }));
+        Assert.Equal(new[] { "infReport", "validationReport" }, regenerated.GetProperty("publishedReports").EnumerateArray()
+            .Select(report => report.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
         Assert.Equal(filledTemplate, await File.ReadAllBytesAsync(mappingPath));
-        Assert.DoesNotContain(afterMapping.GetProperty("reportArtifacts").EnumerateArray(),
-            artifact => artifact.GetProperty("kind").GetString() == "accountMapping");
+        Assert.DoesNotContain(afterMapping.GetProperty("reports").EnumerateArray(),
+            report => report.GetProperty("kind").GetString() == "accountMapping");
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         await host.DispatchAsync(
             "export.prescreenReport",
-            JsonSerializer.Serialize(new { runId = prescreenRunId }));
+            JsonSerializer.Serialize(new { resultId = prescreenResultId }));
 
         var originalScenarios = JsonDocument.Parse("""
-          [{"name":"完整旅程情境","rationale":"以合成摘要條件驗證報告與工作檔流程","groups":[{"rules":[{"type":"fieldValue","field":"description","operator":"contains","values":["調整"]}]}]},
+          [{"name":"完整旅程情境","rationale":"以合成摘要條件驗證報告與工作檔流程","groups":[{"conditions":[{"type":"fieldValue","field":"description","operator":"contains","values":["調整"]}]}]},
            {"name":"分類與指定日期","rationale":"分類留白的貸方科目視為 Others，兩張都命中","groups":[
-             {"rules":[
-               {"type":"group","rules":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
-               {"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"credit"},
+             {"conditions":[
+               {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},
+               {"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"credit"},
                  {"type":"accountSide","categoryMode":"isNot","categoryIds":["builtin.cash"],"categorySelection":"node"},
                  {"type":"fieldValue","field":"description","operator":"isBlank"}]}]},
-             {"join":"AND","rules":[
-               {"type":"fieldValue","field":"postDate","operator":"in","values":["2025-03-05","2025-06-06"]},
+             {"join":"AND","conditions":[
+               {"type":"fieldValue","field":"glDate","operator":"in","values":["2025-03-05","2025-06-06"]},
                {"type":"fieldValue","field":"amount","operator":"between","from":"100","to":"2000000","amountBasis":"absolute"},
                {"type":"fieldValue","field":"description","operator":"notContains","value":"NO_MATCH%_"}]},
-             {"join":"AND","rules":[{"type":"voucher","quantifier":"any","rules":[{"type":"drCrOnly","drCr":"debit"}]},
-               {"type":"voucher","quantifier":"all","rules":[{"type":"drCrOnly","drCr":"credit"},
+             {"join":"AND","conditions":[{"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"debit"}]},
+               {"type":"voucher","quantifier":"all","conditions":[{"type":"drCrOnly","drCr":"credit"},
                  {"type":"accountSide","join":"OR","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}]}]
           """).RootElement;
         // Keep both existing independent answers; add A and D from the retired entry catalogue
         // so the native Excel round-trip also exercises the formerly omitted prescreen descriptions.
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：目錄改放在測試夾具，條件內容不變，固定答案照舊。
+        // 裁定 2026-10-08-06 重新設計了自訂篩選條件：目錄改放在測試夾具，條件內容不變，固定答案照舊。
         var scenarios = JsonNode.Parse(originalScenarios.GetRawText())!.AsArray();
         var legacy = Architecture.LegacyFormCatalogTests.ReadCatalog()["conditions"]!.AsArray();
         foreach (var letter in new[] { "A", "D" })
@@ -109,7 +109,7 @@ public sealed class SixReportWorkflowJourneyTests
             var scenario = new JsonObject
             {
                 ["name"] = "舊表 " + letter, ["rationale"] = "合成案例驗證原生 Excel 條件說明",
-                ["groups"] = new JsonArray(new JsonObject { ["rules"] = item["rules"]!.DeepClone() })
+                ["groups"] = new JsonArray(new JsonObject { ["conditions"] = item["conditions"]!.DeepClone() })
             };
             var preview = await host.DispatchAsync("filter.preview", new JsonObject { ["scenario"] = scenario.DeepClone() }.ToJsonString());
             Assert.Equal(letter == "A" ? 4 : 2, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -117,7 +117,7 @@ public sealed class SixReportWorkflowJourneyTests
         }
         var selectionPreview = await host.DispatchAsync("filter.preview",JsonSerializer.Serialize(new { scenario = scenarios[1] }));
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, projectId,
-            "SELECT classification_explicit FROM target_account_mapping WHERE account_code='5101';"));
+            "SELECT classification_explicit FROM account_mapping WHERE account_number='5101';"));
         // 兩值語意：5101 分類留白視為 Others，原本「等待補分類」的那張傳票直接命中。
         Assert.Equal(2,selectionPreview.GetProperty("scenario").GetProperty("count").GetInt64());
         Assert.Equal(2,selectionPreview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
@@ -126,13 +126,13 @@ public sealed class SixReportWorkflowJourneyTests
 
         await host.DispatchAsync(
             "export.criteriaSelectionReport",
-            JsonSerializer.Serialize(new { validationRunId, prescreenRunId, revision }));
+            JsonSerializer.Serialize(new { validationResultId, prescreenResultId, revision }));
         await host.DispatchAsync(
-            "export.workpaperStream",
+            "export.workingPaperStream",
             JsonSerializer.Serialize(new
             {
-                validationRunId,
-                prescreenRunId,
+                validationResultId,
+                prescreenResultId,
                 scenarioRevision = revision,
                 scenarioPositions = new[] { 1, 2, 3, 4 }
             }));
@@ -140,32 +140,32 @@ public sealed class SixReportWorkflowJourneyTests
         var completed = await host.DispatchAsync(
             "project.load",
             JsonSerializer.Serialize(new { projectId }));
-        var artifacts = completed.GetProperty("reportArtifacts").EnumerateArray().ToArray();
+        var reports = completed.GetProperty("reports").EnumerateArray().ToArray();
         Assert.Equal(
             new[]
             {
                 "criteriaSelectionReport", "infReport",
                 "prescreenReport", "validationReport", "workingPaper"
             },
-            artifacts.Select(artifact => artifact.GetProperty("kind").GetString())
+            reports.Select(report => report.GetProperty("kind").GetString())
                 .Order(StringComparer.Ordinal)
                 .ToArray());
         Assert.True(File.Exists(mappingPath), "科目配對範本工作檔應留在案件資料夾。");
-        Assert.All(artifacts, artifact => Assert.False(artifact.GetProperty("stale").GetBoolean()));
-        Assert.All(artifacts, artifact =>
+        Assert.All(reports, report => Assert.False(report.GetProperty("stale").GetBoolean()));
+        Assert.All(reports, report =>
         {
-            var fileName = artifact.GetProperty("fileName").GetString()!;
+            var fileName = report.GetProperty("fileName").GetString()!;
             Assert.Equal(Path.GetFileName(fileName), fileName);
-            var artifactPath = Path.Combine(projectDirectory, fileName);
-            Assert.True(File.Exists(artifactPath));
-            AssertCanonicalFormalWorkbookMetadata(artifactPath);
+            var reportPath = Path.Combine(projectDirectory, fileName);
+            Assert.True(File.Exists(reportPath));
+            AssertCanonicalFormalWorkbookMetadata(reportPath);
         });
 
-        var validationPath = ArtifactPath(artifacts, projectDirectory, "validationReport");
-        var workingPaperPath = ArtifactPath(artifacts, projectDirectory, "workingPaper");
+        var validationPath = ReportPath(reports, projectDirectory, "validationReport");
+        var workingPaperPath = ReportPath(reports, projectDirectory, "workingPaper");
         foreach (var kind in new[] { "criteriaSelectionReport", "workingPaper" })
         {
-            using var selectionWorkbook = new XLWorkbook(ArtifactPath(artifacts, projectDirectory, kind));
+            using var selectionWorkbook = new XLWorkbook(ReportPath(reports, projectDirectory, kind));
             var texts = selectionWorkbook.Worksheets.Where(sheet => sheet.Visibility == XLWorksheetVisibility.Visible)
                 .SelectMany(sheet => sheet.CellsUsed()).Select(cell => cell.GetFormattedString()).ToArray();
             Assert.DoesNotContain(texts, text => text.Contains("待判定", StringComparison.Ordinal));
@@ -173,24 +173,24 @@ public sealed class SixReportWorkflowJourneyTests
             Assert.Contains(texts, text => text.Contains("全部符合（至少有一筆）", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("包含下層分類", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("財報準備日起核准", StringComparison.Ordinal));
-            // 2026-10-04 第 8 批 L59：固定預篩選名稱明示 6 位；仍核對 Criteria 與 WorkingPaper 的實際內容。
+            // 固定預篩選名稱明示 6 位；仍核對 Criteria 與 WorkingPaper 的實際內容。
             // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d，確定停在舊名稱斷言。
             Assert.Contains(texts, text => text.Contains("金額尾數連續 6 個 0", StringComparison.Ordinal));
         }
         AssertHiddenMappingMetadata(validationPath);
         AssertHiddenMappingMetadata(workingPaperPath);
-        using (var workpaper = new XLWorkbook(workingPaperPath))
+        using (var workingPaper = new XLWorkbook(workingPaperPath))
         {
-            var selected = workpaper.Worksheet(WorkpaperSheetCatalog.Step3).RowsUsed()
+            var selected = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step3).RowsUsed()
                 .Single(row => row.Cell(2).GetString() == "C2");
             // 兩值語意：分類留白的貸方視為 Others，C2 命中兩張傳票（與上方預覽的 voucherCount 一致）。
             Assert.Equal(2, selected.Cell(5).GetValue<long>());
         }
 
         var glRowsBefore = await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, "SELECT COUNT(*) FROM target_gl_entry;");
+            host, projectId, "SELECT COUNT(*) FROM gl;");
         var tbRowsBefore = await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, "SELECT COUNT(*) FROM target_tb_balance;");
+            host, projectId, "SELECT COUNT(*) FROM tb;");
 
         var fromValidation = await host.DispatchAsync(
             "mapping.restoreDraft",
@@ -203,7 +203,7 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Equal(
             ["formatVersion", "gl", "tb"],
             fromValidation.EnumerateObject().Select(property => property.Name).ToArray());
-        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：報告的 GL 配對資訊多寫往下填補的欄位 fillDownFields。
+        // 報告的 GL 配對資訊多寫往下填補的欄位 fillDownFields（裁定 2026-10-22-16）。
         // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
         Assert.Equal(
             [
@@ -230,19 +230,19 @@ public sealed class SixReportWorkflowJourneyTests
             completed.GetProperty("mapping").GetRawText(),
             afterRestore.GetProperty("mapping").GetRawText());
         Assert.Equal(glRowsBefore, await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, "SELECT COUNT(*) FROM target_gl_entry;"));
+            host, projectId, "SELECT COUNT(*) FROM gl;"));
         Assert.Equal(tbRowsBefore, await DemoProjectPipeline.QueryScalarAsync(
-            host, projectId, "SELECT COUNT(*) FROM target_tb_balance;"));
+            host, projectId, "SELECT COUNT(*) FROM tb;"));
 
-        await ExportEvidenceIfRequestedAsync(projectId, artifacts, projectDirectory, mappingPath);
-        // 2026-09-17 使用者要求：路徑、查核期間與 V_Report 5 可讀性須沿完整旅程核對。
-        Assert.All(artifacts, artifact =>
+        await ExportEvidenceIfRequestedAsync(projectId, reports, projectDirectory, mappingPath);
+        // 裁定 2026-09-17-05：路徑、查核期間與 V_Report 5 可讀性須沿完整旅程核對。
+        Assert.All(reports, report =>
         {
-            Assert.Contains("_20250101-20251231_", artifact.GetProperty("fileName").GetString());
-            Assert.Equal(Path.Combine(projectDirectory, artifact.GetProperty("fileName").GetString()!),
-                artifact.GetProperty("fullPath").GetString());
+            Assert.Contains("_20250101-20251231_", report.GetProperty("fileName").GetString());
+            Assert.Equal(Path.Combine(projectDirectory, report.GetProperty("fileName").GetString()!),
+                report.GetProperty("fullPath").GetString());
         });
-        // V_Report 5 在 2026-09 依使用者要求加高到 18 點，因為字被切到。2026-10-29 使用者裁定所有 10 點明細頁統一
+        // V_Report 5 原本因為字被切到而加高到 18 點。裁定 2026-10-29-08 把所有 10 點明細頁統一
         // 為 15 點，V_Report 5 跟著改；15 點仍不會切到微軟正黑體 10 點。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
         using var readableValidation = new XLWorkbook(validationPath);
         Assert.Equal(15D, readableValidation.Worksheet("V_Report 5").RowHeight);
@@ -250,9 +250,9 @@ public sealed class SixReportWorkflowJourneyTests
 
     }
 
-    private static string ArtifactPath(JsonElement[] artifacts, string projectDirectory, string kind)
+    private static string ReportPath(JsonElement[] reports, string projectDirectory, string kind)
     {
-        var fileName = artifacts.Single(artifact => artifact.GetProperty("kind").GetString() == kind)
+        var fileName = reports.Single(report => report.GetProperty("kind").GetString() == kind)
             .GetProperty("fileName").GetString()!;
         return Path.Combine(projectDirectory, fileName);
     }
@@ -286,7 +286,7 @@ public sealed class SixReportWorkflowJourneyTests
         using var metadata = JsonDocument.Parse(json);
         var root = metadata.RootElement;
         Assert.Equal(
-            ["formatVersion", "approvalDateMode", "populationPolicy", "taxonomyRevision", "mapping"],
+            ["formatVersion", "approvalDateMode", "populationPolicy", "categoryRevision", "mapping"],
             root.EnumerateObject().Select(property => property.Name).ToArray());
         Assert.Equal(1, root.GetProperty("formatVersion").GetInt32());
         Assert.Equal("mapped", root.GetProperty("approvalDateMode").GetString());
@@ -302,7 +302,7 @@ public sealed class SixReportWorkflowJourneyTests
         Assert.Empty(postingStatus.GetProperty("acceptedValues").EnumerateArray());
         Assert.False(postingStatus.GetProperty("includeBlank").GetBoolean());
 
-        Assert.True(root.GetProperty("taxonomyRevision").GetInt32() >= 1);
+        Assert.True(root.GetProperty("categoryRevision").GetInt32() >= 1);
         var mapping = root.GetProperty("mapping");
         Assert.Equal(MappingMetadataFormat.CurrentVersion, mapping.GetProperty("formatVersion").GetInt32());
         Assert.Equal("gl", mapping.GetProperty("gl").GetProperty("kind").GetString());
@@ -328,7 +328,7 @@ public sealed class SixReportWorkflowJourneyTests
 
     private static async Task ExportEvidenceIfRequestedAsync(
         string projectId,
-        JsonElement[] artifacts,
+        JsonElement[] reports,
         string projectDirectory,
         string accountMappingTemplatePath)
     {
@@ -354,11 +354,11 @@ public sealed class SixReportWorkflowJourneyTests
 
         Directory.CreateDirectory(workbookDirectory);
         // Excel 路線仍要開六份工作簿：五份報告加上科目配對範本工作檔，範本以 accountMapping 為種類名。
-        var sources = artifacts
-            .Select(artifact => (
-                Kind: artifact.GetProperty("kind").GetString()!,
-                FileName: artifact.GetProperty("fileName").GetString()!,
-                SourcePath: Path.Combine(projectDirectory, artifact.GetProperty("fileName").GetString()!)))
+        var sources = reports
+            .Select(report => (
+                Kind: report.GetProperty("kind").GetString()!,
+                FileName: report.GetProperty("fileName").GetString()!,
+                SourcePath: Path.Combine(projectDirectory, report.GetProperty("fileName").GetString()!)))
             .Append((
                 Kind: "accountMapping",
                 FileName: Path.GetFileName(accountMappingTemplatePath),

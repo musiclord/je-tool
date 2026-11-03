@@ -118,9 +118,9 @@ JET 已具備可連續操作的六步驟流程：
 
 | 案件 | Provider | GL／TB | GL 匯入 | GL 標準化 | 驗證＋3 報表 | 預篩選＋報表 | Working Paper |
 |:---|:---|:---|---:|---:|---:|---:|---:|
-| case-A | SQLite | 1,712,542×50／378×4 | 151.1 秒 | 38.1 秒 | 17,376 ms | 57,126 ms | 9,683 ms |
-| case-B | SQLite | 20,260,435×14／447×7 | 248.1 秒 | 622.2 秒 | 313,812 ms | 724,373 ms | 209,549 ms |
-| case-B | DuckDB | 20,260,435×14／447×7 | 114.9 秒 | 289.3 秒 | 9,060 ms | 106,385 ms | 13,917 ms |
+| case-A | SQLite | 百萬列等級／數百列 | 約兩分半 | 約四十秒 | 十餘秒 | 約一分鐘 | 約十秒 |
+| case-B | SQLite | 千萬列等級／數百列 | 約四分鐘 | 約十分鐘 | 約五分鐘 | 十餘分鐘 | 數分鐘 |
+| case-B | DuckDB | 千萬列等級／數百列 | 約兩分鐘 | 約五分鐘 | 約十秒 | 不到兩分鐘 | 十餘秒 |
 
 ## 延後或尚待決定
 
@@ -135,7 +135,7 @@ JET 已具備可連續操作的六步驟流程：
 ## 已知技術債
 
 - `Pre-screening Report` 的欄位來源忠實性已於 2026-08-14 修正、2026-08-15 完成兩案跨案件驗證（規則見 `jet-guide.md` §7.1）；未提供的公司案件仍未在本機復現。`R5` 的 `CREATED_BY` 等彙總頁標題不在該裁決範圍（裁決只涵蓋 R2 明細家族與 R6），維持既有輸出契約名稱；若要延伸同樣的 lineage 規則，需另行裁決。
-- `JET_PBC_DIR` PBC fixture 家族（114MB 大檔煙霧測試）仍不在本機（`jet-guide.md` §13 既有敘述一致）。2026-08-15 harness 修正後這是**已登錄的資料可用性條件**：四個 PBC 測試以精確身分與理由登錄在 `tools/verify-expected-skips.json` 的 `PrivateParity` 段，skip 不再使 envelope 紅燈，資料齊備時轉綠仍合法；未登錄或理由不符的 skip 照舊紅燈。原 `dotnet test -e` 環境變數傳遞缺陷已同輪修復（改 process 環境變數傳遞並還原）。
+- `JET_PBC_DIR` PBC fixture 家族（百 MB 等級的大檔煙霧測試）仍不在本機（`jet-guide.md` §13 既有敘述一致）。2026-08-15 harness 修正後這是**已登錄的資料可用性條件**：四個 PBC 測試以精確身分與理由登錄在 `tools/verify-expected-skips.json` 的 `PrivateParity` 段，skip 不再使 envelope 紅燈，資料齊備時轉綠仍合法；未登錄或理由不符的 skip 照舊紅燈。原 `dotnet test -e` 環境變數傳遞缺陷已同輪修復（改 process 環境變數傳遞並還原）。
 - 歷史 stage6／7 parity 批次封板測試已退役（其本機 capture 已不存在、觀測值屬多階段前的舊版行為，無法以現行程式重現）；跨案件驗證由 `crosscase-pure-verification` 批次與 `LegacyAuditParityCrossCaseCloseoutTests` 取代。歷史批次的 store／comparator／catalog 機制仍保留並由 synthetic 單元測試覆蓋。
 - Stage 9 的 28 張基底頁包含 18 張直接實物、7 張同 writer family 投影與 3 張 summary-only 無 worksheet；固定範本／非基底區的 JET 標準不得冒稱直接 legacy parity。
 - CSV 欄名與資料讀取會重做一次格式偵測；只有實測成為瓶頸時才優化。

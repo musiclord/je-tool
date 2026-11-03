@@ -937,11 +937,11 @@ internal sealed class SmeCaseGenerator
     {
         var window = ledger.Lines.Where(line =>
             line.InPopulation
-            && line.PostDate >= from
-            && line.PostDate <= to
+            && line.GlDate >= from
+            && line.GlDate <= to
             && !vatSettlementDescriptions.Contains(line.Description));
-        var output = window.Where(line => line.AccountCode == "2291").Sum(line => line.Credit - line.Debit);
-        var input = window.Where(line => line.AccountCode == "1268").Sum(line => line.Debit - line.Credit);
+        var output = window.Where(line => line.AccountNumber == "2291").Sum(line => line.Credit - line.Debit);
+        var input = window.Where(line => line.AccountNumber == "1268").Sum(line => line.Debit - line.Credit);
         return (output, input);
     }
 
@@ -1112,8 +1112,8 @@ internal sealed class SmeCaseGenerator
 
         var monthStart = new DateOnly(monthEnd.Year, month, 1);
         var overhead = ledger.Lines
-            .Where(line => line.InPopulation && line.PostDate >= monthStart && line.PostDate <= monthEnd
-                && line.AccountCode.StartsWith('5') && line.AccountCode is not ("5111" or "5150" or "5160" or "5190"))
+            .Where(line => line.InPopulation && line.GlDate >= monthStart && line.GlDate <= monthEnd
+                && line.AccountNumber.StartsWith('5') && line.AccountNumber is not ("5111" or "5150" or "5160" or "5190"))
             .Sum(line => line.Debit - line.Credit);
         Explicit(SmeSources.Costing, monthEnd, approval, SmePeople.ProductionClerk, SmePeople.ChiefAccountant, SmeDepartments.Production)
             .Dr("1234", overhead, $"{month}月製造費用轉入在製品")
@@ -1243,7 +1243,7 @@ internal sealed class SmeCaseGenerator
         At(day, posting => V(SmeSources.Journal, posting, SmePeople.ChiefAccountant, SmeDepartments.Finance)
             .Dr(asset, amount, text).Cr(expense, amount, text).Post());
 
-    /// <summary>總經理不在授權名單，全年五張傳票共 11 筆分錄（剛好落在低頻人員上限），其中三張自己核准。</summary>
+    /// <summary>總經理不在授權名單，全年五張傳票共 11 筆分錄（剛好落在較少使用人員上限），其中三張自己核准。</summary>
     private void GeneralManagerEntries()
     {
         var gm = SmePeople.GeneralManager;
@@ -1491,7 +1491,7 @@ internal sealed class SmeCaseGenerator
         Adjust(jan(21), chief, v => v.Dr("4111", 620_000m, "依會計師建議調整-銷貨收入截止").Cr("2131", 620_000m, "依會計師建議調整-銷貨收入截止"));
         // 營利事業所得稅率 20%：依其他調整入帳後的稅前淨利估列，取到千元，先沖抵九月的暫繳稅款。
         var preTax = ledger.Lines
-            .Where(line => line.InPopulation && line.AccountCode[0] is '4' or '5' or '6' or '7')
+            .Where(line => line.InPopulation && line.AccountNumber[0] is '4' or '5' or '6' or '7')
             .Sum(line => line.Credit - line.Debit);
         var incomeTax = Math.Round(preTax * 0.2m / 1_000m, 0) * 1_000m;
         Adjust(new DateOnly(2026, 2, 6), manager, v => v

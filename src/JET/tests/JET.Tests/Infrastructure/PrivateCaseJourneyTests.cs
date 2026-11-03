@@ -21,18 +21,18 @@ public sealed class PrivateCaseJourneyTests
 
         Assert.Equal("local-case-01", result.CaseAlias);
         Assert.Equal(LegacyAuditParityCheckpoint.Export, result.CompletedCheckpoint);
-        Assert.Equal(6, result.ArtifactCount);
+        Assert.Equal(6, result.ReportCount);
         Assert.Equal(LegacyAuditParityJourneyContract.FullActionOrder, result.ActionNames);
         Assert.True(result.ValidationCaptured);
         Assert.True(result.PrescreenCaptured);
         Assert.True(result.FilterCaptured);
-        Assert.True(result.TagMatrixCaptured);
+        Assert.True(result.HighRiskSummaryCaptured);
         Assert.NotNull(result.InfVerification);
         Assert.True(result.InfVerification.Passed);
         Assert.Equal(
             Math.Min(
                 (long)PrivateCaseAcceptancePolicy.RequiredInfSampleSize,
-                result.InfVerification.EffectivePopulationRowCount),
+                result.InfVerification.GlRowCount),
             result.InfVerification.ReportedSampleSize);
         Assert.Equal(
             result.InfVerification.ReportedSampleSize,
@@ -41,10 +41,10 @@ public sealed class PrivateCaseJourneyTests
         Assert.Single(result.ScenarioVerificationFacts.Counts);
         Assert.NotNull(result.ScenarioDiagnosticFacts);
         Assert.Single(result.ScenarioDiagnosticFacts.Counts);
-        Assert.All(result.Artifacts, artifact => Assert.True(File.Exists(artifact.FullPath)));
+        Assert.All(result.Reports, report => Assert.True(File.Exists(report.FullPath)));
 
         var serialized = JsonSerializer.Serialize(result);
-        Assert.DoesNotContain(prepared.Input.EntityName, serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain(prepared.Input.ClientName, serialized, StringComparison.Ordinal);
         Assert.DoesNotContain(
             prepared.Input.GlSources[0].FilePath,
             serialized,
@@ -58,11 +58,11 @@ public sealed class PrivateCaseJourneyTests
         var converted = new PrivateCaseJourneyInput(
             "local-case-01",
             input.ProjectCode,
-            input.EntityName,
+            input.ClientName,
             input.OperatorId,
             input.PeriodStart,
             input.PeriodEnd,
-            input.LastPeriodStart!,
+            input.PrepStartDate!,
             input.SampleSeed,
             input.GlSources.Select(source => new PrivateCaseJourneyImportSource(
                     source.FilePath,

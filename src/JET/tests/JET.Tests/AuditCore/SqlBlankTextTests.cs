@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 文字欄「是空白」「不是空白」的唯一 SQL 寫法。2026-10-22 技術債一輪把散在各規則與配對查詢裡的同一句收成這一個類別：
+/// 文字欄「是空白」「不是空白」的唯一 SQL 寫法。2026-10-22 清理技術債時把散在各規則與配對查詢裡的同一句收成這一個類別：
 /// 空白指 NULL 或經方言去空白後是空字串，兩個片段都帶外層括號。
 /// </summary>
 public sealed class SqlBlankTextTests
@@ -22,8 +22,8 @@ public sealed class SqlBlankTextTests
     public void IsNotBlank_IsNotNullAndTrimmedNotEmpty_WrappedInParentheses()
     {
         Assert.Equal(
-            "(g.document_number IS NOT NULL AND TRIM(g.document_number) <> '')",
-            SqlBlankText.IsNotBlank(new PlainTrimDialect(), "g.document_number"));
+            "(g.voucher_number IS NOT NULL AND TRIM(g.voucher_number) <> '')",
+            SqlBlankText.IsNotBlank(new PlainTrimDialect(), "g.voucher_number"));
     }
 
     [Fact]

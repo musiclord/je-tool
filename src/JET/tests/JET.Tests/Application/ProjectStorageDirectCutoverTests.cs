@@ -44,9 +44,9 @@ public sealed class ProjectStorageDirectCutoverTests
                 "project.create",
                 $$"""
                 {
-                  "caseName": "{{newProjectId}}",
+                  "projectName": "{{newProjectId}}",
                   "projectCode": "NEW-ROOT",
-                  "entityName": "New root entity",
+                  "clientName": "New root entity",
                   "operatorId": "operator",
                   "periodStart": "2025-01-01",
                   "periodEnd": "2025-12-31",

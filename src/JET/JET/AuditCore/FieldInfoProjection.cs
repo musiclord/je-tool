@@ -22,8 +22,8 @@ public static partial class JetAuditProgram
     /// 呼叫端負責讀取 Target facts；本方法只做 provider-neutral、bounded shaping。
     /// </summary>
     internal static FieldInfoProjection ProjectFieldInfo(
-        IReadOnlyList<LegacyFieldDefinition> targetTbDefinitions,
-        IReadOnlyList<LegacyFieldDefinition> targetGlDefinitions)
+        IReadOnlyList<FieldInfo> targetTbDefinitions,
+        IReadOnlyList<FieldInfo> targetGlDefinitions)
     {
         ArgumentNullException.ThrowIfNull(targetTbDefinitions);
         ArgumentNullException.ThrowIfNull(targetGlDefinitions);
@@ -34,7 +34,7 @@ public static partial class JetAuditProgram
     }
 
     private static IReadOnlyList<FieldInfoRow> ProjectRows(
-        IReadOnlyList<LegacyFieldDefinition> definitions,
+        IReadOnlyList<FieldInfo> definitions,
         DatasetKind datasetKind) =>
         Array.AsReadOnly(definitions
             .OrderBy(static definition => definition.Ordinal)
@@ -42,7 +42,7 @@ public static partial class JetAuditProgram
             .ToArray());
 
     private static FieldInfoRow ProjectRow(
-        LegacyFieldDefinition definition,
+        FieldInfo definition,
         DatasetKind datasetKind)
     {
         var fieldType = definition.Kind switch

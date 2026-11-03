@@ -10,7 +10,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Application;
 
 /// <summary>
@@ -38,7 +38,7 @@ public sealed class ValidationDirectTemplatePackageTests
             nullAccountCount: savedCount,
             nullDocumentCount: savedCount,
             nullDescriptionCount: savedCount,
-            outOfRangeDateCount: savedCount);
+            approvalDateNotInPeriodCount: savedCount);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
 
         var bytes = await WriteReportAsync(
@@ -76,7 +76,7 @@ public sealed class ValidationDirectTemplatePackageTests
         {
             ThrowOnValidationDetailRead = !expectedDetailSheet
         };
-        var projection = Projection(unbalancedDocumentCount: 2);
+        var projection = Projection(unbalancedVoucherCount: 2);
         var plan = Plan(projection, rawDetailRowCount);
 
         var bytes = await WriteReportAsync(
@@ -94,7 +94,7 @@ public sealed class ValidationDirectTemplatePackageTests
         Assert.Equal(expectedDetailSheet ? 1 : 0, repositories.RawRowCalls);
         Assert.Equal(
             rawDetailRowCount,
-            plan.RequireDetail(ValidationReportDetailKind.UnbalancedGlEntry).Count);
+            plan.RequireDetail(ValidationReportDetailKind.UnbalancedVoucherEntry).Count);
         AssertOpenXmlValid(bytes);
     }
 
@@ -106,8 +106,8 @@ public sealed class ValidationDirectTemplatePackageTests
             nullAccountCount: 1,
             nullDocumentCount: 1,
             nullDescriptionCount: 1,
-            outOfRangeDateCount: 1,
-            unbalancedDocumentCount: 1);
+            approvalDateNotInPeriodCount: 1,
+            unbalancedVoucherCount: 1);
         var plan = Plan(projection, unbalancedDetailRowCount: 1);
         var templateBytes = await ValidationTemplateBytesAsync();
 
@@ -132,7 +132,7 @@ public sealed class ValidationDirectTemplatePackageTests
                     "V_Report 5",
                     "V_Report 6",
                     "Source_Quality",
-                    // 2026-10-22 技術債一輪：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-080541492）。
+                    // 2026-10-22 清理技術債：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-080541492）。
                     ReportWorkbookMetadataFormat.WorksheetName
                 },
                 workbook.Worksheets.Select(sheet => sheet.Name).ToArray());
@@ -195,7 +195,7 @@ public sealed class ValidationDirectTemplatePackageTests
     {
         var fullFindings = Enumerable.Range(1, 51)
             .Select(index => new SourceQualityFindingRow(
-                "nullPostDate",
+                "blankGlDate",
                 index,
                 "synthetic-source.xlsx [GL]",
                 $"DOC-{index}",
@@ -209,7 +209,7 @@ public sealed class ValidationDirectTemplatePackageTests
             SourceQualityRows = fullFindings,
             TargetGlDefinitions =
             [
-                new LegacyFieldDefinition(
+                new FieldInfo(
                     1,
                     "DOCUMENT_DATE_JE",
                     "source date",
@@ -218,13 +218,13 @@ public sealed class ValidationDirectTemplatePackageTests
                     null)
             ]
         };
-        // 2026-10-22 使用者裁定刪掉投影裡沒人讀的來源品質樣本列，報告的來源品質工作表只從倉儲分頁讀；
+        // 裁定 2026-10-22-20 刪掉投影裡沒人讀的總帳日期空白樣本列，報告的總帳日期空白工作表只從倉儲分頁讀；
         // 摘要 JSON 仍只存 50 筆樣本給前端，所以這則測試照舊確認報告讀到倉儲的全部 51 筆。
         // 第一次失敗：Focused 收據 20261022-084228771-7b2316c36ab54315bf1eb067bdad7939（建置失敗）。
         var projection = Projection(sourceQualityFindingCount: fullFindings.Length);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
 
-        var result = await WriteReportWithDocDateMappingResultAsync(
+        var result = await WriteReportWithApprovalDateMappingResultAsync(
             repositories,
             projection,
             plan,
@@ -241,7 +241,7 @@ public sealed class ValidationDirectTemplatePackageTests
             "SOURCE_LABEL",
             "DOCUMENT_NUMBER",
             "ACCOUNT_CODE",
-            "POST_DATE",
+            "GL_DATE",
             "DESCRIPTION"
         ];
         var sheetNames = Enumerable.Range(1, 4)
@@ -277,9 +277,9 @@ public sealed class ValidationDirectTemplatePackageTests
             finding.Category,
             finding.SourceRowNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
             finding.SourceLabel,
-            finding.DocumentNumber ?? string.Empty,
-            finding.AccountCode ?? string.Empty,
-            finding.PostDate ?? string.Empty,
+            finding.VoucherNumber ?? string.Empty,
+            finding.AccountNumber ?? string.Empty,
+            finding.GlDate ?? string.Empty,
             finding.Description ?? string.Empty
         }).ToArray();
         Assert.Equal(expectedRows.Length, actualRows.Count);
@@ -301,7 +301,7 @@ public sealed class ValidationDirectTemplatePackageTests
     }
 
     [Fact]
-    public async Task Stage8TrackO_ValidationRegistry_AllTwentyOneEntriesMatchSyntheticWorkbook()
+    public async Task ValidationRegistry_AllTwentyOneEntriesMatchSyntheticWorkbook()
     {
         var repositories = new ValidationRepositoryFakes
         {
@@ -320,12 +320,12 @@ public sealed class ValidationDirectTemplatePackageTests
             nullAccountCount: 1,
             nullDocumentCount: 1,
             nullDescriptionCount: 1,
-            outOfRangeDateCount: 1,
-            unbalancedDocumentCount: 1,
+            approvalDateNotInPeriodCount: 1,
+            unbalancedVoucherCount: 1,
             completenessDiffAccountCount: 1);
         var fieldInfo = JetAuditProgram.ProjectFieldInfo(
         [
-            new LegacyFieldDefinition(
+            new FieldInfo(
                 1,
                 "TB_TEXT_TB",
                 "TB source",
@@ -334,7 +334,7 @@ public sealed class ValidationDirectTemplatePackageTests
                 null)
         ],
         [
-            new LegacyFieldDefinition(
+            new FieldInfo(
                 1,
                 "GL_TEXT_JE",
                 "GL source",
@@ -415,10 +415,10 @@ public sealed class ValidationDirectTemplatePackageTests
     }
 
     [Fact]
-    public async Task Stage8TrackO_D25Fill_UsesFinalizedRawDetailGate_NotDisplayedVoucherCount()
+    public async Task D25Fill_UsesFinalizedRawDetailGate_NotDisplayedVoucherCount()
     {
         var repositories = new ValidationRepositoryFakes();
-        var projection = Projection(unbalancedDocumentCount: 0);
+        var projection = Projection(unbalancedVoucherCount: 0);
 
         var bytes = await WriteReportAsync(
             repositories,
@@ -438,7 +438,7 @@ public sealed class ValidationDirectTemplatePackageTests
     [Theory]
     [InlineData(0)]
     [InlineData(10_000)]
-    public async Task Stage8TrackO_SummaryConditionalFills_PreserveTemplateFill_WhenConditionsAreOff(
+    public async Task SummaryConditionalFills_PreserveTemplateFill_WhenConditionsAreOff(
         long unbalancedDetailRowCount)
     {
         var repositories = new ValidationRepositoryFakes();
@@ -486,7 +486,7 @@ public sealed class ValidationDirectTemplatePackageTests
         const int rowCount = 17;
         var longCjk = new string('寬', 40);
         var rows = Enumerable.Range(0, rowCount)
-            .Select(index => new NullRecordRow(
+            .Select(index => new BlankRecordRow(
                 $"DOC-{index + 1}",
                 "1101",
                 "2025-03-01",
@@ -515,7 +515,7 @@ public sealed class ValidationDirectTemplatePackageTests
         };
         var projection = Projection(nullAccountCount: rowCount);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
-        var progress = new List<WorkpaperProgress>();
+        var progress = new List<WorkingPaperProgress>();
 
         var bytes = await WriteReportAsync(
             repositories,
@@ -709,7 +709,7 @@ public sealed class ValidationDirectTemplatePackageTests
     }
 
     [Fact]
-    public async Task Stage8TrackO_InfNumberFormat_UsesTargetTextKindAndLeavesNumberAndUnusedRowsUnchanged()
+    public async Task InfNumberFormat_UsesTargetTextKindAndLeavesNumberAndUnusedRowsUnchanged()
     {
         var sample = new InfSampleRow(
             "00123",
@@ -733,21 +733,21 @@ public sealed class ValidationDirectTemplatePackageTests
             },
             TargetGlDefinitions =
             [
-                new LegacyFieldDefinition(
+                new FieldInfo(
                     1,
                     "傳票號碼_JE",
                     "document source",
                     LegacyFieldKind.Text,
                     5,
                     null),
-                new LegacyFieldDefinition(
+                new FieldInfo(
                     2,
                     "傳票金額_JE",
                     "amount source",
                     LegacyFieldKind.Number,
                     null,
                     2),
-                new LegacyFieldDefinition(
+                new FieldInfo(
                     3,
                     "未對映文字_JE",
                     "unmapped source",
@@ -824,16 +824,16 @@ public sealed class ValidationDirectTemplatePackageTests
         var longDescription = new string('欄', 300);
         var fieldInfo = JetAuditProgram.ProjectFieldInfo(
         [
-            new LegacyFieldDefinition(1, "TB_TEXT_TB", longDescription, LegacyFieldKind.Text, 300, null),
-            new LegacyFieldDefinition(2, "TB_NUMBER", null, LegacyFieldKind.Number, null, 4),
-            new LegacyFieldDefinition(3, "TB_DATE_TB", null, LegacyFieldKind.Date, null, null),
-            new LegacyFieldDefinition(4, "TB_TIME", null, LegacyFieldKind.Time, null, null)
+            new FieldInfo(1, "TB_TEXT_TB", longDescription, LegacyFieldKind.Text, 300, null),
+            new FieldInfo(2, "TB_NUMBER", null, LegacyFieldKind.Number, null, 4),
+            new FieldInfo(3, "TB_DATE_TB", null, LegacyFieldKind.Date, null, null),
+            new FieldInfo(4, "TB_TIME", null, LegacyFieldKind.Time, null, null)
         ],
         [
-            new LegacyFieldDefinition(1, "GL_TEXT_JE", null, LegacyFieldKind.Text, 40, null),
-            new LegacyFieldDefinition(2, "GL_NUMBER_JE_S", null, LegacyFieldKind.Number, null, 2),
-            new LegacyFieldDefinition(3, "GL_DATE_je", null, LegacyFieldKind.Date, null, null),
-            new LegacyFieldDefinition(4, "GL_TIME", null, LegacyFieldKind.Time, null, null)
+            new FieldInfo(1, "GL_TEXT_JE", null, LegacyFieldKind.Text, 40, null),
+            new FieldInfo(2, "GL_NUMBER_JE_S", null, LegacyFieldKind.Number, null, 2),
+            new FieldInfo(3, "GL_DATE_je", null, LegacyFieldKind.Date, null, null),
+            new FieldInfo(4, "GL_TIME", null, LegacyFieldKind.Time, null, null)
         ]);
 
         var projection = Projection();
@@ -896,8 +896,8 @@ public sealed class ValidationDirectTemplatePackageTests
             var metadata = MappingMetadataCodec.Decode(
                 MappingMetadataFormat.CurrentVersion,
                 sheet.Cell("H1").GetString());
-            Assert.Equal("APPROVAL_DATE", metadata.Gl.Mapping[GlMappingKeys.DocDate]);
-            Assert.Equal("ACCOUNT_CODE", metadata.Tb.Mapping[TbMappingKeys.AccNum]);
+            Assert.Equal("APPROVAL_DATE", metadata.Gl.Mapping[GlMappingKeys.ApprovalDate]);
+            Assert.Equal("ACCOUNT_CODE", metadata.Tb.Mapping[TbMappingKeys.AccountNumber]);
             Assert.True(sheet.Protection.IsProtected);
         }
 
@@ -923,7 +923,7 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.True(column.CustomWidth?.Value == true);
             Assert.InRange(column.Width?.Value ?? 0, 1, 255);
         });
-        // 原本欄位名稱欄依全部資料撐到 Excel 上限 255。使用者 2026-10-29 要求工作表外觀對齊舊流程後，
+        // 原本欄位名稱欄依全部資料撐到 Excel 上限 255。裁定 2026-10-29-01 要求工作表外觀對齊舊流程後，
         // 這欄上限改為 40 並換行：300 個全形字約 600 字寬，扣掉留白後每行約 33 字寬，換成 19 行，10 點字每行 15 點。
         // 第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
         Assert.Equal(40d, visibleColumns[0].Width?.Value);
@@ -943,7 +943,7 @@ public sealed class ValidationDirectTemplatePackageTests
         ValidationReportPlan plan,
         FieldInfoProjection fieldInfo,
         LegacyReportWriterOptions? options = null,
-        Action<WorkpaperProgress>? progress = null,
+        Action<WorkingPaperProgress>? progress = null,
         int progressRowInterval = 10_000)
     {
         var writer = repositories.CreateWriter(options, progressRowInterval);
@@ -961,13 +961,13 @@ public sealed class ValidationDirectTemplatePackageTests
         return output.ToArray();
     }
 
-    private static async Task<byte[]> WriteReportWithDocDateMappingAsync(
+    private static async Task<byte[]> WriteReportWithApprovalDateMappingAsync(
         ValidationRepositoryFakes repositories,
         ValidationReportProjection projection,
         ValidationReportPlan plan,
         FieldInfoProjection fieldInfo)
     {
-        var result = await WriteReportWithDocDateMappingResultAsync(
+        var result = await WriteReportWithApprovalDateMappingResultAsync(
             repositories,
             projection,
             plan,
@@ -975,7 +975,7 @@ public sealed class ValidationDirectTemplatePackageTests
         return result.Bytes;
     }
 
-    private static async Task<(byte[] Bytes, ExportStats Stats)> WriteReportWithDocDateMappingResultAsync(
+    private static async Task<(byte[] Bytes, ExportStats Stats)> WriteReportWithApprovalDateMappingResultAsync(
         ValidationRepositoryFakes repositories,
         ValidationReportProjection projection,
         ValidationReportPlan plan,
@@ -987,7 +987,7 @@ public sealed class ValidationDirectTemplatePackageTests
             DatasetKind.Gl,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocDate] = "DOCUMENT_DATE_JE"
+                [GlMappingKeys.ApprovalDate] = "DOCUMENT_DATE_JE"
             },
             GlAmountModeNames.Signed,
             "batch-Gl",
@@ -995,7 +995,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var metadata = new ReportWorkbookMetadata(
             "2025-01-01",
             "2025-12-31",
-            TaxonomyRevision: 1,
+            CategoryRevision: 1,
             glMapping,
             TbMapping: null);
 
@@ -1021,15 +1021,15 @@ public sealed class ValidationDirectTemplatePackageTests
             "2024-01-01",
             10_000),
         "validation-run-id-must-not-be-visible",
-        new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero),
+        new DateOnly(2025, 12, 31),
         "{}");
 
     private static ValidationReportProjection Projection(
         long nullAccountCount = 0,
         long nullDocumentCount = 0,
         long nullDescriptionCount = 0,
-        long outOfRangeDateCount = 0,
-        long unbalancedDocumentCount = 0,
+        long approvalDateNotInPeriodCount = 0,
+        long unbalancedVoucherCount = 0,
         long completenessDiffAccountCount = 0,
         long sourceQualityFindingCount = 0) =>
         new(
@@ -1038,11 +1038,11 @@ public sealed class ValidationDirectTemplatePackageTests
             TotalCredit: 100,
             GlRowCount: 2,
             CompletenessDiffAccountCount: completenessDiffAccountCount,
-            UnbalancedDocumentCount: unbalancedDocumentCount,
+            UnbalancedVoucherCount: unbalancedVoucherCount,
             NullAccountCount: nullAccountCount,
             NullDocumentCount: nullDocumentCount,
             NullDescriptionCount: nullDescriptionCount,
-            OutOfRangeDateCount: outOfRangeDateCount,
+            ApprovalDateNotInPeriodCount: approvalDateNotInPeriodCount,
             SourceQualityFindingCount: sourceQualityFindingCount);
 
     private static ValidationReportPlan Plan(
@@ -1057,7 +1057,7 @@ public sealed class ValidationDirectTemplatePackageTests
                 projection.NullAccountCount,
                 projection.NullDocumentCount,
                 projection.NullDescriptionCount,
-                projection.OutOfRangeDateCount)),
+                projection.ApprovalDateNotInPeriodCount)),
             new ValidationReportPlanningFacts(unbalancedDetailRowCount));
 
     private static async Task<byte[]> ValidationTemplateBytesAsync()
@@ -1338,7 +1338,7 @@ public sealed class ValidationDirectTemplatePackageTests
             $"Removed Validation package parts were: {string.Join(", ", removed.Order(StringComparer.Ordinal))}");
 
         var added = output.PartNames.Except(template.PartNames, StringComparer.Ordinal).ToArray();
-        // 2026-10-22 技術債一輪：正式入口一定寫出隱藏的中繼資料工作表，新增的部件多一個（第一次失敗：Public 收據 20261022-081114521）。
+        // 2026-10-22 清理技術債：正式入口一定寫出隱藏的中繼資料工作表，新增的部件多一個（第一次失敗：Public 收據 20261022-081114521）。
         Assert.Equal(8, added.Length);
         Assert.All(added, name => Assert.Matches(@"^xl/worksheets/sheet\d+\.xml$", name));
 
@@ -1370,10 +1370,10 @@ public sealed class ValidationDirectTemplatePackageTests
             "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         var expectedDeltas = new Dictionary<string, int>(StringComparer.Ordinal)
         {
-            // Stage 9 appends the closed ExportDatabase raw-page family. The
+            // The closed ExportDatabase raw-page family is appended. The
             // Field Info repair adds a borderless regular/bold/wrapped base plus
-            // the shared TB/GL header patches. 2026-10-29: the validation copy
-            // no longer patches a blue version banner (user ruling: follow the
+            // the shared TB/GL header patches. The validation copy
+            // no longer patches a blue version banner (ruling 2026-10-29-07: follow the
             // host report), so one font and one fill fewer than before.
             // First failure: Public receipt 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67.
             ["numFmts"] = 30,
@@ -1381,8 +1381,8 @@ public sealed class ValidationDirectTemplatePackageTests
             ["fills"] = 15,
             ["borders"] = 3,
             ["cellStyleXfs"] = 2,
-            // Generated writer formats plus the Stage-8 component patches
-            // and the Stage-9 ExportDatabase family remain append-only.
+            // Generated writer formats plus the component patches
+            // and the ExportDatabase family remain append-only.
             ["cellXfs"] = 62
         };
         var actualDeltas = expectedDeltas.Keys.ToDictionary(
@@ -1603,44 +1603,44 @@ public sealed class ValidationDirectTemplatePackageTests
     private sealed class ValidationRepositoryFakes :
         ICompletenessAccountPageRepository,
         ICompletenessDiffPageRepository,
-        IUnbalancedGlEntryPageRepository,
-        INullRecordsPageRepository,
+        IUnbalancedVoucherPageRepository,
+        IBlankRecordsPageRepository,
         IInfSamplePageRepository,
         IPrescreenPageRepository,
         IFilterHitsPageRepository,
         IRawGlExportRepository,
         IImportRepository,
         IMappingStateStore,
-        ICreatorSummaryExportRepository,
+        IPreparerSummaryExportRepository,
         IAccountUsageExportRepository,
-        ITagMatrixScenariosRepository,
-        ILegacyFieldDefinitionFactsPort,
+        IHighRiskSummaryScenariosRepository,
+        IFieldInfoFactsPort,
         IResultPageRdeValuesPort,
         ISourceQualityPageRepository
     {
         private static readonly IReadOnlyDictionary<string, string> GlMapping =
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocDate] = "APPROVAL_DATE"
+                [GlMappingKeys.ApprovalDate] = "APPROVAL_DATE"
             };
 
         private static readonly IReadOnlyDictionary<string, string> TbMapping =
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [TbMappingKeys.AccNum] = "ACCOUNT_CODE"
+                [TbMappingKeys.AccountNumber] = "ACCOUNT_CODE"
             };
 
         internal bool ThrowOnValidationDetailRead { get; init; }
 
         internal IReadOnlyList<string> GlColumns { get; init; } = ["RAW_COLUMN"];
 
-        internal IReadOnlyList<NullRecordRow>? NullRows { get; init; }
+        internal IReadOnlyList<BlankRecordRow>? NullRows { get; init; }
 
         internal IReadOnlyList<InfSampleRow>? InfRows { get; init; }
 
         internal IReadOnlyList<CompletenessDiffAccount>? CompletenessRows { get; init; }
 
-        internal IReadOnlyList<LegacyFieldDefinition> TargetGlDefinitions { get; init; } = [];
+        internal IReadOnlyList<FieldInfo> TargetGlDefinitions { get; init; } = [];
 
         internal IReadOnlyDictionary<long, string>? RawRowsByEntryId { get; init; }
 
@@ -1661,7 +1661,7 @@ public sealed class ValidationDirectTemplatePackageTests
             var writerOptions = options ?? new LegacyReportWriterOptions();
             if (TargetGlDefinitions.Count > 0)
             {
-                var fieldDefinitionConstructor = typeof(LegacyReportWriter)
+                var fieldInfoConstructor = typeof(LegacyReportWriter)
                     .GetConstructors(
                         System.Reflection.BindingFlags.Instance |
                         System.Reflection.BindingFlags.Public |
@@ -1670,19 +1670,19 @@ public sealed class ValidationDirectTemplatePackageTests
                     {
                         var parameters = constructor.GetParameters();
                         return parameters.Any(parameter =>
-                                   parameter.ParameterType == typeof(ILegacyFieldDefinitionFactsPort))
+                                   parameter.ParameterType == typeof(IFieldInfoFactsPort))
                                && parameters.Any(parameter =>
                                    parameter.ParameterType == typeof(LegacyReportWriterOptions));
                     });
-                if (fieldDefinitionConstructor is not null)
+                if (fieldInfoConstructor is not null)
                 {
                     object? ResolveArgument(Type type)
                     {
-                        if (type == typeof(ILegacyFieldDefinitionFactsPort))
+                        if (type == typeof(IFieldInfoFactsPort))
                         {
                             return this;
                         }
-                        if (type == typeof(ITagMatrixRowPageRepository))
+                        if (type == typeof(IHighRiskSummaryRowPageRepository))
                         {
                             return null;
                         }
@@ -1703,27 +1703,27 @@ public sealed class ValidationDirectTemplatePackageTests
                             $"Unsupported LegacyReportWriter constructor parameter {type.FullName}.");
                     }
 
-                    var arguments = fieldDefinitionConstructor.GetParameters()
+                    var arguments = fieldInfoConstructor.GetParameters()
                         .Select(parameter => ResolveArgument(parameter.ParameterType))
                         .ToArray();
                     return Assert.IsType<LegacyReportWriter>(
-                        fieldDefinitionConstructor.Invoke(arguments));
+                        fieldInfoConstructor.Invoke(arguments));
                 }
             }
 
             return new LegacyReportWriter(
                 (ICompletenessAccountPageRepository)this,
                 (ICompletenessDiffPageRepository)this,
-                (IUnbalancedGlEntryPageRepository)this,
-                (INullRecordsPageRepository)this,
+                (IUnbalancedVoucherPageRepository)this,
+                (IBlankRecordsPageRepository)this,
                 (IInfSamplePageRepository)this,
                 (IPrescreenPageRepository)this,
                 (IRawGlExportRepository)this,
                 (IImportRepository)this,
                 (IMappingStateStore)this,
-                (ICreatorSummaryExportRepository)this,
+                (IPreparerSummaryExportRepository)this,
                 (IAccountUsageExportRepository)this,
-                (ITagMatrixScenariosRepository)this,
+                (IHighRiskSummaryScenariosRepository)this,
                 (ISourceQualityPageRepository)this,
                 writerOptions,
                 progressRowInterval);
@@ -1763,9 +1763,9 @@ public sealed class ValidationDirectTemplatePackageTests
             return Task.FromResult(new PageResult<long>([901], null));
         }
 
-        public Task<PageResult<NullRecordRow>> GetPageAsync(
+        public Task<PageResult<BlankRecordRow>> GetPageAsync(
             string projectId,
-            NullRecordCategory category,
+            BlankRecordCategory category,
             string periodStart,
             string periodEnd,
             PageRequest request,
@@ -1775,11 +1775,11 @@ public sealed class ValidationDirectTemplatePackageTests
             ThrowIfForbidden();
             if (NullRows is not null)
             {
-                return Task.FromResult(new PageResult<NullRecordRow>(NullRows, null));
+                return Task.FromResult(new PageResult<BlankRecordRow>(NullRows, null));
             }
             var entryId = 100 + (long)category;
-            return Task.FromResult(new PageResult<NullRecordRow>(
-                [new NullRecordRow("DOC-1", "1101", "2025-03-01", "row", false, false, false, false, entryId)],
+            return Task.FromResult(new PageResult<BlankRecordRow>(
+                [new BlankRecordRow("DOC-1", "1101", "2025-03-01", "row", false, false, false, false, entryId)],
                 null));
         }
 
@@ -1849,7 +1849,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         public Task<PageResult<InfSampleRow>> GetPageAsync(
             string projectId,
-            string runId,
+            string resultId,
             int moneyScale,
             PageRequest request,
             CancellationToken cancellationToken) =>
@@ -1860,7 +1860,7 @@ public sealed class ValidationDirectTemplatePackageTests
         public Task<PageResult<PrescreenHitRow>> GetPageAsync(
             string projectId,
             string ruleKey,
-            FilterRuleContext context,
+            FilterConditionContext context,
             PageRequest request,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -1868,7 +1868,7 @@ public sealed class ValidationDirectTemplatePackageTests
         public Task<PrescreenHitCounts> GetCountsAsync(
             string projectId,
             string ruleKey,
-            FilterRuleContext context,
+            FilterConditionContext context,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -1880,7 +1880,7 @@ public sealed class ValidationDirectTemplatePackageTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        Task<IReadOnlyList<CreatorSummaryExportRow>> ICreatorSummaryExportRepository.FetchAllAsync(
+        Task<IReadOnlyList<PreparerSummaryExportRow>> IPreparerSummaryExportRepository.FetchAllAsync(
             string projectId,
             string periodStart,
             string periodEnd,
@@ -1905,13 +1905,13 @@ public sealed class ValidationDirectTemplatePackageTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        Task<IReadOnlyList<LegacyFieldDefinition>> ILegacyFieldDefinitionFactsPort.ReadAsync(
+        Task<IReadOnlyList<FieldInfo>> IFieldInfoFactsPort.ReadAsync(
             string projectId,
             DatasetKind kind,
-            LegacyFieldDefinitionScope scope,
+            FieldInfoScope scope,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<LegacyFieldDefinition>>(
-                kind == DatasetKind.Gl && scope == LegacyFieldDefinitionScope.Target
+            Task.FromResult<IReadOnlyList<FieldInfo>>(
+                kind == DatasetKind.Gl && scope == FieldInfoScope.Target
                     ? TargetGlDefinitions
                     : []);
 

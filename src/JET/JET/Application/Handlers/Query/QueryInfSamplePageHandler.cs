@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// query.infSamplePage：INF 抽樣(result_inf_sampling_test_sample,目前有效 validate.run)的
+/// query.infSamplePage：INF 抽樣(inf_sample,目前有效 validate.run)的
 /// 行層明細 keyset 分頁。排序鍵 entry_id ASC、cursor opaque、
 /// pageSize 預設 200/上限 500(夾擠在 Domain)。借/貸由 scaled 整數換算顯示值
 /// ((decimal)scaled / moneyScale,沿用 DataPreview)。
@@ -28,9 +28,9 @@ public sealed class QueryInfSamplePageHandler(
         var mapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var columnPlan = ResultPageColumnRegistry.ForInf(mapping);
 
-        var latestRun = await repositories.RuleRuns.FindLatestAsync(
-            projectId, RuleRunKinds.Validate, cancellationToken);
-        if (latestRun is null)
+        var latestResult = await repositories.Results.FindLatestAsync(
+            projectId, ResultKind.Validation, cancellationToken);
+        if (latestResult is null)
         {
             return new
             {
@@ -40,7 +40,7 @@ public sealed class QueryInfSamplePageHandler(
             };
         }
 
-        if (!RuleLogicVersions.IsCurrent(latestRun))
+        if (!RuleLogicVersions.IsCurrent(latestResult))
         {
             throw new JetActionException(
                 JetErrorCodes.StaleResult,
@@ -49,7 +49,7 @@ public sealed class QueryInfSamplePageHandler(
 
         var page = await Task.Run(
             () => repositories.InfSamplePages.GetPageAsync(
-                projectId, latestRun.RunId, document.MoneyScale,
+                projectId, latestResult.ResultId, document.MoneyScale,
                 request, cancellationToken),
             cancellationToken);
 
@@ -62,12 +62,12 @@ public sealed class QueryInfSamplePageHandler(
             columns = RenderColumns(columnPlan),
             rows = page.Rows.Select(r => (object)new
             {
-                documentNumber = r.DocumentNumber,
-                accountCode = r.AccountCode,
+                voucherNumber = r.VoucherNumber,
+                accountNumber = r.AccountNumber,
                 accountName = r.AccountName,
                 debit = (decimal)r.DebitScaled / scale,
                 credit = (decimal)r.CreditScaled / scale,
-                postDate = r.PostDate,
+                glDate = r.GlDate,
                 approvalDate = r.ApprovalDate,
                 createdBy = r.CreatedBy,
                 approvedBy = r.ApprovedBy,

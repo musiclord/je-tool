@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 各明細表分頁查詢的排序與搜尋走訪（2026-09-07 工作包 G）。每個查詢用同一套檢查：
+/// 各明細表分頁查詢的排序與搜尋走訪。每個查詢用同一套檢查：
 /// 不排序、升冪、降冪三種走訪筆數相同；排序後相鄰兩列依鍵單調、空值一律在最後；
 /// 依傳票號碼或科目編號搜尋時，每一列都含該文字，且筆數等於不搜尋時符合的筆數。
 /// 排序鍵用 wire row 的欄位名，錯的鍵要被擋下並列出允許值。
@@ -18,8 +18,8 @@ public sealed class PagedQuerySortSearchTests
         {
             scenarios = new[] { new {
                 name = "非授權編製人員", rationale = "test",
-                groups = new[] { new { join = "and", rules = new[] {
-                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                groups = new[] { new { join = "and", conditions = new[] {
+                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         });
 
@@ -107,18 +107,18 @@ public sealed class PagedQuerySortSearchTests
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
 
-        await AssertSortAndSearchAsync(host, "query.docBalancePage", [], "diff", "documentNumber", 5);
-        await AssertSortAndSearchAsync(host, "query.docBalancePage", [], "documentNumber", "documentNumber", 5);
-        await AssertSortAndSearchAsync(host, "query.completenessDiffPage", [], "diff", "accountCode", 5);
-        await AssertSortAndSearchAsync(host, "query.completenessDiffPage", [], "accountName", "accountCode", 5);
-        await AssertSortAndSearchAsync(host, "query.nullRecordsPage", new() { ["category"] = "nullDescription" }, "postDate", "documentNumber", 5);
-        await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "approvedBy", "documentNumber", 7);
-        await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "debit", "documentNumber", 7);
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用同樣命中多頁的非授權編製人員。
-        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "amount", "documentNumber", 3);
-        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "documentDescription", "documentNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.voucherBalancePage", [], "diff", "voucherNumber", 5);
+        await AssertSortAndSearchAsync(host, "query.voucherBalancePage", [], "voucherNumber", "voucherNumber", 5);
+        await AssertSortAndSearchAsync(host, "query.completenessDiffPage", [], "diff", "accountNumber", 5);
+        await AssertSortAndSearchAsync(host, "query.completenessDiffPage", [], "accountName", "accountNumber", 5);
+        await AssertSortAndSearchAsync(host, "query.blankRecordsPage", new() { ["category"] = "nullDescription" }, "glDate", "voucherNumber", 5);
+        await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "approvedBy", "voucherNumber", 7);
+        await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "debit", "voucherNumber", 7);
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用同樣命中多頁的非授權編製人員。
+        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "amount", "voucherNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "description", "voucherNumber", 3);
 
-        // 來源品質在 demo 母體可能沒有列；只驗證排序參數被接受且走訪一致。
+        // 總帳日期空白在 demo 母體可能沒有列；只驗證排序參數被接受且走訪一致。
         var plain = await WalkAsync(host, "query.sourceQualityPage", [], 5);
         var sorted = await WalkAsync(host, "query.sourceQualityPage", [], 5, ("sourceRowNumber", "desc"));
         Assert.Equal(plain.Count, sorted.Count);
@@ -132,19 +132,19 @@ public sealed class PagedQuerySortSearchTests
         var committed = await host.DispatchAsync("filter.commit", ScenarioPayload());
         var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString();
 
-        await AssertSortAndSearchAsync(host, "query.filterHitsPage", new() { ["scenarioPosition"] = 1 }, "amount", "documentNumber", 3);
-        await AssertSortAndSearchAsync(host, "query.filterHitsPage", new() { ["scenarioPosition"] = 1 }, "postDate", "documentNumber", 3);
-        await AssertSortAndSearchAsync(host, "query.tagMatrixVoucherPage", [], "voucherTotal", "documentNumber", 3);
-        await AssertSortAndSearchAsync(host, "query.tagMatrixVoucherPage", [], "createdBy", "documentNumber", 3);
-        await AssertSortAndSearchAsync(host, "query.tagMatrixRowPage", [], "approvedBy", "documentNumber", 4);
-        await AssertSortAndSearchAsync(host, "query.tagMatrixRowPage", [], "amount", "documentNumber", 4);
+        await AssertSortAndSearchAsync(host, "query.filterHitsPage", new() { ["scenarioPosition"] = 1 }, "amount", "voucherNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.filterHitsPage", new() { ["scenarioPosition"] = 1 }, "glDate", "voucherNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.highRiskSummaryVoucherPage", [], "voucherTotal", "voucherNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.highRiskSummaryVoucherPage", [], "createdBy", "voucherNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.highRiskSummaryRowPage", [], "approvedBy", "voucherNumber", 4);
+        await AssertSortAndSearchAsync(host, "query.highRiskSummaryRowPage", [], "amount", "voucherNumber", 4);
 
         var voucherPayload = new Dictionary<string, object?>
         {
             ["scenarioPosition"] = 1, ["scenarioRevision"] = revision, ["populationScope"] = "auditPeriod"
         };
-        await AssertSortAndSearchAsync(host, "query.filterVoucherPage", voucherPayload, "totalRowCount", "documentNumber", 3);
-        await AssertSortAndSearchAsync(host, "query.filterVoucherPage", voucherPayload, "postDate", "documentNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.filterVoucherPage", voucherPayload, "totalRowCount", "voucherNumber", 3);
+        await AssertSortAndSearchAsync(host, "query.filterVoucherPage", voucherPayload, "glDate", "voucherNumber", 3);
     }
 
     [Fact]
@@ -153,30 +153,30 @@ public sealed class PagedQuerySortSearchTests
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
 
-        var badKey = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.docBalancePage",
-            JsonSerializer.Serialize(new { sort = new { key = "document_number; DROP TABLE x", direction = "asc" } })));
+        var badKey = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.voucherBalancePage",
+            JsonSerializer.Serialize(new { sort = new { key = "voucher_number; DROP TABLE x", direction = "asc" } })));
         Assert.Equal("invalid_payload", badKey.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送表頭上的排序鍵，
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送表頭上的排序鍵，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現，檢查代號記進支援日誌。
         Assert.Equal(JET.Domain.JetPayloadRejection.UnexpectedErrorMessage, badKey.Message);
         Assert.Equal("sort_key_invalid", JET.Domain.JetPayloadRejection.CheckOf(badKey));
         Assert.DoesNotContain("DROP TABLE", badKey.Message, StringComparison.Ordinal);
 
-        var badDirection = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.docBalancePage",
+        var badDirection = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.voucherBalancePage",
             JsonSerializer.Serialize(new { sort = new { key = "diff", direction = "sideways" } })));
         Assert.Equal("invalid_payload", badDirection.Code);
 
-        var tooLong = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.docBalancePage",
+        var tooLong = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.voucherBalancePage",
             JsonSerializer.Serialize(new { search = new string('x', 201) })));
         Assert.Equal("invalid_payload", tooLong.Code);
 
-        // 換了排序卻沿用舊游標：明確擋下，不靜默回到第一頁。demo 的非授權編製人員命中超過一頁，游標一定存在（使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原用回溯過帳）。
+        // 換了排序卻沿用舊游標：明確擋下，不靜默回到第一頁。demo 的非授權編製人員命中超過一頁，游標一定存在（裁定 2026-10-08-03 移除傳票日期與回溯過帳，原用回溯過帳）。
         var first = await host.DispatchAsync("query.prescreenPage",
             JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, sort = new { key = "amount", direction = "asc" } }));
         var cursor = first.GetProperty("nextCursor").GetString();
         Assert.False(string.IsNullOrEmpty(cursor));
         var mismatch = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.prescreenPage",
-            JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, cursor, sort = new { key = "postDate", direction = "asc" } })));
+            JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, cursor, sort = new { key = "glDate", direction = "asc" } })));
         Assert.Equal("invalid_payload", mismatch.Code);
         Assert.Contains("從第一頁重新載入", mismatch.Message, StringComparison.Ordinal);
     }

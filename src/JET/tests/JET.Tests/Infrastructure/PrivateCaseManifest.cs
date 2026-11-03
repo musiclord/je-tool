@@ -74,25 +74,25 @@ internal sealed class PrivateCaseProjectSettings
 {
     internal PrivateCaseProjectSettings(
         string projectCode,
-        string entityName,
+        string clientName,
         string operatorId,
         DateOnly periodStart,
         DateOnly periodEnd,
-        DateOnly lastPeriodStart,
+        DateOnly prepStartDate,
         long sampleSeed)
     {
         ProjectCode = projectCode;
-        EntityName = entityName;
+        ClientName = clientName;
         OperatorId = operatorId;
         PeriodStart = periodStart;
         PeriodEnd = periodEnd;
-        LastPeriodStart = lastPeriodStart;
+        PrepStartDate = prepStartDate;
         SampleSeed = sampleSeed;
     }
 
     internal string ProjectCode { get; }
 
-    internal string EntityName { get; }
+    internal string ClientName { get; }
 
     internal string OperatorId { get; }
 
@@ -100,7 +100,7 @@ internal sealed class PrivateCaseProjectSettings
 
     internal DateOnly PeriodEnd { get; }
 
-    internal DateOnly LastPeriodStart { get; }
+    internal DateOnly PrepStartDate { get; }
 
     internal long SampleSeed { get; }
 
@@ -125,7 +125,7 @@ internal sealed class PrivateCaseGlSettings
 
     internal GlAmountMode AmountMode { get; }
 
-    internal bool UsesGeneratedLineItem => !Mapping.ContainsKey(GlMappingKeys.LineId);
+    internal bool UsesGeneratedLineItem => !Mapping.ContainsKey(GlMappingKeys.LineItem);
 
     public override string ToString() => "private case GL settings (redacted)";
 }
@@ -347,7 +347,12 @@ internal static partial class PrivateCaseManifestLoader
             {
                 json = json[preamble.Length..];
             }
-            dto = JsonSerializer.Deserialize<ManifestDto>(json, JsonOptions)
+            var document = JsonNode.Parse(json, documentOptions: new JsonDocumentOptions { MaxDepth = JsonOptions.MaxDepth });
+            if (document is JsonObject root)
+            {
+                PrivateCaseManifestNames.RenameManifest(root);
+            }
+            dto = document.Deserialize<ManifestDto>(JsonOptions)
                 ?? throw Error(PrivateCaseManifestFailure.InvalidJson);
         }
         catch (PrivateCaseManifestException)
@@ -364,6 +369,11 @@ internal static partial class PrivateCaseManifestLoader
         catch (NotSupportedException)
         {
             throw Error(PrivateCaseManifestFailure.InvalidJson, "unsupported-json-shape");
+        }
+        catch (ArgumentException)
+        {
+            // 先讀成 JsonNode 才能換舊名稱；JsonNode 遇到重複的欄名丟的是 ArgumentException，同樣拒絕清單。
+            throw Error(PrivateCaseManifestFailure.InvalidJson, "duplicate-property");
         }
 
         return Build(dto, authorizedRootPath, fileAccess);
@@ -433,11 +443,11 @@ internal static partial class PrivateCaseManifestLoader
     {
         if (dto is null
             || !IsBoundedText(dto.ProjectCode, 256)
-            || !IsBoundedText(dto.EntityName, 256)
+            || !IsBoundedText(dto.ClientName, 256)
             || !IsBoundedText(dto.OperatorId, 256)
             || !TryDate(dto.PeriodStart, out var periodStart)
             || !TryDate(dto.PeriodEnd, out var periodEnd)
-            || !TryDate(dto.LastPeriodStart, out var lastPeriodStart)
+            || !TryDate(dto.PrepStartDate, out var prepStartDate)
             || periodStart > periodEnd
             || dto.SampleSeed is < 1 or > 2_147_483_646)
         {
@@ -446,11 +456,11 @@ internal static partial class PrivateCaseManifestLoader
 
         return new PrivateCaseProjectSettings(
             dto.ProjectCode!.Trim(),
-            dto.EntityName!.Trim(),
+            dto.ClientName!.Trim(),
             dto.OperatorId!.Trim(),
             periodStart,
             periodEnd,
-            lastPeriodStart,
+            prepStartDate,
             dto.SampleSeed);
     }
 
@@ -925,7 +935,7 @@ internal static partial class PrivateCaseManifestLoader
 
         public string? ProjectCode { get; init; }
 
-        public string? EntityName { get; init; }
+        public string? ClientName { get; init; }
 
         public string? OperatorId { get; init; }
 
@@ -933,7 +943,7 @@ internal static partial class PrivateCaseManifestLoader
 
         public string? PeriodEnd { get; init; }
 
-        public string? LastPeriodStart { get; init; }
+        public string? PrepStartDate { get; init; }
 
         public long SampleSeed { get; init; }
     }
@@ -1085,9 +1095,14 @@ internal static partial class PrivateCaseManifestLoader
 // 舊版篩選紀錄的解析器也只產生這種寫法。私人案件清單是使用者在這之前寫的，讀清單時照同一句說明換成新寫法，
 // 送出情境與核對舊版紀錄都用換過的定義；清單檔本身不改。第一次失敗：PrivateCase
 // 20261016-021117397-692898c0b4e74d0596265996bd8d51c6（SQLite）與 20261016-021130320-79e7290e83f54e2ca3397a482bff22e6（DuckDB），
-// 使用者 2026-10-16 選「測試先換成新寫法再比對」。
+// 裁定 2026-10-16-14 選「測試先換成新寫法再比對」。
+// 2026-10-30 起情境裡的條件陣列從 rules 改名為 conditions。清單裡的情境仍寫 rules，讀清單時先把條件組與
+// 組合條件（group、voucher）裡的 rules 換成 conditions，再處理同一傳票的舊寫法。
 internal static class PrivateCaseScenarioShape
 {
+    private const string OldConditionsKey = "rules";
+    private const string ConditionsKey = "conditions";
+
     internal static JsonElement Current(JsonElement scenario)
     {
         if (JsonNode.Parse(scenario.GetRawText()) is not JsonObject root
@@ -1098,10 +1113,16 @@ internal static class PrivateCaseScenarioShape
 
         foreach (var group in groups.OfType<JsonObject>())
         {
+            RenameConditions(group);
+            RenameConditionValues(group);
+        }
+
+        foreach (var group in groups.OfType<JsonObject>())
+        {
             if (group["matchScope"] is not JsonValue scope
                 || !scope.TryGetValue<string>(out var value)
                 || value != "sameVoucher"
-                || group["rules"] is not JsonArray rules)
+                || group[ConditionsKey] is not JsonArray rules)
             {
                 continue;
             }
@@ -1115,11 +1136,142 @@ internal static class PrivateCaseScenarioShape
                     ["join"] = "AND",
                     ["type"] = "voucher",
                     ["quantifier"] = "any",
-                    ["rules"] = new JsonArray(rule),
+                    [ConditionsKey] = new JsonArray(rule),
                 };
             }
         }
 
         return JsonSerializer.SerializeToElement(root);
+    }
+
+    // 條件組與組合條件的子條件都用同一個鍵；清單已經寫成 conditions 的照原樣保留。
+    private static void RenameConditions(JsonObject owner)
+    {
+        if (!owner.ContainsKey(ConditionsKey) && owner[OldConditionsKey] is JsonArray)
+        {
+            var children = owner[OldConditionsKey]!;
+            owner.Remove(OldConditionsKey);
+            owner[ConditionsKey] = children;
+        }
+
+        if (owner[ConditionsKey] is not JsonArray conditions)
+        {
+            return;
+        }
+
+        foreach (var condition in conditions.OfType<JsonObject>())
+        {
+            RenameConditions(condition);
+        }
+    }
+
+    // 條件只在 field 放 GL 欄位代號、在 prescreenKey 放預篩選代號；改名前的代號換成現在的名稱，見 PrivateCaseManifestNames。
+    private static void RenameConditionValues(JsonObject owner)
+    {
+        if (owner[ConditionsKey] is not JsonArray conditions)
+        {
+            return;
+        }
+
+        foreach (var condition in conditions.OfType<JsonObject>())
+        {
+            PrivateCaseManifestNames.RenameValue(condition, "field", PrivateCaseManifestNames.GlFields);
+            PrivateCaseManifestNames.RenameValue(condition, "prescreenKey", PrivateCaseManifestNames.PrescreenKeys);
+            RenameConditionValues(condition);
+        }
+    }
+}
+
+// 專案紀錄收斂計畫第四階段改名時，案件設定的兩個欄名、GL 與 TB 的欄位代號和一個預篩選代號都換了名稱。
+// 私人案件清單在儲存庫外，照裁定 2026-10-16-14 清單檔本身不改，讀清單時把改名前的寫法換成現在的名稱；
+// 清單已經寫新名稱的照原樣保留。舊名稱逐字照改名前的 JetFieldCatalog 與 PrescreenRuleKeys，新舊對應見名詞表
+// 「不再使用的名稱」。第一次失敗：PrivateCase 收據 20261102-232931191-d62be73f0156411685b9ed22d7f8a70d（SQLite）。
+internal static class PrivateCaseManifestNames
+{
+    private static readonly IReadOnlyDictionary<string, string> ProjectKeys =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["entityName"] = "clientName",
+            ["lastPeriodStart"] = "prepStartDate",
+        };
+
+    internal static readonly IReadOnlyDictionary<string, string> GlFields =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["docNum"] = GlMappingKeys.VoucherNumber,
+            ["lineID"] = GlMappingKeys.LineItem,
+            ["postDate"] = GlMappingKeys.GlDate,
+            ["docDate"] = GlMappingKeys.ApprovalDate,
+            ["accNum"] = GlMappingKeys.AccountNumber,
+            ["accName"] = GlMappingKeys.AccountName,
+            ["jeSource"] = GlMappingKeys.SourceModule,
+            ["createBy"] = GlMappingKeys.CreatedBy,
+            ["approveBy"] = GlMappingKeys.ApprovedBy,
+            ["manual"] = GlMappingKeys.IsManual,
+            ["dcField"] = GlMappingKeys.DrCr,
+            ["dcDebitCode"] = GlMappingKeys.DrCrDebitCode,
+            ["dcCreditCode"] = GlMappingKeys.DrCrCreditCode,
+        };
+
+    private static readonly IReadOnlyDictionary<string, string> TbFields =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["accNum"] = TbMappingKeys.AccountNumber,
+            ["accName"] = TbMappingKeys.AccountName,
+            ["amount"] = TbMappingKeys.ChangeAmount,
+            ["debitAmt"] = TbMappingKeys.DebitAmount,
+            ["creditAmt"] = TbMappingKeys.CreditAmount,
+            ["openingDebit"] = TbMappingKeys.OpeningDebitBalance,
+            ["openingCredit"] = TbMappingKeys.OpeningCreditBalance,
+            ["closingDebit"] = TbMappingKeys.ClosingDebitBalance,
+            ["closingCredit"] = TbMappingKeys.ClosingCreditBalance,
+        };
+
+    internal static readonly IReadOnlyDictionary<string, string> PrescreenKeys =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["postPeriodApproval"] = PrescreenRuleKeys.PrepPeriodApproval,
+        };
+
+    internal static void RenameManifest(JsonObject root)
+    {
+        if (root["project"] is JsonObject project)
+        {
+            RenameKeys(project, ProjectKeys);
+        }
+        if (root["gl"] is JsonObject gl && gl["mapping"] is JsonObject glMapping)
+        {
+            RenameKeys(glMapping, GlFields);
+        }
+        if (root["tb"] is JsonObject tb && tb["mapping"] is JsonObject tbMapping)
+        {
+            RenameKeys(tbMapping, TbFields);
+        }
+    }
+
+    internal static void RenameValue(JsonObject owner, string property, IReadOnlyDictionary<string, string> names)
+    {
+        if (owner[property] is JsonValue value
+            && value.TryGetValue<string>(out var text)
+            && names.TryGetValue(text, out var current))
+        {
+            owner[property] = current;
+        }
+    }
+
+    // 新舊兩個名稱都在時不動，交給讀清單時的未知欄位檢查拒絕。
+    private static void RenameKeys(JsonObject owner, IReadOnlyDictionary<string, string> names)
+    {
+        foreach (var (oldName, newName) in names)
+        {
+            if (!owner.ContainsKey(oldName) || owner.ContainsKey(newName))
+            {
+                continue;
+            }
+
+            var value = owner[oldName];
+            owner.Remove(oldName);
+            owner[newName] = value;
+        }
     }
 }

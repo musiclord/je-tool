@@ -34,7 +34,7 @@ public sealed class ProjectListLocalFirstTests
             Assert.Equal(
                 new[]
                 {
-                    "projectId", "projectCode", "entityName", "periodStart", "periodEnd",
+                    "projectId", "projectCode", "clientName", "periodStart", "periodEnd",
                     "createdUtc", "currentStep", "databaseProvider", "lastOpenedUtc"
                 },
                 project.EnumerateObject().Select(property => property.Name));

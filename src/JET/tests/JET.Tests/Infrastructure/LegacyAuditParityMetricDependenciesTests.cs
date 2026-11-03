@@ -7,21 +7,21 @@ public sealed class LegacyAuditParityMetricDependenciesTests
     private static readonly IReadOnlyDictionary<LegacyPrescreenRuleId, LegacyMappingSlot[]> ProviderRuleSlots =
         new Dictionary<LegacyPrescreenRuleId, LegacyMappingSlot[]>
         {
-            [LegacyPrescreenRuleId.PostPeriodApproval] =
+            [LegacyPrescreenRuleId.PrepPeriodApproval] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlApprovalDate,
             ],
             [LegacyPrescreenRuleId.SuspiciousKeywords] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlDescription,
             ],
             [LegacyPrescreenRuleId.UnexpectedAccountPair] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlAccountNumber,
                 LegacyMappingSlot.GlAmount,
@@ -32,7 +32,7 @@ public sealed class LegacyAuditParityMetricDependenciesTests
             ],
             [LegacyPrescreenRuleId.TrailingZeros] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlAmount,
                 LegacyMappingSlot.GlDebitAmount,
@@ -42,50 +42,39 @@ public sealed class LegacyAuditParityMetricDependenciesTests
             ],
             [LegacyPrescreenRuleId.WeekendPosting] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
             ],
             [LegacyPrescreenRuleId.WeekendApproval] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlApprovalDate,
             ],
             [LegacyPrescreenRuleId.HolidayPosting] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
             ],
             [LegacyPrescreenRuleId.HolidayApproval] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlApprovalDate,
             ],
             [LegacyPrescreenRuleId.BlankDescription] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlDescription,
             ],
             [LegacyPrescreenRuleId.NonAuthorizedPreparer] =
             [
-                LegacyMappingSlot.GlDocumentNumber,
+                LegacyMappingSlot.GlVoucherNumber,
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlCreatedBy,
             ],
-            [LegacyPrescreenRuleId.LowFrequencyPreparer] =
-            [
-                LegacyMappingSlot.GlDocumentNumber,
-                LegacyMappingSlot.GlPostingDate,
-                LegacyMappingSlot.GlCreatedBy,
-            ],
-            [LegacyPrescreenRuleId.LowFrequencyAccount] =
-            [
-                LegacyMappingSlot.GlDocumentNumber,
-                LegacyMappingSlot.GlPostingDate,
-                LegacyMappingSlot.GlAccountNumber,
-            ],
+            // 編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），這裡跟著少兩列；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
         };
 
     [Fact]
@@ -274,15 +263,15 @@ public sealed class LegacyAuditParityMetricDependenciesTests
             LegacyMappingSlot.GlDebitCreditField,
             LegacyMappingSlot.GlDebitCode,
             LegacyMappingSlot.TbAccountNumber,
-            LegacyMappingSlot.TbAmount,
+            LegacyMappingSlot.TbChangeAmount,
             LegacyMappingSlot.TbDebitAmount,
             LegacyMappingSlot.TbCreditAmount,
             LegacyMappingSlot.TbOpeningBalance,
             LegacyMappingSlot.TbClosingBalance,
-            LegacyMappingSlot.TbOpeningDebit,
-            LegacyMappingSlot.TbOpeningCredit,
-            LegacyMappingSlot.TbClosingDebit,
-            LegacyMappingSlot.TbClosingCredit,
+            LegacyMappingSlot.TbOpeningDebitBalance,
+            LegacyMappingSlot.TbOpeningCreditBalance,
+            LegacyMappingSlot.TbClosingDebitBalance,
+            LegacyMappingSlot.TbClosingCreditBalance,
         ]);
 
         Assert.Equal(
@@ -329,7 +318,5 @@ public sealed class LegacyAuditParityMetricDependenciesTests
         LegacyPrescreenRuleId.HolidayPosting,
         LegacyPrescreenRuleId.HolidayApproval,
         LegacyPrescreenRuleId.NonAuthorizedPreparer,
-        LegacyPrescreenRuleId.LowFrequencyPreparer,
-        LegacyPrescreenRuleId.LowFrequencyAccount,
     ];
 }

@@ -1,0 +1,193 @@
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using JET.Domain;
+using JET.Infrastructure;
+using JET.Tests.Infrastructure;
+using Xunit;
+
+namespace JET.Tests.Application;
+
+public sealed class MutationInvalidationStateTests
+{
+    public static TheoryData<string, string, bool, bool, bool> Cases()
+    {
+        var data = new TheoryData<string, string, bool, bool, bool>();
+        foreach (var provider in new[] { "sqlite", "duckdb" })
+        {
+            data.Add(provider, "import.gl.fromFile", true, true, true);
+            data.Add(provider, "import.tb.fromFile", true, true, true);
+            data.Add(provider, "mapping.commit.gl", true, true, true);
+            data.Add(provider, "mapping.commit.tb", true, true, true);
+            foreach (var action in new[]
+            {
+                "import.accountMapping.fromFile", "accountMapping.save", "accountCategory.save",
+                "import.authorizedPreparer.fromFile", "import.authorizedPreparer.clear",
+                "import.holiday", "import.makeupDay", "import.holiday.fromFile", "import.makeupDay.fromFile",
+                "calendar.setNonWorkingDays", "project.update.date"
+            }) data.Add(provider, action, false, true, true);
+            data.Add(provider, "calendar.sameNonWorkingDays", false, false, false);
+            data.Add(provider, "project.update.metadata", false, false, false);
+        }
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public async Task MutationReplies_PublishExplicitImpactPersistedStateAndCatalog(string provider, string action,
+        bool validation, bool prescreen, bool filter)
+    {
+        using var host = new HandlerTestHost();
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
+        var response = await MutateAsync(host, prepared.Id, action);
+        // 上游修改會清除下游（裁定 2026-10-07-03）：invalidatedResults 多了 filterScenarios，與 filter 同值；
+        // 篩選命中失效時情境也一起清掉，staleState.filter 回到從未執行，因此恆為 false。
+        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        AssertInvalidated(response.GetProperty("invalidatedResults"), validation, prescreen, filter,
+            accountMapping: action is "import.gl.fromFile" or "import.tb.fromFile" or "mapping.commit.gl" or "mapping.commit.tb");
+        AssertFlags(response.GetProperty("staleState"), validation, prescreen, false);
+        Assert.Equal(JsonValueKind.Array, response.GetProperty("reports").ValueKind);
+        Assert.Empty(response.GetProperty("reports").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, response.GetProperty("reportWarning").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task MutationWithoutPriorRuns_StillInvalidatesAnUnsavedPreviewButDoesNotInventStaleResults(string provider)
+    {
+        using var host = new HandlerTestHost();
+        await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+        {
+            projectName = "Batch9-Empty", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+        }));
+        var response = await host.DispatchAsync("import.holiday", """{"dates":["2025-01-01"]}""");
+        // 鍵集合多了 filterScenarios（上游修改清除下游，裁定 2026-10-07-03）；第一次失敗收據同上。
+        AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
+        AssertFlags(response.GetProperty("staleState"), false, false, false);
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task LockedCatalog_DoesNotTurnACommittedMutationIntoFailure(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
+        var report = await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new
+        { validationResultId = prepared.ValidationResultId, revision = prepared.Revision }));
+        var reportPath = report.GetProperty("publishedReport").GetProperty("fullPath").GetString()!;
+        var manifest = Path.Combine(Path.GetDirectoryName(reportPath)!, ProjectReportStore.ManifestFileName);
+        using (var locked = new FileStream(manifest, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var response = await host.DispatchAsync("import.holiday", """{"dates":["2025-06-01"]}""")
+                .WaitAsync(TimeSpan.FromSeconds(6));
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5));
+            Assert.Equal(1, response.GetProperty("count").GetInt32());
+            // 上游修改會清除下游（裁定 2026-10-07-03）：情境一起清掉，filter 回到從未執行；第一次失敗收據
+            // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
+            AssertFlags(response.GetProperty("staleState"), false, true, false);
+            Assert.Equal(JsonValueKind.Null, response.GetProperty("reports").ValueKind);
+            // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            Assert.Equal("變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。",
+                response.GetProperty("reportWarning").GetString());
+        }
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
+        Assert.Equal(1, loaded.GetProperty("importState").GetProperty("calendar").GetProperty("holidayCount").GetInt32());
+        AssertFlags(loaded.GetProperty("staleState"), false, true, false);
+        Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
+    }
+
+    internal static async Task<JsonElement> MutateAsync(HandlerTestHost host, string id, string action)
+    {
+        if (action.StartsWith("mapping.commit.", StringComparison.Ordinal))
+        {
+            var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
+            return await host.DispatchAsync(action, loaded.GetProperty("mapping").GetProperty(action.EndsWith("gl", StringComparison.Ordinal) ? "gl" : "tb").GetRawText());
+        }
+        if (action == "accountCategory.save")
+        {
+            var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
+            var categorySnapshot = loaded.GetProperty("accountCategory");
+            var categories = JsonNode.Parse(categorySnapshot.GetProperty("categories").GetRawText())!.AsArray();
+            categories[0]!["label"] = "合成改名";
+            return await host.DispatchAsync(action, JsonSerializer.Serialize(new { revision = categorySnapshot.GetProperty("revision").GetInt32(), categories }));
+        }
+        if (action == "project.update.metadata") return await host.DispatchAsync("project.update", """{"clientName":"合成改名"}""");
+        if (action == "project.update.date") return await host.DispatchAsync("project.update", """{"prepStartDate":"2025-12-31"}""");
+        if (action == "calendar.setNonWorkingDays") return await host.DispatchAsync(action, """{"days":[1]}""");
+        if (action == "calendar.sameNonWorkingDays") return await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[0,6]}""");
+        if (action is "import.holiday" or "import.makeupDay") return await host.DispatchAsync(action, """{"dates":["2025-06-01"]}""");
+        if (action == "import.authorizedPreparer.clear") return await host.DispatchAsync(action);
+        if (action == "accountMapping.save")
+        {
+            await ImportFileAsync(host, "import.accountMapping.fromFile");
+            await host.DispatchAsync("prescreen.run");
+            await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
+            return await host.DispatchAsync(action, """{"changes":[{"accountNumber":"1000","categoryId":"builtin.others"}]}""");
+        }
+        return await ImportFileAsync(host, action);
+    }
+
+    private static async Task<JsonElement> ImportFileAsync(HandlerTestHost host, string action)
+    {
+        var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
+        {
+            string[] headers;
+            object[] values;
+            var headerRow = 1;
+            if (action == "import.gl.fromFile")
+            {
+                headers = ["Doc", "Date", "Account", "Amount"];
+                values = ["V1", "2025-06-01", "1000", 10];
+            }
+            else if (action == "import.tb.fromFile")
+            {
+                headers = ["Account", "Change"]; values = ["1000", 10];
+            }
+            else if (action == "import.accountMapping.fromFile")
+            {
+                headers = ["科目代號", "科目名稱", "標準化分類"]; values = ["1000", "合成資產", "Cash"];
+            }
+            else if (action == "import.authorizedPreparer.fromFile")
+            {
+                headers = ["Personnel"]; values = ["SYNTHETIC"];
+            }
+            else
+            {
+                headerRow = 2;
+                headers = action == "import.holiday.fromFile" ? ["Date_of_Holiday", "Holiday_Name", "IS_Holiday"] : ["Date_of_MakeUpday"];
+                values = action == "import.holiday.fromFile" ? ["2025-06-01", "合成假日", "Y"] : ["2025-06-01"];
+                sheet.Cell(1, 1).Value = "Synthetic calendar";
+            }
+            for (var index = 0; index < headers.Length; index++) sheet.Cell(headerRow, index + 1).Value = headers[index];
+            for (var index = 0; index < values.Length; index++) sheet.Cell(headerRow + 1, index + 1).Value = values[index].ToString();
+        });
+        try
+        {
+            return await host.DispatchAsync(action, JsonSerializer.Serialize(new { filePath = path, sourceColumn = "Personnel" }));
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
+    }
+
+    private static void AssertInvalidated(JsonElement value, bool validation, bool prescreen, bool filter, bool accountMapping = false)
+    {
+        // 第 7 則新增科目配對清除旗標；精確鍵集合與所有既有結果斷言仍保留。
+        Assert.Equal(new[] { "accountMapping", "filter", "filterScenarios", "prescreen", "validation" }, value.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(accountMapping, value.GetProperty("accountMapping").GetBoolean());
+        Assert.Equal(validation, value.GetProperty("validation").GetBoolean());
+        Assert.Equal(prescreen, value.GetProperty("prescreen").GetBoolean());
+        Assert.Equal(filter, value.GetProperty("filter").GetBoolean());
+        Assert.Equal(filter, value.GetProperty("filterScenarios").GetBoolean());
+    }
+
+    private static void AssertFlags(JsonElement value, bool validation, bool prescreen, bool filter)
+    {
+        Assert.Equal(new[] { "filter", "prescreen", "validation" }, value.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(validation, value.GetProperty("validation").GetBoolean());
+        Assert.Equal(prescreen, value.GetProperty("prescreen").GetBoolean());
+        Assert.Equal(filter, value.GetProperty("filter").GetBoolean());
+    }
+}

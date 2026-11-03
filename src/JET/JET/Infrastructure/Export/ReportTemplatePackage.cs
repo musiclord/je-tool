@@ -110,7 +110,7 @@ internal sealed class ReportTemplateCatalog
 
     private static JetActionException TemplateReadFailure(string fileName, Exception? innerException = null) => new(
         JetErrorCodes.FileReadError,
-        $"無法讀取 JET 內嵌範本 '{fileName}'；檔案可能缺失、損壞或無法存取。",
+        $"無法讀取 JET 內附的範本「{fileName}」。請重新下載 JET 後再匯出。",
         innerException: innerException);
 }
 
@@ -233,7 +233,7 @@ internal static class ReportTemplatePackage
         {
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
-                $"無法直接填入 JET 內嵌範本 '{templateName}'；範本可能損壞或不是有效的 xlsx。",
+                $"無法填入 JET 內附的範本「{templateName}」。請重新下載 JET 後再匯出。",
                 innerException: exception);
         }
     }

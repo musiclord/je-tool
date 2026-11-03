@@ -30,7 +30,7 @@ internal static class NativeAccessImportAcceptance
             var original = await File.ReadAllBytesAsync(path);
             var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
             {
-                caseName = "Synthetic Access", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+                projectName = "Synthetic Access", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
             }));
             var projectId = created.GetProperty("projectId").GetString();
             var inspection = await host.DispatchAsync("import.inspectFile", JsonSerializer.Serialize(new { filePath = path }));
@@ -58,8 +58,8 @@ internal static class NativeAccessImportAcceptance
             await host.DispatchAsync("import.gl.fromFile", source);
             await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
             {
-                amountMode = "signed", mapping = new { docNum = "Document", postDate = "Post Date", accNum = "Account",
-                    accName = "Name", description = "Description", amount = "Amount", createBy = "Creator" }
+                amountMode = "signed", mapping = new { voucherNumber = "Document", glDate = "Post Date", accountNumber = "Account",
+                    accountName = "Name", description = "Description", amount = "Amount", createdBy = "Preparer" }
             }));
             if (extension != ".xls")
             {
@@ -67,25 +67,25 @@ internal static class NativeAccessImportAcceptance
                 Assert.Equal(2, tb.GetProperty("rowCount").GetInt32());
                 await host.DispatchAsync("mapping.commit.tb", JsonSerializer.Serialize(new
                 {
-                    changeMode = "direct", mapping = new { accNum = "Account", accName = "Name", amount = "Movement" }
+                    changeMode = "direct", mapping = new { accountNumber = "Account", accountName = "Name", changeAmount = "Movement" }
                 }));
             }
             var validation = await host.DispatchAsync("validate.run");
-            Assert.Equal(0, validation.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
+            Assert.Equal(0, validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
             if (extension != ".xls")
             {
                 // GL 和 TB 各有兩個科目，變動金額均為 12.34 與 -12.34；逐科目無差異。
                 var completeness = validation.GetProperty("completenessTest");
                 Assert.Equal(0, completeness.GetProperty("diffAccountCount").GetInt64());
                 Assert.Equal(JsonValueKind.Null, completeness.GetProperty("naReason").ValueKind);
-                Assert.True(completeness.GetProperty("partA").GetProperty("rowCountMatch").GetBoolean());
-                Assert.True(completeness.GetProperty("partA").GetProperty("amountMatch").GetBoolean());
+                Assert.True(completeness.GetProperty("storedTotals").GetProperty("rowCountMatch").GetBoolean());
+                Assert.True(completeness.GetProperty("storedTotals").GetProperty("amountMatch").GetBoolean());
             }
             var filtered = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
             {
-                // G5 retires the legacy keyword input. Keep the fixed hit count and source-integrity assertions below.
+                // The legacy keyword input is retired. Keep the fixed hit count and source-integrity assertions below.
                 // First failure: 20261014-144025150-94d84d333b3044e793ee67915326944a.
-                scenario = new { groups = new[] { new { rules = new[] { new { type = "fieldValue", field = "description", @operator = "contains", values = new[] { "合成" } } } } } }
+                scenario = new { groups = new[] { new { conditions = new[] { new { type = "fieldValue", field = "description", @operator = "contains", values = new[] { "合成" } } } } } }
             }));
             Assert.Equal(2, filtered.GetProperty("scenario").GetProperty("count").GetInt64());
             await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
@@ -113,7 +113,7 @@ internal static class NativeAccessImportAcceptance
         {
             Assert.Equal(LongDescription, row[1].GetString());
             Assert.Equal(JsonValueKind.Null, row[2].ValueKind);
-            // 第1批L09已裁定Access布林統一true/false；原生Excel首敗20261004-114941125-6735047433f74b95b10e90c4620b93bd只更新此固定預期。
+            // Access 的是或否欄已改成和 .xlsx 一樣寫 true、false；原生Excel首敗20261004-114941125-6735047433f74b95b10e90c4620b93bd只更新此固定預期。
             Assert.Equal("true", row[3].GetString());
         });
         var full = await host.DispatchAsync("import.gl.fromFile", textSource);
@@ -198,7 +198,7 @@ internal static class NativeAccessImportAcceptance
         connection.Open();
         using var create = connection.CreateCommand();
         create.CommandText = "CREATE TABLE [GL data] ([Document] TEXT(50), [Post Date] DATETIME, [Account] TEXT(20), " +
-            "[Name] TEXT(100), [Description] TEXT(255), [Amount] CURRENCY, [Creator] TEXT(20))";
+            "[Name] TEXT(100), [Description] TEXT(255), [Amount] CURRENCY, [Preparer] TEXT(20))";
         create.ExecuteNonQuery();
         foreach (var (account, name, amount) in new[] { ("1101", "現金", 12.34m), ("4101", "收入", -12.34m) })
         {
@@ -210,7 +210,7 @@ internal static class NativeAccessImportAcceptance
             insert.Parameters.AddWithValue("name", name);
             insert.Parameters.AddWithValue("description", "合成來源測試");
             insert.Parameters.AddWithValue("amount", amount);
-            insert.Parameters.AddWithValue("creator", "001");
+            insert.Parameters.AddWithValue("preparer", "001");
             insert.ExecuteNonQuery();
         }
     }

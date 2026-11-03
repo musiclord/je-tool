@@ -22,14 +22,13 @@ internal static class ResultStaleStateSql
         {
             statements.Add(
                 $"""
-                UPDATE {schemaPrefix}config_result_stale_state
+                UPDATE {schemaPrefix}result_stale_state
                 SET validation_stale = 1
                 WHERE singleton = 1
                   AND (
                       EXISTS (
                           SELECT 1
-                          FROM {schemaPrefix}result_rule_run
-                      WHERE run_kind = 'validate'));
+                          FROM {schemaPrefix}validation_result));
                 """);
         }
 
@@ -37,20 +36,19 @@ internal static class ResultStaleStateSql
         {
             statements.Add(
                 $"""
-                UPDATE {schemaPrefix}config_result_stale_state
+                UPDATE {schemaPrefix}result_stale_state
                 SET prescreen_stale = 1
                 WHERE singleton = 1
                   AND EXISTS (
                       SELECT 1
-                      FROM {schemaPrefix}result_rule_run
-                      WHERE run_kind = 'prescreen');
+                      FROM {schemaPrefix}prescreen_result);
                 """);
         }
 
         if (impact.InvalidateFilterScenarioDefinitions)
         {
             // 同一交易會刪掉全部情境與命中，沒有可重跑的篩選；回到「從未執行」，與 filter.commit 空清單一致。
-            statements.Add($"UPDATE {schemaPrefix}config_result_stale_state SET filter_stale = 0 WHERE singleton = 1;");
+            statements.Add($"UPDATE {schemaPrefix}result_stale_state SET filter_stale = 0 WHERE singleton = 1;");
         }
         else if (impact.InvalidateFilterHits)
         {
@@ -64,21 +62,21 @@ internal static class ResultStaleStateSql
             cancellationToken);
     }
 
-    internal static Task ClearRuleRunWithinAsync(
+    internal static Task ClearResultWithinAsync(
         DbConnection connection,
         DbTransaction transaction,
-        string runKind,
+        ResultKind kind,
         CancellationToken cancellationToken,
         string schemaPrefix) =>
-        runKind switch
+        kind switch
         {
-            RuleRunKinds.Validate => ClearWithinAsync(
+            ResultKind.Validation => ClearWithinAsync(
                 connection,
                 transaction,
                 "validation_stale",
                 cancellationToken,
                 schemaPrefix),
-            RuleRunKinds.Prescreen => ClearWithinAsync(
+            ResultKind.Prescreen => ClearWithinAsync(
                 connection,
                 transaction,
                 "prescreen_stale",
@@ -112,16 +110,16 @@ internal static class ResultStaleStateSql
 
     private static string FilterInvalidationStatement(string schemaPrefix) =>
         $"""
-        UPDATE {schemaPrefix}config_result_stale_state
+        UPDATE {schemaPrefix}result_stale_state
         SET filter_stale = 1
         WHERE singleton = 1
           AND (
               EXISTS (
                   SELECT 1
-                  FROM {schemaPrefix}result_filter_run)
+                  FROM {schemaPrefix}filter_hit)
               OR EXISTS (
                   SELECT 1
-                  FROM {schemaPrefix}config_filter_scenario));
+                  FROM {schemaPrefix}filter_scenario));
         """;
 
     private static Task ClearWithinAsync(
@@ -133,7 +131,7 @@ internal static class ResultStaleStateSql
         ExecuteWithinAsync(
             connection,
             transaction,
-            [$"UPDATE {schemaPrefix}config_result_stale_state SET {column} = 0 WHERE singleton = 1;"],
+            [$"UPDATE {schemaPrefix}result_stale_state SET {column} = 0 WHERE singleton = 1;"],
             cancellationToken);
 
     private static async Task ExecuteWithinAsync(

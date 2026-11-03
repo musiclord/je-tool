@@ -2,7 +2,7 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
 // 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
 
 /// <summary>
@@ -24,7 +24,7 @@ public sealed class DesignIntegrationFrontendTests
     {
         var markup = ReadFrontend("index.html");
 
-        // 2026-10-09 使用者要求縮小摘要，步驟位置只留在左側，不改成完成進度。
+        // 裁定 2026-10-09-07：縮小摘要，步驟位置只留在左側，不改成完成進度。
         // 舊摘要斷言第一次失敗：20261009-085703982-31645074621a4596bfb1f4ecb83e31d7。
         Assert.DoesNotContain("<span class=\"case-summary__label\">目前步驟</span>", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-bind=\"case-progress\"", markup, StringComparison.Ordinal);
@@ -48,11 +48,11 @@ public sealed class DesignIntegrationFrontendTests
         var source = ReadFrontend("js", "app.js") + ReadFrontend("js", "ui-core.js");
 
         // 總覽的解讀文字要保留三個不可混淆的語意：符合條件不等於錯誤、不適用不等於零、判斷由審計員做。
-        // 2026-09-22 使用者要求改成白話後，前兩個語意合併在同一句，所以這裡檢查整句，不拆開檢查片段。
-        // 2026-10-03 用語統一 T1：畫面不再使用「母體」，與 AuditCore 正本一起改（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 裁定 2026-09-22-03 要求改成白話後，前兩個語意合併在同一句，所以這裡檢查整句，不拆開檢查片段。
+        // 用語統一後，畫面不再使用「母體」，與 AuditCore 正本一起改（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         Assert.Contains("預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。", source, StringComparison.Ordinal);
         Assert.DoesNotContain("母體分布", source, StringComparison.Ordinal);
-        // 2026-10-02 整體複審 W16：「不適用不等於零」改成完整句，仍鎖住「不適用不代表沒有符合的分錄」這個語意；舊短句不得再出現。
+        // 整體複審後，「不適用不等於零」改成完整句，仍鎖住「不適用不代表沒有符合的分錄」這個語意；舊短句不得再出現。
         Assert.Contains("列在「不適用規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。", source, StringComparison.Ordinal);
         Assert.DoesNotContain("不適用不等於零", source, StringComparison.Ordinal);
         Assert.DoesNotContain("不含綜合風險分數或審計判斷", source, StringComparison.Ordinal);
@@ -90,7 +90,7 @@ public sealed class DesignIntegrationFrontendTests
             "../assets/fonts/noto-sans-tc/NotoSansTC-VariableFont_wght.ttf",
             css,
             StringComparison.Ordinal);
-        // 使用者 2026-10-08 裁定移除沒有畫面使用的 Noto Serif TC；全介面只載入 Noto Sans TC。
+        // 裁定 2026-10-08-15：移除沒有畫面使用的 Noto Serif TC；全介面只載入 Noto Sans TC。
         Assert.DoesNotContain("Noto Serif TC", css, StringComparison.Ordinal);
         Assert.DoesNotContain("noto-serif-tc", css, StringComparison.Ordinal);
 
@@ -129,7 +129,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_BundlesLatinFontAndIconsOffline_WithTheirLicenses()
     {
-        // 使用者 2026-10-11 選定「深藍框架」改版，並同意下載 Instrument Sans 與 Fluent UI System Icons 打包離線使用。
+        // 裁定 2026-10-11-06 選定「深藍框架」改版，並同意下載 Instrument Sans 與 Fluent UI System Icons 打包離線使用。
         var css = ReadFrontend("css", "app.css");
 
         Assert.Contains("../assets/fonts/instrument-sans/InstrumentSans-Latin.woff2", css, StringComparison.Ordinal);
@@ -144,14 +144,17 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains("MIT License", ReadFrontend("assets", "icons", "fluent", "LICENSE"), StringComparison.Ordinal);
 
         // 樣式表引用的每個圖示都要真的打包在程式裡，而且只是單純的向量圖形，不含程式碼或外部連結。
-        var references = System.Text.RegularExpressions.Regex.Matches(css, @"\.\./assets/icons/fluent/([a-z0-9_]+\.svg)")
-            .Select(match => match.Groups[1].Value)
-            .Distinct(StringComparer.Ordinal)
+        // 2026-10-31 起另有 JET 自己畫的圖示放在 jet 資料夾（打開資料預覽的面板圖示，裁定 2026-10-30-36），同樣核對。
+        var references = System.Text.RegularExpressions.Regex.Matches(css, @"\.\./assets/icons/(fluent|jet)/([a-z0-9_]+\.svg)")
+            .Select(match => (Folder: match.Groups[1].Value, Name: match.Groups[2].Value))
+            .Distinct()
             .ToArray();
         Assert.NotEmpty(references);
-        foreach (var name in references)
+        Assert.Contains(references, reference => reference.Folder == "jet");
+        Assert.Contains("JET 自己畫的圖示", ReadFrontend("assets", "icons", "jet", "SOURCE.txt"), StringComparison.Ordinal);
+        foreach (var (folder, name) in references)
         {
-            var path = FrontendPath("assets", "icons", "fluent", name);
+            var path = FrontendPath("assets", "icons", folder, name);
             Assert.True(File.Exists(path), $"樣式表引用的圖示沒有打包：{name}");
             var svg = File.ReadAllText(path);
             Assert.StartsWith("<svg", svg, StringComparison.Ordinal);
@@ -164,7 +167,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_BrandIsAWordmark_WithJeInAnAccentTile()
     {
-        // 使用者 2026-10-11 兩次認為圖形標誌看不出意思：勾記號像勾選框，一頁分錄加光帶又像一般的清單圖示。
+        // 使用者兩次認為圖形標誌看不出意思（裁定 2026-10-11-08）：勾記號像勾選框，一頁分錄加光帶又像一般的清單圖示。
         // 同日第三次調整改成字標：名稱裡的 JE 放進石板藍的圓角方形，Tool 接在後面，名稱仍是「JE Tool」。
         // 原本斷言標誌圖檔的測試第一次失敗：20261011-141648053-e438cea272124ecca040d8d15e5cb570。
         var markup = ReadFrontend("index.html");
@@ -187,9 +190,9 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_TopIsOneBandAcrossTheWindow_AboveEveryColumn()
     {
-        // 使用者 2026-10-11 第三次調整認為標誌併進流程欄頂端、案件摘要浮在畫布上、操作組獨自在右上角，彼此割裂；
+        // 裁定 2026-10-11-10：第三次調整後，標誌併進流程欄頂端、案件摘要浮在畫布上、操作組獨自在右上角，彼此割裂；
         // 選了「淺色標題列」：頂部是一條橫跨整個視窗的標題列，操作組收在這一條裡。
-        // 使用者 2026-10-12 要求整個 JE Tool 帶有 Liquid Glass 的質感，看過樣張後選了「照樣張套用」：
+        // 裁定 2026-10-12-01 要求整個 JE Tool 帶有 Liquid Glass 的質感，看過樣張後選了「照樣張套用」：
         // 這一條改成一整片淺色的玻璃，流程欄、中欄與資料預覽的上緣藏在它下面，捲動時內容從它下面經過。
         // 原本鎖住白紙底色 --color-surface 與下緣 inset 細線的斷言第一次失敗：20261012-031048053-9eca8de789444ca1b28d6f3fc2d8f298。
         var css = ReadFrontend("css", "app.css");
@@ -221,7 +224,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_GlassIsTheFunctionalLayer_AndControlsAreTactile()
     {
-        // 使用者 2026-10-12 指出沒有看到玻璃效果，要求整個 JE Tool 帶有 Liquid Glass 的質感：通透、自然的光澤、擬物化復興，
+        // 使用者指出沒有看到玻璃效果，裁定 2026-10-12-01 要求整個 JE Tool 帶有 Liquid Glass 的質感：通透、自然的光澤、擬物化復興，
         // 不用無意義的漸層填色；看過樣張後選了「照樣張套用」。
         // 功能層是玻璃（標題列、表格固定的表頭、選單、對話框、圖表提示框與滑動中的選取），內容層是實物（按鍵、凹槽、紙）。
         var css = ReadFrontend("css", "app.css");
@@ -276,14 +279,14 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_OutputsSitBelowTheirProcedures_AsADocumentTray()
     {
-        // 使用者 2026-10-11 指出「驗證報告與抽樣清單」不是測試程序，卻和測試項目看起來同一層，並要求其他流程也避免這種層級混淆。
+        // 裁定 2026-10-11-11：「驗證報告與抽樣清單」不是測試程序，卻和測試項目看起來同一層，並要求其他流程也避免這種層級混淆。
         // 產出放在工作面底部一塊低一階的托盤，每份檔案是一張文件卡；預篩選報告也有自己的標題。
         var css = ReadFrontend("css", "app.css");
         var validate = ReadFrontend("js", "steps", "validate-step.js");
 
         Assert.Contains(".rule-card > .report-output:last-child {", css, StringComparison.Ordinal);
-        Assert.Contains(".report-output .report-artifact::before {", css, StringComparison.Ordinal);
-        // 使用者 2026-10-13 選擇加深直接放在畫布上的托盤：獨立的報告區改用托盤色 --color-tray，
+        Assert.Contains(".report-output .report-item::before {", css, StringComparison.Ordinal);
+        // 裁定 2026-10-13-07 選擇加深直接放在畫布上的托盤：獨立的報告區改用托盤色 --color-tray，
         // 工作面裡的報告區仍用紙面的內凹色。原本只鎖獨立報告區的內凹色，改色前的失敗收據：
         // 20261013-032940090-2c7428e6106a440e88245978a2af09af。意圖不變：產出是比周圍低一階的托盤。
         var tray = css[css.IndexOf("\n.report-output {", StringComparison.Ordinal)..];
@@ -293,7 +296,7 @@ public sealed class DesignIntegrationFrontendTests
         inCard = inCard[..(inCard.IndexOf('}') + 1)];
         Assert.Contains("background: var(--color-surface-sunken);", inCard, StringComparison.Ordinal);
 
-        var prescreenOutput = validate[validate.IndexOf("function prescreenArtifactHtml(", StringComparison.Ordinal)..];
+        var prescreenOutput = validate[validate.IndexOf("function prescreenReportHtml(", StringComparison.Ordinal)..];
         prescreenOutput = prescreenOutput[..prescreenOutput.IndexOf("function prescreenCardHtml(", StringComparison.Ordinal)];
         Assert.Contains("<h4 class=\"report-output__title\">預篩選報告</h4>", prescreenOutput, StringComparison.Ordinal);
     }
@@ -301,30 +304,30 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_CategoryHierarchyIsDrawnAsATree_AndBuiltInsAreLabelled()
     {
-        // 使用者 2026-10-11 認為分類設定看不出分類之間的上下層，像單純的排版問題。
+        // 裁定 2026-10-11-12：分類設定看不出分類之間的上下層，像單純的排版問題。
         // 下層分類往內縮並用連接線接到上層；內建分類標出「內建」，名稱輸入框的右緣一律對齊。
         var validate = ReadFrontend("js", "steps", "validate-step.js");
         var css = ReadFrontend("css", "app.css");
 
         Assert.Contains("function treeGuidesHtml(index)", validate, StringComparison.Ordinal);
-        Assert.Contains("'\" style=\"--taxonomy-depth:' + row.depth + '\">' + treeGuidesHtml(index) +", validate, StringComparison.Ordinal);
+        Assert.Contains("'\" style=\"--category-depth:' + row.depth + '\">' + treeGuidesHtml(index) +", validate, StringComparison.Ordinal);
         Assert.DoesNotContain("margin-inline-start:' + row.depth + 'em", validate, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"taxonomy-row__badge\" title=\"JET 內建的分類，可以改名，不能移除\">內建</span>", validate, StringComparison.Ordinal);
-        Assert.Contains(".taxonomy-row__tree > .is-last::before {", css, StringComparison.Ordinal);
-        Assert.Contains("--taxonomy-line: var(--color-border-control-strong);", css, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"category-row__badge\" title=\"JET 內建的分類，可以改名，不能移除\">內建</span>", validate, StringComparison.Ordinal);
+        Assert.Contains(".category-row__tree > .is-last::before {", css, StringComparison.Ordinal);
+        Assert.Contains("--category-line: var(--color-border-control-strong);", css, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Frontend_AddActionsLookPressable_AndArrivalsShowWhereTheyLanded()
     {
-        // 使用者 2026-10-11 指出條件總覽的「加入」像一般文字；同日要求多參考 Apple 的設計思路。
-        // 2026-10-29 使用者指出中間操作區不需要到處用強調色，並選擇保留每個工作面唯一的藍色主要按鈕：會新增東西的按鈕與
+        // 條件總覽的「加入」像一般文字（裁定 2026-10-11-13），也要多參考 Apple 的設計思路（裁定 2026-10-11-14）。
+        // 裁定 2026-10-29-06：中間操作區不需要到處用強調色，每個工作面唯一的主要按鈕保留藍色：會新增東西的按鈕與
         // 列內的低調按鈕都是白底深字的按鍵，新增按鈕的名稱前一個灰色加號；條件從總覽飛進條件組，展開的內容從標題長出來。
         // 這些動態只畫呈現，減少動態與高對比佈景時不做。
         var css = ReadFrontend("css", "app.css");
         var app = ReadFrontend("js", "app.js");
 
-        // 使用者 2026-10-15 指出切換第五步頁籤時，淡掉中的「新增條件組」變回白底。JetMotion 的舊複本會拿掉 data-action，
+        // 切換第五步頁籤時，淡掉中的「新增條件組」會變回白底（裁定 2026-10-15-11）。JetMotion 的舊複本會拿掉 data-action，
         // 所以樣式改掛在 .btn--add。這條原本鎖 .btn:is([data-add-check], [data-action="add-set"], ...)，改版後依預期失敗，
         // 首敗收據 20261015-015426320-016be01c6d8140758d9bd5ddebf012ad。意圖不變：會新增東西的按鈕前面有加號。
         Assert.Contains(".btn.btn--add {", css, StringComparison.Ordinal);
@@ -342,7 +345,7 @@ public sealed class DesignIntegrationFrontendTests
         plus = plus[..(plus.IndexOf('}') + 1)];
         Assert.Contains("background: var(--color-muted);", plus, StringComparison.Ordinal);
 
-        // 使用者 2026-10-12 認為加入條件的飛行像廉價的套版，切換常用查核條件時畫面會閃，所以加入改成帶過去的玻璃標籤
+        // 裁定 2026-10-12-02：加入條件的飛行像廉價的套版，切換常用查核條件時畫面會閃，所以加入改成帶過去的玻璃標籤
         // .arrival-token，原本只處理打開的 bindDisclosureMotion 改成 app.css 的 [data-collapsible]，打開與收起都轉場。
         // 這裡原本鎖住 bindDisclosureMotion 與 .arrival-ghost，改版後依預期失敗，首敗收據 20261012-054042188-3710b446aff74f86bc2e963be4f7cca0。
         // 改成鎖住新的做法，意圖不變：加入看得到落在哪裡、展開的內容從標題長出來、只畫呈現、減少動態時不做。
@@ -353,7 +356,7 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains("pointer-events: none;", css[css.IndexOf(".arrival-token {", StringComparison.Ordinal)..], StringComparison.Ordinal);
         Assert.Contains("@starting-style {\n  [data-collapsible]:not([hidden]) {", css, StringComparison.Ordinal);
         Assert.Contains("[data-collapsible][hidden] {", css, StringComparison.Ordinal);
-        // 使用者 2026-10-12 要求動態改成 Apple 的彈簧後，展開用 --motion-open、收起用 --motion-close；這條原本鎖 --motion-glide，
+        // 裁定 2026-10-12-03 要求動態改成 Apple 的彈簧後，展開用 --motion-open、收起用 --motion-close；這條原本鎖 --motion-glide，
         // 改版後依預期失敗，首敗收據 20261012-120406121-bdf6303c521e434c91f652b5bbd1ab4e。意圖不變：收起時 display 也跟著轉場。
         Assert.Contains("display var(--motion-open) allow-discrete", css, StringComparison.Ordinal);
         Assert.Contains("display var(--motion-close) allow-discrete", css, StringComparison.Ordinal);
@@ -363,7 +366,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_TopAreaHasNoColorBand_AndLightOnlyAnswersAPress()
     {
-        // 使用者 2026-10-11 否定漸層框帶與立體高光，要求依 Apple 的設計理念重做：頂部和畫布同一張紙，
+        // 裁定 2026-10-11-09 否定漸層框帶與立體高光，要求依 Apple 的設計理念重做：頂部和畫布同一張紙，
         // 層級靠版面與分組；光只在按下時出現，不跟著指標移動；選取底滑動，高對比佈景與降低透明度都有退路。
         var css = ReadFrontend("css", "app.css");
         var app = ReadFrontend("js", "app.js");
@@ -389,7 +392,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_AddRemoveClearAndSwitchMoveTheSameWay_AcrossTheWholeTool()
     {
-        // 使用者 2026-10-12 指出：流程欄換步驟時選取放大縮小過於醒目；加入條件的飛行突兀；移除與清除沒有動態，
+        // 裁定 2026-10-12-02：流程欄換步驟時選取放大縮小過於醒目；加入條件的飛行突兀；移除與清除沒有動態，
         // 其他步驟也一樣；切換常用查核條件會閃；左下角的訊息區展開後再收合整塊錯位。
         // 這裡鎖住共用的做法：重繪前後由 JetMotion 比對 data-motion-key，加入的長出來、消失的收起來；
         // 原地切換的展開區由 [data-collapsible] 兩個方向都轉場；流程欄的那一片同樣大小平移；訊息區的開關固定在欄底。
@@ -428,7 +431,7 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains("keepMotionKey(group, fresh);", filter, StringComparison.Ordinal);
         Assert.Contains("'<ul class=\"filter-check-group__items\" id=\"' + listId + '\" data-collapsible'", filter, StringComparison.Ordinal);
         Assert.Contains("global.JetMotion.morph(container, function () { render(container, Store.getState()); });", filter, StringComparison.Ordinal);
-        Assert.Contains("' data-motion-key=\"' + esc('artifact-' + motion + '-' + artifact.artifactId) + '\"'", core, StringComparison.Ordinal);
+        Assert.Contains("' data-motion-key=\"' + esc('report-' + motion + '-' + report.reportId) + '\"'", core, StringComparison.Ordinal);
         Assert.Contains(".filter-workspace .scenario-flat__list > .rule-row:not([data-motion-leaving]) ~ .rule-row::before {", css, StringComparison.Ordinal);
         Assert.Contains("[data-motion-rendering] :is([data-collapsible], [data-motion-pane]) {", css, StringComparison.Ordinal);
         Assert.Contains(".modal[hidden],\n.overview-modal[hidden] {", css, StringComparison.Ordinal);
@@ -471,7 +474,7 @@ public sealed class DesignIntegrationFrontendTests
         // 新的一列照常長出來，只有標題等標籤放下。
         Assert.Contains("var holds = hide(title);", app, StringComparison.Ordinal);
         // 長出來改用彈簧並帶著此刻的速度；這條原本鎖不帶速度的呼叫，改版後依預期失敗，首敗收據 20261012-120406121-bdf6303c521e434c91f652b5bbd1ab4e。
-        // 使用者 2026-10-13 要求移除前先輕微快速地晃一下，同一次重繪的其他動態因此晚一點開始，呼叫多帶 delay；
+        // 裁定 2026-10-13-13 要求移除前先輕微快速地晃一下，同一次重繪的其他動態因此晚一點開始，呼叫多帶 delay；
         // 這條原本鎖只帶 velocity 的呼叫，改版後依預期失敗，首敗收據 20261013-054600810-effc73931390437c8015d25ac3a6ebf1。
         // 意圖不變：新的一列照常長出來，只有標題等標籤放下。
         Assert.Contains("run(root, item.key, item.element, item.size, item.presence, 1, { velocity: item.velocity, delay: lead });", app, StringComparison.Ordinal);
@@ -490,21 +493,21 @@ public sealed class DesignIntegrationFrontendTests
         // 頁籤底下的窗格重新出現時，裡面已打開的展開區不重播。
         Assert.Contains("function setShown(element, visible) {", app, StringComparison.Ordinal);
         Assert.Contains("[data-motion-revealing] :is([data-collapsible], [data-motion-pane]) {", css, StringComparison.Ordinal);
-        // 使用者 2026-10-12 要求切換流暢後，頁籤底下換窗格改由 JetMotion.swap 原地淡換、高度平順改變，新的窗格仍用 setShown 顯示。
+        // 裁定 2026-10-12-02 要求切換不閃之後，頁籤底下換窗格改由 JetMotion.swap 原地淡換、高度平順改變，新的窗格仍用 setShown 顯示。
         // 這三條原本鎖 showPane，改版後一併改寫（同一個測試的首敗收據 20261012-120406121-bdf6303c521e434c91f652b5bbd1ab4e，當時先停在前面的斷言）。
         // 意圖不變：三組頁籤都經過同一個原地切換，已打開的展開區不重播。
-        // 階段十拆檔後，第五步共用的檢視狀態改成 FilterStep.viewState，這三段程式的字樣跟著改；意圖不變：分頁切換用 showOnly 就地顯示。
+        // filter-step.js 拆檔後，第五步共用的檢視狀態改成 FilterStep.viewState，這三段程式的字樣跟著改；意圖不變：分頁切換用 showOnly 就地顯示。
         // 第一次失敗：Focused 收據 20261025-054418803-4444ed5f35bb41ed9612e92a68d20dac。
         Assert.Contains("showOnly(container.querySelectorAll('[data-filter-pane]'), function (pane) { return pane.dataset.filterPane === FilterStep.viewState.workspacePane; },", filter, StringComparison.Ordinal);
         Assert.Contains("showOnly(container.querySelectorAll('[data-condition-pane]'), function (pane) { return pane.dataset.conditionPane === FilterStep.viewState.conditionSource; });", filter, StringComparison.Ordinal);
-        Assert.Contains("showOnly(boxes, function (box) { return box.getAttribute('data-bind') === 'matrix-' + FilterStep.viewState.matrixView; }, function () {", filter, StringComparison.Ordinal);
+        Assert.Contains("showOnly(boxes, function (box) { return box.getAttribute('data-bind') === 'high-risk-summary-' + FilterStep.viewState.highRiskSummaryView; }, function () {", filter, StringComparison.Ordinal);
         Assert.Contains("if (to && global.JetMotion && global.JetMotion.swap) { global.JetMotion.swap(from, to, fill); return; }", filter, StringComparison.Ordinal);
         var swap = app[app.IndexOf("function swap(from, to, fill) {", StringComparison.Ordinal)..];
         swap = swap[..swap.IndexOf("swap.count = 0;", StringComparison.Ordinal)];
         Assert.Contains("setShown(to, true);", swap, StringComparison.Ordinal);
 
         // 收合目前的步驟：整段內容先收回標題再換成一行；展開時整段從標題長出來。
-        // 使用者 2026-10-13 要求展開與收合一致套用動態，換步驟時舊的步驟內容也收回它那一列、新的從標題長出來，
+        // 裁定 2026-10-13-11 要求展開與收合一致套用動態，換步驟時舊的步驟內容也收回它那一列、新的從標題長出來，
         // 所以先找出新的內容再判斷要不要長出來；這條原本鎖直接查詢後長出來的呼叫，改版後依預期失敗，
         // 首敗收據 20261013-060027504-4116bbcc5f8540f09d1adc5f31c94e27。意圖不變：展開與換步驟時整段從標題長出來。
         Assert.Contains("global.JetMotion.fold(body, function () { Store.setStepFlowCollapsed(true); });", app, StringComparison.Ordinal);
@@ -537,14 +540,18 @@ public sealed class DesignIntegrationFrontendTests
         // 樣式不掛在收起中的舊元素會被拿掉的 data-bind 上；高對比佈景時原地展開區與訊息區直接換。
         Assert.Contains(".import-card--calendar > .calendar-nonworking__hint", css, StringComparison.Ordinal);
         Assert.DoesNotContain("[data-bind=\"import-card-calendar\"] >", css, StringComparison.Ordinal);
-        Assert.Contains(".account-mapping-checks > .account-mapping-checks__list", css, StringComparison.Ordinal);
+        // 裁定 2026-10-30-35 把「用 Excel 配對」改成上方一排操作、下方結果清單，原本的核對清單換成結果清單裡就地展開的明細；
+        // 明細照樣用自己的樣式類別，不掛在會被拿掉的 data-bind 上。第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
+        Assert.Contains(".excel-mapping__detail {", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("[data-bind=\"blank-category-list\"]", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("[data-difference-list", css, StringComparison.Ordinal);
         Assert.Contains("  [data-collapsible],\n  [data-collapsible][hidden],\n  [data-motion-pane],\n  .messages__panel,", css, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Frontend_MotionFollowsAppleSprings_AndInPlaceChangesStayContinuous()
     {
-        // 使用者 2026-10-12 指出第三步重新配對時換金額欄位格式，選取一閃而過、提示直接跳出來，並要求動態更有質感、更自然，
+        // 裁定 2026-10-12-03：第三步重新配對時換金額欄位格式，選取一閃而過、提示直接跳出來，並要求動態更有質感、更自然，
         // 先研究 Apple 的設計理念與指引，再套用到全部流程畫面。這裡鎖住修正後的共用做法。
         var app = ReadFrontend("js", "app.js");
         var css = ReadFrontend("css", "app.css");
@@ -553,10 +560,10 @@ public sealed class DesignIntegrationFrontendTests
         var filter = ProductSources.FilterStepFrontend();
 
         // 全部的動態是同一組 Apple 的彈簧（WWDC23「Animate with springs」），CSS 的曲線與時間由同樣的參數算出來。
-        // 使用者 2026-10-13 指出淡入淡出太緩慢、要求加快，長出來與收起改成 0.34 秒與 0.27 秒；
+        // 裁定 2026-10-13-10：淡入淡出太緩慢、要加快，長出來與收起改成 0.34 秒與 0.27 秒；
         // 這四條原本鎖 0.4 秒、0.32 秒、588ms 與 471ms，改版後依預期失敗，首敗收據 20261013-054600810-effc73931390437c8015d25ac3a6ebf1。
         // 意圖不變：JS 的彈簧與 CSS 的時間由同樣的參數算出來。
-        // 使用者 2026-10-15 認為進階條件篩選的動態拖累操作，bounce 維持 0、同比例縮短約兩成；這六條原本鎖 0.34、0.34、0.27 秒
+        // 裁定 2026-10-15-08：進階條件篩選的動態拖累操作，bounce 維持 0、同比例縮短約兩成；這六條原本鎖 0.34、0.34、0.27 秒
         // 與 500ms、500ms、400ms，改版後依預期失敗，首敗收據 20261015-015426320-016be01c6d8140758d9bd5ddebf012ad。
         Assert.Contains("glide: { duration: 0.28, bounce: 0 },", app, StringComparison.Ordinal);
         Assert.Contains("open: { duration: 0.28, bounce: 0 },", app, StringComparison.Ordinal);
@@ -589,7 +596,7 @@ public sealed class DesignIntegrationFrontendTests
 
         // 第三步的提示、對照表、必填清單與資料處理都有識別；各步驟的主畫面也有，底下直接一層的區塊因此都會比對。
         Assert.Contains("data-motion-key=\"mapping-banner-' + kind + '\">", mapping, StringComparison.Ordinal);
-        // 使用者 2026-10-19 要求頁籤只留一套：對照表外框同時是第三步頁籤的面板，識別後面接面板屬性。
+        // 同功能的元件只留一套（裁定 2026-10-19-08），頁籤也是：對照表外框同時是第三步頁籤的面板，識別後面接面板屬性。
         // 首次失敗：20261019-102446198-5198acd5b7e747feae8ed16dcfac32a3；仍檢查外框帶識別。
         Assert.Contains("'<div class=\"map-layout\" data-motion-key=\"map-layout-' + kind + '\"' + mapLayoutPanelAttributes(kind) + '>' +", mapping, StringComparison.Ordinal);
         Assert.Contains("'\" data-motion-key=\"map-rail-' + kind + '\">' +", mapping, StringComparison.Ordinal);
@@ -603,7 +610,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_MotionCurvesMatchTheirSprings_GlassBouncesAndContentDoesNot()
     {
-        // 使用者 2026-10-15 澄清 2026-10-13 不喜歡的是拋物線軌跡、不是回彈，並選「直接照建議改」：
+        // 裁定 2026-10-15-05 澄清裁定 2026-10-13-12 不喜歡的是拋物線軌跡、不是回彈，並選「直接照建議改」：
         // 玻璃層被操作的東西用 bounce 0.15，內容層的版面改變用 bounce 0。
         // 這裡用彈簧的公式自己算出曲線與停下來的時間，核對 app.css 取樣的曲線、時間和 app.js 的參數是同一組彈簧。
         var app = ReadFrontend("js", "app.js");
@@ -703,8 +710,8 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_RemovalsShakeFirst_AndFadesStayQuick_AcrossTheWholeTool()
     {
-        // 使用者 2026-10-13 指出淡入淡出太緩慢；要求展開與收合的元素一致套用動態；進階條件篩選加入條件時的標籤不要跳躍；
-        // 清除條件時那一下輕微快速的晃動不錯，要讓右側條件組合、移除案件，以及其他流程中要移除或清除的東西都這樣晃一下。
+        // 淡入淡出太緩慢（裁定 2026-10-13-10）；展開與收合的元素要一致套用動態（裁定 2026-10-13-11）；進階條件篩選加入條件時的標籤不要跳躍（裁定 2026-10-13-12）；
+        // 清除條件時那一下輕微快速的晃動不錯，裁定 2026-10-13-13 要讓右側條件組合、移除案件，以及其他流程中要移除或清除的東西都這樣晃一下。
         // 這裡鎖住共用的做法：晃動由 JetMotion 統一處理，按下移除的地方只說明要拿掉的是什麼。
         var app = ReadFrontend("js", "app.js");
         var css = ReadFrontend("css", "app.css");
@@ -738,7 +745,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_StylesDoNotDependOnAttributesTheFadingCopyDrops()
     {
-        // 使用者 2026-10-15 指出來回切換第五步頁籤時，「新增條件組」短暫變回白底，像露出原形，並要求檢查其他地方。
+        // 裁定 2026-10-15-11：來回切換第五步頁籤時，「新增條件組」短暫變回白底，像露出原形，其他地方也要檢查。
         // 原因是 JetMotion 收起或淡掉的舊複本會拿掉 KEEP_ON_LEAVING 以外的 data- 屬性，程式與測試才找不到它；
         // 樣式掛在被拿掉的屬性上時，複本在動態期間就換成另一個樣子。這裡檢查 app.css 每個 data- 屬性選擇器：
         // 屬性要留在複本上，或是動態本身的開關，或只用在標題列這類不會被複製的地方。
@@ -789,7 +796,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_ReducedMotionTurnsTransitionsOff_InsteadOfShorteningThem()
     {
-        // 使用者 2026-10-12 要求查明減少動態時重繪變慢。原本這裡替每個元素設 0.001ms 的 transition-duration，
+        // 裁定 2026-10-12-04 要求查明減少動態時重繪變慢。原本這裡替每個元素設 0.001ms 的 transition-duration，
         // 頁面一開始就套用時，減少動態下的重繪慢兩到四倍；改成 transition: none 後回到原本的速度，畫面一樣瞬間完成，
         // 也不留轉場的延遲。
         var css = ReadFrontend("css", "app.css");

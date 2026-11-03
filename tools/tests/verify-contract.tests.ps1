@@ -340,11 +340,11 @@ try {
     Assert-Contract -Condition ((@($registry.excelSettings.reportKinds) -join ',') -ceq `
             'accountMapping,criteriaSelectionReport,infReport,prescreenReport,validationReport,workingPaper') `
         -Message 'The Excel lane must remain limited to the six synthetic product outputs.'
-    foreach ($requiredPattern in @('*ReportArtifactTrustJourneyTests*', '*ProjectReportArtifactStoreTests*')) {
+    foreach ($requiredPattern in @('*ReportTrustJourneyTests*', '*ProjectReportStoreTests*')) {
         Assert-Contract -Condition (@($registry.testSettings.packageMethodPatterns) -ccontains $requiredPattern) `
             -Message "Package must include the report storage regression family $requiredPattern."
     }
-    $workbookJourneyMethod = 'AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate'
+    $workbookJourneyMethod = 'AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate'
     Assert-Contract -Condition ([string]$registry.excelSettings.fixtureMethodPattern -ceq `
         "*SixReportWorkflowJourneyTests.$workbookJourneyMethod*") `
         -Message 'Excel must select the current five-report and editable-template journey.'
@@ -614,9 +614,9 @@ try {
     $guiHarnessText = $harnessSourceText.Substring(
         $guiHarnessStart,
         $excelHarnessStart - $guiHarnessStart)
-    foreach ($requiredAssertion in @('modifiedOutsideVisible', 'workpaperExportEnabled', 'cleanupPanelAbsent',
-            'workpaperHistoryVisible', 'historyDoesNotCompleteCurrentRun', 'oldVersionRevealAvailable',
-            'missingVersionRevealDisabled', 'workpaperHistoryRetainedAfterExport', 'newestWorkpaperFirst')) {
+    foreach ($requiredAssertion in @('modifiedOutsideVisible', 'workingPaperExportEnabled', 'cleanupPanelAbsent',
+            'workingPaperHistoryVisible', 'historyDoesNotCompleteCurrentRun', 'oldVersionRevealAvailable',
+            'missingVersionRevealDisabled', 'workingPaperHistoryRetainedAfterExport', 'newestWorkingPaperFirst')) {
         Assert-Contract -Condition ($guiHarnessText.Contains(
             ('[bool]$manifest.assertions.' + $requiredAssertion), [StringComparison]::Ordinal)) `
             -Message "GUI verification must require the current report workflow assertion $requiredAssertion."
@@ -873,6 +873,201 @@ try {
         $markerFixture.Report.errors[0].code -ceq 'required_marker_missing') `
         -Message 'A missing agent adapter marker must fail the documentation check.'
 
+    # 長度上限先只提醒，改成 error 後才失敗；裁定總表落實位置寫的檔案不存在時失敗。
+    [IO.File]::WriteAllText(
+        (Join-Path $documentationFixtureRoot 'README.md'),
+        "$syntheticRequiredMarker`n" + ('x' * 2048) + "`n",
+        $utf8)
+    $rulingsFixturePath = Join-Path $documentationFixtureRoot 'rulings.md'
+    [IO.File]::WriteAllText(
+        $rulingsFixturePath,
+        "| 編號 | 裁定 | 落實位置 |`n|:---|:---|:---|`n| 2026-01-01-01 | 合成裁定 | ``README.md``、``missing/location.md`` |`n",
+        $utf8)
+    $sizePolicy = [ordered]@{}
+    foreach ($key in $documentationPolicy.Keys) { $sizePolicy[$key] = $documentationPolicy[$key] }
+    $sizePolicy['files'] = @('README.md', 'rulings.md')
+    $sizePolicy['sizeLimits'] = [ordered]@{
+        severity = 'warning'
+        rules = @([ordered]@{ id = 'synthetic-size'; match = @('README.md'); maxKiB = 1 })
+    }
+    $sizePolicy['rulingLocations'] = [ordered]@{ id = 'synthetic-ruling-location'; file = 'rulings.md'; column = '落實位置' }
+    $sizePolicyPath = Join-Path $documentationFixtureRoot 'documentation-size-check.json'
+    [IO.File]::WriteAllText($sizePolicyPath, ($sizePolicy | ConvertTo-Json -Depth 8) + "`n", $utf8)
+    $locationFixture = Invoke-DocumentationFixture `
+        -FixtureRoot $documentationFixtureRoot `
+        -ReportPath (Join-Path $documentationFixtureRoot 'documentation-location-report.json') `
+        -PolicyPath $sizePolicyPath `
+        -Label 'documentation-ruling-location'
+    Assert-Contract -Condition ($locationFixture.NativeExitCode -eq 1 -and
+        [int]$locationFixture.Report.counters.errors -eq 1 -and
+        $locationFixture.Report.errors[0].code -ceq 'ruling_location_missing' -and
+        $locationFixture.Report.errors[0].target -ceq 'missing/location.md' -and
+        [int]$locationFixture.Report.counters.rulingLocationsChecked -eq 2) `
+        -Message 'A ruling location that names a missing file must fail the documentation check.'
+    Assert-Contract -Condition (@($locationFixture.Report.warnings | Where-Object {
+                $_.code -ceq 'document_too_long' -and $_.ruleId -ceq 'synthetic-size' }).Count -eq 1) `
+        -Message 'A document over its size limit must warn while the limit is a warning.'
+
+    [IO.File]::WriteAllText(
+        $rulingsFixturePath,
+        "| 編號 | 裁定 | 落實位置 |`n|:---|:---|:---|`n| 2026-01-01-01 | 合成裁定 | ``README.md`` |`n",
+        $utf8)
+    $sizeWarningFixture = Invoke-DocumentationFixture `
+        -FixtureRoot $documentationFixtureRoot `
+        -ReportPath (Join-Path $documentationFixtureRoot 'documentation-size-warning-report.json') `
+        -PolicyPath $sizePolicyPath `
+        -Label 'documentation-size-warning'
+    Assert-Contract -Condition ($sizeWarningFixture.NativeExitCode -eq 0 -and
+        $sizeWarningFixture.Report.status -ceq 'passed' -and
+        [int]$sizeWarningFixture.Report.counters.warnings -eq 1) `
+        -Message 'An over-long document must not fail the check while its limit is only a warning.'
+    $sizePolicy['sizeLimits']['severity'] = 'error'
+    [IO.File]::WriteAllText($sizePolicyPath, ($sizePolicy | ConvertTo-Json -Depth 8) + "`n", $utf8)
+    $sizeErrorFixture = Invoke-DocumentationFixture `
+        -FixtureRoot $documentationFixtureRoot `
+        -ReportPath (Join-Path $documentationFixtureRoot 'documentation-size-error-report.json') `
+        -PolicyPath $sizePolicyPath `
+        -Label 'documentation-size-error'
+    Assert-Contract -Condition ($sizeErrorFixture.NativeExitCode -eq 1 -and
+        $sizeErrorFixture.Report.errors[0].code -ceq 'document_too_long' -and
+        [long]$sizeErrorFixture.Report.errors[0].limitBytes -eq 1024) `
+        -Message 'Once the size limit is an error, an over-long document must fail the check.'
+
+    # 程式與工具裡的裁定編號要是總表裡現行的裁定：不在總表、已被取代與 Agent 定的做法都失敗，建置輸出與其他副檔名不掃。
+    # 合成內容用 -f 組出編號，這個腳本本身不會被正式的文件檢查當成引用。
+    [IO.File]::WriteAllText(
+        $rulingsFixturePath,
+        (("## 條件篩選`n`n| 編號 | 裁定 | 落實位置 |`n|:---|:---|:---|`n| {0} | 合成裁定 | ``README.md`` |`n`n" +
+            "## 已被取代的裁定`n`n| 編號 | 原本的裁定 |`n|:---|:---|`n| {1} | 合成舊裁定 |`n`n" +
+            "## Agent 定的做法`n`n| 編號 | 做法 |`n|:---|:---|`n| {2} | 合成做法 |`n") -f
+            '2026-01-01-01', '2026-01-01-02', '2026-01-01-03'),
+        $utf8)
+    $referenceSourceRoot = Join-Path $documentationFixtureRoot 'src'
+    [void][IO.Directory]::CreateDirectory((Join-Path $referenceSourceRoot 'bin'))
+    [IO.File]::WriteAllText(
+        (Join-Path $referenceSourceRoot 'Sample.cs'),
+        ("// {0} {1}：合成。`n// {2} {3} superseded`n// {0} {4}`n// {0} {5}`n" -f
+            '裁定', '2026-01-01-01', 'ruling', '2026-01-01-02', '2026-01-01-03', '2026-01-01-09'),
+        $utf8)
+    [IO.File]::WriteAllText(
+        (Join-Path $referenceSourceRoot 'bin/Copied.cs'),
+        ("// {0} {1}`n" -f '裁定', '2026-01-01-09'),
+        $utf8)
+    [IO.File]::WriteAllText(
+        (Join-Path $referenceSourceRoot 'Notes.txt'),
+        ("{0} {1}`n" -f '裁定', '2026-01-01-09'),
+        $utf8)
+    $referencePolicy = [ordered]@{}
+    foreach ($key in $documentationPolicy.Keys) { $referencePolicy[$key] = $documentationPolicy[$key] }
+    $referencePolicy['files'] = @('README.md', 'rulings.md')
+    $referencePolicy['rulingReferences'] = [ordered]@{
+        id = 'synthetic-ruling-reference'
+        file = 'rulings.md'
+        roots = @('src')
+        extensions = @('.cs')
+        skipDirectories = @('bin')
+        excludedSections = @('已被取代的裁定', 'Agent 定的做法')
+    }
+    $referencePolicyPath = Join-Path $documentationFixtureRoot 'documentation-reference-check.json'
+    [IO.File]::WriteAllText($referencePolicyPath, ($referencePolicy | ConvertTo-Json -Depth 8) + "`n", $utf8)
+    $referenceFixture = Invoke-DocumentationFixture `
+        -FixtureRoot $documentationFixtureRoot `
+        -ReportPath (Join-Path $documentationFixtureRoot 'documentation-reference-report.json') `
+        -PolicyPath $referencePolicyPath `
+        -Label 'documentation-ruling-reference'
+    $referenceErrors = @($referenceFixture.Report.errors | ForEach-Object { '{0} {1} {2}' -f $_.code, $_.line, $_.target })
+    Assert-Contract -Condition ($referenceFixture.NativeExitCode -eq 1 -and
+        [int]$referenceFixture.Report.counters.rulingReferencesChecked -eq 4 -and
+        $referenceErrors.Count -eq 3 -and
+        $referenceErrors -ccontains ('ruling_reference_not_current 2 {0}' -f '2026-01-01-02') -and
+        $referenceErrors -ccontains ('ruling_reference_not_current 3 {0}' -f '2026-01-01-03') -and
+        $referenceErrors -ccontains ('ruling_reference_missing 4 {0}' -f '2026-01-01-09')) `
+        -Message 'A ruling reference in code must name a current ruling in the rulings file.'
+    $referencePolicy['rulingReferences']['excludedSections'] = @('已被取代的裁定', '合成的缺少小節')
+    [IO.File]::WriteAllText($referencePolicyPath, ($referencePolicy | ConvertTo-Json -Depth 8) + "`n", $utf8)
+    $sectionFixture = Invoke-DocumentationFixture `
+        -FixtureRoot $documentationFixtureRoot `
+        -ReportPath (Join-Path $documentationFixtureRoot 'documentation-reference-section-report.json') `
+        -PolicyPath $referencePolicyPath `
+        -Label 'documentation-ruling-section'
+    Assert-Contract -Condition ($sectionFixture.NativeExitCode -eq 1 -and
+        @($sectionFixture.Report.errors | Where-Object { $_.code -ceq 'ruling_section_missing' }).Count -eq 1) `
+        -Message 'An excluded section that the rulings file does not have must fail the documentation check.'
+    Remove-Item -LiteralPath $referenceSourceRoot -Recurse -Force
+
+    # 名詞表列為不再使用的名稱，在掃描的資料夾裡出現就失敗：「整個詞」只算獨立的詞，「字串中出現」只要出現就算，
+    # 出現在包含它的現在名稱裡不算，「不自動比對」的不找，略過的資料夾不掃。資料表名稱要和建表語句建立的表一致。
+    # 舊名稱用 -f 組出來，這個腳本本身不會被正式的名稱檢查當成舊名稱。
+    $glossaryFixturePath = Join-Path $documentationFixtureRoot 'glossary.md'
+    [IO.File]::WriteAllText(
+        $glossaryFixturePath,
+        (("## 資料庫表名`n`n| 現在的表名 | 確認的表名 | 概念 |`n|:---|:---|:---|`n" +
+            "| ``alpha`` | 照舊 | 合成 |`n| ``beta``、``gamma`` | 照舊 | 合成 |`n`n" +
+            "## 不再使用的名稱`n`n| 舊名稱 | 用在哪裡 | 現在的名稱 | 比對方式 |`n|:---|:---|:---|:---|`n" +
+            "| ``{0}`` | 資料欄 | ``newKey`` | 整個詞 |`n| 「{1}」 | 畫面與報告用語 | 「整張{1}」 | 字串中出現 |`n" +
+            "| ``{2}`` | action 欄位 | ``amount`` | 不自動比對 |`n") -f 'oldKey', '傳票條件', 'money'),
+        $utf8)
+    $nameSourceRoot = Join-Path $documentationFixtureRoot 'src'
+    [void][IO.Directory]::CreateDirectory((Join-Path $nameSourceRoot 'vendor'))
+    [IO.File]::WriteAllText(
+        (Join-Path $nameSourceRoot 'Sample.cs'),
+        ("var a = {0};`nvar b = {0}Total;`n// 「整張{1}」`n// {1}`nvar c = {2};`n" -f 'oldKey', '傳票條件', 'money'),
+        $utf8)
+    [IO.File]::WriteAllText((Join-Path $nameSourceRoot 'vendor/Lib.js'), ("var x = {0};`n" -f 'oldKey'), $utf8)
+    [IO.File]::WriteAllText(
+        (Join-Path $nameSourceRoot 'Schema.cs'),
+        "CREATE TABLE IF NOT EXISTS alpha (id INTEGER);`nCREATE TABLE {s}.beta (id INT);`nCREATE TABLE delta (id INTEGER);`n",
+        $utf8)
+    $namePolicy = [ordered]@{}
+    foreach ($key in $documentationPolicy.Keys) { $namePolicy[$key] = $documentationPolicy[$key] }
+    $namePolicy['files'] = @('README.md', 'glossary.md')
+    $namePolicy['retiredNames'] = [ordered]@{
+        id = 'synthetic-retired-name'
+        file = 'glossary.md'
+        section = '不再使用的名稱'
+        roots = @('src')
+        extensions = @('.cs', '.js')
+        skipDirectories = @('vendor')
+    }
+    $namePolicy['tableNames'] = [ordered]@{
+        id = 'synthetic-table-name'
+        file = 'glossary.md'
+        section = '資料庫表名'
+        sources = @('src/Schema.cs')
+    }
+    $namePolicyPath = Join-Path $documentationFixtureRoot 'documentation-name-check.json'
+    [IO.File]::WriteAllText($namePolicyPath, ($namePolicy | ConvertTo-Json -Depth 8) + "`n", $utf8)
+    $nameFixture = Invoke-DocumentationFixture `
+        -FixtureRoot $documentationFixtureRoot `
+        -ReportPath (Join-Path $documentationFixtureRoot 'documentation-name-report.json') `
+        -PolicyPath $namePolicyPath `
+        -Label 'documentation-retired-name'
+    $nameErrors = @($nameFixture.Report.errors | ForEach-Object { '{0} {1} {2} {3}' -f $_.code, $_.file, $_.line, $_.target })
+    Assert-Contract -Condition ($nameFixture.NativeExitCode -eq 1 -and
+        [int]$nameFixture.Report.counters.retiredNamesChecked -eq 2 -and
+        [int]$nameFixture.Report.counters.tableNamesChecked -eq 3 -and
+        $nameErrors.Count -eq 4 -and
+        $nameErrors -ccontains ('retired_name_present src/Sample.cs 1 {0}' -f 'oldKey') -and
+        $nameErrors -ccontains ('retired_name_present src/Sample.cs 4 {0}' -f '傳票條件') -and
+        $nameErrors -ccontains 'table_name_not_listed src/Schema.cs 3 delta' -and
+        $nameErrors -ccontains 'listed_table_missing glossary.md 6 gamma') `
+        -Message 'A retired name in scanned code, or a table missing from either side, must fail the documentation check.'
+    $namePolicy['retiredNames']['section'] = '合成的缺少小節'
+    $namePolicy['tableNames']['section'] = '合成的缺少小節'
+    [IO.File]::WriteAllText($namePolicyPath, ($namePolicy | ConvertTo-Json -Depth 8) + "`n", $utf8)
+    $nameSectionFixture = Invoke-DocumentationFixture `
+        -FixtureRoot $documentationFixtureRoot `
+        -ReportPath (Join-Path $documentationFixtureRoot 'documentation-name-section-report.json') `
+        -PolicyPath $namePolicyPath `
+        -Label 'documentation-name-section'
+    $nameSectionCodes = @($nameSectionFixture.Report.errors | ForEach-Object { [string]$_.code })
+    Assert-Contract -Condition ($nameSectionFixture.NativeExitCode -eq 1 -and
+        $nameSectionCodes.Count -eq 2 -and
+        $nameSectionCodes -ccontains 'retired_name_section_missing' -and
+        $nameSectionCodes -ccontains 'table_section_missing') `
+        -Message 'A name section that the glossary does not have must fail the documentation check.'
+    Remove-Item -LiteralPath $nameSourceRoot -Recurse -Force
+
     $normal = Invoke-Runner -Label 'normal' -Arguments @(
         '-Command', 'Contract',
         '-ContractScenario', 'Normal',
@@ -892,7 +1087,7 @@ try {
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiSideMonthWorkflow.cs' -and
-        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiWorkpaperInspection.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiWorkingPaperInspection.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs') `
         -Message 'Runner identity must include every extracted GUI workflow source file.'
@@ -1213,7 +1408,7 @@ try {
             -Message 'Sanitized test evidence must retain a stable marker.'
     }
 
-    # 收據保留期限（使用者 2026-10-14 裁定）：同一種檢查只完整保留最新幾次，更舊的只留收據摘要與擁有者標記；
+    # 收據保留期限（裁定 2026-10-14-14）：同一種檢查只完整保留最新幾次，更舊的只留收據摘要與擁有者標記；
     # 別種檢查各自計算，還沒寫收據的執行不碰，第二次整理不再刪任何東西。較早的收據沒有 partial 欄位，也要能整理
     # （第一次實際整理時，嚴格模式讀不存在的欄位丟例外，593 次執行全被跳過）。
     $retentionRoot = Join-Path $suiteRoot 'receipt-retention'
@@ -1255,7 +1450,7 @@ try {
             -Message 'Recent runs, other checks and runs without a receipt stay whole.'
     }
 
-    # 改壞檢查的保留期限（使用者 2026-10-15 選照建議 S8）：同一個範圍只完整保留最新幾次，更舊的只留最上層摘要檔；
+    # 改壞檢查的保留期限（裁定 2026-10-15-01 照建議）：同一個範圍只完整保留最新幾次，更舊的只留最上層摘要檔；
     # 別的範圍各自計算，還沒寫 pipeline.json 的執行不碰。t/ 只留最新一次執行（包括中斷的）用的那份，c/http 刪掉，
     # c/packages 與認不得的資料夾不動；第二次整理不再刪任何東西。
     $mutationRetentionRoot = Join-Path $suiteRoot 'mutation-retention'

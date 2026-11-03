@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 跨資料庫審計結果一致性計畫（docs/history/specs/2026-10-19-cross-database-consistency-plan.md）的固定答案。
+/// 三種資料庫審計結果一致的固定答案，做法的出處見 docs/history/specs/2026-10-19-cross-database-consistency-plan.md。
 /// 同一份合成資料經正式查詢路徑，在 SQLite、DuckDB 與 SQL Server 要得到相同結果；預期值依 SQLite
 /// 與 .NET 的共用定義手算。SQLite 與 DuckDB 每次 Public 都執行，SQL Server 版只在 Provider 執行。
 /// </summary>
@@ -19,7 +19,7 @@ public sealed class CrossDatabaseConsistencyTests
     private const string NullOrderSql =
         "SELECT x FROM (SELECT 'b' AS x UNION ALL SELECT NULL UNION ALL SELECT 'a') t";
 
-    // 計畫第二節 A：遞增排序空值在前、遞減在後，和 SQLite 與 SQL Server 的預設相同。
+    // 遞增排序空值在前、遞減在後，和 SQLite 與 SQL Server 的預設相同。
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
@@ -48,12 +48,12 @@ public sealed class CrossDatabaseConsistencyTests
 
     // 空白科目和 A100 都只有一筆：依筆數、再依科目排序時，空白科目排在 A100 前面。
     private const string BlankAccountSeed = """
-        INSERT INTO target_gl_entry (batch_id, source_row_number, document_number, line_item, post_date,
-            account_code, account_name, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_effective) VALUES
-        ('nulls', 1, 'V1', '1', '2025-01-10', 'B200', '銷貨收入', 100, 100, 0, 'DEBIT', 1),
-        ('nulls', 2, 'V1', '2', '2025-01-10', 'B200', '銷貨收入', -100, 0, 100, 'CREDIT', 1),
-        ('nulls', 3, 'V2', '1', '2025-01-11', NULL, NULL, 50, 50, 0, 'DEBIT', 1),
-        ('nulls', 4, 'V2', '2', '2025-01-11', 'A100', '現金', -50, 0, 50, 'CREDIT', 1);
+        INSERT INTO gl (batch_id, source_row_number, voucher_number, line_item, gl_date,
+            account_number, account_name, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded) VALUES
+        ('nulls', 1, 'V1', '1', '2025-01-10', 'B200', '銷貨收入', 100, 100, 0, 'DEBIT', 0),
+        ('nulls', 2, 'V1', '2', '2025-01-10', 'B200', '銷貨收入', -100, 0, 100, 'CREDIT', 0),
+        ('nulls', 3, 'V2', '1', '2025-01-11', NULL, NULL, 50, 50, 0, 'DEBIT', 0),
+        ('nulls', 4, 'V2', '2', '2025-01-11', 'A100', '現金', -50, 0, 50, 'CREDIT', 0);
         """;
 
     private static readonly AccountUsageExportRow[] BlankAccountUsage =
@@ -88,18 +88,18 @@ public sealed class CrossDatabaseConsistencyTests
         Assert.Equal(BlankAccountUsage, rows);
     }
 
-    // 計畫第二節 B 與第三節 D：轉大寫以 .NET ToUpperInvariant() 為準。ß 與 ı 轉大寫後不變，café 轉成 CAFÉ，
+    // 轉大寫以 .NET ToUpperInvariant() 為準。ß 與 ı 轉大寫後不變，café 轉成 CAFÉ，
     // 羅馬尼亞文的 ș 轉成 Ș。SQL Server 舊的大小寫對照表（Latin1_General_BIN2）不轉 ș，新版（Latin1_General_100_BIN2）會轉。
     // SQL Server 的第一次失敗：2026-10-19 方言修改前直接執行測試程式連本機 SQL Server，COMMA-EQUALS 查無命中，
     // 下方編製者彙總把 Ștefan 與 ștefan 分成兩人；同類別其餘 29 項通過。
     private const string UpperSeed = """
-        INSERT INTO target_gl_entry (batch_id, source_row_number, document_number, line_item, post_date,
-            account_code, document_description, created_by, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_effective) VALUES
-        ('upper', 1, 'SHARP', '1', '2025-01-06', 'A', 'Straße', 'u1', 100, 100, 0, 'DEBIT', 1),
-        ('upper', 2, 'DOTLESS', '1', '2025-01-06', 'A', 'kırmızı', 'u1', 100, 100, 0, 'DEBIT', 1),
-        ('upper', 3, 'DOTTED', '1', '2025-01-06', 'A', 'KIRMIZI', 'u1', 100, 100, 0, 'DEBIT', 1),
-        ('upper', 4, 'CAFE', '1', '2025-01-06', 'A', 'café', 'u1', 100, 100, 0, 'DEBIT', 1),
-        ('upper', 5, 'COMMA', '1', '2025-01-06', 'A', 'Timișoara', 'u1', 100, 100, 0, 'DEBIT', 1);
+        INSERT INTO gl (batch_id, source_row_number, voucher_number, line_item, gl_date,
+            account_number, description, created_by, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded) VALUES
+        ('upper', 1, 'SHARP', '1', '2025-01-06', 'A', 'Straße', 'u1', 100, 100, 0, 'DEBIT', 0),
+        ('upper', 2, 'DOTLESS', '1', '2025-01-06', 'A', 'kırmızı', 'u1', 100, 100, 0, 'DEBIT', 0),
+        ('upper', 3, 'DOTTED', '1', '2025-01-06', 'A', 'KIRMIZI', 'u1', 100, 100, 0, 'DEBIT', 0),
+        ('upper', 4, 'CAFE', '1', '2025-01-06', 'A', 'café', 'u1', 100, 100, 0, 'DEBIT', 0),
+        ('upper', 5, 'COMMA', '1', '2025-01-06', 'A', 'Timișoara', 'u1', 100, 100, 0, 'DEBIT', 0);
         """;
 
     public static TheoryData<string, string, string[]> UpperCases => new()
@@ -110,8 +110,8 @@ public sealed class CrossDatabaseConsistencyTests
         { """{"type":"fieldValue","field":"description","operator":"equals","value":"TIMIȘOARA"}""", "COMMA-EQUALS", ["COMMA"] }
     };
 
-    // SQL Server 的 Latin1_General_100_BIN2 會把 ı 轉成 I，和 .NET 不同。使用者 2026-10-19 裁定這類罕用字元記為已知差異
-    // （計畫第三節 D），所以這兩個案例只在 SQLite 與 DuckDB 核對。
+    // SQL Server 的 Latin1_General_100_BIN2 會把 ı 轉成 I，和 .NET 不同。裁定 2026-10-19-30 把這類罕用字元記為已知差異，
+    // 所以這兩個案例只在 SQLite 與 DuckDB 核對。
     public static TheoryData<string, string, string[]> DotlessIUpperCases => new()
     {
         { """{"type":"fieldValue","field":"description","operator":"equals","value":"kırmızı"}""", "DOTLESS-EQUALS", ["DOTLESS"] },
@@ -135,54 +135,54 @@ public sealed class CrossDatabaseConsistencyTests
     public async Task TextCondition_UppercaseMatchesDotNetInvariant_SqlServer(string rule, string label, string[] expected) =>
         await AssertHitsAsync(await FilterPredicateProviderFixture.CreateSqlServerAsync(UpperSeed), rule, label, expected);
 
-    // 計畫第三節 D：編製者依去空白、轉大寫後的識別值分組。Ștefan 與 ștefan 是同一人，
+    // 編製者依去空白、轉大寫後的識別值分組。Ștefan 與 ștefan 是同一人，
     // 顯示值取同組碼位最小的寫法 Ștefan（U+0218 小於 U+0219）。
-    private const string CaseVariantCreatorSeed = """
-        INSERT INTO target_gl_entry (batch_id, source_row_number, document_number, line_item, post_date,
-            account_code, created_by, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_effective) VALUES
-        ('creator', 1, 'V1', '1', '2025-01-10', 'A100', 'Ștefan', 100, 100, 0, 'DEBIT', 1),
-        ('creator', 2, 'V1', '2', '2025-01-10', 'B200', 'ștefan', -100, 0, 100, 'CREDIT', 1);
+    private const string CaseVariantPreparerSeed = """
+        INSERT INTO gl (batch_id, source_row_number, voucher_number, line_item, gl_date,
+            account_number, created_by, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded) VALUES
+        ('creator', 1, 'V1', '1', '2025-01-10', 'A100', 'Ștefan', 100, 100, 0, 'DEBIT', 0),
+        ('creator', 2, 'V1', '2', '2025-01-10', 'B200', 'ștefan', -100, 0, 100, 'CREDIT', 0);
         """;
 
-    private static readonly CreatorSummaryExportRow[] CaseVariantCreators = [new("Ștefan", 2, 100, 100)];
+    private static readonly PreparerSummaryExportRow[] CaseVariantPreparers = [new("Ștefan", 2, 100, 100)];
 
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task CreatorSummary_CaseVariantNames_GroupAsOnePerson(string provider)
+    public async Task PreparerSummary_CaseVariantNames_GroupAsOnePerson(string provider)
     {
         using var root = new TempProjectRoot();
-        var (database, projectId) = await CreateLocalAsync(root, provider, CaseVariantCreatorSeed);
+        var (database, projectId) = await CreateLocalAsync(root, provider, CaseVariantPreparerSeed);
 
-        var rows = await new LocalCreatorSummaryExportRepository(database)
+        var rows = await new LocalPreparerSummaryExportRepository(database)
             .FetchAllAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
 
-        Assert.Equal(CaseVariantCreators, rows);
+        Assert.Equal(CaseVariantPreparers, rows);
     }
 
     [SqlServerFact]
-    public async Task CreatorSummary_CaseVariantNames_GroupAsOnePerson_SqlServer()
+    public async Task PreparerSummary_CaseVariantNames_GroupAsOnePerson_SqlServer()
     {
-        await using var sqlServer = await CreateSqlServerAsync(CaseVariantCreatorSeed);
+        await using var sqlServer = await CreateSqlServerAsync(CaseVariantPreparerSeed);
 
-        var rows = await new SqlServerCreatorSummaryExportRepository(sqlServer.Database)
+        var rows = await new SqlServerPreparerSummaryExportRepository(sqlServer.Database)
             .FetchAllAsync(sqlServer.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None);
 
-        Assert.Equal(CaseVariantCreators, rows);
+        Assert.Equal(CaseVariantPreparers, rows);
     }
 
-    // 計畫第三節 E：1899-12-29 是週五、1899-12-30 週六、1899-12-31 週日，1900-01-06 週六、1900-01-08 週一。
+    // 1899-12-29 是週五、1899-12-30 週六、1899-12-31 週日，1900-01-06 週六、1900-01-08 週一。
     private const string PreCenturyApprovalSeed = """
-        INSERT INTO target_gl_entry (batch_id, source_row_number, document_number, line_item, post_date, approval_date,
-            account_code, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_effective) VALUES
-        ('weekend', 1, 'FRI-1899', '1', '2025-01-06', '1899-12-29', 'A', 100, 100, 0, 'DEBIT', 1),
-        ('weekend', 2, 'SAT-1899', '1', '2025-01-06', '1899-12-30', 'A', 100, 100, 0, 'DEBIT', 1),
-        ('weekend', 3, 'SUN-1899', '1', '2025-01-06', '1899-12-31', 'A', 100, 100, 0, 'DEBIT', 1),
-        ('weekend', 4, 'SAT-1900', '1', '2025-01-06', '1900-01-06', 'A', 100, 100, 0, 'DEBIT', 1),
-        ('weekend', 5, 'MON-1900', '1', '2025-01-06', '1900-01-08', 'A', 100, 100, 0, 'DEBIT', 1);
+        INSERT INTO gl (batch_id, source_row_number, voucher_number, line_item, gl_date, approval_date,
+            account_number, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded) VALUES
+        ('weekend', 1, 'FRI-1899', '1', '2025-01-06', '1899-12-29', 'A', 100, 100, 0, 'DEBIT', 0),
+        ('weekend', 2, 'SAT-1899', '1', '2025-01-06', '1899-12-30', 'A', 100, 100, 0, 'DEBIT', 0),
+        ('weekend', 3, 'SUN-1899', '1', '2025-01-06', '1899-12-31', 'A', 100, 100, 0, 'DEBIT', 0),
+        ('weekend', 4, 'SAT-1900', '1', '2025-01-06', '1900-01-06', 'A', 100, 100, 0, 'DEBIT', 0),
+        ('weekend', 5, 'MON-1900', '1', '2025-01-06', '1900-01-08', 'A', 100, 100, 0, 'DEBIT', 0);
         """;
 
-    private const string ApprovalWeekendRule = """{"type":"fieldValue","field":"docDate","operator":"isWeekend"}""";
+    private const string ApprovalWeekendRule = """{"type":"fieldValue","field":"approvalDate","operator":"isWeekend"}""";
 
     private static readonly string[] PreCenturyWeekendHits = ["SAT-1899", "SAT-1900", "SUN-1899"];
 
@@ -200,7 +200,7 @@ public sealed class CrossDatabaseConsistencyTests
             await FilterPredicateProviderFixture.CreateSqlServerAsync(PreCenturyApprovalSeed),
             ApprovalWeekendRule, "weekend", PreCenturyWeekendHits);
 
-    // 計畫第三節 C：文字欄上限三種資料庫共用（2026-10-19 使用者裁定），超過就回列錯誤、整批不寫入；
+    // 文字欄上限三種資料庫共用（裁定 2026-10-19-28），超過就回列錯誤、整批不寫入；
     // 剛好等於上限時完整保存。上限照 SQL Server 欄寬：傳票號碼與科目編號 450 字，項次、科目名稱、
     // 來源模組、編製者與核准者 400 字，摘要不限。第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514，修改前 SQLite 與 DuckDB 都照常保存超長值。
     [Theory]
@@ -231,7 +231,7 @@ public sealed class CrossDatabaseConsistencyTests
             SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
 
-    // 預篩選收斂計畫階段四：GL 必填文字欄整欄空白的提醒改由欄位目錄產生查詢（2026-10-23）。三種資料庫給同一組提醒，
+    // GL 必填文字欄整欄空白的提醒改由欄位目錄產生查詢。三種資料庫給同一組提醒，
     // 依欄位配對畫面的順序列出；只有空白字元的欄也算空白，有值的必填欄不提醒。
     [Theory]
     [InlineData("sqlite")]
@@ -272,7 +272,7 @@ public sealed class CrossDatabaseConsistencyTests
     }
 
     private static readonly string[] GlLengthColumns =
-        ["doc", "line", "post", "account", "accountName", "description", "source", "creator", "approver", "amount"];
+        ["doc", "line", "post", "account", "accountName", "description", "source", "preparer", "approver", "amount"];
 
     private static async Task AssertGlTextLimitsAsync(
         IImportRepository imports,
@@ -300,7 +300,7 @@ public sealed class CrossDatabaseConsistencyTests
             accountName: new string('名', 400),
             description: new string('摘', 5000),
             source: new string('來', 400),
-            creator: new string('編', 400),
+            preparer: new string('編', 400),
             approver: new string('核', 400));
         var stored = await ProjectGlAsync(imports, gl, projectId, atLimit);
 
@@ -310,11 +310,11 @@ public sealed class CrossDatabaseConsistencyTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT document_number, line_item, account_code, account_name, document_description, source_module, created_by, approved_by "
-            + $"FROM {qualifier}target_gl_entry;";
+            "SELECT voucher_number, line_item, account_number, account_name, description, source_module, created_by, approved_by "
+            + $"FROM {qualifier}gl;";
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
-        var columns = new[] { "doc", "line", "account", "accountName", "description", "source", "creator", "approver" };
+        var columns = new[] { "doc", "line", "account", "accountName", "description", "source", "preparer", "approver" };
         for (var index = 0; index < columns.Length; index++)
         {
             Assert.Equal(atLimit.Values[columns[index]], reader.GetString(index));
@@ -336,22 +336,22 @@ public sealed class CrossDatabaseConsistencyTests
             CancellationToken.None)).Batch;
         var mapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.LineId] = "line",
-            [GlMappingKeys.PostDate] = "post",
-            [GlMappingKeys.AccNum] = "account",
-            [GlMappingKeys.AccName] = "accountName",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.LineItem] = "line",
+            [GlMappingKeys.GlDate] = "post",
+            [GlMappingKeys.AccountNumber] = "account",
+            [GlMappingKeys.AccountName] = "accountName",
             [GlMappingKeys.Description] = "description",
-            [GlMappingKeys.JeSource] = "source",
-            [GlMappingKeys.CreateBy] = "creator",
-            [GlMappingKeys.ApproveBy] = "approver",
+            [GlMappingKeys.SourceModule] = "source",
+            [GlMappingKeys.CreatedBy] = "preparer",
+            [GlMappingKeys.ApprovedBy] = "approver",
             [GlMappingKeys.Amount] = "amount"
         };
         var spec = new GlMappingSpec(mapping, GlAmountMode.SignedAmount)
         {
             Options = GlMappingOptions.NormalizeLegacy(mapping) with
             {
-                ApprovalDateMode = ApprovalDateModeNames.SameAsPostDate
+                ApprovalDateMode = ApprovalDateModeNames.SameAsGlDate
             }
         };
         return await gl.ProjectStagingToTargetAsync(
@@ -376,7 +376,7 @@ public sealed class CrossDatabaseConsistencyTests
         string? accountName = null,
         string? description = null,
         string? source = null,
-        string? creator = null,
+        string? preparer = null,
         string? approver = null) =>
         new(sourceRow, new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -387,7 +387,7 @@ public sealed class CrossDatabaseConsistencyTests
             ["accountName"] = accountName ?? "現金",
             ["description"] = description ?? "合成資料",
             ["source"] = source ?? "GL",
-            ["creator"] = creator ?? "王一",
+            ["preparer"] = preparer ?? "王一",
             ["approver"] = approver ?? "李二",
             ["amount"] = "100"
         });
@@ -408,10 +408,10 @@ public sealed class CrossDatabaseConsistencyTests
         await using (fixture)
         {
             var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse(
-                $$"""{"name":"跨資料庫一致性","rationale":"固定答案","groups":[{"rules":[{{rule}}]}]}"""), 100);
+                $$"""{"name":"跨資料庫一致性","rationale":"固定答案","groups":[{"conditions":[{{rule}}]}]}"""), 100);
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario,
-                new FilterRuleContext(100, null, "2025-01-01", "2025-12-31"), CancellationToken.None);
-            var actual = result.PreviewRows.Select(row => row.DocumentNumber).Order(StringComparer.Ordinal).ToArray();
+                new FilterConditionContext(100, null, "2025-01-01", "2025-12-31"), CancellationToken.None);
+            var actual = result.PreviewRows.Select(row => row.VoucherNumber).Order(StringComparer.Ordinal).ToArray();
             Assert.True(expected.SequenceEqual(actual),
                 $"{label}：固定答案 {string.Join(", ", expected)}；實際 {string.Join(", ", actual)}");
         }

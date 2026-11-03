@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// system.databaseInfo 容量欄（控制面第七輪 §2）的 live 驗收：<see cref="SqlServerHealthCheck.DescribeAsync"/>
+/// system.databaseInfo 容量欄的 live 驗收：<see cref="SqlServerHealthCheck.DescribeAsync"/>
 /// （＝<c>ISqlServerBackendProbe</c> 的實作委派）回 <c>databaseSizeMb</c>／<c>schemaCount</c>。全部 [SqlServerFact] 閘控。
 /// 為讓 <c>schemaCount</c> 的「隨建/刪案增減」可<b>確定性</b>斷言（不受共用 JET_Test 的並行測試干擾），本測試用一個
 /// <b>專屬的一次性資料庫</b>（唯一命名、測試結束 DROP）——庫內 <c>prj_%</c> schema 數只受本測試控制，故建案 →＋1、

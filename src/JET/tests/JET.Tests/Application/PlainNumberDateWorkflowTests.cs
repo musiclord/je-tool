@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：GL 日期欄出現 2025、2025.12、45292 這類純數字時，不再當成 Excel 序列值換成日期，
+/// 裁定 2026-10-22-11：GL 日期欄出現 2025、2025.12、45292 這類純數字時，不再當成 Excel 序列值換成日期，
 /// 確認配對時和其他無法辨識的日期一樣寫出列號，本次配對不儲存。SQLite 與 DuckDB 各跑一次，三種日期角色都試。
 /// 第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d，當時 2025 被換成 1905-07-17、2025.12 也是 1905 年、45292 被換成 2024-01-01，配對照常儲存。
 /// </summary>
@@ -15,7 +15,7 @@ public sealed class PlainNumberDateWorkflowTests
     public static IEnumerable<object[]> Cases()
     {
         foreach (var provider in new[] { "sqlite", "duckdb" })
-        foreach (var field in new[] { "postDate", "docDate", "rde" }) yield return [provider, field];
+        foreach (var field in new[] { "glDate", "approvalDate", "rde" }) yield return [provider, field];
     }
 
     [Theory]
@@ -34,9 +34,9 @@ public sealed class PlainNumberDateWorkflowTests
         {
             using var host = new HandlerTestHost();
             await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
-            { caseName = "Plain number dates", periodStart = "2024-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
+            { projectName = "Plain number dates", periodStart = "2024-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
             await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
-            var mapping = Batch9MappingTestFixture.Mapping();
+            var mapping = MappingCaseTemplateFixture.Mapping();
             object[] rde = [];
             if (field == "rde") rde = [new { sourceColumn = "PlainNumber", label = "Plain number", valueType = "date" }];
             else mapping[field] = "PlainNumber";

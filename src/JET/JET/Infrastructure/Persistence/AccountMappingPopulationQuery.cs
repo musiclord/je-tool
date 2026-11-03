@@ -8,10 +8,10 @@ internal static class AccountMappingPopulationQuery
     internal static string Cte(string prefix, ISqlDialect dialect) =>
         ValidationProcedures.CompletenessDiffCteFor(prefix) + $$"""
         , population AS (
-            SELECT account_code, MAX(account_name) AS account_name
+            SELECT account_number, MAX(account_name) AS account_name
             FROM diff
-            WHERE {{SqlBlankText.IsNotBlank(dialect, "account_code")}}
-            GROUP BY account_code
+            WHERE {{SqlBlankText.IsNotBlank(dialect, "account_number")}}
+            GROUP BY account_number
         )
         """;
 }

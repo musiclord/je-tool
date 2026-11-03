@@ -14,7 +14,7 @@ namespace JET.Domain;
 ///   讓 no-op／純讀分支保持原分類，同時把真正 mutation 包在同一原子區段。</item>
 ///   <item><b>併行（concurrent）</b>——唯讀查詢／檢視／計算／檔案選取可與作業併行、不佔閘；
 ///   文件化的唯一 current-project database 寫入例外是 <c>log.append</c>，其寫入範圍只限
-///   <c>app_message_log</c>。</item>
+///   <c>message_log</c>。</item>
 /// </list>
 /// 四支篩選命中查詢維持 concurrent，因為目前結果的讀取不需寫入。只有持久化失效旗標觸發惰性補算的條件式
 /// 寫入分支會另行試取共用 <see cref="ActionExecutionGate"/>；取不到即回 operation_in_progress。
@@ -40,7 +40,7 @@ public static class ActionExecutionPolicy
         "project.delete",
         "project.saveProgress",
         "project.update",
-        "accountTaxonomy.save",
+        "accountCategory.save",
         "accountMapping.save",
         "import.gl.fromFile",
         "import.tb.fromFile",
@@ -60,10 +60,10 @@ public static class ActionExecutionPolicy
         "filter.scenario.save",
         "filter.scenario.remove",
         "filter.scenario.recheck",
-        "export.validationArtifacts",
+        "export.validationReports",
         "export.prescreenReport",
         "export.criteriaSelectionReport",
-        "export.workpaperStream",
+        "export.workingPaperStream",
         "export.accountMappingTemplate",
     };
 
@@ -97,21 +97,21 @@ public static class ActionExecutionPolicy
         "filter.preview",
         "query.dataPreview",
         "query.completenessDiffPage",
-        "query.docBalancePage",
-        "query.nullRecordsPage",
+        "query.voucherBalancePage",
+        "query.blankRecordsPage",
         "query.sourceQualityPage",
         "query.filterHitsPage",
         "query.filterVoucherPage",
         "query.filterVoucherRowsPage",
         "query.prescreenPage",
         "query.infSamplePage",
-        "query.tagMatrixScenarios",
-        "query.tagMatrixVoucherPage",
-        "query.tagMatrixRowPage",
+        "query.highRiskSummaryScenarios",
+        "query.highRiskSummaryVoucherPage",
+        "query.highRiskSummaryRowPage",
         "query.accountMappingBlankPage",
         "query.accountMappingDifferencePage",
         "query.accountMappingPage",
-        "log.append", // 唯一 current-project DB concurrent 寫入例外：只寫 app_message_log，不碰案件資料
+        "log.append", // 唯一 current-project DB concurrent 寫入例外：只寫 message_log，不碰案件資料
         "log.recent",
         "host.selectFile",
         "host.selectFiles",
@@ -121,7 +121,7 @@ public static class ActionExecutionPolicy
         "dev.db.tableData",
         "dev.db.reconcile",
         "dev.log.exportFile", // 讀 sink 檔／ring buffer、寫選定案件目錄中的獨立 DEV 文字檔
-        "support.log.export", // 寫選定案件資料夾中的獨立支援文字檔，不改業務資料或 artifact catalog
+        "support.log.export", // 寫選定案件資料夾中的獨立支援文字檔，不改業務資料或報告清單
     };
 
     // 一次操作期間保持當前案件資料庫開啟（見 IProjectDatabaseRetention）。只列出確實會開當前案件資料庫的
@@ -131,7 +131,7 @@ public static class ActionExecutionPolicy
     {
         // 變更型
         "project.update",
-        "accountTaxonomy.save",
+        "accountCategory.save",
         "accountMapping.save",
         "import.gl.fromFile",
         "import.tb.fromFile",
@@ -151,10 +151,10 @@ public static class ActionExecutionPolicy
         "filter.scenario.save",
         "filter.scenario.remove",
         "filter.scenario.recheck",
-        "export.validationArtifacts",
+        "export.validationReports",
         "export.prescreenReport",
         "export.criteriaSelectionReport",
-        "export.workpaperStream",
+        "export.workingPaperStream",
         "export.accountMappingTemplate",
 
         // 併行
@@ -163,17 +163,17 @@ public static class ActionExecutionPolicy
         "filter.preview",
         "query.dataPreview",
         "query.completenessDiffPage",
-        "query.docBalancePage",
-        "query.nullRecordsPage",
+        "query.voucherBalancePage",
+        "query.blankRecordsPage",
         "query.sourceQualityPage",
         "query.filterHitsPage",
         "query.filterVoucherPage",
         "query.filterVoucherRowsPage",
         "query.prescreenPage",
         "query.infSamplePage",
-        "query.tagMatrixScenarios",
-        "query.tagMatrixVoucherPage",
-        "query.tagMatrixRowPage",
+        "query.highRiskSummaryScenarios",
+        "query.highRiskSummaryVoucherPage",
+        "query.highRiskSummaryRowPage",
         "query.accountMappingBlankPage",
         "query.accountMappingDifferencePage",
         "query.accountMappingPage",

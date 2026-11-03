@@ -4,11 +4,10 @@ namespace JET.AuditCore;
 /// 三層審計資料模型的「層」。承襲 legacy Excel-VBA 工具的 Source / ETL-Staging / Target-Report
 /// 三層結構,外加純系統表的 System 層。
 ///
-/// 注意:這是**審計語義的層**(資料從客戶提供 → 標準化暫存 → 可報導結果),與實體表名前綴
-/// (<c>staging_</c> / <c>target_</c> / <c>result_</c> / <c>config_</c>)是兩條不同的軸——
-/// 例如 <c>target_account_mapping</c> 實體前綴是 target,審計語義上卻是 Source(客戶提供的科目對照),
-/// <c>staging_calendar_raw_day</c> 實體前綴是 staging,審計語義上也是 Source(客戶提供的假日曆)。
-/// 故本列舉表達的是審計層,不是實體前綴;以正準名(canonical)而非 physical 名分層。
+/// 注意:這是**審計語義的層**(資料從客戶提供 → 標準化暫存 → 可報導結果),不從實體表名推得。
+/// 實體表名不帶分層字首,直接取畫面或舊版對這份資料的稱呼,
+/// 例如 <c>account_mapping</c> 與 <c>calendar_day</c> 在審計語義上都是 Source(客戶提供的科目對照與假日曆)。
+/// 故本列舉表達的是審計層,以正準名(canonical)而非 physical 名分層。
 /// </summary>
 internal enum SchemaLayer
 {
@@ -45,7 +44,7 @@ internal enum SchemaAudience
 /// 中央三層表名登錄的單筆條目:實體表名 → 正準審計名 + 層 + 曝光 + 中文說明。
 /// </summary>
 /// <param name="PhysicalName">實體表名(SQLite 與 SQL Server 同一扁平名;CREATE TABLE 的權威名)。</param>
-/// <param name="CanonicalName">正準審計名,只用於資料表摘要顯示(如 PBC-GL、GL)。使用者 2026-10-08 裁定資料名稱全系統統一,
+/// <param name="CanonicalName">正準審計名,只用於資料表摘要顯示(如 PBC-GL、GL)。裁定 2026-10-08-04 把資料名稱全系統統一,
 /// legacy 的 JE_PBC、TB_PBC、JE 改為 PBC-GL、PBC-TB、GL;不是 SQL 識別字或檔名。</param>
 /// <param name="Layer">審計三層 + System。</param>
 /// <param name="Audience">資料預覽 / 結構總覽的曝光程度。</param>
@@ -61,13 +60,9 @@ internal sealed record SchemaTableEntry(
 /// 中央三層表名登錄——專案 DB 每一張實體表 → 正準審計名 / 層 / 曝光 / 說明的**單一事實來源**。
 ///
 /// 為什麼存在:審計方法學承襲 legacy Excel-VBA 工具乾淨的三層結構(Source / ETL-Staging /
-/// Target-Report)與審計詞彙表名(JE_PBC、JE、ACCOUNT_MAPPING…);現行實體表名改用工程詞彙
-/// (<c>staging_gl_raw_row</c>、<c>target_gl_entry</c>…)。本目錄把兩套名稱併列,讓資料預覽日後能以
-/// 審計人員熟悉的正準名呈現,而**不必實體改名**。
-///
-/// 為什麼不實體改名(使用者明確決策,顯式 tradeoff):全庫約 341 處 inline SQL 直接引用實體表名,
-/// 實體改名 = 改 SQL + 加 migration + 重驗證,審計邏輯風險高。改成「目錄是事實來源、實體表名照舊」的
-/// 加法 metadata 模型,零審計邏輯風險;代價是多一層名稱對照(由本目錄集中吸收,呼叫端不需知道細節)。
+/// Target-Report)與審計詞彙表名(JE_PBC、JE、ACCOUNT_MAPPING…);現行實體表名是資料預覽名稱的轉寫
+/// (<c>pbc_gl</c>、<c>gl</c>…),這是裁定 2026-10-29-15 定的,取代 2026-10-08-04 實體表名不動的部分。
+/// 本目錄把兩套名稱併列,讓資料預覽能以審計人員熟悉的正準名呈現。
 ///
 /// 深模組:對外只給窄查詢介面(<see cref="All"/> / <see cref="ByAudience"/> /
 /// <see cref="ResolveCanonical"/> / <see cref="TryGet"/>),內部是一份宣告式 <see cref="All"/> 表;
@@ -81,46 +76,56 @@ internal sealed record SchemaTableEntry(
 internal static class JetSchemaCatalog
 {
     /// <summary>
+    /// GL 與 GL(未納入測試) 共用的分錄表名稱。程式要把這張表的名稱當成值傳遞時用這個常數，不另寫字串 "gl"：
+    /// 資料集種類的值也是 "gl"，用常數才分得出哪裡傳的是表名，見 GlExcludedPopulationReadGuardTests。
+    /// </summary>
+    public const string GlTableName = "gl";
+
+    /// <summary>
     /// 宣告式登錄表:專案 DB 每一張實體表恰好一列。順序大致依資料流(來源 → 暫存 → 報表 → 系統)。
     /// </summary>
     public static readonly IReadOnlyList<SchemaTableEntry> All =
     [
         // ── Source:客戶提供 / 匯入原貌(DataView) ─────────────────────────────
-        new("staging_gl_raw_row", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView,
+        new("pbc_gl", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView,
             "PBC-GL（匯入的總帳明細原樣，未經欄位配對整理）"),
-        new("staging_tb_raw_row", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView,
+        new("pbc_tb", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView,
             "PBC-TB(匯入的試算表原樣,未標準化)"),
-        new("target_account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView,
+        new("account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView,
             "科目 → 標準化分類對照(未預期借貸組合 / 科目配對分析所需)"),
-        new("target_authorized_preparer", "AUTHORIZED_PREPARER", SchemaLayer.Source, SchemaAudience.DataView,
+        new("authorized_preparer", "AUTHORIZED_PREPARER", SchemaLayer.Source, SchemaAudience.DataView,
             "授權編製人員清單(非授權編製人員規則所需)"),
-        new("staging_calendar_raw_day", "DATE_DIMENSION", SchemaLayer.Source, SchemaAudience.DataView,
+        new("calendar_day", "DATE_DIMENSION", SchemaLayer.Source, SchemaAudience.DataView,
             "日期維度:事務所假日 / 補班日(週末假日過帳核准規則所需)"),
 
         // ── Staging(ETL):標準化後的測試母體與餘額(DataView) ──────────────────
-        new("target_gl_entry", "GL、GL(未納入測試)", SchemaLayer.Staging, SchemaAudience.DataView,
+        new(GlTableName, "GL、GL(未納入測試)", SchemaLayer.Staging, SchemaAudience.DataView,
             "標準化分錄(由 PBC-GL 投影而來;同一張表依查核期間與過帳狀態分成 GL 與 GL(未納入測試))"),
-        new("target_tb_balance", "TB", SchemaLayer.Staging, SchemaAudience.DataView,
+        new("tb", "TB", SchemaLayer.Staging, SchemaAudience.DataView,
             "標準化試算表餘額(本期變動額;完整性測試所需)"),
 
         // ── Target(Report):測試結果摘要與命中(StructureOnly) ────────────────
-        new("result_rule_run", "VALIDATION_OVERVIEW", SchemaLayer.Target, SchemaAudience.StructureOnly,
-            "資料驗證 / 預篩選執行結果摘要(以摘要呈現,非逐列瀏覽)"),
-        new("result_filter_run", "FILTER_HITS", SchemaLayer.Target, SchemaAudience.StructureOnly,
-            "進階篩選命中的行層落地(以 tag 矩陣 / 命中頁呈現)"),
-        new("result_inf_sampling_test_sample", "INF_SAMPLE", SchemaLayer.Target, SchemaAudience.StructureOnly,
+        new("validation_result", "VALIDATION_OVERVIEW", SchemaLayer.Target, SchemaAudience.StructureOnly,
+            "資料驗證結果摘要(以摘要呈現,非逐列瀏覽)"),
+        new("prescreen_result", "PRESCREEN_RESULT", SchemaLayer.Target, SchemaAudience.StructureOnly,
+            "預篩選結果摘要(以摘要呈現,非逐列瀏覽)"),
+        new("filter_hit", "FILTER_HITS", SchemaLayer.Target, SchemaAudience.StructureOnly,
+            "進階篩選命中的行層落地(以高風險條件彙總與命中頁呈現)"),
+        new("filter_hit_condition", "FILTER_HIT_CONDITIONS", SchemaLayer.Target, SchemaAudience.Hidden,
+            "進階篩選命中傳票裡每筆分錄符合第幾組第幾條(只供傳票分錄的說明讀取,不在結構總覽列出)"),
+        new("inf_sample", "INF_SAMPLE", SchemaLayer.Target, SchemaAudience.StructureOnly,
             "INF 抽樣抽中的分錄樣本(以專用頁呈現)"),
 
         // ── System:組態與匯入批次(StructureOnly) ────────────────────────────
-        new("config_field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly,
+        new("field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly,
             "已完成的欄位對應(GL / TB 各一列;匯出底稿與 round-trip 所需)"),
-        new("config_field_mapping_previous", "FIELD_MAPPING_PREVIOUS", SchemaLayer.System, SchemaAudience.Hidden,
+        new("field_mapping_previous", "FIELD_MAPPING_PREVIOUS", SchemaLayer.System, SchemaAudience.Hidden,
             "重新匯入前最後一次確認的欄位對應(GL / TB 各一列;只在重開案件時帶回草稿,不參與計算)"),
-        new("config_account_taxonomy", "ACCOUNT_TAXONOMY", SchemaLayer.System, SchemaAudience.StructureOnly,
+        new("account_category", "ACCOUNT_CATEGORY", SchemaLayer.System, SchemaAudience.StructureOnly,
             "案件範圍的科目分類 ID、標籤、順序與審計語意角色"),
-        new("config_account_taxonomy_path", "ACCOUNT_TAXONOMY_PATH", SchemaLayer.System, SchemaAudience.Hidden,
+        new("account_category_path", "ACCOUNT_CATEGORY_PATH", SchemaLayer.System, SchemaAudience.Hidden,
             "本地分類本身與所有下層的關係，供階層條件查詢使用"),
-        new("config_filter_scenario", "FILTER_CRITERIA", SchemaLayer.System, SchemaAudience.StructureOnly,
+        new("filter_scenario", "FILTER_CRITERIA", SchemaLayer.System, SchemaAudience.StructureOnly,
             "使用者著作的進階篩選情境(條件樹)"),
         new("import_batch", "IMPORT_BATCH", SchemaLayer.System, SchemaAudience.StructureOnly,
             "匯入批次(每個資料集一筆;來源檔資訊與列數)"),
@@ -128,25 +133,25 @@ internal static class JetSchemaCatalog
             "匯入批次的多來源明細(一個資料集可由多檔 / 多工作表組成)"),
 
         // ── System / Staging:純系統或暫存 scratch(Hidden,完全不曝光) ──────────
-        new("import_field_definition", "IMPORT_FIELD_DEFINITION", SchemaLayer.System, SchemaAudience.Hidden,
+        new("field_info", "FIELD_INFO", SchemaLayer.System, SchemaAudience.Hidden,
             "Legacy 等價欄位定義(source / post-mapping target；供 internal facts port 使用)"),
-        new("config_gl_rde_field", "GL_RDE_FIELD", SchemaLayer.System, SchemaAudience.Hidden,
+        new("gl_rde_field", "GL_RDE_FIELD", SchemaLayer.System, SchemaAudience.Hidden,
             "GL 動態 RDE 的 stable field ID、來源、標籤、型別與順序"),
         new("gl_control_total", "GL_CONTROL_TOTAL", SchemaLayer.System, SchemaAudience.Hidden,
-            "完整性 part(a) 控制總數(單列中間計算;投影時落地供 validate 對值)"),
-        new("config_result_stale_state", "RESULT_STALE_STATE", SchemaLayer.System, SchemaAudience.Hidden,
-            "schema migration 與上游 mutation 後的 validation/prescreen/filter stale 狀態"),
-        new("app_message_log", "APP_MESSAGE_LOG", SchemaLayer.System, SchemaAudience.Hidden,
+            "存入筆數與合計核對的控制總數(單列中間計算;投影時落地供 validate 對值)"),
+        new("result_stale_state", "RESULT_STALE_STATE", SchemaLayer.System, SchemaAudience.Hidden,
+            "上游資料修改後，驗證、預篩選與篩選結果的過期狀態"),
+        new("message_log", "MESSAGE_LOG", SchemaLayer.System, SchemaAudience.Hidden,
             "前端狀態與訊息的持久化(UX 輔助紀錄,非審計留痕)"),
-        new("audit_event_log", "PROJECT_AUDIT_LOG", SchemaLayer.System, SchemaAudience.Hidden,
+        new("operation_log", "OPERATION_LOG", SchemaLayer.System, SchemaAudience.Hidden,
             "會改變或銷毀已保存審計資料之操作的最小 append-only 留痕"),
         new("schema_info", "SCHEMA_INFO", SchemaLayer.System, SchemaAudience.Hidden,
-            "schema 版本(遷移鏈判斷用)"),
-        new("staging_account_mapping_raw_row", "ACCOUNT_MAPPING_PBC", SchemaLayer.Staging, SchemaAudience.Hidden,
-            "科目配對匯入原貌暫存(實體表不曝光;accountMappings 以固定三欄有界預覽)"),
-        new("staging_authorized_preparer_raw_row", "AUTHORIZED_PREPARER_PBC", SchemaLayer.Staging, SchemaAudience.Hidden,
+            "案件的結構版本(開案時核對是不是現行版本，舊版案件請審計員刪除後重建)"),
+        new("pbc_account_mapping", "ACCOUNT_MAPPING_PBC", SchemaLayer.Staging, SchemaAudience.Hidden,
+            "科目配對匯入原貌暫存(實體表不曝光;accountMapping 以固定三欄有界預覽)"),
+        new("pbc_authorized_preparer", "AUTHORIZED_PREPARER_PBC", SchemaLayer.Staging, SchemaAudience.Hidden,
             "授權編製人員匯入原貌暫存(投影至 AUTHORIZED_PREPARER 後即不再對外;ETL scratch)"),
-        new("target_gl_rde_value", "GL_RDE_VALUE", SchemaLayer.Staging, SchemaAudience.Hidden,
+        new("gl_rde_value", "GL_RDE_VALUE", SchemaLayer.Staging, SchemaAudience.Hidden,
             "GL entry 的非空白 typed RDE 值(文字、日期或 scaled 金額)"),
     ];
 

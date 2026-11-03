@@ -2,7 +2,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 public sealed class ProjectionCancellationTests
@@ -14,11 +14,11 @@ public sealed class ProjectionCancellationTests
     {
         var mapping = new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.LineId] = "line",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.LineItem] = "line",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"
@@ -126,9 +126,9 @@ public sealed class ProjectionCancellationTests
         await connection.OpenAsync();
         await using var count = connection.CreateCommand();
         count.CommandText =
-            $"SELECT (SELECT COUNT(*) FROM {qualifier}target_gl_entry) "
-            + $"+ (SELECT COUNT(*) FROM {qualifier}config_gl_rde_field) "
-            + $"+ (SELECT COUNT(*) FROM {qualifier}target_gl_rde_value);";
+            $"SELECT (SELECT COUNT(*) FROM {qualifier}gl) "
+            + $"+ (SELECT COUNT(*) FROM {qualifier}gl_rde_field) "
+            + $"+ (SELECT COUNT(*) FROM {qualifier}gl_rde_value);";
         Assert.Equal(0L, Convert.ToInt64(await count.ExecuteScalarAsync()));
     }
 }

@@ -119,7 +119,7 @@ public sealed class ImportProgressEventTests
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "T-001",
-            entityName = "測試公司",
+            clientName = "測試公司",
             operatorId = "op",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31"

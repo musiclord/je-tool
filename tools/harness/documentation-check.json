@@ -52,6 +52,8 @@
     "docs/data-and-legacy.md",
     "docs/history/2026-10-20-sqlserver-archive.md",
     "docs/business-logic-provenance.md",
+    "docs/rulings.md",
+    "docs/glossary.md",
     "docs/history/README.md",
     "docs/history/2026-08-30-repository-lineage.md",
     "docs/history/2026-09-07-filter-acceptance-records.md",
@@ -252,6 +254,54 @@
     { "id": "compatibility-to-shared-hooks", "file": ".agents/harness/agent-compatibility.md", "target": ".agents/hooks" },
     { "id": "docs-index-to-readable-docs", "file": "docs/README.md", "target": ".agents/skills/jet-readable-docs/SKILL.md" }
   ],
+  "sizeLimits": {
+    "severity": "warning",
+    "rules": [
+      { "id": "size-history-exempt", "match": ["docs/history/"], "exempt": true },
+      { "id": "size-current-plan", "match": ["docs/specs/"], "maxKiB": 120 },
+      { "id": "size-rulings", "match": ["docs/rulings.md"], "maxKiB": 320 },
+      {
+        "id": "size-reference-document",
+        "match": [
+          "docs/jet-guide.md",
+          "docs/action-contract-manifest.md",
+          "docs/jet-frontend-description.md",
+          "docs/glossary.md"
+        ],
+        "maxKiB": 160
+      },
+      { "id": "size-other-document", "match": ["*"], "maxKiB": 30 }
+    ]
+  },
+  "rulingLocations": { "id": "ruling-location-exists", "file": "docs/rulings.md", "column": "落實位置" },
+  "rulingReferences": {
+    "id": "ruling-reference-current",
+    "file": "docs/rulings.md",
+    "roots": ["src/JET", "tools"],
+    "extensions": [".cs", ".js", ".cjs", ".mjs", ".css", ".html", ".ps1", ".psm1", ".py"],
+    "skipDirectories": ["bin", "obj", "node_modules", "TestResults"],
+    "excludedSections": ["已被取代的裁定", "Agent 定的做法"]
+  },
+  "retiredNames": {
+    "id": "retired-name-absent",
+    "file": "docs/glossary.md",
+    "section": "不再使用的名稱",
+    "roots": ["src/JET/JET"],
+    "extensions": [".cs", ".js", ".css", ".html"],
+    "skipDirectories": ["bin", "obj", "vendor", "node_modules"]
+  },
+  "tableNames": {
+    "id": "table-name-listed",
+    "file": "docs/glossary.md",
+    "section": "資料庫表名",
+    "sources": [
+      "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+      "src/JET/JET/Infrastructure/Persistence/DuckDb/DuckDbProjectDatabase.cs",
+      "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerProjectDatabase.Schema.cs",
+      "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerControlPlaneSchema.cs",
+      "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerUserDirectory.cs"
+    ]
+  },
   "manualReview": [
     "讀者能否在第一次閱讀就知道誰做了什麼，以及結果是什麼",
     "是否只保留必要的固定名稱，並在第一次出現時說明用途",

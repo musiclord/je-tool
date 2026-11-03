@@ -3,7 +3,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 public sealed class GlProjectionQualityProviderTests
@@ -209,26 +209,26 @@ public sealed class GlProjectionQualityProviderTests
             new PageRequest(null, 10),
             CancellationToken.None);
         var finding = Assert.Single(findings.Rows);
-        Assert.Equal("nullPostDate", finding.Category);
+        Assert.Equal("blankGlDate", finding.Category);
         Assert.Equal(3, finding.SourceRowNumber);
         await using var connection = connectionFactory();
         await connection.OpenAsync();
         Assert.Equal(2, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "target_gl_entry")} "
-            + "WHERE approval_date = post_date OR (approval_date IS NULL AND post_date IS NULL);"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl")} "
+            + "WHERE approval_date = gl_date OR (approval_date IS NULL AND gl_date IS NULL);"));
         Assert.Equal(1, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "target_gl_entry")} WHERE is_manual = 1;"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl")} WHERE is_manual = 1;"));
         Assert.Equal(3, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "config_gl_rde_field")};"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl_rde_field")};"));
         Assert.Equal(3, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "target_gl_rde_value")};"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl_rde_value")};"));
         Assert.Equal(123_457, await ScalarAsync(
             connection,
-            $"SELECT amount_scaled FROM {Table(qualifier, "target_gl_rde_value")} WHERE value_type = 'money';"));
+            $"SELECT amount_scaled FROM {Table(qualifier, "gl_rde_value")} WHERE value_type = 'amount';"));
     }
 
     private static async Task AssertExcludedBadRowRollbackAsync(
@@ -281,10 +281,10 @@ public sealed class GlProjectionQualityProviderTests
         await connection.OpenAsync();
         Assert.Equal(62, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "target_gl_entry")};"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl")};"));
         Assert.Equal(0, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "config_gl_rde_field")};"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl_rde_field")};"));
     }
 
     private static async Task AssertExcludedMalformedRdeRollbackAsync(
@@ -336,35 +336,35 @@ public sealed class GlProjectionQualityProviderTests
         await connection.OpenAsync();
         Assert.Equal(4, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "target_gl_entry")};"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl")};"));
         Assert.Equal(0, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "config_gl_rde_field")};"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl_rde_field")};"));
         Assert.Equal(0, await ScalarAsync(
             connection,
-            $"SELECT COUNT(*) FROM {Table(qualifier, "target_gl_rde_value")};"));
+            $"SELECT COUNT(*) FROM {Table(qualifier, "gl_rde_value")};"));
     }
 
     private static GlMappingSpec QualitySpec(bool includeManual, bool includeRde)
     {
         var mapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "post",
-            [GlMappingKeys.AccNum] = "account",
-            [GlMappingKeys.AccName] = "accountName",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "post",
+            [GlMappingKeys.AccountNumber] = "account",
+            [GlMappingKeys.AccountName] = "accountName",
             [GlMappingKeys.Description] = "description",
             [GlMappingKeys.Amount] = "amount",
             [GlMappingKeys.PostingStatus] = "status"
         };
         if (includeManual)
         {
-            mapping[GlMappingKeys.Manual] = "manual";
+            mapping[GlMappingKeys.IsManual] = "manual";
         }
 
         var options = GlMappingOptions.NormalizeLegacy(mapping) with
         {
-            ApprovalDateMode = ApprovalDateModeNames.SameAsPostDate,
+            ApprovalDateMode = ApprovalDateModeNames.SameAsGlDate,
             PostingStatusPolicy = PostingPolicy,
             ManualAutoPolicy = new GlManualAutoPolicy(["M"], ["A"]),
             RdeFields = includeRde
@@ -372,7 +372,7 @@ public sealed class GlProjectionQualityProviderTests
                 [
                     new GlRdeFieldMetadata("rde.00000000000000000000000000000001", "customText", "Custom Text", "text"),
                     new GlRdeFieldMetadata("rde.00000000000000000000000000000002", "customDate", "Custom Date", "date"),
-                    new GlRdeFieldMetadata("rde.00000000000000000000000000000003", "customMoney", "Custom Money", "money")
+                    new GlRdeFieldMetadata("rde.00000000000000000000000000000003", "customMoney", "Custom Money", "amount")
                 ]
                 : []
         };
@@ -429,7 +429,7 @@ public sealed class GlProjectionQualityProviderTests
 
     private static StagingRow Row(
         int sourceRow,
-        string postDate,
+        string glDate,
         string amount,
         string status,
         string manual,
@@ -439,7 +439,7 @@ public sealed class GlProjectionQualityProviderTests
         new(sourceRow, new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["doc"] = $"JE-{sourceRow}",
-            ["post"] = postDate,
+            ["post"] = glDate,
             ["account"] = sourceRow == 2 ? "1000" : "2000",
             ["accountName"] = sourceRow == 2 ? "Debit" : "Credit",
             ["description"] = "synthetic",

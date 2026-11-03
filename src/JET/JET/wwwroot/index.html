@@ -92,7 +92,7 @@
           <!-- 狀態 / 訊息區：搬到左欄底部；picker 視圖時 app-body 隱藏，picker 操作錯誤改由獨立 inline 回饋顯示。
                已開啟案件的歷史持久化於專案資料庫（log.append / log.recent）。
                「訊息」那一列是唯一的開關，固定在欄底；訊息清單與兩個操作從它上方長出來，收合時收回它後面，
-               所以展開後要收合，仍按同一個位置（使用者 2026-10-12 指出原本展開後整塊錯位）。 -->
+               所以展開後要收合，仍按同一個位置；原本展開後整塊錯位（裁定 2026-10-12-02）。 -->
           <aside class="messages messages--collapsed" aria-label="狀態與訊息" data-bind="messages-panel">
             <div class="messages__panel" id="messages-panel" aria-live="polite">
               <ul class="messages__list" data-bind="message-list"></ul>

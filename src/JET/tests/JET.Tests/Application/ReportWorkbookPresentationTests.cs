@@ -10,8 +10,8 @@ namespace JET.Tests.Application;
 /// assertions intentionally supersede legacy font-family and Field Info grid
 /// styling while leaving workbook content and business semantics unchanged.
 /// </summary>
-public sealed class ReportWorkbookPresentationTests(ReportArtifactExportFixture fixture)
-    : IClassFixture<ReportArtifactExportFixture>
+public sealed class ReportWorkbookPresentationTests(ReportExportFixture fixture)
+    : IClassFixture<ReportExportFixture>
 {
     private const string CanonicalFontName = "微軟正黑體";
     private const string FieldInfoSheet = "自動化工具-檔案欄位資訊";
@@ -56,7 +56,7 @@ public sealed class ReportWorkbookPresentationTests(ReportArtifactExportFixture 
     {
         await fixture.ExportCriteriaSelectionReportAsync();
         var response = await fixture.ExportWorkingPaperAsync();
-        var path = fixture.ArtifactPath(response.GetProperty("artifact"));
+        var path = fixture.ReportPath(response.GetProperty("publishedReport"));
         using var document = SpreadsheetDocument.Open(path, false);
 
         foreach (var reference in new[] { "C12", "F12", "G12", "H12" })
@@ -74,7 +74,7 @@ public sealed class ReportWorkbookPresentationTests(ReportArtifactExportFixture 
     {
         await fixture.ExportCriteriaSelectionReportAsync();
         var response = await fixture.ExportWorkingPaperAsync();
-        var path = fixture.ArtifactPath(response.GetProperty("artifact"));
+        var path = fixture.ReportPath(response.GetProperty("publishedReport"));
         using var document = SpreadsheetDocument.Open(path, false);
         var worksheet = WorksheetFor(document, Step41Sheet);
 
@@ -102,59 +102,59 @@ public sealed class ReportWorkbookPresentationTests(ReportArtifactExportFixture 
     [Fact]
     public async Task ValidationFieldInfo_UsesTheSameBorderlessVisibleGridAsWorkingPaper()
     {
-        var validation = await fixture.ExportValidationArtifactsAsync();
+        var validation = await fixture.ExportValidationReportsAsync();
         await fixture.ExportCriteriaSelectionReportAsync();
-        var workpaper = await fixture.ExportWorkingPaperAsync();
-        var validationPath = fixture.ArtifactPath(FindArtifact(
+        var workingPaper = await fixture.ExportWorkingPaperAsync();
+        var validationPath = fixture.ReportPath(FindReport(
             validation,
-            ReportArtifactKindValues.ValidationReport));
-        var workpaperPath = fixture.ArtifactPath(workpaper.GetProperty("artifact"));
+            ReportKindValues.ValidationReport));
+        var workingPaperPath = fixture.ReportPath(workingPaper.GetProperty("publishedReport"));
 
         AssertVisibleFieldInfoCellsAreBorderless(validationPath);
-        AssertVisibleFieldInfoCellsAreBorderless(workpaperPath);
-        AssertVisibleFieldInfoStylesMatch(validationPath, workpaperPath);
+        AssertVisibleFieldInfoCellsAreBorderless(workingPaperPath);
+        AssertVisibleFieldInfoStylesMatch(validationPath, workingPaperPath);
     }
 
     private async Task<IReadOnlyDictionary<string, string>> ExportAllFormalReportsAsync()
     {
         var reports = new Dictionary<string, string>(StringComparer.Ordinal);
-        var validation = await fixture.ExportValidationArtifactsAsync();
-        foreach (var artifact in validation.GetProperty("artifacts").EnumerateArray())
+        var validation = await fixture.ExportValidationReportsAsync();
+        foreach (var report in validation.GetProperty("publishedReports").EnumerateArray())
         {
             reports.Add(
-                artifact.GetProperty("kind").GetString()!,
-                fixture.ArtifactPath(artifact));
+                report.GetProperty("kind").GetString()!,
+                fixture.ReportPath(report));
         }
 
         var prescreen = await fixture.ExportPrescreenReportAsync();
         reports.Add(
-            ReportArtifactKindValues.PrescreenReport,
-            fixture.ArtifactPath(prescreen.GetProperty("artifact")));
+            ReportKindValues.PrescreenReport,
+            fixture.ReportPath(prescreen.GetProperty("publishedReport")));
 
         var criteria = await fixture.ExportCriteriaSelectionReportAsync();
         reports.Add(
-            ReportArtifactKindValues.CriteriaSelectionReport,
-            fixture.ArtifactPath(criteria.GetProperty("artifact")));
+            ReportKindValues.CriteriaSelectionReport,
+            fixture.ReportPath(criteria.GetProperty("publishedReport")));
 
-        var workpaper = await fixture.ExportWorkingPaperAsync();
+        var workingPaper = await fixture.ExportWorkingPaperAsync();
         reports.Add(
-            ReportArtifactKindValues.WorkingPaper,
-            fixture.ArtifactPath(workpaper.GetProperty("artifact")));
+            ReportKindValues.WorkingPaper,
+            fixture.ReportPath(workingPaper.GetProperty("publishedReport")));
 
         // 科目配對範本是工作檔，不在報告批次裡，但字型規範同樣適用。
         reports.Add(
-            ReportArtifactKindValues.AccountMapping,
+            ReportKindValues.AccountMapping,
             await fixture.ExportAccountMappingTemplatePathAsync());
 
         return reports;
     }
 
-    private static System.Text.Json.JsonElement FindArtifact(
+    private static System.Text.Json.JsonElement FindReport(
         System.Text.Json.JsonElement response,
         string kind) =>
-        response.GetProperty("artifacts").EnumerateArray()
-            .Single(artifact => string.Equals(
-                artifact.GetProperty("kind").GetString(),
+        response.GetProperty("publishedReports").EnumerateArray()
+            .Single(report => string.Equals(
+                report.GetProperty("kind").GetString(),
                 kind,
                 StringComparison.Ordinal));
 
@@ -200,26 +200,26 @@ public sealed class ReportWorkbookPresentationTests(ReportArtifactExportFixture 
 
     private static void AssertVisibleFieldInfoStylesMatch(
         string validationPath,
-        string workpaperPath)
+        string workingPaperPath)
     {
         using var validation = SpreadsheetDocument.Open(validationPath, false);
-        using var workpaper = SpreadsheetDocument.Open(workpaperPath, false);
+        using var workingPaper = SpreadsheetDocument.Open(workingPaperPath, false);
         var validationStyles = VisibleFieldInfoStyles(validation);
-        var workpaperStyles = VisibleFieldInfoStyles(workpaper);
+        var workingPaperStyles = VisibleFieldInfoStyles(workingPaper);
 
-        // 2026-08 使用者確認兩頁外觀一致；2026-10-29 改裁定為跟著所在報告：驗證報告 10 點、版本列不加藍底，
+        // 兩頁外觀原本完全一致；裁定 2026-10-29-07 改成跟著所在報告：驗證報告 10 點、版本列不加藍底，
         // 底稿 11 點、保留藍底紅字的版本列。兩頁仍是同樣的儲存格、黃色表頭、框線與對齊，所以除了版本列，
         // 只把字級拿掉後比對；字級與版本列另外各自檢查。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
-        Assert.Equal(workpaperStyles.Keys, validationStyles.Keys);
-        foreach (var reference in workpaperStyles.Keys.Where(reference => reference != "A1"))
+        Assert.Equal(workingPaperStyles.Keys, validationStyles.Keys);
+        foreach (var reference in workingPaperStyles.Keys.Where(reference => reference != "A1"))
         {
-            Assert.Equal(WithoutFontSize(workpaperStyles[reference]), WithoutFontSize(validationStyles[reference]));
+            Assert.Equal(WithoutFontSize(workingPaperStyles[reference]), WithoutFontSize(validationStyles[reference]));
         }
         Assert.Contains("<x:sz val=\"10\" />", validationStyles["A4"], StringComparison.Ordinal);
-        Assert.Contains("<x:sz val=\"11\" />", workpaperStyles["A4"], StringComparison.Ordinal);
+        Assert.Contains("<x:sz val=\"11\" />", workingPaperStyles["A4"], StringComparison.Ordinal);
         Assert.Contains("<x:sz val=\"12\" />", validationStyles["A3"], StringComparison.Ordinal);
         Assert.DoesNotContain("solid", validationStyles["A1"].Split('\u001f')[1], StringComparison.Ordinal);
-        Assert.Contains("solid", workpaperStyles["A1"].Split('\u001f')[1], StringComparison.Ordinal);
+        Assert.Contains("solid", workingPaperStyles["A1"].Split('\u001f')[1], StringComparison.Ordinal);
     }
 
     private static string WithoutFontSize(string signature) =>

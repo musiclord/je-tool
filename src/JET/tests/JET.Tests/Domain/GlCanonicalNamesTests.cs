@@ -6,7 +6,7 @@ namespace JET.Tests.Domain;
 /// <summary>
 /// 正準中文名表(logical key → *_JE / *_TB)的不變量與逐鍵對照。
 /// oracle:樣本「自動化工具-檔案欄位資訊」工作表(Field Mapping Info)的配對後欄名
-/// (見 E1 計畫 Task 1 Produces);這只保存樣本已列出的顯示名,不能反向重建完整 mapping。
+/// 這只保存樣本已列出的顯示名,不能反向重建完整 mapping。
 /// 鎖「鍵屬於白名單 + 值非空 + 具體對照」,不鎖字典實作。
 /// </summary>
 public sealed class GlCanonicalNamesTests
@@ -43,16 +43,16 @@ public sealed class GlCanonicalNamesTests
 
     /// <summary>
     /// GL 逐鍵對照(樣本 Field Mapping Info 配對後欄名)。決策表式逐列斷言,值＋鍵同鎖;
-    /// 改名/改對應即紅。涵蓋計畫 Task 1 Produces 列出的全部 GL 正準名。
+    /// 改名/改對應即紅。涵蓋樣本列出的全部 GL 正準名。
     /// </summary>
     [Theory]
-    [InlineData("docNum", "傳票號碼_JE")]
-    [InlineData("lineID", "傳票文件項次_JE_S")]
-    [InlineData("postDate", "總帳日期_JE")]
-    [InlineData("createBy", "傳票建立人員_JE")]
-    [InlineData("approveBy", "傳票核准人員_JE")]
-    [InlineData("accNum", "會計科目編號_JE")]
-    [InlineData("accName", "會計科目名稱_JE")]
+    [InlineData("voucherNumber", "傳票號碼_JE")]
+    [InlineData("lineItem", "傳票文件項次_JE_S")]
+    [InlineData("glDate", "總帳日期_JE")]
+    [InlineData("createdBy", "傳票建立人員_JE")]
+    [InlineData("approvedBy", "傳票核准人員_JE")]
+    [InlineData("accountNumber", "會計科目編號_JE")]
+    [InlineData("accountName", "會計科目名稱_JE")]
     [InlineData("amount", "傳票金額_JE")]
     [InlineData("description", "傳票摘要_JE")]
     public void Gl_LogicalKey_MapsToCanonicalName(string logicalKey, string expectedName)
@@ -63,12 +63,12 @@ public sealed class GlCanonicalNamesTests
     }
 
     /// <summary>
-    /// 無對應正準名的白名單鍵(docDate/jeSource)不得出現在 GL 正準名表
+    /// 無對應正準名的白名單鍵(approvalDate/sourceModule)不得出現在 GL 正準名表
     /// (樣本 Field Mapping Info 未列;不得臆造)。等價分割:白名單鍵分「有正準名 / 無正準名」兩類。
     /// </summary>
     [Theory]
-    [InlineData("docDate")]
-    [InlineData("jeSource")]
+    [InlineData("approvalDate")]
+    [InlineData("sourceModule")]
     public void Gl_KeysWithoutSampleCanonicalName_AreAbsent(string logicalKey)
     {
         Assert.False(GlCanonicalNames.Gl.ContainsKey(logicalKey),
@@ -77,8 +77,8 @@ public sealed class GlCanonicalNamesTests
 
     /// <summary>TB 逐鍵對照(會計科目編號/名稱/變動金額)。</summary>
     [Theory]
-    [InlineData("accNum", "會計科目編號_TB")]
-    [InlineData("accName", "會計科目名稱_TB")]
+    [InlineData("accountNumber", "會計科目編號_TB")]
+    [InlineData("accountName", "會計科目名稱_TB")]
     [InlineData("changeAmount", "試算表變動金額_TB")]
     public void Tb_LogicalKey_MapsToCanonicalName(string logicalKey, string expectedName)
     {

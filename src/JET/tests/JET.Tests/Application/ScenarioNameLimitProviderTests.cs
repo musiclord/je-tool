@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 情境名稱在三種資料庫共用 400 字上限（使用者 2026-10-19 選「三種共用 400 字上限 (Recommended)」）。
+/// 情境名稱在三種資料庫共用 400 字上限（裁定 2026-10-19-26）。
 /// 剛好 400 字時三種資料庫都完整存回；超過時儲存回錯誤，寫出上限，不在 SQL Server 默默截斷成 400 字。
 /// </summary>
 public sealed class ScenarioNameLimitProviderTests
@@ -75,7 +75,7 @@ public sealed class ScenarioNameLimitProviderTests
                     new
                     {
                         join = "and",
-                        rules = new[] { new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } }
+                        conditions = new[] { new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } }
                     }
                 }
             }

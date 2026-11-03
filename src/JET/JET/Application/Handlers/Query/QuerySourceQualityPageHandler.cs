@@ -6,7 +6,7 @@ namespace JET.Application;
 
 /// <summary>
 /// query.sourceQualityPage：分頁讀回目前成功 GL generation 的 source-quality findings。
-/// 現階段 category closed 為 nullPostDate；hard projection errors 仍由 projection_failed 回傳並 rollback。
+/// 現階段 category closed 為 blankGlDate；hard projection errors 仍由 projection_failed 回傳並 rollback。
 /// </summary>
 public sealed class QuerySourceQualityPageHandler(
     ProjectSession session) : IApplicationActionHandler
@@ -35,9 +35,9 @@ public sealed class QuerySourceQualityPageHandler(
                 category = row.Category,
                 sourceRowNumber = row.SourceRowNumber,
                 sourceLabel = row.SourceLabel,
-                documentNumber = row.DocumentNumber,
-                accountCode = row.AccountCode,
-                postDate = row.PostDate,
+                voucherNumber = row.VoucherNumber,
+                accountNumber = row.AccountNumber,
+                glDate = row.GlDate,
                 description = row.Description
             }).ToArray(),
             totalCount = page.TotalCount,

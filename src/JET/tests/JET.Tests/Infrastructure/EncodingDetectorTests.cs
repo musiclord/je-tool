@@ -29,7 +29,7 @@ public sealed class EncodingDetectorTests
         Assert.Equal(Encoding.Unicode.CodePage, encoding.CodePage);
     }
 
-    // 低嚴重度事項 A3（使用者 2026-10-19 要求處理）：BOM 偵測出的 UTF-8 與 UTF-16 也是嚴格編碼，遇到壞位元組丟例外；
+    // BOM 偵測出的 UTF-8 與 UTF-16 也是嚴格編碼，遇到壞位元組丟例外；
     // 前導位元組和 BOM 相同，StreamReader 才會沿用它，不換成默默替換字元的預設編碼。
     [Theory]
     [InlineData(new byte[] { 0xEF, 0xBB, 0xBF, 0x61 }, 65001, new byte[] { 0xEF, 0xBB, 0xBF })]
@@ -77,7 +77,7 @@ public sealed class EncodingDetectorTests
             () => EncodingDetector.Resolve("shift-jis", filePath: "unused.csv"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送三種編碼，
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送三種編碼，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，檢查代號記進支援日誌，送出的值不出現。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("encoding_invalid", JetPayloadRejection.CheckOf(ex));

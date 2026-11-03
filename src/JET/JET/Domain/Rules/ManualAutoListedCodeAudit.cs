@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 確認 GL 欄位配對時，檢查人工/自動分錄「只列一側」的清單代碼有沒有出現在來源裡（2026-10-05 V3，依 Q5）。
+/// 確認 GL 欄位配對時，檢查人工/自動分錄「只列一側」的清單代碼有沒有出現在來源裡（裁定 2026-10-04-01 與 2026-10-05-01）。
 /// <para>只列一側時，沒列出的非空白值都歸到另一側。清單上的代碼如果一筆都沒有出現，例如切換模式後留下預設代碼「1」，
 /// 用到人工分錄的條件會默默變成 0 筆或幾乎全部。投影時逐列記錄有沒有對到清單代碼，比對方式與
 /// <see cref="GlRowProjector"/> 相同；一個都沒對到就給不擋的提醒。逐值指定時每個非空白值都要歸類，不在此檢查。</para>
@@ -15,7 +15,7 @@ internal sealed class ManualAutoListedCodeAudit
 
     public ManualAutoListedCodeAudit(GlMappingSpec spec)
     {
-        if (!spec.Mapping.TryGetValue(GlMappingKeys.Manual, out var sourceColumn)
+        if (!spec.Mapping.TryGetValue(GlMappingKeys.IsManual, out var sourceColumn)
             || string.IsNullOrWhiteSpace(sourceColumn))
         {
             return;
@@ -63,7 +63,7 @@ internal sealed class ManualAutoListedCodeAudit
         var codes = string.Join("、", _listedCodes);
         return
         [
-            // 使用者 2026-10-13 勾選頁確認的句子。
+            // 裁定 2026-10-13-28 確認了這句的用字。
             _listsManual
                 ? $"來源欄「{_sourceColumn}」中沒有人工分錄代碼「{codes}」，有值的列都將視為自動分錄。"
                   + "代碼有誤時，請修改後重新確認配對。"

@@ -29,7 +29,7 @@ public sealed class PrivateCaseManifestTests
         Assert.Equal(GlAmountMode.DualAmount, manifest.Gl.AmountMode);
         Assert.Equal(TbChangeMode.DirectChange, manifest.Tb.ChangeMode);
         Assert.Equal("SYNTHETIC-PRIVATE-CASE", manifest.Project.ProjectCode);
-        Assert.Equal("Synthetic private case entity", manifest.Project.EntityName);
+        Assert.Equal("Synthetic private case entity", manifest.Project.ClientName);
         Assert.Equal("synthetic-private-operator", manifest.Project.OperatorId);
 
         var serialized = JsonSerializer.Serialize(manifest);
@@ -75,12 +75,114 @@ public sealed class PrivateCaseManifestTests
 
         var expected = JsonDocument.Parse(
             $$"""
-            [{"join":"AND","matchScope":"row","rules":[
+            [{"join":"AND","matchScope":"row","conditions":[
               {"join":"AND","type":"drCrOnly","drCr":"credit"},
-              {"join":"AND","type":"voucher","quantifier":"any","rules":[{"join":"AND","type":"prescreen","prescreenKey":"{{PrescreenRuleKeys.BlankDescription}}"}]}]}]
+              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"prescreen","prescreenKey":"{{PrescreenRuleKeys.BlankDescription}}"}]}]}]
             """).RootElement;
         Assert.True(JsonElement.DeepEquals(expected, manifest.Scenarios[0].GetProperty("groups")));
         Assert.Equal("synthetic", manifest.Scenarios[0].GetProperty("name").GetString());
+    }
+
+    // 情境裡的條件陣列 2026-10-30 從 rules 改名為 conditions；私人案件清單仍寫 rules，
+    // 讀進來時條件組與組合條件（group、voucher）裡的子條件都要換成 conditions，條件內容不變。
+    [Fact]
+    public void Load_ManifestWritingRules_IsReadAsConditions()
+    {
+        using var root = new TemporaryManifestRoot();
+        var document = root.CompleteManifestDocument();
+        document["scenarios"] = JsonNode.Parse(
+            $$"""
+            [{"name":"synthetic","groups":[
+              {"join":"AND","matchScope":"row","rules":[
+                {"join":"AND","type":"drCrOnly","drCr":"debit"},
+                {"join":"OR","type":"group","rules":[
+                  {"join":"AND","type":"prescreen","prescreenKey":"{{PrescreenRuleKeys.BlankDescription}}"},
+                  {"join":"AND","type":"voucher","quantifier":"none","rules":[{"join":"AND","type":"drCrOnly","drCr":"credit"}]}]}]},
+              {"join":"OR","rules":[{"join":"AND","type":"manualAuto","isManual":true}]}]}]
+            """)!.AsArray();
+        root.WriteManifest(document);
+
+        var manifest = PrivateCaseManifestLoader.Load(root.Path, "private-case.json");
+
+        var expected = JsonDocument.Parse(
+            $$"""
+            [{"join":"AND","matchScope":"row","conditions":[
+                {"join":"AND","type":"drCrOnly","drCr":"debit"},
+                {"join":"OR","type":"group","conditions":[
+                  {"join":"AND","type":"prescreen","prescreenKey":"{{PrescreenRuleKeys.BlankDescription}}"},
+                  {"join":"AND","type":"voucher","quantifier":"none","conditions":[{"join":"AND","type":"drCrOnly","drCr":"credit"}]}]}]},
+              {"join":"OR","conditions":[{"join":"AND","type":"manualAuto","isManual":true}]}]
+            """).RootElement;
+        Assert.True(JsonElement.DeepEquals(expected, manifest.Scenarios[0].GetProperty("groups")));
+        Assert.DoesNotContain("\"rules\"", manifest.Scenarios[0].GetRawText(), StringComparison.Ordinal);
+    }
+
+    // 專案紀錄收斂計畫第四階段改名時，案件設定的兩個欄名、GL 與 TB 的欄位代號和一個預篩選代號都換了名稱。
+    // 私人案件清單在儲存庫外，照裁定 2026-10-16-14 清單檔本身不改，仍是改名前的寫法；讀進來時要換成現在的名稱。
+    // 舊名稱逐字照改名前的 JetFieldCatalog 與 PrescreenRuleKeys 寫，新舊對應見名詞表「不再使用的名稱」。
+    // 本機私人案件檢查因此在讀清單時就失敗：PrivateCase 收據 20261102-232931191-d62be73f0156411685b9ed22d7f8a70d（SQLite）。
+    [Fact]
+    public void Load_ManifestWritingPreRenameNames_IsReadWithCurrentNames()
+    {
+        using var root = new TemporaryManifestRoot();
+        var document = root.CompleteManifestDocument();
+        var project = document["project"]!.AsObject();
+        project.Remove("clientName");
+        project.Remove("prepStartDate");
+        project["entityName"] = "Synthetic private case entity";
+        project["lastPeriodStart"] = "2025-12-20";
+        document["gl"]!["mapping"] = JsonNode.Parse(
+            """
+            {"docNum":"private-header-doc","lineID":"private-header-line","postDate":"private-header-date",
+             "docDate":"private-header-approval","accNum":"private-header-account","accName":"private-header-name",
+             "description":"private-header-description","jeSource":"private-header-source","createBy":"private-header-preparer",
+             "approveBy":"private-header-approver","manual":"private-header-manual",
+             "debitAmount":"private-header-debit","creditAmount":"private-header-credit"}
+            """);
+        document["tb"]!["mapping"] = JsonNode.Parse(
+            """{"accNum":"private-header-account","accName":"private-header-name","amount":"private-header-change"}""");
+        document["scenarios"] = JsonNode.Parse(
+            """
+            [{"name":"synthetic","groups":[
+              {"join":"AND","matchScope":"row","rules":[
+                {"join":"AND","type":"fieldValue","field":"createBy","operator":"in","values":["private-filter-value"],"includeBlank":false},
+                {"join":"AND","type":"prescreen","prescreenKey":"postPeriodApproval"},
+                {"join":"AND","type":"entityFrequency","field":"accNum","countUnit":"entries","countOperator":"lte","countFrom":"10"},
+                {"join":"AND","type":"voucher","quantifier":"any","rules":[
+                  {"join":"AND","type":"fieldValue","field":"postDate","operator":"isNonBusinessDay","includeBlank":false}]}]}]}]
+            """)!.AsArray();
+        root.WriteManifest(document);
+
+        var manifest = PrivateCaseManifestLoader.Load(root.Path, "private-case.json");
+
+        Assert.Equal("Synthetic private case entity", manifest.Project.ClientName);
+        Assert.Equal(new DateOnly(2025, 12, 20), manifest.Project.PrepStartDate);
+        Assert.Equal(
+            new[]
+            {
+                GlMappingKeys.AccountName, GlMappingKeys.AccountNumber, GlMappingKeys.ApprovalDate, GlMappingKeys.ApprovedBy,
+                GlMappingKeys.CreatedBy, GlMappingKeys.CreditAmount, GlMappingKeys.DebitAmount, GlMappingKeys.Description,
+                GlMappingKeys.GlDate, GlMappingKeys.IsManual, GlMappingKeys.LineItem, GlMappingKeys.SourceModule,
+                GlMappingKeys.VoucherNumber,
+            },
+            manifest.Gl.Mapping.Keys.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal("private-header-doc", manifest.Gl.Mapping[GlMappingKeys.VoucherNumber]);
+        Assert.False(manifest.UsesGeneratedLineItem);
+        Assert.Equal(
+            new[] { TbMappingKeys.AccountName, TbMappingKeys.AccountNumber, TbMappingKeys.ChangeAmount },
+            manifest.Tb.Mapping.Keys.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal("private-header-change", manifest.Tb.Mapping[TbMappingKeys.ChangeAmount]);
+
+        var expected = JsonDocument.Parse(
+            $$"""
+            [{"join":"AND","matchScope":"row","conditions":[
+                {"join":"AND","type":"fieldValue","field":"{{GlMappingKeys.CreatedBy}}","operator":"in","values":["private-filter-value"],"includeBlank":false},
+                {"join":"AND","type":"prescreen","prescreenKey":"{{PrescreenRuleKeys.PrepPeriodApproval}}"},
+                {"join":"AND","type":"entityFrequency","field":"{{GlMappingKeys.AccountNumber}}","countUnit":"entries","countOperator":"lte","countFrom":"10"},
+                {"join":"AND","type":"voucher","quantifier":"any","conditions":[
+                  {"join":"AND","type":"fieldValue","field":"{{GlMappingKeys.GlDate}}","operator":"isNonBusinessDay","includeBlank":false}]}]}]
+            """).RootElement;
+        Assert.True(JsonElement.DeepEquals(expected, manifest.Scenarios[0].GetProperty("groups")));
     }
 
     [Fact]
@@ -187,7 +289,7 @@ public sealed class PrivateCaseManifestTests
     {
         using var root = new TemporaryManifestRoot();
         var document = root.CompleteManifestDocument();
-        document["gl"]!["mapping"]!.AsObject().Remove(GlMappingKeys.DocNum);
+        document["gl"]!["mapping"]!.AsObject().Remove(GlMappingKeys.VoucherNumber);
         root.WriteManifest(document);
 
         var exception = Assert.Throws<PrivateCaseManifestException>(() =>
@@ -279,7 +381,7 @@ public sealed class PrivateCaseManifestTests
             WriteStub("reports/inf.xlsx");
             WriteStub("reports/prescreen.xlsx");
             WriteStub("reports/criteria.xlsx");
-            WriteStub("reports/workpaper.xlsx");
+            WriteStub("reports/workingPaper.xlsx");
             WriteImportLog("logs/gl.txt", "JE.xlsx", "private-sheet-gl");
             WriteImportLog("logs/tb.txt", "TB.xlsx", "private-sheet-tb");
         }
@@ -295,11 +397,11 @@ public sealed class PrivateCaseManifestTests
             ["project"] = new JsonObject
             {
                 ["projectCode"] = "SYNTHETIC-PRIVATE-CASE",
-                ["entityName"] = "Synthetic private case entity",
+                ["clientName"] = "Synthetic private case entity",
                 ["operatorId"] = "synthetic-private-operator",
                 ["periodStart"] = "2025-01-01",
                 ["periodEnd"] = "2025-12-31",
-                ["lastPeriodStart"] = "2025-12-31",
+                ["prepStartDate"] = "2025-12-31",
                 ["sampleSeed"] = 1_600_001,
             },
             ["gl"] = new JsonObject
@@ -315,10 +417,10 @@ public sealed class PrivateCaseManifestTests
                 },
                 ["importMode"] = "replace",
                 ["mapping"] = Mapping(
-                    (GlMappingKeys.DocNum, "private-header-doc"),
-                    (GlMappingKeys.PostDate, "private-header-date"),
-                    (GlMappingKeys.AccNum, "private-header-account"),
-                    (GlMappingKeys.AccName, "private-header-name"),
+                    (GlMappingKeys.VoucherNumber, "private-header-doc"),
+                    (GlMappingKeys.GlDate, "private-header-date"),
+                    (GlMappingKeys.AccountNumber, "private-header-account"),
+                    (GlMappingKeys.AccountName, "private-header-name"),
                     (GlMappingKeys.Description, "private-header-description"),
                     (GlMappingKeys.DebitAmount, "private-header-debit"),
                     (GlMappingKeys.CreditAmount, "private-header-credit")),
@@ -337,9 +439,9 @@ public sealed class PrivateCaseManifestTests
                 },
                 ["importMode"] = "replace",
                 ["mapping"] = Mapping(
-                    (TbMappingKeys.AccNum, "private-header-account"),
-                    (TbMappingKeys.AccName, "private-header-name"),
-                    (TbMappingKeys.Amount, "private-header-change")),
+                    (TbMappingKeys.AccountNumber, "private-header-account"),
+                    (TbMappingKeys.AccountName, "private-header-name"),
+                    (TbMappingKeys.ChangeAmount, "private-header-change")),
                 ["changeMode"] = TbChangeModeNames.Direct,
             },
             ["referenceData"] = new JsonObject
@@ -375,7 +477,7 @@ public sealed class PrivateCaseManifestTests
                     ["infReport"] = "reports/inf.xlsx",
                     ["prescreenReport"] = "reports/prescreen.xlsx",
                     ["criteriaSelectionReport"] = "reports/criteria.xlsx",
-                    ["workingPaper"] = "reports/workpaper.xlsx",
+                    ["workingPaper"] = "reports/workingPaper.xlsx",
                 },
                 ["scenarioCounts"] = new JsonArray
                 {

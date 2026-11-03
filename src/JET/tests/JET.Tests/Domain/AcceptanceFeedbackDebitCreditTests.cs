@@ -11,14 +11,14 @@ public sealed class AcceptanceFeedbackDebitCreditTests
         from value in new[] { " S ", "s", "", "\u3000", "OTHER", "0", "1" }
         select new object[] { mode, debit, value, value is " S " or "s" };
 
-    // 使用者 2026-10-08 第 6 則裁定：只填一側時，所有未命中值（含空白）歸另一側。
+    // 裁定 2026-10-08-11：只填一側時，所有未命中值（含空白）歸另一側。
     [Theory]
     [MemberData(nameof(SingleSideCases))]
     public void OneCode_ValidatesAndUsesTheComplementForEveryOtherValue(
         GlAmountMode mode, bool debit, string value, bool matches)
     {
         var mapping = Mapping();
-        mapping[debit ? "dcDebitCode" : "dcCreditCode"] = " S ";
+        mapping[debit ? "drCrDebitCode" : "drCrCreditCode"] = " S ";
         var spec = new GlMappingSpec(mapping, mode);
         Assert.True(MappingValidator.ValidateGl(spec, Columns).IsValid);
         var row = new StagingRow(7, new Dictionary<string, string>
@@ -36,14 +36,14 @@ public sealed class AcceptanceFeedbackDebitCreditTests
     public void NeitherCode_RemainsInvalid(GlAmountMode mode)
     {
         var mapping = Mapping();
-        mapping["dcDebitCode"] = " "; mapping["dcCreditCode"] = "\u3000";
+        mapping["drCrDebitCode"] = " "; mapping["drCrCreditCode"] = "\u3000";
         Assert.False(MappingValidator.ValidateGl(new GlMappingSpec(mapping, mode), Columns).IsValid);
     }
 
     private static readonly string[] Columns = ["Doc", "Date", "Account", "Name", "Description", "Amount", "Side"];
     private static Dictionary<string, string> Mapping() => new()
     {
-        ["docNum"] = "Doc", ["postDate"] = "Date", ["accNum"] = "Account", ["accName"] = "Name",
-        ["description"] = "Description", ["amount"] = "Amount", ["dcField"] = "Side"
+        ["voucherNumber"] = "Doc", ["glDate"] = "Date", ["accountNumber"] = "Account", ["accountName"] = "Name",
+        ["description"] = "Description", ["amount"] = "Amount", ["drCr"] = "Side"
     };
 }

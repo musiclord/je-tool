@@ -7,7 +7,7 @@ namespace JET.Application;
 /// <summary>
 /// JSON payload 解析共用工具。缺必填欄位或格式不對時一律拋 invalid_payload。畫面只送已檢查過的值，
 /// 走到這些錯誤表示程式送錯資料：畫面只顯示非預期錯誤那一句，固定的檢查代號記進支援日誌，
-/// 不寫欄位名稱或收到的值（使用者 2026-10-19 要求前端不露出系統用詞）。
+/// 不寫欄位名稱或收到的值；畫面不露出系統用詞（裁定 2026-10-19-04）。
 /// </summary>
 public static class PayloadReader
 {

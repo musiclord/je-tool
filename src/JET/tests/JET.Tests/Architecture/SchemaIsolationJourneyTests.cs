@@ -39,15 +39,15 @@ public sealed class SchemaIsolationJourneyTests
             projectB = await InlineWorkbookProject.SetupAsync(
                 host, SentinelGl("B"), databaseProvider: "sqlServer", configureTb: SentinelTb("B"));
 
-            // 切到 A：完整性差異只應回 A 的科目，且集合精確 = {A1101, A7001, A9001}（account_code 升序）。
+            // 切到 A：完整性差異只應回 A 的科目，且集合精確 = {A1101, A7001, A9001}（account_number 升序）。
             await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = projectA }));
-            var aCodes = await WalkDiffAccountCodesAsync(host);
+            var aCodes = await WalkDiffAccountNumbersAsync(host);
             Assert.Equal(new[] { "A1101", "A7001", "A9001" }, aCodes);
             Assert.DoesNotContain(aCodes, code => code.StartsWith('B'));
 
             // 切到 B：對稱——只應回 B 的科目，絕不含 A。
             await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = projectB }));
-            var bCodes = await WalkDiffAccountCodesAsync(host);
+            var bCodes = await WalkDiffAccountNumbersAsync(host);
             Assert.Equal(new[] { "B1101", "B7001", "B9001" }, bCodes);
             Assert.DoesNotContain(bCodes, code => code.StartsWith('A'));
         }
@@ -91,7 +91,7 @@ public sealed class SchemaIsolationJourneyTests
             .AddRow($"{prefix}7001", "預付款", "30.00");
 
     /// <summary>逐頁走訪 query.completenessDiffPage，回傳差異科目代號序列（session 現行專案）。</summary>
-    private static async Task<List<string>> WalkDiffAccountCodesAsync(HandlerTestHost host)
+    private static async Task<List<string>> WalkDiffAccountNumbersAsync(HandlerTestHost host)
     {
         var codes = new List<string>();
         string? cursor = null;
@@ -101,7 +101,7 @@ public sealed class SchemaIsolationJourneyTests
                 "query.completenessDiffPage", JsonSerializer.Serialize(new { cursor, pageSize = 100 }));
             foreach (var row in page.GetProperty("rows").EnumerateArray())
             {
-                codes.Add(row.GetProperty("accountCode").GetString()!);
+                codes.Add(row.GetProperty("accountNumber").GetString()!);
             }
 
             var next = page.GetProperty("nextCursor");

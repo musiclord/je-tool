@@ -30,11 +30,11 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
     private static readonly string[] TargetColumns =
     [
         "batch_id", "source_row_number",
-        "document_number", "line_item", "post_date", "approval_date",
-        "account_code", "account_name", "document_description",
+        "voucher_number", "line_item", "gl_date", "approval_date",
+        "account_number", "account_name", "description",
         "source_module", "created_by", "approved_by", "is_manual",
         "amount_scaled", "debit_amount_scaled", "credit_amount_scaled", "dr_cr",
-        "line_item_numeric_sort_key", "posting_status", "is_effective", "exclusion_reason"
+        "line_item_numeric_sort_key", "posting_status", "is_excluded", "exclusion_reason"
     ];
 
     private static readonly string[] RdeValueColumns =
@@ -67,7 +67,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             throw new InvalidOperationException(
                 "GL projection plan 的 PostingStatusMapped 與 mapping 不一致。");
         }
-        var canonicalPostingStatusPolicy = GlEffectivePopulation.NormalizePolicy(
+        var canonicalPostingStatusPolicy = GlExcludedPopulation.NormalizePolicy(
             postingStatusMapped,
             postingStatusPolicy);
         var projectionOptions = spec.Options with
@@ -76,7 +76,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         };
         var postingStatusMatcher = canonicalPostingStatusPolicy is null
             ? null
-            : new GlEffectivePopulationMatcher(canonicalPostingStatusPolicy);
+            : new GlExcludedPopulationMatcher(canonicalPostingStatusPolicy);
 
         await database.EnsureReadyAsync(projectId, cancellationToken);
         var stopwatch = Stopwatch.StartNew();
@@ -90,14 +90,14 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         {
             clear.Transaction = transaction;
             clear.CommandText =
-                "DELETE FROM target_gl_rde_value; "
-                + "DELETE FROM config_gl_rde_field; "
-                + "DELETE FROM target_gl_entry;";
+                "DELETE FROM gl_rde_value; "
+                + "DELETE FROM gl_rde_field; "
+                + "DELETE FROM gl;";
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
         // 重投影改寫 target,既有規則結果失效(投影失敗 rollback 時清除一併回退)。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -111,7 +111,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         select.CommandText =
             """
             SELECT row_number, source_no, source_row_number, row_json
-            FROM staging_gl_raw_row
+            FROM pbc_gl
             WHERE batch_id = @batchId
             ORDER BY row_number;
             """;
@@ -119,23 +119,23 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
 
         // 批量列寫入：SQLite 包裝參數化 INSERT、DuckDB 走 Appender。
         // SQL 文本／欄序不變（見 TargetColumns）；entry_id auto-id 由引擎補齊。
-        await using var insert = database.CreateBulkRowWriter(connection, transaction, "target_gl_entry", TargetColumns);
+        await using var insert = database.CreateBulkRowWriter(connection, transaction, JetSchemaCatalog.GlTableName, TargetColumns);
 
         var errors = new ProjectionErrorCollector();
         var insertedCount = 0;
-        // V3：只列一側的人工/自動清單代碼有沒有出現在來源裡，逐列記錄，提交後給不擋的提醒。
+        // 只列一側的人工/自動清單代碼有沒有出現在來源裡，逐列記錄，提交後給不擋的提醒。
         var manualAutoCodes = new ManualAutoListedCodeAudit(spec);
-        // 階段六：審計員勾選的欄位把空白補成同一來源內上一列的值；暫存表不動，只改交給投影器的那一列。
+        // 審計員勾選的欄位把空白補成同一來源內上一列的值；暫存表不動，只改交給投影器的那一列。
         var fillDown = GlStagingFillDown.Create(spec);
-        // 完整性測試的匯入控制總數累計:來源列數（每讀一列 staging）、母體借/貸總額（成功插入後）。
-        long sourceRowCount = 0;
+        // 存入筆數與合計核對要用的數字累計:來源列數（每讀一列 staging）、母體借/貸總額（成功插入後）。
+        long pbcRowCount = 0;
         long targetDebit = 0;
         long targetCredit = 0;
-        long effectiveRowCount = 0;
+        long glRowCount = 0;
         long excludedByPeriodCount = 0;
         long excludedByPostingStatusCount = 0;
-        long effectiveDebit = 0;
-        long effectiveCredit = 0;
+        long glDebit = 0;
+        long glCredit = 0;
         // AppendAsync 完成時 writer 已消費該次 values（IBulkRowWriter 契約）；重用單一 buffer，
         // 避免大型 GL 為每列配置一個 19 欄 object[]（20M 列即 20M 個短命陣列）。
         var targetValues = new object?[TargetColumns.Length];
@@ -146,10 +146,10 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             while (await reader.ReadAsync(cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                sourceRowCount++;
-                if (sourceRowCount % ProgressRowInterval == 0)
+                pbcRowCount++;
+                if (pbcRowCount % ProgressRowInterval == 0)
                 {
-                    progress?.Invoke(new ProjectionProgress(sourceRowCount));
+                    progress?.Invoke(new ProjectionProgress(pbcRowCount));
                 }
 
                 var rowNumber = reader.GetInt64(0);
@@ -186,13 +186,13 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 // target 的 source_row_number 存批次排序鍵（V3 抽樣基礎；單來源批次時 == 來源列號）。
                 // 值依 TargetColumns 順序對位；null 由寫入器轉 NULL；is_manual 存 1/0/NULL。
                 targetValues[1] = rowNumber;
-                targetValues[2] = projected!.DocumentNumber;
+                targetValues[2] = projected!.VoucherNumber;
                 targetValues[3] = projected.LineItem;
-                targetValues[4] = projected.PostDate;
+                targetValues[4] = projected.GlDate;
                 targetValues[5] = projected.ApprovalDate;
-                targetValues[6] = projected.AccountCode;
+                targetValues[6] = projected.AccountNumber;
                 targetValues[7] = projected.AccountName;
-                targetValues[8] = projected.DocumentDescription;
+                targetValues[8] = projected.Description;
                 targetValues[9] = projected.SourceModule;
                 targetValues[10] = projected.CreatedBy;
                 targetValues[11] = projected.ApprovedBy;
@@ -203,14 +203,14 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 targetValues[16] = projected.DrCr;
                 targetValues[17] = LineItemNumericSortKey.CreateOrNull(projected.LineItem);
                 targetValues[18] = projected.PostingStatus;
-                var postDate = projected.PostDate is null
+                var glDate = projected.GlDate is null
                     ? (DateOnly?)null
                     : DateOnly.ParseExact(
-                        projected.PostDate,
+                        projected.GlDate,
                         "yyyy-MM-dd",
                         CultureInfo.InvariantCulture);
-                var classification = GlEffectivePopulation.ClassifyWithMatcher(
-                    postDate,
+                var classification = GlExcludedPopulation.ClassifyWithMatcher(
+                    glDate,
                     projected.PostingStatus,
                     periodStart,
                     periodEnd,
@@ -219,16 +219,16 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
 
                 long nextTargetDebit;
                 long nextTargetCredit;
-                var nextEffectiveDebit = effectiveDebit;
-                var nextEffectiveCredit = effectiveCredit;
+                var nextGlDebit = glDebit;
+                var nextGlCredit = glCredit;
                 try
                 {
                     nextTargetDebit = checked(targetDebit + projected.DebitAmountScaled);
                     nextTargetCredit = checked(targetCredit + projected.CreditAmountScaled);
-                    if (classification.IsEffective)
+                    if (!classification.IsExcluded)
                     {
-                        nextEffectiveDebit = checked(effectiveDebit + projected.DebitAmountScaled);
-                        nextEffectiveCredit = checked(effectiveCredit + projected.CreditAmountScaled);
+                        nextGlDebit = checked(glDebit + projected.DebitAmountScaled);
+                        nextGlCredit = checked(glCredit + projected.CreditAmountScaled);
                     }
                 }
                 catch (OverflowException)
@@ -244,7 +244,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                     continue;
                 }
 
-                targetValues[19] = classification.IsEffective ? 1 : 0;
+                targetValues[19] = classification.IsExcluded ? 1 : 0;
                 targetValues[20] = classification.StorageReason;
                 await insert.AppendAsync(targetValues, cancellationToken);
                 insertedCount++;
@@ -252,15 +252,15 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 targetCredit = nextTargetCredit;
                 switch (classification.Disposition)
                 {
-                    case GlEffectivePopulationDisposition.Effective:
-                        effectiveRowCount++;
-                        effectiveDebit = nextEffectiveDebit;
-                        effectiveCredit = nextEffectiveCredit;
+                    case GlExcludedPopulationDisposition.Gl:
+                        glRowCount++;
+                        glDebit = nextGlDebit;
+                        glCredit = nextGlCredit;
                         break;
-                    case GlEffectivePopulationDisposition.ExcludedByPeriod:
+                    case GlExcludedPopulationDisposition.ExcludedByPeriod:
                         excludedByPeriodCount++;
                         break;
-                    case GlEffectivePopulationDisposition.ExcludedByPostingStatus:
+                    case GlExcludedPopulationDisposition.ExcludedByPostingStatus:
                         excludedByPostingStatusCount++;
                         break;
                     default:
@@ -273,9 +273,9 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         // 之後同交易內可見——line_item 補值、控制總數、空欄稽核皆讀得到已寫入的 target 列。
         await insert.CompleteAsync(cancellationToken);
 
-        if (sourceRowCount > 0 && sourceRowCount % ProgressRowInterval != 0)
+        if (pbcRowCount > 0 && pbcRowCount % ProgressRowInterval != 0)
         {
-            progress?.Invoke(new ProjectionProgress(sourceRowCount));
+            progress?.Invoke(new ProjectionProgress(pbcRowCount));
         }
 
         if (errors.TotalErrorCount > 0)
@@ -285,28 +285,28 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             return errors.FailedResult();
         }
 
-        if (effectiveRowCount == 0)
+        if (glRowCount == 0)
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
             throw new JetActionException(
-                JetErrorCodes.EmptyEffectivePopulation,
-                GlProjectionGuard.EmptyEffectivePopulationMessage);
+                JetErrorCodes.EmptyGl,
+                GlProjectionGuard.EmptyGlMessage);
         }
 
         // 退化母體守門:投影無列級錯誤、母體非空,但借貸總額皆為 0(金額欄誤配到傳票總額或空欄)。
         // 此母體無法用於完整性與後續規則,整批 rollback 並回明確錯誤(Domain GlProjectionGuard 為單一事實)。
         if (GlProjectionGuard.IsDegenerateAmountPopulation(
-                effectiveRowCount,
-                effectiveDebit,
-                effectiveCredit))
+                glRowCount,
+                glDebit,
+                glCredit))
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
             throw new JetActionException(JetErrorCodes.GlAmountsAllZero, GlProjectionGuard.DegenerateAmountMessage);
         }
 
-        // lineID 未對應:投影後逐傳票自動編號（衍生顯示值；不參與任何規則計算、不作任何鍵）。
+        // lineItem 未對應:投影後逐傳票自動編號（衍生顯示值；不參與任何規則計算、不作任何鍵）。
         // ROW_NUMBER 是視窗函式,逐列串流的投影做不到,故在此以 set-based SQL 於同一交易補值。
         if (!spec.HasLineItem)
         {
@@ -314,7 +314,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             number.Transaction = transaction;
             number.CommandText =
                 """
-                UPDATE target_gl_entry
+                UPDATE gl
                 SET line_item = CAST(s.rn AS TEXT),
                     line_item_numeric_sort_key =
                         '2'
@@ -322,48 +322,46 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                         || replace(printf('%-29s', CAST(s.rn AS TEXT)), ' ', '0')
                 FROM (
                     SELECT rowid AS rid,
-                           ROW_NUMBER() OVER (PARTITION BY document_number ORDER BY source_row_number) AS rn
-                    FROM target_gl_entry
+                           ROW_NUMBER() OVER (PARTITION BY voucher_number ORDER BY source_row_number) AS rn
+                    FROM gl
                 ) AS s
-                WHERE target_gl_entry.rowid = s.rid;
+                WHERE gl.rowid = s.rid;
                 """;
             await number.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
-        // 完整性測試的匯入控制總數落地（同一交易、commit 之前;投影失敗已於上方 rollback 回退）。
+        // 存入筆數與合計核對要用的數字落地（同一交易、commit 之前;投影失敗已於上方 rollback 回退）。
         await using (var ct = connection.CreateCommand())
         {
             ct.Transaction = transaction;
             ct.CommandText =
                 """
                 INSERT INTO gl_control_total (
-                    singleton, source_row_count, target_row_count, target_debit_scaled, target_credit_scaled,
-                    raw_row_count, effective_row_count, excluded_by_period_count,
-                    excluded_by_posting_status_count, effective_debit_scaled, effective_credit_scaled)
-                VALUES (1, @src, @tgt, @debit, @credit, @raw, @effective, @excludedPeriod,
-                        @excludedPostingStatus, @effectiveDebit, @effectiveCredit)
+                    singleton, pbc_row_count, stored_row_count, stored_debit_scaled, stored_credit_scaled,
+                    gl_row_count, excluded_by_period_count,
+                    excluded_by_posting_status_count, gl_debit_scaled, gl_credit_scaled)
+                VALUES (1, @pbc, @tgt, @debit, @credit, @glRowCount, @excludedPeriod,
+                        @excludedPostingStatus, @glDebit, @glCredit)
                 ON CONFLICT(singleton) DO UPDATE SET
-                    source_row_count = excluded.source_row_count,
-                    target_row_count = excluded.target_row_count,
-                    target_debit_scaled = excluded.target_debit_scaled,
-                    target_credit_scaled = excluded.target_credit_scaled,
-                    raw_row_count = excluded.raw_row_count,
-                    effective_row_count = excluded.effective_row_count,
+                    pbc_row_count = excluded.pbc_row_count,
+                    stored_row_count = excluded.stored_row_count,
+                    stored_debit_scaled = excluded.stored_debit_scaled,
+                    stored_credit_scaled = excluded.stored_credit_scaled,
+                    gl_row_count = excluded.gl_row_count,
                     excluded_by_period_count = excluded.excluded_by_period_count,
                     excluded_by_posting_status_count = excluded.excluded_by_posting_status_count,
-                    effective_debit_scaled = excluded.effective_debit_scaled,
-                    effective_credit_scaled = excluded.effective_credit_scaled;
+                    gl_debit_scaled = excluded.gl_debit_scaled,
+                    gl_credit_scaled = excluded.gl_credit_scaled;
                 """;
-            ct.AddWithValue("@src", sourceRowCount);
+            ct.AddWithValue("@pbc", pbcRowCount);
             ct.AddWithValue("@tgt", insertedCount);
             ct.AddWithValue("@debit", targetDebit);
             ct.AddWithValue("@credit", targetCredit);
-            ct.AddWithValue("@raw", sourceRowCount);
-            ct.AddWithValue("@effective", effectiveRowCount);
+            ct.AddWithValue("@glRowCount", glRowCount);
             ct.AddWithValue("@excludedPeriod", excludedByPeriodCount);
             ct.AddWithValue("@excludedPostingStatus", excludedByPostingStatusCount);
-            ct.AddWithValue("@effectiveDebit", effectiveDebit);
-            ct.AddWithValue("@effectiveCredit", effectiveCredit);
+            ct.AddWithValue("@glDebit", glDebit);
+            ct.AddWithValue("@glCredit", glCredit);
             await ct.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -388,18 +386,18 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             projectionOptions.RdeFields,
             cancellationToken);
 
-        var sourceDefinitions = await LocalFieldDefinitionPersistence.ReadStatesAsync(
+        var sourceDefinitions = await LocalFieldInfoPersistence.ReadStatesAsync(
             connection,
             transaction,
             batchId,
-            LegacyFieldDefinitionScope.Source,
+            FieldInfoScope.Source,
             cancellationToken);
-        await LocalFieldDefinitionPersistence.ReplaceScopeAsync(
+        await LocalFieldInfoPersistence.ReplaceScopeAsync(
             connection,
             transaction,
             batchId,
-            LegacyFieldDefinitionScope.Target,
-            LegacyFieldDefinitionProjector.ProjectGl(sourceDefinitions, spec, moneyScale),
+            FieldInfoScope.Target,
+            FieldInfoProjector.ProjectGl(sourceDefinitions, spec, moneyScale),
             cancellationToken);
 
         var committedMapping = new CommittedMapping(
@@ -409,7 +407,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             batchId,
             committedUtc,
             MappingMetadataFormat.CurrentVersion,
-            // 填了幾格跟著配對保存（使用者 2026-10-28 裁定），重開案件與報告的配對資訊讀得到。
+            // 填了幾格跟著配對保存（裁定 2026-10-28-05），重開案件與報告的配對資訊讀得到。
             projectionOptions with { FillDownCount = fillDown?.FilledCellCount ?? 0 });
         await LocalMappingStateStore.SaveWithinAsync(
             connection,
@@ -425,13 +423,13 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
         return new ProjectionResult(insertedCount, [])
         {
             Warnings = warnings,
-            EffectivePopulation = new GlEffectivePopulationTotals(
-                sourceRowCount,
-                effectiveRowCount,
+            GlTotals = new GlTotals(
+                pbcRowCount,
+                glRowCount,
                 excludedByPeriodCount,
                 excludedByPostingStatusCount,
-                effectiveDebit,
-                effectiveCredit),
+                glDebit,
+                glCredit),
             FillDownCellCount = fillDown?.FilledCellCount ?? 0
         };
     }
@@ -453,7 +451,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             await using var insertField = connection.CreateCommand();
             insertField.Transaction = transaction;
             insertField.CommandText =
-                "INSERT INTO config_gl_rde_field "
+                "INSERT INTO gl_rde_field "
                 + "(field_id, source_column, label, value_type, ordinal, is_rde) "
                 + "VALUES (@fieldId, @sourceColumn, @label, @valueType, @ordinal, 1);";
             insertField.AddWithValue("@fieldId", field.FieldId);
@@ -482,8 +480,8 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
                 select.Transaction = transaction;
                 select.CommandText =
                     "SELECT g.entry_id, s.source_no, s.source_row_number, s.row_json "
-                    + "FROM target_gl_entry g "
-                    + "JOIN staging_gl_raw_row s ON s.batch_id = g.batch_id "
+                    + "FROM gl g "
+                    + "JOIN pbc_gl s ON s.batch_id = g.batch_id "
                     + "AND s.row_number = g.source_row_number "
                     + "WHERE g.batch_id = @batchId AND g.entry_id > @cursor "
                     + "ORDER BY g.entry_id "
@@ -514,7 +512,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             await using var writer = database.CreateBulkRowWriter(
                 connection,
                 transaction,
-                "target_gl_rde_value",
+                "gl_rde_value",
                 RdeValueColumns);
             var values = new object?[RdeValueColumns.Length];
             foreach (var item in page)

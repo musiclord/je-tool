@@ -20,7 +20,7 @@ internal static class ConcentrationWireKeys
         ["createdBy", "entryCount", "manualCount", "cumulativePct"];
 
     internal static readonly string[] RareAccountRow =
-        ["accountCode", "accountName", "entryCount"];
+        ["accountNumber", "accountName", "entryCount"];
 }
 
 /// <summary>
@@ -77,7 +77,7 @@ public sealed class OverviewConcentrationFrontendTests
     {
         var source = ReadFrontend("js", "overview-bi.js");
 
-        // 三張圖說原本各自寫一次「此為分布描述，非風險評估。」。使用者 2026-10-29 指出常駐說明太多，改成同一句話在同一個畫面只說一次，
+        // 三張圖說原本各自寫一次「此為分布描述，非風險評估。」。介面上的常駐說明太多（裁定 2026-10-29-02），改成同一句話在同一個畫面只說一次，
         // 改由流程總覽底部的定位說明說一次；這條原本鎖住圖說裡的句子，改版後依預期失敗，
         // 首敗收據 20261029-040132519-63b6b682d8554f9796feeccf6fbaf7ef。意圖不變：總覽說明這是分布描述，判斷留給審計員。
         Assert.DoesNotContain("此為分布描述", source, StringComparison.Ordinal);
@@ -102,7 +102,7 @@ public sealed class OverviewConcentrationFrontendTests
         }
 
         var app = ReadFrontend("js", "app.js");
-        // 使用者 2026-10-19 裁定「其他資訊」只留資料庫，不再顯示執行識別碼與規則版本。
+        // 裁定 2026-10-19-15：「其他資訊」只留資料庫，不再顯示執行識別碼與規則版本。
         // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍檢查標題，並改為確認兩個內部代號不上畫面。
         Assert.Contains("'<summary>其他資訊</summary>'", app, StringComparison.Ordinal);
         Assert.DoesNotContain("overviewKvRow('執行識別碼'", app, StringComparison.Ordinal);

@@ -24,7 +24,7 @@ public sealed class SystemDatabaseInfoHandlerTests
     public async Task DatabaseInfo_NotConfigured_ReturnsEmptySummary()
     {
         // 等價分割：未設定 SQL Server 時摘要是空字串，畫面不加訊息；本機兩種資料庫照常可用由 configured=false 表達。
-        // 方法名稱依批次 A 改過的內容更名（文字批次 C，2026-10-13），斷言不變。
+        // 方法名稱依改過的句子更名，斷言不變。
         var handler = new SystemDatabaseInfoHandler(new StubBackendProbe(SqlServerBackendInfo.NotConfigured));
 
         using var payload = JsonDocument.Parse("{}");
@@ -33,8 +33,8 @@ public sealed class SystemDatabaseInfoHandlerTests
 
         Assert.False(sql.GetProperty("configured").GetBoolean());
         Assert.False(sql.GetProperty("reachable").GetBoolean());
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-                // 9a-a 刪除：沒有設定 SQL Server 時後端回空摘要，畫面不加訊息；本機兩種資料庫照常可用由 configured=false 表達。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                // 原本的提示刪除：沒有設定 SQL Server 時後端回空摘要，畫面不加訊息；本機兩種資料庫照常可用由 configured=false 表達。
         Assert.Equal(string.Empty, sql.GetProperty("summary").GetString());
     }
 
@@ -61,7 +61,7 @@ public sealed class SystemDatabaseInfoHandlerTests
         Assert.Equal(JsonValueKind.String, sql.GetProperty("productName").ValueKind);
         Assert.Equal(JsonValueKind.String, sql.GetProperty("productVersion").ValueKind);
         Assert.Equal(JsonValueKind.String, sql.GetProperty("detail").ValueKind);
-        // 容量欄（控制面第七輪）：型別為數字（未設定/不可達時為 0）。
+        // 容量欄：型別為數字（未設定/不可達時為 0）。
         Assert.Equal(JsonValueKind.Number, sql.GetProperty("databaseSizeMb").ValueKind);
         Assert.Equal(JsonValueKind.Number, sql.GetProperty("schemaCount").ValueKind);
         Assert.Equal(JsonValueKind.String, sql.GetProperty("summary").ValueKind);
@@ -71,7 +71,7 @@ public sealed class SystemDatabaseInfoHandlerTests
     public async Task Summary_OnExpressEngine_IsSameSentenceAsOrdinaryConnection()
     {
         // Express 引擎（isExpress=true）的摘要和一般連線成功同一句。
-        // 方法名稱依批次 A 改過的內容更名（文字批次 C，2026-10-13），斷言不變。
+        // 方法名稱依改過的句子更名，斷言不變。
         var express = new SqlServerBackendInfo(
             Configured: true, Reachable: true, Server: "localhost", Database: "JET",
             Edition: "Express Edition (64-bit)", ProductName: "Microsoft SQL Server 2022",
@@ -83,8 +83,8 @@ public sealed class SystemDatabaseInfoHandlerTests
         var summary = JsonDocument.Parse(JsonSerializer.Serialize(result))
             .RootElement.GetProperty("sqlServer").GetProperty("summary").GetString();
 
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-                // 9b-b：拿掉 Express 那段後和一般連線成功同一句。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                // 拿掉 Express 那段後和一般連線成功同一句。
         Assert.Equal("已連上 SQL Server（伺服器 localhost，資料庫 JET），可以使用線上案件。", summary);
     }
 
@@ -94,7 +94,7 @@ public sealed class SystemDatabaseInfoHandlerTests
     [InlineData(false, false)]
     public async Task Summary_SeparatesServerAndDatabaseWithCommas_NotMiddleDotsOrWarningSigns(bool reachable, bool isExpress)
     {
-        // 2026-10-03 S9：使用者 2026-09-21 指出「・」串接是 AI 味，這段摘要設定 SQL Server 時會顯示在畫面上；
+        // 「・」串接是 AI 味（裁定 2026-09-21-03），這段摘要設定 SQL Server 時會顯示在畫面上；
         // 改用逗號與分句，也不再用「⚠」符號。只用合成的後端資訊，不連線 SQL Server。
         var info = new SqlServerBackendInfo(
             Configured: true, Reachable: reachable, Server: "localhost", Database: "JET",

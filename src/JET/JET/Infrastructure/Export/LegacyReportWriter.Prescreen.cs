@@ -24,7 +24,7 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         ReportWorkbookMetadataInvariant.Validate(workbookMetadata);
         return WritePlannedCoreAsync(
@@ -46,7 +46,7 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (!plan.IsFinalized)
@@ -83,7 +83,7 @@ public sealed partial class LegacyReportWriter
         PrescreenReportPlan plan,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var stats = new List<SheetStat>();
         var stylesPart = editor.Document.WorkbookPart?.WorkbookStylesPart
@@ -108,9 +108,9 @@ public sealed partial class LegacyReportWriter
             stats,
             context.Project,
             plan,
-            PrescreenReportDetailKind.PostPeriodApproval,
+            PrescreenReportDetailKind.PrepPeriodApproval,
             "R1",
-            PrescreenRuleKeys.PostPeriodApproval,
+            PrescreenRuleKeys.PrepPeriodApproval,
             legacyStyles,
             cancellationToken,
             progress).ConfigureAwait(false);
@@ -152,7 +152,7 @@ public sealed partial class LegacyReportWriter
             progress).ConfigureAwait(false);
 
         // R5／R6 是 legacy 的彙總表，不套用 10,000 列明細上限。
-        await EmitCreatorSummaryAsync(
+        await EmitPreparerSummaryAsync(
             editor.Document,
             editor.Sheets,
             stats,
@@ -215,7 +215,7 @@ public sealed partial class LegacyReportWriter
                 var closeDateText = ReadTemplateCellText(part, "C8")
                     .Replace(
                         "xxxx/xx/xx",
-                        context.Project.LastPeriodStart ?? "N/A",
+                        context.Project.PrepStartDate ?? "N/A",
                         StringComparison.Ordinal);
                 var zeroText = ReadTemplateCellText(part, "C11")
                     + TrailingZeroThreshold.DefaultZerosThreshold
@@ -234,16 +234,16 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("E4", $"Prepared by: {operatorId}");
                 cells.SetInlineString(
                     "E5",
-                    string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}"));
+                    string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
                 cells.SetInlineString("C8", closeDateText);
                 cells.SetInlineString("C11", zeroText);
 
                 SetPrescreenHitSummaryRow(
                     cells,
                     8,
-                    projection.PostPeriodApproval,
+                    projection.PrepPeriodApproval,
                     plan.RequireDetail(
-                        PrescreenReportDetailKind.PostPeriodApproval));
+                        PrescreenReportDetailKind.PrepPeriodApproval));
                 SetPrescreenHitSummaryRow(
                     cells,
                     9,
@@ -265,7 +265,7 @@ public sealed partial class LegacyReportWriter
                 SetPrescreenAggregateSummaryRow(
                     cells,
                     12,
-                    projection.CreatorSummary,
+                    projection.PreparerSummary,
                     "R5");
                 SetPrescreenAggregateSummaryRow(
                     cells,
@@ -352,7 +352,7 @@ public sealed partial class LegacyReportWriter
                 $"N/A（{detail.NaReason ?? "前置條件不足，未執行"}）",
             PrescreenReportDetailDisposition.Omit => "沒有符合項目",
             PrescreenReportDetailDisposition.Emit =>
-                $"符合 {detail.Counts!.RowHitCount:N0} 筆",
+                $"符合 {CountText.Format(detail.Counts!.RowHitCount)} 筆",
             PrescreenReportDetailDisposition.SummaryOnly =>
                 PrescreenSummaryOnlyMessage,
             _ => throw new InvalidOperationException(
@@ -447,7 +447,7 @@ public sealed partial class LegacyReportWriter
         string ruleKey,
         WorkbookStyleMap styles,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var detail = plan.RequireDetail(kind);
         if (!detail.Emit)
@@ -480,33 +480,33 @@ public sealed partial class LegacyReportWriter
         string? naReason) =>
         !string.IsNullOrWhiteSpace(naReason)
             ? $"N/A（{naReason}）"
-            : $"彙總 {count:N0} 項；詳 [{sheetName}] 工作表";
+            : $"彙總 {CountText.Format(count)} 項；詳 [{sheetName}] 工作表";
 
-    private async Task EmitCreatorSummaryAsync(
+    private async Task EmitPreparerSummaryAsync(
         SpreadsheetDocument document,
         Sheets sheets,
         List<SheetStat> stats,
         ReportDocumentContext context,
         WorkbookStyleMap styles,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
-        var creators = await creatorSummaries.FetchAllAsync(
+        var preparers = await preparerSummaries.FetchAllAsync(
             context.ProjectId,
             context.PeriodStart,
             context.PeriodEnd,
             cancellationToken).ConfigureAwait(false);
-        var widths = MeasureCreatorSummaryColumns(
-            creators,
+        var widths = MeasurePreparerSummaryColumns(
+            preparers,
             context.MoneyScale,
             cancellationToken);
-        var autoFitMode = creators.Count is > 0 and < 10_000
+        var autoFitMode = preparers.Count is > 0 and < 10_000
             ? RawSheetAutoFitMode.LegacyFirstTwenty
             : RawSheetAutoFitMode.None;
         var part = 1;
         uint row = 2;
         var sheetName = SeriesName("R5", part);
-        ReportSheetWriter? sheet = OpenCreatorSummarySheet(
+        ReportSheetWriter? sheet = OpenPreparerSummarySheet(
             document,
             sheets,
             part,
@@ -515,7 +515,7 @@ public sealed partial class LegacyReportWriter
             autoFitMode);
         try
         {
-            foreach (var item in creators)
+            foreach (var item in preparers)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (row > _continuationRowLimit)
@@ -528,7 +528,7 @@ public sealed partial class LegacyReportWriter
                     part++;
                     row = 2;
                     sheetName = SeriesName("R5", part);
-                    sheet = OpenCreatorSummarySheet(
+                    sheet = OpenPreparerSummarySheet(
                         document,
                         sheets,
                         part,
@@ -542,7 +542,7 @@ public sealed partial class LegacyReportWriter
                         sheet.TextCell(
                             row,
                             1,
-                            CreatorSummaryDisplay.NameOf(item.CreatedBy),
+                            PreparerSummaryDisplay.NameOf(item.CreatedBy),
                             LegacyReportStyles.ExportDatabaseText),
                         sheet.NumberCell(
                             row,
@@ -580,7 +580,7 @@ public sealed partial class LegacyReportWriter
         }
     }
 
-    private static ReportSheetWriter OpenCreatorSummarySheet(
+    private static ReportSheetWriter OpenPreparerSummarySheet(
         SpreadsheetDocument document,
         Sheets sheets,
         int part,
@@ -618,20 +618,20 @@ public sealed partial class LegacyReportWriter
         return sheet;
     }
 
-    private static IReadOnlyList<double> MeasureCreatorSummaryColumns(
-        IReadOnlyList<CreatorSummaryExportRow> creators,
+    private static IReadOnlyList<double> MeasurePreparerSummaryColumns(
+        IReadOnlyList<PreparerSummaryExportRow> preparers,
         int moneyScale,
         CancellationToken cancellationToken)
     {
         var widths = new ExcelDisplayWidthTracker(
             ["CREATED_BY", "ENTRY_COUNT", "DEBIT_TOTAL", "CREDIT_TOTAL"]);
-        foreach (var item in creators)
+        foreach (var item in preparers)
         {
             cancellationToken.ThrowIfCancellationRequested();
             widths.Observe(
             [
-                CreatorSummaryDisplay.NameOf(item.CreatedBy),
-                item.EntryCount.ToString("N0", CultureInfo.InvariantCulture),
+                PreparerSummaryDisplay.NameOf(item.CreatedBy),
+                CountText.Format(item.EntryCount),
                 FormatDisplayedAmount(item.DebitTotalScaled, moneyScale),
                 FormatDisplayedAmount(item.CreditTotalScaled, moneyScale)
             ]);
@@ -646,7 +646,7 @@ public sealed partial class LegacyReportWriter
         ReportDocumentContext context,
         WorkbookStyleMap styles,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var headers = await ResolveAccountUsageHeadersAsync(
             context.ProjectId,
@@ -705,7 +705,7 @@ public sealed partial class LegacyReportWriter
                         sheet.TextCell(
                             row,
                             1,
-                            item.AccountCode,
+                            item.AccountNumber,
                             LegacyReportStyles.ExportDatabaseText),
                         sheet.TextCell(
                             row,
@@ -762,9 +762,9 @@ public sealed partial class LegacyReportWriter
             DatasetKind.Gl,
             cancellationToken).ConfigureAwait(false);
         if (mapping is null
-            || !mapping.Mapping.TryGetValue(GlMappingKeys.AccNum, out var accountCodeColumn)
-            || string.IsNullOrWhiteSpace(accountCodeColumn)
-            || !mapping.Mapping.TryGetValue(GlMappingKeys.AccName, out var accountNameColumn)
+            || !mapping.Mapping.TryGetValue(GlMappingKeys.AccountNumber, out var accountNumberColumn)
+            || string.IsNullOrWhiteSpace(accountNumberColumn)
+            || !mapping.Mapping.TryGetValue(GlMappingKeys.AccountName, out var accountNameColumn)
             || string.IsNullOrWhiteSpace(accountNameColumn))
         {
             throw new JetActionException(
@@ -774,7 +774,7 @@ public sealed partial class LegacyReportWriter
 
         return
         [
-            accountCodeColumn,
+            accountNumberColumn,
             accountNameColumn,
             "ENTRY_COUNT",
             "DEBIT_TOTAL",
@@ -838,9 +838,9 @@ public sealed partial class LegacyReportWriter
             cancellationToken.ThrowIfCancellationRequested();
             widths.Observe(
             [
-                item.AccountCode,
+                item.AccountNumber,
                 item.AccountName,
-                item.EntryCount.ToString("N0", CultureInfo.InvariantCulture),
+                CountText.Format(item.EntryCount),
                 FormatDisplayedAmount(item.DebitTotalScaled, moneyScale),
                 FormatDisplayedAmount(item.CreditTotalScaled, moneyScale)
             ]);

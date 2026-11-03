@@ -17,7 +17,7 @@ public sealed class PrescreenRulePeriodTests
 {
     private static readonly string[] ExpectedRuleKeys =
     [
-        "postPeriodApproval",
+        "prepPeriodApproval",
         "suspiciousKeywords",
         "unexpectedAccountPair",
         "trailingZeros",
@@ -26,25 +26,22 @@ public sealed class PrescreenRulePeriodTests
         "holidayPosting",
         "holidayApproval",
         "blankDescription",
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，規則清單不再有 backdatedPosting。
-        "nonAuthorizedPreparer",
-        "lowFrequencyPreparer",
-        "lowFrequencyAccount"
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，規則清單不再有 backdatedPosting。
+        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），規則清單不再有 rarePreparer 與 rareAccount；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        "nonAuthorizedPreparer"
     ];
 
     private static readonly IReadOnlyDictionary<string, RuleOracle> FourRowOracle =
         new Dictionary<string, RuleOracle>(StringComparer.Ordinal)
         {
-            ["postPeriodApproval"] = new(2, 1, 50.0m),
+            ["prepPeriodApproval"] = new(2, 1, 50.0m),
             ["suspiciousKeywords"] = new(2, 1, 50.0m),
             ["trailingZeros"] = new(2, 1, 50.0m),
             ["weekendPosting"] = new(2, 1, 50.0m),
             ["weekendApproval"] = new(2, 1, 50.0m),
             ["holidayPosting"] = new(2, 1, 50.0m),
             ["holidayApproval"] = new(4, 2, 100.0m),
-            ["blankDescription"] = new(1, 1, 25.0m),
-            ["lowFrequencyPreparer"] = new(4, 2, 100.0m),
-            ["lowFrequencyAccount"] = new(4, 2, 100.0m)
+            ["blankDescription"] = new(1, 1, 25.0m)
         };
 
     [Fact]
@@ -106,15 +103,15 @@ public sealed class PrescreenRulePeriodTests
             InlineWorkbookProject.SetupAsync(
                 host,
                 BuildFourRowGl,
-                lastPeriodStart: "2026-12-31",
+                prepStartDate: "2026-12-31",
                 holidays: ["2026-03-08"],
                 periodStart: "2026-01-01",
                 periodEnd: "2026-12-31",
                 validateForDownstream: true));
 
-        Assert.Equal(JetErrorCodes.EmptyEffectivePopulation, exception.Code);
-        // 2026-10-03 用語統一 W10：審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.Equal(JetErrorCodes.EmptyGl, exception.Code);
+        // 用語統一後，審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Contains("本次配對未儲存", exception.Message, StringComparison.Ordinal);
     }
 
@@ -125,7 +122,7 @@ public sealed class PrescreenRulePeriodTests
         await InlineWorkbookProject.SetupAsync(
             host,
             BuildCrossYearGl,
-            lastPeriodStart: "2025-01-01",
+            prepStartDate: "2025-01-01",
             holidays: ["2024-12-31"],
             periodStart: "2024-12-31",
             periodEnd: "2025-01-01",
@@ -137,10 +134,9 @@ public sealed class PrescreenRulePeriodTests
 
         // 四列來源只有兩個閉區間邊界列屬母體；兩個界外列都刻意會改變下列 oracle。
         Assert.Equal(2, rulePeriod.GetProperty("population").GetInt64());
-        AssertApplicable(rules["postPeriodApproval"], new RuleOracle(1, 1, 50.0m));
+        AssertApplicable(rules["prepPeriodApproval"], new RuleOracle(1, 1, 50.0m));
         AssertApplicable(rules["blankDescription"], new RuleOracle(1, 1, 50.0m));
-        AssertApplicable(rules["lowFrequencyPreparer"], new RuleOracle(2, 2, 100.0m));
-        AssertApplicable(rules["lowFrequencyAccount"], new RuleOracle(2, 2, 100.0m));
+        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），原本這裡的兩條規則斷言跟著拿掉；期間邊界仍由上面兩條與下面兩條零命中的規則核對。
         AssertApplicable(rules["suspiciousKeywords"], new RuleOracle(0, 0, 0.0m));
         AssertApplicable(rules["weekendPosting"], new RuleOracle(0, 0, 0.0m));
     }
@@ -156,7 +152,7 @@ public sealed class PrescreenRulePeriodTests
             "project.load",
             JsonSerializer.Serialize(new { projectId }));
 
-        var resumed = loaded.GetProperty("latestRuns").GetProperty("prescreen");
+        var resumed = loaded.GetProperty("prescreenResult");
         Assert.Equal(7, resumed.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         Assert.False(resumed.TryGetProperty("rulePeriod", out _));
     }
@@ -181,7 +177,7 @@ public sealed class PrescreenRulePeriodTests
         InlineWorkbookProject.SetupAsync(
             host,
             BuildFourRowGl,
-            lastPeriodStart: "2025-12-31",
+            prepStartDate: "2025-12-31",
             holidays: ["2025-03-08", "2025-03-09", "2025-12-31"],
             databaseProvider: databaseProvider,
             validateForDownstream: true);
@@ -189,9 +185,9 @@ public sealed class PrescreenRulePeriodTests
     /// <summary>
     /// 手算母體共四列、兩張傳票：
     /// A 兩列同時命中期末後核准、關鍵字、六位連續零、週末／假日過帳；
-    /// （使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原本的「傳票日期_僅條件_JE」欄隨之拿掉。）
+    /// （裁定 2026-10-08-03 移除傳票日期與回溯過帳，原本的「傳票日期_僅條件_JE」欄隨之拿掉。）
     /// B 兩列命中週末核准，且只有第一列摘要空白；兩張傳票的核准日都是假日。
-    /// 所有建立人與科目使用次數都不超過 11，故兩個低頻規則命中四列。
+    /// 所有建立人與科目使用次數都不超過 11，故兩個較少使用規則命中四列。
     /// </summary>
     private static void BuildFourRowGl(InlineGlWorkbookBuilder builder)
     {
@@ -265,7 +261,7 @@ public sealed class PrescreenRulePeriodTests
             AssertApplicable(rules[key], expected);
         }
 
-        // 預篩選收斂計畫階段四（2026-10-23）要求第四步與第五步對同一條規則給同一個原因，句子寫出缺什麼、到哪裡補，
+        // 第四步與第五步要對同一條規則給同一個原因，句子寫出缺什麼、到哪裡補，
         // 預期值換成規則需求表的句子。第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
         AssertNotApplicable(
             rules["unexpectedAccountPair"],
@@ -315,24 +311,24 @@ public sealed class PrescreenRulePeriodTests
         HandlerTestHost host,
         string projectId)
     {
-        var runId = Guid.NewGuid().ToString("N");
+        var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
         var summaryJson = JsonSerializer.Serialize(new
         {
             suspiciousKeywords = new { status = "V", count = 7 },
             resultRef = new
             {
-                runId,
+                resultId,
                 generatedUtc,
                 logicVersion = RuleLogicVersions.Prescreen
             }
         });
 
-        var runStore = new LocalRuleRunStore(
+        var resultStore = new LocalResultStore(
             new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
-        await runStore.SaveAsync(
+        await resultStore.SaveAsync(
             projectId,
-            new RuleRunRecord(runId, RuleRunKinds.Prescreen, generatedUtc, summaryJson),
+            new ResultRecord(resultId, ResultKind.Prescreen, generatedUtc, summaryJson),
             CancellationToken.None);
     }
 

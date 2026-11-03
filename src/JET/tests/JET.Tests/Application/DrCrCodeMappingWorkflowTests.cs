@@ -1,0 +1,179 @@
+using System.Text.Json;
+using ClosedXML.Excel;
+using JET.Domain;
+using JET.Infrastructure;
+using JET.Tests.Infrastructure;
+using Xunit;
+
+namespace JET.Tests.Application;
+
+public sealed class DrCrCodeMappingWorkflowTests
+{
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task ExistingCommittedMappingWithoutCreditCode_LoadsValidatesAndExportsWithoutReprojection(string provider)
+    {
+        using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
+        await fixture.CommitAsync(Codes(), "side");
+        var current = (await fixture.LoadAsync()).GetProperty("mapping").GetProperty("gl");
+        var oldMapping = Codes(); oldMapping.Remove("drCrCreditCode");
+        var folder = new JetProjectFolder(fixture.Host.ProjectsRoot);
+        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        // 合成舊 v2 案件：保留已完成的 D/C 投影，只讓已儲存 snapshot 缺少新版新增的貸方代碼。
+        // 不經新版確認入口猜值，也不改任何 target 列。
+        await new LocalMappingStateStore(database).SaveAsync(fixture.ProjectId,
+            new CommittedMapping(DatasetKind.Gl, oldMapping, "side",
+                current.GetProperty("sourceBatchId").GetString()!, current.GetProperty("committedUtc").GetDateTimeOffset()),
+            CancellationToken.None);
+
+        var loaded = await fixture.LoadAsync();
+        var persistedMapping = loaded.GetProperty("mapping").GetProperty("gl").GetProperty("mapping");
+        Assert.False(persistedMapping.TryGetProperty("drCrCreditCode", out _));
+        Assert.Equal("D", persistedMapping.GetProperty("drCrDebitCode").GetString());
+        var validated = await fixture.Host.DispatchAsync("validate.run");
+        Assert.Equal(2, validated.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
+        var exported = await fixture.Host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new
+        { resultId = validated.GetProperty("resultRef").GetProperty("resultId").GetString() }));
+        Assert.True(exported.GetProperty("ok").GetBoolean());
+        Assert.Equal(2, exported.GetProperty("publishedReports").GetArrayLength());
+        var report = exported.GetProperty("publishedReports").EnumerateArray()
+            .Single(item => item.GetProperty("kind").GetString() == "validationReport");
+        using (var workbook = new XLWorkbook(report.GetProperty("fullPath").GetString()!))
+        using (var metadata = JsonDocument.Parse(workbook.Worksheet(MappingMetadataFormat.WorksheetName)
+                   .Cell(MappingMetadataFormat.PayloadCell).GetString()))
+        {
+            var snapshot = metadata.RootElement.GetProperty("gl").GetProperty("mapping");
+            Assert.False(snapshot.TryGetProperty("drCrCreditCode", out _));
+            Assert.Equal("D", snapshot.GetProperty("drCrDebitCode").GetString());
+        }
+        Assert.Equal(10_000, await fixture.ScalarAsync("SELECT amount_scaled FROM gl WHERE voucher_number = 'V000';"));
+        Assert.Equal(-10_000, await fixture.ScalarAsync("SELECT amount_scaled FROM gl WHERE voucher_number = 'V001';"));
+        var reopened = await fixture.LoadAsync();
+        Assert.Equal(persistedMapping.GetRawText(), reopened.GetProperty("mapping").GetProperty("gl").GetProperty("mapping").GetRawText());
+    }
+
+    [Theory]
+    [InlineData("sqlite", "side")]
+    [InlineData("duckdb", "side")]
+    [InlineData("sqlite", "flag")]
+    [InlineData("duckdb", "flag")]
+    public async Task KnownTwoCodes_HaveFixedSignedAnswers_AndPersistLiteralCodes(string provider, string mode)
+    {
+        using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
+        var mapping = Codes();
+        mapping["drCrDebitCode"] = "D"; mapping["drCrCreditCode"] = "c";
+        await fixture.CommitAsync(mapping, mode);
+        Assert.Equal(10_000, await fixture.ScalarAsync("SELECT amount_scaled FROM gl WHERE voucher_number = 'V000';"));
+        Assert.Equal(-10_000, await fixture.ScalarAsync("SELECT amount_scaled FROM gl WHERE voucher_number = 'V001';"));
+        var loaded = await fixture.LoadAsync();
+        Assert.Equal("D", loaded.GetProperty("mapping").GetProperty("gl").GetProperty("mapping").GetProperty("drCrDebitCode").GetString());
+        Assert.Equal("c", loaded.GetProperty("mapping").GetProperty("gl").GetProperty("mapping").GetProperty("drCrCreditCode").GetString());
+    }
+
+    [Theory]
+    [InlineData("sqlite", "side")]
+    [InlineData("duckdb", "side")]
+    [InlineData("sqlite", "flag")]
+    [InlineData("duckdb", "flag")]
+    public async Task UnknownAndBlankCodesAcrossSources_ReportFullCountAndRetainPriorState(string provider, string mode)
+    {
+        using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider, manyRows: true);
+        var before = await fixture.LoadAsync();
+        var mapping = Codes(); mapping["drCr"] = "BadSide";
+        var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, mode));
+        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
+        Assert.Equal(2, error.Details!.Count);
+        var unknown = Assert.Single(error.Details.Where(item => item.ReasonCode == "dc_unlisted"));
+        var blank = Assert.Single(error.Details.Where(item => item.ReasonCode == "dc_blank"));
+        Assert.All(error.Details, item => Assert.Equal("BadSide", item.SourceColumn));
+        Assert.Contains("63 列", unknown.Message, StringComparison.Ordinal);
+        Assert.Contains("共 60 列", unknown.Message, StringComparison.Ordinal);
+        Assert.Contains("second.xlsx 第 2、3、4 列", unknown.Message, StringComparison.Ordinal);
+        Assert.Contains("2 列", blank.Message, StringComparison.Ordinal);
+        Assert.Contains("second.xlsx 第 5、6 列", blank.Message, StringComparison.Ordinal);
+        var after = await fixture.LoadAsync();
+        Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());
+        Assert.Equal(before.GetProperty("validationResult").GetRawText(), after.GetProperty("validationResult").GetRawText());
+        Assert.Equal(before.GetProperty("prescreenResult").GetRawText(), after.GetProperty("prescreenResult").GetRawText());
+        Assert.Equal(650_000, await fixture.ScalarAsync("SELECT CAST(SUM(amount_scaled) AS BIGINT) FROM gl;"));
+    }
+
+    [Theory]
+    [InlineData("sqlite", false)]
+    [InlineData("duckdb", false)]
+    [InlineData("sqlite", true)]
+    [InlineData("duckdb", true)]
+    public async Task MissingBothOrOverlappingCodes_ExplainsNextStepWithoutChangingCommittedMapping(string provider, bool overlap)
+    {
+        using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
+        var before = await fixture.LoadAsync();
+        var mapping = Codes();
+        // 第 6 則允許只填一側；改以兩側都空白驗證必要提示，重複代碼與不改原資料的斷言保留。
+        if (overlap) mapping["drCrCreditCode"] = "\u3000d ";
+        else { mapping.Remove("drCrCreditCode"); mapping.Remove("drCrDebitCode"); }
+        var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "side"));
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                if (overlap)
+        {
+            Assert.Equal("借方與貸方代碼必須不同。", error.Message);
+        }
+        else
+        {
+            Assert.Contains("貸方代碼", error.Message, StringComparison.Ordinal);
+            Assert.Contains("借方代碼", error.Message, StringComparison.Ordinal);
+        }
+        var after = await fixture.LoadAsync();
+        Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());
+    }
+
+    [Theory]
+    [InlineData("sqlite", false)]
+    [InlineData("duckdb", false)]
+    [InlineData("sqlite", true)]
+    [InlineData("duckdb", true)]
+    public async Task Metadata_OneOrTwoCodesRoundTripWithoutMutatingTheCommittedMapping(string provider, bool hasCredit)
+    {
+        using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
+        var before = await fixture.LoadAsync();
+        var mapping = Codes(); mapping["drCrDebitCode"] = "D";
+        if (hasCredit) mapping["drCrCreditCode"] = "c"; else mapping.Remove("drCrCreditCode");
+        var gl = new CommittedMapping(DatasetKind.Gl, mapping, "side", "synthetic-gl", DateTimeOffset.UnixEpoch);
+        var tb = new CommittedMapping(DatasetKind.Tb, new Dictionary<string, string>
+            { ["accountNumber"] = "Account", ["accountName"] = "Name", ["changeAmount"] = "Good" }, "direct", "synthetic-tb", DateTimeOffset.UnixEpoch);
+        var encoded = MappingMetadataCodec.Encode(gl, tb);
+        var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
+        {
+            sheet.Name = MappingMetadataFormat.WorksheetName;
+            sheet.Cell(MappingMetadataFormat.MarkerCell).Value = MappingMetadataFormat.Marker;
+            sheet.Cell(MappingMetadataFormat.VersionCell).Value = MappingMetadataFormat.CurrentVersion;
+            sheet.Cell(MappingMetadataFormat.PayloadCell).Value = encoded;
+        });
+        try
+        {
+            // 第 6 則讓單邊舊草稿也可讀回；確認完整內容且不保存、不投影，不再要求杜撰貸方碼。
+            var restored = await fixture.Host.DispatchAsync("mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
+            Assert.Equal("D", restored.GetProperty("gl").GetProperty("mapping").GetProperty("drCrDebitCode").GetString());
+            if (hasCredit)
+            {
+                Assert.Equal("c", restored.GetProperty("gl").GetProperty("mapping").GetProperty("drCrCreditCode").GetString());
+            }
+            else
+            {
+                Assert.False(restored.GetProperty("gl").GetProperty("mapping").TryGetProperty("drCrCreditCode", out _));
+            }
+            var after = await fixture.LoadAsync();
+            Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());
+        }
+        finally { TestWorkbookBuilder.Delete(path); }
+    }
+
+    private static Dictionary<string, string> Codes()
+    {
+        var mapping = MappingCaseTemplateFixture.Mapping();
+        mapping["drCr"] = "Side"; mapping["drCrDebitCode"] = "D"; mapping["drCrCreditCode"] = "C";
+        return mapping;
+    }
+}

@@ -28,7 +28,7 @@ internal static class GuiScenarioCatalog
     internal const string LegacyFormWorkflow = "legacy-form-workflow";
     internal const string AuthorizedListRecovery = "authorized-list-recovery";
     internal const string UpstreamChangeAfterExport = "upstream-change-after-export";
-    internal const string CaseToWorkpaper = "case-to-workpaper";
+    internal const string CaseToWorkingPaper = "case-to-working-paper";
 
     // 這裡只記每個情境需要的合成夾具。操作上限、預期次數、逾時與截圖數只寫在 tools/harness/lanes.json，
     // 由驗證框架以命令列參數傳進來。
@@ -51,7 +51,7 @@ internal static class GuiScenarioCatalog
         [NestedVoucherWorkflow] = ["seed-export-ready-project"],
         [LegacyFormWorkflow] = ["seed-export-ready-project", "legacy-form-source"],
         [UpstreamChangeAfterExport] = ["seed-six-stage-complete-project"],
-        [CaseToWorkpaper] = ["case-import-source"],
+        [CaseToWorkingPaper] = ["case-import-source"],
     };
 
     internal static bool TryResolve(
@@ -174,8 +174,8 @@ internal sealed class GuiAssertions
     internal bool SqliteSelected { get; set; }
     internal bool ProjectCreated { get; set; }
     internal bool ImportStepVisible { get; set; }
-    internal bool CaseNameVisible { get; set; }
-    // 保留舊收據欄位，新的 GUI 判定改用 caseNameVisible。
+    internal bool ProjectNameVisible { get; set; }
+    // 保留舊收據欄位，新的 GUI 判定改用 projectNameVisible。
     internal bool ProjectCodeVisible { get; set; }
     internal bool ProjectJsonExists { get; set; }
     internal bool SqliteDatabaseExists { get; set; }
@@ -190,18 +190,17 @@ internal sealed class GuiAssertions
     internal bool LiteralCommitFirstClick { get; set; }
     internal bool EditedReportLoaded { get; set; }
     internal bool ModifiedOutsideVisible { get; set; }
-    internal bool WorkpaperExportEnabled { get; set; }
+    internal bool WorkingPaperExportEnabled { get; set; }
     internal bool CleanupPanelAbsent { get; set; }
-    internal bool WorkpaperHistoryVisible { get; set; }
+    internal bool WorkingPaperHistoryVisible { get; set; }
     internal bool HistoryDoesNotCompleteCurrentRun { get; set; }
     internal bool OldVersionRevealAvailable { get; set; }
     internal bool MissingVersionRevealDisabled { get; set; }
-    internal bool WorkpaperHistoryRetainedAfterExport { get; set; }
-    internal bool NewestWorkpaperFirst { get; set; }
+    internal bool WorkingPaperHistoryRetainedAfterExport { get; set; }
+    internal bool NewestWorkingPaperFirst { get; set; }
     internal bool SupportExportAvailable { get; set; }
     internal bool SupportLogWritten { get; set; }
     internal bool SupportLogSafe { get; set; }
-    internal bool LegacyJournalDiscarded { get; set; }
     internal bool ClassicApprovalModesCoherent { get; set; }
     internal bool GridApprovalModesCoherent { get; set; }
     internal bool CommittedMappingOptionsRestored { get; set; }
@@ -213,7 +212,7 @@ internal sealed class GuiAssertions
     internal bool AutomaticValidationReportsCreated { get; set; }
     internal bool AutomaticMappingTemplateCreated { get; set; }
     internal bool FilledTemplatePreservedAfterValidation { get; set; }
-    internal bool WorkpaperHistoryPaginationVerified { get; set; }
+    internal bool WorkingPaperHistoryPaginationVerified { get; set; }
     internal bool FilterWorkflowVerified { get; set; }
     internal bool FeedbackWorkflowVerified { get; set; }
     internal bool NullDetailsRecoveryVerified { get; set; }
@@ -224,7 +223,7 @@ internal sealed class GuiAssertions
     internal bool LegacyFormWorkflowVerified { get; set; }
     internal bool AuthorizedListRecoveryVerified { get; set; }
     internal bool UpstreamChangeAfterExportVerified { get; set; }
-    internal bool CaseToWorkpaperVerified { get; set; }
+    internal bool CaseToWorkingPaperVerified { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -351,7 +350,7 @@ internal static class ManifestWriter
                 sqliteSelected = outcome.Assertions.SqliteSelected,
                 projectCreated = outcome.Assertions.ProjectCreated,
                 importStepVisible = outcome.Assertions.ImportStepVisible,
-                caseNameVisible = outcome.Assertions.CaseNameVisible,
+                projectNameVisible = outcome.Assertions.ProjectNameVisible,
                 projectCodeVisible = outcome.Assertions.ProjectCodeVisible,
                 projectJsonExists = outcome.Assertions.ProjectJsonExists,
                 sqliteDatabaseExists = outcome.Assertions.SqliteDatabaseExists,
@@ -366,18 +365,17 @@ internal static class ManifestWriter
                 literalCommitFirstClick = outcome.Assertions.LiteralCommitFirstClick,
                 editedReportLoaded = outcome.Assertions.EditedReportLoaded,
                 modifiedOutsideVisible = outcome.Assertions.ModifiedOutsideVisible,
-                workpaperExportEnabled = outcome.Assertions.WorkpaperExportEnabled,
+                workingPaperExportEnabled = outcome.Assertions.WorkingPaperExportEnabled,
                 cleanupPanelAbsent = outcome.Assertions.CleanupPanelAbsent,
-                workpaperHistoryVisible = outcome.Assertions.WorkpaperHistoryVisible,
+                workingPaperHistoryVisible = outcome.Assertions.WorkingPaperHistoryVisible,
                 historyDoesNotCompleteCurrentRun = outcome.Assertions.HistoryDoesNotCompleteCurrentRun,
                 oldVersionRevealAvailable = outcome.Assertions.OldVersionRevealAvailable,
                 missingVersionRevealDisabled = outcome.Assertions.MissingVersionRevealDisabled,
-                workpaperHistoryRetainedAfterExport = outcome.Assertions.WorkpaperHistoryRetainedAfterExport,
-                newestWorkpaperFirst = outcome.Assertions.NewestWorkpaperFirst,
+                workingPaperHistoryRetainedAfterExport = outcome.Assertions.WorkingPaperHistoryRetainedAfterExport,
+                newestWorkingPaperFirst = outcome.Assertions.NewestWorkingPaperFirst,
                 supportExportAvailable = outcome.Assertions.SupportExportAvailable,
                 supportLogWritten = outcome.Assertions.SupportLogWritten,
                 supportLogSafe = outcome.Assertions.SupportLogSafe,
-                legacyJournalDiscarded = outcome.Assertions.LegacyJournalDiscarded,
                 classicApprovalModesCoherent = outcome.Assertions.ClassicApprovalModesCoherent,
                 gridApprovalModesCoherent = outcome.Assertions.GridApprovalModesCoherent,
                 committedMappingOptionsRestored = outcome.Assertions.CommittedMappingOptionsRestored,
@@ -399,8 +397,8 @@ internal static class ManifestWriter
                 legacyFormWorkflowVerified = outcome.Assertions.LegacyFormWorkflowVerified,
                 authorizedListRecoveryVerified = outcome.Assertions.AuthorizedListRecoveryVerified,
                 upstreamChangeAfterExportVerified = outcome.Assertions.UpstreamChangeAfterExportVerified,
-                caseToWorkpaperVerified = outcome.Assertions.CaseToWorkpaperVerified,
-                workpaperHistoryPaginationVerified = outcome.Assertions.WorkpaperHistoryPaginationVerified
+                caseToWorkingPaperVerified = outcome.Assertions.CaseToWorkingPaperVerified,
+                workingPaperHistoryPaginationVerified = outcome.Assertions.WorkingPaperHistoryPaginationVerified
             },
             process = new
             {

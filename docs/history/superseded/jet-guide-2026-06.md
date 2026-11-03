@@ -361,7 +361,7 @@ Step 5  工作底稿產出     →  Excel 多工作表
 
 #### 3.1.5 Excel（.xlsx）讀取規則與欄位集合收斂
 
-`.xlsx` 一律以 **OpenXML SAX 串流讀取**（forward-only、不建 worksheet DOM）。只有單一讀取器,不按檔案大小分支:百萬列等級的真實 PBC 活頁簿與小檔走同一條路（實證:114MB、兩工作表合計 1,403,327 列）。檔案檢視（inspect）與讀欄名只讀到標頭列就停,因此檢視的回應時間與檔案大小無關。
+`.xlsx` 一律以 **OpenXML SAX 串流讀取**（forward-only、不建 worksheet DOM）。只有單一讀取器,不按檔案大小分支:百萬列等級的真實 PBC 活頁簿與小檔走同一條路（實證:百 MB 等級、兩工作表合計百萬列等級）。檔案檢視（inspect）與讀欄名只讀到標頭列就停,因此檢視的回應時間與檔案大小無關。
 
 讀取行為（與 CSV 讀取器共用標頭正規化，staging 輸出形狀一字不差）：
 
@@ -1128,7 +1128,7 @@ SQL Server path 的 `target_gl_entry`、大型 `result_*` fact tables 應評估 
 
 GL/TB 投影（staging → target）與**匯入暫存寫入**（`SqlServerImportRepository` 寫入 `staging_*_raw_row`）都採用 `SqlBulkCopy` + 串流 `DbDataReader`，這是本節指定的大資料寫入形狀。
 
-匯入路徑原本是 row-by-row prepared insert，每一列一次 `ExecuteNonQueryAsync` round-trip；1,403,327 列實測約 212 秒，是主要瓶頸。2026-06-14 改為 `SqlBulkCopy`（`EnableStreaming = true`、`BulkCopyTimeout = 0`、沿用既有 transaction），由一個串流 reader 餵入。這個 reader（`StagingBulkCopyDataReader`）包住 `IAsyncEnumerable<StagingRow>`，曝出 staging 的 5 個欄位：`batch_id` / `row_number` / `source_no` / `source_row_number` / `row_json`。
+匯入路徑原本是 row-by-row prepared insert，每一列一次 `ExecuteNonQueryAsync` round-trip；百萬列等級的真實檔實測需數分鐘，是主要瓶頸。2026-06-14 改為 `SqlBulkCopy`（`EnableStreaming = true`、`BulkCopyTimeout = 0`、沿用既有 transaction），由一個串流 reader 餵入。這個 reader（`StagingBulkCopyDataReader`）包住 `IAsyncEnumerable<StagingRow>`，曝出 staging 的 5 個欄位：`batch_id` / `row_number` / `source_no` / `source_row_number` / `row_json`。
 
 `ReplaceBatchAsync` 與 `AppendToBatchAsync` 共用同一個 reader 形狀（kind-agnostic，GL/TB 都受惠；AccountMapping、Calendar 走獨立 store，屬小量參考資料,不在此範圍）。SQLite 路徑（transaction + prepared batch，約 44k 列/秒）不需改動，維持原狀。
 
@@ -1140,9 +1140,9 @@ producer **必須以 `Task.Run` 在獨立執行緒上跑**。xlsx SAX 解析是 
 
 語意與原 row-by-row 版逐項一致（特徵化測試鎖定）：空來源 rollback、附加自最大 `row_number` 續編、欄位集合收斂於串流結束後同交易回寫、取消整批 rollback 且 `JET_` 庫無已提交殘留。
 
-**實測（LocalDB、1,403,327 列）與比值的本質**：匯入從 211.9s（row-by-row）降到 **約 38s**（SqlBulkCopy 串流）。耗時分解:Excel SAX 解析加 JSON 序列化的 floor ≈ 29.7s，bulk copy 本身 ≈ 15.7s，兩者重疊後 ≈ 38s。**staging 寫入已經不是瓶頸,主導成本上移到 xlsx 解析——那屬於上游,不在本輪範圍。** GL 投影 ≈ 17–20s。
+**實測（LocalDB、百萬列等級）與比值的本質**：匯入從 row-by-row 的數分鐘降到 SqlBulkCopy 串流的 **不到一分鐘**。耗時分解:Excel SAX 解析加 JSON 序列化的 floor 佔大半，bulk copy 本身約佔一半左右，兩者重疊後即為總耗時。**staging 寫入已經不是瓶頸,主導成本上移到 xlsx 解析——那屬於上游,不在本輪範圍。** GL 投影約需十餘秒到二十秒。
 
-**比值（匯入 / 投影）≈ 2.0–2.2**,且因投影耗時浮動而在 1.9–2.2 間擺動。1.5 是結構下限（≈ 解析 floor / 投影）而非可超越的目標:匯入必須解析 114MB 的 xlsx,投影卻只讀已提交的 staging。因此規模測試（`SqlServerImportScaleSmokeTests`）只斷言列數正確,耗時與比值僅記錄供人工判讀,對齊既有 scale 測試「不做 wall-clock 斷言」的慣例。
+**比值（匯入 / 投影）≈ 2.0–2.2**,且因投影耗時浮動而在 1.9–2.2 間擺動。1.5 是結構下限（≈ 解析 floor / 投影）而非可超越的目標:匯入必須解析百 MB 等級的 xlsx,投影卻只讀已提交的 staging。因此規模測試（`SqlServerImportScaleSmokeTests`）只斷言列數正確,耗時與比值僅記錄供人工判讀,對齊既有 scale 測試「不做 wall-clock 斷言」的慣例。
 
 ### SQL 方言差異的處理
 
@@ -1157,7 +1157,7 @@ producer **必須以 `Task.Run` 在獨立執行緒上跑**。xlsx SAX 解析是 
 
 ### 全量明細 keyset 分頁（query.*Page）
 
-匯入母體可達 140 萬列以上，明細不可能一次回給前端。互動審閱用 `validate.run` / `filter.preview` 的 ≤50 / ≤1000 預覽即可；**走訪全量明細**（GUI「載入更多」、未來底稿匯出）走一組 keyset 游標分頁 action：
+匯入母體可達百萬列等級以上，明細不可能一次回給前端。互動審閱用 `validate.run` / `filter.preview` 的 ≤50 / ≤1000 預覽即可；**走訪全量明細**（GUI「載入更多」、未來底稿匯出）走一組 keyset 游標分頁 action：
 
 | Page action | 資料 | 排序／游標鍵（唯一） | 其他參數 |
 |:---|:---|:---|:---|

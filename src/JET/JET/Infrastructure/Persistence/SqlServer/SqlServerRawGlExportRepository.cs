@@ -29,8 +29,8 @@ public sealed class SqlServerRawGlExportRepository(SqlServerProjectDatabase data
             connection,
             projectId,
             "SELECT g.entry_id, r.row_json " +
-            "FROM {s}.target_gl_entry g " +
-            "JOIN {s}.staging_gl_raw_row r ON r.batch_id = g.batch_id AND r.row_number = g.source_row_number " +
+            "FROM {s}.gl g " +
+            "JOIN {s}.pbc_gl r ON r.batch_id = g.batch_id AND r.row_number = g.source_row_number " +
             "WHERE g.entry_id IN (__ENTRY_IDS__);");
 
         for (var index = 0; index < entryIds.Count; index++)

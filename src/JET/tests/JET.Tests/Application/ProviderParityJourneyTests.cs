@@ -8,7 +8,7 @@ using JET.Infrastructure;
 using JET.Tests.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Application;
 
 /// <summary>
@@ -70,7 +70,7 @@ public sealed class ProviderParityJourneyTests
     /// <summary>
     /// keyset 分頁 provider 等價:同一刻意「不齊」的 GL/TB 母體上(多個完整性差異科目:GL-only、
     /// TB-only、金額不符),分別於 SQLite 與 SQL Server 以「小 pageSize」走訪 query.completenessDiffPage
-    /// 到底(逐頁帶 nextCursor、跨多頁),斷言兩 provider 回傳的 accountCode 序列完全相同(SequenceEqual)。
+    /// 到底(逐頁帶 nextCursor、跨多頁),斷言兩 provider 回傳的 accountNumber 序列完全相同(SequenceEqual)。
     /// 這同時證明 SQL Server OFFSET/FETCH 語法合法、回傳集合與 SQLite 等價、分頁無漏無重、序穩——
     /// 直接 provider-to-provider 比對,不需手寫 recount SQL。無 LocalDB → 跳過(沿用既有閘控)。
     /// </summary>
@@ -105,7 +105,7 @@ public sealed class ProviderParityJourneyTests
             Assert.True(sqliteSequence.Count > pageSize,
                 $"母體須產生跨頁差異(>{pageSize} 筆)才能走到 OFFSET 分支,實得 {sqliteSequence.Count} 筆。");
 
-            // OFFSET/FETCH vs LIMIT:逐頁 accountCode 序列須完全相同(值＋順序＋筆數)。
+            // OFFSET/FETCH vs LIMIT:逐頁 accountNumber 序列須完全相同(值＋順序＋筆數)。
             Assert.Equal(sqliteSequence, sqlServerSequence);
         }
         finally
@@ -131,7 +131,7 @@ public sealed class ProviderParityJourneyTests
     /// 對應 TB(change_amount_scaled 直接帶號):1101 變動 80(≠ gl_s 100 → 差異)、
     /// 4101 變動 +50(= gl_s → 不入差異)、5101 變動 -50(= gl_s → 不入差異)、
     /// 7001 只在 TB(GL 無 → 差異)。預期差異科目集合 = {1101, 7001, 9001} 三筆,
-    /// 以 account_code 升序、跨 pageSize=2 的多頁(1101|7001 一頁,9001 次頁)。
+    /// 以 account_number 升序、跨 pageSize=2 的多頁(1101|7001 一頁,9001 次頁)。
     /// </summary>
     private static void ConfigureCompletenessTb(InlineTbWorkbookBuilder builder) =>
         builder
@@ -140,7 +140,7 @@ public sealed class ProviderParityJourneyTests
             .AddRow("5101", "成本",     "-50.00")
             .AddRow("7001", "預付款",   "30.00");
 
-    /// <summary>逐頁帶 nextCursor 走訪 query.completenessDiffPage 到底,回傳串接後的 accountCode 序列。</summary>
+    /// <summary>逐頁帶 nextCursor 走訪 query.completenessDiffPage 到底,回傳串接後的 accountNumber 序列。</summary>
     private static async Task<List<string>> WalkCompletenessDiffPagesAsync(HandlerTestHost host, int pageSize)
     {
         var all = new List<string>();
@@ -151,7 +151,7 @@ public sealed class ProviderParityJourneyTests
                 JsonSerializer.Serialize(new { cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
-                all.Add(r.GetProperty("accountCode").GetString()!);
+                all.Add(r.GetProperty("accountNumber").GetString()!);
             }
 
             var nextCursor = page.GetProperty("nextCursor");
@@ -162,13 +162,13 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// docBalancePage keyset 分頁 provider 等價:刻意造多張借貸不平傳票(SUM(amount_scaled)≠0),
-    /// 以小 pageSize 走訪 query.docBalancePage 到底,斷言兩 provider 回傳的 documentNumber 序列完全相同
+    /// voucherBalancePage keyset 分頁 provider 等價:刻意造多張借貸不平傳票(SUM(amount_scaled)≠0),
+    /// 以小 pageSize 走訪 query.voucherBalancePage 到底,斷言兩 provider 回傳的 voucherNumber 序列完全相同
     /// (SequenceEqual)。同時證明 SQL Server OFFSET/FETCH 合法、集合等價、無漏無重、序穩。
     /// >pageSize 擋偽綠。無 LocalDB → 跳過。
     /// </summary>
     [SqlServerFact]
-    public async Task DocBalancePage_WalkAllPages_IsEquivalentAcrossProviders()
+    public async Task VoucherBalancePage_WalkAllPages_IsEquivalentAcrossProviders()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -180,14 +180,14 @@ public sealed class ProviderParityJourneyTests
 
         using var sqliteHost = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(sqliteHost, ConfigureUnbalancedGl);
-        var sqliteSequence = await WalkDocBalancePagesAsync(sqliteHost, pageSize);
+        var sqliteSequence = await WalkVoucherBalancePagesAsync(sqliteHost, pageSize);
 
         using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
             await InlineWorkbookProject.SetupAsync(
                 sqlServerHost, ConfigureUnbalancedGl, databaseProvider: "sqlServer");
-            var sqlServerSequence = await WalkDocBalancePagesAsync(sqlServerHost, pageSize);
+            var sqlServerSequence = await WalkVoucherBalancePagesAsync(sqlServerHost, pageSize);
 
             Assert.True(sqliteSequence.Count > pageSize,
                 $"母體須產生跨頁不平傳票(>{pageSize} 筆)才能走到 OFFSET 分支,實得 {sqliteSequence.Count} 筆。");
@@ -200,13 +200,13 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// nullRecordsPage keyset 分頁 provider 等價(category=nullDescription):刻意造多列空摘要,
-    /// 以小 pageSize 走訪 query.nullRecordsPage 到底,斷言兩 provider 回傳序列完全相同。
+    /// blankRecordsPage keyset 分頁 provider 等價(category=nullDescription):刻意造多列空摘要,
+    /// 以小 pageSize 走訪 query.blankRecordsPage 到底,斷言兩 provider 回傳序列完全相同。
     /// 證明 entry_id 游標(long 綁參)、SQLite TRIM vs SQL Server LTRIM(RTRIM(...)) 空白判定等價、
     /// OFFSET/FETCH 合法。>pageSize 擋偽綠。無 LocalDB → 跳過。
     /// </summary>
     [SqlServerFact]
-    public async Task NullRecordsPage_WalkAllPages_IsEquivalentAcrossProviders()
+    public async Task BlankRecordsPage_WalkAllPages_IsEquivalentAcrossProviders()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -218,14 +218,14 @@ public sealed class ProviderParityJourneyTests
 
         using var sqliteHost = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(sqliteHost, ConfigureNullDescriptionGl);
-        var sqliteSequence = await WalkNullRecordsPagesAsync(sqliteHost, pageSize);
+        var sqliteSequence = await WalkBlankRecordsPagesAsync(sqliteHost, pageSize);
 
         using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
             await InlineWorkbookProject.SetupAsync(
                 sqlServerHost, ConfigureNullDescriptionGl, databaseProvider: "sqlServer");
-            var sqlServerSequence = await WalkNullRecordsPagesAsync(sqlServerHost, pageSize);
+            var sqlServerSequence = await WalkBlankRecordsPagesAsync(sqlServerHost, pageSize);
 
             Assert.True(sqliteSequence.Count > pageSize,
                 $"母體須產生跨頁空摘要列(>{pageSize} 筆)才能走到 OFFSET 分支,實得 {sqliteSequence.Count} 筆。");
@@ -239,7 +239,7 @@ public sealed class ProviderParityJourneyTests
 
     /// <summary>
     /// 多張不平傳票(每張 SUM(amount_scaled)≠0):JV-001 借 300/貸 100(+200)、JV-002 借 50(+50)、
-    /// JV-003 貸 70(-70)、JV-004 借 90(+90)。document_number 升序跨 pageSize=2 多頁。
+    /// JV-003 貸 70(-70)、JV-004 借 90(+90)。voucher_number 升序跨 pageSize=2 多頁。
     /// </summary>
     private static void ConfigureUnbalancedGl(InlineGlWorkbookBuilder builder) =>
         builder
@@ -259,18 +259,18 @@ public sealed class ProviderParityJourneyTests
             .AddRow("JV-003", "2025-03-07", "1101", "現金",     null, "30.00", 1)
             .AddRow("JV-004", "2025-03-08", "4101", "銷貨收入", null, "40.00", 0);
 
-    /// <summary>逐頁帶 nextCursor 走訪 query.docBalancePage 到底,回傳 documentNumber 序列。</summary>
-    private static async Task<List<string>> WalkDocBalancePagesAsync(HandlerTestHost host, int pageSize)
+    /// <summary>逐頁帶 nextCursor 走訪 query.voucherBalancePage 到底,回傳 voucherNumber 序列。</summary>
+    private static async Task<List<string>> WalkVoucherBalancePagesAsync(HandlerTestHost host, int pageSize)
     {
         var all = new List<string>();
         string? cursor = null;
         do
         {
-            var page = await host.DispatchAsync("query.docBalancePage",
+            var page = await host.DispatchAsync("query.voucherBalancePage",
                 JsonSerializer.Serialize(new { cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
-                all.Add(r.GetProperty("documentNumber").GetString()!);
+                all.Add(r.GetProperty("voucherNumber").GetString()!);
             }
 
             var nextCursor = page.GetProperty("nextCursor");
@@ -280,20 +280,20 @@ public sealed class ProviderParityJourneyTests
         return all;
     }
 
-    /// <summary>逐頁帶 nextCursor 走訪 query.nullRecordsPage(nullDescription)到底,回傳 doc|acc|date 序列。</summary>
-    private static async Task<List<string>> WalkNullRecordsPagesAsync(HandlerTestHost host, int pageSize)
+    /// <summary>逐頁帶 nextCursor 走訪 query.blankRecordsPage(nullDescription)到底,回傳 doc|acc|date 序列。</summary>
+    private static async Task<List<string>> WalkBlankRecordsPagesAsync(HandlerTestHost host, int pageSize)
     {
         var all = new List<string>();
         string? cursor = null;
         do
         {
-            var page = await host.DispatchAsync("query.nullRecordsPage",
+            var page = await host.DispatchAsync("query.blankRecordsPage",
                 JsonSerializer.Serialize(new { category = "nullDescription", cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
-                all.Add($"{r.GetProperty("documentNumber").GetString()}|" +
-                        $"{r.GetProperty("accountCode").GetString()}|" +
-                        $"{r.GetProperty("postDate").GetString()}");
+                all.Add($"{r.GetProperty("voucherNumber").GetString()}|" +
+                        $"{r.GetProperty("accountNumber").GetString()}|" +
+                        $"{r.GetProperty("glDate").GetString()}");
             }
 
             var nextCursor = page.GetProperty("nextCursor");
@@ -307,7 +307,7 @@ public sealed class ProviderParityJourneyTests
     /// filterHitsPage keyset 分頁 provider 等價:同一 demo 案件,commit 一個確有命中的情境
     /// (nonAuthorizedPreparer),以小 pageSize 走訪 query.filterHitsPage{scenarioPosition:1} 到底,
     /// 斷言兩 provider 回傳的 doc|lineItem 序列完全相同(SequenceEqual)。證明 SQL Server OFFSET/FETCH
-    /// 合法、entry_id 游標(long 綁參)等價、JOIN result_filter_run 集合等價、無漏無重序穩。
+    /// 合法、entry_id 游標(long 綁參)等價、JOIN filter_hit 集合等價、無漏無重序穩。
     /// >pageSize 擋偽綠。無 LocalDB → 跳過。
     /// </summary>
     [SqlServerFact]
@@ -344,13 +344,13 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// tagMatrixScenarios 情境摘要 provider 等價:同一 demo 案件 commit 多情境(含命中與 0 命中),
-    /// 分別於 SQLite 與 SQL Server 取 query.tagMatrixScenarios,斷言每個 position 的
+    /// highRiskSummaryScenarios 情境摘要 provider 等價:同一 demo 案件 commit 多情境(含命中與 0 命中),
+    /// 分別於 SQLite 與 SQL Server 取 query.highRiskSummaryScenarios,斷言每個 position 的
     /// (voucherHitCount, rowHitCount) 兩 count 完全相同。證明 COUNT(DISTINCT)/COUNT(*)→COUNT_BIG
     /// 的 GROUP BY 即時 pivot 跨 provider 等價。命中數 >0 擋偽綠。無 LocalDB → 跳過(沿用既有閘控)。
     /// </summary>
     [SqlServerFact]
-    public async Task TagMatrixScenarios_IsEquivalentAcrossProviders()
+    public async Task HighRiskSummaryScenarios_IsEquivalentAcrossProviders()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -360,15 +360,15 @@ public sealed class ProviderParityJourneyTests
 
         using var sqliteHost = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(sqliteHost);
-        await sqliteHost.DispatchAsync("filter.commit", TagMatrixScenarioPayload());
-        var sqliteSummary = await ReadTagMatrixSummaryAsync(sqliteHost);
+        await sqliteHost.DispatchAsync("filter.commit", HighRiskSummaryScenarioPayload());
+        var sqliteSummary = await ReadHighRiskSummarySummaryAsync(sqliteHost);
 
         using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
             await DemoProjectPipeline.SetupAsync(sqlServerHost, databaseProvider: "sqlServer");
-            await sqlServerHost.DispatchAsync("filter.commit", TagMatrixScenarioPayload());
-            var sqlServerSummary = await ReadTagMatrixSummaryAsync(sqlServerHost);
+            await sqlServerHost.DispatchAsync("filter.commit", HighRiskSummaryScenarioPayload());
+            var sqlServerSummary = await ReadHighRiskSummarySummaryAsync(sqlServerHost);
 
             // 母體須有命中(position 1/2 命中)才能證明 count 計算,而非「0==0」偽綠。
             Assert.True(sqliteSummary[1].Voucher > 0 && sqliteSummary[2].Row > 0,
@@ -383,24 +383,24 @@ public sealed class ProviderParityJourneyTests
         }
     }
 
-    /// <summary>多情境(命中 nonAuthorizedPreparer + 命中廣域金額 + 0 命中天價金額),供 tagMatrixScenarios parity 共用。</summary>
-    private static string TagMatrixScenarioPayload() =>
+    /// <summary>多情境(命中 nonAuthorizedPreparer + 命中廣域金額 + 0 命中天價金額),供 highRiskSummaryScenarios parity 共用。</summary>
+    private static string HighRiskSummaryScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new object[]
             {
                 new {
                     name = "非授權編製人員", rationale = "雙 provider 等價",
-                    groups = new[] { new { join = "and", rules = new object[] {
-                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    groups = new[] { new { join = "and", conditions = new object[] {
+                        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
                         new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "廣域金額", rationale = "雙 provider 等價",
-                    groups = new[] { new { join = "and", rules = new object[] {
+                    groups = new[] { new { join = "and", conditions = new object[] {
                         new { join = "and", type = "numRange", field = "amount", from = "0" } } } } },
                 new {
                     name = "天價(打不中)", rationale = "雙 provider 等價",
-                    groups = new[] { new { join = "and", rules = new object[] {
+                    groups = new[] { new { join = "and", conditions = new object[] {
                         new { join = "and", type = "numRange", field = "amount", from = "999999999999" } } } } }
             }
         });
@@ -410,31 +410,31 @@ public sealed class ProviderParityJourneyTests
     /// + 非授權編製人員 + 0 命中天價金額。借方行情境保證命中傳票內存在非命中行(matchedPositions=[]),
     /// 使 parity 同時覆蓋非命中行於兩 provider 一致列出。
     /// </summary>
-    private static string TagMatrixRowScenarioPayload() =>
+    private static string HighRiskSummaryRowScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new object[]
             {
                 new {
                     name = "借方行", rationale = "雙 provider 等價(行層子集)",
-                    groups = new[] { new { join = "and", rules = new object[] {
+                    groups = new[] { new { join = "and", conditions = new object[] {
                         new { join = "and", type = "drCrOnly", drCr = "debit" } } } } },
                 new {
                     name = "非授權編製人員", rationale = "雙 provider 等價",
-                    groups = new[] { new { join = "and", rules = new object[] {
-                        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    groups = new[] { new { join = "and", conditions = new object[] {
+                        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
                         new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "天價(打不中)", rationale = "雙 provider 等價",
-                    groups = new[] { new { join = "and", rules = new object[] {
+                    groups = new[] { new { join = "and", conditions = new object[] {
                         new { join = "and", type = "numRange", field = "amount", from = "999999999999" } } } } }
             }
         });
 
-    /// <summary>取 query.tagMatrixScenarios 摘要為 position → (voucher,row) 字典(供逐 position 等價比對)。</summary>
-    private static async Task<Dictionary<int, (long Voucher, long Row)>> ReadTagMatrixSummaryAsync(HandlerTestHost host)
+    /// <summary>取 query.highRiskSummaryScenarios 摘要為 position → (voucher,row) 字典(供逐 position 等價比對)。</summary>
+    private static async Task<Dictionary<int, (long Voucher, long Row)>> ReadHighRiskSummarySummaryAsync(HandlerTestHost host)
     {
-        var data = await host.DispatchAsync("query.tagMatrixScenarios");
+        var data = await host.DispatchAsync("query.highRiskSummaryScenarios");
         var summary = new Dictionary<int, (long Voucher, long Row)>();
         foreach (var s in data.GetProperty("scenarios").EnumerateArray())
         {
@@ -447,14 +447,14 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// tagMatrixVoucherPage keyset 兩段查詢 provider 等價:同一 demo 案件 commit 多情境(含命中與 0 命中),
-    /// 以小 pageSize 走訪 query.tagMatrixVoucherPage 到底,斷言兩 provider 回傳的 document_number 序列完全相同
-    /// (SequenceEqual)且每傳票的 matchedPositions 逐筆等價。證明 document_number 字串游標、EXISTS 命中篩、
+    /// highRiskSummaryVoucherPage keyset 兩段查詢 provider 等價:同一 demo 案件 commit 多情境(含命中與 0 命中),
+    /// 以小 pageSize 走訪 query.highRiskSummaryVoucherPage 到底,斷言兩 provider 回傳的 voucher_number 序列完全相同
+    /// (SequenceEqual)且每傳票的 matchedPositions 逐筆等價。證明 voucher_number 字串游標、EXISTS 命中篩、
     /// SUM(debit_amount_scaled) 聚合、查詢 2 同鍵範圍 (@lo,@hi] 取位置 + OFFSET/FETCH 跨 provider 等價、
     /// 分頁無漏無重序穩。>pageSize 擋偽綠。無 LocalDB → 跳過。
     /// </summary>
     [SqlServerFact]
-    public async Task TagMatrixVoucherPage_WalkAllPages_IsEquivalentAcrossProviders()
+    public async Task HighRiskSummaryVoucherPage_WalkAllPages_IsEquivalentAcrossProviders()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -467,21 +467,21 @@ public sealed class ProviderParityJourneyTests
 
         using var sqliteHost = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(sqliteHost);
-        await sqliteHost.DispatchAsync("filter.commit", TagMatrixScenarioPayload());
-        var sqliteRows = await WalkTagMatrixVoucherPagesAsync(sqliteHost, pageSize);
+        await sqliteHost.DispatchAsync("filter.commit", HighRiskSummaryScenarioPayload());
+        var sqliteRows = await WalkHighRiskSummaryVoucherPagesAsync(sqliteHost, pageSize);
 
         using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
             await DemoProjectPipeline.SetupAsync(sqlServerHost, databaseProvider: "sqlServer");
-            await sqlServerHost.DispatchAsync("filter.commit", TagMatrixScenarioPayload());
-            var sqlServerRows = await WalkTagMatrixVoucherPagesAsync(sqlServerHost, pageSize);
+            await sqlServerHost.DispatchAsync("filter.commit", HighRiskSummaryScenarioPayload());
+            var sqlServerRows = await WalkHighRiskSummaryVoucherPagesAsync(sqlServerHost, pageSize);
 
             // 母體須跨多頁(>pageSize)才能證明 OFFSET 分支與兩段查詢鍵範圍,而非單頁偽綠。
             Assert.True(sqliteRows.Count > pageSize,
                 $"命中傳票須跨頁(>{pageSize} 筆)才能走到 OFFSET 分支,實得 {sqliteRows.Count} 筆。");
 
-            // document_number 序列(含 voucherTotal 與 matchedPositions 串接)逐項完全相同。
+            // voucher_number 序列(含 voucherTotal 與 matchedPositions 串接)逐項完全相同。
             Assert.Equal(sqliteRows, sqlServerRows);
         }
         finally
@@ -490,20 +490,20 @@ public sealed class ProviderParityJourneyTests
         }
     }
 
-    /// <summary>逐頁帶 nextCursor 走訪 query.tagMatrixVoucherPage 到底,回傳 doc|voucherTotal|positions 序列。</summary>
-    private static async Task<List<string>> WalkTagMatrixVoucherPagesAsync(HandlerTestHost host, int pageSize)
+    /// <summary>逐頁帶 nextCursor 走訪 query.highRiskSummaryVoucherPage 到底,回傳 doc|voucherTotal|positions 序列。</summary>
+    private static async Task<List<string>> WalkHighRiskSummaryVoucherPagesAsync(HandlerTestHost host, int pageSize)
     {
         var all = new List<string>();
         string? cursor = null;
         do
         {
-            var page = await host.DispatchAsync("query.tagMatrixVoucherPage",
+            var page = await host.DispatchAsync("query.highRiskSummaryVoucherPage",
                 JsonSerializer.Serialize(new { cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
                 var positions = string.Join(",", r.GetProperty("matchedPositions")
                     .EnumerateArray().Select(p => p.GetInt32()));
-                all.Add($"{r.GetProperty("documentNumber").GetString()}|" +
+                all.Add($"{r.GetProperty("voucherNumber").GetString()}|" +
                         $"{r.GetProperty("voucherTotal").GetRawText()}|[{positions}]");
             }
 
@@ -515,15 +515,15 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// tagMatrixRowPage keyset 兩段查詢 provider 等價:同一 demo 案件 commit 多情境(含命中與 0 命中),
-    /// 以小 pageSize 走訪 query.tagMatrixRowPage 到底,斷言兩 provider 回傳的 entry_id 序列完全相同
+    /// highRiskSummaryRowPage keyset 兩段查詢 provider 等價:同一 demo 案件 commit 多情境(含命中與 0 命中),
+    /// 以小 pageSize 走訪 query.highRiskSummaryRowPage 到底,斷言兩 provider 回傳的 entry_id 序列完全相同
     /// (SequenceEqual,以 doc|lineItem|amount 鍵代理)且每行的 matchedPositions 逐筆等價(含非命中行的空 [])。
-    /// 證明 entry_id 游標、document_number IN(命中傳票集)子查詢、查詢 2 同鍵範圍 (@lo,@hi] 取位置 +
+    /// 證明 entry_id 游標、voucher_number IN(命中傳票集)子查詢、查詢 2 同鍵範圍 (@lo,@hi] 取位置 +
     /// OFFSET/FETCH 跨 provider 等價、分頁無漏無重序穩、非命中行兩 provider 一致列出。
     /// >pageSize 擋偽綠。無 LocalDB → 跳過。
     /// </summary>
     [SqlServerFact]
-    public async Task TagMatrixRowPage_WalkAllPages_IsEquivalentAcrossProviders()
+    public async Task HighRiskSummaryRowPage_WalkAllPages_IsEquivalentAcrossProviders()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -536,15 +536,15 @@ public sealed class ProviderParityJourneyTests
 
         using var sqliteHost = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(sqliteHost);
-        await sqliteHost.DispatchAsync("filter.commit", TagMatrixRowScenarioPayload());
-        var sqliteRows = await WalkTagMatrixRowPagesAsync(sqliteHost, pageSize);
+        await sqliteHost.DispatchAsync("filter.commit", HighRiskSummaryRowScenarioPayload());
+        var sqliteRows = await WalkHighRiskSummaryRowPagesAsync(sqliteHost, pageSize);
 
         using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
             await DemoProjectPipeline.SetupAsync(sqlServerHost, databaseProvider: "sqlServer");
-            await sqlServerHost.DispatchAsync("filter.commit", TagMatrixRowScenarioPayload());
-            var sqlServerRows = await WalkTagMatrixRowPagesAsync(sqlServerHost, pageSize);
+            await sqlServerHost.DispatchAsync("filter.commit", HighRiskSummaryRowScenarioPayload());
+            var sqlServerRows = await WalkHighRiskSummaryRowPagesAsync(sqlServerHost, pageSize);
 
             // 母體須跨多頁(>pageSize)才能證明 OFFSET 分支與兩段查詢鍵範圍,而非單頁偽綠。
             Assert.True(sqliteRows.Count > pageSize,
@@ -562,20 +562,20 @@ public sealed class ProviderParityJourneyTests
         }
     }
 
-    /// <summary>逐頁帶 nextCursor 走訪 query.tagMatrixRowPage 到底,回傳 doc|lineItem|amount|positions 序列。</summary>
-    private static async Task<List<string>> WalkTagMatrixRowPagesAsync(HandlerTestHost host, int pageSize)
+    /// <summary>逐頁帶 nextCursor 走訪 query.highRiskSummaryRowPage 到底,回傳 doc|lineItem|amount|positions 序列。</summary>
+    private static async Task<List<string>> WalkHighRiskSummaryRowPagesAsync(HandlerTestHost host, int pageSize)
     {
         var all = new List<string>();
         string? cursor = null;
         do
         {
-            var page = await host.DispatchAsync("query.tagMatrixRowPage",
+            var page = await host.DispatchAsync("query.highRiskSummaryRowPage",
                 JsonSerializer.Serialize(new { cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
                 var positions = string.Join(",", r.GetProperty("matchedPositions")
                     .EnumerateArray().Select(p => p.GetInt32()));
-                all.Add($"{r.GetProperty("documentNumber").GetString()}|" +
+                all.Add($"{r.GetProperty("voucherNumber").GetString()}|" +
                         $"{r.GetProperty("lineItem").GetString()}|" +
                         $"{r.GetProperty("amount").GetRawText()}|[{positions}]");
             }
@@ -665,9 +665,9 @@ public sealed class ProviderParityJourneyTests
 
     /// <summary>
     /// customPreparerEntryCount filterHits 分頁 provider 等價:同一 demo 案件 commit 一個 maxEntries 夠大
-    /// (= 母體列數 → demo 所有編製者全命中)的自訂低頻編製者情境,以小 pageSize 走訪
+    /// (= 母體列數 → demo 所有編製者全命中)的自訂較少使用編製者情境,以小 pageSize 走訪
     /// query.filterHitsPage 到底,斷言兩 provider 回傳的 doc|lineItem 序列完全相同(SequenceEqual)。
-    /// 證明低頻編製者自訂門檻軌的 GROUP BY/HAVING/COUNT(*) 子查詢述詞 + entry_id 游標跨 provider 等價。
+    /// 證明較少使用編製者自訂門檻軌的 GROUP BY/HAVING/COUNT(*) 子查詢述詞 + entry_id 游標跨 provider 等價。
     /// >pageSize 擋偽綠。無 LocalDB → 跳過。
     /// </summary>
     [SqlServerFact]
@@ -704,15 +704,15 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// 全編製人員彙總(E1 step1-2,不截斷)provider 等價:同一 demo 案件分別於 SQLite 與 SQL Server
-    /// 取 <see cref="ICreatorSummaryExportRepository.FetchAllAsync"/>,斷言兩 provider 回傳的
+    /// 全編製人員彙總(底稿 step1-2,不截斷)provider 等價:同一 demo 案件分別於 SQLite 與 SQL Server
+    /// 取 <see cref="IPreparerSummaryExportRepository.FetchAllAsync"/>,斷言兩 provider 回傳的
     /// (createdBy|entryCount|debit|credit)序列完全相同(SequenceEqual)。證明去 LIMIT 後的
     /// GROUP BY created_by ORDER BY COUNT(*) DESC, created_by(SqlServer 用 COUNT_BIG)跨 provider 等價。
     /// 直接建 repo(比照本檔 GlAutoNumbering)指向 host 建立的同一專案庫。
     /// 名單基數 >1 擋偽綠。無 LocalDB → 跳過(沿用既有閘控)。
     /// </summary>
     [SqlServerFact]
-    public async Task CreatorSummaryExport_FullList_IsEquivalentAcrossProviders()
+    public async Task PreparerSummaryExport_FullList_IsEquivalentAcrossProviders()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -722,7 +722,7 @@ public sealed class ProviderParityJourneyTests
 
         using var sqliteHost = new HandlerTestHost();
         var sqliteContext = await DemoProjectPipeline.SetupAsync(sqliteHost);
-        var sqliteRepo = new LocalCreatorSummaryExportRepository(
+        var sqliteRepo = new LocalPreparerSummaryExportRepository(
             new SqliteProjectDatabase(new JetProjectFolder(sqliteHost.ProjectsRoot)));
         var sqliteList = Flatten(await sqliteRepo.FetchAllAsync(sqliteContext.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None));
 
@@ -731,7 +731,7 @@ public sealed class ProviderParityJourneyTests
         {
             var sqlServerContext = await DemoProjectPipeline.SetupAsync(sqlServerHost, databaseProvider: "sqlServer");
             // 同一 base 連線指向同一 instance;預設落在隔離測試庫 JET_Test，CreateConnection(projectId) 對應 host 已建的該專案 schema。
-            var sqlServerRepo = new SqlServerCreatorSummaryExportRepository(
+            var sqlServerRepo = new SqlServerPreparerSummaryExportRepository(
                 new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString)));
             var sqlServerList = Flatten(
                 await sqlServerRepo.FetchAllAsync(sqlServerContext.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None));
@@ -748,7 +748,7 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>把全名單壓成可逐項比對的字串序列(createdBy|entryCount|debit|credit),保留順序。</summary>
-    private static List<string> Flatten(IReadOnlyList<CreatorSummaryExportRow> rows) =>
+    private static List<string> Flatten(IReadOnlyList<PreparerSummaryExportRow> rows) =>
         rows.Select(r => $"{r.CreatedBy}|{r.EntryCount}|{r.DebitTotalScaled}|{r.CreditTotalScaled}").ToList();
 
     /// <summary>
@@ -756,9 +756,9 @@ public sealed class ProviderParityJourneyTests
     /// provider 等價:同一刻意「不齊」的 GL/TB 母體(共用 completenessDiffPage parity 的
     /// <see cref="ConfigureCompletenessGl"/>/<see cref="ConfigureCompletenessTb"/>——全科目 5 個:
     /// 1101/7001/9001 為差異、4101/5101 為 diff=0),分別於 SQLite 與 SQL Server 直接建 repo
-    /// (比照本檔 <see cref="CreatorSummaryExport_FullList_IsEquivalentAcrossProviders"/>,此 query 無 action、
+    /// (比照本檔 <see cref="PreparerSummaryExport_FullList_IsEquivalentAcrossProviders"/>,此 query 無 action、
     /// 不走 dispatcher),以小 pageSize(2)逐頁帶 nextCursor 走訪到底,斷言兩 provider 回傳的
-    /// account_code 序列(及 tb_s/gl_s/diff/not_in_tb 關鍵欄)完全相同(SequenceEqual)。
+    /// account_number 序列(及 tb_s/gl_s/diff/not_in_tb 關鍵欄)完全相同(SequenceEqual)。
     /// 這證明 SQL Server OFFSET/FETCH 語法合法、回傳集合(含 diff=0 科目)與 SQLite 等價、分頁無漏無重序穩。
     /// 母體 >pageSize 擋偽綠;母體含 diff=0 科目使「不過濾 diff」這唯一差異也跨 provider 等價。
     /// 無 LocalDB → 跳過(沿用既有閘控)。
@@ -799,7 +799,7 @@ public sealed class ProviderParityJourneyTests
             Assert.True(sqliteSequence.Count > pageSize,
                 $"全科目須跨頁(>{pageSize} 筆)才能走到 OFFSET 分支,實得 {sqliteSequence.Count} 筆。");
 
-            // OFFSET/FETCH vs LIMIT:逐頁序列(account_code 與 tb_s/gl_s/diff/not_in_tb)須完全相同。
+            // OFFSET/FETCH vs LIMIT:逐頁序列(account_number 與 tb_s/gl_s/diff/not_in_tb)須完全相同。
             Assert.Equal(sqliteSequence, sqlServerSequence);
         }
         finally
@@ -808,7 +808,7 @@ public sealed class ProviderParityJourneyTests
         }
     }
 
-    /// <summary>逐頁帶 nextCursor 直接走訪全科目 repo 到底,回傳 account_code|tb_s|gl_s|diff|not_in_tb 序列。</summary>
+    /// <summary>逐頁帶 nextCursor 直接走訪全科目 repo 到底,回傳 account_number|tb_s|gl_s|diff|not_in_tb 序列。</summary>
     private static async Task<List<string>> WalkCompletenessAccountPagesAsync(
         ICompletenessAccountPageRepository repo, string projectId, int pageSize)
     {
@@ -819,7 +819,7 @@ public sealed class ProviderParityJourneyTests
             var page = await repo.GetPageAsync(
                 projectId, moneyScale: 100, "2025-01-01", "2025-12-31", new PageRequest(cursor, pageSize), CancellationToken.None);
             all.AddRange(page.Rows.Select(r =>
-                $"{r.AccountCode}|{r.TbAmountScaled}|{r.GlAmountScaled}|{r.DiffScaled}|{r.NotInTb}"));
+                $"{r.AccountNumber}|{r.TbAmountScaled}|{r.GlAmountScaled}|{r.DiffScaled}|{r.NotInTb}"));
             cursor = page.NextCursor;
         } while (cursor is not null);
 
@@ -827,44 +827,10 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// 低頻科目(C9)prescreen 計數 provider 等價:同一 demo 案件分別於 SQLite 與 SQL Server 跑 prescreen.run,
-    /// 斷言 lowFrequencyAccount.count 完全相同。證明 GROUP BY/HAVING/COUNT(*) 子查詢述詞跨 provider 等價。
-    /// 無 LocalDB → 跳過(沿用既有閘控)。
-    /// </summary>
-    [SqlServerFact]
-    public async Task PrescreenLowFrequencyAccount_IsEquivalentAcrossProviders()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return; // 無 SQL Server → 跳過
-        }
-
-        using var sqliteHost = new HandlerTestHost();
-        await DemoProjectPipeline.SetupAsync(sqliteHost);
-        var sqlitePrescreen = await sqliteHost.DispatchAsync("prescreen.run");
-        var sqliteCount = sqlitePrescreen.GetProperty("lowFrequencyAccount").GetProperty("count").GetRawText();
-
-        using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        try
-        {
-            await DemoProjectPipeline.SetupAsync(sqlServerHost, databaseProvider: "sqlServer");
-            var sqlServerPrescreen = await sqlServerHost.DispatchAsync("prescreen.run");
-            var sqlServerCount = sqlServerPrescreen.GetProperty("lowFrequencyAccount").GetProperty("count").GetRawText();
-
-            Assert.Equal(sqliteCount, sqlServerCount);
-        }
-        finally
-        {
-            await DropAllProjectDatabasesAsync(sqlServerHost.ProjectsRoot, connectionString);
-        }
-    }
-
-    /// <summary>
     /// customAccountEntryCount filterHits 分頁 provider 等價:同一 demo 案件 commit 一個 maxEntries 夠大
-    /// (= 母體列數 → demo 所有科目全命中)的自訂低頻科目情境,以小 pageSize 走訪
+    /// (= 母體列數 → demo 所有科目全命中)的自訂較少使用科目情境,以小 pageSize 走訪
     /// query.filterHitsPage 到底,斷言兩 provider 回傳的 doc|lineItem 序列完全相同(SequenceEqual)。
-    /// 證明 C9 自訂門檻軌的 GROUP BY/HAVING/COUNT(*) 子查詢述詞 + entry_id 游標跨 provider 等價。
+    /// 證明自訂門檻條件的 GROUP BY/HAVING/COUNT(*) 子查詢述詞 + entry_id 游標跨 provider 等價。
     /// >pageSize 擋偽綠。無 LocalDB → 跳過。
     /// </summary>
     [SqlServerFact]
@@ -903,38 +869,38 @@ public sealed class ProviderParityJourneyTests
     /// <summary>門檻取母體列數(≥ 任一科目筆數)→ demo 所有科目全命中,跨頁命中 > pageSize 擋偽綠。</summary>
     private const int AllMatchingMaxEntries = DemoDataFactory.GlVoucherCount * DemoDataFactory.LinesPerVoucher;
 
-    /// <summary>科目分錄筆數不超過母體列數的情境（demo 所有科目全命中），供低頻科目的 parity 共用。
-    /// 預篩選收斂計畫階段九把舊式 customAccountEntryCount 列為停用寫法，改成等價的「科目與人員統計」；
+    /// <summary>科目分錄筆數不超過母體列數的情境（demo 所有科目全命中），供較少使用科目的 parity 共用。
+    /// 舊式 customAccountEntryCount 已列為停用寫法，改成等價的「科目與人員統計」；
     /// 這則只在有 SQL Server 時執行，暫緩期間只改不跑，沒有第一次失敗的收據。</summary>
     private static string CustomAccountEntryCountScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "低頻科目(自訂)", rationale = "雙 provider 等價",
-                groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "entityFrequency", field = "accNum", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = AllMatchingMaxEntries } } } } } }
+                name = "較少使用科目(自訂)", rationale = "雙 provider 等價",
+                groups = new[] { new { join = "and", conditions = new[] {
+                    new { join = "and", type = "entityFrequency", field = "accountNumber", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = AllMatchingMaxEntries } } } } } }
         });
 
-    /// <summary>編製人員分錄筆數不超過母體列數的情境（demo 編製者全命中），供低頻編製者的 parity 共用。
-    /// 預篩選收斂計畫階段九把舊式 customPreparerEntryCount 列為停用寫法，改成等價的「科目與人員統計」；
+    /// <summary>編製人員分錄筆數不超過母體列數的情境（demo 編製者全命中），供較少使用編製者的 parity 共用。
+    /// 舊式 customPreparerEntryCount 已列為停用寫法，改成等價的「科目與人員統計」；
     /// 這則只在有 SQL Server 時執行，暫緩期間只改不跑，沒有第一次失敗的收據。</summary>
     private static string CustomPreparerEntryCountScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
-                name = "低頻編製者(自訂)", rationale = "雙 provider 等價",
-                groups = new[] { new { join = "and", rules = new[] {
-                    new { join = "and", type = "entityFrequency", field = "createBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = AllMatchingMaxEntries } } } } } }
+                name = "較少使用編製者(自訂)", rationale = "雙 provider 等價",
+                groups = new[] { new { join = "and", conditions = new[] {
+                    new { join = "and", type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = AllMatchingMaxEntries } } } } } }
         });
 
-    /// <summary>nonAuthorizedPreparer 情境(demo 母體確有命中；使用者 2026-10-08 裁定移除傳票日期與回溯過帳，原為 backdatedPosting),供 filterHits parity 兩 provider 共用。</summary>
+    /// <summary>nonAuthorizedPreparer 情境(demo 母體確有命中；裁定 2026-10-08-03 移除傳票日期與回溯過帳，原為 backdatedPosting),供 filterHits parity 兩 provider 共用。</summary>
     private static string NonAuthorizedScenarioPayload() =>
         JsonSerializer.Serialize(new
         {
             scenarios = new[] { new {
                 name = "非授權編製人員", rationale = "雙 provider 等價",
-                groups = new[] { new { join = "and", rules = new[] {
-                    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                groups = new[] { new { join = "and", conditions = new[] {
+                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         });
 
@@ -949,7 +915,7 @@ public sealed class ProviderParityJourneyTests
                 JsonSerializer.Serialize(new { scenarioPosition = 1, cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
-                all.Add($"{r.GetProperty("documentNumber").GetString()}|{r.GetProperty("lineItem").GetString()}");
+                all.Add($"{r.GetProperty("voucherNumber").GetString()}|{r.GetProperty("lineItem").GetString()}");
             }
 
             var nextCursor = page.GetProperty("nextCursor");
@@ -986,12 +952,12 @@ public sealed class ProviderParityJourneyTests
                 JsonSerializer.Serialize(new { cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
-                all.Add($"{r.GetProperty("documentNumber").GetString()}|" +
-                        $"{r.GetProperty("accountCode").GetString()}|" +
+                all.Add($"{r.GetProperty("voucherNumber").GetString()}|" +
+                        $"{r.GetProperty("accountNumber").GetString()}|" +
                         $"{r.GetProperty("accountName").GetString()}|" +
                         $"{r.GetProperty("debit").GetRawText()}|" +
                         $"{r.GetProperty("credit").GetRawText()}|" +
-                        $"{r.GetProperty("postDate").GetString()}|" +
+                        $"{r.GetProperty("glDate").GetString()}|" +
                         $"{r.GetProperty("approvalDate").GetString()}|" +
                         $"{r.GetProperty("createdBy").GetString()}|" +
                         $"{r.GetProperty("approvedBy").GetString()}|" +
@@ -1042,7 +1008,7 @@ public sealed class ProviderParityJourneyTests
         });
         try
         {
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留資料庫等價比對的原斷言。
+            // sourceColumn 改成必填，後端不再猜人員欄；保留資料庫等價比對的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = authorizedListPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
         }
@@ -1060,17 +1026,17 @@ public sealed class ProviderParityJourneyTests
         metrics["validate.net"] = stats.GetProperty("net").GetRawText();
         metrics["validate.completeness.diffAccountCount"] =
             validate.GetProperty("completenessTest").GetProperty("diffAccountCount").GetRawText();
-        metrics["validate.docBalance.unbalancedDocumentCount"] =
-            validate.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetRawText();
-        var nullRecords = validate.GetProperty("nullRecordsTest");
-        metrics["validate.null.account"] = nullRecords.GetProperty("nullAccountCount").GetRawText();
-        metrics["validate.null.document"] = nullRecords.GetProperty("nullDocumentCount").GetRawText();
-        metrics["validate.null.description"] = nullRecords.GetProperty("nullDescriptionCount").GetRawText();
-        metrics["validate.null.outOfRangeDate"] = nullRecords.GetProperty("outOfRangeDateCount").GetRawText();
+        metrics["validate.voucherBalance.unbalancedVoucherCount"] =
+            validate.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetRawText();
+        var blankRecords = validate.GetProperty("blankRecordsTest");
+        metrics["validate.null.account"] = blankRecords.GetProperty("nullAccountCount").GetRawText();
+        metrics["validate.null.document"] = blankRecords.GetProperty("nullDocumentCount").GetRawText();
+        metrics["validate.null.description"] = blankRecords.GetProperty("nullDescriptionCount").GetRawText();
+        metrics["validate.null.approvalDateNotInPeriod"] = blankRecords.GetProperty("approvalDateNotInPeriodCount").GetRawText();
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         metrics["prescreen.suspiciousKeywords"] = prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetRawText();
-        metrics["prescreen.postPeriodApproval"] = prescreen.GetProperty("postPeriodApproval").GetProperty("count").GetRawText();
+        metrics["prescreen.prepPeriodApproval"] = prescreen.GetProperty("prepPeriodApproval").GetProperty("count").GetRawText();
         metrics["prescreen.trailingZeros.count"] = prescreen.GetProperty("trailingZeros").GetProperty("count").GetRawText();
         metrics["prescreen.trailingZeros.threshold"] = prescreen.GetProperty("trailingZeros").GetProperty("zerosThreshold").GetRawText();
         metrics["prescreen.weekend.posting"] = prescreen.GetProperty("weekendActivity").GetProperty("postingCount").GetRawText();
@@ -1082,15 +1048,14 @@ public sealed class ProviderParityJourneyTests
         metrics["prescreen.blankDescription"] = prescreen.GetProperty("blankDescription").GetProperty("count").GetRawText();
         metrics["prescreen.nonAuthorizedPreparer.count"] = prescreen.GetProperty("nonAuthorizedPreparer").GetProperty("count").GetRawText();
         metrics["prescreen.nonAuthorizedPreparer.status"] = prescreen.GetProperty("nonAuthorizedPreparer").GetProperty("status").GetString()!;
-        metrics["prescreen.lowFrequencyPreparer.count"] = prescreen.GetProperty("lowFrequencyPreparer").GetProperty("count").GetRawText();
-        metrics["prescreen.lowFrequencyAccount.count"] = prescreen.GetProperty("lowFrequencyAccount").GetProperty("count").GetRawText();
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，不再比對 backdatedPosting。
+        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），不再比對 rarePreparer 與 rareAccount；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，不再比對 backdatedPosting。
         metrics["prescreen.rareAccounts.distinct"] = prescreen.GetProperty("rareAccounts").GetProperty("distinctAccountCount").GetRawText();
-        var creators = prescreen.GetProperty("creatorSummary").GetProperty("creators").EnumerateArray().ToList();
-        metrics["prescreen.creatorSummary.count"] = creators.Count.ToString();
-        metrics["prescreen.creatorSummary.entryTotal"] = creators.Sum(c => c.GetProperty("entryCount").GetInt64()).ToString();
-        metrics["prescreen.creatorSummary.rows"] =
-            prescreen.GetProperty("creatorSummary").GetProperty("creators").GetRawText();
+        var preparers = prescreen.GetProperty("preparerSummary").GetProperty("preparers").EnumerateArray().ToList();
+        metrics["prescreen.preparerSummary.count"] = preparers.Count.ToString();
+        metrics["prescreen.preparerSummary.entryTotal"] = preparers.Sum(c => c.GetProperty("entryCount").GetInt64()).ToString();
+        metrics["prescreen.preparerSummary.rows"] =
+            prescreen.GetProperty("preparerSummary").GetProperty("preparers").GetRawText();
         metrics["prescreen.rareAccounts.rows"] =
             prescreen.GetProperty("rareAccounts").GetProperty("accounts").GetRawText();
 
@@ -1106,7 +1071,7 @@ public sealed class ProviderParityJourneyTests
                     new
                     {
                         join = "AND",
-                        rules = new object[]
+                        conditions = new object[]
                         {
                             new { join = "AND", type = "prescreen", prescreenKey = "unexpectedAccountPair" }
                         }
@@ -1118,7 +1083,7 @@ public sealed class ProviderParityJourneyTests
         metrics["filter.count"] = scenario.GetProperty("count").GetRawText();
         metrics["filter.voucherCount"] = scenario.GetProperty("voucherCount").GetRawText();
         var previewRows = scenario.GetProperty("previewRows").EnumerateArray()
-            .Select(r => $"{r.GetProperty("documentNumber").GetString()}|{r.GetProperty("lineItem").GetString()}|{r.GetProperty("amount").GetRawText()}|{r.GetProperty("drCr").GetString()}")
+            .Select(r => $"{r.GetProperty("voucherNumber").GetString()}|{r.GetProperty("lineItem").GetString()}|{r.GetProperty("amount").GetRawText()}|{r.GetProperty("drCr").GetString()}")
             .ToList();
         metrics["filter.previewRows"] = string.Join(";", previewRows);
 
@@ -1126,20 +1091,20 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// 自動編號本機 provider 等價：lineID 未對應的 GL 批次（多傳票、每傳票多列、交錯送入）
-    /// 於 SQLite 與 DuckDB 各自投影，斷言 (document_number, source_row_number, line_item)
+    /// 自動編號本機 provider 等價：lineItem 未對應的 GL 批次（多傳票、每傳票多列、交錯送入）
+    /// 於 SQLite 與 DuckDB 各自投影，斷言 (voucher_number, source_row_number, line_item)
     /// 序列完全一致，且符合既有逐傳票 ROW_NUMBER 手算 oracle。本測試不掛外部後端 gate。
     /// </summary>
     [Fact]
-    public async Task GlAutoNumbering_LineIdUnmapped_IsEquivalentAcrossLocalProviders()
+    public async Task GlAutoNumbering_LineItemUnmapped_IsEquivalentAcrossLocalProviders()
     {
         using var root = new TempProjectRoot();
         var sqliteDb = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
-        var sqliteSequence = await ProjectUnmappedLineIdWithLocalProviderAsync(sqliteDb);
+        var sqliteSequence = await ProjectUnmappedLineItemWithLocalProviderAsync(sqliteDb);
 
         using var duckRoot = new TempProjectRoot();
         var duckDb = new DuckDbProjectDatabase(new JetProjectFolder(duckRoot.Path));
-        var duckDbSequence = await ProjectUnmappedLineIdWithLocalProviderAsync(duckDb);
+        var duckDbSequence = await ProjectUnmappedLineItemWithLocalProviderAsync(duckDb);
 
         Assert.Equal(ExpectedAutoNumberingSequence(), sqliteSequence);
         Assert.Equal(sqliteSequence, duckDbSequence);
@@ -1151,7 +1116,7 @@ public sealed class ProviderParityJourneyTests
     /// SQLite↔DuckDB parity 仍由不掛 gate 的測試獨立執行。
     /// </summary>
     [SqlServerFact]
-    public async Task GlAutoNumbering_LineIdUnmapped_SqlServerMatchesLocalBaseline()
+    public async Task GlAutoNumbering_LineItemUnmapped_SqlServerMatchesLocalBaseline()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -1161,7 +1126,7 @@ public sealed class ProviderParityJourneyTests
 
         using var root = new TempProjectRoot();
         var sqliteDb = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
-        var sqliteSequence = await ProjectUnmappedLineIdWithLocalProviderAsync(sqliteDb);
+        var sqliteSequence = await ProjectUnmappedLineItemWithLocalProviderAsync(sqliteDb);
 
         await using var sql = await TempSqlServerProject.TryCreateAsync();
         Assert.NotNull(sql); // ProbeConnectionString 已成功，建庫亦應成功。
@@ -1190,7 +1155,7 @@ public sealed class ProviderParityJourneyTests
         Assert.Equal(sqliteSequence, sqlServerSequence);
     }
 
-    private static async Task<List<(string?, long, string?)>> ProjectUnmappedLineIdWithLocalProviderAsync(
+    private static async Task<List<(string?, long, string?)>> ProjectUnmappedLineItemWithLocalProviderAsync(
         ILocalProjectDatabase database)
     {
         const string batchId = "b1";
@@ -1223,14 +1188,14 @@ public sealed class ProviderParityJourneyTests
         ("D2", 2, "1"), ("D2", 5, "2")
     ];
 
-    /// <summary>未對應 lineID 的 GL 批次(DualSpec 用,僅借方有額)。</summary>
+    /// <summary>未對應 lineItem 的 GL 批次(DualSpec 用,僅借方有額)。</summary>
     private static GlMappingSpec DualSpec() => new(
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"
@@ -1238,7 +1203,7 @@ public sealed class ProviderParityJourneyTests
         GlAmountMode.DualAmount);
 
     /// <summary>
-    /// 播種 staging_gl_raw_row。SQL 為 ANSI、DbConnection 對兩 provider 通用;表名前綴依 provider 給:
+    /// 播種 pbc_gl。SQL 為 ANSI、DbConnection 對兩 provider 通用;表名前綴依 provider 給:
     /// SQLite 走裸名(預設 <c>""</c>),SQL Server 走 schema 限定(<c>[prj_xxx].</c>,由 <see cref="SqlServerProjectSchema.QualifierFor"/> 衍生)。
     /// </summary>
     private static async Task SeedGlStagingAsync(
@@ -1256,7 +1221,7 @@ public sealed class ProviderParityJourneyTests
             await using var command = connection.CreateCommand();
             command.CommandText =
                 $"""
-                INSERT INTO {tablePrefix}staging_gl_raw_row (batch_id, row_number, source_no, source_row_number, row_json)
+                INSERT INTO {tablePrefix}pbc_gl (batch_id, row_number, source_no, source_row_number, row_json)
                 VALUES (@batchId, @rowNumber, 1, @sourceRowNumber, @rowJson);
                 """;
             AddParam(command, "@batchId", batchId);
@@ -1268,7 +1233,7 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// 讀 (document_number, source_row_number, line_item),依文件/排序鍵還原(兩 provider 同查詢)。
+    /// 讀 (voucher_number, source_row_number, line_item),依文件/排序鍵還原(兩 provider 同查詢)。
     /// 表名前綴依 provider 給:SQLite 裸名(預設 <c>""</c>)、SQL Server schema 限定(<c>[prj_xxx].</c>)。
     /// </summary>
     private static async Task<List<(string?, long, string?)>> ReadLineItemSequenceAsync(
@@ -1277,9 +1242,9 @@ public sealed class ProviderParityJourneyTests
         await using var command = connection.CreateCommand();
         command.CommandText =
             $"""
-            SELECT document_number, source_row_number, line_item
-            FROM {tablePrefix}target_gl_entry
-            ORDER BY document_number, source_row_number;
+            SELECT voucher_number, source_row_number, line_item
+            FROM {tablePrefix}gl
+            ORDER BY voucher_number, source_row_number;
             """;
 
         var sequence = new List<(string?, long, string?)>();
@@ -1329,27 +1294,27 @@ public sealed class ProviderParityJourneyTests
             await InlineWorkbookProject.SetupAsync(sqlServerHost, ConfigureWorkbook, databaseProvider: "sqlServer");
             var sqlServerResult = await sqlServerHost.DispatchAsync("validate.run");
 
-            // UnbalancedDocuments 逐項比對（documentNumber / debit / credit / diff）
-            var sqliteUnbalanced = sqliteResult.GetProperty("docBalanceTest")
-                .GetProperty("unbalancedDocuments").EnumerateArray().ToList();
-            var sqlServerUnbalanced = sqlServerResult.GetProperty("docBalanceTest")
-                .GetProperty("unbalancedDocuments").EnumerateArray().ToList();
+            // UnbalancedVouchers 逐項比對（voucherNumber / debit / credit / diff）
+            var sqliteUnbalanced = sqliteResult.GetProperty("voucherBalanceTest")
+                .GetProperty("unbalancedVouchers").EnumerateArray().ToList();
+            var sqlServerUnbalanced = sqlServerResult.GetProperty("voucherBalanceTest")
+                .GetProperty("unbalancedVouchers").EnumerateArray().ToList();
 
             Assert.Equal(sqliteUnbalanced.Count, sqlServerUnbalanced.Count);
             for (var i = 0; i < sqliteUnbalanced.Count; i++)
             {
                 var s = sqliteUnbalanced[i];
                 var q = sqlServerUnbalanced[i];
-                Assert.Equal(s.GetProperty("documentNumber").GetString(),  q.GetProperty("documentNumber").GetString());
+                Assert.Equal(s.GetProperty("voucherNumber").GetString(),  q.GetProperty("voucherNumber").GetString());
                 Assert.Equal(s.GetProperty("debit").GetDecimal(),          q.GetProperty("debit").GetDecimal());
                 Assert.Equal(s.GetProperty("credit").GetDecimal(),         q.GetProperty("credit").GetDecimal());
                 Assert.Equal(s.GetProperty("diff").GetDecimal(),           q.GetProperty("diff").GetDecimal());
             }
 
-            // NullRecordRows 逐項比對（documentNumber / accountCode / postDate / description / issues）
-            var sqliteNullRows = sqliteResult.GetProperty("nullRecordsTest")
+            // BlankRecordRows 逐項比對（voucherNumber / accountNumber / glDate / description / issues）
+            var sqliteNullRows = sqliteResult.GetProperty("blankRecordsTest")
                 .GetProperty("nullRows").EnumerateArray().ToList();
-            var sqlServerNullRows = sqlServerResult.GetProperty("nullRecordsTest")
+            var sqlServerNullRows = sqlServerResult.GetProperty("blankRecordsTest")
                 .GetProperty("nullRows").EnumerateArray().ToList();
 
             Assert.Equal(sqliteNullRows.Count, sqlServerNullRows.Count);
@@ -1357,9 +1322,9 @@ public sealed class ProviderParityJourneyTests
             {
                 var s = sqliteNullRows[i];
                 var q = sqlServerNullRows[i];
-                Assert.Equal(s.GetProperty("documentNumber").GetString(),  q.GetProperty("documentNumber").GetString());
-                Assert.Equal(s.GetProperty("accountCode").GetString(),     q.GetProperty("accountCode").GetString());
-                Assert.Equal(s.GetProperty("postDate").GetString(),        q.GetProperty("postDate").GetString());
+                Assert.Equal(s.GetProperty("voucherNumber").GetString(),  q.GetProperty("voucherNumber").GetString());
+                Assert.Equal(s.GetProperty("accountNumber").GetString(),     q.GetProperty("accountNumber").GetString());
+                Assert.Equal(s.GetProperty("glDate").GetString(),        q.GetProperty("glDate").GetString());
                 Assert.Equal(s.GetProperty("description").GetString(),     q.GetProperty("description").GetString());
                 // issues 陣列：逐元素比對（四個旗標轉字串後順序應相同）
                 var sIssues = Enumerable.Range(0, s.GetProperty("issues").GetArrayLength())
@@ -1371,20 +1336,20 @@ public sealed class ProviderParityJourneyTests
 
             // 純量計數也必須等價（不平傳票數、四項空值計數）
             Assert.Equal(
-                sqliteResult.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetRawText(),
-                sqlServerResult.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetRawText());
+                sqliteResult.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetRawText(),
+                sqlServerResult.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetRawText());
             Assert.Equal(
-                sqliteResult.GetProperty("nullRecordsTest").GetProperty("nullAccountCount").GetRawText(),
-                sqlServerResult.GetProperty("nullRecordsTest").GetProperty("nullAccountCount").GetRawText());
+                sqliteResult.GetProperty("blankRecordsTest").GetProperty("nullAccountCount").GetRawText(),
+                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("nullAccountCount").GetRawText());
             Assert.Equal(
-                sqliteResult.GetProperty("nullRecordsTest").GetProperty("nullDocumentCount").GetRawText(),
-                sqlServerResult.GetProperty("nullRecordsTest").GetProperty("nullDocumentCount").GetRawText());
+                sqliteResult.GetProperty("blankRecordsTest").GetProperty("nullDocumentCount").GetRawText(),
+                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("nullDocumentCount").GetRawText());
             Assert.Equal(
-                sqliteResult.GetProperty("nullRecordsTest").GetProperty("nullDescriptionCount").GetRawText(),
-                sqlServerResult.GetProperty("nullRecordsTest").GetProperty("nullDescriptionCount").GetRawText());
+                sqliteResult.GetProperty("blankRecordsTest").GetProperty("nullDescriptionCount").GetRawText(),
+                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("nullDescriptionCount").GetRawText());
             Assert.Equal(
-                sqliteResult.GetProperty("nullRecordsTest").GetProperty("outOfRangeDateCount").GetRawText(),
-                sqlServerResult.GetProperty("nullRecordsTest").GetProperty("outOfRangeDateCount").GetRawText());
+                sqliteResult.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetRawText(),
+                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetRawText());
         }
         finally
         {
@@ -1394,7 +1359,7 @@ public sealed class ProviderParityJourneyTests
 
     /// <summary>
     /// 共用的工作簿設定：含一張不平傳票（JV-001:借 300 貸 100）、一張平衡傳票（JV-002:借貸各 50）、
-    /// 以及一列空科目（JV-003 第一列）用於觸發 nullRecords 旗標。
+    /// 以及一列空科目（JV-003 第一列）用於觸發 blankRecords 旗標。
     /// JV-001 差額 200、JV-003 同時有 nullAccount；JV-002 不應出現在任何不平清單。
     /// </summary>
     private static void ConfigureWorkbook(InlineGlWorkbookBuilder builder) =>
@@ -1403,7 +1368,7 @@ public sealed class ProviderParityJourneyTests
             // JV-001：借 300、貸 100 → 不平，差額 200
             .AddRow("JV-001", "2025-03-05", "1101", "現金",     "借方",   "300.00", 1)
             .AddRow("JV-001", "2025-03-05", "4101", "銷貨收入", "貸方",   "100.00", 0)
-            // JV-002：借 50、貸 50 → 平衡（不應出現在 unbalancedDocuments）
+            // JV-002：借 50、貸 50 → 平衡（不應出現在 unbalancedVouchers）
             .AddRow("JV-002", "2025-03-06", "1101", "現金",     "借方",   "50.00",  1)
             .AddRow("JV-002", "2025-03-06", "4101", "銷貨收入", "貸方",   "50.00",  0)
             // JV-003：空科目列 → 觸發 nullAccount
@@ -1411,14 +1376,14 @@ public sealed class ProviderParityJourneyTests
             .AddRow("JV-003", "2025-03-07", "4101", "銷貨收入", "對方",   "10.00",  0);
 
     /// <summary>
-    /// 科目配對全列匯出(E1 step15,匯出底稿 sheet 15,無 dispatcher action)provider 等價:
+    /// 科目配對全列匯出(底稿 step15,匯出底稿 sheet 15,無 dispatcher action)provider 等價:
     /// 同一 demo 案件(GL/TB 已 commit)再 import.accountMapping.fromFile demo 檔(100 科目)後,
     /// 分別於 SQLite 與 SQL Server 直接建 <see cref="IAccountMappingExportRepository"/>(比照本檔
-    /// <see cref="CreatorSummaryExport_FullList_IsEquivalentAcrossProviders"/>,此 query 無 action、
+    /// <see cref="PreparerSummaryExport_FullList_IsEquivalentAcrossProviders"/>,此 query 無 action、
     /// 不走 dispatcher),取 <see cref="IAccountMappingExportRepository.FetchAllAsync"/>,斷言兩 provider
     /// 回傳的(GL_NUMBER|GL_NAME|STANDARDIZED|notInTb)序列完全相同(SequenceEqual)。其中 notInTb 旗標
     /// 即 sheet 寫字面「Not in TB」的單一事實來源,以 <see cref="ValidationProcedures.CompletenessDiffCte"/> 判定;
-    /// 此測試證明該 CTE + CASE WHEN ... IN (SELECT ...) 子查詢 + account_code 排序跨 provider 等價。
+    /// 此測試證明該 CTE + CASE WHEN ... IN (SELECT ...) 子查詢 + account_number 排序跨 provider 等價。
     /// 科目數 >1 擋偽綠;無 LocalDB → 跳過(沿用既有閘控)。
     /// </summary>
     [SqlServerFact]
@@ -1478,12 +1443,12 @@ public sealed class ProviderParityJourneyTests
 
     /// <summary>把全科目配對壓成可逐項比對的字串序列(GL_NUMBER|GL_NAME|STANDARDIZED|notInTb),保留順序。</summary>
     private static List<string> FlattenAccountMapping(IReadOnlyList<AccountMappingExportRow> rows) =>
-        rows.Select(r => $"{r.AccountCode}|{r.AccountName}|{r.Category}|{r.NotInTb}").ToList();
+        rows.Select(r => $"{r.AccountNumber}|{r.AccountName}|{r.Category}|{r.NotInTb}").ToList();
 
     /// <summary>
-    /// 行事曆(假日 + 補班)逐日讀回(E1 step14,匯出底稿 sheet 14,無 dispatcher action)provider 等價:
-    /// 同一 demo 案件(管線已匯入 demo 假日 + 補班至 staging_calendar_raw_day)分別於 SQLite 與 SQL Server
-    /// 直接建 <see cref="ICalendarExportRepository"/>(比照本檔 account/creator export parity,此 query 無 action),
+    /// 行事曆(假日 + 補班)逐日讀回(底稿 step14,匯出底稿 sheet 14,無 dispatcher action)provider 等價:
+    /// 同一 demo 案件(管線已匯入 demo 假日 + 補班至 calendar_day)分別於 SQLite 與 SQL Server
+    /// 直接建 <see cref="ICalendarExportRepository"/>(比照本檔 account/preparer export parity,此 query 無 action),
     /// 對 Holiday 與 Makeup 兩種 day_type 各取 <see cref="ICalendarExportRepository.FetchDaysAsync"/>,
     /// 斷言兩 provider 合併後的(dayType|date|name)序列完全相同(SequenceEqual)。
     /// 證明 WHERE day_type = @type + 日期排序跨 provider 等價。假日數 >1 擋偽綠;無 LocalDB → 跳過。

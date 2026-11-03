@@ -357,6 +357,12 @@ internal sealed class SpreadsheetAppearanceFingerprint
     internal string? Value(string location, string property) =>
         _properties.GetValueOrDefault(new AppearanceKey(location, property));
 
+    /// <summary>工作表預設列高等於這個值時不記錄，和沒有寫預設列高的工作表一樣。</summary>
+    internal const string CanonicalDefaultRowHeight = "15";
+
+    /// <summary>一邊沒有記錄某個外觀值時，差異裡用這個字代表那一邊的值。</summary>
+    internal const string UnrecordedValue = "<default>";
+
     private string EffectiveValue(AppearanceKey key)
     {
         if (_properties.TryGetValue(key, out var value))
@@ -369,13 +375,13 @@ internal sealed class SpreadsheetAppearanceFingerprint
         {
             return CanonicalExcelDefaults.GetValueOrDefault(
                 key.Property["default.".Length..],
-                "<default>");
+                UnrecordedValue);
         }
 
         var semanticProperty = key.Property.StartsWith("style.", StringComparison.Ordinal)
             ? key.Property["style.".Length..]
             : key.Property;
-        return _baseline.GetValueOrDefault(semanticProperty, "<default>");
+        return _baseline.GetValueOrDefault(semanticProperty, UnrecordedValue);
     }
 
     private static void CaptureWorksheet(
@@ -601,7 +607,6 @@ internal sealed class SpreadsheetAppearanceFingerprint
         WorksheetCaptureState state,
         Dictionary<AppearanceKey, string> properties)
     {
-        const string canonicalDefaultRowHeight = "15";
         const string canonicalDefaultColumnWidth = "8.43";
         const string canonicalBaseColumnWidth = "8";
         var location = $"{sheetName}!sheetFormat";
@@ -609,7 +614,7 @@ internal sealed class SpreadsheetAppearanceFingerprint
         if (reader.GetAttribute("defaultRowHeight") is { } rowHeight)
         {
             state.DefaultRowHeight = CanonicalNumber(rowHeight, "default row height");
-            if (!string.Equals(state.DefaultRowHeight, canonicalDefaultRowHeight, StringComparison.Ordinal))
+            if (!string.Equals(state.DefaultRowHeight, CanonicalDefaultRowHeight, StringComparison.Ordinal))
             {
                 properties[new AppearanceKey(location, "defaultRowHeight")] = state.DefaultRowHeight;
             }

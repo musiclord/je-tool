@@ -23,7 +23,7 @@ public sealed class SqlServerCompletenessDiffPageRepository(SqlServerProjectData
 
         var paging = CompletenessAccountPageQuery.Plan(Dialect, request);
 
-        // ValidationProcedures.CompletenessDiffCteFor 把共用 CTE 內的 target_gl_entry/target_tb_balance 前綴專案 schema。
+        // ValidationProcedures.CompletenessDiffCteFor 把共用 CTE 內的 gl/tb 前綴專案 schema。
         await using var command = database.CreateCommand(connection, projectId,
             CompletenessAccountPageQuery.Sql(
                 ValidationProcedures.CompletenessDiffCteFor(SqlServerProjectSchema.QualifierFor(projectId)),

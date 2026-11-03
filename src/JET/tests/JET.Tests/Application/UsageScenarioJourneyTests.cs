@@ -11,11 +11,11 @@ namespace JET.Tests.Application;
 
 public sealed class UsageScenarioJourneyTests
 {
-    private const string Scenario = """{"name":"合成借方","rationale":"固定答案","groups":[{"rules":[{"type":"drCrOnly","drCr":"debit"}]}]}""";
+    private const string Scenario = """{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]}""";
     public static TheoryData<string, string> ClearingCases() => UpstreamMutationClearsFilterScenariosTests.ClearingCases();
     public static IEnumerable<object[]> FailureCases() =>
         from provider in new[] { "sqlite", "duckdb" }
-        from failure in new[] { "gl-read", "gl-mapping", "holiday", "authorized", "taxonomy-conflict", "cancel" }
+        from failure in new[] { "gl-read", "gl-mapping", "holiday", "authorized", "category-conflict", "cancel" }
         select new object[] { provider, failure };
 
     [Theory]
@@ -23,7 +23,7 @@ public sealed class UsageScenarioJourneyTests
     public async Task ClearingUpstreamAction_MarksBothReportsStaleWithoutChangingTheirFiles(string provider, string action)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         if (action == "accountMapping.save")
         {
             var file = Path.Combine(host.ProjectsRoot, "synthetic-mapping.csv");
@@ -35,8 +35,8 @@ public sealed class UsageScenarioJourneyTests
         }
         var reports = await ExportBothAsync(host, prepared);
         var response = action == "accountMapping.save"
-            ? await host.DispatchAsync(action, """{"changes":[{"accountCode":"1000","categoryId":"builtin.others"}]}""")
-            : await Batch9MutationStateTests.MutateAsync(host, prepared.Id, action);
+            ? await host.DispatchAsync(action, """{"changes":[{"accountNumber":"1000","categoryId":"builtin.others"}]}""")
+            : await MutationInvalidationStateTests.MutateAsync(host, prepared.Id, action);
         Assert.True(response.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
         AssertReports(reports, response);
         var reopened = await LoadAsync(host, prepared.Id);
@@ -50,7 +50,7 @@ public sealed class UsageScenarioJourneyTests
     {
         var events = new CancelImportEvents();
         using var host = new HandlerTestHost(eventPublisher: events);
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         var before = await LoadAsync(host, prepared.Id);
         var hits = await CountHitsAsync(host, prepared.Id, provider);
         Assert.True(hits > 0);
@@ -82,10 +82,10 @@ public sealed class UsageScenarioJourneyTests
                 { sheet.Cell(1, 1).Value = "Personnel"; sheet.Cell(1, 2).Value = "Other";
                   sheet.Cell(2, 1).Value = "   "; sheet.Cell(2, 2).Value = "synthetic"; });
                 action = "import.authorizedPreparer.fromFile"; payload = JsonSerializer.Serialize(new { filePath = file, sourceColumn = "Personnel" }); code = "invalid_payload"; break;
-            case "taxonomy-conflict":
-                var taxonomy = before.GetProperty("taxonomy");
-                action = "accountTaxonomy.save"; payload = JsonSerializer.Serialize(new { revision = taxonomy.GetProperty("revision").GetInt32() + 1, categories = taxonomy.GetProperty("categories") });
-                code = JetErrorCodes.TaxonomyRevisionConflict; break;
+            case "category-conflict":
+                var categorySnapshot = before.GetProperty("accountCategory");
+                action = "accountCategory.save"; payload = JsonSerializer.Serialize(new { revision = categorySnapshot.GetProperty("revision").GetInt32() + 1, categories = categorySnapshot.GetProperty("categories") });
+                code = JetErrorCodes.CategoryRevisionConflict; break;
         }
         try
         {
@@ -114,10 +114,12 @@ public sealed class UsageScenarioJourneyTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task TrialBalanceReplacement_ClearsScenariosThenRequiresResavingBeforeAnotherExport(string provider)
+    // 裁定 2026-10-29-16：沒有已儲存情境也能匯出底稿。原本斷言清掉情境後匯出回 no_saved_scenario，現在畫面上舊的篩選版本與情境位置
+    // 已不是目前的清單，改成斷言回 stale_result 與清單已變更的說明；重新儲存後匯出的斷言不變。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+    public async Task TrialBalanceReplacement_ClearsScenariosAndRejectsTheOldSelectionUntilResaved(string provider)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         var reports = await ExportBothAsync(host, prepared);
         var file = new InlineTbWorkbookBuilder().AddRow("1000", "合成資產", 10m).AddRow("4000", "合成收入", -10m).WriteWorkbook();
         try
@@ -133,15 +135,14 @@ public sealed class UsageScenarioJourneyTests
             Assert.Equal("completeness_prerequisite_failed", error.Code);
             AssertReports(reports, after);
             var validation = await host.DispatchAsync("validate.run");
-            prepared = prepared with { ValidationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString()! };
-            var noScenario = await Assert.ThrowsAsync<JetActionException>(() => ExportPaperAsync(host, prepared));
-            // 使用者 2026-10-14 第三輪勾選頁確認 R3-34（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面寫「尚無法執行」，錯誤代碼改成 no_saved_scenario。
-            Assert.Equal("no_saved_scenario", noScenario.Code);
-            Assert.Equal("尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境", noScenario.Message);
+            prepared = prepared with { ValidationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()! };
+            var oldSelection = await Assert.ThrowsAsync<JetActionException>(() => ExportPaperAsync(host, prepared));
+            Assert.Equal("stale_result", oldSelection.Code);
+            Assert.Equal(ReportExportSupport.ScenarioListOutOfDate, oldSelection.Message);
             var saved = await host.DispatchAsync("filter.commit", "{\"scenarios\":[" + Scenario + "]}");
             prepared = prepared with { Revision = saved.GetProperty("resultRef").GetProperty("revision").GetString()! };
             var exported = await ExportPaperAsync(host, prepared);
-            Assert.False(exported.GetProperty("artifact").GetProperty("stale").GetBoolean());
+            Assert.False(exported.GetProperty("publishedReport").GetProperty("stale").GetBoolean());
             AssertReports(reports, exported);
         }
         finally { TestWorkbookBuilder.Delete(file); }
@@ -153,51 +154,57 @@ public sealed class UsageScenarioJourneyTests
     public async Task ScenarioNames_TrimWhitespaceButRemainOrdinalAndDoNotDeduplicateIdenticalConditions(string provider)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         string Payload(string second) => JsonSerializer.Serialize(new { scenarios = new[] { JsonNode.Parse(Scenario)!, JsonNode.Parse(Scenario)! }
             .Select((scenario, index) => { scenario["name"] = index == 0 ? "G" : second; return scenario; }) });
         var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.commit", Payload(" G ")));
         Assert.Equal("invalid_scenario", error.Code); Assert.Contains("情境名稱重複：「G」。", error.Message, StringComparison.Ordinal);
         await host.DispatchAsync("filter.commit", Payload("g"));
-        var matrix = await host.DispatchAsync("query.tagMatrixScenarios");
-        Assert.Equal(new[] { "G", "g" }, matrix.GetProperty("scenarios").EnumerateArray().Select(x => x.GetProperty("name").GetString()));
-        Assert.All(matrix.GetProperty("scenarios").EnumerateArray(), row => { Assert.Equal(1, row.GetProperty("rowHitCount").GetInt32()); Assert.Equal(1, row.GetProperty("voucherHitCount").GetInt32()); });
+        var summary = await host.DispatchAsync("query.highRiskSummaryScenarios");
+        Assert.Equal(new[] { "G", "g" }, summary.GetProperty("scenarios").EnumerateArray().Select(x => x.GetProperty("name").GetString()));
+        Assert.All(summary.GetProperty("scenarios").EnumerateArray(), row => { Assert.Equal(1, row.GetProperty("rowHitCount").GetInt32()); Assert.Equal(1, row.GetProperty("voucherHitCount").GetInt32()); });
     }
 
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task NoSavedScenario_RejectsWorkpaperBeforeWritingAnyFile(string provider)
+    // 裁定 2026-10-29-16：沒有已儲存情境也能匯出底稿。原本斷言回 no_saved_scenario 且不寫檔；改成斷言帶著舊篩選版本與情境位置的請求
+    // 回 stale_result、不寫檔，畫面在沒有情境時送 null 的篩選版本與空清單則寫出一份底稿。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+    public async Task NoSavedScenario_RejectsTheOldSelectionAndWritesWorkingPaperWithoutScenarios(string provider)
     {
         using var host = new HandlerTestHost();
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         await host.DispatchAsync("filter.commit", """{"scenarios":[]}""");
         var error = await Assert.ThrowsAsync<JetActionException>(() => ExportPaperAsync(host, prepared));
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-34（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
-        Assert.Equal("no_saved_scenario", error.Code); Assert.Equal("尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境", error.Message);
-        Assert.Empty(WorkpaperExportTestSupport.FindWorkpapers(host.ProjectsRoot));
+        Assert.Equal("stale_result", error.Code); Assert.Equal(ReportExportSupport.ScenarioListOutOfDate, error.Message);
+        Assert.Empty(WorkingPaperExportTestSupport.FindWorkingPapers(host.ProjectsRoot));
+        await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
+        {
+            validationResultId = prepared.ValidationResultId, scenarioRevision = (string?)null, scenarioPositions = Array.Empty<int>()
+        }));
+        Assert.Single(WorkingPaperExportTestSupport.FindWorkingPapers(host.ProjectsRoot));
     }
 
     private static Task<JsonElement> LoadAsync(HandlerTestHost host, string id) => host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
-    private static Task<JsonElement> ExportPaperAsync(HandlerTestHost host, Batch9ArtifactStateTests.Prepared p) => host.DispatchAsync("export.workpaperStream",
-        JsonSerializer.Serialize(new { validationRunId = p.ValidationRunId, scenarioRevision = p.Revision, scenarioPositions = new[] { 1 } }));
+    private static Task<JsonElement> ExportPaperAsync(HandlerTestHost host, ReportRevisionStateTests.Prepared p) => host.DispatchAsync("export.workingPaperStream",
+        JsonSerializer.Serialize(new { validationResultId = p.ValidationResultId, scenarioRevision = p.Revision, scenarioPositions = new[] { 1 } }));
     private sealed record Exported(string Id, string Path, byte[] Bytes);
-    private static async Task<Exported[]> ExportBothAsync(HandlerTestHost host, Batch9ArtifactStateTests.Prepared p)
+    private static async Task<Exported[]> ExportBothAsync(HandlerTestHost host, ReportRevisionStateTests.Prepared p)
     {
-        var report = await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new { validationRunId = p.ValidationRunId, revision = p.Revision }));
+        var report = await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new { validationResultId = p.ValidationResultId, revision = p.Revision }));
         var paper = await ExportPaperAsync(host, p);
         return new[] { report, paper }.Select(response =>
         {
-            var artifact = response.GetProperty("artifact"); var path = artifact.GetProperty("fullPath").GetString()!;
+            var report = response.GetProperty("publishedReport"); var path = report.GetProperty("fullPath").GetString()!;
             Assert.InRange(new FileInfo(path).Length, 1, 10_000_000);
-            return new Exported(artifact.GetProperty("artifactId").GetString()!, path, File.ReadAllBytes(path));
+            return new Exported(report.GetProperty("reportId").GetString()!, path, File.ReadAllBytes(path));
         }).ToArray();
     }
     private static void AssertReports(Exported[] reports, JsonElement response)
     {
         foreach (var report in reports)
         {
-            var entry = response.GetProperty("reportArtifacts").EnumerateArray().Single(x => x.GetProperty("artifactId").GetString() == report.Id);
+            var entry = response.GetProperty("reports").EnumerateArray().Single(x => x.GetProperty("reportId").GetString() == report.Id);
             Assert.True(entry.GetProperty("stale").GetBoolean());
             Assert.Equal(report.Bytes, File.ReadAllBytes(report.Path));
         }
@@ -207,7 +214,7 @@ public sealed class UsageScenarioJourneyTests
         var folder = new JetProjectFolder(host.ProjectsRoot);
         ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(id); await connection.OpenAsync();
-        await using var command = connection.CreateCommand(); command.CommandText = "SELECT COUNT(*) FROM result_filter_run;";
+        await using var command = connection.CreateCommand(); command.CommandText = "SELECT COUNT(*) FROM filter_hit;";
         return Convert.ToInt64(await command.ExecuteScalarAsync());
     }
     private sealed class CancelImportEvents : IJetEventPublisher

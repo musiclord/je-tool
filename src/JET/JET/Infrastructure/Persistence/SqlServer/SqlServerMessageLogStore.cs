@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// app_message_log 的 SQL Server 實作(對應 <see cref="LocalMessageLogStore"/>)。
+/// message_log 的 SQL Server 實作(對應 <see cref="LocalMessageLogStore"/>)。
 /// message_id 為 IDENTITY,位移修剪邏輯與 SQLite 相同(ANSI);GetRecent 的 LIMIT → TOP。
 /// </summary>
 public sealed class SqlServerMessageLogStore(SqlServerProjectDatabase database) : IMessageLogStore
@@ -20,9 +20,9 @@ public sealed class SqlServerMessageLogStore(SqlServerProjectDatabase database) 
 
         await using var command = database.CreateCommand(connection, projectId,
             """
-            INSERT INTO {s}.app_message_log (occurred_utc, level, text) VALUES (@utc, @level, @text);
-            DELETE FROM {s}.app_message_log
-            WHERE message_id <= (SELECT MAX(message_id) FROM {s}.app_message_log) - @retained;
+            INSERT INTO {s}.message_log (occurred_utc, level, text) VALUES (@utc, @level, @text);
+            DELETE FROM {s}.message_log
+            WHERE message_id <= (SELECT MAX(message_id) FROM {s}.message_log) - @retained;
             """);
         command.Parameters.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
         command.Parameters.AddWithValue("@level", level);
@@ -42,7 +42,7 @@ public sealed class SqlServerMessageLogStore(SqlServerProjectDatabase database) 
         await using var command = database.CreateCommand(connection, projectId,
             """
             SELECT TOP (@limit) occurred_utc, level, text
-            FROM {s}.app_message_log
+            FROM {s}.message_log
             ORDER BY message_id DESC;
             """);
         command.Parameters.AddWithValue("@limit", limit);

@@ -27,20 +27,20 @@ public static partial class SupportPayloadShape
     private static readonly Dictionary<string, HashSet<string>> CodeValues = new(StringComparer.Ordinal)
     {
         // 條件篩選情境，見 FilterScenarioPayloadParser 與 FilterScenario 的驗證。
-        ["type"] = Codes(FilterRuleWireFields.UsedByType.Keys),
+        ["type"] = Codes(FilterConditionWireFields.UsedByType.Keys),
         ["join"] = Codes("AND", "OR"),
-        ["matchScope"] = Codes("row", "sameVoucher"),
+        ["matchScope"] = Codes("row"),
         ["normalization"] = Codes("preserve", "removeAsciiSpaces"),
         ["field"] = Codes(JetFieldCatalog.GlFilterFields.Keys.Concat(EntityFrequencyConditions.Fields)),
         ["operator"] = Codes(FieldValueConditions.Labels.Keys.Concat(TypedFieldOperatorSets.All)),
         ["amountBasis"] = Codes(TypedAmountBasisNames.Signed, TypedAmountBasisNames.Absolute),
-        ["drCr"] = Codes("debit", "credit", "any"),
+        ["drCr"] = Codes("debit", "credit"),
         ["pairMode"] = Codes(
             AccountPairModes.Exact, AccountPairModes.DebitAnchor, AccountPairModes.CreditAnchor,
             SpecialAccountCategoryPairModes.DrAndCr, SpecialAccountCategoryPairModes.DrNotCr,
             SpecialAccountCategoryPairModes.NotDrCr),
         ["categorySelection"] = Codes("role", "node", "subtree"),
-        ["categoryMode"] = Codes("is", "isNot", "absent"),
+        ["categoryMode"] = Codes("is", "isNot"),
         ["quantifier"] = Codes("any", "all", "none"),
         ["prescreenKey"] = Codes(PrescreenRuleKeys.FilterableKeys),
         ["source"] = Codes(FilterScenarioSources.Common),
@@ -54,20 +54,20 @@ public static partial class SupportPayloadShape
             TbChangeModeNames.Direct, TbChangeModeNames.DebitCredit, TbChangeModeNames.OpenClose,
             TbChangeModeNames.OpenCloseBySide),
         ["approvalDateMode"] = Codes(
-            ApprovalDateModeNames.Unmapped, ApprovalDateModeNames.Mapped, ApprovalDateModeNames.SameAsPostDate),
+            ApprovalDateModeNames.Unmapped, ApprovalDateModeNames.Mapped, ApprovalDateModeNames.SameAsGlDate),
         ["unlistedValueKind"] = Codes(
             ManualAutoValueKindNames.Reject, ManualAutoValueKindNames.Manual, ManualAutoValueKindNames.Automatic),
         ["blankValueKind"] = Codes(
             ManualAutoValueKindNames.Reject, ManualAutoValueKindNames.Manual, ManualAutoValueKindNames.Automatic,
             ManualAutoValueKindNames.Unclassified),
-        ["valueType"] = Codes(RdeFieldValueTypeNames.Text, RdeFieldValueTypeNames.Date, RdeFieldValueTypeNames.Money),
+        ["valueType"] = Codes(RdeFieldValueTypeNames.Text, RdeFieldValueTypeNames.Date, RdeFieldValueTypeNames.Amount),
         ["semanticRole"] = Codes(
-            AccountTaxonomyBuiltIns.RevenueRole, AccountTaxonomyBuiltIns.ReceivablesRole, AccountTaxonomyBuiltIns.CashRole,
-            AccountTaxonomyBuiltIns.ReceiptInAdvanceRole, AccountTaxonomyBuiltIns.OthersRole),
+            AccountCategoryBuiltIns.RevenueRole, AccountCategoryBuiltIns.ReceivablesRole, AccountCategoryBuiltIns.CashRole,
+            AccountCategoryBuiltIns.ReceiptInAdvanceRole, AccountCategoryBuiltIns.OthersRole),
         // 匯入、查詢、紀錄與案件。dataset 是資料預覽的 DataPreviewDatasetNames 與值分布的 gl。
         ["encoding"] = Codes("utf-8", "big5", "utf-16"),
         ["dataset"] = Codes(
-            "pbcGl", "pbcTb", "gl", "glExcluded", "tb", "accountMappings", "authorizedPreparers", "dateDimension",
+            "pbcGl", "pbcTb", "gl", "glExcluded", "tb", "accountMapping", "authorizedPreparer", "calendar",
             "schemaOverview"),
         ["exclusionReason"] = Codes(Enum.GetValues<GlExclusionReason>().Select(GlExclusionReasonNames.ToWireName)),
         ["direction"] = Codes("asc", "desc"),
@@ -199,7 +199,7 @@ public static partial class SupportResultRefs
     // 版本代號：批次、執行、報告、條件版本與規則邏輯版本。
     private static readonly HashSet<string> VersionKeys = new(StringComparer.Ordinal)
     {
-        "batchId", "sourceBatchId", "runId", "validationRunId", "prescreenRunId", "artifactId", "revision",
+        "batchId", "sourceBatchId", "resultId", "validationResultId", "prescreenResultId", "reportId", "revision",
         "scenarioRevision", "filterDataRevision", "queryRevision", "dataRevision", "logicVersion", "formatVersion",
     };
 
@@ -221,11 +221,11 @@ public static partial class SupportResultRefs
     // 只記筆數的清單。
     private static readonly HashSet<string> ListCountKeys = new(StringComparer.Ordinal)
     {
-        "reportArtifacts", "warnings", "scenarios", "filterScenarios", "problems",
+        "reports", "warnings", "scenarios", "filterScenarios", "problems",
     };
 
     // 逐項記下內容的清單：一次匯出產生的報告，最多前四份。
-    private static readonly HashSet<string> ListedKeys = new(StringComparer.Ordinal) { "artifacts" };
+    private static readonly HashSet<string> ListedKeys = new(StringComparer.Ordinal) { "publishedReports" };
 
     private static readonly ConcurrentDictionary<Type, PropertyInfo[]> Properties = new();
 
@@ -415,7 +415,7 @@ internal static partial class SupportStepDiagnostics
 
 /// <summary>
 /// 建立或載入案件後的支援紀錄：先讓案件紀錄檔可以寫入，再記一筆開啟事件，帶 JET 版本與資料庫種類，
-/// 不記電腦、帳號或路徑（使用者 2026-10-21 裁定「只記啟動代號與版本」）。都不丟例外，不擋開案。
+/// 不記電腦、帳號或路徑，只記啟動代號與版本（裁定 2026-10-21-08）。都不丟例外，不擋開案。
 /// </summary>
 internal static partial class SupportCaseDiagnostics
 {

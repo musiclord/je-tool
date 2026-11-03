@@ -156,14 +156,14 @@ public sealed class PrivateCaseExpectedReportSetTests
             [new PrivateCaseSource("gl.xlsx", "GL", firstRowIsFieldNames: true)],
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "document",
+                [GlMappingKeys.VoucherNumber] = "document",
             },
             GlAmountMode.DualAmount),
         new PrivateCaseTbSettings(
             [new PrivateCaseSource("tb.xlsx", "TB", firstRowIsFieldNames: true)],
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [TbMappingKeys.AccNum] = "account",
+                [TbMappingKeys.AccountNumber] = "account",
             },
             TbChangeMode.DirectChange),
         new PrivateCaseReferenceData(

@@ -70,12 +70,12 @@ public sealed class FilterCommitCancellationTests
             projectId,
             TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
             {
-                FilterFacts = new FilterFactsPort(new UnusedFilterRunRepository(), commitRepository),
+                FilterFacts = new FilterFactsPort(new UnusedFilterHitRepository(), commitRepository),
                 MappingStates = new FixedMappingStore(projectId),
                 AccountMappings = new EmptyAccountMappingStore(),
                 AuthorizedPreparers = new EmptyAuthorizedPreparerStore(),
-                AccountTaxonomy = new BuiltInAccountTaxonomyStore(),
-                RuleRuns = new EligibleValidationRunStore(),
+                AccountCategories = new BuiltInAccountCategoryStore(),
+                Results = new EligibleValidationResultStore(),
             });
         return session;
     }
@@ -83,7 +83,7 @@ public sealed class FilterCommitCancellationTests
     private static ProjectDocument Document() => new(
         ProjectId: "cancel-filter-project",
         ProjectCode: "CANCEL-001",
-        EntityName: "取消測試公司",
+        ClientName: "取消測試公司",
         OperatorId: "tester",
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",
@@ -104,7 +104,7 @@ public sealed class FilterCommitCancellationTests
               "groups": [
                 {
                   "join": "AND",
-                  "rules": [
+                  "conditions": [
                     { "join": "AND", "type": "drCrOnly", "drCr": "debit" }
                   ]
                 }
@@ -122,7 +122,17 @@ public sealed class FilterCommitCancellationTests
         public Task CommitAsync(
             string projectId,
             IReadOnlyList<FilterCommitItem> items,
-            FilterRuleContext context,
+            FilterConditionContext context,
+            CancellationToken cancellationToken)
+        {
+            ReceivedToken = cancellationToken;
+            return behavior(cancellationToken);
+        }
+
+        public Task SaveOneAsync(
+            string projectId,
+            FilterCommitItem item,
+            FilterConditionContext context,
             CancellationToken cancellationToken)
         {
             ReceivedToken = cancellationToken;
@@ -133,28 +143,28 @@ public sealed class FilterCommitCancellationTests
     private sealed class InjectedFilterCommitException(string message) : Exception(message);
 
     // 這裡只走 filter.commit；正式組裝的 FilterFactsPort 不會呼叫 preview repository。
-    private sealed class UnusedFilterRunRepository : IFilterRunRepository
+    private sealed class UnusedFilterHitRepository : IFilterHitRepository
     {
         public Task<FilterPreviewResult> PreviewAsync(
             string projectId,
             FilterScenarioSpec scenario,
-            FilterRuleContext context,
+            FilterConditionContext context,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<long> CountWholeVoucherRowsAsync(
             string projectId,
             FilterScenarioSpec scenario,
-            FilterRuleContext context,
+            FilterConditionContext context,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 
-    private sealed class EligibleValidationRunStore : IRuleRunStore
+    private sealed class EligibleValidationResultStore : IResultStore
     {
-        private static readonly RuleRunRecord ValidationRun = new(
+        private static readonly ResultRecord EligibleRecord = new(
             "eligible-validation",
-            RuleRunKinds.Validate,
+            ResultKind.Validation,
             new DateTimeOffset(2026, 7, 31, 0, 0, 0, TimeSpan.Zero),
             CurrentValidationSummaryTestData.Create(
                 "eligible-validation",
@@ -162,15 +172,15 @@ public sealed class FilterCommitCancellationTests
 
         public Task SaveAsync(
             string projectId,
-            RuleRunRecord record,
+            ResultRecord record,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RuleRunRecord?> FindLatestAsync(
+        public Task<ResultRecord?> FindLatestAsync(
             string projectId,
-            string runKind,
+            ResultKind kind,
             CancellationToken cancellationToken) =>
-            Task.FromResult<RuleRunRecord?>(ValidationRun);
+            Task.FromResult<ResultRecord?>(EligibleRecord);
     }
 
     private sealed class RecordingProjectStore(ProjectDocument document) : IProjectStore
@@ -181,7 +191,7 @@ public sealed class FilterCommitCancellationTests
         public Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
@@ -202,18 +212,18 @@ public sealed class FilterCommitCancellationTests
             throw new NotSupportedException();
     }
 
-    /// <summary>只回內建五類的 taxonomy store：本測試不涉及 custom 分類。</summary>
-    private sealed class BuiltInAccountTaxonomyStore : IAccountTaxonomyStore
+    /// <summary>只回內建五類的科目分類 store：本測試不涉及 custom 分類。</summary>
+    private sealed class BuiltInAccountCategoryStore : IAccountCategoryStore
     {
-        public Task<AccountTaxonomySnapshot> ReadAsync(
+        public Task<AccountCategorySnapshot> ReadAsync(
             string projectId,
             CancellationToken cancellationToken) =>
-            Task.FromResult(AccountTaxonomyCatalog.BuiltInSnapshot);
+            Task.FromResult(AccountCategoryCatalog.BuiltInSnapshot);
 
-        public Task<AccountTaxonomySnapshot> SaveAsync(
+        public Task<AccountCategorySnapshot> SaveAsync(
             string projectId,
             int expectedRevision,
-            IReadOnlyList<AccountTaxonomyCategory> categories,
+            IReadOnlyList<AccountCategory> categories,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
@@ -240,10 +250,10 @@ public sealed class FilterCommitCancellationTests
             DatasetKind.Gl,
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "傳票號碼",
-                [GlMappingKeys.PostDate] = "傳票日期",
-                [GlMappingKeys.AccNum] = "科目代號",
-                [GlMappingKeys.AccName] = "科目名稱",
+                [GlMappingKeys.VoucherNumber] = "傳票號碼",
+                [GlMappingKeys.GlDate] = "傳票日期",
+                [GlMappingKeys.AccountNumber] = "科目代號",
+                [GlMappingKeys.AccountName] = "科目名稱",
                 [GlMappingKeys.Description] = "摘要",
                 [GlMappingKeys.Amount] = "金額"
             },

@@ -42,17 +42,17 @@ internal static class TaiwanSmeSeeder
         var oracle = new SmeOracle(smeCase);
         var reportDirectory = Path.Combine(runRoot, "seed-report");
         var logs = new List<SmeCaseLog>();
-        async Task<bool> RunAsync(string caseName, Func<SmeCaseLog, Task> body)
+        async Task<bool> RunAsync(string projectName, Func<SmeCaseLog, Task> body)
         {
-            Console.WriteLine($"[seed] 建立 {caseName} …");
+            Console.WriteLine($"[seed] 建立 {projectName} …");
             var caseWatch = Stopwatch.StartNew();
-            var log = new SmeCaseLog(caseName, Path.Combine(reportDirectory, Sanitize(caseName)), Console.WriteLine);
+            var log = new SmeCaseLog(projectName, Path.Combine(reportDirectory, Sanitize(projectName)), Console.WriteLine);
             logs.Add(log);
             try
             {
                 await body(log).ConfigureAwait(false);
                 var comparison = log.MatchedCount == 0 && log.AllMatched ? string.Empty : $"，比對 {log.Summary}";
-                Console.WriteLine($"[seed] {caseName} 完成（{caseWatch.Elapsed.TotalSeconds:0} 秒）{comparison}。");
+                Console.WriteLine($"[seed] {projectName} 完成（{caseWatch.Elapsed.TotalSeconds:0} 秒）{comparison}。");
             }
             catch (Exception exception)
             {
@@ -92,11 +92,11 @@ internal static class TaiwanSmeSeeder
         var builder = new StringBuilder();
         builder.AppendLine(CultureInfo.InvariantCulture, $"[seed] 總帳匯出 {smeCase.Lines.Count:N0} 列、{smeCase.Lines.Select(l => l.VoucherNo).Distinct().Count():N0} 張傳票；"
             + $"查核期間內已過帳 {population.Count:N0} 列、{population.Select(l => l.VoucherNo).Distinct().Count():N0} 張。");
-        builder.AppendLine(CultureInfo.InvariantCulture, $"[seed] 試算表 {smeCase.Accounts.Count} 個科目，總帳實際使用 {population.Select(l => l.AccountCode).Distinct().Count()} 個。");
+        builder.AppendLine(CultureInfo.InvariantCulture, $"[seed] 試算表 {smeCase.Accounts.Count} 個科目，總帳實際使用 {population.Select(l => l.AccountNumber).Distinct().Count()} 個。");
         var balances = smeCase.Accounts.ToDictionary(a => a.Code, a => a.Opening);
         foreach (var line in population)
         {
-            balances[line.AccountCode] += line.Debit - line.Credit;
+            balances[line.AccountNumber] += line.Debit - line.Credit;
         }
 
         string Show(string code) => $"{code} {smeCase.Accounts.Single(a => a.Code == code).Name} {balances[code]:N0}";
@@ -104,8 +104,8 @@ internal static class TaiwanSmeSeeder
         {
             "111301", "111302", "111303", "111304", "111305", "1170", "1171", "1232", "1234", "1235", "2170", "2101", "1269",
         }.Select(Show)));
-        var revenue = population.Where(l => l.AccountCode.StartsWith('4')).Sum(l => l.Credit - l.Debit);
-        var costs = population.Where(l => l.AccountCode[0] is '5' or '6' or '7' or '8').Sum(l => l.Debit - l.Credit);
+        var revenue = population.Where(l => l.AccountNumber.StartsWith('4')).Sum(l => l.Credit - l.Debit);
+        var costs = population.Where(l => l.AccountNumber[0] is '5' or '6' or '7' or '8').Sum(l => l.Debit - l.Credit);
         builder.Append(CultureInfo.InvariantCulture, $"[seed] 營業收入淨額 {revenue:N0}，成本費用與營業外淨額 {costs:N0}，稅後淨利 {revenue - costs:N0}。");
         var negative = balances.Where(pair => pair.Key.StartsWith("111", StringComparison.Ordinal) && pair.Value < 0m).ToList();
         if (negative.Count > 0)

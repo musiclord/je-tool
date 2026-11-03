@@ -328,7 +328,7 @@ internal sealed record ProjectListEntry(
         {
             projectId = Doc.ProjectId,
             projectCode = Doc.ProjectCode,
-            entityName = Doc.EntityName,
+            clientName = Doc.ClientName,
             periodStart = Doc.PeriodStart,
             periodEnd = Doc.PeriodEnd,
             createdUtc = Doc.CreatedUtc,
@@ -340,7 +340,7 @@ internal sealed record ProjectListEntry(
         {
             projectId = Doc.ProjectId,
             projectCode = Doc.ProjectCode,
-            entityName = Doc.EntityName,
+            clientName = Doc.ClientName,
             periodStart = Doc.PeriodStart,
             periodEnd = Doc.PeriodEnd,
             createdUtc = Doc.CreatedUtc,

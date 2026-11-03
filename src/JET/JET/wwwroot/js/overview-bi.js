@@ -25,7 +25,7 @@
   var LABEL_FILL = '#5e5b52';
   var VALUE_FILL = '#3f3d36';
   var PLACEHOLDER_FILL = '#716e64';
-  // 圖表的提示框浮在圖表上，是和選單同一種玻璃（使用者 2026-10-12 要求整個 JE Tool 帶有 Liquid Glass 的質感）；
+  // 圖表的提示框浮在圖表上，是和選單同一種玻璃，因為整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01）；
   // 值引用 app.css 的變數，關閉透明效果或高對比時跟著改成不透明。
   var TOOLTIP_GLASS = 'background-color: var(--glass-fill) !important; border-color: transparent !important; ' +
     '-webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: var(--radius-group) !important; ' +
@@ -55,10 +55,6 @@
   var resizeObserver = typeof global.ResizeObserver === 'function'
     ? new global.ResizeObserver(function () { resizeCharts(); })
     : null;
-
-  function fmtNum(n) {
-    return (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US');
-  }
 
   // 圖軸標須有界；完整 count 仍保留在 ECharts tooltip。
   function fmtAxisCount(n) {
@@ -166,9 +162,9 @@
           var label = prescreenLabel(item.key);
           return tooltipContent(label, [
             '全查核期間',
-            '符合條件的分錄 ' + fmtNum(item.hitLines) + ' 筆',
-            '傳票 ' + fmtNum(item.hitVouchers) + ' 張（同號只算一張）',
-            'GL ' + fmtNum(rulePeriod.population) + ' 筆',
+            '符合條件的分錄 ' + Ui.countText(item.hitLines) + ' 筆',
+            '傳票 ' + Ui.countText(item.hitVouchers) + ' 張（同號只算一張）',
+            'GL ' + Ui.countText(rulePeriod.population) + ' 筆',
             '符合比例 ' + fmtRulePct(item.ratePct)
           ]);
         }
@@ -253,7 +249,7 @@
           if (!bar || !bar.data) { return ''; }
           var meta = amountMeta(bar.data.key);
           return tooltipContent('分錄金額級距與累積分布，' + meta.range, [
-            '分錄 ' + fmtNum(bar.data.count) + ' 筆',
+            '分錄 ' + Ui.countText(bar.data.count) + ' 筆',
             '累積分布 ' + fmtPct(bar.data.ecdfPct)
           ]);
         }
@@ -366,9 +362,9 @@
         formatter: function (params) {
           if (!params || !params.length) { return ''; }
           var row = rows[params[0].dataIndex];
-          var lines = ['分錄 ' + fmtNum(row.entryCount) + ' 筆'];
+          var lines = ['分錄 ' + Ui.countText(row.entryCount) + ' 筆'];
           if (row.manualCount != null) {
-            lines.push('其中人工分錄 ' + fmtNum(row.manualCount) + ' 筆');
+            lines.push('其中人工分錄 ' + Ui.countText(row.manualCount) + ' 筆');
           }
           if (row.cumulativePct != null) {
             lines.push('累積占比 ' + fmtPct(row.cumulativePct));
@@ -463,12 +459,12 @@
 
   function rareAccountChartOption(accounts) {
     var labels = accounts.map(function (account) {
-      return account.accountCode + (account.accountName ? ' ' + account.accountName : '');
+      return account.accountNumber + (account.accountName ? ' ' + account.accountName : '');
     });
     var data = accounts.map(function (account, index) {
       return {
         value: [account.entryCount, labels[index]],
-        accountCode: account.accountCode,
+        accountNumber: account.accountNumber,
         accountName: account.accountName,
         entryCount: account.entryCount
       };
@@ -487,8 +483,8 @@
         confine: true,
         formatter: function (param) {
           var item = param.data;
-          var label = item.accountCode + (item.accountName ? ' ' + item.accountName : '');
-          return tooltipContent(label, ['使用 ' + fmtNum(item.entryCount) + ' 筆']);
+          var label = item.accountNumber + (item.accountName ? ' ' + item.accountName : '');
+          return tooltipContent(label, ['使用 ' + Ui.countText(item.entryCount) + ' 筆']);
         }
       },
       grid: { left: 218, right: 42, top: 18, bottom: 38 },
@@ -607,7 +603,7 @@
     var zeroPopulationNote = rulePeriod.population === 0
       ? 'GL 為 0 筆，符合比例以「—」表示，不代表 0%。'
       : '';
-    var note = '符合比例＝符合條件的分錄數 ÷ GL 分錄數 ' + fmtNum(rulePeriod.population) +
+    var note = '符合比例＝符合條件的分錄數 ÷ GL 分錄數 ' + Ui.countText(rulePeriod.population) +
       ' 筆。長條依各規則符合比例呈現，僅供比較規則間分布。' +
       zeroPopulationNote;
 
@@ -623,8 +619,8 @@
   }
 
   /**
-   * 預篩選規則全期命中分布。舊 summary 沒有 rulePeriod 時必須誠實降級，
-   * 不可由既有 count 在前端自行補算分母、去重傳票或符合比例。
+   * 預篩選規則全期命中分布，直接鏡射後端的 rulePeriod，不在前端自行補算分母、去重傳票或符合比例。
+   * 新的預篩選結果一定帶 rulePeriod，只為舊結果留下的降級已拿掉（裁定 2026-11-02-10）。
    */
   function rulePeriodHtml(prescreen) {
     if (!prescreen) {
@@ -634,15 +630,7 @@
         '在「資料驗證與測試」步驟執行預篩選後，這裡會顯示預篩選的全期結果分布。'));
     }
 
-    var rulePeriod = prescreen.rulePeriod;
-    if (!rulePeriod || !Array.isArray(rulePeriod.rules) || rulePeriod.rules.length === 0) {
-      return rulePeriodSectionHtml(messageHtml(
-        'stale',
-        '需重新執行預篩選以產生此統計',
-        '這次預篩選結果沒有預篩選結果分布，重新執行預篩選即可查看。'));
-    }
-
-    return rulePeriodSectionHtml(rulePeriodPanelHtml(rulePeriod));
+    return rulePeriodSectionHtml(rulePeriodPanelHtml(prescreen.rulePeriod));
   }
 
   function amountDistributionSectionHtml(inner) {
@@ -677,28 +665,18 @@
   }
 
   /**
-   * validate.run 金額級距。舊 summary 沒有 amountDistribution 時必須要求重跑，
-   * 不得從 stats 或其他畫面數字在前端補算。
+   * validate.run 金額級距，直接鏡射後端的 amountDistribution，不得從 stats 或其他畫面數字在前端補算。
+   * 開案讀回的驗證結果已由後端檢查過級距，只為舊結果留下的降級已拿掉（裁定 2026-11-02-10）。
    */
   function amountDistributionHtml(validation) {
-    var amountDistribution = validation && validation.amountDistribution;
-    if (!amountDistribution ||
-        !Array.isArray(amountDistribution.bins) ||
-        amountDistribution.bins.length !== AMOUNT_BIN_META.length) {
-      return amountDistributionSectionHtml(messageHtml(
-        'stale',
-        '需重新執行資料驗證以產生此統計',
-        '目前顯示的是先前執行結果，尚未包含金額級距與累積分布。重新執行資料驗證即可產生。'));
-    }
-
     return amountDistributionSectionHtml(
-      amountDistributionPanelHtml(amountDistribution));
+      amountDistributionPanelHtml(validation.amountDistribution));
   }
 
   function preparerPanelHtml(concentration) {
     var preparers = concentration.preparers;
-    var denominator = '累積占比以查核期間全部 ' + fmtNum(preparers.totalPreparerCount) +
-      ' 位編製人員、' + fmtNum(preparers.totalEntryCount) + ' 筆分錄為分母。';
+    var denominator = '累積占比以查核期間全部 ' + Ui.countText(preparers.totalPreparerCount) +
+      ' 位編製人員、' + Ui.countText(preparers.totalEntryCount) + ' 筆分錄為分母。';
     var lead = preparers.top5SharePct == null
       ? denominator
       : '前 5 位編製人員占查核期間分錄 ' + fmtPct(preparers.top5SharePct) + '。' + denominator;
@@ -718,8 +696,8 @@
 
   function rareAccountPanelHtml(concentration) {
     var accounts = concentration.rareAccounts;
-    var note = '以下為使用次數最低的 ' + fmtNum(accounts.length) + ' 個科目（升冪）；' +
-      '查核期間共 ' + fmtNum(concentration.distinctAccountCount) + ' 個科目。' +
+    var note = '以下為使用次數最低的 ' + Ui.countText(accounts.length) + ' 個科目（升冪）；' +
+      '查核期間共 ' + Ui.countText(concentration.distinctAccountCount) + ' 個科目。' +
       '本圖聚焦使用次數最低的科目，不呈現高頻科目的集中程度。';
 
     return (
@@ -734,9 +712,9 @@
   }
 
   /**
-   * 集中度分析區塊。prescreen＝state.lastRuns.prescreen（可為 null）。
-   * 三種降級一律以文字說明取代圖表，不以 0 冒充統計：
-   *   1) 尚未執行風險預篩選；2) 舊執行結果沒有此統計；3) 後端裁定不適用。
+   * 集中度分析區塊。prescreen＝state.results.prescreen（可為 null）。
+   * 兩種降級一律以文字說明取代圖表，不以 0 冒充統計：
+   *   1) 尚未執行風險預篩選；2) 後端裁定不適用。只為舊結果留下的「沒有此統計」已拿掉（裁定 2026-11-02-10）。
    */
   function concentrationHtml(prescreen, activeTab) {
     if (!prescreen) {
@@ -747,12 +725,6 @@
     }
 
     var concentration = prescreen.concentration;
-    if (!concentration) {
-      return sectionHtml(messageHtml(
-        'stale',
-        '需重新執行預篩選以產生此統計',
-        '目前顯示的是先前執行結果，尚未包含預篩選。重新執行預篩選即可產生。'), '');
-    }
 
     if (concentration.status !== 'V') {
       return sectionHtml(messageHtml(
@@ -770,13 +742,13 @@
   }
 
   function chartOption(kind, validation, prescreen, activeTab) {
-    if (kind === 'rule-period' && prescreen && prescreen.rulePeriod) {
+    if (kind === 'rule-period' && prescreen) {
       return rulePeriodChartOption(prescreen.rulePeriod);
     }
-    if (kind === 'amount' && validation && validation.amountDistribution) {
+    if (kind === 'amount' && validation) {
       return amountDistributionChartOption(validation.amountDistribution);
     }
-    if (kind === 'concentration' && prescreen && prescreen.concentration) {
+    if (kind === 'concentration' && prescreen) {
       return activeTab === 'accounts'
         ? rareAccountChartOption(prescreen.concentration.rareAccounts)
         : preparerChartOption(prescreen.concentration.preparers);

@@ -30,7 +30,7 @@ public sealed class SqliteCalendarStoreTests
             await using var connection = database.CreateConnection(ProjectId);
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT day_name FROM staging_calendar_raw_day WHERE date = @d;";
+            command.CommandText = "SELECT day_name FROM calendar_day WHERE date = @d;";
             command.AddWithValue("@d", date);
             var result = await command.ExecuteScalarAsync();
             return result is DBNull or null ? null : (string)result;

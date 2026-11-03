@@ -7,7 +7,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// DateNormalizer 規格測試（guide §3.1.3）。
-/// oracle：規格手算——民國年 = 西元年 − 1911（114 + 1911 = 2025）。純數字不當日期（使用者 2026-10-22 裁定），
+/// oracle：規格手算——民國年 = 西元年 − 1911（114 + 1911 = 2025）。純數字不當日期（裁定 2026-10-22-11），
 /// 45292 以前是 OADate 2024-01-01。前後端共用的固定答案在 tools/tests/fixtures/date-normalization.json。
 /// 設計技術：決策表（格式 × RocYearEnabled）＋ BVA（ROC 年、sanity guard 年份邊界、以前的序列值邊界）。
 /// </summary>
@@ -32,7 +32,7 @@ public sealed class DateNormalizerTests
         Assert.Equal(expected, offResult);
     }
 
-    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：純數字不再當成 Excel 序列值換成日期，兩種開關都拒絕。
+    // 裁定 2026-10-22-11：純數字不再當成 Excel 序列值換成日期，兩種開關都拒絕。
     // 「45292」原本在上面的通用格式裡期待 2024-01-01；改成拒絕的第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
     [Theory]
     [InlineData("2025")]      // 以前換成 1905-07-17
@@ -66,9 +66,9 @@ public sealed class DateNormalizerTests
     [Fact]
     public void TryNormalize_RocDisabled_SevenDigitOutsideSupportedSerialYears_IsRejected()
     {
-        // 2026-10-04 第 9 批高4：序列值限 1900–2100，關閉民國年後不能接受原先的 5022 年日期。
+        // 序列值限 1900–2100，關閉民國年後不能接受原先的 5022 年日期。
         // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592；原始輸入不變。
-        // 預篩選收斂計畫階段七（2026-10-22）後純數字一律拒絕，這一則的結果不變。
+        // 純數字不再當成序列值後一律拒絕，這一則的結果不變。
         Assert.False(DateNormalizer.TryNormalize("1140611", RocOff, out var isoDate));
         Assert.Null(isoDate);
     }
@@ -80,8 +80,8 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize("114/6/11", RocOff, out _));
     }
 
-    // 2026-10-04 第 9 批高4：改驗 1900–2100 的固定邊界，未呼叫被測程式反算答案。
-    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：序列值邊界「2」與「73415」不再換成 1900-01-01 與 2100-12-31，
+    // 改驗 1900–2100 的固定邊界，未呼叫被測程式反算答案。
+    // 裁定 2026-10-22-11：序列值邊界「2」與「73415」不再換成 1900-01-01 與 2100-12-31，
     // 和其他純數字一樣拒絕；原始輸入不變。第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
     [Theory]
     [InlineData("2")]
@@ -92,7 +92,7 @@ public sealed class DateNormalizerTests
         Assert.Null(isoDate);
     }
 
-    // 以前是序列值範圍外而拒絕；階段七（2026-10-22）後所有純數字都拒絕，這些值的結果不變。
+    // 以前是序列值範圍外而拒絕；純數字不再當成序列值後，所有純數字都拒絕，這些值的結果不變。
     [Theory]
     [InlineData("0")]        // BVA：序列值下鄰
     [InlineData("2958466")]  // BVA：序列值上鄰
@@ -104,7 +104,7 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
     }
 
-    // 使用者 2026-10-19 裁定：帶千分位的數字視為無法辨識的日期，不當 Excel 序列值換算。
+    // 裁定 2026-10-19-09：帶千分位的數字視為無法辨識的日期，不當 Excel 序列值換算。
     [Theory]
     [InlineData("1,234")]    // 以前換成 1903-05-18，再以期間外排除。
     [InlineData("45,292")]   // 去掉千分位是 2024-01-01 的序列值，同樣不接受。
@@ -140,7 +140,7 @@ public sealed class DateNormalizerTests
         // 1141315 命中民國年 7 位數形狀但月份 13 非法：民國年判定優先，不得回退成序列值。
         Assert.False(DateNormalizer.TryNormalize("1141315", RocOn, out _));
 
-        // 同一高4裁定：民國年關閉時也不能退回 5024 年的超限序列日期。
+        // 同樣受 1900 到 2100 的限制：民國年關閉時也不能退回 5024 年的超限序列日期。
         Assert.False(DateNormalizer.TryNormalize("1141315", RocOff, out _));
     }
 
@@ -163,7 +163,7 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize(raw, RocOn, out _));
     }
 
-    // 使用者 2026-10-19 裁定「視為無法辨識的日期」：寬鬆解析只接受寫出四位數年份與日的寫法，
+    // 裁定 2026-10-19-11「視為無法辨識的日期」：寬鬆解析只接受寫出四位數年份與日的寫法，
     // 不自行補上執行當年、不補成 1 日，也不把一兩位數讀成年份。修正前這些值都被接受
     // （失敗收據 20261019-151920082-d008d7d7066b489ab4ea0b4c1907bcf1）。
     [Theory]
@@ -211,7 +211,7 @@ public sealed class DateNormalizerTests
     }
 
     // 讀取器對超出 1900 到 2100 年的日期型儲存格，交給投影帶小數點的序列文字；拿掉序列值關卡後它仍是純數字而拒絕，
-    // 投影照舊報「無法辨識為日期」並寫出列號（工作流程見 Batch9ExcelDateWorkflowTests）。改程式前後都通過，沒有可保存的第一次失敗。
+    // 投影照舊報「無法辨識為日期」並寫出列號（工作流程見 ExcelNativeDateImportTests）。改程式前後都通過，沒有可保存的第一次失敗。
     [Theory]
     [InlineData(73416d, "73416.0")]       // 2101-01-01
     [InlineData(1140611d, "1140611.0")]   // 小數點讓它不會被讀成民國 114 年 6 月 11 日
@@ -224,7 +224,7 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize(text, RocOff, out _));
     }
 
-    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定「共用固定答案」）：前後端讀同一份日期固定答案
+    // 裁定 2026-10-22-12 選「共用固定答案」：前後端讀同一份日期固定答案
     // tools/tests/fixtures/date-normalization.json，前端 frontend-shared-controls 的日期清單測試讀同一份；一邊改了規則另一邊就失敗。
     // 第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d（純數字那一組當時仍換成日期）。
     public static TheoryData<string> SharedFixtureRaws()

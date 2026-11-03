@@ -57,13 +57,13 @@ public sealed class BridgeErrorMappingTests
             new JetActionException(
                 JetErrorCodes.InvalidPayload,
                 "案件名稱不合法。",
-                JetErrorFields.CaseName));
+                JetErrorFields.ProjectName));
 
-        Assert.Equal(JetErrorFields.CaseName, dto.Field);
+        Assert.Equal(JetErrorFields.ProjectName, dto.Field);
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(
             dto,
             new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        Assert.Equal(JetErrorFields.CaseName, json.RootElement.GetProperty("field").GetString());
+        Assert.Equal(JetErrorFields.ProjectName, json.RootElement.GetProperty("field").GetString());
     }
 
     [Fact]
@@ -88,14 +88,14 @@ public sealed class BridgeErrorMappingTests
         Assert.Equal("情境名稱必填。", details[2].GetProperty("message").GetString());
     }
 
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         private const string UnexpectedErrorText =
         "發生非預期的錯誤，此操作未完成。請再試一次。";
 
     [Fact]
     public void ArbitraryException_FallsBackToBridgeError()
     {
-        // 2026-10-02 修改原因（W19）：未知例外的原文可能是英文或含本機路徑，畫面改回固定中文訊息；
+        // 2026-10-02 修改原因：未知例外的原文可能是英文或含本機路徑，畫面改回固定中文訊息；
         // 原文只留在 ActionDispatcher 寫的日誌。原本斷言畫面訊息等於例外原文 "boom"，
         // 第一次失敗收據 20261002-143156407-11794b1f4e894fdc8bab4d05ac3c728e。錯誤碼與欄位的斷言不變。
         var dto = JetWebMessageBridge.ToErrorDto(new InvalidOperationException("boom"));
@@ -137,7 +137,7 @@ public sealed class BridgeErrorMappingTests
             new KeyNotFoundException("No JET action handler is registered for 'x.y'."));
 
         Assert.Equal("bridge_error", dto.Code);
-        // 2026-10-02 加入（W19）：未知 action 也是未知例外，畫面同樣只看到固定中文訊息。
+        // 2026-10-02 加入：未知 action 也是未知例外，畫面同樣只看到固定中文訊息。
         Assert.Equal(UnexpectedErrorText, dto.Message);
     }
 

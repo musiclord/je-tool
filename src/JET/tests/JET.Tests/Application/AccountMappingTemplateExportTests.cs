@@ -15,7 +15,7 @@ namespace JET.Tests.Application;
 /// 科目配對範本產生（export.accountMappingTemplate）驗收：
 /// (a) 母體＝GL∪TB（使用者關切點，必測）——repo 讀回 GL-only／TB-only／共有科目皆列、升冪、GL-only 寫真實 GL 名；
 /// (b) 下拉存在——writer 讀回 C4 DataValidation 為 list 型五類別、inCellDropdown、A/B 已填 C 留空；
-/// (c) round-trip——產範本→填 C 欄→import.accountMapping.fromFile→target_account_mapping 落地正確；
+/// (c) round-trip——產範本→填 C 欄→import.accountMapping.fromFile→account_mapping 落地正確；
 /// (d) handler 端到端——GL+TB 已 commit → 範本檔寫出、rowCount == 獨立 recount diff 基數；
 /// (e) provider parity——SQLite 對 SQL Server 的範本列等價（[SqlServerFact]）。
 ///
@@ -62,17 +62,17 @@ public sealed class AccountMappingTemplateExportTests
         var rows = await SqliteRepo(host).FetchTemplateRowsAsync(
             projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
 
-        // 三科目全列（GL-only 5101、TB-only 2101、共有 1101），依 account_code 升冪。
-        Assert.Equal(new[] { "1101", "2101", "5101" }, rows.Select(r => r.AccountCode).ToArray());
+        // 三科目全列（GL-only 5101、TB-only 2101、共有 1101），依 account_number 升冪。
+        Assert.Equal(new[] { "1101", "2101", "5101" }, rows.Select(r => r.AccountNumber).ToArray());
 
         // GL-only 5101 的 B 欄寫真實 GL 名「薪資費用」（非「Not in TB」）——使用者靠名稱辨識科目才能分類。
-        var glOnly = rows.Single(r => r.AccountCode == "5101");
+        var glOnly = rows.Single(r => r.AccountNumber == "5101");
         Assert.Equal("薪資費用", glOnly.AccountName);
 
         // 共有 1101 取 diff 的 COALESCE(tb, gl) → TB 名「現金」（證聯集鍵與名稱來源正確）。
-        Assert.Equal("現金", rows.Single(r => r.AccountCode == "1101").AccountName);
+        Assert.Equal("現金", rows.Single(r => r.AccountNumber == "1101").AccountName);
 
-        // 獨立 recount：diff 基數 == 3（GL∪TB distinct account_code）。
+        // 獨立 recount：diff 基數 == 3（GL∪TB distinct account_number）。
         var diffCount = await DemoProjectPipeline.QueryScalarAsync(
             host, projectId, ValidationProcedures.CompletenessDiffCte + "\nSELECT COUNT(*) FROM diff;",
             ("@periodStart", "2025-01-01"), ("@periodEnd", "2025-12-31"));
@@ -158,20 +158,20 @@ public sealed class AccountMappingTemplateExportTests
     }
 
     [Fact]
-    public async Task Writer_ProjectTaxonomy_RoundTripsCustomLabelsIntoDynamicDropdown()
+    public async Task Writer_ProjectCategory_RoundTripsCustomLabelsIntoDynamicDropdown()
     {
-        AccountTaxonomyCategory[] categories =
+        AccountCategory[] categories =
         [
-            .. AccountTaxonomyBuiltIns.All,
-            new AccountTaxonomyCategory(
+            .. AccountCategoryBuiltIns.All,
+            new AccountCategory(
                 "custom.0123456789abcdef0123456789abcdef",
                 "Contract assets",
                 5,
-                AccountTaxonomyBuiltIns.ReceivablesRole,
+                AccountCategoryBuiltIns.ReceivablesRole,
                 false)
         ];
         using var stream = new MemoryStream();
-        var writer = Assert.IsAssignableFrom<IAccountMappingTaxonomyTemplateWriter>(
+        var writer = Assert.IsAssignableFrom<IAccountMappingCategoryTemplateWriter>(
             new AccountMappingTemplateWriter());
 
         await writer.WriteAsync(
@@ -192,14 +192,14 @@ public sealed class AccountMappingTemplateExportTests
     }
 
     [Fact]
-    public async Task ProjectTaxonomy_TemplateImportRoundTrip_PersistsCustomIdAndBlankAsOthers()
+    public async Task ProjectCategory_TemplateImportRoundTrip_PersistsCustomIdAndBlankAsOthers()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupGlUnionTbProjectAsync(host);
         var savePayload = JsonSerializer.Serialize(new
         {
             revision = 1,
-            categories = AccountTaxonomyBuiltIns.All.Select(item => new
+            categories = AccountCategoryBuiltIns.All.Select(item => new
             {
                 categoryId = (string?)item.CategoryId,
                 label = item.Label,
@@ -210,15 +210,15 @@ public sealed class AccountMappingTemplateExportTests
                 categoryId = (string?)null,
                 label = "Contract assets",
                 ordinal = 5,
-                semanticRole = AccountTaxonomyBuiltIns.ReceivablesRole
+                semanticRole = AccountCategoryBuiltIns.ReceivablesRole
             })
         });
-        var saved = await host.DispatchAsync("accountTaxonomy.save", savePayload);
+        var saved = await host.DispatchAsync("accountCategory.save", savePayload);
         var custom = saved.GetProperty("categories").EnumerateArray()
             .Single(item => !item.GetProperty("isBuiltIn").GetBoolean());
         var customId = custom.GetProperty("categoryId").GetString()!;
         var categories = saved.GetProperty("categories").EnumerateArray()
-            .Select(item => new AccountTaxonomyCategory(
+            .Select(item => new AccountCategory(
                 item.GetProperty("categoryId").GetString()!,
                 item.GetProperty("label").GetString()!,
                 item.GetProperty("ordinal").GetInt32(),
@@ -232,7 +232,7 @@ public sealed class AccountMappingTemplateExportTests
         {
             await using (var output = File.Create(path))
             {
-                await ((IAccountMappingTaxonomyTemplateWriter)new AccountMappingTemplateWriter())
+                await ((IAccountMappingCategoryTemplateWriter)new AccountMappingTemplateWriter())
                     .WriteAsync(output, rows, categories, CancellationToken.None);
             }
             using (var workbook = new XLWorkbook(path))
@@ -246,22 +246,22 @@ public sealed class AccountMappingTemplateExportTests
 
             await host.DispatchAsync(
                 "import.accountMapping.fromFile",
-                JsonSerializer.Serialize(new { filePath = path, fileName = "taxonomy-roundtrip.xlsx" }));
+                JsonSerializer.Serialize(new { filePath = path, fileName = "category-roundtrip.xlsx" }));
 
             Assert.Equal(
                 1,
                 await DemoProjectPipeline.QueryScalarAsync(
                     host,
                     projectId,
-                    "SELECT COUNT(*) FROM target_account_mapping WHERE category_id = @categoryId;",
+                    "SELECT COUNT(*) FROM account_mapping WHERE category_id = @categoryId;",
                     ("@categoryId", customId)));
             Assert.Equal(
                 1,
                 await DemoProjectPipeline.QueryScalarAsync(
                     host,
                     projectId,
-                    "SELECT COUNT(*) FROM target_account_mapping WHERE category_id = @categoryId;",
-                    ("@categoryId", AccountTaxonomyBuiltIns.OthersId)));
+                    "SELECT COUNT(*) FROM account_mapping WHERE category_id = @categoryId;",
+                    ("@categoryId", AccountCategoryBuiltIns.OthersId)));
         }
         finally
         {
@@ -404,10 +404,10 @@ public sealed class AccountMappingTemplateExportTests
         Assert.True(stream.Length > 0, "合法最大列數應先進入 template copy／write path，再由測試 token 取消。");
     }
 
-    // ================= (c) round-trip：產範本→填 C→匯入→target_account_mapping 落地 =================
+    // ================= (c) round-trip：產範本→填 C→匯入→account_mapping 落地 =================
 
     [Fact]
-    public async Task RoundTrip_FilledTemplate_ImportsBackIntoTargetAccountMapping()
+    public async Task RoundTrip_FilledTemplate_ImportsBackIntoAccountMapping()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupGlUnionTbProjectAsync(host);
@@ -418,9 +418,9 @@ public sealed class AccountMappingTemplateExportTests
         try
         {
             var validate = await host.DispatchAsync("validate.run");
-            var runId = validate.GetProperty("resultRef").GetProperty("runId").GetString();
+            var resultId = validate.GetProperty("resultRef").GetProperty("resultId").GetString();
             var export = await host.DispatchAsync("export.accountMappingTemplate",
-                JsonSerializer.Serialize(new { runId }));
+                JsonSerializer.Serialize(new { resultId }));
             Assert.True(export.GetProperty("ok").GetBoolean());
             Assert.Equal(3, export.GetProperty("rowCount").GetInt32());
             templatePath = export.GetProperty("filePath").GetString()!;
@@ -453,10 +453,10 @@ public sealed class AccountMappingTemplateExportTests
                 JsonSerializer.Serialize(new { filePath = filledPath, fileName = "filled.xlsx" }));
             Assert.Equal(3, import.GetProperty("rowCount").GetInt32());
 
-            // target_account_mapping 落地正確：逐科目 code=category（獨立讀回，證分類白名單投影成功）。
+            // account_mapping 落地正確：逐科目 code=category（獨立讀回，證分類白名單投影成功）。
             var landed = await DemoProjectPipeline.QueryStringListAsync(
                 host, projectId,
-                "SELECT account_code || '=' || standardized_category FROM target_account_mapping ORDER BY account_code;");
+                "SELECT account_number || '=' || standardized_category FROM account_mapping ORDER BY account_number;");
             Assert.Equal(
                 new[] { "1101=Cash", "2101=Receivables", "5101=Revenue" },
                 landed.ToArray());
@@ -476,10 +476,10 @@ public sealed class AccountMappingTemplateExportTests
         using var host = new HandlerTestHost();
         var projectId = await SetupGlUnionTbProjectAsync(host, databaseProvider);
         var validate = await host.DispatchAsync("validate.run");
-        var runId = validate.GetProperty("resultRef").GetProperty("runId").GetString();
+        var resultId = validate.GetProperty("resultRef").GetProperty("resultId").GetString();
         var export = await host.DispatchAsync(
             "export.accountMappingTemplate",
-            JsonSerializer.Serialize(new { runId }));
+            JsonSerializer.Serialize(new { resultId }));
         var templatePath = export.GetProperty("filePath").GetString()!;
         var fileName = Path.GetFileName(templatePath);
 
@@ -492,10 +492,10 @@ public sealed class AccountMappingTemplateExportTests
         Assert.Equal(3, import.GetProperty("rowCount").GetInt32());
         var preview = await host.DispatchAsync(
             "query.dataPreview",
-            JsonSerializer.Serialize(new { dataset = "accountMappings" }));
+            JsonSerializer.Serialize(new { dataset = "accountMapping" }));
         Assert.Equal(3, preview.GetProperty("totalCount").GetInt64());
         Assert.Equal(
-            new[] { "accountCode", "accountName", "standardizedCategory" },
+            new[] { "accountNumber", "accountName", "standardizedCategory" },
             preview.GetProperty("columns").EnumerateArray().Select(column => column.GetString()).ToArray());
         var firstPreviewRow = preview.GetProperty("rows")[0];
         Assert.Equal("1101", firstPreviewRow[0].GetString());
@@ -518,10 +518,10 @@ public sealed class AccountMappingTemplateExportTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task Template_ExcludesBlankGlAccountCodes_AndFilledTemplateImportsBack(string databaseProvider)
+    public async Task Template_ExcludesBlankGlAccountNumbers_AndFilledTemplateImportsBack(string databaseProvider)
     {
         using var host = new HandlerTestHost();
-        await AssertTemplateExcludesBlankGlAccountCodesAsync(host, databaseProvider, () =>
+        await AssertTemplateExcludesBlankGlAccountNumbersAsync(host, databaseProvider, () =>
             new LocalAccountMappingExportRepository(databaseProvider == "sqlite"
                 ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
                 : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot))));
@@ -529,10 +529,10 @@ public sealed class AccountMappingTemplateExportTests
 
     /// <summary>
     /// SQL Server 的範本查詢也不得退回列出空白科目編號的舊寫法。三種資料庫用同一份含空白編號的合成資料，
-    /// 範本列的編號與名稱都對同一組固定答案，等於逐列核對三種資料庫的範本相同（2026-10-19 跨資料庫一致性第二階段）。
+    /// 範本列的編號與名稱都對同一組固定答案，等於逐列核對三種資料庫的範本相同。
     /// </summary>
     [SqlServerFact]
-    public async Task Template_ExcludesBlankGlAccountCodes_AndFilledTemplateImportsBack_SqlServer()
+    public async Task Template_ExcludesBlankGlAccountNumbers_AndFilledTemplateImportsBack_SqlServer()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -543,7 +543,7 @@ public sealed class AccountMappingTemplateExportTests
         using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
-            await AssertTemplateExcludesBlankGlAccountCodesAsync(host, "sqlServer", () =>
+            await AssertTemplateExcludesBlankGlAccountNumbersAsync(host, "sqlServer", () =>
                 new SqlServerAccountMappingExportRepository(
                     new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString))));
         }
@@ -553,7 +553,7 @@ public sealed class AccountMappingTemplateExportTests
         }
     }
 
-    private static async Task AssertTemplateExcludesBlankGlAccountCodesAsync(
+    private static async Task AssertTemplateExcludesBlankGlAccountNumbersAsync(
         HandlerTestHost host,
         string databaseProvider,
         Func<IAccountMappingExportRepository> createRepository)
@@ -571,21 +571,21 @@ public sealed class AccountMappingTemplateExportTests
 
         var rows = await createRepository()
             .FetchTemplateRowsAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
-        Assert.Equal(new[] { "1101", "5101" }, rows.Select(r => r.AccountCode).ToArray());
-        Assert.Equal(expected, rows.Select(r => (r.AccountCode, r.AccountName ?? string.Empty)));
+        Assert.Equal(new[] { "1101", "5101" }, rows.Select(r => r.AccountNumber).ToArray());
+        Assert.Equal(expected, rows.Select(r => (r.AccountNumber, r.AccountName ?? string.Empty)));
 
         var population = await host.DispatchAsync("query.accountMappingDifferencePage", """{"kind":"unmapped"}""");
         Assert.Equal(
-            population.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("accountCode").GetString()).ToArray(),
-            rows.Select(r => r.AccountCode).ToArray());
+            population.GetProperty("rows").EnumerateArray().Select(r => r.GetProperty("accountNumber").GetString()).ToArray(),
+            rows.Select(r => r.AccountNumber).ToArray());
 
         string? templatePath = null;
         var filledPath = NewTempXlsxPath();
         try
         {
             var validate = await host.DispatchAsync("validate.run");
-            var runId = validate.GetProperty("resultRef").GetProperty("runId").GetString();
-            var export = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { runId }));
+            var resultId = validate.GetProperty("resultRef").GetProperty("resultId").GetString();
+            var export = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { resultId }));
             Assert.Equal(2, export.GetProperty("rowCount").GetInt32());
             templatePath = export.GetProperty("filePath").GetString()!;
             Assert.Equal(expected, ReadTemplateRows(templatePath));
@@ -621,9 +621,9 @@ public sealed class AccountMappingTemplateExportTests
         var ctx = await DemoProjectPipeline.SetupAsync(host);
 
         var validate = await host.DispatchAsync("validate.run");
-        var runId = validate.GetProperty("resultRef").GetProperty("runId").GetString();
+        var resultId = validate.GetProperty("resultRef").GetProperty("resultId").GetString();
         var data = await host.DispatchAsync("export.accountMappingTemplate",
-            JsonSerializer.Serialize(new { runId }));
+            JsonSerializer.Serialize(new { resultId }));
         var outputPath = data.GetProperty("filePath").GetString()!;
         Assert.Equal(
             Path.Combine(host.ProjectsRoot, ctx.ProjectId),
@@ -660,16 +660,16 @@ public sealed class AccountMappingTemplateExportTests
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "EMPTY-2025-001",
-            entityName = "空母體案件",
+            clientName = "空母體案件",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",
         }));
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() =>
-            host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { runId = new string('a', 32) })));
+            host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { resultId = new string('a', 32) })));
         Assert.Equal(JetErrorCodes.StaleResult, ex.Code);
-        // 2026-10-04 第 8 批 Q8：已確認配對的狀態說法統一，仍要求缺 GL 配對時明確拒絕。
+        // 已確認配對的狀態說法統一後，仍要求缺 GL 配對時明確拒絕。
         // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Contains("正式報表需要目前已確認配對的 GL 欄位", ex.Message);
         Assert.DoesNotContain("驗證", ex.Message);
@@ -693,7 +693,7 @@ public sealed class AccountMappingTemplateExportTests
         var sqliteExport = await sqliteHost.DispatchAsync("export.accountMappingTemplate",
             JsonSerializer.Serialize(new
             {
-                runId = sqliteValidate.GetProperty("resultRef").GetProperty("runId").GetString()
+                resultId = sqliteValidate.GetProperty("resultRef").GetProperty("resultId").GetString()
             }));
         var sqliteOut = sqliteExport.GetProperty("filePath").GetString()!;
         List<(string Code, string Name)> sqliteRows;
@@ -707,7 +707,7 @@ public sealed class AccountMappingTemplateExportTests
             var sqlExport = await sqlServerHost.DispatchAsync("export.accountMappingTemplate",
                 JsonSerializer.Serialize(new
                 {
-                    runId = sqlValidate.GetProperty("resultRef").GetProperty("runId").GetString()
+                    resultId = sqlValidate.GetProperty("resultRef").GetProperty("resultId").GetString()
                 }));
             var sqlServerOut = sqlExport.GetProperty("filePath").GetString()!;
             var sqlServerRows = ReadTemplateRows(sqlServerOut);
@@ -715,7 +715,7 @@ public sealed class AccountMappingTemplateExportTests
             // provider 等價：範本列（code + name）逐項相同。
             Assert.Equal(sqliteRows, sqlServerRows);
 
-            // SQL Server 也必須接受自己產生的全空白 C 欄範本；blank 依 taxonomy 契約投影為 Others。
+            // SQL Server 也必須接受自己產生的全空白 C 欄範本；blank 依科目分類契約投影為 Others。
             var imported = await sqlServerHost.DispatchAsync(
                 "import.accountMapping.fromFile",
                 JsonSerializer.Serialize(new
@@ -726,7 +726,7 @@ public sealed class AccountMappingTemplateExportTests
             Assert.Equal(sqlServerRows.Count, imported.GetProperty("rowCount").GetInt32());
             var preview = await sqlServerHost.DispatchAsync(
                 "query.dataPreview",
-                JsonSerializer.Serialize(new { dataset = "accountMappings" }));
+                JsonSerializer.Serialize(new { dataset = "accountMapping" }));
             Assert.Equal(sqlServerRows.Count, preview.GetProperty("totalCount").GetInt32());
             Assert.Equal("Others", preview.GetProperty("rows")[0][2].GetString());
             var sqlServerRepository = new SqlServerAccountMappingExportRepository(

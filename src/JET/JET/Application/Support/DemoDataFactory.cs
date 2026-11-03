@@ -5,10 +5,10 @@ namespace JET.Application;
 
 /// <summary>單筆 demo GL 分錄(flag 模式:金額為絕對值 + 借方旗標)。</summary>
 public sealed record DemoGlRow(
-    DateOnly PostDate,
+    DateOnly GlDate,
     string VoucherNumber,
     int LineNumber,
-    string AccountCode,
+    string AccountNumber,
     string AccountName,
     string Description,
     decimal Amount,
@@ -19,7 +19,7 @@ public sealed record DemoGlRow(
 
 /// <summary>單筆 demo TB 科目餘額(期末 = 期初 + 借方 − 貸方)。</summary>
 public sealed record DemoTbRow(
-    string AccountCode,
+    string AccountNumber,
     string AccountName,
     decimal OpeningBalance,
     decimal DebitTotal,
@@ -28,18 +28,18 @@ public sealed record DemoTbRow(
 
 /// <summary>單筆 demo 科目配對（科目代號、科目名稱、標準化分類三欄）。</summary>
 public sealed record DemoAccountMappingRow(
-    string AccountCode,
+    string AccountNumber,
     string AccountName,
     string Category);
 
 public sealed record DemoProjectData(
     string ProjectCode,
-    string CaseName,
-    string EntityName,
+    string ProjectName,
+    string ClientName,
     string OperatorId,
     string PeriodStart,
     string PeriodEnd,
-    string LastPeriodStart,
+    string PrepStartDate,
     string GlFileName,
     IReadOnlyList<string> GlColumns,
     IReadOnlyList<DemoGlRow> GlRows,
@@ -72,7 +72,7 @@ public static class DemoDataFactory
     public const int LinesPerVoucher = 2;
 
     // ── seed 群組張數(測試預期值依此計算)──
-    public const int PostPeriodApprovalVouchers = 20;
+    public const int PrepPeriodApprovalVouchers = 20;
     public const int SuspiciousKeywordVouchers = 25;
     public const int UnexpectedPairVouchers = 30;
     // 賒銷（Receivables 借＋Revenue 貸）：unexpected_account_pair 否定面「不命中」的對照組
@@ -85,11 +85,11 @@ public static class DemoDataFactory
     public const int HolidayPostingVouchers = 14;
     public const int HolidayApprovalVouchers = 8;
     public const int BlankDescriptionVouchers = 18;
-    // 原本是 22 張回溯過帳示範傳票。使用者 2026-10-08 裁定移除傳票日期與回溯過帳後，改成不觸發任何規則的
+    // 原本是 22 張回溯過帳示範傳票。裁定 2026-10-08-03 移除傳票日期與回溯過帳後，改成不觸發任何規則的
     // 一般傳票，保留原來的位置與張數，讓其他示範群組的日期、金額與抽樣結果維持不變。
     public const int FormerBackdatedPlainVouchers = 22;
     public const int NonAuthorizedVouchers = 16;
-    public const int LowFrequencyPreparerVouchers = 5;
+    public const int RarePreparerVouchers = 5;
     public const int RareAccountCount = 3;
     public const int RareAccountVouchersEach = 2;
 
@@ -100,25 +100,25 @@ public static class DemoDataFactory
     public const int OutOfPeriodVouchers = 2;
 
     public const int SeedVoucherCount =
-        PostPeriodApprovalVouchers + SuspiciousKeywordVouchers + UnexpectedPairVouchers +
+        PrepPeriodApprovalVouchers + SuspiciousKeywordVouchers + UnexpectedPairVouchers +
         CreditSaleVouchers +
         TrailingZerosVouchers + WeekendPostingVouchers + WeekendApprovalVouchers +
         HolidayPostingVouchers + HolidayApprovalVouchers + BlankDescriptionVouchers +
-        FormerBackdatedPlainVouchers + NonAuthorizedVouchers + LowFrequencyPreparerVouchers +
+        FormerBackdatedPlainVouchers + NonAuthorizedVouchers + RarePreparerVouchers +
         (RareAccountCount * RareAccountVouchersEach) + OutOfPeriodVouchers; // 215
     public const int BaselineVoucherCount = GlVoucherCount - SeedVoucherCount; // 6785
 
-    public const string EntityNameConst = "範例製造股份有限公司";
-    public const string DemoCaseName = "範例測試案件";
-    public const string LowFrequencyPreparer = "稀有編製者";
+    public const string ClientNameConst = "範例製造股份有限公司";
+    public const string DemoProjectName = "範例測試案件";
+    public const string RarePreparer = "稀有編製者";
     public const string NonAuthorizedPreparer = "未授權者";
 
     private static readonly string[] AuthorizedHighFreqPreparers =
         ["王小明", "李美麗", "陳大文", "張雅婷", "林志強", "黃淑芬"];
 
-    // 授權清單 = 6 高頻 + 1 低頻(未授權者不在內)
+    // 授權清單 = 6 高頻 + 1 較少使用(未授權者不在內)
     private static readonly string[] AuthorizedPreparerList =
-        [.. AuthorizedHighFreqPreparers, LowFrequencyPreparer];
+        [.. AuthorizedHighFreqPreparers, RarePreparer];
 
     private static readonly string[] SafeDescriptions =
     [
@@ -169,7 +169,7 @@ public static class DemoDataFactory
     private static readonly string[] MakeupDays2025 = ["2025-02-08"];
 
     // seed 專用日期(皆已驗證:週六非補班/平日假日/期外核准,只觸發目標規則)
-    private static readonly DateOnly PostPeriodApprovalDate = new(2026, 1, 15);   // 週四,非假日 → 僅 R1
+    private static readonly DateOnly PrepPeriodApprovalDate = new(2026, 1, 15);   // 週四,非假日 → 僅 R1
     private static readonly DateOnly[] WeekendPostingDates =
         [new(2025, 3, 8), new(2025, 3, 15), new(2025, 3, 22)];                    // 週六,非假日非補班
     private static readonly DateOnly WeekendApprovalDate = new(2025, 6, 14);      // 週六
@@ -177,7 +177,7 @@ public static class DemoDataFactory
         [new(2025, 2, 28), new(2025, 4, 4), new(2025, 5, 1), new(2025, 10, 10)]; // 平日假日
     private static readonly DateOnly HolidayApprovalDate = new(2025, 4, 4);       // 平日假日,< 期末
     // 期外對照組：總帳日期 2026-01-05(週一、非 2025 假日、期後)、核准日 2026-01-20(期後)。
-    private static readonly DateOnly OutOfPeriodPostDate = new(2026, 1, 5);
+    private static readonly DateOnly OutOfPeriodGlDate = new(2026, 1, 5);
     private static readonly DateOnly OutOfPeriodApprovalDate = new(2026, 1, 20);
     // 會計期間(對齊 DemoProjectData 的 PeriodStart/End 字串;供 TB 本期變動彙總過濾)。
     private static readonly DateOnly PeriodStartDate = new(2025, 1, 1);
@@ -197,12 +197,12 @@ public static class DemoDataFactory
 
         return new DemoProjectData(
             ProjectCode: "DEMO-2025-001",
-            CaseName: DemoCaseName,
-            EntityName: EntityNameConst,
+            ProjectName: DemoProjectName,
+            ClientName: ClientNameConst,
             OperatorId: "dev-tester",
             PeriodStart: "2025-01-01",
             PeriodEnd: "2025-12-31",
-            LastPeriodStart: "2025-12-31",
+            PrepStartDate: "2025-12-31",
             GlFileName: "JE-demo-2025.xlsx",
             GlColumns:
             [
@@ -212,19 +212,19 @@ public static class DemoDataFactory
             GlRows: glRows,
             GlMapping: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "傳票號碼",
-                [GlMappingKeys.LineId] = "傳票項次",
-                [GlMappingKeys.PostDate] = "總帳日期",
-                [GlMappingKeys.DocDate] = "傳票核准日",
-                [GlMappingKeys.AccNum] = "科目代號",
-                [GlMappingKeys.AccName] = "科目名稱",
+                [GlMappingKeys.VoucherNumber] = "傳票號碼",
+                [GlMappingKeys.LineItem] = "傳票項次",
+                [GlMappingKeys.GlDate] = "總帳日期",
+                [GlMappingKeys.ApprovalDate] = "傳票核准日",
+                [GlMappingKeys.AccountNumber] = "科目代號",
+                [GlMappingKeys.AccountName] = "科目名稱",
                 [GlMappingKeys.Description] = "摘要",
-                [GlMappingKeys.CreateBy] = "建立人員",
-                [GlMappingKeys.Manual] = "人工傳票",
+                [GlMappingKeys.CreatedBy] = "建立人員",
+                [GlMappingKeys.IsManual] = "人工傳票",
                 [GlMappingKeys.Amount] = "金額",
-                [GlMappingKeys.DcField] = "借方旗標",
-                [GlMappingKeys.DcDebitCode] = "1",
-                [GlMappingKeys.DcCreditCode] = "0"
+                [GlMappingKeys.DrCr] = "借方旗標",
+                [GlMappingKeys.DrCrDebitCode] = "1",
+                [GlMappingKeys.DrCrCreditCode] = "0"
             },
             GlAmountMode: GlAmountModeNames.Flag,
             TbFileName: "TB-demo-2025.xlsx",
@@ -232,10 +232,10 @@ public static class DemoDataFactory
             TbRows: tbRows,
             TbMapping: new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [TbMappingKeys.AccNum] = "科目代號",
-                [TbMappingKeys.AccName] = "科目名稱",
-                [TbMappingKeys.DebitAmt] = "借方金額",
-                [TbMappingKeys.CreditAmt] = "貸方金額"
+                [TbMappingKeys.AccountNumber] = "科目代號",
+                [TbMappingKeys.AccountName] = "科目名稱",
+                [TbMappingKeys.DebitAmount] = "借方金額",
+                [TbMappingKeys.CreditAmount] = "貸方金額"
             },
             TbChangeMode: TbChangeModeNames.DebitCredit,
             AccountMappingFileName: "AccountMapping-demo-2025.xlsx",
@@ -258,7 +258,7 @@ public static class DemoDataFactory
             new
             {
                 join = "AND",
-                rules = new object[]
+                conditions = new object[]
                 {
                     new { join = "AND", type = "prescreen", prescreenKey = "suspiciousKeywords" },
                     new { join = "OR", type = "prescreen", prescreenKey = "holidayPosting" }
@@ -267,7 +267,7 @@ public static class DemoDataFactory
             new
             {
                 join = "AND",
-                rules = new object[]
+                conditions = new object[]
                 {
                     new { join = "AND", type = "numRange", field = "amount", from = "10000", to = "" }
                 }
@@ -328,10 +328,10 @@ public static class DemoDataFactory
         string SafeDesc() => SafeDescriptions[seq.Next(SafeDescriptions.Length)];
 
         // R1 期末後核准:核准日 2026-01-15
-        for (var i = 0; i < PostPeriodApprovalVouchers; i++)
+        for (var i = 0; i < PrepPeriodApprovalVouchers; i++)
         {
             var post = NextWeekday();
-            AddVoucher(rows, ref voucherSeq, post, PostPeriodApprovalDate,
+            AddVoucher(rows, ref voucherSeq, post, PrepPeriodApprovalDate,
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
@@ -402,7 +402,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // descNull 摘要空白:借方行空白(設計內共觸發 V4 nullDescription)
+        // descNull 空白摘要:借方行的摘要留空(設計內共觸發 V4 nullDescription)
         for (var i = 0; i < BlankDescriptionVouchers; i++)
         {
             var post = NextWeekday();
@@ -418,7 +418,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // R10 非授權編製人員:created_by = 未授權者(16×2 = 32 > 11 → 非低頻)
+        // R10 非授權編製人員:created_by = 未授權者(16×2 = 32 > 11 → 非較少使用)
         for (var i = 0; i < NonAuthorizedVouchers; i++)
         {
             var post = NextWeekday();
@@ -426,15 +426,15 @@ public static class DemoDataFactory
                 NonAuthorizedPreparer, NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // R11 低頻編製者:created_by = 稀有編製者(5×2 = 10 ≤ 11;在授權清單內)
-        for (var i = 0; i < LowFrequencyPreparerVouchers; i++)
+        // 較少使用的編製者:created_by = 稀有編製者(5×2 = 10 筆,落在第五步「編製分錄較少的人員」預設的 11 筆以下;在授權清單內)
+        for (var i = 0; i < RarePreparerVouchers; i++)
         {
             var post = NextWeekday();
             AddVoucher(rows, ref voucherSeq, post, post,
-                LowFrequencyPreparer, NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
+                RarePreparer, NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // R12 低頻科目:每個稀有科目作借方,各 2 張(貸方走共用科目);只有稀有借方行 ≤ 11 列
+        // 較少使用的科目:每個稀有科目作借方,各 2 張(貸方走共用科目);稀有借方行落在第五步「較少使用的科目」預設的 11 筆以下
         foreach (var rare in RareAccounts)
         {
             for (var i = 0; i < RareAccountVouchersEach; i++)
@@ -445,14 +445,14 @@ public static class DemoDataFactory
             }
         }
 
-        // 期外總帳日期對照組：兩張 post_date=2026-01-05(期後)的傳票,固定值、不動 cursor。
+        // 期外總帳日期對照組：兩張 gl_date=2026-01-05(期後)的傳票,固定值、不動 cursor。
         // 各自借≠貸(不平),互為鏡像使全域淨額為 0;借方一列帶 suspicious 關鍵字、另一張借方摘要空白;
         // 核准日 2026-01-20(期後,同時觸發期外核准與期末後核准)。期間界定生效後全數排除。
-        // 用 6101/2101/6111/2111 皆高頻共用科目(不影響低頻科目/罕用科目判定);王小明為授權高頻編製者
-        // (不影響非授權/低頻編製者判定)。
-        AddUnbalancedVoucher(rows, ref voucherSeq, OutOfPeriodPostDate, OutOfPeriodApprovalDate,
+        // 用 6101/2101/6111/2111 皆高頻共用科目(不影響較少使用科目/罕用科目判定);王小明為授權高頻編製者
+        // (不影響非授權/較少使用編製者判定)。
+        AddUnbalancedVoucher(rows, ref voucherSeq, OutOfPeriodGlDate, OutOfPeriodApprovalDate,
             "王小明", ("6101", "薪資費用"), 15234m, KeywordDescription, ("2101", "應付帳款"), 12876m, "銷貨收入");
-        AddUnbalancedVoucher(rows, ref voucherSeq, OutOfPeriodPostDate, OutOfPeriodApprovalDate,
+        AddUnbalancedVoucher(rows, ref voucherSeq, OutOfPeriodGlDate, OutOfPeriodApprovalDate,
             "王小明", ("6111", "租金費用"), 12876m, string.Empty, ("2111", "應付票據"), 15234m, "進貨");
 
         // baseline:不觸發任何規則
@@ -471,7 +471,7 @@ public static class DemoDataFactory
     private static void AddVoucher(
         List<DemoGlRow> rows,
         ref int voucherSeq,
-        DateOnly postDate,
+        DateOnly glDate,
         DateOnly approvalDate,
         string createdBy,
         (string Code, string Name) debit,
@@ -484,10 +484,10 @@ public static class DemoDataFactory
         voucherSeq++;
         var vn = $"JV2025-{voucherSeq:00000}";
         rows.Add(new DemoGlRow(
-            postDate, vn, 1, debit.Code, debit.Name, debitDesc,
+            glDate, vn, 1, debit.Code, debit.Name, debitDesc,
             amount, true, createdBy, approvalDate, isManual));
         rows.Add(new DemoGlRow(
-            postDate, vn, 2, credit.Code, credit.Name, creditDesc,
+            glDate, vn, 2, credit.Code, credit.Name, creditDesc,
             amount, false, createdBy, approvalDate, isManual));
     }
 
@@ -496,7 +496,7 @@ public static class DemoDataFactory
     private static void AddUnbalancedVoucher(
         List<DemoGlRow> rows,
         ref int voucherSeq,
-        DateOnly postDate,
+        DateOnly glDate,
         DateOnly approvalDate,
         string createdBy,
         (string Code, string Name) debit,
@@ -509,10 +509,10 @@ public static class DemoDataFactory
         voucherSeq++;
         var vn = $"JV2025-{voucherSeq:00000}";
         rows.Add(new DemoGlRow(
-            postDate, vn, 1, debit.Code, debit.Name, debitDesc,
+            glDate, vn, 1, debit.Code, debit.Name, debitDesc,
             debitAmount, true, createdBy, approvalDate, false));
         rows.Add(new DemoGlRow(
-            postDate, vn, 2, credit.Code, credit.Name, creditDesc,
+            glDate, vn, 2, credit.Code, credit.Name, creditDesc,
             creditAmount, false, createdBy, approvalDate, false));
     }
 
@@ -536,18 +536,18 @@ public static class DemoDataFactory
         (string Code, string Name)[] accounts,
         IReadOnlyList<DemoGlRow> glRows)
     {
-        // TB「本期變動」= 本期(post_date ∈ 會計期間)GL 借貸彙總（完整性的 GL 彙總限本期，才對得上 TB 本期變動）。
+        // TB「本期變動」= 本期(gl_date ∈ 會計期間)GL 借貸彙總（完整性的 GL 彙總限本期，才對得上 TB 本期變動）。
         // 期外對照組（2026 過帳）不計入 TB，與期間界定後的完整性 GL 側口徑一致（否則會造成假性差異）。
         var inPeriod = glRows
-            .Where(r => r.PostDate >= PeriodStartDate && r.PostDate <= PeriodEndDate)
+            .Where(r => r.GlDate >= PeriodStartDate && r.GlDate <= PeriodEndDate)
             .ToList();
         var debitByAccount = inPeriod
             .Where(r => r.IsDebit)
-            .GroupBy(r => r.AccountCode)
+            .GroupBy(r => r.AccountNumber)
             .ToDictionary(g => g.Key, g => g.Sum(r => r.Amount));
         var creditByAccount = inPeriod
             .Where(r => !r.IsDebit)
-            .GroupBy(r => r.AccountCode)
+            .GroupBy(r => r.AccountNumber)
             .ToDictionary(g => g.Key, g => g.Sum(r => r.Amount));
 
         var rows = new List<DemoTbRow>(accounts.Length);

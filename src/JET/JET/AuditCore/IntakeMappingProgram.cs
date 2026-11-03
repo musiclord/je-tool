@@ -119,7 +119,7 @@ internal sealed record GlMappingRequest(
     }
 }
 
-internal sealed record GlEffectivePopulationPlan(
+internal sealed record GlExcludedPopulationPlan(
     DateOnly PeriodStart,
     DateOnly PeriodEnd,
     bool PostingStatusMapped,
@@ -128,7 +128,7 @@ internal sealed record GlEffectivePopulationPlan(
 internal sealed record GlMappingPlan(
     GlMappingRequest Request,
     GlMappingSpec Spec,
-    GlEffectivePopulationPlan EffectivePopulation,
+    GlExcludedPopulationPlan GlExcludedPopulationPlan,
     AuditMutationEffects Effects);
 
 internal sealed record GlMappingResult(
@@ -192,7 +192,7 @@ internal sealed class AccountMappingProjection
     private readonly string codeColumn;
     private readonly string nameColumn;
     private readonly string categoryColumn;
-    private readonly AccountTaxonomySnapshot taxonomy;
+    private readonly AccountCategorySnapshot categorySnapshot;
     private readonly Dictionary<string, AccountMappingRow> projected =
         new(StringComparer.Ordinal);
     private readonly List<string> firstErrors = [];
@@ -200,12 +200,12 @@ internal sealed class AccountMappingProjection
 
     internal AccountMappingProjection(
         IReadOnlyList<string> columns,
-        AccountTaxonomySnapshot taxonomy)
+        AccountCategorySnapshot categorySnapshot)
     {
         ArgumentNullException.ThrowIfNull(columns);
-        ArgumentNullException.ThrowIfNull(taxonomy);
-        AccountTaxonomyInvariant.ValidateReplacement(taxonomy.Categories);
-        this.taxonomy = taxonomy;
+        ArgumentNullException.ThrowIfNull(categorySnapshot);
+        AccountCategoryInvariant.ValidateReplacement(categorySnapshot.Categories);
+        this.categorySnapshot = categorySnapshot;
         var resolved = AccountMappingColumnMatcher.Resolve(columns);
         codeColumn = resolved.CodeColumn;
         nameColumn = resolved.NameColumn;
@@ -225,10 +225,10 @@ internal sealed class AccountMappingProjection
         }
 
         row.Values.TryGetValue(categoryColumn, out var rawCategory);
-        AccountTaxonomyCategory category;
+        AccountCategory category;
         try
         {
-            category = AccountTaxonomyCatalog.ResolveImportCategory(taxonomy, rawCategory);
+            category = AccountCategoryCatalog.ResolveImportCategory(categorySnapshot, rawCategory);
         }
         catch (JetActionException exception)
         {
@@ -259,7 +259,7 @@ internal sealed class AccountMappingProjection
             name,
             category.Label,
             category.CategoryId,
-            AccountTaxonomyCatalog.LegacyLabelForSemanticRole(category.SemanticRole))
+            AccountCategoryCatalog.LegacyLabelForSemanticRole(category.SemanticRole))
         {
             HasExplicitCategory = !string.IsNullOrWhiteSpace(rawCategory)
         };
@@ -279,10 +279,10 @@ internal sealed class AccountMappingProjection
 
         if (errorCount > 0)
         {
-            // 使用者 2026-10-13 勾選頁確認：SQL Server 與本機用同一句全形標點的句子，failureStyle 不再影響文字。
+            // 裁定 2026-10-13-28 確認了用字：SQL Server 與本機用同一句全形標點的句子，failureStyle 不再影響文字。
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"科目配對檔有 {errorCount} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
+                $"科目配對檔有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
         }
 
         return projected.Values.ToArray();
@@ -316,7 +316,7 @@ internal sealed record AccountMappingResult(
             var positional = new[] { (columns.Code, "科目編號"), (columns.Name, "科目名稱"), (columns.Category, "科目分類") }
                 .Where(item => item.Item1.Method == AccountMappingColumnResolver.MatchMethod.Position)
                 .Select(item => $"「{item.Item1.Column}」為{item.Item2}").ToArray();
-            // 使用者 2026-10-13 勾選頁確認的句子。
+            // 裁定 2026-10-13-28 確認了這句的用字。
             return positional.Length == 0 ? null : "部分欄名無法辨識，已依欄位順序對應：" + string.Join("、", positional) + "。請確認科目配對預覽。";
         }
     }
@@ -342,7 +342,7 @@ internal sealed class AuthorizedPreparerProjection
     private readonly List<string> firstErrors = [];
     private int errorCount;
     private readonly string? requestedColumn;
-    // 人員識別值去頭尾空白後不分大小寫去重（2026-10-04 裁定 C3，和 GL 建立人員的比對同一規則）；保留第一次看到的寫法。
+    // 人員識別值去頭尾空白後不分大小寫去重（裁定 2026-10-04-01，和 GL 建立人員的比對同一規則）；保留第一次看到的寫法。
     private readonly HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
     private string? nameColumn;
     private bool isResolved;
@@ -414,7 +414,7 @@ internal sealed class AuthorizedPreparerProjection
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"授權人員名單有 {errorCount} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
+                $"授權人員名單有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
         }
 
         if (names.Count == 0)
@@ -529,30 +529,30 @@ internal interface IAuthorizedPreparerImportPersistence
         CancellationToken cancellationToken);
 }
 
-internal sealed record CaseCreateRequest(
+internal sealed record ProjectCreateRequest(
     ProjectDocument Document,
-    bool HasUserSuppliedCaseName,
+    bool HasUserSuppliedProjectName,
     string Principal);
 
-internal sealed record CaseCreatePreflightRequest(
+internal sealed record ProjectCreatePreflightRequest(
     string ProjectId,
     string DatabaseProvider,
-    bool HasUserSuppliedCaseName);
+    bool HasUserSuppliedProjectName);
 
-internal sealed record CaseCreatePlan(
+internal sealed record ProjectCreatePlan(
     ProjectDocument Document,
-    bool HasUserSuppliedCaseName,
+    bool HasUserSuppliedProjectName,
     string Principal);
 
-internal sealed record CaseCreateFacts(
+internal sealed record ProjectCreateFacts(
     ProjectDocument Document,
     string Principal,
     bool LockAcquiredThisCall,
-    ICaseCreateBackendAttempt BackendAttempt);
+    IProjectCreateBackendAttempt BackendAttempt);
 
-internal sealed record CaseCreateResult(ProjectDocument Document);
+internal sealed record ProjectCreateResult(ProjectDocument Document);
 
-internal interface ICaseCreateBackendAttempt
+internal interface IProjectCreateBackendAttempt
 {
     Task PrepareAsync(CancellationToken cancellationToken);
 
@@ -561,7 +561,7 @@ internal interface ICaseCreateBackendAttempt
     Task RollbackAsync(CancellationToken cancellationToken);
 }
 
-internal sealed class CaseCreateLockHeldException(
+internal sealed class ProjectCreateLockHeldException(
     string lockedBy,
     string machineName,
     DateTimeOffset lockedUtc) : Exception
@@ -571,36 +571,36 @@ internal sealed class CaseCreateLockHeldException(
     internal DateTimeOffset LockedUtc { get; } = lockedUtc;
 }
 
-internal sealed class CaseCreateBackendDifferentOwnerException : Exception;
+internal sealed class ProjectCreateBackendDifferentOwnerException : Exception;
 
-internal sealed class CaseCreateExistingWorkLockException : Exception;
+internal sealed class ProjectCreateExistingWorkLockException : Exception;
 
-internal interface ICaseCreateFactsPort
+internal interface IProjectCreateFactsPort
 {
     Task PreflightAsync(
-        CaseCreatePreflightRequest request,
+        ProjectCreatePreflightRequest request,
         CancellationToken cancellationToken);
 
-    Task<CaseCreateFacts> ExecuteAsync(
-        CaseCreatePlan plan,
+    Task<ProjectCreateFacts> ExecuteAsync(
+        ProjectCreatePlan plan,
         CancellationToken cancellationToken);
 
     Task CompleteAsync(
-        CaseCreateFacts facts,
+        ProjectCreateFacts facts,
         CancellationToken cancellationToken);
 
     Task RollbackAsync(
-        CaseCreateFacts facts,
+        ProjectCreateFacts facts,
         CancellationToken cancellationToken);
 }
 
-internal interface ICaseCreateBackendPort
+internal interface IProjectCreateBackendPort
 {
     Task PrepareAsync(
         ProjectDocument document,
         CancellationToken cancellationToken);
 
-    Task<ICaseCreateBackendAttempt> BeginAsync(
+    Task<IProjectCreateBackendAttempt> BeginAsync(
         ProjectDocument document,
         string principal,
         CancellationToken cancellationToken);
@@ -675,7 +675,7 @@ public static partial class JetAuditProgram
             return amountMode;
         }
 
-        // 允許值：signed、side、flag、dual。畫面送不出其他值，所以只記檢查代號（使用者 2026-10-13 裁定）。
+        // 允許值：signed、side、flag、dual。畫面送不出其他值，出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以只記檢查代號。
         throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, "amount_mode_unknown");
     }
 
@@ -686,7 +686,7 @@ public static partial class JetAuditProgram
             return changeMode;
         }
 
-        // 允許值：direct、debitCredit、openClose、openCloseBySide。畫面送不出其他值，所以只記檢查代號（使用者 2026-10-13 裁定）。
+        // 允許值：direct、debitCredit、openClose、openCloseBySide。畫面送不出其他值，出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以只記檢查代號。
         throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedMode, "change_mode_unknown");
     }
 
@@ -695,22 +695,22 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(request);
         var baseSpec = new GlMappingSpec(request.Mapping, request.AmountMode);
         var validation = MappingValidator.ValidateGl(baseSpec, request.SourceColumns);
-        if (validation.MissingRequiredKeys.Any(key => key is GlMappingKeys.DcDebitCode or GlMappingKeys.DcCreditCode))
+        if (validation.MissingRequiredKeys.Any(key => key is GlMappingKeys.DrCrDebitCode or GlMappingKeys.DrCrCreditCode))
         {
             throw new JetActionException(JetErrorCodes.MissingRequiredMapping,
                 "借方代碼或貸方代碼至少填寫一個。",
-                field: validation.MissingRequiredKeys.Contains(GlMappingKeys.DcCreditCode)
-                    ? GlMappingKeys.DcCreditCode : GlMappingKeys.DcDebitCode);
+                field: validation.MissingRequiredKeys.Contains(GlMappingKeys.DrCrCreditCode)
+                    ? GlMappingKeys.DrCrCreditCode : GlMappingKeys.DrCrDebitCode);
         }
         EnsureMappingValid(validation, JetFieldCatalog.GlMappingSlots);
         if (request.AmountMode is GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag
-            && request.Mapping.TryGetValue(GlMappingKeys.DcDebitCode, out var debitCode) && !string.IsNullOrWhiteSpace(debitCode)
-            && request.Mapping.TryGetValue(GlMappingKeys.DcCreditCode, out var creditCode) && !string.IsNullOrWhiteSpace(creditCode)
+            && request.Mapping.TryGetValue(GlMappingKeys.DrCrDebitCode, out var debitCode) && !string.IsNullOrWhiteSpace(debitCode)
+            && request.Mapping.TryGetValue(GlMappingKeys.DrCrCreditCode, out var creditCode) && !string.IsNullOrWhiteSpace(creditCode)
             && string.Equals(debitCode.Trim(), creditCode.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             throw new JetActionException(JetErrorCodes.InvalidPayload,
                 "借方與貸方代碼必須不同。",
-                field: GlMappingKeys.DcCreditCode);
+                field: GlMappingKeys.DrCrCreditCode);
         }
         var postingStatusMapped = request.Mapping.TryGetValue(
                 GlMappingKeys.PostingStatus,
@@ -719,7 +719,7 @@ public static partial class JetAuditProgram
         GlPostingStatusPolicy? postingStatusPolicy;
         try
         {
-            postingStatusPolicy = GlEffectivePopulation.NormalizePolicy(
+            postingStatusPolicy = GlExcludedPopulation.NormalizePolicy(
                 postingStatusMapped,
                 request.PostingStatusPolicy);
         }
@@ -750,7 +750,7 @@ public static partial class JetAuditProgram
             {
                 Details = [new JetErrorDetail(null, null, message)
                 {
-                    SourceColumn = request.Mapping.GetValueOrDefault(GlMappingKeys.Manual),
+                    SourceColumn = request.Mapping.GetValueOrDefault(GlMappingKeys.IsManual),
                     ReasonCode = ProjectionErrorCodes.ManualOverlap
                 }]
             };
@@ -768,7 +768,7 @@ public static partial class JetAuditProgram
         return new GlMappingPlan(
             request,
             spec,
-            new GlEffectivePopulationPlan(
+            new GlExcludedPopulationPlan(
                 request.PeriodStart,
                 request.PeriodEnd,
                 postingStatusMapped,
@@ -824,12 +824,12 @@ public static partial class JetAuditProgram
 
     internal static AccountMappingProjection PrepareAccountMappingProjection(
         IReadOnlyList<string> columns) =>
-        new(columns, AccountTaxonomyCatalog.BuiltInSnapshot);
+        new(columns, AccountCategoryCatalog.BuiltInSnapshot);
 
     internal static AccountMappingProjection PrepareAccountMappingProjection(
         IReadOnlyList<string> columns,
-        AccountTaxonomySnapshot taxonomy) =>
-        new(columns, taxonomy);
+        AccountCategorySnapshot categorySnapshot) =>
+        new(columns, categorySnapshot);
 
     internal static AuthorizedPreparerPlan Plan(AuthorizedPreparerRequest request)
     {
@@ -1006,7 +1006,7 @@ public static partial class JetAuditProgram
             var detail = string.Join("；", errors.Take(10));
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"檔案有 {errors.Count} 列無法讀取：{detail}");
+                $"檔案有 {CountText.Format(errors.Count)} 列無法讀取：{detail}");
         }
 
         return collected;
@@ -1030,20 +1030,20 @@ public static partial class JetAuditProgram
     internal static NonWorkingDaysResult Finalize(NonWorkingDaysPlan plan) =>
         new(plan.NormalizedDays, plan.Effects);
 
-    internal static CaseCreatePlan Plan(CaseCreateRequest request)
+    internal static ProjectCreatePlan Plan(ProjectCreateRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Document);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Principal);
-        return new CaseCreatePlan(
+        return new ProjectCreatePlan(
             request.Document,
-            request.HasUserSuppliedCaseName,
+            request.HasUserSuppliedProjectName,
             request.Principal);
     }
 
-    internal static CaseCreateResult Finalize(
-        CaseCreatePlan plan,
-        CaseCreateFacts facts)
+    internal static ProjectCreateResult Finalize(
+        ProjectCreatePlan plan,
+        ProjectCreateFacts facts)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(facts);
@@ -1055,10 +1055,10 @@ public static partial class JetAuditProgram
             throw new InvalidOperationException("project.create facts 回傳了不同案件。");
         }
 
-        return new CaseCreateResult(facts.Document);
+        return new ProjectCreateResult(facts.Document);
     }
 
-    // 使用者 2026-10-13 勾選頁確認：缺少的必填欄寫畫面上的欄位名稱，不寫程式代號。
+    // 裁定 2026-10-13-28 確認了用字：缺少的必填欄寫畫面上的欄位名稱，不寫程式代號。
     private static void EnsureMappingValid(MappingValidationResult validation, IReadOnlyList<JetMappingSlot> slots)
     {
         if (validation.MissingRequiredKeys.Count > 0)
@@ -1115,7 +1115,7 @@ public static partial class JetAuditProgram
             AuditMutationEffects.For(AuditMutation.Calendar));
     }
 
-    // 畫面只送 replace；其他值只有程式送錯資料才會出現（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
+    // 畫面只送 replace；其他值只有程式送錯資料才會出現（裁定 2026-10-14-01 確認了用字）。
     private static void RequireReplaceOnly(
         string mode,
         string check)

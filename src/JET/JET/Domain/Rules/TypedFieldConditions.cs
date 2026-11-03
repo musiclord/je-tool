@@ -18,20 +18,20 @@ public static class TypedFieldOperatorSets
     public static readonly IReadOnlyList<string> Date =
         ["on", "before", "onOrBefore", "after", "onOrAfter", Between, IsBlank, IsNotBlank];
 
-    public static readonly IReadOnlyList<string> Money =
+    public static readonly IReadOnlyList<string> Amount =
         ["equals", "notEquals", "greaterThan", "greaterThanOrEqual",
          "lessThan", "lessThanOrEqual", Between, IsBlank, IsNotBlank];
 
     /// <summary>三型別 operator token 的封閉聯集（解析層 closed-token 檢查用）。</summary>
     public static readonly IReadOnlySet<string> All =
-        Text.Concat(Date).Concat(Money).ToHashSet(StringComparer.Ordinal);
+        Text.Concat(Date).Concat(Amount).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>RDE value type → 允許的 operator 集合；未知型別回空集合（fail closed）。</summary>
     public static IReadOnlyList<string> ForValueType(string? valueType) => valueType switch
     {
         RdeFieldValueTypeNames.Text => Text,
         RdeFieldValueTypeNames.Date => Date,
-        RdeFieldValueTypeNames.Money => Money,
+        RdeFieldValueTypeNames.Amount => Amount,
         _ => []
     };
 
@@ -42,7 +42,7 @@ public static class TypedFieldOperatorSets
     public static bool IsSetOperator(string op) => op is In or NotIn;
 }
 
-/// <summary>typed money 條件必填的 <c>amountBasis</c> closed tokens。</summary>
+/// <summary>typed amount 條件必填的 <c>amountBasis</c> closed tokens。</summary>
 public static class TypedAmountBasisNames
 {
     public const string Signed = "signed";
@@ -54,7 +54,7 @@ public static class TypedAmountBasisNames
 /// <summary>
 /// typed operand 的正規化單一事實來源（Domain 驗證與 AuditCore 編譯共用，避免兩層口徑分裂）。
 /// text：trim＋不分大小寫（同既有 TextMatch 家族的 UPPER(TRIM(...))，正規化後不可為空）；
-/// date：依案件選項沿 GL 的 <see cref="DateNormalizer"/> 解析；money：沿 <see cref="MoneyScaling"/> 的 invariant decimal
+/// date：依案件選項沿 GL 的 <see cref="DateNormalizer"/> 解析；amount：沿 <see cref="MoneyScaling"/> 的 invariant decimal
 /// 解析與專案 MoneyScale scaled integer 轉換（與 numRange operand 及 RDE 投影同一條解析鏈）。
 /// </summary>
 internal static class TypedFieldOperandRules

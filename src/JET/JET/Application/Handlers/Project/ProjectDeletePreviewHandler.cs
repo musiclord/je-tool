@@ -35,19 +35,19 @@ public sealed class ProjectDeletePreviewHandler : IApplicationActionHandler
             && await registry.ExistsAsync(projectId, cancellationToken))
             throw new JetActionException(JetErrorCodes.NotAuthorized, "您沒有此線上案件的存取權，無法確認刪除範圍。");
 
-        var artifacts = await repositoryCatalog.For(document.DatabaseProvider).ReportArtifactStore
+        var reports = await repositoryCatalog.For(document.DatabaseProvider).ReportStore
             .ListAsync(projectId, cancellationToken);
         // 索引可能含同名歷史項目；只計可確認仍在的實體檔。其他未列索引的檔案由畫面另外明示一併刪除。
-        var existing = artifacts.Where(item => item.FileState != ReportArtifactFileState.Missing
-                && item.Kind != ReportArtifactKind.AccountMapping)
+        var existing = reports.Where(item => item.FileState != ReportFileState.Missing
+                && item.Kind != ReportKind.AccountMapping)
             .DistinctBy(item => item.RelativeFileName,
                 OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal).ToArray();
         return new
         {
             projectId,
             databaseProvider = document.DatabaseProvider,
-            reportCount = existing.Count(item => item.Kind != ReportArtifactKind.WorkingPaper),
-            workpaperCount = existing.Count(item => item.Kind == ReportArtifactKind.WorkingPaper)
+            reportCount = existing.Count(item => item.Kind != ReportKind.WorkingPaper),
+            workingPaperCount = existing.Count(item => item.Kind == ReportKind.WorkingPaper)
         };
     }
 }

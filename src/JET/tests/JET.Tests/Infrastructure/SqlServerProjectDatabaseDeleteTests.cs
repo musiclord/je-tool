@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 控制面第四輪 §2 原子刪案驗收（<see cref="SqlServerProjectDatabase.DeleteAsync"/>）。
+/// 控制面原子刪案驗收（<see cref="SqlServerProjectDatabase.DeleteAsync"/>）。
 /// 全部 [SqlServerFact] 閘控（連 JET_Test）。單庫是 sqlServer 專案的唯一管家:單一交易內 drop schema →
 /// 寫 audit → 刪 access/registry，四步全成或全回滾。
 /// oracle：交易原子性——正常刪案後 schema／registry／access 三者皆消失；中間態注入例外 → 整筆 rollback、無半刪。

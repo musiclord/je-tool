@@ -41,7 +41,7 @@ internal static class GlMappedColumnAudit
         command.Transaction = transaction;
         command.CommandText = "SELECT " + string.Join(", ", RequiredTextColumns.Select(column =>
             $"CAST(SUM(CASE WHEN {SqlBlankText.IsNotBlank(dialect, column.TargetColumn)} THEN CAST(1 AS BIGINT) ELSE CAST(0 AS BIGINT) END) AS BIGINT)"))
-            + $" FROM {prefix}target_gl_entry;";
+            + $" FROM {prefix}gl;";
         var warnings = new List<string>();
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return warnings;
@@ -55,7 +55,7 @@ internal static class GlMappedColumnAudit
     }
 
     /// <summary>
-    /// GL 與 TB 共用的整欄空白提醒句子（使用者 2026-10-13 勾選頁確認）；有來源欄名時一併寫出。
+    /// GL 與 TB 共用的整欄空白提醒句子（裁定 2026-10-13-28 確認了用字）；有來源欄名時一併寫出。
     /// </summary>
     internal static string BlankColumnWarning(string friendlyName, string? sourceColumn) =>
         string.IsNullOrWhiteSpace(sourceColumn)

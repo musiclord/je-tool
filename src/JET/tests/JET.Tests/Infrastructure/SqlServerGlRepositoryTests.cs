@@ -5,7 +5,7 @@ using JET.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -22,10 +22,10 @@ public sealed class SqlServerGlRepositoryTests
     private static GlMappingSpec SignedSpec() => new(
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "post",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "post",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.Amount] = "amt"
         },
@@ -83,8 +83,8 @@ public sealed class SqlServerGlRepositoryTests
         Assert.Equal((-1_000_000L, 0L, 1_000_000L, "CREDIT"), Amounts(rows[1]));
         Assert.Equal((0L, 0L, 0L, "DEBIT"), Amounts(rows[2]));
         Assert.Equal((12_345_678L, 12_345_678L, 0L, "DEBIT"), Amounts(rows[3]));
-        Assert.Equal("1101", rows[0].AccountCode);
-        Assert.Equal("JV-003", rows[3].DocumentNumber);
+        Assert.Equal("1101", rows[0].AccountNumber);
+        Assert.Equal("JV-003", rows[3].VoucherNumber);
     }
 
     [SqlServerFact]
@@ -101,7 +101,7 @@ public sealed class SqlServerGlRepositoryTests
         await using (var seed = sql.Database.CreateConnection(sql.ProjectId))
         {
             await seed.OpenAsync();
-            await SeedRuleRunAsync(seed, s);
+            await SeedResultAsync(seed, s);
             await SeedGlStagingAsync(seed, batchId, ValidFixture(), s);
         }
 
@@ -113,7 +113,7 @@ public sealed class SqlServerGlRepositoryTests
 
         await using var read = sql.Database.CreateConnection(sql.ProjectId);
         await read.OpenAsync();
-        Assert.Equal(0, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}result_rule_run;"));
+        Assert.Equal(0, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}validation_result;"));
     }
 
     [SqlServerFact]
@@ -133,7 +133,7 @@ public sealed class SqlServerGlRepositoryTests
         await using (var seed = sql.Database.CreateConnection(sql.ProjectId))
         {
             await seed.OpenAsync();
-            await SeedRuleRunAsync(seed, s); // 預存結果:rollback 後須仍在(原子性)
+            await SeedResultAsync(seed, s); // 預存結果:rollback 後須仍在(原子性)
             await SeedGlStagingAsync(seed, batchId, rows, s);
         }
 
@@ -150,8 +150,8 @@ public sealed class SqlServerGlRepositoryTests
         await using var read = sql.Database.CreateConnection(sql.ProjectId);
         await read.OpenAsync();
         // 整批 rollback:target 空,且預存結果隨同一交易回退而保留(無半態)。
-        Assert.Equal(0, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}target_gl_entry;"));
-        Assert.Equal(1, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}result_rule_run;"));
+        Assert.Equal(0, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}gl;"));
+        Assert.Equal(1, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}validation_result;"));
     }
 
     [SqlServerFact]
@@ -168,10 +168,10 @@ public sealed class SqlServerGlRepositoryTests
         var spec = new GlMappingSpec(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "doc",
-                [GlMappingKeys.PostDate] = "post",
-                [GlMappingKeys.AccNum] = "acc",
-                [GlMappingKeys.AccName] = "name",
+                [GlMappingKeys.VoucherNumber] = "doc",
+                [GlMappingKeys.GlDate] = "post",
+                [GlMappingKeys.AccountNumber] = "acc",
+                [GlMappingKeys.AccountName] = "name",
                 [GlMappingKeys.Description] = "desc",
                 [GlMappingKeys.DebitAmount] = "debit",
                 [GlMappingKeys.CreditAmount] = "credit"
@@ -187,7 +187,7 @@ public sealed class SqlServerGlRepositoryTests
         await using (var seed = sql.Database.CreateConnection(sql.ProjectId))
         {
             await seed.OpenAsync();
-            await SeedRuleRunAsync(seed, s); // 預存結果:rollback 後須保留(原子性)
+            await SeedResultAsync(seed, s); // 預存結果:rollback 後須保留(原子性)
             await SeedGlStagingAsync(seed, batchId, [new GlSeedRow(1, 1, R("1101")), new GlSeedRow(2, 2, R("4101"))], s);
         }
 
@@ -201,8 +201,8 @@ public sealed class SqlServerGlRepositoryTests
 
         await using var read = sql.Database.CreateConnection(sql.ProjectId);
         await read.OpenAsync();
-        Assert.Equal(0, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}target_gl_entry;"));
-        Assert.Equal(1, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}result_rule_run;"));
+        Assert.Equal(0, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}gl;"));
+        Assert.Equal(1, await ScalarAsync(read, $"SELECT COUNT(*) FROM {s}validation_result;"));
     }
 
     /// <summary>
@@ -224,10 +224,10 @@ public sealed class SqlServerGlRepositoryTests
         var spec = new GlMappingSpec(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "doc",
-                [GlMappingKeys.PostDate] = "post",
-                [GlMappingKeys.AccNum] = "acc",
-                [GlMappingKeys.AccName] = "name",
+                [GlMappingKeys.VoucherNumber] = "doc",
+                [GlMappingKeys.GlDate] = "post",
+                [GlMappingKeys.AccountNumber] = "acc",
+                [GlMappingKeys.AccountName] = "name",
                 [GlMappingKeys.Description] = "desc",
                 [GlMappingKeys.DebitAmount] = "debit",
                 [GlMappingKeys.CreditAmount] = "credit"
@@ -347,7 +347,7 @@ public sealed class SqlServerGlRepositoryTests
         var hasRow = reader.Read();
 
         Assert.False(hasRow);
-        Assert.Equal(2, reader.SourceRowCount);
+        Assert.Equal(2, reader.PbcRowCount);
         Assert.Equal(0, reader.ValidRowCount);
         var error = Assert.Single(reader.Errors);
         Assert.Equal(10, error.SourceRowNumber);
@@ -377,7 +377,7 @@ public sealed class SqlServerGlRepositoryTests
         Assert.Equal("batch-7", reader.GetValue(0));
         Assert.Equal(7L, reader.GetValue(1));
         Assert.Equal("JV-007", reader.GetValue(2));
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
         Assert.Equal(1_234_500L, reader.GetValue(reader.GetOrdinal("debit_amount_scaled")));
         Assert.Equal(0L, reader.GetValue(reader.GetOrdinal("credit_amount_scaled")));
         Assert.Equal(1, reader.ValidRowCount);
@@ -397,7 +397,7 @@ public sealed class SqlServerGlRepositoryTests
             JetJsonStorage.Options,
             CancellationToken.None);
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
         var name = reader.GetName(16);
 
         Assert.Equal("dr_cr", name);
@@ -417,7 +417,7 @@ public sealed class SqlServerGlRepositoryTests
             JetJsonStorage.Options,
             CancellationToken.None);
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
         var fieldType = reader.GetFieldType(15);
 
         Assert.Equal(typeof(long), fieldType);
@@ -437,7 +437,7 @@ public sealed class SqlServerGlRepositoryTests
             JetJsonStorage.Options,
             CancellationToken.None);
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。
         var dataTypeName = reader.GetDataTypeName(12);
 
         Assert.Equal("Int32", dataTypeName);
@@ -517,7 +517,7 @@ public sealed class SqlServerGlRepositoryTests
         var count = reader.GetValues(values);
 
         Assert.Equal(reader.FieldCount, count);
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
         Assert.Equal("DEBIT", values[reader.GetOrdinal("dr_cr")]);
         Assert.Same(sentinel, values[^1]);
     }
@@ -531,12 +531,12 @@ public sealed class SqlServerGlRepositoryTests
         var spec = new GlMappingSpec(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [GlMappingKeys.DocNum] = "doc",
-                [GlMappingKeys.PostDate] = "post",
-                [GlMappingKeys.AccNum] = "acc",
-                [GlMappingKeys.AccName] = "name",
+                [GlMappingKeys.VoucherNumber] = "doc",
+                [GlMappingKeys.GlDate] = "post",
+                [GlMappingKeys.AccountNumber] = "acc",
+                [GlMappingKeys.AccountName] = "name",
                 [GlMappingKeys.Description] = "desc",
-                [GlMappingKeys.Manual] = "manual",
+                [GlMappingKeys.IsManual] = "manual",
                 [GlMappingKeys.Amount] = "amt"
             },
             GlAmountMode.SignedAmount);
@@ -551,7 +551,7 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
         var value = reader.GetBoolean(reader.GetOrdinal("is_manual"));
 
         Assert.True(value);
@@ -581,7 +581,7 @@ public sealed class SqlServerGlRepositoryTests
     }
 
     [Fact]
-    public void GetChar_CurrentSingleCharacterDocumentNumber_ConvertsValueToChar()
+    public void GetChar_CurrentSingleCharacterVoucherNumber_ConvertsValueToChar()
     {
         using var staging = CreateProjectionStagingReader(
         [
@@ -604,7 +604,7 @@ public sealed class SqlServerGlRepositoryTests
     }
 
     [Fact]
-    public void GetDateTime_CurrentPostDate_ConvertsProjectedDateStringToDateTime()
+    public void GetDateTime_CurrentGlDate_ConvertsProjectedDateStringToDateTime()
     {
         using var staging = CreateProjectionStagingReader(
         [
@@ -644,7 +644,7 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
         var value = reader.GetDecimal(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(70_000m, value);
@@ -668,7 +668,7 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
         var value = reader.GetDouble(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(80_000d, value);
@@ -692,7 +692,7 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
         var value = reader.GetFloat(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(90_000f, value);
@@ -788,7 +788,7 @@ public sealed class SqlServerGlRepositoryTests
             CancellationToken.None);
         Assert.True(reader.Read());
 
-        // 使用者 2026-10-08 裁定移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
+        // 裁定 2026-10-08-03 移除傳票日期：voucher_date 欄移除後，後面欄位的位置前移一格。讀值改用欄名取得位置，避免再讀到隔壁欄位而碰巧通過。
         var value = reader.GetInt64(reader.GetOrdinal("amount_scaled"));
 
         Assert.Equal(130_000L, value);
@@ -914,7 +914,7 @@ public sealed class SqlServerGlRepositoryTests
             await using var command = connection.CreateCommand();
             command.CommandText =
                 $"""
-                INSERT INTO {schemaPrefix}staging_gl_raw_row (batch_id, row_number, source_no, source_row_number, row_json)
+                INSERT INTO {schemaPrefix}pbc_gl (batch_id, row_number, source_no, source_row_number, row_json)
                 VALUES (@batchId, @rowNumber, 1, @sourceRowNumber, @rowJson);
                 """;
             AddParam(command, "@batchId", batchId);
@@ -925,15 +925,15 @@ public sealed class SqlServerGlRepositoryTests
         }
     }
 
-    private static async Task SeedRuleRunAsync(DbConnection connection, string schemaPrefix = "")
+    private static async Task SeedResultAsync(DbConnection connection, string schemaPrefix = "")
     {
         await using var command = connection.CreateCommand();
         command.CommandText =
             $$"""
-            INSERT INTO {{schemaPrefix}}result_rule_run (run_id, run_kind, generated_utc, summary_json)
-            VALUES (@runId, 'validate', @utc, '{}');
+            INSERT INTO {{schemaPrefix}}validation_result (result_id, generated_utc, summary_json)
+            VALUES (@resultId, @utc, '{}');
             """;
-        AddParam(command, "@runId", Guid.NewGuid().ToString("N"));
+        AddParam(command, "@resultId", Guid.NewGuid().ToString("N"));
         AddParam(command, "@utc", DateTimeOffset.UtcNow.ToString("O"));
         await command.ExecuteNonQueryAsync();
     }
@@ -943,9 +943,9 @@ public sealed class SqlServerGlRepositoryTests
         await using var command = connection.CreateCommand();
         command.CommandText =
             $"""
-            SELECT source_row_number, document_number, account_code,
+            SELECT source_row_number, voucher_number, account_number,
                    amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr
-            FROM {schemaPrefix}target_gl_entry
+            FROM {schemaPrefix}gl
             ORDER BY source_row_number;
             """;
 
@@ -1006,8 +1006,8 @@ public sealed class SqlServerGlRepositoryTests
 
     private sealed record TargetRow(
         long SourceRowNumber,
-        string? DocumentNumber,
-        string? AccountCode,
+        string? VoucherNumber,
+        string? AccountNumber,
         long AmountScaled,
         long DebitScaled,
         long CreditScaled,
@@ -1129,7 +1129,7 @@ internal sealed class TempSqlServerProject : IAsyncDisposable
     /// <summary>
     /// schema-per-project 清理入口：刪除指定專案在共用單庫的 prj_xxx schema 與控制面登記；
     /// schema 不存在時仍會清除登記列。供經 <c>HandlerTestHost</c> 建案的呼叫端用作主要或兜底清理
-    /// (ProjectHandlers/QueryDataPreview/WorkpaperExport/DemoRuleOracle/SqlServerImportScaleSmoke/
+    /// (ProjectHandlers/QueryDataPreview/WorkingPaperExport/DemoRuleOracle/SqlServerImportScaleSmoke/
     /// ProviderParityJourney)。這些測試的專案由 composition 建在隔離庫 <c>JET_Test</c>——HandlerTestHost 以
     /// <c>singleDatabaseNameOverride:"JET_Test"</c> 釘住,與 app 正式使用的 <c>JET</c> 庫隔離(app 走 appsettings),
     /// 故清理必須對齊同一個 <c>JET_Test</c> 資料庫。清理失敗會直接讓測試失敗。

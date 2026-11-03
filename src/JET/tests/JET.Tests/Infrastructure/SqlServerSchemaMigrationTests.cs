@@ -8,334 +8,86 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// SQL Server schema 版本化遷移機制的驗收（控制面第七輪 §1；修 <see cref="SqlServerProjectDatabase.EnsureCreatedAsync"/>
-/// 的 early-return 死路）。全部 [SqlServerFact] 閘控（連隔離庫 JET_Test，非 Express、≥ 2022）。
-/// 既有 schema 會 additive 升到 v8；測試同時保留早期「降版 schema」守衛，並以直接建立、未經 current
-/// SchemaSql 的 frozen-v6 fixture 驗收完整 v6→v7 shape/data/result migration，再接續 v7→v8 audit table。
-/// SQLite 版本鏈見 <c>SchemaMigrationTests</c>。
+/// SQL Server schema 的版本檢查與建表語句。要連線的測試以 [SqlServerFact] 閘控（連隔離庫 JET_Test，非 Express、≥ 2022）。
+/// 既有 schema 只接受現行版本，不再升版；版本比現行舊時回舊版案件的訊息（裁定 2026-10-30-24）。
 /// </summary>
 public sealed class SqlServerSchemaMigrationTests
 {
     private const string SingleDb = "JET_Test";
 
     [Fact]
-    public void Batch9_PreviousMappingTable_RequiresVersionTwelveForExistingV11Cases()
+    public void PreviousMappingTable_RequiresVersionTwelveForExistingV11Cases()
     {
         // Pure SQL-plan guard; no SQL Server connection is opened by this test.
-        // 使用者 2026-10-13 裁定訊息分三級，訊息紀錄的等級限制在第 13 版加上 error；第 11 版案件仍會補上這張表。
+        // 裁定 2026-10-13-15 把訊息分三級，訊息紀錄的等級限制在第 13 版加上 error；第 11 版案件仍會補上這張表。
         // 第一次失敗收據 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-        // 2026-10-19 跨資料庫一致性計畫第三節 F 把文字欄定序升到第 14 版，預期版本由 13 改成 14；
+        // 2026-10-19 為了三種資料庫一致，把文字欄定序升到第 14 版，預期版本由 13 改成 14；
         // 第一次失敗收據 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
-        // 使用者 2026-10-21 裁定日期不符分成三種原因，第 15 版轉換舊的 period 列，預期版本由 14 改成 15；
+        // 裁定 2026-10-21-04 把日期不符分成三種原因，第 15 版轉換舊的 period 列，預期版本由 14 改成 15；
         // 第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，預期版本由 15 改成 16；第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
-        Assert.Equal("16", SqlServerProjectDatabase.SchemaVersion);
-        Assert.Contains("'schema_version', '16')", SqlServerProjectDatabase.SchemaSql);
-        Assert.Contains("SET [value] = '16'", SqlServerProjectDatabase.BumpSchemaVersionSql);
-        Assert.Contains("config_field_mapping_previous", SqlServerProjectDatabase.SchemaSql);
+        // 裁定 2026-10-22-15 讓每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，預期版本由 15 改成 16；第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        // 統一改名改了表名、欄名與 CHECK 值，預期版本由 16 改成 17，改名前建立的案件才會看到舊版案件的訊息；
+        // 第一次失敗收據 20261030-135241888-3c45f8ad7a044419beee5d439bf6db8a。
+        // 條件組結果改成依條件組編號儲存，filter_scenario 加 scenario_id、新增 filter_hit_condition，預期版本由 17 改成 18；
+        // 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // 驗證摘要裡同一傳票號碼出現在不同總帳日期的鍵名改用 voucher（裁定 2026-11-01-01），預期版本由 18 改成 19；第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
+        Assert.Equal("19", SqlServerProjectDatabase.SchemaVersion);
+        Assert.Contains("'schema_version', '19')", SqlServerProjectDatabase.SchemaSql);
+        // 升版程式拿掉後沒有回寫版本的語句，這裡原本對它的檢查一起拿掉（裁定 2026-10-30-24）。
+        Assert.Contains("field_mapping_previous", SqlServerProjectDatabase.SchemaSql);
     }
 
-    [SqlServerFact]
-    public async Task Batch9_EnsureCreated_OnV11MissingPreviousMappingTable_AddsTableWithoutChangingData()
-    {
-        var connection = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connection is null) return;
-        var database = new SqlServerProjectDatabase(new SqlServerConnectionOptions(connection, SingleDb));
-        var projectId = $"v12-previous-{Guid.NewGuid():N}";
-        var q = SqlServerProjectSchema.QualifierFor(projectId);
-        try
-        {
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-            await ExecuteAsync(connection, $"DROP TABLE {q}config_field_mapping_previous;");
-            await ExecuteAsync(connection, $"UPDATE {q}schema_info SET [value] = '11' WHERE [key] = 'schema_version';");
-            await ExecuteAsync(connection, $"INSERT INTO {q}schema_info ([key], [value]) VALUES ('batch9-sentinel', 'preserved');");
-            Assert.Equal("11", await VersionAsync(connection, q));
-            Assert.Equal(0, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
-            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            // 2026-10-19 文字欄定序升到第 14 版（跨資料庫一致性計畫第三節 F），本檔四處要連線的版本預期一起改成 14；
-            // 版本常數的失敗收據是 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
-            // 使用者 2026-10-21 裁定日期不符分成三種原因，第 15 版轉換舊的 period 列，本檔四處要連線的版本預期一起改成 15，沒有執行；
-            // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
-            Assert.Equal("16", await VersionAsync(connection, q));
-            Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
-            Assert.Equal(1, await ScalarLongAsync(connection, $"SELECT COUNT(*) FROM {q}schema_info WHERE [key] = 'batch9-sentinel' AND [value] = 'preserved';"));
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-            Assert.Equal(1, await TablePresentAsync(connection, q, "config_field_mapping_previous"));
-        }
-        finally { await database.DeleteAsync(projectId, CancellationToken.None); }
-    }
-
-    // 跨資料庫一致性計畫第三節 F（使用者 2026-10-19 選「SQL Server 實機才能確認的項」）：GL、TB 與科目配對的文字欄
-    // 一律固定位元序定序，不沿用資料庫預設定序；新建 schema 直接建成，既有 schema 在第 14 版逐欄改定序。
+    // 為了三種資料庫一致，GL、TB 與科目配對的文字欄
+    // 一律固定位元序定序，不沿用資料庫預設定序；新建 schema 直接建成。既有 schema 逐欄改定序的語句已隨升版程式拿掉。
     // 純 SQL 文字檢查，不連 SQL Server。第一次失敗收據 20261019-022312081-22a88a3e48db46cdbad3a14059471cd9。
     public static TheoryData<string, string> AuditTextColumns => new()
     {
-        { "target_gl_entry", "line_item" },
-        { "target_gl_entry", "account_name" },
-        { "target_gl_entry", "document_description" },
-        { "target_gl_entry", "source_module" },
-        { "target_tb_balance", "account_name" },
-        { "target_account_mapping", "account_name" },
-        { "result_inf_sampling_test_sample", "line_item" }
+        { "gl", "line_item" },
+        { "gl", "account_name" },
+        { "gl", "description" },
+        { "gl", "source_module" },
+        { "tb", "account_name" },
+        { "account_mapping", "account_name" },
+        { "inf_sample", "line_item" }
     };
 
     [Theory]
     [MemberData(nameof(AuditTextColumns))]
     public void TextComparisonMigration_PinsAuditTextColumnsAtVersionFourteen(string table, string column)
     {
-        // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到 15；定序仍在第 14 版改。
+        // 裁定 2026-10-21-04 把日期不符分成三種原因，現行版本升到 15；定序仍在第 14 版改。
         // 第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，預期版本由 15 改成 16；第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
-        Assert.Equal("16", SqlServerProjectDatabase.SchemaVersion);
+        // 裁定 2026-10-22-15 讓每個來源可指定欄名在第幾列，import_batch_source 加 header_row 欄，預期版本由 15 改成 16；第一次失敗收據 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
+        // 統一改名後預期版本由 16 改成 17；第一次失敗收據 20261030-135241888-3c45f8ad7a044419beee5d439bf6db8a。
+        // 條件組結果改成依條件組編號儲存，filter_scenario 加 scenario_id、新增 filter_hit_condition，預期版本由 17 改成 18；
+        // 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // 驗證摘要的鍵名改用 voucher（裁定 2026-11-01-01），預期版本由 18 改成 19；第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
+        Assert.Equal("19", SqlServerProjectDatabase.SchemaVersion);
+        // 傳票摘要欄改名 description 後，和欄位資訊表 field_info 的 description 同名；原本在整份建表語句找欄名，
+        // 會把不需要固定定序的 field_info.description 也算進來。改成只看該表的建表與補欄語句。
+        // 第一次失敗：Focused 收據 20261030-120941513-6c7d1b4be48e4af4a18bea06cc5f413d。
+        var tableSql = string.Concat(Regex.Matches(
+                SqlServerProjectDatabase.SchemaSql,
+                $@"CREATE TABLE \{{s\}}\.{table} \(.*?\n\s*\);|ALTER TABLE \{{s\}}\.{table} ADD [^\n]*",
+                RegexOptions.Singleline)
+            .Select(static match => match.Value + "\n"));
+        Assert.NotEmpty(tableSql);
         var declarations = Regex.Matches(
-            SqlServerProjectDatabase.SchemaSql,
+            tableSql,
             $@"\b{column}\s+NVARCHAR\((\d+|MAX)\)(?<collation>\s+COLLATE Latin1_General_BIN2)?");
         Assert.NotEmpty(declarations);
         Assert.All(declarations, declaration => Assert.True(declaration.Groups["collation"].Success, declaration.Value));
-        Assert.Matches(
-            $@"ALTER TABLE \{{s\}}\.{table} ALTER COLUMN {column} NVARCHAR\((\d+|MAX)\) COLLATE Latin1_General_BIN2 NULL;",
-            SqlServerProjectDatabase.PinAuditTextCollationSql);
+        // 既有 schema 逐欄改定序的語句隨升版程式拿掉，對它的檢查一起拿掉（裁定 2026-10-30-24）；新建的 schema 仍要直接建成位元序定序。
     }
 
-    // 漂移守衛（純單元、不需 SQL Server）：fresh insert 與 transaction 最後的 bump
-    // 都必須等於 SchemaVersion 常數。日後只 bump 常數、忘改任一處字面值，
-    // 既有 schema 會在每次觸碰時重跑整段 DDL（讀 < 現行 → 遷移 → 寫回舊值 → 又 < 現行 → 無窮遷移）。
-    // 那種 bump 下本測試即紅，逼開發者同步兩端。對抗驗收（第七輪 check 3）發現此脫鉤後補。
+    // 漂移守衛（純單元、不需 SQL Server）：新建 schema 寫入的版本必須等於 SchemaVersion 常數。
+    // 日後只改常數、忘了改建表語句的字面值，新建的 schema 下次開啟就會被當成版本不符拒絕。
     [Fact]
     public void SchemaSql_WritesTheCurrentSchemaVersionConstant()
     {
         var version = SqlServerProjectDatabase.SchemaVersion;
         Assert.Contains($"'schema_version', '{version}')", SqlServerProjectDatabase.SchemaSql);
-        Assert.Contains(
-            $"SET [value] = '{version}' WHERE [key] = 'schema_version'",
-            SqlServerProjectDatabase.BumpSchemaVersionSql);
-    }
-
-    [SqlServerFact]
-    public async Task EnsureCreated_OnDowngradedSchema_RestoresShape_BumpsVersion_PreservesData_Idempotent()
-    {
-        var baseConn = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (baseConn is null) { return; }
-
-        var options = new SqlServerConnectionOptions(baseConn, SingleDb);
-        var database = new SqlServerProjectDatabase(options);
-        var projectId = $"mig-{Guid.NewGuid():N}";
-        var q = SqlServerProjectSchema.QualifierFor(projectId); // 例 [prj_xxx].
-
-        try
-        {
-            // 建現行 v8 schema，塞一列可辨識的資料（證遷移保留既有列）。
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-            // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，現行 schema 沒有 voucher_date，改寫入 approval_date。
-            await ExecuteAsync(baseConn,
-                $"INSERT INTO {q}target_gl_entry " +
-                "(batch_id, source_row_number, document_number, line_item, account_code, approval_date, " +
-                " amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr) " +
-                "VALUES ('batch-mig-1', 2, 'DOC-MIG', '7', 'ACC-9', '2025-01-03', 1000000, 1000000, 0, 'DEBIT');");
-
-            // 合成 v5：卸 step4-1 numeric sort key，再把版本改回 5。
-            await ExecuteAsync(
-                baseConn,
-                $"ALTER TABLE {q}target_gl_entry DROP COLUMN line_item_numeric_sort_key;");
-            await ExecuteAsync(
-                baseConn,
-                $"UPDATE {q}schema_info SET [value] = '5' WHERE [key] = 'schema_version';");
-
-            // 遷移前（紅燈）：欄已缺、版本為 5。
-            Assert.Equal(
-                0,
-                await ColumnPresentAsync(
-                    baseConn,
-                    q,
-                    "target_gl_entry",
-                    "line_item_numeric_sort_key"));
-            Assert.Equal("5", await VersionAsync(baseConn, q));
-
-            // 觸發版本化遷移機制。
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-            // 遷移後：形狀補齊、版本回現行、既有列保留；舊列不猜測回填 key。
-            Assert.Equal(
-                1,
-                await ColumnPresentAsync(
-                    baseConn,
-                    q,
-                    "target_gl_entry",
-                    "line_item_numeric_sort_key"));
-            Assert.Equal(SqlServerProjectDatabase.SchemaVersion, await VersionAsync(baseConn, q));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number = 'DOC-MIG' AND account_code = 'ACC-9';"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number = 'DOC-MIG' AND line_item = '7' AND line_item_numeric_sort_key IS NULL;"));
-
-            // 冪等：重跑不拋、版本仍為現行版、欄仍在、既有列不變。
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-            Assert.Equal(SqlServerProjectDatabase.SchemaVersion, await VersionAsync(baseConn, q));
-            Assert.Equal(
-                1,
-                await ColumnPresentAsync(
-                    baseConn,
-                    q,
-                    "target_gl_entry",
-                    "line_item_numeric_sort_key"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number = 'DOC-MIG';"));
-        }
-        finally
-        {
-            await database.DeleteAsync(projectId, CancellationToken.None);
-        }
-    }
-
-    [SqlServerFact]
-    public async Task EnsureCreated_OnV7_AddsAuditTableAndClearsResultsAtVersionFourteen()
-    {
-        var baseConn = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (baseConn is null) { return; }
-
-        var options = new SqlServerConnectionOptions(baseConn, SingleDb);
-        var database = new SqlServerProjectDatabase(options);
-        var projectId = $"v8-audit-{Guid.NewGuid():N}";
-        var q = SqlServerProjectSchema.QualifierFor(projectId);
-
-        try
-        {
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-            await ExecuteAsync(
-                baseConn,
-                $"DROP TABLE {q}audit_event_log; " +
-                $"UPDATE {q}schema_info SET [value]='7' WHERE [key]='schema_version'; " +
-                $"INSERT INTO {q}result_rule_run (run_id, run_kind, generated_utc, summary_json) " +
-                "VALUES ('v7-run', 'validate', '2026-08-19T00:00:00.0000000+00:00', '{}');");
-
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-            // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
-            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
-            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到第 15 版，沒有執行；
-            // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
-            Assert.Equal("16", await VersionAsync(baseConn, q));
-            Assert.Equal(1, await TablePresentAsync(baseConn, q, "audit_event_log"));
-            // 2026-10-19 跨資料庫一致性計畫第三節 F：第 14 版的文字比對遷移清除既有結果並標成待重跑，從第 7 版升級一定經過這一步。
-            // 這個測試原名 EnsureCreated_OnV7_AddsAuditTableWithoutClearingExistingResults，原本預期第 7 版的驗證結果保留 1 筆。
-            // 第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a（Provider，這一項讀到 0 筆）。
-            Assert.Equal(0, await ScalarLongAsync(
-                baseConn,
-                $"SELECT COUNT(*) FROM {q}result_rule_run WHERE run_id='v7-run';"));
-            Assert.Equal(1, await ScalarLongAsync(
-                baseConn,
-                $"SELECT COUNT(*) FROM {q}config_result_stale_state "
-                + "WHERE singleton=1 AND validation_stale=1 AND prescreen_stale=0;"));
-        }
-        finally
-        {
-            await database.DeleteAsync(projectId, CancellationToken.None);
-        }
-    }
-
-    [SqlServerFact]
-    public async Task EnsureCreated_OnFrozenV6_MigratesCompleteV7State_AndNewInstanceReopensIdempotently()
-    {
-        var baseConn = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (baseConn is null) { return; }
-
-        var options = new SqlServerConnectionOptions(baseConn, SingleDb);
-        var database = new SqlServerProjectDatabase(options);
-        var projectId = $"v7-success-{Guid.NewGuid():N}";
-        var schema = SqlServerProjectSchema.For(projectId);
-        var q = SqlServerProjectSchema.QualifierFor(projectId);
-
-        try
-        {
-            await database.EnsureDatabaseReadyAsync(CancellationToken.None);
-            await CreateFrozenV6Async(baseConn, schema, q);
-
-            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-            // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
-            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
-            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到第 15 版，沒有執行；
-            // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
-            Assert.Equal("16", await VersionAsync(baseConn, q));
-            foreach (var column in new[] { "posting_status", "is_effective", "exclusion_reason" })
-            {
-                Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "target_gl_entry", column));
-            }
-            foreach (var column in new[]
-                     {
-                         "raw_row_count", "effective_row_count", "excluded_by_period_count",
-                         "excluded_by_posting_status_count", "effective_debit_scaled", "effective_credit_scaled"
-                     })
-            {
-                Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "gl_control_total", column));
-            }
-            Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "config_field_mapping", "format_version"));
-            Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "config_field_mapping", "options_json"));
-            Assert.Equal(1, await ColumnPresentAsync(baseConn, q, "target_account_mapping", "category_id"));
-            foreach (var table in new[]
-                     {
-                         "config_gl_rde_field", "target_gl_rde_value", "config_account_taxonomy",
-                         "config_result_stale_state"
-                     })
-            {
-                Assert.Equal(1, await TablePresentAsync(baseConn, q, table));
-            }
-
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}config_field_mapping WHERE dataset_kind='gl' "
-                + "AND format_version=1 AND options_json IS NULL;"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number='DOC-V6' "
-                + "AND posting_status IS NULL AND is_effective IS NULL AND exclusion_reason IS NULL;"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}target_account_mapping WHERE standardized_category='Revenue' "
-                + "AND category_id='builtin.revenue';"));
-            Assert.Equal(5, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}config_account_taxonomy WHERE "
-                + "(category_id='builtin.revenue' AND label='Revenue' AND ordinal=0 AND semantic_role='revenue' AND is_builtin=1 AND revision=1) OR "
-                + "(category_id='builtin.receivables' AND label='Receivables' AND ordinal=1 AND semantic_role='receivables' AND is_builtin=1 AND revision=1) OR "
-                + "(category_id='builtin.cash' AND label='Cash' AND ordinal=2 AND semantic_role='cash' AND is_builtin=1 AND revision=1) OR "
-                + "(category_id='builtin.receipt_in_advance' AND label='Receipt in advance' AND ordinal=3 AND semantic_role='receipt_in_advance' AND is_builtin=1 AND revision=1) OR "
-                + "(category_id='builtin.others' AND label='Others' AND ordinal=4 AND semantic_role='others' AND is_builtin=1 AND revision=1);"));
-            // 2026-10-07 起上游修改一律清除下游：第 7 版升級在同一交易刪掉全部情境與命中，篩選回到「從未執行」，
-            // 和本機 SchemaV7MigrationTests.FrozenV6_MigratesAtomically_PreservesSources_ClearsScenariosAndStalesDerivedResults 同一組預期。
-            // 原本仍預期情境被改寫保留；第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
-            Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}config_filter_scenario;"));
-            Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_rule_run;"));
-            Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_inf_sampling_test_sample;"));
-            Assert.Equal(0, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_filter_run;"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}config_result_stale_state WHERE singleton=1 "
-                + "AND validation_stale=1 AND prescreen_stale=1 AND filter_stale=0;"));
-            Assert.Equal(3, await ScalarLongAsync(baseConn,
-                "SELECT COUNT(*) FROM sys.indexes WHERE object_id=OBJECT_ID(N'" + q + "target_gl_rde_value') "
-                + "AND name IN ('ix_target_gl_rde_value_text','ix_target_gl_rde_value_date','ix_target_gl_rde_value_amount');"));
-
-            var reopened = new SqlServerProjectDatabase(options);
-            await reopened.EnsureCreatedAsync(projectId, CancellationToken.None);
-            // Batch 9 raises the target to v12; provider execution remains explicitly deferred.
-            // 使用者 2026-10-13 裁定訊息分三級，現行版本升到第 13 版。這段只在 Provider 路線連 SQL Server 執行，
-            // 本批沒有執行（SQL Server 開發暫緩）；同一個版本常數的失敗收據是 20261013-095724851-a5acf04a01e14d96a9847e96470f1dde。
-            // 使用者 2026-10-21 裁定日期不符分成三種原因，現行版本升到第 15 版，沒有執行；
-            // 版本常數的失敗收據是 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
-            // 預篩選收斂計畫階段六：import_batch_source 加 header_row 欄，現行版本升到第 16 版，本檔四處要連線的版本預期一起改成 16，沒有執行（SQL Server 開發暫緩）；版本常數的失敗收據是 20261023-194649480-a2d7d7e4982c4c169b10b9a8a3f12d5b。
-            Assert.Equal("16", await VersionAsync(baseConn, q));
-            Assert.Equal(1, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}target_gl_entry WHERE document_number='DOC-V6';"));
-            Assert.Equal(0, await ScalarLongAsync(baseConn,
-                $"SELECT COUNT(*) FROM {q}config_filter_scenario;"));
-        }
-        finally
-        {
-            await database.DeleteAsync(projectId, CancellationToken.None);
-        }
+        // 回寫版本的語句隨升版程式拿掉，對它的檢查一起拿掉（裁定 2026-10-30-24）。
     }
 
     [SqlServerFact]
@@ -356,14 +108,14 @@ public sealed class SqlServerSchemaMigrationTests
             // 卸一欄但「不」改版本（維持現行 7）：證等於現行時走 no-op、不重跑守欄 DDL。
             await ExecuteAsync(
                 baseConn,
-                $"ALTER TABLE {q}target_gl_entry DROP COLUMN line_item_numeric_sort_key;");
+                $"ALTER TABLE {q}gl DROP COLUMN line_item_numeric_sort_key;");
             Assert.Equal(SqlServerProjectDatabase.SchemaVersion, await VersionAsync(baseConn, q));
             Assert.Equal(
                 0,
                 await ColumnPresentAsync(
                     baseConn,
                     q,
-                    "target_gl_entry",
+                    "gl",
                     "line_item_numeric_sort_key"));
 
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -375,7 +127,7 @@ public sealed class SqlServerSchemaMigrationTests
                 await ColumnPresentAsync(
                     baseConn,
                     q,
-                    "target_gl_entry",
+                    "gl",
                     "line_item_numeric_sort_key"));
             Assert.Equal(SqlServerProjectDatabase.SchemaVersion, await VersionAsync(baseConn, q));
         }
@@ -385,164 +137,39 @@ public sealed class SqlServerSchemaMigrationTests
         }
     }
 
+    // 案件資料庫只留現行結構（裁定 2026-10-30-24：SQL Server 的程式跟著改，只經編譯）：既有 schema 版本比現行舊時，
+    // 開案回舊版案件的訊息，不補欄位、不改版本，也不動既有資料。SQL Server 開發暫緩，這則測試沒有在 SQL Server 上執行過。
     [SqlServerFact]
-    public async Task EnsureCreated_FrozenV6FaultAfterResetBeforeBump_RollsBackShapeDataAndVersion()
+    public async Task EnsureCreated_OnOlderSchemaVersion_RejectsAsLegacyProjectWithoutChangingData()
     {
         var baseConn = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (baseConn is null) { return; }
 
-        var options = new SqlServerConnectionOptions(baseConn, SingleDb);
-        var database = new SqlServerProjectDatabase(options);
-        var projectId = $"v7-rollback-{Guid.NewGuid():N}";
-        var schema = SqlServerProjectSchema.For(projectId);
+        var database = new SqlServerProjectDatabase(new SqlServerConnectionOptions(baseConn, SingleDb));
+        var projectId = $"legacy-{Guid.NewGuid():N}";
         var q = SqlServerProjectSchema.QualifierFor(projectId);
 
         try
         {
-            await database.EnsureDatabaseReadyAsync(CancellationToken.None);
-            await CreateFrozenV6Async(baseConn, schema, q);
+            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
+            await ExecuteAsync(baseConn, $"ALTER TABLE {q}gl DROP COLUMN line_item_numeric_sort_key;");
+            await ExecuteAsync(baseConn, $"UPDATE {q}schema_info SET [value] = '15' WHERE [key] = 'schema_version';");
 
-            database.MigrationFaultHookForTests = stage =>
-            {
-                if (stage == "after-v7-result-reset")
-                {
-                    throw new InvalidOperationException("injected SQL Server v7 migration fault");
-                }
-            };
-
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            var ex = await Assert.ThrowsAsync<JetActionException>(
                 () => database.EnsureCreatedAsync(projectId, CancellationToken.None));
 
-            Assert.Equal("6", await VersionAsync(baseConn, q));
-            Assert.Equal(0, await ColumnPresentAsync(baseConn, q, "target_gl_entry", "posting_status"));
-            Assert.Equal(0, await ColumnPresentAsync(baseConn, q, "config_field_mapping", "format_version"));
-            Assert.Equal(0, await ColumnPresentAsync(baseConn, q, "target_account_mapping", "category_id"));
-            Assert.Equal(0, await TablePresentAsync(baseConn, q, "config_account_taxonomy"));
-            Assert.Equal(0, await TablePresentAsync(baseConn, q, "config_result_stale_state"));
-            Assert.Equal(2, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_rule_run;"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_inf_sampling_test_sample;"));
-            Assert.Equal(1, await ScalarLongAsync(baseConn, $"SELECT COUNT(*) FROM {q}result_filter_run;"));
-            Assert.Equal(0, await ScalarLongAsync(
-                baseConn,
-                $"SELECT COUNT(*) FROM {q}config_filter_scenario WHERE definition_json LIKE '%CategoryIds%';"));
+            Assert.Equal(JetErrorCodes.InvalidProjectSchema, ex.Code);
+            Assert.Equal(ProjectFolderMessages.OldVersionProject(), ex.Message);
+            Assert.Equal("15", await VersionAsync(baseConn, q));
+            Assert.Equal(0, await ColumnPresentAsync(baseConn, q, "gl", "line_item_numeric_sort_key"));
         }
         finally
         {
-            database.MigrationFaultHookForTests = null;
             await database.DeleteAsync(projectId, CancellationToken.None);
         }
     }
 
     // ---- 對 JET_Test 的最小 raw helper（直接下 schema-qualified SQL 驗形狀/資料/版本） ----
-
-    private static async Task CreateFrozenV6Async(
-        string baseConnectionString,
-        string schema,
-        string qualifier)
-    {
-        // CREATE SCHEMA 必須是獨立 batch；fixture DDL 是直接 frozen-v6 shape，不經 current SchemaSql。
-        await ExecuteAsync(baseConnectionString, $"CREATE SCHEMA [{schema}];");
-        await ExecuteAsync(
-            baseConnectionString,
-            $$"""
-            CREATE TABLE {{qualifier}}schema_info (
-                [key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY,
-                [value] NVARCHAR(MAX) NOT NULL);
-            INSERT INTO {{qualifier}}schema_info VALUES ('schema_version', '6');
-
-            CREATE TABLE {{qualifier}}config_field_mapping (
-                dataset_kind NVARCHAR(20) COLLATE Latin1_General_BIN2 PRIMARY KEY
-                    CHECK (dataset_kind IN ('gl','tb')),
-                mapping_json NVARCHAR(MAX) NOT NULL,
-                mode_name NVARCHAR(40) NOT NULL,
-                source_batch_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
-                committed_utc NVARCHAR(40) NOT NULL);
-            INSERT INTO {{qualifier}}config_field_mapping VALUES
-                ('gl', '{"docNum":"Document Number"}', 'dualAmount', 'batch-v6', '2026-08-01T00:00:00+00:00');
-
-            CREATE TABLE {{qualifier}}target_gl_entry (
-                entry_id BIGINT IDENTITY(1,1) PRIMARY KEY,
-                batch_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
-                source_row_number BIGINT NOT NULL,
-                document_number NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                line_item NVARCHAR(400) NULL,
-                line_item_numeric_sort_key NVARCHAR(40) COLLATE Latin1_General_BIN2 NULL,
-                post_date NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
-                approval_date NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
-                voucher_date NVARCHAR(32) COLLATE Latin1_General_BIN2 NULL,
-                account_code NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                account_name NVARCHAR(400) NULL,
-                document_description NVARCHAR(MAX) NULL,
-                source_module NVARCHAR(400) NULL,
-                created_by NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
-                approved_by NVARCHAR(400) COLLATE Latin1_General_BIN2 NULL,
-                is_manual INT NULL,
-                amount_scaled BIGINT NOT NULL,
-                debit_amount_scaled BIGINT NOT NULL,
-                credit_amount_scaled BIGINT NOT NULL,
-                dr_cr NVARCHAR(10) COLLATE Latin1_General_BIN2 NOT NULL
-                    CHECK (dr_cr IN ('DEBIT','CREDIT')));
-            INSERT INTO {{qualifier}}target_gl_entry
-                (batch_id, source_row_number, document_number, account_code,
-                 amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
-            VALUES ('batch-v6', 2, 'DOC-V6', '4101', -10000, 0, 10000, 'CREDIT');
-
-            CREATE TABLE {{qualifier}}gl_control_total (
-                singleton INT PRIMARY KEY CHECK (singleton = 1),
-                source_row_count BIGINT NOT NULL,
-                target_row_count BIGINT NOT NULL,
-                target_debit_scaled BIGINT NOT NULL,
-                target_credit_scaled BIGINT NOT NULL);
-            INSERT INTO {{qualifier}}gl_control_total VALUES (1, 1, 1, 0, 10000);
-
-            CREATE TABLE {{qualifier}}target_account_mapping (
-                mapping_id BIGINT IDENTITY(1,1) PRIMARY KEY,
-                batch_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
-                source_row_number INT NOT NULL,
-                account_code NVARCHAR(450) COLLATE Latin1_General_BIN2 NOT NULL,
-                account_name NVARCHAR(400) NULL,
-                standardized_category NVARCHAR(40) COLLATE Latin1_General_BIN2 NOT NULL
-                    CHECK (standardized_category IN ('Revenue','Receivables','Cash','Receipt in advance','Others')));
-            INSERT INTO {{qualifier}}target_account_mapping
-                (batch_id, source_row_number, account_code, account_name, standardized_category)
-            VALUES ('batch-am-v6', 2, '4101', 'Revenue account', 'Revenue');
-
-            CREATE TABLE {{qualifier}}config_filter_scenario (
-                position INT PRIMARY KEY,
-                name NVARCHAR(400) NOT NULL,
-                rationale NVARCHAR(MAX) NOT NULL,
-                definition_json NVARCHAR(MAX) NOT NULL,
-                saved_utc NVARCHAR(40) NOT NULL);
-            INSERT INTO {{qualifier}}config_filter_scenario VALUES
-                (1, 'legacy pair', 'migration oracle',
-                 '{"populationScope":"auditPeriod","logicVersion":"filter-2026-08-04-v6","groups":[{"rules":[{"type":"accountPair","debitCategory":"Cash","creditCategory":"Revenue"}]}]}',
-                 '2026-08-01T00:00:00+00:00');
-
-            CREATE TABLE {{qualifier}}result_rule_run (
-                run_id NVARCHAR(64) COLLATE Latin1_General_BIN2 PRIMARY KEY,
-                run_kind NVARCHAR(20) COLLATE Latin1_General_BIN2 NOT NULL,
-                generated_utc NVARCHAR(40) NOT NULL,
-                summary_json NVARCHAR(MAX) NOT NULL);
-            INSERT INTO {{qualifier}}result_rule_run VALUES
-                ('validation-v6', 'validate', '2026-08-01T00:00:00+00:00', '{"resultRef":{"logicVersion":"validation-2026-07-13-v2"} }'),
-                ('prescreen-v6', 'prescreen', '2026-08-01T00:00:00+00:00', '{"resultRef":{"logicVersion":"prescreen-2026-07-11-v2"} }');
-
-            CREATE TABLE {{qualifier}}result_inf_sampling_test_sample (
-                run_id NVARCHAR(64) COLLATE Latin1_General_BIN2 NOT NULL,
-                entry_id BIGINT NOT NULL,
-                document_number NVARCHAR(450) COLLATE Latin1_General_BIN2 NULL,
-                line_item NVARCHAR(400) NULL,
-                PRIMARY KEY (run_id, entry_id));
-            INSERT INTO {{qualifier}}result_inf_sampling_test_sample
-                VALUES ('validation-v6', 1, 'DOC-V6', NULL);
-
-            CREATE TABLE {{qualifier}}result_filter_run (
-                scenario_position INT NOT NULL,
-                entry_id BIGINT NOT NULL,
-                PRIMARY KEY (scenario_position, entry_id));
-            INSERT INTO {{qualifier}}result_filter_run VALUES (1, 1);
-            """);
-    }
 
     private static string SingleDbConnectionString(string baseConnectionString) =>
         new SqlConnectionStringBuilder(baseConnectionString) { InitialCatalog = SingleDb }.ConnectionString;

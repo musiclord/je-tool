@@ -14,8 +14,8 @@ public sealed class ResultPageColumnRegistryTests
     [Fact]
     public void NestedVoucherFieldsRemainAvailableToPagesAndReports()
     {
-        var scenario = Scenario(new { type = "voucher", side = "credit", quantifier = "all", rules = new[] {
-            new { type = "group", rules = new[] { new { type = "fieldValue", fieldId = TextField, @operator = "equals", value = "x" } } }
+        var scenario = Scenario(new { type = "voucher", side = "credit", quantifier = "all", conditions = new[] {
+            new { type = "group", conditions = new[] { new { type = "fieldValue", fieldId = TextField, @operator = "equals", value = "x" } } }
         } });
         var plan = ResultPageColumnRegistry.ForFilter(scenario, Mapping(), 100);
         Assert.Equal(new[] { TextField }, plan.CustomFields.Select(field => field.FieldId));
@@ -66,7 +66,7 @@ public sealed class ResultPageColumnRegistryTests
         var rendered = ResultPageCustomValueRenderer.Render(
             [10, 11],
             [
-                new ResultPageRdeValue(10, MoneyField, "money", null, null, 1234),
+                new ResultPageRdeValue(10, MoneyField, "amount", null, null, 1234),
                 new ResultPageRdeValue(10, TextField, "text", "alpha", null, null),
                 new ResultPageRdeValue(10, DateField, "date", null, "2025-04-02", null)
             ],
@@ -102,7 +102,7 @@ public sealed class ResultPageColumnRegistryTests
         {
             name = "scenario",
             rationale = "synthetic",
-            groups = new[] { new { join = "AND", rules } }
+            groups = new[] { new { join = "AND", conditions = rules } }
         }),
         DateTimeOffset.UnixEpoch);
 
@@ -117,7 +117,7 @@ public sealed class ResultPageColumnRegistryTests
             null,
             new GlManualAutoPolicy(["1"], ["0"]),
             [
-                new GlRdeFieldMetadata(MoneyField, "money-source", "自訂金額", "money"),
+                new GlRdeFieldMetadata(MoneyField, "money-source", "自訂金額", "amount"),
                 new GlRdeFieldMetadata(TextField, "text-source", "自訂文字", "text"),
                 new GlRdeFieldMetadata(DateField, "date-source", "自訂日期", "date")
             ]));

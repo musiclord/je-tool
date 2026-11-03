@@ -3,7 +3,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// Owns the single monotonic clock and the per-artifact lifecycle for one formal
+/// Owns the single monotonic clock and the per-report lifecycle for one formal
 /// export action. Writer callbacks remain sheet-local; this adapter is the only
 /// place that shapes the cumulative wire contract.
 /// </summary>
@@ -13,7 +13,7 @@ internal sealed class ExportProgressSession
     private readonly CancellationToken _cancellationToken;
     private readonly TimeProvider _timeProvider;
     private readonly long _startedTimestamp;
-    private readonly HashSet<ReportArtifactKind> _startedKinds = [];
+    private readonly HashSet<ReportKind> _startedKinds = [];
     private long _lastElapsedMilliseconds;
 
     public ExportProgressSession(
@@ -27,21 +27,21 @@ internal sealed class ExportProgressSession
         _startedTimestamp = _timeProvider.GetTimestamp();
     }
 
-    public ExportArtifactProgress Start(ReportArtifactKind kind)
+    public ExportReportProgress Start(ReportKind kind)
     {
         if (!_startedKinds.Add(kind))
         {
             throw new InvalidOperationException(
-                $"Export artifact '{ReportArtifactKindValues.ToValue(kind)}' 已啟動進度追蹤。");
+                $"Export report '{ReportKindValues.ToValue(kind)}' 已啟動進度追蹤。");
         }
 
-        var progress = new ExportArtifactProgress(this, kind);
+        var progress = new ExportReportProgress(this, kind);
         progress.PublishPreparing();
         return progress;
     }
 
     internal void Publish(
-        ReportArtifactKind kind,
+        ReportKind kind,
         string phase,
         string? sheetName,
         int sheetsCompleted,
@@ -56,7 +56,7 @@ internal sealed class ExportProgressSession
 
         _eventPublisher.Publish("export.progress", new
         {
-            artifactKind = ReportArtifactKindValues.ToValue(kind),
+            reportKind = ReportKindValues.ToValue(kind),
             phase,
             sheetName,
             sheetsCompleted,
@@ -71,28 +71,28 @@ internal sealed class ExportProgressSession
     }
 }
 
-internal sealed class ExportArtifactProgress
+internal sealed class ExportReportProgress
 {
     private const string PreparingDataPhase = "preparingData";
     private const string WritingSheetPhase = "writingSheet";
     private const string FinalizingWorkbookPhase = "finalizingWorkbook";
-    private const string PublishingArtifactPhase = "publishingArtifact";
+    private const string PublishingReportPhase = "publishingReport";
 
     private readonly ExportProgressSession _session;
-    private readonly ReportArtifactKind _kind;
+    private readonly ReportKind _kind;
     private ExportProgressState _state;
     private string? _currentSheet;
     private long _currentSheetRows;
     private int _sheetsCompleted;
     private long _completedRows;
 
-    internal ExportArtifactProgress(ExportProgressSession session, ReportArtifactKind kind)
+    internal ExportReportProgress(ExportProgressSession session, ReportKind kind)
     {
         _session = session;
         _kind = kind;
     }
 
-    public Action<WorkpaperProgress> WriterProgress => OnWriterProgress;
+    public Action<WorkingPaperProgress> WriterProgress => OnWriterProgress;
 
     internal void PublishPreparing()
     {
@@ -111,7 +111,7 @@ internal sealed class ExportArtifactProgress
         if (_currentSheet is not null)
         {
             throw new InvalidOperationException(
-                $"Export artifact '{ReportArtifactKindValues.ToValue(_kind)}' 的工作表"
+                $"Export report '{ReportKindValues.ToValue(_kind)}' 的工作表"
                 + $" '{_currentSheet}' 尚未回報關閉，不得進入 {FinalizingWorkbookPhase}。");
         }
 
@@ -124,19 +124,19 @@ internal sealed class ExportArtifactProgress
             _completedRows);
     }
 
-    public void PublishingArtifact()
+    public void PublishingReport()
     {
         EnsureState(ExportProgressState.Finalizing);
         _state = ExportProgressState.Publishing;
         _session.Publish(
             _kind,
-            PublishingArtifactPhase,
+            PublishingReportPhase,
             null,
             _sheetsCompleted,
             _completedRows);
     }
 
-    private void OnWriterProgress(WorkpaperProgress value)
+    private void OnWriterProgress(WorkingPaperProgress value)
     {
         if (_state is not (ExportProgressState.Preparing or ExportProgressState.Writing))
         {
@@ -198,7 +198,7 @@ internal sealed class ExportArtifactProgress
             _completedRows);
     }
 
-    private void BeginOrContinueSheet(WorkpaperProgress value)
+    private void BeginOrContinueSheet(WorkingPaperProgress value)
     {
         if (_currentSheet is null)
         {
@@ -229,7 +229,7 @@ internal sealed class ExportArtifactProgress
     }
 
     private InvalidOperationException InvalidTransition(string next) => new(
-        $"Export artifact '{ReportArtifactKindValues.ToValue(_kind)}'"
+        $"Export report '{ReportKindValues.ToValue(_kind)}'"
         + $" 無法從 {_state} 進入 {next}。");
 
     private enum ExportProgressState

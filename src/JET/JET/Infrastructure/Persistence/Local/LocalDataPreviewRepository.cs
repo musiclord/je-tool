@@ -14,11 +14,11 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 {
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    private static readonly string[] TbBalanceColumns = ["accountCode", "accountName", "changeAmount"];
+    private static readonly string[] TbBalanceColumns = ["accountNumber", "accountName", "changeAmount"];
 
     private static readonly string[] AuthorizedPreparerColumns = ["preparerName"];
 
-    private static readonly string[] DateDimensionColumns = ["date", "dayType", "dayName"];
+    private static readonly string[] CalendarColumns = ["date", "dayType", "dayName"];
 
     /// <summary>結構總覽固定欄位（rows 由 <see cref="JetSchemaCatalog"/> 驅動，非資料表列）。</summary>
     private static readonly string[] SchemaOverviewColumns =
@@ -60,15 +60,15 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
 
         return dataset switch
         {
-            DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, "gl", "staging_gl_raw_row", limit, cancellationToken, offset),
-            DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, "tb", "staging_tb_raw_row", limit, cancellationToken, offset),
+            DataPreviewDataset.PbcGl => await StagingPreviewAsync(connection, "gl", "pbc_gl", limit, cancellationToken, offset),
+            DataPreviewDataset.PbcTb => await StagingPreviewAsync(connection, "tb", "pbc_tb", limit, cancellationToken, offset),
             DataPreviewDataset.Gl => await GlPreviewAsync(connection, glColumns!, moneyScale, limit, cancellationToken, offset),
             DataPreviewDataset.GlExcluded => await GlExcludedPreviewAsync(
                 connection, glColumns!, moneyScale, limit, cancellationToken, offset, exclusionReason),
             DataPreviewDataset.Tb => await TbPreviewAsync(connection, moneyScale, limit, cancellationToken, offset),
-            DataPreviewDataset.AccountMappings => await AccountMappingsPreviewAsync(connection, limit, cancellationToken, offset),
-            DataPreviewDataset.AuthorizedPreparers => await AuthorizedPreparersPreviewAsync(connection, limit, cancellationToken, offset),
-            DataPreviewDataset.DateDimension => await DateDimensionPreviewAsync(connection, limit, cancellationToken, offset),
+            DataPreviewDataset.AccountMapping => await AccountMappingsPreviewAsync(connection, limit, cancellationToken, offset),
+            DataPreviewDataset.AuthorizedPreparer => await AuthorizedPreparersPreviewAsync(connection, limit, cancellationToken, offset),
+            DataPreviewDataset.Calendar => await CalendarPreviewAsync(connection, limit, cancellationToken, offset),
             _ => throw new ArgumentOutOfRangeException(nameof(dataset), dataset, null)
         };
     }
@@ -81,7 +81,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         DataPreviewSchemaOverview.Build(SchemaOverviewColumns);
 
     /// <summary>已匯入的事務所假日／補班日（依日期升冪；無統計）。</summary>
-    private static async Task<DataPreviewResult> DateDimensionPreviewAsync(
+    private static async Task<DataPreviewResult> CalendarPreviewAsync(
         DbConnection connection,
         int limit,
         CancellationToken cancellationToken, int offset = 0)
@@ -91,7 +91,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         {
             await using (var count = connection.CreateCommand())
             {
-                count.CommandText = "SELECT COUNT(*) FROM staging_calendar_raw_day;";
+                count.CommandText = "SELECT COUNT(*) FROM calendar_day;";
                 totalCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken));
             }
 
@@ -105,7 +105,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         command.CommandText =
             $"""
             SELECT date, day_type, day_name
-            FROM staging_calendar_raw_day
+            FROM calendar_day
             ORDER BY date
             LIMIT {limit} OFFSET {offset};
             """;
@@ -122,7 +122,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             ]);
         }
 
-        return new DataPreviewResult(DateDimensionColumns, rows, totalCount, null);
+        return new DataPreviewResult(CalendarColumns, rows, totalCount, null);
     }
 
     /// <summary>
@@ -141,7 +141,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         {
             await using (var count = connection.CreateCommand())
             {
-                count.CommandText = "SELECT COUNT(*) FROM target_authorized_preparer;";
+                count.CommandText = "SELECT COUNT(*) FROM authorized_preparer;";
                 totalCount = Convert.ToInt64(await count.ExecuteScalarAsync(cancellationToken));
             }
 
@@ -155,7 +155,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         command.CommandText =
             $"""
             SELECT name
-            FROM target_authorized_preparer
+            FROM authorized_preparer
             ORDER BY name
             LIMIT {limit} OFFSET {offset};
             """;
@@ -263,13 +263,13 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             statsQuery.CommandText =
                 $"""
                 SELECT COUNT(*),
-                       COUNT(DISTINCT document_number),
+                       COUNT(DISTINCT voucher_number),
                        MIN(ABS(amount_scaled)),
                        MAX(ABS(amount_scaled)),
-                       MIN(post_date),
-                       MAX(post_date)
-                FROM target_gl_entry
-                WHERE {GlEffectivePopulation.SqlPredicate()};
+                       MIN(gl_date),
+                       MAX(gl_date)
+                FROM gl
+                WHERE {GlExcludedPopulation.SqlPredicate()};
                 """;
 
             await using var reader = await statsQuery.ExecuteReaderAsync(cancellationToken);
@@ -316,17 +316,17 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             statsQuery.CommandText =
                 """
                 SELECT COUNT(*),
-                       COUNT(CASE WHEN exclusion_reason = @blankPostDateReason THEN 1 END),
+                       COUNT(CASE WHEN exclusion_reason = @blankGlDateReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @beforePeriodReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @afterPeriodReason THEN 1 END),
                        COUNT(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 END)
-                FROM target_gl_entry
-                WHERE is_effective = 0;
+                FROM gl
+                WHERE is_excluded = 1;
                 """;
-            statsQuery.AddWithValue("@blankPostDateReason", GlEffectivePopulation.BlankPostDateStorageReason);
-            statsQuery.AddWithValue("@beforePeriodReason", GlEffectivePopulation.BeforePeriodStorageReason);
-            statsQuery.AddWithValue("@afterPeriodReason", GlEffectivePopulation.AfterPeriodStorageReason);
-            statsQuery.AddWithValue("@postingStatusReason", GlEffectivePopulation.PostingStatusStorageReason);
+            statsQuery.AddWithValue("@blankGlDateReason", GlExcludedPopulation.BlankGlDateStorageReason);
+            statsQuery.AddWithValue("@beforePeriodReason", GlExcludedPopulation.BeforePeriodStorageReason);
+            statsQuery.AddWithValue("@afterPeriodReason", GlExcludedPopulation.AfterPeriodStorageReason);
+            statsQuery.AddWithValue("@postingStatusReason", GlExcludedPopulation.PostingStatusStorageReason);
 
             await using var reader = await statsQuery.ExecuteReaderAsync(cancellationToken);
             await reader.ReadAsync(cancellationToken);
@@ -338,7 +338,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
             connection,
             columns,
             exclusionReason is null ? DataPreviewGlPage.Excluded : DataPreviewGlPage.ExcludedForOneReason,
-            exclusionReason is { } reason ? GlEffectivePopulation.StorageReasonOf(reason) : null,
+            exclusionReason is { } reason ? GlExcludedPopulation.StorageReasonOf(reason) : null,
             moneyScale,
             limit,
             offset,
@@ -393,7 +393,7 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         {
             await using (var count = connection.CreateCommand())
             {
-                count.CommandText = "SELECT COUNT(*) FROM target_tb_balance;";
+                count.CommandText = "SELECT COUNT(*) FROM tb;";
                 totalCount = (long)(await count.ExecuteScalarAsync(cancellationToken))!;
             }
 
@@ -408,8 +408,8 @@ public sealed class LocalDataPreviewRepository(ILocalProjectDatabase database) :
         {
             select.CommandText =
                 """
-                SELECT account_code, account_name, change_amount_scaled
-                FROM target_tb_balance
+                SELECT account_number, account_name, change_amount_scaled
+                FROM tb
                 ORDER BY balance_id
                 LIMIT @limit OFFSET @offset;
                 """;

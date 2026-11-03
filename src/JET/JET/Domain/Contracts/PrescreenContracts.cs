@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-public sealed record CreatorSummaryRow(
+public sealed record PreparerSummaryRow(
     string CreatedBy,
     long EntryCount,
     long DebitTotalScaled,
@@ -8,19 +8,19 @@ public sealed record CreatorSummaryRow(
     long ManualCount);
 
 public sealed record AccountUsageRow(
-    string AccountCode,
+    string AccountNumber,
     string? AccountName,
     long EntryCount,
     long DebitTotalScaled,
     long CreditTotalScaled);
 
 public sealed record PrescreenRunResult(
-    long PostPeriodApprovalCount,
+    long PrepPeriodApprovalCount,
     long SuspiciousKeywordsCount,
     long UnexpectedAccountPairCount,
     long TrailingZerosCount,
     int ZerosThreshold,
-    IReadOnlyList<CreatorSummaryRow> Creators,
+    IReadOnlyList<PreparerSummaryRow> Preparers,
     long DistinctAccountCount,
     IReadOnlyList<AccountUsageRow> Accounts,
     long WeekendPostingCount,
@@ -28,10 +28,4 @@ public sealed record PrescreenRunResult(
     long HolidayPostingCount,
     long? HolidayApprovalCount,
     long BlankDescriptionCount,
-    long NonAuthorizedPreparerCount,
-    long LowFrequencyPreparerCount,
-    long LowFrequencyAccountCount)
-{
-    // 科目數與上面的命中分錄列數分開。相容呼叫端未提供時保留 null，不冒充零個科目。
-    public long? LowFrequencyDistinctAccountCount { get; init; }
-}
+    long NonAuthorizedPreparerCount);

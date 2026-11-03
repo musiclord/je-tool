@@ -148,7 +148,7 @@ internal sealed class LateBoundExcelAutomation : IExcelAutomationSession
                             row = rowCollection.Item[position];
                             dynamic item = row;
                             var height = Convert.ToDouble(item.RowHeight, CultureInfo.InvariantCulture);
-                            // 2026-10-29 使用者裁定 10 點明細頁統一 15 點，包含 V_Report 5。
+                            // 裁定 2026-10-29-08：10 點明細頁統一 15 點，包含 V_Report 5。
                             if (Math.Abs(height - 15D) > 0.1D)
                                 throw new InvalidDataException("V_Report 5 native row height differs from the approved 15 points.");
                         }

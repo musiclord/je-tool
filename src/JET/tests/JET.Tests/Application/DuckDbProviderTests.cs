@@ -22,7 +22,7 @@ public sealed class DuckDbProviderTests
         var created = await host.DispatchAsync(
             "project.create",
             """
-            { "caseName": "刪除案duck", "projectCode": "DEL-D", "entityName": "刪除實體", "operatorId": "op",
+            { "projectName": "刪除案duck", "projectCode": "DEL-D", "clientName": "刪除實體", "operatorId": "op",
               "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "duckdb" }
             """);
         var id = created.GetProperty("projectId").GetString()!;

@@ -34,6 +34,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 
 - 沒有使用者明確指令時，不執行也不主動提議 reset、checkout、clean、stash、stage、commit、push 或變更 remote。
   計畫完成、測試通過或工作樹可提交，都不是授權。
+- 使用者說要提交時，提交後一併推送，不分成多次提交再一起推送。
 - 禁止 `git add -A`、`git add --all`、`git add -u`、`git add .` 與 `git write-tree`；獲准 stage 時也只加入使用者確認的
   明確路徑，避免忽略規則改變時把私人資料寫進 Git。
 - Commit 訊息用繁體中文並保持精簡：標題一行說清楚改了什麼，內文只寫主要變更與必要原因，保留足以追溯變更目的的資訊即可。
@@ -64,6 +65,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
   步驟見 [`tools/README.md`](tools/README.md#日常資料庫測試與服務收尾)。
 - 不為了讓測試通過而放寬、刪除或跳過既有斷言，也不把預期值改成由被測程式算出來；新增測試不受此限。
   要改既有測試時先寫明原因，並保留第一次失敗的證據。
+- 不要每次修改都跑完整 `Public`。先依改動範圍跑相關測試，失敗修正後只重跑受影響的部分；相關修改整合完成、確實需要完整驗證時再跑。
 - 測試不能干擾使用者操作電腦（使用者 2026-10-05 裁定）。`Gui` 把 JET 開在另一個 Windows 桌面，使用者看不到視窗，
   點擊與打字也不會落到 JET 上；完整執行需要幾分鐘並占用 CPU。`ReleaseCandidate` 也會執行它。日常開發用 `Public`（含前端測試）、
   `Contract -ContractScenario FrontendMapping` 與瀏覽器主機確認畫面。`Gui` 只在提交、交付或使用者確認版本要整合時執行。
@@ -78,16 +80,32 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 - 預設審計員可信：不為防範審計員自己的操作加關卡；只有第六步匯出的正式底稿不得被 JET 默默改寫或覆蓋，
   其他檔案與中間結果能重算就不擋人。要新增會擋住使用者的錯誤時，先寫出使用者接下來能做什麼；
   原則與起因見 `docs/project-context.md`。
+- JET 讓審計員不必操作資料庫，就能直觀地篩選 GL 與 TB。程式只為了確保資料完整性設防呆，不因審計業務擋下；
+  案件資料的缺失或風險，由審計員在底稿備註，不由系統決定。
+- 修正要考量全局架構：在定義它的地方修根本原因，並找出同類問題一起處理，不只修發現問題的那一處。
+
+**名稱**
+
+- 畫面、報告、底稿與檔名，以及程式、action 欄位、資料庫與測試的名稱，只用 `docs/glossary.md` 寫的名稱。
+  新的名稱先進名詞表，經使用者確認後才用。報告與底稿上照舊版範本的欄名不改。
+- 改一個概念時，畫面、輸出、程式、文件與測試一起查，不只改被點名的地方。
 
 ## 有歧義時
 
-先查現行 `src/` 與測試，再查 `docs/` 現行文件，最後才是 `docs/history/` 與 `legacy/`；完整順序見
+審計業務沒有明確指定時，依序看三個來源：使用者的裁定最優先，查 `docs/rulings.md`；沒有裁定時照 IDEA 版 JET 的作法；
+舊版沒有涵蓋的，參考 KCT 小組提出的作業方式與期望。國際準則只用來理解名詞，或找出要問使用者的問題，不能單獨決定規則。
+三者都沒有答案時，先問使用者。
+
+Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合。舊版的 GL 母體前處理有不一致的地方，照舊版核對時，
+要分辨是審計規則，還是舊版程式的限制。
+
+要找現行規則寫在哪裡時，先查現行 `src/` 與測試，再查 `docs/` 現行文件，最後才是 `docs/history/` 與 `legacy/`；完整順序見
 `docs/business-logic-provenance.md`。證據仍支持兩種會改變對外行為的答案時，列出差異請使用者裁定，
 不因實作方便自行選邊。
 
 ## 跨 session 工作
 
-- 開工可先執行 `pwsh -NoProfile -File tools/verify.ps1 -Command Context`，取得現行計畫、工作樹與近期驗證。
+- 開工可先執行 `pwsh -NoProfile -File tools/verify.ps1 -Command Context`，取得現行計畫、裁定總表與名詞表的則數、工作樹與近期驗證。
   它是唯讀導覽，不是門檻。
 - 需要跨多個步驟或 session 的工作，一次只保留一份現行大型計畫（放在 `docs/specs/`）。進度、裁定與下一動作寫進計畫檔，
   不只存在聊天或 Agent 記憶裡。計畫裡的需求與裁定逐字保留使用者原話並附日期；改寫要先獲授權。
@@ -103,6 +121,8 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 |:---|:---|
 | 專案目的、服務順序與正式環境限制 | `docs/project-context.md` |
 | 系統規格與資料流（單一事實來源） | `docs/jet-guide.md` |
+| 使用者的裁定、原話與出處 | `docs/rulings.md` |
+| 業務概念在畫面、程式與資料庫各用的名稱 | `docs/glossary.md` |
 | 架構圖表與 agent 分析流程 | [圖表入口](docs/architecture/README.md)、[繪圖流程](.agents/harness/architecture-documentation.md) |
 | 前端與 C# 的 action 契約 | `docs/action-contract-manifest.md` |
 | 畫面結構、操作步驟與畫面用語 | `docs/jet-frontend-description.md` |
@@ -120,7 +140,7 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 
 | 要做的事 | 先讀 |
 |:---|:---|
-| 改驗證、預篩選、篩選或抽樣規則 | `docs/jet-guide.md` 第 4 到第 6 節；精確舊規則與常用篩選條件十張卡的對應在 `docs/history/superseded/jet-guide-2026-08.md`，該文件稱為 KCT A 到 J；衝突裁決走 `docs/business-logic-provenance.md` |
+| 改驗證、預篩選、篩選或抽樣規則 | `docs/jet-guide.md` 第 4 到第 6 節；常用篩選條件十張卡和歷史紀錄裡 KCT A 到 J 的對應在第 6 節，更早的精確舊規則在 `docs/history/superseded/jet-guide-2026-08.md`；衝突裁決走 `docs/business-logic-provenance.md` |
 | 改 action、payload 或前端 | `docs/action-contract-manifest.md` 與 `docs/jet-frontend-description.md` |
 | 改報表輸出或範本 | `docs/jet-guide.md` 第 7 節與 `docs/data-and-legacy.md` |
 | 碰資料庫實作或 SQL Server | `docs/jet-guide.md` 第 8 節；SQL Server 的延後事項、已知安全缺口與暫緩期間的修改，封存在 `docs/history/2026-10-20-sqlserver-archive.md` |

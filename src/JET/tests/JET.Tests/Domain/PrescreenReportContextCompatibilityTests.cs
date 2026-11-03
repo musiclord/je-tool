@@ -8,7 +8,8 @@ public sealed class PrescreenReportContextCompatibilityTests
     [Fact]
     public void SamePublicValues_PreserveEqualityHashAndFourMemberDeconstruction()
     {
-        var generatedUtc = new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero);
+        // 裁定 2026-11-02-03：第三個成員由執行時間改成報告的編製日期，等值、雜湊與四個成員的拆解照舊。
+        var preparedDate = new DateOnly(2025, 12, 31);
         var first = new PrescreenReportContext(
             new ReportDocumentContext(
                 "project",
@@ -18,8 +19,8 @@ public sealed class PrescreenReportContextCompatibilityTests
                 "2024-12-31",
                 10_000),
             "run",
-            generatedUtc,
-            """{"postPeriodApproval":{}}""");
+            preparedDate,
+            """{"prepPeriodApproval":{}}""");
         var second = new PrescreenReportContext(
             new ReportDocumentContext(
                 "project",
@@ -29,16 +30,16 @@ public sealed class PrescreenReportContextCompatibilityTests
                 "2024-12-31",
                 10_000),
             "run",
-            generatedUtc,
-            """{"postPeriodApproval":{}}""");
+            preparedDate,
+            """{"prepPeriodApproval":{}}""");
 
         Assert.Equal(first, second);
         Assert.Equal(first.GetHashCode(), second.GetHashCode());
 
-        var (project, runId, actualGeneratedUtc, summaryJson) = first;
+        var (project, resultId, actualPreparedDate, summaryJson) = first;
         Assert.Equal(first.Project, project);
-        Assert.Equal(first.RunId, runId);
-        Assert.Equal(first.GeneratedUtc, actualGeneratedUtc);
+        Assert.Equal(first.ResultId, resultId);
+        Assert.Equal(first.PreparedDate, actualPreparedDate);
         Assert.Equal(first.SummaryJson, summaryJson);
     }
 }

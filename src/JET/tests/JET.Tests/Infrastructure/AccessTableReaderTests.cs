@@ -49,8 +49,8 @@ public sealed class AccessTableReaderTests
         Assert.Equal("001", rows[0].Values["Account"]);
         Assert.Equal("12.3400", rows[0].Values["Amount"]);
         Assert.Equal("2025-03-01", rows[0].Values["Date"]);
-        // 2026-10-04 第二遍回饋審閱 L09：是或否欄位以前讀成「1」「0」，.xlsx 讀成「true」「false」，同一份資料換格式匯入值會不同。
-        // 依計畫對齊 .xlsx 的表示方式，所以把原本斷言的「1」「0」改成「true」「false」。
+        // 是或否欄位以前讀成「1」「0」，.xlsx 讀成「true」「false」，同一份資料換格式匯入值會不同。
+        // 這裡對齊 .xlsx 的表示方式，所以把原本斷言的「1」「0」改成「true」「false」。
         Assert.Equal("true", rows[0].Values["Manual"]);
         Assert.False(rows[0].Values.ContainsKey("Description"));
         Assert.Equal("false", rows[1].Values["Manual"]);
@@ -61,7 +61,7 @@ public sealed class AccessTableReaderTests
         Assert.True(connection.ReaderDisposed);
     }
 
-    // 2026-10-04 第二遍回饋審閱第 2 批（C3，L17）：Access 讀出的文字以前不去空白，.csv 與 .xlsx 會去，同一份資料換格式答案不同。
+    // Access 讀出的文字以前不去空白（裁定 2026-10-04-01 要求空白比較跨格式一致），.csv 與 .xlsx 會去，同一份資料換格式答案不同。
     [Fact]
     public async Task Rows_TrimTextLikeTheOtherReaders_AndTreatWhitespaceOnlyAsBlank()
     {

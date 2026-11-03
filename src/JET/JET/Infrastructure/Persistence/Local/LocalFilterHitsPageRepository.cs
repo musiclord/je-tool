@@ -4,10 +4,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 已存篩選情境命中行層明細 keyset 分頁(本地引擎)。JOIN result_filter_run 取該 position 的命中 entry_id,
-/// 再 JOIN target_gl_entry 取顯示欄;預設排序鍵 entry_id ASC，排序、搜尋與游標述詞由 <see cref="KeysetPaging"/>
+/// 已存篩選情境命中行層明細 keyset 分頁(本地引擎)。JOIN filter_hit 取該 position 的命中 entry_id,
+/// 再 JOIN gl 取顯示欄;預設排序鍵 entry_id ASC，排序、搜尋與游標述詞由 <see cref="KeysetPaging"/>
 /// 依 <see cref="ResultPageSorting.GlEntryRows"/> 組出、limit 由注入的 <see cref="ISqlDialect"/> 出。
-/// SELECT 末欄取 g.entry_id 供編游標,不放進 wire row。scenario_position 與游標皆參數綁定。
+/// SELECT 末欄取 g.entry_id 供編游標,不放進 wire row。情境位置經 filter_scenario 對到 scenario_id，位置與游標皆參數綁定。
 /// </summary>
 public sealed class LocalFilterHitsPageRepository(ILocalProjectDatabase database)
     : IFilterHitsPageRepository
@@ -31,11 +31,11 @@ public sealed class LocalFilterHitsPageRepository(ILocalProjectDatabase database
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
         command.CommandText =
-            "SELECT g.document_number, g.line_item, g.post_date, g.account_code, g.account_name, " +
-            "       g.amount_scaled, g.dr_cr, g.document_description, g.entry_id" + paging.SelectSuffix + " " +
-            "FROM result_filter_run r " +
-            "JOIN target_gl_entry g ON g.entry_id = r.entry_id " +
-            $"WHERE r.scenario_position = @pos AND {GlEffectivePopulation.SqlPredicate("g")}" + paging.Predicate + " " +
+            "SELECT g.voucher_number, g.line_item, g.gl_date, g.account_number, g.account_name, " +
+            "       g.amount_scaled, g.dr_cr, g.description, g.entry_id" + paging.SelectSuffix + " " +
+            "FROM filter_hit r JOIN filter_scenario fs ON fs.scenario_id = r.scenario_id " +
+            "JOIN gl g ON g.entry_id = r.entry_id " +
+            $"WHERE fs.position = @pos AND {GlExcludedPopulation.SqlPredicate("g")}" + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
         var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, database.Dialect, cancellationToken);

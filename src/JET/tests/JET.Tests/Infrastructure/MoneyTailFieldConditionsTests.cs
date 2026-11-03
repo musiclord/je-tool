@@ -13,20 +13,20 @@ public sealed class MoneyTailFieldConditionsTests
     {
         const string extraId = "rde.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         const string seed = """
-            INSERT INTO target_gl_entry(batch_id,source_row_number,document_number,post_date,
-                account_code,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective)
-            VALUES ('tail',1,'R1','2025-03-01','1000',100,100,0,'DEBIT',1),
-                   ('tail',2,'R2','2025-03-01','1000',100145,100145,0,'DEBIT',1),
-                   ('tail',3,'R3','2025-03-01','1000',-200190,0,200190,'CREDIT',1),
-                   ('tail',4,'R4','2025-03-01','1000',50,50,0,'DEBIT',1),
-                   ('tail',5,'R5','2025-03-01','1000',100012,100012,0,'DEBIT',1),
-                   ('tail',6,'R6','2025-03-01','1000',0,0,0,'DEBIT',1);
-            INSERT INTO target_gl_rde_value(entry_id,field_id,value_type,amount_scaled)
-            SELECT entry_id,'rde.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','money',amount_scaled FROM target_gl_entry WHERE source_row_number <> 6;
+            INSERT INTO gl(batch_id,source_row_number,voucher_number,gl_date,
+                account_number,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_excluded)
+            VALUES ('tail',1,'R1','2025-03-01','1000',100,100,0,'DEBIT',0),
+                   ('tail',2,'R2','2025-03-01','1000',100145,100145,0,'DEBIT',0),
+                   ('tail',3,'R3','2025-03-01','1000',-200190,0,200190,'CREDIT',0),
+                   ('tail',4,'R4','2025-03-01','1000',50,50,0,'DEBIT',0),
+                   ('tail',5,'R5','2025-03-01','1000',100012,100012,0,'DEBIT',0),
+                   ('tail',6,'R6','2025-03-01','1000',0,0,0,'DEBIT',0);
+            INSERT INTO gl_rde_value(entry_id,field_id,value_type,amount_scaled)
+            SELECT entry_id,'rde.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','amount',amount_scaled FROM gl WHERE source_row_number <> 6;
             """;
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, seed);
-        var extra = new GlRdeFieldMetadata(extraId, "sourceMoney", "原幣金額", "money");
-        var context = new FilterRuleContext(100, null, "2025-01-01", "2025-12-31") { RdeFields = [extra] };
+        var extra = new GlRdeFieldMetadata(extraId, "sourceMoney", "原幣金額", "amount");
+        var context = new FilterConditionContext(100, null, "2025-01-01", "2025-12-31") { RdeFields = [extra] };
         var cases = new (string Operator, string Value, string[] Hits)[]
         {
             ("endsWithDigits", "001", ["R2", "R3"]), ("endsWithDigits", "000", ["R5"]),
@@ -46,7 +46,7 @@ public sealed class MoneyTailFieldConditionsTests
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, context, CancellationToken.None);
             var expected = item.Hits.ToList();
             if (useExtra) { expected.Remove("R6"); if (blank) expected.Add("R6"); }
-            Assert.Equal(expected.Order(), result.PreviewRows.Select(row => row.DocumentNumber).Order());
+            Assert.Equal(expected.Order(), result.PreviewRows.Select(row => row.VoucherNumber).Order());
         }
     }
 }

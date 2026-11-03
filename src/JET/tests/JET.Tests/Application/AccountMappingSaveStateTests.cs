@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 使用者 2026-10-19 裁定「回報成功並提醒」：第四步科目分類存檔後讀不回科目配對摘要時，分類已經存好，
+/// 裁定 2026-10-19-21：第四步科目分類存檔後讀不回科目配對摘要時，回報成功並提醒。分類已經存好，
 /// 不能把整個動作報成失敗。回應不帶摘要欄位並附提醒，畫面保留原本的摘要（前端情境在 frontend-workflow.test.cjs）；
 /// 存檔後的讀取不受取消影響。兩個測試在修正前都失敗（收據 20261019-152635975-416fa6c94f8847bb949a4c174aa9cec0）。
 /// </summary>
@@ -31,7 +31,7 @@ public sealed class AccountMappingSaveStateTests
         Assert.False(result.TryGetProperty("rowCount", out _));
         Assert.Equal([SummaryWarning], result.GetProperty("warnings").EnumerateArray().Select(item => item.GetString()));
         Assert.True(result.GetProperty("invalidatedResults").GetProperty("Filter").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, result.GetProperty("reportArtifactWarning").ValueKind);
+        Assert.Equal(JsonValueKind.Null, result.GetProperty("reportWarning").ValueKind);
         Assert.Equal("builtin.revenue", await SavedCategoryAsync(project));
         var stateEvent = Assert.Single(log.Snapshot(), entry => entry.EventName == "workflow_state.read_failed");
         Assert.Equal("account_mapping_state", stateEvent.Fields["phase"]);
@@ -60,7 +60,7 @@ public sealed class AccountMappingSaveStateTests
     private static async Task<JsonElement> SaveAsync(
         ProjectSession session, SupportRingBufferLoggerProvider log, CancellationToken cancellationToken) =>
         JsonSerializer.SerializeToElement(await new AccountMappingSaveHandler(session, log.CreateLogger("mapping-test")).HandleAsync(
-            JsonSerializer.SerializeToElement(new { changes = new[] { new { accountCode = "A", categoryId = "builtin.revenue" } } }),
+            JsonSerializer.SerializeToElement(new { changes = new[] { new { accountNumber = "A", categoryId = "builtin.revenue" } } }),
             cancellationToken));
 
     private static async Task<string?> SavedCategoryAsync(ImportedProject project)
@@ -83,12 +83,12 @@ public sealed class AccountMappingSaveStateTests
         var session = new ProjectSession();
         session.Enter(projectId, TestProjectRepositories.Unconfigured("sqlite") with
         {
-            AccountTaxonomy = new LocalAccountTaxonomyStore(db),
+            AccountCategories = new LocalAccountCategoryStore(db),
             ReferenceDataFacts = new ReferenceDataFactsPort(mappings, new LocalAuthorizedPreparerRepository(db), new LocalCalendarStore(db)),
             AccountMappings = states, AccountMappingEditor = editor,
-            RuleRuns = new LocalRuleRunStore(db), ResultStaleStates = new LocalResultStaleStateStore(db),
+            Results = new LocalResultStore(db), ResultStaleStates = new LocalResultStaleStateStore(db),
             FilterScenarios = new LocalFilterScenarioStore(db),
-            ReportArtifactStore = new ProjectReportArtifactStore(folder)
+            ReportStore = new ProjectReportStore(folder)
         });
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {

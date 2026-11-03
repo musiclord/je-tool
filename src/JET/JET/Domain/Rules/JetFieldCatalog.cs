@@ -24,7 +24,7 @@ internal enum JetFieldValueKind
 }
 
 /// <summary>
-/// 欄位沒有來源欄時，系統另外產生值的方式。使用者 2026-10-22 裁定：傳票文件項次自動編號、
+/// 欄位沒有來源欄時，系統另外產生值的方式。傳票文件項次自動編號、
 /// 傳票核准日選「與總帳日期相同」，都算已配對。
 /// </summary>
 internal enum JetFieldDerivedSource
@@ -35,7 +35,7 @@ internal enum JetFieldDerivedSource
     AutoNumber,
 
     /// <summary>傳票核准日選「與總帳日期相同」時，取總帳日期。</summary>
-    SameAsPostDate
+    SameAsGlDate
 }
 
 /// <summary>
@@ -70,102 +70,91 @@ internal sealed record JetFieldDefinition(
 /// </summary>
 internal static class JetFieldCatalog
 {
-    /// <summary>
-    /// 已移除的 GL 欄位與它在畫面上的名稱，只用來辨認舊資料。使用者 2026-10-08 裁定移除傳票日期（voucherDate）；
-    /// 舊案件讀出已存配對時略過這些鍵（<see cref="GlMappingKeys"/> 不含它們），舊情境用到它們時第五步原因寫出名稱
-    /// （使用者 2026-10-13 裁定「寫出名稱」）。
-    /// </summary>
-    internal static readonly IReadOnlyDictionary<string, string> RetiredGlFieldLabels =
-        new Dictionary<string, string>(StringComparer.Ordinal) { ["voucherDate"] = "傳票日期" };
-
-    internal const string GlDocNum = "docNum";
-    internal const string GlLineId = "lineID";
-    internal const string GlPostDate = "postDate";
-    // 歷史 action 鍵 docDate 在本案表示「傳票核准日」，不是 Document Date；儲存欄為 approval_date。
-    internal const string GlDocDate = "docDate";
-    internal const string GlAccNum = "accNum";
-    internal const string GlAccName = "accName";
+    internal const string GlVoucherNumber = "voucherNumber";
+    internal const string GlLineItem = "lineItem";
+    internal const string GlDate = "glDate";
+    // 歷史 action 鍵 approvalDate 在本案表示「傳票核准日」，不是 Document Date；儲存欄為 approval_date。
+    internal const string GlApprovalDate = "approvalDate";
+    internal const string GlAccountNumber = "accountNumber";
+    internal const string GlAccountName = "accountName";
     internal const string GlDescription = "description";
-    internal const string GlJeSource = "jeSource";
-    internal const string GlCreateBy = "createBy";
-    internal const string GlApproveBy = "approveBy";
-    internal const string GlManual = "manual";
+    internal const string GlSourceModule = "sourceModule";
+    internal const string GlCreatedBy = "createdBy";
+    internal const string GlApprovedBy = "approvedBy";
+    internal const string GlManual = "isManual";
     internal const string GlPostingStatus = "postingStatus";
     internal const string GlAmount = "amount";
     internal const string GlDebitAmount = "debitAmount";
     internal const string GlCreditAmount = "creditAmount";
-    internal const string GlDcField = "dcField";
-    internal const string GlDcDebitCode = "dcDebitCode";
-    internal const string GlDcCreditCode = "dcCreditCode";
+    internal const string GlDrCr = "drCr";
+    internal const string GlDrCrDebitCode = "drCrDebitCode";
+    internal const string GlDrCrCreditCode = "drCrCreditCode";
 
-    internal const string TbAccNum = "accNum";
-    internal const string TbAccName = "accName";
-    internal const string TbAmount = "amount";
-    internal const string TbDebitAmount = "debitAmt";
-    internal const string TbCreditAmount = "creditAmt";
+    internal const string TbAccountNumber = "accountNumber";
+    internal const string TbAccountName = "accountName";
+    internal const string TbChangeAmount = "changeAmount";
+    internal const string TbDebitAmount = "debitAmount";
+    internal const string TbCreditAmount = "creditAmount";
     internal const string TbOpeningBalance = "openingBalance";
     internal const string TbClosingBalance = "closingBalance";
-    internal const string TbOpeningDebit = "openingDebit";
-    internal const string TbOpeningCredit = "openingCredit";
-    internal const string TbClosingDebit = "closingDebit";
-    internal const string TbClosingCredit = "closingCredit";
-
-    internal const string TbChangeAmount = "changeAmount";
+    internal const string TbOpeningDebitBalance = "openingDebitBalance";
+    internal const string TbOpeningCreditBalance = "openingCreditBalance";
+    internal const string TbClosingDebitBalance = "closingDebitBalance";
+    internal const string TbClosingCreditBalance = "closingCreditBalance";
 
     internal static IReadOnlyList<JetFieldDefinition> GlFields { get; } =
     [
         Field(
-            DatasetKind.Gl, GlDocNum, JetFieldValueKind.Text, 0, storageNullable: true, "document_number",
+            DatasetKind.Gl, GlVoucherNumber, JetFieldValueKind.Text, 0, storageNullable: true, "voucher_number",
             "傳票號碼_JE", canonicalOrder: 0, isGenericFilterField: true,
-            Slot(GlDocNum, "傳票號碼", 0, always: true, fieldInfo: true)),
+            Slot(GlVoucherNumber, "傳票號碼", 0, always: true, fieldInfo: true)),
         Field(
-            DatasetKind.Gl, GlLineId, JetFieldValueKind.Text, 1, storageNullable: true, "line_item",
+            DatasetKind.Gl, GlLineItem, JetFieldValueKind.Text, 1, storageNullable: true, "line_item",
             "傳票文件項次_JE_S", canonicalOrder: 1, isGenericFilterField: true,
-            Slot(GlLineId, "傳票文件項次", 1, fieldInfo: true)) with
+            Slot(GlLineItem, "傳票文件項次", 1, fieldInfo: true)) with
         {
             DerivedSource = JetFieldDerivedSource.AutoNumber
         },
         Field(
-            DatasetKind.Gl, GlPostDate, JetFieldValueKind.Date, 2, storageNullable: true, "post_date",
+            DatasetKind.Gl, GlDate, JetFieldValueKind.Date, 2, storageNullable: true, "gl_date",
             "總帳日期_JE", canonicalOrder: 2, isGenericFilterField: true,
-            Slot(GlPostDate, "總帳日期", 2, always: true, fieldInfo: true)),
+            Slot(GlDate, "總帳日期", 2, always: true, fieldInfo: true)),
         Field(
-            DatasetKind.Gl, GlDocDate, JetFieldValueKind.Date, 3, storageNullable: true, "approval_date",
+            DatasetKind.Gl, GlApprovalDate, JetFieldValueKind.Date, 3, storageNullable: true, "approval_date",
             canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
-            Slot(GlDocDate, "傳票核准日", 3, fieldInfo: true)) with
+            Slot(GlApprovalDate, "傳票核准日", 3, fieldInfo: true)) with
         {
             LegacyFieldName = "傳票核准日_JE",
-            DerivedSource = JetFieldDerivedSource.SameAsPostDate
+            DerivedSource = JetFieldDerivedSource.SameAsGlDate
         },
-        // 使用者 2026-10-08 裁定移除新版自行加入的傳票日期（voucherDate）；其餘欄位的順序值不重排。
-        // 名稱留在 RetiredGlFieldLabels，舊情境用到它時第五步原因寫得出名稱。
+        // 裁定 2026-10-08-03 移除新版自行加入的傳票日期（voucherDate）；其餘欄位的順序值不重排。
         Field(
-            DatasetKind.Gl, GlAccNum, JetFieldValueKind.Text, 5, storageNullable: true, "account_code",
+            DatasetKind.Gl, GlAccountNumber, JetFieldValueKind.Text, 5, storageNullable: true, "account_number",
             "會計科目編號_JE", canonicalOrder: 5, isGenericFilterField: true,
-            Slot(GlAccNum, "會計科目編號", 5, always: true, fieldInfo: true)),
+            Slot(GlAccountNumber, "會計科目編號", 5, always: true, fieldInfo: true)),
         Field(
-            DatasetKind.Gl, GlAccName, JetFieldValueKind.Text, 6, storageNullable: true, "account_name",
+            DatasetKind.Gl, GlAccountName, JetFieldValueKind.Text, 6, storageNullable: true, "account_name",
             "會計科目名稱_JE", canonicalOrder: 6, isGenericFilterField: true,
-            Slot(GlAccName, "會計科目名稱", 6, always: true, fieldInfo: true)),
+            Slot(GlAccountName, "會計科目名稱", 6, always: true, fieldInfo: true)),
         Field(
-            DatasetKind.Gl, GlDescription, JetFieldValueKind.Text, 7, storageNullable: true, "document_description",
+            DatasetKind.Gl, GlDescription, JetFieldValueKind.Text, 7, storageNullable: true, "description",
             "傳票摘要_JE", canonicalOrder: 8, isGenericFilterField: true,
             Slot(GlDescription, "傳票摘要", 7, always: true, fieldInfo: true)),
         Field(
-            DatasetKind.Gl, GlJeSource, JetFieldValueKind.Text, 8, storageNullable: true, "source_module",
+            DatasetKind.Gl, GlSourceModule, JetFieldValueKind.Text, 8, storageNullable: true, "source_module",
             canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
-            Slot(GlJeSource, "分錄來源模組", 8, fieldInfo: true)) with
+            Slot(GlSourceModule, "分錄來源模組", 8, fieldInfo: true)) with
         {
             LegacyFieldName = "分錄來源模組_JE"
         },
         Field(
-            DatasetKind.Gl, GlCreateBy, JetFieldValueKind.Text, 9, storageNullable: true, "created_by",
+            DatasetKind.Gl, GlCreatedBy, JetFieldValueKind.Text, 9, storageNullable: true, "created_by",
             "傳票建立人員_JE", canonicalOrder: 3, isGenericFilterField: true,
-            Slot(GlCreateBy, "傳票建立人員", 9, fieldInfo: true)),
+            Slot(GlCreatedBy, "傳票建立人員", 9, fieldInfo: true)),
         Field(
-            DatasetKind.Gl, GlApproveBy, JetFieldValueKind.Text, 10, storageNullable: true, "approved_by",
+            DatasetKind.Gl, GlApprovedBy, JetFieldValueKind.Text, 10, storageNullable: true, "approved_by",
             "傳票核准人員_JE", canonicalOrder: 4, isGenericFilterField: true,
-            Slot(GlApproveBy, "傳票核准人員", 10, fieldInfo: true)),
+            Slot(GlApprovedBy, "傳票核准人員", 10, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlManual, JetFieldValueKind.Boolean, 11, storageNullable: true, "is_manual",
             canonicalName: null, canonicalOrder: null, isGenericFilterField: false,
@@ -181,11 +170,11 @@ internal static class JetFieldCatalog
                 fieldInfo: true),
             Slot(GlDebitAmount, "借方金額", 13, modes: [GlAmountModeNames.Dual]),
             Slot(GlCreditAmount, "貸方金額", 14, modes: [GlAmountModeNames.Dual]),
-            Slot(GlDcField, "借貸別", 15,
+            Slot(GlDrCr, "借貸別", 15,
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag]),
-            Slot(GlDcDebitCode, "借方代碼", 16,
+            Slot(GlDrCrDebitCode, "借方代碼", 16,
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag], literal: true),
-            Slot(GlDcCreditCode, "貸方代碼", 17,
+            Slot(GlDrCrCreditCode, "貸方代碼", 17,
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag], literal: true)),
         Field(
             DatasetKind.Gl, GlPostingStatus, JetFieldValueKind.Text, 13, storageNullable: true,
@@ -196,25 +185,25 @@ internal static class JetFieldCatalog
     internal static IReadOnlyList<JetFieldDefinition> TbFields { get; } =
     [
         Field(
-            DatasetKind.Tb, TbAccNum, JetFieldValueKind.Text, 0, storageNullable: true, "account_code",
+            DatasetKind.Tb, TbAccountNumber, JetFieldValueKind.Text, 0, storageNullable: true, "account_number",
             "會計科目編號_TB", canonicalOrder: 0, isGenericFilterField: false,
-            Slot(TbAccNum, "會計科目編號", 0, always: true, fieldInfo: true)),
+            Slot(TbAccountNumber, "會計科目編號", 0, always: true, fieldInfo: true)),
         Field(
-            DatasetKind.Tb, TbAccName, JetFieldValueKind.Text, 1, storageNullable: true, "account_name",
+            DatasetKind.Tb, TbAccountName, JetFieldValueKind.Text, 1, storageNullable: true, "account_name",
             "會計科目名稱_TB", canonicalOrder: 1, isGenericFilterField: false,
-            Slot(TbAccName, "會計科目名稱", 1, always: true, fieldInfo: true)),
+            Slot(TbAccountName, "會計科目名稱", 1, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Tb, TbChangeAmount, JetFieldValueKind.Amount, 2, storageNullable: false,
             "change_amount_scaled", "試算表變動金額_TB", canonicalOrder: 2, isGenericFilterField: false,
-            Slot(TbAmount, "年度變動金額", 2, modes: [TbChangeModeNames.Direct], fieldInfo: true),
+            Slot(TbChangeAmount, "年度變動金額", 2, modes: [TbChangeModeNames.Direct], fieldInfo: true),
             Slot(TbDebitAmount, "借方金額", 3, modes: [TbChangeModeNames.DebitCredit], fieldInfo: true),
             Slot(TbCreditAmount, "貸方金額", 4, modes: [TbChangeModeNames.DebitCredit], fieldInfo: true),
             Slot(TbOpeningBalance, "期初餘額", 5, modes: [TbChangeModeNames.OpenClose], fieldInfo: true),
             Slot(TbClosingBalance, "期末餘額", 6, modes: [TbChangeModeNames.OpenClose], fieldInfo: true),
-            Slot(TbOpeningDebit, "期初借方", 7, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true),
-            Slot(TbOpeningCredit, "期初貸方", 8, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true),
-            Slot(TbClosingDebit, "期末借方", 9, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true),
-            Slot(TbClosingCredit, "期末貸方", 10, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true))
+            Slot(TbOpeningDebitBalance, "期初借方", 7, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true),
+            Slot(TbOpeningCreditBalance, "期初貸方", 8, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true),
+            Slot(TbClosingDebitBalance, "期末借方", 9, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true),
+            Slot(TbClosingCreditBalance, "期末貸方", 10, modes: [TbChangeModeNames.OpenCloseBySide], fieldInfo: true))
     ];
 
     internal static IReadOnlyList<JetMappingSlot> GlMappingSlots { get; } =
@@ -310,7 +299,7 @@ internal static class JetFieldCatalog
             .Where(field => HasMappedGlSemanticField(mapping, field.SemanticIdentity) || field.DerivedSource switch
             {
                 JetFieldDerivedSource.AutoNumber => true,
-                JetFieldDerivedSource.SameAsPostDate => approvalDateMode == ApprovalDateModeNames.SameAsPostDate,
+                JetFieldDerivedSource.SameAsGlDate => approvalDateMode == ApprovalDateModeNames.SameAsGlDate,
                 _ => false
             })
             .Select(static field => field.SemanticIdentity)

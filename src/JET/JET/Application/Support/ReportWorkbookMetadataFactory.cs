@@ -8,13 +8,13 @@ internal static class ReportWorkbookMetadataFactory
         string projectId,
         ProjectDocument document,
         IMappingStateStore mappingStore,
-        IAccountTaxonomyStore taxonomyStore,
+        IAccountCategoryStore categoryStore,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(mappingStore);
-        ArgumentNullException.ThrowIfNull(taxonomyStore);
+        ArgumentNullException.ThrowIfNull(categoryStore);
 
         var gl = await mappingStore.FindAsync(
             projectId,
@@ -32,11 +32,11 @@ internal static class ReportWorkbookMetadataFactory
             DatasetKind.Tb,
             cancellationToken).ConfigureAwait(false);
 
-        var taxonomy = await taxonomyStore.ReadAsync(projectId, cancellationToken).ConfigureAwait(false);
+        var categorySnapshot = await categoryStore.ReadAsync(projectId, cancellationToken).ConfigureAwait(false);
         var metadata = new ReportWorkbookMetadata(
             document.PeriodStart,
             document.PeriodEnd,
-            taxonomy.Revision,
+            categorySnapshot.Revision,
             NormalizeGl(gl),
             tb);
         try

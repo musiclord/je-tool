@@ -9,7 +9,7 @@ namespace JET.Tests.Infrastructure;
 /// typed dynamic rule（2026-08-14 契約凍結）的三 provider 執行矩陣（全合成資料）：
 /// 完整 field×operator 命中集合、blank＝missing row（負向 operator 不納入 blank 的反例）、
 /// text trim＋不分大小寫、date 邊界含端點、money signed／absolute 與 MoneyScale lexeme 等價、
-/// in 去重與 sameVoucher typed 佐證。SQLite、DuckDB 與 gated SQL Server 必須得到同一組
+/// in 去重與同一張傳票的 typed 佐證。SQLite、DuckDB 與 gated SQL Server 必須得到同一組
 /// semantic row identity；另以 commit／lazy materialization 驗證 typed 命中落地與 preview 一致。
 /// </summary>
 public sealed class TypedFieldProviderParityTests
@@ -21,9 +21,9 @@ public sealed class TypedFieldProviderParityTests
 
     private const string FixtureSql =
         $"""
-        INSERT INTO target_gl_entry
-            (batch_id, source_row_number, document_number, line_item, post_date,
-             account_code, account_name, document_description, amount_scaled,
+        INSERT INTO gl
+            (batch_id, source_row_number, voucher_number, line_item, gl_date,
+             account_number, account_name, description, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
         VALUES
             ('typed-rde', 1, 'T-1', '1', '2025-08-01', 'A-1', 'Typed', 'r1', 1000, 1000, 0, 'DEBIT'),
@@ -35,47 +35,47 @@ public sealed class TypedFieldProviderParityTests
             ('typed-rde', 7, 'SV-1', '1', '2025-08-02', 'SV-A', 'Typed', 'anchor', 1000, 1000, 0, 'DEBIT'),
             ('typed-rde', 8, 'SV-1', '2', '2025-08-02', 'SV-B', 'Typed', 'evidence', 2000, 2000, 0, 'DEBIT');
 
-        UPDATE target_gl_entry SET is_effective = 1;
+        UPDATE gl SET is_excluded = 0;
 
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{TextFieldId}', 'text', ' Alpha ', NULL, NULL FROM target_gl_entry WHERE document_number = 'T-1';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{TextFieldId}', 'text', 'BETA', NULL, NULL FROM target_gl_entry WHERE document_number = 'T-2';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{TextFieldId}', 'text', 'gamma value', NULL, NULL FROM target_gl_entry WHERE document_number = 'T-3';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{TextFieldId}', 'text', 'ALPHA', NULL, NULL FROM target_gl_entry WHERE document_number = 'T-5';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{TextFieldId}', 'text', 'delta', NULL, NULL FROM target_gl_entry WHERE document_number = 'T-6';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{TextFieldId}', 'text', 'ANCHOR', NULL, NULL FROM target_gl_entry WHERE document_number = 'SV-1' AND line_item = '1';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{TextFieldId}', 'text', 'EVIDENCE', NULL, NULL FROM target_gl_entry WHERE document_number = 'SV-1' AND line_item = '2';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{TextFieldId}', 'text', ' Alpha ', NULL, NULL FROM gl WHERE voucher_number = 'T-1';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{TextFieldId}', 'text', 'BETA', NULL, NULL FROM gl WHERE voucher_number = 'T-2';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{TextFieldId}', 'text', 'gamma value', NULL, NULL FROM gl WHERE voucher_number = 'T-3';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{TextFieldId}', 'text', 'ALPHA', NULL, NULL FROM gl WHERE voucher_number = 'T-5';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{TextFieldId}', 'text', 'delta', NULL, NULL FROM gl WHERE voucher_number = 'T-6';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{TextFieldId}', 'text', 'ANCHOR', NULL, NULL FROM gl WHERE voucher_number = 'SV-1' AND line_item = '1';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{TextFieldId}', 'text', 'EVIDENCE', NULL, NULL FROM gl WHERE voucher_number = 'SV-1' AND line_item = '2';
 
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-01-01', NULL FROM target_gl_entry WHERE document_number = 'T-1';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-06-30', NULL FROM target_gl_entry WHERE document_number = 'T-2';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-07-01', NULL FROM target_gl_entry WHERE document_number = 'T-3';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-12-31', NULL FROM target_gl_entry WHERE document_number = 'T-5';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-01-01', NULL FROM gl WHERE voucher_number = 'T-1';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-06-30', NULL FROM gl WHERE voucher_number = 'T-2';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-07-01', NULL FROM gl WHERE voucher_number = 'T-3';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{DateFieldId}', 'date', NULL, '2025-12-31', NULL FROM gl WHERE voucher_number = 'T-5';
 
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{MoneyFieldId}', 'money', NULL, NULL, 10050 FROM target_gl_entry WHERE document_number = 'T-1';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{MoneyFieldId}', 'money', NULL, NULL, -10050 FROM target_gl_entry WHERE document_number = 'T-2';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{MoneyFieldId}', 'money', NULL, NULL, 0 FROM target_gl_entry WHERE document_number = 'T-3';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{MoneyFieldId}', 'money', NULL, NULL, 500 FROM target_gl_entry WHERE document_number = 'T-5';
-        INSERT INTO target_gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
-        SELECT entry_id, '{MoneyFieldId}', 'money', NULL, NULL, 99999 FROM target_gl_entry WHERE document_number = 'SV-1' AND line_item = '2';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{MoneyFieldId}', 'amount', NULL, NULL, 10050 FROM gl WHERE voucher_number = 'T-1';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{MoneyFieldId}', 'amount', NULL, NULL, -10050 FROM gl WHERE voucher_number = 'T-2';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{MoneyFieldId}', 'amount', NULL, NULL, 0 FROM gl WHERE voucher_number = 'T-3';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{MoneyFieldId}', 'amount', NULL, NULL, 500 FROM gl WHERE voucher_number = 'T-5';
+        INSERT INTO gl_rde_value (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
+        SELECT entry_id, '{MoneyFieldId}', 'amount', NULL, NULL, 99999 FROM gl WHERE voucher_number = 'SV-1' AND line_item = '2';
         """;
 
-    private static readonly FilterRuleContext Context = new(
+    private static readonly FilterConditionContext Context = new(
         MoneyScale: 100,
-        LastPeriodStart: null,
+        PrepStartDate: null,
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",
         PopulationScope: GlPopulationScope.AuditPeriod)
@@ -84,10 +84,13 @@ public sealed class TypedFieldProviderParityTests
         [
             new GlRdeFieldMetadata(TextFieldId, "備註欄", "備註", RdeFieldValueTypeNames.Text),
             new GlRdeFieldMetadata(DateFieldId, "審核日欄", "審核日", RdeFieldValueTypeNames.Date),
-            new GlRdeFieldMetadata(MoneyFieldId, "稅額欄", "稅額", RdeFieldValueTypeNames.Money)
+            new GlRdeFieldMetadata(MoneyFieldId, "稅額欄", "稅額", RdeFieldValueTypeNames.Amount)
         ]
     };
 
+    // 原本用「同一傳票」比對範圍；這個寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
+    // 照它的重建方式把佐證條件放進「整張傳票條件」並選「至少一筆符合」，固定答案不變。
+    // 第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（比對範圍的型別已不存在，無法編譯）。
     private static readonly FilterScenarioSpec SameVoucherScenario = new(
         "typed-same-voucher",
         "synthetic typed parity",
@@ -96,11 +99,13 @@ public sealed class TypedFieldProviderParityTests
                 FilterJoin.And,
                 [
                     TypedRule(TextFieldId, "equals", value: "anchor "),
-                    TypedRule(MoneyFieldId, "greaterThan", value: "500", amountBasis: "signed")
+                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.Voucher, null, null, [], TextMatchMode.Contains,
+                        null, null, null, null, null, null)
+                    {
+                        Quantifier = "any",
+                        Conditions = [TypedRule(MoneyFieldId, "greaterThan", value: "500", amountBasis: "signed")]
+                    }
                 ])
-            {
-                MatchScope = FilterGroupMatchScope.SameVoucher
-            }
         ]);
 
     private static readonly IReadOnlyList<ScenarioCase> Cases =
@@ -173,7 +178,7 @@ public sealed class TypedFieldProviderParityTests
         new("money-isNotBlank", TypedRule(MoneyFieldId, "isNotBlank"),
             ["SV-1|2", "T-1|1", "T-2|1", "T-3|1", "T-5|1"], 5),
 
-        // ── sameVoucher：typed 錨點與 typed 佐證（不展開 evidence、不複製 anchor）──
+        // ── 同一張傳票：typed 錨點與整張傳票條件裡的 typed 佐證（不展開 evidence、不複製 anchor）──
         new("typed-same-voucher", SameVoucherScenario, ["SV-1|1"], 1)
     ];
 
@@ -226,9 +231,9 @@ public sealed class TypedFieldProviderParityTests
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await ExecuteAsync(database.CreateConnection(projectId), FixtureSql);
 
-        var previewRepository = new LocalFilterRunRepository(database);
+        var previewRepository = new LocalFilterHitRepository(database);
         var commitRepository = new LocalFilterCommitRepository(database);
-        var lazyMaterializer = new LocalFilterRunMaterializer(database);
+        var lazyMaterializer = new LocalFilterHitMaterializer(database);
 
         var preview = await previewRepository.PreviewAsync(
             projectId, SameVoucherScenario, Context, CancellationToken.None);
@@ -239,7 +244,7 @@ public sealed class TypedFieldProviderParityTests
             SameVoucherScenario.Name,
             SameVoucherScenario.Rationale,
             $$"""
-            {"name":"typed-same-voucher","rationale":"synthetic typed parity","groups":[{"join":"AND","matchScope":"sameVoucher","rules":[{"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"anchor "},{"join":"AND","type":"typed","fieldId":"{{MoneyFieldId}}","operator":"greaterThan","value":"500","amountBasis":"signed"}]}]}
+            {"name":"typed-same-voucher","rationale":"synthetic typed parity","groups":[{"join":"AND","matchScope":"row","conditions":[{"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"anchor "},{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"typed","fieldId":"{{MoneyFieldId}}","operator":"greaterThan","value":"500","amountBasis":"signed"}]}]}]}
             """,
             new DateTimeOffset(2026, 8, 14, 0, 0, 0, TimeSpan.Zero));
         await commitRepository.CommitAsync(
@@ -252,7 +257,7 @@ public sealed class TypedFieldProviderParityTests
 
         await ExecuteAsync(
             database.CreateConnection(projectId),
-            "DELETE FROM result_filter_run;");
+            "DELETE FROM filter_hit;");
         await lazyMaterializer.MaterializeAsync(
             projectId,
             [new MaterializableScenario(ScenarioPosition, SameVoucherScenario)],
@@ -321,11 +326,11 @@ public sealed class TypedFieldProviderParityTests
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT g.document_number, g.line_item "
-                + "FROM result_filter_run r "
-                + "JOIN target_gl_entry g ON g.entry_id = r.entry_id "
-                + $"WHERE r.scenario_position = {ScenarioPosition} "
-                + "ORDER BY g.document_number, g.line_item;";
+                "SELECT g.voucher_number, g.line_item "
+                + "FROM filter_hit r "
+                + "JOIN gl g ON g.entry_id = r.entry_id "
+                + $"WHERE r.scenario_id = {ScenarioPosition} "
+                + "ORDER BY g.voucher_number, g.line_item;";
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -349,14 +354,14 @@ public sealed class TypedFieldProviderParityTests
 
     private static string[] SemanticIdentities(FilterPreviewResult preview) =>
         preview.PreviewRows
-            .Select(row => $"{row.DocumentNumber}|{row.LineItem}")
+            .Select(row => $"{row.VoucherNumber}|{row.LineItem}")
             .OrderBy(identity => identity, StringComparer.Ordinal)
             .ToArray();
 
-    private static FilterScenarioSpec SingleRuleScenario(string name, FilterRuleSpec rule) =>
+    private static FilterScenarioSpec SingleRuleScenario(string name, FilterConditionSpec rule) =>
         new(name, "synthetic typed parity", [new FilterGroupSpec(FilterJoin.And, [rule])]);
 
-    private static FilterRuleSpec TypedRule(
+    private static FilterConditionSpec TypedRule(
         string fieldId,
         string op,
         string? value = null,
@@ -366,7 +371,7 @@ public sealed class TypedFieldProviderParityTests
         string? amountBasis = null) =>
         new(
             FilterJoin.And,
-            FilterRuleType.TypedField,
+            FilterConditionType.TypedField,
             PrescreenKey: null,
             Field: null,
             Keywords: [],
@@ -391,7 +396,7 @@ public sealed class TypedFieldProviderParityTests
     {
         public ScenarioCase(
             string name,
-            FilterRuleSpec rule,
+            FilterConditionSpec rule,
             string[] expectedIdentities,
             long expectedVoucherCount)
             : this(name, SingleRuleScenario(name, rule), expectedIdentities, expectedVoucherCount)

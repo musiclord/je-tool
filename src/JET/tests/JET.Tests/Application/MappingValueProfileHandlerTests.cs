@@ -3,7 +3,7 @@ using JET.Application;
 using JET.Domain;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Application;
 
 public sealed class MappingValueProfileHandlerTests
@@ -33,7 +33,7 @@ public sealed class MappingValueProfileHandlerTests
         var handler = new MappingValueProfileHandler(session);
         var response = await ExecuteAsync(handler, JsonSerializer.Serialize(new
         { dataset = "gl", sourceColumn = "Mode", comparisonOnly = true, comparisonValues = new[] { left, right } }));
-        // 2026-10-04 第 6 批實測修正：加入跨請求等價鍵，避免兩頁非來源代碼無法接上；原 groups 與零來源讀取斷言保留。
+        // 加入跨請求等價鍵，避免兩頁非來源代碼無法接上；原 groups 與零來源讀取斷言保留。
         // 新鍵缺漏首敗：20261004-082630695-e31fbd29293c438c9a216c1d6fc09da8；本方法舊形狀首敗：20261004-082945025-978d5adf53004b14ba34d94f729ac83c。
         Assert.Equal(["comparisonGroups", "comparisonKeys", "sourceColumn"], response.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray());
         var groups = response.GetProperty("comparisonGroups");
@@ -125,7 +125,7 @@ public sealed class MappingValueProfileHandlerTests
         Assert.Equal(50, repository.Limit);
     }
 
-    // 使用者 2026-10-28 裁定「讀取來源值」依往下填補的勾選先填補再計數：沒帶時照原樣，帶了才交給資料庫實作。
+    // 裁定 2026-10-28-03：「讀取來源值」依往下填補的勾選先填補再計數；沒帶時照原樣，帶了才交給資料庫實作。
     // 處理器先改、這則測試後補，沒有第一次失敗。
     [Theory]
     [InlineData("""{ "dataset": "gl", "sourceColumn": "Status" }""", false)]

@@ -36,8 +36,8 @@ public static class GlPopulationScopeValues
 }
 
 /// <summary>
-/// 只描述一個 GL 母體所需的窄上下文。tag matrix 與其他只做母體裁切的查詢
-/// 不需要知道金額倍率、假日或篩選條件，因此不傳整個 <see cref="FilterRuleContext"/>。
+/// 只描述一個 GL 母體所需的窄上下文。高風險條件彙總與其他只做母體裁切的查詢
+/// 不需要知道金額倍率、假日或篩選條件，因此不傳整個 <see cref="FilterConditionContext"/>。
 /// </summary>
 public sealed record GlPopulationContext(
     GlPopulationScope PopulationScope,
@@ -47,12 +47,12 @@ public sealed record GlPopulationContext(
 /// <summary>
 /// filter.preview 的執行上下文與結果。本版為無狀態查詢
 /// （COUNT + COUNT DISTINCT + LIMIT 50 預覽），不落地結果
-/// （命中落地由 filter.commit 寫入 result_filter_run）。
+/// （命中落地由 filter.commit 寫入 filter_hit）。
 /// PeriodStart/PeriodEnd 固定界定查核期間母體（專案必填欄位）。
 /// </summary>
-public sealed record FilterRuleContext(
+public sealed record FilterConditionContext(
     int MoneyScale,
-    string? LastPeriodStart,
+    string? PrepStartDate,
     string PeriodStart,
     string PeriodEnd,
     IReadOnlyList<int>? NonWorkingDays = null,
@@ -69,12 +69,12 @@ public sealed record FilterRuleContext(
 }
 
 public sealed record FilterPreviewRow(
-    string? DocumentNumber,
+    string? VoucherNumber,
     string? LineItem,
-    string? PostDate,
-    string? AccountCode,
+    string? GlDate,
+    string? AccountNumber,
     string? AccountName,
-    string? DocumentDescription,
+    string? Description,
     long AmountScaled,
     string DrCr);
 
@@ -83,26 +83,26 @@ public sealed record FilterPreviewResult(
     long VoucherCount,
     IReadOnlyList<FilterPreviewRow> PreviewRows)
 {
-    /// <summary>命中列所屬具名傳票在有效母體內的全部分錄數；只有整張傳票計數的情境才有值。</summary>
+    /// <summary>命中列所屬具名傳票在 GL 中的全部分錄數；只有整張傳票計數的情境才有值。</summary>
     public long? WholeVoucherRowCount { get; init; }
 }
 
-public interface IFilterRunRepository
+public interface IFilterHitRepository
 {
     Task<FilterPreviewResult> PreviewAsync(
         string projectId,
         FilterScenarioSpec scenario,
-        FilterRuleContext context,
+        FilterConditionContext context,
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// 命中列所屬具名傳票在有效母體內的全部分錄數，集合與 Criteria Selection 工作表寫出的列相同。
+    /// 命中列所屬具名傳票在 GL 中的全部分錄數，集合與 Criteria Selection 工作表寫出的列相同。
     /// 空白傳票號碼的命中列不屬於任何傳票，不計入。
     /// </summary>
     Task<long> CountWholeVoucherRowsAsync(
         string projectId,
         FilterScenarioSpec scenario,
-        FilterRuleContext context,
+        FilterConditionContext context,
         CancellationToken cancellationToken);
 }
 
@@ -111,7 +111,11 @@ public interface IFilterRunRepository
 /// 解析（definition JSON → spec）屬 Application 層（FilterScenarioPayloadParser）；Infrastructure
 /// 的 materializer 只吃 Domain 型別，不反向依賴 Application（分層規則：Infrastructure 僅引用 Domain）。
 /// </summary>
-public sealed record MaterializableScenario(int Position, FilterScenarioSpec Spec);
+public sealed record MaterializableScenario(int Position, FilterScenarioSpec Spec)
+{
+    /// <summary>結果表存放這個情境結果用的編號；沒有指定時等於位置，和一次寫入整批的新清單相同。</summary>
+    public int ScenarioId { get; init; } = Position;
+}
 
 /// <summary>
 /// filter.commit 的整批發布邊界。情境定義與命中 entry_id 必須由同一 provider 實作於
@@ -126,16 +130,26 @@ public interface IFilterCommitRepository
     Task CommitAsync(
         string projectId,
         IReadOnlyList<FilterCommitItem> items,
-        FilterRuleContext context,
+        FilterConditionContext context,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 儲存或修改一個情境：同一個交易裡換掉這個情境的定義、命中與符合第幾組第幾條，
+    /// 其他情境的定義與結果都不動，也不重算；結果過期旗標不變。
+    /// </summary>
+    Task SaveOneAsync(
+        string projectId,
+        FilterCommitItem item,
+        FilterConditionContext context,
         CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// filter.commit 命中落地：對每個已存情境把命中的 entry_id 落地到
-/// result_filter_run，供 query.filterHitsPage keyset 分頁回取。契約置於 Domain（同 IFilterRunRepository），
+/// filter_hit，供 query.filterHitsPage keyset 分頁回取。契約置於 Domain（同 IFilterHitRepository），
 /// 供 Application handler 注入；provider 實作與路由在 Infrastructure。
 /// </summary>
-public interface IFilterRunMaterializer
+public interface IFilterHitMaterializer
 {
     /// <summary>
     /// replaceAll 為 true 時替換全案並清除篩選失效旗標；false 只替換 scenarios 內的情境位置。
@@ -144,7 +158,7 @@ public interface IFilterRunMaterializer
     Task MaterializeAsync(
         string projectId,
         IReadOnlyList<MaterializableScenario> scenarios,
-        FilterRuleContext context,
+        FilterConditionContext context,
         CancellationToken cancellationToken,
         bool replaceAll = true);
 }

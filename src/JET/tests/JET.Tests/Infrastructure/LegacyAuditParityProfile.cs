@@ -86,7 +86,7 @@ internal sealed class LegacyAuditParityProfile
         string alias,
         DateOnly periodStart,
         DateOnly periodEnd,
-        DateOnly lastPeriodStart,
+        DateOnly prepStartDate,
         IReadOnlyList<LegacyParityTabularSource> glSources,
         IReadOnlyList<LegacyParityTabularSource> tbSources,
         IReadOnlyDictionary<string, string> glMapping,
@@ -109,7 +109,7 @@ internal sealed class LegacyAuditParityProfile
         Alias = alias;
         PeriodStart = periodStart;
         PeriodEnd = periodEnd;
-        LastPeriodStart = lastPeriodStart;
+        PrepStartDate = prepStartDate;
         GlSources = glSources;
         TbSources = tbSources;
         GlMapping = glMapping;
@@ -136,7 +136,7 @@ internal sealed class LegacyAuditParityProfile
 
     public DateOnly PeriodEnd { get; }
 
-    public DateOnly LastPeriodStart { get; }
+    public DateOnly PrepStartDate { get; }
 
     public IReadOnlyList<LegacyParityTabularSource> GlSources { get; }
 
@@ -201,7 +201,7 @@ internal static partial class LegacyAuditParityProfileBuilder
     private const string HolidayDateHeader = "Date_of_Holiday";
     private const string HolidayFlagHeader = "IS_Holiday";
     private const string MakeupDateHeader = "Date_of_MakeUpDay";
-    private const string AccountCodeHeader = "GL_NUMBER";
+    private const string AccountNumberHeader = "GL_NUMBER";
     private const string AccountNameHeader = "GL_NAME";
     private const string AccountCategoryHeader = "STANDARDIZED_ACCOUNT_NAME";
 
@@ -327,12 +327,12 @@ internal static partial class LegacyAuditParityProfileBuilder
             var outputPath = ResolveProfileOutputPath(profileOutputPath, profileOutputRoot);
             step = "discover-reports";
             var reports = DiscoverReports(fixture);
-            step = "load-workpaper";
-            var workpaper = LegacyWorkbookSnapshot.Load(reports[LegacyReportKind.WorkingPaper]);
+            step = "load-working-paper";
+            var workingPaper = LegacyWorkbookSnapshot.Load(reports[LegacyReportKind.WorkingPaper]);
             step = "load-criteria";
             var criteria = LegacyWorkbookSnapshot.Load(reports[LegacyReportKind.CriteriaSelectionReport]);
             step = "read-period";
-            var (periodStart, periodEnd, lastPeriodStart) = ReadPeriod(workpaper);
+            var (periodStart, periodEnd, prepStartDate) = ReadPeriod(workingPaper);
 
             step = "inspect-sources";
             var sourceCandidates = await InspectSourceCandidatesAsync(
@@ -348,7 +348,7 @@ internal static partial class LegacyAuditParityProfileBuilder
             ];
 
             step = "read-mappings";
-            var mapping = ReadMappings(workpaper, sourceCandidates, pending);
+            var mapping = ReadMappings(workingPaper, sourceCandidates, pending);
             step = "reconcile-gl-account-binding";
             mapping = await ReconcileGlAccountBindingAsync(
                 fixture.Case,
@@ -360,19 +360,19 @@ internal static partial class LegacyAuditParityProfileBuilder
             EnsureSourcesDoNotOverlap(mapping.GlSources, mapping.TbSources);
 
             step = "read-calendar";
-            var calendar = ReadCalendar(workpaper);
+            var calendar = ReadCalendar(workingPaper);
             step = "read-account-mapping";
-            var accountMappingRows = ReadAccountMapping(workpaper);
+            var accountMappingRows = ReadAccountMapping(workingPaper);
             var accountMapping = WriteAccountMappingInput(outputPath, accountMappingRows);
             step = "read-scenarios";
-            var scenarioResult = ReadScenarios(fixture.Case, criteria, workpaper, pending);
+            var scenarioResult = ReadScenarios(fixture.Case, criteria, workingPaper, pending);
 
             step = "create-profile";
             var profile = new LegacyAuditParityProfile(
                 fixture.Alias,
                 periodStart,
                 periodEnd,
-                lastPeriodStart,
+                prepStartDate,
                 mapping.GlSources,
                 mapping.TbSources,
                 mapping.GlMapping,
@@ -646,11 +646,11 @@ internal static partial class LegacyAuditParityProfileBuilder
     }
 
     private static MappingResult ReadMappings(
-        LegacyWorkbookSnapshot workpaper,
+        LegacyWorkbookSnapshot workingPaper,
         IReadOnlyList<InspectedSource> sourceCandidates,
         ISet<string> pending)
     {
-        var sheet = workpaper.FindSingleSheet(
+        var sheet = workingPaper.FindSingleSheet(
             candidate => candidate.Name.Equals(FieldInfoSheetName, StringComparison.Ordinal)
                 || (candidate.FindRowsInColumn(1, TbFieldInfoTitle).Count == 1
                     && candidate.FindRowsInColumn(1, GlFieldInfoTitle).Count == 1),
@@ -800,9 +800,9 @@ internal static partial class LegacyAuditParityProfileBuilder
             return mapping;
         }
 
-        if (!mapping.GlMapping.TryGetValue(GlMappingKeys.AccNum, out var currentAccountHeader)
+        if (!mapping.GlMapping.TryGetValue(GlMappingKeys.AccountNumber, out var currentAccountHeader)
             || !mapping.GlMappingResolutionSources.TryGetValue(
-                GlMappingKeys.AccNum,
+                GlMappingKeys.AccountNumber,
                 out var currentResolutionSource))
         {
             throw Error("gl-account-tb-reconciliation");
@@ -818,8 +818,8 @@ internal static partial class LegacyAuditParityProfileBuilder
         }
 
         var consumedByOtherMappings = mapping.GlMapping
-            .Where(pair => !pair.Key.Equals(GlMappingKeys.AccNum, StringComparison.Ordinal)
-                && !pair.Key.Equals(GlMappingKeys.DcDebitCode, StringComparison.Ordinal))
+            .Where(pair => !pair.Key.Equals(GlMappingKeys.AccountNumber, StringComparison.Ordinal)
+                && !pair.Key.Equals(GlMappingKeys.DrCrDebitCode, StringComparison.Ordinal))
             .Select(static pair => pair.Value)
             .ToHashSet(StringComparer.Ordinal);
         var candidates = mapping.GlHeaders
@@ -873,17 +873,17 @@ internal static partial class LegacyAuditParityProfileBuilder
                     throw Error("gl-account-tb-reconciliation");
                 }
 
-                if (amountAndDate.PostDate is not { } postDate
-                    || string.CompareOrdinal(postDate, periodStartIso) < 0
-                    || string.CompareOrdinal(postDate, periodEndIso) > 0)
+                if (amountAndDate.GlDate is not { } glDate
+                    || string.CompareOrdinal(glDate, periodStartIso) < 0
+                    || string.CompareOrdinal(glDate, periodEndIso) > 0)
                 {
                     continue;
                 }
 
                 foreach (var candidate in candidates)
                 {
-                    if (!row.Values.TryGetValue(candidate.Header, out var accountCode)
-                        || accountCode is null)
+                    if (!row.Values.TryGetValue(candidate.Header, out var accountNumber)
+                        || accountNumber is null)
                     {
                         glNullTotals[candidate.Ordinal] += amountAndDate.AmountScaled;
                         continue;
@@ -891,7 +891,7 @@ internal static partial class LegacyAuditParityProfileBuilder
 
                     AddAccountTotal(
                         glTotals[candidate.Ordinal],
-                        accountCode,
+                        accountNumber,
                         amountAndDate.AmountScaled);
                 }
             }
@@ -922,9 +922,9 @@ internal static partial class LegacyAuditParityProfileBuilder
                     throw Error("gl-account-tb-reconciliation");
                 }
 
-                if (projected.AccountCode is { } accountCode)
+                if (projected.AccountNumber is { } accountNumber)
                 {
-                    AddAccountTotal(tbTotals, accountCode, projected.ChangeAmountScaled);
+                    AddAccountTotal(tbTotals, accountNumber, projected.ChangeAmountScaled);
                 }
                 else
                 {
@@ -956,13 +956,13 @@ internal static partial class LegacyAuditParityProfileBuilder
             mapping.GlMapping,
             StringComparer.Ordinal)
         {
-            [GlMappingKeys.AccNum] = selected.Header,
+            [GlMappingKeys.AccountNumber] = selected.Header,
         };
         var reconciledSources = new Dictionary<string, LegacyMappingResolutionSource>(
             mapping.GlMappingResolutionSources,
             StringComparer.Ordinal)
         {
-            [GlMappingKeys.AccNum] =
+            [GlMappingKeys.AccountNumber] =
                 LegacyMappingResolutionSource.CrossDatasetAccountTotalReconciliation,
         };
 
@@ -980,17 +980,17 @@ internal static partial class LegacyAuditParityProfileBuilder
         var requiredKeys = mode switch
         {
             GlAmountMode.SignedAmount =>
-                new[] { GlMappingKeys.PostDate, GlMappingKeys.Amount },
+                new[] { GlMappingKeys.GlDate, GlMappingKeys.Amount },
             GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag =>
             [
-                GlMappingKeys.PostDate,
+                GlMappingKeys.GlDate,
                 GlMappingKeys.Amount,
-                GlMappingKeys.DcField,
-                GlMappingKeys.DcDebitCode,
+                GlMappingKeys.DrCr,
+                GlMappingKeys.DrCrDebitCode,
             ],
             GlAmountMode.DualAmount =>
             [
-                GlMappingKeys.PostDate,
+                GlMappingKeys.GlDate,
                 GlMappingKeys.DebitAmount,
                 GlMappingKeys.CreditAmount,
             ],
@@ -1008,26 +1008,26 @@ internal static partial class LegacyAuditParityProfileBuilder
         var requiredKeys = mode switch
         {
             TbChangeMode.DirectChange =>
-                new[] { TbMappingKeys.AccNum, TbMappingKeys.Amount },
+                new[] { TbMappingKeys.AccountNumber, TbMappingKeys.ChangeAmount },
             TbChangeMode.DebitCredit =>
             [
-                TbMappingKeys.AccNum,
-                TbMappingKeys.DebitAmt,
-                TbMappingKeys.CreditAmt,
+                TbMappingKeys.AccountNumber,
+                TbMappingKeys.DebitAmount,
+                TbMappingKeys.CreditAmount,
             ],
             TbChangeMode.OpenClose =>
             [
-                TbMappingKeys.AccNum,
+                TbMappingKeys.AccountNumber,
                 TbMappingKeys.OpeningBalance,
                 TbMappingKeys.ClosingBalance,
             ],
             TbChangeMode.OpenCloseBySide =>
             [
-                TbMappingKeys.AccNum,
-                TbMappingKeys.OpeningDebit,
-                TbMappingKeys.OpeningCredit,
-                TbMappingKeys.ClosingDebit,
-                TbMappingKeys.ClosingCredit,
+                TbMappingKeys.AccountNumber,
+                TbMappingKeys.OpeningDebitBalance,
+                TbMappingKeys.OpeningCreditBalance,
+                TbMappingKeys.ClosingDebitBalance,
+                TbMappingKeys.ClosingCreditBalance,
             ],
             _ => throw Error("gl-account-tb-reconciliation"),
         };
@@ -1056,11 +1056,11 @@ internal static partial class LegacyAuditParityProfileBuilder
 
     private static void AddAccountTotal(
         IDictionary<string, BigInteger> totals,
-        string accountCode,
+        string accountNumber,
         long amountScaled)
     {
-        totals.TryGetValue(accountCode, out var current);
-        totals[accountCode] = current + amountScaled;
+        totals.TryGetValue(accountNumber, out var current);
+        totals[accountNumber] = current + amountScaled;
     }
 
     private static bool AccountTotalsMatch(
@@ -1194,7 +1194,7 @@ internal static partial class LegacyAuditParityProfileBuilder
                     SectionCompatibilityFailure.RequiredAccountName => "required-account-name",
                     SectionCompatibilityFailure.RequiredDocumentIdentifier =>
                         "required-document-identifier",
-                    SectionCompatibilityFailure.RequiredPostDate => "required-post-date",
+                    SectionCompatibilityFailure.RequiredGlDate => "required-gl-date",
                     SectionCompatibilityFailure.RequiredDescription => "required-description",
                     SectionCompatibilityFailure.RequiredOther => "required-mapping",
                     SectionCompatibilityFailure.AmountMapping => "amount-mapping",
@@ -1446,29 +1446,29 @@ internal static partial class LegacyAuditParityProfileBuilder
 
         if (dataset == DatasetKind.Gl)
         {
-            var postDateLegacyName = fields.Single(field =>
-                field.SemanticIdentity == JetFieldCatalog.GlPostDate).LegacyFieldName!;
-            var docDateLegacyName = fields.Single(field =>
-                field.SemanticIdentity == JetFieldCatalog.GlDocDate).LegacyFieldName!;
-            var postDateRows = resolved
+            var glDateLegacyName = fields.Single(field =>
+                field.SemanticIdentity == JetFieldCatalog.GlDate).LegacyFieldName!;
+            var approvalDateLegacyName = fields.Single(field =>
+                field.SemanticIdentity == JetFieldCatalog.GlApprovalDate).LegacyFieldName!;
+            var glDateRows = resolved
                 .Select((row, index) => (Row: row, Index: index))
-                .Where(item => item.Row.Target.Equals(postDateLegacyName, StringComparison.Ordinal))
+                .Where(item => item.Row.Target.Equals(glDateLegacyName, StringComparison.Ordinal))
                 .Take(2)
                 .ToArray();
             var generatedApprovalRows = resolved
                 .Select((row, index) => (Row: row, Index: index))
-                .Where(item => item.Row.Target.Equals(docDateLegacyName, StringComparison.Ordinal)
+                .Where(item => item.Row.Target.Equals(approvalDateLegacyName, StringComparison.Ordinal)
                     && IsGeneratedApprovalDateDescription(item.Row.DisplaySource))
                 .Take(2)
                 .ToArray();
             if (generatedApprovalRows.Length == 1
-                && postDateRows.Length == 1
-                && postDateRows[0].Row.MappingSource.Length > 0)
+                && glDateRows.Length == 1
+                && glDateRows[0].Row.MappingSource.Length > 0)
             {
                 var generated = generatedApprovalRows[0];
                 resolved[generated.Index] = generated.Row with
                 {
-                    MappingSource = postDateRows[0].Row.MappingSource,
+                    MappingSource = glDateRows[0].Row.MappingSource,
                     MappingResolutionSource =
                         LegacyMappingResolutionSource.GeneratedFieldDerivation,
                 };
@@ -1652,7 +1652,7 @@ internal static partial class LegacyAuditParityProfileBuilder
         || dataset == DatasetKind.Gl
             && row.Target.Equals(
                 JetFieldCatalog.GlFields.Single(field =>
-                    field.SemanticIdentity == JetFieldCatalog.GlDocDate).LegacyFieldName,
+                    field.SemanticIdentity == JetFieldCatalog.GlApprovalDate).LegacyFieldName,
                 StringComparison.Ordinal)
             && IsGeneratedApprovalDateDescription(row.DisplaySource);
 
@@ -1780,9 +1780,9 @@ internal static partial class LegacyAuditParityProfileBuilder
             return;
         }
 
-        if (TryParseGlBracketExpression(expression, headers, out var amount, out var dcField))
+        if (TryParseGlBracketExpression(expression, headers, out var amount, out var drCr))
         {
-            var kind = sourceKinds.GetValueOrDefault(dcField) ?? string.Empty;
+            var kind = sourceKinds.GetValueOrDefault(drCr) ?? string.Empty;
             var inferred = kind.Contains("文字", StringComparison.Ordinal)
                 ? GlAmountMode.AmountWithSide
                 : kind.Contains("數字", StringComparison.Ordinal)
@@ -1805,8 +1805,8 @@ internal static partial class LegacyAuditParityProfileBuilder
             AddMapping(
                 mapping,
                 resolutionSources,
-                JetFieldCatalog.GlDcField,
-                dcField,
+                JetFieldCatalog.GlDrCr,
+                drCr,
                 LegacyMappingResolutionSource.WorkingPaperGeneratedExpression,
                 "gl-mapping");
             pending.Add("gl-dc-debit-code");
@@ -1852,7 +1852,7 @@ internal static partial class LegacyAuditParityProfileBuilder
             AddMapping(
                 mapping,
                 resolutionSources,
-                JetFieldCatalog.TbAmount,
+                JetFieldCatalog.TbChangeAmount,
                 directSource,
                 RequireResolutionSource(row, "tb-mapping"),
                 "tb-mapping");
@@ -1872,28 +1872,28 @@ internal static partial class LegacyAuditParityProfileBuilder
             AddMapping(
                 mapping,
                 resolutionSources,
-                JetFieldCatalog.TbClosingDebit,
+                JetFieldCatalog.TbClosingDebitBalance,
                 operands[0],
                 LegacyMappingResolutionSource.WorkingPaperGeneratedExpression,
                 "tb-mapping");
             AddMapping(
                 mapping,
                 resolutionSources,
-                JetFieldCatalog.TbClosingCredit,
+                JetFieldCatalog.TbClosingCreditBalance,
                 operands[1],
                 LegacyMappingResolutionSource.WorkingPaperGeneratedExpression,
                 "tb-mapping");
             AddMapping(
                 mapping,
                 resolutionSources,
-                JetFieldCatalog.TbOpeningDebit,
+                JetFieldCatalog.TbOpeningDebitBalance,
                 operands[2],
                 LegacyMappingResolutionSource.WorkingPaperGeneratedExpression,
                 "tb-mapping");
             AddMapping(
                 mapping,
                 resolutionSources,
-                JetFieldCatalog.TbOpeningCredit,
+                JetFieldCatalog.TbOpeningCreditBalance,
                 operands[3],
                 LegacyMappingResolutionSource.WorkingPaperGeneratedExpression,
                 "tb-mapping");
@@ -2002,18 +2002,18 @@ internal static partial class LegacyAuditParityProfileBuilder
         string expression,
         IReadOnlyList<string> headers,
         out string amount,
-        out string dcField)
+        out string drCr)
     {
         var match = Regex.Match(
             expression,
             @"^金額欄位【(?<amount>[^】]+)】、借貸方判斷欄位【(?<dc>[^】]+)】$",
             RegexOptions.CultureInvariant);
         amount = match.Success ? match.Groups["amount"].Value : string.Empty;
-        dcField = match.Success ? match.Groups["dc"].Value : string.Empty;
+        drCr = match.Success ? match.Groups["dc"].Value : string.Empty;
         return match.Success
-            && !amount.Equals(dcField, StringComparison.Ordinal)
+            && !amount.Equals(drCr, StringComparison.Ordinal)
             && headers.Contains(amount, StringComparer.Ordinal)
-            && headers.Contains(dcField, StringComparer.Ordinal);
+            && headers.Contains(drCr, StringComparer.Ordinal);
     }
 
     private static bool TryParseHeaderDifference(
@@ -2057,14 +2057,14 @@ internal static partial class LegacyAuditParityProfileBuilder
         out IReadOnlyList<string> operands)
     {
         if (!TrySplitParenthesizedDifference(expression, out var left, out var right)
-            || !TryParseHeaderDifference(left, headers, out var closingDebit, out var closingCredit)
-            || !TryParseHeaderDifference(right, headers, out var openingDebit, out var openingCredit))
+            || !TryParseHeaderDifference(left, headers, out var closingDebitBalance, out var closingCreditBalance)
+            || !TryParseHeaderDifference(right, headers, out var openingDebitBalance, out var openingCreditBalance))
         {
             operands = [];
             return false;
         }
 
-        string[] resolved = [closingDebit, closingCredit, openingDebit, openingCredit];
+        string[] resolved = [closingDebitBalance, closingCreditBalance, openingDebitBalance, openingCreditBalance];
         if (resolved.Distinct(StringComparer.Ordinal).Count() != resolved.Length)
         {
             operands = [];
@@ -2192,26 +2192,26 @@ internal static partial class LegacyAuditParityProfileBuilder
         string semanticIdentity,
         out LegacySourceHeaderRole role)
     {
-        if (dataset == DatasetKind.Gl && semanticIdentity == JetFieldCatalog.GlDocNum)
+        if (dataset == DatasetKind.Gl && semanticIdentity == JetFieldCatalog.GlVoucherNumber)
         {
             role = LegacySourceHeaderRole.DocumentIdentifier;
             return true;
         }
-        if (dataset == DatasetKind.Gl && semanticIdentity == JetFieldCatalog.GlLineId)
+        if (dataset == DatasetKind.Gl && semanticIdentity == JetFieldCatalog.GlLineItem)
         {
             role = LegacySourceHeaderRole.LineIdentifier;
             return true;
         }
         if (semanticIdentity == (dataset == DatasetKind.Gl
-                ? JetFieldCatalog.GlAccNum
-                : JetFieldCatalog.TbAccNum))
+                ? JetFieldCatalog.GlAccountNumber
+                : JetFieldCatalog.TbAccountNumber))
         {
             role = LegacySourceHeaderRole.AccountIdentifier;
             return true;
         }
         if (semanticIdentity == (dataset == DatasetKind.Gl
-                ? JetFieldCatalog.GlAccName
-                : JetFieldCatalog.TbAccName))
+                ? JetFieldCatalog.GlAccountName
+                : JetFieldCatalog.TbAccountName))
         {
             role = LegacySourceHeaderRole.AccountName;
             return true;
@@ -2283,24 +2283,24 @@ internal static partial class LegacyAuditParityProfileBuilder
 
         return semanticIdentity switch
         {
-            JetFieldCatalog.GlLineId => "gl-line-id-mapping",
-            JetFieldCatalog.GlDocDate => "gl-doc-date-mapping",
-            JetFieldCatalog.GlJeSource => "gl-je-source-mapping",
-            JetFieldCatalog.GlCreateBy => "gl-create-by-mapping",
-            JetFieldCatalog.GlApproveBy => "gl-approve-by-mapping",
+            JetFieldCatalog.GlLineItem => "gl-line-id-mapping",
+            JetFieldCatalog.GlApprovalDate => "gl-doc-date-mapping",
+            JetFieldCatalog.GlSourceModule => "gl-je-source-mapping",
+            JetFieldCatalog.GlCreatedBy => "gl-create-by-mapping",
+            JetFieldCatalog.GlApprovedBy => "gl-approve-by-mapping",
             _ => throw Error("gl-mapping"),
         };
     }
 
     private static SectionCompatibilityFailure RequiredFieldFailure(string semanticIdentity) =>
-        semanticIdentity is JetFieldCatalog.GlAccNum or JetFieldCatalog.TbAccNum
+        semanticIdentity is JetFieldCatalog.GlAccountNumber or JetFieldCatalog.TbAccountNumber
             ? SectionCompatibilityFailure.RequiredAccountIdentifier
-            : semanticIdentity is JetFieldCatalog.GlAccName or JetFieldCatalog.TbAccName
+            : semanticIdentity is JetFieldCatalog.GlAccountName or JetFieldCatalog.TbAccountName
                 ? SectionCompatibilityFailure.RequiredAccountName
-                : semanticIdentity == JetFieldCatalog.GlDocNum
+                : semanticIdentity == JetFieldCatalog.GlVoucherNumber
                     ? SectionCompatibilityFailure.RequiredDocumentIdentifier
-                    : semanticIdentity == JetFieldCatalog.GlPostDate
-                        ? SectionCompatibilityFailure.RequiredPostDate
+                    : semanticIdentity == JetFieldCatalog.GlDate
+                        ? SectionCompatibilityFailure.RequiredGlDate
                         : semanticIdentity == JetFieldCatalog.GlDescription
                             ? SectionCompatibilityFailure.RequiredDescription
                             : SectionCompatibilityFailure.RequiredOther;
@@ -2385,9 +2385,9 @@ internal static partial class LegacyAuditParityProfileBuilder
     }
 
     private static CalendarResult ReadCalendar(
-        LegacyWorkbookSnapshot workpaper)
+        LegacyWorkbookSnapshot workingPaper)
     {
-        var matches = workpaper.Sheets
+        var matches = workingPaper.Sheets
             .Where(sheet => sheet.Name.Equals(CalendarSheetName, StringComparison.Ordinal)
                 || sheet.Contains(HolidayDateHeader)
                 || sheet.Contains(MakeupDateHeader))
@@ -2459,12 +2459,12 @@ internal static partial class LegacyAuditParityProfileBuilder
     }
 
     private static IReadOnlyList<AccountMappingRow> ReadAccountMapping(
-        LegacyWorkbookSnapshot workpaper)
+        LegacyWorkbookSnapshot workingPaper)
     {
-        var matches = workpaper.Sheets
+        var matches = workingPaper.Sheets
             .Where(sheet => sheet.Name.Equals(AccountMappingSheetName, StringComparison.Ordinal)
                 || Enumerable.Range(1, sheet.MaxRow).Any(row =>
-                    sheet.Get(row, 1).Equals(AccountCodeHeader, StringComparison.OrdinalIgnoreCase)
+                    sheet.Get(row, 1).Equals(AccountNumberHeader, StringComparison.OrdinalIgnoreCase)
                     && sheet.Get(row, 2).Equals(AccountNameHeader, StringComparison.OrdinalIgnoreCase)
                     && sheet.Get(row, 3).Equals(AccountCategoryHeader, StringComparison.OrdinalIgnoreCase)))
             .Take(2)
@@ -2477,7 +2477,7 @@ internal static partial class LegacyAuditParityProfileBuilder
         var sheet = matches[0];
         var headerRows = Enumerable.Range(1, sheet.MaxRow)
             .Where(row =>
-                sheet.Get(row, 1).Equals(AccountCodeHeader, StringComparison.OrdinalIgnoreCase)
+                sheet.Get(row, 1).Equals(AccountNumberHeader, StringComparison.OrdinalIgnoreCase)
                 && sheet.Get(row, 2).Equals(AccountNameHeader, StringComparison.OrdinalIgnoreCase)
                 && sheet.Get(row, 3).Equals(AccountCategoryHeader, StringComparison.OrdinalIgnoreCase))
             .Take(2)
@@ -2490,19 +2490,19 @@ internal static partial class LegacyAuditParityProfileBuilder
         var rows = new List<AccountMappingRow>();
         for (var row = headerRows[0] + 1; row <= sheet.MaxRow; row++)
         {
-            var accountCode = sheet.Get(row, 1);
+            var accountNumber = sheet.Get(row, 1);
             var accountName = sheet.Get(row, 2);
             var category = sheet.Get(row, 3);
-            if (accountCode.Length == 0 && accountName.Length == 0 && category.Length == 0)
+            if (accountNumber.Length == 0 && accountName.Length == 0 && category.Length == 0)
             {
                 continue;
             }
-            if (accountCode.Length == 0 || accountName.Length == 0 || category.Length == 0)
+            if (accountNumber.Length == 0 || accountName.Length == 0 || category.Length == 0)
             {
                 throw Error("account-mapping");
             }
 
-            rows.Add(new AccountMappingRow(accountCode, accountName, category));
+            rows.Add(new AccountMappingRow(accountNumber, accountName, category));
         }
 
         return rows.Count > 0 ? rows : throw Error("account-mapping");
@@ -2525,13 +2525,13 @@ internal static partial class LegacyAuditParityProfileBuilder
 
             using var workbook = new XLWorkbook();
             var sheet = workbook.AddWorksheet("AccountMapping");
-            sheet.Cell(1, 1).Value = AccountCodeHeader;
+            sheet.Cell(1, 1).Value = AccountNumberHeader;
             sheet.Cell(1, 2).Value = AccountNameHeader;
             sheet.Cell(1, 3).Value = AccountCategoryHeader;
             for (var index = 0; index < rows.Count; index++)
             {
                 var row = rows[index];
-                sheet.Cell(index + 2, 1).Value = row.AccountCode;
+                sheet.Cell(index + 2, 1).Value = row.AccountNumber;
                 sheet.Cell(index + 2, 2).Value = row.AccountName;
                 sheet.Cell(index + 2, 3).Value = row.Category;
             }
@@ -2552,7 +2552,7 @@ internal static partial class LegacyAuditParityProfileBuilder
     private static ScenarioReadResult ReadScenarios(
         LegacyParityCase @case,
         LegacyWorkbookSnapshot criteria,
-        LegacyWorkbookSnapshot workpaper,
+        LegacyWorkbookSnapshot workingPaper,
         ISet<string> pending)
     {
         var summary = criteria.FindSingleSheet(
@@ -2561,7 +2561,7 @@ internal static partial class LegacyAuditParityProfileBuilder
                     "Criteria Selection ",
                     StringComparison.Ordinal)),
             "criteria-summary");
-        var rationales = ReadScenarioRationales(workpaper);
+        var rationales = ReadScenarioRationales(workingPaper);
         var scenarios = new List<JsonElement>();
         var counts = new List<LegacyScenarioCount>();
 
@@ -2612,9 +2612,9 @@ internal static partial class LegacyAuditParityProfileBuilder
     }
 
     private static IReadOnlyDictionary<string, string> ReadScenarioRationales(
-        LegacyWorkbookSnapshot workpaper)
+        LegacyWorkbookSnapshot workingPaper)
     {
-        var sheets = workpaper.Sheets
+        var sheets = workingPaper.Sheets
             .Where(sheet => Enumerable.Range(19, Math.Max(0, sheet.MaxRow - 18))
                 .Any(row => sheet.Get(row, 3).Contains("#1.", StringComparison.Ordinal)))
             .ToArray();
@@ -2798,7 +2798,7 @@ internal static partial class LegacyAuditParityProfileBuilder
         RequiredAccountIdentifier,
         RequiredAccountName,
         RequiredDocumentIdentifier,
-        RequiredPostDate,
+        RequiredGlDate,
         RequiredDescription,
         RequiredOther,
         AmountMapping,
@@ -2810,7 +2810,7 @@ internal static partial class LegacyAuditParityProfileBuilder
         int SettingRowCount);
 
     private sealed record AccountMappingRow(
-        string AccountCode,
+        string AccountNumber,
         string AccountName,
         string Category);
 
@@ -2958,7 +2958,7 @@ internal static partial class LegacyCriteriaLogParser
                 pendingFieldId,
                 LegacyCriteriaParseFailure.NoRules);
         }
-        if (policy.MatchScope == "sameVoucher" && rules.Count < 2)
+        if (policy.VoucherWitnesses && rules.Count < 2)
         {
             return new LegacyCriteriaParseResult(
                 null,
@@ -2979,8 +2979,8 @@ internal static partial class LegacyCriteriaLogParser
         var group = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["join"] = "AND",
-            ["rules"] = rules.Select((rule, index) => policy.MatchScope == "sameVoucher" && index > 0
-                ? Rule("voucher", ("quantifier", "any"), ("rules", new[] { rule })) : rule).ToArray(),
+            ["conditions"] = rules.Select((rule, index) => policy.VoucherWitnesses && index > 0
+                ? Rule("voucher", ("quantifier", "any"), ("conditions", new[] { rule })) : rule).ToArray(),
         };
         if (policy.MatchScope is not null)
         {
@@ -3003,7 +3003,7 @@ internal static partial class LegacyCriteriaLogParser
     {
         var prescreen = body switch
         {
-            "於期末財務報表準備期間核准之分錄" => PrescreenRuleKeys.PostPeriodApproval,
+            "於期末財務報表準備期間核准之分錄" => PrescreenRuleKeys.PrepPeriodApproval,
             "分錄摘要出現特定描述" => PrescreenRuleKeys.SuspiciousKeywords,
             "未預期出現之特定借貸組合" => PrescreenRuleKeys.UnexpectedAccountPair,
             "分錄金額中有連續0的尾數" => PrescreenRuleKeys.TrailingZeros,
@@ -3307,7 +3307,7 @@ internal static partial class LegacyCriteriaLogParser
 
     // 規則只認分類身分陣列（2026-10-02 起刪除單選分類欄位），舊底稿的分類名稱在這裡換成內建分類身分。
     private static string[] BuiltInCategoryIds(string category) =>
-        [AccountTaxonomyBuiltIns.All.Single(item => string.Equals(item.Label, category, StringComparison.Ordinal)).CategoryId];
+        [AccountCategoryBuiltIns.All.Single(item => string.Equals(item.Label, category, StringComparison.Ordinal)).CategoryId];
 
     private static bool TrySingleCategory(string value, out string category)
     {
@@ -3330,7 +3330,8 @@ internal static partial class LegacyCriteriaLogParser
 
     private readonly record struct LegacyCriteriaAstPolicy(
         string? MatchScope,
-        LegacyTextRuleShape TextRuleShape)
+        LegacyTextRuleShape TextRuleShape,
+        bool VoucherWitnesses = false)
     {
         internal static LegacyCriteriaAstPolicy LegacyRow { get; } = new(
             MatchScope: null,
@@ -3344,8 +3345,9 @@ internal static partial class LegacyCriteriaLogParser
                     MatchScope: "row",
                     TextRuleShape: LegacyTextRuleShape.TextSetRemoveAsciiSpaces),
                 (LegacyParityCase.CaseA, 3 or 4 or 5) or (LegacyParityCase.CaseB, 2) => new(
-                    MatchScope: "sameVoucher",
-                    TextRuleShape: LegacyTextRuleShape.TextSetPreserve),
+                    MatchScope: "row",
+                    TextRuleShape: LegacyTextRuleShape.TextSetPreserve,
+                    VoucherWitnesses: true),
                 _ => LegacyRow,
             };
 
@@ -3364,7 +3366,7 @@ internal static partial class LegacyCriteriaLogParser
 
             var group = groups[0];
             if (group.ValueKind != JsonValueKind.Object
-                || !group.TryGetProperty("rules", out var rules)
+                || !group.TryGetProperty("conditions", out var rules)
                 || rules.ValueKind != JsonValueKind.Array
                 || rules.GetArrayLength() == 0)
             {
@@ -3382,7 +3384,6 @@ internal static partial class LegacyCriteriaLogParser
                 matchScope = matchScopeElement.GetString() switch
                 {
                     "row" => "row",
-                    "sameVoucher" => "sameVoucher",
                     _ => null,
                 };
                 if (matchScope is null)
@@ -3392,10 +3393,12 @@ internal static partial class LegacyCriteriaLogParser
             }
 
             var logicalRules = rules.EnumerateArray().ToArray();
+            var voucherWitnesses = false;
             if (logicalRules.Length > 1 && logicalRules.Skip(1).All(IsSingleVoucherWitness))
             {
-                matchScope = "sameVoucher";
-                logicalRules = logicalRules.Take(1).Concat(logicalRules.Skip(1).Select(rule => rule.GetProperty("rules")[0])).ToArray();
+                matchScope = "row";
+                voucherWitnesses = true;
+                logicalRules = logicalRules.Take(1).Concat(logicalRules.Skip(1).Select(rule => rule.GetProperty("conditions")[0])).ToArray();
             }
             var textRuleTypes = logicalRules
                 .Where(static rule => rule.ValueKind == JsonValueKind.Object
@@ -3441,7 +3444,7 @@ internal static partial class LegacyCriteriaLogParser
                 }
             }
 
-            policy = new LegacyCriteriaAstPolicy(matchScope, textShape);
+            policy = new LegacyCriteriaAstPolicy(matchScope, textShape, voucherWitnesses);
             return true;
         }
 
@@ -3449,7 +3452,7 @@ internal static partial class LegacyCriteriaLogParser
             && rule.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "voucher"
             && rule.TryGetProperty("quantifier", out var quantifier) && quantifier.ValueKind == JsonValueKind.String && quantifier.GetString() == "any"
             && !rule.TryGetProperty("side", out _)
-            && rule.TryGetProperty("rules", out var children) && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() == 1;
+            && rule.TryGetProperty("conditions", out var children) && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() == 1;
     }
 }
 

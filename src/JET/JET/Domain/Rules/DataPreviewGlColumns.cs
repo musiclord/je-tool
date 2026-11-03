@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 資料預覽 GL 與 GL(未納入測試) 的欄位計畫（預篩選收斂計畫階段五，使用者 2026-10-22 裁定）。
+/// 資料預覽 GL 與 GL(未納入測試) 的欄位計畫（裁定 2026-10-22-09）。
 /// 核心欄位在前，接著是已配對的選填欄位與攸關資料元素欄位；未配對的不列，借方與貸方金額不分欄。
 /// 兩頁列同一組欄位，GL(未納入測試) 最後多一欄未納入原因。選填欄位算不算已配對，讀第四步、第五步同一份
 /// <see cref="JetFieldCatalog.AvailableGlFields"/>，所以傳票核准日選「與總帳日期相同」時也列出；
@@ -13,12 +13,12 @@ internal static class DataPreviewGlColumns
     /// <summary>核心欄位，照原本 GL 頁的順序；識別沿用原本的回應鍵。</summary>
     private static readonly (string Field, string Key)[] CoreFields =
     [
-        (JetFieldCatalog.GlDocNum, "documentNumber"),
-        (JetFieldCatalog.GlLineId, "lineItem"),
-        (JetFieldCatalog.GlPostDate, "postDate"),
-        (JetFieldCatalog.GlAccNum, "accountCode"),
-        (JetFieldCatalog.GlAccName, "accountName"),
-        (JetFieldCatalog.GlDescription, "documentDescription"),
+        (JetFieldCatalog.GlVoucherNumber, "voucherNumber"),
+        (JetFieldCatalog.GlLineItem, "lineItem"),
+        (JetFieldCatalog.GlDate, "glDate"),
+        (JetFieldCatalog.GlAccountNumber, "accountNumber"),
+        (JetFieldCatalog.GlAccountName, "accountName"),
+        (JetFieldCatalog.GlDescription, "description"),
         (JetFieldCatalog.GlAmount, "amount")
     ];
 
@@ -26,10 +26,10 @@ internal static class DataPreviewGlColumns
     private static readonly IReadOnlyDictionary<string, string> OptionalFieldKeys =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [JetFieldCatalog.GlDocDate] = "approvalDate",
-            [JetFieldCatalog.GlJeSource] = "sourceModule",
-            [JetFieldCatalog.GlCreateBy] = "createdBy",
-            [JetFieldCatalog.GlApproveBy] = "approvedBy",
+            [JetFieldCatalog.GlApprovalDate] = "approvalDate",
+            [JetFieldCatalog.GlSourceModule] = "sourceModule",
+            [JetFieldCatalog.GlCreatedBy] = "createdBy",
+            [JetFieldCatalog.GlApprovedBy] = "approvedBy",
             [JetFieldCatalog.GlManual] = "manualAuto",
             [JetFieldCatalog.GlPostingStatus] = "postingStatus"
         };
@@ -37,7 +37,7 @@ internal static class DataPreviewGlColumns
     /// <summary>借貸別由金額的配對方式決定，每筆分錄都有，接在金額後面；名稱和配對畫面的借貸別欄位相同。</summary>
     private static readonly DataPreviewGlColumn DebitCredit = new(
         "drCr",
-        JetFieldCatalog.GlMappingSlots.Single(static slot => slot.Key == JetFieldCatalog.GlDcField).Label,
+        JetFieldCatalog.GlMappingSlots.Single(static slot => slot.Key == JetFieldCatalog.GlDrCr).Label,
         RdeFieldValueTypeNames.Text,
         DataPreviewGlValueSource.EntryText,
         "dr_cr");
@@ -90,7 +90,7 @@ internal static class DataPreviewGlColumns
         var (valueType, source) = field.Kind switch
         {
             JetFieldValueKind.Date => (RdeFieldValueTypeNames.Date, DataPreviewGlValueSource.EntryText),
-            JetFieldValueKind.Amount => (RdeFieldValueTypeNames.Money, DataPreviewGlValueSource.EntryAmount),
+            JetFieldValueKind.Amount => (RdeFieldValueTypeNames.Amount, DataPreviewGlValueSource.EntryAmount),
             // 目錄裡唯一的布林欄位是人工或自動分錄，畫面寫「人工」「自動」。
             JetFieldValueKind.Boolean => (RdeFieldValueTypeNames.Text, DataPreviewGlValueSource.EntryManualAuto),
             _ => (RdeFieldValueTypeNames.Text, DataPreviewGlValueSource.EntryText)

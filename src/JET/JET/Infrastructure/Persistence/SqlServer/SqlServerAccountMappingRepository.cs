@@ -57,7 +57,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
         await database.EnsureCreatedAsync(projectId, cancellationToken);
         projection ??= JetAuditProgram.PrepareAccountMappingProjection(
             columns,
-            AccountTaxonomyCatalog.BuiltInSnapshot);
+            AccountCategoryCatalog.BuiltInSnapshot);
 
         var batchId = Guid.NewGuid().ToString("N");
         var importedUtc = DateTimeOffset.UtcNow;
@@ -69,12 +69,12 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
 
         await using (var cleanup = database.CreateCommand(connection, projectId,
             """
-            DELETE FROM {s}.staging_account_mapping_raw_row
+            DELETE FROM {s}.pbc_account_mapping
             WHERE batch_id IN (SELECT batch_id FROM {s}.import_batch WHERE dataset_kind = @kind);
             DELETE FROM {s}.import_batch_source
             WHERE batch_id IN (SELECT batch_id FROM {s}.import_batch WHERE dataset_kind = @kind);
             DELETE FROM {s}.import_batch WHERE dataset_kind = @kind;
-            DELETE FROM {s}.target_account_mapping;
+            DELETE FROM {s}.account_mapping;
             """))
         {
             cleanup.Transaction = transaction;
@@ -83,7 +83,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
         }
 
         // 科目配對換版,未預期借貸組合等規則結果即失效。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -103,7 +103,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             insertBatch.Transaction = transaction;
             insertBatch.Parameters.AddWithValue("@batchId", batchId);
             insertBatch.Parameters.AddWithValue("@kind", kindName);
-            // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑（2026-10-19 跨資料庫一致性第二階段）。
+            // source_file_path 是舊欄名；和本機一樣只保存檔名，不在資料庫留下本機絕對路徑。
             insertBatch.Parameters.AddWithValue("@filePath", source.FileName);
             insertBatch.Parameters.AddWithValue("@fileName", source.FileName);
             insertBatch.Parameters.AddWithValue("@sheetName", (object?)source.SheetName ?? DBNull.Value);
@@ -118,7 +118,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
 
         await using (var insertRow = database.CreateCommand(connection, projectId,
             """
-            INSERT INTO {s}.staging_account_mapping_raw_row
+            INSERT INTO {s}.pbc_account_mapping
                 (batch_id, row_number, source_no, source_row_number, row_json)
             VALUES (@batchId, @rowNumber, 1, @sourceRowNumber, @rowJson);
             """))
@@ -156,17 +156,17 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
 
         await using (var insertTarget = database.CreateCommand(connection, projectId,
             """
-            INSERT INTO {s}.target_account_mapping
-                (batch_id, source_row_number, account_code, account_name,
+            INSERT INTO {s}.account_mapping
+                (batch_id, source_row_number, account_number, account_name,
                  standardized_category, category_id, classification_explicit)
-            VALUES (@batchId, @sourceRowNumber, @accountCode, @accountName,
+            VALUES (@batchId, @sourceRowNumber, @accountNumber, @accountName,
                     @category, @categoryId, @explicit);
             """))
         {
             insertTarget.Transaction = transaction;
             insertTarget.Parameters.AddWithValue("@batchId", batchId);
             var sourceRowParam = insertTarget.Parameters.Add("@sourceRowNumber", SqlDbType.Int);
-            var codeParam = insertTarget.Parameters.Add("@accountCode", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
+            var codeParam = insertTarget.Parameters.Add("@accountNumber", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
             var nameParam = insertTarget.Parameters.Add("@accountName", SqlDbType.NVarChar, TextStorageLimits.TextUtf16CodeUnits);
             var categoryParam = insertTarget.Parameters.Add("@category", SqlDbType.NVarChar, 40);
             var categoryIdParam = insertTarget.Parameters.Add("@categoryId", SqlDbType.NVarChar, 64);
@@ -175,7 +175,7 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
             foreach (var mapping in projected)
             {
                 sourceRowParam.Value = mapping.SourceRowNumber;
-                codeParam.Value = mapping.AccountCode;
+                codeParam.Value = mapping.AccountNumber;
                 nameParam.Value = (object?)mapping.AccountName ?? DBNull.Value;
                 categoryParam.Value = mapping.LegacyCategory;
                 categoryIdParam.Value = mapping.CategoryId;
@@ -211,32 +211,32 @@ public sealed class SqlServerAccountMappingRepository(SqlServerProjectDatabase d
         await using var command = database.CreateCommand(connection, projectId,
             """
             SELECT TOP 1 b.batch_id,
-                   CASE WHEN b.source_file_name = @editorName THEN (SELECT COUNT(*) FROM {s}.target_account_mapping) ELSE b.row_count END,
+                   CASE WHEN b.source_file_name = @editorName THEN (SELECT COUNT(*) FROM {s}.account_mapping) ELSE b.row_count END,
                    b.source_file_name, b.imported_utc,
-                   CASE WHEN EXISTS (SELECT 1 FROM {s}.target_account_mapping) THEN 1 ELSE 0 END,
+                   CASE WHEN EXISTS (SELECT 1 FROM {s}.account_mapping) THEN 1 ELSE 0 END,
                    CASE WHEN EXISTS (SELECT 1
-                                     FROM {s}.target_account_mapping m
-                                     JOIN {s}.config_account_taxonomy t
+                                     FROM {s}.account_mapping m
+                                     JOIN {s}.account_category t
                                        ON t.category_id = m.category_id
                                      WHERE t.semantic_role = @revenue)
                         THEN 1 ELSE 0 END,
                    CASE WHEN EXISTS (SELECT 1
-                                     FROM {s}.target_account_mapping m
-                                     JOIN {s}.config_account_taxonomy t
+                                     FROM {s}.account_mapping m
+                                     JOIN {s}.account_category t
                                        ON t.category_id = m.category_id
                                      WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance))
                         THEN 1 ELSE 0 END,
-                   (SELECT COUNT(*) FROM {s}.target_account_mapping m WHERE m.classification_explicit = 0)
+                   (SELECT COUNT(*) FROM {s}.account_mapping m WHERE m.classification_explicit = 0)
             FROM {s}.import_batch b
             WHERE b.dataset_kind = @kind
             ORDER BY b.imported_utc DESC, b.batch_id DESC;
             """);
         command.Parameters.AddWithValue("@kind", DatasetKind.AccountMapping.ToStorageName());
         command.Parameters.AddWithValue("@editorName", AccountMappingEditorRepository.EditorSourceName);
-        command.Parameters.AddWithValue("@revenue", AccountTaxonomyBuiltIns.RevenueRole);
-        command.Parameters.AddWithValue("@receivables", AccountTaxonomyBuiltIns.ReceivablesRole);
-        command.Parameters.AddWithValue("@cash", AccountTaxonomyBuiltIns.CashRole);
-        command.Parameters.AddWithValue("@receiptInAdvance", AccountTaxonomyBuiltIns.ReceiptInAdvanceRole);
+        command.Parameters.AddWithValue("@revenue", AccountCategoryBuiltIns.RevenueRole);
+        command.Parameters.AddWithValue("@receivables", AccountCategoryBuiltIns.ReceivablesRole);
+        command.Parameters.AddWithValue("@cash", AccountCategoryBuiltIns.CashRole);
+        command.Parameters.AddWithValue("@receiptInAdvance", AccountCategoryBuiltIns.ReceiptInAdvanceRole);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))

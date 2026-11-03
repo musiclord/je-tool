@@ -9,11 +9,11 @@ internal static class AccountMappingDifferenceQuery
 {
     private static string Cte(string prefix, ISqlDialect dialect) => AccountMappingPopulationQuery.Cte(prefix, dialect) + $$"""
         , mapping_only AS (
-            SELECT m.account_code, m.account_name FROM {{prefix}}target_account_mapping m
-            WHERE NOT EXISTS (SELECT 1 FROM population p WHERE p.account_code = m.account_code)
+            SELECT m.account_number, m.account_name FROM {{prefix}}account_mapping m
+            WHERE NOT EXISTS (SELECT 1 FROM population p WHERE p.account_number = m.account_number)
         ), unmapped AS (
-            SELECT p.account_code, p.account_name FROM population p
-            WHERE NOT EXISTS (SELECT 1 FROM {{prefix}}target_account_mapping m WHERE m.account_code = p.account_code)
+            SELECT p.account_number, p.account_name FROM population p
+            WHERE NOT EXISTS (SELECT 1 FROM {{prefix}}account_mapping m WHERE m.account_number = p.account_number)
         )
         """;
 
@@ -51,10 +51,10 @@ internal static class AccountMappingDifferenceQuery
         // SQLite 與 DuckDB 在同一語句讀同一快照；SQL Server 預設隔離不保證此事，只經編譯。
         // 不用 COUNT(*) OVER ()：
         // DuckDB 1.5.3 在這種分組加 NOT EXISTS 的形狀上多執行緒時偶發內部錯誤，並讓同一資料庫的其他連線一起失效。
-        command.CommandText = Cte(prefix, dialect) + $" SELECT account_code, account_name, "
+        command.CommandText = Cte(prefix, dialect) + $" SELECT account_number, account_name, "
             + (request.IncludeTotalCount ? $"(SELECT {count} FROM {table})" : "NULL") + $" AS total_count FROM {table} "
-            + (hasCursor ? "WHERE account_code > @cursor " : "")
-            + "ORDER BY account_code " + dialect.LimitClause("@pageSize") + ";";
+            + (hasCursor ? "WHERE account_number > @cursor " : "")
+            + "ORDER BY account_number " + dialect.LimitClause("@pageSize") + ";";
         if (hasCursor) command.AddWithValue("@cursor", cursorCode);
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         var rows = new List<AccountMappingBlankAccount>();
@@ -67,6 +67,6 @@ internal static class AccountMappingDifferenceQuery
         }
         var hasMore = rows.Count > request.ClampedPageSize;
         if (hasMore) rows.RemoveAt(rows.Count - 1);
-        return new(rows, hasMore ? PageCursor.Encode(kind + "\n" + rows[^1].AccountCode) : null, totalCount);
+        return new(rows, hasMore ? PageCursor.Encode(kind + "\n" + rows[^1].AccountNumber) : null, totalCount);
     }
 }

@@ -5,7 +5,6 @@ namespace JET.Domain;
 /// <summary>
 /// 案件名稱 / projectId 的字元規則。projectId 即案件名稱、即資料夾名(見 JetProjectFolder),
 /// 故本規則同時是 path-traversal 守衛:白名單預設拒絕,排除 . / \ : * ? " &lt; &gt; | 等。
-/// 白名單為舊 32-hex GUID 的超集(hex 皆英數、長度 32 ≤ 100)→ 既有專案零遷移仍合法。
 /// </summary>
 public static partial class ProjectNameRules
 {

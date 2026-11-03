@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using JET.Domain;
 using Microsoft.Extensions.Logging;
@@ -6,9 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// V11：一個來源裡用引號包住、內含換行的資料列筆數，以及前五個列號。文字檔裡這是合法寫法，所以不擋匯入；
+/// 一個來源裡用引號包住、內含換行的資料列筆數，以及前五個列號。文字檔裡這是合法寫法，所以不擋匯入；
 /// 但引號放錯位置時，後面的列會被併進同一格。GL、TB 與科目配對檔的匯入共用這裡的統計與提醒句
-/// （科目配對檔是低嚴重度事項，使用者 2026-10-19 要求處理）。列號是來源列號，也就是用 Excel 打開時的列號；
+/// （科目配對檔見裁定 2026-10-19-06）。列號是來源列號，也就是用 Excel 打開時的列號；
 /// 支援日誌不寫檔名。
 /// </summary>
 internal sealed class QuotedLineBreakTally
@@ -59,9 +58,9 @@ internal sealed class QuotedLineBreakTally
             ImportSourceDiagnostics.QuotedLineBreaks(logger, sourceNo, Count, string.Join(",", firstRows));
         }
 
-        // 使用者 2026-10-13 勾選頁確認的句子；只有「，例如第…列」一種寫法，列號全部列出時也一樣。
-        // 2026-10-19 使用者裁定來源檔用「列」，「筆數減少」隨之改成「列數減少」。
-        return $"「{fileName}」有 {Count.ToString("N0", CultureInfo.InvariantCulture)} 列的欄位內含換行，例如第 {string.Join("、", firstRows)} 列。"
+        // 裁定 2026-10-13-28 確認了這句的用字；只有「，例如第…列」一種寫法，列號全部列出時也一樣。
+        // 來源檔用「列」（裁定 2026-10-19-16），「筆數減少」隨之改成「列數減少」。
+        return $"「{fileName}」有 {CountText.Format(Count)} 列的欄位內含換行，例如第 {string.Join("、", firstRows)} 列。"
             + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。";
     }
 }

@@ -28,7 +28,7 @@ public sealed class DetailPaginationContractTests
             {
                 var preview = await host.DispatchAsync("query.dataPreview", JsonSerializer.Serialize(new { dataset, offset, limit = 9999 }));
                 var rows = preview.GetProperty("rows").EnumerateArray().ToArray();
-                // 總筆數與統計只在第一頁（offset 0）計算，換頁沿用第一頁的值，不再重掃完整資料（使用者 2026-10-16 要求處理每頁重算總筆數）。
+                // 總筆數與統計只在第一頁（offset 0）計算，換頁沿用第一頁的值，不再重掃完整資料（裁定 2026-10-16-06）。
                 if (offset == 0)
                 {
                     Assert.Equal(count, preview.GetProperty("totalCount").GetInt64());
@@ -49,26 +49,26 @@ public sealed class DetailPaginationContractTests
         var defaults = await host.DispatchAsync("query.dataPreview", """{"dataset":"pbcGl"}""");
         Assert.Equal(200, defaults.GetProperty("rows").GetArrayLength());
 
-        var unsorted = await WalkAsync(host, "query.nullRecordsPage", new() { ["category"] = "outOfRangeDate" }, count);
-        Assert.Equal(Enumerable.Range(1, count).Select(Document), unsorted.Select(row => row.GetProperty("documentNumber").GetString()));
-        var sorted = await WalkAsync(host, "query.docBalancePage", new()
+        var unsorted = await WalkAsync(host, "query.blankRecordsPage", new() { ["category"] = "approvalDateNotInPeriod" }, count);
+        Assert.Equal(Enumerable.Range(1, count).Select(Document), unsorted.Select(row => row.GetProperty("voucherNumber").GetString()));
+        var sorted = await WalkAsync(host, "query.voucherBalancePage", new()
         {
             ["sort"] = new { key = "diff", direction = "desc" }
         }, count);
         Assert.Equal(Enumerable.Range(1, count).Reverse().Select(i => (decimal)i), sorted.Select(row => row.GetProperty("diff").GetDecimal()));
-        var searched = await WalkAsync(host, "query.docBalancePage", new()
+        var searched = await WalkAsync(host, "query.voucherBalancePage", new()
         {
             ["sort"] = new { key = "diff", direction = "desc" }, ["search"] = "keep"
         }, 201);
-        Assert.Equal(Enumerable.Range(1, 201).Reverse().Select(Document), searched.Select(row => row.GetProperty("documentNumber").GetString()));
-        var noMatches = await WalkAsync(host, "query.docBalancePage", new() { ["search"] = "absent" }, 0);
+        Assert.Equal(Enumerable.Range(1, 201).Reverse().Select(Document), searched.Select(row => row.GetProperty("voucherNumber").GetString()));
+        var noMatches = await WalkAsync(host, "query.voucherBalancePage", new() { ["search"] = "absent" }, 0);
         Assert.Empty(noMatches);
 
         var accounts = await WalkAsync(host, "query.accountMappingPage", new() { ["search"] = "groupone" }, 201);
-        Assert.Equal(Enumerable.Range(1, 201).Select(i => $"A{i:0000}"), accounts.Select(row => row.GetProperty("accountCode").GetString()));
-        await host.DispatchAsync("accountMapping.save", """{"changes":[{"accountCode":"A0001","categoryId":"builtin.cash"},{"accountCode":"A0002","categoryId":"builtin.cash"}]}""");
+        Assert.Equal(Enumerable.Range(1, 201).Select(i => $"A{i:0000}"), accounts.Select(row => row.GetProperty("accountNumber").GetString()));
+        await host.DispatchAsync("accountMapping.save", """{"changes":[{"accountNumber":"A0001","categoryId":"builtin.cash"},{"accountNumber":"A0002","categoryId":"builtin.cash"}]}""");
         var category = await WalkAsync(host, "query.accountMappingPage", new() { ["categoryId"] = "builtin.cash", ["search"] = "groupone", ["pageSize"] = 1 }, 2);
-        Assert.Equal(new[] { "A0001", "A0002" }, category.Select(row => row.GetProperty("accountCode").GetString()));
+        Assert.Equal(new[] { "A0001", "A0002" }, category.Select(row => row.GetProperty("accountNumber").GetString()));
     }
 
     [Theory]
@@ -79,7 +79,7 @@ public sealed class DetailPaginationContractTests
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         var committed = await host.DispatchAsync("filter.commit", """
-            {"scenarios":[{"name":"Synthetic","rationale":"Synthetic","groups":[{"join":"and","rules":[{"join":"and","type":"prescreen","prescreenKey":"nonAuthorizedPreparer"}]}]}]}
+            {"scenarios":[{"name":"Synthetic","rationale":"Synthetic","groups":[{"join":"and","conditions":[{"join":"and","type":"prescreen","prescreenKey":"nonAuthorizedPreparer"}]}]}]}
             """);
         var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString();
         var queries = new (string Action, Dictionary<string, object?> Payload)[]
@@ -89,8 +89,8 @@ public sealed class DetailPaginationContractTests
             ("query.infSamplePage", new()),
             ("query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }),
             ("query.filterHitsPage", new() { ["scenarioPosition"] = 1 }),
-            ("query.tagMatrixVoucherPage", new()),
-            ("query.tagMatrixRowPage", new()),
+            ("query.highRiskSummaryVoucherPage", new()),
+            ("query.highRiskSummaryRowPage", new()),
             ("query.accountMappingBlankPage", new()),
             ("query.accountMappingDifferencePage", new() { ["kind"] = "unmapped" }),
             ("query.filterVoucherPage", new() { ["scenarioPosition"] = 1, ["scenarioRevision"] = revision, ["populationScope"] = "auditPeriod" })
@@ -112,7 +112,7 @@ public sealed class DetailPaginationContractTests
         {
             ["scenarioPosition"] = 1, ["scenarioRevision"] = revision, ["populationScope"] = "auditPeriod",
             ["queryRevision"] = vouchers.GetProperty("queryRevision").GetString(),
-            ["documentNumber"] = voucher.GetProperty("documentNumber").GetString(), ["pageSize"] = 1
+            ["voucherNumber"] = voucher.GetProperty("voucherNumber").GetString(), ["pageSize"] = 1
         }, voucher.GetProperty("totalRowCount").GetInt64());
         Assert.NotEmpty(details);
     }

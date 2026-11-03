@@ -11,10 +11,10 @@ internal enum LegacyAuditParityReportFamily
     ValidationNullAccountDetail,
     ValidationNullDocumentDetail,
     ValidationNullDescriptionDetail,
-    ValidationOutOfRangeApprovalDateDetail,
+    ValidationApprovalDateNotInPeriodDetail,
     ValidationCompletenessReconciliation,
     ValidationUnbalancedGlDetail,
-    ValidationBlankPostDateDetail,
+    ValidationBlankGlDateDetail,
     ValidationSourceQuality,
 
     AccountMappingMain,
@@ -24,11 +24,11 @@ internal enum LegacyAuditParityReportFamily
     InfAllFields,
 
     PrescreenSummary,
-    PrescreenPostPeriodApprovalDetail,
+    PrescreenPrepPeriodApprovalDetail,
     PrescreenSuspiciousKeywordsDetail,
     PrescreenUnexpectedAccountPairDetail,
     PrescreenTrailingZerosDetail,
-    PrescreenCreatorSummaryDetail,
+    PrescreenPreparerSummaryDetail,
     PrescreenRareAccountsDetail,
     PrescreenBlankDescriptionDetail,
 
@@ -48,7 +48,7 @@ internal enum LegacyAuditParityReportFamily
     WorkingPaperIntro,
     WorkingPaperCompleteness,
     WorkingPaperUnbalancedVouchers,
-    WorkingPaperCreatorSummary,
+    WorkingPaperPreparerSummary,
     WorkingPaperCompletenessDifference,
     WorkingPaperReliability,
     WorkingPaperRiskConditionSummary,
@@ -357,7 +357,7 @@ internal static class LegacyAuditParityReportMetrics
                 LegacyReportKind.ValidationReport,
                 LegacyAuditParityReportFamily.ValidationCompletenessDifferenceDetail,
                 "completeness_difference_detail",
-                WorkpaperSheetCatalog.Step13,
+                WorkingPaperSheetCatalog.Step13,
                 continuation: true),
             Counted(
                 LegacyReportKind.ValidationReport,
@@ -379,8 +379,8 @@ internal static class LegacyAuditParityReportMetrics
                 continuation: true),
             Counted(
                 LegacyReportKind.ValidationReport,
-                LegacyAuditParityReportFamily.ValidationOutOfRangeApprovalDateDetail,
-                "out_of_range_approval_date_detail",
+                LegacyAuditParityReportFamily.ValidationApprovalDateNotInPeriodDetail,
+                "approval_date_not_in_period_detail",
                 "V_Report 4",
                 continuation: true),
             Counted(
@@ -397,12 +397,12 @@ internal static class LegacyAuditParityReportMetrics
                 continuation: true),
             Counted(
                 LegacyReportKind.ValidationReport,
-                LegacyAuditParityReportFamily.ValidationBlankPostDateDetail,
-                "blank_post_date_detail",
+                LegacyAuditParityReportFamily.ValidationBlankGlDateDetail,
+                "blank_gl_date_detail",
                 "V_Report 7",
                 continuation: true),
             // Validation v4（jet-guide §7.2）：blank post date 不建 V7，改由條件式
-            // `Source_Quality` 揭示來源品質明細。
+            // `Source_Quality` 揭示總帳日期空白明細。
             Counted(
                 LegacyReportKind.ValidationReport,
                 LegacyAuditParityReportFamily.ValidationSourceQuality,
@@ -439,8 +439,8 @@ internal static class LegacyAuditParityReportMetrics
                 "Pre-screening_Report"),
             Counted(
                 LegacyReportKind.PrescreenReport,
-                LegacyAuditParityReportFamily.PrescreenPostPeriodApprovalDetail,
-                "post_period_approval_detail",
+                LegacyAuditParityReportFamily.PrescreenPrepPeriodApprovalDetail,
+                "prep_period_approval_detail",
                 "R1",
                 continuation: true),
             Counted(
@@ -463,8 +463,8 @@ internal static class LegacyAuditParityReportMetrics
                 continuation: true),
             Counted(
                 LegacyReportKind.PrescreenReport,
-                LegacyAuditParityReportFamily.PrescreenCreatorSummaryDetail,
-                "creator_summary_detail",
+                LegacyAuditParityReportFamily.PrescreenPreparerSummaryDetail,
+                "preparer_summary_detail",
                 "R5",
                 continuation: true),
             Counted(
@@ -490,79 +490,79 @@ internal static class LegacyAuditParityReportMetrics
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperCover,
                 "cover",
-                WorkpaperSheetCatalog.Cover),
+                WorkingPaperSheetCatalog.Cover),
             Fixed(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperIntro,
                 "intro",
-                WorkpaperSheetCatalog.Intro),
+                WorkingPaperSheetCatalog.Intro),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperCompleteness,
                 "completeness",
-                WorkpaperSheetCatalog.Step1,
+                WorkingPaperSheetCatalog.Step1,
                 continuation: true),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperUnbalancedVouchers,
                 "unbalanced_vouchers",
-                WorkpaperSheetCatalog.Step11,
+                WorkingPaperSheetCatalog.Step11,
                 continuation: true),
             Counted(
                 LegacyReportKind.WorkingPaper,
-                LegacyAuditParityReportFamily.WorkingPaperCreatorSummary,
-                "creator_summary",
-                WorkpaperSheetCatalog.Step12,
+                LegacyAuditParityReportFamily.WorkingPaperPreparerSummary,
+                "preparer_summary",
+                WorkingPaperSheetCatalog.Step12,
                 continuation: true),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperCompletenessDifference,
                 "completeness_difference",
-                WorkpaperSheetCatalog.Step13,
+                WorkingPaperSheetCatalog.Step13,
                 continuation: true),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperReliability,
                 "reliability",
-                WorkpaperSheetCatalog.Step2),
+                WorkingPaperSheetCatalog.Step2),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperRiskConditionSummary,
                 "risk_condition_summary",
-                WorkpaperSheetCatalog.Step3),
+                WorkingPaperSheetCatalog.Step3),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperRiskVoucherMatrix,
                 "risk_voucher_matrix",
-                WorkpaperSheetCatalog.Step4,
+                WorkingPaperSheetCatalog.Step4,
                 continuation: true),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperRiskVoucherDetail,
                 "risk_voucher_detail",
-                WorkpaperSheetCatalog.Step41,
+                WorkingPaperSheetCatalog.Step41,
                 continuation: true),
             Fixed(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperPostCloseAdjustments,
                 "post_close_adjustments",
-                WorkpaperSheetCatalog.Step5),
+                WorkingPaperSheetCatalog.Step5),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperFieldInfo,
                 "field_info",
-                WorkpaperSheetCatalog.FieldInfo),
+                WorkingPaperSheetCatalog.FieldInfo),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperCalendarInfo,
                 "calendar_info",
-                WorkpaperSheetCatalog.CalendarInfo,
+                WorkingPaperSheetCatalog.CalendarInfo,
                 continuation: true),
             Counted(
                 LegacyReportKind.WorkingPaper,
                 LegacyAuditParityReportFamily.WorkingPaperAccountMapping,
                 "account_mapping",
-                WorkpaperSheetCatalog.AccountMapping,
+                WorkingPaperSheetCatalog.AccountMapping,
                 continuation: true),
         };
 

@@ -41,7 +41,7 @@ public sealed class ActiveProjectSnapshotTests
 
         Assert.Equal(["case-a"], sqlitePages.ProjectIds);
         Assert.Empty(duckDbPages.ProjectIds);
-        Assert.Equal("case-a", response.GetProperty("rows")[0].GetProperty("accountCode").GetString());
+        Assert.Equal("case-a", response.GetProperty("rows")[0].GetProperty("accountNumber").GetString());
 
         // 之後的新查詢才用案件 B 與它的資料庫組。
         await handler.HandleAsync(EmptyPayload(), CancellationToken.None);

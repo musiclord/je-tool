@@ -5,9 +5,9 @@ using static JET.Tests.Application.TaiwanSmeScenarioSupport;
 
 namespace JET.Tests.Application;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
 /// 台灣中小企業年度查核（查核期間 2025-01-01 到 2025-12-31）的 GL 範圍、GL 與 TB 完整性、
@@ -47,18 +47,18 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         // 匯入 12 列：P1 到 P6 各兩列。
         Assert.Equal(12, population.GetProperty("raw").GetProperty("rowCount").GetInt64());
         // GL 只有期間內的 P2、P3、P6，共 6 列、3 張傳票。
-        Assert.Equal(6, population.GetProperty("effective").GetProperty("rowCount").GetInt64());
-        Assert.Equal(3, population.GetProperty("effective").GetProperty("voucherCount").GetInt64());
+        Assert.Equal(6, population.GetProperty("gl").GetProperty("rowCount").GetInt64());
+        Assert.Equal(3, population.GetProperty("gl").GetProperty("voucherCount").GetInt64());
         // GL(未納入測試) 是 P1、P4（期外）與 P5（日期空白）共 6 列，全部因期間排除（日期空白先於期間判斷，同屬期間原因）。
         Assert.Equal(6, population.GetProperty("excluded").GetProperty("rowCount").GetInt64());
         Assert.Equal(6, population.GetProperty("excluded").GetProperty("byPeriodCount").GetInt64());
         Assert.Equal(0, population.GetProperty("excluded").GetProperty("byPostingStatusCount").GetInt64());
-        // 來源品質只有總帳日期空白一類：P5 兩列；P1、P4 是期外，不屬這一類。
+        // 總帳日期空白的只有 P5 兩列；P1、P4 是期外，不屬這一類。
         Assert.Equal(2, validation.GetProperty("sourceQuality").GetProperty("findingCount").GetInt64());
         // P4、P5 不平，但都不在 GL，所以不平傳票為 0 張。
-        Assert.Equal(0, validation.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
+        Assert.Equal(0, validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
         // 摘要空白：GL 內只有 P6 第 2 列；P1、P4 的空白摘要在期外，不計。
-        Assert.Equal(1, validation.GetProperty("nullRecordsTest").GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(1, validation.GetProperty("blankRecordsTest").GetProperty("nullDescriptionCount").GetInt64());
 
         var gl = await host.DispatchAsync("query.dataPreview", """{"dataset":"gl"}""");
         // GL 預覽 6 列，傳票號碼依序為 P2、P2、P3、P3、P6、P6。
@@ -79,9 +79,9 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
 
         // 總帳日期條件放寬到 2024-12-01 至 2026-01-31，仍只會選到 GL 內的 P2、P3、P6 共 6 列。
         var wideDate = OneRule("寬鬆日期區間",
-            """{"type":"fieldValue","field":"postDate","operator":"between","from":"2024-12-01","to":"2026-01-31"}""");
+            """{"type":"fieldValue","field":"glDate","operator":"between","from":"2024-12-01","to":"2026-01-31"}""");
         // 總帳日期空白的列不在 GL，所以「總帳日期空白」條件在 GL 中是 0 筆。
-        var blankDate = OneRule("總帳日期空白", """{"type":"fieldValue","field":"postDate","operator":"isBlank"}""");
+        var blankDate = OneRule("總帳日期空白", """{"type":"fieldValue","field":"glDate","operator":"isBlank"}""");
         Assert.Equal((0L, 0L), await PreviewAsync(host, blankDate));
         var hits = await CommitAndReadHitsAsync(host,
             OneRule("摘要含調整", """{"type":"fieldValue","field":"description","operator":"contains","values":["調整"]}"""), wideDate);
@@ -156,22 +156,22 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         // 與 TB 變動逐一比較，只有 1104 不同：TB −21,500，GL −31,500，差異（TB − GL）+10,000。
         Assert.Equal(1, completeness.GetProperty("diffAccountCount").GetInt64());
         var diff = Assert.Single(completeness.GetProperty("diffAccounts").EnumerateArray());
-        Assert.Equal("1104", diff.GetProperty("accountCode").GetString());
+        Assert.Equal("1104", diff.GetProperty("accountNumber").GetString());
         Assert.Equal(-21500m, diff.GetProperty("tbAmount").GetDecimal());
         Assert.Equal(-31500m, diff.GetProperty("glAmount").GetDecimal());
         Assert.Equal(10000m, diff.GetProperty("diff").GetDecimal());
         Assert.False(diff.GetProperty("notInTb").GetBoolean());
         // 存下的分錄與確認配對時算出的筆數、合計一致。
-        Assert.True(completeness.GetProperty("partA").GetProperty("rowCountMatch").GetBoolean());
-        Assert.True(completeness.GetProperty("partA").GetProperty("amountMatch").GetBoolean());
-        // 有差異仍可繼續後續步驟（2026-09-17 裁定）。
+        Assert.True(completeness.GetProperty("storedTotals").GetProperty("rowCountMatch").GetBoolean());
+        Assert.True(completeness.GetProperty("storedTotals").GetProperty("amountMatch").GetBoolean());
+        // 有差異仍可繼續後續步驟（裁定 2026-09-17-01）。
         Assert.True(completeness.GetProperty("eligibility").GetProperty("isEligible").GetBoolean());
         // 每張傳票借貸相等：J1 105,000 = 100,000 + 5,000；J3 42,000 = 40,000 + 2,000；J4 31,500；J5 5,000 = 3,500 + 1,500；J8 52,500。
-        Assert.Equal(0, validation.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
+        Assert.Equal(0, validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
 
         var page = await host.DispatchAsync("query.completenessDiffPage", """{"pageSize":200}""");
         // 差異分頁也只列 1104 一個科目。
-        Assert.Equal(new[] { "1104" }, page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("accountCode").GetString()));
+        Assert.Equal(new[] { "1104" }, page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("accountNumber").GetString()));
     }
 
     [Theory]
@@ -206,15 +206,15 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
                 .AddRow("6112", "租金支出", 7300));
 
         var validation = await host.DispatchAsync("validate.run");
-        var balance = validation.GetProperty("docBalanceTest");
+        var balance = validation.GetProperty("voucherBalanceTest");
         // 不平傳票只算有號碼的 U2、U4；三筆空白號碼的分錄不合成一張傳票。
-        Assert.Equal(2, balance.GetProperty("unbalancedDocumentCount").GetInt64());
+        Assert.Equal(2, balance.GetProperty("unbalancedVoucherCount").GetInt64());
         Assert.Equal(new[] { ("U2", 5000m, 4500m, 500m), ("U4", 800m, 700m, 100m) },
-            balance.GetProperty("unbalancedDocuments").EnumerateArray()
-                .Select(row => (row.GetProperty("documentNumber").GetString()!, row.GetProperty("debit").GetDecimal(),
+            balance.GetProperty("unbalancedVouchers").EnumerateArray()
+                .Select(row => (row.GetProperty("voucherNumber").GetString()!, row.GetProperty("debit").GetDecimal(),
                     row.GetProperty("credit").GetDecimal(), row.GetProperty("diff").GetDecimal()))
                 .OrderBy(row => row.Item1, StringComparer.Ordinal));
-        var nulls = validation.GetProperty("nullRecordsTest");
+        var nulls = validation.GetProperty("blankRecordsTest");
         // 科目空白：U3 第 2 列、U4 第 1 列、X3，共 3 列。
         Assert.Equal(3, nulls.GetProperty("nullAccountCount").GetInt64());
         // 傳票號碼空白：X1、X2、X3，共 3 列。
@@ -227,20 +227,20 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         // 空白科目在 GL 合計 −2,000 + 800 + 50 = −1,150，TB 沒有這一列；差異 0 − (−1,150) = +1,150。其他科目都一致。
         Assert.Equal(1, completeness.GetProperty("diffAccountCount").GetInt64());
         var blankAccount = Assert.Single(completeness.GetProperty("diffAccounts").EnumerateArray());
-        Assert.True(string.IsNullOrEmpty(blankAccount.GetProperty("accountCode").GetString()));
+        Assert.True(string.IsNullOrEmpty(blankAccount.GetProperty("accountNumber").GetString()));
         Assert.Equal(0m, blankAccount.GetProperty("tbAmount").GetDecimal());
         Assert.Equal(-1150m, blankAccount.GetProperty("glAmount").GetDecimal());
         Assert.Equal(1150m, blankAccount.GetProperty("diff").GetDecimal());
         Assert.True(blankAccount.GetProperty("notInTb").GetBoolean());
 
-        var docPage = await host.DispatchAsync("query.docBalancePage", """{"pageSize":200}""");
+        var docPage = await host.DispatchAsync("query.voucherBalancePage", """{"pageSize":200}""");
         // 不平傳票分頁同樣只有 U2、U4。
         Assert.Equal(new[] { "U2", "U4" }, docPage.GetProperty("rows").EnumerateArray()
-            .Select(row => row.GetProperty("documentNumber").GetString()).Order(StringComparer.Ordinal));
+            .Select(row => row.GetProperty("voucherNumber").GetString()).Order(StringComparer.Ordinal));
 
         var noRevenue = OneRule("整張傳票沒有收入科目",
-            """{"type":"voucher","quantifier":"none","rules":[{"type":"fieldValue","field":"accNum","operator":"in","values":["4111"]}]}""");
-        var blankAccountRule = OneRule("科目空白", """{"type":"fieldValue","field":"accNum","operator":"isBlank"}""");
+            """{"type":"voucher","quantifier":"none","conditions":[{"type":"fieldValue","field":"accountNumber","operator":"in","values":["4111"]}]}""");
+        var blankAccountRule = OneRule("科目空白", """{"type":"fieldValue","field":"accountNumber","operator":"isBlank"}""");
         var hits = await CommitAndReadHitsAsync(host, noRevenue, blankAccountRule);
         // 「整張傳票不存在收入科目」：U2、U3、U4 沒有 4111，列出各自兩列；空白號碼不屬於任何傳票，一律不成立。
         Assert.Equal(Keys("U2:1,2;U3:1,2;U4:1,2"), hits[0]);
@@ -254,7 +254,7 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "TW-SME-2025",
-            entityName = "合成中小企業",
+            clientName = "合成中小企業",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",
@@ -306,12 +306,12 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         {
             mapping = new Dictionary<string, string>
             {
-                ["accNum"] = "科目代號",
-                ["accName"] = "科目名稱",
-                ["openingDebit"] = "期初借",
-                ["openingCredit"] = "期初貸",
-                ["closingDebit"] = "期末借",
-                ["closingCredit"] = "期末貸"
+                ["accountNumber"] = "科目代號",
+                ["accountName"] = "科目名稱",
+                ["openingDebitBalance"] = "期初借",
+                ["openingCreditBalance"] = "期初貸",
+                ["closingDebitBalance"] = "期末借",
+                ["closingCreditBalance"] = "期末貸"
             },
             changeMode = "openCloseBySide"
         }));

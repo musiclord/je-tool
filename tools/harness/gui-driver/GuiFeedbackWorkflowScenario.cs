@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
-// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+// Selectors follow the verified frontend contracts.
 
 internal static partial class GuiScenarios
 {
@@ -27,14 +27,14 @@ internal static partial class GuiScenarios
                 if (waited.Elapsed > TimeSpan.FromSeconds(5))
                 {
                     // 條件不成立時記下畫面當時的狀態，下一次失敗才看得出是操作沒開始、被取消，還是停在對話框。
-                    // 2026-10-16 完整 Gui 在 feedback_difference_workpaper_export 失敗一次，當時只記到 ok:false，查不出原因；
+                    // 2026-10-16 完整 Gui 在 feedback_difference_working_paper_export 失敗一次，當時只記到 ok:false，查不出原因；
                     // 單跑五次與再跑一次完整 Gui 都通過。只記合成案件的狀態與訊息，不讀檔案。
                     outcome.LastFilterProbe = await cdp.EvaluateAsync("(()=>{var s=window.JetStore.getState();return {step:s.currentStepIndex,busy:s.busy," +
                         "staleFilter:s.staleState.filter,stalePrescreen:s.staleState.prescreen,completion:!!document.querySelector('.completion')," +
-                        "artifacts:JSON.stringify(s.reportArtifacts.map(a=>[a.kind,a.validationRunId,a.scenarioRevision,a.scenarioPositions,a.stale]))," +
-                        "validateRun:s.lastRuns.validate&&s.lastRuns.validate.resultRef&&s.lastRuns.validate.resultRef.runId,revision:s.filterResultRef&&s.filterResultRef.revision," +
+                        "reports:JSON.stringify(s.reports.map(a=>[a.kind,a.validationResultId,a.scenarioRevision,a.scenarioPositions,a.stale]))," +
+                        "validateRun:s.results.validate&&s.results.validate.resultRef&&s.results.validate.resultRef.resultId,revision:s.filterResultRef&&s.filterResultRef.revision," +
                         "dialog:Array.from(document.querySelectorAll('.modal:not([hidden]) [role=dialog],dialog[open]')).map(e=>e.textContent).join(' | '),messages:Array.from(document.querySelectorAll('[data-bind=message-list] li')).slice(-4).map(e=>e.textContent).join(' | ')," +
-                        "exportButton:!!document.querySelector('[data-action=export-workpaper]'),exportDisabled:(document.querySelector('[data-action=export-workpaper]')||{}).disabled};})()", ct);
+                        "exportButton:!!document.querySelector('[data-action=export-working-paper]'),exportDisabled:(document.querySelector('[data-action=export-working-paper]')||{}).disabled};})()", ct);
                     throw new GuiCheckException(phase);
                 }
                 await Task.Delay(100, ct);
@@ -60,12 +60,12 @@ internal static partial class GuiScenarios
         await Check("feedback_mapping_completed", "!!state.mapping.gl.committed && document.querySelector('.mapping-summary__status').textContent.includes('已確認配對') && !!document.querySelector('[data-action=remap-gl]')");
         await Click(GlSection + "[data-action=remap-gl]");
         await Check("feedback_manual_mapping_only", "!document.querySelector('[data-action=suggest-gl]') && !!document.querySelector('.map-layout')");
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=manual]", "傳票號碼", outcome, ct);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=isManual]", "傳票號碼", outcome, ct);
         await Click("[data-action=load-manual-profile]");
         await Idle();
         await WaitForProbeAsync(cdp, process, "({ready:document.querySelectorAll('[data-manual-assign]').length>=30})",
             value => value, value => ReadBoolean(value, "ready"), "feedback_value_profile_missing", ct);
-        // C7 U59: the last row can land at the same boundary after focus() even without
+        // The last row can land at the same boundary after focus() even without
         // scroll preservation. Use an interior row, then move it away from centre.
         // Mutation receipt 20261004-080334931-4da41b0e73a04078bfc28ceca6901258
         // showed the old boundary-only assertion could falsely pass.
@@ -74,7 +74,7 @@ internal static partial class GuiScenarios
             var selector = $".value-assign:nth-child({offset}) [data-manual-assign][value=manual]";
             // 失敗時記下蓋住這一列的是什麼、GL 與 TB 兩區的位置、還在播的動畫與視窗是否在前景
             // （2026-10-14 四次實跑有兩次被下面的 TB 區蓋住，無頭 Edge 重現不出來）。
-            // 預篩選收斂計畫階段八（2026-10-24）：產品改成讀取來源值後焦點交給讀出的清單，清單留在畫面裡，
+            // 2026-10-24 起產品改成讀取來源值後焦點交給讀出的清單，清單留在畫面裡，
             // 2026-10-14 先把清單捲回畫面的繞法拿掉，直接找清單裡的這一列。
             // 2026-10-28 完整 Gui 在這裡被蓋住一次，查到原因在 FindControlPointAsync 只量一次就送滾輪，已在那裡改成量到兩次一樣才捲。
             JsonElement point;
@@ -114,7 +114,7 @@ internal static partial class GuiScenarios
             await ChooseOptionAsync(cdp, process, "[data-account-bulk-category]", category, outcome, ct);
         }
         var originalCategory = (await cdp.EvaluateAsync("document.querySelector('[data-account-current]').getAttribute('data-category-id')", ct)).GetString()!;
-        await Check("feedback_account_default_view", "!document.querySelector('[data-taxonomy-label]') && !!document.querySelector('[data-account-save]')");
+        await Check("feedback_account_default_view", "!document.querySelector('[data-category-label]') && !!document.querySelector('[data-account-save]')");
         await Check("feedback_account_header_alignment", "(()=>{var l=document.querySelector('.account-editor__select-all'),a=l.querySelector('input').getBoundingClientRect(),b=l.querySelector('span').getBoundingClientRect();return b.left>=a.right+4 && Math.abs((a.top+a.bottom)/2-(b.top+b.bottom)/2)<2;})()");
         // Real pointer capture and click suppression, not synthetic change events.
         await FindControlPointAsync(cdp, process, "[data-account-select='1']", ct);
@@ -135,7 +135,7 @@ internal static partial class GuiScenarios
         var scrollProbe = await cdp.EvaluateAsync("(()=>{var t=document.querySelector('.account-editor__table'),r=t.getBoundingClientRect();return {y:Math.min(r.bottom,innerHeight-30)-5,scroll:t.scrollTop};})()", ct);
         outcome.RecordAction();
         await cdp.DragAsync(ReadDouble(dragStart, "x"), ReadDouble(dragStart, "y"), ReadDouble(dragStart, "x"), ReadDouble(scrollProbe, "y"), ct, holdMilliseconds: 600);
-        // 使用者 2026-10-09 裁定科目清單每頁 50 個；2026-10-16 改成明細一律每頁至多 200 筆（資料表分頁與 Agent 文件整理計畫），
+        // 科目清單原本每頁 50 個；裁定 2026-10-16-03 改成明細一律每頁至多 200 筆，
         // 這裡的上限跟著改成 200（第一次失敗收據 20261019-164752787-b26dc7814b724f918fab4e67b9494650）。按住 0.6 秒能捲多遠看畫面更新的速度，可能捲到底、整頁都選了，
         // 所以「全選本頁」要和實際選取一致：整頁都選是全選，否則是部分選取（2026-10-14 實跑整頁全選，
         // 收據 20261014-071836346-5f284f26ccaa4447a4e019c23e1b53e4）。
@@ -151,9 +151,9 @@ internal static partial class GuiScenarios
         await Click("[data-account-apply]");
         await Click("[data-action=toggle-account-excel]");
         await Check("feedback_excel_exclusive", "!!document.querySelector('[data-bind=account-mapping-card]') && !document.querySelector('[data-bind=account-editor]')");
-        await Click("[data-action=toggle-taxonomy]");
-        await Check("feedback_settings_exclusive", "!!document.querySelector('[data-bind=account-taxonomy-card]') && !document.querySelector('[data-bind=account-editor]') && !document.querySelector('[data-bind=account-mapping-card]')");
-        await Click("[data-action=toggle-taxonomy]");
+        await Click("[data-action=toggle-category]");
+        await Check("feedback_settings_exclusive", "!!document.querySelector('[data-bind=account-category-card]') && !document.querySelector('[data-bind=account-editor]') && !document.querySelector('[data-bind=account-mapping-card]')");
+        await Click("[data-action=toggle-category]");
         await Check("feedback_settings_return_method", "document.querySelector('#account-method-excel').getAttribute('aria-selected')==='true'");
         await Click("[data-action=select-account-jet]");
         await Check("feedback_method_preserves_draft", "document.querySelector('[data-account-current]').getAttribute('data-category-id')==='builtin.others' && !document.querySelector('[data-account-save]').disabled");
@@ -165,30 +165,30 @@ internal static partial class GuiScenarios
         await Click("[data-account-save]");
         await Idle();
         await Check("feedback_account_saved", "document.querySelector('.account-editor__notice').textContent.includes('已儲存') && document.querySelector('[data-account-current]').getAttribute('data-category-id')==='builtin.others'");
-        await Click("[data-action=toggle-taxonomy]");
-        await Click("[data-action=add-taxonomy-category]");
-        const string label = "[data-taxonomy-label^=draft-]";
+        await Click("[data-action=toggle-category]");
+        await Click("[data-action=add-category]");
+        const string label = "[data-category-label^=draft-]";
         await Click(label);
         outcome.RecordAction();
         await cdp.TypeTextAsync("BANK", ct);
-        await Check("feedback_taxonomy_continuous_typing", "document.activeElement.matches('[data-taxonomy-label]') && document.activeElement.value==='BANK' && !document.querySelector('[data-action=save-taxonomy]').disabled");
+        await Check("feedback_category_continuous_typing", "document.activeElement.matches('[data-category-label]') && document.activeElement.value==='BANK' && !document.querySelector('[data-action=save-category]').disabled");
         await PressKeyAsync(cdp, "ArrowLeft", outcome, ct);
         await PressKeyAsync(cdp, "Backspace", outcome, ct);
         outcome.RecordAction(); await cdp.TypeTextAsync("n", ct);
-        await Check("feedback_taxonomy_caret_edit", "document.activeElement.value==='BAnK' && document.activeElement.selectionStart===3");
-        await Click("[data-action=reset-taxonomy]");
-        await Check("feedback_taxonomy_cancel", "!document.querySelector('[data-taxonomy-label^=draft-]')");
-        await Click("[data-action=add-taxonomy-category]");
+        await Check("feedback_category_caret_edit", "document.activeElement.value==='BAnK' && document.activeElement.selectionStart===3");
+        await Click("[data-action=reset-category]");
+        await Check("feedback_category_cancel", "!document.querySelector('[data-category-label^=draft-]')");
+        await Click("[data-action=add-category]");
         await Click(label);
         outcome.RecordAction(); await cdp.TypeTextAsync("SYNTHETIC", ct);
         outcome.RecordAction(); await cdp.TypeSyntheticCompositionAsync(ct);
-        await Check("feedback_taxonomy_composition", "document.activeElement.matches('[data-taxonomy-label]') && document.activeElement.value==='SYNTHETIC銀行'");
-        await Click("[data-action=save-taxonomy]");
+        await Check("feedback_category_composition", "document.activeElement.matches('[data-category-label]') && document.activeElement.value==='SYNTHETIC銀行'");
+        await Click("[data-action=save-category]");
         await Idle();
-        await Check("feedback_taxonomy_saved", "state.taxonomy.categories.some(c=>c.label==='SYNTHETIC銀行') && !state.lastRuns.prescreen && !state.filter.preview");
+        await Check("feedback_category_saved", "state.accountCategory.categories.some(c=>c.label==='SYNTHETIC銀行') && !state.results.prescreen && !state.filter.preview");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-bind=step-nav] [data-step-index='3']");
-        await Check("feedback_taxonomy_return", "Array.from(document.querySelectorAll('[data-taxonomy-label]')).some(e=>e.value==='SYNTHETIC銀行')");
+        await Check("feedback_category_return", "Array.from(document.querySelectorAll('[data-category-label]')).some(e=>e.value==='SYNTHETIC銀行')");
         await Click("[data-action=app-back-picker]");
         await Idle();
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
@@ -203,9 +203,9 @@ internal static partial class GuiScenarios
         await Click("[data-account-apply]");
         await Click("[data-account-save]");
         await Idle();
-        await Click("[data-action=toggle-taxonomy]");
-        await Check("feedback_taxonomy_reopen", "state.taxonomy.categories.some(c=>c.label==='SYNTHETIC銀行') && Array.from(document.querySelectorAll('[data-taxonomy-label]')).some(e=>e.value==='SYNTHETIC銀行')");
-        await FindControlPointAsync(cdp, process, "[data-action=add-taxonomy-category]", ct);
+        await Click("[data-action=toggle-category]");
+        await Check("feedback_category_reopen", "state.accountCategory.categories.some(c=>c.label==='SYNTHETIC銀行') && Array.from(document.querySelectorAll('[data-category-label]')).some(e=>e.value==='SYNTHETIC銀行')");
+        await FindControlPointAsync(cdp, process, "[data-action=add-category]", ct);
         await CaptureScreenshotAsync(cdp, outcome, ct);
         await Click("[data-action=run-prescreen]");
         await Idle();
@@ -224,7 +224,7 @@ internal static partial class GuiScenarios
         // 以實際 TB 下拉選單建立非零差異，再走驗證、篩選、匯出、返回與重開。
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await Click("[data-bind=mapping-tb] [data-action=remap-tb]");
-        await ChooseOptionAsync(cdp, process, "[data-bind=mapping-tb] [data-mapping-key=debitAmt]",
+        await ChooseOptionAsync(cdp, process, "[data-bind=mapping-tb] [data-mapping-key=debitAmount]",
             "期初餘額", outcome, ct);
         await Click("[data-bind=mapping-tb] [data-action=commit-tb]");
         await Idle();
@@ -232,27 +232,27 @@ internal static partial class GuiScenarios
         await Click("[data-action=run-validate]");
         await Idle();
         await Check("feedback_difference_does_not_block",
-            "state.lastRuns.validate.completenessTest.diffAccountCount>0 && state.lastRuns.validate.completenessTest.eligibility.isEligible && !!state.lastRuns.validate.completenessTest.eligibility.warning && window.JetUi.stepGate(state,4).ok && document.querySelector('[data-action=run-prescreen]').disabled===false");
+            "state.results.validate.completenessTest.diffAccountCount>0 && state.results.validate.completenessTest.eligibility.isEligible && !!state.results.validate.completenessTest.eligibility.warning && window.JetUi.stepGate(state,4).ok && document.querySelector('[data-action=run-prescreen]').disabled===false");
         await Click("[data-action=run-prescreen]");
         await Idle();
         await Click("[data-bind=step-nav] [data-step-index='4']");
         // 這個 seed 只有已驗證資料，沒有已保存情境；先透過畫面真正建立情境再匯出。
         // 範例在「常用篩選條件」分頁下半的「情境範例」；2026-10-29 以前收在「從範例開始」。
-        // 前面重新確認了 TB 欄位配對，依使用者 2026-10-08 裁定科目配對跟著清除，需要科目分類的「借現金、貸非現金」範例因此停用
+        // 前面重新確認了 TB 欄位配對，依裁定 2026-10-08-12 科目配對跟著清除，需要科目分類的「借現金、貸非現金」範例因此停用
         // （2026-10-14 實跑查到）。這裡只需要一個能存的情境，改用不依賴任何配對的「金額大於 100」。
         await AddCustomConditionAsync(cdp, "field:amount", Click, ct);
         await ChooseOptionAsync(cdp, process, ".rule-row [data-value-kind]", "above", outcome, ct);
         await Click(".rule-row [data-value-key=\"value\"]");
         outcome.RecordAction(); await cdp.TypeTextAsync("100", ct);
-        await Check("feedback_difference_scenario_ready", "state.filter.draft.groups[0].rules[0].operator==='greaterThan' && state.filter.draft.groups[0].rules[0].value==='100'");
+        await Check("feedback_difference_scenario_ready", "state.filter.draft.groups[0].conditions[0].operator==='greaterThan' && state.filter.draft.groups[0].conditions[0].value==='100'");
         await Click("[data-action=save-scenario]");
         await Idle();
         // 9/23：先直接匯出底稿，證明不必先產生條件篩選報告，再獨立補產該報告。
         await Click("[data-bind=step-nav] [data-step-index='5']");
-        await Click("[data-action=export-workpaper]");
+        await Click("[data-action=export-working-paper]");
         await Idle();
-        await Check("feedback_difference_workpaper_export",
-            "!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]}) && !state.reportArtifacts.some(a=>a.kind==='criteriaSelectionReport') && !!document.querySelector('.completion') && !state.staleState.filter && !state.staleState.prescreen");
+        await Check("feedback_difference_working_paper_export",
+            "!!window.JetUi.findCurrentReport(state,'workingPaper',{validationResultId:state.results.validate.resultRef.resultId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]}) && !state.reports.some(a=>a.kind==='criteriaSelectionReport') && !!document.querySelector('.completion') && !state.staleState.filter && !state.staleState.prescreen");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=saved]");
         await Click("[data-action=export-criteria-report]");
@@ -264,8 +264,8 @@ internal static partial class GuiScenarios
         await Idle();
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Check("feedback_difference_reopened",
-            "state.lastRuns.validate.completenessTest.diffAccountCount>0 && state.lastRuns.validate.completenessTest.eligibility.isEligible && window.JetUi.stepGate(state,4).ok && " +
-            "state.reportArtifacts.length>0 && state.reportArtifacts.every(a=>a.fullPath && a.fileName.includes('_20250101-20251231_')) && !document.querySelector('.report-artifact__path') && [...document.querySelectorAll('.report-artifact__meta')].some(e=>e.textContent.includes('建立時間：') && e.textContent.includes(' MB'))");
+            "state.results.validate.completenessTest.diffAccountCount>0 && state.results.validate.completenessTest.eligibility.isEligible && window.JetUi.stepGate(state,4).ok && " +
+            "state.reports.length>0 && state.reports.every(a=>a.fullPath && a.fileName.includes('_20250101-20251231_')) && !document.querySelector('.report-artifact__path, .report-item__path') && [...document.querySelectorAll('.report-item__meta')].some(e=>e.textContent.includes('建立時間：') && e.textContent.includes(' MB'))");
         outcome.Assertions.FeedbackWorkflowVerified = true;
         await Click("[data-action=app-exit]");
         outcome.Assertions.ExitRequested = true;

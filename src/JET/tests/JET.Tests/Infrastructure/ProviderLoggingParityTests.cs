@@ -3,7 +3,7 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -13,7 +13,7 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class ProviderLoggingParityTests
 {
-    // 第 9 批中低 14：首敗 20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
+    // 首敗 20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
     // 正式 batch 入口在 columns/counts 後，commit 前再查一次來源中繼資料；不在 staging 列迴圈內記事件。
     // SQL Server 沿用相同固定序列，本批僅編譯，未執行。
     private static readonly string[] ExpectedImportReplace =
@@ -22,8 +22,8 @@ public sealed class ProviderLoggingParityTests
         "sql.executed", "sql.executed", "sql.executed", "tx.commit", "import.milestone"
     ];
 
-    // GL 投影：begin → clear/select + lineID 未對應時的逐傳票編號 UPDATE(3 條一次性 SQL) →
-    // commit → projection milestone（逐列 INSERT/bulk 不記）。DualSpec 未對應 lineID 故含編號 UPDATE。
+    // GL 投影：begin → clear/select + lineItem 未對應時的逐傳票編號 UPDATE(3 條一次性 SQL) →
+    // commit → projection milestone（逐列 INSERT/bulk 不記）。DualSpec 未對應 lineItem 故含編號 UPDATE。
     private static readonly string[] ExpectedGlProjection =
     [
         "tx.begin", "sql.executed", "sql.executed", "sql.executed", "tx.commit", "projection.milestone"
@@ -32,10 +32,10 @@ public sealed class ProviderLoggingParityTests
     private static GlMappingSpec DualSpec() => new(
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc",
-            [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "acc",
-            [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc",
+            [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "acc",
+            [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "desc",
             [GlMappingKeys.DebitAmount] = "debit",
             [GlMappingKeys.CreditAmount] = "credit"
@@ -83,7 +83,7 @@ public sealed class ProviderLoggingParityTests
 
     private static void AssertLocalImportSourceQuery(RingBufferLoggerProvider diagnostic)
     {
-        // 預篩選收斂計畫階段六（使用者 2026-10-22 裁定）：每個來源多存欄名在第幾列，這一句查詢多讀 header_row。
+        // 裁定 2026-10-22-15 讓每個來源多存欄名在第幾列，這一句查詢多讀 header_row。
         // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
         const string expectedSourceQuery = """
             SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc, header_row

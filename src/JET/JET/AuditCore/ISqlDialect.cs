@@ -5,7 +5,7 @@ namespace JET.AuditCore;
 /// 週末判定（SQLite strftime ↔ SQL Server DATEPART）、不分大小寫包含
 /// （instr ↔ CHARINDEX）、轉大寫、主單位整數商、參數命名。取模、ABS、EXISTS、ISO 日期字串比較
 /// 皆共通，不進介面。新增 provider = 新增一個 ISqlDialect 實作
-/// + 一組 *FilterRunRepository / *PrescreenRunRepository 的 SELECT 骨架。
+/// + 一組 *FilterHitRepository / *PrescreenRunRepository 的 SELECT 骨架。
 /// </summary>
 public interface ISqlDialect
 {

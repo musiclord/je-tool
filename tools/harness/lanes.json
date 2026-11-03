@@ -38,12 +38,12 @@
       "*InfDirectTemplatePackageTests*",
       "*PrescreenDirectTemplatePackageTests*",
       "*ValidationDirectTemplatePackageTests*",
-      "*WorkpaperDirectTemplatePackageTests*",
-      "*ReportArtifactExportTests*",
-      "*ReportArtifactOpenXmlParityTests*",
+      "*WorkingPaperDirectTemplatePackageTests*",
+      "*ReportExportTests*",
+      "*ReportOpenXmlParityTests*",
       "*SixReportWorkflowJourneyTests*",
-      "*ReportArtifactTrustJourneyTests*",
-      "*ProjectReportArtifactStoreTests*",
+      "*ReportTrustJourneyTests*",
+      "*ProjectReportStoreTests*",
       "*EmbeddedReportTemplateFailureTests*"
     ],
     "excludedProfiles": [
@@ -162,7 +162,7 @@
         "name": "validation-auto-outputs",
         "timeoutSeconds": 240,
         "actionBudget": 8,
-        "expectedActionCount": 6,
+        "expectedActionCount": 7,
         "screenshotBudget": 1
       },
       {
@@ -208,7 +208,7 @@
         "screenshotBudget": 1
       },
       {
-        "name": "case-to-workpaper",
+        "name": "case-to-working-paper",
         "timeoutSeconds": 240,
         "actionBudget": 80,
         "expectedActionCount": 80,
@@ -255,7 +255,7 @@
     "driverProject": "tools/harness/excel-driver/ExcelDriver.csproj",
     "driverAssembly": "tools/harness/excel-driver/bin/Release/net10.0-windows/Jet.ExcelDriver.dll",
     "configuration": "Release",
-    "fixtureMethodPattern": "*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate*",
+    "fixtureMethodPattern": "*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate*",
     "fixtureEnvironmentVariable": "JET_SIX_REPORT_EVIDENCE_DIR",
     "scenario": "synthetic-report-roundtrip",
     "timeoutSeconds": 180,

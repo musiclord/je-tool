@@ -15,8 +15,8 @@ public sealed record ProjectionResult(
     /// <summary>完整來源的分組計數與有界樣本；舊呼叫端未提供時仍由 Errors 呈現。</summary>
     internal IReadOnlyList<ProjectionErrorGroupSummary>? ErrorGroups { get; init; }
 
-    /// <summary>GL 投影的有效母體控制總數；TB 投影及失敗結果維持 null。</summary>
-    public GlEffectivePopulationTotals? EffectivePopulation { get; init; }
+    /// <summary>GL 投影時記下的控制總數，只算納入測試的分錄；TB 投影及失敗結果維持 null。</summary>
+    public GlTotals? GlTotals { get; init; }
 
     /// <summary>
     /// 非阻斷的提交後提醒（投影已成功）。目前用於「必填文字欄整欄空白，疑似配錯欄」
@@ -25,23 +25,23 @@ public sealed record ProjectionResult(
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
     /// <summary>
-    /// GL 投影時依 <see cref="GlMappingOptions.FillDownFields"/> 把空白補成上一列值的格數（階段六）；
+    /// GL 投影時依 <see cref="GlMappingOptions.FillDownFields"/> 把空白補成上一列值的格數；
     /// 沒有勾選欄位、TB 投影及失敗結果都是 0。寫進配對確認的回應，審計員據此記在 CAATs 文件。
     /// </summary>
     public long FillDownCellCount { get; init; }
 }
 
 /// <summary>
-/// GL 投影同一交易內形成的互斥母體控制總數。RawRowCount 等於實際保留於 target 的列數；
-/// Effective + 兩類 exclusion 必須精確分割 raw。
+/// GL 投影在同一個交易裡算出的控制總數。PbcRowCount 是讀進來的 PBC-GL 列數，
+/// 等於 GlRowCount 加上兩種未納入原因的列數；借貸合計只算 GL，不含 GL(未納入測試)。
 /// </summary>
-public sealed record GlEffectivePopulationTotals(
-    long RawRowCount,
-    long EffectiveRowCount,
+public sealed record GlTotals(
+    long PbcRowCount,
+    long GlRowCount,
     long ExcludedByPeriodCount,
     long ExcludedByPostingStatusCount,
-    long EffectiveDebitScaled,
-    long EffectiveCreditScaled);
+    long GlDebitScaled,
+    long GlCreditScaled);
 
 /// <summary>staging → target 投影的非權威進度快照。</summary>
 public sealed record ProjectionProgress(long RowsProcessed);

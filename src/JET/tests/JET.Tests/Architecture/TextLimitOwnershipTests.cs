@@ -9,7 +9,7 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 文字長度與取樣數量的上限各只定義一次：400 字來自 <see cref="TextStorageLimits.TextUtf16CodeUnits"/>，
 /// 欄位值比對一次最多幾個來自 MappingValueProfileHandler；前端用具名常數鏡像，不把數字寫在用到的地方
-/// （技術債一輪，2026-10-22）。
+/// （裁定 2026-10-22-19：重複的常數全部收斂到一個定義）。
 /// </summary>
 public sealed class TextLimitOwnershipTests
 {
@@ -35,12 +35,12 @@ public sealed class TextLimitOwnershipTests
     {
         var rde = ProductSources.Product("Domain", "Contracts", "MappingMetadataContracts.cs");
         Assert.Contains("LabelUtf16CodeUnits = TextStorageLimits.TextUtf16CodeUnits;", rde, StringComparison.Ordinal);
-        var taxonomy = ProductSources.Product("Domain", "Contracts", "AccountTaxonomyContracts.cs");
-        Assert.Contains("MaxLabelLength = TextStorageLimits.TextUtf16CodeUnits;", taxonomy, StringComparison.Ordinal);
+        var categoryContracts = ProductSources.Product("Domain", "Contracts", "AccountCategoryContracts.cs");
+        Assert.Contains("MaxLabelLength = TextStorageLimits.TextUtf16CodeUnits;", categoryContracts, StringComparison.Ordinal);
 
         var core = ProductSources.Frontend("ui-core.js");
         Assert.Equal(GlRdeStorageLimits.LabelUtf16CodeUnits, ProductSources.FrontendInt(core, "RDE_MAX_LABEL_LENGTH"));
-        Assert.Equal(AccountTaxonomyInvariant.MaxLabelLength, ProductSources.FrontendInt(core, "TAXONOMY_MAX_LABEL_LENGTH"));
+        Assert.Equal(AccountCategoryInvariant.MaxLabelLength, ProductSources.FrontendInt(core, "CATEGORY_MAX_LABEL_LENGTH"));
         // 註解曾寫成不存在的 GlMappingOptionRules；鏡像的是 GlRdeStorageLimits。
         Assert.DoesNotContain("GlMappingOptionRules", core, StringComparison.Ordinal);
         Assert.Contains("GlRdeStorageLimits", core, StringComparison.Ordinal);

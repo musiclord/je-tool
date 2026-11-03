@@ -116,7 +116,7 @@ public sealed class SupportRingBufferLoggerProviderTests
     /// 訊息換成固定的安全句子，例外只留型別與堆疊位置。
     /// </summary>
     [Fact]
-    public void ProjectAuditWriteFailed_KeepsOnlyAllowedFieldsAndSafeMessage()
+    public void ProjectOperationWriteFailed_KeepsOnlyAllowedFieldsAndSafeMessage()
     {
         using var provider = new SupportRingBufferLoggerProvider(capacity: 8);
         using var factory = LoggerFactory.Create(builder =>
@@ -124,16 +124,16 @@ public sealed class SupportRingBufferLoggerProviderTests
             builder.SetMinimumLevel(LogLevel.Trace);
             builder.AddProvider(provider);
         });
-        var logger = factory.CreateLogger("JET.Tests.ProjectAudit");
+        var logger = factory.CreateLogger("JET.Tests.ProjectOperation");
         using var scope = logger.BeginScope(new Dictionary<string, object?>
         {
             ["file_path"] = @"C:\Secret\client.duckdb",
-            ["sql"] = "INSERT INTO audit_event_log VALUES ('secret')",
+            ["sql"] = "INSERT INTO operation_log VALUES ('secret')",
         });
 
-        ProjectAuditLogDiagnostics.WriteFailed(
+        ProjectOperationLogDiagnostics.WriteFailed(
             logger,
-            ProjectAuditOperations.ReportPublish,
+            ProjectOperations.ReportPublish,
             "append",
             new InvalidOperationException(@"secret message C:\Secret\client.duckdb"));
 
@@ -142,7 +142,7 @@ public sealed class SupportRingBufferLoggerProviderTests
         Assert.Equal("Warning", entry.Level);
         Assert.Equal("project operation record not written", entry.Message);
         Assert.Equal(new[] { "operation", "phase" }, entry.Fields.Keys.Order(StringComparer.Ordinal));
-        Assert.Equal(ProjectAuditOperations.ReportPublish, entry.Fields["operation"]);
+        Assert.Equal(ProjectOperations.ReportPublish, entry.Fields["operation"]);
         Assert.Equal("append", entry.Fields["phase"]);
 
         var line = SupportDiagnosticNdjson.SerializeLine(entry);
@@ -150,7 +150,7 @@ public sealed class SupportRingBufferLoggerProviderTests
         Assert.DoesNotContain("secret", line, StringComparison.Ordinal);
         Assert.DoesNotContain("client.duckdb", line, StringComparison.Ordinal);
         Assert.DoesNotContain(@"C:\Secret", line, StringComparison.Ordinal);
-        Assert.DoesNotContain("audit_event_log", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("operation_log", line, StringComparison.Ordinal);
     }
 
     [Fact]

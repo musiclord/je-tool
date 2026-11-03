@@ -10,7 +10,7 @@ namespace JET.Domain;
 /// 「鍵 → 中文標籤」與兩端共用的固定結構片語；括號、AND／OR 組合與各型別動態句型仍屬 renderer 邏輯。
 ///
 /// 覆蓋範圍＝條件型別顯示名，以及渲染器會用到的標籤表：預篩選鍵、文字比對模式、科目配對模式、
-/// 特殊科目配對模式、可篩選 GL 邏輯欄、非營業日原子，以及 sameVoucher／textSet 的固定結構片語。
+/// 特殊科目配對模式、可篩選 GL 邏輯欄、非營業日原子，以及 textSet 的固定結構片語。
 /// <see cref="PrescreenKeys"/> 與 <see cref="PrescreenRuleKeys.FilterableKeys"/> 都由
 /// <see cref="PrescreenRuleDefinitions"/> 衍生，鍵集合必然相同；新增逐筆規則時在登錄裡給中文標籤即可。
 /// </summary>
@@ -28,24 +28,19 @@ public static class FilterConditionLabels
             ["textSet"] = "文字值清單",
             ["numRange"] = "金額區間",
             ["dateRange"] = "日期區間",
-            ["customKeywords"] = "自訂關鍵字",
             ["drCrOnly"] = "借貸限定",
             ["manualAuto"] = "人工/自動",
-            ["customTrailingZeros"] = "金額尾數連續 0 的位數",
             ["accountPair"] = "借貸科目組合（看對方科目）",
             ["specialAccountCategoryPair"] = "借貸科目組合",
-            ["customPreparerEntryCount"] = "自訂編製人員分錄筆數",
-            ["customAccountEntryCount"] = "自訂科目分錄筆數",
             ["entityFrequency"] = "科目與人員統計",
-            ["group"] = "條件括號",
-            ["voucher"] = "傳票分錄條件",
+            ["group"] = "子條件組",
+            ["voucher"] = "整張傳票條件",
             ["typed"] = "攸關資料元素條件",
             ["fieldValue"] = "欄位值比較",
             ["accountSide"] = "借貸科目分類",
             ["revenueDebitNearQuarterEnd"] = "季末前借記收入",
             ["revenueWithoutNormalCounterpart"] = "收入無一般對方科目",
             ["manualRevenueEntry"] = "收入之人工分錄",
-            ["trailingDigits"] = "特定金額尾數",
             ["preparerEqualsApprover"] = "編製與核准同一人",
         };
 
@@ -114,20 +109,14 @@ public static class FilterConditionLabels
                 static field => field.MappingSlots.Single(static slot => slot.IncludeInFieldInfo).Label,
                 StringComparer.Ordinal);
 
-    /// <summary>排除補班日的非營業日條件括號讀回（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
+    /// <summary>排除補班日的非營業日子條件組讀回（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
     public const string NonBusinessDayAtom = "非營業日（排除補班日）";
-
-    /// <summary>sameVoucher 第一條規則的輸出列標籤（前端 read-back 鏡像）。</summary>
-    public const string SameVoucherOutputAnchor = "主要條件（決定符合條件的分錄）";
-
-    /// <summary>sameVoucher 後續規則的跨列佐證說明（前端 help／read-back 鏡像）。</summary>
-    public const string SameVoucherEvidenceExplanation = "後續條件可由同一傳票的其他分錄列符合";
 
     public const string TextSetContainsAny = "包含任一值";
 
     public const string TextSetExactAny = "完全符合任一值";
 
-    // 使用者 2026-10-14 第三輪勾選頁確認 R3-69：「ASCII 空白」改說半形空白。
+    // 裁定 2026-10-14-01 確認了用字：「ASCII 空白」改說半形空白。
     public const string TextSetPreserveAsciiSpaces = "保留半形空白";
 
     public const string TextSetRemoveAsciiSpaces = "移除半形空白";
@@ -159,21 +148,21 @@ public static class FilterConditionLabels
             ["lessThanOrEqual"] = "小於等於",
         };
 
-    /// <summary>typed money 條件 amountBasis 的讀回標籤。</summary>
+    /// <summary>typed amount 條件 amountBasis 的讀回標籤。</summary>
     public const string TypedSignedAmountBasis = "帶正負號金額";
 
     public const string TypedAbsoluteAmountBasis = "金額絕對值";
 
     /// <summary>
     /// 認不得的預篩選條件、比對方式、借貸組合方式或條件型別在讀回裡的寫法，不印程式代號
-    /// （使用者 2026-10-14 第三輪勾選頁確認 R3-03；前端 <c>RETIRED_CONDITION_LABEL</c> 同一句）。
+    /// （裁定 2026-10-14-01；前端 <c>RETIRED_CONDITION_LABEL</c> 同一句）。
     /// </summary>
     public const string RetiredCondition = "已停用的條件";
 
-    /// <summary>攸關資料元素欄位已不在欄位配對中時，讀回與標題寫的名稱（R3-03）。</summary>
+    /// <summary>攸關資料元素欄位已不在欄位配對中時，讀回與標題寫的名稱。</summary>
     public const string MissingRdeField = "已不在欄位配對中的攸關資料元素欄位";
 
-    /// <summary>認不得的 GL 欄位在讀回裡的名稱（R3-03）。</summary>
+    /// <summary>認不得的 GL 欄位在讀回裡的名稱。</summary>
     public const string MissingGlField = "已不存在的欄位";
 
     /// <summary>typed operator → 標籤；未登錄時寫 <see cref="RetiredCondition"/>，空白時不寫（同前端 <c>typedOperatorLabel</c>）。</summary>
@@ -201,11 +190,8 @@ public static class FilterConditionLabels
         key is not null && GlFields.TryGetValue(key, out var label) ? label : key ?? string.Empty;
 
     /// <summary>
-    /// 讀回裡的 GL 欄位名稱（前端 <c>glFieldReadback</c> 同構）：已移除的欄位寫「已移除的「名稱」」，
-    /// 名稱只在 <see cref="JetFieldCatalog.RetiredGlFieldLabels"/>；認不得的欄位寫 <see cref="MissingGlField"/>，不印程式代號（R3-03）。
+    /// 讀回裡的 GL 欄位名稱（前端 <c>glFieldReadback</c> 同構）：認不得的欄位寫 <see cref="MissingGlField"/>，不印程式代號。
     /// </summary>
     public static string GlFieldReadback(string? key) =>
-        key is not null && GlFields.TryGetValue(key, out var label) ? label
-        : key is not null && JetFieldCatalog.RetiredGlFieldLabels.TryGetValue(key, out var retired) ? "已移除的「" + retired + "」"
-        : MissingGlField;
+        key is not null && GlFields.TryGetValue(key, out var label) ? label : MissingGlField;
 }

@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 使用者 2026-10-21 要求只看「輸出支援日誌」的檔案就能定位問題。每個情境放合成敏感標記，只讀匯出檔，
+/// 只看「輸出支援日誌」的檔案就要能定位問題（裁定 2026-10-21-07）。每個情境放合成敏感標記，只讀匯出檔，
 /// 核對操作、輸入結構、處理步驟、結果版本、失敗原因、取消與重試串得起來，例外保留整條鏈與 JET 呼叫位置，
 /// 而且不含檔名、路徑、案件名稱或資料內容。
 /// </summary>
@@ -85,7 +85,7 @@ public sealed class SupportLogDiagnosisTests
         var id = await CreateAsync(host, provider, "Synthetic support load");
         await host.DispatchAsync("project.releaseLock");
         await File.WriteAllTextAsync(Path.Combine(host.ProjectsRoot, id, "project.json"),
-            "{\"entityName\":\"PRIVATE_ENTITY\",\"periodStart\":");
+            "{\"clientName\":\"PRIVATE_ENTITY\",\"periodStart\":");
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load",
             JsonSerializer.Serialize(new { projectId = id }), correlationId: "load-corrupt"));
 
@@ -111,20 +111,20 @@ public sealed class SupportLogDiagnosisTests
     public async Task ReportHeldOpen_LogNamesReportKindPublishStepAndTheOpenFile(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);
-        var prepared = await Batch9ArtifactStateTests.PrepareAsync(host, provider);
+        var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
-        var payload = JsonSerializer.Serialize(new { runId = prepared.ValidationRunId });
-        var first = await host.DispatchAsync("export.validationArtifacts", payload, correlationId: "report-first");
-        var report = first.GetProperty("artifacts").EnumerateArray()
+        var payload = JsonSerializer.Serialize(new { resultId = prepared.ValidationResultId });
+        var first = await host.DispatchAsync("export.validationReports", payload, correlationId: "report-first");
+        var report = first.GetProperty("publishedReports").EnumerateArray()
             .Single(item => item.GetProperty("kind").GetString() == "validationReport");
         // 審計員用 Excel 開著上一份報告：其他程式仍可讀，但不能覆蓋。
         using (File.Open(report.GetProperty("fullPath").GetString()!, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
             await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
-                "export.validationArtifacts", payload, correlationId: "report-held"));
+                "export.validationReports", payload, correlationId: "report-held"));
         }
 
-        await host.DispatchAsync("export.validationArtifacts", payload, correlationId: "report-retry");
+        await host.DispatchAsync("export.validationReports", payload, correlationId: "report-retry");
 
         var log = await ExportAsync(host, prepared.Id);
         var failure = Event(log, "action.error", "report-held");
@@ -135,13 +135,13 @@ public sealed class SupportLogDiagnosisTests
         Assert.Equal("5", Field(failure, "win32_error"));
         Assert.Equal("true", Field(failure, "final_in_use"));
         Assert.Equal("false", Field(failure, "final_read_only"));
-        Assert.Matches(@"at JET\.Infrastructure\.ProjectReportArtifactStore\.WriteBatchCoreAsync \+IL_[0-9A-F]{4}",
+        Assert.Matches(@"at JET\.Infrastructure\.ProjectReportStore\.WriteBatchCoreAsync \+IL_[0-9A-F]{4}",
             failure.GetProperty("exception").GetString());
         Assert.Equal("report-held", Field(Event(log, "action.start", "report-retry"), "retry_of"));
         var refs = Field(Event(log, "action.end", "report-retry"), "result_refs")!;
-        Assert.Matches(@"artifacts\[0\]\.artifactId=[0-9a-f]{32}", refs);
-        Assert.Contains("artifacts[0].kind=validationReport", refs, StringComparison.Ordinal);
-        Assert.Contains("artifacts[0].sourceRef.validationRunId=" + prepared.ValidationRunId, refs, StringComparison.Ordinal);
+        Assert.Matches(@"publishedReports\[0\]\.reportId=[0-9a-f]{32}", refs);
+        Assert.Contains("publishedReports[0].kind=validationReport", refs, StringComparison.Ordinal);
+        Assert.Contains("publishedReports[0].sourceRef.validationResultId=" + prepared.ValidationResultId, refs, StringComparison.Ordinal);
         AssertSafe(log, host, prepared.Id);
     }
 
@@ -177,16 +177,16 @@ public sealed class SupportLogDiagnosisTests
     {
         // changeMode 與 source 的值長得像代碼但不是該欄位認得的代碼；source 在 C# 端接受任意文字。
         using var document = JsonDocument.Parse("""
-            {"projectId":"PRIVATE_CASE","mapping":{"drCr":"DrCr","docNum":"PRIVATE_COLUMN"},"amountMode":"dual",
+            {"projectId":"PRIVATE_CASE","mapping":{"drCr":"DrCr","voucherNumber":"PRIVATE_COLUMN"},"amountMode":"dual",
              "changeMode":"PRIVATE_CODE","PRIVATE KEY":1,
              "scenarios":[{"name":"PRIVATE_NAME","source":"PRIVATE_SOURCE",
-               "groups":[{"rules":[{"type":"drCrOnly","drCr":"debit","value":"PRIVATE"},{"type":"keyword"}]}]}],
+               "groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit","value":"PRIVATE"},{"type":"keyword"}]}]}],
              "mode":"PRIVATE VALUE WITH SPACE","limit":10,"flag":true,"none":null}
             """);
 
         Assert.Equal(
-            "{mapping:{drCr:s,docNum:s},amountMode:\"dual\",changeMode:s,?:n,"
-            + "scenarios:[{name:s,source:s,groups:[{rules:[{type:\"drCrOnly\",drCr:\"debit\",value:s}*2]}*1]}*1],"
+            "{mapping:{drCr:s,voucherNumber:s},amountMode:\"dual\",changeMode:s,?:n,"
+            + "scenarios:[{name:s,source:s,groups:[{conditions:[{type:\"drCrOnly\",drCr:\"debit\",value:s}*2]}*1]}*1],"
             + "mode:s,limit:n,flag:true,none:null}",
             SupportPayloadShape.Describe(document.RootElement));
     }
@@ -195,11 +195,11 @@ public sealed class SupportLogDiagnosisTests
     public void ResultRefs_ReadsVersionsCountsAndStatesFromObjectsAndJsonWithoutText()
     {
         using var summary = JsonDocument.Parse("""
-            {"resultRef":{"runId":"run1","generatedUtc":"2026-10-21T00:00:00Z","logicVersion":"v3"},
-             "completeness":{"status":"pass","debitTotal":123456,"entityName":"PRIVATE"},"rows":[{"runId":"PRIVATE"}]}
+            {"resultRef":{"resultId":"run1","generatedUtc":"2026-10-21T00:00:00Z","logicVersion":"v3"},
+             "completeness":{"status":"pass","debitTotal":123456,"clientName":"PRIVATE"},"rows":[{"resultId":"PRIVATE"}]}
             """);
         Assert.Equal(
-            "resultRef.runId=run1;resultRef.logicVersion=v3;completeness.status=pass",
+            "resultRef.resultId=run1;resultRef.logicVersion=v3;completeness.status=pass",
             SupportResultRefs.Describe(summary.RootElement.Clone()));
 
         var response = new
@@ -210,12 +210,12 @@ public sealed class SupportLogDiagnosisTests
             fileName = "PRIVATE.xlsx",
             mapping = new Dictionary<string, string> { ["drCr"] = "PRIVATE" },
             staleState = new { validation = true, filter = false },
-            reportArtifacts = new[] { new { artifactId = "a0" }, new { artifactId = "a1" } },
-            artifacts = new[] { new { artifactId = "a2", kind = "infReport", fullPath = "C:\\PRIVATE\\x.xlsx" } },
+            reports = new[] { new { reportId = "a0" }, new { reportId = "a1" } },
+            publishedReports = new[] { new { reportId = "a2", kind = "infReport", fullPath = "C:\\PRIVATE\\x.xlsx" } },
         };
         Assert.Equal(
-            "batchId=b1;artifacts[0].artifactId=a2;rowCount=12;staleState.validation=true;staleState.filter=false;"
-            + "reportArtifacts=2;artifacts[0].kind=infReport",
+            "batchId=b1;publishedReports[0].reportId=a2;rowCount=12;staleState.validation=true;staleState.filter=false;"
+            + "reports=2;publishedReports[0].kind=infReport",
             SupportResultRefs.Describe(response));
     }
 
@@ -256,7 +256,7 @@ public sealed class SupportLogDiagnosisTests
     private static async Task<string> CreateAsync(HandlerTestHost host, string provider, string name)
     {
         var result = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
-        { caseName = name, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
+        { projectName = name, periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
         return result.GetProperty("projectId").GetString()!;
     }
 

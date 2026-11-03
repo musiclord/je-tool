@@ -15,11 +15,11 @@ public sealed class ProjectHandlersTests
         """
         {
           "projectCode": "ENG-2024-001",
-          "entityName": "範例股份有限公司",
+          "clientName": "範例股份有限公司",
           "operatorId": "auditor01",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31",
-          "lastPeriodStart": "2024-12-31"
+          "prepStartDate": "2024-12-31"
         }
         """;
 
@@ -95,7 +95,7 @@ public sealed class ProjectHandlersTests
     }
 
     [Fact]
-    public async Task Create_MissingOptionalEntityName_Succeeds()
+    public async Task Create_MissingOptionalClientName_Succeeds()
     {
         using var host = new HandlerTestHost();
 
@@ -115,26 +115,26 @@ public sealed class ProjectHandlersTests
             () => host.DispatchAsync(
                 "project.create",
                 """
-                { "projectCode": "X", "entityName": "E", "operatorId": "op",
+                { "projectCode": "X", "clientName": "E", "operatorId": "op",
                   "periodStart": "2024/01/01", "periodEnd": "2024-12-31" }
                 """));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 使用者 2026-10-19 要求前端不露出系統用詞：日期欄只送得出 yyyy-MM-dd，格式不對是程式送錯資料，訊息改為非預期錯誤那一句。
+        // 前端不露出系統用詞（裁定 2026-10-19-04）：日期欄只送得出 yyyy-MM-dd，格式不對是程式送錯資料，訊息改為非預期錯誤那一句。
         // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("payload_date_invalid", JetPayloadRejection.CheckOf(ex));
         Assert.Null(ex.Field);
     }
 
-    // ---- 案件名稱(caseName)→ projectId/資料夾名(2026-06-22);選填,未提供回退 GUID ----
+    // ---- 案件名稱(projectName)→ projectId/資料夾名(2026-06-22);選填,未提供回退 GUID ----
 
-    private const string CreateWithCaseName =
+    private const string CreateWithProjectName =
         """
         {
-          "caseName": "2025年度甲公司查核",
+          "projectName": "2025年度甲公司查核",
           "projectCode": "ENG-2024-001",
-          "entityName": "範例股份有限公司",
+          "clientName": "範例股份有限公司",
           "operatorId": "auditor01",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31"
@@ -142,11 +142,11 @@ public sealed class ProjectHandlersTests
         """;
 
     [Fact]
-    public async Task Create_WithCaseName_UsesItAsProjectIdAndFolderName()
+    public async Task Create_WithProjectName_UsesItAsProjectIdAndFolderName()
     {
         using var host = new HandlerTestHost();
 
-        var data = await host.DispatchAsync("project.create", CreateWithCaseName);
+        var data = await host.DispatchAsync("project.create", CreateWithProjectName);
 
         Assert.Equal("2025年度甲公司查核", data.GetProperty("projectId").GetString());
         Assert.True(File.Exists(
@@ -154,7 +154,7 @@ public sealed class ProjectHandlersTests
     }
 
     [Fact]
-    public async Task Create_WithoutCaseName_FallsBackToGuidProjectId()
+    public async Task Create_WithoutProjectName_FallsBackToGuidProjectId()
     {
         using var host = new HandlerTestHost();
 
@@ -164,30 +164,30 @@ public sealed class ProjectHandlersTests
     }
 
     [Fact]
-    public async Task Create_WithIllegalCaseName_ThrowsInvalidPayload()
+    public async Task Create_WithIllegalProjectName_ThrowsInvalidPayload()
     {
         using var host = new HandlerTestHost();
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync(
-                "project.create", CreateWithCaseName.Replace("2025年度甲公司查核", "壞/名稱")));
+                "project.create", CreateWithProjectName.Replace("2025年度甲公司查核", "壞/名稱")));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        Assert.Equal(JetErrorFields.CaseName, ex.Field);
+        Assert.Equal(JetErrorFields.ProjectName, ex.Field);
     }
 
     [Fact]
-    public async Task Create_DuplicateCaseName_ThrowsInvalidPayload()
+    public async Task Create_DuplicateProjectName_ThrowsInvalidPayload()
     {
         using var host = new HandlerTestHost();
 
-        await host.DispatchAsync("project.create", CreateWithCaseName);
+        await host.DispatchAsync("project.create", CreateWithProjectName);
         var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => host.DispatchAsync("project.create", CreateWithCaseName));
+            () => host.DispatchAsync("project.create", CreateWithProjectName));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
         Assert.Contains("已存在", ex.Message);
-        Assert.Equal(JetErrorFields.CaseName, ex.Field);
+        Assert.Equal(JetErrorFields.ProjectName, ex.Field);
     }
 
     /// <summary>
@@ -197,7 +197,7 @@ public sealed class ProjectHandlersTests
     /// 且落在不同 schema。oracle：SqlServerProjectSchema.For 衍生規格（兩 schema 必不相等）+ 兩 project.json 皆落地。
     /// </summary>
     [SqlServerFact]
-    public async Task Create_SqlServer_PreviouslyCollidingCaseNames_BothSucceedInDistinctSchemas()
+    public async Task Create_SqlServer_PreviouslyCollidingProjectNames_BothSucceedInDistinctSchemas()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -207,9 +207,9 @@ public sealed class ProjectHandlersTests
 
         using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
 
-        static string PayloadFor(string caseName) =>
+        static string PayloadFor(string projectName) =>
             $$"""
-            { "caseName": "{{caseName}}", "projectCode": "P", "entityName": "E", "operatorId": "op",
+            { "projectName": "{{projectName}}", "projectCode": "P", "clientName": "E", "operatorId": "op",
               "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "sqlServer" }
             """;
 
@@ -246,10 +246,10 @@ public sealed class ProjectHandlersTests
     // ---- 孤兒 schema 回歸（2026-07-07 實機回歸案例）：本機 projects/ 登記遺失、
     // SQL Server 單庫留下前一個 session 建的專案 schema 時,同名重建的兩種路徑 ----
 
-    /// <summary>組 caseName＋provider 的建案 payload(孤兒 schema 回歸兩測共用)。</summary>
-    private static string CaseNamePayload(string caseName, string provider) =>
+    /// <summary>組 projectName＋provider 的建案 payload(孤兒 schema 回歸兩測共用)。</summary>
+    private static string ProjectNamePayload(string projectName, string provider) =>
         $$"""
-        { "caseName": "{{caseName}}", "projectCode": "P", "entityName": "E", "operatorId": "op",
+        { "projectName": "{{projectName}}", "projectCode": "P", "clientName": "E", "operatorId": "op",
           "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "{{provider}}" }
         """;
 
@@ -260,7 +260,7 @@ public sealed class ProjectHandlersTests
     /// oracle:規格(manifest project.create 錯誤語意)。錯誤碼不變(wire 不變),只鎖訊息的孤兒關鍵詞。
     /// </summary>
     [SqlServerFact]
-    public async Task Create_SqlServerCaseNameHitsOrphanSchema_ThrowsInvalidPayloadWithOrphanMessage()
+    public async Task Create_SqlServerProjectNameHitsOrphanSchema_ThrowsInvalidPayloadWithOrphanMessage()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -271,28 +271,29 @@ public sealed class ProjectHandlersTests
         // 唯一案名(每輪不同 schema,免跨輪殘留);孤兒化前置:直接在共用單庫(JET_Test)建該案名
         // 衍生的 schema、不建任何本機資料夾——等價於「前一個 app session 建過同名 sqlServer 案,
         // 之後使用者手動刪了 projects/ 登記」(事故時間軸即跨 session:06-29 建案、07-07 重建)。
-        var caseName = $"孤兒訊息 {Guid.NewGuid().ToString("N")[..8]}";
+        var projectName = $"孤兒訊息 {Guid.NewGuid().ToString("N")[..8]}";
         var backend = new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString));
-        await backend.EnsureCreatedAsync(caseName, CancellationToken.None);
+        await backend.EnsureCreatedAsync(projectName, CancellationToken.None);
 
         try
         {
             using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
 
             var ex = await Assert.ThrowsAsync<JetActionException>(
-                () => host.DispatchAsync("project.create", CaseNamePayload(caseName, "sqlServer")));
+                () => host.DispatchAsync("project.create", ProjectNamePayload(projectName, "sqlServer")));
 
             Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
             // 孤兒語意關鍵詞:訊息必須指出「後端已有資料、本機沒有登記」的矛盾(使用者的專案清單是空的,
             // 「已存在」對他是謎語),而非謊稱單純撞名。
-            Assert.Contains("本機沒有對應的案件登記", ex.Message);
+            // 裁定 2026-10-30-20：這句的「可能」照確認頁的表改寫。SQL Server 測試要連線才執行，這次只經編譯，沒有失敗收據。
+            Assert.Contains("這台電腦沒有這個案件的登記", ex.Message);
             // 檢查先於寫入:失敗嘗試不得留下本機資料夾。
-            Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, caseName)));
+            Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, projectName)));
         }
         finally
         {
             // teardown:清掉 JET_Test 內的孤兒 schema(drop 表 → DROP SCHEMA → 刪 map 列)。
-            await backend.DeleteAsync(caseName, CancellationToken.None);
+            await backend.DeleteAsync(projectName, CancellationToken.None);
         }
     }
 
@@ -305,9 +306,9 @@ public sealed class ProjectHandlersTests
             return;
         }
 
-        var caseName = $"孤兒優先序 {Guid.NewGuid().ToString("N")[..8]}";
+        var projectName = $"孤兒優先序 {Guid.NewGuid().ToString("N")[..8]}";
         var backend = new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString));
-        await backend.EnsureCreatedAsync(caseName, CancellationToken.None);
+        await backend.EnsureCreatedAsync(projectName, CancellationToken.None);
 
         try
         {
@@ -315,7 +316,7 @@ public sealed class ProjectHandlersTests
             var payload =
                 $$"""
                 {
-                  "caseName": "{{caseName}}",
+                  "projectName": "{{projectName}}",
                   "projectCode": "P",
                   "periodStart": "2024-01-01",
                   "databaseProvider": "sqlServer"
@@ -326,13 +327,14 @@ public sealed class ProjectHandlersTests
                 () => host.DispatchAsync("project.create", payload));
 
             Assert.Equal(JetErrorCodes.InvalidPayload, exception.Code);
-            Assert.Contains("本機沒有對應的案件登記", exception.Message);
+            // 裁定 2026-10-30-20：這句的「可能」照確認頁的表改寫。SQL Server 測試要連線才執行，這次只經編譯，沒有失敗收據。
+            Assert.Contains("這台電腦沒有這個案件的登記", exception.Message);
             Assert.DoesNotContain("periodEnd", exception.Message, StringComparison.Ordinal);
-            Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, caseName)));
+            Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, projectName)));
         }
         finally
         {
-            await backend.DeleteAsync(caseName, CancellationToken.None);
+            await backend.DeleteAsync(projectName, CancellationToken.None);
         }
     }
 
@@ -355,9 +357,9 @@ public sealed class ProjectHandlersTests
         }
 
         // 孤兒化前置同上:後端有 schema、本機無登記,且本 host 的路由快取對此案名全冷。
-        var caseName = $"孤兒路由 {Guid.NewGuid().ToString("N")[..8]}";
+        var projectName = $"孤兒路由 {Guid.NewGuid().ToString("N")[..8]}";
         var backend = new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString));
-        await backend.EnsureCreatedAsync(caseName, CancellationToken.None);
+        await backend.EnsureCreatedAsync(projectName, CancellationToken.None);
 
         try
         {
@@ -366,26 +368,26 @@ public sealed class ProjectHandlersTests
 
             // 階段 1:sqlServer 同名建案 → 後端孤兒殘留 → invalid_payload(訊息語意由上一測單獨鎖定)。
             var ex = await Assert.ThrowsAsync<JetActionException>(
-                () => host.DispatchAsync("project.create", CaseNamePayload(caseName, "sqlServer")));
+                () => host.DispatchAsync("project.create", ProjectNamePayload(projectName, "sqlServer")));
             Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
 
             // 階段 2:同 session 改以 sqlite 同名建案 → 必須成功。
-            var created = await host.DispatchAsync("project.create", CaseNamePayload(caseName, "sqlite"));
+            var created = await host.DispatchAsync("project.create", ProjectNamePayload(projectName, "sqlite"));
             Assert.True(created.GetProperty("ok").GetBoolean());
 
             // 階段 3(物證,修復前紅):SQLite 初始化必須真的執行——jet.db 存在。
             Assert.True(
-                File.Exists(Path.Combine(host.ProjectsRoot, caseName, "jet.db")),
+                File.Exists(Path.Combine(host.ProjectsRoot, projectName, "jet.db")),
                 "sqlite 同名重建後 jet.db 必須存在——不存在代表初始化被失敗建案殘留的 provider 路由快取劫持到 SQL Server no-op。");
 
             // 階段 4:載入後 provider 為 sqlite 且為空案(無匯入批次——不得接到孤兒 schema 的資料)。
-            var loaded = await host.DispatchAsync("project.load", $$"""{ "projectId": "{{caseName}}" }""");
+            var loaded = await host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectName}}" }""");
             Assert.Equal("sqlite", loaded.GetProperty("project").GetProperty("databaseProvider").GetString());
             Assert.Equal(JsonValueKind.Null, loaded.GetProperty("importState").GetProperty("gl").ValueKind);
         }
         finally
         {
-            await backend.DeleteAsync(caseName, CancellationToken.None);
+            await backend.DeleteAsync(projectName, CancellationToken.None);
         }
     }
 
@@ -451,7 +453,7 @@ public sealed class ProjectHandlersTests
             {
               "projectId": "{{projectId}}",
               "projectCode": "LEGACY-001",
-              "entityName": "舊版專案",
+              "clientName": "舊版專案",
               "operatorId": "op",
               "periodStart": "2025-01-01",
               "periodEnd": "2025-12-31",
@@ -468,9 +470,11 @@ public sealed class ProjectHandlersTests
             host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }"""));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-51（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 不寫檔名與缺了哪個設定。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
+        // 裁定 2026-10-30-23：舊版案件改由設定檔版本（這裡是第 1 版）判斷，訊息寫明刪除後重建。
+        // 第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c。
         Assert.Equal(
-            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。",
+            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
     }
 
@@ -702,7 +706,7 @@ public sealed class ProjectHandlersTests
                 CreatePayload.Insert(CreatePayload.LastIndexOf('}'), """, "databaseProvider": "postgres" """)));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-65（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 畫面只送三種資料庫，
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送三種資料庫，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("database_provider_unsupported", JetPayloadRejection.CheckOf(ex));
@@ -721,7 +725,7 @@ public sealed class ProjectHandlersTests
             {
               "projectId": "{{projectId}}",
               "projectCode": "OFFLINE-1",
-              "entityName": "離線快取案",
+              "clientName": "離線快取案",
               "operatorId": "op",
               "periodStart": "2025-01-01",
               "periodEnd": "2025-12-31",
@@ -730,13 +734,13 @@ public sealed class ProjectHandlersTests
               "roundingMode": "AwayFromZero",
               "createdUtc": "2026-06-01T00:00:00+00:00",
               "currentStep": 1,
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "databaseProvider": "sqlServer",
               "sampleSeed": 1234567,
               "sampleSeedVersion": 2
             }
             """);
-        // 上面補上的種子欄位是目前版本建案一定會寫入的值；缺欄位會被當成舊版案件拒絕。
+        // 上面補上的種子欄位是目前版本建案一定會寫入的值；缺欄位會被當成設定檔損壞拒絕。
     }
 
     /// <summary>

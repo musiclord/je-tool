@@ -71,7 +71,7 @@ public sealed class DuckDbOperationRetentionTests
             {
                 await readOnly.OpenAsync(cancellationToken);
                 await using var count = readOnly.CreateCommand();
-                count.CommandText = "SELECT COUNT(*) FROM app_message_log;";
+                count.CommandText = "SELECT COUNT(*) FROM message_log;";
                 _ = await count.ExecuteScalarAsync(cancellationToken);
             }
 
@@ -79,7 +79,7 @@ public sealed class DuckDbOperationRetentionTests
             await connection.OpenAsync(cancellationToken);
             await using var insert = connection.CreateCommand();
             insert.CommandText =
-                "INSERT INTO app_message_log (occurred_utc, level, text) VALUES ('2024-01-01T00:00:00Z', 'info', 'after-read-only');";
+                "INSERT INTO message_log (occurred_utc, level, text) VALUES ('2024-01-01T00:00:00Z', 'info', 'after-read-only');";
             return await insert.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -231,7 +231,7 @@ public sealed class DuckDbOperationRetentionTests
                 TestProjectRepositories.Unconfigured(ProjectDocument.DuckDbDatabaseProvider) with
                 {
                     DatabaseDeleter = database,
-                    ReportArtifactStore = new ProjectReportArtifactStore(folder),
+                    ReportStore = new ProjectReportStore(folder),
                     DeletionLockService = lockService
                 }),
             registry: null!, // 本地 duckdb 案件不查線上登記簿
@@ -264,7 +264,7 @@ public sealed class DuckDbOperationRetentionTests
         try
         {
             await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glFile }));
-            Assert.Equal(2L, await TableRowCountAsync(host, "staging_gl_raw_row"));
+            Assert.Equal(2L, await TableRowCountAsync(host, "pbc_gl"));
 
             await host.DispatchAsync("project.delete", $$"""{ "projectId": "{{name}}" }""");
             var dbPath = Path.Combine(host.ProjectsRoot, name, DuckDbProjectDatabase.DatabaseFileName);
@@ -272,7 +272,7 @@ public sealed class DuckDbOperationRetentionTests
 
             // 同名重建後若沿用舊的資料庫實體，會讀到上一個案件的兩列 GL。
             await host.DispatchAsync("project.create", CreatePayload(name));
-            Assert.Equal(0L, await TableRowCountAsync(host, "staging_gl_raw_row"));
+            Assert.Equal(0L, await TableRowCountAsync(host, "pbc_gl"));
             Assert.Equal(0L, await TableRowCountAsync(host, "import_batch"));
             Assert.True(DuckDbFileProbe.CanOpenExclusively(dbPath), "操作之間資料庫檔應解除鎖定");
         }
@@ -355,9 +355,9 @@ public sealed class DuckDbOperationRetentionTests
     private static string CreatePayload(string name) =>
         JsonSerializer.Serialize(new
         {
-            caseName = name,
+            projectName = name,
             projectCode = "RET",
-            entityName = "持有實體",
+            clientName = "持有實體",
             operatorId = "op",
             periodStart = "2024-01-01",
             periodEnd = "2024-12-31",

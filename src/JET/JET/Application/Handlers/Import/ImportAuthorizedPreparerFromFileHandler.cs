@@ -70,8 +70,8 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         return new
         {
             batchId = result.Import.BatchId,
@@ -85,8 +85,8 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             matchedPreparerCount = result.Import.MatchedPreparerCount,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning
         };
     }
 }
@@ -101,12 +101,12 @@ public sealed class ClearAuthorizedPreparerHandler(ProjectSession session, ILogg
         var (projectId, repositories) = session.RequireActive();
         await repositories.AuthorizedPreparers.ClearAsync(projectId, cancellationToken);
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
-            projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, AuditMutationEffects.For(AuditMutation.AuthorizedPreparer), logger);
+            projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, AuditMutationEffects.For(AuditMutation.AuthorizedPreparer), logger);
         return new { cleared = true,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning };
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning };
     }
 }

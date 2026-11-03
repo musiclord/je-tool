@@ -32,14 +32,14 @@ public sealed class FrontendUsabilityContractTests
 
         Assert.Single(Regex.Matches(index, "data-action=\"open-project-folder\"", RegexOptions.CultureInvariant).Cast<Match>());
         // 9/22 科目配對區新增就近開啟資料夾，報告定位由各步共用一個事件綁定。
-        // 改動原因：使用者 2026-10-08 畫面註解要求移除第二步假日卡片的「開啟案件資料夾」，呼叫點由 4 處降為 3 處
+        // 改動原因：裁定 2026-10-08-08 移除第二步假日卡片的「開啟案件資料夾」，呼叫點由 4 處降為 3 處
         // （頁首、科目配對各一，加上報告定位）；第一次失敗：收據 20261008-035557135-54b626343f7c4071bb97b02ddde22408。
         Assert.Equal(3, Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Count);
         Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", javascript, StringComparison.Ordinal);
-        Assert.Contains("data-open-artifact", javascript, StringComparison.Ordinal);
-        Assert.Contains("hostOpenFolder({ artifactId: artifactId })", javascript, StringComparison.Ordinal);
+        Assert.Contains("data-open-report", javascript, StringComparison.Ordinal);
+        Assert.Contains("hostOpenFolder({ reportId: reportId })", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("hostOpenFolder({ path:", javascript, StringComparison.Ordinal);
-        Assert.DoesNotContain("artifactId: artifact.artifactId", javascript, StringComparison.Ordinal);
+        Assert.DoesNotContain("reportId: report.reportId", javascript, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -50,13 +50,13 @@ public sealed class FrontendUsabilityContractTests
         Assert.DoesNotContain("現在可以開始", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("進入條件已備齊", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("本步驟條件已備齊", javascript, StringComparison.Ordinal);
-        // 使用者 2026-10-13 勾選頁確認 18、36：「已阻擋」改「尚無法執行」（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+        // 裁定 2026-10-13-28 確認「已阻擋」改「尚無法執行」（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
         Assert.Contains("尚無法執行：", javascript, StringComparison.Ordinal);
         // 「符合條件不等於錯誤」與「判斷由審計員做」在 2026-09-22 改成白話後合併為同一句，整句檢查。
-        // 2026-10-03 用語統一 T1：畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 用語統一後，畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         Assert.Contains("預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("母體分布", javascript, StringComparison.Ordinal);
-        // 2026-10-02 整體複審 W16：「不適用不等於零。」改成完整句，語意仍是「不適用不代表沒有符合的分錄」；舊短句不得再出現。
+        // 整體複審後，「不適用不等於零。」改成完整句，語意仍是「不適用不代表沒有符合的分錄」；舊短句不得再出現。
         Assert.Contains("列在「不適用規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("不適用不等於零", javascript, StringComparison.Ordinal);
     }

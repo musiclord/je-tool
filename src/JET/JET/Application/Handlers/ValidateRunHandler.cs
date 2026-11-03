@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// validate.run：四項資料驗證以 set-based SQL 執行（wire key：completenessTest / docBalanceTest /
-/// infSamplingTest / nullRecordsTest）。完整 response 以 JetJsonStorage 存入
-/// result_rule_run；project.load 讀取 raw summary，再由共用後端 renderer 補繪衍生欄位。
+/// validate.run：四項資料驗證以 set-based SQL 執行（wire key：completenessTest / voucherBalanceTest /
+/// infSamplingTest / blankRecordsTest）。完整 response 以 JetJsonStorage 存入
+/// validation_result；project.load 讀取 raw summary，再由共用後端 renderer 補繪衍生欄位。
 /// 規則狀態：V = 有結果；na = 前置不足（naReason 說明）或已執行 0 筆命中。
 /// </summary>
 public sealed class ValidateRunHandler : IApplicationActionHandler
@@ -43,27 +43,22 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         JetAuditProgram.RequireGlMapping(glMapping is not null);
 
         var tbMapping = await repositories.MappingStates.FindAsync(projectId, DatasetKind.Tb, cancellationToken);
+        var tbBatch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken);
 
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
-        var runId = Guid.NewGuid().ToString("N");
+        var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;
 
-        // per-project seed／演算法版本：只接受目前版本。舊版 JET 建立的案件明確拒絕；任一可解析但
-        // 不合法的配對都 fail-loud，不得靜默重生 seed 或改抽。
+        // per-project seed／演算法版本：只接受目前版本。任一可解析但不合法的配對都 fail-loud，
+        // 不得靜默重生 seed 或改抽。
         var sampleSeedResolution = JetAuditProgram.ResolveInfSamplingSeed(
             document.SampleSeed,
             document.SampleSeedVersion);
-        if (sampleSeedResolution.IsLegacyProject)
-        {
-            // 開案時已擋下舊版案件，畫面照正常操作走不到這裡（使用者 2026-10-14 第三輪勾選頁確認 R3-65）。
-            throw JetPayloadRejection.Create(JetErrorCodes.InvalidProjectSchema, "inf_seed_legacy_after_load");
-        }
-
         if (!sampleSeedResolution.IsValid)
         {
-            // 開案時已擋下抽樣設定損壞的案件，畫面照正常操作走不到這裡（R3-65）。
+            // 開案時已擋下抽樣設定損壞的案件，畫面照正常操作走不到這裡。
             throw JetPayloadRejection.Create(JetErrorCodes.FileReadError, "inf_seed_corrupt_after_load");
         }
         var sampleSeed = sampleSeedResolution.Seed;
@@ -79,11 +74,12 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 document.PeriodEnd,
                 document.MoneyScale,
                 sampleSeed,
-                runId,
+                resultId,
                 generatedUtc,
                 InfSampling.DefaultSampleSize,
                 sampleSeedResolution.AlgorithmVersion,
-                availableGlFields));
+                availableGlFields,
+                HasTbImport: tbBatch is not null));
         SupportOperationStage.Enter("validation_facts");
         var record = await repositories.ValidationFacts.ExecuteAsync(
             plan, facts => CreateRecord(plan, facts, document), cancellationToken);
@@ -94,33 +90,34 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
         return parsed.RootElement.Clone();
     }
 
-    private static RuleRunRecord CreateRecord(ValidationPlan plan, ValidationFacts facts, ProjectDocument document)
+    private static ResultRecord CreateRecord(ValidationPlan plan, ValidationFacts facts, ProjectDocument document)
     {
-        var runId = plan.Request.RunId;
+        var resultId = plan.Request.ResultId;
         var generatedUtc = plan.Request.GeneratedUtc;
         var sampleSeed = plan.Request.SampleSeed;
         var validation = JetAuditProgram.Finalize(plan, facts);
         var runManifest = validation.Manifest;
         var result = validation.Data;
-        var documentDateReuse = result.DocumentDateReuse
+        var voucherNumberAcrossGlDates = result.VoucherNumberAcrossGlDates
             ?? throw new InvalidOperationException("資料驗證未回傳跨入帳日傳票號碼的計數。");
         var sourceQualityRows = facts.SourceQualitySampleRows
-            ?? throw new InvalidOperationException("資料驗證未回傳來源品質的有界樣本。");
+            ?? throw new InvalidOperationException("資料驗證未回傳總帳日期空白的有界樣本。");
         var completenessVerdict = Verdict(runManifest, "completeness_test");
         var completenessEligibility = JetAuditProgram.EvaluateCompletenessEligibility(
             new CompletenessEligibilityFacts(
-                HasCurrentValidationRun: true,
+                HasCurrentValidationResult: true,
                 IsCurrentLogicVersion: true,
-                PartARowCountMatch: result.PartA?.RowCountMatch,
-                PartAAmountMatch: result.PartA?.AmountMatch,
-                PartBApplicable: completenessVerdict.IsApplicable,
-                PartBDifferenceAccountCount: result.CompletenessDiffAccountCount));
+                StoredRowCountMatch: result.StoredTotals?.RowCountMatch,
+                StoredAmountMatch: result.StoredTotals?.AmountMatch,
+                AccountComparisonApplicable: completenessVerdict.IsApplicable,
+                AccountComparisonDifferenceAccountCount: result.CompletenessDiffAccountCount,
+                AccountComparisonNaReason: completenessVerdict.NaReason));
         var completenessEligibilityDto = CompletenessEligibilitySupport.ToWire(completenessEligibility);
 
         var scale = document.MoneyScale;
 
-        // 匯入控制總數缺漏時仍保留 exact nested shape，但所有值（含 match）皆為 null。
-        object partADto = result.PartA is { } pa
+        // 存入筆數與合計核對的數字缺漏時仍保留 exact nested shape，但所有值（含 match）皆為 null。
+        object storedTotalsDto = result.StoredTotals is { } pa
             ? new
             {
                 eligibleSource = new
@@ -129,11 +126,11 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                     totalDebit = (decimal?)ToDisplay(pa.EligibleSource.TotalDebitScaled, scale),
                     totalCredit = (decimal?)ToDisplay(pa.EligibleSource.TotalCreditScaled, scale)
                 },
-                effectiveTarget = new
+                gl = new
                 {
-                    rowCount = (long?)pa.EffectiveTarget.RowCount,
-                    totalDebit = (decimal?)ToDisplay(pa.EffectiveTarget.TotalDebitScaled, scale),
-                    totalCredit = (decimal?)ToDisplay(pa.EffectiveTarget.TotalCreditScaled, scale)
+                    rowCount = (long?)pa.Gl.RowCount,
+                    totalDebit = (decimal?)ToDisplay(pa.Gl.TotalDebitScaled, scale),
+                    totalCredit = (decimal?)ToDisplay(pa.Gl.TotalCreditScaled, scale)
                 },
                 rowCountMatch = (bool?)pa.RowCountMatch,
                 amountMatch = (bool?)pa.AmountMatch
@@ -141,7 +138,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
             : new
             {
                 eligibleSource = (object?)null,
-                effectiveTarget = (object?)null,
+                gl = (object?)null,
                 rowCountMatch = (bool?)null,
                 amountMatch = (bool?)null
             };
@@ -153,7 +150,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 naReason = completenessVerdict.NaReason,
                 diffAccountCount = 0L,
                 diffAccounts = Array.Empty<object>(),
-                partA = partADto,
+                storedTotals = storedTotalsDto,
                 eligibility = completenessEligibilityDto
             }
             : new
@@ -163,14 +160,14 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 diffAccountCount = result.CompletenessDiffAccountCount,
                 diffAccounts = result.CompletenessDiffAccounts.Select(d => (object)new
                 {
-                    accountCode = d.AccountCode,
+                    accountNumber = d.AccountNumber,
                     accountName = d.AccountName,
                     tbAmount = ToDisplay(d.TbAmountScaled, scale),
                     glAmount = ToDisplay(d.GlAmountScaled, scale),
                     diff = ToDisplay(d.DiffScaled, scale),
                     notInTb = d.NotInTb
                 }).ToArray(),
-                partA = partADto,
+                storedTotals = storedTotalsDto,
                 eligibility = completenessEligibilityDto
             };
 
@@ -194,13 +191,13 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                     totalDebit = ToDisplay(result.PopulationSummary.Raw.TotalDebitScaled, scale),
                     totalCredit = ToDisplay(result.PopulationSummary.Raw.TotalCreditScaled, scale)
                 },
-                effective = new
+                gl = new
                 {
-                    rowCount = result.PopulationSummary.Effective.RowCount,
-                    voucherCount = result.PopulationSummary.Effective.VoucherCount,
-                    totalDebit = ToDisplay(result.PopulationSummary.Effective.TotalDebitScaled, scale),
-                    totalCredit = ToDisplay(result.PopulationSummary.Effective.TotalCreditScaled, scale),
-                    net = ToDisplay(result.PopulationSummary.Effective.NetScaled, scale)
+                    rowCount = result.PopulationSummary.Gl.RowCount,
+                    voucherCount = result.PopulationSummary.Gl.VoucherCount,
+                    totalDebit = ToDisplay(result.PopulationSummary.Gl.TotalDebitScaled, scale),
+                    totalCredit = ToDisplay(result.PopulationSummary.Gl.TotalCreditScaled, scale),
+                    net = ToDisplay(result.PopulationSummary.Gl.NetScaled, scale)
                 },
                 excluded = new
                 {
@@ -219,13 +216,13 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 }).ToArray()
             },
             completenessTest = completenessDto,
-            docBalanceTest = new
+            voucherBalanceTest = new
             {
-                status = Verdict(runManifest, "doc_balance_test").Status!,
-                unbalancedDocumentCount = result.UnbalancedDocumentCount,
-                unbalancedDocuments = result.UnbalancedDocuments.Select(d => (object)new
+                status = Verdict(runManifest, "voucher_balance_test").Status!,
+                unbalancedVoucherCount = result.UnbalancedVoucherCount,
+                unbalancedVouchers = result.UnbalancedVouchers.Select(d => (object)new
                 {
-                    documentNumber = d.DocumentNumber,
+                    voucherNumber = d.VoucherNumber,
                     debit = ToDisplay(d.DebitScaled, scale),
                     credit = ToDisplay(d.CreditScaled, scale),
                     diff = ToDisplay(d.DiffScaled, scale)
@@ -237,20 +234,20 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 sampleSize = result.InfSampleCount,
                 seed = sampleSeed
             },
-            nullRecordsTest = new
+            blankRecordsTest = new
             {
-                status = Verdict(runManifest, "null_records_test").Status!,
+                status = Verdict(runManifest, "blank_records_test").Status!,
                 nullAccountCount = result.NullAccountCount,
                 nullDocumentCount = result.NullDocumentCount,
                 nullDescriptionCount = result.NullDescriptionCount,
-                // 傳票核准日不可用時筆數是 null，原因寫缺什麼、到哪裡補，畫面只顯示這一句（使用者 2026-10-23 裁定）。
-                outOfRangeDateCount = result.OutOfRangeDateCount,
-                outOfRangeDateNaReason = plan.OutOfPeriodApprovalNaReason,
-                nullRows = result.NullRecordRows.Select(r => (object)new
+                // 傳票核准日不可用時筆數是 null，原因寫缺什麼、到哪裡補，畫面只顯示這一句（裁定 2026-10-23-01）。
+                approvalDateNotInPeriodCount = result.ApprovalDateNotInPeriodCount,
+                approvalDateNotInPeriodNaReason = plan.OutOfPeriodApprovalNaReason,
+                nullRows = result.BlankRecordRows.Select(r => (object)new
                 {
-                    documentNumber = r.DocumentNumber,
-                    accountCode = r.AccountCode,
-                    postDate = r.PostDate,
+                    voucherNumber = r.VoucherNumber,
+                    accountNumber = r.AccountNumber,
+                    glDate = r.GlDate,
                     description = r.Description,
                     issues = NullRowIssues(r)
                 }).ToArray()
@@ -263,23 +260,23 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                     category = row.Category,
                     sourceRowNumber = row.SourceRowNumber,
                     sourceLabel = row.SourceLabel,
-                    documentNumber = row.DocumentNumber,
-                    accountCode = row.AccountCode,
-                    postDate = row.PostDate,
+                    voucherNumber = row.VoucherNumber,
+                    accountNumber = row.AccountNumber,
+                    glDate = row.GlDate,
                     description = row.Description
                 }).ToArray()
             },
-            documentDateReuse = new
+            voucherNumberAcrossGlDates = new
             {
-                documentNumberCount = documentDateReuse.DocumentNumberCount,
-                entryCount = documentDateReuse.EntryCount
+                voucherNumberCount = voucherNumberAcrossGlDates.VoucherNumberCount,
+                entryCount = voucherNumberAcrossGlDates.EntryCount
             },
-            resultRef = new { runId, generatedUtc, logicVersion = RuleLogicVersions.Validation }
+            resultRef = new { resultId, generatedUtc, logicVersion = RuleLogicVersions.Validation }
         };
 
         // 儲存與 wire 同一份 raw JSON；resume 仍以原始結果重建衍生的「可否繼續後續步驟」判定。
         var summaryJson = JsonSerializer.Serialize(dto, JetJsonStorage.Options);
-        return new RuleRunRecord(runId, RuleRunKinds.Validate, generatedUtc, summaryJson);
+        return new ResultRecord(resultId, ResultKind.Validation, generatedUtc, summaryJson);
     }
     private static ProcedureVerdict Verdict(AuditRunManifest manifest, string slug) =>
         manifest.Procedures.Single(verdict =>
@@ -287,13 +284,13 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
 
     private static decimal ToDisplay(long scaled, int moneyScale) => (decimal)scaled / moneyScale;
 
-    private static string[] NullRowIssues(NullRecordRow r)
+    private static string[] NullRowIssues(BlankRecordRow r)
     {
         var issues = new List<string>(4);
         if (r.NullAccount) { issues.Add("account"); }
         if (r.NullDocument) { issues.Add("document"); }
         if (r.NullDescription) { issues.Add("description"); }
-        if (r.OutOfRangeDate) { issues.Add("date"); }
+        if (r.ApprovalDateNotInPeriod) { issues.Add("date"); }
         return issues.ToArray();
     }
 }

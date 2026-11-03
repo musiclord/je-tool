@@ -6,9 +6,9 @@ namespace JET.Tests.Domain;
 public sealed class GlFieldWhitelistTests
 {
     [Fact]
-    public void TryResolve_DocDate_MapsToApprovalDateColumn()
+    public void TryResolve_ApprovalDate_MapsToApprovalDateColumn()
     {
-        Assert.True(GlFieldWhitelist.TryResolve("docDate", out var column));
+        Assert.True(GlFieldWhitelist.TryResolve("approvalDate", out var column));
         Assert.Equal(new GlFieldColumn("approval_date", GlFieldKind.Date), column);
     }
 
@@ -20,10 +20,10 @@ public sealed class GlFieldWhitelistTests
     }
 
     [Fact]
-    public void TryResolve_Description_MapsToDocumentDescription()
+    public void TryResolve_Description_MapsToDescription()
     {
         Assert.True(GlFieldWhitelist.TryResolve("description", out var column));
-        Assert.Equal(new GlFieldColumn("document_description", GlFieldKind.Text), column);
+        Assert.Equal(new GlFieldColumn("description", GlFieldKind.Text), column);
     }
 
     [Fact]
@@ -38,16 +38,16 @@ public sealed class GlFieldWhitelistTests
     {
         var expected = new Dictionary<string, GlFieldColumn>(StringComparer.Ordinal)
         {
-            ["docNum"] = new("document_number", GlFieldKind.Text),
-            ["lineID"] = new("line_item", GlFieldKind.Text),
-            ["postDate"] = new("post_date", GlFieldKind.Date),
-            ["docDate"] = new("approval_date", GlFieldKind.Date),
-            ["accNum"] = new("account_code", GlFieldKind.Text),
-            ["accName"] = new("account_name", GlFieldKind.Text),
-            ["description"] = new("document_description", GlFieldKind.Text),
-            ["jeSource"] = new("source_module", GlFieldKind.Text),
-            ["createBy"] = new("created_by", GlFieldKind.Text),
-            ["approveBy"] = new("approved_by", GlFieldKind.Text),
+            ["voucherNumber"] = new("voucher_number", GlFieldKind.Text),
+            ["lineItem"] = new("line_item", GlFieldKind.Text),
+            ["glDate"] = new("gl_date", GlFieldKind.Date),
+            ["approvalDate"] = new("approval_date", GlFieldKind.Date),
+            ["accountNumber"] = new("account_number", GlFieldKind.Text),
+            ["accountName"] = new("account_name", GlFieldKind.Text),
+            ["description"] = new("description", GlFieldKind.Text),
+            ["sourceModule"] = new("source_module", GlFieldKind.Text),
+            ["createdBy"] = new("created_by", GlFieldKind.Text),
+            ["approvedBy"] = new("approved_by", GlFieldKind.Text),
             ["amount"] = new("amount_scaled", GlFieldKind.Amount)
         };
 
@@ -61,11 +61,11 @@ public sealed class GlFieldWhitelistTests
         }
 
         Assert.Equal(expected, resolved);
-        Assert.False(GlFieldWhitelist.TryResolve("manual", out _));
+        Assert.False(GlFieldWhitelist.TryResolve("isManual", out _));
         Assert.False(GlFieldWhitelist.TryResolve("debitAmount", out _));
         Assert.False(GlFieldWhitelist.TryResolve("creditAmount", out _));
-        Assert.False(GlFieldWhitelist.TryResolve("dcField", out _));
-        Assert.False(GlFieldWhitelist.TryResolve("dcDebitCode", out _));
+        Assert.False(GlFieldWhitelist.TryResolve("drCr", out _));
+        Assert.False(GlFieldWhitelist.TryResolve("drCrDebitCode", out _));
         Assert.False(GlFieldWhitelist.TryResolve("postingStatus", out _));
     }
 }

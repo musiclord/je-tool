@@ -13,19 +13,19 @@ namespace JET.Tests.Application;
 public sealed class JetApplicationRuntimeTests
 {
     [Fact]
-    public async Task Dispose_DuringArtifactExport_CancelsAndJoinsBeforeResourceDisposal()
+    public async Task Dispose_DuringReportExport_CancelsAndJoinsBeforeResourceDisposal()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
         const string projectId = "關窗匯出測試案件";
         var projectDirectory = folder.GetProjectDirectory(projectId);
         Directory.CreateDirectory(projectDirectory);
-        var store = new ProjectReportArtifactStore(folder);
+        var store = new ProjectReportStore(folder);
         var originalBytes = new byte[] { 9, 8, 7, 6 };
         var original = await store.WriteAsync(
             projectId,
-            new ReportArtifactWriteRequest(
-                ReportArtifactKind.WorkingPaper,
+            new ReportWriteRequest(
+                ReportKind.WorkingPaper,
                 ScenarioRefs("revision-original"),
                 (output, cancellationToken) => output.WriteAsync(originalBytes, cancellationToken).AsTask()),
             CancellationToken.None);
@@ -46,8 +46,8 @@ public sealed class JetApplicationRuntimeTests
                 exportToken = cancellationToken;
                 return store.WriteAsync(
                     projectId,
-                    new ReportArtifactWriteRequest(
-                        ReportArtifactKind.WorkingPaper,
+                    new ReportWriteRequest(
+                        ReportKind.WorkingPaper,
                         ScenarioRefs("revision-replacement"),
                         async (output, writerCancellationToken) =>
                         {
@@ -75,8 +75,8 @@ public sealed class JetApplicationRuntimeTests
         Assert.True(cleanupCompleted);
         Assert.Equal(originalBytes, await File.ReadAllBytesAsync(finalPath, CancellationToken.None));
         Assert.Empty(Directory.GetFiles(projectDirectory, "*.tmp"));
-        Assert.Equal(original.ArtifactId, Assert.Single(
-            await store.ListAsync(projectId, CancellationToken.None)).ArtifactId);
+        Assert.Equal(original.ReportId, Assert.Single(
+            await store.ListAsync(projectId, CancellationToken.None)).ReportId);
     }
 
     [Fact]
@@ -243,10 +243,10 @@ public sealed class JetApplicationRuntimeTests
             resource,
             shutdownJoinTimeout);
 
-    private static ReportArtifactSourceRefs ScenarioRefs(string revision) =>
+    private static ReportSourceRefs ScenarioRefs(string revision) =>
         new(
-            ValidationRunId: "11111111111111111111111111111111",
-            PrescreenRunId: "22222222222222222222222222222222",
+            ValidationResultId: "11111111111111111111111111111111",
+            PrescreenResultId: "22222222222222222222222222222222",
             ScenarioRevision: revision,
             ScenarioPositions: [1]);
 

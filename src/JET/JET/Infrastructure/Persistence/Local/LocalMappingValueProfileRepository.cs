@@ -7,7 +7,7 @@ namespace JET.Infrastructure;
 /// <summary>
 /// SQLite／DuckDB 共用的 mapping value profile。JSON key 只以參數比對 json_each.key，
 /// 不組成 JSON path 或 SQL identifier；SQL 只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時先填補再計數
-/// （使用者 2026-10-28 裁定），寫法和 SQL Server 共用 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
+/// （裁定 2026-10-28-03），寫法和 SQL Server 共用 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
 /// </summary>
 public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase database)
     : IMappingValueProfileRepository
@@ -17,7 +17,7 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         $"""
         WITH extracted AS (
             SELECT r.source_no, r.row_number, CAST(j.value AS TEXT) AS raw_value
-            FROM staging_gl_raw_row AS r
+            FROM pbc_gl AS r
             LEFT JOIN json_each(r.row_json) AS j ON j.key = @sourceColumn
             WHERE r.batch_id = @batchId
         ),
@@ -53,7 +53,7 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         $"""
         WITH extracted AS (
             SELECT r.source_no, r.row_number, json_extract_string(j.value, '$') AS raw_value
-            FROM staging_gl_raw_row AS r
+            FROM pbc_gl AS r
             LEFT JOIN json_each(r.row_json) AS j ON j.key = @sourceColumn
             WHERE r.batch_id = @batchId
         ),
@@ -126,7 +126,7 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         command.CommandText = $"""
             WITH available AS (
                 SELECT DISTINCT jet_mapping_ordinal_key({sourceValue}) AS comparison_key
-                FROM staging_gl_raw_row r
+                FROM pbc_gl r
                 LEFT JOIN json_each(r.row_json) j ON j.key = @sourceColumn
                 WHERE r.batch_id = @batchId
             ), requested AS (

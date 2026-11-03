@@ -5,7 +5,7 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose input; keep independent hit, amount, and report assertions.
+// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
 
 public sealed class PrivateCaseLegacyScenarioEvidenceTests
 {
@@ -88,6 +88,7 @@ public sealed class PrivateCaseLegacyScenarioEvidenceTests
     }
 
     // 2026-10-14 以前存下的寫法：同一張傳票的佐證條件直接列在群組裡，群組標成 sameVoucher。
+    // 私人案件清單裡的條件陣列仍叫 rules，讀清單時才換成 conditions。
     private static JsonElement OldSameVoucherScenario(string[] values) =>
         JsonSerializer.SerializeToElement(new
         {
@@ -121,13 +122,13 @@ public sealed class PrivateCaseLegacyScenarioEvidenceTests
                 {
                     join = "AND",
                     matchScope = "row",
-                    rules = new object[]
+                    conditions = new object[]
                     {
                         new { join = "AND", type = "drCrOnly", drCr = "credit" },
-                        new { join = "AND", type = "voucher", quantifier = "any", rules = new[] {
+                        new { join = "AND", type = "voucher", quantifier = "any", conditions = new[] {
                             new { join = "AND", type = "prescreen", prescreenKey = PrescreenRuleKeys.BlankDescription }
                         } },
-                        new { join = "AND", type = "voucher", quantifier = "any", rules = new[] {
+                        new { join = "AND", type = "voucher", quantifier = "any", conditions = new[] {
                             new { join = "AND", type = "textSet", field = GlMappingKeys.Description,
                                 mode = "contains", normalization = "preserve", values }
                         } },

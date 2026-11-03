@@ -18,7 +18,7 @@ public sealed partial class LegacyReportWriter
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
+        Action<WorkingPaperProgress>? progress) =>
         WriteCriteriaDirectAsync(
             output,
             context,
@@ -35,7 +35,7 @@ public sealed partial class LegacyReportWriter
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
+        Action<WorkingPaperProgress>? progress) =>
         ReportTemplatePackage.FillDirectStreamingAsync(
             _templates,
             ReportTemplateCatalog.CriteriaSelection,
@@ -58,13 +58,13 @@ public sealed partial class LegacyReportWriter
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         string operatorId,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var stats = new List<SheetStat>();
-        var counts = await tagMatrixCounts.GetCountsAsync(
+        var counts = await highRiskSummaryCounts.GetCountsAsync(
             context.Project.ProjectId,
             cancellationToken).ConfigureAwait(false);
-        var blankDocumentHitRows = await tagMatrixCounts.GetBlankDocumentHitRowCountsAsync(
+        var blankDocumentHitRows = await highRiskSummaryCounts.GetBlankDocumentHitRowCountsAsync(
             context.Project.ProjectId,
             cancellationToken).ConfigureAwait(false);
         var stylesPart = editor.Document.WorkbookPart?.WorkbookStylesPart
@@ -126,16 +126,16 @@ public sealed partial class LegacyReportWriter
         PageRequest page,
         CancellationToken cancellationToken)
     {
-        if (tagMatrixRows is null)
+        if (highRiskSummaryRows is null)
         {
             throw new InvalidOperationException(
-                "Criteria Selection whole-voucher export requires the tag-matrix row port.");
+                "Criteria Selection whole-voucher export requires the high-risk summary row port.");
         }
         var population = new GlPopulationContext(
             context.PopulationScope,
             context.Project.PeriodStart,
             context.Project.PeriodEnd);
-        var result = await tagMatrixRows.GetPageAsync(
+        var result = await highRiskSummaryRows.GetPageAsync(
             context.Project.ProjectId,
             population,
             page,
@@ -195,7 +195,7 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("D1", $"Prepared by: {operatorId}");
                 cells.SetInlineString(
                     "D2",
-                    string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.GeneratedUtc:yyyy/MM/dd}"));
+                    string.Create(CultureInfo.InvariantCulture, $"Prepared date: {context.PreparedDate:yyyy/MM/dd}"));
                 cells.Clear("A4");
                 cells.Clear("C4");
                 cells.Clear("D4");
@@ -259,10 +259,10 @@ public sealed partial class LegacyReportWriter
                         if (blankDocumentRows > 0)
                         {
                             // 空白傳票號碼不是一張傳票，明細表不會列出這些分錄。一般情境的 D 欄是行層命中數，含這些分錄；
-                            // 整張傳票情境的 D 欄是明細表的分錄數，不含。摘要頁加一列說明（使用者 2026-10-19 裁定），數字本身不動。
+                            // 整張傳票情境的 D 欄是明細表的分錄數，不含。摘要頁加一列說明（裁定 2026-10-19-12），數字本身不動。
                             AppendContinuationRow(
                                 $"Criteria Selection {position}（說明）",
-                                string.Create(CultureInfo.InvariantCulture, $"另有 {blankDocumentRows:N0} 筆分錄的傳票號碼空白，未列入明細表。"),
+                                $"另有 {CountText.Format(blankDocumentRows)} 筆分錄的傳票號碼空白，未列入明細表。",
                                 style);
                         }
                     }

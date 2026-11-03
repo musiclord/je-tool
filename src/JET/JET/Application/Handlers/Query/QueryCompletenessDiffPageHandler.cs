@@ -6,7 +6,7 @@ namespace JET.Application;
 
 /// <summary>
 /// query.completenessDiffPage：完整性全科目差異(diff≠0)的 keyset 分頁。
-/// 排序鍵 account_code ASC、cursor opaque、pageSize 預設 200/上限 500(夾擠在 Domain)。
+/// 排序鍵 account_number ASC、cursor opaque、pageSize 預設 200/上限 500(夾擠在 Domain)。
 /// 金額由 scaled 整數換算顯示值((decimal)scaled / moneyScale,沿用 DataPreview)。
 /// </summary>
 public sealed class QueryCompletenessDiffPageHandler(
@@ -36,7 +36,7 @@ public sealed class QueryCompletenessDiffPageHandler(
         {
             rows = page.Rows.Select(r => (object)new
             {
-                accountCode = r.AccountCode,
+                accountNumber = r.AccountNumber,
                 accountName = r.AccountName,
                 tbAmount = (decimal)r.TbAmountScaled / scale,
                 glAmount = (decimal)r.GlAmountScaled / scale,

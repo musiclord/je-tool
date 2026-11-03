@@ -15,42 +15,42 @@ public sealed class RuleLogicVersionsTests
             """, DateTimeOffset.UnixEpoch);
         Assert.False(RuleLogicVersions.IsCurrent(saved));
         var summary = """{"resultRef":{"logicVersion":"prescreen-2026-08-14-v6"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Prescreen, DateTimeOffset.UnixEpoch, summary)));
+        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Prescreen, DateTimeOffset.UnixEpoch, summary)));
     }
 
     [Fact]
     public void BlankVoucherAndDateReuseDecisions_AdvanceAllAffectedVersions()
     {
-        // 2026-10-04 R1、R2 排除空白傳票號碼的整張傳票條件，舊預篩選與篩選結果必須重算。
-        // 第9批R3/R10；Public首敗100911120：空白號碼計數與同號多日期摘要使validation升v5；仍鎖定三個完整字面值。
-        // 使用者 2026-10-23 裁定傳票核准日不可用時「核准日不在期間」改成無法執行，不再寫 0 筆，validation 因此升 v6，預期值跟著改。
+        // 整張傳票條件排除空白傳票號碼（裁定 2026-10-04-02），舊預篩選與篩選結果必須重算。
+        // Public首敗100911120：空白號碼計數與同號多日期摘要使validation升v5；仍鎖定三個完整字面值。
+        // 裁定 2026-10-23-01：傳票核准日不可用時「核准日不在期間」改成無法執行，不再寫 0 筆，validation 因此升 v6，預期值跟著改。
         // 第一次失敗收據 20261023-101120680-815f0e4797004774973c3c5070a61854。
         Assert.Equal("validation-2026-10-23-v6", RuleLogicVersions.Validation);
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：預篩選升 v10、篩選升 v19。第一次失敗收據 20261008-042044720-73933024e0f84158a07081513d017018。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：預篩選升 v10、篩選升 v19。第一次失敗收據 20261008-042044720-73933024e0f84158a07081513d017018。
         Assert.Equal("prescreen-2026-10-08-v10", RuleLogicVersions.Prescreen);
-        // 第九節 G5 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+        // 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
         Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
     }
 
     [Fact]
     public void BeforeApprovalDateNaDecision_ValidationResultIsStale()
     {
-        // 使用者 2026-10-23 裁定前的驗證結果在傳票核准日沒有配對時寫 0 筆，畫面顯示「通過」，不能當成目前結果。
+        // 裁定 2026-10-23-01 之前的驗證結果在傳票核准日沒有配對時寫 0 筆，畫面顯示「通過」，不能當成目前結果。
         // 第一次失敗收據 20261023-101120680-815f0e4797004774973c3c5070a61854。
         var summary = """{"resultRef":{"logicVersion":"validation-2026-10-04-v5"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Validate, DateTimeOffset.UnixEpoch, summary)));
+        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Validation, DateTimeOffset.UnixEpoch, summary)));
     }
 
     [Fact]
     public void BeforeVoucherDateRemoval_SavedFilterAndPrescreenResultsAreStale()
     {
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：含回溯過帳的舊預篩選摘要與舊情境都不能當成目前結果。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：含回溯過帳的舊預篩選摘要與舊情境都不能當成目前結果。
         var saved = new SavedFilterScenario(1, "舊回溯條件", "合成測試", """
             {"populationScope":"auditPeriod","logicVersion":"filter-2026-10-06-v18","groups":[]}
             """, DateTimeOffset.UnixEpoch);
         Assert.False(RuleLogicVersions.IsCurrent(saved));
         var summary = """{"resultRef":{"logicVersion":"prescreen-2026-10-04-v9"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Prescreen, DateTimeOffset.UnixEpoch, summary)));
+        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Prescreen, DateTimeOffset.UnixEpoch, summary)));
     }
 
     [Fact]
@@ -61,25 +61,25 @@ public sealed class RuleLogicVersionsTests
             """, DateTimeOffset.UnixEpoch);
         Assert.False(RuleLogicVersions.IsCurrent(saved));
         var summary = """{"resultRef":{"logicVersion":"prescreen-2026-09-17-v8"}}""";
-        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord("old", RuleRunKinds.Prescreen, DateTimeOffset.UnixEpoch, summary)));
+        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Prescreen, DateTimeOffset.UnixEpoch, summary)));
     }
 
     [Fact]
-    public void IsCurrent_PreFormalMetadataPrescreenRunVersion_ReturnsFalse()
+    public void IsCurrent_PreFormalMetadataPrescreenResultVersion_ReturnsFalse()
     {
         var summary = JsonSerializer.Serialize(new
         {
             resultRef = new
             {
-                runId = "pre-metadata-run",
+                resultId = "pre-metadata-run",
                 generatedUtc = "2026-08-14T00:00:00.0000000Z",
                 logicVersion = "prescreen-2026-08-14-v5"
             }
         });
 
-        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord(
+        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord(
             "pre-metadata-run",
-            RuleRunKinds.Prescreen,
+            ResultKind.Prescreen,
             DateTimeOffset.UtcNow,
             summary)));
     }
@@ -100,58 +100,58 @@ public sealed class RuleLogicVersionsTests
     }
 
     [Fact]
-    public void IsCurrent_PreEffectivePartAValidationVersion_ReturnsFalse()
+    public void IsCurrent_PreEffectiveStoredTotalsValidationVersion_ReturnsFalse()
     {
         var summary = JsonSerializer.Serialize(new
         {
             resultRef = new
             {
-                runId = "pre-effective-part-a",
+                resultId = "pre-effective-stored-totals",
                 generatedUtc = "2026-08-14T00:00:00.0000000Z",
                 logicVersion = "validation-2026-08-14-v3"
             }
         });
 
-        Assert.False(RuleLogicVersions.IsCurrent(new RuleRunRecord(
-            "pre-effective-part-a",
-            RuleRunKinds.Validate,
+        Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord(
+            "pre-effective-stored-totals",
+            ResultKind.Validation,
             DateTimeOffset.UtcNow,
             summary)));
     }
 
     [Theory]
-    [InlineData(RuleRunKinds.Validate, RuleLogicVersions.Validation)]
-    [InlineData(RuleRunKinds.Prescreen, RuleLogicVersions.Prescreen)]
-    public void IsCurrent_MatchingPersistedLogicVersion_ReturnsTrue(string runKind, string logicVersion)
+    [InlineData(ResultKind.Validation, RuleLogicVersions.Validation)]
+    [InlineData(ResultKind.Prescreen, RuleLogicVersions.Prescreen)]
+    public void IsCurrent_MatchingPersistedLogicVersion_ReturnsTrue(ResultKind kind, string logicVersion)
     {
         var summary = JsonSerializer.Serialize(new
         {
-            resultRef = new { runId = "run", generatedUtc = "2026-07-10T00:00:00.0000000Z", logicVersion }
+            resultRef = new { resultId = "run", generatedUtc = "2026-07-10T00:00:00.0000000Z", logicVersion }
         });
 
         Assert.True(RuleLogicVersions.IsCurrent(
-            new RuleRunRecord("run", runKind, DateTimeOffset.UtcNow, summary)));
+            new ResultRecord("run", kind, DateTimeOffset.UtcNow, summary)));
     }
 
     [Theory]
-    [InlineData(RuleRunKinds.Validate, "validation-2026-07-13-v2")]
-    [InlineData(RuleRunKinds.Prescreen, "prescreen-2026-07-11-v2")]
-    public void IsCurrent_PreEffectivePopulationRunVersion_ReturnsFalse(
-        string runKind,
+    [InlineData(ResultKind.Validation, "validation-2026-07-13-v2")]
+    [InlineData(ResultKind.Prescreen, "prescreen-2026-07-11-v2")]
+    public void IsCurrent_PreGlRunVersion_ReturnsFalse(
+        ResultKind kind,
         string previousLogicVersion)
     {
         var summary = JsonSerializer.Serialize(new
         {
             resultRef = new
             {
-                runId = "old-run",
+                resultId = "old-run",
                 generatedUtc = "2026-08-13T00:00:00.0000000Z",
                 logicVersion = previousLogicVersion
             }
         });
 
         Assert.False(RuleLogicVersions.IsCurrent(
-            new RuleRunRecord("old-run", runKind, DateTimeOffset.UtcNow, summary)));
+            new ResultRecord("old-run", kind, DateTimeOffset.UtcNow, summary)));
     }
 
     [Theory]
@@ -162,7 +162,7 @@ public sealed class RuleLogicVersionsTests
     public void IsCurrent_MissingOldOrInvalidVersion_ReturnsFalse(string summaryJson)
     {
         Assert.False(RuleLogicVersions.IsCurrent(
-            new RuleRunRecord("run", RuleRunKinds.Validate, DateTimeOffset.UtcNow, summaryJson)));
+            new ResultRecord("run", ResultKind.Validation, DateTimeOffset.UtcNow, summaryJson)));
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public sealed class RuleLogicVersionsTests
               "groups":[{
                 "join":"AND",
                 "unknownGroup":1.2300,
-                "rules":[{
+                "conditions":[{
                   "join":"AND",
                   "type":"drCrOnly",
                   "drCr":"debit",
@@ -215,7 +215,7 @@ public sealed class RuleLogicVersionsTests
         Assert.Equal("1.2300", group.GetProperty("unknownGroup").GetRawText());
         Assert.Equal(
             "1E+02",
-            group.GetProperty("rules")[0].GetProperty("unknownRule").GetRawText());
+            group.GetProperty("conditions")[0].GetProperty("unknownRule").GetRawText());
         Assert.Equal(
             GlPopulationScopeValues.AuditPeriod,
             root.GetProperty("populationScope").GetString());
@@ -252,7 +252,7 @@ public sealed class RuleLogicVersionsTests
     }
 
     [Fact]
-    public void IsCurrent_PreEffectivePopulationFilterVersion_ReturnsFalse()
+    public void IsCurrent_PreGlFilterVersion_ReturnsFalse()
     {
         var definitionJson = JsonSerializer.Serialize(new
         {

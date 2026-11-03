@@ -3,7 +3,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>SQL Server 的預篩選命中 keyset 分頁；語意鏡射本地 provider。</summary>
+/// <summary>SQL Server 的預篩選命中 keyset 分頁；語意鏡射本地 provider，列出哪些分錄同樣由 <see cref="LocalPrescreenPageRepository.HitRowsPredicate"/> 決定。</summary>
 public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase database) : IPrescreenPageRepository
 {
     private static readonly GlFilterWhereBuilder WhereBuilder =
@@ -14,7 +14,7 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
     public async Task<PageResult<PrescreenHitRow>> GetPageAsync(
         string projectId,
         string ruleKey,
-        FilterRuleContext context,
+        FilterConditionContext context,
         PageRequest request,
         CancellationToken cancellationToken)
     {
@@ -42,10 +42,10 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
 
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
         await using (var expand = database.CreateCommand(connection, projectId,
-            "SELECT g.entry_id, g.document_number, g.line_item, g.post_date, g.account_code, g.account_name, " +
-            "       g.amount_scaled, g.dr_cr, g.document_description" + paging.SelectSuffix + " " +
-            "FROM {s}.target_gl_entry g " +
-            $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({plan.Sql})" + paging.Predicate + " " +
+            "SELECT g.entry_id, g.voucher_number, g.line_item, g.gl_date, g.account_number, g.account_name, " +
+            "       g.amount_scaled, g.dr_cr, g.description" + paging.SelectSuffix + " " +
+            "FROM {s}.gl g " +
+            $"WHERE {GlExcludedPopulation.SqlPredicate("g")} AND ({LocalPrescreenPageRepository.HitRowsPredicate(ruleKey, plan.Sql, schemaPrefix)})" + paging.Predicate + " " +
             paging.OrderBy + " " + SqlServerDialect.Instance.LimitClause("@pageSize") + ";"))
         {
             command.CommandText = expand.CommandText;
@@ -57,7 +57,7 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
     public async Task<PrescreenHitCounts> GetCountsAsync(
         string projectId,
         string ruleKey,
-        FilterRuleContext context,
+        FilterConditionContext context,
         CancellationToken cancellationToken)
     {
         await database.EnsureCreatedAsync(projectId, cancellationToken);
@@ -79,9 +79,9 @@ public sealed class SqlServerPrescreenPageRepository(SqlServerProjectDatabase da
         await using (var expand = database.CreateCommand(
             connection,
             projectId,
-            "SELECT COUNT_BIG(DISTINCT g.document_number), COUNT_BIG(*) " +
-            "FROM {s}.target_gl_entry g " +
-            $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({plan.Sql});"))
+            "SELECT COUNT_BIG(DISTINCT g.voucher_number), COUNT_BIG(*) " +
+            "FROM {s}.gl g " +
+            $"WHERE {GlExcludedPopulation.SqlPredicate("g")} AND ({LocalPrescreenPageRepository.HitRowsPredicate(ruleKey, plan.Sql, schemaPrefix)});"))
         {
             command.CommandText = expand.CommandText;
         }

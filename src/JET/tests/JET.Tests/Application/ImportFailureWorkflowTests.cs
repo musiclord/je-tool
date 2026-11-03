@@ -23,7 +23,7 @@ public sealed class ImportFailureWorkflowTests
     {
         var events = new FailingEvents();
         using var host = new HandlerTestHost(enableDevTools: false, eventPublisher: events);
-        var created = await host.DispatchAsync("project.create", """{"caseName":"diagnostic-matrix","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        var created = await host.DispatchAsync("project.create", """{"projectName":"diagnostic-matrix","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
         var id = created.GetProperty("projectId").GetString()!;
         var path = Path.Combine(host.ProjectsRoot, "PRIVATE_SOURCE.csv");
         await File.WriteAllTextAsync(path, "doc,amount\nold,1\n");
@@ -70,14 +70,14 @@ public sealed class ImportFailureWorkflowTests
                 if (trigger == "file_lock") locked = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
                 if (trigger is "progress" or "cancel") events.Failure = trigger;
                 if (trigger == "database") await ExecuteSqlAsync(database, id,
-                    "CREATE TRIGGER fail_import BEFORE INSERT ON staging_gl_raw_row BEGIN SELECT RAISE(FAIL, 'PRIVATE_DATABASE_MESSAGE'); END;");
+                    "CREATE TRIGGER fail_import BEFORE INSERT ON pbc_gl BEGIN SELECT RAISE(FAIL, 'PRIVATE_DATABASE_MESSAGE'); END;");
             }
             var error = await Record.ExceptionAsync(() => host.DispatchAsync("import.gl.fromFile", payload, correlationId: "matrix-case"));
             Assert.NotNull(error);
             if (trigger == "cell")
             {
                 Assert.Contains("第 6000 列、第 1 欄", error.Message);
-                // 使用者 2026-10-19 裁定「型別」改用具體說法。首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；
+                // 裁定 2026-10-19-14：「型別」改用具體說法。首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；
                 // 仍檢查訊息指出儲存格位置與審計員能做的事。
                 Assert.Contains("請在 Excel 確認該儲存格的格式與數值後重試", error.Message);
                 Assert.DoesNotContain("型別", error.Message);
@@ -128,13 +128,13 @@ public sealed class ImportFailureWorkflowTests
         }
     }
 
-    // 2026-10-04 第二遍回饋審閱第 1 批（L07）：資料庫寫入失敗的分類以前只在 SQLite 驗證。DuckDB 沒有 trigger，
+    // 資料庫寫入失敗的分類以前只在 SQLite 驗證。DuckDB 沒有 trigger，
     // 這裡在同一程序已完成結構檢查之後把暫存表改名，讓寫入在 database_write 階段失敗，確認分類、資料庫名稱與回復狀態都寫進支援日誌。
     [Fact]
     public async Task DuckDb_DatabaseWriteFailure_IsClassifiedWithProviderAndRollback()
     {
         using var host = new HandlerTestHost(enableDevTools: false);
-        var created = await host.DispatchAsync("project.create", """{"caseName":"duck-write-failure","periodStart":"2025-01-01","periodEnd":"2025-12-31","databaseProvider":"duckdb"}""");
+        var created = await host.DispatchAsync("project.create", """{"projectName":"duck-write-failure","periodStart":"2025-01-01","periodEnd":"2025-12-31","databaseProvider":"duckdb"}""");
         var id = created.GetProperty("projectId").GetString()!;
         var path = Path.Combine(host.ProjectsRoot, "PRIVATE_SOURCE.csv");
         await File.WriteAllTextAsync(path, "doc,amount\nold,1\n");
@@ -144,7 +144,7 @@ public sealed class ImportFailureWorkflowTests
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = "ALTER TABLE staging_gl_raw_row RENAME TO staging_gl_raw_row_unavailable;";
+            command.CommandText = "ALTER TABLE pbc_gl RENAME TO pbc_gl_unavailable;";
             await command.ExecuteNonQueryAsync();
         }
         await File.WriteAllTextAsync(path, "doc,amount\nPRIVATE_VALUE,2\n");
@@ -201,7 +201,7 @@ public sealed class ImportFailureWorkflowTests
         using var host = new HandlerTestHost(enableDevTools: false);
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "synthetic-diagnostics", periodStart = "2025-01-01", periodEnd = "2025-12-31",
+            projectName = "synthetic-diagnostics", periodStart = "2025-01-01", periodEnd = "2025-12-31",
             databaseProvider = provider
         }));
         var id = created.GetProperty("projectId").GetString()!;

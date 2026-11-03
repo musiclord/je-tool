@@ -49,7 +49,7 @@ public sealed record AuthorizedPreparerState(long RowCount)
 }
 
 /// <summary>
-/// 授權編製人員清單的匯入與計數。授權清單就是一個 name 集合（target_authorized_preparer，name PK）；
+/// 授權編製人員清單的匯入與計數。授權清單就是一個 name 集合（authorized_preparer，name PK）；
 /// 不入 import_batch dataset_kind 體系，故 store 只寫 staging + target。
 /// </summary>
 public interface IAuthorizedPreparerStore
@@ -73,7 +73,7 @@ public interface IAuthorizedPreparerStore
 
     /// <summary>
     /// project.load resume 用：名單已匯入時回 <see cref="AuthorizedPreparerState"/>（RowCount = 名單筆數），
-    /// 未匯入（0 筆）時回 null。rowCount 取自 target_authorized_preparer 的 COUNT，不持久化 fileName/importedUtc。
+    /// 未匯入（0 筆）時回 null。rowCount 取自 authorized_preparer 的 COUNT，不持久化 fileName/importedUtc。
     /// </summary>
     Task<AuthorizedPreparerState?> FindStateAsync(string projectId, CancellationToken cancellationToken);
 }

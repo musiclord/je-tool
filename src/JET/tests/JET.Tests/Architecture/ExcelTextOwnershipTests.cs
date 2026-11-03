@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 報告與範本的文字儲存格只透過 ExcelText 建立，來源文字才一定經過 Excel 的跳脫編碼。其他地方直接建立 Text、InlineString
-/// 或 is 元素時，含控制字元的來源資料會讓整批報告匯出失敗（使用者 2026-10-21 回報）。
+/// 或 is 元素時，含控制字元的來源資料會讓整批報告匯出失敗（使用者回報過這個問題）。
 /// </summary>
 public sealed partial class ExcelTextOwnershipTests
 {

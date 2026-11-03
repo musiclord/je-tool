@@ -11,14 +11,14 @@ namespace JET.AuditCore;
 internal static class PrescreenProcedures
 {
     /// <summary>週末與假日卡只檢查了總帳日期時，放在核准側原因前面的一句。</summary>
-    internal const string OnlyPostDateChecked = "只檢查了總帳日期。";
+    internal const string OnlyGlDateChecked = "只檢查了總帳日期。";
 
     /// <summary>
     /// 規則需要的案件資料只看規則需求表，和第五步、前端停用說明同一張表；不能執行時一個原因一句，寫出缺什麼、到哪裡補。
     /// </summary>
     public static ProcedureVerdict Evaluate(
         ProcedureDefinition definition,
-        AuditCaseSnapshot snapshot)
+        AuditProjectSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -38,7 +38,7 @@ internal static class PrescreenProcedures
     /// 只有核准側不能執行時，畫面照常顯示過帳側的筆數與明細，另外說明只檢查了總帳日期。
     /// </summary>
     internal static PrescreenActivityReasons ActivityReasons(
-        AuditCaseSnapshot snapshot,
+        AuditProjectSnapshot snapshot,
         string postingSlug,
         string approvalSlug)
     {
@@ -55,7 +55,7 @@ internal static class PrescreenProcedures
 
         return new PrescreenActivityReasons(
             null,
-            approval.Count == 0 ? null : OnlyPostDateChecked + JetRuleRequirements.PrescreenSentences(approval, facts.CategoryLabels));
+            approval.Count == 0 ? null : OnlyGlDateChecked + JetRuleRequirements.PrescreenSentences(approval, facts.CategoryLabels));
     }
 
     private static string WireKey(string slug) =>

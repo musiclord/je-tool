@@ -9,7 +9,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// log.append 必須能在長作業期間持續寫入 UX 訊息，但這個 concurrent 寫入例外
-/// 只能經 IMessageLogStore 觸及 app_message_log，不得成為案件資料的旁路 mutation。
+/// 只能經 IMessageLogStore 觸及 message_log，不得成為案件資料的旁路 mutation。
 /// </summary>
 public sealed partial class MessageLogWriteScopeTests
 {
@@ -62,7 +62,7 @@ public sealed partial class MessageLogWriteScopeTests
     [Theory]
     [InlineData("Local", "LocalMessageLogStore.cs")]
     [InlineData("SqlServer", "SqlServerMessageLogStore.cs")]
-    public void MessageLogLeafStore_AppendMutatesOnlyAppMessageLog(
+    public void MessageLogLeafStore_AppendMutatesOnlyMessageLog(
         string providerFolder,
         string fileName)
     {
@@ -79,7 +79,7 @@ public sealed partial class MessageLogWriteScopeTests
 
         Assert.NotEmpty(targets);
         Assert.All(targets, target =>
-            Assert.Equal("app_message_log", target, ignoreCase: true));
+            Assert.Equal("message_log", target, ignoreCase: true));
     }
 
     [Fact]
@@ -89,15 +89,15 @@ public sealed partial class MessageLogWriteScopeTests
 
         Assert.Matches(
             new Regex(
-                "\\\"log\\.append\\\"\\s*,\\s*//[^\\r\\n]*app_message_log",
+                "\\\"log\\.append\\\"\\s*,\\s*//[^\\r\\n]*message_log",
                 RegexOptions.CultureInvariant),
             policy);
     }
 
     [Theory]
-    [InlineData("INSERT INTO app_message_log (text) VALUES (@text)", "app_message_log")]
-    [InlineData("DELETE FROM target_gl_entry", "target_gl_entry")]
-    [InlineData("UPDATE {s}.config_filter_scenario SET x = 1", "config_filter_scenario")]
+    [InlineData("INSERT INTO message_log (text) VALUES (@text)", "message_log")]
+    [InlineData("DELETE FROM gl", "gl")]
+    [InlineData("UPDATE {s}.filter_scenario SET x = 1", "filter_scenario")]
     public void DmlTargetDetector_ExtractsConcreteMutationTarget(string sql, string expected)
     {
         var match = Assert.Single(DmlTarget().Matches(sql).Cast<Match>());

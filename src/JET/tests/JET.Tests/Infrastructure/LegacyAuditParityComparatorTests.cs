@@ -19,7 +19,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyParityCase.CaseA,
             Metrics(
                 variant: false,
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -119,7 +119,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyParityCase.CaseA,
             Metrics(
                 variant: false,
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -201,7 +201,7 @@ public sealed class LegacyAuditParityComparatorTests
 
         var unverified = Assert.Throws<ArgumentException>(() => new LegacyAuditParityClassification(
             LegacyParityCase.CaseA,
-            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PostPeriodApproval),
+            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PrepPeriodApproval),
             LegacyAuditParityDifferenceCategory.JetDefect,
             LegacyAuditParityCitation.JetGuideSection5,
             LegacyAuditParityBasis.JetRequirementMismatch,
@@ -209,7 +209,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyAuditParityHarnessBindingVerification.Unverified));
         var missingState = Assert.Throws<ArgumentException>(() => new LegacyAuditParityClassification(
             LegacyParityCase.CaseA,
-            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PostPeriodApproval),
+            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PrepPeriodApproval),
             LegacyAuditParityDifferenceCategory.IntentionalDecision,
             LegacyAuditParityCitation.JetGuideSection5,
             LegacyAuditParityBasis.ApprovedIntentionalDifference,
@@ -217,7 +217,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyAuditParityHarnessBindingVerification.NotRequired));
         var verified = new LegacyAuditParityClassification(
             LegacyParityCase.CaseA,
-            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PostPeriodApproval),
+            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PrepPeriodApproval),
             LegacyAuditParityDifferenceCategory.JetDefect,
             LegacyAuditParityCitation.JetGuideSection5,
             LegacyAuditParityBasis.JetRequirementMismatch,
@@ -225,7 +225,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyAuditParityHarnessBindingVerification.Verified);
         var nonJetUnverified = new LegacyAuditParityClassification(
             LegacyParityCase.CaseA,
-            LegacyAuditParityMetricIds.PrescreenVoucherCount(LegacyPrescreenRuleId.PostPeriodApproval),
+            LegacyAuditParityMetricIds.PrescreenVoucherCount(LegacyPrescreenRuleId.PrepPeriodApproval),
             LegacyAuditParityDifferenceCategory.IntentionalDecision,
             LegacyAuditParityCitation.JetGuideSection5,
             LegacyAuditParityBasis.ApprovedIntentionalDifference,
@@ -378,25 +378,26 @@ public sealed class LegacyAuditParityComparatorTests
     }
 
     [Fact]
-    public void LegacyNoCounterpartRules_AreTheIndependentExactFiveRuleSet()
+    public void LegacyNoCounterpartRules_AreTheIndependentExactThreeRuleSet()
     {
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，回溯過帳不再列入。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，回溯過帳不再列入。
+        // 編製分錄較少的人員與使用較少的科目是 JET 自己加的兩條規則，第四步照舊版拿掉後（裁定 2026-10-29-27），
+        // 舊版無對應項只剩三條；這是拿掉 JET 的規則，不是改變差異的分類。
+        // 原名 LegacyNoCounterpartRules_AreTheIndependentExactFiveRuleSet；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
         var expected = new HashSet<LegacyPrescreenRuleId>
         {
             LegacyPrescreenRuleId.HolidayPosting,
             LegacyPrescreenRuleId.HolidayApproval,
             LegacyPrescreenRuleId.NonAuthorizedPreparer,
-            LegacyPrescreenRuleId.LowFrequencyPreparer,
-            LegacyPrescreenRuleId.LowFrequencyAccount,
         };
 
-        Assert.Equal(5, LegacyPrescreenParityPlan.LegacyNoCounterpartRules.Count);
+        Assert.Equal(3, LegacyPrescreenParityPlan.LegacyNoCounterpartRules.Count);
         Assert.Equal(
-            5,
+            3,
             LegacyPrescreenParityPlan.LegacyNoCounterpartRules.Distinct().Count());
         Assert.True(
             expected.SetEquals(LegacyPrescreenParityPlan.LegacyNoCounterpartRules),
-            "Legacy-no-counterpart rules must remain the exact repository-defined five-rule set.");
+            "Legacy-no-counterpart rules must remain the exact repository-defined three-rule set.");
     }
 
     [Fact]
@@ -404,7 +405,7 @@ public sealed class LegacyAuditParityComparatorTests
     {
         var expected = new HashSet<LegacyPrescreenRuleId>
         {
-            LegacyPrescreenRuleId.PostPeriodApproval,
+            LegacyPrescreenRuleId.PrepPeriodApproval,
             LegacyPrescreenRuleId.SuspiciousKeywords,
             LegacyPrescreenRuleId.UnexpectedAccountPair,
             LegacyPrescreenRuleId.TrailingZeros,
@@ -420,14 +421,14 @@ public sealed class LegacyAuditParityComparatorTests
     [Fact]
     public void LegacyNoCounterpartRules_EachRegisterBothRowAndVoucherMetrics()
     {
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，回溯過帳不再列入。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，回溯過帳不再列入。
+        // 編製分錄較少的人員與使用較少的科目是 JET 自己加的兩條規則，第四步照舊版拿掉後（裁定 2026-10-29-27），
+        // 舊版無對應項只剩三條；這是拿掉 JET 的規則，不是改變差異的分類。
         var expectedRules = new[]
         {
             LegacyPrescreenRuleId.HolidayPosting,
             LegacyPrescreenRuleId.HolidayApproval,
             LegacyPrescreenRuleId.NonAuthorizedPreparer,
-            LegacyPrescreenRuleId.LowFrequencyPreparer,
-            LegacyPrescreenRuleId.LowFrequencyAccount,
         };
         var metricIds = LegacyPrescreenParityPlan.LegacyNoCounterpartMetricIds.ToArray();
 
@@ -453,7 +454,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyParityCase.CaseA,
             Metrics(
                 variant: false,
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -485,14 +486,14 @@ public sealed class LegacyAuditParityComparatorTests
     }
 
     [Fact]
-    public void CompareLegacyToProvider_UnavailablePartAIsTypedNonComparableAndNeverZero()
+    public void CompareLegacyToProvider_UnavailableStoredTotalsIsTypedNonComparableAndNeverZero()
     {
         var legacy = LegacyAuditParityObservation.FromLegacy(
             LegacyParityCase.CaseA,
             Metrics(
                 variant: false,
-                unavailablePartA: true,
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                unavailableStoredTotals: true,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -501,9 +502,9 @@ public sealed class LegacyAuditParityComparatorTests
 
         var unavailableMetricIds = new[]
         {
-            LegacyAuditParityMetricIds.PartATargetRowCount,
-            LegacyAuditParityMetricIds.PartATotalDebit,
-            LegacyAuditParityMetricIds.PartATotalCredit,
+            LegacyAuditParityMetricIds.StoredRowCount,
+            LegacyAuditParityMetricIds.StoredTotalDebit,
+            LegacyAuditParityMetricIds.StoredTotalCredit,
         };
         var classifications = unavailableMetricIds.Select(metricId =>
                 ClassificationForLegacyMetric(
@@ -545,7 +546,7 @@ public sealed class LegacyAuditParityComparatorTests
             Metrics(
                 variant: false,
                 unavailablePrescreen: true,
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseB,
@@ -596,7 +597,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyParityCase.CaseA,
             Metrics(
                 variant: false,
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -619,17 +620,17 @@ public sealed class LegacyAuditParityComparatorTests
     [InlineData(true, false)]
     [InlineData(false, false)]
     public void CompareLegacyToProvider_R5R6ApplicabilityMismatchFailsClosed(
-        bool creatorSummary,
+        bool preparerSummary,
         bool invalidLegacySide)
     {
         var legacy = LegacyAuditParityObservation.FromLegacy(
             LegacyParityCase.CaseA,
             Metrics(
                 variant: false,
-                creatorSummaryLegacyApplicability: creatorSummary && invalidLegacySide
+                preparerSummaryLegacyApplicability: preparerSummary && invalidLegacySide
                     ? LegacyMetricApplicability.NotExecuted
                     : LegacyMetricApplicability.NotApplicable,
-                rareAccountsLegacyApplicability: !creatorSummary && invalidLegacySide
+                rareAccountsLegacyApplicability: !preparerSummary && invalidLegacySide
                     ? LegacyMetricApplicability.NotExecuted
                     : LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
@@ -637,10 +638,10 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyAuditParityProvider.Sqlite,
             Metrics(
                 variant: false,
-                creatorSummaryLegacyApplicability: creatorSummary && !invalidLegacySide
+                preparerSummaryLegacyApplicability: preparerSummary && !invalidLegacySide
                     ? LegacyMetricApplicability.NotApplicable
                     : LegacyMetricApplicability.NotExecuted,
-                rareAccountsLegacyApplicability: !creatorSummary && !invalidLegacySide
+                rareAccountsLegacyApplicability: !preparerSummary && !invalidLegacySide
                     ? LegacyMetricApplicability.NotApplicable
                     : LegacyMetricApplicability.NotExecuted));
 
@@ -651,8 +652,8 @@ public sealed class LegacyAuditParityComparatorTests
                 new LegacyAuditParityClassificationCatalog([])));
 
         Assert.Equal(
-            creatorSummary
-                ? LegacyAuditParityMetricIds.CreatorSummaryNotApplicable
+            preparerSummary
+                ? LegacyAuditParityMetricIds.PreparerSummaryNotApplicable
                 : LegacyAuditParityMetricIds.RareAccountsNotApplicable,
             error.MetricId);
     }
@@ -709,14 +710,14 @@ public sealed class LegacyAuditParityComparatorTests
         var sqlite = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
             LegacyAuditParityProvider.Sqlite,
-            Metrics(variant: false, unavailablePartA: true, unavailablePrescreen: true));
+            Metrics(variant: false, unavailableStoredTotals: true, unavailablePrescreen: true));
         var duckDbSharedUnavailable = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
             LegacyAuditParityProvider.DuckDb,
-            Metrics(variant: false, unavailablePartA: true, unavailablePrescreen: true));
+            Metrics(variant: false, unavailableStoredTotals: true, unavailablePrescreen: true));
         var sharedError = Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
             LegacyAuditParityComparator.CompareProviders([sqlite, duckDbSharedUnavailable]));
-        Assert.Equal(LegacyAuditParityMetricIds.PartASourceRowCount, sharedError.MetricId);
+        Assert.Equal(LegacyAuditParityMetricIds.PbcRowCount, sharedError.MetricId);
 
         var duckDbAvailable = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -724,7 +725,7 @@ public sealed class LegacyAuditParityComparatorTests
             Metrics(variant: false));
         var mismatchError = Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
             LegacyAuditParityComparator.CompareProviders([sqlite, duckDbAvailable]));
-        Assert.Equal(LegacyAuditParityMetricIds.PartASourceRowCount, mismatchError.MetricId);
+        Assert.Equal(LegacyAuditParityMetricIds.PbcRowCount, mismatchError.MetricId);
     }
 
     [Fact]
@@ -740,7 +741,7 @@ public sealed class LegacyAuditParityComparatorTests
                 filterCounts: new LegacyRowVoucherCounts(
                     LegacyObservedCount.Executed(1),
                     LegacyObservedCount.ExecutedUnavailable),
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -785,7 +786,7 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyParityCase.CaseA,
             Metrics(
                 variant: false,
-                creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
@@ -831,7 +832,7 @@ public sealed class LegacyAuditParityComparatorTests
         var metricId = LegacyAuditParityMetricIds.FilterRowCount(scenario);
         var fallback = new LegacyAuditParityMappingProvenanceEntry(
             LegacyMappingDataset.Gl,
-            LegacyMappingSlot.GlDocumentNumber,
+            LegacyMappingSlot.GlVoucherNumber,
             LegacyMappingResolutionSource.NormalizedHeaderIdentity);
         var provenance = new LegacyAuditParityMappingProvenance([fallback]);
         var legacy = new LegacyAuditParityObservationArtifactBundle(
@@ -840,7 +841,7 @@ public sealed class LegacyAuditParityComparatorTests
                 Metrics(
                     variant: false,
                     filterCounts: new LegacyRowVoucherCounts(1, 1),
-                    creatorSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
+                    preparerSummaryLegacyApplicability: LegacyMetricApplicability.NotApplicable,
                     rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable)),
             provenance);
         var provider = new LegacyAuditParityObservationArtifactBundle(
@@ -906,7 +907,7 @@ public sealed class LegacyAuditParityComparatorTests
         var comparisonId = LegacyAuditParityComparisonId.SqliteVsDuckDb;
         var fallback = new LegacyAuditParityMappingProvenanceEntry(
             LegacyMappingDataset.Gl,
-            LegacyMappingSlot.GlDocumentNumber,
+            LegacyMappingSlot.GlVoucherNumber,
             LegacyMappingResolutionSource.NormalizedHeaderIdentity);
         var provenance = new LegacyAuditParityMappingProvenance([fallback]);
         var sqlite = new LegacyAuditParityObservationArtifactBundle(
@@ -981,7 +982,7 @@ public sealed class LegacyAuditParityComparatorTests
             [
                 new LegacyAuditParityMappingProvenanceEntry(
                     LegacyMappingDataset.Gl,
-                    LegacyMappingSlot.GlDocumentNumber,
+                    LegacyMappingSlot.GlVoucherNumber,
                     LegacyMappingResolutionSource.WorkingPaperExplicitMapping),
             ]));
 
@@ -1062,24 +1063,24 @@ public sealed class LegacyAuditParityComparatorTests
 
     private static LegacyAuditParityMetrics Metrics(
         bool variant,
-        bool unavailablePartA = false,
+        bool unavailableStoredTotals = false,
         bool unavailablePrescreen = false,
         LegacyRowVoucherCounts? filterCounts = null,
         bool includeFilterScenario = true,
-        LegacyMetricApplicability creatorSummaryLegacyApplicability =
+        LegacyMetricApplicability preparerSummaryLegacyApplicability =
             LegacyMetricApplicability.NotExecuted,
         LegacyMetricApplicability rareAccountsLegacyApplicability =
             LegacyMetricApplicability.NotExecuted)
     {
-        var completeness = unavailablePartA
+        var completeness = unavailableStoredTotals
             ? new LegacyCompletenessObservation(
                 variant ? 3 : 1,
                 null,
                 null,
                 null,
                 null,
-                partARowCountMatch: !variant,
-                partAAmountMatch: !variant)
+                storedRowCountMatch: !variant,
+                storedAmountMatch: !variant)
             : variant
                 ? new LegacyCompletenessObservation(3, 12, 11, 101m, 99m, false, false)
                 : new LegacyCompletenessObservation(1, 10, 10, 100m, 100m, true, true);
@@ -1133,7 +1134,7 @@ public sealed class LegacyAuditParityComparatorTests
             filters,
             reports,
             weekendUnion,
-            creatorSummaryLegacyApplicability,
+            preparerSummaryLegacyApplicability,
             rareAccountsLegacyApplicability);
     }
 
@@ -1142,9 +1143,9 @@ public sealed class LegacyAuditParityComparatorTests
         var metricIds = new List<string>
         {
             LegacyAuditParityMetricIds.CompletenessDifferenceAccountCount,
-            LegacyAuditParityMetricIds.PartATargetRowCount,
-            LegacyAuditParityMetricIds.PartATotalDebit,
-            LegacyAuditParityMetricIds.PartATotalCredit,
+            LegacyAuditParityMetricIds.StoredRowCount,
+            LegacyAuditParityMetricIds.StoredTotalDebit,
+            LegacyAuditParityMetricIds.StoredTotalCredit,
             LegacyAuditParityMetricIds.UnbalancedVoucherCount,
             LegacyAuditParityMetricIds.InfSampleSize,
             LegacyAuditParityMetricIds.InfMemberKeyMultiset,
@@ -1255,7 +1256,7 @@ public sealed class LegacyAuditParityComparatorTests
         LegacyReportKind.InfReport =>
             LegacyAuditParityReportFamily.InfReliability,
         LegacyReportKind.PrescreenReport =>
-            LegacyAuditParityReportFamily.PrescreenPostPeriodApprovalDetail,
+            LegacyAuditParityReportFamily.PrescreenPrepPeriodApprovalDetail,
         LegacyReportKind.CriteriaSelectionReport =>
             LegacyAuditParityReportFamily.CriteriaScenario001,
         LegacyReportKind.WorkingPaper =>

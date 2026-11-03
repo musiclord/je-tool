@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// .xls 讀取器的儲存格邊界（2026-10-04 第二遍回饋審閱第 1 批，審閱 U16）。
+/// .xls 讀取器的儲存格邊界。
 /// oracle：手刻的最小 BIFF2 活頁簿，只含合成值；錯誤儲存格用 BOOLERR 記錄寫入。
 /// </summary>
 public sealed class BinaryExcelTableReaderTests
@@ -34,7 +34,7 @@ public sealed class BinaryExcelTableReaderTests
     [Fact]
     public async Task LeadingRowsToSkip_BeyondContent_SaysTheHeaderRowHasNoContent()
     {
-        // 預篩選收斂計畫複審（2026-10-28）：欄名列填得比內容還多時，和 .xlsx 與文字檔同一句。改程式之後才補，沒有第一次失敗的收據。
+        // 2026-10-28 複審時查到：欄名列填得比內容還多時，和 .xlsx 與文字檔同一句。改程式之後才補，沒有第一次失敗的收據。
         var path = Path.Combine(Path.GetTempPath(), $"jet-xls-{Guid.NewGuid():N}.xls");
         WriteBiff2WithErrorCell(path);
         try
@@ -90,7 +90,7 @@ public sealed class BinaryExcelTableReaderTests
         WriteBiff2WithErrorCell(path);
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "Synthetic XLS error", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "Synthetic XLS error", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var imported = await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path }));
         Assert.Equal(2, imported.GetProperty("rowCount").GetInt32());
@@ -98,7 +98,7 @@ public sealed class BinaryExcelTableReaderTests
         var failure = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
             amountMode = "signed",
-            mapping = new { docNum = "Document", postDate = "Date", accNum = "Account", accName = "Name", description = "Description", amount = "Amount" }
+            mapping = new { voucherNumber = "Document", glDate = "Date", accountNumber = "Account", accountName = "Name", description = "Description", amount = "Amount" }
         })));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, failure.Code);

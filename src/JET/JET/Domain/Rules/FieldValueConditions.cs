@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 通用值條件（type:"fieldValue"）：核心文字、日期、金額欄位與已配對的額外欄位共用同一份比較方式選單。
-/// 日期另有「每月幾日屬於」與「每月幾日不屬於」（2026-09-04 裁定，值為 1 到 31）；文字的「包含任一文字」
+/// 通用值條件（type:"fieldValue"）：核心文字、日期、金額欄位與已配對的攸關資料元素欄位共用同一份比較方式選單。
+/// 日期另有「每月幾日屬於」與「每月幾日不屬於」（裁定 2026-09-04-01，值為 1 到 31）；文字的「包含任一文字」
 /// 與「不包含任何文字」接受多個關鍵字（對齊 legacy 的包含就排除）。舊 typed 型別不變。
 /// </summary>
 public static class FieldValueConditions
@@ -28,7 +28,7 @@ public static class FieldValueConditions
         ["between"] = "介於", ["notBetween"] = "不介於", ["isBlank"] = "空白", ["isNotBlank"] = "非空白"
     };
 
-    internal static IReadOnlyList<string>? CanonicalValues(FilterRuleSpec rule, GlRdeFieldMetadata field, int scale,
+    internal static IReadOnlyList<string>? CanonicalValues(FilterConditionSpec rule, GlRdeFieldMetadata field, int scale,
         DateParseOptions? dateOptions = null)
     {
         if (rule.TypedValues is null) return null;
@@ -38,7 +38,7 @@ public static class FieldValueConditions
         {
             "text" => value.Trim().ToUpperInvariant(),
             "date" when TypedFieldOperandRules.TryNormalizeDate(value, dateOptions ?? DateParseOptions.Default, out var iso) => iso,
-            "money" when TypedFieldOperandRules.TryNormalizeMoney(value, scale, out var scaled) =>
+            "amount" when TypedFieldOperandRules.TryNormalizeMoney(value, scale, out var scaled) =>
                 ((decimal)scaled / scale).ToString(System.Globalization.CultureInfo.InvariantCulture),
             _ => value
         }).Distinct(StringComparer.Ordinal).ToArray();
@@ -51,7 +51,7 @@ public static class FieldValueConditions
             DayOfMonthIn, DayOfMonthNotIn, "monthStartDays", "notMonthStartDays", "monthEndDays", "notMonthEndDays",
             "isWeekend", "isNotWeekend", "isHoliday", "isNotHoliday",
             "isMakeupDay", "isNotMakeupDay", "isNonBusinessDay", "isNotNonBusinessDay", "isBlank", "isNotBlank"],
-        "money" => ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween", "in", "notIn", "endsWithDigits", "notEndsWithDigits", "isBlank", "isNotBlank"],
+        "amount" => ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween", "in", "notIn", "endsWithDigits", "notEndsWithDigits", "isBlank", "isNotBlank"],
         _ => []
     };
 
@@ -74,13 +74,13 @@ public static class FieldValueConditions
     public static IReadOnlyList<string> SplitInputList(string? value) => (value ?? "")
         .Split([',', '，', '、', '\t', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-    public static IReadOnlyList<string> TailPatterns(FilterRuleSpec rule) => rule.TypedValues is { Count: > 0 }
+    public static IReadOnlyList<string> TailPatterns(FilterConditionSpec rule) => rule.TypedValues is { Count: > 0 }
         ? rule.TypedValues : SplitInputList(rule.TypedValue);
 
     /// <summary>文字的包含比對接受多個關鍵字；舊 wire 只帶單一 value 時視為一個關鍵字。</summary>
     public static bool IsContains(string? op) => op is "contains" or "notContains";
 
-    public static IReadOnlyList<string> ContainsKeywords(FilterRuleSpec rule) =>
+    public static IReadOnlyList<string> ContainsKeywords(FilterConditionSpec rule) =>
         rule.TypedValues is { Count: > 0 } ? rule.TypedValues
             : rule.TypedValue is null ? [] : [rule.TypedValue];
 
@@ -100,14 +100,14 @@ public static class FieldValueConditions
         return true;
     }
 
-    public static GlRdeFieldMetadata? Resolve(FilterRuleSpec rule, IReadOnlyList<GlRdeFieldMetadata> extraFields)
+    public static GlRdeFieldMetadata? Resolve(FilterConditionSpec rule, IReadOnlyList<GlRdeFieldMetadata> extraFields)
     {
         if (rule.FieldId is not null)
             return rule.Field is null ? extraFields.FirstOrDefault(field => field.FieldId == rule.FieldId) : null;
         if (!GlFieldWhitelist.TryResolve(rule.Field, out var column)) return null;
         return new GlRdeFieldMetadata(rule.Field!, column.Column, rule.Field!, column.Kind switch
         {
-            GlFieldKind.Text => "text", GlFieldKind.Date => "date", _ => "money"
+            GlFieldKind.Text => "text", GlFieldKind.Date => "date", _ => "amount"
         });
     }
 }
@@ -115,11 +115,15 @@ public static class FieldValueConditions
 public static partial class FilterScenarioValidator
 {
     /// <param name="fieldUnavailable">核心欄位沒有來源欄；原因已由規則需求表寫出，比較方式與值不必再檢查。</param>
-    private static void ValidateFieldValue(FilterRuleSpec rule, string label,
+    private static void ValidateFieldValue(FilterConditionSpec rule, string label,
         FilterValidationContext context, List<string> errors, bool fieldUnavailable)
     {
-        if (rule.DrCr is not null and not "debit" and not "credit")
+        // 分錄方向與核心金額的「含正負號」是已拿掉的舊寫法，讀到時當成無法讀取的內容
+        // （裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。攸關資料元素的金額欄位仍可選含正負號。
+        if (rule.DrCr is not null)
             FilterScenarioCorruption.Add(errors, label, "field_value_side_invalid");
+        if (rule.FieldId is null && rule.Field == JetFieldCatalog.GlAmount && rule.AmountBasis == TypedAmountBasisNames.Signed)
+            FilterScenarioCorruption.Add(errors, label, "field_value_core_amount_signed");
         var field = FieldValueConditions.Resolve(rule, context.RdeFields);
         if (field is null)
         {
@@ -135,10 +139,10 @@ public static partial class FilterScenarioValidator
             errors.Add($"{label}：此欄位不適用此比較方式");
             return;
         }
-        if (field.ValueType == "money" && !TypedAmountBasisNames.IsCanonical(rule.AmountBasis))
+        if (field.ValueType == "amount" && !TypedAmountBasisNames.IsCanonical(rule.AmountBasis))
             FilterScenarioCorruption.Add(errors, label, "field_value_amount_basis_missing");
-        if (field.ValueType != "money" && rule.AmountBasis is not null)
-            FilterScenarioCorruption.Add(errors, label, "field_value_amount_basis_not_money");
+        if (field.ValueType != "amount" && rule.AmountBasis is not null)
+            FilterScenarioCorruption.Add(errors, label, "field_value_amount_basis_not_amount");
         if (FieldValueConditions.IsMonthWindow(rule.TypedOperator))
         {
             if (!FieldValueConditions.TryParseMonthWindowDays(rule.TypedValue, out _))
@@ -182,7 +186,8 @@ public static partial class FilterScenarioValidator
             field, label, context, errors);
     }
 
+    // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示照畫面上的字寫；前端 filter-values.js 同一句。
     private static string FieldValueListLimitReason(string? op) =>
-        $"每條最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。請拆成多條條件，放進「"
-        + (op is "notIn" or "notContains" or "notEndsWithDigits" ? "全部符合" : "任一符合") + "」子條件組。";
+        $"每條最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。請拆成多條條件，放進子條件組，用 "
+        + (op is "notIn" or "notContains" or "notEndsWithDigits" ? "AND" : "OR") + " 連接。";
 }

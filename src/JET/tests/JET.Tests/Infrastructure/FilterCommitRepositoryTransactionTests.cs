@@ -300,7 +300,7 @@ public sealed class FilterCommitRepositoryTransactionTests
 
     private static string DefinitionJson(string name, string rationale, string drCr) =>
         $$"""
-        {"name":"{{name}}","rationale":"{{rationale}}","groups":[{"join":"AND","rules":[{"join":"AND","type":"drCrOnly","drCr":"{{drCr}}"}]}]}
+        {"name":"{{name}}","rationale":"{{rationale}}","groups":[{"join":"AND","conditions":[{"join":"AND","type":"drCrOnly","drCr":"{{drCr}}"}]}]}
         """;
 
     private static FilterScenarioSpec DrCrScenario(
@@ -313,9 +313,9 @@ public sealed class FilterCommitRepositoryTransactionTests
             new FilterGroupSpec(
                 FilterJoin.And,
                 [
-                    new FilterRuleSpec(
+                    new FilterConditionSpec(
                         FilterJoin.And,
-                        FilterRuleType.DrCrOnly,
+                        FilterConditionType.DrCrOnly,
                         PrescreenKey: null,
                         Field: null,
                         Keywords: [],
@@ -329,9 +329,9 @@ public sealed class FilterCommitRepositoryTransactionTests
                 ])
         ]);
 
-    private static FilterRuleContext Context() => new(
+    private static FilterConditionContext Context() => new(
         ProjectDocument.DefaultMoneyScale,
-        LastPeriodStart: null,
+        PrepStartDate: null,
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",
         PopulationScope: GlPopulationScope.AuditPeriod);
@@ -346,9 +346,9 @@ public sealed class FilterCommitRepositoryTransactionTests
             await using var command = connection.CreateCommand();
             command.CommandText =
                 $"""
-                INSERT INTO {schemaPrefix}target_gl_entry
-                    (batch_id, source_row_number, document_number, line_item, post_date,
-                     account_code, account_name, amount_scaled, debit_amount_scaled,
+                INSERT INTO {schemaPrefix}gl
+                    (batch_id, source_row_number, voucher_number, line_item, gl_date,
+                     account_number, account_name, amount_scaled, debit_amount_scaled,
                      credit_amount_scaled, dr_cr)
                 VALUES
                     ('atomic-filter', 1, 'DOC-DEBIT', '1', '2025-03-01',
@@ -356,9 +356,9 @@ public sealed class FilterCommitRepositoryTransactionTests
                     ('atomic-filter', 2, 'DOC-CREDIT', '1', '2025-03-02',
                      '4101', 'Revenue', -10000, 0, 10000, 'CREDIT');
 
-                UPDATE {schemaPrefix}target_gl_entry SET is_effective = 1;
+                UPDATE {schemaPrefix}gl SET is_excluded = 0;
 
-                INSERT INTO {schemaPrefix}result_filter_run (scenario_position, entry_id)
+                INSERT INTO {schemaPrefix}filter_hit (scenario_id, entry_id)
                 VALUES
                     (7, 700001),
                     (8, 800001),
@@ -378,7 +378,7 @@ public sealed class FilterCommitRepositoryTransactionTests
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
             command.CommandText =
-                $"SELECT entry_id, dr_cr FROM {schemaPrefix}target_gl_entry ORDER BY entry_id;";
+                $"SELECT entry_id, dr_cr FROM {schemaPrefix}gl ORDER BY entry_id;";
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -403,9 +403,9 @@ public sealed class FilterCommitRepositoryTransactionTests
             await using var command = connection.CreateCommand();
             command.CommandText =
                 $"""
-                SELECT scenario_position, entry_id
-                FROM {schemaPrefix}result_filter_run
-                ORDER BY scenario_position, entry_id;
+                SELECT scenario_id, entry_id
+                FROM {schemaPrefix}filter_hit
+                ORDER BY scenario_id, entry_id;
                 """;
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
@@ -428,7 +428,7 @@ public sealed class FilterCommitRepositoryTransactionTests
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
             command.CommandText =
-                $"UPDATE {schemaPrefix}config_result_stale_state SET filter_stale = 1 WHERE singleton = 1;";
+                $"UPDATE {schemaPrefix}result_stale_state SET filter_stale = 1 WHERE singleton = 1;";
             Assert.Equal(1, await command.ExecuteNonQueryAsync());
         }
     }
@@ -442,7 +442,7 @@ public sealed class FilterCommitRepositoryTransactionTests
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
             command.CommandText =
-                $"SELECT filter_stale FROM {schemaPrefix}config_result_stale_state WHERE singleton = 1;";
+                $"SELECT filter_stale FROM {schemaPrefix}result_stale_state WHERE singleton = 1;";
             return Convert.ToBoolean(
                 await command.ExecuteScalarAsync(),
                 CultureInfo.InvariantCulture);
@@ -503,7 +503,7 @@ public sealed class FilterCommitRepositoryTransactionTests
 
             var message = formatter(state, exception);
             if (!message.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase)
-                || !message.Contains("result_filter_run", StringComparison.OrdinalIgnoreCase)
+                || !message.Contains("filter_hit", StringComparison.OrdinalIgnoreCase)
                 || Interlocked.Exchange(ref _faultInjected, 1) != 0)
             {
                 return;
@@ -541,7 +541,7 @@ public sealed class FilterCommitRepositoryTransactionTests
 
             var message = formatter(state, exception);
             if (!message.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase)
-                || !message.Contains("result_filter_run", StringComparison.OrdinalIgnoreCase)
+                || !message.Contains("filter_hit", StringComparison.OrdinalIgnoreCase)
                 || Interlocked.Exchange(ref _faultInjected, 1) != 0)
             {
                 return;

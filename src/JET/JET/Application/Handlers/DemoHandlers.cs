@@ -14,13 +14,13 @@ public sealed class ProjectLoadDemoHandler : IApplicationActionHandler
         {
             project = new
             {
-                caseName = data.CaseName,
+                projectName = data.ProjectName,
                 projectCode = data.ProjectCode,
-                entityName = data.EntityName,
+                clientName = data.ClientName,
                 operatorId = data.OperatorId,
                 periodStart = data.PeriodStart,
                 periodEnd = data.PeriodEnd,
-                lastPeriodStart = data.LastPeriodStart
+                prepStartDate = data.PrepStartDate
             },
             gl = new
             {

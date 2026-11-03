@@ -11,29 +11,30 @@ namespace JET.Tests.Infrastructure;
 public sealed class KeysetPagingProviderParityTests
 {
     private const string Seed = """
-        INSERT INTO target_gl_entry (batch_id,source_row_number,document_number,line_item,post_date,approval_date,
-          account_code,document_description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_effective,approved_by)
+        INSERT INTO gl (batch_id,source_row_number,voucher_number,line_item,gl_date,approval_date,
+          account_number,description,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr,is_excluded,approved_by)
         VALUES
-          ('f',1,'V1','1','2025-01-01','2025-01-01','001','a',10000,10000,0,'DEBIT',1,'bob'),
-          ('f',2,'V1','2','2025-01-01','2025-01-01','002','b',-10000,0,10000,'CREDIT',1,NULL),
-          ('f',3,'V2','1','2025-02-01','2025-02-01','001','c',5000,5000,0,'DEBIT',1,'alice'),
-          ('f',4,'V2','2','2025-02-01','2025-02-01','002','d',-5000,0,5000,'CREDIT',1,'bob'),
-          ('f',5,'V3','1','2025-03-01','2025-03-01','001','e',7000,7000,0,'DEBIT',1,NULL),
-          ('f',6,'V3','2','2025-03-01','2025-03-01','002','f',-7000,0,7000,'CREDIT',1,'alice');
-        INSERT INTO result_filter_run (scenario_position, entry_id) SELECT 1, entry_id FROM target_gl_entry;
+          ('f',1,'V1','1','2025-01-01','2025-01-01','001','a',10000,10000,0,'DEBIT',0,'bob'),
+          ('f',2,'V1','2','2025-01-01','2025-01-01','002','b',-10000,0,10000,'CREDIT',0,NULL),
+          ('f',3,'V2','1','2025-02-01','2025-02-01','001','c',5000,5000,0,'DEBIT',0,'alice'),
+          ('f',4,'V2','2','2025-02-01','2025-02-01','002','d',-5000,0,5000,'CREDIT',0,'bob'),
+          ('f',5,'V3','1','2025-03-01','2025-03-01','001','e',7000,7000,0,'DEBIT',0,NULL),
+          ('f',6,'V3','2','2025-03-01','2025-03-01','002','f',-7000,0,7000,'CREDIT',0,'alice');
+        INSERT INTO filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc) VALUES (1, 1, 'synthetic', 'synthetic', '{}', '2026-10-31T00:00:00Z');
+        INSERT INTO filter_hit (scenario_id, entry_id) SELECT 1, entry_id FROM gl;
         """;
 
     private static readonly GlPopulationContext Context = new(GlPopulationScope.AuditPeriod, "2025-01-01", "2025-12-31");
 
     private static async Task<List<string>> WalkAsync(ILocalProjectDatabase db, string projectId, PageSort? sort, string? search)
     {
-        var repository = new LocalTagMatrixRowPageRepository(db);
+        var repository = new LocalHighRiskSummaryRowPageRepository(db);
         var order = new List<string>();
         string? cursor = null;
         do
         {
             var (page, _, _) = await repository.GetPageAsync(projectId, Context, new PageRequest(cursor, 2, sort, search), null, CancellationToken.None);
-            order.AddRange(page.Rows.Select(static row => $"{row.DocumentNumber}|{row.LineItem}|{row.ApprovedBy ?? "∅"}"));
+            order.AddRange(page.Rows.Select(static row => $"{row.VoucherNumber}|{row.LineItem}|{row.ApprovedBy ?? "∅"}"));
             cursor = page.NextCursor;
         } while (cursor is not null);
 

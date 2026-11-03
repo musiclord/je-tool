@@ -21,17 +21,17 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
     private readonly ILogger _log = logger ?? NullLogger<SqlServerValidationRunRepository>.Instance;
 
     // 完整性 CTE 單一事實來源:見 ValidationProcedures.CompletenessDiffCte(completenessDiffPage repo 共用同一份)。
-    // SQL Server 路徑以 CompletenessDiffCteFor 前綴專案 schema(內含 target_gl_entry/target_tb_balance)。
+    // SQL Server 路徑以 CompletenessDiffCteFor 前綴專案 schema(內含 gl/tb)。
 
-    Task<RuleRunRecord> IValidationFactsPort.ExecuteAsync(
+    Task<ResultRecord> IValidationFactsPort.ExecuteAsync(
         ValidationPlan plan,
-        Func<ValidationFacts, RuleRunRecord> finalize,
+        Func<ValidationFacts, ResultRecord> finalize,
         CancellationToken cancellationToken) =>
         ExecuteAsync(plan, finalize, cancellationToken);
 
-    internal async Task<RuleRunRecord> ExecuteAsync(
+    internal async Task<ResultRecord> ExecuteAsync(
         ValidationPlan plan,
-        Func<ValidationFacts, RuleRunRecord> finalize,
+        Func<ValidationFacts, ResultRecord> finalize,
         CancellationToken cancellationToken)
     {
         var input = plan.Request;
@@ -65,14 +65,14 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         // 借貸不平母體核心走 ValidationProcedures.UnbalancedCore(有效分錄限定;{s} 由 CreateCommand 展開)。
         var unbalancedCount = await ScalarAsync(
             connection, projectId, input, transaction, cancellationToken,
-            $"SELECT COUNT_BIG(*) FROM (SELECT document_number {ValidationProcedures.UnbalancedCore("{s}.")}) AS unbalanced;");
+            $"SELECT COUNT_BIG(*) FROM (SELECT voucher_number {ValidationProcedures.UnbalancedCore("{s}.")}) AS unbalanced;");
 
         var unbalancedDetail = await ReadUnbalancedDetailAsync(connection, projectId, input, transaction, cancellationToken);
 
         var infSampleCount = await InsertInfSampleAsync(connection, projectId, transaction, input, cancellationToken);
 
-        var (nullAccount, nullDocument, nullDescription, outOfRangeDate) =
-            await ReadNullRecordsAsync(connection, projectId, transaction, input, cancellationToken);
+        var (nullAccount, nullDocument, nullDescription, approvalDateNotInPeriod) =
+            await ReadBlankRecordsAsync(connection, projectId, transaction, input, cancellationToken);
         var sourceQualityFindingCount = await ReadSourceQualityFindingCountAsync(
             connection,
             projectId,
@@ -82,7 +82,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         var nullDetail = await ReadNullDetailAsync(connection, projectId, transaction, input, cancellationToken);
 
         var controlTotals = await ReadControlTotalsAsync(connection, projectId, transaction, cancellationToken);
-        var documentDateReuse = await ReadDocumentDateReuseAsync(connection, projectId, transaction, cancellationToken);
+        var voucherNumberAcrossGlDates = await ReadVoucherNumberAcrossGlDatesAsync(connection, projectId, transaction, cancellationToken);
 
         var sourceQualityPage = await SourceQualityPageReader.ReadAsync(connection, transaction, SqlServerDialect.Instance,
             SqlServerProjectSchema.QualifierFor(projectId), new PageRequest(null, ResultPreviewLimits.SummaryRows), cancellationToken);
@@ -95,30 +95,30 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
             nullAccount,
             nullDocument,
             nullDescription,
-            outOfRangeDate,
+            approvalDateNotInPeriod,
             sourceQualityFindingCount,
             unbalancedDetail,
             nullDetail,
             controlTotals,
             amountBinCounts,
-            documentDateReuse, sourceQualityPage.Rows);
+            voucherNumberAcrossGlDates, sourceQualityPage.Rows);
         var record = finalize(facts);
-        await SqlServerRuleRunStore.SaveWithinAsync(database, connection, transaction, projectId, record, cancellationToken);
+        await SqlServerResultStore.SaveWithinAsync(database, connection, transaction, projectId, record, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(CancellationToken.None);
         txLog.Committed();
         return record;
     }
 
-    private async Task<DocumentDateReuseCounts> ReadDocumentDateReuseAsync(
+    private async Task<VoucherNumberAcrossGlDatesCounts> ReadVoucherNumberAcrossGlDatesAsync(
         SqlConnection connection, string projectId, SqlTransaction transaction, CancellationToken cancellationToken)
     {
         await using var command = database.CreateCommand(connection, projectId,
-            ValidationProcedures.DocumentDateReuseSummary(SqlServerDialect.Instance, "{s}.", "COUNT_BIG"));
+            ValidationProcedures.VoucherNumberAcrossGlDatesSummary(SqlServerDialect.Instance, "{s}.", "COUNT_BIG"));
         command.Transaction = transaction;
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
         await reader.ReadAsync(cancellationToken);
-        return new DocumentDateReuseCounts(reader.GetInt64(0), reader.GetInt64(1));
+        return new VoucherNumberAcrossGlDatesCounts(reader.GetInt64(0), reader.GetInt64(1));
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
     {
         await using var command = database.CreateCommand(connection, projectId,
             """
-            SELECT effective_row_count, effective_debit_scaled, effective_credit_scaled
+            SELECT gl_row_count, gl_debit_scaled, gl_credit_scaled
             FROM {s}.gl_control_total WHERE singleton = 1;
             """);
         command.Transaction = transaction;
@@ -163,18 +163,18 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
             SELECT COUNT_BIG(*),
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0),
-                   COALESCE(SUM(CAST(CASE WHEN is_effective = 1 THEN 1 ELSE 0 END AS BIGINT)), 0),
-                   COUNT_BIG(DISTINCT CASE WHEN is_effective = 1 THEN document_number END),
-                   COALESCE(SUM(CASE WHEN is_effective = 1 THEN debit_amount_scaled ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN is_effective = 1 THEN credit_amount_scaled ELSE 0 END), 0),
-                   COALESCE(SUM(CASE WHEN is_effective = 1 THEN amount_scaled ELSE 0 END), 0),
-                   COALESCE(SUM(CAST(CASE WHEN is_effective = 0 THEN 1 ELSE 0 END AS BIGINT)), 0),
-                   COALESCE(SUM(CAST(CASE WHEN {{GlEffectivePopulation.ExcludedByPeriodSqlPredicate()}} THEN 1 ELSE 0 END AS BIGINT)), 0),
+                   COALESCE(SUM(CAST(CASE WHEN is_excluded = 0 THEN 1 ELSE 0 END AS BIGINT)), 0),
+                   COUNT_BIG(DISTINCT CASE WHEN is_excluded = 0 THEN voucher_number END),
+                   COALESCE(SUM(CASE WHEN is_excluded = 0 THEN debit_amount_scaled ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN is_excluded = 0 THEN credit_amount_scaled ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN is_excluded = 0 THEN amount_scaled ELSE 0 END), 0),
+                   COALESCE(SUM(CAST(CASE WHEN is_excluded = 1 THEN 1 ELSE 0 END AS BIGINT)), 0),
+                   COALESCE(SUM(CAST(CASE WHEN {{GlExcludedPopulation.ExcludedByPeriodSqlPredicate()}} THEN 1 ELSE 0 END AS BIGINT)), 0),
                    COALESCE(SUM(CAST(CASE WHEN exclusion_reason = @postingStatusReason THEN 1 ELSE 0 END AS BIGINT)), 0)
-            FROM {s}.target_gl_entry;
+            FROM {s}.gl;
             """);
         command.Transaction = transaction;
-        command.Parameters.AddWithValue("@postingStatusReason", GlEffectivePopulation.PostingStatusStorageReason);
+        command.Parameters.AddWithValue("@postingStatusReason", GlExcludedPopulation.PostingStatusStorageReason);
 
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
         await reader.ReadAsync(cancellationToken);
@@ -184,7 +184,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
                 reader.GetInt64(0),
                 reader.GetInt64(1),
                 reader.GetInt64(2)),
-            new ValidationEffectivePopulationTotals(
+            new ValidationGlTotals(
                 reader.GetInt64(3),
                 reader.GetInt64(4),
                 reader.GetInt64(5),
@@ -214,8 +214,8 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
             $$"""
             SELECT {{bucketCase}} AS bin_key,
                    COUNT_BIG(*)
-            FROM {s}.target_gl_entry
-            WHERE {{GlEffectivePopulation.SqlPredicate()}}
+            FROM {s}.gl
+            WHERE {{GlExcludedPopulation.SqlPredicate()}}
             GROUP BY {{bucketCase}};
             """);
         command.Transaction = transaction;
@@ -251,10 +251,10 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
             completenessDiffCte +
             $"""
 
-            SELECT TOP ({ResultPreviewLimits.SummaryRows}) account_code, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb
+            SELECT TOP ({ResultPreviewLimits.SummaryRows}) account_number, account_name, tb_s, gl_s, tb_s - gl_s, not_in_tb
             FROM diff
             WHERE tb_s <> gl_s
-            ORDER BY ABS(tb_s - gl_s) DESC, account_code;
+            ORDER BY ABS(tb_s - gl_s) DESC, account_number;
             """);
         command.Transaction = transaction;
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
@@ -276,7 +276,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         SqlConnection connection, string projectId, SqlTransaction transaction,
         ValidationRequest input, CancellationToken cancellationToken)
     {
-        // INF 抽樣 INSERT 走 ValidationProcedures.InfSampleInsert(有效母體;方言取 N 列走
+        // INF 抽樣 INSERT 走 ValidationProcedures.InfSampleInsert(只看納入測試的分錄;依資料庫語法取 N 列走
         // SqlServerDialect 的 OFFSET/FETCH，結果集與原 TOP(@n) 等價)。source_row_number 與 @seed 皆 BIGINT；
         // Feistel 排序鍵的中間值與輸出都在 signed BIGINT 內，三 provider 精確等價。
         // {s} 由 CreateCommand 展開專案 schema。
@@ -285,27 +285,27 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
                 schemaPrefix: "{s}.",
                 SqlServerDialect.Instance));
         command.Transaction = transaction;
-        command.Parameters.AddWithValue("@runId", input.RunId);
+        command.Parameters.AddWithValue("@resultId", input.ResultId);
         command.Parameters.AddWithValue("@seed", input.SampleSeed);
         command.Parameters.AddWithValue("@n", input.SampleSize);
         return await command.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
     }
 
-    private async Task<(long, long, long, long)> ReadNullRecordsAsync(
+    private async Task<(long, long, long, long)> ReadBlankRecordsAsync(
         SqlConnection connection, string projectId, SqlTransaction transaction,
         ValidationRequest input, CancellationToken cancellationToken)
     {
-        // 四類述詞走 NullRecordsCategoryPredicate 中心(空白判定由方言的去空白方法產生;期外日期
-        // = approval_date)，且全部限有效母體。SUM(CASE→int) 在 SQL Server 回 INT,CAST AS BIGINT 對齊 long。
+        // 四類述詞走 BlankRecordsCategoryPredicate 中心(空白判定由方言的去空白方法產生;期外日期
+        // = approval_date)，且全部只看納入測試的分錄。SUM(CASE→int) 在 SQL Server 回 INT,CAST AS BIGINT 對齊 long。
         // 日期為投影時正規化的 yyyy-MM-dd ISO 字串,文字比較即時間序比較。
         var columns = string.Join(",\n                ",
-            NullRecordsCategoryPredicate.All.Select(c =>
-                $"COALESCE(SUM(CAST(CASE WHEN {NullRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END AS BIGINT)), 0)"));
+            BlankRecordsCategoryPredicate.All.Select(c =>
+                $"COALESCE(SUM(CAST(CASE WHEN {BlankRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END AS BIGINT)), 0)"));
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT
                 {{columns}}
-            FROM {s}.target_gl_entry;
+            FROM {s}.gl;
             """);
         command.Transaction = transaction;
         BindPeriod(command, input);
@@ -325,29 +325,29 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         await using var command = database.CreateCommand(
             connection,
             projectId,
-            $"SELECT COUNT_BIG(*) FROM {{s}}.target_gl_entry WHERE {ValidationProcedures.NullPostDateSourceQualityPredicate};");
+            $"SELECT COUNT_BIG(*) FROM {{s}}.gl WHERE {ValidationProcedures.BlankGlDateSourceQualityPredicate};");
         command.Transaction = transaction;
         var result = await command.ExecuteScalarLoggedAsync(_log, Provider, cancellationToken);
         return result is null or DBNull ? 0L : Convert.ToInt64(result);
     }
 
-    private async Task<IReadOnlyList<UnbalancedDocument>> ReadUnbalancedDetailAsync(
+    private async Task<IReadOnlyList<UnbalancedVoucher>> ReadUnbalancedDetailAsync(
         SqlConnection connection, string projectId, ValidationRequest input, SqlTransaction transaction, CancellationToken cancellationToken)
     {
         // 母體核心走 ValidationProcedures.UnbalancedCore(有效分錄限定;{s} 由 CreateCommand 展開)。
         await using var command = database.CreateCommand(connection, projectId,
-            $"SELECT TOP ({ResultPreviewLimits.SummaryRows}) document_number, " +
+            $"SELECT TOP ({ResultPreviewLimits.SummaryRows}) voucher_number, " +
             "COALESCE(SUM(debit_amount_scaled), 0), " +
             "COALESCE(SUM(credit_amount_scaled), 0), " +
             "COALESCE(SUM(amount_scaled), 0) " +
             ValidationProcedures.UnbalancedCore("{s}.") +
-            " ORDER BY ABS(SUM(amount_scaled)) DESC, document_number;");
+            " ORDER BY ABS(SUM(amount_scaled)) DESC, voucher_number;");
         command.Transaction = transaction;
-        var rows = new List<UnbalancedDocument>();
+        var rows = new List<UnbalancedVoucher>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(new UnbalancedDocument(
+            rows.Add(new UnbalancedVoucher(
                 reader.IsDBNull(0) ? null : reader.GetString(0),
                 reader.GetInt64(1),
                 reader.GetInt64(2),
@@ -357,32 +357,32 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         return rows;
     }
 
-    private async Task<IReadOnlyList<NullRecordRow>> ReadNullDetailAsync(
+    private async Task<IReadOnlyList<BlankRecordRow>> ReadNullDetailAsync(
         SqlConnection connection, string projectId, SqlTransaction transaction,
         ValidationRequest input, CancellationToken cancellationToken)
     {
-        // 四類旗標與 WHERE 皆走 NullRecordsCategoryPredicate 中心，且全部限有效母體。
+        // 四類旗標與 WHERE 皆走 BlankRecordsCategoryPredicate 中心，且全部只看納入測試的分錄。
         var flags = string.Join(",\n                   ",
-            NullRecordsCategoryPredicate.All.Select(c =>
-                $"CASE WHEN {NullRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END"));
+            BlankRecordsCategoryPredicate.All.Select(c =>
+                $"CASE WHEN {BlankRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END"));
         var anyMatch = string.Join("\n               OR ",
-            NullRecordsCategoryPredicate.All.Select(c => NullRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)));
+            BlankRecordsCategoryPredicate.All.Select(c => BlankRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)));
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
-            SELECT TOP ({{ResultPreviewLimits.SummaryRows}}) document_number, account_code, post_date, document_description,
+            SELECT TOP ({{ResultPreviewLimits.SummaryRows}}) voucher_number, account_number, gl_date, description,
                    {{flags}}
-            FROM {s}.target_gl_entry
+            FROM {s}.gl
             WHERE ({{anyMatch}})
             ORDER BY source_row_number, entry_id;
             """);
         command.Transaction = transaction;
         BindPeriod(command, input);
 
-        var rows = new List<NullRecordRow>();
+        var rows = new List<BlankRecordRow>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(new NullRecordRow(
+            rows.Add(new BlankRecordRow(
                 reader.IsDBNull(0) ? null : reader.GetString(0),
                 reader.IsDBNull(1) ? null : reader.GetString(1),
                 reader.IsDBNull(2) ? null : reader.GetString(2),

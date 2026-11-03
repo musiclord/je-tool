@@ -9,13 +9,13 @@ public sealed class FieldInfoProjectionTests
     [Fact]
     public void ProjectFieldInfo_UsesCompleteTargetFactsInStableOrdinalOrder()
     {
-        var targetTbDefinitions = new List<LegacyFieldDefinition>
+        var targetTbDefinitions = new List<FieldInfo>
         {
             Definition(3, "期末餘額", null, LegacyFieldKind.Number, textLength: 99, decimalPlaces: 0),
             Definition(1, "會計科目編號_TB", "客戶科目代號", LegacyFieldKind.Text, textLength: 18),
             Definition(2, "原始科目名稱", string.Empty, LegacyFieldKind.Text, textLength: 40)
         };
-        var targetGlDefinitions = new List<LegacyFieldDefinition>
+        var targetGlDefinitions = new List<FieldInfo>
         {
             Definition(4, "核准時間", null, LegacyFieldKind.Time),
             Definition(2, "傳票文件項次_JE_S", "來源項次", LegacyFieldKind.Number, decimalPlaces: 0),
@@ -73,7 +73,7 @@ public sealed class FieldInfoProjectionTests
             actual.GlRows.Select(row => row.ActualFieldName));
     }
 
-    private static LegacyFieldDefinition Definition(
+    private static FieldInfo Definition(
         int ordinal,
         string fieldName,
         string? description,

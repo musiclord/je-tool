@@ -50,7 +50,7 @@ internal sealed class PrivateCaseLegacyScenarioEvidenceResult
 internal static class PrivateCaseLegacyScenarioEvidenceVerifier
 {
     // idea-tool.bas 在匯入後把來源傳票欄統一改成這個名稱，Criteria 明細也沿用它。
-    private const string LegacyDocumentNumberHeader = "傳票號碼_JE";
+    private const string LegacyVoucherNumberHeader = "傳票號碼_JE";
 
     internal static PrivateCaseLegacyScenarioEvidenceResult Verify(
         PrivateCaseManifest manifest,
@@ -171,7 +171,7 @@ internal static class PrivateCaseLegacyScenarioEvidenceVerifier
                     $"#Criteria Select {expected.Position}",
                     StringComparison.Ordinal),
                 $"private-case-criteria-detail-{expected.Position:D2}");
-            var headerCells = sheet.FindCells(LegacyDocumentNumberHeader)
+            var headerCells = sheet.FindCells(LegacyVoucherNumberHeader)
                 .Where(static cell => cell.Row is >= 1 and <= 10)
                 .ToArray();
             if (headerCells.Length != 1)
@@ -180,18 +180,18 @@ internal static class PrivateCaseLegacyScenarioEvidenceVerifier
             }
 
             var firstDataRow = headerCells[0].Row + 1;
-            var documentNumbers = Enumerable.Range(
+            var voucherNumbers = Enumerable.Range(
                     firstDataRow,
                     Math.Max(0, sheet.MaxRow - firstDataRow + 1))
                 .Select(row => sheet.Get(row, headerCells[0].Column).Trim())
                 .Where(static value => value.Length > 0)
                 .ToHashSet(StringComparer.Ordinal);
             if (expected.VoucherCount.HasValue
-                && documentNumbers.Count != expected.VoucherCount.Value)
+                && voucherNumbers.Count != expected.VoucherCount.Value)
             {
                 throw Error(PrivateCaseLegacyScenarioEvidenceFailure.CountMismatch);
             }
-            result.Add(expected.Position, documentNumbers);
+            result.Add(expected.Position, voucherNumbers);
         }
 
         return result;

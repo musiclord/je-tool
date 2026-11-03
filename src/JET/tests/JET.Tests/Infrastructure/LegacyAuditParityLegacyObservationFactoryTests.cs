@@ -21,7 +21,7 @@ public sealed class LegacyAuditParityLegacyObservationFactoryTests
                     result.Rules[rule].Applicability));
             Assert.Equal(
                 LegacyMetricApplicability.NotApplicable,
-                result.CreatorSummaryApplicability);
+                result.PreparerSummaryApplicability);
             Assert.Equal(
                 LegacyMetricApplicability.NotApplicable,
                 result.RareAccountsApplicability);
@@ -45,7 +45,7 @@ public sealed class LegacyAuditParityLegacyObservationFactoryTests
                 LegacyAuditParityLegacyObservationFactory.ReadPrescreen(
                     LegacyWorkbookSnapshot.Load(path)));
 
-            Assert.Equal("legacy-prescreen-creator-summary", error.FieldId);
+            Assert.Equal("legacy-prescreen-preparer-summary", error.FieldId);
         }
         finally
         {
@@ -106,7 +106,7 @@ public sealed class LegacyAuditParityLegacyObservationFactoryTests
             var result = LegacyAuditParityLegacyObservationFactory.ReadPrescreen(
                 LegacyWorkbookSnapshot.Load(path));
 
-            var counts = result.Rules[LegacyPrescreenRuleId.PostPeriodApproval];
+            var counts = result.Rules[LegacyPrescreenRuleId.PrepPeriodApproval];
             Assert.Equal(LegacyObservedCountState.ExecutedZero, counts.RowCount.State);
             Assert.Equal(LegacyObservedCountState.ExecutedUnavailable, counts.VoucherCount.State);
         }
@@ -126,7 +126,7 @@ public sealed class LegacyAuditParityLegacyObservationFactoryTests
         });
         var workingPaperPath = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
-            sheet.Name = WorkpaperSheetCatalog.Step11;
+            sheet.Name = WorkingPaperSheetCatalog.Step11;
             for (var column = 2; column <= 6; column++)
             {
                 sheet.Cell(16, column).Value = $"synthetic-header-{column}";

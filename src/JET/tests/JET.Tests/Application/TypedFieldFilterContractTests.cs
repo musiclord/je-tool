@@ -18,21 +18,21 @@ public sealed class TypedFieldFilterContractTests
     public void TypedRule_TextEquals_ParsesInsteadOfFailingLoud()
     {
         var spec = Parse($$"""
-            {"name":"typed","rationale":"contract","groups":[{"rules":[
+            {"name":"typed","rationale":"contract","groups":[{"conditions":[
               {"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"ALPHA"}
             ]}]}
             """);
 
         Assert.Single(spec.Groups);
-        Assert.Single(spec.Groups[0].Rules);
+        Assert.Single(spec.Groups[0].Conditions);
     }
 
     [Fact]
     public void FilterLogicVersion_CurrentContractIsV20()
     {
         // 2026-10-06 條件 A 加入查核期末視窗，推進為 v18。
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，再推進為 v19；第一次失敗收據 20261008-042053814-db83ce7928b241c08a45387aea1a42fa。
-        // 第九節 G5 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，再推進為 v19；第一次失敗收據 20261008-042053814-db83ce7928b241c08a45387aea1a42fa。
+        // 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
         Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
     }
 
@@ -41,14 +41,14 @@ public sealed class TypedFieldFilterContractTests
     {
         // operand carrier 的原始拼法逐字保留（trim／正規化只屬比較語意，不改寫 wire）。
         var spec = Parse($$"""
-            {"name":"typed","rationale":"contract","groups":[{"rules":[
+            {"name":"typed","rationale":"contract","groups":[{"conditions":[
               {"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"in",
                "values":["  Alpha ", "beta"]}
             ]}]}
             """);
 
-        var rule = spec.Groups[0].Rules[0];
-        Assert.Equal(FilterRuleType.TypedField, rule.Type);
+        var rule = spec.Groups[0].Conditions[0];
+        Assert.Equal(FilterConditionType.TypedField, rule.Type);
         Assert.Equal(TextFieldId, rule.FieldId);
         Assert.Equal("in", rule.TypedOperator);
         Assert.Equal(["  Alpha ", "beta"], rule.TypedValues);
@@ -68,7 +68,7 @@ public sealed class TypedFieldFilterContractTests
     public void TypedRule_MalformedCarrierShapes_FailLoudAtParse(string ruleJson)
     {
         var exception = Assert.Throws<JetActionException>(() => Parse(
-            $$"""{"name":"typed","rationale":"contract","groups":[{"rules":[{{ruleJson}}]}]}"""));
+            $$"""{"name":"typed","rationale":"contract","groups":[{"conditions":[{{ruleJson}}]}]}"""));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
     }
@@ -79,13 +79,13 @@ public sealed class TypedFieldFilterContractTests
         var values = string.Join(",", Enumerable.Range(0, 101).Select(i => $"\"v{i}\""));
         var exception = Assert.Throws<JetActionException>(() => Parse(
             $$"""
-            {"name":"typed","rationale":"contract","groups":[{"rules":[
+            {"name":"typed","rationale":"contract","groups":[{"conditions":[
               {"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"in","values":[{{values}}]}
             ]}]}
             """));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", exception.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "typed_values_too_many"), FilterScenarioCorruption.ReasonsOf(exception));
@@ -100,7 +100,7 @@ public sealed class TypedFieldFilterContractTests
             {
               "name":"typed",
               "rationale":"contract",
-              "groups":[{"rules":[
+              "groups":[{"conditions":[
                 {"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals",
                  "value":"  Alpha ","unknownRule":1E+02}
               ]}],
@@ -111,7 +111,7 @@ public sealed class TypedFieldFilterContractTests
         var stamped = RuleLogicVersions.StampFilterDefinition(source.RootElement);
 
         using var persisted = JsonDocument.Parse(stamped);
-        var rule = persisted.RootElement.GetProperty("groups")[0].GetProperty("rules")[0];
+        var rule = persisted.RootElement.GetProperty("groups")[0].GetProperty("conditions")[0];
         Assert.Equal("  Alpha ", rule.GetProperty("value").GetString());
         Assert.Equal("1E+02", rule.GetProperty("unknownRule").GetRawText());
         Assert.Equal(
@@ -151,12 +151,12 @@ public sealed class TypedFieldFilterContractTests
     [Fact]
     public async Task MaterializeAllAsync_PassesCommittedRdeRegistryToCompilationContext()
     {
-        // typed 條件的物化路徑（Criteria／Working Paper／filterHitsPage 補算）必須拿到
+        // typed 條件的物化路徑（條件篩選報告、工作底稿與 filterHitsPage 補算）必須拿到
         // committed RDE registry，否則 typed 定義在編譯前就會 fail loud。
         var materializer = new RecordingMaterializer();
         var document = Project();
         var scenarios = new[] { SavedDrCrScenario() };
-        var service = new FilterRunMaterializeService(
+        var service = new FilterHitMaterializeService(
             materializer,
             new FixedProjectStore(document),
             new FixedScenarioStore(scenarios),
@@ -180,7 +180,7 @@ public sealed class TypedFieldFilterContractTests
     private static ProjectDocument Project() => new(
         ProjectId: "typed-project",
         ProjectCode: "P-T",
-        EntityName: "typed 接線測試",
+        ClientName: "typed 接線測試",
         OperatorId: "tester",
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",
@@ -195,9 +195,9 @@ public sealed class TypedFieldFilterContractTests
         DatasetKind.Gl,
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "傳票號碼",
-            [GlMappingKeys.PostDate] = "傳票日期",
-            [GlMappingKeys.AccNum] = "科目代號",
+            [GlMappingKeys.VoucherNumber] = "傳票號碼",
+            [GlMappingKeys.GlDate] = "傳票日期",
+            [GlMappingKeys.AccountNumber] = "科目代號",
             [GlMappingKeys.Amount] = "金額"
         },
         GlAmountModeNames.Signed,
@@ -214,20 +214,20 @@ public sealed class TypedFieldFilterContractTests
         Name: "借方",
         Rationale: "typed 接線測試",
         DefinitionJson: $$"""
-            {"name":"借方","rationale":"typed 接線測試","groups":[{"join":"AND","rules":[
+            {"name":"借方","rationale":"typed 接線測試","groups":[{"join":"AND","conditions":[
               {"join":"AND","type":"drCrOnly","drCr":"debit"}
             ]}],"populationScope":"{{GlPopulationScopeValues.AuditPeriod}}","logicVersion":"{{RuleLogicVersions.Filter}}"}
             """,
         SavedUtc: new DateTimeOffset(2026, 8, 14, 0, 0, 0, TimeSpan.Zero));
 
-    private sealed class RecordingMaterializer : IFilterRunMaterializer
+    private sealed class RecordingMaterializer : IFilterHitMaterializer
     {
-        public FilterRuleContext? LastContext { get; private set; }
+        public FilterConditionContext? LastContext { get; private set; }
 
         public Task MaterializeAsync(
             string projectId,
             IReadOnlyList<MaterializableScenario> scenarios,
-            FilterRuleContext context,
+            FilterConditionContext context,
             CancellationToken cancellationToken,
             bool replaceAll = true)
         {
@@ -241,7 +241,7 @@ public sealed class TypedFieldFilterContractTests
         public Task CreateAsync(ProjectDocument created, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
@@ -269,6 +269,12 @@ public sealed class TypedFieldFilterContractTests
         public Task ReplaceAllAsync(
             string projectId,
             IReadOnlyList<SavedFilterScenario> replaced,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task RemoveAsync(
+            string projectId,
+            SavedFilterScenario scenario,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

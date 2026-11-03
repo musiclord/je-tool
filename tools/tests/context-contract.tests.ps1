@@ -46,7 +46,20 @@ try {
     Put 'docs/development-status.md' $active
     Put 'docs/specs/current.md' "# 計畫`n<!-- jet-context:start -->`n現行：固定 6 位，繼續 AST 修正。`n<!-- jet-context:end -->`n## 歷史`n舊提案：動態尾零。"
     Put 'data/test-case/sentinel.txt' 'SYNTHETIC_PRIVATE_CONTENT_MUST_NOT_APPEAR'
-    $before = @(Get-ChildItem $fixture -Recurse -File | ForEach-Object { (Get-FileHash $_.FullName).Hash }) -join ','
+    Put 'docs/rulings.md' (@(
+            '# 裁定總表', '', '## 怎麼讀', '', '| 欄位 | 寫什麼 |', '|:---|:---|', '| 編號 | 日期加序號 |', '',
+            '## 案件與匯入', '', '| 編號 | 裁定 | 原話 | 原文出處 | 落實位置 |', '|:---|:---|:---|:---|:---|',
+            '| 2026-01-01-01 | 合成裁定一 | 原話 | 計畫 | docs/a.md |',
+            '| 2026-01-01-02 | 合成裁定二。待使用者確認 | 只有摘要：原話 \| 含直線 | 計畫 |  |', '',
+            '## 已被取代的裁定', '', '| 編號 | 原本的裁定 | 由哪一則取代 | 原文出處 |', '|:---|:---|:---|:---|',
+            '| 2025-12-01-01 | 舊裁定 | 2026-01-01-01 | 計畫 |', '',
+            '## Agent 定的做法', '', '| 編號 | 做法 | 來源 | 使用者看過的經過 | 落實位置 |', '|:---|:---|:---|:---|:---|',
+            '|  | 合成做法 | 計畫 | 看過 |  |', '') -join "`n")
+    Put 'docs/glossary.md' (@(
+            '# 名詞表', '', '## 資料集', '', '| 概念 | 意思 | 畫面與報告 | 各層現在的名稱 | 確認的改法 | 依據 |', '|:---|:---|:---|:---|:---|:---|',
+            '| 甲 | 意思 | 甲 | 程式：A | 照舊 | 確認頁 |', '| 乙 | 意思 | 乙 | 程式：B | 待使用者確認：另取名稱 | 確認頁 |', '',
+            '## 資料庫表名', '', '| 現在的表名 | 確認的表名 | 概念 |', '|:---|:---|:---|', '| a | 待使用者確認 | 甲 |', '') -join "`n")
+    $before =@(Get-ChildItem $fixture -Recurse -File | ForEach-Object { (Get-FileHash $_.FullName).Hash }) -join ','
     $result = Context
     $after = @(Get-ChildItem $fixture -Recurse -File | ForEach-Object { (Get-FileHash $_.FullName).Hash }) -join ','
     Check ($result.status -ceq 'observed' -and $result.readOnly) 'Context is observation, never a test pass.'
@@ -56,6 +69,11 @@ try {
     Check ($before -ceq $after -and -not (Test-Path (Join-Path $fixture 'artifacts'))) 'Observation must not write receipts or change sources.'
     Check (& $module { $script:contextStatusReadOnly }) 'Git status must disable optional index refresh writes.'
     Check (-not (($result | ConvertTo-Json -Depth 15).Contains('SYNTHETIC_PRIVATE_CONTENT'))) 'Do not read private fixtures.'
+    $rulings = $result.references.rulings
+    Check ($rulings.path -ceq 'docs/rulings.md' -and $rulings.rulings -eq 2 -and $rulings.pendingConfirmation -eq 1 -and
+        $rulings.superseded -eq 1 -and $rulings.agentPractices -eq 1) 'Count rulings by table, including the ones still waiting for the user.'
+    Check ($result.references.glossary.concepts -eq 2 -and $result.references.glossary.pendingConfirmation -eq 1) 'Count glossary concepts, not the table of database names.'
+    Check ($result.notices.Count -eq 0 -and $result.navigation -ccontains 'docs/rulings.md' -and $result.navigation -ccontains 'docs/glossary.md') 'Point to the rulings and the glossary without raising notices.'
 
     Put 'docs/specs/current.md' "# 計畫`n## 當前工作`n新的決定`n## 歷史`n舊決定"
     $result = Context
@@ -122,6 +140,11 @@ try {
     $arguments = & $module { $script:contextStatusArguments }
     Check ($arguments -ccontains 'CLAUDE.md' -and $arguments -ccontains '.claude' -and $arguments -ccontains '.github/copilot-instructions.md') 'Include cross-agent adapters in the observed working tree.'
     Check ($arguments -ccontains '.codex' -and $arguments -ccontains '.agents') 'Include Codex settings and shared agent hooks in the observed working tree.'
+
+    Remove-Item -LiteralPath (Join-Path $fixture 'docs/glossary.md') -Force
+    $result = Context
+    Check ($result.status -ceq 'observed' -and $null -eq $result.references.glossary -and $null -ne $result.references.rulings -and
+        @($result.notices | Where-Object { $_.Contains('docs/glossary.md') }).Count -eq 1) 'A missing glossary is a notice, not a failed observation.'
     [Console]::Out.WriteLine((@{ status = 'passed'; assertions = $count } | ConvertTo-Json -Compress))
 }
 finally {

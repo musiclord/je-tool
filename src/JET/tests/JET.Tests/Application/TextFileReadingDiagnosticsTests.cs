@@ -8,9 +8,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 2026-10-05 最後獨立複審 V8 與 V11：文字檔讀取在測試環境要靠支援日誌判讀。
-/// V8：自動偵測編碼後，檔案前段就解碼失敗時，支援日誌要寫出實際用來解碼的編碼，不是 unknown。檢視、預覽與匯入三個入口都要。
-/// V11：用引號包住、內含換行的欄位是合法寫法，匯入不擋；但引號放錯位置時後面的列會被併進同一格。
+/// 文字檔讀取在測試環境要靠支援日誌判讀。
+/// 自動偵測編碼後，檔案前段就解碼失敗時，支援日誌要寫出實際用來解碼的編碼，不是 unknown。檢視、預覽與匯入三個入口都要。
+/// 用引號包住、內含換行的欄位是合法寫法，匯入不擋；但引號放錯位置時後面的列會被併進同一格。
 /// 匯入完成時要在提醒與支援日誌寫出這種資料的筆數與前幾個列號。列號是用 Excel 打開時的列號，也就是 JET 的來源列號。
 /// 預期文字逐字寫在這裡，不由產品程式組出。
 /// </summary>
@@ -21,7 +21,7 @@ public sealed class TextFileReadingDiagnosticsTests
         var host = new HandlerTestHost(enableDevTools: false);
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "synthetic-text-file", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "synthetic-text-file", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         return (host, created.GetProperty("projectId").GetString()!);
     }
@@ -87,9 +87,9 @@ public sealed class TextFileReadingDiagnosticsTests
         // 第 4 列的欄位一路讀到下一個引號，JV-4 那一行併進同一格，所以只剩 4 筆。
         Assert.Equal(4, imported.GetProperty("rowCount").GetInt32());
         Assert.Equal(
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-                        // 47a 使用者 2026-10-13 確認的句子只有「，例如第…列」一種寫法（文字批次 C；第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666）。
-                        // 使用者 2026-10-19 裁定來源檔用「列」、分錄用「筆」，並依規則統一全部畫面文字：「筆數減少」改成「列數減少」
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 裁定 2026-10-13-28 確認的句子只有「，例如第…列」一種寫法（第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666）。
+                        // 裁定 2026-10-19-16：來源檔用「列」、分錄用「筆」，並依規則統一全部畫面文字：「筆數減少」改成「列數減少」
                         // （第一次失敗：收據 20261019-133710985-cc5281a3d50446b8b888b6bcf9b9ff29）。
                         ["「multiline.csv」有 2 列的欄位內含換行，例如第 2、4 列。"
              + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。"],
@@ -105,7 +105,7 @@ public sealed class TextFileReadingDiagnosticsTests
         Assert.DoesNotContain("multiline.csv", string.Join('\n', entries.Select(entry => entry.GetRawText())));
     }
 
-    // 低嚴重度事項（使用者 2026-10-19 要求處理）：科目配對檔用文字檔匯入時，引號內換行的提醒與支援日誌和 GL、TB 相同。
+    // 科目配對檔用文字檔匯入時，引號內換行的提醒與支援日誌和 GL、TB 相同（裁定 2026-10-19-06）。
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
@@ -165,7 +165,7 @@ public sealed class TextFileReadingDiagnosticsTests
 
         Assert.Equal(16, imported.GetProperty("rowCount").GetInt32());
         Assert.Equal(
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                         // 2026-10-19「列數減少」的改字同第一個測試（第一次失敗：收據 20261019-133710985-cc5281a3d50446b8b888b6bcf9b9ff29）。
                         ["「many.csv」有 7 列的欄位內含換行，例如第 2、4、6、8、10 列。"
              + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。"],

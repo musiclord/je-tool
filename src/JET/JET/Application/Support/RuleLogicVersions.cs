@@ -11,23 +11,23 @@ namespace JET.Application;
 /// </summary>
 internal static class RuleLogicVersions
 {
-    // 2026-10-23 使用者裁定傳票核准日不可用時「核准日不在期間」改成無法執行，不再寫 0 筆，舊結果要重新驗證。
+    // 裁定 2026-10-23-01：傳票核准日不可用時「核准日不在期間」改成無法執行，不再寫 0 筆，舊結果要重新驗證。
     public const string Validation = "validation-2026-10-23-v6";
-    // 2026-10-08 使用者裁定移除傳票日期與回溯過帳：預篩選少一條規則，篩選不再接受回溯過帳條件，兩者都推進版本。
+    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：預篩選少一條規則，篩選不再接受回溯過帳條件，兩者都推進版本。
     public const string Prescreen = "prescreen-2026-10-08-v10";
     // 第九節：每條條件只表達一件事；停用的寫法列為待修正，保留原文。
     public const string Filter = "filter-2026-10-14-v20";
 
-    public static string? ExpectedFor(string runKind) => runKind switch
+    public static string? ExpectedFor(ResultKind kind) => kind switch
     {
-        RuleRunKinds.Validate => Validation,
-        RuleRunKinds.Prescreen => Prescreen,
+        ResultKind.Validation => Validation,
+        ResultKind.Prescreen => Prescreen,
         _ => null
     };
 
-    public static bool IsCurrent(RuleRunRecord? run)
+    public static bool IsCurrent(ResultRecord? run)
     {
-        if (run is null || ExpectedFor(run.RunKind) is not { } expected)
+        if (run is null || ExpectedFor(run.Kind) is not { } expected)
         {
             return false;
         }
@@ -80,13 +80,13 @@ internal static class RuleLogicVersions
     }
 
     /// <summary>
-    /// 儲存一個情境時用：條件先只保留各類型用得到的屬性（<see cref="FilterRuleWireFields"/>），再蓋版本。
+    /// 儲存一個情境時用：條件先只保留各類型用得到的屬性（<see cref="FilterConditionWireFields"/>），再蓋版本。
     /// 呼叫前必須已通過解析與驗證，已停用或損毀的寫法才不會被默默改成合格。照原樣寫回的其他情境、
-    /// 移除、重新檢查與開案升級仍用 <see cref="StampFilterDefinition"/>，舊情境在下次儲存時才整理（使用者 2026-10-15 裁定）。
+    /// 移除、重新檢查與開案升級仍用 <see cref="StampFilterDefinition"/>，舊情境在下次儲存時才整理（裁定 2026-10-15-01）。
     /// </summary>
     public static string StampSavedFilterDefinition(JsonElement scenario)
     {
-        using var kept = JsonDocument.Parse(FilterRuleWireFields.KeepUsedRuleFields(scenario));
+        using var kept = JsonDocument.Parse(FilterConditionWireFields.KeepUsedRuleFields(scenario));
         return StampFilterDefinition(kept.RootElement);
     }
 

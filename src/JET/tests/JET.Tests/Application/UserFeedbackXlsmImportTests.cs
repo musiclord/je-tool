@@ -31,27 +31,27 @@ public sealed class UserFeedbackXlsmImportTests
             Assert.Equal("V1", preview.GetProperty("sampleRows")[0][0].GetString());
 
             await host.DispatchAsync("project.create", JsonSerializer.Serialize(new {
-                caseName = "xlsm-test", databaseProvider = provider, periodStart = "2026-01-01", periodEnd = "2026-12-31"
+                projectName = "xlsm-test", databaseProvider = provider, periodStart = "2026-01-01", periodEnd = "2026-12-31"
             }));
             var gl = await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = path, sheetName = "GL" }));
             Assert.Equal(12, gl.GetProperty("rowCount").GetInt32());
             var projectedGl = await host.DispatchAsync("mapping.commit.gl", """
-                {"amountMode":"signed","mapping":{"docNum":"Doc","postDate":"Date","accNum":"Account","accName":"Name","description":"Memo","amount":"Amount"}}
+                {"amountMode":"signed","mapping":{"voucherNumber":"Doc","glDate":"Date","accountNumber":"Account","accountName":"Name","description":"Memo","amount":"Amount"}}
                 """);
             Assert.Equal(12, projectedGl.GetProperty("projectedRowCount").GetInt32());
             var tb = await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = path, sheetName = "TB" }));
             Assert.Equal(1, tb.GetProperty("rowCount").GetInt32());
             var projectedTb = await host.DispatchAsync("mapping.commit.tb", """
-                {"changeMode":"direct","mapping":{"accNum":"Account","accName":"Name","amount":"Change"}}
+                {"changeMode":"direct","mapping":{"accountNumber":"Account","accountName":"Name","changeAmount":"Change"}}
                 """);
             Assert.Equal(1, projectedTb.GetProperty("projectedRowCount").GetInt32());
-            var glTable = await host.DispatchAsync("dev.db.tableData", """{"tableName":"target_gl_entry","limit":20}""");
+            var glTable = await host.DispatchAsync("dev.db.tableData", """{"tableName":"gl","limit":20}""");
             var glColumns = glTable.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList();
             var amountIndex = glColumns.IndexOf("amount_scaled");
             Assert.True(amountIndex >= 0);
             Assert.Equal(12, glTable.GetProperty("rows").GetArrayLength());
             Assert.All(glTable.GetProperty("rows").EnumerateArray(), row => Assert.Equal("25000", row[amountIndex].GetString()));
-            var tbTable = await host.DispatchAsync("dev.db.tableData", """{"tableName":"target_tb_balance","limit":20}""");
+            var tbTable = await host.DispatchAsync("dev.db.tableData", """{"tableName":"tb","limit":20}""");
             var tbColumns = tbTable.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList();
             var changeIndex = tbColumns.IndexOf("change_amount_scaled");
             Assert.True(changeIndex >= 0);

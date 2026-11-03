@@ -5,39 +5,39 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 報告 artifact 的 stale 是來源結果失效旗標，不是「已被更新匯出取代」旗標。
+/// 報告的 stale 是來源結果失效旗標，不是「已被更新匯出取代」旗標。
 /// </summary>
 public sealed class ReportExportSupportTests
 {
-    private static readonly RuleRunRecord CurrentValidation = new(
+    private static readonly ResultRecord CurrentValidation = new(
         "11111111111111111111111111111111",
-        RuleRunKinds.Validate,
+        ResultKind.Validation,
         new DateTimeOffset(2026, 7, 10, 1, 0, 0, TimeSpan.Zero),
         "{}");
-    private static readonly RuleRunRecord CurrentPrescreen = new(
+    private static readonly ResultRecord CurrentPrescreen = new(
         "33333333333333333333333333333333",
-        RuleRunKinds.Prescreen,
+        ResultKind.Prescreen,
         new DateTimeOffset(2026, 7, 10, 1, 1, 0, TimeSpan.Zero),
         "{}");
 
     [Fact]
-    public void RequireRequestedValidationRun_MatchingRunId_ReturnsNormally()
+    public void RequireRequestedValidationResult_MatchingResultId_ReturnsNormally()
     {
-        ReportExportSupport.RequireRequestedValidationRun(
+        ReportExportSupport.RequireRequestedValidationResult(
             CurrentValidation,
-            CurrentValidation.RunId);
+            CurrentValidation.ResultId);
     }
 
     [Fact]
-    public void RequireRequestedValidationRun_DifferentRunId_PreservesStaleContract()
+    public void RequireRequestedValidationResult_DifferentResultId_PreservesStaleContract()
     {
         var exception = Assert.Throws<JetActionException>(() =>
-            ReportExportSupport.RequireRequestedValidationRun(
+            ReportExportSupport.RequireRequestedValidationResult(
                 CurrentValidation,
                 "22222222222222222222222222222222"));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-55（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
             "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);
@@ -64,14 +64,14 @@ public sealed class ReportExportSupportTests
     }
 
     [Fact]
-    public void IsSourceStale_LegacyCriteriaHasRevisionOnly_ReturnsTrueWithoutRejectingArtifact()
+    public void IsSourceStale_LegacyCriteriaHasRevisionOnly_ReturnsTrueWithoutRejectingReport()
     {
-        var artifact = Artifact(
-            ReportArtifactKind.CriteriaSelectionReport,
-            new ReportArtifactSourceRefs(ScenarioRevision: "revision-1"));
+        var report = Report(
+            ReportKind.CriteriaSelectionReport,
+            new ReportSourceRefs(ScenarioRevision: "revision-1"));
 
         var stale = ReportExportSupport.IsSourceStale(
-            artifact,
+            report,
             CurrentValidation,
             CurrentPrescreen,
             "revision-1",
@@ -81,22 +81,22 @@ public sealed class ReportExportSupportTests
     }
 
     [Theory]
-    [InlineData(ReportArtifactKind.CriteriaSelectionReport)]
-    [InlineData(ReportArtifactKind.WorkingPaper)]
+    [InlineData(ReportKind.CriteriaSelectionReport)]
+    [InlineData(ReportKind.WorkingPaper)]
     public void IsSourceStale_ScenarioReportIgnoresLegacyPrescreenReference(
-        ReportArtifactKind kind)
+        ReportKind kind)
     {
-        // 第9批高3；Public首敗100911120：Criteria現在須有同一資料版本，補明示來源版本以繼續只測舊prescreen參照不影響判定。
-        var artifact = Artifact(
+        // Public首敗100911120：Criteria現在須有同一資料版本，補明示來源版本以繼續只測舊prescreen參照不影響判定。
+        var report = Report(
             kind,
-            new ReportArtifactSourceRefs(
-                CurrentValidation.RunId,
+            new ReportSourceRefs(
+                CurrentValidation.ResultId,
                 "legacy-prescreen-run",
                 "revision-1",
-                kind == ReportArtifactKind.CriteriaSelectionReport ? [1, 2] : [2], FilterDataRevision: "9"));
+                kind == ReportKind.CriteriaSelectionReport ? [1, 2] : [2], FilterDataRevision: "9"));
 
         var stale = ReportExportSupport.IsSourceStale(
-            artifact,
+            report,
             CurrentValidation,
             latestPrescreen: null,
             filterRevision: "revision-1",
@@ -110,31 +110,33 @@ public sealed class ReportExportSupportTests
     [InlineData("8", "9", false, true)]
     [InlineData("8", null, false, true)]
     [InlineData(null, "8", true, true)]
-    [InlineData(null, "8", false, false)]
-    public void IsSourceStale_SelectedWorkpaperUsesItsDataRevision_AndLegacyKeepsPriorFlagRule(
-        string? artifactRevision, string? currentRevision, bool allScenarioResultsStale, bool expected)
+    // 缺來源版本的底稿一律過期，和 CriteriaSelection 報告的判斷相同；原本沿用全案旗標、這一列預期不過期
+    // （第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
+    [InlineData(null, "8", false, true)]
+    public void IsSourceStale_SelectedWorkingPaperUsesItsDataRevision_AndLegacyKeepsPriorFlagRule(
+        string? reportRevision, string? currentRevision, bool allScenarioResultsStale, bool expected)
     {
-        var artifact = Artifact(ReportArtifactKind.WorkingPaper, new ReportArtifactSourceRefs(
-            ValidationRunId: CurrentValidation.RunId, ScenarioRevision: "revision-1",
-            ScenarioPositions: [1], FilterDataRevision: artifactRevision));
-        Assert.Equal(expected, ReportExportSupport.IsSourceStale(artifact, CurrentValidation, null,
+        var report = Report(ReportKind.WorkingPaper, new ReportSourceRefs(
+            ValidationResultId: CurrentValidation.ResultId, ScenarioRevision: "revision-1",
+            ScenarioPositions: [1], FilterDataRevision: reportRevision));
+        Assert.Equal(expected, ReportExportSupport.IsSourceStale(report, CurrentValidation, null,
             allScenarioResultsStale, "revision-1", [1, 2], currentRevision));
     }
 
     [Fact]
-    public void IsSourceStale_SelectedWorkpaperDataRevisionDoesNotOverrideValidationOrDefinitionChanges()
+    public void IsSourceStale_SelectedWorkingPaperDataRevisionDoesNotOverrideValidationOrDefinitionChanges()
     {
-        var source = new ReportArtifactSourceRefs(ValidationRunId: CurrentValidation.RunId,
+        var source = new ReportSourceRefs(ValidationResultId: CurrentValidation.ResultId,
             ScenarioRevision: "revision-1", ScenarioPositions: [2], FilterDataRevision: "8");
-        var artifact = Artifact(ReportArtifactKind.WorkingPaper, source);
-        Assert.True(ReportExportSupport.IsSourceStale(artifact, null, null, false, "revision-1", [1, 2], "8"));
-        Assert.True(ReportExportSupport.IsSourceStale(artifact, CurrentValidation, null, false, "revision-2", [1, 2], "8"));
-        Assert.True(ReportExportSupport.IsSourceStale(artifact, CurrentValidation, null, false, "revision-1", [1], "8"));
+        var report = Report(ReportKind.WorkingPaper, source);
+        Assert.True(ReportExportSupport.IsSourceStale(report, null, null, false, "revision-1", [1, 2], "8"));
+        Assert.True(ReportExportSupport.IsSourceStale(report, CurrentValidation, null, false, "revision-2", [1, 2], "8"));
+        Assert.True(ReportExportSupport.IsSourceStale(report, CurrentValidation, null, false, "revision-1", [1], "8"));
     }
 
-    private static ReportArtifact Artifact(
-        ReportArtifactKind kind,
-        ReportArtifactSourceRefs source)
+    private static Report Report(
+        ReportKind kind,
+        ReportSourceRefs source)
         => new(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             kind,

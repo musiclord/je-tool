@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 資料預覽的 GL 與 GL(未納入測試) 頁依已確認的配對列欄位（預篩選收斂計畫階段五，使用者 2026-10-22 裁定）：
+/// 資料預覽的 GL 與 GL(未納入測試) 頁依已確認的配對列欄位（裁定 2026-10-22-09）：
 /// 核心欄位之後接已配對的選填欄位與攸關資料元素欄位，未配對的不列，借方與貸方金額不分欄；兩頁列同一組欄位，
 /// GL(未納入測試) 最後多一欄未納入原因。欄名和欄位配對畫面相同，回應的 columnDetails 逐欄寫出名稱與型別。
 /// 金額照資料庫存的值換算，保留到小數第四位；來源超過四位時在確認配對時四捨五入。
@@ -17,13 +17,13 @@ public sealed class DataPreviewMappedColumnsTests
 {
     private static readonly (string Key, string Label, string ValueType)[] CoreColumns =
     [
-        ("documentNumber", "傳票號碼", "text"),
+        ("voucherNumber", "傳票號碼", "text"),
         ("lineItem", "傳票文件項次", "text"),
-        ("postDate", "總帳日期", "date"),
-        ("accountCode", "會計科目編號", "text"),
+        ("glDate", "總帳日期", "date"),
+        ("accountNumber", "會計科目編號", "text"),
         ("accountName", "會計科目名稱", "text"),
-        ("documentDescription", "傳票摘要", "text"),
-        ("amount", "金額", "money"),
+        ("description", "傳票摘要", "text"),
+        ("amount", "金額", "amount"),
         ("drCr", "借貸別", "text")
     ];
 
@@ -68,7 +68,7 @@ public sealed class DataPreviewMappedColumnsTests
             {
                 new { sourceColumn = "合成部門", label = "合成部門", valueType = "text" },
                 new { sourceColumn = "合成到期日", label = "合成到期日", valueType = "date" },
-                new { sourceColumn = "合成外幣金額", label = "合成外幣金額", valueType = "money" }
+                new { sourceColumn = "合成外幣金額", label = "合成外幣金額", valueType = "amount" }
             }
         }));
         var rde = RdeFieldIds(committed);
@@ -84,7 +84,7 @@ public sealed class DataPreviewMappedColumnsTests
             ("postingStatus", "過帳狀態", "text"),
             (rde["合成部門"], "合成部門", "text"),
             (rde["合成到期日"], "合成到期日", "date"),
-            (rde["合成外幣金額"], "合成外幣金額", "money")
+            (rde["合成外幣金額"], "合成外幣金額", "amount")
         ];
 
         var gl = await host.DispatchAsync("query.dataPreview", """{ "dataset": "gl" }""");
@@ -124,10 +124,10 @@ public sealed class DataPreviewMappedColumnsTests
         // 預覽的值就是資料庫存的整數除以 10,000，不在讀出時另外進位。
         var database = DatabaseFor(provider, host);
         Assert.Equal(1235L, await ScalarAsync(database, projectId,
-            "SELECT amount_scaled FROM target_gl_entry WHERE document_number = 'JV-002' AND line_item = '1';"));
+            "SELECT amount_scaled FROM gl WHERE voucher_number = 'JV-002' AND line_item = '1';"));
         Assert.Equal(9877L, await ScalarAsync(database, projectId,
-            "SELECT r.amount_scaled FROM target_gl_rde_value r JOIN target_gl_entry e ON e.entry_id = r.entry_id " +
-            "WHERE e.document_number = 'JV-002' AND e.line_item = '1' AND r.value_type = 'money';"));
+            "SELECT r.amount_scaled FROM gl_rde_value r JOIN gl e ON e.entry_id = r.entry_id " +
+            "WHERE e.voucher_number = 'JV-002' AND e.line_item = '1' AND r.value_type = 'amount';"));
     }
 
     [Theory]
@@ -148,7 +148,7 @@ public sealed class DataPreviewMappedColumnsTests
         {
             mapping = builder.BuildFlagModeMapping(),
             amountMode = "flag",
-            approvalDateMode = "sameAsPostDate",
+            approvalDateMode = "sameAsGlDate",
             rdeFields = new object[] { new { sourceColumn = "合成到期日", label = "合成到期日", valueType = "date" } }
         }));
         var rde = RdeFieldIds(committed);
@@ -214,7 +214,7 @@ public sealed class DataPreviewMappedColumnsTests
         var excluded = await host.DispatchAsync("query.dataPreview", """{ "dataset": "glExcluded" }""");
         AssertColumns(excluded, [.. CoreColumns, ExclusionReasonColumn]);
         Assert.Equal(
-            new[] { new string?[] { "JV-202", "1", null, "1101", "現金", "日期空白", "10", "DEBIT", "blankPostDate" } },
+            new[] { new string?[] { "JV-202", "1", null, "1101", "現金", "日期空白", "10", "DEBIT", "blankGlDate" } },
             Rows(excluded));
     }
 
@@ -223,7 +223,7 @@ public sealed class DataPreviewMappedColumnsTests
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "PREVIEW-2025-001",
-            entityName = "合成案件",
+            clientName = "合成案件",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",

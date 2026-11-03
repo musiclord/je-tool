@@ -14,7 +14,7 @@ public sealed class MessageLogHandlersTests
 {
     private const string CreatePayload =
         """
-        { "projectCode": "LOG-001", "entityName": "訊息測試", "operatorId": "op",
+        { "projectCode": "LOG-001", "clientName": "訊息測試", "operatorId": "op",
           "periodStart": "2025-01-01", "periodEnd": "2025-12-31" }
         """;
 
@@ -47,7 +47,7 @@ public sealed class MessageLogHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // 使用者 2026-10-13 裁定訊息分三級，error 成為合法等級；不合法的例子改用不在清單裡的 warning。
+        // 裁定 2026-10-13-15 把訊息分成三級，error 成為合法等級；不合法的例子改用不在清單裡的 warning。
         // 第一次失敗收據 20261013-095524347-4880ee59c1384a9b8c9539922d680c35。
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("log.append", """{ "level": "warning", "text": "x" }"""));
@@ -55,7 +55,7 @@ public sealed class MessageLogHandlersTests
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
     }
 
-    // 使用者 2026-10-13 裁定訊息分三級：操作失敗寫成 error，存進案件後重開仍讀得回來。
+    // 裁定 2026-10-13-15 把訊息分成三級：操作失敗寫成 error，存進案件後重開仍讀得回來。
     [Fact]
     public async Task Append_ErrorLevel_IsSavedAndReadBack()
     {

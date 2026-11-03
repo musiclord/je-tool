@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// SQL Server app_message_log 留存修剪（manifest：每專案保留最近 500 則）。
+/// SQL Server message_log 留存修剪（manifest：每專案保留最近 500 則）。
 /// BVA：超出上限即剔除最舊資料。真 SQL Server，不 mock DB。
 /// </summary>
 public sealed class SqlServerMessageLogStoreTests

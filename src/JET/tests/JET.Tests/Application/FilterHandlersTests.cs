@@ -7,7 +7,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
 /// filter.preview / filter.commit 黑箱測試。
@@ -33,13 +33,15 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     {
         name = "測試情境",
         rationale = "測試動機",
-        groups = new object[] { new { join = "AND", rules } }
+        groups = new object[] { new { join = "AND", conditions = rules } }
     };
 
     /* ---- 驗證與安全 ------------------------------------------------------ */
 
+    // 裁定 2026-10-29-16：情境名稱留白也能儲存，系統依條件補上名稱；原本斷言儲存被擋下，改成斷言存下自動名稱、保留填寫的動機。
+    // 改用獨立案件，存檔不影響共用案件的其他測試。第一次失敗：Focused 收據 20261030-234500311-9ba883376b6d458ca7cdbd4100155cc8。
     [Fact]
-    public async Task FilterPreview_MissingName_PreviewsButCannotSave()
+    public async Task FilterPreview_MissingName_PreviewsAndSavesGeneratedName()
     {
         var payload = PreviewPayload(new
         {
@@ -47,16 +49,30 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             rationale = "動機",
             groups = new object[]
             {
-                new { join = "AND", rules = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
+                new { join = "AND", conditions = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
             }
         });
 
         var preview = await fixture.Host.DispatchAsync("filter.preview", payload);
         Assert.True(preview.GetProperty("scenario").GetProperty("count").GetInt64() > 0);
-        using var definition = JsonDocument.Parse(payload);
-        var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync("filter.commit",
-            JsonSerializer.Serialize(new { scenarios = new[] { definition.RootElement.GetProperty("scenario") } })));
-        Assert.Equal("invalid_scenario", error.Code);
+        var saved = await CommitAloneAsync(payload);
+        Assert.Equal("僅借方", saved.GetProperty("name").GetString());
+        Assert.Equal("動機", saved.GetProperty("rationale").GetString());
+    }
+
+    // 在獨立案件存下單一情境，回傳讀回的情境。
+    private static async Task<JsonElement> CommitAloneAsync(string previewPayload)
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        using var definition = JsonDocument.Parse(previewPayload);
+        await host.DispatchAsync("filter.commit",
+            JsonSerializer.Serialize(new { scenarios = new[] { definition.RootElement.GetProperty("scenario") } }));
+        var loaded = await host.DispatchAsync(
+            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
+        var scenarios = loaded.GetProperty("filterScenarios");
+        Assert.Equal(1, scenarios.GetArrayLength());
+        return scenarios[0].Clone();
     }
 
     [Fact]
@@ -64,7 +80,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     {
         // 注入形欄位字串必須被白名單擋下。
         var payload = PreviewPayload(ValidScenario(
-            new { join = "AND", type = "text", field = "document_number; DROP TABLE target_gl_entry", keywords = "x", mode = "contains" }));
+            new { join = "AND", type = "text", field = "voucher_number; DROP TABLE gl", keywords = "x", mode = "contains" }));
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => fixture.Host.DispatchAsync("filter.preview", payload));
@@ -82,8 +98,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             rationale = "動機",
             groups = new object[]
             {
-                new { join = "AND", rules = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } },
-                new { join = "AND", rules = new object[] { new { join = "AND", type = "accountSide", drCr = "credit", categoryMode = "is", categoryIds = Array.Empty<string>() } } }
+                new { join = "AND", conditions = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } },
+                // 原本這條帶著已停用的借貸方向，錯誤其實來自停用寫法；借貸方向拿掉後當成無法讀取（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
+                // 同一條多出一句，所以拿掉方向，只留沒填分類這一個錯誤。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+                new { join = "AND", conditions = new object[] { new { join = "AND", type = "accountSide", categoryMode = "is", categoryIds = Array.Empty<string>() } } }
             }
         });
 
@@ -101,14 +119,14 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task FilterPreview_CategoryIdArrays_TakePrecedenceOverLegacyScalars()
     {
-        // 同時帶陣列與 scalar 時（migration 產生的舊定義即為此形狀），一律以陣列為準。
+        // 同時帶陣列與 scalar 時，一律以陣列為準。
         var idsOnly = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(new
         {
             join = "AND",
             type = "accountPair",
             pairMode = "exact",
-            debitCategoryIds = new[] { AccountTaxonomyBuiltIns.ReceivablesId },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            debitCategoryIds = new[] { AccountCategoryBuiltIns.ReceivablesId },
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId }
         })));
         var mixed = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(new
         {
@@ -117,8 +135,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             pairMode = "exact",
             debitCategory = "Cash",
             creditCategory = "Others",
-            debitCategoryIds = new[] { AccountTaxonomyBuiltIns.ReceivablesId },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            debitCategoryIds = new[] { AccountCategoryBuiltIns.ReceivablesId },
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId }
         })));
 
         Assert.Equal(
@@ -137,16 +155,16 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             join = "AND",
             type = "accountPair",
             pairMode = "exact",
-            debitCategoryIds = new[] { AccountTaxonomyBuiltIns.ReceivablesId },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            debitCategoryIds = new[] { AccountCategoryBuiltIns.ReceivablesId },
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId }
         })));
         var others = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(new
         {
             join = "AND",
             type = "accountPair",
             pairMode = "exact",
-            debitCategoryIds = new[] { AccountTaxonomyBuiltIns.OthersId },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            debitCategoryIds = new[] { AccountCategoryBuiltIns.OthersId },
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId }
         })));
         var both = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(new
         {
@@ -155,11 +173,11 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             pairMode = "exact",
             debitCategoryIds = new[]
             {
-                AccountTaxonomyBuiltIns.OthersId,
-                AccountTaxonomyBuiltIns.ReceivablesId,
-                AccountTaxonomyBuiltIns.OthersId
+                AccountCategoryBuiltIns.OthersId,
+                AccountCategoryBuiltIns.ReceivablesId,
+                AccountCategoryBuiltIns.OthersId
             },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId, AccountTaxonomyBuiltIns.RevenueId }
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId, AccountCategoryBuiltIns.RevenueId }
         })));
 
         Assert.True(CountOf(receivables) > 0 && CountOf(others) > 0, "demo 資料應同時含賒銷與費用類對收入的傳票");
@@ -177,7 +195,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             type = "accountPair",
             pairMode = "exact",
             debitCategoryIds = Array.Empty<string>(),
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId }
         }));
 
         var exception = await Assert.ThrowsAsync<JetActionException>(
@@ -196,7 +214,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             type = "accountPair",
             pairMode = "exact",
             debitCategoryIds = new[] { "custom.0123456789abcdef0123456789abcdef" },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId }
         }));
 
         var exception = await Assert.ThrowsAsync<JetActionException>(
@@ -213,8 +231,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             join = "AND",
             type = "specialAccountCategoryPair",
             pairMode = "drAndCr",
-            debitCategoryIds = new[] { AccountTaxonomyBuiltIns.ReceivablesId },
-            creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId }
+            debitCategoryIds = new[] { AccountCategoryBuiltIns.ReceivablesId },
+            creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId }
         });
 
         using var host = new HandlerTestHost();
@@ -226,8 +244,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
         var scenarios = loaded.GetProperty("filterScenarios").GetRawText();
 
-        Assert.Contains($"\"debitCategoryIds\":[\"{AccountTaxonomyBuiltIns.ReceivablesId}\"]", scenarios, StringComparison.Ordinal);
-        Assert.Contains($"\"creditCategoryIds\":[\"{AccountTaxonomyBuiltIns.RevenueId}\"]", scenarios, StringComparison.Ordinal);
+        Assert.Contains($"\"debitCategoryIds\":[\"{AccountCategoryBuiltIns.ReceivablesId}\"]", scenarios, StringComparison.Ordinal);
+        Assert.Contains($"\"creditCategoryIds\":[\"{AccountCategoryBuiltIns.RevenueId}\"]", scenarios, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -240,7 +258,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var payload = PreviewPayload(ValidScenario(
             // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
-            new { join = "AND", type = "accountPair", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.CashId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }));
+            new { join = "AND", type = "accountPair", debitCategoryIds = new[] { AccountCategoryBuiltIns.CashId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }));
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("filter.preview", payload));
@@ -303,7 +321,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         try
         {
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留非授權人員篩選的原斷言。
+            // sourceColumn 改成必填，後端不再猜人員欄；保留非授權人員篩選的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
 
@@ -312,10 +330,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
             // EXISTS 自保前綴使名單非空時不改變命中集合 → 等於原始 NOT IN recount。
             var recount = await DemoProjectPipeline.QueryScalarAsync(host, context.ProjectId,
-                "SELECT COUNT(*) FROM target_gl_entry g WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31' "
+                "SELECT COUNT(*) FROM gl g WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31' "
                 + "AND g.created_by IS NOT NULL "
                 + "AND TRIM(g.created_by) <> '' "
-                + "AND TRIM(g.created_by) NOT IN (SELECT name FROM target_authorized_preparer);");
+                + "AND TRIM(g.created_by) NOT IN (SELECT name FROM authorized_preparer);");
 
             Assert.True(recount > 0, "只授權部分編製者 → 應有非授權命中");
             Assert.Equal(recount, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -330,7 +348,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     public async Task FilterPreview_SummaryPrescreenKey_ThrowsInvalidScenario()
     {
         var payload = PreviewPayload(ValidScenario(
-            new { join = "AND", type = "prescreen", prescreenKey = "creatorSummary" }));
+            new { join = "AND", type = "prescreen", prescreenKey = "preparerSummary" }));
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => fixture.Host.DispatchAsync("filter.preview", payload));
@@ -465,8 +483,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE post_date BETWEEN '2025-01-01' AND '2025-12-31' "
-            + "AND document_description LIKE '%調整%';");
+            "SELECT COUNT(*) FROM gl WHERE gl_date BETWEEN '2025-01-01' AND '2025-12-31' "
+            + "AND description LIKE '%調整%';");
 
         Assert.True(recount > 0);
         Assert.Equal(recount, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -499,7 +517,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // ABS：貸方（負值）列同樣納入。500000 × 10000 = 5e9。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE post_date BETWEEN '2025-01-01' AND '2025-12-31' "
+            "SELECT COUNT(*) FROM gl WHERE gl_date BETWEEN '2025-01-01' AND '2025-12-31' "
             + "AND ABS(amount_scaled) >= 5000000000;");
 
         Assert.True(recount > 0);
@@ -507,14 +525,14 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_DateRangeBoundsPostDate()
+    public async Task FilterPreview_DateRangeBoundsGlDate()
     {
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new { join = "AND", type = "dateRange", field = "postDate", from = "2025-01-01", to = "2025-01-31" })));
+            new { join = "AND", type = "dateRange", field = "glDate", from = "2025-01-01", to = "2025-01-31" })));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE post_date >= '2025-01-01' AND post_date <= '2025-01-31';");
+            "SELECT COUNT(*) FROM gl WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-01-31';");
 
         Assert.True(recount > 0);
         Assert.Equal(recount, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -550,7 +568,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(2, scenario.GetProperty("previewRows").GetArrayLength());
         Assert.All(
             scenario.GetProperty("previewRows").EnumerateArray(),
-            row => Assert.Equal("IN-001", row.GetProperty("documentNumber").GetString()));
+            row => Assert.Equal("IN-001", row.GetProperty("voucherNumber").GetString()));
     }
 
     [Fact]
@@ -561,7 +579,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE post_date BETWEEN '2025-01-01' AND '2025-12-31' "
+            "SELECT COUNT(*) FROM gl WHERE gl_date BETWEEN '2025-01-01' AND '2025-12-31' "
             + "AND dr_cr = 'DEBIT';");
 
         Assert.Equal(recount, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -575,7 +593,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry WHERE post_date BETWEEN '2025-01-01' AND '2025-12-31' "
+            "SELECT COUNT(*) FROM gl WHERE gl_date BETWEEN '2025-01-01' AND '2025-12-31' "
             + "AND is_manual = 1;");
 
         Assert.True(recount > 0);
@@ -593,12 +611,12 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry g
-            WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31'
-              AND (g.document_description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
+            SELECT COUNT(*) FROM gl g
+            WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
+              AND (g.description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
                OR EXISTS (
-                   SELECT 1 FROM staging_calendar_raw_day d
-                   WHERE d.day_type = 'holiday' AND d.date = g.post_date));
+                   SELECT 1 FROM calendar_day d
+                   WHERE d.day_type = 'holiday' AND d.date = g.gl_date));
             """);
 
         Assert.Equal(recount, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -608,22 +626,22 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
     private const string SuspiciousOrHolidayRecountSql =
         """
-        SELECT COUNT(*) FROM target_gl_entry g
-        WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31'
-          AND (g.document_description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
+        SELECT COUNT(*) FROM gl g
+        WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
+          AND (g.description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
            OR EXISTS (
-               SELECT 1 FROM staging_calendar_raw_day d
-               WHERE d.day_type = 'holiday' AND d.date = g.post_date));
+               SELECT 1 FROM calendar_day d
+               WHERE d.day_type = 'holiday' AND d.date = g.gl_date));
         """;
 
     private const string SuspiciousAndHolidayRecountSql =
         """
-        SELECT COUNT(*) FROM target_gl_entry g
-        WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31'
-          AND g.document_description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
+        SELECT COUNT(*) FROM gl g
+        WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
+          AND g.description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
           AND EXISTS (
-              SELECT 1 FROM staging_calendar_raw_day d
-              WHERE d.day_type = 'holiday' AND d.date = g.post_date);
+              SELECT 1 FROM calendar_day d
+              WHERE d.day_type = 'holiday' AND d.date = g.gl_date);
         """;
 
     // 等價分割：join 的合法值不分大小寫（"or"/"Or"/"oR" 都屬 OR 等價類）。
@@ -680,10 +698,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
-        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "rule_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "condition_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
         Assert.DoesNotContain(badJoin, ex.Message, StringComparison.Ordinal);
     }
 
@@ -699,7 +717,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             rationale = "測試動機",
             groups = new object[]
             {
-                new { join = badJoin, rules = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
+                new { join = badJoin, conditions = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
             }
         });
 
@@ -707,7 +725,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
@@ -723,7 +741,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     public async Task FilterPreview_AbsentJoin_DefaultsToAnd(string joinFragment)
     {
         var payload = """
-            {"scenario":{"name":"測試情境","rationale":"測試動機","groups":[{"join":"AND","rules":[
+            {"scenario":{"name":"測試情境","rationale":"測試動機","groups":[{"join":"AND","conditions":[
               {"join":"AND","type":"prescreen","prescreenKey":"suspiciousKeywords"},
               {JOIN_FRAGMENT"type":"prescreen","prescreenKey":"holidayPosting"}]}]}}
             """.Replace("JOIN_FRAGMENT", joinFragment);
@@ -749,19 +767,19 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         const string demoWhere =
             """
-            (g.document_description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
+            (g.description IN ('調整分錄','沖銷暫付款','迴轉前期應計','重分類科目','錯誤更正調整')
              OR EXISTS (
-                 SELECT 1 FROM staging_calendar_raw_day d
-                 WHERE d.day_type = 'holiday' AND d.date = g.post_date))
+                 SELECT 1 FROM calendar_day d
+                 WHERE d.day_type = 'holiday' AND d.date = g.gl_date))
             AND ABS(g.amount_scaled) >= 100000000
             """;
 
         var rowRecount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            $"SELECT COUNT(*) FROM target_gl_entry g WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31' AND {demoWhere};");
+            $"SELECT COUNT(*) FROM gl g WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31' AND {demoWhere};");
         var voucherRecount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            $"SELECT COUNT(DISTINCT g.document_number) FROM target_gl_entry g WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31' AND {demoWhere};");
+            $"SELECT COUNT(DISTINCT g.voucher_number) FROM gl g WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31' AND {demoWhere};");
 
         var scenario = preview.GetProperty("scenario");
         Assert.True(rowRecount > 0);
@@ -828,7 +846,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     // 原名 FilterCommit_PreservesUnknownPropertiesAndNumberLexemesInPersistenceAndResumeAst，原本也斷言條件層的未知屬性
-    // unknownRule 會存下並在開案讀回。使用者 2026-10-15 在待決事項勾選頁裁定 B1：「後端儲存時只保留該條件類型用得到的欄位」，
+    // unknownRule 會存下並在開案讀回。裁定 2026-10-15-01：「後端儲存時只保留該條件類型用得到的欄位」，
     // 所以條件層改成斷言 unknownRule 不再存下；情境層與條件組層的未知屬性和數字原文照舊保留。
     // 首次失敗：Focused 20261015-081453588-5485c4afbf664ef4919b9fbc7f54398f。
     [Fact]
@@ -850,7 +868,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
                     {
                       "join": "AND",
                       "unknownGroup": 1.2300,
-                      "rules": [
+                      "conditions": [
                         {
                           "join": "AND",
                           "type": "drCrOnly",
@@ -868,11 +886,11 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var definitions = await DemoProjectPipeline.QueryStringListAsync(
             host,
             context.ProjectId,
-            "SELECT definition_json FROM config_filter_scenario WHERE position = 1;");
+            "SELECT definition_json FROM filter_scenario WHERE position = 1;");
         using var stored = JsonDocument.Parse(Assert.Single(definitions)!);
         var storedScenario = stored.RootElement;
         var storedGroup = storedScenario.GetProperty("groups")[0];
-        var storedRule = storedGroup.GetProperty("rules")[0];
+        var storedRule = storedGroup.GetProperty("conditions")[0];
         Assert.Equal("1e2", storedScenario.GetProperty("unknownTop").GetRawText());
         Assert.Equal("1.2300", storedGroup.GetProperty("unknownGroup").GetRawText());
         Assert.Equal(["join", "type", "drCr"], storedRule.EnumerateObject().Select(property => property.Name));
@@ -882,7 +900,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var scenario = loaded.GetProperty("filterScenarios")[0];
         var group = scenario.GetProperty("groups")[0];
-        var rule = group.GetProperty("rules")[0];
+        var rule = group.GetProperty("conditions")[0];
         Assert.Equal("1.2300", group.GetProperty("unknownGroup").GetRawText());
         Assert.False(rule.TryGetProperty("unknownRule", out _));
         Assert.Equal("debit", rule.GetProperty("drCr").GetString());
@@ -927,9 +945,9 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         static string Identity(JsonElement row) =>
             string.Join(
                 "|",
-                row.GetProperty("documentNumber").GetString(),
+                row.GetProperty("voucherNumber").GetString(),
                 row.GetProperty("lineItem").GetString(),
-                row.GetProperty("accountCode").GetString());
+                row.GetProperty("accountNumber").GetString());
 
         var previewIdentities = previewScenario.GetProperty("previewRows")
             .EnumerateArray()
@@ -949,7 +967,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task ProjectLoad_PreEffectiveValidFilterLogic_RecalculatesWithCurrentRules()
     {
-        // 2026-10-02 使用者裁定開案時不再要求逐案重新保存：舊版本但仍符合目前規則的情境，
+        // 開案時不再要求逐案重新保存（裁定 2026-10-02-05）：舊版本但仍符合目前規則的情境，
         // 由 project.load 改成目前版本並清掉舊命中，第一次查詢時才用新規則重算。
         // 原本斷言 filterResultRef 為 null 與 stale_result 的寫法隨裁定改成斷言已改版且查得到命中。
         using var host = new HandlerTestHost();
@@ -966,12 +984,12 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             host,
             context.ProjectId,
             """
-            UPDATE config_filter_scenario
+            UPDATE filter_scenario
             SET definition_json = json_set(
                 definition_json,
                 '$.logicVersion',
                 'filter-2026-08-04-v6');
-            DELETE FROM result_filter_run;
+            DELETE FROM filter_hit;
             SELECT 0;
             """);
 
@@ -989,7 +1007,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host,
             context.ProjectId,
-            "SELECT COUNT(*) FROM result_filter_run;"));
+            "SELECT COUNT(*) FROM filter_hit;"));
 
         var page = await host.DispatchAsync(
             "query.filterHitsPage",
@@ -1014,9 +1032,9 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             host,
             context.ProjectId,
             """
-            UPDATE config_filter_scenario
+            UPDATE filter_scenario
             SET definition_json = json_set(definition_json, '$.populationScope', 'allProjected');
-            SELECT COUNT(*) FROM result_filter_run;
+            SELECT COUNT(*) FROM filter_hit;
             """);
         Assert.True(retainedHitCount > 0);
 
@@ -1070,13 +1088,13 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             {
                 name = "借方情境",
                 rationale = "revision 測試",
-                groups = new[] { new { join = "AND", rules = new[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } } }
+                groups = new[] { new { join = "AND", conditions = new[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } } }
             },
             new
             {
                 name = "貸方情境",
                 rationale = "revision 測試",
-                groups = new[] { new { join = "AND", rules = new[] { new { join = "AND", type = "drCrOnly", drCr = "credit" } } } }
+                groups = new[] { new { join = "AND", conditions = new[] { new { join = "AND", type = "drCrOnly", drCr = "credit" } } } }
             }
         };
 
@@ -1085,19 +1103,23 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var resultRef = response.GetProperty("resultRef");
         var revision = resultRef.GetProperty("revision").GetString()!;
-        Assert.Equal(revision, resultRef.GetProperty("generatedUtc").GetString());
+        var generatedUtc = resultRef.GetProperty("generatedUtc").GetString()!;
         Assert.Equal(RuleLogicVersions.Filter, resultRef.GetProperty("logicVersion").GetString());
         Assert.Equal("auditPeriod", resultRef.GetProperty("populationScope").GetString());
         var parsed = DateTimeOffset.ParseExact(
-            revision, "O", CultureInfo.InvariantCulture, DateTimeStyles.None);
+            generatedUtc, "O", CultureInfo.InvariantCulture, DateTimeStyles.None);
         Assert.Equal(TimeSpan.Zero, parsed.Offset);
 
         var persisted = await DemoProjectPipeline.QueryStringListAsync(
             host,
             context.ProjectId,
-            "SELECT saved_utc FROM config_filter_scenario ORDER BY position;");
+            "SELECT saved_utc FROM filter_scenario ORDER BY position;");
         Assert.Equal(2, persisted.Count);
-        Assert.All(persisted, savedUtc => Assert.Equal(revision, savedUtc));
+        Assert.All(persisted, savedUtc => Assert.Equal(generatedUtc, savedUtc));
+        // 2026-10-31 起每個情境各自儲存，revision 改成依順序把每個情境的「情境編號@保存時間」用分號接起來，
+        // 保存時間移到 generatedUtc；原本斷言 revision 就是保存時間，第一次失敗的收據
+        // 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。一次寫入整批時情境編號就是位置。
+        Assert.Equal($"1@{generatedUtc};2@{generatedUtc}", revision);
     }
 
     [Fact]
@@ -1130,7 +1152,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             rationale = "動機",
             groups = new object[]
             {
-                new { join = "AND", rules = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
+                new { join = "AND", conditions = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
             }
         }).ToArray();
 
@@ -1149,7 +1171,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             rationale = "動機",
             groups = new object[]
             {
-                new { join = "AND", rules = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
+                new { join = "AND", conditions = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } }
             }
         }).ToArray();
 
@@ -1251,9 +1273,9 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry
-            WHERE post_date BETWEEN '2025-01-01' AND '2025-12-31'
-              AND document_description LIKE '%調整%';
+            SELECT COUNT(*) FROM gl
+            WHERE gl_date BETWEEN '2025-01-01' AND '2025-12-31'
+              AND description LIKE '%調整%';
             """);
 
         Assert.True(recount > 0);
@@ -1269,8 +1291,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry "
-            + "WHERE post_date BETWEEN '2025-01-01' AND '2025-12-31' "
+            "SELECT COUNT(*) FROM gl "
+            + "WHERE gl_date BETWEEN '2025-01-01' AND '2025-12-31' "
             + "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) <> 0 "
             + "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) % 10000 = 0;");
 
@@ -1298,7 +1320,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(4, preview.GetProperty("scenario").GetProperty("count").GetInt64());
         var docs = preview.GetProperty("scenario").GetProperty("previewRows")
             .EnumerateArray()
-            .Select(row => row.GetProperty("documentNumber").GetString()!)
+            .Select(row => row.GetProperty("voucherNumber").GetString()!)
             .Distinct()
             .Order()
             .ToArray();
@@ -1322,7 +1344,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
                     new
                     {
                         join = "AND",
-                        rules = new object[]
+                        conditions = new object[]
                         {
                             ZeroRule(6),
                             new { join = "AND", type = "numRange", field = "amount", from = "5000000", to = "" }
@@ -1335,8 +1357,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // customTrailingZeros(6)：主單位整數 % 10^6；numRange ABS ≥ 5,000,000×10000。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
-            "SELECT COUNT(*) FROM target_gl_entry "
-            + "WHERE post_date BETWEEN '2025-01-01' AND '2025-12-31' "
+            "SELECT COUNT(*) FROM gl "
+            + "WHERE gl_date BETWEEN '2025-01-01' AND '2025-12-31' "
             + "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) <> 0 "
             + "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) % 1000000 = 0 "
             + "AND ABS(amount_scaled) >= 50000000000;");
@@ -1368,21 +1390,21 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var preview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
             // 2026-10-02 起只認分類身分陣列，單選分類欄位改成同一分類的陣列。
-            new { join = "AND", type = "accountPair", pairMode = "creditAnchor", creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } })));
+            new { join = "AND", type = "accountPair", pairMode = "creditAnchor", creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } })));
 
         // 貸方錨定（guide §6.1 C）：輸出貸方錨定列＋同傳票借方列（>= 0）。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry g
-            WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31'
-              AND EXISTS (SELECT 1 FROM target_gl_entry c
-                          JOIN target_account_mapping mc ON mc.account_code = c.account_code
-                          WHERE c.document_number = g.document_number
-                            AND c.post_date BETWEEN '2025-01-01' AND '2025-12-31'
+            SELECT COUNT(*) FROM gl g
+            WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
+              AND EXISTS (SELECT 1 FROM gl c
+                          JOIN account_mapping mc ON mc.account_number = c.account_number
+                          WHERE c.voucher_number = g.voucher_number
+                            AND c.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
                             AND mc.standardized_category = 'Revenue' AND c.amount_scaled < 0)
-              AND ((EXISTS (SELECT 1 FROM target_account_mapping m
-                            WHERE m.account_code = g.account_code AND m.standardized_category = 'Revenue')
+              AND ((EXISTS (SELECT 1 FROM account_mapping m
+                            WHERE m.account_number = g.account_number AND m.standardized_category = 'Revenue')
                     AND g.amount_scaled < 0)
                    OR g.amount_scaled >= 0);
             """);
@@ -1401,28 +1423,28 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // drAndCr 命中數須等於同述詞的獨立 recount（標記 Receivables 借「或」Revenue 貸的列）。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
             // 2026-10-02 起只認分類身分陣列，單選分類欄位改成同一分類的陣列。
-            new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.ReceivablesId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } })));
+            new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountCategoryBuiltIns.ReceivablesId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } })));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             """
-            SELECT COUNT(*) FROM target_gl_entry g
-            WHERE g.post_date BETWEEN '2025-01-01' AND '2025-12-31'
-              AND EXISTS (SELECT 1 FROM target_gl_entry d
-                          JOIN target_account_mapping md ON md.account_code = d.account_code
-                          WHERE d.document_number = g.document_number
-                            AND d.post_date BETWEEN '2025-01-01' AND '2025-12-31'
+            SELECT COUNT(*) FROM gl g
+            WHERE g.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
+              AND EXISTS (SELECT 1 FROM gl d
+                          JOIN account_mapping md ON md.account_number = d.account_number
+                          WHERE d.voucher_number = g.voucher_number
+                            AND d.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
                             AND md.standardized_category = 'Receivables' AND d.amount_scaled >= 0)
-              AND EXISTS (SELECT 1 FROM target_gl_entry c
-                          JOIN target_account_mapping mc ON mc.account_code = c.account_code
-                          WHERE c.document_number = g.document_number
-                            AND c.post_date BETWEEN '2025-01-01' AND '2025-12-31'
+              AND EXISTS (SELECT 1 FROM gl c
+                          JOIN account_mapping mc ON mc.account_number = c.account_number
+                          WHERE c.voucher_number = g.voucher_number
+                            AND c.gl_date BETWEEN '2025-01-01' AND '2025-12-31'
                             AND mc.standardized_category = 'Revenue' AND c.amount_scaled < 0)
-              AND ((EXISTS (SELECT 1 FROM target_account_mapping m
-                            WHERE m.account_code = g.account_code AND m.standardized_category = 'Receivables')
+              AND ((EXISTS (SELECT 1 FROM account_mapping m
+                            WHERE m.account_number = g.account_number AND m.standardized_category = 'Receivables')
                     AND g.amount_scaled >= 0)
-                   OR (EXISTS (SELECT 1 FROM target_account_mapping m
-                              WHERE m.account_code = g.account_code AND m.standardized_category = 'Revenue')
+                   OR (EXISTS (SELECT 1 FROM account_mapping m
+                              WHERE m.account_number = g.account_number AND m.standardized_category = 'Revenue')
                        AND g.amount_scaled < 0));
             """);
 
@@ -1440,7 +1462,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
                 // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
-                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.CashId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }))));
+                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountCategoryBuiltIns.CashId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1452,7 +1474,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
                 // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「分類不存在」成為唯一的失敗原因。
-                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { "NotACategory" }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }))));
+                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { "NotACategory" }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1464,7 +1486,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
                 // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「模式不合法」成為唯一的失敗原因。
-                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "exact", debitCategoryIds = new[] { AccountTaxonomyBuiltIns.CashId }, creditCategoryIds = new[] { AccountTaxonomyBuiltIns.RevenueId } }))));
+                new { join = "AND", type = "specialAccountCategoryPair", pairMode = "exact", debitCategoryIds = new[] { AccountCategoryBuiltIns.CashId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
     }
@@ -1537,7 +1559,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [InlineData("manualRevenueEntry", 0L, 0L)]
     public async Task FilterPreview_CommonParameterlessType_RunsEndToEnd(string type, long expectedCount, long expectedVouchers)
     {
-        // 第 9 批中低 13：原 count >= 0 永遠成立，改鎖正式 demo 的手算答案。
+        // 原 count >= 0 永遠成立，改鎖正式 demo 的手算答案。
         // 30 張 Others 借、Revenue 貸各命中一列；12 張應收借、Revenue 貸不命中。
         // Revenue seed 全為自動，人工列只在不含 Revenue 的 baseline，所以人工收入固定為零。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
@@ -1584,7 +1606,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
     /* ---- 常用篩選條件來源的情境豁免名稱/動機必填（manifest scenario.source）---- */
 
-    // 2026-10-29 卡片改稱常用篩選條件、拿掉字母（使用者裁定程式內部一起改）：來源代碼改成 common，名稱、輔助函式與案例改用卡片代號，斷言不變。
+    // 2026-10-29 卡片改稱常用篩選條件、拿掉字母，程式內部一起改（裁定 2026-10-29-12）：來源代碼改成 common，名稱、輔助函式與案例改用卡片代號，斷言不變。
     // 第一次失敗：Build 收據 20261029-055859529-4f7e4a2a4d624199811e82719d4b37ad（還引用舊常數，編譯不過）。
     // 常用篩選條件來源、名稱與動機皆留空；測 metadata 時用不需 mapping 前置的特定金額尾數，
     // 其他卡片的前置與命中另由 provider matrix 精確驗證。
@@ -1593,10 +1615,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         source = "common",
         name = "",
         rationale = "",
-        groups = new object[] { new { join = "AND", rules } }
+        groups = new object[] { new { join = "AND", conditions = rules } }
     };
 
-    // 第九節 G2、G5 的現行輸入。只組測試請求；預期命中與獨立 SQL 重算不變。
+    // 舊式條件停用後的現行輸入。只組測試請求；預期命中與獨立 SQL 重算不變。
     // 首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
     private static object TailRule(string value) => new
     {
@@ -1604,7 +1626,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     };
     private static object ZeroRule(int digits) => new
     {
-        join = "AND", type = "group", rules = new object[]
+        join = "AND", type = "group", conditions = new object[]
         {
             TailRule(new string('0', digits)),
             new { type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }
@@ -1630,39 +1652,39 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(CommonScenario(
             TailRule("000000"))));
 
-        // 第 9 批中低 13：原 count >= 0 永遠成立。Demo 只有 15 張金額 2,000,000 的傳票
+        // 原 count >= 0 永遠成立。Demo 只有 15 張金額 2,000,000 的傳票
         // 符合六位零尾數，借貸兩列都命中；其餘金額不足六位，固定為 30 列、15 張。
         Assert.Equal(30, preview.GetProperty("scenario").GetProperty("count").GetInt64());
         Assert.Equal(15, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
     }
 
+    // 裁定 2026-10-29-16：自訂條件的名稱與動機留白也能儲存，系統依條件補上；原本斷言儲存被擋下，改成斷言存下自動文字。
+    // 第一次失敗：Focused 收據 20261030-234500311-9ba883376b6d458ca7cdbd4100155cc8。
     [Fact]
-    public async Task FilterPreview_NonCommonSourceWithEmptyNameAndRationale_PreviewsButCannotSave()
+    public async Task FilterPreview_NonCommonSourceWithEmptyNameAndRationale_PreviewsAndSavesGeneratedText()
     {
-        // 回歸：未標 source（查核員自擬）且名稱/動機皆空時，必填檢查仍須擋下。
         var payload = PreviewPayload(new
         {
             name = "",
             rationale = "",
             groups = new object[]
             {
-                new { join = "AND", rules = new object[] { TailRule("000000") } }
+                new { join = "AND", conditions = new object[] { TailRule("000000") } }
             }
         });
 
         var preview = await fixture.Host.DispatchAsync("filter.preview", payload);
         Assert.True(preview.GetProperty("scenario").GetProperty("count").GetInt64() > 0);
-        using var definition = JsonDocument.Parse(payload);
-        var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync("filter.commit",
-            JsonSerializer.Serialize(new { scenarios = new[] { definition.RootElement.GetProperty("scenario") } })));
-        Assert.Equal("invalid_scenario", error.Code);
+        var saved = await CommitAloneAsync(payload);
+        Assert.Equal("金額 整數尾數符合「000000」", saved.GetProperty("name").GetString());
+        Assert.Equal("檢視符合以下條件的分錄：金額 整數尾數符合「000000」。", saved.GetProperty("rationale").GetString());
     }
 
     [Fact]
     public async Task FilterCommit_CommonSourceWithEmptyNameAndRationale_PersistsNonEmptyAuditTrail()
     {
         // 落地替補：常用篩選條件來源、名稱/動機留空 → commit 後 project.load 回傳的情境
-        // 名稱與動機皆為非空（config_filter_scenario.name/.rationale NOT NULL 的留痕不變量）。
+        // 名稱與動機皆為非空（filter_scenario.name/.rationale NOT NULL 的留痕不變量）。
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
@@ -1718,7 +1740,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
                 new
                 {
                     join = "AND",
-                    rules = new object[]
+                    conditions = new object[]
                     {
                         TailRule("000000")
                     }
@@ -1742,7 +1764,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterCommit_TwoCommonScenariosWithEmptyMetadata_UsesPositionUniqueStableNames()
+    // 裁定 2026-10-30-14：常用篩選條件的名稱與動機留白時，不再補固定的「常用篩選條件（第 N 項）」與「常用篩選條件」，
+    // 改依條件產生和第五步畫面相同的文字。這兩個情境沒有卡片編輯來源，所以照自訂條件的寫法。
+    // 第一次失敗：Build 收據 20261030-234325678-745ed07d9ff840a19bdca41038ac78d3（固定文字的常數已拿掉，編譯失敗）。
+    public async Task FilterCommit_TwoCommonScenariosWithEmptyMetadata_UsesConditionGeneratedNames()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -1761,12 +1786,9 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var scenarios = loaded.GetProperty("filterScenarios");
 
         Assert.Equal(2, scenarios.GetArrayLength());
-        Assert.Equal("常用篩選條件（第 1 項）", scenarios[0].GetProperty("name").GetString());
-        Assert.Equal("常用篩選條件（第 2 項）", scenarios[1].GetProperty("name").GetString());
-        Assert.All(
-            scenarios.EnumerateArray(),
-            scenario => Assert.Equal(
-                FilterScenarioSources.CommonDefaultRationale,
-                scenario.GetProperty("rationale").GetString()));
+        Assert.Equal("金額 整數尾數符合「999999」", scenarios[0].GetProperty("name").GetString());
+        Assert.Equal("金額 整數尾數符合「000000」", scenarios[1].GetProperty("name").GetString());
+        Assert.Equal("檢視符合以下條件的分錄：金額 整數尾數符合「999999」。", scenarios[0].GetProperty("rationale").GetString());
+        Assert.Equal("檢視符合以下條件的分錄：金額 整數尾數符合「000000」。", scenarios[1].GetProperty("rationale").GetString());
     }
 }

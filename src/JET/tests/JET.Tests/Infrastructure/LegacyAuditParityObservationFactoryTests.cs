@@ -11,7 +11,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class LegacyAuditParityObservationFactoryTests
 {
     [Fact]
-    public void FilterTagMatrix_RebindsCompactRuntimePositionsToLegacyScenarioPositions()
+    public void FilterHighRiskSummary_RebindsCompactRuntimePositionsToLegacyScenarioPositions()
     {
         using var document = JsonDocument.Parse(
             """
@@ -40,7 +40,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     }
 
     [Fact]
-    public void FilterTagMatrix_WithIncompleteLegacyIdentityMapFailsClosed()
+    public void FilterHighRiskSummary_WithIncompleteLegacyIdentityMapFailsClosed()
     {
         using var document = JsonDocument.Parse(
             """
@@ -57,7 +57,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
                 document.RootElement,
                 [LegacyFilterScenarioId.FromOrdinal(1)]));
 
-        Assert.Equal("filter.tag-matrix.scenario-identities", error.FieldId);
+        Assert.Equal("filter.high-risk-summary.scenario-identities", error.FieldId);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
               "rulePeriod": {
                 "rules": [
                   {
-                    "key": "postPeriodApproval",
+                    "key": "prepPeriodApproval",
                     "naReason": null,
                     "hitLines": 0,
                     "hitVouchers": 0
@@ -89,10 +89,10 @@ public sealed class LegacyAuditParityObservationFactoryTests
 
         Assert.Equal(
             LegacyMetricApplicability.Applicable,
-            rules[LegacyPrescreenRuleId.PostPeriodApproval].Applicability);
+            rules[LegacyPrescreenRuleId.PrepPeriodApproval].Applicability);
         Assert.Equal(
             LegacyObservedCountState.ExecutedZero,
-            rules[LegacyPrescreenRuleId.PostPeriodApproval].RowCount.State);
+            rules[LegacyPrescreenRuleId.PrepPeriodApproval].RowCount.State);
         Assert.Equal(
             LegacyMetricApplicability.NotApplicable,
             rules[LegacyPrescreenRuleId.NonAuthorizedPreparer].Applicability);
@@ -135,7 +135,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
               "rulePeriod": {
                 "rules": [
                   {
-                    "key": "postPeriodApproval",
+                    "key": "prepPeriodApproval",
                     "naReason": null,
                     "hitLines": null,
                     "hitVouchers": null
@@ -193,8 +193,8 @@ public sealed class LegacyAuditParityObservationFactoryTests
     [InlineData((int)LegacyReportKind.InfReport, "可靠性樣本_所有欄位", 2, 1)]
     [InlineData((int)LegacyReportKind.PrescreenReport, "R1", 2, 1)]
     [InlineData((int)LegacyReportKind.CriteriaSelectionReport, "#Criteria Select 1", 2, 1)]
-    [InlineData((int)LegacyReportKind.WorkingPaper, WorkpaperSheetCatalog.Step1, 20, 2)]
-    [InlineData((int)LegacyReportKind.WorkingPaper, WorkpaperSheetCatalog.Step4 + " (續2)", 13, 1)]
+    [InlineData((int)LegacyReportKind.WorkingPaper, WorkingPaperSheetCatalog.Step1, 20, 2)]
+    [InlineData((int)LegacyReportKind.WorkingPaper, WorkingPaperSheetCatalog.Step4 + " (續2)", 13, 1)]
     public void DetailSheetFamilies_CountOnlyContiguousRowsFromTheirWriterBoundary(
         int reportValue,
         string sheetName,
@@ -235,8 +235,8 @@ public sealed class LegacyAuditParityObservationFactoryTests
         {
             var sheet = workbook.AddWorksheet(sheetName);
             SetThreeColumnRow(sheet, 1, "category-header", "row-header", "label-header");
-            SetThreeColumnRow(sheet, 2, "nullPostDate", "1", "synthetic-source-1");
-            SetThreeColumnRow(sheet, 3, "nullPostDate", "2", "synthetic-source-2");
+            SetThreeColumnRow(sheet, 2, "blankGlDate", "1", "synthetic-source-1");
+            SetThreeColumnRow(sheet, 3, "blankGlDate", "2", "synthetic-source-2");
             StyleOnly(sheet.Cell("A4"));
         });
 
@@ -256,7 +256,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     [InlineData((int)LegacyReportKind.ValidationReport, "ValidationReport")]
     [InlineData((int)LegacyReportKind.PrescreenReport, "Pre-screening_Report")]
     [InlineData((int)LegacyReportKind.CriteriaSelectionReport, "Summary Inforamtion")]
-    [InlineData((int)LegacyReportKind.WorkingPaper, WorkpaperSheetCatalog.Cover)]
+    [InlineData((int)LegacyReportKind.WorkingPaper, WorkingPaperSheetCatalog.Cover)]
     public void FixedSummarySheets_ReportZeroDataRowsEvenWhenTemplateRowsArePopulated(
         int reportValue,
         string sheetName)
@@ -284,7 +284,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
 
     [Theory]
     [InlineData((int)LegacyReportKind.InfReport, "INF Testing 可靠性測試", 2)]
-    [InlineData((int)LegacyReportKind.WorkingPaper, WorkpaperSheetCatalog.Step2, 1)]
+    [InlineData((int)LegacyReportKind.WorkingPaper, WorkingPaperSheetCatalog.Step2, 1)]
     public void FixedSampleAreas_IgnoreFormattedEmptyRowsAfterExecutedSamples(
         int reportValue,
         string sheetName,
@@ -354,7 +354,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            var sheet = workbook.AddWorksheet(WorkpaperSheetCatalog.CalendarInfo);
+            var sheet = workbook.AddWorksheet(WorkingPaperSheetCatalog.CalendarInfo);
             for (var row = 1; row <= 8; row++)
             {
                 SetTwoColumnRow(sheet, row, $"static-day-{row}", "static-flag");
@@ -371,7 +371,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
         {
             var counts = ReadCounts(LegacyReportKind.WorkingPaper, path);
 
-            Assert.Equal(3, counts[WorkpaperSheetCatalog.CalendarInfo]);
+            Assert.Equal(3, counts[WorkingPaperSheetCatalog.CalendarInfo]);
         }
         finally
         {
@@ -384,7 +384,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            var sheet = workbook.AddWorksheet(WorkpaperSheetCatalog.Step3);
+            var sheet = workbook.AddWorksheet(WorkingPaperSheetCatalog.Step3);
             for (var row = 19; row <= 28; row++)
             {
                 sheet.Cell(row, 2).Value = $"static-position-{row}";
@@ -399,7 +399,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
         {
             var counts = ReadCounts(LegacyReportKind.WorkingPaper, path);
 
-            Assert.Equal(2, counts[WorkpaperSheetCatalog.Step3]);
+            Assert.Equal(2, counts[WorkingPaperSheetCatalog.Step3]);
         }
         finally
         {
@@ -412,7 +412,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            var sheet = workbook.AddWorksheet(WorkpaperSheetCatalog.Step3);
+            var sheet = workbook.AddWorksheet(WorkingPaperSheetCatalog.Step3);
             sheet.Cell("B19").Value = "static-position";
             sheet.Cell("C19").Value = "synthetic-condition-without-result";
         });
@@ -460,7 +460,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            workbook.AddWorksheet(WorkpaperSheetCatalog.Cover).Cell("A1").Value = "static-cover";
+            workbook.AddWorksheet(WorkingPaperSheetCatalog.Cover).Cell("A1").Value = "static-cover";
             var metadata = workbook.AddWorksheet(ReportWorkbookMetadataFormat.WorksheetName);
             metadata.Cell("A1").Value = ReportWorkbookMetadataFormat.Marker;
             metadata.Visibility = XLWorksheetVisibility.VeryHidden;
@@ -484,7 +484,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            workbook.AddWorksheet(WorkpaperSheetCatalog.Cover).Cell("A1").Value = "static-cover";
+            workbook.AddWorksheet(WorkingPaperSheetCatalog.Cover).Cell("A1").Value = "static-cover";
             workbook.AddWorksheet(ReportWorkbookMetadataFormat.WorksheetName)
                 .Cell("A1").Value = ReportWorkbookMetadataFormat.Marker;
         });
@@ -509,7 +509,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            workbook.AddWorksheet(WorkpaperSheetCatalog.Cover).Cell("A1").Value = "static-cover";
+            workbook.AddWorksheet(WorkingPaperSheetCatalog.Cover).Cell("A1").Value = "static-cover";
             var metadata = workbook.AddWorksheet(ReportWorkbookMetadataFormat.WorksheetName);
             metadata.Cell("A1").Value = ReportWorkbookMetadataFormat.Marker;
             metadata.Visibility = XLWorksheetVisibility.VeryHidden;
@@ -770,7 +770,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            var sheet = workbook.AddWorksheet(WorkpaperSheetCatalog.Step2);
+            var sheet = workbook.AddWorksheet(WorkingPaperSheetCatalog.Step2);
             sheet.Cell("A53").Value = "synthetic-template-value";
             sheet.Cell("A111").Value = "synthetic-template-value";
         });
@@ -782,7 +782,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
                 path,
                 LegacyAuditParityReportSource.LegacySystem);
 
-            Assert.Equal(0, counts[WorkpaperSheetCatalog.Step2]);
+            Assert.Equal(0, counts[WorkingPaperSheetCatalog.Step2]);
         }
         finally
         {
@@ -795,7 +795,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            var sheet = workbook.AddWorksheet(WorkpaperSheetCatalog.CalendarInfo);
+            var sheet = workbook.AddWorksheet(WorkingPaperSheetCatalog.CalendarInfo);
             SetThreeColumnRow(sheet, 10, "date-header", "name-header", "flag-header");
             sheet.Cell("A11").Value = "synthetic-date";
             sheet.Cell("C11").Value = "Y";
@@ -808,7 +808,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
                 path,
                 LegacyAuditParityReportSource.LegacySystem);
 
-            Assert.Equal(1, counts[WorkpaperSheetCatalog.CalendarInfo]);
+            Assert.Equal(1, counts[WorkingPaperSheetCatalog.CalendarInfo]);
         }
         finally
         {
@@ -821,7 +821,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         var path = WriteWorkbook(workbook =>
         {
-            var sheet = workbook.AddWorksheet(WorkpaperSheetCatalog.Step11);
+            var sheet = workbook.AddWorksheet(WorkingPaperSheetCatalog.Step11);
             for (var column = 2; column <= 6; column++)
             {
                 sheet.Cell(16, column).Value = $"synthetic-header-{column}";
@@ -907,7 +907,7 @@ public sealed class LegacyAuditParityObservationFactoryTests
     {
         const uint firstFormattingRow = 1_000;
         const uint formattingRowCount = 50_000;
-        var sheetName = WorkpaperSheetCatalog.Step4 + " (續2)";
+        var sheetName = WorkingPaperSheetCatalog.Step4 + " (續2)";
         var path = WriteStreamingWorkbook(sheetName, writer =>
         {
             WriteStreamingRow(writer, 13, InlineCell("A13", "synthetic-data-1"));

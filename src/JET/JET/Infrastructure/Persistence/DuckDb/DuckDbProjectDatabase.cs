@@ -17,15 +17,14 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
     public const string DatabaseFileName = "jet.duckdb";
 
     /// <summary>
-    /// DuckDB 版 schema——新檔一次到位建第 6 版（與 <see cref="SqliteProjectDatabase"/> 的
-    /// 第 6 版形狀對齊：表／欄／索引名一字不差），再逐版升到現行版。第 1 到第 5 版的舊檔不再升版，
-    /// 開啟時直接回報錯誤。
-    /// 引擎差異只三類：(1) SQLite <c>INTEGER PRIMARY KEY AUTOINCREMENT</c> → DuckDB
+    /// 案件資料庫的現行結構，建成後標成第 15 版，表、欄位與索引名稱和 <see cref="SqliteProjectDatabase"/> 相同。
+    /// 只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，不是現行版本就請審計員刪除案件後重建
+    /// （裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
+    /// 和 SQLite 的差異只有三類：(1) SQLite <c>INTEGER PRIMARY KEY AUTOINCREMENT</c> → DuckDB
     /// <c>BIGINT PRIMARY KEY DEFAULT nextval('seq_&lt;表&gt;')</c>＋前置 <c>CREATE SEQUENCE IF NOT EXISTS</c>
-    /// （DuckDB 無 AUTOINCREMENT）；(2) 型別採 SqlServer 家族已驗證的跨引擎映射——金額／計數／
-    /// row_number／entry_id 等以 BIGINT（DuckDB INTEGER 為 32 位，scaled 金額會溢位），小整數（source_no／
-    /// is_manual／position 等）以 INTEGER；TEXT 保留（DuckDB TEXT≡VARCHAR）；(3) schema_version 冪等插入
-    /// 用 ANSI <c>WHERE NOT EXISTS</c>（不依賴 SQLite 專屬 ON CONFLICT 形）。<c>IF NOT EXISTS</c> 全程冪等。
+    /// （DuckDB 無 AUTOINCREMENT）；(2) 金額、計數、row_number、entry_id 等用 BIGINT（DuckDB INTEGER 為 32 位，
+    /// scaled 金額會溢位），小整數（source_no、is_manual、position 等）用 INTEGER，TEXT 保留；
+    /// (3) 初始資料用 ANSI <c>WHERE NOT EXISTS</c> 插入，不依賴 SQLite 專屬的 ON CONFLICT 寫法。
     /// </summary>
     private const string SchemaSql =
         """
@@ -33,13 +32,6 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
-        INSERT INTO schema_info (key, value)
-            SELECT 'schema_version', '6'
-            WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'schema_version');
-
-        INSERT INTO schema_info (key, value)
-            SELECT 'filter_data_revision', '0'
-            WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'filter_data_revision');
 
         CREATE TABLE IF NOT EXISTS import_batch (
             batch_id         TEXT PRIMARY KEY,
@@ -67,9 +59,8 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, source_no)
         );
 
-        -- Legacy TableDef 等價欄位定義只由 fresh import 建立；不替舊 batch
-        -- 回填或猜測 metadata。獨立的 v5→v6 遷移只補 numeric sort key。
-        CREATE TABLE IF NOT EXISTS import_field_definition (
+        -- 匯入檔的欄位定義（名稱、型態、長度），對應舊版 IDEA 的 TableDef，只在匯入資料時寫入。
+        CREATE TABLE IF NOT EXISTS field_info (
             batch_id            TEXT NOT NULL,
             definition_scope    TEXT NOT NULL CHECK (definition_scope IN ('source','target')),
             ordinal             INTEGER NOT NULL,
@@ -83,7 +74,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, definition_scope, ordinal)
         );
 
-        CREATE TABLE IF NOT EXISTS staging_gl_raw_row (
+        CREATE TABLE IF NOT EXISTS pbc_gl (
             batch_id          TEXT NOT NULL,
             row_number        BIGINT NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -92,7 +83,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, row_number)
         );
 
-        CREATE TABLE IF NOT EXISTS staging_tb_raw_row (
+        CREATE TABLE IF NOT EXISTS pbc_tb (
             batch_id          TEXT NOT NULL,
             row_number        BIGINT NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -101,16 +92,18 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, row_number)
         );
 
-        CREATE TABLE IF NOT EXISTS config_field_mapping (
+        CREATE TABLE IF NOT EXISTS field_mapping (
             dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
             mapping_json    TEXT NOT NULL,
             mode_name       TEXT NOT NULL,
             source_batch_id TEXT NOT NULL,
-            committed_utc   TEXT NOT NULL
+            committed_utc   TEXT NOT NULL,
+            format_version  INTEGER NOT NULL DEFAULT 1,
+            options_json    TEXT NULL
         );
 
         -- 重新匯入前最後一次確認的配對，只用來在重開案件時帶回草稿（LocalMappingStateStore.RetireCommittedMappingSql）。
-        CREATE TABLE IF NOT EXISTS config_field_mapping_previous (
+        CREATE TABLE IF NOT EXISTS field_mapping_previous (
             dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
             mapping_json    TEXT NOT NULL,
             mode_name       TEXT NOT NULL,
@@ -120,26 +113,26 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             options_json    TEXT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS staging_calendar_raw_day (
+        CREATE TABLE IF NOT EXISTS calendar_day (
             day_type TEXT NOT NULL CHECK (day_type IN ('holiday','makeup')),
             date     TEXT NOT NULL,
             day_name TEXT NULL,
             PRIMARY KEY (day_type, date)
         );
 
-        CREATE SEQUENCE IF NOT EXISTS seq_target_gl_entry;
-        CREATE TABLE IF NOT EXISTS target_gl_entry (
-            entry_id              BIGINT PRIMARY KEY DEFAULT nextval('seq_target_gl_entry'),
+        CREATE SEQUENCE IF NOT EXISTS seq_gl;
+        CREATE TABLE IF NOT EXISTS gl (
+            entry_id              BIGINT PRIMARY KEY DEFAULT nextval('seq_gl'),
             batch_id              TEXT NOT NULL,
             source_row_number     BIGINT NOT NULL,
-            document_number       TEXT NULL,
+            voucher_number       TEXT NULL,
             line_item             TEXT NULL,
             line_item_numeric_sort_key TEXT NULL,
-            post_date             TEXT NULL,
+            gl_date             TEXT NULL,
             approval_date         TEXT NULL,
-            account_code          TEXT NULL,
+            account_number          TEXT NULL,
             account_name          TEXT NULL,
-            document_description  TEXT NULL,
+            description           TEXT NULL,
             source_module         TEXT NULL,
             created_by            TEXT NULL,
             approved_by           TEXT NULL,
@@ -147,55 +140,61 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             amount_scaled         BIGINT NOT NULL,
             debit_amount_scaled   BIGINT NOT NULL,
             credit_amount_scaled  BIGINT NOT NULL,
-            dr_cr                 TEXT NOT NULL CHECK (dr_cr IN ('DEBIT','CREDIT'))
+            dr_cr                 TEXT NOT NULL CHECK (dr_cr IN ('DEBIT','CREDIT')),
+            posting_status        TEXT NULL,
+            is_excluded           INTEGER NULL,
+            exclusion_reason      TEXT NULL
         );
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_doc
-            ON target_gl_entry (document_number);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_account
-            ON target_gl_entry (account_code);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_post_date
-            ON target_gl_entry (post_date);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_approval_date
-            ON target_gl_entry (approval_date);
+        CREATE INDEX IF NOT EXISTS ix_gl_voucher
+            ON gl (voucher_number);
+        CREATE INDEX IF NOT EXISTS ix_gl_account
+            ON gl (account_number);
+        CREATE INDEX IF NOT EXISTS ix_gl_gl_date
+            ON gl (gl_date);
+        CREATE INDEX IF NOT EXISTS ix_gl_approval_date
+            ON gl (approval_date);
 
-        CREATE SEQUENCE IF NOT EXISTS seq_target_tb_balance;
-        CREATE TABLE IF NOT EXISTS target_tb_balance (
-            balance_id            BIGINT PRIMARY KEY DEFAULT nextval('seq_target_tb_balance'),
+        CREATE SEQUENCE IF NOT EXISTS seq_tb;
+        CREATE TABLE IF NOT EXISTS tb (
+            balance_id            BIGINT PRIMARY KEY DEFAULT nextval('seq_tb'),
             batch_id              TEXT NOT NULL,
             source_row_number     BIGINT NOT NULL,
-            account_code          TEXT NULL,
+            account_number          TEXT NULL,
             account_name          TEXT NULL,
             change_amount_scaled  BIGINT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS ix_target_tb_balance_account
-            ON target_tb_balance (account_code);
+        CREATE INDEX IF NOT EXISTS ix_tb_account
+            ON tb (account_number);
 
-        CREATE TABLE IF NOT EXISTS result_rule_run (
-            run_id        TEXT PRIMARY KEY,
-            run_kind      TEXT NOT NULL CHECK (run_kind IN ('validate','prescreen')),
+        CREATE TABLE IF NOT EXISTS validation_result (
+            result_id     TEXT PRIMARY KEY,
             generated_utc TEXT NOT NULL,
             summary_json  TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS ix_result_rule_run_kind
-            ON result_rule_run (run_kind, generated_utc);
-
-        CREATE TABLE IF NOT EXISTS result_inf_sampling_test_sample (
-            run_id          TEXT NOT NULL,
-            entry_id        BIGINT NOT NULL,
-            document_number TEXT NULL,
-            line_item       TEXT NULL,
-            PRIMARY KEY (run_id, entry_id)
+        CREATE TABLE IF NOT EXISTS prescreen_result (
+            result_id     TEXT PRIMARY KEY,
+            generated_utc TEXT NOT NULL,
+            summary_json  TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS config_filter_scenario (
-            position        INTEGER PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS inf_sample (
+            result_id       TEXT NOT NULL,
+            entry_id        BIGINT NOT NULL,
+            voucher_number TEXT NULL,
+            line_item       TEXT NULL,
+            PRIMARY KEY (result_id, entry_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS filter_scenario (
+            scenario_id     INTEGER PRIMARY KEY,
+            position        INTEGER NOT NULL,
             name            TEXT NOT NULL,
             rationale       TEXT NOT NULL,
             definition_json TEXT NOT NULL,
             saved_utc       TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS staging_account_mapping_raw_row (
+        CREATE TABLE IF NOT EXISTS pbc_account_mapping (
             batch_id          TEXT NOT NULL,
             row_number        BIGINT NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -204,22 +203,22 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, row_number)
         );
 
-        CREATE SEQUENCE IF NOT EXISTS seq_target_account_mapping;
-        CREATE TABLE IF NOT EXISTS target_account_mapping (
-            mapping_id            BIGINT PRIMARY KEY DEFAULT nextval('seq_target_account_mapping'),
-            batch_id              TEXT NOT NULL,
-            source_row_number     INTEGER NOT NULL,
-            -- account_code 唯一性以 inline UNIQUE 宣告（非 SQLite 的分離 CREATE UNIQUE INDEX）：DuckDB 對
-            -- 「分離唯一索引」在同交易內 DELETE 後重插同鍵會誤報 Duplicate key（本機探針實證：分離唯一索引失敗、
-            -- inline UNIQUE／PRIMARY KEY 正確）。account.mapping 的 replace 重匯入正是此形（同交易清 target 後重插）。
-            -- inline UNIQUE 語意等同 SQLite ix_target_account_mapping_code（唯一性 + account_code 索引）。
-            account_code          TEXT NOT NULL UNIQUE,
-            account_name          TEXT NULL,
-            standardized_category TEXT NOT NULL
-                CHECK (standardized_category IN ('Revenue','Receivables','Cash','Receipt in advance','Others'))
+        CREATE SEQUENCE IF NOT EXISTS seq_account_mapping;
+        CREATE TABLE IF NOT EXISTS account_mapping (
+            mapping_id              BIGINT PRIMARY KEY DEFAULT nextval('seq_account_mapping'),
+            batch_id                TEXT NOT NULL,
+            source_row_number       INTEGER NOT NULL,
+            -- account_number 的唯一性寫在欄位上，不另建唯一索引：DuckDB 對另建的唯一索引，在同一交易內刪除後
+            -- 重新寫入同一個鍵會誤報重複鍵；科目配對的取代匯入正是這樣做。效果和 SQLite 的 ix_account_mapping_number 相同。
+            account_number            TEXT NOT NULL UNIQUE,
+            account_name            TEXT NULL,
+            standardized_category   TEXT NOT NULL
+                CHECK (standardized_category IN ('Revenue','Receivables','Cash','Receipt in advance','Others')),
+            category_id             TEXT NULL,
+            classification_explicit INTEGER NULL
         );
 
-        CREATE TABLE IF NOT EXISTS staging_authorized_preparer_raw_row (
+        CREATE TABLE IF NOT EXISTS pbc_authorized_preparer (
             batch_id          TEXT NOT NULL,
             row_number        BIGINT NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -227,50 +226,60 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             row_json          TEXT NOT NULL,
             PRIMARY KEY (batch_id, row_number)
         );
-        CREATE TABLE IF NOT EXISTS target_authorized_preparer (
+        CREATE TABLE IF NOT EXISTS authorized_preparer (
             name TEXT NOT NULL PRIMARY KEY
         );
 
-        CREATE SEQUENCE IF NOT EXISTS seq_app_message_log;
-        CREATE TABLE IF NOT EXISTS app_message_log (
-            message_id   BIGINT PRIMARY KEY DEFAULT nextval('seq_app_message_log'),
+        CREATE SEQUENCE IF NOT EXISTS seq_message_log;
+        CREATE TABLE IF NOT EXISTS message_log (
+            message_id   BIGINT PRIMARY KEY DEFAULT nextval('seq_message_log'),
             occurred_utc TEXT NOT NULL,
             level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
             text         TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS gl_control_total (
-            singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
-            source_row_count BIGINT NOT NULL,
-            target_row_count BIGINT NOT NULL,
-            target_debit_scaled  BIGINT NOT NULL,
-            target_credit_scaled BIGINT NOT NULL
+            singleton                        INTEGER PRIMARY KEY CHECK (singleton = 1),
+            pbc_row_count                    BIGINT NOT NULL,
+            stored_row_count                 BIGINT NOT NULL,
+            stored_debit_scaled              BIGINT NOT NULL,
+            stored_credit_scaled             BIGINT NOT NULL,
+            gl_row_count                     BIGINT NULL,
+            excluded_by_period_count         BIGINT NULL,
+            excluded_by_posting_status_count BIGINT NULL,
+            gl_debit_scaled                  BIGINT NULL,
+            gl_credit_scaled                 BIGINT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS result_filter_run (
-            scenario_position INTEGER NOT NULL,
-            entry_id          BIGINT NOT NULL,
-            PRIMARY KEY (scenario_position, entry_id)
+        CREATE TABLE IF NOT EXISTS filter_hit (
+            scenario_id INTEGER NOT NULL,
+            entry_id    BIGINT NOT NULL,
+            PRIMARY KEY (scenario_id, entry_id)
         );
-        CREATE INDEX IF NOT EXISTS idx_result_filter_run_entry
-            ON result_filter_run (entry_id, scenario_position);
-        """;
+        CREATE INDEX IF NOT EXISTS idx_filter_hit_entry
+            ON filter_hit (entry_id, scenario_id);
 
-    private const string CreateV7TablesAndIndexesSql =
-        """
-        CREATE TABLE IF NOT EXISTS config_gl_rde_field (
+        CREATE TABLE IF NOT EXISTS filter_hit_condition (
+            scenario_id  INTEGER NOT NULL,
+            entry_id     BIGINT NOT NULL,
+            group_no     INTEGER NOT NULL,
+            condition_no INTEGER NOT NULL,
+            PRIMARY KEY (scenario_id, entry_id, group_no, condition_no)
+        );
+
+        CREATE TABLE IF NOT EXISTS gl_rde_field (
             field_id      TEXT PRIMARY KEY,
             source_column TEXT NOT NULL,
             label         TEXT NOT NULL,
-            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','money')),
+            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','amount')),
             ordinal       INTEGER NOT NULL,
             is_rde        INTEGER NOT NULL CHECK (is_rde IN (0,1))
         );
 
-        CREATE TABLE IF NOT EXISTS target_gl_rde_value (
+        CREATE TABLE IF NOT EXISTS gl_rde_value (
             entry_id      BIGINT NOT NULL,
             field_id      TEXT NOT NULL,
-            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','money')),
+            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','amount')),
             text_value    TEXT NULL,
             date_value    TEXT NULL,
             amount_scaled BIGINT NULL,
@@ -281,58 +290,65 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
                  + CASE WHEN amount_scaled IS NULL THEN 0 ELSE 1 END) = 1
                 AND ((value_type = 'text' AND text_value IS NOT NULL)
                   OR (value_type = 'date' AND date_value IS NOT NULL)
-                  OR (value_type = 'money' AND amount_scaled IS NOT NULL))
+                  OR (value_type = 'amount' AND amount_scaled IS NOT NULL))
             )
         );
-        CREATE INDEX IF NOT EXISTS ix_target_gl_rde_value_text
-            ON target_gl_rde_value (field_id, value_type, text_value, entry_id);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_rde_value_date
-            ON target_gl_rde_value (field_id, value_type, date_value, entry_id);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_rde_value_amount
-            ON target_gl_rde_value (field_id, value_type, amount_scaled, entry_id);
+        CREATE INDEX IF NOT EXISTS ix_gl_rde_value_text
+            ON gl_rde_value (field_id, value_type, text_value, entry_id);
+        CREATE INDEX IF NOT EXISTS ix_gl_rde_value_date
+            ON gl_rde_value (field_id, value_type, date_value, entry_id);
+        CREATE INDEX IF NOT EXISTS ix_gl_rde_value_amount
+            ON gl_rde_value (field_id, value_type, amount_scaled, entry_id);
 
-        CREATE TABLE IF NOT EXISTS config_account_taxonomy (
-            category_id   TEXT PRIMARY KEY,
-            label         TEXT NOT NULL,
-            ordinal       INTEGER NOT NULL UNIQUE,
-            semantic_role TEXT NOT NULL,
-            is_builtin    INTEGER NOT NULL CHECK (is_builtin IN (0,1)),
-            revision      INTEGER NOT NULL
+        CREATE TABLE IF NOT EXISTS account_category (
+            category_id        TEXT PRIMARY KEY,
+            label              TEXT NOT NULL,
+            ordinal            INTEGER NOT NULL UNIQUE,
+            semantic_role      TEXT NOT NULL,
+            is_builtin         INTEGER NOT NULL CHECK (is_builtin IN (0,1)),
+            revision           INTEGER NOT NULL,
+            parent_category_id TEXT NULL
         );
-        CREATE TABLE IF NOT EXISTS config_result_stale_state (
+        INSERT INTO account_category (category_id, label, ordinal, semantic_role, is_builtin, revision)
+            SELECT 'builtin.revenue', 'Revenue', 0, 'revenue', 1, 1
+            WHERE NOT EXISTS (SELECT 1 FROM account_category WHERE category_id = 'builtin.revenue');
+        INSERT INTO account_category (category_id, label, ordinal, semantic_role, is_builtin, revision)
+            SELECT 'builtin.receivables', 'Receivables', 1, 'receivables', 1, 1
+            WHERE NOT EXISTS (SELECT 1 FROM account_category WHERE category_id = 'builtin.receivables');
+        INSERT INTO account_category (category_id, label, ordinal, semantic_role, is_builtin, revision)
+            SELECT 'builtin.cash', 'Cash', 2, 'cash', 1, 1
+            WHERE NOT EXISTS (SELECT 1 FROM account_category WHERE category_id = 'builtin.cash');
+        INSERT INTO account_category (category_id, label, ordinal, semantic_role, is_builtin, revision)
+            SELECT 'builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1
+            WHERE NOT EXISTS (SELECT 1 FROM account_category WHERE category_id = 'builtin.receipt_in_advance');
+        INSERT INTO account_category (category_id, label, ordinal, semantic_role, is_builtin, revision)
+            SELECT 'builtin.others', 'Others', 4, 'others', 1, 1
+            WHERE NOT EXISTS (SELECT 1 FROM account_category WHERE category_id = 'builtin.others');
+
+        -- 科目分類樹的祖先與子孫對照，每個分類至少有自己對自己一列；之後由 AccountCategoryHierarchy.SavePathsAsync 整份改寫。
+        CREATE TABLE IF NOT EXISTS account_category_path (
+            ancestor_id   TEXT NOT NULL,
+            descendant_id TEXT NOT NULL,
+            PRIMARY KEY (ancestor_id, descendant_id)
+        );
+        INSERT INTO account_category_path (ancestor_id, descendant_id)
+            SELECT t.category_id, t.category_id FROM account_category t
+            WHERE NOT EXISTS (SELECT 1 FROM account_category_path p
+                WHERE p.ancestor_id = t.category_id AND p.descendant_id = t.category_id);
+
+        CREATE TABLE IF NOT EXISTS result_stale_state (
             singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
             validation_stale INTEGER NOT NULL CHECK (validation_stale IN (0,1)),
             prescreen_stale  INTEGER NOT NULL CHECK (prescreen_stale IN (0,1)),
             filter_stale     INTEGER NOT NULL CHECK (filter_stale IN (0,1))
         );
-
-        """;
-
-    private const string SeedV7RowsSql =
-        """
-        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
-            SELECT 'builtin.revenue', 'Revenue', 0, 'revenue', 1, 1
-            WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.revenue');
-        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
-            SELECT 'builtin.receivables', 'Receivables', 1, 'receivables', 1, 1
-            WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.receivables');
-        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
-            SELECT 'builtin.cash', 'Cash', 2, 'cash', 1, 1
-            WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.cash');
-        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
-            SELECT 'builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1
-            WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.receipt_in_advance');
-        INSERT INTO config_account_taxonomy (category_id, label, ordinal, semantic_role, is_builtin, revision)
-            SELECT 'builtin.others', 'Others', 4, 'others', 1, 1
-            WHERE NOT EXISTS (SELECT 1 FROM config_account_taxonomy WHERE category_id = 'builtin.others');
-        INSERT INTO config_result_stale_state
+        INSERT INTO result_stale_state
             SELECT 1, 0, 0, 0
-            WHERE NOT EXISTS (SELECT 1 FROM config_result_stale_state WHERE singleton = 1);
-        """;
+            WHERE NOT EXISTS (SELECT 1 FROM result_stale_state WHERE singleton = 1);
 
-    private const string CreateV8AuditTableSql =
-        """
-        CREATE TABLE IF NOT EXISTS audit_event_log (
+        -- 案件的操作留痕只能新增。DuckDB 沒有觸發器，也沒有表格層級的權限，所以這一點由程式維持：
+        -- LocalProjectOperationLog 只寫 INSERT，見 docs/jet-guide.md 第 8 節「儲存與資料庫實作」。
+        CREATE TABLE IF NOT EXISTS operation_log (
             event_id       TEXT PRIMARY KEY,
             occurred_utc   TEXT NOT NULL,
             operation      TEXT NOT NULL,
@@ -341,12 +357,16 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             subject_count  BIGINT NOT NULL CHECK (subject_count >= 0),
             replaced_count BIGINT NOT NULL CHECK (replaced_count >= 0)
         );
-        CREATE INDEX IF NOT EXISTS ix_audit_event_log_occurred
-            ON audit_event_log (occurred_utc, event_id);
-        """;
+        CREATE INDEX IF NOT EXISTS ix_operation_log_occurred
+            ON operation_log (occurred_utc, event_id);
 
-    /// <summary>測試專用：在 v7 data rewrite 後及 result reset 後兩個交易邊界注入 fault。</summary>
-    internal Action<string>? MigrationFaultHookForTests { get; set; }
+        INSERT INTO schema_info (key, value)
+            SELECT 'filter_data_revision', '0'
+            WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'filter_data_revision');
+        INSERT INTO schema_info (key, value)
+            SELECT 'schema_version', '18'
+            WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'schema_version');
+        """;
 
     /// <summary>該專案 jet.duckdb 檔的實體路徑（與 sqlite 同資料夾、不同檔名）。</summary>
     public string GetDatabasePath(string projectId)
@@ -516,13 +536,9 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         DbConnection connection, DbTransaction transaction, string table, IReadOnlyList<string> columns)
         => new DuckDbBulkRowWriter(connection, transaction, table, columns);
 
-    /// <summary>
-    /// 新檔一次到位建第 6 版再逐版升級；第 1 到第 5 版的舊檔在任何寫入之前就擋下。
-    /// DuckDB 支援單一命令內多語句，基底 DDL 的 <c>IF NOT EXISTS</c> 可重複執行。
-    /// </summary>
     private readonly LocalSchemaReadiness readiness = new();
 
-    /// <summary>建立或載入案件時呼叫：一律完整檢查建表與升版。</summary>
+    /// <summary>建立或載入案件時呼叫：一律重新檢查版本，新資料庫在這裡建表。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
@@ -541,273 +557,33 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 舊版 JET 建立的資料庫（第 1 到第 5 版）與版本資訊無法辨識的資料庫，在任何寫入之前就擋下，檔案保持原狀。
-        LocalSchemaReadiness.RejectUnsupportedSchemaVersion(
-            await ReadExistingVersionAsync(connection, cancellationToken));
-
-        await using var command = connection.CreateCommand();
-        command.CommandText = SchemaSql;
-        await command.ExecuteNonQueryAsync(cancellationToken);
-
-        await using var versionCommand = connection.CreateCommand();
-        versionCommand.CommandText =
-            "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        var version = await versionCommand.ExecuteScalarAsync(cancellationToken) as string;
-        await LocalSchemaUpgrades.ApplyAsync(
-            connection,
-            int.TryParse(version, out var parsedVersion) ? parsedVersion : 0,
-            new LocalSchemaUpgrades.Steps(MigrateV6ToV7Async, MigrateV7ToV8Async, MigrateV8ToV9Async, MessageLogTableSql),
-            cancellationToken);
-    }
-
-    /// <summary>
-    /// 第 12 版的訊息紀錄表；和 <see cref="SchemaSql"/> 的建表語句相同，升版時用來重建舊表。
-    /// 流水號沿用同一個 sequence，舊紀錄帶著原本的編號搬回來，之後的新紀錄不會撞號。
-    /// </summary>
-    private const string MessageLogTableSql =
-        """
-        CREATE TABLE app_message_log (
-            message_id   BIGINT PRIMARY KEY DEFAULT nextval('seq_app_message_log'),
-            occurred_utc TEXT NOT NULL,
-            level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
-            text         TEXT NOT NULL
-        )
-        """;
-
-    /// <summary>
-    /// 第 8 版 → 第 9 版：SQLite 與 SQL Server 在這一版把 <c>audit_event_log</c> 的 append-only
-    /// 交由引擎強制（trigger）。DuckDB 1.5.3 沒有 trigger、也沒有 table-level 權限，因此本版對
-    /// DuckDB 只推進版本號以維持三 provider 的版本鏈一致；append-only 在 DuckDB 仍是程式紀律，
-    /// 由 <c>LocalProjectAuditLog</c> 只寫 INSERT 與來源守衛把關（見 docs/jet-guide.md 第 8 節「儲存與資料庫實作」）。
-    /// </summary>
-    private static async Task MigrateV8ToV9Async(
-        DbConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using (var bump = connection.CreateCommand())
-        {
-            bump.Transaction = transaction;
-            bump.CommandText = "UPDATE schema_info SET value = '9' WHERE key = 'schema_version';";
-            await bump.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-    }
-
-    private static async Task MigrateV7ToV8Async(
-        DbConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using (var create = connection.CreateCommand())
-        {
-            create.Transaction = transaction;
-            create.CommandText = CreateV8AuditTableSql;
-            await create.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await using (var bump = connection.CreateCommand())
-        {
-            bump.Transaction = transaction;
-            bump.CommandText = "UPDATE schema_info SET value = '8' WHERE key = 'schema_version';";
-            await bump.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-    }
-
-    /// <summary>尚未建表的新資料庫回傳 null；只讀取，不建立任何資料表。</summary>
-    private static async Task<string?> ReadExistingVersionAsync(
-        DbConnection connection,
-        CancellationToken cancellationToken)
-    {
+        // 已經建過表的資料庫只檢查版本：不是現行版本就在任何寫入之前擋下，檔案保持原狀。
         await using (var exists = connection.CreateCommand())
         {
             exists.CommandText =
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'schema_info';";
-            if (Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) == 0)
+            if (Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) > 0)
             {
-                return null;
+                await using var version = connection.CreateCommand();
+                version.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
+                LocalSchemaReadiness.RejectUnsupportedSchemaVersion(
+                    await version.ExecuteScalarAsync(cancellationToken) as string);
+                return;
             }
         }
 
-        await using var version = connection.CreateCommand();
-        version.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        return await version.ExecuteScalarAsync(cancellationToken) as string;
-    }
-
-    private async Task MigrateV6ToV7Async(
-        DbConnection connection,
-        CancellationToken cancellationToken)
-    {
+        // 新資料庫在同一個交易裡建好全部的表，中途失敗時不留下只建一半的資料庫。
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        try
+        await using (var command = connection.CreateCommand())
         {
-            await EnsureColumnAsync(
-                connection, transaction, "target_gl_entry", "posting_status", "TEXT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "target_gl_entry", "is_effective", "INTEGER", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "target_gl_entry", "exclusion_reason", "TEXT", cancellationToken);
-
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "raw_row_count", "BIGINT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "effective_row_count", "BIGINT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "excluded_by_period_count", "BIGINT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "excluded_by_posting_status_count", "BIGINT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "effective_debit_scaled", "BIGINT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "effective_credit_scaled", "BIGINT", cancellationToken);
-
-            await EnsureColumnAsync(
-                connection, transaction, "target_account_mapping", "category_id", "TEXT", cancellationToken);
-
-            var mappingHasFormatVersion = await ColumnExistsAsync(
-                connection, transaction, "config_field_mapping", "format_version", cancellationToken);
-            var mappingHasOptionsJson = await ColumnExistsAsync(
-                connection, transaction, "config_field_mapping", "options_json", cancellationToken);
-
-            await using (var prepareMappingV7 = connection.CreateCommand())
-            {
-                prepareMappingV7.Transaction = transaction;
-                // DuckDB 的 ADD COLUMN 不接受 NOT NULL/DEFAULT，且 data update 後不可建立
-                // constraint backing index；先清除 retry 留下的 scratch table，再建立完整 replacement
-                // shape，待所有 v7 indexes 建好後才搬資料與原子換名。canonical source table
-                // 已存在的 v2 欄位和值會在下面動態保留；真 frozen v6 才補 1/NULL。
-                prepareMappingV7.CommandText =
-                    """
-                    DROP TABLE IF EXISTS config_field_mapping_v7;
-                    CREATE TABLE config_field_mapping_v7 (
-                        dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
-                        mapping_json    TEXT NOT NULL,
-                        mode_name       TEXT NOT NULL,
-                        source_batch_id TEXT NOT NULL,
-                        committed_utc   TEXT NOT NULL,
-                        format_version  INTEGER NOT NULL DEFAULT 1,
-                        options_json    TEXT NULL
-                    );
-                    """;
-                await prepareMappingV7.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await using (var create = connection.CreateCommand())
-            {
-                create.Transaction = transaction;
-                create.CommandText = CreateV7TablesAndIndexesSql;
-                await create.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await using (var replaceMappingAndSeed = connection.CreateCommand())
-            {
-                replaceMappingAndSeed.Transaction = transaction;
-                var formatVersionSource = mappingHasFormatVersion
-                    ? "COALESCE(format_version, 1)"
-                    : "1";
-                var optionsJsonSource = mappingHasOptionsJson ? "options_json" : "NULL";
-                replaceMappingAndSeed.CommandText =
-                    $"""
-                    INSERT INTO config_field_mapping_v7
-                        (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc,
-                         format_version, options_json)
-                    SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc,
-                           {formatVersionSource}, {optionsJsonSource}
-                    FROM config_field_mapping;
-                    DROP TABLE config_field_mapping;
-                    ALTER TABLE config_field_mapping_v7 RENAME TO config_field_mapping;
-                    """
-                    + SeedV7RowsSql;
-                await replaceMappingAndSeed.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await using (var backfill = connection.CreateCommand())
-            {
-                backfill.Transaction = transaction;
-                backfill.CommandText =
-                    """
-                    UPDATE target_account_mapping
-                    SET category_id = CASE standardized_category
-                        WHEN 'Revenue' THEN 'builtin.revenue'
-                        WHEN 'Receivables' THEN 'builtin.receivables'
-                        WHEN 'Cash' THEN 'builtin.cash'
-                        WHEN 'Receipt in advance' THEN 'builtin.receipt_in_advance'
-                        WHEN 'Others' THEN 'builtin.others'
-                        ELSE category_id
-                    END
-                    WHERE category_id IS NULL;
-                    """;
-                await backfill.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await RuleRunResultReset.ClearWithinAsync(
-                connection,
-                transaction,
-                cancellationToken,
-                AuditMutation.SchemaV7Migration);
-
-            MigrationFaultHookForTests?.Invoke("after-v7-result-reset");
-
-            await using (var bump = connection.CreateCommand())
-            {
-                bump.Transaction = transaction;
-                bump.CommandText = "UPDATE schema_info SET value = '7' WHERE key = 'schema_version';";
-                await bump.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            try
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-            }
-            catch
-            {
-                // Preserve the migration failure; disposal remains the final rollback backstop.
-            }
-
-            throw;
-        }
-    }
-
-    private static async Task EnsureColumnAsync(
-        DbConnection connection,
-        DbTransaction transaction,
-        string table,
-        string column,
-        string declaration,
-        CancellationToken cancellationToken)
-    {
-        if (await ColumnExistsAsync(connection, transaction, table, column, cancellationToken))
-        {
-            return;
+            command.Transaction = transaction;
+            command.CommandText = SchemaSql;
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await using var add = connection.CreateCommand();
-        add.Transaction = transaction;
-        add.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {declaration};";
-        await add.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
-    private static async Task<bool> ColumnExistsAsync(
-        DbConnection connection,
-        DbTransaction transaction,
-        string table,
-        string column,
-        CancellationToken cancellationToken)
-    {
-        await using var exists = connection.CreateCommand();
-        exists.Transaction = transaction;
-        exists.CommandText =
-            $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = @column;";
-        exists.AddWithValue("@column", column);
-        return Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) > 0;
-    }
 
     /// <summary>
     /// 刪除該專案的 jet.duckdb（含 DuckDB 交易期的 .wal 邊檔若殘留）。資料夾本身由

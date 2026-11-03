@@ -11,7 +11,7 @@ const { dispatch } = require('../harness/frontend-preview/replay.js');
 const { checkResponse } = require('./support/action-contract.cjs');
 const { createServer, previewHtml, previewPort } = require('../harness/frontend-preview/server.cjs');
 const root = path.resolve(__dirname, '../..');
-const scenario = { name: 'Synthetic', groups: [{ rules: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '200' }] }] };
+const scenario = { name: 'Synthetic', groups: [{ conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '200' }] }] };
 const bundle = { fixtures: [{ scenario, preview: { scenario: { count: 2 } }, page: { queryRevision: 'v1', rows: [] }, detail: { rows: [] } }] };
 
 test('desktop preview configuration binds the same loopback port as its browser URL', () => {
@@ -39,10 +39,10 @@ test('prepared action matches exactly; changes never receive a fabricated answer
   const payload = { populationScope: 'auditPeriod', scenario };
   assert.equal(dispatch(bundle, 'filter.preview', payload).scenario.count, 2);
   assert.equal(dispatch(bundle, 'filter.preview', { ...payload, scenario: { ...scenario, name: 'Renamed' } }).scenario.count, 2);
-  const changed = structuredClone(payload); changed.scenario.groups[0].rules[0].value = '201';
+  const changed = structuredClone(payload); changed.scenario.groups[0].conditions[0].value = '201';
   assert.throws(() => dispatch(bundle, 'filter.preview', changed));
   assert.throws(() => dispatch(bundle, 'filter.commit', payload));
-  assert.throws(() => dispatch(bundle, 'export.workpaperStream', {}));
+  assert.throws(() => dispatch(bundle, 'export.workingPaperStream', {}));
   assert.throws(() => dispatch(bundle, 'query.filterVoucherPage', { ...payload, pageSize: 50, search: 'A' }));
   assert.throws(() => dispatch(bundle, 'query.filterVoucherPage', { ...payload, pageSize: 50, queryRevision: 'old' }));
   assert.throws(() => dispatch(bundle, 'filter.preview', { ...payload, unexpected: true }));
@@ -60,11 +60,11 @@ test('production JetApi receives success and rejects unprepared action through p
 });
 
 test('account page replays only the prepared bounded request', () => {
-  const prepared = { ...bundle, accountMappingPage: { rows: [{ accountCode: '1000', categoryId: 'builtin.cash' }], nextCursor: null } };
+  const prepared = { ...bundle, accountMappingPage: { rows: [{ accountNumber: '1000', categoryId: 'builtin.cash' }], nextCursor: null } };
   assert.equal(dispatch(prepared, 'query.accountMappingPage', { pageSize: 100, cursor: null, search: '' }).rows[0].categoryId, 'builtin.cash');
   for (const payload of [{ pageSize: 500 }, { search: 'Cash' }, { cursor: 'next' }, { unexpected: true }])
     assert.throws(() => dispatch(prepared, 'query.accountMappingPage', payload));
-  assert.throws(() => dispatch(prepared, 'accountMapping.save', { changes: [{ accountCode: '1000', categoryId: 'builtin.others' }] }));
+  assert.throws(() => dispatch(prepared, 'accountMapping.save', { changes: [{ accountNumber: '1000', categoryId: 'builtin.others' }] }));
 });
 
 test('mapping profiles and comparison metadata replay exact backend-prepared outputs only', () => {
@@ -100,8 +100,8 @@ test('stale preview mirrors a synthetic project-load state without claiming a fr
   const calls = [];
   const fixture = { id: 'matches', scenario: { name: 'Synthetic condition', groups: [] } };
   const loaded = { staleState: { validation: false, prescreen: false, filter: false },
-    latestRuns: { prescreen: { resultRef: { runId: 'previous' } } },
-    reportArtifacts: [{ kind: 'prescreenReport', stale: false }, { kind: 'validationReport', stale: false }] };
+    prescreenResult: { resultRef: { resultId: 'previous' } },
+    reports: [{ kind: 'prescreenReport', stale: false }, { kind: 'validationReport', stale: false }] };
   const window = { JetPreview: { ready: Promise.resolve({ loaded, fixtures: [fixture] }), requests: [] },
     JetUi: { applyLoadedProject(data) { calls.push(['load', data]); } },
     JetStore: {
@@ -119,10 +119,10 @@ test('stale preview mirrors a synthetic project-load state without claiming a fr
     { validation: false, prescreen: true, filter: true });
   assert.deepEqual(loaded.staleState, { validation: false, prescreen: false, filter: false },
     'the prepared source is not modified');
-  assert.equal(calls[0][1].latestRuns.prescreen, null, 'do not display old result counts as current');
-  assert.equal(loaded.latestRuns.prescreen.resultRef.runId, 'previous');
-  assert.equal(calls[0][1].reportArtifacts[0].stale, true);
-  assert.equal(calls[0][1].reportArtifacts[1].stale, false);
+  assert.equal(calls[0][1].prescreenResult, null, 'do not display old result counts as current');
+  assert.equal(loaded.prescreenResult.resultRef.resultId, 'previous');
+  assert.equal(calls[0][1].reports[0].stale, true);
+  assert.equal(calls[0][1].reports[1].stale, false);
   assert.equal(controls['preview-scene'].value, 'stale');
   assert.equal(controls['preview-status'].textContent, '合成資料預覽（僅供畫面調整）');
 });

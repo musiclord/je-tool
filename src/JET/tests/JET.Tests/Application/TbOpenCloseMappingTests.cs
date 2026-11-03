@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// TB legacy 金額模式 OpenClose（legacy SA=2）與 OpenCloseBySide（legacy SA=4）的窄流程驗收：
-/// 匯入 → mapping.commit.tb（新模式）→ 讀回 target_tb_balance.change_amount_scaled。
+/// 匯入 → mapping.commit.tb（新模式）→ 讀回 tb.change_amount_scaled。
 /// oracle：規格（legacy idea-script.bas:11242/:11283 換算式，guide §2.2）＋手算固定資料集。
 /// 斷言鎖值＋身分（科目碼 → 變動 scaled）。scale=10000（HandlerTestHost 預設）。
 /// </summary>
@@ -19,7 +19,7 @@ public sealed class TbOpenCloseMappingTests
         """
         {
           "projectCode": "ENG-2025-TB",
-          "entityName": "範例股份有限公司",
+          "clientName": "範例股份有限公司",
           "operatorId": "auditor01",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31"
@@ -80,18 +80,18 @@ public sealed class TbOpenCloseMappingTests
         });
     }
 
-    private static async Task<long> ChangeScaledAsync(HandlerTestHost host, string accountCode)
+    private static async Task<long> ChangeScaledAsync(HandlerTestHost host, string accountNumber)
     {
         var table = await host.DispatchAsync(
             "dev.db.tableData",
-            """{ "tableName": "target_tb_balance", "limit": 50 }""");
+            """{ "tableName": "tb", "limit": 50 }""");
 
         var columns = table.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList();
-        var accIndex = columns.IndexOf("account_code");
+        var accIndex = columns.IndexOf("account_number");
         var changeIndex = columns.IndexOf("change_amount_scaled");
 
         var row = table.GetProperty("rows").EnumerateArray()
-            .Single(r => r[accIndex].GetString() == accountCode);
+            .Single(r => r[accIndex].GetString() == accountNumber);
         return long.Parse(row[changeIndex].GetString()!);
     }
 
@@ -111,7 +111,7 @@ public sealed class TbOpenCloseMappingTests
                 """
                 {
                   "mapping": {
-                    "accNum": "會計科目編號", "accName": "會計科目名稱",
+                    "accountNumber": "會計科目編號", "accountName": "會計科目名稱",
                     "openingBalance": "期初餘額", "closingBalance": "期末餘額"
                   },
                   "changeMode": "openClose"
@@ -146,9 +146,9 @@ public sealed class TbOpenCloseMappingTests
                 """
                 {
                   "mapping": {
-                    "accNum": "會計科目編號", "accName": "會計科目名稱",
-                    "openingDebit": "期初借", "openingCredit": "期初貸",
-                    "closingDebit": "期末借", "closingCredit": "期末貸"
+                    "accountNumber": "會計科目編號", "accountName": "會計科目名稱",
+                    "openingDebitBalance": "期初借", "openingCreditBalance": "期初貸",
+                    "closingDebitBalance": "期末借", "closingCreditBalance": "期末貸"
                   },
                   "changeMode": "openCloseBySide"
                 }
@@ -168,7 +168,7 @@ public sealed class TbOpenCloseMappingTests
 
     /// <summary>
     /// 寬表等價性（metamorphic oracle）：同一科目用 DirectChange（直接給 +500 變動）與 OpenClose
-    /// （期初 1000／期末 1500）算出相同 target_tb_balance.change_amount_scaled。兩案各自獨立專案。
+    /// （期初 1000／期末 1500）算出相同 tb.change_amount_scaled。兩案各自獨立專案。
     /// </summary>
     [Fact]
     public async Task OpenClose_IsEquivalentToDirectChange_ForSameNetMovement()
@@ -193,7 +193,7 @@ public sealed class TbOpenCloseMappingTests
             await directHost.DispatchAsync(
                 "mapping.commit.tb",
                 """
-                { "mapping": { "accNum": "會計科目編號", "accName": "會計科目名稱", "amount": "本期變動" },
+                { "mapping": { "accountNumber": "會計科目編號", "accountName": "會計科目名稱", "changeAmount": "本期變動" },
                   "changeMode": "direct" }
                 """);
 
@@ -202,7 +202,7 @@ public sealed class TbOpenCloseMappingTests
             await openCloseHost.DispatchAsync(
                 "mapping.commit.tb",
                 """
-                { "mapping": { "accNum": "會計科目編號", "accName": "會計科目名稱",
+                { "mapping": { "accountNumber": "會計科目編號", "accountName": "會計科目名稱",
                   "openingBalance": "期初餘額", "closingBalance": "期末餘額" },
                   "changeMode": "openClose" }
                 """);

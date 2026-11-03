@@ -12,7 +12,7 @@ public sealed class LogAppendHandler(ProjectSession session) : IApplicationActio
     /// <summary>超長訊息（如 column_mismatch 雙向差集）截斷而非拒絕——持久化不該因訊息太長而失敗。</summary>
     public const int MaxTextLength = 4000;
 
-    // 訊息分三級（使用者 2026-10-13 裁定）：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
+    // 訊息分三級（裁定 2026-10-13-15）：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
     private static readonly string[] AllowedLevels = ["info", "warn", "error"];
 
     public string Action => "log.append";

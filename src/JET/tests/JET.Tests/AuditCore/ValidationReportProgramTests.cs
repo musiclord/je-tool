@@ -12,7 +12,7 @@ public sealed class ValidationReportProgramTests
     [InlineData(10_000, (int)ValidationReportDetailDisposition.Emit)]
     [InlineData(10_001, (int)ValidationReportDetailDisposition.SummaryOnly)]
     [InlineData(1_234_289, (int)ValidationReportDetailDisposition.SummaryOnly)]
-    public void Finalize_NullRecordCategories_UseInclusiveTenThousandBoundary(
+    public void Finalize_BlankRecordCategories_UseInclusiveTenThousandBoundary(
         long count,
         int expected)
     {
@@ -21,25 +21,25 @@ public sealed class ValidationReportProgramTests
                 nullAccountCount: count,
                 nullDocumentCount: count,
                 nullDescriptionCount: count,
-                outOfRangeDateCount: count)),
+                approvalDateNotInPeriodCount: count)),
             new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0));
 
         Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.NullAccount).Disposition);
         Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.NullDocument).Disposition);
         Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.NullDescription).Disposition);
-        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.OutOfRangeApprovalDate).Disposition);
+        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.ApprovalDateNotInPeriod).Disposition);
         Assert.Equal(6, plan.Details.Count);
     }
 
     [Fact]
     public void Finalize_OutOfPeriodApprovalNotChecked_ReadsNoDetail()
     {
-        // 驗證時傳票核准日不可用，筆數是 null；報告不讀這份明細，摘要的 N/A 由寫出器照同一個結果寫（使用者 2026-10-23 裁定）。
+        // 驗證時傳票核准日不可用，筆數是 null；報告不讀這份明細，摘要的 N/A 由寫出器照同一個結果寫（裁定 2026-10-23-01）。
         var plan = JetAuditProgram.Finalize(
-            JetAuditProgram.Plan(Request(nullAccountCount: 2) with { OutOfRangeDateCount = null }),
+            JetAuditProgram.Plan(Request(nullAccountCount: 2) with { ApprovalDateNotInPeriodCount = null }),
             new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0));
 
-        var detail = plan.RequireDetail(ValidationReportDetailKind.OutOfRangeApprovalDate);
+        var detail = plan.RequireDetail(ValidationReportDetailKind.ApprovalDateNotInPeriod);
         Assert.Equal(ValidationReportDetailDisposition.Omit, detail.Disposition);
         Assert.Equal(0, detail.Count);
         Assert.Equal(ValidationReportDetailDisposition.Emit, plan.RequireDetail(ValidationReportDetailKind.NullAccount).Disposition);
@@ -59,7 +59,7 @@ public sealed class ValidationReportProgramTests
             JetAuditProgram.Plan(Request()),
             new ValidationReportPlanningFacts(detailRowCount));
 
-        var detail = plan.RequireDetail(ValidationReportDetailKind.UnbalancedGlEntry);
+        var detail = plan.RequireDetail(ValidationReportDetailKind.UnbalancedVoucherEntry);
         Assert.Equal(detailRowCount, detail.Count);
         Assert.Equal((ValidationReportDetailDisposition)expected, detail.Disposition);
     }
@@ -115,7 +115,7 @@ public sealed class ValidationReportProgramTests
         long nullAccountCount = 0,
         long nullDocumentCount = 0,
         long nullDescriptionCount = 0,
-        long outOfRangeDateCount = 0) =>
+        long approvalDateNotInPeriodCount = 0) =>
         new(
             ProjectId: "project-1",
             PeriodStart: "2025-01-01",
@@ -124,5 +124,5 @@ public sealed class ValidationReportProgramTests
             NullAccountCount: nullAccountCount,
             NullDocumentCount: nullDocumentCount,
             NullDescriptionCount: nullDescriptionCount,
-            OutOfRangeDateCount: outOfRangeDateCount);
+            ApprovalDateNotInPeriodCount: approvalDateNotInPeriodCount);
 }

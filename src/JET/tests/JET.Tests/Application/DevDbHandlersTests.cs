@@ -19,7 +19,7 @@ public sealed class DevDbHandlersTests
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", """
-            { "projectCode": "DEV-001", "entityName": "檢視測試", "operatorId": "op",
+            { "projectCode": "DEV-001", "clientName": "檢視測試", "operatorId": "op",
               "periodStart": "2025-01-01", "periodEnd": "2025-12-31" }
             """);
         var projectId = created.GetProperty("projectId").GetString()!;
@@ -48,7 +48,7 @@ public sealed class DevDbHandlersTests
         var before = SHA256.HashData(File.ReadAllBytes(databasePath));
 
         await host.DispatchAsync("dev.db.overview");
-        await host.DispatchAsync("dev.db.tableData", """{ "tableName": "target_gl_entry" }""");
+        await host.DispatchAsync("dev.db.tableData", """{ "tableName": "gl" }""");
 
         SqliteTestPool.Clear(host.ProjectsRoot, projectId);
         var after = SHA256.HashData(File.ReadAllBytes(databasePath));
@@ -61,7 +61,7 @@ public sealed class DevDbHandlersTests
     {
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", """
-            { "projectCode": "DEV-002", "entityName": "檢視測試", "operatorId": "op",
+            { "projectCode": "DEV-002", "clientName": "檢視測試", "operatorId": "op",
               "periodStart": "2025-01-01", "periodEnd": "2025-12-31" }
             """);
 
@@ -86,7 +86,7 @@ public sealed class DevDbHandlersTests
         var overview = await host.DispatchAsync("dev.db.overview");
 
         var staging = overview.GetProperty("tables").EnumerateArray()
-            .Single(t => t.GetProperty("name").GetString() == "staging_gl_raw_row");
+            .Single(t => t.GetProperty("name").GetString() == "pbc_gl");
         Assert.Equal(4, staging.GetProperty("rowCount").GetInt64());
     }
 
@@ -95,7 +95,7 @@ public sealed class DevDbHandlersTests
     {
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", """
-            { "projectCode": "DEV-003", "entityName": "檢視測試", "operatorId": "op",
+            { "projectCode": "DEV-003", "clientName": "檢視測試", "operatorId": "op",
               "periodStart": "2025-01-01", "periodEnd": "2025-12-31" }
             """);
 

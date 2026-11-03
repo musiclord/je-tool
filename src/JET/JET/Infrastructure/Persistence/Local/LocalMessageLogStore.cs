@@ -3,7 +3,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// app_message_log 的本地引擎實作。每專案保留最近 RetainedCount 則，
+/// message_log 的本地引擎實作。每專案保留最近 RetainedCount 則，
 /// 每次寫入後以 AUTOINCREMENT 單調 id 修剪（id 不回收，位移修剪恆正確）。
 /// </summary>
 public sealed class LocalMessageLogStore(ILocalProjectDatabase database) : IMessageLogStore
@@ -20,9 +20,9 @@ public sealed class LocalMessageLogStore(ILocalProjectDatabase database) : IMess
         await using var command = connection.CreateCommand();
         command.CommandText =
             """
-            INSERT INTO app_message_log (occurred_utc, level, text) VALUES (@utc, @level, @text);
-            DELETE FROM app_message_log
-            WHERE message_id <= (SELECT MAX(message_id) FROM app_message_log) - @retained;
+            INSERT INTO message_log (occurred_utc, level, text) VALUES (@utc, @level, @text);
+            DELETE FROM message_log
+            WHERE message_id <= (SELECT MAX(message_id) FROM message_log) - @retained;
             """;
         command.AddWithValue("@utc", DateTimeOffset.UtcNow.ToString("O"));
         command.AddWithValue("@level", level);
@@ -43,7 +43,7 @@ public sealed class LocalMessageLogStore(ILocalProjectDatabase database) : IMess
         command.CommandText =
             """
             SELECT occurred_utc, level, text
-            FROM app_message_log
+            FROM message_log
             ORDER BY message_id DESC
             LIMIT @limit;
             """;

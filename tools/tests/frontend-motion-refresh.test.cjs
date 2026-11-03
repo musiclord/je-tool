@@ -1,5 +1,5 @@
 'use strict';
-// 計畫第九節 A：第二次輸入發生在交叉淡化尚未結束時，更新仍須落在正在使用的元素。
+// 第二次輸入發生在交叉淡化尚未結束時，更新仍須落在正在使用的元素。
 // 使用正式步驟的輸入事件；只用替身保留動畫複本，不把假 DOM 當成真實版面驗收。
 // 第一次失敗：FrontendMapping 20261014-121127883-79684ee8468f4def8216ac6eb6115077，提示累積四份、必填清單三份。
 const test = require('node:test');
@@ -23,7 +23,7 @@ function holdCrossfade(f, selector, nested = false) {
   };
 }
 
-// 第九節 B：橫排項目改高度時仍須填滿剩餘寬度；直向 flex 清單保留防止壓扁的限制。
+// 橫排項目改高度時仍須填滿剩餘寬度；直向 flex 清單保留防止壓扁的限制。
 // 第一次失敗：FrontendMapping 20261014-121355398-92ecd98aa6804f5f8b33f54ca6b104ab，橫排、grid 與 block 都被凍結。
 for (const [display, direction, frozen] of [['flex', 'row', false], ['flex', 'column', true], ['grid', 'row', false], ['block', 'column', false]]) {
   for (const operation of ['resize', 'enter']) test('motion ' + operation + ' only freezes vertical flex items: ' + display + ' ' + direction, () => {
@@ -50,7 +50,7 @@ for (const [display, direction, frozen] of [['flex', 'row', false], ['flex', 'co
 
 // 換步驟時，原本那一步的內容收回它的那一列（JetMotion.leave）。那一列是可換行的橫排，展開箭頭用 order 排在最右邊。
 // 收回的內容要排在箭頭之後；否則箭頭被擠到下一行，收完拿掉的那一格，下面各列一次往上跳約 40 像素
-// （使用者 2026-10-15 錄影指出切換尾段的抖動）。收的期間這一列不用列距、由內容的上外距帶著同樣的距離，
+// （裁定 2026-10-15-10 錄影指出切換尾段的抖動）。收的期間這一列不用列距、由內容的上外距帶著同樣的距離，
 // 是 app.css 的規則，假 DOM 算不出版面，改在瀏覽器主機逐格量；這裡只核對外距與高度都收到 0。
 // 第一次失敗：FrontendMapping 20261015-152203001-148afcf80d8241d993b54efb23313c6c，收回的內容排在箭頭前面。
 test('step body folding back into its row ends flush with the row', () => {
@@ -89,7 +89,7 @@ test('step body folding back into its row ends flush with the row', () => {
   assert.equal(frames.at(-1).height, '0.00px', 'the fold ends at zero height');
 });
 
-// 第九節 C：直接呈現三個有設定的小區塊，不再顯示沒有獨立設定的總標題。
+// 直接呈現三個有設定的小區塊，不再顯示沒有獨立設定的總標題。
 // 第一次失敗：FrontendMapping 20261014-121504367-4ac5f55c567347ad96ee86204d7e37d7。
 test('mapping options show their three sections without an empty overall heading', () => {
   const f = usageJourneyFixture('mapping');
@@ -107,9 +107,9 @@ for (const nested of [false, true]) {
     const f = usageJourneyFixture('filter');
     f.window.addEventListener = () => {};
     vm.runInContext(readWwwroot('js/app.js'), f.context);
-    f.store.setFilterDraft({ name: '合成條件', rationale: '合成', groups: [{ join: 'AND', matchScope: 'row', rules: [
+    f.store.setFilterDraft({ name: '合成條件', rationale: '合成', groups: [{ join: 'AND', matchScope: 'row', conditions: [
       { type: 'drCrOnly', join: 'AND', drCr: 'debit' },
-      { type: 'fieldValue', join: 'AND', field: 'accNum', operator: 'in', values: [] }
+      { type: 'fieldValue', join: 'AND', field: 'accountNumber', operator: 'in', values: [] }
     ] }] });
     f.draw();
     holdCrossfade(f, '.scenario-readback', nested);
@@ -132,15 +132,15 @@ for (const nested of [false, true]) {
     const f = mappingRenderFixture();
     f.store.setImportResult('gl', { batchId: 'gl-synthetic', columns: ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Amount', 'Side'], rowCount: 3 });
     f.store.setMappingMode('gl', 'side');
-    f.store.replaceMappingDraft('gl', { docNum: 'Doc', postDate: 'Date', accNum: 'Account', accName: 'Name', description: 'Memo', amount: 'Amount', dcField: 'Side' });
+    f.store.replaceMappingDraft('gl', { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' });
     f.timers.run();
     holdCrossfade(f, '.map-rail', nested);
-    const input = f.body().querySelector('[data-mapping-key="dcDebitCode"]');
+    const input = f.body().querySelector('[data-mapping-key="drCrDebitCode"]');
     assert.ok(input, 'debit code editor is present');
     input.focus();
     for (const value of ['D', 'DR', 'DEBIT']) { input.value = value; input.dispatch('input'); }
     assert.equal(live(f.body(), '[data-bind="mapping-gl"] .map-rail').length, 1);
     assert.equal(f.dom.document.activeElement === input, true);
-    assert.equal(f.store.getState().mapping.gl.draft.dcDebitCode, 'DEBIT');
+    assert.equal(f.store.getState().mapping.gl.draft.drCrDebitCode, 'DEBIT');
   });
 }

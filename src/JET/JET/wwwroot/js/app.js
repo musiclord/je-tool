@@ -40,11 +40,11 @@
     'filter.scenario.save': true,
     'filter.scenario.remove': true,
     'filter.scenario.recheck': true,
-    'export.validationArtifacts': true,
+    'export.validationReports': true,
     'export.accountMappingTemplate': true,
     'export.prescreenReport': true,
     'export.criteriaSelectionReport': true,
-    'export.workpaperStream': true
+    'export.workingPaperStream': true
   };
 
   // 增量渲染狀態
@@ -70,14 +70,37 @@
     return document.activeElement === element;
   }
 
+  // 延後的移動排在下一輪，電腦忙的時候會晚到。排定之後使用者自己點了或用鍵盤移到別的控制項時，焦點留在使用者選的地方，
+  // 延後的移動整個不做：例如剛打開建立案件表單就點進查核起始日，步驟標題的焦點晚到，接著輸入的日期就會落到標題上。
+  // 只按在沒有控制項的地方（焦點仍在整個頁面上），或焦點還在排定時的元素上，照樣移過去。
+  var userInputCount = 0;
+  var watchingUserInput = false;
+
+  function countUserInput() {
+    userInputCount++;
+  }
+
+  function watchUserInput() {
+    if (watchingUserInput || typeof document.addEventListener !== 'function') { return; }
+    watchingUserInput = true;
+    ['pointerdown', 'mousedown', 'keydown'].forEach(function (type) {
+      document.addEventListener(type, countUserInput, true);
+    });
+  }
+
   function deferFocus(resolveElement, options) {
+    watchUserInput();
+    var inputCount = userInputCount;
+    var focusedWhenScheduled = document.activeElement;
     global.setTimeout(function () {
+      var active = document.activeElement;
+      if (userInputCount !== inputCount && active && active !== document.body && active !== focusedWhenScheduled) { return; }
       var element = typeof resolveElement === 'function' ? resolveElement() : resolveElement;
       focusElement(element, options);
     }, 0);
   }
 
-  // 按下的控制項跟著重繪不見或變成不能按時，焦點交給接替它的控制項（使用者 2026-10-13 交接）：
+  // 按下的控制項跟著重繪不見或變成不能按時，焦點交給接替它的控制項，焦點才不會掉到整個頁面：
   // 依序找畫面上第一個能拿焦點的，都沒有就不動。收起中的舊元素是重繪前的複本，不算。
   function deferFocusFirst(selectors) {
     deferFocus(function () { return firstFocusable(document, selectors); });
@@ -127,7 +150,7 @@
     return false;
   }
 
-  // 對話框堆疊（預篩選收斂計畫階段八，使用者 2026-10-22 裁定「Escape 一次關兩層」）：刪除案件對話框、「尚未儲存」對話框與流程總覽
+  // 對話框堆疊讓一次 Escape 只關最上層，原本兩層同時開著時會一起關掉：刪除案件對話框、「尚未儲存」對話框與流程總覽
   // 開啟時登記元素與關閉函式，關閉時移除；整個頁面只有這一個捕獲階段的鍵盤監聽，Escape 與 Tab 只交給最上層。
   // 原生 <dialog> 開著時不處理，這是防衛用：目前畫面沒有原生對話框，日後若加入用 showModal 開的對話框，鍵盤交給它。登記的元素已經不在畫面上（例如清單重繪把對話框一起換掉）時這筆不算；
   // entry.active 回 false 時也不處理，總覽用它在作業進行中把鍵盤留給作業遮罩的「取消作業」。
@@ -303,7 +326,7 @@
     busyWasBusy = state.busy;
   }
 
-  // 作業進行中 <main> 是 inert，焦點會掉到整個頁面，按 Tab 就從頭開始（使用者 2026-10-13 交接）。
+  // 作業進行中 <main> 是 inert，焦點會掉到整個頁面，按 Tab 就從頭開始。
   // 作業結束時把焦點放回開始前的控制項；重繪換掉了它，就用和中欄重繪同一套認法找回來。
   // 找不到就不動，交給操作自己用 JetFocus.defer 指定的接替者；焦點已經在別處（例如作業開了對話框）也不動。
   var busyFocusMemory = null;
@@ -387,7 +410,7 @@
 
   // 右上角身分徽章（原「主機連線」狀態徽章）。狀態序：
   // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分時顯示「操作人員：{短名}」。
-  // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法，使用者 2026-10-19 要求前端不露出系統用詞）。title 帶完整 principal 與編號來源說明。
+  // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法；畫面不露出系統用詞，裁定 2026-10-19-04）。title 帶完整 principal 與編號來源說明。
   function renderIdentityBadge(state) {
     var badge = Ui.$('user-identity');
     if (!badge) { return; }
@@ -489,8 +512,8 @@
   // 單列專案卡片（線上／本地兩區共用；provider 小徽章保留，sqlServer 條目再依 syncStatus 加同步徽章、依 lock 加鎖徽章）。
   function projectRowHtml(p, unreachable) {
     var displayName = p.projectId;
-    var entityName = p.entityName
-      ? '<span class="project-row__entity">' + Ui.esc(p.entityName) + '</span>'
+    var clientName = p.clientName
+      ? '<span class="project-row__entity">' + Ui.esc(p.clientName) + '</span>'
       : '';
     var projectCode = p.projectCode
       ? '<span class="project-row__code">' + Ui.esc(p.projectCode) + '</span>'
@@ -503,11 +526,11 @@
           '<span class="project-row__main">' +
             '<span class="project-row__title">' + Ui.esc(displayName) + '</span>' +
             '<span class="project-row__meta">' +
-              entityName +
+              clientName +
               projectCode +
               '<span class="project-provider ' + providerClass(p.databaseProvider) + '">' +
                 Ui.esc(providerText(p.databaseProvider)) + '</span>' +
-              // 後端的原因已是完整句子，不再加前綴（使用者 2026-10-19 裁定）。
+              // 後端的原因已是完整句子，不再加前綴（裁定 2026-10-19-23）。
               (p.loadError ? '<span class="project-row__load-error" role="status">' +
                 Ui.esc(p.loadError.message || '案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。') + '</span>' : '') +
               syncBadgeHtml(p, unreachable) +
@@ -526,20 +549,20 @@
 
   function pickerFeedbackHtml(message, context, level) {
     if (!message) { return ''; }
-    // 操作已成功、只是留下要審計員自己處理的事時，用琥珀色提示，不寫「無法完成操作」（使用者 2026-10-13 裁定訊息分三級）。
+    // 操作已成功、只是留下要審計員自己處理的事時，用琥珀色提示，不寫「無法完成操作」（訊息分三級，裁定 2026-10-13-15）。
     if (level === 'warning') {
       return '<p class="form-notice form-notice--warning picker-feedback--warning" data-motion-key="picker-feedback" role="status">' +
         Ui.esc(message) + '</p>';
     }
-    // 錯誤框只寫發生什麼事與能做什麼，不放按鈕（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
+    // 錯誤框只寫發生什麼事與能做什麼，不放按鈕（裁定 2026-10-13-26）。
     return '<div class="picker-feedback" data-motion-key="picker-feedback" role="alert" aria-live="polite">' +
       '<strong class="picker-feedback__title">無法完成操作</strong>' +
       '<span class="picker-feedback__body">' + Ui.esc(message) + '</span>' +
       '</div>';
   }
 
-  // 案件清單看不到訊息面板，所以另放一個「輸出支援日誌」（使用者 2026-10-13 選「從錯誤框拿掉，改成一般工具」）。
-  // 它只給開發人員用，和 DEV 面板一樣只在 Debug 組建出現（system.ping.devToolsEnabled；使用者 2026-10-20 選「只藏案件清單的」），
+  // 案件清單看不到訊息面板，所以另放一個「輸出支援日誌」（裁定 2026-10-13-26）。
+  // 它只給開發人員用，和 DEV 面板一樣只在 Debug 組建出現（system.ping.devToolsEnabled；裁定 2026-10-20-03），
   // 放在卡片外的頁尾。開案後訊息面板的「輸出支援日誌」在 Release 照舊。
   // 不帶 projectId：後端匯出全部去識別紀錄到 logs 資料夾。剛發生開案或刪除失敗時，
   // 原始診斷日誌的出口也放在頁尾，並帶同一次 correlation。
@@ -603,7 +626,7 @@
       ? '<span class="picker-section__note">以 ' + identityLabel + ' 身分檢視</span>'
       : '';
 
-    // 失聯降級：不擋操作的「需要注意」提示（使用者 2026-10-09 裁定琥珀色）；此時線上區列的是本機快取條目。
+    // 失聯降級：不擋操作的「需要注意」提示，用琥珀色（裁定 2026-10-09-03）；此時線上區列的是本機快取條目。
     // 後端 message 與這句同義，不再接在後面重複一次。
     var onlineAlert = unreachable
       ? '<div class="form-notice form-notice--warning picker-section__alert" data-motion-key="picker-online-alert" role="status">' +
@@ -623,7 +646,7 @@
     // 加入與移除的動態（JetMotion）：案件清單已經在畫面上時，新增的案件長出來、刪除的收起來；從流程畫面切回來時是整頁換掉，不比對。
     var motion = contentMotion(container, pickerShownBefore);
     container.innerHTML =
-      // 每個按鈕放在它作用的內容旁邊（使用者 2026-10-20 指出底部一排按鈕看不出用途）：
+      // 每個按鈕放在它作用的內容旁邊，原本底部一排按鈕看不出用途（裁定 2026-10-20-04）：
       // 「新增案件」不屬於任何一區，放在標題右側；「同步線上案件」與「重新整理本機」只影響各自那一區，放在區標題右側。
       '<div class="picker-panel">' +
         '<div class="picker-panel__head">' +
@@ -678,7 +701,7 @@
 
   // 待確認刪除的目標（modal 開啟期間）；確認後清空。
   var pendingDelete = null;
-  // 開著時在共用對話框堆疊的登記（階段八）；關閉時移除。
+  // 開著時在共用對話框堆疊的登記；關閉時移除。
   var deleteDialog = null;
 
   function bindPicker(container) {
@@ -702,11 +725,11 @@
       global.JetApi.projectDeletePreview({ projectId: target.id }).then(function (data) {
         if (!current()) { return; }
         if (!data || !Number.isInteger(data.reportCount) || data.reportCount < 0 ||
-            !Number.isInteger(data.workpaperCount) || data.workpaperCount < 0) {
+            !Number.isInteger(data.workingPaperCount) || data.workingPaperCount < 0) {
           throw new Error('刪除數量尚未確認');
         }
-        detail.innerHTML = deleteDetail(target, 'JET 紀錄中仍存在的報告 ' + data.reportCount.toLocaleString() +
-          ' 份、工作底稿 ' + data.workpaperCount.toLocaleString() + ' 份。');
+        detail.innerHTML = deleteDetail(target, 'JET 紀錄中仍存在的報告 ' + Ui.countText(data.reportCount) +
+          ' 份、工作底稿 ' + Ui.countText(data.workingPaperCount) + ' 份。');
       }).catch(function () {
         if (!current()) { return; }
         detail.innerHTML = deleteDetail(target, '報告與工作底稿數量暫時無法確認。可以重試，或在確認刪除範圍後繼續。');
@@ -768,7 +791,7 @@
           modal.querySelector('[data-bind="delete-modal-name"]').textContent = pendingDelete.name;
           modal.hidden = false;
           loadDeletePreview(pendingDelete);
-          // Escape 關閉並把焦點放回刪除鈕，Tab 只在對話框裡循環；總覽同時開著時鍵盤只交給最上層（階段八，使用者 2026-10-22 裁定）。
+          // Escape 關閉並把焦點放回刪除鈕，Tab 只在對話框裡循環；總覽同時開著時鍵盤只交給最上層，一次 Escape 不會連關兩層。
           deleteDialog = Focus.openDialog({ element: modal.querySelector('.modal__card'), close: function () { closeModal(true); } });
           Focus.move(modal.querySelector('button[data-action="modal-cancel"]'));
         }
@@ -827,7 +850,7 @@
       modal.querySelector('[data-action="modal-confirm"]').addEventListener('click', function () {
         if (!pendingDelete) { return; }
         var target = pendingDelete;
-        // 刪除後重新讀回案件清單時，這一列先輕微快速地晃一下再收起（使用者 2026-10-13 要求刪除案件時也這樣）。
+        // 刪除後重新讀回案件清單時，這一列先輕微快速地晃一下再收起（裁定 2026-10-13-13：刪除案件時也這樣）。
         if (global.JetMotion) { global.JetMotion.removing({ keys: 'project-' + target.id, wait: 20000 }); }
         closeModal(false);
         Store.setPickerFeedback(null);
@@ -852,7 +875,7 @@
             });
           },
           refreshWhen: 'success',
-          // 刪除後重新讀取清單失敗時的操作名稱（使用者 2026-10-13 勾選頁確認 20）。
+          // 刪除後重新讀取清單失敗時的操作名稱（裁定 2026-10-13-28 確認了這個用字）。
           refreshLabel: '重新讀取案件清單',
           inlineError: true,
           onError: function (message, error) {
@@ -879,7 +902,7 @@
   }
 
   // 換步驟在按下時就開始，和 macOS 側邊欄一樣：原本要等放開滑鼠才換，按住的那一下畫面不動
-  // （使用者 2026-10-15：「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」）。
+  // （裁定 2026-10-15-09：「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」）。
   // 只認滑鼠主要按鍵、沒有按著修飾鍵的按下；按下後的那一次放開（click）不再換一次。觸控與觸控筆按下時可能是要捲動，
   // 和鍵盤的 Enter、空白鍵一樣照舊走 click。
   // 按下就換會讓兩件原本由放開前的失焦處理的事落空，所以先做：正在編輯的欄位先失焦，只在 change 存值的欄位
@@ -956,10 +979,6 @@
 
   /* ---- 中央內容區：由上而下步驟文件流 ------------------------------------- */
 
-  function fmtNum(n) {
-    return (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US');
-  }
-
   // 查核期間文字（缺值合理降級，不造假）。
   function auditPeriodText(state) {
     var p = state.project;
@@ -979,9 +998,9 @@
 
     if (id === 'import') {
       var seg = [];
-      // 來源檔的資料用「列」，GL 與 TB 的分錄、科目用「筆」（使用者 2026-10-19 裁定）。
-      if (imp.gl) { seg.push('PBC-GL ' + fmtNum(imp.gl.rowCount) + ' 列'); }
-      if (imp.tb) { seg.push('PBC-TB ' + fmtNum(imp.tb.rowCount) + ' 列'); }
+      // 來源檔的資料用「列」，GL 與 TB 的分錄、科目用「筆」（裁定 2026-10-19-16）。
+      if (imp.gl) { seg.push('PBC-GL ' + Ui.countText(imp.gl.rowCount) + ' 列'); }
+      if (imp.tb) { seg.push('PBC-TB ' + Ui.countText(imp.tb.rowCount) + ' 列'); }
       return seg.length ? seg.join(' / ') : '匯入總帳明細與試算表';
     }
 
@@ -995,7 +1014,7 @@
     }
 
     if (id === 'validate') {
-      return state.lastRuns.validate ? '已完成資料驗證' : '準備執行資料驗證';
+      return state.results.validate ? '已完成資料驗證' : '準備執行資料驗證';
     }
 
     if (id === 'filter') {
@@ -1005,10 +1024,10 @@
 
     if (id === 'export') {
       // 和左側進度、第六步的「完成」用同一個判斷：只有目前版本的工作底稿才算已匯出。
-      var workpaper = Ui.currentWorkpaperArtifact(state);
-      if (!workpaper) { return '匯出工作底稿'; }
-      var exportedAt = workpaper.generatedUtc && !isNaN(new Date(workpaper.generatedUtc).getTime())
-        ? Ui.formatDateTime(workpaper.generatedUtc) : '';
+      var workingPaper = Ui.currentWorkingPaperReport(state);
+      if (!workingPaper) { return '匯出工作底稿'; }
+      var exportedAt = workingPaper.generatedUtc && !isNaN(new Date(workingPaper.generatedUtc).getTime())
+        ? Ui.formatDateTime(workingPaper.generatedUtc) : '';
       return exportedAt ? '已匯出工作底稿，' + exportedAt : '已匯出工作底稿';
     }
 
@@ -1024,7 +1043,7 @@
   }
 
   // 審計員自己按的操作失敗或被阻擋、那個操作又沒有就地錯誤框時，在目前步驟標題下方寫出動作與原因
-  // （使用者 2026-10-13 裁定）。失敗是紅色；被阻擋是琥珀色，因為那是前置條件還沒完成，不是執行失敗。
+  // （裁定 2026-10-13-16）。失敗是紅色；被阻擋是琥珀色，因為那是前置條件還沒完成，不是執行失敗。
   // 由 Ui.run 寫入 state.operationFailure；重試任何操作或換步驟時拿掉。
   function operationFailureHtml(state, index) {
     var failure = state.operationFailure;
@@ -1038,6 +1057,8 @@
     var label = Ui.esc(step.label);
 
     if (pres.status === 'current') {
+      // 標題旁的狀態字和流程總覽同一階段的狀態字相同（裁定 2026-10-30-21），由 overviewStageStatus 判斷，不另寫一套。
+      var statusWord = Ui.esc(OVERVIEW_STAGE_STATUS[overviewStageStatus(state, index)]);
       // 手動收合：一行摘要；否則展開，body 交給既有步驟渲染器。
       if (state.stepFlowCollapsed) {
         return (
@@ -1045,7 +1066,7 @@
             'data-step-index="' + index + '" data-step-toggle role="button" tabindex="0">' +
             '<span class="stepflow-item__caret">▸</span>' +
             '<span class="stepflow-item__name">' + label + '</span>' +
-            '<span class="stepflow-item__flag">進行中</span>' +
+            '<span class="stepflow-item__flag">' + statusWord + '</span>' +
             '<span class="stepflow-item__summary">' + Ui.esc(stepSummary(state, index, 'current')) + '</span>' +
           '</div>'
         );
@@ -1056,7 +1077,7 @@
             '<span class="stepflow-item__caret stepflow-item__caret--current">▾</span>' +
             '<h3 class="stepflow-item__title" data-bind="current-step-title" data-step-index="' + index +
               '" tabindex="-1">' + label + '</h3>' +
-            '<span class="stepflow-item__status"><span class="stepflow-item__flag">進行中</span>' +
+            '<span class="stepflow-item__status"><span class="stepflow-item__flag">' + statusWord + '</span>' +
               entryConditionHtml(state, index) + '</span>' +
           '</div>' +
           operationFailureHtml(state, index) +
@@ -1142,7 +1163,7 @@
   }
 
   // 換步驟時中欄捲回頂部的動態：和原本那一步收起來用同一條彈簧（SPRINGS.close），新步驟的標題一路朝同一個方向移到定位。
-  // 原本第一格就一下跳到頂部、移焦點時又瞬間捲到標題，接著才開始收放，看起來像頓了一下才動（使用者 2026-10-15）。
+  // 原本第一格就一下跳到頂部、移焦點時又瞬間捲到標題，接著才開始收放，看起來像頓了一下才動（裁定 2026-10-15-09）。
   // 捲動期間關掉瀏覽器的捲動錨定，上方收起的內容才不會讓瀏覽器另外改捲軸；使用者自己捲了就放手。不能播動態時直接回到頂部。
   var contentGlide = null;
 
@@ -1204,9 +1225,9 @@
   // 標了 data-focus-key 的照舊用它找。沒標的用控制項本身認得出來的地方找：所在區塊的 data-motion-key、
   // 標籤、type、role、aria-label、name、id 與 data- 屬性；這樣仍有兩個以上一樣時，再加上按鈕上的字（數字不算，筆數會變）。
   // 重繪前後都只有一個符合時才放回去，有兩個以上就不猜，避免把焦點送到同名的另一個控制項。
-  // 原本只認 data-focus-key，沒標的按鈕與勾選框重繪後焦點都落到整個頁面（使用者 2026-10-13 交接）。
+  // 原本只認 data-focus-key，沒標的按鈕與勾選框重繪後焦點都落到整個頁面。
   // 控制項可以用 data-focus-successor 宣告接替者（分號分開的選擇器，依序找第一個看得到且能按的）：重繪後找不到它時，
-  // 焦點交給接替者並把接替者捲進畫面，例如第三步「讀取來源值」先交給讀取中的提示，再交給讀出的值清單（階段八，使用者 2026-10-22 裁定）。
+  // 焦點交給接替者並把接替者捲進畫面，例如第三步「讀取來源值」先交給讀取中的提示，再交給讀出的值清單；原本按下後焦點會掉到頁面本身。
   var FOCUS_CANDIDATES = 'button, summary, a[href], input:not([type="hidden"]), select, textarea, [tabindex]';
   var FOCUS_TRANSIENT = /^data-(?:focus-key|motion-(?:leaving|rendering|revealing|folding))$/;
 
@@ -1380,7 +1401,7 @@
     var stepScrollKey = state.view + '|' + current.id;
     var stepChanged = stepScrollKey !== lastStepScrollKey;
 
-    // 換步驟像同一排的展開區（使用者 2026-10-13 要求展開與收合一致：完成的步驟列和目前步驟一樣有展開箭頭，
+    // 換步驟像同一排的展開區（裁定 2026-10-13-11：展開與收合要一致。完成的步驟列和目前步驟一樣有展開箭頭，
     // 原本按下去卻是一瞬間換掉）：原本那一步的內容收回它的那一列，新的一步從標題長出來。
     // 只在流程畫面裡換步驟時這樣做；從案件清單開啟案件時直接顯示。
     // 長到一半或收到一半又整段重繪時（例如換步驟後讀回的資料），從此刻的進度接著播。
@@ -1460,7 +1481,7 @@
         restoreContentScrollPositions(container, scrollPositions);
         container.scrollTop = contentScrollTop;
         container.scrollLeft = contentScrollLeft;
-        // 焦點交給接替者時，捲軸還原後接替者可能不在畫面裡，再把它捲進來；已經看得到時 nearest 不會動（階段八）。
+        // 焦點交給接替者時，捲軸還原後接替者可能不在畫面裡，再把它捲進來；已經看得到時 nearest 不會動。
         if (focused && focusHandedOver(focused, focusMemory) && typeof focused.scrollIntoView === 'function') {
           focused.scrollIntoView({ block: 'nearest' });
         }
@@ -1507,7 +1528,7 @@
     };
   }
 
-  // 統計數字不從中間斷開（使用者 2026-10-13 交接：總覽的十億級金額斷成兩行，審計員容易看錯）：
+  // 統計數字不從中間斷開，總覽的十億級金額斷成兩行時，審計員容易看錯：
   // 數字放不下時整列一起縮一階，28、22、18px 都放不下才改成較少的格數，再從 28px 試起。
   // 同一列的數字一樣大，借方與貸方才比得起來。只換 app.css 的 stat-fit--* class，不改 state。
   var STAT_ROWS = '.overview-pop__grid, .stats-bar';
@@ -1627,7 +1648,7 @@
     }
   }
 
-  // 訊息分三級（使用者 2026-10-13 裁定）：錯誤與需要注意在時間前面加一個符號，另加只給讀屏軟體的等級文字；
+  // 訊息分三級（裁定 2026-10-13-15）：錯誤與需要注意在時間前面加一個符號，另加只給讀屏軟體的等級文字；
   // 一般說明沒有符號。.messages__text 的內容與位置不變（Gui 驅動從它找「支援日誌已輸出」）。
   var MESSAGE_LEVEL_NAMES = { error: '錯誤：', warn: '需要注意：' };
 
@@ -1678,7 +1699,7 @@
   }
 
   // 收合/展開與未讀徽章。徽章照未讀裡最嚴重的一級：有錯誤時紅底加「!」，有需要注意時琥珀底加「!」，其他維持灰底
-  // （使用者 2026-10-13 裁定）；aria-label 用文字說出等級，不只靠顏色。開關固定在欄底，展開與收合是同一顆按鈕。
+  // （裁定 2026-10-13-15）；aria-label 用文字說出等級，不只靠顏色。開關固定在欄底，展開與收合是同一顆按鈕。
   function renderMessagesPanel(state) {
     var panel = document.querySelector('[data-bind="messages-panel"]');
     if (!panel) { return; }
@@ -1719,7 +1740,7 @@
   var overviewExpandedSections = {};
   var overviewSelectedStepIndex = null;
   var overviewReturnFocus = null;
-  // 開著時在共用對話框堆疊的登記（階段八）；關閉時移除。
+  // 開著時在共用對話框堆疊的登記；關閉時移除。
   var overviewDialog = null;
   var overviewWasOpen = false;
 
@@ -1756,7 +1777,7 @@
     var firstOpen = !overviewWasOpen;
     overviewWasOpen = true;
     // 打開時登記在共用的對話框堆疊：Escape 關閉、Tab 只在卡片裡循環；作業進行中鍵盤留給作業遮罩，
-    // 待確認對話框或刪除案件對話框疊在上面時交給它們（階段八，使用者 2026-10-22 裁定）。
+    // 待確認對話框或刪除案件對話框疊在上面時交給它們，一次 Escape 只關最上層。
     if (firstOpen) {
       overviewDialog = Focus.openDialog({
         element: modal.querySelector('.overview-modal__card'),
@@ -1785,7 +1806,7 @@
   function renderOverviewCard(state) {
     var card = document.querySelector('.overview-modal__card');
     if (!card) { return; }
-    // 總覽開著時資料或目前步驟改變會整張重畫（使用者 2026-10-13 選定處理）：焦點原本在卡片裡時，
+    // 總覽開著時資料或目前步驟改變會整張重畫，重畫時要保留焦點（裁定 2026-10-13-02）：焦點原本在卡片裡時，
     // 用和中欄重繪同一套認法放回同一個控制項；那個控制項不見了就放到 ✕，Escape 與 Tab 才接得住。焦點不在卡片裡時不動。
     var hadFocus = card.contains(document.activeElement);
     var focusMemory = hadFocus ? captureContentFocus(card) : null;
@@ -1796,8 +1817,8 @@
     bindOverview(card);
     global.JetOverviewBi.mount(
       card,
-      state.lastRuns.validate,
-      state.lastRuns.prescreen,
+      state.results.validate,
+      state.results.prescreen,
       overviewConcentrationTab);
     if (hadFocus) {
       focusElement(findContentFocus(card, focusMemory) || card.querySelector('button[data-action="overview-close"]'));
@@ -1823,11 +1844,11 @@
   // 不用破折號接在名字後面。標題已是案件名稱時，基準行不再重複寫一次。
   function overviewHeadHtml(state) {
     var eyebrow = '分錄測試流程總覽';
-    var caseName = state.caseId || '';
+    var projectName = state.caseId || '';
     var title = state.project
-      ? (state.caseClient || caseName || '目前案件')
+      ? (state.caseClient || projectName || '目前案件')
       : '尚未選擇案件';
-    var showCaseName = !!state.project && !!caseName && caseName !== title;
+    var showProjectName = !!state.project && !!projectName && projectName !== title;
     var period = auditPeriodText(state) || '尚未設定';
     return (
       '<div class="overview__head">' +
@@ -1835,8 +1856,8 @@
           '<span class="overview__eyebrow">' + Ui.esc(eyebrow) + '</span>' +
           '<h3 class="overview__title" id="overview-title">' + Ui.esc(title) + '</h3>' +
           '<span class="overview__baseline">' +
-            (showCaseName
-              ? '<span data-overview-fact-key="project.case-id">案件 ' + Ui.esc(caseName) + '</span>' +
+            (showProjectName
+              ? '<span data-overview-fact-key="project.case-id">案件 ' + Ui.esc(projectName) + '</span>' +
                 '<span aria-hidden="true">，</span>'
               : '') +
             '<span data-overview-fact-key="project.audit-period">查核期間 ' + Ui.esc(period) + '</span>' +
@@ -1848,7 +1869,7 @@
     );
   }
 
-  /* 分錄測試範圍組成：一欄一個明確事實，四欄皆直接鏡射 validate.run 的
+  /* GL 的組成：一欄一個明確事實，四欄皆直接鏡射 validate.run 的
      stats 欄位，前端不做任何聚合或換算。未執行驗證時整段以空狀態取代，
      以骨架標籤預示版位，不塞提示文字、不顯示 0 冒充「已核對為零」。
      完整的母體完整性核對清單仍只在步驟「資料驗證與測試」呈現——那裡是唯一權威判定面；
@@ -1875,7 +1896,7 @@
   }
 
   function overviewPopulationHtml(state) {
-    var validate = state.lastRuns.validate;
+    var validate = state.results.validate;
     var stats = validate && validate.stats ? validate.stats : null;
     if (!stats) { return overviewPopulationEmptyHtml(state); }
 
@@ -1885,8 +1906,8 @@
           '<span class="overview__col-eyebrow">GL</span>' +
         '</div>' +
         '<div class="overview-pop__grid">' +
-          overviewPopKpiHtml('validation.stats.gl-row-count', 'GL 分錄數', fmtNum(stats.glRowCount), '') +
-          overviewPopKpiHtml('validation.stats.voucher-count', '傳票數', fmtNum(stats.voucherCount), '') +
+          overviewPopKpiHtml('validation.stats.gl-row-count', 'GL 分錄數', Ui.countText(stats.glRowCount), '') +
+          overviewPopKpiHtml('validation.stats.voucher-count', '傳票數', Ui.countText(stats.voucherCount), '') +
           overviewPopKpiHtml('validation.stats.total-debit', '借方合計金額', Ui.money(stats.totalDebit), '') +
           overviewPopKpiHtml('validation.stats.total-credit', '貸方合計金額', Ui.money(stats.totalCredit),
             '借貸淨額 ' + Ui.moneyDifference(stats.net)) +
@@ -1895,19 +1916,18 @@
     );
   }
 
-  /* 預篩選規則全期命中分布（S2b 降級版）：直接鏡射 prescreen.run 的 rulePeriod。
-     母體尚未就緒時沿用上方單一空狀態；舊 prescreen summary 的降級由 renderer 負責。 */
+  /* 預篩選規則全期命中分布：直接鏡射 prescreen.run 的 rulePeriod。
+     母體尚未就緒時沿用上方單一空狀態；尚未執行預篩選的空狀態由 renderer 負責。 */
   function overviewRulePeriodHtml(state) {
-    var validate = state.lastRuns.validate;
+    var validate = state.results.validate;
     if (!validate || !validate.stats) { return ''; }
-    return global.JetOverviewBi.rulePeriodHtml(state.lastRuns.prescreen);
+    return global.JetOverviewBi.rulePeriodHtml(state.results.prescreen);
   }
 
   /* 分錄金額級距與累積分布：count／ECDF 直接鏡射
-     validate.run.amountDistribution。母體未就緒時沿用上方單一空狀態；
-     舊 validation summary 的降級由 renderer 負責。 */
+     validate.run.amountDistribution。母體未就緒時沿用上方單一空狀態。 */
   function overviewAmountDistributionHtml(state) {
-    var validate = state.lastRuns.validate;
+    var validate = state.results.validate;
     if (!validate || !validate.stats) { return ''; }
     return global.JetOverviewBi.amountDistributionHtml(validate);
   }
@@ -1916,14 +1936,14 @@
      累積占比／「其他」彙總／前五佔比都由後端算好，前端只鏡射與格式化（渲染在 overview-bi.js）。
      母體尚未就緒時不單獨出現——沿用上方母體概況的單一空狀態，避免同一畫面兩種空狀態。 */
   function overviewConcentrationHtml(state) {
-    var validate = state.lastRuns.validate;
+    var validate = state.results.validate;
     if (!validate || !validate.stats) { return ''; }
-    return global.JetOverviewBi.concentrationHtml(state.lastRuns.prescreen, overviewConcentrationTab);
+    return global.JetOverviewBi.concentrationHtml(state.results.prescreen, overviewConcentrationTab);
   }
 
   // 三組分析共享同一個「全查核期間」範圍，個別 accordion 只保留分析名稱。
   function overviewAnalysisHtml(state) {
-    var validate = state.lastRuns.validate;
+    var validate = state.results.validate;
     if (!validate || !validate.stats) { return ''; }
     return (
       '<section class="overview__analyses" aria-labelledby="overview-analysis-title">' +
@@ -1940,7 +1960,7 @@
 
   // 只保留會改變審計解讀的必要提醒。
   function overviewDisclaimerHtml(state) {
-    var positioning = Ui.prescreenPositioningCopy(state.lastRuns.prescreen);
+    var positioning = Ui.prescreenPositioningCopy(state.results.prescreen);
     return (
       '<p class="overview__disclaimer">' +
         Ui.esc(positioning.overviewGuidance) +
@@ -1949,8 +1969,8 @@
     );
   }
 
-  function overviewRunId(run) {
-    return run && run.resultRef ? run.resultRef.runId : null;
+  function overviewResultId(run) {
+    return run && run.resultRef ? run.resultRef.resultId : null;
   }
 
   // 與第六步共用 Ui.formatDateTime，避免兩處時間格式不一致。
@@ -1968,20 +1988,20 @@
     return (state.filter.savedScenarios || []).map(function (_, index) { return index + 1; });
   }
 
-  function overviewCurrentCriteriaArtifact(state) {
-    var validationRunId = overviewRunId(state.lastRuns.validate);
+  function overviewCurrentCriteriaReport(state) {
+    var validationResultId = overviewResultId(state.results.validate);
     var revision = state.filterResultRef ? state.filterResultRef.revision : null;
-    if (!validationRunId || !revision) { return null; }
-    return Ui.findCurrentReportArtifact(state, 'criteriaSelectionReport', {
-      validationRunId: validationRunId,
+    if (!validationResultId || !revision) { return null; }
+    return Ui.findCurrentReport(state, 'criteriaSelectionReport', {
+      validationResultId: validationResultId,
       scenarioRevision: revision,
       scenarioPositions: overviewScenarioPositions(state)
     });
   }
 
-  // 目前版本的工作底稿與左側進度、第六步完成摘要共用 Ui.currentWorkpaperArtifact，不在總覽另算一份。
-  function overviewCurrentWorkpaperArtifact(state) {
-    return Ui.currentWorkpaperArtifact(state);
+  // 目前版本的工作底稿與左側進度、第六步完成摘要共用 Ui.currentWorkingPaperReport，不在總覽另算一份。
+  function overviewCurrentWorkingPaperReport(state) {
+    return Ui.currentWorkingPaperReport(state);
   }
 
   // 完成判定一律走 Ui.stepComplete：最後階段只以目前版本的工作底稿判定，不能拿歷史底稿冒充完成。
@@ -1990,6 +2010,7 @@
   }
 
   // 「完成狀態」與「目前主畫面位置」分開：已完成的階段即使目前正在回看，仍顯示完成。
+  // 主畫面目前步驟標題旁的狀態字也用這個判斷與下面的狀態字（見 stepSectionHtml）。
   function overviewStageStatus(state, index) {
     if (overviewStageComplete(state, index)) { return 'done'; }
     if (Ui.isStepReachable(state, index)) { return 'available'; }
@@ -2062,7 +2083,7 @@
     );
   }
 
-  // 使用者 2026-10-19 裁定只留資料庫：執行識別碼與規則版本是程式內部的代號，報告上也沒有，
+  // 技術資訊只留資料庫（裁定 2026-10-19-15）：執行識別碼與規則版本是程式內部的代號，報告上也沒有，
   // 不再顯示；兩者仍存在案件資料裡。
   function overviewTechnicalHtml(state) {
     var provider = state.project ? providerText(state.project.databaseProvider) : '—';
@@ -2090,7 +2111,7 @@
   function overviewImportFact(key, label, item, unit) {
     if (!item) { return overviewFactHtml(key, label, '尚未匯入', ''); }
     var value = '已匯入';
-    if (item.rowCount != null) { value += '，' + fmtNum(item.rowCount) + ' ' + unit; }
+    if (item.rowCount != null) { value += '，' + Ui.countText(item.rowCount) + ' ' + unit; }
     return overviewFactHtml(key, label, value, item.importedUtc ? overviewWhen(item.importedUtc) : '');
   }
 
@@ -2126,8 +2147,8 @@
           tbCommitted && tbCommitted.committedUtc ? overviewWhen(tbCommitted.committedUtc) : '');
     }
     if (index === 3) {
-      var validation = state.lastRuns.validate;
-      var prescreen = state.lastRuns.prescreen;
+      var validation = state.results.validate;
+      var prescreen = state.results.prescreen;
       var eligibility = Ui.completenessEligibility(validation);
       return overviewFactHtml('validation.current-result', '資料驗證',
         validation ? '目前版本已有結果' : '目前版本需重新執行',
@@ -2140,7 +2161,7 @@
           prescreen && prescreen.resultRef ? overviewWhen(prescreen.resultRef.generatedUtc) : '');
     }
     if (index === 4) {
-      var criteria = overviewCurrentCriteriaArtifact(state);
+      var criteria = overviewCurrentCriteriaReport(state);
       var resultRef = state.filterResultRef;
       return overviewFactHtml('filter.saved-scenarios', '已儲存情境', state.filter.savedScenarios.length
         ? state.filter.savedScenarios.length + ' 個'
@@ -2157,16 +2178,16 @@
           criteria ? overviewWhen(criteria.generatedUtc) : '');
     }
 
-    var workpaper = overviewCurrentWorkpaperArtifact(state);
-    var positions = workpaper && workpaper.sourceRef && Array.isArray(workpaper.sourceRef.scenarioPositions)
-      ? workpaper.sourceRef.scenarioPositions.length
+    var workingPaper = overviewCurrentWorkingPaperReport(state);
+    var positions = workingPaper && workingPaper.sourceRef && Array.isArray(workingPaper.sourceRef.scenarioPositions)
+      ? workingPaper.sourceRef.scenarioPositions.length
       : null;
     return overviewFactHtml('export.working-paper', '工作底稿',
-      workpaper ? workpaper.fileName : '目前版本尚未產生',
-        workpaper ? overviewWhen(workpaper.generatedUtc) : '') +
-      (workpaper && workpaper.bytes != null
+      workingPaper ? workingPaper.fileName : '目前版本尚未產生',
+        workingPaper ? overviewWhen(workingPaper.generatedUtc) : '') +
+      (workingPaper && workingPaper.bytes != null
         ? overviewFactHtml('export.working-paper-bytes', '檔案大小',
-          Ui.fileSizeMbText(workpaper.bytes), '')
+          Ui.fileSizeMbText(workingPaper.bytes), '')
         : '') +
       (positions != null
         ? overviewFactHtml('export.scenario-count', '納入情境', positions + ' 個', '')
@@ -2184,9 +2205,10 @@
     } else if (index < Store.STEPS.length - 1) {
       missing = Ui.stepCompletionMissing(state, index);
     } else {
-      // 第六步可能只因為已有版本紀錄而能進入；沒有可用情境時先說明情境，再談產生底稿。
-      var scenarioMissing = Ui.filterScenarioMissing(state);
-      missing = scenarioMissing ? [scenarioMissing] : ['產生目前版本的工作底稿'];
+      // 第六步可能只因為已有版本紀錄而能進入；情境無法套用目前規則時先說明情境，再談產生底稿。
+      // 沒有已儲存的情境不用先說明，底稿照樣能產生（裁定 2026-10-29-16）。
+      var unusable = Ui.unusableFilterScenarioReason(state);
+      missing = unusable ? [unusable] : ['產生目前版本的工作底稿'];
     }
     if (!missing.length) { return ''; }
     return (
@@ -2235,7 +2257,7 @@
         var state = Store.getState();
         panel.className = 'overview-step-detail';
         panel.setAttribute('aria-labelledby', 'overview-stage-tab-' + index);
-        // 換階段時詳情在原處交叉淡化、高度平順改變，和其他頁籤換窗格一樣（使用者 2026-10-13 要求展開與收合一致）。
+        // 換階段時詳情在原處交叉淡化、高度平順改變，和其他頁籤換窗格一樣（裁定 2026-10-13-11）。
         var fill = function () { panel.innerHTML = overviewStepDetailBodyHtml(state, index); };
         if (global.JetMotion) { global.JetMotion.morph(panel, fill); } else { fill(); }
       }
@@ -2254,7 +2276,7 @@
 
   // 總覽開著時登記在共用的對話框堆疊（JetFocus.openDialog，見 renderOverview）：Escape 關閉、Tab 只在卡片裡循環，
   // 焦點跑到總覽外面（例如點了卡片的空白處）時 Tab 拉回來；作業進行中鍵盤留給作業遮罩的「取消作業」；
-  // 待確認對話框或刪除案件對話框疊在總覽上面時，鍵盤交給最上層的那一個（階段八，使用者 2026-10-22 裁定）。
+  // 待確認對話框或刪除案件對話框疊在總覽上面時，鍵盤交給最上層的那一個，一次 Escape 只關一層。
   function bindOverviewDialog() {
     var modal = document.querySelector('.overview-modal');
     if (!modal) { return; }
@@ -2269,7 +2291,7 @@
   function bindOverviewConcentrationTabs(card) {
     var tabs = Array.prototype.slice.call(card.querySelectorAll('[data-overview-tab]'));
     // 只換分頁底下的內容與圖表：分頁的選取滑過去，內容在原處交叉淡化、高度平順改變，
-    // 不再整張卡片重畫、所有圖表重來一次（使用者 2026-10-13 要求展開與收合一致）。
+    // 不再整張卡片重畫、所有圖表重來一次（裁定 2026-10-13-11）。
     function select(key) {
       if (key !== 'preparers' && key !== 'accounts') { return; }
       overviewConcentrationTab = key;
@@ -2288,7 +2310,7 @@
         global.JetOverviewBi.disposeWithin(panel);
         var fill = function () { panel.innerHTML = fresh.innerHTML; };
         if (global.JetMotion) { global.JetMotion.morph(panel, fill); } else { fill(); }
-        global.JetOverviewBi.mount(panel, state.lastRuns.validate, state.lastRuns.prescreen, overviewConcentrationTab);
+        global.JetOverviewBi.mount(panel, state.results.validate, state.results.prescreen, overviewConcentrationTab);
       }
       var nextTab = document.querySelector('[data-overview-tab="' + key + '"]');
       if (nextTab) { nextTab.focus(); }
@@ -2317,8 +2339,8 @@
         if (section.open) {
           global.JetOverviewBi.mount(
             section,
-            Store.getState().lastRuns.validate,
-            Store.getState().lastRuns.prescreen,
+            Store.getState().results.validate,
+            Store.getState().results.prescreen,
             overviewConcentrationTab);
         } else {
           // 收起時圖表跟著內容收回標題（app.css 的 ::details-content），收完才釋放，收的途中不會先變成一片空白。
@@ -2426,7 +2448,7 @@
   }
 
   // 複製出來的紀錄給審計員貼到 Excel 或文件保存：欄名、資料庫、等級都寫畫面上的說法，
-  // 時間換成這台電腦的當地日期與時間（使用者 2026-10-19 要求前端不露出系統用詞）。
+  // 時間換成這台電腦的當地日期與時間，畫面不露出系統用詞（裁定 2026-10-19-04）。
   var COPIED_LEVEL_NAMES = { error: '錯誤', warn: '需要注意', info: '一般' };
 
   function localTimestamp(utc) {
@@ -2546,7 +2568,7 @@
     if (!progress || typeof progress !== 'object' || Array.isArray(progress)) { return null; }
 
     var contractFields = [
-      'artifactKind',
+      'reportKind',
       'phase',
       'sheetName',
       'sheetsCompleted',
@@ -2562,7 +2584,7 @@
       return null;
     }
 
-    var artifactLabels = {
+    var reportLabels = {
       validationReport: '資料驗證報告',
       accountMapping: '科目配對檔',
       infReport: '資料可靠性抽樣清單',
@@ -2574,9 +2596,9 @@
       preparingData: '正在準備資料',
       writingSheet: '正在寫入',
       finalizingWorkbook: '正在完成檔案',
-      publishingArtifact: '正在存進案件資料夾'
+      publishingReport: '正在存進案件資料夾'
     };
-    if (!Object.prototype.hasOwnProperty.call(artifactLabels, progress.artifactKind) ||
+    if (!Object.prototype.hasOwnProperty.call(reportLabels, progress.reportKind) ||
         !Object.prototype.hasOwnProperty.call(phaseLabels, progress.phase)) {
       return null;
     }
@@ -2597,18 +2619,18 @@
       return null;
     }
 
-    // 每個階段一句（使用者 2026-10-13 勾選頁確認 PROGRESS，用第一輪的寫法）；準備資料時還沒有工作表與列數。
+    // 每個階段一句，裁定 2026-10-13-28 確認了這個寫法；準備資料時還沒有工作表與列數。
     var phaseText = phaseLabels[progress.phase] + (isWritingSheet ? '「' + progress.sheetName + '」' : '');
     var counts = progress.phase === 'preparingData' ? ''
-      : '，已完成 ' + sheetsCompleted.toLocaleString('zh-Hant') + ' 張工作表、寫入 ' +
-        rowsWritten.toLocaleString('zh-Hant') + ' 列';
-    return artifactLabels[progress.artifactKind] + '：' + phaseText + counts +
+      : '，已完成 ' + Ui.countText(sheetsCompleted) + ' 張工作表、寫入 ' +
+        Ui.countText(rowsWritten) + ' 列';
+    return reportLabels[progress.reportKind] + '：' + phaseText + counts +
       '，' + Ui.elapsedPhrase('經過', elapsedMilliseconds);
   }
 
   /* ---- 按下的光（純呈現） -------------------------------------------------------
-     按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉（使用者 2026-10-11 要求依 Apple Liquid Glass 的理念調整：
-     材質在被按下時從裡面亮起來，告訴使用者按到了）。這裡只記下按下的位置，亮光由 app.css 的 :active::after 畫出；
+     按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉。這是依 Apple Liquid Glass 的理念調整（裁定 2026-10-11-14）：
+     材質在被按下時從裡面亮起來，告訴使用者按到了。這裡只記下按下的位置，亮光由 app.css 的 :active::after 畫出；
      用鍵盤按下時清掉位置，光從按鈕中央亮起。只寫 CSS 變數，不改 state、不送 action。 */
   function bindPressLight() {
     document.addEventListener('pointerdown', function (event) {
@@ -2629,7 +2651,7 @@
   }
 
   /* ---- 玻璃標題列的高度（純呈現） -------------------------------------------------
-     使用者 2026-10-12 要求整個 JE Tool 帶有 Liquid Glass 的質感，所以標題列是一片玻璃，流程欄、中欄、資料預覽與案件清單
+     整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01），所以標題列是一片玻璃，流程欄、中欄、資料預覽與案件清單
      都從視窗頂端開始，上緣藏在標題列下面。標題列一列或兩列的高度不同，這裡量出它的下緣，寫入 .app-shell 的 --chrome-h，
      app.css 依它讓出各欄的上內距與 scroll-padding-top。內容捲到標題列下面時，在 .app-shell 加 data-under-chrome，
      標題列的影子加深。只改呈現，不改 state、不送 action。 */
@@ -2680,10 +2702,10 @@
      選取底由 app.css 的 .has-glide::before 畫。很多選項組換選取時會整段重繪，所以每組記住上一次的位置：
      同一批重繪裡在原地換上的新組，從舊的一組此刻看到的位置滑過去；一組消失後再出現、出現在別的位置，或視窗大小與字型改變時，
      就直接放好，不滑動。Windows 高對比佈景不加 .has-glide，選中的樣式由 app.css 用系統色畫。
-     使用者 2026-10-12 要求整個 JE Tool 帶有 Liquid Glass 的質感，所以滑動照 Apple 控制項的做法：
+     整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01），所以滑動照 Apple 控制項的做法：
      選取在滑動時浮起來變成玻璃（組的 ::after），朝目的地拉長，前緣先到、後緣跟上，到位後落回原本的一片（組的 ::before）。
      底線頁籤（line: true）只有底線滑過去，也是前緣先到。路徑在這裡算好交給瀏覽器播放，滑到一半又重繪時，從當下看到的形狀接著滑。
-     流程欄（rigid: true）不浮起也不拉長：使用者 2026-10-12 認為放大縮小過於醒目，要求維持原本的樣子與相同的寬度，
+     流程欄（rigid: true）不浮起也不拉長：放大縮小過於醒目，要維持原本的樣子與相同的寬度（裁定 2026-10-12-02），
      所以那一片照原樣、同樣大小平移到新的步驟。
      選中的字也跟著選取一起換：目的地的字等選取快到時才變粗、變色，原本的字在選取離開時就變回一般（item 是選項，text 是要換樣子的字）。
      減少動態時直接放到新的位置。只改呈現，不改 state、不送 action。 */
@@ -2691,9 +2713,10 @@
     { group: '.step-nav', item: '.toc-item', text: '.toc-item__label', active: '.toc-item--current', rigid: true },
     { group: '.seg-toggle', item: '.seg-toggle__btn', active: '.seg-toggle__btn[aria-selected="true"]' },
     { group: '.filter-source-tabs', item: 'button', active: 'button[aria-selected="true"]' },
-    { group: '.filter-matrix-tabs', item: 'button', active: 'button[aria-selected="true"]' },
+    { group: '.filter-high-risk-summary-tabs', item: 'button', active: 'button[aria-selected="true"]' },
     { group: '.overview-bi__tabs', item: '.overview-bi__tab', active: '.overview-bi__tab[aria-selected="true"]' },
     { group: '.mapping-section > .mode-group', item: '.mode-option', active: '.mode-option:has(:checked)' },
+    { group: '.join-toggle', item: '.join-toggle__option', active: '.join-toggle__option:has(:checked)' },
     { group: '.filter-work-tabs', item: 'button', active: 'button[aria-selected="true"]', line: true },
     { group: '.account-methods', item: 'button', active: 'button[aria-selected="true"]', line: true },
     { group: '.data-preview__tabs', item: '.data-preview__tab', active: '.data-preview__tab[aria-selected="true"], .data-preview__tab--more.is-active', line: true }
@@ -2943,7 +2966,7 @@
           var entry = { group: group, rect: rect, at: at, owner: owner, motion: null };
           var fresh = !group.classList.contains('has-glide');
           // 同一批重繪剛換掉舊的一組：新的一組接著舊的一組此刻看到的樣子。屬於同一個區塊（同一個 data-motion-key）就是同一組，
-          // 即使上方同時多了提示、整組被往下推也一樣（使用者 2026-10-12 指出第三步換金額欄位格式時選取直接跳過去）；
+          // 即使上方同時多了提示、整組被往下推也一樣（裁定 2026-10-12-03：第三步換金額欄位格式時選取曾直接跳過去）；
           // 沒有區塊識別的組，才用「在原地換上」判斷。選取畫在組自己的座標裡，組被推動時選取跟著組走。
           // 舊的一組在交叉淡化的舊畫面裡時，雖然還在頁面上，也算已經換掉。
           var replaced = fresh && !jump && last && last.group !== group &&
@@ -3018,19 +3041,19 @@
   }
 
   /* ---- 動態共用的設定（純呈現） -------------------------------------------------------------
-     使用者 2026-10-12 認為動態仍然突兀，要求先研究 Apple 的設計理念、人機介面指引與開發者文件再重做。
+     動態原本仍然突兀，所以先研究 Apple 的設計理念、人機介面指引與開發者文件再重做（裁定 2026-10-12-03）。
      整個 JE Tool 的動態改用 Apple 的彈簧（WWDC23「Animate with springs」）：duration 是看起來完成的時間，bounce 0 不回彈；
      stiffness 是 (2π ÷ duration)²，阻尼比是 1 − bounce。被下一個操作打斷時，從此刻的位置與速度接著走向新的目標，
      不會頓一下再從零速重新起跑。人機介面指引 Motion 說 Liquid Glass 用觸控板操作時的反應比直接觸控收斂，用滑鼠操作的 JET 跟著收斂，所以時間比 Apple 預設的 0.5 秒短一點。
      app.css 的 --ease-spring 與 --motion-* 是同一組參數算出來的，兩邊要一起改。
-     使用者 2026-10-13 認為淡入淡出太慢，所以長出來與收起來再縮短一點，字的淡入淡出也改成更早開始、更快完成。
-     同一天要求移除或清除東西時，要收起的那一個先「類似蘋果那樣輕微快速地晃動」再收起來：shake 是一條會來回的彈簧，
+     淡入淡出原本太慢（裁定 2026-10-13-10），所以長出來與收起來再縮短一點，字的淡入淡出也改成更早開始、更快完成。
+     移除或清除東西時（裁定 2026-10-13-13），要收起的那一個先「類似蘋果那樣輕微快速地晃動」再收起來：shake 是一條會來回的彈簧，
      從原位帶著速度出發，左右晃兩下半就停（約 0.2 秒），見下面 JetMotion 的 removing。 */
-  // 使用者 2026-10-15 認為進階條件篩選的動態拖累操作，要求加快但不偏離原本的風格。不回彈的彈簧形狀都一樣、只差時間長短，
+  // 進階條件篩選的動態原本拖累操作，要加快但不偏離原本的風格（裁定 2026-10-15-08）。不回彈的彈簧形狀都一樣、只差時間長短，
   // 所以全部同比例縮短約兩成，各動態之間的節奏不變。選取與帶過去的標籤仍約 0.3 秒，看得出從哪裡到哪裡，
   // 不會一閃而過；收起的字先淡出，不需要看清去向，所以可以短到 0.22 秒。
-  // 同一天使用者澄清 2026-10-13 不喜歡的是拋物線軌跡、不是回彈，並要求完整依 Apple 的 Liquid Glass 設計重新整理。
-  // Apple 的玻璃在互動時帶一點彈性，「減少動態效果」才把彈性關掉，所以動態分成兩種性格（使用者同日選「直接照建議改」）：
+  // 同一天澄清了 2026-10-13 不喜歡的是拋物線軌跡、不是回彈，並要求完整依 Apple 的 Liquid Glass 設計重新整理（裁定 2026-10-15-05）。
+  // Apple 的玻璃在互動時帶一點彈性，「減少動態效果」才把彈性關掉，所以動態分成兩種性格：
   // - 玻璃層被操作的東西用 bounce 0.15，接近 Apple 的 snappy：分段切換的玻璃選取、加入時帶過去的玻璃標籤，
   //   以及 app.css 的選單、對話框浮現與按鍵放開。看不出在彈，只是早一點到、收尾俐落，最多超過目標 0.6%。
   // - 內容層的版面改變維持 bounce 0：長出來、收起來、原地換掉、高度改變，以及流程欄與底線頁籤的選取。
@@ -3143,7 +3166,7 @@
   }
 
   /* ---- 加入與移除的動態（JetMotion）：加入、移除、清除與換掉的東西長出來、收起來或原地改變（純呈現） ----------------
-     使用者 2026-10-12 指出只有加入條件有動態，移除、清除條件時沒有，其他步驟也一樣，操作起來不一致。
+     原本只有加入條件有動態，移除、清除條件時沒有，其他步驟也一樣，操作起來不一致（裁定 2026-10-12-02）。
      畫面多半是整段重繪，所以重繪前記下要比對的東西（capture），重繪後比對（play）：
      - 新出現的從 0 長到自己的大小，字等空間打開大半才淡入；
      - 消失的，把重繪前的那一個放回原本的位置收到 0，字先淡出，收完才拿掉；後面的內容跟著收上來，不會一次跳上去。
@@ -3177,7 +3200,7 @@
 
   var Motion = (function () {
     // 舊複本只留下樣式用得到的 data- 屬性，其餘拿掉，程式與測試才找不到它。樣式要用的識別優先掛在 class 上；
-    // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗（使用者 2026-10-15 指出複本露出原形）。
+    // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗，免得複本露出原形（裁定 2026-10-15-11）。
     var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|common-card$|step-index$|child-|join$|period-end-days$)/;
     var DROP_ON_LEAVING = ['id', 'name', 'for', 'form', 'aria-controls', 'aria-describedby', 'aria-labelledby',
       'aria-owns', 'aria-activedescendant', 'aria-live', 'tabindex'];
@@ -3187,7 +3210,7 @@
     var UNSIZED = /^(?:TABLE|THEAD|TBODY|TFOOT|TR|TD|TH|COL|COLGROUP|CAPTION|SCRIPT|STYLE|TEMPLATE)$/;
     var MOVED = '::moved';  // 換了順序的東西，舊位置那一份的識別
     // 原地交叉淡化：新的疊在舊的上面很快淡入，舊的在底下晚一點才淡掉。沒變的字兩份疊在一起，看起來一直是實的，
-    // 只有變了的地方看得到舊的淡掉、新的淡入。使用者 2026-10-13 認為淡入淡出太慢，所以全部在 0.15 秒左右完成。
+    // 只有變了的地方看得到舊的淡掉、新的淡入。淡入淡出原本太慢（裁定 2026-10-13-10），所以全部在 0.15 秒左右完成。
     var FADE_IN = 100;
     var FADE_OUT_DELAY = 30;
     var FADE_OUT = 130;
@@ -3498,7 +3521,7 @@
 
     /* 重繪前打開的選單（共用的 .jet-menu，例如已儲存情境的「操作」）：重繪後同一個位置是收起的新選單，舊的會一下子不見，
        例如按下「移除」後整步重繪。所以記下它們，重繪後在原處放一份很快淡出、稍微縮回按鈕，
-       和直接關閉選單時 app.css 的淡出一樣（使用者 2026-10-13 要求展開與收合一致）。 */
+       和直接關閉選單時 app.css 的淡出一樣（裁定 2026-10-13-11）。 */
     var OPEN_MENU_TOGGLES = '.jet-menu__toggle[aria-expanded="true"]';
     var MENUS = '.jet-menu';
     var MENU_FADE = 120;
@@ -3570,8 +3593,8 @@
     }
 
     /* ---- 移除前的晃動 -------------------------------------------------------------------------------
-       使用者 2026-10-13 清除條件時看到條件組晃了一下，認為「類似蘋果那樣輕微快速地晃動來作為移除元素的設計」不錯，
-       要求整個條件組合、刪除案件與其他流程裡移除或清除東西時都這樣，讓使用者知道這個東西要被移除了。
+       清除條件時條件組晃了一下，裁定 2026-10-13-13 認為「類似蘋果那樣輕微快速地晃動來作為移除元素的設計」不錯，
+       要整個條件組合、刪除案件與其他流程裡移除或清除東西時都這樣，讓使用者知道這個東西要被移除了。
        （那一下其實是清除時白紙的左右內距被撐開又收回，app.css 已經改掉；現在的晃動是刻意做的。）
        按下移除、清除或刪除的一方先用 removing 說明要拿掉的是哪些東西：keys 是那些東西自己的 data-motion-key，
        within 是外層的 data-motion-key，表示裡面消失的東西都算，only 可以再限定是哪一種（CSS 選擇器）；
@@ -3654,7 +3677,7 @@
         neighbor = lookup(item.siblings[previous]);
         if (neighbor && neighbor.parentElement && listOf(neighbor.parentElement) === item.list) {
           // 前面的鄰居自己是新出現的（例如「編輯」情境時兩個窗格交換顯示）：同一個空隙裡舊的一樣放在新的前面，
-          // 由 play 讓兩個在原處交叉淡化，和按頁籤換窗格時一樣（使用者 2026-10-13 要求同一個改變用同一種動態）。
+          // 由 play 讓兩個在原處交叉淡化，和按頁籤換窗格時一樣，同一個改變用同一種動態（裁定 2026-10-13-11）。
           if (entering(neighbor)) {
             while (neighbor.previousElementSibling && entering(neighbor.previousElementSibling)) { neighbor = neighbor.previousElementSibling; }
             neighbor.parentElement.insertBefore(ghost, neighbor);
@@ -3917,7 +3940,7 @@
       return depth;
     }
 
-    // 原地改變（使用者 2026-10-12 要求切換時流暢、不要一閃而過）：
+    // 原地改變：切換時要流暢、不要一閃而過（裁定 2026-10-12-02）：
     // - options.height 為 true 時，element 的高度沿彈簧從 options.from 變成 options.to，下面的內容跟著平順移動；
     // - 有 options.ghost（舊的那一份）時，舊的疊在 element 底下晚一點淡掉，element 很快淡入，也就是原地交叉淡化；
     //   options.through 為 true 時改成先後淡換（見 THROUGH_OUT）。改高度時兩份跟著同樣的高度。
@@ -4037,9 +4060,9 @@
           return;
         }
         if (!before.visible || before.across) { return; }
-        // 舊元素還在頁面上、只是被藏起來（例如矩陣第一次載入時藏起沒選的檢視，藏起來後追蹤的編號也會跟著變）：
+        // 舊元素還在頁面上、只是被藏起來（例如高風險條件彙總第一次載入時藏起沒選的頁籤，藏起來後追蹤的編號也會跟著變）：
         // 收起來的要是它的複本。下面放回舊元素時會拿掉識別，用元素本身會讓還在用的元素再也找不到
-        // （2026-10-14 矩陣切不到傳票交叉表）。
+        // （2026-10-14 曾因此切不到傳票那一頁）。
         if (!before.leaving && before.element.isConnected) {
           leaving.push(Object.assign({}, before, { element: before.element.cloneNode(true) }));
           return;
@@ -4375,7 +4398,7 @@
       retire(element);
       element.style.flex = '0 0 100%';
       // 排在那一列所有東西之後：列裡的展開箭頭用 order 排到最右邊，收回的內容排在它前面時，箭頭會被擠到下一行，
-      // 收完拿掉的那一格，下面各列一次往上跳（使用者 2026-10-15 錄影指出切換尾段的抖動）。
+      // 收完拿掉的那一格，下面各列一次往上跳，切換尾段因此抖動（裁定 2026-10-15-10）。
       var last = 0;
       Array.prototype.forEach.call(holder.children, function (child) {
         if (child !== element) { last = Math.max(last, parseFloat(global.getComputedStyle(child).order) || 0); }
@@ -4424,7 +4447,7 @@
       return found;
     }
 
-    // 頁籤底下原地換窗格（使用者 2026-10-12）：新的窗格從舊窗格的高度平順變成自己的高度，
+    // 頁籤底下原地換窗格，切換時不閃（裁定 2026-10-12-02）：新的窗格從舊窗格的高度平順變成自己的高度，
     // 舊的那一份疊在底下先淡掉，新的接著淡入，兩份內容不會同時疊在一起；下面的內容跟著平順移動。
     // fill 在新的窗格顯示之後、量高度之前補上內容。
     // 兩個窗格要在同一個容器裡；不能播動態時直接換。
@@ -4501,12 +4524,12 @@
   global.JetMotion = Motion;
 
   /* ---- 加入的東西從哪裡來、到了哪裡（純呈現） ---------------------------------------------------
-     使用者 2026-10-11 第三次調整時要求多參考 Apple 的設計思路，所以第五步按常用篩選條件的卡片、欄位按鈕或「加入」時，
-     看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。使用者 2026-10-12 認為原本的做法像廉價的套版：
+     動態要多參考 Apple 的設計思路（裁定 2026-10-11-14），所以第五步按常用篩選條件的卡片、欄位按鈕或「加入」時，
+     看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。原本的做法像廉價的套版（裁定 2026-10-12-02）：
      一塊白板從卡片的大小一路長成整列的大小、字在半路淡掉、目的地先以霧狀出現，整個過程很突兀。所以改成拿起、帶過去、放下：
      - 按下時，一片小小的玻璃標籤在按下的名稱上浮起來，上面寫的就是新的一列的標題；
      - 標籤大小不變，沿直線移到新的一列的標題上，用上面的 SPRINGS.carry：玻璃的彈簧從靜止起步，起步俐落，約 0.24 秒到標題上
-       （使用者 2026-10-13 認為原本先拱起再落下的弧線像在跳，所以不再走弧線）；
+       （原本先拱起再落下的弧線像在跳，所以不再走弧線，裁定 2026-10-13-12）；
        目的地同時由 JetMotion 讓出空間，下面的內容跟著平順地讓開，不會一次跳開；
      - 到了標題上，標籤的字剛好疊在新的一列的標題上一起淡掉，玻璃也淡掉，像標籤被放進去。
      新的一列先向 JetMotion 預約：它照一般的方式長出來、內容淡入，只有標題空著，等標籤放下才出現。
@@ -4717,7 +4740,7 @@
           return;
         }
         // 標籤飛向捲完之後新的一列標題的位置，所以一路平順，不會被捲動帶著上下晃。
-        // 使用者 2026-10-13 指出標籤「以跳躍的形式」移到右側、看起來有點 goofy：原本的弧線先往上拱再落下，半路又放大一點。
+        // 裁定 2026-10-13-12：標籤「以跳躍的形式」移到右側、看起來有點 goofy。原本的弧線先往上拱再落下，半路又放大一點。
         // 所以改成沿直線滑過去，大小不變，只靠彈簧的起步與放慢表現移動。
         var to = { x: point.x - offset.x, y: point.y - offset.y - remaining };
         var x = from.x + (to.x - from.x) * eased;
@@ -4766,22 +4789,21 @@
   }
 
   /* ---- 使用者要拿掉的東西（純呈現） ---------------------------------------------------
-     使用者 2026-10-13 要求移除或清除東西時，要拿掉的東西先輕微快速地晃一下再收起來（見上面 JetMotion 的 removing）。
+     移除或清除東西時，要拿掉的東西先輕微快速地晃一下再收起來（裁定 2026-10-13-13）（見上面 JetMotion 的 removing）。
      移除鈕放在要拿掉的東西裡面時，在這裡記下：按下的那一刻找出按鈕外層的 scope，記下它的 data-motion-key；
      inside 為 true 表示拿掉的是 scope 裡面的東西（例如清除一組的條件），only 再限定是哪一種。
      按鈕不在要拿掉的東西裡面（例如再按一次常用篩選條件的卡片），或要先確認、等 JetApi 回來才重繪（例如刪除案件）時，
      由畫面程式在確認的那一刻呼叫 JetMotion.removing。這裡只記下，不改 state、不送 action。 */
   var REMOVAL_SOURCES = [
-    // 第五步：移除一條條件或子條件組、清除一組的條件、移除整組、移除舊情境的排除區，以及確認移除已儲存的情境（等 JetApi 回來才重繪）。
+    // 第五步：移除一條條件或子條件組、清除一組的條件、移除整組，以及確認移除已儲存的情境（等 JetApi 回來才重繪）。
     { trigger: '[data-action="remove-rule"], [data-compound-remove]', scope: '.rule-row' },
     { trigger: '[data-action="clear-set"]', scope: '.scenario-set', inside: true, only: '.rule-row' },
     { trigger: '[data-action="remove-set"]', scope: '.scenario-set' },
-    { trigger: '[data-action="remove-legacy-exclusions"]', scope: '.filter-legacy-exclusions' },
     { trigger: '[data-action="confirm-remove-scenario"]', scope: '.saved-scenario', wait: 15000 },
     // 第二步：移除待匯入的檔案。第三步：移除接受的過帳值。第四步：移除分類（有子分類時要先確認，確認由 validate-step.js 說明）。
     { trigger: '[data-action="pending-remove"]', scope: '.pending-row' },
     { trigger: '[data-remove-posting-value]', scope: '.value-chip' },
-    { trigger: '[data-taxonomy-remove]', scope: '.taxonomy-row' },
+    { trigger: '[data-category-remove]', scope: '.category-row' },
     // 第三步：取消勾選一個攸關資料元素欄位、或「全部取消」時，收起的名稱與型別先晃一下（勾選時沒有東西消失，不會晃）。
     { trigger: '[data-rde-column]', scope: '.rde-field', inside: true, only: '.rde-field__controls' },
     { trigger: '[data-action="clear-all-rde"]', scope: '[data-motion-key="map-options-gl"]', inside: true, only: '.rde-field__controls' }
@@ -4841,13 +4863,13 @@
     if (global.JetApi && typeof global.JetApi.on === 'function') {
       global.JetApi.on('import.progress', function (progress) {
         if (!progress) { return; }
-        Store.setBusyDetail('已讀取 ' + Number(progress.rowsRead || 0).toLocaleString() + ' 列');
+        Store.setBusyDetail('已讀取 ' + Ui.countText(progress.rowsRead || 0) + ' 列');
       });
       global.JetApi.on('mapping.progress', function (progress) {
         if (!progress) { return; }
         var kind = progress.kind === 'tb' ? 'TB' : 'GL';
-        var done = Number(progress.rowsProcessed || 0).toLocaleString();
-        var total = Number(progress.totalRows || 0).toLocaleString();
+        var done = Ui.countText(progress.rowsProcessed || 0);
+        var total = Ui.countText(progress.totalRows || 0);
         Store.setBusyDetail(kind + ' ' + done + ' / ' + total + ' 列');
       });
       global.JetApi.on('export.progress', function (progress) {
@@ -4893,7 +4915,7 @@
               if (!result.requested) {
                 Store.addMessage('目前的動作已完成，結果已保留；尚未開始的後續作業不會執行。', 'info');
               } else {
-                // 進度接進訊息時拿掉「工作底稿：」的冒號（使用者 2026-10-14 第三輪勾選頁確認 R3-28）。
+                // 進度接進訊息時拿掉「工作底稿：」的冒號，免得一句出現兩個冒號（裁定 2026-10-14-01）。
                 var snapshot = latest.busyDetail
                   ? '，當時進度：' + Ui.progressInMessage(latest.busyDetail)
                   : '';
@@ -4948,7 +4970,7 @@
     if (Ui.initDataPreview) { Ui.initDataPreview(); }
     if (Ui.initDevPanel) { Ui.initDevPanel(); }
     if (Ui.initDevLogPanel) { Ui.initDevLogPanel(); }
-    // 不再記「畫面已載入」（使用者 2026-10-13 勾選頁確認刪除 7）。
+    // 不再記「畫面已載入」（裁定 2026-10-13-28 確認刪除這則訊息）。
 
     if (!ready) {
       bridgeProbeSettled = true;
@@ -4968,7 +4990,7 @@
           var s = info && info.sqlServer;
           // 建立案件的 SQL Server 選項只在確定沒有設定時停用；查詢失敗或還沒回來時維持可選。
           if (s && typeof s.configured === 'boolean') { Store.setSqlServerConfigured(s.configured); }
-          // 沒有設定 SQL Server 時後端回空摘要，不加訊息（使用者 2026-10-13 勾選頁確認）。
+          // 沒有設定 SQL Server 時後端回空摘要，不加訊息（裁定 2026-10-13-28）。
           if (s && s.summary) {
             // 只有連不上 SQL Server 是需要注意：本機案件照常可用，不擋人。連上時不論版本都是一般訊息。
             Store.addMessage(s.summary, (s.configured && !s.reachable) ? 'warn' : 'info');
@@ -4976,8 +4998,8 @@
             // schemaCount＝線上專案數（＝prj_ schema 數）。
             if (s.reachable && typeof s.databaseSizeMb === 'number' && s.databaseSizeMb > DB_CAPACITY_WARN_MB) {
               Store.addMessage(
-                '資料庫容量偏大：單庫 ' + s.databaseSizeMb + ' MB（' + (s.schemaCount || 0) +
-                ' 個線上案件），已超過 ' + DB_CAPACITY_WARN_MB + ' MB 預警門檻。',
+                '資料庫容量偏大：單庫 ' + Ui.countText(s.databaseSizeMb) + ' MB（' + Ui.countText(s.schemaCount || 0) +
+                ' 個線上案件），已超過 ' + Ui.countText(DB_CAPACITY_WARN_MB) + ' MB 預警門檻。',
                 'info');
             }
             render();

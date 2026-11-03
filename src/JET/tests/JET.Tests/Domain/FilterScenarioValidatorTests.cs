@@ -6,10 +6,10 @@ namespace JET.Tests.Domain;
 public sealed class FilterScenarioValidatorTests
 {
     /// <summary>一般前置：有期末財報準備日、未匯入科目配對、未匯入授權編製人員清單。</summary>
-    // 預篩選收斂計畫階段四拿掉四個欄位旗標，改由規則需求表讀可用欄位清單（2026-10-23）；不帶清單就不檢查欄位，
+    // 四個欄位旗標拿掉後，改由規則需求表讀可用欄位清單；不帶清單就不檢查欄位，
     // 等同原本四個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
     private static readonly FilterValidationContext Ready =
-        new(HasLastPeriodStart: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
+        new(HasPrepStartDate: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
 
     /// <summary>全部 GL 欄位都能用，只扣掉指定的欄位。</summary>
     private static string[] GlFieldsWithout(params string[] missing) => JetFieldCatalog.GlFields
@@ -17,18 +17,18 @@ public sealed class FilterScenarioValidatorTests
         .Where(field => !missing.Contains(field, StringComparer.Ordinal))
         .ToArray();
 
-    private static FilterRuleSpec TextRule(string field = "description", string keyword = "調整") =>
-        new(FilterJoin.And, FilterRuleType.Text, null, field, [keyword], TextMatchMode.Contains,
+    private static FilterConditionSpec TextRule(string field = "description", string keyword = "調整") =>
+        new(FilterJoin.And, FilterConditionType.Text, null, field, [keyword], TextMatchMode.Contains,
             null, null, null, null, null, null);
 
-    private static FilterRuleSpec PrescreenRule(string key) =>
-        new(FilterJoin.And, FilterRuleType.Prescreen, key, null, [], TextMatchMode.Contains,
+    private static FilterConditionSpec PrescreenRule(string key) =>
+        new(FilterJoin.And, FilterConditionType.Prescreen, key, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null);
 
     private static FilterScenarioSpec Scenario(
         string name = "高風險摘要",
         string rationale = "鎖定異常摘要的分錄",
-        params FilterRuleSpec[] rules)
+        params FilterConditionSpec[] rules)
     {
         var effective = rules.Length > 0 ? rules : [TextRule()];
         return new FilterScenarioSpec(name, rationale, [new FilterGroupSpec(FilterJoin.And, effective)]);
@@ -48,13 +48,13 @@ public sealed class FilterScenarioValidatorTests
                 ]),
                 new FilterGroupSpec(FilterJoin.And,
                 [
-                    new FilterRuleSpec(FilterJoin.And, FilterRuleType.NumRange, null, "amount", [],
+                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "amount", [],
                         TextMatchMode.Contains, null, null, 100_000_000L, null, null, null),
-                    new FilterRuleSpec(FilterJoin.And, FilterRuleType.DateRange, null, "postDate", [],
+                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.DateRange, null, "glDate", [],
                         TextMatchMode.Contains, "2025-01-01", "2025-12-31", null, null, null, null),
-                    new FilterRuleSpec(FilterJoin.And, FilterRuleType.DrCrOnly, null, null, [],
+                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.DrCrOnly, null, null, [],
                         TextMatchMode.Contains, null, null, null, null, "debit", null),
-                    new FilterRuleSpec(FilterJoin.And, FilterRuleType.ManualAuto, null, null, [],
+                    new FilterConditionSpec(FilterJoin.And, FilterConditionType.ManualAuto, null, null, [],
                         TextMatchMode.Contains, null, null, null, null, null, true)
                 ])
             ]);
@@ -62,16 +62,18 @@ public sealed class FilterScenarioValidatorTests
         Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
     }
 
+    // 裁定 2026-10-29-16：情境名稱與篩選動機不再必填，留白時儲存前由系統補上，驗證不再回報錯誤。
+    // 原本斷言回報錯誤，改成斷言沒有錯誤。第一次失敗：Focused 收據 20261030-234522855-91eacf3db88b47c280890566157510a3。
     [Fact]
-    public void Validate_EmptyName_ReturnsError()
+    public void Validate_EmptyName_IsAllowed()
     {
-        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(name: "  "), Ready));
+        Assert.Empty(FilterScenarioValidator.Validate(Scenario(name: "  "), Ready));
     }
 
     [Fact]
-    public void Validate_EmptyRationale_ReturnsError()
+    public void Validate_EmptyRationale_IsAllowed()
     {
-        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rationale: ""), Ready));
+        Assert.Empty(FilterScenarioValidator.Validate(Scenario(rationale: ""), Ready));
     }
 
     [Fact]
@@ -102,9 +104,9 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
 
-        // 2026-10-04 第 7 批 L72：只改位置說法，保留未知 join 與完整訊息斷言。
+        // 只改位置說法，保留未知 join 與完整訊息斷言。
         // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
@@ -118,38 +120,39 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), Ready);
 
-        // 2026-10-04 第 7 批 L72：完整訊息仍須指出第幾組、第幾條與原輸入。
+        // 完整訊息仍須指出第幾組、第幾條與原輸入。
         // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
-        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "rule_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "condition_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
         Assert.DoesNotContain(errors, e => e.Contains("ANDD", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Validate_UnknownJoin_MergesWithOtherErrors()
     {
-        // 合併列出：group 層與 rule 層的未知 join 各自成錯，且不吞掉名稱必填錯誤。
+        // 合併列出：group 層與 rule 層的未知 join 各自成錯。
+        // 裁定 2026-10-29-16 拿掉名稱必填，原本一併斷言的名稱必填錯誤改成斷言不出現；第一次失敗：Focused 收據 20261030-234522855-91eacf3db88b47c280890566157510a3。
         var scenario = new FilterScenarioSpec(
             "", "動機",
             [new FilterGroupSpec(FilterJoin.And, [TextRule() with { UnknownJoin = "聯集" }], UnknownJoin: "XOR")]);
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
 
-        Assert.Contains(NameRequiredError, errors);
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        Assert.DoesNotContain(NameRequiredError, errors);
+        // 只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
-        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "rule_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
+        Assert.Contains(new FilterScenarioCorruptReason(1, 1, "condition_join_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
     }
 
     [Fact]
     public void Validate_MixedKnownJoins_RemainValid()
     {
-        // 決策表的合法混合代表：組內 AND→OR，組間 OR→AND；第三輪只文件化，不硬化或正規化。
+        // 決策表的合法混合代表：組內 AND→OR，組間 OR→AND；這裡只文件化，不硬化或正規化。
         var scenario = new FilterScenarioSpec(
             "混合 join",
             "保留逐邊左折疊相容性",
@@ -170,7 +173,7 @@ public sealed class FilterScenarioValidatorTests
     public void Validate_UnknownTextField_ReturnsError()
     {
         // 注入形字串必須被白名單擋下，不能流到 SQL 識別字位置。
-        var scenario = Scenario(rules: TextRule(field: "document_number; DROP TABLE target_gl_entry"));
+        var scenario = Scenario(rules: TextRule(field: "voucher_number; DROP TABLE gl"));
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(scenario, Ready));
     }
@@ -186,8 +189,8 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_SummaryPrescreenKey_ReturnsError()
     {
-        // creatorSummary 是彙總規則（非 row tag），不可作列述詞。
-        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: PrescreenRule("creatorSummary")), Ready));
+        // preparerSummary 是彙總規則（非 row tag），不可作列述詞。
+        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: PrescreenRule("preparerSummary")), Ready));
     }
 
     [Theory]
@@ -201,14 +204,14 @@ public sealed class FilterScenarioValidatorTests
     [InlineData("descNull")]
     public void Validate_RetiredCodeKey_ReturnsError(string retiredKey)
     {
-        // 2026-06-11 全面改名後，舊代號鍵不再是合法 prescreenKey（遷移已翻譯既有情境）。
+        // 2026-06-11 全面改名後，舊代號鍵不再是合法 prescreenKey。
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: PrescreenRule(retiredKey)), Ready));
     }
 
     [Fact]
     public void Validate_NumRangeWithoutBounds_ReturnsError()
     {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.NumRange, null, "amount", [],
+        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "amount", [],
             TextMatchMode.Contains, null, null, null, null, null, null);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
@@ -217,7 +220,7 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_NumRangeOnTextField_ReturnsError()
     {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.NumRange, null, "description", [],
+        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.NumRange, null, "description", [],
             TextMatchMode.Contains, null, null, 1L, null, null, null);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
@@ -226,25 +229,25 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_DateRangeWithMalformedDate_ReturnsError()
     {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.DateRange, null, "postDate", [],
+        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DateRange, null, "glDate", [],
             TextMatchMode.Contains, "2025/01/01", null, null, null, null, null);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
 
     [Fact]
-    public void Validate_PostPeriodApprovalWithoutLastPeriodStart_ReturnsError()
+    public void Validate_PrepPeriodApprovalWithoutPrepStartDate_ReturnsError()
     {
-        var scenario = Scenario(rules: PrescreenRule(PrescreenRuleKeys.PostPeriodApproval));
+        var scenario = Scenario(rules: PrescreenRule(PrescreenRuleKeys.PrepPeriodApproval));
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(
-            scenario, Ready with { HasLastPeriodStart = false }));
+            scenario, Ready with { HasPrepStartDate = false }));
     }
 
     [Fact]
-    public void Validate_PostPeriodApprovalWithLastPeriodStart_IsValid()
+    public void Validate_PrepPeriodApprovalWithPrepStartDate_IsValid()
     {
-        var scenario = Scenario(rules: PrescreenRule(PrescreenRuleKeys.PostPeriodApproval));
+        var scenario = Scenario(rules: PrescreenRule(PrescreenRuleKeys.PrepPeriodApproval));
 
         Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
     }
@@ -262,7 +265,7 @@ public sealed class FilterScenarioValidatorTests
     {
         var scenario = Scenario(rules: PrescreenRule(PrescreenRuleKeys.UnexpectedAccountPair));
 
-        // 2026-10-04 第 7 批 R7：有效 fixture 須有收入及至少一種對方分類，沿第四步定義。
+        // 有效 fixture 須有收入及至少一種對方分類，沿第四步定義。
         // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11；Assert.Empty 目的不變。
         Assert.Empty(FilterScenarioValidator.Validate(
             scenario, Ready with { HasAccountMapping = true, HasRevenueCategory = true, HasCounterpartCategory = true }));
@@ -289,7 +292,7 @@ public sealed class FilterScenarioValidatorTests
     [Fact]
     public void Validate_DrCrOnlyWithUnknownSide_ReturnsError()
     {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.DrCrOnly, null, null, [],
+        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DrCrOnly, null, null, [],
             TextMatchMode.Contains, null, null, null, null, "both", null);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
@@ -300,15 +303,15 @@ public sealed class FilterScenarioValidatorTests
     private static IReadOnlyList<string> CategoryIdsFor(string? category) => category switch
     {
         null => [],
-        "Revenue" => [AccountTaxonomyBuiltIns.RevenueId],
-        "Receivables" => [AccountTaxonomyBuiltIns.ReceivablesId],
-        "Cash" => [AccountTaxonomyBuiltIns.CashId],
+        "Revenue" => [AccountCategoryBuiltIns.RevenueId],
+        "Receivables" => [AccountCategoryBuiltIns.ReceivablesId],
+        "Cash" => [AccountCategoryBuiltIns.CashId],
         _ => [category]
     };
 
-    private static FilterRuleSpec AccountPairRule(
+    private static FilterConditionSpec AccountPairRule(
         string? pairMode, string? debitCategory, string? creditCategory) =>
-        new(FilterJoin.And, FilterRuleType.AccountPair, null, null, [], TextMatchMode.Contains,
+        new(FilterJoin.And, FilterConditionType.AccountPair, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null,
             PairMode: pairMode)
         {
@@ -345,12 +348,12 @@ public sealed class FilterScenarioValidatorTests
 
     /* ---- 考量特殊科目類別配對（specialAccountCategoryPair）---------------- */
 
-    // 使用者 2026-10-13 勾選頁確認（文字批次 C）：四種科目配對條件缺分類時同一句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    // 裁定 2026-10-13-28 確認四種科目配對條件缺分類時同一句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
     private const string SpecialPairMappingError = "科目配對中尚無任何科目設定分類，請先在第四步設定";
 
-    private static FilterRuleSpec SpecialPairRule(
+    private static FilterConditionSpec SpecialPairRule(
         string? pairMode, string? debitCategory, string? creditCategory) =>
-        new(FilterJoin.And, FilterRuleType.SpecialAccountCategoryPair, null, null, [], TextMatchMode.Contains,
+        new(FilterJoin.And, FilterConditionType.SpecialAccountCategoryPair, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null,
             PairMode: pairMode)
         {
@@ -403,9 +406,9 @@ public sealed class FilterScenarioValidatorTests
         var errors = ValidateSpecialPair(pairMode, debit, credit, hasMapping);
 
         Assert.Equal(expectMappingError, HasError(errors, SpecialPairMappingError));
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：配對模式無效只會是內容損毀，改鎖原因代號。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 配對模式無效只會是內容損毀，改鎖原因代號。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal(expectModeError, FilterScenarioCorruption.ReasonsOf(errors).Any(r => r.Code == "special_pair_mode_invalid"));
-        // 分類錯誤有兩種形態：未選（空集合）與不存在於目前專案 taxonomy；兩者都以側別前綴鎖定。
+        // 分類錯誤有兩種形態：未選（空集合）與不存在於目前專案的科目分類；兩者都以側別前綴鎖定。
         Assert.Equal(expectDebitError, HasError(errors, "借方分類"));
         Assert.Equal(expectCreditError, HasError(errors, "貸方分類"));
 
@@ -420,7 +423,7 @@ public sealed class FilterScenarioValidatorTests
         // 鎖早退語意：模式非法時，即便雙分類都非白名單，也只報模式錯誤、不報分類錯誤。
         var errors = ValidateSpecialPair("notAMode", "NotACategory", "AlsoBad", hasMapping: true);
 
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "special_pair_mode_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
@@ -437,19 +440,19 @@ public sealed class FilterScenarioValidatorTests
         {
             HasAccountMapping = true,
             HasAnyAccountCategory = true,
-            TaxonomyCategoryIds =
+            CategoryIds =
             [
-                .. AccountTaxonomyBuiltIns.All.Select(static category => category.CategoryId),
+                .. AccountCategoryBuiltIns.All.Select(static category => category.CategoryId),
                 .. extraCategoryIds
             ]
         };
 
-    private static FilterRuleSpec PairIdsRule(
-        FilterRuleType type,
+    private static FilterConditionSpec PairIdsRule(
+        FilterConditionType type,
         string pairMode,
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds) =>
-        new FilterRuleSpec(
+        new FilterConditionSpec(
             FilterJoin.And, type, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null,
             PairMode: pairMode)
@@ -462,10 +465,10 @@ public sealed class FilterScenarioValidatorTests
     public void Validate_PairMultiSelect_AcceptsSeveralCategoriesPerSide()
     {
         var rule = PairIdsRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.Exact,
-            [AccountTaxonomyBuiltIns.CashId, AccountTaxonomyBuiltIns.ReceivablesId],
-            [AccountTaxonomyBuiltIns.RevenueId]);
+            [AccountCategoryBuiltIns.CashId, AccountCategoryBuiltIns.ReceivablesId],
+            [AccountCategoryBuiltIns.RevenueId]);
 
         Assert.Empty(FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping()));
     }
@@ -474,15 +477,15 @@ public sealed class FilterScenarioValidatorTests
     public void Validate_PairMultiSelect_AcceptsDuplicatesAndAnyOrder()
     {
         var rule = PairIdsRule(
-            FilterRuleType.SpecialAccountCategoryPair,
+            FilterConditionType.SpecialAccountCategoryPair,
             SpecialAccountCategoryPairModes.DrNotCr,
-            [AccountTaxonomyBuiltIns.ReceivablesId, AccountTaxonomyBuiltIns.CashId, AccountTaxonomyBuiltIns.ReceivablesId],
-            [AccountTaxonomyBuiltIns.RevenueId]);
+            [AccountCategoryBuiltIns.ReceivablesId, AccountCategoryBuiltIns.CashId, AccountCategoryBuiltIns.ReceivablesId],
+            [AccountCategoryBuiltIns.RevenueId]);
 
         Assert.Empty(FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping()));
         // 去重後才是判定用的集合，重複選取不會放大 SQL 參數。
         Assert.Equal(
-            [AccountTaxonomyBuiltIns.CashId, AccountTaxonomyBuiltIns.ReceivablesId],
+            [AccountCategoryBuiltIns.CashId, AccountCategoryBuiltIns.ReceivablesId],
             AccountPairCategorySelection.Canonicalize(rule.DebitCategoryIds));
     }
 
@@ -490,14 +493,14 @@ public sealed class FilterScenarioValidatorTests
     public void Validate_PairMultiSelect_EmptyArrayIsRejectedInsteadOfMatchingEverything()
     {
         var rule = PairIdsRule(
-            FilterRuleType.SpecialAccountCategoryPair,
+            FilterConditionType.SpecialAccountCategoryPair,
             SpecialAccountCategoryPairModes.NotDrCr,
             [],
-            [AccountTaxonomyBuiltIns.RevenueId]);
+            [AccountCategoryBuiltIns.RevenueId]);
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping());
 
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組第 1 條：尚未選擇借方分類", errors);
     }
 
@@ -505,27 +508,27 @@ public sealed class FilterScenarioValidatorTests
     public void Validate_PairMultiSelect_UnknownCategoryIdIsRejected()
     {
         var rule = PairIdsRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.DebitAnchor,
             [CustomPettyCashId],
             []);
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping());
 
-        // 2026-10-03 主線裁定 T9：分類身分是內部代號，已刪除的分類拿不到顯示名稱；訊息改成不含代號的白話並寫出下一步
+        // 分類身分是內部代號，已刪除的分類拿不到顯示名稱；訊息改成不含代號的白話並寫出下一步
         // （第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 2026-10-03 主線審查再改：同一側缺幾項都只報一則，「有一項」在缺兩項以上時不正確，改成不寫數量的說法
+        // 2026-10-03 審查時再改：同一側缺幾項都只報一則，「有一項」在缺兩項以上時不正確，改成不寫數量的說法
         // （第一次失敗：收據 20261003-025601604-276084fa725a4007a4587e23efcf3f08）。
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：原因只寫原因，改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 原因只寫原因（裁定 2026-10-13-20），改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組第 1 條：所選借方分類中含有已刪除的分類", errors);
         Assert.DoesNotContain(errors, e => e.Contains(CustomPettyCashId, StringComparison.Ordinal));
     }
 
     [Fact]
-    public void Validate_PairMultiSelect_CustomCategoryInProjectTaxonomyIsAccepted()
+    public void Validate_PairMultiSelect_CustomCategoryInProjectCategoryIsAccepted()
     {
         var rule = PairIdsRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.DebitAnchor,
             [CustomPettyCashId],
             []);
@@ -543,7 +546,7 @@ public sealed class FilterScenarioValidatorTests
             .Select(static index => $"custom.{index:x32}")
             .ToArray();
         var rule = PairIdsRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.DebitAnchor,
             tooMany,
             []);
@@ -552,7 +555,7 @@ public sealed class FilterScenarioValidatorTests
             Scenario(rules: rule),
             ReadyWithMapping(tooMany));
 
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "category_selection_too_many"), FilterScenarioCorruption.ReasonsOf(errors));
@@ -563,10 +566,10 @@ public sealed class FilterScenarioValidatorTests
     {
         // 錨定模式只判定使用中的那一側；另一側留空不是錯誤（讀回也不宣稱未使用的分類）。
         var rule = PairIdsRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.CreditAnchor,
             [],
-            [AccountTaxonomyBuiltIns.RevenueId]);
+            [AccountCategoryBuiltIns.RevenueId]);
 
         Assert.Empty(FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping()));
     }
@@ -583,7 +586,7 @@ public sealed class FilterScenarioValidatorTests
         // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. The replacement keeps the original 1..12 digit boundary.
         var scenario = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
         {
-            name = "Synthetic zeros", rationale = "Fixed boundary table", groups = new[] { new { rules = new object[] {
+            name = "Synthetic zeros", rationale = "Fixed boundary table", groups = new[] { new { conditions = new object[] {
                 new { type = "fieldValue", field = "amount", @operator = "endsWithDigits", value = new string('0', Math.Max(0, digits ?? 0)), amountBasis = "absolute" },
                 new { type = "fieldValue", field = "amount", @operator = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }
             } } }
@@ -593,7 +596,7 @@ public sealed class FilterScenarioValidatorTests
         Assert.Equal(expectValid, errors.Count == 0);
     }
 
-    // 使用者 2026-10-19 裁定「視為無法辨識的日期」：第五步日期清單貼上沒有年份或沒有日的寫法時，
+    // 裁定 2026-10-19-11「視為無法辨識的日期」：第五步日期清單貼上沒有年份或沒有日的寫法時，
     // 前端保留原文送出，這裡逐值寫出無法辨識，不再補成今年或 1 日
     // （修正前失敗：收據 20261019-151809317-0d2e1e0ff5e0496d994d8a4e4a2810e5）。
     [Fact]
@@ -601,8 +604,8 @@ public sealed class FilterScenarioValidatorTests
     {
         var scenario = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
         {
-            name = "Synthetic dates", rationale = "Fixed date list", groups = new[] { new { rules = new object[] {
-                new { type = "fieldValue", field = "postDate", @operator = "in", values = new[] { "2025-06-11", "12/31", "Dec 2025" } }
+            name = "Synthetic dates", rationale = "Fixed date list", groups = new[] { new { conditions = new object[] {
+                new { type = "fieldValue", field = "glDate", @operator = "in", values = new[] { "2025-06-11", "12/31", "Dec 2025" } }
             } } }
         }), 100);
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
@@ -615,52 +618,10 @@ public sealed class FilterScenarioValidatorTests
             errors);
     }
 
-    // 預篩選收斂計畫階段九把兩種舊式筆數條件列為停用寫法：不論門檻合不合法，驗證都只回報停用原因與重建方式，
-    // 門檻的邊界檢查由「科目與人員統計」的驗證承接。原本的邊界測試（0 拒、1 與 11 收、缺漏拒）第一次失敗：
-    // Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（1 與 11 不再合格）。
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(11)]
-    [InlineData(null)]
-    public void Validate_CustomPreparerEntryCount_IsRetiredRegardlessOfMaxEntries(int? maxEntries)
-    {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.CustomPreparerEntryCount, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, null, null, MaxEntries: maxEntries);
-
-        var error = Assert.Single(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
-
-        Assert.Contains(FilterSinglePurposeRules.PreparerEntryCount, error, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(11)]
-    [InlineData(null)]
-    public void Validate_CustomAccountEntryCount_IsRetiredRegardlessOfMaxEntries(int? maxEntries)
-    {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.CustomAccountEntryCount, null, null,
-            [], TextMatchMode.Contains, null, null, null, null, null, null, MaxEntries: maxEntries);
-
-        var error = Assert.Single(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
-
-        Assert.Contains(FilterSinglePurposeRules.AccountEntryCount, error, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Validate_CustomKeywordsWithoutKeywords_ReturnsError()
-    {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.CustomKeywords, null, null,
-            [" "], TextMatchMode.Contains, null, null, null, null, null, null);
-
-        Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
-    }
-
     [Fact]
     public void Validate_ManualAutoWithoutValue_ReturnsError()
     {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.ManualAuto, null, null, [],
+        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.ManualAuto, null, null, [],
             TextMatchMode.Contains, null, null, null, null, null, null);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
@@ -668,19 +629,19 @@ public sealed class FilterScenarioValidatorTests
 
     /* ---- 常用篩選條件的卡片與專用型別 ------------------------------------------- */
 
-    // 2026-10-29 卡片改稱常用篩選條件、拿掉字母（使用者裁定程式內部一起改）：來源代碼改成 common，名稱、輔助函式與案例改用卡片代號，斷言不變。
+    // 2026-10-29 卡片改稱常用篩選條件、拿掉字母，程式內部一起改（裁定 2026-10-29-12）：來源代碼改成 common，名稱、輔助函式與案例改用卡片代號，斷言不變。
     // 第一次失敗：Build 收據 20261029-055859529-4f7e4a2a4d624199811e82719d4b37ad（還引用舊常數，編譯不過）。
 
-    private static FilterRuleSpec CommonRule(FilterRuleType type, int? windowDays = null, params string[] keywords) =>
+    private static FilterConditionSpec CommonRule(FilterConditionType type, int? windowDays = null, params string[] keywords) =>
         new(FilterJoin.And, type, null, null, keywords, TextMatchMode.Contains,
             null, null, null, null, null, null, WindowDays: windowDays);
 
-    private static FilterRuleSpec CommonMappingRule(string card) => card switch
+    private static FilterConditionSpec CommonMappingRule(string card) => card switch
     {
-        "manualRevenueEntry" => CommonRule(FilterRuleType.ManualRevenueEntry),
-        "specificPreparer" => TextRule(GlMappingKeys.CreateBy, "特定人員") with { Mode = TextMatchMode.Exact },
+        "manualRevenueEntry" => CommonRule(FilterConditionType.ManualRevenueEntry),
+        "specificPreparer" => TextRule(GlMappingKeys.CreatedBy, "特定人員") with { Mode = TextMatchMode.Exact },
         "blankDescription" => PrescreenRule(PrescreenRuleKeys.BlankDescription),
-        "preparerEqualsApprover" => CommonRule(FilterRuleType.PreparerEqualsApprover),
+        "preparerEqualsApprover" => CommonRule(FilterConditionType.PreparerEqualsApprover),
         _ => throw new ArgumentOutOfRangeException(nameof(card), card, "未知的卡片欄位前置案例。")
     };
 
@@ -722,19 +683,19 @@ public sealed class FilterScenarioValidatorTests
         string expectedField,
         string? secondExpectedField)
     {
-        // 預篩選收斂計畫階段四拿掉四個欄位旗標（2026-10-23），缺哪一欄就從可用欄位清單扣掉哪一欄。
+        // 四個欄位旗標拿掉後，缺哪一欄就從可用欄位清單扣掉哪一欄。
         // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
         var missing = new List<string>();
         if (!hasManualFlag) missing.Add(JetFieldCatalog.GlManual);
-        if (!hasCreatedBy) missing.Add(JetFieldCatalog.GlCreateBy);
-        if (!hasApprovedBy) missing.Add(JetFieldCatalog.GlApproveBy);
+        if (!hasCreatedBy) missing.Add(JetFieldCatalog.GlCreatedBy);
+        if (!hasApprovedBy) missing.Add(JetFieldCatalog.GlApprovedBy);
         if (!hasDescription) missing.Add(JetFieldCatalog.GlDescription);
         var context = CommonMappingReady with { AvailableGlFields = GlFieldsWithout([.. missing]) };
 
         var errors = FilterScenarioValidator.Validate(CommonMappingScenario(card), context);
         var combined = string.Join("；", errors);
 
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 裁定 2026-10-13-28 確認缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains($"「{expectedField}」尚未選擇來源欄", combined, StringComparison.Ordinal);
         Assert.Contains(expectedField, combined, StringComparison.Ordinal);
         if (secondExpectedField is not null)
@@ -755,7 +716,7 @@ public sealed class FilterScenarioValidatorTests
             CommonMappingReady));
     }
 
-    // 原本鎖住「不是卡片來源的一般條件不檢查欄位配對」。使用者 2026-10-22 裁定第五步遇到 GL 沒有配對的欄位時
+    // 原本鎖住「不是卡片來源的一般條件不檢查欄位配對」。裁定 2026-10-22-05 讓第五步遇到 GL 沒有配對的欄位時
     // 「停用並寫原因」，取代 2026-10-04 的「不修」，所以不論來源都要擋下並寫出欄位名稱；測試名稱與斷言照新裁定改寫。
     // 第一次失敗：Focused 收據 20261023-032924364-4f3864a9ba70481b9e50cf02d0305c2c（兩組資料都得到欄位尚未選擇來源欄的錯誤）。
     [Theory]
@@ -763,10 +724,10 @@ public sealed class FilterScenarioValidatorTests
     [InlineData("blankDescription", "「傳票摘要」尚未選擇來源欄")]
     public void Validate_ReusedRuleWithoutCommonSource_StillRequiresTheMappedField(string card, string expectedReason)
     {
-        // 預篩選收斂計畫階段四拿掉欄位旗標（2026-10-23），缺欄位改從可用欄位清單扣掉。
+        // 欄位旗標拿掉後，缺欄位改從可用欄位清單扣掉。
         // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
         var context = card == "specificPreparer"
-            ? CommonMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlCreateBy) }
+            ? CommonMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlCreatedBy) }
             : CommonMappingReady with { AvailableGlFields = GlFieldsWithout(JetFieldCatalog.GlDescription) };
 
         Assert.Equal(
@@ -795,18 +756,18 @@ public sealed class FilterScenarioValidatorTests
         bool revenueWithoutCounterpartValid,
         bool manualRevenueValid)
     {
-        var accountPair = new FilterRuleSpec(
-            FilterJoin.And, FilterRuleType.AccountPair, null, null, [], TextMatchMode.Contains,
+        var accountPair = new FilterConditionSpec(
+            FilterJoin.And, FilterConditionType.AccountPair, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null,
             PairMode: AccountPairModes.Exact)
         {
             // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組借貸分類。
-            DebitCategoryIds = [AccountTaxonomyBuiltIns.CashId],
-            CreditCategoryIds = [AccountTaxonomyBuiltIns.RevenueId]
+            DebitCategoryIds = [AccountCategoryBuiltIns.CashId],
+            CreditCategoryIds = [AccountCategoryBuiltIns.RevenueId]
         };
         var specialPair = accountPair with
         {
-            Type = FilterRuleType.SpecialAccountCategoryPair,
+            Type = FilterConditionType.SpecialAccountCategoryPair,
             PairMode = SpecialAccountCategoryPairModes.DrAndCr
         };
 
@@ -816,20 +777,20 @@ public sealed class FilterScenarioValidatorTests
             FilterScenarioValidator.Validate(Scenario(rules: specialPair), context).Count == 0);
         Assert.Equal(quarterEndRevenueValid,
             FilterScenarioValidator.Validate(
-                Scenario(rules: CommonRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 5)), context).Count == 0);
+                Scenario(rules: CommonRule(FilterConditionType.RevenueDebitNearQuarterEnd, windowDays: 5)), context).Count == 0);
         Assert.Equal(revenueWithoutCounterpartValid,
             FilterScenarioValidator.Validate(
-                Scenario(rules: CommonRule(FilterRuleType.RevenueWithoutNormalCounterpart)), context).Count == 0);
+                Scenario(rules: CommonRule(FilterConditionType.RevenueWithoutNormalCounterpart)), context).Count == 0);
         Assert.Equal(manualRevenueValid,
             FilterScenarioValidator.Validate(
-                Scenario(rules: CommonRule(FilterRuleType.ManualRevenueEntry)), context).Count == 0);
+                Scenario(rules: CommonRule(FilterConditionType.ManualRevenueEntry)), context).Count == 0);
     }
 
     [Fact]
     public void Validate_RevenueDebitNearQuarterEnd_WithoutAccountMapping_ReturnsError()
     {
         // 季末前借記收入需科目配對已匯入（鏡射 accountPair 閘控）。
-        var rule = CommonRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: 5);
+        var rule = CommonRule(FilterConditionType.RevenueDebitNearQuarterEnd, windowDays: 5);
 
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rules: rule), Ready));
     }
@@ -843,7 +804,7 @@ public sealed class FilterScenarioValidatorTests
     [InlineData(null, false)]
     public void Validate_RevenueDebitNearQuarterEnd_WindowDaysBoundaries(int? windowDays, bool expectValid)
     {
-        var rule = CommonRule(FilterRuleType.RevenueDebitNearQuarterEnd, windowDays: windowDays);
+        var rule = CommonRule(FilterConditionType.RevenueDebitNearQuarterEnd, windowDays: windowDays);
 
         var errors = FilterScenarioValidator.Validate(
             Scenario(rules: rule), Ready with
@@ -866,8 +827,8 @@ public sealed class FilterScenarioValidatorTests
         string typeName, bool hasMapping, bool expectValid)
     {
         var type = typeName == "revenueWithoutNormalCounterpart"
-            ? FilterRuleType.RevenueWithoutNormalCounterpart
-            : FilterRuleType.ManualRevenueEntry;
+            ? FilterConditionType.RevenueWithoutNormalCounterpart
+            : FilterConditionType.ManualRevenueEntry;
 
         var errors = FilterScenarioValidator.Validate(
             Scenario(rules: CommonRule(type)), Ready with
@@ -894,7 +855,7 @@ public sealed class FilterScenarioValidatorTests
         // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Keep the tail-pattern boundary table on the current field condition.
         var rule = JET.Application.FilterScenarioPayloadParser.Parse(System.Text.Json.JsonSerializer.SerializeToElement(new
         {
-            name = "Synthetic tail", rationale = "Fixed boundary table", groups = new[] { new { rules = new[] {
+            name = "Synthetic tail", rationale = "Fixed boundary table", groups = new[] { new { conditions = new[] {
                 new { type = "fieldValue", field = "amount", @operator = "endsWithDigits", value = string.Join(",", patterns), amountBasis = "absolute" }
             } } }
         }), 100);
@@ -904,11 +865,11 @@ public sealed class FilterScenarioValidatorTests
     }
 
     [Fact]
-    public void Validate_PreparerEqualsApprover_WithCreatorAndApproverMappings_IsValid()
+    public void Validate_PreparerEqualsApprover_WithPreparerAndApproverMappings_IsValid()
     {
-        // 編製與核准同一人無 rule 參數，但 createBy／approveBy 兩個 mapping 前置都必須齊備。
+        // 編製與核准同一人無 rule 參數，但 createdBy／approvedBy 兩個 mapping 前置都必須齊備。
         Assert.Empty(FilterScenarioValidator.Validate(
-            Scenario(rules: CommonRule(FilterRuleType.PreparerEqualsApprover)), CommonMappingReady));
+            Scenario(rules: CommonRule(FilterConditionType.PreparerEqualsApprover)), CommonMappingReady));
     }
 
     /* ---- 常用篩選條件來源豁免名稱/動機必填（manifest scenario.source）------- */
@@ -917,13 +878,13 @@ public sealed class FilterScenarioValidatorTests
     private const string RationaleRequiredError = "篩選動機說明必填。";
 
     // 決策表：source ∈ {null, "common"} × name ∈ {空, 有} × rationale ∈ {空, 有}。
-    // 常用篩選條件來源 ⇒ 無論名稱/動機是否留白，皆不產生「必填」錯誤（固定的條件清單，留痕替補在落地層補）。
-    // 其他來源 ⇒ 留白才報對應的「必填」錯誤（既往行為，不得鬆動）。
+    // 裁定 2026-10-29-16：不論來源，名稱與動機留白都不產生「必填」錯誤，儲存前由系統依條件補上。
+    // 原本自擬來源留白時預期回報必填，前三列的預期改成不回報。第一次失敗：Focused 收據 20261030-234522855-91eacf3db88b47c280890566157510a3。
     //  source | name | rationale | 期望含名稱必填 | 期望含動機必填
     [Theory]
-    [InlineData(null, "", "", true, true)]
-    [InlineData(null, "情境", "", false, true)]
-    [InlineData(null, "", "動機", true, false)]
+    [InlineData(null, "", "", false, false)]
+    [InlineData(null, "情境", "", false, false)]
+    [InlineData(null, "", "動機", false, false)]
     [InlineData(null, "情境", "動機", false, false)]
     [InlineData("common", "", "", false, false)]
     [InlineData("common", "情境", "", false, false)]
@@ -943,17 +904,17 @@ public sealed class FilterScenarioValidatorTests
     }
 
     [Fact]
-    public void Validate_UnknownSource_TreatedAsAuthored_StillRequiresNameAndRationale()
+    public void Validate_UnknownSource_TreatedAsAuthored_DoesNotRequireNameAndRationale()
     {
-        // 「非 common 即查核員自擬」：未知來源值不得意外豁免必填（白名單只認得 "common"）。
-        // 2026-10-29 以前的案件記的是另一個來源代碼，這一版不認得，也走這條路。
+        // 「非 common 即查核員自擬」：2026-10-29 以前的案件記的是另一個來源代碼，這一版不認得，也走這條路。
+        // 裁定 2026-10-29-16 拿掉必填後，自擬情境留白也不回報必填；原本斷言回報，改成斷言不回報。第一次失敗：Focused 收據 20261030-234522855-91eacf3db88b47c280890566157510a3。
         var scenario = new FilterScenarioSpec(
             "  ", "  ", [new FilterGroupSpec(FilterJoin.And, [TextRule()])], Source: "adhoc");
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
 
-        Assert.Contains(NameRequiredError, errors);
-        Assert.Contains(RationaleRequiredError, errors);
+        Assert.DoesNotContain(NameRequiredError, errors);
+        Assert.DoesNotContain(RationaleRequiredError, errors);
     }
 
     [Fact]

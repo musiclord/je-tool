@@ -6,7 +6,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 已存篩選情境的 SQL Server 實作(對應 <see cref="LocalFilterScenarioStore"/>)。
-/// replace-all；在同一交易清掉舊命中與舊定義，再逐筆 INSERT 新定義，避免兩個 revision 混版。
+/// 整批取代在同一交易清掉舊結果與舊定義，再逐筆 INSERT 新定義，避免兩個版本混在一起；
+/// 移除一個情境只刪它自己的定義與結果，後面的情境順序往前補。
 /// </summary>
 public sealed class SqlServerFilterScenarioStore(SqlServerProjectDatabase database) : IFilterScenarioStore
 {
@@ -27,28 +28,22 @@ public sealed class SqlServerFilterScenarioStore(SqlServerProjectDatabase databa
             cancellationToken,
             SqlServerProjectSchema.QualifierFor(projectId));
 
-        await using (var clearResults = database.CreateCommand(connection, projectId,
-            "DELETE FROM {s}.result_filter_run;"))
+        foreach (var statement in FilterHitInsertSql.DeleteAll("{s}.").Append("DELETE FROM {s}.filter_scenario;"))
         {
-            clearResults.Transaction = transaction;
-            await clearResults.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await using (var delete = database.CreateCommand(connection, projectId,
-            "DELETE FROM {s}.config_filter_scenario;"))
-        {
-            delete.Transaction = transaction;
-            await delete.ExecuteNonQueryAsync(cancellationToken);
+            await using var clear = database.CreateCommand(connection, projectId, statement);
+            clear.Transaction = transaction;
+            await clear.ExecuteNonQueryAsync(cancellationToken);
         }
 
         await using (var insert = database.CreateCommand(connection, projectId,
             """
-            INSERT INTO {s}.config_filter_scenario (position, name, rationale, definition_json, saved_utc)
-            VALUES (@position, @name, @rationale, @definitionJson, @savedUtc);
+            INSERT INTO {s}.filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc)
+            VALUES (@scenarioId, @position, @name, @rationale, @definitionJson, @savedUtc);
             """))
         {
             insert.Transaction = transaction;
 
+            var scenarioId = insert.Parameters.Add("@scenarioId", SqlDbType.Int);
             var position = insert.Parameters.Add("@position", SqlDbType.Int);
             var name = insert.Parameters.Add("@name", SqlDbType.NVarChar, FilterScenarioLimits.MaxNameLength);
             var rationale = insert.Parameters.Add("@rationale", SqlDbType.NVarChar, -1);
@@ -57,6 +52,7 @@ public sealed class SqlServerFilterScenarioStore(SqlServerProjectDatabase databa
 
             foreach (var scenario in scenarios)
             {
+                scenarioId.Value = scenario.ScenarioId;
                 position.Value = scenario.Position;
                 name.Value = scenario.Name;
                 rationale.Value = scenario.Rationale;
@@ -64,6 +60,34 @@ public sealed class SqlServerFilterScenarioStore(SqlServerProjectDatabase databa
                 savedUtc.Value = scenario.SavedUtc.ToString("O");
                 await insert.ExecuteNonQueryAsync(cancellationToken);
             }
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(CancellationToken.None);
+    }
+
+    public async Task RemoveAsync(
+        string projectId,
+        SavedFilterScenario scenario,
+        CancellationToken cancellationToken)
+    {
+        await database.EnsureCreatedAsync(projectId, cancellationToken);
+
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        foreach (var statement in FilterHitInsertSql.DeleteOne("{s}.").Concat(
+        [
+            "DELETE FROM {s}.filter_scenario WHERE scenario_id = @scenarioId;",
+            "UPDATE {s}.filter_scenario SET position = position - 1 WHERE position > @position;"
+        ]))
+        {
+            await using var command = database.CreateCommand(connection, projectId, statement);
+            command.Transaction = transaction;
+            command.Parameters.AddWithValue("@scenarioId", scenario.ScenarioId);
+            command.Parameters.AddWithValue("@position", scenario.Position);
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -81,8 +105,8 @@ public sealed class SqlServerFilterScenarioStore(SqlServerProjectDatabase databa
 
         await using var command = database.CreateCommand(connection, projectId,
             """
-            SELECT position, name, rationale, definition_json, saved_utc
-            FROM {s}.config_filter_scenario
+            SELECT position, name, rationale, definition_json, saved_utc, scenario_id
+            FROM {s}.filter_scenario
             ORDER BY position;
             """);
 
@@ -95,7 +119,10 @@ public sealed class SqlServerFilterScenarioStore(SqlServerProjectDatabase databa
                 reader.GetString(1),
                 reader.GetString(2),
                 reader.GetString(3),
-                DateTimeOffset.Parse(reader.GetString(4))));
+                DateTimeOffset.Parse(reader.GetString(4)))
+            {
+                ScenarioId = reader.GetInt32(5)
+            });
         }
 
         return rows;

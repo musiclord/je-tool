@@ -15,7 +15,7 @@ public sealed class DuckDbParameterMarkerRewriterTests
     [Fact]
     public void Rewrite_NoParameters_ReturnsUnchanged()
     {
-        const string sql = "SELECT COUNT(*) FROM target_gl_entry WHERE amount_scaled <> 0;";
+        const string sql = "SELECT COUNT(*) FROM gl WHERE amount_scaled <> 0;";
         Assert.Equal(sql, DuckDbParameterMarkerRewriter.Rewrite(sql));
     }
 

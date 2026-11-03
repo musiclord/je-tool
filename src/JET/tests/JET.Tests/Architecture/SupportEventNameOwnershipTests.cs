@@ -4,7 +4,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 支援日誌的事件名與 project.releaseLock 這個動作名各只定義一次：寫入端（動作分派、案件紀錄、案件開啟）與讀取端
-/// （失敗摘要、案件歷史匯出）都用 Domain 的具名常數，不用字串比對（技術債一輪，2026-10-22）。
+/// （失敗摘要、案件歷史匯出）都用 Domain 的具名常數，不用字串比對（裁定 2026-10-22-19：重複的常數與字串比對全部收斂）。
 /// </summary>
 public sealed class SupportEventNameOwnershipTests
 {

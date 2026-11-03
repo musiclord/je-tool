@@ -591,7 +591,7 @@ GL mapping v2 的 `approvalDateMode` 固定為三個互斥值：`unmapped` 不�
 
 #### 3.1.5 Excel（.xlsx）讀取規則與欄位集合收斂
 
-`.xlsx` 一律以 OpenXML 的 SAX 串流方式讀取，也就是 forward-only、不建立 worksheet 的 DOM。系統只有單一一個讀取器，不會依檔案大小分支：百萬列等級的真實 PBC 活頁簿和小檔走的是同一條路徑（實際驗證過 114MB、兩張工作表合計 1,403,327 列的案例）。檔案檢視（inspect）與讀取欄名都只讀到標頭列就停，所以檢視的回應時間和檔案大小無關。
+`.xlsx` 一律以 OpenXML 的 SAX 串流方式讀取，也就是 forward-only、不建立 worksheet 的 DOM。系統只有單一一個讀取器，不會依檔案大小分支：百萬列等級的真實 PBC 活頁簿和小檔走的是同一條路徑（實際驗證過百 MB 等級、兩張工作表合計百萬列等級的案例）。檔案檢視（inspect）與讀取欄名都只讀到標頭列就停，所以檢視的回應時間和檔案大小無關。
 
 讀取行為如下（標頭正規化與 CSV 讀取器共用同一套，因此 staging 的輸出形狀一字不差）：
 
@@ -1192,7 +1192,7 @@ canonical serialization；取消或 writer 失敗仍走原 artifact staging／at
 
 Validation、Pre-screening 與 CriteriaSelection 的 `Prepared by` 只取已保存的 `ProjectDocument.OperatorId`，不得讀目前登入的 Windows 帳號。INF 主表與 WorkingPaper step2 的 legacy 欄位落點一致：E 欄是來源 GL 的原始借貸代號，F 欄是 `DebitScaled - CreditScaled` 的帶號金額，J 欄是來源模組，L 欄是核准人員。Production WorkingPaper 透過 internal raw-GL port 取得 E／J；public plan-less 相容路徑沒有該 port，因此只以 normalized 借貸方向補 E，J 留空，不臆造來源值。
 
-> **狀態誠實聲明：** 最新自動化基線只在 `docs/development-status.md` 檔首單點維護。使用者在 2026-07-28 以原始 20,260,435 列案件確認舊候選仍有 `###`／裁切及 WorkingPaper 停滯，該場未通過；修補與新候選完成後，使用者已於 2026-07-31 以專案 A SQLite、專案 B SQLite 與專案 B DuckDB 完成一場制人工驗收，並回報六份 Excel 報表、WorkingPaper、前端與其餘驗收項目全部通過。既有 external relation 從未以「必須為零」作為驗收條件；實際案件摘要與耗時見 `docs/development-log.md`。
+> **狀態誠實聲明：** 最新自動化基線只在 `docs/development-status.md` 檔首單點維護。使用者在 2026-07-28 以原始的千萬列等級案件確認舊候選仍有 `###`／裁切及 WorkingPaper 停滯，該場未通過；修補與新候選完成後，使用者已於 2026-07-31 以專案 A SQLite、專案 B SQLite 與專案 B DuckDB 完成一場制人工驗收，並回報六份 Excel 報表、WorkingPaper、前端與其餘驗收項目全部通過。既有 external relation 從未以「必須為零」作為驗收條件；實際案件摘要與耗時見 `docs/development-log.md`。
 
 2026-07-28 的首次整合封裝已被人工場發現的欄寬、Working Paper 停滯與紀錄問題取代。修補後重新執行六份 current artifact、32 張工作表 inspect／render、Release 完整套件、三 provider、15 場 Agent GUI 與發布封裝 verifier；自動修補證據見 `docs/specs/evidence/2026-07-28-acceptance-repair.md`。更新後的正式發布程式已於 2026-07-31 通過使用者人工驗收；精確封裝身分只保留在內部 evidence。
 
@@ -1596,7 +1596,7 @@ amount_scaled BIGINT NOT NULL
 
 在 SQL Server 路徑上，`target_gl_entry` 與大型的 `result_*` fact table 曾規劃評估 clustered columnstore（匯入後以附加＋讀取為主的分析型負載、依 `PostDate` 排序可提高 segment elimination）。**控制面第七輪結案：已評估、暫不採用**，理由如下（可逆的除名，非永久否決）：
 
-- **無實測效益佐證**：有意義的評估需真實 PBC 規模（約 140 萬列）對 SQL Server 實測，而該資料（`JET_PBC_DIR`）不在自動化 agent 環境內，DuckDB 的同規模 benchmark 亦因此擱置（見 `development-status.md` 規劃段）。**未做 benchmark**，故不在無數據下引入。
+- **無實測效益佐證**：有意義的評估需真實 PBC 規模（百萬列等級）對 SQL Server 實測，而該資料（`JET_PBC_DIR`）不在自動化 agent 環境內，DuckDB 的同規模 benchmark 亦因此擱置（見 `development-status.md` 規劃段）。**未做 benchmark**，故不在無數據下引入。
 - **複雜度成本明確**：columnstore 會增加建表 DDL 與遷移故事的複雜度（新 schema 生效、舊 schema 隨遷移升級）。
 - **現有形狀已足**：rowstore ＋既有 keyset 分頁索引（`config`／mapping／小型 lookup 及分頁查詢鍵）已滿足 prototype 規模。
 - **可逆**：若日後使用者提供 PBC-scale 環境願跑 benchmark，再依下節「schema 版本化遷移機制」把 columnstore 納入 DDL——屆時該機制正好承載這次 schema 變更（既有 schema 讀版本、落後才跑守欄冪等遷移補齊新形狀）。
@@ -1623,7 +1623,7 @@ SQL Server 路徑的 per-project schema 目前一路 forward-only（無 legacy �
 
 GL/TB 投影（staging 轉 target）與匯入暫存寫入（由 `SqlServerImportRepository` 寫入 `staging_*_raw_row`）都採用 `SqlBulkCopy` 搭配串流的 `DbDataReader`，這是本節指定的大資料寫入形狀。
 
-匯入路徑原本是逐列（row-by-row）的 prepared insert，每一列都要做一次 `ExecuteNonQueryAsync` round-trip。實測 1,403,327 列約需 212 秒，是主要的瓶頸。為此在 2026-06-14 改為 `SqlBulkCopy`（設定 `EnableStreaming = true`、`BulkCopyTimeout = 0`，並沿用既有的 transaction），由一個串流 reader 餵入。這個 reader（`StagingBulkCopyDataReader`）包住一個 `IAsyncEnumerable<StagingRow>`，對外曝出 staging 的 5 個欄位：`batch_id`、`row_number`、`source_no`、`source_row_number`、`row_json`。
+匯入路徑原本是逐列（row-by-row）的 prepared insert，每一列都要做一次 `ExecuteNonQueryAsync` round-trip。百萬列等級的真實檔實測需數分鐘，是主要的瓶頸。為此在 2026-06-14 改為 `SqlBulkCopy`（設定 `EnableStreaming = true`、`BulkCopyTimeout = 0`，並沿用既有的 transaction），由一個串流 reader 餵入。這個 reader（`StagingBulkCopyDataReader`）包住一個 `IAsyncEnumerable<StagingRow>`，對外曝出 staging 的 5 個欄位：`batch_id`、`row_number`、`source_no`、`source_row_number`、`row_json`。
 
 `ReplaceBatchAsync` 與 `AppendToBatchAsync` 共用同一個 reader 形狀，它與資料種類無關（kind-agnostic），所以 GL 和 TB 都受惠。AccountMapping 與 Calendar 走的是各自獨立的 store，屬於小量的參考資料，不在這個範圍內。SQLite 路徑（transaction 加 prepared batch，約每秒 44k 列）維持原狀。
 
@@ -1637,9 +1637,9 @@ producer 必須用 `Task.Run` 放到獨立的執行緒上跑。原因是 xlsx �
 
 新版的語意和原本的逐列版逐項一致（這由特徵化測試鎖定）：空來源會 rollback、附加時從最大的 `row_number` 繼續往下編、欄位集合在串流結束後於同交易內回寫、取消時整批 rollback 且 `JET_` 庫裡不留任何已提交的殘留。
 
-**實測數字（歷史數據，量測當時為 LocalDB——該引擎現已淘汰；1,403,327 列）以及比值的本質**：匯入從 211.9 秒（逐列版）降到約 38 秒（SqlBulkCopy 串流版）。耗時可以分解成兩部分：Excel SAX 解析加 JSON 序列化的下限約 29.7 秒，bulk copy 本身約 15.7 秒，兩者重疊之後總計約 38 秒。換句話說，staging 寫入已經不再是瓶頸，主導成本上移到了 xlsx 解析，而那屬於上游，不在這一輪的範圍內。至於 GL 投影約需 17 到 20 秒。
+**實測數字（歷史數據，量測當時為 LocalDB——該引擎現已淘汰；百萬列等級）以及比值的本質**：匯入從逐列版的數分鐘降到 SqlBulkCopy 串流版的不到一分鐘。耗時可以分解成兩部分：Excel SAX 解析加 JSON 序列化的下限佔大半，bulk copy 本身約佔一半左右，兩者重疊之後即為總耗時。換句話說，staging 寫入已經不再是瓶頸，主導成本上移到了 xlsx 解析，而那屬於上游，不在這一輪的範圍內。至於 GL 投影約需十餘秒到二十秒。
 
-匯入耗時除以投影耗時的比值約為 2.0 到 2.2，並且會因為投影耗時浮動而在 1.9 到 2.2 之間擺動。1.5 是這個比值的結構下限（約等於解析下限除以投影），它不是一個可以再壓低的目標，因為匯入必須解析 114MB 的 xlsx，而投影卻只讀已經提交好的 staging。正因如此，規模測試（`SqlServerImportScaleSmokeTests`）只斷言列數正確，耗時與比值只記錄下來供人工判讀，這也對齊了既有 scale 測試「不做 wall-clock 斷言」的慣例。
+匯入耗時除以投影耗時的比值約為 2.0 到 2.2，並且會因為投影耗時浮動而在 1.9 到 2.2 之間擺動。1.5 是這個比值的結構下限（約等於解析下限除以投影），它不是一個可以再壓低的目標，因為匯入必須解析百 MB 等級的 xlsx，而投影卻只讀已經提交好的 staging。正因如此，規模測試（`SqlServerImportScaleSmokeTests`）只斷言列數正確，耗時與比值只記錄下來供人工判讀，這也對齊了既有 scale 測試「不做 wall-clock 斷言」的慣例。
 
 ### SQL 方言差異的處理
 
@@ -1654,7 +1654,7 @@ producer 必須用 `Task.Run` 放到獨立的執行緒上跑。原因是 xlsx �
 
 ### 全量明細 keyset 分頁（query.*Page）
 
-匯入的母體可達 140 萬列以上，所以明細不可能一次全部回給前端。如果只是互動式的審閱，用 `validate.run` 或 `filter.preview` 的 50 列以內預覽就夠了。但要走訪全量明細時（例如 GUI 的「載入更多」、未來的底稿匯出），就改走一組 keyset 游標分頁的 action：
+匯入的母體可達百萬列等級以上，所以明細不可能一次全部回給前端。如果只是互動式的審閱，用 `validate.run` 或 `filter.preview` 的 50 列以內預覽就夠了。但要走訪全量明細時（例如 GUI 的「載入更多」、未來的底稿匯出），就改走一組 keyset 游標分頁的 action：
 
 | Page action | 資料 | 排序／游標鍵（唯一） | 其他參數 |
 |:---|:---|:---|:---|

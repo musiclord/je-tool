@@ -32,7 +32,7 @@ public sealed class GlobalExceptionFallbackLogTests
         Assert.Equal("thread\nfailure", entries[0]["Message"]!.GetValue<string>());
     }
 
-    // 低嚴重度事項 E4（使用者 2026-10-19 要求處理）：視窗接住 WebView2 初始化失敗後，先寫一筆到例外後盾再顯示訊息框；
+    // 視窗接住 WebView2 初始化失敗後，先寫一筆到例外後盾再顯示訊息框；
     // 這個失敗不會成為未處理例外，不寫就查不到原因。視窗本身不在單元測試啟動，所以另外核對 Form1 的接住處。
     [Fact]
     public void WebViewInitializationFailure_IsRecordedBeforeTheMessageBox()

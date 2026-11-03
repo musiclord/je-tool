@@ -175,8 +175,8 @@ public sealed class ActionDispatcher
             FilterScenarioDiagnostics.LogException(_logger, action, exception);
 
             // 已要求取消時，資料庫驅動中止語句後丟出的例外一律回報成取消：SQL Server 中止執行中的語句時丟出
-            // SqlException，不是 OperationCanceledException。三種資料庫在畫面上都回「作業已取消」
-            // （2026-10-19 跨資料庫一致性第二階段）。業務錯誤照舊原樣放行。
+            // SqlException，不是 OperationCanceledException。三種資料庫在畫面上都回「作業已取消」。
+            // 業務錯誤照舊原樣放行。
             if (exception is not (JetActionException or OperationCanceledException)
                 && cancellationToken.IsCancellationRequested)
             {

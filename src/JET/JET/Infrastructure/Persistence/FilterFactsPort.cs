@@ -8,7 +8,7 @@ namespace JET.Infrastructure;
 /// compatibility execution mechanisms while AuditCore owns the typed plan and result.
 /// </summary>
 internal sealed class FilterFactsPort(
-    IFilterRunRepository previewRepository,
+    IFilterHitRepository previewRepository,
     IFilterCommitRepository commitRepository) : IFilterFactsPort
 {
     public async Task<FilterFacts> ExecuteAsync(
@@ -56,6 +56,17 @@ internal sealed class FilterFactsPort(
         FilterPlan plan,
         CancellationToken cancellationToken)
     {
+        if (plan.SavesOneScenario)
+        {
+            // 只換掉這一個情境的定義與結果，其他情境存好的結果照原樣。
+            await commitRepository.SaveOneAsync(
+                plan.Request.ProjectId,
+                plan.CommitItems.Single(),
+                plan.Request.RuleContext,
+                cancellationToken);
+            return new FilterFacts(Preview: null, MaterializedScenarioCount: 1);
+        }
+
         await commitRepository.CommitAsync(
             plan.Request.ProjectId,
             plan.CommitItems,

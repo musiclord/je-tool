@@ -9,10 +9,10 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
-/// 2026-10-05 最後獨立複審 V1：科目編號空白的列，SQLite 排在最前、DuckDB 排在最後，
+/// 科目編號空白的列，SQLite 排在最前、DuckDB 排在最後，
 /// 舊的換頁條件「科目編號大於上一頁最後一個」又會排除空白，所以 DuckDB 在科目超過一頁時漏掉它。
 /// 這裡用固定答案要求兩個資料庫逐頁讀到同一個順序：空白科目在最前，試算表那一列在總帳那一列之前，
 /// 其餘依科目編號；換頁不漏不重，每頁 1 列時也一樣。
@@ -33,20 +33,20 @@ public sealed class CompletenessBlankAccountPagingTests
     private static string SeedSql()
     {
         var sql = new StringBuilder();
-        sql.Append("INSERT INTO target_tb_balance (batch_id, source_row_number, account_code, account_name, change_amount_scaled) VALUES ");
+        sql.Append("INSERT INTO tb (batch_id, source_row_number, account_number, account_name, change_amount_scaled) VALUES ");
         sql.Append("('t', 1, NULL, '試算表空白', 3000)");
         for (var i = 1; i <= AccountCount; i++)
         {
             sql.Append(CultureInfo.InvariantCulture, $", ('t', {i + 1}, '{Code(i)}', '科目{i}', 10100)");
         }
 
-        sql.Append(";\nINSERT INTO target_gl_entry (batch_id, source_row_number, document_number, line_item, post_date, approval_date, ");
-        sql.Append("account_code, document_description, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_effective) VALUES ");
-        sql.Append("('g', 1, 'JV-B', '1', '2025-03-01', '2025-03-01', NULL, '總帳空白', 5000, 5000, 0, 'DEBIT', 1)");
+        sql.Append(";\nINSERT INTO gl (batch_id, source_row_number, voucher_number, line_item, gl_date, approval_date, ");
+        sql.Append("account_number, description, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded) VALUES ");
+        sql.Append("('g', 1, 'JV-B', '1', '2025-03-01', '2025-03-01', NULL, '總帳空白', 5000, 5000, 0, 'DEBIT', 0)");
         for (var i = 1; i <= AccountCount; i++)
         {
             sql.Append(CultureInfo.InvariantCulture,
-                $", ('g', {i + 1}, 'JV-{i}', '1', '2025-03-01', '2025-03-01', '{Code(i)}', '分錄{i}', 10000, 10000, 0, 'DEBIT', 1)");
+                $", ('g', {i + 1}, 'JV-{i}', '1', '2025-03-01', '2025-03-01', '{Code(i)}', '分錄{i}', 10000, 10000, 0, 'DEBIT', 0)");
         }
 
         sql.Append(';');
@@ -68,7 +68,7 @@ public sealed class CompletenessBlankAccountPagingTests
     }
 
     private static string Label(CompletenessDiffAccount row) =>
-        (row.AccountCode.Length == 0 ? "∅" : row.AccountCode) + (row.NotInTb ? "|GL" : "|TB");
+        (row.AccountNumber.Length == 0 ? "∅" : row.AccountNumber) + (row.NotInTb ? "|GL" : "|TB");
 
     /// <summary>逐頁讀到最後；游標不前進時會一直讀同一頁，所以設頁數上限，超過就失敗而不是卡住。</summary>
     private static async Task<List<string>> WalkAsync(
@@ -143,7 +143,7 @@ public sealed class CompletenessBlankAccountPagingTests
         // 依科目編號排序時，空白一律排最後，兩列空白依預設順序。每頁 2 列時，兩列空白分在不同頁。
         Assert.Equal(
             [.. accountsAscending, "∅|TB", "∅|GL"],
-            await WalkAsync(Read, 2, new PageSort("accountCode", PageSortDirection.Ascending)));
+            await WalkAsync(Read, 2, new PageSort("accountNumber", PageSortDirection.Ascending)));
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ public sealed class CompletenessBlankAccountPagingTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task ValidationReportAndWorkpaper_ListBlankAccount_WhenAccountsSpanSeveralPages(string provider)
+    public async Task ValidationReportAndWorkingPaper_ListBlankAccount_WhenAccountsSpanSeveralPages(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, builder =>
@@ -169,7 +169,7 @@ public sealed class CompletenessBlankAccountPagingTests
             builder.AddRow("JV-B", "2025-03-05", "2025-03-05", null, null, "空白科目", "50.00", 1)
                 .AddRow("JV-B", "2025-03-05", "2025-03-05", "Z999", "沖轉", "空白科目", "50.00", 0);
         },
-        lastPeriodStart: "2025-12-31",
+        prepStartDate: "2025-12-31",
         databaseProvider: provider,
         configureTb: tb =>
         {
@@ -182,22 +182,22 @@ public sealed class CompletenessBlankAccountPagingTests
         });
 
         var validation = await host.DispatchAsync("validate.run");
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
-        await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new { runId = validationRunId }));
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId = validationResultId }));
         var committed = await host.DispatchAsync("filter.commit", """
-            {"scenarios":[{"name":"合成空白科目","rationale":"只核對完整性表格","groups":[{"rules":[
+            {"scenarios":[{"name":"合成空白科目","rationale":"只核對完整性表格","groups":[{"conditions":[
                 {"type":"fieldValue","field":"description","operator":"contains","values":["空白"]}
             ]}]}]}
             """);
-        await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new
+        await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
         {
-            validationRunId,
+            validationResultId,
             scenarioRevision = committed.GetProperty("resultRef").GetProperty("revision").GetString(),
             scenarioPositions = new[] { 1 }
         }));
 
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        string PathOf(string kind) => Path.Combine(host.ProjectsRoot, projectId, loaded.GetProperty("reportArtifacts")
+        string PathOf(string kind) => Path.Combine(host.ProjectsRoot, projectId, loaded.GetProperty("reports")
             .EnumerateArray().Single(item => item.GetProperty("kind").GetString() == kind)
             .GetProperty("fileName").GetString()!);
 
@@ -214,9 +214,9 @@ public sealed class CompletenessBlankAccountPagingTests
             Assert.Equal("Z999", rows[^1].Code);
         }
 
-        using (var workpaper = new XLWorkbook(PathOf("workingPaper")))
+        using (var workingPaper = new XLWorkbook(PathOf("workingPaper")))
         {
-            var sheet = workpaper.Worksheet(WorkpaperSheetCatalog.Step1);
+            var sheet = workingPaper.Worksheet(WorkingPaperSheetCatalog.Step1);
             var rows = Enumerable.Range(20, sheet.LastRowUsed()!.RowNumber() - 19)
                 .Where(row => !sheet.Cell(row, 4).IsEmpty())
                 .Select(row => (Code: sheet.Cell(row, 2).GetString(), Tb: sheet.Cell(row, 4).GetDouble(),

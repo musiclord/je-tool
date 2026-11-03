@@ -1,0 +1,126 @@
+[
+  {
+    "id": "custom-single",
+    "existingNames": [],
+    "scenario": {
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "fieldValue", "join": "AND", "field": "description", "operator": "contains", "values": ["合成"], "includeBlank": false }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": [null] } ] }
+    },
+    "name": "傳票摘要 包含任一文字「合成」",
+    "rationale": "檢視符合以下條件的分錄：傳票摘要 包含任一文字「合成」。"
+  },
+  {
+    "id": "custom-three",
+    "existingNames": [],
+    "scenario": {
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "drCrOnly", "join": "AND", "drCr": "debit" },
+          { "type": "fieldValue", "join": "AND", "field": "description", "operator": "contains", "values": ["合成"], "includeBlank": false },
+          { "type": "fieldValue", "join": "AND", "field": "description", "operator": "isNotBlank", "includeBlank": false }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": [null, null, null] } ] }
+    },
+    "name": "僅借方、傳票摘要 包含任一文字「合成」等3項條件",
+    "rationale": "檢視符合以下條件的分錄：僅借方 且 傳票摘要 包含任一文字「合成」 且 傳票摘要 非空白。"
+  },
+  {
+    "id": "common-card-and-custom",
+    "existingNames": [],
+    "scenario": {
+      "source": "common",
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "fieldValue", "join": "AND", "field": "description", "operator": "isBlank", "includeBlank": false },
+          { "type": "drCrOnly", "join": "AND", "drCr": "credit" }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": ["blankDescription", null] } ] }
+    },
+    "name": "空白摘要、僅貸方",
+    "rationale": "空白摘要\n自訂：僅貸方"
+  },
+  {
+    "id": "common-card-with-evaluation",
+    "existingNames": [],
+    "scenario": {
+      "source": "common",
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "fieldValue", "join": "AND", "field": "createdBy", "operator": "in", "values": ["合成主管"], "includeBlank": false }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": ["specificPreparer"] } ] }
+    },
+    "name": "特定人員(財務長/執行長/高階主管等)建立之分錄",
+    "rationale": "執行長、財務長及高階主管通常不預期會經手會計分錄編製或過帳。且因高階主管所處的位置常有能力能直接或間接操縱會計記錄來進行財務報表舞弊。誘因或壓力愈大，則愈有可能合理化其舞弊行為。"
+  },
+  {
+    "id": "name-already-used",
+    "existingNames": ["傳票摘要 包含任一文字「合成」"],
+    "scenario": {
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "fieldValue", "join": "AND", "field": "description", "operator": "contains", "values": ["合成"], "includeBlank": false }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": [null] } ] }
+    },
+    "name": "傳票摘要 包含任一文字「合成」 2",
+    "rationale": "檢視符合以下條件的分錄：傳票摘要 包含任一文字「合成」。"
+  },
+  {
+    "id": "legacy-text-keywords",
+    "existingNames": [],
+    "scenario": {
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "text", "join": "AND", "field": "description", "mode": "contains", "keywords": "合成、調整\n沖銷,合成" }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": [null] } ] }
+    },
+    "name": "傳票摘要 包含「合成,調整,沖銷」",
+    "rationale": "檢視符合以下條件的分錄：傳票摘要 包含「合成,調整,沖銷」。"
+  },
+  {
+    "id": "mixed-joins-in-one-group",
+    "existingNames": [],
+    "scenario": {
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "drCrOnly", "join": "AND", "drCr": "debit" },
+          { "type": "fieldValue", "join": "OR", "field": "description", "operator": "contains", "values": ["合成"], "includeBlank": false },
+          { "type": "fieldValue", "join": "AND", "field": "description", "operator": "isNotBlank", "includeBlank": false }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": [null, null, null] } ] }
+    },
+    "name": "僅借方、傳票摘要 包含任一文字「合成」等3項條件",
+    "rationale": "檢視符合以下條件的分錄：（（僅借方 或 傳票摘要 包含任一文字「合成」） 且 傳票摘要 非空白）。"
+  },
+  {
+    "id": "mixed-group-beside-another-group",
+    "existingNames": [],
+    "scenario": {
+      "groups": [
+        { "join": "AND", "matchScope": "row", "conditions": [
+          { "type": "drCrOnly", "join": "AND", "drCr": "debit" },
+          { "type": "fieldValue", "join": "OR", "field": "description", "operator": "contains", "values": ["合成"], "includeBlank": false },
+          { "type": "fieldValue", "join": "AND", "field": "description", "operator": "isNotBlank", "includeBlank": false }
+        ] },
+        { "join": "OR", "matchScope": "row", "conditions": [
+          { "type": "drCrOnly", "join": "AND", "drCr": "credit" }
+        ] }
+      ],
+      "editorOrigins": { "version": 2, "nameIsAutomatic": true, "rationaleIsAutomatic": true, "groups": [ { "cards": [null, null, null] }, { "cards": [null] } ] }
+    },
+    "name": "僅借方、傳票摘要 包含任一文字「合成」等4項條件",
+    "rationale": "檢視符合以下條件的分錄：（（僅借方 或 傳票摘要 包含任一文字「合成」） 且 傳票摘要 非空白） 或 僅貸方。"
+  }
+]

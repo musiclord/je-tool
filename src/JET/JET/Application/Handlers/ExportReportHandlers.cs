@@ -4,35 +4,35 @@ using JET.Domain;
 
 namespace JET.Application;
 
-public sealed class ExportValidationArtifactsHandler(
+public sealed class ExportValidationReportsHandler(
     IProjectStore projectStore,
     ProjectSession session,
     IJetEventPublisher eventPublisher) : IApplicationActionHandler
 {
-    public string Action => "export.validationArtifacts";
+    public string Action => "export.validationReports";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var runId = PayloadReader.GetOptionalString(payload, "runId")
-            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "run_id_missing");
+        var resultId = PayloadReader.GetOptionalString(payload, "resultId")
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "result_id_missing");
         var (projectId, repositories) = session.RequireActive();
         var validationWriter = repositories.ValidationReportWriter;
         var infWriter = repositories.InfReportWriter;
-        var runStore = repositories.RuleRuns;
-        var artifactStore = repositories.ReportArtifactStore;
+        var resultStore = repositories.Results;
+        var reportStore = repositories.ReportStore;
         var validationReportPlanningFactsPort = repositories.ValidationReportPlanningFacts;
-        var fieldDefinitionFactsPort = repositories.FieldDefinitionFacts;
-        var accountTaxonomyStore = repositories.AccountTaxonomy;
+        var fieldInfoFactsPort = repositories.FieldInfoFacts;
+        var accountCategoryStore = repositories.AccountCategories;
         var mappingStateStore = repositories.MappingStates;
         var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
-        var progressByKind = new Dictionary<ReportArtifactKind, ExportArtifactProgress>
+        var progressByKind = new Dictionary<ReportKind, ExportReportProgress>
         {
-            [ReportArtifactKind.ValidationReport] = progressSession.Start(ReportArtifactKind.ValidationReport),
-            [ReportArtifactKind.InfReport] = progressSession.Start(ReportArtifactKind.InfReport)
+            [ReportKind.ValidationReport] = progressSession.Start(ReportKind.ValidationReport),
+            [ReportKind.InfReport] = progressSession.Start(ReportKind.InfReport)
         };
         SupportOperationStage.Enter("run_read");
         var run = await ReportExportSupport.RequireCurrentRunAsync(
-            runStore, projectId, RuleRunKinds.Validate, runId, cancellationToken);
+            resultStore, projectId, ResultKind.Validation, resultId, cancellationToken);
         SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
@@ -40,21 +40,22 @@ public sealed class ExportValidationArtifactsHandler(
             projectId,
             document,
             mappingStateStore,
-            accountTaxonomyStore,
+            accountCategoryStore,
             cancellationToken);
         var allRdeFields = ReportWorkbookMetadataFactory.AllRdeFields(workbookMetadata);
         SupportOperationStage.Enter("report_plan");
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
             projectId,
-            ValidationRunId: run.RunId,
+            ValidationResultId: run.ResultId,
             WorkbookMetadata: workbookMetadata,
             CustomFields: allRdeFields));
         var project = ReportExportSupport.ProjectContext(document);
         var reportContext = new ValidationReportContext(
             project,
-            run.RunId,
-            run.GeneratedUtc,
+            run.ResultId,
+            // 裁定 2026-11-02-03：編製日期寫按下匯出的那一天，用本機日期，不寫執行資料驗證的時間。
+            DateOnly.FromDateTime(DateTime.Now),
             run.SummaryJson);
         var reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
         var unfinalizedReportPlan = JetAuditProgram.Plan(new ValidationReportRequest(
@@ -65,34 +66,34 @@ public sealed class ExportValidationArtifactsHandler(
             reportProjection.NullAccountCount,
             reportProjection.NullDocumentCount,
             reportProjection.NullDescriptionCount,
-            reportProjection.OutOfRangeDateCount));
+            reportProjection.ApprovalDateNotInPeriodCount));
         var planningFacts = await validationReportPlanningFactsPort.ExecuteAsync(
             unfinalizedReportPlan,
             cancellationToken);
         var validationReportPlan = JetAuditProgram.Finalize(
             unfinalizedReportPlan,
             planningFacts);
-        var targetTbDefinitions = await fieldDefinitionFactsPort.ReadAsync(
+        var targetTbDefinitions = await fieldInfoFactsPort.ReadAsync(
             projectId,
             DatasetKind.Tb,
-            LegacyFieldDefinitionScope.Target,
+            FieldInfoScope.Target,
             cancellationToken);
-        var targetGlDefinitions = await fieldDefinitionFactsPort.ReadAsync(
+        var targetGlDefinitions = await fieldInfoFactsPort.ReadAsync(
             projectId,
             DatasetKind.Gl,
-            LegacyFieldDefinitionScope.Target,
+            FieldInfoScope.Target,
             cancellationToken);
         var fieldInfoProjection = JetAuditProgram.ProjectFieldInfo(
             targetTbDefinitions,
             targetGlDefinitions);
-        var requests = new ReportArtifactWriteRequest[]
+        var requests = new ReportWriteRequest[]
         {
             new(
-                plan.ArtifactKinds[0],
+                plan.ReportKinds[0],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
-                    var progress = progressByKind[ReportArtifactKind.ValidationReport];
+                    var progress = progressByKind[ReportKind.ValidationReport];
                     await validationWriter.WriteAsync(
                         stream,
                         reportContext,
@@ -106,12 +107,12 @@ public sealed class ExportValidationArtifactsHandler(
                     progress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd),
             new(
-                plan.ArtifactKinds[1],
+                plan.ReportKinds[1],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
-                    var progress = progressByKind[ReportArtifactKind.InfReport];
-                    var infContext = new InfReportContext(project, run.RunId, run.GeneratedUtc);
+                    var progress = progressByKind[ReportKind.InfReport];
+                    var infContext = new InfReportContext(project, run.ResultId, run.GeneratedUtc);
                     await infWriter.WriteAsync(
                         stream,
                         infContext,
@@ -123,21 +124,21 @@ public sealed class ExportValidationArtifactsHandler(
                 }, document.PeriodStart, document.PeriodEnd)
         };
 
-        var facts = await new ReportArtifactExecutionPort(artifactStore, requests,
-                kind => progressByKind[kind].PublishingArtifact())
+        var facts = await new ReportExecutionPort(reportStore, requests,
+                kind => progressByKind[kind].PublishingReport())
             .ExecuteAsync(plan, cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
 
         SupportOperationStage.Enter("catalog_refresh");
-        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore);
+        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore);
         return new
         {
             ok = true,
-            artifacts = result.Artifacts.Select(ReportExportSupport.ArtifactWire).ToArray(),
-            reportArtifacts = catalog.Artifacts,
-            reportArtifactWarning = catalog.Warning,
-            warnings = ReportExportSupport.Warnings(result.AuditLogWarning)
+            publishedReports = result.Reports.Select(ReportExportSupport.ReportWire).ToArray(),
+            reports = catalog.Reports,
+            reportWarning = catalog.Warning,
+            warnings = ReportExportSupport.Warnings(result.OperationLogWarning)
         };
     }
 
@@ -152,25 +153,25 @@ public sealed class ExportPrescreenReportHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var runId = PayloadReader.GetOptionalString(payload, "runId")
-            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "run_id_missing");
+        var resultId = PayloadReader.GetOptionalString(payload, "resultId")
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "result_id_missing");
         var (projectId, repositories) = session.RequireActive();
         var writer = repositories.PrescreenReportWriter;
-        var runStore = repositories.RuleRuns;
-        var artifactStore = repositories.ReportArtifactStore;
+        var resultStore = repositories.Results;
+        var reportStore = repositories.ReportStore;
         IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort =
             repositories.PrescreenReportPlanningFacts;
         var mappingStateStore = repositories.MappingStates;
-        var accountTaxonomyStore = repositories.AccountTaxonomy;
+        var accountCategoryStore = repositories.AccountCategories;
         SupportOperationStage.Enter("run_read");
         await CompletenessEligibilitySupport.RequireCurrentAsync(
-            runStore,
+            resultStore,
             projectId,
             cancellationToken);
         var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
-        var artifactProgress = progressSession.Start(ReportArtifactKind.PrescreenReport);
+        var reportProgress = progressSession.Start(ReportKind.PrescreenReport);
         var run = await ReportExportSupport.RequireCurrentRunAsync(
-            runStore, projectId, RuleRunKinds.Prescreen, runId, cancellationToken);
+            resultStore, projectId, ResultKind.Prescreen, resultId, cancellationToken);
         SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
@@ -178,31 +179,32 @@ public sealed class ExportPrescreenReportHandler(
             projectId,
             document,
             mappingStateStore,
-            accountTaxonomyStore,
+            accountCategoryStore,
             cancellationToken);
         SupportOperationStage.Enter("report_plan");
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
             projectId,
-            PrescreenRunId: run.RunId,
+            PrescreenResultId: run.ResultId,
             WorkbookMetadata: workbookMetadata));
         var project = ReportExportSupport.ProjectContext(document);
         var reportContext = new PrescreenReportContext(
             project,
-            run.RunId,
-            run.GeneratedUtc,
+            run.ResultId,
+            // 裁定 2026-11-02-03：編製日期寫按下匯出的那一天，用本機日期，不寫執行預篩選的時間。
+            DateOnly.FromDateTime(DateTime.Now),
             run.SummaryJson);
         var reportProjection = PrescreenReportProjectionParser.Parse(run.SummaryJson);
-        var ruleContext = new FilterRuleContext(
+        var ruleContext = new FilterConditionContext(
             project.MoneyScale,
-            project.LastPeriodStart,
+            project.PrepStartDate,
             project.PeriodStart,
             project.PeriodEnd);
         var unfinalizedReportPlan = JetAuditProgram.Plan(
             new PrescreenReportRequest(
                 projectId,
                 ruleContext,
-                reportProjection.PostPeriodApproval.NaReason,
+                reportProjection.PrepPeriodApproval.NaReason,
                 reportProjection.SuspiciousKeywords.NaReason,
                 reportProjection.UnexpectedAccountPair.NaReason,
                 reportProjection.TrailingZeros.NaReason,
@@ -214,8 +216,8 @@ public sealed class ExportPrescreenReportHandler(
             unfinalizedReportPlan,
             planningFacts);
 
-        var request = new ReportArtifactWriteRequest(
-                plan.ArtifactKinds[0],
+        var request = new ReportWriteRequest(
+                plan.ReportKinds[0],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
@@ -227,24 +229,24 @@ public sealed class ExportPrescreenReportHandler(
                         plan.WorkbookMetadata!,
                         document.OperatorId,
                         ct,
-                        artifactProgress.WriterProgress);
-                    artifactProgress.FinalizingWorkbook();
+                        reportProgress.WriterProgress);
+                    reportProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
-        var facts = await new ReportArtifactExecutionPort(artifactStore, [request],
-                _ => artifactProgress.PublishingArtifact())
+        var facts = await new ReportExecutionPort(reportStore, [request],
+                _ => reportProgress.PublishingReport())
             .ExecuteAsync(plan, cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
-        var artifact = result.Artifacts.Single();
+        var report = result.Reports.Single();
 
         SupportOperationStage.Enter("catalog_refresh");
-        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore);
+        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore);
         return new
         {
-            ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
-            reportArtifacts = catalog.Artifacts,
-            reportArtifactWarning = catalog.Warning,
-            warnings = ReportExportSupport.Warnings(result.AuditLogWarning)
+            ok = true, publishedReport = ReportExportSupport.ReportWire(report),
+            reports = catalog.Reports,
+            reportWarning = catalog.Warning,
+            warnings = ReportExportSupport.Warnings(result.OperationLogWarning)
         };
     }
 }
@@ -258,26 +260,26 @@ public sealed class ExportCriteriaSelectionReportHandler(
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        var validationRunId = PayloadReader.GetOptionalString(payload, "validationRunId")
-            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "validation_run_id_missing");
+        var validationResultId = PayloadReader.GetOptionalString(payload, "validationResultId")
+            ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "validation_result_id_missing");
         var revision = PayloadReader.GetOptionalString(payload, "revision")
             ?? throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "revision_missing");
         var (projectId, repositories) = session.RequireActive();
         var writer = repositories.CriteriaSelectionReportWriter;
         var scenarioStore = repositories.FilterScenarios;
-        var materializeService = repositories.FilterRunMaterializeService;
-        var runStore = repositories.RuleRuns;
-        var artifactStore = repositories.ReportArtifactStore;
-        var accountTaxonomyStore = repositories.AccountTaxonomy;
+        var materializeService = repositories.FilterHitMaterializeService;
+        var resultStore = repositories.Results;
+        var reportStore = repositories.ReportStore;
+        var accountCategoryStore = repositories.AccountCategories;
         var mappingStore = repositories.MappingStates;
         SupportOperationStage.Enter("run_read");
-        var validationRun = await CompletenessEligibilitySupport.RequireCurrentAsync(
-            runStore,
+        var validationResult = await CompletenessEligibilitySupport.RequireCurrentAsync(
+            resultStore,
             projectId,
             cancellationToken);
-        ReportExportSupport.RequireRequestedValidationRun(validationRun, validationRunId);
+        ReportExportSupport.RequireRequestedValidationResult(validationResult, validationResultId);
         var progressSession = new ExportProgressSession(eventPublisher, cancellationToken);
-        var artifactProgress = progressSession.Start(ReportArtifactKind.CriteriaSelectionReport);
+        var reportProgress = progressSession.Start(ReportKind.CriteriaSelectionReport);
         SupportOperationStage.Enter("scenario_read");
         var scenarios = await scenarioStore.ListAsync(projectId, cancellationToken);
         var filterRevision = ReportExportSupport.RequireRevisionState(scenarios, revision);
@@ -286,15 +288,22 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var document = await projectStore.FindAsync(projectId, cancellationToken)
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
-        // filter.commit 會在同一交易清除上一版命中。正式 Criteria 報告必須先以
-        // 目前 revision 的全部情境重新物化，writer 才能輸出可追溯的明細母體。
+        // 儲存情境時已經存下每個情境的結果，報告直接用存好的結果，不重算；只照重算前的同一套檢查確認情境仍能套用。
+        // 結果標成過期時（例如開案時整批改用新規則），才用目前規則重算全部情境。
         SupportOperationStage.Enter("filter_materialize");
-        await materializeService.MaterializeAllAsync(projectId, document, scenarios, cancellationToken);
+        if ((await repositories.ResultStaleStates.ReadAsync(projectId, cancellationToken)).Filter)
+        {
+            await materializeService.MaterializeAllAsync(projectId, document, scenarios, cancellationToken);
+        }
+        else
+        {
+            await materializeService.RequireUsableAsync(projectId, document, scenarios, null, cancellationToken);
+        }
 
-        // 科目配對多選讀回要顯示目前 taxonomy 的顯示名稱，因此條件邏輯以專案 taxonomy 渲染。
+        // 科目配對多選讀回要顯示目前科目分類的顯示名稱，因此條件邏輯以專案的科目分類渲染。
         SupportOperationStage.Enter("condition_render");
-        var taxonomy = await accountTaxonomyStore.ReadAsync(projectId, cancellationToken);
-        var categoryLabels = taxonomy.Categories.ToDictionary(
+        var categorySnapshot = await accountCategoryStore.ReadAsync(projectId, cancellationToken);
+        var categoryLabels = categorySnapshot.Categories.ToDictionary(
             static category => category.CategoryId,
             static category => category.Label,
             StringComparer.Ordinal);
@@ -312,7 +321,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             conditionLogic[scenario.Position] =
-                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, taxonomy.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd);
+                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, categorySnapshot.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd);
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);
@@ -327,7 +336,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
             projectId,
             document,
             mappingStore,
-            accountTaxonomyStore,
+            accountCategoryStore,
             cancellationToken);
         var customFields = FormalReportRdeFieldSelection.ForScenarios(
             scenarios,
@@ -337,7 +346,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var plan = JetAuditProgram.Plan(new ReportExportRequest(
             Action,
             projectId,
-            ValidationRunId: validationRun.RunId,
+            ValidationResultId: validationResult.ResultId,
             ScenarioRevision: revision,
             ScenarioPositions: scenarios.Select(item => item.Position).ToArray(),
             WorkbookMetadata: workbookMetadata,
@@ -346,13 +355,14 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var reportContext = new CriteriaSelectionReportContext(
             ReportExportSupport.ProjectContext(document),
             revision,
-            scenarios[0].SavedUtc,
+            // 裁定 2026-11-01-04：編製日期寫按下匯出的那一天，用本機日期，不寫情境的儲存時間。
+            DateOnly.FromDateTime(DateTime.Now),
             scenarios,
             conditionLogic,
             filterRevision.PopulationScope,
             wholeVoucherSummaryPositions);
-        var request = new ReportArtifactWriteRequest(
-                plan.ArtifactKinds[0],
+        var request = new ReportWriteRequest(
+                plan.ReportKinds[0],
                 plan.SourceRef,
                 async (stream, ct) =>
                 {
@@ -363,24 +373,24 @@ public sealed class ExportCriteriaSelectionReportHandler(
                         plan.CustomFields,
                         document.OperatorId,
                         ct,
-                        artifactProgress.WriterProgress);
-                    artifactProgress.FinalizingWorkbook();
+                        reportProgress.WriterProgress);
+                    reportProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
-        var facts = await new ReportArtifactExecutionPort(artifactStore, [request],
-                _ => artifactProgress.PublishingArtifact())
+        var facts = await new ReportExecutionPort(reportStore, [request],
+                _ => reportProgress.PublishingReport())
             .ExecuteAsync(plan, cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
-        var artifact = result.Artifacts.Single();
+        var report = result.Reports.Single();
 
         SupportOperationStage.Enter("catalog_refresh");
-        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore);
+        var catalog = await WorkflowResultStateSupport.AfterPublicationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore);
         return new
         {
-            ok = true, artifact = ReportExportSupport.ArtifactWire(artifact),
-            reportArtifacts = catalog.Artifacts,
-            reportArtifactWarning = catalog.Warning,
-            warnings = ReportExportSupport.Warnings(result.AuditLogWarning)
+            ok = true, publishedReport = ReportExportSupport.ReportWire(report),
+            reports = catalog.Reports,
+            reportWarning = catalog.Warning,
+            warnings = ReportExportSupport.Warnings(result.OperationLogWarning)
         };
     }
 }

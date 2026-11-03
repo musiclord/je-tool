@@ -14,30 +14,30 @@ public sealed class ExportProgressSessionTests
         var events = new RecordingPublisher();
         var session = new ExportProgressSession(events, CancellationToken.None, clock);
 
-        var validation = session.Start(ReportArtifactKind.ValidationReport);
+        var validation = session.Start(ReportKind.ValidationReport);
         clock.AdvanceMilliseconds(7);
-        _ = session.Start(ReportArtifactKind.AccountMapping);
+        _ = session.Start(ReportKind.AccountMapping);
         clock.AdvanceMilliseconds(3);
-        validation.WriterProgress(new WorkpaperProgress("A", 0, 2));
+        validation.WriterProgress(new WorkingPaperProgress("A", 0, 2));
         clock.AdvanceMilliseconds(2);
-        validation.WriterProgress(new WorkpaperProgress("A", 1, 3));
+        validation.WriterProgress(new WorkingPaperProgress("A", 1, 3));
         clock.AdvanceMilliseconds(5);
-        validation.WriterProgress(new WorkpaperProgress("B", 2, 4));
+        validation.WriterProgress(new WorkingPaperProgress("B", 2, 4));
         clock.AdvanceMilliseconds(2);
         validation.FinalizingWorkbook();
         clock.AdvanceMilliseconds(2);
-        validation.PublishingArtifact();
+        validation.PublishingReport();
 
         Assert.Equal([0L, 7L, 10L, 12L, 17L, 19L, 21L],
             events.Payloads.Select(payload =>
                 payload.GetProperty("elapsedMilliseconds").GetInt64()));
 
         var validationEvents = events.Payloads
-            .Where(payload => payload.GetProperty("artifactKind").GetString()
-                == ReportArtifactKindValues.ValidationReport)
+            .Where(payload => payload.GetProperty("reportKind").GetString()
+                == ReportKindValues.ValidationReport)
             .ToArray();
         Assert.Equal(
-            ["preparingData", "writingSheet", "writingSheet", "writingSheet", "finalizingWorkbook", "publishingArtifact"],
+            ["preparingData", "writingSheet", "writingSheet", "writingSheet", "finalizingWorkbook", "publishingReport"],
             validationEvents.Select(payload => payload.GetProperty("phase").GetString()));
         Assert.Equal(
             [0L, 2L, 3L, 7L, 7L, 7L],

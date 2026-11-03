@@ -7,7 +7,7 @@ namespace JET.Tests.Application;
 
 public sealed class UsageScenarioProjectBoundaryTests
 {
-    // S1-01: jet-guide section 2 and frontend description require both audit dates.
+    // jet-guide section 2 and frontend description require both audit dates.
     [Theory]
     [InlineData("sqlite", "periodStart")]
     [InlineData("sqlite", "periodEnd")]
@@ -19,14 +19,14 @@ public sealed class UsageScenarioProjectBoundaryTests
         Directory.CreateDirectory(host.ProjectsRoot);
         var payload = new JsonObject
         {
-            ["caseName"] = "Synthetic missing period", ["databaseProvider"] = provider,
+            ["projectName"] = "Synthetic missing period", ["databaseProvider"] = provider,
             ["periodStart"] = "2025-01-01", ["periodEnd"] = "2025-12-31"
         };
         payload.Remove(missing);
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("project.create", payload.ToJsonString()));
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-        // 使用者 2026-10-19 要求前端不露出系統用詞：建案畫面會先擋下空白日期，走到這裡是程式送錯資料，訊息改為非預期錯誤那一句。
+        // 前端不露出系統用詞（裁定 2026-10-19-04）：建案畫面會先擋下空白日期，走到這裡是程式送錯資料，訊息改為非預期錯誤那一句。
         // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
         Assert.Equal("payload_required_text_missing", JetPayloadRejection.CheckOf(error));
@@ -34,7 +34,7 @@ public sealed class UsageScenarioProjectBoundaryTests
         Assert.Empty(Directory.GetFiles(host.ProjectsRoot, "project.json", SearchOption.AllDirectories));
     }
 
-    // S1-15: frontend description picker errors and action contract support.log.export.
+    // frontend description picker errors and action contract support.log.export.
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
@@ -42,7 +42,7 @@ public sealed class UsageScenarioProjectBoundaryTests
     {
         using var host = new HandlerTestHost(enableDevTools: false);
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
-        { caseName = "Synthetic support case", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
+        { projectName = "Synthetic support case", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
         var id = created.GetProperty("projectId").GetString()!;
         await host.DispatchAsync("project.releaseLock");
         var projectPath = Path.Combine(host.ProjectsRoot, id, "project.json");
@@ -52,7 +52,7 @@ public sealed class UsageScenarioProjectBoundaryTests
         const string correlationId = "synthetic-picker-load-failure";
         await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load",
             JsonSerializer.Serialize(new { projectId = id }), correlationId: correlationId));
-        var noProject = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.nullRecordsPage"));
+        var noProject = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.blankRecordsPage"));
         Assert.Equal(JetErrorCodes.NoActiveProject, noProject.Code);
 
         var exported = await host.DispatchAsync("support.log.export", JsonSerializer.Serialize(new { projectId = id, correlationId }));

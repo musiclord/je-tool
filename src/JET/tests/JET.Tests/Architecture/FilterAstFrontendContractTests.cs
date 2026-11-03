@@ -4,19 +4,19 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// 預篩選收斂計畫階段十（2026-10-25）：filter-step.js 依職責拆成五個檔案。讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
+// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
 // 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
 
 /// <summary>
-/// Stage 5 filter AST frontend contract guards. The backend renderer and validator remain
+/// Filter AST frontend contract guards. The backend renderer and validator remain
 /// authoritative; the runtime frontend only mirrors labels, edits wire data, and provides
 /// accessible form guidance. All examples are synthetic.
 /// 剩下的方法核對欄位值條件的標籤鏡像，以及第五步畫面固定的操作掛點。文字值清單的編輯與上限，
-/// 2026-10-14 起改由 <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 的 journey 15 核對；
+/// 2026-10-14 起改由 <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 核對；
 /// 上限與後端一致的鏡像在 <c>FilterBackendRuleMirrorFrontendTests.TextSetMaxValues_MatchesBackendTextSetLimit</c>。
 /// 比對範圍（同一分錄列、同一傳票）的畫面行為與條件讀回句子，2026-10-14 起改由
 /// <c>tools/tests/frontend-journey-filter-build.test.cjs</c>、<c>frontend-journey-readback.test.cjs</c> 與共用夾具
-/// <c>tools/tests/fixtures/batch7-filter-readback.json</c> 核對；後端同一份夾具由 <c>Batch7FilterReadbackTests</c> 核對。
+/// <c>tools/tests/fixtures/filter-readback-sentences.json</c> 核對；後端同一份夾具由 <c>FilterReadbackSentenceTests</c> 核對。
 /// </summary>
 public sealed class FilterAstFrontendContractTests
 {

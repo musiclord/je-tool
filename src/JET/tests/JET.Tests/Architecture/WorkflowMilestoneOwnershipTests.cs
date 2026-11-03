@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 動作成功後案件要推進到第幾步，由推進它的 handler 自己宣告（常數 WorkflowStep），不再用動作名字串在另一張表查
-/// （技術債一輪，2026-10-22）。改了動作名或漏登錄，建置與這則測試會先擋下，不是執行到才丟例外。
+/// （裁定 2026-10-22-19：重複的常數與字串比對全部收斂）。改了動作名或漏登錄，建置與這則測試會先擋下，不是執行到才丟例外。
 /// </summary>
 public sealed class WorkflowMilestoneOwnershipTests
 {

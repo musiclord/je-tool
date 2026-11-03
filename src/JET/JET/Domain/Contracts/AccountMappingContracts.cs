@@ -2,7 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 科目配對表的五個舊版分類名稱，也是五個內建分類的顯示名稱。科目配對寫入 standardized_category 欄時仍用這些名稱，
-/// v7 升版也用它們把舊的單選分類換成分類身分；新規則以案件分類樹的分類身分或語意角色判定。
+/// 規則以案件分類樹的分類身分或語意角色判定。
 /// </summary>
 public static class AccountMappingCategories
 {
@@ -63,7 +63,7 @@ public static class AccountMappingColumnResolver
 /// <summary>投影成功的一列科目配對。</summary>
 public sealed record AccountMappingRow(
     int SourceRowNumber,
-    string AccountCode,
+    string AccountNumber,
     string? AccountName,
     string Category,
     string CategoryId,
@@ -72,15 +72,15 @@ public sealed record AccountMappingRow(
     public bool HasExplicitCategory { get; init; } = true;
     public AccountMappingRow(
         int sourceRowNumber,
-        string accountCode,
+        string accountNumber,
         string? accountName,
         string category)
         : this(
             sourceRowNumber,
-            accountCode,
+            accountNumber,
             accountName,
             category,
-            AccountTaxonomyBuiltIns.TryResolveLegacyLabel(category, out var builtIn)
+            AccountCategoryBuiltIns.TryResolveLegacyLabel(category, out var builtIn)
                 ? builtIn.CategoryId
                 : throw new ArgumentOutOfRangeException(nameof(category), category, "未知的內建科目分類。"),
             category)
@@ -94,7 +94,7 @@ public sealed record AccountMappingRowError(
     string Message);
 
 /// <summary>
-/// 暫存列 → 科目配對列的純函式投影：以 project taxonomy 解析 label／ID、科目代號必填；
+/// 暫存列 → 科目配對列的純函式投影：以專案的科目分類解析 label／ID、科目代號必填；
 /// 分類空白依 legacy 行為落到 builtin.others。
 /// </summary>
 public static class AccountMappingRowProjector
@@ -107,14 +107,14 @@ public static class AccountMappingRowProjector
         TryProject(
             row,
             resolution,
-            AccountTaxonomyCatalog.BuiltInSnapshot,
+            AccountCategoryCatalog.BuiltInSnapshot,
             out projected,
             out error);
 
     public static bool TryProject(
         StagingRow row,
         AccountMappingColumnResolver.Resolution resolution,
-        AccountTaxonomySnapshot taxonomy,
+        AccountCategorySnapshot categorySnapshot,
         out AccountMappingRow? projected,
         out AccountMappingRowError? error)
     {
@@ -130,10 +130,10 @@ public static class AccountMappingRowProjector
         }
 
         row.Values.TryGetValue(resolution.CategoryColumn, out var rawCategory);
-        AccountTaxonomyCategory category;
+        AccountCategory category;
         try
         {
-            category = AccountTaxonomyCatalog.ResolveImportCategory(taxonomy, rawCategory);
+            category = AccountCategoryCatalog.ResolveImportCategory(categorySnapshot, rawCategory);
         }
         catch (JetActionException exception)
         {
@@ -152,7 +152,7 @@ public static class AccountMappingRowProjector
             name,
             category.Label,
             category.CategoryId,
-            AccountTaxonomyCatalog.LegacyLabelForSemanticRole(category.SemanticRole))
+            AccountCategoryCatalog.LegacyLabelForSemanticRole(category.SemanticRole))
         {
             HasExplicitCategory = !string.IsNullOrWhiteSpace(rawCategory)
         };
@@ -175,7 +175,7 @@ public sealed record AccountMappingState(
     int BlankCategoryCount = 0);
 
 /// <summary>配對檔分類欄留白的科目（投影時已落到 Others）；供第四步列出讓審計員決定要不要補填。</summary>
-public sealed record AccountMappingBlankAccount(string AccountCode, string? AccountName);
+public sealed record AccountMappingBlankAccount(string AccountNumber, string? AccountName);
 
 /// <summary>匯入結果（import.accountMapping.fromFile response 形狀的來源）。</summary>
 public sealed record AccountMappingImportResult(

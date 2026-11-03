@@ -29,17 +29,17 @@ internal sealed record LegacyAuditParityReferenceFile(
 }
 
 /// <summary>
-/// Stage 2 Track H 的本機 journey 輸入。實際 instance 由 ignored case profile 建立；
+/// 本機 journey 輸入。實際 instance 由 ignored case profile 建立；
 /// 本型別只定義結構，不保存任何案件值，也不在 <see cref="ToString"/> 回顯內容。
 /// </summary>
 internal sealed record LegacyAuditParityJourneyInput(
     [property: JsonIgnore] string CaseAlias,
     [property: JsonIgnore] string ProjectCode,
-    [property: JsonIgnore] string EntityName,
+    [property: JsonIgnore] string ClientName,
     [property: JsonIgnore] string OperatorId,
     [property: JsonIgnore] string PeriodStart,
     [property: JsonIgnore] string PeriodEnd,
-    [property: JsonIgnore] string? LastPeriodStart,
+    [property: JsonIgnore] string? PrepStartDate,
     [property: JsonIgnore] long SampleSeed,
     [property: JsonIgnore] IReadOnlyList<LegacyAuditParityImportSource> GlSources,
     [property: JsonIgnore] string GlImportMode,
@@ -62,12 +62,12 @@ internal sealed record LegacyAuditParityJourneyInput(
         : "legacy audit parity journey input (invalid alias redacted)";
 }
 
-internal sealed record LegacyAuditParityJourneyArtifact(
+internal sealed record LegacyAuditParityJourneyReport(
     LegacyReportKind Kind,
     [property: JsonIgnore] string FileName,
     [property: JsonIgnore] string FullPath)
 {
-    public override string ToString() => $"legacy parity artifact ({Kind})";
+    public override string ToString() => $"legacy parity report ({Kind})";
 }
 
 internal sealed class LegacyAuditParityJourneyResult
@@ -84,11 +84,11 @@ internal sealed class LegacyAuditParityJourneyResult
         bool validationCaptured,
         bool prescreenCaptured,
         bool filterCaptured,
-        bool tagMatrixCaptured,
+        bool highRiskSummaryCaptured,
         PrivateCaseInfVerificationFacts? infVerificationFacts,
         PrivateCaseScenarioVerificationFacts? scenarioVerificationFacts,
         LegacyAuditParityObservation? observation,
-        IReadOnlyList<LegacyAuditParityJourneyArtifact> artifacts,
+        IReadOnlyList<LegacyAuditParityJourneyReport> reports,
         IReadOnlyList<string> actionNames,
         TimeSpan elapsed)
     {
@@ -103,11 +103,11 @@ internal sealed class LegacyAuditParityJourneyResult
         ValidationCaptured = validationCaptured;
         PrescreenCaptured = prescreenCaptured;
         FilterCaptured = filterCaptured;
-        TagMatrixCaptured = tagMatrixCaptured;
+        HighRiskSummaryCaptured = highRiskSummaryCaptured;
         InfVerificationFacts = infVerificationFacts;
         ScenarioVerificationFacts = scenarioVerificationFacts;
         Observation = observation;
-        Artifacts = artifacts;
+        Reports = reports;
         ActionNames = actionNames;
         Elapsed = elapsed;
     }
@@ -134,7 +134,7 @@ internal sealed class LegacyAuditParityJourneyResult
 
     public bool FilterCaptured { get; }
 
-    public bool TagMatrixCaptured { get; }
+    public bool HighRiskSummaryCaptured { get; }
 
     internal LegacyAuditParityObservation? Observation { get; }
 
@@ -142,7 +142,7 @@ internal sealed class LegacyAuditParityJourneyResult
 
     internal PrivateCaseScenarioVerificationFacts? ScenarioVerificationFacts { get; }
 
-    internal IReadOnlyList<LegacyAuditParityJourneyArtifact> Artifacts { get; }
+    internal IReadOnlyList<LegacyAuditParityJourneyReport> Reports { get; }
 
     public IReadOnlyList<string> ActionNames { get; }
 
@@ -212,7 +212,7 @@ internal static partial class LegacyAuditParityJourney
 
         var stopwatch = Stopwatch.StartNew();
         var actionNames = new List<string>();
-        var artifacts = new List<LegacyAuditParityJourneyArtifact>();
+        var reports = new List<LegacyAuditParityJourneyReport>();
         var infSampleRows = new List<JsonElement>();
         var currentAction = "profile";
         string? projectId = null;
@@ -223,7 +223,7 @@ internal static partial class LegacyAuditParityJourney
         JsonElement? validation = null;
         JsonElement? prescreen = null;
         JsonElement? filter = null;
-        JsonElement? tagMatrix = null;
+        JsonElement? highRiskSummary = null;
         PrivateCaseInfVerificationFacts? infVerificationFacts = null;
         PrivateCaseScenarioVerificationFacts? scenarioVerificationFacts = null;
         var weekendUnion = new LegacyRowVoucherCounts(
@@ -255,11 +255,11 @@ internal static partial class LegacyAuditParityJourney
                 validation.HasValue,
                 prescreen.HasValue,
                 filter.HasValue,
-                tagMatrix.HasValue,
+                highRiskSummary.HasValue,
                 infVerificationFacts,
                 scenarioVerificationFacts,
                 observation,
-                artifacts.ToArray(),
+                reports.ToArray(),
                 actionNames.ToArray(),
                 stopwatch.Elapsed);
         }
@@ -276,11 +276,11 @@ internal static partial class LegacyAuditParityJourney
                 JsonSerializer.Serialize(new
                 {
                     projectCode = input.ProjectCode,
-                    entityName = input.EntityName,
+                    clientName = input.ClientName,
                     operatorId = input.OperatorId,
                     periodStart = input.PeriodStart,
                     periodEnd = input.PeriodEnd,
-                    lastPeriodStart = input.LastPeriodStart,
+                    prepStartDate = input.PrepStartDate,
                     databaseProvider = ProviderWireValue(provider),
                 }));
             projectId = RequiredString(created, "projectId", "project.create.response.projectId");
@@ -301,7 +301,7 @@ internal static partial class LegacyAuditParityJourney
 
             if (input.AuthorizedPreparerFile is not null)
             {
-                // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；只讓既有單欄清單明確指定唯一欄位。
+                // sourceColumn 改成必填，後端不再猜人員欄；只讓既有單欄清單明確指定唯一欄位。
                 // 只讀表頭，不在收據或例外中輸出私人欄名，保留原 action journey 的驗證目的。
                 currentAction = "import.authorizedPreparer.fromFile";
                 var authorizedColumns = await new OpenXmlSaxTableReader().ReadColumnsAsync(
@@ -356,7 +356,7 @@ internal static partial class LegacyAuditParityJourney
                 "mapping.commit.tb.response.projectedRowCount");
 
             // 科目配對檔在確認 GL 與 TB 欄位配對之後才匯入，和審計員第三步之後才到第四步的順序相同。
-            // 使用者 2026-10-08 裁定確認配對會清除科目配對；原本排在匯入階段，確認後就被清掉，
+            // 重新確認配對會清除科目配對（裁定 2026-10-08-12）；原本排在匯入階段，確認後就被清掉，
             // 預篩選與篩選因此看不到科目分類，「非預期科目組合」條件在 filter.commit 被擋下。
             // 第一次失敗：PrivateCase 20261016-022256727-0eb81785cf2e4d06872346decef0c552（SQLite）與
             // 20261016-022338940-03d1e548f9e349ffa2b665b753ebfe17（DuckDB）。
@@ -370,7 +370,7 @@ internal static partial class LegacyAuditParityJourney
             }
 
             validation = await DispatchAsync("validate.run");
-            var validationRunId = RequiredResultReference(validation.Value, "runId", "validate.response.resultRef.runId");
+            var validationResultId = RequiredResultReference(validation.Value, "resultId", "validate.response.resultRef.resultId");
             infSampleRows.AddRange(await ReadInfSampleAsync(DispatchAsync));
             infVerificationFacts = PrivateCaseInfVerificationFacts.Capture(
                 validation.Value,
@@ -381,20 +381,20 @@ internal static partial class LegacyAuditParityJourney
                 return Result(LegacyAuditParityCheckpoint.Validate);
             }
 
-            var validationArtifacts = await DispatchAsync(
-                "export.validationArtifacts",
-                JsonSerializer.Serialize(new { runId = validationRunId }));
-            CollectArtifactArray(host, projectId, validationArtifacts, artifacts);
+            var validationReports = await DispatchAsync(
+                "export.validationReports",
+                JsonSerializer.Serialize(new { resultId = validationResultId }));
+            CollectPublishedReports(host, projectId, validationReports, reports);
             // 科目配對範本自 2026-09-02 起是工作檔，不在驗證批次裡；比對仍需要這份工作簿。
             var accountMappingTemplate = await DispatchAsync(
                 "export.accountMappingTemplate",
-                JsonSerializer.Serialize(new { runId = validationRunId }));
-            CollectWorkFile(host, projectId, accountMappingTemplate, LegacyReportKind.AccountMapping, artifacts);
+                JsonSerializer.Serialize(new { resultId = validationResultId }));
+            CollectWorkFile(host, projectId, accountMappingTemplate, LegacyReportKind.AccountMapping, reports);
 
             RequireValidationEligible(validation.Value);
 
             prescreen = await DispatchAsync("prescreen.run");
-            var prescreenRunId = RequiredResultReference(prescreen.Value, "runId", "prescreen.response.resultRef.runId");
+            var prescreenResultId = RequiredResultReference(prescreen.Value, "resultId", "prescreen.response.resultRef.resultId");
 
             if (stopAfter == LegacyAuditParityCheckpoint.Prescreen)
             {
@@ -403,18 +403,18 @@ internal static partial class LegacyAuditParityJourney
 
             weekendUnion = await ReadWeekendUnionAsync(prescreen.Value, DispatchAsync);
 
-            var prescreenArtifact = await DispatchAsync(
+            var prescreenReport = await DispatchAsync(
                 "export.prescreenReport",
-                JsonSerializer.Serialize(new { runId = prescreenRunId }));
-            CollectSingleArtifact(host, projectId, prescreenArtifact, artifacts);
+                JsonSerializer.Serialize(new { resultId = prescreenResultId }));
+            CollectPublishedReport(host, projectId, prescreenReport, reports);
 
             filter = await DispatchAsync(
                 "filter.commit",
                 JsonSerializer.Serialize(new { scenarios = input.FilterScenarios }));
             var revision = RequiredResultReference(filter.Value, "revision", "filter.response.resultRef.revision");
-            tagMatrix = await DispatchAsync("query.tagMatrixScenarios");
+            highRiskSummary = await DispatchAsync("query.highRiskSummaryScenarios");
             scenarioVerificationFacts = PrivateCaseScenarioVerificationFacts.Capture(
-                tagMatrix.Value);
+                highRiskSummary.Value);
 
             if (stopAfter == LegacyAuditParityCheckpoint.Filter)
             {
@@ -422,27 +422,27 @@ internal static partial class LegacyAuditParityJourney
             }
 
             var scenarioPositions = Enumerable.Range(1, input.FilterScenarios.GetArrayLength()).ToArray();
-            var criteriaArtifact = await DispatchAsync(
+            var criteriaSelectionReport = await DispatchAsync(
                 "export.criteriaSelectionReport",
                 JsonSerializer.Serialize(new
                 {
-                    validationRunId,
-                    prescreenRunId,
+                    validationResultId,
+                    prescreenResultId,
                     revision,
                 }));
-            CollectSingleArtifact(host, projectId, criteriaArtifact, artifacts);
+            CollectPublishedReport(host, projectId, criteriaSelectionReport, reports);
 
-            var workpaperArtifact = await DispatchAsync(
-                "export.workpaperStream",
+            var workingPaper = await DispatchAsync(
+                "export.workingPaperStream",
                 JsonSerializer.Serialize(new
                 {
-                    validationRunId,
-                    prescreenRunId,
+                    validationResultId,
+                    prescreenResultId,
                     scenarioRevision = revision,
                     scenarioPositions,
                 }));
-            CollectSingleArtifact(host, projectId, workpaperArtifact, artifacts);
-            EnsureSixArtifacts(artifacts);
+            CollectPublishedReport(host, projectId, workingPaper, reports);
+            EnsureSixReports(reports);
             if (input.ObservationCase is { } observationCase)
             {
                 observation = LegacyAuditParityObservationFactory.FromResponses(
@@ -450,9 +450,9 @@ internal static partial class LegacyAuditParityJourney
                     provider,
                     validation.Value,
                     prescreen.Value,
-                    tagMatrix.Value,
+                    highRiskSummary.Value,
                     infSampleRows,
-                    artifacts,
+                    reports,
                     weekendUnion,
                     input.LegacyFilterScenarioIds);
             }
@@ -610,7 +610,7 @@ internal static partial class LegacyAuditParityJourney
         }
 
         var rowIds = new HashSet<long>();
-        var documentNumbers = new HashSet<string>(StringComparer.Ordinal);
+        var voucherNumbers = new HashSet<string>(StringComparer.Ordinal);
         foreach (var pair in selected.Where(pair => pair.Value.IsApplicable))
         {
             var capturedRows = new HashSet<long>();
@@ -645,14 +645,14 @@ internal static partial class LegacyAuditParityJourney
                         throw Incomplete("query.prescreenPage.response.duplicate-entry");
                     }
                     rowIds.Add(entryId);
-                    var documentNumber = NullableString(
+                    var voucherNumber = NullableString(
                         row,
-                        "documentNumber",
-                        "query.prescreenPage.response.documentNumber");
-                    if (documentNumber is not null)
+                        "voucherNumber",
+                        "query.prescreenPage.response.voucherNumber");
+                    if (voucherNumber is not null)
                     {
-                        capturedDocuments.Add(documentNumber);
-                        documentNumbers.Add(documentNumber);
+                        capturedDocuments.Add(voucherNumber);
+                        voucherNumbers.Add(voucherNumber);
                     }
                 }
 
@@ -674,7 +674,7 @@ internal static partial class LegacyAuditParityJourney
             }
         }
 
-        return new LegacyRowVoucherCounts(rowIds.Count, documentNumbers.Count);
+        return new LegacyRowVoucherCounts(rowIds.Count, voucherNumbers.Count);
     }
 
     private static string ImportPayload(
@@ -733,24 +733,24 @@ internal static partial class LegacyAuditParityJourney
             return;
         }
 
-        if (completeness.TryGetProperty("partA", out var partA))
+        if (completeness.TryGetProperty("storedTotals", out var storedTotals))
         {
-            if (partA.TryGetProperty("rowCountMatch", out var rowCountMatch)
+            if (storedTotals.TryGetProperty("rowCountMatch", out var rowCountMatch)
                 && rowCountMatch.ValueKind == JsonValueKind.False)
             {
-                throw Incomplete("validation.completenessEligibility.partARowCount");
+                throw Incomplete("validation.completenessEligibility.storedRowCount");
             }
-            if (partA.TryGetProperty("amountMatch", out var amountMatch)
+            if (storedTotals.TryGetProperty("amountMatch", out var amountMatch)
                 && amountMatch.ValueKind == JsonValueKind.False)
             {
-                throw Incomplete("validation.completenessEligibility.partAAmount");
+                throw Incomplete("validation.completenessEligibility.storedAmount");
             }
         }
         if (completeness.TryGetProperty("status", out var status)
             && status.ValueKind == JsonValueKind.String
             && string.Equals(status.GetString(), "na", StringComparison.OrdinalIgnoreCase))
         {
-            throw Incomplete("validation.completenessEligibility.partBNotApplicable");
+            throw Incomplete("validation.completenessEligibility.accountComparisonNotApplicable");
         }
         if (completeness.TryGetProperty("diffAccountCount", out var differenceCount)
             && differenceCount.ValueKind == JsonValueKind.Number
@@ -780,7 +780,7 @@ internal static partial class LegacyAuditParityJourney
                 (true, true) => "mixed",
                 _ => "untyped",
             };
-            throw Incomplete($"validation.completenessEligibility.partBDifference.{kind}");
+            throw Incomplete($"validation.completenessEligibility.accountComparisonDifference.{kind}");
         }
 
         throw Incomplete("validation.completenessEligibility.ineligible");
@@ -887,21 +887,21 @@ internal static partial class LegacyAuditParityJourney
         return number;
     }
 
-    private static void CollectArtifactArray(
+    private static void CollectPublishedReports(
         HandlerTestHost host,
         string projectId,
         JsonElement response,
-        List<LegacyAuditParityJourneyArtifact> artifacts)
+        List<LegacyAuditParityJourneyReport> reports)
     {
-        if (!response.TryGetProperty("artifacts", out var array)
+        if (!response.TryGetProperty("publishedReports", out var array)
             || array.ValueKind != JsonValueKind.Array)
         {
-            throw Incomplete("export.validationArtifacts.response.artifacts");
+            throw Incomplete("export.validationReports.response.publishedReports");
         }
 
-        foreach (var artifact in array.EnumerateArray())
+        foreach (var report in array.EnumerateArray())
         {
-            artifacts.Add(ReadArtifact(host, projectId, artifact));
+            reports.Add(ReadPublishedReport(host, projectId, report));
         }
     }
 
@@ -910,7 +910,7 @@ internal static partial class LegacyAuditParityJourney
         string projectId,
         JsonElement response,
         LegacyReportKind kind,
-        List<LegacyAuditParityJourneyArtifact> artifacts)
+        List<LegacyAuditParityJourneyReport> reports)
     {
         var filePath = RequiredString(response, "filePath", "export.response.filePath");
         var projectDirectory = Path.GetFullPath(Path.Combine(host.ProjectsRoot, projectId));
@@ -923,40 +923,40 @@ internal static partial class LegacyAuditParityJourney
             throw Incomplete("export.response.workFile");
         }
 
-        // 比對順序沿用 LegacyReportKind 的列舉順序：範本排在 Validation Report 之後、INF Report 之前。
-        var insertAt = artifacts.FindIndex(artifact => artifact.Kind > kind);
-        var workFile = new LegacyAuditParityJourneyArtifact(kind, Path.GetFileName(fullPath), fullPath);
+        // 比對順序沿用 LegacyReportKind 的列舉順序：範本排在資料驗證報告之後、資料可靠性抽樣清單之前。
+        var insertAt = reports.FindIndex(report => report.Kind > kind);
+        var workFile = new LegacyAuditParityJourneyReport(kind, Path.GetFileName(fullPath), fullPath);
         if (insertAt < 0)
         {
-            artifacts.Add(workFile);
+            reports.Add(workFile);
         }
         else
         {
-            artifacts.Insert(insertAt, workFile);
+            reports.Insert(insertAt, workFile);
         }
     }
 
-    private static void CollectSingleArtifact(
+    private static void CollectPublishedReport(
         HandlerTestHost host,
         string projectId,
         JsonElement response,
-        List<LegacyAuditParityJourneyArtifact> artifacts)
+        List<LegacyAuditParityJourneyReport> reports)
     {
-        if (!response.TryGetProperty("artifact", out var artifact)
-            || artifact.ValueKind != JsonValueKind.Object)
+        if (!response.TryGetProperty("publishedReport", out var report)
+            || report.ValueKind != JsonValueKind.Object)
         {
-            throw Incomplete("export.response.artifact");
+            throw Incomplete("export.response.publishedReport");
         }
 
-        artifacts.Add(ReadArtifact(host, projectId, artifact));
+        reports.Add(ReadPublishedReport(host, projectId, report));
     }
 
-    private static LegacyAuditParityJourneyArtifact ReadArtifact(
+    private static LegacyAuditParityJourneyReport ReadPublishedReport(
         HandlerTestHost host,
         string projectId,
-        JsonElement artifact)
+        JsonElement report)
     {
-        var kind = RequiredString(artifact, "kind", "export.response.artifact.kind") switch
+        var kind = RequiredString(report, "kind", "export.response.publishedReport.kind") switch
         {
             "validationReport" => LegacyReportKind.ValidationReport,
             "accountMapping" => LegacyReportKind.AccountMapping,
@@ -964,12 +964,12 @@ internal static partial class LegacyAuditParityJourney
             "prescreenReport" => LegacyReportKind.PrescreenReport,
             "criteriaSelectionReport" => LegacyReportKind.CriteriaSelectionReport,
             "workingPaper" => LegacyReportKind.WorkingPaper,
-            _ => throw Incomplete("export.response.artifact.kind"),
+            _ => throw Incomplete("export.response.publishedReport.kind"),
         };
-        var fileName = RequiredString(artifact, "fileName", "export.response.artifact.fileName");
+        var fileName = RequiredString(report, "fileName", "export.response.publishedReport.fileName");
         if (!string.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal))
         {
-            throw Incomplete("export.response.artifact.fileName");
+            throw Incomplete("export.response.publishedReport.fileName");
         }
 
         var projectDirectory = Path.GetFullPath(Path.Combine(host.ProjectsRoot, projectId));
@@ -979,18 +979,18 @@ internal static partial class LegacyAuditParityJourney
             : projectDirectory + Path.DirectorySeparatorChar;
         if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
         {
-            throw Incomplete("export.response.artifact.file");
+            throw Incomplete("export.response.publishedReport.file");
         }
 
-        return new LegacyAuditParityJourneyArtifact(kind, fileName, fullPath);
+        return new LegacyAuditParityJourneyReport(kind, fileName, fullPath);
     }
 
-    private static void EnsureSixArtifacts(IReadOnlyList<LegacyAuditParityJourneyArtifact> artifacts)
+    private static void EnsureSixReports(IReadOnlyList<LegacyAuditParityJourneyReport> reports)
     {
-        if (artifacts.Count != Enum.GetValues<LegacyReportKind>().Length
-            || artifacts.Select(artifact => artifact.Kind).Distinct().Count() != artifacts.Count)
+        if (reports.Count != Enum.GetValues<LegacyReportKind>().Length
+            || reports.Select(report => report.Kind).Distinct().Count() != reports.Count)
         {
-            throw Incomplete("export.sixArtifacts");
+            throw Incomplete("export.sixReports");
         }
     }
 
@@ -1070,7 +1070,7 @@ internal static partial class LegacyAuditParityJourney
         }
 
         RequireText(input.ProjectCode, "project.projectCode");
-        RequireText(input.EntityName, "project.entityName");
+        RequireText(input.ClientName, "project.clientName");
         RequireText(input.OperatorId, "project.operatorId");
         var periodStart = RequireDate(input.PeriodStart, "project.periodStart");
         var periodEnd = RequireDate(input.PeriodEnd, "project.periodEnd");
@@ -1110,11 +1110,11 @@ internal static partial class LegacyAuditParityJourney
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(input.LastPeriodStart))
+        if (string.IsNullOrWhiteSpace(input.PrepStartDate))
         {
-            throw Incomplete("project.lastPeriodStart");
+            throw Incomplete("project.prepStartDate");
         }
-        RequireDate(input.LastPeriodStart, "project.lastPeriodStart");
+        RequireDate(input.PrepStartDate, "project.prepStartDate");
 
         if (stopAfter == LegacyAuditParityCheckpoint.Prescreen)
         {

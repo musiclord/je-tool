@@ -53,7 +53,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             throw new InvalidOperationException(
                 "GL projection plan 的 PostingStatusMapped 與 mapping 不一致。");
         }
-        var canonicalPostingStatusPolicy = GlEffectivePopulation.NormalizePolicy(
+        var canonicalPostingStatusPolicy = GlExcludedPopulation.NormalizePolicy(
             postingStatusMapped,
             postingStatusPolicy);
         var projectionOptions = spec.Options with
@@ -73,16 +73,16 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         await using (var clear = database.CreateCommand(
                          writeConnection,
                          projectId,
-                         "DELETE FROM {s}.target_gl_rde_value; "
-                         + "DELETE FROM {s}.config_gl_rde_field; "
-                         + "DELETE FROM {s}.target_gl_entry;"))
+                         "DELETE FROM {s}.gl_rde_value; "
+                         + "DELETE FROM {s}.gl_rde_field; "
+                         + "DELETE FROM {s}.gl;"))
         {
             clear.Transaction = transaction;
             await clear.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
         // 重投影改寫 target,既有規則結果失效(投影失敗 rollback 時清除一併回退)。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             writeConnection,
             transaction,
             cancellationToken,
@@ -97,7 +97,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         await using var select = database.CreateCommand(readConnection, projectId,
             """
             SELECT row_number, source_no, source_row_number, row_json
-            FROM {s}.staging_gl_raw_row
+            FROM {s}.pbc_gl
             WHERE batch_id = @batchId
             ORDER BY row_number;
             """);
@@ -116,7 +116,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         var schema = SqlServerProjectSchema.For(projectId);
         using (var bulk = new SqlBulkCopy(writeConnection, SqlBulkCopyOptions.Default, transaction))
         {
-            bulk.DestinationTableName = $"[{schema}].[target_gl_entry]";
+            bulk.DestinationTableName = $"[{schema}].[gl]";
             bulk.EnableStreaming = true;
             bulk.BulkCopyTimeout = 0; // 大資料路徑不設逾時
             foreach (var column in GlProjectionDataReader.ColumnNames)
@@ -136,35 +136,35 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             return projectionReader.FailedResult();
         }
 
-        if (projectionReader.EffectiveRowCount == 0)
+        if (projectionReader.GlRowCount == 0)
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
             throw new JetActionException(
-                JetErrorCodes.EmptyEffectivePopulation,
-                GlProjectionGuard.EmptyEffectivePopulationMessage);
+                JetErrorCodes.EmptyGl,
+                GlProjectionGuard.EmptyGlMessage);
         }
 
         // 退化母體守門(語意對齊 LocalGlRepository):母體非空但借貸總額皆為 0 → 金額欄誤配,整批 rollback。
         if (GlProjectionGuard.IsDegenerateAmountPopulation(
-                projectionReader.EffectiveRowCount,
-                projectionReader.EffectiveDebitScaled,
-                projectionReader.EffectiveCreditScaled))
+                projectionReader.GlRowCount,
+                projectionReader.GlDebitScaled,
+                projectionReader.GlCreditScaled))
         {
             await transaction.RollbackAsync(cancellationToken);
             txLog.RolledBack();
             throw new JetActionException(JetErrorCodes.GlAmountsAllZero, GlProjectionGuard.DegenerateAmountMessage);
         }
 
-        // lineID 未對應:投影後逐傳票自動編號（語意對齊 LocalGlRepository;衍生值、不參與計算）。
+        // lineItem 未對應:投影後逐傳票自動編號（語意對齊 LocalGlRepository;衍生值、不參與計算）。
         if (!spec.HasLineItem)
         {
             await using var number = database.CreateCommand(writeConnection, projectId,
                 """
                 WITH c AS (
                     SELECT line_item, line_item_numeric_sort_key,
-                           ROW_NUMBER() OVER (PARTITION BY document_number ORDER BY source_row_number) AS rn
-                    FROM {s}.target_gl_entry
+                           ROW_NUMBER() OVER (PARTITION BY voucher_number ORDER BY source_row_number) AS rn
+                    FROM {s}.gl
                 )
                 UPDATE c
                 SET line_item = CAST(rn AS NVARCHAR(20)),
@@ -181,51 +181,49 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             await number.ExecuteNonQueryLoggedAsync(_log, Provider, cancellationToken);
         }
 
-        // 完整性測試的匯入控制總數落地（同一交易、commit 之前;MERGE 單列 upsert,語意對齊 SQLite ON CONFLICT）。
+        // 存入筆數與合計核對要用的數字落地（同一交易、commit 之前;MERGE 單列 upsert,語意對齊 SQLite ON CONFLICT）。
         await using (var ct = database.CreateCommand(writeConnection, projectId,
             """
                 MERGE {s}.gl_control_total AS target
-                USING (SELECT 1 AS singleton, @src AS source_row_count, @tgt AS target_row_count,
-                              @debit AS target_debit_scaled, @credit AS target_credit_scaled,
-                              @raw AS raw_row_count, @effective AS effective_row_count,
+                USING (SELECT 1 AS singleton, @pbc AS pbc_row_count, @tgt AS stored_row_count,
+                              @debit AS stored_debit_scaled, @credit AS stored_credit_scaled,
+                              @glRowCount AS gl_row_count,
                               @excludedPeriod AS excluded_by_period_count,
                               @excludedPostingStatus AS excluded_by_posting_status_count,
-                              @effectiveDebit AS effective_debit_scaled,
-                              @effectiveCredit AS effective_credit_scaled) AS source
+                              @glDebit AS gl_debit_scaled,
+                              @glCredit AS gl_credit_scaled) AS source
                 ON target.singleton = source.singleton
                 WHEN MATCHED THEN UPDATE SET
-                    source_row_count = source.source_row_count,
-                    target_row_count = source.target_row_count,
-                    target_debit_scaled = source.target_debit_scaled,
-                    target_credit_scaled = source.target_credit_scaled,
-                    raw_row_count = source.raw_row_count,
-                    effective_row_count = source.effective_row_count,
+                    pbc_row_count = source.pbc_row_count,
+                    stored_row_count = source.stored_row_count,
+                    stored_debit_scaled = source.stored_debit_scaled,
+                    stored_credit_scaled = source.stored_credit_scaled,
+                    gl_row_count = source.gl_row_count,
                     excluded_by_period_count = source.excluded_by_period_count,
                     excluded_by_posting_status_count = source.excluded_by_posting_status_count,
-                    effective_debit_scaled = source.effective_debit_scaled,
-                    effective_credit_scaled = source.effective_credit_scaled
+                    gl_debit_scaled = source.gl_debit_scaled,
+                    gl_credit_scaled = source.gl_credit_scaled
                 WHEN NOT MATCHED THEN
-                    INSERT (singleton, source_row_count, target_row_count, target_debit_scaled, target_credit_scaled,
-                            raw_row_count, effective_row_count, excluded_by_period_count,
-                            excluded_by_posting_status_count, effective_debit_scaled, effective_credit_scaled)
-                    VALUES (source.singleton, source.source_row_count, source.target_row_count,
-                            source.target_debit_scaled, source.target_credit_scaled,
-                            source.raw_row_count, source.effective_row_count, source.excluded_by_period_count,
-                            source.excluded_by_posting_status_count, source.effective_debit_scaled,
-                            source.effective_credit_scaled);
+                    INSERT (singleton, pbc_row_count, stored_row_count, stored_debit_scaled, stored_credit_scaled,
+                            gl_row_count, excluded_by_period_count,
+                            excluded_by_posting_status_count, gl_debit_scaled, gl_credit_scaled)
+                    VALUES (source.singleton, source.pbc_row_count, source.stored_row_count,
+                            source.stored_debit_scaled, source.stored_credit_scaled,
+                            source.gl_row_count, source.excluded_by_period_count,
+                            source.excluded_by_posting_status_count, source.gl_debit_scaled,
+                            source.gl_credit_scaled);
                 """))
         {
             ct.Transaction = transaction;
-            ct.Parameters.AddWithValue("@src", projectionReader.SourceRowCount);
+            ct.Parameters.AddWithValue("@pbc", projectionReader.PbcRowCount);
             ct.Parameters.AddWithValue("@tgt", (long)projectionReader.ValidRowCount);
             ct.Parameters.AddWithValue("@debit", projectionReader.TotalDebitScaled);
             ct.Parameters.AddWithValue("@credit", projectionReader.TotalCreditScaled);
-            ct.Parameters.AddWithValue("@raw", projectionReader.SourceRowCount);
-            ct.Parameters.AddWithValue("@effective", projectionReader.EffectiveRowCount);
+            ct.Parameters.AddWithValue("@glRowCount", projectionReader.GlRowCount);
             ct.Parameters.AddWithValue("@excludedPeriod", projectionReader.ExcludedByPeriodCount);
             ct.Parameters.AddWithValue("@excludedPostingStatus", projectionReader.ExcludedByPostingStatusCount);
-            ct.Parameters.AddWithValue("@effectiveDebit", projectionReader.EffectiveDebitScaled);
-            ct.Parameters.AddWithValue("@effectiveCredit", projectionReader.EffectiveCreditScaled);
+            ct.Parameters.AddWithValue("@glDebit", projectionReader.GlDebitScaled);
+            ct.Parameters.AddWithValue("@glCredit", projectionReader.GlCreditScaled);
             await ct.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -251,22 +249,22 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             projectionOptions.RdeFields,
             cancellationToken);
 
-        var sourceDefinitions = await SqlServerFieldDefinitionPersistence.LoadStatesAsync(
+        var sourceDefinitions = await SqlServerFieldInfoPersistence.LoadStatesAsync(
             database,
             writeConnection,
             transaction,
             projectId,
             batchId,
-            LegacyFieldDefinitionScope.Source,
+            FieldInfoScope.Source,
             cancellationToken);
-        await SqlServerFieldDefinitionPersistence.ReplaceAsync(
+        await SqlServerFieldInfoPersistence.ReplaceAsync(
             database,
             writeConnection,
             transaction,
             projectId,
             batchId,
-            LegacyFieldDefinitionScope.Target,
-            LegacyFieldDefinitionProjector.ProjectGl(sourceDefinitions, spec, moneyScale),
+            FieldInfoScope.Target,
+            FieldInfoProjector.ProjectGl(sourceDefinitions, spec, moneyScale),
             cancellationToken);
 
         var committedMapping = new CommittedMapping(
@@ -276,7 +274,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             batchId,
             committedUtc,
             MappingMetadataFormat.CurrentVersion,
-            // 填了幾格跟著配對保存（使用者 2026-10-28 裁定），重開案件與報告的配對資訊讀得到。
+            // 填了幾格跟著配對保存（裁定 2026-10-28-05），重開案件與報告的配對資訊讀得到。
             projectionOptions with { FillDownCount = projectionReader.FillDownCellCount });
         await SqlServerMappingStateStore.SaveWithinAsync(
             database,
@@ -295,13 +293,13 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         return new ProjectionResult(projectionReader.ValidRowCount, [])
         {
             Warnings = warnings,
-            EffectivePopulation = new GlEffectivePopulationTotals(
-                projectionReader.SourceRowCount,
-                projectionReader.EffectiveRowCount,
+            GlTotals = new GlTotals(
+                projectionReader.PbcRowCount,
+                projectionReader.GlRowCount,
                 projectionReader.ExcludedByPeriodCount,
                 projectionReader.ExcludedByPostingStatusCount,
-                projectionReader.EffectiveDebitScaled,
-                projectionReader.EffectiveCreditScaled),
+                projectionReader.GlDebitScaled,
+                projectionReader.GlCreditScaled),
             FillDownCellCount = projectionReader.FillDownCellCount
         };
     }
@@ -324,7 +322,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
             await using var insertField = database.CreateCommand(
                 connection,
                 projectId,
-                "INSERT INTO {s}.config_gl_rde_field "
+                "INSERT INTO {s}.gl_rde_field "
                 + "(field_id, source_column, label, value_type, ordinal, is_rde) "
                 + "VALUES (@fieldId, @sourceColumn, @label, @valueType, @ordinal, 1);");
             insertField.Transaction = transaction;
@@ -344,7 +342,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
         var requiredColumns = GlProjectionSourceBuffer.RequiredColumns(spec);
         var pageSize = GlProjectionSourceBuffer.EntryPageSize(requiredColumns.Count);
         var schema = SqlServerProjectSchema.For(projectId);
-        // 第二遍照第一遍的順序重新餵同一份往下填補（階段六，與本機 GL 倉儲相同）。SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
+        // 第二遍照第一遍的順序重新餵同一份往下填補（與本機 GL 倉儲相同）。SQL Server 開發暫緩期間加入，沒有 SQL Server 測試執行到。
         var fillDown = GlStagingFillDown.Create(spec);
         long cursor = 0;
         while (true)
@@ -354,8 +352,8 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
                              connection,
                              projectId,
                              "SELECT g.entry_id, s.source_no, s.source_row_number, s.row_json "
-                             + "FROM {s}.target_gl_entry g "
-                             + "JOIN {s}.staging_gl_raw_row s ON s.batch_id = g.batch_id "
+                             + "FROM {s}.gl g "
+                             + "JOIN {s}.pbc_gl s ON s.batch_id = g.batch_id "
                              + "AND s.row_number = g.source_row_number "
                              + "WHERE g.batch_id = @batchId AND g.entry_id > @cursor "
                              + "ORDER BY g.entry_id "
@@ -403,7 +401,7 @@ public sealed class SqlServerGlRepository(SqlServerProjectDatabase database, ILo
 
                 using var bulk = new SqlBulkCopy(connection, SqlBulkCopyOptions.Default, transaction)
                 {
-                    DestinationTableName = $"[{schema}].[target_gl_rde_value]",
+                    DestinationTableName = $"[{schema}].[gl_rde_value]",
                     EnableStreaming = true,
                     BulkCopyTimeout = 0
                 };

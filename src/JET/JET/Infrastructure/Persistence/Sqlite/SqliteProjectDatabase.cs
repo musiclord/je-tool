@@ -12,8 +12,8 @@ namespace JET.Infrastructure;
 public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase
 {
     /// <summary>
-    /// 基底 schema，建成後標記為第 6 版。新資料庫先以此建立，再由 <see cref="EnsureCreatedAsync"/>
-    /// 的遷移段逐版升到目前的第 11 版。第 1 到第 5 版的舊資料庫不再升版，開啟時直接回報錯誤。
+    /// 案件資料庫的現行結構，建成後標成第 15 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
+    /// 不是現行版本就請審計員刪除案件後重建（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
     /// staging 的 row_number = 批次內單調遞增排序鍵（INF 抽樣基礎），
     /// source_row_number = 來源檔內實際列號（錯誤定位），source_no 對應 import_batch_source。
     /// </summary>
@@ -23,11 +23,6 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
-        INSERT INTO schema_info (key, value) VALUES ('schema_version', '6')
-        ON CONFLICT(key) DO NOTHING;
-
-        INSERT INTO schema_info (key, value) VALUES ('filter_data_revision', '0')
-        ON CONFLICT(key) DO NOTHING;
 
         CREATE TABLE IF NOT EXISTS import_batch (
             batch_id         TEXT PRIMARY KEY,
@@ -56,8 +51,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         );
 
         -- 匯入檔的欄位定義（名稱、型態、長度），對應舊版 IDEA 的 TableDef，只在匯入資料時寫入。
-        -- IF NOT EXISTS 讓建表可重複執行；不替既有匯入批次回填或猜測欄位定義。
-        CREATE TABLE IF NOT EXISTS import_field_definition (
+        CREATE TABLE IF NOT EXISTS field_info (
             batch_id            TEXT NOT NULL,
             definition_scope    TEXT NOT NULL CHECK (definition_scope IN ('source','target')),
             ordinal             INTEGER NOT NULL,
@@ -71,7 +65,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, definition_scope, ordinal)
         );
 
-        CREATE TABLE IF NOT EXISTS staging_gl_raw_row (
+        CREATE TABLE IF NOT EXISTS pbc_gl (
             batch_id          TEXT NOT NULL,
             row_number        INTEGER NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -80,7 +74,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, row_number)
         );
 
-        CREATE TABLE IF NOT EXISTS staging_tb_raw_row (
+        CREATE TABLE IF NOT EXISTS pbc_tb (
             batch_id          TEXT NOT NULL,
             row_number        INTEGER NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -89,16 +83,18 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, row_number)
         );
 
-        CREATE TABLE IF NOT EXISTS config_field_mapping (
+        CREATE TABLE IF NOT EXISTS field_mapping (
             dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
             mapping_json    TEXT NOT NULL,
             mode_name       TEXT NOT NULL,
             source_batch_id TEXT NOT NULL,
-            committed_utc   TEXT NOT NULL
+            committed_utc   TEXT NOT NULL,
+            format_version  INTEGER NOT NULL DEFAULT 1,
+            options_json    TEXT
         );
 
         -- 重新匯入前最後一次確認的配對，只用來在重開案件時帶回草稿（LocalMappingStateStore.RetireCommittedMappingSql）。
-        CREATE TABLE IF NOT EXISTS config_field_mapping_previous (
+        CREATE TABLE IF NOT EXISTS field_mapping_previous (
             dataset_kind    TEXT PRIMARY KEY CHECK (dataset_kind IN ('gl','tb')),
             mapping_json    TEXT NOT NULL,
             mode_name       TEXT NOT NULL,
@@ -108,25 +104,25 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             options_json    TEXT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS staging_calendar_raw_day (
+        CREATE TABLE IF NOT EXISTS calendar_day (
             day_type TEXT NOT NULL CHECK (day_type IN ('holiday','makeup')),
             date     TEXT NOT NULL,
             day_name TEXT NULL,
             PRIMARY KEY (day_type, date)
         );
 
-        CREATE TABLE IF NOT EXISTS target_gl_entry (
+        CREATE TABLE IF NOT EXISTS gl (
             entry_id              INTEGER PRIMARY KEY AUTOINCREMENT,
             batch_id              TEXT NOT NULL,
             source_row_number     INTEGER NOT NULL,
-            document_number       TEXT NULL,
+            voucher_number       TEXT NULL,
             line_item             TEXT NULL,
             line_item_numeric_sort_key TEXT NULL,
-            post_date             TEXT NULL,
+            gl_date             TEXT NULL,
             approval_date         TEXT NULL,
-            account_code          TEXT NULL,
+            account_number          TEXT NULL,
             account_name          TEXT NULL,
-            document_description  TEXT NULL,
+            description           TEXT NULL,
             source_module         TEXT NULL,
             created_by            TEXT NULL,
             approved_by           TEXT NULL,
@@ -134,50 +130,62 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             amount_scaled         INTEGER NOT NULL,
             debit_amount_scaled   INTEGER NOT NULL,
             credit_amount_scaled  INTEGER NOT NULL,
-            dr_cr                 TEXT NOT NULL CHECK (dr_cr IN ('DEBIT','CREDIT'))
+            dr_cr                 TEXT NOT NULL CHECK (dr_cr IN ('DEBIT','CREDIT')),
+            posting_status        TEXT,
+            is_excluded           INTEGER,
+            exclusion_reason      TEXT
         );
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_doc
-            ON target_gl_entry (document_number);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_account
-            ON target_gl_entry (account_code);
+        CREATE INDEX IF NOT EXISTS ix_gl_voucher
+            ON gl (voucher_number);
+        CREATE INDEX IF NOT EXISTS ix_gl_account
+            ON gl (account_number);
+        CREATE INDEX IF NOT EXISTS ix_gl_gl_date
+            ON gl (gl_date);
+        CREATE INDEX IF NOT EXISTS ix_gl_approval_date
+            ON gl (approval_date);
 
-        CREATE TABLE IF NOT EXISTS target_tb_balance (
+        CREATE TABLE IF NOT EXISTS tb (
             balance_id            INTEGER PRIMARY KEY AUTOINCREMENT,
             batch_id              TEXT NOT NULL,
             source_row_number     INTEGER NOT NULL,
-            account_code          TEXT NULL,
+            account_number          TEXT NULL,
             account_name          TEXT NULL,
             change_amount_scaled  INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS ix_target_tb_balance_account
-            ON target_tb_balance (account_code);
+        CREATE INDEX IF NOT EXISTS ix_tb_account
+            ON tb (account_number);
 
-        CREATE TABLE IF NOT EXISTS result_rule_run (
-            run_id        TEXT PRIMARY KEY,
-            run_kind      TEXT NOT NULL CHECK (run_kind IN ('validate','prescreen')),
+        -- 驗證結果與預篩選結果各一張表，每次執行新增一列，讀取時取 generated_utc 最新的一列。
+        CREATE TABLE IF NOT EXISTS validation_result (
+            result_id     TEXT PRIMARY KEY,
             generated_utc TEXT NOT NULL,
             summary_json  TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS ix_result_rule_run_kind
-            ON result_rule_run (run_kind, generated_utc);
-
-        CREATE TABLE IF NOT EXISTS result_inf_sampling_test_sample (
-            run_id          TEXT NOT NULL,
-            entry_id        INTEGER NOT NULL,
-            document_number TEXT NULL,
-            line_item       TEXT NULL,
-            PRIMARY KEY (run_id, entry_id)
+        CREATE TABLE IF NOT EXISTS prescreen_result (
+            result_id     TEXT PRIMARY KEY,
+            generated_utc TEXT NOT NULL,
+            summary_json  TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS config_filter_scenario (
-            position        INTEGER PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS inf_sample (
+            result_id       TEXT NOT NULL,
+            entry_id        INTEGER NOT NULL,
+            voucher_number TEXT NULL,
+            line_item       TEXT NULL,
+            PRIMARY KEY (result_id, entry_id)
+        );
+
+        -- scenario_id 是情境不變的編號，結果依它存放；position 是畫面上的順序，移除情境後由後面的往前補。
+        CREATE TABLE IF NOT EXISTS filter_scenario (
+            scenario_id     INTEGER PRIMARY KEY,
+            position        INTEGER NOT NULL,
             name            TEXT NOT NULL,
             rationale       TEXT NOT NULL,
             definition_json TEXT NOT NULL,
             saved_utc       TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS staging_account_mapping_raw_row (
+        CREATE TABLE IF NOT EXISTS pbc_account_mapping (
             batch_id          TEXT NOT NULL,
             row_number        INTEGER NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -186,21 +194,22 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             PRIMARY KEY (batch_id, row_number)
         );
 
-        CREATE TABLE IF NOT EXISTS target_account_mapping (
-            mapping_id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            batch_id              TEXT NOT NULL,
-            source_row_number     INTEGER NOT NULL,
-            account_code          TEXT NOT NULL,
-            account_name          TEXT NULL,
-            standardized_category TEXT NOT NULL
-                CHECK (standardized_category IN ('Revenue','Receivables','Cash','Receipt in advance','Others'))
+        CREATE TABLE IF NOT EXISTS account_mapping (
+            mapping_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id                TEXT NOT NULL,
+            source_row_number       INTEGER NOT NULL,
+            account_number            TEXT NOT NULL,
+            account_name            TEXT NULL,
+            standardized_category   TEXT NOT NULL
+                CHECK (standardized_category IN ('Revenue','Receivables','Cash','Receipt in advance','Others')),
+            category_id             TEXT,
+            classification_explicit INTEGER NULL
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS ix_target_account_mapping_code
-            ON target_account_mapping (account_code);
+        CREATE UNIQUE INDEX IF NOT EXISTS ix_account_mapping_number
+            ON account_mapping (account_number);
 
-        -- 授權編製人員清單：只有姓名一欄（name 為主鍵），另有原始列暫存表。
-        -- 不登記在 import_batch；用 IF NOT EXISTS 新增，不需升 schema 版本，既有資料庫開啟時自動補上。
-        CREATE TABLE IF NOT EXISTS staging_authorized_preparer_raw_row (
+        -- 授權編製人員清單：只有姓名一欄（name 為主鍵），另有原始列暫存表；不登記在 import_batch。
+        CREATE TABLE IF NOT EXISTS pbc_authorized_preparer (
             batch_id          TEXT NOT NULL,
             row_number        INTEGER NOT NULL,
             source_no         INTEGER NOT NULL DEFAULT 1,
@@ -208,48 +217,154 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             row_json          TEXT NOT NULL,
             PRIMARY KEY (batch_id, row_number)
         );
-        CREATE TABLE IF NOT EXISTS target_authorized_preparer (
+        CREATE TABLE IF NOT EXISTS authorized_preparer (
             name TEXT NOT NULL PRIMARY KEY
         );
 
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_post_date
-            ON target_gl_entry (post_date);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_entry_approval_date
-            ON target_gl_entry (approval_date);
-
-        -- 前端「狀態與訊息」的保存處，由 log.append 寫入、log.recent 讀取。
-        -- 只是操作輔助紀錄，不是審計留痕；用 IF NOT EXISTS 新增，不需升 schema 版本，既有資料庫開啟時自動補上。
-        -- 等級限制在第 12 版加上 error（訊息分三級），既有資料庫由 MessageLogLevelMigration 重建這張表。
-        CREATE TABLE IF NOT EXISTS app_message_log (
+        -- 前端「狀態與訊息」的保存處，由 log.append 寫入、log.recent 讀取；只是操作輔助紀錄，不是審計留痕。
+        CREATE TABLE IF NOT EXISTS message_log (
             message_id   INTEGER PRIMARY KEY AUTOINCREMENT,
             occurred_utc TEXT NOT NULL,
             level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
             text         TEXT NOT NULL
         );
 
-        -- 完整性測試 part(a) 的控制總數，只有一列，每次把匯入資料寫進正式表時整列覆寫。
+        -- 存入筆數與合計核對的控制總數，只有一列，每次把匯入資料寫進正式表時整列覆寫。
         -- 記錄當時的來源列數、母體列數與借貸總額，供 validate.run 和正式表目前的數字比對。
-        -- 用 IF NOT EXISTS 新增，不需升 schema 版本，既有資料庫開啟時自動補上。
         CREATE TABLE IF NOT EXISTS gl_control_total (
-            singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
-            source_row_count INTEGER NOT NULL,
-            target_row_count INTEGER NOT NULL,
-            target_debit_scaled  INTEGER NOT NULL,
-            target_credit_scaled INTEGER NOT NULL
+            singleton                        INTEGER PRIMARY KEY CHECK (singleton = 1),
+            pbc_row_count                    INTEGER NOT NULL,
+            stored_row_count                 INTEGER NOT NULL,
+            stored_debit_scaled              INTEGER NOT NULL,
+            stored_credit_scaled             INTEGER NOT NULL,
+            gl_row_count                     INTEGER,
+            excluded_by_period_count         INTEGER,
+            excluded_by_posting_status_count INTEGER,
+            gl_debit_scaled                  INTEGER,
+            gl_credit_scaled                 INTEGER
         );
 
-        -- 進階篩選的命中結果：filter.commit 把每個已存情境命中的 entry_id 存在這裡，
-        -- 供 query.filterHitsPage 依主鍵順序分頁讀取。這是可重算的衍生資料，
-        -- 由 RuleRunResultReset 隨其他結果一起清除。用 IF NOT EXISTS 新增，不需升 schema 版本。
-        CREATE TABLE IF NOT EXISTS result_filter_run (
-            scenario_position INTEGER NOT NULL,
-            entry_id          INTEGER NOT NULL,
-            PRIMARY KEY (scenario_position, entry_id)
+        -- 進階篩選的命中結果：儲存情境時把這個情境命中的 entry_id 依情境編號存在這裡，
+        -- 檢視、高風險條件彙總與匯出都讀這裡。這是可重算的衍生資料，由 ResultReset 隨其他結果一起清除。
+        CREATE TABLE IF NOT EXISTS filter_hit (
+            scenario_id INTEGER NOT NULL,
+            entry_id    INTEGER NOT NULL,
+            PRIMARY KEY (scenario_id, entry_id)
         );
-        -- tag 矩陣查詢（query.tagMatrixVoucherPage、query.tagMatrixRowPage）的輔助索引：以 entry_id 開頭，讓「這筆分錄有沒有命中」
-        -- 與「一段 entry_id 範圍命中了哪些情境」兩種查詢都能走索引；主鍵以 scenario_position 開頭，
-        -- 不適合這兩種查詢。用 IF NOT EXISTS 新增，不需升 schema 版本。
-        CREATE INDEX IF NOT EXISTS idx_result_filter_run_entry ON result_filter_run (entry_id, scenario_position);
+        -- 高風險條件彙總查詢（query.highRiskSummaryVoucherPage、query.highRiskSummaryRowPage）的輔助索引：以 entry_id 開頭，讓「這筆分錄有沒有命中」
+        -- 與「一段 entry_id 範圍命中了哪些情境」兩種查詢都能走索引；主鍵以 scenario_id 開頭，不適合這兩種查詢。
+        CREATE INDEX IF NOT EXISTS idx_filter_hit_entry ON filter_hit (entry_id, scenario_id);
+
+        -- 命中傳票裡每筆分錄符合第幾組第幾條，和 filter_hit 同時寫入、同時清除；檢視傳票分錄的說明讀這裡，不再重新判斷條件。
+        -- 只存命中傳票裡的分錄，沒命中的分錄也可能符合其中幾條，畫面照樣寫出。
+        CREATE TABLE IF NOT EXISTS filter_hit_condition (
+            scenario_id  INTEGER NOT NULL,
+            entry_id     INTEGER NOT NULL,
+            group_no     INTEGER NOT NULL,
+            condition_no INTEGER NOT NULL,
+            PRIMARY KEY (scenario_id, entry_id, group_no, condition_no)
+        );
+
+        CREATE TABLE IF NOT EXISTS gl_rde_field (
+            field_id      TEXT PRIMARY KEY,
+            source_column TEXT NOT NULL,
+            label         TEXT NOT NULL,
+            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','amount')),
+            ordinal       INTEGER NOT NULL,
+            is_rde        INTEGER NOT NULL CHECK (is_rde IN (0,1))
+        );
+
+        CREATE TABLE IF NOT EXISTS gl_rde_value (
+            entry_id      INTEGER NOT NULL,
+            field_id      TEXT NOT NULL,
+            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','amount')),
+            text_value    TEXT NULL,
+            date_value    TEXT NULL,
+            amount_scaled INTEGER NULL,
+            PRIMARY KEY (entry_id, field_id),
+            CHECK (
+                (CASE WHEN text_value IS NULL THEN 0 ELSE 1 END
+                 + CASE WHEN date_value IS NULL THEN 0 ELSE 1 END
+                 + CASE WHEN amount_scaled IS NULL THEN 0 ELSE 1 END) = 1
+                AND ((value_type = 'text' AND text_value IS NOT NULL)
+                  OR (value_type = 'date' AND date_value IS NOT NULL)
+                  OR (value_type = 'amount' AND amount_scaled IS NOT NULL))
+            )
+        );
+        CREATE INDEX IF NOT EXISTS ix_gl_rde_value_text
+            ON gl_rde_value (field_id, value_type, text_value, entry_id);
+        CREATE INDEX IF NOT EXISTS ix_gl_rde_value_date
+            ON gl_rde_value (field_id, value_type, date_value, entry_id);
+        CREATE INDEX IF NOT EXISTS ix_gl_rde_value_amount
+            ON gl_rde_value (field_id, value_type, amount_scaled, entry_id);
+
+        CREATE TABLE IF NOT EXISTS account_category (
+            category_id        TEXT PRIMARY KEY,
+            label              TEXT NOT NULL,
+            ordinal            INTEGER NOT NULL UNIQUE,
+            semantic_role      TEXT NOT NULL,
+            is_builtin         INTEGER NOT NULL CHECK (is_builtin IN (0,1)),
+            revision           INTEGER NOT NULL,
+            parent_category_id TEXT NULL
+        );
+        INSERT INTO account_category
+            (category_id, label, ordinal, semantic_role, is_builtin, revision)
+        VALUES
+            ('builtin.revenue', 'Revenue', 0, 'revenue', 1, 1),
+            ('builtin.receivables', 'Receivables', 1, 'receivables', 1, 1),
+            ('builtin.cash', 'Cash', 2, 'cash', 1, 1),
+            ('builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1),
+            ('builtin.others', 'Others', 4, 'others', 1, 1)
+        ON CONFLICT(category_id) DO NOTHING;
+
+        -- 科目分類樹的祖先與子孫對照，每個分類至少有自己對自己一列；之後由 AccountCategoryHierarchy.SavePathsAsync 整份改寫。
+        CREATE TABLE IF NOT EXISTS account_category_path (
+            ancestor_id   TEXT NOT NULL,
+            descendant_id TEXT NOT NULL,
+            PRIMARY KEY (ancestor_id, descendant_id)
+        );
+        INSERT INTO account_category_path (ancestor_id, descendant_id)
+            SELECT category_id, category_id FROM account_category WHERE true
+        ON CONFLICT(ancestor_id, descendant_id) DO NOTHING;
+
+        CREATE TABLE IF NOT EXISTS result_stale_state (
+            singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
+            validation_stale INTEGER NOT NULL CHECK (validation_stale IN (0,1)),
+            prescreen_stale  INTEGER NOT NULL CHECK (prescreen_stale IN (0,1)),
+            filter_stale     INTEGER NOT NULL CHECK (filter_stale IN (0,1))
+        );
+        INSERT INTO result_stale_state
+            (singleton, validation_stale, prescreen_stale, filter_stale)
+        VALUES (1, 0, 0, 0)
+        ON CONFLICT(singleton) DO NOTHING;
+
+        -- 案件的操作留痕只能新增：兩個觸發器擋下修改與刪除。
+        CREATE TABLE IF NOT EXISTS operation_log (
+            event_id       TEXT PRIMARY KEY,
+            occurred_utc   TEXT NOT NULL,
+            operation      TEXT NOT NULL,
+            target_type    TEXT NOT NULL,
+            target_id      TEXT NOT NULL,
+            subject_count  INTEGER NOT NULL CHECK (subject_count >= 0),
+            replaced_count INTEGER NOT NULL CHECK (replaced_count >= 0)
+        );
+        CREATE INDEX IF NOT EXISTS ix_operation_log_occurred
+            ON operation_log (occurred_utc, event_id);
+        CREATE TRIGGER IF NOT EXISTS trg_operation_log_no_update
+        BEFORE UPDATE ON operation_log
+        BEGIN
+            SELECT RAISE(ABORT, 'project audit log is append-only');
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_operation_log_no_delete
+        BEFORE DELETE ON operation_log
+        BEGIN
+            SELECT RAISE(ABORT, 'project audit log is append-only');
+        END;
+
+        INSERT INTO schema_info (key, value) VALUES ('filter_data_revision', '0')
+        ON CONFLICT(key) DO NOTHING;
+        INSERT INTO schema_info (key, value) VALUES ('schema_version', '18')
+        ON CONFLICT(key) DO NOTHING;
         """;
 
     public string GetDatabasePath(string projectId) => folder.GetDatabasePath(projectId);
@@ -273,7 +388,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         }
 
         // 私有快取：案件資料庫用 WAL，讀取讀上一次提交的資料，不等別條連線還沒提交的寫入。
-        // 共用快取會改用表格鎖，長作業寫入期間其他要求讀同一張表要等到逾時（2026-10-05 V6）。
+        // 共用快取會改用表格鎖，長作業寫入期間其他要求讀同一張表要等到逾時。
         // 寫入仍然一次一條，由 Microsoft.Data.Sqlite 在逾時內重試。
         var builder = new SqliteConnectionStringBuilder
         {
@@ -330,120 +445,9 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         DbConnection connection, DbTransaction transaction, string table, IReadOnlyList<string> columns)
         => new SqliteBulkRowWriter(connection, transaction, table, columns);
 
-    private const string BumpToV7Sql =
-        "UPDATE schema_info SET value = '7' WHERE key = 'schema_version';";
-
-    private const string CreateV8AuditTableSql =
-        """
-        CREATE TABLE IF NOT EXISTS audit_event_log (
-            event_id       TEXT PRIMARY KEY,
-            occurred_utc   TEXT NOT NULL,
-            operation      TEXT NOT NULL,
-            target_type    TEXT NOT NULL,
-            target_id      TEXT NOT NULL,
-            subject_count  INTEGER NOT NULL CHECK (subject_count >= 0),
-            replaced_count INTEGER NOT NULL CHECK (replaced_count >= 0)
-        );
-        CREATE INDEX IF NOT EXISTS ix_audit_event_log_occurred
-            ON audit_event_log (occurred_utc, event_id);
-        """;
-
-    private const string BumpToV8Sql =
-        "UPDATE schema_info SET value = '8' WHERE key = 'schema_version';";
-
-    /// <summary>
-    /// 第 8 版 → 第 9 版：把 <c>audit_event_log</c> 的 append-only 從程式紀律提升為資料庫層強制。
-    /// SQLite 沒有 table-level 權限，引擎機制是 BEFORE UPDATE／BEFORE DELETE trigger 內的
-    /// <c>RAISE(ABORT, …)</c>；INSERT 不受影響。只加防護，不動既有列。
-    /// </summary>
-    private const string CreateV9AuditGuardSql =
-        """
-        CREATE TRIGGER IF NOT EXISTS trg_audit_event_log_no_update
-        BEFORE UPDATE ON audit_event_log
-        BEGIN
-            SELECT RAISE(ABORT, 'project audit log is append-only');
-        END;
-        CREATE TRIGGER IF NOT EXISTS trg_audit_event_log_no_delete
-        BEFORE DELETE ON audit_event_log
-        BEGIN
-            SELECT RAISE(ABORT, 'project audit log is append-only');
-        END;
-        """;
-
-    private const string BumpToV9Sql =
-        "UPDATE schema_info SET value = '9' WHERE key = 'schema_version';";
-
-    private const string CreateV7TablesAndIndexesSql =
-        """
-        CREATE TABLE IF NOT EXISTS config_gl_rde_field (
-            field_id      TEXT PRIMARY KEY,
-            source_column TEXT NOT NULL,
-            label         TEXT NOT NULL,
-            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','money')),
-            ordinal       INTEGER NOT NULL,
-            is_rde        INTEGER NOT NULL CHECK (is_rde IN (0,1))
-        );
-
-        CREATE TABLE IF NOT EXISTS target_gl_rde_value (
-            entry_id      INTEGER NOT NULL,
-            field_id      TEXT NOT NULL,
-            value_type    TEXT NOT NULL CHECK (value_type IN ('text','date','money')),
-            text_value    TEXT NULL,
-            date_value    TEXT NULL,
-            amount_scaled INTEGER NULL,
-            PRIMARY KEY (entry_id, field_id),
-            CHECK (
-                (CASE WHEN text_value IS NULL THEN 0 ELSE 1 END
-                 + CASE WHEN date_value IS NULL THEN 0 ELSE 1 END
-                 + CASE WHEN amount_scaled IS NULL THEN 0 ELSE 1 END) = 1
-                AND ((value_type = 'text' AND text_value IS NOT NULL)
-                  OR (value_type = 'date' AND date_value IS NOT NULL)
-                  OR (value_type = 'money' AND amount_scaled IS NOT NULL))
-            )
-        );
-        CREATE INDEX IF NOT EXISTS ix_target_gl_rde_value_text
-            ON target_gl_rde_value (field_id, value_type, text_value, entry_id);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_rde_value_date
-            ON target_gl_rde_value (field_id, value_type, date_value, entry_id);
-        CREATE INDEX IF NOT EXISTS ix_target_gl_rde_value_amount
-            ON target_gl_rde_value (field_id, value_type, amount_scaled, entry_id);
-
-        CREATE TABLE IF NOT EXISTS config_account_taxonomy (
-            category_id  TEXT PRIMARY KEY,
-            label        TEXT NOT NULL,
-            ordinal      INTEGER NOT NULL UNIQUE,
-            semantic_role TEXT NOT NULL,
-            is_builtin   INTEGER NOT NULL CHECK (is_builtin IN (0,1)),
-            revision     INTEGER NOT NULL
-        );
-        INSERT INTO config_account_taxonomy
-            (category_id, label, ordinal, semantic_role, is_builtin, revision)
-        VALUES
-            ('builtin.revenue', 'Revenue', 0, 'revenue', 1, 1),
-            ('builtin.receivables', 'Receivables', 1, 'receivables', 1, 1),
-            ('builtin.cash', 'Cash', 2, 'cash', 1, 1),
-            ('builtin.receipt_in_advance', 'Receipt in advance', 3, 'receipt_in_advance', 1, 1),
-            ('builtin.others', 'Others', 4, 'others', 1, 1)
-        ON CONFLICT(category_id) DO NOTHING;
-
-        CREATE TABLE IF NOT EXISTS config_result_stale_state (
-            singleton        INTEGER PRIMARY KEY CHECK (singleton = 1),
-            validation_stale INTEGER NOT NULL CHECK (validation_stale IN (0,1)),
-            prescreen_stale  INTEGER NOT NULL CHECK (prescreen_stale IN (0,1)),
-            filter_stale     INTEGER NOT NULL CHECK (filter_stale IN (0,1))
-        );
-        INSERT INTO config_result_stale_state
-            (singleton, validation_stale, prescreen_stale, filter_stale)
-        VALUES (1, 0, 0, 0)
-        ON CONFLICT(singleton) DO NOTHING;
-        """;
-
-    /// <summary>測試專用：在 v7 data rewrite 後及 result reset 後兩個交易邊界注入 fault。</summary>
-    internal Action<string>? MigrationFaultHookForTests { get; set; }
-
     private readonly LocalSchemaReadiness readiness = new();
 
-    /// <summary>建立或載入案件時呼叫：一律完整檢查建表與升版。</summary>
+    /// <summary>建立或載入案件時呼叫：一律重新檢查版本，新資料庫在這裡建表。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
@@ -462,9 +466,12 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        // 舊版 JET 建立的資料庫（第 1 到第 5 版）與版本資訊無法辨識的資料庫，在任何寫入之前就擋下，檔案保持原狀。
-        LocalSchemaReadiness.RejectUnsupportedSchemaVersion(
-            await ReadExistingVersionAsync(connection, cancellationToken));
+        // 已經建過表的資料庫只檢查版本：不是現行版本就在任何寫入之前擋下，檔案保持原狀。
+        var existing = await HasSchemaInfoAsync(connection, cancellationToken);
+        if (existing)
+        {
+            LocalSchemaReadiness.RejectUnsupportedSchemaVersion(await ReadVersionAsync(connection, cancellationToken));
+        }
 
         // WAL 是資料庫檔案層的持久設定（冪等）：百萬列單交易寫入避免 rollback journal
         // 的雙倍寫放大，replace 模式的大量 DELETE 也因此變廉價
@@ -474,194 +481,21 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             await pragma.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await using (var command = connection.CreateCommand())
-        {
-            command.CommandText = SchemaSql;
-            await command.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        var version = await ReadVersionAsync(connection, cancellationToken);
-        await LocalSchemaUpgrades.ApplyAsync(
-            connection,
-            int.TryParse(version, out var parsedVersion) ? parsedVersion : 0,
-            new LocalSchemaUpgrades.Steps(MigrateV6ToV7Async, MigrateV7ToV8Async, MigrateV8ToV9Async, MessageLogTableSql),
-            cancellationToken);
-    }
-
-    /// <summary>第 12 版的訊息紀錄表；和 <see cref="SchemaSql"/> 的建表語句相同，升版時用來重建舊表。</summary>
-    private const string MessageLogTableSql =
-        """
-        CREATE TABLE app_message_log (
-            message_id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            occurred_utc TEXT NOT NULL,
-            level        TEXT NOT NULL CHECK (level IN ('info','warn','error')),
-            text         TEXT NOT NULL
-        )
-        """;
-
-    private static async Task MigrateV8ToV9Async(
-        DbConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using (var guard = connection.CreateCommand())
-        {
-            guard.Transaction = transaction;
-            guard.CommandText = CreateV9AuditGuardSql;
-            await guard.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await using (var bump = connection.CreateCommand())
-        {
-            bump.Transaction = transaction;
-            bump.CommandText = BumpToV9Sql;
-            await bump.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-    }
-
-    private static async Task MigrateV7ToV8Async(
-        DbConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using (var create = connection.CreateCommand())
-        {
-            create.Transaction = transaction;
-            create.CommandText = CreateV8AuditTableSql;
-            await create.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await using (var bump = connection.CreateCommand())
-        {
-            bump.Transaction = transaction;
-            bump.CommandText = BumpToV8Sql;
-            await bump.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-    }
-
-    private async Task MigrateV6ToV7Async(
-        DbConnection connection,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            await EnsureColumnAsync(
-                connection, transaction, "target_gl_entry", "posting_status", "TEXT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "target_gl_entry", "is_effective", "INTEGER", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "target_gl_entry", "exclusion_reason", "TEXT", cancellationToken);
-
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "raw_row_count", "INTEGER", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "effective_row_count", "INTEGER", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "excluded_by_period_count", "INTEGER", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "excluded_by_posting_status_count", "INTEGER", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "effective_debit_scaled", "INTEGER", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "gl_control_total", "effective_credit_scaled", "INTEGER", cancellationToken);
-
-            await EnsureColumnAsync(
-                connection,
-                transaction,
-                "config_field_mapping",
-                "format_version",
-                "INTEGER NOT NULL DEFAULT 1",
-                cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "config_field_mapping", "options_json", "TEXT", cancellationToken);
-            await EnsureColumnAsync(
-                connection, transaction, "target_account_mapping", "category_id", "TEXT", cancellationToken);
-
-            await using (var create = connection.CreateCommand())
-            {
-                create.Transaction = transaction;
-                create.CommandText = CreateV7TablesAndIndexesSql;
-                await create.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await using (var backfill = connection.CreateCommand())
-            {
-                backfill.Transaction = transaction;
-                backfill.CommandText =
-                    """
-                    UPDATE target_account_mapping
-                    SET category_id = CASE standardized_category
-                        WHEN 'Revenue' THEN 'builtin.revenue'
-                        WHEN 'Receivables' THEN 'builtin.receivables'
-                        WHEN 'Cash' THEN 'builtin.cash'
-                        WHEN 'Receipt in advance' THEN 'builtin.receipt_in_advance'
-                        WHEN 'Others' THEN 'builtin.others'
-                        ELSE category_id
-                    END
-                    WHERE category_id IS NULL;
-                    """;
-                await backfill.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await RuleRunResultReset.ClearWithinAsync(
-                connection,
-                transaction,
-                cancellationToken,
-                AuditMutation.SchemaV7Migration);
-
-            MigrationFaultHookForTests?.Invoke("after-v7-result-reset");
-
-            await using (var bump = connection.CreateCommand())
-            {
-                bump.Transaction = transaction;
-                bump.CommandText = BumpToV7Sql;
-                await bump.ExecuteNonQueryAsync(cancellationToken);
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            try
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-            }
-            catch
-            {
-                // Preserve the migration failure; disposal remains the final rollback backstop.
-            }
-
-            throw;
-        }
-    }
-
-    private static async Task EnsureColumnAsync(
-        DbConnection connection,
-        DbTransaction transaction,
-        string table,
-        string column,
-        string declaration,
-        CancellationToken cancellationToken)
-    {
-        await using var exists = connection.CreateCommand();
-        exists.Transaction = transaction;
-        exists.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = @column;";
-        exists.AddWithValue("@column", column);
-        var hasColumn = Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) > 0;
-        if (hasColumn)
+        if (existing)
         {
             return;
         }
 
-        await using var add = connection.CreateCommand();
-        add.Transaction = transaction;
-        add.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {declaration};";
-        await add.ExecuteNonQueryAsync(cancellationToken);
+        // 新資料庫在同一個交易裡建好全部的表，中途失敗時不留下只建一半的資料庫。
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = SchemaSql;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     /// <summary>
@@ -697,18 +531,11 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         return (string?)await versionQuery.ExecuteScalarAsync(cancellationToken);
     }
 
-    /// <summary>尚未建表的新資料庫回傳 null；只讀取，不建立任何資料表。</summary>
-    private static async Task<string?> ReadExistingVersionAsync(DbConnection connection, CancellationToken cancellationToken)
+    /// <summary>資料庫裡是否已經有 schema_info；只讀取，不建立任何資料表。</summary>
+    private static async Task<bool> HasSchemaInfoAsync(DbConnection connection, CancellationToken cancellationToken)
     {
-        await using (var exists = connection.CreateCommand())
-        {
-            exists.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_info';";
-            if (Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) == 0)
-            {
-                return null;
-            }
-        }
-
-        return await ReadVersionAsync(connection, cancellationToken);
+        await using var exists = connection.CreateCommand();
+        exists.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_info';";
+        return Convert.ToInt64(await exists.ExecuteScalarAsync(cancellationToken)) > 0;
     }
 }

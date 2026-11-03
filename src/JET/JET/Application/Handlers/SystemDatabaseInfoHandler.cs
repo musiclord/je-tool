@@ -21,7 +21,7 @@ public sealed partial class SystemDatabaseInfoHandler(
         var info = await backendProbe.DescribeAsync(cancellationToken);
         if (info.Configured && !info.Reachable && logger is not null)
         {
-            // 連不上的原因多半是英文系統訊息或錯誤碼，不放進訊息面板，只記進支援日誌（使用者 2026-10-13 勾選頁確認）。
+            // 連不上的原因多半是英文系統訊息或錯誤碼，不放進訊息面板，只記進支援日誌（裁定 2026-10-13-28 確認了用字）。
             // Detail 只有錯誤類別或錯誤碼，不含伺服器、帳號、密碼或連線字串。
             SqlServerUnreachable(logger, info.Detail);
         }
@@ -49,7 +49,7 @@ public sealed partial class SystemDatabaseInfoHandler(
 
     /// <summary>
     /// 把後端身分組成一句可直接顯示的中文摘要（presentation 落在後端，前端只顯示）。
-    /// 句子由使用者 2026-10-13 勾選頁確認：沒有設定 SQL Server 時回空字串，畫面不加訊息；
+    /// 句子的用字由裁定 2026-10-13-28 確認：沒有設定 SQL Server 時回空字串，畫面不加訊息；
     /// 連上時不論是否為 Express 都是同一句；連不上時不附原因。
     /// </summary>
     internal static string Summarize(SqlServerBackendInfo info)

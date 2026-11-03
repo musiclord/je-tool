@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 2026-10-02 使用者裁定：JET 更新篩選規則後不再要求逐案重新儲存情境。開案時整批仍符合目前規則就自動改版，
+/// 裁定 2026-10-02-05：JET 更新篩選規則後不再要求逐案重新儲存情境。開案時整批仍符合目前規則就自動改版，
 /// 只要有一個不符合，整批都不動並列出問題。SQLite 與 DuckDB 都要成立。
 /// </summary>
 public sealed class FilterScenarioRuleUpgradeOnLoadTests
@@ -31,7 +31,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
             definition["logicVersion"] = OlderVersion;
             definition.Remove("populationScope");
         });
-        await ExecuteAsync(host, context.ProjectId, provider, "DELETE FROM result_filter_run;");
+        await ExecuteAsync(host, context.ProjectId, provider, "DELETE FROM filter_hit;");
         var before = Assert.Single(await ReadScenariosAsync(host, context.ProjectId, provider));
 
         var loaded = await LoadAsync(host, context.ProjectId);
@@ -47,7 +47,10 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         Assert.Equal(before.Rationale, after.Rationale);
         Assert.NotEqual(before.SavedUtc, after.SavedUtc);
         var resultRef = loaded.GetProperty("filterResultRef");
-        Assert.Equal(after.SavedUtc, resultRef.GetProperty("revision").GetString());
+        // 2026-10-31 起 revision 是「情境編號@保存時間」，保存時間在 generatedUtc；原本斷言 revision 就是保存時間，
+        // 第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        Assert.Equal("1@" + after.SavedUtc, resultRef.GetProperty("revision").GetString());
+        Assert.Equal(after.SavedUtc, resultRef.GetProperty("generatedUtc").GetString());
         Assert.Equal(RuleLogicVersions.Filter, resultRef.GetProperty("logicVersion").GetString());
 
         var beforeJson = JsonNode.Parse(before.DefinitionJson)!.AsObject();
@@ -59,21 +62,21 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         afterJson.Remove("populationScope");
         Assert.True(JsonNode.DeepEquals(beforeJson, afterJson));
 
-        Assert.Equal(0, await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(0, await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(1, await ScalarAsync(host, context.ProjectId, provider,
-            "SELECT filter_stale FROM config_result_stale_state WHERE singleton=1;"));
+            "SELECT filter_stale FROM result_stale_state WHERE singleton=1;"));
 
         var page = await host.DispatchAsync(
             "query.filterHitsPage", JsonSerializer.Serialize(new { scenarioPosition = 1, pageSize = 20 }));
         Assert.NotEmpty(page.GetProperty("rows").EnumerateArray());
-        Assert.True(await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM result_filter_run;") > 0);
+        Assert.True(await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM filter_hit;") > 0);
     }
 
+    // 已移除的排除區原本也是一種失效寫法；裁定 2026-10-30-25 拿掉讀回舊寫法的程式後，排除區不再被當成失效，
+    // 這兩列跟著拿掉（第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
     public static TheoryData<string, string> InvalidVariants => new()
     {
-        { "sqlite", "exclusions" },
         { "sqlite", "missingRdeField" },
-        { "duckdb", "exclusions" },
         { "duckdb", "missingRdeField" }
     };
 
@@ -87,15 +90,10 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         await RewriteDefinitionAsync(host, context.ProjectId, provider, 1, definition =>
         {
             definition["logicVersion"] = OlderVersion;
-            if (variant == "exclusions")
-            {
-                definition["exclusions"] = new JsonArray(JsonNode.Parse("""{"type":"drCrOnly","drCr":"credit"}"""));
-            }
-            else
-            {
-                definition["groups"]![0]!["rules"]!.AsArray().Add(JsonNode.Parse(
-                    """{"join":"AND","type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
-            }
+            // 排除區那一列拿掉後只剩這一種失效寫法：條件指向已不存在的攸關資料元素。
+            Assert.Equal("missingRdeField", variant);
+            definition["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
+                """{"join":"AND","type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
         });
         var before = await ReadScenariosAsync(host, context.ProjectId, provider);
 
@@ -130,9 +128,12 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
             await RewriteDefinitionAsync(host, context.ProjectId, provider, position, definition =>
             {
                 definition["logicVersion"] = OlderVersion;
+                // 第二個情境原本靠已移除的排除區失效；排除區不再被讀回後，改用指向已不存在的攸關資料元素的條件
+                // （裁定 2026-10-30-25；第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
                 if (position == 2)
                 {
-                    definition["exclusions"] = new JsonArray(JsonNode.Parse("""{"type":"drCrOnly","drCr":"credit"}"""));
+                    definition["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
+                        """{"join":"AND","type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
                 }
             });
         }
@@ -209,21 +210,21 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task Upgrade_MarksCriteriaReportAndWorkpaperStaleWithoutTouchingFiles(string provider)
+    public async Task Upgrade_MarksCriteriaReportAndWorkingPaperStaleWithoutTouchingFiles(string provider)
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         var validation = await host.DispatchAsync("validate.run");
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString();
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString();
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString();
         var committed = await CommitAsync(host, DebitScenario("借方情境"));
         var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString();
         await host.DispatchAsync("export.criteriaSelectionReport",
-            JsonSerializer.Serialize(new { validationRunId, prescreenRunId, revision }));
-        await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new
+            JsonSerializer.Serialize(new { validationResultId, prescreenResultId, revision }));
+        await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
         {
-            validationRunId, prescreenRunId, scenarioRevision = revision, scenarioPositions = new[] { 1 }
+            validationResultId, prescreenResultId, scenarioRevision = revision, scenarioPositions = new[] { 1 }
         }));
 
         var current = await LoadAsync(host, context.ProjectId);
@@ -277,7 +278,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     }
 
     private static JsonElement[] FilterReports(JsonElement loaded) =>
-        loaded.GetProperty("reportArtifacts").EnumerateArray()
+        loaded.GetProperty("reports").EnumerateArray()
             .Where(item => item.GetProperty("kind").GetString() is "criteriaSelectionReport" or "workingPaper")
             .ToArray();
 
@@ -287,7 +288,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     {
         name,
         rationale = "合成規則改版測試",
-        groups = new[] { new { join = "AND", rules = new[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } } }
+        groups = new[] { new { join = "AND", conditions = new[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } } }
     };
 
     private static Task<JsonElement> CommitAsync(HandlerTestHost host, params object[] scenarios) =>
@@ -309,7 +310,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT position, name, rationale, definition_json, saved_utc FROM config_filter_scenario ORDER BY position;";
+            "SELECT position, name, rationale, definition_json, saved_utc FROM filter_scenario ORDER BY position;";
         var rows = new List<StoredScenario>();
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -332,7 +333,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         var definition = JsonNode.Parse(stored.DefinitionJson)!.AsObject();
         mutate(definition);
         await ExecuteAsync(host, projectId, provider,
-            "UPDATE config_filter_scenario SET definition_json = @definition WHERE position = @position;",
+            "UPDATE filter_scenario SET definition_json = @definition WHERE position = @position;",
             ("@definition", definition.ToJsonString()),
             ("@position", (long)position));
     }

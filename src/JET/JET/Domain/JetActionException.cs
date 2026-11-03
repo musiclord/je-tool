@@ -51,11 +51,12 @@ public sealed record JetErrorDetail(int? Group, int? Rule, string Message)
 
 /// <summary>
 /// 畫面照正常操作不會送出的資料被後端拒絕時用的錯誤。畫面只看到非預期錯誤那一句，錯誤代碼不變；
-/// 哪一項檢查沒過只用固定的英文代號記進支援日誌，不帶使用者資料、本機路徑或來源欄名（使用者 2026-10-13 裁定）。
+/// 哪一項檢查沒過只用固定的英文代號記進支援日誌，不帶使用者資料、本機路徑或來源欄名。
+/// 這類錯誤出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正，細節只對查原因有用。
 /// </summary>
 public static class JetPayloadRejection
 {
-    /// <summary>非預期錯誤回給畫面的句子（使用者 2026-10-13 勾選頁確認）；畫面程式 jet-api.js 有同一句。</summary>
+    /// <summary>非預期錯誤回給畫面的句子（裁定 2026-10-13-28 確認了用字）；畫面程式 jet-api.js 有同一句。</summary>
     public const string UnexpectedErrorMessage = "發生非預期的錯誤，此操作未完成。請再試一次。";
 
     private const string CheckDataKey = "jet.payload_check";
@@ -74,7 +75,7 @@ public static class JetPayloadRejection
 
 /// <summary>
 /// 篩選條件編譯時的檢查沒過：驗證器已先檢查過，走到這裡表示驗證器與執行時檢查不一致，是程式錯誤，
-/// 不是畫面送錯資料（使用者 2026-10-14 第三輪勾選頁確認 R3-62）。畫面只看到非預期錯誤那一句，錯誤代碼仍是
+/// 不是畫面送錯資料（裁定 2026-10-14-01 確認了用字）。畫面只看到非預期錯誤那一句，錯誤代碼仍是
 /// <c>invalid_scenario</c>；程式寫死的檢查代號與組號、條號記進支援日誌事件 <c>filter.compile_check_failed</c>，
 /// 不帶欄位名稱、輸入值、科目、金額或路徑。
 /// </summary>
@@ -112,8 +113,8 @@ public static class FilterCompileCheck
 }
 
 /// <summary>
-/// 找不到案件資料夾時的句子（使用者 2026-10-14 第三輪勾選頁確認 R3-33）。同一種情況全程式只用這幾句，
-/// 不印程式代號，也不寫「可能」。
+/// 找不到案件資料夾，以及舊版 JET 建立的案件時的句子（裁定 2026-10-14-01 確認了用字）。
+/// 同一種情況全程式只用這幾句，不印程式代號，也不寫「可能」。
 /// </summary>
 public static class ProjectFolderMessages
 {
@@ -125,19 +126,31 @@ public static class ProjectFolderMessages
     public const string InvalidPath = "案件資料夾的路徑無效，此操作未完成。請回首頁重新開啟案件。";
 
     /// <summary>開啟案件時，案件清單上的案件資料夾已不在。</summary>
-    public static string CannotOpen(string caseName) => Missing(caseName, "開啟");
+    public static string CannotOpen(string projectName) => Missing(projectName, "開啟");
 
     /// <summary>刪除案件時，案件清單上的案件資料夾已不在。</summary>
-    public static string CannotDelete(string caseName) => Missing(caseName, "刪除");
+    public static string CannotDelete(string projectName) => Missing(projectName, "刪除");
 
-    private static string Missing(string caseName, string verb) =>
-        $"案件「{caseName}」的資料夾已不在 JET 的案件位置，無法{verb}。請重新整理案件清單，並確認案件資料夾仍在原來的位置。";
+    /// <summary>案件資料庫的版本值缺漏、讀不出整數，或比目前版本還新。</summary>
+    public const string UnreadableDatabaseVersion =
+        "這個案件資料庫的版本資訊無法辨識，目前版本無法開啟。請從備份還原案件資料夾，或用目前版本重新建立案件，再重新匯入資料。";
+
+    /// <summary>
+    /// 舊版 JET 建立的案件。案件設定檔、案件資料庫與欄位配對讀到舊版內容時都用這一句，下一步是刪除後重建
+    /// （裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。讀不到案件名稱時寫「這個案件」。
+    /// </summary>
+    public static string OldVersionProject(string? projectName = null) =>
+        (string.IsNullOrEmpty(projectName) ? "這個案件" : $"案件「{projectName}」")
+        + "是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
+
+    private static string Missing(string projectName, string verb) =>
+        $"案件「{projectName}」的資料夾已不在 JET 的案件位置，無法{verb}。請重新整理案件清單，並確認案件資料夾仍在原來的位置。";
 }
 
 /// <summary>可跨 bridge 使用的結構化錯誤欄位名稱。</summary>
 public static class JetErrorFields
 {
-    public const string CaseName = "caseName";
+    public const string ProjectName = "projectName";
 }
 
 /// <summary>錯誤碼註冊表。docs/action-contract-manifest.md 以此處為準，不另列清單。</summary>
@@ -162,25 +175,25 @@ public static class JetErrorCodes
     public const string MappingMetadataMissing = "mapping_metadata_missing";
     public const string MappingMetadataInvalid = "mapping_metadata_invalid";
     public const string ProjectionFailed = "projection_failed";
-    public const string TaxonomyRevisionConflict = "taxonomy_revision_conflict";
-    public const string TaxonomyCategoryInUse = "taxonomy_category_in_use";
+    public const string CategoryRevisionConflict = "category_revision_conflict";
+    public const string CategoryInUse = "category_in_use";
     public const string UnsupportedMode = "unsupported_mode";
     public const string TableNotAllowed = "table_not_allowed";
-    public const string NoTargetData = "no_target_data";
+    public const string GlMappingNotConfirmed = "gl_mapping_not_confirmed";
     public const string CompletenessPrerequisiteFailed = "completeness_prerequisite_failed";
     public const string InvalidScenario = "invalid_scenario";
 
     /// <summary>
     /// 還沒有已儲存的篩選情境，需要情境的動作無法執行。畫面把它當成前置條件不足，寫「尚無法執行」
-    /// （使用者 2026-10-14 第三輪勾選頁確認 R3-34）。
+    /// （裁定 2026-10-14-01 確認了用字）。
     /// </summary>
     public const string NoSavedScenario = "no_saved_scenario";
     public const string ScenarioLimitReached = "scenario_limit_reached";
     public const string StaleResult = "stale_result";
-    public const string ArtifactNotFound = "artifact_not_found";
+    public const string ReportNotFound = "report_not_found";
     public const string SupportLogExportFailed = "support_log_export_failed";
     public const string GlAmountsAllZero = "gl_amounts_all_zero";
-    public const string EmptyEffectivePopulation = "empty_effective_population";
+    public const string EmptyGl = "empty_gl";
 
     /// <summary>當前使用者對此線上（sqlServer）案件無存取權（project.load／project.delete 授權前置）。</summary>
     public const string NotAuthorized = "not_authorized";

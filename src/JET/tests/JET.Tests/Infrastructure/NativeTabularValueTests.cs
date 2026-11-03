@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// .xls 與 Access 原生值的文字表示要和 .xlsx 讀取器一致（2026-10-04 第二遍回饋審閱第 1 批，L09）。
+/// .xls 與 Access 原生值的文字表示要和 .xlsx 讀取器一致。
 /// .xlsx 的對照：布林寫 true 或 false；時間用 TimeSpan 的 "c" 格式；日期寫 yyyy-MM-dd。
 /// </summary>
 public sealed class NativeTabularValueTests

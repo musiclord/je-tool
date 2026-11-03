@@ -35,7 +35,7 @@ public sealed class LocalResultPageRdeValuesPort(ILocalProjectDatabase database)
 
         command.CommandText =
             "SELECT entry_id, field_id, value_type, text_value, date_value, amount_scaled " +
-            "FROM target_gl_rde_value " +
+            "FROM gl_rde_value " +
             $"WHERE entry_id IN ({string.Join(',', parameters)}) " +
             "ORDER BY entry_id, field_id;";
 

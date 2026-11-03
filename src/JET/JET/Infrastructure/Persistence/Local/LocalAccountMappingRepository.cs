@@ -57,7 +57,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         await database.EnsureReadyAsync(projectId, cancellationToken);
         projection ??= JetAuditProgram.PrepareAccountMappingProjection(
             columns,
-            AccountTaxonomyCatalog.BuiltInSnapshot);
+            AccountCategoryCatalog.BuiltInSnapshot);
 
         var batchId = Guid.NewGuid().ToString("N");
         var importedUtc = DateTimeOffset.UtcNow;
@@ -73,19 +73,19 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             cleanup.Transaction = transaction;
             cleanup.CommandText =
                 """
-                DELETE FROM staging_account_mapping_raw_row
+                DELETE FROM pbc_account_mapping
                 WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
                 DELETE FROM import_batch_source
                 WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
                 DELETE FROM import_batch WHERE dataset_kind = @kind;
-                DELETE FROM target_account_mapping;
+                DELETE FROM account_mapping;
                 """;
             cleanup.AddWithValue("@kind", kindName);
             await cleanup.ExecuteNonQueryAsync(cancellationToken);
         }
 
         // 科目配對換版,未預期借貸組合等規則結果即失效。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -124,7 +124,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             insertRow.Transaction = transaction;
             insertRow.CommandText =
                 """
-                INSERT INTO staging_account_mapping_raw_row
+                INSERT INTO pbc_account_mapping
                     (batch_id, row_number, source_no, source_row_number, row_json)
                 VALUES (@batchId, @rowNumber, 1, @sourceRowNumber, @rowJson);
                 """;
@@ -163,15 +163,15 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             insertTarget.Transaction = transaction;
             insertTarget.CommandText =
                 """
-                INSERT INTO target_account_mapping
-                    (batch_id, source_row_number, account_code, account_name,
+                INSERT INTO account_mapping
+                    (batch_id, source_row_number, account_number, account_name,
                      standardized_category, category_id, classification_explicit)
-                VALUES (@batchId, @sourceRowNumber, @accountCode, @accountName,
+                VALUES (@batchId, @sourceRowNumber, @accountNumber, @accountName,
                         @category, @categoryId, @explicit);
                 """;
             insertTarget.AddWithValue("@batchId", batchId);
             var sourceRowParam = insertTarget.AddParameter("@sourceRowNumber", DbType.Int64);
-            var codeParam = insertTarget.AddParameter("@accountCode", DbType.String);
+            var codeParam = insertTarget.AddParameter("@accountNumber", DbType.String);
             var nameParam = insertTarget.AddParameter("@accountName", DbType.String);
             var categoryParam = insertTarget.AddParameter("@category", DbType.String);
             var categoryIdParam = insertTarget.AddParameter("@categoryId", DbType.String);
@@ -180,7 +180,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             foreach (var mapping in projected)
             {
                 sourceRowParam.Value = mapping.SourceRowNumber;
-                codeParam.Value = mapping.AccountCode;
+                codeParam.Value = mapping.AccountNumber;
                 nameParam.Value = (object?)mapping.AccountName ?? DBNull.Value;
                 categoryParam.Value = mapping.LegacyCategory;
                 categoryIdParam.Value = mapping.CategoryId;
@@ -218,20 +218,20 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         command.CommandText =
             """
             SELECT b.batch_id,
-                   CASE WHEN b.source_file_name = @editorName THEN (SELECT COUNT(*) FROM target_account_mapping) ELSE b.row_count END,
+                   CASE WHEN b.source_file_name = @editorName THEN (SELECT COUNT(*) FROM account_mapping) ELSE b.row_count END,
                    b.source_file_name, b.imported_utc,
-                   EXISTS (SELECT 1 FROM target_account_mapping),
+                   EXISTS (SELECT 1 FROM account_mapping),
                    EXISTS (SELECT 1
-                           FROM target_account_mapping m
-                           JOIN config_account_taxonomy t
+                           FROM account_mapping m
+                           JOIN account_category t
                              ON t.category_id = m.category_id
                            WHERE t.semantic_role = @revenue),
                    EXISTS (SELECT 1
-                           FROM target_account_mapping m
-                           JOIN config_account_taxonomy t
+                           FROM account_mapping m
+                           JOIN account_category t
                              ON t.category_id = m.category_id
                            WHERE t.semantic_role IN (@receivables, @cash, @receiptInAdvance)),
-                   (SELECT COUNT(*) FROM target_account_mapping m WHERE m.classification_explicit = 0)
+                   (SELECT COUNT(*) FROM account_mapping m WHERE m.classification_explicit = 0)
             FROM import_batch b
             WHERE b.dataset_kind = @kind
             ORDER BY b.imported_utc DESC, b.batch_id DESC
@@ -239,10 +239,10 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             """;
         command.AddWithValue("@kind", DatasetKind.AccountMapping.ToStorageName());
         command.AddWithValue("@editorName", AccountMappingEditorRepository.EditorSourceName);
-        command.AddWithValue("@revenue", AccountTaxonomyBuiltIns.RevenueRole);
-        command.AddWithValue("@receivables", AccountTaxonomyBuiltIns.ReceivablesRole);
-        command.AddWithValue("@cash", AccountTaxonomyBuiltIns.CashRole);
-        command.AddWithValue("@receiptInAdvance", AccountTaxonomyBuiltIns.ReceiptInAdvanceRole);
+        command.AddWithValue("@revenue", AccountCategoryBuiltIns.RevenueRole);
+        command.AddWithValue("@receivables", AccountCategoryBuiltIns.ReceivablesRole);
+        command.AddWithValue("@cash", AccountCategoryBuiltIns.CashRole);
+        command.AddWithValue("@receiptInAdvance", AccountCategoryBuiltIns.ReceiptInAdvanceRole);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))

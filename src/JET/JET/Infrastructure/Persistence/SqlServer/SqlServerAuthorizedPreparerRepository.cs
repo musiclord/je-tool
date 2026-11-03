@@ -68,8 +68,8 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
 
         await using (var cleanup = database.CreateCommand(connection, projectId,
             """
-            DELETE FROM {s}.staging_authorized_preparer_raw_row;
-            DELETE FROM {s}.target_authorized_preparer;
+            DELETE FROM {s}.pbc_authorized_preparer;
+            DELETE FROM {s}.authorized_preparer;
             """))
         {
             cleanup.Transaction = transaction;
@@ -77,7 +77,7 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         }
 
         // 授權清單換版,非授權編製人員等規則結果即失效。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -88,7 +88,7 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
 
         await using (var insertRow = database.CreateCommand(connection, projectId,
             """
-            INSERT INTO {s}.staging_authorized_preparer_raw_row
+            INSERT INTO {s}.pbc_authorized_preparer
                 (batch_id, row_number, source_no, source_row_number, row_json)
             VALUES (@batchId, @rowNumber, 1, @sourceRowNumber, @rowJson);
             """))
@@ -122,7 +122,7 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         }
 
         await using (var insertTarget = database.CreateCommand(connection, projectId,
-            "INSERT INTO {s}.target_authorized_preparer (name) VALUES (@name);"))
+            "INSERT INTO {s}.authorized_preparer (name) VALUES (@name);"))
         {
             insertTarget.Transaction = transaction;
             var nameParam = insertTarget.Parameters.Add("@name", SqlDbType.NVarChar, TextStorageLimits.KeyUtf16CodeUnits);
@@ -157,10 +157,10 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         await using var command = connection.CreateCommand();
         command.Transaction = (SqlTransaction)transaction;
         var prefix = SqlServerProjectSchema.QualifierFor(projectId);
-        command.CommandText = $"DELETE FROM {prefix}staging_authorized_preparer_raw_row; DELETE FROM {prefix}target_authorized_preparer;";
+        command.CommandText = $"DELETE FROM {prefix}pbc_authorized_preparer; DELETE FROM {prefix}authorized_preparer;";
         await command.ExecuteNonQueryAsync(cancellationToken);
         await AuthorizedPreparerMetadataSql.WriteAsync(connection, transaction, null, cancellationToken, prefix);
-        await RuleRunResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.AuthorizedPreparer, prefix);
+        await ResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.AuthorizedPreparer, prefix);
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -172,7 +172,7 @@ public sealed class SqlServerAuthorizedPreparerRepository(SqlServerProjectDataba
         await connection.OpenAsync(cancellationToken);
 
         await using var command = database.CreateCommand(connection, projectId,
-            "SELECT COUNT_BIG(*) FROM {s}.target_authorized_preparer;");
+            "SELECT COUNT_BIG(*) FROM {s}.authorized_preparer;");
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result is null or DBNull ? 0L : Convert.ToInt64(result);
     }

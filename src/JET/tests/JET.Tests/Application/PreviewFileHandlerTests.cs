@@ -145,7 +145,7 @@ public sealed class PreviewFileHandlerTests
         }
     }
 
-    // 預篩選收斂計畫階段六：使用者 2026-10-22 裁定「欄名在第幾列」開放給 GL 與 TB 的一般匯入，Excel 與文字檔都適用。
+    // 裁定 2026-10-22-15 把「欄名在第幾列」開放給 GL 與 TB 的一般匯入，Excel 與文字檔都適用。
     // 預覽帶 headerRow 時，從那一列起找第一個有內容的列當欄名，前面的標題列與空白列都不算資料。
     // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd（headerRow 被忽略，標題列被當成欄名）。
     [Fact]

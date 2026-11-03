@@ -22,17 +22,17 @@ public sealed class FrontendPreviewFixtureTests
             }
         }, validateForDownstream: true);
         await host.DispatchAsync("accountMapping.save", """
-            {"changes":[{"accountCode":"1000","categoryId":"builtin.cash"},{"accountCode":"2000","categoryId":"builtin.receivables"}]}
+            {"changes":[{"accountNumber":"1000","categoryId":"builtin.cash"},{"accountNumber":"2000","categoryId":"builtin.receivables"}]}
             """);
         var accountPage = await host.DispatchAsync("query.accountMappingPage", "{\"pageSize\":100}");
         Assert.Equal(2, accountPage.GetProperty("rows").GetArrayLength());
         Assert.Equal("builtin.cash", accountPage.GetProperty("rows")[0].GetProperty("categoryId").GetString());
         var validation = await host.DispatchAsync("validate.run");
-        await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new
-            { runId = validation.GetProperty("resultRef").GetProperty("runId").GetString() }));
+        await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new
+            { resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString() }));
         var prescreen = await host.DispatchAsync("prescreen.run");
         await host.DispatchAsync("export.prescreenReport", JsonSerializer.Serialize(new
-            { runId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString() }));
+            { resultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString() }));
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         var mappingProfiles = new JsonArray();
         foreach (var column in loaded.GetProperty("importState").GetProperty("gl").GetProperty("columns").EnumerateArray())
@@ -62,8 +62,8 @@ public sealed class FrontendPreviewFixtureTests
         // 2026-10-29 編輯來源改成第 2 版：前端預覽用的這份情境改成現行前端送出的形狀。這次改的是測試資料，不是因為測試失敗；
         // 第 1 版的資料仍能讀回，由 FilterNonBusinessDayWorkflowTests 核對。
         var draft = JsonNode.Parse("""
-            {"name":"日期與金額","rationale":"合成設計情境","groups":[{"join":"OR","matchScope":"row","rules":[
-              {"type":"fieldValue","field":"postDate","operator":"between","from":"2025-12-25","to":"2025-12-31","join":"AND","includeBlank":false},
+            {"name":"日期與金額","rationale":"合成設計情境","groups":[{"join":"OR","matchScope":"row","conditions":[
+              {"type":"fieldValue","field":"glDate","operator":"between","from":"2025-12-25","to":"2025-12-31","join":"AND","includeBlank":false},
               {"type":"fieldValue","field":"amount","operator":"between","from":"200","to":"800","amountBasis":"absolute","join":"AND","includeBlank":false}
             ]}],"editorOrigins":{"version":2,"groups":[{"cards":[null,null]}]}}
             """)!;
@@ -71,7 +71,7 @@ public sealed class FrontendPreviewFixtureTests
         foreach (var empty in new[] { false, true })
         {
             var scenario = draft.DeepClone();
-            if (empty) scenario["groups"]![0]!["rules"]![1]!["from"] = "600";
+            if (empty) scenario["groups"]![0]!["conditions"]![1]!["from"] = "600";
             var request = new JsonObject { ["populationScope"] = "auditPeriod", ["scenario"] = scenario };
             var preview = await host.DispatchAsync("filter.preview", request.ToJsonString());
             Assert.Equal(empty ? 0 : 2, preview.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -81,8 +81,8 @@ public sealed class FrontendPreviewFixtureTests
             JsonNode? detail = null;
             if (!empty)
             {
-                Assert.Equal("DEMO-B", page.GetProperty("rows")[0].GetProperty("documentNumber").GetString());
-                request["documentNumber"] = "DEMO-B";
+                Assert.Equal("DEMO-B", page.GetProperty("rows")[0].GetProperty("voucherNumber").GetString());
+                request["voucherNumber"] = "DEMO-B";
                 request["queryRevision"] = page.GetProperty("queryRevision").GetString();
                 var rows = await host.DispatchAsync("query.filterVoucherRowsPage", request.ToJsonString());
                 Assert.Equal(2, rows.GetProperty("rows").GetArrayLength());

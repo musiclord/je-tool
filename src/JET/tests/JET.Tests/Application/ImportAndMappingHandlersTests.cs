@@ -13,7 +13,7 @@ public sealed class ImportAndMappingHandlersTests
         """
         {
           "projectCode": "ENG-2024-001",
-          "entityName": "範例股份有限公司",
+          "clientName": "範例股份有限公司",
           "operatorId": "auditor01",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31"
@@ -78,10 +78,10 @@ public sealed class ImportAndMappingHandlersTests
         """
         {
           "mapping": {
-            "docNum": "傳票號碼",
-            "postDate": "日期",
-            "accNum": "會計項目",
-            "accName": "項目名稱",
+            "voucherNumber": "傳票號碼",
+            "glDate": "日期",
+            "accountNumber": "會計項目",
+            "accountName": "項目名稱",
             "description": "摘要",
             "debitAmount": "借方金額",
             "creditAmount": "貸方金額"
@@ -119,7 +119,7 @@ public sealed class ImportAndMappingHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // D05 已支援 .xls；使用者明確排除 .xlsb，仍須拒絕並保留多檔錯誤定位。
+        // 已支援 .xls；.xlsb 照裁定 2026-09-17-03 排除，仍須拒絕並保留多檔錯誤定位。
         var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xlsb");
         await File.WriteAllTextAsync(xlsPath, "not a real xls");
         try
@@ -254,7 +254,7 @@ public sealed class ImportAndMappingHandlersTests
     [InlineData("""{"filePath":"C:\\missing.csv","sources":[{"filePath":"C:\\other.csv"}]}""")]
     [InlineData("""{"sources":[]}""")]
     [InlineData("""{"encoding":"utf-8","sources":[{"filePath":"C:\\missing.csv"}]}""")]
-    // 預篩選收斂計畫階段六：欄名在第幾列是每個來源自己的選項，和編碼、分隔符一樣不能放在整批的外層。
+    // 欄名在第幾列是每個來源自己的選項，和編碼、分隔符一樣不能放在整批的外層。
     // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd。
     [InlineData("""{"headerRow":3,"sources":[{"filePath":"C:\\missing.csv"}]}""")]
     public async Task Import_BatchPayload_InvalidShape_ThrowsInvalidPayload(string payload)
@@ -425,7 +425,7 @@ public sealed class ImportAndMappingHandlersTests
             var noBatch = await Assert.ThrowsAsync<JetActionException>(
                 () => host.DispatchAsync(
                     "mapping.commit.tb",
-                    """{ "mapping": { "accNum": "x", "accName": "y", "debitAmt": "d", "creditAmt": "c" }, "changeMode": "debitCredit" }"""));
+                    """{ "mapping": { "accountNumber": "x", "accountName": "y", "debitAmount": "d", "creditAmount": "c" }, "changeMode": "debitCredit" }"""));
             Assert.Equal(JetErrorCodes.NoImportBatch, noBatch.Code);
 
             // import TB
@@ -434,7 +434,7 @@ public sealed class ImportAndMappingHandlersTests
                 JsonSerializer.Serialize(new { filePath = tbPath }));
             Assert.Equal(2, tbImport.GetProperty("rowCount").GetInt32());
 
-            // 2026-09-17 使用者要求移除自動建議，必須以明確手動配對繼續。
+            // 裁定 2026-09-17-04 移除自動建議，必須以明確手動配對繼續。
             await Assert.ThrowsAsync<KeyNotFoundException>(() => host.DispatchAsync(
                 "mapping.autoSuggest", "{}"));
 
@@ -445,15 +445,15 @@ public sealed class ImportAndMappingHandlersTests
                     """
                     {
                       "mapping": {
-                        "docNum": "傳票號碼", "postDate": "日期",
-                        "accNum": "會計項目", "accName": "項目名稱",
+                        "voucherNumber": "傳票號碼", "glDate": "日期",
+                        "accountNumber": "會計項目", "accountName": "項目名稱",
                         "debitAmount": "借方金額", "creditAmount": "貸方金額"
                       },
                       "amountMode": "dual"
                     }
                     """));
             Assert.Equal(JetErrorCodes.MissingRequiredMapping, missing.Code);
-            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
             Assert.Contains("傳票摘要", missing.Message);
 
             // commit GL（dual）
@@ -467,8 +467,8 @@ public sealed class ImportAndMappingHandlersTests
                 """
                 {
                   "mapping": {
-                    "accNum": "會計科目編號", "accName": "會計科目名稱",
-                    "debitAmt": "借方金額", "creditAmt": "貸方金額"
+                    "accountNumber": "會計科目編號", "accountName": "會計科目名稱",
+                    "debitAmount": "借方金額", "creditAmount": "貸方金額"
                   },
                   "changeMode": "debitCredit"
                 }
@@ -478,7 +478,7 @@ public sealed class ImportAndMappingHandlersTests
             // 平衡 workbook → target SUM = 0；dev panel 路徑驗證
             var page = await host.DispatchAsync(
                 "dev.db.tableData",
-                """{ "tableName": "target_gl_entry", "limit": 50 }""");
+                """{ "tableName": "gl", "limit": 50 }""");
             Assert.Equal(5, page.GetProperty("totalCount").GetInt64());
 
             // project.load 回傳 resume 狀態
@@ -539,7 +539,7 @@ public sealed class ImportAndMappingHandlersTests
     }
 
     [Fact]
-    public async Task CommitGl_NonBlankInvalidPostDate_RollsBackWholeProjectionAndPreservesCommittedState()
+    public async Task CommitGl_NonBlankInvalidGlDate_RollsBackWholeProjectionAndPreservesCommittedState()
     {
         using var host = new HandlerTestHost();
         var glPath = WriteGlWorkbook();
@@ -556,8 +556,8 @@ public sealed class ImportAndMappingHandlersTests
             var beforeRows = await DemoProjectPipeline.QueryStringListAsync(
                 host,
                 projectId,
-                "SELECT document_number || '|' || COALESCE(line_item, '') || '|' || amount_scaled " +
-                "FROM target_gl_entry ORDER BY entry_id;");
+                "SELECT voucher_number || '|' || COALESCE(line_item, '') || '|' || amount_scaled " +
+                "FROM gl ORDER BY entry_id;");
             var beforeLoad = await host.DispatchAsync(
                 "project.load",
                 JsonSerializer.Serialize(new { projectId }));
@@ -573,9 +573,9 @@ public sealed class ImportAndMappingHandlersTests
                 await connection.OpenAsync();
                 await using var command = connection.CreateCommand();
                 command.CommandText =
-                    "UPDATE staging_gl_raw_row " +
+                    "UPDATE pbc_gl " +
                     "SET row_json = json_set(row_json, '$.\"日期\"', 'not-a-date') " +
-                    "WHERE row_number = (SELECT MIN(row_number) + 1 FROM staging_gl_raw_row);";
+                    "WHERE row_number = (SELECT MIN(row_number) + 1 FROM pbc_gl);";
                 Assert.Equal(1, await command.ExecuteNonQueryAsync());
             }
 
@@ -587,8 +587,8 @@ public sealed class ImportAndMappingHandlersTests
             var afterRows = await DemoProjectPipeline.QueryStringListAsync(
                 host,
                 projectId,
-                "SELECT document_number || '|' || COALESCE(line_item, '') || '|' || amount_scaled " +
-                "FROM target_gl_entry ORDER BY entry_id;");
+                "SELECT voucher_number || '|' || COALESCE(line_item, '') || '|' || amount_scaled " +
+                "FROM gl ORDER BY entry_id;");
             Assert.Equal(beforeRows, afterRows);
 
             var afterLoad = await host.DispatchAsync(
@@ -640,11 +640,11 @@ public sealed class ImportAndMappingHandlersTests
             // 引號千分位金額 "1,250.00" 須以 scale 10000 轉為 12500000。
             var table = await host.DispatchAsync(
                 "dev.db.tableData",
-                """{ "tableName": "target_gl_entry", "limit": 50 }""");
+                """{ "tableName": "gl", "limit": 50 }""");
 
             var columns = table.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList();
-            var docIndex = columns.IndexOf("document_number");
-            var dateIndex = columns.IndexOf("post_date");
+            var docIndex = columns.IndexOf("voucher_number");
+            var dateIndex = columns.IndexOf("gl_date");
             var debitIndex = columns.IndexOf("debit_amount_scaled");
 
             var d900Rows = table.GetProperty("rows").EnumerateArray()

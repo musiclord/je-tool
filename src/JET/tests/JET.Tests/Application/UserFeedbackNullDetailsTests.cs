@@ -21,7 +21,7 @@ public sealed class UserFeedbackNullDetailsTests
         foreach (var category in new[] { "nullDocument", "nullAccount" })
         {
             Task<JsonElement> Page(string? cursor = null, string? search = null, string direction = "asc") =>
-                host.DispatchAsync("query.nullRecordsPage", JsonSerializer.Serialize(new
+                host.DispatchAsync("query.blankRecordsPage", JsonSerializer.Serialize(new
                 {
                     category, cursor, pageSize = 1, search, sort = new { key = "description", direction }
                 }));
@@ -38,7 +38,7 @@ public sealed class UserFeedbackNullDetailsTests
                 .GetProperty("description").GetString());
         }
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        var counts = loaded.GetProperty("latestRuns").GetProperty("validate").GetProperty("nullRecordsTest");
+        var counts = loaded.GetProperty("validationResult").GetProperty("blankRecordsTest");
         Assert.Equal(2, counts.GetProperty("nullDocumentCount").GetInt64());
         Assert.Equal(2, counts.GetProperty("nullAccountCount").GetInt64());
     }

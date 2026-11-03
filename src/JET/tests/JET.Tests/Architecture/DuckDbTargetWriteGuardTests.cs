@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// DuckDB/local target 投影只能走 IBulkRowWriter（DuckDB 原生 Appender）。若有人另加具體
-/// INSERT INTO target_gl_entry/target_tb_balance，會繞過這條效能與 auto-id 契約，本守衛即擋下。
+/// INSERT INTO gl/tb，會繞過這條效能與 auto-id 契約，本守衛即擋下。
 /// </summary>
 public sealed partial class DuckDbTargetWriteGuardTests
 {
@@ -29,24 +29,24 @@ public sealed partial class DuckDbTargetWriteGuardTests
     }
 
     [Theory]
-    [InlineData("INSERT INTO target_gl_entry (entry_id) VALUES (1)")]
-    [InlineData("insert  into target_tb_balance(balance_id) values(1)")]
+    [InlineData("INSERT INTO gl (entry_id) VALUES (1)")]
+    [InlineData("insert  into tb(balance_id) values(1)")]
     public void GuardDetector_RejectsConcreteTargetInsert(string source)
     {
         Assert.Matches(DirectTargetInsert(), source);
     }
 
     [Theory]
-    [InlineData("database.CreateBulkRowWriter(connection, tx, \"target_gl_entry\", columns)")]
+    [InlineData("database.CreateBulkRowWriter(connection, tx, \"gl\", columns)")]
     [InlineData("INSERT INTO {table} ({columns}) VALUES ({values})")]
-    [InlineData("DELETE FROM target_tb_balance")]
+    [InlineData("DELETE FROM tb")]
     public void GuardDetector_AllowsBulkWriterAndNonInsertReferences(string source)
     {
         Assert.DoesNotMatch(DirectTargetInsert(), source);
     }
 
     [GeneratedRegex(
-        @"\bINSERT\s+INTO\s+(?:\{s\}\.)?(?:target_gl_entry|target_tb_balance)\b",
+        @"\bINSERT\s+INTO\s+(?:\{s\}\.)?(?:gl|tb)\b",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DirectTargetInsert();
 

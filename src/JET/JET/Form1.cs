@@ -321,8 +321,7 @@ namespace JET
             }
             catch (Exception exception)
             {
-                // 接住的失敗不會進到全域例外後盾，這裡寫一筆到同一個檔案，事後才查得到原因
-                // （低嚴重度事項 E4，使用者 2026-10-19 要求處理）。
+                // 接住的失敗不會進到全域例外後盾，這裡寫一筆到同一個檔案，事後才查得到原因。
                 Program.FallbackLog?.Write(WebViewInitializationFailureSource, exception);
                 MessageBox.Show(
                     this,
@@ -420,7 +419,7 @@ namespace JET
 
         private async void NotifyBusyNativeExitAsync()
         {
-            // 和忙碌畫面注入的提示同一句（已確認的 23，使用者 2026-10-14 第三輪勾選頁確認 R3-58）。
+            // 和忙碌畫面注入的提示同一句（裁定 2026-10-14-01 確認了用字）。
             const string fallbackMessage = "作業還在進行，請等它完成後再試一次。";
             try
             {

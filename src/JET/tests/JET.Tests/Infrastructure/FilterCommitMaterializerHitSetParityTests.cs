@@ -13,9 +13,9 @@ public sealed class FilterCommitMaterializerHitSetParityTests
 {
     private const int ScenarioPosition = 1;
 
-    private static readonly FilterRuleContext Context = new(
+    private static readonly FilterConditionContext Context = new(
         ProjectDocument.DefaultMoneyScale,
-        LastPeriodStart: null,
+        PrepStartDate: null,
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",
         PopulationScope: GlPopulationScope.AuditPeriod);
@@ -27,9 +27,9 @@ public sealed class FilterCommitMaterializerHitSetParityTests
             new FilterGroupSpec(
                 FilterJoin.And,
                 [
-                    new FilterRuleSpec(
+                    new FilterConditionSpec(
                         FilterJoin.And,
-                        FilterRuleType.Text,
+                        FilterConditionType.Text,
                         PrescreenKey: null,
                         Field: "description",
                         Keywords: ["needle"],
@@ -40,9 +40,9 @@ public sealed class FilterCommitMaterializerHitSetParityTests
                         ToAmountScaled: null,
                         DrCr: null,
                         IsManual: null),
-                    new FilterRuleSpec(
+                    new FilterConditionSpec(
                         FilterJoin.And,
-                        FilterRuleType.DrCrOnly,
+                        FilterConditionType.DrCrOnly,
                         PrescreenKey: null,
                         Field: null,
                         Keywords: [],
@@ -74,7 +74,7 @@ public sealed class FilterCommitMaterializerHitSetParityTests
         await AssertEquivalentHitSetsAsync(
             projectId,
             new LocalFilterCommitRepository(database),
-            new LocalFilterRunMaterializer(database),
+            new LocalFilterHitMaterializer(database),
             database.CreateConnection,
             schemaPrefix: string.Empty);
     }
@@ -88,7 +88,7 @@ public sealed class FilterCommitMaterializerHitSetParityTests
         await AssertEquivalentHitSetsAsync(
             project.ProjectId,
             new SqlServerFilterCommitRepository(project.Database),
-            new SqlServerFilterRunMaterializer(project.Database),
+            new SqlServerFilterHitMaterializer(project.Database),
             project.Database.CreateConnection,
             SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
@@ -96,14 +96,14 @@ public sealed class FilterCommitMaterializerHitSetParityTests
     private static async Task AssertEquivalentHitSetsAsync(
         string projectId,
         IFilterCommitRepository commitRepository,
-        IFilterRunMaterializer lazyMaterializer,
+        IFilterHitMaterializer lazyMaterializer,
         Func<string, DbConnection> connectionFactory,
         string schemaPrefix)
     {
         await SeedPopulationAsync(connectionFactory(projectId), schemaPrefix);
         var expected = await ReadEntryIdsAsync(
             connectionFactory(projectId),
-            $"SELECT entry_id FROM {schemaPrefix}target_gl_entry "
+            $"SELECT entry_id FROM {schemaPrefix}gl "
             + "WHERE source_row_number IN (1, 5) ORDER BY entry_id;");
 
         var definition = new SavedFilterScenario(
@@ -111,7 +111,7 @@ public sealed class FilterCommitMaterializerHitSetParityTests
             Scenario.Name,
             Scenario.Rationale,
             """
-            {"name":"hit-set-parity","rationale":"commit and lazy materialization must agree","groups":[{"join":"AND","rules":[{"join":"AND","type":"text","field":"description","keywords":["needle"],"mode":"contains"},{"join":"AND","type":"drCrOnly","drCr":"debit"}]}]}
+            {"name":"hit-set-parity","rationale":"commit and lazy materialization must agree","groups":[{"join":"AND","conditions":[{"join":"AND","type":"text","field":"description","keywords":["needle"],"mode":"contains"},{"join":"AND","type":"drCrOnly","drCr":"debit"}]}]}
             """,
             new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero));
         await commitRepository.CommitAsync(
@@ -127,7 +127,7 @@ public sealed class FilterCommitMaterializerHitSetParityTests
 
         await ExecuteAsync(
             connectionFactory(projectId),
-            $"DELETE FROM {schemaPrefix}result_filter_run;");
+            $"DELETE FROM {schemaPrefix}filter_hit;");
         await lazyMaterializer.MaterializeAsync(
             projectId,
             [new MaterializableScenario(ScenarioPosition, Scenario)],
@@ -145,9 +145,9 @@ public sealed class FilterCommitMaterializerHitSetParityTests
         await ExecuteAsync(
             connection,
             $"""
-            INSERT INTO {schemaPrefix}target_gl_entry
-                (batch_id, source_row_number, document_number, line_item, post_date,
-                 account_code, account_name, document_description, amount_scaled,
+            INSERT INTO {schemaPrefix}gl
+                (batch_id, source_row_number, voucher_number, line_item, gl_date,
+                 account_number, account_name, description, amount_scaled,
                  debit_amount_scaled, credit_amount_scaled, dr_cr)
             VALUES
                 ('filter-hit-parity', 1, 'DOC-1', '1', '2025-03-01',
@@ -161,8 +161,8 @@ public sealed class FilterCommitMaterializerHitSetParityTests
                 ('filter-hit-parity', 5, 'DOC-5', '1', '2025-11-30',
                  '1101', 'Cash', 'needle beta', 50000, 50000, 0, 'DEBIT');
 
-            UPDATE {schemaPrefix}target_gl_entry
-            SET is_effective = CASE WHEN source_row_number = 4 THEN 0 ELSE 1 END;
+            UPDATE {schemaPrefix}gl
+            SET is_excluded = CASE WHEN source_row_number = 4 THEN 1 ELSE 0 END;
             """);
 
     private static Task<long[]> ReadHitEntryIdsAsync(
@@ -170,8 +170,8 @@ public sealed class FilterCommitMaterializerHitSetParityTests
         string schemaPrefix) =>
         ReadEntryIdsAsync(
             connection,
-            $"SELECT entry_id FROM {schemaPrefix}result_filter_run "
-            + $"WHERE scenario_position = {ScenarioPosition} ORDER BY entry_id;");
+            $"SELECT entry_id FROM {schemaPrefix}filter_hit "
+            + $"WHERE scenario_id = {ScenarioPosition} ORDER BY entry_id;");
 
     private static async Task<long[]> ReadEntryIdsAsync(DbConnection connection, string sql)
     {

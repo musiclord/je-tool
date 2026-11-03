@@ -21,11 +21,11 @@ public sealed class SqlExecutionSnapshotTests
     public void NormalizeSql_NormalizesOnlyProjectSchemaQualifier()
     {
         var normalized = SqlExecutionSnapshot.NormalizeSql(
-            "SELECT '[prj_literal].' FROM [prj_0123456789abcdef].target_gl_entry;",
+            "SELECT '[prj_literal].' FROM [prj_0123456789abcdef].gl;",
             "[prj_0123456789abcdef].");
 
         Assert.Equal(
-            "SELECT '[prj_literal].' FROM {s}.target_gl_entry;",
+            "SELECT '[prj_literal].' FROM {s}.gl;",
             normalized);
     }
 
@@ -33,11 +33,11 @@ public sealed class SqlExecutionSnapshotTests
     public void NormalizeSql_DoesNotNormalizeDifferentProjectSchemaQualifier()
     {
         var normalized = SqlExecutionSnapshot.NormalizeSql(
-            "SELECT * FROM [prj_fedcba9876543210].target_gl_entry;",
+            "SELECT * FROM [prj_fedcba9876543210].gl;",
             "[prj_0123456789abcdef].");
 
         Assert.Equal(
-            "SELECT * FROM [prj_fedcba9876543210].target_gl_entry;",
+            "SELECT * FROM [prj_fedcba9876543210].gl;",
             normalized);
     }
 

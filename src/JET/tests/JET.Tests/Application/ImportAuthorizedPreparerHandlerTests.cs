@@ -41,7 +41,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留正規化與去重的原斷言。
+            // sourceColumn 改成必填，後端不再猜人員欄；保留正規化與去重的原斷言。
             var data = await host.DispatchAsync("import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new
             {
                 filePath = path,
@@ -54,16 +54,16 @@ public sealed class ImportAuthorizedPreparerHandlerTests
             Assert.Equal("authorized-preparers.xlsx", data.GetProperty("fileName").GetString());
 
             var targetCount = await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM target_authorized_preparer;");
+                host, context.ProjectId, "SELECT COUNT(*) FROM authorized_preparer;");
             Assert.Equal(3, targetCount);
 
             // TRIM 正規化：落地姓名不含前後空白。
             Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
                 host, context.ProjectId,
-                "SELECT COUNT(*) FROM target_authorized_preparer WHERE name = '王小明';"));
+                "SELECT COUNT(*) FROM authorized_preparer WHERE name = '王小明';"));
             Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
                 host, context.ProjectId,
-                "SELECT COUNT(*) FROM target_authorized_preparer WHERE name = '  王小明  ';"));
+                "SELECT COUNT(*) FROM authorized_preparer WHERE name = '  王小明  ';"));
         }
         finally
         {
@@ -91,7 +91,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留第二次匯入取代前次名單的原斷言。
+            // sourceColumn 改成必填，後端不再猜人員欄；保留第二次匯入取代前次名單的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = first, sourceColumn = "姓名" }));
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
@@ -99,9 +99,9 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
             // replace：第二次匯入整份取代,只剩「丙」。
             Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM target_authorized_preparer;"));
+                host, context.ProjectId, "SELECT COUNT(*) FROM authorized_preparer;"));
             Assert.Equal(1, await DemoProjectPipeline.QueryScalarAsync(
-                host, context.ProjectId, "SELECT COUNT(*) FROM target_authorized_preparer WHERE name = '丙';"));
+                host, context.ProjectId, "SELECT COUNT(*) FROM authorized_preparer WHERE name = '丙';"));
         }
         finally
         {
@@ -124,7 +124,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；仍只驗證不支援 append 的原錯誤。
+            // sourceColumn 改成必填，後端不再猜人員欄；仍只驗證不支援 append 的原錯誤。
             var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
                 "import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new
                 {
@@ -149,7 +149,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         var path = WriteCsv("姓名\n甲\n乙\n");
 
-        // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；仍只驗證不支援 CSV 的原錯誤。
+        // sourceColumn 改成必填，後端不再猜人員欄；仍只驗證不支援 CSV 的原錯誤。
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new { filePath = path, sourceColumn = "姓名" })));
 
@@ -175,7 +175,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留重新開案的原狀態斷言。
+            // sourceColumn 改成必填，後端不再猜人員欄；保留重新開案的原狀態斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = path, sourceColumn = "姓名" }));
 

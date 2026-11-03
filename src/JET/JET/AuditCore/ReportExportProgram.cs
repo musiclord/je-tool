@@ -9,8 +9,8 @@ namespace JET.AuditCore;
 internal sealed record ReportExportRequest(
     string ActionName,
     string ProjectId,
-    string? ValidationRunId = null,
-    string? PrescreenRunId = null,
+    string? ValidationResultId = null,
+    string? PrescreenResultId = null,
     string? ScenarioRevision = null,
     IReadOnlyList<int>? ScenarioPositions = null,
     ReportWorkbookMetadata? WorkbookMetadata = null,
@@ -18,30 +18,30 @@ internal sealed record ReportExportRequest(
     string? FilterDataRevision = null);
 
 /// <summary>
-/// AuditCore-owned artifact set, source references, and atomicity for one included
-/// export action. Content writers and artifact persistence remain outside AuditCore.
+/// AuditCore-owned report set, source references, and atomicity for one included
+/// export action. Content writers and report persistence remain outside AuditCore.
 /// </summary>
 internal sealed record ReportExportPlan(
     ReportExportRequest Request,
-    IReadOnlyList<ReportArtifactKind> ArtifactKinds,
-    ReportArtifactSourceRefs SourceRef,
+    IReadOnlyList<ReportKind> ReportKinds,
+    ReportSourceRefs SourceRef,
     ReportWorkbookMetadata? WorkbookMetadata,
     IReadOnlyList<GlRdeFieldMetadata> CustomFields,
     bool UseAtomicBatch);
 
 /// <summary>
-/// 發布的報告。AuditLogWarning 是報告已發布、卻寫不進操作紀錄時給審計員的提醒
-/// （使用者 2026-10-19 裁定回報成功並提醒），寫進去時是 null。
+/// 發布的報告。OperationLogWarning 是報告已發布、卻寫不進操作紀錄時給審計員的提醒
+/// （裁定 2026-10-19-20），寫進去時是 null。
 /// </summary>
-internal sealed record ReportExportFacts(IReadOnlyList<ReportArtifact> Artifacts, string? AuditLogWarning = null);
+internal sealed record ReportExportFacts(IReadOnlyList<Report> Reports, string? OperationLogWarning = null);
 
 internal sealed record ReportExportResult(
     ReportExportPlan Plan,
-    IReadOnlyList<ReportArtifact> Artifacts,
-    string? AuditLogWarning = null);
+    IReadOnlyList<Report> Reports,
+    string? OperationLogWarning = null);
 
 /// <summary>
-/// Mechanical artifact publication port. Application supplies the already-shaped
+/// Mechanical report publication port. Application supplies the already-shaped
 /// content writers; the implementation preserves the existing single/batch store
 /// boundary selected by <see cref="ReportExportPlan"/>.
 /// </summary>
@@ -54,7 +54,7 @@ internal interface IReportExportFactsPort
 
 public static partial class JetAuditProgram
 {
-    private const string ValidationArtifactsAction = "export.validationArtifacts";
+    private const string ValidationReportsAction = "export.validationReports";
     private const string PrescreenReportAction = "export.prescreenReport";
     private const string CriteriaSelectionReportAction = "export.criteriaSelectionReport";
 
@@ -85,28 +85,28 @@ public static partial class JetAuditProgram
         var (kinds, sourceRef, useAtomicBatch) = request.ActionName switch
         {
             // 帳戶對應範本自 2026-09-02 起是工作檔，不在報告匯出計畫裡；驗證批次只剩兩份報告。
-            ValidationArtifactsAction => (
+            ValidationReportsAction => (
                 Kinds(
-                    ReportArtifactKind.ValidationReport,
-                    ReportArtifactKind.InfReport),
-                new ReportArtifactSourceRefs(
-                    ValidationRunId: Required(
-                        request.ValidationRunId,
-                        nameof(request.ValidationRunId))),
+                    ReportKind.ValidationReport,
+                    ReportKind.InfReport),
+                new ReportSourceRefs(
+                    ValidationResultId: Required(
+                        request.ValidationResultId,
+                        nameof(request.ValidationResultId))),
                 true),
             PrescreenReportAction => (
-                Kinds(ReportArtifactKind.PrescreenReport),
-                new ReportArtifactSourceRefs(
-                    PrescreenRunId: Required(
-                        request.PrescreenRunId,
-                        nameof(request.PrescreenRunId))),
+                Kinds(ReportKind.PrescreenReport),
+                new ReportSourceRefs(
+                    PrescreenResultId: Required(
+                        request.PrescreenResultId,
+                        nameof(request.PrescreenResultId))),
                 false),
             CriteriaSelectionReportAction => (
-                Kinds(ReportArtifactKind.CriteriaSelectionReport),
-                new ReportArtifactSourceRefs(
-                    ValidationRunId: Required(
-                        request.ValidationRunId,
-                        nameof(request.ValidationRunId)),
+                Kinds(ReportKind.CriteriaSelectionReport),
+                new ReportSourceRefs(
+                    ValidationResultId: Required(
+                        request.ValidationResultId,
+                        nameof(request.ValidationResultId)),
                     ScenarioRevision: Required(
                         request.ScenarioRevision,
                         nameof(request.ScenarioRevision)),
@@ -136,15 +136,15 @@ public static partial class JetAuditProgram
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(facts);
-        ArgumentNullException.ThrowIfNull(facts.Artifacts);
+        ArgumentNullException.ThrowIfNull(facts.Reports);
 
         // Content requests are checked before the store call. Do not add a new
         // post-publication failure boundary by revalidating store output here.
-        return new ReportExportResult(plan, facts.Artifacts, facts.AuditLogWarning);
+        return new ReportExportResult(plan, facts.Reports, facts.OperationLogWarning);
     }
 
-    private static IReadOnlyList<ReportArtifactKind> Kinds(
-        params ReportArtifactKind[] kinds) =>
+    private static IReadOnlyList<ReportKind> Kinds(
+        params ReportKind[] kinds) =>
         Array.AsReadOnly(kinds);
 
     private static string Required(string? value, string name) =>

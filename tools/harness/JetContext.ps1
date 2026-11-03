@@ -33,6 +33,53 @@ function Get-JetContextBrief {
     }
 }
 
+function Get-JetContextTableRows {
+    # Data rows of every Markdown table, each with its own header cells; header and separator rows are left out.
+    param([string] $Text)
+    $rows = [Collections.Generic.List[object]]::new()
+    $header = $null
+    $inFence = $false
+    foreach ($line in ($Text -split "\r?\n")) {
+        if ($line -match '^\s*(```|~~~)') { $inFence = -not $inFence; $header = $null; continue }
+        if ($inFence -or -not $line.StartsWith('|')) { $header = $null; continue }
+        if ($line -match '^\|[\s:\-|]+\|\s*$') { continue }
+        $cells = @([regex]::Split($line.Trim().Trim('|'), '(?<!\\)\|') | ForEach-Object { $_.Trim() })
+        if ($null -eq $header) { $header = $cells; continue }
+        $rows.Add([pscustomobject]@{ Header = $header; Cells = $cells })
+    }
+    return $rows
+}
+
+function Get-JetRulingsSummary {
+    # Counts only; the rulings themselves stay in docs/rulings.md for the agent to read when a task needs them.
+    param([string] $Text)
+    $summary = [ordered]@{ path = 'docs/rulings.md'; rulings = 0; superseded = 0; agentPractices = 0; pendingConfirmation = 0 }
+    foreach ($row in @(Get-JetContextTableRows $Text)) {
+        if ($row.Header.Count -lt 2 -or $row.Header[0] -cne '編號') { continue }
+        switch -CaseSensitive ($row.Header[1]) {
+            '裁定' {
+                $summary.rulings++
+                if ($row.Cells.Count -gt 1 -and $row.Cells[1].EndsWith('待使用者確認')) { $summary.pendingConfirmation++ }
+            }
+            '原本的裁定' { $summary.superseded++ }
+            '做法' { $summary.agentPractices++ }
+        }
+    }
+    return $summary
+}
+
+function Get-JetGlossarySummary {
+    param([string] $Text)
+    $summary = [ordered]@{ path = 'docs/glossary.md'; concepts = 0; pendingConfirmation = 0 }
+    foreach ($row in @(Get-JetContextTableRows $Text)) {
+        $column = [Array]::IndexOf([string[]]$row.Header, '確認的改法')
+        if ($row.Header[0] -cne '概念' -or $column -lt 0) { continue }
+        $summary.concepts++
+        if ($row.Cells.Count -gt $column -and $row.Cells[$column].Contains('待使用者確認')) { $summary.pendingConfirmation++ }
+    }
+    return $summary
+}
+
 function Get-JetContext {
     param([string] $RepositoryRoot)
     $notices = [Collections.Generic.List[string]]::new()
@@ -57,7 +104,13 @@ function Get-JetContext {
     }
     catch { $notices.Add('現行計畫摘要未能讀取；可直接查閱 docs/development-status.md 和本次任務。') }
 
-    $workspace = [ordered]@{ branch = $null; head = $null; available = $false; scope = 'tracked and untracked code, docs and tools; excludes data'; counts = @{}; paths = @(); truncated = $false }
+    $references = [ordered]@{ rulings = $null; glossary = $null }
+    try { $references.rulings = Get-JetRulingsSummary (Read-JetContextText $RepositoryRoot 'docs/rulings.md') }
+    catch { $notices.Add('裁定總表未能讀取；查使用者的裁定時直接開 docs/rulings.md。') }
+    try { $references.glossary = Get-JetGlossarySummary (Read-JetContextText $RepositoryRoot 'docs/glossary.md') }
+    catch { $notices.Add('名詞表未能讀取；取名或改名前直接開 docs/glossary.md。') }
+
+    $workspace =[ordered]@{ branch = $null; head = $null; available = $false; scope = 'tracked and untracked code, docs and tools; excludes data'; counts = @{}; paths = @(); truncated = $false }
     try {
         $branch = Invoke-JetGitLines $RepositoryRoot @('branch', '--show-current')
         $head = Invoke-JetGitLines $RepositoryRoot @('rev-parse', '--verify', 'HEAD')
@@ -140,12 +193,13 @@ function Get-JetContext {
         readOnly = $true
         generatedUtc = [DateTime]::UtcNow.ToString('o')
         plan = $plan
+        references = $references
         workspace = $workspace
         recentEvidence = @($evidence.ToArray())
         evidenceWindow = 'latest receipt per command/configuration/filter/scenario, up to 8 selections from the newest 20 run directories; not a full validation history'
         evidenceMeaning = '收據只證明當次執行；相同 HEAD 也不代表目前未提交內容已驗證。'
         availableChecks = $availableChecks
-        navigation = @('docs/project-context.md', 'docs/jet-guide.md', 'docs/action-contract-manifest.md', '.agents/harness/development-workflow.md', 'tools/README.md')
+        navigation = @('docs/project-context.md', 'docs/jet-guide.md', 'docs/rulings.md', 'docs/glossary.md', 'docs/action-contract-manifest.md', '.agents/harness/development-workflow.md', 'tools/README.md')
         guidance = '依本次任務界定交付範圍；計畫中的下一步表示工作順序，不是本輪停止點。查來源、修改、驗證並依結果繼續，直到本輪成果完成或有具體阻礙。'
         notices = @($notices.ToArray())
         privateData = @{ pathInspected = $false }

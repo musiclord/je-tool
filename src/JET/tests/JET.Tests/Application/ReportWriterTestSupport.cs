@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 直接呼叫報告寫出器的測試共用的材料。2026-10-22 技術債一輪刪掉只給測試用的相容入口後，
+/// 直接呼叫報告寫出器的測試共用的材料。2026-10-22 清理技術債時刪掉只給測試用的相容入口後，
 /// 測試和正式 handler 一樣，先把保存的摘要算成計畫、備好工作簿中繼資料，再呼叫唯一的正式入口。
 /// </summary>
 internal static class ReportWriterTestSupport
@@ -24,8 +24,8 @@ internal static class ReportWriterTestSupport
                 projection.NullAccountCount,
                 projection.NullDocumentCount,
                 projection.NullDescriptionCount,
-                projection.OutOfRangeDateCount)),
-            new ValidationReportPlanningFacts(projection.UnbalancedDocumentCount));
+                projection.ApprovalDateNotInPeriodCount)),
+            new ValidationReportPlanningFacts(projection.UnbalancedVoucherCount));
 
     /// <summary>和正式 handler 相同的預篩選報告計畫：每個適用的明細都用摘要裡的項目數當作傳票數與列數。</summary>
     internal static PrescreenReportPlan PrescreenPlan(
@@ -34,12 +34,12 @@ internal static class ReportWriterTestSupport
     {
         var unfinalized = JetAuditProgram.Plan(new PrescreenReportRequest(
             context.Project.ProjectId,
-            new FilterRuleContext(
+            new FilterConditionContext(
                 context.Project.MoneyScale,
-                context.Project.LastPeriodStart,
+                context.Project.PrepStartDate,
                 context.Project.PeriodStart,
                 context.Project.PeriodEnd),
-            projection.PostPeriodApproval.NaReason,
+            projection.PrepPeriodApproval.NaReason,
             projection.SuspiciousKeywords.NaReason,
             projection.UnexpectedAccountPair.NaReason,
             projection.TrailingZeros.NaReason,
@@ -63,7 +63,7 @@ internal static class ReportWriterTestSupport
         new(
             periodStart,
             periodEnd,
-            TaxonomyRevision: 1,
+            CategoryRevision: 1,
             new CommittedMapping(
                 DatasetKind.Gl,
                 new Dictionary<string, string>(StringComparer.Ordinal),
@@ -76,11 +76,11 @@ internal static class ReportWriterTestSupport
     internal static string PrescreenSummaryJson() => JsonSerializer.Serialize(
         new
         {
-            postPeriodApproval = new { status = "na", naReason = "尚未配對核准日", count = 0L },
+            prepPeriodApproval = new { status = "na", naReason = "尚未配對核准日", count = 0L },
             suspiciousKeywords = new { status = "V", count = 0L },
             unexpectedAccountPair = new { status = "na", naReason = "尚未完成科目配對", count = 0L },
             trailingZeros = new { status = "V", count = 0L },
-            creatorSummary = new { status = "V", creators = Array.Empty<object>() },
+            preparerSummary = new { status = "V", preparers = Array.Empty<object>() },
             rareAccounts = new { status = "V", distinctAccountCount = 0L },
             blankDescription = new { status = "V", count = 0L },
             resultRef = new { logicVersion = RuleLogicVersions.Prescreen }
@@ -91,7 +91,7 @@ internal static class ReportWriterTestSupport
         PrescreenReportProjection projection,
         PrescreenReportDetailKind kind) => kind switch
     {
-        PrescreenReportDetailKind.PostPeriodApproval => projection.PostPeriodApproval,
+        PrescreenReportDetailKind.PrepPeriodApproval => projection.PrepPeriodApproval,
         PrescreenReportDetailKind.SuspiciousKeywords => projection.SuspiciousKeywords,
         PrescreenReportDetailKind.UnexpectedAccountPair => projection.UnexpectedAccountPair,
         PrescreenReportDetailKind.TrailingZeros => projection.TrailingZeros,
@@ -135,17 +135,17 @@ internal static class ReportWriterTestSupport
     }
 
     /// <summary>只回內建科目分類的替身。</summary>
-    internal sealed class BuiltInAccountTaxonomyStore : IAccountTaxonomyStore
+    internal sealed class BuiltInAccountCategoryStore : IAccountCategoryStore
     {
-        public Task<AccountTaxonomySnapshot> ReadAsync(
+        public Task<AccountCategorySnapshot> ReadAsync(
             string projectId,
             CancellationToken cancellationToken) =>
-            Task.FromResult(AccountTaxonomyCatalog.BuiltInSnapshot);
+            Task.FromResult(AccountCategoryCatalog.BuiltInSnapshot);
 
-        public Task<AccountTaxonomySnapshot> SaveAsync(
+        public Task<AccountCategorySnapshot> SaveAsync(
             string projectId,
             int expectedRevision,
-            IReadOnlyList<AccountTaxonomyCategory> categories,
+            IReadOnlyList<AccountCategory> categories,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

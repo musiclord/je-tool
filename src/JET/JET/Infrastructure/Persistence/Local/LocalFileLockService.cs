@@ -1,17 +1,14 @@
-using System.Security.Cryptography;
-using System.Text;
 using JET.Domain;
 
 namespace JET.Infrastructure;
 
 /// <summary>
 /// SQLite／DuckDB 共用的跨程序工作鎖。鎖檔位於 projects root、而非案件資料夾內，因此持鎖時仍可在
-/// project.delete 成功後移除整個案件資料夾。檔名只含 canonical 案件路徑的 SHA-256，不洩漏案名。
+/// project.delete 成功後移除整個案件資料夾。鎖檔名用案件資料夾名，命名規則見 <see cref="JetProjectFolder.GetLockPathBesideProject"/>。
 /// </summary>
 public sealed class LocalFileLockService : ILockService, IProjectDeletionLockService, IDisposable
 {
     private const string LockFilePrefix = ".project-session-";
-    private const string LockFileSuffix = ".lock";
     private const string ExternalHolder = "另一個 JET 執行個體";
 
     private static readonly Task<IReadOnlyList<ProjectLockInfo>> NoListedLocks =
@@ -219,14 +216,8 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
     private string GetLockPath(string projectId) =>
         GetLockPathForProjectDirectory(GetProjectDirectory(projectId));
 
-    private string GetLockPathForProjectDirectory(string projectDirectory)
-    {
-        var normalizedForHash = OperatingSystem.IsWindows()
-            ? projectDirectory.ToUpperInvariant()
-            : projectDirectory;
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedForHash)));
-        return Path.Combine(_rootPath, $"{LockFilePrefix}{hash}{LockFileSuffix}");
-    }
+    private string GetLockPathForProjectDirectory(string projectDirectory) =>
+        JetProjectFolder.GetLockPathBesideProject(_rootPath, projectDirectory, LockFilePrefix);
 
     private static void EnsureSafeLockPath(string lockPath, bool requireExists)
     {

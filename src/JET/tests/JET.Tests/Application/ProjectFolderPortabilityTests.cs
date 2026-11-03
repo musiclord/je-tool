@@ -25,8 +25,8 @@ public sealed class ProjectFolderPortabilityTests
         using var targetRoot = new TempProjectRoot();
 
         string projectId;
-        string artifactId;
-        string artifactFileName;
+        string reportId;
+        string reportFileName;
         IReadOnlyList<string> sourceInfSample;
         long sourceSampleSeed;
         int sourceSampleSeedVersion;
@@ -37,7 +37,7 @@ public sealed class ProjectFolderPortabilityTests
             projectId = await InlineWorkbookProject.SetupAsync(
                 source,
                 ConfigureGl,
-                lastPeriodStart: "2025-12-31",
+                prepStartDate: "2025-12-31",
                 databaseProvider: databaseProvider,
                 configureTb: ConfigureTb);
 
@@ -50,12 +50,12 @@ public sealed class ProjectFolderPortabilityTests
                 "export.criteriaSelectionReport",
                 JsonSerializer.Serialize(new
                 {
-                    validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString(),
-                    prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString(),
+                    validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString(),
+                    prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString(),
                     revision = filter.GetProperty("resultRef").GetProperty("revision").GetString()
                 }));
-            artifactId = report.GetProperty("artifact").GetProperty("artifactId").GetString()!;
-            artifactFileName = report.GetProperty("artifact").GetProperty("fileName").GetString()!;
+            reportId = report.GetProperty("publishedReport").GetProperty("reportId").GetString()!;
+            reportFileName = report.GetProperty("publishedReport").GetProperty("fileName").GetString()!;
 
             await source.DispatchAsync(
                 "log.append",
@@ -98,13 +98,13 @@ public sealed class ProjectFolderPortabilityTests
             Assert.True(loaded.GetProperty("importState").GetProperty("tb").GetProperty("rowCount").GetInt64() >= 2);
             Assert.Equal(JsonValueKind.Object, loaded.GetProperty("mapping").GetProperty("gl").ValueKind);
             Assert.Equal(JsonValueKind.Object, loaded.GetProperty("mapping").GetProperty("tb").ValueKind);
-            Assert.Equal(JsonValueKind.Object, loaded.GetProperty("latestRuns").GetProperty("validate").ValueKind);
-            Assert.Equal(JsonValueKind.Object, loaded.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
+            Assert.Equal(JsonValueKind.Object, loaded.GetProperty("validationResult").ValueKind);
+            Assert.Equal(JsonValueKind.Object, loaded.GetProperty("prescreenResult").ValueKind);
             Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
             Assert.Equal(JsonValueKind.Object, loaded.GetProperty("filterResultRef").ValueKind);
             Assert.Contains(
-                loaded.GetProperty("reportArtifacts").EnumerateArray(),
-                artifact => artifact.GetProperty("artifactId").GetString() == artifactId);
+                loaded.GetProperty("reports").EnumerateArray(),
+                report => report.GetProperty("reportId").GetString() == reportId);
             Assert.DoesNotContain(sourceRoot.Path, loaded.GetRawText(), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(targetRoot.Path, loaded.GetRawText(), StringComparison.OrdinalIgnoreCase);
 
@@ -136,24 +136,24 @@ public sealed class ProjectFolderPortabilityTests
             var reloaded = await target.DispatchAsync(
                 "project.load",
                 JsonSerializer.Serialize(new { projectId }));
-            var movedArtifact = Assert.Single(
-                reloaded.GetProperty("reportArtifacts").EnumerateArray(),
-                artifact => artifact.GetProperty("artifactId").GetString() == artifactId);
-            Assert.Equal(artifactFileName, movedArtifact.GetProperty("fileName").GetString());
+            var movedReport = Assert.Single(
+                reloaded.GetProperty("reports").EnumerateArray(),
+                report => report.GetProperty("reportId").GetString() == reportId);
+            Assert.Equal(reportFileName, movedReport.GetProperty("fileName").GetString());
             Assert.DoesNotContain(sourceRoot.Path, reloaded.GetRawText(), StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(targetRoot.Path, reloaded.GetRawText(), StringComparison.OrdinalIgnoreCase);
 
-            AssertManifestUsesRelativeFileNames(targetProjectDirectory, artifactId, artifactFileName);
+            AssertManifestUsesRelativeFileNames(targetProjectDirectory, reportId, reportFileName);
             await target.DispatchAsync(
                 "host.openFolder",
-                JsonSerializer.Serialize(new { artifactId }));
+                JsonSerializer.Serialize(new { reportId }));
             await target.DispatchAsync("host.openFolder", """{ "target": "projectFolder" }""");
             Assert.Equal(
-                Path.GetFullPath(Path.Combine(targetProjectDirectory, artifactFileName)),
+                Path.GetFullPath(Path.Combine(targetProjectDirectory, reportFileName)),
                 shell.RevealedPaths[0]);
             Assert.Equal(Path.GetFullPath(targetProjectDirectory), shell.RevealedPaths[1]);
 
-            // 情境定義保留、命中清空時，首頁查詢應在新根惰性補算。使用者 2026-10-07 裁定上游修改清除下游後，
+            // 情境定義保留、命中清空時，首頁查詢應在新根惰性補算。上游修改會清除下游（裁定 2026-10-07-03），所以
             // 變更非工作日會連情境一起清掉，改用開案規則升版的情境整批取代製造這個狀態。
             // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
             await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(target, projectId, databaseProvider);
@@ -179,7 +179,7 @@ public sealed class ProjectFolderPortabilityTests
               "groups": [
                 {
                   "join": "and",
-                  "rules": [
+                  "conditions": [
                     {
                       "join": "and",
                       "type": "text",
@@ -244,7 +244,7 @@ public sealed class ProjectFolderPortabilityTests
 
     private static async Task AssertPortableQuerySurfacesAsync(HandlerTestHost host)
     {
-        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
+        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
         var preview = await host.DispatchAsync(
             "query.dataPreview",
             """{ "dataset": "gl", "limit": 5 }""");
@@ -255,13 +255,13 @@ public sealed class ProjectFolderPortabilityTests
         var pageRequests = new (string Action, string Payload)[]
         {
             ("query.completenessDiffPage", """{ "pageSize": 7 }"""),
-            ("query.docBalancePage", """{ "pageSize": 7 }"""),
-            ("query.nullRecordsPage", """{ "category": "nullDescription", "pageSize": 7 }"""),
+            ("query.voucherBalancePage", """{ "pageSize": 7 }"""),
+            ("query.blankRecordsPage", """{ "category": "nullDescription", "pageSize": 7 }"""),
             ("query.sourceQualityPage", """{ "pageSize": 7 }"""),
             ("query.prescreenPage", """{ "ruleKey": "suspiciousKeywords", "pageSize": 7 }"""),
             ("query.filterHitsPage", """{ "scenarioPosition": 1, "pageSize": 7 }"""),
-            ("query.tagMatrixVoucherPage", """{ "pageSize": 7 }"""),
-            ("query.tagMatrixRowPage", """{ "pageSize": 7 }""")
+            ("query.highRiskSummaryVoucherPage", """{ "pageSize": 7 }"""),
+            ("query.highRiskSummaryRowPage", """{ "pageSize": 7 }""")
         };
 
         foreach (var request in pageRequests)
@@ -271,8 +271,8 @@ public sealed class ProjectFolderPortabilityTests
             Assert.True(page.TryGetProperty("nextCursor", out _), request.Action);
         }
 
-        var matrix = await host.DispatchAsync("query.tagMatrixScenarios");
-        Assert.Single(matrix.GetProperty("scenarios").EnumerateArray());
+        var summary = await host.DispatchAsync("query.highRiskSummaryScenarios");
+        Assert.Single(summary.GetProperty("scenarios").EnumerateArray());
     }
 
     private static async Task AssertMovedPersistenceIsPortableAsync(
@@ -285,7 +285,7 @@ public sealed class ProjectFolderPortabilityTests
         foreach (var jsonFileName in new[]
                  {
                      JetProjectFolder.ProjectJsonFileName,
-                     ProjectReportArtifactStore.ManifestFileName
+                     ProjectReportStore.ManifestFileName
                  })
         {
             var json = await File.ReadAllTextAsync(Path.Combine(projectDirectory, jsonFileName));
@@ -329,7 +329,7 @@ public sealed class ProjectFolderPortabilityTests
         auditCommand.CommandText =
             """
             SELECT operation, target_type, target_id
-            FROM audit_event_log
+            FROM operation_log
             ORDER BY occurred_utc, event_id;
             """;
         var auditRows = new List<string>();
@@ -366,15 +366,15 @@ public sealed class ProjectFolderPortabilityTests
 
     private static void AssertManifestUsesRelativeFileNames(
         string projectDirectory,
-        string artifactId,
+        string reportId,
         string expectedFileName)
     {
-        var manifestPath = Path.Combine(projectDirectory, ProjectReportArtifactStore.ManifestFileName);
+        var manifestPath = Path.Combine(projectDirectory, ProjectReportStore.ManifestFileName);
         using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        var artifact = Assert.Single(
+        var report = Assert.Single(
             document.RootElement.EnumerateArray(),
-            item => item.GetProperty("artifactId").GetString() == artifactId);
-        var relativeFileName = artifact.GetProperty("relativeFileName").GetString()!;
+            item => item.GetProperty("reportId").GetString() == reportId);
+        var relativeFileName = report.GetProperty("relativeFileName").GetString()!;
         Assert.Equal(expectedFileName, relativeFileName);
         Assert.False(Path.IsPathRooted(relativeFileName));
         Assert.Equal(relativeFileName, Path.GetFileName(relativeFileName));

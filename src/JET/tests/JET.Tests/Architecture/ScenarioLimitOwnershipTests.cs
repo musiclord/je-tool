@@ -6,8 +6,8 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 已存情境上限只定義在 <see cref="FilterScenarioLimits.MaxSavedScenarios"/>。底稿第 4 與 4-1 頁把位置換成位元的 SQL、
-/// 解回位置的方法、矩陣與暫存檔的範圍檢查、條件篩選報告的列範圍，以及「最多可儲存」的句子都引用它，不各自寫 10
-/// （技術債一輪，使用者 2026-10-22 裁定全部收斂）。
+/// 解回位置的方法、高風險條件彙總與暫存檔的範圍檢查、條件篩選報告的列範圍，以及「最多可儲存」的句子都引用它，不各自寫 10
+/// （裁定 2026-10-22-19：重複的常數全部收斂到一個定義）。
 /// </summary>
 public sealed class ScenarioLimitOwnershipTests
 {
@@ -18,8 +18,8 @@ public sealed class ScenarioLimitOwnershipTests
         var mask = ProductSources.Product("Infrastructure", "Sql", "ScenarioTagMask.cs");
         Assert.Contains("FilterScenarioLimits.MaxSavedScenarios", mask, StringComparison.Ordinal);
 
-        var stream = ProductSources.Product("Infrastructure", "Sql", "WorkpaperStep4StreamReader.cs");
-        var session = ProductSources.Product("Infrastructure", "Sql", "WorkpaperStep41PreparedSession.cs");
+        var stream = ProductSources.Product("Infrastructure", "Sql", "WorkingPaperStep4StreamReader.cs");
+        var session = ProductSources.Product("Infrastructure", "Sql", "WorkingPaperStep41PreparedSession.cs");
         foreach (var source in new[] { stream, session })
         {
             Assert.Contains("ScenarioTagMask.", source, StringComparison.Ordinal);
@@ -31,11 +31,11 @@ public sealed class ScenarioLimitOwnershipTests
     [Fact]
     public void PositionRangeChecks_UseTheLimit()
     {
-        var scope = ProductSources.Product("Infrastructure", "Sql", "TagMatrixScenarioSqlScope.cs");
+        var scope = ProductSources.Product("Infrastructure", "Sql", "HighRiskSummaryScenarioSqlScope.cs");
         Assert.Contains("FilterScenarioLimits.MaxSavedScenarios", scope, StringComparison.Ordinal);
         Assert.DoesNotContain("> 10", scope, StringComparison.Ordinal);
 
-        var spool = ProductSources.Product("Infrastructure", "Export", "WorkpaperWriter.Step2To41.cs");
+        var spool = ProductSources.Product("Infrastructure", "Export", "WorkingPaperWriter.Step2To41.cs");
         Assert.Contains("positionCount > FilterScenarioLimits.MaxSavedScenarios", spool, StringComparison.Ordinal);
         Assert.DoesNotContain("positionCount is < 0 or > 10", spool, StringComparison.Ordinal);
     }

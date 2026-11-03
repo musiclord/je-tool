@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 低嚴重度事項 G（使用者 2026-10-19 要求處理）：Windows 地區格式的日曆設成中華民國曆時，
+/// Windows 地區格式的日曆設成中華民國曆時，
 /// 沒有指定文化的 yyyy 會被當成民國年，閏年 2 月 29 日解析失敗，跨過 2 月底的日數也會算錯。
 /// oracle：手算西元年的季末視窗與閏年日期。每個測試在 zh-TW 加中華民國曆下執行，結束後還原。
 /// </summary>
@@ -35,11 +35,11 @@ public sealed class RocCalendarCultureTests
     [Fact]
     public void FilterDateRange_LeapDayBound_IsAValidDate()
     {
-        var rule = new FilterRuleSpec(FilterJoin.And, FilterRuleType.DateRange, null, "postDate", [],
+        var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.DateRange, null, "glDate", [],
             TextMatchMode.Contains, "2024-02-29", "2024-12-31", null, null, null, null);
         var scenario = new FilterScenarioSpec("閏日起算", "期間從閏日開始",
             [new FilterGroupSpec(FilterJoin.And, [rule])]);
-        var context = new FilterValidationContext(HasLastPeriodStart: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
+        var context = new FilterValidationContext(HasPrepStartDate: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
 
         Assert.Empty(UnderRocCalendar(() => FilterScenarioValidator.Validate(scenario, context)));
     }
@@ -49,11 +49,11 @@ public sealed class RocCalendarCultureTests
     {
         var gl = new CommittedMapping(
             DatasetKind.Gl,
-            new Dictionary<string, string>(StringComparer.Ordinal) { [GlMappingKeys.DocNum] = "Document" },
+            new Dictionary<string, string>(StringComparer.Ordinal) { [GlMappingKeys.VoucherNumber] = "Document" },
             GlAmountModeNames.Signed,
             "gl-batch",
             DateTimeOffset.UnixEpoch);
-        var metadata = new ReportWorkbookMetadata("2024-01-01", "2024-02-29", TaxonomyRevision: 1, gl, TbMapping: null);
+        var metadata = new ReportWorkbookMetadata("2024-01-01", "2024-02-29", CategoryRevision: 1, gl, TbMapping: null);
 
         var error = Record.Exception(() => UnderRocCalendar(() =>
         {
@@ -74,7 +74,7 @@ public sealed class RocCalendarCultureTests
         Assert.Contains("2024-02-29 08:30", message, StringComparison.Ordinal);
     }
 
-    // 使用者 2026-10-19 裁定防再犯：程式啟動時把日曆固定為西元，地區的其他設定不動。
+    // 裁定 2026-10-19-25 防再犯：程式啟動時把日曆固定為西元，地區的其他設定不動。
     [Fact]
     public void ProcessCulture_RocCalendar_SwitchesOnlyTheCalendarToGregorian()
     {

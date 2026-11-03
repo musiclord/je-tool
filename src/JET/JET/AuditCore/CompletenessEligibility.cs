@@ -1,16 +1,19 @@
+using JET.Domain;
+
 namespace JET.AuditCore;
 
 /// <summary>
-/// 驗證結果可用性的 typed facts。HasCurrentValidationRun 代表目前資料世代仍有
-/// 未被失效矩陣移除的 validation run；其餘欄位只承接該 run 已保存的 part A／B 結果。
+/// 驗證結果可用性的 typed facts。HasCurrentValidationResult 代表目前資料世代仍有
+/// 未被失效矩陣移除的 validation run；其餘欄位只承接該 run 已保存的存入筆數與合計核對、逐科目比對結果。
 /// </summary>
 internal sealed record CompletenessEligibilityFacts(
-    bool HasCurrentValidationRun,
+    bool HasCurrentValidationResult,
     bool IsCurrentLogicVersion,
-    bool? PartARowCountMatch,
-    bool? PartAAmountMatch,
-    bool? PartBApplicable,
-    long? PartBDifferenceAccountCount);
+    bool? StoredRowCountMatch,
+    bool? StoredAmountMatch,
+    bool? AccountComparisonApplicable,
+    long? AccountComparisonDifferenceAccountCount,
+    string? AccountComparisonNaReason = null);
 
 internal sealed record CompletenessEligibilityDecision(
     bool IsEligible,
@@ -18,7 +21,7 @@ internal sealed record CompletenessEligibilityDecision(
     string? Warning = null);
 
 /// <summary>
-/// 分開判定驗證結果可用性與審計差異。2026-09-17 使用者裁定：審計員可以說明差異並繼續篩選。
+/// 分開判定驗證結果可用性與審計差異。裁定 2026-09-17-01：審計員可以說明差異並繼續篩選。
 /// 只有缺漏、過期或損壞的結果禁止沿用；差異保留為警示，不冒充完整性通過。
 /// </summary>
 internal static class CompletenessEligibility
@@ -32,30 +35,25 @@ internal static class CompletenessEligibility
     private const string IncompleteValidationReason =
         "目前完整性驗證結果不完整，請重新執行資料驗證。";
 
-    // 2026-10-05 V2：兩組數字都是 JET 在確認配對時與存下後算的，不比對來源檔本身，所以不寫「匯入前後」。
-    // 使用者 2026-10-13 勾選頁確認：不再請審計員輸出支援日誌。2026-10-14 再要求黃色提示不過度解釋，依同日確認的清單縮短。
-    private const string PartAMismatchReason =
-        "完整性測試未通過：存下的分錄筆數或借貸合計與配對時不一致，請重新確認 GL 欄位配對後再驗證。";
-
-    private const string PartAUnavailableWarning =
-        "無法確認 JET 存下的分錄筆數與借貸合計：這個案件沒有確認欄位配對時算出的數字，通常是舊版建立的案件。"
-        + "再確認一次 GL 欄位配對，就會補上這組數字。";
-
-    private const string PartBNotApplicableReason =
-        "完整性測試無法執行 GL 與 TB 的逐科目比對：TB 欄位配對尚未確認，補齊後可重新驗證。";
+    // 兩組數字都是 JET 在確認配對時與存下後算的，不比對來源檔本身，所以不寫「匯入前後」。
+    // 裁定 2026-10-13-28 確認了用字：不再請審計員輸出支援日誌。黃色提示不過度解釋（裁定 2026-10-14-02），
+    // 依裁定 2026-10-14-01 確認的句子縮短。
+    // 裁定 2026-10-29-27 確認兩項檢查的名稱，提醒的開頭寫哪一項沒通過，和卡片上的狀態字一致。
+    private const string StoredTotalsMismatchReason =
+        "存入筆數與合計核對未通過：存下的分錄筆數或借貸合計與配對時不一致，請重新確認 GL 欄位配對後再驗證。";
 
     internal static CompletenessEligibilityDecision Evaluate(CompletenessEligibilityFacts facts)
     {
         ArgumentNullException.ThrowIfNull(facts);
 
-        if (!facts.HasCurrentValidationRun)
+        if (!facts.HasCurrentValidationResult)
         {
             return Ineligible(MissingCurrentValidationReason);
         }
 
-        if ((facts.PartARowCountMatch is null) != (facts.PartAAmountMatch is null)
-            || facts.PartBApplicable is null
-            || facts.PartBDifferenceAccountCount is null or < 0)
+        if ((facts.StoredRowCountMatch is null) != (facts.StoredAmountMatch is null)
+            || facts.AccountComparisonApplicable is null
+            || facts.AccountComparisonDifferenceAccountCount is null or < 0)
         {
             return Ineligible(IncompleteValidationReason);
         }
@@ -66,24 +64,23 @@ internal static class CompletenessEligibility
         }
 
         var warnings = new List<string>();
-        if (facts.PartARowCountMatch is null && facts.PartAAmountMatch is null)
+        // 新案件確認 GL 欄位配對時一定會算出存入筆數與合計；萬一資料異常缺了這組數字，提醒和核對未通過相同，
+        // 請審計員重新確認 GL 欄位配對。只為舊案件留下的「無法核對」提醒已拿掉（裁定 2026-11-02-06）。
+        if (facts.StoredRowCountMatch is not true || facts.StoredAmountMatch is not true)
         {
-            warnings.Add(PartAUnavailableWarning);
-        }
-        else if (facts.PartARowCountMatch is not true || facts.PartAAmountMatch is not true)
-        {
-            warnings.Add(PartAMismatchReason);
+            warnings.Add(StoredTotalsMismatchReason);
         }
 
-        if (facts.PartBApplicable is not true)
+        // 裁定 2026-10-29-16：沒有 TB 不擋後續步驟，提醒直接沿用逐科目比對無法執行的原因句。
+        if (facts.AccountComparisonApplicable is not true)
         {
-            warnings.Add(PartBNotApplicableReason);
+            warnings.Add(facts.AccountComparisonNaReason ?? AccountComparisonProcedure.MissingTbMappingReason);
         }
 
-        if (facts.PartBDifferenceAccountCount is not 0)
+        if (facts.AccountComparisonDifferenceAccountCount is not 0)
         {
             warnings.Add(
-                $"完整性測試未通過：GL 與 TB 仍有 {facts.PartBDifferenceAccountCount.Value} 個科目金額不一致。");
+                $"GL 與 TB 逐科目比對未通過：仍有 {CountText.Format(facts.AccountComparisonDifferenceAccountCount.Value)} 個科目金額不一致。");
         }
 
         return new CompletenessEligibilityDecision(IsEligible: true, Reason: null,

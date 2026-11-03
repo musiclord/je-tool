@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
-// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+// Selectors follow the verified frontend contracts.
 
 internal static partial class GuiScenarios
 {
@@ -17,19 +17,19 @@ internal static partial class GuiScenarios
         { throw new GuiCheckException("recovery_control_unavailable"); }
     }
 
-    // 使用者 2026-10-08 要求重新設計自訂篩選條件。各情境加入自訂條件時共用這裡：
+    // 裁定 2026-10-08-06 重新設計自訂篩選條件。各情境加入自訂條件時共用這裡：
     // 「field:欄位識別」點「依欄位設定」的欄位按鈕；「check:項目」先展開所屬分類再按「加入」；
     // 「compound:group」或「compound:voucher」從第一組的「⋯」選單加入。分類對照照 ui-core.js 的依審計目的條件逐字寫死。
-    // 「prescreen:規則」在條件總覽的「預篩選」分頁直接按「加入」（使用者 2026-10-16 要求縮短套用預篩選條件的操作，
+    // 「prescreen:規則」在條件總覽的「預篩選」分頁直接按「加入」（裁定 2026-10-16-09 縮短套用預篩選條件的操作，
     // 取代原本的「預篩選結果：沿用第四步預篩選規則」）。
     private static readonly IReadOnlyDictionary<string, string> PurposeCheckCategories = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["postDateWeekend"] = "dates", ["postDateHoliday"] = "dates", ["postDateNonBusinessDay"] = "dates",
-        ["docDateNonBusinessDay"] = "dates", ["postPeriodApproval"] = "dates", ["postDateRange"] = "dates", ["periodEndDays"] = "dates",
+        ["glDateWeekend"] = "dates", ["glDateHoliday"] = "dates", ["glDateNonBusinessDay"] = "dates",
+        ["approvalDateNonBusinessDay"] = "dates", ["prepPeriodApproval"] = "dates", ["glDateRange"] = "dates", ["periodEndDays"] = "dates",
         ["largeAmount"] = "amounts", ["trailingZeros"] = "amounts",
         ["descriptionKeywords"] = "description", ["blankDescription"] = "description",
-        ["debitOrCreditOnly"] = "accounts", ["accountCategory"] = "accounts", ["categoryPair"] = "accounts",
-        ["accountCodePair"] = "accounts", ["unexpectedAccountPair"] = "accounts", ["rareAccounts"] = "accounts",
+        ["debitOrCreditOnly"] = "accounts", ["accountInCategory"] = "accounts", ["categoryPair"] = "accounts",
+        ["accountNumberPair"] = "accounts", ["unexpectedAccountPair"] = "accounts", ["rareAccounts"] = "accounts",
         ["manualEntries"] = "people", ["rarePreparers"] = "people"
     };
 
@@ -90,7 +90,7 @@ internal static partial class GuiScenarios
         Task Choose(string selector, string value) => ChooseOptionAsync(cdp, process, selector, value, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
             "(()=>{var state=window.JetStore.getState();if(state.busy)return {idle:false,ok:false};var draft=state.filter.draft,saved=state.filter.savedScenarios,preview=state.filter.preview;return {idle:true,ok:!!(" + expression +
-            "),step:state.currentStepIndex,saved:saved.length,rules:draft.groups.flatMap(g=>g.rules),previewCount:preview?.count};})()",
+            "),step:state.currentStepIndex,saved:saved.length,conditions:draft.groups.flatMap(g=>g.conditions),previewCount:preview?.count};})()",
             value => value, value => ReadBoolean(value,"idle") && ReadBoolean(value,"ok"), "extended_conditions_failed", ct,
             value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value) { await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value, ct); }
@@ -107,8 +107,8 @@ internal static partial class GuiScenarios
         {
             await Click("[data-action=save-scenario]");
             await Check("saved.length===" + count);
-            // 第九節 D：成功後直接留下空白草稿，無須另外按「新增情境」。
-            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.groups.every(g=>g.rules.length===0) && draft.name==='' && !preview && draft.__editingIndex===undefined");
+            // 裁定 2026-10-14-05：成功後直接留下空白草稿，無須另外按「新增情境」。
+            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.groups.every(g=>g.conditions.length===0) && draft.name==='' && !preview && draft.__editingIndex===undefined");
         }
         async Task Preview() { await Click("[data-action=preview-scenario]"); await Check("!!preview && Number.isInteger(preview.count)"); }
         const string policy = "state.mapping.gl.committed.options.manualAutoPolicy";
@@ -128,51 +128,51 @@ internal static partial class GuiScenarios
         await FindControlPointAsync(cdp, process, "[data-bind=gl-committed-options]", ct);
         await CaptureScreenshotAsync(cdp, outcome, ct);
         await Click("[data-bind=step-nav] [data-step-index='3']"); await Click("[data-action=run-validate]");
-        await Check("!!state.lastRuns.validate");
+        await Check("!!state.results.validate");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         ResizeFilterWindow(920, 760);
         outcome.RecordStage("extended_distinct_voucher_frequency");
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：統計條件改由依審計目的條件（當時叫常用查核條件）的「編製分錄較少的人員」加入，
+        // 裁定 2026-10-08-06 重新設計自訂篩選條件：統計條件改由依審計目的條件（當時叫常用查核條件）的「編製分錄較少的人員」加入，
         // 再改成原本驗證的傳票張數介於 1 到 100，條件內容與改版前相同。
         await Add("check:rarePreparers");
-        await Choose("[data-rule-bind=field]", "createBy"); await Choose("[data-rule-bind=countUnit]", "vouchers");
+        await Choose("[data-rule-bind=field]", "createdBy"); await Choose("[data-rule-bind=countUnit]", "vouchers");
         await Choose("[data-rule-bind=countOperator]", "between"); await Replace("[data-rule-bind=countFrom]", "1"); await Fill("[data-rule-bind=countTo]", "100");
-        await Check("draft.groups[0].rules[0].countFrom==='1' && draft.groups[0].rules[0].countUnit==='vouchers' && document.querySelector('.rule-row').textContent.includes('含兩個端點') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
+        await Check("draft.groups[0].conditions[0].countFrom==='1' && draft.groups[0].conditions[0].countUnit==='vouchers' && document.querySelector('.rule-row').textContent.includes('含兩個端點') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
         await CaptureScreenshotAsync(cdp, outcome, ct);
         await Preview(); await Check("preview.count>0"); await Save(1);
         outcome.RecordStage("extended_calendar_rule");
-        await Click("[data-filter-pane-select=filter]"); await Add("field:docDate");
+        await Click("[data-filter-pane-select=filter]"); await Add("field:approvalDate");
         await Choose("[data-value-kind]", "nonBusiness"); await Choose("[data-value-polarity]", "exclude");
-        await Check("draft.groups[0].rules[0].operator==='isNotNonBusinessDay'"); await Preview(); await Save(2);
+        await Check("draft.groups[0].conditions[0].operator==='isNotNonBusinessDay'"); await Preview(); await Save(2);
         outcome.RecordStage("extended_money_tail_rule");
         await Click("[data-filter-pane-select=filter]"); await Add("field:amount");
         await Choose("[data-value-kind]", "tails"); await Fill("[data-value-key=value]", "001");
         await Preview(); await Save(3);
         outcome.RecordStage("extended_person_identifier_list");
-        await Click("[data-filter-pane-select=filter]"); await Add("field:createBy");
-        await Check("draft.groups[0].rules[0].operator==='in'");
+        await Click("[data-filter-pane-select=filter]"); await Add("field:createdBy");
+        await Check("draft.groups[0].conditions[0].operator==='in'");
         await Fill("[data-value-key=values]", "GUI-PERSON"); await Choose("[data-value-polarity]", "exclude");
-        await Check("draft.groups[0].rules[0].operator==='notIn'"); await Save(4);
+        await Check("draft.groups[0].conditions[0].operator==='notIn'"); await Save(4);
         outcome.RecordStage("extended_negative_text_rules");
         await Click("[data-filter-pane-select=filter]"); await Add("field:description");
         await Choose("[data-value-kind]", "starts"); await Choose("[data-value-polarity]", "exclude");
         await Fill("[data-value-key=value]", "GUI-"); await Preview();
-        await Check("draft.groups[0].rules[0].operator==='notStartsWith'");
+        await Check("draft.groups[0].conditions[0].operator==='notStartsWith'");
         await Choose("[data-value-kind]", "ends"); await Choose("[data-value-polarity]", "exclude");
-        await Preview(); await Check("draft.groups[0].rules[0].operator==='notEndsWith'"); await Save(5);
+        await Preview(); await Check("draft.groups[0].conditions[0].operator==='notEndsWith'"); await Save(5);
         outcome.RecordStage("extended_export_and_reopen");
         await Click("[data-filter-pane-select=saved]");
         await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']");
         await Click("[data-scenario-position='2']");
         await Check("document.querySelectorAll('[data-scenario-position]:checked').length===4");
-        await Click("[data-action=export-workpaper]");
-        await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,3,4,5]})");
+        await Click("[data-action=export-working-paper]");
+        await Check("!!window.JetUi.findCurrentReport(state,'workingPaper',{validationResultId:state.results.validate.resultRef.resultId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,3,4,5]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await Check(policy + "?.unlistedValueKind==='automatic' && " + policy + ".blankValueKind==='unclassified'");
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
-        await Check("saved.length===5 && saved[0].groups[0].rules[0].countUnit==='vouchers' && saved[0].groups[0].rules[0].countTo==='100' && saved[1].groups[0].rules[0].operator==='isNotNonBusinessDay' && saved[2].groups[0].rules[0].value==='001' && saved[3].groups[0].rules[0].operator==='notIn' && saved[4].groups[0].rules[0].operator==='notEndsWith' && state.reportArtifacts.some(a=>a.kind==='workingPaper')");
+        await Check("saved.length===5 && saved[0].groups[0].conditions[0].countUnit==='vouchers' && saved[0].groups[0].conditions[0].countTo==='100' && saved[1].groups[0].conditions[0].operator==='isNotNonBusinessDay' && saved[2].groups[0].conditions[0].value==='001' && saved[3].groups[0].conditions[0].operator==='notIn' && saved[4].groups[0].conditions[0].operator==='notEndsWith' && state.reports.some(a=>a.kind==='workingPaper')");
         outcome.Assertions.ExtendedConditionsVerified = true;
         await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;
     }
@@ -197,7 +197,7 @@ internal static partial class GuiScenarios
         ResizeFilterWindow(1250, 950);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
-        // 使用者 2026-10-07 要求依完整使用情境測試：審計員通常已設定篩選情境才回頭換授權名單，
+        // 裁定 2026-10-07-02：依完整使用情境測試，審計員通常已設定篩選情境才回頭換授權名單，
         // 所以先存一個情境，之後核對取消與匯入失敗保留情境、匯入成功才清除（上游修改清除下游）。
         outcome.RecordStage("authorized_saved_scenario");
         await Click("[data-bind=step-nav] [data-step-index='4']");
@@ -208,20 +208,20 @@ internal static partial class GuiScenarios
         await Check("state.filter.savedScenarios.length===1");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click("[data-action=run-prescreen]");
-        await Check("!!state.lastRuns.prescreen");
+        await Check("!!state.results.prescreen");
         await Click("[data-bind=step-nav] [data-step-index='1']");
         var previous = await cdp.EvaluateAsync("JSON.stringify(window.JetStore.getState().importState.authorizedPreparer)", ct);
         outcome.RecordStage("authorized_explicit_column_and_cancel");
         await SelectColumn("姓名");
         await Click("[data-action=cancel-authorized-preparer]");
-        await Check("!document.querySelector('[data-ap-column]') && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.lastRuns.prescreen && state.filter.savedScenarios.length===1 && !!document.querySelector('[data-bind=downstream-reset-notice]')");
+        await Check("!document.querySelector('[data-ap-column]') && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.results.prescreen && state.filter.savedScenarios.length===1 && !!document.querySelector('[data-bind=downstream-reset-notice]')");
         outcome.RecordStage("authorized_failure_and_retry");
         await SelectColumn("員工代碼");
         await Click("[data-action=commit-authorized-preparer]");
         await WaitForFixtureEventAsync(ownedRun, process, "fail-authorized-import-once", "failure.injected", ct);
-        await Check("document.querySelector('[data-ap-column]').value==='員工代碼' && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.lastRuns.prescreen && state.filter.savedScenarios.length===1");
+        await Check("document.querySelector('[data-ap-column]').value==='員工代碼' && JSON.stringify(ap)===" + previous.GetRawText() + " && !!state.results.prescreen && state.filter.savedScenarios.length===1");
         await Click("[data-action=commit-authorized-preparer]");
-        await Check("ap.rowCount===2 && ap.sourceColumn==='員工代碼' && ap.sourceRowCount===4 && ap.blankRowCount===1 && ap.duplicateRowCount===1 && !state.lastRuns.prescreen && !!state.lastRuns.validate");
+        await Check("ap.rowCount===2 && ap.sourceColumn==='員工代碼' && ap.sourceRowCount===4 && ap.blankRowCount===1 && ap.duplicateRowCount===1 && !state.results.prescreen && !!state.results.validate");
         await Check("state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.filter(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。').length===1 && !document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click("[data-action=preview-authorized-preparer]");
         await Check("document.querySelector('.data-preview__table')?.textContent.includes('E01') && document.querySelector('.data-preview__table')?.textContent.includes('E02')");
@@ -234,20 +234,20 @@ internal static partial class GuiScenarios
         await Check("ap.rowCount===2 && ap.sourceColumn==='員工代碼'");
         await Click("[data-task-toggle=authorizedPreparer]");
         await Click("[data-action=clear-authorized-preparer]");
-        await Check("ap===null && !!state.lastRuns.validate && !document.querySelector('[data-action=clear-authorized-preparer]')");
+        await Check("ap===null && !!state.results.validate && !document.querySelector('[data-action=clear-authorized-preparer]')");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click("[data-action=run-prescreen]");
-        await Check("!!state.lastRuns.prescreen.nonAuthorizedPreparer.naReason");
+        await Check("!!state.results.prescreen.nonAuthorizedPreparer.naReason");
         await Click("[data-action=app-back-picker]");
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='1']");
         await Check("ap===null");
         await SelectColumn("員工代碼");
         await Click("[data-action=commit-authorized-preparer]");
-        await Check("ap.rowCount===2 && !state.lastRuns.prescreen");
+        await Check("ap.rowCount===2 && !state.results.prescreen");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click("[data-action=run-prescreen]");
-        await Check("!state.lastRuns.prescreen.nonAuthorizedPreparer.naReason && !!state.lastRuns.validate");
+        await Check("!state.results.prescreen.nonAuthorizedPreparer.naReason && !!state.results.validate");
         outcome.Assertions.AuthorizedListRecoveryVerified = true;
         await Click("[data-action=app-exit]");
         outcome.Assertions.ExitRequested = true;
@@ -271,19 +271,19 @@ internal static partial class GuiScenarios
         async Task MapApprover(string source)
         {
             await Click(GlSection + "[data-action=remap-gl]");
-            await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=approveBy]", source, outcome, ct);
+            await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=approvedBy]", source, outcome, ct);
             await Click(GlSection + "[data-action=commit-gl]");
             await Check("!!state.mapping.gl.committed");
             await Click("[data-bind=step-nav] [data-step-index='3']");
             await Click("[data-action=run-validate]");
-            await Check("!!state.lastRuns.validate");
+            await Check("!!state.results.validate");
             await Click("[data-bind=step-nav] [data-step-index='4']");
         }
-        // 使用者 2026-10-16 要求預覽分開顯示傳票數量與分錄筆數，舊句式「符合條件：1 筆分錄」已移除（前端測試的第一次失敗見計畫紀錄）；
+        // 裁定 2026-10-16-08：預覽分開顯示傳票數量與分錄筆數，舊句式「符合條件：1 筆分錄」已移除（前端測試的第一次失敗見計畫紀錄）；
         // 改讀「符合條件的分錄筆數」那一格，數字仍是 1。
         const string hit = "Array.from(document.querySelectorAll('[data-bind=scenario-preview-0][data-loaded] .stat-card')).some(card=>card.querySelector('.stat-card__label')?.textContent==='符合條件的分錄筆數' && card.querySelector('.stat-card__value')?.textContent==='1')";
         const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。')";
-        // 預篩選收斂計畫階段四（第五步用到 GL 沒有配對的欄位時，使用者 2026-10-22 裁定「停用並寫原因」）：核准人員沒有配對時，
+        // 第五步用到 GL 沒有配對的欄位時，裁定 2026-10-22-05 選「停用並寫原因」：核准人員沒有配對時，
         // 「編製人員與核准人員相同」的卡片停用、收在「尚不可用」裡並寫出缺的欄位，按不下去，也就不會走到儲存。原本這裡點這張卡、
         // 按儲存，再讀儲存失敗的說明（第一次失敗收據 20261028-070711231-27d8b512c4dc4ef5ab16939260b93d1f，停用的卡片捲動超過次數上限）。
         const string missingApprover = "state.filter.savedScenarios.length===0 && (()=>{var j=document.querySelector('[data-common-cards] .filter-unavailable [data-common-card=preparerEqualsApprover]');" +
@@ -309,12 +309,12 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await Check("!!document.querySelector('[data-bind=downstream-reset-notice]')");
         await Click(GlSection + "[data-action=remap-gl]");
-        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=approveBy]", "", outcome, ct);
+        await ChooseOptionAsync(cdp, process, GlSection + "[data-mapping-key=approvedBy]", "", outcome, ct);
         await Click(GlSection + "[data-action=restore-gl]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Result();
         await Check(hit + " && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
-        // 使用者 2026-10-07 裁定上游修改清除下游：確認配對後已存情境清空，第五步回到預設；
+        // 裁定 2026-10-07-03：上游修改清除下游，確認配對後已存情境清空，第五步回到預設；
         // 沒有核准人員欄位時這張卡存不進去，畫面就地說明缺的欄位。原本這裡驗證情境保留並提示缺欄、重試與返回補欄，
         // 第一次失敗收據 20261007-041919444-f03fb3816dec4d5f9758ebd9b5d2a1f2。
         outcome.RecordStage("common_remap_clears_scenarios");
@@ -339,14 +339,14 @@ internal static partial class GuiScenarios
         await Click("[data-action=export-criteria-report]");
         await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
         await Click("[data-bind=step-nav] [data-step-index='5']");
-        await Click("[data-action=export-workpaper]");
-        await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})");
+        await Click("[data-action=export-working-paper]");
+        await Check("!!window.JetUi.findCurrentReport(state,'workingPaper',{validationResultId:state.results.validate.resultRef.resultId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})");
         outcome.RecordStage("common_reopen_result_and_report");
         await Click("[data-action=app-back-picker]");
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Result();
-        await Check(hit + " && state.reportArtifacts.some(a=>a.kind==='workingPaper') && JSON.stringify(state.filter.savedScenarios[0])===" + resaved.GetRawText());
+        await Check(hit + " && state.reports.some(a=>a.kind==='workingPaper') && JSON.stringify(state.filter.savedScenarios[0])===" + resaved.GetRawText());
         outcome.Assertions.CommonRemapRecoveryVerified = true;
         await Click("[data-action=app-exit]");
         outcome.Assertions.ExitRequested = true;
@@ -368,12 +368,12 @@ internal static partial class GuiScenarios
             outcome.RecordAction(); await cdp.TypeTextAsync(text, ct);
             await Click(panel + " [data-page-search] [type=submit]");
         }
-        // 預篩選收斂計畫階段九把空白摘要移出資料缺漏輔助檢視，空白傳票號碼與空白科目編號改成第 0、1 項；前端測試當時已跟著改，
+        // 2026-10-24 起空白摘要移出資料缺漏輔助檢視，空白傳票號碼與空白科目編號改成第 0、1 項；前端測試當時已跟著改，
         // 這裡沒有，原本的第 1 項變成科目編號的明細，筆數同樣是 206，前半段誤點也沒有失敗
         // （第一次失敗收據 20261028-070139148-9c30e5c0b6a7443bb601207d4fe6c762，找不到第 2 項）。
         const string doc = "[data-bind=rule-detail-pn-0]";
         const string account = "[data-bind=rule-detail-pn-1]";
-        // 使用者 2026-10-16 裁定明細一律每頁至多 200 筆、用左右箭頭換頁（資料表分頁與 Agent 文件整理計畫），「載入更多」已移除。
+        // 裁定 2026-10-16-03：明細一律每頁至多 200 筆、用左右箭頭換頁，「載入更多」已移除。
         // 打開明細就讀第一頁 200 列，第 2 頁是剩下的 6 列；原本按兩次「載入更多」累積到 206 列，改成核對頁碼與換頁
         // （第一次失敗收據 20261019-164820528-1585a7eae899498882912269c48d443e，找不到「載入更多」）。
         const string docNext = doc + " [data-page-next]";
@@ -387,10 +387,10 @@ internal static partial class GuiScenarios
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         outcome.RecordStage("null_separate_categories");
-        await Check("state.lastRuns.validate.nullRecordsTest.nullDocumentCount===206 && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");
+        await Check("state.results.validate.blankRecordsTest.nullDocumentCount===206 && state.results.validate.blankRecordsTest.nullAccountCount===206");
         await Click(".prescreen-signals > summary");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='0']");
-        await Check(Rows(doc, 200) + " && " + Page(doc, "1/2") + " && document.querySelector('" + doc + " th[data-sort-key=postDate]').textContent.includes('總帳日期')");
+        await Check(Rows(doc, 200) + " && " + Page(doc, "1/2") + " && document.querySelector('" + doc + " th[data-sort-key=glDate]').textContent.includes('總帳日期')");
         await Click(docNext);
         await Check(Rows(doc, 6) + " && " + Page(doc, "2/2") + " && document.querySelector('" + docNext + "').disabled");
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='1']");
@@ -422,7 +422,7 @@ internal static partial class GuiScenarios
         outcome.RecordStage("null_return_and_reopen");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await Click("[data-bind=step-nav] [data-step-index='3']");
-        await Check("state.lastRuns.validate.nullRecordsTest.nullDocumentCount===206 && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");
+        await Check("state.results.validate.blankRecordsTest.nullDocumentCount===206 && state.results.validate.blankRecordsTest.nullAccountCount===206");
         await Click("[data-action=app-back-picker]");
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='3']");
@@ -430,7 +430,7 @@ internal static partial class GuiScenarios
         await Click("[data-action=toggle-detail][data-scope=pn][data-idx='0']");
         await Check(Rows(doc, 200) + " && " + Page(doc, "1/2"));
         await Click(docNext);
-        await Check(Rows(doc, 6) + " && state.lastRuns.validate.nullRecordsTest.nullAccountCount===206");
+        await Check(Rows(doc, 6) + " && state.results.validate.blankRecordsTest.nullAccountCount===206");
         outcome.Assertions.NullDetailsRecoveryVerified = true;
         await Click("[data-action=app-exit]");
         outcome.Assertions.ExitRequested = true;

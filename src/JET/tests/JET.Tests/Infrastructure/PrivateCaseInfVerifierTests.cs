@@ -6,11 +6,11 @@ namespace JET.Tests.Infrastructure;
 public sealed class PrivateCaseInfVerifierTests
 {
     [Fact]
-    public void Verify_FiftyNineFromEffectivePopulation_PassesWithoutMemberIdentity()
+    public void Verify_FiftyNineFromGl_PassesWithoutMemberIdentity()
     {
         var facts = new PrivateCaseInfVerificationFacts(
             RawPopulationRowCount: 100,
-            EffectivePopulationRowCount: 80,
+            GlRowCount: 80,
             ExcludedPopulationRowCount: 20,
             ExcludedByPeriodRowCount: 15,
             ExcludedByPostingStatusRowCount: 5,
@@ -25,13 +25,13 @@ public sealed class PrivateCaseInfVerifierTests
         Assert.True(result.PopulationPartitionMatches);
         Assert.True(result.ExcludedPartitionMatches);
         Assert.True(result.SampleSizeMatchesRule);
-        Assert.True(result.EffectivePopulationPageMatchesRun);
+        Assert.True(result.GlPageMatchesRun);
         Assert.Equal(59, result.RequiredSampleLimit);
         Assert.Equal("private case INF verification", result.ToString());
     }
 
     [Fact]
-    public void Verify_PopulationSmallerThanLimit_RequiresTheWholeEffectivePopulation()
+    public void Verify_PopulationSmallerThanLimit_RequiresTheWholeGl()
     {
         var result = PrivateCaseInfVerifier.Verify(
             new PrivateCaseInfVerificationFacts(40, 40, 0, 0, 0, 40, 40),
@@ -77,7 +77,7 @@ public sealed class PrivateCaseInfVerifierTests
             {
               "populationSummary": {
                 "raw": { "rowCount": 100, "privateValue": "do-not-copy" },
-                "effective": { "rowCount": 80 },
+                "gl": { "rowCount": 80 },
                 "excluded": {
                   "rowCount": 20,
                   "byPeriodCount": 15,

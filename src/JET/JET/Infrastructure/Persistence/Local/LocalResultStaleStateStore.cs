@@ -12,7 +12,7 @@ public sealed class LocalResultStaleStateStore(ILocalProjectDatabase database)
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await RuleRunResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.PreparationDate);
+        await ResultReset.ClearWithinAsync(connection, transaction, cancellationToken, AuditMutation.PreparationDate);
         // 設定存不進去時直接離開，交易在釋放時回復。
         await saveSettings(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -38,7 +38,7 @@ public sealed class LocalResultStaleStateStore(ILocalProjectDatabase database)
         command.CommandText =
             """
             SELECT validation_stale, prescreen_stale, filter_stale
-            FROM config_result_stale_state
+            FROM result_stale_state
             WHERE singleton = 1;
             """;
 

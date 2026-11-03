@@ -22,7 +22,7 @@ internal sealed class PrivateCaseAcceptanceResult
     internal PrivateCaseAcceptanceResult(
         string caseAlias,
         LegacyAuditParityProvider provider,
-        int artifactCount,
+        int reportCount,
         PrivateCaseAcceptancePolicy policy,
         PrivateCaseLegacyScenarioEvidenceResult legacyScenarioEvidence,
         PrivateCaseInfVerificationResult infVerification,
@@ -32,7 +32,7 @@ internal sealed class PrivateCaseAcceptanceResult
     {
         CaseAlias = caseAlias;
         Provider = provider;
-        ArtifactCount = artifactCount;
+        ReportCount = reportCount;
         Policy = policy;
         LegacyScenarioEvidence = legacyScenarioEvidence;
         InfVerification = infVerification;
@@ -45,7 +45,7 @@ internal sealed class PrivateCaseAcceptanceResult
 
     public LegacyAuditParityProvider Provider { get; }
 
-    public int ArtifactCount { get; }
+    public int ReportCount { get; }
 
     public PrivateCaseAcceptancePolicy Policy { get; }
 
@@ -59,7 +59,7 @@ internal sealed class PrivateCaseAcceptanceResult
 
     public PrivateCaseReportComparisonResult ReportComparison { get; }
 
-    public bool Passed => ArtifactCount == Enum.GetValues<LegacyReportKind>().Length
+    public bool Passed => ReportCount == Enum.GetValues<LegacyReportKind>().Length
         && LegacyScenarioEvidence.Passed
         && InfVerification.Passed
         && ScenarioVerification.Passed
@@ -119,7 +119,7 @@ internal static class PrivateCaseAcceptanceRunner
                     || journey.InfVerification is null
                     || journey.ScenarioVerificationFacts is null
                     || journey.ScenarioDiagnosticFacts is null
-                    || journey.ArtifactCount != Enum.GetValues<LegacyReportKind>().Length)
+                    || journey.ReportCount != Enum.GetValues<LegacyReportKind>().Length)
                 {
                     throw Error(PrivateCaseAcceptanceFailure.IncompleteJourney);
                 }
@@ -135,7 +135,7 @@ internal static class PrivateCaseAcceptanceRunner
                     journey.ProjectId,
                     scope.Host.ProjectsRoot);
                 var actualReports = PrivateCaseActualReportSet.Create(
-                    journey.Artifacts,
+                    journey.Reports,
                     generatedRoot,
                     scope.InputWorkspace);
                 var pairs = PrivateCaseReportPairSet.Create(expectedReports, actualReports);
@@ -147,7 +147,7 @@ internal static class PrivateCaseAcceptanceRunner
                 return new PrivateCaseAcceptanceResult(
                     manifest.CaseAlias,
                     provider,
-                    journey.ArtifactCount,
+                    journey.ReportCount,
                     policy,
                     legacyScenarioEvidence,
                     journey.InfVerification,

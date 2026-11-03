@@ -9,7 +9,7 @@ internal enum PrivateCaseReportComparisonMode
 
 internal enum PrivateCaseInfVerificationMode
 {
-    RulesAndEffectivePopulation = 1,
+    RulesAndGl = 1,
 }
 
 internal enum PrivateCaseCleanupMode
@@ -34,7 +34,7 @@ internal sealed class PrivateCaseAcceptancePolicyException : InvalidOperationExc
 }
 
 /// <summary>
-/// Phase 6 的固定驗收規則。這些值來自使用者決定，不接受環境變數或執行參數改寫。
+/// 私人案件驗收的固定規則（裁定 2026-08-28-03），不接受環境變數或執行參數改寫。
 /// </summary>
 internal sealed class PrivateCaseAcceptancePolicy
 {
@@ -54,7 +54,7 @@ internal sealed class PrivateCaseAcceptancePolicy
 
     internal static PrivateCaseAcceptancePolicy Current { get; } = Create(
         PrivateCaseReportComparisonMode.ContentAndAppearance,
-        PrivateCaseInfVerificationMode.RulesAndEffectivePopulation,
+        PrivateCaseInfVerificationMode.RulesAndGl,
         PrivateCaseCleanupMode.AlwaysDelete,
         RequiredInfSampleSize);
 
@@ -82,7 +82,7 @@ internal sealed class PrivateCaseAcceptancePolicy
         int infSampleSize)
     {
         if (reportComparison != PrivateCaseReportComparisonMode.ContentAndAppearance
-            || infVerification != PrivateCaseInfVerificationMode.RulesAndEffectivePopulation
+            || infVerification != PrivateCaseInfVerificationMode.RulesAndGl
             || cleanupMode != PrivateCaseCleanupMode.AlwaysDelete
             || infSampleSize != RequiredInfSampleSize)
         {

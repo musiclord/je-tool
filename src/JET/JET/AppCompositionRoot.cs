@@ -180,7 +180,7 @@ public static partial class AppCompositionRoot
 
         // Release-safe 支援日誌永遠註冊，只收 Information+ allowlist 並在寫入 buffer 前去識別；Debug
         // 另掛原有完整 ring/file sink。Release minimum level=Information，不格式化 sql/tx 的 Debug 內容。
-        // 屬於案件的事件另外附加到案件資料夾的支援紀錄，跨次開啟仍匯出得到（使用者 2026-10-21 裁定）。
+        // 屬於案件的事件另外附加到案件資料夾的支援紀錄，跨次開啟仍匯出得到（裁定 2026-10-21-08）。
         var supportCaseHistory = new SupportCaseHistoryStore(folder);
         var supportDiagnostic = new SupportRingBufferLoggerProvider(SupportLogCapacity, supportCaseHistory);
         var diagnostic = enableDevTools
@@ -204,9 +204,9 @@ public static partial class AppCompositionRoot
                 }
             }
         });
-        var baseReportArtifactStore = new ProjectReportArtifactStore(
+        var baseReportStore = new ProjectReportStore(
             folder,
-            logger: loggerFactory.CreateLogger<ProjectReportArtifactStore>());
+            logger: loggerFactory.CreateLogger<ProjectReportStore>());
         // LoggerFactory.Create 不會釋放以執行個體加入的 provider；支援日誌最後才釋放，先寫完排隊中的案件紀錄，
         // 包括放開工作鎖的那一筆。
         var runtimeResources = new RuntimeOwnedResources(supportDiagnostic, loggerFactory, localFileLockService);
@@ -251,11 +251,11 @@ public static partial class AppCompositionRoot
                 new ProjectRepositoryAssembly(
                     projectStore,
                     projectRegistry,
-                    new CaseCreateBackendPort(sqliteDatabase, sqlServerDatabase, duckDbDatabase),
+                    new ProjectCreateBackendPort(sqliteDatabase, sqlServerDatabase, duckDbDatabase),
                     localFileLockService,
                     sqlServerLockService,
                     sqlServerDeletionLockService,
-                    baseReportArtifactStore,
+                    baseReportStore,
                     loggerFactory,
                     session,
                     actionExecutionGate),
@@ -341,7 +341,7 @@ public static partial class AppCompositionRoot
             new ProjectLoadHandler(
                 projectStore, repositoryCatalog, projectRegistry, appConfigStore, currentPrincipal, session,
                 duckDbDatabase, loggerFactory.CreateLogger<ProjectLoadHandler>(), supportCaseHistory),
-            new AccountTaxonomySaveHandler(session, loggerFactory.CreateLogger<AccountTaxonomySaveHandler>()),
+            new AccountCategorySaveHandler(session, loggerFactory.CreateLogger<AccountCategorySaveHandler>()),
             new QueryAccountMappingPageHandler(session),
             new AccountMappingSaveHandler(session, loggerFactory.CreateLogger<AccountMappingSaveHandler>()),
             new ProjectDeleteHandler(
@@ -390,19 +390,19 @@ public static partial class AppCompositionRoot
             new QueryCompletenessDiffPageHandler(projectStore, session),
             new QueryAccountMappingBlankPageHandler(session),
             new QueryAccountMappingDifferencePageHandler(session),
-            new QueryDocBalancePageHandler(projectStore, session),
-            new QueryNullRecordsPageHandler(projectStore, session),
+            new QueryVoucherBalancePageHandler(projectStore, session),
+            new QueryBlankRecordsPageHandler(projectStore, session),
             new QuerySourceQualityPageHandler(session),
             new QueryFilterHitsPageHandler(projectStore, session),
             new QueryFilterVoucherPageHandler(session),
             new QueryFilterVoucherRowsPageHandler(session),
             new QueryPrescreenPageHandler(projectStore, session),
             new QueryInfSamplePageHandler(projectStore, session),
-            new QueryTagMatrixScenariosHandler(projectStore, session),
-            new QueryTagMatrixVoucherPageHandler(projectStore, session),
-            new QueryTagMatrixRowPageHandler(projectStore, session),
-            new ExportWorkpaperStreamHandler(projectStore, session, events),
-            new ExportValidationArtifactsHandler(projectStore, session, events),
+            new QueryHighRiskSummaryScenariosHandler(projectStore, session),
+            new QueryHighRiskSummaryVoucherPageHandler(projectStore, session),
+            new QueryHighRiskSummaryRowPageHandler(projectStore, session),
+            new ExportWorkingPaperStreamHandler(projectStore, session, events),
+            new ExportValidationReportsHandler(projectStore, session, events),
             new ExportPrescreenReportHandler(projectStore, session, events),
             new ExportCriteriaSelectionReportHandler(projectStore, session, events),
             // 帳戶對應範本是給審計員填寫的工作檔，直接寫進案件資料夾，不經報告 store。

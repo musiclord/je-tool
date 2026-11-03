@@ -23,11 +23,11 @@ public sealed class SqlServerFilterHitsPageRepository(SqlServerProjectDatabase d
         var paging = KeysetPaging.Plan(Dialect, request, ResultPageSorting.GlEntryRows);
 
         await using var command = database.CreateCommand(connection, projectId,
-            "SELECT g.document_number, g.line_item, g.post_date, g.account_code, g.account_name, " +
-            "       g.amount_scaled, g.dr_cr, g.document_description, g.entry_id" + paging.SelectSuffix + " " +
-            "FROM {s}.result_filter_run r " +
-            "JOIN {s}.target_gl_entry g ON g.entry_id = r.entry_id " +
-            $"WHERE r.scenario_position = @pos AND {GlEffectivePopulation.SqlPredicate("g")}" + paging.Predicate + " " +
+            "SELECT g.voucher_number, g.line_item, g.gl_date, g.account_number, g.account_name, " +
+            "       g.amount_scaled, g.dr_cr, g.description, g.entry_id" + paging.SelectSuffix + " " +
+            "FROM {s}.filter_hit r JOIN {s}.filter_scenario fs ON fs.scenario_id = r.scenario_id " +
+            "JOIN {s}.gl g ON g.entry_id = r.entry_id " +
+            $"WHERE fs.position = @pos AND {GlExcludedPopulation.SqlPredicate("g")}" + paging.Predicate + " " +
             paging.OrderBy + " " + Dialect.LimitClause("@pageSize") + ";");
         command.Parameters.AddWithValue("@pos", scenarioPosition);
         foreach (var parameter in paging.Parameters)

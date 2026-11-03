@@ -11,6 +11,11 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class DemoDataFactoryTests
 {
+    // 第五步「依審計目的」的「較少使用的科目」「編製分錄較少的人員」加入時預設 11 筆以下（前端 ui-core.js 的 PRESCREEN_DEFAULTS）。
+    // 第四步照舊版拿掉同樣門檻的兩條規則後，後端不再有這個常數（裁定 2026-10-29-27）；範例資料仍照這個預設安排較少使用的人員與科目。
+    // 第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+    private const int StepFiveDefaultMaxEntries = 11;
+
     [Fact]
     public void Create_ReturnsExactScale()
     {
@@ -41,33 +46,33 @@ public sealed class DemoDataFactoryTests
             .Where(v => v.Sum(r => r.IsDebit ? r.Amount : -r.Amount) != 0m)
             .ToList();
 
-        // 唯一不平者為 §2 期外對照組（OutOfPeriodVouchers 張，全 post_date=2026-01-05）——刻意造以驗證
+        // 唯一不平者為 §2 期外對照組（OutOfPeriodVouchers 張，全 gl_date=2026-01-05）——刻意造以驗證
         // 「期外不平傳票不入借貸不平母體」；兩張互為鏡像使全域借貸淨額仍為 0。
         Assert.Equal(DemoDataFactory.OutOfPeriodVouchers, unbalanced.Count);
         Assert.All(unbalanced, v => Assert.All(v, r =>
         {
-            Assert.Equal(2026, r.PostDate.Year);
-            Assert.Equal(1, r.PostDate.Month);
-            Assert.Equal(5, r.PostDate.Day);
+            Assert.Equal(2026, r.GlDate.Year);
+            Assert.Equal(1, r.GlDate.Month);
+            Assert.Equal(5, r.GlDate.Day);
         }));
         Assert.Equal(0m, data.GlRows.Sum(r => r.IsDebit ? r.Amount : -r.Amount));
     }
 
     [Fact]
-    public void AllPostDatesWithin2025_ExceptDesignedOutOfPeriodRows()
+    public void AllGlDatesWithin2025_ExceptDesignedOutOfPeriodRows()
     {
         var data = DemoDataFactory.Create();
 
-        var outOfPeriod = data.GlRows.Where(r => r.PostDate.Year != 2025).ToList();
+        var outOfPeriod = data.GlRows.Where(r => r.GlDate.Year != 2025).ToList();
         // 期外對照組：OutOfPeriodVouchers 張 × LinesPerVoucher 行，全 2026-01-05（§2 母體期間界定素材）。
         Assert.Equal(DemoDataFactory.OutOfPeriodVouchers * DemoDataFactory.LinesPerVoucher, outOfPeriod.Count);
         Assert.All(outOfPeriod, r =>
         {
-            Assert.Equal(2026, r.PostDate.Year);
-            Assert.Equal(1, r.PostDate.Month);
-            Assert.Equal(5, r.PostDate.Day);
+            Assert.Equal(2026, r.GlDate.Year);
+            Assert.Equal(1, r.GlDate.Month);
+            Assert.Equal(5, r.GlDate.Day);
         });
-        Assert.All(data.GlRows.Where(r => r.PostDate.Year == 2025), r => Assert.Equal(2025, r.PostDate.Year));
+        Assert.All(data.GlRows.Where(r => r.GlDate.Year == 2025), r => Assert.Equal(2025, r.GlDate.Year));
     }
 
     [Fact]
@@ -76,16 +81,16 @@ public sealed class DemoDataFactoryTests
         var data = DemoDataFactory.Create();
 
         // TB 本期變動只由本期（2025）GL 彙總而得（§2：期外對照組不計入 TB，與完整性 GL 側同口徑）。
-        var inPeriod = data.GlRows.Where(r => r.PostDate.Year == 2025).ToList();
+        var inPeriod = data.GlRows.Where(r => r.GlDate.Year == 2025).ToList();
         var glDebit = inPeriod.Where(r => r.IsDebit)
-            .GroupBy(r => r.AccountCode).ToDictionary(g => g.Key, g => g.Sum(r => r.Amount));
+            .GroupBy(r => r.AccountNumber).ToDictionary(g => g.Key, g => g.Sum(r => r.Amount));
         var glCredit = inPeriod.Where(r => !r.IsDebit)
-            .GroupBy(r => r.AccountCode).ToDictionary(g => g.Key, g => g.Sum(r => r.Amount));
+            .GroupBy(r => r.AccountNumber).ToDictionary(g => g.Key, g => g.Sum(r => r.Amount));
 
         Assert.All(data.TbRows, tb =>
         {
-            Assert.Equal(glDebit.GetValueOrDefault(tb.AccountCode, 0m), tb.DebitTotal);
-            Assert.Equal(glCredit.GetValueOrDefault(tb.AccountCode, 0m), tb.CreditTotal);
+            Assert.Equal(glDebit.GetValueOrDefault(tb.AccountNumber, 0m), tb.DebitTotal);
+            Assert.Equal(glCredit.GetValueOrDefault(tb.AccountNumber, 0m), tb.CreditTotal);
             Assert.Equal(tb.OpeningBalance + tb.DebitTotal - tb.CreditTotal, tb.ClosingBalance);
         });
     }
@@ -110,8 +115,8 @@ public sealed class DemoDataFactoryTests
         var data = DemoDataFactory.Create();
 
         var lowFreq = data.GlRows
-            .GroupBy(r => r.AccountCode)
-            .Where(g => g.Count() <= AccountFrequency.DefaultMaxEntries)
+            .GroupBy(r => r.AccountNumber)
+            .Where(g => g.Count() <= StepFiveDefaultMaxEntries)
             .ToList();
 
         Assert.Equal(DemoDataFactory.RareAccountCount, lowFreq.Count);
@@ -121,29 +126,29 @@ public sealed class DemoDataFactoryTests
     }
 
     [Fact]
-    public void LowFrequencyPreparer_IsExactlyOne_Authorized_AtMostEleven()
+    public void RarePreparer_IsExactlyOne_Authorized_AtMostEleven()
     {
         var data = DemoDataFactory.Create();
 
         var lowFreq = data.GlRows
             .GroupBy(r => r.CreatedBy)
-            .Where(g => g.Count() <= PreparerFrequency.DefaultMaxEntries)
+            .Where(g => g.Count() <= StepFiveDefaultMaxEntries)
             .ToList();
 
         Assert.Single(lowFreq);
-        Assert.Equal(DemoDataFactory.LowFrequencyPreparer, lowFreq[0].Key);
-        Assert.Contains(DemoDataFactory.LowFrequencyPreparer, data.AuthorizedPreparers);
-        Assert.Equal(DemoDataFactory.LowFrequencyPreparerVouchers * DemoDataFactory.LinesPerVoucher, lowFreq[0].Count());
+        Assert.Equal(DemoDataFactory.RarePreparer, lowFreq[0].Key);
+        Assert.Contains(DemoDataFactory.RarePreparer, data.AuthorizedPreparers);
+        Assert.Equal(DemoDataFactory.RarePreparerVouchers * DemoDataFactory.LinesPerVoucher, lowFreq[0].Count());
     }
 
     [Fact]
-    public void NonAuthorizedPreparer_NotInList_AndAboveLowFrequencyThreshold()
+    public void NonAuthorizedPreparer_NotInList_AndAboveRareThreshold()
     {
         var data = DemoDataFactory.Create();
 
         Assert.DoesNotContain(DemoDataFactory.NonAuthorizedPreparer, data.AuthorizedPreparers);
         var entries = data.GlRows.Count(r => r.CreatedBy == DemoDataFactory.NonAuthorizedPreparer);
-        Assert.True(entries > PreparerFrequency.DefaultMaxEntries, $"非授權者列數應 > 11,實際 {entries}");
+        Assert.True(entries > StepFiveDefaultMaxEntries, $"非授權者列數應 > 11,實際 {entries}");
         Assert.Equal(DemoDataFactory.NonAuthorizedVouchers * DemoDataFactory.LinesPerVoucher, entries);
     }
 
@@ -188,11 +193,11 @@ public sealed class DemoDataFactoryTests
     }
 
     [Fact]
-    public void EntityName_IsFixedFictitiousConstant()
+    public void ClientName_IsFixedFictitiousConstant()
     {
         var data = DemoDataFactory.Create();
-        Assert.Equal(DemoDataFactory.EntityNameConst, data.EntityName);
-        Assert.Equal("範例製造股份有限公司", data.EntityName);
+        Assert.Equal(DemoDataFactory.ClientNameConst, data.ClientName);
+        Assert.Equal("範例製造股份有限公司", data.ClientName);
     }
 
     [Fact]
@@ -201,6 +206,6 @@ public sealed class DemoDataFactoryTests
         var data = DemoDataFactory.Create();
         Assert.Equal("2025-01-01", data.PeriodStart);
         Assert.Equal("2025-12-31", data.PeriodEnd);
-        Assert.Equal("2025-12-31", data.LastPeriodStart);
+        Assert.Equal("2025-12-31", data.PrepStartDate);
     }
 }

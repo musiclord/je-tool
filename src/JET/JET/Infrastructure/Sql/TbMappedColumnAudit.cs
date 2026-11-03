@@ -23,7 +23,7 @@ internal static class TbMappedColumnAudit
         command.Transaction = transaction;
         command.CommandText = "SELECT " + string.Join(", ", RequiredTextColumns.Select(column =>
             $"CAST(SUM(CASE WHEN {SqlBlankText.IsNotBlank(dialect, column.TargetColumn)} THEN CAST(1 AS BIGINT) ELSE CAST(0 AS BIGINT) END) AS BIGINT)"))
-            + $" FROM {prefix}target_tb_balance;";
+            + $" FROM {prefix}tb;";
         var warnings = new List<string>();
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return warnings;

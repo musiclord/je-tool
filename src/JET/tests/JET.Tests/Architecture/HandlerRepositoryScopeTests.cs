@@ -11,11 +11,11 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed partial class HandlerRepositoryScopeTests
 {
-    // 改動原因：使用者 2026-10-08 畫面註解要求移除假日範本入口，K15 的 ExportCalendarTemplatesHandler 隨之刪除，
+    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，ExportCalendarTemplatesHandler 隨之刪除，
     // 原本只檢查該 handler 的測試一併移除。
 
     /// <summary>handler 類別、所在檔案（Application/Handlers 之下）與它可用的資料庫組屬性（以逗號分隔）。</summary>
-    // 2026-10-04 第9批高3；Public 首敗 100911120-57efb95a0cae44beb892ec3c2d058592。
+    // Public 首敗 100911120-57efb95a0cae44beb892ec3c2d058592。
     // 變更回應及匯出清單必須重新讀取目前結果，因此逐項加入四個明示port；整組傳遞禁令及精確相等斷言不變。
     private static readonly (string ClassName, string HandlerFile, string Properties)[] Table =
     [
@@ -23,112 +23,114 @@ public sealed partial class HandlerRepositoryScopeTests
         ("LogRecentHandler", "MessageLogHandlers.cs", "MessageLog"),
         ("DevDbOverviewHandler", "DevDbHandlers.cs", "DevDatabaseInspector"),
         ("DevDbTableDataHandler", "DevDbHandlers.cs", "DevDatabaseInspector"),
-        // 第9批高3：更新案件資料也必須讀目前版本，回傳後端權威的結果及報告狀態。
-        ("ProjectUpdateHandler", "Project/ProjectUpdateHandler.cs", "FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
+        // 更新案件資料也必須讀目前版本，回傳後端權威的結果及報告狀態。
+        ("ProjectUpdateHandler", "Project/ProjectUpdateHandler.cs", "FilterScenarios,ReportStore,ResultStaleStates,Results"),
         ("ProjectHeartbeatHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
         ("ProjectReleaseLockHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
         ("QueryAccountMappingDifferencePageHandler", "Query/QueryAccountMappingDifferencePageHandler.cs", "AccountMappingDifferences"),
         ("QueryAccountMappingBlankPageHandler", "Query/QueryAccountMappingBlankPageHandler.cs", "AccountMappingBlankPages"),
         ("QueryCompletenessDiffPageHandler", "Query/QueryCompletenessDiffPageHandler.cs", "CompletenessDiffPages"),
-        // 預篩選收斂計畫階段五（2026-10-22 使用者裁定）：GL 與 GL(未納入測試) 依已確認的配對列欄位，資料預覽因此多讀 GL 配對。
+        // 裁定 2026-10-22-09：GL 與 GL(未納入測試) 依已確認的配對列欄位，資料預覽因此多讀 GL 配對。
         // 第一次失敗：Focused 收據 20261023-112050227-6678ef4dc9de4804aca3ff0460be86bf。
         ("QueryDataPreviewHandler", "Query/QueryDataPreviewHandler.cs", "DataPreview,MappingStates"),
-        ("QueryDocBalancePageHandler", "Query/QueryDocBalancePageHandler.cs", "DocBalancePages"),
+        ("QueryVoucherBalancePageHandler", "Query/QueryVoucherBalancePageHandler.cs", "VoucherBalancePages"),
         (
             "QueryFilterHitsPageHandler", "Query/QueryFilterHitsPageHandler.cs",
-            "FilterHitsPages,FilterRunMaterializeService,FilterScenarios,MappingStates,ResultPageRdeValues"
+            "FilterHitsPages,FilterHitMaterializeService,FilterScenarios,MappingStates,ResultPageRdeValues"
         ),
         ("QueryFilterVoucherPageHandler", "Query/QueryFilterVoucherHandlers.cs", "FilterVoucherQueryService"),
         ("QueryFilterVoucherRowsPageHandler", "Query/QueryFilterVoucherHandlers.cs", "FilterVoucherQueryService"),
         (
             "QueryInfSamplePageHandler", "Query/QueryInfSamplePageHandler.cs",
-            "InfSamplePages,MappingStates,ResultPageRdeValues,RuleRuns"
+            "InfSamplePages,MappingStates,ResultPageRdeValues,Results"
         ),
-        ("QueryNullRecordsPageHandler", "Query/QueryNullRecordsPageHandler.cs", "NullRecordsPages"),
+        ("QueryBlankRecordsPageHandler", "Query/QueryBlankRecordsPageHandler.cs", "BlankRecordsPages"),
         ("QueryPrescreenPageHandler", "Query/QueryPrescreenPageHandler.cs", "PrescreenPages"),
         ("QuerySourceQualityPageHandler", "Query/QuerySourceQualityPageHandler.cs", "SourceQualityPages"),
         (
-            "QueryTagMatrixRowPageHandler", "Query/QueryTagMatrixRowPageHandler.cs",
-            "FilterRunMaterializeService,FilterScenarios,TagMatrixRowPages"
+            "QueryHighRiskSummaryRowPageHandler", "Query/QueryHighRiskSummaryRowPageHandler.cs",
+            "FilterHitMaterializeService,FilterScenarios,HighRiskSummaryRowPages"
         ),
         (
-            "QueryTagMatrixScenariosHandler", "Query/QueryTagMatrixScenariosHandler.cs",
-            "FilterRunMaterializeService,FilterScenarios,TagMatrixScenarios"
+            "QueryHighRiskSummaryScenariosHandler", "Query/QueryHighRiskSummaryScenariosHandler.cs",
+            "FilterHitMaterializeService,FilterScenarios,HighRiskSummaryScenarios"
         ),
         (
-            "QueryTagMatrixVoucherPageHandler", "Query/QueryTagMatrixVoucherPageHandler.cs",
-            "FilterRunMaterializeService,FilterScenarios,TagMatrixVoucherPages"
+            "QueryHighRiskSummaryVoucherPageHandler", "Query/QueryHighRiskSummaryVoucherPageHandler.cs",
+            "FilterHitMaterializeService,FilterScenarios,HighRiskSummaryVoucherPages"
         ),
         ("QueryAccountMappingPageHandler", "AccountMappingEditorHandlers.cs", "AccountMappingEditor"),
-        ("AccountMappingSaveHandler", "AccountMappingEditorHandlers.cs", "AccountMappingEditor,AccountMappings,FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("AccountTaxonomySaveHandler", "AccountTaxonomySaveHandler.cs", "AccountTaxonomy,FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("ImportFromFileHandler", "Import/ImportFromFileHandler.cs", "FilterScenarios,Imports,IntakeFacts,ProjectAuditLog,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("ImportAccountMappingHandler", "Import/ImportAccountMappingHandler.cs", "AccountMappingDifferences,AccountTaxonomy,FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("ImportAuthorizedPreparerFromFileHandler", "Import/ImportAuthorizedPreparerFromFileHandler.cs", "FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("ClearAuthorizedPreparerHandler", "Import/ImportAuthorizedPreparerFromFileHandler.cs", "AuthorizedPreparers,FilterScenarios,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("ImportCalendarHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("ImportCalendarFromFileHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("CalendarSetNonWorkingDaysHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportArtifactStore,ResultStaleStates,RuleRuns"),
+        ("AccountMappingSaveHandler", "AccountMappingEditorHandlers.cs", "AccountMappingEditor,AccountMappings,FilterScenarios,ReportStore,ResultStaleStates,Results"),
+        ("AccountCategorySaveHandler", "AccountCategorySaveHandler.cs", "AccountCategories,FilterScenarios,ReportStore,ResultStaleStates,Results"),
+        ("ImportFromFileHandler", "Import/ImportFromFileHandler.cs", "FilterScenarios,Imports,IntakeFacts,ProjectOperationLog,ReportStore,ResultStaleStates,Results"),
+        ("ImportAccountMappingHandler", "Import/ImportAccountMappingHandler.cs", "AccountCategories,AccountMappingDifferences,FilterScenarios,ReferenceDataFacts,ReportStore,ResultStaleStates,Results"),
+        ("ImportAuthorizedPreparerFromFileHandler", "Import/ImportAuthorizedPreparerFromFileHandler.cs", "FilterScenarios,ReferenceDataFacts,ReportStore,ResultStaleStates,Results"),
+        ("ClearAuthorizedPreparerHandler", "Import/ImportAuthorizedPreparerFromFileHandler.cs", "AuthorizedPreparers,FilterScenarios,ReportStore,ResultStaleStates,Results"),
+        ("ImportCalendarHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportStore,ResultStaleStates,Results"),
+        ("ImportCalendarFromFileHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportStore,ResultStaleStates,Results"),
+        ("CalendarSetNonWorkingDaysHandler", "Import/ImportCalendarHandlers.cs", "FilterScenarios,ReferenceDataFacts,ReportStore,ResultStaleStates,Results"),
         ("MappingRestoreDraftHandler", "MappingHandlers.cs", "Imports"),
-        // 2026-10-04 第3批C5：確認GL配對後更新授權清單比對摘要，新增唯讀AuthorizedPreparers依賴。
-        ("MappingCommitGlHandler", "MappingHandlers.cs", "AuthorizedPreparers,FilterScenarios,Imports,MappingFacts,MappingStates,ProjectAuditLog,ReportArtifactStore,ResultStaleStates,RuleRuns"),
-        ("MappingCommitTbHandler", "MappingHandlers.cs", "FilterScenarios,Imports,MappingFacts,MappingStates,ProjectAuditLog,ReportArtifactStore,ResultStaleStates,RuleRuns"),
+        // 確認GL配對後更新授權清單比對摘要，新增唯讀AuthorizedPreparers依賴。
+        ("MappingCommitGlHandler", "MappingHandlers.cs", "AuthorizedPreparers,FilterScenarios,Imports,MappingFacts,MappingStates,ProjectOperationLog,ReportStore,ResultStaleStates,Results"),
+        ("MappingCommitTbHandler", "MappingHandlers.cs", "FilterScenarios,Imports,MappingFacts,MappingStates,ProjectOperationLog,ReportStore,ResultStaleStates,Results"),
         ("MappingValueProfileHandler", "MappingValueProfileHandler.cs", "Imports,MappingValueProfiles"),
-        // 第9批中低9；Public首敗105344715：來源樣本與summary持久化移入正式同交易port，精確移除兩個handler依賴，不放寬整組禁令。
-        ("ValidateRunHandler", "ValidateRunHandler.cs", "MappingStates,ValidationFacts"),
-        // 預篩選收斂計畫階段四（2026-10-23）：第四步的原因要和第五步寫同一套分類名稱，預篩選因此多讀科目分類設定，
+        // Public首敗105344715：來源樣本與summary持久化移入正式同交易port，精確移除兩個handler依賴，不放寬整組禁令。
+        // 裁定 2026-10-29-16：逐科目比對無法執行時要分辨「沒有匯入 TB」與「TB 欄位配對尚未確認」，驗證因此多讀 TB 的匯入紀錄。
+        // 第一次失敗：Focused 收據 20261030-233429113-ff2a5c92f59341aa8eee007c6882ea00。
+        ("ValidateRunHandler", "ValidateRunHandler.cs", "Imports,MappingStates,ValidationFacts"),
+        // 第四步的原因要和第五步寫同一套分類名稱，預篩選因此多讀科目分類設定，
         // 第五步的驗證本來就讀它。第一次失敗：Focused 收據 20261023-032741823-a968cacaaf3948e7b0174596698c9d49。
         (
             "PrescreenRunHandler", "PrescreenRunHandler.cs",
-            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,Calendar,MappingStates,PrescreenFacts,RuleRuns"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,MappingStates,PrescreenFacts,Results"
         ),
         (
             "FilterPreviewHandler", "FilterHandlers.cs",
-            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,MappingStates"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,MappingStates"
         ),
         (
             "FilterCommitHandler", "FilterHandlers.cs",
-            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,MappingStates,RuleRuns"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,MappingStates,Results"
         ),
         // 2026-10-13 第五步一次只存或刪一個情境：新增三個 handler，各自列出用到的資料庫組屬性；既有列不變。
         // 第一次失敗（未登錄新 handler）：Focused 收據 20261013-103223974-21ad5d61409a4678b759c656d07a3fbc。
         // 比 filter.commit 多出的 FilterScenarios、ResultStaleStates 用來讀出整批與寫入後的結果狀態。
         (
             "FilterScenarioSaveHandler", "FilterScenarioHandlers.cs",
-            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,RuleRuns"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
         ),
         (
             "FilterScenarioRemoveHandler", "FilterScenarioHandlers.cs",
-            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,RuleRuns"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
         ),
         (
             "FilterScenarioRecheckHandler", "FilterScenarioHandlers.cs",
-            "AccountMappings,AccountTaxonomy,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,RuleRuns"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
         ),
         (
-            "ExportWorkpaperStreamHandler", "ExportWorkpaperStreamHandler.cs",
-            "AccountTaxonomy,FilterRunMaterializeService,FilterScenarios,MappingStates,ReportArtifactStore,"
-            + "ResultStaleStates,RuleRuns,WorkpaperPlanWriter,WorkpaperPlanningFacts"
+            "ExportWorkingPaperStreamHandler", "ExportWorkingPaperStreamHandler.cs",
+            "AccountCategories,FilterHitMaterializeService,FilterScenarios,MappingStates,ReportStore,"
+            + "ResultStaleStates,Results,WorkingPaperPlanWriter,WorkingPaperPlanningFacts"
         ),
         (
-            "ExportValidationArtifactsHandler", "ExportReportHandlers.cs",
-            "AccountTaxonomy,FieldDefinitionFacts,FilterScenarios,InfReportWriter,MappingStates,ReportArtifactStore,ResultStaleStates,RuleRuns,"
+            "ExportValidationReportsHandler", "ExportReportHandlers.cs",
+            "AccountCategories,FieldInfoFacts,FilterScenarios,InfReportWriter,MappingStates,ReportStore,ResultStaleStates,Results,"
             + "ValidationReportPlanningFacts,ValidationReportWriter"
         ),
         (
             "ExportPrescreenReportHandler", "ExportReportHandlers.cs",
-            "AccountTaxonomy,FilterScenarios,MappingStates,PrescreenReportPlanningFacts,PrescreenReportWriter,ReportArtifactStore,ResultStaleStates,RuleRuns"
+            "AccountCategories,FilterScenarios,MappingStates,PrescreenReportPlanningFacts,PrescreenReportWriter,ReportStore,ResultStaleStates,Results"
         ),
         (
             "ExportCriteriaSelectionReportHandler", "ExportReportHandlers.cs",
-            "AccountTaxonomy,CriteriaSelectionReportWriter,FilterRunMaterializeService,FilterScenarios,MappingStates,"
-            + "ReportArtifactStore,ResultStaleStates,RuleRuns"
+            "AccountCategories,CriteriaSelectionReportWriter,FilterHitMaterializeService,FilterScenarios,MappingStates,"
+            + "ReportStore,ResultStaleStates,Results"
         ),
         (
             "ExportAccountMappingTemplateHandler", "ExportAccountMappingTemplateHandler.cs",
-            "AccountMappingExport,AccountTaxonomy,MappingStates,RuleRuns"
+            "AccountCategories,AccountMappingExport,MappingStates,Results"
         ),
-        ("HostOpenFolderHandler", "Host/HostOpenFolderHandler.cs", "ReportArtifactStore"),
+        ("HostOpenFolderHandler", "Host/HostOpenFolderHandler.cs", "ReportStore"),
     ];
 
     public static TheoryData<string, string, string> Handlers
@@ -254,7 +256,7 @@ public sealed partial class HandlerRepositoryScopeTests
                 public Task Run()
                 {
                     var active = session.RequireActive();
-                    return active.Repositories.NullRecordsPages.GetPageAsync(active.ProjectId);
+                    return active.Repositories.BlankRecordsPages.GetPageAsync(active.ProjectId);
                 }
             }
             """;
@@ -284,7 +286,7 @@ public sealed partial class HandlerRepositoryScopeTests
                 public async Task Run()
                 {
                     var (projectId, repositories) = session.RequireActive();
-                    var store = repositories.RuleRuns;
+                    var store = repositories.Results;
                     await repositories.MappingStates.FindAsync(projectId);
                     await store.ReadAsync(projectId);
                 }
@@ -292,7 +294,7 @@ public sealed partial class HandlerRepositoryScopeTests
             """;
 
         Assert.Equal(
-            ["MappingStates", "RuleRuns"],
+            ["MappingStates", "Results"],
             HandlerRepositoryUsage.PropertiesUsedIn(source, "GoodHandler"));
     }
 

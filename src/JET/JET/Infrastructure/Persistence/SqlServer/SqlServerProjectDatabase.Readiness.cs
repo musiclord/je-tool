@@ -13,7 +13,7 @@ public sealed partial class SqlServerProjectDatabase
 
     /// <summary>
     /// 確保單庫存在(連 master、DB_ID 守冪等)並確保 dbo 管理表就位(<see cref="SqlServerControlPlaneSchema"/>:
-    /// registry/access/app_config/audit_log/project_lock,並移除冗餘的 project_schema_map)。
+    /// registry/access/app_config/operation_log/project_lock,並移除冗餘的 project_schema_map)。
     /// 單庫名取自 <see cref="SqlServerConnectionOptions.SingleDatabaseName"/>(顯式設定值、非使用者輸入、
     /// 不從連線字串 InitialCatalog 猜測)。空白即視為未設定 → 明確錯誤,杜絕 <c>CREATE DATABASE []</c>。
     /// <para>盡量不依賴 master:就緒(存在＋非 Express)由 process 級旗標

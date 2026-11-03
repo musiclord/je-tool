@@ -11,13 +11,22 @@ public sealed class SqlServerFilterVoucherRepository(SqlServerProjectDatabase da
         await connection.OpenAsync(ct);
         return await FilterVoucherPageReader.ReadRevisionAsync(connection, SqlServerProjectSchema.QualifierFor(projectId), ct);
     }
-    public async Task<FilterVoucherPage> ReadAsync(string projectId, FilterScenarioSpec scenario, FilterRuleContext context,
-        string? documentNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
+    public async Task<FilterVoucherPage> ReadAsync(string projectId, FilterScenarioSpec scenario, FilterConditionContext context,
+        string? voucherNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
     {
         await database.EnsureCreatedAsync(projectId, ct);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(ct);
         return await FilterVoucherPageReader.ReadAsync(connection, SqlServerDialect.Instance, SqlServerProjectSchema.QualifierFor(projectId),
-            scenario, context, documentNumber, request, countWholeVoucherRows, ct);
+            scenario, context, voucherNumber, request, countWholeVoucherRows, ct);
+    }
+    public async Task<FilterVoucherPage> ReadSavedAsync(string projectId, int scenarioId, FilterScenarioSpec scenario,
+        FilterConditionContext context, string? voucherNumber, PageRequest request, bool countWholeVoucherRows, CancellationToken ct)
+    {
+        await database.EnsureCreatedAsync(projectId, ct);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(ct);
+        return await FilterVoucherPageReader.ReadSavedAsync(connection, SqlServerDialect.Instance,
+            SqlServerProjectSchema.QualifierFor(projectId), scenarioId, scenario, context, voucherNumber, request, countWholeVoucherRows, ct);
     }
 }

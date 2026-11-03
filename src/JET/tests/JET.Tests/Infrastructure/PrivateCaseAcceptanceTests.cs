@@ -46,7 +46,7 @@ public sealed class PrivateCaseAcceptanceTests
                     ("population_partition", result.InfVerification.PopulationPartitionMatches),
                     ("excluded_partition", result.InfVerification.ExcludedPartitionMatches),
                     ("sample_rule", result.InfVerification.SampleSizeMatchesRule),
-                    ("effective_population", result.InfVerification.EffectivePopulationPageMatchesRun),
+                    ("gl", result.InfVerification.GlPageMatchesRun),
                 }
                 .Where(static item => !item.Item2)
                 .Select(static item => item.Item1));

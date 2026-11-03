@@ -12,10 +12,10 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
-/// Value-blind appearance parity for all six formal report artifacts. The fixture is
+/// Value-blind appearance parity for all six formal reports. The fixture is
 /// deterministic and synthetic. Workbook metadata lineage is first matched to this
 /// fixture's current project truth, then its provider-local identities are normalized
 /// before semantic parity comparison; no customer workbook is read.
@@ -25,7 +25,7 @@ public sealed class SixReportAppearanceProviderParityTests
     private const long PinnedSampleSeed = 8_082_025;
     private const string PinnedPrincipal = "report-appearance-parity";
 
-    // 五份正式報告在 reportArtifacts；科目配對範本是工作檔，另以 filePath 取得後一起比對外觀。
+    // 五份正式報告在 reports；科目配對範本是工作檔，另以 filePath 取得後一起比對外觀。
     private static readonly string[] ExpectedKinds =
     [
         "criteriaSelectionReport",
@@ -99,26 +99,26 @@ public sealed class SixReportAppearanceProviderParityTests
             fromScratch: true);
         await PinSampleSeedAsync(host, context.ProjectId);
         var validation = await host.DispatchAsync("validate.run");
-        var validationRunId = validation
+        var validationResultId = validation
             .GetProperty("resultRef")
-            .GetProperty("runId")
+            .GetProperty("resultId")
             .GetString()!;
         _ = await host.DispatchAsync(
-            "export.validationArtifacts",
-            JsonSerializer.Serialize(new { runId = validationRunId }));
+            "export.validationReports",
+            JsonSerializer.Serialize(new { resultId = validationResultId }));
         var accountMappingTemplate = await host.DispatchAsync(
             "export.accountMappingTemplate",
-            JsonSerializer.Serialize(new { runId = validationRunId }));
+            JsonSerializer.Serialize(new { resultId = validationResultId }));
         var accountMappingTemplatePath = accountMappingTemplate.GetProperty("filePath").GetString()!;
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen
+        var prescreenResultId = prescreen
             .GetProperty("resultRef")
-            .GetProperty("runId")
+            .GetProperty("resultId")
             .GetString()!;
         _ = await host.DispatchAsync(
             "export.prescreenReport",
-            JsonSerializer.Serialize(new { runId = prescreenRunId }));
+            JsonSerializer.Serialize(new { resultId = prescreenResultId }));
 
         var committed = await host.DispatchAsync(
             "filter.commit",
@@ -135,7 +135,7 @@ public sealed class SixReportAppearanceProviderParityTests
                             new
                             {
                                 join = "AND",
-                                rules = new[]
+                                conditions = new[]
                                 {
                                     new
                                     {
@@ -157,16 +157,16 @@ public sealed class SixReportAppearanceProviderParityTests
             "export.criteriaSelectionReport",
             JsonSerializer.Serialize(new
             {
-                validationRunId,
-                prescreenRunId,
+                validationResultId,
+                prescreenResultId,
                 revision
             }));
         _ = await host.DispatchAsync(
-            "export.workpaperStream",
+            "export.workingPaperStream",
             JsonSerializer.Serialize(new
             {
-                validationRunId,
-                prescreenRunId,
+                validationResultId,
+                prescreenResultId,
                 scenarioRevision = revision,
                 scenarioPositions = new[] { 1 }
             }));
@@ -174,33 +174,33 @@ public sealed class SixReportAppearanceProviderParityTests
         var loaded = await host.DispatchAsync(
             "project.load",
             JsonSerializer.Serialize(new { projectId = context.ProjectId }));
-        var artifacts = loaded
-            .GetProperty("reportArtifacts")
+        var reports = loaded
+            .GetProperty("reports")
             .EnumerateArray()
             .ToArray();
         var expectedMetadata = ExpectedWorkbookMetadata.FromProjectLoad(loaded);
-        var kinds = artifacts
-            .Select(artifact => artifact.GetProperty("kind").GetString()!)
+        var kinds = reports
+            .Select(report => report.GetProperty("kind").GetString()!)
             .Order(StringComparer.Ordinal)
             .ToArray();
         Assert.Equal(ExpectedKinds, kinds);
 
         var projectDirectory = Path.Combine(host.ProjectsRoot, context.ProjectId);
         var snapshots = new Dictionary<string, WorkbookAppearanceSnapshot>(StringComparer.Ordinal);
-        foreach (var artifact in artifacts)
+        foreach (var report in reports)
         {
-            var kind = artifact.GetProperty("kind").GetString()!;
-            var fileName = artifact.GetProperty("fileName").GetString()!;
+            var kind = report.GetProperty("kind").GetString()!;
+            var fileName = report.GetProperty("fileName").GetString()!;
             if (!string.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal))
             {
                 throw new InvalidDataException(
-                    $"Report artifact '{kind}' did not use a project-local file name.");
+                    $"Report '{kind}' did not use a project-local file name.");
             }
 
             var path = Path.Combine(projectDirectory, fileName);
             if (!File.Exists(path))
             {
-                throw new InvalidDataException($"Report artifact '{kind}' was not published.");
+                throw new InvalidDataException($"Report '{kind}' was not published.");
             }
 
             snapshots.Add(kind, WorkbookAppearanceSnapshot.Capture(path, expectedMetadata));
@@ -344,7 +344,7 @@ public sealed class SixReportAppearanceProviderParityTests
     private sealed record ExpectedWorkbookMetadata(
         string PeriodStart,
         string PeriodEnd,
-        int TaxonomyRevision,
+        int CategoryRevision,
         MappingLineage Gl,
         MappingLineage? Tb)
     {
@@ -356,7 +356,7 @@ public sealed class SixReportAppearanceProviderParityTests
             return new ExpectedWorkbookMetadata(
                 project.GetProperty("periodStart").GetString()!,
                 project.GetProperty("periodEnd").GetString()!,
-                loaded.GetProperty("taxonomy").GetProperty("revision").GetInt32(),
+                loaded.GetProperty("accountCategory").GetProperty("revision").GetInt32(),
                 MappingLineage.FromProjectLoad(mapping, "gl"),
                 tb.ValueKind == JsonValueKind.Null
                     ? null
@@ -438,7 +438,7 @@ public sealed class SixReportAppearanceProviderParityTests
             var root = JsonNode.Parse(payload)?.AsObject()
                 ?? throw new InvalidDataException("Formal report workbook metadata payload is not an object.");
             RequireNumber(root, "formatVersion", ReportWorkbookMetadataFormat.CurrentVersion);
-            RequireNumber(root, "taxonomyRevision", expected.TaxonomyRevision);
+            RequireNumber(root, "categoryRevision", expected.CategoryRevision);
             var population = RequireObject(root, "populationPolicy");
             RequireString(population, "periodStart", expected.PeriodStart);
             RequireString(population, "periodEnd", expected.PeriodEnd);

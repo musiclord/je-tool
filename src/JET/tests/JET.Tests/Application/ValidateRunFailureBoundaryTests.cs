@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// Characterizes facts, summary publication, and the post-commit navigation milestone.
 /// The production port now commits facts-related samples and summary together; these handler doubles
-/// preserve exception ordering, while Batch9TransactionBoundaryTests verifies real database rollback.
+/// preserve exception ordering, while WriteFailureRollbackTests verifies real database rollback.
 /// </summary>
 public sealed class ValidateRunFailureBoundaryTests
 {
@@ -26,7 +26,7 @@ public sealed class ValidateRunFailureBoundaryTests
                 ValidationFacts = new RecordingFactsPort(failure: null),
                 SourceQualityPages = new EmptySourceQualityPageRepository(),
                 MappingStates = new MissingMappingStore(projectId),
-                RuleRuns = new RecordingRunStore(failure: null),
+                Results = new RecordingRunStore(failure: null),
             });
         var projectStore = new MissingProjectStore();
         var handler = new ValidateRunHandler(projectStore, session);
@@ -34,10 +34,10 @@ public sealed class ValidateRunFailureBoundaryTests
         var error = await Assert.ThrowsAsync<JetActionException>(
             () => handler.HandleAsync(default, CancellationToken.None));
 
-        Assert.Equal(JetErrorCodes.NoTargetData, error.Code);
-        // 2026-10-02 整體複審 T4：畫面不再說「提交」欄位配對，改用「完成」；斷言改鎖新句子。
+        Assert.Equal(JetErrorCodes.GlMappingNotConfirmed, error.Code);
+        // 畫面不再說「提交」欄位配對，改用「完成」；斷言改鎖新句子。
         Assert.Equal(
-            // 2026-10-04 第 8 批 Q8：只更新完整提示句，仍驗證 missing mapping 先於案件查找失敗。
+            // 確認配對用語統一後，只更新完整提示句，仍驗證 missing mapping 先於案件查找失敗。
             // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
             "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。",
             error.Message);
@@ -77,32 +77,32 @@ public sealed class ValidateRunFailureBoundaryTests
     {
         var boundary = Boundary(milestoneFailure: new BoundaryFailure("milestone"));
 
-        // 第9批中低9；Public首敗105344715-0a3f9684995a4a20bcdcb2fb954649f6：已commit後的導航戳記失敗只能記日誌，不能改報資料作業失敗。
+        // Public首敗105344715-0a3f9684995a4a20bcdcb2fb954649f6：已commit後的導航戳記失敗只能記日誌，不能改報資料作業失敗。
         // 原facts、summary及milestone次數與已保存record/舊step斷言全部保留。
         var response = Assert.IsType<JsonElement>(await boundary.Handler.HandleAsync(default, CancellationToken.None));
         Assert.Equal(1, boundary.FactsPort.Calls);
         Assert.Equal(1, boundary.RunStore.SaveCalls);
         Assert.NotNull(boundary.RunStore.LastRecord);
-        Assert.Equal(RuleRunKinds.Validate, boundary.RunStore.LastRecord!.RunKind);
-        Assert.Equal(boundary.RunStore.LastRecord.RunId, response.GetProperty("resultRef").GetProperty("runId").GetString());
+        Assert.Equal(ResultKind.Validation, boundary.RunStore.LastRecord!.Kind);
+        Assert.Equal(boundary.RunStore.LastRecord.ResultId, response.GetProperty("resultRef").GetProperty("resultId").GetString());
         Assert.Equal(boundary.RunStore.LastRecord.SummaryJson, response.GetRawText());
         Assert.Equal(1, boundary.ProjectStore.SaveCalls);
         Assert.Equal(3, boundary.ProjectStore.Document.CurrentStep);
     }
 
     [Fact]
-    public async Task MissingControlTotals_RendersBothPartAPopulationsAndMatchesAsNull()
+    public async Task MissingControlTotals_RendersBothStoredTotalsPopulationsAndMatchesAsNull()
     {
         var boundary = Boundary();
 
         var response = Assert.IsType<JsonElement>(
             await boundary.Handler.HandleAsync(default, CancellationToken.None));
-        var partA = response.GetProperty("completenessTest").GetProperty("partA");
+        var storedTotals = response.GetProperty("completenessTest").GetProperty("storedTotals");
 
-        Assert.Equal(JsonValueKind.Null, partA.GetProperty("eligibleSource").ValueKind);
-        Assert.Equal(JsonValueKind.Null, partA.GetProperty("effectiveTarget").ValueKind);
-        Assert.Equal(JsonValueKind.Null, partA.GetProperty("rowCountMatch").ValueKind);
-        Assert.Equal(JsonValueKind.Null, partA.GetProperty("amountMatch").ValueKind);
+        Assert.Equal(JsonValueKind.Null, storedTotals.GetProperty("eligibleSource").ValueKind);
+        Assert.Equal(JsonValueKind.Null, storedTotals.GetProperty("gl").ValueKind);
+        Assert.Equal(JsonValueKind.Null, storedTotals.GetProperty("rowCountMatch").ValueKind);
+        Assert.Equal(JsonValueKind.Null, storedTotals.GetProperty("amountMatch").ValueKind);
     }
 
     private static BoundaryContext Boundary(
@@ -113,7 +113,7 @@ public sealed class ValidateRunFailureBoundaryTests
         var document = new ProjectDocument(
             ProjectId: "validation-boundary",
             ProjectCode: "VALIDATION-BOUNDARY",
-            EntityName: "驗證失敗邊界公司",
+            ClientName: "驗證失敗邊界公司",
             OperatorId: "tester",
             PeriodStart: "2025-01-01",
             PeriodEnd: "2025-12-31",
@@ -126,9 +126,9 @@ public sealed class ValidateRunFailureBoundaryTests
             SampleSeed: 7,
             // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
             SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
-        var runStore = new RecordingRunStore(summaryFailure);
-        // 第9批中低9：summary保存改由正式facts port在callback之後執行；原各階段例外與呼叫次數斷言保留。
-        var factsPort = new RecordingFactsPort(factsFailure, runStore);
+        var resultStore = new RecordingRunStore(summaryFailure);
+        // summary保存改由正式facts port在callback之後執行；原各階段例外與呼叫次數斷言保留。
+        var factsPort = new RecordingFactsPort(factsFailure, resultStore);
         var projectStore = new RecordingProjectStore(document, milestoneFailure);
         // handler 從作用中案件的資料庫組取 repository，替身放進資料庫組後再進入 session。
         var session = new ProjectSession();
@@ -139,11 +139,14 @@ public sealed class ValidateRunFailureBoundaryTests
                 ValidationFacts = factsPort,
                 SourceQualityPages = new EmptySourceQualityPageRepository(),
                 MappingStates = new FixedMappingStore(document.ProjectId),
-                RuleRuns = runStore,
+                // 裁定 2026-10-29-16：驗證多讀 TB 的匯入紀錄來選逐科目比對的原因句，替身組補上沒有匯入 TB 的匯入紀錄。
+                // 只補替身，各階段例外與呼叫次數的斷言不變。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+                Imports = new NoTbImportRepository(),
+                Results = resultStore,
             });
         var handler = new ValidateRunHandler(projectStore, session);
 
-        return new BoundaryContext(handler, factsPort, runStore, projectStore);
+        return new BoundaryContext(handler, factsPort, resultStore, projectStore);
     }
 
     private sealed record BoundaryContext(
@@ -152,18 +155,32 @@ public sealed class ValidateRunFailureBoundaryTests
         RecordingRunStore RunStore,
         RecordingProjectStore ProjectStore);
 
+    private sealed class NoTbImportRepository : IImportRepository
+    {
+        public Task<ImportBatchResult> ReplaceBatchAsync(string projectId, DatasetKind kind,
+            IReadOnlyList<ImportSourceInput> sources, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("驗證不應匯入資料。");
+
+        public Task<ImportBatchResult> AppendToBatchAsync(string projectId, DatasetKind kind,
+            IReadOnlyList<ImportSourceInput> sources, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("驗證不應匯入資料。");
+
+        public Task<ImportBatchInfo?> GetLatestBatchAsync(string projectId, DatasetKind kind,
+            CancellationToken cancellationToken) => Task.FromResult<ImportBatchInfo?>(null);
+    }
+
     private sealed class BoundaryFailure(string stage) : Exception(stage)
     {
         internal string Stage { get; } = stage;
     }
 
-    private sealed class RecordingFactsPort(BoundaryFailure? failure, IRuleRunStore? runStore = null) : IValidationFactsPort
+    private sealed class RecordingFactsPort(BoundaryFailure? failure, IResultStore? resultStore = null) : IValidationFactsPort
     {
         internal int Calls { get; private set; }
 
-        public async Task<RuleRunRecord> ExecuteAsync(
+        public async Task<ResultRecord> ExecuteAsync(
             ValidationPlan plan,
-            Func<ValidationFacts, RuleRunRecord> finalize,
+            Func<ValidationFacts, ResultRecord> finalize,
             CancellationToken cancellationToken)
         {
             Calls++;
@@ -175,24 +192,24 @@ public sealed class ValidateRunFailureBoundaryTests
             var facts = new ValidationFacts(
                 new GlPopulationSummary(
                     new GlRawPopulationTotals(0, 0, 0),
-                    new ValidationEffectivePopulationTotals(0, 0, 0, 0, 0),
+                    new ValidationGlTotals(0, 0, 0, 0, 0),
                     new GlExcludedPopulationTotals(0, 0, 0)),
                 CompletenessDiffAccountCount: 0,
                 CompletenessDiffAccounts: [],
-                UnbalancedDocumentCount: 0,
+                UnbalancedVoucherCount: 0,
                 InfSampleCount: 0,
                 NullAccountCount: 0,
                 NullDocumentCount: 0,
                 NullDescriptionCount: 0,
-                OutOfRangeDateCount: 0,
+                ApprovalDateNotInPeriodCount: 0,
                 SourceQualityFindingCount: 0,
-                UnbalancedDocuments: [],
-                NullRecordRows: [],
+                UnbalancedVouchers: [],
+                BlankRecordRows: [],
                 ControlTotals: null,
-                // 第9批R10；Public首敗100911120：空母體替身必須明示已測得0/0，讓原本summary及milestone失敗邊界仍被測到。
-                AmountBinCounts: [], DocumentDateReuse: new DocumentDateReuseCounts(0, 0), SourceQualitySampleRows: []);
+                // Public首敗100911120：空母體替身必須明示已測得0/0，讓原本summary及milestone失敗邊界仍被測到。
+                AmountBinCounts: [], VoucherNumberAcrossGlDates: new VoucherNumberAcrossGlDatesCounts(0, 0), SourceQualitySampleRows: []);
             var record = finalize(facts);
-            await (runStore ?? throw new InvalidOperationException("Missing summary store.")).SaveAsync(
+            await (resultStore ?? throw new InvalidOperationException("Missing summary store.")).SaveAsync(
                 plan.Request.ProjectId, record, cancellationToken);
             return record;
         }
@@ -251,15 +268,15 @@ public sealed class ValidateRunFailureBoundaryTests
         }
     }
 
-    private sealed class RecordingRunStore(BoundaryFailure? failure) : IRuleRunStore
+    private sealed class RecordingRunStore(BoundaryFailure? failure) : IResultStore
     {
         internal int SaveCalls { get; private set; }
 
-        internal RuleRunRecord? LastRecord { get; private set; }
+        internal ResultRecord? LastRecord { get; private set; }
 
         public Task SaveAsync(
             string projectId,
-            RuleRunRecord record,
+            ResultRecord record,
             CancellationToken cancellationToken)
         {
             SaveCalls++;
@@ -272,9 +289,9 @@ public sealed class ValidateRunFailureBoundaryTests
             return Task.CompletedTask;
         }
 
-        public Task<RuleRunRecord?> FindLatestAsync(
+        public Task<ResultRecord?> FindLatestAsync(
             string projectId,
-            string runKind,
+            ResultKind kind,
             CancellationToken cancellationToken) =>
             Task.FromResult(LastRecord);
     }

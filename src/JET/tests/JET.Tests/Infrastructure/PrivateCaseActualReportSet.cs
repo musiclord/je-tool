@@ -31,7 +31,7 @@ internal sealed record PrivateCaseActualReport(
 
 /// <summary>
 /// Copies the six JET outputs from the owned project directory into the private-case workspace.
-/// Later comparison code receives only these fixed-name copies and never reopens an artifact path.
+/// Later comparison code receives only these fixed-name copies and never reopens a journey report path.
 /// </summary>
 internal sealed class PrivateCaseActualReportSet
 {
@@ -52,18 +52,18 @@ internal sealed class PrivateCaseActualReportSet
         $"private case actual report set ({ReportCount} reports)";
 
     internal static PrivateCaseActualReportSet Create(
-        IReadOnlyList<LegacyAuditParityJourneyArtifact> artifacts,
+        IReadOnlyList<LegacyAuditParityJourneyReport> journeyReports,
         string generatedRootPath,
         PrivateCaseInputWorkspace workspace,
         PrivateCaseFileAccess? fileAccess = null)
     {
-        ArgumentNullException.ThrowIfNull(artifacts);
+        ArgumentNullException.ThrowIfNull(journeyReports);
         ArgumentException.ThrowIfNullOrWhiteSpace(generatedRootPath);
         ArgumentNullException.ThrowIfNull(workspace);
         fileAccess ??= new PrivateCaseFileAccess();
 
         var requiredKinds = Enum.GetValues<LegacyReportKind>();
-        if (!TryIndexArtifacts(artifacts, generatedRootPath, requiredKinds, out var indexed))
+        if (!TryIndexJourneyReports(journeyReports, generatedRootPath, requiredKinds, out var indexed))
         {
             throw Error(PrivateCaseActualReportFailure.InvalidInput);
         }
@@ -74,8 +74,8 @@ internal sealed class PrivateCaseActualReportSet
             for (var index = 0; index < requiredKinds.Length; index++)
             {
                 var kind = requiredKinds[index];
-                var artifact = indexed[kind];
-                using var opened = fileAccess.OpenRead(generatedRootPath, artifact.FileName);
+                var journeyReport = indexed[kind];
+                using var opened = fileAccess.OpenRead(generatedRootPath, journeyReport.FileName);
                 var copy = workspace.CopyInput(
                     opened,
                     PrivateCaseInputRole.ActualReport,
@@ -112,26 +112,26 @@ internal sealed class PrivateCaseActualReportSet
         }
     }
 
-    private static bool TryIndexArtifacts(
-        IReadOnlyList<LegacyAuditParityJourneyArtifact> artifacts,
+    private static bool TryIndexJourneyReports(
+        IReadOnlyList<LegacyAuditParityJourneyReport> journeyReports,
         string generatedRootPath,
         IReadOnlyList<LegacyReportKind> requiredKinds,
-        out IReadOnlyDictionary<LegacyReportKind, LegacyAuditParityJourneyArtifact> indexed)
+        out IReadOnlyDictionary<LegacyReportKind, LegacyAuditParityJourneyReport> indexed)
     {
-        var result = new Dictionary<LegacyReportKind, LegacyAuditParityJourneyArtifact>();
-        if (artifacts.Count != requiredKinds.Count)
+        var result = new Dictionary<LegacyReportKind, LegacyAuditParityJourneyReport>();
+        if (journeyReports.Count != requiredKinds.Count)
         {
             indexed = result;
             return false;
         }
 
-        foreach (var artifact in artifacts)
+        foreach (var journeyReport in journeyReports)
         {
-            if (artifact is null
-                || !Enum.IsDefined(artifact.Kind)
-                || !IsSafeLeafWorkbookName(artifact.FileName)
-                || !MatchesGeneratedPath(generatedRootPath, artifact.FileName, artifact.FullPath)
-                || !result.TryAdd(artifact.Kind, artifact))
+            if (journeyReport is null
+                || !Enum.IsDefined(journeyReport.Kind)
+                || !IsSafeLeafWorkbookName(journeyReport.FileName)
+                || !MatchesGeneratedPath(generatedRootPath, journeyReport.FileName, journeyReport.FullPath)
+                || !result.TryAdd(journeyReport.Kind, journeyReport))
             {
                 indexed = result;
                 return false;

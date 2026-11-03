@@ -22,7 +22,7 @@ public sealed partial class SqlServerProjectDatabase
     /// 會跨越 schema 建立、Application finalize 與 session staging；registry、access 與
     /// create audit 只在最後一次性寫入並 commit。
     /// </summary>
-    internal async Task<ICaseCreateBackendAttempt> BeginCreateProjectAsync(
+    internal async Task<IProjectCreateBackendAttempt> BeginCreateProjectAsync(
         ProjectDocument document,
         string principal,
         CancellationToken cancellationToken)
@@ -37,12 +37,12 @@ public sealed partial class SqlServerProjectDatabase
         }
 
         await EnsureDatabaseReadyAsync(cancellationToken);
-        return await SqlServerEngineErrors.ExecuteWithDeadlockRetryAsync<ICaseCreateBackendAttempt>(
+        return await SqlServerEngineErrors.ExecuteWithDeadlockRetryAsync<IProjectCreateBackendAttempt>(
             ct => BeginCreateProjectOnceAsync(document, principal, ct),
             cancellationToken);
     }
 
-    private async Task<ICaseCreateBackendAttempt> BeginCreateProjectOnceAsync(
+    private async Task<IProjectCreateBackendAttempt> BeginCreateProjectOnceAsync(
         ProjectDocument document,
         string principal,
         CancellationToken cancellationToken)
@@ -73,7 +73,7 @@ public sealed partial class SqlServerProjectDatabase
                 collision.Parameters.AddWithValue("@id", document.ProjectId);
                 if (await collision.ExecuteScalarAsync(cancellationToken) is not null)
                 {
-                    throw new CaseCreateBackendDifferentOwnerException();
+                    throw new ProjectCreateBackendDifferentOwnerException();
                 }
             }
 
@@ -87,11 +87,11 @@ public sealed partial class SqlServerProjectDatabase
                 {
                     throw new JetActionException(
                         JetErrorCodes.InvalidPayload,
-                        SqlServerMessages.CaseNameTakenOnServer(document.ProjectId));
+                        SqlServerMessages.ProjectNameTakenOnServer(document.ProjectId));
                 }
             }
 
-            return new SqlServerCaseCreateBackendAttempt(
+            return new SqlServerProjectCreateBackendAttempt(
                 this,
                 connection,
                 transaction,
@@ -131,12 +131,12 @@ public sealed partial class SqlServerProjectDatabase
         }
     }
 
-    private sealed class SqlServerCaseCreateBackendAttempt(
+    private sealed class SqlServerProjectCreateBackendAttempt(
         SqlServerProjectDatabase database,
         SqlConnection connection,
         SqlTransaction transaction,
         ProjectDocument document,
-        string principal) : ICaseCreateBackendAttempt
+        string principal) : IProjectCreateBackendAttempt
     {
         private AttemptState state = AttemptState.Owned;
 
@@ -207,7 +207,7 @@ public sealed partial class SqlServerProjectDatabase
                 await insertAccess.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            await SqlServerAuditLog.WriteAsync(
+            await SqlServerOperationLog.WriteAsync(
                 connection,
                 transaction,
                 document.ProjectId,
@@ -216,7 +216,7 @@ public sealed partial class SqlServerProjectDatabase
                 cancellationToken);
 
             // 若 final publication 在 commit 前失敗，刻意保留 transaction ownership，交由
-            // CaseCreateFactsPort 依「release work lock → rollback backend」順序收尾。
+            // ProjectCreateFactsPort 依「release work lock → rollback backend」順序收尾。
             await transaction.CommitAsync(cancellationToken);
             state = AttemptState.Committed;
             try

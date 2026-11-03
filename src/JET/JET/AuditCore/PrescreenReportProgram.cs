@@ -8,8 +8,8 @@ namespace JET.AuditCore;
 /// </summary>
 internal sealed record PrescreenReportRequest(
     string ProjectId,
-    FilterRuleContext RuleContext,
-    string? PostPeriodApprovalNaReason,
+    FilterConditionContext RuleContext,
+    string? PrepPeriodApprovalNaReason,
     string? SuspiciousKeywordsNaReason,
     string? UnexpectedAccountPairNaReason,
     string? TrailingZerosNaReason,
@@ -18,7 +18,7 @@ internal sealed record PrescreenReportRequest(
 /// <summary>五個具有 raw GL 明細的 legacy Pre-screening semantic family。</summary>
 internal enum PrescreenReportDetailKind
 {
-    PostPeriodApproval,
+    PrepPeriodApproval,
     SuspiciousKeywords,
     UnexpectedAccountPair,
     TrailingZeros,
@@ -106,8 +106,8 @@ public static partial class JetAuditProgram
         var details = new[]
         {
             PendingPrescreenDetail(
-                PrescreenReportDetailKind.PostPeriodApproval,
-                request.PostPeriodApprovalNaReason),
+                PrescreenReportDetailKind.PrepPeriodApproval,
+                request.PrepPeriodApprovalNaReason),
             PendingPrescreenDetail(
                 PrescreenReportDetailKind.SuspiciousKeywords,
                 request.SuspiciousKeywordsNaReason),

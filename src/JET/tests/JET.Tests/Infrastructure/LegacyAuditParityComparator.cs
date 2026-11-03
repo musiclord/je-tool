@@ -128,19 +128,19 @@ internal static class LegacyAuditParityMetricIds
 {
     internal const string CompletenessDifferenceAccountCount =
         "validation.completeness.diff_account_count";
-    internal const string PartASourceRowCount = "validation.completeness.part_a.source_row_count";
-    internal const string PartATargetRowCount = "validation.completeness.part_a.target_row_count";
-    internal const string PartATotalDebit = "validation.completeness.part_a.total_debit";
-    internal const string PartATotalCredit = "validation.completeness.part_a.total_credit";
-    internal const string PartARowCountMatch = "validation.completeness.part_a.row_count_match";
-    internal const string PartAAmountMatch = "validation.completeness.part_a.amount_match";
-    internal const string UnbalancedVoucherCount = "validation.doc_balance.unbalanced_voucher_count";
+    internal const string PbcRowCount = "validation.completeness.stored_totals.pbc_row_count";
+    internal const string StoredRowCount = "validation.completeness.stored_totals.stored_row_count";
+    internal const string StoredTotalDebit = "validation.completeness.stored_totals.total_debit";
+    internal const string StoredTotalCredit = "validation.completeness.stored_totals.total_credit";
+    internal const string StoredRowCountMatch = "validation.completeness.stored_totals.row_count_match";
+    internal const string StoredAmountMatch = "validation.completeness.stored_totals.amount_match";
+    internal const string UnbalancedVoucherCount = "validation.voucher_balance.unbalanced_voucher_count";
     internal const string InfSampleSize = "validation.inf.sample_size";
     internal const string InfMemberKeyMultiset = "validation.inf.member_key_multiset";
     internal const string FilterScenarioCount = "filter.scenario_count";
     internal const string WeekendUnionRowCount = "prescreen.weekend_union.row_count";
     internal const string WeekendUnionVoucherCount = "prescreen.weekend_union.voucher_count";
-    internal const string CreatorSummaryNotApplicable = "prescreen.creator_summary.not_applicable";
+    internal const string PreparerSummaryNotApplicable = "prescreen.preparer_summary.not_applicable";
     internal const string RareAccountsNotApplicable = "prescreen.rare_accounts.not_applicable";
 
     private static readonly IReadOnlySet<string> FixedIds = BuildFixedIds();
@@ -205,19 +205,19 @@ internal static class LegacyAuditParityMetricIds
         var ids = new HashSet<string>(StringComparer.Ordinal)
         {
             CompletenessDifferenceAccountCount,
-            PartASourceRowCount,
-            PartATargetRowCount,
-            PartATotalDebit,
-            PartATotalCredit,
-            PartARowCountMatch,
-            PartAAmountMatch,
+            PbcRowCount,
+            StoredRowCount,
+            StoredTotalDebit,
+            StoredTotalCredit,
+            StoredRowCountMatch,
+            StoredAmountMatch,
             UnbalancedVoucherCount,
             InfSampleSize,
             InfMemberKeyMultiset,
             FilterScenarioCount,
             WeekendUnionRowCount,
             WeekendUnionVoucherCount,
-            CreatorSummaryNotApplicable,
+            PreparerSummaryNotApplicable,
             RareAccountsNotApplicable,
         };
         foreach (var rule in LegacyPrescreenRuleCatalog.All)
@@ -234,7 +234,7 @@ internal static class LegacyAuditParityMetricIds
 
     private static string PrescreenStem(LegacyPrescreenRuleId rule) => rule switch
     {
-        LegacyPrescreenRuleId.PostPeriodApproval => "post_period_approval",
+        LegacyPrescreenRuleId.PrepPeriodApproval => "prep_period_approval",
         LegacyPrescreenRuleId.SuspiciousKeywords => "suspicious_keywords",
         LegacyPrescreenRuleId.UnexpectedAccountPair => "unexpected_account_pair",
         LegacyPrescreenRuleId.TrailingZeros => "trailing_zeros",
@@ -244,8 +244,6 @@ internal static class LegacyAuditParityMetricIds
         LegacyPrescreenRuleId.HolidayApproval => "holiday_approval",
         LegacyPrescreenRuleId.BlankDescription => "blank_description",
         LegacyPrescreenRuleId.NonAuthorizedPreparer => "non_authorized_preparer",
-        LegacyPrescreenRuleId.LowFrequencyPreparer => "low_frequency_preparer",
-        LegacyPrescreenRuleId.LowFrequencyAccount => "low_frequency_account",
         _ => throw new ArgumentOutOfRangeException(nameof(rule)),
     };
 
@@ -265,7 +263,7 @@ internal static class LegacyPrescreenParityPlan
 {
     internal static IReadOnlyList<LegacyPrescreenRuleId> DirectRules { get; } =
     [
-        LegacyPrescreenRuleId.PostPeriodApproval,
+        LegacyPrescreenRuleId.PrepPeriodApproval,
         LegacyPrescreenRuleId.SuspiciousKeywords,
         LegacyPrescreenRuleId.UnexpectedAccountPair,
         LegacyPrescreenRuleId.TrailingZeros,
@@ -276,7 +274,7 @@ internal static class LegacyPrescreenParityPlan
     // numeric comparison participants.
     internal static IReadOnlyList<string> LegacyNotApplicableMetricIds { get; } =
     [
-        LegacyAuditParityMetricIds.CreatorSummaryNotApplicable,
+        LegacyAuditParityMetricIds.PreparerSummaryNotApplicable,
         LegacyAuditParityMetricIds.RareAccountsNotApplicable,
     ];
 
@@ -285,8 +283,6 @@ internal static class LegacyPrescreenParityPlan
         LegacyPrescreenRuleId.HolidayPosting,
         LegacyPrescreenRuleId.HolidayApproval,
         LegacyPrescreenRuleId.NonAuthorizedPreparer,
-        LegacyPrescreenRuleId.LowFrequencyPreparer,
-        LegacyPrescreenRuleId.LowFrequencyAccount,
     ];
 
     // The legacy Step 3 prescreen summary has no weekend-union oracle. R7 is the
@@ -299,9 +295,9 @@ internal static class LegacyPrescreenParityPlan
 
     internal static IReadOnlyList<string> LegacyNoCounterpartControlMetricIds { get; } =
     [
-        LegacyAuditParityMetricIds.PartASourceRowCount,
-        LegacyAuditParityMetricIds.PartARowCountMatch,
-        LegacyAuditParityMetricIds.PartAAmountMatch,
+        LegacyAuditParityMetricIds.PbcRowCount,
+        LegacyAuditParityMetricIds.StoredRowCountMatch,
+        LegacyAuditParityMetricIds.StoredAmountMatch,
     ];
 
     internal static IEnumerable<string> LegacyNoCounterpartMetricIds =>
@@ -856,9 +852,9 @@ internal static class LegacyAuditParityComparator
         LegacyAuditParityMetrics provider)
     {
         EnsureLegacyAggregateApplicability(
-            LegacyAuditParityMetricIds.CreatorSummaryNotApplicable,
-            legacy.CreatorSummaryLegacyApplicability,
-            provider.CreatorSummaryLegacyApplicability);
+            LegacyAuditParityMetricIds.PreparerSummaryNotApplicable,
+            legacy.PreparerSummaryLegacyApplicability,
+            provider.PreparerSummaryLegacyApplicability);
         EnsureLegacyAggregateApplicability(
             LegacyAuditParityMetricIds.RareAccountsNotApplicable,
             legacy.RareAccountsLegacyApplicability,
@@ -977,29 +973,29 @@ internal static class LegacyAuditParityComparator
         LegacyAuditParityMetrics right)
     {
         RequireAvailable(
-            LegacyAuditParityMetricIds.PartASourceRowCount,
-            left.Completeness.PartASourceRowCount,
-            right.Completeness.PartASourceRowCount);
+            LegacyAuditParityMetricIds.PbcRowCount,
+            left.Completeness.PbcRowCount,
+            right.Completeness.PbcRowCount);
         RequireAvailable(
-            LegacyAuditParityMetricIds.PartATargetRowCount,
-            left.Completeness.PartATargetRowCount,
-            right.Completeness.PartATargetRowCount);
+            LegacyAuditParityMetricIds.StoredRowCount,
+            left.Completeness.StoredRowCount,
+            right.Completeness.StoredRowCount);
         RequireAvailable(
-            LegacyAuditParityMetricIds.PartATotalDebit,
-            left.Completeness.PartATotalDebit,
-            right.Completeness.PartATotalDebit);
+            LegacyAuditParityMetricIds.StoredTotalDebit,
+            left.Completeness.StoredTotalDebit,
+            right.Completeness.StoredTotalDebit);
         RequireAvailable(
-            LegacyAuditParityMetricIds.PartATotalCredit,
-            left.Completeness.PartATotalCredit,
-            right.Completeness.PartATotalCredit);
+            LegacyAuditParityMetricIds.StoredTotalCredit,
+            left.Completeness.StoredTotalCredit,
+            right.Completeness.StoredTotalCredit);
         RequireAvailable(
-            LegacyAuditParityMetricIds.PartARowCountMatch,
-            left.Completeness.PartARowCountMatch,
-            right.Completeness.PartARowCountMatch);
+            LegacyAuditParityMetricIds.StoredRowCountMatch,
+            left.Completeness.StoredRowCountMatch,
+            right.Completeness.StoredRowCountMatch);
         RequireAvailable(
-            LegacyAuditParityMetricIds.PartAAmountMatch,
-            left.Completeness.PartAAmountMatch,
-            right.Completeness.PartAAmountMatch);
+            LegacyAuditParityMetricIds.StoredAmountMatch,
+            left.Completeness.StoredAmountMatch,
+            right.Completeness.StoredAmountMatch);
         foreach (var rule in LegacyPrescreenRuleCatalog.All)
         {
             RequireRuleAvailable(
@@ -1127,19 +1123,19 @@ internal static class LegacyAuditParityComparator
         }
         foreach (var measurement in new[]
                  {
-                     Count(LegacyAuditParityMetricIds.PartASourceRowCount,
-                         left.Completeness.PartASourceRowCount,
-                         right.Completeness.PartASourceRowCount),
-                     Flag(LegacyAuditParityMetricIds.PartARowCountMatch,
-                         left.Completeness.PartARowCountMatch.RequireValue(
-                             LegacyAuditParityMetricIds.PartARowCountMatch)
-                         == right.Completeness.PartARowCountMatch.RequireValue(
-                             LegacyAuditParityMetricIds.PartARowCountMatch)),
-                     Flag(LegacyAuditParityMetricIds.PartAAmountMatch,
-                         left.Completeness.PartAAmountMatch.RequireValue(
-                             LegacyAuditParityMetricIds.PartAAmountMatch)
-                         == right.Completeness.PartAAmountMatch.RequireValue(
-                             LegacyAuditParityMetricIds.PartAAmountMatch)),
+                     Count(LegacyAuditParityMetricIds.PbcRowCount,
+                         left.Completeness.PbcRowCount,
+                         right.Completeness.PbcRowCount),
+                     Flag(LegacyAuditParityMetricIds.StoredRowCountMatch,
+                         left.Completeness.StoredRowCountMatch.RequireValue(
+                             LegacyAuditParityMetricIds.StoredRowCountMatch)
+                         == right.Completeness.StoredRowCountMatch.RequireValue(
+                             LegacyAuditParityMetricIds.StoredRowCountMatch)),
+                     Flag(LegacyAuditParityMetricIds.StoredAmountMatch,
+                         left.Completeness.StoredAmountMatch.RequireValue(
+                             LegacyAuditParityMetricIds.StoredAmountMatch)
+                         == right.Completeness.StoredAmountMatch.RequireValue(
+                             LegacyAuditParityMetricIds.StoredAmountMatch)),
                  })
         {
             if (measurement.DifferenceCount > 0)
@@ -1185,12 +1181,12 @@ internal static class LegacyAuditParityComparator
                  {
                      Count(LegacyAuditParityMetricIds.CompletenessDifferenceAccountCount,
                          leftCompleteness.DifferenceAccountCount, rightCompleteness.DifferenceAccountCount),
-                     Count(LegacyAuditParityMetricIds.PartATargetRowCount,
-                          leftCompleteness.PartATargetRowCount, rightCompleteness.PartATargetRowCount),
-                     Amount(LegacyAuditParityMetricIds.PartATotalDebit,
-                         leftCompleteness.PartATotalDebit, rightCompleteness.PartATotalDebit),
-                     Amount(LegacyAuditParityMetricIds.PartATotalCredit,
-                         leftCompleteness.PartATotalCredit, rightCompleteness.PartATotalCredit),
+                     Count(LegacyAuditParityMetricIds.StoredRowCount,
+                          leftCompleteness.StoredRowCount, rightCompleteness.StoredRowCount),
+                     Amount(LegacyAuditParityMetricIds.StoredTotalDebit,
+                         leftCompleteness.StoredTotalDebit, rightCompleteness.StoredTotalDebit),
+                     Amount(LegacyAuditParityMetricIds.StoredTotalCredit,
+                         leftCompleteness.StoredTotalCredit, rightCompleteness.StoredTotalCredit),
                      Count(LegacyAuditParityMetricIds.UnbalancedVoucherCount,
                          left.UnbalancedVoucherCount, right.UnbalancedVoucherCount),
                      Count(LegacyAuditParityMetricIds.InfSampleSize,

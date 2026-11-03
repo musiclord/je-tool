@@ -32,7 +32,7 @@ public sealed class SqlServerResultPageRdeValuesPort(SqlServerProjectDatabase da
             connection,
             projectId,
             "SELECT entry_id, field_id, value_type, text_value, date_value, amount_scaled " +
-            "FROM {s}.target_gl_rde_value " +
+            "FROM {s}.gl_rde_value " +
             $"WHERE entry_id IN ({string.Join(',', parameters)}) " +
             "ORDER BY entry_id, field_id;");
         for (var index = 0; index < entryIds.Count; index++)

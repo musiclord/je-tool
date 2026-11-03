@@ -14,18 +14,18 @@ namespace JET.Infrastructure;
 public sealed partial class LegacyReportWriter(
     ICompletenessAccountPageRepository completenessAccounts,
     ICompletenessDiffPageRepository completenessDiffs,
-    IUnbalancedGlEntryPageRepository unbalancedGlEntries,
-    INullRecordsPageRepository nullRecords,
+    IUnbalancedVoucherPageRepository unbalancedGlEntries,
+    IBlankRecordsPageRepository blankRecords,
     IInfSamplePageRepository infSamples,
     IPrescreenPageRepository prescreenPages,
     IRawGlExportRepository rawRows,
     IImportRepository imports,
     IMappingStateStore mappings,
-    ICreatorSummaryExportRepository creatorSummaries,
+    IPreparerSummaryExportRepository preparerSummaries,
     IAccountUsageExportRepository accountUsage,
-    ITagMatrixScenariosRepository tagMatrixCounts,
+    IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
     ISourceQualityPageRepository sourceQualityPages,
-    ITagMatrixRowPageRepository? tagMatrixRows = null,
+    IHighRiskSummaryRowPageRepository? highRiskSummaryRows = null,
     IResultPageRdeValuesPort? resultPageRdeValues = null)
     : IValidationReportWriter, IInfReportWriter, IPrescreenReportWriter, ICriteriaSelectionReportWriter
 {
@@ -37,21 +37,21 @@ public sealed partial class LegacyReportWriter(
     private readonly uint _continuationRowLimit = ExcelMaxRow;
     private readonly int _progressRowInterval = DefaultProgressRowInterval;
     private readonly ReportTemplateCatalog _templates = ReportTemplateCatalog.Default;
-    private readonly ILegacyFieldDefinitionFactsPort? _fieldDefinitionFactsPort;
+    private readonly IFieldInfoFactsPort? _fieldInfoFactsPort;
 
     internal LegacyReportWriter(
         ICompletenessAccountPageRepository completenessAccounts,
         ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedGlEntryPageRepository unbalancedGlEntries,
-        INullRecordsPageRepository nullRecords,
+        IUnbalancedVoucherPageRepository unbalancedGlEntries,
+        IBlankRecordsPageRepository blankRecords,
         IInfSamplePageRepository infSamples,
         IPrescreenPageRepository prescreenPages,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
-        ICreatorSummaryExportRepository creatorSummaries,
+        IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
-        ITagMatrixScenariosRepository tagMatrixCounts,
+        IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
         ISourceQualityPageRepository sourceQualityPages,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval)
@@ -59,15 +59,15 @@ public sealed partial class LegacyReportWriter(
             completenessAccounts,
             completenessDiffs,
             unbalancedGlEntries,
-            nullRecords,
+            blankRecords,
             infSamples,
             prescreenPages,
             rawRows,
             imports,
             mappings,
-            creatorSummaries,
+            preparerSummaries,
             accountUsage,
-            tagMatrixCounts,
+            highRiskSummaryCounts,
             sourceQualityPages)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
@@ -81,35 +81,35 @@ public sealed partial class LegacyReportWriter(
     internal LegacyReportWriter(
         ICompletenessAccountPageRepository completenessAccounts,
         ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedGlEntryPageRepository unbalancedGlEntries,
-        INullRecordsPageRepository nullRecords,
+        IUnbalancedVoucherPageRepository unbalancedGlEntries,
+        IBlankRecordsPageRepository blankRecords,
         IInfSamplePageRepository infSamples,
         IPrescreenPageRepository prescreenPages,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
-        ICreatorSummaryExportRepository creatorSummaries,
+        IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
-        ITagMatrixScenariosRepository tagMatrixCounts,
+        IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
         ISourceQualityPageRepository sourceQualityPages,
-        ITagMatrixRowPageRepository tagMatrixRows,
+        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval)
         : this(
             completenessAccounts,
             completenessDiffs,
             unbalancedGlEntries,
-            nullRecords,
+            blankRecords,
             infSamples,
             prescreenPages,
             rawRows,
             imports,
             mappings,
-            creatorSummaries,
+            preparerSummaries,
             accountUsage,
-            tagMatrixCounts,
+            highRiskSummaryCounts,
             sourceQualityPages,
-            tagMatrixRows)
+            highRiskSummaryRows)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
         if (progressRowInterval <= 0)
@@ -122,57 +122,57 @@ public sealed partial class LegacyReportWriter(
     internal LegacyReportWriter(
         ICompletenessAccountPageRepository completenessAccounts,
         ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedGlEntryPageRepository unbalancedGlEntries,
-        INullRecordsPageRepository nullRecords,
+        IUnbalancedVoucherPageRepository unbalancedGlEntries,
+        IBlankRecordsPageRepository blankRecords,
         IInfSamplePageRepository infSamples,
         IPrescreenPageRepository prescreenPages,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
-        ICreatorSummaryExportRepository creatorSummaries,
+        IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
-        ITagMatrixScenariosRepository tagMatrixCounts,
+        IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
         ISourceQualityPageRepository sourceQualityPages,
-        ITagMatrixRowPageRepository tagMatrixRows,
-        ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort,
+        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        IFieldInfoFactsPort fieldInfoFactsPort,
         IResultPageRdeValuesPort? resultPageRdeValues = null)
         : this(
             completenessAccounts,
             completenessDiffs,
             unbalancedGlEntries,
-            nullRecords,
+            blankRecords,
             infSamples,
             prescreenPages,
             rawRows,
             imports,
             mappings,
-            creatorSummaries,
+            preparerSummaries,
             accountUsage,
-            tagMatrixCounts,
+            highRiskSummaryCounts,
             sourceQualityPages,
-            tagMatrixRows,
+            highRiskSummaryRows,
             resultPageRdeValues)
     {
-        ArgumentNullException.ThrowIfNull(fieldDefinitionFactsPort);
-        _fieldDefinitionFactsPort = fieldDefinitionFactsPort;
+        ArgumentNullException.ThrowIfNull(fieldInfoFactsPort);
+        _fieldInfoFactsPort = fieldInfoFactsPort;
     }
 
     internal LegacyReportWriter(
         ICompletenessAccountPageRepository completenessAccounts,
         ICompletenessDiffPageRepository completenessDiffs,
-        IUnbalancedGlEntryPageRepository unbalancedGlEntries,
-        INullRecordsPageRepository nullRecords,
+        IUnbalancedVoucherPageRepository unbalancedGlEntries,
+        IBlankRecordsPageRepository blankRecords,
         IInfSamplePageRepository infSamples,
         IPrescreenPageRepository prescreenPages,
         IRawGlExportRepository rawRows,
         IImportRepository imports,
         IMappingStateStore mappings,
-        ICreatorSummaryExportRepository creatorSummaries,
+        IPreparerSummaryExportRepository preparerSummaries,
         IAccountUsageExportRepository accountUsage,
-        ITagMatrixScenariosRepository tagMatrixCounts,
+        IHighRiskSummaryScenariosRepository highRiskSummaryCounts,
         ISourceQualityPageRepository sourceQualityPages,
-        ITagMatrixRowPageRepository tagMatrixRows,
-        ILegacyFieldDefinitionFactsPort fieldDefinitionFactsPort,
+        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
+        IFieldInfoFactsPort fieldInfoFactsPort,
         LegacyReportWriterOptions options,
         int progressRowInterval = DefaultProgressRowInterval,
         IResultPageRdeValuesPort? resultPageRdeValues = null)
@@ -180,18 +180,18 @@ public sealed partial class LegacyReportWriter(
             completenessAccounts,
             completenessDiffs,
             unbalancedGlEntries,
-            nullRecords,
+            blankRecords,
             infSamples,
             prescreenPages,
             rawRows,
             imports,
             mappings,
-            creatorSummaries,
+            preparerSummaries,
             accountUsage,
-            tagMatrixCounts,
+            highRiskSummaryCounts,
             sourceQualityPages,
-            tagMatrixRows,
-            fieldDefinitionFactsPort,
+            highRiskSummaryRows,
+            fieldInfoFactsPort,
             resultPageRdeValues)
     {
         _continuationRowLimit = options.ValidateAndGetLimit();
@@ -229,41 +229,41 @@ public sealed partial class LegacyReportWriter(
     private static void AddStat(
         List<SheetStat> stats,
         SheetStat stat,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         stats.Add(stat);
-        progress?.Invoke(new WorkpaperProgress(stat.SheetName, stats.Count, stat.RowsWritten));
+        progress?.Invoke(new WorkingPaperProgress(stat.SheetName, stats.Count, stat.RowsWritten));
     }
 
     private void ReportIntermediateRows(
         List<SheetStat> stats,
         string sheetName,
         long rowsWritten,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         if (progress is not null && rowsWritten > 0 && rowsWritten % _progressRowInterval == 0)
         {
-            progress(new WorkpaperProgress(sheetName, stats.Count, rowsWritten));
+            progress(new WorkingPaperProgress(sheetName, stats.Count, rowsWritten));
         }
     }
 
     private static void ReportSheetStarted(
         List<SheetStat> stats,
         string sheetName,
-        Action<WorkpaperProgress>? progress) =>
-        progress?.Invoke(new WorkpaperProgress(sheetName, stats.Count, 0));
+        Action<WorkingPaperProgress>? progress) =>
+        progress?.Invoke(new WorkingPaperProgress(sheetName, stats.Count, 0));
 
     private void ReportPreparationPulse(
         List<SheetStat> stats,
         string sheetName,
         long rowsInspected,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         if (progress is not null
             && rowsInspected > 0
             && rowsInspected % _progressRowInterval == 0)
         {
-            progress(new WorkpaperProgress(sheetName, stats.Count, 0));
+            progress(new WorkingPaperProgress(sheetName, stats.Count, 0));
         }
     }
 
@@ -278,7 +278,7 @@ public sealed partial class LegacyReportWriter(
         WorkbookStyleMap? styles,
         RawSheetAutoFitMode autoFitMode,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress,
+        Action<WorkingPaperProgress>? progress,
         RawSheetAppearanceMode appearanceMode = RawSheetAppearanceMode.ExportDatabase,
         IReadOnlyList<GlRdeFieldMetadata>? customFields = null,
         IReadOnlyList<GlRdeFieldMetadata>? registryFields = null,
@@ -587,12 +587,12 @@ public sealed partial class LegacyReportWriter(
         IReadOnlyList<string> columns,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<LegacyFieldDefinition> definitions = _fieldDefinitionFactsPort is null
+        IReadOnlyList<FieldInfo> definitions = _fieldInfoFactsPort is null
             ? []
-            : await _fieldDefinitionFactsPort.ReadAsync(
+            : await _fieldInfoFactsPort.ReadAsync(
                     projectId,
                     DatasetKind.Gl,
-                    LegacyFieldDefinitionScope.Source,
+                    FieldInfoScope.Source,
                     cancellationToken)
                 .ConfigureAwait(false);
         var result = new uint[columns.Count];
@@ -607,7 +607,7 @@ public sealed partial class LegacyReportWriter(
         return result;
     }
 
-    private static uint ExportDatabaseStyle(LegacyFieldDefinition? definition) =>
+    private static uint ExportDatabaseStyle(FieldInfo? definition) =>
         definition?.Kind switch
         {
             LegacyFieldKind.Text => LegacyReportStyles.ExportDatabaseText,
@@ -639,10 +639,10 @@ public sealed partial class LegacyReportWriter(
 
     private static decimal Display(long scaled, int moneyScale) => (decimal)scaled / moneyScale;
 
-    private static string DisplayLastPeriodStart(string? lastPeriodStart) =>
-        string.IsNullOrWhiteSpace(lastPeriodStart)
+    private static string DisplayPrepStartDate(string? prepStartDate) =>
+        string.IsNullOrWhiteSpace(prepStartDate)
             ? "N/A"
-            : string.Concat(lastPeriodStart.Where(char.IsDigit));
+            : string.Concat(prepStartDate.Where(char.IsDigit));
 
     private static string? GetString(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String

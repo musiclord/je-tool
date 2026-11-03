@@ -6,10 +6,13 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Stage 5 advanced-filter AST execution matrix over wholly synthetic rows.
+/// Advanced-filter AST execution matrix over wholly synthetic rows.
 /// SQLite, DuckDB, and gated SQL Server must agree on semantic row identity;
-/// sameVoucher must return only first-rule anchors while later AND rules may be
-/// satisfied by different rows of the same in-period voucher.
+/// a voucher-witness group must return only first-rule anchors while later AND rules
+/// may be satisfied by different rows of the same in-period voucher.
+/// 這組情境原本用「同一傳票」比對範圍；這個寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
+/// 照它的重建方式改成第一條留在組裡、其餘各條放進「整張傳票條件」並選「至少一筆符合」，固定答案不變。
+/// 第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（比對範圍的型別已不存在，無法編譯）。
 /// </summary>
 public sealed class AdvancedFilterAstProviderParityTests
 {
@@ -17,9 +20,9 @@ public sealed class AdvancedFilterAstProviderParityTests
 
     private const string FixtureSql =
         """
-        INSERT INTO target_gl_entry
-            (batch_id, source_row_number, document_number, line_item, post_date,
-             account_code, account_name, document_description, amount_scaled,
+        INSERT INTO gl
+            (batch_id, source_row_number, voucher_number, line_item, gl_date,
+             account_number, account_name, description, amount_scaled,
              debit_amount_scaled, credit_amount_scaled, dr_cr)
         VALUES
             ('advanced-ast', 1,  'TXT-C-1', '1', '2025-01-10', 'C-1', 'Text', 'prefix alpha suffix', 1000, 1000, 0, 'DEBIT'),
@@ -55,13 +58,13 @@ public sealed class AdvancedFilterAstProviderParityTests
             ('advanced-ast', 25, 'SV-5', '3', '2025-07-01', 'INFO',     'Voucher', 'evidence',              10000, 10000, 0, 'DEBIT'),
             ('advanced-ast', 26, 'SV-5', '4', '2025-07-01', 'INFO',     'Voucher', 'threshold support',     80000, 80000, 0, 'DEBIT');
 
-        UPDATE target_gl_entry
-        SET is_effective = CASE WHEN source_row_number = 19 THEN 0 ELSE 1 END;
+        UPDATE gl
+        SET is_excluded = CASE WHEN source_row_number = 19 THEN 1 ELSE 0 END;
         """;
 
-    private static readonly FilterRuleContext Context = new(
+    private static readonly FilterConditionContext Context = new(
         MoneyScale: 100,
-        LastPeriodStart: null,
+        PrepStartDate: null,
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",
         PopulationScope: GlPopulationScope.AuditPeriod);
@@ -70,9 +73,10 @@ public sealed class AdvancedFilterAstProviderParityTests
         "same-voucher-anchor",
         new FilterGroupSpec(
             FilterJoin.And,
-            [
+            new FilterConditionSpec[]
+            {
                 TextSetRule(
-                    field: "accNum",
+                    field: "accountNumber",
                     mode: TextMatchMode.Exact,
                     values: ["SV ANCHOR"],
                     normalization: TextSetNormalization.RemoveAsciiSpaces),
@@ -82,10 +86,9 @@ public sealed class AdvancedFilterAstProviderParityTests
                     values: ["EVI DENCE"],
                     normalization: TextSetNormalization.RemoveAsciiSpaces),
                 NumRangeLowerBound(50_000)
-            ])
-        {
-            MatchScope = FilterGroupMatchScope.SameVoucher
-        });
+            }
+            .Select((rule, index) => index == 0 ? rule : AnyEntryInVoucher(rule))
+            .ToArray()));
 
     private static readonly IReadOnlyList<ScenarioCase> Cases =
     [
@@ -111,7 +114,7 @@ public sealed class AdvancedFilterAstProviderParityTests
                     FilterJoin.And,
                     [
                         TextSetRule(
-                            field: "accNum",
+                            field: "accountNumber",
                             mode: TextMatchMode.Exact,
                             values: ["  acc-1  "],
                             normalization: TextSetNormalization.Preserve)
@@ -130,10 +133,7 @@ public sealed class AdvancedFilterAstProviderParityTests
                             mode: TextMatchMode.Contains,
                             values: ["AL PHA", "be ta"],
                             normalization: TextSetNormalization.RemoveAsciiSpaces)
-                    ])
-                {
-                    MatchScope = FilterGroupMatchScope.Row
-                }),
+                    ])),
             ExpectedIdentities: ["TXT-C-1|1", "TXT-C-2|1"],
             ExpectedVoucherCount: 2),
         new(
@@ -144,14 +144,11 @@ public sealed class AdvancedFilterAstProviderParityTests
                     FilterJoin.And,
                     [
                         TextSetRule(
-                            field: "accNum",
+                            field: "accountNumber",
                             mode: TextMatchMode.Exact,
                             values: ["AC C-1", "B- 2"],
                             normalization: TextSetNormalization.RemoveAsciiSpaces)
-                    ])
-                {
-                    MatchScope = FilterGroupMatchScope.Row
-                }),
+                    ])),
             ExpectedIdentities: ["TXT-E-1|1", "TXT-E-2|1", "TXT-E-5|1"],
             ExpectedVoucherCount: 3),
         new(
@@ -218,9 +215,9 @@ public sealed class AdvancedFilterAstProviderParityTests
 
         await AssertPreviewCommitAndLazyParityAsync(
             projectId,
-            new LocalFilterRunRepository(database),
+            new LocalFilterHitRepository(database),
             new LocalFilterCommitRepository(database),
-            new LocalFilterRunMaterializer(database),
+            new LocalFilterHitMaterializer(database),
             database.CreateConnection,
             schemaPrefix: string.Empty);
     }
@@ -232,19 +229,19 @@ public sealed class AdvancedFilterAstProviderParityTests
             await TempSqlServerProject.TryCreateAsync());
         var schemaPrefix = SqlServerProjectSchema.QualifierFor(project.ProjectId);
         var sqlServerFixture = FixtureSql.Replace(
-            "INSERT INTO target_gl_entry",
-            $"INSERT INTO {schemaPrefix}target_gl_entry",
+            "INSERT INTO gl",
+            $"INSERT INTO {schemaPrefix}gl",
             StringComparison.Ordinal).Replace(
-            "UPDATE target_gl_entry",
-            $"UPDATE {schemaPrefix}target_gl_entry",
+            "UPDATE gl",
+            $"UPDATE {schemaPrefix}gl",
             StringComparison.Ordinal);
         await ExecuteAsync(project.Database.CreateConnection(project.ProjectId), sqlServerFixture);
 
         await AssertPreviewCommitAndLazyParityAsync(
             project.ProjectId,
-            new SqlServerFilterRunRepository(project.Database),
+            new SqlServerFilterHitRepository(project.Database),
             new SqlServerFilterCommitRepository(project.Database),
-            new SqlServerFilterRunMaterializer(project.Database),
+            new SqlServerFilterHitMaterializer(project.Database),
             project.Database.CreateConnection,
             schemaPrefix);
     }
@@ -298,9 +295,9 @@ public sealed class AdvancedFilterAstProviderParityTests
 
     private static async Task AssertPreviewCommitAndLazyParityAsync(
         string projectId,
-        IFilterRunRepository previewRepository,
+        IFilterHitRepository previewRepository,
         IFilterCommitRepository commitRepository,
-        IFilterRunMaterializer lazyMaterializer,
+        IFilterHitMaterializer lazyMaterializer,
         Func<string, DbConnection> connectionFactory,
         string schemaPrefix)
     {
@@ -316,7 +313,7 @@ public sealed class AdvancedFilterAstProviderParityTests
             SameVoucherScenario.Name,
             SameVoucherScenario.Rationale,
             """
-            {"name":"same-voucher-anchor","rationale":"synthetic provider parity","groups":[{"join":"AND","matchScope":"sameVoucher","rules":[{"join":"AND","type":"textSet","field":"accNum","values":["SV ANCHOR"],"mode":"exact","normalization":"removeAsciiSpaces"},{"join":"AND","type":"textSet","field":"description","values":["EVI DENCE"],"mode":"contains","normalization":"removeAsciiSpaces"},{"join":"AND","type":"numRange","field":"amount","from":"500"}]}]}
+            {"name":"same-voucher-anchor","rationale":"synthetic provider parity","groups":[{"join":"AND","matchScope":"row","conditions":[{"join":"AND","type":"textSet","field":"accountNumber","values":["SV ANCHOR"],"mode":"exact","normalization":"removeAsciiSpaces"},{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"textSet","field":"description","values":["EVI DENCE"],"mode":"contains","normalization":"removeAsciiSpaces"}]},{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"numRange","field":"amount","from":"500"}]}]}]}
             """,
             new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero));
         await commitRepository.CommitAsync(
@@ -330,7 +327,7 @@ public sealed class AdvancedFilterAstProviderParityTests
 
         await ExecuteAsync(
             connectionFactory(projectId),
-            $"DELETE FROM {schemaPrefix}result_filter_run;");
+            $"DELETE FROM {schemaPrefix}filter_hit;");
         await lazyMaterializer.MaterializeAsync(
             projectId,
             [new MaterializableScenario(ScenarioPosition, SameVoucherScenario)],
@@ -359,11 +356,11 @@ public sealed class AdvancedFilterAstProviderParityTests
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
             command.CommandText =
-                $"SELECT g.document_number, g.line_item "
-                + $"FROM {schemaPrefix}result_filter_run r "
-                + $"JOIN {schemaPrefix}target_gl_entry g ON g.entry_id = r.entry_id "
-                + $"WHERE r.scenario_position = {ScenarioPosition} "
-                + "ORDER BY g.document_number, g.line_item;";
+                $"SELECT g.voucher_number, g.line_item "
+                + $"FROM {schemaPrefix}filter_hit r "
+                + $"JOIN {schemaPrefix}gl g ON g.entry_id = r.entry_id "
+                + $"WHERE r.scenario_id = {ScenarioPosition} "
+                + "ORDER BY g.voucher_number, g.line_item;";
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -387,22 +384,22 @@ public sealed class AdvancedFilterAstProviderParityTests
 
     private static string[] SemanticIdentities(FilterPreviewResult preview) =>
         preview.PreviewRows
-            .Select(row => $"{row.DocumentNumber}|{row.LineItem}")
+            .Select(row => $"{row.VoucherNumber}|{row.LineItem}")
             .OrderBy(identity => identity, StringComparer.Ordinal)
             .ToArray();
 
     private static FilterScenarioSpec Scenario(string name, FilterGroupSpec group) =>
         new(name, "synthetic provider parity", [group]);
 
-    private static FilterRuleSpec TextSetRule(
+    private static FilterConditionSpec TextSetRule(
         string field,
         TextMatchMode mode,
         IReadOnlyList<string> values,
         TextSetNormalization? normalization = null)
     {
-        var rule = new FilterRuleSpec(
+        var rule = new FilterConditionSpec(
             FilterJoin.And,
-            FilterRuleType.TextSet,
+            FilterConditionType.TextSet,
             PrescreenKey: null,
             Field: field,
             Keywords: [],
@@ -422,10 +419,30 @@ public sealed class AdvancedFilterAstProviderParityTests
             : rule;
     }
 
-    private static FilterRuleSpec NumRangeLowerBound(long fromAmountScaled) =>
+    // 整張傳票條件，量詞「至少一筆符合」，子條件只有這一條。
+    private static FilterConditionSpec AnyEntryInVoucher(FilterConditionSpec rule) =>
         new(
             FilterJoin.And,
-            FilterRuleType.NumRange,
+            FilterConditionType.Voucher,
+            PrescreenKey: null,
+            Field: null,
+            Keywords: [],
+            Mode: TextMatchMode.Contains,
+            FromDate: null,
+            ToDate: null,
+            FromAmountScaled: null,
+            ToAmountScaled: null,
+            DrCr: null,
+            IsManual: null)
+        {
+            Quantifier = "any",
+            Conditions = [rule]
+        };
+
+    private static FilterConditionSpec NumRangeLowerBound(long fromAmountScaled) =>
+        new(
+            FilterJoin.And,
+            FilterConditionType.NumRange,
             PrescreenKey: null,
             Field: "amount",
             Keywords: [],

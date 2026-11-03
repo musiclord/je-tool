@@ -5,7 +5,7 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 只能看原始碼的前端規則。其他前端行為一律由 <c>tools/tests/frontend-journey-*.test.cjs</c> 執行正式腳本來測；
 /// 這裡只留行為測試替代不了的少數檢查，每個方法的註解寫明原因。
-/// 依據：使用者 2026-10-13 對「147 個字串比對測試行為化」選「照建議做」，選項說明寫明
+/// 依據：裁定 2026-10-13-14 對「147 個字串比對測試行為化」選「照建議做」，選項說明寫明
 /// 「少數只能看原始碼的規則，例如整個前端不得出現四位小數的金額格式，保留成很小的原始碼檢查」。
 /// </summary>
 public sealed class FrontendSourceOnlyRulesTests
@@ -14,10 +14,10 @@ public sealed class FrontendSourceOnlyRulesTests
     public void MoneyDisplay_NeverFormatsNumbersToFourDecimalPlaces()
     {
         // 2026-10-14 從 ScreenBehaviorReviewFrontendTests.Money_ShowsTwoDecimalsWithThousandsSeparatorThroughOneSharedFormatter 原樣搬來。
-        // 使用者 2026-10-02 裁定 P3-4：畫面統一兩位小數加千分位；報表與底稿不變。
+        // 裁定 2026-10-02-01：畫面統一兩位小數加千分位；報表與底稿不變。
         // 為什麼行為測試替代不了：tools/tests/frontend-journey-tables.test.cjs 只檢查已知畫面上的金額，
         // 之後新加的格式化程式不會被涵蓋；整個前端都不得出現四位小數，只能掃描全部原始碼。
-        // 2026-10-23 預篩選收斂計畫階段五：使用者 2026-10-22 裁定右側資料預覽的金額固定顯示四位，其他畫面不變。
+        // 裁定 2026-10-22-06：右側資料預覽的金額固定顯示四位，其他畫面不變。
         // data-preview.js 的 previewMoney 照後端給的十進位字串補零，不把金額轉成數字再格式化，所以不會碰到這個掃描；
         // 斷言不變，仍擋住其他畫面用數字格式化出四位小數。方法名原本是 MoneyDisplay_NeverUsesFourDecimalPlacesAnywhereInTheFrontend，
         // 資料預覽改成四位後名稱不再成立，2026-10-28 複審時改成現名，說明它鎖住的是把數字格式化成四位小數。
@@ -41,7 +41,7 @@ public sealed class FrontendSourceOnlyRulesTests
     public void DataPreviewCompactBoundary_MatchesTheStylesheetBreakpoint()
     {
         // 2026-10-14 從 FrontendUsabilityContractTests.Preview_Uses1360CompactBoundaryAndPreservesManualChoiceUntilViewportCrossesAgain
-        // 原樣搬來 JS 斷點那一條，另加 app.css 同一個斷點（計畫第 5 節「資料預覽收合斷點一致」）。
+        // 原樣搬來 JS 斷點那一條，另加 app.css 同一個斷點，讓資料預覽在 JS 與 CSS 的收合斷點一致。
         // 收合規則本身由 tools/tests/frontend-journey-tables.test.cjs 的
         // 「the preview folds at 1360 pixels and keeps the auditor's own choice…」測。
         // 為什麼行為測試替代不了：測試環境沒有版面與 CSS 計算，JS 的收合斷點和 app.css 的版面斷點是否同一個數字，只能看原始碼。

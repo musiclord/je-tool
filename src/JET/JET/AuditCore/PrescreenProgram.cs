@@ -4,7 +4,7 @@ namespace JET.AuditCore;
 
 /// <summary>
 /// Prescreen typed lifecycle 的 Application 輸入。只攜帶有界案件事實與 run identity，
-/// 不攜帶 GL 完整列集。可用欄位與分類名稱的意義同 <see cref="AuditCaseSnapshot"/>。
+/// 不攜帶 GL 完整列集。可用欄位與分類名稱的意義同 <see cref="AuditProjectSnapshot"/>。
 /// </summary>
 internal sealed record PrescreenRequest(
     string ProjectId,
@@ -13,9 +13,9 @@ internal sealed record PrescreenRequest(
     string PeriodEnd,
     int MoneyScale,
     long SampleSeed,
-    string RunId,
+    string ResultId,
     DateTimeOffset GeneratedUtc,
-    string? LastPeriodStart,
+    string? PrepStartDate,
     IReadOnlyList<string>? AvailableGlFields,
     bool HasHolidays,
     bool HasAccountMapping,
@@ -33,11 +33,11 @@ internal sealed record PrescreenPlan(
     PrescreenRequest Request,
     AuditExecutionPlan ReviewPlan)
 {
-    internal bool RunPostPeriodApproval => IsApplicable("post_period_approval");
+    internal bool RunPrepPeriodApproval => IsApplicable("prep_period_approval");
 
     internal bool RunUnexpectedAccountPair => IsApplicable("unexpected_account_pair");
 
-    internal bool RunCreatorSummary => IsApplicable("creator_summary");
+    internal bool RunPreparerSummary => IsApplicable("preparer_summary");
 
     internal bool RunWeekendApproval => IsApplicable("weekend_approval");
 
@@ -46,7 +46,6 @@ internal sealed record PrescreenPlan(
     internal bool RunHolidayApproval => IsApplicable("holiday_approval");
 
     internal bool RunNonAuthorizedPreparer => IsApplicable("non_authorized_preparer");
-    internal bool RunLowFrequencyPreparer => IsApplicable("low_frequency_preparer");
 
     internal bool IsApplicable(string slug) =>
         ReviewPlan.Procedures.Single(verdict =>
@@ -57,16 +56,16 @@ internal sealed record PrescreenPlan(
 /// <summary>
 /// Provider 執行後回到 AuditCore 的 raw facts。所有計數皆為非 nullable；
 /// 跳過規則的 outward 0／null、固定尾零門檻與 status 不由 Infrastructure 決定。
-/// Creators／Accounts 沿用既有 50 列上限的有界摘要型別；
+/// Preparers／Accounts 沿用既有 50 列上限的有界摘要型別；
 /// TotalPreparerCount／TotalEntryCount 是查核期間的全母體純量（非上限內合計）；
-/// RuleVoucherCounts 與既有 12 條 row-tag 行數來自同一批規則查詢，不另跑第二套述詞。
+/// RuleVoucherCounts 與十條逐筆規則的行數來自同一批規則查詢，不另跑第二套述詞。
 /// </summary>
 internal sealed record PrescreenFacts(
-    long PostPeriodApprovalCount,
+    long PrepPeriodApprovalCount,
     long SuspiciousKeywordsCount,
     long UnexpectedAccountPairCount,
     long TrailingZerosCount,
-    IReadOnlyList<CreatorSummaryRow> Creators,
+    IReadOnlyList<PreparerSummaryRow> Preparers,
     long DistinctAccountCount,
     IReadOnlyList<AccountUsageRow> Accounts,
     long WeekendPostingCount,
@@ -75,18 +74,13 @@ internal sealed record PrescreenFacts(
     long HolidayApprovalCount,
     long BlankDescriptionCount,
     long NonAuthorizedPreparerCount,
-    long LowFrequencyPreparerCount,
-    long LowFrequencyAccountCount,
     IReadOnlyDictionary<string, long> RuleVoucherCounts,
     long TotalPreparerCount = 0,
-    long TotalEntryCount = 0)
-{
-    public long? LowFrequencyDistinctAccountCount { get; init; }
-}
+    long TotalEntryCount = 0);
 
 /// <summary>
 /// 集中度分析（流程總覽區塊⑤）的有界呈現事實。累積占比、「其他」彙總與前五佔比一律
-/// 在此算好，前端只鏡射與格式化。整塊沿用 <c>creator_summary</c> 的程序裁定：該程序為
+/// 在此算好，前端只鏡射與格式化。整塊沿用 <c>preparer_summary</c> 的程序裁定：該程序為
 /// N/A 時本區塊亦為 N/A，且不攜帶任何數值格（與「結果為 0」語意不同，不併入同一統計）。
 /// </summary>
 internal sealed record PrescreenConcentration(
@@ -173,7 +167,7 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(request);
 
         var reviewPlan = Plan(
-            new AuditCaseSnapshot(
+            new AuditProjectSnapshot(
                 ProjectId: request.ProjectId,
                 HasGlMapping: request.HasGlMapping,
                 HasTbMapping: false,
@@ -181,7 +175,7 @@ public static partial class JetAuditProgram
                 PeriodEnd: request.PeriodEnd,
                 MoneyScale: request.MoneyScale,
                 SampleSeed: request.SampleSeed,
-                LastPeriodStart: request.LastPeriodStart,
+                PrepStartDate: request.PrepStartDate,
                 AvailableGlFields: request.AvailableGlFields,
                 HasHolidays: request.HasHolidays,
                 HasAccountMapping: request.HasAccountMapping,
@@ -191,7 +185,7 @@ public static partial class JetAuditProgram
                 NonWorkingDays: request.NonWorkingDays,
                 CategoryLabels: request.CategoryLabels),
             new AuditUserParameters(
-                RunId: request.RunId,
+                ResultId: request.ResultId,
                 GeneratedUtc: request.GeneratedUtc,
                 SampleSize: 0,
                 ActionName: PrescreenAction));
@@ -211,15 +205,15 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(facts);
 
         // 每條規則都讀同一份適用性判定（規則需求表）；不適用的規則不帶計數出去，核准側沒有判定時留 null，和回應的寫法一致。
-        // 階段四查到只需要必填欄的六條規則即使判定不適用，計數也照傳；現在十四條都照同一個判定。
+        // 以前只需要必填欄的六條規則即使判定不適用，計數也照傳；現在十二條都照同一個判定。
         bool Runs(string key) => plan.IsApplicable(PrescreenRuleDefinitions.ByKey[key].Slug);
         var data = new PrescreenRunResult(
-            PostPeriodApprovalCount: Runs(PrescreenRuleKeys.PostPeriodApproval) ? facts.PostPeriodApprovalCount : 0,
+            PrepPeriodApprovalCount: Runs(PrescreenRuleKeys.PrepPeriodApproval) ? facts.PrepPeriodApprovalCount : 0,
             SuspiciousKeywordsCount: Runs(PrescreenRuleKeys.SuspiciousKeywords) ? facts.SuspiciousKeywordsCount : 0,
             UnexpectedAccountPairCount: Runs(PrescreenRuleKeys.UnexpectedAccountPair) ? facts.UnexpectedAccountPairCount : 0,
             TrailingZerosCount: Runs(PrescreenRuleKeys.TrailingZeros) ? facts.TrailingZerosCount : 0,
             ZerosThreshold: TrailingZeroThreshold.DefaultZerosThreshold,
-            Creators: Runs(JetRuleRequirements.CreatorSummary) ? facts.Creators : Array.Empty<CreatorSummaryRow>(),
+            Preparers: Runs(JetRuleRequirements.PreparerSummary) ? facts.Preparers : Array.Empty<PreparerSummaryRow>(),
             DistinctAccountCount: Runs(JetRuleRequirements.RareAccounts) ? facts.DistinctAccountCount : 0,
             Accounts: Runs(JetRuleRequirements.RareAccounts) ? facts.Accounts : Array.Empty<AccountUsageRow>(),
             WeekendPostingCount: Runs(PrescreenRuleKeys.WeekendPosting) ? facts.WeekendPostingCount : 0,
@@ -227,15 +221,10 @@ public static partial class JetAuditProgram
             HolidayPostingCount: Runs(PrescreenRuleKeys.HolidayPosting) ? facts.HolidayPostingCount : 0,
             HolidayApprovalCount: Runs(PrescreenRuleKeys.HolidayApproval) ? facts.HolidayApprovalCount : null,
             BlankDescriptionCount: Runs(PrescreenRuleKeys.BlankDescription) ? facts.BlankDescriptionCount : 0,
-            NonAuthorizedPreparerCount: Runs(PrescreenRuleKeys.NonAuthorizedPreparer) ? facts.NonAuthorizedPreparerCount : 0,
-            LowFrequencyPreparerCount: Runs(PrescreenRuleKeys.LowFrequencyPreparer) ? facts.LowFrequencyPreparerCount : 0,
-            LowFrequencyAccountCount: Runs(PrescreenRuleKeys.LowFrequencyAccount) ? facts.LowFrequencyAccountCount : 0)
-        {
-            LowFrequencyDistinctAccountCount = Runs(PrescreenRuleKeys.LowFrequencyAccount) ? facts.LowFrequencyDistinctAccountCount : null
-        };
+            NonAuthorizedPreparerCount: Runs(PrescreenRuleKeys.NonAuthorizedPreparer) ? facts.NonAuthorizedPreparerCount : 0);
         var manifest = Finalize(plan.ReviewPlan, new AuditOutcome(Prescreen: data));
 
-        var snapshot = plan.ReviewPlan.CaseSnapshot;
+        var snapshot = plan.ReviewPlan.ProjectSnapshot;
         return new PrescreenResult(
             data,
             manifest,
@@ -305,7 +294,7 @@ public static partial class JetAuditProgram
             : (decimal)hitLines * 100m / population;
 
     /// <summary>
-    /// 集中度分析的呈現事實。適用性完全沿用 <c>creator_summary</c> 已完成的適用性判定，
+    /// 集中度分析的呈現事實。適用性完全沿用 <c>preparer_summary</c> 已完成的適用性判定，
     /// 不另立第二套裁定；不適用時整塊不帶數值。
     /// </summary>
     private static PrescreenConcentration Concentrate(
@@ -314,9 +303,9 @@ public static partial class JetAuditProgram
         PrescreenFacts facts)
     {
         var verdict = manifest.Procedures.Single(candidate =>
-            string.Equals(candidate.Definition.Slug, "creator_summary", StringComparison.Ordinal));
+            string.Equals(candidate.Definition.Slug, "preparer_summary", StringComparison.Ordinal));
         var status = verdict.Status
-            ?? throw new InvalidOperationException("程序 'creator_summary' 尚未 Finalize。");
+            ?? throw new InvalidOperationException("程序 'preparer_summary' 尚未 Finalize。");
 
         if (!string.Equals(status, "V", StringComparison.Ordinal))
         {
@@ -327,19 +316,19 @@ public static partial class JetAuditProgram
         var top = new List<PreparerConcentrationRow>(ConcentrationLimits.TopPreparerRows);
         var running = 0L;
         var leaderEntryCount = 0L;
-        for (var i = 0; i < data.Creators.Count && i < ConcentrationLimits.TopPreparerRows; i++)
+        for (var i = 0; i < data.Preparers.Count && i < ConcentrationLimits.TopPreparerRows; i++)
         {
-            var creator = data.Creators[i];
-            running += creator.EntryCount;
+            var preparer = data.Preparers[i];
+            running += preparer.EntryCount;
             if (i < ConcentrationLimits.ShareLeaderRows)
             {
                 leaderEntryCount = running;
             }
 
             top.Add(new PreparerConcentrationRow(
-                creator.CreatedBy,
-                creator.EntryCount,
-                creator.ManualCount,
+                preparer.CreatedBy,
+                preparer.EntryCount,
+                preparer.ManualCount,
                 SharePct(running, totalEntryCount)));
         }
 

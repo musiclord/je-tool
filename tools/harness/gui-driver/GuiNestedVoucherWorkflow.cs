@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Jet.GuiDriver;
 
-// Section 9: align selectors with the verified frontend contracts. Gui is not executed per the user request.
+// Selectors follow the verified frontend contracts.
 
 internal static partial class GuiScenarios
 {
@@ -24,7 +24,7 @@ internal static partial class GuiScenarios
             pending.CancelAfter(TimeSpan.FromSeconds(20));
             try { await WaitForProbeAsync(cdp, process,
             "(()=>{var state=window.JetStore.getState();var draft=state.filter.draft,saved=state.filter.savedScenarios,preview=state.filter.preview;return {idle:!state.busy,busyLabel:state.busyLabel,busyDetail:state.busyDetail,ok:!!(" + expression +
-            "),step:state.currentStepIndex,saved:saved.length,rules:draft.groups.flatMap(g=>g.rules),previewCount:preview?.count,errors:Array.from(document.querySelectorAll('[data-rule-error]')).map(e=>e.textContent)};})()",
+            "),step:state.currentStepIndex,saved:saved.length,conditions:draft.groups.flatMap(g=>g.conditions),previewCount:preview?.count,errors:Array.from(document.querySelectorAll('[data-rule-error]')).map(e=>e.textContent)};})()",
             value => value, value => ReadBoolean(value,"idle") && ReadBoolean(value,"ok"), "nested_voucher_workflow_failed", pending.Token,
             value => outcome.LastFilterProbe = value.Clone()); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new GuiCheckException("nested_voucher_probe_failed"); }
@@ -46,15 +46,15 @@ internal static partial class GuiScenarios
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='3']");
-        outcome.RecordStage("nested_taxonomy_parent");
-        await Click("[data-action=toggle-taxonomy]");
-        await Click("[data-action=toggle-taxonomy-advanced]");
-        await Click("[data-action=add-taxonomy-category]");
-        await Fill(".taxonomy-row:last-child [data-taxonomy-label]", "GUI-Child-Cash");
-        await Choose(".taxonomy-row:last-child [data-taxonomy-role]", "cash");
-        await Choose(".taxonomy-row:last-child [data-taxonomy-parent]", "builtin.cash");
-        await Click("[data-action=save-taxonomy]");
-        await Check("state.taxonomy.categories.some(c=>c.label==='GUI-Child-Cash' && c.parentCategoryId==='builtin.cash')");
+        outcome.RecordStage("nested_category_parent");
+        await Click("[data-action=toggle-category]");
+        await Click("[data-action=toggle-category-advanced]");
+        await Click("[data-action=add-category]");
+        await Fill(".category-row:last-child [data-category-label]", "GUI-Child-Cash");
+        await Choose(".category-row:last-child [data-category-role]", "cash");
+        await Choose(".category-row:last-child [data-category-parent]", "builtin.cash");
+        await Click("[data-action=save-category]");
+        await Check("state.accountCategory.categories.some(c=>c.label==='GUI-Child-Cash' && c.parentCategoryId==='builtin.cash')");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         // A nonempty debit scope is explicit: at least one debit, and every row is credit or satisfies the condition.
         await AddCustomConditionAsync(cdp, "compound:group", Click, ct);
@@ -65,9 +65,9 @@ internal static partial class GuiScenarios
         await AddChild(root, "type:voucher"); await Choose(all + " > [data-compound-key=quantifier]", "all");
         await AddChild(all, "type:drCrOnly"); await Choose(opposite + " [data-rule-bind=drCr]", "credit");
         await AddChild(all, "type:group"); await Choose(all + " > [data-child-join]", "OR");
-        await AddChild(condition, "field:accNum"); await Choose(field + " [data-value-kind]", "exact");
+        await AddChild(condition, "field:accountNumber"); await Choose(field + " [data-value-kind]", "exact");
         await Fill(field + " [data-value-key=values]", "GUI-ABSENT-ACCOUNT"); await Choose(field + " [data-value-polarity]", "exclude");
-        await AddChild(condition, "type:group"); await AddChild(group, "field:postDate");
+        await AddChild(condition, "type:group"); await AddChild(group, "field:glDate");
         await Choose(date + " [data-value-kind]", "blank"); await Choose(date + " [data-value-polarity]", "exclude");
         await AddChild(group, "field:description"); await Choose(description + " [data-value-kind]", "blank");
         await Choose(group + " > [data-child-join]", "OR");
@@ -81,7 +81,7 @@ internal static partial class GuiScenarios
         await Choose(opposite + " [data-rule-bind=drCr]", "debit");
         await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.rule-row--selected').dataset.ri==='0.1.0' && !!document.querySelector('.rule-row--selected > .filter-rule-heading > .filter-rule-selected')");
         await Click("[data-action=preview-scenario]");
-        await Check("!!preview && preview.count>0 && draft.groups[0].rules[0].rules[1].rules[1].rules[1].rules[1].join==='OR' && document.querySelector('.scenario-readback').textContent.includes('包含下層分類')");
+        await Check("!!preview && preview.count>0 && draft.groups[0].conditions[0].conditions[1].conditions[1].conditions[1].conditions[1].join==='OR' && document.querySelector('.scenario-readback').textContent.includes('包含下層分類')");
         await CaptureScreenshotAsync(cdp, outcome, ct);
         await Click("[data-action=save-scenario]"); await Check("saved.length===1");
         outcome.RecordStage("nested_cancel_return_reopen_export");
@@ -90,15 +90,15 @@ internal static partial class GuiScenarios
         await Click(".saved-scenario .jet-menu__toggle"); await Click("[data-action=edit-scenario][data-index='0']");
         await Choose(classification + " [data-rule-bind=categorySelection]", "role");
         await Choose(group + " > [data-child-join]", "AND"); await Click("[data-action=cancel-edit-scenario]");
-        await Check("saved[0].groups[0].rules[0].rules[1].rules[1].rules[2].categorySelection==='subtree' && saved[0].groups[0].rules[0].rules[1].rules[1].rules[1].rules[1].join==='OR'");
+        await Check("saved[0].groups[0].conditions[0].conditions[1].conditions[1].conditions[2].categorySelection==='subtree' && saved[0].groups[0].conditions[0].conditions[1].conditions[1].conditions[1].conditions[1].join==='OR'");
         await Click("[data-bind=step-nav] [data-step-index='3']"); await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=saved]"); await Click("[data-action=export-criteria-report]");
         await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
-        await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
-        await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})");
+        await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-working-paper]");
+        await Check("!!window.JetUi.findCurrentReport(state,'workingPaper',{validationResultId:state.results.validate.resultRef.resultId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
-        await Check("saved.length===1 && saved[0].groups[0].rules[0].rules[1].quantifier==='all' && saved[0].groups[0].rules[0].rules[1].rules[1].rules[1].rules[1].join==='OR' && state.taxonomy.categories.some(c=>c.label==='GUI-Child-Cash' && c.parentCategoryId==='builtin.cash')");
+        await Check("saved.length===1 && saved[0].groups[0].conditions[0].conditions[1].quantifier==='all' && saved[0].groups[0].conditions[0].conditions[1].conditions[1].conditions[1].conditions[1].join==='OR' && state.accountCategory.categories.some(c=>c.label==='GUI-Child-Cash' && c.parentCategoryId==='builtin.cash')");
         await Click("[data-action=toggle-scenario][data-index='0']");
         await Check("document.querySelector('.saved-scenario .scenario-readback').textContent.includes('整張傳票全部符合') && document.querySelector('.saved-scenario .scenario-readback').textContent.includes('僅貸方') && document.querySelector('.saved-scenario .filter-voucher-host')!==null");
         await FindControlPointAsync(cdp, process, ".saved-scenario .scenario-readback", ct);

@@ -125,11 +125,11 @@ internal sealed class AccountMappingStateFixture : IAsyncDisposable
             // 測試資料依分類名稱補上對應的內建分類身分。
             var targets = categoryList.Select((category, index) =>
                 $"('batch', {index + 1}, 'A{index + 1:000}', 'Account {index + 1}', '{category}', " +
-                $"'{AccountTaxonomyBuiltIns.All.Single(item => item.Label == category).CategoryId}')");
+                $"'{AccountCategoryBuiltIns.All.Single(item => item.Label == category).CategoryId}')");
             var targetSql = categoryList.Length == 0
                 ? string.Empty
-                : $"INSERT INTO {prefix}target_account_mapping " +
-                  "(batch_id, source_row_number, account_code, account_name, standardized_category, category_id) VALUES " +
+                : $"INSERT INTO {prefix}account_mapping " +
+                  "(batch_id, source_row_number, account_number, account_name, standardized_category, category_id) VALUES " +
                   string.Join(",", targets) + ";";
 
             await using var command = connection.CreateCommand();

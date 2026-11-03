@@ -12,7 +12,7 @@ namespace JET.Tests.AuditCore;
 /// typed dynamic rule（2026-08-14 契約凍結）的 provider-neutral SQL plan 契約：
 /// blank＝missing value row、負向 operator 是 value row 自身述詞（EXISTS 內取負，不重讀成
 /// voucher-level NOT EXISTS）、fieldId 與 operand 一律參數綁定、text trim＋UPPER、money 依
-/// amountBasis 於 scaled integer 域比較、in/notIn 依型別正規化去重、sameVoucher 同構不變、
+/// amountBasis 於 scaled integer 域比較、in/notIn 依型別正規化去重、整張傳票條件裡同構不變、
 /// 2,000 參數預算不變。
 /// </summary>
 public sealed class TypedFieldCompilationTests
@@ -21,14 +21,14 @@ public sealed class TypedFieldCompilationTests
     private const string DateFieldId = "rde.bbbb0000bbbb0000bbbb0000bbbb0000";
     private const string MoneyFieldId = "rde.cccc0000cccc0000cccc0000cccc0000";
 
-    private static readonly FilterRuleContext Context =
+    private static readonly FilterConditionContext Context =
         new(100, null, "2025-01-01", "2025-12-31", PopulationScope: GlPopulationScope.AuditPeriod)
         {
             RdeFields =
             [
                 new GlRdeFieldMetadata(TextFieldId, "備註欄", "備註", RdeFieldValueTypeNames.Text),
                 new GlRdeFieldMetadata(DateFieldId, "審核日欄", "審核日", RdeFieldValueTypeNames.Date),
-                new GlRdeFieldMetadata(MoneyFieldId, "稅額欄", "稅額", RdeFieldValueTypeNames.Money)
+                new GlRdeFieldMetadata(MoneyFieldId, "稅額欄", "稅額", RdeFieldValueTypeNames.Amount)
             ]
         };
 
@@ -37,10 +37,10 @@ public sealed class TypedFieldCompilationTests
     {
         var plan = Compile(Rule(TextFieldId, "equals", value: "  Alpha  "));
 
-        // 2026-10-04 第二遍回饋審閱第 2 批（C3）：去空白改走方言的 Trim（字元集合和 .NET 相同），原本斷言引擎原生 TRIM
+        // 去空白改走方言的 Trim（裁定 2026-10-04-01）（字元集合和 .NET 相同），原本斷言引擎原生 TRIM
         //（第一次失敗：收據 20261004-045437671）。
         Assert.Contains(
-            "EXISTS (SELECT 1 FROM target_gl_rde_value v "
+            "EXISTS (SELECT 1 FROM gl_rde_value v "
             + "WHERE v.entry_id = g.entry_id AND v.field_id = @p0 "
             + $"AND v.value_type = @p1 AND UPPER({Trim("v.text_value")}) = @p2)",
             plan.Sql,
@@ -63,7 +63,7 @@ public sealed class TypedFieldCompilationTests
         foreach (var plan in new[] { notEquals, notContains, notIn })
         {
             Assert.StartsWith(
-                "EXISTS (SELECT 1 FROM target_gl_rde_value v",
+                "EXISTS (SELECT 1 FROM gl_rde_value v",
                 TrimOuter(plan.Sql),
                 StringComparison.Ordinal);
             Assert.DoesNotContain("NOT EXISTS", plan.Sql, StringComparison.Ordinal);
@@ -87,14 +87,14 @@ public sealed class TypedFieldCompilationTests
         var isNotBlank = Compile(Rule(MoneyFieldId, "isNotBlank", amountBasis: "signed"));
 
         Assert.Contains(
-            "NOT EXISTS (SELECT 1 FROM target_gl_rde_value v "
+            "NOT EXISTS (SELECT 1 FROM gl_rde_value v "
             + "WHERE v.entry_id = g.entry_id AND v.field_id = @p0)",
             isBlank.Sql,
             StringComparison.Ordinal);
         Assert.Equal([TextFieldId], isBlank.Parameters.Select(static p => p.Value).ToArray());
 
         Assert.Contains(
-            "EXISTS (SELECT 1 FROM target_gl_rde_value v "
+            "EXISTS (SELECT 1 FROM gl_rde_value v "
             + "WHERE v.entry_id = g.entry_id AND v.field_id = @p0)",
             isNotBlank.Sql,
             StringComparison.Ordinal);
@@ -128,7 +128,7 @@ public sealed class TypedFieldCompilationTests
 
         Assert.Contains($"{expectedColumn} >= @p2", plan.Sql, StringComparison.Ordinal);
         Assert.Equal(
-            [MoneyFieldId, "money", -1234L],
+            [MoneyFieldId, "amount", -1234L],
             plan.Parameters.Select(static parameter => parameter.Value).ToArray());
     }
 
@@ -150,7 +150,7 @@ public sealed class TypedFieldCompilationTests
     [Fact]
     public void InjectionShapedOperands_OnlyEverBecomeParameters()
     {
-        const string injection = "x'; DROP TABLE target_gl_entry; --";
+        const string injection = "x'; DROP TABLE gl; --";
         var text = Compile(Rule(TextFieldId, "contains", value: injection));
 
         Assert.DoesNotContain("DROP TABLE", text.Sql, StringComparison.OrdinalIgnoreCase);
@@ -159,26 +159,29 @@ public sealed class TypedFieldCompilationTests
             text.Parameters.Select(static parameter => parameter.Value?.ToString()));
     }
 
+    // 原本用「同一傳票」比對範圍；這個寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
+    // 照它的重建方式把第一條以外的條件各自放進「整張傳票條件」並選「至少一筆符合」，斷言不變。
+    // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法改成無法讀取）。
     [Fact]
-    public void SameVoucherEvidence_ReusesTypedPredicateInsideVoucherSubquery()
+    public void VoucherEvidence_ReusesTypedPredicateInsideVoucherSubquery()
     {
         var scenario = Parse(
             $$"""
-            {"name":"typed-sv","rationale":"compile","groups":[{"matchScope":"sameVoucher","rules":[
+            {"name":"typed-sv","rationale":"compile","groups":[{"matchScope":"row","conditions":[
               {"join":"AND","type":"drCrOnly","drCr":"credit"},
-              {"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"EVIDENCE"}
+              {"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"typed","fieldId":"{{TextFieldId}}","operator":"equals","value":"EVIDENCE"}]}
             ]}]}
             """);
 
         var plan = Builder().BuildPlan(scenario, Context);
 
-        // 第一條仍是輸出列錨點；typed 佐證規則落在同傳票有效母體子查詢內，
+        // 第一條仍是輸出列錨點；typed 佐證規則落在同傳票、只看納入測試分錄的子查詢內，
         // 且 typed 述詞的 EXISTS 相關到子查詢的 g（沿用既有 alias 重用同構）。
-        Assert.Contains("g.document_number IN (", plan.Sql, StringComparison.Ordinal);
-        Assert.Contains("FROM target_gl_entry g", plan.Sql, StringComparison.Ordinal);
-        Assert.Contains("g.is_effective = 1", plan.Sql, StringComparison.Ordinal);
+        Assert.Contains("g.voucher_number IN (", plan.Sql, StringComparison.Ordinal);
+        Assert.Contains("FROM gl g", plan.Sql, StringComparison.Ordinal);
+        Assert.Contains("g.is_excluded = 0", plan.Sql, StringComparison.Ordinal);
         Assert.Contains(
-            "EXISTS (SELECT 1 FROM target_gl_rde_value v WHERE v.entry_id = g.entry_id",
+            "EXISTS (SELECT 1 FROM gl_rde_value v WHERE v.entry_id = g.entry_id",
             plan.Sql,
             StringComparison.Ordinal);
     }
@@ -186,9 +189,9 @@ public sealed class TypedFieldCompilationTests
     [Fact]
     public void UnknownField_FailsLoudWithoutShowingTheInternalFieldId_EvenWithoutValidation()
     {
-        // 2026-10-03 主線裁定 T9：欄位已移除時不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-62（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
-        // 原本註解說「重新計算時這則訊息會原樣列給審計員」，因為 materialize 會繞過驗證器；現在 FilterRunMaterializeService
+        // 欄位已移除時不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 原本註解說「重新計算時這則訊息會原樣列給審計員」，因為 materialize 會繞過驗證器；現在 FilterHitMaterializeService
         // 在編譯前一律先跑 FilterScenarioValidator，驗證器會先寫出 V12，編譯時的這個檢查只在驗證器與執行時檢查不一致
         // （程式錯誤）時才會走到。所以畫面改顯示非預期錯誤那一句，檢查代號記進支援日誌，錯誤代碼仍是 invalid_scenario。
         const string removed = "rde.dddd0000dddd0000dddd0000dddd0000";
@@ -205,15 +208,15 @@ public sealed class TypedFieldCompilationTests
     public void OperatorIncompatibleWithCurrentType_FailsLoudNamingTheField()
     {
         // type-changed lifecycle 的編譯端最後防線：仍不得編出錯型別 SQL。
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-62（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
-        // 原本註解說 validator 會被 materialize 重新解析已存 JSON 時繞過；現在 FilterRunMaterializeService 在編譯前一律
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 原本註解說 validator 會被 materialize 重新解析已存 JSON 時繞過；現在 FilterHitMaterializeService 在編譯前一律
         // 先驗證，驗證器會先寫出 V14，走到這裡只會是驗證器與執行時檢查不一致的程式錯誤。原本鎖「攸關資料元素欄位「稅額」」
         // 的斷言改鎖非預期錯誤那一句與檢查代號；不顯示 rde. 內部代號的斷言照留。
         var exception = Assert.Throws<JetActionException>(
             () => Compile(Rule(MoneyFieldId, "contains", value: "x", amountBasis: "signed")));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 2026-10-03 主線裁定 T9：不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
         Assert.Equal("typed_operator_type_mismatch", FilterCompileCheck.CheckOf(exception));
         Assert.DoesNotContain("稅額", exception.Message, StringComparison.Ordinal);
@@ -223,7 +226,7 @@ public sealed class TypedFieldCompilationTests
     [Fact]
     public void EmptyRegistry_FailsLoudInsteadOfCompilingSql()
     {
-        var context = new FilterRuleContext(
+        var context = new FilterConditionContext(
             100, null, "2025-01-01", "2025-12-31", PopulationScope: GlPopulationScope.AuditPeriod);
 
         var exception = Assert.Throws<JetActionException>(() => Builder().BuildPlan(
@@ -251,10 +254,10 @@ public sealed class TypedFieldCompilationTests
             () => Builder().BuildPlan(scenario, Context));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        Assert.Contains(
-            FilterScenarioLimits.MaxCompiledParameters.ToString(),
-            exception.Message,
-            StringComparison.Ordinal);
+        // 裁定 2026-10-30-19：訊息裡的上限是數量，加千分位。原本比對未加千分位的 2000；
+        // 改字後依預期失敗：Focused 收據 20261031-010547486-827e57fd9bfa4185b81c65114b864279。
+        Assert.Equal(2000, FilterScenarioLimits.MaxCompiledParameters);
+        Assert.Contains("超過 2,000 個", exception.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -304,13 +307,13 @@ public sealed class TypedFieldCompilationTests
             SqliteDialect.Instance,
             new GlRulePredicates(SqliteDialect.Instance, GlPopulationScopeSql.Predicate));
 
-    private static FilterSqlFragmentPlan Compile(FilterRuleSpec rule) =>
+    private static FilterSqlFragmentPlan Compile(FilterConditionSpec rule) =>
         Builder().BuildPlan(Scenario(rule), Context);
 
     /// <summary>SQLite 方言的去空白寫法（字元集合和 .NET 相同），供 SQL 文字斷言組出預期字串。</summary>
     private static string Trim(string expr) => SqliteDialect.Instance.Trim(expr);
 
-    private static FilterScenarioSpec Scenario(FilterRuleSpec rule) =>
+    private static FilterScenarioSpec Scenario(FilterConditionSpec rule) =>
         new("typed", "compile", [new FilterGroupSpec(FilterJoin.And, [rule])]);
 
     private static FilterScenarioSpec Parse(string json)
@@ -321,7 +324,7 @@ public sealed class TypedFieldCompilationTests
 
     private static string TrimOuter(string sql) => sql.TrimStart('(');
 
-    private static FilterRuleSpec Rule(
+    private static FilterConditionSpec Rule(
         string fieldId,
         string op,
         string? value = null,
@@ -331,7 +334,7 @@ public sealed class TypedFieldCompilationTests
         string? amountBasis = null) =>
         new(
             FilterJoin.And,
-            FilterRuleType.TypedField,
+            FilterConditionType.TypedField,
             PrescreenKey: null,
             Field: null,
             Keywords: [],

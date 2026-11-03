@@ -5,41 +5,41 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-/// <summary>Stage 5 wire／Domain／renderer 契約；所有內容皆為合成值。</summary>
+/// <summary>進階條件篩選的 wire、Domain 與 renderer 契約；所有內容皆為合成值。</summary>
 public sealed class AdvancedFilterAstContractTests
 {
     private static readonly FilterValidationContext Ready =
-        new(HasLastPeriodStart: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
+        new(HasPrepStartDate: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
 
+    // 已儲存情境的「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），讀到時當成無法讀取的內容。
+    // 這則只留文字值清單的形狀檢查，條件組改用同一分錄列。第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（比對範圍的型別已不存在，無法編譯）。
     [Fact]
-    public void ParseAndValidate_SameVoucherTextSet_PreservesClosedWireShape()
+    public void ParseAndValidate_TextSet_PreservesClosedWireShape()
     {
         var scenario = Parse(
             """
-            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","matchScope":"sameVoucher","rules":[
+            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","matchScope":"row","conditions":[
               {"join":"AND","type":"textSet","field":"description","values":["anchor"],"mode":"exact","normalization":"preserve"},
-              {"join":"AND","type":"textSet","field":"accName","values":["evi dence"],"mode":"contains","normalization":"removeAsciiSpaces"}
+              {"join":"AND","type":"textSet","field":"accountName","values":["evi dence"],"mode":"contains","normalization":"removeAsciiSpaces"}
             ]}]}
             """);
 
         var group = Assert.Single(scenario.Groups);
-        Assert.Equal(FilterGroupMatchScope.SameVoucher, group.MatchScope);
         Assert.Null(group.UnknownMatchScope);
-        Assert.Equal(FilterRuleType.TextSet, group.Rules[0].Type);
-        Assert.Equal(["anchor"], group.Rules[0].Values);
-        Assert.Equal(TextSetNormalization.Preserve, group.Rules[0].Normalization);
-        Assert.Equal(TextSetNormalization.RemoveAsciiSpaces, group.Rules[1].Normalization);
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Retain historical parsing; saving now requires explicit voucher conditions.
-        Assert.Equal("第 1 組：" + FilterSinglePurposeRules.SameVoucher,
-            Assert.Single(FilterScenarioValidator.Validate(scenario, Ready)));
+        Assert.Equal(FilterConditionType.TextSet, group.Conditions[0].Type);
+        Assert.Equal(["anchor"], group.Conditions[0].Values);
+        Assert.Equal(TextSetNormalization.Preserve, group.Conditions[0].Normalization);
+        Assert.Equal(TextSetNormalization.RemoveAsciiSpaces, group.Conditions[1].Normalization);
+        Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
     }
 
-    // 使用者 2026-10-13 勾選頁確認（文字批次 C）：原本第四個參數是訊息片段（matchScope、至少需要兩條、只允許 AND），這三種只會是內容損毀，
-    // 畫面改寫通用句；參數改成程式寫死的原因代號，仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    // 原本第四個參數是訊息片段（matchScope、至少需要兩條、只允許 AND）。這三種錯誤只會出自存檔損毀，審計員在畫面上無從修正，
+    // 損毀的情境在畫面改寫通用句（裁定 2026-10-13-21）；參數改成程式寫死的原因代號，仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
     [Theory]
     [InlineData("mystery", 2, "AND", "group_match_scope_invalid")]
-    [InlineData("sameVoucher", 1, "AND", "same_voucher_too_few_rules")]
-    [InlineData("sameVoucher", 2, "OR", "same_voucher_or_join")]
+    // 已儲存情境的「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），讀到時當成無法讀取的內容。
+    // 原本 sameVoucher 的兩列檢查的是它自己的條數與連接詞，現在改成和其他未知值同一個原因。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊的比對範圍改成無法讀取）。
+    [InlineData("sameVoucher", 2, "AND", "group_match_scope_invalid")]
     public void Validate_InvalidSameVoucherGroup_FailsLoudly(
         string matchScope,
         int ruleCount,
@@ -58,7 +58,7 @@ public sealed class AdvancedFilterAstContractTests
         {
             rules.Add(new
             {
-                join = secondJoin, type = "textSet", field = "accName",
+                join = secondJoin, type = "textSet", field = "accountName",
                 values = new[] { "evidence" }, mode = "exact", normalization = "preserve"
             });
         }
@@ -67,7 +67,7 @@ public sealed class AdvancedFilterAstContractTests
         {
             name = "synthetic",
             rationale = "invalid contract",
-            groups = new[] { new { join = "AND", matchScope, rules } }
+            groups = new[] { new { join = "AND", matchScope, conditions = rules } }
         }));
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
@@ -75,7 +75,7 @@ public sealed class AdvancedFilterAstContractTests
         Assert.True(FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == expected));
     }
 
-    // 使用者 2026-10-13 勾選頁確認（文字批次 C）：原本第四個參數是訊息片段，這三種只會是內容損毀，畫面改寫通用句；
+    // 原本第四個參數是訊息片段。這三種錯誤只會出自存檔損毀，審計員在畫面上無從修正，損毀的情境在畫面改寫通用句（裁定 2026-10-13-21）；
     // 參數改成程式寫死的原因代號，仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
     [Theory]
     [InlineData("notContains", "preserve", "value", "text_set_mode_invalid")]
@@ -97,7 +97,7 @@ public sealed class AdvancedFilterAstContractTests
                 {
                     join = "AND",
                     matchScope = "row",
-                    rules = new[]
+                    conditions = new[]
                     {
                         new
                         {
@@ -121,7 +121,7 @@ public sealed class AdvancedFilterAstContractTests
     public void Parse_TextSetValuesThatAreNotAStringArray_ThrowsInvalidScenario(string valuesJson)
     {
         var json = """
-            {"name":"synthetic","rationale":"shape","groups":[{"rules":[
+            {"name":"synthetic","rationale":"shape","groups":[{"conditions":[
               {"type":"textSet","field":"description","mode":"contains","values":__VALUES__}
             ]}]}
             """.Replace("__VALUES__", valuesJson, StringComparison.Ordinal);
@@ -138,12 +138,12 @@ public sealed class AdvancedFilterAstContractTests
     {
         var scenario = Parse(
             """
-            {"name":"synthetic","rationale":"bounded values","groups":[{"rules":[
+            {"name":"synthetic","rationale":"bounded values","groups":[{"conditions":[
               {"type":"textSet","field":"description","mode":"contains","normalization":"preserve","values":["seed"]}
             ]}]}
             """);
         var group = Assert.Single(scenario.Groups);
-        var rule = Assert.Single(group.Rules) with
+        var rule = Assert.Single(group.Conditions) with
         {
             Values = Enumerable.Range(0, FilterScenarioLimits.MaxTextSetValuesPerRule + 1)
                 .Select(index => $"synthetic_{index}")
@@ -151,10 +151,10 @@ public sealed class AdvancedFilterAstContractTests
         };
         var oversized = scenario with
         {
-            Groups = [group with { Rules = [rule] }]
+            Groups = [group with { Conditions = [rule] }]
         };
 
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         var errors = FilterScenarioValidator.Validate(oversized, Ready);
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
@@ -172,7 +172,7 @@ public sealed class AdvancedFilterAstContractTests
             {
                 new
                 {
-                    rules = new[]
+                    conditions = new[]
                     {
                         new
                         {
@@ -194,7 +194,7 @@ public sealed class AdvancedFilterAstContractTests
             () => FilterScenarioPayloadParser.Parse(document.RootElement, moneyScale: 100));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 使用者 2026-10-13 勾選頁確認（文字批次 C）：只有存檔損毀或程式送錯才會出現的錯誤，畫面只寫通用句，原句與英文代碼改記支援日誌；
+        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", exception.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "text_set_values_too_many"), FilterScenarioCorruption.ReasonsOf(exception));
@@ -207,18 +207,20 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("normalization")]
     public void ParseAndValidate_PaddedClosedToken_FailsBeforePersistenceOrReadBack(string property)
     {
+        // 「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25），合格的原文改用 row，前後加空白的那一份仍要被擋下。
+        // 這次改的是測試資料，不是因為測試失敗。
         const string canonical =
             """
-            {"name":"synthetic","rationale":"closed tokens","groups":[{"matchScope":"sameVoucher","rules":[
+            {"name":"synthetic","rationale":"closed tokens","groups":[{"matchScope":"row","conditions":[
               {"join":"AND","type":"textSet","field":"description","values":["anchor"],"mode":"exact","normalization":"preserve"},
-              {"join":"AND","type":"textSet","field":"accName","values":["evidence"],"mode":"contains","normalization":"preserve"}
+              {"join":"AND","type":"textSet","field":"accountName","values":["evidence"],"mode":"contains","normalization":"preserve"}
             ]}]}
             """;
         var padded = property switch
         {
             "matchScope" => canonical.Replace(
-                "\"matchScope\":\"sameVoucher\"",
-                "\"matchScope\":\" sameVoucher \"",
+                "\"matchScope\":\"row\"",
+                "\"matchScope\":\" row \"",
                 StringComparison.Ordinal),
             "type" => canonical.Replace(
                 "\"type\":\"textSet\"",
@@ -251,36 +253,37 @@ public sealed class AdvancedFilterAstContractTests
     {
         var scenario = Parse(
             """
-            {"name":"synthetic","rationale":"legacy row","groups":[{"join":"OR","rules":[
+            {"name":"synthetic","rationale":"legacy row","groups":[{"join":"OR","conditions":[
               {"join":"AND","type":"text","field":"description","keywords":"alpha","mode":"contains"},
               {"join":"OR","type":"manualAuto","isManual":true}
             ]}]}
             """);
 
         var group = Assert.Single(scenario.Groups);
-        Assert.Equal(FilterGroupMatchScope.Row, group.MatchScope);
-        Assert.Equal(FilterJoin.Or, group.Rules[1].Join);
+        // 比對範圍只剩同一分錄列，型別已拿掉，改看沒有未知值。第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（比對範圍的型別已不存在，無法編譯）。
+        Assert.Null(group.UnknownMatchScope);
+        Assert.Equal(FilterJoin.Or, group.Conditions[1].Join);
         Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
     }
 
+    // 已儲存情境的「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），讀到時當成無法讀取的內容。
+    // 讀回文字也不再寫「主要條件」與「同一傳票」的說明，這則只留文字值清單的片語。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊的比對範圍改成無法讀取）。
     [Fact]
-    public void Renderer_TextSetAndSameVoucher_UsesBackendAuthorityPhrases()
+    public void Renderer_TextSet_UsesBackendAuthorityPhrases()
     {
         using var document = JsonDocument.Parse(
             """
-            {"groups":[{"matchScope":"sameVoucher","rules":[
+            {"groups":[{"matchScope":"row","conditions":[
               {"type":"textSet","field":"description","values":["anchor"],"mode":"contains","normalization":"preserve"},
-              {"type":"textSet","field":"accName","values":["evidence"],"mode":"exact","normalization":"removeAsciiSpaces"}
+              {"type":"textSet","field":"accountName","values":["evidence"],"mode":"exact","normalization":"removeAsciiSpaces"}
             ]}]}
             """);
 
         var rendered = FilterConditionRenderer.Render(document.RootElement);
 
-        Assert.Contains("主要條件（決定符合條件的分錄）", rendered, StringComparison.Ordinal);
-        Assert.Contains("後續條件可由同一傳票的其他分錄列符合", rendered, StringComparison.Ordinal);
         Assert.Contains("包含任一值", rendered, StringComparison.Ordinal);
         Assert.Contains("完全符合任一值", rendered, StringComparison.Ordinal);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-69（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Contains("保留半形空白", rendered, StringComparison.Ordinal);
         Assert.Contains("移除半形空白", rendered, StringComparison.Ordinal);
     }
@@ -298,12 +301,12 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("filter-2026-10-08-v19")]
     public void FilterLogicVersion_IsV20AndV19OrEarlierDefinitionsAreStale(string savedVersion)
     {
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，現行版本推進為 v19；第一次失敗收據 20261008-042049371-eba08c280cca4ff59170a6e88e87291a。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，現行版本推進為 v19；第一次失敗收據 20261008-042049371-eba08c280cca4ff59170a6e88e87291a。
         // 2026-10-06 條件 A 納入查核期末視窗，現行版本推進為 v18。
         // v17 與更早保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
         // 2026-10-02 起開案時若整批仍符合目前規則，會由 FilterScenarioRuleUpgrade 改成目前版本後再重算；
         // 不符合時整批維持舊版本，查詢與匯出仍會擋下。
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. G5 retires mixed-purpose conditions.
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose conditions are retired.
         Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
         var saved = new SavedFilterScenario(
             1,
@@ -324,7 +327,7 @@ public sealed class AdvancedFilterAstContractTests
     {
         var scenario = Parse(
             """
-            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","rules":[
+            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","conditions":[
               {"join":"AND","type":"accountPair","pairMode":"exact",
                "debitCategory":"Cash","creditCategory":"Others",
                "debitCategoryIds":["builtin.receivables","builtin.cash"],
@@ -332,7 +335,7 @@ public sealed class AdvancedFilterAstContractTests
             ]}]}
             """);
 
-        var rule = scenario.Groups[0].Rules[0];
+        var rule = scenario.Groups[0].Conditions[0];
         Assert.Equal(["builtin.receivables", "builtin.cash"], rule.DebitCategoryIds);
         Assert.Equal(["builtin.revenue"], rule.CreditCategoryIds);
         // 2026-10-02 起規則不再有單選分類欄位，原本「scalar 為 null」的兩行斷言隨欄位刪除；
@@ -345,14 +348,14 @@ public sealed class AdvancedFilterAstContractTests
     {
         var scenario = Parse(
             """
-            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","rules":[
+            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","conditions":[
               {"join":"AND","type":"specialAccountCategoryPair","pairMode":"drAndCr",
                "debitCategory":"Revenue","creditCategory":"Cash"}
             ]}]}
             """);
 
         // 只認分類身分陣列；單選欄位照未知欄位處理，不再換算成內建分類。
-        var rule = scenario.Groups[0].Rules[0];
+        var rule = scenario.Groups[0].Conditions[0];
         Assert.Empty(rule.EffectiveDebitCategoryIds);
         Assert.Empty(rule.EffectiveCreditCategoryIds);
     }
@@ -362,14 +365,14 @@ public sealed class AdvancedFilterAstContractTests
     {
         var scenario = Parse(
             """
-            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","rules":[
+            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","conditions":[
               {"join":"AND","type":"accountPair","pairMode":"exact",
                "debitCategory":"Cash","debitCategoryIds":[],
                "creditCategoryIds":["builtin.revenue"]}
             ]}]}
             """);
 
-        var rule = scenario.Groups[0].Rules[0];
+        var rule = scenario.Groups[0].Conditions[0];
         Assert.Empty(rule.EffectiveDebitCategoryIds);
         Assert.Contains(
             FilterScenarioValidator.Validate(scenario, Ready with
@@ -377,7 +380,7 @@ public sealed class AdvancedFilterAstContractTests
                 HasAccountMapping = true,
                 HasAnyAccountCategory = true
             }),
-            // 使用者 2026-10-13 勾選頁確認（文字批次 C）：改鎖確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+            // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
             error => error == "第 1 組第 1 條：尚未選擇借方分類");
     }
 
@@ -386,7 +389,7 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("""{"join":"AND","type":"accountPair","pairMode":"exact","creditCategoryIds":[1]}""")]
     public void Parse_MalformedPairArray_ThrowsInvalidScenario(string ruleJson)
     {
-        var json = $$"""{"name":"synthetic","rationale":"contract","groups":[{"join":"AND","rules":[{{ruleJson}}]}]}""";
+        var json = $$"""{"name":"synthetic","rationale":"contract","groups":[{"join":"AND","conditions":[{{ruleJson}}]}]}""";
         using var document = JsonDocument.Parse(json);
 
         var exception = Assert.Throws<JetActionException>(
@@ -404,7 +407,7 @@ public sealed class AdvancedFilterAstContractTests
                 .Range(0, FilterScenarioLimits.MaxCategoryIdsPerSide + 1)
                 .Select(static index => $"\"custom.{index:x32}\""));
         var json = $$"""
-            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","rules":[
+            {"name":"synthetic","rationale":"contract","groups":[{"join":"AND","conditions":[
               {"join":"AND","type":"accountPair","pairMode":"debitAnchor","debitCategoryIds":[{{tooMany}}]}
             ]}]}
             """;

@@ -34,9 +34,9 @@ internal static class LegacyAuditParityObservationFactory
         LegacyAuditParityProvider provider,
         JsonElement validation,
         JsonElement prescreen,
-        JsonElement tagMatrix,
+        JsonElement highRiskSummary,
         IReadOnlyList<JsonElement> infSampleRows,
-        IReadOnlyList<LegacyAuditParityJourneyArtifact> artifacts,
+        IReadOnlyList<LegacyAuditParityJourneyReport> journeyReports,
         LegacyRowVoucherCounts weekendUnion,
         IReadOnlyList<LegacyFilterScenarioId> legacyFilterScenarioIds)
     {
@@ -44,13 +44,13 @@ internal static class LegacyAuditParityObservationFactory
         {
             var completeness = ReadCompleteness(validation);
             var unbalancedVoucherCount = RequiredInt64(
-                RequiredObject(validation, "docBalanceTest", "validation.doc-balance"),
-                "unbalancedDocumentCount",
+                RequiredObject(validation, "voucherBalanceTest", "validation.doc-balance"),
+                "unbalancedVoucherCount",
                 "validation.doc-balance.count");
             var inf = ReadInf(validation, infSampleRows);
             var prescreenRules = ReadPrescreen(prescreen);
-            var filterScenarios = ReadFilterScenarios(tagMatrix, legacyFilterScenarioIds);
-            var reports = ReadReports(artifacts).ToDictionary(pair => pair.Key, pair => pair.Value);
+            var filterScenarios = ReadFilterScenarios(highRiskSummary, legacyFilterScenarioIds);
+            var reports = ReadReports(journeyReports).ToDictionary(pair => pair.Key, pair => pair.Value);
             reports[LegacyReportKind.CriteriaSelectionReport] = reports[
                 LegacyReportKind.CriteriaSelectionReport]
                 .RebindCompactCriteriaScenarioPositions(legacyFilterScenarioIds);
@@ -84,35 +84,35 @@ internal static class LegacyAuditParityObservationFactory
             validation,
             "completenessTest",
             "validation.completeness");
-        var partA = RequiredObject(completeness, "partA", "validation.completeness.part-a");
-        var eligibleSource = partA.GetProperty("eligibleSource");
-        var effectiveTarget = partA.GetProperty("effectiveTarget");
-        var partAUnavailable = eligibleSource.ValueKind == JsonValueKind.Null;
+        var storedTotals = RequiredObject(completeness, "storedTotals", "validation.completeness.stored-totals");
+        var eligibleSource = storedTotals.GetProperty("eligibleSource");
+        var storedGl = storedTotals.GetProperty("gl");
+        var storedTotalsUnavailable = eligibleSource.ValueKind == JsonValueKind.Null;
         return new LegacyCompletenessObservation(
             RequiredInt64(
                 completeness,
                 "diffAccountCount",
                 "validation.completeness.diff-account-count"),
-            partAUnavailable
+            storedTotalsUnavailable
                 ? null
-                : RequiredInt64(eligibleSource, "rowCount", "validation.completeness.part-a.source"),
-            partAUnavailable
+                : RequiredInt64(eligibleSource, "rowCount", "validation.completeness.stored-totals.eligible-source"),
+            storedTotalsUnavailable
                 ? null
-                : RequiredInt64(effectiveTarget, "rowCount", "validation.completeness.part-a.target"),
-            partAUnavailable
+                : RequiredInt64(storedGl, "rowCount", "validation.completeness.stored-totals.gl"),
+            storedTotalsUnavailable
                 ? null
-                : NullableDecimal(effectiveTarget, "totalDebit", "validation.completeness.part-a.debit"),
-            partAUnavailable
+                : NullableDecimal(storedGl, "totalDebit", "validation.completeness.stored-totals.debit"),
+            storedTotalsUnavailable
                 ? null
-                : NullableDecimal(effectiveTarget, "totalCredit", "validation.completeness.part-a.credit"),
+                : NullableDecimal(storedGl, "totalCredit", "validation.completeness.stored-totals.credit"),
             NullableBoolean(
-                partA,
+                storedTotals,
                 "rowCountMatch",
-                "validation.completeness.part-a.row-match"),
+                "validation.completeness.stored-totals.row-match"),
             NullableBoolean(
-                partA,
+                storedTotals,
                 "amountMatch",
-                "validation.completeness.part-a.amount-match"));
+                "validation.completeness.stored-totals.amount-match"));
     }
 
     private static LegacyInfObservation ReadInf(
@@ -122,12 +122,12 @@ internal static class LegacyAuditParityObservationFactory
         var inf = RequiredObject(validation, "infSamplingTest", "validation.inf");
         var sampleSize = RequiredInt64(inf, "sampleSize", "validation.inf.sample-size");
         var keys = rows.Select(row => LegacyInfMemberKey.Create(
-            NullableString(row, "documentNumber", "validation.inf.member.document"),
-            NullableString(row, "accountCode", "validation.inf.member.account-code"),
+            NullableString(row, "voucherNumber", "validation.inf.member.document"),
+            NullableString(row, "accountNumber", "validation.inf.member.account-code"),
             NullableString(row, "accountName", "validation.inf.member.account-name"),
             NullableNumberText(row, "debit", "validation.inf.member.debit"),
             NullableNumberText(row, "credit", "validation.inf.member.credit"),
-            NullableString(row, "postDate", "validation.inf.member.post-date"),
+            NullableString(row, "glDate", "validation.inf.member.post-date"),
             NullableString(row, "approvalDate", "validation.inf.member.approval-date"),
             NullableString(row, "createdBy", "validation.inf.member.created-by"),
             NullableString(row, "approvedBy", "validation.inf.member.approved-by"),
@@ -177,16 +177,16 @@ internal static class LegacyAuditParityObservationFactory
 
     internal static IReadOnlyDictionary<LegacyFilterScenarioId, LegacyRowVoucherCounts>
         ReadFilterScenarios(
-            JsonElement tagMatrix,
+            JsonElement highRiskSummary,
             IReadOnlyList<LegacyFilterScenarioId> legacyFilterScenarioIds)
     {
         ArgumentNullException.ThrowIfNull(legacyFilterScenarioIds);
-        var scenarios = RequiredArray(tagMatrix, "scenarios", "filter.tag-matrix.scenarios");
+        var scenarios = RequiredArray(highRiskSummary, "scenarios", "filter.high-risk-summary.scenarios");
         if (legacyFilterScenarioIds.Count != scenarios.GetArrayLength()
             || legacyFilterScenarioIds.Any(id => !id.IsValid)
             || legacyFilterScenarioIds.Distinct().Count() != legacyFilterScenarioIds.Count)
         {
-            throw Error("filter.tag-matrix.scenario-identities");
+            throw Error("filter.high-risk-summary.scenario-identities");
         }
         var result = new Dictionary<LegacyFilterScenarioId, LegacyRowVoucherCounts>();
         foreach (var scenario in scenarios.EnumerateArray())
@@ -194,11 +194,11 @@ internal static class LegacyAuditParityObservationFactory
             var position = checked((int)RequiredInt64(
                 scenario,
                 "position",
-                "filter.tag-matrix.position"));
+                "filter.high-risk-summary.position"));
             var runtimeId = LegacyFilterScenarioId.FromOrdinal(position);
             if (position > scenarios.GetArrayLength())
             {
-                throw Error("filter.tag-matrix.position");
+                throw Error("filter.high-risk-summary.position");
             }
             var id = legacyFilterScenarioIds[position - 1];
             if (!result.TryAdd(
@@ -207,25 +207,25 @@ internal static class LegacyAuditParityObservationFactory
                         RequiredInt64(
                             scenario,
                             "rowHitCount",
-                            "filter.tag-matrix.row-count"),
+                            "filter.high-risk-summary.row-count"),
                         RequiredInt64(
                             scenario,
                             "voucherHitCount",
-                            "filter.tag-matrix.voucher-count"))))
+                            "filter.high-risk-summary.voucher-count"))))
             {
-                throw Error("filter.tag-matrix.duplicate-position");
+                throw Error("filter.high-risk-summary.duplicate-position");
             }
         }
         return result;
     }
 
     private static IReadOnlyDictionary<LegacyReportKind, LegacyReportObservation> ReadReports(
-        IReadOnlyList<LegacyAuditParityJourneyArtifact> artifacts)
+        IReadOnlyList<LegacyAuditParityJourneyReport> journeyReports)
     {
         var reports = new Dictionary<LegacyReportKind, LegacyReportObservation>();
-        foreach (var artifact in artifacts)
+        foreach (var journeyReport in journeyReports)
         {
-            if (!reports.TryAdd(artifact.Kind, ReadReport(artifact.Kind, artifact.FullPath)))
+            if (!reports.TryAdd(journeyReport.Kind, ReadReport(journeyReport.Kind, journeyReport.FullPath)))
             {
                 throw Error("report.duplicate-kind");
             }
@@ -390,7 +390,7 @@ internal static class LegacyAuditParityObservationFactory
         }
         if (string.Equals(
                 series.BaseName,
-                WorkpaperSheetCatalog.Step13,
+                WorkingPaperSheetCatalog.Step13,
                 StringComparison.Ordinal))
         {
             return CountContiguousRows(rows, 17, row => HasStoredValue(row, 2, 4));
@@ -501,17 +501,17 @@ internal static class LegacyAuditParityObservationFactory
         LegacyUnbalancedVoucherCollector? unbalancedVouchers)
     {
         if (series.Part == 1
-            && series.BaseName is WorkpaperSheetCatalog.Cover
-                or WorkpaperSheetCatalog.Intro
-                or WorkpaperSheetCatalog.Step5)
+            && series.BaseName is WorkingPaperSheetCatalog.Cover
+                or WorkingPaperSheetCatalog.Intro
+                or WorkingPaperSheetCatalog.Step5)
         {
             return 0;
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step1, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step1, StringComparison.Ordinal))
         {
             return CountContiguousRows(rows, 20, row => HasStoredValue(row, 2, 6));
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step11, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step11, StringComparison.Ordinal))
         {
             if (source == LegacyAuditParityReportSource.LegacySystem)
             {
@@ -522,15 +522,15 @@ internal static class LegacyAuditParityObservationFactory
             }
             return CountContiguousRows(rows, 15, row => HasStoredValue(row, 2, 5));
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step12, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step12, StringComparison.Ordinal))
         {
             return CountContiguousRows(rows, 12, row => HasStoredValue(row, 2, 5));
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step13, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step13, StringComparison.Ordinal))
         {
             return CountContiguousRows(rows, 17, row => HasStoredValue(row, 2, 4));
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step2, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step2, StringComparison.Ordinal))
         {
             if (source == LegacyAuditParityReportSource.LegacySystem)
             {
@@ -542,7 +542,7 @@ internal static class LegacyAuditParityObservationFactory
                 row => HasStoredValue(row, 1, 1),
                 lastDataRow: 111);
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step3, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step3, StringComparison.Ordinal))
         {
             return CountContiguousRows(
                 rows,
@@ -551,32 +551,32 @@ internal static class LegacyAuditParityObservationFactory
                 isInvalidRow: row => HasStoredValue(row, 3, 5)
                     && !HasAllStoredValues(row, 3, 5));
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step4, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step4, StringComparison.Ordinal))
         {
             return CountContiguousRows(rows, 13, row => HasStoredValue(row, 1, 5));
         }
-        if (string.Equals(series.BaseName, WorkpaperSheetCatalog.Step41, StringComparison.Ordinal))
+        if (string.Equals(series.BaseName, WorkingPaperSheetCatalog.Step41, StringComparison.Ordinal))
         {
             return CountContiguousRows(rows, 6, row => HasStoredValue(row, 1, 16));
         }
         if (series.Part == 1
             && string.Equals(
                 series.BaseName,
-                WorkpaperSheetCatalog.FieldInfo,
+                WorkingPaperSheetCatalog.FieldInfo,
                 StringComparison.Ordinal))
         {
             return CountFieldInfoRows(rows, FieldInfoBlankRowCount(source));
         }
         if (string.Equals(
                 series.BaseName,
-                WorkpaperSheetCatalog.CalendarInfo,
+                WorkingPaperSheetCatalog.CalendarInfo,
                 StringComparison.Ordinal))
         {
             return CountCalendarRows(rows, series.Part, source);
         }
         if (string.Equals(
                 series.BaseName,
-                WorkpaperSheetCatalog.AccountMapping,
+                WorkingPaperSheetCatalog.AccountMapping,
                 StringComparison.Ordinal))
         {
             return CountContiguousRows(rows, 2, row => HasStoredValue(row, 1, 1));

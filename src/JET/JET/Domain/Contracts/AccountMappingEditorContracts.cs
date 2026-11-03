@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
-public sealed record AccountMappingEditRow(string AccountCode, string? AccountName, string? CategoryId);
-public sealed record AccountMappingChange(string AccountCode, string CategoryId);
+public sealed record AccountMappingEditRow(string AccountNumber, string? AccountName, string? CategoryId);
+public sealed record AccountMappingChange(string AccountNumber, string CategoryId);
 
 /// <summary>有界科目清單與局部修改；Excel 匯入仍由原介面整份取代。</summary>
 public interface IAccountMappingEditorRepository

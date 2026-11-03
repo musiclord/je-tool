@@ -110,7 +110,7 @@ internal static class LegacyAuditParityFilterScenarioBindings
             rebound,
             reports,
             metrics.WeekendUnion,
-            metrics.CreatorSummaryLegacyApplicability,
+            metrics.PreparerSummaryLegacyApplicability,
             metrics.RareAccountsLegacyApplicability);
         return LegacyAuditParityObservation.FromProvider(
             observation.Case,

@@ -20,13 +20,13 @@ public sealed class FormalReportRdeProjectionTests
         using var host = new HandlerTestHost();
         var setup = await SetupAsync(host);
 
-        var validationArtifacts = await host.DispatchAsync(
-            "export.validationArtifacts",
-            JsonSerializer.Serialize(new { runId = setup.ValidationRunId }));
-        var infPath = ArtifactPath(
+        var validationReports = await host.DispatchAsync(
+            "export.validationReports",
+            JsonSerializer.Serialize(new { resultId = setup.ValidationResultId }));
+        var infPath = ReportPath(
             host,
             setup.ProjectId,
-            validationArtifacts.GetProperty("artifacts"),
+            validationReports.GetProperty("publishedReports"),
             "infReport");
 
         using (var inf = new XLWorkbook(infPath))
@@ -52,7 +52,7 @@ public sealed class FormalReportRdeProjectionTests
         }
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         var committed = await host.DispatchAsync(
             "filter.commit",
             ScenarioPayload(setup));
@@ -62,14 +62,14 @@ public sealed class FormalReportRdeProjectionTests
             "export.criteriaSelectionReport",
             JsonSerializer.Serialize(new
             {
-                validationRunId = setup.ValidationRunId,
-                prescreenRunId,
+                validationResultId = setup.ValidationResultId,
+                prescreenResultId,
                 revision
             }));
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             setup.ProjectId,
-            criteria.GetProperty("artifact").GetProperty("fileName").GetString()!);
+            criteria.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using (var workbook = new XLWorkbook(criteriaPath))
         {
             foreach (var position in new[] { 1, 2 })
@@ -80,20 +80,20 @@ public sealed class FormalReportRdeProjectionTests
             }
         }
 
-        var workpaper = await host.DispatchAsync(
-            "export.workpaperStream",
+        var workingPaperResponse = await host.DispatchAsync(
+            "export.workingPaperStream",
             JsonSerializer.Serialize(new
             {
-                validationRunId = setup.ValidationRunId,
-                prescreenRunId,
+                validationResultId = setup.ValidationResultId,
+                prescreenResultId,
                 scenarioRevision = revision,
                 scenarioPositions = new[] { 1 }
             }));
-        var workpaperPath = Path.Combine(
+        var workingPaperPath = Path.Combine(
             host.ProjectsRoot,
             setup.ProjectId,
-            workpaper.GetProperty("artifact").GetProperty("fileName").GetString()!);
-        using var workingPaper = new XLWorkbook(workpaperPath);
+            workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
+        using var workingPaper = new XLWorkbook(workingPaperPath);
         var step2 = workingPaper.Worksheet("step2 可靠性測試");
         var step2Headers = ReadHeader(
                 step2,
@@ -125,7 +125,7 @@ public sealed class FormalReportRdeProjectionTests
     }
 
     // 2026-10-30 結案前的獨立複審查到：2026-10-29 改的列高，只有 V_Report 5、驗證報告的欄位資訊頁與底稿 step3 有測試。
-    // 這則補上其他 JET 自己寫的工作表。使用者 2026-10-29 選「統一 15 點」：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
+    // 這則補上其他 JET 自己寫的工作表。裁定 2026-10-29-08 選了「統一 15 點」：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
     // 與 Source_Quality，列高 15 點；12 點的「可靠性樣本_所有欄位」是 18 點。程式用字級的 1.5 倍算出這些值，這個算法是 Claude 的歸納。
     // 這是新增的測試。
     [Fact]
@@ -133,29 +133,29 @@ public sealed class FormalReportRdeProjectionTests
     {
         using var host = new HandlerTestHost();
         var setup = await SetupAsync(host);
-        var validationArtifacts = await host.DispatchAsync(
-            "export.validationArtifacts",
-            JsonSerializer.Serialize(new { runId = setup.ValidationRunId }));
-        var artifacts = validationArtifacts.GetProperty("artifacts");
-        using (var inf = new XLWorkbook(ArtifactPath(host, setup.ProjectId, artifacts, "infReport")))
+        var validationReports = await host.DispatchAsync(
+            "export.validationReports",
+            JsonSerializer.Serialize(new { resultId = setup.ValidationResultId }));
+        var reports = validationReports.GetProperty("publishedReports");
+        using (var inf = new XLWorkbook(ReportPath(host, setup.ProjectId, reports, "infReport")))
         {
             Assert.Equal(18D, inf.Worksheet("可靠性樣本_所有欄位").RowHeight);
         }
 
-        using (var validation = new XLWorkbook(ArtifactPath(host, setup.ProjectId, artifacts, "validationReport")))
+        using (var validation = new XLWorkbook(ReportPath(host, setup.ProjectId, reports, "validationReport")))
         {
             Assert.Equal(15D, validation.Worksheet("Source_Quality").RowHeight);
         }
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         var prescreenReport = await host.DispatchAsync(
             "export.prescreenReport",
-            JsonSerializer.Serialize(new { runId = prescreenRunId }));
+            JsonSerializer.Serialize(new { resultId = prescreenResultId }));
         var prescreenPath = Path.Combine(
             host.ProjectsRoot,
             setup.ProjectId,
-            prescreenReport.GetProperty("artifact").GetProperty("fileName").GetString()!);
+            prescreenReport.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using (var report = new XLWorkbook(prescreenPath))
         {
             var detailNames = new[] { "R1", "R2", "R3", "R4", "R5", "R6", "R7" };
@@ -169,11 +169,11 @@ public sealed class FormalReportRdeProjectionTests
         var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()!;
         var criteria = await host.DispatchAsync(
             "export.criteriaSelectionReport",
-            JsonSerializer.Serialize(new { validationRunId = setup.ValidationRunId, prescreenRunId, revision }));
+            JsonSerializer.Serialize(new { validationResultId = setup.ValidationResultId, prescreenResultId, revision }));
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             setup.ProjectId,
-            criteria.GetProperty("artifact").GetProperty("fileName").GetString()!);
+            criteria.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
         using var criteriaWorkbook = new XLWorkbook(criteriaPath);
         foreach (var position in new[] { 1, 2 })
         {
@@ -212,10 +212,10 @@ public sealed class FormalReportRdeProjectionTests
                     manualValues = new[] { "true", "1" },
                     automaticValues = new[] { "false", "0" }
                 },
-                // mapping ordinal: money, text, date. Scenario 1 deliberately references text/date only.
+                // mapping ordinal: amount, text, date. Scenario 1 deliberately references text/date only.
                 rdeFields = new object[]
                 {
-                    new { sourceColumn = "RDE 金額來源", label = MoneyLabel, valueType = "money" },
+                    new { sourceColumn = "RDE 金額來源", label = MoneyLabel, valueType = "amount" },
                     new { sourceColumn = "RDE 文字來源", label = TextLabel, valueType = "text" },
                     new { sourceColumn = "RDE 日期來源", label = DateLabel, valueType = "date" }
                 }
@@ -235,7 +235,7 @@ public sealed class FormalReportRdeProjectionTests
 
         return new RdeSetup(
             projectId,
-            validation.GetProperty("resultRef").GetProperty("runId").GetString()!,
+            validation.GetProperty("resultRef").GetProperty("resultId").GetString()!,
             ids[MoneyLabel],
             ids[TextLabel],
             ids[DateLabel]);
@@ -254,7 +254,7 @@ public sealed class FormalReportRdeProjectionTests
                     new
                     {
                         join = "AND",
-                        rules = new object[]
+                        conditions = new object[]
                         {
                             new
                             {
@@ -279,7 +279,7 @@ public sealed class FormalReportRdeProjectionTests
                     new
                     {
                         join = "AND",
-                        rules = new object[]
+                        conditions = new object[]
                         {
                             new
                             {
@@ -293,14 +293,14 @@ public sealed class FormalReportRdeProjectionTests
         }
     });
 
-    private static string ArtifactPath(
+    private static string ReportPath(
         HandlerTestHost host,
         string projectId,
-        JsonElement artifacts,
+        JsonElement reports,
         string kind)
     {
-        var artifact = Assert.Single(
-            artifacts.EnumerateArray(),
+        var report = Assert.Single(
+            reports.EnumerateArray(),
             item => string.Equals(
                 item.GetProperty("kind").GetString(),
                 kind,
@@ -308,7 +308,7 @@ public sealed class FormalReportRdeProjectionTests
         return Path.Combine(
             host.ProjectsRoot,
             projectId,
-            artifact.GetProperty("fileName").GetString()!);
+            report.GetProperty("fileName").GetString()!);
     }
 
     private static string[] ReadHeader(IXLWorksheet sheet, int row)
@@ -346,7 +346,7 @@ public sealed class FormalReportRdeProjectionTests
 
     private sealed record RdeSetup(
         string ProjectId,
-        string ValidationRunId,
+        string ValidationResultId,
         string MoneyFieldId,
         string TextFieldId,
         string DateFieldId);

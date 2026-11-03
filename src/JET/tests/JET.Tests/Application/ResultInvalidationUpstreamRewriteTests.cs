@@ -23,8 +23,8 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         await host.DispatchAsync("prescreen.run");
 
         // 前置:結果確實已保存（否則「失效」測試會假性通過）。
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
         // 上游改寫:重匯入 GL（replace 清理交易,機制 a）。
         var glFile = await DemoProjectPipeline.DispatchDemoFixtureAsync("demo.exportGlFile");
@@ -34,8 +34,8 @@ public sealed class ResultInvalidationUpstreamRewriteTests
             fileName = glFile.GetProperty("fileName").GetString()
         }));
 
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
     }
 
     [Fact]
@@ -45,8 +45,8 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         var context = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
         // 上游改寫:重新提交 GL 配對（重投影交易,機制 b）。
         await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
@@ -56,21 +56,21 @@ public sealed class ResultInvalidationUpstreamRewriteTests
             amountMode = context.Demo.GetProperty("gl").GetProperty("amountMode").GetString()
         }));
 
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
     }
 
     [Fact]
-    public async Task ReimportTb_AfterValidate_InvalidatesValidateAndPrescreenRuns()
+    public async Task ReimportTb_AfterValidate_InvalidatesValidationAndPrescreenResults()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
-        // 使用者 2026-10-07 裁定 TB 與 GL 同層級修改，一起清除驗證與預篩選。
+        // 裁定 2026-10-07-04：TB 與 GL 同層級修改，一起清除驗證與預篩選。
         var tbFile = await DemoProjectPipeline.DispatchDemoFixtureAsync("demo.exportTbFile");
         await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new
         {
@@ -78,37 +78,37 @@ public sealed class ResultInvalidationUpstreamRewriteTests
             fileName = tbFile.GetProperty("fileName").GetString()
         }));
 
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
     }
 
     [Fact]
-    public async Task ImportHoliday_AfterPrescreen_InvalidatesPrescreenRun()
+    public async Task ImportHoliday_AfterPrescreen_InvalidatesPrescreenResult()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
         // 上游改寫:重匯入假日曆（行事曆 replace 交易,機制 c;餵週末/假日預篩選）。
         var holidays = context.Demo.GetProperty("holidays").EnumerateArray().Select(h => h.GetString()).ToList();
         await host.DispatchAsync("import.holiday", JsonSerializer.Serialize(new { dates = holidays }));
 
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
     }
 
     [Fact]
-    public async Task ImportHolidayFromFile_AfterPrescreen_InvalidatesPrescreenRun()
+    public async Task ImportHolidayFromFile_AfterPrescreen_InvalidatesPrescreenResult()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
         // 上游改寫:行事曆檔案匯入(行事曆 replace 交易,機制 c)。
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
@@ -125,8 +125,8 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         try
         {
             await host.DispatchAsync("import.holiday.fromFile", JsonSerializer.Serialize(new { filePath = path }));
-            Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
-            Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
+            Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+            Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
         }
         finally
         {
@@ -135,14 +135,14 @@ public sealed class ResultInvalidationUpstreamRewriteTests
     }
 
     [Fact]
-    public async Task ImportAccountMapping_AfterPrescreen_InvalidatesPrescreenRun()
+    public async Task ImportAccountMapping_AfterPrescreen_InvalidatesPrescreenResult()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
         await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
         // 上游改寫:匯入科目配對（replace 清理交易,機制 a;餵未預期借貸組合規則）。
         var file = await DemoProjectPipeline.DispatchDemoFixtureAsync(
@@ -153,12 +153,12 @@ public sealed class ResultInvalidationUpstreamRewriteTests
             fileName = file.GetProperty("fileName").GetString()
         }));
 
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "prescreen"));
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(await LoadAsync(host, context.ProjectId), "validate"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
     }
 
     [Fact]
-    public async Task ImportAuthorizedPreparer_AfterRuns_InvalidatesOnlyPrescreenRun()
+    public async Task ImportAuthorizedPreparer_AfterRuns_InvalidatesOnlyPrescreenResult()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -171,12 +171,12 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         {
             filePath = file.GetProperty("filePath").GetString(),
             fileName = file.GetProperty("fileName").GetString(),
-            // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留只清除預篩選結果的原斷言。
+            // sourceColumn 改成必填，後端不再猜人員欄；保留只清除預篩選結果的原斷言。
             sourceColumn = "姓名"
         }));
 
         var loaded = await LoadAsync(host, context.ProjectId);
-        Assert.NotEqual(JsonValueKind.Null, LatestRunKind(loaded, "validate"));
-        Assert.Equal(JsonValueKind.Null, LatestRunKind(loaded, "prescreen"));
+        Assert.NotEqual(JsonValueKind.Null, LatestResultKind(loaded, "validate"));
+        Assert.Equal(JsonValueKind.Null, LatestResultKind(loaded, "prescreen"));
     }
 }

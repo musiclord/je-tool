@@ -6,7 +6,7 @@ namespace JET.Tests.Application;
 
 public sealed class ProgramMilestoneProgressTests
 {
-    // 2026-10-22 技術債一輪：動作名對照表 WorkflowMilestones 已刪除（第一次失敗：Focused 收據 20261022-070441801），
+    // 2026-10-22 清理技術債：動作名對照表 WorkflowMilestones 已刪除（第一次失敗：Focused 收據 20261022-070441801），
     // 改直接讀各 handler 宣告的 WorkflowStep；案例與期望值不變。
     [Theory]
     [InlineData(2, ValidateRunHandler.WorkflowStep, 4, 1)]
@@ -35,7 +35,7 @@ public sealed class ProgramMilestoneProgressTests
     private static ProjectDocument Document(int currentStep) => new(
         ProjectId: "milestone-project",
         ProjectCode: "MILESTONE-001",
-        EntityName: "里程碑測試公司",
+        ClientName: "里程碑測試公司",
         OperatorId: "tester",
         PeriodStart: "2025-01-01",
         PeriodEnd: "2025-12-31",

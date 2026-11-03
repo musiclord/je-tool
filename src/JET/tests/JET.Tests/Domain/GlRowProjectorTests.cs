@@ -28,7 +28,7 @@ public sealed class GlRowProjectorTests
         GlAmountMode mode,
         string? amount,
         string? dcValue,
-        string? dcDebitCode,
+        string? drCrDebitCode,
         string? debit,
         string? credit,
         long expectedAmountScaled,
@@ -45,11 +45,11 @@ public sealed class GlRowProjectorTests
             case GlAmountMode.AmountWithSide:
             case GlAmountMode.AmountWithFlag:
                 mapping[GlMappingKeys.Amount] = "amount";
-                mapping[GlMappingKeys.DcField] = "dc";
-                mapping[GlMappingKeys.DcDebitCode] = dcDebitCode!;
-                // 2026-10-04 R9：本合成表明定 D/C 與 1/0，完整金額與借貸斷言不變。
+                mapping[GlMappingKeys.DrCr] = "dc";
+                mapping[GlMappingKeys.DrCrDebitCode] = drCrDebitCode!;
+                // 本合成表明定 D/C 與 1/0，完整金額與借貸斷言不變。
                 // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
-                mapping[GlMappingKeys.DcCreditCode] = mode == GlAmountMode.AmountWithFlag ? "0" : "C";
+                mapping[GlMappingKeys.DrCrCreditCode] = mode == GlAmountMode.AmountWithFlag ? "0" : "C";
                 break;
             case GlAmountMode.DualAmount:
                 mapping[GlMappingKeys.DebitAmount] = "debit";
@@ -82,10 +82,10 @@ public sealed class GlRowProjectorTests
     private static GlMappingSpec DualSpec() => new(
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "傳票號碼",
-            [GlMappingKeys.PostDate] = "日期",
-            [GlMappingKeys.AccNum] = "會計項目",
-            [GlMappingKeys.AccName] = "項目名稱",
+            [GlMappingKeys.VoucherNumber] = "傳票號碼",
+            [GlMappingKeys.GlDate] = "日期",
+            [GlMappingKeys.AccountNumber] = "會計項目",
+            [GlMappingKeys.AccountName] = "項目名稱",
             [GlMappingKeys.Description] = "摘要",
             [GlMappingKeys.DebitAmount] = "借方金額",
             [GlMappingKeys.CreditAmount] = "貸方金額"
@@ -113,8 +113,8 @@ public sealed class GlRowProjectorTests
         Assert.Equal(1_005_000L, projected.DebitAmountScaled);
         Assert.Equal(0L, projected.CreditAmountScaled);
         Assert.Equal("DEBIT", projected.DrCr);
-        Assert.Equal("0000000-2", projected.DocumentNumber);
-        Assert.Equal("2024-01-01", projected.PostDate);
+        Assert.Equal("0000000-2", projected.VoucherNumber);
+        Assert.Equal("2024-01-01", projected.GlDate);
         Assert.Null(projected.LineItem);
         Assert.Null(projected.ApprovalDate);
     }
@@ -146,10 +146,10 @@ public sealed class GlRowProjectorTests
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {
-                [GlMappingKeys.DocNum] = "doc",
-                [GlMappingKeys.PostDate] = "date",
-                [GlMappingKeys.AccNum] = "acc",
-                [GlMappingKeys.AccName] = "name",
+                [GlMappingKeys.VoucherNumber] = "doc",
+                [GlMappingKeys.GlDate] = "date",
+                [GlMappingKeys.AccountNumber] = "acc",
+                [GlMappingKeys.AccountName] = "name",
                 [GlMappingKeys.Description] = "desc",
                 [GlMappingKeys.Amount] = "amt"
             },
@@ -177,15 +177,15 @@ public sealed class GlRowProjectorTests
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {
-                [GlMappingKeys.DocNum] = "doc",
-                [GlMappingKeys.PostDate] = "date",
-                [GlMappingKeys.AccNum] = "acc",
-                [GlMappingKeys.AccName] = "name",
+                [GlMappingKeys.VoucherNumber] = "doc",
+                [GlMappingKeys.GlDate] = "date",
+                [GlMappingKeys.AccountNumber] = "acc",
+                [GlMappingKeys.AccountName] = "name",
                 [GlMappingKeys.Description] = "desc",
                 [GlMappingKeys.Amount] = "amt",
-                [GlMappingKeys.DcField] = "借貸別",
-                [GlMappingKeys.DcDebitCode] = "D",
-                [GlMappingKeys.DcCreditCode] = "C" // 同一合成案例的 creditRow 明確使用 C。
+                [GlMappingKeys.DrCr] = "借貸別",
+                [GlMappingKeys.DrCrDebitCode] = "D",
+                [GlMappingKeys.DrCrCreditCode] = "C" // 同一合成案例的 creditRow 明確使用 C。
             },
             GlAmountMode.AmountWithSide);
 
@@ -229,7 +229,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(423, error.SourceRowNumber);
         Assert.Equal("借方金額", error.Field);
         Assert.Equal("12..3", error.RawValue);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -249,7 +249,7 @@ public sealed class GlRowProjectorTests
         });
 
         Assert.True(GlRowProjector.TryProject(row, DualSpec(), Scale, out var projected, out _));
-        Assert.Equal(expected, projected!.PostDate);
+        Assert.Equal(expected, projected!.GlDate);
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public sealed class GlRowProjectorTests
         Assert.False(GlRowProjector.TryProject(garbage, DualSpec(), Scale, out _, out var error));
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("日期", error.Field);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
 
         var missing = new StagingRow(10, new Dictionary<string, string>
@@ -281,10 +281,10 @@ public sealed class GlRowProjectorTests
         });
 
         Assert.True(GlRowProjector.TryProject(missing, DualSpec(), Scale, out var projected, out _));
-        Assert.Null(projected!.PostDate);
+        Assert.Null(projected!.GlDate);
     }
 
-    // 使用者 2026-10-19 裁定：總帳日期帶千分位時和其他無法辨識的日期相同，確認配對列出列號，不再換成 1903 年。
+    // 裁定 2026-10-19-09：總帳日期帶千分位時和其他無法辨識的日期相同，確認配對列出列號，不再換成 1903 年。
     [Fact]
     public void DateProjection_NumberWithThousandsSeparator_FailsWithRowNumber()
     {
@@ -305,7 +305,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
     }
 
-    // 預篩選收斂計畫階段七（使用者 2026-10-22 裁定）：總帳日期是純數字時不再當成 Excel 序列值，和其他無法辨識的日期相同，
+    // 裁定 2026-10-22-11：總帳日期是純數字時不再當成 Excel 序列值，和其他無法辨識的日期相同，
     // 確認配對列出列號。「45292」原本在 DateProjection_NormalizesVariants 期待 2024-01-01；第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
     [Theory]
     [InlineData("2025")]     // 以前換成 1905-07-17
@@ -350,8 +350,8 @@ public sealed class GlRowProjectorTests
         Assert.Equal(88, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("922337203685477.5808", error.RawValue);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        // 使用者 2026-10-22 裁定一併改寫叫審計員調整小數位數的訊息，案件沒有這個設定（預篩選收斂計畫階段五）；
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 裁定 2026-10-22-07 一併改寫叫審計員調整小數位數的訊息，因為案件沒有這個設定；
         // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
@@ -376,8 +376,8 @@ public sealed class GlRowProjectorTests
         Assert.Equal(89, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("-922337203685477.5808", error.RawValue);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        // 使用者 2026-10-22 裁定一併改寫叫審計員調整小數位數的訊息，案件沒有這個設定（預篩選收斂計畫階段五）；
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 裁定 2026-10-22-07 一併改寫叫審計員調整小數位數的訊息，因為案件沒有這個設定；
         // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
         Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
@@ -389,7 +389,7 @@ public sealed class GlRowProjectorTests
             new Dictionary<string, string>
             {
                 [GlMappingKeys.Amount] = "amt",
-                [GlMappingKeys.Manual] = "manual"
+                [GlMappingKeys.IsManual] = "manual"
             },
             GlAmountMode.SignedAmount);
         var row = new StagingRow(12, new Dictionary<string, string>
@@ -406,19 +406,19 @@ public sealed class GlRowProjectorTests
     }
 
     [Fact]
-    public void SameAsPostDate_DerivesApprovalDateFromNormalizedPostDate()
+    public void SameAsGlDate_DerivesApprovalDateFromNormalizedGlDate()
     {
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {
                 [GlMappingKeys.Amount] = "amt",
-                [GlMappingKeys.PostDate] = "post"
+                [GlMappingKeys.GlDate] = "post"
             },
             GlAmountMode.SignedAmount)
         {
             Options = GlMappingOptions.NormalizeLegacy(new Dictionary<string, string>()) with
             {
-                ApprovalDateMode = ApprovalDateModeNames.SameAsPostDate
+                ApprovalDateMode = ApprovalDateModeNames.SameAsGlDate
             }
         };
         var row = new StagingRow(7, new Dictionary<string, string>
@@ -429,8 +429,8 @@ public sealed class GlRowProjectorTests
 
         Assert.True(GlRowProjector.TryProject(row, spec, Scale, out var projected, out var error));
         Assert.Null(error);
-        Assert.Equal("2025-02-03", projected!.PostDate);
-        Assert.Equal(projected.PostDate, projected.ApprovalDate);
+        Assert.Equal("2025-02-03", projected!.GlDate);
+        Assert.Equal(projected.GlDate, projected.ApprovalDate);
     }
 
     [Fact]
@@ -439,7 +439,7 @@ public sealed class GlRowProjectorTests
         var mapping = new Dictionary<string, string>
         {
             [GlMappingKeys.Amount] = "amt",
-            [GlMappingKeys.Manual] = "manual"
+            [GlMappingKeys.IsManual] = "manual"
         };
         var spec = new GlMappingSpec(mapping, GlAmountMode.SignedAmount)
         {
@@ -471,7 +471,7 @@ public sealed class GlRowProjectorTests
                 [
                     new GlRdeFieldMetadata("rde.00000000000000000000000000000001", "blank", "Blank", "text"),
                     new GlRdeFieldMetadata("rde.00000000000000000000000000000002", "date", "Date", "date"),
-                    new GlRdeFieldMetadata("rde.00000000000000000000000000000003", "money", "Money", "money")
+                    new GlRdeFieldMetadata("rde.00000000000000000000000000000003", "money", "Money", "amount")
                 ]
             }
         };
@@ -492,11 +492,11 @@ public sealed class GlRowProjectorTests
     }
 
     [Theory]
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         [InlineData("date", "2025/13/40", "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字")]
-    // 使用者 2026-10-22 裁定一併改寫：超過四位小數會四捨五入，不會失敗，案件也沒有小數位數設定；這句改寫成金額無效或超出可儲存的範圍
-    // （預篩選收斂計畫階段五）。第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
-    [InlineData("money", "12.abc", "不是有效的金額，或超出可儲存的範圍。請確認來源資料，或將此攸關資料元素欄位改為文字")]
+    // 裁定 2026-10-22-07 一併改寫：超過四位小數會四捨五入，不會失敗，案件也沒有小數位數設定；這句改寫成金額無效或超出可儲存的範圍。
+    // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+    [InlineData("amount", "12.abc", "不是有效的金額，或超出可儲存的範圍。請確認來源資料，或將此攸關資料元素欄位改為文字")]
     public void TypedRde_InvalidValue_ReturnsChineseReasonWithNextStep(string valueType, string raw, string expectedReason)
     {
         var mapping = new Dictionary<string, string> { [GlMappingKeys.Amount] = "amt" };
@@ -556,7 +556,7 @@ public sealed class GlRowProjectorTests
         else
         {
             Assert.Equal("custom", error!.Field);
-            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
             Assert.Equal("文字超過 450 個字。請縮短來源資料，或取消保留此欄位", error.Reason);
         }
     }

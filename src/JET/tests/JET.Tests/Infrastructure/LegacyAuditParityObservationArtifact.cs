@@ -13,7 +13,7 @@ internal enum LegacyMappingDataset
 
 internal enum LegacyMappingSlot
 {
-    GlDocumentNumber,
+    GlVoucherNumber,
     GlLineIdentifier,
     GlPostingDate,
     GlApprovalDate,
@@ -31,15 +31,15 @@ internal enum LegacyMappingSlot
     GlDebitCode,
     TbAccountNumber,
     TbAccountName,
-    TbAmount,
+    TbChangeAmount,
     TbDebitAmount,
     TbCreditAmount,
     TbOpeningBalance,
     TbClosingBalance,
-    TbOpeningDebit,
-    TbOpeningCredit,
-    TbClosingDebit,
-    TbClosingCredit,
+    TbOpeningDebitBalance,
+    TbOpeningCreditBalance,
+    TbClosingDebitBalance,
+    TbClosingCreditBalance,
 }
 
 internal sealed record LegacyAuditParityMappingProvenanceEntry(
@@ -200,12 +200,12 @@ internal static class LegacyAuditParityObservationArtifactStore
                 Completeness = new CompletenessDto
                 {
                     DifferenceAccountCount = CountDto.From(metrics.Completeness.DifferenceAccountCount),
-                    PartASourceRowCount = CountDto.From(metrics.Completeness.PartASourceRowCount),
-                    PartATargetRowCount = CountDto.From(metrics.Completeness.PartATargetRowCount),
-                    PartATotalDebit = AmountDto.From(metrics.Completeness.PartATotalDebit),
-                    PartATotalCredit = AmountDto.From(metrics.Completeness.PartATotalCredit),
-                    PartARowCountMatch = BooleanDto.From(metrics.Completeness.PartARowCountMatch),
-                    PartAAmountMatch = BooleanDto.From(metrics.Completeness.PartAAmountMatch),
+                    PbcRowCount = CountDto.From(metrics.Completeness.PbcRowCount),
+                    StoredRowCount = CountDto.From(metrics.Completeness.StoredRowCount),
+                    StoredTotalDebit = AmountDto.From(metrics.Completeness.StoredTotalDebit),
+                    StoredTotalCredit = AmountDto.From(metrics.Completeness.StoredTotalCredit),
+                    StoredRowCountMatch = BooleanDto.From(metrics.Completeness.StoredRowCountMatch),
+                    StoredAmountMatch = BooleanDto.From(metrics.Completeness.StoredAmountMatch),
                 },
                 UnbalancedVoucherCount = CountDto.From(metrics.UnbalancedVoucherCount),
                 Inf = new InfDto
@@ -231,7 +231,7 @@ internal static class LegacyAuditParityObservationArtifactStore
                     RowCount = CountDto.From(metrics.WeekendUnion.RowCount),
                     VoucherCount = CountDto.From(metrics.WeekendUnion.VoucherCount),
                 },
-                CreatorSummaryLegacyApplicability = metrics.CreatorSummaryLegacyApplicability,
+                PreparerSummaryLegacyApplicability = metrics.PreparerSummaryLegacyApplicability,
                 RareAccountsLegacyApplicability = metrics.RareAccountsLegacyApplicability,
                 FilterScenarios = metrics.FilterScenarios.Select(pair => new FilterCountsDto
                 {
@@ -258,12 +258,12 @@ internal static class LegacyAuditParityObservationArtifactStore
         var completenessDto = Required(dto.Completeness);
         var completeness = new LegacyCompletenessObservation(
             Required(completenessDto.DifferenceAccountCount).ToObservation(),
-            Required(completenessDto.PartASourceRowCount).ToObservation(),
-            Required(completenessDto.PartATargetRowCount).ToObservation(),
-            Required(completenessDto.PartATotalDebit).ToObservation(),
-            Required(completenessDto.PartATotalCredit).ToObservation(),
-            Required(completenessDto.PartARowCountMatch).ToObservation(),
-            Required(completenessDto.PartAAmountMatch).ToObservation());
+            Required(completenessDto.PbcRowCount).ToObservation(),
+            Required(completenessDto.StoredRowCount).ToObservation(),
+            Required(completenessDto.StoredTotalDebit).ToObservation(),
+            Required(completenessDto.StoredTotalCredit).ToObservation(),
+            Required(completenessDto.StoredRowCountMatch).ToObservation(),
+            Required(completenessDto.StoredAmountMatch).ToObservation());
 
         var infDto = Required(dto.Inf);
         var infCount = Required(infDto.ReportedSampleSize).ToObservation()
@@ -318,8 +318,8 @@ internal static class LegacyAuditParityObservationArtifactStore
                 weekend.Applicability,
                 Required(weekend.RowCount).ToObservation(),
                 Required(weekend.VoucherCount).ToObservation()),
-            creatorSummaryLegacyApplicability:
-                RequiredApplicability(dto.CreatorSummaryLegacyApplicability),
+            preparerSummaryLegacyApplicability:
+                RequiredApplicability(dto.PreparerSummaryLegacyApplicability),
             rareAccountsLegacyApplicability:
                 RequiredApplicability(dto.RareAccountsLegacyApplicability));
     }
@@ -423,7 +423,7 @@ internal static class LegacyAuditParityObservationArtifactStore
         public InfDto? Inf { get; set; }
         public RuleCountsDto[]? PrescreenRules { get; set; }
         public RowVoucherDto? WeekendUnion { get; set; }
-        public LegacyMetricApplicability? CreatorSummaryLegacyApplicability { get; set; }
+        public LegacyMetricApplicability? PreparerSummaryLegacyApplicability { get; set; }
         public LegacyMetricApplicability? RareAccountsLegacyApplicability { get; set; }
         public FilterCountsDto[]? FilterScenarios { get; set; }
         public ReportDto[]? Reports { get; set; }
@@ -432,12 +432,12 @@ internal static class LegacyAuditParityObservationArtifactStore
     private sealed class CompletenessDto
     {
         public CountDto? DifferenceAccountCount { get; set; }
-        public CountDto? PartASourceRowCount { get; set; }
-        public CountDto? PartATargetRowCount { get; set; }
-        public AmountDto? PartATotalDebit { get; set; }
-        public AmountDto? PartATotalCredit { get; set; }
-        public BooleanDto? PartARowCountMatch { get; set; }
-        public BooleanDto? PartAAmountMatch { get; set; }
+        public CountDto? PbcRowCount { get; set; }
+        public CountDto? StoredRowCount { get; set; }
+        public AmountDto? StoredTotalDebit { get; set; }
+        public AmountDto? StoredTotalCredit { get; set; }
+        public BooleanDto? StoredRowCountMatch { get; set; }
+        public BooleanDto? StoredAmountMatch { get; set; }
     }
 
     private sealed class InfDto
@@ -555,38 +555,38 @@ internal static class LegacyMappingSlots
 {
     internal static LegacyMappingSlot FromGlKey(string key) => key switch
     {
-        GlMappingKeys.DocNum => LegacyMappingSlot.GlDocumentNumber,
-        GlMappingKeys.LineId => LegacyMappingSlot.GlLineIdentifier,
-        GlMappingKeys.PostDate => LegacyMappingSlot.GlPostingDate,
-        GlMappingKeys.DocDate => LegacyMappingSlot.GlApprovalDate,
-        GlMappingKeys.AccNum => LegacyMappingSlot.GlAccountNumber,
-        GlMappingKeys.AccName => LegacyMappingSlot.GlAccountName,
+        GlMappingKeys.VoucherNumber => LegacyMappingSlot.GlVoucherNumber,
+        GlMappingKeys.LineItem => LegacyMappingSlot.GlLineIdentifier,
+        GlMappingKeys.GlDate => LegacyMappingSlot.GlPostingDate,
+        GlMappingKeys.ApprovalDate => LegacyMappingSlot.GlApprovalDate,
+        GlMappingKeys.AccountNumber => LegacyMappingSlot.GlAccountNumber,
+        GlMappingKeys.AccountName => LegacyMappingSlot.GlAccountName,
         GlMappingKeys.Description => LegacyMappingSlot.GlDescription,
-        GlMappingKeys.JeSource => LegacyMappingSlot.GlSource,
-        GlMappingKeys.CreateBy => LegacyMappingSlot.GlCreatedBy,
-        GlMappingKeys.ApproveBy => LegacyMappingSlot.GlApprovedBy,
-        GlMappingKeys.Manual => LegacyMappingSlot.GlManual,
+        GlMappingKeys.SourceModule => LegacyMappingSlot.GlSource,
+        GlMappingKeys.CreatedBy => LegacyMappingSlot.GlCreatedBy,
+        GlMappingKeys.ApprovedBy => LegacyMappingSlot.GlApprovedBy,
+        GlMappingKeys.IsManual => LegacyMappingSlot.GlManual,
         GlMappingKeys.Amount => LegacyMappingSlot.GlAmount,
         GlMappingKeys.DebitAmount => LegacyMappingSlot.GlDebitAmount,
         GlMappingKeys.CreditAmount => LegacyMappingSlot.GlCreditAmount,
-        GlMappingKeys.DcField => LegacyMappingSlot.GlDebitCreditField,
-        GlMappingKeys.DcDebitCode => LegacyMappingSlot.GlDebitCode,
+        GlMappingKeys.DrCr => LegacyMappingSlot.GlDebitCreditField,
+        GlMappingKeys.DrCrDebitCode => LegacyMappingSlot.GlDebitCode,
         _ => throw new ArgumentException("Unknown fixed GL mapping slot.", nameof(key)),
     };
 
     internal static LegacyMappingSlot FromTbKey(string key) => key switch
     {
-        TbMappingKeys.AccNum => LegacyMappingSlot.TbAccountNumber,
-        TbMappingKeys.AccName => LegacyMappingSlot.TbAccountName,
-        TbMappingKeys.Amount => LegacyMappingSlot.TbAmount,
-        TbMappingKeys.DebitAmt => LegacyMappingSlot.TbDebitAmount,
-        TbMappingKeys.CreditAmt => LegacyMappingSlot.TbCreditAmount,
+        TbMappingKeys.AccountNumber => LegacyMappingSlot.TbAccountNumber,
+        TbMappingKeys.AccountName => LegacyMappingSlot.TbAccountName,
+        TbMappingKeys.ChangeAmount => LegacyMappingSlot.TbChangeAmount,
+        TbMappingKeys.DebitAmount => LegacyMappingSlot.TbDebitAmount,
+        TbMappingKeys.CreditAmount => LegacyMappingSlot.TbCreditAmount,
         TbMappingKeys.OpeningBalance => LegacyMappingSlot.TbOpeningBalance,
         TbMappingKeys.ClosingBalance => LegacyMappingSlot.TbClosingBalance,
-        TbMappingKeys.OpeningDebit => LegacyMappingSlot.TbOpeningDebit,
-        TbMappingKeys.OpeningCredit => LegacyMappingSlot.TbOpeningCredit,
-        TbMappingKeys.ClosingDebit => LegacyMappingSlot.TbClosingDebit,
-        TbMappingKeys.ClosingCredit => LegacyMappingSlot.TbClosingCredit,
+        TbMappingKeys.OpeningDebitBalance => LegacyMappingSlot.TbOpeningDebitBalance,
+        TbMappingKeys.OpeningCreditBalance => LegacyMappingSlot.TbOpeningCreditBalance,
+        TbMappingKeys.ClosingDebitBalance => LegacyMappingSlot.TbClosingDebitBalance,
+        TbMappingKeys.ClosingCreditBalance => LegacyMappingSlot.TbClosingCreditBalance,
         _ => throw new ArgumentException("Unknown fixed TB mapping slot.", nameof(key)),
     };
 }

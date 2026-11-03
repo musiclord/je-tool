@@ -12,7 +12,7 @@ public sealed class TrailingZeroThresholdTests
         Assert.Equal(6, TrailingZeroThreshold.DefaultZerosThreshold);
     }
 
-    // 預篩選收斂計畫階段九：尾零規則改由尾數述詞比對全 0 樣態，UnitModulus 隨之移除，原本兩則模數測試改鎖住樣態與位數範圍。
+    // 一條規則只有一個定義，尾零規則改由尾數述詞比對全 0 樣態，UnitModulus 隨之移除，原本兩則模數測試改鎖住樣態與位數範圍。
     // 第一次失敗：Build 收據 20261024-195205380-7ff4a86d8e454b30b80f473242fceabd（找不到 UnitModulus）。
     [Fact]
     public void ZeroPattern_HasOneZeroPerDigit()

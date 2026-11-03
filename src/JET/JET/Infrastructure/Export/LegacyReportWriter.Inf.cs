@@ -44,7 +44,7 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress) =>
+        Action<WorkingPaperProgress>? progress) =>
         WriteInfCoreAsync(
             output,
             context,
@@ -59,7 +59,7 @@ public sealed partial class LegacyReportWriter
         ReportWorkbookMetadata workbookMetadata,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var samples = await ReadInfSamplesAsync(context, cancellationToken).ConfigureAwait(false);
         var batch = await imports.GetLatestBatchAsync(
@@ -82,21 +82,21 @@ public sealed partial class LegacyReportWriter
             context.Project.ProjectId,
             DatasetKind.Gl,
             cancellationToken).ConfigureAwait(false);
-        IReadOnlyList<LegacyFieldDefinition> targetDefinitions =
-            _fieldDefinitionFactsPort is null
+        IReadOnlyList<FieldInfo> targetDefinitions =
+            _fieldInfoFactsPort is null
                 ? []
-                : await _fieldDefinitionFactsPort.ReadAsync(
+                : await _fieldInfoFactsPort.ReadAsync(
                     context.Project.ProjectId,
                     DatasetKind.Gl,
-                    LegacyFieldDefinitionScope.Target,
+                    FieldInfoScope.Target,
                     cancellationToken).ConfigureAwait(false);
-        IReadOnlyList<LegacyFieldDefinition> sourceDefinitions =
-            _fieldDefinitionFactsPort is null
+        IReadOnlyList<FieldInfo> sourceDefinitions =
+            _fieldInfoFactsPort is null
                 ? []
-                : await _fieldDefinitionFactsPort.ReadAsync(
+                : await _fieldInfoFactsPort.ReadAsync(
                     context.Project.ProjectId,
                     DatasetKind.Gl,
-                    LegacyFieldDefinitionScope.Source,
+                    FieldInfoScope.Source,
                     cancellationToken).ConfigureAwait(false);
         var textColumns = InfTextColumns(targetDefinitions, glMapping);
         var templateSamples = BuildInfTemplateSamples(samples, raw, glMapping);
@@ -141,7 +141,7 @@ public sealed partial class LegacyReportWriter
             cancellationToken.ThrowIfCancellationRequested();
             var page = await infSamples.GetPageAsync(
                 context.Project.ProjectId,
-                context.RunId,
+                context.ResultId,
                 context.Project.MoneyScale,
                 new PageRequest(cursor, InfReportSampleSize),
                 cancellationToken).ConfigureAwait(false);
@@ -163,13 +163,13 @@ public sealed partial class LegacyReportWriter
         IReadOnlyList<InfSampleRow> samples,
         IReadOnlyList<InfTemplateSample> templateSamples,
         IReadOnlySet<uint> textColumns,
-        IReadOnlyList<LegacyFieldDefinition> sourceDefinitions,
+        IReadOnlyList<FieldInfo> sourceDefinitions,
         IReadOnlyDictionary<long, string> raw,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         IReadOnlyDictionary<long, IReadOnlyDictionary<string, string?>> rdeValues,
         ReportWorkbookMetadata workbookMetadata,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress)
+        Action<WorkingPaperProgress>? progress)
     {
         var stats = new List<SheetStat>(2);
         editor.RewriteWorksheetPart(
@@ -255,11 +255,11 @@ public sealed partial class LegacyReportWriter
                 textColumns.Contains(column) ? InfCharacterNumberFormat : null;
             cells.SetInlineString(
                 ReportSheetWriter.Reference(2, row),
-                sample.DocumentNumber,
+                sample.VoucherNumber,
                 CharacterFormat(2));
             cells.SetInlineString(
                 ReportSheetWriter.Reference(3, row),
-                sample.AccountCode,
+                sample.AccountNumber,
                 CharacterFormat(3));
             cells.SetInlineString(
                 ReportSheetWriter.Reference(4, row),
@@ -275,7 +275,7 @@ public sealed partial class LegacyReportWriter
                 CharacterFormat(6));
             cells.SetInlineString(
                 ReportSheetWriter.Reference(7, row),
-                sample.PostDate,
+                sample.GlDate,
                 CharacterFormat(7));
             cells.SetInlineString(
                 ReportSheetWriter.Reference(8, row),
@@ -347,12 +347,12 @@ public sealed partial class LegacyReportWriter
     }
 
     private static IReadOnlySet<uint> InfTextColumns(
-        IReadOnlyList<LegacyFieldDefinition> targetDefinitions,
+        IReadOnlyList<FieldInfo> targetDefinitions,
         CommittedMapping? glMapping)
     {
         var result = new HashSet<uint>();
         string? directionField = null;
-        glMapping?.Mapping.TryGetValue(GlMappingKeys.DcField, out directionField);
+        glMapping?.Mapping.TryGetValue(GlMappingKeys.DrCr, out directionField);
         foreach (var definition in targetDefinitions)
         {
             if (definition.Kind != LegacyFieldKind.Text)
@@ -406,12 +406,12 @@ public sealed partial class LegacyReportWriter
                 .ToString("0.00", CultureInfo.InvariantCulture);
             widths.Observe(
             [
-                sample.DocumentNumber,
-                sample.AccountCode,
+                sample.VoucherNumber,
+                sample.AccountNumber,
                 sample.AccountName,
                 templateSample.Direction,
                 displayedAmount,
-                sample.PostDate,
+                sample.GlDate,
                 sample.ApprovalDate,
                 sample.CreatedBy,
                 templateSample.SourceModule,
@@ -528,7 +528,7 @@ public sealed partial class LegacyReportWriter
         WorkbookStylePatcher stylePatcher,
         IReadOnlyList<string> columns,
         IReadOnlyList<InfSampleRow> samples,
-        IReadOnlyList<LegacyFieldDefinition> sourceDefinitions,
+        IReadOnlyList<FieldInfo> sourceDefinitions,
         IReadOnlyDictionary<long, string> raw,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
         IReadOnlyDictionary<long, IReadOnlyDictionary<string, string?>> rdeValues,
@@ -586,7 +586,7 @@ public sealed partial class LegacyReportWriter
 
     private static IReadOnlyList<uint> InfAllFieldsStyles(
         IReadOnlyList<string> columns,
-        IReadOnlyList<LegacyFieldDefinition> sourceDefinitions,
+        IReadOnlyList<FieldInfo> sourceDefinitions,
         WorkbookStylePatcher stylePatcher)
     {
         var result = new uint[columns.Count];
@@ -606,12 +606,12 @@ public sealed partial class LegacyReportWriter
         return result;
     }
 
-    private static string? InfAllFieldsNumberFormat(LegacyFieldDefinition? definition) =>
+    private static string? InfAllFieldsNumberFormat(FieldInfo? definition) =>
         definition?.Kind switch
         {
             LegacyFieldKind.Text => "@",
             LegacyFieldKind.Number when definition.DecimalPlaces is >= 0
-                                               and <= WorkpaperStyles.MaximumDecimalPlaces =>
+                                               and <= WorkingPaperStyles.MaximumDecimalPlaces =>
                 "0" + (definition.DecimalPlaces.Value == 0
                     ? string.Empty
                     : "." + new string('0', definition.DecimalPlaces.Value)),

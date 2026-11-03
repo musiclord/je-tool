@@ -18,7 +18,7 @@ public sealed class DemoHandlersTests
 
         var gl = data.GetProperty("gl");
         Assert.Equal("flag", gl.GetProperty("amountMode").GetString());
-        Assert.Equal("1", gl.GetProperty("mapping").GetProperty("dcDebitCode").GetString());
+        Assert.Equal("1", gl.GetProperty("mapping").GetProperty("drCrDebitCode").GetString());
         Assert.Equal(DemoDataFactory.GlVoucherCount * DemoDataFactory.LinesPerVoucher, gl.GetProperty("rowCount").GetInt32());
 
         var tb = data.GetProperty("tb");
@@ -42,7 +42,7 @@ public sealed class DemoHandlersTests
         // 匯出的檔案必須能被正式 import reader 讀出（同一條 pipeline）
         var columns = await new OpenXmlSaxTableReader().ReadColumnsAsync(
             new JET.Domain.TabularSourceRequest(filePath!), CancellationToken.None);
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳：示範 GL 少了「傳票日期」欄，欄數由 12 改為 11。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：示範 GL 少了「傳票日期」欄，欄數由 12 改為 11。
         Assert.Equal(11, columns.Count);
         Assert.Contains("傳票號碼", columns);
         Assert.Contains("金額", columns);
@@ -75,11 +75,11 @@ public sealed class DemoHandlersTests
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = project.GetProperty("projectCode").GetString(),
-            entityName = project.GetProperty("entityName").GetString(),
+            clientName = project.GetProperty("clientName").GetString(),
             operatorId = project.GetProperty("operatorId").GetString(),
             periodStart = project.GetProperty("periodStart").GetString(),
             periodEnd = project.GetProperty("periodEnd").GetString(),
-            lastPeriodStart = project.GetProperty("lastPeriodStart").GetString()
+            prepStartDate = project.GetProperty("prepStartDate").GetString()
         }));
         var projectId = created.GetProperty("projectId").GetString()!;
 
@@ -132,7 +132,7 @@ public sealed class DemoHandlersTests
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT SUM(amount_scaled) FROM target_gl_entry;";
+            command.CommandText = "SELECT SUM(amount_scaled) FROM gl;";
             Assert.Equal(0L, Convert.ToInt64(await command.ExecuteScalarAsync()));
         }
 

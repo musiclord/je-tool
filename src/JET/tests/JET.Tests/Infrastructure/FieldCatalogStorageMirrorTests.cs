@@ -29,8 +29,8 @@ public sealed class FieldCatalogStorageMirrorTests
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync();
 
-        var glColumns = await ReadPragmaColumnsAsync(connection, "target_gl_entry");
-        var tbColumns = await ReadPragmaColumnsAsync(connection, "target_tb_balance");
+        var glColumns = await ReadPragmaColumnsAsync(connection, "gl");
+        var tbColumns = await ReadPragmaColumnsAsync(connection, "tb");
 
         AssertCatalogMatchesSchema(JetFieldCatalog.GlFields, glColumns);
         AssertCatalogMatchesSchema(JetFieldCatalog.TbFields, tbColumns);
@@ -49,12 +49,12 @@ public sealed class FieldCatalogStorageMirrorTests
             sql.Database,
             connection,
             sql.ProjectId,
-            "target_gl_entry");
+            "gl");
         var tbColumns = await ReadSqlServerColumnsAsync(
             sql.Database,
             connection,
             sql.ProjectId,
-            "target_tb_balance");
+            "tb");
 
         AssertCatalogMatchesSchema(JetFieldCatalog.GlFields, glColumns);
         AssertCatalogMatchesSchema(JetFieldCatalog.TbFields, tbColumns);

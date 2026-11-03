@@ -6,7 +6,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>master spec「匯出進度契約」：五個正式 action 的 event wire 與單調生命週期。</summary>
 public sealed class ExportProgressEventTests
@@ -16,18 +16,18 @@ public sealed class ExportProgressEventTests
         "preparingData",
         "writingSheet",
         "finalizingWorkbook",
-        "publishingArtifact"
+        "publishingReport"
     ];
 
     /// <remarks>
     /// 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 repository，建構式不再列出
-    /// IAccountMappingExportRepository、IRuleRunStore、IAccountTaxonomyStore 與 IMappingStateStore。
+    /// IAccountMappingExportRepository、IResultStore、IAccountCategoryStore 與 IMappingStateStore。
     /// 改成檢查建構式只剩不分資料庫的依賴，再讀原始碼確認 handler 只用到資料庫組的這四個屬性，
-    /// 而且仍然不碰報告 store（資料庫組的 ReportArtifactStore）。第一次失敗收據：
+    /// 而且仍然不碰報告 store（資料庫組的 ReportStore）。第一次失敗收據：
     /// 20261002-115426688-212aacd0011642418bc05dd51d524df6。
     /// </remarks>
     [Fact]
-    public void AccountMappingHandler_WritesWorkFileThroughProjectLocatorNotArtifactStore()
+    public void AccountMappingHandler_WritesWorkFileThroughProjectLocatorNotReportStore()
     {
         // 範本是工作檔：handler 只拿案件資料夾定位器，不再依賴報告 store。
         Assert.NotNull(typeof(ExportAccountMappingTemplateHandler).GetConstructor(
@@ -41,20 +41,20 @@ public sealed class ExportProgressEventTests
         Assert.DoesNotContain(
             typeof(ExportAccountMappingTemplateHandler).GetConstructors()
                 .SelectMany(constructor => constructor.GetParameters()),
-            parameter => parameter.ParameterType == typeof(IReportArtifactStore));
+            parameter => parameter.ParameterType == typeof(IReportStore));
 
         var used = HandlerRepositoryUsage.PropertiesUsedBy(
             nameof(ExportAccountMappingTemplateHandler),
             "Application", "Handlers", "ExportAccountMappingTemplateHandler.cs");
         Assert.Equal(
-            ["AccountMappingExport", "AccountTaxonomy", "MappingStates", "RuleRuns"],
+            ["AccountCategories", "AccountMappingExport", "MappingStates", "Results"],
             used);
         Assert.Equal(
             [
+                typeof(IAccountCategoryStore),
                 typeof(IAccountMappingExportRepository),
-                typeof(IAccountTaxonomyStore),
                 typeof(IMappingStateStore),
-                typeof(IRuleRunStore)
+                typeof(IResultStore)
             ],
             used.Select(name => typeof(ProjectRepositories).GetProperty(name)!.PropertyType).ToArray());
     }
@@ -63,14 +63,14 @@ public sealed class ExportProgressEventTests
     public async Task FormalExports_PublishExactMonotonicLifecycle_AndResponseRemainsCompletionAuthority()
     {
         using var host = new HandlerTestHost();
-        _ = await ReportArtifactExportFixture.SetupProjectAsync(host);
+        _ = await ReportExportFixture.SetupProjectAsync(host);
 
         var validation = await host.DispatchAsync("validate.run");
-        var validationRunId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         var validationExport = await CaptureAsync(
             host,
-            "export.validationArtifacts",
-            JsonSerializer.Serialize(new { runId = validationRunId }));
+            "export.validationReports",
+            JsonSerializer.Serialize(new { resultId = validationResultId }));
         AssertProgressContract(
             validationExport,
             ["validationReport", "infReport"]);
@@ -80,22 +80,22 @@ public sealed class ExportProgressEventTests
                 .TakeLast(2)
                 .Select(update =>
                 {
-                    Assert.Equal("publishingArtifact", update.GetProperty("phase").GetString());
-                    return update.GetProperty("artifactKind").GetString()!;
+                    Assert.Equal("publishingReport", update.GetProperty("phase").GetString());
+                    return update.GetProperty("reportKind").GetString()!;
                 }));
 
         var accountMappingExport = await CaptureAsync(
             host,
             "export.accountMappingTemplate",
-            JsonSerializer.Serialize(new { runId = validationRunId }));
+            JsonSerializer.Serialize(new { resultId = validationResultId }));
         AssertProgressContract(accountMappingExport, ["accountMapping"]);
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         var prescreenExport = await CaptureAsync(
             host,
             "export.prescreenReport",
-            JsonSerializer.Serialize(new { runId = prescreenRunId }));
+            JsonSerializer.Serialize(new { resultId = prescreenResultId }));
         AssertProgressContract(prescreenExport, ["prescreenReport"]);
 
         var filter = await host.DispatchAsync(
@@ -113,7 +113,7 @@ public sealed class ExportProgressEventTests
                             new
                             {
                                 join = "AND",
-                                rules = new[]
+                                conditions = new[]
                                 {
                                     new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } }
                                 }
@@ -125,8 +125,8 @@ public sealed class ExportProgressEventTests
         var revision = filter.GetProperty("resultRef").GetProperty("revision").GetString()!;
         var criteriaPayload = JsonSerializer.Serialize(new
         {
-            validationRunId,
-            prescreenRunId,
+            validationResultId,
+            prescreenResultId,
             revision
         });
         var criteriaExport = await CaptureAsync(
@@ -135,17 +135,17 @@ public sealed class ExportProgressEventTests
             criteriaPayload);
         AssertProgressContract(criteriaExport, ["criteriaSelectionReport"]);
 
-        var workpaperExport = await CaptureAsync(
+        var workingPaperExport = await CaptureAsync(
             host,
-            "export.workpaperStream",
+            "export.workingPaperStream",
             JsonSerializer.Serialize(new
             {
-                validationRunId,
-                prescreenRunId,
+                validationResultId,
+                prescreenResultId,
                 scenarioRevision = revision,
                 scenarioPositions = new[] { 1 }
             }));
-        AssertProgressContract(workpaperExport, ["workingPaper"]);
+        AssertProgressContract(workingPaperExport, ["workingPaper"]);
     }
 
     private static async Task<CapturedExport> CaptureAsync(
@@ -170,11 +170,11 @@ public sealed class ExportProgressEventTests
 
     private static void AssertProgressContract(
         CapturedExport export,
-        IReadOnlyList<string> expectedArtifactKinds)
+        IReadOnlyList<string> expectedReportKinds)
     {
         var expectedKeys = new[]
         {
-            "artifactKind",
+            "reportKind",
             "phase",
             "sheetName",
             "sheetsCompleted",
@@ -197,17 +197,17 @@ public sealed class ExportProgressEventTests
         }
 
         Assert.Equal(
-            expectedArtifactKinds,
+            expectedReportKinds,
             export.Events
-                .Select(update => update.GetProperty("artifactKind").GetString()!)
+                .Select(update => update.GetProperty("reportKind").GetString()!)
                 .Distinct(StringComparer.Ordinal));
 
-        foreach (var artifactKind in expectedArtifactKinds)
+        foreach (var reportKind in expectedReportKinds)
         {
             var updates = export.Events
                 .Where(update => string.Equals(
-                    update.GetProperty("artifactKind").GetString(),
-                    artifactKind,
+                    update.GetProperty("reportKind").GetString(),
+                    reportKind,
                     StringComparison.Ordinal))
                 .ToArray();
             Assert.NotEmpty(updates);
@@ -229,9 +229,9 @@ public sealed class ExportProgressEventTests
                 var phase = update.GetProperty("phase").GetString();
                 var rows = update.GetProperty("rowsWritten").GetInt64();
                 var sheets = update.GetProperty("sheetsCompleted").GetInt32();
-                Assert.True(rows >= previousRows, $"{artifactKind} rowsWritten 不得回退。\n{update}");
-                Assert.True(sheets >= previousSheets, $"{artifactKind} sheetsCompleted 不得回退。\n{update}");
-                Assert.True(sheets - previousSheets <= 1, $"{artifactKind} sheetsCompleted 不得跳號。\n{update}");
+                Assert.True(rows >= previousRows, $"{reportKind} rowsWritten 不得回退。\n{update}");
+                Assert.True(sheets >= previousSheets, $"{reportKind} sheetsCompleted 不得回退。\n{update}");
+                Assert.True(sheets - previousSheets <= 1, $"{reportKind} sheetsCompleted 不得跳號。\n{update}");
 
                 if (phase == "writingSheet")
                 {
@@ -248,10 +248,10 @@ public sealed class ExportProgressEventTests
 
             Assert.Equal(0, updates[0].GetProperty("sheetsCompleted").GetInt32());
             Assert.Equal(0, updates[0].GetProperty("rowsWritten").GetInt64());
-            Assert.Equal("publishingArtifact", updates[^1].GetProperty("phase").GetString());
+            Assert.Equal("publishingReport", updates[^1].GetProperty("phase").GetString());
         }
 
-        // 事件沒有成功旗標；只有 awaited action response 的 ok/artifact(s) 是完成權威。
+        // 事件沒有成功旗標；只有 awaited action response 的 ok 與 publishedReport、publishedReports 是完成權威。
         Assert.True(export.Response.GetProperty("ok").GetBoolean());
     }
 

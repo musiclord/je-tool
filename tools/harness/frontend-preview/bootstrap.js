@@ -12,10 +12,10 @@
       // prescreen and filter results stale. Never fabricate a newly run filter.
       if (stale) {
         loaded.staleState = { validation: false, prescreen: true, filter: true };
-        if (loaded.latestRuns) loaded.latestRuns.prescreen = null;
-        loaded.reportArtifacts = (loaded.reportArtifacts || []).map(artifact =>
-          ['prescreenReport', 'criteriaSelectionReport', 'workingPaper'].includes(artifact.kind)
-            ? { ...artifact, stale: true } : artifact);
+        loaded.prescreenResult = null;
+        loaded.reports = (loaded.reports || []).map(report =>
+          ['prescreenReport', 'criteriaSelectionReport', 'workingPaper'].includes(report.kind)
+            ? { ...report, stale: true } : report);
       }
       window.JetUi.applyLoadedProject(loaded, { stayOnCurrentStep: true });
       window.JetStore.setStepIndex(4);

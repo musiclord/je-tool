@@ -12,7 +12,7 @@ internal static partial class GuiScenarios
         Task Choose(string selector, string value) => ChooseOptionAsync(cdp, process, selector, value, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
             "(()=>{var state=window.JetStore.getState();if(state.busy)return {idle:false,ok:false};var draft=state.filter.draft,saved=state.filter.savedScenarios,preview=state.filter.preview;return {idle:true,ok:!!(" + expression +
-            "),step:state.currentStepIndex,saved:saved.length,rules:draft.groups.flatMap(g=>g.rules),previewCount:preview?.count};})()",
+            "),step:state.currentStepIndex,saved:saved.length,conditions:draft.groups.flatMap(g=>g.conditions),previewCount:preview?.count};})()",
             value => value, value => ReadBoolean(value,"idle") && ReadBoolean(value,"ok"), "side_month_workflow_failed", ct,
             value => outcome.LastFilterProbe = value.Clone());
         async Task Fill(string selector, string value, bool replace = false)
@@ -27,22 +27,22 @@ internal static partial class GuiScenarios
             }
             outcome.RecordAction(); await cdp.TypeTextAsync(value, ct);
         }
-        // 使用者 2026-10-08 要求重新設計自訂篩選條件：欄位改由「依欄位設定」的欄位按鈕加入。
+        // 裁定 2026-10-08-06 重新設計自訂篩選條件：欄位改由「依欄位設定」的欄位按鈕加入。
         Task Add(string subject) => AddCustomConditionAsync(cdp, subject, Click, ct);
         async Task Save(int count)
         {
             await Click("[data-action=save-scenario]");
             await Check("saved.length===" + count);
-            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.groups.every(g=>g.rules.length===0) && !preview");
+            await Check("!document.querySelector('[data-filter-pane=filter]').hidden && draft.groups.every(g=>g.conditions.length===0) && !preview");
         }
-        // 第九節 G1、G3：第一組決定借方命中，第二條整張傳票條件找貸方佐證。
+        // 借貸方向只用「借貸別」，「同一傳票」併入整張傳票條件：第一組決定借方命中，第二條整張傳票條件找貸方佐證。
         async Task AddSideAndAccount(string kind, int index, string side)
         {
             await Click("[data-add-compound=" + kind + "]");
             var parent = ".rule-row[data-ri='" + index + "'] ";
             await Choose(parent + "[data-child-kind]", "type:drCrOnly"); await Click(parent + "[data-child-add]");
             await Choose(".rule-row[data-ri='" + index + ".0'] [data-rule-bind=drCr]", side);
-            await Choose(parent + "[data-child-kind]", "field:accNum"); await Click(parent + "[data-child-add]");
+            await Choose(parent + "[data-child-kind]", "field:accountNumber"); await Click(parent + "[data-child-add]");
             var account = ".rule-row[data-ri='" + index + ".1'] ";
             await Choose(account + "[data-value-kind]", "exact");
             await Fill(account + "[data-value-key=values]", "GUI-NOT-AN-ACCOUNT");
@@ -59,21 +59,21 @@ internal static partial class GuiScenarios
         await AddSideAndAccount("group", 0, "debit");
         await AddSideAndAccount("voucher", 1, "credit");
         await Preview();
-        await Check("preview.count>0 && draft.groups[0].rules[0].rules[0].drCr==='debit' && draft.groups[0].rules[1].rules[0].drCr==='credit' && document.querySelector('[data-bind=content]').textContent.includes('整張傳票至少一筆符合') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
+        await Check("preview.count>0 && draft.groups[0].conditions[0].conditions[0].drCr==='debit' && draft.groups[0].conditions[1].conditions[0].drCr==='credit' && document.querySelector('[data-bind=content]').textContent.includes('整張傳票至少一筆符合') && Array.from(document.querySelectorAll('.rule-row input,.rule-row select')).every(e=>{var r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth;})");
         await FindControlPointAsync(cdp, process, ".rule-row[data-ri='0.0'] [data-rule-bind=drCr]", ct);
         await FindControlPointAsync(cdp, process, ".rule-row[data-ri='1.0'] [data-rule-bind=drCr]", ct);
         await CaptureScreenshotAsync(cdp, outcome, ct); await Save(1);
         outcome.RecordStage("side_month_invalid_days_and_retry");
-        await Click("[data-filter-pane-select=filter]"); await Add("field:postDate");
+        await Click("[data-filter-pane-select=filter]"); await Add("field:glDate");
         await Choose(first + "[data-value-kind]", "monthEnd");
         await Fill(first + "[data-value-key=value]", "32", replace: true);
         await Click("[data-action=preview-scenario]");
-        await Check("document.querySelector('[data-bind=scenario-notice]').textContent.includes('1 到 31') && draft.groups[0].rules[0].value==='32'");
+        await Check("document.querySelector('[data-bind=scenario-notice]').textContent.includes('1 到 31') && draft.groups[0].conditions[0].value==='32'");
         await Fill(first + "[data-value-key=value]", "2", replace: true);
-        await Add("field:docDate"); await Choose(second + "[data-value-kind]", "monthStart");
+        await Add("field:approvalDate"); await Choose(second + "[data-value-kind]", "monthStart");
         await Choose(second + "[data-value-polarity]", "exclude");
         await Preview();
-        await Check("draft.groups[0].rules[0].operator==='monthEndDays' && draft.groups[0].rules[1].operator==='notMonthStartDays' && draft.groups[0].rules[1].value==='2'");
+        await Check("draft.groups[0].conditions[0].operator==='monthEndDays' && draft.groups[0].conditions[1].operator==='notMonthStartDays' && draft.groups[0].conditions[1].value==='2'");
         await FindControlPointAsync(cdp, process, first + "[data-value-key=value]", ct);
         await FindControlPointAsync(cdp, process, first + "[data-value-key=value]", ct);
         await CaptureScreenshotAsync(cdp, outcome, ct); await Save(2);
@@ -83,20 +83,20 @@ internal static partial class GuiScenarios
         await Click(".saved-scenario:nth-of-type(2) .jet-menu__toggle");
         await Click("[data-action=edit-scenario][data-index='1']");
         await Choose(first + "[data-value-polarity]", "exclude"); await Click("[data-action=cancel-edit-scenario]");
-        await Check("saved[1].groups[0].rules[0].operator==='monthEndDays'");
+        await Check("saved[1].groups[0].conditions[0].operator==='monthEndDays'");
         await Click("[data-bind=step-nav] [data-step-index='3']");
         await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=saved]");
         await Click("[data-action=export-criteria-report]"); await Check("window.JetUi.stepGate(state,5).ok && !window.JetUi.filterScenarioMissing(state)");
-        await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-workpaper]");
-        await Check("!!window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2]})");
-        outcome.RecordStage("workpaper_manual_flag_text");
-        var workbookPath = (await cdp.EvaluateAsync("(()=>{var state=window.JetStore.getState();return window.JetUi.findCurrentReportArtifact(state,'workingPaper',{validationRunId:state.lastRuns.validate.resultRef.runId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2]}).fullPath;})()", ct)).GetString();
-        if (string.IsNullOrEmpty(workbookPath)) throw new GuiCheckException("workpaper_manual_flag_path_missing");
-        GuiWorkpaperInspection.RequireManualAutoText(workbookPath, ownedRun.ProjectsRootPath);
+        await Click("[data-bind=step-nav] [data-step-index='5']"); await Click("[data-action=export-working-paper]");
+        await Check("!!window.JetUi.findCurrentReport(state,'workingPaper',{validationResultId:state.results.validate.resultRef.resultId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2]})");
+        outcome.RecordStage("working_paper_manual_flag_text");
+        var workbookPath = (await cdp.EvaluateAsync("(()=>{var state=window.JetStore.getState();return window.JetUi.findCurrentReport(state,'workingPaper',{validationResultId:state.results.validate.resultRef.resultId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2]}).fullPath;})()", ct)).GetString();
+        if (string.IsNullOrEmpty(workbookPath)) throw new GuiCheckException("working_paper_manual_flag_path_missing");
+        GuiWorkingPaperInspection.RequireManualAutoText(workbookPath, ownedRun.ProjectsRootPath);
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
-        await Check("saved.length===2 && saved[0].groups[0].matchScope==='row' && saved[0].groups[0].rules[0].rules[0].drCr==='debit' && saved[0].groups[0].rules[1].type==='voucher' && saved[0].groups[0].rules[1].rules[0].drCr==='credit' && saved[1].groups[0].rules[0].operator==='monthEndDays' && saved[1].groups[0].rules[0].value==='2' && saved[1].groups[0].rules[1].operator==='notMonthStartDays'");
+        await Check("saved.length===2 && saved[0].groups[0].matchScope==='row' && saved[0].groups[0].conditions[0].conditions[0].drCr==='debit' && saved[0].groups[0].conditions[1].type==='voucher' && saved[0].groups[0].conditions[1].conditions[0].drCr==='credit' && saved[1].groups[0].conditions[0].operator==='monthEndDays' && saved[1].groups[0].conditions[0].value==='2' && saved[1].groups[0].conditions[1].operator==='notMonthStartDays'");
         outcome.Assertions.SideMonthWorkflowVerified = true;
         await Click("[data-action=app-exit]"); outcome.Assertions.ExitRequested = true;
     }

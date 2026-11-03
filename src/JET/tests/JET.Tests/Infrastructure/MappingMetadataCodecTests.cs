@@ -40,7 +40,7 @@ public sealed class MappingMetadataCodecTests
         Assert.Equal(mode, decoded.Gl.AmountMode);
         Assert.Equal(GlMappingKeys.All, decoded.Gl.Mapping.Keys);
         Assert.Equal(gl.Values, decoded.Gl.Mapping.Values);
-        Assert.Equal("D", decoded.Gl.Mapping[GlMappingKeys.DcDebitCode]);
+        Assert.Equal("D", decoded.Gl.Mapping[GlMappingKeys.DrCrDebitCode]);
         Assert.Equal(ApprovalDateModeNames.Mapped, decoded.Gl.ApprovalDateMode);
         Assert.Equal(["posted", "approved"], decoded.Gl.PostingStatusPolicy!.AcceptedValues);
         Assert.True(decoded.Gl.PostingStatusPolicy.IncludeBlank);
@@ -48,7 +48,7 @@ public sealed class MappingMetadataCodecTests
         Assert.Equal(["A"], decoded.Gl.ManualAutoPolicy.AutomaticValues);
         var rde = Assert.Single(decoded.Gl.RdeFields);
         Assert.Equal("rde.0123456789abcdef0123456789abcdef", rde.FieldId);
-        Assert.Equal(RdeFieldValueTypeNames.Money, rde.ValueType);
+        Assert.Equal(RdeFieldValueTypeNames.Amount, rde.ValueType);
     }
 
     [Theory]
@@ -80,10 +80,10 @@ public sealed class MappingMetadataCodecTests
             Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.OpenCloseBySide));
 
         Assert.Equal(first, second);
-        Assert.True(first.IndexOf("\"docNum\"", StringComparison.Ordinal)
-                    < first.IndexOf("\"dcDebitCode\"", StringComparison.Ordinal));
+        Assert.True(first.IndexOf("\"voucherNumber\"", StringComparison.Ordinal)
+                    < first.IndexOf("\"drCrDebitCode\"", StringComparison.Ordinal));
         Assert.True(first.IndexOf("\"openingBalance\"", StringComparison.Ordinal)
-                    < first.IndexOf("\"openingDebit\"", StringComparison.Ordinal));
+                    < first.IndexOf("\"openingDebitBalance\"", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -132,16 +132,16 @@ public sealed class MappingMetadataCodecTests
 
     [Theory]
     [InlineData(ApprovalDateModeNames.Mapped, false)]
-    [InlineData(ApprovalDateModeNames.SameAsPostDate, true)]
+    [InlineData(ApprovalDateModeNames.SameAsGlDate, true)]
     [InlineData(ApprovalDateModeNames.Unmapped, true)]
     public void Encode_RejectsApprovalDateModeMappingMismatch(
         string approvalDateMode,
-        bool includeDocDate)
+        bool includeApprovalDate)
     {
         var mapping = AllGlMappings();
-        if (!includeDocDate)
+        if (!includeApprovalDate)
         {
-            mapping.Remove(GlMappingKeys.DocDate);
+            mapping.Remove(GlMappingKeys.ApprovalDate);
         }
 
         var gl = Committed(DatasetKind.Gl, mapping, GlAmountModeNames.Signed) with
@@ -156,13 +156,13 @@ public sealed class MappingMetadataCodecTests
 
     [Theory]
     [InlineData(ApprovalDateModeNames.Mapped, false)]
-    [InlineData(ApprovalDateModeNames.SameAsPostDate, true)]
+    [InlineData(ApprovalDateModeNames.SameAsGlDate, true)]
     [InlineData(ApprovalDateModeNames.Unmapped, true)]
     public void DecodeV2_RejectsApprovalDateModeMappingMismatch(
         string approvalDateMode,
-        bool includeDocDate)
+        bool includeApprovalDate)
     {
-        var mappingJson = includeDocDate ? "{\"docDate\":\"Approval Date\"}" : "{}";
+        var mappingJson = includeApprovalDate ? "{\"approvalDate\":\"Approval Date\"}" : "{}";
         var json = "{\"gl\":{\"mapping\":" + mappingJson
                    + ",\"amountMode\":\"signed\",\"approvalDateMode\":\"" + approvalDateMode
                    + "\",\"postingStatusPolicy\":null,\"manualAutoPolicy\":{\"manualValues\":[\"1\"],"
@@ -182,22 +182,22 @@ public sealed class MappingMetadataCodecTests
         Assert.Throws<MappingMetadataFormatException>(() => MappingMetadataCodec.Decode(version, "{}"));
     }
 
-    // 預篩選收斂計畫階段六：往下填補的欄位跟著配對寫進報告與案件。下面四個測試是新加的，沒有可保存的第一次失敗；
+    // 往下填補的欄位跟著配對寫進報告與案件。下面四個測試是新加的，沒有可保存的第一次失敗；
     // 對外行為由 GlFillDownWorkflowTests 保存第一次失敗。
     [Fact]
     public void EncodeDecode_RoundTripsFillDownFields()
     {
         var gl = Committed(DatasetKind.Gl, AllGlMappings(), GlAmountModeNames.Flag) with
         {
-            GlOptions = FullGlOptions() with { FillDownFields = [GlMappingKeys.DocNum, GlMappingKeys.PostDate] }
+            GlOptions = FullGlOptions() with { FillDownFields = [GlMappingKeys.VoucherNumber, GlMappingKeys.GlDate] }
         };
         var tb = Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct);
         var json = MappingMetadataCodec.Encode(gl, tb);
 
         var decoded = MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, json);
 
-        Assert.Equal([GlMappingKeys.DocNum, GlMappingKeys.PostDate], decoded.Gl.FillDownFields);
-        Assert.Equal([GlMappingKeys.DocNum, GlMappingKeys.PostDate], decoded.Gl.ToOptions().FillDownFields);
+        Assert.Equal([GlMappingKeys.VoucherNumber, GlMappingKeys.GlDate], decoded.Gl.FillDownFields);
+        Assert.Equal([GlMappingKeys.VoucherNumber, GlMappingKeys.GlDate], decoded.Gl.ToOptions().FillDownFields);
         Assert.Equal(json, MappingMetadataCodec.Encode(gl with { GlOptions = decoded.Gl.ToOptions() }, tb));
     }
 
@@ -217,15 +217,15 @@ public sealed class MappingMetadataCodecTests
     }
 
     [Theory]
-    [InlineData("[\"approveBy\"]")]         // 沒有來源欄
-    [InlineData("[\"dcDebitCode\"]")]       // 字面值不是來源欄
-    [InlineData("[\"docNum\",\"docNum\"]")] // 重複
+    [InlineData("[\"approvedBy\"]")]         // 沒有來源欄
+    [InlineData("[\"drCrDebitCode\"]")]       // 字面值不是來源欄
+    [InlineData("[\"voucherNumber\",\"voucherNumber\"]")] // 重複
     [InlineData("[\"notAField\"]")]         // 不是 GL 欄位
-    [InlineData("\"docNum\"")]              // 不是陣列
+    [InlineData("\"voucherNumber\"")]              // 不是陣列
     public void Decode_RejectsFillDownFieldsThatCannotBeFilled(string fillDownFields)
     {
         var mapping = AllGlMappings();
-        mapping.Remove(GlMappingKeys.ApproveBy);
+        mapping.Remove(GlMappingKeys.ApprovedBy);
         var json = MappingMetadataCodec.Encode(
             Committed(DatasetKind.Gl, mapping, GlAmountModeNames.Flag),
             Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct));
@@ -242,10 +242,10 @@ public sealed class MappingMetadataCodecTests
         // 案件裡保存的 options_json 走另一個入口，同樣帶著往下填補的欄位，舊 JSON 沒有這一項時是空清單。
         var mapping = AllGlMappings();
         var json = GlMappingOptionsJsonCodec.Encode(
-            FullGlOptions() with { FillDownFields = [GlMappingKeys.DocNum] },
+            FullGlOptions() with { FillDownFields = [GlMappingKeys.VoucherNumber] },
             mapping);
 
-        Assert.Equal([GlMappingKeys.DocNum], GlMappingOptionsJsonCodec.Decode(json, mapping).FillDownFields);
+        Assert.Equal([GlMappingKeys.VoucherNumber], GlMappingOptionsJsonCodec.Decode(json, mapping).FillDownFields);
 
         var legacy = JsonNode.Parse(json)!.AsObject();
         Assert.True(legacy.Remove("fillDownFields"));
@@ -255,7 +255,7 @@ public sealed class MappingMetadataCodecTests
     [Fact]
     public void FillDownCount_IsSavedInOptionsJsonAndWrittenIntoReports_AndOldJsonReadsZero()
     {
-        // 填了幾格跟著配對保存，報告的配對資訊也寫出來（使用者 2026-10-28 裁定隨配對保存）；改版前的 JSON 沒有這一項時是 0。
+        // 填了幾格跟著配對保存，報告的配對資訊也寫出來（裁定 2026-10-28-05：隨配對保存）；改版前的 JSON 沒有這一項時是 0。
         // 改程式之後才補，沒有第一次失敗的收據；GlFillDownWorkflowTests 的重開案件測試保存了第一次失敗。
         var mapping = AllGlMappings();
         var options = FullGlOptions() with { FillDownCount = 6 };
@@ -292,7 +292,7 @@ public sealed class MappingMetadataCodecTests
 
     private static Dictionary<string, string> AllGlMappings() => GlMappingKeys.All.ToDictionary(
         key => key,
-        key => key == GlMappingKeys.DcDebitCode ? "D" : $"GL_{key}",
+        key => key == GlMappingKeys.DrCrDebitCode ? "D" : $"GL_{key}",
         StringComparer.Ordinal);
 
     private static Dictionary<string, string> AllTbMappings() => TbMappingKeys.All.ToDictionary(
@@ -317,7 +317,7 @@ public sealed class MappingMetadataCodecTests
                 "rde.0123456789abcdef0123456789abcdef",
                 "Risk Amount",
                 "風險金額",
-                RdeFieldValueTypeNames.Money)
+                RdeFieldValueTypeNames.Amount)
         ]);
 }
 
@@ -338,7 +338,7 @@ public sealed class OpenXmlMappingMetadataReaderTests
             var result = await new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None);
 
             Assert.Equal(GlAmountModeNames.Flag, result.Gl.AmountMode);
-            Assert.Equal("D", result.Gl.Mapping[GlMappingKeys.DcDebitCode]);
+            Assert.Equal("D", result.Gl.Mapping[GlMappingKeys.DrCrDebitCode]);
             Assert.Equal(TbChangeModeNames.Direct, result.Tb.ChangeMode);
         }
         finally
@@ -436,14 +436,14 @@ public sealed class OpenXmlMappingMetadataReaderTests
         DatasetKind.Gl,
         new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "Document",
-            [GlMappingKeys.PostDate] = "PostDate",
-            [GlMappingKeys.AccNum] = "Account",
-            [GlMappingKeys.AccName] = "AccountName",
+            [GlMappingKeys.VoucherNumber] = "Document",
+            [GlMappingKeys.GlDate] = "GlDate",
+            [GlMappingKeys.AccountNumber] = "Account",
+            [GlMappingKeys.AccountName] = "AccountName",
             [GlMappingKeys.Description] = "Description",
             [GlMappingKeys.Amount] = "Amount",
-            [GlMappingKeys.DcField] = "Side",
-            [GlMappingKeys.DcDebitCode] = "D"
+            [GlMappingKeys.DrCr] = "Side",
+            [GlMappingKeys.DrCrDebitCode] = "D"
         },
         mode,
         "gl-batch",
@@ -453,9 +453,9 @@ public sealed class OpenXmlMappingMetadataReaderTests
         DatasetKind.Tb,
         new Dictionary<string, string>
         {
-            [TbMappingKeys.AccNum] = "Account",
-            [TbMappingKeys.AccName] = "AccountName",
-            [TbMappingKeys.Amount] = "Movement"
+            [TbMappingKeys.AccountNumber] = "Account",
+            [TbMappingKeys.AccountName] = "AccountName",
+            [TbMappingKeys.ChangeAmount] = "Movement"
         },
         mode,
         "tb-batch",

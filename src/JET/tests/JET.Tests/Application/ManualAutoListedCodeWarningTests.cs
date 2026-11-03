@@ -5,14 +5,14 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 2026-10-05 最後獨立複審 V3：人工/自動分錄選「只列一側」時，清單上留著的代碼如果在來源裡一筆都沒有，
+/// 人工/自動分錄選「只列一側」時，清單上留著的代碼如果在來源裡一筆都沒有，
 /// 其他非空白的值會全部歸到另一側，用到人工分錄的條件默默變成 0 筆或幾乎全部。
-/// 依 Q5「確認配對前也提醒」與 V3 裁定，確認欄位配對後要給不擋的提醒，寫出代碼、來源欄與下一步；
+/// 依裁定 2026-10-04-01 的「確認配對前也提醒」與裁定 2026-10-05-01，確認欄位配對後要給不擋的提醒，寫出代碼、來源欄與下一步；
 /// 清單代碼有出現在來源時不提醒。預期文字逐字寫在這裡，不由產品程式組出。
 /// </summary>
 public sealed class ManualAutoListedCodeWarningTests
 {
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         private const string ListsManualMissing =
         "來源欄「人工傳票」中沒有人工分錄代碼「1」，有值的列都將視為自動分錄。代碼有誤時，請修改後重新確認配對。";
 
@@ -25,11 +25,11 @@ public sealed class ManualAutoListedCodeWarningTests
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "V3-2025",
-            entityName = "合成只列一側",
+            clientName = "合成只列一側",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",
-            lastPeriodStart = "2025-12-31",
+            prepStartDate = "2025-12-31",
             databaseProvider = provider
         }));
         var gl = new InlineGlWorkbookBuilder()

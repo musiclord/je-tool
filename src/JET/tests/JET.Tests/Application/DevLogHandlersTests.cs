@@ -192,7 +192,7 @@ public sealed class DevLogHandlersTests
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = $"LOG-{suffix}",
-            entityName = "Diagnostic Test",
+            clientName = "Diagnostic Test",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",

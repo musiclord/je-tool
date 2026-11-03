@@ -53,13 +53,13 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
 
         await MarkCalendarImportedAsync(document);
 
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         return new { count = result.Count,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning };
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning };
     }
 
     private async Task MarkCalendarImportedAsync(ProjectDocument document)
@@ -185,13 +185,13 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
 
         await MarkCalendarImportedAsync(document);
 
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         return new { count = result.Count,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning };
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning };
     }
 
     private async Task MarkCalendarImportedAsync(ProjectDocument document)
@@ -308,12 +308,12 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
         }
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(
-            projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.ShouldExecute ? plan.Effects : null, logger);
+            projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.ShouldExecute ? plan.Effects : null, logger);
         return new { ok = true, nonWorkingDays = result.NormalizedDays,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning };
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning };
     }
 }

@@ -4,10 +4,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 科目配對全列匯出(本地引擎,匯出底稿 sheet 15)。自 <c>target_account_mapping</c> 取每一列,
+/// 科目配對全列匯出(本地引擎,匯出底稿 sheet 15)。自 <c>account_mapping</c> 取每一列,
 /// not-in-tb 旗標以 <see cref="ValidationProcedures.CompletenessDiffCte"/> 的 not_in_tb 為單一事實來源
 /// (GL 有 TB 無 = 1):科目代號落在該 CTE not_in_tb=1 子集者旗標為真。
-/// 科目數有界(實務數百),全載入即可、不分頁。排序鍵 account_code ASC(雙 provider 穩定一致,對齊樣本逐科目升冪)。
+/// 科目數有界(實務數百),全載入即可、不分頁。排序鍵 account_number ASC(雙 provider 穩定一致,對齊樣本逐科目升冪)。
 /// not_in_tb 旗標本地引擎用 GetInt64。
 /// </summary>
 public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase database)
@@ -25,14 +25,14 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
             ValidationProcedures.CompletenessDiffCte +
             """
 
-            SELECT m.account_code,
+            SELECT m.account_number,
                    m.account_name,
                    COALESCE(t.label, m.standardized_category),
-                   CASE WHEN m.account_code IN (SELECT account_code FROM diff WHERE not_in_tb = 1)
+                   CASE WHEN m.account_number IN (SELECT account_number FROM diff WHERE not_in_tb = 1)
                         THEN 1 ELSE 0 END AS not_in_tb
-            FROM target_account_mapping m
-            LEFT JOIN config_account_taxonomy t ON t.category_id = m.category_id
-            ORDER BY m.account_code;
+            FROM account_mapping m
+            LEFT JOIN account_category t ON t.category_id = m.category_id
+            ORDER BY m.account_number;
             """;
         var rows = new List<AccountMappingExportRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -56,14 +56,14 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        // 範本與科目清單、差異清單共用可配對科目母體（排除空白科目編號），account_code 升冪。
+        // 範本與科目清單、差異清單共用可配對科目母體（排除空白科目編號），account_number 升冪。
         command.CommandText =
             AccountMappingPopulationQuery.Cte("", database.Dialect) +
             """
 
-            SELECT account_code, account_name
+            SELECT account_number, account_name
             FROM population
-            ORDER BY account_code;
+            ORDER BY account_number;
             """;
         var rows = new List<AccountMappingTemplateRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);

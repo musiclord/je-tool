@@ -112,20 +112,20 @@ public sealed class ProjectRepositoryCatalogTests
         var duckDb = fixture.Catalog.For(ProjectDocument.DuckDbDatabaseProvider);
         Directory.CreateDirectory(Path.Combine(fixture.RootPath, projectId));
         var contentWritten = false;
-        var request = new ReportArtifactWriteRequest(
-            ReportArtifactKind.ValidationReport,
-            new ReportArtifactSourceRefs(ValidationRunId: "run-1"),
+        var request = new ReportWriteRequest(
+            ReportKind.ValidationReport,
+            new ReportSourceRefs(ValidationResultId: "run-1"),
             (_, _) =>
             {
                 contentWritten = true;
                 return Task.CompletedTask;
             });
 
-        await using (await sqlite.ReportArtifactStore.AcquireProjectDeletionLeaseAsync(projectId, CancellationToken.None))
+        await using (await sqlite.ReportStore.AcquireProjectDeletionLeaseAsync(projectId, CancellationToken.None))
         {
             using var waiting = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                duckDb.ReportArtifactStore.WriteAsync(projectId, request, waiting.Token));
+                duckDb.ReportStore.WriteAsync(projectId, request, waiting.Token));
         }
 
         Assert.False(contentWritten);
@@ -169,11 +169,11 @@ public sealed class ProjectRepositoryCatalogTests
                 new AppCompositionRoot.ProjectRepositoryAssembly(
                     projectStore,
                     new SqlServerProjectRegistry(sqlServerOptions),
-                    new CaseCreateBackendPort(sqlite, sqlServerDatabase, duckDb),
+                    new ProjectCreateBackendPort(sqlite, sqlServerDatabase, duckDb),
                     LocalFileLock,
                     SqlServerLock,
                     SqlServerDeletionLock,
-                    new ProjectReportArtifactStore(folder),
+                    new ProjectReportStore(folder),
                     NullLoggerFactory.Instance,
                     new ProjectSession(),
                     new ActionExecutionGate()),

@@ -10,7 +10,7 @@ public sealed class CalendarTemplateRoundTripTests
 {
     // jet-guide section 2 and test-environment-notes: row 1 is instructions,
     // row 2 contains headers, and only Y rows from IS_Holiday are imported.
-    // 改動原因：使用者 2026-10-08 畫面註解要求移除範本入口，K15 的 export.calendarTemplates 隨之移除；
+    // 改動原因：裁定 2026-10-08-08 移除假日與補班日卡片的範本入口，export.calendarTemplates 隨之移除；
     // 這裡改由 ReportTemplateCatalog 直接複製隨附範本，其餘匯入列數與日期斷言不變。
     [Theory]
     [InlineData("sqlite")]
@@ -19,7 +19,7 @@ public sealed class CalendarTemplateRoundTripTests
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
-        { caseName = "Synthetic calendar round trip", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
+        { projectName = "Synthetic calendar round trip", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
         var id = created.GetProperty("projectId").GetString()!;
         Assert.Equal("Holiday2025TW.xlsx", ReportTemplateCatalog.Holiday);
         Assert.Equal("MakeUpDay2025TW.xlsx", ReportTemplateCatalog.MakeUpDay);
@@ -54,11 +54,11 @@ public sealed class CalendarTemplateRoundTripTests
         var calendar = reopened.GetProperty("importState").GetProperty("calendar");
         Assert.Equal(expected["import.holiday.fromFile"].Length, calendar.GetProperty("holidayCount").GetInt32());
         Assert.Equal(expected["import.makeupDay.fromFile"].Length, calendar.GetProperty("makeupDayCount").GetInt32());
-        var preview = await host.DispatchAsync("query.dataPreview", """{"dataset":"dateDimension","pageSize":500}""");
+        var preview = await host.DispatchAsync("query.dataPreview", """{"dataset":"calendar","pageSize":500}""");
         Assert.Contains("2025-01-01", expected["import.holiday.fromFile"]);
         Assert.Contains(preview.GetProperty("rows").EnumerateArray(), row =>
             row[0].GetString() == "2025-01-01" && row[1].GetString() == "holiday");
-        var stored = await UsageScenarioMutationRollbackTests.ReadTableAsync(host, id, provider, "staging_calendar_raw_day");
+        var stored = await UsageScenarioMutationRollbackTests.ReadTableAsync(host, id, provider, "calendar_day");
         var rows = stored.Select(row => JsonSerializer.Deserialize<string?[]>(row)!).ToArray();
         Assert.Equal(expected["import.holiday.fromFile"], rows.Where(row => row[0] == "holiday").Select(row => row[1]).Order());
         Assert.Equal(expected["import.makeupDay.fromFile"], rows.Where(row => row[0] == "makeup").Select(row => row[1]).Order());

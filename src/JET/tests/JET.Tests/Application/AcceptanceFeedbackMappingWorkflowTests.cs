@@ -19,19 +19,19 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
     [MemberData(nameof(CodeCases))]
     public async Task SingleCode_ProjectsKnownOtherAndBlankValues_AndReopens(string provider, string mode, bool debit)
     {
-        using var f = await Batch9MappingTestFixture.CreateAsync(provider, manyRows: true);
-        var mapping = Batch9MappingTestFixture.Mapping();
-        mapping["dcField"] = "BadSide";
-        mapping[debit ? "dcDebitCode" : "dcCreditCode"] = debit ? " x " : "y";
+        using var f = await MappingCaseTemplateFixture.CreateAsync(provider, manyRows: true);
+        var mapping = MappingCaseTemplateFixture.Mapping();
+        mapping["drCr"] = "BadSide";
+        mapping[debit ? "drCrDebitCode" : "drCrCreditCode"] = debit ? " x " : "y";
         await f.CommitAsync(mapping, mode);
         // 固定來源為 60 個 X、3 個 Y、2 個空白，每筆 1 元，不由產品規則計算預期值。
-        Assert.Equal(debit ? 60 : 62, await f.ScalarAsync("SELECT COUNT(*) FROM target_gl_entry WHERE amount_scaled=10000;"));
-        Assert.Equal(debit ? 5 : 3, await f.ScalarAsync("SELECT COUNT(*) FROM target_gl_entry WHERE amount_scaled=-10000;"));
+        Assert.Equal(debit ? 60 : 62, await f.ScalarAsync("SELECT COUNT(*) FROM gl WHERE amount_scaled=10000;"));
+        Assert.Equal(debit ? 5 : 3, await f.ScalarAsync("SELECT COUNT(*) FROM gl WHERE amount_scaled=-10000;"));
         await f.Host.DispatchAsync("project.releaseLock");
         var loaded = await f.LoadAsync();
         var stored = loaded.GetProperty("mapping").GetProperty("gl").GetProperty("mapping");
-        Assert.Equal(debit ? "x" : "y", stored.GetProperty(debit ? "dcDebitCode" : "dcCreditCode").GetString());
-        Assert.False(stored.TryGetProperty(debit ? "dcCreditCode" : "dcDebitCode", out _));
+        Assert.Equal(debit ? "x" : "y", stored.GetProperty(debit ? "drCrDebitCode" : "drCrCreditCode").GetString());
+        Assert.False(stored.TryGetProperty(debit ? "drCrCreditCode" : "drCrDebitCode", out _));
         await f.Host.DispatchAsync("validate.run");
     }
 
@@ -43,13 +43,13 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
 
     [Theory]
     [MemberData(nameof(SourceChanges))]
-    public async Task SourceChange_ClearsAccountAssignmentsButKeepsTaxonomy_AndAllowsReclassification(
+    public async Task SourceChange_ClearsAccountAssignmentsButKeepsCategory_AndAllowsReclassification(
         string provider, string kind, string change)
     {
-        using var f = await Batch9MappingTestFixture.CreateAsync(provider);
-        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountCode":"A","categoryId":"builtin.cash"}]}""");
+        using var f = await MappingCaseTemplateFixture.CreateAsync(provider);
+        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountNumber":"A","categoryId":"builtin.cash"}]}""");
         var before = await f.LoadAsync();
-        Assert.Equal(1, await f.ScalarAsync("SELECT COUNT(*) FROM target_account_mapping;"));
+        Assert.Equal(1, await f.ScalarAsync("SELECT COUNT(*) FROM account_mapping;"));
         Assert.Equal(1, await f.ScalarAsync("SELECT COUNT(*) FROM import_batch WHERE dataset_kind='account_mapping';"));
         JsonElement response;
         if (change == "mapping")
@@ -61,17 +61,17 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
             finally { TestWorkbookBuilder.Delete(file); }
         }
         Assert.True(response.GetProperty("invalidatedResults").GetProperty("accountMapping").GetBoolean());
-        foreach (var table in new[] { "target_account_mapping", "staging_account_mapping_raw_row" })
+        foreach (var table in new[] { "account_mapping", "pbc_account_mapping" })
             Assert.Equal(0, await f.ScalarAsync("SELECT COUNT(*) FROM " + table + ";"));
         Assert.Equal(0, await f.ScalarAsync("SELECT COUNT(*) FROM import_batch WHERE dataset_kind='account_mapping';"));
         var after = await f.LoadAsync();
         Assert.Equal(JsonValueKind.Null, after.GetProperty("importState").GetProperty("accountMapping").ValueKind);
-        Assert.Equal(before.GetProperty("taxonomy").GetRawText(), after.GetProperty("taxonomy").GetRawText());
+        Assert.Equal(before.GetProperty("accountCategory").GetRawText(), after.GetProperty("accountCategory").GetRawText());
         if (change != "mapping")
             await f.Host.DispatchAsync("mapping.commit." + kind, before.GetProperty("mapping").GetProperty(kind).GetRawText());
         var page = await f.Host.DispatchAsync("query.accountMappingPage");
         Assert.All(page.GetProperty("rows").EnumerateArray(), row => Assert.Equal(JsonValueKind.Null, row.GetProperty("categoryId").ValueKind));
-        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountCode":"A","categoryId":"builtin.revenue"}]}""");
+        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountNumber":"A","categoryId":"builtin.revenue"}]}""");
         await f.Host.DispatchAsync("project.releaseLock");
         await f.LoadAsync();
         page = await f.Host.DispatchAsync("query.accountMappingPage");
@@ -85,14 +85,14 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
     [InlineData("duckdb", "tb")]
     public async Task FailedProjection_PreservesSavedClassificationsAndTheirImportState(string provider, string kind)
     {
-        using var f = await Batch9MappingTestFixture.CreateAsync(provider);
-        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountCode":"A","categoryId":"builtin.cash"}]}""");
+        using var f = await MappingCaseTemplateFixture.CreateAsync(provider);
+        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountNumber":"A","categoryId":"builtin.cash"}]}""");
         var before = await f.LoadAsync();
-        var tables = new[] { "target_account_mapping", "staging_account_mapping_raw_row", "import_batch", "import_batch_source" };
+        var tables = new[] { "account_mapping", "pbc_account_mapping", "import_batch", "import_batch_source" };
         var snapshots = new Dictionary<string, string[]>();
         foreach (var table in tables) snapshots[table] = await UsageScenarioMutationRollbackTests.ReadTableAsync(f.Host, f.ProjectId, provider, table);
         var payload = JsonNode.Parse(before.GetProperty("mapping").GetProperty(kind).GetRawText())!;
-        payload["mapping"]!["amount"] = kind == "gl" ? "BadAmount" : "Bad";
+        payload["mapping"]![kind == "gl" ? "amount" : "changeAmount"] = kind == "gl" ? "BadAmount" : "Bad";
         var error = await Assert.ThrowsAsync<JetActionException>(() => f.Host.DispatchAsync("mapping.commit." + kind, payload.ToJsonString()));
         Assert.Equal("projection_failed", error.Code);
         var after = await f.LoadAsync();
@@ -105,8 +105,8 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
     [InlineData("duckdb")]
     public async Task ReplacingBothFilesWithDifferentColumns_UpdatesJetAndExcelAccounts_WithoutChangingProjectMetadata(string provider)
     {
-        using var f = await Batch9MappingTestFixture.CreateAsync(provider);
-        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountCode":"A","categoryId":"builtin.cash"}]}""");
+        using var f = await MappingCaseTemplateFixture.CreateAsync(provider);
+        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountNumber":"A","categoryId":"builtin.cash"}]}""");
         var before = await f.LoadAsync();
         foreach (var kind in new[] { "gl", "tb" })
         {
@@ -123,26 +123,26 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
             try { await f.Host.DispatchAsync("import." + kind + ".fromFile", JsonSerializer.Serialize(new { filePath = path, mode = "replace" })); }
             finally { TestWorkbookBuilder.Delete(path); }
         }
-        await f.Host.DispatchAsync("mapping.commit.gl", """{"amountMode":"signed","mapping":{"docNum":"NewVoucher","postDate":"NewDate","accNum":"NewCode","accName":"NewName","description":"NewText","amount":"NewAmount"}}""");
-        await f.Host.DispatchAsync("mapping.commit.tb", """{"changeMode":"direct","mapping":{"accNum":"NewCode","accName":"NewName","amount":"NewChange"}}""");
+        await f.Host.DispatchAsync("mapping.commit.gl", """{"amountMode":"signed","mapping":{"voucherNumber":"NewVoucher","glDate":"NewDate","accountNumber":"NewCode","accountName":"NewName","description":"NewText","amount":"NewAmount"}}""");
+        await f.Host.DispatchAsync("mapping.commit.tb", """{"changeMode":"direct","mapping":{"accountNumber":"NewCode","accountName":"NewName","changeAmount":"NewChange"}}""");
         await f.Host.DispatchAsync("validate.run");
         var page = await f.Host.DispatchAsync("query.accountMappingPage", """{"pageSize":200}""");
-        Assert.Equal(new[] { "B", "C" }, page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("accountCode").GetString()));
+        Assert.Equal(new[] { "B", "C" }, page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("accountNumber").GetString()));
         Assert.Equal(new[] { "New debit", "New credit" }, page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("accountName").GetString()));
         Assert.All(page.GetProperty("rows").EnumerateArray(), row => Assert.Equal(JsonValueKind.Null, row.GetProperty("categoryId").ValueKind));
         var template = await new LocalAccountMappingExportRepository(Database(f, provider))
             .FetchTemplateRowsAsync(f.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None);
-        Assert.Equal(new[] { "B", "C" }, template.Select(row => row.AccountCode));
+        Assert.Equal(new[] { "B", "C" }, template.Select(row => row.AccountNumber));
         var exported = await f.Host.DispatchAsync("export.accountMappingTemplate");
         Assert.Equal(2, exported.GetProperty("rowCount").GetInt32());
         Assert.True(File.Exists(exported.GetProperty("filePath").GetString()));
         await f.Host.DispatchAsync("project.releaseLock");
         var reopened = await f.LoadAsync();
         Assert.Equal(JsonValueKind.Null, reopened.GetProperty("importState").GetProperty("accountMapping").ValueKind);
-        Assert.Equal(before.GetProperty("taxonomy").GetRawText(), reopened.GetProperty("taxonomy").GetRawText());
+        Assert.Equal(before.GetProperty("accountCategory").GetRawText(), reopened.GetProperty("accountCategory").GetRawText());
         Assert.Equal("2025-01-01", reopened.GetProperty("project").GetProperty("periodStart").GetString());
         Assert.Equal("2025-12-31", reopened.GetProperty("project").GetProperty("periodEnd").GetString());
-        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountCode":"B","categoryId":"builtin.cash"},{"accountCode":"C","categoryId":"builtin.revenue"}]}""");
+        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountNumber":"B","categoryId":"builtin.cash"},{"accountNumber":"C","categoryId":"builtin.revenue"}]}""");
         page = await f.Host.DispatchAsync("query.accountMappingPage");
         Assert.Equal(new[] { "builtin.cash", "builtin.revenue" }, page.GetProperty("rows").EnumerateArray().Select(row => row.GetProperty("categoryId").GetString()));
     }
@@ -154,10 +154,10 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
     [InlineData("duckdb", DatasetKind.Tb)]
     public async Task CancellationAfterSourceReset_RollsBackAccountAssignmentsAndImportMetadata(string provider, DatasetKind kind)
     {
-        using var f = await Batch9MappingTestFixture.CreateAsync(provider);
-        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountCode":"A","categoryId":"builtin.cash"}]}""");
+        using var f = await MappingCaseTemplateFixture.CreateAsync(provider);
+        await f.Host.DispatchAsync("accountMapping.save", """{"changes":[{"accountNumber":"A","categoryId":"builtin.cash"}]}""");
         var before = await f.LoadAsync();
-        var tables = new[] { "target_account_mapping", "staging_account_mapping_raw_row", "import_batch", "import_batch_source" };
+        var tables = new[] { "account_mapping", "pbc_account_mapping", "import_batch", "import_batch_source" };
         var snapshots = new Dictionary<string, string[]>();
         foreach (var table in tables) snapshots[table] = await UsageScenarioMutationRollbackTests.ReadTableAsync(f.Host, f.ProjectId, provider, table);
         using var cancellation = new CancellationTokenSource();
@@ -178,7 +178,7 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
         cancellation.Token.ThrowIfCancellationRequested();
     }
 
-    private static ILocalProjectDatabase Database(Batch9MappingTestFixture f, string provider)
+    private static ILocalProjectDatabase Database(MappingCaseTemplateFixture f, string provider)
     {
         var folder = new JetProjectFolder(f.Host.ProjectsRoot);
         return provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);

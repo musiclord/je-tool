@@ -1,16 +1,16 @@
 'use strict';
-// 前端情境測試的共用夾具（收尾四項第一項第 0 批，2026-10-13）。
+// 前端情境測試的共用夾具（2026-10-13）。
 //
 // 用途：tools/tests/frontend-journey-*.test.cjs 依審計員的使用情境載入正式前端腳本、操作畫面並斷言結果。
 // 兩個以上情境檔都會用到的夾具與小工具放在這裡；只服務一個情境檔的夾具留在那個檔裡。
 // 檔名不含 .test.，Node 不會把它當成測試執行；夾具本身的測試在 tools/tests/frontend-support.test.cjs。
 //
-// 來源：下面標示「copied from」的區段，是第 0 批從 frontend-workflow.test.cjs（wf）與 frontend-mapping.test.cjs（mp）
+// 來源：下面標示「copied from」的區段，是建立本模組時從 frontend-workflow.test.cjs（wf）與 frontend-mapping.test.cjs（mp）
 // 原樣複製的副本（標示的行號是複製當時的位置）。複製後 wf 的 remapAppFixture 多掛出
 // renderContent、renderMessagesPanel 與 buildMessage，這裡已同步。
-// 第 11 批（2026-10-14）讓 wf、mp 改用本模組並刪掉自己的副本；搬之前逐一比對過，wf 在複製之後改過的 filterOperationFixture 已照 wf 同步。
+// 2026-10-14 整併時讓 wf、mp 改用本模組並刪掉自己的副本；搬之前逐一比對過，wf 在複製之後改過的 filterOperationFixture 已照 wf 同步。
 // 只有 remapAppFixture 沒有換：wf 的根節點本身就是中欄，f.draw() 會清掉頁首與案件清單，wf 的測試依賴這個寫法，所以 wf 保留自己那一份。
-// 和 wf、mp 原本那份不同的地方，都在該函式內用「第 0 批補：」的註解標出，主要是：
+// 和 wf、mp 原本那份不同的地方，都在該函式內用「本模組補：」的註解標出，主要是：
 //   - batch9TreeDom：屬性選擇器接受不帶引號的值（[data-bind=busy-elapsed]）；:not(...) 不必開 dialogFocus 也照規則判斷；
 //     「>」照子元素判斷；元素有 attributes 清單、id 與 select()；dispatch() 會冒泡到 document，fire() 在 bubbles 選項下也會冒泡；
 //     document.addEventListener 會記下監聽；serialization: 'browser' 讓 innerHTML 和瀏覽器一樣不把文字裡的引號轉成 &quot;；
@@ -76,7 +76,7 @@ function exposeAt(source, anchor, code, options = {}) {
   return source.slice(0, at) + code + source.slice(at);
 }
 
-// 第五步的程式分成五個檔案（預篩選收斂計畫階段十，2026-10-25），照 index.html 的順序載入，主檔 filter-step.js 最後；
+// 第五步的程式分成五個檔案（2026-10-25），照 index.html 的順序載入，主檔 filter-step.js 最後；
 // 前四個檔案把函式掛在 JetUi.FilterStep，主檔透過它轉呼叫。要讀第五步原始碼的測試把五個檔案合起來讀，範圍和拆檔前相同。
 const FILTER_STEP_FILES = ['steps/filter-step-view.js', 'steps/filter-step-sources.js', 'steps/filter-step-rules.js',
   'steps/filter-step-saved.js', 'steps/filter-step.js'];
@@ -187,9 +187,9 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:3367 (batch9TreeDom) ----
 // Minimal tree DOM for real rule-list render/bind and app renderContent lifecycles (not a second pager implementation).
-// 第 0 批補的選項：bubbles（fire() 也照瀏覽器冒泡）、serialization: 'browser'（innerHTML 文字不把引號轉成 &quot;）。
+// 本模組補的選項：bubbles（fire() 也照瀏覽器冒泡）、serialization: 'browser'（innerHTML 文字不把引號轉成 &quot;）。
 function batch9TreeDom(options = {}) {
-  // 第 0 批補：預設維持 wf 的寫法，文字也把 " 轉成 &quot;；serialization: 'browser' 時和瀏覽器一樣，文字只跳脫 & < >。
+  // 本模組補：預設維持 wf 的寫法，文字也把 " 轉成 &quot;；serialization: 'browser' 時和瀏覽器一樣，文字只跳脫 & < >。
   // 用 wf 的寫法測不出 Ui.esc 漏掉雙引號那一行，因為假 DOM 自己就轉好了。屬性值兩種模式都跳脫 & " < >。
   const browserText = options.serialization === 'browser';
   const escape = value => { const text = String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); return browserText ? text : text.replace(/"/g, '&quot;'); };
@@ -198,7 +198,7 @@ function batch9TreeDom(options = {}) {
   let document;
   const documentListeners = [];
   const captureOf = listenerOptions => listenerOptions === true || !!(listenerOptions && listenerOptions.capture);
-  // 第 0 批補：照瀏覽器的順序送事件：document 的捕獲監聽、目標、各層父元素，最後是 document 的一般監聽；
+  // 本模組補：照瀏覽器的順序送事件：document 的捕獲監聽、目標、各層父元素，最後是 document 的一般監聽；
   // stopPropagation 停在目前這一層，stopImmediatePropagation 連同一層後面的監聽也不跑。只有掛在畫面根節點下的元素會傳到 document。
   function dispatchEvent(target, type, extra = {}) {
     const event = { type, target, bubbles: true, defaultPrevented: false, propagationStopped: false, immediateStopped: false,
@@ -223,7 +223,7 @@ function batch9TreeDom(options = {}) {
     if (reachesDocument && !event.propagationStopped) runDocument(false);
     return event;
   }
-  // 第 0 批補：支援 [a="b"]、[a='b'] 與不帶引號的 [a=b]，回傳 [名稱, 值或 undefined]。
+  // 本模組補：支援 [a="b"]、[a='b'] 與不帶引號的 [a=b]，回傳 [名稱, 值或 undefined]。
   const attributeSelectors = selector => [...selector.matchAll(/\[([^\]=\s]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\]"'\s]+)))?\]/g)]
     .map(match => [match[1], match[2] ?? match[3] ?? match[4]]);
   function element(tag = 'div', attrs = {}) {
@@ -234,12 +234,12 @@ function batch9TreeDom(options = {}) {
       hasAttribute(name) { return Object.hasOwn(this.attrs, name); },
       setAttribute(name, value) { this.attrs[name] = String(value); }, removeAttribute(name) { delete this.attrs[name]; },
       addEventListener(name, fn) { (this.handlers[name] ||= []).push(fn); },
-      // 第 0 批補：bubbles 選項開啟時 fire() 等於 dispatch()；沒開時維持 wf 的寫法，只呼叫目標自己的監聽。
+      // 本模組補：bubbles 選項開啟時 fire() 等於 dispatch()；沒開時維持 wf 的寫法，只呼叫目標自己的監聽。
       fire(name, extra = {}) { if (options.bubbles) return dispatchEvent(this, name, extra); for (const fn of this.handlers[name] || []) fn({ target: this, currentTarget: this, preventDefault() {}, stopPropagation() {}, ...extra }); },
       dispatch(name, extra = {}) { return dispatchEvent(this, name, extra); },
       // 2026-10-19：共用頁籤用方向鍵換頁時呼叫 element.click()，和瀏覽器一樣送出會冒泡的 click。
       click() { return dispatchEvent(this, 'click'); },
-      // 第 0 批補：app.js 的焦點辨識讀 element.attributes 與 element.id；剪貼簿備援會呼叫 select()。
+      // 本模組補：app.js 的焦點辨識讀 element.attributes 與 element.id；剪貼簿備援會呼叫 select()。
       get attributes() { return Object.entries(this.attrs).map(([name, value]) => ({ name, value })); },
       get id() { return this.attrs.id || ''; }, set id(value) { this.attrs.id = String(value); },
       select() { this.selectionStart = 0; this.selectionEnd = String(this.value ?? '').length; },
@@ -247,7 +247,7 @@ function batch9TreeDom(options = {}) {
       contains(child) { for (let p = child; p; p = p.parentElement) if (p === this) return true; return false; },
       matches(selector) {
         if (selector.includes(',')) return selector.split(',').some(part => this.matches(part.trim()));
-        // 第 0 批補：:not(...) 一律照規則判斷；wf 只在 dialogFocus 時判斷，否則會把括號裡的屬性當成必須符合。
+        // 本模組補：:not(...) 一律照規則判斷；wf 只在 dialogFocus 時判斷，否則會把括號裡的屬性當成必須符合。
         if (/:not\([^()]*\)/.test(selector)) {
           const negated = [...selector.matchAll(/:not\(([^()]*)\)/g)].map(match => match[1]);
           return this.matches(selector.replace(/:not\([^()]*\)/g, '')) && !negated.some(part => this.matches(part));
@@ -262,7 +262,7 @@ function batch9TreeDom(options = {}) {
       closest(selector) { for (let node = this; node; node = node.parentElement) if (node.matches(selector)) return node; return null; },
       querySelectorAll(selector) {
         const selectors = selector.split(',').map(part => part.trim()), found = [];
-        // 第 0 批補：「>」照子元素判斷；wf 把它當成任何祖先都符合。
+        // 本模組補：「>」照子元素判斷；wf 把它當成任何祖先都符合。
         function matchesPath(node, parts) { if (!node.matches(parts.at(-1))) return false; let p = node.parentElement;
           for (let i = parts.length - 2; i >= 0; i--) {
             if (parts[i] === '>') { i--; if (i < 0 || !p || !p.matches(parts[i])) return false; p = p.parentElement; continue; }
@@ -319,7 +319,7 @@ function batch9TreeDom(options = {}) {
       if (descriptor.get || descriptor.set || ['parentElement', 'children', 'handlers'].includes(key)) Object.defineProperty(node, key, { ...descriptor, enumerable: false });
     }
     // 對話框淡出後用 parentNode.removeChild 拿掉（JetMotion.dismiss），第五步的欄位提示用 input.parentNode 找到欄位那一列再加上說明。
-    // 第 11 批（2026-10-14）：原本只在 dialogFocus 時才有，改成一律提供，和瀏覽器一樣；第 9 批因為沒有 parentNode 看不到第五步名稱欄與動機欄旁的提示。
+    // 2026-10-14 整併時：原本只在 dialogFocus 時才有，改成一律提供，和瀏覽器一樣；儲存流程的測試原本因為沒有 parentNode 看不到第五步名稱欄與動機欄旁的提示。
     // parentNode 和 parentElement 一樣不可列舉（原因見上一段）。
     Object.defineProperty(node, 'parentNode', { get() { return this.parentElement; }, enumerable: false });
     node.removeChild = child => { child.remove(); return child; };
@@ -328,12 +328,12 @@ function batch9TreeDom(options = {}) {
       contains(name) { return node.className.split(/\s+/).includes(name); }, toggle(name, force) { const on = force ?? !this.contains(name); this[on ? 'add' : 'remove'](name); } };
     return node;
   }
-  // 第 0 批補：rootAttributes 可換掉根節點的屬性。預設和 wf 一樣是 data-bind="content"，整個畫面就是中欄；
+  // 本模組補：rootAttributes 可換掉根節點的屬性。預設和 wf 一樣是 data-bind="content"，整個畫面就是中欄；
   // remapAppFixture 改用 data-jet-root，把中欄放成根節點裡的一個區塊，app.js 的 render() 重建中欄時才不會清掉頁首。
   const content = element('main', options.rootAttributes || { 'data-bind': 'content' });
   document = { readyState: 'loading', activeElement: null, createElement: element,
     contains: node => node === content || content.contains(node),
-    // 第 0 批補：記下 document 的監聽（wf 的版本什麼都不做），冒泡到畫面根節點後會呼叫；capture 監聽在目標之前執行。
+    // 本模組補：記下 document 的監聽（wf 的版本什麼都不做），冒泡到畫面根節點後會呼叫；capture 監聽在目標之前執行。
     addEventListener(type, fn, listenerOptions) {
       const capture = captureOf(listenerOptions);
       if (!documentListeners.some(entry => entry.type === type && entry.fn === fn && entry.capture === capture)) documentListeners.push({ type, fn, capture });
@@ -356,13 +356,13 @@ function batch9TreeDom(options = {}) {
 // 空白摘要卡存成的情境。2026-10-29 卡片改用代號、編輯來源改存第 2 版，名稱與動機改成新的自動寫法，來源代碼改成 common；
 // 原本是第 1 版字母來源，正式後端已不回這種形狀。第一次失敗：FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
 const savedBlankDescription = (name = '空白摘要') => ({ name, rationale: '空白摘要', source: 'common',
-  // 第九節 G2 的現行空白摘要卡；舊情境測試另用原始 JSON，不由這個夾具轉換。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-  groups: [{ join: 'AND', matchScope: 'row', rules: [{ type: 'fieldValue', join: 'AND', field: 'description', operator: 'isBlank', includeBlank: false }] }],
+  // 改用欄位條件後的空白摘要卡；舊情境測試另用原始 JSON，不由這個夾具轉換。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
+  groups: [{ join: 'AND', matchScope: 'row', conditions: [{ type: 'fieldValue', join: 'AND', field: 'description', operator: 'isBlank', includeBlank: false }] }],
   editorOrigins: { version: 2, nameIsAutomatic: true, rationaleIsAutomatic: true, groups: [{ cards: ['blankDescription'] }] } });
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:4315 (usageJourneyFixture) ----
 // 合成回應只控制邊界；步驟繪製、事件處理與 Store 均執行正式腳本。
-// 第 0 批補的選項（和假 DOM 的選項放在同一個物件，其餘照舊交給 batch9TreeDom）：
+// 本模組補的選項（和假 DOM 的選項放在同一個物件，其餘照舊交給 batch9TreeDom）：
 //   redraw: true      訂閱 Store，contentVersion 改變時重繪目前步驟（和 app.js 的重繪條件相同）；f.drawCount() 是重繪次數。
 //   queueTimers: true setTimeout 收進 f.timers，由測試呼叫 f.timers.run() 執行；沒開時和 wf 一樣直接丟掉。
 //   clock: true       window.performance.now 改用 f.clock，f.clock.advance(ms) 才會前進；沒開時和 wf 一樣沒有 performance。
@@ -383,8 +383,8 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
     'account-mapping-editor.js', ...FILTER_STEP_FILES, 'steps/export-step.js'])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   const store = window.JetStore, state = store.getState();
-  store.setProject({ projectId: 'usage-synthetic', periodStart: '2025-01-01', periodEnd: '2025-11-30', lastPeriodStart: '2025-11-20' });
-  store.setLastRun('validate', { resultRef: { runId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
+  store.setProject({ projectId: 'usage-synthetic', periodStart: '2025-01-01', periodEnd: '2025-11-30', prepStartDate: '2025-11-20' });
+  store.setResult('validate', { resultRef: { resultId: 'v1' }, completenessTest: { eligibility: { isEligible: true } } });
   store.setSavedScenarios([savedBlankDescription('第一個'), savedBlankDescription('第二個'), savedBlankDescription('第三個')]);
   store.setFilterResultRef({ revision: 'r1', populationScope: 'auditPeriod' });
   const $ = selector => dom.content.querySelector(selector);
@@ -402,13 +402,13 @@ function usageJourneyFixture(step = 'export', fixtureOptions = {}) {
 }
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:4278 (filterOperationFixture) ----
-// 2026-10-07 進階篩選操作測試（計畫第八節「操作測試找到的問題」F1 到 F9）。前半用合成 DOM 繪出正式第五步並以真實點擊操作；
+// 2026-10-07 進階篩選操作測試，核對當時操作測試找到的問題。前半用合成 DOM 繪出正式第五步並以真實點擊操作；
 // 後半直接呼叫正式函式核對命名、送出形狀與預覽提示。名稱與動機的預期值逐字寫死，不由被測程式算出。
 function filterOperationFixture({ saved = [] } = {}) {
   const dom = batch9TreeDom(), commits = [];
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const context = vm.createContext({ window, document: dom.document });
-  // 第五步拆成五個檔案（階段十）：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  // 第五步拆成五個檔案：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
@@ -416,7 +416,7 @@ function filterOperationFixture({ saved = [] } = {}) {
   const store = window.JetStore, api = window.ops;
   // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境。
   // 三個新方法和舊的 filterCommit 都記進 commits 並帶方法名稱。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
-  // 第 11 批：wf 在第 0 批複製之後改成這個寫法，這裡照 wf 同步，wf 改用本模組。
+  // 整併時：wf 在建立本模組複製之後改成這個寫法，這裡照 wf 同步，wf 改用本模組。
   window.JetApi = contractJetApi(Object.fromEntries(['filterCommit', 'filterScenarioSave', 'filterScenarioRemove', 'filterScenarioRecheck'].map(method =>
     [method, payload => new Promise((resolve, reject) => commits.push({ method, payload, resolve, reject }))])));
   store.setProject({ projectId: 'filter-operation-synthetic' });
@@ -450,7 +450,7 @@ function remapFilterPreviewFixture() {
 }
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:4981 (remapAppFixture；wf 保留自己那一份，原因見檔頭) ----
-// 第 0 批補：options 原樣交給 usageJourneyFixture（例如 queueTimers、clock）。畫面放入 index.html 頁首的正式按鈕
+// 本模組補：options 原樣交給 usageJourneyFixture（例如 queueTimers、clock）。畫面放入 index.html 頁首的正式按鈕
 // （總覽、開啟案件資料夾、回首頁、退出，初始照 index.html 的 hidden），取代 wf 自己寫的兩個空按鈕；
 // 第一段切片延伸到 `var cancelOperationBtn = `，「開啟案件資料夾」也照正式程式綁定；另掛出 render，
 // 並補上 window.CSS.escape 與 document.body，讓整個 render() 可以在 vm 執行。
@@ -483,7 +483,7 @@ function remapAppFixture(options = {}) {
 // f.key 照瀏覽器的順序送鍵：先跑 document 捕獲階段的監聽，再從目標往上冒泡。
 // 假 DOM 的 focus() 不分元素能否取得焦點，實機焦點另由瀏覽器主機確認。
 // 比對兩個假 DOM 節點一律用 assert.ok(a === b)：assert.equal 失敗時會序列化整棵循環的假 DOM，記憶體用盡而看似卡住。
-// 第 0 批補：overviewDialogFixture({ charts: true }) 在載入 overview-bi.js 之前裝上假的 ECharts 與 ResizeObserver（f.charts），
+// 本模組補：overviewDialogFixture({ charts: true }) 在載入 overview-bi.js 之前裝上假的 ECharts 與 ResizeObserver（f.charts），
 // setTimeout 收進 f.timers，window 的監聽記在 f.windowListeners，f.resizeWindow() 送出 resize。沒開時和 wf 完全相同。
 function overviewDialogFixture({ charts = false } = {}) {
   const f = usageJourneyFixture('validate', charts ? { dialogFocus: true, queueTimers: true } : { dialogFocus: true });
@@ -530,14 +530,14 @@ function overviewDialogFixture({ charts = false } = {}) {
 function validationFixture() {
   return {
     completenessTest: { diffAccountCount: 1, diffAccounts: [],
-      partA: { rowCountMatch: true, amountMatch: true }, naReason: null,
+      storedTotals: { rowCountMatch: true, amountMatch: true }, naReason: null,
       eligibility: { isEligible: true, reason: null, warning: 'GL 與 TB 有 1 個科目差異，可說明原因並繼續。' } },
-    docBalanceTest: { unbalancedDocumentCount: 0 }, infSamplingTest: { sampleSize: 0 },
-    nullRecordsTest: { nullDocumentCount: 2, nullAccountCount: 2, nullDescriptionCount: 0, outOfRangeDateCount: 0,
+    voucherBalanceTest: { unbalancedVoucherCount: 0 }, infSamplingTest: { sampleSize: 0 },
+    blankRecordsTest: { nullDocumentCount: 2, nullAccountCount: 2, nullDescriptionCount: 0, approvalDateNotInPeriodCount: 0,
       nullRows: [
-        { documentNumber: '', accountCode: '1101', description: 'document only', issues: ['document'] },
-        { documentNumber: 'JV-2', accountCode: '', description: 'account only', issues: ['account'] },
-        { documentNumber: '', accountCode: '', description: 'both missing', issues: ['document', 'account'] }
+        { voucherNumber: '', accountNumber: '1101', description: 'document only', issues: ['document'] },
+        { voucherNumber: 'JV-2', accountNumber: '', description: 'account only', issues: ['account'] },
+        { voucherNumber: '', accountNumber: '', description: 'both missing', issues: ['document', 'account'] }
       ] }
   };
 }
@@ -585,14 +585,14 @@ function batch8Fixture() {
   const document = { readyState: 'loading', addEventListener() {}, querySelector: selector => elements.get(selector) || null,
     createElement() { return { textContent: '', get innerHTML() { return String(this.textContent).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } };
   const window = { setTimeout, clearTimeout, addEventListener() {}, JetFocus: { defer() {} }, JetApi: contractJetApi({}) };
-  for (const action of ['validateRun', 'exportValidationArtifacts', 'exportAccountMappingTemplate', 'exportPrescreenReport', 'hostOpenFolder', 'queryDataPreview', 'querySourceQualityPage', 'prescreenRun']) {
+  for (const action of ['validateRun', 'exportValidationReports', 'exportAccountMappingTemplate', 'exportPrescreenReport', 'hostOpenFolder', 'queryDataPreview', 'querySourceQualityPage', 'prescreenRun']) {
     window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
   }
   const context = vm.createContext({ window, document });
-  // 第五步拆成五個檔案（階段十）：前四個先載入，下面的清單再載入主檔。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  // 第五步拆成五個檔案：前四個先載入，下面的清單再載入主檔。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js', 'filter-values.js', 'overview-bi.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const modules = [
-    ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, NULL_PRESCREEN_ITEMS, DETAIL_PAGE_SPECS, detailHtml, validationCardHtml, validationArtifactsHtml, validationOutputStatusHtml, prescreenArtifactHtml, prescreenCardHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
+    ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, NULL_PRESCREEN_ITEMS, DETAIL_PAGE_SPECS, detailHtml, validationCardHtml, validationReportsHtml, validationOutputStatusHtml, prescreenReportHtml, prescreenCardHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
     ['filter', filterStepExposure('batch8Filter', ['customPickerHtml', 'exampleListHtml', 'ruleControlsHtml', 'ruleSummaryLabel', 'readBackHtml', 'toWireDraft', 'compoundRuleHtml', 'scenarioBuilderHtml'], 'viewState: FilterStep.viewState').trim()],
     ['mapping', 'window.batch8Mapping = { classicEditSection, summarySection, mappingPreflightHtml };'],
     ['import', 'window.batch8Import = { emptyFaceHtml, wizardBannerHtml, previewTableHtml, datasetCard, getWizard: () => wizard };'],
@@ -609,7 +609,7 @@ function batch8Fixture() {
   vm.runInContext(fs.readFileSync(path.join(root, 'data-preview.js'), 'utf8').replace('  Ui.initDataPreview = initDataPreview;',
     '  window.batch8Preview = { displayCell, renderNote, setup: function (aside, body, note) { elAside = aside; elBody = body; elNote = note; } };\n  Ui.initDataPreview = initDataPreview;'), context);
   const store = window.JetStore, ui = window.JetUi;
-  store.setProject({ projectId: 'batch8-synthetic', entityName: 'Synthetic', operatorId: 'CREATOR', lastPeriodStart: '2025-12-31', periodStart: '2025-01-01', periodEnd: '2025-12-31' });
+  store.setProject({ projectId: 'batch8-synthetic', clientName: 'Synthetic', operatorId: 'CREATOR', prepStartDate: '2025-12-31', periodStart: '2025-01-01', periodEnd: '2025-12-31' });
   store.getState().view = 'workflow';
   const previewDom = batch7ControlDom();
   window.batch8Preview.setup(previewDom.node('aside'), previewDom.node('body'), previewDom.node('note'));
@@ -623,33 +623,35 @@ function batch8Fixture() {
 }
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:2799 (batch8ValidationData) ----
-function batch8ValidationData(runId = 'v8') {
+function batch8ValidationData(resultId = 'v8') {
   const data = validationFixture();
-  data.resultRef = { runId, generatedUtc: '2026-01-01T00:00:00Z' };
+  data.resultRef = { resultId, generatedUtc: '2026-01-01T00:00:00Z' };
   data.stats = { glRowCount: 80, voucherCount: 12, totalDebit: 1250, totalCredit: 1250, net: 0, periodStart: '2025-01-01', periodEnd: '2025-12-31' };
-  data.populationSummary = { raw: { rowCount: 100 }, effective: { rowCount: 80 }, excluded: { rowCount: 20, byPeriodCount: 15, byPostingStatusCount: 5 } };
-  data.sourceQuality = { findingCount: 2, sampleRows: [{ category: 'nullPostDate', sourceLabel: 'Synthetic', sourceRowNumber: 7, documentNumber: 'JV-7', accountCode: '1001', description: 'Synthetic row' }] };
+  data.populationSummary = { raw: { rowCount: 100 }, gl: { rowCount: 80 }, excluded: { rowCount: 20, byPeriodCount: 15, byPostingStatusCount: 5 } };
+  data.sourceQuality = { findingCount: 2, sampleRows: [{ category: 'blankGlDate', sourceLabel: 'Synthetic', sourceRowNumber: 7, voucherNumber: 'JV-7', accountNumber: '1001', description: 'Synthetic row' }] };
   return data;
 }
 
-// ---- copied from tools/tests/frontend-workflow.test.cjs:2808 (batch8Artifacts) ----
+// ---- copied from tools/tests/frontend-workflow.test.cjs:2808 (batch8Reports) ----
 // 2026-10-15 前後端契合：正式後端的檔案大小欄位叫 bytes，畫面也只讀 bytes；原本的 sizeBytes 沒有人讀，拿掉後畫面不變。
-function batch8Artifacts(runId = 'v8', stamp = '') {
-  return ['validationReport', 'infReport'].map(kind => ({ artifactId: 'b8-' + kind + stamp, kind, fileName: kind + '.xlsx', fileState: 'present', stale: false,
-    generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationRunId: runId } }));
+function batch8Reports(resultId = 'v8', stamp = '') {
+  return ['validationReport', 'infReport'].map(kind => ({ reportId: 'b8-' + kind + stamp, kind, fileName: kind + '.xlsx', fileState: 'present', stale: false,
+    generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationResultId: resultId } }));
 }
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:4960 (remapPaper) ----
-function remapPaper(id, stale = false) { return { artifactId: id, kind: 'workingPaper', fileName: id + '.xlsx', fileState: 'asPublished', stale,
-  generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationRunId: 'v1', scenarioRevision: 'r1', scenarioPositions: [1, 2, 3] } }; }
+function remapPaper(id, stale = false) { return { reportId: id, kind: 'workingPaper', fileName: id + '.xlsx', fileState: 'asPublished', stale,
+  generatedUtc: '2026-01-01T00:00:00Z', sourceRef: { validationResultId: 'v1', scenarioRevision: 'r1', scenarioPositions: [1, 2, 3] } }; }
 
 // ---- copied from tools/tests/frontend-workflow.test.cjs:5339 (remapPrescreen) ----
-function remapPrescreen(runId) {
-  return { resultRef: { runId }, creatorSummary: { creators: [], totalPreparerCount: 0 }, rareAccounts: { distinctAccountCount: 0, lowFrequencyAccountCount: 0, accounts: [] },
-    postPeriodApproval: { count: 0 }, suspiciousKeywords: { count: 0 }, unexpectedAccountPair: { count: 0 }, trailingZeros: { count: 0, zerosThreshold: 6 },
+// 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，正式後端不再回傳 rarePreparer、rareAccount 與 rareAccountCount，假回應跟著拿掉。
+// 第一次失敗：FrontendMapping 收據 20261030-170713163-f548633afe0749a791469b97942983be（假回應和正式後端的形狀對不上）。
+function remapPrescreen(resultId) {
+  return { resultRef: { resultId }, preparerSummary: { preparers: [], totalPreparerCount: 0 }, rareAccounts: { distinctAccountCount: 0, accounts: [] },
+    prepPeriodApproval: { count: 0 }, suspiciousKeywords: { count: 0 }, unexpectedAccountPair: { count: 0 }, trailingZeros: { count: 0, zerosThreshold: 6 },
     weekendActivity: { postingCount: 0, approvalCount: 0 }, holidayActivity: { postingCount: 0, approvalCount: 0 },
-    // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳，合成結果不再帶 backdatedPosting。
-    blankDescription: { count: 0 }, nonAuthorizedPreparer: { count: 0 }, lowFrequencyPreparer: { count: 0 }, lowFrequencyAccount: { count: 0 } };
+    // 裁定 2026-10-08-03：移除傳票日期與回溯過帳，合成結果不再帶 backdatedPosting。
+    blankDescription: { count: 0 }, nonAuthorizedPreparer: { count: 0 } };
 }
 
 // ---- copied from tools/tests/frontend-mapping.test.cjs:13 (fixture，本模組改名為 mappingFixture) ----
@@ -682,7 +684,7 @@ function mappingFixture() {
   const store = window.JetStore;
   store.setProject({ projectId: 'synthetic' });
   store.setImportResult('gl', { batchId: 'batch-1', columns: ['Manual', 'Posting', 'Other', '__proto__'], rowCount: 2 });
-  store.setMappingDraft('gl', 'manual', 'Manual');
+  store.setMappingDraft('gl', 'isManual', 'Manual');
   store.setMappingDraft('gl', 'postingStatus', 'Posting');
 
   function render() {
@@ -797,7 +799,7 @@ function mappingFixture() {
         handler();
       },
       approval(value) {
-        // 傳票核准日只有一個下拉：值是 mode:unmapped、mode:sameAsPostDate 或 column:來源欄。
+        // 傳票核准日只有一個下拉：值是 mode:unmapped、mode:sameAsGlDate 或 column:來源欄。
         const target = controls.get('[data-approval-choice]');
         assert.ok(target, 'Rendered approval choice must exist');
         target.value = value; events.get('[data-approval-choice]:change')();
@@ -815,7 +817,7 @@ function mappingFixture() {
 // ---- copied from tools/tests/frontend-mapping.test.cjs:169 (profile) ----
 const profile = value => ({ blankCount: 0, distinctCount: 1, values: [{ value, count: 2 }], truncated: false });
 
-// ---- 第 0 批新增的夾具 ----
+// ---- 建立本模組時新增的夾具 ----
 
 // 切出 index.html 的一段正式標記並拿掉 HTML 註解（假 DOM 不認得註解，會把註解文字當成畫面文字）。
 // end 不包含在結果裡；需要結尾標籤時由呼叫端自己補。
@@ -828,7 +830,7 @@ function recordingJetApi(requests, extra = {}) {
   return contractJetApi({ on() {}, off() {}, isReady: () => true, ...extra }, requests);
 }
 
-// 右側資料預覽（情境 21，第 2 批）：切出 index.html 的 aside.data-preview，載入 state、ui-core、data-preview，
+// 右側資料預覽（情境 21）：切出 index.html 的 aside.data-preview，載入 state、ui-core、data-preview，
 // 呼叫正式的 Ui.initDataPreview。假 DOM 會冒泡、document 的監聽有作用（點面板外關閉「其他資料」選單）。
 // compact：一開始視窗是否在 1360px 以下，f.media.lists[0].change(true/false) 模擬跨過斷點。
 // queryDataPreview 等請求記在 f.requests，由測試 resolve 或 reject；setTimeout 收進 f.timers。
@@ -854,7 +856,7 @@ function dataPreviewFixture({ compact = false } = {}) {
     aside: () => $('[data-bind="data-preview"]'), body: () => $('[data-bind="data-preview-body"]') };
 }
 
-// 第三步經過 app.js 的 renderContent 重繪（情境 6，第 7 批）：建立在 usageJourneyFixture('mapping') 上，
+// 第三步經過 app.js 的 renderContent 重繪（情境 6）：建立在 usageJourneyFixture('mapping') 上，
 // 載入整個 app.js 並用 exposeAt 掛出 render 與 renderContent，訂閱 Store 後每次通知都呼叫正式的 renderContent
 // （它自己依 contentVersion 決定要不要重建）。setTimeout 收進 f.timers、事件會冒泡、元素有 attributes。
 // 步驟內容畫在 .stepflow-item--current .stepflow-item__body 裡；f.renderCount() 是呼叫 renderContent 的次數，
@@ -877,7 +879,7 @@ function mappingRenderFixture(options = {}) {
     body: () => f.dom.content.querySelector('.stepflow-item--current .stepflow-item__body') };
 }
 
-// 訊息面板的「複製紀錄」（情境 23，第 10 批）：切出 index.html 的訊息面板標記，載入 app.js 並用 exposeAt 掛出
+// 訊息面板的「複製紀錄」（情境 23）：切出 index.html 的訊息面板標記，載入 app.js 並用 exposeAt 掛出
 // copyRecentMessages 等函式，bindCopy() 在 app.js 內部執行正式的按鈕綁定，之後點按鈕就走正式流程。
 // clipboard: 'accept' 時剪貼簿收下文字（f.clipboardWrites），'reject' 時拒絕，正式程式改走 execCommand('copy')（f.copyCommands
 // 記下當時焦點元素的值）。logRecent 等請求記在 f.requests；setTimeout 收進 f.timers（按鈕文字 2.2 秒後還原）。
@@ -907,7 +909,7 @@ function messagePanelFixture({ clipboard = 'accept' } = {}) {
   return { ...f, app, clipboardWrites, copyCommands, copyButton: () => f.$('[data-action="messages-copy"]') };
 }
 
-// ---- 第 11 批從情境檔收進來的通用能力（2026-10-14） ----
+// ---- 2026-10-14 整併時從情境檔收進來的通用能力 ----
 
 // 等 Promise 與 setImmediate 排隊的工作跑完：預設 6 輪。frontend-journey-picker、-export、-operations 原本各有一份相同的寫法。
 // frontend-journey-step4 的 flush 預設 4 輪，和這裡不同，留在那個檔。
@@ -916,11 +918,11 @@ async function flush(times = 6) { for (let i = 0; i < times; i++) await settle()
 // 送出的 payload 不帶 `__` 開頭的鍵（前端內部用的暫存欄位不能送到後端）。frontend-journey-case-setup、-step4、-picker、-export 原本各有一份。
 const noDunderKeys = payload => !JSON.stringify(payload).includes('"__');
 
-// 整個 JET 畫面（第 10 批建立，原本在 frontend-journey-picker、-export、-operations 各有一份相同的副本，第 11 批收進這裡）：
+// 整個 JET 畫面（原本在 frontend-journey-picker、-export、-operations 各有一份相同的副本，2026-10-14 整併時收進這裡）：
 // 整個 index.html 的 body 標記與它列出的全部前端腳本（不含 ECharts 函式庫），正式的 jet-api.js 經假的 chrome.webview 收發，
 // app.js 照瀏覽器在 DOMContentLoaded 執行正式的 init()。所以案件清單第一次讀取與 jet-api.js 的請求都看得到，
 // 忙碌畫面的作業名稱也由 jet-api.js 真的送出請求時的 onRequestStarted 事件帶入。
-// remapAppFixture 把 app.js 切成幾段載入、不跑 init()，看不到這些，所以第 10 批改用整個畫面。
+// remapAppFixture 把 app.js 切成幾段載入、不跑 init()，看不到這些，所以改用整個畫面。
 // 送出的請求記在 f.posted（{ requestId, action, payload }），由測試用 f.reply 或 f.fail 回應，
 // 回應走 jet-api.js 正式的 receive。autoReply 列出的 action 由夾具自動回成功（預設只有寫入訊息紀錄的 log.append）。
 // 送出的資料、f.reply 與 autoReply 的回應都經過 action-contract.cjs 核對，要和正式後端的資料形狀一致。
@@ -1025,13 +1027,13 @@ module.exports = {
   // 假 DOM
   batch9TreeDom, batch7Dom, batch7ControlDom,
   // 合成資料
-  savedBlankDescription, validationFixture, batch8ValidationData, batch8Artifacts, remapPaper, remapPrescreen, profile,
+  savedBlankDescription, validationFixture, batch8ValidationData, batch8Reports, remapPaper, remapPrescreen, profile,
   // 從 wf、mp 複製的夾具
   usageJourneyFixture, filterOperationFixture, remapFilterPreviewFixture, remapAppFixture, overviewDialogFixture, batch8Fixture, mappingFixture,
-  // 第 0 批新增的夾具
+  // 建立本模組時新增的夾具
   dataPreviewFixture, mappingRenderFixture, messagePanelFixture,
-  // 第 11 批從情境檔收進來的通用能力
+  // 整併時從情境檔收進來的通用能力
   flush, noDunderKeys, fullAppFixture, bootFullApp,
-  // 第五步拆成五個檔案後的載入清單、合併讀取與掛到 window 的寫法（階段十）
+  // 第五步拆成五個檔案後的載入清單、合併讀取與掛到 window 的寫法
   FILTER_STEP_FILES, FILTER_STEP_PARTS, readFilterStep, filterStepExposure
 };

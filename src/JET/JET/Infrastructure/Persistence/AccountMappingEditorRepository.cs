@@ -32,10 +32,10 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
 
     private static string AccountsCte(string p, ISqlDialect dialect) => AccountMappingPopulationQuery.Cte(p, dialect) + $"""
         , accounts AS (
-            SELECT account_code, account_name FROM population
+            SELECT account_number, account_name FROM population
             UNION ALL
-            SELECT m.account_code, m.account_name FROM {p}target_account_mapping m
-            WHERE NOT EXISTS (SELECT 1 FROM population d WHERE d.account_code = m.account_code)
+            SELECT m.account_number, m.account_name FROM {p}account_mapping m
+            WHERE NOT EXISTS (SELECT 1 FROM population d WHERE d.account_number = m.account_number)
         )
         """;
 
@@ -46,15 +46,15 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         if (offset == 0)
         {
             await using var command = connection.CreateCommand();
-            command.CommandText = $"SELECT COUNT(*) FROM {prefix}target_account_mapping;";
+            command.CommandText = $"SELECT COUNT(*) FROM {prefix}account_mapping;";
             count = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
         }
         await using var select = connection.CreateCommand();
         select.CommandText = $"""
-            SELECT m.account_code, m.account_name, COALESCE(t.label, m.standardized_category)
-            FROM {prefix}target_account_mapping m
-            LEFT JOIN {prefix}config_account_taxonomy t ON t.category_id = m.category_id
-            ORDER BY m.account_code
+            SELECT m.account_number, m.account_name, COALESCE(t.label, m.standardized_category)
+            FROM {prefix}account_mapping m
+            LEFT JOIN {prefix}account_category t ON t.category_id = m.category_id
+            ORDER BY m.account_number
             """ + " " + (dialect is SqlServerDialect ? "OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY" : "LIMIT @limit OFFSET @offset") + ";";
         select.AddWithValue("@limit", limit);
         select.AddWithValue("@offset", offset);
@@ -62,7 +62,7 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         await using var reader = await select.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             rows.Add([reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetString(2)]);
-        return new DataPreviewResult(["accountCode", "accountName", "standardizedCategory"], rows, count, null);
+        return new DataPreviewResult(["accountNumber", "accountName", "standardizedCategory"], rows, count, null);
     }
 
     public async Task<PageResult<AccountMappingEditRow>> GetPageAsync(
@@ -75,14 +75,14 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         var p = prefix(projectId);
         await using var command = connection.CreateCommand();
         var hasCursor = PageCursor.TryDecode(request.Cursor, out var key);
-        var source = $"FROM accounts a LEFT JOIN {p}target_account_mapping m ON m.account_code = a.account_code WHERE 1 = 1"
-            + (!string.IsNullOrEmpty(search) ? " AND (" + dialect.ContainsIgnoreCase("a.account_code", "@search")
+        var source = $"FROM accounts a LEFT JOIN {p}account_mapping m ON m.account_number = a.account_number WHERE 1 = 1"
+            + (!string.IsNullOrEmpty(search) ? " AND (" + dialect.ContainsIgnoreCase("a.account_number", "@search")
                 + " OR " + dialect.ContainsIgnoreCase("a.account_name", "@search") + ")" : "")
-            + (!string.IsNullOrEmpty(categoryId) ? $" AND EXISTS (SELECT 1 FROM {p}config_account_taxonomy_path tp"
+            + (!string.IsNullOrEmpty(categoryId) ? $" AND EXISTS (SELECT 1 FROM {p}account_category_path tp"
                 + " WHERE tp.ancestor_id = @categoryId AND tp.descendant_id = m.category_id)" : "");
-        command.CommandText = AccountsCte(p, dialect) + " SELECT a.account_code, a.account_name, m.category_id "
-            + source + (hasCursor ? " AND a.account_code > @cursor" : "")
-            + " ORDER BY a.account_code " + dialect.LimitClause("@limit") + ";";
+        command.CommandText = AccountsCte(p, dialect) + " SELECT a.account_number, a.account_name, m.category_id "
+            + source + (hasCursor ? " AND a.account_number > @cursor" : "")
+            + " ORDER BY a.account_number " + dialect.LimitClause("@limit") + ";";
         if (hasCursor) command.AddWithValue("@cursor", key);
         if (!string.IsNullOrEmpty(search)) command.AddWithValue("@search", search.ToUpperInvariant());
         if (!string.IsNullOrEmpty(categoryId)) command.AddWithValue("@categoryId", categoryId);
@@ -97,13 +97,13 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
                 reader.IsDBNull(2) ? null : reader.GetString(2)));
         var more = rows.Count > request.ClampedPageSize;
         if (more) rows.RemoveAt(rows.Count - 1);
-        return new(rows, more ? PageCursor.Encode(rows[^1].AccountCode) : null, totalCount);
+        return new(rows, more ? PageCursor.Encode(rows[^1].AccountNumber) : null, totalCount);
     }
 
     public async Task SaveAsync(string projectId, IReadOnlyList<AccountMappingChange> changes,
         CancellationToken cancellationToken)
     {
-        if (changes.Count is < 1 or > 500 || changes.Select(x => x.AccountCode).Distinct(StringComparer.Ordinal).Count() != changes.Count)
+        if (changes.Count is < 1 or > 500 || changes.Select(x => x.AccountNumber).Distinct(StringComparer.Ordinal).Count() != changes.Count)
             throw new JetActionException(JetErrorCodes.InvalidPayload, "科目分類筆數不符或科目重複。");
         await ensure(projectId, cancellationToken);
         await using var connection = connect(projectId);
@@ -121,10 +121,10 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
             var parameters = changes.Select((change, index) =>
             {
                 var parameter = "@code" + index;
-                lookup.AddWithValue(parameter, change.AccountCode);
+                lookup.AddWithValue(parameter, change.AccountNumber);
                 return parameter;
             }).ToArray();
-            lookup.CommandText = AccountsCte(p, dialect) + " SELECT account_code, account_name FROM accounts WHERE account_code IN ("
+            lookup.CommandText = AccountsCte(p, dialect) + " SELECT account_number, account_name FROM accounts WHERE account_number IN ("
                 + string.Join(",", parameters) + ");";
             await using var reader = await lookup.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -139,12 +139,12 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
                 lookup.AddWithValue(parameter, id);
                 return parameter;
             }).ToArray();
-            lookup.CommandText = $"SELECT category_id, semantic_role FROM {p}config_account_taxonomy WHERE category_id IN ("
+            lookup.CommandText = $"SELECT category_id, semantic_role FROM {p}account_category WHERE category_id IN ("
                 + string.Join(",", parameters) + ");";
             await using var reader = await lookup.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken)) roles.Add(reader.GetString(0), reader.GetString(1));
         }
-        if (changes.Any(x => !accounts.ContainsKey(x.AccountCode) || !roles.ContainsKey(x.CategoryId)))
+        if (changes.Any(x => !accounts.ContainsKey(x.AccountNumber) || !roles.ContainsKey(x.CategoryId)))
             throw new JetActionException(JetErrorCodes.InvalidPayload, "科目或分類已變更，請重新載入科目清單後再儲存。");
         await using (var batch = connection.CreateCommand())
         {
@@ -168,29 +168,29 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         var rowNumber = 0;
         foreach (var change in changes)
         {
-            var name = accounts[change.AccountCode];
+            var name = accounts[change.AccountNumber];
             var role = roles[change.CategoryId];
             await using var command = connection.CreateCommand();
             command.Transaction = tx;
             command.CommandText = $"""
-                INSERT INTO {p}staging_account_mapping_raw_row (batch_id, row_number, source_no, source_row_number, row_json)
+                INSERT INTO {p}pbc_account_mapping (batch_id, row_number, source_no, source_row_number, row_json)
                 VALUES (@batch, @row, 1, @row, @json);
-                DELETE FROM {p}target_account_mapping WHERE account_code = @code;
-                INSERT INTO {p}target_account_mapping
-                    (batch_id, source_row_number, account_code, account_name, standardized_category, category_id, classification_explicit)
+                DELETE FROM {p}account_mapping WHERE account_number = @code;
+                INSERT INTO {p}account_mapping
+                    (batch_id, source_row_number, account_number, account_name, standardized_category, category_id, classification_explicit)
                 VALUES (@batch, @row, @code, @name, @legacy, @category, 1);
                 """;
             command.AddWithValue("@batch", batchId);
             command.AddWithValue("@row", ++rowNumber);
-            command.AddWithValue("@code", change.AccountCode);
+            command.AddWithValue("@code", change.AccountNumber);
             command.AddWithValue("@name", (object?)name ?? DBNull.Value);
             command.AddWithValue("@category", change.CategoryId);
-            command.AddWithValue("@legacy", AccountTaxonomyCatalog.LegacyLabelForSemanticRole(role));
+            command.AddWithValue("@legacy", AccountCategoryCatalog.LegacyLabelForSemanticRole(role));
             command.AddWithValue("@json", JsonSerializer.Serialize(new Dictionary<string, string?>
-                { ["科目代號"] = change.AccountCode, ["科目名稱"] = name, ["分類"] = change.CategoryId }));
+                { ["科目代號"] = change.AccountNumber, ["科目名稱"] = name, ["分類"] = change.CategoryId }));
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
-        await RuleRunResultReset.ClearWithinAsync(connection, tx, cancellationToken, AuditMutation.AccountMapping, p);
+        await ResultReset.ClearWithinAsync(connection, tx, cancellationToken, AuditMutation.AccountMapping, p);
         await tx.CommitAsync(cancellationToken);
     }
 }

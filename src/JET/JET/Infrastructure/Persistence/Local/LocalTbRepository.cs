@@ -23,7 +23,7 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
 
     /// <summary>TB target 批量寫入的欄位順序（各引擎的 <see cref="IBulkRowWriter"/> 依此對位；balance_id 由引擎補齊）。</summary>
     private static readonly string[] TargetColumns =
-        ["batch_id", "source_row_number", "account_code", "account_name", "change_amount_scaled"];
+        ["batch_id", "source_row_number", "account_number", "account_name", "change_amount_scaled"];
 
     private readonly ILogger _log = logger ?? NullLogger<LocalTbRepository>.Instance;
 
@@ -47,12 +47,12 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
         await using (var clear = connection.CreateCommand())
         {
             clear.Transaction = transaction;
-            clear.CommandText = "DELETE FROM target_tb_balance;";
+            clear.CommandText = "DELETE FROM tb;";
             await clear.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
         }
 
         // 重投影改寫 target,既有規則結果失效(投影失敗 rollback 時清除一併回退)。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -65,7 +65,7 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
         select.CommandText =
             """
             SELECT row_number, source_no, source_row_number, row_json
-            FROM staging_tb_raw_row
+            FROM pbc_tb
             WHERE batch_id = @batchId
             ORDER BY row_number;
             """;
@@ -73,7 +73,7 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
 
         // 批量列寫入：SQLite 包裝參數化 INSERT、DuckDB 走 Appender。
         // SQL 文本／欄序不變（見 TargetColumns）；balance_id auto-id 由引擎補齊。
-        await using var insert = database.CreateBulkRowWriter(connection, transaction, "target_tb_balance", TargetColumns);
+        await using var insert = database.CreateBulkRowWriter(connection, transaction, "tb", TargetColumns);
 
         var errors = new ProjectionErrorCollector();
         var insertedCount = 0;
@@ -112,7 +112,7 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
 
                 // 值依 TargetColumns 順序對位（batch_id 每列供值；null 由寫入器轉 NULL）。
                 await insert.AppendAsync(
-                    [batchId, rowNumber, projected!.AccountCode, projected.AccountName, projected.ChangeAmountScaled],
+                    [batchId, rowNumber, projected!.AccountNumber, projected.AccountName, projected.ChangeAmountScaled],
                     cancellationToken);
                 insertedCount++;
             }
@@ -133,18 +133,18 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
             return errors.FailedResult();
         }
 
-        var sourceDefinitions = await LocalFieldDefinitionPersistence.ReadStatesAsync(
+        var sourceDefinitions = await LocalFieldInfoPersistence.ReadStatesAsync(
             connection,
             transaction,
             batchId,
-            LegacyFieldDefinitionScope.Source,
+            FieldInfoScope.Source,
             cancellationToken);
-        await LocalFieldDefinitionPersistence.ReplaceScopeAsync(
+        await LocalFieldInfoPersistence.ReplaceScopeAsync(
             connection,
             transaction,
             batchId,
-            LegacyFieldDefinitionScope.Target,
-            LegacyFieldDefinitionProjector.ProjectTb(sourceDefinitions, spec, moneyScale),
+            FieldInfoScope.Target,
+            FieldInfoProjector.ProjectTb(sourceDefinitions, spec, moneyScale),
             cancellationToken);
 
         var warnings = await TbMappedColumnAudit.ReadAsync(

@@ -13,7 +13,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class OpenXmlSaxTableReaderTests
 {
     [Fact]
-    public async Task K7_AutoFilterAndHiddenRows_DoNotRemoveSourceRows()
+    public async Task AutoFilterAndHiddenRows_DoNotRemoveSourceRows()
     {
         var path = new RawXlsxBuilder().AddSheet("Synthetic", """
             <dimension ref="A1:C3"/><sheetData>
@@ -640,7 +640,7 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task LeadingRowsToSkip_BeyondContent_SaysTheHeaderRowHasNoContent()
     {
-        // 預篩選收斂計畫複審（2026-10-28）：欄名列填得比內容還多時，不說成工作表是空的，改寫那一列起沒有內容。
+        // 2026-10-28 複審時查到：欄名列填得比內容還多時，不說成工作表是空的，改寫那一列起沒有內容。
         // 改程式之後才補，沒有第一次失敗的收據。
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {

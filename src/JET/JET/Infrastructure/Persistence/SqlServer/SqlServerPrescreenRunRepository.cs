@@ -45,9 +45,9 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
-        var filterContext = new FilterRuleContext(
+        var filterContext = new FilterConditionContext(
             input.MoneyScale,
-            input.LastPeriodStart,
+            input.PrepStartDate,
             input.PeriodStart,
             input.PeriodEnd,
             input.NonWorkingDays,
@@ -56,15 +56,17 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         // schema 限定詞唯一來源（集中驗證）；共用述詞片段內的專案表名前綴 [prj_xxx].。
         var schemaPrefix = SqlServerProjectSchema.QualifierFor(projectId);
         // 每條規則的述詞都從同一張對應表取；第五步「預篩選」條件與傳票明細也是同一個方法。
+        // 計數和第四步明細、預篩選報告列出同一批分錄：未預期借貸組合算整張命中傳票，其他規則算直接命中的列。
         string Rule(string key, FilterSqlParameterPlanBuilder cmd) =>
-            PrescreenRulePredicates.Build(Predicates, key, cmd, filterContext, schemaPrefix);
+            LocalPrescreenPageRepository.HitRowsPredicate(
+                key, PrescreenRulePredicates.Build(Predicates, key, cmd, filterContext, schemaPrefix), schemaPrefix);
 
-        (long HitLines, long HitVouchers) postPeriod = (0L, 0L);
-        if (input.RunPostPeriodApproval)
+        (long HitLines, long HitVouchers) prepPeriod = (0L, 0L);
+        if (input.RunPrepPeriodApproval)
         {
-            postPeriod = await CountWhereAsync(
+            prepPeriod = await CountWhereAsync(
                 connection, projectId, input, cancellationToken,
-                cmd => Rule(PrescreenRuleKeys.PostPeriodApproval, cmd));
+                cmd => Rule(PrescreenRuleKeys.PrepPeriodApproval, cmd));
         }
 
         var suspicious = await CountWhereAsync(
@@ -84,15 +86,15 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             connection, projectId, input, cancellationToken,
             cmd => Rule(PrescreenRuleKeys.TrailingZeros, cmd));
 
-        var creators = input.RunCreatorSummary
-            ? await ReadCreatorsAsync(connection, projectId, input, cancellationToken)
+        var preparers = input.RunPreparerSummary
+            ? await ReadPreparersAsync(connection, projectId, input, cancellationToken)
             : [];
 
-        // rulePeriod 的分母不依賴 createBy mapping，故永遠取得全期 GL 行母體；
-        // 相異編製人員只在 creator_summary 適用時向外使用。
+        // rulePeriod 的分母不依賴 createdBy mapping，故永遠取得全期 GL 行母體；
+        // 相異編製人員只在 preparer_summary 適用時向外使用。
         var (observedPreparerCount, totalEntries) =
             await ReadPreparerPopulationAsync(connection, projectId, input, cancellationToken);
-        var totalPreparers = input.RunCreatorSummary ? observedPreparerCount : 0L;
+        var totalPreparers = input.RunPreparerSummary ? observedPreparerCount : 0L;
 
         var (distinctAccounts, accounts) = await ReadAccountUsageAsync(connection, projectId, input, cancellationToken);
 
@@ -134,23 +136,12 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                 cmd => Rule(PrescreenRuleKeys.NonAuthorizedPreparer, cmd));
         }
 
-        // 編製分錄較少的人員與使用較少的科目：固定門檻 11 由對應表交給「科目與人員統計」同一個方法；
-        // 兩條都永遠計算，收尾再依規則需求表決定要不要帶出去。
-        var lowFrequencyPreparer = await CountWhereAsync(
-            connection, projectId, input, cancellationToken,
-            cmd => Rule(PrescreenRuleKeys.LowFrequencyPreparer, cmd));
-        var lowFrequencyAccount = await CountWhereAsync(
-            connection, projectId, input, cancellationToken,
-            cmd => Rule(PrescreenRuleKeys.LowFrequencyAccount, cmd));
-        var lowFrequencyAccountCount = await CountLowFrequencyAccountsAsync(
-            connection, projectId, filterContext, schemaPrefix, cancellationToken);
-
         return new PrescreenFacts(
-            postPeriod.HitLines,
+            prepPeriod.HitLines,
             suspicious.HitLines,
             unexpectedPair.HitLines,
             trailingZeros.HitLines,
-            creators,
+            preparers,
             distinctAccounts,
             accounts,
             weekendPosting.HitLines,
@@ -159,11 +150,9 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             holidayApproval.HitLines,
             blankDescription.HitLines,
             nonAuthorizedPreparer.HitLines,
-            lowFrequencyPreparer.HitLines,
-            lowFrequencyAccount.HitLines,
             new Dictionary<string, long>(StringComparer.Ordinal)
             {
-                [PrescreenRuleKeys.PostPeriodApproval] = postPeriod.HitVouchers,
+                [PrescreenRuleKeys.PrepPeriodApproval] = prepPeriod.HitVouchers,
                 [PrescreenRuleKeys.SuspiciousKeywords] = suspicious.HitVouchers,
                 [PrescreenRuleKeys.UnexpectedAccountPair] = unexpectedPair.HitVouchers,
                 [PrescreenRuleKeys.TrailingZeros] = trailingZeros.HitVouchers,
@@ -172,29 +161,10 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                 [PrescreenRuleKeys.HolidayPosting] = holidayPosting.HitVouchers,
                 [PrescreenRuleKeys.HolidayApproval] = holidayApproval.HitVouchers,
                 [PrescreenRuleKeys.BlankDescription] = blankDescription.HitVouchers,
-                [PrescreenRuleKeys.NonAuthorizedPreparer] = nonAuthorizedPreparer.HitVouchers,
-                [PrescreenRuleKeys.LowFrequencyPreparer] = lowFrequencyPreparer.HitVouchers,
-                [PrescreenRuleKeys.LowFrequencyAccount] = lowFrequencyAccount.HitVouchers
+                [PrescreenRuleKeys.NonAuthorizedPreparer] = nonAuthorizedPreparer.HitVouchers
             },
             totalPreparers,
-            totalEntries)
-        {
-            LowFrequencyDistinctAccountCount = lowFrequencyAccountCount
-        };
-    }
-
-    private async Task<long> CountLowFrequencyAccountsAsync(
-        SqlConnection connection, string projectId, FilterRuleContext context, string schemaPrefix,
-        CancellationToken cancellationToken)
-    {
-        var parameters = new FilterSqlParameterPlanBuilder(SqlServerDialect.Instance);
-        var predicate = PrescreenRulePredicates.Build(Predicates, PrescreenRuleKeys.LowFrequencyAccount, parameters, context, schemaPrefix);
-        // 科目和述詞同樣去頭尾空白後算一個（對應本地倉儲）。
-        await using var command = database.CreateCommand(connection, projectId,
-            $"SELECT COUNT_BIG(DISTINCT {SqlServerDialect.Instance.Trim("g.account_code")}) FROM {{s}}.target_gl_entry g "
-            + $"WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({predicate});");
-        parameters.Build(predicate).BindParametersTo(command);
-        return Convert.ToInt64(await command.ExecuteScalarLoggedAsync(_log, Provider, cancellationToken));
+            totalEntries);
     }
 
     private async Task<(long HitLines, long HitVouchers)> CountWhereAsync(
@@ -205,14 +175,14 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         Func<FilterSqlParameterPlanBuilder, string> predicateFactory)
     {
         await using var command = connection.CreateCommand();
-        // 一般命中列只取投影已落地的有效分錄；規則自己的日期窗口仍由 predicateFactory 參數化。
+        // 一般命中列只取投影已落地的有效分錄；規則自己的日期窗口與要列出的分錄範圍仍由 predicateFactory 參數化。
         var parameters = new FilterSqlParameterPlanBuilder(SqlServerDialect.Instance);
         var predicate = predicateFactory(parameters);
         parameters.Build(predicate).BindParametersTo(command);
         // {s} 由命令工廠收斂;述詞需先綁到 command,故借工廠展開 token 後回填本命令。
         await using (var expand = database.CreateCommand(connection, projectId,
-            $"SELECT COUNT_BIG(*), COUNT_BIG(DISTINCT g.document_number) " +
-            $"FROM {{s}}.target_gl_entry g WHERE {GlEffectivePopulation.SqlPredicate("g")} AND ({predicate});"))
+            $"SELECT COUNT_BIG(*), COUNT_BIG(DISTINCT g.voucher_number) " +
+            $"FROM {{s}}.gl g WHERE {GlExcludedPopulation.SqlPredicate("g")} AND ({predicate});"))
         {
             command.CommandText = expand.CommandText;
         }
@@ -226,12 +196,12 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         return (reader.GetInt64(0), reader.GetInt64(1));
     }
 
-    private async Task<IReadOnlyList<CreatorSummaryRow>> ReadCreatorsAsync(
+    private async Task<IReadOnlyList<PreparerSummaryRow>> ReadPreparersAsync(
         SqlConnection connection, string projectId, PrescreenExecutionInput input, CancellationToken cancellationToken)
     {
         // 編製者彙總與預篩選規則共用有效分錄母體。
         // 人員依去空白、不分大小寫的識別值分組，顯示值取同組碼位最小的去空白寫法（與本地倉儲同口徑）。
-        // 分組鍵的轉大寫走方言（跨資料庫一致性計畫第三節 D）。
+        // 分組鍵的轉大寫走方言。
         var person = LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance);
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
@@ -241,16 +211,16 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0),
                    COALESCE(SUM(CAST(CASE WHEN is_manual = 1 THEN 1 ELSE 0 END AS BIGINT)), 0)
-            FROM {s}.target_gl_entry
-            WHERE {{GlEffectivePopulation.SqlPredicate()}}
+            FROM {s}.gl
+            WHERE {{GlExcludedPopulation.SqlPredicate()}}
             GROUP BY {{SqlServerDialect.Instance.Upper(person)}}
             ORDER BY COUNT_BIG(*) DESC, MIN({{person}} COLLATE Latin1_General_BIN2);
             """);
-        var rows = new List<CreatorSummaryRow>();
+        var rows = new List<PreparerSummaryRow>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(new CreatorSummaryRow(
+            rows.Add(new PreparerSummaryRow(
                 reader.GetString(0),
                 reader.GetInt64(1),
                 reader.GetInt64(2),
@@ -273,8 +243,8 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
             $$"""
             SELECT COUNT_BIG(*),
                    COUNT_BIG(DISTINCT {{SqlServerDialect.Instance.Upper(LocalPrescreenRunRepository.PersonKey(SqlServerDialect.Instance))}})
-            FROM {s}.target_gl_entry
-            WHERE {{GlEffectivePopulation.SqlPredicate()}};
+            FROM {s}.gl
+            WHERE {{GlExcludedPopulation.SqlPredicate()}};
             """);
 
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);
@@ -292,7 +262,7 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         // 罕用科目/科目使用彙總與預篩選規則共用有效分錄母體。
         long distinct;
         await using (var countCommand = database.CreateCommand(connection, projectId,
-            $"SELECT COUNT_BIG(DISTINCT account_code) FROM {{s}}.target_gl_entry WHERE {GlEffectivePopulation.SqlPredicate()};"))
+            $"SELECT COUNT_BIG(DISTINCT account_number) FROM {{s}}.gl WHERE {GlExcludedPopulation.SqlPredicate()};"))
         {
             distinct = Convert.ToInt64(await countCommand.ExecuteScalarLoggedAsync(_log, Provider, cancellationToken));
         }
@@ -300,15 +270,15 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT TOP ({{SummaryRowLimit}})
-                   COALESCE(account_code, ''),
+                   COALESCE(account_number, ''),
                    MAX(account_name),
                    COUNT_BIG(*),
                    COALESCE(SUM(debit_amount_scaled), 0),
                    COALESCE(SUM(credit_amount_scaled), 0)
-            FROM {s}.target_gl_entry
-            WHERE {{GlEffectivePopulation.SqlPredicate()}}
-            GROUP BY account_code
-            ORDER BY COUNT_BIG(*) ASC, account_code;
+            FROM {s}.gl
+            WHERE {{GlExcludedPopulation.SqlPredicate()}}
+            GROUP BY account_number
+            ORDER BY COUNT_BIG(*) ASC, account_number;
             """);
         var rows = new List<AccountUsageRow>();
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, Provider, cancellationToken);

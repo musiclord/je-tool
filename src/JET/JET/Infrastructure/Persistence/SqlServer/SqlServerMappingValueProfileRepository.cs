@@ -5,9 +5,9 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// SQL Server mapping value profile。OPENJSON 的 key 以參數比對；值去掉和 .NET 相同的空白字元後，
-/// 依方言 <see cref="SqlServerDialect.Upper"/> 不分大小寫分組，顯示值取同組碼位最小的寫法（與本地倉儲同口徑，
-/// 跨資料庫一致性計畫第三節 D）。查詢只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時，
-/// 去空白之後先接和本機共用的 <see cref="MappingValueProfileNormalization.FillDownCtes"/>（使用者 2026-10-28 裁定）。
+/// 依方言 <see cref="SqlServerDialect.Upper"/> 不分大小寫分組，顯示值取同組碼位最小的寫法（與本地倉儲同口徑）。
+/// 查詢只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時，
+/// 去空白之後先接和本機共用的 <see cref="MappingValueProfileNormalization.FillDownCtes"/>（裁定 2026-10-28-03）。
 /// </summary>
 public sealed class SqlServerMappingValueProfileRepository(SqlServerProjectDatabase database)
     : IMappingValueProfileRepository
@@ -29,7 +29,7 @@ public sealed class SqlServerMappingValueProfileRepository(SqlServerProjectDatab
             $$"""
             WITH extracted AS (
                 SELECT r.source_no, r.row_number, j.raw_value
-                FROM {s}.staging_gl_raw_row AS r
+                FROM {s}.pbc_gl AS r
                 OUTER APPLY (
                     SELECT [value] AS raw_value
                     FROM OPENJSON(r.row_json)
@@ -111,7 +111,7 @@ public sealed class SqlServerMappingValueProfileRepository(SqlServerProjectDatab
             $$"""
             WITH available AS (
                 SELECT DISTINCT {{ComparisonKey("j.raw_value")}} AS comparison_key
-                FROM {s}.staging_gl_raw_row AS r
+                FROM {s}.pbc_gl AS r
                 OUTER APPLY (
                     SELECT [value] AS raw_value
                     FROM OPENJSON(r.row_json)

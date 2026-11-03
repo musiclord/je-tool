@@ -17,7 +17,7 @@
   - 使用 query.dataPreview 的 limit 與 offset 分頁；不新增後端 action。
     GL(未納入測試) 另可帶 exclusionReason 只看一種未納入原因，換頁時沿用同一種。
   - GL 與 GL(未納入測試) 的欄位由後端依已確認的配對決定，欄名與型別讀回應的 columnDetails；
-    金額固定顯示四位小數（使用者 2026-10-22 裁定，預篩選收斂計畫階段五）。
+    金額固定顯示四位小數（裁定 2026-10-22-06）。
 */
 (function (global) {
   'use strict';
@@ -26,21 +26,21 @@
   var Ui = global.JetUi;
 
   // wire key → 顯示標籤。DATASETS 逐字鏡射 Domain DataPreviewDatasetLabels.All，MAIN_TABS 逐字鏡射 .MainTabs；
-  // 使用者 2026-10-08 裁定資料名稱全系統統一，改名時兩邊一起改。
+  // 資料名稱全系統統一（裁定 2026-10-08-04），改名時兩邊一起改。
   var DATASETS = [
     { value: 'pbcGl', label: 'PBC-GL' },
     { value: 'pbcTb', label: 'PBC-TB' },
     { value: 'gl', label: 'GL' },
     { value: 'glExcluded', label: 'GL(未納入測試)' },
     { value: 'tb', label: 'TB' },
-    { value: 'accountMappings', label: '科目配對' },
-    { value: 'authorizedPreparers', label: '授權編製人員清單' },
-    { value: 'dateDimension', label: '行事曆（假日與補班日）' },
+    { value: 'accountMapping', label: '科目配對' },
+    { value: 'authorizedPreparer', label: '授權編製人員清單' },
+    { value: 'calendar', label: '行事曆（假日與補班日）' },
     { value: 'schemaOverview', label: '資料表摘要' }
   ];
 
   // 內容是 GL 或 TB 的分錄、科目的資料集；筆數單位用「筆」，其餘用「列」。
-  var ENTRY_DATASETS = ['gl', 'glExcluded', 'tb', 'accountMappings'];
+  var ENTRY_DATASETS = ['gl', 'glExcluded', 'tb', 'accountMapping'];
 
   // 受查者提供資料（PBC）與標準化資料成對直接呈現；科目配對是驗證步驟的主要工作資料，
   // 同樣保持直接可見，避免步驟按鈕換位後只亮「其他資料」而看不出目前資料集。
@@ -49,7 +49,7 @@
     { value: 'gl', label: 'GL' },
     { value: 'pbcTb', label: 'PBC-TB' },
     { value: 'tb', label: 'TB' },
-    { value: 'accountMappings', label: '科目配對' }
+    { value: 'accountMapping', label: '科目配對' }
   ];
 
   // 主頁籤以外的既有資料集（一個都不少）：收進「其他資料」選單，使用相同的業務名稱。
@@ -60,12 +60,12 @@
   // GL 以外的資料集：固定欄位 id → 顯示標籤（query.dataPreview）。GL 與 GL(未納入測試) 的欄名由回應的 columnDetails 提供，
   // 和欄位配對畫面同名，不在這裡另寫一份。
   var COLUMN_LABELS = {
-    accountCode: '科目編號',
+    accountNumber: '科目編號',
     accountName: '科目名稱',
     changeAmount: '變動金額',
     standardizedCategory: '科目分類',
     preparerName: '人員代號或姓名',
-    // dateDimension
+    // calendar
     date: '日期',
     dayType: '類別',
     dayName: '說明',
@@ -77,14 +77,14 @@
     browsable: '可瀏覽'
   };
 
-  // dateDimension 的 dayType 原值（holiday/makeup）→ 中文顯示
+  // calendar 的 dayType 原值（holiday/makeup）→ 中文顯示
   var DAY_TYPE_LABELS = { holiday: '假日', makeup: '補班' };
 
   // GL(未納入測試) 的未納入原因（後端 closed wire value）→ 中文顯示與統計鍵；未登錄值原樣呈現。
-  // 使用者 2026-10-21 裁定日期不符分成三種原因並各自計數，資料預覽可以只看其中一種；三種日期原因的名稱逐字照當時的選項。
+  // 日期不符分成三種原因並各自計數（裁定 2026-10-21-04），資料預覽可以只看其中一種；三種日期原因的名稱逐字照當時的選項。
   // 原因欄、下方統計列與篩選選項都用這一組名稱。
   var EXCLUSION_REASONS = [
-    { value: 'blankPostDate', label: '總帳日期空白', countKey: 'blankPostDateCount' },
+    { value: 'blankGlDate', label: '總帳日期空白', countKey: 'blankGlDateCount' },
     { value: 'beforePeriod', label: '早於查核期間', countKey: 'beforePeriodCount' },
     { value: 'afterPeriod', label: '晚於查核期間', countKey: 'afterPeriodCount' },
     { value: 'postingStatus', label: '過帳狀態不符', countKey: 'postingStatusCount' }
@@ -95,7 +95,7 @@
 
   function isGlDataset(dataset) { return dataset === 'gl' || dataset === 'glExcluded'; }
 
-  // 資料預覽的金額固定顯示四位小數加千分位，例如 1,234.5000（使用者 2026-10-22 裁定，只改資料預覽；其他畫面維持 Ui.money 的兩位）。
+  // 資料預覽的金額固定顯示四位小數加千分位，例如 1,234.5000（裁定 2026-10-22-06，只改資料預覽；其他畫面維持 Ui.money 的兩位）。
   // 後端照存下的整數換算成精確的十進位字串，這裡只補零與加千分位，不轉成數字，超大金額的第四位小數也不會跑掉。
   function previewMoney(value) {
     if (value === null || value === undefined || value === '') { return '—'; }
@@ -112,9 +112,9 @@
   function displayCell(dataset, column, cell, detail) {
     if (cell === null) { return null; }
     if (isGlDataset(dataset) && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
-    // 借貸別和結果表格一樣寫「借」「貸」，不顯示資料庫存的英文值（使用者 2026-10-19 要求前端不露出系統用詞）。
+    // 借貸別和結果表格一樣寫「借」「貸」，不顯示資料庫存的英文值，畫面不露出系統用詞（裁定 2026-10-19-04）。
     if (isGlDataset(dataset) && column === 'drCr') { return { DEBIT: '借', CREDIT: '貸' }[cell] || cell; }
-    if (dataset === 'dateDimension' && column === 'dayType') {
+    if (dataset === 'calendar' && column === 'dayType') {
       return DAY_TYPE_LABELS[cell] || cell;
     }
     if (dataset === 'glExcluded' && column === 'exclusionReason') {
@@ -122,7 +122,7 @@
     }
     // 金額欄：GL 兩頁看回應標示的型別，含攸關資料元素的金額欄；TB 綁定變動金額這一欄。
     // PBC-GL 與 PBC-TB 照來源文字呈現，來源欄剛好叫 amount 也不會誤中。
-    if ((detail && detail.valueType === 'money') || (dataset === 'tb' && column === 'changeAmount')) {
+    if ((detail && detail.valueType === 'amount') || (dataset === 'tb' && column === 'changeAmount')) {
       return previewMoney(cell);
     }
     return cell;
@@ -623,7 +623,7 @@
     // GL 兩頁的欄名與對齊讀回應的 columnDetails（和 columns 同順序）：只有金額欄靠右，項次、科目編號這類文字照樣靠左。
     var details = isGlDataset(dataset) && Array.isArray(data.columnDetails) ? data.columnDetails : null;
     var numeric = details
-      ? columns.map(function (c, i) { return !!details[i] && details[i].valueType === 'money'; })
+      ? columns.map(function (c, i) { return !!details[i] && details[i].valueType === 'amount'; })
       : detectNumericColumns(columns, rows);
 
     var head = '<tr>' + columns.map(function (c, i) {
@@ -653,11 +653,11 @@
     if (!elNote) { return; }
     if (!data) { elNote.innerHTML = ''; return; }
 
-    var total = Number(data.totalCount || 0).toLocaleString();
+    var total = Ui.countText(data.totalCount || 0);
     var cols = (data.columns && data.columns.length) || 0;
-    // GL 與 TB 的分錄、科目用「筆」，來源檔與其他清單用「列」（使用者 2026-10-19 裁定）。
+    // GL 與 TB 的分錄、科目用「筆」，來源檔與其他清單用「列」（裁定 2026-10-19-16）。
     var unit = ENTRY_DATASETS.indexOf(activeDataset) >= 0 ? ' 筆' : ' 列';
-    var count = '共 ' + total + unit + '，全 ' + cols + ' 欄';
+    var count = '共 ' + total + unit + '，全 ' + Ui.countText(cols) + ' 欄';
 
     // stats 的形狀依資料集而異，由後端決定：GL 回金額、日期與傳票概況，
     // GL(未納入測試) 回四種未納入原因各自的筆數，只看一種原因時仍是全部未納入測試分錄的筆數。
@@ -666,15 +666,15 @@
     if (data.stats && data.stats.postingStatusCount != null) {
       statsHtml = statsRowHtml(EXCLUSION_REASONS.map(function (reason) {
         var value = data.stats[reason.countKey];
-        return reason.label + ' ' + (value == null ? '—' : Number(value).toLocaleString()) + ' 筆';
+        return reason.label + ' ' + (value == null ? '—' : Ui.countText(value)) + ' 筆';
       }));
     } else if (data.stats) {
       var parts = ['金額（絕對值）' + previewMoney(data.stats.amountAbsMin) +
         ' ～ ' + previewMoney(data.stats.amountAbsMax)];
-      if (data.stats.postDateMin) {
-        parts.push('總帳日期 ' + data.stats.postDateMin + ' ～ ' + data.stats.postDateMax);
+      if (data.stats.glDateMin) {
+        parts.push('總帳日期 ' + data.stats.glDateMin + ' ～ ' + data.stats.glDateMax);
       }
-      parts.push('傳票 ' + Number(data.stats.voucherCount).toLocaleString() + ' 張');
+      parts.push('傳票 ' + Ui.countText(data.stats.voucherCount) + ' 張');
       statsHtml = statsRowHtml(parts);
     }
 
@@ -707,9 +707,9 @@
       case 'pbcTb': return '尚未匯入 PBC-TB；完成「匯入資料」後即可預覽。';
       case 'gl': return '尚未確認 GL 欄位配對；確認後即可預覽 GL。';
       case 'tb': return '尚未確認 TB 欄位配對；確認後即可預覽 TB。';
-      case 'accountMappings': return '尚未儲存科目配對；請在「資料驗證與測試」的科目清單選擇分類並儲存。';
-      case 'authorizedPreparers': return '尚未匯入授權編製人員清單；在「匯入資料」步驟匯入後即可預覽。';
-      case 'dateDimension': return '尚未匯入事務所假日／補班日；在「匯入資料」步驟匯入行事曆後即可預覽。';
+      case 'accountMapping': return '尚未儲存科目配對；請在「資料驗證與測試」的科目清單選擇分類並儲存。';
+      case 'authorizedPreparer': return '尚未匯入授權編製人員清單；在「匯入資料」步驟匯入後即可預覽。';
+      case 'calendar': return '尚未匯入事務所假日／補班日；在「匯入資料」步驟匯入行事曆後即可預覽。';
       default: return '目前沒有資料。';
     }
   }

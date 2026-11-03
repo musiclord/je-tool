@@ -1,89 +1,7 @@
 {
   "schemaVersion": 1,
   "actions": {
-    "accountMapping.save": {
-      "request": {
-        "kind": "object",
-        "fields": {
-          "changes": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "accountCode": "string",
-                "categoryId": "string"
-              }
-            }
-          }
-        }
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "batchId": "string",
-          "blankCategoryCount": "number",
-          "fileName": "string",
-          "hasAnyCategory": "boolean",
-          "hasCounterpart": "boolean",
-          "hasRevenue": "boolean",
-          "importedUtc": "string",
-          "invalidatedResults": {
-            "kind": "object",
-            "fields": {
-              "accountMapping": "boolean",
-              "filter": "boolean",
-              "filterScenarios": "boolean",
-              "prescreen": "boolean",
-              "validation": "boolean"
-            }
-          },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "artifactId": "string",
-                "bytes": "number",
-                "fileName": "string",
-                "fileState": "string",
-                "fullPath": "string",
-                "generatedUtc": "string",
-                "kind": "string",
-                "sourceRef": {
-                  "kind": "object",
-                  "fields": {
-                    "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
-                    "scenarioPositions": {
-                      "kind": "array|null",
-                      "items": "number"
-                    },
-                    "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
-                  }
-                },
-                "stale": "boolean"
-              }
-            }
-          },
-          "rowCount": "number",
-          "staleState": {
-            "kind": "object",
-            "fields": {
-              "filter": "boolean",
-              "prescreen": "boolean",
-              "validation": "boolean"
-            }
-          },
-          "warnings": {
-            "kind": "array",
-            "items": null
-          }
-        }
-      }
-    },
-    "accountTaxonomy.save": {
+    "accountCategory.save": {
       "request": {
         "kind": "object",
         "fields": {
@@ -130,8 +48,8 @@
               "validation": "boolean"
             }
           },
-          "reportArtifactWarning": "null|string",
-          "reportArtifacts": {
+          "reportWarning": "null|string",
+          "reports": {
             "kind": "array|null",
             "items": null
           },
@@ -143,6 +61,88 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          }
+        }
+      }
+    },
+    "accountMapping.save": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "changes": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountNumber": "string",
+                "categoryId": "string"
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "batchId": "string",
+          "blankCategoryCount": "number",
+          "fileName": "string",
+          "hasAnyCategory": "boolean",
+          "hasCounterpart": "boolean",
+          "hasRevenue": "boolean",
+          "importedUtc": "string",
+          "invalidatedResults": {
+            "kind": "object",
+            "fields": {
+              "accountMapping": "boolean",
+              "filter": "boolean",
+              "filterScenarios": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "reportWarning": "null",
+          "reports": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "bytes": "number",
+                "fileName": "string",
+                "fileState": "string",
+                "fullPath": "string",
+                "generatedUtc": "string",
+                "kind": "string",
+                "reportId": "string",
+                "sourceRef": {
+                  "kind": "object",
+                  "fields": {
+                    "filterDataRevision": "null|string",
+                    "prescreenResultId": "null|string",
+                    "scenarioPositions": {
+                      "kind": "array|null",
+                      "items": "number"
+                    },
+                    "scenarioRevision": "null|string",
+                    "validationResultId": "null|string"
+                  }
+                },
+                "stale": "boolean"
+              }
+            }
+          },
+          "rowCount": "number",
+          "staleState": {
+            "kind": "object",
+            "fields": {
+              "filter": "boolean",
+              "prescreen": "boolean",
+              "validation": "boolean"
+            }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": null
           }
         }
       }
@@ -175,30 +175,30 @@
             "items": "number"
           },
           "ok": "boolean",
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -315,7 +315,7 @@
             "kind": "array",
             "items": {
               "kind": "array",
-              "items": "string"
+              "items": "null|string"
             }
           },
           "tableName": "string",
@@ -345,7 +345,7 @@
         "kind": "object",
         "fields": {
           "onlyIfMissing": "boolean",
-          "runId": "string"
+          "resultId": "string"
         }
       },
       "response": {
@@ -356,7 +356,7 @@
           "filePath": "string",
           "ok": "boolean",
           "rowCount": "number",
-          "validationRunId": "string"
+          "validationResultId": "string"
         }
       }
     },
@@ -365,63 +365,63 @@
         "kind": "object",
         "fields": {
           "revision": "string",
-          "validationRunId": "string"
+          "validationResultId": "string"
         }
       },
       "response": {
         "kind": "object",
         "fields": {
-          "artifact": {
+          "ok": "boolean",
+          "publishedReport": {
             "kind": "object",
             "fields": {
-              "artifactId": "string",
               "bytes": "number",
               "fileName": "string",
               "fileState": "string",
               "fullPath": "string",
               "generatedUtc": "string",
               "kind": "string",
+              "reportId": "string",
               "sourceRef": {
                 "kind": "object",
                 "fields": {
                   "filterDataRevision": "string",
-                  "prescreenRunId": "null",
+                  "prescreenResultId": "null",
                   "scenarioPositions": {
                     "kind": "array",
                     "items": "number"
                   },
                   "scenarioRevision": "string",
-                  "validationRunId": "string"
+                  "validationResultId": "string"
                 }
               },
               "stale": "boolean"
             }
           },
-          "ok": "boolean",
-          "reportArtifactWarning": "null|string",
-          "reportArtifacts": {
+          "reportWarning": "null|string",
+          "reports": {
             "kind": "array|null",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -439,57 +439,57 @@
       "request": {
         "kind": "object",
         "fields": {
-          "runId": "string"
+          "resultId": "string"
         }
       },
       "response": {
         "kind": "object",
         "fields": {
-          "artifact": {
+          "ok": "boolean",
+          "publishedReport": {
             "kind": "object",
             "fields": {
-              "artifactId": "string",
               "bytes": "number",
               "fileName": "string",
               "fileState": "string",
               "fullPath": "string",
               "generatedUtc": "string",
               "kind": "string",
+              "reportId": "string",
               "sourceRef": {
                 "kind": "object",
                 "fields": {
                   "filterDataRevision": "null",
-                  "prescreenRunId": "string",
+                  "prescreenResultId": "string",
                   "scenarioPositions": "null",
                   "scenarioRevision": "null",
-                  "validationRunId": "null"
+                  "validationResultId": "null"
                 }
               },
               "stale": "boolean"
             }
           },
-          "ok": "boolean",
-          "reportArtifactWarning": "null|string",
-          "reportArtifacts": {
+          "reportWarning": "null|string",
+          "reports": {
             "kind": "array|null",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": "null",
                     "scenarioRevision": "null",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -503,64 +503,64 @@
         }
       }
     },
-    "export.validationArtifacts": {
+    "export.validationReports": {
       "request": {
         "kind": "object",
         "fields": {
-          "runId": "string"
+          "resultId": "string"
         }
       },
       "response": {
         "kind": "object",
         "fields": {
-          "artifacts": {
+          "ok": "boolean",
+          "publishedReports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null",
-                    "prescreenRunId": "null",
+                    "prescreenResultId": "null",
                     "scenarioPositions": "null",
                     "scenarioRevision": "null",
-                    "validationRunId": "string"
+                    "validationResultId": "string"
                   }
                 },
                 "stale": "boolean"
               }
             }
           },
-          "ok": "boolean",
-          "reportArtifactWarning": "null|string",
-          "reportArtifacts": {
+          "reportWarning": "null|string",
+          "reports": {
             "kind": "array|null",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null",
-                    "prescreenRunId": "null",
+                    "prescreenResultId": "null",
                     "scenarioPositions": "null",
                     "scenarioRevision": "null",
-                    "validationRunId": "string"
+                    "validationResultId": "string"
                   }
                 },
                 "stale": "boolean"
@@ -574,7 +574,7 @@
         }
       }
     },
-    "export.workpaperStream": {
+    "export.workingPaperStream": {
       "request": {
         "kind": "object",
         "fields": {
@@ -582,65 +582,65 @@
             "kind": "array",
             "items": "number"
           },
-          "scenarioRevision": "string",
-          "validationRunId": "string"
+          "scenarioRevision": "null|string",
+          "validationResultId": "string"
         }
       },
       "response": {
         "kind": "object",
         "fields": {
-          "artifact": {
+          "filterResultsCurrent": "boolean",
+          "ok": "boolean",
+          "publishedReport": {
             "kind": "object",
             "fields": {
-              "artifactId": "string",
               "bytes": "number",
               "fileName": "string",
               "fileState": "string",
               "fullPath": "string",
               "generatedUtc": "string",
               "kind": "string",
+              "reportId": "string",
               "sourceRef": {
                 "kind": "object",
                 "fields": {
                   "filterDataRevision": "string",
-                  "prescreenRunId": "null",
+                  "prescreenResultId": "null",
                   "scenarioPositions": {
                     "kind": "array",
                     "items": "number"
                   },
-                  "scenarioRevision": "string",
-                  "validationRunId": "string"
+                  "scenarioRevision": "null|string",
+                  "validationResultId": "string"
                 }
               },
               "stale": "boolean"
             }
           },
-          "filterResultsCurrent": "boolean",
-          "ok": "boolean",
-          "reportArtifactWarning": "null|string",
-          "reportArtifacts": {
+          "reportWarning": "null|string",
+          "reports": {
             "kind": "array|null",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -678,31 +678,19 @@
             "fields": {
               "editorOrigins": {
                 "kind": "object",
-                "optional": [
-                  "legacyKctSource"
-                ],
                 "fields": {
                   "groups": {
                     "kind": "array",
                     "items": {
                       "kind": "object",
-                      "optional": [
-                        "cards",
-                        "letters"
-                      ],
                       "fields": {
                         "cards": {
                           "kind": "array",
                           "items": "null|string"
-                        },
-                        "letters": {
-                          "kind": "array",
-                          "items": "string"
                         }
                       }
                     }
                   },
-                  "legacyKctSource": "boolean",
                   "nameIsAutomatic": "boolean",
                   "rationaleIsAutomatic": "boolean",
                   "version": "number"
@@ -713,18 +701,16 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "join": "string",
-                    "matchScope": "string",
-                    "rules": {
+                    "conditions": {
                       "kind": "array",
                       "items": {
                         "kind": "object",
                         "optional": [
                           "amountBasis",
                           "categorySelection",
+                          "conditions",
                           "creditCategoryIds",
                           "debitCategoryIds",
-                          "digits",
                           "drCr",
                           "field",
                           "fieldId",
@@ -733,14 +719,12 @@
                           "isManual",
                           "join",
                           "keywords",
-                          "maxEntries",
                           "mode",
                           "normalization",
                           "operator",
                           "pairMode",
                           "prescreenKey",
                           "quantifier",
-                          "rules",
                           "to",
                           "value",
                           "values",
@@ -749,31 +733,7 @@
                         "fields": {
                           "amountBasis": "string",
                           "categorySelection": "string",
-                          "creditCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "debitCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "digits": "string",
-                          "drCr": "string",
-                          "field": "string",
-                          "fieldId": "string",
-                          "from": "string",
-                          "includeBlank": "boolean",
-                          "isManual": "string",
-                          "join": "string",
-                          "keywords": "string",
-                          "maxEntries": "string",
-                          "mode": "string",
-                          "normalization": "string",
-                          "operator": "string",
-                          "pairMode": "string",
-                          "prescreenKey": "string",
-                          "quantifier": "string",
-                          "rules": {
+                          "conditions": {
                             "kind": "array",
                             "items": {
                               "kind": "object",
@@ -806,6 +766,28 @@
                               }
                             }
                           },
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
                           "to": "string",
                           "type": "string",
                           "value": "string",
@@ -816,7 +798,9 @@
                           "windowDays": "string"
                         }
                       }
-                    }
+                    },
+                    "join": "string",
+                    "matchScope": "string"
                   }
                 }
               },
@@ -842,14 +826,14 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "accountCode": "string",
                     "accountName": "string",
+                    "accountNumber": "string",
                     "amount": "number",
-                    "documentDescription": "string",
-                    "documentNumber": "string",
+                    "description": "string",
                     "drCr": "string",
+                    "glDate": "string",
                     "lineItem": "string",
-                    "postDate": "string"
+                    "voucherNumber": "string"
                   }
                 }
               },
@@ -907,9 +891,6 @@
             "kind": "array",
             "items": {
               "kind": "object",
-              "optional": [
-                "exclusions"
-              ],
               "fields": {
                 "editorOrigins": {
                   "kind": "object",
@@ -931,48 +912,19 @@
                     "version": "number"
                   }
                 },
-                "exclusions": {
-                  "kind": "array",
-                  "items": {
-                    "kind": "object",
-                    "fields": {
-                      "rule": {
-                        "kind": "object",
-                        "optional": [
-                          "drCr",
-                          "field",
-                          "operator",
-                          "values"
-                        ],
-                        "fields": {
-                          "drCr": "string",
-                          "field": "string",
-                          "operator": "string",
-                          "type": "string",
-                          "values": {
-                            "kind": "array",
-                            "items": "string"
-                          }
-                        }
-                      },
-                      "scope": "string"
-                    }
-                  }
-                },
                 "groups": {
                   "kind": "array",
                   "items": {
                     "kind": "object",
                     "fields": {
-                      "join": "string",
-                      "matchScope": "string",
-                      "rules": {
+                      "conditions": {
                         "kind": "array",
                         "items": {
                           "kind": "object",
                           "optional": [
                             "amountBasis",
                             "categorySelection",
+                            "conditions",
                             "creditCategoryIds",
                             "debitCategoryIds",
                             "drCr",
@@ -988,7 +940,6 @@
                             "pairMode",
                             "prescreenKey",
                             "quantifier",
-                            "rules",
                             "to",
                             "value",
                             "values"
@@ -996,28 +947,7 @@
                           "fields": {
                             "amountBasis": "string",
                             "categorySelection": "string",
-                            "creditCategoryIds": {
-                              "kind": "array",
-                              "items": "string"
-                            },
-                            "debitCategoryIds": {
-                              "kind": "array",
-                              "items": "string"
-                            },
-                            "drCr": "string",
-                            "field": "string",
-                            "fieldId": "string",
-                            "from": "string",
-                            "includeBlank": "boolean",
-                            "isManual": "string",
-                            "join": "string",
-                            "mode": "string",
-                            "normalization": "string",
-                            "operator": "string",
-                            "pairMode": "string",
-                            "prescreenKey": "string",
-                            "quantifier": "string",
-                            "rules": {
+                            "conditions": {
                               "kind": "array",
                               "items": {
                                 "kind": "object",
@@ -1059,6 +989,27 @@
                                 }
                               }
                             },
+                            "creditCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "debitCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "drCr": "string",
+                            "field": "string",
+                            "fieldId": "string",
+                            "from": "string",
+                            "includeBlank": "boolean",
+                            "isManual": "string",
+                            "join": "string",
+                            "mode": "string",
+                            "normalization": "string",
+                            "operator": "string",
+                            "pairMode": "string",
+                            "prescreenKey": "string",
+                            "quantifier": "string",
                             "to": "string",
                             "type": "string",
                             "value": "string",
@@ -1068,7 +1019,9 @@
                             }
                           }
                         }
-                      }
+                      },
+                      "join": "string",
+                      "matchScope": "string"
                     }
                   }
                 },
@@ -1140,9 +1093,6 @@
             "kind": "array",
             "items": {
               "kind": "object",
-              "optional": [
-                "exclusions"
-              ],
               "fields": {
                 "editorOrigins": {
                   "kind": "object",
@@ -1164,42 +1114,12 @@
                     "version": "number"
                   }
                 },
-                "exclusions": {
-                  "kind": "array",
-                  "items": {
-                    "kind": "object",
-                    "fields": {
-                      "rule": {
-                        "kind": "object",
-                        "optional": [
-                          "drCr",
-                          "field",
-                          "operator",
-                          "values"
-                        ],
-                        "fields": {
-                          "drCr": "string",
-                          "field": "string",
-                          "operator": "string",
-                          "type": "string",
-                          "values": {
-                            "kind": "array",
-                            "items": "string"
-                          }
-                        }
-                      },
-                      "scope": "string"
-                    }
-                  }
-                },
                 "groups": {
                   "kind": "array",
                   "items": {
                     "kind": "object",
                     "fields": {
-                      "join": "string",
-                      "matchScope": "string",
-                      "rules": {
+                      "conditions": {
                         "kind": "array",
                         "items": {
                           "kind": "object",
@@ -1225,7 +1145,9 @@
                             }
                           }
                         }
-                      }
+                      },
+                      "join": "string",
+                      "matchScope": "string"
                     }
                   }
                 },
@@ -1261,7 +1183,6 @@
           "scenario": {
             "kind": "object",
             "optional": [
-              "exclusions",
               "source"
             ],
             "fields": {
@@ -1285,51 +1206,21 @@
                   "version": "number"
                 }
               },
-              "exclusions": {
-                "kind": "array",
-                "items": {
-                  "kind": "object",
-                  "fields": {
-                    "rule": {
-                      "kind": "object",
-                      "optional": [
-                        "drCr",
-                        "field",
-                        "operator",
-                        "values"
-                      ],
-                      "fields": {
-                        "drCr": "string",
-                        "field": "string",
-                        "operator": "string",
-                        "type": "string",
-                        "values": {
-                          "kind": "array",
-                          "items": "string"
-                        }
-                      }
-                    },
-                    "scope": "string"
-                  }
-                }
-              },
               "groups": {
                 "kind": "array",
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "join": "string",
-                    "matchScope": "string",
-                    "rules": {
+                    "conditions": {
                       "kind": "array",
                       "items": {
                         "kind": "object",
                         "optional": [
                           "amountBasis",
                           "categorySelection",
+                          "conditions",
                           "creditCategoryIds",
                           "debitCategoryIds",
-                          "digits",
                           "drCr",
                           "field",
                           "fieldId",
@@ -1338,14 +1229,12 @@
                           "isManual",
                           "join",
                           "keywords",
-                          "maxEntries",
                           "mode",
                           "normalization",
                           "operator",
                           "pairMode",
                           "prescreenKey",
                           "quantifier",
-                          "rules",
                           "to",
                           "value",
                           "values",
@@ -1354,31 +1243,7 @@
                         "fields": {
                           "amountBasis": "string",
                           "categorySelection": "string",
-                          "creditCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "debitCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "digits": "string",
-                          "drCr": "string",
-                          "field": "string",
-                          "fieldId": "string",
-                          "from": "string",
-                          "includeBlank": "boolean",
-                          "isManual": "string",
-                          "join": "string",
-                          "keywords": "string",
-                          "maxEntries": "string",
-                          "mode": "string",
-                          "normalization": "string",
-                          "operator": "string",
-                          "pairMode": "string",
-                          "prescreenKey": "string",
-                          "quantifier": "string",
-                          "rules": {
+                          "conditions": {
                             "kind": "array",
                             "items": {
                               "kind": "object",
@@ -1420,6 +1285,28 @@
                               }
                             }
                           },
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
                           "to": "string",
                           "type": "string",
                           "value": "string",
@@ -1430,7 +1317,9 @@
                           "windowDays": "string"
                         }
                       }
-                    }
+                    },
+                    "join": "string",
+                    "matchScope": "string"
                   }
                 }
               },
@@ -1481,9 +1370,6 @@
             "kind": "array",
             "items": {
               "kind": "object",
-              "optional": [
-                "exclusions"
-              ],
               "fields": {
                 "editorOrigins": {
                   "kind": "object",
@@ -1505,48 +1391,19 @@
                     "version": "number"
                   }
                 },
-                "exclusions": {
-                  "kind": "array",
-                  "items": {
-                    "kind": "object",
-                    "fields": {
-                      "rule": {
-                        "kind": "object",
-                        "optional": [
-                          "drCr",
-                          "field",
-                          "operator",
-                          "values"
-                        ],
-                        "fields": {
-                          "drCr": "string",
-                          "field": "string",
-                          "operator": "string",
-                          "type": "string",
-                          "values": {
-                            "kind": "array",
-                            "items": "string"
-                          }
-                        }
-                      },
-                      "scope": "string"
-                    }
-                  }
-                },
                 "groups": {
                   "kind": "array",
                   "items": {
                     "kind": "object",
                     "fields": {
-                      "join": "string",
-                      "matchScope": "string",
-                      "rules": {
+                      "conditions": {
                         "kind": "array",
                         "items": {
                           "kind": "object",
                           "optional": [
                             "amountBasis",
                             "categorySelection",
+                            "conditions",
                             "creditCategoryIds",
                             "debitCategoryIds",
                             "drCr",
@@ -1562,7 +1419,6 @@
                             "pairMode",
                             "prescreenKey",
                             "quantifier",
-                            "rules",
                             "to",
                             "value",
                             "values"
@@ -1570,28 +1426,7 @@
                           "fields": {
                             "amountBasis": "string",
                             "categorySelection": "string",
-                            "creditCategoryIds": {
-                              "kind": "array",
-                              "items": "string"
-                            },
-                            "debitCategoryIds": {
-                              "kind": "array",
-                              "items": "string"
-                            },
-                            "drCr": "string",
-                            "field": "string",
-                            "fieldId": "string",
-                            "from": "string",
-                            "includeBlank": "boolean",
-                            "isManual": "string",
-                            "join": "string",
-                            "mode": "string",
-                            "normalization": "string",
-                            "operator": "string",
-                            "pairMode": "string",
-                            "prescreenKey": "string",
-                            "quantifier": "string",
-                            "rules": {
+                            "conditions": {
                               "kind": "array",
                               "items": {
                                 "kind": "object",
@@ -1633,6 +1468,27 @@
                                 }
                               }
                             },
+                            "creditCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "debitCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "drCr": "string",
+                            "field": "string",
+                            "fieldId": "string",
+                            "from": "string",
+                            "includeBlank": "boolean",
+                            "isManual": "string",
+                            "join": "string",
+                            "mode": "string",
+                            "normalization": "string",
+                            "operator": "string",
+                            "pairMode": "string",
+                            "prescreenKey": "string",
+                            "quantifier": "string",
                             "to": "string",
                             "type": "string",
                             "value": "string",
@@ -1642,7 +1498,9 @@
                             }
                           }
                         }
-                      }
+                      },
+                      "join": "string",
+                      "matchScope": "string"
                     }
                   }
                 },
@@ -1681,11 +1539,11 @@
       "request": {
         "kind": "object",
         "optional": [
-          "artifactId",
+          "reportId",
           "target"
         ],
         "fields": {
-          "artifactId": "string",
+          "reportId": "string",
           "target": "string"
         }
       },
@@ -1776,30 +1634,30 @@
             }
           },
           "mappingOnlyCount": "null|number",
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -1842,30 +1700,30 @@
               "validation": "boolean"
             }
           },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -1912,30 +1770,30 @@
             }
           },
           "matchedPreparerCount": "number",
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -2002,30 +1860,30 @@
               "validation": "boolean"
             }
           },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -2086,30 +1944,30 @@
               "validation": "boolean"
             }
           },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -2187,30 +2045,30 @@
               "validation": "boolean"
             }
           },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -2312,30 +2170,30 @@
               "validation": "boolean"
             }
           },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -2453,38 +2311,38 @@
             "kind": "object",
             "optional": [
               "amount",
-              "approveBy",
-              "createBy",
+              "approvalDate",
+              "approvedBy",
+              "createdBy",
               "creditAmount",
-              "dcCreditCode",
-              "dcDebitCode",
-              "dcField",
               "debitAmount",
-              "docDate",
-              "jeSource",
-              "lineID",
-              "manual",
-              "postingStatus"
+              "drCr",
+              "drCrCreditCode",
+              "drCrDebitCode",
+              "isManual",
+              "lineItem",
+              "postingStatus",
+              "sourceModule"
             ],
             "fields": {
-              "accName": "string",
-              "accNum": "string",
+              "accountName": "string",
+              "accountNumber": "string",
               "amount": "string",
-              "approveBy": "string",
-              "createBy": "string",
+              "approvalDate": "string",
+              "approvedBy": "string",
+              "createdBy": "string",
               "creditAmount": "string",
-              "dcCreditCode": "string",
-              "dcDebitCode": "string",
-              "dcField": "string",
               "debitAmount": "string",
               "description": "string",
-              "docDate": "string",
-              "docNum": "string",
-              "jeSource": "string",
-              "lineID": "string",
-              "manual": "string",
-              "postDate": "string",
-              "postingStatus": "string"
+              "drCr": "string",
+              "drCrCreditCode": "string",
+              "drCrDebitCode": "string",
+              "glDate": "string",
+              "isManual": "string",
+              "lineItem": "string",
+              "postingStatus": "string",
+              "sourceModule": "string",
+              "voucherNumber": "string"
             }
           },
           "postingStatusPolicy": {
@@ -2573,38 +2431,38 @@
             "kind": "object",
             "optional": [
               "amount",
-              "approveBy",
-              "createBy",
+              "approvalDate",
+              "approvedBy",
+              "createdBy",
               "creditAmount",
-              "dcCreditCode",
-              "dcDebitCode",
-              "dcField",
               "debitAmount",
-              "docDate",
-              "jeSource",
-              "lineID",
-              "manual",
-              "postingStatus"
+              "drCr",
+              "drCrCreditCode",
+              "drCrDebitCode",
+              "isManual",
+              "lineItem",
+              "postingStatus",
+              "sourceModule"
             ],
             "fields": {
-              "accName": "string",
-              "accNum": "string",
+              "accountName": "string",
+              "accountNumber": "string",
               "amount": "string",
-              "approveBy": "string",
-              "createBy": "string",
+              "approvalDate": "string",
+              "approvedBy": "string",
+              "createdBy": "string",
               "creditAmount": "string",
-              "dcCreditCode": "string",
-              "dcDebitCode": "string",
-              "dcField": "string",
               "debitAmount": "string",
               "description": "string",
-              "docDate": "string",
-              "docNum": "string",
-              "jeSource": "string",
-              "lineID": "string",
-              "manual": "string",
-              "postDate": "string",
-              "postingStatus": "string"
+              "drCr": "string",
+              "drCrCreditCode": "string",
+              "drCrDebitCode": "string",
+              "glDate": "string",
+              "isManual": "string",
+              "lineItem": "string",
+              "postingStatus": "string",
+              "sourceModule": "string",
+              "voucherNumber": "string"
             }
           },
           "ok": "boolean",
@@ -2631,30 +2489,30 @@
               }
             }
           },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -2684,28 +2542,28 @@
           "mapping": {
             "kind": "object",
             "optional": [
-              "amount",
+              "changeAmount",
               "closingBalance",
-              "closingCredit",
-              "closingDebit",
-              "creditAmt",
-              "debitAmt",
+              "closingCreditBalance",
+              "closingDebitBalance",
+              "creditAmount",
+              "debitAmount",
               "openingBalance",
-              "openingCredit",
-              "openingDebit"
+              "openingCreditBalance",
+              "openingDebitBalance"
             ],
             "fields": {
-              "accName": "string",
-              "accNum": "string",
-              "amount": "string",
+              "accountName": "string",
+              "accountNumber": "string",
+              "changeAmount": "string",
               "closingBalance": "string",
-              "closingCredit": "string",
-              "closingDebit": "string",
-              "creditAmt": "string",
-              "debitAmt": "string",
+              "closingCreditBalance": "string",
+              "closingDebitBalance": "string",
+              "creditAmount": "string",
+              "debitAmount": "string",
               "openingBalance": "string",
-              "openingCredit": "string",
-              "openingDebit": "string"
+              "openingCreditBalance": "string",
+              "openingDebitBalance": "string"
             }
           }
         }
@@ -2728,56 +2586,56 @@
           "mapping": {
             "kind": "object",
             "optional": [
-              "amount",
+              "changeAmount",
               "closingBalance",
-              "closingCredit",
-              "closingDebit",
-              "creditAmt",
-              "debitAmt",
+              "closingCreditBalance",
+              "closingDebitBalance",
+              "creditAmount",
+              "debitAmount",
               "openingBalance",
-              "openingCredit",
-              "openingDebit"
+              "openingCreditBalance",
+              "openingDebitBalance"
             ],
             "fields": {
-              "accName": "string",
-              "accNum": "string",
-              "amount": "string",
+              "accountName": "string",
+              "accountNumber": "string",
+              "changeAmount": "string",
               "closingBalance": "string",
-              "closingCredit": "string",
-              "closingDebit": "string",
-              "creditAmt": "string",
-              "debitAmt": "string",
+              "closingCreditBalance": "string",
+              "closingDebitBalance": "string",
+              "creditAmount": "string",
+              "debitAmount": "string",
               "openingBalance": "string",
-              "openingCredit": "string",
-              "openingDebit": "string"
+              "openingCreditBalance": "string",
+              "openingDebitBalance": "string"
             }
           },
           "ok": "boolean",
           "projectedRowCount": "number",
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -2932,34 +2790,13 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "accountCode": "string",
                     "accountName": "string",
+                    "accountNumber": "string",
                     "entryCount": "number"
                   }
                 }
               },
               "status": "string"
-            }
-          },
-          "creatorSummary": {
-            "kind": "object",
-            "fields": {
-              "creators": {
-                "kind": "array",
-                "items": {
-                  "kind": "object",
-                  "fields": {
-                    "createdBy": "string",
-                    "creditTotal": "number",
-                    "debitTotal": "number",
-                    "entryCount": "number",
-                    "manualCount": "number"
-                  }
-                }
-              },
-              "naReason": "null|string",
-              "status": "string",
-              "totalPreparerCount": "null|number"
             }
           },
           "holidayActivity": {
@@ -2969,21 +2806,6 @@
               "approvalNaReason": "null|string",
               "naReason": "null|string",
               "postingCount": "number",
-              "status": "string"
-            }
-          },
-          "lowFrequencyAccount": {
-            "kind": "object",
-            "fields": {
-              "count": "number",
-              "status": "string"
-            }
-          },
-          "lowFrequencyPreparer": {
-            "kind": "object",
-            "fields": {
-              "count": "number",
-              "naReason": "null|string",
               "status": "string"
             }
           },
@@ -3006,12 +2828,33 @@
               "signalGuidance": "string"
             }
           },
-          "postPeriodApproval": {
+          "prepPeriodApproval": {
             "kind": "object",
             "fields": {
               "count": "number",
               "naReason": "null|string",
               "status": "string"
+            }
+          },
+          "preparerSummary": {
+            "kind": "object",
+            "fields": {
+              "naReason": "null|string",
+              "preparers": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "createdBy": "string",
+                    "creditTotal": "number",
+                    "debitTotal": "number",
+                    "entryCount": "number",
+                    "manualCount": "number"
+                  }
+                }
+              },
+              "status": "string",
+              "totalPreparerCount": "null|number"
             }
           },
           "rareAccounts": {
@@ -3022,8 +2865,8 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "accountCode": "string",
                     "accountName": "string",
+                    "accountNumber": "string",
                     "creditTotal": "number",
                     "debitTotal": "number",
                     "entryCount": "number"
@@ -3031,7 +2874,6 @@
                 }
               },
               "distinctAccountCount": "number",
-              "lowFrequencyAccountCount": "number",
               "status": "string"
             }
           },
@@ -3040,7 +2882,7 @@
             "fields": {
               "generatedUtc": "string",
               "logicVersion": "string",
-              "runId": "string"
+              "resultId": "string"
             }
           },
           "rulePeriod": {
@@ -3102,13 +2944,13 @@
       "request": {
         "kind": "object",
         "fields": {
-          "caseName": "string",
+          "clientName": "string",
           "databaseProvider": "string",
-          "entityName": "string",
-          "lastPeriodStart": "null|string",
           "periodEnd": "string",
           "periodStart": "string",
-          "projectCode": "string"
+          "prepStartDate": "null|string",
+          "projectCode": "string",
+          "projectName": "string"
         }
       },
       "response": {
@@ -3152,7 +2994,7 @@
           "databaseProvider": "string",
           "projectId": "string",
           "reportCount": "number",
-          "workpaperCount": "number"
+          "workingPaperCount": "number"
         }
       }
     },
@@ -3189,10 +3031,10 @@
             "items": {
               "kind": "object",
               "fields": {
+                "clientName": "string",
                 "createdUtc": "string",
                 "currentStep": "number",
                 "databaseProvider": "string",
-                "entityName": "string",
                 "lastOpenedUtc": "null|string",
                 "periodEnd": "string",
                 "periodStart": "string",
@@ -3217,10 +3059,10 @@
             "items": {
               "kind": "object",
               "fields": {
+                "clientName": "string",
                 "createdUtc": "string",
                 "currentStep": "number",
                 "databaseProvider": "string",
-                "entityName": "string",
                 "lastOpenedUtc": "null|string",
                 "periodEnd": "string",
                 "periodStart": "string",
@@ -3246,6 +3088,26 @@
       "response": {
         "kind": "object",
         "fields": {
+          "accountCategory": {
+            "kind": "object",
+            "fields": {
+              "categories": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "categoryId": "string",
+                    "isBuiltIn": "boolean",
+                    "label": "string",
+                    "ordinal": "number",
+                    "parentCategoryId": "null|string",
+                    "semanticRole": "string"
+                  }
+                }
+              },
+              "revision": "number"
+            }
+          },
           "filterResultRef": {
             "kind": "null|object",
             "fields": {
@@ -3280,9 +3142,6 @@
             "kind": "array",
             "items": {
               "kind": "object",
-              "optional": [
-                "exclusions"
-              ],
               "fields": {
                 "editorOrigins": {
                   "kind": "object",
@@ -3304,48 +3163,19 @@
                     "version": "number"
                   }
                 },
-                "exclusions": {
-                  "kind": "array",
-                  "items": {
-                    "kind": "object",
-                    "fields": {
-                      "rule": {
-                        "kind": "object",
-                        "optional": [
-                          "drCr",
-                          "field",
-                          "operator",
-                          "values"
-                        ],
-                        "fields": {
-                          "drCr": "string",
-                          "field": "string",
-                          "operator": "string",
-                          "type": "string",
-                          "values": {
-                            "kind": "array",
-                            "items": "string"
-                          }
-                        }
-                      },
-                      "scope": "string"
-                    }
-                  }
-                },
                 "groups": {
                   "kind": "array",
                   "items": {
                     "kind": "object",
                     "fields": {
-                      "join": "string",
-                      "matchScope": "string",
-                      "rules": {
+                      "conditions": {
                         "kind": "array",
                         "items": {
                           "kind": "object",
                           "optional": [
                             "amountBasis",
                             "categorySelection",
+                            "conditions",
                             "creditCategoryIds",
                             "debitCategoryIds",
                             "drCr",
@@ -3361,7 +3191,6 @@
                             "pairMode",
                             "prescreenKey",
                             "quantifier",
-                            "rules",
                             "to",
                             "value",
                             "values"
@@ -3369,28 +3198,7 @@
                           "fields": {
                             "amountBasis": "string",
                             "categorySelection": "string",
-                            "creditCategoryIds": {
-                              "kind": "array",
-                              "items": "string"
-                            },
-                            "debitCategoryIds": {
-                              "kind": "array",
-                              "items": "string"
-                            },
-                            "drCr": "string",
-                            "field": "string",
-                            "fieldId": "string",
-                            "from": "string",
-                            "includeBlank": "boolean",
-                            "isManual": "string",
-                            "join": "string",
-                            "mode": "string",
-                            "normalization": "string",
-                            "operator": "string",
-                            "pairMode": "string",
-                            "prescreenKey": "string",
-                            "quantifier": "string",
-                            "rules": {
+                            "conditions": {
                               "kind": "array",
                               "items": {
                                 "kind": "object",
@@ -3432,6 +3240,27 @@
                                 }
                               }
                             },
+                            "creditCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "debitCategoryIds": {
+                              "kind": "array",
+                              "items": "string"
+                            },
+                            "drCr": "string",
+                            "field": "string",
+                            "fieldId": "string",
+                            "from": "string",
+                            "includeBlank": "boolean",
+                            "isManual": "string",
+                            "join": "string",
+                            "mode": "string",
+                            "normalization": "string",
+                            "operator": "string",
+                            "pairMode": "string",
+                            "prescreenKey": "string",
+                            "quantifier": "string",
                             "to": "string",
                             "type": "string",
                             "value": "string",
@@ -3441,7 +3270,9 @@
                             }
                           }
                         }
-                      }
+                      },
+                      "join": "string",
+                      "matchScope": "string"
                     }
                   }
                 },
@@ -3554,424 +3385,6 @@
               }
             }
           },
-          "latestRuns": {
-            "kind": "object",
-            "fields": {
-              "prescreen": {
-                "kind": "null|object",
-                "fields": {
-                  "blankDescription": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "status": "string"
-                    }
-                  },
-                  "concentration": {
-                    "kind": "object",
-                    "fields": {
-                      "distinctAccountCount": "number",
-                      "naReason": "null",
-                      "preparers": {
-                        "kind": "object",
-                        "fields": {
-                          "othersEntryCount": "number",
-                          "top": {
-                            "kind": "array",
-                            "items": {
-                              "kind": "object",
-                              "fields": {
-                                "createdBy": "string",
-                                "cumulativePct": "number",
-                                "entryCount": "number",
-                                "manualCount": "number"
-                              }
-                            }
-                          },
-                          "top5SharePct": "number",
-                          "totalEntryCount": "number",
-                          "totalPreparerCount": "number"
-                        }
-                      },
-                      "rareAccounts": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "accountCode": "string",
-                            "accountName": "string",
-                            "entryCount": "number"
-                          }
-                        }
-                      },
-                      "status": "string"
-                    }
-                  },
-                  "creatorSummary": {
-                    "kind": "object",
-                    "fields": {
-                      "creators": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "createdBy": "string",
-                            "creditTotal": "number",
-                            "debitTotal": "number",
-                            "entryCount": "number",
-                            "manualCount": "number"
-                          }
-                        }
-                      },
-                      "naReason": "null",
-                      "status": "string",
-                      "totalPreparerCount": "number"
-                    }
-                  },
-                  "holidayActivity": {
-                    "kind": "object",
-                    "fields": {
-                      "approvalCount": "number",
-                      "approvalNaReason": "null",
-                      "naReason": "null",
-                      "postingCount": "number",
-                      "status": "string"
-                    }
-                  },
-                  "lowFrequencyAccount": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "status": "string"
-                    }
-                  },
-                  "lowFrequencyPreparer": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "naReason": "null",
-                      "status": "string"
-                    }
-                  },
-                  "nonAuthorizedPreparer": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "naReason": "null",
-                      "status": "string"
-                    }
-                  },
-                  "positioning": {
-                    "kind": "object",
-                    "fields": {
-                      "aggregateGuidance": "string",
-                      "exportDefaultGuidance": "string",
-                      "exportPendingRunGuidance": "string",
-                      "overviewGuidance": "string",
-                      "reportGuidance": "string",
-                      "signalGuidance": "string"
-                    }
-                  },
-                  "postPeriodApproval": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "naReason": "null",
-                      "status": "string"
-                    }
-                  },
-                  "rareAccounts": {
-                    "kind": "object",
-                    "fields": {
-                      "accounts": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "accountCode": "string",
-                            "accountName": "string",
-                            "creditTotal": "number",
-                            "debitTotal": "number",
-                            "entryCount": "number"
-                          }
-                        }
-                      },
-                      "distinctAccountCount": "number",
-                      "lowFrequencyAccountCount": "number",
-                      "status": "string"
-                    }
-                  },
-                  "resultRef": {
-                    "kind": "object",
-                    "fields": {
-                      "generatedUtc": "string",
-                      "logicVersion": "string",
-                      "runId": "string"
-                    }
-                  },
-                  "rulePeriod": {
-                    "kind": "object",
-                    "fields": {
-                      "population": "number",
-                      "rules": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "hitLines": "number",
-                            "hitVouchers": "number",
-                            "key": "string",
-                            "naReason": "null",
-                            "ratePct": "number"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "suspiciousKeywords": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "status": "string"
-                    }
-                  },
-                  "trailingZeros": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "status": "string",
-                      "zerosThreshold": "number"
-                    }
-                  },
-                  "unexpectedAccountPair": {
-                    "kind": "object",
-                    "fields": {
-                      "count": "number",
-                      "naReason": "null",
-                      "status": "string"
-                    }
-                  },
-                  "weekendActivity": {
-                    "kind": "object",
-                    "fields": {
-                      "approvalCount": "number",
-                      "approvalNaReason": "null",
-                      "naReason": "null",
-                      "postingCount": "number",
-                      "status": "string"
-                    }
-                  }
-                }
-              },
-              "validate": {
-                "kind": "null|object",
-                "fields": {
-                  "amountDistribution": {
-                    "kind": "object",
-                    "fields": {
-                      "bins": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "count": "number",
-                            "ecdfPct": "null|number",
-                            "key": "string"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "completenessTest": {
-                    "kind": "object",
-                    "fields": {
-                      "diffAccountCount": "number",
-                      "diffAccounts": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "accountCode": "string",
-                            "accountName": "string",
-                            "diff": "number",
-                            "glAmount": "number",
-                            "notInTb": "boolean",
-                            "tbAmount": "number"
-                          }
-                        }
-                      },
-                      "eligibility": {
-                        "kind": "object",
-                        "fields": {
-                          "isEligible": "boolean",
-                          "reason": "null",
-                          "warning": "null|string"
-                        }
-                      },
-                      "naReason": "null",
-                      "partA": {
-                        "kind": "object",
-                        "fields": {
-                          "amountMatch": "boolean",
-                          "effectiveTarget": {
-                            "kind": "object",
-                            "fields": {
-                              "rowCount": "number",
-                              "totalCredit": "number",
-                              "totalDebit": "number"
-                            }
-                          },
-                          "eligibleSource": {
-                            "kind": "object",
-                            "fields": {
-                              "rowCount": "number",
-                              "totalCredit": "number",
-                              "totalDebit": "number"
-                            }
-                          },
-                          "rowCountMatch": "boolean"
-                        }
-                      },
-                      "status": "string"
-                    }
-                  },
-                  "docBalanceTest": {
-                    "kind": "object",
-                    "fields": {
-                      "status": "string",
-                      "unbalancedDocumentCount": "number",
-                      "unbalancedDocuments": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "credit": "number",
-                            "debit": "number",
-                            "diff": "number",
-                            "documentNumber": "string"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "documentDateReuse": {
-                    "kind": "object",
-                    "fields": {
-                      "documentNumberCount": "number",
-                      "entryCount": "number"
-                    }
-                  },
-                  "infSamplingTest": {
-                    "kind": "object",
-                    "fields": {
-                      "sampleSize": "number",
-                      "seed": "number",
-                      "status": "string"
-                    }
-                  },
-                  "nullRecordsTest": {
-                    "kind": "object",
-                    "fields": {
-                      "nullAccountCount": "number",
-                      "nullDescriptionCount": "number",
-                      "nullDocumentCount": "number",
-                      "nullRows": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "accountCode": "string",
-                            "description": "null|string",
-                            "documentNumber": "string",
-                            "issues": {
-                              "kind": "array",
-                              "items": "string"
-                            },
-                            "postDate": "string"
-                          }
-                        }
-                      },
-                      "outOfRangeDateCount": "number",
-                      "outOfRangeDateNaReason": "null",
-                      "status": "string"
-                    }
-                  },
-                  "populationSummary": {
-                    "kind": "object",
-                    "fields": {
-                      "effective": {
-                        "kind": "object",
-                        "fields": {
-                          "net": "number",
-                          "rowCount": "number",
-                          "totalCredit": "number",
-                          "totalDebit": "number",
-                          "voucherCount": "number"
-                        }
-                      },
-                      "excluded": {
-                        "kind": "object",
-                        "fields": {
-                          "byPeriodCount": "number",
-                          "byPostingStatusCount": "number",
-                          "rowCount": "number"
-                        }
-                      },
-                      "raw": {
-                        "kind": "object",
-                        "fields": {
-                          "rowCount": "number",
-                          "totalCredit": "number",
-                          "totalDebit": "number"
-                        }
-                      }
-                    }
-                  },
-                  "resultRef": {
-                    "kind": "object",
-                    "fields": {
-                      "generatedUtc": "string",
-                      "logicVersion": "string",
-                      "runId": "string"
-                    }
-                  },
-                  "sourceQuality": {
-                    "kind": "object",
-                    "fields": {
-                      "findingCount": "number",
-                      "sampleRows": {
-                        "kind": "array",
-                        "items": {
-                          "kind": "object",
-                          "fields": {
-                            "accountCode": "string",
-                            "category": "string",
-                            "description": "string",
-                            "documentNumber": "string",
-                            "postDate": "null",
-                            "sourceLabel": "string",
-                            "sourceRowNumber": "number"
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "stats": {
-                    "kind": "object",
-                    "fields": {
-                      "glRowCount": "number",
-                      "net": "number",
-                      "periodEnd": "string",
-                      "periodStart": "string",
-                      "totalCredit": "number",
-                      "totalDebit": "number",
-                      "voucherCount": "number"
-                    }
-                  }
-                }
-              }
-            }
-          },
           "mapping": {
             "kind": "object",
             "fields": {
@@ -4013,38 +3426,38 @@
                     "kind": "object",
                     "optional": [
                       "amount",
-                      "approveBy",
-                      "createBy",
+                      "approvalDate",
+                      "approvedBy",
+                      "createdBy",
                       "creditAmount",
-                      "dcCreditCode",
-                      "dcDebitCode",
-                      "dcField",
                       "debitAmount",
-                      "docDate",
-                      "jeSource",
-                      "lineID",
-                      "manual",
-                      "postingStatus"
+                      "drCr",
+                      "drCrCreditCode",
+                      "drCrDebitCode",
+                      "isManual",
+                      "lineItem",
+                      "postingStatus",
+                      "sourceModule"
                     ],
                     "fields": {
-                      "accName": "string",
-                      "accNum": "string",
+                      "accountName": "string",
+                      "accountNumber": "string",
                       "amount": "string",
-                      "approveBy": "string",
-                      "createBy": "string",
+                      "approvalDate": "string",
+                      "approvedBy": "string",
+                      "createdBy": "string",
                       "creditAmount": "string",
-                      "dcCreditCode": "string",
-                      "dcDebitCode": "string",
-                      "dcField": "string",
                       "debitAmount": "string",
                       "description": "string",
-                      "docDate": "string",
-                      "docNum": "string",
-                      "jeSource": "string",
-                      "lineID": "string",
-                      "manual": "string",
-                      "postDate": "string",
-                      "postingStatus": "string"
+                      "drCr": "string",
+                      "drCrCreditCode": "string",
+                      "drCrDebitCode": "string",
+                      "glDate": "string",
+                      "isManual": "string",
+                      "lineItem": "string",
+                      "postingStatus": "string",
+                      "sourceModule": "string",
+                      "voucherNumber": "string"
                     }
                   },
                   "postingStatusPolicy": {
@@ -4080,13 +3493,203 @@
                   "mapping": {
                     "kind": "object",
                     "fields": {
-                      "accName": "string",
-                      "accNum": "string",
-                      "creditAmt": "string",
-                      "debitAmt": "string"
+                      "accountName": "string",
+                      "accountNumber": "string",
+                      "creditAmount": "string",
+                      "debitAmount": "string"
                     }
                   },
                   "sourceBatchId": "string"
+                }
+              }
+            }
+          },
+          "prescreenResult": {
+            "kind": "null|object",
+            "fields": {
+              "blankDescription": {
+                "kind": "object",
+                "fields": {
+                  "count": "number",
+                  "status": "string"
+                }
+              },
+              "concentration": {
+                "kind": "object",
+                "fields": {
+                  "distinctAccountCount": "number",
+                  "naReason": "null",
+                  "preparers": {
+                    "kind": "object",
+                    "fields": {
+                      "othersEntryCount": "number",
+                      "top": {
+                        "kind": "array",
+                        "items": {
+                          "kind": "object",
+                          "fields": {
+                            "createdBy": "string",
+                            "cumulativePct": "number",
+                            "entryCount": "number",
+                            "manualCount": "number"
+                          }
+                        }
+                      },
+                      "top5SharePct": "number",
+                      "totalEntryCount": "number",
+                      "totalPreparerCount": "number"
+                    }
+                  },
+                  "rareAccounts": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "accountName": "string",
+                        "accountNumber": "string",
+                        "entryCount": "number"
+                      }
+                    }
+                  },
+                  "status": "string"
+                }
+              },
+              "holidayActivity": {
+                "kind": "object",
+                "fields": {
+                  "approvalCount": "number",
+                  "approvalNaReason": "null",
+                  "naReason": "null",
+                  "postingCount": "number",
+                  "status": "string"
+                }
+              },
+              "nonAuthorizedPreparer": {
+                "kind": "object",
+                "fields": {
+                  "count": "number",
+                  "naReason": "null",
+                  "status": "string"
+                }
+              },
+              "positioning": {
+                "kind": "object",
+                "fields": {
+                  "aggregateGuidance": "string",
+                  "exportDefaultGuidance": "string",
+                  "exportPendingRunGuidance": "string",
+                  "overviewGuidance": "string",
+                  "reportGuidance": "string",
+                  "signalGuidance": "string"
+                }
+              },
+              "prepPeriodApproval": {
+                "kind": "object",
+                "fields": {
+                  "count": "number",
+                  "naReason": "null",
+                  "status": "string"
+                }
+              },
+              "preparerSummary": {
+                "kind": "object",
+                "fields": {
+                  "naReason": "null",
+                  "preparers": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "createdBy": "string",
+                        "creditTotal": "number",
+                        "debitTotal": "number",
+                        "entryCount": "number",
+                        "manualCount": "number"
+                      }
+                    }
+                  },
+                  "status": "string",
+                  "totalPreparerCount": "number"
+                }
+              },
+              "rareAccounts": {
+                "kind": "object",
+                "fields": {
+                  "accounts": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "accountName": "string",
+                        "accountNumber": "string",
+                        "creditTotal": "number",
+                        "debitTotal": "number",
+                        "entryCount": "number"
+                      }
+                    }
+                  },
+                  "distinctAccountCount": "number",
+                  "status": "string"
+                }
+              },
+              "resultRef": {
+                "kind": "object",
+                "fields": {
+                  "generatedUtc": "string",
+                  "logicVersion": "string",
+                  "resultId": "string"
+                }
+              },
+              "rulePeriod": {
+                "kind": "object",
+                "fields": {
+                  "population": "number",
+                  "rules": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "hitLines": "number",
+                        "hitVouchers": "number",
+                        "key": "string",
+                        "naReason": "null",
+                        "ratePct": "number"
+                      }
+                    }
+                  }
+                }
+              },
+              "suspiciousKeywords": {
+                "kind": "object",
+                "fields": {
+                  "count": "number",
+                  "status": "string"
+                }
+              },
+              "trailingZeros": {
+                "kind": "object",
+                "fields": {
+                  "count": "number",
+                  "status": "string",
+                  "zerosThreshold": "number"
+                }
+              },
+              "unexpectedAccountPair": {
+                "kind": "object",
+                "fields": {
+                  "count": "number",
+                  "naReason": "null",
+                  "status": "string"
+                }
+              },
+              "weekendActivity": {
+                "kind": "object",
+                "fields": {
+                  "approvalCount": "number",
+                  "approvalNaReason": "null",
+                  "naReason": "null",
+                  "postingCount": "number",
+                  "status": "string"
                 }
               }
             }
@@ -4101,54 +3704,48 @@
           "project": {
             "kind": "object",
             "fields": {
+              "clientName": "string",
               "createdUtc": "string",
               "currentStep": "number",
               "databaseProvider": "string",
-              "entityName": "string",
-              "lastPeriodStart": "string",
               "moneyScale": "number",
               "operatorId": "string",
               "periodEnd": "string",
               "periodStart": "string",
+              "prepStartDate": "string",
               "projectCode": "string",
               "projectId": "string",
               "rocDateEnabled": "boolean",
               "roundingMode": "string"
             }
           },
-          "reportArtifacts": {
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
               }
-            }
-          },
-          "retiredGlFieldLabels": {
-            "kind": "object",
-            "fields": {
-              "voucherDate": "string"
             }
           },
           "staleState": {
@@ -4159,24 +3756,211 @@
               "validation": "boolean"
             }
           },
-          "taxonomy": {
-            "kind": "object",
+          "validationResult": {
+            "kind": "null|object",
             "fields": {
-              "categories": {
-                "kind": "array",
-                "items": {
-                  "kind": "object",
-                  "fields": {
-                    "categoryId": "string",
-                    "isBuiltIn": "boolean",
-                    "label": "string",
-                    "ordinal": "number",
-                    "parentCategoryId": "null|string",
-                    "semanticRole": "string"
+              "amountDistribution": {
+                "kind": "object",
+                "fields": {
+                  "bins": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "count": "number",
+                        "ecdfPct": "null|number",
+                        "key": "string"
+                      }
+                    }
                   }
                 }
               },
-              "revision": "number"
+              "blankRecordsTest": {
+                "kind": "object",
+                "fields": {
+                  "approvalDateNotInPeriodCount": "number",
+                  "approvalDateNotInPeriodNaReason": "null",
+                  "nullAccountCount": "number",
+                  "nullDescriptionCount": "number",
+                  "nullDocumentCount": "number",
+                  "nullRows": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "accountNumber": "string",
+                        "description": "null|string",
+                        "glDate": "string",
+                        "issues": {
+                          "kind": "array",
+                          "items": "string"
+                        },
+                        "voucherNumber": "string"
+                      }
+                    }
+                  },
+                  "status": "string"
+                }
+              },
+              "completenessTest": {
+                "kind": "object",
+                "fields": {
+                  "diffAccountCount": "number",
+                  "diffAccounts": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "accountName": "string",
+                        "accountNumber": "string",
+                        "diff": "number",
+                        "glAmount": "number",
+                        "notInTb": "boolean",
+                        "tbAmount": "number"
+                      }
+                    }
+                  },
+                  "eligibility": {
+                    "kind": "object",
+                    "fields": {
+                      "isEligible": "boolean",
+                      "reason": "null",
+                      "warning": "null|string"
+                    }
+                  },
+                  "naReason": "null",
+                  "status": "string",
+                  "storedTotals": {
+                    "kind": "object",
+                    "fields": {
+                      "amountMatch": "boolean",
+                      "eligibleSource": {
+                        "kind": "object",
+                        "fields": {
+                          "rowCount": "number",
+                          "totalCredit": "number",
+                          "totalDebit": "number"
+                        }
+                      },
+                      "gl": {
+                        "kind": "object",
+                        "fields": {
+                          "rowCount": "number",
+                          "totalCredit": "number",
+                          "totalDebit": "number"
+                        }
+                      },
+                      "rowCountMatch": "boolean"
+                    }
+                  }
+                }
+              },
+              "infSamplingTest": {
+                "kind": "object",
+                "fields": {
+                  "sampleSize": "number",
+                  "seed": "number",
+                  "status": "string"
+                }
+              },
+              "populationSummary": {
+                "kind": "object",
+                "fields": {
+                  "excluded": {
+                    "kind": "object",
+                    "fields": {
+                      "byPeriodCount": "number",
+                      "byPostingStatusCount": "number",
+                      "rowCount": "number"
+                    }
+                  },
+                  "gl": {
+                    "kind": "object",
+                    "fields": {
+                      "net": "number",
+                      "rowCount": "number",
+                      "totalCredit": "number",
+                      "totalDebit": "number",
+                      "voucherCount": "number"
+                    }
+                  },
+                  "raw": {
+                    "kind": "object",
+                    "fields": {
+                      "rowCount": "number",
+                      "totalCredit": "number",
+                      "totalDebit": "number"
+                    }
+                  }
+                }
+              },
+              "resultRef": {
+                "kind": "object",
+                "fields": {
+                  "generatedUtc": "string",
+                  "logicVersion": "string",
+                  "resultId": "string"
+                }
+              },
+              "sourceQuality": {
+                "kind": "object",
+                "fields": {
+                  "findingCount": "number",
+                  "sampleRows": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "accountNumber": "string",
+                        "category": "string",
+                        "description": "string",
+                        "glDate": "null",
+                        "sourceLabel": "string",
+                        "sourceRowNumber": "number",
+                        "voucherNumber": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "stats": {
+                "kind": "object",
+                "fields": {
+                  "glRowCount": "number",
+                  "net": "number",
+                  "periodEnd": "string",
+                  "periodStart": "string",
+                  "totalCredit": "number",
+                  "totalDebit": "number",
+                  "voucherCount": "number"
+                }
+              },
+              "voucherBalanceTest": {
+                "kind": "object",
+                "fields": {
+                  "status": "string",
+                  "unbalancedVoucherCount": "number",
+                  "unbalancedVouchers": {
+                    "kind": "array",
+                    "items": {
+                      "kind": "object",
+                      "fields": {
+                        "credit": "number",
+                        "debit": "number",
+                        "diff": "number",
+                        "voucherNumber": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "voucherNumberAcrossGlDates": {
+                "kind": "object",
+                "fields": {
+                  "entryCount": "number",
+                  "voucherNumberCount": "number"
+                }
+              }
             }
           }
         }
@@ -4198,8 +3982,7 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "join": "string",
-                    "rules": {
+                    "conditions": {
                       "kind": "array",
                       "items": {
                         "kind": "object",
@@ -4218,7 +4001,8 @@
                           "type": "string"
                         }
                       }
-                    }
+                    },
+                    "join": "string"
                   }
                 }
               },
@@ -4234,19 +4018,19 @@
               "mapping": {
                 "kind": "object",
                 "fields": {
-                  "accName": "string",
-                  "accNum": "string",
+                  "accountName": "string",
+                  "accountNumber": "string",
                   "amount": "string",
-                  "createBy": "string",
-                  "dcCreditCode": "string",
-                  "dcDebitCode": "string",
-                  "dcField": "string",
+                  "approvalDate": "string",
+                  "createdBy": "string",
                   "description": "string",
-                  "docDate": "string",
-                  "docNum": "string",
-                  "lineID": "string",
-                  "manual": "string",
-                  "postDate": "string"
+                  "drCr": "string",
+                  "drCrCreditCode": "string",
+                  "drCrDebitCode": "string",
+                  "glDate": "string",
+                  "isManual": "string",
+                  "lineItem": "string",
+                  "voucherNumber": "string"
                 }
               },
               "rowCount": "number"
@@ -4263,13 +4047,13 @@
           "project": {
             "kind": "object",
             "fields": {
-              "caseName": "string",
-              "entityName": "string",
-              "lastPeriodStart": "string",
+              "clientName": "string",
               "operatorId": "string",
               "periodEnd": "string",
               "periodStart": "string",
-              "projectCode": "string"
+              "prepStartDate": "string",
+              "projectCode": "string",
+              "projectName": "string"
             }
           },
           "tb": {
@@ -4280,10 +4064,10 @@
               "mapping": {
                 "kind": "object",
                 "fields": {
-                  "accName": "string",
-                  "accNum": "string",
-                  "creditAmt": "string",
-                  "debitAmt": "string"
+                  "accountName": "string",
+                  "accountNumber": "string",
+                  "creditAmount": "string",
+                  "debitAmount": "string"
                 }
               },
               "rowCount": "number"
@@ -4323,43 +4107,14 @@
       "request": {
         "kind": "object",
         "fields": {
-          "entityName": "string",
-          "lastPeriodStart": "null|string",
+          "clientName": "string",
+          "prepStartDate": "null|string",
           "projectCode": "string"
         }
       },
       "response": {
         "kind": "object",
         "fields": {
-          "artifacts": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "artifactId": "string",
-                "bytes": "number",
-                "fileName": "string",
-                "fileState": "string",
-                "fullPath": "string",
-                "generatedUtc": "string",
-                "kind": "string",
-                "sourceRef": {
-                  "kind": "object",
-                  "fields": {
-                    "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
-                    "scenarioPositions": {
-                      "kind": "array|null",
-                      "items": "number"
-                    },
-                    "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
-                  }
-                },
-                "stale": "boolean"
-              }
-            }
-          },
           "invalidatedResults": {
             "kind": "object",
             "fields": {
@@ -4373,45 +4128,45 @@
           "project": {
             "kind": "object",
             "fields": {
+              "clientName": "string",
               "createdUtc": "string",
               "currentStep": "number",
               "databaseProvider": "string",
-              "entityName": "string",
-              "lastPeriodStart": "null|string",
               "moneyScale": "number",
               "operatorId": "string",
               "periodEnd": "string",
               "periodStart": "string",
+              "prepStartDate": "null|string",
               "projectCode": "string",
               "projectId": "string",
               "rocDateEnabled": "boolean",
               "roundingMode": "string"
             }
           },
-          "reportArtifactWarning": "null",
-          "reportArtifacts": {
+          "reportWarning": "null",
+          "reports": {
             "kind": "array",
             "items": {
               "kind": "object",
               "fields": {
-                "artifactId": "string",
                 "bytes": "number",
                 "fileName": "string",
                 "fileState": "string",
                 "fullPath": "string",
                 "generatedUtc": "string",
                 "kind": "string",
+                "reportId": "string",
                 "sourceRef": {
                   "kind": "object",
                   "fields": {
                     "filterDataRevision": "null|string",
-                    "prescreenRunId": "null|string",
+                    "prescreenResultId": "null|string",
                     "scenarioPositions": {
                       "kind": "array|null",
                       "items": "number"
                     },
                     "scenarioRevision": "null|string",
-                    "validationRunId": "null|string"
+                    "validationResultId": "null|string"
                   }
                 },
                 "stale": "boolean"
@@ -4450,8 +4205,8 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
-                "accountName": "string"
+                "accountName": "string",
+                "accountNumber": "string"
               }
             }
           },
@@ -4478,8 +4233,8 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
-                "accountName": "string"
+                "accountName": "string",
+                "accountNumber": "string"
               }
             }
           },
@@ -4509,9 +4264,46 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
                 "accountName": "string",
+                "accountNumber": "string",
                 "categoryId": "null|string"
+              }
+            }
+          },
+          "totalCount": "null|number"
+        }
+      }
+    },
+    "query.blankRecordsPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "category": "string",
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountNumber": "string",
+                "description": "null|string",
+                "glDate": "string",
+                "voucherNumber": "string"
               }
             }
           },
@@ -4544,8 +4336,8 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
                 "accountName": "string",
+                "accountNumber": "string",
                 "diff": "number",
                 "glAmount": "number",
                 "notInTb": "boolean",
@@ -4605,9 +4397,9 @@
               "amountAbsMax",
               "amountAbsMin",
               "beforePeriodCount",
-              "blankPostDateCount",
-              "postDateMax",
-              "postDateMin",
+              "blankGlDateCount",
+              "glDateMax",
+              "glDateMin",
               "postingStatusCount",
               "voucherCount"
             ],
@@ -4616,47 +4408,11 @@
               "amountAbsMax": "string",
               "amountAbsMin": "string",
               "beforePeriodCount": "number",
-              "blankPostDateCount": "number",
-              "postDateMax": "string",
-              "postDateMin": "string",
+              "blankGlDateCount": "number",
+              "glDateMax": "string",
+              "glDateMin": "string",
               "postingStatusCount": "number",
               "voucherCount": "number"
-            }
-          },
-          "totalCount": "null|number"
-        }
-      }
-    },
-    "query.docBalancePage": {
-      "request": {
-        "kind": "object",
-        "fields": {
-          "cursor": "null|string",
-          "pageSize": "number",
-          "search": "null|string",
-          "sort": {
-            "kind": "null|object",
-            "fields": {
-              "direction": "string",
-              "key": "string"
-            }
-          }
-        }
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "nextCursor": "null|string",
-          "rows": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "credit": "number",
-                "debit": "number",
-                "diff": "number",
-                "documentNumber": "string"
-              }
             }
           },
           "totalCount": "null|number"
@@ -4702,18 +4458,18 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
                 "accountName": "string",
+                "accountNumber": "string",
                 "amount": "number",
                 "customValues": {
                   "kind": "object",
                   "values": "null|number"
                 },
                 "description": "null|string",
-                "documentNumber": "string",
                 "drCr": "string",
+                "glDate": "string",
                 "lineItem": "string",
-                "postDate": "string"
+                "voucherNumber": "string"
               }
             }
           },
@@ -4769,18 +4525,16 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "join": "string",
-                    "matchScope": "string",
-                    "rules": {
+                    "conditions": {
                       "kind": "array",
                       "items": {
                         "kind": "object",
                         "optional": [
                           "amountBasis",
                           "categorySelection",
+                          "conditions",
                           "creditCategoryIds",
                           "debitCategoryIds",
-                          "digits",
                           "drCr",
                           "field",
                           "fieldId",
@@ -4789,14 +4543,12 @@
                           "isManual",
                           "join",
                           "keywords",
-                          "maxEntries",
                           "mode",
                           "normalization",
                           "operator",
                           "pairMode",
                           "prescreenKey",
                           "quantifier",
-                          "rules",
                           "to",
                           "value",
                           "values",
@@ -4805,31 +4557,7 @@
                         "fields": {
                           "amountBasis": "string",
                           "categorySelection": "string",
-                          "creditCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "debitCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "digits": "string",
-                          "drCr": "string",
-                          "field": "string",
-                          "fieldId": "string",
-                          "from": "string",
-                          "includeBlank": "boolean",
-                          "isManual": "string",
-                          "join": "string",
-                          "keywords": "string",
-                          "maxEntries": "string",
-                          "mode": "string",
-                          "normalization": "string",
-                          "operator": "string",
-                          "pairMode": "string",
-                          "prescreenKey": "string",
-                          "quantifier": "string",
-                          "rules": {
+                          "conditions": {
                             "kind": "array",
                             "items": {
                               "kind": "object",
@@ -4862,6 +4590,28 @@
                               }
                             }
                           },
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
                           "to": "string",
                           "type": "string",
                           "value": "string",
@@ -4872,7 +4622,9 @@
                           "windowDays": "string"
                         }
                       }
-                    }
+                    },
+                    "join": "string",
+                    "matchScope": "string"
                   }
                 }
               },
@@ -4895,6 +4647,11 @@
       },
       "response": {
         "kind": "object",
+        "optional": [
+          "countsWholeVoucherRows",
+          "summaryRowCount",
+          "voucherCount"
+        ],
         "fields": {
           "columns": {
             "kind": "array",
@@ -4909,6 +4666,7 @@
             }
           },
           "conditionText": "string",
+          "countsWholeVoucherRows": "boolean",
           "nextCursor": "null|string",
           "queryRevision": "string",
           "rows": {
@@ -4916,16 +4674,18 @@
             "items": {
               "kind": "object",
               "fields": {
-                "documentNumber": "string",
+                "glDate": "string",
                 "hitRowCount": "number",
-                "postDate": "string",
                 "totalRowCount": "number",
+                "voucherNumber": "string",
                 "voucherTotal": "number"
               }
             }
           },
           "scenarioRevision": "null|string",
-          "totalCount": "null|number"
+          "summaryRowCount": "number",
+          "totalCount": "null|number",
+          "voucherCount": "number"
         }
       }
     },
@@ -4939,7 +4699,6 @@
         ],
         "fields": {
           "cursor": "null|string",
-          "documentNumber": "string",
           "pageSize": "number",
           "populationScope": "string",
           "queryRevision": "string",
@@ -4974,17 +4733,15 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "join": "string",
-                    "matchScope": "string",
-                    "rules": {
+                    "conditions": {
                       "kind": "array",
                       "items": {
                         "kind": "object",
                         "optional": [
                           "amountBasis",
+                          "conditions",
                           "creditCategoryIds",
                           "debitCategoryIds",
-                          "digits",
                           "drCr",
                           "field",
                           "fieldId",
@@ -4992,14 +4749,12 @@
                           "includeBlank",
                           "isManual",
                           "keywords",
-                          "maxEntries",
                           "mode",
                           "normalization",
                           "operator",
                           "pairMode",
                           "prescreenKey",
                           "quantifier",
-                          "rules",
                           "to",
                           "value",
                           "values",
@@ -5007,31 +4762,7 @@
                         ],
                         "fields": {
                           "amountBasis": "string",
-                          "creditCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "debitCategoryIds": {
-                            "kind": "array",
-                            "items": "string"
-                          },
-                          "digits": "string",
-                          "drCr": "string",
-                          "field": "string",
-                          "fieldId": "string",
-                          "from": "string",
-                          "includeBlank": "boolean",
-                          "isManual": "string",
-                          "join": "string",
-                          "keywords": "string",
-                          "maxEntries": "string",
-                          "mode": "string",
-                          "normalization": "string",
-                          "operator": "string",
-                          "pairMode": "string",
-                          "prescreenKey": "string",
-                          "quantifier": "string",
-                          "rules": {
+                          "conditions": {
                             "kind": "array",
                             "items": {
                               "kind": "object",
@@ -5064,6 +4795,28 @@
                               }
                             }
                           },
+                          "creditCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "debitCategoryIds": {
+                            "kind": "array",
+                            "items": "string"
+                          },
+                          "drCr": "string",
+                          "field": "string",
+                          "fieldId": "string",
+                          "from": "string",
+                          "includeBlank": "boolean",
+                          "isManual": "string",
+                          "join": "string",
+                          "keywords": "string",
+                          "mode": "string",
+                          "normalization": "string",
+                          "operator": "string",
+                          "pairMode": "string",
+                          "prescreenKey": "string",
+                          "quantifier": "string",
                           "to": "string",
                           "type": "string",
                           "value": "string",
@@ -5074,7 +4827,9 @@
                           "windowDays": "string"
                         }
                       }
-                    }
+                    },
+                    "join": "string",
+                    "matchScope": "string"
                   }
                 }
               },
@@ -5084,7 +4839,8 @@
             }
           },
           "scenarioPosition": "number",
-          "scenarioRevision": "string"
+          "scenarioRevision": "string",
+          "voucherNumber": "string"
         }
       },
       "response": {
@@ -5110,8 +4866,8 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
                 "accountName": "string",
+                "accountNumber": "string",
                 "amount": "number",
                 "approvalDate": "string",
                 "customValues": {
@@ -5119,16 +4875,11 @@
                   "values": "null|number"
                 },
                 "description": "string",
-                "documentNumber": "string",
                 "drCr": "string",
-                "evidenceConditions": {
-                  "kind": "array",
-                  "items": null
-                },
+                "glDate": "string",
                 "isHit": "boolean",
                 "lineItem": "string",
                 "matchDescription": "string",
-                "postDate": "string",
                 "primaryConditions": {
                   "kind": "array",
                   "items": {
@@ -5148,11 +4899,123 @@
                       "rule": "number"
                     }
                   }
-                }
+                },
+                "voucherNumber": "string"
               }
             }
           },
           "scenarioRevision": "null|string",
+          "totalCount": "null|number"
+        }
+      }
+    },
+    "query.highRiskSummaryRowPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "accountName": "string",
+                "accountNumber": "string",
+                "amount": "number",
+                "approvalDate": "string",
+                "approvedBy": "null|string",
+                "createdBy": "string",
+                "description": "string",
+                "glDate": "string",
+                "lineItem": "string",
+                "matchedPositions": {
+                  "kind": "array",
+                  "items": "number"
+                },
+                "voucherNumber": "string"
+              }
+            }
+          },
+          "totalCount": "null|number"
+        }
+      }
+    },
+    "query.highRiskSummaryScenarios": {
+      "request": {
+        "kind": "object",
+        "fields": {}
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "scenarios": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "countsWholeVoucherRows": "boolean",
+                "name": "string",
+                "position": "number",
+                "rowHitCount": "number",
+                "summaryRowCount": "number",
+                "voucherHitCount": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "query.highRiskSummaryVoucherPage": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "cursor": "null|string",
+          "pageSize": "number",
+          "search": "null|string",
+          "sort": {
+            "kind": "null|object",
+            "fields": {
+              "direction": "string",
+              "key": "string"
+            }
+          }
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "nextCursor": "null|string",
+          "rows": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "createdBy": "string",
+                "glDate": "string",
+                "matchedPositions": {
+                  "kind": "array",
+                  "items": "number"
+                },
+                "voucherNumber": "string",
+                "voucherTotal": "number"
+              }
+            }
+          },
           "totalCount": "null|number"
         }
       }
@@ -5195,8 +5058,8 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
                 "accountName": "string",
+                "accountNumber": "string",
                 "approvalDate": "string",
                 "approvedBy": "null|string",
                 "createdBy": "string",
@@ -5207,45 +5070,8 @@
                 },
                 "debit": "number",
                 "description": "string",
-                "documentNumber": "string",
-                "postDate": "string"
-              }
-            }
-          },
-          "totalCount": "null|number"
-        }
-      }
-    },
-    "query.nullRecordsPage": {
-      "request": {
-        "kind": "object",
-        "fields": {
-          "category": "string",
-          "cursor": "null|string",
-          "pageSize": "number",
-          "search": "null|string",
-          "sort": {
-            "kind": "null|object",
-            "fields": {
-              "direction": "string",
-              "key": "string"
-            }
-          }
-        }
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "nextCursor": "null|string",
-          "rows": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "accountCode": "string",
-                "description": "null|string",
-                "documentNumber": "string",
-                "postDate": "string"
+                "glDate": "string",
+                "voucherNumber": "string"
               }
             }
           },
@@ -5284,15 +5110,15 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
                 "accountName": "string",
+                "accountNumber": "string",
                 "amount": "number",
-                "documentDescription": "null|string",
-                "documentNumber": "string",
+                "description": "null|string",
                 "drCr": "string",
                 "entryId": "number",
+                "glDate": "string",
                 "lineItem": "string",
-                "postDate": "string"
+                "voucherNumber": "string"
               }
             }
           },
@@ -5325,13 +5151,13 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
+                "accountNumber": "string",
                 "category": "string",
                 "description": "string",
-                "documentNumber": "string",
-                "postDate": "null",
+                "glDate": "null",
                 "sourceLabel": "string",
-                "sourceRowNumber": "number"
+                "sourceRowNumber": "number",
+                "voucherNumber": "string"
               }
             }
           },
@@ -5339,7 +5165,7 @@
         }
       }
     },
-    "query.tagMatrixRowPage": {
+    "query.voucherBalancePage": {
       "request": {
         "kind": "object",
         "fields": {
@@ -5364,85 +5190,10 @@
             "items": {
               "kind": "object",
               "fields": {
-                "accountCode": "string",
-                "accountName": "string",
-                "amount": "number",
-                "approvalDate": "string",
-                "approvedBy": "null|string",
-                "createdBy": "string",
-                "description": "string",
-                "documentNumber": "string",
-                "lineItem": "string",
-                "matchedPositions": {
-                  "kind": "array",
-                  "items": "number"
-                },
-                "postDate": "string"
-              }
-            }
-          },
-          "totalCount": "null|number"
-        }
-      }
-    },
-    "query.tagMatrixScenarios": {
-      "request": {
-        "kind": "object",
-        "fields": {}
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "scenarios": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "countsWholeVoucherRows": "boolean",
-                "name": "string",
-                "position": "number",
-                "rowHitCount": "number",
-                "summaryRowCount": "number",
-                "voucherHitCount": "number"
-              }
-            }
-          }
-        }
-      }
-    },
-    "query.tagMatrixVoucherPage": {
-      "request": {
-        "kind": "object",
-        "fields": {
-          "cursor": "null|string",
-          "pageSize": "number",
-          "search": "null|string",
-          "sort": {
-            "kind": "null|object",
-            "fields": {
-              "direction": "string",
-              "key": "string"
-            }
-          }
-        }
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "nextCursor": "null|string",
-          "rows": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "createdBy": "string",
-                "documentNumber": "string",
-                "matchedPositions": {
-                  "kind": "array",
-                  "items": "number"
-                },
-                "postDate": "string",
-                "voucherTotal": "number"
+                "credit": "number",
+                "debit": "number",
+                "diff": "number",
+                "voucherNumber": "string"
               }
             }
           },
@@ -5551,6 +5302,33 @@
               }
             }
           },
+          "blankRecordsTest": {
+            "kind": "object",
+            "fields": {
+              "approvalDateNotInPeriodCount": "null|number",
+              "approvalDateNotInPeriodNaReason": "null|string",
+              "nullAccountCount": "number",
+              "nullDescriptionCount": "number",
+              "nullDocumentCount": "number",
+              "nullRows": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "accountNumber": "string",
+                    "description": "null|string",
+                    "glDate": "string",
+                    "issues": {
+                      "kind": "array",
+                      "items": "string"
+                    },
+                    "voucherNumber": "string"
+                  }
+                }
+              },
+              "status": "string"
+            }
+          },
           "completenessTest": {
             "kind": "object",
             "fields": {
@@ -5560,8 +5338,8 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "accountCode": "string",
                     "accountName": "string",
+                    "accountNumber": "string",
                     "diff": "number",
                     "glAmount": "number",
                     "notInTb": "boolean",
@@ -5578,11 +5356,12 @@
                 }
               },
               "naReason": "null",
-              "partA": {
+              "status": "string",
+              "storedTotals": {
                 "kind": "object",
                 "fields": {
                   "amountMatch": "boolean",
-                  "effectiveTarget": {
+                  "eligibleSource": {
                     "kind": "object",
                     "fields": {
                       "rowCount": "number",
@@ -5590,7 +5369,7 @@
                       "totalDebit": "number"
                     }
                   },
-                  "eligibleSource": {
+                  "gl": {
                     "kind": "object",
                     "fields": {
                       "rowCount": "number",
@@ -5600,34 +5379,7 @@
                   },
                   "rowCountMatch": "boolean"
                 }
-              },
-              "status": "string"
-            }
-          },
-          "docBalanceTest": {
-            "kind": "object",
-            "fields": {
-              "status": "string",
-              "unbalancedDocumentCount": "number",
-              "unbalancedDocuments": {
-                "kind": "array",
-                "items": {
-                  "kind": "object",
-                  "fields": {
-                    "credit": "number",
-                    "debit": "number",
-                    "diff": "number",
-                    "documentNumber": "string"
-                  }
-                }
               }
-            }
-          },
-          "documentDateReuse": {
-            "kind": "object",
-            "fields": {
-              "documentNumberCount": "number",
-              "entryCount": "number"
             }
           },
           "infSamplingTest": {
@@ -5638,37 +5390,18 @@
               "status": "string"
             }
           },
-          "nullRecordsTest": {
-            "kind": "object",
-            "fields": {
-              "nullAccountCount": "number",
-              "nullDescriptionCount": "number",
-              "nullDocumentCount": "number",
-              "nullRows": {
-                "kind": "array",
-                "items": {
-                  "kind": "object",
-                  "fields": {
-                    "accountCode": "string",
-                    "description": "null|string",
-                    "documentNumber": "string",
-                    "issues": {
-                      "kind": "array",
-                      "items": "string"
-                    },
-                    "postDate": "string"
-                  }
-                }
-              },
-              "outOfRangeDateCount": "null|number",
-              "outOfRangeDateNaReason": "null|string",
-              "status": "string"
-            }
-          },
           "populationSummary": {
             "kind": "object",
             "fields": {
-              "effective": {
+              "excluded": {
+                "kind": "object",
+                "fields": {
+                  "byPeriodCount": "number",
+                  "byPostingStatusCount": "number",
+                  "rowCount": "number"
+                }
+              },
+              "gl": {
                 "kind": "object",
                 "fields": {
                   "net": "number",
@@ -5676,14 +5409,6 @@
                   "totalCredit": "number",
                   "totalDebit": "number",
                   "voucherCount": "number"
-                }
-              },
-              "excluded": {
-                "kind": "object",
-                "fields": {
-                  "byPeriodCount": "number",
-                  "byPostingStatusCount": "number",
-                  "rowCount": "number"
                 }
               },
               "raw": {
@@ -5701,7 +5426,7 @@
             "fields": {
               "generatedUtc": "string",
               "logicVersion": "string",
-              "runId": "string"
+              "resultId": "string"
             }
           },
           "sourceQuality": {
@@ -5713,13 +5438,13 @@
                 "items": {
                   "kind": "object",
                   "fields": {
-                    "accountCode": "string",
+                    "accountNumber": "string",
                     "category": "string",
                     "description": "string",
-                    "documentNumber": "string",
-                    "postDate": "null",
+                    "glDate": "null",
                     "sourceLabel": "string",
-                    "sourceRowNumber": "number"
+                    "sourceRowNumber": "number",
+                    "voucherNumber": "string"
                   }
                 }
               }
@@ -5735,6 +5460,32 @@
               "totalCredit": "number",
               "totalDebit": "number",
               "voucherCount": "number"
+            }
+          },
+          "voucherBalanceTest": {
+            "kind": "object",
+            "fields": {
+              "status": "string",
+              "unbalancedVoucherCount": "number",
+              "unbalancedVouchers": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "credit": "number",
+                    "debit": "number",
+                    "diff": "number",
+                    "voucherNumber": "string"
+                  }
+                }
+              }
+            }
+          },
+          "voucherNumberAcrossGlDates": {
+            "kind": "object",
+            "fields": {
+              "entryCount": "number",
+              "voucherNumberCount": "number"
             }
           }
         }

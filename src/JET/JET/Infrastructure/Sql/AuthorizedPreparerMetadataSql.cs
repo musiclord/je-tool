@@ -66,26 +66,26 @@ internal static class AuthorizedPreparerMetadataSql
         await using (var mappingCommand = connection.CreateCommand())
         {
             mappingCommand.Transaction = transaction;
-            mappingCommand.CommandText = $"SELECT mapping_json FROM {prefix}config_field_mapping WHERE dataset_kind = 'gl';";
+            mappingCommand.CommandText = $"SELECT mapping_json FROM {prefix}field_mapping WHERE dataset_kind = 'gl';";
             if (await mappingCommand.ExecuteScalarAsync(ct) is not string mappingJson) return null;
             var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(mappingJson, JetJsonStorage.Options);
-            if (mapping is null || !mapping.TryGetValue("createBy", out var sourceColumn)
+            if (mapping is null || !mapping.TryGetValue("createdBy", out var sourceColumn)
                 || string.IsNullOrWhiteSpace(sourceColumn)) return null;
         }
 
         // 名單人員只計一次；只比對 GL，不算 GL(未納入測試) 的建立人員；GL 僅在資料庫內比對，不把大量識別值帶回記憶體。
         var personKey = dialect.Upper(dialect.Trim("ap.name"));
-        var creatorKey = dialect.Upper(dialect.Trim("g.created_by"));
+        var preparerKey = dialect.Upper(dialect.Trim("g.created_by"));
         var count = dialect.ProviderName == "sqlServer" ? "COUNT_BIG" : "COUNT";
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = $"""
             SELECT {count}(DISTINCT {personKey})
-            FROM {prefix}target_authorized_preparer ap
+            FROM {prefix}authorized_preparer ap
             WHERE {personKey} IN (
-                SELECT {creatorKey}
-                FROM {prefix}target_gl_entry g
-                WHERE {GlEffectivePopulation.SqlPredicate("g")} AND g.created_by IS NOT NULL);
+                SELECT {preparerKey}
+                FROM {prefix}gl g
+                WHERE {GlExcludedPopulation.SqlPredicate("g")} AND g.created_by IS NOT NULL);
             """;
         var result = await command.ExecuteScalarAsync(ct);
         return result is null or DBNull ? 0L : Convert.ToInt64(result, CultureInfo.InvariantCulture);

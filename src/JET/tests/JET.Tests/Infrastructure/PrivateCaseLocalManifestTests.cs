@@ -30,13 +30,13 @@ public sealed class PrivateCaseLocalManifestTests
         Assert.Equal(6, manifest.LegacyReportCount);
         Assert.InRange(manifest.ScenarioCount, 1, 10);
         Assert.False(string.IsNullOrWhiteSpace(manifest.Project.ProjectCode));
-        Assert.False(string.IsNullOrWhiteSpace(manifest.Project.EntityName));
+        Assert.False(string.IsNullOrWhiteSpace(manifest.Project.ClientName));
         Assert.False(string.IsNullOrWhiteSpace(manifest.Project.OperatorId));
 
         var summary = JsonSerializer.Serialize(manifest);
         Assert.DoesNotContain(root, summary, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(manifest.Project.ProjectCode, summary, StringComparison.Ordinal);
-        Assert.DoesNotContain(manifest.Project.EntityName, summary, StringComparison.Ordinal);
+        Assert.DoesNotContain(manifest.Project.ClientName, summary, StringComparison.Ordinal);
         Assert.DoesNotContain(manifest.Project.OperatorId, summary, StringComparison.Ordinal);
     }
 }

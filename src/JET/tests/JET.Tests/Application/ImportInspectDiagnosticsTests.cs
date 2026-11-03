@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 匯入前的檢視與預覽失敗也要能從支援日誌看出階段與原因（2026-10-04 第二遍回饋審閱第 1 批，審閱 U50、U51、U53、U54）。
+/// 匯入前的檢視與預覽失敗也要能從支援日誌看出階段與原因。
 /// 以前只有 import.gl.fromFile 與 import.tb.fromFile 會附上匯入診斷欄位。
 /// </summary>
 public sealed class ImportInspectDiagnosticsTests
@@ -118,7 +118,7 @@ public sealed class ImportInspectDiagnosticsTests
     private static async Task<string> CreateProjectAsync(HandlerTestHost host)
     {
         var created = await host.DispatchAsync("project.create",
-            """{"caseName":"inspect-diagnostics","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+            """{"projectName":"inspect-diagnostics","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
         return created.GetProperty("projectId").GetString()!;
     }
 

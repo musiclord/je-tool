@@ -19,7 +19,7 @@ internal static class ProductSources
     internal static string Frontend(params string[] parts) =>
         Product(["wwwroot", "js", .. parts]);
 
-    /// <summary>第五步的前端程式。預篩選收斂計畫階段十（2026-10-25）把 filter-step.js 依職責拆成五個檔案，index.html 依序載入；
+    /// <summary>第五步的前端程式。filter-step.js 依職責拆成五個檔案，index.html 依序載入；
     /// 讀第五步字樣、常數與掛鉤的架構測試把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同。</summary>
     internal static readonly string[] FilterStepFiles =
         ["filter-step-view.js", "filter-step-sources.js", "filter-step-rules.js", "filter-step-saved.js", "filter-step.js"];

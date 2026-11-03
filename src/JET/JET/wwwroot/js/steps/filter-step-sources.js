@@ -20,7 +20,6 @@
   var announceRemoval = forward('announceRemoval');
   var fillSmoothly = forward('fillSmoothly');
   var groupCombinator = forward('groupCombinator');
-  var groupMatchScope = forward('groupMatchScope');
   var readBackExpressionHtml = forward('readBackExpressionHtml');
   var readBackPlainText = forward('readBackPlainText');
   var guardDraftReplacement = forward('guardDraftReplacement');
@@ -32,7 +31,7 @@
 
   // 樣態選單裡常用篩選條件專用的型別；前置條件不足的不列出，已選的條件不能用時原因寫在卡片上（見 ruleSubjectHtml）。
   function isPatternMenuCommonType(type) {
-    return Ui.FILTER_RULE_TYPES.some(function (t) { return t.value === type && t.group === 'common' && t.value !== 'trailingDigits'; });
+    return Ui.FILTER_RULE_TYPES.some(function (t) { return t.value === type && t.group === 'common'; });
   }
 
   function availableCommonTypes() {
@@ -61,7 +60,7 @@
 
   var RETIRED_TYPE_NOTE = '此條件的類型已停用，請刪除此條件';
 
-  // 預篩選條件還缺什麼；鍵已停用時和後端 P8 同一句（使用者 2026-10-14 第三輪勾選頁確認 R3-18）。
+  // 預篩選條件還缺什麼；鍵已停用時和後端同一句（裁定 2026-10-14-01）。
   function prescreenRequirementNote(key) {
     var known = Ui.PRESCREEN_RULES.some(function (item) { return item.value === key; });
     return known ? requirementNote([{ type: 'prescreen', prescreenKey: key }]) : RETIRED_TYPE_NOTE;
@@ -91,16 +90,11 @@
   // 案件檔記錄「條件來自常用篩選條件」的來源代碼（wire scenario.source），鏡像後端 FilterScenarioSources.Common。
   var COMMON_SOURCE = 'common';
 
-  // FilterConditionRenderer 的同傳票結構片語；read-back textContent 必須逐字鏡像後端。
-  var OUTPUT_ANCHOR_LABEL = '主要條件（決定符合條件的分錄）';
-
-  var SAME_VOUCHER_EXPLANATION = '後續條件可由同一傳票的其他分錄列符合';
-
-  // 草稿目前是否仍含卡片的身分標記。名稱／動機選填只信任此即時狀態；最後一張卡的條件被移除或改型後，
-  // 不會留下 stale root source 而錯誤豁免一般情境必填。
+  // 草稿目前是否仍含卡片的身分標記。來源代碼與自動動機只信任此即時狀態；最後一張卡的條件被移除或改型後，
+  // 不會留下過期的根層 source。
   function hasCommonMarker(scenario) {
     return (scenario.groups || []).some(function (group) {
-      return (group.rules || []).some(function (rule) { return !!rule[COMMON_CARD_KEY]; });
+      return (group.conditions || []).some(function (rule) { return !!rule[COMMON_CARD_KEY]; });
     });
   }
 
@@ -110,13 +104,9 @@
     return hasCommonMarker(scenario) || (scenario.source === COMMON_SOURCE && !scenario.__restoredOrigins) ? COMMON_SOURCE : null;
   }
 
-  function requiresScenarioMetadata(draft) {
-    return !hasCommonMarker(draft);
-  }
-
   // 一張卡會建立的「rule 規格」陣列（純資料；type 必填，其餘為覆寫鍵）。
-  //   kind:'type'   → 單一規格 { type: ref }，落地為 newFilterRule(ref)。
-  //   kind:'preset' → 沿用 FILTER_COMMON_PRESETS 的單一 overrides 規格（非營業日是一條條件括號）。
+  //   kind:'type'   → 單一規格 { type: ref }，落地為 newFilterCondition(ref)。
+  //   kind:'preset' → 沿用 FILTER_COMMON_PRESETS 的單一 overrides 規格（非營業日是一條子條件組）。
   function commonRuleSpecs(item) {
     if (item.kind === 'spec') { return [item.overrides]; }
     if (item.kind === 'preset') {
@@ -126,12 +116,12 @@
     return item.ref ? [{ type: item.ref }] : [];
   }
 
-  // 把一條規格落地成真 rule，並打上該卡的身分標記：以 newFilterRule(type) 為底，套上規格的
-  // 覆寫鍵（field/mode/prescreenKey/join/rules…），最後標 __commonCard = 卡片代號（UI-only，剝除後才送 wire）。
+  // 把一條規格落地成真 rule，並打上該卡的身分標記：以 newFilterCondition(type) 為底，套上規格的
+  // 覆寫鍵（field/mode/prescreenKey/join/conditions…），最後標 __commonCard = 卡片代號（UI-only，剝除後才送 wire）。
   // 規格先整份深拷貝：非營業日的括號帶子條件陣列，多次加入不得共用同一份陣列或子條件物件。
   function materializeRule(spec, cardKey) {
     var copy = JSON.parse(JSON.stringify(spec));
-    var rule = Ui.newFilterRule(copy.type);
+    var rule = Ui.newFilterCondition(copy.type);
     Object.keys(copy).forEach(function (k) { rule[k] = copy[k]; });
     rule[COMMON_CARD_KEY] = cardKey;
     return rule;
@@ -142,7 +132,7 @@
   function isCommonSelected(draft, item) {
     if (commonRuleSpecs(item).length === 0) { return false; }
     return draft.groups.some(function (g) {
-      return g.rules.some(function (r) { return r[COMMON_CARD_KEY] === item.key; });
+      return g.conditions.some(function (r) { return r[COMMON_CARD_KEY] === item.key; });
     });
   }
 
@@ -151,14 +141,14 @@
   function isCommonSelectedActive(draft, item) {
     if (commonRuleSpecs(item).length === 0) { return false; }
     var active = activeEditableGroup(draft);
-    return !!active && active.rules.some(function (r) { return r[COMMON_CARD_KEY] === item.key; });
+    return !!active && active.conditions.some(function (r) { return r[COMMON_CARD_KEY] === item.key; });
   }
 
   // 卡片是否「用於其他（非作用中）條件組」——給卡片加淡標記「也在其他組」，維持全局意識。
   function isCommonUsedElsewhere(draft, item) {
     var active = activeEditableGroup(draft);
     return draft.groups.some(function (g) {
-      return g !== active && g.rules.some(function (r) { return r[COMMON_CARD_KEY] === item.key; });
+      return g !== active && g.conditions.some(function (r) { return r[COMMON_CARD_KEY] === item.key; });
     });
   }
 
@@ -173,7 +163,7 @@
   }
 
   // 加入：把該卡的規格落地成帶標記的 rule 併進草稿（就地修改傳入 draft）。
-  // 每張卡（含非營業日的條件括號）都累積進「作用中」群組（activeEditableGroup）；沒有條件組就新建
+  // 每張卡（含非營業日的子條件組）都累積進「作用中」群組（activeEditableGroup）；沒有條件組就新建
   // 一組、組合器預設「全部(AND)」並設為作用中。新規則 join 取該群組現有組合器以維持群組內一致。
   function addCommonToDraft(draft, item) {
     var specs = commonRuleSpecs(item);
@@ -181,16 +171,16 @@
 
     var target = activeEditableGroup(draft);
     if (!target) {
-      target = { join: 'AND', matchScope: 'row', rules: [] };
+      target = { join: 'AND', matchScope: 'row', conditions: [] };
       if (draft.groups.length === 0) { keepMotionKey(EMPTY_FIRST_GROUP, target); }
       draft.groups.push(target);
       setActiveGroup(draft, target);
     }
-    var combinator = target.rules.length ? groupCombinator(target) : 'AND';
+    var combinator = target.conditions.length ? groupCombinator(target) : 'AND';
     specs.forEach(function (spec) {
       var r = materializeRule(spec, item.key);
       r.join = combinator;
-      target.rules.push(r);
+      target.conditions.push(r);
     });
   }
 
@@ -200,12 +190,12 @@
   function removeCommonFromActiveGroup(draft, item) {
     var active = activeEditableGroup(draft);
     if (!active) { return; }
-    announceRemoval(active.rules.filter(function (r) { return r[COMMON_CARD_KEY] === item.key; }));
-    active.rules = active.rules.filter(function (r) { return r[COMMON_CARD_KEY] !== item.key; });
+    announceRemoval(active.conditions.filter(function (r) { return r[COMMON_CARD_KEY] === item.key; }));
+    active.conditions = active.conditions.filter(function (r) { return r[COMMON_CARD_KEY] !== item.key; });
   }
 
   // 作用中（active）群組：UI-only 標記 __active，標示「上方面板新增的條件要進哪一組」。恆有至多一個
-  // 群組帶 __active；toWireScenario 把 group 重建為 {join, matchScope, rules}，此鍵自然不外洩。
+  // 群組帶 __active；toWireScenario 把 group 重建為 {join, matchScope, conditions}，此鍵自然不外洩。
   // 取作用中組：帶 __active 的組 → 否則回退最後一組 → 再無則 null。
   function activeEditableGroup(draft) {
     var groups = draft.groups || [];
@@ -227,15 +217,15 @@
     return key ? Ui.FILTER_COMMON_CONDITIONS.filter(function (item) { return item.key === key; })[0] : undefined;
   }
 
-  // 有卡片時的動機（使用者指定）：依卡片順序每張一行，有評估說明的寫評估說明，其餘寫卡片名稱。
-  // 另有自訂條件時，每條自訂條件多一行「自訂：」加上畫面讀回的條件說明（2026-10-07 使用者裁定）。
-  // 使用者 2026-10-29 裁定拿掉卡片字母後，每行不再以字母開頭。
+  // 有卡片時的動機只列評估說明（裁定 2026-10-30-02）：依卡片順序每張一行，沒有評估說明的卡片寫卡片名稱。
+  // 另有自訂條件時，每條自訂條件多一行「自訂：」加上畫面讀回的條件說明（裁定 2026-10-07-06）。
+  // 卡片字母已拿掉（裁定 2026-10-29-11），每行不再以字母開頭。
   function commonScenarioRationale(draft) {
     var lines = Ui.FILTER_COMMON_CONDITIONS
       .filter(function (item) { return isCommonSelected(draft, item); })
       .map(function (item) { return item.defaultRationale || item.label; });
     draft.groups.forEach(function (g) {
-      g.rules.forEach(function (r) { if (!r[COMMON_CARD_KEY]) { lines.push('自訂：' + ruleSummaryLabel(r, 0)); } });
+      g.conditions.forEach(function (r) { if (!r[COMMON_CARD_KEY]) { lines.push('自訂：' + ruleSummaryLabel(r, 0)); } });
     });
     return lines.join('\n');
   }
@@ -251,10 +241,10 @@
     if (spec.prescreenKey && rule.prescreenKey !== spec.prescreenKey) { return false; }
     if (spec.field && rule.field !== spec.field) { return false; }
     if (spec.operator && rule.operator !== spec.operator) { return false; }
-    if (Array.isArray(spec.rules)) {
-      var children = rule.rules || [];
-      return children.length === spec.rules.length &&
-        spec.rules.every(function (child, i) { return sameCommonRuleKind(children[i], child); });
+    if (Array.isArray(spec.conditions)) {
+      var children = rule.conditions || [];
+      return children.length === spec.conditions.length &&
+        spec.conditions.every(function (child, i) { return sameCommonRuleKind(children[i], child); });
     }
     return true;
   }
@@ -263,7 +253,7 @@
   function reconcileCommonIdentity(draft) {
     var stripped = false;
     (draft.groups || []).forEach(function (group) {
-      group.rules.forEach(function (rule) {
+      group.conditions.forEach(function (rule) {
         if (!rule[COMMON_CARD_KEY]) { return; }
         var card = cardOfRule(rule);
         var spec = card && commonRuleSpecs(card)[0];
@@ -286,7 +276,7 @@
     return candidate;
   }
 
-  // 範例帶入的名稱與動機在條件增減後改回自動（2026-10-07 使用者裁定）；只填值或改值時保留，手改過的欄位不受影響。
+  // 範例帶入的名稱與動機在條件增減後改回自動（裁定 2026-10-07-07）；只填值或改值時保留，手改過的欄位不受影響。
   function releaseTemplateMetadata(draft) {
     if (draft.__templateName) { draft.__templateName = false; draft.__nameDirty = false; }
     if (draft.__templateRationale) { draft.__templateRationale = false; draft.__rationaleDirty = false; }
@@ -329,7 +319,7 @@
       var pressed = state === 'selected' ? 'true' : 'false';
 
       // 卡片只寫名稱、停用原因與「也在其他組」。固定資產與費用組合、收入對方科目兩張卡的說明在加入後的條件列寫一次
-      //（commonDescriptionHtml）；原本卡片上也寫同一句，同一個畫面出現兩次，使用者 2026-10-29 裁定「拿掉卡片上的」。
+      //（commonDescriptionHtml）；原本卡片上也寫同一句，同一個畫面出現兩次，所以拿掉卡片上的（裁定 2026-10-29-09）。
       var card = '<button type="button" class="' + cls + '"' +
           ' data-common-card="' + item.key + '"' +
           ' aria-pressed="' + pressed + '"' +
@@ -350,7 +340,7 @@
       '</div>';
   }
 
-  // 卡片和情境範例放在同一個分頁（使用者 2026-10-29 裁定）；範例套用後替換整份條件，清單前面那句說明保留。
+  // 卡片和情境範例放在同一個分頁（裁定 2026-10-29-10）；範例套用後替換整份條件，清單前面那句說明保留。
   function commonPickerHtml(draft) {
     return '<section class="condition-picker condition-picker--common">' + commonCardsHtml(draft) +
       '<div class="filter-source-block"><h4 class="filter-source-block__title">情境範例</h4>' +
@@ -363,7 +353,7 @@
     return '<section class="condition-picker condition-picker--custom">' + fieldChipsHtml() + purposeChecksHtml() + '</section>';
   }
 
-  // 使用者 2026-10-16 指出審計員習慣直接套用預篩選條件，原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選，
+  // 審計員習慣直接套用預篩選條件（裁定 2026-10-16-09），原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選，
   // 路徑太長。預篩選條件改成條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；列的樣式沿用依審計目的的條件列。
   function prescreenPickerHtml() {
     var items = Ui.PRESCREEN_RULES.map(function (option) {
@@ -384,11 +374,11 @@
   }
 
   // 欄位按鈕的三列。核心欄位全部列出；GL 沒有配對的照樣列出但不能按，下方寫出是哪些欄位以及回第三步欄位配對補上
-  //（使用者 2026-10-22 裁定）。攸關資料元素欄位依型別接在核心欄位後面。
+  //（裁定 2026-10-22-05）。攸關資料元素欄位依型別接在核心欄位後面。
   var FIELD_CHIP_ROWS = [
-    { type: 'date', label: '日期', core: ['postDate', 'docDate'] },
-    { type: 'money', label: '數字', core: ['amount'] },
-    { type: 'text', label: '文字', core: ['description', 'accNum', 'accName', 'createBy', 'approveBy', 'docNum', 'jeSource', 'lineID'] }
+    { type: 'date', label: '日期', core: ['glDate', 'approvalDate'] },
+    { type: 'amount', label: '數字', core: ['amount'] },
+    { type: 'text', label: '文字', core: ['description', 'accountNumber', 'accountName', 'createdBy', 'approvedBy', 'voucherNumber', 'sourceModule', 'lineItem'] }
   ];
 
   // 按鈕文字只寫欄位名稱，和其他欄位同名時才加來源欄名；完整說明放在 title 與 aria-label。
@@ -426,7 +416,7 @@
       var open = FilterStep.viewState.checkCategory === group.key;
       var listId = 'filter-checks-' + group.key;
       var items = group.checks.map(function (check) {
-        var note = requirementNote(check.rules);
+        var note = requirementNote(check.conditions);
         var noteId = 'filter-check-note-' + check.key;
         return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(check.label) + '</span>' +
           '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-action="add-rule" data-add-check="' + check.key + '"' +
@@ -446,10 +436,10 @@
     var field = Ui.FilterValues.fields(Store.getState()).find(function (item) { return item.id === fieldId; });
     if (!field) { return null; }
     var rule = Ui.FilterValues.create(field.type);
-    if (['createBy', 'approveBy', 'accNum'].indexOf(field.id) >= 0) { rule.operator = 'in'; }
+    if (['createdBy', 'approvedBy', 'accountNumber'].indexOf(field.id) >= 0) { rule.operator = 'in'; }
     delete rule.field; delete rule.fieldId;
     rule[field.extra ? 'fieldId' : 'field'] = field.id;
-    if (field.extra && field.type === 'money') { rule.amountBasis = 'signed'; }
+    if (field.extra && field.type === 'amount') { rule.amountBasis = 'signed'; }
     return rule;
   }
 
@@ -477,13 +467,13 @@
     return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
   }
 
-  // 把一條規格做成可編輯的條件：欄位條件以該欄位型別的預設值為底，其他型別以 newFilterRule 為底，再套上規格的值。
+  // 把一條規格做成可編輯的條件：欄位條件以該欄位型別的預設值為底，其他型別以 newFilterCondition 為底，再套上規格的值。
   function conditionFromSpec(spec) {
     var copy = JSON.parse(JSON.stringify(spec));
     var field = copy.type === 'fieldValue' ? Ui.FilterValues.field(copy, Store.getState()) : null;
-    var rule = copy.type === 'fieldValue' ? Ui.FilterValues.create(field ? field.type : 'text') : Ui.newFilterRule(copy.type);
+    var rule = copy.type === 'fieldValue' ? Ui.FilterValues.create(field ? field.type : 'text') : Ui.newFilterCondition(copy.type);
     Object.keys(copy).forEach(function (key) { rule[key] = copy[key]; });
-    if (Array.isArray(copy.rules)) { rule.rules = copy.rules.map(conditionFromSpec); }
+    if (Array.isArray(copy.conditions)) { rule.conditions = copy.conditions.map(conditionFromSpec); }
     if (rule.type === 'prescreen' && !copy.prescreenKey) { rule.prescreenKey = firstUsablePrescreenKey(); }
     if (rule.__periodEndDays) {
       var range = periodEndRange(rule.__periodEndDays);
@@ -493,17 +483,17 @@
     return rule;
   }
 
-  // 新條件加入目前作用中的組，沒有條件組就先建立。同一傳票的組一律用「且」，其他沿用組內現有的連接方式。
+  // 新條件加入目前作用中的組，沒有條件組就先建立；連接沿用組內現有的 AND 或 OR，空的組用 AND。
   function addRulesToActiveGroup(draft, rules) {
     var target = activeEditableGroup(draft);
     if (!target) {
-      target = { join: 'AND', matchScope: 'row', rules: [] };
+      target = { join: 'AND', matchScope: 'row', conditions: [] };
       if (draft.groups.length === 0) { keepMotionKey(EMPTY_FIRST_GROUP, target); }
       draft.groups.push(target);
     }
     setActiveGroup(draft, target);
-    var join = target.rules.length ? groupCombinator(target) : 'AND';
-    rules.forEach(function (rule) { rule.join = join; target.rules.push(rule); });
+    var join = target.conditions.length ? groupCombinator(target) : 'AND';
+    rules.forEach(function (rule) { rule.join = join; target.conditions.push(rule); });
     return target;
   }
 
@@ -523,8 +513,8 @@
 
   function addPurposeCheck(key) {
     var check = findPurposeCheck(key);
-    if (!check || requirementNote(check.rules)) { return; }
-    addConditions(check.rules.map(conditionFromSpec), !!check.focusValue);
+    if (!check || requirementNote(check.conditions)) { return; }
+    addConditions(check.conditions.map(conditionFromSpec), !!check.focusValue);
   }
 
   function disclosureAttributes(key) {
@@ -532,10 +522,10 @@
   }
 
   // 建議的名稱與動機只描述已選條件，不自行編出風險判斷；沒有條件時兩欄留空。名稱列出前兩項條件，超過兩項加上總數，
-  // 卡片帶入的條件用卡片名稱（使用者 2026-10-29 裁定拿掉卡片字母，名稱和自訂條件同一種寫法）。
+  // 卡片帶入的條件用卡片名稱。卡片字母已拿掉（裁定 2026-10-29-11），名稱和自訂條件同一種寫法。
   // 有卡片時動機用 commonScenarioRationale；只有自訂條件時把條件念一次。
   function automaticMetadata(draft) {
-    var rules = draft.groups.reduce(function (all, group) { return all.concat(group.rules); }, []);
+    var rules = draft.groups.reduce(function (all, group) { return all.concat(group.conditions); }, []);
     if (!rules.length) { return { name: '', rationale: '' }; }
     function shortLabel(rule) {
       var card = cardOfRule(rule);
@@ -591,7 +581,7 @@
   }
 
   function templateRequirementNote(template) {
-    var note = requirementNote(template.groups.reduce(function (rules, group) { return rules.concat(group.rules); }, []));
+    var note = requirementNote(template.groups.reduce(function (rules, group) { return rules.concat(group.conditions); }, []));
     if (!note && template.pickField === 'text' && textRdeFields().length === 0) { note = '需要先在欄位配對加入部門等文字欄位'; }
     return note;
   }
@@ -651,7 +641,7 @@
     if (global.JetFocus) { global.JetFocus.defer(function () { return container.querySelector('[data-template-key="' + key + '"]'); }); }
   }
 
-  // 選欄位的那一列從範例下面長出來、取消時收回去（使用者 2026-10-13 要求展開與收合一致）。
+  // 選欄位的那一列從範例下面長出來、取消時收回去（裁定 2026-10-13-11）。
   function redrawExampleList(container) {
     var list = Ui.findLive(container, '[data-example-list]');
     if (!list) { return; }
@@ -702,21 +692,21 @@
       }
       delete rule.__periodEndDays;
       if (rule.type === 'fieldValue' && rule.fieldId === '' && fieldId) { rule.fieldId = fieldId; delete rule.field; }
-      if (Array.isArray(rule.rules)) { rule.rules.forEach(prepare); }
+      if (Array.isArray(rule.conditions)) { rule.conditions.forEach(prepare); }
       return rule;
     }
     var cardGroup = template.commonCard ? activeEditableGroup(draft) : null;
     template.groups.forEach(function (group, index) {
-      var copy = { join: group.join || 'AND', matchScope: group.matchScope || 'row', rules: group.rules.map(function (rule) {
+      var copy = { join: group.join || 'AND', matchScope: group.matchScope || 'row', conditions: group.conditions.map(function (rule) {
         return prepare(JSON.parse(JSON.stringify(rule)));
       }) };
       // 併進卡片那一組只在語意不變時做：範例這一組原本以「且」接在卡片那一組之後，組內只有一條或全部以「且」連接。
       // 組內有「或」時併進去會把「卡片條件 且 (a 或 b)」變成「(卡片條件 且 a) 或 b」，所以照原樣另開一組。
-      var sameMeaning = (copy.join || 'AND') === 'AND' && (copy.rules.length === 1 || groupCombinator(copy) === 'AND');
-      if (index === 0 && cardGroup && sameMeaning && groupMatchScope(cardGroup) === groupMatchScope(copy)) {
-        copy.rules.forEach(function (rule, ri) {
-          if (ri === 0) { rule.join = cardGroup.rules.length ? groupCombinator(cardGroup) : 'AND'; }
-          cardGroup.rules.push(rule);
+      var sameMeaning = (copy.join || 'AND') === 'AND' && (copy.conditions.length === 1 || groupCombinator(copy) === 'AND');
+      if (index === 0 && cardGroup && sameMeaning) {
+        copy.conditions.forEach(function (rule, ri) {
+          if (ri === 0) { rule.join = cardGroup.conditions.length ? groupCombinator(cardGroup) : 'AND'; }
+          cardGroup.conditions.push(rule);
         });
         setActiveGroup(draft, cardGroup);
         return;
@@ -726,7 +716,7 @@
     });
     FilterStep.viewState.lastSavedName = null;
     FilterStep.viewState.examplePick = null;
-    // 畫面上馬上看得到結果，不另記訊息（使用者 2026-10-13 勾選頁確認刪除 53）。
+    // 畫面上馬上看得到結果，不另記訊息（裁定 2026-10-13-28）。
     Store.setFilterDraft(draft);
     var pending = draftRuleProblems(draft)[0];
     if (global.JetFocus) { global.JetFocus.defer(function () {
@@ -776,18 +766,18 @@
         var draft = Store.getState().filter.draft;
         var group = draft.groups[Number(button.getAttribute('data-gi'))];
         if (!group) {
-          group = { join: 'AND', matchScope: 'row', rules: [] };
+          group = { join: 'AND', matchScope: 'row', conditions: [] };
           if (draft.groups.length === 0) { keepMotionKey(EMPTY_FIRST_GROUP, group); }
           draft.groups.push(group);
         }
         setActiveGroup(draft, group);
-        addConditions([Ui.newFilterRule(button.getAttribute('data-add-compound'))]);
+        addConditions([Ui.newFilterCondition(button.getAttribute('data-add-compound'))]);
       });
     });
     bindExampleList(container);
     // 常用篩選條件的卡片可複選 toggle —— 已選則移除、未選則加入；累積成同一情境。
     // 停用卡（前置資料不足，例如科目配對未匯入）不綁事件。加入/移除/已選偵測全收斂於上方少數深函式。
-    // 畫面上馬上看得到結果，不另記加入或移除的訊息（使用者 2026-10-13 勾選頁確認刪除 56、57）。
+    // 畫面上馬上看得到結果，不另記加入或移除的訊息（裁定 2026-10-13-28）。
     container.querySelectorAll('.picker-card--common').forEach(function (btn) {
       if (btn.disabled) { return; }
       btn.addEventListener('click', function () {
@@ -802,9 +792,9 @@
           refreshAutomaticMetadata(draft, true);
           Store.setFilterDraft(draft);
         } else {
-          addCommonToDraft(draft, item); // 每張卡（含非營業日的條件括號）都加入作用中組
+          addCommonToDraft(draft, item); // 每張卡（含非營業日的子條件組）都加入作用中組
           var targetGroup = activeEditableGroup(draft);
-          var addedRule = targetGroup && targetGroup.rules.find(function (rule) { return rule[COMMON_CARD_KEY] === item.key; });
+          var addedRule = targetGroup && targetGroup.conditions.find(function (rule) { return rule[COMMON_CARD_KEY] === item.key; });
           if (addedRule) { revealAddedRule(addedRule); }
           refreshAutomaticMetadata(draft, true);
           Store.setFilterDraft(draft);
@@ -825,11 +815,8 @@
   FilterStep.prescreenRequirementNote = prescreenRequirementNote;
   FilterStep.COMMON_CARD_KEY = COMMON_CARD_KEY;
   FilterStep.COMMON_SOURCE = COMMON_SOURCE;
-  FilterStep.OUTPUT_ANCHOR_LABEL = OUTPUT_ANCHOR_LABEL;
-  FilterStep.SAME_VOUCHER_EXPLANATION = SAME_VOUCHER_EXPLANATION;
   FilterStep.hasCommonMarker = hasCommonMarker;
   FilterStep.scenarioSource = scenarioSource;
-  FilterStep.requiresScenarioMetadata = requiresScenarioMetadata;
   FilterStep.commonRuleSpecs = commonRuleSpecs;
   FilterStep.materializeRule = materializeRule;
   FilterStep.isCommonSelected = isCommonSelected;

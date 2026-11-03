@@ -45,7 +45,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         var kindName = kind.ToStorageName();
         var stagingTable = StagingTableFor(kind);
         var targetTable = TargetTableFor(kind);
-        var fieldDefinitions = LegacyFieldDefinitionAccumulator.Create(first.Columns);
+        var fieldInfos = FieldInfoAccumulator.Create(first.Columns);
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
@@ -62,13 +62,13 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                     $"""
                     DELETE FROM {stagingTable}
                     WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
-                    DELETE FROM import_field_definition
+                    DELETE FROM field_info
                     WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
                     DELETE FROM import_batch_source
                     WHERE batch_id IN (SELECT batch_id FROM import_batch WHERE dataset_kind = @kind);
                     DELETE FROM import_batch WHERE dataset_kind = @kind;
-                    DELETE FROM target_gl_rde_value WHERE @kind = 'gl';
-                    DELETE FROM config_gl_rde_field WHERE @kind = 'gl';
+                    DELETE FROM gl_rde_value WHERE @kind = 'gl';
+                    DELETE FROM gl_rde_field WHERE @kind = 'gl';
                     DELETE FROM {targetTable};
                     {LocalMappingStateStore.RetireCommittedMappingSql}
                     """;
@@ -76,7 +76,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 await cleanup.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
             }
 
-            await RuleRunResultReset.ClearWithinAsync(
+            await ResultReset.ClearWithinAsync(
                 connection,
                 transaction,
                 cancellationToken,
@@ -130,7 +130,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                         preserveSourceRowNumber: index == 0,
                         nextRowNumber,
                         input.Rows,
-                        fieldDefinitions,
+                        fieldInfos,
                         cancellationToken);
                     nextRowNumber = write.NextRowNumber;
 
@@ -186,18 +186,18 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 }
             }
 
-            await LocalFieldDefinitionPersistence.ReplaceScopeAsync(
+            await LocalFieldInfoPersistence.ReplaceScopeAsync(
                 connection,
                 transaction,
                 batchId,
-                LegacyFieldDefinitionScope.Source,
-                fieldDefinitions.Build(batchColumns),
+                FieldInfoScope.Source,
+                fieldInfos.Build(batchColumns),
                 cancellationToken);
-            await LocalFieldDefinitionPersistence.DeleteScopeAsync(
+            await LocalFieldInfoPersistence.DeleteScopeAsync(
                 connection,
                 transaction,
                 batchId,
-                LegacyFieldDefinitionScope.Target,
+                FieldInfoScope.Target,
                 cancellationToken);
 
             var importedSources = await LoadSourcesAsync(
@@ -322,20 +322,22 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 }
             }
 
-            var persistedDefinitions = await LocalFieldDefinitionPersistence.ReadStatesAsync(
+            var persistedDefinitions = await LocalFieldInfoPersistence.ReadStatesAsync(
                 connection,
                 transaction,
                 batchId,
-                LegacyFieldDefinitionScope.Source,
+                FieldInfoScope.Source,
                 cancellationToken);
+            // 每次取代匯入都會寫入欄位定義，只有舊版 JET 匯入的資料會沒有；舊版案件一律刪除後重建
+            // （裁定 2026-10-29-17：改名前的案件刪除後重建，不寫讀取相容），所以和其他舊版案件用同一句。
             if (persistedDefinitions.Count == 0)
             {
                 throw new JetActionException(
                     JetErrorCodes.InvalidProjectSchema,
-                    $"{kindName.ToUpperInvariant()} 資料是舊版 JET 匯入的，缺少目前版本需要的欄位定義，無法附加。請改用取代匯入，重新匯入這份資料。");
+                    ProjectFolderMessages.OldVersionProject());
             }
 
-            var fieldDefinitions = LegacyFieldDefinitionAccumulator.Restore(persistedDefinitions);
+            var fieldInfos = FieldInfoAccumulator.Restore(persistedDefinitions);
             int nextSourceNo;
             long nextRowNumber;
             await using (var maxQuery = connection.CreateCommand())
@@ -381,7 +383,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                         preserveSourceRowNumber: false,
                         nextRowNumber,
                         input.Rows,
-                        fieldDefinitions,
+                        fieldInfos,
                         cancellationToken);
                     nextRowNumber = write.NextRowNumber;
 
@@ -420,18 +422,18 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 }
             }
 
-            await LocalFieldDefinitionPersistence.ReplaceScopeAsync(
+            await LocalFieldInfoPersistence.ReplaceScopeAsync(
                 connection,
                 transaction,
                 batchId,
-                LegacyFieldDefinitionScope.Source,
-                fieldDefinitions.Build(batchColumns),
+                FieldInfoScope.Source,
+                fieldInfos.Build(batchColumns),
                 cancellationToken);
-            await LocalFieldDefinitionPersistence.DeleteScopeAsync(
+            await LocalFieldInfoPersistence.DeleteScopeAsync(
                 connection,
                 transaction,
                 batchId,
-                LegacyFieldDefinitionScope.Target,
+                FieldInfoScope.Target,
                 cancellationToken);
 
             await using (var invalidate = connection.CreateCommand())
@@ -439,8 +441,8 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 invalidate.Transaction = transaction;
                 invalidate.CommandText =
                     $"""
-                    DELETE FROM target_gl_rde_value WHERE @kind = 'gl';
-                    DELETE FROM config_gl_rde_field WHERE @kind = 'gl';
+                    DELETE FROM gl_rde_value WHERE @kind = 'gl';
+                    DELETE FROM gl_rde_field WHERE @kind = 'gl';
                     DELETE FROM {targetTable};
                     {LocalMappingStateStore.RetireCommittedMappingSql}
                     """;
@@ -448,7 +450,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 await invalidate.ExecuteNonQueryLoggedAsync(_log, _provider, cancellationToken);
             }
 
-            await RuleRunResultReset.ClearWithinAsync(
+            await ResultReset.ClearWithinAsync(
                 connection,
                 transaction,
                 cancellationToken,
@@ -577,7 +579,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         bool preserveSourceRowNumber,
         long nextRowNumber,
         IAsyncEnumerable<StagingRow> rows,
-        LegacyFieldDefinitionAccumulator fieldDefinitions,
+        FieldInfoAccumulator fieldInfos,
         CancellationToken cancellationToken)
     {
         var rowCount = 0;
@@ -608,7 +610,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 values[4] = JsonSerializer.Serialize(row.Values, JsonOptions);
                 await writer.AppendAsync(values, cancellationToken);
                 observedKeys.UnionWith(row.Values.Keys);
-                fieldDefinitions.Observe(row);
+                fieldInfos.Observe(row);
                 rowCount++;
             }
 
@@ -803,15 +805,15 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
 
     internal static string StagingTableFor(DatasetKind kind) => kind switch
     {
-        DatasetKind.Gl => "staging_gl_raw_row",
-        DatasetKind.Tb => "staging_tb_raw_row",
+        DatasetKind.Gl => "pbc_gl",
+        DatasetKind.Tb => "pbc_tb",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
     };
 
     internal static string TargetTableFor(DatasetKind kind) => kind switch
     {
-        DatasetKind.Gl => "target_gl_entry",
-        DatasetKind.Tb => "target_tb_balance",
+        DatasetKind.Gl => JetSchemaCatalog.GlTableName,
+        DatasetKind.Tb => "tb",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
     };
 }

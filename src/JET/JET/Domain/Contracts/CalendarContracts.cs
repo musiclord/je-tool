@@ -22,7 +22,7 @@ public static class CalendarDayTypeNames
 public sealed record CalendarDayEntry(string Date, string? Name);
 
 /// <summary>
-/// 假日／補班日儲存（staging_calendar_raw_day）。
+/// 假日／補班日儲存（calendar_day）。
 /// Replace 語意：同 day_type 先清空再寫入；兩種 type 互不影響。
 /// </summary>
 public interface ICalendarStore

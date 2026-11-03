@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 報告範本固定的數量只定義一次：INF 樣本數在 AuditCore 一個常數，第四步驗證與 INF 報告都引用它，範本的樣本列數也要相符；
-/// 條件篩選報告的情境列從第 5 列起，列數就是已存情境上限（技術債一輪，2026-10-22）。
+/// 條件篩選報告的情境列從第 5 列起，列數就是已存情境上限；這兩個數量在 2026-10-22 清理技術債時收成一處。
 /// </summary>
 public sealed class ReportTemplateConstantOwnershipTests
 {

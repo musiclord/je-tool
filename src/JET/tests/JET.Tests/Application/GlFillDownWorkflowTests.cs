@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 預篩選收斂計畫階段六的「往下填補空白」固定答案。使用者 2026-10-22 裁定放在第三步確認配對時：
+/// 「往下填補空白」的固定答案。裁定 2026-10-22-16 把它放在第三步確認配對時：
 /// 審計員勾選已配對的 GL 欄位，確認配對時把那些欄位來源欄的空白補成上一列的值，PBC-GL 保持原樣，
 /// 配對確認的回應寫出填了幾格；勾選跟著配對保存，重開案件帶回來；改選擇只要重新確認配對，走既有的失效規則。
 /// 合成資料是傳票號碼與傳票日期只寫在每張傳票第一列的總帳，另配一個攸關資料元素欄，確認第二遍投影也照同一份填補。
@@ -18,7 +18,7 @@ public sealed class GlFillDownWorkflowTests
     private static string CreatePayload(string provider) => JsonSerializer.Serialize(new
     {
         projectCode = "FILL-DOWN-001",
-        entityName = "合成填補案件",
+        clientName = "合成填補案件",
         operatorId = "tester",
         periodStart = "2025-01-01",
         periodEnd = "2025-12-31",
@@ -80,9 +80,9 @@ public sealed class GlFillDownWorkflowTests
         }
 
         var committed = await host.DispatchAsync("mapping.commit.gl",
-            JsonSerializer.Serialize(CommitPayload(builder, ["postDate", "docNum"])));
+            JsonSerializer.Serialize(CommitPayload(builder, ["glDate", "voucherNumber"])));
         // 回應照欄位目錄的順序寫出勾選的欄位，填了幾格是第 2、4、5 列各兩格。
-        Assert.Equal(["docNum", "postDate"], Strings(committed.GetProperty("fillDownFields")));
+        Assert.Equal(["voucherNumber", "glDate"], Strings(committed.GetProperty("fillDownFields")));
         Assert.Equal(6, committed.GetProperty("fillDownCount").GetInt64());
         Assert.Equal(5, committed.GetProperty("projectedRowCount").GetInt32());
         var rdeFieldId = committed.GetProperty("rdeFields")[0].GetProperty("fieldId").GetString()!;
@@ -106,7 +106,7 @@ public sealed class GlFillDownWorkflowTests
 
         // 重開案件：勾選跟著已確認的配對帶回來。
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        Assert.Equal(["docNum", "postDate"], Strings(loaded.GetProperty("mapping").GetProperty("gl").GetProperty("fillDownFields")));
+        Assert.Equal(["voucherNumber", "glDate"], Strings(loaded.GetProperty("mapping").GetProperty("gl").GetProperty("fillDownFields")));
 
         // 取消勾選並重新確認：只重新投影，續列的總帳日期空白，所以落到 GL(未納入測試)。
         var recommitted = await host.DispatchAsync("mapping.commit.gl",
@@ -121,7 +121,7 @@ public sealed class GlFillDownWorkflowTests
     }
 
     // 填補是對來源欄做的：總帳日期和傳票核准日配同一個來源欄時只勾總帳日期，傳票核准日也一起填補，
-    // 回應與重開案件都列出兩者（使用者 2026-10-28 裁定依來源欄成組）。
+    // 回應與重開案件都列出兩者（依來源欄成組，裁定 2026-10-28-04）。
     // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（回應只列出勾選的欄位）。
     [Theory]
     [InlineData("sqlite")]
@@ -135,7 +135,7 @@ public sealed class GlFillDownWorkflowTests
         await ImportGlAsync(host, builder);
 
         var mapping = builder.BuildFlagModeMapping();
-        mapping[GlMappingKeys.DocDate] = "傳票日期";
+        mapping[GlMappingKeys.ApprovalDate] = "傳票日期";
         var committed = await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
             mapping,
@@ -143,9 +143,9 @@ public sealed class GlFillDownWorkflowTests
             approvalDateMode = "mapped",
             manualAutoPolicy = new { manualValues = new[] { "1" }, automaticValues = new[] { "0" } },
             rdeFields = Array.Empty<object>(),
-            fillDownFields = new[] { "docNum", "postDate" }
+            fillDownFields = new[] { "voucherNumber", "glDate" }
         }));
-        Assert.Equal(["docNum", "postDate", "docDate"], Strings(committed.GetProperty("fillDownFields")));
+        Assert.Equal(["voucherNumber", "glDate", "approvalDate"], Strings(committed.GetProperty("fillDownFields")));
         // 同一個來源欄只填一次：傳票號碼與傳票日期兩欄，第 2、4、5 列各一格。
         Assert.Equal(6, committed.GetProperty("fillDownCount").GetInt64());
 
@@ -153,11 +153,11 @@ public sealed class GlFillDownWorkflowTests
         Assert.Equal(["2025-03-01", "2025-03-01", "2025-03-04", "2025-03-04", "2025-03-04"], Column(gl, "傳票核准日"));
 
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        Assert.Equal(["docNum", "postDate", "docDate"],
+        Assert.Equal(["voucherNumber", "glDate", "approvalDate"],
             Strings(loaded.GetProperty("mapping").GetProperty("gl").GetProperty("fillDownFields")));
     }
 
-    // 填了幾格跟著已確認的配對保存，重開案件時第三步摘要看得到；取消勾選重新確認後是 0（使用者 2026-10-28 裁定隨配對保存）。
+    // 填了幾格跟著已確認的配對保存，重開案件時第三步摘要看得到；取消勾選重新確認後是 0（隨配對保存，裁定 2026-10-28-05）。
     // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（重開案件的配對沒有 fillDownCount）。
     [Theory]
     [InlineData("sqlite")]
@@ -171,7 +171,7 @@ public sealed class GlFillDownWorkflowTests
         await ImportGlAsync(host, builder);
 
         var committed = await host.DispatchAsync("mapping.commit.gl",
-            JsonSerializer.Serialize(CommitPayload(builder, ["postDate", "docNum"])));
+            JsonSerializer.Serialize(CommitPayload(builder, ["glDate", "voucherNumber"])));
         Assert.Equal(6, committed.GetProperty("fillDownCount").GetInt64());
         var rdeFieldId = committed.GetProperty("rdeFields")[0].GetProperty("fieldId").GetString()!;
 
@@ -185,12 +185,12 @@ public sealed class GlFillDownWorkflowTests
 
     // 往下填補之後，INF 報告主表與底稿第二步的「分錄來源」讀整理後的值，和同一列的傳票號碼一致；
     // 「借貸代號」在原始列空白時，依整理後的借貸方向寫已確認配對的借方或貸方代碼。
-    // 「可靠性樣本_所有欄位」仍是 PBC-GL 原樣（使用者 2026-10-28 裁定改讀整理後的值）。
+    // 「可靠性樣本_所有欄位」仍是 PBC-GL 原樣；哪些地方改讀整理後的值見裁定 2026-10-28-02。
     // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（續列的分錄來源與第 2 列的借貸代號是空白）。
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task FillDown_InfAndWorkpaperStep2_ShowTheCleanedSourceModuleAndDirection(string provider)
+    public async Task FillDown_InfAndWorkingPaperStep2_ShowTheCleanedSourceModuleAndDirection(string provider)
     {
         using var host = new HandlerTestHost();
         var created = await host.DispatchAsync("project.create", CreatePayload(provider));
@@ -222,7 +222,7 @@ public sealed class GlFillDownWorkflowTests
             amountMode = "flag",
             manualAutoPolicy = new { manualValues = new[] { "1" }, automaticValues = new[] { "0" } },
             rdeFields = Array.Empty<object>(),
-            fillDownFields = new[] { "docNum", "postDate", "jeSource", "dcField" }
+            fillDownFields = new[] { "voucherNumber", "glDate", "sourceModule", "drCr" }
         }));
         await host.DispatchAsync("mapping.commit.tb", JsonSerializer.Serialize(new
         {
@@ -231,10 +231,10 @@ public sealed class GlFillDownWorkflowTests
         }));
         var validation = await host.DispatchAsync("validate.run");
         Assert.True(validation.GetProperty("completenessTest").GetProperty("eligibility").GetProperty("isEligible").GetBoolean());
-        var runId = validation.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
 
-        var artifacts = await host.DispatchAsync("export.validationArtifacts", JsonSerializer.Serialize(new { runId }));
-        var inf = Assert.Single(artifacts.GetProperty("artifacts").EnumerateArray(),
+        var reports = await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new { resultId }));
+        var inf = Assert.Single(reports.GetProperty("publishedReports").EnumerateArray(),
             item => item.GetProperty("kind").GetString() == "infReport");
         using (var workbook = new XLWorkbook(Path.Combine(host.ProjectsRoot, projectId, inf.GetProperty("fileName").GetString()!)))
         {
@@ -251,7 +251,7 @@ public sealed class GlFillDownWorkflowTests
         }
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        var prescreenRunId = prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!;
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
         var scenarios = await host.DispatchAsync("filter.commit", """
             {
               "scenarios": [
@@ -259,7 +259,7 @@ public sealed class GlFillDownWorkflowTests
                   "name": "合成借方",
                   "rationale": "產出底稿",
                   "groups": [
-                    { "join": "AND", "rules": [ { "join": "AND", "type": "drCrOnly", "drCr": "debit" } ] }
+                    { "join": "AND", "conditions": [ { "join": "AND", "type": "drCrOnly", "drCr": "debit" } ] }
                   ]
                 }
               ]
@@ -268,19 +268,19 @@ public sealed class GlFillDownWorkflowTests
         var revision = scenarios.GetProperty("resultRef").GetProperty("revision").GetString()!;
         await host.DispatchAsync("export.criteriaSelectionReport", JsonSerializer.Serialize(new
         {
-            validationRunId = runId,
-            prescreenRunId,
+            validationResultId = resultId,
+            prescreenResultId,
             revision
         }));
-        var workpaper = await host.DispatchAsync("export.workpaperStream", JsonSerializer.Serialize(new
+        var workingPaperResponse = await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
         {
-            validationRunId = runId,
-            prescreenRunId,
+            validationResultId = resultId,
+            prescreenResultId,
             scenarioRevision = revision,
             scenarioPositions = new[] { 1 }
         }));
         using var workingPaper = new XLWorkbook(Path.Combine(
-            host.ProjectsRoot, projectId, workpaper.GetProperty("artifact").GetProperty("fileName").GetString()!));
+            host.ProjectsRoot, projectId, workingPaperResponse.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
         AssertCleanedSampleRows(workingPaper.Worksheet("step2 可靠性測試"));
     }
 
@@ -316,7 +316,7 @@ public sealed class GlFillDownWorkflowTests
         }
 
         var committed = await host.DispatchAsync("mapping.commit.gl",
-            JsonSerializer.Serialize(CommitPayload(builder, ["docNum", "postDate"])));
+            JsonSerializer.Serialize(CommitPayload(builder, ["voucherNumber", "glDate"])));
         // 第一份來源 6 格；第二份來源只有第二列的日期補上 1 格，第一列的傳票號碼維持空白。
         Assert.Equal(7, committed.GetProperty("fillDownCount").GetInt64());
 
@@ -353,11 +353,11 @@ public sealed class GlFillDownWorkflowTests
 
     // 只能勾選已配對的欄位；沒有來源欄的欄位、字面值的借貸代碼與不是陣列的資料，畫面照正常操作送不出來。
     [Theory]
-    [InlineData("""["approveBy"]""")]
-    [InlineData("""["dcDebitCode"]""")]
-    [InlineData("""["docNum", "docNum"]""")]
+    [InlineData("""["approvedBy"]""")]
+    [InlineData("""["drCrDebitCode"]""")]
+    [InlineData("""["voucherNumber", "voucherNumber"]""")]
     [InlineData("""["notAField"]""")]
-    [InlineData("\"docNum\"")]
+    [InlineData("\"voucherNumber\"")]
     public async Task FillDown_RejectsFieldsWithoutASourceColumn(string fillDownFieldsJson)
     {
         using var host = new HandlerTestHost();

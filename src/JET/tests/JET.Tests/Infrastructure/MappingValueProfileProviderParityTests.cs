@@ -2,7 +2,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -57,7 +57,7 @@ public sealed class MappingValueProfileProviderParityTests
         var batchId = await ImportSqlServerAsync(project);
         var repository = new SqlServerMappingValueProfileRepository(project.Database);
 
-        // 2026-10-19 跨資料庫一致性計畫第三節 D：使用者裁定 SQL Server 的值概況也不分大小寫。這個測試原名
+        // 裁定 2026-10-19-30：SQL Server 的值概況也不分大小寫。這個測試原名
         // SqlServer_ValueProfile_PreservesExistingCaseSensitiveBehavior，鎖住舊的區分大小寫答案：3 個相異值，
         // A、B、a 各 2 筆。現在改成和本機同一組固定答案。第一次失敗：2026-10-19 修改前直接執行測試程式連本機
         // SQL Server，相異值是 3 個，預期 2 個；下方的來源核對回 null。
@@ -92,7 +92,7 @@ public sealed class MappingValueProfileProviderParityTests
             new SqlServerMappingValueProfileRepository(project.Database), project.ProjectId, batchId);
     }
 
-    // 使用者 2026-10-28 裁定「讀取來源值」依往下填補的勾選先填補再計數：每份來源內的空白補成上一列的值，
+    // 裁定 2026-10-28-03：「讀取來源值」依往下填補的勾選先填補再計數，每份來源內的空白補成上一列的值，
     // 第二份來源開頭的空白不接第一份的值，仍算空白。不帶填補時照原樣計數。
     // 第一次失敗：Focused 收據 20261028-043705897-a0fbdeac3fa841d198c2fdedbd420b76，填補後空白預期 1、實際 6。
     [Theory]
@@ -231,7 +231,7 @@ public sealed class MappingValueProfileProviderParityTests
 
         Assert.Equal(SourceColumn, truncated.SourceColumn);
         Assert.Equal(6, truncated.BlankCount);
-        // 2026-10-04 第 6 批 L32：A/a 依已裁定規則合併；空白、排序、截斷及特殊欄名檢查保留。
+        // A/a 依裁定 2026-10-04-01 的規則合併；空白、排序、截斷及特殊欄名檢查保留。
         Assert.Equal(2, truncated.DistinctCount);
         Assert.True(truncated.Truncated);
         Assert.Equal(new[] { new MappingValueProfileValue("A", 4) }, truncated.Values);

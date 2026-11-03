@@ -4,7 +4,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -130,12 +130,12 @@ public sealed class ImportBatchAtomicityProviderTests
         Assert.Equal(2, retried.Batch.Sources[^1].RowCount);
 
         var afterRetry = await CaptureSnapshotAsync(projectId, createConnection, schemaPrefix);
-        Assert.NotEmpty(afterRetry.FieldDefinitions);
+        Assert.NotEmpty(afterRetry.FieldInfos);
         Assert.Empty(afterRetry.TargetRows);
         Assert.Empty(afterRetry.Mappings);
         Assert.Empty(afterRetry.RdeDefinitions);
         Assert.Empty(afterRetry.RdeValues);
-        Assert.Empty(afterRetry.RuleRuns);
+        Assert.Empty(afterRetry.Results);
         Assert.Empty(afterRetry.InfSamples);
         Assert.Empty(afterRetry.FilterHits);
         Assert.Equal(before.ControlTotals.ToArray(), afterRetry.ControlTotals.ToArray());
@@ -217,42 +217,44 @@ public sealed class ImportBatchAtomicityProviderTests
         await using var command = connection.CreateCommand();
         command.CommandText =
             $$"""
-            INSERT INTO {{schemaPrefix}}target_gl_entry
-                (batch_id, source_row_number, document_number, amount_scaled,
+            INSERT INTO {{schemaPrefix}}gl
+                (batch_id, source_row_number, voucher_number, amount_scaled,
                  debit_amount_scaled, credit_amount_scaled, dr_cr)
             VALUES (@batchId, 2, 'OLD-DOC', 100, 100, 0, 'DEBIT');
 
-            INSERT INTO {{schemaPrefix}}config_field_mapping
+            INSERT INTO {{schemaPrefix}}field_mapping
                 (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc)
-            VALUES ('gl', '{"docNum":"doc","amount":"amount"}', 'signed', @batchId,
+            VALUES ('gl', '{"voucherNumber":"doc","amount":"amount"}', 'signed', @batchId,
                     '2026-07-31T00:00:00.0000000+00:00');
 
-            INSERT INTO {{schemaPrefix}}config_gl_rde_field
+            INSERT INTO {{schemaPrefix}}gl_rde_field
                 (field_id, source_column, label, value_type, ordinal, is_rde)
             VALUES ('rde.0123456789abcdef0123456789abcdef', 'risk', 'Risk', 'text', 0, 1);
 
-            INSERT INTO {{schemaPrefix}}target_gl_rde_value
+            INSERT INTO {{schemaPrefix}}gl_rde_value
                 (entry_id, field_id, value_type, text_value, date_value, amount_scaled)
             SELECT entry_id, 'rde.0123456789abcdef0123456789abcdef', 'text', 'OLD', NULL, NULL
-            FROM {{schemaPrefix}}target_gl_entry
-            WHERE document_number = 'OLD-DOC';
+            FROM {{schemaPrefix}}gl
+            WHERE voucher_number = 'OLD-DOC';
 
-            INSERT INTO {{schemaPrefix}}result_rule_run
-                (run_id, run_kind, generated_utc, summary_json)
-            VALUES
-                ('old-validation', 'validate', '2026-07-31T00:00:00.0000000+00:00', '{"marker":"validation"}'),
-                ('old-prescreen', 'prescreen', '2026-07-31T00:00:01.0000000+00:00', '{"marker":"prescreen"}');
+            INSERT INTO {{schemaPrefix}}validation_result
+                (result_id, generated_utc, summary_json)
+            VALUES ('old-validation', '2026-07-31T00:00:00.0000000+00:00', '{"marker":"validation"}');
 
-            INSERT INTO {{schemaPrefix}}result_inf_sampling_test_sample
-                (run_id, entry_id, document_number, line_item)
+            INSERT INTO {{schemaPrefix}}prescreen_result
+                (result_id, generated_utc, summary_json)
+            VALUES ('old-prescreen', '2026-07-31T00:00:01.0000000+00:00', '{"marker":"prescreen"}');
+
+            INSERT INTO {{schemaPrefix}}inf_sample
+                (result_id, entry_id, voucher_number, line_item)
             VALUES ('old-validation', 990001, 'OLD-DOC', '1');
 
-            INSERT INTO {{schemaPrefix}}result_filter_run (scenario_position, entry_id)
+            INSERT INTO {{schemaPrefix}}filter_hit (scenario_id, entry_id)
             VALUES (9, 990001);
 
             INSERT INTO {{schemaPrefix}}gl_control_total
-                (singleton, source_row_count, target_row_count,
-                 target_debit_scaled, target_credit_scaled)
+                (singleton, pbc_row_count, stored_row_count,
+                 stored_debit_scaled, stored_credit_scaled)
             VALUES (1, 2, 1, 100, 0);
             """;
         var batchParameter = command.CreateParameter();
@@ -311,7 +313,7 @@ public sealed class ImportBatchAtomicityProviderTests
         {
             command.CommandText =
                 $"SELECT batch_id, row_number, source_no, source_row_number, row_json " +
-                $"FROM {schemaPrefix}staging_gl_raw_row ORDER BY batch_id, row_number;";
+                $"FROM {schemaPrefix}pbc_gl ORDER BY batch_id, row_number;";
             await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
             while (await reader.ReadAsync(CancellationToken.None))
             {
@@ -324,69 +326,72 @@ public sealed class ImportBatchAtomicityProviderTests
             }
         }
 
-        var fieldDefinitions = await ReadRowsAsync(
+        var fieldInfos = await ReadRowsAsync(
             connection,
             $"""
             SELECT batch_id, definition_scope, ordinal, field_name, description,
                    field_kind, text_length, decimal_places, max_rendered_length, has_observation
-            FROM {schemaPrefix}import_field_definition
+            FROM {schemaPrefix}field_info
             ORDER BY batch_id, definition_scope, ordinal;
             """);
         var targetRows = await ReadRowsAsync(
             connection,
             $"""
-            SELECT entry_id, batch_id, source_row_number, document_number,
+            SELECT entry_id, batch_id, source_row_number, voucher_number,
                    amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr
-            FROM {schemaPrefix}target_gl_entry
+            FROM {schemaPrefix}gl
             ORDER BY entry_id;
             """);
         var mappings = await ReadRowsAsync(
             connection,
             $"""
             SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc
-            FROM {schemaPrefix}config_field_mapping
+            FROM {schemaPrefix}field_mapping
             ORDER BY dataset_kind;
             """);
         var rdeDefinitions = await ReadRowsAsync(
             connection,
             $"""
             SELECT field_id, source_column, label, value_type, ordinal, is_rde
-            FROM {schemaPrefix}config_gl_rde_field
+            FROM {schemaPrefix}gl_rde_field
             ORDER BY ordinal, field_id;
             """);
         var rdeValues = await ReadRowsAsync(
             connection,
             $"""
             SELECT entry_id, field_id, value_type, text_value, date_value, amount_scaled
-            FROM {schemaPrefix}target_gl_rde_value
+            FROM {schemaPrefix}gl_rde_value
             ORDER BY entry_id, field_id;
             """);
-        var ruleRuns = await ReadRowsAsync(
+        var results = await ReadRowsAsync(
             connection,
             $"""
-            SELECT run_id, run_kind, generated_utc, summary_json
-            FROM {schemaPrefix}result_rule_run
-            ORDER BY run_id;
+            SELECT result_id, 'validation' AS kind, generated_utc, summary_json
+            FROM {schemaPrefix}validation_result
+            UNION ALL
+            SELECT result_id, 'prescreen' AS kind, generated_utc, summary_json
+            FROM {schemaPrefix}prescreen_result
+            ORDER BY result_id;
             """);
         var infSamples = await ReadRowsAsync(
             connection,
             $"""
-            SELECT run_id, entry_id, document_number, line_item
-            FROM {schemaPrefix}result_inf_sampling_test_sample
-            ORDER BY run_id, entry_id;
+            SELECT result_id, entry_id, voucher_number, line_item
+            FROM {schemaPrefix}inf_sample
+            ORDER BY result_id, entry_id;
             """);
         var filterHits = await ReadRowsAsync(
             connection,
             $"""
-            SELECT scenario_position, entry_id
-            FROM {schemaPrefix}result_filter_run
-            ORDER BY scenario_position, entry_id;
+            SELECT scenario_id, entry_id
+            FROM {schemaPrefix}filter_hit
+            ORDER BY scenario_id, entry_id;
             """);
         var controlTotals = await ReadRowsAsync(
             connection,
             $"""
-            SELECT singleton, source_row_count, target_row_count,
-                   target_debit_scaled, target_credit_scaled
+            SELECT singleton, pbc_row_count, stored_row_count,
+                   stored_debit_scaled, stored_credit_scaled
             FROM {schemaPrefix}gl_control_total
             ORDER BY singleton;
             """);
@@ -395,12 +400,12 @@ public sealed class ImportBatchAtomicityProviderTests
             batches,
             sources,
             staging,
-            fieldDefinitions,
+            fieldInfos,
             targetRows,
             mappings,
             rdeDefinitions,
             rdeValues,
-            ruleRuns,
+            results,
             infSamples,
             filterHits,
             controlTotals);
@@ -436,12 +441,12 @@ public sealed class ImportBatchAtomicityProviderTests
         Assert.Equal(expected.Batches.ToArray(), actual.Batches.ToArray());
         Assert.Equal(expected.Sources.ToArray(), actual.Sources.ToArray());
         Assert.Equal(expected.Staging.ToArray(), actual.Staging.ToArray());
-        Assert.Equal(expected.FieldDefinitions.ToArray(), actual.FieldDefinitions.ToArray());
+        Assert.Equal(expected.FieldInfos.ToArray(), actual.FieldInfos.ToArray());
         Assert.Equal(expected.TargetRows.ToArray(), actual.TargetRows.ToArray());
         Assert.Equal(expected.Mappings.ToArray(), actual.Mappings.ToArray());
         Assert.Equal(expected.RdeDefinitions.ToArray(), actual.RdeDefinitions.ToArray());
         Assert.Equal(expected.RdeValues.ToArray(), actual.RdeValues.ToArray());
-        Assert.Equal(expected.RuleRuns.ToArray(), actual.RuleRuns.ToArray());
+        Assert.Equal(expected.Results.ToArray(), actual.Results.ToArray());
         Assert.Equal(expected.InfSamples.ToArray(), actual.InfSamples.ToArray());
         Assert.Equal(expected.FilterHits.ToArray(), actual.FilterHits.ToArray());
         Assert.Equal(expected.ControlTotals.ToArray(), actual.ControlTotals.ToArray());
@@ -451,12 +456,12 @@ public sealed class ImportBatchAtomicityProviderTests
         IReadOnlyList<BatchRecord> Batches,
         IReadOnlyList<SourceRecord> Sources,
         IReadOnlyList<StagingRecord> Staging,
-        IReadOnlyList<string> FieldDefinitions,
+        IReadOnlyList<string> FieldInfos,
         IReadOnlyList<string> TargetRows,
         IReadOnlyList<string> Mappings,
         IReadOnlyList<string> RdeDefinitions,
         IReadOnlyList<string> RdeValues,
-        IReadOnlyList<string> RuleRuns,
+        IReadOnlyList<string> Results,
         IReadOnlyList<string> InfSamples,
         IReadOnlyList<string> FilterHits,
         IReadOnlyList<string> ControlTotals);

@@ -20,12 +20,12 @@ internal static class LegacyAuditParityLegacyObservationFactory
                 "legacy-validation-summary");
             var completeness = new LegacyCompletenessObservation(
                 ReadLong(validationSummary.Get(24, 4), "legacy-validation-difference-count"),
-                partASourceRowCount: null,
+                pbcRowCount: null,
                 ReadLong(validationSummary.Get(13, 5), "legacy-validation-target-row-count"),
                 ReadDecimal(validationSummary.Get(11, 5), "legacy-validation-total-debit"),
                 ReadDecimal(validationSummary.Get(12, 5), "legacy-validation-total-credit"),
-                partARowCountMatch: null,
-                partAAmountMatch: null);
+                storedRowCountMatch: null,
+                storedAmountMatch: null);
             var workingPaper = ReadUnbalancedVoucherObservation(
                 validationSummary,
                 RequiredReport(profile, LegacyReportKind.WorkingPaper));
@@ -57,7 +57,7 @@ internal static class LegacyAuditParityLegacyObservationFactory
                 weekendUnion: new LegacyRowVoucherCounts(
                     LegacyObservedCount.NotExecuted,
                     LegacyObservedCount.NotExecuted),
-                creatorSummaryLegacyApplicability: prescreen.CreatorSummaryApplicability,
+                preparerSummaryLegacyApplicability: prescreen.PreparerSummaryApplicability,
                 rareAccountsLegacyApplicability: prescreen.RareAccountsApplicability);
             return LegacyAuditParityObservation.FromLegacy(@case, metrics);
         }
@@ -90,7 +90,7 @@ internal static class LegacyAuditParityLegacyObservationFactory
     {
         // Legacy Validation!D25 is the raw GL detail-row count used by the V6
         // export gate. Parse it only as a shape cross-check; the distinct voucher
-        // oracle comes from the step1-1 voucher column in the Working Paper.
+        // oracle comes from the step1-1 voucher column in the WorkingPaper.
         _ = ReadLong(
             validationSummary.Get(25, 4),
             "legacy-validation-unbalanced-detail-row-count");
@@ -131,7 +131,7 @@ internal static class LegacyAuditParityLegacyObservationFactory
                 NullIfBlank(sheet.Get(row, 4)),
                 debit,
                 credit,
-                CanonicalDate(sheet.Get(row, 7), "legacy-inf-post-date"),
+                CanonicalDate(sheet.Get(row, 7), "legacy-inf-gl-date"),
                 CanonicalDate(sheet.Get(row, 8), "legacy-inf-approval-date"),
                 NullIfBlank(sheet.Get(row, 9)),
                 NullIfBlank(sheet.Get(row, 12)),
@@ -162,7 +162,7 @@ internal static class LegacyAuditParityLegacyObservationFactory
                 LegacyObservedCount.NotExecuted));
         var direct = new[]
         {
-            (LegacyPrescreenRuleId.PostPeriodApproval, 8),
+            (LegacyPrescreenRuleId.PrepPeriodApproval, 8),
             (LegacyPrescreenRuleId.SuspiciousKeywords, 9),
             (LegacyPrescreenRuleId.UnexpectedAccountPair, 10),
             (LegacyPrescreenRuleId.TrailingZeros, 11),
@@ -175,22 +175,22 @@ internal static class LegacyAuditParityLegacyObservationFactory
                 sheet.Get(row, 5),
                 $"legacy-prescreen-{rule}");
         }
-        var creatorSummary = ReadRowVoucherPair(
+        var preparerSummary = ReadRowVoucherPair(
             sheet.Get(12, 6),
             sheet.Get(12, 5),
-            "legacy-prescreen-creator-summary");
+            "legacy-prescreen-preparer-summary");
         var rareAccounts = ReadRowVoucherPair(
             sheet.Get(13, 6),
             sheet.Get(13, 5),
             "legacy-prescreen-rare-accounts");
-        if (creatorSummary.Applicability != LegacyMetricApplicability.NotApplicable
+        if (preparerSummary.Applicability != LegacyMetricApplicability.NotApplicable
             || rareAccounts.Applicability != LegacyMetricApplicability.NotApplicable)
         {
             throw Error("legacy-prescreen-aggregate-applicability");
         }
         return new LegacyPrescreenObservation(
             result,
-            creatorSummary.Applicability,
+            preparerSummary.Applicability,
             rareAccounts.Applicability);
     }
 
@@ -335,6 +335,6 @@ internal static class LegacyAuditParityLegacyObservationFactory
 
     internal sealed record LegacyPrescreenObservation(
         IReadOnlyDictionary<LegacyPrescreenRuleId, LegacyRowVoucherCounts> Rules,
-        LegacyMetricApplicability CreatorSummaryApplicability,
+        LegacyMetricApplicability PreparerSummaryApplicability,
         LegacyMetricApplicability RareAccountsApplicability);
 }

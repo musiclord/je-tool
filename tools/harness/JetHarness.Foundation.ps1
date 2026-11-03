@@ -472,7 +472,7 @@ function Read-JetRegistry {
     if ([string]$excelSettings.driverProject -cne 'tools/harness/excel-driver/ExcelDriver.csproj' -or
         [string]$excelSettings.driverAssembly -cne 'tools/harness/excel-driver/bin/Release/net10.0-windows/Jet.ExcelDriver.dll' -or
         [string]$excelSettings.configuration -cne 'Release' -or
-        [string]$excelSettings.fixtureMethodPattern -cne '*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationRun_AndPublishesFiveReportsAndTemplate*' -or
+        [string]$excelSettings.fixtureMethodPattern -cne '*SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate*' -or
         [string]$excelSettings.fixtureEnvironmentVariable -cne 'JET_SIX_REPORT_EVIDENCE_DIR' -or
         $environmentNames -cnotcontains ([string]$excelSettings.fixtureEnvironmentVariable) -or
         [string]$excelSettings.scenario -cne 'synthetic-report-roundtrip' -or
@@ -566,8 +566,8 @@ function Get-JetRunnerIdentity {
         'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs',
         'tools/harness/gui-driver/GuiSideMonthWorkflow.cs',
         'tools/harness/gui-driver/GuiUpstreamChangeScenario.cs',
-        'tools/harness/gui-driver/GuiCaseToWorkpaperScenario.cs',
-        'tools/harness/gui-driver/GuiWorkpaperInspection.cs',
+        'tools/harness/gui-driver/GuiCaseToWorkingPaperScenario.cs',
+        'tools/harness/gui-driver/GuiWorkingPaperInspection.cs',
         'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs',
         'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs',
         'tools/harness/gui-driver/Program.cs',

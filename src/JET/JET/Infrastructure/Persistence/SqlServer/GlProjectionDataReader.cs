@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 串流投影 reader:包住 staging 的 <see cref="DbDataReader"/>,逐列 deserialize row_json →
-/// <see cref="GlRowProjector.TryProject"/>。成功列以 target_gl_entry 的 19 欄(不含 IDENTITY 的
+/// <see cref="GlRowProjector.TryProject"/>。成功列以 gl 的 19 欄(不含 IDENTITY 的
 /// entry_id)曝給 <see cref="SqlBulkCopy"/>；失敗列完整計數並彙總，只保存有界值與列號樣本。
 /// 語意對齊 LocalGlRepository：一旦出現錯誤即停止產出列，仍掃描其餘來源，最終整批 rollback。
 /// </summary>
@@ -21,11 +21,11 @@ internal sealed class GlProjectionDataReader : DbDataReader
     public static readonly string[] ColumnNames =
     [
         "batch_id", "source_row_number",
-        "document_number", "line_item", "post_date", "approval_date",
-        "account_code", "account_name", "document_description",
+        "voucher_number", "line_item", "gl_date", "approval_date",
+        "account_number", "account_name", "description",
         "source_module", "created_by", "approved_by", "is_manual",
         "amount_scaled", "debit_amount_scaled", "credit_amount_scaled", "dr_cr",
-        "line_item_numeric_sort_key", "posting_status", "is_effective", "exclusion_reason"
+        "line_item_numeric_sort_key", "posting_status", "is_excluded", "exclusion_reason"
     ];
 
     private static readonly Type[] ColumnTypes =
@@ -46,13 +46,13 @@ internal sealed class GlProjectionDataReader : DbDataReader
     private readonly DateOnly _periodStart;
     private readonly DateOnly _periodEnd;
     private readonly bool _postingStatusMapped;
-    private readonly GlEffectivePopulationMatcher? _postingStatusMatcher;
+    private readonly GlExcludedPopulationMatcher? _postingStatusMatcher;
     private readonly IReadOnlyDictionary<int, string>? _sourceLabels;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly CancellationToken _cancellationToken;
     private readonly Action<ProjectionProgress>? _progress;
     private readonly int _progressRowInterval;
-    // 階段六：審計員勾選的欄位把空白補成同一來源內上一列的值（與本機 GL 倉儲同一份 Domain 狀態）。
+    // 審計員勾選的欄位把空白補成同一來源內上一列的值（與本機 GL 倉儲同一份 Domain 狀態）。
     private readonly GlStagingFillDown? _fillDown;
     private readonly object[] _current = new object[ColumnNames.Length];
 
@@ -111,7 +111,7 @@ internal sealed class GlProjectionDataReader : DbDataReader
         _postingStatusMapped = postingStatusMapped;
         _postingStatusMatcher = postingStatusPolicy is null
             ? null
-            : new GlEffectivePopulationMatcher(postingStatusPolicy);
+            : new GlExcludedPopulationMatcher(postingStatusPolicy);
         _sourceLabels = sourceLabels;
         _jsonOptions = jsonOptions;
         _cancellationToken = cancellationToken;
@@ -132,35 +132,35 @@ internal sealed class GlProjectionDataReader : DbDataReader
 
     public int ValidRowCount { get; private set; }
 
-    // V3：只列一側的人工/自動清單代碼有沒有出現在來源裡（與 SQLite、DuckDB 同一份判斷）。
+    // 只列一側的人工/自動清單代碼有沒有出現在來源裡（與 SQLite、DuckDB 同一份判斷）。
     public ManualAutoListedCodeAudit ManualAutoCodes { get; }
 
-    // 完整性測試的匯入控制總數累計（與 SQLite 逐列累計等價;SqlBulkCopy 串流時於 Read 內累加）。
-    public long SourceRowCount { get; private set; }
+    // 存入筆數與合計核對要用的數字累計（與 SQLite 逐列累計等價;SqlBulkCopy 串流時於 Read 內累加）。
+    public long PbcRowCount { get; private set; }
 
     public long TotalDebitScaled { get; private set; }
 
     public long TotalCreditScaled { get; private set; }
 
-    public long EffectiveRowCount { get; private set; }
+    public long GlRowCount { get; private set; }
 
     public long ExcludedByPeriodCount { get; private set; }
 
     public long ExcludedByPostingStatusCount { get; private set; }
 
-    public long EffectiveDebitScaled { get; private set; }
+    public long GlDebitScaled { get; private set; }
 
-    public long EffectiveCreditScaled { get; private set; }
+    public long GlCreditScaled { get; private set; }
 
     public override bool Read()
     {
         while (_staging.Read())
         {
             _cancellationToken.ThrowIfCancellationRequested();
-            SourceRowCount++;
-            if (SourceRowCount % _progressRowInterval == 0)
+            PbcRowCount++;
+            if (PbcRowCount % _progressRowInterval == 0)
             {
-                _progress?.Invoke(new ProjectionProgress(SourceRowCount));
+                _progress?.Invoke(new ProjectionProgress(PbcRowCount));
             }
 
             var rowNumber = _staging.GetInt64(0);
@@ -193,14 +193,14 @@ internal sealed class GlProjectionDataReader : DbDataReader
 
             ManualAutoCodes.Observe(stagingRow);
 
-            var postDate = projected!.PostDate is null
+            var glDate = projected!.GlDate is null
                 ? (DateOnly?)null
                 : DateOnly.ParseExact(
-                    projected.PostDate,
+                    projected.GlDate,
                     "yyyy-MM-dd",
                     CultureInfo.InvariantCulture);
-            var classification = GlEffectivePopulation.ClassifyWithMatcher(
-                postDate,
+            var classification = GlExcludedPopulation.ClassifyWithMatcher(
+                glDate,
                 projected.PostingStatus,
                 _periodStart,
                 _periodEnd,
@@ -209,16 +209,16 @@ internal sealed class GlProjectionDataReader : DbDataReader
 
             long nextTotalDebit;
             long nextTotalCredit;
-            var nextEffectiveDebit = EffectiveDebitScaled;
-            var nextEffectiveCredit = EffectiveCreditScaled;
+            var nextGlDebit = GlDebitScaled;
+            var nextGlCredit = GlCreditScaled;
             try
             {
                 nextTotalDebit = checked(TotalDebitScaled + projected.DebitAmountScaled);
                 nextTotalCredit = checked(TotalCreditScaled + projected.CreditAmountScaled);
-                if (classification.IsEffective)
+                if (!classification.IsExcluded)
                 {
-                    nextEffectiveDebit = checked(EffectiveDebitScaled + projected.DebitAmountScaled);
-                    nextEffectiveCredit = checked(EffectiveCreditScaled + projected.CreditAmountScaled);
+                    nextGlDebit = checked(GlDebitScaled + projected.DebitAmountScaled);
+                    nextGlCredit = checked(GlCreditScaled + projected.CreditAmountScaled);
                 }
             }
             catch (OverflowException)
@@ -240,15 +240,15 @@ internal sealed class GlProjectionDataReader : DbDataReader
             TotalCreditScaled = nextTotalCredit;
             switch (classification.Disposition)
             {
-                case GlEffectivePopulationDisposition.Effective:
-                    EffectiveRowCount++;
-                    EffectiveDebitScaled = nextEffectiveDebit;
-                    EffectiveCreditScaled = nextEffectiveCredit;
+                case GlExcludedPopulationDisposition.Gl:
+                    GlRowCount++;
+                    GlDebitScaled = nextGlDebit;
+                    GlCreditScaled = nextGlCredit;
                     break;
-                case GlEffectivePopulationDisposition.ExcludedByPeriod:
+                case GlExcludedPopulationDisposition.ExcludedByPeriod:
                     ExcludedByPeriodCount++;
                     break;
-                case GlEffectivePopulationDisposition.ExcludedByPostingStatus:
+                case GlExcludedPopulationDisposition.ExcludedByPostingStatus:
                     ExcludedByPostingStatusCount++;
                     break;
                 default:
@@ -262,27 +262,27 @@ internal sealed class GlProjectionDataReader : DbDataReader
 
     public void ReportFinalProgress()
     {
-        if (SourceRowCount > 0 && SourceRowCount % _progressRowInterval != 0)
+        if (PbcRowCount > 0 && PbcRowCount % _progressRowInterval != 0)
         {
-            _progress?.Invoke(new ProjectionProgress(SourceRowCount));
+            _progress?.Invoke(new ProjectionProgress(PbcRowCount));
         }
     }
 
     private void FillCurrent(
         long rowNumber,
         GlProjectedRow p,
-        GlEffectivePopulationClassification classification)
+        GlExcludedPopulationClassification classification)
     {
         // target 的 source_row_number 存批次排序鍵(== staging row_number;INF 抽樣基礎)。
         _current[0] = _batchId;
         _current[1] = rowNumber;
-        _current[2] = (object?)p.DocumentNumber ?? DBNull.Value;
+        _current[2] = (object?)p.VoucherNumber ?? DBNull.Value;
         _current[3] = (object?)p.LineItem ?? DBNull.Value;
-        _current[4] = (object?)p.PostDate ?? DBNull.Value;
+        _current[4] = (object?)p.GlDate ?? DBNull.Value;
         _current[5] = (object?)p.ApprovalDate ?? DBNull.Value;
-        _current[6] = (object?)p.AccountCode ?? DBNull.Value;
+        _current[6] = (object?)p.AccountNumber ?? DBNull.Value;
         _current[7] = (object?)p.AccountName ?? DBNull.Value;
-        _current[8] = (object?)p.DocumentDescription ?? DBNull.Value;
+        _current[8] = (object?)p.Description ?? DBNull.Value;
         _current[9] = (object?)p.SourceModule ?? DBNull.Value;
         _current[10] = (object?)p.CreatedBy ?? DBNull.Value;
         _current[11] = (object?)p.ApprovedBy ?? DBNull.Value;
@@ -293,7 +293,7 @@ internal sealed class GlProjectionDataReader : DbDataReader
         _current[16] = p.DrCr;
         _current[17] = (object?)LineItemNumericSortKey.CreateOrNull(p.LineItem) ?? DBNull.Value;
         _current[18] = (object?)p.PostingStatus ?? DBNull.Value;
-        _current[19] = classification.IsEffective;
+        _current[19] = classification.IsExcluded;
         _current[20] = (object?)classification.StorageReason ?? DBNull.Value;
     }
 

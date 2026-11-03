@@ -11,9 +11,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 結果失效驗收（plan Phase 1）：規則執行結果(result_rule_run / 抽樣)是衍生資料,
-/// 一旦其實際上游被改寫，project.load 的對應 latestRuns 必須回 null（要求重跑），
-/// 依同層級修改裁定，GL 與 TB 影響兩種 run，
+/// 結果失效驗收：規則執行結果(validation_result、prescreen_result 與抽樣)是衍生資料,
+/// 一旦其實際上游被改寫，project.load 的 validationResult 或 prescreenResult 必須回 null（要求重跑），
+/// 依裁定 2026-10-07-04，GL 與 TB 同層級修改，影響兩種 run，
 /// 科目配對／行事曆／授權清單只影響 prescreen。
 ///
 /// 設計技術：狀態轉換 —— 每條合法的「上游改寫」轉換各一測試,涵蓋三個失效機制:
@@ -21,7 +21,7 @@ namespace JET.Tests.Application;
 ///   (b) 重投影交易（mapping re-commit）
 ///   (c) 行事曆 replace 交易（假日/補班匯入）
 /// oracle：依賴到該上游的 latest run 應為 JSON null；無依賴者必須保留。篩選命中失效時，
-/// 已存篩選情境也一起清掉（使用者 2026-10-07 裁定上游修改清除下游）。
+/// 已存篩選情境也一起清掉（上游修改清除下游，裁定 2026-10-07-03）。
 /// 每個測試自建 host（會變更狀態,不可共用 DemoProjectFixture）。
 /// </summary>
 public static class ResultInvalidationTestSupport
@@ -40,8 +40,8 @@ public static class ResultInvalidationTestSupport
     }
 
     internal sealed record InvalidationMatrixState(
-        string? ValidationRun,
-        string? PrescreenRun,
+        string? ValidationResultJson,
+        string? PrescreenResultJson,
         long FilterHitCount,
         string[] ScenarioDefinitions,
         string[] ScenarioRevisions,
@@ -92,12 +92,28 @@ public static class ResultInvalidationTestSupport
             "project.load", JsonSerializer.Serialize(new { projectId }));
     }
 
-    internal static JsonValueKind LatestRunKind(JsonElement loaded, string runKind)
+    /// <summary>project.load 回應裡放驗證結果或預篩選結果的欄位；resultKind 是 "validate" 或 "prescreen"。</summary>
+    internal static string LoadedResultProperty(string resultKind) => resultKind switch
     {
-        return loaded.GetProperty("latestRuns").GetProperty(runKind).ValueKind;
+        "validate" => "validationResult",
+        "prescreen" => "prescreenResult",
+        _ => throw new ArgumentOutOfRangeException(nameof(resultKind), resultKind, null)
+    };
+
+    /// <summary>存驗證結果或預篩選結果的資料表；resultKind 是 "validate" 或 "prescreen"。</summary>
+    internal static string ResultTable(string resultKind) => resultKind switch
+    {
+        "validate" => "validation_result",
+        "prescreen" => "prescreen_result",
+        _ => throw new ArgumentOutOfRangeException(nameof(resultKind), resultKind, null)
+    };
+
+    internal static JsonValueKind LatestResultKind(JsonElement loaded, string resultKind)
+    {
+        return loaded.GetProperty(LoadedResultProperty(resultKind)).ValueKind;
     }
 
-    /// <summary>讀取抽樣表的 (document_number, line_item) 身分清單(依抽樣排序鍵還原)。</summary>
+    /// <summary>讀取抽樣表的 (voucher_number, line_item) 身分清單(依抽樣排序鍵還原)。</summary>
     internal static async Task<List<(string Doc, string Line)>> ReadSampleKeysAsync(
         HandlerTestHost host, string projectId)
     {
@@ -108,7 +124,7 @@ public static class ResultInvalidationTestSupport
         await using var command = connection.CreateCommand();
         // 依身分排序(非插入序):比對的是「抽中哪些列」的集合,不綁抽樣 tie-break 的插入順序。
         command.CommandText =
-            "SELECT document_number, line_item FROM result_inf_sampling_test_sample ORDER BY document_number, line_item;";
+            "SELECT voucher_number, line_item FROM inf_sample ORDER BY voucher_number, line_item;";
 
         var keys = new List<(string, string)>();
         await using var reader = await command.ExecuteReaderAsync();
@@ -187,10 +203,10 @@ public static class ResultInvalidationTestSupport
                 sqlServerConnectionString,
                 """
                 UPDATE {s}.gl_control_total
-                SET source_row_count = -1,
-                    target_row_count = -1,
-                    target_debit_scaled = -1,
-                    target_credit_scaled = -1
+                SET pbc_row_count = -1,
+                    stored_row_count = -1,
+                    stored_debit_scaled = -1,
+                    stored_credit_scaled = -1
                 WHERE singleton = 1;
                 """);
 
@@ -242,8 +258,8 @@ public static class ResultInvalidationTestSupport
             projectId,
             databaseProvider,
             sqlServerConnectionString);
-        Assert.NotNull(state.ValidationRun);
-        Assert.NotNull(state.PrescreenRun);
+        Assert.NotNull(state.ValidationResultJson);
+        Assert.NotNull(state.PrescreenResultJson);
         Assert.True(state.FilterHitCount > 0);
         Assert.Single(state.ScenarioDefinitions);
         Assert.Single(state.ScenarioRevisions);
@@ -264,37 +280,46 @@ public static class ResultInvalidationTestSupport
             projectId,
             databaseProvider,
             sqlServerConnectionString,
-            "SELECT definition_json FROM {s}.config_filter_scenario ORDER BY position;");
-        var revisions = await RequiredMatrixStringsAsync(
+            "SELECT definition_json FROM {s}.filter_scenario ORDER BY position;");
+        // 2026-10-31 起每個情境各自儲存，情境的版本是「情境編號@保存時間」，整批版本依順序用分號接起來；
+        // 原本直接比對保存時間，第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        var savedTimes = await RequiredMatrixStringsAsync(
             host,
             projectId,
             databaseProvider,
             sqlServerConnectionString,
-            "SELECT saved_utc FROM {s}.config_filter_scenario ORDER BY position;");
+            "SELECT saved_utc FROM {s}.filter_scenario ORDER BY position;");
+        var scenarioIds = await RequiredMatrixStringsAsync(
+            host,
+            projectId,
+            databaseProvider,
+            sqlServerConnectionString,
+            "SELECT CAST(scenario_id AS VARCHAR(20)) FROM {s}.filter_scenario ORDER BY position;");
+        var revisions = scenarioIds.Zip(savedTimes, (id, savedUtc) => id + "@" + savedUtc).ToArray();
         var glControlTotal = await ReadGlControlTotalAsync(
             host,
             projectId,
             databaseProvider,
             sqlServerConnectionString,
             """
-            SELECT source_row_count,
-                   target_row_count,
-                   target_debit_scaled,
-                   target_credit_scaled
+            SELECT pbc_row_count,
+                   stored_row_count,
+                   stored_debit_scaled,
+                   stored_credit_scaled
             FROM {s}.gl_control_total
             WHERE singleton = 1;
             """);
         var filterResultRef = loaded.GetProperty("filterResultRef");
 
         return new InvalidationMatrixState(
-            RunJson(loaded, "validate"),
-            RunJson(loaded, "prescreen"),
+            ResultJson(loaded, "validate"),
+            ResultJson(loaded, "prescreen"),
             await QueryMatrixScalarAsync(
                 host,
                 projectId,
                 databaseProvider,
                 sqlServerConnectionString,
-                "SELECT COUNT(*) FROM {s}.result_filter_run;"),
+                "SELECT COUNT(*) FROM {s}.filter_hit;"),
             definitions,
             revisions,
             filterResultRef.ValueKind == JsonValueKind.Null
@@ -311,11 +336,11 @@ public static class ResultInvalidationTestSupport
         bool clearsFilterHits,
         string[] expectedGlControlTotal)
     {
-        AssertRunState(before.ValidationRun, after.ValidationRun, clearsValidation);
-        AssertRunState(before.PrescreenRun, after.PrescreenRun, clearsPrescreen);
+        AssertResultState(before.ValidationResultJson, after.ValidationResultJson, clearsValidation);
+        AssertResultState(before.PrescreenResultJson, after.PrescreenResultJson, clearsPrescreen);
         Assert.Equal(clearsFilterHits ? 0 : before.FilterHitCount, after.FilterHitCount);
 
-        // 使用者 2026-10-07 裁定上游修改清除下游：命中失效時，已存情境定義與版本也一起清掉；
+        // 上游修改會清除下游（裁定 2026-10-07-03）：命中失效時，已存情境定義與版本也一起清掉；
         // 若政策保留命中，定義與版本也必須逐字保留。原本斷言情境一律保留，第一次失敗收據
         // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
         if (clearsFilterHits)
@@ -335,7 +360,7 @@ public static class ResultInvalidationTestSupport
         Assert.Equal(expectedGlControlTotal, after.GlControlTotal);
     }
 
-    internal static void AssertRunState(string? before, string? after, bool clears)
+    internal static void AssertResultState(string? before, string? after, bool clears)
     {
         if (clears)
         {
@@ -347,9 +372,9 @@ public static class ResultInvalidationTestSupport
         }
     }
 
-    internal static string? RunJson(JsonElement loaded, string runKind)
+    internal static string? ResultJson(JsonElement loaded, string resultKind)
     {
-        var run = loaded.GetProperty("latestRuns").GetProperty(runKind);
+        var run = loaded.GetProperty(LoadedResultProperty(resultKind));
         return run.ValueKind == JsonValueKind.Null ? null : run.GetRawText();
     }
 
@@ -599,7 +624,7 @@ public static class ResultInvalidationTestSupport
             {
                 filePath = file.GetProperty("filePath").GetString(),
                 fileName = file.GetProperty("fileName").GetString(),
-                // 2026-10-04 第 3 批 L12 裁定 sourceColumn 必填；保留上游改動的結果失效測試。
+                // sourceColumn 改成必填，後端不再猜人員欄；保留上游改動的結果失效測試。
                 sourceColumn
             }));
     }
@@ -638,7 +663,7 @@ public static class ResultInvalidationTestSupport
                         new
                         {
                             join = "AND",
-                            rules = new[]
+                            conditions = new[]
                             {
                                 new { join = "AND", type = "numRange", field = "amount", from = "0" }
                             }
@@ -662,7 +687,7 @@ public static class ResultInvalidationTestSupport
                         new
                         {
                             join = "AND",
-                            rules = new[]
+                            conditions = new[]
                             {
                                 new { join = "AND", type = "prescreen", prescreenKey = "weekendPosting" }
                             }

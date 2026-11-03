@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 2026-07-14 本地收尾第三批的前端靜態接線守衛。這些測試只鎖原語、消費點與先後順序；
+/// 2026-07-14 本地收尾時加上的前端靜態接線守衛。這些測試只鎖原語、消費點與先後順序；
 /// 真實慢回應與可見性仍由 Windows GUI handoff 驗收。
 /// </summary>
 public sealed class FrontendHardeningContractTests
@@ -30,7 +30,7 @@ public sealed class FrontendHardeningContractTests
         Assert.Contains("NotifyBusyNativeExitAsync", closing, StringComparison.Ordinal);
         Assert.Contains("state.activeRequestId", busyFallback, StringComparison.Ordinal);
         Assert.Contains("setBusyDetail(message)", busyFallback, StringComparison.Ordinal);
-        // 使用者 2026-10-13 勾選頁確認 22、23：關閉視窗時用同一句，不再寫「關閉視窗」
+        // 裁定 2026-10-13-28 確認關閉視窗時用同一句，不再寫「關閉視窗」
         // （第一次失敗：Focused 收據 20261013-141518189-803ef992f6924f6e8ee9076331128cc7）。
         Assert.Contains("作業還在進行，請等它完成後再試一次。", busyFallback, StringComparison.Ordinal);
     }
@@ -70,7 +70,7 @@ public sealed class FrontendHardeningContractTests
             "傳票量詞",
             "已投影",
             "後端權威",
-            "Artifact ID",
+            "Report ID",
             "kind 未提供",
             "目前 catalog",
             "wire 或前端 state",
@@ -94,11 +94,11 @@ public sealed class FrontendHardeningContractTests
 
         foreach (var requiredDisplayPhrase in new[]
         {
-            // Q8 confirmed-state wording; all other vocabulary assertions remain unchanged.
+            // Confirmed-state wording (ruling 2026-10-04-01); all other vocabulary assertions remain unchanged.
             // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
             "已確認配對",
             "分類用途",
-            // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+            // 裁定 2026-10-13-18 改名；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
             "金額",
             "符合條件的分錄",
             "資料儲存方式",

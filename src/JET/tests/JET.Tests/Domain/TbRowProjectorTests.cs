@@ -13,10 +13,10 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "會計科目編號",
-                [TbMappingKeys.AccName] = "會計科目名稱",
-                [TbMappingKeys.DebitAmt] = "借方金額",
-                [TbMappingKeys.CreditAmt] = "貸方金額"
+                [TbMappingKeys.AccountNumber] = "會計科目編號",
+                [TbMappingKeys.AccountName] = "會計科目名稱",
+                [TbMappingKeys.DebitAmount] = "借方金額",
+                [TbMappingKeys.CreditAmount] = "貸方金額"
             },
             TbChangeMode.DebitCredit);
 
@@ -32,7 +32,7 @@ public sealed class TbRowProjectorTests
         Assert.True(TbRowProjector.TryProject(row, spec, Scale, out var projected, out var error));
         Assert.Null(error);
         Assert.NotNull(projected);
-        Assert.Equal("110201", projected.AccountCode);
+        Assert.Equal("110201", projected.AccountNumber);
         Assert.Equal(0L, projected.ChangeAmountScaled);
 
         var movedRow = new StagingRow(3, new Dictionary<string, string>
@@ -53,9 +53,9 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.Amount] = "change"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.ChangeAmount] = "change"
             },
             TbChangeMode.DirectChange);
 
@@ -76,10 +76,10 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "總帳科目",
-                [TbMappingKeys.AccName] = "短文",
-                [TbMappingKeys.DebitAmt] = "報表期間借項餘額",
-                [TbMappingKeys.CreditAmt] = "報表期間的貸項餘額"
+                [TbMappingKeys.AccountNumber] = "總帳科目",
+                [TbMappingKeys.AccountName] = "短文",
+                [TbMappingKeys.DebitAmount] = "報表期間借項餘額",
+                [TbMappingKeys.CreditAmount] = "報表期間的貸項餘額"
             },
             TbChangeMode.DebitCredit);
 
@@ -105,8 +105,8 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.DebitAmt] = "debit",
-                [TbMappingKeys.CreditAmt] = "credit"
+                [TbMappingKeys.DebitAmount] = "debit",
+                [TbMappingKeys.CreditAmount] = "credit"
             },
             TbChangeMode.DebitCredit);
         var row = new StagingRow(2, new Dictionary<string, string>
@@ -126,9 +126,9 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.Amount] = "change"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.ChangeAmount] = "change"
             },
             TbChangeMode.DirectChange);
 
@@ -150,10 +150,10 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.DebitAmt] = "debit",
-                [TbMappingKeys.CreditAmt] = "credit"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.DebitAmount] = "debit",
+                [TbMappingKeys.CreditAmount] = "credit"
             },
             TbChangeMode.DebitCredit);
 
@@ -170,7 +170,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("credit", error.Field);
         Assert.Equal("oops", error.RawValue);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -181,7 +181,7 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.Amount] = "change"
+                [TbMappingKeys.ChangeAmount] = "change"
             },
             (TbChangeMode)999);
 
@@ -210,8 +210,8 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
                 [TbMappingKeys.OpeningBalance] = "opening",
                 [TbMappingKeys.ClosingBalance] = "closing"
             },
@@ -266,12 +266,12 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.OpeningDebit] = "odr",
-                [TbMappingKeys.OpeningCredit] = "ocr",
-                [TbMappingKeys.ClosingDebit] = "cdr",
-                [TbMappingKeys.ClosingCredit] = "ccr"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.OpeningDebitBalance] = "odr",
+                [TbMappingKeys.OpeningCreditBalance] = "ocr",
+                [TbMappingKeys.ClosingDebitBalance] = "cdr",
+                [TbMappingKeys.ClosingCreditBalance] = "ccr"
             },
             TbChangeMode.OpenCloseBySide);
 
@@ -297,10 +297,10 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.OpeningDebit] = "odr",
-                [TbMappingKeys.OpeningCredit] = "ocr",
-                [TbMappingKeys.ClosingDebit] = "cdr",
-                [TbMappingKeys.ClosingCredit] = "ccr"
+                [TbMappingKeys.OpeningDebitBalance] = "odr",
+                [TbMappingKeys.OpeningCreditBalance] = "ocr",
+                [TbMappingKeys.ClosingDebitBalance] = "cdr",
+                [TbMappingKeys.ClosingCreditBalance] = "ccr"
             },
             TbChangeMode.OpenCloseBySide);
         var row = new StagingRow(2, new Dictionary<string, string>
@@ -327,9 +327,9 @@ public sealed class TbRowProjectorTests
         var directSpec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.Amount] = "chg"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.ChangeAmount] = "chg"
             },
             TbChangeMode.DirectChange);
         var directRow = new StagingRow(2, new Dictionary<string, string>
@@ -340,8 +340,8 @@ public sealed class TbRowProjectorTests
         var openCloseSpec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
                 [TbMappingKeys.OpeningBalance] = "opening",
                 [TbMappingKeys.ClosingBalance] = "closing"
             },
@@ -361,17 +361,17 @@ public sealed class TbRowProjectorTests
 
     // OpenCloseBySide 任一欄非法金額 → 逐列錯誤（鏡射 DebitCredit 的負向處理）。
     [Fact]
-    public void OpenCloseBySide_InvalidClosingCredit_ReturnsRowError()
+    public void OpenCloseBySide_InvalidClosingCreditBalance_ReturnsRowError()
     {
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.OpeningDebit] = "odr",
-                [TbMappingKeys.OpeningCredit] = "ocr",
-                [TbMappingKeys.ClosingDebit] = "cdr",
-                [TbMappingKeys.ClosingCredit] = "ccr"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.OpeningDebitBalance] = "odr",
+                [TbMappingKeys.OpeningCreditBalance] = "ocr",
+                [TbMappingKeys.ClosingDebitBalance] = "cdr",
+                [TbMappingKeys.ClosingCreditBalance] = "ccr"
             },
             TbChangeMode.OpenCloseBySide);
 
@@ -386,7 +386,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(8, error!.SourceRowNumber);
         Assert.Equal("ccr", error.Field);
         Assert.Equal("oops", error.RawValue);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -396,9 +396,9 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "acc",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.Amount] = "change"
+                [TbMappingKeys.AccountNumber] = "acc",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.ChangeAmount] = "change"
             },
             TbChangeMode.DirectChange);
 
@@ -414,13 +414,13 @@ public sealed class TbRowProjectorTests
         Assert.Equal(11, error!.SourceRowNumber);
         Assert.Equal("change", error.Field);
         Assert.Equal("79228162514264337593543950335", error.RawValue);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        // 使用者 2026-10-22 裁定一併改寫叫審計員調整小數位數的訊息，案件沒有這個設定（預篩選收斂計畫階段五）；
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 裁定 2026-10-22-07 一併改寫叫審計員調整小數位數的訊息，因為案件沒有這個設定；
         // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
-    // 跨資料庫一致性計畫第三節 C（2026-10-19 使用者裁定「文字欄長度三方一致」）：科目編號上限 450 字、
+    // 文字欄長度三種資料庫一致（裁定 2026-10-19-28）：科目編號上限 450 字、
     // 科目名稱 400 字，和 SQL Server 欄寬相同；超過就回列錯誤，不截斷。第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514。
     [Fact]
     public void TextOverStorageLimit_ReturnsRowError_AndAtLimitProjects()
@@ -428,9 +428,9 @@ public sealed class TbRowProjectorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "code",
-                [TbMappingKeys.AccName] = "name",
-                [TbMappingKeys.Amount] = "amount"
+                [TbMappingKeys.AccountNumber] = "code",
+                [TbMappingKeys.AccountName] = "name",
+                [TbMappingKeys.ChangeAmount] = "amount"
             },
             TbChangeMode.DirectChange);
         StagingRow Row(int number, string code, string name) => new(number, new Dictionary<string, string>
@@ -441,7 +441,7 @@ public sealed class TbRowProjectorTests
         });
 
         Assert.True(TbRowProjector.TryProject(Row(2, new string('A', 450), new string('名', 400)), spec, Scale, out var atLimit, out _));
-        Assert.Equal(new string('A', 450), atLimit!.AccountCode);
+        Assert.Equal(new string('A', 450), atLimit!.AccountNumber);
         Assert.Equal(new string('名', 400), atLimit.AccountName);
 
         Assert.False(TbRowProjector.TryProject(Row(3, new string('A', 451), "現金"), spec, Scale, out _, out var codeError));

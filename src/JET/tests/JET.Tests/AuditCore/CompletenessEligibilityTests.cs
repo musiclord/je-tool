@@ -10,22 +10,22 @@ public sealed class CompletenessEligibilityTests
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
             Facts(
-                hasCurrentValidationRun: true,
+                hasCurrentValidationResult: true,
                 isCurrentLogicVersion: true,
-                partARowCountMatch: true,
-                partAAmountMatch: true,
-                partBApplicable: true,
-                partBDifferenceAccountCount: 0));
+                storedRowCountMatch: true,
+                storedAmountMatch: true,
+                accountComparisonApplicable: true,
+                accountComparisonDifferenceAccountCount: 0));
 
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
     }
 
     [Fact]
-    public void Evaluate_WithoutCurrentValidationRun_FailsClosed()
+    public void Evaluate_WithoutCurrentValidationResult_FailsClosed()
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
-            Facts(hasCurrentValidationRun: false));
+            Facts(hasCurrentValidationResult: false));
 
         Assert.False(decision.IsEligible);
         Assert.Contains("目前資料", decision.Reason, StringComparison.Ordinal);
@@ -45,27 +45,27 @@ public sealed class CompletenessEligibilityTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(false, false)]
-    public void Evaluate_WhenPartADoesNotMatch_AllowsContinuationWithWarning(
+    public void Evaluate_WhenStoredTotalsDoesNotMatch_AllowsContinuationWithWarning(
         bool rowCountMatch,
         bool amountMatch)
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
             Facts(
-                partARowCountMatch: rowCountMatch,
-                partAAmountMatch: amountMatch));
+                storedRowCountMatch: rowCountMatch,
+                storedAmountMatch: amountMatch));
 
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
-        // 2026-10-05 V2 裁定：兩組數字都是確認配對時與存下後算的，不是「匯入前後」，提醒照實改寫。
-        // 使用者 2026-10-14 要求黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：收據 20261014-085536011-fede37aa52f440d68dd459ddba8df94f）。
+        // 裁定 2026-10-05-01：兩組數字都是確認配對時與存下後算的，不是「匯入前後」，提醒照實改寫。
+        // 裁定 2026-10-14-02 要求黃色提示不過度解釋，句子照確認過的清單縮短（第一次失敗：收據 20261014-085536011-fede37aa52f440d68dd459ddba8df94f）。
         Assert.Contains("存下的分錄筆數或借貸合計與配對時不一致", decision.Warning, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Evaluate_WhenPartBIsNotApplicable_AllowsContinuationWithWarning()
+    public void Evaluate_WhenAccountComparisonIsNotApplicable_AllowsContinuationWithWarning()
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
-            Facts(partBApplicable: false));
+            Facts(accountComparisonApplicable: false));
 
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
@@ -73,10 +73,10 @@ public sealed class CompletenessEligibilityTests
     }
 
     [Fact]
-    public void Evaluate_WhenPartBHasDifferences_AllowsContinuationWithWarning()
+    public void Evaluate_WhenAccountComparisonHasDifferences_AllowsContinuationWithWarning()
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
-            Facts(partBDifferenceAccountCount: 3));
+            Facts(accountComparisonDifferenceAccountCount: 3));
 
         Assert.True(decision.IsEligible);
         Assert.Null(decision.Reason);
@@ -87,24 +87,24 @@ public sealed class CompletenessEligibilityTests
     public void Evaluate_WhenRequiredFactsAreMissing_FailsClosed()
     {
         var decision = JetAuditProgram.EvaluateCompletenessEligibility(
-            Facts(partARowCountMatch: null));
+            Facts(storedRowCountMatch: null));
 
         Assert.False(decision.IsEligible);
         Assert.Contains("結果不完整", decision.Reason, StringComparison.Ordinal);
     }
 
     private static CompletenessEligibilityFacts Facts(
-        bool hasCurrentValidationRun = true,
+        bool hasCurrentValidationResult = true,
         bool isCurrentLogicVersion = true,
-        bool? partARowCountMatch = true,
-        bool? partAAmountMatch = true,
-        bool? partBApplicable = true,
-        long? partBDifferenceAccountCount = 0) =>
+        bool? storedRowCountMatch = true,
+        bool? storedAmountMatch = true,
+        bool? accountComparisonApplicable = true,
+        long? accountComparisonDifferenceAccountCount = 0) =>
         new(
-            hasCurrentValidationRun,
+            hasCurrentValidationResult,
             isCurrentLogicVersion,
-            partARowCountMatch,
-            partAAmountMatch,
-            partBApplicable,
-            partBDifferenceAccountCount);
+            storedRowCountMatch,
+            storedAmountMatch,
+            accountComparisonApplicable,
+            accountComparisonDifferenceAccountCount);
 }

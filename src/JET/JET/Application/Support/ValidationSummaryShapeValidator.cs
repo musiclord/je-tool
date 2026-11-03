@@ -14,7 +14,7 @@ internal static class ValidationSummaryShapeValidator
     private static readonly string[] RootKeys =
     [
         "stats", "populationSummary", "amountDistribution", "completenessTest",
-        "docBalanceTest", "infSamplingTest", "nullRecordsTest", "sourceQuality", "documentDateReuse", "resultRef"
+        "voucherBalanceTest", "infSamplingTest", "blankRecordsTest", "sourceQuality", "voucherNumberAcrossGlDates", "resultRef"
     ];
 
     internal static bool IsValid(string summaryJson)
@@ -38,25 +38,25 @@ internal static class ValidationSummaryShapeValidator
         ValidatePopulation(Property(root, "populationSummary"));
         ValidateAmountDistribution(Property(root, "amountDistribution"));
         ValidateCompleteness(Property(root, "completenessTest"));
-        ValidateDocumentBalance(Property(root, "docBalanceTest"));
+        ValidateVoucherBalance(Property(root, "voucherBalanceTest"));
         ValidateInf(Property(root, "infSamplingTest"));
-        ValidateNullRecords(Property(root, "nullRecordsTest"));
+        ValidateBlankRecords(Property(root, "blankRecordsTest"));
         ValidateSourceQuality(Property(root, "sourceQuality"));
-        ValidateDocumentDateReuse(Property(root, "documentDateReuse"), Property(Property(root, "populationSummary"), "effective"));
+        ValidateVoucherNumberAcrossGlDates(Property(root, "voucherNumberAcrossGlDates"), Property(Property(root, "populationSummary"), "gl"));
         ValidateResultRef(Property(root, "resultRef"));
     }
 
-    private static void ValidateDocumentDateReuse(JsonElement value, JsonElement effective)
+    private static void ValidateVoucherNumberAcrossGlDates(JsonElement value, JsonElement gl)
     {
-        RequireExactObject(value, "documentNumberCount", "entryCount");
-        var numbers = RequireNonNegativeLong(value, "documentNumberCount");
+        RequireExactObject(value, "voucherNumberCount", "entryCount");
+        var numbers = RequireNonNegativeLong(value, "voucherNumberCount");
         var entries = RequireNonNegativeLong(value, "entryCount");
-        if (numbers > RequireNonNegativeLong(effective, "voucherCount")
-            || entries > RequireNonNegativeLong(effective, "rowCount")
+        if (numbers > RequireNonNegativeLong(gl, "voucherCount")
+            || entries > RequireNonNegativeLong(gl, "rowCount")
             || (numbers == 0) != (entries == 0)
             || numbers > entries / 2)
         {
-            throw Invalid("documentDateReuse measured counts");
+            throw Invalid("voucherNumberAcrossGlDates measured counts");
         }
     }
 
@@ -76,28 +76,28 @@ internal static class ValidationSummaryShapeValidator
 
     private static void ValidatePopulation(JsonElement value)
     {
-        RequireExactObject(value, "raw", "effective", "excluded");
+        RequireExactObject(value, "raw", "gl", "excluded");
         var raw = Property(value, "raw");
         RequireExactObject(raw, "rowCount", "totalDebit", "totalCredit");
         var rawRows = RequireNonNegativeLong(raw, "rowCount");
         RequireNumber(raw, "totalDebit");
         RequireNumber(raw, "totalCredit");
 
-        var effective = Property(value, "effective");
-        RequireExactObject(effective, "rowCount", "voucherCount", "totalDebit", "totalCredit", "net");
-        var effectiveRows = RequireNonNegativeLong(effective, "rowCount");
-        var vouchers = RequireNonNegativeLong(effective, "voucherCount");
-        RequireNumber(effective, "totalDebit");
-        RequireNumber(effective, "totalCredit");
-        RequireNumber(effective, "net");
+        var gl = Property(value, "gl");
+        RequireExactObject(gl, "rowCount", "voucherCount", "totalDebit", "totalCredit", "net");
+        var glRows = RequireNonNegativeLong(gl, "rowCount");
+        var vouchers = RequireNonNegativeLong(gl, "voucherCount");
+        RequireNumber(gl, "totalDebit");
+        RequireNumber(gl, "totalCredit");
+        RequireNumber(gl, "net");
 
         var excluded = Property(value, "excluded");
         RequireExactObject(excluded, "rowCount", "byPeriodCount", "byPostingStatusCount");
         var excludedRows = RequireNonNegativeLong(excluded, "rowCount");
         var periodRows = RequireNonNegativeLong(excluded, "byPeriodCount");
         var postingRows = RequireNonNegativeLong(excluded, "byPostingStatusCount");
-        if (vouchers > effectiveRows
-            || rawRows != checked(effectiveRows + excludedRows)
+        if (vouchers > glRows
+            || rawRows != checked(glRows + excludedRows)
             || excludedRows != checked(periodRows + postingRows))
         {
             throw Invalid("populationSummary partition");
@@ -144,18 +144,18 @@ internal static class ValidationSummaryShapeValidator
 
     private static void ValidateCompleteness(JsonElement value)
     {
-        RequireExactObject(value, "status", "naReason", "diffAccountCount", "diffAccounts", "partA", "eligibility");
+        RequireExactObject(value, "status", "naReason", "diffAccountCount", "diffAccounts", "storedTotals", "eligibility");
         RequireStatus(value);
         RequireNullableString(value, "naReason");
         RequireNonNegativeLong(value, "diffAccountCount");
         RequireArray(value, "diffAccounts");
 
-        var partA = Property(value, "partA");
-        RequireExactObject(partA, "eligibleSource", "effectiveTarget", "rowCountMatch", "amountMatch");
-        var eligible = Property(partA, "eligibleSource");
-        var target = Property(partA, "effectiveTarget");
-        var rowMatch = Property(partA, "rowCountMatch");
-        var amountMatch = Property(partA, "amountMatch");
+        var storedTotals = Property(value, "storedTotals");
+        RequireExactObject(storedTotals, "eligibleSource", "gl", "rowCountMatch", "amountMatch");
+        var eligible = Property(storedTotals, "eligibleSource");
+        var target = Property(storedTotals, "gl");
+        var rowMatch = Property(storedTotals, "rowCountMatch");
+        var amountMatch = Property(storedTotals, "amountMatch");
         var unavailable = eligible.ValueKind == JsonValueKind.Null
             && target.ValueKind == JsonValueKind.Null
             && rowMatch.ValueKind == JsonValueKind.Null
@@ -164,8 +164,8 @@ internal static class ValidationSummaryShapeValidator
         {
             ValidatePopulationTotals(eligible);
             ValidatePopulationTotals(target);
-            RequireBoolean(rowMatch, "partA.rowCountMatch");
-            RequireBoolean(amountMatch, "partA.amountMatch");
+            RequireBoolean(rowMatch, "storedTotals.rowCountMatch");
+            RequireBoolean(amountMatch, "storedTotals.amountMatch");
         }
 
         var eligibility = Property(value, "eligibility");
@@ -183,12 +183,12 @@ internal static class ValidationSummaryShapeValidator
         RequireNumber(value, "totalCredit");
     }
 
-    private static void ValidateDocumentBalance(JsonElement value)
+    private static void ValidateVoucherBalance(JsonElement value)
     {
-        RequireExactObject(value, "status", "unbalancedDocumentCount", "unbalancedDocuments");
+        RequireExactObject(value, "status", "unbalancedVoucherCount", "unbalancedVouchers");
         RequireStatus(value);
-        RequireNonNegativeLong(value, "unbalancedDocumentCount");
-        RequireArray(value, "unbalancedDocuments");
+        RequireNonNegativeLong(value, "unbalancedVoucherCount");
+        RequireArray(value, "unbalancedVouchers");
     }
 
     private static void ValidateInf(JsonElement value)
@@ -199,27 +199,27 @@ internal static class ValidationSummaryShapeValidator
         RequireLong(value, "seed");
     }
 
-    private static void ValidateNullRecords(JsonElement value)
+    private static void ValidateBlankRecords(JsonElement value)
     {
         RequireExactObject(
             value,
             "status", "nullAccountCount", "nullDocumentCount", "nullDescriptionCount",
-            "outOfRangeDateCount", "outOfRangeDateNaReason", "nullRows");
+            "approvalDateNotInPeriodCount", "approvalDateNotInPeriodNaReason", "nullRows");
         RequireStatus(value);
         RequireNonNegativeLong(value, "nullAccountCount");
         RequireNonNegativeLong(value, "nullDocumentCount");
         RequireNonNegativeLong(value, "nullDescriptionCount");
         // 「核准日不在期間」能檢查時是筆數、原因是 null；傳票核准日不可用時筆數是 null，原因寫缺什麼。
-        var outOfRangeDateNaReason = Property(value, "outOfRangeDateNaReason");
-        if (outOfRangeDateNaReason.ValueKind == JsonValueKind.Null)
+        var approvalDateNotInPeriodNaReason = Property(value, "approvalDateNotInPeriodNaReason");
+        if (approvalDateNotInPeriodNaReason.ValueKind == JsonValueKind.Null)
         {
-            RequireNonNegativeLong(value, "outOfRangeDateCount");
+            RequireNonNegativeLong(value, "approvalDateNotInPeriodCount");
         }
-        else if (outOfRangeDateNaReason.ValueKind != JsonValueKind.String
-            || string.IsNullOrWhiteSpace(outOfRangeDateNaReason.GetString())
-            || Property(value, "outOfRangeDateCount").ValueKind != JsonValueKind.Null)
+        else if (approvalDateNotInPeriodNaReason.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(approvalDateNotInPeriodNaReason.GetString())
+            || Property(value, "approvalDateNotInPeriodCount").ValueKind != JsonValueKind.Null)
         {
-            throw Invalid("outOfRangeDateNaReason");
+            throw Invalid("approvalDateNotInPeriodNaReason");
         }
         RequireArray(value, "nullRows");
     }
@@ -238,28 +238,28 @@ internal static class ValidationSummaryShapeValidator
         {
             RequireExactObject(
                 row,
-                "category", "sourceRowNumber", "sourceLabel", "documentNumber",
-                "accountCode", "postDate", "description");
+                "category", "sourceRowNumber", "sourceLabel", "voucherNumber",
+                "accountNumber", "glDate", "description");
             if (Property(row, "category").ValueKind != JsonValueKind.String
-                || !string.Equals(Property(row, "category").GetString(), "nullPostDate", StringComparison.Ordinal)
+                || !string.Equals(Property(row, "category").GetString(), "blankGlDate", StringComparison.Ordinal)
                 || RequireNonNegativeLong(row, "sourceRowNumber") == 0
                 || Property(row, "sourceLabel").ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(Property(row, "sourceLabel").GetString())
-                || Property(row, "postDate").ValueKind != JsonValueKind.Null)
+                || Property(row, "glDate").ValueKind != JsonValueKind.Null)
             {
                 throw Invalid("sourceQuality sample provenance");
             }
-            RequireNullableString(row, "documentNumber");
-            RequireNullableString(row, "accountCode");
+            RequireNullableString(row, "voucherNumber");
+            RequireNullableString(row, "accountNumber");
             RequireNullableString(row, "description");
         }
     }
 
     private static void ValidateResultRef(JsonElement value)
     {
-        RequireExactObject(value, "runId", "generatedUtc", "logicVersion");
-        if (Property(value, "runId").ValueKind != JsonValueKind.String
-            || string.IsNullOrWhiteSpace(Property(value, "runId").GetString())
+        RequireExactObject(value, "resultId", "generatedUtc", "logicVersion");
+        if (Property(value, "resultId").ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(Property(value, "resultId").GetString())
             || Property(value, "generatedUtc").ValueKind != JsonValueKind.String
             || !DateTimeOffset.TryParse(
                 Property(value, "generatedUtc").GetString(),

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 第九節 G2、G5：合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
 /// 驗證結果可用性的 provider integration matrix。四個 action 都走真 dispatcher、
@@ -18,7 +18,7 @@ public sealed class CompletenessBackendGateProviderTests
     private const string NoValidation = "noValidation";
     private const string ReimportedGl = "reimportedGl";
 
-    // 2026-09-17 使用者裁定：完整性差異是審計發現，不是禁止篩選的條件。
+    // 裁定 2026-09-17-01：完整性差異是審計發現，不是禁止篩選的條件。
     // 固定一個科目差額 10，沿保存、匯出、重開及重跑核對，不把差異清零來換取成功。
     [Theory]
     [InlineData("sqlite")]
@@ -32,30 +32,30 @@ public sealed class CompletenessBackendGateProviderTests
         var prescreen = await host.DispatchAsync("prescreen.run");
         var committed = await host.DispatchAsync("filter.commit", FilterCommitPayload());
         var references = new RunReferences(
-            validation.GetProperty("resultRef").GetProperty("runId").GetString()!,
-            prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!,
+            validation.GetProperty("resultRef").GetProperty("resultId").GetString()!,
+            prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!,
             committed.GetProperty("resultRef").GetProperty("revision").GetString()!);
         foreach (var invocation in new[]
         {
-            new ActionInvocation("export.prescreenReport", JsonSerializer.Serialize(new { runId = references.PrescreenRunId })),
+            new ActionInvocation("export.prescreenReport", JsonSerializer.Serialize(new { resultId = references.PrescreenResultId })),
             new ActionInvocation("export.criteriaSelectionReport", CriteriaPayload(references)),
-            new ActionInvocation("export.workpaperStream", WorkpaperPayload(references))
+            new ActionInvocation("export.workingPaperStream", WorkingPaperPayload(references))
         })
         {
             var result = await host.DispatchAsync(invocation.Action, invocation.Payload);
             Assert.True(result.GetProperty("ok").GetBoolean());
         }
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-        var restored = loaded.GetProperty("latestRuns").GetProperty("validate").GetProperty("completenessTest");
+        var restored = loaded.GetProperty("validationResult").GetProperty("completenessTest");
         Assert.Equal(1, restored.GetProperty("diffAccountCount").GetInt64());
         Assert.True(restored.GetProperty("eligibility").GetProperty("isEligible").GetBoolean());
         Assert.Contains("1", restored.GetProperty("eligibility").GetProperty("warning").GetString());
-        Assert.True((await host.DispatchAsync("export.workpaperStream", WorkpaperPayload(references)))
+        Assert.True((await host.DispatchAsync("export.workingPaperStream", WorkingPaperPayload(references)))
             .GetProperty("ok").GetBoolean());
         var rerun = await host.DispatchAsync("validate.run");
         Assert.Equal(1, rerun.GetProperty("completenessTest").GetProperty("diffAccountCount").GetInt64());
         var stale = await Assert.ThrowsAsync<JetActionException>(() =>
-            host.DispatchAsync("export.workpaperStream", WorkpaperPayload(references)));
+            host.DispatchAsync("export.workingPaperStream", WorkingPaperPayload(references)));
         Assert.Equal(JetErrorCodes.StaleResult, stale.Code);
         await host.DispatchAsync("prescreen.run");
         await host.DispatchAsync("filter.commit", FilterCommitPayload());
@@ -104,14 +104,14 @@ public sealed class CompletenessBackendGateProviderTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public Task ReimportedTb_ClearsPrescreenRunAndRejectsPrescreenReport_LocalProviders(
+    public Task ReimportedTb_ClearsPrescreenResultAndRejectsPrescreenReport_LocalProviders(
         string databaseProvider) =>
         RunPrescreenReportAfterTbReimportAsync(
             databaseProvider,
             sqlServerConnectionString: null);
 
     [SqlServerFact]
-    public async Task ReimportedTb_ClearsPrescreenRunAndRejectsPrescreenReport_SqlServer()
+    public async Task ReimportedTb_ClearsPrescreenResultAndRejectsPrescreenReport_SqlServer()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
             ?? throw new InvalidOperationException(
@@ -159,63 +159,63 @@ public sealed class CompletenessBackendGateProviderTests
             var criteria = await host.DispatchAsync(
                 "export.criteriaSelectionReport",
                 CriteriaPayload(references));
-            var workpaper = await host.DispatchAsync(
-                "export.workpaperStream",
-                WorkpaperPayload(references));
+            var workingPaper = await host.DispatchAsync(
+                "export.workingPaperStream",
+                WorkingPaperPayload(references));
 
             Assert.True(criteria.GetProperty("ok").GetBoolean());
             Assert.Equal(
                 "criteriaSelectionReport",
-                criteria.GetProperty("artifact").GetProperty("kind").GetString());
-            Assert.True(workpaper.GetProperty("ok").GetBoolean());
+                criteria.GetProperty("publishedReport").GetProperty("kind").GetString());
+            Assert.True(workingPaper.GetProperty("ok").GetBoolean());
             Assert.Equal(
                 "workingPaper",
-                workpaper.GetProperty("artifact").GetProperty("kind").GetString());
+                workingPaper.GetProperty("publishedReport").GetProperty("kind").GetString());
             Assert.Equal(
                 JsonValueKind.Null,
-                criteria.GetProperty("artifact").GetProperty("sourceRef")
-                    .GetProperty("prescreenRunId").ValueKind);
+                criteria.GetProperty("publishedReport").GetProperty("sourceRef")
+                    .GetProperty("prescreenResultId").ValueKind);
             Assert.Equal(
                 JsonValueKind.Null,
-                workpaper.GetProperty("artifact").GetProperty("sourceRef")
-                    .GetProperty("prescreenRunId").ValueKind);
+                workingPaper.GetProperty("publishedReport").GetProperty("sourceRef")
+                    .GetProperty("prescreenResultId").ValueKind);
 
             var prescreenReportError = await Assert.ThrowsAsync<JetActionException>(() =>
                 host.DispatchAsync(
                     "export.prescreenReport",
-                    JsonSerializer.Serialize(new { runId = "missing-prescreen-run" })));
+                    JsonSerializer.Serialize(new { resultId = "missing-prescreen-run" })));
             Assert.Equal(JetErrorCodes.StaleResult, prescreenReportError.Code);
 
-            var originalArtifact = workpaper.GetProperty("artifact");
-            var originalPath = Path.Combine(host.ProjectsRoot, projectId, originalArtifact.GetProperty("fileName").GetString()!);
+            var originalReport = workingPaper.GetProperty("publishedReport");
+            var originalPath = Path.Combine(host.ProjectsRoot, projectId, originalReport.GetProperty("fileName").GetString()!);
             var originalBytes = await File.ReadAllBytesAsync(originalPath);
             await host.DispatchAsync(
                 "calendar.setNonWorkingDays",
                 """{ "days": [1] }""");
-            // 使用者 2026-10-07 裁定上游修改清除下游：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
+            // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
             // 原本直接沿用舊情境版本匯出，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
             var resaved = await host.DispatchAsync("filter.commit", FilterCommitPayload());
             references = references with { Revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString()! };
             // 9/23：底稿自己重算目前資料，不再要求先重新產生 Criteria 檔案。
-            var recalculated = await host.DispatchAsync("export.workpaperStream", WorkpaperPayload(references));
+            var recalculated = await host.DispatchAsync("export.workingPaperStream", WorkingPaperPayload(references));
             Assert.True(recalculated.GetProperty("ok").GetBoolean());
-            var currentArtifact = recalculated.GetProperty("artifact");
-            Assert.False(currentArtifact.GetProperty("stale").GetBoolean());
-            Assert.NotEqual(originalArtifact.GetProperty("artifactId").GetString(), currentArtifact.GetProperty("artifactId").GetString());
-            Assert.Equal(references.ValidationRunId,
-                currentArtifact.GetProperty("sourceRef").GetProperty("validationRunId").GetString());
+            var currentReport = recalculated.GetProperty("publishedReport");
+            Assert.False(currentReport.GetProperty("stale").GetBoolean());
+            Assert.NotEqual(originalReport.GetProperty("reportId").GetString(), currentReport.GetProperty("reportId").GetString());
+            Assert.Equal(references.ValidationResultId,
+                currentReport.GetProperty("sourceRef").GetProperty("validationResultId").GetString());
             Assert.Equal(references.Revision,
-                currentArtifact.GetProperty("sourceRef").GetProperty("scenarioRevision").GetString());
+                currentReport.GetProperty("sourceRef").GetProperty("scenarioRevision").GetString());
             Assert.Equal(originalBytes, await File.ReadAllBytesAsync(originalPath));
 
             var refreshedCriteria = await host.DispatchAsync(
                 "export.criteriaSelectionReport",
                 CriteriaPayload(references));
-            var refreshedWorkpaper = await host.DispatchAsync(
-                "export.workpaperStream",
-                WorkpaperPayload(references));
+            var refreshedWorkingPaper = await host.DispatchAsync(
+                "export.workingPaperStream",
+                WorkingPaperPayload(references));
             Assert.True(refreshedCriteria.GetProperty("ok").GetBoolean());
-            Assert.True(refreshedWorkpaper.GetProperty("ok").GetBoolean());
+            Assert.True(refreshedWorkingPaper.GetProperty("ok").GetBoolean());
         }
         finally
         {
@@ -246,15 +246,15 @@ public sealed class CompletenessBackendGateProviderTests
                 JsonSerializer.Serialize(new { projectId }));
             Assert.Equal(
                 JsonValueKind.Null,
-                loaded.GetProperty("latestRuns").GetProperty("validate").ValueKind);
+                loaded.GetProperty("validationResult").ValueKind);
             Assert.Equal(
                 JsonValueKind.Null,
-                loaded.GetProperty("latestRuns").GetProperty("prescreen").ValueKind);
+                loaded.GetProperty("prescreenResult").ValueKind);
 
             var exception = await Assert.ThrowsAsync<JetActionException>(() =>
                 host.DispatchAsync(
                     "export.prescreenReport",
-                    JsonSerializer.Serialize(new { runId = references.PrescreenRunId })));
+                    JsonSerializer.Serialize(new { resultId = references.PrescreenResultId })));
             Assert.Equal(ExpectedErrorCode, exception.Code);
         }
         finally
@@ -291,7 +291,7 @@ public sealed class CompletenessBackendGateProviderTests
             JsonSerializer.Serialize(new { projectId }));
         Assert.Equal(
             JsonValueKind.Null,
-            loaded.GetProperty("latestRuns").GetProperty("validate").ValueKind);
+            loaded.GetProperty("validationResult").ValueKind);
 
         return references;
     }
@@ -305,8 +305,8 @@ public sealed class CompletenessBackendGateProviderTests
         var committed = await host.DispatchAsync("filter.commit", FilterCommitPayload());
 
         return new RunReferences(
-            validation.GetProperty("resultRef").GetProperty("runId").GetString()!,
-            prescreen.GetProperty("resultRef").GetProperty("runId").GetString()!,
+            validation.GetProperty("resultRef").GetProperty("resultId").GetString()!,
+            prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!,
             committed.GetProperty("resultRef").GetProperty("revision").GetString()!);
     }
 
@@ -319,7 +319,7 @@ public sealed class CompletenessBackendGateProviderTests
         var committed = await host.DispatchAsync("filter.commit", FilterCommitPayload());
 
         return new RunReferences(
-            validation.GetProperty("resultRef").GetProperty("runId").GetString()!,
+            validation.GetProperty("resultRef").GetProperty("resultId").GetString()!,
             string.Empty,
             committed.GetProperty("resultRef").GetProperty("revision").GetString()!);
     }
@@ -327,10 +327,10 @@ public sealed class CompletenessBackendGateProviderTests
     private static void AssertEligibleCompletenessPrecondition(JsonElement validation)
     {
         var completeness = validation.GetProperty("completenessTest");
-        var partA = completeness.GetProperty("partA");
+        var storedTotals = completeness.GetProperty("storedTotals");
 
-        Assert.True(partA.GetProperty("rowCountMatch").GetBoolean());
-        Assert.True(partA.GetProperty("amountMatch").GetBoolean());
+        Assert.True(storedTotals.GetProperty("rowCountMatch").GetBoolean());
+        Assert.True(storedTotals.GetProperty("amountMatch").GetBoolean());
         Assert.Equal(0, completeness.GetProperty("diffAccountCount").GetInt64());
         Assert.Equal(JsonValueKind.Null, completeness.GetProperty("naReason").ValueKind);
     }
@@ -344,7 +344,7 @@ public sealed class CompletenessBackendGateProviderTests
             new ActionInvocation("prescreen.run", "{}"),
             new ActionInvocation("filter.commit", FilterCommitPayload()),
             new ActionInvocation("export.criteriaSelectionReport", CriteriaPayload(references)),
-            new ActionInvocation("export.workpaperStream", WorkpaperPayload(references))
+            new ActionInvocation("export.workingPaperStream", WorkingPaperPayload(references))
         };
         var observed = new List<string>(invocations.Length);
 
@@ -456,7 +456,7 @@ public sealed class CompletenessBackendGateProviderTests
                         new
                         {
                             join = "AND",
-                            rules = new[]
+                            conditions = new[]
                             {
                                 new
                                 {
@@ -473,14 +473,14 @@ public sealed class CompletenessBackendGateProviderTests
     private static string CriteriaPayload(RunReferences references) =>
         JsonSerializer.Serialize(new
         {
-            validationRunId = references.ValidationRunId,
+            validationResultId = references.ValidationResultId,
             revision = references.Revision
         });
 
-    private static string WorkpaperPayload(RunReferences references) =>
+    private static string WorkingPaperPayload(RunReferences references) =>
         JsonSerializer.Serialize(new
         {
-            validationRunId = references.ValidationRunId,
+            validationResultId = references.ValidationResultId,
             scenarioRevision = references.Revision,
             scenarioPositions = new[] { 1 }
         });
@@ -506,8 +506,8 @@ public sealed class CompletenessBackendGateProviderTests
     }
 
     private sealed record RunReferences(
-        string ValidationRunId,
-        string PrescreenRunId,
+        string ValidationResultId,
+        string PrescreenResultId,
         string Revision);
 
     private sealed record ActionInvocation(string Action, string Payload);

@@ -80,13 +80,13 @@ public sealed class JetSchemaCatalogTests
     {
         var expected = new HashSet<string>(StringComparer.Ordinal)
         {
-            "staging_gl_raw_row",
-            "staging_tb_raw_row",
-            "target_gl_entry",
-            "target_tb_balance",
-            "target_account_mapping",
-            "target_authorized_preparer",
-            "staging_calendar_raw_day"
+            "pbc_gl",
+            "pbc_tb",
+            "gl",
+            "tb",
+            "account_mapping",
+            "authorized_preparer",
+            "calendar_day"
         };
 
         var actual = JetSchemaCatalog
@@ -103,40 +103,43 @@ public sealed class JetSchemaCatalogTests
     /// </summary>
     [Theory]
     // Source / DataView
-    // 使用者 2026-10-08 裁定資料名稱全系統統一。
-    // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
-    [InlineData("staging_gl_raw_row", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView)]
-    [InlineData("staging_tb_raw_row", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView)]
-    [InlineData("target_account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView)]
-    [InlineData("target_authorized_preparer", "AUTHORIZED_PREPARER", SchemaLayer.Source, SchemaAudience.DataView)]
-    [InlineData("staging_calendar_raw_day", "DATE_DIMENSION", SchemaLayer.Source, SchemaAudience.DataView)]
+    // 裁定 2026-10-08-04 統一全系統的資料名稱。
+    // 裁定 2026-10-13-19 把 PBC GL 改寫成 PBC-GL；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+    [InlineData("pbc_gl", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView)]
+    [InlineData("pbc_tb", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView)]
+    [InlineData("account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView)]
+    [InlineData("authorized_preparer", "AUTHORIZED_PREPARER", SchemaLayer.Source, SchemaAudience.DataView)]
+    [InlineData("calendar_day", "DATE_DIMENSION", SchemaLayer.Source, SchemaAudience.DataView)]
     // Staging / DataView
-    [InlineData("target_gl_entry", "GL、GL(未納入測試)", SchemaLayer.Staging, SchemaAudience.DataView)]
-    [InlineData("target_tb_balance", "TB", SchemaLayer.Staging, SchemaAudience.DataView)]
+    [InlineData("gl", "GL、GL(未納入測試)", SchemaLayer.Staging, SchemaAudience.DataView)]
+    [InlineData("tb", "TB", SchemaLayer.Staging, SchemaAudience.DataView)]
     // Target / StructureOnly
-    [InlineData("result_rule_run", "VALIDATION_OVERVIEW", SchemaLayer.Target, SchemaAudience.StructureOnly)]
-    [InlineData("result_filter_run", "FILTER_HITS", SchemaLayer.Target, SchemaAudience.StructureOnly)]
-    [InlineData("result_inf_sampling_test_sample", "INF_SAMPLE", SchemaLayer.Target, SchemaAudience.StructureOnly)]
+    [InlineData("validation_result", "VALIDATION_OVERVIEW", SchemaLayer.Target, SchemaAudience.StructureOnly)]
+    [InlineData("prescreen_result", "PRESCREEN_RESULT", SchemaLayer.Target, SchemaAudience.StructureOnly)]
+    [InlineData("filter_hit", "FILTER_HITS", SchemaLayer.Target, SchemaAudience.StructureOnly)]
+    // 儲存情境時一併存下每筆分錄符合第幾組第幾條，只給傳票分錄的說明讀，不在結構總覽列出。
+    [InlineData("filter_hit_condition", "FILTER_HIT_CONDITIONS", SchemaLayer.Target, SchemaAudience.Hidden)]
+    [InlineData("inf_sample", "INF_SAMPLE", SchemaLayer.Target, SchemaAudience.StructureOnly)]
     // System / StructureOnly
-    [InlineData("config_field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly)]
-    [InlineData("config_field_mapping_previous", "FIELD_MAPPING_PREVIOUS", SchemaLayer.System, SchemaAudience.Hidden)]
-    [InlineData("config_account_taxonomy", "ACCOUNT_TAXONOMY", SchemaLayer.System, SchemaAudience.StructureOnly)]
-    [InlineData("config_account_taxonomy_path", "ACCOUNT_TAXONOMY_PATH", SchemaLayer.System, SchemaAudience.Hidden)]
-    [InlineData("config_filter_scenario", "FILTER_CRITERIA", SchemaLayer.System, SchemaAudience.StructureOnly)]
+    [InlineData("field_mapping", "FIELD_MAPPING_INFO", SchemaLayer.System, SchemaAudience.StructureOnly)]
+    [InlineData("field_mapping_previous", "FIELD_MAPPING_PREVIOUS", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("account_category", "ACCOUNT_CATEGORY", SchemaLayer.System, SchemaAudience.StructureOnly)]
+    [InlineData("account_category_path", "ACCOUNT_CATEGORY_PATH", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("filter_scenario", "FILTER_CRITERIA", SchemaLayer.System, SchemaAudience.StructureOnly)]
     [InlineData("import_batch", "IMPORT_BATCH", SchemaLayer.System, SchemaAudience.StructureOnly)]
     [InlineData("import_batch_source", "IMPORT_BATCH_SOURCE", SchemaLayer.System, SchemaAudience.StructureOnly)]
     // System / Hidden
-    [InlineData("import_field_definition", "IMPORT_FIELD_DEFINITION", SchemaLayer.System, SchemaAudience.Hidden)]
-    [InlineData("config_gl_rde_field", "GL_RDE_FIELD", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("field_info", "FIELD_INFO", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("gl_rde_field", "GL_RDE_FIELD", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("gl_control_total", "GL_CONTROL_TOTAL", SchemaLayer.System, SchemaAudience.Hidden)]
-    [InlineData("config_result_stale_state", "RESULT_STALE_STATE", SchemaLayer.System, SchemaAudience.Hidden)]
-    [InlineData("app_message_log", "APP_MESSAGE_LOG", SchemaLayer.System, SchemaAudience.Hidden)]
-    [InlineData("audit_event_log", "PROJECT_AUDIT_LOG", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("result_stale_state", "RESULT_STALE_STATE", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("message_log", "MESSAGE_LOG", SchemaLayer.System, SchemaAudience.Hidden)]
+    [InlineData("operation_log", "OPERATION_LOG", SchemaLayer.System, SchemaAudience.Hidden)]
     [InlineData("schema_info", "SCHEMA_INFO", SchemaLayer.System, SchemaAudience.Hidden)]
     // Staging / Hidden (ETL scratch)
-    [InlineData("staging_account_mapping_raw_row", "ACCOUNT_MAPPING_PBC", SchemaLayer.Staging, SchemaAudience.Hidden)]
-    [InlineData("staging_authorized_preparer_raw_row", "AUTHORIZED_PREPARER_PBC", SchemaLayer.Staging, SchemaAudience.Hidden)]
-    [InlineData("target_gl_rde_value", "GL_RDE_VALUE", SchemaLayer.Staging, SchemaAudience.Hidden)]
+    [InlineData("pbc_account_mapping", "ACCOUNT_MAPPING_PBC", SchemaLayer.Staging, SchemaAudience.Hidden)]
+    [InlineData("pbc_authorized_preparer", "AUTHORIZED_PREPARER_PBC", SchemaLayer.Staging, SchemaAudience.Hidden)]
+    [InlineData("gl_rde_value", "GL_RDE_VALUE", SchemaLayer.Staging, SchemaAudience.Hidden)]
     public void Entry_Physical_MapsTo_CanonicalLayerAudience(
         string physical, string expectedCanonical, object expectedLayer, object expectedAudience)
     {
@@ -152,19 +155,19 @@ public sealed class JetSchemaCatalogTests
     public void DecisionTable_Covers_EveryEntry()
     {
         // 上面 [Theory] 列舉的 physical 名集合,必須與 All 完全相同(雙向涵蓋)。
-        // 2026-10-03 O3 新增 config_field_mapping_previous(第一次失敗:收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89)。
+        // 2026-10-03 新增 field_mapping_previous(第一次失敗:收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89)。
         var decisionTablePhysicals = new HashSet<string>(StringComparer.Ordinal)
         {
-            "staging_gl_raw_row", "staging_tb_raw_row", "target_account_mapping",
-            "target_authorized_preparer", "staging_calendar_raw_day", "target_gl_entry",
-            "target_tb_balance", "result_rule_run", "result_filter_run",
-            "result_inf_sampling_test_sample", "config_field_mapping", "config_field_mapping_previous",
-            "config_account_taxonomy", "config_account_taxonomy_path",
-            "config_filter_scenario", "config_gl_rde_field", "config_result_stale_state",
-            "import_batch", "import_batch_source", "import_field_definition", "gl_control_total", "app_message_log",
-            "audit_event_log",
-            "schema_info", "staging_account_mapping_raw_row", "staging_authorized_preparer_raw_row",
-            "target_gl_rde_value"
+            "pbc_gl", "pbc_tb", "account_mapping",
+            "authorized_preparer", "calendar_day", "gl",
+            "tb", "validation_result", "prescreen_result", "filter_hit", "filter_hit_condition",
+            "inf_sample", "field_mapping", "field_mapping_previous",
+            "account_category", "account_category_path",
+            "filter_scenario", "gl_rde_field", "result_stale_state",
+            "import_batch", "import_batch_source", "field_info", "gl_control_total", "message_log",
+            "operation_log",
+            "schema_info", "pbc_account_mapping", "pbc_authorized_preparer",
+            "gl_rde_value"
         };
 
         var catalogPhysicals = JetSchemaCatalog.All
@@ -178,8 +181,8 @@ public sealed class JetSchemaCatalogTests
     [Fact]
     public void ResolveCanonical_KnownAndUnknown()
     {
-        // 使用者 2026-10-08 裁定資料名稱全系統統一。
-        Assert.Equal("GL、GL(未納入測試)", JetSchemaCatalog.ResolveCanonical("target_gl_entry"));
+        // 裁定 2026-10-08-04 統一全系統的資料名稱。
+        Assert.Equal("GL、GL(未納入測試)", JetSchemaCatalog.ResolveCanonical("gl"));
         Assert.Null(JetSchemaCatalog.ResolveCanonical("no_such_table"));
     }
 

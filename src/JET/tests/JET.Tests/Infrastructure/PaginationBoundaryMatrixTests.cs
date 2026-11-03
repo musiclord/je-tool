@@ -52,8 +52,8 @@ internal static class PaginationBoundaryAssertions
     {
         await AssertNumericPageAsync(engine, expectedCount);
         await AssertStringPageAsync(engine, expectedCount);
-        await AssertVoucherMatrixAsync(engine, expectedCount);
-        await AssertRowMatrixAsync(engine, expectedCount);
+        await AssertHighRiskSummaryVouchersAsync(engine, expectedCount);
+        await AssertHighRiskSummaryRowsAsync(engine, expectedCount);
     }
 
     private static async Task AssertNumericPageAsync(PaginationBoundaryEngine engine, int expectedCount)
@@ -80,11 +80,11 @@ internal static class PaginationBoundaryAssertions
         string? cursor = null;
         do
         {
-            var page = await engine.DocBalance.GetPageAsync(
+            var page = await engine.VoucherBalance.GetPageAsync(
                 engine.ProjectId, 10_000, "2025-01-01", "2025-12-31",
                 new PageRequest(cursor, PageSize), CancellationToken.None);
-            var keys = page.Rows.Select(row => row.DocumentNumber!).ToList();
-            AssertPageContract("string document_number", keys, page.NextCursor,
+            var keys = page.Rows.Select(row => row.VoucherNumber!).ToList();
+            AssertPageContract("string voucher_number", keys, page.NextCursor,
                 seen.Count, expectedCount, key => key);
             seen.AddRange(keys);
             cursor = page.NextCursor;
@@ -93,16 +93,16 @@ internal static class PaginationBoundaryAssertions
         Assert.Equal(ExpectedDocuments(expectedCount), seen);
     }
 
-    private static async Task AssertVoucherMatrixAsync(PaginationBoundaryEngine engine, int expectedCount)
+    private static async Task AssertHighRiskSummaryVouchersAsync(PaginationBoundaryEngine engine, int expectedCount)
     {
         var seen = new List<string>();
         string? cursor = null;
         do
         {
-            var result = await engine.VoucherMatrix.GetPageAsync(
+            var result = await engine.HighRiskSummaryVouchers.GetPageAsync(
                 engine.ProjectId, Population, new PageRequest(cursor, PageSize), [1], CancellationToken.None);
-            var keys = result.Page.Rows.Select(row => row.DocumentNumber!).ToList();
-            AssertPageContract("tag voucher document_number", keys, result.Page.NextCursor,
+            var keys = result.Page.Rows.Select(row => row.VoucherNumber!).ToList();
+            AssertPageContract("tag voucher voucher_number", keys, result.Page.NextCursor,
                 seen.Count, expectedCount, key => key);
             Assert.Equal(keys.OrderBy(key => key, StringComparer.Ordinal),
                 result.PositionsByDoc.Keys.OrderBy(key => key, StringComparer.Ordinal));
@@ -113,13 +113,13 @@ internal static class PaginationBoundaryAssertions
         Assert.Equal(ExpectedDocuments(expectedCount), seen);
     }
 
-    private static async Task AssertRowMatrixAsync(PaginationBoundaryEngine engine, int expectedCount)
+    private static async Task AssertHighRiskSummaryRowsAsync(PaginationBoundaryEngine engine, int expectedCount)
     {
         var seen = new List<long>();
         string? cursor = null;
         do
         {
-            var result = await engine.RowMatrix.GetPageAsync(
+            var result = await engine.HighRiskSummaryRows.GetPageAsync(
                 engine.ProjectId, Population, new PageRequest(cursor, PageSize), [1], CancellationToken.None);
             AssertPageContract("tag row entry_id", result.EntryIds, result.Page.NextCursor,
                 seen.Count, expectedCount, key => key.ToString());
@@ -166,26 +166,26 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
     private PaginationBoundaryEngine(
         string projectId,
         IFilterHitsPageRepository filterHits,
-        IDocBalancePageRepository docBalance,
-        ITagMatrixVoucherPageRepository voucherMatrix,
-        ITagMatrixRowPageRepository rowMatrix,
+        IVoucherBalancePageRepository voucherBalance,
+        IHighRiskSummaryVoucherPageRepository highRiskSummaryVouchers,
+        IHighRiskSummaryRowPageRepository highRiskSummaryRows,
         TempProjectRoot? localRoot = null,
         TempSqlServerProject? sqlServer = null)
     {
         ProjectId = projectId;
         FilterHits = filterHits;
-        DocBalance = docBalance;
-        VoucherMatrix = voucherMatrix;
-        RowMatrix = rowMatrix;
+        VoucherBalance = voucherBalance;
+        HighRiskSummaryVouchers = highRiskSummaryVouchers;
+        HighRiskSummaryRows = highRiskSummaryRows;
         _localRoot = localRoot;
         _sqlServer = sqlServer;
     }
 
     public string ProjectId { get; }
     public IFilterHitsPageRepository FilterHits { get; }
-    public IDocBalancePageRepository DocBalance { get; }
-    public ITagMatrixVoucherPageRepository VoucherMatrix { get; }
-    public ITagMatrixRowPageRepository RowMatrix { get; }
+    public IVoucherBalancePageRepository VoucherBalance { get; }
+    public IHighRiskSummaryVoucherPageRepository HighRiskSummaryVouchers { get; }
+    public IHighRiskSummaryRowPageRepository HighRiskSummaryRows { get; }
 
     public static async Task<PaginationBoundaryEngine> CreateLocalAsync(string provider, int rowCount)
     {
@@ -203,9 +203,9 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
         return new PaginationBoundaryEngine(
             projectId,
             new LocalFilterHitsPageRepository(database),
-            new LocalDocBalancePageRepository(database),
-            new LocalTagMatrixVoucherPageRepository(database),
-            new LocalTagMatrixRowPageRepository(database),
+            new LocalVoucherBalancePageRepository(database),
+            new LocalHighRiskSummaryVoucherPageRepository(database),
+            new LocalHighRiskSummaryRowPageRepository(database),
             localRoot: root);
     }
 
@@ -220,9 +220,9 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
         return new PaginationBoundaryEngine(
             sql.ProjectId,
             new SqlServerFilterHitsPageRepository(sql.Database),
-            new SqlServerDocBalancePageRepository(sql.Database),
-            new SqlServerTagMatrixVoucherPageRepository(sql.Database),
-            new SqlServerTagMatrixRowPageRepository(sql.Database),
+            new SqlServerVoucherBalancePageRepository(sql.Database),
+            new SqlServerHighRiskSummaryVoucherPageRepository(sql.Database),
+            new SqlServerHighRiskSummaryRowPageRepository(sql.Database),
             sqlServer: sql);
     }
 
@@ -239,17 +239,19 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
             var values = Enumerable.Range(1, rowCount)
                 .Select(index =>
                     $"('boundary', {index}, 'DOC-{index:000}', '{index}', '2025-06-01', " +
-                    $"'A{index:000}', 'Account {index}', 'Boundary {index}', 1, 10000, 10000, 0, 'DEBIT')")
+                    $"'A{index:000}', 'Account {index}', 'Boundary {index}', 0, 10000, 10000, 0, 'DEBIT')")
                 .ToList();
 
             await using var command = connection.CreateCommand();
             command.CommandText =
-                $"INSERT INTO {prefix}target_gl_entry " +
-                "(batch_id, source_row_number, document_number, line_item, post_date, account_code, " +
-                " account_name, document_description, is_effective, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr) VALUES " +
+                $"INSERT INTO {prefix}gl " +
+                "(batch_id, source_row_number, voucher_number, line_item, gl_date, account_number, " +
+                " account_name, description, is_excluded, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr) VALUES " +
                 string.Join(",", values) + ";" +
-                $"INSERT INTO {prefix}result_filter_run (scenario_position, entry_id) " +
-                $"SELECT 1, entry_id FROM {prefix}target_gl_entry;";
+                $"INSERT INTO {prefix}filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc) " +
+                "VALUES (1, 1, 'synthetic', 'synthetic', '{}', '2026-10-31T00:00:00Z');" +
+                $"INSERT INTO {prefix}filter_hit (scenario_id, entry_id) " +
+                $"SELECT 1, entry_id FROM {prefix}gl;";
             await command.ExecuteNonQueryAsync();
         }
     }

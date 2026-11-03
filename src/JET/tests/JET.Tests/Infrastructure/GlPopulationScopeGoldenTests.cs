@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using JET.Application;
 using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
@@ -8,12 +9,12 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// 第9批中低9：呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
+// 呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
 
 /// <summary>
 /// revision-level populationScope 的跨 provider golden fixture。
 /// Oracle 是依 manifest Filter / Criteria 與投影後有效分錄母體手算的 21 列固定資料；
-/// 每條斷言都鎖定 document_number + line_item 身分，不只比較筆數。
+/// 每條斷言都鎖定 voucher_number + line_item 身分，不只比較筆數。
 /// </summary>
 public abstract class GlPopulationScopeGoldenTests
 {
@@ -21,73 +22,82 @@ public abstract class GlPopulationScopeGoldenTests
 
     /// <summary>
     /// 固定 fixture（21 列，MoneyScale=10,000，查核期間 2025-01-01～2025-12-31）：
-    /// C01：Revenue 貸方有效、正常 Receivables 對方分別為期外與 status-excluded，否證 counterpart 子查詢繞過有效母體。
+    /// C01：Revenue 貸方有效、正常 Receivables 對方分別為期外與 status-excluded，否證 counterpart 子查詢繞過「只看納入測試的分錄」。
+    ///      未預期借貸組合另要求同傳票在 GL 中有金額大於 0 的分錄（裁定 2026-10-29-29 改成照舊版 IDEA R3），
+    ///      C01 的正金額列都在母體外，所以它對未預期借貸組合不命中，改由它鎖住正金額子查詢也只看納入測試的分錄。
     /// F01/F02：同科目各一筆有效／期外，另有一筆 status-excluded；maxEntries=1 鎖 frequency 子查詢 scope。
-    /// N01：post_date=NULL，固定不進查核期間母體。
+    /// N01：gl_date=NULL，固定不進查核期間母體。
     /// ZP/ZN/ZSUB：1,000.99、-1,000.99、0.99；Z6/Z6N：1,000,000.1234／999,999.9999，
     /// 鎖主單位整數尾零、固定六零邊界，並排除次單位與零值。
     /// DIG/SHORT：-12,345.67 與 45.67，鎖 trailingDigits 先截主單位且 k 位數不足不匹配。
     /// T1：有效命中列＋期外／NULL／status-excluded 伴隨列；T2：有效伴隨列＋期外唯一命中列，
-    /// 鎖 tag matrix 外層、hit 與 voucherTotal 同 scope。
+    /// 鎖高風險條件彙總外層、hit 與 voucherTotal 同 scope。
     /// </summary>
     protected const string FixtureSql =
         """
-        INSERT INTO target_gl_entry
-            (batch_id, source_row_number, document_number, line_item, post_date, approval_date,
-             account_code, account_name, document_description, source_module, created_by, approved_by,
-             is_manual, is_effective, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
+        INSERT INTO gl
+            (batch_id, source_row_number, voucher_number, line_item, gl_date, approval_date,
+             account_number, account_name, description, source_module, created_by, approved_by,
+             is_manual, is_excluded, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
         VALUES
-            ('scope', 1,  'C01',   '1', '2025-06-30', '2025-06-30', '4100', '收入',     '跨期收入',             NULL, 'CrossPreparer', NULL, 1, 1, -2500000,    0,           2500000,   'CREDIT'),
-            ('scope', 2,  'C01',   '2', '2026-01-01', '2026-01-01', '1200', '應收款',   '跨期正常對方',         NULL, 'CrossPreparer', NULL, 1, 0,  2500000,    2500000,     0,         'DEBIT'),
-            ('scope', 3,  'F01',   '1', '2025-02-01', '2025-02-01', '6001', '低頻科目', '期內低頻科目',         NULL, 'FreqIn',        NULL, 0, 1,  777700,     777700,      0,         'DEBIT'),
-            ('scope', 4,  'F02',   '1', '2024-12-31', '2024-12-31', '6001', '低頻科目', '期外同科目',           NULL, 'FreqOut',       NULL, 0, 0,  888800,     888800,      0,         'DEBIT'),
-            ('scope', 5,  'N01',   '1', NULL,         NULL,         '7000', '無日期',   NULL,                   NULL, 'NullDate',      NULL, 0, 0,  12300,      12300,       0,         'DEBIT'),
-            ('scope', 6,  'ZP',    '1', '2025-03-01', '2025-03-01', '7101', '尾零正數', '主單位一千點九九',     NULL, 'ZeroPositive',  NULL, 0, 1,  10009900,   10009900,    0,         'DEBIT'),
-            ('scope', 7,  'ZN',    '1', '2025-03-02', '2025-03-02', '7102', '尾零負數', '主單位負一千點九九',   NULL, 'ZeroNegative',  NULL, 0, 1, -10009900,   0,           10009900,  'CREDIT'),
-            ('scope', 8,  'ZSUB',  '1', '2025-03-03', '2025-03-03', '7103', '次單位',   '零點九九',             NULL, 'SubUnit',       NULL, 0, 1,  9900,       9900,        0,         'DEBIT'),
-            ('scope', 9,  'Z6',    '1', '2025-03-04', '2025-03-04', '7104', '六零命中', '一百萬點一二三四',     NULL, 'SixZerosHit',   NULL, 0, 1,  10000001234,10000001234, 0,         'DEBIT'),
-            ('scope', 10, 'Z6N',   '1', '2025-03-05', '2025-03-05', '7105', '六零邊界', '九十九萬九千九百九九', NULL, 'SixZerosMiss',  NULL, 0, 1,  9999999999, 9999999999,  0,         'DEBIT'),
-            ('scope', 11, 'DIG',   '1', '2025-04-01', '2025-04-01', '7201', '尾碼',     '負一萬二千三百四十五', NULL, 'DigitsLong',    NULL, 0, 1, -123456700,  0,           123456700, 'CREDIT'),
-            ('scope', 12, 'SHORT', '1', '2025-04-02', '2025-04-02', '7202', '短尾碼',   '四十五點六七',         NULL, 'DigitsShort',   NULL, 0, 1,  456700,     456700,      0,         'DEBIT'),
-            ('scope', 13, 'ZERO',  '1', '2025-04-03', '2025-04-03', '7203', '零值',     '零值不算尾零',         NULL, 'ZeroValue',     NULL, 0, 1,  0,          0,           0,         'DEBIT'),
-            ('scope', 14, 'T1',    '1', '2025-05-01', '2025-05-01', '7301', '矩陣',     'matrix-hit-in',         NULL, 'TagOne',        NULL, 0, 1,  1000000,    1000000,     0,         'DEBIT'),
-            ('scope', 15, 'T1',    '2', '2026-05-01', '2026-05-01', '7302', '矩陣',     'matrix-companion-out',  NULL, 'TagOne',        NULL, 0, 0,  2000000,    2000000,     0,         'DEBIT'),
-            ('scope', 16, 'T2',    '1', '2025-05-02', '2025-05-02', '7303', '矩陣',     'matrix-companion-in',   NULL, 'TagTwo',        NULL, 0, 1,  3000000,    3000000,     0,         'DEBIT'),
-            ('scope', 17, 'T2',    '2', '2026-05-02', '2026-05-02', '7304', '矩陣',     'matrix-hit-out',        NULL, 'TagTwo',        NULL, 0, 0,  4000000,    4000000,     0,         'DEBIT'),
-            ('scope', 18, 'T1',    '3', NULL,         NULL,         '7305', '矩陣',     'matrix-companion-null', NULL, 'TagOne',        NULL, 0, 0,  12300,      12300,       0,         'DEBIT'),
-            ('scope', 19, 'C01',   '3', '2025-07-01', '2026-01-15', '1200', '應收款',   '狀態排除正常對方',     NULL, 'CrossPreparer', NULL, 1, 0,  2500000,    2500000,     0,         'DEBIT'),
-            ('scope', 20, 'F01',   '2', '2025-02-02', '2025-02-02', '6001', '低頻科目', '狀態排除頻率列',       NULL, 'CrossPreparer', NULL, 0, 0,  999900,     999900,      0,         'DEBIT'),
-            ('scope', 21, 'T1',    '4', '2025-05-03', '2025-05-03', '7306', '矩陣',     'matrix-hit-in',         NULL, 'TagOne',        NULL, 0, 0,  500000,     500000,      0,         'DEBIT');
+            ('scope', 1,  'C01',   '1', '2025-06-30', '2025-06-30', '4100', '收入',     '跨期收入',             NULL, 'CrossPreparer', NULL, 1, 0, -2500000,    0,           2500000,   'CREDIT'),
+            ('scope', 2,  'C01',   '2', '2026-01-01', '2026-01-01', '1200', '應收款',   '跨期正常對方',         NULL, 'CrossPreparer', NULL, 1, 1,  2500000,    2500000,     0,         'DEBIT'),
+            ('scope', 3,  'F01',   '1', '2025-02-01', '2025-02-01', '6001', '較少使用科目', '期內較少使用科目',         NULL, 'FreqIn',        NULL, 0, 0,  777700,     777700,      0,         'DEBIT'),
+            ('scope', 4,  'F02',   '1', '2024-12-31', '2024-12-31', '6001', '較少使用科目', '期外同科目',           NULL, 'FreqOut',       NULL, 0, 1,  888800,     888800,      0,         'DEBIT'),
+            ('scope', 5,  'N01',   '1', NULL,         NULL,         '7000', '無日期',   NULL,                   NULL, 'NullDate',      NULL, 0, 1,  12300,      12300,       0,         'DEBIT'),
+            ('scope', 6,  'ZP',    '1', '2025-03-01', '2025-03-01', '7101', '尾零正數', '主單位一千點九九',     NULL, 'ZeroPositive',  NULL, 0, 0,  10009900,   10009900,    0,         'DEBIT'),
+            ('scope', 7,  'ZN',    '1', '2025-03-02', '2025-03-02', '7102', '尾零負數', '主單位負一千點九九',   NULL, 'ZeroNegative',  NULL, 0, 0, -10009900,   0,           10009900,  'CREDIT'),
+            ('scope', 8,  'ZSUB',  '1', '2025-03-03', '2025-03-03', '7103', '次單位',   '零點九九',             NULL, 'SubUnit',       NULL, 0, 0,  9900,       9900,        0,         'DEBIT'),
+            ('scope', 9,  'Z6',    '1', '2025-03-04', '2025-03-04', '7104', '六零命中', '一百萬點一二三四',     NULL, 'SixZerosHit',   NULL, 0, 0,  10000001234,10000001234, 0,         'DEBIT'),
+            ('scope', 10, 'Z6N',   '1', '2025-03-05', '2025-03-05', '7105', '六零邊界', '九十九萬九千九百九九', NULL, 'SixZerosMiss',  NULL, 0, 0,  9999999999, 9999999999,  0,         'DEBIT'),
+            ('scope', 11, 'DIG',   '1', '2025-04-01', '2025-04-01', '7201', '尾碼',     '負一萬二千三百四十五', NULL, 'DigitsLong',    NULL, 0, 0, -123456700,  0,           123456700, 'CREDIT'),
+            ('scope', 12, 'SHORT', '1', '2025-04-02', '2025-04-02', '7202', '短尾碼',   '四十五點六七',         NULL, 'DigitsShort',   NULL, 0, 0,  456700,     456700,      0,         'DEBIT'),
+            ('scope', 13, 'ZERO',  '1', '2025-04-03', '2025-04-03', '7203', '零值',     '零值不算尾零',         NULL, 'ZeroValue',     NULL, 0, 0,  0,          0,           0,         'DEBIT'),
+            ('scope', 14, 'T1',    '1', '2025-05-01', '2025-05-01', '7301', '彙總',     'summary-hit-in',         NULL, 'TagOne',        NULL, 0, 0,  1000000,    1000000,     0,         'DEBIT'),
+            ('scope', 15, 'T1',    '2', '2026-05-01', '2026-05-01', '7302', '彙總',     'summary-companion-out',  NULL, 'TagOne',        NULL, 0, 1,  2000000,    2000000,     0,         'DEBIT'),
+            ('scope', 16, 'T2',    '1', '2025-05-02', '2025-05-02', '7303', '彙總',     'summary-companion-in',   NULL, 'TagTwo',        NULL, 0, 0,  3000000,    3000000,     0,         'DEBIT'),
+            ('scope', 17, 'T2',    '2', '2026-05-02', '2026-05-02', '7304', '彙總',     'summary-hit-out',        NULL, 'TagTwo',        NULL, 0, 1,  4000000,    4000000,     0,         'DEBIT'),
+            ('scope', 18, 'T1',    '3', NULL,         NULL,         '7305', '彙總',     'summary-companion-null', NULL, 'TagOne',        NULL, 0, 1,  12300,      12300,       0,         'DEBIT'),
+            ('scope', 19, 'C01',   '3', '2025-07-01', '2026-01-15', '1200', '應收款',   '狀態排除正常對方',     NULL, 'CrossPreparer', NULL, 1, 1,  2500000,    2500000,     0,         'DEBIT'),
+            ('scope', 20, 'F01',   '2', '2025-02-02', '2025-02-02', '6001', '較少使用科目', '狀態排除頻率列',       NULL, 'CrossPreparer', NULL, 0, 1,  999900,     999900,      0,         'DEBIT'),
+            ('scope', 21, 'T1',    '4', '2025-05-03', '2025-05-03', '7306', '彙總',     'summary-hit-in',         NULL, 'TagOne',        NULL, 0, 1,  500000,     500000,      0,         'DEBIT');
 
         -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
-        INSERT INTO target_account_mapping
-            (batch_id, source_row_number, account_code, account_name, standardized_category, category_id)
+        INSERT INTO account_mapping
+            (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
             ('scope-map', 1, '4100', '收入',   'Revenue', 'builtin.revenue'),
             ('scope-map', 2, '1200', '應收款', 'Receivables', 'builtin.receivables'),
-            ('scope-map', 3, '6001', '低頻科目', 'Others', 'builtin.others');
+            ('scope-map', 3, '6001', '較少使用科目', 'Others', 'builtin.others');
+
+        -- 條件組結果依條件組編號儲存，高風險條件彙總要從條件組定義表找顯示順序，彙總測試用的兩個條件組先登記定義。
+        -- 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        INSERT INTO filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc)
+        VALUES
+            (1, 1, 'summary-in',  'synthetic', '{}', '2026-10-31T00:00:00Z'),
+            (2, 2, 'summary-out', 'synthetic', '{}', '2026-10-31T00:00:00Z');
         """;
 
-    protected abstract IFilterRunRepository FilterRepository { get; }
+    protected abstract IFilterHitRepository FilterRepository { get; }
 
-    protected abstract IFilterRunMaterializer Materializer { get; }
+    protected abstract IFilterHitMaterializer Materializer { get; }
 
-    protected abstract ITagMatrixRowPageRepository RowMatrixRepository { get; }
+    protected abstract IHighRiskSummaryRowPageRepository HighRiskSummaryRowRepository { get; }
 
-    protected abstract ITagMatrixVoucherPageRepository VoucherMatrixRepository { get; }
+    protected abstract IHighRiskSummaryVoucherPageRepository HighRiskSummaryVoucherRepository { get; }
 
     private protected abstract IValidationFactsPort ValidationFactsPort { get; }
 
     private protected abstract IPrescreenFactsPort PrescreenFactsPort { get; }
 
-    protected abstract INullRecordsPageRepository NullRecordsRepository { get; }
+    protected abstract IBlankRecordsPageRepository BlankRecordsRepository { get; }
 
-    protected abstract ITagMatrixScenariosRepository MatrixCountsRepository { get; }
+    protected abstract IHighRiskSummaryScenariosRepository HighRiskSummaryCountsRepository { get; }
 
     protected abstract string ProjectId { get; }
 
     [Fact]
-    public async Task BlankPostDateDetection_IsSourceQualityOnly()
+    public async Task BlankGlDateDetection_IsSourceQualityOnly()
     {
         var plan = JetAuditProgram.Plan(new ValidationRequest(
             ProjectId,
@@ -97,7 +107,7 @@ public abstract class GlPopulationScopeGoldenTests
             PeriodEnd: "2025-12-31",
             MoneyScale: MoneyScale,
             SampleSeed: 48271,
-            RunId: "blank-date-run",
+            ResultId: "blank-date-run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 0));
         var result = await ValidationExecutionTestData.ExecuteForFactsAsync(ValidationFactsPort, plan, CancellationToken.None);
@@ -106,12 +116,12 @@ public abstract class GlPopulationScopeGoldenTests
         Assert.Equal(0, result.NullAccountCount);
         Assert.Equal(0, result.NullDocumentCount);
         Assert.Equal(0, result.NullDescriptionCount);
-        Assert.Equal(0, result.OutOfRangeDateCount);
+        Assert.Equal(0, result.ApprovalDateNotInPeriodCount);
 
     }
 
     [Fact]
-    public async Task ValidationRules_UseEffectivePopulation_AndExposePartitionSummary()
+    public async Task ValidationRules_UseGl_AndExposePartitionSummary()
     {
         var plan = JetAuditProgram.Plan(new ValidationRequest(
             ProjectId,
@@ -121,26 +131,26 @@ public abstract class GlPopulationScopeGoldenTests
             PeriodEnd: "2025-12-31",
             MoneyScale: MoneyScale,
             SampleSeed: 48271,
-            RunId: "effective-population-run",
+            ResultId: "effective-population-run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             SampleSize: 100));
 
         var result = await ValidationExecutionTestData.ExecuteForFactsAsync(ValidationFactsPort, plan, CancellationToken.None);
 
         Assert.Equal(21, result.PopulationSummary.Raw.RowCount);
-        Assert.Equal(12, result.PopulationSummary.Effective.RowCount);
+        Assert.Equal(12, result.PopulationSummary.Gl.RowCount);
         Assert.Equal(9, result.PopulationSummary.Excluded.RowCount);
         Assert.Equal(
             result.PopulationSummary.Raw.RowCount,
-            result.PopulationSummary.Effective.RowCount + result.PopulationSummary.Excluded.RowCount);
+            result.PopulationSummary.Gl.RowCount + result.PopulationSummary.Excluded.RowCount);
         Assert.Equal(12, result.AmountBinCounts.Sum(bin => bin.Count));
-        Assert.Equal(11, result.UnbalancedDocumentCount);
+        Assert.Equal(11, result.UnbalancedVoucherCount);
         Assert.Equal(12, result.InfSampleCount);
         Assert.Equal(2, result.SourceQualityFindingCount);
     }
 
     [Fact]
-    public async Task PrescreenRulesAndSummaries_UseEffectivePopulation()
+    public async Task PrescreenRulesAndSummaries_UseGl()
     {
         var plan = JetAuditProgram.Plan(new PrescreenRequest(
             ProjectId: ProjectId,
@@ -149,10 +159,10 @@ public abstract class GlPopulationScopeGoldenTests
             PeriodEnd: "2025-12-31",
             MoneyScale: MoneyScale,
             SampleSeed: 48_271,
-            RunId: "effective-prescreen-run",
+            ResultId: "effective-prescreen-run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
-            LastPeriodStart: "2025-12-31",
-            // 預篩選收斂計畫階段四把核准日與建立人員兩個旗標換成可用欄位清單（2026-10-23）；不帶清單就不檢查欄位，
+            PrepStartDate: "2025-12-31",
+            // 核准日與建立人員兩個旗標換成可用欄位清單；不帶清單就不檢查欄位，
             // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
             AvailableGlFields: null,
             HasHolidays: false,
@@ -164,47 +174,53 @@ public abstract class GlPopulationScopeGoldenTests
 
         var result = await PrescreenFactsPort.ExecuteAsync(plan, CancellationToken.None);
 
-        Assert.Equal(0, result.PostPeriodApprovalCount);
-        Assert.Equal(1, result.UnexpectedAccountPairCount);
+        Assert.Equal(0, result.PrepPeriodApprovalCount);
+        // C01 的正金額列都不在 GL 中，照舊版 IDEA R3 不命中未預期借貸組合（裁定 2026-10-29-29）；
+        // 原本是 1，第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        Assert.Equal(0, result.UnexpectedAccountPairCount);
         Assert.Equal(12, result.TotalEntryCount);
         Assert.Equal(12, result.TotalPreparerCount);
-        Assert.Equal(12, result.Creators.Sum(row => row.EntryCount));
+        Assert.Equal(12, result.Preparers.Sum(row => row.EntryCount));
         Assert.Equal(12, result.DistinctAccountCount);
         Assert.Equal(12, result.Accounts.Sum(row => row.EntryCount));
     }
 
-    private static FilterRuleContext RuleContext(GlPopulationScope scope) =>
+    private static FilterConditionContext RuleContext(GlPopulationScope scope) =>
         new(MoneyScale, null, "2025-01-01", "2025-12-31", PopulationScope: scope);
 
     private static GlPopulationContext PopulationContext(GlPopulationScope scope) =>
         new(scope, "2025-01-01", "2025-12-31");
 
-    private static FilterRuleSpec Rule(FilterRuleType type) =>
+    private static FilterConditionSpec Rule(FilterConditionType type) =>
         new(FilterJoin.And, type, null, null, [], TextMatchMode.Contains,
             null, null, null, null, null, null);
 
-    private static FilterRuleSpec TextRule(string field, string value, TextMatchMode mode = TextMatchMode.Exact) =>
-        Rule(FilterRuleType.Text) with { Field = field, Keywords = [value], Mode = mode };
+    private static FilterConditionSpec TextRule(string field, string value, TextMatchMode mode = TextMatchMode.Exact) =>
+        Rule(FilterConditionType.Text) with { Field = field, Keywords = [value], Mode = mode };
 
-    private static readonly IReadOnlyDictionary<FilterRuleType, FilterRuleSpec> CounterpartRules =
-        new Dictionary<FilterRuleType, FilterRuleSpec>
+    // 用畫面送出的條件寫法建立規則，走正式的解析。
+    private static FilterConditionSpec Parsed(string rule) => FilterScenarioPayloadParser.Parse(
+        JsonDocument.Parse($$"""{"groups":[{"conditions":[{{rule}}]}]}""").RootElement, MoneyScale).Groups[0].Conditions[0];
+
+    private static readonly IReadOnlyDictionary<FilterConditionType, FilterConditionSpec> CounterpartRules =
+        new Dictionary<FilterConditionType, FilterConditionSpec>
         {
-            [FilterRuleType.Prescreen] = Rule(FilterRuleType.Prescreen) with
+            [FilterConditionType.Prescreen] = Rule(FilterConditionType.Prescreen) with
             {
                 PrescreenKey = PrescreenRuleKeys.UnexpectedAccountPair
             },
-            [FilterRuleType.RevenueWithoutNormalCounterpart] =
-                Rule(FilterRuleType.RevenueWithoutNormalCounterpart)
+            [FilterConditionType.RevenueWithoutNormalCounterpart] =
+                Rule(FilterConditionType.RevenueWithoutNormalCounterpart)
         };
 
-    private static FilterScenarioSpec Scenario(params FilterRuleSpec[] rules) =>
+    private static FilterScenarioSpec Scenario(params FilterConditionSpec[] rules) =>
         new("母體 scope golden", "21 列手算 fixture", [new FilterGroupSpec(FilterJoin.And, rules)]);
 
     private static string Identity(FilterPreviewRow row) =>
-        $"{row.DocumentNumber}|{row.LineItem}";
+        $"{row.VoucherNumber}|{row.LineItem}";
 
     private static string Identity(RowTagRow row) =>
-        $"{row.DocumentNumber}|{row.LineItem}";
+        $"{row.VoucherNumber}|{row.LineItem}";
 
     private async Task<IReadOnlyList<string>> HitIdentitiesAsync(
         FilterScenarioSpec scenario,
@@ -220,7 +236,7 @@ public abstract class GlPopulationScopeGoldenTests
             .ToList();
     }
 
-    // 唯一母體：auditPeriod 只消費 is_effective；期外、NULL 與 status-excluded 均排除。
+    // 唯一母體：auditPeriod 只消費 is_excluded；期外、NULL 與 status-excluded 均排除。
     [Theory]
     [InlineData(GlPopulationScope.AuditPeriod, new[]
     {
@@ -236,12 +252,16 @@ public abstract class GlPopulationScopeGoldenTests
         Assert.Equal(expectedIdentities, await HitIdentitiesAsync(matchEverything, scope));
     }
 
-    // C01 的正常對方只存在於期外或 status-excluded 列，兩條規則都必須命中 Revenue 貸方。
+    // C01 的正常對方只存在於期外或 status-excluded 列，收入無一般對方科目必須命中 Revenue 貸方。
+    // 未預期借貸組合照舊版 IDEA R3 還要求同傳票在 GL 中有金額大於 0 的分錄（idea-tool.bas 第 8380 到 8388 行，
+    // 取自同一個 #GL# 母體）；C01 的正金額列都在母體外，改為不命中（原本命中 C01|1；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
+    // 若正金額子查詢繞過「只看納入測試的分錄」，C01 會被期外的應收借方湊成命中，這一列因此仍有否證力。
+    // 正常對方與正金額兩個子查詢共用同一個母體述詞，正常對方的母體範圍由收入無一般對方科目這一列一起鎖住。
     [Theory]
-    [InlineData(FilterRuleType.Prescreen, GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
-    [InlineData(FilterRuleType.RevenueWithoutNormalCounterpart, GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
+    [InlineData(FilterConditionType.Prescreen, GlPopulationScope.AuditPeriod, new string[0])]
+    [InlineData(FilterConditionType.RevenueWithoutNormalCounterpart, GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
     public async Task CounterpartSubquery_CrossPeriodVoucher_UsesRevisionScope(
-        FilterRuleType type,
+        FilterConditionType type,
         GlPopulationScope scope,
         string[] expectedIdentities)
     {
@@ -256,29 +276,33 @@ public abstract class GlPopulationScopeGoldenTests
         GlPopulationScope scope,
         string[] expectedIdentities)
     {
-        var exactPair = Rule(FilterRuleType.AccountPair) with
+        var exactPair = Rule(FilterConditionType.AccountPair) with
         {
             PairMode = AccountPairModes.Exact,
             // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
-            DebitCategoryIds = [AccountTaxonomyBuiltIns.ReceivablesId],
-            CreditCategoryIds = [AccountTaxonomyBuiltIns.RevenueId]
+            DebitCategoryIds = [AccountCategoryBuiltIns.ReceivablesId],
+            CreditCategoryIds = [AccountCategoryBuiltIns.RevenueId]
         };
 
         Assert.Equal(expectedIdentities, await HitIdentitiesAsync(Scenario(exactPair), scope));
     }
 
-    // 同一分組鍵在有效母體只有 1 列；期外與 status-excluded 不能拉高 frequency count。
+    // 同一分組鍵在 GL 中只有 1 列；期外與 status-excluded 不能拉高 frequency count。
+    // 舊式兩種筆數條件已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改用「科目與人員統計」的分錄筆數小於或等於 1，
+    // 和舊型別呼叫同一個述詞，固定答案不變。第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261（舊型別已不存在）。
     [Theory]
-    [InlineData(FilterRuleType.CustomPreparerEntryCount, "createBy", "CrossPreparer", GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
-    [InlineData(FilterRuleType.CustomAccountEntryCount, "accNum", "6001", GlPopulationScope.AuditPeriod, new[] { "F01|1" })]
+    [InlineData("createdBy", "CrossPreparer", GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
+    [InlineData("accountNumber", "6001", GlPopulationScope.AuditPeriod, new[] { "F01|1" })]
     public async Task FrequencySubquery_CrossPeriodGroup_UsesRevisionScope(
-        FilterRuleType type,
         string field,
         string value,
         GlPopulationScope scope,
         string[] expectedIdentities)
     {
-        var frequency = Rule(type) with { MaxEntries = 1 };
+        var frequency = Rule(FilterConditionType.EntityFrequency) with
+        {
+            Field = field, CountUnit = "entries", CountOperator = "lessThanOrEqual", CountFrom = 1
+        };
         var scenario = Scenario(TextRule(field, value), frequency);
 
         Assert.Equal(expectedIdentities, await HitIdentitiesAsync(scenario, scope));
@@ -288,7 +312,9 @@ public abstract class GlPopulationScopeGoldenTests
     public async Task CustomTrailingZeros_DecimalAndNegativeAmounts_UsesMajorUnitInteger()
     {
         // Legacy @int oracle：±1,000.99 的主單位整數都是 1,000，故命中 3 個尾零；0.99 與零值不命中。
-        var rule = Rule(FilterRuleType.CustomTrailingZeros) with { Digits = 3 };
+        // 舊式連續零尾數已拿掉（裁定 2026-10-30-25），照它的重建方式改成同一個子條件組裡的「整數尾數符合 000」與「大於或等於 1」，
+        // 固定答案不變。第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261。
+        var rule = Parsed("""{"type":"group","conditions":[{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["000"],"amountBasis":"absolute"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}""");
 
         Assert.Equal(
             ["Z6|1", "ZN|1", "ZP|1"],
@@ -299,7 +325,7 @@ public abstract class GlPopulationScopeGoldenTests
     public async Task PrescreenTrailingZeros_FractionalAmount_UsesSixZeroMajorUnitBoundary()
     {
         // BVA：1,000,000.1234 的整數部分在六零邊界上，999,999.9999 是下鄰；只有前者命中。
-        var rule = Rule(FilterRuleType.Prescreen) with
+        var rule = Rule(FilterConditionType.Prescreen) with
         {
             PrescreenKey = PrescreenRuleKeys.TrailingZeros
         };
@@ -313,7 +339,9 @@ public abstract class GlPopulationScopeGoldenTests
     public async Task TrailingDigits_DecimalAndNegativeAmount_UsesMajorUnitIntegerAndLengthGuard()
     {
         // Legacy @Right(@Str(@int(amount),1,0),3)：-12,345.67 → 345；45.67 因主單位只有兩位不匹配。
-        var rule = Rule(FilterRuleType.TrailingDigits) with { Keywords = ["345"] };
+        // 舊式金額尾數已拿掉（裁定 2026-10-30-25），改用「金額」的「整數尾數符合」，固定答案不變。
+        // 第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261。
+        var rule = Parsed("""{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["345"],"amountBasis":"absolute"}""");
 
         Assert.Equal(
             ["DIG|1"],
@@ -321,24 +349,24 @@ public abstract class GlPopulationScopeGoldenTests
     }
 
     [Fact]
-    public async Task TagMatrix_InScopeHitWithOutOfScopeCompanion_ScopesRowsPositionsAndVoucherTotal()
+    public async Task HighRiskSummary_InScopeHitWithOutOfScopeCompanion_ScopesRowsPositionsAndVoucherTotal()
     {
         await MaterializeTagScenariosAsync();
         var request = new PageRequest(null, 50);
 
-        var auditRows = await RowMatrixRepository.GetPageAsync(
+        var auditRows = await HighRiskSummaryRowRepository.GetPageAsync(
             ProjectId, PopulationContext(GlPopulationScope.AuditPeriod), request, [1], CancellationToken.None);
         Assert.Equal(["T1|1"], auditRows.Page.Rows.Select(Identity).ToList());
         Assert.Equal([1], auditRows.PositionsByEntry[auditRows.EntryIds[0]]);
 
-        var auditVouchers = await VoucherMatrixRepository.GetPageAsync(
+        var auditVouchers = await HighRiskSummaryVoucherRepository.GetPageAsync(
             ProjectId, PopulationContext(GlPopulationScope.AuditPeriod), request, [1], CancellationToken.None);
         var auditVoucher = Assert.Single(auditVouchers.Page.Rows);
-        Assert.Equal("T1", auditVoucher.DocumentNumber);
+        Assert.Equal("T1", auditVoucher.VoucherNumber);
         Assert.Equal(1_000_000L, auditVoucher.VoucherTotalScaled);
         Assert.Equal([1], auditVouchers.PositionsByDoc["T1"]);
 
-        var scenarioCounts = await MatrixCountsRepository.GetCountsAsync(
+        var scenarioCounts = await HighRiskSummaryCountsRepository.GetCountsAsync(
             ProjectId,
             CancellationToken.None);
         Assert.Equal((1L, 1L), scenarioCounts[1]);
@@ -347,14 +375,14 @@ public abstract class GlPopulationScopeGoldenTests
     }
 
     [Fact]
-    public async Task TagMatrix_OutOfScopeOnlyHit_AuditScopeDoesNotAdmitVoucher()
+    public async Task HighRiskSummary_OutOfScopeOnlyHit_AuditScopeDoesNotAdmitVoucher()
     {
         await MaterializeTagScenariosAsync();
         var request = new PageRequest(null, 50);
 
-        var auditRows = await RowMatrixRepository.GetPageAsync(
+        var auditRows = await HighRiskSummaryRowRepository.GetPageAsync(
             ProjectId, PopulationContext(GlPopulationScope.AuditPeriod), request, [2], CancellationToken.None);
-        var auditVouchers = await VoucherMatrixRepository.GetPageAsync(
+        var auditVouchers = await HighRiskSummaryVoucherRepository.GetPageAsync(
             ProjectId, PopulationContext(GlPopulationScope.AuditPeriod), request, [2], CancellationToken.None);
         Assert.Empty(auditRows.Page.Rows);
         Assert.Empty(auditRows.PositionsByEntry);
@@ -368,8 +396,8 @@ public abstract class GlPopulationScopeGoldenTests
         await Materializer.MaterializeAsync(
             ProjectId,
             [
-                new MaterializableScenario(1, Scenario(TextRule("description", "matrix-hit-in"))),
-                new MaterializableScenario(2, Scenario(TextRule("description", "matrix-hit-out")))
+                new MaterializableScenario(1, Scenario(TextRule("description", "summary-hit-in"))),
+                new MaterializableScenario(2, Scenario(TextRule("description", "summary-hit-out")))
             ],
             RuleContext(GlPopulationScope.AuditPeriod),
             CancellationToken.None);
@@ -396,31 +424,31 @@ public sealed class SqliteGlPopulationScopeGoldenTests : GlPopulationScopeGolden
             command.ExecuteNonQuery();
         }
 
-        FilterRepository = new LocalFilterRunRepository(database);
-        Materializer = new LocalFilterRunMaterializer(database);
-        RowMatrixRepository = new LocalTagMatrixRowPageRepository(database);
-        VoucherMatrixRepository = new LocalTagMatrixVoucherPageRepository(database);
+        FilterRepository = new LocalFilterHitRepository(database);
+        Materializer = new LocalFilterHitMaterializer(database);
+        HighRiskSummaryRowRepository = new LocalHighRiskSummaryRowPageRepository(database);
+        HighRiskSummaryVoucherRepository = new LocalHighRiskSummaryVoucherPageRepository(database);
         ValidationFactsPort = new LocalValidationRunRepository(database);
         PrescreenFactsPort = new LocalPrescreenRunRepository(database);
-        NullRecordsRepository = new LocalNullRecordsPageRepository(database);
-        MatrixCountsRepository = new LocalTagMatrixScenariosRepository(database);
+        BlankRecordsRepository = new LocalBlankRecordsPageRepository(database);
+        HighRiskSummaryCountsRepository = new LocalHighRiskSummaryScenariosRepository(database);
     }
 
-    protected override IFilterRunRepository FilterRepository { get; }
+    protected override IFilterHitRepository FilterRepository { get; }
 
-    protected override IFilterRunMaterializer Materializer { get; }
+    protected override IFilterHitMaterializer Materializer { get; }
 
-    protected override ITagMatrixRowPageRepository RowMatrixRepository { get; }
+    protected override IHighRiskSummaryRowPageRepository HighRiskSummaryRowRepository { get; }
 
-    protected override ITagMatrixVoucherPageRepository VoucherMatrixRepository { get; }
+    protected override IHighRiskSummaryVoucherPageRepository HighRiskSummaryVoucherRepository { get; }
 
     private protected override IValidationFactsPort ValidationFactsPort { get; }
 
     private protected override IPrescreenFactsPort PrescreenFactsPort { get; }
 
-    protected override INullRecordsPageRepository NullRecordsRepository { get; }
+    protected override IBlankRecordsPageRepository BlankRecordsRepository { get; }
 
-    protected override ITagMatrixScenariosRepository MatrixCountsRepository { get; }
+    protected override IHighRiskSummaryScenariosRepository HighRiskSummaryCountsRepository { get; }
 
     protected override string ProjectId { get; }
 
@@ -447,31 +475,31 @@ public sealed class DuckDbGlPopulationScopeGoldenTests : GlPopulationScopeGolden
             command.ExecuteNonQuery();
         }
 
-        FilterRepository = new LocalFilterRunRepository(database);
-        Materializer = new LocalFilterRunMaterializer(database);
-        RowMatrixRepository = new LocalTagMatrixRowPageRepository(database);
-        VoucherMatrixRepository = new LocalTagMatrixVoucherPageRepository(database);
+        FilterRepository = new LocalFilterHitRepository(database);
+        Materializer = new LocalFilterHitMaterializer(database);
+        HighRiskSummaryRowRepository = new LocalHighRiskSummaryRowPageRepository(database);
+        HighRiskSummaryVoucherRepository = new LocalHighRiskSummaryVoucherPageRepository(database);
         ValidationFactsPort = new LocalValidationRunRepository(database);
         PrescreenFactsPort = new LocalPrescreenRunRepository(database);
-        NullRecordsRepository = new LocalNullRecordsPageRepository(database);
-        MatrixCountsRepository = new LocalTagMatrixScenariosRepository(database);
+        BlankRecordsRepository = new LocalBlankRecordsPageRepository(database);
+        HighRiskSummaryCountsRepository = new LocalHighRiskSummaryScenariosRepository(database);
     }
 
-    protected override IFilterRunRepository FilterRepository { get; }
+    protected override IFilterHitRepository FilterRepository { get; }
 
-    protected override IFilterRunMaterializer Materializer { get; }
+    protected override IFilterHitMaterializer Materializer { get; }
 
-    protected override ITagMatrixRowPageRepository RowMatrixRepository { get; }
+    protected override IHighRiskSummaryRowPageRepository HighRiskSummaryRowRepository { get; }
 
-    protected override ITagMatrixVoucherPageRepository VoucherMatrixRepository { get; }
+    protected override IHighRiskSummaryVoucherPageRepository HighRiskSummaryVoucherRepository { get; }
 
     private protected override IValidationFactsPort ValidationFactsPort { get; }
 
     private protected override IPrescreenFactsPort PrescreenFactsPort { get; }
 
-    protected override INullRecordsPageRepository NullRecordsRepository { get; }
+    protected override IBlankRecordsPageRepository BlankRecordsRepository { get; }
 
-    protected override ITagMatrixScenariosRepository MatrixCountsRepository { get; }
+    protected override IHighRiskSummaryScenariosRepository HighRiskSummaryCountsRepository { get; }
 
     protected override string ProjectId { get; }
 
@@ -485,16 +513,16 @@ public sealed class DuckDbGlPopulationScopeGoldenTests : GlPopulationScopeGolden
 public sealed class SqlServerGlPopulationScopeGoldenTests
 {
     [SqlServerFact]
-    public Task BlankPostDateDetection_IsSourceQualityOnly() =>
-        RunAsync(engine => engine.BlankPostDateDetection_IsSourceQualityOnly());
+    public Task BlankGlDateDetection_IsSourceQualityOnly() =>
+        RunAsync(engine => engine.BlankGlDateDetection_IsSourceQualityOnly());
 
     [SqlServerFact]
-    public Task ValidationRules_UseEffectivePopulation_AndExposePartitionSummary() =>
-        RunAsync(engine => engine.ValidationRules_UseEffectivePopulation_AndExposePartitionSummary());
+    public Task ValidationRules_UseGl_AndExposePartitionSummary() =>
+        RunAsync(engine => engine.ValidationRules_UseGl_AndExposePartitionSummary());
 
     [SqlServerFact]
-    public Task PrescreenRulesAndSummaries_UseEffectivePopulation() =>
-        RunAsync(engine => engine.PrescreenRulesAndSummaries_UseEffectivePopulation());
+    public Task PrescreenRulesAndSummaries_UseGl() =>
+        RunAsync(engine => engine.PrescreenRulesAndSummaries_UseGl());
 
     [SqlServerTheory]
     [InlineData(GlPopulationScope.AuditPeriod, new[]
@@ -507,11 +535,13 @@ public sealed class SqlServerGlPopulationScopeGoldenTests
         string[] expectedIdentities) =>
         RunAsync(engine => engine.OuterPopulationScope_FixedFixture_ReturnsExactRows(scope, expectedIdentities));
 
+    // 和本機版同步：未預期借貸組合照舊版 R3 要求 GL 中有正金額分錄，C01 改為不命中（裁定 2026-10-29-29）。
+    // 第一次失敗：Focused 收據 20261030-165407068-719c351124b94328bcd2dc27ed541d5b（WrapperMethods_CoverEveryBaseGoldenTest 比對到兩邊資料不同）。
     [SqlServerTheory]
-    [InlineData(FilterRuleType.Prescreen, GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
-    [InlineData(FilterRuleType.RevenueWithoutNormalCounterpart, GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
+    [InlineData(FilterConditionType.Prescreen, GlPopulationScope.AuditPeriod, new string[0])]
+    [InlineData(FilterConditionType.RevenueWithoutNormalCounterpart, GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
     public Task CounterpartSubquery_CrossPeriodVoucher_UsesRevisionScope(
-        FilterRuleType type,
+        FilterConditionType type,
         GlPopulationScope scope,
         string[] expectedIdentities) =>
         RunAsync(engine => engine.CounterpartSubquery_CrossPeriodVoucher_UsesRevisionScope(type, scope, expectedIdentities));
@@ -524,16 +554,15 @@ public sealed class SqlServerGlPopulationScopeGoldenTests
         RunAsync(engine => engine.AccountPairSubquery_CrossPeriodVoucher_UsesRevisionScope(scope, expectedIdentities));
 
     [SqlServerTheory]
-    [InlineData(FilterRuleType.CustomPreparerEntryCount, "createBy", "CrossPreparer", GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
-    [InlineData(FilterRuleType.CustomAccountEntryCount, "accNum", "6001", GlPopulationScope.AuditPeriod, new[] { "F01|1" })]
+    [InlineData("createdBy", "CrossPreparer", GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
+    [InlineData("accountNumber", "6001", GlPopulationScope.AuditPeriod, new[] { "F01|1" })]
     public Task FrequencySubquery_CrossPeriodGroup_UsesRevisionScope(
-        FilterRuleType type,
         string field,
         string value,
         GlPopulationScope scope,
         string[] expectedIdentities) =>
         RunAsync(engine => engine.FrequencySubquery_CrossPeriodGroup_UsesRevisionScope(
-            type, field, value, scope, expectedIdentities));
+            field, value, scope, expectedIdentities));
 
     [SqlServerFact]
     public Task CustomTrailingZeros_DecimalAndNegativeAmounts_UsesMajorUnitInteger() =>
@@ -548,12 +577,12 @@ public sealed class SqlServerGlPopulationScopeGoldenTests
         RunAsync(engine => engine.TrailingDigits_DecimalAndNegativeAmount_UsesMajorUnitIntegerAndLengthGuard());
 
     [SqlServerFact]
-    public Task TagMatrix_InScopeHitWithOutOfScopeCompanion_ScopesRowsPositionsAndVoucherTotal() =>
-        RunAsync(engine => engine.TagMatrix_InScopeHitWithOutOfScopeCompanion_ScopesRowsPositionsAndVoucherTotal());
+    public Task HighRiskSummary_InScopeHitWithOutOfScopeCompanion_ScopesRowsPositionsAndVoucherTotal() =>
+        RunAsync(engine => engine.HighRiskSummary_InScopeHitWithOutOfScopeCompanion_ScopesRowsPositionsAndVoucherTotal());
 
     [SqlServerFact]
-    public Task TagMatrix_OutOfScopeOnlyHit_AuditScopeDoesNotAdmitVoucher() =>
-        RunAsync(engine => engine.TagMatrix_OutOfScopeOnlyHit_AuditScopeDoesNotAdmitVoucher());
+    public Task HighRiskSummary_OutOfScopeOnlyHit_AuditScopeDoesNotAdmitVoucher() =>
+        RunAsync(engine => engine.HighRiskSummary_OutOfScopeOnlyHit_AuditScopeDoesNotAdmitVoucher());
 
     [Fact]
     public async Task WrapperMethods_CoverEveryBaseGoldenTest()
@@ -599,7 +628,7 @@ public sealed class SqlServerGlPopulationScopeGoldenTests
     }
 
     // 私有的引擎子類只由 CreateAsync 建立，xUnit 執行時不探索非公開類別。xunit.v3 4.0 的分析器仍把它當成測試類別、
-    // 要求公開建構子（xUnit1056），這裡不適用；使用者 2026-10-15 在 Visual Studio 升級套件後選擇修這裡後繼續。
+    // 要求公開建構子（xUnit1056），這裡不適用；裁定 2026-10-15-07 在 Visual Studio 升級套件後選擇修這裡後繼續。
 #pragma warning disable xUnit1056
     private sealed class SqlServerEngine : GlPopulationScopeGoldenTests
 #pragma warning restore xUnit1056
@@ -607,31 +636,31 @@ public sealed class SqlServerGlPopulationScopeGoldenTests
         private SqlServerEngine(TempSqlServerProject sql)
         {
             ProjectId = sql.ProjectId;
-            FilterRepository = new SqlServerFilterRunRepository(sql.Database);
-            Materializer = new SqlServerFilterRunMaterializer(sql.Database);
-            RowMatrixRepository = new SqlServerTagMatrixRowPageRepository(sql.Database);
-            VoucherMatrixRepository = new SqlServerTagMatrixVoucherPageRepository(sql.Database);
+            FilterRepository = new SqlServerFilterHitRepository(sql.Database);
+            Materializer = new SqlServerFilterHitMaterializer(sql.Database);
+            HighRiskSummaryRowRepository = new SqlServerHighRiskSummaryRowPageRepository(sql.Database);
+            HighRiskSummaryVoucherRepository = new SqlServerHighRiskSummaryVoucherPageRepository(sql.Database);
             ValidationFactsPort = new SqlServerValidationRunRepository(sql.Database);
             PrescreenFactsPort = new SqlServerPrescreenRunRepository(sql.Database);
-            NullRecordsRepository = new SqlServerNullRecordsPageRepository(sql.Database);
-            MatrixCountsRepository = new SqlServerTagMatrixScenariosRepository(sql.Database);
+            BlankRecordsRepository = new SqlServerBlankRecordsPageRepository(sql.Database);
+            HighRiskSummaryCountsRepository = new SqlServerHighRiskSummaryScenariosRepository(sql.Database);
         }
 
-        protected override IFilterRunRepository FilterRepository { get; }
+        protected override IFilterHitRepository FilterRepository { get; }
 
-        protected override IFilterRunMaterializer Materializer { get; }
+        protected override IFilterHitMaterializer Materializer { get; }
 
-        protected override ITagMatrixRowPageRepository RowMatrixRepository { get; }
+        protected override IHighRiskSummaryRowPageRepository HighRiskSummaryRowRepository { get; }
 
-        protected override ITagMatrixVoucherPageRepository VoucherMatrixRepository { get; }
+        protected override IHighRiskSummaryVoucherPageRepository HighRiskSummaryVoucherRepository { get; }
 
         private protected override IValidationFactsPort ValidationFactsPort { get; }
 
         private protected override IPrescreenFactsPort PrescreenFactsPort { get; }
 
-        protected override INullRecordsPageRepository NullRecordsRepository { get; }
+        protected override IBlankRecordsPageRepository BlankRecordsRepository { get; }
 
-        protected override ITagMatrixScenariosRepository MatrixCountsRepository { get; }
+        protected override IHighRiskSummaryScenariosRepository HighRiskSummaryCountsRepository { get; }
 
         protected override string ProjectId { get; }
 

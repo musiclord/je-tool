@@ -9,8 +9,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 篩選情境儲存（filter.scenario.save）的業務分支，各給一個固定輸入與寫死的預期結果（預篩選收斂計畫階段十一，
-/// 使用者 2026-10-25 裁定 B1 到 B7 全部要補）。分支依架構圖「篩選情境儲存」的循序圖與流程圖列出：前提不符、本次不合格、
+/// 篩選情境儲存（filter.scenario.save）的業務分支，各給一個固定輸入與寫死的預期結果；要補哪些分支見裁定 2026-10-25-01。
+/// 分支依架構圖「篩選情境儲存」的循序圖與流程圖列出：前提不符、本次不合格、
 /// 位置與名稱、整批合格、仍有不合格、推進到第五步、取消與例外。合成母體固定四列：兩列借方、兩列貸方，所以借方情境的命中
 /// 一定是 2 筆。SQLite 與 DuckDB 各跑一次。這些測試鎖的是現行行為，預期一次通過；有測試失敗就是發現，先回報再決定改什麼。
 /// </summary>
@@ -18,11 +18,11 @@ public sealed class FilterScenarioSaveBranchTests
 {
     private const string UnknownRdeFieldId = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";
     private const string ListOutOfDateMessage = "畫面上的情境清單與已儲存的內容不一致，本次未儲存。請重新開啟案件後再操作。";
-    private static readonly string[] WatchedTables = ["config_filter_scenario", "result_filter_run", "config_result_stale_state"];
+    private static readonly string[] WatchedTables = ["filter_scenario", "filter_hit", "result_stale_state"];
 
     private sealed record StoredScenario(int Position, string Name, string DefinitionJson, string SavedUtc);
 
-    // ── B1 前提不符就回錯誤、不寫入 ─────────────────────────────────────────────
+    // ── 前提不符就回錯誤、不寫入 ─────────────────────────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -37,7 +37,7 @@ public sealed class FilterScenarioSaveBranchTests
         Assert.Equal(JetErrorCodes.CompletenessPrerequisiteFailed, error.Code);
         Assert.Equal("目前資料尚無可用的資料驗證結果，請重新執行資料驗證。", error.Message);
         Assert.Empty(await ReadScenariosAsync(host, projectId, provider));
-        Assert.Equal(0, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(0, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
     }
 
     [Theory]
@@ -65,17 +65,17 @@ public sealed class FilterScenarioSaveBranchTests
         using var host = new HandlerTestHost();
         var projectId = await PrepareAsync(host, provider);
         // 驗證結果仍是目前版本，只有 GL 配對不在了：合成「配對被清掉」的狀態，走到第三個前提。
-        await ExecuteAsync(host, projectId, provider, "DELETE FROM config_field_mapping WHERE dataset_kind = 'gl';");
+        await ExecuteAsync(host, projectId, provider, "DELETE FROM field_mapping WHERE dataset_kind = 'gl';");
         var before = await SnapshotAsync(host, projectId, provider);
 
         var error = await Assert.ThrowsAsync<JetActionException>(() => SaveAsync(host, null, null, Scenario("情境甲", "debit")));
 
-        Assert.Equal(JetErrorCodes.NoTargetData, error.Code);
+        Assert.Equal(JetErrorCodes.GlMappingNotConfirmed, error.Code);
         Assert.Equal("尚未確認 GL 欄位配對，請先到第三步按「確認配對」。", error.Message);
         await AssertUnchangedAsync(host, projectId, provider, before);
     }
 
-    // ── B2 本次情境不合格就回錯誤、不寫入 ───────────────────────────────────────
+    // ── 本次情境不合格就回錯誤、不寫入 ───────────────────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -96,31 +96,7 @@ public sealed class FilterScenarioSaveBranchTests
         Assert.Equal(projectBytes, await File.ReadAllBytesAsync(ProjectJsonPath(host, projectId)));
     }
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task RemovedExclusionArea_IsRejectedForThisScenario_AndWritesNothing(string provider)
-    {
-        using var host = new HandlerTestHost();
-        var projectId = await PrepareAsync(host, provider);
-        await SaveAsync(host, null, null, Scenario("情境甲", "debit"));
-        var before = await SnapshotAsync(host, projectId, provider);
-        var scenario = Scenario("情境乙", "credit");
-        scenario["exclusions"] = JsonNode.Parse(
-            """[{"scope":"voucher","rule":{"type":"fieldValue","field":"postDate","operator":"in","values":["2025-01-15"]}}]""");
-
-        var error = await Assert.ThrowsAsync<JetActionException>(() => SaveAsync(host, null, null, scenario));
-
-        Assert.Equal(JetErrorCodes.InvalidScenario, error.Code);
-        Assert.Contains("使用了已移除的「排除區域」，請改用條件中的「不屬於」或「不在區間」", error.Message, StringComparison.Ordinal);
-        // 錯誤屬於正在儲存的這一個：它會是清單上的第 2 個。
-        var detail = Assert.Single(error.Details!);
-        Assert.Equal(2, detail.ScenarioPosition);
-        Assert.Equal("情境乙", detail.ScenarioName);
-        await AssertUnchangedAsync(host, projectId, provider, before);
-    }
-
-    // ── B3 位置留空是新增或另存，指定位置是取代 ─────────────────────────────────
+    // ── 位置留空是新增或另存，指定位置是取代 ─────────────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -170,7 +146,7 @@ public sealed class FilterScenarioSaveBranchTests
         await AssertUnchangedAsync(host, projectId, provider, before);
     }
 
-    // ── B4 整批都合格：同一筆交易取代定義並算出命中 ─────────────────────────────
+    // ── 整批都合格：同一筆交易取代定義並算出命中 ─────────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -185,14 +161,21 @@ public sealed class FilterScenarioSaveBranchTests
 
         Assert.Equal("current", first.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
         Assert.Equal("current", second.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
-        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run WHERE scenario_position = 1;"));
-        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run WHERE scenario_position = 2;"));
-        Assert.Equal(4, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit WHERE scenario_id = 1;"));
+        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit WHERE scenario_id = 2;"));
+        Assert.Equal(4, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(0, await StaleFlagAsync(host, projectId, provider));
         Assert.False(second.GetProperty("staleState").GetProperty("filter").GetBoolean());
+        // 原本斷言版本就是共同的儲存時間，且兩個條件組時間相同：每次儲存都整批重寫。改成只寫入這一個條件組的結果後，
+        // 版本由每個條件組的編號與自己的儲存時間組成，先存的條件組保留原本的時間。
+        // 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
         var stored = await ReadScenariosAsync(host, projectId, provider);
-        Assert.Equal(stored[0].SavedUtc, second.GetProperty("resultRef").GetProperty("revision").GetString());
-        Assert.Single(stored.Select(row => row.SavedUtc).Distinct());
+        Assert.Equal(
+            string.Join(";", stored.Select(row => row.Position + "@" + row.SavedUtc)),
+            second.GetProperty("resultRef").GetProperty("revision").GetString());
+        Assert.Equal(
+            "1@" + stored[0].SavedUtc,
+            first.GetProperty("resultRef").GetProperty("revision").GetString());
     }
 
     /// <summary>
@@ -212,15 +195,16 @@ public sealed class FilterScenarioSaveBranchTests
         var projectBytes = await File.ReadAllBytesAsync(ProjectJsonPath(host, projectId));
         var savedUtc = (await ReadScenariosAsync(host, projectId, provider)).Single().SavedUtc;
         await ExecuteAsync(host, projectId, provider, $$"""
-            ALTER TABLE config_filter_scenario RENAME TO synthetic_saved_scenarios;
-            CREATE TABLE config_filter_scenario (
-                position        INTEGER PRIMARY KEY,
+            ALTER TABLE filter_scenario RENAME TO synthetic_saved_scenarios;
+            CREATE TABLE filter_scenario (
+                scenario_id     INTEGER PRIMARY KEY,
+                position        INTEGER NOT NULL,
                 name            TEXT NOT NULL,
                 rationale       TEXT NOT NULL,
                 definition_json TEXT NOT NULL,
                 saved_utc       TEXT NOT NULL,
                 CONSTRAINT synthetic_definition_failure CHECK (saved_utc = '{{savedUtc}}'));
-            INSERT INTO config_filter_scenario SELECT * FROM synthetic_saved_scenarios;
+            INSERT INTO filter_scenario SELECT * FROM synthetic_saved_scenarios;
             """);
 
         var error = await Record.ExceptionAsync(() => SaveAsync(host, null, null, Scenario("情境乙", "credit")));
@@ -230,15 +214,15 @@ public sealed class FilterScenarioSaveBranchTests
         Assert.False(error is OperationCanceledException);
         Assert.Contains("CHECK", error.ToString(), StringComparison.OrdinalIgnoreCase);
         await ExecuteAsync(host, projectId, provider, """
-            DROP TABLE config_filter_scenario;
-            ALTER TABLE synthetic_saved_scenarios RENAME TO config_filter_scenario;
+            DROP TABLE filter_scenario;
+            ALTER TABLE synthetic_saved_scenarios RENAME TO filter_scenario;
             """);
         await AssertUnchangedAsync(host, projectId, provider, before);
-        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(projectBytes, await File.ReadAllBytesAsync(ProjectJsonPath(host, projectId)));
     }
 
-    // ── B5 仍有情境不合格：只寫定義、清除命中並標成失效 ─────────────────────────
+    // ── 仍有情境不合格：只寫定義、清除命中並標成失效 ─────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -251,11 +235,11 @@ public sealed class FilterScenarioSaveBranchTests
         await SaveAsync(host, null, null, Scenario("情境乙", "credit"));
         // 情境乙仍是目前版本，只是條件用的欄位已不在配對裡：開案與儲存都會把它列為待修。
         var invalid = JsonNode.Parse((await ReadScenariosAsync(host, projectId, provider))[1].DefinitionJson)!.AsObject();
-        invalid["groups"]![0]!["rules"]!.AsArray().Insert(0, JsonNode.Parse(
+        invalid["groups"]![0]!["conditions"]!.AsArray().Insert(0, JsonNode.Parse(
             "{\"join\":\"AND\",\"type\":\"typed\",\"fieldId\":\"" + UnknownRdeFieldId + "\",\"operator\":\"isBlank\"}"));
         await ExecuteAsync(host, projectId, provider,
-            "UPDATE config_filter_scenario SET definition_json = @definition WHERE position = 2;", ("@definition", invalid.ToJsonString()));
-        Assert.Equal(4, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+            "UPDATE filter_scenario SET definition_json = @definition WHERE position = 2;", ("@definition", invalid.ToJsonString()));
+        Assert.Equal(4, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
 
         var response = await SaveAsync(host, null, null, Scenario("情境丙", "debit"));
 
@@ -271,11 +255,11 @@ public sealed class FilterScenarioSaveBranchTests
         var stored = await ReadScenariosAsync(host, projectId, provider);
         Assert.Equal(["情境甲", "情境乙", "情境丙"], stored.Select(row => row.Name));
         Assert.Equal(invalid.ToJsonString(), stored[1].DefinitionJson);
-        Assert.Equal(0, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(0, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(1, await StaleFlagAsync(host, projectId, provider));
     }
 
-    // ── B6 發布後案件步驟落後才推進到第五步 ─────────────────────────────────────
+    // ── 發布後案件步驟落後才推進到第五步 ─────────────────────────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -323,14 +307,14 @@ public sealed class FilterScenarioSaveBranchTests
 
         Assert.True(response.GetProperty("ok").GetBoolean());
         Assert.Equal("current", response.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
-        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(4, await StepAsync(projectPath));
         var warning = Assert.Single(host.DiagnosticLog.Snapshot().Skip(logCount), entry =>
             entry.Level == "Warning" && entry.Message.Contains("workflow.milestone", StringComparison.Ordinal));
         Assert.DoesNotContain(projectPath, warning.Message);
     }
 
-    // ── B7 取消與例外的回應 ─────────────────────────────────────────────────────
+    // ── 取消與例外的回應 ─────────────────────────────────────────────────────
     // 例外的回應見上面「寫新定義時失敗」那一則：不是業務錯誤也不是取消，整筆交易回到原樣。
 
     [Theory]
@@ -367,18 +351,18 @@ public sealed class FilterScenarioSaveBranchTests
         await SetStepAsync(projectPath, 4);
         using var cancellation = new CancellationTokenSource();
         var database = Database(host, provider);
-        var realFacts = new FilterFactsPort(new LocalFilterRunRepository(database), new LocalFilterCommitRepository(database));
+        var realFacts = new FilterFactsPort(new LocalFilterHitRepository(database), new LocalFilterCommitRepository(database));
         var session = new ProjectSession();
         session.Enter(projectId, TestProjectRepositories.Unconfigured(provider) with
         {
             FilterScenarios = new LocalFilterScenarioStore(database),
             FilterFacts = new CancelAfterCommit(realFacts, cancellation),
-            RuleRuns = new LocalRuleRunStore(database),
+            Results = new LocalResultStore(database),
             ResultStaleStates = new LocalResultStaleStateStore(database),
             MappingStates = new LocalMappingStateStore(database),
             AccountMappings = new LocalAccountMappingRepository(database),
             AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
-            AccountTaxonomy = new LocalAccountTaxonomyStore(database)
+            AccountCategories = new LocalAccountCategoryStore(database)
         });
         var handler = new FilterScenarioSaveHandler(new JsonFileProjectStore(new JetProjectFolder(host.ProjectsRoot)), session);
         using var payload = JsonDocument.Parse(SavePayload(null, null, Scenario("情境甲", "debit")));
@@ -391,7 +375,7 @@ public sealed class FilterScenarioSaveBranchTests
         Assert.Equal("current", response.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
         Assert.Equal(1, response.GetProperty("position").GetInt32());
         Assert.Equal(["情境甲"], (await ReadScenariosAsync(host, projectId, provider)).Select(row => row.Name));
-        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM result_filter_run;"));
+        Assert.Equal(2, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(0, await StaleFlagAsync(host, projectId, provider));
         Assert.Equal(5, await StepAsync(projectPath));
     }
@@ -436,7 +420,7 @@ public sealed class FilterScenarioSaveBranchTests
         ["groups"] = new JsonArray(new JsonObject
         {
             ["join"] = "AND",
-            ["rules"] = new JsonArray(new JsonObject { ["join"] = "AND", ["type"] = "drCrOnly", ["drCr"] = drCr })
+            ["conditions"] = new JsonArray(new JsonObject { ["join"] = "AND", ["type"] = "drCrOnly", ["drCr"] = drCr })
         })
     };
 
@@ -474,13 +458,13 @@ public sealed class FilterScenarioSaveBranchTests
     }
 
     private static Task ExecuteAsync(HandlerTestHost host, string projectId, string provider, string sql, params (string Name, object Value)[] parameters) =>
-        Batch9ArtifactStateTests.ExecuteAsync(host, projectId, provider, sql, parameters);
+        ReportRevisionStateTests.ExecuteAsync(host, projectId, provider, sql, parameters);
 
     private static Task<long> ScalarAsync(HandlerTestHost host, string projectId, string provider, string sql) =>
-        Batch9TransactionBoundaryTests.ScalarAsync(host, projectId, provider, sql);
+        WriteFailureRollbackTests.ScalarAsync(host, projectId, provider, sql);
 
     private static Task<long> StaleFlagAsync(HandlerTestHost host, string projectId, string provider) =>
-        ScalarAsync(host, projectId, provider, "SELECT filter_stale FROM config_result_stale_state WHERE singleton = 1;");
+        ScalarAsync(host, projectId, provider, "SELECT filter_stale FROM result_stale_state WHERE singleton = 1;");
 
     /// <summary>三張會被這個流程寫到的表，整表排序後的快照；用來斷言「沒有寫入」。</summary>
     private static async Task<Dictionary<string, string[]>> SnapshotAsync(HandlerTestHost host, string projectId, string provider)
@@ -509,7 +493,7 @@ public sealed class FilterScenarioSaveBranchTests
         await using var connection = Database(host, provider).CreateConnection(projectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT position, name, definition_json, saved_utc FROM config_filter_scenario ORDER BY position;";
+        command.CommandText = "SELECT position, name, definition_json, saved_utc FROM filter_scenario ORDER BY position;";
         var rows = new List<StoredScenario>();
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())

@@ -8,12 +8,12 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 本地案件跨執行個體互斥的 Application 驗收。以兩個真 <see cref="HandlerTestHost"/> 共用同一 projects root，
-/// 模擬兩個程序同時開啟同案；oracle 是 2026-07-14 本地收尾正本批次二、修補場與 manifest 的
+/// 模擬兩個程序同時開啟同案；oracle 是 manifest 的
 /// project_locked 語意。
 /// </summary>
 public sealed class LocalProjectLockHandlerTests
 {
-    // 使用者 2026-10-14 第三輪勾選頁確認 R3-69（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+    // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
     private const string ExternalProcessLockMessage =
         "此案件已在另一個 JET 視窗中開啟，請先在該視窗離開案件後再試一次。";
 
@@ -69,7 +69,7 @@ public sealed class LocalProjectLockHandlerTests
         var held = await Assert.ThrowsAsync<JetActionException>(
             () => contender.DispatchAsync("project.load", LoadPayload(projectId)));
         Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-69（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。 句子不再有「開啟中」，改鎖整句。
+        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。句子不再有「開啟中」，改鎖整句。
         Assert.Equal(ExternalProcessLockMessage, held.Message);
 
         // State Transition：心跳只續持有狀態，不得意外釋放本地檔案鎖。
@@ -229,9 +229,9 @@ public sealed class LocalProjectLockHandlerTests
     private static string CreatePayload(string projectId, string provider) =>
         $$"""
         {
-          "caseName": "{{projectId}}",
+          "projectName": "{{projectId}}",
           "projectCode": "LOCAL-LOCK",
-          "entityName": "本地互斥測試",
+          "clientName": "本地互斥測試",
           "operatorId": "auditor",
           "periodStart": "2025-01-01",
           "periodEnd": "2025-12-31",

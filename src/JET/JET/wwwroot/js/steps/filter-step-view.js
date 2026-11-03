@@ -15,7 +15,7 @@
   function forward(name) { return function () { return FilterStep[name].apply(null, arguments); }; }
   var ruleValueControl = forward('ruleValueControl');
   var ensureScenarioPreview = forward('ensureScenarioPreview');
-  var ensureMatrixContent = forward('ensureMatrixContent');
+  var ensureHighRiskSummaryContent = forward('ensureHighRiskSummaryContent');
 
   FilterStep.selectedRule = null;
 
@@ -51,7 +51,7 @@
     if (previous && next && motionKeys.has(previous)) { motionKeys.set(next, motionKeys.get(previous)); }
   }
 
-  // 頁籤底下的窗格原地切換（使用者 2026-10-12）：新的窗格從舊窗格的高度平順變成自己的高度，舊的那一份疊在底下淡掉，
+  // 頁籤底下的窗格原地切換，切換時不閃（裁定 2026-10-12-02）：新的窗格從舊窗格的高度平順變成自己的高度，舊的那一份疊在底下淡掉，
   // 下面的內容跟著移動；裡面原本就打開的展開區不因為窗格重新出現而再長一次（app.js 的 JetMotion.swap）。
   // chosen 挑出要顯示的窗格；fill 在它顯示之後、量高度之前補上還沒畫的內容。
   function showOnly(panes, chosen, fill) {
@@ -71,9 +71,9 @@
     FilterStep.selectedRule = rule;
     global.JetFocus.defer(function () {
       var draft = Store.getState().filter.draft;
-      var gi = draft.groups.findIndex(function (group) { return group.rules.indexOf(rule) >= 0; });
+      var gi = draft.groups.findIndex(function (group) { return group.conditions.indexOf(rule) >= 0; });
       if (gi < 0) { return null; }
-      var ri = draft.groups[gi].rules.indexOf(rule);
+      var ri = draft.groups[gi].conditions.indexOf(rule);
       var row = document.querySelector('.filter-workspace .rule-row[data-gi="' + gi + '"][data-ri="' + ri + '"]');
       if (!row || !row.getClientRects().length) { return null; }
       var carried = !!(global.JetMotion && global.JetMotion.carries && global.JetMotion.carries(row));
@@ -116,7 +116,7 @@
     input.setAttribute('aria-invalid', 'true');
     var row = input.parentNode;
     if (!row) { return; }
-    // 正在收起的舊訊息不沿用；新的一行從欄位下方長出來，清掉時收回去（使用者 2026-10-13 要求出現與消失都有動態）。
+    // 正在收起的舊訊息不沿用；新的一行從欄位下方長出來，清掉時收回去（裁定 2026-10-13-11：出現與消失都要有動態）。
     var err = row.querySelector('.field-error:not([data-motion-folding])');
     if (!err) {
       err = document.createElement('span');
@@ -155,17 +155,17 @@
        scenarioPreviews —— 已存情境惰性命中預覽快取（index → filter.preview 回傳的 scenario 物件）。
                            草稿編輯不影響已存情境的命中（已存定義只在 commit 時變），跨草稿編輯保留
                            快取是安全的。
-       matrixOpen / matrixData —— 高風險條件矩陣展開狀態與情境摘要（tagMatrixScenarios）快取。
+       highRiskSummaryOpen / highRiskSummaryData —— 高風險條件彙總展開狀態與情境摘要（highRiskSummaryScenarios）快取。
        cleanDraftKey    —— 換成目前這份草稿後，第一次畫好時的內容；之後內容不同才算有還沒存的修改。
                            換草稿時清成 null，下一次 bind 在自動名稱與卡片身分收斂後補記。
      重置時機（四個訊號、範圍遞減）：
        1. 專案切換或同案重新載入（project 參照變）→ 全重置。
        2. 已存清單被替換（savedScenarios 參照變＝commit 成功、移除情境、resume、resetWorkflow）
-          → 重置詳情與矩陣——index 對位與命中都可能已變。
+          → 重置詳情與彙總——index 對位與命中都可能已變。
        3. 已保存 resultRef 換版（revision／scope 變）→ 只作廢資料快取，保留展開狀態。
        4. 底層資料世代變（GL／科目配對／分類／授權清單／行事曆的匯入狀態，加上後端回報命中失效的次數）
           → 只作廢資料快取：已存定義沒變、展開狀態保留，但命中是舊資料算的，restore 會就地重抓。
-          哪些上游修改會作廢命中由後端回應的失效清單決定，TB 和 GL 相同（使用者 2026-10-07 裁定），
+          哪些上游修改會作廢命中由後端回應的失效清單決定，TB 和 GL 相同（裁定 2026-10-07-04），
           前端收到後 filterResultGeneration 遞增，就落在這個訊號裡。
      ============================================================================ */
   function freshViewState() {
@@ -177,11 +177,11 @@
       lastSavedName: null,
       savedDraftKey: null,
       disclosures: {},
-      matrixView: 'scenarios',
+      highRiskSummaryView: 'scenarios',
       openScenarios: {},
       scenarioPreviews: {},
-      matrixOpen: false,
-      matrixData: null,
+      highRiskSummaryOpen: false,
+      highRiskSummaryData: null,
       pendingRemovalIndex: null,
       cleanDraftKey: null
     };
@@ -203,7 +203,7 @@
 
   var draftResponseGuard = Ui.createLatestResponseGuard();
 
-  var matrixResponseGuard = Ui.createLatestResponseGuard();
+  var highRiskSummaryResponseGuard = Ui.createLatestResponseGuard();
 
   var scenarioResponseGuards = {};
 
@@ -225,9 +225,9 @@
   // 上游修改（含 TB）要不要作廢命中，由後端回應的失效清單決定，前端不自己判斷。草稿編輯完全不碰這些參照。
   function dataGeneration(state) {
     var imp = state.importState;
-    // filterResultGeneration：後端回報篩選命中失效時遞增，例如修改準備日（V7）。
+    // filterResultGeneration：後端回報篩選命中失效時遞增，例如修改準備日。
     return [imp.gl, imp.accountMapping, imp.authorizedPreparer, imp.calendar,
-      state.mapping.gl.committed, state.taxonomy, state.filterResultGeneration];
+      state.mapping.gl.committed, state.accountCategory, state.filterResultGeneration];
   }
 
   function resultKey(state) {
@@ -251,7 +251,7 @@
     if (key !== viewProjectKey || state.project !== viewProjectRef) {
       draftResponseGuard.invalidate();
       invalidateScenarioResponseGuards();
-      matrixResponseGuard.invalidate();
+      highRiskSummaryResponseGuard.invalidate();
       viewProjectKey = key;
       viewProjectRef = state.project;
       FilterStep.selectedRule = null;
@@ -269,14 +269,14 @@
     }
     if (state.filter.savedScenarios !== viewSavedRef) {
       invalidateScenarioResponseGuards();
-      matrixResponseGuard.invalidate();
+      highRiskSummaryResponseGuard.invalidate();
       viewSavedRef = state.filter.savedScenarios;
       FilterStep.viewState.openScenarios = {};
       FilterStep.viewState.scenarioPreviews = {};
-      FilterStep.viewState.matrixOpen = false;
-      FilterStep.viewState.matrixData = null;
+      FilterStep.viewState.highRiskSummaryOpen = false;
+      FilterStep.viewState.highRiskSummaryData = null;
       FilterStep.viewState.pendingRemovalIndex = null;
-      // 「已儲存「A」」只在 A 仍是已存情境時顯示；上游修改清掉情境或 A 被刪除後就收起（使用者 2026-10-15 裁定）。
+      // 「已儲存「A」」只在 A 仍是已存情境時顯示；上游修改清掉情境或 A 被刪除後就收起（裁定 2026-10-15-01）。
       if (FilterStep.viewState.lastSavedName && !state.filter.savedScenarios.some(function (scenario) { return scenario.name === FilterStep.viewState.lastSavedName; })) {
         FilterStep.viewState.lastSavedName = null;
       }
@@ -284,22 +284,22 @@
     var nextResultKey = resultKey(state);
     if (nextResultKey !== viewResultKey) {
       invalidateScenarioResponseGuards();
-      matrixResponseGuard.invalidate();
+      highRiskSummaryResponseGuard.invalidate();
       viewResultKey = nextResultKey;
       FilterStep.viewState.scenarioPreviews = {};
-      FilterStep.viewState.matrixData = null;
+      FilterStep.viewState.highRiskSummaryData = null;
     }
     if (!sameGeneration(gen, viewDataGen)) {
       invalidateScenarioResponseGuards();
-      matrixResponseGuard.invalidate();
+      highRiskSummaryResponseGuard.invalidate();
       viewDataGen = gen;
       FilterStep.viewState.scenarioPreviews = {};
-      FilterStep.viewState.matrixData = null;
+      FilterStep.viewState.highRiskSummaryData = null;
     }
   }
 
   // 一組條件還缺什麼前置條件，沒有缺項時是空字串。判斷與句子都在 ui-core.js 的規則需求表，它逐項鏡像後端（權威驗證在後端）；
-  // 欄位按鈕、依審計目的的條件、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式（使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位）。
+  // 欄位按鈕、依審計目的的條件、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式。第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05）。
   function requirementNote(rules) {
     return Ui.ruleRequirementNote(Store.getState(), rules);
   }
@@ -309,7 +309,7 @@
     return Ui.ruleRequirementNote(Store.getState(), [rule], true);
   }
 
-  // 要拿掉的條件先輕微快速地晃一下再收起來（使用者 2026-10-13，app.js 的 JetMotion.removing）。
+  // 要拿掉的條件先輕微快速地晃一下再收起來（裁定 2026-10-13-13；app.js 的 JetMotion.removing）。
   // 移除鈕在條件列裡的由 app.js 的 REMOVAL_SOURCES 處理；按鈕不在要拿掉的條件裡時（例如再按一次常用篩選條件的卡片），在這裡說明是哪幾條。
   function announceRemoval(rules) {
     if (!rules.length || !global.JetMotion || typeof global.JetMotion.removing !== 'function') { return; }
@@ -323,7 +323,7 @@
   }
 
   // 晚一點才讀回來的內容（例如打開已儲存情境後才載入的傳票），整塊從原本的高度平順變成新的高度，
-  // 不在讀回來的那一刻一下子撐開（使用者 2026-10-13 要求展開與收合一致）。element 要有 data-motion-key，app.js 的 JetMotion 才認得是同一塊。
+  // 不在讀回來的那一刻一下子撐開（裁定 2026-10-13-11）。element 要有 data-motion-key，app.js 的 JetMotion 才認得是同一塊。
   function fillSmoothly(element, fill) {
     if (element && global.JetMotion && typeof global.JetMotion.morph === 'function' && element.hasAttribute('data-motion-key')) {
       global.JetMotion.morph(element, fill);
@@ -344,7 +344,7 @@
     var statusClass = needsResave
       ? 'population-scope__status population-scope__status--pending'
       : 'population-scope__status';
-    // 「尚無可用版本」改說已儲存的情境尚未套用目前規則（使用者 2026-10-14 第三輪勾選頁確認 R3-24）。
+    // 「尚無可用版本」改說已儲存的情境尚未套用目前規則（裁定 2026-10-14-01）。
     var statusText = committed ? '在 GL 中篩選分錄。已儲存版本：查核期間內的分錄。' : '已儲存的篩選情境尚未套用目前規則。';
 
 
@@ -352,7 +352,7 @@
       '<section class="population-scope" aria-labelledby="population-scope-heading">' +
         '<div class="population-scope__head">' +
           '<div>' +
-            // GL 的定義收進標題的提示，常駐的只有狀態與下一步（使用者 2026-10-29 指出常駐說明太多）。
+            // GL 的定義收進標題的提示，常駐的只有狀態與下一步，常駐說明不再多寫（裁定 2026-10-29-02）。
             '<h3 class="population-scope__title" id="population-scope-heading" title="' + Ui.esc(POPULATION_SCOPE_DEFINITION) + '">GL：查核期間內的分錄</h3>' +
           '</div>' +
         '</div>' +
@@ -360,7 +360,7 @@
           '<span>' + Ui.esc(statusText) + '</span>' +
           (needsResave
             ? Ui.filterScenarioProblemsHtml(state) +
-              '<p class="population-scope__notice">上列情境全部修改並儲存或移除後，才會顯示高風險條件矩陣與全部符合條件的分錄，也才能產生條件篩選報告與工作底稿。</p>' +
+              '<p class="population-scope__notice">上列情境全部修改並儲存或移除後，才會顯示高風險條件彙總與全部符合條件的分錄，也才能產生條件篩選報告與工作底稿。</p>' +
               '<button type="button" class="btn btn--ghost btn--tiny" data-action="resave-scenarios">' +
                 '重新檢查並儲存情境</button>'
             : '') +
@@ -369,14 +369,14 @@
     );
   }
 
-  // 第五步的三組頁籤（工作區、條件來源、矩陣檢視）都用共用的頁籤寫法（Ui.tabAttributes），選中的寫 aria-selected。
+  // 第五步的三組頁籤（工作區、條件來源、彙總檢視）都用共用的頁籤寫法（Ui.tabAttributes），選中的寫 aria-selected。
   function paneButton(key, label) {
     return '<button type="button" data-filter-pane-select="' + key + '"' +
       Ui.tabAttributes(FilterStep.viewState.workspacePane === key, 'filter-pane-' + key, 'filter-tab-' + key) + '>' + Ui.esc(label) + '</button>';
   }
 
   // bump 全重繪後回填「已展開」惰性面板的內容（hidden 與按鈕文字已在 HTML 生成時還原；這裡補內容：
-  // 已存情境詳情與矩陣用 viewState 快取回填、無快取才重抓——見 ensureScenarioPreview／ensureMatrixContent）。
+  // 已存情境詳情與彙總用 viewState 快取回填、無快取才重抓——見 ensureScenarioPreview／ensureHighRiskSummaryContent）。
   function restoreViewState(container) {
     var draftPreview = Store.getState().filter.preview;
     if (draftPreview && draftPreview.voucherPage) {
@@ -389,7 +389,7 @@
     Object.keys(FilterStep.viewState.openScenarios).forEach(function (k) {
       if (FilterStep.viewState.openScenarios[k]) { ensureScenarioPreview(container, Number(k)); }
     });
-    if (FilterStep.viewState.matrixOpen) { ensureMatrixContent(container); }
+    if (FilterStep.viewState.highRiskSummaryOpen) { ensureHighRiskSummaryContent(container); }
   }
 
   // 返回可見的查看按鈕，不聚焦已收起的操作選單；原列消失後改回同一位置的下一列、
@@ -452,7 +452,7 @@
   FilterStep.clearFieldError = clearFieldError;
   FilterStep.freshViewState = freshViewState;
   FilterStep.draftResponseGuard = draftResponseGuard;
-  FilterStep.matrixResponseGuard = matrixResponseGuard;
+  FilterStep.highRiskSummaryResponseGuard = highRiskSummaryResponseGuard;
   FilterStep.scenarioResponseGuard = scenarioResponseGuard;
   FilterStep.invalidateScenarioResponseGuards = invalidateScenarioResponseGuards;
   FilterStep.dataGeneration = dataGeneration;

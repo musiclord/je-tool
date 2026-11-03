@@ -11,15 +11,13 @@ namespace JET.Infrastructure;
 /// <c>dbo.project_schema_map</c> 反查表,見 <see cref="SqlServerControlPlaneSchema"/> 的一次性遷移)。
 /// 連線字串(base)的 InitialCatalog 即為該單一資料庫;不再依專案切換庫名。
 /// 刪除走<b>單一連線、單一顯式交易</b>(原子):drop 該 schema 全表 → <c>DROP SCHEMA</c> →
-/// 同交易寫 audit_log → 刪 <c>dbo.project_access</c>／<c>dbo.project_registry</c> 對應列(見 <see cref="DeleteAsync"/>)——
+/// 同交易寫 operation_log → 刪 <c>dbo.project_access</c>／<c>dbo.project_registry</c> 對應列(見 <see cref="DeleteAsync"/>)——
 /// 單庫成為 sqlServer 專案的唯一管家,刪案不再分兩連線兩交易。
 /// 目標引擎為 SQL Server 2022(開發用 Developer、生產用 Standard/Enterprise,共用本實作、差異僅在連線字串);
 /// SQL Server Express(含 LocalDB,EngineEdition=4)已淘汰——單庫模型撞其 10GB 上限,偵測到即以
 /// sql_server_express_unsupported 擋下(見 EnsureSingleDatabaseAndControlPlaneAsync)。
-/// schema 目前一路 forward-only（SQL Server 無 legacy 專案，新 schema 直接建到現行版本），但版本化遷移機制已就位：
-/// <see cref="EnsureCreatedAsync"/> 對既有 schema 讀 <c>{s}.schema_info</c> 的 <c>schema_version</c>，
-/// 落後現行 <see cref="SchemaVersion"/> 才於單一交易內重跑守欄冪等的 <see cref="SchemaSql"/> 補齊形狀並回填版本
-/// （見 <see cref="MigrateExistingSchemaToCurrentAsync"/>），使下一次 schema 版本 bump 時線上既有 schema 能自動升級。
+/// 新 schema 直接建到現行版本。<see cref="EnsureCreatedAsync"/> 對既有 schema 只讀 <c>{s}.schema_info</c> 的
+/// <c>schema_version</c>，不是現行 <see cref="SchemaVersion"/> 就擋下，不改動既有內容，也不升版。
 /// </summary>
 public sealed partial class SqlServerProjectDatabase(SqlServerConnectionOptions options)
     : IProjectDatabaseInitializer, IProjectDatabaseDeleter

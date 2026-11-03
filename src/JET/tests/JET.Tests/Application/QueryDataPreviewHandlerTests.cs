@@ -16,22 +16,22 @@ public sealed class QueryDataPreviewHandlerTests
     [Theory]
     [InlineData("sqlite")]
     [InlineData("duckdb")]
-    public async Task K5_ManualAutoPreview_AppendsCanonicalValuesAndPreservesBlank(string provider)
+    public async Task ManualAutoPreview_AppendsCanonicalValuesAndPreservesBlank(string provider)
     {
         using var host = new HandlerTestHost();
-        await InlineWorkbookProject.SetupAsync(host, K5ManualFixture, databaseProvider: provider, manualBlankValueKind: "unclassified");
-        // 使用者 2026-10-08 裁定資料名稱全系統統一：資料預覽 wire key 與型別名稱同步改名。
+        await InlineWorkbookProject.SetupAsync(host, ManualAutoFixture, databaseProvider: provider, manualBlankValueKind: "unclassified");
+        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
         var data = await host.DispatchAsync("query.dataPreview", """{"dataset":"gl"}""");
-        Assert.Equal(new[] { "documentNumber", "lineItem", "postDate", "accountCode", "accountName", "documentDescription", "amount", "drCr", "manualAuto" },
+        Assert.Equal(new[] { "voucherNumber", "lineItem", "glDate", "accountNumber", "accountName", "description", "amount", "drCr", "manualAuto" },
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal(new string?[] { "manual", "automatic", null }, data.GetProperty("rows").EnumerateArray().Select(r => r[8].GetString()));
-        // 使用者 2026-10-22 裁定資料預覽的 GL 與 GL(未納入測試) 列同一組欄位，人工或自動分錄有配對就兩頁都列
-        // （預篩選收斂計畫階段五）。原本斷言 GL(未納入測試) 不列這一欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        // 資料預覽的 GL 與 GL(未納入測試) 列同一組欄位（裁定 2026-10-22-09），人工或自動分錄有配對就兩頁都列。
+        // 原本斷言 GL(未納入測試) 不列這一欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
         var excluded = await host.DispatchAsync("query.dataPreview", """{"dataset":"glExcluded"}""");
         Assert.Contains("manualAuto", excluded.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
     }
 
-    internal static void K5ManualFixture(InlineGlWorkbookBuilder b) => b
+    internal static void ManualAutoFixture(InlineGlWorkbookBuilder b) => b
         .WithColumns("傳票號碼", "傳票項次", "傳票日期", "科目代號", "科目名稱", "摘要", "人工傳票", "金額", "借方旗標")
         .AddRow("M1", "1", "2025-01-02", "A", "合成科目", "命中", "1", 100, "1")
         .AddRow("M1", "2", "2025-01-02", "B", "合成科目", "命中", "0", 100, "0")
@@ -41,7 +41,7 @@ public sealed class QueryDataPreviewHandlerTests
         """
         {
           "projectCode": "ENG-2024-001",
-          "entityName": "範例股份有限公司",
+          "clientName": "範例股份有限公司",
           "operatorId": "auditor01",
           "periodStart": "2024-01-01",
           "periodEnd": "2024-12-31"
@@ -52,10 +52,10 @@ public sealed class QueryDataPreviewHandlerTests
         """
         {
           "mapping": {
-            "docNum": "傳票號碼",
-            "postDate": "日期",
-            "accNum": "會計項目",
-            "accName": "項目名稱",
+            "voucherNumber": "傳票號碼",
+            "glDate": "日期",
+            "accountNumber": "會計項目",
+            "accountName": "項目名稱",
             "description": "摘要",
             "debitAmount": "借方金額",
             "creditAmount": "貸方金額"
@@ -136,19 +136,19 @@ public sealed class QueryDataPreviewHandlerTests
             "query.dataPreview",
             """{ "dataset": "glExcluded" }""");
 
-        // 使用者 2026-10-22 裁定資料預覽依配對列欄位（預篩選收斂計畫階段五）：還沒確認 GL 配對時只列核心欄位與未納入原因，
+        // 資料預覽依配對列欄位（裁定 2026-10-22-09）：還沒確認 GL 配對時只列核心欄位與未納入原因，
         // 過帳狀態要有配對才列。原本斷言固定十欄、過帳狀態排第四；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
         Assert.Equal(
             [
-                "documentNumber", "lineItem", "postDate", "accountCode", "accountName",
-                "documentDescription", "amount", "drCr", "exclusionReason"
+                "voucherNumber", "lineItem", "glDate", "accountNumber", "accountName",
+                "description", "amount", "drCr", "exclusionReason"
             ],
             data.GetProperty("columns").EnumerateArray().Select(column => column.GetString()).ToList());
         Assert.Equal(0, data.GetProperty("rows").GetArrayLength());
         Assert.Equal(0, data.GetProperty("totalCount").GetInt64());
-        // 使用者 2026-10-21 裁定日期不符分成三種原因，兩個計數改成四個；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        // 裁定 2026-10-21-04 把日期不符分成三種原因，兩個計數改成四個；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
         var stats = data.GetProperty("stats");
-        Assert.Equal(0, stats.GetProperty("blankPostDateCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("blankGlDateCount").GetInt64());
         Assert.Equal(0, stats.GetProperty("beforePeriodCount").GetInt64());
         Assert.Equal(0, stats.GetProperty("afterPeriodCount").GetInt64());
         Assert.Equal(0, stats.GetProperty("postingStatusCount").GetInt64());
@@ -209,7 +209,7 @@ public sealed class QueryDataPreviewHandlerTests
             var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "gl" }""");
 
             Assert.Equal(5, data.GetProperty("totalCount").GetInt64());
-            Assert.Equal("documentNumber", data.GetProperty("columns")[0].GetString());
+            Assert.Equal("voucherNumber", data.GetProperty("columns")[0].GetString());
             Assert.Equal("drCr", data.GetProperty("columns")[7].GetString());
 
             // 金額為帶號顯示值：借方 100.5、貸方 −100.5（dual 模式）
@@ -219,13 +219,13 @@ public sealed class QueryDataPreviewHandlerTests
             Assert.Equal("DEBIT", rows[0][7].GetString());
 
             // stats（手算 oracle）：|金額| ∈ [50, 250]、日期 01-01～01-05、傳票 2 張
-            // 使用者 2026-10-22 裁定資料預覽的金額固定顯示四位小數（預篩選收斂計畫階段五）：統計列的金額改用字串照存下的值傳，
+            // 資料預覽的金額固定顯示四位小數（裁定 2026-10-22-06）：統計列的金額改用字串照存下的值傳，
             // 畫面補四位時不經過浮點數。原本斷言數字；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
             var stats = data.GetProperty("stats");
             Assert.Equal("50", stats.GetProperty("amountAbsMin").GetString());
             Assert.Equal("250", stats.GetProperty("amountAbsMax").GetString());
-            Assert.Equal("2024-01-01", stats.GetProperty("postDateMin").GetString());
-            Assert.Equal("2024-01-05", stats.GetProperty("postDateMax").GetString());
+            Assert.Equal("2024-01-01", stats.GetProperty("glDateMin").GetString());
+            Assert.Equal("2024-01-05", stats.GetProperty("glDateMax").GetString());
             Assert.Equal(2, stats.GetProperty("voucherCount").GetInt64());
         }
         finally
@@ -283,21 +283,21 @@ public sealed class QueryDataPreviewHandlerTests
         Assert.Equal(1, excluded.GetProperty("rows").GetArrayLength());
         var firstRow = excluded.GetProperty("rows")[0];
         Assert.Equal("JV-200", firstRow[0].GetString());
-        // 使用者 2026-10-22 裁定資料預覽依配對列欄位（預篩選收斂計畫階段五）：過帳狀態是選填欄位，接在核心八欄後面。
+        // 資料預覽依配對列欄位（裁定 2026-10-22-09）：過帳狀態是選填欄位，接在核心八欄後面。
         // 原本過帳狀態排第四欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
         Assert.Equal("VOID", firstRow[8].GetString());
-        // 使用者 2026-10-21 裁定日期不符分成三種原因：JV-200 的總帳日期在 2024 年查核期間之後，讀成 afterPeriod；
+        // 裁定 2026-10-21-04 把日期不符分成三種原因：JV-200 的總帳日期在 2024 年查核期間之後，讀成 afterPeriod；
         // 兩個計數改成四個。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
         Assert.Equal("afterPeriod", firstRow[9].GetString());
         var stats = excluded.GetProperty("stats");
-        Assert.Equal(0, stats.GetProperty("blankPostDateCount").GetInt64());
+        Assert.Equal(0, stats.GetProperty("blankGlDateCount").GetInt64());
         Assert.Equal(0, stats.GetProperty("beforePeriodCount").GetInt64());
         Assert.Equal(1, stats.GetProperty("afterPeriodCount").GetInt64());
         Assert.Equal(1, stats.GetProperty("postingStatusCount").GetInt64());
     }
 
     /// <summary>
-    /// 使用者 2026-10-21 裁定 GL(未納入測試) 的「日期不符」分成總帳日期空白、早於查核期間、晚於查核期間三種原因，
+    /// 裁定 2026-10-21-04 把 GL(未納入測試) 的「日期不符」分成總帳日期空白、早於查核期間、晚於查核期間三種原因，
     /// 各自計數，資料預覽可以只看其中一種；GL 範圍與審計結果不變。
     /// oracle：查核期間 2025-01-01 到 2025-12-31，下列 12 列逐列手算原因。日期先於過帳狀態判斷，
     /// 所以日期不符又是草稿的列算日期原因。四種原因的筆數刻意各不相同（1、2、3、4），計數放錯欄位就會失敗。
@@ -328,7 +328,7 @@ public sealed class QueryDataPreviewHandlerTests
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectCode = "SPLIT-2025-001",
-            entityName = "合成案件",
+            clientName = "合成案件",
             operatorId = "tester",
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",
@@ -360,14 +360,14 @@ public sealed class QueryDataPreviewHandlerTests
         // GL 範圍不變：只有期初與期末當日兩列。
         var effective = await host.DispatchAsync("query.dataPreview", """{ "dataset": "gl" }""");
         Assert.Equal(2, effective.GetProperty("totalCount").GetInt64());
-        Assert.Equal(new string?[] { "JV-01", "JV-02" }, DocumentNumbers(effective));
+        Assert.Equal(new string?[] { "JV-01", "JV-02" }, VoucherNumbers(effective));
 
         var excluded = await host.DispatchAsync("query.dataPreview", """{ "dataset": "glExcluded" }""");
         Assert.Equal(10, excluded.GetProperty("totalCount").GetInt64());
         Assert.Equal(
             new (string?, string?)[]
             {
-                ("JV-03", "blankPostDate"), ("JV-04", "beforePeriod"), ("JV-05", "afterPeriod"),
+                ("JV-03", "blankGlDate"), ("JV-04", "beforePeriod"), ("JV-05", "afterPeriod"),
                 ("JV-06", "postingStatus"), ("JV-07", "beforePeriod"), ("JV-08", "afterPeriod"),
                 ("JV-09", "afterPeriod"), ("JV-10", "postingStatus"), ("JV-11", "postingStatus"),
                 ("JV-12", "postingStatus")
@@ -379,7 +379,7 @@ public sealed class QueryDataPreviewHandlerTests
         // 只看一種原因：總筆數是這種原因的筆數，四種計數仍描述全部未納入測試的分錄。
         foreach (var (reason, documents) in new (string, string?[])[]
         {
-            ("blankPostDate", new string?[] { "JV-03" }),
+            ("blankGlDate", new string?[] { "JV-03" }),
             ("beforePeriod", new string?[] { "JV-04", "JV-07" }),
             ("afterPeriod", new string?[] { "JV-05", "JV-08", "JV-09" }),
             ("postingStatus", new string?[] { "JV-06", "JV-10", "JV-11", "JV-12" })
@@ -389,7 +389,7 @@ public sealed class QueryDataPreviewHandlerTests
                 "query.dataPreview",
                 JsonSerializer.Serialize(new { dataset = "glExcluded", exclusionReason = reason }));
             Assert.Equal(documents.Length, filtered.GetProperty("totalCount").GetInt64());
-            Assert.Equal(documents, DocumentNumbers(filtered));
+            Assert.Equal(documents, VoucherNumbers(filtered));
             Assert.All(
                 filtered.GetProperty("rows").EnumerateArray(),
                 row => Assert.Equal(reason, row[9].GetString()));
@@ -401,11 +401,11 @@ public sealed class QueryDataPreviewHandlerTests
             "query.dataPreview",
             """{ "dataset": "glExcluded", "exclusionReason": "postingStatus", "limit": 3 }""");
         Assert.Equal(4, firstPage.GetProperty("totalCount").GetInt64());
-        Assert.Equal(new string?[] { "JV-06", "JV-10", "JV-11" }, DocumentNumbers(firstPage));
+        Assert.Equal(new string?[] { "JV-06", "JV-10", "JV-11" }, VoucherNumbers(firstPage));
         var secondPage = await host.DispatchAsync(
             "query.dataPreview",
             """{ "dataset": "glExcluded", "exclusionReason": "postingStatus", "limit": 3, "offset": 3 }""");
-        Assert.Equal(new string?[] { "JV-12" }, DocumentNumbers(secondPage));
+        Assert.Equal(new string?[] { "JV-12" }, VoucherNumbers(secondPage));
 
         // 原因只能是四種之一，也只適用於 GL(未納入測試)；改版前的 period 不再接受。
         foreach (var payload in new[]
@@ -428,15 +428,15 @@ public sealed class QueryDataPreviewHandlerTests
         Assert.Equal(4, excludedSummary.GetProperty("byPostingStatusCount").GetInt64());
     }
 
-    private static List<string?> DocumentNumbers(JsonElement preview) =>
+    private static List<string?> VoucherNumbers(JsonElement preview) =>
         preview.GetProperty("rows").EnumerateArray().Select(row => row[0].GetString()).ToList();
 
     private static void AssertExclusionReasonCounts(JsonElement stats)
     {
         Assert.Equal(
-            new[] { "afterPeriodCount", "beforePeriodCount", "blankPostDateCount", "postingStatusCount" },
+            new[] { "afterPeriodCount", "beforePeriodCount", "blankGlDateCount", "postingStatusCount" },
             stats.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
-        Assert.Equal(1, stats.GetProperty("blankPostDateCount").GetInt64());
+        Assert.Equal(1, stats.GetProperty("blankGlDateCount").GetInt64());
         Assert.Equal(2, stats.GetProperty("beforePeriodCount").GetInt64());
         Assert.Equal(3, stats.GetProperty("afterPeriodCount").GetInt64());
         Assert.Equal(4, stats.GetProperty("postingStatusCount").GetInt64());
@@ -474,8 +474,8 @@ public sealed class QueryDataPreviewHandlerTests
                 """
                 {
                   "mapping": {
-                    "accNum": "會計科目編號", "accName": "會計科目名稱",
-                    "debitAmt": "借方金額", "creditAmt": "貸方金額"
+                    "accountNumber": "會計科目編號", "accountName": "會計科目名稱",
+                    "debitAmount": "借方金額", "creditAmount": "貸方金額"
                   },
                   "changeMode": "debitCredit"
                 }
@@ -525,15 +525,15 @@ public sealed class QueryDataPreviewHandlerTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
-        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "authorizedPreparers" }""");
+        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "authorizedPreparer" }""");
 
-        Assert.Equal("authorizedPreparers", data.GetProperty("dataset").GetString());
+        Assert.Equal("authorizedPreparer", data.GetProperty("dataset").GetString());
         Assert.Equal(["preparerName"],
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList());
 
-        // oracle：獨立 recount target_authorized_preparer（demo 授權名單）。
+        // oracle：獨立 recount authorized_preparer（demo 授權名單）。
         var expected = await DemoProjectPipeline.QueryScalarAsync(
-            host, context.ProjectId, "SELECT COUNT(*) FROM target_authorized_preparer;");
+            host, context.ProjectId, "SELECT COUNT(*) FROM authorized_preparer;");
         Assert.True(expected > 0);
         Assert.Equal(expected, data.GetProperty("totalCount").GetInt64());
         Assert.Equal((int)expected, data.GetProperty("rows").GetArrayLength());
@@ -544,21 +544,21 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     [Fact]
-    public async Task Preview_DateDimension_ReturnsImportedDaysWithCanonicalColumns()
+    public async Task Preview_Calendar_ReturnsImportedDaysWithCanonicalColumns()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
-        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "dateDimension" }""");
+        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "calendar" }""");
 
-        Assert.Equal("dateDimension", data.GetProperty("dataset").GetString());
+        Assert.Equal("calendar", data.GetProperty("dataset").GetString());
         Assert.Equal(["date", "dayType", "dayName"],
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList());
         Assert.Equal(JsonValueKind.Null, data.GetProperty("stats").ValueKind);
 
-        // oracle：獨立 recount staging_calendar_raw_day（demo 假日 + 補班日）。
+        // oracle：獨立 recount calendar_day（demo 假日 + 補班日）。
         var expected = await DemoProjectPipeline.QueryScalarAsync(
-            host, context.ProjectId, "SELECT COUNT(*) FROM staging_calendar_raw_day;");
+            host, context.ProjectId, "SELECT COUNT(*) FROM calendar_day;");
         Assert.True(expected > 0);
         Assert.Equal(expected, data.GetProperty("totalCount").GetInt64());
 
@@ -568,12 +568,12 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     [Fact]
-    public async Task Preview_DateDimension_EmptyReturnsZeroCount()
+    public async Task Preview_Calendar_EmptyReturnsZeroCount()
     {
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "dateDimension" }""");
+        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "calendar" }""");
 
         Assert.Equal(0, data.GetProperty("totalCount").GetInt64());
         Assert.Equal(0, data.GetProperty("columns").GetArrayLength());
@@ -601,11 +601,11 @@ public sealed class QueryDataPreviewHandlerTests
 
         // 正準名出現、Hidden 不出現（負向）。
         var canonicalNames = data.GetProperty("rows").EnumerateArray().Select(r => r[0].GetString()).ToList();
-        // 使用者 2026-10-08 裁定資料名稱全系統統一。
-        // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+        // 裁定 2026-10-08-04 統一全系統的資料名稱。
+        // 裁定 2026-10-13-19 把 PBC GL 改寫成 PBC-GL；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
         Assert.Contains("PBC-GL", canonicalNames);
         Assert.DoesNotContain("GL_CONTROL_TOTAL", canonicalNames);
-        Assert.DoesNotContain("APP_MESSAGE_LOG", canonicalNames);
+        Assert.DoesNotContain("MESSAGE_LOG", canonicalNames);
     }
 
     [Fact]
@@ -614,7 +614,7 @@ public sealed class QueryDataPreviewHandlerTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "authorizedPreparers" }""");
+        var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "authorizedPreparer" }""");
 
         Assert.Equal(0, data.GetProperty("totalCount").GetInt64());
         Assert.Equal(0, data.GetProperty("columns").GetArrayLength());
@@ -633,7 +633,7 @@ public sealed class QueryDataPreviewHandlerTests
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: "sqlServer");
         try
         {
-            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "authorizedPreparers" }""");
+            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "authorizedPreparer" }""");
 
             Assert.Equal(["preparerName"],
                 data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList());

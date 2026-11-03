@@ -85,7 +85,8 @@ public sealed class InfSamplingPrfTests
         var result = JetAuditProgram.ResolveInfSamplingSeed(persistedSeed, persistedVersion);
 
         Assert.False(result.IsValid);
-        Assert.True(result.IsLegacyProject);
+        // 裁定 2026-10-30-23：舊版案件改由設定檔版本判斷，抽樣設定不再分「舊版」與「損壞」，原本對舊版旗標的檢查拿掉。
+        // 拿掉旗標後這裡第一次編譯失敗的收據 20261030-070530156-b82166306a754f338cc80dc48c4883d6。
         Assert.Equal(0L, result.Seed);
         Assert.NotNull(result.Error);
     }
@@ -94,13 +95,13 @@ public sealed class InfSamplingPrfTests
     [InlineData(0L, 2)]
     [InlineData(123_456L, 99)]
     [InlineData(null, 2)]
-    public void ResolveSeedVersion_Corruption_IsNotReportedAsLegacyProject(
+    public void ResolveSeedVersion_Corruption_IsNotReportedAsOldVersionProject(
         long? persistedSeed,
         int? persistedVersion)
     {
         var result = JetAuditProgram.ResolveInfSamplingSeed(persistedSeed, persistedVersion);
 
         Assert.False(result.IsValid);
-        Assert.False(result.IsLegacyProject);
+        Assert.NotNull(result.Error);
     }
 }

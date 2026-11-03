@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// INF 抽樣行層明細 keyset 分頁(本地引擎)。JOIN target_gl_entry 取顯示欄(借/貸拆欄);
-/// 以 caller 指定 runId 限定樣本；排序鍵 entry_id ASC、
+/// INF 抽樣行層明細 keyset 分頁(本地引擎)。JOIN gl 取顯示欄(借/貸拆欄);
+/// 以 caller 指定 resultId 限定樣本；排序鍵 entry_id ASC、
 /// 游標展開布林式 <c>AND g.entry_id &gt; @cursor</c>(@cursor 綁 long,首頁省略)、limit 由注入的
 /// <see cref="ISqlDialect"/> 出。SELECT 末欄取 g.entry_id 供編游標,不放進 wire row。
 /// </summary>
@@ -13,7 +13,7 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
     : IInfSamplePageRepository
 {
     public async Task<PageResult<InfSampleRow>> GetPageAsync(
-        string projectId, string runId, int moneyScale, PageRequest request, CancellationToken cancellationToken)
+        string projectId, string resultId, int moneyScale, PageRequest request, CancellationToken cancellationToken)
     {
         await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
@@ -27,17 +27,17 @@ public sealed class LocalInfSamplePageRepository(ILocalProjectDatabase database)
         }
 
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
-        command.AddWithValue("@runId", runId);
+        command.AddWithValue("@resultId", resultId);
 
         command.CommandText =
-            "SELECT g.document_number, g.account_code, g.account_name, " +
+            "SELECT g.voucher_number, g.account_number, g.account_name, " +
             "       g.debit_amount_scaled, g.credit_amount_scaled, " +
-            "       g.post_date, g.approval_date, g.created_by, g.approved_by, g.document_description, g.entry_id, " +
+            "       g.gl_date, g.approval_date, g.created_by, g.approved_by, g.description, g.entry_id, " +
             "       g.source_module, g.dr_cr" + paging.SelectSuffix + " " +
-            "FROM result_inf_sampling_test_sample s " +
-            "JOIN target_gl_entry g ON g.entry_id = s.entry_id " +
-            "WHERE " + InfSamplePageSql.RunFilter +
-            $" AND {GlEffectivePopulation.SqlPredicate("g")}" + paging.Predicate + " " +
+            "FROM inf_sample s " +
+            "JOIN gl g ON g.entry_id = s.entry_id " +
+            "WHERE " + InfSamplePageSql.ResultFilter +
+            $" AND {GlExcludedPopulation.SqlPredicate("g")}" + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
 
         var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, database.Dialect, cancellationToken);

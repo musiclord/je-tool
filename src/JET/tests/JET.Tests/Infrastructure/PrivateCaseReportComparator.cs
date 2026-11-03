@@ -149,7 +149,7 @@ internal static class PrivateCaseReportComparator
         ArgumentNullException.ThrowIfNull(explicitContentDecisions);
         if (pairs.ReportCount != Enum.GetValues<LegacyReportKind>().Length
             || policy.ReportComparison != PrivateCaseReportComparisonMode.ContentAndAppearance
-            || policy.InfVerification != PrivateCaseInfVerificationMode.RulesAndEffectivePopulation
+            || policy.InfVerification != PrivateCaseInfVerificationMode.RulesAndGl
             || policy.CleanupMode != PrivateCaseCleanupMode.AlwaysDelete
             || policy.InfSampleSize != PrivateCaseAcceptancePolicy.RequiredInfSampleSize
             || explicitContentDecisions.Any(static decision =>

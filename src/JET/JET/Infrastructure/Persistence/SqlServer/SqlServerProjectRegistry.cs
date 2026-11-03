@@ -64,7 +64,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
         }
 
         // 同交易留痕(project.create):撞 PK 回滾時 audit 一併回滾——建案失敗必不留痕。
-        await SqlServerAuditLog.WriteAsync(
+        await SqlServerOperationLog.WriteAsync(
             connection, transaction, document.ProjectId, "project.create", detailJson: null, cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
@@ -224,6 +224,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
             throw ProjectDocumentSeedIntegrity.Corruption(null, ex);
         }
 
+        document.RequireCurrentSchemaVersion(document.ProjectId);
         ProjectDocumentSeedIntegrity.Validate(document, document.ProjectId);
         var createdUtc = new DateTimeOffset(reader.GetDateTime(1), TimeSpan.Zero);
         DateTimeOffset? lastOpenedUtc =
@@ -287,7 +288,7 @@ public sealed class SqlServerProjectRegistry(SqlServerConnectionOptions options)
             return;
         }
 
-        // 冪等 bootstrap:dbo 管理表五張(registry/access/app_config/audit_log/project_lock)＋移除冗餘 project_schema_map,
+        // 冪等 bootstrap:dbo 管理表五張(registry/access/app_config/operation_log/project_lock)＋移除冗餘 project_schema_map,
         // 收斂於 SqlServerControlPlaneSchema(與 database、appConfig 共用同一份 DDL)。
         await SqlServerControlPlaneSchema.EnsureAsync(connection, cancellationToken);
         _tablesEnsured = true;

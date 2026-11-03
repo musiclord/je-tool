@@ -41,8 +41,8 @@ public static partial class FilterScenarioErrorDetails
             FilterScenarioCorruption.ReasonsOf(errors));
 
     /// <summary>
-    /// 情境形狀錯誤（例如已移除的排除區域）原本沒有細節；補成一筆沒有組號條號、帶情境位置的項目，訊息與錯誤碼不變。
-    /// 已有細節的就把每一項標上同一個情境。
+    /// 情境形狀錯誤原本沒有細節時，補成一筆沒有組號條號、帶情境位置的項目，訊息與錯誤碼不變。
+    /// 已有細節的（例如某一條條件的類型已停用）就把每一項標上同一個情境。
     /// </summary>
     public static JetActionException ForScenario(
         JetActionException exception, int scenarioPosition, string? scenarioName)

@@ -23,7 +23,7 @@ public interface IMappingValueProfileRepository
 {
     /// <param name="fillDown">
     /// 這個來源欄勾了往下填補時為 true：先在每份來源內依列序把空白補成上一列的值再計數，和確認配對時的填補同一規則，
-    /// 每份來源開頭的空白仍算空白（使用者 2026-10-28 裁定依勾選先填補再計數）。
+    /// 每份來源開頭的空白仍算空白（依勾選先填補再計數，裁定 2026-10-28-03）。
     /// </param>
     Task<MappingValueProfile> GetAsync(
         string projectId,

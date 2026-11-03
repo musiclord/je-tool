@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>匯入時本機與線上案件共用的錯誤句（使用者 2026-10-14 第三輪勾選頁確認 R3-69、R3-66）。</summary>
+/// <summary>匯入時本機與線上案件共用的錯誤句（裁定 2026-10-14-01 確認了用字）。</summary>
 public static class ImportMessages
 {
     /// <summary>附加匯入的檔案沒有任何資料列。</summary>

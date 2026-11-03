@@ -1,9 +1,9 @@
 namespace JET.Domain;
 
-/// <summary>所選母體中的科目或人員頻率；與固定預篩選低頻規則分開。</summary>
+/// <summary>所選母體中的科目或人員頻率；與固定預篩選較少使用規則分開。</summary>
 public static class EntityFrequencyConditions
 {
-    public static readonly IReadOnlyList<string> Fields = ["accNum", "createBy", "approveBy"];
+    public static readonly IReadOnlyList<string> Fields = ["accountNumber", "createdBy", "approvedBy"];
     public static readonly IReadOnlyDictionary<string, string> Operators = new Dictionary<string, string>
     {
         ["equals"] = "等於", ["lessThan"] = "小於", ["greaterThan"] = "大於", ["between"] = "介於",
@@ -11,7 +11,7 @@ public static class EntityFrequencyConditions
     };
 
     /// <summary>欄位要有來源欄由規則需求表檢查；這裡只檢查統計方式與次數。</summary>
-    internal static void Validate(FilterRuleSpec rule, string label, List<string> errors)
+    internal static void Validate(FilterConditionSpec rule, string label, List<string> errors)
     {
         if (rule.Field is null || !Fields.Contains(rule.Field))
             FilterScenarioCorruption.Add(errors, label, "entity_frequency_field_invalid");

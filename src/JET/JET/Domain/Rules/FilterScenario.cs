@@ -14,7 +14,7 @@ public enum FilterJoin
     Or
 }
 
-public enum FilterRuleType
+public enum FilterConditionType
 {
     Prescreen,
     Text,
@@ -24,20 +24,15 @@ public enum FilterRuleType
     ManualAuto,
     AccountPair,
     SpecialAccountCategoryPair,
-    CustomKeywords,
-    CustomTrailingZeros,
-    CustomPreparerEntryCount,
-    CustomAccountEntryCount,
     RevenueDebitNearQuarterEnd,
     RevenueWithoutNormalCounterpart,
     ManualRevenueEntry,
-    TrailingDigits,
     PreparerEqualsApprover,
     TextSet,
 
     /// <summary>
     /// typed dynamic rule（wire <c>type:"typed"</c>，2026-08-14 契約凍結）：目前案件 committed
-    /// 的 RDE 欄位（text／date／money）依 closed operator menu 參與進階條件。fieldId 只作
+    /// 的 RDE 欄位（text／date／amount）依 closed operator menu 參與進階條件。fieldId 只作
     /// registry lookup 與參數綁定，永不成為 SQL identifier。
     /// </summary>
     TypedField,
@@ -46,16 +41,6 @@ public enum FilterRuleType
     EntityFrequency,
     Group,
     Voucher
-}
-
-/// <summary>
-/// 群組內規則的評估範圍。Row 維持既有同列左折疊；SameVoucher 以第一條規則
-/// 錨定輸出列，後續規則只要求同一傳票在查核期間內另有符合列。
-/// </summary>
-public enum FilterGroupMatchScope
-{
-    Row,
-    SameVoucher
 }
 
 /// <summary>textSet 輸入值的封閉正規化集合；資料欄本身永不改寫。</summary>
@@ -76,7 +61,7 @@ public static class FilterScenarioLimits
     public const int MaxTextSetValuesPerRule = 100;
 
     /// <summary>
-    /// 科目配對單側可多選的分類上限。專案 taxonomy 沒有筆數上限，故雙側各自先以可理解的
+    /// 科目配對單側可多選的分類上限。專案的科目分類沒有筆數上限，故雙側各自先以可理解的
     /// UI 上限 fail closed；整個情境仍受 <see cref="MaxCompiledParameters"/> 的最後防線約束。
     /// </summary>
     public const int MaxCategoryIdsPerSide = 100;
@@ -100,8 +85,8 @@ public static class FilterScenarioLimits
         $"最多可儲存 {MaxSavedScenarios} 個篩選情境，請先移除不需要的情境。";
 
     /// <summary>
-    /// 情境名稱上限，和 SQL Server 的 <c>config_filter_scenario.name NVARCHAR(400)</c> 同寬；三種資料庫共用，儲存時超過就回錯誤，
-    /// 不讓 SQL Server 默默截斷（使用者 2026-10-19 選「三種共用 400 字上限」）。前端 ui-core.js 的
+    /// 情境名稱上限，和 SQL Server 的 <c>filter_scenario.name NVARCHAR(400)</c> 同寬；三種資料庫共用，儲存時超過就回錯誤，
+    /// 不讓 SQL Server 默默截斷（裁定 2026-10-19-26）。前端 ui-core.js 的
     /// FILTER_MAX_SCENARIO_NAME_LENGTH 是輸入框的鏡像，由架構測試比對。
     /// </summary>
     public const int MaxNameLength = TextStorageLimits.TextUtf16CodeUnits;
@@ -146,17 +131,15 @@ public enum TextMatchMode
 /// DateRange → Field/FromDate/ToDate；NumRange → Field/FromAmountScaled/ToAmountScaled；
 /// DrCrOnly → DrCr（"debit"|"credit"）；ManualAuto → IsManual；
 /// AccountPair / SpecialAccountCategoryPair → PairMode + DebitCategoryIds/CreditCategoryIds；
-/// CustomKeywords → Keywords；CustomTrailingZeros → Digits；CustomPreparerEntryCount / CustomAccountEntryCount → MaxEntries。
 /// 常用篩選條件專用的型別：RevenueDebitNearQuarterEnd → WindowDays（季末視窗天數）；
-/// TrailingDigits → Keywords（尾數樣態清單，重用同欄）；
 /// RevenueWithoutNormalCounterpart / ManualRevenueEntry / PreparerEqualsApprover → 無參數。
 /// UnknownJoin：wire 的 join 有值卻不是 AND/OR 時，解析層把原始值標記在這裡而不擲錯
 /// （materialize 重新解析已存 JSON 不經驗證，解析層必須容忍），由 FilterScenarioValidator
 /// 擋成 invalid_scenario——2026-07-06 收緊前未知 join 被靜默當 AND，曾掩護前端回歸。
 /// </summary>
-public sealed record FilterRuleSpec(
+public sealed record FilterConditionSpec(
     FilterJoin Join,
-    FilterRuleType Type,
+    FilterConditionType Type,
     string? PrescreenKey,
     string? Field,
     IReadOnlyList<string> Keywords,
@@ -168,8 +151,6 @@ public sealed record FilterRuleSpec(
     string? DrCr,
     bool? IsManual,
     string? PairMode = null,
-    int? Digits = null,
-    int? MaxEntries = null,
     int? WindowDays = null,
     string? UnknownJoin = null)
 {
@@ -220,7 +201,7 @@ public sealed record FilterRuleSpec(
     /// <summary>typed `in`／`notIn` 的 `values`；null＝wire 沒帶陣列、空陣列由 validator fail-loud。</summary>
     public IReadOnlyList<string>? TypedValues { get; init; }
 
-    /// <summary>typed money 條件必填的 `amountBasis` 原始 wire 字串（僅 money 允許）。</summary>
+    /// <summary>typed amount 條件必填的 `amountBasis` 原始 wire 字串（僅 amount 允許）。</summary>
     public string? AmountBasis { get; init; }
 
     // New rules carry explicit blank handling; null on old rules preserves their original behavior.
@@ -228,22 +209,19 @@ public sealed record FilterRuleSpec(
     public string? CategoryMode { get; init; }
     public IReadOnlyList<string> CategoryIds { get; init; } = [];
     public string? CategorySelection { get; init; }
-    public IReadOnlyList<FilterRuleSpec> Rules { get; init; } = [];
+    public IReadOnlyList<FilterConditionSpec> Conditions { get; init; } = [];
     public string? Quantifier { get; init; }
     public string? Side { get; init; }
 
-    public IEnumerable<FilterRuleSpec> DescendantsAndSelf()
+    public IEnumerable<FilterConditionSpec> DescendantsAndSelf()
     {
         yield return this;
-        foreach (var child in Rules)
+        foreach (var child in Conditions)
             foreach (var descendant in child.DescendantsAndSelf()) yield return descendant;
     }
 
-    public bool IsVoucherCondition => Type == FilterRuleType.Voucher
-        || Type == FilterRuleType.AccountSide && CategoryMode == "absent"
-        || Type == FilterRuleType.Group && Rules.Count > 0 && Rules.All(rule => rule.IsVoucherCondition);
-
-    // FieldValue also uses DrCr when present: the value and side must match the same entry.
+    public bool IsVoucherCondition => Type == FilterConditionType.Voucher
+        || Type == FilterConditionType.Group && Conditions.Count > 0 && Conditions.All(rule => rule.IsVoucherCondition);
 }
 
 /// <summary>
@@ -263,15 +241,13 @@ internal static class AccountPairCategorySelection
             .ToArray();
 }
 
-/// <summary>UnknownJoin 的語意同 FilterRuleSpec：未知 join 的原始值標記，由驗證層 fail-loud。</summary>
+/// <summary>UnknownJoin 的語意同 FilterConditionSpec：未知 join 的原始值標記，由驗證層 fail-loud。</summary>
 public sealed record FilterGroupSpec(
     FilterJoin Join,
-    IReadOnlyList<FilterRuleSpec> Rules,
+    IReadOnlyList<FilterConditionSpec> Conditions,
     string? UnknownJoin = null)
 {
-    public FilterGroupMatchScope MatchScope { get; init; } = FilterGroupMatchScope.Row;
-
-    /// <summary>wire 明示未知 matchScope 時保留原值，交由 validator fail-loud。</summary>
+    /// <summary>wire 的 matchScope 寫了 row 以外的值時保留原值，交由 validator 當成無法讀取的內容。</summary>
     public string? UnknownMatchScope { get; init; }
 }
 
@@ -294,41 +270,11 @@ internal static class TextSetValueNormalizer
 /// </summary>
 public static class FilterScenarioSources
 {
-    /// <summary>常用篩選條件：卡片是固定的條件清單，非查核員自擬，故豁免名稱/動機必填。</summary>
+    /// <summary>常用篩選條件：用了卡片的情境。名稱與動機留白時的自動文字見 Application 的 FilterScenarioAutomaticMetadata。</summary>
     public const string Common = "common";
-
-    /// <summary>常用篩選條件情境留痕用的預設動機（使用者不被要求填寫時的非空替補）。</summary>
-    public const string CommonDefaultRationale = "常用篩選條件";
-
-    /// <summary>常用篩選條件情境名稱留空時的穩定替補前綴（儲存層 name NOT NULL）。</summary>
-    public const string CommonDefaultName = "常用篩選條件";
 
     public static bool IsCommon(string? source) =>
         string.Equals(source?.Trim(), Common, StringComparison.Ordinal);
-
-    /// <summary>
-    /// 落地前的留痕替補：唯一收斂點。常用篩選條件來源且名稱/動機留白時補上穩定非空值，
-    /// 其餘來源原樣保留（替補只在豁免必填的前提下才有意義）。
-    /// 回傳將寫入 config_filter_scenario.name / .rationale 的有效值。
-    /// </summary>
-    public static (string Name, string Rationale) ResolvePersistable(
-        FilterScenarioSpec scenario,
-        int position)
-    {
-        if (!IsCommon(scenario.Source))
-        {
-            return (scenario.Name, scenario.Rationale);
-        }
-
-        ArgumentOutOfRangeException.ThrowIfLessThan(position, 1);
-        var name = string.IsNullOrWhiteSpace(scenario.Name)
-            ? $"{CommonDefaultName}（第 {position} 項）"
-            : scenario.Name;
-        var rationale = string.IsNullOrWhiteSpace(scenario.Rationale)
-            ? CommonDefaultRationale
-            : scenario.Rationale;
-        return (name, rationale);
-    }
 }
 
 public sealed record FilterScenarioSpec(
@@ -342,7 +288,7 @@ public sealed record FilterScenarioSpec(
 /// 每條條件需要哪些事實由 <see cref="JetRuleRequirements"/> 決定。
 /// </summary>
 public sealed record FilterValidationContext(
-    bool HasLastPeriodStart,
+    bool HasPrepStartDate,
     bool HasAccountMapping,
     bool HasAuthorizedPreparers,
     GlPopulationScope PopulationScope = GlPopulationScope.AuditPeriod,
@@ -359,10 +305,10 @@ public sealed record FilterValidationContext(
     /// <summary>原因裡的分類名稱；沒有帶分類設定的呼叫端用內建名稱。</summary>
     public AccountCategoryLabels CategoryLabels { get; init; } = AccountCategoryLabels.BuiltIn;
 
-    /// <summary>交給規則需求表的案件事實。第五步照使用者 2026-10-04 的裁定不檢查假日檔。</summary>
+    /// <summary>交給規則需求表的案件事實。第五步照裁定 2026-10-04-01 不檢查假日檔。</summary>
     internal JetRuleFacts RuleFacts => new(
         AvailableGlFields,
-        HasLastPeriodStart,
+        HasPrepStartDate,
         HasAccountMapping,
         HasAnyAccountCategory,
         HasRevenueCategory,
@@ -372,12 +318,12 @@ public sealed record FilterValidationContext(
         CategoryLabels);
 
     /// <summary>
-    /// 目前專案 taxonomy 的全部分類身分，供科目配對多選驗證。預設只含五個內建 ID——
-    /// 它們由 <see cref="AccountTaxonomyInvariant"/> 保證不可刪除，因此沒有帶 taxonomy 的
+    /// 目前專案科目分類的全部分類身分，供科目配對多選驗證。預設只含五個內建 ID——
+    /// 它們由 <see cref="AccountCategoryInvariant"/> 保證不可刪除，因此沒有帶科目分類的
     /// 呼叫端仍會擋掉未知 custom ID，不會 fail open。
     /// </summary>
-    public IReadOnlyList<string> TaxonomyCategoryIds { get; init; } =
-        AccountTaxonomyBuiltIns.All.Select(static category => category.CategoryId).ToArray();
+    public IReadOnlyList<string> CategoryIds { get; init; } =
+        AccountCategoryBuiltIns.All.Select(static category => category.CategoryId).ToArray();
 
     /// <summary>
     /// 目前案件 committed 的 RDE 欄位（typed 條件的唯一 registry）。預設空集合＝任何 typed
@@ -385,7 +331,7 @@ public sealed record FilterValidationContext(
     /// </summary>
     public IReadOnlyList<GlRdeFieldMetadata> RdeFields { get; init; } = [];
 
-    /// <summary>typed money operand 解析所需的專案 MoneyScale。</summary>
+    /// <summary>typed amount operand 解析所需的專案 MoneyScale。</summary>
     public int MoneyScale { get; init; } = 1;
 
     public DateParseOptions DateParseOptions { get; init; } = DateParseOptions.Default;
@@ -405,21 +351,7 @@ public static partial class FilterScenarioValidator
     {
         var errors = new FilterValidationErrors();
 
-        // 常用篩選條件的卡片是固定的條件清單（非查核員自擬），不向使用者索取名稱/動機；
-        // 留痕的非空替補在落地時由 FilterScenarioSources.ResolvePersistable 補上。
-        var usesCommonConditions = FilterScenarioSources.IsCommon(scenario.Source);
-        var requiresAuthoredMetadata = forSave && !usesCommonConditions;
-
-        if (requiresAuthoredMetadata && string.IsNullOrWhiteSpace(scenario.Name))
-        {
-            errors.Add("情境名稱必填。");
-        }
-
-        if (requiresAuthoredMetadata && string.IsNullOrWhiteSpace(scenario.Rationale))
-        {
-            errors.Add("篩選動機說明必填。");
-        }
-
+        // 裁定 2026-10-29-16：情境名稱與篩選動機不再必填，留白時儲存前已依條件補上自動文字。
         if (forSave && scenario.Name.Length > FilterScenarioLimits.MaxNameLength)
         {
             errors.Add($"情境名稱不可超過 {FilterScenarioLimits.MaxNameLength} 字，請縮短名稱後再儲存。");
@@ -447,30 +379,16 @@ public static partial class FilterScenarioValidator
                 FilterScenarioCorruption.Add(errors, groupLabel, "group_match_scope_invalid");
             }
 
-            if (group.Rules.Count == 0)
+            if (group.Conditions.Count == 0)
             {
                 errors.Add($"{groupLabel}：此條件組尚未設定條件");
                 continue;
             }
 
-            if (group.MatchScope == FilterGroupMatchScope.SameVoucher)
-            {
-                errors.Add($"{groupLabel}：{FilterSinglePurposeRules.SameVoucher}");
-                if (group.Rules.Count < 2)
-                {
-                    FilterScenarioCorruption.Add(errors, groupLabel, "same_voucher_too_few_rules");
-                }
-
-                if (group.Rules.Any(static rule => rule.Join == FilterJoin.Or))
-                {
-                    FilterScenarioCorruption.Add(errors, groupLabel, "same_voucher_or_join");
-                }
-            }
-
-            for (var ruleIndex = 0; ruleIndex < group.Rules.Count; ruleIndex++)
+            for (var ruleIndex = 0; ruleIndex < group.Conditions.Count; ruleIndex++)
             {
                 ValidateRule(
-                    group.Rules[ruleIndex],
+                    group.Conditions[ruleIndex],
                     $"{groupLabel}第 {ruleIndex + 1} 條",
                     context,
                     errors);
@@ -480,14 +398,14 @@ public static partial class FilterScenarioValidator
         return errors;
     }
 
-    private static void ValidateCategorySelectionMode(FilterRuleSpec rule, string label, List<string> errors)
+    private static void ValidateCategorySelectionMode(FilterConditionSpec rule, string label, List<string> errors)
     {
         if (rule.CategorySelection is not (null or "role" or "node" or "subtree"))
             FilterScenarioCorruption.Add(errors, label, "category_selection_mode_invalid");
     }
 
     private static void ValidateRule(
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         string label,
         FilterValidationContext context,
         List<string> errors,
@@ -502,22 +420,12 @@ public static partial class FilterScenarioValidator
         // 未知 join fail-loud（含左折疊時被忽略的第一條規則），與型別專屬錯誤合併列出。
         if (rule.UnknownJoin is not null)
         {
-            FilterScenarioCorruption.Add(errors, label, "rule_join_invalid");
+            FilterScenarioCorruption.Add(errors, label, "condition_join_invalid");
         }
 
-        if (FilterSinglePurposeRules.Reason(rule) is { } retiredReason)
-        {
-            errors.Add($"{label}：{retiredReason}");
-            // 括號內仍逐條檢查，讓舊情境一次列出需要修改的條件。
-            for (var i = 0; i < rule.Rules.Count; i++)
-                ValidateRule(rule.Rules[i], $"{label} 子條件 {i + 1}", context, errors,
-                    depth + 1, insideVoucher || rule.Type == FilterRuleType.Voucher);
-            return;
-        }
-
-        // 條件需要的案件資料只看規則需求表，第四步與前端停用說明讀同一張表（使用者 2026-10-22 裁定第五步不能用 GL 沒有配對的欄位）。
+        // 條件需要的案件資料只看規則需求表，第四步與前端停用說明讀同一張表（第五步不能用 GL 沒有配對的欄位，裁定 2026-10-22-05）。
         var facts = context.RuleFacts;
-        var unmet = JetRuleRequirements.Unmet(JetRuleRequirements.ForFilterRule(rule), facts);
+        var unmet = JetRuleRequirements.Unmet(JetRuleRequirements.ForFilterCondition(rule), facts);
         foreach (var prerequisite in unmet)
         {
             errors.Add($"{label}：{JetRuleRequirements.Reason(prerequisite, facts.CategoryLabels)}");
@@ -525,70 +433,71 @@ public static partial class FilterScenarioValidator
 
         switch (rule.Type)
         {
-            case FilterRuleType.Group:
-            case FilterRuleType.Voucher:
-                if (rule.Rules.Count == 0) errors.Add($"{label}：請加入至少一條子條件。");
-                if (rule.Type == FilterRuleType.Voucher)
+            case FilterConditionType.Group:
+            case FilterConditionType.Voucher:
+                if (rule.Conditions.Count == 0) errors.Add($"{label}：請加入至少一條子條件。");
+                if (rule.Type == FilterConditionType.Voucher)
                 {
                     if (insideVoucher) errors.Add($"{label}：整張傳票條件中不可再加入整張傳票條件");
-                    if (rule.Side is not (null or "all" or "debit" or "credit")) FilterScenarioCorruption.Add(errors, label, "voucher_side_invalid");
+                    // 借貸範圍是已拿掉的舊寫法，讀到時當成無法讀取的內容（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
+                    if (rule.Side is not null) FilterScenarioCorruption.Add(errors, label, "voucher_side_invalid");
                     if (rule.Quantifier is not ("any" or "all" or "none")) FilterScenarioCorruption.Add(errors, label, "voucher_quantifier_invalid");
                 }
-                for (var i = 0; i < rule.Rules.Count; i++)
-                    ValidateRule(rule.Rules[i], $"{label} 子條件 {i + 1}", context, errors,
-                        depth + 1, insideVoucher || rule.Type == FilterRuleType.Voucher);
+                for (var i = 0; i < rule.Conditions.Count; i++)
+                    ValidateRule(rule.Conditions[i], $"{label} 子條件 {i + 1}", context, errors,
+                        depth + 1, insideVoucher || rule.Type == FilterConditionType.Voucher);
                 break;
-            case FilterRuleType.FieldValue:
+            case FilterConditionType.FieldValue:
                 ValidateFieldValue(rule, label, context, errors, fieldUnavailable: unmet.Count > 0);
                 break;
-            case FilterRuleType.AccountSide:
+            case FilterConditionType.AccountSide:
                 ValidateCategorySelectionMode(rule, label, errors);
-                if (rule.DrCr is not (null or "debit" or "credit" or "any"))
+                // 借貸方向與「這一側都不屬於」是已拿掉的舊寫法，讀到時當成無法讀取的內容（裁定 2026-10-30-25）。
+                if (rule.DrCr is not null)
                     FilterScenarioCorruption.Add(errors, label, "account_side_drcr_invalid");
-                if (rule.CategoryMode is not ("is" or "isNot" or "absent"))
+                if (rule.CategoryMode is not ("is" or "isNot"))
                     FilterScenarioCorruption.Add(errors, label, "account_side_category_mode_invalid");
                 ValidateCategorySelection(rule.CategoryIds, "指定", label, context, errors);
                 break;
-            case FilterRuleType.Prescreen:
+            case FilterConditionType.Prescreen:
                 ValidatePrescreen(rule, label, errors);
                 break;
-            case FilterRuleType.Text:
+            case FilterConditionType.Text:
                 ValidateText(rule, label, errors);
                 break;
-            case FilterRuleType.TextSet:
+            case FilterConditionType.TextSet:
                 ValidateTextSet(rule, label, errors);
                 break;
-            case FilterRuleType.DateRange:
+            case FilterConditionType.DateRange:
                 ValidateDateRange(rule, label, errors);
                 break;
-            case FilterRuleType.NumRange:
+            case FilterConditionType.NumRange:
                 ValidateNumRange(rule, label, errors);
                 break;
-            case FilterRuleType.DrCrOnly:
+            case FilterConditionType.DrCrOnly:
                 if (rule.DrCr is not ("debit" or "credit"))
                 {
                     FilterScenarioCorruption.Add(errors, label, "drcr_only_invalid");
                 }
                 break;
-            case FilterRuleType.ManualAuto:
+            case FilterConditionType.ManualAuto:
                 if (rule.IsManual is null)
                 {
                     FilterScenarioCorruption.Add(errors, label, "manual_auto_missing");
                 }
                 break;
-            case FilterRuleType.AccountPair:
+            case FilterConditionType.AccountPair:
                 ValidateCategorySelectionMode(rule, label, errors);
                 ValidateAccountPair(rule, label, context, errors);
                 break;
-            case FilterRuleType.SpecialAccountCategoryPair:
+            case FilterConditionType.SpecialAccountCategoryPair:
                 ValidateCategorySelectionMode(rule, label, errors);
                 ValidateSpecialAccountCategoryPair(rule, label, context, errors);
                 break;
-            // 已停用的型別（FilterSinglePurposeRules.RetiredTypes）在前面就回報原因，不會走到這裡。
-            case FilterRuleType.EntityFrequency:
+            case FilterConditionType.EntityFrequency:
                 EntityFrequencyConditions.Validate(rule, label, errors);
                 break;
-            case FilterRuleType.RevenueDebitNearQuarterEnd:
+            case FilterConditionType.RevenueDebitNearQuarterEnd:
                 if (rule.WindowDays is not (>= QuarterEndWindows.MinWindowDays
                     and <= QuarterEndWindows.MaxWindowDays))
                 {
@@ -596,16 +505,16 @@ public static partial class FilterScenarioValidator
                         + $"{QuarterEndWindows.MaxWindowDays} 的整數");
                 }
                 break;
-            case FilterRuleType.RevenueWithoutNormalCounterpart:
-            case FilterRuleType.ManualRevenueEntry:
-            case FilterRuleType.PreparerEqualsApprover:
-                // 需要的分類與欄位都在規則需求表；缺收入科目與缺對方科目各寫一句（使用者 2026-10-13 勾選頁確認）。
+            case FilterConditionType.RevenueWithoutNormalCounterpart:
+            case FilterConditionType.ManualRevenueEntry:
+            case FilterConditionType.PreparerEqualsApprover:
+                // 需要的分類與欄位都在規則需求表；缺收入科目與缺對方科目各寫一句（裁定 2026-10-13-28 確認了用字）。
                 break;
-            case FilterRuleType.TypedField:
+            case FilterConditionType.TypedField:
                 ValidateTypedField(rule, label, context, errors);
                 break;
             default:
-                FilterScenarioCorruption.Add(errors, label, "rule_type_unsupported");
+                FilterScenarioCorruption.Add(errors, label, "condition_type_unsupported");
                 break;
         }
     }
@@ -614,12 +523,12 @@ public static partial class FilterScenarioValidator
     /// typed 條件（2026-08-14 凍結）的完整驗證：fieldId 必須是目前案件 committed 的 RDE 欄位、
     /// operator 必須屬於該欄位型別的 closed 集合、operand carrier 依 operator 種類精確匹配
     /// （single→value；between→from＋to 且 from≤to；in/notIn→values 1–100；blank 家族不得帶
-    /// 任何 carrier）、money 必填正準 amountBasis 且僅 money 允許。錯誤一律 invalid_scenario；
+    /// 任何 carrier）、amount 必填正準 amountBasis 且僅 amount 允許。錯誤一律 invalid_scenario；
     /// 欄位仍在配對中時以顯示名稱指名，已移除時拿不到名稱，只說明欄位已不在配對中並寫出下一步，
-    /// 不把 rde. 內部代號顯示給審計員（2026-10-03 主線裁定）。
+    /// 不把 rde. 內部代號顯示給審計員。
     /// </summary>
     private static void ValidateTypedField(
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         string label,
         FilterValidationContext context,
         List<string> errors)
@@ -651,7 +560,7 @@ public static partial class FilterScenarioValidator
         {
             if (TypedFieldOperatorSets.All.Contains(rule.TypedOperator))
             {
-                // 使用者 2026-10-19 裁定改用具體說法：寫出欄位目前設定成文字、日期或金額，不用「型別」。
+                // 裁定 2026-10-19-14 改用具體說法：寫出欄位目前設定成文字、日期或金額，不用「型別」。
                 errors.Add($"{label}：「{field.Label}」目前設定為{RdeFieldValueTypeNames.DisplayName(field.ValueType)}，不能用「{FilterConditionLabels.TypedOperatorLabel(rule.TypedOperator)}」比較");
             }
             else
@@ -662,7 +571,7 @@ public static partial class FilterScenarioValidator
             return;
         }
 
-        if (field.ValueType == RdeFieldValueTypeNames.Money)
+        if (field.ValueType == RdeFieldValueTypeNames.Amount)
         {
             if (!TypedAmountBasisNames.IsCanonical(rule.AmountBasis))
             {
@@ -671,14 +580,14 @@ public static partial class FilterScenarioValidator
         }
         else if (rule.AmountBasis is not null)
         {
-            FilterScenarioCorruption.Add(errors, label, "typed_amount_basis_not_money");
+            FilterScenarioCorruption.Add(errors, label, "typed_amount_basis_not_amount");
         }
 
         ValidateTypedOperands(rule, field, label, context, errors);
     }
 
     private static void ValidateTypedOperands(
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         GlRdeFieldMetadata field,
         string label,
         FilterValidationContext context,
@@ -762,7 +671,7 @@ public static partial class FilterScenarioValidator
     }
 
     private static void ValidateTypedBetweenBounds(
-        FilterRuleSpec rule,
+        FilterConditionSpec rule,
         GlRdeFieldMetadata field,
         string label,
         FilterValidationContext context,
@@ -792,7 +701,7 @@ public static partial class FilterScenarioValidator
                 break;
             }
 
-            case RdeFieldValueTypeNames.Money:
+            case RdeFieldValueTypeNames.Amount:
             {
                 var fromValid = TypedFieldOperandRules.TryNormalizeMoney(
                     rule.TypedFrom, context.MoneyScale, out var fromScaled);
@@ -845,7 +754,7 @@ public static partial class FilterScenarioValidator
                 }
 
                 break;
-            case RdeFieldValueTypeNames.Money:
+            case RdeFieldValueTypeNames.Amount:
                 if (!TypedFieldOperandRules.TryNormalizeMoney(raw, context.MoneyScale, out _))
                 {
                     errors.Add($"{label}：{AmountFormatReason(raw)}");
@@ -858,9 +767,9 @@ public static partial class FilterScenarioValidator
     /// <summary>
     /// 科目配對分析：需科目配對已匯入；模式決定必填分類——
     /// exact 需借貸雙方、debitAnchor 只需借方、creditAnchor 只需貸方。
-    /// 每一側都是專案 taxonomy 分類身分的多選集合，legacy scalar 視為單元素集合。
+    /// 每一側都是專案科目分類的分類身分的多選集合，legacy scalar 視為單元素集合。
     /// </summary>
-    private static void ValidateAccountPair(FilterRuleSpec rule, string label, FilterValidationContext context, List<string> errors)
+    private static void ValidateAccountPair(FilterConditionSpec rule, string label, FilterValidationContext context, List<string> errors)
     {
         var needDebit = rule.PairMode is AccountPairModes.Exact or AccountPairModes.DebitAnchor;
         var needCredit = rule.PairMode is AccountPairModes.Exact or AccountPairModes.CreditAnchor;
@@ -883,7 +792,7 @@ public static partial class FilterScenarioValidator
     }
 
     /// <summary>
-    /// 單側多選分類的共同驗證：至少一個、不超過上限、每個身分都存在於目前專案 taxonomy。
+    /// 單側多選分類的共同驗證：至少一個、不超過上限、每個身分都存在於目前專案的科目分類。
     /// 空集合必須擋在這裡——否定模式的 NOT EXISTS 遇到空集合會反轉成全命中（同非授權編製人員的空名單檢查）。
     /// </summary>
     private static void ValidateCategorySelection(
@@ -906,7 +815,7 @@ public static partial class FilterScenarioValidator
         }
 
         // 分類身分是內部代號；已刪除的分類拿不到顯示名稱，因此只說明有分類不存在並給出下一步。
-        if (categoryIds.Any(categoryId => !context.TaxonomyCategoryIds.Contains(categoryId, StringComparer.Ordinal)))
+        if (categoryIds.Any(categoryId => !context.CategoryIds.Contains(categoryId, StringComparer.Ordinal)))
         {
             errors.Add($"{label}：所選{sideLabel}分類中含有已刪除的分類");
         }
@@ -917,7 +826,7 @@ public static partial class FilterScenarioValidator
     /// （drAndCr / drNotCr / notDrCr）皆需科目配對已匯入、且借方類別 A 與貸方類別 B
     /// 兩者皆在白名單內（否定模式同樣需要 B 或 A 才能判定「不存在」，故雙方一律必填）。
     /// </summary>
-    private static void ValidateSpecialAccountCategoryPair(FilterRuleSpec rule, string label, FilterValidationContext context, List<string> errors)
+    private static void ValidateSpecialAccountCategoryPair(FilterConditionSpec rule, string label, FilterValidationContext context, List<string> errors)
     {
         if (rule.PairMode is not (SpecialAccountCategoryPairModes.DrAndCr
             or SpecialAccountCategoryPairModes.DrNotCr
@@ -935,9 +844,9 @@ public static partial class FilterScenarioValidator
     /// 預篩選條件本身的檢查：已停用或不能當條件的鍵。需要的配對、名單與分類由規則需求表檢查；
     /// 授權編製人員清單沒有匯入時，空名單會讓 NOT IN 述詞反轉成全命中，所以需求表一定要列這一項。
     /// </summary>
-    private static void ValidatePrescreen(FilterRuleSpec rule, string label, List<string> errors)
+    private static void ValidatePrescreen(FilterConditionSpec rule, string label, List<string> errors)
     {
-        // 使用者 2026-10-08 裁定移除傳票日期與回溯過帳；舊情境重開時明確說明這條條件要刪除。
+        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳；舊情境重開時明確說明這條條件要刪除。
         if (string.Equals(rule.PrescreenKey, RetiredBackdatedPostingKey, StringComparison.Ordinal))
         {
             errors.Add($"{label}：「回溯過帳」條件已停用，請刪除此條件");
@@ -950,14 +859,8 @@ public static partial class FilterScenarioValidator
         }
     }
 
-    /// <summary>
-    /// 舊情境的條件用到目前已沒有的欄位。已移除而且認得的欄位寫出名稱，名稱只在
-    /// <see cref="JetFieldCatalog.RetiredGlFieldLabels"/> 一處；認不得的欄位不印內部代號。
-    /// </summary>
-    internal static string MissingFieldReason(string? field) =>
-        field is not null && JetFieldCatalog.RetiredGlFieldLabels.TryGetValue(field, out var retiredLabel)
-            ? $"「{retiredLabel}」已移除，請刪除此條件"
-            : "此條件使用的欄位已不存在";
+    /// <summary>條件用到目前已沒有的欄位；不印內部代號。</summary>
+    internal static string MissingFieldReason(string? field) => "此條件使用的欄位已不存在";
 
     private static string DateFormatReason(string? value) => $"日期「{value}」無法辨識，請以 2026-12-31 的格式輸入";
 
@@ -967,7 +870,7 @@ public static partial class FilterScenarioValidator
     internal static string ValueCountReason(int max) => $"請填 1 到 {max} 個值";
 
     /// <summary>舊式文字、日期與數值條件的欄位：已不存在時說明欄位已移除；欄位仍在但種類不符只會是內容損毀。</summary>
-    private static void ValidateLegacyField(FilterRuleSpec rule, GlFieldKind kind, string code, string label, List<string> errors)
+    private static void ValidateLegacyField(FilterConditionSpec rule, GlFieldKind kind, string code, string label, List<string> errors)
     {
         if (!GlFieldWhitelist.TryResolve(rule.Field, out var column))
         {
@@ -979,7 +882,7 @@ public static partial class FilterScenarioValidator
         }
     }
 
-    private static void ValidateText(FilterRuleSpec rule, string label, List<string> errors)
+    private static void ValidateText(FilterConditionSpec rule, string label, List<string> errors)
     {
         ValidateLegacyField(rule, GlFieldKind.Text, "text_field_kind_mismatch", label, errors);
 
@@ -989,7 +892,7 @@ public static partial class FilterScenarioValidator
         }
     }
 
-    private static void ValidateTextSet(FilterRuleSpec rule, string label, List<string> errors)
+    private static void ValidateTextSet(FilterConditionSpec rule, string label, List<string> errors)
     {
         ValidateLegacyField(rule, GlFieldKind.Text, "text_set_field_kind_mismatch", label, errors);
 
@@ -1024,7 +927,7 @@ public static partial class FilterScenarioValidator
         }
     }
 
-    private static void ValidateDateRange(FilterRuleSpec rule, string label, List<string> errors)
+    private static void ValidateDateRange(FilterConditionSpec rule, string label, List<string> errors)
     {
         ValidateLegacyField(rule, GlFieldKind.Date, "date_range_field_kind_mismatch", label, errors);
 
@@ -1043,7 +946,7 @@ public static partial class FilterScenarioValidator
         }
     }
 
-    private static void ValidateNumRange(FilterRuleSpec rule, string label, List<string> errors)
+    private static void ValidateNumRange(FilterConditionSpec rule, string label, List<string> errors)
     {
         ValidateLegacyField(rule, GlFieldKind.Amount, "num_range_field_kind_mismatch", label, errors);
 
@@ -1054,10 +957,10 @@ public static partial class FilterScenarioValidator
     }
 
     /// <summary>
-    /// 特定金額尾數（filter type trailingDigits）：尾數樣態重用 Keywords，
+    /// 金額的「整數尾數符合」：尾數樣態放在 Keywords，
     /// 每組須為 1–12 位純數字（位數上限沿用 trailing zeros 的 long 溢位防線）。
     /// </summary>
-    private static void ValidateTrailingDigits(FilterRuleSpec rule, string label, List<string> errors)
+    private static void ValidateTrailingDigits(FilterConditionSpec rule, string label, List<string> errors)
     {
         var patterns = rule.Keywords
             .Where(k => !string.IsNullOrWhiteSpace(k))

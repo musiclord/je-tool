@@ -69,17 +69,17 @@ public sealed class PrivateCaseReportPairSetTests
                 PrivateCaseExpectedReportSetTests.CreateManifest(reports),
                 sourceRoot,
                 _workspace);
-            var artifacts = Enum.GetValues<LegacyReportKind>()
+            var journeyReports = Enum.GetValues<LegacyReportKind>()
                 .Select((kind, index) =>
                 {
                     var fileName = $"generated-output-{index + 1:000}.xlsx";
                     var fullPath = System.IO.Path.Combine(generatedRoot, fileName);
                     File.WriteAllBytes(fullPath, [80, 75, 3, 4, checked((byte)index)]);
-                    return new LegacyAuditParityJourneyArtifact(kind, fileName, fullPath);
+                    return new LegacyAuditParityJourneyReport(kind, fileName, fullPath);
                 })
                 .ToArray();
             ActualReports = PrivateCaseActualReportSet.Create(
-                artifacts,
+                journeyReports,
                 generatedRoot,
                 _workspace);
         }

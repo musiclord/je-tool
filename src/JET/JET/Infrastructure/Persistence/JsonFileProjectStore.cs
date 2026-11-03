@@ -217,7 +217,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // 寫不進 project.json 是環境問題（唯讀、被其他程式開啟、磁碟滿），給使用者出路而不是裸例外
-            // （使用者 2026-10-14 第三輪勾選頁確認 R3-50：不寫檔名與例外型別）。
+            // （不寫檔名與例外型別，裁定 2026-10-14-01 確認了用字）。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $"案件「{document.ProjectId}」的設定未能儲存。請確認案件資料夾不是唯讀、設定檔沒有被其他程式開啟，再試一次。",
@@ -317,14 +317,18 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 
             if (document is not null)
             {
-                // 目前版本建立的 project.json 一定寫明 databaseProvider；缺欄位代表舊版 JET 建立的案件。
-                // 反序列化會把缺席欄位補成建構式預設值，因此另外檢查原始 JSON 是否真的有這個欄位。
+                // 舊版 JET 建立的案件只看設定檔版本判斷。反序列化會把缺席欄位補成建構式預設值，
+                // 所以另外檢查原始 JSON 是否真的有版本與資料庫種類兩個欄位；缺欄位是設定檔損壞，不是舊版案件。
+                if (!HasJsonProperty(json, "schemaVersion"))
+                {
+                    throw ProjectReadError(projectId);
+                }
+
+                document.RequireCurrentSchemaVersion(projectId);
                 if (string.IsNullOrWhiteSpace(document.DatabaseProvider)
                     || !HasJsonProperty(json, "databaseProvider"))
                 {
-                    throw new JetActionException(
-                        JetErrorCodes.InvalidProjectSchema,
-                        InfSamplingSeedResolution.LegacyProjectMessage(projectId));
+                    throw ProjectReadError(projectId);
                 }
 
                 ProjectDocumentSeedIntegrity.Validate(document, projectId);
@@ -351,7 +355,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 
     private static JetActionException ProjectReadError(string projectId, Exception? innerException = null) => new(
         JetErrorCodes.FileReadError,
-        // 使用者 2026-10-14 第三輪勾選頁確認 R3-50。
+        // 裁定 2026-10-14-01 確認了這句的用字。
         $"案件「{projectId}」的設定檔無法讀取。請確認設定檔沒有被其他程式開啟；檔案已損壞時，請從備份還原案件資料夾，或另建案件重新匯入。",
         innerException: innerException);
 }
@@ -362,22 +366,14 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 /// </summary>
 internal static class ProjectDocumentSeedIntegrity
 {
-    internal static void Validate(ProjectDocument document, string caseName)
+    internal static void Validate(ProjectDocument document, string projectName)
     {
         var resolution = JetAuditProgram.ResolveInfSamplingSeed(
             document.SampleSeed,
             document.SampleSeedVersion);
-        if (resolution.IsLegacyProject)
-        {
-            // 舊版 JET 建立的案件不是損壞；告訴使用者改用目前版本重建，不要求從備份復原。
-            throw new JetActionException(
-                JetErrorCodes.InvalidProjectSchema,
-                InfSamplingSeedResolution.LegacyProjectMessage(caseName));
-        }
-
         if (!resolution.IsValid)
         {
-            throw Corruption(caseName);
+            throw Corruption(projectName);
         }
     }
 
@@ -386,13 +382,13 @@ internal static class ProjectDocumentSeedIntegrity
         || string.Equals(path, "$.sampleSeedVersion", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 抽樣設定損壞（使用者 2026-10-14 第三輪勾選頁確認 R3-51）：不寫檔名、鍵名與種子值。
+    /// 抽樣設定損壞（裁定 2026-10-14-01 確認了用字）：不寫檔名、鍵名與種子值。
     /// 讀不到案件名稱時（線上案件登記簿的內容損壞）省略名稱。
     /// </summary>
-    internal static JetActionException Corruption(string? caseName, Exception? innerException = null) =>
+    internal static JetActionException Corruption(string? projectName, Exception? innerException = null) =>
         new(
             JetErrorCodes.FileReadError,
-            (string.IsNullOrEmpty(caseName) ? "案件" : $"案件「{caseName}」")
+            (string.IsNullOrEmpty(projectName) ? "案件" : $"案件「{projectName}」")
             + "設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             innerException: innerException);
 }

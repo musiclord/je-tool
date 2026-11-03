@@ -6,7 +6,7 @@ namespace JET.Infrastructure;
 internal static class InfSamplePageSql
 {
     /// <summary>
-    /// 指定 runId 是來源追溯契約的一部分；值只以參數綁定，不插入 SQL。
+    /// 指定 resultId 是來源追溯契約的一部分；值只以參數綁定，不插入 SQL。
     /// </summary>
-    public const string RunFilter = "s.run_id = @runId";
+    public const string ResultFilter = "s.result_id = @resultId";
 }

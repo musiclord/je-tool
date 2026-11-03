@@ -13,26 +13,26 @@ public sealed class DynamicResultPageContractTests
 {
     private static readonly (string Key, string Label, string ValueType)[] FilterFixedColumns =
     [
-        ("documentNumber", "傳票號碼", "text"),
+        ("voucherNumber", "傳票號碼", "text"),
         ("lineItem", "傳票文件項次", "text"),
-        ("postDate", "總帳日期", "date"),
-        ("accountCode", "會計科目編號", "text"),
+        ("glDate", "總帳日期", "date"),
+        ("accountNumber", "會計科目編號", "text"),
         ("accountName", "會計科目名稱", "text"),
-        // 使用者 2026-10-13 裁定改名（計畫「收尾四項：調查與裁定」）；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
-        ("amount", "金額", "money"),
+        // 裁定 2026-10-13-18 把分錄金額改名為金額、借貸別欄位改名為借貸別；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+        ("amount", "金額", "amount"),
         ("drCr", "借貸別", "text"),
         ("description", "傳票摘要", "text")
     ];
 
     private static readonly (string Key, string Label, string ValueType)[] InfFixedColumns =
     [
-        ("documentNumber", "傳票號碼", "text"),
-        ("accountCode", "會計科目編號", "text"),
+        ("voucherNumber", "傳票號碼", "text"),
+        ("accountNumber", "會計科目編號", "text"),
         ("accountName", "會計科目名稱", "text"),
-        ("debit", "借方金額", "money"),
-        ("credit", "貸方金額", "money"),
-        ("postDate", "總帳日期", "date"),
-        // 2026-10-04 第 8 批 L39：只更新 INF 顯示表頭，key、型別、順序與 RDE 值的逐欄斷言不變。
+        ("debit", "借方金額", "amount"),
+        ("credit", "貸方金額", "amount"),
+        ("glDate", "總帳日期", "date"),
+        // 只更新 INF 顯示表頭，key、型別、順序與 RDE 值的逐欄斷言不變。
         // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         ("approvalDate", "傳票核准日", "date"),
         ("createdBy", "傳票建立人員", "text"),
@@ -46,7 +46,7 @@ public sealed class DynamicResultPageContractTests
         using var host = new HandlerTestHost();
         var setup = await SetupRdeProjectAsync(host);
 
-        // AST 刻意 date 在 text 前；輸出仍須依 committed ordinal（money, text, date）取 text, date。
+        // AST 刻意 date 在 text 前；輸出仍須依 committed ordinal（amount, text, date）取 text, date。
         await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
         {
             scenarios = new[]
@@ -60,7 +60,7 @@ public sealed class DynamicResultPageContractTests
                         new
                         {
                             join = "AND",
-                            rules = new object[]
+                            conditions = new object[]
                             {
                                 new
                                 {
@@ -104,7 +104,7 @@ public sealed class DynamicResultPageContractTests
             inf.GetProperty("columns"),
             InfFixedColumns,
             [
-                (setup.MoneyFieldId, "自訂金額", "money"),
+                (setup.MoneyFieldId, "自訂金額", "amount"),
                 (setup.TextFieldId, "自訂文字", "text"),
                 (setup.DateFieldId, "自訂日期", "date")
             ]);
@@ -122,16 +122,16 @@ public sealed class DynamicResultPageContractTests
     }
 
     [Fact]
-    public async Task InfPage_LatestValidationRunIsStale_FailsBeforePairingOldRunWithCurrentSql()
+    public async Task InfPage_LatestValidationResultIsStale_FailsBeforePairingOldResultWithCurrentSql()
     {
         using var host = new HandlerTestHost();
         var setup = await SetupRdeProjectAsync(host);
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
-        await new LocalRuleRunStore(database).SaveAsync(
+        await new LocalResultStore(database).SaveAsync(
             setup.ProjectId,
-            new RuleRunRecord(
+            new ResultRecord(
                 "stale-validation-run",
-                RuleRunKinds.Validate,
+                ResultKind.Validation,
                 DateTimeOffset.UtcNow.AddMinutes(1),
                 """{"resultRef":{"logicVersion":"validation-stale"}}"""),
             CancellationToken.None);
@@ -174,7 +174,7 @@ public sealed class DynamicResultPageContractTests
             // committed ordinal deliberately differs from alphabetical/type order.
             rdeFields = new object[]
             {
-                new { sourceColumn = "自訂金額", label = "自訂金額", valueType = "money" },
+                new { sourceColumn = "自訂金額", label = "自訂金額", valueType = "amount" },
                 new { sourceColumn = "自訂文字", label = "自訂文字", valueType = "text" },
                 new { sourceColumn = "自訂日期", label = "自訂日期", valueType = "date" }
             }
@@ -208,7 +208,7 @@ public sealed class DynamicResultPageContractTests
         Assert.Equal(expected.Length, columns.Length);
         for (var index = 0; index < expected.Length; index++)
         {
-            // 2026-09-07 工作包 G：欄位定義多帶 sortable，固定欄可排序、額外欄位不能（第一次失敗：收據 20260907-082210786）。
+            // 欄位定義多帶 sortable，固定欄可排序、攸關資料元素欄位不能（第一次失敗：收據 20260907-082210786）。
             JsonShape.HasExactKeys(columns[index], "key", "label", "valueType", "isCustom", "sortable");
             Assert.Equal(expected[index].Key, columns[index].GetProperty("key").GetString());
             Assert.Equal(expected[index].Label, columns[index].GetProperty("label").GetString());

@@ -31,8 +31,8 @@ internal static class SmeWorkbookWriter
         var split = new DateOnly(2025, 7, 1);
         var firstHalf = Path.Combine(directory, "合成精密-總帳明細-114上半年.xlsx");
         var secondHalf = Path.Combine(directory, "合成精密-總帳明細-114下半年.xlsx");
-        WriteGl(firstHalf, smeCase.Lines.Where(line => line.PostDate < split));
-        WriteGl(secondHalf, smeCase.Lines.Where(line => line.PostDate >= split));
+        WriteGl(firstHalf, smeCase.Lines.Where(line => line.GlDate < split));
+        WriteGl(secondHalf, smeCase.Lines.Where(line => line.GlDate >= split));
 
         var tb = Path.Combine(directory, "合成精密-試算表-114年度.xlsx");
         WriteTb(tb, smeCase);
@@ -55,15 +55,15 @@ internal static class SmeWorkbookWriter
         WriteHeader(sheet, GlColumns);
         var row = 1;
         foreach (var line in lines
-                     .OrderBy(line => line.PostDate)
+                     .OrderBy(line => line.GlDate)
                      .ThenBy(line => line.VoucherNo, StringComparer.Ordinal)
                      .ThenBy(line => line.LineNo))
         {
             row++;
-            sheet.Cell(row, 1).Value = line.PostDate.ToDateTime(TimeOnly.MinValue);
+            sheet.Cell(row, 1).Value = line.GlDate.ToDateTime(TimeOnly.MinValue);
             sheet.Cell(row, 2).Value = line.VoucherNo;
             sheet.Cell(row, 3).Value = line.LineNo;
-            sheet.Cell(row, 4).Value = line.AccountCode;
+            sheet.Cell(row, 4).Value = line.AccountNumber;
             sheet.Cell(row, 5).Value = line.AccountName;
             sheet.Cell(row, 6).Value = line.Description;
             sheet.Cell(row, 7).Value = line.Debit;
@@ -93,8 +93,8 @@ internal static class SmeWorkbookWriter
         var credit = new Dictionary<string, decimal>(StringComparer.Ordinal);
         foreach (var line in smeCase.Population)
         {
-            debit[line.AccountCode] = debit.GetValueOrDefault(line.AccountCode) + line.Debit;
-            credit[line.AccountCode] = credit.GetValueOrDefault(line.AccountCode) + line.Credit;
+            debit[line.AccountNumber] = debit.GetValueOrDefault(line.AccountNumber) + line.Debit;
+            credit[line.AccountNumber] = credit.GetValueOrDefault(line.AccountNumber) + line.Credit;
         }
 
         using var workbook = new XLWorkbook();

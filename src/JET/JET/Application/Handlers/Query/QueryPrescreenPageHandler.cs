@@ -25,14 +25,14 @@ public sealed class QueryPrescreenPageHandler(
             ?? throw new JetActionException(JetErrorCodes.ProjectNotFound, ProjectFolderMessages.ActiveProjectMissing);
 
         PageResult<PrescreenHitRow> page;
-        if (ruleKey == PrescreenRuleKeys.PostPeriodApproval
+        if (ruleKey == PrescreenRuleKeys.PrepPeriodApproval
             && string.IsNullOrWhiteSpace(document.LastAccountingPeriodDate))
         {
             page = new PageResult<PrescreenHitRow>([], null, request.IncludeTotalCount ? 0 : null);
         }
         else
         {
-            var context = new FilterRuleContext(
+            var context = new FilterConditionContext(
                 document.MoneyScale,
                 document.LastAccountingPeriodDate,
                 document.PeriodStart,
@@ -50,12 +50,12 @@ public sealed class QueryPrescreenPageHandler(
             rows = page.Rows.Select(row => (object)new
             {
                 entryId = row.EntryId,
-                documentNumber = row.DocumentNumber,
+                voucherNumber = row.VoucherNumber,
                 lineItem = row.LineItem,
-                postDate = row.PostDate,
-                accountCode = row.AccountCode,
+                glDate = row.GlDate,
+                accountNumber = row.AccountNumber,
                 accountName = row.AccountName,
-                documentDescription = row.Description,
+                description = row.Description,
                 amount = (decimal)row.AmountScaled / scale,
                 drCr = row.DrCr
             }).ToArray(),

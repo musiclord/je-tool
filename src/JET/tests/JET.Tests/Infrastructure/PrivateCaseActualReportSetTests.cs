@@ -11,7 +11,7 @@ public sealed class PrivateCaseActualReportSetTests
         using var fixture = new SyntheticFixture(createFiles: true);
 
         var result = PrivateCaseActualReportSet.Create(
-            fixture.Artifacts,
+            fixture.JourneyReports,
             fixture.GeneratedRoot,
             fixture.Workspace);
 
@@ -23,7 +23,7 @@ public sealed class PrivateCaseActualReportSetTests
 
         foreach (var report in result.Reports)
         {
-            var source = fixture.Artifacts.Single(item => item.Kind == report.Kind).FullPath;
+            var source = fixture.JourneyReports.Single(item => item.Kind == report.Kind).FullPath;
             Assert.Equal(File.ReadAllBytes(source), File.ReadAllBytes(report.FullPath));
             Assert.True(File.Exists(source));
         }
@@ -45,7 +45,7 @@ public sealed class PrivateCaseActualReportSetTests
 
         var error = Assert.Throws<PrivateCaseActualReportException>(() =>
             PrivateCaseActualReportSet.Create(
-                fixture.Artifacts.SkipLast(1).ToArray(),
+                fixture.JourneyReports.SkipLast(1).ToArray(),
                 fixture.GeneratedRoot,
                 fixture.Workspace));
 
@@ -57,15 +57,15 @@ public sealed class PrivateCaseActualReportSetTests
     public void Create_PathThatDoesNotMatchOwnedRoot_IsRejectedWithoutOpeningIt()
     {
         using var fixture = new SyntheticFixture(createFiles: true);
-        var artifacts = fixture.Artifacts.ToArray();
-        artifacts[0] = artifacts[0] with
+        var journeyReports = fixture.JourneyReports.ToArray();
+        journeyReports[0] = journeyReports[0] with
         {
             FullPath = System.IO.Path.Combine(fixture.Root, "outside.xlsx"),
         };
 
         var error = Assert.Throws<PrivateCaseActualReportException>(() =>
             PrivateCaseActualReportSet.Create(
-                artifacts,
+                journeyReports,
                 fixture.GeneratedRoot,
                 fixture.Workspace));
 
@@ -81,7 +81,7 @@ public sealed class PrivateCaseActualReportSetTests
 
         var error = Assert.Throws<PrivateCaseActualReportException>(() =>
             PrivateCaseActualReportSet.Create(
-                fixture.Artifacts,
+                fixture.JourneyReports,
                 fixture.GeneratedRoot,
                 fixture.Workspace));
 
@@ -102,7 +102,7 @@ public sealed class PrivateCaseActualReportSetTests
             Directory.CreateDirectory(GeneratedRoot);
             Directory.CreateDirectory(ownedRoot);
 
-            Artifacts = Enum.GetValues<LegacyReportKind>()
+            JourneyReports = Enum.GetValues<LegacyReportKind>()
                 .Select((kind, index) =>
                 {
                     var fileName = $"generated-output-{index + 1:000}.xlsx";
@@ -111,7 +111,7 @@ public sealed class PrivateCaseActualReportSetTests
                     {
                         File.WriteAllBytes(fullPath, [80, 75, 3, 4, checked((byte)index)]);
                     }
-                    return new LegacyAuditParityJourneyArtifact(kind, fileName, fullPath);
+                    return new LegacyAuditParityJourneyReport(kind, fileName, fullPath);
                 })
                 .ToArray();
             Workspace = PrivateCaseInputWorkspace.Create(ownedRoot);
@@ -122,7 +122,7 @@ public sealed class PrivateCaseActualReportSetTests
 
         internal string GeneratedRoot { get; }
 
-        internal IReadOnlyList<LegacyAuditParityJourneyArtifact> Artifacts { get; }
+        internal IReadOnlyList<LegacyAuditParityJourneyReport> JourneyReports { get; }
 
         internal PrivateCaseInputWorkspace Workspace { get; }
 

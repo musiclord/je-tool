@@ -173,7 +173,7 @@ public static class SqlServerHealthCheck
     }
 
     /// <summary>
-    /// 容量探測（control-plane round 7）：在已開啟的 <b>master</b> 連線上讀單庫的整庫大小與 <c>prj_%</c> schema 數。
+    /// 容量探測：在已開啟的 <b>master</b> 連線上讀單庫的整庫大小與 <c>prj_%</c> schema 數。
     /// <list type="bullet">
     /// <item><c>databaseSizeMb</c>：<c>sys.master_files</c> 該庫所有檔（含資料檔與交易記錄檔）的 8 KB 頁數總和換算 MB
     /// ——是整庫、含全部專案 schema，非單專案。</item>

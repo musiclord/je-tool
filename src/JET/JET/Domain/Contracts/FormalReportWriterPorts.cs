@@ -6,8 +6,8 @@ internal interface IFormalAccountMappingTemplateWriter : IAccountMappingTemplate
     Task WriteFormalAsync(
         Stream output,
         IReadOnlyList<AccountMappingTemplateRow> rows,
-        IReadOnlyList<AccountTaxonomyCategory> categories,
+        IReadOnlyList<AccountCategory> categories,
         ReportWorkbookMetadata workbookMetadata,
         CancellationToken cancellationToken,
-        Action<WorkpaperProgress>? progress = null);
+        Action<WorkingPaperProgress>? progress = null);
 }

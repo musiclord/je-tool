@@ -31,7 +31,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         command.Transaction = transaction;
         command.CommandText =
             """
-            INSERT INTO config_field_mapping
+            INSERT INTO field_mapping
                 (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
             VALUES
                 (@kind, @mappingJson, @modeName, @sourceBatchId, @committedUtc, @formatVersion, @optionsJson)
@@ -56,16 +56,16 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
     }
 
     /// <summary>
-    /// 重新匯入時，把目前已確認的配對搬到 <c>config_field_mapping_previous</c> 再刪除，兩步在匯入的同一個交易裡。
+    /// 重新匯入時，把目前已確認的配對搬到 <c>field_mapping_previous</c> 再刪除，兩步在匯入的同一個交易裡。
     /// 目前沒有已確認的配對時（例如連續匯入兩次都還沒確認）不覆蓋，留著更早那一次確認的配對。
     /// SQLite 與 DuckDB 共用；SELECT 帶 WHERE，SQLite 才不會把 ON CONFLICT 讀成 join 的一部分。
     /// </summary>
     internal const string RetireCommittedMappingSql =
         """
-        INSERT INTO config_field_mapping_previous
+        INSERT INTO field_mapping_previous
             (dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json)
         SELECT dataset_kind, mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
-        FROM config_field_mapping
+        FROM field_mapping
         WHERE dataset_kind = @kind
         ON CONFLICT(dataset_kind) DO UPDATE SET
             mapping_json = excluded.mapping_json,
@@ -74,14 +74,14 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
             committed_utc = excluded.committed_utc,
             format_version = excluded.format_version,
             options_json = excluded.options_json;
-        DELETE FROM config_field_mapping WHERE dataset_kind = @kind;
+        DELETE FROM field_mapping WHERE dataset_kind = @kind;
         """;
 
     public Task<CommittedMapping?> FindAsync(
         string projectId,
         DatasetKind kind,
         CancellationToken cancellationToken) =>
-        ReadAsync(projectId, kind, "config_field_mapping", cancellationToken);
+        ReadAsync(projectId, kind, "field_mapping", cancellationToken);
 
     // 上次確認的配對只用來帶回草稿；它讀不出來（例如日後配對格式改版）時當作沒有，不能因此擋住開案。
     public async Task<CommittedMapping?> FindPreviousAsync(
@@ -91,7 +91,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
     {
         try
         {
-            return await ReadAsync(projectId, kind, "config_field_mapping_previous", cancellationToken);
+            return await ReadAsync(projectId, kind, "field_mapping_previous", cancellationToken);
         }
         catch (Exception exception) when (
             exception is JetActionException or JsonException or InvalidOperationException or FormatException)
@@ -172,7 +172,6 @@ internal static class MappingStateSerialization
         GlMappingOptions? options = null;
         if (kind == DatasetKind.Gl)
         {
-            mapping = WithoutRetiredGlKeys(mapping);
             options = !string.IsNullOrWhiteSpace(optionsJson)
                 ? GlMappingOptionsJsonCodec.Decode(optionsJson, mapping)
                 : throw new InvalidOperationException("mapping v2 GL 狀態缺少 options_json。");
@@ -188,21 +187,12 @@ internal static class MappingStateSerialization
             options);
     }
 
-    private static IReadOnlyDictionary<string, string> WithoutRetiredGlKeys(IReadOnlyDictionary<string, string> mapping) =>
-        mapping.Keys.Any(GlMappingKeys.Retired.Contains)
-            ? mapping
-                .Where(pair => !GlMappingKeys.Retired.Contains(pair.Key))
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
-            : mapping;
-
     // 目前版本只寫入第 2 版；其他版本是舊版 JET 保存的配對，不能沿用舊語意讀取。
     private static void EnsureReadableVersion(int formatVersion)
     {
         if (formatVersion != MappingMetadataFormat.CurrentVersion)
         {
-            throw new JetActionException(
-                JetErrorCodes.InvalidProjectSchema,
-                "這個案件的欄位配對是舊版 JET 儲存的格式，目前版本無法讀取。請用目前版本重新建立案件，再重新匯入資料。");
+            throw new JetActionException(JetErrorCodes.InvalidProjectSchema, ProjectFolderMessages.OldVersionProject());
         }
     }
 }

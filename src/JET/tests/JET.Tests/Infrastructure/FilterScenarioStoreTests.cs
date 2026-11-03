@@ -8,7 +8,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 篩選情境 replace-all 的混版防護。規格 oracle：情境定義換版時，舊的
-/// result_filter_run 必須在同一交易清除；若新情境寫入失敗，兩張表都必須回復舊版。
+/// filter_hit 必須在同一交易清除；若新情境寫入失敗，兩張表都必須回復舊版。
 /// </summary>
 public sealed class FilterScenarioStoreTests
 {
@@ -45,14 +45,14 @@ public sealed class FilterScenarioStoreTests
             sql.ProjectId, [Scenario(1, "舊情境")], CancellationToken.None);
         await SeedHitAsync(
             sql.Database.CreateConnection(sql.ProjectId),
-            $"{SqlServerProjectSchema.QualifierFor(sql.ProjectId)}result_filter_run");
+            $"{SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit");
 
         await store.ReplaceAllAsync(
             sql.ProjectId, [Scenario(1, "新情境")], CancellationToken.None);
 
         Assert.Equal(0, await ScalarAsync(
             sql.Database.CreateConnection(sql.ProjectId),
-            $"SELECT COUNT(*) FROM {SqlServerProjectSchema.QualifierFor(sql.ProjectId)}result_filter_run;"));
+            $"SELECT COUNT(*) FROM {SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit;"));
         var current = Assert.Single(await store.ListAsync(sql.ProjectId, CancellationToken.None));
         Assert.Equal("新情境", current.Name);
     }
@@ -67,7 +67,7 @@ public sealed class FilterScenarioStoreTests
             sql.ProjectId, [Scenario(1, "舊情境")], CancellationToken.None);
         await SeedHitAsync(
             sql.Database.CreateConnection(sql.ProjectId),
-            $"{SqlServerProjectSchema.QualifierFor(sql.ProjectId)}result_filter_run");
+            $"{SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit");
 
         await Assert.ThrowsAsync<SqlException>(() => store.ReplaceAllAsync(
             sql.ProjectId,
@@ -78,7 +78,7 @@ public sealed class FilterScenarioStoreTests
         Assert.Equal("舊情境", current.Name);
         Assert.Equal(1, await ScalarAsync(
             sql.Database.CreateConnection(sql.ProjectId),
-            $"SELECT COUNT(*) FROM {SqlServerProjectSchema.QualifierFor(sql.ProjectId)}result_filter_run;"));
+            $"SELECT COUNT(*) FROM {SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit;"));
     }
 
     private static async Task ReplaceAllClearsPreviousFilterHitsAsync(
@@ -91,14 +91,14 @@ public sealed class FilterScenarioStoreTests
         var store = new LocalFilterScenarioStore(database);
         await store.ReplaceAllAsync(
             projectId, [Scenario(1, "舊情境")], CancellationToken.None);
-        await SeedHitAsync(database.CreateConnection(projectId), "result_filter_run");
+        await SeedHitAsync(database.CreateConnection(projectId), "filter_hit");
 
         await store.ReplaceAllAsync(
             projectId, [Scenario(1, "新情境")], CancellationToken.None);
 
         Assert.Equal(0, await ScalarAsync(
             database.CreateConnection(projectId),
-            "SELECT COUNT(*) FROM result_filter_run;"));
+            "SELECT COUNT(*) FROM filter_hit;"));
         var current = Assert.Single(await store.ListAsync(projectId, CancellationToken.None));
         Assert.Equal("新情境", current.Name);
     }
@@ -113,7 +113,7 @@ public sealed class FilterScenarioStoreTests
         var store = new LocalFilterScenarioStore(database);
         await store.ReplaceAllAsync(
             projectId, [Scenario(1, "舊情境")], CancellationToken.None);
-        await SeedHitAsync(database.CreateConnection(projectId), "result_filter_run");
+        await SeedHitAsync(database.CreateConnection(projectId), "filter_hit");
 
         await Assert.ThrowsAnyAsync<Exception>(() => store.ReplaceAllAsync(
             projectId,
@@ -124,7 +124,7 @@ public sealed class FilterScenarioStoreTests
         Assert.Equal("舊情境", current.Name);
         Assert.Equal(1, await ScalarAsync(
             database.CreateConnection(projectId),
-            "SELECT COUNT(*) FROM result_filter_run;"));
+            "SELECT COUNT(*) FROM filter_hit;"));
     }
 
     private static SavedFilterScenario Scenario(int position, string name) =>
@@ -136,7 +136,7 @@ public sealed class FilterScenarioStoreTests
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = $"INSERT INTO {table} (scenario_position, entry_id) VALUES (1, 101);";
+            command.CommandText = $"INSERT INTO {table} (scenario_id, entry_id) VALUES (1, 101);";
             await command.ExecuteNonQueryAsync();
         }
     }

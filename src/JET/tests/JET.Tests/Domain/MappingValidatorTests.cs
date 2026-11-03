@@ -26,10 +26,10 @@ public sealed class MappingValidatorTests
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {
-                [GlMappingKeys.DocNum] = "傳票號碼",
-                [GlMappingKeys.PostDate] = "日期",
-                [GlMappingKeys.AccNum] = "會計項目",
-                [GlMappingKeys.AccName] = "項目名稱",
+                [GlMappingKeys.VoucherNumber] = "傳票號碼",
+                [GlMappingKeys.GlDate] = "日期",
+                [GlMappingKeys.AccountNumber] = "會計項目",
+                [GlMappingKeys.AccountName] = "項目名稱",
                 [GlMappingKeys.Description] = "摘要",
                 [GlMappingKeys.DebitAmount] = "借方金額"
             },
@@ -47,10 +47,10 @@ public sealed class MappingValidatorTests
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {
-                [GlMappingKeys.DocNum] = "不存在的欄",
-                [GlMappingKeys.PostDate] = "日期",
-                [GlMappingKeys.AccNum] = "會計項目",
-                [GlMappingKeys.AccName] = "項目名稱",
+                [GlMappingKeys.VoucherNumber] = "不存在的欄",
+                [GlMappingKeys.GlDate] = "日期",
+                [GlMappingKeys.AccountNumber] = "會計項目",
+                [GlMappingKeys.AccountName] = "項目名稱",
                 [GlMappingKeys.Description] = "摘要",
                 [GlMappingKeys.DebitAmount] = "借方金額",
                 [GlMappingKeys.CreditAmount] = "貸方金額"
@@ -64,22 +64,22 @@ public sealed class MappingValidatorTests
     }
 
     [Fact]
-    public void DcDebitCode_IsLiteralCode_ExemptFromColumnCheck()
+    public void DrCrDebitCode_IsLiteralCode_ExemptFromColumnCheck()
     {
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {
-                [GlMappingKeys.DocNum] = "傳票號碼",
-                [GlMappingKeys.PostDate] = "日期",
-                [GlMappingKeys.AccNum] = "會計項目",
-                [GlMappingKeys.AccName] = "項目名稱",
+                [GlMappingKeys.VoucherNumber] = "傳票號碼",
+                [GlMappingKeys.GlDate] = "日期",
+                [GlMappingKeys.AccountNumber] = "會計項目",
+                [GlMappingKeys.AccountName] = "項目名稱",
                 [GlMappingKeys.Description] = "摘要",
                 [GlMappingKeys.Amount] = "借方金額",
-                [GlMappingKeys.DcField] = "部門代號",
-                // 2026-10-04 R9：兩個方向代碼都是字面值，完整驗證斷言維持不變。
+                [GlMappingKeys.DrCr] = "部門代號",
+                // 兩個方向代碼都是字面值，完整驗證斷言維持不變。
                 // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
-                [GlMappingKeys.DcDebitCode] = "D",
-                [GlMappingKeys.DcCreditCode] = "C"
+                [GlMappingKeys.DrCrDebitCode] = "D",
+                [GlMappingKeys.DrCrCreditCode] = "C"
             },
             GlAmountMode.AmountWithSide);
 
@@ -89,27 +89,27 @@ public sealed class MappingValidatorTests
     }
 
     [Theory]
-    [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DcField)]
-    [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DcDebitCode)]
-    [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DcCreditCode)]
-    [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcField)]
-    [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcDebitCode)]
-    [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DcCreditCode)]
+    [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DrCr)]
+    [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DrCrDebitCode)]
+    [InlineData(GlAmountMode.AmountWithSide, GlMappingKeys.DrCrCreditCode)]
+    [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DrCr)]
+    [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DrCrDebitCode)]
+    [InlineData(GlAmountMode.AmountWithFlag, GlMappingKeys.DrCrCreditCode)]
     public void SideAndFlagModes_RequireTheDirectionColumnButOnlyOneDirectionCode(
         GlAmountMode mode,
         string missingKey)
     {
         var mapping = new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "傳票號碼",
-            [GlMappingKeys.PostDate] = "日期",
-            [GlMappingKeys.AccNum] = "會計項目",
-            [GlMappingKeys.AccName] = "項目名稱",
+            [GlMappingKeys.VoucherNumber] = "傳票號碼",
+            [GlMappingKeys.GlDate] = "日期",
+            [GlMappingKeys.AccountNumber] = "會計項目",
+            [GlMappingKeys.AccountName] = "項目名稱",
             [GlMappingKeys.Description] = "摘要",
             [GlMappingKeys.Amount] = "借方金額",
-            [GlMappingKeys.DcField] = "部門代號",
-            [GlMappingKeys.DcDebitCode] = "D",
-            [GlMappingKeys.DcCreditCode] = "C"
+            [GlMappingKeys.DrCr] = "部門代號",
+            [GlMappingKeys.DrCrDebitCode] = "D",
+            [GlMappingKeys.DrCrCreditCode] = "C"
         };
         mapping.Remove(missingKey);
 
@@ -118,22 +118,22 @@ public sealed class MappingValidatorTests
             JeColumns);
 
         // 2026-10-08 第 6 則：缺一側代碼可用補集；借貸別來源欄仍必填。
-        Assert.Equal(missingKey != GlMappingKeys.DcField, result.IsValid);
-        Assert.Equal(missingKey == GlMappingKeys.DcField ? new[] { missingKey } : [], result.MissingRequiredKeys);
+        Assert.Equal(missingKey != GlMappingKeys.DrCr, result.IsValid);
+        Assert.Equal(missingKey == GlMappingKeys.DrCr ? new[] { missingKey } : [], result.MissingRequiredKeys);
         Assert.Empty(result.UnknownColumns);
     }
 
     [Fact]
-    public void LineIdAbsence_IsValid()
+    public void LineItemAbsence_IsValid()
     {
-        // 來源可能沒有項次欄；lineID 缺漏不可阻擋 commit（manifest: No／optional）
+        // 來源可能沒有項次欄；lineItem 缺漏不可阻擋 commit（manifest: No／optional）
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {
-                [GlMappingKeys.DocNum] = "傳票號碼",
-                [GlMappingKeys.PostDate] = "日期",
-                [GlMappingKeys.AccNum] = "會計項目",
-                [GlMappingKeys.AccName] = "項目名稱",
+                [GlMappingKeys.VoucherNumber] = "傳票號碼",
+                [GlMappingKeys.GlDate] = "日期",
+                [GlMappingKeys.AccountNumber] = "會計項目",
+                [GlMappingKeys.AccountName] = "項目名稱",
                 [GlMappingKeys.Description] = "摘要",
                 [GlMappingKeys.DebitAmount] = "借方金額",
                 [GlMappingKeys.CreditAmount] = "貸方金額"
@@ -151,9 +151,9 @@ public sealed class MappingValidatorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "會計科目編號",
-                [TbMappingKeys.AccName] = "會計科目名稱",
-                [TbMappingKeys.DebitAmt] = "借方金額"
+                [TbMappingKeys.AccountNumber] = "會計科目編號",
+                [TbMappingKeys.AccountName] = "會計科目名稱",
+                [TbMappingKeys.DebitAmount] = "借方金額"
             },
             TbChangeMode.DebitCredit);
 
@@ -162,7 +162,7 @@ public sealed class MappingValidatorTests
             ["會計科目編號", "會計科目名稱", "COL3", "期初金額", "借方金額", "貸方金額", "期末金額"]);
 
         Assert.False(result.IsValid);
-        Assert.Contains(TbMappingKeys.CreditAmt, result.MissingRequiredKeys);
+        Assert.Contains(TbMappingKeys.CreditAmount, result.MissingRequiredKeys);
     }
 
     [Fact]
@@ -172,8 +172,8 @@ public sealed class MappingValidatorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "會計科目編號",
-                [TbMappingKeys.AccName] = "會計科目名稱",
+                [TbMappingKeys.AccountNumber] = "會計科目編號",
+                [TbMappingKeys.AccountName] = "會計科目名稱",
                 [TbMappingKeys.OpeningBalance] = "期初金額"
             },
             TbChangeMode.OpenClose);
@@ -194,11 +194,11 @@ public sealed class MappingValidatorTests
         var spec = new TbMappingSpec(
             new Dictionary<string, string>
             {
-                [TbMappingKeys.AccNum] = "會計科目編號",
-                [TbMappingKeys.AccName] = "會計科目名稱",
-                [TbMappingKeys.OpeningDebit] = "期初借",
-                [TbMappingKeys.OpeningCredit] = "期初貸",
-                [TbMappingKeys.ClosingDebit] = "期末借"
+                [TbMappingKeys.AccountNumber] = "會計科目編號",
+                [TbMappingKeys.AccountName] = "會計科目名稱",
+                [TbMappingKeys.OpeningDebitBalance] = "期初借",
+                [TbMappingKeys.OpeningCreditBalance] = "期初貸",
+                [TbMappingKeys.ClosingDebitBalance] = "期末借"
             },
             TbChangeMode.OpenCloseBySide);
 
@@ -207,16 +207,16 @@ public sealed class MappingValidatorTests
             ["會計科目編號", "會計科目名稱", "期初借", "期初貸", "期末借", "期末貸"]);
 
         Assert.False(result.IsValid);
-        Assert.Contains(TbMappingKeys.ClosingCredit, result.MissingRequiredKeys);
-        Assert.Equal(3, new[] { TbMappingKeys.OpeningDebit, TbMappingKeys.OpeningCredit, TbMappingKeys.ClosingDebit }
+        Assert.Contains(TbMappingKeys.ClosingCreditBalance, result.MissingRequiredKeys);
+        Assert.Equal(3, new[] { TbMappingKeys.OpeningDebitBalance, TbMappingKeys.OpeningCreditBalance, TbMappingKeys.ClosingDebitBalance }
             .Count(k => !result.MissingRequiredKeys.Contains(k)));
     }
 
     [Theory]
-    [InlineData(GlAmountMode.SignedAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount" })]
-    [InlineData(GlAmountMode.AmountWithSide, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
-    [InlineData(GlAmountMode.AmountWithFlag, new[] { "docNum", "postDate", "accNum", "accName", "description", "amount", "dcField", "dcDebitCode", "dcCreditCode" })]
-    [InlineData(GlAmountMode.DualAmount, new[] { "docNum", "postDate", "accNum", "accName", "description", "debitAmount", "creditAmount" })]
+    [InlineData(GlAmountMode.SignedAmount, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "amount" })]
+    [InlineData(GlAmountMode.AmountWithSide, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "amount", "drCr", "drCrDebitCode", "drCrCreditCode" })]
+    [InlineData(GlAmountMode.AmountWithFlag, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "amount", "drCr", "drCrDebitCode", "drCrCreditCode" })]
+    [InlineData(GlAmountMode.DualAmount, new[] { "voucherNumber", "glDate", "accountNumber", "accountName", "description", "debitAmount", "creditAmount" })]
     public void GlRequiredKeyMatrix_IsAppliedExactlyAndInOrder(
         GlAmountMode mode,
         string[] expected)
@@ -230,10 +230,10 @@ public sealed class MappingValidatorTests
     }
 
     [Theory]
-    [InlineData(TbChangeMode.DirectChange, new[] { "accNum", "accName", "amount" })]
-    [InlineData(TbChangeMode.DebitCredit, new[] { "accNum", "accName", "debitAmt", "creditAmt" })]
-    [InlineData(TbChangeMode.OpenClose, new[] { "accNum", "accName", "openingBalance", "closingBalance" })]
-    [InlineData(TbChangeMode.OpenCloseBySide, new[] { "accNum", "accName", "openingDebit", "openingCredit", "closingDebit", "closingCredit" })]
+    [InlineData(TbChangeMode.DirectChange, new[] { "accountNumber", "accountName", "changeAmount" })]
+    [InlineData(TbChangeMode.DebitCredit, new[] { "accountNumber", "accountName", "debitAmount", "creditAmount" })]
+    [InlineData(TbChangeMode.OpenClose, new[] { "accountNumber", "accountName", "openingBalance", "closingBalance" })]
+    [InlineData(TbChangeMode.OpenCloseBySide, new[] { "accountNumber", "accountName", "openingDebitBalance", "openingCreditBalance", "closingDebitBalance", "closingCreditBalance" })]
     public void TbRequiredKeyMatrix_IsAppliedExactlyAndInOrder(
         TbChangeMode mode,
         string[] expected)
@@ -251,10 +251,10 @@ public sealed class MappingValidatorTests
     {
         var mapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "傳票號碼",
-            [GlMappingKeys.PostDate] = "日期",
-            [GlMappingKeys.AccNum] = "會計項目",
-            [GlMappingKeys.AccName] = "項目名稱",
+            [GlMappingKeys.VoucherNumber] = "傳票號碼",
+            [GlMappingKeys.GlDate] = "日期",
+            [GlMappingKeys.AccountNumber] = "會計項目",
+            [GlMappingKeys.AccountName] = "項目名稱",
             [GlMappingKeys.Description] = "摘要",
             [GlMappingKeys.Amount] = "借方金額",
             ["notAField"] = "確實存在的來源欄"

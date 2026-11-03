@@ -98,7 +98,7 @@ internal static partial class ImportSourceDiagnostics
     public static partial void Inspected(
         ILogger logger, string file_format, int? column_count, int? worksheet_count, string? encoding, int? delimiter_codepoint);
 
-    /// <summary>V11：匯入完成時，文字檔來源裡用引號包住、內含換行的資料筆數與前幾個列號；不含檔名與內容。</summary>
+    /// <summary>匯入完成時，文字檔來源裡用引號包住、內含換行的資料筆數與前幾個列號；不含檔名與內容。</summary>
     [LoggerMessage(EventId = 2111, EventName = "import.multiline_fields", Level = LogLevel.Information,
         Message = "import.multiline_fields source={source_no} count={multiline_record_count} rows={multiline_record_rows}")]
     public static partial void QuotedLineBreaks(

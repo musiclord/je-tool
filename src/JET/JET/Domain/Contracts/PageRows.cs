@@ -8,9 +8,9 @@ public sealed record SourceQualityFindingRow(
     string Category,
     int SourceRowNumber,
     string SourceLabel,
-    string? DocumentNumber,
-    string? AccountCode,
-    string? PostDate,
+    string? VoucherNumber,
+    string? AccountNumber,
+    string? GlDate,
     string? Description,
     long EntryId);
 
@@ -20,10 +20,10 @@ public sealed record SourceQualityFindingRow(
 /// 游標鍵 entry_id 不入此記錄(由 repo 在 reader 末欄另取以編游標)。
 /// </summary>
 public sealed record FilterHitRow(
-    string? DocumentNumber,
+    string? VoucherNumber,
     string? LineItem,
-    string? PostDate,
-    string? AccountCode,
+    string? GlDate,
+    string? AccountNumber,
     string? AccountName,
     long AmountScaled,
     string DrCr,
@@ -33,10 +33,10 @@ public sealed record FilterHitRow(
 /// <summary>query.prescreenPage 的命中行；entry_id 同時是穩定列識別與 keyset 游標來源。</summary>
 public sealed record PrescreenHitRow(
     long EntryId,
-    string? DocumentNumber,
+    string? VoucherNumber,
     string? LineItem,
-    string? PostDate,
-    string? AccountCode,
+    string? GlDate,
+    string? AccountNumber,
     string? AccountName,
     long AmountScaled,
     string DrCr,
@@ -49,12 +49,12 @@ public sealed record PrescreenHitRow(
 /// SourceModule 與 DrCr 是 GL 整理後的分錄來源與借貸方向，只給 INF 報告主表與底稿第二步用，不進 wire row。
 /// </summary>
 public sealed record InfSampleRow(
-    string? DocumentNumber,
-    string? AccountCode,
+    string? VoucherNumber,
+    string? AccountNumber,
     string? AccountName,
     long DebitScaled,
     long CreditScaled,
-    string? PostDate,
+    string? GlDate,
     string? ApprovalDate,
     string? CreatedBy,
     string? ApprovedBy,
@@ -63,24 +63,24 @@ public sealed record InfSampleRow(
     string? SourceModule = null,
     string? DrCr = null);
 
-/// <summary>query.tagMatrixVoucherPage 的傳票層矩陣列。matchedPositions 由 handler 另附;
-/// 游標鍵 document_number 由 repo 末欄另取。voucherTotal 為傳票借方總額 scaled。</summary>
+/// <summary>query.highRiskSummaryVoucherPage 的高風險條件彙總傳票列。matchedPositions 由 handler 另附;
+/// 游標鍵 voucher_number 由 repo 末欄另取。voucherTotal 為傳票借方總額 scaled。</summary>
 public sealed record VoucherTagRow(
-    string? DocumentNumber,
-    string? PostDate,
+    string? VoucherNumber,
+    string? GlDate,
     string? CreatedBy,
     long VoucherTotalScaled);
 
-/// <summary>query.tagMatrixRowPage 的行層矩陣列。命中傳票之所有行;matchedPositions 由 handler 另附;
+/// <summary>query.highRiskSummaryRowPage 的高風險條件彙總分錄列。命中傳票之所有行;matchedPositions 由 handler 另附;
 /// 游標鍵 entry_id 由 repo 末欄另取。amount 為 signed scaled。</summary>
 public sealed record RowTagRow(
-    string? DocumentNumber,
+    string? VoucherNumber,
     string? LineItem,
-    string? PostDate,
+    string? GlDate,
     string? ApprovalDate,
     string? CreatedBy,
     string? ApprovedBy,
-    string? AccountCode,
+    string? AccountNumber,
     string? AccountName,
     long AmountScaled,
     string? Description);

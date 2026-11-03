@@ -46,7 +46,7 @@
 
         var select = Ui.$('dev-table-select');
         select.innerHTML = dev.tables.map(function (t) {
-          return '<option value="' + Ui.esc(t.name) + '">' + Ui.esc(t.name) + '（' + t.rowCount + '）</option>';
+          return '<option value="' + Ui.esc(t.name) + '">' + Ui.esc(t.name) + '（' + Ui.countText(t.rowCount) + '）</option>';
         }).join('');
 
         // provider 標籤只用於 dev-info 行(面板標題維持 provider 中立,見 index.html)。
@@ -54,7 +54,7 @@
         var providerLabel = providerLabels[data.databaseProvider] || (data.databaseProvider + ' ');
         var sizeKb = Math.round((data.fileSizeBytes || 0) / 102.4) / 10;
         Ui.setText('dev-info',
-          data.databasePath + ' ｜ ' + providerLabel + data.engineVersion + ' ｜ ' + sizeKb + ' KB');
+          data.databasePath + ' ｜ ' + providerLabel + data.engineVersion + ' ｜ ' + Ui.countText(sizeKb) + ' KB');
       });
     });
   }
@@ -84,7 +84,7 @@
         Ui.$('dev-panel-body').querySelector('.table-pager').hidden = devPages <= 1 && dev.offset <= 0;
 
         Ui.setText('dev-info',
-          data.tableName + ' ｜ 共 ' + data.totalCount + ' 列 ｜ 顯示 ' +
+          data.tableName + ' ｜ 共 ' + Ui.countText(data.totalCount) + ' 列 ｜ 顯示 ' +
           (data.totalCount === 0 ? 0 : data.offset + 1) + ' – ' +
           Math.min(data.offset + data.limit, data.totalCount));
       });

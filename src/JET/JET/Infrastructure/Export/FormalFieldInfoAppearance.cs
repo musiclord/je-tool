@@ -4,8 +4,8 @@ using SpreadsheetFont = DocumentFormat.OpenXml.Spreadsheet.Font;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Validation Report 與 Working Paper 的欄位資訊頁共用的欄位、黃色表頭與欄寬上限。
-/// 字級跟著所在報告：驗證報告 10 點、版本列不加藍底；底稿 11 點、保留藍底紅字的版本列（使用者 2026-10-29 裁定）。
+/// 資料驗證報告與工作底稿的欄位資訊頁共用的欄位、黃色表頭與欄寬上限。
+/// 字級跟著所在報告：驗證報告 10 點、版本列不加藍底；底稿 11 點、保留藍底紅字的版本列（裁定 2026-10-29-07）。
 /// </summary>
 internal static class FormalFieldInfoAppearance
 {

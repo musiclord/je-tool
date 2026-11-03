@@ -5,7 +5,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// INF 抽樣行層明細 keyset 分頁(SQL Server,鏡像 <see cref="LocalInfSamplePageRepository"/>)。
-/// 以 caller 指定 runId 限定樣本(共用參數化 <see cref="InfSamplePageSql.RunFilter"/>);
+/// 以 caller 指定 resultId 限定樣本(共用參數化 <see cref="InfSamplePageSql.ResultFilter"/>);
 /// 排序鍵 entry_id ASC、游標展開布林式(@cursor 綁 long)、limit 由 <see cref="SqlServerDialect"/>
 /// 出 OFFSET/FETCH(ORDER BY g.entry_id 已具備)。
 /// </summary>
@@ -15,7 +15,7 @@ public sealed class SqlServerInfSamplePageRepository(SqlServerProjectDatabase da
     private static readonly ISqlDialect Dialect = SqlServerDialect.Instance;
 
     public async Task<PageResult<InfSampleRow>> GetPageAsync(
-        string projectId, string runId, int moneyScale, PageRequest request, CancellationToken cancellationToken)
+        string projectId, string resultId, int moneyScale, PageRequest request, CancellationToken cancellationToken)
     {
         await database.EnsureCreatedAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
@@ -24,14 +24,14 @@ public sealed class SqlServerInfSamplePageRepository(SqlServerProjectDatabase da
         var paging = KeysetPaging.Plan(Dialect, request, ResultPageSorting.InfSample);
 
         await using var command = database.CreateCommand(connection, projectId,
-            "SELECT g.document_number, g.account_code, g.account_name, " +
+            "SELECT g.voucher_number, g.account_number, g.account_name, " +
             "       g.debit_amount_scaled, g.credit_amount_scaled, " +
-            "       g.post_date, g.approval_date, g.created_by, g.approved_by, g.document_description, g.entry_id, " +
+            "       g.gl_date, g.approval_date, g.created_by, g.approved_by, g.description, g.entry_id, " +
             "       g.source_module, g.dr_cr" + paging.SelectSuffix + " " +
-            "FROM {s}.result_inf_sampling_test_sample s " +
-            "JOIN {s}.target_gl_entry g ON g.entry_id = s.entry_id " +
-            "WHERE " + InfSamplePageSql.RunFilter +
-            $" AND {GlEffectivePopulation.SqlPredicate("g")}" + paging.Predicate + " " +
+            "FROM {s}.inf_sample s " +
+            "JOIN {s}.gl g ON g.entry_id = s.entry_id " +
+            "WHERE " + InfSamplePageSql.ResultFilter +
+            $" AND {GlExcludedPopulation.SqlPredicate("g")}" + paging.Predicate + " " +
             paging.OrderBy + " " + Dialect.LimitClause("@pageSize") + ";");
         foreach (var parameter in paging.Parameters)
         {
@@ -39,7 +39,7 @@ public sealed class SqlServerInfSamplePageRepository(SqlServerProjectDatabase da
         }
 
         command.Parameters.AddWithValue("@pageSize", request.ClampedPageSize + 1);
-        command.Parameters.AddWithValue("@runId", runId);
+        command.Parameters.AddWithValue("@resultId", resultId);
 
         var totalCount = await PageTotalCount.ReadKeysetAsync(command, request, paging, Dialect, cancellationToken);
         var buffer = new KeysetPageBuffer<InfSampleRow>();

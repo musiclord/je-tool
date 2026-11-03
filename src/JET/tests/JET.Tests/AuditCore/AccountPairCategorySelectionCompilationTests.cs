@@ -14,7 +14,7 @@ namespace JET.Tests.AuditCore;
 /// </summary>
 public sealed class AccountPairCategorySelectionCompilationTests
 {
-    private static readonly FilterRuleContext Context =
+    private static readonly FilterConditionContext Context =
         new(100, null, "2025-01-01", "2025-12-31");
 
     private const string CustomCashId = "custom.0123456789abcdef0123456789abcdef";
@@ -23,32 +23,32 @@ public sealed class AccountPairCategorySelectionCompilationTests
     public void AccountPair_MultiSelectDebitSide_BindsEveryCategoryIdAsParameter()
     {
         var plan = Compile(PairRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.Exact,
-            [AccountTaxonomyBuiltIns.CashId, AccountTaxonomyBuiltIns.ReceivablesId],
-            [AccountTaxonomyBuiltIns.RevenueId]));
+            [AccountCategoryBuiltIns.CashId, AccountCategoryBuiltIns.ReceivablesId],
+            [AccountCategoryBuiltIns.RevenueId]));
 
         // 借方兩類、貸方一類：每個身分各自成為一個綁定參數，SQL 內沒有任何 category 常值，
-        // 而且比較的是 taxonomy 解析出來的 semantic role，不是身分本身。
+        // 而且比較的是科目分類解析出來的 semantic role，不是身分本身。
         Assert.Contains(
-            "td.semantic_role IN (SELECT ts.semantic_role FROM config_account_taxonomy ts "
+            "td.semantic_role IN (SELECT ts.semantic_role FROM account_category ts "
             + "WHERE ts.category_id IN (@p0, @p1))",
             plan.Sql,
             StringComparison.Ordinal);
         Assert.Contains(
-            "tc.semantic_role IN (SELECT ts.semantic_role FROM config_account_taxonomy ts "
+            "tc.semantic_role IN (SELECT ts.semantic_role FROM account_category ts "
             + "WHERE ts.category_id IN (@p2))",
             plan.Sql,
             StringComparison.Ordinal);
-        Assert.DoesNotContain(AccountTaxonomyBuiltIns.CashId + "'", plan.Sql, StringComparison.Ordinal);
+        Assert.DoesNotContain(AccountCategoryBuiltIns.CashId + "'", plan.Sql, StringComparison.Ordinal);
         Assert.Equal(
             [
-                AccountTaxonomyBuiltIns.CashId,
-                AccountTaxonomyBuiltIns.ReceivablesId,
-                AccountTaxonomyBuiltIns.RevenueId,
-                AccountTaxonomyBuiltIns.CashId,
-                AccountTaxonomyBuiltIns.ReceivablesId,
-                AccountTaxonomyBuiltIns.RevenueId
+                AccountCategoryBuiltIns.CashId,
+                AccountCategoryBuiltIns.ReceivablesId,
+                AccountCategoryBuiltIns.RevenueId,
+                AccountCategoryBuiltIns.CashId,
+                AccountCategoryBuiltIns.ReceivablesId,
+                AccountCategoryBuiltIns.RevenueId
             ],
             plan.Parameters.Select(static parameter => (string)parameter.Value!).ToArray());
     }
@@ -59,7 +59,7 @@ public sealed class AccountPairCategorySelectionCompilationTests
         // 自訂分類同樣只以身分 lookup role；SQL 永遠不把身分或顯示 label 當成比較對象，
         // 因此改名不改命中，而相同 role 的分類會得到同一個商業結果。
         var plan = Compile(PairRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.DebitAnchor,
             [CustomCashId],
             []));
@@ -73,26 +73,26 @@ public sealed class AccountPairCategorySelectionCompilationTests
     }
 
     [Theory]
-    [InlineData(FilterRuleType.AccountPair, AccountPairModes.Exact)]
-    [InlineData(FilterRuleType.AccountPair, AccountPairModes.DebitAnchor)]
-    [InlineData(FilterRuleType.AccountPair, AccountPairModes.CreditAnchor)]
-    [InlineData(FilterRuleType.SpecialAccountCategoryPair, SpecialAccountCategoryPairModes.DrAndCr)]
-    [InlineData(FilterRuleType.SpecialAccountCategoryPair, SpecialAccountCategoryPairModes.DrNotCr)]
-    [InlineData(FilterRuleType.SpecialAccountCategoryPair, SpecialAccountCategoryPairModes.NotDrCr)]
+    [InlineData(FilterConditionType.AccountPair, AccountPairModes.Exact)]
+    [InlineData(FilterConditionType.AccountPair, AccountPairModes.DebitAnchor)]
+    [InlineData(FilterConditionType.AccountPair, AccountPairModes.CreditAnchor)]
+    [InlineData(FilterConditionType.SpecialAccountCategoryPair, SpecialAccountCategoryPairModes.DrAndCr)]
+    [InlineData(FilterConditionType.SpecialAccountCategoryPair, SpecialAccountCategoryPairModes.DrNotCr)]
+    [InlineData(FilterConditionType.SpecialAccountCategoryPair, SpecialAccountCategoryPairModes.NotDrCr)]
     public void PairRule_CategoryOrderAndDuplicates_ProduceIdenticalPlan(
-        FilterRuleType type,
+        FilterConditionType type,
         string pairMode)
     {
         var canonical = Compile(PairRule(
             type,
             pairMode,
-            [AccountTaxonomyBuiltIns.CashId, AccountTaxonomyBuiltIns.ReceivablesId],
-            [AccountTaxonomyBuiltIns.RevenueId, CustomCashId]));
+            [AccountCategoryBuiltIns.CashId, AccountCategoryBuiltIns.ReceivablesId],
+            [AccountCategoryBuiltIns.RevenueId, CustomCashId]));
         var shuffled = Compile(PairRule(
             type,
             pairMode,
-            [AccountTaxonomyBuiltIns.ReceivablesId, AccountTaxonomyBuiltIns.CashId, AccountTaxonomyBuiltIns.CashId],
-            [CustomCashId, AccountTaxonomyBuiltIns.RevenueId, CustomCashId]));
+            [AccountCategoryBuiltIns.ReceivablesId, AccountCategoryBuiltIns.CashId, AccountCategoryBuiltIns.CashId],
+            [CustomCashId, AccountCategoryBuiltIns.RevenueId, CustomCashId]));
 
         Assert.Equal(canonical.Sql, shuffled.Sql);
         Assert.Equal(
@@ -107,7 +107,7 @@ public sealed class AccountPairCategorySelectionCompilationTests
     public void SpecialPair_EmptyCategorySelection_FailsClosedInsteadOfMatchingEveryVoucher(string pairMode)
     {
         var rule = PairRule(
-            FilterRuleType.SpecialAccountCategoryPair,
+            FilterConditionType.SpecialAccountCategoryPair,
             pairMode,
             [],
             []);
@@ -130,12 +130,12 @@ public sealed class AccountPairCategorySelectionCompilationTests
         var debit = Selection(debitPicks);
         var credit = Selection(creditPicks);
         var canonical = Compile(PairRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.Exact,
             debit,
             credit));
         var rearranged = Compile(PairRule(
-            FilterRuleType.AccountPair,
+            FilterConditionType.AccountPair,
             AccountPairModes.Exact,
             Rearrange(debit, rotation),
             Rearrange(credit, rotation)));
@@ -150,11 +150,11 @@ public sealed class AccountPairCategorySelectionCompilationTests
 
     private static readonly string[] CategoryPool =
     [
-        AccountTaxonomyBuiltIns.RevenueId,
-        AccountTaxonomyBuiltIns.ReceivablesId,
-        AccountTaxonomyBuiltIns.CashId,
-        AccountTaxonomyBuiltIns.ReceiptInAdvanceId,
-        AccountTaxonomyBuiltIns.OthersId,
+        AccountCategoryBuiltIns.RevenueId,
+        AccountCategoryBuiltIns.ReceivablesId,
+        AccountCategoryBuiltIns.CashId,
+        AccountCategoryBuiltIns.ReceiptInAdvanceId,
+        AccountCategoryBuiltIns.OthersId,
         CustomCashId
     ];
 
@@ -175,12 +175,12 @@ public sealed class AccountPairCategorySelectionCompilationTests
         return [.. rotated];
     }
 
-    private static FilterRuleSpec PairRule(
-        FilterRuleType type,
+    private static FilterConditionSpec PairRule(
+        FilterConditionType type,
         string pairMode,
         IReadOnlyList<string> debitCategoryIds,
         IReadOnlyList<string> creditCategoryIds) =>
-        new FilterRuleSpec(
+        new FilterConditionSpec(
             FilterJoin.And,
             type,
             null,
@@ -199,7 +199,7 @@ public sealed class AccountPairCategorySelectionCompilationTests
             CreditCategoryIds = creditCategoryIds
         };
 
-    private static FilterSqlFragmentPlan Compile(FilterRuleSpec rule)
+    private static FilterSqlFragmentPlan Compile(FilterConditionSpec rule)
     {
         var builder = new GlFilterWhereBuilder(
             SqliteDialect.Instance,

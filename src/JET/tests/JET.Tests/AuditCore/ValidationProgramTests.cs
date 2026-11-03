@@ -7,7 +7,7 @@ namespace JET.Tests.AuditCore;
 public sealed class ValidationProgramTests
 {
     [Fact]
-    public void Finalize_EligibleSourceControls_CompareWithEffectiveTargetInCore()
+    public void Finalize_EligibleSourceControls_CompareWithGlInCore()
     {
         var plan = JetAuditProgram.Plan(Request());
         var facts = Facts() with
@@ -21,13 +21,13 @@ public sealed class ValidationProgramTests
 
         var result = JetAuditProgram.Finalize(plan, facts);
 
-        var partA = Assert.IsType<CompletenessPartA>(result.Data.PartA);
-        Assert.True(partA.RowCountMatch);
-        Assert.False(partA.AmountMatch);
-        Assert.Equal(3, partA.EligibleSource.RowCount);
-        Assert.Equal(3, partA.EffectiveTarget.RowCount);
-        Assert.Equal(10_000, partA.EffectiveTarget.TotalDebitScaled);
-        Assert.Equal(10_000, partA.EffectiveTarget.TotalCreditScaled);
+        var storedTotals = Assert.IsType<CompletenessStoredTotals>(result.Data.StoredTotals);
+        Assert.True(storedTotals.RowCountMatch);
+        Assert.False(storedTotals.AmountMatch);
+        Assert.Equal(3, storedTotals.EligibleSource.RowCount);
+        Assert.Equal(3, storedTotals.Gl.RowCount);
+        Assert.Equal(10_000, storedTotals.Gl.TotalDebitScaled);
+        Assert.Equal(10_000, storedTotals.Gl.TotalCreditScaled);
     }
 
     [Fact]
@@ -45,19 +45,19 @@ public sealed class ValidationProgramTests
 
         var result = JetAuditProgram.Finalize(plan, facts);
 
-        var partA = Assert.IsType<CompletenessPartA>(result.Data.PartA);
-        Assert.False(partA.RowCountMatch);
-        Assert.True(partA.AmountMatch);
-        Assert.Equal(99, partA.EligibleSource.RowCount);
-        Assert.Equal(3, partA.EffectiveTarget.RowCount);
+        var storedTotals = Assert.IsType<CompletenessStoredTotals>(result.Data.StoredTotals);
+        Assert.False(storedTotals.RowCountMatch);
+        Assert.True(storedTotals.AmountMatch);
+        Assert.Equal(99, storedTotals.EligibleSource.RowCount);
+        Assert.Equal(3, storedTotals.Gl.RowCount);
     }
 
     [Fact]
-    public void Finalize_NullControlTotals_LeavesPartAUnavailable()
+    public void Finalize_NullControlTotals_LeavesStoredTotalsUnavailable()
     {
         var result = JetAuditProgram.Finalize(JetAuditProgram.Plan(Request()), Facts());
 
-        Assert.Null(result.Data.PartA);
+        Assert.Null(result.Data.StoredTotals);
     }
 
     [Fact]
@@ -67,14 +67,14 @@ public sealed class ValidationProgramTests
         {
             PopulationSummary = new GlPopulationSummary(
                 new GlRawPopulationTotals(10, 10_000, 10_000),
-                new ValidationEffectivePopulationTotals(8, 2, 8_000, 8_000, 0),
+                new ValidationGlTotals(8, 2, 8_000, 8_000, 0),
                 new GlExcludedPopulationTotals(1, 1, 0))
         };
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             JetAuditProgram.Finalize(JetAuditProgram.Plan(Request()), facts));
 
-        Assert.Contains("raw／effective／excluded", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("raw／gl／excluded", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class ValidationProgramTests
     }
 
     [Fact]
-    public void Finalize_PartAMismatch_DoesNotChangePartBOutwardStatus()
+    public void Finalize_StoredTotalsMismatch_DoesNotChangeAccountComparisonOutwardStatus()
     {
         var plan = JetAuditProgram.Plan(Request());
         var facts = Facts() with
@@ -106,7 +106,7 @@ public sealed class ValidationProgramTests
 
         var result = JetAuditProgram.Finalize(plan, facts);
 
-        Assert.False(Assert.IsType<CompletenessPartA>(result.Data.PartA).AmountMatch);
+        Assert.False(Assert.IsType<CompletenessStoredTotals>(result.Data.StoredTotals).AmountMatch);
         var completeness = Verdict(result, "completeness_test");
         Assert.Equal("na", completeness.Status);
         Assert.Equal(0, completeness.Count);
@@ -153,6 +153,8 @@ public sealed class ValidationProgramTests
         Assert.All(result.AmountDistribution.Bins, bin => Assert.Null(bin.EcdfPct));
     }
 
+    // 配對沒確認的情境一律當成已匯入 TB；沒有匯入的原因句另由 WorkflowWithoutTbTests 檢查（裁定 2026-10-29-16 區分兩種原因，
+    // 第一次失敗：Focused 收據 20261030-233643806-ed2a7f02f1624b629dd004cd56a4e85a）。
     private static ValidationRequest Request(bool hasTbMapping = true) => new(
         ProjectId: "project",
         HasGlMapping: true,
@@ -161,23 +163,24 @@ public sealed class ValidationProgramTests
         PeriodEnd: "2025-12-31",
         MoneyScale: 10_000,
         SampleSeed: 48_271,
-        RunId: "run",
+        ResultId: "run",
         GeneratedUtc: new DateTimeOffset(2025, 12, 31, 0, 0, 0, TimeSpan.Zero),
-        SampleSize: 59);
+        SampleSize: 59,
+        HasTbImport: true);
 
     private static ValidationFacts Facts() => new(
         PopulationSummary(0, 0, 0, 0),
         CompletenessDiffAccountCount: 0,
         CompletenessDiffAccounts: [],
-        UnbalancedDocumentCount: 0,
+        UnbalancedVoucherCount: 0,
         InfSampleCount: 0,
         NullAccountCount: 0,
         NullDocumentCount: 0,
         NullDescriptionCount: 0,
-        OutOfRangeDateCount: 0,
+        ApprovalDateNotInPeriodCount: 0,
         SourceQualityFindingCount: 0,
-        UnbalancedDocuments: [],
-        NullRecordRows: [],
+        UnbalancedVouchers: [],
+        BlankRecordRows: [],
         ControlTotals: null,
         AmountBinCounts: []);
 
@@ -187,7 +190,7 @@ public sealed class ValidationProgramTests
         long debit,
         long credit) => new(
         new GlRawPopulationTotals(rowCount, debit, credit),
-        new ValidationEffectivePopulationTotals(rowCount, voucherCount, debit, credit, debit - credit),
+        new ValidationGlTotals(rowCount, voucherCount, debit, credit, debit - credit),
         new GlExcludedPopulationTotals(0, 0, 0));
 
     private static ProcedureVerdict Verdict(ValidationResult result, string slug) =>

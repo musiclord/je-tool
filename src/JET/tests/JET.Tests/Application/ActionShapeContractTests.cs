@@ -24,7 +24,7 @@ public sealed class ActionShapeContractTests
         // 2026-10-19 Public 曾因 DuckDB 那條旅程的清單更新超過 3 秒而失敗（收據 20261019-055334911-de734c3f428a499d8256a175e93e8bbb）。
         ReportExportSupport.CatalogRefreshClock.Value = ExpiredDeadlineClock.Instance;
 
-        // 兩條旅程各用自己的 host 與暫存目錄，同時走（使用者 2026-10-15 在 S11 選「範本複製，兩種資料庫同時跑」）。
+        // 兩條旅程各用自己的 host 與暫存目錄，同時走（裁定 2026-10-15-03 選了「範本複製，兩種資料庫同時跑」）。
         var recorded = await Task.WhenAll(ActionShapeJourney.RecordAsync("sqlite"), ActionShapeJourney.RecordAsync("duckdb"));
         var sqlite = recorded[0];
         var duckdb = recorded[1];

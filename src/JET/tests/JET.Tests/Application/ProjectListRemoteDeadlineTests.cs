@@ -437,7 +437,7 @@ public sealed class ProjectListRemoteDeadlineTests
         public Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 
@@ -465,7 +465,7 @@ public sealed class ProjectListRemoteDeadlineTests
     {
         public int RemoteCallCount { get; private set; }
 
-        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 

@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 專案租約鎖的 Application／端到端驗收。現行語意見 docs/jet-guide.md 的「專案鎖」章節。
 /// SQL 相關全 [SqlServerFact] 閘控（連 JET_Test）。
-/// 隔離：每測試唯一 caseName；finally 以 <see cref="TempSqlServerProject.DropDatabaseAsync"/>（drop schema＋清 registry；
+/// 隔離：每測試唯一 projectName；finally 以 <see cref="TempSqlServerProject.DropDatabaseAsync"/>（drop schema＋清 registry；
 /// schema 刪除交易一併刪 project_lock 列）清理。oracle：manifest 契約（project.load 取鎖／被鎖 project_locked／
 /// heartbeatSeconds；project.list 顯示 lock；project.delete 清鎖；折疊修正）＋直接 SQL 物證。
 /// </summary>
@@ -20,9 +20,9 @@ public sealed class ProjectLeaseLockTests
 
     private static string Tag() => Guid.NewGuid().ToString("N")[..10];
 
-    private static string SqlServerPayload(string caseName) =>
+    private static string SqlServerPayload(string projectName) =>
         $$"""
-        { "caseName": "{{caseName}}", "projectCode": "SRV-LOCK", "entityName": "線上實體", "operatorId": "op",
+        { "projectName": "{{projectName}}", "projectCode": "SRV-LOCK", "clientName": "線上實體", "operatorId": "op",
           "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "sqlServer" }
         """;
 
@@ -180,7 +180,7 @@ public sealed class ProjectLeaseLockTests
         var created = await host.DispatchAsync(
             "project.create",
             """
-            { "projectCode": "LOCAL-DEL", "entityName": "E", "operatorId": "op",
+            { "projectCode": "LOCAL-DEL", "clientName": "E", "operatorId": "op",
               "periodStart": "2024-01-01", "periodEnd": "2024-12-31" }
             """);
         var projectId = created.GetProperty("projectId").GetString()!;
@@ -201,9 +201,9 @@ public sealed class ProjectLeaseLockTests
             Assert.Equal(projectId, deleted.GetProperty("projectId").GetString());
             Assert.Equal(JsonValueKind.String, deleted.GetProperty("message").ValueKind);
             Assert.Equal(
-                // R8不再把仍可能包含報告與底稿的案件資料夾稱為快取；其餘ok/檔案/鎖斷言不變。
+                // 訊息不再把仍可能包含報告與底稿的案件資料夾稱為快取；其餘ok/檔案/鎖斷言不變。
                 // 首次失敗：20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
-// 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                                 "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。",
                 deleted.GetProperty("message").GetString());
             // DB 刪除確實已發生（jet.db 於 folder-cleanup 之前刪除、交易已 commit）。

@@ -21,7 +21,7 @@ public sealed class UserFeedbackManualAutoProjectionTests
     [InlineData("\uFEFFM\uFEFF", "M", false)]
     public void UnicodeCodes_UseOrdinalIgnoreCaseWithoutLinguisticExpansion(string manual, string automatic, bool overlap)
     {
-        var mapping = new Dictionary<string, string> { [GlMappingKeys.Manual] = "mode" };
+        var mapping = new Dictionary<string, string> { [GlMappingKeys.IsManual] = "mode" };
         var options = GlMappingOptions.NormalizeLegacy(mapping) with
         {
             ManualAutoPolicy = new GlManualAutoPolicy([manual], [automatic])
@@ -51,10 +51,10 @@ public sealed class UserFeedbackManualAutoProjectionTests
     {
         var mapping = new Dictionary<string, string>
         {
-            [GlMappingKeys.DocNum] = "doc", [GlMappingKeys.PostDate] = "date",
-            [GlMappingKeys.AccNum] = "account", [GlMappingKeys.AccName] = "name",
+            [GlMappingKeys.VoucherNumber] = "doc", [GlMappingKeys.GlDate] = "date",
+            [GlMappingKeys.AccountNumber] = "account", [GlMappingKeys.AccountName] = "name",
             [GlMappingKeys.Description] = "description", [GlMappingKeys.Amount] = "amount",
-            [GlMappingKeys.Manual] = "mode"
+            [GlMappingKeys.IsManual] = "mode"
         };
         var json = JsonSerializer.Serialize(new
         {
@@ -89,13 +89,13 @@ public sealed class UserFeedbackManualAutoProjectionTests
     {
         var mapping = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [GlMappingKeys.DocNum] = "傳票號碼",
-            [GlMappingKeys.PostDate] = "過帳日期",
-            [GlMappingKeys.AccNum] = "科目編號",
-            [GlMappingKeys.AccName] = "科目名稱",
+            [GlMappingKeys.VoucherNumber] = "傳票號碼",
+            [GlMappingKeys.GlDate] = "過帳日期",
+            [GlMappingKeys.AccountNumber] = "科目編號",
+            [GlMappingKeys.AccountName] = "科目名稱",
             [GlMappingKeys.Description] = "摘要",
             [GlMappingKeys.Amount] = "金額",
-            [GlMappingKeys.Manual] = "人工自動代碼"
+            [GlMappingKeys.IsManual] = "人工自動代碼"
         };
         var options = GlMappingOptions.NormalizeLegacy(mapping) with
         {
@@ -123,7 +123,7 @@ public sealed class UserFeedbackManualAutoProjectionTests
             out var error));
         Assert.NotNull(error);
         Assert.Contains(expected, error.Reason, StringComparison.Ordinal);
-        // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Equal(
             raw.Length == 0
                 ? "是空白。請在「來源空白時」選擇處理方式，或先補齊來源資料"
@@ -133,7 +133,7 @@ public sealed class UserFeedbackManualAutoProjectionTests
         if (raw.Length == 0)
         {
             // 確認後的句子不再逐一列出「視為人工、視為自動或不判定」，改說在「來源空白時」選擇處理方式。
-            // 使用者 2026-10-13 勾選頁確認改字，預期值換成確認後的句子（第一次失敗：收據 20261013-131740634-2a35146b081648eb92cf69bc9c18b5ef）。
+            // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-131740634-2a35146b081648eb92cf69bc9c18b5ef）。
             Assert.Contains("「來源空白時」選擇處理方式", error.Reason, StringComparison.Ordinal);
         }
     }

@@ -8,7 +8,7 @@ public sealed class ReportExportProgramTests
 {
     public static TheoryData<
         string,
-        ReportArtifactKind[],
+        ReportKind[],
         string?,
         string?,
         string?,
@@ -17,10 +17,10 @@ public sealed class ReportExportProgramTests
         new()
         {
             {
-                "export.validationArtifacts",
+                "export.validationReports",
                 [
-                    ReportArtifactKind.ValidationReport,
-                    ReportArtifactKind.InfReport
+                    ReportKind.ValidationReport,
+                    ReportKind.InfReport
                 ],
                 "validation-run",
                 null,
@@ -30,7 +30,7 @@ public sealed class ReportExportProgramTests
             },
             {
                 "export.prescreenReport",
-                [ReportArtifactKind.PrescreenReport],
+                [ReportKind.PrescreenReport],
                 null,
                 "prescreen-run",
                 null,
@@ -39,7 +39,7 @@ public sealed class ReportExportProgramTests
             },
             {
                 "export.criteriaSelectionReport",
-                [ReportArtifactKind.CriteriaSelectionReport],
+                [ReportKind.CriteriaSelectionReport],
                 "validation-run",
                 null,
                 "scenario-revision",
@@ -50,31 +50,31 @@ public sealed class ReportExportProgramTests
 
     [Theory]
     [MemberData(nameof(IncludedReportActions))]
-    public async Task IncludedAction_CompletesTypedLifecycleWithExactArtifactPlan(
+    public async Task IncludedAction_CompletesTypedLifecycleWithExactReportPlan(
         string action,
-        ReportArtifactKind[] expectedKinds,
-        string? expectedValidationRunId,
-        string? expectedPrescreenRunId,
+        ReportKind[] expectedKinds,
+        string? expectedValidationResultId,
+        string? expectedPrescreenResultId,
         string? expectedScenarioRevision,
         int[] expectedScenarioPositions,
         bool expectedAtomicBatch)
     {
-        // 第9批高3；Public首敗100911120：Criteria必須保存本次資料版本；其他報告仍不帶這個來源參照。
+        // Public首敗100911120：Criteria必須保存本次資料版本；其他報告仍不帶這個來源參照。
         var expectedDataRevision = action == "export.criteriaSelectionReport" ? "41" : null;
         var request = new ReportExportRequest(
             action,
             "project-7",
-            ValidationRunId: expectedValidationRunId,
-            PrescreenRunId: expectedPrescreenRunId,
+            ValidationResultId: expectedValidationResultId,
+            PrescreenResultId: expectedPrescreenResultId,
             ScenarioRevision: expectedScenarioRevision,
             ScenarioPositions: [4, 2], FilterDataRevision: expectedDataRevision);
 
         var plan = JetAuditProgram.Plan(request);
 
         Assert.Same(request, plan.Request);
-        Assert.Equal(expectedKinds, plan.ArtifactKinds);
-        Assert.Equal(expectedValidationRunId, plan.SourceRef.ValidationRunId);
-        Assert.Equal(expectedPrescreenRunId, plan.SourceRef.PrescreenRunId);
+        Assert.Equal(expectedKinds, plan.ReportKinds);
+        Assert.Equal(expectedValidationResultId, plan.SourceRef.ValidationResultId);
+        Assert.Equal(expectedPrescreenResultId, plan.SourceRef.PrescreenResultId);
         Assert.Equal(expectedScenarioRevision, plan.SourceRef.ScenarioRevision);
         Assert.Equal(expectedDataRevision, plan.SourceRef.FilterDataRevision);
         Assert.Equal(
@@ -91,8 +91,8 @@ public sealed class ReportExportProgramTests
 
         Assert.Same(plan, port.Plan);
         Assert.Same(plan, result.Plan);
-        Assert.Same(facts.Artifacts, result.Artifacts);
-        Assert.Equal(expectedKinds, result.Artifacts.Select(item => item.Kind));
+        Assert.Same(facts.Reports, result.Reports);
+        Assert.Equal(expectedKinds, result.Reports.Select(item => item.Kind));
     }
 
     private sealed class RecordingPort : IReportExportFactsPort
@@ -104,9 +104,9 @@ public sealed class ReportExportProgramTests
             CancellationToken cancellationToken)
         {
             Plan = plan;
-            var artifacts = plan.ArtifactKinds
-                .Select((kind, index) => new ReportArtifact(
-                    $"artifact-{index + 1}",
+            var reports = plan.ReportKinds
+                .Select((kind, index) => new Report(
+                    $"report-{index + 1}",
                     kind,
                     $"report-{index + 1}.xlsx",
                     plan.SourceRef,
@@ -116,7 +116,7 @@ public sealed class ReportExportProgramTests
                     Stale: false))
                 .ToArray();
 
-            return Task.FromResult(new ReportExportFacts(artifacts));
+            return Task.FromResult(new ReportExportFacts(reports));
         }
     }
 }

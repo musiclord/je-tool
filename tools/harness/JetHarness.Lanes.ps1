@@ -350,7 +350,7 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.sqliteSelected -and
                     [bool]$manifest.assertions.projectCreated -and
                     [bool]$manifest.assertions.importStepVisible -and
-                    [bool]$manifest.assertions.caseNameVisible -and
+                    [bool]$manifest.assertions.projectNameVisible -and
                     [bool]$manifest.assertions.projectJsonExists -and
                     [bool]$manifest.assertions.sqliteDatabaseExists -and
                     [bool]$manifest.assertions.storedProjectMatches -and
@@ -370,19 +370,18 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [bool]$manifest.assertions.editedReportLoaded -and
                     [bool]$manifest.assertions.modifiedOutsideVisible -and
-                    [bool]$manifest.assertions.workpaperExportEnabled -and
+                    [bool]$manifest.assertions.workingPaperExportEnabled -and
                     [bool]$manifest.assertions.cleanupPanelAbsent -and
-                    [bool]$manifest.assertions.workpaperHistoryVisible -and
+                    [bool]$manifest.assertions.workingPaperHistoryVisible -and
                     [bool]$manifest.assertions.historyDoesNotCompleteCurrentRun -and
                     [bool]$manifest.assertions.oldVersionRevealAvailable -and
                     [bool]$manifest.assertions.missingVersionRevealDisabled -and
-                    [bool]$manifest.assertions.workpaperHistoryRetainedAfterExport -and
-                    [bool]$manifest.assertions.newestWorkpaperFirst -and
-                    [bool]$manifest.assertions.workpaperHistoryPaginationVerified -and
+                    [bool]$manifest.assertions.workingPaperHistoryRetainedAfterExport -and
+                    [bool]$manifest.assertions.newestWorkingPaperFirst -and
+                    [bool]$manifest.assertions.workingPaperHistoryPaginationVerified -and
                     [bool]$manifest.assertions.supportExportAvailable -and
                     [bool]$manifest.assertions.supportLogWritten -and
-                    [bool]$manifest.assertions.supportLogSafe -and
-                    [bool]$manifest.assertions.legacyJournalDiscarded
+                    [bool]$manifest.assertions.supportLogSafe
             }
             'approval-mapping-modes' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
@@ -423,9 +422,9 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.upstreamChangeAfterExportVerified
             }
-            'case-to-workpaper' {
+            'case-to-working-paper' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
-                    [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.caseToWorkpaperVerified
+                    [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.caseToWorkingPaperVerified
             }
             'null-details-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and

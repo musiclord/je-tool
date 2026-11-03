@@ -19,7 +19,7 @@ public sealed class BinaryExcelImportWorkflowTests
         var original = await File.ReadAllBytesAsync(path);
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            caseName = "Synthetic XLS", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "Synthetic XLS", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var projectId = created.GetProperty("projectId").GetString();
         var inspection = await host.DispatchAsync("import.inspectFile", JsonSerializer.Serialize(new { filePath = path }));
@@ -31,11 +31,11 @@ public sealed class BinaryExcelImportWorkflowTests
         Assert.Equal(2, imported.GetProperty("rowCount").GetInt32());
         await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
-            amountMode = "signed", mapping = new { docNum = "Document", postDate = "Date", accNum = "Account",
-                accName = "Name", description = "Description", amount = "Amount" }
+            amountMode = "signed", mapping = new { voucherNumber = "Document", glDate = "Date", accountNumber = "Account",
+                accountName = "Name", description = "Description", amount = "Amount" }
         }));
         var validation = await host.DispatchAsync("validate.run");
-        Assert.Equal(0, validation.GetProperty("docBalanceTest").GetProperty("unbalancedDocumentCount").GetInt64());
+        Assert.Equal(0, validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         Assert.Equal(2, loaded.GetProperty("importState").GetProperty("gl").GetProperty("rowCount").GetInt32());
         Assert.Equal(original, await File.ReadAllBytesAsync(path));

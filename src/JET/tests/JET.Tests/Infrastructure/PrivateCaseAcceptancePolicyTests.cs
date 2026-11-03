@@ -14,7 +14,7 @@ public sealed class PrivateCaseAcceptancePolicyTests
             PrivateCaseReportComparisonMode.ContentAndAppearance,
             policy.ReportComparison);
         Assert.Equal(
-            PrivateCaseInfVerificationMode.RulesAndEffectivePopulation,
+            PrivateCaseInfVerificationMode.RulesAndGl,
             policy.InfVerification);
         Assert.Equal(PrivateCaseCleanupMode.AlwaysDelete, policy.CleanupMode);
         Assert.Equal(59, policy.InfSampleSize);

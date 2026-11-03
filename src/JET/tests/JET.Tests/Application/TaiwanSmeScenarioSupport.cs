@@ -32,7 +32,7 @@ internal static class TaiwanSmeScenarioSupport
 
     /// <summary>只有一組、一條條件的情境。</summary>
     internal static JsonObject OneRule(string name, string ruleJson) =>
-        Scenario(name, "[{\"join\":\"AND\",\"matchScope\":\"row\",\"rules\":[" + ruleJson + "]}]");
+        Scenario(name, "[{\"join\":\"AND\",\"matchScope\":\"row\",\"conditions\":[" + ruleJson + "]}]");
 
     internal static async Task<(long Count, long VoucherCount)> PreviewAsync(HandlerTestHost host, JsonObject scenario)
     {
@@ -84,7 +84,7 @@ internal static class TaiwanSmeScenarioSupport
 
             var page = await host.DispatchAsync("query.filterHitsPage", request.ToJsonString());
             keys.AddRange(page.GetProperty("rows").EnumerateArray().Select(row =>
-                (row.GetProperty("documentNumber").GetString() ?? BlankDocument) + "|" + row.GetProperty("lineItem").GetString()));
+                (row.GetProperty("voucherNumber").GetString() ?? BlankDocument) + "|" + row.GetProperty("lineItem").GetString()));
             var next = page.GetProperty("nextCursor");
             cursor = next.ValueKind == JsonValueKind.String ? next.GetString() : null;
         } while (cursor is not null);

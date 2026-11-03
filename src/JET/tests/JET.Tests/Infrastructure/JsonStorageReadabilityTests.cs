@@ -2,7 +2,7 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 第 9 批中低 14：改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
+// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -48,7 +48,7 @@ public sealed class JsonStorageReadabilityTests
             ["傳票號碼", "摘要"], SingleRowAsync(row))], CancellationToken.None);
 
         var rowJson = await ReadSingleTextAsync(db, projectId,
-            "SELECT row_json FROM staging_gl_raw_row LIMIT 1");
+            "SELECT row_json FROM pbc_gl LIMIT 1");
 
         Assert.Contains("傳票號碼", rowJson);
         Assert.DoesNotContain("\\u", rowJson);
@@ -92,12 +92,12 @@ public sealed class JsonStorageReadabilityTests
             projectId,
             new CommittedMapping(
                 DatasetKind.Gl,
-                new Dictionary<string, string> { ["docNum"] = "傳票號碼" },
+                new Dictionary<string, string> { ["voucherNumber"] = "傳票號碼" },
                 "dual", "batch-1", DateTimeOffset.UtcNow),
             CancellationToken.None);
 
         var mappingJson = await ReadSingleTextAsync(db, projectId,
-            "SELECT mapping_json FROM config_field_mapping LIMIT 1");
+            "SELECT mapping_json FROM field_mapping LIMIT 1");
 
         Assert.Contains("傳票號碼", mappingJson);
         Assert.DoesNotContain("\\u", mappingJson);

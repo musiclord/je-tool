@@ -52,7 +52,7 @@ public sealed class MappingRestoreDraftHandler(
             .ToArray();
         if (missing.Length > 0)
         {
-            if (glValidation.MissingRequiredKeys.Any(key => key is "dcDebitCode" or "dcCreditCode"))
+            if (glValidation.MissingRequiredKeys.Any(key => key is "drCrDebitCode" or "drCrCreditCode"))
             {
                 throw new JetActionException(
                     JetErrorCodes.MappingMetadataInvalid,
@@ -158,9 +158,9 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         // 已有確認的配對就要記重新配對；沒有時讀紀錄表判斷，本機案件讀不到時是 null（無法判斷）。
         var recordsRecommit = existingMapping is not null
             ? true
-            : await repositories.ProjectAuditLog.TryRequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
+            : await repositories.ProjectOperationLog.TryRequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
         // 重新匯入會刪掉已確認的配對，但畫面的草稿仍帶著上次確認時發出的攸關資料元素欄位身分。
-        // 還沒重新確認時沿用那一份，草稿才送得出去。已儲存情境會隨重新匯入一併清除（使用者 2026-10-07 裁定）。
+        // 還沒重新確認時沿用那一份，草稿才送得出去。已儲存情境會隨重新匯入一併清除（裁定 2026-10-07-03）。
         var reusableMapping = existingMapping
             ?? await repositories.MappingStates.FindPreviousAsync(projectId, DatasetKind.Gl, cancellationToken);
         var existingRdeIds = reusableMapping?.GlOptions?.RdeFields
@@ -226,13 +226,13 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             WorkflowStep,
             CancellationToken.None, logger);
 
-        var auditLogWarning = await CommittedAuditLog.AppendMappingRecommitAsync(
-            repositories.ProjectAuditLog, projectId, recordsRecommit, "gl", result.Projection.ProjectedRowCount, logger);
+        var operationLogWarning = await CommittedOperationLog.AppendMappingRecommitAsync(
+            repositories.ProjectOperationLog, projectId, recordsRecommit, "gl", result.Projection.ProjectedRowCount, logger);
 
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         // 非阻斷提醒（如必填欄整欄空白，疑似配錯欄）；前端提交成功後一併顯示。多數情況為空陣列。
-        var warnings = CommittedAuditLog.WithWarning(result.Projection.Warnings, auditLogWarning);
+        var warnings = CommittedOperationLog.WithWarning(result.Projection.Warnings, operationLogWarning);
         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
         var availableGlFields = JetFieldCatalog.AvailableGlFields(result.Spec.Mapping, result.Spec.Options);
         AuthorizedPreparerState? authorizedPreparerState;
@@ -243,7 +243,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         catch (Exception error)
         {
             // 變更已提交，讀不到授權清單比對狀態時和讀不回結果狀態相同處理：回報成功、附提醒，
-            // 回應不帶這個欄位，前端保留畫面上的狀態（使用者 2026-10-19 裁定）。支援日誌記下錯誤類型。
+            // 回應不帶這個欄位，前端保留畫面上的狀態（裁定 2026-10-19-19）。支援日誌記下錯誤類型。
             if (logger is not null) WorkflowResultStateSupport.StateReadFailed(logger, "authorized_preparer_state", error.GetType().Name);
             var unavailable = WorkflowResultStateSupport.StateUnavailable(mutationState.InvalidatedResults);
             return new
@@ -251,7 +251,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
                 ok = true,
                 mapping = result.Spec.Mapping,
                 amountMode = GlAmountModeNames.ToWireName(result.Spec.AmountMode),
-                postingStatusPolicy = plan.EffectivePopulation.PostingStatusPolicy,
+                postingStatusPolicy = plan.GlExcludedPopulationPlan.PostingStatusPolicy,
                 approvalDateMode = result.Spec.Options.ApprovalDateMode,
                 manualAutoPolicy = result.Spec.Options.ManualAutoPolicy,
                 rdeFields = result.Spec.Options.RdeFields,
@@ -263,8 +263,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
                 warnings,
                 invalidatedResults = unavailable.InvalidatedResults,
                 staleState = unavailable.StaleState,
-                reportArtifacts = unavailable.ReportArtifacts,
-                reportArtifactWarning = unavailable.ReportArtifactWarning
+                reports = unavailable.Reports,
+                reportWarning = unavailable.ReportWarning
             };
         }
 
@@ -273,11 +273,11 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             ok = true,
             mapping = result.Spec.Mapping,
             amountMode = GlAmountModeNames.ToWireName(result.Spec.AmountMode),
-            postingStatusPolicy = plan.EffectivePopulation.PostingStatusPolicy,
+            postingStatusPolicy = plan.GlExcludedPopulationPlan.PostingStatusPolicy,
             approvalDateMode = result.Spec.Options.ApprovalDateMode,
             manualAutoPolicy = result.Spec.Options.ManualAutoPolicy,
             rdeFields = result.Spec.Options.RdeFields,
-            // 往下填補的欄位照欄位目錄順序回傳；fillDownCount 是這次投影把空白補成上一列值的格數（階段六）。
+            // 往下填補的欄位照欄位目錄順序回傳；fillDownCount 是這次投影把空白補成上一列值的格數。
             fillDownFields = result.Spec.Options.FillDownFields,
             availableGlFields,
             batchId = batch.BatchId,
@@ -287,8 +287,8 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             authorizedPreparerState,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning
         };
     }
 }
@@ -336,7 +336,7 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
         // 判斷方式同 GL：本機案件讀不到紀錄表時是 null（無法判斷）。
         var recordsRecommit = existingMapping is not null
             ? true
-            : await repositories.ProjectAuditLog.TryRequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
+            : await repositories.ProjectOperationLog.TryRequiresMappingRecommitAuditAsync(projectId, "tb", cancellationToken);
 
         SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken)
@@ -375,11 +375,11 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             WorkflowStep,
             CancellationToken.None, logger);
 
-        var auditLogWarning = await CommittedAuditLog.AppendMappingRecommitAsync(
-            repositories.ProjectAuditLog, projectId, recordsRecommit, "tb", result.Projection.ProjectedRowCount, logger);
+        var operationLogWarning = await CommittedOperationLog.AppendMappingRecommitAsync(
+            repositories.ProjectOperationLog, projectId, recordsRecommit, "tb", result.Projection.ProjectedRowCount, logger);
 
-        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.RuleRuns, repositories.ResultStaleStates,
-            repositories.FilterScenarios, repositories.ReportArtifactStore, plan.Effects, logger);
+        var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
+            repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         return new
         {
             ok = true,
@@ -387,11 +387,11 @@ public sealed class MappingCommitTbHandler : IApplicationActionHandler
             changeMode = TbChangeModeNames.ToWireName(result.Spec.ChangeMode),
             batchId = batch.BatchId,
             projectedRowCount = result.Projection.ProjectedRowCount,
-            warnings = CommittedAuditLog.WithWarning(result.Projection.Warnings, auditLogWarning),
+            warnings = CommittedOperationLog.WithWarning(result.Projection.Warnings, operationLogWarning),
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
-            reportArtifacts = mutationState.ReportArtifacts,
-            reportArtifactWarning = mutationState.ReportArtifactWarning
+            reports = mutationState.Reports,
+            reportWarning = mutationState.ReportWarning
         };
     }
 }
@@ -611,7 +611,7 @@ internal static class MappingV2CommitPayloadPrerequisite
             rdeFields = fields;
         }
 
-        // 往下填補的欄位（階段六）：只收形狀，哪些欄位能填由 Domain 的規則裁定。
+        // 往下填補的欄位：只收形狀，哪些欄位能填由 Domain 的規則裁定。
         IReadOnlyList<string> fillDownFields = [];
         if (payload.TryGetProperty("fillDownFields", out var fillDownElement))
         {
@@ -703,7 +703,7 @@ internal static class MappingV2CommitPayloadPrerequisite
         return element.GetString() ?? string.Empty;
     }
 
-    // 畫面照正常操作送不出這些資料；畫面只顯示非預期錯誤那一句，檢查代號記進支援日誌（使用者 2026-10-13 裁定）。
+    // 畫面照正常操作送不出這些資料，出現時只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正；所以畫面只顯示非預期錯誤那一句，檢查代號記進支援日誌供查原因。
     // path 是程式寫死的 payload 位置，不是使用者資料。
     private static JetActionException Invalid(string check) =>
         JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, check);

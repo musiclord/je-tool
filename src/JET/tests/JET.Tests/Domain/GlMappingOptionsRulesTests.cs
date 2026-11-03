@@ -8,10 +8,10 @@ public sealed class GlMappingOptionsRulesTests
     [Theory]
     [InlineData(ApprovalDateModeNames.Unmapped, false, true)]
     [InlineData(ApprovalDateModeNames.Mapped, true, true)]
-    [InlineData(ApprovalDateModeNames.SameAsPostDate, false, true)]
+    [InlineData(ApprovalDateModeNames.SameAsGlDate, false, true)]
     [InlineData(ApprovalDateModeNames.Mapped, false, false)]
     [InlineData(ApprovalDateModeNames.Unmapped, true, false)]
-    [InlineData(ApprovalDateModeNames.SameAsPostDate, true, false)]
+    [InlineData(ApprovalDateModeNames.SameAsGlDate, true, false)]
     public void ApprovalDateMode_ThreeStatesAreMutuallyExclusive(
         string mode,
         bool mapApprovalDate,
@@ -20,7 +20,7 @@ public sealed class GlMappingOptionsRulesTests
         var mapping = new Dictionary<string, string>();
         if (mapApprovalDate)
         {
-            mapping[GlMappingKeys.DocDate] = "approval";
+            mapping[GlMappingKeys.ApprovalDate] = "approval";
         }
         var options = GlMappingOptions.NormalizeLegacy(mapping) with { ApprovalDateMode = mode };
 

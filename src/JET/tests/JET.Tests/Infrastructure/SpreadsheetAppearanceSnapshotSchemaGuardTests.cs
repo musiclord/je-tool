@@ -292,7 +292,7 @@ public sealed class SpreadsheetAppearanceSnapshotSchemaGuardTests
     }
 
     [Fact]
-    public void RepositoryInventory_AlwaysRequiresTheExactTwelveStage9Snapshots()
+    public void RepositoryInventory_AlwaysRequiresTheExactTwelveLegacyAppearanceSnapshots()
     {
         using var directory = new TemporarySnapshotRepository();
 

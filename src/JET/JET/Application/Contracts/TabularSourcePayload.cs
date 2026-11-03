@@ -8,7 +8,7 @@ namespace JET.Application;
 /// 副檔名適用性驗證。
 /// delimiter 不可走 PayloadReader.GetOptionalString：tab（"\t"）會被 trim 成空字串。
 /// headerRow 是「欄名在第幾列」，1 起算，Excel 與文字檔都適用，Access 的資料表沒有列的概念所以不適用
-/// （預篩選收斂計畫階段六，使用者 2026-10-22 裁定開放給一般匯入）；省略或 1 都是從第一列起找欄名。
+/// （GL 與 TB 的一般匯入都能指定，裁定 2026-10-22-15）；省略或 1 都是從第一列起找欄名。
 /// </summary>
 public static class TabularSourcePayload
 {

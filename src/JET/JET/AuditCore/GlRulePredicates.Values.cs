@@ -6,12 +6,12 @@ internal sealed partial class GlRulePredicates
 {
     /// <summary>
     /// 通用值條件（fieldValue）。欄位空白（文字 NULL 或 TRIM 為空、日期與金額 NULL）預設不列入，除非
-    /// `includeBlank` 為真（2026-09-04 裁定）；其餘比較都在 UPPER(TRIM()) 文字、ISO 日期字串或 scaled 金額上進行，
+    /// `includeBlank` 為真（裁定 2026-10-14-15）；其餘比較都在 UPPER(TRIM()) 文字、ISO 日期字串或 scaled 金額上進行，
     /// 值全部參數綁定。每月幾日用 <see cref="ISqlDialect.DayOfMonth"/>；文字的包含比對接受多個關鍵字（OR 串接），
 /// 空白、週末、假日、補班日與包含都呼叫預篩選規則同一組方法。
     /// </summary>
-    public string FieldValue(FilterSqlParameterPlanBuilder parameters, FilterRuleSpec rule,
-        FilterRuleContext context, string schemaPrefix)
+    public string FieldValue(FilterSqlParameterPlanBuilder parameters, FilterConditionSpec rule,
+        FilterConditionContext context, string schemaPrefix)
     {
         var field = FieldValueConditions.Resolve(rule, context.RdeFields)
             ?? throw Invalid("field_value_field_missing");
@@ -32,7 +32,7 @@ internal sealed partial class GlRulePredicates
         // RDE 的整個判定放在同一次相關查詢內；關鍵字再多，也不逐詞重查同一個值。
         string Complete(string predicate, bool missingMatches) => rdeFieldParameter is null ? predicate
             : $"(COALESCE((SELECT CASE WHEN ({predicate}) THEN 1 ELSE 0 END "
-              + $"FROM {schemaPrefix}target_gl_rde_value v WHERE v.entry_id = g.entry_id "
+              + $"FROM {schemaPrefix}gl_rde_value v WHERE v.entry_id = g.entry_id "
               + $"AND v.field_id = {rdeFieldParameter}), {(missingMatches ? 1 : 0)}) = 1)";
         var blank = field.ValueType == "text" ? BlankText(column) : $"{column} IS NULL";
         if (op == "isBlank") return Complete($"({blank})", missingMatches: true);
@@ -40,7 +40,7 @@ internal sealed partial class GlRulePredicates
 
         var originalColumn = column;
         if (field.ValueType == "text") column = dialect.Upper(dialect.Trim(column));
-        if (field.ValueType == "money") column = rule.AmountBasis switch
+        if (field.ValueType == "amount") column = rule.AmountBasis switch
         {
             "signed" => column, "absolute" => $"ABS({column})",
             _ => throw Invalid("field_value_amount_basis_invalid")
@@ -49,7 +49,7 @@ internal sealed partial class GlRulePredicates
         {
             "text" when TypedFieldOperandRules.TryNormalizeText(raw, out var text) => TypedFieldOperandRules.TextComparisonKey(text),
             "date" when TypedFieldOperandRules.TryNormalizeDate(raw, context.DateParseOptions, out var date) => date,
-            "money" when TypedFieldOperandRules.TryNormalizeMoney(raw, context.MoneyScale, out var money) => money,
+            "amount" when TypedFieldOperandRules.TryNormalizeMoney(raw, context.MoneyScale, out var money) => money,
             _ => throw Invalid("field_value_value_invalid")
         };
         string Param(string? raw) => NextParam(parameters, Normalize(raw));
@@ -133,35 +133,29 @@ internal sealed partial class GlRulePredicates
             };
             positive = $"{column} {comparison} {Param(rule.TypedValue)}";
         }
-        // 2026-09-04 裁定：日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
+        // 裁定 2026-10-14-15：日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
         var includeBlank = rule.IncludeBlank ?? false;
         return Complete($"(CASE WHEN ({blank}) THEN {(includeBlank ? 1 : 0)} WHEN ({positive}) THEN 1 ELSE 0 END = 1)", includeBlank);
     }
 
     /// <summary>
     /// 借貸科目分類（accountSide）：兩值語意。分類留白的科目依 legacy 與 `AccountMappingContracts` 的
-    /// 既有投影落到 Others（`Selected` 只看 taxonomy role，不看 `classification_explicit`）；不在配對檔的
-    /// 科目不屬於任何分類。`is`／`isNot` 判本列（借方 `amount_scaled >= 0`、貸方 `< 0`），`absent` 是傳票層
-    /// 條件：整張傳票的該側都不屬於指定分類。ANSI 共通（EXISTS／NOT EXISTS），值全部參數綁定。
+    /// 既有投影落到 Others（`Selected` 只看科目分類的 role，不看 `classification_explicit`）；不在配對檔的
+    /// 科目不屬於任何分類。`is`／`isNot` 只判本列；要限定借方或貸方時另加借貸限定條件。
+    /// ANSI 共通（EXISTS／NOT EXISTS），值全部參數綁定。
     /// </summary>
-    public string AccountSide(FilterSqlParameterPlanBuilder parameters, FilterRuleSpec rule,
-        FilterRuleContext context, string schemaPrefix)
+    public string AccountSide(FilterSqlParameterPlanBuilder parameters, FilterConditionSpec rule,
+        FilterConditionContext context, string schemaPrefix)
     {
-        string Side(string alias) => rule.DrCr switch
-        {
-            "debit" => $"{alias}.amount_scaled >= 0", "credit" => $"{alias}.amount_scaled < 0",
-            null or "any" => "1 = 1", _ => throw Invalid("drcr_invalid")
-        };
-        string Selected(string alias) => $"EXISTS (SELECT 1 FROM {schemaPrefix}target_account_mapping m "
-            + $"{TaxonomyJoin(schemaPrefix, "m", "t")} WHERE m.account_code = {alias}.account_code "
+        // 借貸方向是已拿掉的舊寫法，驗證時就當成無法讀取的內容，走到這裡只會是程式送錯資料。
+        if (rule.DrCr is not null) throw Invalid("drcr_invalid");
+        string Selected(string alias) => $"EXISTS (SELECT 1 FROM {schemaPrefix}account_mapping m "
+            + $"{CategoryJoin(schemaPrefix, "m", "t")} WHERE m.account_number = {alias}.account_number "
             + $"AND {CategorySelectionRoles(parameters, "t", rule.CategoryIds, "指定", schemaPrefix, rule.CategorySelection)})";
         return rule.CategoryMode switch
         {
-            "is" => $"({Side("g")} AND {Selected("g")})",
-            "isNot" => $"({Side("g")} AND NOT {Selected("g")})",
-            "absent" => $"(g.document_number IS NOT NULL AND NOT EXISTS (SELECT 1 FROM {schemaPrefix}target_gl_entry s "
-                + $"WHERE s.document_number = g.document_number AND {populationScopePredicate(context, "s")} "
-                + $"AND {Side("s")} AND {Selected("s")}))",
+            "is" => $"({Selected("g")})",
+            "isNot" => $"(NOT {Selected("g")})",
             _ => throw Invalid("category_mode_invalid")
         };
     }

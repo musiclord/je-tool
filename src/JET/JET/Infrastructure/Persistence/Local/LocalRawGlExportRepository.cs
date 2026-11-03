@@ -34,8 +34,8 @@ public sealed class LocalRawGlExportRepository(ILocalProjectDatabase database) :
 
         command.CommandText =
             "SELECT g.entry_id, r.row_json " +
-            "FROM target_gl_entry g " +
-            "JOIN staging_gl_raw_row r ON r.batch_id = g.batch_id AND r.row_number = g.source_row_number " +
+            "FROM gl g " +
+            "JOIN pbc_gl r ON r.batch_id = g.batch_id AND r.row_number = g.source_row_number " +
             $"WHERE g.entry_id IN ({string.Join(",", parameters)});";
 
         var rows = new Dictionary<long, string>();

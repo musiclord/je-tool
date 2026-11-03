@@ -23,7 +23,7 @@ public sealed class ProjectCreateHandlerCompensationTests
             """
             {
               "projectCode": "SYNTHETIC",
-              "entityName": "Synthetic entity",
+              "clientName": "Synthetic entity",
               "operatorId": "synthetic-operator",
               "periodStart": "2026-01-01",
               "periodEnd": "2026-12-31",
@@ -57,7 +57,7 @@ public sealed class ProjectCreateHandlerCompensationTests
             """
             {
               "projectCode": "SYNTHETIC",
-              "entityName": "Synthetic entity",
+              "clientName": "Synthetic entity",
               "operatorId": "synthetic-operator",
               "periodStart": "2026-01-01",
               "periodEnd": "2026-12-31",
@@ -75,30 +75,30 @@ public sealed class ProjectCreateHandlerCompensationTests
         Assert.False(factsPort.RollbackTokenCanBeCanceled);
     }
 
-    private static ProjectRepositoryCatalog CatalogWith(ICaseCreateFactsPort factsPort) =>
+    private static ProjectRepositoryCatalog CatalogWith(IProjectCreateFactsPort factsPort) =>
         TestProjectRepositories.CatalogWithSameObjects(
             TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
             {
-                CaseCreateFacts = factsPort
+                ProjectCreateFacts = factsPort
             });
 
     private sealed class RecordingCreateFactsPort(Exception? completeFailure = null)
-        : ICaseCreateFactsPort
+        : IProjectCreateFactsPort
     {
-        internal CaseCreateFacts? ExecutedFacts { get; private set; }
-        internal CaseCreateFacts? RolledBackFacts { get; private set; }
+        internal ProjectCreateFacts? ExecutedFacts { get; private set; }
+        internal ProjectCreateFacts? RolledBackFacts { get; private set; }
         internal bool CompleteTokenCanBeCanceled { get; private set; }
         internal bool RollbackTokenCanBeCanceled { get; private set; }
 
         public Task PreflightAsync(
-            CaseCreatePreflightRequest request,
+            ProjectCreatePreflightRequest request,
             CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task<CaseCreateFacts> ExecuteAsync(
-            CaseCreatePlan plan,
+        public Task<ProjectCreateFacts> ExecuteAsync(
+            ProjectCreatePlan plan,
             CancellationToken cancellationToken)
         {
-            ExecutedFacts = new CaseCreateFacts(
+            ExecutedFacts = new ProjectCreateFacts(
                 plan.Document,
                 plan.Principal,
                 LockAcquiredThisCall: true,
@@ -107,7 +107,7 @@ public sealed class ProjectCreateHandlerCompensationTests
         }
 
         public Task CompleteAsync(
-            CaseCreateFacts facts,
+            ProjectCreateFacts facts,
             CancellationToken cancellationToken)
         {
             CompleteTokenCanBeCanceled = cancellationToken.CanBeCanceled;
@@ -117,7 +117,7 @@ public sealed class ProjectCreateHandlerCompensationTests
         }
 
         public Task RollbackAsync(
-            CaseCreateFacts facts,
+            ProjectCreateFacts facts,
             CancellationToken cancellationToken)
         {
             RolledBackFacts = facts;
@@ -151,7 +151,7 @@ public sealed class ProjectCreateHandlerCompensationTests
         }
     }
 
-    private sealed class RecordingBackendAttempt : ICaseCreateBackendAttempt
+    private sealed class RecordingBackendAttempt : IProjectCreateBackendAttempt
     {
         public Task PrepareAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -165,7 +165,7 @@ public sealed class ProjectCreateHandlerCompensationTests
         public Task CreateAsync(ProjectDocument document, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        // 第 9 批中低 12：測試替身沿用原本的正常清單，不在產品介面提供相容實作。
+        // 測試替身沿用原本的正常清單，不在產品介面提供相容實作。
         public Task<IReadOnlyList<ProjectStoreEntry>> ListEntriesAsync(CancellationToken cancellationToken) =>
             ProjectStoreTestEntries.FromAsync(ListAsync(cancellationToken));
 

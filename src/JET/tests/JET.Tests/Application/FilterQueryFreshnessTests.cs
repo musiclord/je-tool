@@ -11,13 +11,13 @@ public sealed class FilterQueryFreshnessTests
     public static TheoryData<string, string> Queries => new()
     {
         { "sqlite", "query.filterHitsPage" },
-        { "sqlite", "query.tagMatrixScenarios" },
-        { "sqlite", "query.tagMatrixVoucherPage" },
-        { "sqlite", "query.tagMatrixRowPage" },
+        { "sqlite", "query.highRiskSummaryScenarios" },
+        { "sqlite", "query.highRiskSummaryVoucherPage" },
+        { "sqlite", "query.highRiskSummaryRowPage" },
         { "duckdb", "query.filterHitsPage" },
-        { "duckdb", "query.tagMatrixScenarios" },
-        { "duckdb", "query.tagMatrixVoucherPage" },
-        { "duckdb", "query.tagMatrixRowPage" }
+        { "duckdb", "query.highRiskSummaryScenarios" },
+        { "duckdb", "query.highRiskSummaryVoucherPage" },
+        { "duckdb", "query.highRiskSummaryRowPage" }
     };
 
     [Theory]
@@ -47,7 +47,7 @@ public sealed class FilterQueryFreshnessTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await host.DispatchAsync("filter.commit", ScenarioPayload("999999999999"));
-        // 使用者 2026-10-07 裁定上游修改清除下游後，行事曆修改會連情境一起清掉，不再留下待重算的零筆結果；
+        // 上游修改會清除下游（裁定 2026-10-07-03），所以行事曆修改會連情境一起清掉，不再留下待重算的零筆結果；
         // 改用開案規則升版的情境整批取代製造同一狀態。第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
         await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(host, context.ProjectId, provider);
         Assert.Equal(1, await FilterStaleAsync(host, context.ProjectId, provider));
@@ -75,23 +75,23 @@ public sealed class FilterQueryFreshnessTests
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await host.DispatchAsync("filter.commit", ScenarioPayload("0"));
         var hitsBefore = await ScalarAsync(host, context.ProjectId, provider,
-            "SELECT COUNT(*) FROM result_filter_run;");
+            "SELECT COUNT(*) FROM filter_hit;");
         Assert.True(hitsBefore > 0);
 
         using var lease = Assert.IsAssignableFrom<IDisposable>(host.Dispatcher.TryAcquireExecutionLease());
-        foreach (var action in new[] { "query.filterHitsPage", "query.tagMatrixVoucherPage", "query.tagMatrixRowPage" })
+        foreach (var action in new[] { "query.filterHitsPage", "query.highRiskSummaryVoucherPage", "query.highRiskSummaryRowPage" })
         {
             var page = await host.DispatchAsync(action, QueryPayload(action, "SYNTHETIC-NO-SUCH-VOUCHER"));
             AssertEmptyResult(action, page);
         }
         Assert.Equal(hitsBefore, await ScalarAsync(host, context.ProjectId, provider,
-            "SELECT COUNT(*) FROM result_filter_run;"));
+            "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(0, await FilterStaleAsync(host, context.ProjectId, provider));
     }
 
     private static Task<long> FilterStaleAsync(HandlerTestHost host, string projectId, string provider) =>
         ScalarAsync(host, projectId, provider,
-            "SELECT filter_stale FROM config_result_stale_state WHERE singleton=1;");
+            "SELECT filter_stale FROM result_stale_state WHERE singleton=1;");
 
     private static async Task<long> ScalarAsync(HandlerTestHost host, string projectId, string provider, string sql)
     {
@@ -110,7 +110,7 @@ public sealed class FilterQueryFreshnessTests
         scenarios = new[] { new
         {
             name = "查詢結果狀態", rationale = "合成零筆與搜尋測試",
-            groups = new[] { new { rules = new[] { new
+            groups = new[] { new { conditions = new[] { new
             {
                 type = "numRange", field = "amount", from = minimumAmount
             } } } }
@@ -125,7 +125,7 @@ public sealed class FilterQueryFreshnessTests
 
     private static void AssertEmptyResult(string action, JsonElement data)
     {
-        if (action == "query.tagMatrixScenarios")
+        if (action == "query.highRiskSummaryScenarios")
         {
             var scenario = Assert.Single(data.GetProperty("scenarios").EnumerateArray());
             Assert.Equal(1, scenario.GetProperty("position").GetInt32());

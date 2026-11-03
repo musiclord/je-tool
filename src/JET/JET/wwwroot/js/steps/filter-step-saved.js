@@ -1,6 +1,6 @@
 /*
-  第五步：進階條件篩選 —— 已存情境、矩陣與條件篩選報告。
-  已存清單的儲存、重新檢查與移除流程、展開後的命中預覽、標記矩陣與條件篩選報告的匯出。命中與排序都交給後端分頁。
+  第五步：進階條件篩選 —— 已存情境、高風險條件彙總與條件篩選報告。
+  已存清單的儲存、重新檢查與移除流程、展開後的命中預覽、高風險條件彙總與條件篩選報告的匯出。命中與排序都交給後端分頁。
   第五步分成五個檔案，說明見 filter-step.js 開頭；各檔把自己的函式掛在 JetUi.FilterStep，其他檔案透過它呼叫。
 */
 (function (global) {
@@ -27,7 +27,7 @@
   var render = forward('render');
   var restoreScenarioRemovalFocus = forward('restoreScenarioRemovalFocus');
   // 其他檔案定義的常數：只讀，定義它的檔案先載入。
-  var matrixResponseGuard = FilterStep.matrixResponseGuard;
+  var highRiskSummaryResponseGuard = FilterStep.highRiskSummaryResponseGuard;
   var COMMON_CARD_KEY = FilterStep.COMMON_CARD_KEY;
 
   // JSON 物件屬性順序不是內容；清單或規則的陣列順序則仍有意義。
@@ -42,7 +42,7 @@
 
   function savedFeedbackText(draft) {
     if (FilterStep.viewState.lastSavedName && draftIsBlank(draft)) {
-      return '已儲存「' + Ui.esc(FilterStep.viewState.lastSavedName) + '」。可在「已儲存情境與矩陣」查看或修改。';
+      return '已儲存「' + Ui.esc(FilterStep.viewState.lastSavedName) + '」。可在「已儲存情境」查看或修改。';
     }
     if (!FilterStep.viewState.savedDraftKey || typeof draft.__editingIndex !== 'number') { return ''; }
     return scenarioContentKey(toWireDraft(draft)) === FilterStep.viewState.savedDraftKey
@@ -57,7 +57,7 @@
   // 還沒存成情境的草稿，沒有條件、也沒有手寫的名稱或動機時，換掉不會少任何東西。
   function draftIsBlank(draft) {
     function written(text, dirty) { return !!dirty && !!String(text || '').trim(); }
-    return (draft.groups || []).every(function (group) { return !(group.rules || []).length; }) &&
+    return (draft.groups || []).every(function (group) { return !(group.conditions || []).length; }) &&
       !written(draft.name, draft.__nameDirty) && !written(draft.rationale, draft.__rationaleDirty);
   }
 
@@ -86,9 +86,9 @@
 
   FilterStep.saveDraftForReplacement = null; // bind 時接上目前畫面的儲存動作，回傳 Promise。
 
-  // 使用者 2026-10-11 裁定：目前的情境有修改還沒儲存時，開啟或複製已存情境與套用範例都先詢問，
+  // 裁定 2026-10-11-02：目前的情境有修改還沒儲存時，開啟或複製已存情境與套用範例都先詢問，
   // 用第四步科目分類也在用的共用對話框（Ui.confirmUnsaved）；沒有修改時直接換。取消編輯是明確放棄修改，不經過這裡。
-  // 不儲存時修改會被換掉，所以第二顆按鈕寫「不儲存，直接…」，和科目分類結束 JET 時的寫法相同。
+  // 不儲存時修改會被換掉，所以第二顆按鈕寫「不儲存，直接…」，和科目分類在退出時的寫法相同。
   // 儲存情境不會清掉其他結果，預設焦點停在儲存，比照科目分類沒有東西會被清除時的做法。
   function guardDraftReplacement(kind, name, proceed) {
     if (!hasUnsavedScenarioChanges()) { proceed(); return; }
@@ -123,7 +123,7 @@
       detail.scenarioPosition === targetPosition;
   }
 
-  // 儲存按鈕上方的失敗說明。錯誤屬於別的情境時寫出是哪一個情境（2026-10-13 暫定句，之後的文字批次統一改字）。
+  // 儲存按鈕上方的失敗說明。錯誤屬於別的情境時寫出是哪一個情境（2026-10-13 先寫的暫定句）。
   function saveFailureText(error, targetPosition) {
     var details = error && Array.isArray(error.details) ? error.details : [];
     var other = details.filter(function (detail) { return detail && !belongsToTarget(detail, targetPosition); })[0];
@@ -133,7 +133,7 @@
       : '儲存失敗：' + reason;
   }
 
-  // 「重新檢查並儲存情境」的結果（使用者 2026-10-13 勾選頁確認 54）。還有要修改的情境不算失敗。
+  // 「重新檢查並儲存情境」的結果，裁定 2026-10-13-28 確認了這句的用字。還有要修改的情境不算失敗。
   function scenarioRecheckSentence(data) {
     var check = data && data.filterScenarioCheck;
     var remaining = check && Array.isArray(check.problems) ? check.problems.length : 0;
@@ -186,7 +186,7 @@
         FilterStep.viewState.disclosures = {};
         FilterStep.selectedRule = null;
       }
-      // 比對基準的條件用送出時的內容：後端存檔時只保留每種條件用得到的欄位（使用者 2026-10-15 裁定），回應裡的條件
+      // 比對基準的條件用送出時的內容：後端存檔時只保留每種條件用得到的欄位（裁定 2026-10-15-01），回應裡的條件
       // 比草稿精簡，直接拿來比會一直判成尚未儲存。名稱與動機仍用回應，有卡片的情境名稱留白時後端會補上預設名稱。
       FilterStep.viewState.savedDraftKey = scenarioContentKey(toWireScenario(
         Object.assign({}, authored, { name: saved.name, rationale: saved.rationale })));
@@ -215,8 +215,8 @@
           // restoreViewState 以快取回填，不重抓）。
           var open = !!FilterStep.viewState.openScenarios[i];
           var confirmingRemoval = FilterStep.viewState.pendingRemovalIndex === i;
-          // 整列標題就是開關，再點一次收起；展開的內容放在下凹的底槽裡和下一個情境分開。使用者 2026-10-29 指出情境之間只有不明顯的分隔線，
-          // 請 Claude 研究改善；點標題就收合原本是使用者對「傳票XXX的分錄」標題的期望，依 2026-10-19 同功能的元件只留一套，情境的整列標題也用同一種開關。
+          // 整列標題就是開關，再點一次收起；展開的內容放在下凹的底槽裡和下一個情境分開。原本情境之間只有不明顯的分隔線（裁定 2026-10-29-03）。
+          // 點標題就收合原本是對「傳票XXX的分錄」標題的期望（裁定 2026-10-29-04）；同功能的元件只留一套（裁定 2026-10-19-08），所以情境的整列標題也用同一種開關。
           return (
             '<article class="saved-scenario' + (open ? ' saved-scenario--open' : '') + '" data-motion-key="' + Ui.esc('saved-' + s.name) + '">' +
               '<div class="saved-scenario__head">' +
@@ -248,8 +248,8 @@
                   '</div>'
                 : '') +
               '<div class="saved-scenario__body" id="scenario-body-' + i + '" data-bind="scenario-body-' + i + '" data-collapsible' + (open ? '' : ' hidden') + '>' +
-                // 只用自訂條件時自動產生的動機只是把篩選條件再念一次，下面已經列出條件，所以不列；其他動機照列。
-                (Ui.isGeneratedRationale(s.rationale) ? '' : '<p class="saved-scenario__rationale">' + Ui.esc(s.rationale) + '</p>') +
+                // 自動產生、只是把條件再念一次的動機不列，下面已經列出條件；列法見 Ui.scenarioRationaleText。
+                (Ui.scenarioRationaleText(s) ? '<p class="saved-scenario__rationale">' + Ui.esc(Ui.scenarioRationaleText(s)) + '</p>' : '') +
                 '<div class="scenario-pills">' + scenarioPillsHtml(s.groups) + '</div>' +
                 '<div class="saved-scenario__preview" data-bind="scenario-preview-' + i + '" data-motion-key="' + Ui.esc('saved-preview-' + s.name) + '"></div>' +
               '</div>' +
@@ -262,8 +262,8 @@
         '<h3 class="rule-card__title" data-bind="saved-scenarios-title" tabindex="-1">已儲存篩選情境' +
           '<span class="check-item__count">' + saved.length + ' / 10</span></h3>' +
         // 有情境無法套用目前規則時，原因、下一步與「重新檢查並儲存情境」只在上方「GL：查核期間內的分錄」說一次；
-        // 這裡和下面的矩陣、報告只寫目前狀態（使用者 2026-10-13 選擇處理同一畫面重複的說明）。
-        // 原本標題下另寫一句已儲存版本的 GL 範圍，使用者 2026-10-29 指出多餘後拿掉；範圍只在上方說一次。
+        // 這裡和下面的彙總、報告只寫目前狀態，同一畫面不重複說明（裁定 2026-10-13-04）。
+        // 原本標題下另寫一句已儲存版本的 GL 範圍，這句多餘，已拿掉（裁定 2026-10-29-02）；範圍只在上方說一次。
         items +
       '</section>'
     );
@@ -272,24 +272,24 @@
   function criteriaReportHtml(state) {
     var resultRef = state.filterResultRef;
     var committedScope = committedPopulationScope(state);
-    var validationRunId = state.lastRuns.validate && state.lastRuns.validate.resultRef
-      ? state.lastRuns.validate.resultRef.runId : null;
-    var artifact = committedScope && resultRef && validationRunId
-      ? Ui.findCurrentReportArtifact(state, 'criteriaSelectionReport', {
-          validationRunId: validationRunId,
+    var validationResultId = state.results.validate && state.results.validate.resultRef
+      ? state.results.validate.resultRef.resultId : null;
+    var report = committedScope && resultRef && validationResultId
+      ? Ui.findCurrentReport(state, 'criteriaSelectionReport', {
+          validationResultId: validationResultId,
           scenarioRevision: resultRef.revision
         })
       : null;
-    var canExport = !!committedScope && !!validationRunId &&
+    var canExport = !!committedScope && !!validationResultId &&
       state.filter.savedScenarios.length > 0;
     // 只要曾經產生過報告或上游資料已變更，按鈕就叫「重新產生」，和第六步提示裡指的按鈕名稱一致。
-    var regenerate = !!artifact || (state.staleState && state.staleState.filter) ||
-      Ui.reportArtifactHistory(state, 'criteriaSelectionReport').length > 0;
+    var regenerate = !!report || (state.staleState && state.staleState.filter) ||
+      Ui.reportHistory(state, 'criteriaSelectionReport').length > 0;
     return (
       '<section class="report-output">' +
         '<div class="report-output__head">' +
           '<div>' +
-            // 報告是否為目前版本由按鈕名稱與下方清單表示，標題下不另寫「條件或資料變更後，請重新產生」（使用者 2026-10-29 指出常駐說明太多）。
+            // 報告是否為目前版本由按鈕名稱與下方清單表示，標題下不另寫「條件或資料變更後，請重新產生」，常駐說明不再多寫（裁定 2026-10-29-02）。
             '<h3 class="report-output__title">條件篩選報告</h3>' +
           '</div>' +
           '<button type="button" class="btn btn--ghost" data-action="export-criteria-report"' +
@@ -297,7 +297,7 @@
             (regenerate ? '重新產生條件篩選報告' : '產生條件篩選報告') +
           '</button>' +
         '</div>' +
-        Ui.reportArtifactListHtml(artifact ? [artifact] : [],
+        Ui.reportListHtml(report ? [report] : [],
           canExport ? '尚未產生目前版本的報告。' :
             (state.filter.savedScenarios.length > 0 && !committedPopulationScope(state)
               ? '已儲存的篩選情境尚未套用目前規則，暫時無法產生報告。'
@@ -306,18 +306,18 @@
     );
   }
 
-  /* ---- 高風險條件矩陣預覽：符合條件摘要與傳票交叉表 ----
+  /* ---- 高風險條件彙總：符合條件摘要與傳票符合的條件 ----
      全程零商業邏輯：只把 wire 回來的 matchedPositions 對映成 C 欄 ✓／空白、組表；
-     查詢/pivot/計算/SQL 全在後端三 action（tagMatrixScenarios/VoucherPage/RowPage）。 */
+     查詢/pivot/計算/SQL 全在後端三 action（highRiskSummaryScenarios/VoucherPage/RowPage）。 */
 
   // 摺疊外殼；展開時惰性載入(bind() 的 toggle 處理)。無已存情境時不顯示展開鈕,直接友善空狀態。
-  function tagMatrixHtml(state) {
+  function highRiskSummaryHtml(state) {
     var saved = state.filter.savedScenarios;
     if (saved.length === 0) {
       return (
         '<section class="rule-card">' +
-          '<h3 class="rule-card__title">高風險條件矩陣</h3>' +
-          '<p class="empty-state">尚未儲存任何篩選情境；先在上方儲存情境，每個情境會成為矩陣的一欄。</p>' +
+          '<h3 class="rule-card__title">高風險條件彙總</h3>' +
+          '<p class="empty-state">尚未儲存任何篩選情境；先在上方儲存情境，每個情境在彙總裡佔一欄。</p>' +
         '</section>'
       );
     }
@@ -325,33 +325,34 @@
     if (!committedPopulationScope(state)) {
       return (
         '<section class="rule-card">' +
-          '<h3 class="rule-card__title">高風險條件矩陣</h3>' +
-          '<p class="empty-state">已儲存的篩選情境尚未套用目前規則，矩陣暫不顯示。</p>' +
+          '<h3 class="rule-card__title">高風險條件彙總</h3>' +
+          '<p class="empty-state">已儲存的篩選情境尚未套用目前規則，彙總暫不顯示。</p>' +
         '</section>'
       );
     }
 
     // 展開狀態取自 viewState（跨 bump 重繪保留）；內容由 restoreViewState 以摘要快取回填。
-    var open = FilterStep.viewState.matrixOpen;
+    var open = FilterStep.viewState.highRiskSummaryOpen;
     return (
       '<section class="rule-card">' +
         '<div class="rule-card__head">' +
-          '<h3 class="rule-card__title">高風險條件矩陣</h3>' +
-          '<button type="button" class="btn btn--ghost jet-disclosure" data-action="toggle-matrix"' +
-            Ui.disclosureAttributes(open, 'filter-matrix-body') + '>查看矩陣</button>' +
+          '<h3 class="rule-card__title">高風險條件彙總</h3>' +
+          // 就地展開的檢視是淡底小標籤，箭頭在字前面（裁定 2026-10-30-36）。
+          '<button type="button" class="jet-view jet-view--expand" data-action="toggle-high-risk-summary"' +
+            Ui.disclosureAttributes(open, 'filter-high-risk-summary-body') + '>查看彙總</button>' +
         '</div>' +
-        '<div class="saved-scenario__body" id="filter-matrix-body" data-bind="matrix-body" data-motion-key="matrix-body" data-collapsible' + (open ? '' : ' hidden') + '>' +
-          '<div class="filter-matrix-tabs" role="tablist" aria-label="矩陣檢視">' +
-            matrixViewButton('scenarios', '符合條件摘要') + matrixViewButton('vouchers', '傳票交叉表') + '</div>' +
-          '<div data-bind="matrix-scenarios" id="matrix-panel-scenarios" role="tabpanel" aria-labelledby="matrix-tab-scenarios" data-motion-pane></div>' +
-          '<div data-bind="matrix-vouchers" id="matrix-panel-vouchers" role="tabpanel" aria-labelledby="matrix-tab-vouchers" data-motion-pane></div>' +
+        '<div class="saved-scenario__body" id="filter-high-risk-summary-body" data-bind="high-risk-summary-body" data-motion-key="high-risk-summary-body" data-collapsible' + (open ? '' : ' hidden') + '>' +
+          '<div class="filter-high-risk-summary-tabs" role="tablist" aria-label="彙總檢視">' +
+            highRiskSummaryViewButton('scenarios', '符合條件摘要') + highRiskSummaryViewButton('vouchers', '傳票符合的條件') + '</div>' +
+          '<div data-bind="high-risk-summary-scenarios" id="high-risk-summary-panel-scenarios" role="tabpanel" aria-labelledby="high-risk-summary-tab-scenarios" data-motion-pane></div>' +
+          '<div data-bind="high-risk-summary-vouchers" id="high-risk-summary-panel-vouchers" role="tabpanel" aria-labelledby="high-risk-summary-tab-vouchers" data-motion-pane></div>' +
         '</div>' +
       '</section>'
     );
   }
 
   // 由情境摘要組「C 欄定義」：依 position 升冪,每欄 { position, label:'C{p}', name }。
-  // C 欄欄序與標頭一律以此為準(brief：依 tagMatrixScenarios 回的 position 升冪)。
+  // C 欄欄序與標頭一律以此為準(brief：依 highRiskSummaryScenarios 回的 position 升冪)。
   function buildTagColumns(scenarios) {
     return (scenarios || [])
       .slice()
@@ -370,8 +371,8 @@
         '<tr>' +
           '<td>' + Ui.esc(c.label) + '</td>' +
           '<td>' + Ui.esc(s.name) + '</td>' +
-          '<td class="preview-table__amount">' + Number(s.voucherHitCount).toLocaleString() + '</td>' +
-          '<td class="preview-table__amount">' + Number(s.summaryRowCount).toLocaleString() + '</td>' +
+          '<td class="preview-table__amount">' + Ui.countText(s.voucherHitCount) + '</td>' +
+          '<td class="preview-table__amount">' + Ui.countText(s.summaryRowCount) + '</td>' +
         '</tr>'
       );
     }).join('');
@@ -388,11 +389,11 @@
   }
 
   // 動態 C 欄的標頭只顯示 C{p}，完整情境名稱放在 title 與輔助技術可讀的隱藏文字；
-  // 名稱對照在「符合條件摘要」。十個條件的交叉表因此不必橫向捲動（使用者 2026-10-16 選定）。
+  // 名稱對照在「符合條件摘要」。十個條件的「傳票符合的條件」因此不必橫向捲動（裁定 2026-10-16-02）。
   function tagColumnHeadHtml(columns) {
     return columns.map(function (c) {
       return '<th class="preview-table__tag" title="' + Ui.esc(c.name) + '">' + Ui.esc(c.label) +
-        '<span class="visually-hidden filter-matrix-name">' + Ui.esc(c.name) + '</span></th>';
+        '<span class="visually-hidden filter-high-risk-summary-name">' + Ui.esc(c.name) + '</span></th>';
     }).join('');
   }
 
@@ -407,8 +408,8 @@
     });
   }
 
-  // 已存情境展開後的傳票清單。s 是 filter.preview 回傳的 scenario 物件，已附上 query.filterVoucherPage 的第一頁。
-  // 後端一律回傳傳票清單；原本只在清單是空值時才改列完整命中分錄的那段走不到，使用者 2026-10-19 裁定刪除。
+  // 已存情境展開後的傳票清單。s 帶著符合的傳票數、分錄筆數與 query.filterVoucherPage 的第一頁。
+  // 後端一律回傳傳票清單；原本只在清單是空值時才改列完整命中分錄的那段走不到，已刪除（裁定 2026-10-19-01）。
   function renderScenarioHitPreview(previewEl, s) {
     previewEl.innerHTML = Ui.FilterVouchers.summary(s);
     previewEl.setAttribute('data-loaded', '1');
@@ -416,7 +417,9 @@
   }
 
   // 確保某個展開中的已存情境詳情有命中預覽：優先用 viewState 快取（bump 重繪後不重抓；已存定義只在
-  // commit 時變，跨草稿編輯保留快取是安全的），沒有快取才發 filter.preview 並寫入快取。
+  // commit 時變，跨草稿編輯保留快取是安全的），沒有快取才讀取並寫入快取。
+  // 有可用的已儲存版本時，直接讀儲存情境時存好的結果：傳票頁第一頁另帶符合的傳票數與分錄筆數，不再即時預覽一次。
+  // 還沒有可用的已儲存版本時（例如有情境還不能套用目前規則），照舊用 filter.preview 依目前範圍即時計算。
   // data-loaded 旗標防同一份 DOM 生命週期內重複載入（重複展開/收合不重抓，行為同改版前）。
   function ensureScenarioPreview(container, index) {
     var previewEl = Ui.findLive(container, '[data-bind="scenario-preview-' + index + '"]');
@@ -453,17 +456,23 @@
     previewEl.textContent = '載入中…';
     Ui.runBackground('預覽已儲存情境', function () {
       // savedScenarios 保存時即經 toWireScenario 剝乾淨；此處再過一次同一投影，保證送出形狀一致。
-      return global.JetApi.filterPreview({
-        populationScope: populationScope,
-        scenario: toWireScenario(scenario)
-      }).then(function (data) {
-        if (!acceptResponse()) { return null; }
-        var request = hasSavedVersion ? { scenarioPosition: scenarioPosition, scenarioRevision: resultRef.revision, populationScope: populationScope }
-          : { scenario: toWireScenario(scenario), populationScope: populationScope };
-        return global.JetApi.queryFilterVoucherPage(Object.assign({}, request, { pageSize: Ui.TABLE_PAGE_SIZE })).then(function (page) {
-          data.scenario.voucherPage = page; data.scenario.voucherRequest = request; return data;
-        });
-      }).then(function (data) {
+      var request = hasSavedVersion ? { scenarioPosition: scenarioPosition, scenarioRevision: resultRef.revision, populationScope: populationScope }
+        : { scenario: toWireScenario(scenario), populationScope: populationScope };
+      function firstPage() {
+        return global.JetApi.queryFilterVoucherPage(Object.assign({}, request, { pageSize: Ui.TABLE_PAGE_SIZE }));
+      }
+      var load = hasSavedVersion
+        ? firstPage().then(function (page) {
+            return { scenario: { voucherCount: page.voucherCount, summaryRowCount: page.summaryRowCount,
+              countsWholeVoucherRows: !!page.countsWholeVoucherRows, voucherPage: page, voucherRequest: request } };
+          })
+        : global.JetApi.filterPreview({ populationScope: populationScope, scenario: toWireScenario(scenario) }).then(function (data) {
+            if (!acceptResponse()) { return null; }
+            return firstPage().then(function (page) {
+              data.scenario.voucherPage = page; data.scenario.voucherRequest = request; return data;
+            });
+          });
+      return load.then(function (data) {
         // 回應期間已存清單被替換（commit／移除／resume）：index 對位已變，結果作廢，
         // 不寫入剛被 syncViewState 重置的快取（防止舊定義的預覽掛到新清單的同一序位上）。
         if (!acceptResponse()) { return; }
@@ -472,7 +481,7 @@
       }).catch(function (error) {
         // 舊案件／舊 revision 的失敗不可污染目前案件訊息；當前失敗則留可重試提示並交給共用訊息區。
         if (!acceptResponse()) { return; }
-        // 會讓已存情境失效的上游修改都會清掉情境（使用者 2026-10-07 裁定），這裡只剩暫時性的讀取失敗，提供重試即可。
+        // 會讓已存情境失效的上游修改都會清掉情境（裁定 2026-10-07-03），這裡只剩暫時性的讀取失敗，提供重試即可。
         fillSmoothly(previewEl, function () {
           previewEl.innerHTML = '<p role="status">載入失敗：' + Ui.esc(Ui.errorText(error, '請稍後重試。')) + '</p>' +
             '<p>可以直接重試讀取結果。</p>' +
@@ -486,55 +495,55 @@
     });
   }
 
-  // 矩陣展開時讀取情境摘要，再依選中的頁籤呈現摘要或傳票交叉表。
-  // 以 matrix-body 的 data-loaded 旗標當快取,重複展開不重抓。零商業邏輯:只發 action、組表、對映 ✓。
-  function matrixViewButton(key, label) {
-    return '<button type="button" data-matrix-view="' + key + '"' +
-      Ui.tabAttributes(FilterStep.viewState.matrixView === key, 'matrix-panel-' + key, 'matrix-tab-' + key) + '>' + label + '</button>';
+  // 彙總展開時讀取情境摘要，再依選中的頁籤呈現摘要或傳票符合的條件。
+  // 以 high-risk-summary-body 的 data-loaded 旗標當快取,重複展開不重抓。零商業邏輯:只發 action、組表、對映 ✓。
+  function highRiskSummaryViewButton(key, label) {
+    return '<button type="button" data-high-risk-summary-view="' + key + '"' +
+      Ui.tabAttributes(FilterStep.viewState.highRiskSummaryView === key, 'high-risk-summary-panel-' + key, 'high-risk-summary-tab-' + key) + '>' + label + '</button>';
   }
 
-  function showMatrixView(body) {
-    var boxes = ['scenarios', 'vouchers'].map(function (key) { return body.querySelector('[data-bind="matrix-' + key + '"]'); });
+  function showHighRiskSummaryView(body) {
+    var boxes = ['scenarios', 'vouchers'].map(function (key) { return body.querySelector('[data-bind="high-risk-summary-' + key + '"]'); });
     // 換檢視時新的表格原地交叉淡化、高度平順改變；還沒畫過的表格在顯示之後、量高度之前先畫好。
-    showOnly(boxes, function (box) { return box.getAttribute('data-bind') === 'matrix-' + FilterStep.viewState.matrixView; }, function () {
-      var key = FilterStep.viewState.matrixView;
-      var box = body.querySelector('[data-bind="matrix-' + key + '"]');
-      if (!box || !body._matrixColumns || box.dataset.rendered) { return; }
-      if (key === 'scenarios') { box.innerHTML = scenarioSummaryTableHtml(body._matrixColumns); }
-      else if (key === 'vouchers') { renderVoucherMatrix(box, body._matrixColumns); }
+    showOnly(boxes, function (box) { return box.getAttribute('data-bind') === 'high-risk-summary-' + FilterStep.viewState.highRiskSummaryView; }, function () {
+      var key = FilterStep.viewState.highRiskSummaryView;
+      var box = body.querySelector('[data-bind="high-risk-summary-' + key + '"]');
+      if (!box || !body._highRiskSummaryColumns || box.dataset.rendered) { return; }
+      if (key === 'scenarios') { box.innerHTML = scenarioSummaryTableHtml(body._highRiskSummaryColumns); }
+      else if (key === 'vouchers') { renderHighRiskSummaryVouchers(box, body._highRiskSummaryColumns); }
       box.dataset.rendered = '1';
     });
-    Ui.selectTab(body.querySelector('[data-matrix-view="' + FilterStep.viewState.matrixView + '"]'));
+    Ui.selectTab(body.querySelector('[data-high-risk-summary-view="' + FilterStep.viewState.highRiskSummaryView + '"]'));
   }
 
-  function bindTagMatrix(container) {
-    container.querySelectorAll('[data-matrix-view]').forEach(function (button) {
+  function bindHighRiskSummary(container) {
+    container.querySelectorAll('[data-high-risk-summary-view]').forEach(function (button) {
       button.addEventListener('click', function () {
-        FilterStep.viewState.matrixView = button.dataset.matrixView;
-        showMatrixView(container.querySelector('[data-bind="matrix-body"]'));
+        FilterStep.viewState.highRiskSummaryView = button.dataset.highRiskSummaryView;
+        showHighRiskSummaryView(container.querySelector('[data-bind="high-risk-summary-body"]'));
       });
     });
-    var toggle = container.querySelector('[data-action="toggle-matrix"]');
+    var toggle = container.querySelector('[data-action="toggle-high-risk-summary"]');
     if (!toggle) { return; }
 
     toggle.addEventListener('click', function () {
-      var body = container.querySelector('[data-bind="matrix-body"]');
+      var body = container.querySelector('[data-bind="high-risk-summary-body"]');
       if (!body) { return; }
 
       body.hidden = !body.hidden;
       toggle.setAttribute('aria-expanded', String(!body.hidden));
-      FilterStep.viewState.matrixOpen = !body.hidden; // 跨 bump 重繪保留展開狀態
+      FilterStep.viewState.highRiskSummaryOpen = !body.hidden; // 跨 bump 重繪保留展開狀態
       if (body.hidden) { return; }
 
-      ensureMatrixContent(container);
+      ensureHighRiskSummaryContent(container);
     });
   }
 
-  // 矩陣內容實體渲染（展開惰性載入與 bump 重繪後的快取還原共用）。scenarios 為 queryTagMatrixScenarios
-  // 回傳的摘要陣列；傳票交叉表重新建立時從第一頁開始。
-  function renderMatrixContent(body, scenarios) {
-    var scenariosBox = body.querySelector('[data-bind="matrix-scenarios"]');
-    var vouchersBox = body.querySelector('[data-bind="matrix-vouchers"]');
+  // 彙總內容實體渲染（展開惰性載入與 bump 重繪後的快取還原共用）。scenarios 為 queryHighRiskSummaryScenarios
+  // 回傳的摘要陣列；傳票符合的條件重新建立時從第一頁開始。
+  function renderHighRiskSummaryContent(body, scenarios) {
+    var scenariosBox = body.querySelector('[data-bind="high-risk-summary-scenarios"]');
+    var vouchersBox = body.querySelector('[data-bind="high-risk-summary-vouchers"]');
 
     var columns = buildTagColumns(scenarios || []);
     // 把摘要掛回欄定義供摘要表顯示名稱與命中數。
@@ -548,28 +557,28 @@
       return;
     }
 
-    body._matrixColumns = columns;
-    showMatrixView(body);
+    body._highRiskSummaryColumns = columns;
+    showHighRiskSummaryView(body);
     body.setAttribute('data-loaded', '1');
   }
 
-  // 確保展開中的矩陣有內容：優先用 viewState 摘要快取（草稿編輯不影響已存情境命中，跨重繪保留安全；
-  // savedScenarios 替換時由 syncViewState 重置），沒有快取才發 queryTagMatrixScenarios 並寫入。
-  function ensureMatrixContent(container) {
-    var body = Ui.findLive(container, '[data-bind="matrix-body"]');
+  // 確保展開中的彙總有內容：優先用 viewState 摘要快取（草稿編輯不影響已存情境命中，跨重繪保留安全；
+  // savedScenarios 替換時由 syncViewState 重置），沒有快取才發 queryHighRiskSummaryScenarios 並寫入。
+  function ensureHighRiskSummaryContent(container) {
+    var body = Ui.findLive(container, '[data-bind="high-risk-summary-body"]');
     if (!body || body.getAttribute('data-loaded') === '1') { return; }
     if (!committedPopulationScope(Store.getState())) {
-      body.innerHTML = '<p class="empty-state">已儲存的篩選情境尚未套用目前規則，矩陣暫不顯示。</p>';
+      body.innerHTML = '<p class="empty-state">已儲存的篩選情境尚未套用目前規則，彙總暫不顯示。</p>';
       body.setAttribute('data-loaded', '1');
       return;
     }
 
-    if (FilterStep.viewState.matrixData) {
-      renderMatrixContent(body, FilterStep.viewState.matrixData);
+    if (FilterStep.viewState.highRiskSummaryData) {
+      renderHighRiskSummaryContent(body, FilterStep.viewState.highRiskSummaryData);
       return;
     }
 
-    var scenariosBox = body.querySelector('[data-bind="matrix-scenarios"]');
+    var scenariosBox = body.querySelector('[data-bind="high-risk-summary-scenarios"]');
     scenariosBox.textContent = '載入中…';
 
     var requestState = Store.getState();
@@ -577,17 +586,17 @@
     var resultRef = requestState.filterResultRef;
     var projectId = requestState.project ? requestState.project.projectId : null;
     var projectRef = requestState.project, generation = dataGeneration(requestState);
-    var acceptResponse = matrixResponseGuard.issue(function () {
+    var acceptResponse = highRiskSummaryResponseGuard.issue(function () {
       var latest = Store.getState();
       return !!latest.project && latest.project.projectId === projectId &&
         latest.project === projectRef && sameGeneration(dataGeneration(latest), generation) &&
         latest.filter.savedScenarios === savedRef && latest.filterResultRef === resultRef;
     });
-    Ui.runBackground('載入高風險條件矩陣', function () {
-      return global.JetApi.queryTagMatrixScenarios({}).then(function (data) {
+    Ui.runBackground('載入高風險條件彙總', function () {
+      return global.JetApi.queryHighRiskSummaryScenarios({}).then(function (data) {
         if (!acceptResponse()) { return; }
-        FilterStep.viewState.matrixData = data.scenarios || [];
-        fillSmoothly(body, function () { renderMatrixContent(body, FilterStep.viewState.matrixData); });
+        FilterStep.viewState.highRiskSummaryData = data.scenarios || [];
+        fillSmoothly(body, function () { renderHighRiskSummaryContent(body, FilterStep.viewState.highRiskSummaryData); });
       }).catch(function (error) {
         // 舊案件／舊 revision 的失敗安靜作廢；當前失敗保持未載入狀態，讓使用者可重新展開重試。
         if (!acceptResponse()) { return; }
@@ -597,16 +606,16 @@
     });
   }
 
-  // 傳票交叉表包含固定傳票欄位與動態 C 欄，每頁最多 200 筆。
-  // 矩陣直接由共用分頁載入，欄位及命中判定都來自後端。
-  function renderVoucherMatrix(box, columns) {
+  // 傳票符合的條件包含固定傳票欄位與動態 C 欄，每頁最多 200 筆。
+  // 彙總直接由共用分頁載入，欄位及命中判定都來自後端。
+  function renderHighRiskSummaryVouchers(box, columns) {
     box.innerHTML =
       '<h4 class="rule-card__title">傳票與篩選條件對照</h4>' +
       Ui.pageSearchHtml('依傳票號碼查看') +
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
-          '<thead><tr>' + Ui.sortableHeadCellsHtml('query.tagMatrixVoucherPage', [
-            { key: 'documentNumber', label: '傳票號碼' }, { key: 'postDate', label: '總帳日期' },
+          '<thead><tr>' + Ui.sortableHeadCellsHtml('query.highRiskSummaryVoucherPage', [
+            { key: 'voucherNumber', label: '傳票號碼' }, { key: 'glDate', label: '總帳日期' },
             { key: 'createdBy', label: '編製人員' }, { key: 'voucherTotal', label: '傳票總額' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +
@@ -615,8 +624,8 @@
 
     var tbody = box.querySelector('.preview-table tbody');
     var fixedCols = [
-      function (r) { return r.documentNumber; },
-      function (r) { return r.postDate; },
+      function (r) { return r.voucherNumber; },
+      function (r) { return r.glDate; },
       function (r) { return r.createdBy || ''; },
       { cell: function (r) { return Ui.money(r.voucherTotal); },
         className: 'preview-table__amount' }
@@ -627,7 +636,7 @@
       autoLoad: true,
       sourceKind: 'filter',
       fetchPage: function (cursor, sort, search) {
-        return global.JetApi.queryTagMatrixVoucherPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
+        return global.JetApi.queryHighRiskSummaryVoucherPage({ cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
       },
       appendRows: function (rows) { Ui.appendRowsToTbody(tbody, rows, allCols); },
       clearRows: function () { tbody.innerHTML = ''; },
@@ -636,7 +645,7 @@
     });
   }
 
-  // 已存情境：編輯、複製、取消編輯、重新檢查、條件篩選報告、展開、移除與矩陣（原本 bind 裡的三段）。
+  // 已存情境：編輯、複製、取消編輯、重新檢查、條件篩選報告、展開、移除與高風險條件彙總（原本 bind 裡的三段）。
   function bindSavedScenarios(container) {
     function editScenario(index, copy) {
       var state = Store.getState(), saved = state.filter.savedScenarios[index];
@@ -646,27 +655,15 @@
       var origins = draft.editorOrigins;
       if (origins) {
         draft.__restoredOrigins = true;
-        // 第 2 版的編輯來源逐條記卡片代號，重開時把卡片標記放回條件上。
-        // 舊版前端可能在 editorOrigins 留下 presetGroup；2026-10-02 使用者裁定非營業日不再自成一組，不再讀它；
-        // 舊的非營業日組重開後就是一般條件組裡的兩條預篩選，計算與連接方式照原條件樹。
-        if (origins.version === 2) {
-          draft.groups.forEach(function (group, gi) {
-            var origin = origins.groups[gi];
-            group.rules.forEach(function (rule, ri) { if (origin.cards[ri]) { rule[COMMON_CARD_KEY] = origin.cards[ri]; } });
-          });
-        }
+        // 編輯來源逐條記卡片代號，重開時把卡片標記放回條件上。後端只接受第 2 版，這裡不用再分版本。
+        draft.groups.forEach(function (group, gi) {
+          var origin = origins.groups[gi];
+          group.conditions.forEach(function (rule, ri) { if (origin.cards[ri]) { rule[COMMON_CARD_KEY] = origin.cards[ri]; } });
+        });
       }
-      // 2026-10-29 以前儲存的情境用第 1 版編輯來源記卡片字母，這一版對應不回卡片：條件照原樣編輯，
-      // 畫面說明一次；重新儲存後改存第 2 版，之後就是一般情境（使用者 2026-10-29 選擇程式內部一起改，舊案件另做相容或重建）。
-      draft.__legacyCards = !!origins && origins.version !== 2 && (origins.groups || []).some(function (group) {
-        return (group.letters || []).some(Boolean);
-      });
       setActiveGroup(draft, draft.groups[0] || null);
-      // 第 1 版的自動名稱與動機是用當時的卡片字母產生的，這一版對應不回卡片，重算會換成另一段文字；
-      // 使用者 2026-10-29 選「拿掉字母」時，選項說明寫明已經儲存的情境名稱不會變，所以舊版情境的名稱與動機一律照原樣保留。
-      var keepSavedText = !!origins && origins.version !== 2;
-      draft.__nameDirty = keepSavedText || !(origins && origins.nameIsAutomatic === true);
-      draft.__rationaleDirty = keepSavedText || !(origins && origins.rationaleIsAutomatic === true);
+      draft.__nameDirty = !(origins && origins.nameIsAutomatic === true);
+      draft.__rationaleDirty = !(origins && origins.rationaleIsAutomatic === true);
       if (!copy) { draft.__editingIndex = index; draft.__editingSavedRef = state.filter.savedScenarios; }
       else {
         draft.__nameDirty = true;
@@ -708,7 +705,7 @@
             populationScope: selectedPopulationScope(state)
           }).then(function (data) {
             if (!completeScenarioListChange(snapshot, data)) { return; }
-            // 完成句由 Ui.run 接上耗時後記一則（使用者 2026-10-13 裁定成功時只留一則）。
+            // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
             return scenarioRecheckSentence(data);
           });
         }, { completionMessage: function (sentence) { return sentence || ''; } });
@@ -720,13 +717,13 @@
       criteriaBtn.addEventListener('click', function () {
         var state = Store.getState();
         var resultRef = state.filterResultRef;
-        var validationRunId = state.lastRuns.validate && state.lastRuns.validate.resultRef
-          ? state.lastRuns.validate.resultRef.runId : null;
+        var validationResultId = state.results.validate && state.results.validate.resultRef
+          ? state.results.validate.resultRef.resultId : null;
         if (!committedPopulationScope(state) || !resultRef || !resultRef.revision ||
-            !validationRunId) { return; }
+            !validationResultId) { return; }
         Ui.run('產生條件篩選報告', function () {
           return global.JetApi.exportCriteriaSelectionReport({
-            validationRunId: validationRunId,
+            validationResultId: validationResultId,
             revision: resultRef.revision
           })
             .then(function (data) {
@@ -819,7 +816,7 @@
       });
     });
 
-    bindTagMatrix(container);
+    bindHighRiskSummary(container);
   }
 
   // 掛到共用的 FilterStep，供其他檔案與測試取用。
@@ -842,18 +839,18 @@
   FilterStep.scenarioPillsHtml = scenarioPillsHtml;
   FilterStep.savedScenariosHtml = savedScenariosHtml;
   FilterStep.criteriaReportHtml = criteriaReportHtml;
-  FilterStep.tagMatrixHtml = tagMatrixHtml;
+  FilterStep.highRiskSummaryHtml = highRiskSummaryHtml;
   FilterStep.buildTagColumns = buildTagColumns;
   FilterStep.scenarioSummaryTableHtml = scenarioSummaryTableHtml;
   FilterStep.tagColumnHeadHtml = tagColumnHeadHtml;
   FilterStep.tagCellColumns = tagCellColumns;
   FilterStep.renderScenarioHitPreview = renderScenarioHitPreview;
   FilterStep.ensureScenarioPreview = ensureScenarioPreview;
-  FilterStep.matrixViewButton = matrixViewButton;
-  FilterStep.showMatrixView = showMatrixView;
-  FilterStep.bindTagMatrix = bindTagMatrix;
-  FilterStep.renderMatrixContent = renderMatrixContent;
-  FilterStep.ensureMatrixContent = ensureMatrixContent;
-  FilterStep.renderVoucherMatrix = renderVoucherMatrix;
+  FilterStep.highRiskSummaryViewButton = highRiskSummaryViewButton;
+  FilterStep.showHighRiskSummaryView = showHighRiskSummaryView;
+  FilterStep.bindHighRiskSummary = bindHighRiskSummary;
+  FilterStep.renderHighRiskSummaryContent = renderHighRiskSummaryContent;
+  FilterStep.ensureHighRiskSummaryContent = ensureHighRiskSummaryContent;
+  FilterStep.renderHighRiskSummaryVouchers = renderHighRiskSummaryVouchers;
   FilterStep.bindSavedScenarios = bindSavedScenarios;
 })(window);

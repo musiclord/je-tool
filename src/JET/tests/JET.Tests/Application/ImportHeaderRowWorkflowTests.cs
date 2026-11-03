@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 預篩選收斂計畫階段六的匯入固定答案。使用者 2026-10-22 裁定「欄名在第幾列」開放給 GL 與 TB 的一般匯入，含文字檔，Access 不適用。
+/// 「欄名在第幾列」的匯入固定答案。裁定 2026-10-22-15 把這個選項開放給 GL 與 TB 的一般匯入，含文字檔，Access 不適用。
 /// 審計員在第二步的待匯入清單替每個來源填欄名在第幾列，匯入時從那一列起找欄名，前面的標題列與空白列都不算資料；
 /// 這個選擇和工作表、編碼、分隔符一樣跟著來源保存，匯入回應與重開案件都帶回來，審計員才知道這份來源是怎麼讀的。
 /// 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd（headerRow 被忽略，標題列被當成欄名；回應的來源沒有 headerRow）。
@@ -16,7 +16,7 @@ public sealed class ImportHeaderRowWorkflowTests
     private static string CreatePayload(string provider) => JsonSerializer.Serialize(new
     {
         projectCode = "HEADER-ROW-001",
-        entityName = "合成欄名列案件",
+        clientName = "合成欄名列案件",
         operatorId = "tester",
         periodStart = "2025-01-01",
         periodEnd = "2025-12-31",

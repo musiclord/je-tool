@@ -9,28 +9,28 @@ namespace JET.Tests.Application;
 public sealed class HostOpenFolderHandlerTests
 {
     [Fact]
-    public async Task OldWorkpaper_CanBeRevealedAfterBecomingStale_AndMissingFileDoesNotOpenShell()
+    public async Task OldWorkingPaper_CanBeRevealedAfterBecomingStale_AndMissingFileDoesNotOpenShell()
     {
         var shell = new RecordingHostShell();
         using var host = new HandlerTestHost(shell);
         var created = await CreateProjectAsync(host);
         var projectId = created.GetProperty("projectId").GetString()!;
-        var store = new ProjectReportArtifactStore(new JetProjectFolder(host.ProjectsRoot));
-        var first = await store.WriteAsync(projectId, new ReportArtifactWriteRequest(
-            ReportArtifactKind.WorkingPaper, new ReportArtifactSourceRefs(ValidationRunId: "old-run"),
+        var store = new ProjectReportStore(new JetProjectFolder(host.ProjectsRoot));
+        var first = await store.WriteAsync(projectId, new ReportWriteRequest(
+            ReportKind.WorkingPaper, new ReportSourceRefs(ValidationResultId: "old-run"),
             (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), CancellationToken.None);
-        await store.MarkStaleAsync(projectId, ReportArtifactKind.WorkingPaper, CancellationToken.None);
-        await store.WriteAsync(projectId, new ReportArtifactWriteRequest(
-            ReportArtifactKind.WorkingPaper, new ReportArtifactSourceRefs(ValidationRunId: "new-run"),
+        await store.MarkStaleAsync(projectId, ReportKind.WorkingPaper, CancellationToken.None);
+        await store.WriteAsync(projectId, new ReportWriteRequest(
+            ReportKind.WorkingPaper, new ReportSourceRefs(ValidationResultId: "new-run"),
             (stream, ct) => stream.WriteAsync(new byte[] { 2 }, ct).AsTask()), CancellationToken.None);
 
-        var payload = JsonSerializer.Serialize(new { artifactId = first.ArtifactId });
+        var payload = JsonSerializer.Serialize(new { reportId = first.ReportId });
         await host.DispatchAsync("host.openFolder", payload);
         var oldPath = Path.Combine(host.ProjectsRoot, projectId, first.RelativeFileName);
         Assert.Equal(oldPath, Assert.Single(shell.RevealedPaths));
         File.Delete(oldPath);
         var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("host.openFolder", payload));
-        Assert.Equal(JetErrorCodes.ArtifactNotFound, error.Code);
+        Assert.Equal(JetErrorCodes.ReportNotFound, error.Code);
         Assert.Single(shell.RevealedPaths);
     }
     [Fact]
@@ -56,7 +56,7 @@ public sealed class HostOpenFolderHandlerTests
     [InlineData("{ \"target\": \"unknown\" }")]
     [InlineData("{ \"path\": \"C:\\\\Windows\" }")]
     [InlineData("{ \"target\": \"projectFolder\", \"path\": \"C:\\\\Windows\" }")]
-    [InlineData("{ \"target\": \"projectFolder\", \"artifactId\": \"report-1\" }")]
+    [InlineData("{ \"target\": \"projectFolder\", \"reportId\": \"report-1\" }")]
     public async Task PayloadMustSelectExactlyOneServerResolvedTarget(string payload)
     {
         using var host = new HandlerTestHost();
@@ -82,9 +82,9 @@ public sealed class HostOpenFolderHandlerTests
     private static Task<JsonElement> CreateProjectAsync(HandlerTestHost host)
         => host.DispatchAsync("project.create", """
             {
-              "caseName": "資料夾動作測試",
+              "projectName": "資料夾動作測試",
               "projectCode": "FOLDER-001",
-              "entityName": "資料夾動作測試公司",
+              "clientName": "資料夾動作測試公司",
               "operatorId": "tester",
               "periodStart": "2025-01-01",
               "periodEnd": "2025-12-31",

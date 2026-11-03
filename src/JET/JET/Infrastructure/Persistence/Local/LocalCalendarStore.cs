@@ -20,7 +20,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
         await using (var delete = connection.CreateCommand())
         {
             delete.Transaction = transaction;
-            delete.CommandText = "DELETE FROM staging_calendar_raw_day WHERE day_type = @type;";
+            delete.CommandText = "DELETE FROM calendar_day WHERE day_type = @type;";
             delete.AddWithValue("@type", type.ToStorageName());
             await delete.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -30,7 +30,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
             insert.Transaction = transaction;
             insert.CommandText =
                 """
-                INSERT OR IGNORE INTO staging_calendar_raw_day (day_type, date, day_name)
+                INSERT OR IGNORE INTO calendar_day (day_type, date, day_name)
                 VALUES (@type, @date, @name);
                 """;
 
@@ -48,7 +48,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
         }
 
         // 行事曆換版影響週末/假日預篩選,既有規則結果失效。
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,
@@ -65,7 +65,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM staging_calendar_raw_day WHERE day_type = @type;";
+        command.CommandText = "SELECT COUNT(*) FROM calendar_day WHERE day_type = @type;";
         command.AddWithValue("@type", type.ToStorageName());
 
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
@@ -79,7 +79,7 @@ public sealed class LocalCalendarStore(ILocalProjectDatabase database) : ICalend
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        await RuleRunResultReset.ClearWithinAsync(
+        await ResultReset.ClearWithinAsync(
             connection,
             transaction,
             cancellationToken,

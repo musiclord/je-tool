@@ -124,11 +124,11 @@ internal static class LegacyAuditParityJourneyInputFactory
         var input = new LegacyAuditParityJourneyInput(
             CaseAlias: profile.Alias,
             ProjectCode: identity.ProjectCode,
-            EntityName: identity.EntityName,
+            ClientName: identity.ClientName,
             OperatorId: "legacy-parity",
             PeriodStart: FormatDate(profile.PeriodStart),
             PeriodEnd: FormatDate(profile.PeriodEnd),
-            LastPeriodStart: FormatDate(profile.LastPeriodStart),
+            PrepStartDate: FormatDate(profile.PrepStartDate),
             SampleSeed: identity.SampleSeed,
             GlSources: glSources,
             GlImportMode: "replace",
@@ -314,6 +314,6 @@ internal static class LegacyAuditParityJourneyInputFactory
 
     private sealed record SafeJourneyIdentity(
         string ProjectCode,
-        string EntityName,
+        string ClientName,
         long SampleSeed);
 }
