@@ -49,7 +49,7 @@ internal sealed class AgentGuiTestFixtures
     internal const string LegacyCardScenarioId = "legacy-card-scenario";
     internal const string DataRecoverySourceId = "data-recovery-source";
     internal const string LegacyFormSourceId = "legacy-form-source";
-    internal const string FailNullSearchOnceId = "fail-null-search-once";
+    internal const string FailBlankSearchOnceId = "fail-blank-search-once";
     internal const string AuthorizedListSourceId = "authorized-list-source";
     internal const string CaseImportSourceId = "case-import-source";
     internal const string FailAuthorizedImportOnceId = "fail-authorized-import-once";
@@ -150,7 +150,7 @@ internal sealed class AgentGuiTestFixtures
             or LegacyCardScenarioId
             or DataRecoverySourceId
             or LegacyFormSourceId
-            or FailNullSearchOnceId
+            or FailBlankSearchOnceId
             or AuthorizedListSourceId
             or CaseImportSourceId
             or FailAuthorizedImportOnceId;
@@ -674,11 +674,11 @@ internal sealed class AgentGuiTestFixtures
         return new ProjectListFixtureHandler(handler, this);
     }
 
-    internal IApplicationActionHandler DecorateNullSearch(IApplicationActionHandler handler) =>
-        IsEnabled(FailNullSearchOnceId) && handler.Action == "query.blankRecordsPage"
-            ? new FailNullSearchHandler(handler, this) : handler;
+    internal IApplicationActionHandler DecorateBlankSearch(IApplicationActionHandler handler) =>
+        IsEnabled(FailBlankSearchOnceId) && handler.Action == "query.blankRecordsPage"
+            ? new FailBlankSearchHandler(handler, this) : handler;
 
-    private sealed class FailNullSearchHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
+    private sealed class FailBlankSearchHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
         : IApplicationActionHandler
     {
         private int remaining = 1;
@@ -688,7 +688,7 @@ internal sealed class AgentGuiTestFixtures
             if (payload.TryGetProperty("search", out var search) && search.GetString() == "GUI-NULL-BOTH"
                 && Interlocked.Exchange(ref remaining, 0) == 1)
             {
-                fixtures._trace.Write(FailNullSearchOnceId, "failure.injected");
+                fixtures._trace.Write(FailBlankSearchOnceId, "failure.injected");
                 throw new JetActionException(JetErrorCodes.DatabaseBusy, "合成搜尋失敗，請重試。");
             }
             return inner.HandleAsync(payload, cancellationToken);
@@ -706,9 +706,9 @@ internal sealed class AgentGuiTestFixtures
     {
         // 匯出後回頭修改上游資料的旅程用到的單檔選檔：標題照 import-step.js 的 bindCalendarCard 與
         // validate-step.js 的科目配對卡片。標題對不上時交給正式的選檔視窗。
-        private const string HolidayTitle = "選擇假日檔（Date_of_Holiday、Holiday_Name、IS_Holiday）";
-        private const string MakeupTitle = "選擇補班檔（Date_of_MakeUpday、MakeUpDay_Desc）";
-        private const string AccountMappingTitle = "選擇科目配對檔（科目編號、科目名稱、科目分類）";
+        private const string HolidayTitle = "選擇國定假日清單（Date_of_Holiday、Holiday_Name、IS_Holiday）";
+        private const string MakeupTitle = "選擇補班日清單（Date_of_MakeUpday、MakeUpDay_Desc）";
+        private const string AccountMappingTitle = "選擇科目配對範本（科目編號、科目名稱、科目分類）";
 
         public string Action => inner.Action;
         public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)

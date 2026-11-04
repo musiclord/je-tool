@@ -134,7 +134,7 @@ public sealed class FilterHitMaterializeService(
         {
             var errors = FilterScenarioValidator.Validate(scenario.Spec, validationContext, forSave: false);
             if (errors.Count == 0) { continue; }
-            // 裁定 2026-10-13-28 確認了用字：一句寫完情境、原因與下一步；損毀的條件照待修正清單只寫一次「條件內容無法讀取」。
+            // 用字依裁定 2026-10-13-28：一句寫完情境、原因與下一步；損毀的條件照待修正清單只寫一次「條件內容無法讀取」。
             throw FilterScenarioCorruption.Attach(
                 FilterScenarioErrorDetails.InvalidScenario(
                     [FilterScenarioRuleMessages.CannotRecalculate(scenario.Position, FilterScenarioRuleUpgrade.ListReasons(errors))]),

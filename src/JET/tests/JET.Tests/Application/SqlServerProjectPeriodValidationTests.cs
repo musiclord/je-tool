@@ -26,7 +26,7 @@ public sealed class SqlServerProjectPeriodValidationTests
         using var payload = JsonDocument.Parse("""{"projectId":"server-invalid","databaseProvider":"sqlServer"}""");
         var error = await Assert.ThrowsAsync<JetActionException>(() => handler.HandleAsync(payload.RootElement, CancellationToken.None));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, error.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫格式代碼。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫格式代碼。
         Assert.Equal("案件「server-invalid」設定檔中的查核期間無效。請從備份還原案件資料夾，或另建案件重新匯入。", error.Message);
         Assert.DoesNotContain("yyyy-MM-dd", error.Message);
         Assert.Contains("備份", error.Message);

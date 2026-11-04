@@ -29,11 +29,11 @@
   "types": [
     {
       "id": "handler",
-      "label": "ExportWorkpaperStreamHandler",
+      "label": "ExportWorkingPaperStreamHandler",
       "kind": "class",
       "row": 0,
       "col": 1.5,
-      "sublabel": "export.workpaperStream",
+      "sublabel": "export.workingPaperStream",
       "methods": [
         {
           "name": "HandleAsync",
@@ -45,12 +45,18 @@
     },
     {
       "id": "materialize",
-      "label": "FilterRunMaterializeService",
+      "label": "FilterHitMaterializeService",
       "kind": "class",
       "row": 0,
       "col": 0,
-      "sublabel": "重算選取的情境",
+      "sublabel": "確認或重算選取的情境",
       "methods": [
+        {
+          "name": "RequireUsableAsync",
+          "parameters": "string, ProjectDocument, IReadOnlyList<SavedFilterScenario>, IReadOnlyCollection<int>?",
+          "returns": "Task",
+          "visibility": "public"
+        },
         {
           "name": "MaterializeSelectedAsync",
           "parameters": "string, ProjectDocument, IReadOnlyList<SavedFilterScenario>, IReadOnlyCollection<int>",
@@ -69,15 +75,15 @@
       "methods": [
         {
           "name": "Plan",
-          "parameters": "WorkpaperRequest",
-          "returns": "WorkpaperPlan",
+          "parameters": "WorkingPaperRequest",
+          "returns": "WorkingPaperPlan",
           "visibility": "package",
           "static": true
         },
         {
           "name": "Finalize",
-          "parameters": "WorkpaperPlan, WorkpaperPlanningFacts",
-          "returns": "WorkpaperPlan",
+          "parameters": "WorkingPaperPlan, WorkingPaperPlanningFacts",
+          "returns": "WorkingPaperPlan",
           "visibility": "package",
           "static": true
         }
@@ -85,7 +91,7 @@
     },
     {
       "id": "factsContract",
-      "label": "IWorkpaperPlanningFactsPort",
+      "label": "IWorkingPaperPlanningFactsPort",
       "kind": "interface",
       "row": 1,
       "col": 0,
@@ -93,8 +99,8 @@
       "methods": [
         {
           "name": "ExecuteAsync",
-          "parameters": "WorkpaperPlan",
-          "returns": "Task<WorkpaperPlanningFacts>",
+          "parameters": "WorkingPaperPlan",
+          "returns": "Task<WorkingPaperPlanningFacts>",
           "visibility": "public",
           "abstract": true
         }
@@ -102,7 +108,7 @@
     },
     {
       "id": "writerContract",
-      "label": "IWorkpaperPlanWriter",
+      "label": "IWorkingPaperPlanWriter",
       "kind": "interface",
       "row": 1,
       "col": 1,
@@ -110,7 +116,7 @@
       "methods": [
         {
           "name": "WriteAsync",
-          "parameters": "Stream, WorkpaperContext, WorkpaperPlan",
+          "parameters": "Stream, WorkingPaperContext, WorkingPaperPlan",
           "returns": "Task<ExportStats>",
           "visibility": "public",
           "abstract": true
@@ -127,7 +133,7 @@
       "methods": [
         {
           "name": "WriteAuditedAsync",
-          "parameters": "string, ReportArtifactWriteRequest, Action<ReportArtifactKind>",
+          "parameters": "string, ReportWriteRequest, Action<ReportKind>",
           "returns": "Task<AuditedReportPublication>",
           "visibility": "public",
           "abstract": true
@@ -136,7 +142,7 @@
     },
     {
       "id": "publishContract",
-      "label": "IReportArtifactPublishingStore",
+      "label": "IReportPublishingStore",
       "kind": "interface",
       "row": 1,
       "col": 3,
@@ -144,8 +150,8 @@
       "methods": [
         {
           "name": "WriteWithPublishingAsync",
-          "parameters": "string, ReportArtifactWriteRequest, Action<ReportArtifactKind>",
-          "returns": "Task<ReportArtifact>",
+          "parameters": "string, ReportWriteRequest, Action<ReportKind>",
+          "returns": "Task<Report>",
           "visibility": "public",
           "abstract": true
         }
@@ -153,7 +159,7 @@
     },
     {
       "id": "facts",
-      "label": "WorkpaperPlanningFactsPort",
+      "label": "WorkingPaperPlanningFactsPort",
       "kind": "class",
       "row": 2,
       "col": 0,
@@ -161,7 +167,7 @@
     },
     {
       "id": "writer",
-      "label": "WorkpaperWriter",
+      "label": "WorkingPaperWriter",
       "kind": "class",
       "row": 2,
       "col": 1,
@@ -169,7 +175,7 @@
     },
     {
       "id": "audited",
-      "label": "AuditedReportArtifactStore",
+      "label": "AuditedReportStore",
       "kind": "class",
       "row": 2,
       "col": 2,
@@ -177,7 +183,7 @@
     },
     {
       "id": "files",
-      "label": "ProjectReportArtifactStore",
+      "label": "ProjectReportStore",
       "kind": "class",
       "row": 2,
       "col": 3,
@@ -214,7 +220,7 @@
       "from": "handler",
       "to": "materialize",
       "kind": "dependency",
-      "label": "MaterializeSelectedAsync"
+      "label": "RequireUsableAsync、MaterializeSelectedAsync"
     },
     {
       "id": "handler_program",
@@ -301,17 +307,17 @@
       "dot": "cyan",
       "title": "實際執行哪個類別",
       "items": [
-        "ExportWorkpaperStreamHandler 對規劃資料、寫出器與報告存檔類別都只呼叫介面。存檔類別有實作 IAuditedReportPublishingStore 才走 WriteAuditedAsync，回應才帶得到寫不進操作紀錄的提醒；否則退回 IReportArtifactPublishingStore.WriteWithPublishingAsync 或 IReportArtifactStore.WriteAsync。",
-        "AppCompositionRoot 先建立 ProjectReportArtifactStore，再交給 AuditedReportArtifactStore。外層只把內層當成 IReportArtifactStore 持有，呼叫前才轉型，所以兩者之間沒有依賴線；內層是哪個類別，看兩條「建立」線。"
+        "ExportWorkingPaperStreamHandler 對規劃資料、寫出器與報告存檔類別都只呼叫介面。存檔類別有實作 IAuditedReportPublishingStore 才走 WriteAuditedAsync，回應才帶得到寫不進操作紀錄的提醒；否則退回 IReportPublishingStore.WriteWithPublishingAsync 或 IReportStore.WriteAsync。",
+        "AppCompositionRoot 先建立 ProjectReportStore，再交給 AuditedReportStore。外層只把內層當成 IReportStore 持有，呼叫前才轉型，所以兩者之間沒有依賴線；內層是哪個類別，看兩條「建立」線。"
       ]
     },
     {
       "dot": "slate",
       "title": "這張圖省略了什麼",
       "items": [
-        "兩個存檔類別也都實作 IReportArtifactStore，負責報告清單、路徑與失效標記；圖只畫發布用的介面。",
-        "WorkpaperWriter 由 CreateWorkpaperWriter 建立；內層透過 ReportArtifactContentWriter，執行匯出處理事先交出的寫檔函式。",
-        "外層寫操作紀錄經 CommittedAuditLog 與 IProjectAuditLog；本機案件實際寫入的類別與失敗時的提醒，見底稿匯出循序圖。"
+        "兩個存檔類別也都實作 IReportStore，負責報告清單、路徑與失效標記；圖只畫發布用的介面。",
+        "WorkingPaperWriter 由 CreateWorkingPaperWriter 建立；內層透過 ReportContentWriter，執行匯出處理事先交出的寫檔函式。",
+        "外層寫操作紀錄經 CommittedOperationLog 與 IProjectOperationLog；本機案件實際寫入的類別與失敗時的提醒，見底稿匯出循序圖。"
       ]
     },
     {

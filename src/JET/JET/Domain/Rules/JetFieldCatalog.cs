@@ -49,14 +49,12 @@ internal sealed record JetFieldDefinition(
     int Order,
     bool StorageNullable,
     string SemanticSqlTarget,
-    string? CanonicalName,
-    int? CanonicalOrder,
     bool IsGenericFilterField,
     IReadOnlyList<JetMappingSlot> MappingSlots)
 {
     /// <summary>
-    /// Legacy TableDef 在 mapping 後的實際欄名。預設沿用既有 compatibility CanonicalName；
-    /// 兩者刻意分離，避免本階段提前改變既有 Field Info writer 的可見輸出。
+    /// 報告與底稿上這個欄位的輸出名稱，照舊版範本加 _JE、_TB（裁定 2026-10-29-15）。欄位資訊、底稿第四步之一與
+    /// 資料可靠性抽樣清單都從這裡取名，不另寫字面字串；過帳狀態的輸出欄是照來源欄複製出來的「過帳碼_JE」。
     /// </summary>
     internal string? LegacyFieldName { get; init; }
 
@@ -65,8 +63,8 @@ internal sealed record JetFieldDefinition(
 }
 
 /// <summary>
-/// GL／TB 欄位語意的 Domain 權威目錄。既有 public mapping keys、filter whitelist 與
-/// canonical-name dictionaries 都只由這份目錄投影；目錄不產生 DDL、wire 或前端程式碼。
+/// GL／TB 欄位語意的 Domain 權威目錄。既有 public mapping keys 與 filter whitelist 都只由這份目錄投影；
+/// 目錄不產生 DDL、wire 或前端程式碼。
 /// </summary>
 internal static class JetFieldCatalog
 {
@@ -106,65 +104,58 @@ internal static class JetFieldCatalog
     [
         Field(
             DatasetKind.Gl, GlVoucherNumber, JetFieldValueKind.Text, 0, storageNullable: true, "voucher_number",
-            "傳票號碼_JE", canonicalOrder: 0, isGenericFilterField: true,
+            "傳票號碼_JE", isGenericFilterField: true,
             Slot(GlVoucherNumber, "傳票號碼", 0, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlLineItem, JetFieldValueKind.Text, 1, storageNullable: true, "line_item",
-            "傳票文件項次_JE_S", canonicalOrder: 1, isGenericFilterField: true,
+            "傳票文件項次_JE_S", isGenericFilterField: true,
             Slot(GlLineItem, "傳票文件項次", 1, fieldInfo: true)) with
         {
             DerivedSource = JetFieldDerivedSource.AutoNumber
         },
         Field(
             DatasetKind.Gl, GlDate, JetFieldValueKind.Date, 2, storageNullable: true, "gl_date",
-            "總帳日期_JE", canonicalOrder: 2, isGenericFilterField: true,
+            "總帳日期_JE", isGenericFilterField: true,
             Slot(GlDate, "總帳日期", 2, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlApprovalDate, JetFieldValueKind.Date, 3, storageNullable: true, "approval_date",
-            canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
+            "傳票核准日_JE", isGenericFilterField: true,
             Slot(GlApprovalDate, "傳票核准日", 3, fieldInfo: true)) with
         {
-            LegacyFieldName = "傳票核准日_JE",
             DerivedSource = JetFieldDerivedSource.SameAsGlDate
         },
         // 裁定 2026-10-08-03 移除新版自行加入的傳票日期（voucherDate）；其餘欄位的順序值不重排。
         Field(
             DatasetKind.Gl, GlAccountNumber, JetFieldValueKind.Text, 5, storageNullable: true, "account_number",
-            "會計科目編號_JE", canonicalOrder: 5, isGenericFilterField: true,
+            "會計科目編號_JE", isGenericFilterField: true,
             Slot(GlAccountNumber, "會計科目編號", 5, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlAccountName, JetFieldValueKind.Text, 6, storageNullable: true, "account_name",
-            "會計科目名稱_JE", canonicalOrder: 6, isGenericFilterField: true,
+            "會計科目名稱_JE", isGenericFilterField: true,
             Slot(GlAccountName, "會計科目名稱", 6, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlDescription, JetFieldValueKind.Text, 7, storageNullable: true, "description",
-            "傳票摘要_JE", canonicalOrder: 8, isGenericFilterField: true,
+            "傳票摘要_JE", isGenericFilterField: true,
             Slot(GlDescription, "傳票摘要", 7, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlSourceModule, JetFieldValueKind.Text, 8, storageNullable: true, "source_module",
-            canonicalName: null, canonicalOrder: null, isGenericFilterField: true,
-            Slot(GlSourceModule, "分錄來源模組", 8, fieldInfo: true)) with
-        {
-            LegacyFieldName = "分錄來源模組_JE"
-        },
+            "分錄來源模組_JE", isGenericFilterField: true,
+            Slot(GlSourceModule, "分錄來源模組", 8, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlCreatedBy, JetFieldValueKind.Text, 9, storageNullable: true, "created_by",
-            "傳票建立人員_JE", canonicalOrder: 3, isGenericFilterField: true,
+            "傳票建立人員_JE", isGenericFilterField: true,
             Slot(GlCreatedBy, "傳票建立人員", 9, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlApprovedBy, JetFieldValueKind.Text, 10, storageNullable: true, "approved_by",
-            "傳票核准人員_JE", canonicalOrder: 4, isGenericFilterField: true,
+            "傳票核准人員_JE", isGenericFilterField: true,
             Slot(GlApprovedBy, "傳票核准人員", 10, fieldInfo: true)),
         Field(
             DatasetKind.Gl, GlManual, JetFieldValueKind.Boolean, 11, storageNullable: true, "is_manual",
-            canonicalName: null, canonicalOrder: null, isGenericFilterField: false,
-            Slot(GlManual, "人工/自動分錄", 11)) with
-        {
-            LegacyFieldName = "人工傳票否_JE_S"
-        },
+            "人工傳票否_JE_S", isGenericFilterField: false,
+            Slot(GlManual, "人工/自動分錄", 11)),
         Field(
             DatasetKind.Gl, GlAmount, JetFieldValueKind.Amount, 12, storageNullable: false, "amount_scaled",
-            "傳票金額_JE", canonicalOrder: 7, isGenericFilterField: true,
+            "傳票金額_JE", isGenericFilterField: true,
             Slot(GlAmount, "金額", 12,
                 modes: [GlAmountModeNames.Signed, GlAmountModeNames.Side, GlAmountModeNames.Flag],
                 fieldInfo: true),
@@ -178,7 +169,7 @@ internal static class JetFieldCatalog
                 modes: [GlAmountModeNames.Side, GlAmountModeNames.Flag], literal: true)),
         Field(
             DatasetKind.Gl, GlPostingStatus, JetFieldValueKind.Text, 13, storageNullable: true,
-            "posting_status", canonicalName: null, canonicalOrder: null, isGenericFilterField: false,
+            "posting_status", "過帳碼_JE", isGenericFilterField: false,
             Slot(GlPostingStatus, "過帳狀態", 18))
     ];
 
@@ -186,15 +177,15 @@ internal static class JetFieldCatalog
     [
         Field(
             DatasetKind.Tb, TbAccountNumber, JetFieldValueKind.Text, 0, storageNullable: true, "account_number",
-            "會計科目編號_TB", canonicalOrder: 0, isGenericFilterField: false,
+            "會計科目編號_TB", isGenericFilterField: false,
             Slot(TbAccountNumber, "會計科目編號", 0, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Tb, TbAccountName, JetFieldValueKind.Text, 1, storageNullable: true, "account_name",
-            "會計科目名稱_TB", canonicalOrder: 1, isGenericFilterField: false,
+            "會計科目名稱_TB", isGenericFilterField: false,
             Slot(TbAccountName, "會計科目名稱", 1, always: true, fieldInfo: true)),
         Field(
             DatasetKind.Tb, TbChangeAmount, JetFieldValueKind.Amount, 2, storageNullable: false,
-            "change_amount_scaled", "試算表變動金額_TB", canonicalOrder: 2, isGenericFilterField: false,
+            "change_amount_scaled", "試算表變動金額_TB", isGenericFilterField: false,
             Slot(TbChangeAmount, "年度變動金額", 2, modes: [TbChangeModeNames.Direct], fieldInfo: true),
             Slot(TbDebitAmount, "借方金額", 3, modes: [TbChangeModeNames.DebitCredit], fieldInfo: true),
             Slot(TbCreditAmount, "貸方金額", 4, modes: [TbChangeModeNames.DebitCredit], fieldInfo: true),
@@ -229,12 +220,6 @@ internal static class JetFieldCatalog
     internal static IReadOnlyList<string> TbMappingKeys { get; } =
         TbMappingSlots.Select(static slot => slot.Key).ToArray();
 
-    internal static IReadOnlyDictionary<string, string> GlCanonicalNames { get; } =
-        CreateCanonicalNames(GlFields);
-
-    internal static IReadOnlyDictionary<string, string> TbCanonicalNames { get; } =
-        CreateCanonicalNames(TbFields);
-
     internal static IReadOnlyDictionary<string, GlFieldColumn> GlFilterFields { get; } =
         GlFields
             .Where(static field => field.IsGenericFilterField)
@@ -267,6 +252,10 @@ internal static class JetFieldCatalog
     /// </summary>
     internal static JetFieldDefinition FindTbSemanticFieldByMappingKey(string key) =>
         TbFieldsByMappingKey[key];
+
+    /// <summary>依語意欄名稱找 GL 欄位；欄位資訊記下的 JetField 不是標準欄（例如攸關資料元素的 fieldId）時回 null。</summary>
+    internal static JetFieldDefinition? FindGlFieldBySemanticIdentity(string semanticIdentity) =>
+        GlFieldsBySemanticIdentity.GetValueOrDefault(semanticIdentity);
 
     /// <summary>
     /// 判斷目前已提交 mapping 是否真的提供指定 GL semantic field 的來源位置。
@@ -354,8 +343,7 @@ internal static class JetFieldCatalog
         int order,
         bool storageNullable,
         string semanticSqlTarget,
-        string? canonicalName,
-        int? canonicalOrder,
+        string? legacyFieldName,
         bool isGenericFilterField,
         params JetMappingSlot[] mappingSlots) =>
         new(
@@ -365,12 +353,10 @@ internal static class JetFieldCatalog
             order,
             storageNullable,
             semanticSqlTarget,
-            canonicalName,
-            canonicalOrder,
             isGenericFilterField,
             mappingSlots)
         {
-            LegacyFieldName = canonicalName
+            LegacyFieldName = legacyFieldName
         };
 
     private static JetMappingSlot Slot(
@@ -395,16 +381,6 @@ internal static class JetFieldCatalog
         fields
             .SelectMany(static field => field.MappingSlots.Select(slot => (slot.Key, Field: field)))
             .ToDictionary(static item => item.Key, static item => item.Field, StringComparer.Ordinal);
-
-    private static IReadOnlyDictionary<string, string> CreateCanonicalNames(
-        IReadOnlyList<JetFieldDefinition> fields) =>
-        fields
-            .Where(static field => field.CanonicalName is not null)
-            .OrderBy(static field => field.CanonicalOrder)
-            .ToDictionary(
-                static field => field.SemanticIdentity,
-                static field => field.CanonicalName!,
-                StringComparer.Ordinal);
 
     private static IReadOnlyList<string> RequiredMappingKeys(
         IReadOnlyList<JetMappingSlot> slots,

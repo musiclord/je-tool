@@ -28,7 +28,7 @@ public sealed record PrescreenRuleDefinition(
 /// 條件標籤 <see cref="FilterConditionLabels.PrescreenKeys"/> 與規則需求表 <c>JetRuleRequirements.PrescreenRules</c>
 /// 都從這裡衍生；前端 ui-core.js 的 PRESCREEN_RULES 鏡像十條逐筆規則的鍵、標籤與需求。
 /// 第四步照舊版只留依筆數排序的兩份彙總，不另外挑出 11 筆以下的人員與科目（裁定 2026-10-29-27）；
-/// 第五步「依審計目的」的「較少使用的科目」「編製分錄較少的人員」是「科目與人員統計」條件，不是這裡的規則。
+/// 第五步欄位條件的常用查法「較少使用的科目」「編製分錄較少的人員」是「科目與人員統計」條件，不是這裡的規則。
 /// 需求依原因列出的順序；核心欄位一律列出，必填欄位確認配對時一定有來源欄，列出來只是讓每條規則用到什麼都寫在同一處。
 /// </summary>
 public static class PrescreenRuleDefinitions

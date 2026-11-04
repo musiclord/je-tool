@@ -13,7 +13,7 @@ namespace JET.Tests.Application;
 ///
 /// 鎖的是「欄位集合＋型別＋巢狀結構」,不鎖屬性順序、不鎖具體數值(jet-testing §3)。
 /// 巢狀的 run 形狀(validationResult、prescreenResult 內)由各自 action 的契約鎖負責,project.load 只鎖外層信封。
-/// 陣列元素形狀「有資料才檢查」;新欄位(unbalancedVouchers／nullRows)另以固定 seed 保證有資料、確實鎖到。
+/// 陣列元素形狀「有資料才檢查」;新欄位(unbalancedVouchers／blankRows)另以固定 seed 保證有資料、確實鎖到。
 /// </summary>
 public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixture<DemoProjectFixture>
 {
@@ -144,15 +144,15 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         // 裁定 2026-10-23-01：傳票核准日不可用時「核准日不在期間」改成無法執行，回應多一個原因欄，所以預期的欄位多列一項。
         // 這個示範案件有配對傳票核准日，筆數仍是數字、原因是 null。第一次失敗收據 20261023-101645559-0f1f5a2c47644dfd9f035d23db690993。
         JsonShape.HasExactKeys(blankRecords,
-            "status", "nullAccountCount", "nullDocumentCount", "nullDescriptionCount", "approvalDateNotInPeriodCount",
-            "approvalDateNotInPeriodNaReason", "nullRows");
+            "status", "blankAccountNumberCount", "blankVoucherNumberCount", "blankDescriptionCount", "approvalDateNotInPeriodCount",
+            "approvalDateNotInPeriodNaReason", "blankRows");
         JsonShape.Str(blankRecords, "status");
-        JsonShape.Number(blankRecords, "nullAccountCount");
-        JsonShape.Number(blankRecords, "nullDocumentCount");
-        JsonShape.Number(blankRecords, "nullDescriptionCount");
+        JsonShape.Number(blankRecords, "blankAccountNumberCount");
+        JsonShape.Number(blankRecords, "blankVoucherNumberCount");
+        JsonShape.Number(blankRecords, "blankDescriptionCount");
         JsonShape.Number(blankRecords, "approvalDateNotInPeriodCount");
         Assert.Equal(JsonValueKind.Null, blankRecords.GetProperty("approvalDateNotInPeriodNaReason").ValueKind);
-        JsonShape.Arr(blankRecords, "nullRows"); // 元素形狀見 ValidateRun_DetailArrays
+        JsonShape.Arr(blankRecords, "blankRows"); // 元素形狀見 ValidateRun_DetailArrays
 
         var sourceQuality = JsonShape.Obj(data, "sourceQuality");
         JsonShape.HasExactKeys(sourceQuality, "findingCount", "sampleRows");
@@ -196,9 +196,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             JsonShape.Number(e, "diff");
         });
 
-        var nullRows = JsonShape.Arr(data.GetProperty("blankRecordsTest"), "nullRows");
-        Assert.True(nullRows.GetArrayLength() >= 1, "seed 應產生空值列");
-        JsonShape.Element(nullRows, e =>
+        var blankRows = JsonShape.Arr(data.GetProperty("blankRecordsTest"), "blankRows");
+        Assert.True(blankRows.GetArrayLength() >= 1, "seed 應產生空值列");
+        JsonShape.Element(blankRows, e =>
         {
             JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "description", "issues");
             JsonShape.Str(e, "voucherNumber", nullable: true);
@@ -365,7 +365,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(
             "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             positioning.GetProperty("exportDefaultGuidance").GetString());
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
             "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。",
             positioning.GetProperty("exportPendingRunGuidance").GetString());
@@ -592,7 +592,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         // 舊版配對確認旗標與每側 formatVersion 已隨舊案件相容程式移除，回應不再帶這些欄位。
         // 新增 previousMapping，重新匯入後還沒重新確認時帶回上次確認的配對當草稿
         // （第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。新增 retiredGlFieldLabels，
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。新增 retiredGlFieldLabels，
         // 帶已移除的 GL 欄位與畫面名稱，第五步舊情境的條件標題與讀回用它寫出名稱。
         // 裁定 2026-10-30-25：讀回已儲存情境舊寫法的程式拿掉，retiredGlFieldLabels 跟著從回應拿掉
         // （拿掉後這裡第一次編譯失敗的收據 20261030-072053096-b7f05aee757c4a11a86f01fe840d74a1，同一批的名稱表一起拿掉）。
@@ -767,7 +767,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     public async Task QueryBlankRecordsPage_ResponseShape_IsLocked()
     {
         var data = await fixture.Host.DispatchAsync("query.blankRecordsPage",
-            JsonSerializer.Serialize(new { category = "nullDescription", pageSize = 200 }));
+            JsonSerializer.Serialize(new { category = "blankDescription", pageSize = 200 }));
         // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");

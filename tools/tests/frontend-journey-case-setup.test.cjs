@@ -77,7 +77,7 @@ test('the create form collects the case details without an operator field and la
   assert.ok(operator.querySelector('input') === null, 'the current account cannot be typed in');
   assert.match(operator.textContent, /合成審計員/);
 
-  // 裁定 2026-10-13-19 選「第一步標籤拿掉括號說明」，選項說明（docs/history/specs/2026-10-06-kct-gl-requirements-plan.md
+  // 使用者選了「第一步標籤拿掉括號說明」（裁定 2026-10-13-19），選項說明（docs/history/specs/2026-10-06-kct-gl-requirements-plan.md
   // 「收尾四項：調查與裁定（2026-10-13）」的「寫法統一」列）原文：「第一步「案件編號（選填）」「客戶名稱（選填）」拿掉（選填），
   // 因為必填欄已經用星號標示；「資料儲存方式（建立後不可變更）」的限制改成欄位下方的一句說明。」三個標籤逐字比對。
   const rows = form.querySelectorAll('.form__row');
@@ -320,7 +320,7 @@ test('choosing GL and TB source files offers exactly the seven supported file ty
   // 已撤下的舊說明不再出現在第二步。
   const panel = f.$('[data-motion-key="import-panel"]').textContent;
   assert.doesNotMatch(panel, /完整資料直接匯入案件資料庫|解鎖「非授權編製人員」/);
-  // 裁定 2026-10-29-02 指出常駐說明太多：頁首不再常駐支援的檔案類型，改在選檔畫面說一次。
+  // 使用者指出常駐說明太多（裁定 2026-10-29-02）：頁首不再常駐支援的檔案類型，改在選檔畫面說一次。
   // 這裡原本讀頁首的 .panel__hint，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
   assert.doesNotMatch(panel, /支援 Excel/);
 
@@ -342,7 +342,7 @@ test('choosing GL and TB source files offers exactly the seven supported file ty
   assert.equal(f.requests.filter(r => r.action === 'hostSelectFiles').length, 2);
 });
 
-// 裁定 2026-10-16-07 指出第二步只有「授權編製人員清單」的「操作」有外框，展開後內容下緣還多一條淡線。
+// 使用者指出第二步只有「授權編製人員清單」的「操作」有外框，展開後內容下緣還多一條淡線（裁定 2026-10-16-07）。
 // 四列的「操作」是同一種每列重複的動作，要長得一樣；展開中的那一列標出 aria-expanded，樣式由它保留淡藍底。
 // 嵌進列裡的匯入卡不再帶獨立卡片的陰影與圓角。
 test('every import task uses the same action button and an opened task shows no card edge', () => {
@@ -385,9 +385,10 @@ test('a holiday file and a make-up day file with zero rows still complete the ca
     imported.resolve({ count: 0 }); await settle();
     assert.equal(calendarDone(f), true, action + ': a successful import with zero rows completes the task');
   }
-  assert.match(calendarMeta(f), /假日 0/);
-  assert.match(calendarMeta(f), /補班 0/);
-  assert.match(f.$('[data-bind="import-card-calendar"] .import-card__status').textContent, /假日 0.*補班 0/);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(calendarMeta(f), /國定假日 0 天/);
+  assert.match(calendarMeta(f), /補班日 0 天/);
+  assert.match(f.$('[data-bind="import-card-calendar"] .import-card__status').textContent, /國定假日 0 天.*補班日 0 天/);
 });
 
 test('making every weekday a working day is saved and the summary says there are no non-working days', async () => {
@@ -403,7 +404,8 @@ test('making every weekday a working day is saved and the summary says there are
   save.resolve({ nonWorkingDays: [] }); await settle();
   assert.equal(calendarDone(f), true, 'a saved weekday setting completes the task');
   // 只比對意思：整週都是工作日時，摘要寫非工作日為無。
-  assert.match(calendarMeta(f), /非工作日\s*無/);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(calendarMeta(f), /每週休息日\s*無/);
   assert.deepEqual(boxes().filter(box => box.checked).map(box => box.getAttribute('data-weekday')), [], 'no weekday stays ticked');
 });
 
@@ -431,13 +433,14 @@ test('saving the same non-working days in another order or with repeats keeps re
   assert.equal(f.state.dataGeneration, generation + 1, 'a different set refreshes previews and paged results once');
   assert.deepEqual(plain(f.state.importState.calendar), { holidayCount: 3, makeupDayCount: 1, calendarImported: true,
     nonWorkingDays: [0], nonWorkingDaysConfigured: true });
-  assert.match(calendarMeta(f), /假日 3.*補班 1.*非工作日 日/);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(calendarMeta(f), /國定假日 3 天.*補班日 1 天.*每週休息日 日/);
 });
 
 // =====================================================================================================
 // 訊息面板的句子（2026-10-14 補上）
 // 前面的測試刻意不斷言訊息面板，等文字確認並改進產品後才補上。逐字比對的句子都註明出自 final-wording.json；
-// 後端提醒與原因一律用合成字串。耗時的寫法是裁定 2026-10-13-17「保留，改成秒並合併」，以及裁定 2026-10-14-01 確認的用字。
+// 後端提醒與原因一律用合成字串。耗時的寫法是裁定 2026-10-13-17「保留，改成秒並合併」，以及裁定 2026-10-14-01 的用字。
 // =====================================================================================================
 
 const ELAPSED = /耗時(?: \d+\.\d 秒|不到 0\.1 秒|\d+ 分 \d+ 秒)/.source;
@@ -460,7 +463,7 @@ test('messages: creating a case logs that it was created with each backend warni
   fill(form, VALID_CREATE);
   submit(form);
   f.request('projectCreate').reject({ code: 'invalid_payload', field: 'projectName', message: '合成原因：名稱不可用。' }); await settle();
-  // 裁定 2026-10-13-28（final-wording.json）與裁定 2026-10-14-01 確認了用字：原因的句號拿掉，括號後加句號。
+  // 用字依裁定 2026-10-13-28（final-wording.json）與裁定 2026-10-14-01：原因的句號拿掉，括號後加句號。
   // 作業名稱沒有使用者裁定，只確認提到建立案件的意思。
   assert.match(messageList(f)[0].text, new RegExp('^[^：]*建立[^：]*案件[^：]*失敗：合成原因：名稱不可用（' + ELAPSED + '）。$'));
   assert.equal(messageList(f)[0].level, 'error');
@@ -486,7 +489,7 @@ test('messages: saving the case details logs that they were updated with each ba
     periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20', databaseProvider: 'sqlite' },
   warnings: ['合成：準備日提醒。'], reports: [] });
   await settle(); await settle();
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json）。
+  // 用字依裁定 2026-10-13-28（final-wording.json）。
   assert.deepEqual(messageList(f).slice(0, 2), [{ text: '合成：準備日提醒。', level: 'warn' }, { text: '案件資料已更新。', level: 'info' }]);
   assert.equal(messageList(f).length, 2, 'no other completion line');
 
@@ -502,8 +505,9 @@ test('messages: holiday and make-up day imports log their day counts with the el
   const f = importFixture();
   f.click('[data-task-toggle="calendar"]');
   for (const [action, importAction, count, expected] of [
-    ['import-holiday', 'importHolidayFromFile', 3, '假日匯入完成：3 天'],
-    ['import-makeup', 'importMakeupDayFromFile', 1, '補班匯入完成：1 天']]) {
+    // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+    ['import-holiday', 'importHolidayFromFile', 3, '國定假日匯入完成：3 天'],
+    ['import-makeup', 'importMakeupDayFromFile', 1, '補班日匯入完成：1 天']]) {
     f.click('[data-action="' + action + '"]');
     f.requests.filter(r => r.action === 'hostSelectFile').at(-1).resolve({ filePath: 'synthetic\\calendar.xlsx', fileName: 'calendar.xlsx' }); await settle();
     f.request(importAction).resolve({ count }); await settle(); await settle();
@@ -525,6 +529,6 @@ test('messages: holiday and make-up day imports log their day counts with the el
   assert.equal(messageList(f).length, before, 'the same days in another order log nothing');
   box(6).checked = false; box(6).fire('change');
   f.requests.filter(r => r.action === 'calendarSetNonWorkingDays').at(-1).resolve({ nonWorkingDays: [0] }); await settle(); await settle();
-  assert.deepEqual(messageList(f)[0], { text: '已更新非工作日設定。', level: 'info' });
+  assert.deepEqual(messageList(f)[0], { text: '已更新每週休息日設定。', level: 'info' });
   assert.equal(messageList(f).length, before + 1);
 });

@@ -56,7 +56,7 @@ public sealed class TerminologyUnificationFrontendTests
         Assert.DoesNotContain("請選已配對的文字型攸關資料元素欄位", filter, StringComparison.Ordinal);
         Assert.Contains("var full = field.extra ? Ui.rdeFieldOptionLabel(field) : field.label;", filter, StringComparison.Ordinal);
         Assert.Contains("'此攸關資料元素欄位條件沿用原設定：不納入空白值。'", filter, StringComparison.Ordinal);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。提示框改成逐條寫出位置，
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。提示框改成逐條寫出位置，
         // 清單超過上限的句子和欄位條件同一句；用語仍是「攸關資料元素欄位」，不再出現「額外欄位」。
         Assert.Contains("'所用的攸關資料元素欄位已不在欄位配對中，請重新選擇欄位或刪除此條件'", filter, StringComparison.Ordinal);
         Assert.DoesNotContain("值清單每組最多", filter, StringComparison.Ordinal);
@@ -175,10 +175,11 @@ public sealed class TerminologyUnificationFrontendTests
         // 第一次失敗收據：20261004-075340533-87179f5019724ec89d7c19b4243fdb09。
         Assert.Equal("相同分類用途：借貸科目組合：借方是 A 且貸方是 B（借方 Receivables，貸方 Revenue）",
             RenderAtom("""{"join":"AND","type":"accountPair","pairMode":"exact","debitCategoryIds":["builtin.receivables"],"creditCategoryIds":["builtin.revenue"]}"""));
-        Assert.Equal("貸方為收入，借方非應收或預收",
+        // 裁定 2026-11-03-10 改畫面用字：讀回和卡片名稱統一。第一次失敗：Focused 收據 20261103-075159454-ed09f35861f34c6e9dce0f147d616564。
+        Assert.Equal("貸方為收入但借方非一般對方科目",
             RenderAtom("""{"join":"AND","type":"revenueWithoutNormalCounterpart"}"""));
         var filter = ProductSources.FilterStepFrontend();
-        Assert.Contains("return prefix + '貸方為收入，借方非應收或預收';", filter, StringComparison.Ordinal);
+        Assert.Contains("return prefix + '貸方為收入但借方非一般對方科目';", filter, StringComparison.Ordinal);
         Assert.Contains(": '借方 ' + pairDebit + '，貸方 ' + pairCredit);", filter, StringComparison.Ordinal);
     }
 
@@ -212,7 +213,8 @@ public sealed class TerminologyUnificationFrontendTests
             // Do not remove the retired term globally, or exempt any other text/file containing it.
             if (Path.GetRelativePath(root, file) == Path.Combine("js", "steps", "validate-step.js"))
             {
-                const string approvedSentence = "金額不符時，要確認總帳母體是否完整。";
+                // 裁定 2026-11-03-10 改畫面用字：「總帳母體」改成「GL 分錄」。第一次失敗：Focused 收據 20261103-075159454-ed09f35861f34c6e9dce0f147d616564。
+                const string approvedSentence = "金額不符時，要確認 GL 分錄是否完整。";
                 Assert.Contains(approvedSentence, code, StringComparison.Ordinal);
                 Assert.Equal(code.IndexOf(approvedSentence, StringComparison.Ordinal), code.LastIndexOf(approvedSentence, StringComparison.Ordinal));
                 code = code.Replace(approvedSentence, string.Empty, StringComparison.Ordinal);
@@ -258,7 +260,7 @@ public sealed class TerminologyUnificationFrontendTests
                 && !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             .ToList();
         Assert.NotEmpty(files);
-        Assert.Contains("\"貸方為收入，借方非應收或預收\"",
+        Assert.Contains("\"貸方為收入但借方非一般對方科目\"",
             StripComments(ReadSource("Application", "Support", "FilterConditionRenderer.cs"), js: false), StringComparison.Ordinal);
 
         // 刻意保留：資料表說明裡的「已保存審計資料」意思是留存，不是畫面上的儲存動作，也不回給畫面。

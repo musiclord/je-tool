@@ -29,9 +29,9 @@ internal sealed record ValidationReportProjection(
     long GlRowCount,
     long CompletenessDiffAccountCount,
     long UnbalancedVoucherCount,
-    long NullAccountCount,
-    long NullDocumentCount,
-    long NullDescriptionCount,
+    long BlankAccountNumberCount,
+    long BlankVoucherNumberCount,
+    long BlankDescriptionCount,
     long? ApprovalDateNotInPeriodCount,
     long SourceQualityFindingCount,
     string? CompletenessNaNote = null);

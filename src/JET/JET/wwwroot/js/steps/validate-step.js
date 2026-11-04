@@ -51,11 +51,12 @@
   function pairCountStatus(rule) {
     if (rule.naReason) { return naStatus(rule); }
     if (rule.postingCount == null && rule.approvalCount == null) { return null; }
-    var approval = Ui.countText(rule.approvalCount);
+    // 狀態寫欄位名稱，不寫「過帳」「核准」（裁定 2026-11-03-10）；核准側沒有檢查時只寫「—」。
+    var approval = rule.approvalCount == null ? '傳票核准日 —' : '傳票核准日 ' + Ui.countText(rule.approvalCount) + ' 筆';
     var any = Number(rule.postingCount) > 0 || Number(rule.approvalCount) > 0;
     return {
       tone: any ? 'hit' : 'ok',
-      text: '過帳 ' + Ui.countText(rule.postingCount) + '，核准 ' + approval,
+      text: '總帳日期 ' + Ui.countText(rule.postingCount) + ' 筆，' + approval,
       tip: rule.approvalNaReason || undefined
     };
   }
@@ -65,8 +66,8 @@
   function activityDetail(activity, postingKey, approvalKey) {
     if (activity.naReason) { return { kind: 'reason', text: activity.naReason }; }
     var previews = [];
-    if (Number(activity.postingCount) > 0) { previews.push({ label: '過帳側', key: postingKey }); }
-    if (activity.approvalCount != null && Number(activity.approvalCount) > 0) { previews.push({ label: '核准側', key: approvalKey }); }
+    if (Number(activity.postingCount) > 0) { previews.push({ label: '依總帳日期', key: postingKey }); }
+    if (activity.approvalCount != null && Number(activity.approvalCount) > 0) { previews.push({ label: '依傳票核准日', key: approvalKey }); }
     var sections = [];
     if (activity.approvalNaReason) { sections.push({ kind: 'reason', text: activity.approvalNaReason }); }
     if (previews.length > 0) { sections.push({ kind: 'prescreenPreview', previews: previews }); }
@@ -353,7 +354,7 @@
 
   // 空值子項對應後端 category 與固定的「異常類別」顯示字；id 形如 null-<category>，動態註冊進 DETAIL_PAGE_SPECS
   // （columns 與既有空值 table 欄序對齊）。空白摘要只在預篩選訊號那一處呈現，這裡不再註冊它的明細頁。
-  function nullPageSpec(category, categoryLabel) {
+  function blankPageSpec(category, categoryLabel) {
     return {
       fetchPage: function (cursor, sort, search) {
         return global.JetApi.queryBlankRecordsPage({ category: category, cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
@@ -370,9 +371,9 @@
 
   // 後端 blankRecordsPage 白名單四 category → 「異常類別」顯示字(對齊 issuesCn map)。
   // 空白總帳日期已改由總帳日期空白承載，不再屬於資料缺漏輔助檢視。
-  DETAIL_PAGE_SPECS['null-approvalDateNotInPeriod'] = nullPageSpec('approvalDateNotInPeriod', '核准日不在期間');
-  DETAIL_PAGE_SPECS['null-nullDocument'] = nullPageSpec('nullDocument', '空白傳票號碼');
-  DETAIL_PAGE_SPECS['null-nullAccount'] = nullPageSpec('nullAccount', '空白科目編號');
+  DETAIL_PAGE_SPECS['null-approvalDateNotInPeriod'] = blankPageSpec('approvalDateNotInPeriod', '核准日不在期間');
+  DETAIL_PAGE_SPECS['null-blankVoucherNumber'] = blankPageSpec('blankVoucherNumber', '空白傳票號碼');
+  DETAIL_PAGE_SPECS['null-blankAccountNumber'] = blankPageSpec('blankAccountNumber', '空白科目編號');
 
   // 總帳日期空白全量明細（query.sourceQualityPage）：不套查核期間述詞，因此仍看得到
   // 被期間界定排除的空白總帳日期；欄序與下方 detail 的固定欄一致。
@@ -412,18 +413,18 @@
   function issuesCn(issues) {
     // 空白總帳日期已移出資料缺漏輔助檢視（改由總帳日期空白承載），故不在這份封閉類別內。
     var map = {
-      account: '空白科目編號', document: '空白傳票號碼', description: '空白摘要',
-      date: '核准日不在期間'
+      accountNumber: '空白科目編號', voucherNumber: '空白傳票號碼', description: '空白摘要',
+      approvalDate: '核准日不在期間'
     };
     return (issues || []).map(function (k) { return map[k] || k; }).join('、');
   }
 
   // 資料缺漏輔助檢視在後端是單一規則（blank_records_test）；UI 依異常類別拆成四個子項呈現。
-  // 每個子項讀對應子計數作徽章，詳情用 nullRows 的 issues 標籤過濾出該類列
+  // 每個子項讀對應子計數作徽章，詳情用 blankRows 的 issues 標籤過濾出該類列
   // 摘要樣本只供尚未展開的初始結構；展開後直接讀取該類別第一頁，不以樣本判斷是否有明細。
   // categories 只放一個 blankRecordsPage 的 category 白名單值，對應 DETAIL_PAGE_SPECS 的 null-<category>。
   // naReasonOf：後端判定這一類無法檢查時回傳它寫的原因（例如傳票核准日不可用），畫面只顯示這一句，不寫「通過」。
-  function nullSubItem(title, desc, issueKeys, countOf, categories, naReasonOf) {
+  function blankSubItem(title, desc, issueKeys, countOf, categories, naReasonOf) {
     function naReason(v) { return naReasonOf ? naReasonOf(v.blankRecordsTest) : null; }
     return {
       title: title,
@@ -439,7 +440,7 @@
       detail: function (v) {
         if (v && naReason(v)) { return { kind: 'reason', text: naReason(v) }; }
         if (!v || countOf(v.blankRecordsTest) <= 0) { return null; }
-        var rows = (v.blankRecordsTest.nullRows || []).filter(function (r) {
+        var rows = (v.blankRecordsTest.blankRows || []).filter(function (r) {
           return (r.issues || []).some(function (k) { return issueKeys.indexOf(k) >= 0; });
         }).map(function (r) {
           return [r.voucherNumber || '', r.accountNumber || '', r.glDate || '', r.description || '', issuesCn(r.issues)];
@@ -461,7 +462,7 @@
       title: '完整性測試',
       // 照實說明第一項比對的對象。最後一句原本照使用者原句逐字保留，
       // 裁定 2026-10-30-20 改成要確認什麼，不寫「可能」。
-      desc: '先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。再比對各科目的總帳本期借貸淨額與試算表本期變動金額。金額不符時，要確認總帳母體是否完整。',
+      desc: '先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。再比對各科目的總帳本期借貸淨額與年度變動金額。金額不符時，要確認 GL 分錄是否完整。',
       status: function (v) {
         if (!v) { return null; }
         var eligibility = Ui.completenessEligibility(v);
@@ -546,7 +547,7 @@
     },
     {
       title: '資料可靠性測試',
-      desc: '抽出分錄樣本，供核對傳票附件，確認摘要、日期等篩選欄位是否正確。需先確認攸關資料元素（RDE）的可靠性後，再執行高風險篩選條件。',
+      desc: '抽出分錄樣本，供核對傳票附件，確認摘要、日期等篩選欄位是否正確。需先確認攸關資料元素的可靠性後，再到第五步進階條件篩選。',
       status: function (v) {
         if (!v) { return null; }
         if (v.infSamplingTest.naReason) { return naStatus(v.infSamplingTest); }
@@ -561,9 +562,9 @@
       }
     },
     // 傳票核准日不可用時後端不檢查，筆數是 null 並寫原因（裁定 2026-10-23-01）。
-    nullSubItem('核准日不在期間', '傳票核准日落在查核期間之外的分錄。', ['date'],
-      function (nrt) { return Number(nrt.approvalDateNotInPeriodCount); }, ['approvalDateNotInPeriod'],
-      function (nrt) { return nrt.approvalDateNotInPeriodNaReason || null; }),
+    blankSubItem('核准日不在期間', '傳票核准日落在查核期間之外的分錄。', ['approvalDate'],
+      function (brt) { return Number(brt.approvalDateNotInPeriodCount); }, ['approvalDateNotInPeriod'],
+      function (brt) { return brt.approvalDateNotInPeriodNaReason || null; }),
     {
       // 總帳日期空白是 validate.run 的獨立區塊，不是第五條資料驗證規則：它看的是 PBC-GL，
       // 不套查核期間，因此筆數不與資料缺漏輔助檢視的四類相加。
@@ -606,11 +607,11 @@
   // 由 validate.run 產生，因此它們的 runData 一律吃 state.results.validate（不是 prescreen）。
   // 空白摘要只留預篩選訊號那一處，驗證報告照舊由後端寫出；
   // 「核准日不在期間」留在資料驗證卡，因為它是資料品質面（期間界定）而非風險候選面。
-  var NULL_PRESCREEN_ITEMS = [
-    nullSubItem('空白傳票號碼', '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。', ['document'],
-      function (nrt) { return Number(nrt.nullDocumentCount); }, ['nullDocument']),
-    nullSubItem('空白科目編號', '科目編號空白的分錄。各類筆數分別計算，不將兩類相加當作分錄總數。', ['account'],
-      function (nrt) { return Number(nrt.nullAccountCount); }, ['nullAccount'])
+  var BLANK_PRESCREEN_ITEMS = [
+    blankSubItem('空白傳票號碼', '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。', ['voucherNumber'],
+      function (brt) { return Number(brt.blankVoucherNumberCount); }, ['blankVoucherNumber']),
+    blankSubItem('空白科目編號', '科目編號空白的分錄。各類筆數分別計算，不將兩類相加當作分錄總數。', ['accountNumber'],
+      function (brt) { return Number(brt.blankAccountNumberCount); }, ['blankAccountNumber'])
   ];
 
   var PRESCREEN_ITEMS = [
@@ -694,7 +695,7 @@
           var prefix = total != null && Number(total) > rows.length
             ? '共 ' + Ui.countText(total) + ' 位人員，這裡列出分錄筆數最多的 ' + Ui.countText(rows.length) + ' 位。'
             : null;
-          return { kind: 'table', prefix: prefix, columns: ['編製人員', '分錄筆數', '借方', '貸方', '人工分錄筆數'], numeric: [1, 2, 3, 4], rows: rows };
+          return { kind: 'table', prefix: prefix, columns: ['傳票建立人員', '分錄筆數', '借方', '貸方', '人工分錄筆數'], numeric: [1, 2, 3, 4], rows: rows };
         }
         return null;
       }
@@ -726,13 +727,13 @@
     },
     {
       title: '週末過帳／核准之分錄',
-      desc: '總帳日期或傳票核准日落在設定週末日的分錄（補班日仍納入）。',
+      desc: '總帳日期或傳票核准日落在第二步設定的每週休息日的分錄（補班日仍納入）。',
       status: function (p) { return p ? pairCountStatus(p.weekendActivity) : null; },
       detail: function (p) { return p ? activityDetail(p.weekendActivity, 'weekendPosting', 'weekendApproval') : null; }
     },
     {
       title: '假日過帳／核准之分錄',
-      desc: '總帳日期或傳票核准日落在國定假日的分錄（需先匯入假日清單）。',
+      desc: '總帳日期或傳票核准日落在國定假日的分錄，依第二步上傳的國定假日清單。',
       status: function (p) { return p ? pairCountStatus(p.holidayActivity) : null; },
       detail: function (p) { return p ? activityDetail(p.holidayActivity, 'holidayPosting', 'holidayApproval') : null; }
     },
@@ -935,7 +936,7 @@
     }
     if (output.status !== 'failed') { return ''; }
     // 沒有原因時請審計員再試一次，不再說明後端沒有給原因（裁定 2026-10-14-01）。
-    return '<p class="form-notice" data-account-template-status="failed" role="status">科目配對檔尚未準備好' +
+    return '<p class="form-notice" data-account-template-status="failed" role="status">科目配對範本尚未準備好' +
       (output.reason ? '：' + Ui.esc(output.reason) : '，請再試一次。') + ' ' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-account-template-in-excel">' +
         '到「用 Excel 配對」重試</button></p>';
@@ -978,7 +979,7 @@
           '<span class="excel-mapping__value">' + Ui.countText(info.blankCategoryCount) + ' 個科目</span></button>' +
         '<div class="excel-mapping__detail" id="blank-category-list" data-bind="blank-category-list" data-motion-key="blank-category-list" data-collapsible' +
           (open ? '' : ' hidden') + '>' +
-          '<p class="excel-mapping__note">可在「在 JET 配對」整批調整分類，或修改科目配對檔後重新匯入。</p>' +
+          '<p class="excel-mapping__note">可在「在 JET 配對」整批調整分類，或修改科目配對範本後重新匯入。</p>' +
           '<div data-bind="blank-category-rows-host"></div>' +
         '</div>' +
       '</li>';
@@ -1101,18 +1102,18 @@
     }
     var actions =
       '<div class="excel-mapping__actions">' +
-        '<button type="button" class="btn btn--ghost" data-action="ensure-account-mapping-template">準備科目配對檔</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="ensure-account-mapping-template">準備科目配對範本</button>' +
         '<button type="button" class="btn btn--ghost" data-action="open-account-mapping-folder">開啟案件資料夾</button>' +
         '<span class="excel-mapping__sep" aria-hidden="true"></span>' +
         '<button type="button" class="btn' + (info ? ' btn--ghost' : '') + '" data-action="import-account-mapping">' +
-          (info ? '重新匯入科目配對檔' : '匯入科目配對檔') + '</button>' +
+          (info ? '重新匯入科目配對範本' : '匯入科目配對範本') + '</button>' +
         '<span class="excel-mapping__spacer" aria-hidden="true"></span>' +
         '<span class="jet-menu">' +
           '<button type="button" class="btn btn--ghost jet-menu__toggle" aria-haspopup="menu" aria-expanded="false" ' +
             'aria-controls="account-mapping-more">更多</button>' +
-          '<div class="jet-menu__items" id="account-mapping-more" role="menu" aria-label="更多科目配對檔操作" hidden>' +
+          '<div class="jet-menu__items" id="account-mapping-more" role="menu" aria-label="更多科目配對範本操作" hidden>' +
             '<button type="button" class="jet-menu__item jet-menu__item--danger" role="menuitem" tabindex="-1" ' +
-              'data-action="download-account-mapping-template">重建科目配對檔' +
+              'data-action="download-account-mapping-template">重建科目配對範本' +
               '<span class="jet-menu__item-note">重建會清空檔案內已填的分類。</span></button>' +
           '</div>' +
         '</span>' +
@@ -1122,7 +1123,7 @@
       '；也可匯入前一個案件的配對檔。' + (info ? '重新匯入會覆蓋目前全部配對。' : '') + '</p>';
     // 已匯入時一律可從右側資料預覽看已儲存的配對。「資料預覽」緊接在名稱後面，科目數和下面幾列一樣靠右對齊。
     var saved = '<li><div class="excel-mapping__result">' +
-        '<span class="excel-mapping__label">已儲存的配對</span>' +
+        '<span class="excel-mapping__label">已儲存的科目配對</span>' +
         (info
           ? '<button type="button" class="jet-view jet-view--preview" data-action="preview-account-mapping">資料預覽</button>' +
             '<span class="excel-mapping__value">' + Ui.countText(info.rowCount) + ' 個科目</span>'
@@ -1214,27 +1215,37 @@
       return '<span class="category-row__tree" aria-hidden="true">' + cells +
         '<i class="' + (continues(depth) ? 'is-branch' : 'is-last') + '"></i></span>';
     }
+    // 科目分類的上下層級與分類用途在第一個正式版隱藏（裁定 2026-11-03-27）：開關關著時不畫「進階設定」、分類用途與上層分類，
+    // 分類設定只填名稱，和舊版 JET 的科目配對一樣；新增的分類沒有上層，用途是 others。程式保留，Ui.FEATURES.categoryHierarchy
+    // 改成 true 就恢復。已有上下層的分類照樣畫出縮排與連接線，移除有下層的分類照樣先確認。
+    var advancedAvailable = !!Ui.FEATURES.categoryHierarchy;
+    var advanced = advancedAvailable && categoryAdvanced;
     var items = tree.map(function (row, index) {
-      var roleOptions = Ui.ACCOUNT_CATEGORY_ROLES.map(function (role) {
-        return '<option value="' + role.value + '"' +
-          (row.semanticRole === role.value ? ' selected' : '') + '>' + role.label + '</option>';
-      }).join('');
-      var descendants = Ui.categorySelectionCategories({ accountCategory: { categories: rows } }, [row.categoryId], 'subtree');
+      var advancedFields = '';
+      if (advancedAvailable) {
+        var roleOptions = Ui.ACCOUNT_CATEGORY_ROLES.map(function (role) {
+          return '<option value="' + role.value + '"' +
+            (row.semanticRole === role.value ? ' selected' : '') + '>' + role.label + '</option>';
+        }).join('');
+        var descendants = Ui.categorySelectionCategories({ accountCategory: { categories: rows } }, [row.categoryId], 'subtree');
+        advancedFields =
+          '<div class="category-row__field category-row__advanced" data-motion="fade" data-motion-key="' + Ui.esc('category-role-' + row.rowId) + '"' + (advanced ? '' : ' hidden') + '><label for="category-role-' + index + '">分類用途</label>' +
+          '<select id="category-role-' + index + '" aria-describedby="category-role-help" data-category-role="' + Ui.esc(row.rowId) + '"' +
+            ' data-focus-key="category-role-' + Ui.esc(row.rowId) + '"' +
+            (row.isBuiltIn ? ' disabled aria-disabled="true"' : '') + '>' + roleOptions + '</select></div>' +
+          '<label class="category-row__field category-row__advanced" data-motion="fade" data-motion-key="' + Ui.esc('category-parent-' + row.rowId) + '"' + (advanced ? '' : ' hidden') + '>上層分類<select aria-describedby="category-parent-help" data-category-parent="' + Ui.esc(row.rowId) + '" data-focus-key="category-parent-' + Ui.esc(row.rowId) + '"><option value="">無（最上層）</option>' +
+            tree.filter(function (candidate) { return !descendants.some(function (descendant) { return descendant.categoryId === candidate.categoryId; }); }).map(function (candidate) {
+              return '<option value="' + Ui.esc(candidate.categoryId) + '"' + (row.parentCategoryId === candidate.categoryId ? ' selected' : '') + '>' +
+                Ui.esc('　'.repeat(candidate.depth) + (candidate.depth ? '└ ' : '') + (candidate.label || '尚未命名的分類')) + '</option>';
+            }).join('') + '</select></label>';
+      }
       return '<li class="category-row' + (row.isBuiltIn ? ' is-builtin' : '') + '" data-motion-key="' + Ui.esc('category-' + row.rowId) + '" data-category-depth="' + row.depth +
         '" style="--category-depth:' + row.depth + '">' + treeGuidesHtml(index) +
         '<div class="category-row__field"><label for="category-label-' + index + '">分類名稱</label>' +
         '<input class="form__input category-row__label" type="text" id="category-label-' + index + '" aria-describedby="category-name-help"' +
           ' data-category-label="' + Ui.esc(row.rowId) + '" data-focus-key="category-label-' + Ui.esc(row.rowId) + '" value="' + Ui.esc(row.label) +
           '" maxlength="' + Ui.CATEGORY_MAX_LABEL_LENGTH + '"></div>' +
-        '<div class="category-row__field category-row__advanced" data-motion="fade" data-motion-key="' + Ui.esc('category-role-' + row.rowId) + '"' + (categoryAdvanced ? '' : ' hidden') + '><label for="category-role-' + index + '">分類用途</label>' +
-        '<select id="category-role-' + index + '" aria-describedby="category-role-help" data-category-role="' + Ui.esc(row.rowId) + '"' +
-          ' data-focus-key="category-role-' + Ui.esc(row.rowId) + '"' +
-          (row.isBuiltIn ? ' disabled aria-disabled="true"' : '') + '>' + roleOptions + '</select></div>' +
-        '<label class="category-row__field category-row__advanced" data-motion="fade" data-motion-key="' + Ui.esc('category-parent-' + row.rowId) + '"' + (categoryAdvanced ? '' : ' hidden') + '>上層分類<select aria-describedby="category-parent-help" data-category-parent="' + Ui.esc(row.rowId) + '" data-focus-key="category-parent-' + Ui.esc(row.rowId) + '"><option value="">無（最上層）</option>' +
-          tree.filter(function (candidate) { return !descendants.some(function (descendant) { return descendant.categoryId === candidate.categoryId; }); }).map(function (candidate) {
-            return '<option value="' + Ui.esc(candidate.categoryId) + '"' + (row.parentCategoryId === candidate.categoryId ? ' selected' : '') + '>' +
-              Ui.esc('　'.repeat(candidate.depth) + (candidate.depth ? '└ ' : '') + (candidate.label || '尚未命名的分類')) + '</option>';
-          }).join('') + '</select></label>' +
+        advancedFields +
         (row.isBuiltIn ? '<span class="category-row__badge" title="JET 內建的分類，可以改名，不能移除">內建</span>' : '') +
         '<div class="category-row__actions">' +
         (row.isBuiltIn ? '' : '<button type="button" class="btn btn--ghost btn--tiny" data-category-remove="' + Ui.esc(row.rowId) + '">移除分類</button>') + '</div>' +
@@ -1242,14 +1253,16 @@
     }).join('');
 
     return (
-      '<section class="account-classification' + (categoryAdvanced ? ' is-advanced' : '') + '" data-bind="account-category-card" data-motion-key="account-category">' +
+      '<section class="account-classification' + (advanced ? ' is-advanced' : '') + '" data-bind="account-category-card" data-motion-key="account-category">' +
         '<div class="rule-card__head"><h4 class="rule-card__title">分類設定</h4>' +
-        '<button type="button" class="btn btn--ghost btn--tiny jet-disclosure" data-action="toggle-category-advanced" data-focus-key="category-advanced"' +
-          Ui.disclosureAttributes(categoryAdvanced, 'category-guide') + '>進階設定</button></div>' +
-        '<dl class="category-guide" id="category-guide" data-motion-key="category-guide"' + (categoryAdvanced ? '' : ' hidden') + '>' +
+        (advancedAvailable ? '<button type="button" class="btn btn--ghost btn--tiny jet-disclosure" data-action="toggle-category-advanced" data-focus-key="category-advanced"' +
+          Ui.disclosureAttributes(categoryAdvanced, 'category-guide') + '>進階設定</button>' : '') + '</div>' +
+        // 開關關著時說明只留分類名稱這一句，給名稱欄的讀屏說明用，畫面上不打開。
+        '<dl class="category-guide" id="category-guide" data-motion-key="category-guide"' + (advanced ? '' : ' hidden') + '>' +
           '<div><dt>分類名稱</dt><dd id="category-name-help">用於配對檔與篩選條件，可依案件命名。</dd></div>' +
-          '<div><dt>分類用途</dt><dd id="category-role-help">自訂分類需要參與收入與現金等借貸組合檢查時才設定。Cash 已對應現金，無須另設。</dd></div>' +
-          '<div><dt>上層分類</dt><dd id="category-parent-help">需要將多個分類一起篩選時，可歸入同一上層。新增下層分類時，分類用途預設沿用上層，之後可以自行修改。</dd></div>' +
+          (advancedAvailable ?
+            '<div><dt>分類用途</dt><dd id="category-role-help">自訂分類需要參與收入與現金等借貸組合檢查時才設定。Cash 已對應現金，無須另設。</dd></div>' +
+            '<div><dt>上層分類</dt><dd id="category-parent-help">需要將多個分類一起篩選時，可歸入同一上層。新增下層分類時，分類用途預設沿用上層，之後可以自行修改。</dd></div>' : '') +
         '</dl>' +
         categoryRemovalHtml(rows) +
         '<ul class="category-list" data-preserve-scroll="category-list" data-motion-list="category">' + items + '</ul>' +
@@ -1430,7 +1443,7 @@
           });
         }, { completionMessage: function (data) {
           // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
-          // 裁定 2026-10-13-28 確認了這句的用字。
+          // 這句的用字依裁定 2026-10-13-28。
           return data ? '科目分類已更新，共 ' + Ui.countText(data.categories.length) + ' 類；預篩選要重新執行。' : '';
         } });
       });
@@ -1633,7 +1646,7 @@
     if (templateBtn) {
       templateBtn.addEventListener('click', function () {
         // 操作名稱照按鈕（裁定 2026-10-13-28）；失敗原因寫在區塊內的狀態，不另外在步驟上方顯示。
-        Ui.run('重建科目配對檔', function () {
+        Ui.run('重建科目配對範本', function () {
           return exportAccountMappingTemplate(Store.getState().results.validate, false);
         }, { logCompletion: true, inlineError: templateFailureShown });
       });
@@ -1642,7 +1655,7 @@
     var ensureTemplateBtn = container.querySelector('[data-action="ensure-account-mapping-template"]');
     if (ensureTemplateBtn) {
       ensureTemplateBtn.addEventListener('click', function () {
-        Ui.run('準備科目配對檔', function () {
+        Ui.run('準備科目配對範本', function () {
           return exportAccountMappingTemplate(Store.getState().results.validate, true);
         }, { inlineError: templateFailureShown });
       });
@@ -1654,14 +1667,14 @@
     btn.addEventListener('click', function () {
       // 匯入科目配對檔會取代第四步的科目分類；還有沒儲存的分類時，選檔前先問，沒有時照舊直接選檔。
       if (!Ui.pendingAccountCategoryCount()) { importAccountMappingFile(); return; }
-      Ui.confirmPendingAccountCategories('匯入科目配對檔後，檔案內容會取代第四步的科目分類，這些改動不會保留。', '繼續匯入', { saveable: false })
+      Ui.confirmPendingAccountCategories('匯入科目配對範本後，檔案內容會取代第四步的科目分類，這些改動不會保留。', '繼續匯入', { saveable: false })
         .then(function (proceed) { if (proceed) { importAccountMappingFile(); } });
     });
 
     function importAccountMappingFile() {
-      Ui.run('匯入科目配對檔', function () {
+      Ui.run('匯入科目配對範本', function () {
         return global.JetApi.hostSelectFile({
-          title: '選擇科目配對檔（科目編號、科目名稱、科目分類）',
+          title: '選擇科目配對範本（科目編號、科目名稱、科目分類）',
           extensions: ['.xlsx', '.csv']
         }).then(function (file) {
           if (!file.filePath) { return; }
@@ -1692,7 +1705,7 @@
       }, {
         // 完成句由 Ui.run 接上耗時後記一則；沒有選檔時不記（裁定 2026-10-13-17：成功時只留一則）。
         completionMessage: function (data) {
-          // 裁定 2026-10-13-28 確認了這句的用字；沿用前一個案件的說明寫在托盤的提示句。
+          // 這句的用字依裁定 2026-10-13-28；沿用前一個案件的說明寫在托盤的提示句。
           return data ? '科目配對匯入完成，共 ' + Ui.countText(data.rowCount) + ' 個科目。' : '';
         }
       });
@@ -1744,7 +1757,7 @@
             '<p class="prescreen-signals__guidance">' + Ui.esc(positioning.signalGuidance) + '</p>' +
             ruleListHtml(PRESCREEN_SIGNAL_ITEMS, p, 'ps') +
             '<h5 class="prescreen-signals__secondary-title">資料缺漏輔助檢視</h5>' +
-            ruleListHtml(NULL_PRESCREEN_ITEMS, v, 'pn') +
+            ruleListHtml(BLANK_PRESCREEN_ITEMS, v, 'pn') +
           '</div>' +
         '</details>' +
         prescreenReportHtml(state, p, positioning) +
@@ -1925,7 +1938,7 @@
     container.querySelector('[data-action="run-prescreen"]').addEventListener('click', function () {
       var eligibility = Ui.completenessEligibility(Store.getState().results.validate);
       if (!eligibility.isEligible) {
-        // 裁定 2026-10-13-28 確認了這句的用字。
+        // 這句的用字依裁定 2026-10-13-28。
         Store.addMessage('預篩選尚無法執行：' + eligibility.reason, 'warn');
         return;
       }

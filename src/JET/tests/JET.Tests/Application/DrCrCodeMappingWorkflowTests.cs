@@ -83,7 +83,7 @@ public sealed class DrCrCodeMappingWorkflowTests
         var mapping = Codes(); mapping["drCr"] = "BadSide";
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, mode));
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.Equal(2, error.Details!.Count);
         var unknown = Assert.Single(error.Details.Where(item => item.ReasonCode == "dc_unlisted"));
@@ -115,7 +115,7 @@ public sealed class DrCrCodeMappingWorkflowTests
         if (overlap) mapping["drCrCreditCode"] = "\u3000d ";
         else { mapping.Remove("drCrCreditCode"); mapping.Remove("drCrDebitCode"); }
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "side"));
-// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                 if (overlap)
         {
             Assert.Equal("借方與貸方代碼必須不同。", error.Message);

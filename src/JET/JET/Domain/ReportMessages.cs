@@ -1,6 +1,6 @@
 namespace JET.Domain;
 
-/// <summary>報告清單上的報告檔相關句子（裁定 2026-10-14-01 確認了用字）。</summary>
+/// <summary>報告清單上的報告檔相關句子（用字依裁定 2026-10-14-01）。</summary>
 public static class ReportMessages
 {
     /// <summary>報告檔已被移走或刪除；開啟檔案與開啟所在資料夾共用。</summary>

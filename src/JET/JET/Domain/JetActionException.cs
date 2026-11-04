@@ -56,7 +56,7 @@ public sealed record JetErrorDetail(int? Group, int? Rule, string Message)
 /// </summary>
 public static class JetPayloadRejection
 {
-    /// <summary>非預期錯誤回給畫面的句子（裁定 2026-10-13-28 確認了用字）；畫面程式 jet-api.js 有同一句。</summary>
+    /// <summary>非預期錯誤回給畫面的句子（用字依裁定 2026-10-13-28）；畫面程式 jet-api.js 有同一句。</summary>
     public const string UnexpectedErrorMessage = "發生非預期的錯誤，此操作未完成。請再試一次。";
 
     private const string CheckDataKey = "jet.payload_check";
@@ -75,7 +75,7 @@ public static class JetPayloadRejection
 
 /// <summary>
 /// 篩選條件編譯時的檢查沒過：驗證器已先檢查過，走到這裡表示驗證器與執行時檢查不一致，是程式錯誤，
-/// 不是畫面送錯資料（裁定 2026-10-14-01 確認了用字）。畫面只看到非預期錯誤那一句，錯誤代碼仍是
+/// 不是畫面送錯資料（用字依裁定 2026-10-14-01）。畫面只看到非預期錯誤那一句，錯誤代碼仍是
 /// <c>invalid_scenario</c>；程式寫死的檢查代號與組號、條號記進支援日誌事件 <c>filter.compile_check_failed</c>，
 /// 不帶欄位名稱、輸入值、科目、金額或路徑。
 /// </summary>
@@ -113,7 +113,7 @@ public static class FilterCompileCheck
 }
 
 /// <summary>
-/// 找不到案件資料夾，以及舊版 JET 建立的案件時的句子（裁定 2026-10-14-01 確認了用字）。
+/// 找不到案件資料夾，以及舊版 JET 建立的案件時的句子（用字依裁定 2026-10-14-01）。
 /// 同一種情況全程式只用這幾句，不印程式代號，也不寫「可能」。
 /// </summary>
 public static class ProjectFolderMessages
@@ -185,7 +185,7 @@ public static class JetErrorCodes
 
     /// <summary>
     /// 還沒有已儲存的篩選情境，需要情境的動作無法執行。畫面把它當成前置條件不足，寫「尚無法執行」
-    /// （裁定 2026-10-14-01 確認了用字）。
+    /// （用字依裁定 2026-10-14-01）。
     /// </summary>
     public const string NoSavedScenario = "no_saved_scenario";
     public const string ScenarioLimitReached = "scenario_limit_reached";

@@ -200,7 +200,7 @@ public sealed class ProviderParityJourneyTests
     }
 
     /// <summary>
-    /// blankRecordsPage keyset 分頁 provider 等價(category=nullDescription):刻意造多列空摘要,
+    /// blankRecordsPage keyset 分頁 provider 等價(category=blankDescription):刻意造多列空摘要,
     /// 以小 pageSize 走訪 query.blankRecordsPage 到底,斷言兩 provider 回傳序列完全相同。
     /// 證明 entry_id 游標(long 綁參)、SQLite TRIM vs SQL Server LTRIM(RTRIM(...)) 空白判定等價、
     /// OFFSET/FETCH 合法。>pageSize 擋偽綠。無 LocalDB → 跳過。
@@ -217,14 +217,14 @@ public sealed class ProviderParityJourneyTests
         const int pageSize = 2;
 
         using var sqliteHost = new HandlerTestHost();
-        await InlineWorkbookProject.SetupAsync(sqliteHost, ConfigureNullDescriptionGl);
+        await InlineWorkbookProject.SetupAsync(sqliteHost, ConfigureBlankDescriptionGl);
         var sqliteSequence = await WalkBlankRecordsPagesAsync(sqliteHost, pageSize);
 
         using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
         try
         {
             await InlineWorkbookProject.SetupAsync(
-                sqlServerHost, ConfigureNullDescriptionGl, databaseProvider: "sqlServer");
+                sqlServerHost, ConfigureBlankDescriptionGl, databaseProvider: "sqlServer");
             var sqlServerSequence = await WalkBlankRecordsPagesAsync(sqlServerHost, pageSize);
 
             Assert.True(sqliteSequence.Count > pageSize,
@@ -250,8 +250,8 @@ public sealed class ProviderParityJourneyTests
             .AddRow("JV-003", "2025-03-07", "4101", "銷貨收入", "貸", "70.00",  0)
             .AddRow("JV-004", "2025-03-08", "1101", "現金",     "借", "90.00",  1);
 
-    /// <summary>多列空摘要(category=nullDescription):四列摘要留空,跨 pageSize=2 多頁。</summary>
-    private static void ConfigureNullDescriptionGl(InlineGlWorkbookBuilder builder) =>
+    /// <summary>多列空摘要(category=blankDescription):四列摘要留空,跨 pageSize=2 多頁。</summary>
+    private static void ConfigureBlankDescriptionGl(InlineGlWorkbookBuilder builder) =>
         builder
             .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
             .AddRow("JV-001", "2025-03-05", "1101", "現金",     null, "10.00", 1)
@@ -280,7 +280,7 @@ public sealed class ProviderParityJourneyTests
         return all;
     }
 
-    /// <summary>逐頁帶 nextCursor 走訪 query.blankRecordsPage(nullDescription)到底,回傳 doc|acc|date 序列。</summary>
+    /// <summary>逐頁帶 nextCursor 走訪 query.blankRecordsPage(blankDescription)到底,回傳 doc|acc|date 序列。</summary>
     private static async Task<List<string>> WalkBlankRecordsPagesAsync(HandlerTestHost host, int pageSize)
     {
         var all = new List<string>();
@@ -288,7 +288,7 @@ public sealed class ProviderParityJourneyTests
         do
         {
             var page = await host.DispatchAsync("query.blankRecordsPage",
-                JsonSerializer.Serialize(new { category = "nullDescription", cursor, pageSize }));
+                JsonSerializer.Serialize(new { category = "blankDescription", cursor, pageSize }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
                 all.Add($"{r.GetProperty("voucherNumber").GetString()}|" +
@@ -1029,10 +1029,10 @@ public sealed class ProviderParityJourneyTests
         metrics["validate.voucherBalance.unbalancedVoucherCount"] =
             validate.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetRawText();
         var blankRecords = validate.GetProperty("blankRecordsTest");
-        metrics["validate.null.account"] = blankRecords.GetProperty("nullAccountCount").GetRawText();
-        metrics["validate.null.document"] = blankRecords.GetProperty("nullDocumentCount").GetRawText();
-        metrics["validate.null.description"] = blankRecords.GetProperty("nullDescriptionCount").GetRawText();
-        metrics["validate.null.approvalDateNotInPeriod"] = blankRecords.GetProperty("approvalDateNotInPeriodCount").GetRawText();
+        metrics["validate.blank.accountNumber"] = blankRecords.GetProperty("blankAccountNumberCount").GetRawText();
+        metrics["validate.blank.voucherNumber"] = blankRecords.GetProperty("blankVoucherNumberCount").GetRawText();
+        metrics["validate.blank.description"] = blankRecords.GetProperty("blankDescriptionCount").GetRawText();
+        metrics["validate.blank.approvalDateNotInPeriod"] = blankRecords.GetProperty("approvalDateNotInPeriodCount").GetRawText();
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         metrics["prescreen.suspiciousKeywords"] = prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetRawText();
@@ -1312,16 +1312,16 @@ public sealed class ProviderParityJourneyTests
             }
 
             // BlankRecordRows 逐項比對（voucherNumber / accountNumber / glDate / description / issues）
-            var sqliteNullRows = sqliteResult.GetProperty("blankRecordsTest")
-                .GetProperty("nullRows").EnumerateArray().ToList();
-            var sqlServerNullRows = sqlServerResult.GetProperty("blankRecordsTest")
-                .GetProperty("nullRows").EnumerateArray().ToList();
+            var sqliteBlankRows = sqliteResult.GetProperty("blankRecordsTest")
+                .GetProperty("blankRows").EnumerateArray().ToList();
+            var sqlServerBlankRows = sqlServerResult.GetProperty("blankRecordsTest")
+                .GetProperty("blankRows").EnumerateArray().ToList();
 
-            Assert.Equal(sqliteNullRows.Count, sqlServerNullRows.Count);
-            for (var i = 0; i < sqliteNullRows.Count; i++)
+            Assert.Equal(sqliteBlankRows.Count, sqlServerBlankRows.Count);
+            for (var i = 0; i < sqliteBlankRows.Count; i++)
             {
-                var s = sqliteNullRows[i];
-                var q = sqlServerNullRows[i];
+                var s = sqliteBlankRows[i];
+                var q = sqlServerBlankRows[i];
                 Assert.Equal(s.GetProperty("voucherNumber").GetString(),  q.GetProperty("voucherNumber").GetString());
                 Assert.Equal(s.GetProperty("accountNumber").GetString(),     q.GetProperty("accountNumber").GetString());
                 Assert.Equal(s.GetProperty("glDate").GetString(),        q.GetProperty("glDate").GetString());
@@ -1339,14 +1339,14 @@ public sealed class ProviderParityJourneyTests
                 sqliteResult.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetRawText(),
                 sqlServerResult.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetRawText());
             Assert.Equal(
-                sqliteResult.GetProperty("blankRecordsTest").GetProperty("nullAccountCount").GetRawText(),
-                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("nullAccountCount").GetRawText());
+                sqliteResult.GetProperty("blankRecordsTest").GetProperty("blankAccountNumberCount").GetRawText(),
+                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("blankAccountNumberCount").GetRawText());
             Assert.Equal(
-                sqliteResult.GetProperty("blankRecordsTest").GetProperty("nullDocumentCount").GetRawText(),
-                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("nullDocumentCount").GetRawText());
+                sqliteResult.GetProperty("blankRecordsTest").GetProperty("blankVoucherNumberCount").GetRawText(),
+                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("blankVoucherNumberCount").GetRawText());
             Assert.Equal(
-                sqliteResult.GetProperty("blankRecordsTest").GetProperty("nullDescriptionCount").GetRawText(),
-                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("nullDescriptionCount").GetRawText());
+                sqliteResult.GetProperty("blankRecordsTest").GetProperty("blankDescriptionCount").GetRawText(),
+                sqlServerResult.GetProperty("blankRecordsTest").GetProperty("blankDescriptionCount").GetRawText());
             Assert.Equal(
                 sqliteResult.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetRawText(),
                 sqlServerResult.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetRawText());
@@ -1360,7 +1360,7 @@ public sealed class ProviderParityJourneyTests
     /// <summary>
     /// 共用的工作簿設定：含一張不平傳票（JV-001:借 300 貸 100）、一張平衡傳票（JV-002:借貸各 50）、
     /// 以及一列空科目（JV-003 第一列）用於觸發 blankRecords 旗標。
-    /// JV-001 差額 200、JV-003 同時有 nullAccount；JV-002 不應出現在任何不平清單。
+    /// JV-001 差額 200、JV-003 同時有 blankAccountNumber；JV-002 不應出現在任何不平清單。
     /// </summary>
     private static void ConfigureWorkbook(InlineGlWorkbookBuilder builder) =>
         builder
@@ -1371,7 +1371,7 @@ public sealed class ProviderParityJourneyTests
             // JV-002：借 50、貸 50 → 平衡（不應出現在 unbalancedVouchers）
             .AddRow("JV-002", "2025-03-06", "1101", "現金",     "借方",   "50.00",  1)
             .AddRow("JV-002", "2025-03-06", "4101", "銷貨收入", "貸方",   "50.00",  0)
-            // JV-003：空科目列 → 觸發 nullAccount
+            // JV-003：空科目列 → 觸發 blankAccountNumber
             .AddRow("JV-003", "2025-03-07", null,   null,       "空科目分錄", "10.00", 1)
             .AddRow("JV-003", "2025-03-07", "4101", "銷貨收入", "對方",   "10.00",  0);
 

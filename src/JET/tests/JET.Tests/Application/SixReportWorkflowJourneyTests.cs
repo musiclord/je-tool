@@ -171,7 +171,11 @@ public sealed class SixReportWorkflowJourneyTests
             Assert.DoesNotContain(texts, text => text.Contains("待判定", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("2025-03-05", StringComparison.Ordinal) && text.Contains("2025-06-06", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("全部符合（至少有一筆）", StringComparison.Ordinal));
-            Assert.Contains(texts, text => text.Contains("包含下層分類", StringComparison.Ordinal));
+            // 裁定 2026-11-03-27 起，選的分類都沒有下層時讀回不寫選取依據；這個案件的現金沒有下層分類，報告不再寫「包含下層分類」。
+            // 原本核對報告寫出包含下層分類，改核對同一份報告仍寫出會納入其他分類的「相同分類用途」，並確認不寫包含下層分類。
+            // 第一次失敗：Focused 收據 20261103-102428077-8a3e24e015e24d57835a2b136ff8e486。
+            Assert.Contains(texts, text => text.Contains("相同分類用途", StringComparison.Ordinal));
+            Assert.DoesNotContain(texts, text => text.Contains("包含下層分類", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("財報準備日起核准", StringComparison.Ordinal));
             // 固定預篩選名稱明示 6 位；仍核對 Criteria 與 WorkingPaper 的實際內容。
             // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d，確定停在舊名稱斷言。

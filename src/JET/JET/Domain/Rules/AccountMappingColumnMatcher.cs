@@ -21,7 +21,7 @@ internal static class AccountMappingColumnMatcher
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count < 3)
-            throw new JetActionException(JetErrorCodes.ProjectionFailed, "科目配對檔需含科目編號、科目名稱、科目分類三欄。");
+            throw new JetActionException(JetErrorCodes.ProjectionFailed, "科目配對範本需含科目編號、科目名稱、科目分類三欄。");
 
         var chosen = new int?[3];
         var methods = new AccountMappingColumnResolver.MatchMethod[3];

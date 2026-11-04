@@ -230,7 +230,8 @@ public sealed class GlFieldAvailabilityWorkflowTests
         var holiday = prescreen.GetProperty("holidayActivity");
         Assert.Equal("na", holiday.GetProperty("status").GetString());
         Assert.Equal(
-            "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。" + ApprovalDateMissing + FieldFix,
+            // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075328999-91d0abe94c75427bb2babda5bdd66cc4。
+            "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。" + ApprovalDateMissing + FieldFix,
             holiday.GetProperty("naReason").GetString());
         Assert.Equal(JsonValueKind.Null, holiday.GetProperty("approvalNaReason").ValueKind);
         // 週末卡不需要假日檔，照常顯示總帳日期那一側。
@@ -254,9 +255,9 @@ public sealed class GlFieldAvailabilityWorkflowTests
         Assert.Equal(JsonValueKind.Null, blankRecords.GetProperty("approvalDateNotInPeriodCount").ValueKind);
         Assert.Equal(ApprovalDateMissing + FieldFix, blankRecords.GetProperty("approvalDateNotInPeriodNaReason").GetString());
         // 其他三類照常檢查；合成資料沒有空白的科目、傳票號碼與摘要。
-        Assert.Equal(0, blankRecords.GetProperty("nullAccountCount").GetInt64());
-        Assert.Equal(0, blankRecords.GetProperty("nullDocumentCount").GetInt64());
-        Assert.Equal(0, blankRecords.GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankAccountNumberCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankVoucherNumberCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankDescriptionCount").GetInt64());
 
         // 重開案件讀回同一份結果。
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
@@ -268,7 +269,8 @@ public sealed class GlFieldAvailabilityWorkflowTests
         using var workbook = await ExportValidationReportAsync(host, projectId, validation);
         var summary = workbook.Worksheet("ValidationReport");
         Assert.Equal("N/A", summary.Cell("D23").GetString());
-        Assert.Equal("未設定傳票核准日欄位", summary.Cell("E23").GetString());
+        // 裁定 2026-11-03-04 與 2026-11-03-17：報告句子裡的欄位名稱用【】標示。第一次失敗：Focused 收據 20261103-073302593-afc0685ef03e47fea453092a25ec1f17。
+        Assert.Equal("未設定【傳票核准日】欄位", summary.Cell("E23").GetString());
         Assert.DoesNotContain("V_Report 4", workbook.Worksheets.Select(static sheet => sheet.Name));
     }
 
@@ -292,7 +294,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         var summary = workbook.Worksheet("ValidationReport");
         Assert.Equal(XLDataType.Number, summary.Cell("D23").DataType);
         Assert.Equal(0d, summary.Cell("D23").GetDouble());
-        Assert.NotEqual("未設定傳票核准日欄位", summary.Cell("E23").GetString());
+        Assert.NotEqual("未設定【傳票核准日】欄位", summary.Cell("E23").GetString());
         Assert.DoesNotContain("V_Report 4", workbook.Worksheets.Select(static sheet => sheet.Name));
     }
 

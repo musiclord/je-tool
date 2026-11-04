@@ -5762,7 +5762,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>這張圖省略了什麼</h3>
         </div>
         <ul>
-          <li>操作紀錄由 CommittedAuditLog.AppendAsync 經 IProjectAuditLog 寫入，本機案件實際是 BestEffortProjectAuditLog 交給 LocalProjectAuditLog；寫入失敗時回應附提醒，見 TB 匯入循序圖。</li>
+          <li>操作紀錄由 CommittedOperationLog.AppendAsync 經 IProjectOperationLog 寫入，本機案件實際是 BestEffortProjectOperationLog 交給 LocalProjectOperationLog；寫入失敗時回應附提醒，見 TB 匯入循序圖。</li>
           <li>CompositeTabularFileReader 內部再交給 OpenXmlSaxTableReader、CsvTableReader、BinaryExcelTableReader 與 AccessTableReader。</li>
           <li>追加匯入時 IntakeFactsPort 呼叫 AppendToBatchAsync；SQL Server 版本不在圖內。</li>
         </ul>

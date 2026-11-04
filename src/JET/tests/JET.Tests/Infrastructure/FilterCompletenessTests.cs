@@ -154,6 +154,9 @@ public sealed class FilterCompletenessTests
             ("notIn", "\"values\":[\"-10\",\"10\"]", [1,3,5,6]),
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
+            // 尾數連續多個 0（裁定 2026-11-03-07）：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
+            ("endsWithZeros", "\"value\":\"1\"", [1,2,4,5,6]),
+            ("notEndsWithZeros", "\"value\":\"1\"", [3]),
             ("isBlank", "", [7]), ("isNotBlank", "", [1,2,3,4,5,6])
         ];
         (string Op, string Operand, int[] Hits)[] absoluteCases =
@@ -166,6 +169,9 @@ public sealed class FilterCompletenessTests
             ("in", "\"values\":[\"10\",\"10.00\"]", [2,4]), ("notIn", "\"values\":[\"10\"]", [1,3,5,6]),
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
+            // 尾數連續多個 0（裁定 2026-11-03-07）：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
+            ("endsWithZeros", "\"value\":\"1\"", [1,2,4,5,6]),
+            ("notEndsWithZeros", "\"value\":\"1\"", [3]),
             ("isBlank", "", [7]), ("isNotBlank", "", [1,2,3,4,5,6])
         ];
         foreach (var (type, core, extra, cases, blanks, basis) in new[]
@@ -187,7 +193,7 @@ public sealed class FilterCompletenessTests
                 if (type == "amount" && !isExtra)
                 {
                     expected.Remove(7);
-                    if (c.Op is "notEquals" or "lessThan" or "lessThanOrEqual" or "between" or "notIn" or "notEndsWithDigits" or "isNotBlank") expected.Add(7);
+                    if (c.Op is "notEquals" or "lessThan" or "lessThanOrEqual" or "between" or "notIn" or "notEndsWithDigits" or "notEndsWithZeros" or "isNotBlank") expected.Add(7);
                 }
                 else if (includeBlank && c.Op is not "isBlank" and not "isNotBlank") expected.AddRange(blanks);
                 var rule = $$"""

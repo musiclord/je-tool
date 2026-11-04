@@ -26,7 +26,7 @@ public sealed class ProjectLoadServerLookupTests
             handler.HandleAsync(payload.RootElement, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ProjectNotFound, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫「可能」，寫出案件名稱與能做的事。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫「可能」，寫出案件名稱與能做的事。
         Assert.Equal(
             "案件「missing-project」的資料夾已不在 JET 的案件位置，無法開啟。請重新整理案件清單，並確認案件資料夾仍在原來的位置。",
             exception.Message);
@@ -46,7 +46,7 @@ public sealed class ProjectLoadServerLookupTests
             handler.HandleAsync(payload.RootElement, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.ProjectNotFound, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫「可能」，寫出案件名稱與能做的事。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫「可能」，寫出案件名稱與能做的事。
         Assert.Equal(
             "案件「missing-project」的資料夾已不在 JET 的案件位置，無法開啟。請重新整理案件清單，並確認案件資料夾仍在原來的位置。",
             exception.Message);

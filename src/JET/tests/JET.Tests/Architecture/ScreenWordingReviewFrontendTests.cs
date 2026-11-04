@@ -25,7 +25,9 @@ public sealed class ScreenWordingReviewFrontendTests
         // 第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
         // 裁定 2026-11-02-01 讓傳票文件項次自成一欄，表頭寫名詞表的短表頭「項次」，分錄列只寫數字。
         // 原本斷言分錄列在第一格寫「傳票文件項次」加項次；第一次失敗：Focused 收據 20261102-043729508-0bca1f84d1cf4f8283d4b74ffd464aef。
-        Assert.Contains("{ key: null, label: '項次' }", vouchers, StringComparison.Ordinal);
+        // 裁定 2026-11-03-03 讓表頭替只有分錄才有內容的欄留好寬度，「項次」表頭多了欄寬用的 class，表頭文字不變；
+        // 原本斷言沒有 class 的寫法，第一次失敗：Focused 收據 20261103-041628000-7c2a0d4659d542ef86df180565807512。
+        Assert.Contains("{ key: null, label: '項次', className: 'voucher-table__line' }", vouchers, StringComparison.Ordinal);
         Assert.DoesNotContain("'傳票文件項次 '", vouchers, StringComparison.Ordinal);
         Assert.DoesNotContain("'傳票項次'", vouchers, StringComparison.Ordinal);
         Assert.DoesNotContain("'項次 '", vouchers, StringComparison.Ordinal);
@@ -71,7 +73,8 @@ public sealed class ScreenWordingReviewFrontendTests
         var app = ReadFrontend("js", "app.js");
 
         // 不適用規則的說明改成完整句子。
-        Assert.Contains("列在「不適用規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。", ExtractFunction(app, "overviewDisclaimerHtml"), StringComparison.Ordinal);
+        // 裁定 2026-11-03-10 改畫面用字：「不適用規則」改成「無法執行的規則」，和第四步同名。第一次失敗：Focused 收據 20261103-075207213-6179abee0ee34fcbb7928fbda4018060。
+        Assert.Contains("列在「無法執行的規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。", ExtractFunction(app, "overviewDisclaimerHtml"), StringComparison.Ordinal);
         Assert.DoesNotContain("不適用不等於零", app, StringComparison.Ordinal);
 
         // 總覽與重複匯出的提示用「工作底稿」。
@@ -86,7 +89,7 @@ public sealed class ScreenWordingReviewFrontendTests
         // Ruling 2026-10-04-01 replaces the older wording with confirmation status, not submission terminology.
         // First failure: 20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022.
         Assert.DoesNotContain("'尚未提交'", app, StringComparison.Ordinal);
-        // 裁定 2026-10-30-16 確認沒有 TB 時的原因句，預期值換成新句子。第一次失敗：Focused 收據 20261030-233510080-14179b42943c4349b15cae4ebdf3ab7f。
+        // 沒有 TB 時的原因句依裁定 2026-10-30-16，預期值換成新句子。第一次失敗：Focused 收據 20261030-233510080-14179b42943c4349b15cae4ebdf3ab7f。
         // 裁定 2026-11-01-06 把這句的「還沒確認」改成「尚未確認」，其餘字不動；第一次失敗：Focused 收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
         Assert.Contains("\"TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。\"", ReadSource("AuditCore", "AccountComparisonProcedure.cs"), StringComparison.Ordinal);
     }
@@ -96,12 +99,14 @@ public sealed class ScreenWordingReviewFrontendTests
     {
         // 依建立人員彙總的表頭用「編製人員」；計數與說明用「人員代號或姓名」。
         var validate = ReadFrontend("js", "steps", "validate-step.js");
-        Assert.Contains("columns: ['編製人員', '分錄筆數', '借方', '貸方', '人工分錄筆數']", validate, StringComparison.Ordinal);
+        // 裁定 2026-11-03-10 改畫面用字：表頭改用欄位名「傳票建立人員」。第一次失敗：Focused 收據 20261103-075207213-6179abee0ee34fcbb7928fbda4018060。
+        Assert.Contains("columns: ['傳票建立人員', '分錄筆數', '借方', '貸方', '人工分錄筆數']", validate, StringComparison.Ordinal);
 
         Assert.Contains("isPerson ? '每行一個人員代號或姓名'", ReadFrontend("js", "filter-values.js"), StringComparison.Ordinal);
         var import = ReadFrontend("js", "steps", "import-step.js");
         // 裁定 2026-10-30-19：人數改經 Ui.countText 加千分位；改字後依預期失敗：Focused 收據 20261031-010547486-827e57fd9bfa4185b81c65114b864279。
-        Assert.Contains("有效授權清單：' + Ui.countText(info.rowCount) + ' 個人員代號或姓名' +", import, StringComparison.Ordinal);
+        // 裁定 2026-11-03-10 改畫面用字：一律寫「授權編製人員清單」。第一次失敗：Focused 收據 20261103-075207213-6179abee0ee34fcbb7928fbda4018060。
+        Assert.Contains("授權編製人員清單：' + Ui.countText(info.rowCount) + ' 個人員代號或姓名' +", import, StringComparison.Ordinal);
         Assert.Contains("' 個有效人員代號或姓名。'", import, StringComparison.Ordinal);
         Assert.Contains("preparerName: '人員代號或姓名',", ReadFrontend("js", "data-preview.js"), StringComparison.Ordinal);
         Assert.Contains("依匯入後的科目或人員分組；空白欄位不列入。", ProductSources.FilterStepFrontend(), StringComparison.Ordinal);
@@ -129,7 +134,8 @@ public sealed class ScreenWordingReviewFrontendTests
         // 裁定 2026-10-30-19：科目數改經 Ui.countText 加千分位；改字後依預期失敗：Focused 收據 20261031-010547486-827e57fd9bfa4185b81c65114b864279。
         // 裁定 2026-10-30-35 採方案丙，「用 Excel 配對」下方的結果清單一列寫「已儲存的配對」與科目數，沒匯入時寫「尚未匯入」，
         // 照選定的樣張；仍用「儲存」。第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
-        Assert.Contains("<span class=\"excel-mapping__label\">已儲存的配對</span>", validate, StringComparison.Ordinal);
+        // 裁定 2026-11-03-10 改畫面用字：寫「已儲存的科目配對」。第一次失敗：Focused 收據 20261103-075207213-6179abee0ee34fcbb7928fbda4018060。
+        Assert.Contains("<span class=\"excel-mapping__label\">已儲存的科目配對</span>", validate, StringComparison.Ordinal);
         Assert.Contains("Ui.countText(info.rowCount) + ' 個科目</span>'", validate, StringComparison.Ordinal);
         Assert.Contains("excel-mapping__value--muted\">尚未匯入</span>", validate, StringComparison.Ordinal);
         Assert.DoesNotContain("目前已保存 ' + info.rowCount", validate, StringComparison.Ordinal);
@@ -139,7 +145,7 @@ public sealed class ScreenWordingReviewFrontendTests
         Assert.DoesNotContain("尚未保存科目配對", preview, StringComparison.Ordinal);
 
         // 空值計數的名稱直接說明可能重複計入。
-        // 裁定 2026-10-13-28 確認完成訊息不再列各項筆數（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+        // 依裁定 2026-10-13-28，完成訊息不再列各項筆數（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
         Assert.Contains("return data ? '資料驗證完成' : '';", validate, StringComparison.Ordinal);
         Assert.DoesNotContain("異常項次合計", validate, StringComparison.Ordinal);
     }

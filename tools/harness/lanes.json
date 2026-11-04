@@ -168,26 +168,26 @@
       {
         "name": "filter-auditor-journey",
         "timeoutSeconds": 240,
-        "actionBudget": 87,
-        "expectedActionCount": 87,
+        "actionBudget": 88,
+        "expectedActionCount": 88,
         "screenshotBudget": 2
       },
       {
         "name": "filter-common-editing",
         "timeoutSeconds": 240,
-        "actionBudget": 75,
-        "expectedActionCount": 75,
+        "actionBudget": 77,
+        "expectedActionCount": 77,
         "screenshotBudget": 1
       },
       {
         "name": "feedback-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 87,
-        "expectedActionCount": 87,
+        "actionBudget": 88,
+        "expectedActionCount": 88,
         "screenshotBudget": 2
       },
       {
-        "name": "null-details-recovery",
+        "name": "blank-details-recovery",
         "timeoutSeconds": 240,
         "actionBudget": 32,
         "expectedActionCount": 32,
@@ -224,22 +224,22 @@
       {
         "name": "extended-conditions",
         "timeoutSeconds": 240,
-        "actionBudget": 85,
-        "expectedActionCount": 85,
+        "actionBudget": 89,
+        "expectedActionCount": 89,
         "screenshotBudget": 2
       },
       {
         "name": "side-month-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 74,
-        "expectedActionCount": 74,
+        "actionBudget": 76,
+        "expectedActionCount": 76,
         "screenshotBudget": 2
       },
       {
         "name": "nested-voucher-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 97,
-        "expectedActionCount": 97,
+        "actionBudget": 87,
+        "expectedActionCount": 87,
         "screenshotBudget": 2
       },
       {

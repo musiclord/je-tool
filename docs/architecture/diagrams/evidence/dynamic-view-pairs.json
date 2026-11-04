@@ -19,17 +19,134 @@
         "filterSlice.store": "db",
         "filterSlice.commit": "db"
       },
-      "sequenceMessages": ["m04", "m05", "m07", "m08", "m09", "m10"],
+      "sequenceMessages": [
+        "m04",
+        "m05",
+        "m07",
+        "m08",
+        "m21",
+        "m22"
+      ],
       "sequenceOutOfScope": [
-        { "message": "m02", "reason": "共用分派，動態視圖從處理類別收到呼叫開始畫。" },
-        { "message": "m03", "reason": "共用分派，同上。" },
-        { "message": "m13", "reason": "分支 B，仍有情境不合格；動態視圖只畫整批合格。" }
+        {
+          "message": "m02",
+          "reason": "共用分派，動態視圖從處理類別收到呼叫開始畫。"
+        },
+        {
+          "message": "m03",
+          "reason": "共用分派，同上。"
+        },
+        {
+          "message": "m19",
+          "reason": "讀存好的結果是否過期；動態視圖沒有畫失效狀態的介面，改寫在 PublishAsync 的說明。"
+        },
+        {
+          "message": "m09",
+          "reason": "分支 B，整批處理且全部合格；動態視圖只畫平常只存一個情境的分支。"
+        },
+        {
+          "message": "m10",
+          "reason": "分支 B，同上。"
+        },
+        {
+          "message": "m13",
+          "reason": "分支 C，整批處理但仍有情境不合格。"
+        }
       ],
       "skippedSteps": [
-        { "label": "Plan", "reason": "循序圖只在 ExecuteAsync 的註解提到 JetAuditProgram 建立計畫，沒有畫成訊息。" },
-        { "label": "同一筆交易取代定義，算出命中", "reason": "資料線，沒有呼叫位置；循序圖把提交畫成篩選執行到案件資料庫一條訊息。" },
-        { "label": "Finalize", "reason": "循序圖沒有畫 JetAuditProgram 整理結果。" },
-        { "label": "情境、命中版本與失效狀態", "reason": "提交後讀回，對應循序圖的回傳 m15；這項檢查只比呼叫。" }
+        {
+          "label": "PlanOneScenario",
+          "reason": "循序圖只在 ExecuteAsync 的註解提到 JetAuditProgram.PlanOneScenario 建立計畫，沒有畫成訊息。"
+        },
+        {
+          "label": "同一筆交易只換這個情境的定義與命中",
+          "reason": "資料線，沒有呼叫位置；循序圖把提交畫成篩選執行到案件資料庫一條訊息。"
+        },
+        {
+          "label": "Finalize",
+          "reason": "循序圖沒有畫 JetAuditProgram 整理結果。"
+        },
+        {
+          "label": "情境、命中版本與失效狀態",
+          "reason": "提交後讀回，對應循序圖的回傳 m15；這項檢查只比呼叫。"
+        }
+      ]
+    },
+    {
+      "id": "tbImport",
+      "dynamicView": "tbImport",
+      "sequence": "import-sequence",
+      "participants": {
+        "tbSlice.handler": "handler",
+        "tbSlice.importRepository": "db",
+        "tbSlice.reader": "reader",
+        "tbSlice.intake": "port",
+        "tbSlice.project": "project"
+      },
+      "sequenceMessages": [
+        "m03",
+        "m05",
+        "m07",
+        "m08",
+        "m09",
+        "m14"
+      ],
+      "sequenceOutOfScope": [
+        {
+          "message": "m02",
+          "reason": "共用分派，動態視圖從處理類別收到呼叫開始畫。"
+        },
+        {
+          "message": "m15",
+          "reason": "提交後寫操作紀錄；動態視圖沒有畫操作紀錄的類別，見循序圖的卡片。"
+        }
+      ],
+      "skippedSteps": [
+        {
+          "label": "逐列取用準備好的資料列",
+          "reason": "間接觸發，沒有呼叫位置：LocalImportRepository 逐列取用讀檔器先準備好的資料列，對應循序圖的 m10。"
+        },
+        {
+          "label": "同一筆交易取代批次與資料列",
+          "reason": "資料線，沒有呼叫位置；循序圖畫成取代匯入到案件資料庫一條訊息。"
+        }
+      ]
+    },
+    {
+      "id": "workingPaperExport",
+      "dynamicView": "workingPaperExport",
+      "sequence": "workpaper-sequence",
+      "participants": {
+        "paperSlice.handler": "handler",
+        "paperSlice.facts": "facts",
+        "paperSlice.audited": "audited",
+        "paperSlice.files": "files",
+        "paperSlice.writer": "writer"
+      },
+      "sequenceMessages": [
+        "m02",
+        "m04",
+        "m05",
+        "m07"
+      ],
+      "sequenceOutOfScope": [],
+      "skippedSteps": [
+        {
+          "label": "RequireUsableAsync",
+          "reason": "循序圖的參與者已到可讀寬度的上限，確認存好的結果只寫在第一段的標題與卡片，沒有畫成訊息。"
+        },
+        {
+          "label": "執行事先交出的寫檔函式",
+          "reason": "間接觸發，沒有呼叫位置；對應循序圖的 m06。"
+        },
+        {
+          "label": "改名成正式檔名並更新報告清單",
+          "reason": "資料線，沒有呼叫位置；對應循序圖回傳 m11 的說明。"
+        },
+        {
+          "label": "Report",
+          "reason": "回傳，對應循序圖的 m12；這項檢查只比呼叫。"
+        }
       ]
     }
   ]

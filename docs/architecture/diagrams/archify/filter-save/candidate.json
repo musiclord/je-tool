@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "儲存篩選情境：檢查、整批判斷與兩種寫法",
+    "title": "儲存篩選情境：檢查後只存一個或整批處理",
     "locale": "zh-TW",
     "output": "archify/filter-save/filter-save.html",
     "quality_profile": "showcase",
@@ -37,30 +37,28 @@
       "variant": "exception"
     },
     {
+      "id": "one",
+      "label": "只存這一個情境"
+    },
+    {
       "id": "valid",
-      "label": "整批合格：發布"
+      "label": "整批處理：全部合格"
     },
     {
       "id": "invalid",
-      "label": "仍有情境要修改"
+      "label": "整批處理：仍有不合格"
     }
   ],
   "phases": [
     {
-      "id": "before",
-      "label": "只讀取，不寫入",
+      "id": "cancellable",
+      "label": "提交前可以取消",
       "fromCol": 0,
-      "toCol": 3
-    },
-    {
-      "id": "write",
-      "label": "同一筆交易",
-      "fromCol": 4,
       "toCol": 4
     },
     {
       "id": "after",
-      "label": "提交之後",
+      "label": "提交後不再取消",
       "fromCol": 5,
       "toCol": 5
     }
@@ -77,10 +75,18 @@
     {
       "id": "load",
       "lane": "check",
-      "col": 1,
+      "col": 0,
       "type": "backend",
       "label": "確認前提",
       "sublabel": "驗證是目前版本，GL 已配對"
+    },
+    {
+      "id": "list",
+      "lane": "check",
+      "col": 1,
+      "type": "backend",
+      "label": "讀出已存情境",
+      "sublabel": "其他情境照原樣保留"
     },
     {
       "id": "rules",
@@ -88,32 +94,32 @@
       "col": 2,
       "type": "backend",
       "label": "檢查本次情境",
-      "sublabel": "位置、名稱與儲存規則"
+      "sublabel": "上限、位置、名稱與儲存規則"
     },
     {
       "id": "decide",
       "lane": "check",
       "col": 3,
       "type": "backend",
-      "label": "整批都合格？",
-      "sublabel": "PlanWrite",
+      "label": "選擇寫法",
+      "sublabel": "結果是否過期與 PlanWrite",
       "icon": "decision"
+    },
+    {
+      "id": "one",
+      "lane": "one",
+      "col": 4,
+      "type": "database",
+      "label": "只換這一個情境",
+      "sublabel": "其他情境的結果照原樣"
     },
     {
       "id": "commit",
       "lane": "valid",
       "col": 4,
       "type": "database",
-      "label": "發布定義與命中",
+      "label": "發布全部定義與命中",
       "sublabel": "篩選結果改為目前"
-    },
-    {
-      "id": "advance",
-      "lane": "valid",
-      "col": 5,
-      "type": "backend",
-      "label": "推進到第五步",
-      "sublabel": "步驟落後才更新"
     },
     {
       "id": "defs",
@@ -121,15 +127,7 @@
       "col": 4,
       "type": "database",
       "label": "只寫情境定義",
-      "sublabel": "清除命中並標成失效"
-    },
-    {
-      "id": "needs",
-      "lane": "invalid",
-      "col": 5,
-      "type": "backend",
-      "label": "標示待修情境",
-      "sublabel": "needsEdit"
+      "sublabel": "清除命中，標出待修情境"
     },
     {
       "id": "reply",
@@ -137,7 +135,7 @@
       "col": 5,
       "type": "frontend",
       "label": "讀回最新狀態",
-      "sublabel": "情境清單與失效狀態"
+      "sublabel": "有存下結果才推進到第五步"
     },
     {
       "id": "reject",
@@ -156,8 +154,13 @@
       "to": "load"
     },
     {
-      "id": "load_rules",
+      "id": "load_list",
       "from": "load",
+      "to": "list"
+    },
+    {
+      "id": "list_rules",
+      "from": "list",
       "to": "rules"
     },
     {
@@ -180,47 +183,46 @@
       "role": "error"
     },
     {
+      "id": "decide_one",
+      "from": "decide",
+      "to": "one",
+      "label": "平常"
+    },
+    {
       "id": "decide_commit",
       "from": "decide",
       "to": "commit",
-      "label": "是",
-      "role": "branch"
+      "label": "整批合格"
     },
     {
       "id": "decide_defs",
       "from": "decide",
       "to": "defs",
-      "label": "否",
-      "role": "branch"
+      "label": "仍有不合格"
     },
     {
-      "id": "commit_advance",
-      "from": "commit",
-      "to": "advance"
-    },
-    {
-      "id": "advance_reply",
-      "from": "advance",
+      "id": "one_reply",
+      "from": "one",
       "to": "reply"
     },
     {
-      "id": "defs_needs",
-      "from": "defs",
-      "to": "needs"
+      "id": "commit_reply",
+      "from": "commit",
+      "to": "reply"
     },
     {
-      "id": "needs_reply",
-      "from": "needs",
+      "id": "defs_reply",
+      "from": "defs",
       "to": "reply"
     }
   ],
   "mainPath": [
     "request",
     "load",
+    "list",
     "rules",
     "decide",
-    "commit",
-    "advance",
+    "one",
     "reply"
   ],
   "semanticChecks": {
@@ -232,6 +234,10 @@
       "reject"
     ],
     "requiredEdges": [
+      {
+        "from": "decide",
+        "to": "one"
+      },
       {
         "from": "decide",
         "to": "commit"
@@ -252,18 +258,18 @@
       "title": "只檢查本次",
       "items": [
         "前提不符就回錯誤、不寫入：驗證結果不是目前版本、找不到案件，或 GL 欄位還沒確認配對。",
-        "儲存只檢查正在編輯的情境；其他已存情境照原內容保留，不重新檢查。",
-        "位置留空是新增或另存，加在清單最後；指定位置是取代，畫面送來的名稱必須和資料庫那一筆相同。"
+        "儲存只用儲存規則檢查正在編輯的情境；其他已存情境從資料庫讀出，照原內容保留。",
+        "位置留空是新增或另存，加在清單最後，已達上限就回錯誤；指定位置是取代，畫面送來的名稱必須和資料庫那一筆相同。"
       ]
     },
     {
       "dot": "slate",
-      "title": "整批判斷後的兩種寫法",
+      "title": "只存一個或整批處理",
       "items": [
-        "整批都合格：同一筆交易取代定義，並用 SQL 算出命中，篩選結果改為目前。",
-        "仍有情境要修改：同一筆交易只寫定義、清除命中並標成失效，畫面標出待修的情境。",
-        "提交後讀回情境清單與失效狀態，這時不再接受取消。",
-        "發布後，案件步驟落後才推進到第五步；推進失敗只記警告。"
+        "其他情境都合格、已是目前規則，存好的結果也沒有過期時，只存這一個情境：同一筆交易換掉它的定義與命中，其他情境的結果照原樣。",
+        "否則整批處理。全部合格時，同一筆交易取代全部定義並用 SQL 算出命中，篩選結果改為目前；仍有情境要修改時，只寫定義、清除命中並標成失效，畫面標出待修的情境。",
+        "提交前取消時交易回復，這次儲存不寫入。提交後讀回情境清單與失效狀態，這時不再接受取消。",
+        "有存下結果時，案件步驟落後才推進到第五步；推進失敗記在支援日誌。"
       ]
     }
   ]

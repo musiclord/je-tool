@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 第五步情境單獨出現的句子（裁定 2026-10-13-28 確認了用字）。這幾句不在待修正清單裡，畫面不會另外補下一步，
+/// 第五步情境單獨出現的句子（用字依裁定 2026-10-13-28）。這幾句不在待修正清單裡，畫面不會另外補下一步，
 /// 所以各自保留下一步。
 /// </summary>
 internal static class FilterScenarioRuleMessages
@@ -106,7 +106,7 @@ internal static partial class FilterScenarioRuleUpgrade
     [GeneratedRegex(@"^filter-\d{4}-\d{2}-\d{2}-v(?<number>\d+)$", RegexOptions.CultureInvariant)]
     private static partial Regex KnownVersion();
 
-    // 待修正清單的原因句（裁定 2026-10-13-28 確認了用字）。清單格式是「情境 N「名稱」：原因；原因。」，
+    // 待修正清單的原因句（用字依裁定 2026-10-13-28）。清單格式是「情境 N「名稱」：原因；原因。」，
     // 句尾句號由畫面統一處理；下一步由畫面在清單最後寫一次。
     internal const string NonAuditPeriodMessage =
         "篩選範圍不是查核期間內的分錄，不會自動改為查核期間";

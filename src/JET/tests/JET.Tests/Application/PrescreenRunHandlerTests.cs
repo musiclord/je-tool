@@ -295,7 +295,8 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var holidayActivity = data.GetProperty("holidayActivity");
         Assert.Equal("na", holidayActivity.GetProperty("status").GetString());
         Assert.Equal(
-            "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。",
+            // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075345142-f820ea2c977d4709ab2eaaa3d5448d77。
+            "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。",
             holidayActivity.GetProperty("naReason").GetString());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("approvalNaReason").ValueKind);
         Assert.Equal(0, holidayActivity.GetProperty("postingCount").GetInt64());

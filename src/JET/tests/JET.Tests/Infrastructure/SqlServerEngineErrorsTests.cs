@@ -62,7 +62,7 @@ public sealed class SqlServerEngineErrorsTests
     [Fact]
     public void TryTranslate_DuplicateKey_UsesTheConfirmedSentenceWithoutTheEngineMessage()
     {
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         // 引擎原文含資料表名與重複的鍵值，改用確認後的句子，不再送到畫面；錯誤代碼不變。
         var translated = SqlServerEngineErrors.TryTranslate(CreateSqlException(2627));
 

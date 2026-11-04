@@ -8,7 +8,7 @@ internal sealed partial class GlRulePredicates
     /// 通用值條件（fieldValue）。欄位空白（文字 NULL 或 TRIM 為空、日期與金額 NULL）預設不列入，除非
     /// `includeBlank` 為真（裁定 2026-10-14-15）；其餘比較都在 UPPER(TRIM()) 文字、ISO 日期字串或 scaled 金額上進行，
     /// 值全部參數綁定。每月幾日用 <see cref="ISqlDialect.DayOfMonth"/>；文字的包含比對接受多個關鍵字（OR 串接），
-/// 空白、週末、假日、補班日與包含都呼叫預篩選規則同一組方法。
+/// 空白、週末、假日、補班日、包含與尾數連續多個 0 都呼叫預篩選規則同一組方法。
     /// </summary>
     public string FieldValue(FilterSqlParameterPlanBuilder parameters, FilterConditionSpec rule,
         FilterConditionContext context, string schemaPrefix)
@@ -57,6 +57,18 @@ internal sealed partial class GlRulePredicates
         if (FieldValueConditions.IsTail(op))
         {
             positive = TrailingDigits(parameters, FieldValueConditions.TailPatterns(rule), context.MoneyScale, originalColumn);
+            if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
+        }
+        else if (FieldValueConditions.IsZeroRun(op))
+        {
+            // 尾數連續 N 個 0（裁定 2026-11-03-07）就是 N 個 0 的尾數樣態，和第四步預篩選規則「金額尾數連續 6 個 0」用同一個
+            // TrailingDigits，0 的個數由審計員指定；另加整數部分不是 0。N 至少 2 時尾數樣態本身要求整數至少 N 位，這個下界不改變結果；
+            // N 為 1 時尾數樣態會讓整數部分為 0 的金額命中，由下界排除。結果和改版前的子條件組
+            // 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」相同。
+            if (!FieldValueConditions.TryParseZeroRun(rule.TypedValue, out var zeros))
+                throw Invalid("field_value_zero_run_invalid");
+            var tail = TrailingDigits(parameters, [TrailingZeroThreshold.ZeroPattern(zeros)], context.MoneyScale, originalColumn);
+            positive = $"({tail} AND ABS({originalColumn}) >= {NextParam(parameters, (long)context.MoneyScale)})";
             if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
         }
         else if (FieldValueConditions.IsCalendar(op))

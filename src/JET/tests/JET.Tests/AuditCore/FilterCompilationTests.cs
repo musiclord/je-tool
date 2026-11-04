@@ -115,9 +115,9 @@ public sealed class FilterCompilationTests
     {
         Assert.Equal(
             [
-                BlankRecordCategory.NullAccount,
-                BlankRecordCategory.NullDocument,
-                BlankRecordCategory.NullDescription,
+                BlankRecordCategory.BlankAccountNumber,
+                BlankRecordCategory.BlankVoucherNumber,
+                BlankRecordCategory.BlankDescription,
                 BlankRecordCategory.ApprovalDateNotInPeriod
             ],
             BlankRecordsCategoryPredicate.All);
@@ -126,9 +126,9 @@ public sealed class FilterCompilationTests
     // 空白判定改走方言的 Trim（裁定 2026-10-04-01），去掉的字元集合和 .NET 相同，三個 provider 一致。
     // 原本斷言的是引擎原生 TRIM 與 LTRIM(RTRIM)（第一次失敗：收據 20261004-045437671），這裡改成以方言組出預期字串。
     [Theory]
-    [InlineData(BlankRecordCategory.NullAccount, "account_number")]
-    [InlineData(BlankRecordCategory.NullDocument, "voucher_number")]
-    [InlineData(BlankRecordCategory.NullDescription, "description")]
+    [InlineData(BlankRecordCategory.BlankAccountNumber, "account_number")]
+    [InlineData(BlankRecordCategory.BlankVoucherNumber, "voucher_number")]
+    [InlineData(BlankRecordCategory.BlankDescription, "description")]
     public void BlankRecordCategoryPredicates_ProviderVariants_UseDialectTrim(BlankRecordCategory category, string column)
     {
         // 等價分割：三種空白欄位各取一個代表；期外核准日另測。
@@ -158,7 +158,7 @@ public sealed class FilterCompilationTests
         Assert.Equal(
             "(is_excluded = 0) AND " +
             $"((account_number IS NULL OR {SqliteDialect.Instance.Trim("account_number")} = ''))",
-            BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.NullAccount, SqliteDialect.Instance));
+            BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.BlankAccountNumber, SqliteDialect.Instance));
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class FilterCompilationTests
         Assert.Equal(
             "(is_excluded = 0) AND " +
             $"((account_number IS NULL OR {SqlServerDialect.Instance.Trim("account_number")} = ''))",
-            BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.NullAccount, SqlServerDialect.Instance));
+            BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.BlankAccountNumber, SqlServerDialect.Instance));
     }
 
     // 轉大寫改走方言（裁定 2026-10-19-30）。SQLite 與 DuckDB 的 SQL 文字不變；

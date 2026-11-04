@@ -38,16 +38,16 @@ public static class SuspiciousKeywordDefaults
 
 /// <summary>
 /// 連續零尾數（trailing_zeros）的固定門檻：預篩選規則比對金額主單位整數的末 <see cref="DefaultZerosThreshold"/> 位是否全為 0，
-/// 和第五步「整數尾數符合」用同一個述詞（<c>GlRulePredicates.TrailingDigits</c>），小數位不參與，整數部分為 0 不命中。
+/// 和第五步金額的「整數尾數符合」「尾數連續多個 0」用同一個尾數述詞（<c>GlRulePredicates.TrailingDigits</c>），小數位不參與，整數部分為 0 不命中。
 /// 這與 legacy R4 的借方平均金額算法不同；裁定 2026-09-18-04 保留新版固定門檻。
-/// 需要其他位數時，審計員在第五步用「金額」的「整數尾數符合」填入要的 0 的個數。
+/// 需要其他位數時，審計員在第五步金額的「尾數連續多個 0」填入 0 的個數，1 到 <see cref="MaxCustomDigits"/>。
 /// </summary>
 public static class TrailingZeroThreshold
 {
     /// <summary>現行固定預設門檻；不能當成 legacy 或正式方法學來源。</summary>
     public const int DefaultZerosThreshold = 6;
 
-    /// <summary>尾數樣態接受的位數上限：10^12 可安全放入 long。</summary>
+    /// <summary>尾數樣態的位數上限，也是「尾數連續多個 0」的 0 的個數上限：10^12 可安全放入 long。</summary>
     public const int MaxCustomDigits = 12;
 
     public const int MinCustomDigits = 1;

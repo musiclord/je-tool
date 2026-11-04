@@ -36,8 +36,8 @@
   },
   "entities": [
     {
-      "id": "config_account_taxonomy_path",
-      "label": "config_account_taxonomy_path",
+      "id": "account_category_path",
+      "label": "account_category_path",
       "row": 0,
       "col": 0,
       "attributes": [
@@ -56,8 +56,8 @@
       "sublabel": "分類階層的祖先與子孫"
     },
     {
-      "id": "config_account_taxonomy",
-      "label": "config_account_taxonomy",
+      "id": "account_category",
+      "label": "account_category",
       "row": 1,
       "col": 0,
       "attributes": [
@@ -96,8 +96,8 @@
       "sublabel": "科目分類定義"
     },
     {
-      "id": "target_account_mapping",
-      "label": "target_account_mapping",
+      "id": "account_mapping",
+      "label": "account_mapping",
       "row": 2,
       "col": 0,
       "attributes": [
@@ -115,7 +115,7 @@
           "type": "INTEGER"
         },
         {
-          "name": "account_code",
+          "name": "account_number",
           "type": "TEXT",
           "key": "uk"
         },
@@ -140,15 +140,19 @@
       "sublabel": "科目代碼對應到分類"
     },
     {
-      "id": "config_filter_scenario",
-      "label": "config_filter_scenario",
+      "id": "filter_scenario",
+      "label": "filter_scenario",
       "row": 0,
       "col": 1,
       "attributes": [
         {
-          "name": "position",
+          "name": "scenario_id",
           "type": "INTEGER",
           "key": "pk"
+        },
+        {
+          "name": "position",
+          "type": "INTEGER"
         },
         {
           "name": "name",
@@ -171,13 +175,13 @@
       "sublabel": "第五步已存的篩選情境"
     },
     {
-      "id": "result_filter_run",
-      "label": "result_filter_run",
+      "id": "filter_hit",
+      "label": "filter_hit",
       "row": 1,
       "col": 1,
       "attributes": [
         {
-          "name": "scenario_position",
+          "name": "scenario_id",
           "type": "INTEGER",
           "key": "pk"
         },
@@ -191,13 +195,43 @@
       "sublabel": "每個情境命中的分錄"
     },
     {
-      "id": "result_inf_sampling_test_sample",
-      "label": "result_inf_sampling_test_sample",
-      "row": 2,
-      "col": 1,
+      "id": "filter_hit_condition",
+      "label": "filter_hit_condition",
+      "row": 0,
+      "col": 2,
       "attributes": [
         {
-          "name": "run_id",
+          "name": "scenario_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "entry_id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "group_no",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "condition_no",
+          "type": "INTEGER",
+          "key": "pk"
+        }
+      ],
+      "tag": "篩選與抽樣",
+      "sublabel": "命中傳票裡每筆分錄符合哪一條"
+    },
+    {
+      "id": "inf_sample",
+      "label": "inf_sample",
+      "row": 1,
+      "col": 2,
+      "attributes": [
+        {
+          "name": "result_id",
           "type": "TEXT",
           "key": "pk"
         },
@@ -207,7 +241,7 @@
           "key": "pk"
         },
         {
-          "name": "document_number",
+          "name": "voucher_number",
           "type": "TEXT"
         },
         {
@@ -216,11 +250,13 @@
         }
       ],
       "tag": "篩選與抽樣",
-      "sublabel": "抽樣測試選出的分錄"
+      "sublabel": "資料可靠性測試抽出的分錄"
     },
     {
-      "id": "target_gl_entry",
-      "label": "target_gl_entry",
+      "id": "gl",
+      "label": "gl",
+      "row": 2,
+      "col": 1,
       "sublabel": "完整欄位見標準化資料的關聯圖",
       "tag": "參照",
       "attributes": [
@@ -229,15 +265,13 @@
           "type": "INTEGER",
           "key": "pk"
         }
-      ],
-      "row": 0,
-      "col": 2
+      ]
     },
     {
-      "id": "target_authorized_preparer",
-      "label": "target_authorized_preparer",
-      "row": 1,
-      "col": 2,
+      "id": "authorized_preparer",
+      "label": "authorized_preparer",
+      "row": 0,
+      "col": 3,
       "attributes": [
         {
           "name": "name",
@@ -249,10 +283,10 @@
       "sublabel": "授權編製人清單"
     },
     {
-      "id": "staging_calendar_raw_day",
-      "label": "staging_calendar_raw_day",
-      "row": 2,
-      "col": 2,
+      "id": "calendar_day",
+      "label": "calendar_day",
+      "row": 1,
+      "col": 3,
       "attributes": [
         {
           "name": "day_type",
@@ -275,9 +309,9 @@
   ],
   "relationships": [
     {
-      "id": "path_taxonomy",
-      "from": "config_account_taxonomy_path",
-      "to": "config_account_taxonomy",
+      "id": "path_category",
+      "from": "account_category_path",
+      "to": "account_category",
       "label": "ancestor_id、descendant_id",
       "fromCardinality": "many",
       "toCardinality": "one",
@@ -286,9 +320,9 @@
       "identifying": false
     },
     {
-      "id": "mapping_taxonomy",
-      "from": "target_account_mapping",
-      "to": "config_account_taxonomy",
+      "id": "mapping_category",
+      "from": "account_mapping",
+      "to": "account_category",
       "label": "category_id",
       "fromCardinality": "many",
       "toCardinality": "one",
@@ -298,9 +332,20 @@
     },
     {
       "id": "hit_scenario",
-      "from": "result_filter_run",
-      "to": "config_filter_scenario",
-      "label": "scenario_position",
+      "from": "filter_hit",
+      "to": "filter_scenario",
+      "label": "scenario_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "condition_scenario",
+      "from": "filter_hit_condition",
+      "to": "filter_scenario",
+      "label": "scenario_id",
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true,
@@ -309,8 +354,19 @@
     },
     {
       "id": "hit_entry",
-      "from": "result_filter_run",
-      "to": "target_gl_entry",
+      "from": "filter_hit",
+      "to": "gl",
+      "label": "entry_id",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "toOptional": false,
+      "identifying": false
+    },
+    {
+      "id": "condition_entry",
+      "from": "filter_hit_condition",
+      "to": "gl",
       "label": "entry_id",
       "fromCardinality": "many",
       "toCardinality": "one",
@@ -320,8 +376,8 @@
     },
     {
       "id": "sample_entry",
-      "from": "result_inf_sampling_test_sample",
-      "to": "target_gl_entry",
+      "from": "inf_sample",
+      "to": "gl",
       "label": "entry_id",
       "fromCardinality": "many",
       "toCardinality": "one",
@@ -335,16 +391,19 @@
       "dot": "cyan",
       "title": "這些連線的依據",
       "items": [
-        "命中與抽樣只存分錄 ID，顯示明細時以 entry_id 連回 target_gl_entry；重算單一情境時，依 scenario_position 刪除舊命中。",
-        "科目配對以 category_id 連到分類；分類階層表的兩個欄位都指向分類代碼。",
-        "config_account_taxonomy 另以 parent_category_id 指向上層分類，圖上不畫這條連回自己的線。"
+        "命中、符合條件的紀錄與抽樣明細都以 entry_id 連回 gl 取顯示欄；命中以 scenario_id 連到 filter_scenario，畫面再依 position 選出情境。",
+        "儲存或重算單一情境時，依 scenario_id 先刪 filter_hit_condition，再刪 filter_hit。",
+        "科目配對以 category_id 連到分類；分類階層表的兩個欄位都指向分類代碼。account_category 另以 parent_category_id 指向上層分類，圖上不畫自身連線。",
+        "來源：LocalFilterHitsPageRepository.cs 第 33–39 行；LocalInfSamplePageRepository.cs 第 38 行；LocalFilterHitMaterializer.cs 第 44–74 行；FilterHitInsertSql.cs 第 9–50 行；LocalAccountMappingRepository.cs 第 226–232 行；AccountCategoryHierarchy.cs 第 6–29 行。"
       ]
     },
     {
-      "dot": "slate",
-      "title": "線條不是外鍵",
+      "dot": "amber",
+      "title": "線條不是資料庫外鍵",
       "items": [
-        "虛線是程式在 SQL 裡用來連接的欄位，不是外鍵；這批建表定義沒有宣告外鍵，沒畫線也不代表兩張表無關。"
+        "現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。",
+        "沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。",
+        "PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。"
       ]
     }
   ]

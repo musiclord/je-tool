@@ -19,11 +19,14 @@ public static class FieldValueConditions
         [DayOfMonthIn] = "每月幾日屬於", [DayOfMonthNotIn] = "每月幾日不屬於",
         ["monthStartDays"] = "每月月初天數", ["notMonthStartDays"] = "排除每月月初天數",
         ["monthEndDays"] = "每月月底天數", ["notMonthEndDays"] = "排除每月月底天數",
-        ["isWeekend"] = "週末", ["isNotWeekend"] = "週末以外",
-        ["isHoliday"] = "假日清單中的日期", ["isNotHoliday"] = "假日清單以外的日期",
-        ["isMakeupDay"] = "補班日", ["isNotMakeupDay"] = "補班日以外",
-        ["isNonBusinessDay"] = "非營業日（排除補班日）", ["isNotNonBusinessDay"] = "非營業日以外（含補班日）",
+        // 日曆選項的入口、選項與讀回用同一個詞（裁定 2026-11-03-10）。
+        ["isWeekend"] = "在週末", ["isNotWeekend"] = "不在週末",
+        ["isHoliday"] = "在國定假日", ["isNotHoliday"] = "不在國定假日",
+        ["isMakeupDay"] = "在補班日", ["isNotMakeupDay"] = "不在補班日",
+        ["isNonBusinessDay"] = "在非營業日", ["isNotNonBusinessDay"] = "不在非營業日",
         ["endsWithDigits"] = "整數尾數符合", ["notEndsWithDigits"] = "整數尾數不符合",
+        // 尾數連續多個 0（裁定 2026-11-03-07）：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
+        ["endsWithZeros"] = "尾數連續", ["notEndsWithZeros"] = "尾數沒有連續",
         ["greaterThan"] = "大於", ["greaterThanOrEqual"] = "大於或等於", ["lessThan"] = "小於", ["lessThanOrEqual"] = "小於或等於",
         ["between"] = "介於", ["notBetween"] = "不介於", ["isBlank"] = "空白", ["isNotBlank"] = "非空白"
     };
@@ -51,12 +54,13 @@ public static class FieldValueConditions
             DayOfMonthIn, DayOfMonthNotIn, "monthStartDays", "notMonthStartDays", "monthEndDays", "notMonthEndDays",
             "isWeekend", "isNotWeekend", "isHoliday", "isNotHoliday",
             "isMakeupDay", "isNotMakeupDay", "isNonBusinessDay", "isNotNonBusinessDay", "isBlank", "isNotBlank"],
-        "amount" => ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween", "in", "notIn", "endsWithDigits", "notEndsWithDigits", "isBlank", "isNotBlank"],
+        "amount" => ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween", "in", "notIn",
+            "endsWithDigits", "notEndsWithDigits", "endsWithZeros", "notEndsWithZeros", "isBlank", "isNotBlank"],
         _ => []
     };
 
     public static bool IsNegative(string? op) => op is "notEquals" or "notContains" or "notStartsWith" or "notEndsWith" or "notIn" or "notBetween" or DayOfMonthNotIn
-        or "isNotWeekend" or "isNotHoliday" or "isNotMakeupDay" or "isNotNonBusinessDay" or "notEndsWithDigits"
+        or "isNotWeekend" or "isNotHoliday" or "isNotMakeupDay" or "isNotNonBusinessDay" or "notEndsWithDigits" or "notEndsWithZeros"
         or "notMonthStartDays" or "notMonthEndDays";
 
     public static bool IsMonthWindow(string? op) => op is "monthStartDays" or "notMonthStartDays" or "monthEndDays" or "notMonthEndDays";
@@ -70,6 +74,17 @@ public static class FieldValueConditions
     public static bool IsCalendar(string? op) => op is "isWeekend" or "isNotWeekend" or "isHoliday" or "isNotHoliday"
         or "isMakeupDay" or "isNotMakeupDay" or "isNonBusinessDay" or "isNotNonBusinessDay";
     public static bool IsTail(string? op) => op is "endsWithDigits" or "notEndsWithDigits";
+
+    /// <summary>
+    /// 尾數連續多個 0（裁定 2026-11-03-07）：整數部分的末 N 位都是 0，整數部分為 0 的金額不符合；忽略正負號及小數。
+    /// 值是 0 的個數，和尾數樣態同樣是 1 到 <see cref="TrailingZeroThreshold.MaxCustomDigits"/>。
+    /// </summary>
+    public static bool IsZeroRun(string? op) => op is "endsWithZeros" or "notEndsWithZeros";
+
+    public static bool TryParseZeroRun(string? raw, out int zeros) =>
+        int.TryParse(raw?.Trim(), System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out zeros)
+        && zeros is >= TrailingZeroThreshold.MinCustomDigits and <= TrailingZeroThreshold.MaxCustomDigits;
     /// <summary>String-carried lists share the editor delimiters. Structured values preserve literal punctuation.</summary>
     public static IReadOnlyList<string> SplitInputList(string? value) => (value ?? "")
         .Split([',', '，', '、', '\t', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
@@ -149,6 +164,14 @@ public static partial class FilterScenarioValidator
                 errors.Add($"{label}：每月月初或月底天數須為 1 到 31 的整數");
             if (rule.TypedValues is not null || rule.TypedFrom is not null || rule.TypedTo is not null)
                 FilterScenarioCorruption.Add(errors, label, "field_value_month_window_extra");
+            return;
+        }
+        if (FieldValueConditions.IsZeroRun(rule.TypedOperator))
+        {
+            if (!FieldValueConditions.TryParseZeroRun(rule.TypedValue, out _))
+                errors.Add($"{label}：連續 0 的個數須為 {TrailingZeroThreshold.MinCustomDigits} 到 {TrailingZeroThreshold.MaxCustomDigits} 的整數");
+            if (rule.TypedValues is not null || rule.TypedFrom is not null || rule.TypedTo is not null)
+                FilterScenarioCorruption.Add(errors, label, "field_value_zero_run_extra");
             return;
         }
         if (FieldValueConditions.IsCalendar(rule.TypedOperator)) return;

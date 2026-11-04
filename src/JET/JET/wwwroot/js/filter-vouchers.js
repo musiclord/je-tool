@@ -5,8 +5,9 @@
   function positionsText(positions) {
     return positions.map(function (position) { return '第 ' + position.group + ' 組條件 ' + position.rule; }).join('、');
   }
-  // 狀態欄只寫符合哪一組的哪一條，條件的完整讀回放在滑鼠停留的提示；長條件不再把每一列撐高，
-  // 也不和上方的篩選條件重複，常駐說明不再多寫（裁定 2026-10-29-02）。位置與說明都來自後端，畫面不自己判斷命中。
+  // 狀態欄只寫符合哪一組的哪一條，條件的完整讀回放在滑鼠停留的提示，也不和上方的篩選條件重複，
+  // 常駐說明不再多寫（裁定 2026-10-29-02）。位置與說明都來自後端，畫面不自己判斷命中。
+  // 名稱和位置排在同一行，太長時以省略號收尾，分錄列和傳票列一樣高（裁定 2026-11-03-03）。
   function matchStatusHtml(row) {
     // Only mirror the backend's declared match scope; do not infer new per-row hit semantics.
     var voucherMatch = row.isHit && /整張傳票條件成立/.test(row.matchDescription || '') && !/^符合條件的分錄/.test(row.matchDescription || '');
@@ -17,8 +18,9 @@
     var detail = where.length ? where.join('；') : (row.matchDescription || '');
     if (detail.indexOf(label) >= 0) { detail = ''; }
     if (!detail && !row.matchDescription) { return label; }
-    return '<div class="filter-match-reason"' + (row.matchDescription ? ' title="' + Ui.esc(row.matchDescription) + '"' : '') + '><strong>' + label + '</strong>' +
-      (detail ? '<p>' + Ui.esc(detail) + '</p>' : '') + '</div>';
+    var tip = row.matchDescription || label + '，' + detail;
+    return '<span class="filter-match-reason" title="' + Ui.esc(tip) + '"><strong>' + label + '</strong>' +
+      (detail ? '<span class="filter-match-reason__where">' + Ui.esc(detail) + '</span>' : '') + '</span>';
   }
   // 依過往底稿分開顯示「符合條件的傳票數量」與「符合條件的分錄筆數」（裁定 2026-10-16-08）。分錄筆數用後端的
   // summaryRowCount，口徑與條件篩選報告的摘要相同：只用「未預期借貸組合」一個條件時是整張傳票的分錄數，畫面不自己換算。
@@ -138,20 +140,30 @@
     // 原本表內一顆「查看分錄」再在表外另開一張分錄表，按鈕在表內很突兀，所以改成這樣。
     // 欄位：傳票號碼、項次、總帳日期、傳票核准日、會計科目、摘要、符合情形、金額，再接攸關資料元素的自訂欄。
     // 金額與金額型自訂欄走共用的 Ui.money（兩位小數加千分位），和傳票總額同一格式。
+    // 每一列都只佔一行；只有分錄才有內容的欄由表頭先留好寬度，文字太長以省略號收尾、滑過看全文，
+    // 展開或收合分錄時列高與欄寬都不變，其他傳票不會被擠開（裁定 2026-11-03-03）。
+    function extraClass(column) { return column.valueType === 'amount' ? 'preview-table__amount voucher-table__amount' : 'voucher-table__extra'; }
     function headHtml(extra) {
       var cells = Ui.sortableHeadCellsHtml('query.filterVoucherPage', [
         { key: null, label: '', className: 'voucher-table__toggle' },
-        { key: 'voucherNumber', label: '傳票號碼' }, { key: null, label: '項次' }, { key: 'glDate', label: '總帳日期' },
-        { key: null, label: '傳票核准日' }, { key: null, label: '會計科目' }, { key: null, label: '摘要' },
-        { key: 'hitRowCount', label: '符合情形' },
-        { key: 'voucherTotal', label: '金額', className: 'preview-table__amount' }
+        { key: 'voucherNumber', label: '傳票號碼' }, { key: null, label: '項次', className: 'voucher-table__line' },
+        { key: 'glDate', label: '總帳日期', className: 'voucher-table__date' },
+        { key: null, label: '傳票核准日', className: 'voucher-table__date' }, { key: null, label: '會計科目', className: 'voucher-table__account' },
+        { key: null, label: '摘要', className: 'voucher-table__description' },
+        { key: 'hitRowCount', label: '符合情形', className: 'voucher-table__match' },
+        { key: 'voucherTotal', label: '金額', className: 'preview-table__amount voucher-table__amount' }
       ].concat(extra.map(function (column) {
-        return { key: null, label: column.label, className: column.valueType === 'amount' ? 'preview-table__amount' : null };
+        return { key: null, label: column.label, className: extraClass(column) };
       })));
       return '<tr>' + cells + '</tr>';
     }
     function cellHtml(text, className) {
       return '<td' + (className ? ' class="' + className + '"' : '') + '>' + Ui.esc(text == null ? '' : text) + '</td>';
+    }
+    function clipCellHtml(text, className) {
+      var value = text == null ? '' : String(text);
+      return '<td class="' + className + '"><span class="voucher-table__clip"' + (value ? ' title="' + Ui.esc(value) + '"' : '') + '>' +
+        Ui.esc(value) + '</span></td>';
     }
     function groupRowHtml(row, index, extra) {
       var open = view.open === row.voucherNumber && !!view.detail;
@@ -190,11 +202,13 @@
           // 傳票文件項次自成一欄，表頭寫名詞表的短表頭「項次」，分錄列只寫數字，傳票號碼那一格留白（裁定 2026-11-02-01）。
           cellHtml(entry.lineItem, 'voucher-table__line') +
           cellHtml(entry.glDate) + cellHtml(entry.approvalDate) +
-          cellHtml([entry.accountNumber, entry.accountName].filter(function (value) { return value; }).join(' ')) +
-          cellHtml(entry.description) +
-          '<td>' + matchStatusHtml(entry) + '</td>' +
+          clipCellHtml([entry.accountNumber, entry.accountName].filter(function (value) { return value; }).join(' '), 'voucher-table__account') +
+          clipCellHtml(entry.description, 'voucher-table__description') +
+          '<td class="voucher-table__match">' + matchStatusHtml(entry) + '</td>' +
           cellHtml(Ui.money(entry.amount), 'preview-table__amount') +
-          extraCells.map(function (column) { return cellHtml(column.cell(entry), column.className); }).join('') +
+          extraCells.map(function (column, extraIndex) {
+            return column.className ? cellHtml(column.cell(entry), column.className) : clipCellHtml(column.cell(entry), extraClass(extra[extraIndex]));
+          }).join('') +
         '</tr>';
       }).join('') +
         (paged ? '<tr class="voucher-table__entry voucher-table__entry--last voucher-table__pager"><td></td>' +

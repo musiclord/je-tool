@@ -233,7 +233,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             .Select(source =>
             {
                 var label = source.SheetName is null ? $"「{source.FileName}」" : $"「{source.FileName}」的工作表「{source.SheetName}」";
-                // 裁定 2026-10-13-28 確認了用字：寫實際比對的結果，不寫「可能」。比對的是來源檔的列數，
+                // 用字依裁定 2026-10-13-28：寫實際比對的結果，不寫「可能」。比對的是來源檔的列數，
                 // 依裁定 2026-10-19-16 的「來源檔用列，分錄用筆」寫成「列數」。
                 return $"{label}與已匯入的來源檔名、工作表及列數皆相同，已照常加入；請確認是否重複匯入。";
             }).ToArray();

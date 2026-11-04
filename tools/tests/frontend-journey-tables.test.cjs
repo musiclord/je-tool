@@ -4,7 +4,7 @@
 // 同步舊的頁量與累加預期，保留排序、錯誤、重試及來源失效斷言。
 // 審計員情境測試：明細表與右側資料預覽（2026-10-13）。
 //
-// 依據：裁定 2026-10-13-14 選「照建議做」，把只比對原始碼字串的 C# 測試改成執行正式前端腳本的行為測試。
+// 依據：使用者選了「照建議做」（裁定 2026-10-13-14），把只比對原始碼字串的 C# 測試改成執行正式前端腳本的行為測試。
 // 本檔分兩部分，每個測試都載入正式的 wwwroot 腳本，操作畫面後看送出的請求、畫出的節點與 Store 狀態。
 //
 // 第一部分　情境 20「明細表：翻頁、排序、查號碼與金額」
@@ -51,8 +51,8 @@ function validationJourney(mutate = () => {}) {
   data.completenessTest.eligibility = { isEligible: true, reason: null, warning: null };
   data.voucherBalanceTest = { unbalancedVoucherCount: 1, unbalancedVouchers: [{ voucherNumber: 'JV-1', debit: 1234.5, credit: 1000, diff: 234.5 }] };
   data.infSamplingTest = { sampleSize: 3 };
-  data.blankRecordsTest.nullDescriptionCount = 1; data.blankRecordsTest.approvalDateNotInPeriodCount = 1;
-  data.blankRecordsTest.nullRows.push({ voucherNumber: 'JV-9', accountNumber: '1001', description: '', issues: ['description', 'date'] });
+  data.blankRecordsTest.blankDescriptionCount = 1; data.blankRecordsTest.approvalDateNotInPeriodCount = 1;
+  data.blankRecordsTest.blankRows.push({ voucherNumber: 'JV-9', accountNumber: '1001', description: '', issues: ['description', 'approvalDate'] });
   mutate(data);
   f.store.setResult('validate', data);
   f.store.setResult('prescreen', Object.assign(F.remapPrescreen('p1'), { weekendActivity: { postingCount: 2, approvalCount: 0 } }));
@@ -126,8 +126,8 @@ const VALIDATION_TABLES = [
   ['null-approvalDateNotInPeriod', 'queryBlankRecordsPage', 'voucherNumber', { category: 'approvalDateNotInPeriod' }],
   // 裁定 2026-10-22-13 一條規則一個定義：第四步的空白摘要只留預篩選訊號那一處，資料缺漏輔助檢視不再有它的明細頁；其餘三張空值明細照舊。
   // 第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
-  ['null-nullDocument', 'queryBlankRecordsPage', 'voucherNumber', { category: 'nullDocument' }],
-  ['null-nullAccount', 'queryBlankRecordsPage', 'voucherNumber', { category: 'nullAccount' }],
+  ['null-blankVoucherNumber', 'queryBlankRecordsPage', 'voucherNumber', { category: 'blankVoucherNumber' }],
+  ['null-blankAccountNumber', 'queryBlankRecordsPage', 'voucherNumber', { category: 'blankAccountNumber' }],
   ['sourceQuality', 'querySourceQualityPage', 'sourceRowNumber', {}]
 ];
 
@@ -175,7 +175,7 @@ for (const [id, action, key, extra] of VALIDATION_TABLES) {
 }
 
 test('approval dates outside the period load the first 200 rows on opening even when all 7053 findings are absent from the summary sample', async () => {
-  const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 7053; data.blankRecordsTest.nullRows = []; });
+  const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 7053; data.blankRecordsTest.blankRows = []; });
   const detail = f.detailOf('null-approvalDateNotInPeriod');
   assert.equal(f.requestsOf('queryBlankRecordsPage').length, 0, 'folded details do not read rows');
   f.toggleFor('[data-page-query="null-approvalDateNotInPeriod"]').fire('click');
@@ -196,7 +196,7 @@ test('approval dates outside the period load the first 200 rows on opening even 
 // 2026-10-16：總筆數只在第一頁計算，帶游標的續頁回 totalCount null（docs/action-contract-manifest.md）。
 // 換到第二頁後分頁列仍用第一頁的總筆數算頁數，下一頁照樣可按。
 test('a continuation page without a total keeps the first page count on a step four detail table', async () => {
-  const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 7053; data.blankRecordsTest.nullRows = []; });
+  const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 7053; data.blankRecordsTest.blankRows = []; });
   const detail = f.detailOf('null-approvalDateNotInPeriod');
   f.toggleFor('[data-page-query="null-approvalDateNotInPeriod"]').fire('click');
   const page = start => Array.from({ length: 200 }, (_, i) => ({ voucherNumber: 'APPROVAL-' + (start + i), accountNumber: '1001', description: 'Synthetic' }));
@@ -212,7 +212,7 @@ test('a continuation page without a total keeps the first page count on a step f
 
 // 裁定 2026-10-16-03：「一頁至多200筆資料，如果超過200筆就分頁數」。只有一頁時不顯示分頁列；讀取完成前也不先顯示空的頁碼。
 test('a detail table with at most 200 rows shows no pager, and the pager stays hidden until the first page arrives', async () => {
-  const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 150; data.blankRecordsTest.nullRows = []; });
+  const f = validationJourney(data => { data.blankRecordsTest.approvalDateNotInPeriodCount = 150; data.blankRecordsTest.blankRows = []; });
   const detail = f.detailOf('null-approvalDateNotInPeriod');
   f.toggleFor('[data-page-query="null-approvalDateNotInPeriod"]').fire('click');
   assert.equal(detail.querySelector('.table-pager').hidden, true, 'no page numbers before the first page is read');
@@ -439,7 +439,7 @@ test('the high-risk summary retains the full long scenario title and has no entr
   assert.ok(header); assert.equal(header.getAttribute('title'), name);
   assert.equal(header.querySelector('.filter-high-risk-summary-name').textContent, name);
   assert.equal(header.querySelector('b'), null, 'title text never becomes markup');
-  // 裁定 2026-10-16-02 選定交叉表表頭只顯示代號：名稱只留給停留提示與輔助技術，不佔欄寬。
+  // 依裁定 2026-10-16-02，交叉表表頭只顯示代號：名稱只留給停留提示與輔助技術，不佔欄寬。
   assert.match(header.getAttribute('class'), /preview-table__tag/);
   assert.match(header.querySelector('.filter-high-risk-summary-name').getAttribute('class'), /visually-hidden/);
   assert.equal(header.textContent.slice(0, header.textContent.length - name.length), 'C1');

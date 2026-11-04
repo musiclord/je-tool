@@ -33,7 +33,7 @@ internal sealed class LocalSchemaReadiness
     internal void Forget(string databasePath) => ready.TryRemove(databasePath, out _);
 
     /// <summary>SQLite 與 DuckDB 案件資料庫的現行結構版本；兩邊的建表程式都直接寫這一版。</summary>
-    internal const int CurrentSchemaVersion = 18;
+    internal const int CurrentSchemaVersion = 20;
 
     /// <summary>
     /// 已經建過表的資料庫只接受現行版本（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。

@@ -240,7 +240,7 @@ internal static partial class GuiScenarios
         // 範例在「常用篩選條件」分頁下半的「情境範例」；2026-10-29 以前收在「從範例開始」。
         // 前面重新確認了 TB 欄位配對，依裁定 2026-10-08-12 科目配對跟著清除，需要科目分類的「借現金、貸非現金」範例因此停用
         // （2026-10-14 實跑查到）。這裡只需要一個能存的情境，改用不依賴任何配對的「金額大於 100」。
-        await AddCustomConditionAsync(cdp, "field:amount", Click, ct);
+        await AddFieldConditionAsync(cdp, "field:amount", Click, ct);
         await ChooseOptionAsync(cdp, process, ".rule-row [data-value-kind]", "above", outcome, ct);
         await Click(".rule-row [data-value-key=\"value\"]");
         outcome.RecordAction(); await cdp.TypeTextAsync("100", ct);

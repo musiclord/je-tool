@@ -35,9 +35,9 @@ public sealed class ValidationDirectTemplatePackageTests
             ThrowOnValidationDetailRead = !expectedDetailSheets
         };
         var projection = Projection(
-            nullAccountCount: savedCount,
-            nullDocumentCount: savedCount,
-            nullDescriptionCount: savedCount,
+            blankAccountNumberCount: savedCount,
+            blankVoucherNumberCount: savedCount,
+            blankDescriptionCount: savedCount,
             approvalDateNotInPeriodCount: savedCount);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
 
@@ -58,7 +58,7 @@ public sealed class ValidationDirectTemplatePackageTests
                 workbook.Worksheets.Any(sheet => sheet.Name == sheetName));
         }
 
-        Assert.Equal(expectedDetailSheets ? 4 : 0, repositories.NullPageCalls);
+        Assert.Equal(expectedDetailSheets ? 4 : 0, repositories.BlankPageCalls);
         Assert.Equal(expectedDetailSheets ? 4 : 0, repositories.RawRowCalls);
         Assert.Equal(0, repositories.UnbalancedPageCalls);
         Assert.Contains("V_Report 5", workbook.Worksheets.Select(sheet => sheet.Name));
@@ -103,9 +103,9 @@ public sealed class ValidationDirectTemplatePackageTests
     {
         var repositories = new ValidationRepositoryFakes();
         var projection = Projection(
-            nullAccountCount: 1,
-            nullDocumentCount: 1,
-            nullDescriptionCount: 1,
+            blankAccountNumberCount: 1,
+            blankVoucherNumberCount: 1,
+            blankDescriptionCount: 1,
             approvalDateNotInPeriodCount: 1,
             unbalancedVoucherCount: 1);
         var plan = Plan(projection, unbalancedDetailRowCount: 1);
@@ -317,9 +317,9 @@ public sealed class ValidationDirectTemplatePackageTests
             ]
         };
         var projection = Projection(
-            nullAccountCount: 1,
-            nullDocumentCount: 1,
-            nullDescriptionCount: 1,
+            blankAccountNumberCount: 1,
+            blankVoucherNumberCount: 1,
+            blankDescriptionCount: 1,
             approvalDateNotInPeriodCount: 1,
             unbalancedVoucherCount: 1,
             completenessDiffAccountCount: 1);
@@ -481,7 +481,7 @@ public sealed class ValidationDirectTemplatePackageTests
     }
 
     [Fact]
-    public async Task RawNullAccountDetail_AutoFitsFromLateContinuationAndDoesNotWrapOrIndent()
+    public async Task RawBlankAccountNumberDetail_AutoFitsFromLateContinuationAndDoesNotWrapOrIndent()
     {
         const int rowCount = 17;
         var longCjk = new string('寬', 40);
@@ -510,10 +510,10 @@ public sealed class ValidationDirectTemplatePackageTests
         var repositories = new ValidationRepositoryFakes
         {
             GlColumns = ["短欄", "長中文欄", "大額顯示"],
-            NullRows = rows,
+            BlankRows = rows,
             RawRowsByEntryId = rawRows
         };
-        var projection = Projection(nullAccountCount: rowCount);
+        var projection = Projection(blankAccountNumberCount: rowCount);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
         var progress = new List<WorkingPaperProgress>();
 
@@ -822,16 +822,19 @@ public sealed class ValidationDirectTemplatePackageTests
     {
         var repositories = new ValidationRepositoryFakes();
         var longDescription = new string('欄', 300);
+        // 「配對後欄位名稱」依每一欄的來歷填，不再看欄名結尾（裁定 2026-11-03-11）：手工建的事實標出哪幾欄是配對後改名，
+        // 沒有標的 GL_DATE_je 等欄即使欄名像 JET 欄名也留白。改名欄位的「配對前欄位名稱」加【】（裁定 2026-11-03-17）。
+        // 第一次失敗：Focused 收據 20261103-070040356-7ea024157104489698958ad37a9ef5d4。
         var fieldInfo = JetAuditProgram.ProjectFieldInfo(
         [
-            new FieldInfo(1, "TB_TEXT_TB", longDescription, LegacyFieldKind.Text, 300, null),
+            new FieldInfo(1, "TB_TEXT_TB", longDescription, LegacyFieldKind.Text, 300, null, FieldInfoOrigin.Renamed, JetFieldCatalog.TbAccountNumber),
             new FieldInfo(2, "TB_NUMBER", null, LegacyFieldKind.Number, null, 4),
-            new FieldInfo(3, "TB_DATE_TB", null, LegacyFieldKind.Date, null, null),
+            new FieldInfo(3, "TB_DATE_TB", null, LegacyFieldKind.Date, null, null, FieldInfoOrigin.Renamed, JetFieldCatalog.TbAccountName),
             new FieldInfo(4, "TB_TIME", null, LegacyFieldKind.Time, null, null)
         ],
         [
-            new FieldInfo(1, "GL_TEXT_JE", null, LegacyFieldKind.Text, 40, null),
-            new FieldInfo(2, "GL_NUMBER_JE_S", null, LegacyFieldKind.Number, null, 2),
+            new FieldInfo(1, "GL_TEXT_JE", null, LegacyFieldKind.Text, 40, null, FieldInfoOrigin.Renamed, JetFieldCatalog.GlDescription),
+            new FieldInfo(2, "GL_NUMBER_JE_S", null, LegacyFieldKind.Number, null, 2, FieldInfoOrigin.Renamed, JetFieldCatalog.GlLineItem),
             new FieldInfo(3, "GL_DATE_je", null, LegacyFieldKind.Date, null, null),
             new FieldInfo(4, "GL_TIME", null, LegacyFieldKind.Time, null, null)
         ]);
@@ -851,14 +854,14 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.Equal(
                 new[] { "配對前欄位名稱", "欄位型態", "文字長度", "小數位數", "配對後欄位名稱" },
                 Row(sheet, 3));
-            Assert.Equal(longDescription, sheet.Cell("A4").GetString());
+            Assert.Equal($"【{longDescription}】", sheet.Cell("A4").GetString());
             Assert.True(sheet.Cell("A4").Style.Alignment.WrapText);
             Assert.False(sheet.Cell("A5").Style.Alignment.WrapText);
             Assert.Equal(
                 new[] { "文字型態", "數字型態", "日期型態", "時間型態" },
                 sheet.Range("B4:B7").Cells().Select(cell => cell.GetString()).ToArray());
             Assert.Equal(
-                new[] { longDescription, "TB_NUMBER", "TB_DATE_TB", "TB_TIME" },
+                new[] { $"【{longDescription}】", "TB_NUMBER", "TB_DATE_TB", "TB_TIME" },
                 sheet.Range("A4:A7").Cells().Select(cell => cell.GetString()).ToArray());
             Assert.Equal(300, sheet.Cell("C4").GetValue<int>());
             Assert.True(sheet.Cell("D4").IsEmpty());
@@ -923,7 +926,7 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.True(column.CustomWidth?.Value == true);
             Assert.InRange(column.Width?.Value ?? 0, 1, 255);
         });
-        // 原本欄位名稱欄依全部資料撐到 Excel 上限 255。裁定 2026-10-29-01 要求工作表外觀對齊舊流程後，
+        // 原本欄位名稱欄依全部資料撐到 Excel 上限 255。依裁定 2026-10-29-01 把工作表外觀對齊舊流程後，
         // 這欄上限改為 40 並換行：300 個全形字約 600 字寬，扣掉留白後每行約 33 字寬，換成 19 行，10 點字每行 15 點。
         // 第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
         Assert.Equal(40d, visibleColumns[0].Width?.Value);
@@ -1025,9 +1028,9 @@ public sealed class ValidationDirectTemplatePackageTests
         "{}");
 
     private static ValidationReportProjection Projection(
-        long nullAccountCount = 0,
-        long nullDocumentCount = 0,
-        long nullDescriptionCount = 0,
+        long blankAccountNumberCount = 0,
+        long blankVoucherNumberCount = 0,
+        long blankDescriptionCount = 0,
         long approvalDateNotInPeriodCount = 0,
         long unbalancedVoucherCount = 0,
         long completenessDiffAccountCount = 0,
@@ -1039,9 +1042,9 @@ public sealed class ValidationDirectTemplatePackageTests
             GlRowCount: 2,
             CompletenessDiffAccountCount: completenessDiffAccountCount,
             UnbalancedVoucherCount: unbalancedVoucherCount,
-            NullAccountCount: nullAccountCount,
-            NullDocumentCount: nullDocumentCount,
-            NullDescriptionCount: nullDescriptionCount,
+            BlankAccountNumberCount: blankAccountNumberCount,
+            BlankVoucherNumberCount: blankVoucherNumberCount,
+            BlankDescriptionCount: blankDescriptionCount,
             ApprovalDateNotInPeriodCount: approvalDateNotInPeriodCount,
             SourceQualityFindingCount: sourceQualityFindingCount);
 
@@ -1054,9 +1057,9 @@ public sealed class ValidationDirectTemplatePackageTests
                 "2025-01-01",
                 "2025-12-31",
                 projection.CompletenessDiffAccountCount,
-                projection.NullAccountCount,
-                projection.NullDocumentCount,
-                projection.NullDescriptionCount,
+                projection.BlankAccountNumberCount,
+                projection.BlankVoucherNumberCount,
+                projection.BlankDescriptionCount,
                 projection.ApprovalDateNotInPeriodCount)),
             new ValidationReportPlanningFacts(unbalancedDetailRowCount));
 
@@ -1634,7 +1637,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         internal IReadOnlyList<string> GlColumns { get; init; } = ["RAW_COLUMN"];
 
-        internal IReadOnlyList<BlankRecordRow>? NullRows { get; init; }
+        internal IReadOnlyList<BlankRecordRow>? BlankRows { get; init; }
 
         internal IReadOnlyList<InfSampleRow>? InfRows { get; init; }
 
@@ -1646,7 +1649,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         internal IReadOnlyList<SourceQualityFindingRow>? SourceQualityRows { get; init; }
 
-        internal int NullPageCalls { get; private set; }
+        internal int BlankPageCalls { get; private set; }
 
         internal int UnbalancedPageCalls { get; private set; }
 
@@ -1771,11 +1774,11 @@ public sealed class ValidationDirectTemplatePackageTests
             PageRequest request,
             CancellationToken cancellationToken)
         {
-            NullPageCalls++;
+            BlankPageCalls++;
             ThrowIfForbidden();
-            if (NullRows is not null)
+            if (BlankRows is not null)
             {
-                return Task.FromResult(new PageResult<BlankRecordRow>(NullRows, null));
+                return Task.FromResult(new PageResult<BlankRecordRow>(BlankRows, null));
             }
             var entryId = 100 + (long)category;
             return Task.FromResult(new PageResult<BlankRecordRow>(

@@ -70,14 +70,14 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
 
         var infSampleCount = await InsertInfSampleAsync(connection, transaction, input, cancellationToken);
 
-        var (nullAccount, nullDocument, nullDescription, approvalDateNotInPeriod) =
+        var (blankAccountNumber, blankVoucherNumber, blankDescription, approvalDateNotInPeriod) =
             await ReadBlankRecordsAsync(connection, transaction, input, cancellationToken);
         var sourceQualityFindingCount = await ReadSourceQualityFindingCountAsync(
             connection,
             transaction,
             cancellationToken);
 
-        var nullDetail = await ReadNullDetailAsync(connection, transaction, input, cancellationToken);
+        var blankDetail = await ReadBlankDetailAsync(connection, transaction, input, cancellationToken);
 
         var controlTotals = await ReadControlTotalsAsync(connection, transaction, cancellationToken);
         var voucherNumberAcrossGlDates = await ReadVoucherNumberAcrossGlDatesAsync(connection, transaction, cancellationToken);
@@ -91,13 +91,13 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
             completenessDiffs,
             unbalancedCount,
             infSampleCount,
-            nullAccount,
-            nullDocument,
-            nullDescription,
+            blankAccountNumber,
+            blankVoucherNumber,
+            blankDescription,
             approvalDateNotInPeriod,
             sourceQualityFindingCount,
             unbalancedDetail,
-            nullDetail,
+            blankDetail,
             controlTotals,
             amountBinCounts,
             voucherNumberAcrossGlDates, sourceQualityPage.Rows);
@@ -352,7 +352,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         return rows;
     }
 
-    private async Task<IReadOnlyList<BlankRecordRow>> ReadNullDetailAsync(
+    private async Task<IReadOnlyList<BlankRecordRow>> ReadBlankDetailAsync(
         DbConnection connection, DbTransaction transaction,
         ValidationRequest input, CancellationToken cancellationToken)
     {

@@ -22,7 +22,7 @@ internal static class LocalFieldInfoPersistence
         command.CommandText =
             """
             SELECT ordinal, field_name, description, field_kind, text_length, decimal_places,
-                   max_rendered_length, has_observation
+                   max_rendered_length, has_observation, field_origin, jet_field
             FROM field_info
             WHERE batch_id = @batchId AND definition_scope = @scope
             ORDER BY ordinal;
@@ -42,7 +42,9 @@ internal static class LocalFieldInfoPersistence
                 reader.IsDBNull(4) ? 0 : Convert.ToInt32(reader.GetValue(4)),
                 reader.IsDBNull(5) ? null : Convert.ToInt32(reader.GetValue(5)),
                 Convert.ToInt32(reader.GetValue(6)),
-                Convert.ToInt32(reader.GetValue(7)) != 0));
+                Convert.ToInt32(reader.GetValue(7)) != 0,
+                FieldInfoOriginStorage.FromStorageName(reader.GetString(8)),
+                reader.IsDBNull(9) ? null : reader.GetString(9)));
         }
 
         return definitions;
@@ -66,10 +68,12 @@ internal static class LocalFieldInfoPersistence
                 """
                 INSERT INTO field_info
                     (batch_id, definition_scope, ordinal, field_name, description, field_kind,
-                     text_length, decimal_places, max_rendered_length, has_observation)
+                     text_length, decimal_places, max_rendered_length, has_observation,
+                     field_origin, jet_field)
                 VALUES
                     (@batchId, @scope, @ordinal, @fieldName, @description, @fieldKind,
-                     @textLength, @decimalPlaces, @maxRenderedLength, @hasObservation);
+                     @textLength, @decimalPlaces, @maxRenderedLength, @hasObservation,
+                     @fieldOrigin, @jetField);
                 """;
             command.AddWithValue("@batchId", batchId);
             command.AddWithValue("@scope", ScopeToStorageName(scope));
@@ -82,6 +86,8 @@ internal static class LocalFieldInfoPersistence
             command.AddWithValue("@decimalPlaces", (object?)definition.DecimalPlaces ?? DBNull.Value);
             command.AddWithValue("@maxRenderedLength", definition.MaxRenderedLength);
             command.AddWithValue("@hasObservation", definition.HasObservation ? 1 : 0);
+            command.AddWithValue("@fieldOrigin", FieldInfoOriginStorage.ToStorageName(definition.Origin));
+            command.AddWithValue("@jetField", (object?)definition.JetField ?? DBNull.Value);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -125,6 +131,28 @@ internal static class LocalFieldInfoPersistence
         "date" => LegacyFieldKind.Date,
         "time" => LegacyFieldKind.Time,
         _ => throw new InvalidDataException($"未知的 Legacy 欄位型態 '{value}'。")
+    };
+}
+
+/// <summary>欄位來歷在三種資料庫 field_info.field_origin 的儲存值；SQL Server 的持久化也用這一份。</summary>
+internal static class FieldInfoOriginStorage
+{
+    internal static string ToStorageName(FieldInfoOrigin origin) => origin switch
+    {
+        FieldInfoOrigin.Source => "source",
+        FieldInfoOrigin.Renamed => "renamed",
+        FieldInfoOrigin.Generated => "generated",
+        FieldInfoOrigin.Temp => "temp",
+        _ => throw new ArgumentOutOfRangeException(nameof(origin), origin, null)
+    };
+
+    internal static FieldInfoOrigin FromStorageName(string value) => value switch
+    {
+        "source" => FieldInfoOrigin.Source,
+        "renamed" => FieldInfoOrigin.Renamed,
+        "generated" => FieldInfoOrigin.Generated,
+        "temp" => FieldInfoOrigin.Temp,
+        _ => throw new InvalidDataException($"未知的欄位來歷 '{value}'。")
     };
 }
 
@@ -177,7 +205,9 @@ internal sealed class LocalFieldInfoFactsPort(ILocalProjectDatabase database)
                 state.Description,
                 state.Kind,
                 state.Kind == LegacyFieldKind.Text ? state.TextLength : null,
-                state.DecimalPlaces))
+                state.DecimalPlaces,
+                state.Origin,
+                state.JetField))
             .ToList();
     }
 }

@@ -5203,7 +5203,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 1316 746" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+      <svg viewBox="0 0 1784 766" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
         <title id="archify-diagram-title">SQLite：科目分類、篩選情境與命中</title>
         <desc id="archify-diagram-description">由 Archify 產生的實體關聯圖。</desc>
         <!-- Definitions -->
@@ -5292,46 +5292,48 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <!-- Domain bands (behind the routes so a channel is never washed out) -->
         <g data-domain-band="科目分類" class="er-hue-database">
-          <rect x="20" y="22" width="364" height="674" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="20" y="22" width="364" height="694" rx="12" class="c-lane er-band" stroke-width="1"/>
           <rect x="28" y="15" width="64" height="15" rx="7.5" class="c-mask"/>
           <rect x="28" y="15" width="64" height="15" rx="7.5" class="er-band-pill"/>
           <text data-domain-label="" x="35" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">科目分類</text>
         </g>
         <g data-domain-band="篩選與抽樣" class="er-hue-frontend">
-          <rect x="480" y="22" width="364" height="594" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="480" y="22" width="832" height="368" rx="12" class="c-lane er-band" stroke-width="1"/>
           <rect x="488" y="15" width="76" height="15" rx="7.5" class="c-mask"/>
           <rect x="488" y="15" width="76" height="15" rx="7.5" class="er-band-pill"/>
           <text data-domain-label="" x="495" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">篩選與抽樣</text>
         </g>
         <g data-domain-band="參照" class="er-hue-backend">
-          <rect x="940" y="22" width="364" height="82" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="948" y="15" width="39" height="15" rx="7.5" class="c-mask"/>
-          <rect x="948" y="15" width="39" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="955" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">參照</text>
+          <rect x="480" y="494" width="364" height="82" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="488" y="487" width="39" height="15" rx="7.5" class="c-mask"/>
+          <rect x="488" y="487" width="39" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="495" y="497.6" class="t-muted er-band-label" font-size="9" font-weight="700">參照</text>
         </g>
         <g data-domain-band="參考清單" class="er-hue-cloud">
-          <rect x="940" y="228" width="364" height="368" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="948" y="221" width="64" height="15" rx="7.5" class="c-mask"/>
-          <rect x="948" y="221" width="64" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="955" y="231.6" class="t-muted er-band-label" font-size="9" font-weight="700">參考清單</text>
+          <rect x="1408" y="22" width="364" height="348" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="1416" y="15" width="64" height="15" rx="7.5" class="c-mask"/>
+          <rect x="1416" y="15" width="64" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="1423" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">參考清單</text>
         </g>
 
         <!-- Bundled relationship trunks (under the branches: a bus runs close
              to the shared side, so a cardinality glyph that reaches further out
              has to stay readable over it, and the ring's mask has to be able to
              punch through) -->
-        <path data-er-trunk="" data-composition-points="936,56;936,550" d="M 936 56 L 936 550" class="a-dashed" stroke-width="1.5"/>
+        <path data-er-trunk="" data-composition-points="848,110;848,552" d="M 848 110 L 848 552" class="a-dashed" stroke-width="1.5"/>
 
         <!-- Relationship paths (before entities for correct z-order) -->
-        <path data-edge-from="config_account_taxonomy_path" data-edge-to="config_account_taxonomy" data-edge-label="ancestor_id、descendant_id" data-edge-key="0" data-edge-id="path_taxonomy" data-er-ends="many one optional" data-composition-points="202,116;202,246" d="M 202 116 L 202 246" class="a-dashed" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="target_account_mapping" data-edge-to="config_account_taxonomy" data-edge-label="category_id" data-edge-key="1" data-edge-id="mapping_taxonomy" data-er-ends="many one optional" data-composition-points="202,492;202,422" d="M 202 492 L 202 422" class="a-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-optional-end)"/>
-        <path data-edge-from="result_filter_run" data-edge-to="config_filter_scenario" data-edge-label="scenario_position" data-edge-key="2" data-edge-id="hit_scenario" data-er-ends="many one optional" data-composition-points="662,246;662,176" d="M 662 246 L 662 176" class="a-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="result_filter_run" data-edge-to="target_gl_entry" data-edge-label="entry_id" data-edge-key="3" data-edge-id="hit_entry" data-er-ends="many one optional" data-composition-points="832,284;936,284;936,56;952,56" d="M 832 284 L 936 284 M 936 56 L 952 56" class="a-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
-        <path data-edge-from="result_inf_sampling_test_sample" data-edge-to="target_gl_entry" data-edge-label="entry_id" data-edge-key="4" data-edge-id="sample_entry" data-er-ends="many one optional" data-composition-points="832,550;936,550;936,80;952,80" d="M 832 550 L 936 550 M 936 80 L 952 80" class="a-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="account_category_path" data-edge-to="account_category" data-edge-label="ancestor_id、descendant_id" data-edge-key="0" data-edge-id="path_category" data-er-ends="many one optional" data-composition-points="202,116;202,266" d="M 202 116 L 202 266" class="a-dashed" data-animate="edge" style="--step:0" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="account_mapping" data-edge-to="account_category" data-edge-label="category_id" data-edge-key="1" data-edge-id="mapping_category" data-er-ends="many one optional" data-composition-points="202,512;202,442" d="M 202 512 L 202 442" class="a-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-optional-end)"/>
+        <path data-edge-from="filter_hit" data-edge-to="filter_scenario" data-edge-label="scenario_id" data-edge-key="2" data-edge-id="hit_scenario" data-er-ends="many one optional" data-composition-points="662,266;662,196" d="M 662 266 L 662 196" class="a-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="filter_hit_condition" data-edge-to="filter_scenario" data-edge-label="scenario_id" data-edge-key="3" data-edge-id="condition_scenario" data-er-ends="many one optional" data-composition-points="960,86;896,86;896,118;832,118" d="M 960 86 L 904 86 Q 896 86 896 94 L 896 110 Q 896 118 888 118 L 832 118" class="a-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="filter_hit" data-edge-to="gl" data-edge-label="entry_id" data-edge-key="4" data-edge-id="hit_entry" data-er-ends="many one optional" data-composition-points="662,342;662,512" d="M 662 342 L 662 512" class="a-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="filter_hit_condition" data-edge-to="gl" data-edge-label="entry_id" data-edge-key="5" data-edge-id="condition_entry" data-er-ends="many one optional" data-composition-points="960,110;848,110;848,528;832,528" d="M 960 110 L 848 110 M 848 528 L 832 528" class="a-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
+        <path data-edge-from="inf_sample" data-edge-to="gl" data-edge-label="entry_id" data-edge-key="6" data-edge-id="sample_entry" data-er-ends="many one optional" data-composition-points="960,324;848,324;848,552;832,552" d="M 960 324 L 848 324 M 848 552 L 832 552" class="a-dashed" data-animate="edge" style="--step:6" stroke-width="1.5" marker-start="url(#er-many-optional-start)" marker-end="url(#er-one-end)"/>
 
         <!-- Entities -->
-        <g id="node-config_account_taxonomy_path" data-node-id="config_account_taxonomy_path" data-node-label="config_account_taxonomy_path" tabindex="0" role="button" aria-label="聚焦config_account_taxonomy_path，分類階層的祖先與子孫, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="分類階層的祖先與子孫" data-node-tag="科目分類" data-node-context="實體" class="er-hue-database">
-          <title>config_account_taxonomy_path · 分類階層的祖先與子孫 · 實體 · 科目分類</title>
+        <g id="node-account_category_path" data-node-id="account_category_path" data-node-label="account_category_path" tabindex="0" role="button" aria-label="聚焦account_category_path，分類階層的祖先與子孫, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="分類階層的祖先與子孫" data-node-tag="科目分類" data-node-context="實體" class="er-hue-database">
+          <title>account_category_path · 分類階層的祖先與子孫 · 實體 · 科目分類</title>
           <rect x="32" y="40" width="340" height="76" rx="8" class="c-mask"/>
           <rect x="32" y="40" width="340" height="76" rx="8" class="c-database er-table" data-animate="node" style="--step:0" stroke-width="1.2"/>
           <path class="er-table-header" d="M 40 40 H 364 A 8 8 0 0 1 372 48 V 70 H 32 V 48 A 8 8 0 0 1 40 40 Z"/>
@@ -5340,7 +5342,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="202" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">config_account_taxonomy_path</text>
+          <text data-node-label="" x="202" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">account_category_path</text>
           <line x1="32" y1="70" x2="372" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="32" y1="70" x2="372" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
@@ -5358,379 +5360,436 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </g>
         </g>
 
-        <g id="node-config_account_taxonomy" data-node-id="config_account_taxonomy" data-node-label="config_account_taxonomy" tabindex="0" role="button" aria-label="聚焦config_account_taxonomy，科目分類定義, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="科目分類定義" data-node-tag="科目分類" data-node-context="實體" class="er-hue-database">
-          <title>config_account_taxonomy · 科目分類定義 · 實體 · 科目分類</title>
-          <rect x="32" y="246" width="340" height="176" rx="8" class="c-mask"/>
-          <rect x="32" y="246" width="340" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 40 246 H 364 A 8 8 0 0 1 372 254 V 276 H 32 V 254 A 8 8 0 0 1 40 246 Z"/>
-          <path class="er-table-cap" d="M 44 247.4 H 360" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 253) scale(0.875)">
+        <g id="node-account_category" data-node-id="account_category" data-node-label="account_category" tabindex="0" role="button" aria-label="聚焦account_category，科目分類定義, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="科目分類定義" data-node-tag="科目分類" data-node-context="實體" class="er-hue-database">
+          <title>account_category · 科目分類定義 · 實體 · 科目分類</title>
+          <rect x="32" y="266" width="340" height="176" rx="8" class="c-mask"/>
+          <rect x="32" y="266" width="340" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 266 H 364 A 8 8 0 0 1 372 274 V 296 H 32 V 274 A 8 8 0 0 1 40 266 Z"/>
+          <path class="er-table-cap" d="M 44 267.4 H 360" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 273) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="202" y="265" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">config_account_taxonomy</text>
-          <line x1="32" y1="276" x2="372" y2="276" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="202" y="285" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">account_category</text>
+          <line x1="32" y1="296" x2="372" y2="296" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="32" y1="276" x2="372" y2="276" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-            <rect x="42" y="281" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="291" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="74" y="291" class="t-primary er-name-pk" font-size="11">category_id</text>
-            <text data-detail="context" x="360" y="291" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="1">
             <line x1="32" y1="296" x2="372" y2="296" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="297" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="311" class="t-primary" font-size="11">label</text>
+            <rect x="42" y="301" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="311" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="311" class="t-primary er-name-pk" font-size="11">category_id</text>
             <text data-detail="context" x="360" y="311" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
-          <g data-detail="context" data-er-row="2">
+          <g data-detail="context" data-er-row="1">
             <line x1="32" y1="316" x2="372" y2="316" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="317" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <rect x="42" y="321" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="53" y="331" class="t-muted" font-size="9" font-weight="600">UK</text>
-            <text data-detail="context" x="74" y="331" class="t-primary" font-size="11">ordinal</text>
-            <text data-detail="context" x="360" y="331" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="74" y="331" class="t-primary" font-size="11">label</text>
+            <text data-detail="context" x="360" y="331" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="32" y1="336" x2="372" y2="336" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="42" y="341" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="53" y="351" class="t-muted" font-size="9" font-weight="600">UK</text>
+            <text data-detail="context" x="74" y="351" class="t-primary" font-size="11">ordinal</text>
+            <text data-detail="context" x="360" y="351" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="32" y1="336" x2="372" y2="336" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="337" width="332" height="18" rx="4" class="er-zebra"/>
+            <line x1="32" y1="356" x2="372" y2="356" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="357" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="351" class="t-primary" font-size="11">semantic_role</text>
-            <text data-detail="context" x="360" y="351" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="74" y="371" class="t-primary" font-size="11">semantic_role</text>
+            <text data-detail="context" x="360" y="371" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="32" y1="356" x2="372" y2="356" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="74" y="371" class="t-primary" font-size="11">is_builtin</text>
-            <text data-detail="context" x="360" y="371" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
-          </g>
-          <g data-detail="context" data-er-row="5">
             <line x1="32" y1="376" x2="372" y2="376" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="377" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="391" class="t-primary" font-size="11">revision</text>
+
+            <text data-detail="context" x="74" y="391" class="t-primary" font-size="11">is_builtin</text>
             <text data-detail="context" x="360" y="391" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
-          <g data-detail="context" data-er-row="6">
+          <g data-detail="context" data-er-row="5">
             <line x1="32" y1="396" x2="372" y2="396" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="397" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="411" class="t-primary" font-size="11">revision</text>
+            <text data-detail="context" x="360" y="411" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="6">
+            <line x1="32" y1="416" x2="372" y2="416" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="74" y="411" class="t-primary" font-size="11">parent_category_id</text>
-            <text data-detail="context" x="360" y="411" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="74" y="431" class="t-primary" font-size="11">parent_category_id</text>
+            <text data-detail="context" x="360" y="431" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
         </g>
 
-        <g id="node-target_account_mapping" data-node-id="target_account_mapping" data-node-label="target_account_mapping" tabindex="0" role="button" aria-label="聚焦target_account_mapping，科目代碼對應到分類, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="科目代碼對應到分類" data-node-tag="科目分類" data-node-context="實體" class="er-hue-database">
-          <title>target_account_mapping · 科目代碼對應到分類 · 實體 · 科目分類</title>
-          <rect x="32" y="492" width="340" height="196" rx="8" class="c-mask"/>
-          <rect x="32" y="492" width="340" height="196" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 40 492 H 364 A 8 8 0 0 1 372 500 V 522 H 32 V 500 A 8 8 0 0 1 40 492 Z"/>
-          <path class="er-table-cap" d="M 44 493.4 H 360" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 499) scale(0.875)">
+        <g id="node-account_mapping" data-node-id="account_mapping" data-node-label="account_mapping" tabindex="0" role="button" aria-label="聚焦account_mapping，科目代碼對應到分類, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="科目代碼對應到分類" data-node-tag="科目分類" data-node-context="實體" class="er-hue-database">
+          <title>account_mapping · 科目代碼對應到分類 · 實體 · 科目分類</title>
+          <rect x="32" y="512" width="340" height="196" rx="8" class="c-mask"/>
+          <rect x="32" y="512" width="340" height="196" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 40 512 H 364 A 8 8 0 0 1 372 520 V 542 H 32 V 520 A 8 8 0 0 1 40 512 Z"/>
+          <path class="er-table-cap" d="M 44 513.4 H 360" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 519) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="202" y="511" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">target_account_mapping</text>
-          <line x1="32" y1="522" x2="372" y2="522" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="202" y="531" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">account_mapping</text>
+          <line x1="32" y1="542" x2="372" y2="542" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="32" y1="522" x2="372" y2="522" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="542" x2="372" y2="542" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="42" y="527" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="537" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="74" y="537" class="t-primary er-name-pk" font-size="11">mapping_id</text>
-            <text data-detail="context" x="360" y="537" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <rect x="42" y="547" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="557" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="74" y="557" class="t-primary er-name-pk" font-size="11">mapping_id</text>
+            <text data-detail="context" x="360" y="557" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="32" y1="542" x2="372" y2="542" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="543" width="332" height="18" rx="4" class="er-zebra"/>
+            <line x1="32" y1="562" x2="372" y2="562" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="563" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="557" class="t-primary" font-size="11">batch_id</text>
-            <text data-detail="context" x="360" y="557" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="74" y="577" class="t-primary" font-size="11">batch_id</text>
+            <text data-detail="context" x="360" y="577" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="32" y1="562" x2="372" y2="562" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="32" y1="582" x2="372" y2="582" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="74" y="577" class="t-primary" font-size="11">source_row_number</text>
-            <text data-detail="context" x="360" y="577" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="74" y="597" class="t-primary" font-size="11">source_row_number</text>
+            <text data-detail="context" x="360" y="597" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="3">
-            <line x1="32" y1="582" x2="372" y2="582" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="583" width="332" height="18" rx="4" class="er-zebra"/>
-            <rect x="42" y="587" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="53" y="597" class="t-muted" font-size="9" font-weight="600">UK</text>
-            <text data-detail="context" x="74" y="597" class="t-primary" font-size="11">account_code</text>
-            <text data-detail="context" x="360" y="597" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="4">
             <line x1="32" y1="602" x2="372" y2="602" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="74" y="617" class="t-primary" font-size="11">account_name</text>
+            <rect x="36" y="603" width="332" height="18" rx="4" class="er-zebra"/>
+            <rect x="42" y="607" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text data-detail="context" x="53" y="617" class="t-muted" font-size="9" font-weight="600">UK</text>
+            <text data-detail="context" x="74" y="617" class="t-primary" font-size="11">account_number</text>
             <text data-detail="context" x="360" y="617" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
-          <g data-detail="context" data-er-row="5">
+          <g data-detail="context" data-er-row="4">
             <line x1="32" y1="622" x2="372" y2="622" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="623" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="637" class="t-primary" font-size="11">standardized_category</text>
+
+            <text data-detail="context" x="74" y="637" class="t-primary" font-size="11">account_name</text>
             <text data-detail="context" x="360" y="637" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
-          <g data-detail="context" data-er-row="6">
+          <g data-detail="context" data-er-row="5">
             <line x1="32" y1="642" x2="372" y2="642" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="643" width="332" height="18" rx="4" class="er-zebra"/>
 
-
-            <text data-detail="context" x="74" y="657" class="t-primary" font-size="11">category_id</text>
+            <text data-detail="context" x="74" y="657" class="t-primary" font-size="11">standardized_category</text>
             <text data-detail="context" x="360" y="657" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
-          <g data-detail="context" data-er-row="7">
+          <g data-detail="context" data-er-row="6">
             <line x1="32" y1="662" x2="372" y2="662" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="36" y="663" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="677" class="t-primary" font-size="11">classification_explicit</text>
-            <text data-detail="context" x="360" y="677" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+
+            <text data-detail="context" x="74" y="677" class="t-primary" font-size="11">category_id</text>
+            <text data-detail="context" x="360" y="677" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="7">
+            <line x1="32" y1="682" x2="372" y2="682" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="36" y="683" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="74" y="697" class="t-primary" font-size="11">classification_explicit</text>
+            <text data-detail="context" x="360" y="697" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
         </g>
 
-        <g id="node-config_filter_scenario" data-node-id="config_filter_scenario" data-node-label="config_filter_scenario" tabindex="0" role="button" aria-label="聚焦config_filter_scenario，第五步已存的篩選情境, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="第五步已存的篩選情境" data-node-tag="篩選與抽樣" data-node-context="實體" class="er-hue-frontend">
-          <title>config_filter_scenario · 第五步已存的篩選情境 · 實體 · 篩選與抽樣</title>
-          <rect x="492" y="40" width="340" height="136" rx="8" class="c-mask"/>
-          <rect x="492" y="40" width="340" height="136" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
+        <g id="node-filter_scenario" data-node-id="filter_scenario" data-node-label="filter_scenario" tabindex="0" role="button" aria-label="聚焦filter_scenario，第五步已存的篩選情境, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="第五步已存的篩選情境" data-node-tag="篩選與抽樣" data-node-context="實體" class="er-hue-frontend">
+          <title>filter_scenario · 第五步已存的篩選情境 · 實體 · 篩選與抽樣</title>
+          <rect x="492" y="40" width="340" height="156" rx="8" class="c-mask"/>
+          <rect x="492" y="40" width="340" height="156" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
           <path class="er-table-header" d="M 500 40 H 824 A 8 8 0 0 1 832 48 V 70 H 492 V 48 A 8 8 0 0 1 500 40 Z"/>
           <path class="er-table-cap" d="M 504 41.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="662" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">config_filter_scenario</text>
+          <text data-node-label="" x="662" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">filter_scenario</text>
           <line x1="492" y1="70" x2="832" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="492" y1="70" x2="832" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
 
             <rect x="502" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="534" y="85" class="t-primary er-name-pk" font-size="11">position</text>
+            <text data-detail="context" x="534" y="85" class="t-primary er-name-pk" font-size="11">scenario_id</text>
             <text data-detail="context" x="820" y="85" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="492" y1="90" x2="832" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
             <rect x="496" y="91" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="534" y="105" class="t-primary" font-size="11">name</text>
-            <text data-detail="context" x="820" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="534" y="105" class="t-primary" font-size="11">position</text>
+            <text data-detail="context" x="820" y="105" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="492" y1="110" x2="832" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="534" y="125" class="t-primary" font-size="11">rationale</text>
+            <text data-detail="context" x="534" y="125" class="t-primary" font-size="11">name</text>
             <text data-detail="context" x="820" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="492" y1="130" x2="832" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
             <rect x="496" y="131" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="534" y="145" class="t-primary" font-size="11">definition_json</text>
+            <text data-detail="context" x="534" y="145" class="t-primary" font-size="11">rationale</text>
             <text data-detail="context" x="820" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="4">
             <line x1="492" y1="150" x2="832" y2="150" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="534" y="165" class="t-primary" font-size="11">saved_utc</text>
+            <text data-detail="context" x="534" y="165" class="t-primary" font-size="11">definition_json</text>
             <text data-detail="context" x="820" y="165" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
+          <g data-detail="context" data-er-row="5">
+            <line x1="492" y1="170" x2="832" y2="170" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="496" y="171" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="534" y="185" class="t-primary" font-size="11">saved_utc</text>
+            <text data-detail="context" x="820" y="185" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
         </g>
 
-        <g id="node-result_filter_run" data-node-id="result_filter_run" data-node-label="result_filter_run" tabindex="0" role="button" aria-label="聚焦result_filter_run，每個情境命中的分錄, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="每個情境命中的分錄" data-node-tag="篩選與抽樣" data-node-context="實體" class="er-hue-frontend">
-          <title>result_filter_run · 每個情境命中的分錄 · 實體 · 篩選與抽樣</title>
-          <rect x="492" y="246" width="340" height="76" rx="8" class="c-mask"/>
-          <rect x="492" y="246" width="340" height="76" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 500 246 H 824 A 8 8 0 0 1 832 254 V 276 H 492 V 254 A 8 8 0 0 1 500 246 Z"/>
-          <path class="er-table-cap" d="M 504 247.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 253) scale(0.875)">
+        <g id="node-filter_hit" data-node-id="filter_hit" data-node-label="filter_hit" tabindex="0" role="button" aria-label="聚焦filter_hit，每個情境命中的分錄, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="每個情境命中的分錄" data-node-tag="篩選與抽樣" data-node-context="實體" class="er-hue-frontend">
+          <title>filter_hit · 每個情境命中的分錄 · 實體 · 篩選與抽樣</title>
+          <rect x="492" y="266" width="340" height="76" rx="8" class="c-mask"/>
+          <rect x="492" y="266" width="340" height="76" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 500 266 H 824 A 8 8 0 0 1 832 274 V 296 H 492 V 274 A 8 8 0 0 1 500 266 Z"/>
+          <path class="er-table-cap" d="M 504 267.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 273) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="662" y="265" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">result_filter_run</text>
-          <line x1="492" y1="276" x2="832" y2="276" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="662" y="285" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">filter_hit</text>
+          <line x1="492" y1="296" x2="832" y2="296" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="492" y1="276" x2="832" y2="276" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-            <rect x="502" y="281" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="291" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="534" y="291" class="t-primary er-name-pk" font-size="11">scenario_position</text>
-            <text data-detail="context" x="820" y="291" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
-          </g>
-          <g data-detail="context" data-er-row="1">
             <line x1="492" y1="296" x2="832" y2="296" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="496" y="297" width="332" height="18" rx="4" class="er-zebra"/>
+
             <rect x="502" y="301" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="311" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="534" y="311" class="t-primary er-name-pk" font-size="11">entry_id</text>
+            <text data-detail="context" x="534" y="311" class="t-primary er-name-pk" font-size="11">scenario_id</text>
             <text data-detail="context" x="820" y="311" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="492" y1="316" x2="832" y2="316" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="496" y="317" width="332" height="18" rx="4" class="er-zebra"/>
+            <rect x="502" y="321" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="331" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="534" y="331" class="t-primary er-name-pk" font-size="11">entry_id</text>
+            <text data-detail="context" x="820" y="331" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
         </g>
 
-        <g id="node-result_inf_sampling_test_sample" data-node-id="result_inf_sampling_test_sample" data-node-label="result_inf_sampling_test_sample" tabindex="0" role="button" aria-label="聚焦result_inf_sampling_test_sample，抽樣測試選出的分錄, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="抽樣測試選出的分錄" data-node-tag="篩選與抽樣" data-node-context="實體" class="er-hue-frontend">
-          <title>result_inf_sampling_test_sample · 抽樣測試選出的分錄 · 實體 · 篩選與抽樣</title>
-          <rect x="492" y="492" width="340" height="116" rx="8" class="c-mask"/>
-          <rect x="492" y="492" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 500 492 H 824 A 8 8 0 0 1 832 500 V 522 H 492 V 500 A 8 8 0 0 1 500 492 Z"/>
-          <path class="er-table-cap" d="M 504 493.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 499) scale(0.875)">
+        <g id="node-filter_hit_condition" data-node-id="filter_hit_condition" data-node-label="filter_hit_condition" tabindex="0" role="button" aria-label="聚焦filter_hit_condition，命中傳票裡每筆分錄符合哪一條, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="命中傳票裡每筆分錄符合哪一條" data-node-tag="篩選與抽樣" data-node-context="實體" class="er-hue-frontend">
+          <title>filter_hit_condition · 命中傳票裡每筆分錄符合哪一條 · 實體 · 篩選與抽樣</title>
+          <rect x="960" y="40" width="340" height="116" rx="8" class="c-mask"/>
+          <rect x="960" y="40" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 968 40 H 1292 A 8 8 0 0 1 1300 48 V 70 H 960 V 48 A 8 8 0 0 1 968 40 Z"/>
+          <path class="er-table-cap" d="M 972 41.4 H 1288" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(968 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="662" y="511" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">result_inf_sampling_test_sample</text>
-          <line x1="492" y1="522" x2="832" y2="522" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="1130" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">filter_hit_condition</text>
+          <line x1="960" y1="70" x2="1300" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="492" y1="522" x2="832" y2="522" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="960" y1="70" x2="1300" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="502" y="527" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="537" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="534" y="537" class="t-primary er-name-pk" font-size="11">run_id</text>
-            <text data-detail="context" x="820" y="537" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="970" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="981" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1002" y="85" class="t-primary er-name-pk" font-size="11">scenario_id</text>
+            <text data-detail="context" x="1288" y="85" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="1">
+            <line x1="960" y1="90" x2="1300" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="964" y="91" width="332" height="18" rx="4" class="er-zebra"/>
+            <rect x="970" y="95" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="981" y="105" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1002" y="105" class="t-primary er-name-pk" font-size="11">entry_id</text>
+            <text data-detail="context" x="1288" y="105" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="960" y1="110" x2="1300" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="970" y="115" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="981" y="125" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1002" y="125" class="t-primary er-name-pk" font-size="11">group_no</text>
+            <text data-detail="context" x="1288" y="125" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="960" y1="130" x2="1300" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="964" y="131" width="332" height="18" rx="4" class="er-zebra"/>
+            <rect x="970" y="135" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="981" y="145" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1002" y="145" class="t-primary er-name-pk" font-size="11">condition_no</text>
+            <text data-detail="context" x="1288" y="145" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+        </g>
+
+        <g id="node-inf_sample" data-node-id="inf_sample" data-node-label="inf_sample" tabindex="0" role="button" aria-label="聚焦inf_sample，資料可靠性測試抽出的分錄, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="資料可靠性測試抽出的分錄" data-node-tag="篩選與抽樣" data-node-context="實體" class="er-hue-frontend">
+          <title>inf_sample · 資料可靠性測試抽出的分錄 · 實體 · 篩選與抽樣</title>
+          <rect x="960" y="266" width="340" height="116" rx="8" class="c-mask"/>
+          <rect x="960" y="266" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 968 266 H 1292 A 8 8 0 0 1 1300 274 V 296 H 960 V 274 A 8 8 0 0 1 968 266 Z"/>
+          <path class="er-table-cap" d="M 972 267.4 H 1288" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(968 273) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1130" y="285" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">inf_sample</text>
+          <line x1="960" y1="296" x2="1300" y2="296" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="960" y1="296" x2="1300" y2="296" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="970" y="301" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="981" y="311" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1002" y="311" class="t-primary er-name-pk" font-size="11">result_id</text>
+            <text data-detail="context" x="1288" y="311" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="960" y1="316" x2="1300" y2="316" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="964" y="317" width="332" height="18" rx="4" class="er-zebra"/>
+            <rect x="970" y="321" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="981" y="331" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1002" y="331" class="t-primary er-name-pk" font-size="11">entry_id</text>
+            <text data-detail="context" x="1288" y="331" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="960" y1="336" x2="1300" y2="336" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="1002" y="351" class="t-primary" font-size="11">voucher_number</text>
+            <text data-detail="context" x="1288" y="351" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="960" y1="356" x2="1300" y2="356" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="964" y="357" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="1002" y="371" class="t-primary" font-size="11">line_item</text>
+            <text data-detail="context" x="1288" y="371" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+        </g>
+
+        <g id="node-gl" data-node-id="gl" data-node-label="gl" tabindex="0" role="button" aria-label="聚焦gl，完整欄位見標準化資料的關聯圖, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="完整欄位見標準化資料的關聯圖" data-node-tag="參照" data-node-context="實體" class="er-hue-backend">
+          <title>gl · 完整欄位見標準化資料的關聯圖 · 實體 · 參照</title>
+          <rect x="492" y="512" width="340" height="56" rx="8" class="c-mask"/>
+          <rect x="492" y="512" width="340" height="56" rx="8" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 500 512 H 824 A 8 8 0 0 1 832 520 V 542 H 492 V 520 A 8 8 0 0 1 500 512 Z"/>
+          <path class="er-table-cap" d="M 504 513.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 519) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="662" y="531" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">gl</text>
+          <line x1="492" y1="542" x2="832" y2="542" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
             <line x1="492" y1="542" x2="832" y2="542" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="496" y="543" width="332" height="18" rx="4" class="er-zebra"/>
+
             <rect x="502" y="547" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="557" class="t-database" font-size="9" font-weight="600">PK</text>
             <text data-detail="context" x="534" y="557" class="t-primary er-name-pk" font-size="11">entry_id</text>
             <text data-detail="context" x="820" y="557" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
-          <g data-detail="context" data-er-row="2">
-            <line x1="492" y1="562" x2="832" y2="562" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="534" y="577" class="t-primary" font-size="11">document_number</text>
-            <text data-detail="context" x="820" y="577" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="3">
-            <line x1="492" y1="582" x2="832" y2="582" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="496" y="583" width="332" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="534" y="597" class="t-primary" font-size="11">line_item</text>
-            <text data-detail="context" x="820" y="597" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
         </g>
 
-        <g id="node-target_gl_entry" data-node-id="target_gl_entry" data-node-label="target_gl_entry" tabindex="0" role="button" aria-label="聚焦target_gl_entry，完整欄位見標準化資料的關聯圖, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="完整欄位見標準化資料的關聯圖" data-node-tag="參照" data-node-context="實體" class="er-hue-backend">
-          <title>target_gl_entry · 完整欄位見標準化資料的關聯圖 · 實體 · 參照</title>
-          <rect x="952" y="40" width="340" height="56" rx="8" class="c-mask"/>
-          <rect x="952" y="40" width="340" height="56" rx="8" class="c-database er-table" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 960 40 H 1284 A 8 8 0 0 1 1292 48 V 70 H 952 V 48 A 8 8 0 0 1 960 40 Z"/>
-          <path class="er-table-cap" d="M 964 41.4 H 1280" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(960 47) scale(0.875)">
+        <g id="node-authorized_preparer" data-node-id="authorized_preparer" data-node-label="authorized_preparer" tabindex="0" role="button" aria-label="聚焦authorized_preparer，授權編製人清單, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="授權編製人清單" data-node-tag="參考清單" data-node-context="實體" class="er-hue-cloud">
+          <title>authorized_preparer · 授權編製人清單 · 實體 · 參考清單</title>
+          <rect x="1420" y="40" width="340" height="56" rx="8" class="c-mask"/>
+          <rect x="1420" y="40" width="340" height="56" rx="8" class="c-database er-table" data-animate="node" style="--step:8" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1428 40 H 1752 A 8 8 0 0 1 1760 48 V 70 H 1420 V 48 A 8 8 0 0 1 1428 40 Z"/>
+          <path class="er-table-cap" d="M 1432 41.4 H 1748" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1428 47) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1122" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">target_gl_entry</text>
-          <line x1="952" y1="70" x2="1292" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="1590" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">authorized_preparer</text>
+          <line x1="1420" y1="70" x2="1760" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="952" y1="70" x2="1292" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1420" y1="70" x2="1760" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="962" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="973" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="994" y="85" class="t-primary er-name-pk" font-size="11">entry_id</text>
-            <text data-detail="context" x="1280" y="85" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <rect x="1430" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1441" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1462" y="85" class="t-primary er-name-pk" font-size="11">name</text>
+            <text data-detail="context" x="1748" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
         </g>
 
-        <g id="node-target_authorized_preparer" data-node-id="target_authorized_preparer" data-node-label="target_authorized_preparer" tabindex="0" role="button" aria-label="聚焦target_authorized_preparer，授權編製人清單, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="授權編製人清單" data-node-tag="參考清單" data-node-context="實體" class="er-hue-cloud">
-          <title>target_authorized_preparer · 授權編製人清單 · 實體 · 參考清單</title>
-          <rect x="952" y="246" width="340" height="56" rx="8" class="c-mask"/>
-          <rect x="952" y="246" width="340" height="56" rx="8" class="c-database er-table" data-animate="node" style="--step:7" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 960 246 H 1284 A 8 8 0 0 1 1292 254 V 276 H 952 V 254 A 8 8 0 0 1 960 246 Z"/>
-          <path class="er-table-cap" d="M 964 247.4 H 1280" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(960 253) scale(0.875)">
+        <g id="node-calendar_day" data-node-id="calendar_day" data-node-label="calendar_day" tabindex="0" role="button" aria-label="聚焦calendar_day，假日與補班日, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="假日與補班日" data-node-tag="參考清單" data-node-context="實體" class="er-hue-cloud">
+          <title>calendar_day · 假日與補班日 · 實體 · 參考清單</title>
+          <rect x="1420" y="266" width="340" height="96" rx="8" class="c-mask"/>
+          <rect x="1420" y="266" width="340" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:9" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 1428 266 H 1752 A 8 8 0 0 1 1760 274 V 296 H 1420 V 274 A 8 8 0 0 1 1428 266 Z"/>
+          <path class="er-table-cap" d="M 1432 267.4 H 1748" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1428 273) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="1122" y="265" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">target_authorized_preparer</text>
-          <line x1="952" y1="276" x2="1292" y2="276" class="c-grid er-header-rule" stroke-width="1"/>
+          <text data-node-label="" x="1590" y="285" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">calendar_day</text>
+          <line x1="1420" y1="296" x2="1760" y2="296" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
-            <line x1="952" y1="276" x2="1292" y2="276" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1420" y1="296" x2="1760" y2="296" class="c-grid er-row-rule" stroke-width="0.5"/>
 
-            <rect x="962" y="281" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="973" y="291" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="994" y="291" class="t-primary er-name-pk" font-size="11">name</text>
-            <text data-detail="context" x="1280" y="291" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-        </g>
-
-        <g id="node-staging_calendar_raw_day" data-node-id="staging_calendar_raw_day" data-node-label="staging_calendar_raw_day" tabindex="0" role="button" aria-label="聚焦staging_calendar_raw_day，假日與補班日, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="假日與補班日" data-node-tag="參考清單" data-node-context="實體" class="er-hue-cloud">
-          <title>staging_calendar_raw_day · 假日與補班日 · 實體 · 參考清單</title>
-          <rect x="952" y="492" width="340" height="96" rx="8" class="c-mask"/>
-          <rect x="952" y="492" width="340" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:8" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 960 492 H 1284 A 8 8 0 0 1 1292 500 V 522 H 952 V 500 A 8 8 0 0 1 960 492 Z"/>
-          <path class="er-table-cap" d="M 964 493.4 H 1280" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(960 499) scale(0.875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" x="1122" y="511" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">staging_calendar_raw_day</text>
-          <line x1="952" y1="522" x2="1292" y2="522" class="c-grid er-header-rule" stroke-width="1"/>
-          <g data-detail="context" data-er-row="0">
-            <line x1="952" y1="522" x2="1292" y2="522" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-            <rect x="962" y="527" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="973" y="537" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="994" y="537" class="t-primary er-name-pk" font-size="11">day_type</text>
-            <text data-detail="context" x="1280" y="537" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <rect x="1430" y="301" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1441" y="311" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1462" y="311" class="t-primary er-name-pk" font-size="11">day_type</text>
+            <text data-detail="context" x="1748" y="311" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
-            <line x1="952" y1="542" x2="1292" y2="542" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="956" y="543" width="332" height="18" rx="4" class="er-zebra"/>
-            <rect x="962" y="547" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="973" y="557" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="994" y="557" class="t-primary er-name-pk" font-size="11">date</text>
-            <text data-detail="context" x="1280" y="557" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <line x1="1420" y1="316" x2="1760" y2="316" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="1424" y="317" width="332" height="18" rx="4" class="er-zebra"/>
+            <rect x="1430" y="321" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="1441" y="331" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="1462" y="331" class="t-primary er-name-pk" font-size="11">date</text>
+            <text data-detail="context" x="1748" y="331" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="2">
-            <line x1="952" y1="562" x2="1292" y2="562" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="1420" y1="336" x2="1760" y2="336" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="994" y="577" class="t-primary" font-size="11">day_name</text>
-            <text data-detail="context" x="1280" y="577" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="1462" y="351" class="t-primary" font-size="11">day_name</text>
+            <text data-detail="context" x="1748" y="351" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
         </g>
 
         <!-- Relationship labels -->
-        <g data-detail="context" data-edge-from="config_account_taxonomy_path" data-edge-to="config_account_taxonomy" data-edge-label="ancestor_id、descendant_id" data-edge-key="0" data-edge-id="path_taxonomy" data-er-ends="many one optional">
-          <rect x="40.91999999999999" y="174" width="155.08" height="14" rx="3" class="c-mask"/>
-          <text x="118.46" y="184" class="t-muted" font-size="9" text-anchor="middle">ancestor_id、descendant_id</text>
+        <g data-detail="context" data-edge-from="account_category_path" data-edge-to="account_category" data-edge-label="ancestor_id、descendant_id" data-edge-key="0" data-edge-id="path_category" data-er-ends="many one optional">
+          <rect x="40.91999999999999" y="184" width="155.08" height="14" rx="3" class="c-mask"/>
+          <text x="118.46" y="194" class="t-muted" font-size="9" text-anchor="middle">ancestor_id、descendant_id</text>
         </g>
-        <g data-detail="context" data-edge-from="target_account_mapping" data-edge-to="config_account_taxonomy" data-edge-label="category_id" data-edge-key="1" data-edge-id="mapping_taxonomy" data-er-ends="many one optional">
-          <rect x="124.62" y="450" width="71.38" height="14" rx="3" class="c-mask"/>
-          <text x="160.31" y="460" class="t-muted" font-size="9" text-anchor="middle">category_id</text>
+        <g data-detail="context" data-edge-from="account_mapping" data-edge-to="account_category" data-edge-label="category_id" data-edge-key="1" data-edge-id="mapping_category" data-er-ends="many one optional">
+          <rect x="124.62" y="470" width="71.38" height="14" rx="3" class="c-mask"/>
+          <text x="160.31" y="480" class="t-muted" font-size="9" text-anchor="middle">category_id</text>
         </g>
-        <g data-detail="context" data-edge-from="result_filter_run" data-edge-to="config_filter_scenario" data-edge-label="scenario_position" data-edge-key="2" data-edge-id="hit_scenario" data-er-ends="many one optional">
-          <rect x="551.1400000000001" y="204" width="104.86" height="14" rx="3" class="c-mask"/>
-          <text x="603.57" y="214" class="t-muted" font-size="9" text-anchor="middle">scenario_position</text>
+        <g data-detail="context" data-edge-from="filter_hit" data-edge-to="filter_scenario" data-edge-label="scenario_id" data-edge-key="2" data-edge-id="hit_scenario" data-er-ends="many one optional">
+          <rect x="584.6199999999999" y="224" width="71.38" height="14" rx="3" class="c-mask"/>
+          <text x="620.31" y="234" class="t-muted" font-size="9" text-anchor="middle">scenario_id</text>
         </g>
-        <g data-detail="context" data-edge-from="result_filter_run" data-edge-to="target_gl_entry" data-edge-label="entry_id" data-edge-key="3" data-edge-id="hit_entry" data-er-ends="many one optional">
-          <rect x="856.68" y="264" width="54.64" height="14" rx="3" class="c-mask"/>
-          <text x="884" y="274" class="t-muted" font-size="9" text-anchor="middle">entry_id</text>
+        <g data-detail="context" data-edge-from="filter_hit_condition" data-edge-to="filter_scenario" data-edge-label="scenario_id" data-edge-key="3" data-edge-id="condition_scenario" data-er-ends="many one optional">
+          <rect x="860.31" y="54" width="71.38" height="14" rx="3" class="c-mask"/>
+          <text x="896" y="64" class="t-muted" font-size="9" text-anchor="middle">scenario_id</text>
         </g>
-        <g data-detail="context" data-edge-from="result_inf_sampling_test_sample" data-edge-to="target_gl_entry" data-edge-label="entry_id" data-edge-key="4" data-edge-id="sample_entry" data-er-ends="many one optional">
-          <rect x="856.68" y="530" width="54.64" height="14" rx="3" class="c-mask"/>
-          <text x="884" y="540" class="t-muted" font-size="9" text-anchor="middle">entry_id</text>
+        <g data-detail="context" data-edge-from="filter_hit" data-edge-to="gl" data-edge-label="entry_id" data-edge-key="4" data-edge-id="hit_entry" data-er-ends="many one optional">
+          <rect x="601.3599999999999" y="420" width="54.64" height="14" rx="3" class="c-mask"/>
+          <text x="628.68" y="430" class="t-muted" font-size="9" text-anchor="middle">entry_id</text>
+        </g>
+        <g data-detail="context" data-edge-from="filter_hit_condition" data-edge-to="gl" data-edge-label="entry_id" data-edge-key="5" data-edge-id="condition_entry" data-er-ends="many one optional">
+          <rect x="876.68" y="128" width="54.64" height="14" rx="3" class="c-mask"/>
+          <text x="904" y="138" class="t-muted" font-size="9" text-anchor="middle">entry_id</text>
+        </g>
+        <g data-detail="context" data-edge-from="inf_sample" data-edge-to="gl" data-edge-label="entry_id" data-edge-key="6" data-edge-id="sample_entry" data-er-ends="many one optional">
+          <rect x="876.68" y="304" width="54.64" height="14" rx="3" class="c-mask"/>
+          <text x="904" y="314" class="t-muted" font-size="9" text-anchor="middle">entry_id</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="710" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="730" data-legend-width="65">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="主鍵" x="18" y="715" width="77" height="22" rx="11"/><rect x="24" y="720" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="730" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
-            <text x="54" y="730" class="t-primary" font-size="12" font-weight="600">主鍵</text>
+          <text x="24" y="730" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="pk" data-legend-x="24" data-legend-baseline="750" data-legend-width="65">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="主鍵" x="18" y="735" width="77" height="22" rx="11"/><rect x="24" y="740" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text x="35" y="750" class="t-database" text-anchor="middle" font-size="9" font-weight="600">PK</text>
+            <text x="54" y="750" class="t-primary" font-size="12" font-weight="600">主鍵</text>
           </g>
-          <g data-legend-semantic-kind="uk" data-legend-x="111" data-legend-baseline="730" data-legend-width="187">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="唯一約束或唯一索引" x="105" y="715" width="199" height="22" rx="11"/><rect x="111" y="720" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text x="122" y="730" class="t-muted" text-anchor="middle" font-size="9" font-weight="600">UK</text>
-            <text x="141" y="730" class="t-primary" font-size="12" font-weight="600">唯一約束或唯一索引</text>
+          <g data-legend-semantic-kind="uk" data-legend-x="111" data-legend-baseline="750" data-legend-width="187">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="唯一約束或唯一索引" x="105" y="735" width="199" height="22" rx="11"/><rect x="111" y="740" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="uk"/><text x="122" y="750" class="t-muted" text-anchor="middle" font-size="9" font-weight="600">UK</text>
+            <text x="141" y="750" class="t-primary" font-size="12" font-weight="600">唯一約束或唯一索引</text>
           </g>
-          <g data-legend-semantic-kind="one" data-legend-x="320" data-legend-baseline="730" data-legend-width="83">
-            <line x1="316" y1="718" x2="316" y2="734" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="一筆" x="324" y="715" width="85" height="22" rx="11"/><line x1="330" y1="726" x2="358" y2="726" class="er-legend-route" stroke-width="1.5"/><line x1="358" y1="719" x2="358" y2="733" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(336 718)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
-            <text x="368" y="730" class="t-primary" font-size="12" font-weight="600">一筆</text>
+          <g data-legend-semantic-kind="one" data-legend-x="320" data-legend-baseline="750" data-legend-width="83">
+            <line x1="316" y1="738" x2="316" y2="754" class="er-legend-divider" stroke-width="1"/><rect class="er-legend-hit" tabindex="0" role="img" aria-label="一筆" x="324" y="735" width="85" height="22" rx="11"/><line x1="330" y1="746" x2="358" y2="746" class="er-legend-route" stroke-width="1.5"/><line x1="358" y1="739" x2="358" y2="753" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(336 738)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 17 1 L 17 15"/></g>
+            <text x="368" y="750" class="t-primary" font-size="12" font-weight="600">一筆</text>
           </g>
-          <g data-legend-semantic-kind="many" data-legend-x="425" data-legend-baseline="730" data-legend-width="73">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="多筆" x="419" y="715" width="85" height="22" rx="11"/><line x1="425" y1="726" x2="453" y2="726" class="er-legend-route" stroke-width="1.5"/><line x1="453" y1="719" x2="453" y2="733" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(431 718)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
-            <text x="463" y="730" class="t-primary" font-size="12" font-weight="600">多筆</text>
+          <g data-legend-semantic-kind="many" data-legend-x="425" data-legend-baseline="750" data-legend-width="73">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="多筆" x="419" y="735" width="85" height="22" rx="11"/><line x1="425" y1="746" x2="453" y2="746" class="er-legend-route" stroke-width="1.5"/><line x1="453" y1="739" x2="453" y2="753" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(431 738)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><path d="M 8 8 L 22 1 M 8 8 L 22 8 M 8 8 L 22 15"/></g>
+            <text x="463" y="750" class="t-primary" font-size="12" font-weight="600">多筆</text>
           </g>
-          <g data-legend-semantic-kind="optional" data-legend-x="520" data-legend-baseline="730" data-legend-width="143">
-            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="可以沒有對應" x="514" y="715" width="155" height="22" rx="11"/><line x1="520" y1="726" x2="548" y2="726" class="er-legend-route" stroke-width="1.5"/><line x1="548" y1="719" x2="548" y2="733" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(526 718)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><circle cx="3.5" cy="8" r="2.6" class="c-mask"/><circle cx="3.5" cy="8" r="2.6"/></g>
-            <text x="558" y="730" class="t-primary" font-size="12" font-weight="600">可以沒有對應</text>
+          <g data-legend-semantic-kind="optional" data-legend-x="520" data-legend-baseline="750" data-legend-width="143">
+            <rect class="er-legend-hit" tabindex="0" role="img" aria-label="可以沒有對應" x="514" y="735" width="155" height="22" rx="11"/><line x1="520" y1="746" x2="548" y2="746" class="er-legend-route" stroke-width="1.5"/><line x1="548" y1="739" x2="548" y2="753" class="er-legend-edge" stroke-width="2"/><g class="er-legend-glyph" transform="translate(526 738)" style="stroke: var(--text-muted)" stroke-width="1.75" fill="none"><circle cx="3.5" cy="8" r="2.6" class="c-mask"/><circle cx="3.5" cy="8" r="2.6"/></g>
+            <text x="558" y="750" class="t-primary" font-size="12" font-weight="600">可以沒有對應</text>
           </g>
         </g>
       </svg>
@@ -5916,19 +5975,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>這些連線的依據</h3>
         </div>
         <ul>
-          <li>命中與抽樣只存分錄 ID，顯示明細時以 entry_id 連回 target_gl_entry；重算單一情境時，依 scenario_position 刪除舊命中。</li>
-          <li>科目配對以 category_id 連到分類；分類階層表的兩個欄位都指向分類代碼。</li>
-          <li>config_account_taxonomy 另以 parent_category_id 指向上層分類，圖上不畫這條連回自己的線。</li>
+          <li>命中、符合條件的紀錄與抽樣明細都以 entry_id 連回 gl 取顯示欄；命中以 scenario_id 連到 filter_scenario，畫面再依 position 選出情境。</li>
+          <li>儲存或重算單一情境時，依 scenario_id 先刪 filter_hit_condition，再刪 filter_hit。</li>
+          <li>科目配對以 category_id 連到分類；分類階層表的兩個欄位都指向分類代碼。account_category 另以 parent_category_id 指向上層分類，圖上不畫自身連線。</li>
+          <li>來源：LocalFilterHitsPageRepository.cs 第 33–39 行；LocalInfSamplePageRepository.cs 第 38 行；LocalFilterHitMaterializer.cs 第 44–74 行；FilterHitInsertSql.cs 第 9–50 行；LocalAccountMappingRepository.cs 第 226–232 行；AccountCategoryHierarchy.cs 第 6–29 行。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot slate"></div>
-          <h3>線條不是外鍵</h3>
+          <div class="card-dot amber"></div>
+          <h3>線條不是資料庫外鍵</h3>
         </div>
         <ul>
-          <li>虛線是程式在 SQL 裡用來連接的欄位，不是外鍵；這批建表定義沒有宣告外鍵，沒畫線也不代表兩張表無關。</li>
+          <li>現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。</li>
+          <li>沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。</li>
+          <li>PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。</li>
         </ul>
       </div>
     </div>

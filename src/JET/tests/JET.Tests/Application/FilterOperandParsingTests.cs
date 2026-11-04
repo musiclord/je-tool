@@ -69,7 +69,7 @@ public sealed class FilterOperandParsingTests
             """{"type":"fieldValue","field":"glDate","operator":"in","values":["114/6/11","20250611"]}"""), Context(true)));
         var reversed = FilterScenarioValidator.Validate(Parse(
             """{"type":"fieldValue","field":"glDate","operator":"between","from":"2025/6/12","to":"114/6/11"}"""), Context(true));
-        // 裁定 2026-10-13-28 確認了用字：原因只寫原因。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 用字依裁定 2026-10-13-28：原因只寫原因。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal(["第 1 組第 1 條：起日晚於迄日"], reversed);
     }
 
@@ -117,7 +117,7 @@ public sealed class FilterOperandParsingTests
         var errors = FilterScenarioValidator.Validate(Parse(
             // 借貸方向改成明示寫法後，核心金額只比較絕對值，保留原數字格式錯誤斷言；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
             """{"type":"fieldValue","field":"amount","operator":"in","amountBasis":"absolute","values":["10","abc"]}"""), Context(true));
-        // 裁定 2026-10-13-28 確認了用字：位置字首不變，只換原因。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 用字依裁定 2026-10-13-28：位置字首不變，只換原因。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal(["第 1 組第 1 條：清單第 2 個值：金額「abc」不是數字"], errors);
         var detail = Assert.Single(FilterScenarioErrorDetails.Parse(errors));
         Assert.Equal(1, detail.Group);
@@ -125,7 +125,7 @@ public sealed class FilterOperandParsingTests
         Assert.Equal("清單第 2 個值：金額「abc」不是數字", detail.Message);
     }
 
-    // 裁定 2026-10-13-28 確認了用字：預期句換成確認後的句子，仍區分缺上限與上下限顛倒。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    // 用字依裁定 2026-10-13-28：預期句換成確認後的句子，仍區分缺上限與上下限顛倒。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
     [Theory]
     [InlineData(null, "上限須為 0 以上的整數")]
     [InlineData(-1, "上限須為 0 以上的整數")]

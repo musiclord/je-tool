@@ -9,6 +9,12 @@
 
   var Store = global.JetStore;
 
+  // 畫面暫時隱藏的功能。categoryHierarchy 是科目分類的上下層級與進階設定：第四步分類設定的「進階設定」（分類用途、上層分類）
+  // 與第五步科目分類條件的「選取依據」。第一個正式版先隱藏，分類設定只填名稱，做到和舊版 JET 的科目配對一樣（裁定 2026-11-03-27）。
+  // 前端程式、後端與資料都保留，之後的版本改成 true 就恢復。分類樹的縮排與展開箭頭、科目樹與條件讀回裡的「包含下層分類」
+  // 不看這個開關，看案件資料：有分類設了上層才出現，所以開關關著時，新案件看不到它們。
+  var FEATURES = { categoryHierarchy: false };
+
   // 步驟可以獨立載入；有動畫時由殼層排除淡出複本，沒有動畫時維持一般查找。
   function findLive(root, selector) {
     return global.JetMotion && global.JetMotion.findLive ? global.JetMotion.findLive(root, selector) :
@@ -128,7 +134,7 @@
   // 後端 TextStorageLimits.TextUtf16CodeUnits 的 UI 鏡像：搜尋文字輸入框的字數上限；後端仍是權威。
   var SEARCH_TEXT_MAX_LENGTH = 400;
   // 既定門檻；只供預設值與文案使用，不在前端判斷命中。trailingZeroDigits 鏡像 Domain 的預篩選規則「金額尾數連續 6 個 0」；
-  // preparerMaxEntries 與 accountMaxEntries 是第五步「依審計目的」的「編製分錄較少的人員」「較少使用的科目」加入時預設的筆數，
+  // preparerMaxEntries 與 accountMaxEntries 是第五步欄位條件裡「編製分錄較少的人員」「較少使用的科目」加入時預設的筆數，
   // 審計員可以改。第四步照舊版不挑出 11 筆以下的人員與科目（裁定 2026-10-29-27）。
   var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11, trailingZeroDigits: 6 };
   // 三種展示用途各自命名，不改後端query.*Page預設200列，也不共用審計門檻。
@@ -159,14 +165,14 @@
   // 2026-09-07 改版後畫面改用三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
     { value: 'fieldValue', label: '欄位值比較', quickLabel: '指定值與排除', group: 'field' },
-    { value: 'accountSide', label: '借貸科目分類', group: 'nature' },
+    { value: 'accountSide', label: '科目分類', group: 'nature' },
     { value: 'prescreen', label: '預篩選', quickLabel: '選擇預篩選條件', group: 'risk' },
     { value: 'text', label: '文字條件', group: 'field' },
     { value: 'textSet', label: '文字值清單', group: 'field' },
     { value: 'numRange', label: '金額區間', group: 'field' },
     { value: 'dateRange', label: '日期區間', group: 'field' },
     { value: 'drCrOnly', label: '借貸限定', group: 'nature' },
-    { value: 'manualAuto', label: '人工/自動', group: 'nature' },
+    { value: 'manualAuto', label: '人工/自動分錄', group: 'nature' },
     // 借貸科目組合：畫面上只有一張卡（specialAccountCategoryPair 為預設 wire 型別），五種白話模式跨兩個
     // wire 型別（ACCOUNT_COMBINATION_OPTIONS）；accountPair 只在型別下拉與舊情境讀回出現，不進快速加入。
     { value: 'accountPair', label: '借貸科目組合（看對方科目）', group: 'pattern', pickerHidden: true },
@@ -177,20 +183,21 @@
     // 攸關資料元素條件：舊式條件，只在舊情境讀回與編輯時出現，畫面不提供新增。
     { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field' },
     // 常用篩選條件專用的四種型別（分組獨立於其他四組）；特定尾數改用欄位條件的預設值（FILTER_COMMON_PRESETS）。
-    { value: 'revenueDebitNearQuarterEnd', label: '季末前借記收入', group: 'common' },
-    { value: 'revenueWithoutNormalCounterpart', label: '收入無一般對方科目', group: 'common' },
+    // 型別標籤和卡片名稱統一（裁定 2026-11-03-10）。
+    { value: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入', group: 'common' },
+    { value: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目', group: 'common' },
     { value: 'manualRevenueEntry', label: '收入之人工分錄', group: 'common' },
-    { value: 'preparerEqualsApprover', label: '編製與核准同一人', group: 'common' }
+    { value: 'preparerEqualsApprover', label: '編製人員與核准人員相同', group: 'common' }
   ];
 
   // 條件型別的分組（依審計意圖，非資料格式）。顯示順序即此陣列順序；
   // 每組約 3–4 項，讓使用者只看自己要的那一塊，不必一次面對全部選項。
 
   // 常用篩選條件裡「重用既有型別」的五張卡（特定人員、特定摘要、空白摘要、特定尾數、非營業日）：點卡片即帶入既有型別的預填規則，
-  // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterCondition 之上，
-  // 加入時整份深拷貝。非營業日是一條「子條件組」，括號內只有「總帳日期是非營業日」（排除補班日）；
-  // 非營業日不再自成一組，和其他單一條件的卡片一樣加入目前條件組（裁定 2026-10-02-03）。
-  // 鏡像 Domain SuspiciousKeywordDefaults；常用篩選條件與自訂分頁「依審計目的」共用同一份預填清單。
+  // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterCondition 之上，加入時整份深拷貝。
+  // 非營業日直接加入一條「總帳日期 在非營業日」（排除補班日），和其他卡片一樣加入目前條件組（裁定 2026-10-02-03、2026-11-03-09）。
+  // legacyOverrides 是 2026-11-03 以前加入的寫法，只有這一條的子條件組；只用來認出已儲存情境裡的這張卡，按卡片時不再加入。
+  // 鏡像 Domain SuspiciousKeywordDefaults；常用篩選條件的卡片與欄位條件分頁傳票摘要底下的「含特定字詞」共用同一份預填清單。
   var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
     '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
     '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
@@ -205,22 +212,24 @@
     { key: 'specificTrailingDigits', label: '特定金額尾數',
       overrides: { type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '000000', amountBasis: 'absolute' } },
     { key: 'nonBusinessDay', label: '非營業日分錄',
-      overrides: { type: 'group', conditions: [
+      overrides: { type: 'fieldValue', field: 'glDate', operator: 'isNonBusinessDay' },
+      legacyOverrides: [{ type: 'group', conditions: [
         { type: 'fieldValue', field: 'glDate', operator: 'isNonBusinessDay', join: 'AND' }
-      ] } }
+      ] }] }
   ];
 
-  // 非營業日卡片的子條件組直接使用日期「非營業日」判斷，排除補班日；舊 AST 不改寫。
-  // 正本是 Domain FilterConditionLabels.NonBusinessDayAtom，後端 FilterConditionRenderer 以同一規則辨識。
+  // 2026-11-03 以前，非營業日卡片加入的是只有一條「總帳日期 在非營業日」的子條件組。已儲存情境裡的這種子條件組
+  // 照舊讀回「非營業日」，條件樹不改寫（裁定 2026-11-03-09）。正本是 Domain FilterConditionLabels.NonBusinessDayAtom，
+  // 後端 FilterConditionRenderer 以同一規則辨識。
   var FILTER_COMMON_ATOM_LABELS = {
-    nonBusinessDay: '非營業日（排除補班日）'
+    nonBusinessDay: '非營業日'
   };
 
-  // 常用篩選條件的十張卡片：「常用篩選條件」分頁上半「單項條件」的單一資料來源，十顆按鈕由此一份資料驅動，
+  // 常用篩選條件的十張卡片：「常用篩選條件」分頁的單一資料來源，十顆按鈕由此一份資料驅動，
   // 而非十段重複 HTML，新增卡片只要加一筆資料。每筆只是「指向既有述詞」的標記：
   //   key           → 卡片代號：條件上的身分標記與案件檔編輯來源都記它，不顯示在畫面上。
   //   kind:'type'   → ref 是既有 FILTER_RULE_TYPES 的 value；點按帶入一條 newFilterCondition(ref)。
-  //   kind:'preset' → ref 是既有 FILTER_COMMON_PRESETS 的 key；點按帶入該預設的一條規則（非營業日是子條件組）。
+  //   kind:'preset' → ref 是既有 FILTER_COMMON_PRESETS 的 key；點按帶入該預設的一條規則。
   //   kind:'spec'   → 使用明確覆寫值，固定資產與費用的組合不預選分類。
   // label 是卡片顯示文字，沿用最早提出這十個條件時的用語；陣列順序就是畫面、自動名稱與動機的順序。
   // 每張卡是可複選 toggle：選取即把其規格落地成 rule 併入草稿、並在每條 rule 打上 __commonCard 身分標記
@@ -231,7 +240,8 @@
   var FILTER_COMMON_CONDITIONS = [
     { key: 'revenueDebitNearQuarterEnd', defaultRationale: "期末前 X天內收入科目有迴轉分錄，表示收入認列過程中可能存在不適當的調整或更正(案件團隊須提供天數)", kind: 'type', ref: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入的會計分錄' },
     { key: 'fixedAssetDebitExpenseCredit', defaultRationale: "借記固定資產科目(如不動產、廠房和設備(PPE))但貸記營業費用或維修費用等費用科目之分錄組合不符合公司營業流程的瞭解，因此屬於為非預期的過帳，可能為舞弊類型分錄及其他調整的特質。", kind: 'spec', ref: 'specialAccountCategoryPair', overrides: { type: 'specialAccountCategoryPair', pairMode: 'drAndCr', categorySelection: 'subtree', debitCategoryIds: [], creditCategoryIds: [] },
-      description: '借方選固定資產，貸方選營業費用；請先在第四步「分類設定」新增這兩類並配對科目。在建工程不要配到固定資產，也不要放在固定資產底下，因為預設包含下層分類。',
+      description: '借方選固定資產，貸方選營業費用；請先在第四步「分類設定」新增這兩類並配對科目。在建工程不要配到固定資產' +
+        (FEATURES.categoryHierarchy ? '，也不要放在固定資產底下，因為預設包含下層分類。' : '。'),
       label: '借記固定資產(PPE，不含在建)且貸記費用之分錄' },
     { key: 'revenueWithoutNormalCounterpart', defaultRationale: "查核團隊已發現與收入科目相關的未預期或不尋常過帳(貸方為收入，但借方科目非為應收票據/帳款、預收貨款/合約負債)", description: '現金不算一般對方科目；要排除現金銷貨，改用預篩選條件『未預期借貸組合』。', kind: 'type', ref: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目之分錄' },
     { key: 'manualRevenueEntry', defaultRationale: "根據查核核團隊的瞭解，收入科目的過帳一般是自動產生，如為人工分錄非屬正常營業流程的會計分錄", kind: 'type', ref: 'manualRevenueEntry', label: '收入之人工分錄' },
@@ -247,29 +257,29 @@
   //   value 與 label 鏡像 Domain FilterConditionLabels.PrescreenKeys，FilterConditionLabelMirrorTests 雙向守衛；
   //   prerequisites 逐項鏡像 Domain JetRuleRequirements，順序相同，FilterBackendRuleMirrorFrontendTests 逐項比對，
   //   'gl:' 開頭的是 GL 語意欄位，其他是案件資料；description 是第四步卡片與第五步條件共用的說明。
-  // 述詞與需求的正本都在後端；第五步的欄位按鈕、依審計目的的條件、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都依需求和後端算好的
+  // 述詞與需求的正本都在後端；第五步欄位條件的欄位與常用查法、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都依需求和後端算好的
   // 可用欄位停用並寫原因，第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05）；前端不自己推。
   var PRESCREEN_RULES = [
     { value: 'prepPeriodApproval', label: '財報準備日起核准', prerequisites: ['gl:approvalDate', 'prepStartDate'],
       description: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。' },
     { value: 'suspiciousKeywords', label: '摘要特定描述', prerequisites: ['gl:description'],
-      description: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。在進階篩選加入「摘要含特定字詞」可檢視及調整整份清單。' },
+      description: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。要檢視或調整整份清單，到第五步「欄位條件」分頁，按傳票摘要底下的「含特定字詞」。' },
     { value: 'unexpectedAccountPair', label: '未預期借貸組合', prerequisites: ['accountMapping', 'revenueCategory', 'counterpartCategory'],
       description: '貸方為收入的分錄，同張傳票沒有應收款項、現金或預收款借方，但至少有一筆借方金額大於 0 的分錄。第四步與預篩選報告列出這些傳票的全部分錄；在第五步作為條件時，符合的是收入貸方的分錄。需先完成科目配對。' },
     { value: 'trailingZeros', label: '金額尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0', prerequisites: ['gl:amount'],
       description: '依本次測試的分錄，找出金額整數部分尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0 的分錄；不含小數，整數部分為 0 不列入。' },
     { value: 'weekendPosting', label: '週末過帳', prerequisites: ['gl:glDate'],
-      description: '總帳日期落在案件設定的週末日；補班日仍納入。' },
+      description: '總帳日期落在第二步設定的每週休息日；補班日仍納入。' },
     { value: 'weekendApproval', label: '週末核准', prerequisites: ['gl:approvalDate'],
-      description: '傳票核准日落在案件設定的週末日；補班日仍納入。' },
+      description: '傳票核准日落在第二步設定的每週休息日；補班日仍納入。' },
     { value: 'holidayPosting', label: '假日過帳', prerequisites: ['holidayCalendar', 'gl:glDate'],
-      description: '總帳日期落在已匯入假日清單的日期。' },
+      description: '總帳日期落在第二步上傳的國定假日。' },
     { value: 'holidayApproval', label: '假日核准', prerequisites: ['holidayCalendar', 'gl:approvalDate'],
-      description: '傳票核准日落在已匯入假日清單的日期。' },
+      description: '傳票核准日落在第二步上傳的國定假日。' },
     { value: 'blankDescription', label: '空白摘要', prerequisites: ['gl:description'],
       description: '摘要欄位空白的分錄；可在下一步直接作為篩選條件。' },
     { value: 'nonAuthorizedPreparer', label: '非授權編製人員', prerequisites: ['authorizedPreparer', 'gl:createdBy'],
-      description: '傳票建立人員的識別值非空白，且未列在匯入的授權清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。' }
+      description: '傳票建立人員的識別值非空白，且未列在第二步匯入的授權編製人員清單中。請使用與 GL 相同的姓名或員工代碼欄位；這個差異本身不代表已判定越權。' }
   ];
   function prescreenRule(key) { return PRESCREEN_RULES.find(function (item) { return item.value === key; }); }
   function prescreenConditionDescription(key) { var rule = prescreenRule(key); return rule ? rule.description : ''; }
@@ -330,7 +340,7 @@
     { type: 'accountPair', mode: 'exact', label: '借方是 A 且貸方是 B（舊格式）', hint: '同一張傳票同時有 A 借方與 B 貸方；結果列出符合的借方與貸方分錄。', legacy: true }
   ];
 
-  // 第五步「常用篩選條件」分頁下半的情境範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽。
+  // 第五步右側「從情境範例開始」的情境範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽（裁定 2026-11-03-05）。
   // 純前端資料；套用時由 filter-step 的 applyTemplate 深拷貝規則。範例裡的規則不打卡片標記；
   // commonCard 指定的卡片照一般點卡片的方式帶入，帶有那張卡的標記。
   // 前置條件不另外標：filter-step 依範例裡每一條條件查上面的規則需求表，停用並寫原因。
@@ -376,6 +386,16 @@
       groups: [{ join: 'AND', matchScope: 'row', conditions: [
         { type: 'manualAuto', isManual: 'true' },
         { type: 'fieldValue', fieldId: '', operator: 'contains', values: ['總經理室'], includeBlank: false, __valueType: 'text' }] }] },
+    { key: 'accountNumberPair', label: '借方與貸方科目編號組合',
+      rationale: '指定借方與貸方的科目編號組合；科目編號請自行填入。',
+      groups: [{ join: 'AND', matchScope: 'row', conditions: [
+        { type: 'group', conditions: [
+          { type: 'voucher', quantifier: 'any', conditions: [
+            { type: 'drCrOnly', drCr: 'debit' },
+            { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [], includeBlank: false, __valueType: 'text' }] },
+          { type: 'voucher', quantifier: 'any', conditions: [
+            { type: 'drCrOnly', drCr: 'credit' },
+            { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [], includeBlank: false, __valueType: 'text' }] }] }] }] },
     { key: 'accountPairLargeAmount', label: '指定借貸科目組合的大額分錄',
       rationale: '指定借方與貸方科目組合中的大額分錄，用來檢查不尋常的科目對應。',
       groups: [{ join: 'AND', matchScope: 'row', conditions: [
@@ -398,48 +418,49 @@
           { type: 'fieldValue', field: 'glDate', operator: 'dayOfMonthNotIn', values: ['1', '2', '3'], includeBlank: false, __valueType: 'date' }] }] }] }
   ];
 
-  // 第五步自訂分頁的「依審計目的」：依審計目的分類，按「加入」把 conditions 加入目前作用中的條件組。
+  // 第五步「欄位條件」分頁每個欄位的常用查法：依欄位分組，收在欄位「加入」打開的選單裡（裁定 2026-11-03-37），
+  // 按下只把 conditions 這一條加入目前作用中的條件組。
+  // 項目原本按審計目的分類，那個入口已取消，改掛在各自的欄位底下（裁定 2026-11-03-05、2026-11-03-06）；
+  // 常數與相關函式的名稱用常用查法的字根（裁定 2026-11-03-30）。
   // 型別與比較方式都是後端既有的；前置條件和範例一樣，由 filter-step 依條件內容查規則需求表。
-  // __periodEndDays 與範例相同，加入時由查核截止日往前算出起訖日期。
-  var FILTER_PURPOSE_CHECK_GROUPS = [
-    { key: 'dates', label: '日期與時點', checks: [
-      { key: 'glDateWeekend', label: '總帳日期在週末', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isWeekend' }] },
-      { key: 'glDateHoliday', label: '總帳日期在國定假日', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isHoliday' }] },
-      { key: 'glDateNonBusinessDay', label: '總帳日期在非營業日', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isNonBusinessDay' }] },
-      { key: 'approvalDateNonBusinessDay', label: '傳票核准日在非營業日', conditions: [{ type: 'fieldValue', field: 'approvalDate', operator: 'isNonBusinessDay' }] },
-      { key: 'prepPeriodApproval', label: '財報準備日起核准的分錄', conditions: [{ type: 'prescreen', prescreenKey: 'prepPeriodApproval' }] },
-      { key: 'glDateRange', label: '指定日期區間', focusValue: true, conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'between', from: '', to: '' }] },
-      { key: 'periodEndDays', label: '查核期末最後幾天', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'between', from: '', to: '', __periodEndDays: 7 }] }
+  // __periodEndDays 與範例相同，加入時由查核截止日往前算出起訖日期。label 是選單裡顯示的短名稱，name 是完整名稱，
+  // 用在讀屏與滑鼠提示。field 是欄位條件分頁的欄位識別；accountCategory 是第四列「科目分類」的入口。
+  var FIELD_SHORTCUT_GROUPS = [
+    { key: 'glDate', field: 'glDate', checks: [
+      { key: 'glDateWeekend', label: '週末', name: '總帳日期在週末', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isWeekend' }] },
+      { key: 'glDateHoliday', label: '國定假日', name: '總帳日期在國定假日', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isHoliday' }] },
+      { key: 'glDateNonBusinessDay', label: '非營業日', name: '總帳日期在非營業日', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isNonBusinessDay' }] },
+      { key: 'glDateRange', label: '日期區間', name: '總帳日期在指定日期區間', focusValue: true, conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'between', from: '', to: '' }] },
+      { key: 'periodEndDays', label: '期末最後幾天', name: '查核期末最後幾天', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'between', from: '', to: '', __periodEndDays: 7 }] }
     ] },
-    { key: 'amounts', label: '金額', checks: [
-      { key: 'largeAmount', label: '大額分錄', focusValue: true, conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' }] },
-      { key: 'trailingZeros', label: '金額尾數連續多個 0', conditions: [{ type: 'group', conditions: [
-        { type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '0'.repeat(PRESCREEN_DEFAULTS.trailingZeroDigits), amountBasis: 'absolute' },
-        { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '1', amountBasis: 'absolute' }] }] }
+    { key: 'approvalDate', field: 'approvalDate', checks: [
+      { key: 'approvalDateWeekend', label: '週末', name: '傳票核准日在週末', conditions: [{ type: 'fieldValue', field: 'approvalDate', operator: 'isWeekend' }] },
+      { key: 'approvalDateHoliday', label: '國定假日', name: '傳票核准日在國定假日', conditions: [{ type: 'fieldValue', field: 'approvalDate', operator: 'isHoliday' }] },
+      { key: 'approvalDateNonBusinessDay', label: '非營業日', name: '傳票核准日在非營業日', conditions: [{ type: 'fieldValue', field: 'approvalDate', operator: 'isNonBusinessDay' }] },
+      { key: 'approvalDateRange', label: '日期區間', name: '傳票核准日在指定日期區間', focusValue: true, conditions: [{ type: 'fieldValue', field: 'approvalDate', operator: 'between', from: '', to: '' }] },
+      { key: 'prepPeriodApproval', label: '財報準備日起核准', name: '財報準備日起核准的分錄', conditions: [{ type: 'prescreen', prescreenKey: 'prepPeriodApproval' }] }
     ] },
-    { key: 'description', label: '摘要', checks: [
-      { key: 'descriptionKeywords', label: '摘要含特定字詞', conditions: [{ type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() }] },
-      { key: 'blankDescription', label: '空白摘要', conditions: [{ type: 'fieldValue', field: 'description', operator: 'isBlank' }] }
+    { key: 'amount', field: 'amount', checks: [
+      { key: 'largeAmount', label: '大額', name: '大額分錄', focusValue: true, conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' }] },
+      // 一條條件（裁定 2026-11-03-07）；改版前加入的是「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組，已儲存的照舊能讀。
+      { key: 'trailingZeros', label: '尾數連續多個 0', name: '金額尾數連續多個 0', conditions: [
+        { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: String(PRESCREEN_DEFAULTS.trailingZeroDigits), amountBasis: 'absolute' }] }
     ] },
-    { key: 'accounts', label: '科目與借貸', checks: [
-      { key: 'debitOrCreditOnly', label: '只看借方或貸方', conditions: [{ type: 'drCrOnly', drCr: 'debit' }] },
-      { key: 'accountInCategory', label: '科目屬於指定分類', conditions: [{ type: 'group', conditions: [
-        { type: 'drCrOnly', drCr: 'debit' }, { type: 'accountSide', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' }] }] },
-      { key: 'categoryPair', label: '借方與貸方分類組合', conditions: [{ type: 'specialAccountCategoryPair' }] },
-      { key: 'accountNumberPair', label: '借方與貸方科目編號組合', conditions: [{ type: 'group', conditions: [
-        { type: 'voucher', quantifier: 'any', conditions: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [] }] },
-        { type: 'voucher', quantifier: 'any', conditions: [{ type: 'drCrOnly', drCr: 'credit' }, { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [] }] }] }] },
-      { key: 'unexpectedAccountPair', label: '未預期的借貸組合', conditions: [{ type: 'prescreen', prescreenKey: 'unexpectedAccountPair' }] },
-      { key: 'rareAccounts', label: '較少使用的科目', conditions: [{ type: 'entityFrequency', field: 'accountNumber', countUnit: 'entries', countOperator: 'lessThanOrEqual',
+    { key: 'description', field: 'description', checks: [
+      { key: 'descriptionKeywords', label: '含特定字詞', name: '摘要含特定字詞', conditions: [{ type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() }] },
+      { key: 'blankDescription', label: '空白', name: '空白摘要', conditions: [{ type: 'fieldValue', field: 'description', operator: 'isBlank' }] }
+    ] },
+    { key: 'accountNumber', field: 'accountNumber', checks: [
+      { key: 'rareAccounts', label: '較少使用的科目', name: '較少使用的科目', conditions: [{ type: 'entityFrequency', field: 'accountNumber', countUnit: 'entries', countOperator: 'lessThanOrEqual',
         countFrom: String(PRESCREEN_DEFAULTS.accountMaxEntries) }] }
     ] },
-    { key: 'people', label: '人員與分錄性質', checks: [
-      { key: 'manualEntries', label: '人工分錄', conditions: [{ type: 'manualAuto', isManual: 'true' }] },
-      { key: 'rarePreparers', label: '編製分錄較少的人員', conditions: [{ type: 'entityFrequency', field: 'createdBy', countUnit: 'entries',
+    { key: 'createdBy', field: 'createdBy', checks: [
+      { key: 'rarePreparers', label: '編製分錄較少的人員', name: '編製分錄較少的人員', conditions: [{ type: 'entityFrequency', field: 'createdBy', countUnit: 'entries',
         countOperator: 'lessThanOrEqual', countFrom: String(PRESCREEN_DEFAULTS.preparerMaxEntries) }] }
+    ] },
+    { key: 'accountCategory', field: 'accountCategory', checks: [
+      { key: 'categoryPair', label: '借方與貸方分類組合', name: '借方與貸方分類組合', conditions: [{ type: 'specialAccountCategoryPair' }] }
     ] }
-    // 原本最後一類「預篩選結果」只有「沿用第四步預篩選規則」，加入後要到條件卡片改選；2026-10-16 改成條件總覽的
-    // 「預篩選」分頁，直接列出每一條預篩選規則（見 filter-step-sources.js 的 prescreenPickerHtml）。
   ];
 
   // 特殊科目類別配對三模式（specialAccountCategoryPair；A=借方類別、B=貸方類別）。
@@ -686,7 +707,7 @@
 
   // 耗時的唯一寫法，不再用毫秒（裁定 2026-10-13-17）：不到 60 秒寫一位小數的秒，例如「4.2 秒」；
   // 60 秒以上寫「2 分 51 秒」；一小時以上寫「1 小時 3 分」。四捨五入是 0.0 秒時寫「不到 0.1 秒」
-  // （裁定 2026-10-14-01 確認了這個寫法）。
+  // （這個寫法依裁定 2026-10-14-01）。
   var UNDER_TENTH_SECOND = '不到 0.1 秒';
   function formatElapsed(milliseconds) {
     var value = Math.max(0, Number(milliseconds) || 0);
@@ -790,7 +811,7 @@
         var level = 'error';
         var showInStep = true;
         var lastProgress = progressWithoutElapsed(Store.getState().busyDetail);
-        // 句子照裁定 2026-10-13-28 確認的用字：
+        // 句子照裁定 2026-10-13-28 的用字：
         // 另一項作業還在進行與尚無法執行都沒有開始做事，不附耗時；取消與失敗把耗時與最後進度收進括號。
         var timed = false;
         if (error && error.code === 'operation_in_progress') {
@@ -1015,7 +1036,7 @@
       case 'counterpartCategory':
         return '科目配對中尚無歸類為「' + label('receivables') + '」「' + label('cash') + '」或「' + label('receipt_in_advance') + '」的科目，請先在第四步設定';
       case 'authorizedPreparer': return '尚未匯入授權編製人員清單，請先在第二步匯入';
-      case 'holidayCalendar': return '尚未上傳假日檔，請先在第二步「假日與補班日」上傳';
+      case 'holidayCalendar': return '尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳';
     }
     return '';
   }
@@ -1102,6 +1123,25 @@
     });
   }
 
+  // 案件裡是否有分類掛在另一個分類底下；上層找得到的才算。
+  function categoryHierarchyInUse(state) {
+    var categories = accountCategories(state);
+    return categories.some(function (category) {
+      return !!category.parentCategoryId && categories.some(function (parent) { return parent.categoryId === category.parentCategoryId; });
+    });
+  }
+
+  // 選的分類都沒有下層時，「包含下層分類」與「僅分類本身」選到的分類相同，條件讀回不必寫選取依據與實際納入分類。
+  // 新案件的分類都是平的一層（裁定 2026-11-03-27），讀回就和舊版一樣只寫分類；「相同分類用途」會納入同用途的其他分類，照舊寫出。
+  // 後端 FilterConditionRenderer.CategorySelectionMatters 是同一個規則。
+  function categorySelectionMatters(state, ids, mode) {
+    if (mode !== 'subtree' && mode !== 'node') { return true; }
+    var categories = accountCategories(state);
+    return (ids || []).some(function (id) {
+      return categories.some(function (category) { return category.parentCategoryId === id; });
+    });
+  }
+
   // 分類節點是否被收合中的上層藏起來；畫面輸出與綁定後的 update 用同一套判斷，第一次綁定時不會重播收起。
   function categoryNodeHidden(categories, collapsed, id) {
     var seen = {};
@@ -1122,6 +1162,8 @@
     var tree = categoryTree(state);
     var prefix = view.focusKey || 'category';
     var all = accountCategories(state);
+    // 分類都是平的一層時（裁定 2026-11-03-27 起新案件都是），沒有展開箭頭要對齊，不留空位。
+    var branches = tree.some(function (category) { return tree.some(function (child) { return child.parentCategoryId === category.categoryId; }); });
     return '<div class="category-tree">' + tree.map(function (category) {
         var branch = tree.some(function (child) { return child.parentCategoryId === category.categoryId; });
         var open = !(view.collapsed || {})[category.categoryId];
@@ -1132,7 +1174,7 @@
           // 有下層的分類前面是展開箭頭；沒有下層的分類留同樣寬的空位，名稱才對齊。
           (branch ? '<button type="button" class="category-tree__toggle jet-disclosure" data-category-toggle="' + esc(category.categoryId) +
             '" data-focus-key="' + esc(prefix + '-' + category.categoryId) + '" aria-label="' + esc(category.label) + '的下層分類"' +
-            disclosureAttributes(open) + '></button>' : '<span class="category-tree__toggle" aria-hidden="true"></span>') +
+            disclosureAttributes(open) + '></button>' : branches ? '<span class="category-tree__toggle" aria-hidden="true"></span>' : '') +
           rowHtml(category) + '</div>';
       }).join('') + '</div>';
   }
@@ -1779,7 +1821,7 @@
 
   // 展開與收合：文字固定，說明它控制的內容，並寫 aria-expanded 與 aria-controls；細箭頭收合時朝右、展開時朝下。
   // 只是檢視的展開（例如第二步的「預覽」與第五步的「查看彙總」）是淡底小標籤，箭頭在字前面（app.css 的 .jet-view--expand）。
-  // 清單與表格的列整列可點（.row-toggle，例如規則清單、已儲存情境、依審計目的的分類與傳票表），箭頭同樣在字前面，再點一次就收起。
+  // 清單與表格的列整列可點（.row-toggle，例如規則清單、已儲存情境與傳票表），箭頭同樣在字前面，再點一次就收起。
   // 打開右側資料預覽不是就地展開，一律寫「資料預覽」，字後面接面板圖示（.jet-view--preview）。
   // 會改設定或資料的展開，例如「進階設定」與匯入工作的「操作」，仍是按鍵，字後面接箭頭（.jet-disclosure）。
   // 同功能的元件只留一套（裁定 2026-10-19-08）；點傳票分錄的標題就能收合（裁定 2026-10-29-04）；裁定 2026-10-30-36 用圖示區分兩種檢視。
@@ -2260,7 +2302,7 @@
         return global.JetApi.logRecent({}).then(function (log) {
           Store.seedMessages(log.messages || []);
         }).catch(function () {}).then(function () {
-          // 案件名稱就是 projectId，裁定 2026-10-13-28 確認了這句的用字。
+          // 案件名稱就是 projectId，這句的用字依裁定 2026-10-13-28。
           Store.addMessage('已開啟案件「' + data.project.projectId + '」。', 'info');
           // 訊息歷史還原會整批取代畫面訊息，所以改版提示放在還原之後。
           var recalculated = filterScenarioRecalculatedMessage(data.filterScenarioCheck);
@@ -2314,7 +2356,7 @@
   // project.load.filterScenarioCheck：開案時 JET 用目前規則檢查已儲存情境的結果。
   function filterScenarioRecalculatedMessage(check) {
     if (!check || check.status !== 'recalculated') { return null; }
-    // 裁定 2026-10-13-28 確認了這句的用字。
+    // 這句的用字依裁定 2026-10-13-28。
     return '篩選規則已更新，已重算 ' + check.recalculatedCount +
       ' 個情境；之前的條件篩選報告與底稿需要重新產生。';
   }
@@ -2771,7 +2813,7 @@
     ACCOUNT_SIDE_MODE_OPTIONS: ACCOUNT_SIDE_MODE_OPTIONS,
     ACCOUNT_COMBINATION_OPTIONS: ACCOUNT_COMBINATION_OPTIONS,
     FILTER_SCENARIO_TEMPLATES: FILTER_SCENARIO_TEMPLATES,
-    FILTER_PURPOSE_CHECK_GROUPS: FILTER_PURPOSE_CHECK_GROUPS,
+    FIELD_SHORTCUT_GROUPS: FIELD_SHORTCUT_GROUPS,
     FILTER_CATEGORY_LIST_SEPARATOR: FILTER_CATEGORY_LIST_SEPARATOR,
     TEXT_MODE_OPTIONS: TEXT_MODE_OPTIONS,
     TEXT_SET_MODE_OPTIONS: TEXT_SET_MODE_OPTIONS,
@@ -2892,8 +2934,11 @@
     // 共用 helper
     previewTableHtml: previewTableHtml,
     newFilterCondition: newFilterCondition,
+    FEATURES: FEATURES,
     categoryTree: categoryTree,
     categorySelectionCategories: categorySelectionCategories,
+    categoryHierarchyInUse: categoryHierarchyInUse,
+    categorySelectionMatters: categorySelectionMatters,
     categoryPickerHtml: categoryPickerHtml,
     categoryTreeHtml: categoryTreeHtml,
     bindCategoryPicker: bindCategoryPicker,

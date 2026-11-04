@@ -98,7 +98,7 @@ public sealed class TypedFieldRuleValidationTests
         Assert.DoesNotContain("rde.", error, StringComparison.Ordinal);
         // 2026-10-03 審查時改下一步：回第三步重新勾選會產生新的欄位身分，這個條件仍然對不上，
         // 正確的下一步是在第五步這個條件重新選擇欄位（第一次失敗：收據 20261003-025309380-f5004d2af23d4f7a9c32ae8f17b89367）。
-        // 保留下一步的少數句子之一，改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 保留下一步的少數句子之一，改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal("第 1 組第 1 條：所用的攸關資料元素欄位已不在欄位配對中，請重新選擇欄位或刪除此條件", error);
         Assert.DoesNotContain("勾選該欄位", error, StringComparison.Ordinal);
     }
@@ -123,7 +123,7 @@ public sealed class TypedFieldRuleValidationTests
             Scenario(TypedRule(TextFieldId, "equals", value: "x")), context);
 
         // 仍然失敗關閉，但訊息不再顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 裁定 2026-10-13-28 確認了這句的用字。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 這句的用字依裁定 2026-10-13-28。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains(errors, error => error.Contains("已不在欄位配對中", StringComparison.Ordinal));
         Assert.DoesNotContain(errors, error => error.Contains(TextFieldId, StringComparison.Ordinal));
     }
@@ -146,7 +146,7 @@ public sealed class TypedFieldRuleValidationTests
         var setting = fieldId == TextFieldId ? "文字" : fieldId == DateFieldId ? "日期" : "金額";
 
         var error = Assert.Single(errors);
-        // 改鎖裁定 2026-10-13-28 確認後的整句，仍指名欄位與比較方式。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 改鎖裁定 2026-10-13-28 的整句，仍指名欄位與比較方式。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         // 裁定 2026-10-19-14 改用具體說法：寫出欄位目前設定成文字、日期或金額，不用「型別」。
         // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍鎖整句，指名欄位、設定與比較方式。
         Assert.Equal(
@@ -207,7 +207,7 @@ public sealed class TypedFieldRuleValidationTests
     {
         var errors = Validate(TypedRule(fieldId, "between", from: from, to: to, amountBasis: amountBasis));
 
-        // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains(
             fieldId == DateFieldId ? "第 1 組第 1 條：起日晚於迄日" : "第 1 組第 1 條：下限金額大於上限金額",
             errors);
@@ -295,7 +295,7 @@ public sealed class TypedFieldRuleValidationTests
         // 同批仍保留真正無效日期與空白的拒絕斷言。
         var errors = Validate(TypedRule(DateFieldId, "on", value: value));
 
-        // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains($"第 1 組第 1 條：日期「{value}」無法辨識，請以 2026-12-31 的格式輸入", errors);
     }
 
@@ -309,7 +309,7 @@ public sealed class TypedFieldRuleValidationTests
         var errors = Validate(TypedRule(
             MoneyFieldId, "equals", value: value, amountBasis: "signed"));
 
-        // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains($"第 1 組第 1 條：金額「{value}」不是數字", errors);
     }
 
@@ -320,7 +320,7 @@ public sealed class TypedFieldRuleValidationTests
     {
         var errors = Validate(TypedRule(TextFieldId, "equals", value: value));
 
-        // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組第 1 條：比對文字不得為空白", errors);
     }
 

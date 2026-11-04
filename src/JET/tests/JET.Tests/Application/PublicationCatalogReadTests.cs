@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 /// <summary>發布已成功之後，清單讀取失敗只能影響清單，不能把已完成的匯出改報失敗。</summary>
 public sealed class PublicationCatalogReadTests
 {
-    // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+    // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
     private const string Warning = "檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。";
 
     [Theory]

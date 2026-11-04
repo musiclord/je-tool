@@ -245,7 +245,7 @@ public sealed class DevLogExportFileHandler(
 
 internal static class ProjectLogFileWriter
 {
-    // 支援日誌寫不進資料夾時的句子，不寫例外型別（裁定 2026-10-14-01 確認了用字）。
+    // 支援日誌寫不進資料夾時的句子，不寫例外型別（用字依裁定 2026-10-14-01）。
     private const string LogFolderWriteFailure = "支援日誌無法寫入 JET 的日誌資料夾。請確認磁碟空間與資料夾權限後再試一次。";
 
     public static async IAsyncEnumerable<string> ToAsyncLines(

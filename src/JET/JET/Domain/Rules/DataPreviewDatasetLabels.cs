@@ -35,7 +35,7 @@ internal static class DataPreviewDatasetLabels
         new("tb", Tb),
         new("accountMapping", "科目配對"),
         new("authorizedPreparer", "授權編製人員清單"),
-        new("calendar", "行事曆（假日與補班日）"),
+        new("calendar", "國定假日與補班日"),
         new("schemaOverview", "資料表摘要")
     ];
 }

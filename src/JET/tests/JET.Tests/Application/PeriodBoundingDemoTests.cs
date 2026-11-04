@@ -40,7 +40,7 @@ public sealed class PeriodBoundingDemoTests
         // 完整性：期外 GL 不入本期彙總、TB 亦不含（BuildTbRows 限本期）→ 無假性差異 → 0（未界定則出現差異科目）。
         Assert.Equal(0, validate.GetProperty("completenessTest").GetProperty("diffAccountCount").GetInt64());
         // 空值摘要：期外空白摘要列被排除 → 維持 18（BlankDescriptionVouchers；未界定則 19）。
-        Assert.Equal(18, blankRecords.GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(18, blankRecords.GetProperty("blankDescriptionCount").GetInt64());
         // 期外日期：以核准日判定但母體限本期 gl_date → R1（過帳期內、核准 2026-01-15 期外）40 列命中；
         //           期外對照組（過帳期外、核准期外）不入母體 → 不計（未界定則 44）。這正是 §2 spec 定案語意
         //          「過帳日在期內、核准日在期外者屬母體且命中；過帳日期外者一律不入母體」。

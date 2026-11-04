@@ -133,7 +133,7 @@
       : '儲存失敗：' + reason;
   }
 
-  // 「重新檢查並儲存情境」的結果，裁定 2026-10-13-28 確認了這句的用字。還有要修改的情境不算失敗。
+  // 「重新檢查並儲存情境」的結果，這句的用字依裁定 2026-10-13-28。還有要修改的情境不算失敗。
   function scenarioRecheckSentence(data) {
     var check = data && data.filterScenarioCheck;
     var remaining = check && Array.isArray(check.problems) ? check.problems.length : 0;
@@ -163,7 +163,7 @@
     var patch = linked && !clear ? { __editingSavedRef: data.scenarios,
       __editingIndex: draft.__editingIndex - (draft.__editingIndex > removedIndex ? 1 : 0) } : null;
     if (clear) {
-      FilterStep.viewState.lastSavedName = null; FilterStep.viewState.savedDraftKey = null; FilterStep.viewState.disclosures = {}; FilterStep.selectedRule = null;
+      FilterStep.viewState.lastSavedName = null; FilterStep.viewState.savedDraftKey = null; FilterStep.clearDraftDisclosures(); FilterStep.selectedRule = null;
     }
     FilterStep.viewState.pendingRemovalIndex = null;
     Store.applyFilterCommit(data, patch, clear);
@@ -183,7 +183,7 @@
       patch = { __editingIndex: index, __editingSavedRef: data.scenarios, __templateName: false, __templateRationale: false };
       if (unchanged) {
         FilterStep.viewState.lastSavedName = saved.name;
-        FilterStep.viewState.disclosures = {};
+        FilterStep.clearDraftDisclosures();
         FilterStep.selectedRule = null;
       }
       // 比對基準的條件用送出時的內容：後端存檔時只保留每種條件用得到的欄位（裁定 2026-10-15-01），回應裡的條件
@@ -378,10 +378,10 @@
     }).join('');
 
     return (
-      '<h4 class="rule-card__title">情境摘要</h4>' +
+      '<h4 class="rule-card__title">符合條件摘要</h4>' +
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
-          '<thead><tr><th>欄</th><th>高風險條件（情境名稱）</th><th>符合條件的傳票數量</th><th>符合條件的分錄筆數</th></tr></thead>' +
+          '<thead><tr><th>表頭代號</th><th>高風險條件（情境名稱）</th><th>符合條件的傳票數量</th><th>符合條件的分錄筆數</th></tr></thead>' +
           '<tbody>' + rows + '</tbody>' +
         '</table>' +
       '</div>'
@@ -610,13 +610,13 @@
   // 彙總直接由共用分頁載入，欄位及命中判定都來自後端。
   function renderHighRiskSummaryVouchers(box, columns) {
     box.innerHTML =
-      '<h4 class="rule-card__title">傳票與篩選條件對照</h4>' +
+      '<h4 class="rule-card__title">傳票符合的條件</h4>' +
       Ui.pageSearchHtml('依傳票號碼查看') +
       '<div class="preview-table__wrap">' +
         '<table class="preview-table">' +
           '<thead><tr>' + Ui.sortableHeadCellsHtml('query.highRiskSummaryVoucherPage', [
             { key: 'voucherNumber', label: '傳票號碼' }, { key: 'glDate', label: '總帳日期' },
-            { key: 'createdBy', label: '編製人員' }, { key: 'voucherTotal', label: '傳票總額' }]) +
+            { key: 'createdBy', label: '傳票建立人員' }, { key: 'voucherTotal', label: '傳票總額' }]) +
             tagColumnHeadHtml(columns) + '</tr></thead>' +
           '<tbody></tbody>' +
         '</table>' +
@@ -688,7 +688,7 @@
     });
     var cancelEdit = container.querySelector('[data-action="cancel-edit-scenario"]');
     if (cancelEdit) { cancelEdit.addEventListener('click', function () {
-      FilterStep.viewState.lastSavedName = null; FilterStep.viewState.disclosures = {}; FilterStep.viewState.savedDraftKey = null;
+      FilterStep.viewState.lastSavedName = null; FilterStep.clearDraftDisclosures(); FilterStep.viewState.savedDraftKey = null;
       FilterStep.selectedRule = null;
       announceClearedComposition();
       Store.setFilterDraft({ name: '', rationale: '', groups: [] });

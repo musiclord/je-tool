@@ -224,7 +224,7 @@ public sealed class DateNormalizerTests
         Assert.False(DateNormalizer.TryNormalize(text, RocOff, out _));
     }
 
-    // 裁定 2026-10-22-12 選「共用固定答案」：前後端讀同一份日期固定答案
+    // 使用者選了「共用固定答案」（裁定 2026-10-22-12）：前後端讀同一份日期固定答案
     // tools/tests/fixtures/date-normalization.json，前端 frontend-shared-controls 的日期清單測試讀同一份；一邊改了規則另一邊就失敗。
     // 第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d（純數字那一組當時仍換成日期）。
     public static TheoryData<string> SharedFixtureRaws()

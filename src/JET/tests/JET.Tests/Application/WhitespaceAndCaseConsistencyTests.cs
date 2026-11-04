@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-10-04-01 要求修正空白與大小寫的比較：同一份資料不論從 .csv、.xlsx 或 .xls 匯入、存進 SQLite 或 DuckDB，
+/// 依裁定 2026-10-04-01 修正空白與大小寫的比較：同一份資料不論從 .csv、.xlsx 或 .xls 匯入、存進 SQLite 或 DuckDB，
 /// 人員識別值去掉頭尾空白（含全形空白、不換行空格與 Tab）、只含空白的值當成空白、比對與分組一律不分大小寫，固定答案都相同。
 /// Access 以讀取器替身另測（AccessTableReaderTests）。
 /// </summary>

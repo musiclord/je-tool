@@ -633,9 +633,9 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             GlRowCount: 987,
             CompletenessDiffAccountCount: 0,
             UnbalancedVoucherCount: 0,
-            NullAccountCount: 0,
-            NullDocumentCount: 0,
-            NullDescriptionCount: 0,
+            BlankAccountNumberCount: 0,
+            BlankVoucherNumberCount: 0,
+            BlankDescriptionCount: 0,
             ApprovalDateNotInPeriodCount: 0,
             SourceQualityFindingCount: 0);
         var context = new ValidationReportContext(
@@ -1030,7 +1030,9 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         const string expected =
             // 裁定 2026-10-08-04 統一全系統的資料名稱：「分錄測試範圍內」改為「GL 中」。
             // 改用統計條件後的讀回。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（儲存回「已停用」）。
-            "（（GL 中「傳票建立人員」分錄筆數 小於或等於 11 或 GL 中「會計科目編號」分錄筆數 小於或等於 11） 且 僅借方）";
+            // 報告的條件說明用【】標欄位名稱；「僅借方」不是欄位名稱，不加（裁定 2026-11-03-17）。
+            // 第一次失敗：Public 收據 20261103-111153760-c5c19c4dc5b94ecaacaacbb58eab4608。
+            "（（GL 中【傳票建立人員】分錄筆數 小於或等於 11 或 GL 中【會計科目編號】分錄筆數 小於或等於 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
             projectId,
@@ -1304,7 +1306,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             })));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
             "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);

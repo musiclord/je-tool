@@ -1,6 +1,6 @@
 /*
   第五步：進階條件篩選 —— 條件來源的挑選。
-  常用篩選條件的卡片與情境範例、「預篩選」分頁、欄位按鈕與依審計目的的條件，把條件加進作用中的條件組，以及自動產生的情境名稱與動機。
+  常用篩選條件的卡片、「預篩選」分頁、欄位條件分頁的欄位與常用查法、右側的情境範例，把條件加進作用中的條件組，以及自動產生的情境名稱與動機。
   規則目錄與可不可用都讀後端給的表，前端不另算一套。
   第五步分成五個檔案，說明見 filter-step.js 開頭；各檔把自己的函式掛在 JetUi.FilterStep，其他檔案透過它呼叫。
 */
@@ -106,7 +106,7 @@
 
   // 一張卡會建立的「rule 規格」陣列（純資料；type 必填，其餘為覆寫鍵）。
   //   kind:'type'   → 單一規格 { type: ref }，落地為 newFilterCondition(ref)。
-  //   kind:'preset' → 沿用 FILTER_COMMON_PRESETS 的單一 overrides 規格（非營業日是一條子條件組）。
+  //   kind:'preset' → 沿用 FILTER_COMMON_PRESETS 的單一 overrides 規格。
   function commonRuleSpecs(item) {
     if (item.kind === 'spec') { return [item.overrides]; }
     if (item.kind === 'preset') {
@@ -118,7 +118,7 @@
 
   // 把一條規格落地成真 rule，並打上該卡的身分標記：以 newFilterCondition(type) 為底，套上規格的
   // 覆寫鍵（field/mode/prescreenKey/join/conditions…），最後標 __commonCard = 卡片代號（UI-only，剝除後才送 wire）。
-  // 規格先整份深拷貝：非營業日的括號帶子條件陣列，多次加入不得共用同一份陣列或子條件物件。
+  // 規格先整份深拷貝：特定摘要的關鍵字清單這類陣列，多次加入不得共用同一份。
   function materializeRule(spec, cardKey) {
     var copy = JSON.parse(JSON.stringify(spec));
     var rule = Ui.newFilterCondition(copy.type);
@@ -163,7 +163,7 @@
   }
 
   // 加入：把該卡的規格落地成帶標記的 rule 併進草稿（就地修改傳入 draft）。
-  // 每張卡（含非營業日的子條件組）都累積進「作用中」群組（activeEditableGroup）；沒有條件組就新建
+  // 每張卡都累積進「作用中」群組（activeEditableGroup）；沒有條件組就新建
   // 一組、組合器預設「全部(AND)」並設為作用中。新規則 join 取該群組現有組合器以維持群組內一致。
   function addCommonToDraft(draft, item) {
     var specs = commonRuleSpecs(item);
@@ -231,7 +231,7 @@
   }
 
   // 卡片帶入的條件是否仍是那張卡：比對卡片規格裡決定條件種類的鍵（型別、預篩選鍵、欄位、比較方式，
-  // 以及非營業日括號內子條件的種類）。天數、清單、尾數等審計員要填的值不算。固定資產與費用的兩種借貸組合型別沿用同一張卡。
+  // 規格是子條件組時再逐條比對子條件的種類）。天數、清單、尾數等審計員要填的值不算。固定資產與費用的兩種借貸組合型別沿用同一張卡。
   var COMMON_PAIR_TYPES = ['specialAccountCategoryPair', 'accountPair'];
 
   function sameCommonRuleKind(rule, spec) {
@@ -249,6 +249,15 @@
     return true;
   }
 
+  // 卡片認得的條件種類：現在加入的規格，加上已儲存情境裡的舊寫法（FILTER_COMMON_PRESETS 的 legacyOverrides）。
+  // 舊寫法照舊認得是這張卡（裁定 2026-11-03-09）；重新按卡片時加入的是現在的規格。
+  function commonRuleKinds(card) {
+    var specs = commonRuleSpecs(card).slice(0, 1);
+    if (!specs.length || card.kind !== 'preset') { return specs; }
+    var preset = Ui.FILTER_COMMON_PRESETS.filter(function (p) { return p.key === card.ref; })[0];
+    return specs.concat(preset && preset.legacyOverrides || []);
+  }
+
   // 條件在列內改成別的條件後，就不再算原本的卡片：卡片取消勾選，名稱、動機與命名來源跟著改。
   function reconcileCommonIdentity(draft) {
     var stripped = false;
@@ -256,8 +265,8 @@
       group.conditions.forEach(function (rule) {
         if (!rule[COMMON_CARD_KEY]) { return; }
         var card = cardOfRule(rule);
-        var spec = card && commonRuleSpecs(card)[0];
-        if (!spec || !sameCommonRuleKind(rule, spec)) { delete rule[COMMON_CARD_KEY]; stripped = true; }
+        var kinds = card ? commonRuleKinds(card) : [];
+        if (!kinds.some(function (spec) { return sameCommonRuleKind(rule, spec); })) { delete rule[COMMON_CARD_KEY]; stripped = true; }
       });
     });
     return stripped;
@@ -298,7 +307,7 @@
   }
 
   /* ============================================================================
-     「常用篩選條件」分頁：上半「單項條件」是十張可複選的卡片，下半「情境範例」套用後替換整份條件。
+     「常用篩選條件」分頁：十張可複選的卡片（裁定 2026-11-03-05）。情境範例在右側條件組合上方，套用後替換整份條件。
      卡片由 FILTER_COMMON_CONDITIONS 一份資料驅動。已選／未選由身分標記得出（isCommonSelectedActive：
      作用中組是否有帶該卡標記 __commonCard 的 rule），不做結構簽章猜測。
      前置條件不足的卡片（依規則需求表，含 GL 沒有配對的欄位）：停用並寫原因，不綁 toggle。
@@ -333,28 +342,24 @@
     }).join('');
 
     return '<div class="filter-source-block" data-common-cards>' +
-        '<h4 class="filter-source-block__title">單項條件</h4>' +
         '<div class="condition-picker__grid condition-picker__grid--common">' + cells + '</div>' +
         (unavailable.length ? '<details class="filter-unavailable"' + disclosureAttributes('unavailable-common') +
           '><summary>尚不可用（' + unavailable.length + '）</summary><div class="condition-picker__grid">' + unavailable.join('') + '</div></details>' : '') +
       '</div>';
   }
 
-  // 卡片和情境範例放在同一個分頁（裁定 2026-10-29-10）；範例套用後替換整份條件，清單前面那句說明保留。
+  // 常用篩選條件分頁只放十張卡片；情境範例移到右側條件組合上方的「從情境範例開始」（裁定 2026-11-03-05，取代 2026-10-29-10）。
   function commonPickerHtml(draft) {
-    return '<section class="condition-picker condition-picker--common">' + commonCardsHtml(draft) +
-      '<div class="filter-source-block"><h4 class="filter-source-block__title">情境範例</h4>' +
-        '<div class="filter-example-list" data-example-list data-motion-key="examples">' + exampleListHtml() + '</div></div>' +
-      '</section>';
+    return '<section class="condition-picker condition-picker--common">' + commonCardsHtml(draft) + '</section>';
   }
 
-  // 自訂篩選條件分頁只有兩區：上面依欄位型別列出欄位按鈕，下面是依審計目的分類的條件。
-  function customPickerHtml() {
-    return '<section class="condition-picker condition-picker--custom">' + fieldChipsHtml() + purposeChecksHtml() + '</section>';
+  // 欄位條件分頁：依欄位列出，常用查法收在「加入」鍵打開的選單裡（裁定 2026-11-03-06、2026-11-03-37）。分頁在程式裡的識別是 field（裁定 2026-11-03-21）。
+  function fieldPickerHtml() {
+    return '<section class="condition-picker condition-picker--field">' + fieldListHtml() + '</section>';
   }
 
   // 審計員習慣直接套用預篩選條件（裁定 2026-10-16-09），原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選，
-  // 路徑太長。預篩選條件改成條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；列的樣式沿用依審計目的的條件列。
+  // 路徑太長。預篩選條件改成條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；每列是名稱加「加入」的清單列。
   function prescreenPickerHtml() {
     var items = Ui.PRESCREEN_RULES.map(function (option) {
       var note = prescreenRequirementNote(option.value);
@@ -373,15 +378,40 @@
     addConditions([conditionFromSpec({ type: 'prescreen', prescreenKey: key })]);
   }
 
-  // 欄位按鈕的三列。核心欄位全部列出；GL 沒有配對的照樣列出但不能按，下方寫出是哪些欄位以及回第三步欄位配對補上
-  //（裁定 2026-10-22-05）。攸關資料元素欄位依型別接在核心欄位後面。
-  var FIELD_CHIP_ROWS = [
+  // 欄位條件分頁依資料型別分成日期、數字、文字與類別四組（裁定 2026-11-03-06、2026-11-03-18），四組寫在同一張白紙上，用小標分開。
+  // 列和預篩選分頁的清單同一種寫法：一列一個欄位，名稱在左、「加入」在右，加入一條比較方式待選的條件。
+  // 有常用查法的欄位，名稱前有箭頭，按名稱打開玻璃選單列出常用查法；沒有的列在箭頭的位置留同樣寬的空位（裁定 2026-11-03-32）。
+  // 原本四組各是一張白卡，常用查法排在列的下一行、鍵和「加入」一樣大，使用者認為仍然雜亂（裁定 2026-11-03-26、2026-11-03-28）。
+  // 核心欄位全部列出；GL 沒有配對的照樣列出但不能按，分頁最後寫出是哪些欄位以及回第三步欄位配對補上（裁定 2026-10-22-05）。
+  // 攸關資料元素欄位依型別接在核心欄位後面。
+  var FIELD_GROUPS = [
     { type: 'date', label: '日期', core: ['glDate', 'approvalDate'] },
     { type: 'amount', label: '數字', core: ['amount'] },
-    { type: 'text', label: '文字', core: ['description', 'accountNumber', 'accountName', 'createdBy', 'approvedBy', 'voucherNumber', 'sourceModule', 'lineItem'] }
+    { type: 'text', label: '文字', core: ['description', 'accountNumber', 'accountName', 'createdBy', 'approvedBy', 'voucherNumber', 'sourceModule', 'lineItem'] },
+    { type: 'choice', label: '類別', core: ['drCr', 'manualAuto', 'accountCategory'] }
   ];
 
-  // 按鈕文字只寫欄位名稱，和其他欄位同名時才加來源欄名；完整說明放在 title 與 aria-label。
+  // 類別這一組的三個入口不是 GL 欄位，各自帶入一條既有型別的條件：借貸別預設借方、人工/自動分錄預設人工、科目分類不預選分類
+  //（確認頁寫明照 2026-10-14-08 一起做：科目分類只加入一條條件，分類留空待選）。能不能按照各自條件的前置條件。
+  // 人工/自動分錄和第三步的欄位同名（裁定 2026-11-03-22）；借貸別與人工/自動分錄底下不放常用查法（裁定 2026-11-03-20）。
+  var CHOICE_FIELDS = [
+    { id: 'drCr', label: '借貸別', spec: { type: 'drCrOnly', drCr: 'debit' } },
+    { id: 'manualAuto', label: '人工/自動分錄', spec: { type: 'manualAuto', isManual: 'true' } },
+    { id: 'accountCategory', label: '科目分類', spec: { type: 'accountSide', categoryMode: 'is', categoryIds: [], categorySelection: 'subtree' } }
+  ];
+
+  function choiceFields() {
+    return CHOICE_FIELDS.map(function (item) {
+      return { id: item.id, label: item.label, type: 'choice', spec: item.spec, mapped: !requirementNote([item.spec]) };
+    });
+  }
+
+  function fieldShortcuts(fieldId) {
+    var group = Ui.FIELD_SHORTCUT_GROUPS.find(function (item) { return item.field === fieldId; });
+    return group ? group.checks : [];
+  }
+
+  // 情境範例選欄位時的欄位按鈕：按鈕文字只寫欄位名稱，和其他欄位同名時才加來源欄名；完整說明放在 title 與 aria-label。
   // attributes 是按鈕的識別屬性（屬性名稱寫到等號前），值是欄位識別；noteId 有值時按鈕停用，並連到說明原因的那一段。
   function fieldButtonHtml(field, fields, attributes, purpose, noteId) {
     var duplicate = fields.filter(function (item) { return item.label === field.label; }).length > 1;
@@ -392,47 +422,70 @@
       Ui.esc(text) + '</button>';
   }
 
-  var FIELD_CHIP_NOTE_ID = 'filter-field-chip-note';
+  var FIELD_NOTE_ID = 'filter-field-note';
 
-  function fieldChipsHtml() {
-    var fields = Ui.FilterValues.fields(Store.getState());
+  // 有常用查法的欄位，「加入」鍵打開選單（裁定 2026-11-03-37）：選單用共用的 .jet-menu 與 Ui.bindMenus（裁定 2026-10-19-08），
+  // 和其他選單一樣從鍵的下方長出來。第一項加入這個欄位的一般條件，寫欄位名稱，和沒有選單的「加入」帶入同一條；
+  // 下面是常用查法，每一項寫短名稱，按下只加入那一條，完整名稱放在滑鼠提示與報讀名稱。
+  // 欄位本身不能用時，鍵與每一項都停用，原因寫在分頁最後那一段，不在每一項下面重複；
+  // 欄位能用但查法另有前置條件時，原因寫在選單裡那一項的下一行。
+  // 2026-11-03 第三個停點原本是按名稱打開選單、箭頭在名稱前面（裁定 2026-11-03-32），使用者第二次驗收認為整體不夠協調，
+  // 在內建瀏覽器試用兩種開法後選了這一種。
+  function fieldShortcutsHtml(field, name, full, fieldUnavailable) {
+    var menuId = 'filter-field-menu-' + field.id;
+    var label = '加入' + field.label + '的條件';
+    var fieldDisabled = fieldUnavailable ? ' disabled aria-describedby="' + FIELD_NOTE_ID + '"' : '';
+    var items = fieldShortcuts(field.id).map(function (check) {
+      var note = fieldUnavailable ? '' : requirementNote(check.conditions);
+      var noteId = 'filter-check-note-' + check.key;
+      var disabled = fieldUnavailable ? fieldDisabled : (note ? ' disabled aria-describedby="' + noteId + '"' : '');
+      return '<button type="button" class="jet-menu__item" role="menuitem" tabindex="-1" data-action="add-rule" data-add-shortcut="' + check.key + '"' +
+        ' title="' + Ui.esc(check.name) + '" aria-label="' + Ui.esc('加入「' + check.name + '」') + '"' + disabled + '>' + Ui.esc(check.label) + '</button>' +
+        (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '');
+    }).join('');
+    return '<span class="jet-menu">' +
+      '<button type="button" class="btn btn--ghost btn--tiny btn--add jet-menu__toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="' + menuId + '"' +
+        ' aria-label="' + Ui.esc(label) + '"' + fieldDisabled + '>加入</button>' +
+      '<div class="jet-menu__items filter-field__shortcuts" id="' + menuId + '" role="menu" aria-label="' + Ui.esc(label) + '" hidden>' +
+        '<button type="button" class="jet-menu__item" role="menuitem" tabindex="-1" data-action="add-rule" data-add-field="' + Ui.esc(field.id) + '"' +
+          ' title="' + Ui.esc(full) + '" aria-label="' + Ui.esc('加入條件：' + full) + '"' + fieldDisabled + '>' + Ui.esc(name) + '</button>' +
+        items +
+      '</div>' +
+    '</span>';
+  }
+
+  // 一列一個欄位。名稱和其他欄位同名時加上來源欄名；攸關資料元素的完整名稱放在滑鼠提示。
+  // 名稱只是文字；右邊一把「加入」，有常用查法的欄位改成打開選單的「加入」。
+  function fieldRowHtml(field, fields, unmapped) {
+    var duplicate = fields.filter(function (item) { return item.label === field.label; }).length > 1;
+    var name = field.label + (duplicate && field.sourceColumn ? '（' + field.sourceColumn + '）' : '');
+    var full = field.extra ? Ui.rdeFieldOptionLabel(field) : field.label;
+    if (!field.mapped) { unmapped.push(field.spec || { type: 'fieldValue', field: field.id }); }
+    var add = fieldShortcuts(field.id).length ? fieldShortcutsHtml(field, name, full, !field.mapped) :
+      '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-action="add-rule" data-add-field="' + Ui.esc(field.id) + '"' +
+        ' aria-label="' + Ui.esc('加入條件：' + full) + '"' + (field.mapped ? '' : ' disabled aria-describedby="' + FIELD_NOTE_ID + '"') + '>加入</button>';
+    return '<li class="filter-field' + (field.mapped ? '' : ' filter-field--unavailable') + '">' +
+      '<div class="filter-field__head"><span class="filter-field__name" title="' + Ui.esc(full) + '">' + Ui.esc(name) + '</span>' + add + '</div></li>';
+  }
+
+  function fieldListHtml() {
+    var fields = Ui.FilterValues.fields(Store.getState()).concat(choiceFields());
     var unmapped = [];
-    var rows = FIELD_CHIP_ROWS.map(function (row) {
-      var core = row.core.map(function (id) { return fields.find(function (field) { return !field.extra && field.id === id; }); }).filter(Boolean);
-      var extra = fields.filter(function (field) { return field.extra && field.type === row.type; });
-      return '<div class="filter-chip-row" role="group" aria-label="' + row.label + '欄位"><span class="filter-chip-row__label">' + row.label + '</span>' +
-        '<div class="filter-chip-row__chips">' + core.concat(extra).map(function (field) {
-          if (!field.mapped) { unmapped.push({ type: 'fieldValue', field: field.id }); }
-          return fieldButtonHtml(field, fields, 'data-action="add-rule" data-add-field', '加入條件：', field.mapped ? '' : FIELD_CHIP_NOTE_ID);
-        }).join('') + '</div></div>';
+    var groups = FIELD_GROUPS.map(function (group) {
+      var core = group.core.map(function (id) { return fields.find(function (field) { return !field.extra && field.id === id; }); }).filter(Boolean);
+      var extra = fields.filter(function (field) { return field.extra && field.type === group.type; });
+      var titleId = 'filter-field-group-' + group.type;
+      return '<section class="filter-field-group" aria-labelledby="' + titleId + '"><h4 class="filter-field-group__title" id="' + titleId + '">' + group.label + '</h4>' +
+        '<ul class="filter-field-list">' + core.concat(extra).map(function (field) { return fieldRowHtml(field, fields, unmapped); }).join('') + '</ul></section>';
     }).join('');
-    var note = unmapped.length ? '<p class="filter-check__note" id="' + FIELD_CHIP_NOTE_ID + '">' + Ui.esc(requirementNote(unmapped)) + '</p>' : '';
-    return '<div class="filter-source-block"><h4 class="filter-source-block__title">依欄位設定</h4>' + rows + note + '</div>';
+    var note = unmapped.length ? '<p class="filter-check__note filter-field-note" id="' + FIELD_NOTE_ID + '">' + Ui.esc(requirementNote(unmapped)) + '</p>' : '';
+    return '<div class="filter-field-groups">' + groups + '</div>' + note;
   }
 
-  // 依審計目的的條件依它要加入的條件查規則需求表；查核截止日在建立案件時必填，不另外檢查。
-  function purposeChecksHtml() {
-    var groups = Ui.FILTER_PURPOSE_CHECK_GROUPS.map(function (group) {
-      var open = FilterStep.viewState.checkCategory === group.key;
-      var listId = 'filter-checks-' + group.key;
-      var items = group.checks.map(function (check) {
-        var note = requirementNote(check.conditions);
-        var noteId = 'filter-check-note-' + check.key;
-        return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(check.label) + '</span>' +
-          '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-action="add-rule" data-add-check="' + check.key + '"' +
-            ' aria-label="' + Ui.esc('加入「' + check.label + '」') + '"' + (note ? ' disabled aria-describedby="' + noteId + '"' : '') + '>加入</button>' +
-          (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') + '</li>';
-      }).join('');
-      return '<div class="filter-check-group"><h5 class="filter-check-group__heading">' +
-        '<button type="button" class="filter-check-group__toggle" data-check-category="' + group.key + '" aria-expanded="' + open + '" aria-controls="' + listId + '">' +
-          Ui.esc(group.label) + '</button></h5>' +
-        '<ul class="filter-check-group__items" id="' + listId + '" data-collapsible' + (open ? '' : ' hidden') + '>' + items + '</ul></div>';
-    }).join('');
-    return '<div class="filter-source-block"><h4 class="filter-source-block__title">依審計目的</h4>' + groups + '</div>';
-  }
-
-  // 欄位按鈕帶入的條件：比較方式仍在右側條件卡片上選。人員與科目編號預設完整值清單。
+  // 欄位的「加入」帶入的條件：比較方式仍在右側條件卡片上選。人員與科目編號預設完整值清單；類別那一組照各自的規格帶入。
   function fieldConditionRule(fieldId) {
+    var choice = CHOICE_FIELDS.find(function (item) { return item.id === fieldId; });
+    if (choice) { return conditionFromSpec(choice.spec); }
     var field = Ui.FilterValues.fields(Store.getState()).find(function (item) { return item.id === fieldId; });
     if (!field) { return null; }
     var rule = Ui.FilterValues.create(field.type);
@@ -443,9 +496,9 @@
     return rule;
   }
 
-  function findPurposeCheck(key) {
+  function findFieldShortcut(key) {
     var found = null;
-    Ui.FILTER_PURPOSE_CHECK_GROUPS.forEach(function (group) {
+    Ui.FIELD_SHORTCUT_GROUPS.forEach(function (group) {
       group.checks.forEach(function (check) { if (check.key === key) { found = check; } });
     });
     return found;
@@ -511,14 +564,25 @@
     if (rule && !ownRequirementNote(rule)) { addConditions([rule]); }
   }
 
-  function addPurposeCheck(key) {
-    var check = findPurposeCheck(key);
+  function addFieldShortcut(key) {
+    var check = findFieldShortcut(key);
     if (!check || requirementNote(check.conditions)) { return; }
     addConditions(check.conditions.map(conditionFromSpec), !!check.focusValue);
   }
 
   function disclosureAttributes(key) {
     return ' data-filter-disclosure="' + key + '"' + (FilterStep.viewState.disclosures[key] ? ' open' : '');
+  }
+
+  // 開合記在同一份 viewState.disclosures，但有兩種壽命：條件列裡的「查找說明」跟著草稿，儲存、取消編輯或移除編輯中的情境時收起；
+  // 條件總覽與「從情境範例開始」托盤跟著這次開案，換草稿不收（裁定 2026-11-03-19），換案件時整份 viewState 重建才收。
+  var CASE_DISCLOSURES = ['templates', 'unavailable-common'];
+  function clearDraftDisclosures() {
+    var kept = {};
+    CASE_DISCLOSURES.forEach(function (key) {
+      if (FilterStep.viewState.disclosures[key]) { kept[key] = true; }
+    });
+    FilterStep.viewState.disclosures = kept;
   }
 
   // 建議的名稱與動機只描述已選條件，不自行編出風險判斷；沒有條件時兩欄留空。名稱列出前兩項條件，超過兩項加上總數，
@@ -660,7 +724,7 @@
     if (cancel) { cancel.addEventListener('click', function () { cancelExamplePick(container); }); }
   }
 
-  // 情境範例一直列在「常用篩選條件」分頁下半；Esc 只取消正在選的欄位，草稿不動。
+  // 情境範例列在右側條件組合上方的「從情境範例開始」；Esc 只取消正在選的欄位，草稿不動。
   function bindExampleList(container) {
     var list = container.querySelector('[data-example-list]');
     if (!list) { return; }
@@ -735,30 +799,17 @@
       ' data-motion-pane' + (FilterStep.viewState.conditionSource === key ? '' : ' hidden');
   }
 
-  // 條件來源：欄位按鈕、依審計目的的條件、「預篩選」分頁、子條件組的加入按鈕、情境範例與常用篩選條件的卡片（原本 bind 裡的兩段）。
+  // 條件來源：欄位條件分頁、「預篩選」分頁、子條件組的加入按鈕、情境範例與常用篩選條件的卡片（原本 bind 裡的兩段）。
   function bindConditionSources(container) {
-    // 自訂篩選條件：欄位按鈕與依審計目的的條件都加入目前作用中的組。
+    // 欄位條件：欄位的「加入」，以及「加入」選單裡的一般條件與常用查法，都加入目前作用中的組。
     container.querySelectorAll('[data-add-field]').forEach(function (button) {
       button.addEventListener('click', function () { addFieldCondition(button.getAttribute('data-add-field')); });
     });
-    container.querySelectorAll('[data-add-check]').forEach(function (button) {
-      button.addEventListener('click', function () { addPurposeCheck(button.getAttribute('data-add-check')); });
+    container.querySelectorAll('[data-add-shortcut]').forEach(function (button) {
+      button.addEventListener('click', function () { addFieldShortcut(button.getAttribute('data-add-shortcut')); });
     });
     container.querySelectorAll('[data-add-prescreen]').forEach(function (button) {
       button.addEventListener('click', function () { addPrescreenCondition(button.getAttribute('data-add-prescreen')); });
-    });
-    // 依審計目的的分類一次只展開一類；只切換畫面，不重繪也不改草稿。
-    container.querySelectorAll('[data-check-category]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        var key = button.getAttribute('data-check-category');
-        FilterStep.viewState.checkCategory = FilterStep.viewState.checkCategory === key ? null : key;
-        container.querySelectorAll('[data-check-category]').forEach(function (toggle) {
-          var open = toggle.getAttribute('data-check-category') === FilterStep.viewState.checkCategory;
-          toggle.setAttribute('aria-expanded', String(open));
-          var list = container.querySelector('#' + toggle.getAttribute('aria-controls'));
-          if (list) { list.hidden = !open; }
-        });
-      });
     });
     // 在這一組加入子條件組或整張傳票條件；新草稿畫面上的空白第 1 組在這時才建立。
     container.querySelectorAll('[data-add-compound]').forEach(function (button) {
@@ -832,29 +883,36 @@
   FilterStep.COMMON_PAIR_TYPES = COMMON_PAIR_TYPES;
   FilterStep.sameCommonRuleKind = sameCommonRuleKind;
   FilterStep.reconcileCommonIdentity = reconcileCommonIdentity;
+  FilterStep.commonRuleKinds = commonRuleKinds;
   FilterStep.uniqueAutomaticName = uniqueAutomaticName;
   FilterStep.releaseTemplateMetadata = releaseTemplateMetadata;
   FilterStep.refreshAutomaticMetadata = refreshAutomaticMetadata;
   FilterStep.commonCardsHtml = commonCardsHtml;
   FilterStep.commonPickerHtml = commonPickerHtml;
-  FilterStep.customPickerHtml = customPickerHtml;
+  FilterStep.fieldPickerHtml = fieldPickerHtml;
   FilterStep.prescreenPickerHtml = prescreenPickerHtml;
   FilterStep.addPrescreenCondition = addPrescreenCondition;
-  FilterStep.FIELD_CHIP_ROWS = FIELD_CHIP_ROWS;
+  FilterStep.FIELD_GROUPS = FIELD_GROUPS;
   FilterStep.fieldButtonHtml = fieldButtonHtml;
-  FilterStep.FIELD_CHIP_NOTE_ID = FIELD_CHIP_NOTE_ID;
-  FilterStep.fieldChipsHtml = fieldChipsHtml;
-  FilterStep.purposeChecksHtml = purposeChecksHtml;
+  FilterStep.FIELD_NOTE_ID = FIELD_NOTE_ID;
+  FilterStep.fieldListHtml = fieldListHtml;
+  FilterStep.fieldRowHtml = fieldRowHtml;
+  FilterStep.choiceFields = choiceFields;
+  FilterStep.fieldShortcuts = fieldShortcuts;
+  FilterStep.fieldShortcutsHtml = fieldShortcutsHtml;
+  FilterStep.CHOICE_FIELDS = CHOICE_FIELDS;
+  FilterStep.exampleListHtml = exampleListHtml;
   FilterStep.fieldConditionRule = fieldConditionRule;
-  FilterStep.findPurposeCheck = findPurposeCheck;
+  FilterStep.findFieldShortcut = findFieldShortcut;
   FilterStep.firstUsablePrescreenKey = firstUsablePrescreenKey;
   FilterStep.periodEndRange = periodEndRange;
   FilterStep.conditionFromSpec = conditionFromSpec;
   FilterStep.addRulesToActiveGroup = addRulesToActiveGroup;
   FilterStep.addConditions = addConditions;
   FilterStep.addFieldCondition = addFieldCondition;
-  FilterStep.addPurposeCheck = addPurposeCheck;
+  FilterStep.addFieldShortcut = addFieldShortcut;
   FilterStep.disclosureAttributes = disclosureAttributes;
+  FilterStep.clearDraftDisclosures = clearDraftDisclosures;
   FilterStep.automaticMetadata = automaticMetadata;
   FilterStep.syncSuggestedMetadata = syncSuggestedMetadata;
   FilterStep.textRdeFields = textRdeFields;

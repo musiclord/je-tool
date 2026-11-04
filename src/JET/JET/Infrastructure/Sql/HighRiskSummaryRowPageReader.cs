@@ -234,7 +234,7 @@ internal static class HighRiskSummaryRowPageReader
                 "SELECT g.voucher_number, g.line_item, g.gl_date, g.approval_date, " +
                 "       g.created_by, g.approved_by, g.account_number, g.account_name, " +
                 "       g.amount_scaled, g.description, g.source_module, g.is_manual, " +
-                "       raw.row_json, g.line_item_numeric_sort_key, g.entry_id " +
+                "       raw.row_json, g.line_item_numeric_sort_key, g.entry_id, g.posting_status " +
                 $"FROM {schemaPrefix}gl g " +
                 $"LEFT JOIN {schemaPrefix}pbc_gl raw " +
                 "  ON raw.batch_id = g.batch_id AND raw.row_number = g.source_row_number " +
@@ -309,7 +309,8 @@ internal static class HighRiskSummaryRowPageReader
                             reader.GetValue(11),
                             CultureInfo.InvariantCulture) != 0,
                     reader.GetString(12),
-                    []));
+                    [],
+                    reader.IsDBNull(15) ? null : reader.GetString(15)));
             }
         }
 

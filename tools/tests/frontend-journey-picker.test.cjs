@@ -82,7 +82,7 @@ test('a failed online sync keeps the local rows and puts the reason above the li
   f.clock.advance(2500);
   f.fail('project.list', { code: 'synthetic', message: '合成：連不上線上資料庫' }, 'sync-correlation'); await flush();
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
-  // 失敗句：裁定 2026-10-13-28 確認了用字（final-wording.json），裁定 2026-10-14-01 在括號後加句號；
+  // 失敗句：用字依裁定 2026-10-13-28（final-wording.json），括號後的句號依裁定 2026-10-14-01；
   // 「同步線上案件」這個作業名稱沒有使用者裁定，只確認提到線上。案件清單看不到訊息面板，同一句寫在清單上方的錯誤框。
   const box = errorBox(f);
   assert.equal(box.role, 'alert');
@@ -91,7 +91,7 @@ test('a failed online sync keeps the local rows and puts the reason above the li
   assert.ok(sentence !== null, 'the confirmed failure sentence: ' + box.body);
   assert.match(sentence[1], /線上/);
   assert.deepEqual(f.messages()[0], { text: box.body, level: 'error' });
-  // 錯誤框在兩個清單之前，而且框裡沒有按鈕（裁定 2026-10-13-26 選「從錯誤框拿掉，改成一般工具」）。
+  // 錯誤框在兩個清單之前，而且框裡沒有按鈕（使用者選了「從錯誤框拿掉，改成一般工具」，裁定 2026-10-13-26）。
   const panel = f.$('.picker-panel').children;
   assert.ok(panel.findIndex(node => node.className === 'picker-feedback') < panel.findIndex(node => node.className === 'picker-section'),
     'the error box comes before the case lists');
@@ -165,7 +165,7 @@ test('a failed deletion sends no list request, explains the failure with the cas
   f.fail('project.delete', { code: 'file_locked', message: '合成：檔案正被其他程式使用' }, 'delete-correlation'); await flush();
   assert.equal(f.sent('project.listLocal').length, listsBefore, 'a failed deletion does not reload the list');
   assert.equal(f.state().busy, false);
-  // 「刪除案件」是裁定 2026-10-13-03；失敗句的用字由裁定 2026-10-13-28 確認（final-wording.json）。
+  // 「刪除案件」是裁定 2026-10-13-03；失敗句的用字依裁定 2026-10-13-28（final-wording.json）。
   const box = errorBox(f);
   assert.equal(box.role, 'alert');
   assert.match(box.body, /^刪除案件失敗：合成：檔案正被其他程式使用（耗時/);
@@ -194,7 +194,7 @@ test('when the list cannot be read again after a deletion, the deletion still st
 
 test('a case that fails to open keeps the auditor on the list with the reason, and a debug build can still export the support log', async () => {
   const f = await boot([LOCAL_A]);
-  // 案件清單的「輸出支援日誌」只在 Debug 組建出現（裁定 2026-10-20-03 選「只藏案件清單的」）；
+  // 案件清單的「輸出支援日誌」只在 Debug 組建出現（使用者選了「只藏案件清單的」，裁定 2026-10-20-03）；
   // 原本以 Release 開啟就按得到（第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
   f.store.setDevToolsEnabled(true); await flush();
   f.click('[data-action="picker-open"][data-project-id="合成甲案"]');
@@ -204,7 +204,7 @@ test('a case that fails to open keeps the auditor on the list with the reason, a
   f.fail(load, { code: 'file_read_error', message: '合成：案件資料讀不出來' }, 'load-correlation'); await flush();
   assert.equal(f.state().view, 'picker');
   assert.equal(f.state().project, null);
-  // 「開啟案件」與失敗句的用字由裁定 2026-10-13-28 確認（final-wording.json），裁定 2026-10-14-01 在括號後加句號。
+  // 「開啟案件」與失敗句的用字依裁定 2026-10-13-28（final-wording.json），括號後的句號依裁定 2026-10-14-01。
   const box = errorBox(f);
   assert.equal(box.role, 'alert');
   assert.equal(box.body, '開啟案件失敗：合成：案件資料讀不出來（耗時 1.2 秒）。');
@@ -229,7 +229,7 @@ test('while the list is still loading, opening a case sends nothing and stays on
   await flush();
   assert.equal(f.sent('project.load').length, 0, 'no project.load while the list is loading');
   assert.equal(f.state().view, 'picker');
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json）。
+  // 用字依裁定 2026-10-13-28（final-wording.json）。
   assert.deepEqual(f.messages()[0], { text: '「讀取案件清單」還在進行，請等它完成後再試。', level: 'info' });
 });
 

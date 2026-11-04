@@ -72,27 +72,32 @@
   "segments": [
     {
       "from": 150,
-      "to": 334,
+      "to": 320,
       "label": "共用分派：每個 action 都經過"
     },
     {
-      "from": 366,
-      "to": 646,
+      "from": 352,
+      "to": 770,
       "label": "讀取與檢查：不符時回錯誤，不寫入"
     },
     {
-      "from": 678,
-      "to": 900,
-      "label": "分支 A：整批都合格"
+      "from": 784,
+      "to": 1042,
+      "label": "分支 A：只存這一個情境"
     },
     {
-      "from": 932,
-      "to": 1040,
-      "label": "分支 B：仍有情境不合格"
+      "from": 1056,
+      "to": 1306,
+      "label": "分支 B：整批處理，全部合格"
     },
     {
-      "from": 1072,
-      "to": 1280,
+      "from": 1320,
+      "to": 1446,
+      "label": "分支 C：整批處理，仍有不合格"
+    },
+    {
+      "from": 1460,
+      "to": 1692,
       "label": "提交之後：不再接受取消"
     }
   ],
@@ -109,7 +114,7 @@
       "id": "m02",
       "from": "bridge",
       "to": "dispatcher",
-      "y": 240,
+      "y": 224,
       "label": "DispatchAsync",
       "note": "畫面可以取消"
     },
@@ -117,7 +122,7 @@
       "id": "m03",
       "from": "dispatcher",
       "to": "handler",
-      "y": 300,
+      "y": 286,
       "label": "IApplicationActionHandler.HandleAsync",
       "variant": "dashed",
       "note": "依 action 名稱找處理類別"
@@ -126,7 +131,7 @@
       "id": "m04",
       "from": "handler",
       "to": "batch",
-      "y": 396,
+      "y": 382,
       "label": "LoadAsync",
       "note": "需要目前的驗證結果與 GL 配對"
     },
@@ -134,7 +139,7 @@
       "id": "m05",
       "from": "handler",
       "to": "db",
-      "y": 456,
+      "y": 444,
       "label": "IFilterScenarioStore.ListAsync",
       "variant": "dashed",
       "note": "讀出已存情境，照原樣保留"
@@ -143,7 +148,7 @@
       "id": "m06",
       "from": "db",
       "to": "handler",
-      "y": 510,
+      "y": 506,
       "label": "已存情境",
       "variant": "return"
     },
@@ -161,22 +166,74 @@
       "to": "batch",
       "y": 612,
       "label": "PublishAsync",
-      "note": "判斷整批是否都合格"
+      "note": "PlanWrite 決定走哪一支"
+    },
+    {
+      "id": "m19",
+      "from": "batch",
+      "to": "db",
+      "label": "IResultStaleStateStore.ReadAsync",
+      "variant": "dashed",
+      "note": "存好的篩選結果有沒有過期",
+      "y": 674
+    },
+    {
+      "id": "m20",
+      "from": "db",
+      "to": "batch",
+      "label": "失效狀態",
+      "variant": "return",
+      "y": 736
+    },
+    {
+      "id": "m21",
+      "from": "batch",
+      "to": "facts",
+      "label": "IFilterFactsPort.ExecuteAsync",
+      "variant": "dashed",
+      "note": "由 JetAuditProgram.PlanOneScenario 建立計畫",
+      "y": 814
+    },
+    {
+      "id": "m22",
+      "from": "facts",
+      "to": "db",
+      "label": "IFilterCommitRepository.SaveOneAsync",
+      "variant": "dashed",
+      "note": "同一筆交易只換這個情境的定義與命中",
+      "y": 884
+    },
+    {
+      "id": "m23",
+      "from": "db",
+      "to": "facts",
+      "label": "已提交",
+      "variant": "return",
+      "note": "提交前檢查取消",
+      "y": 946
+    },
+    {
+      "id": "m24",
+      "from": "facts",
+      "to": "batch",
+      "label": "FilterFacts",
+      "variant": "return",
+      "y": 1008
     },
     {
       "id": "m09",
       "from": "batch",
       "to": "facts",
-      "y": 708,
+      "y": 1086,
       "label": "IFilterFactsPort.ExecuteAsync",
       "variant": "dashed",
-      "note": "先由 JetAuditProgram 建立計畫"
+      "note": "先由 JetAuditProgram 建立整批的計畫"
     },
     {
       "id": "m10",
       "from": "facts",
       "to": "db",
-      "y": 770,
+      "y": 1148,
       "label": "IFilterCommitRepository.CommitAsync",
       "variant": "dashed",
       "note": "同一筆交易取代定義，用 SQL 算出命中"
@@ -185,7 +242,7 @@
       "id": "m11",
       "from": "db",
       "to": "facts",
-      "y": 832,
+      "y": 1210,
       "label": "已提交",
       "variant": "return",
       "note": "提交前檢查取消"
@@ -194,7 +251,7 @@
       "id": "m12",
       "from": "facts",
       "to": "batch",
-      "y": 884,
+      "y": 1272,
       "label": "FilterFacts",
       "variant": "return"
     },
@@ -202,7 +259,7 @@
       "id": "m13",
       "from": "batch",
       "to": "db",
-      "y": 962,
+      "y": 1350,
       "label": "IFilterScenarioStore.ReplaceAllAsync",
       "variant": "dashed",
       "note": "同一筆交易只寫定義、清除命中並標成失效"
@@ -211,7 +268,7 @@
       "id": "m14",
       "from": "db",
       "to": "batch",
-      "y": 1024,
+      "y": 1412,
       "label": "已提交",
       "variant": "return"
     },
@@ -219,16 +276,16 @@
       "id": "m15",
       "from": "batch",
       "to": "handler",
-      "y": 1102,
+      "y": 1490,
       "label": "情境、命中版本與失效狀態",
       "variant": "return",
-      "note": "讀回資料庫的最新狀態"
+      "note": "有存下結果時先推進步驟，再讀回資料庫的最新狀態"
     },
     {
       "id": "m16",
       "from": "handler",
       "to": "dispatcher",
-      "y": 1154,
+      "y": 1552,
       "label": "回應",
       "variant": "return"
     },
@@ -236,7 +293,7 @@
       "id": "m17",
       "from": "dispatcher",
       "to": "bridge",
-      "y": 1194,
+      "y": 1596,
       "label": "回應",
       "variant": "return",
       "note": "例外改回固定錯誤碼；已取消時一律回報成取消"
@@ -245,7 +302,7 @@
       "id": "m18",
       "from": "bridge",
       "to": "ui",
-      "y": 1246,
+      "y": 1658,
       "label": "PostWebMessageAsJson",
       "variant": "return",
       "note": "依 requestId 把結果交回畫面"
@@ -256,9 +313,9 @@
       "dot": "cyan",
       "title": "情境與前提",
       "items": [
-        "審計員在第五步按「儲存」，畫面送出本次情境、位置與名稱。",
-        "前提：案件使用 SQLite 或 DuckDB，驗證結果是目前版本，GL 欄位已確認配對。",
-        "整批都合格走分支 A，否則走分支 B，一次只會走其中一支。"
+        "審計員在第五步按「儲存」，畫面只送本次情境、位置與名稱。",
+        "前提：案件使用 SQLite 或 DuckDB，找得到案件，驗證結果是目前版本，GL 欄位已確認配對。",
+        "其他情境都合格、已是目前規則，存好的結果也沒有過期時走分支 A；否則整批處理，全部合格走分支 B，仍有不合格走分支 C。一次只會走其中一支。"
       ]
     },
     {
@@ -274,7 +331,8 @@
       "title": "沒有畫出的路徑",
       "items": [
         "前提不符或本次情境不合格時回錯誤，不寫入；細節見「儲存篩選情境」流程圖。",
-        "至少發布一個情境，案件才推進到第五步；推進失敗只記警告。"
+        "交易提交前取消時，交易回復，這次儲存不寫入。",
+        "有存下結果時，經 MappingCommitShared.AdvanceStepAsync 推進到第五步；失敗記在支援日誌，已存下的情境不撤回。"
       ]
     }
   ],
@@ -282,22 +340,22 @@
     {
       "participant": "bridge",
       "from": 180,
-      "to": 1246
+      "to": 1658
     },
     {
       "participant": "dispatcher",
-      "from": 240,
-      "to": 1194
+      "from": 224,
+      "to": 1596
     },
     {
       "participant": "handler",
-      "from": 300,
-      "to": 1154
+      "from": 286,
+      "to": 1552
     },
     {
       "participant": "batch",
-      "from": 396,
-      "to": 420
+      "from": 382,
+      "to": 406
     },
     {
       "participant": "batch",
@@ -307,27 +365,42 @@
     {
       "participant": "batch",
       "from": 612,
-      "to": 1102
+      "to": 1490
     },
     {
       "participant": "facts",
-      "from": 708,
-      "to": 884
+      "from": 814,
+      "to": 1008
+    },
+    {
+      "participant": "facts",
+      "from": 1086,
+      "to": 1272
     },
     {
       "participant": "db",
-      "from": 456,
-      "to": 510
+      "from": 444,
+      "to": 506
     },
     {
       "participant": "db",
-      "from": 770,
-      "to": 832
+      "from": 674,
+      "to": 736
     },
     {
       "participant": "db",
-      "from": 962,
-      "to": 1024
+      "from": 884,
+      "to": 946
+    },
+    {
+      "participant": "db",
+      "from": 1148,
+      "to": 1210
+    },
+    {
+      "participant": "db",
+      "from": 1350,
+      "to": 1412
     }
   ]
 }

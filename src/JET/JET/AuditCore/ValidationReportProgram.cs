@@ -10,9 +10,9 @@ internal sealed record ValidationReportRequest(
     string PeriodStart,
     string PeriodEnd,
     long CompletenessDiffAccountCount,
-    long NullAccountCount,
-    long NullDocumentCount,
-    long NullDescriptionCount,
+    long BlankAccountNumberCount,
+    long BlankVoucherNumberCount,
+    long BlankDescriptionCount,
     long? ApprovalDateNotInPeriodCount);
 
 /// <summary>
@@ -21,9 +21,9 @@ internal sealed record ValidationReportRequest(
 /// </summary>
 internal enum ValidationReportDetailKind
 {
-    NullAccount,
-    NullDocument,
-    NullDescription,
+    BlankAccountNumber,
+    BlankVoucherNumber,
+    BlankDescription,
     ApprovalDateNotInPeriod,
     CompletenessAccount,
     UnbalancedVoucherEntry
@@ -92,7 +92,7 @@ internal interface IValidationReportPlanningFactsPort
 
 public static partial class JetAuditProgram
 {
-    private const long ValidationNullDetailMaximumRows = 10_000;
+    private const long ValidationBlankDetailMaximumRows = 10_000;
     private const long ValidationUnbalancedDetailExclusiveMaximumRows = 10_000;
 
     private static readonly IReadOnlyList<ValidationReportDetailPlan> NoValidationReportDetails =
@@ -134,17 +134,17 @@ public static partial class JetAuditProgram
 
         var request = plan.Request;
         EnsureNonNegative(request.CompletenessDiffAccountCount, nameof(request.CompletenessDiffAccountCount));
-        EnsureNonNegative(request.NullAccountCount, nameof(request.NullAccountCount));
-        EnsureNonNegative(request.NullDocumentCount, nameof(request.NullDocumentCount));
-        EnsureNonNegative(request.NullDescriptionCount, nameof(request.NullDescriptionCount));
+        EnsureNonNegative(request.BlankAccountNumberCount, nameof(request.BlankAccountNumberCount));
+        EnsureNonNegative(request.BlankVoucherNumberCount, nameof(request.BlankVoucherNumberCount));
+        EnsureNonNegative(request.BlankDescriptionCount, nameof(request.BlankDescriptionCount));
         EnsureNonNegative(request.ApprovalDateNotInPeriodCount ?? 0L, nameof(request.ApprovalDateNotInPeriodCount));
         EnsureNonNegative(facts.UnbalancedDetailRowCount, nameof(facts.UnbalancedDetailRowCount));
 
         var details = new[]
         {
-            InclusiveDetail(ValidationReportDetailKind.NullAccount, request.NullAccountCount),
-            InclusiveDetail(ValidationReportDetailKind.NullDocument, request.NullDocumentCount),
-            InclusiveDetail(ValidationReportDetailKind.NullDescription, request.NullDescriptionCount),
+            InclusiveDetail(ValidationReportDetailKind.BlankAccountNumber, request.BlankAccountNumberCount),
+            InclusiveDetail(ValidationReportDetailKind.BlankVoucherNumber, request.BlankVoucherNumberCount),
+            InclusiveDetail(ValidationReportDetailKind.BlankDescription, request.BlankDescriptionCount),
             // 傳票核准日不可用時沒有檢查，不讀明細；摘要的 N/A 由寫出器依同一個結果寫。
             InclusiveDetail(
                 ValidationReportDetailKind.ApprovalDateNotInPeriod,
@@ -172,7 +172,7 @@ public static partial class JetAuditProgram
         new(kind, count, count switch
         {
             0 => ValidationReportDetailDisposition.Omit,
-            <= ValidationNullDetailMaximumRows => ValidationReportDetailDisposition.Emit,
+            <= ValidationBlankDetailMaximumRows => ValidationReportDetailDisposition.Emit,
             _ => ValidationReportDetailDisposition.SummaryOnly
         });
 

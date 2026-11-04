@@ -234,7 +234,9 @@ public sealed class FieldInfoProjectorTests
         Assert.Null(definitions[18].DecimalPlaces);
         var amount = definitions[19];
         Assert.Equal("傳票金額_JE", amount.FieldName);
-        Assert.Equal("傳票金額_JE 由系統產生 : 借方-貸方", amount.Description);
+        // 裁定 2026-11-03-04：說明句裡的欄位名稱用【】標示。原本斷言不加符號的寫法，
+        // 第一次失敗：Focused 收據 20261103-042136637-bdf023e2ad43408a9e6c502b5402a6b1。
+        Assert.Equal("【傳票金額_JE】由系統產生 : 【借方】-【貸方】", amount.Description);
         Assert.Equal(LegacyFieldKind.Number, amount.Kind);
         Assert.Null(amount.TextLength);
         Assert.Equal(4, amount.DecimalPlaces);
@@ -502,22 +504,53 @@ public sealed class FieldInfoProjectorTests
         return new GlMappingSpec(mapping, mode);
     }
 
+    // 裁定 2026-11-03-04：說明句裡的欄位名稱用【】標示，借方代碼這類值不是欄位，改用「」。
+    // 原本斷言欄名不加符號、借方代碼寫成【D】，第一次失敗：Focused 收據 20261103-042136637-bdf023e2ad43408a9e6c502b5402a6b1。
     private static string GlDerivedDescription(GlMappingSpec spec) => spec.AmountMode switch
     {
-        GlAmountMode.SignedAmount => "傳票金額_JE 由系統產生 : 金額",
-        GlAmountMode.DualAmount => "傳票金額_JE 由系統產生 : 借方-貸方",
-        GlAmountMode.AmountWithSide => "傳票金額_JE 由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為【D】",
-        GlAmountMode.AmountWithFlag => "傳票金額_JE 由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為【1】",
+        GlAmountMode.SignedAmount => "【傳票金額_JE】由系統產生 : 【金額】",
+        GlAmountMode.DualAmount => "【傳票金額_JE】由系統產生 : 【借方】-【貸方】",
+        GlAmountMode.AmountWithSide => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「D」",
+        GlAmountMode.AmountWithFlag => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「1」",
         _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.AmountMode, null)
     };
 
     private static string TbDerivedDescription(TbChangeMode mode) => mode switch
     {
-        TbChangeMode.DebitCredit => "試算表變動金額_TB 由系統產生 : 借方 - 貸方",
-        TbChangeMode.OpenClose => "試算表變動金額_TB 由系統產生 : 期末 - 期初",
-        TbChangeMode.OpenCloseBySide => "試算表變動金額_TB 由系統產生 : (期末借 - 期末貸) - (期初借-期初貸)",
+        TbChangeMode.DebitCredit => "【試算表變動金額_TB】由系統產生 : 【借方】 - 【貸方】",
+        TbChangeMode.OpenClose => "【試算表變動金額_TB】由系統產生 : 【期末】 - 【期初】",
+        TbChangeMode.OpenCloseBySide => "【試算表變動金額_TB】由系統產生 : (【期末借】 - 【期末貸】) - (【期初借】-【期初貸】)",
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
     };
+
+    /// <summary>
+    /// 傳票核准日選「與總帳日期相同」時追加的欄位，說明句兩個欄位名稱都用【】標示（裁定 2026-11-03-04）。
+    /// </summary>
+    [Fact]
+    public void ApprovalDateSameAsGlDate_DescriptionMarksBothFieldNames()
+    {
+        var source = new[]
+        {
+            new FieldInfoState(1, "傳票編號", null, LegacyFieldKind.Text, 8, null, 8, true),
+            new FieldInfoState(2, "入帳日", null, LegacyFieldKind.Date, 0, null, 10, true),
+            new FieldInfoState(3, "金額", null, LegacyFieldKind.Number, 0, 2, 7, true)
+        };
+        var mapping = new Dictionary<string, string>
+        {
+            [GlMappingKeys.VoucherNumber] = "傳票編號",
+            [GlMappingKeys.GlDate] = "入帳日",
+            [GlMappingKeys.Amount] = "金額"
+        };
+        var spec = new GlMappingSpec(mapping, GlAmountMode.SignedAmount)
+        {
+            Options = GlMappingOptions.NormalizeLegacy(mapping) with { ApprovalDateMode = ApprovalDateModeNames.SameAsGlDate }
+        };
+
+        var definitions = FieldInfoProjector.ProjectGl(source, spec, moneyScale: 100);
+
+        var approval = definitions.Single(static definition => definition.FieldName == "傳票核准日_JE");
+        Assert.Equal("【傳票核准日_JE】由系統產生 : 同【總帳日期_JE】來源", approval.Description);
+    }
 
     private static TbMappingSpec TbNonDirectSpec(TbChangeMode changeMode)
     {

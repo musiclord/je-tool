@@ -24,9 +24,9 @@ internal static class CurrentValidationSummaryTestData
         bool storedAmountMatch = true,
         bool storedEligibility = true,
         string? storedEligibilityReason = null,
-        long nullAccountCount = 0,
-        long nullDocumentCount = 0,
-        long nullDescriptionCount = 0,
+        long blankAccountNumberCount = 0,
+        long blankVoucherNumberCount = 0,
+        long blankDescriptionCount = 0,
         long? approvalDateNotInPeriodCount = 0,
         string? approvalDateNotInPeriodNaReason = null,
         long sourceQualityFindingCount = 0,
@@ -111,12 +111,12 @@ internal static class CurrentValidationSummaryTestData
                 blankRecordsTest = new
                 {
                     status = "na",
-                    nullAccountCount,
-                    nullDocumentCount,
-                    nullDescriptionCount,
+                    blankAccountNumberCount,
+                    blankVoucherNumberCount,
+                    blankDescriptionCount,
                     approvalDateNotInPeriodCount,
                     approvalDateNotInPeriodNaReason,
-                    nullRows = Array.Empty<object>()
+                    blankRows = Array.Empty<object>()
                 },
                 sourceQuality = new
                 {

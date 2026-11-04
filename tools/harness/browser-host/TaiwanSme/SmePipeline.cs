@@ -223,7 +223,7 @@ internal static class SmePipeline
             !line.IsPosted && line.GlDate >= SmeCalendar.PeriodStart && line.GlDate <= SmeCalendar.PeriodEnd);
         var stats = validation.GetProperty("stats");
         var summary = validation.GetProperty("populationSummary");
-        var nulls = validation.GetProperty("blankRecordsTest");
+        var blankRecords = validation.GetProperty("blankRecordsTest");
         var completeness = validation.GetProperty("completenessTest");
         log.CompareNumber("驗證 GL 分錄筆數", population.Count, stats.GetProperty("glRowCount").GetInt64());
         log.CompareNumber("驗證 GL 傳票張數", population.Select(line => line.VoucherNo).Distinct().Count(),
@@ -237,14 +237,14 @@ internal static class SmePipeline
             summary.GetProperty("excluded").GetProperty("byPostingStatusCount").GetInt64());
         log.CompareNumber("驗證 借貸不平傳票", 0,
             validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
-        log.CompareNumber("驗證 科目空白", 0, nulls.GetProperty("nullAccountCount").GetInt64());
-        log.CompareNumber("驗證 傳票號碼空白", 0, nulls.GetProperty("nullDocumentCount").GetInt64());
+        log.CompareNumber("驗證 科目空白", 0, blankRecords.GetProperty("blankAccountNumberCount").GetInt64());
+        log.CompareNumber("驗證 傳票號碼空白", 0, blankRecords.GetProperty("blankVoucherNumberCount").GetInt64());
         log.CompareNumber("驗證 空白摘要", population.Count(line => SmeOracle.IsBlank(line.Description)),
-            nulls.GetProperty("nullDescriptionCount").GetInt64());
+            blankRecords.GetProperty("blankDescriptionCount").GetInt64());
         log.CompareNumber("驗證 核准日不在查核期間",
             population.Count(line => line.ApprovalDate is { } approval
                 && (approval < SmeCalendar.PeriodStart || approval > SmeCalendar.PeriodEnd)),
-            nulls.GetProperty("approvalDateNotInPeriodCount").GetInt64());
+            blankRecords.GetProperty("approvalDateNotInPeriodCount").GetInt64());
         log.CompareNumber("驗證 GL 與 TB 有差異的科目", 0, completeness.GetProperty("diffAccountCount").GetInt64());
         var storedTotals = completeness.GetProperty("storedTotals");
         log.CompareNumber("驗證 存入的分錄筆數與合計相符", 1,

@@ -23,6 +23,8 @@ public sealed partial class WorkingPaperWriter
             context.ProjectId,
             DatasetKind.Gl,
             cancellationToken);
+        // 攸關資料元素的表頭照舊版加 _JE（裁定 2026-11-03-14），撞名用整份配對判斷。
+        var rdeHeaders = GlRdeOutputNames.For(customFields, workbookMetadata?.GlMapping.GlOptions?.RdeFields);
         var headers = new string?[]
             {
                 "樣本編號",
@@ -46,7 +48,7 @@ public sealed partial class WorkingPaperWriter
                 "G",
                 null
             }
-            .Concat(customFields.Select(static field => field.Label))
+            .Concat(rdeHeaders)
             .ToArray();
         var minimumWidths = new[]
             {
@@ -98,7 +100,7 @@ public sealed partial class WorkingPaperWriter
         }
 
         // 第 49-52 列欄標(多層合併);資料第 53 列起。
-        WriteStep2ColumnHeaders(sheet, customFields);
+        WriteStep2ColumnHeaders(sheet, rdeHeaders);
         var rows = 0L;
         foreach (var projected in spool.ReadRows(cancellationToken))
         {
@@ -754,6 +756,7 @@ public sealed partial class WorkingPaperWriter
                 WorkingPaperStep41ValueSource.IsManual => Typed(
                     source.IsManual is null ? null : source.IsManual.Value ? "人工" : "自動",
                     column),
+                WorkingPaperStep41ValueSource.PostingStatus => Typed(source.PostingStatus, column),
                 WorkingPaperStep41ValueSource.SignedAmount => Amount(
                     Display(source.AmountScaled, moneyScale),
                     column),
@@ -1070,6 +1073,7 @@ public sealed partial class WorkingPaperWriter
             _writer.Write(source.AmountScaled);
             WriteNullableString(source.Description);
             WriteNullableString(source.SourceModule);
+            WriteNullableString(source.PostingStatus);
             _writer.Write(source.IsManual.HasValue);
             if (source.IsManual is { } isManual)
             {
@@ -1163,6 +1167,7 @@ public sealed partial class WorkingPaperWriter
             var amountScaled = reader.ReadInt64();
             var description = ReadNullableString(reader);
             var sourceModule = ReadNullableString(reader);
+            var postingStatus = ReadNullableString(reader);
             var isManual = reader.ReadBoolean()
                 ? reader.ReadBoolean()
                 : (bool?)null;
@@ -1194,7 +1199,8 @@ public sealed partial class WorkingPaperWriter
                 sourceModule,
                 isManual,
                 rawJson,
-                matchedPositions);
+                matchedPositions,
+                postingStatus);
         }
 
         private void WriteNullableString(string? value)
@@ -1543,7 +1549,7 @@ public sealed partial class WorkingPaperWriter
     /// <summary>step2 第 49-52 列多層欄標(逐字對齊樣本;合併範圍見 Step2HeaderMerges)。</summary>
     private static void WriteStep2ColumnHeaders(
         SheetWriter sheet,
-        IReadOnlyList<GlRdeFieldMetadata> customFields)
+        IReadOnlyList<string> customFields)
     {
         var row49 = new List<Cell>
         {
@@ -1587,7 +1593,7 @@ public sealed partial class WorkingPaperWriter
             row51.Add(sheet.TextCell(
                 51,
                 checked((uint)(21 + index)),
-                customFields[index].Label,
+                customFields[index],
                 WorkingPaperStyles.BoldWrap));
         }
         sheet.WriteFixedRow(51, row51);
@@ -2013,7 +2019,7 @@ public sealed partial class WorkingPaperWriter
 
         var range = $"查核期間內（{context.PeriodStart} ~ {context.PeriodEnd}）之會計分錄";
         const string rationale =
-            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與總帳日期空白的分錄，不列入本版各情境的結果與彙總。";
+            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。";
 
         return
         [

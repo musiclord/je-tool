@@ -18,9 +18,9 @@ internal static class BlankRecordRowMapper
         reader.IsDBNull(1) ? null : reader.GetString(1),
         reader.IsDBNull(2) ? null : reader.GetString(2),
         reader.IsDBNull(3) ? null : reader.GetString(3),
-        NullAccount: category == BlankRecordCategory.NullAccount,
-        NullDocument: category == BlankRecordCategory.NullDocument,
-        NullDescription: category == BlankRecordCategory.NullDescription,
+        BlankAccountNumber: category == BlankRecordCategory.BlankAccountNumber,
+        BlankVoucherNumber: category == BlankRecordCategory.BlankVoucherNumber,
+        BlankDescription: category == BlankRecordCategory.BlankDescription,
         ApprovalDateNotInPeriod: category == BlankRecordCategory.ApprovalDateNotInPeriod,
         EntryId: reader.GetInt64(4));
 }

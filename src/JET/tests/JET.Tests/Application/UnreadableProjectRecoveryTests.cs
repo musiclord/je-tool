@@ -25,7 +25,7 @@ public sealed class UnreadableProjectRecoveryTests
         Assert.Equal(JsonValueKind.Null, broken.GetProperty("databaseProvider").ValueKind);
         Assert.Equal(JetErrorCodes.FileReadError, broken.GetProperty("loadError").GetProperty("code").GetString());
         var message = broken.GetProperty("loadError").GetProperty("message").GetString()!;
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。句子不寫檔名，改寫「設定檔」。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。句子不寫檔名，改寫「設定檔」。
         Assert.Contains("設定檔無法讀取", message);
         Assert.DoesNotContain("project.json", message);
         Assert.Contains("備份", message);

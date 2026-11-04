@@ -26,8 +26,8 @@ public sealed class JetFieldCatalogTests
         var glAll = typeof(GlMappingKeys).GetField(nameof(GlMappingKeys.All));
         var tbAmount = typeof(TbMappingKeys).GetField(nameof(TbMappingKeys.ChangeAmount));
         var tbAll = typeof(TbMappingKeys).GetField(nameof(TbMappingKeys.All));
-        var glCanonical = typeof(GlCanonicalNames).GetProperty(nameof(GlCanonicalNames.Gl));
-        var tbCanonical = typeof(GlCanonicalNames).GetProperty(nameof(GlCanonicalNames.Tb));
+        // 照樣本範本定的 GlCanonicalNames 依裁定 2026-11-03-11 刪除，輸出欄名只剩欄位目錄的 LegacyFieldName 一份；
+        // 這裡原本對樣本欄名表的檢查一起拿掉。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
 
         Assert.NotNull(glVoucherNumber);
         Assert.True(glVoucherNumber.IsLiteral);
@@ -44,20 +44,13 @@ public sealed class JetFieldCatalogTests
         Assert.True(tbAll.IsStatic);
         Assert.True(tbAll.IsInitOnly);
         Assert.Equal(typeof(IReadOnlyList<string>), tbAll.FieldType);
-
-        Assert.NotNull(glCanonical);
-        Assert.Equal(typeof(IReadOnlyDictionary<string, string>), glCanonical.PropertyType);
-        Assert.NotNull(glCanonical.GetMethod);
-        Assert.Null(glCanonical.SetMethod);
-        Assert.NotNull(tbCanonical);
-        Assert.Equal(typeof(IReadOnlyDictionary<string, string>), tbCanonical.PropertyType);
-        Assert.NotNull(tbCanonical.GetMethod);
-        Assert.Null(tbCanonical.SetMethod);
     }
 
     [Fact]
     public void GlDefinitions_MatchV2ContractMatrix()
     {
+        // 矩陣倒數第二欄原本是樣本欄名 CanonicalName，依裁定 2026-11-03-11 改成輸出欄名 LegacyFieldName，
+        // 沒有樣本名的傳票核准日、分錄來源模組與人工/自動分錄因此有值。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
         var expected = new[]
         {
             Slot("voucherNumber", "傳票號碼", 0, true, [], false, true,
@@ -67,7 +60,7 @@ public sealed class JetFieldCatalogTests
             Slot("glDate", "總帳日期", 2, true, [], false, true,
                 "glDate", JetFieldValueKind.Date, "gl_date", true, "總帳日期_JE", true),
             Slot("approvalDate", "傳票核准日", 3, false, [], false, true,
-                "approvalDate", JetFieldValueKind.Date, "approval_date", true, null, true),
+                "approvalDate", JetFieldValueKind.Date, "approval_date", true, "傳票核准日_JE", true),
             // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，原本 order 4 的 voucherDate 拿掉，其餘順序值不重排。
             Slot("accountNumber", "會計科目編號", 5, true, [], false, true,
                 "accountNumber", JetFieldValueKind.Text, "account_number", true, "會計科目編號_JE", true),
@@ -76,13 +69,13 @@ public sealed class JetFieldCatalogTests
             Slot("description", "傳票摘要", 7, true, [], false, true,
                 "description", JetFieldValueKind.Text, "description", true, "傳票摘要_JE", true),
             Slot("sourceModule", "分錄來源模組", 8, false, [], false, true,
-                "sourceModule", JetFieldValueKind.Text, "source_module", true, null, true),
+                "sourceModule", JetFieldValueKind.Text, "source_module", true, "分錄來源模組_JE", true),
             Slot("createdBy", "傳票建立人員", 9, false, [], false, true,
                 "createdBy", JetFieldValueKind.Text, "created_by", true, "傳票建立人員_JE", true),
             Slot("approvedBy", "傳票核准人員", 10, false, [], false, true,
                 "approvedBy", JetFieldValueKind.Text, "approved_by", true, "傳票核准人員_JE", true),
             Slot("isManual", "人工/自動分錄", 11, false, [], false, false,
-                "isManual", JetFieldValueKind.Boolean, "is_manual", true, null, false),
+                "isManual", JetFieldValueKind.Boolean, "is_manual", true, "人工傳票否_JE_S", false),
             // 裁定 2026-10-13-18 把分錄金額改名為金額；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
             Slot("amount", "金額", 12, false, ["signed", "side", "flag"], false, true,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
@@ -99,8 +92,9 @@ public sealed class JetFieldCatalogTests
             // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
             Slot("drCrCreditCode", "貸方代碼", 17, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
+            // 過帳碼_JE 照舊版補回（裁定 2026-11-03-15），過帳狀態欄因此有輸出欄名。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
             Slot("postingStatus", "過帳狀態", 18, false, [], false, false,
-                "postingStatus", JetFieldValueKind.Text, "posting_status", true, null, false)
+                "postingStatus", JetFieldValueKind.Text, "posting_status", true, "過帳碼_JE", false)
         };
 
         Assert.Equal(expected, Flatten(JetFieldCatalog.GlFields, JetFieldCatalog.GlMappingSlots));
@@ -143,8 +137,8 @@ public sealed class JetFieldCatalogTests
     {
         Assert.Same(JetFieldCatalog.GlMappingKeys, GlMappingKeys.All);
         Assert.Same(JetFieldCatalog.TbMappingKeys, TbMappingKeys.All);
-        Assert.Same(JetFieldCatalog.GlCanonicalNames, GlCanonicalNames.Gl);
-        Assert.Same(JetFieldCatalog.TbCanonicalNames, GlCanonicalNames.Tb);
+        // 照樣本範本定的 GlCanonicalNames 依裁定 2026-11-03-11 刪除，輸出欄名只剩欄位目錄的 LegacyFieldName 一份；
+        // 這裡原本對樣本欄名表的檢查一起拿掉。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
 
         Assert.Equal(
             [
@@ -160,32 +154,8 @@ public sealed class JetFieldCatalogTests
             ],
             TbMappingKeys.All);
 
-        Assert.Equal(
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["voucherNumber"] = "傳票號碼_JE",
-                ["lineItem"] = "傳票文件項次_JE_S",
-                ["glDate"] = "總帳日期_JE",
-                ["createdBy"] = "傳票建立人員_JE",
-                ["approvedBy"] = "傳票核准人員_JE",
-                ["accountNumber"] = "會計科目編號_JE",
-                ["accountName"] = "會計科目名稱_JE",
-                ["amount"] = "傳票金額_JE",
-                ["description"] = "傳票摘要_JE"
-            },
-            GlCanonicalNames.Gl);
-        Assert.Equal(
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["accountNumber"] = "會計科目編號_TB",
-                ["accountName"] = "會計科目名稱_TB",
-                ["changeAmount"] = "試算表變動金額_TB"
-            },
-            GlCanonicalNames.Tb);
-        // 原本斷言 TB 配對鍵 amount 不是語意欄鍵；名詞表把配對鍵改成 changeAmount，
-        // 和語意欄同名，改成確認兩者是同一個值。第一次失敗：Focused 收據 20261030-120941513-6c7d1b4be48e4af4a18bea06cc5f413d。
         Assert.Equal(JetFieldCatalog.TbChangeAmount, TbMappingKeys.ChangeAmount);
-        Assert.True(GlCanonicalNames.Tb.ContainsKey(TbMappingKeys.ChangeAmount));
+        Assert.Equal("試算表變動金額_TB", JetFieldCatalog.FindTbSemanticFieldByMappingKey(TbMappingKeys.ChangeAmount).LegacyFieldName);
     }
 
     [Theory]
@@ -330,7 +300,7 @@ public sealed class JetFieldCatalogTests
                 field.Kind,
                 field.SemanticSqlTarget,
                 field.StorageNullable,
-                field.CanonicalName,
+                field.LegacyFieldName,
                 field.IsGenericFilterField,
                 slot.IncludeInMappingUi);
         }).ToArray();

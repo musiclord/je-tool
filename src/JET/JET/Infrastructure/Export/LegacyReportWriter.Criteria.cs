@@ -64,7 +64,7 @@ public sealed partial class LegacyReportWriter
         var counts = await highRiskSummaryCounts.GetCountsAsync(
             context.Project.ProjectId,
             cancellationToken).ConfigureAwait(false);
-        var blankDocumentHitRows = await highRiskSummaryCounts.GetBlankDocumentHitRowCountsAsync(
+        var blankVoucherNumberHitRows = await highRiskSummaryCounts.GetBlankVoucherNumberHitRowCountsAsync(
             context.Project.ProjectId,
             cancellationToken).ConfigureAwait(false);
         var stylesPart = editor.Document.WorkbookPart?.WorkbookStylesPart
@@ -111,7 +111,7 @@ public sealed partial class LegacyReportWriter
             editor,
             context,
             counts,
-            blankDocumentHitRows,
+            blankVoucherNumberHitRows,
             exportedRowCounts,
             operatorId,
             cancellationToken);
@@ -150,7 +150,7 @@ public sealed partial class LegacyReportWriter
         DirectTemplateWorkbookEditor editor,
         CriteriaSelectionReportContext context,
         IReadOnlyDictionary<int, (long VoucherHitCount, long RowHitCount)> counts,
-        IReadOnlyDictionary<int, long> blankDocumentHitRows,
+        IReadOnlyDictionary<int, long> blankVoucherNumberHitRows,
         IReadOnlyDictionary<int, long> exportedRowCounts,
         string operatorId,
         CancellationToken cancellationToken)
@@ -243,8 +243,8 @@ public sealed partial class LegacyReportWriter
                     var conditionParts = FilterConditionExcelText.Parts(conditionLogic ?? scenario.Name);
                     cells.SetInlineString($"B{row}", conditionParts.Count == 1 ? conditionParts[0]
                         : $"完整條件見本頁第 {nextConditionRow} 列起，分段接續列出。");
-                    var blankDocumentRows = blankDocumentHitRows.GetValueOrDefault(position);
-                    if (conditionParts.Count > 1 || blankDocumentRows > 0)
+                    var blankVoucherNumberRows = blankVoucherNumberHitRows.GetValueOrDefault(position);
+                    if (conditionParts.Count > 1 || blankVoucherNumberRows > 0)
                     {
                         var style = part.Worksheet.Descendants<Cell>().Single(cell => cell.CellReference?.Value == $"B{row}").StyleIndex?.Value;
                         if (conditionParts.Count > 1)
@@ -256,13 +256,13 @@ public sealed partial class LegacyReportWriter
                             }
                         }
 
-                        if (blankDocumentRows > 0)
+                        if (blankVoucherNumberRows > 0)
                         {
                             // 空白傳票號碼不是一張傳票，明細表不會列出這些分錄。一般情境的 D 欄是行層命中數，含這些分錄；
                             // 整張傳票情境的 D 欄是明細表的分錄數，不含。摘要頁加一列說明（裁定 2026-10-19-12），數字本身不動。
                             AppendContinuationRow(
                                 $"Criteria Selection {position}（說明）",
-                                $"另有 {CountText.Format(blankDocumentRows)} 筆分錄的傳票號碼空白，未列入明細表。",
+                                $"另有 {CountText.Format(blankVoucherNumberRows)} 筆分錄的傳票號碼空白，未列入明細表。",
                                 style);
                         }
                     }

@@ -17,7 +17,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
     public const string DatabaseFileName = "jet.duckdb";
 
     /// <summary>
-    /// 案件資料庫的現行結構，建成後標成第 15 版，表、欄位與索引名稱和 <see cref="SqliteProjectDatabase"/> 相同。
+    /// 案件資料庫的現行結構，建成後標成第 19 版，表、欄位與索引名稱和 <see cref="SqliteProjectDatabase"/> 相同。
     /// 只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，不是現行版本就請審計員刪除案件後重建
     /// （裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
     /// 和 SQLite 的差異只有三類：(1) SQLite <c>INTEGER PRIMARY KEY AUTOINCREMENT</c> → DuckDB
@@ -71,6 +71,9 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             decimal_places      INTEGER NULL,
             max_rendered_length INTEGER NOT NULL,
             has_observation     INTEGER NOT NULL CHECK (has_observation IN (0,1)),
+            -- 每一欄的來歷與對應的 JET 欄位（裁定 2026-11-03-11）；底稿與報告看這兩欄，不看欄名結尾。
+            field_origin        TEXT NOT NULL CHECK (field_origin IN ('source','renamed','generated','temp')),
+            jet_field           TEXT NULL,
             PRIMARY KEY (batch_id, definition_scope, ordinal)
         );
 
@@ -364,7 +367,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
             SELECT 'filter_data_revision', '0'
             WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'filter_data_revision');
         INSERT INTO schema_info (key, value)
-            SELECT 'schema_version', '18'
+            SELECT 'schema_version', '20'
             WHERE NOT EXISTS (SELECT 1 FROM schema_info WHERE key = 'schema_version');
         """;
 

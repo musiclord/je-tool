@@ -3,7 +3,7 @@
 //
 // 審計員重開案件，到第五步「已儲存情境」看每個已存情境的條件句子。舊情境可能含文字值清單（textSet）、
 // 組內 AND 與 OR 混用、攸關資料元素條件（typed）；這些現在的畫面已經做不出來，但重開時要照樣讀得懂，
-// 而且讀回不能改動已存的條件。裁定 2026-10-13-14 選「照建議做」，選項說明寫明
+// 而且讀回不能改動已存的條件。使用者選了「照建議做」（裁定 2026-10-13-14），選項說明寫明
 // 「舊情境裡的舊式條件維持現在能顯示、能編輯，一樣補測試。」編輯部分在 frontend-journey-filter-saved.test.cjs，這個檔只測讀回。
 //
 // 預期句子寫死在 tools/tests/fixtures/filter-readback-sentences.json，前後端共用同一份：
@@ -90,7 +90,7 @@ test('readback: a typed condition uses the current field label, follows a rename
   f.store.setSavedScenarios(f.state.filter.savedScenarios.slice());
   assert.deepEqual(savedReadbacks(f), ['改名後金額 介於「10」～「20.5」（金額絕對值）']);
 
-  // 裁定 2026-10-14-01 確認了用字：欄位已不在配對裡時寫「已不在欄位配對中的攸關資料元素欄位」，
+  // 用字依裁定 2026-10-14-01：欄位已不在配對裡時寫「已不在欄位配對中的攸關資料元素欄位」，
   // 不印識別碼，也不接金額比較基準；前後端同一句（第一次失敗：FrontendMapping 收據
   // 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   f.state.mapping.gl.committed = { options: { rdeFields: [] } };

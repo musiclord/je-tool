@@ -20,7 +20,7 @@ internal static class GuiScenarioCatalog
     internal const string FilterAuditorJourney = "filter-auditor-journey";
     internal const string FilterCommonEditing = "filter-common-editing";
     internal const string FeedbackWorkflow = "feedback-workflow";
-    internal const string NullDetailsRecovery = "null-details-recovery";
+    internal const string BlankDetailsRecovery = "blank-details-recovery";
     internal const string CommonRemapRecovery = "common-remap-recovery";
     internal const string ExtendedConditions = "extended-conditions";
     internal const string SideMonthWorkflow = "side-month-workflow";
@@ -43,7 +43,7 @@ internal static class GuiScenarioCatalog
         [FilterAuditorJourney] = ["seed-export-ready-project", "minimum-window-125"],
         [FilterCommonEditing] = ["seed-export-ready-project", "minimum-window-125", "legacy-card-scenario"],
         [FeedbackWorkflow] = ["seed-export-ready-project"],
-        [NullDetailsRecovery] = ["seed-export-ready-project", "data-recovery-source", "fail-null-search-once"],
+        [BlankDetailsRecovery] = ["seed-export-ready-project", "data-recovery-source", "fail-blank-search-once"],
         [CommonRemapRecovery] = ["seed-export-ready-project", "data-recovery-source"],
         [AuthorizedListRecovery] = ["seed-export-ready-project", "authorized-list-source", "fail-authorized-import-once"],
         [ExtendedConditions] = ["seed-export-ready-project"],
@@ -215,7 +215,7 @@ internal sealed class GuiAssertions
     internal bool WorkingPaperHistoryPaginationVerified { get; set; }
     internal bool FilterWorkflowVerified { get; set; }
     internal bool FeedbackWorkflowVerified { get; set; }
-    internal bool NullDetailsRecoveryVerified { get; set; }
+    internal bool BlankDetailsRecoveryVerified { get; set; }
     internal bool CommonRemapRecoveryVerified { get; set; }
     internal bool ExtendedConditionsVerified { get; set; }
     internal bool SideMonthWorkflowVerified { get; set; }
@@ -389,7 +389,7 @@ internal static class ManifestWriter
                 filledTemplatePreservedAfterValidation = outcome.Assertions.FilledTemplatePreservedAfterValidation,
                 filterWorkflowVerified = outcome.Assertions.FilterWorkflowVerified,
                 feedbackWorkflowVerified = outcome.Assertions.FeedbackWorkflowVerified,
-                nullDetailsRecoveryVerified = outcome.Assertions.NullDetailsRecoveryVerified,
+                blankDetailsRecoveryVerified = outcome.Assertions.BlankDetailsRecoveryVerified,
                 commonRemapRecoveryVerified = outcome.Assertions.CommonRemapRecoveryVerified,
                 extendedConditionsVerified = outcome.Assertions.ExtendedConditionsVerified,
                 sideMonthWorkflowVerified = outcome.Assertions.SideMonthWorkflowVerified,

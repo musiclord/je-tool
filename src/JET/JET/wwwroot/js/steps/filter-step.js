@@ -33,7 +33,7 @@
   var fillSmoothly = forward('fillSmoothly');
   var smoothScroll = forward('smoothScroll');
   var commonPickerHtml = forward('commonPickerHtml');
-  var customPickerHtml = forward('customPickerHtml');
+  var fieldPickerHtml = forward('fieldPickerHtml');
   var prescreenPickerHtml = forward('prescreenPickerHtml');
   var effectiveConditionJoin = forward('effectiveConditionJoin');
   var readBackHtml = forward('readBackHtml');
@@ -217,11 +217,11 @@
           '<div class="filter-workbench"><aside class="filter-entry" tabindex="-1" aria-label="加入篩選條件">' +
             '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3></div>' + conditionTargetHtml(draft) +
             '<div class="filter-source-tabs" role="tablist" aria-label="條件來源">' + sourceButton('common', '常用篩選條件') + sourceButton('prescreen', '預篩選') +
-              sourceButton('custom', '自訂篩選條件') + '</div>' +
+              sourceButton('field', '欄位條件') + '</div>' +
             '<div class="filter-entry-scroll" data-preserve-scroll="filter-condition-catalog">' +
             '<div' + conditionPaneAttributes('common') + '>' + commonPickerHtml(draft) + '</div>' +
             '<div' + conditionPaneAttributes('prescreen') + '>' + prescreenPickerHtml() + '</div>' +
-            '<div' + conditionPaneAttributes('custom') + '>' + customPickerHtml() + '</div>' +
+            '<div' + conditionPaneAttributes('field') + '>' + fieldPickerHtml() + '</div>' +
           '</div></aside><div class="filter-current">' + scenarioBuilderHtml(draft) + previewPaneHtml(state.filter.preview) + '</div></div>' +
         '</section>' +
         '<section data-filter-pane="saved" id="filter-pane-saved" role="tabpanel" aria-labelledby="filter-tab-saved" data-motion-pane data-motion-key="filter-pane-saved"' + (FilterStep.viewState.workspacePane === 'saved' ? '' : ' hidden') + '>' +

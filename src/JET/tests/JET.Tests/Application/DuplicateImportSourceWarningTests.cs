@@ -33,7 +33,7 @@ public sealed class DuplicateImportSourceWarningTests
         Assert.Equal(warnings, actual.Length);
         if (warnings == 1)
         {
-            // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
             Assert.Contains("已照常加入；請確認是否重複匯入", actual[0]);
             Assert.Contains("same.xlsx", actual[0]);
             Assert.Contains("First", actual[0]);

@@ -46,14 +46,14 @@ public sealed class LocalHighRiskSummaryScenariosRepository(ILocalProjectDatabas
             connection, schemaPrefix: string.Empty, "COUNT(*)", scenarioPositions, cancellationToken);
     }
 
-    public async Task<IReadOnlyDictionary<int, long>> GetBlankDocumentHitRowCountsAsync(
+    public async Task<IReadOnlyDictionary<int, long>> GetBlankVoucherNumberHitRowCountsAsync(
         string projectId, CancellationToken cancellationToken)
     {
         await database.EnsureReadyAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        return await HighRiskSummaryScenarioCounts.ReadBlankDocumentRowCountsAsync(
+        return await HighRiskSummaryScenarioCounts.ReadBlankVoucherNumberRowCountsAsync(
             connection, schemaPrefix: string.Empty, "COUNT(*)", cancellationToken);
     }
 }

@@ -799,7 +799,7 @@ public sealed class SqliteRepositoryTests
     /// oracle：規格（旗標邏輯與 ReadBlankRecordsAsync 對稱；「核准日不在期間」以核准日判定；全正常列不出現；LIMIT 50）。
     /// </summary>
     [Fact]
-    public async Task Validation_NullDetail_FlagsEachIssuePerRow_AndCaps()
+    public async Task Validation_BlankDetail_FlagsEachIssuePerRow_AndCaps()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -874,18 +874,18 @@ public sealed class SqliteRepositoryTests
         // 只有 NR1（空科目+空摘要）與 NR2（日期超出）出現；NR3 全正常不出現
         Assert.Equal(2, result.BlankRecordRows.Count);
 
-        // NR1：空科目（NullAccount=true）+ 空摘要（NullDescription=true）；文件號非空
+        // NR1：空科目（BlankAccountNumber=true）+ 空摘要（BlankDescription=true）；文件號非空
         var nr1 = result.BlankRecordRows.Single(r => r.VoucherNumber == "NR1");
-        Assert.True(nr1.NullAccount);
-        Assert.False(nr1.NullDocument);
-        Assert.True(nr1.NullDescription);
+        Assert.True(nr1.BlankAccountNumber);
+        Assert.False(nr1.BlankVoucherNumber);
+        Assert.True(nr1.BlankDescription);
         Assert.False(nr1.ApprovalDateNotInPeriod);
 
         // NR2：日期超出期間（ApprovalDateNotInPeriod=true）；科目、傳票、摘要均正常
         var nr2 = result.BlankRecordRows.Single(r => r.VoucherNumber == "NR2");
-        Assert.False(nr2.NullAccount);
-        Assert.False(nr2.NullDocument);
-        Assert.False(nr2.NullDescription);
+        Assert.False(nr2.BlankAccountNumber);
+        Assert.False(nr2.BlankVoucherNumber);
+        Assert.False(nr2.BlankDescription);
         Assert.True(nr2.ApprovalDateNotInPeriod);
 
         // NR3 全正常，不出現

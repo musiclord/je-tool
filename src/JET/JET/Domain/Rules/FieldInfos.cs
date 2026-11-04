@@ -1,8 +1,29 @@
 namespace JET.Domain;
 
 /// <summary>
+/// 欄位資訊裡每一欄的來歷（裁定 2026-11-03-11）。底稿與報告看這個欄位判斷哪一欄是 JET 欄位，
+/// 不再看欄名結尾是不是 _JE、_TB，也不再看說明文字是否空白。
+/// </summary>
+internal enum FieldInfoOrigin
+{
+    /// <summary>原始來源欄，沒有配對。欄名撞到 JET 欄名時讓名成「原名（來源）」，說明欄寫原名（裁定 2026-11-03-12）。</summary>
+    Source,
+
+    /// <summary>配對後在原位置改名的來源欄，說明欄寫來源欄名；攸關資料元素也算這一類。</summary>
+    Renamed,
+
+    /// <summary>系統產生的欄，例如傳票金額_JE、同總帳日期的傳票核准日_JE、自動編號的傳票文件項次與過帳碼_JE。</summary>
+    Generated,
+
+    /// <summary>數字型傳票號碼或科目編號轉成文字前的原欄，照 IDEA 的叫法加 _Temp。</summary>
+    Temp
+}
+
+/// <summary>
 /// 一個已持久化欄位定義的完整合併狀態。MaxRenderedLength 與 HasObservation
 /// 是 Append 所需的內部證據；對外 facts 只投影 Legacy TableDef 會使用的欄位。
+/// Origin 是這一欄的來歷，JetField 是它對應的 JET 欄位：標準欄寫語意欄名稱（例如 glDate），
+/// 攸關資料元素寫它的 fieldId；原始來源欄沒有對應的 JET 欄位。
 /// </summary>
 internal sealed record FieldInfoState(
     int Ordinal,
@@ -12,11 +33,18 @@ internal sealed record FieldInfoState(
     int TextLength,
     int? DecimalPlaces,
     int MaxRenderedLength,
-    bool HasObservation);
+    bool HasObservation,
+    FieldInfoOrigin Origin = FieldInfoOrigin.Source,
+    string? JetField = null)
+{
+    /// <summary>配對後改名與系統產生的欄位才是 JET 欄位；原始來源欄與 _Temp 原欄不是。</summary>
+    internal bool IsJetField => Origin is FieldInfoOrigin.Renamed or FieldInfoOrigin.Generated;
+}
 
 /// <summary>
 /// 匯入同一遍列串流中的欄位定義彙總器。狀態量只隨欄數成長；空值不提供型態證據，
 /// 同欄不同型態永久降為 Text，Append 可由持久化 state 恢復後繼續合併。
+/// 這裡只處理來源範圍的欄位，所以每一欄的來歷都是原始來源欄。
 /// </summary>
 internal sealed class FieldInfoAccumulator
 {
@@ -116,7 +144,9 @@ internal sealed class FieldInfoAccumulator
             int textLength,
             int? decimalPlaces,
             int maxRenderedLength,
-            bool hasObservation)
+            bool hasObservation,
+            FieldInfoOrigin origin,
+            string? jetField)
         {
             Ordinal = ordinal;
             FieldName = fieldName;
@@ -126,6 +156,8 @@ internal sealed class FieldInfoAccumulator
             DecimalPlaces = decimalPlaces;
             MaxRenderedLength = maxRenderedLength;
             HasObservation = hasObservation;
+            Origin = origin;
+            JetField = jetField;
         }
 
         private int Ordinal { get; }
@@ -136,6 +168,8 @@ internal sealed class FieldInfoAccumulator
         private int? DecimalPlaces { get; set; }
         private int MaxRenderedLength { get; set; }
         private bool HasObservation { get; set; }
+        private FieldInfoOrigin Origin { get; }
+        private string? JetField { get; }
 
         internal static MutableField Empty(int ordinal, string fieldName) =>
             new(
@@ -146,7 +180,9 @@ internal sealed class FieldInfoAccumulator
                 textLength: 0,
                 decimalPlaces: null,
                 maxRenderedLength: 0,
-                hasObservation: false);
+                hasObservation: false,
+                FieldInfoOrigin.Source,
+                jetField: null);
 
         internal static MutableField From(FieldInfoState definition) =>
             new(
@@ -157,7 +193,9 @@ internal sealed class FieldInfoAccumulator
                 definition.TextLength,
                 definition.DecimalPlaces,
                 definition.MaxRenderedLength,
-                definition.HasObservation);
+                definition.HasObservation,
+                definition.Origin,
+                definition.JetField);
 
         internal void Observe(TabularCellObservation observation)
         {
@@ -197,6 +235,8 @@ internal sealed class FieldInfoAccumulator
                 HasObservation && Kind == LegacyFieldKind.Text ? MaxRenderedLength : 0,
                 HasObservation && Kind == LegacyFieldKind.Number ? DecimalPlaces : null,
                 MaxRenderedLength,
-                HasObservation);
+                HasObservation,
+                Origin,
+                JetField);
     }
 }

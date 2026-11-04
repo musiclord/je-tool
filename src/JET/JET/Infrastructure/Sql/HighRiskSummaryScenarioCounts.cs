@@ -76,7 +76,7 @@ internal static class HighRiskSummaryScenarioCounts
     /// 各情境命中列中傳票號碼空白的分錄數：行層命中數裡，<see cref="HighRiskSummaryRowPageReader"/> 不會展開的那一部分。
     /// 兩 provider 只差 COUNT 與 COUNT_BIG 及 schema 前綴。
     /// </summary>
-    public static async Task<IReadOnlyDictionary<int, long>> ReadBlankDocumentRowCountsAsync(
+    public static async Task<IReadOnlyDictionary<int, long>> ReadBlankVoucherNumberRowCountsAsync(
         DbConnection connection, string schemaPrefix, string countExpression, CancellationToken cancellationToken) =>
         await ReadPositionCountsAsync(
             connection,

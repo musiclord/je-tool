@@ -190,7 +190,7 @@ public sealed class TypedFieldCompilationTests
     public void UnknownField_FailsLoudWithoutShowingTheInternalFieldId_EvenWithoutValidation()
     {
         // 欄位已移除時不顯示 rde. 內部代號（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         // 原本註解說「重新計算時這則訊息會原樣列給審計員」，因為 materialize 會繞過驗證器；現在 FilterHitMaterializeService
         // 在編譯前一律先跑 FilterScenarioValidator，驗證器會先寫出 V12，編譯時的這個檢查只在驗證器與執行時檢查不一致
         // （程式錯誤）時才會走到。所以畫面改顯示非預期錯誤那一句，檢查代號記進支援日誌，錯誤代碼仍是 invalid_scenario。
@@ -208,7 +208,7 @@ public sealed class TypedFieldCompilationTests
     public void OperatorIncompatibleWithCurrentType_FailsLoudNamingTheField()
     {
         // type-changed lifecycle 的編譯端最後防線：仍不得編出錯型別 SQL。
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         // 原本註解說 validator 會被 materialize 重新解析已存 JSON 時繞過；現在 FilterHitMaterializeService 在編譯前一律
         // 先驗證，驗證器會先寫出 V14，走到這裡只會是驗證器與執行時檢查不一致的程式錯誤。原本鎖「攸關資料元素欄位「稅額」」
         // 的斷言改鎖非預期錯誤那一句與檢查代號；不顯示 rde. 內部代號的斷言照留。

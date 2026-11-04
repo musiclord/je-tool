@@ -954,7 +954,7 @@ test('unsupported-provider source checking remains explicitly unknown and does n
   f.pending[0].resolve({ blankCount: 0, distinctCount: 80, truncated: true, values: [{ value: 'HEAD', count: 10 }],
     comparisonGroups: [['HEAD'], ['TAIL']], missingComparisonValues: null, sourceValueCheckStatus: 'unsupportedProvider' }); await settle();
   const html = f.render().html;
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.ok(html.includes('<p class="map-options__note">線上案件無法核對清單代碼是否出現在來源中，仍可確認配對。</p>'));
   assert.doesNotMatch(html, /尚未支援來源值存在性查詢/);
   assert.doesNotMatch(html, /來源裡沒有這個值/);
@@ -1350,7 +1350,7 @@ test('single-side codes not yet checked against the source are named before conf
   f.store.patchGlMappingOptions({ manualAutoPolicy: { manualValues: ['1'], automaticValues: [],
     unlistedValueKind: 'automatic', blankValueKind: 'automatic' } });
   let html = f.render().html;
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。一個代碼寫「此代碼」，多個寫「這些代碼」。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。一個代碼寫「此代碼」，多個寫「這些代碼」。
   // 裁定 2026-10-14-02：黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）；拿掉「可先按「讀取來源值」確認」，按鈕就在旁邊。
   assert.match(preflight(html),
     /人工分錄代碼「1」尚未與來源核對；來源沒有此代碼時，有值的列都會視為自動分錄。<\/li>/);

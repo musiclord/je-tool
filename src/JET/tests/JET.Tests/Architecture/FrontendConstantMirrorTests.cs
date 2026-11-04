@@ -76,9 +76,10 @@ public sealed class FrontendConstantMirrorTests
         Assert.Equal(6, TrailingZeroThreshold.DefaultZerosThreshold);
         // 尾數條件改用欄位尾數與至少一元的子條件組；六位預設仍來自同一常數。
         // 首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
+        // 2026-11-03 改成一條條件，新增「尾數連續多個 0」比較方式（裁定 2026-11-03-07）：原本核對尾數樣態與至少一元兩條子條件，
+        // 改核對新的比較方式；預設個數仍取同一個六個零的門檻常數。第一次失敗：Focused 收據 20261103-100726697-97e6c3f1045d4beda092d17c7bec9ecb。
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
-        Assert.Contains("operator: 'endsWithDigits', value: '0'.repeat(PRESCREEN_DEFAULTS.trailingZeroDigits)", core, StringComparison.Ordinal);
-        Assert.Contains("operator: 'greaterThanOrEqual', value: '1', amountBasis: 'absolute'", core, StringComparison.Ordinal);
+        Assert.Contains("operator: 'endsWithZeros', value: String(PRESCREEN_DEFAULTS.trailingZeroDigits)", core, StringComparison.Ordinal);
     }
 
     [Fact]

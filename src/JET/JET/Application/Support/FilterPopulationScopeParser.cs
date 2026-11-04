@@ -155,7 +155,7 @@ internal static class FilterPopulationScopeParser
 
     /// <summary>
     /// 沒有任何已存情境時的原因；上游修改清除全部情境後最常遇到。畫面把錯誤代碼 no_saved_scenario 當成前置條件不足，
-    /// 寫成「〈作業名稱〉尚無法執行：〈原因〉。」（裁定 2026-10-14-01 確認了用字）。
+    /// 寫成「〈作業名稱〉尚無法執行：〈原因〉。」（用字依裁定 2026-10-14-01）。
     /// </summary>
     internal const string NoSavedScenarios =
         "尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境";

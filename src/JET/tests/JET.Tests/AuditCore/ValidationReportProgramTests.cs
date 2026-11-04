@@ -18,15 +18,15 @@ public sealed class ValidationReportProgramTests
     {
         var plan = JetAuditProgram.Finalize(
             JetAuditProgram.Plan(Request(
-                nullAccountCount: count,
-                nullDocumentCount: count,
-                nullDescriptionCount: count,
+                blankAccountNumberCount: count,
+                blankVoucherNumberCount: count,
+                blankDescriptionCount: count,
                 approvalDateNotInPeriodCount: count)),
             new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0));
 
-        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.NullAccount).Disposition);
-        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.NullDocument).Disposition);
-        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.NullDescription).Disposition);
+        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.BlankAccountNumber).Disposition);
+        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.BlankVoucherNumber).Disposition);
+        Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.BlankDescription).Disposition);
         Assert.Equal((ValidationReportDetailDisposition)expected, plan.RequireDetail(ValidationReportDetailKind.ApprovalDateNotInPeriod).Disposition);
         Assert.Equal(6, plan.Details.Count);
     }
@@ -36,13 +36,13 @@ public sealed class ValidationReportProgramTests
     {
         // 驗證時傳票核准日不可用，筆數是 null；報告不讀這份明細，摘要的 N/A 由寫出器照同一個結果寫（裁定 2026-10-23-01）。
         var plan = JetAuditProgram.Finalize(
-            JetAuditProgram.Plan(Request(nullAccountCount: 2) with { ApprovalDateNotInPeriodCount = null }),
+            JetAuditProgram.Plan(Request(blankAccountNumberCount: 2) with { ApprovalDateNotInPeriodCount = null }),
             new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0));
 
         var detail = plan.RequireDetail(ValidationReportDetailKind.ApprovalDateNotInPeriod);
         Assert.Equal(ValidationReportDetailDisposition.Omit, detail.Disposition);
         Assert.Equal(0, detail.Count);
-        Assert.Equal(ValidationReportDetailDisposition.Emit, plan.RequireDetail(ValidationReportDetailKind.NullAccount).Disposition);
+        Assert.Equal(ValidationReportDetailDisposition.Emit, plan.RequireDetail(ValidationReportDetailKind.BlankAccountNumber).Disposition);
     }
 
     [Theory]
@@ -84,7 +84,7 @@ public sealed class ValidationReportProgramTests
     [Fact]
     public void Finalize_RejectsNegativeSavedOrProviderCounts()
     {
-        var negativeSaved = JetAuditProgram.Plan(Request(nullAccountCount: -1));
+        var negativeSaved = JetAuditProgram.Plan(Request(blankAccountNumberCount: -1));
         var valid = JetAuditProgram.Plan(Request());
 
         Assert.Throws<ArgumentOutOfRangeException>(() => JetAuditProgram.Finalize(
@@ -104,7 +104,7 @@ public sealed class ValidationReportProgramTests
             new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0));
 
         Assert.Throws<InvalidOperationException>(() =>
-            unfinalized.RequireDetail(ValidationReportDetailKind.NullAccount));
+            unfinalized.RequireDetail(ValidationReportDetailKind.BlankAccountNumber));
         Assert.Throws<InvalidOperationException>(() => JetAuditProgram.Finalize(
             finalized,
             new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0)));
@@ -112,17 +112,17 @@ public sealed class ValidationReportProgramTests
 
     private static ValidationReportRequest Request(
         long completenessDiffAccountCount = 0,
-        long nullAccountCount = 0,
-        long nullDocumentCount = 0,
-        long nullDescriptionCount = 0,
+        long blankAccountNumberCount = 0,
+        long blankVoucherNumberCount = 0,
+        long blankDescriptionCount = 0,
         long approvalDateNotInPeriodCount = 0) =>
         new(
             ProjectId: "project-1",
             PeriodStart: "2025-01-01",
             PeriodEnd: "2025-12-31",
             CompletenessDiffAccountCount: completenessDiffAccountCount,
-            NullAccountCount: nullAccountCount,
-            NullDocumentCount: nullDocumentCount,
-            NullDescriptionCount: nullDescriptionCount,
+            BlankAccountNumberCount: blankAccountNumberCount,
+            BlankVoucherNumberCount: blankVoucherNumberCount,
+            BlankDescriptionCount: blankDescriptionCount,
             ApprovalDateNotInPeriodCount: approvalDateNotInPeriodCount);
 }

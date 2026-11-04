@@ -131,7 +131,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
                 var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
                 conditionFieldLabels = (mapping?.GlOptions?.RdeFields ?? []).ToDictionary(field => field.FieldId, field => field.Label);
             }
-            var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels, conditionCategories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd);
+            var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels, conditionCategories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true);
             scenarioSelections.Add(new WorkingPaperScenarioSelection(
                 scenario.Position,
                 scenario.Name,

@@ -317,6 +317,9 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             host,
             gl =>
             {
+                // 裁定 2026-11-03-11 之後 step4-1 只列 JET 欄位，沒有配對、只是欄名以 _JE 結尾的來源欄不再進表。
+                // 晚頁最大值、欄寬上限與時間型原始值改由配對成分錄來源模組、傳票建立人員與傳票核准人員的來源欄檢查，
+                // 列的順序記在傳票摘要。第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
                 gl.WithColumns(
                     "傳票號碼",
                     "傳票項次",
@@ -327,10 +330,9 @@ public sealed class WorkingPaperWriterStep3Step4Tests
                     "摘要",
                     "金額",
                     "借方旗標",
-                    "ROW_TOKEN_JE",
-                    "LATE_NOCAP_JE",
-                    "LATE_CAP_JE",
-                    "時間_JE");
+                    "來源模組",
+                    "建立人員",
+                    "核准人員");
                 for (var index = 1; index <= rowCount; index++)
                 {
                     gl.AddRow(
@@ -340,10 +342,9 @@ public sealed class WorkingPaperWriterStep3Step4Tests
                         "2025-03-06",
                         "1101",
                         "現金",
-                        "命中",
+                        $"命中 SEQ-{index:D4}",
                         index == rowCount ? 123.4567m : 1m,
                         index == rowCount ? 0 : 1,
-                        $"SEQ-{index:D4}",
                         index == rowCount ? new string('L', 60) : "short",
                         index == rowCount ? new string('界', 150) : "short",
                         index == rowCount
@@ -398,10 +399,10 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         var headers = plan.Step41Columns.Select(column => column.Header)
             .Concat(["C1_TAG"])
             .ToArray();
-        var tokenColumn = Array.IndexOf(headers, "ROW_TOKEN_JE") + 1;
-        var noCapColumn = Array.IndexOf(headers, "LATE_NOCAP_JE") + 1;
-        var capColumn = Array.IndexOf(headers, "LATE_CAP_JE") + 1;
-        var timeColumn = Array.IndexOf(headers, "時間_JE") + 1;
+        var tokenColumn = Array.IndexOf(headers, "傳票摘要_JE") + 1;
+        var noCapColumn = Array.IndexOf(headers, "分錄來源模組_JE") + 1;
+        var capColumn = Array.IndexOf(headers, "傳票建立人員_JE") + 1;
+        var timeColumn = Array.IndexOf(headers, "傳票核准人員_JE") + 1;
         var amountColumn = Array.IndexOf(headers, "傳票金額_JE") + 1;
         var tagColumn = headers.Length;
         Assert.All(
@@ -417,8 +418,8 @@ public sealed class WorkingPaperWriterStep3Step4Tests
                 Enumerable.Range(1, headers.Length)
                     .Select(column => sheet.Cell(5, column).GetString())
                     .ToArray());
-            Assert.Equal("SEQ-0001", sheet.Cell(6, tokenColumn).GetString());
-            Assert.Equal($"SEQ-{rowCount:D4}", sheet.Cell(5 + rowCount, tokenColumn).GetString());
+            Assert.Equal("命中 SEQ-0001", sheet.Cell(6, tokenColumn).GetString());
+            Assert.Equal($"命中 SEQ-{rowCount:D4}", sheet.Cell(5 + rowCount, tokenColumn).GetString());
             Assert.Equal(
                 new string('L', 60),
                 sheet.Cell(5 + rowCount, noCapColumn).GetString());
@@ -449,7 +450,8 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             .ToDictionary(column => checked((int)column.Min!.Value));
         Assert.Equal(71d, widths[noCapColumn].Width!.Value);
         Assert.Equal(255d, widths[capColumn].Width!.Value);
-        Assert.Equal(12d, widths[timeColumn].Width!.Value);
+        // 時間欄改配成傳票核准人員後，欄寬由表頭「傳票核准人員_JE」決定，不再是資料值的 12。第一次失敗：Focused 收據 20261103-065908057-75f1700835174f1eb2aca3d836756e5e。
+        Assert.Equal(20d, widths[timeColumn].Width!.Value);
         Assert.All(widths.Values, column => Assert.True(column.BestFit?.Value));
     }
 

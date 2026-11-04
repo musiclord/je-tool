@@ -29,7 +29,7 @@ public static class FilterConditionLabels
             ["numRange"] = "金額區間",
             ["dateRange"] = "日期區間",
             ["drCrOnly"] = "借貸限定",
-            ["manualAuto"] = "人工/自動",
+            ["manualAuto"] = "人工/自動分錄",
             ["accountPair"] = "借貸科目組合（看對方科目）",
             ["specialAccountCategoryPair"] = "借貸科目組合",
             ["entityFrequency"] = "科目與人員統計",
@@ -37,11 +37,12 @@ public static class FilterConditionLabels
             ["voucher"] = "整張傳票條件",
             ["typed"] = "攸關資料元素條件",
             ["fieldValue"] = "欄位值比較",
-            ["accountSide"] = "借貸科目分類",
-            ["revenueDebitNearQuarterEnd"] = "季末前借記收入",
-            ["revenueWithoutNormalCounterpart"] = "收入無一般對方科目",
+            // 型別標籤和卡片名稱統一（裁定 2026-11-03-10）。
+            ["accountSide"] = "科目分類",
+            ["revenueDebitNearQuarterEnd"] = "在該季度前 X 天借記收入",
+            ["revenueWithoutNormalCounterpart"] = "貸方為收入但借方非一般對方科目",
             ["manualRevenueEntry"] = "收入之人工分錄",
-            ["preparerEqualsApprover"] = "編製與核准同一人",
+            ["preparerEqualsApprover"] = "編製人員與核准人員相同",
         };
 
     /// <summary>預篩選 row-tag 鍵 → 中文標籤，由規則登錄衍生（前端 <c>PRESCREEN_RULES</c> 的 label 鏡像）。</summary>
@@ -109,14 +110,14 @@ public static class FilterConditionLabels
                 static field => field.MappingSlots.Single(static slot => slot.IncludeInFieldInfo).Label,
                 StringComparer.Ordinal);
 
-    /// <summary>排除補班日的非營業日子條件組讀回（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
-    public const string NonBusinessDayAtom = "非營業日（排除補班日）";
+    /// <summary>2026-11-03 以前非營業日卡片加入的子條件組讀回；已儲存情境照舊這樣寫（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
+    public const string NonBusinessDayAtom = "非營業日";
 
     public const string TextSetContainsAny = "包含任一值";
 
     public const string TextSetExactAny = "完全符合任一值";
 
-    // 裁定 2026-10-14-01 確認了用字：「ASCII 空白」改說半形空白。
+    // 用字依裁定 2026-10-14-01：「ASCII 空白」改說半形空白。
     public const string TextSetPreserveAsciiSpaces = "保留半形空白";
 
     public const string TextSetRemoveAsciiSpaces = "移除半形空白";

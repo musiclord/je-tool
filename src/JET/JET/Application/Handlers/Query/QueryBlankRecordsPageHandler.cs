@@ -50,9 +50,9 @@ public sealed class QueryBlankRecordsPageHandler(
     /// <summary>白名單 switch:非法值丟 invalid_payload(不接受任意字串)。</summary>
     private static BlankRecordCategory ParseCategory(string category) => category switch
     {
-        "nullAccount" => BlankRecordCategory.NullAccount,
-        "nullDocument" => BlankRecordCategory.NullDocument,
-        "nullDescription" => BlankRecordCategory.NullDescription,
+        "blankAccountNumber" => BlankRecordCategory.BlankAccountNumber,
+        "blankVoucherNumber" => BlankRecordCategory.BlankVoucherNumber,
+        "blankDescription" => BlankRecordCategory.BlankDescription,
         "approvalDateNotInPeriod" => BlankRecordCategory.ApprovalDateNotInPeriod,
         _ => throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "blank_records_category_invalid")
     };

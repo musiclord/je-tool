@@ -126,7 +126,7 @@ public sealed class KeysetPagingTests
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(null, 10, new PageSort("entry_id; DROP TABLE x", PageSortDirection.Ascending)), Catalog));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送表頭上的排序鍵，
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送表頭上的排序鍵，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現，檢查代號記進支援日誌。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
         Assert.Equal("sort_key_invalid", JetPayloadRejection.CheckOf(error));

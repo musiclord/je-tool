@@ -15,7 +15,7 @@ public sealed class JetProjectFolderTests
         var exception = Assert.Throws<JetActionException>(() => folder.GetProjectDirectory(@"..\..\evil"));
 
         Assert.Equal(JetErrorCodes.ProjectNotFound, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。案件識別碼由案件清單帶來，
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。案件識別碼由案件清單帶來，
         // 格式錯誤只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現在訊息。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
         Assert.Equal("project_id_invalid", JetPayloadRejection.CheckOf(exception));

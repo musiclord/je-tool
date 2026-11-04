@@ -402,7 +402,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), SafeDesc(), SafeDesc());
         }
 
-        // descNull 空白摘要:借方行的摘要留空(設計內共觸發 V4 nullDescription)
+        // descNull 空白摘要:借方行的摘要留空(設計內共觸發 V4 blankDescription)
         for (var i = 0; i < BlankDescriptionVouchers; i++)
         {
             var post = NextWeekday();

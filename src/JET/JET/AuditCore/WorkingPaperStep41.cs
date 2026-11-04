@@ -21,7 +21,8 @@ internal sealed record WorkingPaperStep41SourceRow(
     string? SourceModule,
     bool? IsManual,
     string RawJson,
-    IReadOnlyList<int> MatchedPositions);
+    IReadOnlyList<int> MatchedPositions,
+    string? PostingStatus = null);
 
 /// <summary>一頁 export-only step4-1 rows；NextCursor 是不透明 composite keyset cursor。</summary>
 internal sealed record WorkingPaperStep41Page(

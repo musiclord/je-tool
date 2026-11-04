@@ -72,7 +72,7 @@ function validationData(resultId = 'v-operations') {
       eligibility: { isEligible: true, reason: null, warning: null } },
     voucherBalanceTest: { unbalancedVoucherCount: 0 },
     infSamplingTest: { sampleSize: 0 },
-    blankRecordsTest: { nullDocumentCount: 0, nullAccountCount: 0, nullDescriptionCount: 0, approvalDateNotInPeriodCount: 0, nullRows: [] },
+    blankRecordsTest: { blankVoucherNumberCount: 0, blankAccountNumberCount: 0, blankDescriptionCount: 0, approvalDateNotInPeriodCount: 0, blankRows: [] },
     sourceQuality: { findingCount: 0, sampleRows: [] }
   };
 }
@@ -88,7 +88,7 @@ test('validation and the prescreen show a monotonic elapsed time and the long-op
   assert.equal(f.state().busy, true);
   assert.equal(f.state().activeRequestId, run.requestId);
   assert.match(f.overlay.label(), /驗證/);
-  // 長作業提示：裁定 2026-10-14-01 確認了用字（final-wording-r3.json），取代 2026-08-20 核准的舊句。
+  // 長作業提示：用字依裁定 2026-10-14-01（final-wording-r3.json），取代 2026-08-20 核准的舊句。
   assert.equal(f.overlay.guidance(), '資料量大時需要較長時間，可按「取消作業」中止。');
   assert.match(f.overlay.elapsed(), /00:00/);
   assert.deepEqual(f.overlay.cancel(), { text: '取消作業', disabled: false });
@@ -112,7 +112,7 @@ test('validation and the prescreen show a monotonic elapsed time and the long-op
   assert.ok(f.overlay.elapsed() === null && f.overlay.guidance() === null && f.overlay.cancel() === null, 'elapsed time, guidance and cancel are hidden');
   assert.equal(f.$('[data-bind="busy-elapsed"]').textContent, '');
   assert.equal(f.liveIntervals().length, 0, 'the elapsed clock stops');
-  // 成功時只留一則完成句，耗時接在後面：裁定 2026-10-13-28 確認了用字（final-wording.json），「耗時寫成 2 分 51 秒」是裁定 2026-10-13-17。
+  // 成功時只留一則完成句，耗時接在後面：用字依裁定 2026-10-13-28（final-wording.json），「耗時寫成 2 分 51 秒」是裁定 2026-10-13-17。
   assert.deepEqual(f.messages().filter(m => /^資料驗證完成/.test(m.text)), [{ text: '資料驗證完成，耗時 1 分 5 秒。', level: 'info' }]);
 
   // 預篩選也是長作業，同一句提示。
@@ -121,7 +121,7 @@ test('validation and the prescreen show a monotonic elapsed time and the long-op
   assert.equal(f.overlay.guidance(), '資料量大時需要較長時間，可按「取消作業」中止。');
   f.clock.advance(4200);
   f.reply(prescreen, plain(remapPrescreen('p-operations'))); await flush();
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json）。
+  // 用字依裁定 2026-10-13-28（final-wording.json）。
   assert.deepEqual(f.messages()[0], { text: '預篩選已更新，耗時 4.2 秒。', level: 'info' });
   assert.equal(f.overlay.guidance(), null);
 
@@ -198,7 +198,7 @@ test('pressing another operation while one is running sends nothing, keeps the r
   assert.equal(refreshCalls, 0);
   assert.equal(work(), before, 'nothing else was sent besides writing the message log');
   assert.equal(f.state().busyLabel, runningLabel);
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json）：知道是哪項作業時寫出作業名稱，屬一般說明（裁定 2026-10-13-15 訊息分三級，
+  // 用字依裁定 2026-10-13-28（final-wording.json）：知道是哪項作業時寫出作業名稱，屬一般說明（裁定 2026-10-13-15 訊息分三級，
   // spec-item2-levels.md 第 4 節：只有「JET 回覆另一項作業還在進行」是需要注意）。作業名稱本身只比對意思。
   const stillRunning = '「' + runningLabel + '」還在進行，請等它完成後再試。';
   assert.deepEqual(f.messages().slice(0, 2), [{ text: stillRunning, level: 'info' }, { text: stillRunning, level: 'info' }]);
@@ -284,12 +284,12 @@ test('cancelling records the operation and its progress at that moment, a finish
   assert.equal(f.state().busy, true, 'the operation is still settling');
   f.clock.advance(4300);
   f.fail(f.request('export.workingPaperStream'), { code: 'operation_cancelled', message: '合成：已取消' }); await done;
-  // 裁定 2026-10-13-28（final-wording.json）與裁定 2026-10-14-01 確認了用字：最後進度不重複經過時間，括號後有句號。
+  // 用字依裁定 2026-10-13-28（final-wording.json）與裁定 2026-10-14-01：最後進度不重複經過時間，括號後有句號。
   assert.deepEqual(f.messages()[0], {
     text: '產生工作底稿已取消（耗時 4.3 秒，最後進度：工作底稿正在寫入「合成表」，已完成 1 張工作表、寫入 1,500 列）。', level: 'info' });
   assert.equal(f.state().operationFailure, null, 'cancelling is not a failure notice');
 
-  // 按下取消時目前的動作剛好做完：裁定 2026-10-13-28 確認了用字（final-wording.json）。沒有進度時不寫當時進度。
+  // 按下取消時目前的動作剛好做完：用字依裁定 2026-10-13-28（final-wording.json）。沒有進度時不寫當時進度。
   done = running();
   f.click('[data-action="cancel-operation"]');
   f.reply('operation.cancel', { requested: false }); await flush();
@@ -336,14 +336,14 @@ test('a long operation leaves one completion line with minutes and seconds, a fa
   done = f.ui.run('合成作業', () => f.api.systemPing({}), { logCompletion: true });
   f.clock.advance(171000);
   f.reply(f.sent('system.ping').at(-1), {}); await done;
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json），「耗時寫成 2 分 51 秒」是裁定 2026-10-13-17。
+  // 用字依裁定 2026-10-13-28（final-wording.json），「耗時寫成 2 分 51 秒」是裁定 2026-10-13-17。
   assert.deepEqual(f.messages()[0], { text: '合成作業完成，耗時 2 分 51 秒。', level: 'info' });
 
   // 這裡借用 system.ping 當作一般作業，完成句由測試自己組，count 是測試的資料，不是 ping 的回應。
   const pingStandIn = '借用 system.ping 測 Ui.run 的完成句；count 由測試自己的完成句讀取';
   done = f.ui.run('合成作業', () => f.api.systemPing({}), { completionMessage: data => data && data.count ? '合成完成句，共 ' + data.count + ' 筆。' : '' });
   f.reply(f.sent('system.ping').at(-1), unchecked(pingStandIn, { count: 3 })); await done;
-  // 有自己完成句的操作只留那一句，句尾的句號換成耗時：裁定 2026-10-13-28 確認了用字；不到 0.1 秒的寫法經裁定 2026-10-14-01 確認。
+  // 有自己完成句的操作只留那一句，句尾的句號換成耗時：用字依裁定 2026-10-13-28；不到 0.1 秒的寫法依裁定 2026-10-14-01。
   assert.deepEqual(f.messages()[0], { text: '合成完成句，共 3 筆，耗時不到 0.1 秒。', level: 'info' });
   done = f.ui.run('合成作業', () => f.api.systemPing({}), { completionMessage: data => data && data.count ? '合成完成句。' : '' });
   f.reply(f.sent('system.ping').at(-1), unchecked(pingStandIn, { count: 0 })); await done;
@@ -353,7 +353,7 @@ test('a long operation leaves one completion line with minutes and seconds, a fa
   f.store.setBusyDetail('合成進度：已讀取 30 列，經過 1.0 秒');
   f.clock.advance(1500);
   f.fail(f.sent('system.ping').at(-1), { code: 'synthetic', message: '合成原因。' }); await done;
-  // 裁定 2026-10-13-28（final-wording.json）與裁定 2026-10-14-01 確認了用字：原因結尾的句號拿掉，括號後加句號；最後進度不重複經過時間。
+  // 用字依裁定 2026-10-13-28（final-wording.json）與裁定 2026-10-14-01：原因結尾的句號拿掉，括號後加句號；最後進度不重複經過時間。
   assert.deepEqual(f.messages()[0], { text: '合成作業失敗：合成原因（耗時 1.5 秒，最後進度：合成進度：已讀取 30 列）。', level: 'error' });
   assert.deepEqual(busyWhenLogged, [true, true, true], 'every line is written before the busy state clears');
 });
@@ -362,16 +362,16 @@ test('a backend error without a reason is written in Chinese without codes, and 
   const f = await boot([CASE]);
   let done = f.ui.run('合成作業', () => f.api.systemPing({}));
   f.fail(f.sent('system.ping').at(-1), { code: 'internal_error' }); await done;
-  // 取代 ScreenBehaviorReviewFrontendTests.FrontendTransportErrors_UseChineseInsteadOfEnglishOriginals 的訊息面板部分，原方法註解：裁定 2026-10-13-28 確認改字，
+  // 取代 ScreenBehaviorReviewFrontendTests.FrontendTransportErrors_UseChineseInsteadOfEnglishOriginals 的訊息面板部分，原方法註解：依裁定 2026-10-13-28 改字，
   // 預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-  // 沒有附原因時用裁定 2026-10-13-28 確認的句子（final-wording.json）。
+  // 沒有附原因時用裁定 2026-10-13-28 的句子（final-wording.json）。
   assert.deepEqual(f.messages()[0], { text: '合成作業失敗：發生非預期的錯誤，此操作未完成。請再試一次（耗時不到 0.1 秒）。', level: 'error' });
   done = f.ui.run('合成作業', () => f.api.systemPing({}));
   f.fail(f.sent('system.ping').at(-1), null); await done;
   assert.equal(f.messages()[0].text, '合成作業失敗：發生非預期的錯誤，此操作未完成。請再試一次（耗時不到 0.1 秒）。');
   assert.doesNotMatch(f.messages()[0].text, /[A-Za-z]/, 'no English or error code reaches the message panel');
   // 案件清單的「輸出支援日誌」用的 support.log.export 是正式的 bridge action：真的送出，不是在前端就失敗。
-  // 這顆按鈕只在 Debug 組建出現（裁定 2026-10-20-03 選「只藏案件清單的」），原本以 Release 開啟就按
+  // 這顆按鈕只在 Debug 組建出現（使用者選了「只藏案件清單的」，裁定 2026-10-20-03），原本以 Release 開啟就按
   // （第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
   f.store.setDevToolsEnabled(true); await flush();
   f.click('[data-action="picker-support-export"]');
@@ -491,7 +491,7 @@ test('without an open case copying reads nothing and says no case is open', asyn
 // 第五步的句子原本屬 frontend-journey-filter-saved，當時那個檔不在可改的範圍，所以寫在本檔。
 // 這兩個測試用共用夾具 usageJourneyFixture 畫出正式的第五步，或用支援模組的整個畫面夾具讀第五步的條件編輯器。
 
-// 第五步日期條件的寫法說明：裁定 2026-10-14-01 確認的第一句（final-wording-r3.json）。
+// 第五步日期條件的寫法說明：裁定 2026-10-14-01 的第一句（final-wording-r3.json）。
 // 第二句（第二步假日檔與補班檔）已在 frontend-workflow 逐字比對，這裡不重寫。
 // 改用原生日期框後，單日與區間不能再直接輸入 Excel 序列值或民國年（裁定 2026-10-14-06：統一成建立案件的日期框），
 // 獨立複審因此拿掉這兩處的格式說明；新行為由 frontend-shared-controls 的原生日期框測試守住。本測試原本斷言兩處都有這句，

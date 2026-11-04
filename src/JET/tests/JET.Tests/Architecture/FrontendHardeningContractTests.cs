@@ -30,7 +30,7 @@ public sealed class FrontendHardeningContractTests
         Assert.Contains("NotifyBusyNativeExitAsync", closing, StringComparison.Ordinal);
         Assert.Contains("state.activeRequestId", busyFallback, StringComparison.Ordinal);
         Assert.Contains("setBusyDetail(message)", busyFallback, StringComparison.Ordinal);
-        // 裁定 2026-10-13-28 確認關閉視窗時用同一句，不再寫「關閉視窗」
+        // 依裁定 2026-10-13-28，關閉視窗時用同一句，不再寫「關閉視窗」
         // （第一次失敗：Focused 收據 20261013-141518189-803ef992f6924f6e8ee9076331128cc7）。
         Assert.Contains("作業還在進行，請等它完成後再試一次。", busyFallback, StringComparison.Ordinal);
     }

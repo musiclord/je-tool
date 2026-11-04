@@ -92,9 +92,10 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             workbook.Worksheet(CoverSheet).Cell("A3").GetString());
         var step3 = workbook.Worksheet(Step3Sheet);
         Assert.Contains("2025-01-01 ~ 2025-12-31", step3.Cell("B7").GetString(), StringComparison.Ordinal);
-        // 裁定 2026-10-30-34 確認的對照表改寫整句，「無有效總帳日期」改用名詞表的未納入原因「總帳日期空白」。
+        // 裁定 2026-10-30-34 的對照表改寫整句，「無有效總帳日期」改用名詞表的未納入原因「總帳日期空白」。
         // 第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
-        Assert.Contains("查核期間外與總帳日期空白的分錄", step3.Cell("B9").GetString(), StringComparison.Ordinal);
+        // 裁定 2026-11-03-04 與 2026-11-03-17：底稿句子裡的欄位名稱用【】標示。第一次失敗：Focused 收據 20261103-073242223-6e3ff3f3d22a4ba29b6936a9a5bb476e。
+        Assert.Contains("查核期間外與【總帳日期】空白的分錄", step3.Cell("B9").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

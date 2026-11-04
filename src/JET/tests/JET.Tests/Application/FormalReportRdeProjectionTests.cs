@@ -14,6 +14,12 @@ public sealed class FormalReportRdeProjectionTests
     private const string TextLabel = "RDE 文字";
     private const string DateLabel = "RDE 日期";
 
+    // 報告與底稿的表頭照舊版在攸關資料元素的顯示名稱後加 _JE（裁定 2026-11-03-14），上面三個是配對時填的顯示名稱。
+    // 第一次失敗：Public 收據 20261103-111153760-c5c19c4dc5b94ecaacaacbb58eab4608，可靠性樣本的表頭已是「RDE 金額_JE」。
+    private const string MoneyHeader = "RDE 金額_JE";
+    private const string TextHeader = "RDE 文字_JE";
+    private const string DateHeader = "RDE 日期_JE";
+
     [Fact]
     public async Task FormalReports_UseAllOrScenarioScopedRdeUnionInCommittedOrdinal()
     {
@@ -33,13 +39,13 @@ public sealed class FormalReportRdeProjectionTests
         {
             var sheet = inf.Worksheet("可靠性樣本_所有欄位");
             Assert.Equal(
-                new[] { MoneyLabel, TextLabel, DateLabel },
+                new[] { MoneyHeader, TextHeader, DateHeader },
                 ReadHeader(sheet, 1).TakeLast(3));
 
             var documentColumn = FindHeaderColumn(sheet, 1, "傳票號碼");
-            var moneyColumn = FindHeaderColumn(sheet, 1, MoneyLabel);
-            var textColumn = FindHeaderColumn(sheet, 1, TextLabel);
-            var dateColumn = FindHeaderColumn(sheet, 1, DateLabel);
+            var moneyColumn = FindHeaderColumn(sheet, 1, MoneyHeader);
+            var textColumn = FindHeaderColumn(sheet, 1, TextHeader);
+            var dateColumn = FindHeaderColumn(sheet, 1, DateHeader);
             var valuedRow = FindRow(sheet, documentColumn, "RDE-001", 2);
             Assert.Equal("12.34", sheet.Cell(valuedRow, moneyColumn).GetString());
             Assert.Equal("alpha", sheet.Cell(valuedRow, textColumn).GetString());
@@ -75,7 +81,7 @@ public sealed class FormalReportRdeProjectionTests
             foreach (var position in new[] { 1, 2 })
             {
                 Assert.Equal(
-                    new[] { MoneyLabel, TextLabel, DateLabel },
+                    new[] { MoneyHeader, TextHeader, DateHeader },
                     ReadHeader(workbook.Worksheet($"#Criteria Select {position}"), 1).TakeLast(3));
             }
         }
@@ -100,11 +106,11 @@ public sealed class FormalReportRdeProjectionTests
                 51)
             .Skip(20)
             .ToArray();
-        Assert.Equal(new[] { TextLabel, DateLabel }, step2Headers);
-        Assert.DoesNotContain(MoneyLabel, step2Headers);
+        Assert.Equal(new[] { TextHeader, DateHeader }, step2Headers);
+        Assert.DoesNotContain(MoneyHeader, step2Headers);
         var step2DocumentColumn = FindHeaderColumn(step2, 51, "傳票號碼\n(分錄編號)");
-        var step2TextColumn = FindHeaderColumn(step2, 51, TextLabel);
-        var step2DateColumn = FindHeaderColumn(step2, 51, DateLabel);
+        var step2TextColumn = FindHeaderColumn(step2, 51, TextHeader);
+        var step2DateColumn = FindHeaderColumn(step2, 51, DateHeader);
         var step2ValuedRow = FindRow(step2, step2DocumentColumn, "RDE-001", 53);
         Assert.Equal("alpha", step2.Cell(step2ValuedRow, step2TextColumn).GetString());
         Assert.Equal(
@@ -120,12 +126,12 @@ public sealed class FormalReportRdeProjectionTests
         var valueHeaders = step41Headers
             .TakeWhile(header => !header.EndsWith("_TAG", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(new[] { TextLabel, DateLabel }, valueHeaders.TakeLast(2));
-        Assert.DoesNotContain(MoneyLabel, valueHeaders);
+        Assert.Equal(new[] { TextHeader, DateHeader }, valueHeaders.TakeLast(2));
+        Assert.DoesNotContain(MoneyHeader, valueHeaders);
     }
 
     // 2026-10-30 結案前的獨立複審查到：2026-10-29 改的列高，只有 V_Report 5、驗證報告的欄位資訊頁與底稿 step3 有測試。
-    // 這則補上其他 JET 自己寫的工作表。裁定 2026-10-29-08 選了「統一 15 點」：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
+    // 這則補上其他 JET 自己寫的工作表。使用者選了「統一 15 點」（裁定 2026-10-29-08）：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
     // 與 Source_Quality，列高 15 點；12 點的「可靠性樣本_所有欄位」是 18 點。程式用字級的 1.5 倍算出這些值，這個算法是 Claude 的歸納。
     // 這是新增的測試。
     [Fact]

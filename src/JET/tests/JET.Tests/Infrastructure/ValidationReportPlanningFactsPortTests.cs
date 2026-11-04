@@ -105,9 +105,9 @@ public sealed class ValidationReportPlanningFactsPortTests
             PeriodStart: "2025-01-01",
             PeriodEnd: "2025-12-31",
             CompletenessDiffAccountCount: 0,
-            NullAccountCount: 0,
-            NullDocumentCount: 0,
-            NullDescriptionCount: 0,
+            BlankAccountNumberCount: 0,
+            BlankVoucherNumberCount: 0,
+            BlankDescriptionCount: 0,
             ApprovalDateNotInPeriodCount: 0));
 
     private static async Task InsertLocalFixtureAsync(

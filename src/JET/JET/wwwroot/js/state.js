@@ -336,7 +336,7 @@
       state.filterScenarioCheck = null;
       filterDraftRev++;
       // 審計員要回第五步重做，屬於「需要注意」（訊息分三級，裁定 2026-10-13-15）。
-      // 裁定 2026-10-13-28 確認了這句的用字。
+      // 這句的用字依裁定 2026-10-13-28。
       if (hadScenarios) { Store.addMessage('前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。', 'warn'); }
     }
   }

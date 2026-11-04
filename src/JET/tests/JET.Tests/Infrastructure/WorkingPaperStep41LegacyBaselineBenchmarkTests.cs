@@ -82,14 +82,18 @@ public sealed class WorkingPaperStep41LegacyBaselineBenchmarkTests(ITestOutputHe
     private const int MoneyScale = 10_000;
     private const int FirstDataRow = 6;
     private const int LastExcelRow = 1_048_576;
-    private const int ExpectedColumnCount = 16;
-    private const int RowTokenColumn = 13;
-    private const int LateWideColumn = 14;
-    private const int C1TagColumn = 15;
-    private const int C10TagColumn = 16;
+    // 裁定 2026-11-03-11 之後 step4-1 依欄位的來歷挑 JET 欄位，沒有配對的 ROW_TOKEN_JE 與 LATE_WIDE_JE 不再進表；
+    // 夾具改把這兩個原始欄配成傳票建立人員與傳票核准人員，列的順序與欄寬上限照舊從這兩欄檢查。
+    // 第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+    private const int ExpectedColumnCount = 14;
+    private const int RowTokenColumn = 5;
+    private const int LateWideColumn = 6;
+    private const int C1TagColumn = 13;
+    private const int C10TagColumn = 14;
     private const string ProjectId = "step41-baseline-v1";
     private const string BatchId = "step41-baseline-batch-v1";
     private const string Step41Sheet = "step4-1 符合高風險條件傳票明細";
+    // 這個指紋是 2026-07 封存的歷史數值，欄集在 2026-11-03 少了兩個原始欄；只給下面永久跳過的三次基準測試對照，不再重算。
     private const string FrozenFullPageFingerprint =
         "D59613C88E6863AF0DDD65363D3D7C9B49C9A697AFCB05422F131D09B8FF1018";
 
@@ -107,8 +111,6 @@ public sealed class WorkingPaperStep41LegacyBaselineBenchmarkTests(ITestOutputHe
         "傳票摘要_JE",
         "分錄來源模組_JE",
         "人工傳票否_JE_S",
-        "ROW_TOKEN_JE",
-        "LATE_WIDE_JE",
         "C1_TAG",
         "C10_TAG"
     ];
@@ -124,8 +126,6 @@ public sealed class WorkingPaperStep41LegacyBaselineBenchmarkTests(ITestOutputHe
         "@",
         "@",
         "#,##0.0000",
-        "@",
-        "@",
         "@",
         "@",
         "@",
@@ -175,7 +175,7 @@ public sealed class WorkingPaperStep41LegacyBaselineBenchmarkTests(ITestOutputHe
             smokeRows,
             CancellationToken.None);
         Assert.Equal(smokeRows, snapshot.DataRows);
-        Assert.Equal("A1:P16", snapshot.Dimension);
+        Assert.Equal("A1:N16", snapshot.Dimension);
         Assert.Equal(ExpectedHeaders, snapshot.Headers);
         Assert.Equal(ExpectedDataFormats, snapshot.NumberFormats);
         Assert.Equal(255d, snapshot.Widths[LateWideColumn - 1]);
@@ -823,40 +823,36 @@ public sealed class WorkingPaperStep41LegacyBaselineBenchmarkTests(ITestOutputHe
         var initial = JetAuditProgram.Plan(request);
         var definitions = new[]
         {
-            Definition(1, "傳票號碼_JE", LegacyFieldKind.Text),
+            Definition(1, "傳票號碼_JE", LegacyFieldKind.Text, jetField: JetFieldCatalog.GlVoucherNumber),
             Definition(
                 2,
                 "傳票文件項次_JE_S",
                 LegacyFieldKind.Number,
-                decimalPlaces: 0),
-            Definition(3, "傳票核准日_JE", LegacyFieldKind.Date),
-            Definition(4, "總帳日期_JE", LegacyFieldKind.Date),
-            Definition(5, "傳票建立人員_JE", LegacyFieldKind.Text),
-            Definition(6, "傳票核准人員_JE", LegacyFieldKind.Text),
-            Definition(7, "會計科目編號_JE", LegacyFieldKind.Text),
-            Definition(8, "會計科目名稱_JE", LegacyFieldKind.Text),
+                decimalPlaces: 0,
+                origin: FieldInfoOrigin.Generated,
+                jetField: JetFieldCatalog.GlLineItem),
+            Definition(3, "傳票核准日_JE", LegacyFieldKind.Date, jetField: JetFieldCatalog.GlApprovalDate),
+            Definition(4, "總帳日期_JE", LegacyFieldKind.Date, jetField: JetFieldCatalog.GlDate),
+            // 原始欄 ROW_TOKEN_JE 與 LATE_WIDE_JE 配成這兩欄，step4-1 從原始資料列讀它們的值。
+            Definition(5, "傳票建立人員_JE", LegacyFieldKind.Text, description: "ROW_TOKEN_JE", jetField: JetFieldCatalog.GlCreatedBy),
+            Definition(6, "傳票核准人員_JE", LegacyFieldKind.Text, description: "LATE_WIDE_JE", jetField: JetFieldCatalog.GlApprovedBy),
+            Definition(7, "會計科目編號_JE", LegacyFieldKind.Text, jetField: JetFieldCatalog.GlAccountNumber),
+            Definition(8, "會計科目名稱_JE", LegacyFieldKind.Text, jetField: JetFieldCatalog.GlAccountName),
             Definition(
                 9,
                 "傳票金額_JE",
                 LegacyFieldKind.Number,
-                decimalPlaces: 4),
-            Definition(10, "傳票摘要_JE", LegacyFieldKind.Text),
-            Definition(11, "分錄來源模組_JE", LegacyFieldKind.Text),
+                decimalPlaces: 4,
+                origin: FieldInfoOrigin.Generated,
+                jetField: JetFieldCatalog.GlAmount),
+            Definition(10, "傳票摘要_JE", LegacyFieldKind.Text, jetField: JetFieldCatalog.GlDescription),
+            Definition(11, "分錄來源模組_JE", LegacyFieldKind.Text, jetField: JetFieldCatalog.GlSourceModule),
             Definition(
                 12,
                 "人工傳票否_JE_S",
                 LegacyFieldKind.Number,
-                decimalPlaces: 0),
-            Definition(
-                13,
-                "ROW_TOKEN_JE",
-                LegacyFieldKind.Text,
-                description: "ROW_TOKEN_JE"),
-            Definition(
-                14,
-                "LATE_WIDE_JE",
-                LegacyFieldKind.Text,
-                description: "LATE_WIDE_JE")
+                decimalPlaces: 0,
+                jetField: JetFieldCatalog.GlManual)
             // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：原本 ordinal 15 的傳票日期來源欄與它的 step4-1 排除一起拿掉。
         };
         var facts = new WorkingPaperPlanningFacts(
@@ -870,7 +866,7 @@ public sealed class WorkingPaperStep41LegacyBaselineBenchmarkTests(ITestOutputHe
             },
             TargetTbDefinitions:
             [
-                Definition(1, "會計科目編號_TB", LegacyFieldKind.Text)
+                Definition(1, "會計科目編號_TB", LegacyFieldKind.Text, jetField: JetFieldCatalog.TbAccountNumber)
             ],
             TargetGlDefinitions: definitions);
         return JetAuditProgram.Finalize(initial, facts);
@@ -881,14 +877,18 @@ public sealed class WorkingPaperStep41LegacyBaselineBenchmarkTests(ITestOutputHe
         string name,
         LegacyFieldKind kind,
         string? description = null,
-        int? decimalPlaces = null) =>
+        int? decimalPlaces = null,
+        FieldInfoOrigin origin = FieldInfoOrigin.Renamed,
+        string? jetField = null) =>
         new(
             ordinal,
             name,
             description,
             kind,
             kind == LegacyFieldKind.Text ? 255 : null,
-            kind == LegacyFieldKind.Number ? decimalPlaces : null);
+            kind == LegacyFieldKind.Number ? decimalPlaces : null,
+            origin,
+            jetField);
 
     private static async Task SeedFixtureAsync(
         ILocalProjectDatabase database,

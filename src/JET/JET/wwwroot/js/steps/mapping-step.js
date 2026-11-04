@@ -556,13 +556,13 @@
     }
 
     if (options.approvalDateMode === 'mapped' && !draft.approvalDate) {
-      problems.push('傳票核准日請選擇來源欄，或改選「沒有核准日」或「與總帳日期相同」');
+      problems.push('傳票核准日請選擇來源欄，或改選「—」（沒有核准日）或「與總帳日期相同」');
     }
     if (options.approvalDateMode === 'sameAsGlDate' && draft.approvalDate) {
       problems.push('核准日選「與總帳日期相同」時，不可同時指派「傳票核准日」來源欄');
     }
     if (options.approvalDateMode === 'unmapped' && draft.approvalDate) {
-      problems.push('核准日選「沒有核准日」時，不可同時指派「傳票核准日」來源欄');
+      problems.push('核准日選「—」（沒有核准日）時，不可同時指派「傳票核准日」來源欄');
     }
 
     if (draft.postingStatus) {
@@ -1371,7 +1371,7 @@
     var listsManual = policy.unlistedValueKind === 'automatic';
     var listed = listsManual ? policy.manualValues : (policy.unlistedValueKind === 'manual' ? policy.automaticValues : []);
     if (listed.length && (!profile || profile.metadataOnly || profile.error)) {
-      // 裁定 2026-10-14-01 確認了這句的用字；黃色提示不過度解釋（裁定 2026-10-14-02），所以拿掉「可先按「讀取來源值」確認」，
+      // 這句的用字依裁定 2026-10-14-01；黃色提示不過度解釋（裁定 2026-10-14-02），所以拿掉「可先按「讀取來源值」確認」，
       // 按鈕就在旁邊。讀取失敗時仍要說可以再試一次。
       warnings.push((listsManual ? '人工' : '自動') + '分錄代碼「' + listed.join('、') + '」尚未與來源核對；來源沒有' +
         (listed.length > 1 ? '這些' : '此') + '代碼時，有值的列都會視為' + (listsManual ? '自動' : '人工') +
@@ -2287,7 +2287,7 @@
           mappingCommitErrors[kind] = {
             project: project,
             importInfo: importInfo,
-            // 後端沒有附原因時的句子，裁定 2026-10-13-28 確認了這句的用字。
+            // 後端沒有附原因時的句子，這句的用字依裁定 2026-10-13-28。
             message: Ui.errorText(error, '確認配對未完成，請再試一次。'),
             details: error && Array.isArray(error.details) ? error.details : null
           };

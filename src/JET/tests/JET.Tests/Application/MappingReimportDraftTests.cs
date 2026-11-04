@@ -113,7 +113,7 @@ public sealed class MappingReimportDraftTests
             })));
 
         Assert.Equal(JET.Domain.JetErrorCodes.ProjectionFailed, error.Code);
-        // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.StartsWith("有 3 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
         Assert.Collection(

@@ -158,7 +158,7 @@ public sealed class JsonFileProjectStoreTests
             store.FindAsync(document.ProjectId, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫鍵名與種子值。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫鍵名與種子值。
         Assert.Equal(
             $"案件「{document.ProjectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -197,8 +197,8 @@ public sealed class JsonFileProjectStoreTests
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             store.FindAsync(legacy.ProjectId, CancellationToken.None));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
-        // 裁定 2026-10-30-23 要求訊息寫明刪除後重建，句子跟著改（同上一則第一次失敗收據）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
+        // 依裁定 2026-10-30-23，訊息要寫明刪除後重建，句子跟著改（同上一則第一次失敗收據）。
         Assert.Equal(
             $"案件「{legacy.ProjectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);

@@ -16,7 +16,7 @@ public sealed class MappingValueProfileHandler(
 
     public string Action => "mapping.valueProfile";
 
-    // 所選來源欄已不在最近一次匯入的 GL 中（裁定 2026-10-14-01 確認了用字）。
+    // 所選來源欄已不在最近一次匯入的 GL 中（用字依裁定 2026-10-14-01）。
     private static string SourceColumnMissing(string sourceColumn) =>
         $"所選來源欄已不在本次匯入的資料中：{sourceColumn}，請重新選擇。";
 

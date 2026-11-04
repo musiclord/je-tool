@@ -33,7 +33,7 @@ public sealed class SystemDatabaseInfoHandlerTests
 
         Assert.False(sql.GetProperty("configured").GetBoolean());
         Assert.False(sql.GetProperty("reachable").GetBoolean());
-// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                 // 原本的提示刪除：沒有設定 SQL Server 時後端回空摘要，畫面不加訊息；本機兩種資料庫照常可用由 configured=false 表達。
         Assert.Equal(string.Empty, sql.GetProperty("summary").GetString());
     }
@@ -83,7 +83,7 @@ public sealed class SystemDatabaseInfoHandlerTests
         var summary = JsonDocument.Parse(JsonSerializer.Serialize(result))
             .RootElement.GetProperty("sqlServer").GetProperty("summary").GetString();
 
-// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
                 // 拿掉 Express 那段後和一般連線成功同一句。
         Assert.Equal("已連上 SQL Server（伺服器 localhost，資料庫 JET），可以使用線上案件。", summary);
     }

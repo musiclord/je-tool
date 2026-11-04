@@ -36,9 +36,9 @@ internal static class ValidationReportProjectionParser
                 UnbalancedVoucherCount: GetLong(
                     voucherBalance,
                     "unbalancedVoucherCount"),
-                NullAccountCount: GetLong(blankRecords, "nullAccountCount"),
-                NullDocumentCount: GetLong(blankRecords, "nullDocumentCount"),
-                NullDescriptionCount: GetLong(blankRecords, "nullDescriptionCount"),
+                BlankAccountNumberCount: GetLong(blankRecords, "blankAccountNumberCount"),
+                BlankVoucherNumberCount: GetLong(blankRecords, "blankVoucherNumberCount"),
+                BlankDescriptionCount: GetLong(blankRecords, "blankDescriptionCount"),
                 // 形狀檢查已確認筆數與原因恰好一個有值；筆數是 null 就是傳票核准日不可用。
                 ApprovalDateNotInPeriodCount: blankRecords.GetProperty("approvalDateNotInPeriodCount").ValueKind == JsonValueKind.Null
                     ? null

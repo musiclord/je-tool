@@ -52,6 +52,26 @@
 | Dammyjay93/interface-design，https://github.com/Dammyjay93/interface-design | 最後推送 2026-06-20 | MIT | 只選一種深度策略、密度一致、每天上百次的操作不加動畫、瞇眼檢查 |
 | garrytan/gstack 的 design-consultation、design-shotgun、design-review，https://github.com/garrytan/gstack | 最後推送 2026-10-08 | MIT | 讓非設計背景的使用者用選擇題決定方向、後台專屬的毛病清單 |
 | anthropics/skills PR #1806，https://github.com/anthropics/skills/pull/1806 | 2026-09-23，尚未合併 | 不適用 | 點名禁止的實測數字；第二層預設是從它的樣本頁觀察，未經統計 |
+| educlopez/ui-craft，https://github.com/educlopez/ui-craft | 無版本號；第三方介紹頁寫最後推送 2026-09-03 | MIT | 篩選控制不搶主要動作、相關的篩選分在一起。它把篩選鍵做成沒有框的按鈕，不採用 |
+| abdiraimov-otabek/dashboard-design-skill，https://github.com/abdiraimov-otabek/dashboard-design-skill | README 標示 2.0，頁面沒有日期 | MIT | 一張卡用細線分組，勝過好幾張浮動卡。它把建議的篩選做成近似膠囊的晶片，不採用 |
+| s0xDk/refactoring-ui-skill，https://github.com/s0xDk/refactoring-ui-skill | 頁面沒有日期 | MIT，不含原書 | 動作分主要、次要與第三級；組外的間距大於組內；降低其他元素來突顯重點。它把第三級動作做成連結，使用者要看得出能按，不採用 |
+
+## 欄位條件分頁的重新設計
+
+查核日期是 2026-11-03，用於使用者同日要求深入研究欄位條件分頁，缺少參考時上網找強化美學的 skills（裁定 2026-11-03-28）。
+研究報告在本機 `artifacts/research/2026-11-03-field-picker-design-research.md`，不進 Git。
+
+- Excel 的自動篩選、Linear、Airtable 與 Metabase，都是先選欄位，再依欄位型別出現該欄位的查法；Power BI 的篩選窗格是一個欄位一張卡。
+  https://support.microsoft.com/en-us/office/filter-data-in-a-range-or-table-01832226-31b5-4568-8806-38c37dcc180e 、
+  https://linear.app/docs/filters 、https://support.airtable.com/docs/filtering-records-using-conditions 、
+  https://www.metabase.com/docs/latest/questions/query-builder/filters 、https://learn.microsoft.com/en-us/power-bi/create-reports/power-bi-report-filter 。
+- GitHub Primer ActionList：分隔線只在幫助閱讀時才加，列尾的動作屬於次要。https://primer.style/product/components/action-list/guidelines/ 。
+- 三個社群 skill 見上面「社群 skill 與工具」最後三列，用網頁讀過內容，沒有下載安裝。
+
+採用的原則：一列只放一把按鍵，其他新增動作收進那把按鍵打開的選單；同一張紙用小標與細線分組；組外的間距大於組內。
+沒有採用的部分與原因：把次要動作做成沒有框的文字、連結或晶片，和 JET 白底細框按鍵的裁定衝突；使用者裁定合併時以 JET 的規則為準
+（裁定 2026-11-03-34）。收起時與打開後的樣子，是使用者從三份樣張中選的（裁定 2026-11-03-32）；選單改從按鍵打開，是使用者在內建瀏覽器試用兩種開法後選的
+（裁定 2026-11-03-37）。兩者都不是從來源推得。
 
 ## 設計系統與排版規範
 

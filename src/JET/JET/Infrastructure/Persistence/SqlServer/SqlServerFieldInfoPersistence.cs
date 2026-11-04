@@ -19,7 +19,7 @@ internal static class SqlServerFieldInfoPersistence
         await using var command = database.CreateCommand(connection, projectId,
             """
             SELECT ordinal, field_name, description, field_kind, text_length, decimal_places,
-                   max_rendered_length, has_observation
+                   max_rendered_length, has_observation, field_origin, jet_field
             FROM {s}.field_info
             WHERE batch_id = @batchId AND definition_scope = @scope
             ORDER BY ordinal;
@@ -40,7 +40,9 @@ internal static class SqlServerFieldInfoPersistence
                 reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
                 reader.IsDBNull(5) ? null : reader.GetInt32(5),
                 reader.GetInt32(6),
-                reader.GetBoolean(7)));
+                reader.GetBoolean(7),
+                FieldInfoOriginStorage.FromStorageName(reader.GetString(8)),
+                reader.IsDBNull(9) ? null : reader.GetString(9)));
         }
 
         return result;
@@ -71,10 +73,12 @@ internal static class SqlServerFieldInfoPersistence
                 """
                 INSERT INTO {s}.field_info
                     (batch_id, definition_scope, ordinal, field_name, description, field_kind,
-                     text_length, decimal_places, max_rendered_length, has_observation)
+                     text_length, decimal_places, max_rendered_length, has_observation,
+                     field_origin, jet_field)
                 VALUES
                     (@batchId, @scope, @ordinal, @fieldName, @description, @fieldKind,
-                     @textLength, @decimalPlaces, @maxRenderedLength, @hasObservation);
+                     @textLength, @decimalPlaces, @maxRenderedLength, @hasObservation,
+                     @fieldOrigin, @jetField);
                 """);
             insert.Transaction = transaction;
             insert.Parameters.AddWithValue("@batchId", batchId);
@@ -88,6 +92,8 @@ internal static class SqlServerFieldInfoPersistence
             insert.Parameters.AddWithValue("@decimalPlaces", (object?)definition.DecimalPlaces ?? DBNull.Value);
             insert.Parameters.AddWithValue("@maxRenderedLength", definition.MaxRenderedLength);
             insert.Parameters.AddWithValue("@hasObservation", definition.HasObservation);
+            insert.Parameters.AddWithValue("@fieldOrigin", FieldInfoOriginStorage.ToStorageName(definition.Origin));
+            insert.Parameters.AddWithValue("@jetField", (object?)definition.JetField ?? DBNull.Value);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
     }
@@ -134,7 +140,8 @@ internal sealed class SqlServerFieldInfoFactsPort(SqlServerProjectDatabase datab
 
         await using var command = database.CreateCommand(connection, projectId,
             """
-            SELECT d.ordinal, d.field_name, d.description, d.field_kind, d.text_length, d.decimal_places
+            SELECT d.ordinal, d.field_name, d.description, d.field_kind, d.text_length, d.decimal_places,
+                   d.field_origin, d.jet_field
             FROM {s}.field_info AS d
             WHERE d.batch_id = (
                 SELECT TOP 1 b.batch_id
@@ -157,7 +164,9 @@ internal sealed class SqlServerFieldInfoFactsPort(SqlServerProjectDatabase datab
                 reader.IsDBNull(2) ? null : reader.GetString(2),
                 SqlServerFieldInfoPersistence.ParseKind(reader.GetString(3)),
                 reader.IsDBNull(4) ? null : reader.GetInt32(4),
-                reader.IsDBNull(5) ? null : reader.GetInt32(5)));
+                reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                FieldInfoOriginStorage.FromStorageName(reader.GetString(6)),
+                reader.IsDBNull(7) ? null : reader.GetString(7)));
         }
 
         return result;

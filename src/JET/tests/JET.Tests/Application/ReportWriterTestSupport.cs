@@ -21,9 +21,9 @@ internal static class ReportWriterTestSupport
                 context.Project.PeriodStart,
                 context.Project.PeriodEnd,
                 projection.CompletenessDiffAccountCount,
-                projection.NullAccountCount,
-                projection.NullDocumentCount,
-                projection.NullDescriptionCount,
+                projection.BlankAccountNumberCount,
+                projection.BlankVoucherNumberCount,
+                projection.BlankDescriptionCount,
                 projection.ApprovalDateNotInPeriodCount)),
             new ValidationReportPlanningFacts(projection.UnbalancedVoucherCount));
 

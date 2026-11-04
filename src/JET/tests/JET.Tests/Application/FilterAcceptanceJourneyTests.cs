@@ -180,7 +180,7 @@ public sealed class FilterAcceptanceJourneyTests
         var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview",
             JsonSerializer.Serialize(new { scenario = unmapped })));
         Assert.Equal(JetErrorCodes.InvalidScenario, missing.Code);
-        // 裁定 2026-10-13-28 確認了用字：原因只寫「「欄位」尚未選擇來源欄」，不再寫回欄位配對的下一步。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 用字依裁定 2026-10-13-28：原因只寫「「欄位」尚未選擇來源欄」，不再寫回欄位配對的下一步。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("尚未選擇來源欄", missing.Message, StringComparison.Ordinal);
     }
 }

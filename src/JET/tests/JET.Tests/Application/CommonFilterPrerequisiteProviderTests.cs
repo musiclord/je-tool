@@ -229,7 +229,7 @@ public sealed class CommonFilterPrerequisiteProviderTests
     private static void AssertMissingField(JetActionException exception, CommonMissingCase testCase)
     {
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 裁定 2026-10-13-28 確認了用字：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 用字依裁定 2026-10-13-28：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("尚未選擇來源欄", exception.Message, StringComparison.Ordinal);
         foreach (var label in testCase.MissingFieldLabels)
         {

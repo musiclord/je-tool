@@ -192,11 +192,11 @@
     },
     {
       "id": "export",
-      "label": "ExportWorkpaperStreamHandler",
+      "label": "ExportWorkingPaperStreamHandler",
       "kind": "class",
       "row": 3,
       "col": 1,
-      "sublabel": "export.workpaperStream"
+      "sublabel": "export.workingPaperStream"
     },
     {
       "id": "importTb",

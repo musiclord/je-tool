@@ -301,8 +301,8 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
-        // 裁定 2026-10-30-23 要求訊息寫明刪除後重建，句子跟著改（第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
+        // 依裁定 2026-10-30-23，訊息要寫明刪除後重建，句子跟著改（第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c）。
         Assert.Equal(
             $"案件「{projectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
@@ -331,7 +331,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -356,7 +356,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -398,16 +398,16 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     [Fact]
     public async Task ValidateRun_DemoFixture_BlankRecordsBlankDescriptionsAndOutOfPeriodApproval()
     {
-        // demo 母體刻意埋兩種「空值/期外」:(1)「摘要空白」種子(借方行空白)→ nullDescription 命中數
+        // demo 母體刻意埋兩種「空值/期外」:(1)「摘要空白」種子(借方行空白)→ blankDescription 命中數
         // 恰等於該種子張數;(2)「期末後核准」種子(20 張、核准日 2026-01-15 在期末 2025-12-31 之後),
         // 每張 2 列 → 核准日離期 40 列。科目/傳票號皆完整 → 其餘兩類為 0。
         // 「核准日不在期間」以核准日判定，和舊版 JET 相同(裁定 2026-06-23-01)。
         var data = await fixture.Host.DispatchAsync("validate.run");
 
         var blankRecords = data.GetProperty("blankRecordsTest");
-        Assert.Equal(DemoDataFactory.BlankDescriptionVouchers, blankRecords.GetProperty("nullDescriptionCount").GetInt64());
-        Assert.Equal(0, blankRecords.GetProperty("nullAccountCount").GetInt64()
-            + blankRecords.GetProperty("nullDocumentCount").GetInt64());
+        Assert.Equal(DemoDataFactory.BlankDescriptionVouchers, blankRecords.GetProperty("blankDescriptionCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankAccountNumberCount").GetInt64()
+            + blankRecords.GetProperty("blankVoucherNumberCount").GetInt64());
         // 核准日離期 = 期末後核准種子張數 × 每張 2 列。
         Assert.Equal(
             2L * DemoDataFactory.PrepPeriodApprovalVouchers,
@@ -430,11 +430,11 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     /// <summary>
-    /// 回應的 voucherBalanceTest.unbalancedVouchers 與 blankRecordsTest.nullRows 要出現在 wire JSON，
+    /// 回應的 voucherBalanceTest.unbalancedVouchers 與 blankRecordsTest.blankRows 要出現在 wire JSON，
     /// 且內容與母體一致；既有純量欄位（counts）數值不能改變。
     /// </summary>
     [Fact]
-    public async Task ValidateRun_WithUnbalancedAndNullRows_ResponseContainsDetailLists()
+    public async Task ValidateRun_WithUnbalancedAndBlankRows_ResponseContainsDetailLists()
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder
@@ -446,7 +446,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             // JV-002：借 50、貸 50 → 平衡（不應出現在 unbalancedVouchers）
             .AddRow("JV-002", "2025-03-06", "1101", "現金",     "借方",   "50.00",  1)
             .AddRow("JV-002", "2025-03-06", "4101", "銷貨收入", "貸方",   "50.00",  0)
-            // JV-003：空科目 → 應出現在 nullRows，NullAccount=true
+            // JV-003：空科目 → 應出現在 blankRows，BlankAccountNumber=true
             .AddRow("JV-003", "2025-03-07", null,   null,       "空科目分錄", "10.00", 1)
             .AddRow("JV-003", "2025-03-07", "4101", "銷貨收入", "對方",   "10.00",  0));
 
@@ -470,23 +470,23 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         // --- blankRecordsTest ---
         var blankRecords = data.GetProperty("blankRecordsTest");
         // 純量欄位：空科目 ≥ 1（JV-003 那列）
-        Assert.True(blankRecords.GetProperty("nullAccountCount").GetInt64() >= 1);
+        Assert.True(blankRecords.GetProperty("blankAccountNumberCount").GetInt64() >= 1);
         // 新明細清單：至少 1 筆
-        var nullRows = blankRecords.GetProperty("nullRows");
-        Assert.True(nullRows.GetArrayLength() >= 1, "nullRows 應至少有 1 筆");
-        var firstRow = nullRows[0];
-        // nullRows 依 source_row_number, entry_id 排序；seed 中 JV-003 的 null-account 列
+        var blankRows = blankRecords.GetProperty("blankRows");
+        Assert.True(blankRows.GetArrayLength() >= 1, "blankRows 應至少有 1 筆");
+        var firstRow = blankRows[0];
+        // blankRows 依 source_row_number, entry_id 排序；seed 中 JV-003 的空白科目編號列
         // 是工作簿第 5 列（header 後第 4 筆）,排在 JV-003 第 6 列之前,故第一筆為 JV-003。
         Assert.Equal("JV-003", firstRow.GetProperty("voucherNumber").GetString());
         Assert.True(firstRow.TryGetProperty("accountNumber", out _),    "應有 accountNumber");
         Assert.True(firstRow.TryGetProperty("glDate", out _),       "應有 glDate");
         Assert.True(firstRow.TryGetProperty("description", out _),    "應有 description");
-        // issues 是陣列，且包含 "account"（因為科目是空的）
+        // issues 是陣列，且包含 "accountNumber"（因為科目是空的）
         var issues = firstRow.GetProperty("issues");
         Assert.Equal(JsonValueKind.Array, issues.ValueKind);
         var issueValues = Enumerable.Range(0, issues.GetArrayLength())
             .Select(i => issues[i].GetString()!)
             .ToArray();
-        Assert.Contains("account", issueValues);
+        Assert.Contains("accountNumber", issueValues);
     }
 }

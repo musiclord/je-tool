@@ -194,10 +194,10 @@ model {
     handler -[viaInterface]-> storeContract 'ListAsync' {
       metadata { evidence 'F06' }
     }
-    batch -[calls]-> program 'Plan、Finalize' {
+    batch -[calls]-> program 'Plan、PlanOneScenario、Finalize' {
       metadata { evidence 'F07' }
     }
-    batch -[viaInterface]-> factsContract 'ExecuteAsync：整批合格' {
+    batch -[viaInterface]-> factsContract 'ExecuteAsync：只存一個或整批合格' {
       metadata { evidence 'F08' }
     }
     batch -[viaInterface]-> storeContract 'ReplaceAllAsync：有不合格' {
@@ -206,7 +206,7 @@ model {
     facts -[implements]-> factsContract '實作' {
       metadata { evidence 'F10' }
     }
-    facts -[viaInterface]-> commitContract 'CommitAsync' {
+    facts -[viaInterface]-> commitContract 'CommitAsync、SaveOneAsync' {
       metadata { evidence 'F11' }
     }
     commit -[implements]-> commitContract '實作' {
@@ -227,11 +227,153 @@ model {
     root -[injects]-> store '建立' {
       metadata { evidence 'F17' }
     }
-    commit -[data]-> db '同一筆交易寫定義，用 SQL 算出命中' {
+    commit -[data]-> db '同一筆交易寫定義並算出命中' {
       metadata { evidence 'F18' }
     }
     store -[data]-> db '同一筆交易只寫定義並清除命中' {
       metadata { evidence 'F19' }
+    }
+  }
+
+  tbSlice = component 'TB 取代匯入的類別' {
+    description '同一個桌面程序裡處理 import.tb.fromFile 的類別與介面，以 SQLite 或 DuckDB 案件為準；不是另外部署的系統。'
+    link ../archify/import-classes/import-classes.html '詳細類別與介面圖'
+
+    handler = component 'ImportTbFromFileHandler' { technology '流程寫在父類別 ImportFromFileHandler' }
+    program = component 'JetAuditProgram' { technology 'static' }
+    readerContract = contract 'ITabularFileReader' { technology 'interface' }
+    reader = component 'CompositeTabularFileReader'
+    intakeContract = contract 'IIntakeFactsPort' { technology 'interface' }
+    intake = component 'IntakeFactsPort'
+    importContract = contract 'IImportRepository' { technology 'interface' }
+    importRepository = component 'LocalImportRepository'
+    projectContract = contract 'IProjectStore' { technology 'interface' }
+    project = component 'JsonFileProjectStore'
+    root = component 'AppCompositionRoot'
+    db = store '案件資料庫' { technology 'SQLite 或 DuckDB' }
+    projectFile = store '案件進度檔' { technology 'project.json' }
+
+    handler -[calls]-> program 'Plan、Finalize' {
+      metadata { evidence 'T01' }
+    }
+    handler -[viaInterface]-> importContract 'GetLatestBatchAsync' {
+      metadata { evidence 'T02' }
+    }
+    handler -[viaInterface]-> readerContract 'ReadColumnsAsync、ReadRowsAsync' {
+      metadata { evidence 'T03' }
+    }
+    handler -[viaInterface]-> intakeContract 'ExecuteAsync' {
+      metadata { evidence 'T04' }
+    }
+    handler -[viaInterface]-> projectContract 'SaveAsync：提交後推進步驟' {
+      metadata { evidence 'T05' }
+    }
+    intake -[viaInterface]-> importContract 'ReplaceBatchAsync' {
+      metadata { evidence 'T06' }
+    }
+    reader -[implements]-> readerContract '實作' {
+      metadata { evidence 'T07' }
+    }
+    intake -[implements]-> intakeContract '實作' {
+      metadata { evidence 'T08' }
+    }
+    importRepository -[implements]-> importContract '實作' {
+      metadata { evidence 'T09' }
+    }
+    project -[implements]-> projectContract '實作' {
+      metadata { evidence 'T10' }
+    }
+    root -[injects]-> handler '建立' {
+      metadata { evidence 'T11' }
+    }
+    root -[injects]-> reader '建立' {
+      metadata { evidence 'T12' }
+    }
+    root -[injects]-> intake '建立' {
+      metadata { evidence 'T13' }
+    }
+    root -[injects]-> importRepository '建立' {
+      metadata { evidence 'T14' }
+    }
+    root -[injects]-> project '建立' {
+      metadata { evidence 'T15' }
+    }
+    importRepository -[indirect]-> reader '逐列取用準備好的資料列' {
+      metadata { evidence 'T16' }
+    }
+    importRepository -[data]-> db '同一筆交易取代批次與資料列' {
+      metadata { evidence 'T17' }
+    }
+    project -[data]-> projectFile 'project.json' {
+      metadata { evidence 'T18' }
+    }
+  }
+
+  paperSlice = component '正式底稿匯出的類別' {
+    description '同一個桌面程序裡處理 export.workingPaperStream 的類別與介面，以 SQLite 或 DuckDB 案件為準；不是另外部署的系統。'
+    link ../archify/export-classes/export-classes.html '詳細類別與介面圖'
+
+    handler = component 'ExportWorkingPaperStreamHandler'
+    materialize = component 'FilterHitMaterializeService'
+    program = component 'JetAuditProgram' { technology 'static' }
+    factsContract = contract 'IWorkingPaperPlanningFactsPort' { technology 'interface' }
+    facts = component 'WorkingPaperPlanningFactsPort'
+    writerContract = contract 'IWorkingPaperPlanWriter' { technology 'interface' }
+    writer = component 'WorkingPaperWriter'
+    auditedContract = contract 'IAuditedReportPublishingStore' { technology 'interface' }
+    audited = component 'AuditedReportStore'
+    publishContract = contract 'IReportPublishingStore' { technology 'interface' }
+    files = component 'ProjectReportStore'
+    root = component 'AppCompositionRoot'
+    folder = artifact '案件資料夾的報告檔' { technology '底稿檔 · reports.json' }
+
+    handler -[calls]-> materialize 'RequireUsableAsync、MaterializeSelectedAsync' {
+      metadata { evidence 'W01' }
+    }
+    handler -[calls]-> program 'Plan、Finalize' {
+      metadata { evidence 'W02' }
+    }
+    handler -[viaInterface]-> factsContract 'ExecuteAsync' {
+      metadata { evidence 'W03' }
+    }
+    handler -[viaInterface]-> auditedContract 'WriteAuditedAsync' {
+      metadata { evidence 'W04' }
+    }
+    audited -[viaInterface]-> publishContract 'WriteWithPublishingAsync' {
+      metadata { evidence 'W05' }
+    }
+    handler -[viaInterface]-> writerContract 'WriteAsync：寫檔函式內' {
+      metadata { evidence 'W06' }
+    }
+    facts -[implements]-> factsContract '實作' {
+      metadata { evidence 'W07' }
+    }
+    writer -[implements]-> writerContract '實作' {
+      metadata { evidence 'W08' }
+    }
+    audited -[implements]-> auditedContract '實作' {
+      metadata { evidence 'W09' }
+    }
+    files -[implements]-> publishContract '實作' {
+      metadata { evidence 'W10' }
+    }
+    root -[injects]-> facts '建立' {
+      metadata { evidence 'W11' }
+    }
+    root -[injects]-> audited '建立' {
+      metadata { evidence 'W12' }
+    }
+    root -[injects]-> files '建立' {
+      metadata { evidence 'W13' }
+    }
+    root -[injects]-> writer '建立' {
+      metadata { evidence 'W14' }
+    }
+    files -[indirect]-> handler '執行事先交出的寫檔函式' {
+      metadata { evidence 'W15' }
+    }
+    files -[data]-> folder '寫暫存檔、改名並更新報告清單' {
+      metadata { evidence 'W16' }
     }
   }
 }
@@ -283,9 +425,9 @@ views {
   }
 
   dynamic view filterSave {
-    title '篩選情境儲存：整批合格時的呼叫順序'
-    description '從 FilterScenarioSaveHandler 收到呼叫開始，只畫整批都合格的分支。前段的分派，以及仍有情境不合格時改呼叫 IFilterScenarioStore.ReplaceAllAsync 的分支，見 Archify 循序圖。'
-    link ../archify/action-sequence/action-sequence.html '兩個分支的循序圖'
+    title '篩選情境儲存：平常只存這一個情境'
+    description '從 FilterScenarioSaveHandler 收到呼叫開始，只畫平常的分支：其他情境都合格、已是目前規則，存好的結果也沒有過期，所以只換掉這一個情境。整批處理的兩個分支與前段的分派，見 Archify 循序圖。'
+    link ../archify/action-sequence/action-sequence.html '三個分支的循序圖'
     variant diagram
     autoLayout LeftRight 40 80
     filterSlice.handler -> filterSlice.batch 'LoadAsync' {
@@ -296,19 +438,74 @@ views {
       notes '只檢查本次情境。'
     }
     filterSlice.handler -> filterSlice.batch 'PublishAsync' {
-      notes '判斷整批是否都合格；以下是合格的分支。'
+      notes '先讀存好的結果是否過期，再由 PlanWrite 決定寫法；以下是只存一個情境的分支。'
     }
-    filterSlice.batch -> filterSlice.program 'Plan'
+    filterSlice.batch -> filterSlice.program 'PlanOneScenario'
     filterSlice.batch -> filterSlice.facts 'IFilterFactsPort.ExecuteAsync' {
       notes '透過介面呼叫；實際是 FilterFactsPort。'
     }
-    filterSlice.facts -> filterSlice.commit 'IFilterCommitRepository.CommitAsync' {
+    filterSlice.facts -> filterSlice.commit 'IFilterCommitRepository.SaveOneAsync' {
       notes '透過介面呼叫；SQLite 與 DuckDB 案件實際是 LocalFilterCommitRepository。'
     }
-    filterSlice.commit -> filterSlice.db '同一筆交易取代定義，算出命中'
+    filterSlice.commit -> filterSlice.db '同一筆交易只換這個情境的定義與命中'
     filterSlice.batch -> filterSlice.program 'Finalize'
     filterSlice.handler <- filterSlice.batch '情境、命中版本與失效狀態' {
       notes '提交後讀回，這時不再接受取消。'
+    }
+  }
+
+  dynamic view tbImport {
+    title 'TB 取代匯入：從讀標頭到同一筆交易'
+    description '從 ImportTbFromFileHandler 收到呼叫開始，畫取代匯入正常完成的路徑。前段的分派、提交後寫操作紀錄與失敗時的回復，見 Archify 循序圖與流程圖。'
+    link ../archify/import-sequence/import-sequence.html 'TB 取代匯入的循序圖'
+    variant diagram
+    autoLayout LeftRight 40 80
+    tbSlice.handler -> tbSlice.importRepository 'IImportRepository.GetLatestBatchAsync' {
+      notes '先由 JetAuditProgram 建立計畫，再讀前一批次。'
+    }
+    tbSlice.handler -> tbSlice.reader 'ITabularFileReader.ReadColumnsAsync' {
+      notes '逐一讀完所有來源的標頭；任一失敗就不寫入。'
+    }
+    tbSlice.handler -> tbSlice.reader 'ITabularFileReader.ReadRowsAsync' {
+      notes '先準備讀取方式，還沒讀資料列。'
+    }
+    tbSlice.handler -> tbSlice.intake 'IIntakeFactsPort.ExecuteAsync' {
+      notes '在背景執行。'
+    }
+    tbSlice.intake -> tbSlice.importRepository 'IImportRepository.ReplaceBatchAsync' {
+      notes '透過介面呼叫；SQLite 與 DuckDB 案件實際是 LocalImportRepository。'
+    }
+    tbSlice.importRepository -> tbSlice.reader '逐列取用準備好的資料列'
+    tbSlice.importRepository -> tbSlice.db '同一筆交易取代批次與資料列'
+    tbSlice.handler -> tbSlice.project 'IProjectStore.SaveAsync' {
+      notes '提交之後，案件步驟落後才更新；這時不再接受取消。'
+    }
+  }
+
+  dynamic view workingPaperExport {
+    title '正式底稿匯出：寫暫存檔與發布'
+    description '從 ExportWorkingPaperStreamHandler 收到呼叫開始，畫正常完成的路徑。發布失敗時怎麼還原，見 Archify 流程圖。'
+    link ../archify/workpaper-sequence/workpaper-sequence.html '正式底稿匯出的循序圖'
+    variant diagram
+    style * { size large textSize medium }
+    autoLayout LeftRight 40 80
+    paperSlice.handler -> paperSlice.materialize 'RequireUsableAsync' {
+      notes '核對版本之後；結果過期時改呼叫 MaterializeSelectedAsync，只重算選取的情境。'
+    }
+    paperSlice.handler -> paperSlice.facts 'IWorkingPaperPlanningFactsPort.ExecuteAsync' {
+      notes '先由 JetAuditProgram 建立計畫；只讀規劃需要的資料。'
+    }
+    paperSlice.handler -> paperSlice.audited 'IAuditedReportPublishingStore.WriteAuditedAsync' {
+      notes '先數既有報告，再交給下一層寫檔。'
+    }
+    paperSlice.audited -> paperSlice.files 'IReportPublishingStore.WriteWithPublishingAsync'
+    paperSlice.files -> paperSlice.handler '執行事先交出的寫檔函式'
+    paperSlice.handler -> paperSlice.writer 'IWorkingPaperPlanWriter.WriteAsync' {
+      notes '依計畫分頁讀資料列，寫進暫存檔。'
+    }
+    paperSlice.files -> paperSlice.folder '改名成正式檔名並更新報告清單'
+    paperSlice.handler <- paperSlice.audited 'Report' {
+      notes '發布成功後寫操作紀錄；寫入失敗時回應附提醒。'
     }
   }
 

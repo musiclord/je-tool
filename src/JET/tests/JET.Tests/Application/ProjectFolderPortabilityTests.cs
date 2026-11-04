@@ -256,7 +256,7 @@ public sealed class ProjectFolderPortabilityTests
         {
             ("query.completenessDiffPage", """{ "pageSize": 7 }"""),
             ("query.voucherBalancePage", """{ "pageSize": 7 }"""),
-            ("query.blankRecordsPage", """{ "category": "nullDescription", "pageSize": 7 }"""),
+            ("query.blankRecordsPage", """{ "category": "blankDescription", "pageSize": 7 }"""),
             ("query.sourceQualityPage", """{ "pageSize": 7 }"""),
             ("query.prescreenPage", """{ "ruleKey": "suspiciousKeywords", "pageSize": 7 }"""),
             ("query.filterHitsPage", """{ "scenarioPosition": 1, "pageSize": 7 }"""),

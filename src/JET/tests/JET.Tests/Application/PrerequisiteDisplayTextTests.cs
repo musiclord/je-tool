@@ -36,7 +36,7 @@ public sealed class PrerequisiteDisplayTextTests
     [Fact]
     public void MissingTbAndOptionalFields_UseConfirmationLanguageWithoutChangingAvailability()
     {
-        // 裁定 2026-10-30-16 確認沒有 TB 時的兩種原因句，預期值換成新句子；提醒直接沿用原因句，不再另寫一句。
+        // 沒有 TB 時的兩種原因句依裁定 2026-10-30-16，預期值換成新句子；提醒直接沿用原因句，不再另寫一句。
         // 第一次失敗：Focused 收據 20261030-233622780-566597ad2cc44fb3810e08946fb63078。
         // 裁定 2026-11-01-06 把這句的「還沒確認」改成「尚未確認」，其餘字不動；第一次失敗：Focused 收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
         Assert.Equal("TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。", AccountComparisonProcedure.MissingTbMappingReason);

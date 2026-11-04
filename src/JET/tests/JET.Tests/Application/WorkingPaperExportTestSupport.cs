@@ -175,7 +175,7 @@ internal static class WorkingPaperExportTestSupport
             scenarioPositions = positions ?? prepared.Positions
         });
 
-    internal static async Task ReplaceValidationNullSummaryAsync(
+    internal static async Task ReplaceValidationBlankSummaryAsync(
         HandlerTestHost host,
         string projectId,
         string resultId,
@@ -192,9 +192,9 @@ internal static class WorkingPaperExportTestSupport
         var raw = Assert.IsType<string>(await read.ExecuteScalarAsync());
         var summary = Assert.IsType<JsonObject>(JsonNode.Parse(raw));
         var blankRecords = Assert.IsType<JsonObject>(summary["blankRecordsTest"]);
-        blankRecords["nullAccountCount"] = counts[0];
-        blankRecords["nullDocumentCount"] = counts[1];
-        blankRecords["nullDescriptionCount"] = counts[2];
+        blankRecords["blankAccountNumberCount"] = counts[0];
+        blankRecords["blankVoucherNumberCount"] = counts[1];
+        blankRecords["blankDescriptionCount"] = counts[2];
         blankRecords["approvalDateNotInPeriodCount"] = counts[3];
         var sourceQuality = Assert.IsType<JsonObject>(summary["sourceQuality"]);
         sourceQuality["findingCount"] = counts[4];

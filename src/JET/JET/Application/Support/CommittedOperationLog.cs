@@ -10,7 +10,7 @@ namespace JET.Application;
 /// </summary>
 internal static partial class CommittedOperationLog
 {
-    /// <summary>裁定 2026-10-19-19 確認了這句。</summary>
+    /// <summary>這句的用字依裁定 2026-10-19-19。</summary>
     internal const string AppendFailedWarning = "變更已儲存，但這次變更沒有寫入操作紀錄。";
 
     /// <summary>產生報告時的提醒（裁定 2026-10-19-20）。</summary>

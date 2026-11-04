@@ -144,7 +144,7 @@ public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
             .Select(row => step4.Row(row))
             .Where(row => !row.Cell(1).IsEmpty())
             .ToDictionary(
-                row => row.Cell(2).IsEmpty() ? BlankDocument : row.Cell(2).GetString(),
+                row => row.Cell(2).IsEmpty() ? BlankVoucherNumber : row.Cell(2).GetString(),
                 row => (Total: row.Cell(5).GetDouble(),
                     Tags: string.Concat(tagColumns.Select(column => row.Cell(column).IsEmpty() ? "-" : "Y"))));
         // 每張傳票標記符合的情境，傳票總金額是借方合計；空白號碼列的金額是該筆借方金額。
@@ -153,6 +153,6 @@ public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
         Assert.Equal((2000D, "Y-Y"), rows["N2"]);
         Assert.Equal((3500D, "Y-Y"), rows["N3"]);
         Assert.Equal((400D, "-Y-"), rows["N4"]);
-        Assert.Equal((100D, "--Y"), rows[BlankDocument]);
+        Assert.Equal((100D, "--Y"), rows[BlankVoucherNumber]);
     }
 }

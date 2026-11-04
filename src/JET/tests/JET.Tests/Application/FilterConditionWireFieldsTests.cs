@@ -61,6 +61,8 @@ public sealed class FilterConditionWireFieldsTests
         $$"""{"join":"AND","type":"typed","fieldId":"{{MoneyFieldId}}","operator":"greaterThan","value":"100","amountBasis":"absolute"}""",
         """{"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["合成"],"includeBlank":false}""",
         """{"join":"AND","type":"fieldValue","field":"amount","operator":"between","from":"100","to":"500","amountBasis":"absolute","includeBlank":false}""",
+        // 尾數連續多個 0（裁定 2026-11-03-07）：同時確認三種資料庫方言都編譯得出來。
+        """{"join":"AND","type":"fieldValue","field":"amount","operator":"endsWithZeros","value":"6","amountBasis":"absolute","includeBlank":false}""",
         """{"join":"AND","type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}""",
         """{"join":"AND","type":"group","conditions":[{"join":"AND","type":"drCrOnly","drCr":"debit"},{"join":"OR","type":"manualAuto","isManual":"true"}]}""",
         """{"join":"AND","type":"voucher","quantifier":"any","conditions":[{"join":"AND","type":"drCrOnly","drCr":"debit"},{"join":"AND","type":"fieldValue","field":"accountNumber","operator":"in","values":["1000"]}]}"""

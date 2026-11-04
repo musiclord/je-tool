@@ -67,7 +67,7 @@
         },
         {
           "name": "PublishAsync",
-          "parameters": "string, IProjectStore, …",
+          "parameters": "string, int, …",
           "returns": "Task<object>",
           "visibility": "package",
           "static": true
@@ -85,6 +85,13 @@
         {
           "name": "Plan",
           "parameters": "FilterRequest",
+          "returns": "FilterPlan",
+          "visibility": "package",
+          "static": true
+        },
+        {
+          "name": "PlanOneScenario",
+          "parameters": "FilterRequest, SavedFilterScenario",
           "returns": "FilterPlan",
           "visibility": "package",
           "static": true
@@ -179,11 +186,18 @@
       "kind": "interface",
       "row": 1,
       "col": 3,
-      "sublabel": "發布定義與命中",
+      "sublabel": "發布定義與命中，或只換一個情境",
       "methods": [
         {
           "name": "CommitAsync",
-          "parameters": "string, IReadOnlyList<FilterCommitItem>, FilterRuleContext",
+          "parameters": "string, IReadOnlyList<FilterCommitItem>, FilterConditionContext",
+          "returns": "Task",
+          "visibility": "public",
+          "abstract": true
+        },
+        {
+          "name": "SaveOneAsync",
+          "parameters": "string, FilterCommitItem, FilterConditionContext",
           "returns": "Task",
           "visibility": "public",
           "abstract": true
@@ -219,7 +233,7 @@
       "from": "batch",
       "to": "program",
       "kind": "dependency",
-      "label": "Plan、Finalize"
+      "label": "Plan、PlanOneScenario、Finalize"
     },
     {
       "id": "batch_facts",
@@ -246,7 +260,7 @@
       "from": "facts",
       "to": "commitContract",
       "kind": "dependency",
-      "label": "CommitAsync"
+      "label": "CommitAsync、SaveOneAsync"
     },
     {
       "id": "local_commit",
@@ -297,8 +311,9 @@
       "title": "這張圖省略了什麼",
       "items": [
         "方法區只列這條流程用到的方法；SQL Server 版本的類別不在圖內。",
+        "FilterScenarioBatchWriter 另外經 IResultStaleStateStore 讀存好的結果是否過期，再決定只存一個情境還是整批處理。",
         "FilterScenarioBatchWriter 另外呼叫 MappingCommitShared.AdvanceStepAsync 推進步驟，見業務流程圖。",
-        "預覽時，用整張傳票計數的情境另向 IFilterRunRepository 取整張命中傳票的分錄數；本圖只畫儲存。"
+        "預覽時，用整張傳票計數的情境另向 IFilterHitRepository 取整張命中傳票的分錄數；本圖只畫儲存。"
       ]
     },
     {

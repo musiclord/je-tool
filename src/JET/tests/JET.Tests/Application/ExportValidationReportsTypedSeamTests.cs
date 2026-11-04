@@ -22,9 +22,9 @@ public sealed class ExportValidationReportsTypedSeamTests
             generatedUtc,
             completenessDifferenceCount: 3L,
             unbalancedVoucherCount: 4L,
-            nullAccountCount: 10_001L,
-            nullDocumentCount: 10_000L,
-            nullDescriptionCount: 0L,
+            blankAccountNumberCount: 10_001L,
+            blankVoucherNumberCount: 10_000L,
+            blankDescriptionCount: 0L,
             approvalDateNotInPeriodCount: 8L,
             sourceQualityFindingCount: 10_001L);
         var document = Project(projectId);
@@ -35,12 +35,14 @@ public sealed class ExportValidationReportsTypedSeamTests
         var fieldInfos = new RecordingFieldInfoFactsPort(
             tb:
             [
+                // 欄位事實多了來歷與對應的 JET 欄位（裁定 2026-11-03-11），手工建的事實照投影器的寫法補上；
+                // 改名欄位的「配對前欄位名稱」加【】（裁定 2026-11-03-17）。第一次失敗：Focused 收據 20261103-070040356-7ea024157104489698958ad37a9ef5d4。
                 new FieldInfo(2, "期末餘額", null, LegacyFieldKind.Number, null, 0),
-                new FieldInfo(1, "會計科目編號_TB", "客戶科目", LegacyFieldKind.Text, 20, null)
+                new FieldInfo(1, "會計科目編號_TB", "客戶科目", LegacyFieldKind.Text, 20, null, FieldInfoOrigin.Renamed, JetFieldCatalog.TbAccountNumber)
             ],
             gl:
             [
-                new FieldInfo(2, "傳票金額_JE", "來源金額", LegacyFieldKind.Number, null, 4),
+                new FieldInfo(2, "傳票金額_JE", "來源金額", LegacyFieldKind.Number, null, 4, FieldInfoOrigin.Generated, JetFieldCatalog.GlAmount),
                 new FieldInfo(1, "來源日期", null, LegacyFieldKind.Date, null, null)
             ]);
         var handler = CreateHandler(
@@ -79,13 +81,13 @@ public sealed class ExportValidationReportsTypedSeamTests
         Assert.True(finalizedPlan.IsFinalized);
         Assert.Equal(
             ValidationReportDetailDisposition.SummaryOnly,
-            finalizedPlan.RequireDetail(ValidationReportDetailKind.NullAccount).Disposition);
+            finalizedPlan.RequireDetail(ValidationReportDetailKind.BlankAccountNumber).Disposition);
         Assert.Equal(
             ValidationReportDetailDisposition.Emit,
-            finalizedPlan.RequireDetail(ValidationReportDetailKind.NullDocument).Disposition);
+            finalizedPlan.RequireDetail(ValidationReportDetailKind.BlankVoucherNumber).Disposition);
         Assert.Equal(
             ValidationReportDetailDisposition.Omit,
-            finalizedPlan.RequireDetail(ValidationReportDetailKind.NullDescription).Disposition);
+            finalizedPlan.RequireDetail(ValidationReportDetailKind.BlankDescription).Disposition);
         Assert.Equal(
             ValidationReportDetailDisposition.Emit,
             finalizedPlan.RequireDetail(ValidationReportDetailKind.UnbalancedVoucherEntry).Disposition);
@@ -95,13 +97,13 @@ public sealed class ExportValidationReportsTypedSeamTests
         Assert.Equal(6, finalizedPlan.Details.Count);
         Assert.True(finalizedPlan.EmitCompletenessExplanation);
 
-        Assert.Equal(10_001L, validationWriter.Projection?.NullAccountCount);
+        Assert.Equal(10_001L, validationWriter.Projection?.BlankAccountNumberCount);
         Assert.Equal(4L, validationWriter.Projection?.UnbalancedVoucherCount);
         var fieldInfo = Assert.IsType<FieldInfoProjection>(validationWriter.FieldInfo);
         Assert.Equal(
             new[]
             {
-                new FieldInfoRow("客戶科目", "文字型態", 20, null, "會計科目編號_TB"),
+                new FieldInfoRow("【客戶科目】", "文字型態", 20, null, "會計科目編號_TB"),
                 new FieldInfoRow("期末餘額", "數字型態", null, 0, null)
             },
             fieldInfo.TbRows);
@@ -134,9 +136,9 @@ public sealed class ExportValidationReportsTypedSeamTests
             generatedUtc,
             completenessDifferenceCount: 3L,
             unbalancedVoucherCount: 4L,
-            nullAccountCount: 5L,
-            nullDocumentCount: 6L,
-            nullDescriptionCount: 7L,
+            blankAccountNumberCount: 5L,
+            blankVoucherNumberCount: 6L,
+            blankDescriptionCount: 7L,
             approvalDateNotInPeriodCount: 8L,
             sourceQualityFindingCount: 9L,
             sourceQualitySampleRows:
@@ -187,9 +189,9 @@ public sealed class ExportValidationReportsTypedSeamTests
             GlRowCount: 17L,
             CompletenessDiffAccountCount: 3L,
             UnbalancedVoucherCount: 4L,
-            NullAccountCount: 5L,
-            NullDocumentCount: 6L,
-            NullDescriptionCount: 7L,
+            BlankAccountNumberCount: 5L,
+            BlankVoucherNumberCount: 6L,
+            BlankDescriptionCount: 7L,
             ApprovalDateNotInPeriodCount: 8L,
             SourceQualityFindingCount: 9L);
         // 裁定 2026-10-22-20 刪掉投影裡沒人讀的總帳日期空白樣本列：投影只留計數，摘要 JSON 的 sampleRows 照舊留給前端，

@@ -544,7 +544,7 @@ test('mapping: the list and the grid agree on the reason and on whether confirm 
 });
 
 test('mapping: switching the amount format prunes fields the new format does not use in a single redraw', () => {
-  // 裁定 2026-10-12-03 指出第三步換金額欄位格式時選取一閃而過：原本同一次點擊先換草稿、再換格式，整段重繪兩次。
+  // 使用者指出第三步換金額欄位格式時選取一閃而過（裁定 2026-10-12-03）：原本同一次點擊先換草稿、再換格式，整段重繪兩次。
   // 清掉不適用的欄位與換格式是同一個操作，只重繪一次。
   const f = journey({ draft: { ...DUAL, isManual: 'Manual' } });
   const version = f.contentVersion();
@@ -672,7 +672,7 @@ test('mapping: cancelling changes restores a separate copy of the confirmed sett
 test('mapping: a failed confirm is shown in place, and typing afterwards marks it as changed without rebuilding', async () => {
   const f = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' } });
   f.press('[data-action="commit-gl"]');
-  // 後端沒有附原因：裁定 2026-10-13-29 確認的句子（final-wording.json）。
+  // 後端沒有附原因：裁定 2026-10-13-29 的句子（final-wording.json）。
   f.last('mappingCommitGl').reject(Object.assign(new Error(''), { code: 'mapping_failed' }));
   await settleAll();
   const error = () => f.need('[data-bind="mapping-commit-error-gl"]');
@@ -1154,7 +1154,7 @@ test('mapping messages: a confirmed mapping logs the row count with the elapsed 
   await settleAll();
   const messages = messageList(f);
   // 裁定 2026-10-13-28 維持完成句與配對提醒的原句（final-wording.json）；
-  // 耗時的寫法是裁定 2026-10-13-17「保留，改成秒並合併」，以及裁定 2026-10-14-01 確認的用字。
+  // 耗時的寫法是裁定 2026-10-13-17「保留，改成秒並合併」，以及裁定 2026-10-14-01 的用字。
   assert.match(messages[0].text, new RegExp('^GL 已確認配對，共 12,345 筆，' + ELAPSED + '。$'));
   assert.equal(messages[0].level, 'info');
   assert.deepEqual(messages.slice(1, 3), [{ text: 'GL 配對提醒：合成提醒二。', level: 'warn' }, { text: 'GL 配對提醒：合成提醒一。', level: 'warn' }]);
@@ -1170,7 +1170,7 @@ test('mapping messages: a confirmed mapping logs the row count with the elapsed 
   await settleAll();
   assert.match(messageList(f)[0].text, new RegExp('^TB 已確認配對，共 7 筆，' + ELAPSED + '。$'));
 
-  // 失敗：原因寫在配對區的錯誤框（前面的測試已測），訊息面板留一則錯誤。用字由裁定 2026-10-13-28 確認，裁定 2026-10-14-01 在括號後加句號。
+  // 失敗：原因寫在配對區的錯誤框（前面的測試已測），訊息面板留一則錯誤。用字依裁定 2026-10-13-28，括號後的句號依裁定 2026-10-14-01。
   f.press('[data-action="remap-gl"]'); f.timers.run();
   f.press('[data-action="commit-gl"]');
   f.last('mappingCommitGl').reject(Object.assign(new Error('合成：配對未通過檢查。'), { code: 'mapping_failed' }));

@@ -35,7 +35,7 @@
     { value: 'tb', label: 'TB' },
     { value: 'accountMapping', label: '科目配對' },
     { value: 'authorizedPreparer', label: '授權編製人員清單' },
-    { value: 'calendar', label: '行事曆（假日與補班日）' },
+    { value: 'calendar', label: '國定假日與補班日' },
     { value: 'schemaOverview', label: '資料表摘要' }
   ];
 
@@ -709,7 +709,7 @@
       case 'tb': return '尚未確認 TB 欄位配對；確認後即可預覽 TB。';
       case 'accountMapping': return '尚未儲存科目配對；請在「資料驗證與測試」的科目清單選擇分類並儲存。';
       case 'authorizedPreparer': return '尚未匯入授權編製人員清單；在「匯入資料」步驟匯入後即可預覽。';
-      case 'calendar': return '尚未匯入事務所假日／補班日；在「匯入資料」步驟匯入行事曆後即可預覽。';
+      case 'calendar': return '尚未上傳國定假日清單與補班日清單；在「匯入資料」步驟上傳國定假日清單後即可預覽。';
       default: return '目前沒有資料。';
     }
   }

@@ -27,7 +27,7 @@ public sealed class PrescreenPositioningFrontendTests
             ["ExportDefaultGuidance"] =
                 "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             ["ExportPendingRunGuidance"] =
-                // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+                // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
                 "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。"
         };
 

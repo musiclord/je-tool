@@ -27,8 +27,8 @@ internal static partial class GuiScenarios
             }
             outcome.RecordAction(); await cdp.TypeTextAsync(value, ct);
         }
-        // 裁定 2026-10-08-06 重新設計自訂篩選條件：欄位改由「依欄位設定」的欄位按鈕加入。
-        Task Add(string subject) => AddCustomConditionAsync(cdp, subject, Click, ct);
+        // 裁定 2026-10-08-06 重新設計自訂篩選條件：欄位改由欄位按鈕加入，2026-11-03 起在「欄位條件」分頁。
+        Task Add(string subject) => AddFieldConditionAsync(cdp, subject, Click, ct);
         async Task Save(int count)
         {
             await Click("[data-action=save-scenario]");

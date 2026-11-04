@@ -68,9 +68,10 @@ public sealed class ResponsiveLayoutFrontendTests
         foreach (var selector in new[]
         {
             // 2026-10-29 卡片區的格線改名為 --common（原本叫小組名稱），規則本身不變。第一次失敗：Focused 收據 20261029-062123410-6be7ae8a47f140af98c112c94ca35612。
+            // 2026-11-03 自訂篩選條件改成欄位條件分頁，欄位改成一欄的清單、不再用格線（裁定 2026-11-03-05、2026-11-03-26），
+            // 原本兩個 --custom 格線跟著拿掉；情境範例移到右側托盤，改核對托盤的格線同樣會縮窄。第一次失敗：Focused 收據 20261103-100726697-97e6c3f1045d4beda092d17c7bec9ecb。
             ".condition-picker__grid--common",
-            ".condition-picker__grid--custom",
-            ".condition-picker--custom .condition-picker__grid--custom",
+            ".filter-template-tray .filter-example-list__items",
             ".stats-bar"
         })
         {
@@ -92,6 +93,8 @@ public sealed class ResponsiveLayoutFrontendTests
                 "min-width",
                 @"min\([^;]*100%[^;]*\)");
         }
+        // 欄位條件分頁的欄位名稱在窄欄裡換行，不撐寬清單。
+        AssertDeclaration(css, ".filter-field__name", "overflow-wrap", @"anywhere");
         AssertDeclaration(css, ".rule-field__hint", "max-width", @"100%");
         AssertDeclaration(css, ".rule-field__hint", "white-space", @"normal");
         AssertDeclaration(css, ".rule-field__hint", "overflow-wrap", @"anywhere");
@@ -229,6 +232,9 @@ public sealed class ResponsiveLayoutFrontendTests
     /// 「用 Excel 配對」第一列沒有箭頭，名稱比其他列早開始，科目數也被「資料預覽」往左推；2026-10-31 在預覽主機量到後，
     /// 改成和第四步規則清單一樣的固定箭頭欄。傳票表的分錄和傳票共用「符合情形」欄（裁定 2026-10-30-37），
     /// 原本分錄另開一張表時留下的固定寬度會撐開整張表，金額要橫向捲動才看得到。
+    /// 裁定 2026-11-03-03 讓每一列只佔一行：符合第幾組第幾條接在名稱後面，不再是另一個段落。原本斷言那個段落沒有固定寬度、
+    /// 跟著欄寬換行；段落拿掉後找不到那條樣式，第一次失敗：Focused 收據 20261103-041447477-5df79ef74b9e422192d0a01554cd1749。
+    /// 現在改成斷言符合情形只佔一行，欄寬的下限由表頭決定，見下一個測試。
     /// </summary>
     [Fact]
     public void RowsWithAndWithoutToggle_KeepNamesAndNumbersAligned()
@@ -240,9 +246,33 @@ public sealed class ResponsiveLayoutFrontendTests
         AssertDeclaration(css, ".excel-mapping__result > .jet-view", "grid-column", @"3");
         AssertDeclaration(css, ".excel-mapping__value", "grid-column", @"4");
 
-        Assert.False(
-            HasProperty(RuleBodies(css, ".filter-workspace .filter-match-reason > p"), "width", @"[^;]+"),
-            "符合第幾組第幾條那一行跟著欄寬換行，不固定寬度。");
+        Assert.DoesNotContain(".filter-match-reason > p", css, StringComparison.Ordinal);
+        AssertDeclaration(css, ".filter-match-reason", "white-space", @"nowrap");
+        AssertDeclaration(css, ".filter-match-reason", "text-overflow", @"ellipsis");
+    }
+
+    /// <summary>
+    /// 傳票表展開分錄時，分錄列和傳票列一樣高、欄寬不變，分錄再多也不會擠開其他傳票（裁定 2026-11-03-03）。
+    /// 2026-11-03 在預覽主機量到：符合條件的分錄寫成兩行，列高 61px，其他列約 32px；分錄的科目與摘要一出現，整張表跟著變寬。
+    /// 表格比外框寬時，瀏覽器只把儲存格的 width 當建議值，所以只有分錄才有內容的欄由表頭的支撐留好寬度。
+    /// </summary>
+    [Fact]
+    public void VoucherTable_EntryRowsMatchVoucherRowsAndKeepColumnWidths()
+    {
+        var css = ReadFrontend("css", "app.css");
+        var vouchers = ReadFrontend("js", "filter-vouchers.js");
+
+        foreach (var column in new[] { "line", "date", "account", "description", "match", "amount", "extra" })
+        {
+            AssertDeclaration(css, $".voucher-table th.voucher-table__{column}", "--voucher-column-width", @"[\d.]+em");
+        }
+
+        Assert.Contains("::after { content: ''; display: block; height: 0; width: var(--voucher-column-width); }", css, StringComparison.Ordinal);
+        AssertDeclaration(css, ".voucher-table .voucher-table__clip", "white-space", @"nowrap");
+        AssertDeclaration(css, ".voucher-table .voucher-table__clip", "text-overflow", @"ellipsis");
+
+        Assert.Contains("clipCellHtml(entry.description, 'voucher-table__description')", vouchers, StringComparison.Ordinal);
+        Assert.DoesNotContain("'<p>' + Ui.esc(detail)", vouchers, StringComparison.Ordinal);
     }
 
     private static string ReadFrontend(params string[] relativeParts) =>

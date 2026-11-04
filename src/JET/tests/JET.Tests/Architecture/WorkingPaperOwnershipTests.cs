@@ -170,7 +170,7 @@ public sealed class WorkingPaperOwnershipTests
     }
 
     [Fact]
-    public void ProductionWorkingPaperGraph_HasNoNullDetailRepositoryDependency()
+    public void ProductionWorkingPaperGraph_HasNoBlankDetailRepositoryDependency()
     {
         var forbidden = typeof(global::JET.Domain.IBlankRecordsPageRepository);
         var productionTypes = new[]

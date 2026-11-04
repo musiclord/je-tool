@@ -268,8 +268,9 @@ public sealed class JetRuleRequirementsTests
         },
         {
             Kind(JetRulePrerequisiteKind.HolidayCalendar),
-            "尚未上傳假日檔，請先在第二步「假日與補班日」上傳",
-            "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。"
+            // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075421076-cc19c4bfd21d4229bef4547bc5a222f6。
+            "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳",
+            "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。"
         }
     };
 

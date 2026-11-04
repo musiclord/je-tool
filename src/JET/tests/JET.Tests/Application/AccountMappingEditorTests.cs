@@ -84,7 +84,7 @@ public sealed class AccountMappingEditorTests
             databaseProvider: provider, validateForDownstream: true);
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         Assert.Equal(1, loaded.GetProperty("validationResult")
-            .GetProperty("blankRecordsTest").GetProperty("nullAccountCount").GetInt64());
+            .GetProperty("blankRecordsTest").GetProperty("blankAccountNumberCount").GetInt64());
         var page = await host.DispatchAsync("query.accountMappingPage");
         Assert.Equal(new[] { "c", "r" }, page.GetProperty("rows").EnumerateArray()
             .Select(row => row.GetProperty("accountNumber").GetString()));

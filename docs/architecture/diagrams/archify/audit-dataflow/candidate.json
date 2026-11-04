@@ -51,7 +51,7 @@
       "stage": 0,
       "row": 2,
       "label": "情境定義",
-      "sublabel": "config_filter_scenario"
+      "sublabel": "filter_scenario"
     },
     {
       "id": "validation",
@@ -75,7 +75,7 @@
       "stage": 2,
       "row": 0,
       "label": "執行摘要",
-      "sublabel": "result_rule_run"
+      "sublabel": "validation_result、prescreen_result"
     },
     {
       "id": "hits",
@@ -83,7 +83,7 @@
       "stage": 2,
       "row": 2,
       "label": "命中分錄",
-      "sublabel": "result_filter_run"
+      "sublabel": "filter_hit"
     },
     {
       "id": "screen",
@@ -99,7 +99,7 @@
       "stage": 3,
       "row": 1,
       "label": "正式底稿",
-      "sublabel": "WorkpaperWriter"
+      "sublabel": "WorkingPaperWriter"
     }
   ],
   "flows": [
@@ -135,7 +135,7 @@
       "id": "filter_hits",
       "from": "filter",
       "to": "hits",
-      "label": "情境位置與分錄 ID",
+      "label": "情境編號與分錄 ID",
       "variant": "emphasis"
     },
     {
@@ -180,8 +180,8 @@
       "dot": "cyan",
       "title": "計算在哪裡發生",
       "items": [
-        "驗證與預篩選用 SQL 在 target_gl_entry 上計數與彙總，只把摘要以 JSON 存進 result_rule_run。",
-        "進階篩選把條件樹轉成 SQL，直接在資料庫寫入命中的情境位置與分錄 ID。",
+        "驗證與預篩選用 SQL 在 gl 上計數與彙總，只把摘要以 JSON 存進 validation_result 或 prescreen_result。",
+        "進階篩選把條件樹轉成 SQL，直接在資料庫寫入命中的情境編號與分錄 ID，以及命中傳票裡每筆分錄符合第幾組第幾條。",
         "畫面只取摘要與分頁，不把整批分錄送進前端。"
       ]
     },
@@ -189,7 +189,7 @@
       "dot": "slate",
       "title": "正式底稿讀什麼",
       "items": [
-        "規劃時只讀需要的摘要資料；寫底稿時，WorkpaperWriter 分頁讀取完整明細，邊讀邊寫入工作簿。",
+        "規劃時只讀需要的摘要資料；寫底稿時，WorkingPaperWriter 分頁讀取完整明細，邊讀邊寫入工作簿。",
         "底稿另外讀欄位定義、配對與範本，圖只畫主要審計資料；執行順序與例外見底稿的循序圖。",
         "本圖以 SQLite 或 DuckDB 案件為準。"
       ]

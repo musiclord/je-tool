@@ -71,7 +71,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
 
         var infSampleCount = await InsertInfSampleAsync(connection, projectId, transaction, input, cancellationToken);
 
-        var (nullAccount, nullDocument, nullDescription, approvalDateNotInPeriod) =
+        var (blankAccountNumber, blankVoucherNumber, blankDescription, approvalDateNotInPeriod) =
             await ReadBlankRecordsAsync(connection, projectId, transaction, input, cancellationToken);
         var sourceQualityFindingCount = await ReadSourceQualityFindingCountAsync(
             connection,
@@ -79,7 +79,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
             transaction,
             cancellationToken);
 
-        var nullDetail = await ReadNullDetailAsync(connection, projectId, transaction, input, cancellationToken);
+        var blankDetail = await ReadBlankDetailAsync(connection, projectId, transaction, input, cancellationToken);
 
         var controlTotals = await ReadControlTotalsAsync(connection, projectId, transaction, cancellationToken);
         var voucherNumberAcrossGlDates = await ReadVoucherNumberAcrossGlDatesAsync(connection, projectId, transaction, cancellationToken);
@@ -92,13 +92,13 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
             completenessDiffs,
             unbalancedCount,
             infSampleCount,
-            nullAccount,
-            nullDocument,
-            nullDescription,
+            blankAccountNumber,
+            blankVoucherNumber,
+            blankDescription,
             approvalDateNotInPeriod,
             sourceQualityFindingCount,
             unbalancedDetail,
-            nullDetail,
+            blankDetail,
             controlTotals,
             amountBinCounts,
             voucherNumberAcrossGlDates, sourceQualityPage.Rows);
@@ -357,7 +357,7 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         return rows;
     }
 
-    private async Task<IReadOnlyList<BlankRecordRow>> ReadNullDetailAsync(
+    private async Task<IReadOnlyList<BlankRecordRow>> ReadBlankDetailAsync(
         SqlConnection connection, string projectId, SqlTransaction transaction,
         ValidationRequest input, CancellationToken cancellationToken)
     {

@@ -60,7 +60,8 @@ public sealed class EntityFrequencyWorkflowTests
                 .SelectMany(sheet => sheet.CellsUsed()).Select(cell => cell.GetString()),
                 // 用語統一後，條件讀回跟著畫面改（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
                 // 裁定 2026-10-08-04 統一全系統的資料名稱：「分錄測試範圍內」改為「GL 中」。
-                text => text.Contains("GL 中「會計科目編號」傳票張數（同號只算一張） 介於 1～2（含端點）", StringComparison.Ordinal));
+                // 報告的條件說明用【】標欄位名稱，畫面才用「」（裁定 2026-11-03-17）。第一次失敗：Public 收據 20261103-111153760-c5c19c4dc5b94ecaacaacbb58eab4608。
+                text => text.Contains("GL 中【會計科目編號】傳票張數（同號只算一張） 介於 1～2（含端點）", StringComparison.Ordinal));
         }
         var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
         { scenario = Scenario("description", "vouchers", "equals", 1) })));

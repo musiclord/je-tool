@@ -63,7 +63,7 @@ public sealed class DatasetDisplayTextTests
         Assert.Equal(JetErrorCodes.GlAmountsAllZero, error.Code);
         Assert.DoesNotContain("母體", error.Message, StringComparison.Ordinal);
         // 裁定 2026-10-08-04：資料名稱全系統統一，納入測試的分錄叫 GL。
-        // 裁定 2026-10-13-28 確認了這句的用字，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字依裁定 2026-10-13-28，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.Contains("GL 借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("納入測試的分錄", error.Message, StringComparison.Ordinal);
         Assert.Contains("借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);

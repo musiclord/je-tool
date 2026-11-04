@@ -3780,10 +3780,9 @@
                 "fields": {
                   "approvalDateNotInPeriodCount": "number",
                   "approvalDateNotInPeriodNaReason": "null",
-                  "nullAccountCount": "number",
-                  "nullDescriptionCount": "number",
-                  "nullDocumentCount": "number",
-                  "nullRows": {
+                  "blankAccountNumberCount": "number",
+                  "blankDescriptionCount": "number",
+                  "blankRows": {
                     "kind": "array",
                     "items": {
                       "kind": "object",
@@ -3799,6 +3798,7 @@
                       }
                     }
                   },
+                  "blankVoucherNumberCount": "number",
                   "status": "string"
                 }
               },
@@ -5307,10 +5307,9 @@
             "fields": {
               "approvalDateNotInPeriodCount": "null|number",
               "approvalDateNotInPeriodNaReason": "null|string",
-              "nullAccountCount": "number",
-              "nullDescriptionCount": "number",
-              "nullDocumentCount": "number",
-              "nullRows": {
+              "blankAccountNumberCount": "number",
+              "blankDescriptionCount": "number",
+              "blankRows": {
                 "kind": "array",
                 "items": {
                   "kind": "object",
@@ -5326,6 +5325,7 @@
                   }
                 }
               },
+              "blankVoucherNumberCount": "number",
               "status": "string"
             }
           },

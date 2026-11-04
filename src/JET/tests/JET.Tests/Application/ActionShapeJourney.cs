@@ -476,7 +476,7 @@ internal static class ActionShapeJourney
             await PagedAsync("query.completenessDiffPage", new JsonObject(), "accountNumber", "9999");
             await PagedAsync("query.voucherBalancePage", new JsonObject(), "voucherNumber", "SHAPE");
             await PagedAsync("query.sourceQualityPage", new JsonObject(), "voucherNumber", "SHAPE");
-            foreach (var category in new[] { "nullAccount", "nullDocument", "nullDescription", "approvalDateNotInPeriod" })
+            foreach (var category in new[] { "blankAccountNumber", "blankVoucherNumber", "blankDescription", "approvalDateNotInPeriod" })
             {
                 await PagedAsync("query.blankRecordsPage", new JsonObject { ["category"] = category }, "voucherNumber", "SHAPE");
             }

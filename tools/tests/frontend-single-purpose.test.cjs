@@ -1,4 +1,6 @@
 'use strict';
+// 常用查法的程式名稱改成常用查法的字根（裁定 2026-11-03-30）：data-add-check 改 data-add-shortcut、FILTER_PURPOSE_CHECK_GROUPS 改 FIELD_SHORTCUT_GROUPS、
+// findPurposeCheck 與 addPurposeCheck 改 findFieldShortcut 與 addFieldShortcut，只改名稱，核對的內容不變。第一次失敗：FrontendMapping 收據 20261103-122529439-5142ff4653664a1781743d0694d4c3af。
 require('./support/resource-guard.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -28,8 +30,13 @@ test('classification has two modes and no entry-side menu', () => {
 });
 
 // 「包含下層分類」只有一種寫法，下拉選項和讀回、報告用同一個詞。
+// 裁定 2026-11-03-27 先隱藏「選取依據」，開關 Ui.FEATURES.categoryHierarchy 預設關著。原本直接讀下拉的選項；
+// 改成先核對開關關著時沒有這個下拉，再打開開關重畫，原本的斷言照舊。第一次失敗：FrontendMapping 收據 20261103-102610249-33dada705bc54432a817530311880e4f。
 test('the subtree selection option reads 包含下層分類', () => {
   const f = draftFixture({ type: 'accountSide', categoryMode: 'is', categoryIds: ['builtin.cash'], categorySelection: 'subtree' });
+  assert.equal(f.$('[data-rule-bind="categorySelection"]'), null, 'with the switch off there is no selection menu');
+  f.window.JetUi.FEATURES.categoryHierarchy = true;
+  f.store.touch();
   const options = Array.from(f.$('[data-rule-bind="categorySelection"]').querySelectorAll('option'));
   assert.deepEqual(options.map(option => option.textContent), ['相同分類用途', '僅分類本身', '包含下層分類']);
 });
@@ -53,9 +60,11 @@ test('only additional money fields offer a signed comparison', () => {
   assert.equal(extra.window.JetUi.FilterValues.wire(extra.store.getState().filter.draft.groups[0].conditions[0], extra.store.getState()).amountBasis, 'signed');
 });
 
+// 裁定 2026-11-03-08 把「借方與貸方科目編號組合」從單一條件的入口移到情境範例，套用後替換整份條件。原本按常用查法的鍵加入，
+// 改成套用同名的範例；借方與貸方各一個明示方向的子條件不變。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
 test('common account combinations use explicit side children and keep their original defaults', () => {
   const f = filterOperationFixture();
-  f.click('[data-add-check="accountNumberPair"]');
+  f.click('[data-template-key="accountNumberPair"]');
   const rules = f.draft().groups[0].conditions[0].conditions;
   assert.deepEqual(plain(rules.map(rule => [rule.side, rule.quantifier, rule.conditions.map(child => [child.type, child.drCr, child.field])])), [
     [null, 'any', [['drCrOnly', 'debit', null], ['fieldValue', null, 'accountNumber']]],
@@ -78,14 +87,19 @@ test('the preparer, keyword, blank description and trailing digit cards share fi
   assert.deepEqual(plain(f.draft().groups[0].conditions.map(rule => rule.__commonCard)), ['specificPreparer', 'blankDescription', 'specificTrailingDigits']);
 });
 
+// 裁定 2026-11-03-07 把「金額尾數連續多個 0」改成一條條件，比較方式是尾數連續幾個 0，0 元照舊不選入。原本核對加入的是
+// 「整數尾數符合 000000」與「金額絕對值大於或等於 1」兩條的子條件組，第二條讓絕對值小於 1 的金額看得出不選入；
+// 改成核對加入一條尾數連續 6 個 0 的條件，條件列寫出整數部分為 0 的金額不符合。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
 test('the trailing-zero preset visibly excludes absolute amounts below one', () => {
   const f = filterOperationFixture();
-  f.click('[data-add-check="trailingZeros"]');
-  const group = f.draft().groups[0].conditions[0];
-  assert.equal(group.type, 'group');
-  assert.deepEqual(plain(group.conditions.map(rule => [rule.type, rule.field, rule.operator, rule.value, rule.amountBasis])), [
-    ['fieldValue', 'amount', 'endsWithDigits', '000000', 'absolute'],
-    ['fieldValue', 'amount', 'greaterThanOrEqual', '1', 'absolute']]);
+  f.click('[data-condition-source="field"]');
+  f.click('[data-add-shortcut="trailingZeros"]');
+  const rules = f.draft().groups[0].conditions;
+  assert.deepEqual(plain(rules.map(rule => [rule.type, rule.field, rule.operator, rule.value, rule.amountBasis])), [
+    ['fieldValue', 'amount', 'endsWithZeros', '6', 'absolute']]);
+  const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
+  assert.ok(row.querySelectorAll('.rule-explanation').some(node => /整數部分為 0 的金額不符合/.test(node.textContent)),
+    'the row says amounts whose whole part is 0 do not match');
 });
 
 // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示改成「放進子條件組，用 OR 連接」，不再寫畫面上已沒有的「任一符合」。

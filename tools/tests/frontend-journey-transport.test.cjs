@@ -6,7 +6,7 @@
 // 晚到的舊回應不能蓋過新的結果；還原欄位配對草稿時兩份草稿一次換掉，已確認的配對不動。
 //
 // 這個檔在 vm 載入正式的 jet-api.js、ui-core.js、state.js 與第五步畫面，斷言送出的請求、Promise 的結果、
-// Store 狀態與畫出來的節點，不比對原始碼字串。依據是裁定 2026-10-13-14 選的「照建議做」。
+// Store 狀態與畫出來的節點，不比對原始碼字串。依據是使用者選的「照建議做」（裁定 2026-10-13-14）。
 //
 // 取代的 C# 方法（src/JET/tests/JET.Tests/Architecture/）：
 //   FrontendEscapingTests.Esc_EscapesBothQuoteKinds_ForHtmlAttributeInterpolation（雙引號由 frontend-journey-mapping.test.cjs 補齊，2026-10-14 整併時連同整檔刪除）

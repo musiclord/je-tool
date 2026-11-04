@@ -11,11 +11,11 @@
       "target": "M:JET.Application.FilterScenarioBatchWriter.LoadAsync(JET.Domain.IProjectStore,System.String,JET.Application.FilterScenarioStores,System.Text.Json.JsonElement,System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
-        "line": 39,
-        "endLine": 39,
+        "line": 42,
+        "endLine": 42,
         "column": 30
       },
-      "sourceSha256": "aa158cbc186141dca55eb4a7e04a0ece9a2617ad88c40ae7a0400f6278857701",
+      "sourceSha256": "a4d3107e70aae54f50bc4f5402f3b6537e0be92984d47a6632f52e3ab5c84662",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -30,15 +30,15 @@
           "resolution_origin": "receiver_global",
           "hint_source": null,
           "callLines": [
-            39
+            42
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
-          "line": 47,
-          "endLine": 47,
+          "line": 50,
+          "endLine": 50,
           "column": 42
         }
       ]
@@ -50,11 +50,11 @@
       "target": "M:JET.Application.FilterScenarioBatchWriter.PlanSave(JET.Application.FilterScenarioBatchWriter.Prepared,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Text.Json.JsonElement,System.DateTimeOffset)",
       "location": {
         "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
-        "line": 42,
-        "endLine": 42,
+        "line": 45,
+        "endLine": 45,
         "column": 22
       },
-      "sourceSha256": "aa158cbc186141dca55eb4a7e04a0ece9a2617ad88c40ae7a0400f6278857701",
+      "sourceSha256": "a4d3107e70aae54f50bc4f5402f3b6537e0be92984d47a6632f52e3ab5c84662",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -69,15 +69,15 @@
           "resolution_origin": "receiver_global",
           "hint_source": null,
           "callLines": [
-            42
+            45
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
-          "line": 100,
-          "endLine": 100,
+          "line": 104,
+          "endLine": 104,
           "column": 28
         }
       ]
@@ -86,14 +86,14 @@
       "id": "R03",
       "kind": "invokes",
       "source": "M:JET.Application.FilterScenarioSaveHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
-      "target": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+      "target": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,System.Int32,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
-        "line": 43,
-        "endLine": 44,
+        "line": 46,
+        "endLine": 47,
         "column": 22
       },
-      "sourceSha256": "aa158cbc186141dca55eb4a7e04a0ece9a2617ad88c40ae7a0400f6278857701",
+      "sourceSha256": "a4d3107e70aae54f50bc4f5402f3b6537e0be92984d47a6632f52e3ab5c84662",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -108,15 +108,15 @@
           "resolution_origin": "receiver_global",
           "hint_source": null,
           "callLines": [
-            43
+            46
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
-          "line": 197,
-          "endLine": 197,
+          "line": 216,
+          "endLine": 216,
           "column": 40
         }
       ]
@@ -124,15 +124,15 @@
     {
       "id": "R04",
       "kind": "invokes",
-      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,System.Int32,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
       "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.FilterRequest,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario})",
       "location": {
         "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
-        "line": 229,
-        "endLine": 231,
+        "line": 281,
+        "endLine": 283,
         "column": 28
       },
-      "sourceSha256": "761f0a44f2ee531b0baecb2d93995515deba93409cf900f6f058437a817809c3",
+      "sourceSha256": "ff1a4f614358ac33a6ebd5fdd626dc91356c8a5906e8bcb0c2ea0435afdc39f4",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -147,15 +147,15 @@
           "resolution_origin": "receiver_import",
           "hint_source": null,
           "callLines": [
-            229
+            281
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/AuditCore/FilterProgram.cs",
-          "line": 89,
-          "endLine": 89,
+          "line": 95,
+          "endLine": 95,
           "column": 32
         }
       ]
@@ -163,15 +163,15 @@
     {
       "id": "R05",
       "kind": "invokes",
-      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,System.Int32,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
       "target": "M:JET.AuditCore.IFilterFactsPort.ExecuteAsync(JET.AuditCore.FilterPlan,System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
-        "line": 232,
-        "endLine": 232,
+        "line": 284,
+        "endLine": 284,
         "column": 35
       },
-      "sourceSha256": "761f0a44f2ee531b0baecb2d93995515deba93409cf900f6f058437a817809c3",
+      "sourceSha256": "ff1a4f614358ac33a6ebd5fdd626dc91356c8a5906e8bcb0c2ea0435afdc39f4",
       "semanticStatus": "compiler-bound",
       "dispatch": "interface_declared_target",
       "runtimeObserved": false,
@@ -181,8 +181,8 @@
       "targetDeclarations": [
         {
           "path": "src/JET/JET/AuditCore/FilterProgram.cs",
-          "line": 58,
-          "endLine": 58,
+          "line": 64,
+          "endLine": 64,
           "column": 23
         }
       ]
@@ -190,15 +190,15 @@
     {
       "id": "R06",
       "kind": "invokes",
-      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,System.Int32,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
       "target": "M:JET.AuditCore.JetAuditProgram.Finalize(JET.AuditCore.FilterPlan,JET.AuditCore.FilterFacts)",
       "location": {
         "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
-        "line": 233,
-        "endLine": 233,
+        "line": 285,
+        "endLine": 285,
         "column": 30
       },
-      "sourceSha256": "761f0a44f2ee531b0baecb2d93995515deba93409cf900f6f058437a817809c3",
+      "sourceSha256": "ff1a4f614358ac33a6ebd5fdd626dc91356c8a5906e8bcb0c2ea0435afdc39f4",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -213,15 +213,16 @@
           "resolution_origin": "receiver_import",
           "hint_source": null,
           "callLines": [
-            233
+            254,
+            285
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/AuditCore/FilterProgram.cs",
-          "line": 193,
-          "endLine": 193,
+          "line": 216,
+          "endLine": 216,
           "column": 34
         }
       ]
@@ -229,15 +230,15 @@
     {
       "id": "R07",
       "kind": "invokes",
-      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
+      "source": "M:JET.Application.FilterScenarioBatchWriter.PublishAsync(System.String,System.Int32,JET.Domain.IProjectStore,JET.Application.FilterScenarioStores,JET.Application.FilterScenarioBatchWriter.Prepared,JET.Application.FilterScenarioBatchWriter.Change,System.Boolean,System.DateTimeOffset,Microsoft.Extensions.Logging.ILogger,System.Threading.CancellationToken)",
       "target": "M:JET.Domain.IFilterScenarioStore.ReplaceAllAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs",
-        "line": 246,
-        "endLine": 246,
+        "line": 298,
+        "endLine": 298,
         "column": 23
       },
-      "sourceSha256": "761f0a44f2ee531b0baecb2d93995515deba93409cf900f6f058437a817809c3",
+      "sourceSha256": "ff1a4f614358ac33a6ebd5fdd626dc91356c8a5906e8bcb0c2ea0435afdc39f4",
       "semanticStatus": "compiler-bound",
       "dispatch": "interface_declared_target",
       "runtimeObserved": false,
@@ -246,9 +247,9 @@
       "repowiseEdges": [],
       "targetDeclarations": [
         {
-          "path": "src/JET/JET/Domain/Contracts/RuleRunContracts.cs",
-          "line": 67,
-          "endLine": 67,
+          "path": "src/JET/JET/Domain/Contracts/ResultContracts.cs",
+          "line": 75,
+          "endLine": 75,
           "column": 10
         }
       ]
@@ -264,7 +265,7 @@
         "endLine": 22,
         "column": 39
       },
-      "sourceSha256": "3c309bc43b668e51c6abc19f4f2328cec870bc4863524a842ad5f1755192dd7b",
+      "sourceSha256": "f1695ec9e5d49125660674f7e221deb84f5bdca7764cfb38f0af7d9ef70aa36d",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -303,7 +304,7 @@
         "endLine": 25,
         "column": 26
       },
-      "sourceSha256": "3c309bc43b668e51c6abc19f4f2328cec870bc4863524a842ad5f1755192dd7b",
+      "sourceSha256": "f1695ec9e5d49125660674f7e221deb84f5bdca7764cfb38f0af7d9ef70aa36d",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -335,14 +336,14 @@
       "id": "R10",
       "kind": "invokes",
       "source": "M:JET.Infrastructure.FilterFactsPort.CommitAsync(JET.AuditCore.FilterPlan,System.Threading.CancellationToken)",
-      "target": "M:JET.Domain.IFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
+      "target": "M:JET.Domain.IFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterConditionContext,System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Infrastructure/Persistence/FilterFactsPort.cs",
-        "line": 59,
-        "endLine": 63,
+        "line": 70,
+        "endLine": 74,
         "column": 15
       },
-      "sourceSha256": "3c309bc43b668e51c6abc19f4f2328cec870bc4863524a842ad5f1755192dd7b",
+      "sourceSha256": "f1695ec9e5d49125660674f7e221deb84f5bdca7764cfb38f0af7d9ef70aa36d",
       "semanticStatus": "compiler-bound",
       "dispatch": "interface_declared_target",
       "runtimeObserved": false,
@@ -352,8 +353,8 @@
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Domain/Contracts/FilterContracts.cs",
-          "line": 126,
-          "endLine": 126,
+          "line": 130,
+          "endLine": 130,
           "column": 10
         }
       ]
@@ -361,15 +362,15 @@
     {
       "id": "R11",
       "kind": "invokes",
-      "source": "M:JET.Infrastructure.LocalFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
-      "target": "M:JET.Infrastructure.LocalFilterCommitRepository.ValidateBatch(System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext)",
+      "source": "M:JET.Infrastructure.LocalFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterConditionContext,System.Threading.CancellationToken)",
+      "target": "M:JET.Infrastructure.LocalFilterCommitRepository.ValidateBatch(System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterConditionContext)",
       "location": {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-        "line": 32,
-        "endLine": 32,
+        "line": 28,
+        "endLine": 28,
         "column": 9
       },
-      "sourceSha256": "fa5d2193daec98512da600572ad7739a52fa642ad0a86bb3a055c45899a71478",
+      "sourceSha256": "c61045ec5c52b8e86663b13e8cdc3a32fb386471ea77cacc3539222a187a2948",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -384,15 +385,15 @@
           "resolution_origin": "same_file",
           "hint_source": null,
           "callLines": [
-            32
+            28
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-          "line": 134,
-          "endLine": 134,
+          "line": 139,
+          "endLine": 139,
           "column": 25
         }
       ]
@@ -400,15 +401,15 @@
     {
       "id": "R12",
       "kind": "invokes",
-      "source": "M:JET.Infrastructure.LocalFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
-      "target": "M:JET.Infrastructure.LocalFilterCommitRepository.InsertDefinitionsAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},System.Threading.CancellationToken)",
+      "source": "M:JET.Infrastructure.LocalFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterConditionContext,System.Threading.CancellationToken)",
+      "target": "M:JET.Infrastructure.LocalFilterCommitRepository.InsertDefinitionAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,JET.Domain.SavedFilterScenario,System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-        "line": 56,
-        "endLine": 60,
-        "column": 15
+        "line": 45,
+        "endLine": 45,
+        "column": 19
       },
-      "sourceSha256": "fa5d2193daec98512da600572ad7739a52fa642ad0a86bb3a055c45899a71478",
+      "sourceSha256": "c61045ec5c52b8e86663b13e8cdc3a32fb386471ea77cacc3539222a187a2948",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -417,21 +418,21 @@
       "repowiseEdges": [
         {
           "source_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs::LocalFilterCommitRepository::CommitAsync",
-          "target_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs::LocalFilterCommitRepository::InsertDefinitionsAsync",
+          "target_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs::LocalFilterCommitRepository::InsertDefinitionAsync",
           "edge_type": "calls",
           "confidence": 0.95,
           "resolution_origin": "same_file",
           "hint_source": null,
           "callLines": [
-            56
+            45
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-          "line": 77,
-          "endLine": 77,
+          "line": 93,
+          "endLine": 93,
           "column": 24
         }
       ]
@@ -439,15 +440,15 @@
     {
       "id": "R13",
       "kind": "invokes",
-      "source": "M:JET.Infrastructure.LocalFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
-      "target": "M:JET.Infrastructure.LocalFilterCommitRepository.InsertHitsAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
+      "source": "M:JET.Infrastructure.LocalFilterCommitRepository.CommitAsync(System.String,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterConditionContext,System.Threading.CancellationToken)",
+      "target": "M:JET.Infrastructure.LocalFilterCommitRepository.InsertResultsAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,JET.Domain.FilterCommitItem,JET.Domain.FilterConditionContext,System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-        "line": 61,
-        "endLine": 66,
-        "column": 15
+        "line": 50,
+        "endLine": 50,
+        "column": 19
       },
-      "sourceSha256": "fa5d2193daec98512da600572ad7739a52fa642ad0a86bb3a055c45899a71478",
+      "sourceSha256": "c61045ec5c52b8e86663b13e8cdc3a32fb386471ea77cacc3539222a187a2948",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -456,37 +457,37 @@
       "repowiseEdges": [
         {
           "source_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs::LocalFilterCommitRepository::CommitAsync",
-          "target_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs::LocalFilterCommitRepository::InsertHitsAsync",
+          "target_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs::LocalFilterCommitRepository::InsertResultsAsync",
           "edge_type": "calls",
           "confidence": 0.95,
           "resolution_origin": "same_file",
           "hint_source": null,
           "callLines": [
-            61
+            50
           ]
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-          "line": 109,
-          "endLine": 109,
-          "column": 24
+          "line": 115,
+          "endLine": 115,
+          "column": 18
         }
       ]
     },
     {
       "id": "R14",
       "kind": "invokes",
-      "source": "M:JET.Infrastructure.LocalFilterCommitRepository.InsertHitsAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Collections.Generic.IReadOnlyList{JET.Domain.FilterCommitItem},JET.Domain.FilterRuleContext,System.Threading.CancellationToken)",
-      "target": "M:JET.AuditCore.GlFilterWhereBuilder.BuildPlan(JET.Domain.FilterScenarioSpec,JET.Domain.FilterRuleContext,System.Int64,System.String,System.Boolean,System.Boolean)",
+      "source": "M:JET.Infrastructure.FilterHitInsertSql.InsertOneAsync(System.Func{System.String,System.Data.Common.DbCommand},System.Data.Common.DbTransaction,JET.AuditCore.ISqlDialect,System.String,System.String,System.Int32,JET.Domain.FilterScenarioSpec,JET.Domain.FilterConditionContext,Microsoft.Extensions.Logging.ILogger,System.String,System.Threading.CancellationToken)",
+      "target": "M:JET.AuditCore.GlFilterWhereBuilder.BuildPlan(JET.Domain.FilterScenarioSpec,JET.Domain.FilterConditionContext,System.String,System.Boolean,System.Boolean)",
       "location": {
-        "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-        "line": 123,
-        "endLine": 123,
-        "column": 24
+        "path": "src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs",
+        "line": 70,
+        "endLine": 70,
+        "column": 20
       },
-      "sourceSha256": "fa5d2193daec98512da600572ad7739a52fa642ad0a86bb3a055c45899a71478",
+      "sourceSha256": "d34f66480f4aeea6dbcb2e4d0de1a2b841128c7199c41e8526d8e732b13804c8",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -494,14 +495,14 @@
       "repowiseStatus": "matched",
       "repowiseEdges": [
         {
-          "source_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs::LocalFilterCommitRepository::InsertHitsAsync",
+          "source_node_id": "src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs::FilterHitInsertSql::InsertOneAsync",
           "target_node_id": "src/JET/JET/AuditCore/FilterCompilation.cs::GlFilterWhereBuilder::BuildPlan",
           "edge_type": "calls",
           "confidence": 0.75,
-          "resolution_origin": "receiver_field_global",
+          "resolution_origin": "receiver_typed_global",
           "hint_source": null,
           "callLines": [
-            123
+            70
           ]
         }
       ],
@@ -521,11 +522,11 @@
       "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.IntakeRequest)",
       "location": {
         "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-        "line": 47,
-        "endLine": 60,
+        "line": 50,
+        "endLine": 63,
         "column": 20
       },
-      "sourceSha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41",
+      "sourceSha256": "baa07846a655e3e0a61ae8179b59751a56276119badffa3616cb02e37983ff7b",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -540,7 +541,7 @@
           "resolution_origin": "receiver_import",
           "hint_source": null,
           "callLines": [
-            47
+            50
           ]
         }
       ],
@@ -556,15 +557,15 @@
     {
       "id": "R16",
       "kind": "invokes",
-      "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:3397",
+      "source": "M:JET.Application.ImportFromFileHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:3528",
       "target": "M:JET.AuditCore.IIntakeFactsPort.ExecuteAsync(JET.AuditCore.IntakePlan,System.Collections.Generic.IReadOnlyList{JET.Domain.ImportSourceInput},System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-        "line": 151,
-        "endLine": 154,
+        "line": 156,
+        "endLine": 159,
         "column": 30
       },
-      "sourceSha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41",
+      "sourceSha256": "baa07846a655e3e0a61ae8179b59751a56276119badffa3616cb02e37983ff7b",
       "semanticStatus": "compiler-bound",
       "dispatch": "interface_declared_target",
       "runtimeObserved": false,
@@ -601,8 +602,8 @@
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Domain/Contracts/ImportContracts.cs",
-          "line": 215,
-          "endLine": 215,
+          "line": 226,
+          "endLine": 226,
           "column": 29
         }
       ]
@@ -611,14 +612,14 @@
       "id": "R18",
       "kind": "invokes",
       "source": "M:JET.Infrastructure.LocalImportRepository.ReplaceBatchAsync(System.String,JET.Domain.DatasetKind,System.Collections.Generic.IReadOnlyList{JET.Domain.ImportSourceInput},System.Threading.CancellationToken)",
-      "target": "M:JET.Infrastructure.RuleRunResultReset.ClearWithinAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Threading.CancellationToken,JET.Domain.AuditMutation,System.String)",
+      "target": "M:JET.Infrastructure.ResultReset.ClearWithinAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Threading.CancellationToken,JET.Domain.AuditMutation,System.String)",
       "location": {
         "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
         "line": 79,
         "endLine": 83,
         "column": 19
       },
-      "sourceSha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77",
+      "sourceSha256": "402f21355585417ea0af56f159aff56e2528a363ece5e63df4e89d7654b35e4b",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -627,7 +628,7 @@
       "repowiseEdges": [
         {
           "source_node_id": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs::LocalImportRepository::ReplaceBatchAsync",
-          "target_node_id": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs::RuleRunResultReset::ClearWithinAsync",
+          "target_node_id": "src/JET/JET/Infrastructure/Sql/ResultReset.cs::ResultReset::ClearWithinAsync",
           "edge_type": "calls",
           "confidence": 0.75,
           "resolution_origin": "receiver_global",
@@ -639,7 +640,7 @@
       ],
       "targetDeclarations": [
         {
-          "path": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs",
+          "path": "src/JET/JET/Infrastructure/Sql/ResultReset.cs",
           "line": 30,
           "endLine": 30,
           "column": 32
@@ -649,15 +650,15 @@
     {
       "id": "R19",
       "kind": "invokes",
-      "source": "M:JET.Infrastructure.RuleRunResultReset.ClearWithinAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Threading.CancellationToken,JET.Domain.AuditMutation,System.String)",
+      "source": "M:JET.Infrastructure.ResultReset.ClearWithinAsync(System.Data.Common.DbConnection,System.Data.Common.DbTransaction,System.Threading.CancellationToken,JET.Domain.AuditMutation,System.String)",
       "target": "M:JET.Domain.AuditDependencyPolicy.For(JET.Domain.AuditMutation)",
       "location": {
-        "path": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs",
+        "path": "src/JET/JET/Infrastructure/Sql/ResultReset.cs",
         "line": 37,
         "endLine": 37,
         "column": 22
       },
-      "sourceSha256": "e450fb1b2aa1c9312eacd3f7032af5341593d4642e14169ef2664e972d12ea32",
+      "sourceSha256": "3a71effabba5e5e4fbd91824914571c692077b8f6d75e28e0486e9aaa4e661f0",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -665,7 +666,7 @@
       "repowiseStatus": "matched",
       "repowiseEdges": [
         {
-          "source_node_id": "src/JET/JET/Infrastructure/Sql/RuleRunResultReset.cs::RuleRunResultReset::ClearWithinAsync",
+          "source_node_id": "src/JET/JET/Infrastructure/Sql/ResultReset.cs::ResultReset::ClearWithinAsync",
           "target_node_id": "src/JET/JET/Domain/Rules/AuditDependencyPolicy.cs::AuditDependencyPolicy::For",
           "edge_type": "calls",
           "confidence": 0.88,
@@ -679,8 +680,8 @@
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Domain/Rules/AuditDependencyPolicy.cs",
-          "line": 43,
-          "endLine": 43,
+          "line": 39,
+          "endLine": 39,
           "column": 43
         }
       ]
@@ -688,15 +689,15 @@
     {
       "id": "R20",
       "kind": "invokes",
-      "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
-      "target": "M:JET.Application.FilterRunMaterializeService.MaterializeSelectedAsync(System.String,JET.Domain.ProjectDocument,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Collections.Generic.IReadOnlyCollection{System.Int32},System.Threading.CancellationToken)",
+      "source": "M:JET.Application.ExportWorkingPaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+      "target": "M:JET.Application.FilterHitMaterializeService.MaterializeSelectedAsync(System.String,JET.Domain.ProjectDocument,System.Collections.Generic.IReadOnlyList{JET.Domain.SavedFilterScenario},System.Collections.Generic.IReadOnlyCollection{System.Int32},System.Threading.CancellationToken)",
       "location": {
-        "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
-        "line": 92,
-        "endLine": 92,
-        "column": 15
+        "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+        "line": 101,
+        "endLine": 101,
+        "column": 23
       },
-      "sourceSha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a",
+      "sourceSha256": "cc76e7c7f7258ba702be7786d0708a06f6f4b3ac242426d9bce021e297f91c65",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -705,7 +706,7 @@
       "repowiseEdges": [],
       "targetDeclarations": [
         {
-          "path": "src/JET/JET/Application/Support/FilterRunMaterializeService.cs",
+          "path": "src/JET/JET/Application/Support/FilterHitMaterializeService.cs",
           "line": 37,
           "endLine": 37,
           "column": 17
@@ -715,15 +716,15 @@
     {
       "id": "R21",
       "kind": "invokes",
-      "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
-      "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.WorkpaperRequest)",
+      "source": "M:JET.Application.ExportWorkingPaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+      "target": "M:JET.AuditCore.JetAuditProgram.Plan(JET.AuditCore.WorkingPaperRequest)",
       "location": {
-        "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
-        "line": 149,
-        "endLine": 160,
+        "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+        "line": 167,
+        "endLine": 179,
         "column": 20
       },
-      "sourceSha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a",
+      "sourceSha256": "cc76e7c7f7258ba702be7786d0708a06f6f4b3ac242426d9bce021e297f91c65",
       "semanticStatus": "compiler-bound",
       "dispatch": "statically_bound",
       "runtimeObserved": false,
@@ -731,38 +732,38 @@
       "repowiseStatus": "matched",
       "repowiseEdges": [
         {
-          "source_node_id": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs::ExportWorkpaperStreamHandler::HandleAsync",
-          "target_node_id": "src/JET/JET/AuditCore/WorkpaperProgram.cs::JetAuditProgram::Plan",
+          "source_node_id": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs::ExportWorkingPaperStreamHandler::HandleAsync",
+          "target_node_id": "src/JET/JET/AuditCore/WorkingPaperProgram.cs::JetAuditProgram::Plan",
           "edge_type": "calls",
           "confidence": 0.88,
           "resolution_origin": "receiver_import",
           "hint_source": null,
           "callLines": [
-            149
+            167
           ]
         }
       ],
       "targetDeclarations": [
         {
-          "path": "src/JET/JET/AuditCore/WorkpaperProgram.cs",
-          "line": 264,
-          "endLine": 264,
-          "column": 35
+          "path": "src/JET/JET/AuditCore/WorkingPaperProgram.cs",
+          "line": 276,
+          "endLine": 276,
+          "column": 38
         }
       ]
     },
     {
       "id": "R22",
       "kind": "invokes",
-      "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
-      "target": "M:JET.AuditCore.IWorkpaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken)",
+      "source": "M:JET.Application.ExportWorkingPaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+      "target": "M:JET.AuditCore.IWorkingPaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkingPaperPlan,System.Threading.CancellationToken)",
       "location": {
-        "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
-        "line": 161,
-        "endLine": 163,
+        "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+        "line": 180,
+        "endLine": 182,
         "column": 27
       },
-      "sourceSha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a",
+      "sourceSha256": "cc76e7c7f7258ba702be7786d0708a06f6f4b3ac242426d9bce021e297f91c65",
       "semanticStatus": "compiler-bound",
       "dispatch": "interface_declared_target",
       "runtimeObserved": false,
@@ -771,25 +772,25 @@
       "repowiseEdges": [],
       "targetDeclarations": [
         {
-          "path": "src/JET/JET/AuditCore/WorkpaperProgram.cs",
-          "line": 154,
-          "endLine": 154,
-          "column": 34
+          "path": "src/JET/JET/AuditCore/WorkingPaperProgram.cs",
+          "line": 166,
+          "endLine": 166,
+          "column": 37
         }
       ]
     },
     {
       "id": "R23",
       "kind": "invokes",
-      "source": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:8625",
-      "target": "M:JET.AuditCore.IWorkpaperPlanWriter.WriteAsync(System.IO.Stream,JET.Domain.WorkpaperContext,JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkpaperProgress})",
+      "source": "M:JET.Application.ExportWorkingPaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)::local:@src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs:9416",
+      "target": "M:JET.AuditCore.IWorkingPaperPlanWriter.WriteAsync(System.IO.Stream,JET.Domain.WorkingPaperContext,JET.AuditCore.WorkingPaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkingPaperProgress})",
       "location": {
-        "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
-        "line": 176,
-        "endLine": 181,
+        "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+        "line": 195,
+        "endLine": 200,
         "column": 41
       },
-      "sourceSha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a",
+      "sourceSha256": "cc76e7c7f7258ba702be7786d0708a06f6f4b3ac242426d9bce021e297f91c65",
       "semanticStatus": "compiler-bound",
       "dispatch": "interface_declared_target",
       "runtimeObserved": false,
@@ -798,9 +799,9 @@
       "repowiseEdges": [],
       "targetDeclarations": [
         {
-          "path": "src/JET/JET/AuditCore/WorkpaperProgram.cs",
-          "line": 165,
-          "endLine": 165,
+          "path": "src/JET/JET/AuditCore/WorkingPaperProgram.cs",
+          "line": 177,
+          "endLine": 177,
           "column": 23
         }
       ]
@@ -812,11 +813,11 @@
       "target": "M:JET.Application.IApplicationActionHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
       "location": {
         "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
-        "line": 170,
-        "endLine": 170,
+        "line": 213,
+        "endLine": 213,
         "column": 26
       },
-      "sourceSha256": "c0dad4246efa5a8a53092ac47d9fbc4abbee929a94b2774b57c1f41357b3872b",
+      "sourceSha256": "45af0d1b52d8ee3f3f778d803c361dfdc2f22d669ff722a4d6c484a7d742ebd7",
       "semanticStatus": "compiler-bound",
       "dispatch": "interface_declared_target",
       "runtimeObserved": false,
@@ -831,7 +832,7 @@
           "resolution_origin": "receiver_typed_import",
           "hint_source": null,
           "callLines": [
-            170
+            213
           ]
         }
       ],
@@ -863,8 +864,8 @@
       "targetDeclarations": [
         {
           "path": "src/JET/JET/AuditCore/FilterProgram.cs",
-          "line": 56,
-          "endLine": 56,
+          "line": 62,
+          "endLine": 62,
           "column": 20
         }
       ]
@@ -880,16 +881,16 @@
       "sourceDeclarations": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterCommitRepository.cs",
-          "line": 13,
-          "endLine": 13,
+          "line": 14,
+          "endLine": 14,
           "column": 21
         }
       ],
       "targetDeclarations": [
         {
           "path": "src/JET/JET/Domain/Contracts/FilterContracts.cs",
-          "line": 124,
-          "endLine": 124,
+          "line": 128,
+          "endLine": 128,
           "column": 18
         }
       ]

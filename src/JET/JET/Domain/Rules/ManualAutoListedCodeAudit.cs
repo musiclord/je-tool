@@ -63,7 +63,7 @@ internal sealed class ManualAutoListedCodeAudit
         var codes = string.Join("、", _listedCodes);
         return
         [
-            // 裁定 2026-10-13-28 確認了這句的用字。
+            // 這句的用字依裁定 2026-10-13-28。
             _listsManual
                 ? $"來源欄「{_sourceColumn}」中沒有人工分錄代碼「{codes}」，有值的列都將視為自動分錄。"
                   + "代碼有誤時，請修改後重新確認配對。"

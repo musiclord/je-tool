@@ -326,7 +326,7 @@
       "dot": "slate",
       "title": "這張圖省略了什麼",
       "items": [
-        "操作紀錄由 CommittedAuditLog.AppendAsync 經 IProjectAuditLog 寫入，本機案件實際是 BestEffortProjectAuditLog 交給 LocalProjectAuditLog；寫入失敗時回應附提醒，見 TB 匯入循序圖。",
+        "操作紀錄由 CommittedOperationLog.AppendAsync 經 IProjectOperationLog 寫入，本機案件實際是 BestEffortProjectOperationLog 交給 LocalProjectOperationLog；寫入失敗時回應附提醒，見 TB 匯入循序圖。",
         "CompositeTabularFileReader 內部再交給 OpenXmlSaxTableReader、CsvTableReader、BinaryExcelTableReader 與 AccessTableReader。",
         "追加匯入時 IntakeFactsPort 呼叫 AppendToBatchAsync；SQL Server 版本不在圖內。"
       ]

@@ -103,10 +103,11 @@ internal static partial class GuiScenarios
             await Click($"[data-action=\"edit-scenario\"][data-index=\"{index}\"]");
             await ContinueWithoutSavingIfAskedAsync(cdp, Click, ct);
         }
-        async Task AddCustom(string subject)
+        async Task AddField(string subject)
         {
-            // 裁定 2026-10-08-06 重新設計自訂篩選條件：改點欄位按鈕或依審計目的的條件（當時叫常用查核條件），加入後同樣選取新條件並把焦點放進去。
-            await AddCustomConditionAsync(cdp, subject, Click, ct);
+            // 裁定 2026-10-08-06 重新設計自訂篩選條件：改點欄位按鈕或依審計目的的條件（當時叫常用查核條件，2026-11-03 起是欄位條件分頁
+            // 欄位「加入」選單裡的常用查法），加入後同樣選取新條件並把焦點放進去。
+            await AddFieldConditionAsync(cdp, subject, Click, ct);
             await Check("(()=>{var rows=document.querySelectorAll('.rule-row--selected'),r=rows[0];return rows.length===1 && r.querySelector('.filter-rule-selected').textContent==='選取中' && r.contains(document.activeElement) && document.activeElement.closest('.rule-row__controls') && r.getBoundingClientRect().bottom>0 && r.getBoundingClientRect().top<window.innerHeight;})()");
         }
         outcome.RecordStage(outcome.Scenario.Name);
@@ -144,20 +145,23 @@ internal static partial class GuiScenarios
             await Check("draft.name==='空白摘要' && document.querySelector('[data-bind=scenario-name]').value==='空白摘要'");
             
             // 2026-10-16 起從「預篩選」分頁加入（取代「沿用第四步預篩選規則」），仍在條件卡片的下拉改選一次，結果同樣是空白摘要。
-            await AddCustom("prescreen:suspiciousKeywords");
+            await AddField("prescreen:suspiciousKeywords");
             await Choose(".rule-row[data-gi=\"0\"][data-ri=\"1\"] [data-pattern-subject]", "prescreen:blankDescription");
             await Click("[data-filter-pane-select=\"filter\"]");
             await Click("[data-condition-source=\"common\"]");
             await Click("[data-common-card=\"blankDescription\"]");
             await Check("draft.groups[0].conditions.length===1 && !draft.groups[0].conditions[0].__commonCard && draft.groups[0].conditions[0].prescreenKey==='blankDescription'");
-            // 非營業日卡片仍加入目前條件組，成為第 2 條子條件組，不另成一組；裁定 2026-10-04-02 後改用排除補班日的單一條件。
+            // 非營業日卡片加入目前條件組，不另成一組；裁定 2026-10-04-02 後改用排除補班日的非營業日判斷。
             // 舊週末或假日預期首次失敗：20261004-113610760-9237607e6f23439fb80b30e872446291。
+            // 裁定 2026-11-03-09 拿掉只剩一條的子條件組，卡片直接加入一條「總帳日期 在非營業日」，原本核對子條件組的地方改核對這一條；
+            // 讀回原本找「非營業日（排除補班日）」，2026-11-03-10 起日曆選項的讀回寫「在非營業日」。Gui 在提交前才實跑，
+            // 同一個改動的前端測試第一次失敗見 FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
             await Click("[data-common-card=\"nonBusinessDay\"]");
             await Save();
-            await Check("saved.length===2 && saved[1].groups.length===1 && saved[1].groups[0].conditions[1].type==='group' && saved[1].groups[0].conditions[1].conditions.length===1 && saved[1].groups[0].conditions[1].conditions[0].type==='fieldValue' && saved[1].groups[0].conditions[1].conditions[0].field==='glDate' && saved[1].groups[0].conditions[1].conditions[0].operator==='isNonBusinessDay' && saved[1].editorOrigins.groups[0].cards.join()===',nonBusinessDay' && !('presetGroup' in saved[1].editorOrigins.groups[0])");
+            await Check("saved.length===2 && saved[1].groups.length===1 && saved[1].groups[0].conditions[1].type==='fieldValue' && saved[1].groups[0].conditions[1].field==='glDate' && saved[1].groups[0].conditions[1].operator==='isNonBusinessDay' && saved[1].editorOrigins.groups[0].cards.join()===',nonBusinessDay' && !('presetGroup' in saved[1].editorOrigins.groups[0])");
             await Edit(1);
-            await Check("document.querySelector('[data-common-card=nonBusinessDay]').getAttribute('aria-pressed')==='true' && draft.groups.length===1 && draft.groups[0].conditions[1].__commonCard==='nonBusinessDay' && draft.groups[0].conditions[1].type==='group' && draft.groups[0].conditions[1].conditions.length===1 && draft.groups[0].conditions[1].conditions[0].type==='fieldValue' && draft.groups[0].conditions[1].conditions[0].field==='glDate' && draft.groups[0].conditions[1].conditions[0].operator==='isNonBusinessDay' && draft.groups[0].conditions[0].prescreenKey==='blankDescription' && !document.querySelector('.scenario-builder').textContent.includes('情境層級') && document.querySelector('.scenario-readback__expr').textContent.includes('非營業日（排除補班日）')");
-            await FindControlPointAsync(cdp,process,".rule-row--compound[data-gi=\"0\"][data-ri=\"1\"]",ct, value => outcome.LastFilterProbe = value.Clone());
+            await Check("document.querySelector('[data-common-card=nonBusinessDay]').getAttribute('aria-pressed')==='true' && draft.groups.length===1 && draft.groups[0].conditions[1].__commonCard==='nonBusinessDay' && draft.groups[0].conditions[1].type==='fieldValue' && draft.groups[0].conditions[1].field==='glDate' && draft.groups[0].conditions[1].operator==='isNonBusinessDay' && draft.groups[0].conditions[0].prescreenKey==='blankDescription' && !document.querySelector('.scenario-builder').textContent.includes('情境層級') && document.querySelector('.scenario-readback__expr').textContent.includes('總帳日期 在非營業日')");
+            await FindControlPointAsync(cdp,process,".rule-row[data-gi=\"0\"][data-ri=\"1\"]",ct, value => outcome.LastFilterProbe = value.Clone());
             await Click("[data-action=\"overview-open\"]");
             await Check("(()=>{var cells=Array.from(document.querySelectorAll('.overview-pop__kpi-value'));return cells.length>=4 && cells.every(e=>getComputedStyle(e).fontFamily.includes('Noto Sans TC') && getComputedStyle(e).fontVariantNumeric==='tabular-nums');})()");
             await FindControlPointAsync(cdp,process,".overview-pop__grid",ct);
@@ -166,7 +170,7 @@ internal static partial class GuiScenarios
             await Click("[data-common-card=\"nonBusinessDay\"]");
             await Check("draft.groups.length===1 && draft.groups[0].conditions.length===1 && !draft.groups[0].conditions[0].__commonCard");
             await Click("[data-action=\"cancel-edit-scenario\"]");
-            await Check("saved[1].groups.length===1 && saved[1].groups[0].conditions[1].type==='group' && !saved[0].source && saved[0].editorOrigins.version===2");
+            await Check("saved[1].groups.length===1 && saved[1].groups[0].conditions[1].type==='fieldValue' && !saved[0].source && saved[0].editorOrigins.version===2");
             await Click("[data-filter-pane-select=\"saved\"]");
             await Click(".saved-scenario:nth-of-type(1) .jet-menu__toggle");
             await Click("[data-action=\"remove-scenario\"][data-index=\"0\"]");
@@ -175,9 +179,9 @@ internal static partial class GuiScenarios
             await Click(".saved-scenario:nth-of-type(1) .jet-menu__toggle");
             await Click("[data-action=\"remove-scenario\"][data-index=\"0\"]");
             await Click("[data-action=\"confirm-remove-scenario\"][data-index=\"0\"]");
-            await Check("saved.length===1 && saved[0].groups.length===1 && saved[0].groups[0].conditions[1].type==='group' && document.activeElement.dataset.action==='toggle-scenario' && document.activeElement.dataset.index==='0'");
+            await Check("saved.length===1 && saved[0].groups.length===1 && saved[0].groups[0].conditions[1].type==='fieldValue' && document.activeElement.dataset.action==='toggle-scenario' && document.activeElement.dataset.index==='0'");
             await Click("[data-filter-pane-select=\"filter\"]");
-            await AddCustom("field:amount");
+            await AddField("field:amount");
             await Choose(".rule-row [data-value-kind]", "above");
             await Fill(".rule-row [data-value-key=\"value\"]", "100");
             await Check("draft.groups[0].conditions[0].operator==='greaterThan' && draft.groups[0].conditions[0].value==='100'");
@@ -191,12 +195,12 @@ internal static partial class GuiScenarios
             await Click(".rule-row [data-value-key=\"includeBlank\"]");
             await Check("draft.groups[0].conditions[0].amountBasis==='absolute' && !document.querySelector('.rule-row [data-value-key=amountBasis]') && draft.groups[0].conditions[0].includeBlank && draft.groups[0].conditions[0].operator==='greaterThanOrEqual' && document.querySelector('[data-value-options]').open");
             await Click(".rule-row [data-action=\"remove-rule\"]");
-            await AddCustom("field:description");
+            await AddField("field:description");
             await Fill(".rule-row [data-value-key=\"values\"]", "SYNTHETIC");
             // 介面改版後控制項變大，最小視窗（125% 縮放約 806×481）排不下同一行，文字框換到選單下一行（2026-10-14 實測，
             // 第一次失敗收據 20261014-062933505-e5cb6897255c4899a5d30c44559f2a41）。同一行時仍要和選單垂直置中，
             // 換行時要從條件控制項的同一條左緣開始；兩種排法都只有一行高。
-            // 裁定 2026-10-16-13 指出輸入後突然撐高很突兀，值清單改成固定五行高（114px）、
+            // 使用者指出輸入後突然撐高很突兀（裁定 2026-10-16-13），值清單改成固定五行高（114px）、
             // 獨占一列放在選單下方，原本「只有一行高」的檢查跟著改成核對這個排法與固定高度
             // （第一次失敗收據 20261019-165252976-e36e0d435f404068a514af791647859b，卡在高度不超過 40px）。
             await Check("(()=>{var area=document.querySelector('textarea.value-editor__values'),t=area.getBoundingClientRect(),s=document.querySelector('[data-value-kind]').getBoundingClientRect(),c=area.closest('.rule-row').querySelector('.rule-row__controls').getBoundingClientRect();return t.top>=s.bottom && Math.abs(t.left-c.left)<1 && Math.abs(t.height-114)<1;})()");
@@ -219,7 +223,7 @@ internal static partial class GuiScenarios
             // filter-auditor-journey（2026-09-07）：審計員從範本開始，補一條「每月幾日不屬於 28、31」，切換作用中組，
             // 預覽後對命中傳票排序，保存後核對讀回文字與情境數。自訂面板預設展開，不需要先點開。
             await Check("!document.querySelector('[data-save-panel]').hidden && !document.querySelector('[data-filter-pane=filter]').hidden");
-            await AddCustom("field:voucherNumber");
+            await AddField("field:voucherNumber");
             await Check("draft.groups[0].conditions[0].field==='voucherNumber' && !document.querySelector('[data-custom-subject]') && !document.querySelector('[data-add-field][aria-pressed=true]') && !document.querySelector('.rule-row [data-value-key=field]') && !document.querySelector('[data-set-combinator]') && !document.querySelector('.filter-draft-note') && document.querySelector('[data-action=remove-rule]').textContent==='移除'");
             await Check("!document.querySelector('[data-action=add-set]').closest('details')");
             // 原本這裡固定等 7 秒再核對仍是選取中。裁定 2026-10-15-01 改由前端測試跑完所有計時器後核對
@@ -237,7 +241,8 @@ internal static partial class GuiScenarios
             
             await Click("[data-action=\"remove-rule\"]");
             await Check("draft.groups.every(g=>g.conditions.length===0)");
-            await AddCustom("check:debitOrCreditOnly");
+            // 借貸別 2026-11-03 起是欄位條件分頁「類別」底下的欄位，不再是常用查法（裁定 2026-11-03-06、2026-11-03-18）。
+            await AddField("field:drCr");
             await Check("document.querySelector('.filter-rule-heading strong').textContent==='借貸別' && !document.querySelector('.rule-row__controls').textContent.includes('是') && document.querySelector('[data-rule-bind=drCr]').getBoundingClientRect().top>=document.querySelector('.filter-rule-heading').getBoundingClientRect().bottom+7");
             await Click("[data-action=\"remove-rule\"]");
             await OpenExampleListAsync(cdp, Click, ct);
@@ -248,7 +253,7 @@ internal static partial class GuiScenarios
             await Check("!document.querySelector('.filter-account-pair').textContent.includes('類別 A') && !document.querySelector('.rule-row [data-account-subject]') && document.querySelector('.filter-account-pair').textContent.includes('整張傳票不得有這些貸方分類') && Array.from(document.querySelectorAll('.filter-account-pair .category-select')).every(e=>e.scrollWidth<=e.clientWidth+1)");
             await Click("[data-action=\"add-set\"]");
             // 2026-09-07 改版：「＋」在每一組裡，直接指定加到第 2 組（data-gi=1）。
-            await AddCustom("field:glDate");
+            await AddField("field:glDate");
             await Check("draft.groups.length===2 && draft.groups[1].conditions[0].type==='fieldValue' && draft.groups[1].conditions[0].field==='glDate'");
             // 裁定 2026-10-14-06：改成共用原生日期框，沿用建立案件的鍵盤輸入方式，逐日加入。
             await AddDate(".rule-row[data-gi=\"1\"][data-ri=\"0\"]", "2025-01-01");
@@ -322,8 +327,9 @@ internal static partial class GuiScenarios
             await Check("document.querySelector('[data-bind=high-risk-summary-scenarios] table') && !document.querySelector('[data-bind=high-risk-summary-scenarios]').hidden");
             // 人工驗收時查過的情形：讓後端拒絕缺少分類的條件，原保存情境必須仍在。
             await Edit(0);
-            await AddCustom("check:accountInCategory");
-            await Click("input[data-category-bind=\"categoryIds\"][value=\"builtin.cash\"]");
+            // 科目分類 2026-11-03 起是欄位條件分頁「類別」底下的欄位，只加入一條條件、分類留空待選，不再預設借方與現金
+            // （第八階段確認頁寫明照 2026-10-14-08 一起做）。原本先取消預設的現金才變成缺少分類，現在加入後直接儲存。
+            await AddField("field:accountCategory");
             await Save(false);
             await Check("saved.length===1 && saved[0].groups[0].conditions.length===1 && document.querySelectorAll('.rule-row--invalid').length===1 && document.querySelector('.rule-row--invalid [data-rule-error]').textContent.includes('分類')");
             // Minimum-window checks above remain unchanged. Resize only this owned synthetic window
@@ -343,7 +349,7 @@ internal static partial class GuiScenarios
             await Click("[data-filter-pane-select=\"saved\"]");
             await Check("!!document.querySelector('[data-bind=high-risk-summary-scenarios] table')");
             await Click("[data-filter-pane-select=\"filter\"]");
-            await AddCustom("field:glDate");
+            await AddField("field:glDate");
             await Choose(".rule-row [data-value-polarity]", "exclude");
             await AddDate(".rule-row", "2025-01-01");
             await Check("draft.groups[0].conditions[0].operator==='notIn' && draft.groups[0].conditions[0].values.join(',')==='2025-01-01' && !document.querySelector('[data-value-options]').open && !document.querySelector('[data-set-combinator]')");
@@ -351,7 +357,7 @@ internal static partial class GuiScenarios
             await ApplyExampleAsync(cdp, "cashCreditNonCashDebit", Click, ct);
             await Check("draft.groups[0].conditions[0].pairMode==='notDrCr' && document.querySelector('.filter-account-pair').textContent.includes('整張傳票不得有這些借方分類')");
             await Click("[data-action=\"remove-rule\"]");
-            await AddCustom("field:glDate");
+            await AddField("field:glDate");
             await Choose(".rule-row [data-value-kind]", "range");
             await Check("(()=>{var r=document.querySelector('.value-editor__range'),a=r.querySelector('[data-value-key=from]').getBoundingClientRect(),b=r.querySelector('[data-value-key=to]').getBoundingClientRect();return Math.abs(a.top-b.top)<1 && r.scrollWidth<=r.clientWidth+1;})()");
             await Check($"document.querySelector('.saved-scenario .scenario-readback').textContent==={savedReadback.GetRawText()}");

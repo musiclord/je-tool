@@ -126,6 +126,7 @@ internal enum WorkingPaperStep41ValueSource
     Description,
     SourceModule,
     IsManual,
+    PostingStatus,
     RdeField
 }
 
@@ -200,21 +201,23 @@ public static partial class JetAuditProgram
     private static readonly IReadOnlyList<WorkingPaperStep41Column> NoStep41Columns =
         Array.AsReadOnly(Array.Empty<WorkingPaperStep41Column>());
 
+    // 舊版 step4-1 的固定欄序（idea-tool.bas:6735）：十二個標準欄，第十三是過帳碼_JE；其餘 JET 欄位照欄位序號。
     private static readonly IReadOnlyList<string> Step41PriorityFields =
         Array.AsReadOnly(new[]
         {
-            "傳票號碼_JE",
-            "傳票文件項次_JE_S",
-            "傳票核准日_JE",
-            "總帳日期_JE",
-            "傳票建立人員_JE",
-            "傳票核准人員_JE",
-            "會計科目編號_JE",
-            "會計科目名稱_JE",
-            "傳票金額_JE",
-            "傳票摘要_JE",
-            "分錄來源模組_JE",
-            "人工傳票否_JE_S"
+            JetFieldCatalog.GlVoucherNumber,
+            JetFieldCatalog.GlLineItem,
+            JetFieldCatalog.GlApprovalDate,
+            JetFieldCatalog.GlDate,
+            JetFieldCatalog.GlCreatedBy,
+            JetFieldCatalog.GlApprovedBy,
+            JetFieldCatalog.GlAccountNumber,
+            JetFieldCatalog.GlAccountName,
+            JetFieldCatalog.GlAmount,
+            JetFieldCatalog.GlDescription,
+            JetFieldCatalog.GlSourceModule,
+            JetFieldCatalog.GlManual,
+            JetFieldCatalog.GlPostingStatus
         });
 
 
@@ -463,6 +466,8 @@ public static partial class JetAuditProgram
             Step41Columns = ProjectStep41Columns(
                 facts.TargetGlDefinitions,
                 request.CustomFields ?? [],
+                request.WorkbookMetadata?.GlMapping.GlOptions?.RdeFields,
+                request.WorkbookMetadata?.GlMapping.GlOptions?.FillDownFields ?? [],
                 request.MoneyScale),
             IsFinalized = true
         };
@@ -490,16 +495,22 @@ public static partial class JetAuditProgram
     private static IReadOnlyList<string> Texts(params string[] values) =>
         Array.AsReadOnly(values);
 
+    /// <summary>
+    /// step4-1 的欄位依欄位資訊的來歷挑出 JET 欄位，不再看欄名結尾（裁定 2026-11-03-11）。
+    /// 標準欄依舊版的固定順序排在前面，其餘 JET 欄位照欄位序號；
+    /// 攸關資料元素照舊只列所選情境用到的，表頭照舊版加 _JE（裁定 2026-11-03-14）。
+    /// </summary>
     private static IReadOnlyList<WorkingPaperStep41Column> ProjectStep41Columns(
         IReadOnlyList<FieldInfo> definitions,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
+        IReadOnlyList<GlRdeFieldMetadata>? registryFields,
+        IReadOnlyList<string> fillDownFields,
         int moneyScale)
     {
-        // 裁定 2026-10-08-03 移除傳票日期，step4-1 不再另外排除它的來源欄。
         var eligible = definitions
-            .Where(definition =>
-                definition.FieldName.EndsWith("_JE", StringComparison.Ordinal)
-                || definition.FieldName.EndsWith("_JE_S", StringComparison.Ordinal))
+            .Where(definition => definition.IsJetField
+                && definition.JetField is not null
+                && JetFieldCatalog.FindGlFieldBySemanticIdentity(definition.JetField) is not null)
             .OrderBy(definition => definition.Ordinal)
             .ToArray();
         var duplicate = eligible
@@ -511,46 +522,44 @@ public static partial class JetAuditProgram
                 $"step4-1 post-mapping 欄位名稱 '{duplicate.Key}' 重複。");
         }
 
-        var byName = eligible.ToDictionary(
-            definition => definition.FieldName,
-            StringComparer.Ordinal);
         var ordered = new List<FieldInfo>(eligible.Length);
         foreach (var priority in Step41PriorityFields)
         {
-            if (byName.TryGetValue(priority, out var definition))
-            {
-                ordered.Add(definition);
-            }
+            ordered.AddRange(eligible.Where(definition =>
+                string.Equals(definition.JetField, priority, StringComparison.Ordinal)));
         }
 
-        var priorityNames = Step41PriorityFields.ToHashSet(StringComparer.Ordinal);
-        ordered.AddRange(eligible.Where(definition => !priorityNames.Contains(definition.FieldName)));
+        var priorityFields = Step41PriorityFields.ToHashSet(StringComparer.Ordinal);
+        ordered.AddRange(eligible.Where(definition => !priorityFields.Contains(definition.JetField!)));
+        var fillDown = fillDownFields.ToHashSet(StringComparer.Ordinal);
+        var rdeHeaders = GlRdeOutputNames.For(customFields, registryFields);
         return Array.AsReadOnly(
-            ordered.Select(ToStep41Column)
-                .Concat(customFields.Select(field => ToStep41RdeColumn(field, moneyScale)))
+            ordered.Select(definition => ToStep41Column(definition, fillDown))
+                .Concat(customFields.Select((field, index) => ToStep41RdeColumn(field, rdeHeaders[index], moneyScale)))
                 .ToArray());
     }
 
     private static WorkingPaperStep41Column ToStep41RdeColumn(
         GlRdeFieldMetadata field,
+        string header,
         int moneyScale) => field.ValueType switch
         {
             RdeFieldValueTypeNames.Text => new WorkingPaperStep41Column(
-                field.Label,
+                header,
                 RawFieldName: null,
                 LegacyFieldKind.Text,
                 DecimalPlaces: null,
                 WorkingPaperStep41ValueSource.RdeField,
                 field.FieldId),
             RdeFieldValueTypeNames.Date => new WorkingPaperStep41Column(
-                field.Label,
+                header,
                 RawFieldName: null,
                 LegacyFieldKind.Date,
                 DecimalPlaces: null,
                 WorkingPaperStep41ValueSource.RdeField,
                 field.FieldId),
             RdeFieldValueTypeNames.Amount => new WorkingPaperStep41Column(
-                field.Label,
+                header,
                 RawFieldName: null,
                 LegacyFieldKind.Number,
                 DecimalPlacesForMoneyScale(moneyScale),
@@ -585,14 +594,19 @@ public static partial class JetAuditProgram
 
     private const int WorkingPaperStylesMaximumDecimalPlaces = 4;
 
-    private static WorkingPaperStep41Column ToStep41Column(FieldInfo definition)
+    /// <summary>
+    /// 欄值來源依對應的 JET 欄位決定。系統產生的欄讀整理後的值，所以同總帳日期的傳票核准日寫總帳日期的值；
+    /// 配對後改名的欄照舊讀原始資料列，只有勾了往下填補的欄位讀填補後的值（裁定 2026-11-03-13）；
+    /// 人工/自動照裁定 2026-10-06-02 寫「人工」「自動」，空白仍留白。
+    /// </summary>
+    private static WorkingPaperStep41Column ToStep41Column(
+        FieldInfo definition,
+        IReadOnlySet<string> fillDownFields)
     {
-        if (string.Equals(
-                definition.FieldName,
-                "人工傳票否_JE_S",
-                StringComparison.Ordinal))
+        var field = JetFieldCatalog.FindGlFieldBySemanticIdentity(definition.JetField!)
+            ?? throw new InvalidOperationException($"step4-1 欄位 '{definition.FieldName}' 對應的 JET 欄位 '{definition.JetField}' 不在欄位目錄。");
+        if (field.SemanticIdentity == JetFieldCatalog.GlManual)
         {
-            // 裁定 2026-10-06-02：以正規化旗標輸出「人工」「自動」，空白仍留白；不回讀原始代碼。
             return new WorkingPaperStep41Column(
                 definition.FieldName,
                 definition.Description ?? definition.FieldName,
@@ -601,30 +615,32 @@ public static partial class JetAuditProgram
                 WorkingPaperStep41ValueSource.IsManual);
         }
 
-        var source = definition.FieldName switch
+        var normalized = field.SemanticIdentity switch
         {
-            "傳票金額_JE" => WorkingPaperStep41ValueSource.SignedAmount,
-            _ when !string.IsNullOrEmpty(definition.Description) =>
-                WorkingPaperStep41ValueSource.RawField,
-            "傳票號碼_JE" => WorkingPaperStep41ValueSource.VoucherNumber,
-            "傳票文件項次_JE_S" => WorkingPaperStep41ValueSource.LineItem,
-            "傳票核准日_JE" => WorkingPaperStep41ValueSource.ApprovalDate,
-            "總帳日期_JE" => WorkingPaperStep41ValueSource.GlDate,
-            "傳票建立人員_JE" => WorkingPaperStep41ValueSource.CreatedBy,
-            "傳票核准人員_JE" => WorkingPaperStep41ValueSource.ApprovedBy,
-            "會計科目編號_JE" => WorkingPaperStep41ValueSource.AccountNumber,
-            "會計科目名稱_JE" => WorkingPaperStep41ValueSource.AccountName,
-            "傳票摘要_JE" => WorkingPaperStep41ValueSource.Description,
-            "分錄來源模組_JE" => WorkingPaperStep41ValueSource.SourceModule,
+            JetFieldCatalog.GlVoucherNumber => WorkingPaperStep41ValueSource.VoucherNumber,
+            JetFieldCatalog.GlLineItem => WorkingPaperStep41ValueSource.LineItem,
+            JetFieldCatalog.GlApprovalDate => WorkingPaperStep41ValueSource.ApprovalDate,
+            JetFieldCatalog.GlDate => WorkingPaperStep41ValueSource.GlDate,
+            JetFieldCatalog.GlCreatedBy => WorkingPaperStep41ValueSource.CreatedBy,
+            JetFieldCatalog.GlApprovedBy => WorkingPaperStep41ValueSource.ApprovedBy,
+            JetFieldCatalog.GlAccountNumber => WorkingPaperStep41ValueSource.AccountNumber,
+            JetFieldCatalog.GlAccountName => WorkingPaperStep41ValueSource.AccountName,
+            JetFieldCatalog.GlDescription => WorkingPaperStep41ValueSource.Description,
+            JetFieldCatalog.GlSourceModule => WorkingPaperStep41ValueSource.SourceModule,
+            JetFieldCatalog.GlPostingStatus => WorkingPaperStep41ValueSource.PostingStatus,
+            JetFieldCatalog.GlAmount => WorkingPaperStep41ValueSource.SignedAmount,
             _ => WorkingPaperStep41ValueSource.RawField
         };
-
+        // 沒有記來源欄名的改名欄位讀不到原始資料列，只能讀整理後的值；投影器一定會記來源欄名，這種定義只出現在手工建的欄位事實。
+        var readsNormalized = definition.Origin == FieldInfoOrigin.Generated
+            || string.IsNullOrEmpty(definition.Description)
+            || field.MappingSlots.Any(slot => fillDownFields.Contains(slot.Key));
         return new WorkingPaperStep41Column(
             definition.FieldName,
             definition.Description ?? definition.FieldName,
             definition.Kind,
             definition.DecimalPlaces,
-            source);
+            readsNormalized ? normalized : WorkingPaperStep41ValueSource.RawField);
     }
 
     private static IReadOnlyList<string> Step3Methodology(WorkingPaperRequest request) =>
@@ -634,7 +650,7 @@ public static partial class JetAuditProgram
             "測試範圍",
             $"查核期間內（{request.PeriodStart} ~ {request.PeriodEnd}）之會計分錄",
             "選擇該測試範圍的理由",
-            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與總帳日期空白的分錄，不列入本版各情境的結果與彙總。",
+            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。",
             "Step 3",
             "辨認高風險條件",
             "風險評估及查核程序：",

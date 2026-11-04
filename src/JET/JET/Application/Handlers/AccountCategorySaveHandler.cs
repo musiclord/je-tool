@@ -175,7 +175,7 @@ public sealed class AccountCategorySaveHandler(
     private static void Invalid(string message) =>
         throw new JetActionException(JetErrorCodes.InvalidPayload, message);
 
-    // 只有程式送錯資料才會走到：畫面顯示非預期錯誤那一句，檢查代號記進支援日誌（裁定 2026-10-14-01 確認了用字）。
+    // 只有程式送錯資料才會走到：畫面顯示非預期錯誤那一句，檢查代號記進支援日誌（用字依裁定 2026-10-14-01）。
     // check 只能是程式寫死的代號；property 是程式寫死的 payload 欄位名稱，不含使用者資料。
     [DoesNotReturn]
     private static void Reject(string check) =>

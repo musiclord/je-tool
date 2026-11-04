@@ -88,6 +88,7 @@ public sealed class LegacyFormWorkflowTests
     {
         ["B_customKeywords"] = Keys(Expected["B"]),
         ["D_customTrailingZeros"] = Keys(Expected["D"]),
+        ["D_zeroRun"] = Keys(Expected["D"]),
         ["F_fieldBlank"] = Keys(Expected["F"]),
         ["P_explicitSides"] = Keys(Expected["P"]),
         ["example3_explicitSides"] = Keys(Expected["example3"]),
@@ -203,6 +204,9 @@ public sealed class LegacyFormWorkflowTests
             {"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"000000","amountBasis":"absolute"},
             {"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}]
             """)!.AsArray());
+        // 裁定 2026-11-03-07 把「金額尾數連續多個 0」改成一條條件，比較方式是尾數連續幾個 0；選單現在加入的是這一條，同樣對照 D 的固定答案。
+        // 上面的 D_customTrailingZeros 是改版前加入的子條件組寫法，已儲存的情境照舊能讀，所以保留。這是新增的案例，沒有第一次失敗。
+        Add("D_zeroRun", JsonNode.Parse("""[{"type":"fieldValue","field":"amount","operator":"endsWithZeros","value":"6","amountBasis":"absolute"}]""")!.AsArray());
         Add("F_fieldBlank", JsonNode.Parse("""[{"type":"fieldValue","field":"description","operator":"isBlank"}]""")!.AsArray());
         // 借貸方向改成明示子條件，沿用原本手寫的固定答案；不修改歷史目錄。
         foreach (var key in new[] { "P", "example3" })

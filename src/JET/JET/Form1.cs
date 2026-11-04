@@ -419,7 +419,7 @@ namespace JET
 
         private async void NotifyBusyNativeExitAsync()
         {
-            // 和忙碌畫面注入的提示同一句（裁定 2026-10-14-01 確認了用字）。
+            // 和忙碌畫面注入的提示同一句（用字依裁定 2026-10-14-01）。
             const string fallbackMessage = "作業還在進行，請等它完成後再試一次。";
             try
             {

@@ -36,45 +36,6 @@
   },
   "entities": [
     {
-      "id": "import_batch",
-      "label": "import_batch",
-      "row": 0,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "batch_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "dataset_kind",
-          "type": "TEXT"
-        },
-        {
-          "name": "source_file_path",
-          "type": "TEXT"
-        },
-        {
-          "name": "source_file_name",
-          "type": "TEXT"
-        },
-        {
-          "name": "imported_utc",
-          "type": "TEXT"
-        },
-        {
-          "name": "row_count",
-          "type": "INTEGER"
-        },
-        {
-          "name": "columns_json",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "批次中繼資料",
-      "sublabel": "一次匯入一筆，依 dataset_kind 區分"
-    },
-    {
       "id": "import_batch_source",
       "label": "import_batch_source",
       "row": 0,
@@ -111,6 +72,10 @@
           "type": "TEXT"
         },
         {
+          "name": "header_row",
+          "type": "INTEGER"
+        },
+        {
           "name": "row_count",
           "type": "INTEGER"
         },
@@ -123,10 +88,49 @@
       "sublabel": "批次內的每個來源檔或工作表"
     },
     {
-      "id": "import_field_definition",
-      "label": "import_field_definition",
-      "row": 0,
-      "col": 2,
+      "id": "import_batch",
+      "label": "import_batch",
+      "row": 1,
+      "col": 0,
+      "attributes": [
+        {
+          "name": "batch_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "dataset_kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_file_path",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_file_name",
+          "type": "TEXT"
+        },
+        {
+          "name": "imported_utc",
+          "type": "TEXT"
+        },
+        {
+          "name": "row_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "columns_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "批次中繼資料",
+      "sublabel": "一次匯入一筆，依 dataset_kind 區分"
+    },
+    {
+      "id": "field_info",
+      "label": "field_info",
+      "row": 2,
+      "col": 0,
       "attributes": [
         {
           "name": "batch_id",
@@ -176,10 +180,10 @@
       "sublabel": "來源與目標欄位定義"
     },
     {
-      "id": "staging_gl_raw_row",
-      "label": "staging_gl_raw_row",
-      "row": 1,
-      "col": 0,
+      "id": "pbc_gl",
+      "label": "pbc_gl",
+      "row": 0,
+      "col": 1,
       "attributes": [
         {
           "name": "batch_id",
@@ -208,8 +212,8 @@
       "sublabel": "PBC-GL 原始列"
     },
     {
-      "id": "staging_tb_raw_row",
-      "label": "staging_tb_raw_row",
+      "id": "pbc_tb",
+      "label": "pbc_tb",
       "row": 1,
       "col": 1,
       "attributes": [
@@ -240,9 +244,9 @@
       "sublabel": "PBC-TB 原始列"
     },
     {
-      "id": "staging_account_mapping_raw_row",
-      "label": "staging_account_mapping_raw_row",
-      "row": 1,
+      "id": "pbc_account_mapping",
+      "label": "pbc_account_mapping",
+      "row": 0,
       "col": 2,
       "attributes": [
         {
@@ -272,9 +276,9 @@
       "sublabel": "科目配對檔的原始列"
     },
     {
-      "id": "staging_authorized_preparer_raw_row",
-      "label": "staging_authorized_preparer_raw_row",
-      "row": 2,
+      "id": "pbc_authorized_preparer",
+      "label": "pbc_authorized_preparer",
+      "row": 1,
       "col": 2,
       "attributes": [
         {
@@ -318,7 +322,7 @@
     },
     {
       "id": "definition_batch",
-      "from": "import_field_definition",
+      "from": "field_info",
       "to": "import_batch",
       "label": "batch_id",
       "fromCardinality": "many",
@@ -329,27 +333,25 @@
     },
     {
       "id": "gl_batch",
-      "from": "staging_gl_raw_row",
+      "from": "pbc_gl",
       "to": "import_batch",
       "label": "batch_id",
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true,
       "toOptional": false,
-      "identifying": false,
-      "toSide": "bottom"
+      "identifying": false
     },
     {
       "id": "tb_batch",
-      "from": "staging_tb_raw_row",
+      "from": "pbc_tb",
       "to": "import_batch",
       "label": "batch_id",
       "fromCardinality": "many",
       "toCardinality": "one",
       "fromOptional": true,
       "toOptional": false,
-      "identifying": false,
-      "toSide": "bottom"
+      "identifying": false
     }
   ],
   "cards": [
@@ -357,16 +359,18 @@
       "dot": "cyan",
       "title": "這些連線的依據",
       "items": [
-        "每次匯入建立一個批次；原始列以 JSON 原樣保存，欄位配對確認前不做標準化。",
-        "取代匯入時，LocalImportRepository 依 import_batch 的 dataset_kind 找出 batch_id，刪除同一批次的原始列、來源與欄位定義；寫入時三者都帶同一個 batch_id。",
-        "科目配對與授權編製人清單由其他匯入程式處理，本圖不畫它們和批次的連線。"
+        "LocalImportRepository 取代匯入時，依 import_batch 的 dataset_kind 找出 batch_id，再刪除同一批次的原始列、來源與欄位定義。",
+        "寫入時，原始列、來源與欄位定義都帶同一個 batch_id。科目配對與授權編製人清單走其他匯入程式，本圖不畫它們與批次的連線。",
+        "來源：LocalImportRepository.cs 第 30–236、806–818 行。"
       ]
     },
     {
-      "dot": "slate",
-      "title": "線條不是外鍵",
+      "dot": "amber",
+      "title": "線條不是資料庫外鍵",
       "items": [
-        "虛線是程式在 SQL 裡用來連接的欄位，不是外鍵；這批建表定義沒有宣告外鍵，沒畫線也不代表兩張表無關。"
+        "現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。",
+        "沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。",
+        "PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。"
       ]
     }
   ]

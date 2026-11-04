@@ -427,7 +427,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     // 驗證器已先檢查過同樣的條件；走到這裡是驗證器與執行時檢查不一致的程式錯誤。畫面只顯示非預期錯誤那一句，
-    // 檢查代號記進支援日誌（裁定 2026-10-14-01 確認了用字）。check 只能是程式寫死的代號。
+    // 檢查代號記進支援日誌（用字依裁定 2026-10-14-01）。check 只能是程式寫死的代號。
     private static JetActionException Invalid(string check) => FilterCompileCheck.Create(check);
 
     /// <summary>週末（weekend_*）：日期落在案件設定的週末日，補班日仍納入。dateExpr 只接受本層常數或欄位目錄解析出的欄位。</summary>

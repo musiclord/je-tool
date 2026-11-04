@@ -29,6 +29,7 @@
   var setActiveGroup = forward('setActiveGroup');
   var refreshAutomaticMetadata = forward('refreshAutomaticMetadata');
   var commonCardsHtml = forward('commonCardsHtml');
+  var exampleListHtml = forward('exampleListHtml');
   var disclosureAttributes = forward('disclosureAttributes');
   var savedFeedbackText = forward('savedFeedbackText');
   var softRefreshGate = forward('softRefreshGate');
@@ -74,12 +75,13 @@
      情境＝一個或多個「條件組(set)」，每組就是一塊淡底 well：頂部 AND/OR 組合器段控（該組 ≥2 條件才顯示）
      ＋條件清單。一組時就是乾淨一塊（看不到「組」字）；「＋ 另一組條件」是常駐普通按鈕（非模式）。≥2 組時
      組間出現一條水平軌道、藍色段控「組間 AND/OR」（父／情境層，與組內中性段控做出層級對比）。一組一種
-     組合器，要混就再開組；組內可用「子條件組」再組合一層（非營業日卡片保留一條括號，日期條件排除補班日）。
+     組合器，要混就再開組；組內可用「子條件組」再組合一層。
      新手層：教學空狀態＋行內布林 read-back＋4 拍提示；名稱/動機依條件自動帶入，留白時由後端補上同一段文字（裁定 2026-10-29-16）。
      兩層 AST 不變；空群組於 toWireScenario 送出時略過（建到一半不報錯）。
      ============================================================================ */
 
-  // 非營業日卡片的括號僅辨識明確排除補班日的日期條件；舊的週末或假日 AST 不改寫。
+  // 2026-11-03 以前非營業日卡片加入的括號：只有一條排除補班日的日期條件，讀回「非營業日」。卡片現在直接加入那一條條件
+  //（裁定 2026-11-03-09），已儲存情境裡的括號照舊能讀；舊的週末或假日 AST 也不改寫。
   function isNonBusinessDayBracket(rule) {
     var children = rule && rule.type === 'group' ? rule.conditions || [] : [];
     return children.length === 1 && children[0].type === 'fieldValue' && children[0].field === 'glDate' &&
@@ -113,7 +115,7 @@
         joinToggleHtml('data-set-combinator data-gi="' + gi + '"', 'set-combinator-' + gi, comb, '第 ' + setNumber + ' 組條件之間的關係') + '</div>' : '';
     // 組標頭的按鈕只寫名稱，前面放灰色加號，整張傳票條件寫成「整張傳票」（裁定 2026-10-30-32）。
     var head = '<div class="filter-group-heading"><strong>第 ' + setNumber + ' 組' +
-      '<span class="filter-group-selected" data-collapsible-inline' + (isActive ? '' : ' hidden') + '>已選取</span></strong>' +
+      '<span class="filter-group-selected" data-collapsible-inline' + (isActive && multi ? '' : ' hidden') + '>已選取</span></strong>' +
       '<div class="filter-group-actions">' +
       '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-add-compound="group" data-gi="' + gi + '" aria-label="在第 ' + setNumber + ' 組加入子條件組">子條件組</button>' +
       '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-add-compound="voucher" data-gi="' + gi + '" aria-label="在第 ' + setNumber + ' 組加入整張傳票條件">整張傳票</button>' +
@@ -177,14 +179,14 @@
     return raw === 'OR' ? 'OR' : 'AND';
   }
 
-  function hasMixedEffectiveRuleJoins(group) {
+  function hasMixedEffectiveConditionJoins(group) {
     var joins = group.conditions.slice(1).map(effectiveConditionJoin);
     return joins.indexOf('AND') >= 0 && joins.indexOf('OR') >= 0;
   }
 
   function groupReadBackExpressionHtml(group, compact) {
     var labels = group ? group.conditions.map(function (r) { return ruleSummaryLabel(r, 0, compact); }) : [];
-    if (!hasMixedEffectiveRuleJoins(group)) {
+    if (!hasMixedEffectiveConditionJoins(group)) {
       return exprJoin(labels, groupCombinator(group) === 'OR' ? 'OR' : 'AND', 'expr-op--group');
     }
 
@@ -226,9 +228,9 @@
       var sop = draft.__preserveJoins ? effectiveConditionJoin(ne[1]) : scenarioJoin(draft);
       var parts = ne.map(function (g) {
         var inner = groupReadBackExpressionHtml(g, compact);
-        return g.conditions.length > 1 && !hasMixedEffectiveRuleJoins(g) ? '（' + inner + '）' : inner;
+        return g.conditions.length > 1 && !hasMixedEffectiveConditionJoins(g) ? '（' + inner + '）' : inner;
       });
-      if (draft.__preserveJoins && hasMixedEffectiveRuleJoins({ conditions: ne })) {
+      if (draft.__preserveJoins && hasMixedEffectiveConditionJoins({ conditions: ne })) {
         exprHtml = parts[0];
         for (var pi = 1; pi < parts.length; pi++) {
           exprHtml = '（' + exprHtml + ' <span class="expr-op expr-op--scenario">' + (effectiveConditionJoin(ne[pi]) === 'OR' ? '或' : '且') + '</span> ' + parts[pi] + '）';
@@ -251,13 +253,17 @@
     function ruleCount(rule) { return 1 + (rule.conditions || []).reduce(function (n, child) { return n + ruleCount(child); }, 0); }
     var totalRules = draft.groups.reduce(function (n, g) { return n + g.conditions.reduce(function (sum, rule) { return sum + ruleCount(rule); }, 0); }, 0);
     var editing = typeof draft.__editingIndex === 'number';
-    var groupCount = Math.max(1, draft.groups.length);
-    return '<section class="rule-card scenario-builder" data-builder-title tabindex="-1" aria-label="條件組合">' +
+    // 情境範例放在條件組合上方的托盤，和左側條件總覽同一種材質：托盤放可按的鍵，紙上是組出來的條件（裁定 2026-11-03-05）。
+    // 托盤預設收起，按標題打開；開合狀態記在 viewState.disclosures，同一次開案內記住（裁定 2026-11-03-19）。
+    return '<details class="filter-template-tray" data-motion-key="template-tray"' + disclosureAttributes('templates') + '>' +
+        '<summary class="filter-template-tray__title">從情境範例開始</summary>' +
+        '<div class="filter-example-list" data-example-list data-motion-key="examples">' + exampleListHtml() + '</div>' +
+      '</details>' +
+      '<section class="rule-card scenario-builder" data-builder-title tabindex="-1" aria-label="條件組合">' +
       (editing ? '<div class="filter-builder-heading" data-motion-key="editing-heading"><h3 class="rule-card__title" data-bind="editing-scenario-name">編輯情境：' + Ui.esc(draft.name) + '</h3></div>' : '') +
       // 編輯情境時「編輯情境：名稱」是工作面標題，「條件組合」降一層。
       '<div class="filter-builder-heading filter-builder-heading--composition"><div>' +
-        (editing ? '<h4 class="filter-entry-title">條件組合</h4>' : '<h3 class="filter-entry-title">條件組合</h3>') +
-        '<span class="filter-builder-count">' + groupCount + ' 個條件組</span></div>' +
+        (editing ? '<h4 class="filter-entry-title">條件組合</h4>' : '<h3 class="filter-entry-title">條件組合</h3>') + '</div>' +
         '<div class="filter-group-tools" role="group" aria-label="條件組合操作"><button type="button" class="btn btn--ghost btn--add" data-action="add-set" aria-label="新增條件組">條件組</button></div></div>' +
       setsHtml(draft) +
       (totalRules > 1 ? '<section class="filter-readback" data-motion-key="readback" aria-label="完整篩選條件">' + readBackHtml(draft) + '</section>' : '') +
@@ -295,7 +301,7 @@
       '<div class="rule-row rule-row--' + family + (FilterStep.selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + ri + '" data-join="' + effectiveConditionJoin(rule) + '">' +
         '<div class="filter-rule-heading">' +
           (FilterStep.selectedRule === rule ? '<span class="filter-rule-selected" data-motion="inline">選取中</span>' : '') +
-          (rule.type === 'drCrOnly' ? '<strong>借貸別</strong>' : rule.type === 'manualAuto' ? '<strong>人工或自動分錄</strong>' : '') +
+          (rule.type === 'drCrOnly' ? '<strong>借貸別</strong>' : rule.type === 'manualAuto' ? '<strong>人工/自動分錄</strong>' : '') +
           (rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair' ? '<strong>借貸科目組合</strong>' : '') +
           (rule.type === 'accountSide' ? '<strong>科目分類</strong>' : '') +
           (rule.type === 'fieldValue' ? '<strong>' + Ui.esc(Ui.FilterValues.fieldTitle(rule, Store.getState())) + '</strong>' : '') +
@@ -340,7 +346,7 @@
       var note = requirementNote([{ type: type }]);
       return '<option value="type:' + type + '"' + (note ? ' disabled' : '') + '>' + Ui.esc(label + (note ? '（' + note + '）' : '')) + '</option>';
     }
-    choices += typeChoice('accountSide', '科目分類') + typeChoice('drCrOnly', '借貸別') + typeChoice('manualAuto', '人工或自動') +
+    choices += typeChoice('accountSide', '科目分類') + typeChoice('drCrOnly', '借貸別') + typeChoice('manualAuto', '人工/自動分錄') +
       '<option value="type:group">子條件組</option>';
     if (rule.type === 'group' && !insideVoucher) { choices += '<option value="type:voucher">整張傳票條件</option>'; }
     return '<div class="rule-row rule-row--compound' + (FilterStep.selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + path + '" data-join="' + effectiveConditionJoin(rule) + '"><div class="filter-rule-heading">' +
@@ -489,7 +495,10 @@
     }).join(Ui.FILTER_CATEGORY_LIST_SEPARATOR);
   }
 
+  // 「選取依據」屬於科目分類的上下層級，第一個正式版隱藏（裁定 2026-11-03-27）；新條件照舊用「包含下層分類」，
+  // 分類都是平的一層時，它和「僅分類本身」選到的分類相同。Ui.FEATURES.categoryHierarchy 改成 true 就恢復。
   function categorySelectionHtml(rule) {
+    if (!Ui.FEATURES.categoryHierarchy) { return ''; }
     return '<label>選取依據<select data-rule-bind="categorySelection">' + [['role','相同分類用途'],['node','僅分類本身'],['subtree','包含下層分類']].map(function (item) {
       return '<option value="' + item[0] + '"' + ((rule.categorySelection || 'role') === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
     }).join('') + '</select></label>';
@@ -504,8 +513,22 @@
       .map(function (category) { return category.label; }).join(Ui.FILTER_CATEGORY_LIST_SEPARATOR) || '無';
   }
 
+  // 借貸組合讀回會寫出的分類：借方錨定只看借方，貸方錨定只看貸方，其餘兩側都看。
+  function pairSelectionIds(rule) {
+    var ids = [];
+    if (rule.type !== 'accountPair' || rule.pairMode !== 'creditAnchor') { ids = ids.concat(ruleCategoryIds(rule, 'debitCategoryIds')); }
+    if (rule.type !== 'accountPair' || rule.pairMode !== 'debitAnchor') { ids = ids.concat(ruleCategoryIds(rule, 'creditCategoryIds')); }
+    return ids;
+  }
+
+  // 讀回要不要寫選取依據與實際納入分類：選的分類都沒有下層時不寫（裁定 2026-11-03-27，規則在 Ui.categorySelectionMatters）。
+  function categorySelectionShown(rule) {
+    var ids = rule.type === 'accountSide' ? ruleCategoryIds(rule, 'categoryIds') : pairSelectionIds(rule);
+    return Ui.categorySelectionMatters(Store.getState(), ids, rule.categorySelection);
+  }
+
   function pairActualCategories(rule) {
-    if (!Store.getState().accountCategory) { return ''; }
+    if (!Store.getState().accountCategory || !categorySelectionShown(rule)) { return ''; }
     var text = '';
     if (rule.type !== 'accountPair' || rule.pairMode !== 'creditAnchor') {
       text += '；借方實際納入分類：' + actualCategoryLabels(rule, 'debitCategoryIds');
@@ -730,13 +753,13 @@
           '<span class="rule-row__sep">天內借記收入</span>';
 
       case 'revenueWithoutNormalCounterpart':
-        return '<span class="rule-row__field-label" title="貸方為收入，但同一張傳票沒有應收或預收的借方分錄">貸方為收入，借方非應收或預收</span>';
+        return '<span class="rule-row__field-label" title="貸方為收入，但同一張傳票沒有應收或預收的借方分錄">貸方為收入但借方非一般對方科目</span>';
 
       case 'manualRevenueEntry':
         return '<span class="rule-row__field-label" title="科目為收入且為人工分錄">收入的人工分錄</span>';
 
       case 'preparerEqualsApprover':
-        return '<span class="rule-row__field-label" title="同一張傳票的建立人員與核准人員相同">編製＝核准同一人</span>';
+        return '<span class="rule-row__field-label" title="同一張傳票的建立人員與核准人員相同">編製人員與核准人員相同</span>';
 
       default:
         return '';
@@ -777,7 +800,7 @@
 
   function ruleSummaryLabel(rule, index, compact) {
     var prefix = index === 0 ? '' : (effectiveConditionJoin(rule) === 'OR' ? '或 ' : '且 ');
-    if (rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') {
+    if ((rule.type === 'accountPair' || rule.type === 'specialAccountCategoryPair') && categorySelectionShown(rule)) {
       prefix += categorySelectionModeLabel(rule) + '：';
     }
     switch (rule.type) {
@@ -804,6 +827,7 @@
         var text = '尚未選擇分類條件';
         if (rule.categoryMode === 'is') { text = '科目屬於「' + categories + '」'; }
         if (rule.categoryMode === 'isNot') { text = '科目不屬於「' + categories + '」'; }
+        if (!categorySelectionShown(rule)) { return prefix + text; }
         return prefix + text + '（' + categorySelectionModeLabel(rule) + '）' +
           (Store.getState().accountCategory ? '；實際納入分類：' + actualCategoryLabels(rule, 'categoryIds') : '');
       }
@@ -891,11 +915,11 @@
       case 'revenueDebitNearQuarterEnd':
         return prefix + quarterEndSummary(rule);
       case 'revenueWithoutNormalCounterpart':
-        return prefix + '貸方為收入，借方非應收或預收';
+        return prefix + '貸方為收入但借方非一般對方科目';
       case 'manualRevenueEntry':
         return prefix + '收入之人工分錄';
       case 'preparerEqualsApprover':
-        return prefix + '編製＝核准同一人';
+        return prefix + '編製人員與核准人員相同';
       default:
         return prefix + Ui.RETIRED_CONDITION_LABEL;
     }
@@ -1235,7 +1259,7 @@
   FilterStep.setsHtml = setsHtml;
   FilterStep.exprJoin = exprJoin;
   FilterStep.effectiveConditionJoin = effectiveConditionJoin;
-  FilterStep.hasMixedEffectiveRuleJoins = hasMixedEffectiveRuleJoins;
+  FilterStep.hasMixedEffectiveConditionJoins = hasMixedEffectiveConditionJoins;
   FilterStep.groupReadBackExpressionHtml = groupReadBackExpressionHtml;
   FilterStep.readBackHtml = readBackHtml;
   FilterStep.readBackExpressionHtml = readBackExpressionHtml;
@@ -1255,6 +1279,8 @@
   FilterStep.ruleCategoryIds = ruleCategoryIds;
   FilterStep.categoryIdsLabel = categoryIdsLabel;
   FilterStep.categorySelectionHtml = categorySelectionHtml;
+  FilterStep.pairSelectionIds = pairSelectionIds;
+  FilterStep.categorySelectionShown = categorySelectionShown;
   FilterStep.categorySelectionModeLabel = categorySelectionModeLabel;
   FilterStep.actualCategoryLabels = actualCategoryLabels;
   FilterStep.pairActualCategories = pairActualCategories;

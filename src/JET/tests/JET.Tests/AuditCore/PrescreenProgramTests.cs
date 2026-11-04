@@ -69,7 +69,8 @@ public sealed class PrescreenProgramTests
         // 第一次失敗：Focused 收據 20261023-032905578-e71aa86f3fec4304a919d55f3db25598。
         const string approvalDateMissing = "「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
         const string createdByMissing = "「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上。";
-        const string holidayCalendarMissing = "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。";
+        // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075413446-3db6bbc462f9429a97a2d2f2a29ca06d。
+        const string holidayCalendarMissing = "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。";
         AssertSkipped(
             result,
             "prep_period_approval",

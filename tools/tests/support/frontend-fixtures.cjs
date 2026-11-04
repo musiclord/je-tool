@@ -533,11 +533,11 @@ function validationFixture() {
       storedTotals: { rowCountMatch: true, amountMatch: true }, naReason: null,
       eligibility: { isEligible: true, reason: null, warning: 'GL 與 TB 有 1 個科目差異，可說明原因並繼續。' } },
     voucherBalanceTest: { unbalancedVoucherCount: 0 }, infSamplingTest: { sampleSize: 0 },
-    blankRecordsTest: { nullDocumentCount: 2, nullAccountCount: 2, nullDescriptionCount: 0, approvalDateNotInPeriodCount: 0,
-      nullRows: [
-        { voucherNumber: '', accountNumber: '1101', description: 'document only', issues: ['document'] },
-        { voucherNumber: 'JV-2', accountNumber: '', description: 'account only', issues: ['account'] },
-        { voucherNumber: '', accountNumber: '', description: 'both missing', issues: ['document', 'account'] }
+    blankRecordsTest: { blankVoucherNumberCount: 2, blankAccountNumberCount: 2, blankDescriptionCount: 0, approvalDateNotInPeriodCount: 0,
+      blankRows: [
+        { voucherNumber: '', accountNumber: '1101', description: 'document only', issues: ['voucherNumber'] },
+        { voucherNumber: 'JV-2', accountNumber: '', description: 'account only', issues: ['accountNumber'] },
+        { voucherNumber: '', accountNumber: '', description: 'both missing', issues: ['voucherNumber', 'accountNumber'] }
       ] }
   };
 }
@@ -592,8 +592,8 @@ function batch8Fixture() {
   // 第五步拆成五個檔案：前四個先載入，下面的清單再載入主檔。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'account-mapping-editor.js', 'filter-values.js', 'overview-bi.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const modules = [
-    ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, NULL_PRESCREEN_ITEMS, DETAIL_PAGE_SPECS, detailHtml, validationCardHtml, validationReportsHtml, validationOutputStatusHtml, prescreenReportHtml, prescreenCardHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
-    ['filter', filterStepExposure('batch8Filter', ['customPickerHtml', 'exampleListHtml', 'ruleControlsHtml', 'ruleSummaryLabel', 'readBackHtml', 'toWireDraft', 'compoundRuleHtml', 'scenarioBuilderHtml'], 'viewState: FilterStep.viewState').trim()],
+    ['validate', 'window.batch8Validation = { bind, detailView, VALIDATION_ITEMS, PRESCREEN_ITEMS, BLANK_PRESCREEN_ITEMS, DETAIL_PAGE_SPECS, detailHtml, validationCardHtml, validationReportsHtml, validationOutputStatusHtml, prescreenReportHtml, prescreenCardHtml, statsBarHtml, pairCountStatus, hitCountStatus };'],
+    ['filter', filterStepExposure('batch8Filter', ['fieldPickerHtml', 'exampleListHtml', 'ruleControlsHtml', 'ruleSummaryLabel', 'readBackHtml', 'toWireDraft', 'compoundRuleHtml', 'scenarioBuilderHtml'], 'viewState: FilterStep.viewState').trim()],
     ['mapping', 'window.batch8Mapping = { classicEditSection, summarySection, mappingPreflightHtml };'],
     ['import', 'window.batch8Import = { emptyFaceHtml, wizardBannerHtml, previewTableHtml, datasetCard, getWizard: () => wizard };'],
     ['create', 'window.batch8Create = { render, operatorNoticeHtml };']

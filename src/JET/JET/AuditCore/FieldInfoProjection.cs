@@ -29,21 +29,22 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(targetGlDefinitions);
 
         return new FieldInfoProjection(
-            ProjectRows(targetTbDefinitions, DatasetKind.Tb),
-            ProjectRows(targetGlDefinitions, DatasetKind.Gl));
+            ProjectRows(targetTbDefinitions),
+            ProjectRows(targetGlDefinitions));
     }
 
-    private static IReadOnlyList<FieldInfoRow> ProjectRows(
-        IReadOnlyList<FieldInfo> definitions,
-        DatasetKind datasetKind) =>
+    private static IReadOnlyList<FieldInfoRow> ProjectRows(IReadOnlyList<FieldInfo> definitions) =>
         Array.AsReadOnly(definitions
             .OrderBy(static definition => definition.Ordinal)
-            .Select(definition => ProjectRow(definition, datasetKind))
+            .Select(ProjectRow)
             .ToArray());
 
-    private static FieldInfoRow ProjectRow(
-        FieldInfo definition,
-        DatasetKind datasetKind)
+    /// <summary>
+    /// 「配對前欄位名稱」依來歷寫：原始來源欄寫欄名本身；配對後改名與 _Temp 原欄寫來源欄名並加【】，
+    /// 因為那一格描述的是另一個欄位（裁定 2026-11-03-17）；系統產生的欄寫說明句，句裡的欄位名稱已經有【】。
+    /// 「配對後欄位名稱」只有 JET 欄位才填，不再看欄名結尾（裁定 2026-11-03-11）。
+    /// </summary>
+    private static FieldInfoRow ProjectRow(FieldInfo definition)
     {
         var fieldType = definition.Kind switch
         {
@@ -57,24 +58,20 @@ public static partial class JetAuditProgram
                 "未登錄的 Legacy 欄位型態。")
         };
 
+        var displayName = definition.Origin switch
+        {
+            FieldInfoOrigin.Renamed or FieldInfoOrigin.Temp when !string.IsNullOrWhiteSpace(definition.Description) =>
+                $"【{definition.Description}】",
+            FieldInfoOrigin.Generated when !string.IsNullOrWhiteSpace(definition.Description) =>
+                definition.Description,
+            _ => definition.FieldName
+        };
+
         return new FieldInfoRow(
-            string.IsNullOrWhiteSpace(definition.Description)
-                ? definition.FieldName
-                : definition.Description,
+            displayName,
             fieldType,
             definition.Kind == LegacyFieldKind.Text ? definition.TextLength : null,
             definition.Kind == LegacyFieldKind.Number ? definition.DecimalPlaces : null,
-            HasCanonicalSuffix(definition.FieldName, datasetKind)
-                ? definition.FieldName
-                : null);
+            definition.IsJetField ? definition.FieldName : null);
     }
-
-    private static bool HasCanonicalSuffix(string fieldName, DatasetKind datasetKind) =>
-        datasetKind switch
-        {
-            DatasetKind.Tb => fieldName.EndsWith("_TB", StringComparison.Ordinal),
-            DatasetKind.Gl => fieldName.EndsWith("_JE", StringComparison.Ordinal)
-                || fieldName.EndsWith("_JE_S", StringComparison.Ordinal),
-            _ => false
-        };
 }

@@ -196,6 +196,7 @@ public sealed partial class LegacyReportWriter
                     sourceDefinitions,
                     raw,
                     customFields,
+                    workbookMetadata.GlMapping.GlOptions?.RdeFields,
                     rdeValues,
                     ct);
                 AddStat(stats, stat, progress);
@@ -531,10 +532,12 @@ public sealed partial class LegacyReportWriter
         IReadOnlyList<FieldInfo> sourceDefinitions,
         IReadOnlyDictionary<long, string> raw,
         IReadOnlyList<GlRdeFieldMetadata> customFields,
+        IReadOnlyList<GlRdeFieldMetadata>? registryFields,
         IReadOnlyDictionary<long, IReadOnlyDictionary<string, string?>> rdeValues,
         CancellationToken cancellationToken)
     {
-        var outputColumns = columns.Concat(customFields.Select(field => field.Label)).ToArray();
+        // 攸關資料元素的表頭照舊版加 _JE（裁定 2026-11-03-14）。
+        var outputColumns = columns.Concat(GlRdeOutputNames.For(customFields, registryFields)).ToArray();
         var styles = InfAllFieldsStyles(columns, sourceDefinitions, stylePatcher)
             .Concat(Enumerable.Repeat(InfAllFieldsBaseStyle, customFields.Count))
             .ToArray();

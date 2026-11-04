@@ -58,14 +58,14 @@ public sealed class SqlServerHighRiskSummaryScenariosRepository(SqlServerProject
             connection, SqlServerProjectSchema.QualifierFor(projectId), "COUNT_BIG(*)", scenarioPositions, cancellationToken);
     }
 
-    public async Task<IReadOnlyDictionary<int, long>> GetBlankDocumentHitRowCountsAsync(
+    public async Task<IReadOnlyDictionary<int, long>> GetBlankVoucherNumberHitRowCountsAsync(
         string projectId, CancellationToken cancellationToken)
     {
         await database.EnsureCreatedAsync(projectId, cancellationToken);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        return await HighRiskSummaryScenarioCounts.ReadBlankDocumentRowCountsAsync(
+        return await HighRiskSummaryScenarioCounts.ReadBlankVoucherNumberRowCountsAsync(
             connection, SqlServerProjectSchema.QualifierFor(projectId), "COUNT_BIG(*)", cancellationToken);
     }
 }

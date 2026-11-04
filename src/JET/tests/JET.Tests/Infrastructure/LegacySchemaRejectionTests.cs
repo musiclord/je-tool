@@ -12,7 +12,7 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class LegacySchemaRejectionTests
 {
-    // 裁定 2026-10-30-23 要求舊版案件的訊息寫明下一步是刪除後重建，訊息由「請用目前版本重新建立案件」改成這一句。
+    // 依裁定 2026-10-30-23，舊版案件的訊息要寫明下一步是刪除後重建，訊息由「請用目前版本重新建立案件」改成這一句。
     // 第一次失敗收據 20261030-065928748-be3c29975faa4b92b43ff12519708767。
     private const string LegacySchemaMessage =
         "這個案件是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
@@ -101,12 +101,15 @@ public sealed class LegacySchemaRejectionTests
     [InlineData("duckdb", "16")]
     [InlineData("sqlite", "17")]
     [InlineData("duckdb", "17")]
+    [InlineData("sqlite", "18")]
+    [InlineData("duckdb", "18")]
     public async Task PreviousSchemaVersion_IsRejectedAsLegacyProjectWithoutChangingTheFile(string provider, string olderVersion)
     {
         // 拿掉升版程式前的最後一版是第 14 版：結構和現行相同，只差版本號，也要當成舊版案件擋下，不再升版。
         // 統一改名前建立的案件是第 15 版，同樣當成舊版案件擋下。
         // 條件組結果改成依條件組編號儲存之前建立的案件是第 16 版，同樣當成舊版案件擋下。
         // 驗證摘要的鍵名改成 voucherNumberAcrossGlDates 之前建立的案件是第 17 版，同樣當成舊版案件擋下（裁定 2026-11-01-01）。第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
+        // 資料缺漏輔助檢視的驗證摘要鍵名改用 blank 字根之前建立的案件是第 18 版，同樣當成舊版案件擋下。第一次失敗收據 20261103-025603757-17ca9fea8bde42369861458b84ebd4dc。
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
         ILocalProjectDatabase database = provider == "sqlite"
@@ -215,7 +218,10 @@ public sealed class LegacySchemaRejectionTests
         // 讓第 16 版以前建立的案件也當成舊版。第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
         // 驗證摘要裡同一傳票號碼出現在不同總帳日期的鍵名改用 voucher（裁定 2026-11-01-01），存好的摘要和舊案件不同，
         // 版本推進到第 18 版，讓第 17 版以前建立的案件也當成舊版。第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
-        Assert.Equal("18", await command.ExecuteScalarAsync() as string);
-        Assert.Equal("18", LocalSchemaReadiness.CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // 資料缺漏輔助檢視的驗證摘要鍵名改用 blank 字根，存好的摘要和舊案件不同，版本推進到第 19 版，讓第 18 版以前建立的案件也當成舊版。第一次失敗收據 20261103-025603757-17ca9fea8bde42369861458b84ebd4dc。
+        // 欄位資訊多記每一欄的來歷與對應的 JET 欄位（裁定 2026-11-03-11），field_info 加 field_origin 與 jet_field，版本推進到第 20 版，
+        // 讓第 19 版以前建立的案件也當成舊版。第一次失敗：Focused 收據 20261103-070053462-34d240fe519d4190a85d1a4368c1a80a。
+        Assert.Equal("20", await command.ExecuteScalarAsync() as string);
+        Assert.Equal("20", LocalSchemaReadiness.CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 }

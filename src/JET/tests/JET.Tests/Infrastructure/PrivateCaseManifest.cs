@@ -1095,7 +1095,7 @@ internal static partial class PrivateCaseManifestLoader
 // 舊版篩選紀錄的解析器也只產生這種寫法。私人案件清單是使用者在這之前寫的，讀清單時照同一句說明換成新寫法，
 // 送出情境與核對舊版紀錄都用換過的定義；清單檔本身不改。第一次失敗：PrivateCase
 // 20261016-021117397-692898c0b4e74d0596265996bd8d51c6（SQLite）與 20261016-021130320-79e7290e83f54e2ca3397a482bff22e6（DuckDB），
-// 裁定 2026-10-16-14 選「測試先換成新寫法再比對」。
+// 使用者選了「測試先換成新寫法再比對」（裁定 2026-10-16-14）。
 // 2026-10-30 起情境裡的條件陣列從 rules 改名為 conditions。清單裡的情境仍寫 rules，讀清單時先把條件組與
 // 組合條件（group、voucher）裡的 rules 換成 conditions，再處理同一傳票的舊寫法。
 internal static class PrivateCaseScenarioShape

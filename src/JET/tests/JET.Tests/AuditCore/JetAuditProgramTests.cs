@@ -22,7 +22,7 @@ public sealed class JetAuditProgramTests
         // 裁定 2026-10-02-01：畫面不再說「提交」欄位配對，原因改用「完成」；斷言改鎖新句子。
         // 確認配對用語統一（裁定 2026-10-04-01）；仍鎖定完整原因與單一 N/A 判定。
         // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
-        // 裁定 2026-10-30-16 確認兩種原因句，預期值換成新句子；同一個收據也是這裡的第一次失敗。
+        // 兩種原因句依裁定 2026-10-30-16，預期值換成新句子；同一個收據也是這裡的第一次失敗。
         // 裁定 2026-11-01-06 把這句的「還沒確認」改成「尚未確認」，其餘字不動；第一次失敗：Focused 收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
         Assert.Equal("TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。", verdict.NaReason);
         Assert.Equal(
@@ -61,7 +61,7 @@ public sealed class JetAuditProgramTests
         var exception = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(snapshot, parameters));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。開案時已擋下舊版案件，
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。開案時已擋下舊版案件，
         // 驗證計畫照正常操作走不到這裡：訊息改成非預期錯誤那一句，檢查代號記進支援日誌；錯誤代碼不變，仍拒絕執行。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
         Assert.Equal("inf_algorithm_version_legacy", JetPayloadRejection.CheckOf(exception));
@@ -84,9 +84,9 @@ public sealed class JetAuditProgramTests
             CompletenessDiffAccounts: [],
             UnbalancedVoucherCount: 2,
             InfSampleCount: 0,
-            NullAccountCount: 1,
-            NullDocumentCount: 2,
-            NullDescriptionCount: 3,
+            BlankAccountNumberCount: 1,
+            BlankVoucherNumberCount: 2,
+            BlankDescriptionCount: 3,
             ApprovalDateNotInPeriodCount: 4,
             SourceQualityFindingCount: 5,
             UnbalancedVouchers: [],
@@ -196,9 +196,9 @@ public sealed class JetAuditProgramTests
         CompletenessDiffAccounts: [],
         UnbalancedVoucherCount: 0,
         InfSampleCount: 0,
-        NullAccountCount: 0,
-        NullDocumentCount: 0,
-        NullDescriptionCount: 0,
+        BlankAccountNumberCount: 0,
+        BlankVoucherNumberCount: 0,
+        BlankDescriptionCount: 0,
         ApprovalDateNotInPeriodCount: 0,
         SourceQualityFindingCount: 0,
         UnbalancedVouchers: [],

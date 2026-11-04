@@ -149,7 +149,6 @@
      純檢視狀態放到重繪之外。放 module 層而非 Store：比照匯入精靈「模組區域狀態」的既有慣例
      （見 state.js touch() 的註解），Store 不需要知道單一步驟的展開細節；生命週期由本模組在每次
      render 時自行對齊（syncViewState）。
-       checkCategory    —— 自訂分頁「依審計目的」目前展開的分類（一次只展開一類；null 表示全部收起）。
        examplePick      —— 正在選欄位的範例（範例需要文字型攸關資料元素欄位且有兩個以上可選時）。
        openScenarios    —— 已存情境詳情展開狀態（index → true）。
        scenarioPreviews —— 已存情境惰性命中預覽快取（index → filter.preview 回傳的 scenario 物件）。
@@ -172,7 +171,6 @@
     return {
       workspacePane: 'filter',
       conditionSource: 'common',
-      checkCategory: Ui.FILTER_PURPOSE_CHECK_GROUPS[0].key,
       examplePick: null,
       lastSavedName: null,
       savedDraftKey: null,
@@ -299,7 +297,7 @@
   }
 
   // 一組條件還缺什麼前置條件，沒有缺項時是空字串。判斷與句子都在 ui-core.js 的規則需求表，它逐項鏡像後端（權威驗證在後端）；
-  // 欄位按鈕、依審計目的的條件、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式。第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05）。
+  // 欄位條件的欄位與常用查法、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式。第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05）。
   function requirementNote(rules) {
     return Ui.ruleRequirementNote(Store.getState(), rules);
   }

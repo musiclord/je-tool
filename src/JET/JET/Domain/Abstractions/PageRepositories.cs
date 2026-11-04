@@ -34,9 +34,9 @@ public interface IBlankRecordsPageRepository
 /// </summary>
 public enum BlankRecordCategory
 {
-    NullAccount,
-    NullDocument,
-    NullDescription,
+    BlankAccountNumber,
+    BlankVoucherNumber,
+    BlankDescription,
     ApprovalDateNotInPeriod
 }
 

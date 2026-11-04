@@ -63,9 +63,9 @@ public sealed class ExportValidationReportsHandler(
             document.PeriodStart,
             document.PeriodEnd,
             reportProjection.CompletenessDiffAccountCount,
-            reportProjection.NullAccountCount,
-            reportProjection.NullDocumentCount,
-            reportProjection.NullDescriptionCount,
+            reportProjection.BlankAccountNumberCount,
+            reportProjection.BlankVoucherNumberCount,
+            reportProjection.BlankDescriptionCount,
             reportProjection.ApprovalDateNotInPeriodCount));
         var planningFacts = await validationReportPlanningFactsPort.ExecuteAsync(
             unfinalizedReportPlan,
@@ -321,7 +321,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             conditionLogic[scenario.Position] =
-                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, categorySnapshot.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd);
+                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, categorySnapshot.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true);
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);

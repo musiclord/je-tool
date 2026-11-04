@@ -1,5 +1,5 @@
 {
-  "scope": "SQLite schema after declared migrations through v12; no DB executed",
+  "scope": "SQLite current-structure DDL, schema version 18; no DB executed",
   "tables": [
     {
       "name": "schema_info",
@@ -21,7 +21,7 @@
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
           "line": 22,
           "endLine": 25,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
@@ -68,9 +68,9 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 32,
-          "endLine": 40,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 27,
+          "endLine": 35,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
@@ -115,6 +115,11 @@
           "declaration": "delimiter TEXT NULL"
         },
         {
+          "name": "header_row",
+          "type": "INTEGER",
+          "declaration": "header_row INTEGER NULL"
+        },
+        {
           "name": "row_count",
           "type": "INTEGER",
           "declaration": "row_count INTEGER NOT NULL DEFAULT 0"
@@ -128,14 +133,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 44,
-          "endLine": 55,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 39,
+          "endLine": 51,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "import_field_definition",
+      "name": "field_info",
       "attributes": [
         {
           "name": "batch_id",
@@ -194,14 +199,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 59,
-          "endLine": 71,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 54,
+          "endLine": 66,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "staging_gl_raw_row",
+      "name": "pbc_gl",
       "attributes": [
         {
           "name": "batch_id",
@@ -234,14 +239,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 73,
-          "endLine": 80,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 68,
+          "endLine": 75,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "staging_tb_raw_row",
+      "name": "pbc_tb",
       "attributes": [
         {
           "name": "batch_id",
@@ -274,14 +279,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 82,
-          "endLine": 89,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 77,
+          "endLine": 84,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "config_field_mapping",
+      "name": "field_mapping",
       "attributes": [
         {
           "name": "dataset_kind",
@@ -323,26 +328,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 91,
-          "endLine": 97,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 597,
-          "endLine": 602,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 604,
-          "endLine": 605,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 86,
+          "endLine": 94,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "config_field_mapping_previous",
+      "name": "field_mapping_previous",
       "attributes": [
         {
           "name": "dataset_kind",
@@ -384,14 +377,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 100,
-          "endLine": 108,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 97,
+          "endLine": 105,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "staging_calendar_raw_day",
+      "name": "calendar_day",
       "attributes": [
         {
           "name": "day_type",
@@ -414,14 +407,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 110,
-          "endLine": 115,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 107,
+          "endLine": 112,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "target_gl_entry",
+      "name": "gl",
       "attributes": [
         {
           "name": "entry_id",
@@ -440,9 +433,9 @@
           "declaration": "source_row_number INTEGER NOT NULL"
         },
         {
-          "name": "document_number",
+          "name": "voucher_number",
           "type": "TEXT",
-          "declaration": "document_number TEXT NULL"
+          "declaration": "voucher_number TEXT NULL"
         },
         {
           "name": "line_item",
@@ -455,9 +448,9 @@
           "declaration": "line_item_numeric_sort_key TEXT NULL"
         },
         {
-          "name": "post_date",
+          "name": "gl_date",
           "type": "TEXT",
-          "declaration": "post_date TEXT NULL"
+          "declaration": "gl_date TEXT NULL"
         },
         {
           "name": "approval_date",
@@ -465,9 +458,9 @@
           "declaration": "approval_date TEXT NULL"
         },
         {
-          "name": "account_code",
+          "name": "account_number",
           "type": "TEXT",
-          "declaration": "account_code TEXT NULL"
+          "declaration": "account_number TEXT NULL"
         },
         {
           "name": "account_name",
@@ -475,9 +468,9 @@
           "declaration": "account_name TEXT NULL"
         },
         {
-          "name": "document_description",
+          "name": "description",
           "type": "TEXT",
-          "declaration": "document_description TEXT NULL"
+          "declaration": "description TEXT NULL"
         },
         {
           "name": "source_module",
@@ -525,9 +518,9 @@
           "declaration": "posting_status TEXT"
         },
         {
-          "name": "is_effective",
+          "name": "is_excluded",
           "type": "INTEGER",
-          "declaration": "is_effective INTEGER"
+          "declaration": "is_excluded INTEGER"
         },
         {
           "name": "exclusion_reason",
@@ -538,32 +531,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 117,
+          "line": 114,
           "endLine": 137,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 577,
-          "endLine": 578,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 579,
-          "endLine": 580,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 581,
-          "endLine": 582,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "target_tb_balance",
+      "name": "tb",
       "attributes": [
         {
           "name": "balance_id",
@@ -582,9 +557,9 @@
           "declaration": "source_row_number INTEGER NOT NULL"
         },
         {
-          "name": "account_code",
+          "name": "account_number",
           "type": "TEXT",
-          "declaration": "account_code TEXT NULL"
+          "declaration": "account_number TEXT NULL"
         },
         {
           "name": "account_name",
@@ -600,25 +575,20 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 143,
-          "endLine": 150,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 147,
+          "endLine": 154,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "result_rule_run",
+      "name": "validation_result",
       "attributes": [
         {
-          "name": "run_id",
+          "name": "result_id",
           "type": "TEXT",
           "key": "pk",
-          "declaration": "run_id TEXT PRIMARY KEY"
-        },
-        {
-          "name": "run_kind",
-          "type": "TEXT",
-          "declaration": "run_kind TEXT NOT NULL CHECK (run_kind IN ('validate','prescreen'))"
+          "declaration": "result_id TEXT PRIMARY KEY"
         },
         {
           "name": "generated_utc",
@@ -634,19 +604,48 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 154,
-          "endLine": 159,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 159,
+          "endLine": 163,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "result_inf_sampling_test_sample",
+      "name": "prescreen_result",
       "attributes": [
         {
-          "name": "run_id",
+          "name": "result_id",
           "type": "TEXT",
-          "declaration": "run_id TEXT NOT NULL",
+          "key": "pk",
+          "declaration": "result_id TEXT PRIMARY KEY"
+        },
+        {
+          "name": "generated_utc",
+          "type": "TEXT",
+          "declaration": "generated_utc TEXT NOT NULL"
+        },
+        {
+          "name": "summary_json",
+          "type": "TEXT",
+          "declaration": "summary_json TEXT NOT NULL"
+        }
+      ],
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 164,
+          "endLine": 168,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
+        }
+      ]
+    },
+    {
+      "name": "inf_sample",
+      "attributes": [
+        {
+          "name": "result_id",
+          "type": "TEXT",
+          "declaration": "result_id TEXT NOT NULL",
           "key": "pk"
         },
         {
@@ -656,9 +655,9 @@
           "key": "pk"
         },
         {
-          "name": "document_number",
+          "name": "voucher_number",
           "type": "TEXT",
-          "declaration": "document_number TEXT NULL"
+          "declaration": "voucher_number TEXT NULL"
         },
         {
           "name": "line_item",
@@ -669,20 +668,25 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 163,
-          "endLine": 169,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 170,
+          "endLine": 176,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "config_filter_scenario",
+      "name": "filter_scenario",
       "attributes": [
+        {
+          "name": "scenario_id",
+          "type": "INTEGER",
+          "key": "pk",
+          "declaration": "scenario_id INTEGER PRIMARY KEY"
+        },
         {
           "name": "position",
           "type": "INTEGER",
-          "key": "pk",
-          "declaration": "position INTEGER PRIMARY KEY"
+          "declaration": "position INTEGER NOT NULL"
         },
         {
           "name": "name",
@@ -708,14 +712,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 171,
-          "endLine": 177,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 179,
+          "endLine": 186,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "staging_account_mapping_raw_row",
+      "name": "pbc_account_mapping",
       "attributes": [
         {
           "name": "batch_id",
@@ -748,14 +752,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 179,
-          "endLine": 186,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 188,
+          "endLine": 195,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "target_account_mapping",
+      "name": "account_mapping",
       "attributes": [
         {
           "name": "mapping_id",
@@ -774,9 +778,9 @@
           "declaration": "source_row_number INTEGER NOT NULL"
         },
         {
-          "name": "account_code",
+          "name": "account_number",
           "type": "TEXT",
-          "declaration": "account_code TEXT NOT NULL",
+          "declaration": "account_number TEXT NOT NULL",
           "key": "uk"
         },
         {
@@ -803,26 +807,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 188,
-          "endLine": 196,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 606,
-          "endLine": 607,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Sql/AccountClassificationMigration.cs",
-          "line": 31,
-          "endLine": 151,
-          "sha256": "c7e55fac24bc03724d978bcb107c86de110dd5115ac9d5d92ebf8fe522f70ff9"
+          "line": 197,
+          "endLine": 207,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "staging_authorized_preparer_raw_row",
+      "name": "pbc_authorized_preparer",
       "attributes": [
         {
           "name": "batch_id",
@@ -855,14 +847,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 202,
-          "endLine": 209,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 212,
+          "endLine": 219,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "target_authorized_preparer",
+      "name": "authorized_preparer",
       "attributes": [
         {
           "name": "name",
@@ -874,14 +866,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 210,
-          "endLine": 212,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 220,
+          "endLine": 222,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "app_message_log",
+      "name": "message_log",
       "attributes": [
         {
           "name": "message_id",
@@ -908,9 +900,9 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 222,
-          "endLine": 227,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 225,
+          "endLine": 230,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
@@ -924,34 +916,29 @@
           "declaration": "singleton INTEGER PRIMARY KEY CHECK (singleton = 1)"
         },
         {
-          "name": "source_row_count",
+          "name": "pbc_row_count",
           "type": "INTEGER",
-          "declaration": "source_row_count INTEGER NOT NULL"
+          "declaration": "pbc_row_count INTEGER NOT NULL"
         },
         {
-          "name": "target_row_count",
+          "name": "stored_row_count",
           "type": "INTEGER",
-          "declaration": "target_row_count INTEGER NOT NULL"
+          "declaration": "stored_row_count INTEGER NOT NULL"
         },
         {
-          "name": "target_debit_scaled",
+          "name": "stored_debit_scaled",
           "type": "INTEGER",
-          "declaration": "target_debit_scaled INTEGER NOT NULL"
+          "declaration": "stored_debit_scaled INTEGER NOT NULL"
         },
         {
-          "name": "target_credit_scaled",
+          "name": "stored_credit_scaled",
           "type": "INTEGER",
-          "declaration": "target_credit_scaled INTEGER NOT NULL"
+          "declaration": "stored_credit_scaled INTEGER NOT NULL"
         },
         {
-          "name": "raw_row_count",
+          "name": "gl_row_count",
           "type": "INTEGER",
-          "declaration": "raw_row_count INTEGER"
-        },
-        {
-          "name": "effective_row_count",
-          "type": "INTEGER",
-          "declaration": "effective_row_count INTEGER"
+          "declaration": "gl_row_count INTEGER"
         },
         {
           "name": "excluded_by_period_count",
@@ -964,68 +951,32 @@
           "declaration": "excluded_by_posting_status_count INTEGER"
         },
         {
-          "name": "effective_debit_scaled",
+          "name": "gl_debit_scaled",
           "type": "INTEGER",
-          "declaration": "effective_debit_scaled INTEGER"
+          "declaration": "gl_debit_scaled INTEGER"
         },
         {
-          "name": "effective_credit_scaled",
+          "name": "gl_credit_scaled",
           "type": "INTEGER",
-          "declaration": "effective_credit_scaled INTEGER"
+          "declaration": "gl_credit_scaled INTEGER"
         }
       ],
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 232,
-          "endLine": 238,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 584,
-          "endLine": 585,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 586,
-          "endLine": 587,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 588,
-          "endLine": 589,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 590,
-          "endLine": 591,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 592,
-          "endLine": 593,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 594,
-          "endLine": 595,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 234,
+          "endLine": 245,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "result_filter_run",
+      "name": "filter_hit",
       "attributes": [
         {
-          "name": "scenario_position",
+          "name": "scenario_id",
           "type": "INTEGER",
-          "declaration": "scenario_position INTEGER NOT NULL",
+          "declaration": "scenario_id INTEGER NOT NULL",
           "key": "pk"
         },
         {
@@ -1038,63 +989,51 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 243,
-          "endLine": 247,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 249,
+          "endLine": 253,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "audit_event_log",
+      "name": "filter_hit_condition",
       "attributes": [
         {
-          "name": "event_id",
-          "type": "TEXT",
-          "key": "pk",
-          "declaration": "event_id TEXT PRIMARY KEY"
-        },
-        {
-          "name": "occurred_utc",
-          "type": "TEXT",
-          "declaration": "occurred_utc TEXT NOT NULL"
-        },
-        {
-          "name": "operation",
-          "type": "TEXT",
-          "declaration": "operation TEXT NOT NULL"
-        },
-        {
-          "name": "target_type",
-          "type": "TEXT",
-          "declaration": "target_type TEXT NOT NULL"
-        },
-        {
-          "name": "target_id",
-          "type": "TEXT",
-          "declaration": "target_id TEXT NOT NULL"
-        },
-        {
-          "name": "subject_count",
+          "name": "scenario_id",
           "type": "INTEGER",
-          "declaration": "subject_count INTEGER NOT NULL CHECK (subject_count >= 0)"
+          "declaration": "scenario_id INTEGER NOT NULL",
+          "key": "pk"
         },
         {
-          "name": "replaced_count",
+          "name": "entry_id",
           "type": "INTEGER",
-          "declaration": "replaced_count INTEGER NOT NULL CHECK (replaced_count >= 0)"
+          "declaration": "entry_id INTEGER NOT NULL",
+          "key": "pk"
+        },
+        {
+          "name": "group_no",
+          "type": "INTEGER",
+          "declaration": "group_no INTEGER NOT NULL",
+          "key": "pk"
+        },
+        {
+          "name": "condition_no",
+          "type": "INTEGER",
+          "declaration": "condition_no INTEGER NOT NULL",
+          "key": "pk"
         }
       ],
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 337,
-          "endLine": 345,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 260,
+          "endLine": 266,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "config_gl_rde_field",
+      "name": "gl_rde_field",
       "attributes": [
         {
           "name": "field_id",
@@ -1115,7 +1054,7 @@
         {
           "name": "value_type",
           "type": "TEXT",
-          "declaration": "value_type TEXT NOT NULL CHECK (value_type IN ('text','date','money'))"
+          "declaration": "value_type TEXT NOT NULL CHECK (value_type IN ('text','date','amount'))"
         },
         {
           "name": "ordinal",
@@ -1131,14 +1070,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 377,
-          "endLine": 384,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 268,
+          "endLine": 275,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "target_gl_rde_value",
+      "name": "gl_rde_value",
       "attributes": [
         {
           "name": "entry_id",
@@ -1155,7 +1094,7 @@
         {
           "name": "value_type",
           "type": "TEXT",
-          "declaration": "value_type TEXT NOT NULL CHECK (value_type IN ('text','date','money'))"
+          "declaration": "value_type TEXT NOT NULL CHECK (value_type IN ('text','date','amount'))"
         },
         {
           "name": "text_value",
@@ -1176,14 +1115,14 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 386,
-          "endLine": 402,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 277,
+          "endLine": 293,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "config_account_taxonomy",
+      "name": "account_category",
       "attributes": [
         {
           "name": "category_id",
@@ -1226,20 +1165,39 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 410,
-          "endLine": 417,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
-        },
-        {
-          "path": "src/JET/JET/Infrastructure/Sql/AccountTaxonomyHierarchy.cs",
-          "line": 19,
-          "endLine": 55,
-          "sha256": "ec654ecf20439b5585b5c80d6cbbeed3518ee0fcce2b329117d35abc1260351b"
+          "line": 301,
+          "endLine": 309,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "config_result_stale_state",
+      "name": "account_category_path",
+      "attributes": [
+        {
+          "name": "ancestor_id",
+          "type": "TEXT",
+          "declaration": "ancestor_id TEXT NOT NULL",
+          "key": "pk"
+        },
+        {
+          "name": "descendant_id",
+          "type": "TEXT",
+          "declaration": "descendant_id TEXT NOT NULL",
+          "key": "pk"
+        }
+      ],
+      "sources": [
+        {
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 321,
+          "endLine": 325,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
+        }
+      ]
+    },
+    {
+      "name": "result_stale_state",
       "attributes": [
         {
           "name": "singleton",
@@ -1266,34 +1224,58 @@
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-          "line": 428,
-          "endLine": 433,
-          "sha256": "760bb2302fcb7ab077e9bd2dbadec90d388ef7d863e61b615841ed1c3c3d24d9"
+          "line": 330,
+          "endLine": 335,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     },
     {
-      "name": "config_account_taxonomy_path",
+      "name": "operation_log",
       "attributes": [
         {
-          "name": "ancestor_id",
+          "name": "event_id",
           "type": "TEXT",
-          "declaration": "ancestor_id TEXT NOT NULL",
-          "key": "pk"
+          "key": "pk",
+          "declaration": "event_id TEXT PRIMARY KEY"
         },
         {
-          "name": "descendant_id",
+          "name": "occurred_utc",
           "type": "TEXT",
-          "declaration": "descendant_id TEXT NOT NULL",
-          "key": "pk"
+          "declaration": "occurred_utc TEXT NOT NULL"
+        },
+        {
+          "name": "operation",
+          "type": "TEXT",
+          "declaration": "operation TEXT NOT NULL"
+        },
+        {
+          "name": "target_type",
+          "type": "TEXT",
+          "declaration": "target_type TEXT NOT NULL"
+        },
+        {
+          "name": "target_id",
+          "type": "TEXT",
+          "declaration": "target_id TEXT NOT NULL"
+        },
+        {
+          "name": "subject_count",
+          "type": "INTEGER",
+          "declaration": "subject_count INTEGER NOT NULL CHECK (subject_count >= 0)"
+        },
+        {
+          "name": "replaced_count",
+          "type": "INTEGER",
+          "declaration": "replaced_count INTEGER NOT NULL CHECK (replaced_count >= 0)"
         }
       ],
       "sources": [
         {
-          "path": "src/JET/JET/Infrastructure/Sql/AccountTaxonomyHierarchy.cs",
-          "line": 23,
-          "endLine": 25,
-          "sha256": "ec654ecf20439b5585b5c80d6cbbeed3518ee0fcce2b329117d35abc1260351b"
+          "path": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "line": 342,
+          "endLine": 350,
+          "sha256": "c326fa10492618a706405fe911010646847f651d67dde78f6228a4a44415bb35"
         }
       ]
     }

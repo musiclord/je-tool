@@ -426,9 +426,9 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.caseToWorkingPaperVerified
             }
-            'null-details-recovery' {
+            'blank-details-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
-                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.nullDetailsRecoveryVerified
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.blankDetailsRecoveryVerified
             }
             'nested-voucher-workflow' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and

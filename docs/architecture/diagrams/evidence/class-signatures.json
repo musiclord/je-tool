@@ -26,9 +26,9 @@
     },
     "source": {
       "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
-      "line": 67,
-      "endLine": 71,
-      "sha256": "c0dad4246efa5a8a53092ac47d9fbc4abbee929a94b2774b57c1f41357b3872b"
+      "line": 70,
+      "endLine": 74,
+      "sha256": "45af0d1b52d8ee3f3f778d803c361dfdc2f22d669ff722a4d6c484a7d742ebd7"
     }
   },
   {
@@ -57,9 +57,9 @@
     },
     "source": {
       "path": "src/JET/JET/Bridge/ActionDispatcher.cs",
-      "line": 262,
-      "endLine": 264,
-      "sha256": "c0dad4246efa5a8a53092ac47d9fbc4abbee929a94b2774b57c1f41357b3872b"
+      "line": 315,
+      "endLine": 317,
+      "sha256": "45af0d1b52d8ee3f3f778d803c361dfdc2f22d669ff722a4d6c484a7d742ebd7"
     }
   },
   {
@@ -89,9 +89,9 @@
     },
     "source": {
       "path": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs",
-      "line": 27,
-      "endLine": 27,
-      "sha256": "aa158cbc186141dca55eb4a7e04a0ece9a2617ad88c40ae7a0400f6278857701"
+      "line": 30,
+      "endLine": 30,
+      "sha256": "a4d3107e70aae54f50bc4f5402f3b6537e0be92984d47a6632f52e3ab5c84662"
     }
   },
   {
@@ -105,9 +105,9 @@
     },
     "source": {
       "path": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs",
-      "line": 42,
-      "endLine": 42,
-      "sha256": "bb13e7f6a2d5e5fdcc8595b48851e85c25fea903400da2ed2fb046ee2e220c41"
+      "line": 45,
+      "endLine": 45,
+      "sha256": "baa07846a655e3e0a61ae8179b59751a56276119badffa3616cb02e37983ff7b"
     }
   },
   {
@@ -122,7 +122,7 @@
       "path": "src/JET/JET/AuditCore/IntakeMappingProgram.cs",
       "line": 77,
       "endLine": 80,
-      "sha256": "667b8997b834a1df2664c1586128dda7dfb9b1c0bb853a45532f89155bdc460d"
+      "sha256": "63a0a6f341cf19ef2b6c5ccebf71e96179c12751fa63775558db5ce3b4304479"
     }
   },
   {
@@ -135,9 +135,9 @@
     },
     "source": {
       "path": "src/JET/JET/Domain/Contracts/ImportContracts.cs",
-      "line": 200,
-      "endLine": 200,
-      "sha256": "82dd45ec4bcbe7338474f31005dd13a87b4cb5159cc45874be537917b19d2fb9"
+      "line": 211,
+      "endLine": 211,
+      "sha256": "0ea778d8af0a8d1d31758fff5142e7bec945e9a7614d3f1f41464ba98077cbaa"
     }
   },
   {
@@ -150,9 +150,9 @@
     },
     "source": {
       "path": "src/JET/JET/Domain/Contracts/ImportContracts.cs",
-      "line": 202,
-      "endLine": 202,
-      "sha256": "82dd45ec4bcbe7338474f31005dd13a87b4cb5159cc45874be537917b19d2fb9"
+      "line": 213,
+      "endLine": 213,
+      "sha256": "0ea778d8af0a8d1d31758fff5142e7bec945e9a7614d3f1f41464ba98077cbaa"
     }
   },
   {
@@ -184,7 +184,7 @@
       "path": "src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
       "line": 30,
       "endLine": 34,
-      "sha256": "08e5e75c7b9dd698267bf3b4678c5dd2509d4fe619cbbdebc16883945f2a7e77"
+      "sha256": "402f21355585417ea0af56f159aff56e2528a363ece5e63df4e89d7654b35e4b"
     }
   },
   {
@@ -197,14 +197,14 @@
     },
     "source": {
       "path": "src/JET/JET/Domain/Contracts/ImportContracts.cs",
-      "line": 215,
-      "endLine": 219,
-      "sha256": "82dd45ec4bcbe7338474f31005dd13a87b4cb5159cc45874be537917b19d2fb9"
+      "line": 226,
+      "endLine": 230,
+      "sha256": "0ea778d8af0a8d1d31758fff5142e7bec945e9a7614d3f1f41464ba98077cbaa"
     }
   },
   {
-    "type": "ExportWorkpaperStreamHandler",
-    "method": "M:JET.Application.ExportWorkpaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
+    "type": "ExportWorkingPaperStreamHandler",
+    "method": "M:JET.Application.ExportWorkingPaperStreamHandler.HandleAsync(System.Text.Json.JsonElement,System.Threading.CancellationToken)",
     "signature": {
       "name": "HandleAsync",
       "parameters": "JsonElement payload, CancellationToken cancellationToken",
@@ -212,102 +212,102 @@
       "visibility": "public"
     },
     "source": {
-      "path": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs",
+      "path": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs",
       "line": 29,
       "endLine": 29,
-      "sha256": "e00057fdcff341db1a09a600e18a9b2542d9272cb3906e4aea979bf8da0d3b8a"
+      "sha256": "cc76e7c7f7258ba702be7786d0708a06f6f4b3ac242426d9bce021e297f91c65"
     }
   },
   {
-    "type": "IWorkpaperPlanningFactsPort",
-    "method": "M:JET.AuditCore.IWorkpaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken)",
+    "type": "IWorkingPaperPlanningFactsPort",
+    "method": "M:JET.AuditCore.IWorkingPaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkingPaperPlan,System.Threading.CancellationToken)",
     "signature": {
       "name": "ExecuteAsync",
-      "parameters": "WorkpaperPlan plan, CancellationToken cancellationToken",
-      "returns": "Task<WorkpaperPlanningFacts>"
+      "parameters": "WorkingPaperPlan plan, CancellationToken cancellationToken",
+      "returns": "Task<WorkingPaperPlanningFacts>"
     },
     "source": {
-      "path": "src/JET/JET/AuditCore/WorkpaperProgram.cs",
-      "line": 154,
-      "endLine": 156,
-      "sha256": "5fc1fd3060e6212f55aaee8ec31a927dc19e28cb37ae30bd146da68f95d66553"
+      "path": "src/JET/JET/AuditCore/WorkingPaperProgram.cs",
+      "line": 166,
+      "endLine": 168,
+      "sha256": "b7eeb4febd3f63fea842119c54b92dc4065974d9e204e2b8630345166d6caf8c"
     }
   },
   {
-    "type": "IWorkpaperPlanWriter",
-    "method": "M:JET.AuditCore.IWorkpaperPlanWriter.WriteAsync(System.IO.Stream,JET.Domain.WorkpaperContext,JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkpaperProgress})",
+    "type": "IWorkingPaperPlanWriter",
+    "method": "M:JET.AuditCore.IWorkingPaperPlanWriter.WriteAsync(System.IO.Stream,JET.Domain.WorkingPaperContext,JET.AuditCore.WorkingPaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkingPaperProgress})",
     "signature": {
       "name": "WriteAsync",
-      "parameters": "Stream output, WorkpaperContext context, WorkpaperPlan plan, CancellationToken cancellationToken, Action<WorkpaperProgress>? progress = null",
+      "parameters": "Stream output, WorkingPaperContext context, WorkingPaperPlan plan, CancellationToken cancellationToken, Action<WorkingPaperProgress>? progress = null",
       "returns": "Task<ExportStats>"
     },
     "source": {
-      "path": "src/JET/JET/AuditCore/WorkpaperProgram.cs",
-      "line": 165,
-      "endLine": 170,
-      "sha256": "5fc1fd3060e6212f55aaee8ec31a927dc19e28cb37ae30bd146da68f95d66553"
+      "path": "src/JET/JET/AuditCore/WorkingPaperProgram.cs",
+      "line": 177,
+      "endLine": 182,
+      "sha256": "b7eeb4febd3f63fea842119c54b92dc4065974d9e204e2b8630345166d6caf8c"
     }
   },
   {
-    "type": "IReportArtifactStore",
-    "method": "M:JET.Domain.IReportArtifactStore.WriteAsync(System.String,JET.Domain.ReportArtifactWriteRequest,System.Threading.CancellationToken)",
+    "type": "IReportStore",
+    "method": "M:JET.Domain.IReportStore.WriteAsync(System.String,JET.Domain.ReportWriteRequest,System.Threading.CancellationToken)",
     "signature": {
       "name": "WriteAsync",
-      "parameters": "string projectId, ReportArtifactWriteRequest request, CancellationToken cancellationToken",
-      "returns": "Task<ReportArtifact>"
+      "parameters": "string projectId, ReportWriteRequest request, CancellationToken cancellationToken",
+      "returns": "Task<Report>"
     },
     "source": {
-      "path": "src/JET/JET/Domain/Abstractions/IReportArtifactStore.cs",
+      "path": "src/JET/JET/Domain/Abstractions/IReportStore.cs",
       "line": 10,
       "endLine": 13,
-      "sha256": "a87ef860b496c95fceb87525036ff5050d9d734e10f46047f901baa35c0da824"
+      "sha256": "e4a57ab8d05507fcfb8551723cf8f49b12d1703e2af739db4f916467bb6df2da"
     }
   },
   {
-    "type": "WorkpaperPlanningFactsPort",
-    "method": "M:JET.Infrastructure.WorkpaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken)",
+    "type": "WorkingPaperPlanningFactsPort",
+    "method": "M:JET.Infrastructure.WorkingPaperPlanningFactsPort.ExecuteAsync(JET.AuditCore.WorkingPaperPlan,System.Threading.CancellationToken)",
     "signature": {
       "name": "ExecuteAsync",
-      "parameters": "WorkpaperPlan plan, CancellationToken cancellationToken",
-      "returns": "Task<WorkpaperPlanningFacts>",
+      "parameters": "WorkingPaperPlan plan, CancellationToken cancellationToken",
+      "returns": "Task<WorkingPaperPlanningFacts>",
       "visibility": "public"
     },
     "source": {
-      "path": "src/JET/JET/Infrastructure/Persistence/WorkpaperPlanningFactsPort.cs",
+      "path": "src/JET/JET/Infrastructure/Persistence/WorkingPaperPlanningFactsPort.cs",
       "line": 17,
       "endLine": 19,
-      "sha256": "6cf4696e79ce2e6049c6bfb141e34c3830f04620390f0e2a517e96bd4d6835af"
+      "sha256": "03c1a65dde0cf90be573595ceb688de30ccdf68289a436615491013541c0486a"
     }
   },
   {
-    "type": "ProjectReportArtifactStore",
-    "method": "M:JET.Infrastructure.ProjectReportArtifactStore.WriteAsync(System.String,JET.Domain.ReportArtifactWriteRequest,System.Threading.CancellationToken)",
+    "type": "ProjectReportStore",
+    "method": "M:JET.Infrastructure.ProjectReportStore.WriteAsync(System.String,JET.Domain.ReportWriteRequest,System.Threading.CancellationToken)",
     "signature": {
       "name": "WriteAsync",
-      "parameters": "string projectId, ReportArtifactWriteRequest request, CancellationToken cancellationToken",
-      "returns": "Task<ReportArtifact>",
+      "parameters": "string projectId, ReportWriteRequest request, CancellationToken cancellationToken",
+      "returns": "Task<Report>",
       "visibility": "public"
     },
     "source": {
-      "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportArtifactStore.cs",
-      "line": 77,
-      "endLine": 80,
-      "sha256": "4a75622596516ef620c5314316d69e8f8651f3bd432fd9ac613d600a658ed94b"
+      "path": "src/JET/JET/Infrastructure/FileIO/ProjectReportStore.cs",
+      "line": 72,
+      "endLine": 75,
+      "sha256": "e557991651bbdafd66fc5dcd0d1757a898c18687c2838388350cd16b821add4a"
     }
   },
   {
-    "type": "WorkpaperWriter",
-    "method": "M:JET.Infrastructure.WorkpaperWriter.JET#AuditCore#IWorkpaperPlanWriter#WriteAsync(System.IO.Stream,JET.Domain.WorkpaperContext,JET.AuditCore.WorkpaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkpaperProgress})",
+    "type": "WorkingPaperWriter",
+    "method": "M:JET.Infrastructure.WorkingPaperWriter.JET#AuditCore#IWorkingPaperPlanWriter#WriteAsync(System.IO.Stream,JET.Domain.WorkingPaperContext,JET.AuditCore.WorkingPaperPlan,System.Threading.CancellationToken,System.Action{JET.Domain.WorkingPaperProgress})",
     "signature": {
-      "name": "IWorkpaperPlanWriter.WriteAsync",
-      "parameters": "Stream output, WorkpaperContext context, WorkpaperPlan plan, CancellationToken cancellationToken, Action<WorkpaperProgress>? progress",
+      "name": "IWorkingPaperPlanWriter.WriteAsync",
+      "parameters": "Stream output, WorkingPaperContext context, WorkingPaperPlan plan, CancellationToken cancellationToken, Action<WorkingPaperProgress>? progress",
       "returns": "Task<ExportStats>"
     },
     "source": {
-      "path": "src/JET/JET/Infrastructure/Export/WorkpaperWriter.cs",
-      "line": 230,
-      "endLine": 235,
-      "sha256": "cdb4f60c274d9afa9528ba3443afd72db3121a68ca82871561ff3960f5b3db0d"
+      "path": "src/JET/JET/Infrastructure/Export/WorkingPaperWriter.cs",
+      "line": 221,
+      "endLine": 226,
+      "sha256": "2daddf1190a16132023cbcf9ebb1f435eb54528e3a164c6552903b211c09d88a"
     }
   }
 ]

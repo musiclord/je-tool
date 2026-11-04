@@ -139,7 +139,7 @@ internal static class JetRuleRequirements
     }
 
     /// <summary>
-    /// 第五步與前端停用說明用的原因，不含句號（裁定 2026-10-13-28 確認了第五步句子的用字）。第五步的下一步由畫面在清單最後寫一次，
+    /// 第五步與前端停用說明用的原因，不含句號（第五步句子的用字依裁定 2026-10-13-28）。第五步的下一步由畫面在清單最後寫一次，
     /// 所以 GL 欄位的句子只寫原因；其他句子的下一步和通用說法不同，自己帶下一步。
     /// </summary>
     internal static string Reason(JetRulePrerequisite prerequisite, AccountCategoryLabels labels)
@@ -157,7 +157,7 @@ internal static class JetRuleRequirements
             JetRulePrerequisiteKind.CounterpartCategory =>
                 $"科目配對中尚無歸類為「{labels.Receivables}」「{labels.Cash}」或「{labels.ReceiptInAdvance}」的科目，請先在第四步設定",
             JetRulePrerequisiteKind.AuthorizedPreparer => "尚未匯入授權編製人員清單，請先在第二步匯入",
-            JetRulePrerequisiteKind.HolidayCalendar => "尚未上傳假日檔，請先在第二步「假日與補班日」上傳",
+            JetRulePrerequisiteKind.HolidayCalendar => "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳",
             _ => throw new ArgumentOutOfRangeException(nameof(prerequisite), prerequisite.Kind, null)
         };
     }

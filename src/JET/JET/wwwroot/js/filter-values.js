@@ -10,9 +10,12 @@
     on: '指定日期', before: '早於', onOrBefore: '當日或以前', after: '晚於', onOrAfter: '當日或以後',
     dayOfMonthIn: '每月幾日屬於', dayOfMonthNotIn: '每月幾日不屬於',
     monthStartDays: '每月月初天數', notMonthStartDays: '排除每月月初天數', monthEndDays: '每月月底天數', notMonthEndDays: '排除每月月底天數',
-    isWeekend: '週末', isNotWeekend: '週末以外', isHoliday: '假日清單中的日期', isNotHoliday: '假日清單以外的日期',
-    isMakeupDay: '補班日', isNotMakeupDay: '補班日以外', isNonBusinessDay: '非營業日（排除補班日）', isNotNonBusinessDay: '非營業日以外（含補班日）',
+    // 日曆選項的入口、選項與讀回用同一個詞（裁定 2026-11-03-10）。
+    isWeekend: '在週末', isNotWeekend: '不在週末', isHoliday: '在國定假日', isNotHoliday: '不在國定假日',
+    isMakeupDay: '在補班日', isNotMakeupDay: '不在補班日', isNonBusinessDay: '在非營業日', isNotNonBusinessDay: '不在非營業日',
     endsWithDigits: '整數尾數符合', notEndsWithDigits: '整數尾數不符合',
+    // 尾數連續多個 0（裁定 2026-11-03-07）：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
+    endsWithZeros: '尾數連續', notEndsWithZeros: '尾數沒有連續',
     greaterThan: '大於', greaterThanOrEqual: '大於或等於', lessThan: '小於', lessThanOrEqual: '小於或等於',
     between: '介於', notBetween: '不介於', isBlank: '空白', isNotBlank: '非空白' };
   var operators = {
@@ -20,7 +23,8 @@
     date: ['in', 'notIn', 'dayOfMonthIn', 'dayOfMonthNotIn', 'on', 'notEquals', 'before', 'onOrBefore', 'after', 'onOrAfter', 'between', 'notBetween',
       'monthStartDays', 'notMonthStartDays', 'monthEndDays', 'notMonthEndDays',
       'isWeekend', 'isNotWeekend', 'isHoliday', 'isNotHoliday', 'isMakeupDay', 'isNotMakeupDay', 'isNonBusinessDay', 'isNotNonBusinessDay', 'isBlank', 'isNotBlank'],
-    amount: ['equals', 'notEquals', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual', 'between', 'notBetween', 'in', 'notIn', 'endsWithDigits', 'notEndsWithDigits', 'isBlank', 'isNotBlank']
+    amount: ['equals', 'notEquals', 'greaterThan', 'greaterThanOrEqual', 'lessThan', 'lessThanOrEqual', 'between', 'notBetween', 'in', 'notIn',
+      'endsWithDigits', 'notEndsWithDigits', 'endsWithZeros', 'notEndsWithZeros', 'isBlank', 'isNotBlank']
   };
   function isDayOfMonth(op) { return op === 'dayOfMonthIn' || op === 'dayOfMonthNotIn'; }
   function isMonthWindow(op) { return /^(notM|m)onth(Start|End)Days$/.test(op); }
@@ -32,7 +36,30 @@
     return 'value';
   }
   function isCalendar(op) { return /^is(Not)?(Weekend|Holiday|MakeupDay|NonBusinessDay)$/.test(op); }
+  // 日曆選項下方只寫選到的那一項，並寫出本案的實際資料（裁定 2026-11-03-10）。
+  var WEEKDAY_LABELS = [{ v: 1, label: '一' }, { v: 2, label: '二' }, { v: 3, label: '三' }, { v: 4, label: '四' }, { v: 5, label: '五' }, { v: 6, label: '六' }, { v: 0, label: '日' }];
+  function weekdayText(nonWorkingDays) {
+    var set = Array.isArray(nonWorkingDays) ? nonWorkingDays : [0, 6];
+    var labels = WEEKDAY_LABELS.filter(function (day) { return set.indexOf(day.v) >= 0; }).map(function (day) { return day.label; });
+    return labels.length ? labels.join('、') : '無（整週皆工作日）';
+  }
+  function calendarExplanation(operator, state) {
+    var calendar = state && state.importState && state.importState.calendar || {};
+    if (/Weekend$/.test(operator)) { return '第二步設定的每週休息日：' + weekdayText(calendar.nonWorkingDays); }
+    if (/Holiday$/.test(operator)) {
+      return Number(calendar.holidayCount) > 0 ? '第二步上傳的國定假日清單，共 ' + Ui.countText(calendar.holidayCount) + ' 天'
+        : '第二步尚未上傳國定假日清單，這個條件不會選到任何分錄';
+    }
+    if (/MakeupDay$/.test(operator)) {
+      return Number(calendar.makeupDayCount) > 0 ? '第二步上傳的補班日清單，共 ' + Ui.countText(calendar.makeupDayCount) + ' 天'
+        : '第二步尚未上傳補班日清單，這個條件不會選到任何分錄';
+    }
+    return '週末或國定假日，補班日除外';
+  }
   function isTail(op) { return op === 'endsWithDigits' || op === 'notEndsWithDigits'; }
+  function isZeroRun(op) { return op === 'endsWithZeros' || op === 'notEndsWithZeros'; }
+  // 尾數比對與尾數連續多個 0 都只看整數部分、忽略正負號，不接金額比較基準。
+  function ignoresSign(op) { return isTail(op) || isZeroRun(op); }
   // 條件可用的欄位。核心欄位全部列出，mapped 照後端算好的可用欄位（Ui.glFieldAvailable）；攸關資料元素欄位都已配對。
   function fields(state) {
     return Ui.FILTER_DATE_FIELDS.map(function (key) { return { id: key, label: Ui.glFieldLabel(key), type: 'date' }; })
@@ -108,10 +135,11 @@
     var value = wire(rule, state);
     var mode = carrier(rule.operator, fieldType(rule, state));
     var fieldLabel = selected ? selected.label : rule.fieldId || rule.field ? Ui.missingConditionFieldName(state, rule, 'readback') : '尚未選擇欄位';
-    if (selected && selected.type === 'amount' && mode !== 'none' && !isTail(rule.operator)) { fieldLabel += value.amountBasis === 'absolute' ? '絕對值' : '含正負號'; }
+    if (selected && selected.type === 'amount' && mode !== 'none' && !ignoresSign(rule.operator)) { fieldLabel += value.amountBasis === 'absolute' ? '絕對值' : '含正負號'; }
     var text = fieldLabel + ' ' + (labels[rule.operator] || (rule.operator ? Ui.RETIRED_CONDITION_LABEL : '尚未選擇比較方式'));
     if (mode === 'value') { text += '「' + value.value + '」'; }
     if (isMonthWindow(rule.operator)) { text += ' 天'; }
+    if (isZeroRun(rule.operator)) { text += '個 0'; }
     if (mode === 'range') { text += '「' + value.from + '」至「' + value.to + '」'; }
     if (mode === 'set') { text += '「' + value.values.join('、') + '」'; }
     if ((mode !== 'none' || isCalendar(rule.operator)) && (!compact || blankMatches(rule))) { text += blankMatches(rule) ? '；空白也符合' : '；空白不列入'; }
@@ -178,6 +206,8 @@
   }
   function accountTreeHtml(rule, state, focusKey) {
     var tree = accountTreeView(rule, state), selected = new Set(values(rule, state));
+    // 選分類時後端一律連下層分類的科目一起列出；案件沒有分類設上層時（裁定 2026-11-03-27 起新案件都沒有），不寫「包含下層分類」。
+    var hierarchy = Ui.categoryHierarchyInUse(state);
     tree.focusKey = focusKey + '-category';
     var categoryRows = Ui.categoryTreeHtml(state, tree, function (category) {
       var checked = tree.categoryId === category.categoryId && tree.loaded && !tree.cursor && !tree.nextCursor && tree.rows.length &&
@@ -186,7 +216,7 @@
         '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="' + Ui.esc(category.categoryId) +
         '" aria-expanded="' + (tree.categoryId === category.categoryId) + '">' + Ui.esc(category.label) + '</button>' +
         '<label><input type="checkbox" data-account-tree-select-category="' + Ui.esc(category.categoryId) + '"' +
-        (checked ? ' checked' : '') + '>勾選此分類的科目（包含下層分類）</label></div>';
+        (checked ? ' checked' : '') + '>勾選此分類的科目' + (hierarchy ? '（包含下層分類）' : '') + '</label></div>';
     });
     var groups = [];
     tree.rows.forEach(function (row) {
@@ -211,7 +241,7 @@
       '<div class="value-editor__aux" data-motion-list="account-tree">' +
       Ui.searchBoxHtml('搜尋科目編號或名稱', { attributes: { 'data-account-tree-search-form': true },
         inputAttributes: { 'data-account-tree-search': true, 'data-focus-key': focusKey + '-account-search' }, maxLength: Ui.SEARCH_TEXT_MAX_LENGTH, value: tree.searchDraft }) +
-      '<p class="rule-field__hint">選分類時包含下層分類的科目；勾選後寫入上方科目編號清單，不改變保留或排除方式。</p>' +
+      '<p class="rule-field__hint">' + (hierarchy ? '選分類時包含下層分類的科目；' : '') + '勾選後寫入上方科目編號清單，不改變符合或排除方式。</p>' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-category="">查看全部科目</button>' + categoryRows +
       '<p data-account-tree-status data-motion-key="' + Ui.esc('acct-status-' + motionId(rule)) + '" role="status">' + status + '</p>' + accounts +
       (tree.nextCursor ? '<button type="button" class="btn btn--ghost btn--tiny" data-account-tree-more data-motion-key="' + Ui.esc('acct-more-' + motionId(rule)) + '"' +
@@ -319,10 +349,10 @@
       { key: 'monthDays', label: '每月幾日', yes: 'dayOfMonthIn', no: 'dayOfMonthNotIn' },
       { key: 'monthStart', label: '每月月初幾天', yes: 'monthStartDays', no: 'notMonthStartDays' },
       { key: 'monthEnd', label: '每月月底幾天', yes: 'monthEndDays', no: 'notMonthEndDays' },
-      { key: 'weekend', label: '週末（依案件設定）', yes: 'isWeekend', no: 'isNotWeekend' },
-      { key: 'holiday', label: '假日清單', yes: 'isHoliday', no: 'isNotHoliday' },
-      { key: 'makeup', label: '補班日清單', yes: 'isMakeupDay', no: 'isNotMakeupDay' },
-      { key: 'nonBusiness', label: '非營業日（排除補班日）', yes: 'isNonBusinessDay', no: 'isNotNonBusinessDay' },
+      { key: 'weekend', label: '週末', yes: 'isWeekend', no: 'isNotWeekend' },
+      { key: 'holiday', label: '國定假日', yes: 'isHoliday', no: 'isNotHoliday' },
+      { key: 'makeup', label: '補班日', yes: 'isMakeupDay', no: 'isNotMakeupDay' },
+      { key: 'nonBusiness', label: '非營業日', yes: 'isNonBusinessDay', no: 'isNotNonBusinessDay' },
       { key: 'before', label: '早於日期', yes: 'before', aliases: ['onOrBefore'] },
       { key: 'after', label: '晚於日期', yes: 'after', aliases: ['onOrAfter'] },
       { key: 'blank', label: '空白日期', yes: 'isBlank', no: 'isNotBlank' }
@@ -338,6 +368,7 @@
       { key: 'exact', label: '指定金額', yes: 'in', no: 'notIn', aliases: ['equals', 'notEquals'] },
       { key: 'range', label: '金額區間', yes: 'between', no: 'notBetween' },
       { key: 'tails', label: '整數部分的特定尾數', yes: 'endsWithDigits', no: 'notEndsWithDigits' },
+      { key: 'zeros', label: '尾數連續多個 0', yes: 'endsWithZeros', no: 'notEndsWithZeros' },
       { key: 'above', label: '高於金額', yes: 'greaterThan', aliases: ['greaterThanOrEqual'] },
       { key: 'below', label: '低於金額', yes: 'lessThan', aliases: ['lessThanOrEqual'] },
       { key: 'blank', label: '空白金額', yes: 'isBlank', no: 'isNotBlank' }
@@ -347,8 +378,8 @@
   // 每一種篩選方式都要列在其中一組；「查核期末最後幾天」只在案件有查核截止日時出現。
   var MODE_GROUPS = {
     date: [['指定日期', ['dates', 'range', 'before', 'after']], ['每月固定日', ['monthDays', 'monthStart', 'monthEnd', 'periodEnd']],
-      ['行事曆', ['weekend', 'holiday', 'makeup', 'nonBusiness']], ['空白', ['blank']]],
-    amount: [['指定金額', ['exact', 'range', 'above', 'below']], ['尾數', ['tails']], ['空白', ['blank']]],
+      ['週末與假日', ['weekend', 'holiday', 'makeup', 'nonBusiness']], ['空白', ['blank']]],
+    amount: [['指定金額', ['exact', 'range', 'above', 'below']], ['尾數', ['tails', 'zeros']], ['空白', ['blank']]],
     text: [['比對文字', ['contains', 'exact', 'starts', 'ends']], ['空白', ['blank']]]
   };
   function selectedMode(rule, state) {
@@ -377,7 +408,7 @@
     if (selected && selected.type === 'text' && mode === 'value' && /[\r\n]/.test(value.value)) {
       return '目前輸入了多行，會整段當成同一個值。';
     }
-    if (selected && selected.type === 'amount' && !isTail(rule.operator) && value.amountBasis === 'absolute') {
+    if (selected && selected.type === 'amount' && !ignoresSign(rule.operator) && value.amountBasis === 'absolute') {
       var inputs = mode === 'set' ? value.values : mode === 'range' ? [value.from, value.to] : [value.value];
       if (inputs.some(function (input) { var number = moneyNumber(input); return number !== null && number < 0; })) {
         return selected && selected.extra ? '比較基準是絕對值，但填了負數；要比較正負號請改選「含正負號」。' :
@@ -391,8 +422,9 @@
     var choice = selectedMode(rule, state), view = editorView(rule);
     var main = '';
     if (choice) {
-      main += choice.no ? '<select data-value-polarity aria-label="保留或排除"><option value="keep"' + (!excluded(rule, choice) ? ' selected' : '') +
-        '>保留</option><option value="exclude"' + (excluded(rule, choice) ? ' selected' : '') + '>排除</option></select>' : '<span>保留</span>';
+      // 開頭寫「符合」「排除」（裁定 2026-11-03-10）；只有一種方向的比較方式只寫「符合」。
+      main += choice.no ? '<select data-value-polarity aria-label="符合或排除"><option value="keep"' + (!excluded(rule, choice) ? ' selected' : '') +
+        '>符合</option><option value="exclude"' + (excluded(rule, choice) ? ' selected' : '') + '>排除</option></select>' : '<span>符合</span>';
     } else { main += '<span class="value-advanced-current">' + Ui.esc(labels[rule.operator] || '請設定比較方式') + '</span>'; }
     var periodEndOption = type === 'date' && state.project && state.project.periodEnd
       ? '<option value="periodEnd"' + (view.periodEnd ? ' selected' : '') + '>查核期末最後幾天</option>' : '';
@@ -414,12 +446,15 @@
     var extra = [];
     var canIncludeBlank = (mode !== 'none' || isCalendar(rule.operator)) && !(rule.field === 'glDate' && !rule.fieldId);
     if (isCalendar(rule.operator)) {
-      main += '<p class="rule-explanation">週末依案件的每週非工作日設定；假日與補班日依本案匯入的清單。非營業日為週末或假日，再排除補班日。清單空白時，不會自行推算國定假日。</p>';
+      main += '<p class="rule-explanation">' + Ui.esc(calendarExplanation(rule.operator, state)) + '</p>';
     }
     if (isTail(rule.operator)) { main += '<p class="rule-explanation">忽略正負號及小數。' + delimiterHint + '例如 -1,001.45 符合 001，1 元不符合 001。</p>'; }
+    if (isZeroRun(rule.operator)) { main += '<p class="rule-explanation">只看整數部分，忽略正負號及小數；整數部分為 0 的金額不符合。例如 -3,000,000.45 符合 6 個 0。</p>'; }
     if (!selected) { main += '<p class="form-notice">此欄位目前未配對，請回第三步確認，或移除後重新加入。</p>'; }
     if (isMonthWindow(rule.operator)) {
       main += '<input type="number" data-value-key="value" min="1" max="31" aria-label="每月天數（1 到 31）" value="' + Ui.esc(rule.value || '') + '"><span>天（含當天）</span>';
+    } else if (isZeroRun(rule.operator)) {
+      main += '<input type="number" data-value-key="value" min="1" max="' + Ui.TAIL_DIGITS_MAX + '" aria-label="連續 0 的個數（1 到 ' + Ui.TAIL_DIGITS_MAX + '）" value="' + Ui.esc(rule.value || '') + '"><span>個 0</span>';
     } else if (mode === 'value') { main += input('value', isTail(rule.operator) ? '尾數（以逗號分隔）' : type === 'amount' ? '金額' : '條件值'); }
     if (view.periodEnd) {
       main += '<input type="number" data-period-end-days min="1" max="366" value="' + view.days + '" aria-label="期末最後幾天"><span>天</span>' +
@@ -451,7 +486,7 @@
       extra.push('<p class="rule-field__hint">最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值，空行不列入。' + (type === 'date' ? '日期可用 2025-08-01、2025/8/1、2025.8.1 或 20250801；民國年依案件設定。純數字不當成日期。' : '保留文字前置零；金額千分位逗號不拆開。') + '</p>');
       if (current.length) { extra.push('<button type="button" class="btn btn--ghost btn--tiny" data-values-clear data-motion-key="' + Ui.esc('values-clear-' + motionId(rule)) + '">清空所有值</button>'); }
     }
-    if (type === 'amount' && selected && selected.extra && !isTail(rule.operator)) {
+    if (type === 'amount' && selected && selected.extra && !ignoresSign(rule.operator)) {
       var basis = rule.amountBasis || (selected && selected.extra ? 'signed' : 'absolute');
       extra.push('<label>金額比較基準<select data-value-key="amountBasis" aria-label="金額比較基準"><option value="absolute"' + (basis !== 'signed' ? ' selected' : '') + '>絕對值（不分借貸）</option><option value="signed"' + (basis === 'signed' ? ' selected' : '') + '>含正負號</option></select></label>');
     }
@@ -469,7 +504,7 @@
     }
     var activeNotes = [];
     if (canIncludeBlank && blankMatches(rule)) { activeNotes.push('含空白'); }
-    if (type === 'amount' && rule.amountBasis === 'signed' && !isTail(rule.operator)) { activeNotes.push('含正負號'); }
+    if (type === 'amount' && rule.amountBasis === 'signed' && !ignoresSign(rule.operator)) { activeNotes.push('含正負號'); }
     return '<div class="value-editor" data-focus-prefix="' + focusKey + '"><div class="value-editor__main">' + main + '</div>' +
       (extra.length ? '<details class="value-editor__options" data-value-options' + (view.optionsOpen ? ' open' : '') + '><summary>' + (type === 'amount' ? '金額與空白值處理' : type === 'date' && mode === 'set' && !isDayOfMonth(rule.operator) ? (canIncludeBlank ? '貼上日期與空白值處理' : '貼上日期清單') : '空白值處理') +
         (activeNotes.length ? '（' + activeNotes.join('、') + '）' : '') + '</summary><div class="value-editor__aux">' + extra.join('') + '</div></details>' : '') + '</div>';
@@ -507,6 +542,8 @@
       if (!next) { return; }
       changeOperator(rule, state, excluded(rule, current) && next.no ? next.no : next.yes);
       if (isMonthWindow(rule.operator) && !/^\d{1,2}$/.test(rule.value || '')) { rule.value = '2'; }
+      // 改成尾數連續多個 0 時，個數沒填或不是數字就帶第四步預篩選的 6 個。
+      if (isZeroRun(rule.operator) && !/^\d{1,2}$/.test(rule.value || '')) { rule.value = String(Ui.PRESCREEN_DEFAULTS.trailingZeroDigits); }
       changed(true);
     });
     var polarity = root.querySelector('[data-value-polarity]');
@@ -631,6 +668,11 @@
     if (rule.drCr && ['debit', 'credit'].indexOf(rule.drCr) < 0) { return '此條件內容有誤，無法儲存。請刪除此條件後重新設定。'; }
     if (isMonthWindow(rule.operator)) {
       return /^\d{1,2}$/.test(value.value.trim()) && Number(value.value) >= 1 && Number(value.value) <= 31 ? '' : '每月月初或月底天數須為 1 到 31 的整數';
+    }
+    // 和後端 FieldValueConditions.TryParseZeroRun 同一個範圍與同一句。
+    if (isZeroRun(rule.operator)) {
+      return /^\d{1,2}$/.test(value.value.trim()) && Number(value.value) >= 1 && Number(value.value) <= Ui.TAIL_DIGITS_MAX ? ''
+        : '連續 0 的個數須為 1 到 ' + Ui.TAIL_DIGITS_MAX + ' 的整數';
     }
     if (isDayOfMonth(rule.operator)) {
       var days = value.values;

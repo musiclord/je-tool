@@ -13,7 +13,8 @@ namespace JET.Tests.AuditCore;
 public sealed class PrescreenProceduresTests
 {
     private const string ApprovalDateMissing = "「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
-    private const string HolidayCalendarMissing = "尚未上傳假日檔，請先在第二步「假日與補班日」上傳。";
+    // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075405771-4def72d8e7964cfa9dce2fccff5e8630。
+    private const string HolidayCalendarMissing = "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。";
     private const string PrepStartDateMissing = "尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫。";
 
     [Fact]

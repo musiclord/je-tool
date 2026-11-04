@@ -3,7 +3,10 @@ namespace Jet.Harness.TaiwanSme;
 /// <summary>科目表的一個科目。Category 是科目配對檔寫入的分類名稱，空字串代表留白；Opening 借正貸負。</summary>
 internal sealed record SmeAccount(string Code, string Name, string Category, decimal Opening);
 
-/// <summary>案件自訂分類：名稱、上層分類名稱（null 為最上層）與分類用途。</summary>
+/// <summary>
+/// 案件自訂分類：名稱、上層分類名稱（null 為最上層）與分類用途。第一個正式版隱藏上下層與分類用途（裁定 2026-11-03-27），
+/// 合成案件的分類也改成平的一層、用途都是 others（裁定 2026-11-03-29）；欄位保留，之後打開層級功能時還用得到。
+/// </summary>
 internal sealed record SmeCategory(string Label, string? Parent, string Role);
 
 /// <summary>
@@ -18,7 +21,6 @@ internal static class SmeChart
     public const string ReceiptInAdvance = "Receipt in advance";
     public const string Others = "Others";
 
-    public const string BankDeposits = "銀行存款";
     public const string Inventory = "存貨";
     public const string Taxes = "稅項";
     public const string FixedAssets = "固定資產";
@@ -27,30 +29,28 @@ internal static class SmeChart
     public const string CostOfSales = "營業成本";
     public const string ManufacturingOverhead = "製造費用";
     public const string OperatingExpenses = "營業費用";
-    public const string SellingExpenses = "推銷費用";
-    public const string AdministrativeExpenses = "管理費用";
-    public const string ResearchExpenses = "研究發展費用";
 
-    /// <summary>第四步分類設定新增的分類。銀行存款放在 Cash 底下並沿用現金用途，其餘用 Others 用途。</summary>
+    /// <summary>
+    /// 第四步分類設定新增的分類，和第一個正式版一樣是平的一層、用途都是 others（裁定 2026-11-03-29）。
+    /// 2026-11-03 以前銀行存款是 Cash 底下沿用現金用途的分類，推銷、管理、研究發展費用是營業費用底下的分類，製造費用在營業成本底下；
+    /// 改成平的時，銀行存款與約當現金的科目直接配到內建的 Cash，三種費用的科目直接配到營業費用，製造費用改成最上層。
+    /// 各情境選的分類照舊，選到的分錄和改之前相同。
+    /// </summary>
     public static readonly IReadOnlyList<SmeCategory> CustomCategories =
     [
-        new(BankDeposits, Cash, "cash"),
         new(Inventory, null, "others"),
         new(Taxes, null, "others"),
         new(FixedAssets, null, "others"),
         new(AccumulatedDepreciation, null, "others"),
-        // 「借記固定資產且貸記費用」的說明要求在建工程不要放在固定資產底下，因為條件預設包含下層分類。
+        // 「借記固定資產且貸記費用」的說明要求在建工程另列分類，不放進固定資產。
         new(ConstructionInProgress, null, "others"),
         new(CostOfSales, null, "others"),
-        new(ManufacturingOverhead, CostOfSales, "others"),
+        new(ManufacturingOverhead, null, "others"),
         new(OperatingExpenses, null, "others"),
-        new(SellingExpenses, OperatingExpenses, "others"),
-        new(AdministrativeExpenses, OperatingExpenses, "others"),
-        new(ResearchExpenses, OperatingExpenses, "others"),
     ];
 
     /// <summary>上年度配對檔留下、本年度已結清的銀行帳戶；只出現在科目配對檔，不在總帳與試算表。</summary>
-    public static readonly SmeAccount ClosedBankAccount = new("111307", "銀行存款-戊銀行活存（已結清）", BankDeposits, 0m);
+    public static readonly SmeAccount ClosedBankAccount = new("111307", "銀行存款-戊銀行活存（已結清）", Cash, 0m);
 
     public const string RetainedEarnings = "3350";
 
@@ -61,13 +61,13 @@ internal static class SmeChart
             // ── 流動資產 ──
             new("1111", "庫存現金", Cash, 85_000m),
             new("1112", "零用金", Cash, 50_000m),
-            new("111301", "銀行存款-甲銀行活存", BankDeposits, 38_500_000m),
-            new("111302", "銀行存款-甲銀行支存", BankDeposits, 6_200_000m),
-            new("111303", "銀行存款-乙銀行活存", BankDeposits, 12_400_000m),
-            new("111304", "銀行存款-乙銀行外幣美元戶", BankDeposits, 9_800_000m),
-            new("111305", "銀行存款-丙銀行活存", BankDeposits, 3_100_000m),
-            new("111306", "銀行存款-丁銀行活存", BankDeposits, 18_600m),
-            new("1114", "約當現金-定期存款", BankDeposits, 10_000_000m),
+            new("111301", "銀行存款-甲銀行活存", Cash, 38_500_000m),
+            new("111302", "銀行存款-甲銀行支存", Cash, 6_200_000m),
+            new("111303", "銀行存款-乙銀行活存", Cash, 12_400_000m),
+            new("111304", "銀行存款-乙銀行外幣美元戶", Cash, 9_800_000m),
+            new("111305", "銀行存款-丙銀行活存", Cash, 3_100_000m),
+            new("111306", "銀行存款-丁銀行活存", Cash, 18_600m),
+            new("1114", "約當現金-定期存款", Cash, 10_000_000m),
             new("1120", "透過損益按公允價值衡量之金融資產-流動", Others, 1_500_000m),
             new("1150", "應收票據", Receivables, 8_600_000m),
             new("1160", "應收票據-關係人", Receivables, 0m),
@@ -193,18 +193,18 @@ internal static class SmeChart
             new("5190", "製造費用轉出", ManufacturingOverhead, 0m),
         };
 
-        AddExpenseGroup(accounts, "61", SellingExpenses, "推銷費用",
+        AddExpenseGroup(accounts, "61", OperatingExpenses, "推銷費用",
         [
             "薪資支出", "租金支出", "文具用品", "旅費", "運費", "郵電費", "修繕費", "廣告費", "水電瓦斯費", "保險費",
             "交際費", "稅捐", "折舊", "伙食費", "職工福利", "佣金支出", "出口費用", "樣品費", "退休金", "雜費", "保固費用",
         ]);
-        AddExpenseGroup(accounts, "62", AdministrativeExpenses, "管理費用",
+        AddExpenseGroup(accounts, "62", OperatingExpenses, "管理費用",
         [
             "薪資支出", "租金支出", "文具用品", "旅費", "運費", "郵電費", "修繕費", "廣告費", "水電瓦斯費", "保險費",
             "交際費", "捐贈", "稅捐", "預期信用減損損失", "折舊", "各項攤銷", "伙食費", "職工福利", "勞務費", "訓練費",
             "退休金", "書報雜誌", "董事酬勞", "雜費", "電腦軟體服務費", "清潔費",
         ]);
-        AddExpenseGroup(accounts, "63", ResearchExpenses, "研究發展費用",
+        AddExpenseGroup(accounts, "63", OperatingExpenses, "研究發展費用",
         [
             "薪資支出", "租金支出", "文具用品", "旅費", "郵電費", "修繕費", "水電瓦斯費", "保險費", "折舊", "各項攤銷",
             "伙食費", "職工福利", "研究材料", "勞務費", "退休金", "雜費",

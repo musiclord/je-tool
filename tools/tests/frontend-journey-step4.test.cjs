@@ -280,7 +280,7 @@ function validationResult({ resultId = 'v-step4', eligibility = { isEligible: tr
     completenessTest: { diffAccountCount, diffAccounts, storedTotals, naReason: null, eligibility },
     voucherBalanceTest: { unbalancedVoucherCount: 0 },
     infSamplingTest: { sampleSize: 3 },
-    blankRecordsTest: { nullDocumentCount: 0, nullAccountCount: 0, nullDescriptionCount: 0, approvalDateNotInPeriodCount: 0, nullRows: [] },
+    blankRecordsTest: { blankVoucherNumberCount: 0, blankAccountNumberCount: 0, blankDescriptionCount: 0, approvalDateNotInPeriodCount: 0, blankRows: [] },
     sourceQuality: { findingCount: 2, sampleRows: [{ category: 'blankGlDate', sourceLabel: '合成來源檔.xlsx', sourceRowNumber: 7,
       voucherNumber: 'JV-7', accountNumber: '1001', description: '合成摘要' }] }
   };
@@ -329,7 +329,7 @@ test('running validation shows the backend GL entry count, no population summary
   assert.equal(f.body().textContent.includes('檢視 GL(未納入測試)'), false);
 
   // 三項測試的說明逐字比對。出處（docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md）：
-  //   完整性測試：「處理時機」由裁定 2026-10-05-01 選「照建議改寫」，第 7245 行起的評估結果寫出卡片文字
+  //   完整性測試：「處理時機」一項，使用者選了「照建議改寫」（裁定 2026-10-05-01），第 7245 行起的評估結果寫出卡片文字
   //     「先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。
   //       再比對各科目的總帳本期借貸淨額與試算表本期變動金額。金額不符代表總帳母體可能缺漏。」
   //     最後一句原本是使用者原文「金額不符代表總帳母體可能缺漏」，要逐字保留。
@@ -340,16 +340,17 @@ test('running validation shows the backend GL entry count, no population summary
   //   資料可靠性測試：依裁定 2026-09-09-01 的使用者原句「需先確認RDE的可靠性後，方執行高風險篩選條件」還原說明與先後順序，
   //     只寫成說明、不新增擋下；畫面的寫法是「需先確認攸關資料元素（RDE）的可靠性後，再執行高風險篩選條件。」
   //   原 C# 測試的第一次失敗收據：20261004-091831760-a762b9ef96db4d61a4bb2bff7cdb0022。
-  // 裁定 2026-10-29-02 指出常駐說明太多：說明不再常駐在標題下方，滑鼠停在標題上時出現，展開「檢視」後寫在明細最上方。
+  // 使用者指出常駐說明太多（裁定 2026-10-29-02）：說明不再常駐在標題下方，滑鼠停在標題上時出現，展開「檢視」後寫在明細最上方。
   // 字沒有改，這裡改讀標題的提示；原本讀 .rule-item__desc，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
   assert.equal(f.$$('.rule-item__desc').length, 0, 'no description is kept under the titles');
   const desc = title => { const item = ruleItem(f, title); assert.ok(item !== null, title + ' listed'); return item.querySelector('.rule-item__title').getAttribute('title'); };
   assert.equal(desc('完整性測試'),
     '先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。' +
-    '再比對各科目的總帳本期借貸淨額與試算表本期變動金額。金額不符時，要確認總帳母體是否完整。');
+    // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+    '再比對各科目的總帳本期借貸淨額與年度變動金額。金額不符時，要確認 GL 分錄是否完整。');
   assert.equal(desc('借貸不平測試'), '依傳票號碼彙總借方與貸方金額，列出不相等的傳票。借貸不平時，要確認傳票號碼與金額欄位是否正確。');
   assert.equal(desc('資料可靠性測試'),
-    '抽出分錄樣本，供核對傳票附件，確認摘要、日期等篩選欄位是否正確。需先確認攸關資料元素（RDE）的可靠性後，再執行高風險篩選條件。');
+    '抽出分錄樣本，供核對傳票附件，確認摘要、日期等篩選欄位是否正確。需先確認攸關資料元素的可靠性後，再到第五步進階條件篩選。');
   // 總帳日期空白這一項的名稱是「總帳日期空白」：使用者原文「第三個"過帳日"空白，可能要改成"總帳日期"空白，配合前面GL欄位配對的文字」。
   // 說明只比對意思：寫出這些分錄沒有納入本次測試。
   const blank = desc('總帳日期空白');
@@ -407,7 +408,7 @@ test('blank GL dates list their source file and row, and opening asks the source
 });
 
 test('with no blank GL dates the item reads as nothing found and has no detail to open, whatever the null-record counts say', async () => {
-  // 總帳日期空白只看後端的 sourceQuality；空值紀錄沒有這個計數（後端 BlankGlDateDetectionTests 鎖住 blankRecordsTest 不帶 blankGlDateCount）。
+  // 總帳日期空白只看後端的 sourceQuality；資料缺漏輔助檢視沒有這個計數（後端 BlankGlDateDetectionTests 鎖住 blankRecordsTest 不帶 blankGlDateCount）。
   const data = validationResult();
   data.sourceQuality = { findingCount: 0, sampleRows: [] };
   const f = await openStep4({ validation: data });
@@ -668,7 +669,7 @@ async function runPrescreen(f, result) {
 }
 
 // 按一條規則的「檢視」，回傳展開後的明細。
-// 並排的兩項彙總把明細放在清單下方（裁定 2026-10-29-05 指出展開右格時左格被撐高、內容被推到中間），所以依「檢視」的 aria-controls 找明細，不假設明細在同一列裡。
+// 並排的兩項彙總把明細放在清單下方（使用者指出展開右格時左格被撐高、內容被推到中間，裁定 2026-10-29-05），所以依「檢視」的 aria-controls 找明細，不假設明細在同一列裡。
 function openDetail(f, title) {
   const item = ruleItem(f, title);
   assert.ok(item !== null, title + ' listed');
@@ -722,7 +723,8 @@ test('without the approval date mapping, the weekend and holiday cards keep the 
   for (const [title, postingKey, count] of [['週末過帳／核准之分錄', 'weekendPosting', '2'], ['假日過帳／核准之分錄', 'holidayPosting', '1']]) {
     const badge = ruleItem(f, title).querySelector('.rule-status');
     // 狀態照常寫兩側的筆數，核准側沒有檢查寫成「—」；提示是後端那一句，不是畫面自己寫的句子。
-    assert.equal(badge.textContent, '過帳 ' + count + '，核准 —', title);
+    // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+    assert.equal(badge.textContent, '總帳日期 ' + count + ' 筆，傳票核准日 —', title);
     assert.equal(badge.getAttribute('title'), note, title);
     f.requests.length = 0;
     const panel = openDetail(f, title);
@@ -739,8 +741,8 @@ test('without the approval date mapping, the weekend and holiday cards keep the 
 test('without the approval date mapping, the out-of-period approval item cannot run and shows only the backend sentence', async () => {
   const reason = '合成原因：辛欄尚未選擇來源欄，請回第三步欄位配對補上。';
   const data = validationResult({ resultId: 'v-step4-no-approval' });
-  data.blankRecordsTest = { status: 'na', nullDocumentCount: 0, nullAccountCount: 0, nullDescriptionCount: 0,
-    approvalDateNotInPeriodCount: null, approvalDateNotInPeriodNaReason: reason, nullRows: [] };
+  data.blankRecordsTest = { status: 'na', blankVoucherNumberCount: 0, blankAccountNumberCount: 0, blankDescriptionCount: 0,
+    approvalDateNotInPeriodCount: null, approvalDateNotInPeriodNaReason: reason, blankRows: [] };
   const f = await openStep4();
   await runValidation(f, data);
   const badge = ruleItem(f, '核准日不在期間').querySelector('.rule-status');
@@ -755,8 +757,8 @@ test('without the approval date mapping, the out-of-period approval item cannot 
 
 test('when the approval date can be checked and nothing is out of period, the item still reads as passed', async () => {
   const data = validationResult({ resultId: 'v-step4-approval-ok' });
-  data.blankRecordsTest = { status: 'na', nullDocumentCount: 0, nullAccountCount: 0, nullDescriptionCount: 0,
-    approvalDateNotInPeriodCount: 0, approvalDateNotInPeriodNaReason: null, nullRows: [] };
+  data.blankRecordsTest = { status: 'na', blankVoucherNumberCount: 0, blankAccountNumberCount: 0, blankDescriptionCount: 0,
+    approvalDateNotInPeriodCount: 0, approvalDateNotInPeriodNaReason: null, blankRows: [] };
   const f = await openStep4();
   await runValidation(f, data);
   const badge = ruleItem(f, '核准日不在期間').querySelector('.rule-status');
@@ -786,8 +788,20 @@ const CATEGORY_WITH_BANK = { revision: 2, categories: [
   { categoryId: 'bank', label: '銀行存款', ordinal: 1, semanticRole: 'cash', parentCategoryId: null }
 ] };
 
+// 裁定 2026-11-03-27 先隱藏科目分類的上下層級與分類用途，開關 Ui.FEATURES.categoryHierarchy 預設關著：分類設定沒有「進階設定」，
+// 內建分類與自訂分類都沒有分類用途的選單，用途改不了。原本直接核對內建分類的用途選單停用、自訂分類的用途選單可以改；
+// 改成先用一份夾具核對開關關著時兩者都沒有用途選單、內建分類照樣沒有移除鈕，再用另一份夾具打開開關，原本的斷言照舊。
+// 開關在畫面重畫時讀取，每份夾具各自一個執行環境，不影響其他測試。第一次失敗：FrontendMapping 收據 20261103-102610249-33dada705bc54432a817530311880e4f。
 test('built-in categories cannot be removed or repurposed, while a category used only by a saved scenario can be removed and saved', async () => {
+  const hidden = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  hidden.click('[data-action="toggle-category"]');
+  assert.ok(hidden.$('[data-category-remove="builtin.cash"]') === null, 'built-in has no remove button with the switch off');
+  assert.equal(hidden.$$('[data-category-role]').length, 0, 'with the switch off no category offers a role menu');
+  assert.ok(hidden.$('[data-action="toggle-category-advanced"]') === null, 'with the switch off there is no 進階設定');
+  assert.equal(hidden.$('[data-category-remove="bank"]').disabled, false);
+
   const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  f.ui.FEATURES.categoryHierarchy = true;
   const scenarios = [{ name: '銀行情境', groups: [{ join: 'AND', matchScope: 'row', conditions: [{ type: 'accountSide', categoryMode: 'is', categoryIds: ['bank'], categorySelection: 'subtree' }] }] }];
   f.store.setSavedScenarios(scenarios);
   f.click('[data-action="toggle-category"]');
@@ -899,7 +913,7 @@ test('a failed account mapping file shows its own reason on the JET tab, and ret
   assert.ok(f.$('[data-account-template-status]') === null, 'no status on the JET tab after success');
 });
 
-// 裁定 2026-10-14-01 確認了用字：準備科目配對檔失敗而沒有原因時，「在 JET 配對」分頁只請審計員再試一次，逐字比對。
+// 用字依裁定 2026-10-14-01：準備科目配對檔失敗而沒有原因時，「在 JET 配對」分頁只請審計員再試一次，逐字比對。
 // 取代 MappingNamesAndTemplateStatusFrontendTests.AccountTemplateStatus_… 裡同一句的斷言；那段斷言的第一次失敗收據
 // 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e。有原因時接冒號寫原因，由上一個測試確認。
 test('a failed account mapping file without a reason asks to try again on the JET tab', async () => {
@@ -911,7 +925,8 @@ test('a failed account mapping file without a reason asks to try again on the JE
   assert.ok(failed !== null, 'failure status on the JET tab');
   const retry = failed.querySelector('[data-action="retry-account-template-in-excel"]');
   assert.ok(retry !== null, 'retry button sits in the JET tab status');
-  assert.equal(failed.textContent.replace(retry.textContent, '').trim(), '科目配對檔尚未準備好，請再試一次。');
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.equal(failed.textContent.replace(retry.textContent, '').trim(), '科目配對範本尚未準備好，請再試一次。');
 });
 
 test('the Excel tab preview opens the account mapping dataset in the data preview', async () => {
@@ -939,12 +954,12 @@ const messageList = f => plain(f.state().messages.map(m => ({ text: m.text, leve
 test('messages: a finished validation leaves one short completion line, and blank GL dates and blank fields keep their own counts in their own items', async () => {
   const f = await openStep4();
   const data = validationResult();
-  data.blankRecordsTest = { nullDocumentCount: 3, nullAccountCount: 4, nullDescriptionCount: 0, approvalDateNotInPeriodCount: 0, nullRows: [] };
+  data.blankRecordsTest = { blankVoucherNumberCount: 3, blankAccountNumberCount: 4, blankDescriptionCount: 0, approvalDateNotInPeriodCount: 0, blankRows: [] };
   data.sourceQuality.findingCount = 2;
   await runValidation(f, data);
   const messages = messageList(f);
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json）：完成句只留「資料驗證完成，耗時 X。」，各項筆數寫在下方各項結果；
-  // 耗時的寫法是裁定 2026-10-13-17「保留，改成秒並合併」，不到 0.1 秒的寫法經裁定 2026-10-14-01 確認。
+  // 用字依裁定 2026-10-13-28（final-wording.json）：完成句只留「資料驗證完成，耗時 X。」，各項筆數寫在下方各項結果；
+  // 耗時的寫法是裁定 2026-10-13-17「保留，改成秒並合併」，不到 0.1 秒的寫法依裁定 2026-10-14-01。
   const done = messages.filter(m => m.text.startsWith('資料驗證完成'));
   assert.equal(done.length, 1, 'one completion line');
   assert.match(done[0].text, new RegExp('^資料驗證完成，' + ELAPSED + '。$'));
@@ -959,20 +974,20 @@ test('messages: a finished validation leaves one short completion line, and blan
   assert.match(status('空白傳票號碼'), /^3\D/);
   assert.match(status('空白科目編號'), /^4\D/);
   assert.ok(!f.$$('.rule-status').some(node => /^(?:5|7|9)\D/.test(node.textContent)), 'no item adds the counts together');
-  // 空白傳票號碼的說明：裁定 2026-10-14-01 確認了用字（final-wording-r3.json）。
+  // 空白傳票號碼的說明：用字依裁定 2026-10-14-01（final-wording-r3.json）。
   // 說明 2026-10-29 起放在標題的提示（首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d），字不變。
   assert.equal(ruleItem(f, '空白傳票號碼').querySelector('.rule-item__title').getAttribute('title'),
     '傳票號碼空白的分錄。與空白科目編號分開列示；傳票號碼與科目編號都空白的分錄，兩份明細都會列出。');
 });
 
 test('messages: the prescreen says it cannot run yet with the reason, from the button and from the backend, and a finished prescreen leaves one line', async () => {
-  // 按鈕狀態沒更新時硬按：裁定 2026-10-13-28 確認了用字（final-wording.json），後端判定的原因照原樣接在後面。
+  // 按鈕狀態沒更新時硬按：用字依裁定 2026-10-13-28（final-wording.json），後端判定的原因照原樣接在後面。
   const reason = '合成原因：後端判定這份資料不能繼續';
   let f = await openStep4({ validation: validationResult({ eligibility: { isEligible: false, reason } }) });
   f.$('[data-action="run-prescreen"]').dispatch('click'); await flush();
   assert.deepEqual(messageList(f)[0], { text: '預篩選尚無法執行：' + reason, level: 'warn' });
 
-  // 畫面判定可以執行，送出後後端以完整性前提擋下：裁定 2026-10-13-28 確認了用字（final-wording.json）。
+  // 畫面判定可以執行，送出後後端以完整性前提擋下：用字依裁定 2026-10-13-28（final-wording.json）。
   // 擋下時沒有開始做事，不附耗時；屬於需要注意，第四步標題下方是琥珀色提示框（2026-10-13 的實作細節，計畫檔「進度」一節）。
   f = await openStep4({ validation: validationResult() });
   f.click('[data-action="run-prescreen"]');
@@ -988,7 +1003,7 @@ test('messages: the prescreen says it cannot run yet with the reason, from the b
   assert.match(failure.className, /form-notice--warning/);
   assert.equal(f.state().results.prescreen, null, 'nothing was produced');
 
-  // 再按一次成功：提示框拿掉，只留一則完成句。裁定 2026-10-13-28 確認了用字（final-wording.json）。
+  // 再按一次成功：提示框拿掉，只留一則完成句。用字依裁定 2026-10-13-28（final-wording.json）。
   f.click('[data-action="run-prescreen"]');
   f.request('prescreenRun').resolve(remapPrescreen('p-step4')); await flush();
   assert.ok(f.middle.querySelector('.stepflow-item__failure') === null, 'the notice is gone after the retry');
@@ -1007,7 +1022,7 @@ test('messages: saving categories logs the count and that the prescreen must run
   f.type('[data-category-label="draft-1"]', '新分類');
   f.click('[data-action="save-category"]');
   f.request('accountCategorySave').reject({ code: 'synthetic_failure', message: '合成：儲存失敗' }); await flush();
-  // 失敗句：裁定 2026-10-13-28 確認了用字（final-wording.json），裁定 2026-10-14-01 在括號後加句號。
+  // 失敗句：用字依裁定 2026-10-13-28（final-wording.json），括號後的句號依裁定 2026-10-14-01。
   // 作業名稱沒有使用者裁定，只確認提到分類。
   assert.match(messageList(f)[0].text, new RegExp('^[^：]*分類[^：]*失敗：合成：儲存失敗（' + ELAPSED + '）。$'));
   assert.equal(messageList(f)[0].level, 'error');
@@ -1017,7 +1032,7 @@ test('messages: saving categories logs the count and that the prescreen must run
   saved.resolve({ revision: 2, categories, invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true },
     staleState: { validation: false, prescreen: true, filter: false }, reports: [] });
   await flush();
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json），句尾接上耗時。
+  // 用字依裁定 2026-10-13-28（final-wording.json），句尾接上耗時。
   const done = messageList(f)[0];
   assert.match(done.text, new RegExp('^科目分類已更新，共 6 類；預篩選要重新執行，' + ELAPSED + '。$'));
   assert.equal(done.level, 'info');
@@ -1029,7 +1044,7 @@ test('messages: saving categories logs the count and that the prescreen must run
 });
 
 // 儲存流程留下的訊息斷言：後端回報「變更已儲存，但報告清單沒有更新」時是一則需要注意的訊息（applyMutationEffects 的 reportWarning）。
-// 句子由後端提供，畫面只照原樣顯示；這裡用裁定 2026-10-13-28 確認的句子（final-wording.json）當合成回應，
+// 句子由後端提供，畫面只照原樣顯示；這裡用裁定 2026-10-13-28 的句子（final-wording.json）當合成回應，
 // 等級依裁定 2026-10-13-15 訊息分三級（spec-item2-levels.md 第 4 節，這句屬需要注意）。報告清單維持原樣，不當成清空。
 test('messages: when the backend saved the categories but could not refresh the report list, the auditor gets one attention line and the list stays', async () => {
   const f = await openStep4({ validation: validationResult() });

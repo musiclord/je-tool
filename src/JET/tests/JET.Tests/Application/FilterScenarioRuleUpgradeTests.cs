@@ -59,7 +59,7 @@ public sealed class FilterScenarioRuleUpgradeTests
     [Fact]
     public void CurrentBatch_IsRevalidatedOnLoad()
     {
-        // 改動原因：裁定 2026-10-13-25 要求開案也逐一檢查，拿掉「已是目前版本就不驗證」的捷徑；原本斷言 Current
+        // 改動原因：依裁定 2026-10-13-25，開案也要逐一檢查，拿掉「已是目前版本就不驗證」的捷徑；原本斷言 Current
         // （問題留給補算時回報）。第一次失敗：Focused 收據 20261013-133703293-a159a47c0ec64441a7dbc9702c86d15a。
         // 同一個不合格的目前版本情境，現在開案就列在待修正清單；合格的目前版本仍回 Current，見 CurrentValidBatch_StaysCurrentWithoutNewVersions。
         var result = Evaluate(Saved(1, Definition(RuleLogicVersions.Filter, rule: UnknownRdeRule)));
@@ -216,7 +216,7 @@ public sealed class FilterScenarioRuleUpgradeTests
         var problem = Assert.Single(result.Problems);
         Assert.Equal(2, problem.Position);
         Assert.Equal("情境2", problem.Name);
-        // 裁定 2026-10-13-28 確認了用字，改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 用字依裁定 2026-10-13-28，改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal(["條件內容無法讀取"], problem.Messages);
     }
 
@@ -276,7 +276,7 @@ public sealed class FilterScenarioRuleUpgradeTests
         Assert.True(RuleLogicVersions.IsCurrent(write.Rows[1]));
         Assert.Equal("not json", write.Rows[2].DefinitionJson);
         Assert.Equal([1, 3], write.Problems.Select(problem => problem.Position));
-        // 裁定 2026-10-13-28 確認了用字，改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 用字依裁定 2026-10-13-28，改為「條件內容無法讀取」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Equal(["條件內容無法讀取"], write.Problems[1].Messages);
         Assert.Equal(1, write.UpgradedOthers);
     }

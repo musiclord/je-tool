@@ -61,7 +61,7 @@ public sealed class AccessTableReaderTests
         Assert.True(connection.ReaderDisposed);
     }
 
-    // Access 讀出的文字以前不去空白（裁定 2026-10-04-01 要求空白比較跨格式一致），.csv 與 .xlsx 會去，同一份資料換格式答案不同。
+    // Access 讀出的文字以前不去空白（依裁定 2026-10-04-01，空白比較要跨格式一致），.csv 與 .xlsx 會去，同一份資料換格式答案不同。
     [Fact]
     public async Task Rows_TrimTextLikeTheOtherReaders_AndTreatWhitespaceOnlyAsBlank()
     {

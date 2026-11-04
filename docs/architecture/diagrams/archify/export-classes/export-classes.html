@@ -5203,7 +5203,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 1558 886" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+      <svg viewBox="0 0 1529 946" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
         <title id="archify-diagram-title">正式底稿規劃與發布的類別與介面</title>
         <desc id="archify-diagram-description">由 Archify 產生的類別與介面圖。</desc>
         <!-- Definitions -->
@@ -5274,296 +5274,301 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Relationships (before types for correct z-order) -->
-        <path data-edge-from="handler" data-edge-to="materialize" data-edge-label="MaterializeSelectedAsync" data-edge-key="0" data-edge-id="handler_materialize" data-class-relationship="dependency" data-composition-points="600,119;341,119" d="M 600 119 L 341 119" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="handler" data-edge-to="program" data-edge-label="Plan、Finalize" data-edge-key="1" data-edge-id="handler_program" data-class-relationship="dependency" data-composition-points="917,132;1226.5,132" d="M 917 132 L 1226.5 132" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="handler" data-edge-to="factsContract" data-edge-label="ExecuteAsync" data-edge-key="2" data-edge-id="handler_facts" data-class-relationship="dependency" data-composition-points="600,145;365,145;365,375;341,375" d="M 600 145 L 373 145 Q 365 145 365 153 L 365 367 Q 365 375 357 375 L 341 375" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="handler" data-edge-to="writerContract" data-edge-label="寫檔函式內 WriteAsync" data-edge-key="3" data-edge-id="handler_writer" data-class-relationship="dependency" data-composition-points="745.5,164;745.5,236;565,236;565,308" d="M 745.5 164 L 745.5 228 Q 745.5 236 737.5 236 L 573 236 Q 565 236 565 244 L 565 308" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="handler" data-edge-to="auditedContract" data-edge-label="WriteAuditedAsync" data-edge-key="4" data-edge-id="handler_audited" data-class-relationship="dependency" data-composition-points="771.5,164;771.5,236;952,236;952,308" d="M 771.5 164 L 771.5 228 Q 771.5 236 779.5 236 L 944 236 Q 952 236 952 244 L 952 308" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="facts" data-edge-to="factsContract" data-edge-key="5" data-edge-id="facts_contract" data-class-relationship="realization" data-composition-points="186.5,526;186.5,432" d="M 186.5 526 L 186.5 432" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="writer" data-edge-to="writerContract" data-edge-key="6" data-edge-id="writer_contract" data-class-relationship="realization" data-composition-points="565,526;565,442" d="M 565 526 L 565 442" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="audited" data-edge-to="publishContract" data-edge-key="7" data-edge-id="audited_contract" data-class-relationship="realization" data-composition-points="965,526;965,484;1353.5,484;1353.5,442" d="M 965 526 L 965 492 Q 965 484 973 484 L 1345.5 484 Q 1353.5 484 1353.5 476 L 1353.5 442" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="files" data-edge-to="publishContract" data-edge-key="8" data-edge-id="files_contract" data-class-relationship="realization" data-composition-points="1379.5,526;1379.5,442" d="M 1379.5 526 L 1379.5 442" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:8" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-        <path data-edge-from="root" data-edge-to="audited" data-edge-label="建立" data-edge-key="9" data-edge-id="root_audited" data-class-relationship="dependency" data-composition-points="705,723;753.5,723;753.5,543;802,543" d="M 705 723 L 745.5 723 Q 753.5 723 753.5 715 L 753.5 551 Q 753.5 543 761.5 543 L 802 543" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:9" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="root" data-edge-to="files" data-edge-label="建立" data-edge-key="10" data-edge-id="root_files" data-class-relationship="dependency" data-composition-points="705,749;1192.5,749;1192.5,543;1216.5,543" d="M 705 749 L 1184.5 749 Q 1192.5 749 1192.5 741 L 1192.5 551 Q 1192.5 543 1200.5 543 L 1216.5 543" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:10" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="root" data-edge-to="facts" data-edge-label="建立" data-edge-key="11" data-edge-id="root_facts" data-class-relationship="dependency" data-composition-points="425,736;380.75,736;380.75,543;336.5,543" d="M 425 736 L 388.75 736 Q 380.75 736 380.75 728 L 380.75 551 Q 380.75 543 372.75 543 L 336.5 543" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:11" stroke-width="1.5" marker-end="url(#cl-open)"/>
-        <path data-edge-from="audited" data-edge-to="auditedContract" data-edge-key="12" data-edge-id="audited_auditedContract" data-class-relationship="realization" data-composition-points="939,526;939,442" d="M 939 526 L 939 442" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="handler" data-edge-to="materialize" data-edge-label="RequireUsableAsync、MaterializeSelectedAsync" data-edge-key="0" data-edge-id="handler_materialize" data-class-relationship="dependency" data-composition-points="612.5,149;354,149" d="M 612.5 149 L 354 149" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:0" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="handler" data-edge-to="program" data-edge-label="Plan、Finalize" data-edge-key="1" data-edge-id="handler_program" data-class-relationship="dependency" data-composition-points="956.5,162;1225,162" d="M 956.5 162 L 1225 162" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:1" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="handler" data-edge-to="factsContract" data-edge-label="ExecuteAsync" data-edge-key="2" data-edge-id="handler_facts" data-class-relationship="dependency" data-composition-points="612.5,175;391,175;391,435;367,435" d="M 612.5 175 L 399 175 Q 391 175 391 183 L 391 427 Q 391 435 383 435 L 367 435" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:2" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="handler" data-edge-to="writerContract" data-edge-label="寫檔函式內 WriteAsync" data-edge-key="3" data-edge-id="handler_writer" data-class-relationship="dependency" data-composition-points="771.5,194;771.5,281;591,281;591,368" d="M 771.5 194 L 771.5 273 Q 771.5 281 763.5 281 L 599 281 Q 591 281 591 289 L 591 368" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:3" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="handler" data-edge-to="auditedContract" data-edge-label="WriteAuditedAsync" data-edge-key="4" data-edge-id="handler_audited" data-class-relationship="dependency" data-composition-points="797.5,194;797.5,281;978,281;978,368" d="M 797.5 194 L 797.5 273 Q 797.5 281 805.5 281 L 970 281 Q 978 281 978 289 L 978 368" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:4" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="facts" data-edge-to="factsContract" data-edge-key="5" data-edge-id="facts_contract" data-class-relationship="realization" data-composition-points="199.5,586;199.5,492" d="M 199.5 586 L 199.5 492" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="writer" data-edge-to="writerContract" data-edge-key="6" data-edge-id="writer_contract" data-class-relationship="realization" data-composition-points="591,586;591,502" d="M 591 586 L 591 502" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:6" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="audited" data-edge-to="publishContract" data-edge-key="7" data-edge-id="audited_contract" data-class-relationship="realization" data-composition-points="1093,602;1241,602;1241,502" d="M 1093 602 L 1233 602 Q 1241 602 1241 594 L 1241 502" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="files" data-edge-to="publishContract" data-edge-key="8" data-edge-id="files_contract" data-class-relationship="realization" data-composition-points="1378,586;1378,502" d="M 1378 586 L 1378 502" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:8" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+        <path data-edge-from="root" data-edge-to="audited" data-edge-label="建立" data-edge-key="9" data-edge-id="root_audited" data-class-relationship="dependency" data-composition-points="731,783;797,783;797,603;863,603" d="M 731 783 L 789 783 Q 797 783 797 775 L 797 611 Q 797 603 805 603 L 863 603" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:9" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="root" data-edge-to="files" data-edge-label="建立" data-edge-key="10" data-edge-id="root_files" data-class-relationship="dependency" data-composition-points="731,809;1226,809;1226,603;1250,603" d="M 731 809 L 1218 809 Q 1226 809 1226 801 L 1226 611 Q 1226 603 1234 603 L 1250 603" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:10" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="root" data-edge-to="facts" data-edge-label="建立" data-edge-key="11" data-edge-id="root_facts" data-class-relationship="dependency" data-composition-points="451,796;406.75,796;406.75,603;362.5,603" d="M 451 796 L 414.75 796 Q 406.75 796 406.75 788 L 406.75 611 Q 406.75 603 398.75 603 L 362.5 603" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:11" stroke-width="1.5" marker-end="url(#cl-open)"/>
+        <path data-edge-from="audited" data-edge-to="auditedContract" data-edge-key="12" data-edge-id="audited_auditedContract" data-class-relationship="realization" data-composition-points="965,586;965,502" d="M 965 586 L 965 502" class="a-default cl-relationship cl-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
 
         <!-- Types -->
-        <g id="node-handler" data-node-id="handler" data-node-label="ExportWorkpaperStreamHandler" tabindex="0" role="button" aria-label="聚焦ExportWorkpaperStreamHandler，export.workpaperStream, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="export.workpaperStream" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>ExportWorkpaperStreamHandler · export.workpaperStream · 類別</title>
-          <rect x="600" y="100" width="317" height="64" rx="8" class="c-mask"/>
-          <rect x="600" y="100" width="317" height="64" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 608 100 H 909 A 8 8 0 0 1 917 108 V 134 H 600 V 108 A 8 8 0 0 1 608 100 Z"/>
-          <path class="cl-cap" d="M 612 101.4 H 905" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-handler" data-node-id="handler" data-node-label="ExportWorkingPaperStreamHandler" tabindex="0" role="button" aria-label="聚焦ExportWorkingPaperStreamHandler，export.workingPaperStream, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="export.workingPaperStream" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>ExportWorkingPaperStreamHandler · export.workingPaperStream · 類別</title>
+          <rect x="612.5" y="130" width="344" height="64" rx="8" class="c-mask"/>
+          <rect x="612.5" y="130" width="344" height="64" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 620.5 130 H 948.5 A 8 8 0 0 1 956.5 138 V 164 H 612.5 V 138 A 8 8 0 0 1 620.5 130 Z"/>
+          <path class="cl-cap" d="M 624.5 131.4 H 944.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="612" y="109" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="620" y="120.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="624.5" y="139" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="632.5" y="150.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="758.5" y="122" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ExportWorkpaperStreamHandler</text>
+          <text data-node-label="" x="784.5" y="152" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ExportWorkingPaperStreamHandler</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="600" y1="134" x2="917" y2="134" class="cl-rule" stroke-width="1"/>
-            <rect x="612" y="143.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="619" y="154" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="632" y="154" class="t-primary cl-member" font-size="11">HandleAsync<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">JsonElement</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="905" y="154" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Task&lt;object?&gt;</text>
+            <line x1="612.5" y1="164" x2="956.5" y2="164" class="cl-rule" stroke-width="1"/>
+            <rect x="624.5" y="173.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="631.5" y="184" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="644.5" y="184" class="t-primary cl-member" font-size="11">HandleAsync<tspan class="t-muted cl-punct">(</tspan><tspan class="cl-param">JsonElement</tspan><tspan class="t-muted cl-punct">)</tspan></text><text data-detail="context" x="944.5" y="184" class="t-muted cl-member cl-type-ref" font-size="11" text-anchor="end">Task&lt;object?&gt;</text>
           </g>
         </g>
 
-        <g id="node-materialize" data-node-id="materialize" data-node-label="FilterRunMaterializeService" tabindex="0" role="button" aria-label="聚焦FilterRunMaterializeService，重算選取的情境, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="重算選取的情境" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>FilterRunMaterializeService · 重算選取的情境 · 類別</title>
-          <rect x="32" y="60" width="309" height="144" rx="8" class="c-mask"/>
-          <rect x="32" y="60" width="309" height="144" rx="8" class="c-backend cl-type" data-animate="node" style="--step:0" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 40 60 H 333 A 8 8 0 0 1 341 68 V 94 H 32 V 68 A 8 8 0 0 1 40 60 Z"/>
-          <path class="cl-cap" d="M 44 61.4 H 329" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-materialize" data-node-id="materialize" data-node-label="FilterHitMaterializeService" tabindex="0" role="button" aria-label="聚焦FilterHitMaterializeService，確認或重算選取的情境, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="確認或重算選取的情境" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>FilterHitMaterializeService · 確認或重算選取的情境 · 類別</title>
+          <rect x="45" y="40" width="309" height="244" rx="8" class="c-mask"/>
+          <rect x="45" y="40" width="309" height="244" rx="8" class="c-backend cl-type" data-animate="node" style="--step:0" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 53 40 H 346 A 8 8 0 0 1 354 48 V 74 H 45 V 48 A 8 8 0 0 1 53 40 Z"/>
+          <path class="cl-cap" d="M 57 41.4 H 342" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="44" y="69" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="52" y="80.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="57" y="49" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="65" y="60.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="186.5" y="82" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">FilterRunMaterializeService</text>
+          <text data-node-label="" x="199.5" y="62" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">FilterHitMaterializeService</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="32" y1="94" x2="341" y2="94" class="cl-rule" stroke-width="1"/>
-            <rect x="44" y="103.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="114" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="114" class="t-primary cl-member" font-size="11">MaterializeSelectedAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="134" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">string, ProjectDocument,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="154" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">IReadOnlyList&lt;SavedFilterScenario&gt;,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="174" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">IReadOnlyCollection&lt;int&gt;</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="194" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task</tspan></text>
+            <line x1="45" y1="74" x2="354" y2="74" class="cl-rule" stroke-width="1"/>
+            <rect x="57" y="83.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="64" y="94" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="77" y="94" class="t-primary cl-member" font-size="11">RequireUsableAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="90.19999999999999" y="114" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">string, ProjectDocument,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="90.19999999999999" y="134" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">IReadOnlyList&lt;SavedFilterScenario&gt;,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="90.19999999999999" y="154" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">IReadOnlyCollection&lt;int&gt;?</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77" y="174" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task</tspan></text>
+            <rect x="49" y="180" width="301" height="98" rx="4" class="cl-zebra"/><rect x="57" y="183.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="64" y="194" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="77" y="194" class="t-primary cl-member" font-size="11">MaterializeSelectedAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="90.19999999999999" y="214" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">string, ProjectDocument,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="90.19999999999999" y="234" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">IReadOnlyList&lt;SavedFilterScenario&gt;,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="90.19999999999999" y="254" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-type-ref">IReadOnlyCollection&lt;int&gt;</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77" y="274" class="t-primary cl-member" font-size="11"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task</tspan></text>
           </g>
         </g>
 
         <g id="node-program" data-node-id="program" data-node-label="JetAuditProgram" tabindex="0" role="button" aria-label="聚焦JetAuditProgram，規劃底稿並整理結果, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="規劃底稿並整理結果" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>JetAuditProgram · 規劃底稿並整理結果 · 類別</title>
-          <rect x="1226.5" y="40" width="280" height="184" rx="8" class="c-mask"/>
-          <rect x="1226.5" y="40" width="280" height="184" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 1234.5 40 H 1498.5 A 8 8 0 0 1 1506.5 48 V 74 H 1226.5 V 48 A 8 8 0 0 1 1234.5 40 Z"/>
-          <path class="cl-cap" d="M 1238.5 41.4 H 1494.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="1225" y="70" width="280" height="184" rx="8" class="c-mask"/>
+          <rect x="1225" y="70" width="280" height="184" rx="8" class="c-backend cl-type" data-animate="node" style="--step:1" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 1233 70 H 1497 A 8 8 0 0 1 1505 78 V 104 H 1225 V 78 A 8 8 0 0 1 1233 70 Z"/>
+          <path class="cl-cap" d="M 1237 71.4 H 1493" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="1238.5" y="49" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="1246.5" y="60.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="1237" y="79" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="1245" y="90.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="1366.5" y="62" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JetAuditProgram</text>
+          <text data-node-label="" x="1365" y="92" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">JetAuditProgram</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="1226.5" y1="74" x2="1506.5" y2="74" class="cl-rule" stroke-width="1"/>
-            <rect x="1238.5" y="83.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="1245.5" y="94" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="1258.5" y="94" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Plan<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1271.7" y="114" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">WorkpaperRequest</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1258.5" y="134" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">WorkpaperPlan</tspan></text>
-            <rect x="1230.5" y="140" width="272" height="78" rx="4" class="cl-zebra"/><rect x="1238.5" y="143.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="1245.5" y="154" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="1258.5" y="154" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Finalize<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1271.7" y="174" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">WorkpaperPlan,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1271.7" y="194" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">WorkpaperPlanningFacts</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1258.5" y="214" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">WorkpaperPlan</tspan></text>
+            <line x1="1225" y1="104" x2="1505" y2="104" class="cl-rule" stroke-width="1"/>
+            <rect x="1237" y="113.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="1244" y="124" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="1257" y="124" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Plan<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1270.2" y="144" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">WorkingPaperRequest</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1257" y="164" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">WorkingPaperPlan</tspan></text>
+            <rect x="1229" y="170" width="272" height="78" rx="4" class="cl-zebra"/><rect x="1237" y="173.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-package"/><text x="1244" y="184" class="t-muted cl-vis cl-vis-package" font-size="11" text-anchor="middle">~</text><text data-detail="context" data-class-member="methods" x="1257" y="184" class="t-primary cl-member" font-size="11" style="text-decoration: underline">Finalize<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1270.2" y="204" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">WorkingPaperPlan,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1270.2" y="224" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">WorkingPaperPlanningFacts</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1257" y="244" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">WorkingPaperPlan</tspan></text>
           </g>
         </g>
 
-        <g id="node-factsContract" data-node-id="factsContract" data-node-label="IWorkpaperPlanningFactsPort" tabindex="0" role="button" aria-label="聚焦IWorkpaperPlanningFactsPort，讀規劃需要的資料, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="讀規劃需要的資料" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
-          <title>IWorkpaperPlanningFactsPort · 讀規劃需要的資料 · 介面</title>
-          <rect x="32" y="318" width="309" height="114" rx="8" class="c-mask"/>
-          <rect x="32" y="318" width="309" height="114" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 40 318 H 333 A 8 8 0 0 1 341 326 V 362 H 32 V 326 A 8 8 0 0 1 40 318 Z"/>
-          <path class="cl-cap" d="M 44 319.4 H 329" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-factsContract" data-node-id="factsContract" data-node-label="IWorkingPaperPlanningFactsPort" tabindex="0" role="button" aria-label="聚焦IWorkingPaperPlanningFactsPort，讀規劃需要的資料, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="讀規劃需要的資料" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
+          <title>IWorkingPaperPlanningFactsPort · 讀規劃需要的資料 · 介面</title>
+          <rect x="32" y="378" width="335" height="114" rx="8" class="c-mask"/>
+          <rect x="32" y="378" width="335" height="114" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 40 378 H 359 A 8 8 0 0 1 367 386 V 422 H 32 V 386 A 8 8 0 0 1 40 378 Z"/>
+          <path class="cl-cap" d="M 44 379.4 H 355" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="44" y="332" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="52" y="343.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="44" y="392" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="52" y="403.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="186.5" y="334" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="186.5" y="352" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IWorkpaperPlanningFactsPort</text>
+          <text x="199.5" y="394" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="199.5" y="412" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IWorkingPaperPlanningFactsPort</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="32" y1="362" x2="341" y2="362" class="cl-rule" stroke-width="1"/>
-            <rect x="44" y="371.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="382" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="382" class="t-primary cl-member" font-size="11" style="font-style: italic">ExecuteAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="402" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">WorkpaperPlan</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="422" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;WorkpaperPlanningFacts&gt;</tspan></text>
+            <line x1="32" y1="422" x2="367" y2="422" class="cl-rule" stroke-width="1"/>
+            <rect x="44" y="431.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="51" y="442" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="64" y="442" class="t-primary cl-member" font-size="11" style="font-style: italic">ExecuteAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="77.19999999999999" y="462" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">WorkingPaperPlan</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="64" y="482" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;WorkingPaperPlanningFacts&gt;</tspan></text>
           </g>
         </g>
 
-        <g id="node-writerContract" data-node-id="writerContract" data-node-label="IWorkpaperPlanWriter" tabindex="0" role="button" aria-label="聚焦IWorkpaperPlanWriter，寫入工作簿, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="寫入工作簿" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
-          <title>IWorkpaperPlanWriter · 寫入工作簿 · 介面</title>
-          <rect x="425" y="308" width="280" height="134" rx="8" class="c-mask"/>
-          <rect x="425" y="308" width="280" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:3" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 433 308 H 697 A 8 8 0 0 1 705 316 V 352 H 425 V 316 A 8 8 0 0 1 433 308 Z"/>
-          <path class="cl-cap" d="M 437 309.4 H 693" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-writerContract" data-node-id="writerContract" data-node-label="IWorkingPaperPlanWriter" tabindex="0" role="button" aria-label="聚焦IWorkingPaperPlanWriter，寫入工作簿, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="寫入工作簿" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
+          <title>IWorkingPaperPlanWriter · 寫入工作簿 · 介面</title>
+          <rect x="451" y="368" width="280" height="134" rx="8" class="c-mask"/>
+          <rect x="451" y="368" width="280" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 459 368 H 723 A 8 8 0 0 1 731 376 V 412 H 451 V 376 A 8 8 0 0 1 459 368 Z"/>
+          <path class="cl-cap" d="M 463 369.4 H 719" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="437" y="322" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="445" y="333.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="463" y="382" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="471" y="393.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="565" y="324" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="565" y="342" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IWorkpaperPlanWriter</text>
+          <text x="591" y="384" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="591" y="402" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IWorkingPaperPlanWriter</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="425" y1="352" x2="705" y2="352" class="cl-rule" stroke-width="1"/>
-            <rect x="437" y="361.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="444" y="372" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="457" y="372" class="t-primary cl-member" font-size="11" style="font-style: italic">WriteAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="470.2" y="392" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">Stream, WorkpaperContext,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="470.2" y="412" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">WorkpaperPlan</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="457" y="432" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;ExportStats&gt;</tspan></text>
+            <line x1="451" y1="412" x2="731" y2="412" class="cl-rule" stroke-width="1"/>
+            <rect x="463" y="421.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="470" y="432" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="483" y="432" class="t-primary cl-member" font-size="11" style="font-style: italic">WriteAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="496.2" y="452" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">Stream, WorkingPaperContext,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="496.2" y="472" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">WorkingPaperPlan</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="483" y="492" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;ExportStats&gt;</tspan></text>
           </g>
         </g>
 
         <g id="node-auditedContract" data-node-id="auditedContract" data-node-label="IAuditedReportPublishingStore" tabindex="0" role="button" aria-label="聚焦IAuditedReportPublishingStore，發布並回操作紀錄的提醒, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="發布並回操作紀錄的提醒" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
           <title>IAuditedReportPublishingStore · 發布並回操作紀錄的提醒 · 介面</title>
-          <rect x="789" y="308" width="326" height="134" rx="8" class="c-mask"/>
-          <rect x="789" y="308" width="326" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 797 308 H 1107 A 8 8 0 0 1 1115 316 V 352 H 789 V 316 A 8 8 0 0 1 797 308 Z"/>
-          <path class="cl-cap" d="M 801 309.4 H 1103" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="815" y="368" width="326" height="134" rx="8" class="c-mask"/>
+          <rect x="815" y="368" width="326" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:4" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 823 368 H 1133 A 8 8 0 0 1 1141 376 V 412 H 815 V 376 A 8 8 0 0 1 823 368 Z"/>
+          <path class="cl-cap" d="M 827 369.4 H 1129" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="801" y="322" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="809" y="333.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="827" y="382" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="835" y="393.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="952" y="324" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="952" y="342" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IAuditedReportPublishingStore</text>
+          <text x="978" y="384" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="978" y="402" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IAuditedReportPublishingStore</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="789" y1="352" x2="1115" y2="352" class="cl-rule" stroke-width="1"/>
-            <rect x="801" y="361.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="808" y="372" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="821" y="372" class="t-primary cl-member" font-size="11" style="font-style: italic">WriteAuditedAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="834.1999999999999" y="392" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">string, ReportArtifactWriteRequest,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="834.1999999999999" y="412" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">Action&lt;ReportArtifactKind&gt;</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="821" y="432" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;AuditedReportPublication&gt;</tspan></text>
+            <line x1="815" y1="412" x2="1141" y2="412" class="cl-rule" stroke-width="1"/>
+            <rect x="827" y="421.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="834" y="432" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="847" y="432" class="t-primary cl-member" font-size="11" style="font-style: italic">WriteAuditedAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="860.1999999999999" y="452" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">string, ReportWriteRequest,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="860.1999999999999" y="472" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">Action&lt;ReportKind&gt;</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="847" y="492" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;AuditedReportPublication&gt;</tspan></text>
           </g>
         </g>
 
-        <g id="node-publishContract" data-node-id="publishContract" data-node-label="IReportArtifactPublishingStore" tabindex="0" role="button" aria-label="聚焦IReportArtifactPublishingStore，寫檔並通知發布, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="寫檔並通知發布" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
-          <title>IReportArtifactPublishingStore · 寫檔並通知發布 · 介面</title>
-          <rect x="1199" y="308" width="335" height="134" rx="8" class="c-mask"/>
-          <rect x="1199" y="308" width="335" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:7" stroke-width="1.2"/>
-          <path class="cl-header c-frontend" stroke="none" d="M 1207 308 H 1526 A 8 8 0 0 1 1534 316 V 352 H 1199 V 316 A 8 8 0 0 1 1207 308 Z"/>
-          <path class="cl-cap" d="M 1211 309.4 H 1522" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-publishContract" data-node-id="publishContract" data-node-label="IReportPublishingStore" tabindex="0" role="button" aria-label="聚焦IReportPublishingStore，寫檔並通知發布, 介面" aria-pressed="false" data-node-kind="interface" data-node-sublabel="寫檔並通知發布" data-node-context="介面" data-class-kind="interface" class="cl-hue-frontend">
+          <title>IReportPublishingStore · 寫檔並通知發布 · 介面</title>
+          <rect x="1225" y="368" width="280" height="134" rx="8" class="c-mask"/>
+          <rect x="1225" y="368" width="280" height="134" rx="8" class="c-frontend cl-type" data-animate="node" style="--step:7" stroke-width="1.2"/>
+          <path class="cl-header c-frontend" stroke="none" d="M 1233 368 H 1497 A 8 8 0 0 1 1505 376 V 412 H 1225 V 376 A 8 8 0 0 1 1233 368 Z"/>
+          <path class="cl-cap" d="M 1237 369.4 H 1493" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="1211" y="322" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="1219" y="333.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
+            <rect x="1237" y="382" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="1245" y="393.5" class="t-frontend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">I</text>
           </g>
-          <text x="1366.5" y="324" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
-          <text data-node-label="" x="1366.5" y="342" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IReportArtifactPublishingStore</text>
+          <text x="1365" y="384" class="t-muted cl-stereotype" font-size="9.5" text-anchor="middle">«interface»</text>
+          <text data-node-label="" x="1365" y="402" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">IReportPublishingStore</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="1199" y1="352" x2="1534" y2="352" class="cl-rule" stroke-width="1"/>
-            <rect x="1211" y="361.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="1218" y="372" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="1231" y="372" class="t-primary cl-member" font-size="11" style="font-style: italic">WriteWithPublishingAsync<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1244.2" y="392" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">string, ReportArtifactWriteRequest,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1244.2" y="412" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">Action&lt;ReportArtifactKind&gt;</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1231" y="432" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;ReportArtifact&gt;</tspan></text>
+            <line x1="1225" y1="412" x2="1505" y2="412" class="cl-rule" stroke-width="1"/>
+            <rect x="1237" y="421.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-public"/><text x="1244" y="432" class="t-muted cl-vis cl-vis-public" font-size="11" text-anchor="middle">+</text><text data-detail="context" data-class-member="methods" x="1257" y="432" class="t-primary cl-member" font-size="11" style="font-style: italic">WriteWithPublishingAsync<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1270.2" y="452" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">string, ReportWriteRequest,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1270.2" y="472" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-type-ref">Action&lt;ReportKind&gt;</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="1257" y="492" class="t-primary cl-member" font-size="11" style="font-style: italic"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">Task&lt;Report&gt;</tspan></text>
           </g>
         </g>
 
-        <g id="node-facts" data-node-id="facts" data-node-label="WorkpaperPlanningFactsPort" tabindex="0" role="button" aria-label="聚焦WorkpaperPlanningFactsPort，不分資料庫, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="不分資料庫" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>WorkpaperPlanningFactsPort · 不分資料庫 · 類別</title>
-          <rect x="36.5" y="526" width="300" height="34" rx="8" class="c-mask"/>
-          <rect x="36.5" y="526" width="300" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:6" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 44.5 526 H 328.5 A 8 8 0 0 1 336.5 534 V 560 H 36.5 V 534 A 8 8 0 0 1 44.5 526 Z"/>
-          <path class="cl-cap" d="M 48.5 527.4 H 324.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-facts" data-node-id="facts" data-node-label="WorkingPaperPlanningFactsPort" tabindex="0" role="button" aria-label="聚焦WorkingPaperPlanningFactsPort，不分資料庫, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="不分資料庫" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>WorkingPaperPlanningFactsPort · 不分資料庫 · 類別</title>
+          <rect x="36.5" y="586" width="326" height="34" rx="8" class="c-mask"/>
+          <rect x="36.5" y="586" width="326" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:6" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 44.5 586 H 354.5 A 8 8 0 0 1 362.5 594 V 620 H 36.5 V 594 A 8 8 0 0 1 44.5 586 Z"/>
+          <path class="cl-cap" d="M 48.5 587.4 H 350.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="48.5" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="56.5" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="48.5" y="595" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="56.5" y="606.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="186.5" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">WorkpaperPlanningFactsPort</text>
+          <text data-node-label="" x="199.5" y="608" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">WorkingPaperPlanningFactsPort</text>
 
         </g>
 
-        <g id="node-writer" data-node-id="writer" data-node-label="WorkpaperWriter" tabindex="0" role="button" aria-label="聚焦WorkpaperWriter，分頁讀取並寫出, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="分頁讀取並寫出" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>WorkpaperWriter · 分頁讀取並寫出 · 類別</title>
-          <rect x="463" y="526" width="204" height="34" rx="8" class="c-mask"/>
-          <rect x="463" y="526" width="204" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:7" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 471 526 H 659 A 8 8 0 0 1 667 534 V 560 H 463 V 534 A 8 8 0 0 1 471 526 Z"/>
-          <path class="cl-cap" d="M 475 527.4 H 655" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-writer" data-node-id="writer" data-node-label="WorkingPaperWriter" tabindex="0" role="button" aria-label="聚焦WorkingPaperWriter，分頁讀取並寫出, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="分頁讀取並寫出" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>WorkingPaperWriter · 分頁讀取並寫出 · 類別</title>
+          <rect x="476" y="586" width="230" height="34" rx="8" class="c-mask"/>
+          <rect x="476" y="586" width="230" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:7" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 484 586 H 698 A 8 8 0 0 1 706 594 V 620 H 476 V 594 A 8 8 0 0 1 484 586 Z"/>
+          <path class="cl-cap" d="M 488 587.4 H 694" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="475" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="483" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="488" y="595" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="496" y="606.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="565" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">WorkpaperWriter</text>
+          <text data-node-label="" x="591" y="608" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">WorkingPaperWriter</text>
 
         </g>
 
-        <g id="node-audited" data-node-id="audited" data-node-label="AuditedReportArtifactStore" tabindex="0" role="button" aria-label="聚焦AuditedReportArtifactStore，外層：寫操作紀錄, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="外層：寫操作紀錄" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>AuditedReportArtifactStore · 外層：寫操作紀錄 · 類別</title>
-          <rect x="802" y="526" width="300" height="34" rx="8" class="c-mask"/>
-          <rect x="802" y="526" width="300" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:8" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 810 526 H 1094 A 8 8 0 0 1 1102 534 V 560 H 802 V 534 A 8 8 0 0 1 810 526 Z"/>
-          <path class="cl-cap" d="M 814 527.4 H 1090" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-audited" data-node-id="audited" data-node-label="AuditedReportStore" tabindex="0" role="button" aria-label="聚焦AuditedReportStore，外層：寫操作紀錄, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="外層：寫操作紀錄" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>AuditedReportStore · 外層：寫操作紀錄 · 類別</title>
+          <rect x="863" y="586" width="230" height="34" rx="8" class="c-mask"/>
+          <rect x="863" y="586" width="230" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:8" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 871 586 H 1085 A 8 8 0 0 1 1093 594 V 620 H 863 V 594 A 8 8 0 0 1 871 586 Z"/>
+          <path class="cl-cap" d="M 875 587.4 H 1081" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="814" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="822" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="875" y="595" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="883" y="606.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="952" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AuditedReportArtifactStore</text>
+          <text data-node-label="" x="978" y="608" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AuditedReportStore</text>
 
         </g>
 
-        <g id="node-files" data-node-id="files" data-node-label="ProjectReportArtifactStore" tabindex="0" role="button" aria-label="聚焦ProjectReportArtifactStore，內層：暫存檔、改名與清單, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="內層：暫存檔、改名與清單" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
-          <title>ProjectReportArtifactStore · 內層：暫存檔、改名與清單 · 類別</title>
-          <rect x="1216.5" y="526" width="300" height="34" rx="8" class="c-mask"/>
-          <rect x="1216.5" y="526" width="300" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:9" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 1224.5 526 H 1508.5 A 8 8 0 0 1 1516.5 534 V 560 H 1216.5 V 534 A 8 8 0 0 1 1224.5 526 Z"/>
-          <path class="cl-cap" d="M 1228.5 527.4 H 1504.5" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+        <g id="node-files" data-node-id="files" data-node-label="ProjectReportStore" tabindex="0" role="button" aria-label="聚焦ProjectReportStore，內層：暫存檔、改名與清單, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="內層：暫存檔、改名與清單" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
+          <title>ProjectReportStore · 內層：暫存檔、改名與清單 · 類別</title>
+          <rect x="1250" y="586" width="230" height="34" rx="8" class="c-mask"/>
+          <rect x="1250" y="586" width="230" height="34" rx="8" class="c-backend cl-type" data-animate="node" style="--step:9" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 1258 586 H 1472 A 8 8 0 0 1 1480 594 V 620 H 1250 V 594 A 8 8 0 0 1 1258 586 Z"/>
+          <path class="cl-cap" d="M 1262 587.4 H 1468" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="1228.5" y="535" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="1236.5" y="546.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="1262" y="595" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="1270" y="606.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="1366.5" y="548" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ProjectReportArtifactStore</text>
+          <text data-node-label="" x="1365" y="608" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">ProjectReportStore</text>
 
         </g>
 
         <g id="node-root" data-node-id="root" data-node-label="AppCompositionRoot" tabindex="0" role="button" aria-label="聚焦AppCompositionRoot，啟動時建立物件, 類別" aria-pressed="false" data-node-kind="class" data-node-sublabel="啟動時建立物件" data-node-context="類別" data-class-kind="class" class="cl-hue-backend">
           <title>AppCompositionRoot · 啟動時建立物件 · 類別</title>
-          <rect x="425" y="644" width="280" height="184" rx="8" class="c-mask"/>
-          <rect x="425" y="644" width="280" height="184" rx="8" class="c-backend cl-type" data-animate="node" style="--step:10" stroke-width="1.2"/>
-          <path class="cl-header c-backend" stroke="none" d="M 433 644 H 697 A 8 8 0 0 1 705 652 V 678 H 425 V 652 A 8 8 0 0 1 433 644 Z"/>
-          <path class="cl-cap" d="M 437 645.4 H 693" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <rect x="451" y="704" width="280" height="184" rx="8" class="c-mask"/>
+          <rect x="451" y="704" width="280" height="184" rx="8" class="c-backend cl-type" data-animate="node" style="--step:10" stroke-width="1.2"/>
+          <path class="cl-header c-backend" stroke="none" d="M 459 704 H 723 A 8 8 0 0 1 731 712 V 738 H 451 V 712 A 8 8 0 0 1 459 704 Z"/>
+          <path class="cl-cap" d="M 463 705.4 H 719" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" class="cl-badge">
-            <rect x="437" y="653" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
-            <text x="445" y="664.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
+            <rect x="463" y="713" width="16" height="16" rx="4.8" class="cl-badge-chip"/>
+            <text x="471" y="724.5" class="t-backend cl-badge-letter" font-size="10" font-weight="800" text-anchor="middle">C</text>
           </g>
           
-          <text data-node-label="" x="565" y="666" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AppCompositionRoot</text>
+          <text data-node-label="" x="591" y="726" class="t-primary" font-size="13.5" font-weight="700" text-anchor="middle">AppCompositionRoot</text>
           <g data-detail="context" data-class-compartment="methods">
-            <line x1="425" y1="678" x2="705" y2="678" class="cl-rule" stroke-width="1"/>
-            <rect x="437" y="687.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="444" y="698" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="457" y="698" class="t-primary cl-member" font-size="11" style="text-decoration: underline">CreateRuntimeCore<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="470.2" y="718" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">IHostShell, string, …</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="457" y="738" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">JetApplicationRuntime</tspan></text>
-            <rect x="429" y="744" width="272" height="78" rx="4" class="cl-zebra"/><rect x="437" y="747.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="444" y="758" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="457" y="758" class="t-primary cl-member" font-size="11" style="text-decoration: underline">CreateLocalProjectRepositories<tspan class="t-muted cl-punct">(</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="470.2" y="778" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">string, ILocalProjectDatabase,</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="470.2" y="798" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">ProjectRepositoryAssembly</tspan></text>
-            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="457" y="818" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">ProjectRepositories</tspan></text>
+            <line x1="451" y1="738" x2="731" y2="738" class="cl-rule" stroke-width="1"/>
+            <rect x="463" y="747.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="470" y="758" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="483" y="758" class="t-primary cl-member" font-size="11" style="text-decoration: underline">CreateRuntimeCore<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="496.2" y="778" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">IHostShell, string, …</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="483" y="798" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">JetApplicationRuntime</tspan></text>
+            <rect x="455" y="804" width="272" height="78" rx="4" class="cl-zebra"/><rect x="463" y="807.5" width="14" height="14" rx="4" class="cl-vis-chip cl-vis-private"/><text x="470" y="818" class="t-muted cl-vis cl-vis-private" font-size="11" text-anchor="middle">-</text><text data-detail="context" data-class-member="methods" x="483" y="818" class="t-primary cl-member" font-size="11" style="text-decoration: underline">CreateLocalProjectRepositories<tspan class="t-muted cl-punct">(</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="496.2" y="838" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">string, ILocalProjectDatabase,</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="496.2" y="858" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-type-ref">ProjectRepositoryAssembly</tspan></text>
+            <text data-detail="context" data-class-member="methods" data-class-continuation="" x="483" y="878" class="t-primary cl-member" font-size="11" style="text-decoration: underline"><tspan class="t-muted cl-punct">)</tspan><tspan class="t-muted cl-punct">:</tspan> <tspan class="t-muted cl-type-ref">ProjectRepositories</tspan></text>
           </g>
         </g>
 
         <!-- Relationship labels -->
-        <g data-detail="context" data-edge-from="handler" data-edge-to="materialize" data-edge-label="MaterializeSelectedAsync" data-edge-key="0" data-edge-id="handler_materialize" data-class-relationship="dependency">
-          <rect x="394.82" y="103" width="151.35999999999999" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="470.5" y="113" class="t-muted" font-size="9.5" text-anchor="middle">MaterializeSelectedAsync</text>
+        <g data-detail="context" data-edge-from="handler" data-edge-to="materialize" data-edge-label="RequireUsableAsync、MaterializeSelectedAsync" data-edge-key="0" data-edge-id="handler_materialize" data-class-relationship="dependency">
+          <rect x="495.25" y="111" width="269.16" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="629.83" y="121" class="t-muted" font-size="9.5" text-anchor="middle">RequireUsableAsync、MaterializeSelectedAsync</text>
         </g>
         <g data-detail="context" data-edge-from="handler" data-edge-to="program" data-edge-label="Plan、Finalize" data-edge-key="1" data-edge-id="handler_program" data-class-relationship="dependency">
-          <rect x="1025.52" y="116" width="92.46" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="1071.75" y="126" class="t-muted" font-size="9.5" text-anchor="middle">Plan、Finalize</text>
+          <rect x="1044.52" y="146" width="92.46" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="1090.75" y="156" class="t-muted" font-size="9.5" text-anchor="middle">Plan、Finalize</text>
         </g>
         <g data-detail="context" data-edge-from="handler" data-edge-to="factsContract" data-edge-label="ExecuteAsync" data-edge-key="2" data-edge-id="handler_facts" data-class-relationship="dependency">
-          <rect x="371" y="254" width="80.67999999999999" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="411.34" y="264" class="t-muted" font-size="9.5" text-anchor="middle">ExecuteAsync</text>
+          <rect x="397" y="299" width="80.67999999999999" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="437.34" y="309" class="t-muted" font-size="9.5" text-anchor="middle">ExecuteAsync</text>
         </g>
         <g data-detail="context" data-edge-from="handler" data-edge-to="writerContract" data-edge-label="寫檔函式內 WriteAsync" data-edge-key="3" data-edge-id="handler_writer" data-class-relationship="dependency">
-          <rect x="605.81" y="193" width="133.69" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="672.655" y="203" class="t-muted" font-size="9.5" text-anchor="middle">寫檔函式內 WriteAsync</text>
+          <rect x="631.81" y="230.5" width="133.69" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="698.655" y="240.5" class="t-muted" font-size="9.5" text-anchor="middle">寫檔函式內 WriteAsync</text>
         </g>
         <g data-detail="context" data-edge-from="handler" data-edge-to="auditedContract" data-edge-label="WriteAuditedAsync" data-edge-key="4" data-edge-id="handler_audited" data-class-relationship="dependency">
-          <rect x="806.685" y="220" width="110.13" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="861.75" y="230" class="t-muted" font-size="9.5" text-anchor="middle">WriteAuditedAsync</text>
+          <rect x="803.5" y="231.5" width="110.13" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="858.565" y="241.5" class="t-muted" font-size="9.5" text-anchor="middle">WriteAuditedAsync</text>
         </g>
         <g data-detail="context" data-edge-from="root" data-edge-to="audited" data-edge-label="建立" data-edge-key="9" data-edge-id="root_audited" data-class-relationship="dependency">
-          <rect x="759.5" y="627" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="776.28" y="637" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
+          <rect x="803" y="687" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="819.78" y="697" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
         </g>
         <g data-detail="context" data-edge-from="root" data-edge-to="files" data-edge-label="建立" data-edge-key="10" data-edge-id="root_files" data-class-relationship="dependency">
-          <rect x="931.97" y="733" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="948.75" y="743" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
+          <rect x="961.72" y="793" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="978.5" y="803" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
         </g>
         <g data-detail="context" data-edge-from="root" data-edge-to="facts" data-edge-label="建立" data-edge-key="11" data-edge-id="root_facts" data-class-relationship="dependency">
-          <rect x="386.75" y="633.5" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
-          <text x="403.53" y="643.5" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
+          <rect x="412.75" y="693.5" width="33.56" height="14" rx="7" class="c-mask cl-label-box"/>
+          <text x="429.53" y="703.5" class="t-muted" font-size="9.5" text-anchor="middle">建立</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="">
-          <text x="24" y="850" class="t-primary" font-size="12" font-weight="650">圖例</text>
-          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="870" data-legend-width="251">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="依賴：呼叫或建立，線上寫方法" x="18" y="855" width="263" height="22" rx="11"/><path d="M 26 866 L 56 866" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
-            <text x="66" y="870" class="t-muted" font-size="12" font-weight="500">依賴：呼叫或建立，線上寫方法</text>
+          <text x="24" y="910" class="t-primary" font-size="12" font-weight="650">圖例</text>
+          <g data-legend-semantic-kind="dependency" data-legend-x="24" data-legend-baseline="930" data-legend-width="251">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="依賴：呼叫或建立，線上寫方法" x="18" y="915" width="263" height="22" rx="11"/><path d="M 26 926 L 56 926" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-open)"/>
+            <text x="66" y="930" class="t-muted" font-size="12" font-weight="500">依賴：呼叫或建立，線上寫方法</text>
           </g>
-          <g data-legend-semantic-kind="realization" data-legend-x="297" data-legend-baseline="870" data-legend-width="102">
-            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="實作介面" x="291" y="855" width="114" height="22" rx="11"/><path d="M 299 866 L 329 866" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
-            <text x="339" y="870" class="t-muted" font-size="12" font-weight="500">實作介面</text>
+          <g data-legend-semantic-kind="realization" data-legend-x="297" data-legend-baseline="930" data-legend-width="102">
+            <rect class="cl-legend-hit" tabindex="0" role="img" aria-label="實作介面" x="291" y="915" width="114" height="22" rx="11"/><path d="M 299 926 L 329 926" class="a-default cl-relationship cl-dashed" stroke-width="1.5" marker-end="url(#cl-triangle)"/>
+            <text x="339" y="930" class="t-muted" font-size="12" font-weight="500">實作介面</text>
           </g>
         </g>
       </svg>
@@ -5749,8 +5754,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>實際執行哪個類別</h3>
         </div>
         <ul>
-          <li>ExportWorkpaperStreamHandler 對規劃資料、寫出器與報告存檔類別都只呼叫介面。存檔類別有實作 IAuditedReportPublishingStore 才走 WriteAuditedAsync，回應才帶得到寫不進操作紀錄的提醒；否則退回 IReportArtifactPublishingStore.WriteWithPublishingAsync 或 IReportArtifactStore.WriteAsync。</li>
-          <li>AppCompositionRoot 先建立 ProjectReportArtifactStore，再交給 AuditedReportArtifactStore。外層只把內層當成 IReportArtifactStore 持有，呼叫前才轉型，所以兩者之間沒有依賴線；內層是哪個類別，看兩條「建立」線。</li>
+          <li>ExportWorkingPaperStreamHandler 對規劃資料、寫出器與報告存檔類別都只呼叫介面。存檔類別有實作 IAuditedReportPublishingStore 才走 WriteAuditedAsync，回應才帶得到寫不進操作紀錄的提醒；否則退回 IReportPublishingStore.WriteWithPublishingAsync 或 IReportStore.WriteAsync。</li>
+          <li>AppCompositionRoot 先建立 ProjectReportStore，再交給 AuditedReportStore。外層只把內層當成 IReportStore 持有，呼叫前才轉型，所以兩者之間沒有依賴線；內層是哪個類別，看兩條「建立」線。</li>
         </ul>
       </div>
 
@@ -5760,9 +5765,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>這張圖省略了什麼</h3>
         </div>
         <ul>
-          <li>兩個存檔類別也都實作 IReportArtifactStore，負責報告清單、路徑與失效標記；圖只畫發布用的介面。</li>
-          <li>WorkpaperWriter 由 CreateWorkpaperWriter 建立；內層透過 ReportArtifactContentWriter，執行匯出處理事先交出的寫檔函式。</li>
-          <li>外層寫操作紀錄經 CommittedAuditLog 與 IProjectAuditLog；本機案件實際寫入的類別與失敗時的提醒，見底稿匯出循序圖。</li>
+          <li>兩個存檔類別也都實作 IReportStore，負責報告清單、路徑與失效標記；圖只畫發布用的介面。</li>
+          <li>WorkingPaperWriter 由 CreateWorkingPaperWriter 建立；內層透過 ReportContentWriter，執行匯出處理事先交出的寫檔函式。</li>
+          <li>外層寫操作紀錄經 CommittedOperationLog 與 IProjectOperationLog；本機案件實際寫入的類別與失敗時的提醒，見底稿匯出循序圖。</li>
         </ul>
       </div>
 

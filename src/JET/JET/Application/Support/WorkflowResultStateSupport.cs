@@ -27,11 +27,11 @@ internal static partial class WorkflowResultStateSupport
         object[]? Reports,
         string? ReportWarning);
 
-    // 裁定 2026-10-13-28 確認了這句的用字。
+    // 這句的用字依裁定 2026-10-13-28。
     private const string MutationCatalogWarning =
         "變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。";
 
-    // 變更已提交、卻讀不回畫面要用的狀態時的提醒，句型比照上一句；裁定 2026-10-19-18 確認了這句。
+    // 變更已提交、卻讀不回畫面要用的狀態時的提醒，句型比照上一句；這句的用字依裁定 2026-10-19-18。
     internal const string MutationStateWarning =
         "變更已儲存，但畫面上的結果狀態與報告清單沒有更新；重新開啟案件就會更新，不必重做變更。";
 

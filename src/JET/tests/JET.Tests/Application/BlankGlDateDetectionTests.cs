@@ -28,17 +28,17 @@ public sealed class BlankGlDateDetectionTests(DemoProjectFixture fixture)
         Assert.True(expectedBlankDates > 0, "demo fixture 必須含空白過帳日，避免偵測測試空轉。");
 
         var validation = await fixture.Host.DispatchAsync("validate.run");
-        var nulls = validation.GetProperty("blankRecordsTest");
-        Assert.False(nulls.TryGetProperty("blankGlDateCount", out _));
+        var blankRecords = validation.GetProperty("blankRecordsTest");
+        Assert.False(blankRecords.TryGetProperty("blankGlDateCount", out _));
         Assert.Equal(
             expectedBlankDates,
             validation.GetProperty("sourceQuality").GetProperty("findingCount").GetInt64());
 
-        var expectedNullAccounts = await DemoProjectPipeline.QueryScalarAsync(
+        var expectedBlankAccountNumbers = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             "SELECT COUNT(*) FROM gl WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31' " +
             "AND (account_number IS NULL OR TRIM(account_number) = '');");
-        Assert.Equal(expectedNullAccounts, nulls.GetProperty("nullAccountCount").GetInt64());
+        Assert.Equal(expectedBlankAccountNumbers, blankRecords.GetProperty("blankAccountNumberCount").GetInt64());
 
         var invalid = await Assert.ThrowsAsync<JetActionException>(() =>
             fixture.Host.DispatchAsync(

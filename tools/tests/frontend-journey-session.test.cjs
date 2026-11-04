@@ -234,12 +234,12 @@ for (const action of ['app-back-picker', 'app-exit']) test('leaving the case thr
   assert.equal(f.state.view, 'workflow');
   assert.equal(f.state.busy, false);
   assert.equal(f.requests.some(r => r.action === 'hostExitApp'), false);
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json）；離開案件失敗是錯誤（裁定 2026-10-13-15：訊息分三級）。
+  // 用字依裁定 2026-10-13-28（final-wording.json）；離開案件失敗是錯誤（裁定 2026-10-13-15：訊息分三級）。
   assert.deepEqual(messageList(f)[0], { text: '無法離開案件，已保留目前畫面：合成：案件鎖沒有釋放', level: 'error' });
 });
 
 test('leaving while the backend says another operation is running is an attention line, with the cancel hint only when there is something to cancel', async () => {
-  // 後端回覆另一項作業還在進行、畫面上沒有可以取消的作業：裁定 2026-10-13-28 確認了用字（final-wording.json）。
+  // 後端回覆另一項作業還在進行、畫面上沒有可以取消的作業：用字依裁定 2026-10-13-28（final-wording.json）。
   let f = remapAppFixture(); f.store.setView('workflow');
   f.click('[data-action="app-back-picker"]'); await settle();
   f.request('projectSaveProgress').resolve({}); await settle();
@@ -248,7 +248,7 @@ test('leaving while the backend says another operation is running is an attentio
   assert.equal(f.state.busy, false);
   assert.equal(f.state.view, 'workflow');
 
-  // 作業進行中按「回首頁」：有可以取消的作業時，忙碌畫面與訊息都說明先按「取消作業」（裁定 2026-10-13-28 確認了用字，final-wording.json）。
+  // 作業進行中按「回首頁」：有可以取消的作業時，忙碌畫面與訊息都說明先按「取消作業」（用字依裁定 2026-10-13-28，final-wording.json）。
   f = remapAppFixture(); f.store.setView('workflow');
   f.store.setBusy(true, '產生工作底稿'); f.store.setBusyRequest('synthetic-request');
   f.click('[data-action="app-back-picker"]'); await settle();
@@ -261,7 +261,7 @@ test('when the current step cannot be saved on the way out, the auditor is told 
   const f = remapAppFixture(); f.store.setView('workflow');
   f.click('[data-action="app-back-picker"]'); await settle();
   f.request('projectSaveProgress').reject({ code: 'synthetic', message: '合成：位置寫不進去。' }); await settle();
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json）：原因的句號拿掉後接固定的下一句。
+  // 用字依裁定 2026-10-13-28（final-wording.json）：原因的句號拿掉後接固定的下一句。
   assert.ok(messageList(f).some(m => m.text === '目前所在的步驟未能儲存：合成：位置寫不進去。下次開啟此案件時，會回到上次儲存的步驟。' && m.level === 'error'),
     'the step that could not be saved is explained');
   f.request('projectReleaseLock').resolve({}); await settle();

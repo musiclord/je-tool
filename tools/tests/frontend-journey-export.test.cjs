@@ -147,7 +147,7 @@ for (const situation of ['none', 'stale']) test('with ' + (situation === 'none' 
     // 例如科目分類儲存後，後端回報預篩選結果已過期。
     f.store.applyMutationEffects({ staleState: { validation: false, prescreen: true, filter: false } }); await flush();
   }
-  // 按下之前就說明會先執行預篩選：裁定 2026-10-14-01 確認的第二句（final-wording-r3.json）。
+  // 按下之前就說明會先執行預篩選：裁定 2026-10-14-01 的第二句（final-wording-r3.json）。
   assert.equal(notice(f), '尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。');
   assert.match(exportButton(f).text, /先執行預篩選/);
   const from = f.posted.length;
@@ -221,7 +221,7 @@ test('if the case, the validation or the saved scenarios change during export, n
   f.reply('prescreen.run', plain(remapPrescreen('p-new'))); await flush();
   assert.deepEqual(exportActions(f, from), ['prescreen.run']);
   assert.equal(f.state().busy, false);
-  // 裁定 2026-10-13-28 確認了用字（final-wording.json），裁定 2026-10-14-01 在括號後加句號；作業名稱只確認提到工作底稿。
+  // 用字依裁定 2026-10-13-28（final-wording.json），括號後的句號依裁定 2026-10-14-01；作業名稱只確認提到工作底稿。
   const cancelled = f.messages()[0].text.match(/^(.+)已取消，已完成的部分仍保留（耗時[^）]*）。$/);
   assert.ok(cancelled !== null, 'the confirmed cancellation sentence: ' + f.messages()[0].text);
   assert.match(cancelled[1], /工作底稿/);
@@ -271,7 +271,7 @@ test('export progress shows each reported phase on the busy screen without perce
     assert.match(label(), meaning, 'the busy screen shows the phase');
     seen.push(f.state().busyDetail);
   }
-  // 四個階段的進度句：裁定 2026-10-13-28 確認了用字（final-wording.json），經過時間的寫法經裁定 2026-10-14-01 確認。
+  // 四個階段的進度句：用字依裁定 2026-10-13-28（final-wording.json），經過時間的寫法依裁定 2026-10-14-01。
   assert.deepEqual(seen, [
     '工作底稿：正在準備資料，經過 4.2 秒',
     '工作底稿：正在寫入「合成情境表」，已完成 1 張工作表、寫入 1,500 列，經過 4.2 秒',
@@ -298,7 +298,7 @@ test('export progress shows each reported phase on the busy screen without perce
 test('the scenario choice says it uses the saved conditions, exporting needs no criteria report, and the step uses no internal wording', async () => {
   const f = await openExport({ prescreen: 'p1' });
   const text = step(f).textContent;
-  // 裁定 2026-10-29-02 指出常駐說明太多：「使用目前資料及已儲存條件；草稿不會自動納入。」與底稿標示方式的說明
+  // 使用者指出常駐說明太多（裁定 2026-10-29-02）：「使用目前資料及已儲存條件；草稿不會自動納入。」與底稿標示方式的說明
   // 不再常駐；只有「進階條件篩選」真的有尚未儲存的修改時，才提醒要先儲存成情境。這裡原本比對這兩句，改版後依預期失敗，
   // 首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。「已儲存」仍沿用裁定 2026-10-02-01 統一的用語。
   assert.doesNotMatch(text, /草稿不會自動納入|同傳票/);

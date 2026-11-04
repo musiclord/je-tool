@@ -348,7 +348,7 @@ public sealed class FilterScenarioValidatorTests
 
     /* ---- 考量特殊科目類別配對（specialAccountCategoryPair）---------------- */
 
-    // 裁定 2026-10-13-28 確認四種科目配對條件缺分類時同一句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    // 依裁定 2026-10-13-28，四種科目配對條件缺分類時用同一句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
     private const string SpecialPairMappingError = "科目配對中尚無任何科目設定分類，請先在第四步設定";
 
     private static FilterConditionSpec SpecialPairRule(
@@ -500,7 +500,7 @@ public sealed class FilterScenarioValidatorTests
 
         var errors = FilterScenarioValidator.Validate(Scenario(rules: rule), ReadyWithMapping());
 
-        // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains("第 1 組第 1 條：尚未選擇借方分類", errors);
     }
 
@@ -695,7 +695,7 @@ public sealed class FilterScenarioValidatorTests
         var errors = FilterScenarioValidator.Validate(CommonMappingScenario(card), context);
         var combined = string.Join("；", errors);
 
-        // 裁定 2026-10-13-28 確認缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 依裁定 2026-10-13-28，缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         Assert.Contains($"「{expectedField}」尚未選擇來源欄", combined, StringComparison.Ordinal);
         Assert.Contains(expectedField, combined, StringComparison.Ordinal);
         if (secondExpectedField is not null)

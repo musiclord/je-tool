@@ -470,7 +470,7 @@ public sealed class ProjectHandlersTests
             host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }"""));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
         // 裁定 2026-10-30-23：舊版案件改由設定檔版本（這裡是第 1 版）判斷，訊息寫明刪除後重建。
         // 第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c。
         Assert.Equal(
@@ -706,7 +706,7 @@ public sealed class ProjectHandlersTests
                 CreatePayload.Insert(CreatePayload.LastIndexOf('}'), """, "databaseProvider": "postgres" """)));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送三種資料庫，
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送三種資料庫，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("database_provider_unsupported", JetPayloadRejection.CheckOf(ex));

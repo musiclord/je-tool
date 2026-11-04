@@ -7,7 +7,8 @@ namespace Jet.GuiDriver;
 
 internal static partial class GuiScenarios
 {
-    // 裁定 2026-10-08-06 重新設計自訂篩選條件：這個情境保留原名稱，改成操作新的依審計目的條件（當時叫「常用查核條件」）與情境範例（2026-10-29 起放在「常用篩選條件」分頁）。
+    // 裁定 2026-10-08-06 重新設計自訂篩選條件：這個情境保留原名稱，改成操作新的依審計目的條件（當時叫「常用查核條件」，2026-11-03 起是
+    // 欄位條件分頁欄位「加入」選單裡的常用查法）與情境範例（2026-11-03 起在右側的「從情境範例開始」托盤）。
     // 原本另有 legacy-form-catalog 逐一加入每項常用查核條件；裁定 2026-10-15-01 改由前端測試
     // （frontend-journey-filter-build 的「every common check is added by its own button…」）涵蓋後刪除。
     // 名稱、型別與預期筆數都逐字寫在這裡，不從畫面推導。
@@ -29,9 +30,12 @@ internal static partial class GuiScenarios
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']");
-        // 情境範例 2026-10-29 併進「常用篩選條件」分頁，開啟第五步就在這個分頁，不用先切到自訂篩選條件、再展開範例清單；
-        // 第一個範例預覽後才切到自訂篩選條件看分類，第二個範例再切回來。操作從 47 次減為 44 次，由腳本逐步推算，待 Gui 實跑確認。
-        outcome.RecordStage("custom_examples_and_trailing_zeros");
+        // 情境範例 2026-11-03 移到右側條件組合上方的「從情境範例開始」托盤（裁定 2026-11-03-05），預設收起（裁定 2026-11-03-19）：
+        // 第一次套用前打開，同一次開案內保持打開。第一個範例預覽後切到欄位條件分頁，確認換分頁只改畫面。
+        // 原本切到自訂篩選條件並展開「金額」分類；2026-11-03 起常用查法掛在各自的欄位，收在欄位「加入」打開的選單裡（裁定 2026-11-03-37），沒有分類可展開。Gui 在提交前才實跑，
+        // 同一個改動的前端測試第一次失敗見 FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+        // 階段名稱原本是 custom_examples_and_trailing_zeros，2026-11-03 拿掉舊分頁識別 custom（裁定 2026-11-03-21）。
+        outcome.RecordStage("examples_and_trailing_zeros");
         // Independent fixed answers from DemoDataFactory's synthetic population and the GUI department column:
         // weekend manual reversal descriptions: none; manual department entries: 679 baseline vouchers, one department-matching
         // debit each; the specified account codes: none; holiday seeds are automatic while manual baseline rows are ordinary
@@ -61,10 +65,9 @@ internal static partial class GuiScenarios
             await Check("!!preview && preview.count===" + count);
             if (i == 0)
             {
-                // 切到自訂篩選條件、切換依審計目的的分類都只改畫面，不清除草稿或預覽。
-                await Click("[data-condition-source=custom]");
-                await Click("[data-check-category=amounts]");
-                await Check("!!preview && draft.groups[0].conditions.length===3 && document.querySelector('[data-check-category=amounts]').getAttribute('aria-expanded')==='true'");
+                // 切到欄位條件分頁只改畫面，不清除草稿或預覽。
+                await Click("[data-condition-source=field]");
+                await Check("!!preview && draft.groups[0].conditions.length===3 && document.querySelector('[data-condition-source=field]').getAttribute('aria-selected')==='true' && document.querySelector('.filter-template-tray').open");
                 await CaptureScreenshotAsync(cdp, outcome, ct);
             }
             await Click("[data-action=save-scenario]");
@@ -72,8 +75,10 @@ internal static partial class GuiScenarios
             await Click("[data-filter-pane-select=filter]");
             await Check("draft.groups.every(g=>g.conditions.length===0) && !preview");
         }
-        await AddCustomConditionAsync(cdp, "check:trailingZeros", Click, ct);
-        await Check("draft.groups.flatMap(g=>g.conditions).length===1 && draft.groups[0].conditions[0].type==='group' && draft.groups[0].conditions[0].conditions[0].value==='000000' && draft.groups[0].conditions[0].conditions[1].value==='1'");
+        // 尾數連續多個 0 改成一條條件（裁定 2026-11-03-07），原本是「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組；
+        // 選到的分錄相同，筆數照舊是 30。
+        await AddFieldConditionAsync(cdp, "shortcut:trailingZeros", Click, ct);
+        await Check("draft.groups.flatMap(g=>g.conditions).length===1 && draft.groups[0].conditions[0].type==='fieldValue' && draft.groups[0].conditions[0].operator==='endsWithZeros' && draft.groups[0].conditions[0].value==='6'");
         await Click("[data-action=preview-scenario]");
         await Check("!!preview && preview.count===30");
         await Click("[data-action=save-scenario]");
@@ -94,7 +99,7 @@ internal static partial class GuiScenarios
         await Check("!!window.JetUi.findCurrentReport(state,'workingPaper',{validationResultId:state.results.validate.resultRef.resultId,scenarioRevision:state.filterResultRef.revision,scenarioPositions:[1,2,3,4,5]})");
         await Click("[data-action=app-back-picker]"); await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
         await Click("[data-bind=step-nav] [data-step-index='4']"); await Click("[data-filter-pane-select=saved]");
-        await Check("saved.length===5 && saved[2].groups[0].conditions[0].conditions[1].quantifier==='any' && saved[3].groups[0].conditions[3].conditions[1].values.join(',')==='1,2,3' && saved[4].groups[0].conditions[0].type==='group' && saved[4].groups[0].conditions[0].conditions[0].operator==='endsWithDigits'");
+        await Check("saved.length===5 && saved[2].groups[0].conditions[0].conditions[1].quantifier==='any' && saved[3].groups[0].conditions[3].conditions[1].values.join(',')==='1,2,3' && saved[4].groups[0].conditions[0].type==='fieldValue' && saved[4].groups[0].conditions[0].operator==='endsWithZeros'");
         await Click("[data-action=toggle-scenario][data-index='2']");
         // 2026-10-14 借貸方向改用「借貸別」條件後，「借方且科目」放進同一個子條件組，讀回時本來就有「同一分錄（（僅借方 且 …））」
         // （前後端共用的 tools/tests/fixtures/filter-readback-sentences.json 的 explicit-direction-and-account-child-group）。

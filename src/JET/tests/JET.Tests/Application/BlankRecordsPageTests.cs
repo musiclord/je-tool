@@ -19,7 +19,7 @@ public sealed class BlankRecordsPageTests(DemoProjectFixture fixture)
         do
         {
             var page = await fixture.Host.DispatchAsync("query.blankRecordsPage",
-                JsonSerializer.Serialize(new { category = "nullDescription", cursor, pageSize = 200 }));
+                JsonSerializer.Serialize(new { category = "blankDescription", cursor, pageSize = 200 }));
             foreach (var r in page.GetProperty("rows").EnumerateArray())
             {
                 var doc = r.GetProperty("voucherNumber").GetString();
@@ -32,7 +32,7 @@ public sealed class BlankRecordsPageTests(DemoProjectFixture fixture)
             cursor = nc.ValueKind == JsonValueKind.Null ? null : nc.GetString();
         } while (cursor is not null);
 
-        // category=nullDescription recount = 本期母體(§2:gl_date ∈ 會計期間)內 description 空白或 NULL。
+        // category=blankDescription recount = 本期母體(§2:gl_date ∈ 會計期間)內 description 空白或 NULL。
         var total = await DemoProjectPipeline.QueryScalarAsync(fixture.Host, fixture.ProjectId,
             "SELECT COUNT(*) FROM gl " +
             "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31' " +

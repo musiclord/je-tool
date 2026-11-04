@@ -11,7 +11,7 @@ namespace JET.Tests.Infrastructure;
 /// 另有固定資產與費用組合的自訂分類子樹與非季末期末日兩個案例。
 /// 固定答案是手算的 9 張合成傳票（每張借貸兩列）；斷言比對命中的傳票號碼，不只比筆數。
 /// 每個案例都在 SQLite 與 DuckDB 各跑一次，SQL Server 不在這裡跑。原本另有 12 個只在 SQLite 跑、內容相同的案例，
-/// 裁定 2026-10-15-01 決定刪除（出處見 docs/history/specs/2026-10-15-motion-and-verification-plan.md）。
+/// 依裁定 2026-10-15-01 刪除（出處見 docs/history/specs/2026-10-15-motion-and-verification-plan.md）。
 /// </summary>
 public sealed class CommonFilterPredicateTests
 {

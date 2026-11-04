@@ -13,7 +13,7 @@ namespace JET.Tests.Application;
 public sealed class WorkingPaperExportRegenerationTests
 {
     [Fact]
-    public async Task ValidationNullSummary_1234289_PreservesWorkingPaperCatalogAndNormalizedFingerprint()
+    public async Task ValidationBlankSummary_1234289_PreservesWorkingPaperCatalogAndNormalizedFingerprint()
     {
         using var host = new HandlerTestHost();
         var prepared = await PrepareAsync(host);
@@ -33,7 +33,7 @@ public sealed class WorkingPaperExportRegenerationTests
 
         var counts = new[] { 1_234_000, 100, 100, 50, 39 };
         Assert.Equal(1_234_289, counts.Sum());
-        await ReplaceValidationNullSummaryAsync(
+        await ReplaceValidationBlankSummaryAsync(
             host,
             prepared.ProjectId,
             prepared.ValidationResultId,

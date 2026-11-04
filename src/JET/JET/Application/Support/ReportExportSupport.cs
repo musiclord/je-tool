@@ -6,7 +6,7 @@ namespace JET.Application;
 internal static class ReportExportSupport
 {
     /// <summary>
-    /// 畫面持有的情境清單和已儲存的不一致（裁定 2026-10-14-01 確認了用字）。
+    /// 畫面持有的情境清單和已儲存的不一致（用字依裁定 2026-10-14-01）。
     /// 產生報告、底稿與重新計算選錯情境位置時共用。
     /// </summary>
     internal const string ScenarioListOutOfDate =

@@ -352,7 +352,7 @@
       textStyle: { fontFamily: CHART_FONT, color: VALUE_FILL },
       aria: {
         enabled: true,
-        description: '編製人員分錄筆數、人工分錄與累積占比分布。'
+        description: '傳票建立人員分錄筆數、人工分錄與累積占比分布。'
       },
       tooltip: {
         extraCssText: TOOLTIP_GLASS,
@@ -370,7 +370,7 @@
             lines.push('累積占比 ' + fmtPct(row.cumulativePct));
           }
           if (row.aggregated) {
-            lines.push('「其他」為其餘編製人員的合計');
+            lines.push('「其他」為其餘傳票建立人員的合計');
           }
           return tooltipContent(row.label, lines);
         }
@@ -475,7 +475,7 @@
       textStyle: { fontFamily: CHART_FONT, color: VALUE_FILL },
       aria: {
         enabled: true,
-        description: '使用次數最低的科目分布，依使用次數由少至多呈現。'
+        description: '分錄筆數最低的科目分布，依分錄筆數由少至多呈現。'
       },
       tooltip: {
         extraCssText: TOOLTIP_GLASS,
@@ -484,14 +484,14 @@
         formatter: function (param) {
           var item = param.data;
           var label = item.accountNumber + (item.accountName ? ' ' + item.accountName : '');
-          return tooltipContent(label, ['使用 ' + Ui.countText(item.entryCount) + ' 筆']);
+          return tooltipContent(label, ['分錄 ' + Ui.countText(item.entryCount) + ' 筆']);
         }
       },
       grid: { left: 218, right: 42, top: 18, bottom: 38 },
       xAxis: {
         type: 'value',
         min: 0,
-        name: '使用次數',
+        name: '分錄筆數',
         nameLocation: 'middle',
         nameGap: 28,
         nameTextStyle: { color: LABEL_FILL, fontFamily: CHART_FONT, fontSize: 12 },
@@ -515,7 +515,7 @@
         }
       },
       series: [{
-        name: '使用次數',
+        name: '分錄筆數',
         type: 'scatter',
         data: data,
         symbolSize: 9,
@@ -533,7 +533,7 @@
 
   function tabsHtml(activeTab) {
     return [
-      { key: 'preparers', label: '編製人員分錄分布' },
+      { key: 'preparers', label: '傳票建立人員分錄分布' },
       { key: 'accounts', label: '較少使用之科目' }
     ].map(function (tab) {
       var active = tab.key === activeTab;
@@ -588,8 +588,8 @@
     var rows = rulePeriod.rules.filter(function (rule) { return rule.naReason != null; });
     if (rows.length === 0) { return ''; }
     return (
-      '<div class="overview-bi__na-list" aria-label="不適用規則">' +
-        '<span class="overview-bi__na-title">不適用規則</span>' +
+      '<div class="overview-bi__na-list" aria-label="無法執行的規則">' +
+        '<span class="overview-bi__na-title">無法執行的規則</span>' +
         rows.map(function (rule) {
           return '<div class="overview-bi__na-row"><span>' + Ui.esc(prescreenLabel(rule.key)) +
             '</span><span>' + Ui.esc(rule.naReason) + '</span></div>';
@@ -612,7 +612,7 @@
         ? '<div class="overview-bi__body">' +
             chartContainerHtml('rule-period', 'rule-period', '適用的預篩選規則全期符合比例分布') +
           '</div>'
-        : messageHtml('na', '沒有可繪製的適用規則', '不適用規則與原因列於下方。')) +
+        : messageHtml('na', '沒有可繪製的規則', '無法執行的規則與原因列於下方。')) +
       rulePeriodNaHtml(rulePeriod) +
       '<p class="overview-bi__note">' + Ui.esc(note) + '</p>'
     );
@@ -676,14 +676,14 @@
   function preparerPanelHtml(concentration) {
     var preparers = concentration.preparers;
     var denominator = '累積占比以查核期間全部 ' + Ui.countText(preparers.totalPreparerCount) +
-      ' 位編製人員、' + Ui.countText(preparers.totalEntryCount) + ' 筆分錄為分母。';
+      ' 位傳票建立人員、' + Ui.countText(preparers.totalEntryCount) + ' 筆分錄為分母。';
     var lead = preparers.top5SharePct == null
       ? denominator
-      : '前 5 位編製人員占查核期間分錄 ' + fmtPct(preparers.top5SharePct) + '。' + denominator;
+      : '前 5 位傳票建立人員占查核期間分錄 ' + fmtPct(preparers.top5SharePct) + '。' + denominator;
 
     return (
       '<div class="overview-bi__body">' +
-        chartContainerHtml('concentration', 'concentration', '編製人員分錄筆數與累積占比分布') +
+        chartContainerHtml('concentration', 'concentration', '傳票建立人員分錄筆數與累積占比分布') +
       '</div>' +
       '<p class="overview-bi__legend">' +
         '<span class="overview-bi__key overview-bi__key--bar"></span>分錄筆數' +
@@ -696,16 +696,16 @@
 
   function rareAccountPanelHtml(concentration) {
     var accounts = concentration.rareAccounts;
-    var note = '以下為使用次數最低的 ' + Ui.countText(accounts.length) + ' 個科目（升冪）；' +
+    var note = '以下為分錄筆數最低的 ' + Ui.countText(accounts.length) + ' 個科目（升冪）；' +
       '查核期間共 ' + Ui.countText(concentration.distinctAccountCount) + ' 個科目。' +
-      '本圖聚焦使用次數最低的科目，不呈現高頻科目的集中程度。';
+      '本圖聚焦分錄筆數最低的科目，不呈現高頻科目的集中程度。';
 
     return (
       '<div class="overview-bi__body">' +
         chartContainerHtml(
           'concentration',
           'concentration overview-bi__chart--rare-accounts',
-          '使用次數最低的科目分布') +
+          '分錄筆數最低的科目分布') +
       '</div>' +
       '<p class="overview-bi__note">' + Ui.esc(note) + '</p>'
     );
@@ -721,7 +721,7 @@
       return sectionHtml(messageHtml(
         'empty',
         '尚未執行預篩選（選用）',
-        '在「資料驗證與測試」步驟執行預篩選後，這裡會顯示編製人員分錄分布與較少使用之科目。'), '');
+        '在「資料驗證與測試」步驟執行預篩選後，這裡會顯示傳票建立人員分錄分布與較少使用之科目。'), '');
     }
 
     var concentration = prescreen.concentration;
@@ -729,9 +729,9 @@
     if (concentration.status !== 'V') {
       return sectionHtml(messageHtml(
         'na',
-        '不適用',
+        '無法執行',
         concentration.naReason ||
-          '查核期間沒有可彙總的分錄，因此無法產生預篩選。「不適用」與結果為 0 語意不同。'), '');
+          '查核期間沒有可彙總的分錄，因此無法產生預篩選。「無法執行」與結果為 0 語意不同。'), '');
     }
 
     var tab = activeTab === 'accounts' ? 'accounts' : 'preparers';

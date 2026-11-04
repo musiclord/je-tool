@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class ManualAutoListedCodeWarningTests
 {
-// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         private const string ListsManualMissing =
         "來源欄「人工傳票」中沒有人工分錄代碼「1」，有值的列都將視為自動分錄。代碼有誤時，請修改後重新確認配對。";
 

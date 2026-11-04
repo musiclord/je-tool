@@ -55,37 +55,10 @@
       "sublabel": "結構版本與篩選資料版本"
     },
     {
-      "id": "result_rule_run",
-      "label": "result_rule_run",
-      "row": 0,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "run_id",
-          "type": "TEXT",
-          "key": "pk"
-        },
-        {
-          "name": "run_kind",
-          "type": "TEXT"
-        },
-        {
-          "name": "generated_utc",
-          "type": "TEXT"
-        },
-        {
-          "name": "summary_json",
-          "type": "TEXT"
-        }
-      ],
-      "tag": "執行與版本",
-      "sublabel": "驗證與預篩選的執行摘要"
-    },
-    {
-      "id": "config_result_stale_state",
-      "label": "config_result_stale_state",
-      "row": 0,
-      "col": 2,
+      "id": "result_stale_state",
+      "label": "result_stale_state",
+      "row": 1,
+      "col": 0,
       "attributes": [
         {
           "name": "singleton",
@@ -109,10 +82,56 @@
       "sublabel": "三種結果是否失效"
     },
     {
-      "id": "app_message_log",
-      "label": "app_message_log",
+      "id": "validation_result",
+      "label": "validation_result",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "result_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "generated_utc",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "執行與版本",
+      "sublabel": "驗證的執行摘要"
+    },
+    {
+      "id": "prescreen_result",
+      "label": "prescreen_result",
       "row": 1,
-      "col": 0,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "result_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "generated_utc",
+          "type": "TEXT"
+        },
+        {
+          "name": "summary_json",
+          "type": "TEXT"
+        }
+      ],
+      "tag": "執行與版本",
+      "sublabel": "預篩選的執行摘要"
+    },
+    {
+      "id": "message_log",
+      "label": "message_log",
+      "row": 0,
+      "col": 2,
       "attributes": [
         {
           "name": "message_id",
@@ -136,10 +155,10 @@
       "sublabel": "畫面訊息紀錄"
     },
     {
-      "id": "audit_event_log",
-      "label": "audit_event_log",
+      "id": "operation_log",
+      "label": "operation_log",
       "row": 1,
-      "col": 1,
+      "col": 2,
       "attributes": [
         {
           "name": "event_id",
@@ -172,7 +191,7 @@
         }
       ],
       "tag": "操作紀錄",
-      "sublabel": "重新匯入、發布等操作紀錄"
+      "sublabel": "重新匯入、發布等操作留痕"
     }
   ],
   "relationships": [],
@@ -181,16 +200,19 @@
       "dot": "cyan",
       "title": "這些表怎麼被用到",
       "items": [
-        "這些表之間沒有程式用來連接的欄位，用途是版本、失效狀態與操作紀錄。",
-        "上游資料修改時，RuleRunResultReset 在同一筆交易標記 config_result_stale_state，並把 schema_info 的 filter_data_revision 加一。",
-        "audit_event_log 由 IProjectAuditLog 寫入，例如 TB 重新匯入與報告發布；SQLite 與 DuckDB 案件寫入失敗時記在支援日誌，並在回應附提醒。"
+        "驗證與預篩選只把摘要 JSON 各自存進 validation_result 與 prescreen_result。",
+        "上游資料修改時，ResultReset 在同一交易清掉受影響的結果並標記 result_stale_state；篩選命中失效時，也把 schema_info 的 filter_data_revision 加一。",
+        "operation_log 由 IProjectOperationLog 寫入，例如 TB 重新匯入與報告發布；SQLite 與 DuckDB 案件寫入失敗時記在支援日誌，並在回應附提醒。",
+        "來源：ResultTables.cs 第 5–16 行；ResultReset.cs 第 37–81 行；AuditedReportStore.cs 第 166–186 行；ImportFromFileHandler.cs 第 169–182 行。"
       ]
     },
     {
-      "dot": "slate",
-      "title": "沒有外鍵",
+      "dot": "amber",
+      "title": "線條不是資料庫外鍵",
       "items": [
-        "這批建表定義沒有宣告外鍵；沒畫線也不代表兩張表無關。"
+        "現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。",
+        "沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。",
+        "PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。"
       ]
     }
   ]

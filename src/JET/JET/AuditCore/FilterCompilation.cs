@@ -80,7 +80,7 @@ internal sealed partial class GlFilterWhereBuilder(
 
     /// <summary>
     /// 第 N 組第 M 條的條件；編譯時的檢查沒過時把組號、條號記在例外上，供支援日誌使用
-    /// （裁定 2026-10-14-01 確認了用字）。例外過濾器只記位置、不攔下例外。
+    /// （用字依裁定 2026-10-14-01）。例外過濾器只記位置、不攔下例外。
     /// </summary>
     private string BuildLocatedRule(
         FilterSqlParameterPlanBuilder parameters,
@@ -314,9 +314,9 @@ internal static class BlankRecordsCategoryPredicate
     /// <summary>四類述詞的固定順序；全部只看納入測試的分錄。</summary>
     public static readonly IReadOnlyList<BlankRecordCategory> All =
     [
-        BlankRecordCategory.NullAccount,
-        BlankRecordCategory.NullDocument,
-        BlankRecordCategory.NullDescription,
+        BlankRecordCategory.BlankAccountNumber,
+        BlankRecordCategory.BlankVoucherNumber,
+        BlankRecordCategory.BlankDescription,
         BlankRecordCategory.ApprovalDateNotInPeriod
     ];
 
@@ -328,9 +328,9 @@ internal static class BlankRecordsCategoryPredicate
 
     private static string Build(BlankRecordCategory category, ISqlDialect dialect) => category switch
     {
-        BlankRecordCategory.NullAccount => SqlBlankText.IsBlank(dialect, "account_number"),
-        BlankRecordCategory.NullDocument => SqlBlankText.IsBlank(dialect, "voucher_number"),
-        BlankRecordCategory.NullDescription => SqlBlankText.IsBlank(dialect, "description"),
+        BlankRecordCategory.BlankAccountNumber => SqlBlankText.IsBlank(dialect, "account_number"),
+        BlankRecordCategory.BlankVoucherNumber => SqlBlankText.IsBlank(dialect, "voucher_number"),
+        BlankRecordCategory.BlankDescription => SqlBlankText.IsBlank(dialect, "description"),
         BlankRecordCategory.ApprovalDateNotInPeriod =>
             "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))",
         _ => throw new ArgumentOutOfRangeException(nameof(category), category, "未知的 null 紀錄 category。")

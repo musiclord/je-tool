@@ -69,7 +69,7 @@ public interface IHighRiskSummaryScenariosRepository
     /// Criteria Selection 工作表，報告摘要頁據此加一列說明（裁定 2026-10-19-12）。沒有這種命中的位置不在回傳 dict。
     /// 兩個正式實作都覆寫；預設實作只給不匯出報告的測試替身用。
     /// </summary>
-    Task<IReadOnlyDictionary<int, long>> GetBlankDocumentHitRowCountsAsync(
+    Task<IReadOnlyDictionary<int, long>> GetBlankVoucherNumberHitRowCountsAsync(
         string projectId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyDictionary<int, long>>(new Dictionary<int, long>());
 }

@@ -237,19 +237,19 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
             blankRecordsTest = new
             {
                 status = Verdict(runManifest, "blank_records_test").Status!,
-                nullAccountCount = result.NullAccountCount,
-                nullDocumentCount = result.NullDocumentCount,
-                nullDescriptionCount = result.NullDescriptionCount,
+                blankAccountNumberCount = result.BlankAccountNumberCount,
+                blankVoucherNumberCount = result.BlankVoucherNumberCount,
+                blankDescriptionCount = result.BlankDescriptionCount,
                 // 傳票核准日不可用時筆數是 null，原因寫缺什麼、到哪裡補，畫面只顯示這一句（裁定 2026-10-23-01）。
                 approvalDateNotInPeriodCount = result.ApprovalDateNotInPeriodCount,
                 approvalDateNotInPeriodNaReason = plan.OutOfPeriodApprovalNaReason,
-                nullRows = result.BlankRecordRows.Select(r => (object)new
+                blankRows = result.BlankRecordRows.Select(r => (object)new
                 {
                     voucherNumber = r.VoucherNumber,
                     accountNumber = r.AccountNumber,
                     glDate = r.GlDate,
                     description = r.Description,
-                    issues = NullRowIssues(r)
+                    issues = BlankRowIssues(r)
                 }).ToArray()
             },
             sourceQuality = new
@@ -284,13 +284,13 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
 
     private static decimal ToDisplay(long scaled, int moneyScale) => (decimal)scaled / moneyScale;
 
-    private static string[] NullRowIssues(BlankRecordRow r)
+    private static string[] BlankRowIssues(BlankRecordRow r)
     {
         var issues = new List<string>(4);
-        if (r.NullAccount) { issues.Add("account"); }
-        if (r.NullDocument) { issues.Add("document"); }
-        if (r.NullDescription) { issues.Add("description"); }
-        if (r.ApprovalDateNotInPeriod) { issues.Add("date"); }
+        if (r.BlankAccountNumber) { issues.Add("accountNumber"); }
+        if (r.BlankVoucherNumber) { issues.Add("voucherNumber"); }
+        if (r.BlankDescription) { issues.Add("description"); }
+        if (r.ApprovalDateNotInPeriod) { issues.Add("approvalDate"); }
         return issues.ToArray();
     }
 }

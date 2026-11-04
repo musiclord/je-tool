@@ -148,7 +148,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             }
             catch (Exception exception)
             {
-                // 裁定 2026-10-13-28 確認了這句的用字。支援日誌記下刪不掉的原因，例如檔案正被開啟（2026-10-21）。
+                // 這句的用字依裁定 2026-10-13-28。支援日誌記下刪不掉的原因，例如檔案正被開啟（2026-10-21）。
                 if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "folder_delete", exception);
                 cleanupMessage = "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。";
             }

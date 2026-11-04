@@ -17,7 +17,7 @@ namespace JET.Tests.Application;
 ///
 /// wire 形狀已逐項核對 PrescreenRunHandler / ValidateRunHandler(計數皆 long → GetInt64):
 /// prescreen 計數鍵為 "<rule>.count";validate 計數鍵為 diffAccountCount /
-/// unbalancedVoucherCount / null*Count(非 plan 草稿的 diffCount / unbalancedCount / nullDescription)。
+/// unbalancedVoucherCount / null*Count(非 plan 草稿的 diffCount / unbalancedCount / blankDescription)。
 /// </summary>
 public sealed class DemoRuleOracleTests
 {
@@ -172,7 +172,7 @@ public sealed class DemoRuleOracleTests
     // ============================ 驗證(validate.run)oracle ============================
 
     [Fact]
-    public async Task Validate_CleanExceptDesignedNullDescription()
+    public async Task Validate_CleanExceptDesignedBlankDescription()
     {
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
@@ -217,9 +217,9 @@ public sealed class DemoRuleOracleTests
         var blankRecords = v.GetProperty("blankRecordsTest");
         Assert.Equal(
             (long)DemoDataFactory.BlankDescriptionVouchers,
-            blankRecords.GetProperty("nullDescriptionCount").GetInt64());
-        Assert.Equal(0, blankRecords.GetProperty("nullAccountCount").GetInt64());
-        Assert.Equal(0, blankRecords.GetProperty("nullDocumentCount").GetInt64());
+            blankRecords.GetProperty("blankDescriptionCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankAccountNumberCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankVoucherNumberCount").GetInt64());
         Assert.Equal(
             2L * DemoDataFactory.PrepPeriodApprovalVouchers,
             blankRecords.GetProperty("approvalDateNotInPeriodCount").GetInt64());
@@ -288,7 +288,7 @@ public sealed class DemoRuleOracleTests
     }
 
     [SqlServerFact]
-    public async Task Validate_CleanExceptDesignedNullDescription_SqlServer()
+    public async Task Validate_CleanExceptDesignedBlankDescription_SqlServer()
     {
         var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
         if (connectionString is null)
@@ -315,9 +315,9 @@ public sealed class DemoRuleOracleTests
             var blankRecords = v.GetProperty("blankRecordsTest");
             Assert.Equal(
                 (long)DemoDataFactory.BlankDescriptionVouchers,
-                blankRecords.GetProperty("nullDescriptionCount").GetInt64());
-            Assert.Equal(0, blankRecords.GetProperty("nullAccountCount").GetInt64());
-            Assert.Equal(0, blankRecords.GetProperty("nullDocumentCount").GetInt64());
+                blankRecords.GetProperty("blankDescriptionCount").GetInt64());
+            Assert.Equal(0, blankRecords.GetProperty("blankAccountNumberCount").GetInt64());
+            Assert.Equal(0, blankRecords.GetProperty("blankVoucherNumberCount").GetInt64());
             // 核准日離期 = 期末後核准種子張數 × 每張 2 列(「核准日不在期間」以核准日判定,裁定 2026-06-23-01)。
             Assert.Equal(
                 2L * DemoDataFactory.PrepPeriodApprovalVouchers,
@@ -362,7 +362,7 @@ public sealed class DemoRuleOracleTests
     }
 
     [Fact]
-    public async Task Validate_CleanExceptDesignedNullDescription_DuckDb()
+    public async Task Validate_CleanExceptDesignedBlankDescription_DuckDb()
     {
         using var host = new HandlerTestHost();
         var ctx = await DemoProjectPipeline.SetupAsync(host, databaseProvider: "duckdb");
@@ -379,9 +379,9 @@ public sealed class DemoRuleOracleTests
         var blankRecords = v.GetProperty("blankRecordsTest");
         Assert.Equal(
             (long)DemoDataFactory.BlankDescriptionVouchers,
-            blankRecords.GetProperty("nullDescriptionCount").GetInt64());
-        Assert.Equal(0, blankRecords.GetProperty("nullAccountCount").GetInt64());
-        Assert.Equal(0, blankRecords.GetProperty("nullDocumentCount").GetInt64());
+            blankRecords.GetProperty("blankDescriptionCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankAccountNumberCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankVoucherNumberCount").GetInt64());
         Assert.Equal(
             2L * DemoDataFactory.PrepPeriodApprovalVouchers,
             blankRecords.GetProperty("approvalDateNotInPeriodCount").GetInt64());

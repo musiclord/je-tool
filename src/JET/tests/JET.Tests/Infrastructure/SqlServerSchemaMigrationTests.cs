@@ -31,8 +31,10 @@ public sealed class SqlServerSchemaMigrationTests
         // 條件組結果改成依條件組編號儲存，filter_scenario 加 scenario_id、新增 filter_hit_condition，預期版本由 17 改成 18；
         // 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
         // 驗證摘要裡同一傳票號碼出現在不同總帳日期的鍵名改用 voucher（裁定 2026-11-01-01），預期版本由 18 改成 19；第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
-        Assert.Equal("19", SqlServerProjectDatabase.SchemaVersion);
-        Assert.Contains("'schema_version', '19')", SqlServerProjectDatabase.SchemaSql);
+        // 資料缺漏輔助檢視的驗證摘要鍵名改用 blank 字根，預期版本由 19 改成 20。第一次失敗收據 20261103-025623476-a412fc781de145cdb6b2ad2aa38e67b4。
+        // 欄位資訊多記每一欄的來歷與對應的 JET 欄位（裁定 2026-11-03-11），field_info 加 field_origin 與 jet_field，預期版本由 20 改成 21。第一次失敗：Focused 收據 20261103-070053462-34d240fe519d4190a85d1a4368c1a80a。
+        Assert.Equal("21", SqlServerProjectDatabase.SchemaVersion);
+        Assert.Contains("'schema_version', '21')", SqlServerProjectDatabase.SchemaSql);
         // 升版程式拿掉後沒有回寫版本的語句，這裡原本對它的檢查一起拿掉（裁定 2026-10-30-24）。
         Assert.Contains("field_mapping_previous", SqlServerProjectDatabase.SchemaSql);
     }
@@ -62,7 +64,9 @@ public sealed class SqlServerSchemaMigrationTests
         // 條件組結果改成依條件組編號儲存，filter_scenario 加 scenario_id、新增 filter_hit_condition，預期版本由 17 改成 18；
         // 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
         // 驗證摘要的鍵名改用 voucher（裁定 2026-11-01-01），預期版本由 18 改成 19；第一次失敗收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
-        Assert.Equal("19", SqlServerProjectDatabase.SchemaVersion);
+        // 資料缺漏輔助檢視的驗證摘要鍵名改用 blank 字根，預期版本由 19 改成 20。第一次失敗收據 20261103-025623476-a412fc781de145cdb6b2ad2aa38e67b4。
+        // 欄位資訊加 field_origin 與 jet_field（裁定 2026-11-03-11），預期版本由 20 改成 21。第一次失敗：Focused 收據 20261103-070053462-34d240fe519d4190a85d1a4368c1a80a。
+        Assert.Equal("21", SqlServerProjectDatabase.SchemaVersion);
         // 傳票摘要欄改名 description 後，和欄位資訊表 field_info 的 description 同名；原本在整份建表語句找欄名，
         // 會把不需要固定定序的 field_info.description 也算進來。改成只看該表的建表與補欄語句。
         // 第一次失敗：Focused 收據 20261030-120941513-6c7d1b4be48e4af4a18bea06cc5f413d。

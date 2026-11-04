@@ -90,7 +90,7 @@ public sealed class MutationInvalidationStateTests
             AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
             AssertFlags(response.GetProperty("staleState"), false, true, false);
             Assert.Equal(JsonValueKind.Null, response.GetProperty("reports").ValueKind);
-            // 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
             Assert.Equal("變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。",
                 response.GetProperty("reportWarning").GetString());
         }

@@ -117,7 +117,7 @@
       "y": 336,
       "label": "IImportRepository.GetLatestBatchAsync",
       "variant": "dashed",
-      "note": "先由 JetAuditProgram 建立計畫"
+      "note": "讀前一批次；先由 JetAuditProgram 建立計畫"
     },
     {
       "id": "m04",
@@ -212,16 +212,16 @@
       "y": 993,
       "label": "IProjectStore.SaveAsync",
       "variant": "dashed",
-      "note": "案件步驟落後才更新；失敗只記警告"
+      "note": "案件步驟落後才更新；失敗記在支援日誌"
     },
     {
       "id": "m15",
       "from": "handler",
       "to": "db",
       "y": 1055,
-      "label": "IProjectAuditLog.TryAppendAsync",
+      "label": "IProjectOperationLog.TryAppendAsync",
       "variant": "dashed",
-      "note": "經 CommittedAuditLog 呼叫；失敗記在支援日誌，回應附提醒"
+      "note": "只在取代了舊批次時寫；經 CommittedOperationLog 呼叫，失敗回應附提醒"
     },
     {
       "id": "m16",
@@ -259,7 +259,7 @@
         "ImportTbFromFileHandler 繼承 ImportFromFileHandler，處理流程寫在父類別，GL 匯入共用同一段。",
         "CompositeTabularFileReader 依副檔名交給 OpenXml、CSV、舊版 Excel 或 Access 的讀取器。",
         "「逐列讀取」這條線不是方法呼叫：LocalImportRepository 逐列取用讀檔器先準備好的資料列，所以程式碼裡看不到讀檔類別。",
-        "案件用 SQLite 或 DuckDB 時，匯入由 LocalImportRepository 執行；操作紀錄由 CommittedAuditLog 經 IProjectAuditLog 交給 BestEffortProjectAuditLog，再寫進 LocalProjectAuditLog。寫入失敗時回應附提醒「變更已儲存，但這次變更沒有寫入操作紀錄。」。",
+        "案件用 SQLite 或 DuckDB 時，匯入由 LocalImportRepository 執行；操作紀錄由 CommittedOperationLog 經 IProjectOperationLog 交給 BestEffortProjectOperationLog，再寫進 LocalProjectOperationLog。寫入失敗時回應附提醒「變更已儲存，但這次變更沒有寫入操作紀錄。」。",
         "SQLite 案件在交易途中取消時，CancellableSqliteCommand 會中斷執行中的語句，被中斷的寫入由 SQLite 回復。"
       ]
     }

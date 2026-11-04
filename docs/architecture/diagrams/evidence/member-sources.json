@@ -22,7 +22,7 @@
       "shown": "RunAsync<T>(string, Func<CancellationToken, Task<T>>): Task<T>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:262-264"
+      "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:315-317"
     },
     {
       "type": "AppCompositionRoot",
@@ -38,7 +38,7 @@
       "shown": "DispatchAsync(string, JsonElement): Task<object?>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:67-71"
+      "excerpt": "src/JET/JET/Bridge/ActionDispatcher.cs:70-74"
     },
     {
       "type": "ActionExecutionGate",
@@ -86,7 +86,7 @@
       "shown": "Action = \"import.tb.fromFile\": string",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:454-454"
+      "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:460-460"
     }
   ],
   "filter-types": [
@@ -96,7 +96,7 @@
       "shown": "HandleAsync(JsonElement): Task<object?>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:27-27"
+      "excerpt": "src/JET/JET/Application/Handlers/FilterScenarioHandlers.cs:30-30"
     },
     {
       "type": "FilterScenarioBatchWriter",
@@ -104,7 +104,7 @@
       "shown": "LoadAsync(IProjectStore, string, FilterScenarioStores, JsonElement): Task<Prepared>",
       "visibility": "package",
       "static": true,
-      "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:47-52"
+      "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:50-55"
     },
     {
       "type": "FilterScenarioBatchWriter",
@@ -112,15 +112,15 @@
       "shown": "PlanSave(Prepared, IReadOnlyList<SavedFilterScenario>, JsonElement, DateTimeOffset): Change",
       "visibility": "package",
       "static": true,
-      "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:100-104"
+      "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:104-108"
     },
     {
       "type": "FilterScenarioBatchWriter",
       "member": "PublishAsync",
-      "shown": "PublishAsync(string, IProjectStore, …): Task<object>",
+      "shown": "PublishAsync(string, int, …): Task<object>",
       "visibility": "package",
       "static": true,
-      "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:197-206"
+      "excerpt": "src/JET/JET/Application/Support/FilterScenarioBatchWriter.cs:216-226"
     },
     {
       "type": "JetAuditProgram",
@@ -128,7 +128,7 @@
       "shown": "Plan(FilterRequest): FilterPlan",
       "visibility": "package",
       "static": true,
-      "excerpt": "src/JET/JET/AuditCore/FilterProgram.cs:89-91"
+      "excerpt": "src/JET/JET/AuditCore/FilterProgram.cs:95-97"
     },
     {
       "type": "JetAuditProgram",
@@ -136,7 +136,7 @@
       "shown": "Finalize(FilterPlan, FilterFacts): FilterResult",
       "visibility": "package",
       "static": true,
-      "excerpt": "src/JET/JET/AuditCore/FilterProgram.cs:193-195"
+      "excerpt": "src/JET/JET/AuditCore/FilterProgram.cs:216-218"
     },
     {
       "type": "IFilterScenarioStore",
@@ -144,7 +144,7 @@
       "shown": "ListAsync(string): Task<IReadOnlyList<SavedFilterScenario>>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Contracts/RuleRunContracts.cs:72-74"
+      "excerpt": "src/JET/JET/Domain/Contracts/ResultContracts.cs:89-91"
     },
     {
       "type": "IFilterScenarioStore",
@@ -152,7 +152,7 @@
       "shown": "ReplaceAllAsync(string, IReadOnlyList<SavedFilterScenario>): Task",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Contracts/RuleRunContracts.cs:67-70"
+      "excerpt": "src/JET/JET/Domain/Contracts/ResultContracts.cs:75-78"
     },
     {
       "type": "IFilterFactsPort",
@@ -160,7 +160,7 @@
       "shown": "ExecuteAsync(FilterPlan): Task<FilterFacts>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/AuditCore/FilterProgram.cs:58-60"
+      "excerpt": "src/JET/JET/AuditCore/FilterProgram.cs:64-66"
     },
     {
       "type": "AppCompositionRoot",
@@ -173,10 +173,26 @@
     {
       "type": "IFilterCommitRepository",
       "member": "CommitAsync",
-      "shown": "CommitAsync(string, IReadOnlyList<FilterCommitItem>, FilterRuleContext): Task",
+      "shown": "CommitAsync(string, IReadOnlyList<FilterCommitItem>, FilterConditionContext): Task",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Contracts/FilterContracts.cs:126-130"
+      "excerpt": "src/JET/JET/Domain/Contracts/FilterContracts.cs:130-134"
+    },
+    {
+      "type": "JetAuditProgram",
+      "member": "PlanOneScenario",
+      "shown": "PlanOneScenario(FilterRequest, SavedFilterScenario): FilterPlan",
+      "visibility": "package",
+      "static": true,
+      "excerpt": "src/JET/JET/AuditCore/FilterProgram.cs:202-204"
+    },
+    {
+      "type": "IFilterCommitRepository",
+      "member": "SaveOneAsync",
+      "shown": "SaveOneAsync(string, FilterCommitItem, FilterConditionContext): Task",
+      "visibility": "public",
+      "static": false,
+      "excerpt": "src/JET/JET/Domain/Contracts/FilterContracts.cs:140-144"
     }
   ],
   "import-classes": [
@@ -186,7 +202,7 @@
       "shown": "Action = \"import.tb.fromFile\": string",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:454-454"
+      "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:460-460"
     },
     {
       "type": "ImportFromFileHandler",
@@ -194,7 +210,7 @@
       "shown": "HandleAsync(JsonElement): Task<object?>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:42-42"
+      "excerpt": "src/JET/JET/Application/Handlers/Import/ImportFromFileHandler.cs:45-45"
     },
     {
       "type": "JetAuditProgram",
@@ -218,7 +234,7 @@
       "shown": "ReadColumnsAsync(TabularSourceRequest): Task<IReadOnlyList<string>>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:200-200"
+      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:211-211"
     },
     {
       "type": "ITabularFileReader",
@@ -226,7 +242,7 @@
       "shown": "ReadRowsAsync(TabularSourceRequest): IAsyncEnumerable<StagingRow>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:202-202"
+      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:213-213"
     },
     {
       "type": "IIntakeFactsPort",
@@ -242,7 +258,7 @@
       "shown": "FindAsync(string): Task<ProjectDocument?>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/ProjectDocument.cs:108-108"
+      "excerpt": "src/JET/JET/Domain/ProjectDocument.cs:121-121"
     },
     {
       "type": "IProjectStore",
@@ -250,7 +266,7 @@
       "shown": "SaveAsync(ProjectDocument): Task",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/ProjectDocument.cs:110-110"
+      "excerpt": "src/JET/JET/Domain/ProjectDocument.cs:123-123"
     },
     {
       "type": "IImportRepository",
@@ -258,7 +274,7 @@
       "shown": "GetLatestBatchAsync(string, DatasetKind): Task<ImportBatchInfo?>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:230-233"
+      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:241-244"
     },
     {
       "type": "IImportRepository",
@@ -266,7 +282,7 @@
       "shown": "ReplaceBatchAsync(string, DatasetKind, IReadOnlyList<ImportSourceInput>): Task<ImportBatchResult>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:215-219"
+      "excerpt": "src/JET/JET/Domain/Contracts/ImportContracts.cs:226-230"
     },
     {
       "type": "AppCompositionRoot",
@@ -279,60 +295,60 @@
   ],
   "export-classes": [
     {
-      "type": "ExportWorkpaperStreamHandler",
+      "type": "ExportWorkingPaperStreamHandler",
       "member": "HandleAsync",
       "shown": "HandleAsync(JsonElement): Task<object?>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Application/Handlers/ExportWorkpaperStreamHandler.cs:29-29"
+      "excerpt": "src/JET/JET/Application/Handlers/ExportWorkingPaperStreamHandler.cs:29-29"
     },
     {
-      "type": "FilterRunMaterializeService",
+      "type": "FilterHitMaterializeService",
       "member": "MaterializeSelectedAsync",
       "shown": "MaterializeSelectedAsync(string, ProjectDocument, IReadOnlyList<SavedFilterScenario>, IReadOnlyCollection<int>): Task",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Application/Support/FilterRunMaterializeService.cs:37-42"
+      "excerpt": "src/JET/JET/Application/Support/FilterHitMaterializeService.cs:37-42"
     },
     {
       "type": "JetAuditProgram",
       "member": "Plan",
-      "shown": "Plan(WorkpaperRequest): WorkpaperPlan",
+      "shown": "Plan(WorkingPaperRequest): WorkingPaperPlan",
       "visibility": "package",
       "static": true,
-      "excerpt": "src/JET/JET/AuditCore/WorkpaperProgram.cs:264-264"
+      "excerpt": "src/JET/JET/AuditCore/WorkingPaperProgram.cs:276-276"
     },
     {
       "type": "JetAuditProgram",
       "member": "Finalize",
-      "shown": "Finalize(WorkpaperPlan, WorkpaperPlanningFacts): WorkpaperPlan",
+      "shown": "Finalize(WorkingPaperPlan, WorkingPaperPlanningFacts): WorkingPaperPlan",
       "visibility": "package",
       "static": true,
-      "excerpt": "src/JET/JET/AuditCore/WorkpaperProgram.cs:334-336"
+      "excerpt": "src/JET/JET/AuditCore/WorkingPaperProgram.cs:346-348"
     },
     {
-      "type": "IWorkpaperPlanningFactsPort",
+      "type": "IWorkingPaperPlanningFactsPort",
       "member": "ExecuteAsync",
-      "shown": "ExecuteAsync(WorkpaperPlan): Task<WorkpaperPlanningFacts>",
+      "shown": "ExecuteAsync(WorkingPaperPlan): Task<WorkingPaperPlanningFacts>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/AuditCore/WorkpaperProgram.cs:154-156"
+      "excerpt": "src/JET/JET/AuditCore/WorkingPaperProgram.cs:166-168"
     },
     {
-      "type": "IWorkpaperPlanWriter",
+      "type": "IWorkingPaperPlanWriter",
       "member": "WriteAsync",
-      "shown": "WriteAsync(Stream, WorkpaperContext, WorkpaperPlan): Task<ExportStats>",
+      "shown": "WriteAsync(Stream, WorkingPaperContext, WorkingPaperPlan): Task<ExportStats>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/AuditCore/WorkpaperProgram.cs:165-170"
+      "excerpt": "src/JET/JET/AuditCore/WorkingPaperProgram.cs:177-182"
     },
     {
-      "type": "IReportArtifactPublishingStore",
+      "type": "IReportPublishingStore",
       "member": "WriteWithPublishingAsync",
-      "shown": "WriteWithPublishingAsync(string, ReportArtifactWriteRequest, Action<ReportArtifactKind>): Task<ReportArtifact>",
+      "shown": "WriteWithPublishingAsync(string, ReportWriteRequest, Action<ReportKind>): Task<Report>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Domain/Abstractions/IReportArtifactStore.cs:63-67"
+      "excerpt": "src/JET/JET/Domain/Abstractions/IReportStore.cs:63-67"
     },
     {
       "type": "AppCompositionRoot",
@@ -353,10 +369,18 @@
     {
       "type": "IAuditedReportPublishingStore",
       "member": "WriteAuditedAsync",
-      "shown": "WriteAuditedAsync(string, ReportArtifactWriteRequest, Action<ReportArtifactKind>): Task<AuditedReportPublication>",
+      "shown": "WriteAuditedAsync(string, ReportWriteRequest, Action<ReportKind>): Task<AuditedReportPublication>",
       "visibility": "public",
       "static": false,
-      "excerpt": "src/JET/JET/Application/Support/AuditedReportArtifactStore.cs:15-19"
+      "excerpt": "src/JET/JET/Application/Support/AuditedReportStore.cs:15-19"
+    },
+    {
+      "type": "FilterHitMaterializeService",
+      "member": "RequireUsableAsync",
+      "shown": "RequireUsableAsync(string, ProjectDocument, IReadOnlyList<SavedFilterScenario>, IReadOnlyCollection<int>?): Task",
+      "visibility": "public",
+      "static": false,
+      "excerpt": "src/JET/JET/Application/Support/FilterHitMaterializeService.cs:49-54"
     }
   ]
 }

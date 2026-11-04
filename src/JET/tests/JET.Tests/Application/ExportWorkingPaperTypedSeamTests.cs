@@ -147,7 +147,8 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.Equal(3, selected.RowHitCount);
         var fieldInfo = Assert.IsType<FieldInfoProjection>(plan.FieldInfo);
         Assert.Equal(
-            [new FieldInfoRow("來源科目", "文字型態", 18, null, "會計科目編號_TB")],
+            // 改名欄位的「配對前欄位名稱」描述的是來源欄，照裁定 2026-11-03-17 加【】。第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+            [new FieldInfoRow("【來源科目】", "文字型態", 18, null, "會計科目編號_TB")],
             fieldInfo.TbRows);
         Assert.Equal(
             [new FieldInfoRow("來源金額", "數字型態", null, 4, "傳票金額_JE")],
@@ -305,13 +306,17 @@ public sealed class ExportWorkingPaperTypedSeamTests
                 },
                 TargetTbDefinitions:
                 [
+                    // 欄位事實多了來歷與對應的 JET 欄位（裁定 2026-11-03-11），手工建的事實照投影器的寫法補上。
+                    // 第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
                     new FieldInfo(
                         1,
                         "會計科目編號_TB",
                         "來源科目",
                         LegacyFieldKind.Text,
                         18,
-                        null)
+                        null,
+                        FieldInfoOrigin.Renamed,
+                        JetFieldCatalog.TbAccountNumber)
                 ],
                 TargetGlDefinitions:
                 [
@@ -321,7 +326,9 @@ public sealed class ExportWorkingPaperTypedSeamTests
                         "來源金額",
                         LegacyFieldKind.Number,
                         null,
-                        4)
+                        4,
+                        FieldInfoOrigin.Generated,
+                        JetFieldCatalog.GlAmount)
                 ]));
         }
     }

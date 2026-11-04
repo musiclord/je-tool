@@ -5203,7 +5203,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
-      <svg viewBox="0 0 1316 460" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
+      <svg viewBox="0 0 1316 460" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
         <title id="archify-diagram-title">SQLite：結果版本與操作紀錄</title>
         <desc id="archify-diagram-description">由 Archify 產生的實體關聯圖。</desc>
         <!-- Definitions -->
@@ -5278,16 +5278,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <!-- Domain bands (behind the routes so a channel is never washed out) -->
         <g data-domain-band="執行與版本" class="er-hue-database">
-          <rect x="20" y="22" width="1284" height="142" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="20" y="22" width="824" height="328" rx="12" class="c-lane er-band" stroke-width="1"/>
           <rect x="28" y="15" width="76" height="15" rx="7.5" class="c-mask"/>
           <rect x="28" y="15" width="76" height="15" rx="7.5" class="er-band-pill"/>
           <text data-domain-label="" x="35" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">執行與版本</text>
         </g>
         <g data-domain-band="操作紀錄" class="er-hue-frontend">
-          <rect x="20" y="208" width="824" height="202" rx="12" class="c-lane er-band" stroke-width="1"/>
-          <rect x="28" y="201" width="64" height="15" rx="7.5" class="c-mask"/>
-          <rect x="28" y="201" width="64" height="15" rx="7.5" class="er-band-pill"/>
-          <text data-domain-label="" x="35" y="211.6" class="t-muted er-band-label" font-size="9" font-weight="700">操作紀錄</text>
+          <rect x="940" y="22" width="364" height="388" rx="12" class="c-lane er-band" stroke-width="1"/>
+          <rect x="948" y="15" width="64" height="15" rx="7.5" class="c-mask"/>
+          <rect x="948" y="15" width="64" height="15" rx="7.5" class="er-band-pill"/>
+          <text data-domain-label="" x="955" y="25.6" class="t-muted er-band-label" font-size="9" font-weight="700">操作紀錄</text>
         </g>
 
         <!-- Bundled relationship trunks (under the branches: a bus runs close
@@ -5328,192 +5328,220 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           </g>
         </g>
 
-        <g id="node-result_rule_run" data-node-id="result_rule_run" data-node-label="result_rule_run" tabindex="0" role="button" aria-label="聚焦result_rule_run，驗證與預篩選的執行摘要, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="驗證與預篩選的執行摘要" data-node-tag="執行與版本" data-node-context="實體" class="er-hue-database">
-          <title>result_rule_run · 驗證與預篩選的執行摘要 · 實體 · 執行與版本</title>
-          <rect x="492" y="40" width="340" height="116" rx="8" class="c-mask"/>
-          <rect x="492" y="40" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 500 40 H 824 A 8 8 0 0 1 832 48 V 70 H 492 V 48 A 8 8 0 0 1 500 40 Z"/>
-          <path class="er-table-cap" d="M 504 41.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 47) scale(0.875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" x="662" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">result_rule_run</text>
-          <line x1="492" y1="70" x2="832" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
-          <g data-detail="context" data-er-row="0">
-            <line x1="492" y1="70" x2="832" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-            <rect x="502" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="534" y="85" class="t-primary er-name-pk" font-size="11">run_id</text>
-            <text data-detail="context" x="820" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="1">
-            <line x1="492" y1="90" x2="832" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="496" y="91" width="332" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="534" y="105" class="t-primary" font-size="11">run_kind</text>
-            <text data-detail="context" x="820" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="2">
-            <line x1="492" y1="110" x2="832" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="534" y="125" class="t-primary" font-size="11">generated_utc</text>
-            <text data-detail="context" x="820" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-          <g data-detail="context" data-er-row="3">
-            <line x1="492" y1="130" x2="832" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="496" y="131" width="332" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="534" y="145" class="t-primary" font-size="11">summary_json</text>
-            <text data-detail="context" x="820" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
-          </g>
-        </g>
-
-        <g id="node-config_result_stale_state" data-node-id="config_result_stale_state" data-node-label="config_result_stale_state" tabindex="0" role="button" aria-label="聚焦config_result_stale_state，三種結果是否失效, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="三種結果是否失效" data-node-tag="執行與版本" data-node-context="實體" class="er-hue-database">
-          <title>config_result_stale_state · 三種結果是否失效 · 實體 · 執行與版本</title>
-          <rect x="952" y="40" width="340" height="116" rx="8" class="c-mask"/>
-          <rect x="952" y="40" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
-          <path class="er-table-header" d="M 960 40 H 1284 A 8 8 0 0 1 1292 48 V 70 H 952 V 48 A 8 8 0 0 1 960 40 Z"/>
-          <path class="er-table-cap" d="M 964 41.4 H 1280" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(960 47) scale(0.875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" x="1122" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">config_result_stale_state</text>
-          <line x1="952" y1="70" x2="1292" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
-          <g data-detail="context" data-er-row="0">
-            <line x1="952" y1="70" x2="1292" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-            <rect x="962" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="973" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="994" y="85" class="t-primary er-name-pk" font-size="11">singleton</text>
-            <text data-detail="context" x="1280" y="85" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
-          </g>
-          <g data-detail="context" data-er-row="1">
-            <line x1="952" y1="90" x2="1292" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="956" y="91" width="332" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="994" y="105" class="t-primary" font-size="11">validation_stale</text>
-            <text data-detail="context" x="1280" y="105" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
-          </g>
-          <g data-detail="context" data-er-row="2">
-            <line x1="952" y1="110" x2="1292" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
-
-
-            <text data-detail="context" x="994" y="125" class="t-primary" font-size="11">prescreen_stale</text>
-            <text data-detail="context" x="1280" y="125" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
-          </g>
-          <g data-detail="context" data-er-row="3">
-            <line x1="952" y1="130" x2="1292" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="956" y="131" width="332" height="18" rx="4" class="er-zebra"/>
-
-            <text data-detail="context" x="994" y="145" class="t-primary" font-size="11">filter_stale</text>
-            <text data-detail="context" x="1280" y="145" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
-          </g>
-        </g>
-
-        <g id="node-app_message_log" data-node-id="app_message_log" data-node-label="app_message_log" tabindex="0" role="button" aria-label="聚焦app_message_log，畫面訊息紀錄, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="畫面訊息紀錄" data-node-tag="操作紀錄" data-node-context="實體" class="er-hue-frontend">
-          <title>app_message_log · 畫面訊息紀錄 · 實體 · 操作紀錄</title>
+        <g id="node-result_stale_state" data-node-id="result_stale_state" data-node-label="result_stale_state" tabindex="0" role="button" aria-label="聚焦result_stale_state，三種結果是否失效, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="三種結果是否失效" data-node-tag="執行與版本" data-node-context="實體" class="er-hue-database">
+          <title>result_stale_state · 三種結果是否失效 · 實體 · 執行與版本</title>
           <rect x="32" y="226" width="340" height="116" rx="8" class="c-mask"/>
-          <rect x="32" y="226" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
+          <rect x="32" y="226" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:1" stroke-width="1.2"/>
           <path class="er-table-header" d="M 40 226 H 364 A 8 8 0 0 1 372 234 V 256 H 32 V 234 A 8 8 0 0 1 40 226 Z"/>
           <path class="er-table-cap" d="M 44 227.4 H 360" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(40 233) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="202" y="245" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">app_message_log</text>
+          <text data-node-label="" x="202" y="245" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">result_stale_state</text>
           <line x1="32" y1="256" x2="372" y2="256" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="32" y1="256" x2="372" y2="256" class="c-grid er-row-rule" stroke-width="0.5"/>
 
             <rect x="42" y="261" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="53" y="271" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="74" y="271" class="t-primary er-name-pk" font-size="11">message_id</text>
+            <text data-detail="context" x="74" y="271" class="t-primary er-name-pk" font-size="11">singleton</text>
             <text data-detail="context" x="360" y="271" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="32" y1="276" x2="372" y2="276" class="c-grid er-row-rule" stroke-width="0.5"/>
             <rect x="36" y="277" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="291" class="t-primary" font-size="11">occurred_utc</text>
-            <text data-detail="context" x="360" y="291" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="74" y="291" class="t-primary" font-size="11">validation_stale</text>
+            <text data-detail="context" x="360" y="291" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="32" y1="296" x2="372" y2="296" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="74" y="311" class="t-primary" font-size="11">level</text>
-            <text data-detail="context" x="360" y="311" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="74" y="311" class="t-primary" font-size="11">prescreen_stale</text>
+            <text data-detail="context" x="360" y="311" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="3">
             <line x1="32" y1="316" x2="372" y2="316" class="c-grid er-row-rule" stroke-width="0.5"/>
             <rect x="36" y="317" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="74" y="331" class="t-primary" font-size="11">text</text>
-            <text data-detail="context" x="360" y="331" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="74" y="331" class="t-primary" font-size="11">filter_stale</text>
+            <text data-detail="context" x="360" y="331" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
         </g>
 
-        <g id="node-audit_event_log" data-node-id="audit_event_log" data-node-label="audit_event_log" tabindex="0" role="button" aria-label="聚焦audit_event_log，重新匯入、發布等操作紀錄, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="重新匯入、發布等操作紀錄" data-node-tag="操作紀錄" data-node-context="實體" class="er-hue-frontend">
-          <title>audit_event_log · 重新匯入、發布等操作紀錄 · 實體 · 操作紀錄</title>
-          <rect x="492" y="226" width="340" height="176" rx="8" class="c-mask"/>
-          <rect x="492" y="226" width="340" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:4" stroke-width="1.2"/>
+        <g id="node-validation_result" data-node-id="validation_result" data-node-label="validation_result" tabindex="0" role="button" aria-label="聚焦validation_result，驗證的執行摘要, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="驗證的執行摘要" data-node-tag="執行與版本" data-node-context="實體" class="er-hue-database">
+          <title>validation_result · 驗證的執行摘要 · 實體 · 執行與版本</title>
+          <rect x="492" y="40" width="340" height="96" rx="8" class="c-mask"/>
+          <rect x="492" y="40" width="340" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:2" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 500 40 H 824 A 8 8 0 0 1 832 48 V 70 H 492 V 48 A 8 8 0 0 1 500 40 Z"/>
+          <path class="er-table-cap" d="M 504 41.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 47) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="662" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">validation_result</text>
+          <line x1="492" y1="70" x2="832" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="492" y1="70" x2="832" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="502" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="534" y="85" class="t-primary er-name-pk" font-size="11">result_id</text>
+            <text data-detail="context" x="820" y="85" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="492" y1="90" x2="832" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="496" y="91" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="534" y="105" class="t-primary" font-size="11">generated_utc</text>
+            <text data-detail="context" x="820" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="492" y1="110" x2="832" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="534" y="125" class="t-primary" font-size="11">summary_json</text>
+            <text data-detail="context" x="820" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+        </g>
+
+        <g id="node-prescreen_result" data-node-id="prescreen_result" data-node-label="prescreen_result" tabindex="0" role="button" aria-label="聚焦prescreen_result，預篩選的執行摘要, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="預篩選的執行摘要" data-node-tag="執行與版本" data-node-context="實體" class="er-hue-database">
+          <title>prescreen_result · 預篩選的執行摘要 · 實體 · 執行與版本</title>
+          <rect x="492" y="226" width="340" height="96" rx="8" class="c-mask"/>
+          <rect x="492" y="226" width="340" height="96" rx="8" class="c-database er-table" data-animate="node" style="--step:3" stroke-width="1.2"/>
           <path class="er-table-header" d="M 500 226 H 824 A 8 8 0 0 1 832 234 V 256 H 492 V 234 A 8 8 0 0 1 500 226 Z"/>
           <path class="er-table-cap" d="M 504 227.4 H 820" stroke-width="2.6" stroke-linecap="round" fill="none"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(500 233) scale(0.875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" x="662" y="245" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">audit_event_log</text>
+          <text data-node-label="" x="662" y="245" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">prescreen_result</text>
           <line x1="492" y1="256" x2="832" y2="256" class="c-grid er-header-rule" stroke-width="1"/>
           <g data-detail="context" data-er-row="0">
             <line x1="492" y1="256" x2="832" y2="256" class="c-grid er-row-rule" stroke-width="0.5"/>
 
             <rect x="502" y="261" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="513" y="271" class="t-database" font-size="9" font-weight="600">PK</text>
-            <text data-detail="context" x="534" y="271" class="t-primary er-name-pk" font-size="11">event_id</text>
+            <text data-detail="context" x="534" y="271" class="t-primary er-name-pk" font-size="11">result_id</text>
             <text data-detail="context" x="820" y="271" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="1">
             <line x1="492" y1="276" x2="832" y2="276" class="c-grid er-row-rule" stroke-width="0.5"/>
             <rect x="496" y="277" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="534" y="291" class="t-primary" font-size="11">occurred_utc</text>
+            <text data-detail="context" x="534" y="291" class="t-primary" font-size="11">generated_utc</text>
             <text data-detail="context" x="820" y="291" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="2">
             <line x1="492" y1="296" x2="832" y2="296" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="534" y="311" class="t-primary" font-size="11">operation</text>
+            <text data-detail="context" x="534" y="311" class="t-primary" font-size="11">summary_json</text>
             <text data-detail="context" x="820" y="311" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
-          <g data-detail="context" data-er-row="3">
-            <line x1="492" y1="316" x2="832" y2="316" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="496" y="317" width="332" height="18" rx="4" class="er-zebra"/>
+        </g>
 
-            <text data-detail="context" x="534" y="331" class="t-primary" font-size="11">target_type</text>
-            <text data-detail="context" x="820" y="331" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+        <g id="node-message_log" data-node-id="message_log" data-node-label="message_log" tabindex="0" role="button" aria-label="聚焦message_log，畫面訊息紀錄, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="畫面訊息紀錄" data-node-tag="操作紀錄" data-node-context="實體" class="er-hue-frontend">
+          <title>message_log · 畫面訊息紀錄 · 實體 · 操作紀錄</title>
+          <rect x="952" y="40" width="340" height="116" rx="8" class="c-mask"/>
+          <rect x="952" y="40" width="340" height="116" rx="8" class="c-database er-table" data-animate="node" style="--step:4" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 960 40 H 1284 A 8 8 0 0 1 1292 48 V 70 H 952 V 48 A 8 8 0 0 1 960 40 Z"/>
+          <path class="er-table-cap" d="M 964 41.4 H 1280" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(960 47) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1122" y="59" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">message_log</text>
+          <line x1="952" y1="70" x2="1292" y2="70" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="952" y1="70" x2="1292" y2="70" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="962" y="75" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="973" y="85" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="994" y="85" class="t-primary er-name-pk" font-size="11">message_id</text>
+            <text data-detail="context" x="1280" y="85" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="952" y1="90" x2="1292" y2="90" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="956" y="91" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="994" y="105" class="t-primary" font-size="11">occurred_utc</text>
+            <text data-detail="context" x="1280" y="105" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="952" y1="110" x2="1292" y2="110" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="994" y="125" class="t-primary" font-size="11">level</text>
+            <text data-detail="context" x="1280" y="125" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="952" y1="130" x2="1292" y2="130" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="956" y="131" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="994" y="145" class="t-primary" font-size="11">text</text>
+            <text data-detail="context" x="1280" y="145" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+        </g>
+
+        <g id="node-operation_log" data-node-id="operation_log" data-node-label="operation_log" tabindex="0" role="button" aria-label="聚焦operation_log，重新匯入、發布等操作留痕, 實體" aria-pressed="false" data-node-kind="database" data-node-sublabel="重新匯入、發布等操作留痕" data-node-tag="操作紀錄" data-node-context="實體" class="er-hue-frontend">
+          <title>operation_log · 重新匯入、發布等操作留痕 · 實體 · 操作紀錄</title>
+          <rect x="952" y="226" width="340" height="176" rx="8" class="c-mask"/>
+          <rect x="952" y="226" width="340" height="176" rx="8" class="c-database er-table" data-animate="node" style="--step:5" stroke-width="1.2"/>
+          <path class="er-table-header" d="M 960 226 H 1284 A 8 8 0 0 1 1292 234 V 256 H 952 V 234 A 8 8 0 0 1 960 226 Z"/>
+          <path class="er-table-cap" d="M 964 227.4 H 1280" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(960 233) scale(0.875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" x="1122" y="245" class="t-primary er-title" font-size="13" font-weight="700" text-anchor="middle">operation_log</text>
+          <line x1="952" y1="256" x2="1292" y2="256" class="c-grid er-header-rule" stroke-width="1"/>
+          <g data-detail="context" data-er-row="0">
+            <line x1="952" y1="256" x2="1292" y2="256" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+            <rect x="962" y="261" width="22" height="13" rx="3" class="er-key-badge" data-er-badge="pk"/><text data-detail="context" x="973" y="271" class="t-database" font-size="9" font-weight="600">PK</text>
+            <text data-detail="context" x="994" y="271" class="t-primary er-name-pk" font-size="11">event_id</text>
+            <text data-detail="context" x="1280" y="271" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="1">
+            <line x1="952" y1="276" x2="1292" y2="276" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="956" y="277" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="994" y="291" class="t-primary" font-size="11">occurred_utc</text>
+            <text data-detail="context" x="1280" y="291" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="2">
+            <line x1="952" y1="296" x2="1292" y2="296" class="c-grid er-row-rule" stroke-width="0.5"/>
+
+
+            <text data-detail="context" x="994" y="311" class="t-primary" font-size="11">operation</text>
+            <text data-detail="context" x="1280" y="311" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+          </g>
+          <g data-detail="context" data-er-row="3">
+            <line x1="952" y1="316" x2="1292" y2="316" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="956" y="317" width="332" height="18" rx="4" class="er-zebra"/>
+
+            <text data-detail="context" x="994" y="331" class="t-primary" font-size="11">target_type</text>
+            <text data-detail="context" x="1280" y="331" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="4">
-            <line x1="492" y1="336" x2="832" y2="336" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="952" y1="336" x2="1292" y2="336" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="534" y="351" class="t-primary" font-size="11">target_id</text>
-            <text data-detail="context" x="820" y="351" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
+            <text data-detail="context" x="994" y="351" class="t-primary" font-size="11">target_id</text>
+            <text data-detail="context" x="1280" y="351" class="er-type" font-size="10.5" text-anchor="end">TEXT</text>
           </g>
           <g data-detail="context" data-er-row="5">
-            <line x1="492" y1="356" x2="832" y2="356" class="c-grid er-row-rule" stroke-width="0.5"/>
-            <rect x="496" y="357" width="332" height="18" rx="4" class="er-zebra"/>
+            <line x1="952" y1="356" x2="1292" y2="356" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <rect x="956" y="357" width="332" height="18" rx="4" class="er-zebra"/>
 
-            <text data-detail="context" x="534" y="371" class="t-primary" font-size="11">subject_count</text>
-            <text data-detail="context" x="820" y="371" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="994" y="371" class="t-primary" font-size="11">subject_count</text>
+            <text data-detail="context" x="1280" y="371" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
           <g data-detail="context" data-er-row="6">
-            <line x1="492" y1="376" x2="832" y2="376" class="c-grid er-row-rule" stroke-width="0.5"/>
+            <line x1="952" y1="376" x2="1292" y2="376" class="c-grid er-row-rule" stroke-width="0.5"/>
 
 
-            <text data-detail="context" x="534" y="391" class="t-primary" font-size="11">replaced_count</text>
-            <text data-detail="context" x="820" y="391" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
+            <text data-detail="context" x="994" y="391" class="t-primary" font-size="11">replaced_count</text>
+            <text data-detail="context" x="1280" y="391" class="er-type" font-size="10.5" text-anchor="end">INTEGER</text>
           </g>
         </g>
 
@@ -5711,19 +5739,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>這些表怎麼被用到</h3>
         </div>
         <ul>
-          <li>這些表之間沒有程式用來連接的欄位，用途是版本、失效狀態與操作紀錄。</li>
-          <li>上游資料修改時，RuleRunResultReset 在同一筆交易標記 config_result_stale_state，並把 schema_info 的 filter_data_revision 加一。</li>
-          <li>audit_event_log 由 IProjectAuditLog 寫入，例如 TB 重新匯入與報告發布；SQLite 與 DuckDB 案件寫入失敗時記在支援日誌，並在回應附提醒。</li>
+          <li>驗證與預篩選只把摘要 JSON 各自存進 validation_result 與 prescreen_result。</li>
+          <li>上游資料修改時，ResultReset 在同一交易清掉受影響的結果並標記 result_stale_state；篩選命中失效時，也把 schema_info 的 filter_data_revision 加一。</li>
+          <li>operation_log 由 IProjectOperationLog 寫入，例如 TB 重新匯入與報告發布；SQLite 與 DuckDB 案件寫入失敗時記在支援日誌，並在回應附提醒。</li>
+          <li>來源：ResultTables.cs 第 5–16 行；ResultReset.cs 第 37–81 行；AuditedReportStore.cs 第 166–186 行；ImportFromFileHandler.cs 第 169–182 行。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot slate"></div>
-          <h3>沒有外鍵</h3>
+          <div class="card-dot amber"></div>
+          <h3>線條不是資料庫外鍵</h3>
         </div>
         <ul>
-          <li>這批建表定義沒有宣告外鍵；沒畫線也不代表兩張表無關。</li>
+          <li>現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。</li>
+          <li>沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。</li>
+          <li>PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。</li>
         </ul>
       </div>
     </div>

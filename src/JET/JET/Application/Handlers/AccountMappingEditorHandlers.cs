@@ -35,7 +35,7 @@ public sealed class QueryAccountMappingPageHandler(
 public sealed class AccountMappingSaveHandler(
     ProjectSession session, ILogger? logger = null) : IApplicationActionHandler
 {
-    // 裁定 2026-10-19-21 確認了這句，句型比照讀不回結果狀態時的提醒。
+    // 這句的用字依裁定 2026-10-19-21，句型比照讀不回結果狀態時的提醒。
     internal const string SummaryUnavailableWarning =
         "變更已儲存，但畫面上的科目配對摘要沒有更新；重新開啟案件就會更新，不必重做變更。";
 

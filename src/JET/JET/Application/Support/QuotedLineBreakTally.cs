@@ -58,7 +58,7 @@ internal sealed class QuotedLineBreakTally
             ImportSourceDiagnostics.QuotedLineBreaks(logger, sourceNo, Count, string.Join(",", firstRows));
         }
 
-        // 裁定 2026-10-13-28 確認了這句的用字；只有「，例如第…列」一種寫法，列號全部列出時也一樣。
+        // 這句的用字依裁定 2026-10-13-28；只有「，例如第…列」一種寫法，列號全部列出時也一樣。
         // 來源檔用「列」（裁定 2026-10-19-16），「筆數減少」隨之改成「列數減少」。
         return $"「{fileName}」有 {CountText.Format(Count)} 列的欄位內含換行，例如第 {string.Join("、", firstRows)} 列。"
             + "引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。";

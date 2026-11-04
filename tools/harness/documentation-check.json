@@ -8,6 +8,7 @@
     "docs/history/specs/2026-10-16-architecture-documentation-plan.md",
     "docs/history/specs/2026-10-22-prescreen-tech-debt-deferred-items-plan.md",
     "docs/specs/2026-10-29-records-and-judgment-basis-plan.md",
+    "docs/history/specs/2026-10-29-records-and-judgment-basis-plan-replies.md",
     "docs/history/specs/2026-10-16-table-pagination-and-agent-docs-plan.md",
     "docs/history/specs/2026-10-19-cross-database-consistency-plan.md",
     "docs/history/specs/2026-10-19-deferred-items-cleanup-plan.md",
@@ -208,7 +209,7 @@
     {
       "id": "delivery-notes-calendar-template-step",
       "file": "docs/test-environment-notes.md",
-      "text": "第二步的「假日與補班日」"
+      "text": "第二步的「國定假日與補班日」"
     },
     {
       "id": "delivery-notes-date-example",
@@ -228,7 +229,7 @@
     {
       "id": "guide-calendar-skip-first-row",
       "file": "docs/jet-guide.md",
-      "text": "假日與補班日匯入固定略過第一列"
+      "text": "國定假日與補班日匯入固定略過第一列"
     }
   ],
   "requiredReferences": [
@@ -255,7 +256,7 @@
     { "id": "docs-index-to-readable-docs", "file": "docs/README.md", "target": ".agents/skills/jet-readable-docs/SKILL.md" }
   ],
   "sizeLimits": {
-    "severity": "warning",
+    "severity": "error",
     "rules": [
       { "id": "size-history-exempt", "match": ["docs/history/"], "exempt": true },
       { "id": "size-current-plan", "match": ["docs/specs/"], "maxKiB": 120 },

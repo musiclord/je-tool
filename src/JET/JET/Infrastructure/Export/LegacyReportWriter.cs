@@ -292,7 +292,8 @@ public sealed partial class LegacyReportWriter(
         }
         customFields ??= Array.Empty<GlRdeFieldMetadata>();
         registryFields ??= Array.Empty<GlRdeFieldMetadata>();
-        var columns = rawColumns.Concat(customFields.Select(field => field.Label)).ToArray();
+        // 攸關資料元素的表頭照舊版加 _JE（裁定 2026-11-03-14），撞名用整份配對判斷。
+        var columns = rawColumns.Concat(GlRdeOutputNames.For(customFields, registryFields)).ToArray();
 
         var bodyStyles = appearanceMode == RawSheetAppearanceMode.ExportDatabase
             ? await ResolveExportDatabaseStylesAsync(

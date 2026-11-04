@@ -263,9 +263,10 @@ public sealed class ImportAccountMappingHandlerTests
 
         Assert.Equal("projection_failed", ex.Code);
         Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-                        "科目配對檔有 1 列無法讀取，本次匯入未儲存："
-            // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 裁定 2026-11-03-10 改畫面用字：一律寫「科目配對範本」。第一次失敗：Focused 收據 20261103-075436522-3ba8d414fe894889821d8e8efe76e0cf。
+                        "科目配對範本有 1 列無法讀取，本次匯入未儲存："
+            // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
             + "第 3 列：分類「NotACategory」不在本案件的科目分類中"
             + "（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。",
             ex.Message);

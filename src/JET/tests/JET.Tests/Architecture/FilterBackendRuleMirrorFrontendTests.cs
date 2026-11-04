@@ -126,7 +126,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         // 尾數與一般清單共用超限指引，計數仍用 wire 的值；首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
         Assert.Contains("count > Ui.TYPED_SET_MAX_VALUES", problem, StringComparison.Ordinal);
         Assert.DoesNotContain("toUpperCase", problem, StringComparison.Ordinal);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Contains("'請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值'", values, StringComparison.Ordinal);
     }
 
@@ -145,7 +145,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("data-bind=\"scenario-name\" maxlength=\"' + Ui.FILTER_MAX_SCENARIO_NAME_LENGTH + '\"", filter, StringComparison.Ordinal);
         // 用語統一以「已儲存」為準（裁定 2026-10-02-01），前後端訊息一起改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         Assert.Contains(
-            // 裁定 2026-10-13-28 確認了這句的用字（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+            // 這句的用字依裁定 2026-10-13-28（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
             "'最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。'",
             filter,
             StringComparison.Ordinal);
@@ -229,7 +229,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
                 StringComparison.Ordinal);
         }
 
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）：
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）：
         // 前端和後端同一句，分類名稱取第四步分類設定裡目前的名稱。原本由 AssertFrontendPrescreenEligibilityExpression 核對 filter-step.js。
         Assert.Contains("function label(role) { return accountCategoryLabel(state, 'builtin.' + role); }", reasons, StringComparison.Ordinal);
 
@@ -438,7 +438,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     // 預篩選分頁與預篩選條件卡都依 prescreenRequirementNote 停用；它把鍵交給同一張需求表，沒有任何鍵的特例。
-    // 原本這裡另外鎖住裁定 2026-10-14-01 確認的那一句，現在句子和分類名稱的來源由 RulePrerequisiteReasons_AreTheBackendSentences 核對。
+    // 原本這裡另外鎖住裁定 2026-10-14-01 的那一句，現在句子和分類名稱的來源由 RulePrerequisiteReasons_AreTheBackendSentences 核對。
     private static void AssertFrontendPrescreenEligibilityExpression(string filter)
     {
         var available = ExtractFunctionBody(filter, "availablePrescreenKeys()");

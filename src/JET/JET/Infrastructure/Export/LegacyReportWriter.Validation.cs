@@ -139,23 +139,23 @@ public sealed partial class LegacyReportWriter
 
         var document = editor.Document;
         var sheets = editor.Sheets;
-        await EmitNullDetailFromPlanAsync(
+        await EmitBlankDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
-            ValidationReportDetailKind.NullAccount, BlankRecordCategory.NullAccount,
+            ValidationReportDetailKind.BlankAccountNumber, BlankRecordCategory.BlankAccountNumber,
             "V_Report 1", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
-        await EmitNullDetailFromPlanAsync(
+        await EmitBlankDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
-            ValidationReportDetailKind.NullDocument, BlankRecordCategory.NullDocument,
+            ValidationReportDetailKind.BlankVoucherNumber, BlankRecordCategory.BlankVoucherNumber,
             "V_Report 2", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
-        await EmitNullDetailFromPlanAsync(
+        await EmitBlankDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
-            ValidationReportDetailKind.NullDescription, BlankRecordCategory.NullDescription,
+            ValidationReportDetailKind.BlankDescription, BlankRecordCategory.BlankDescription,
             "V_Report 3", legacyStyles, RawSheetAutoFitMode.LegacyFirstTwenty,
             cancellationToken, progress).ConfigureAwait(false);
         // 驗證時傳票核准日不可用，計畫就不讀這份明細。
-        await EmitNullDetailFromPlanAsync(
+        await EmitBlankDetailFromPlanAsync(
             document, sheets, stats, context.Project, plan,
             ValidationReportDetailKind.ApprovalDateNotInPeriod,
             BlankRecordCategory.ApprovalDateNotInPeriod,
@@ -200,7 +200,7 @@ public sealed partial class LegacyReportWriter
         return stats;
     }
 
-    private async Task EmitNullDetailFromPlanAsync(
+    private async Task EmitBlankDetailFromPlanAsync(
         SpreadsheetDocument document,
         Sheets sheets,
         List<SheetStat> stats,
@@ -296,20 +296,20 @@ public sealed partial class LegacyReportWriter
 
                 cells.SetNumber(
                     "D20",
-                    projection.NullAccountCount,
-                    projection.NullAccountCount > 0
+                    projection.BlankAccountNumberCount,
+                    projection.BlankAccountNumberCount > 0
                         ? ValidationSummaryDifferenceFill
                         : null);
                 cells.SetNumber(
                     "D21",
-                    projection.NullDocumentCount,
-                    projection.NullDocumentCount > 0
+                    projection.BlankVoucherNumberCount,
+                    projection.BlankVoucherNumberCount > 0
                         ? ValidationSummaryDifferenceFill
                         : null);
                 cells.SetNumber(
                     "D22",
-                    projection.NullDescriptionCount,
-                    projection.NullDescriptionCount > 0
+                    projection.BlankDescriptionCount,
+                    projection.BlankDescriptionCount > 0
                         ? ValidationSummaryDifferenceFill
                         : null);
                 if (approvalDateNotInPeriodCount is { } count)
@@ -324,7 +324,7 @@ public sealed partial class LegacyReportWriter
                 else
                 {
                     cells.SetInlineString("D23", "N/A");
-                    cells.SetInlineString("E23", "未設定傳票核准日欄位");
+                    cells.SetInlineString("E23", "未設定【傳票核准日】欄位");
                 }
                 // 裁定 2026-10-29-16：沒有 TB 時逐科目比對無法執行，比照核准日那一列寫 N/A 並註明原因。
                 if (projection.CompletenessNaNote is { } completenessNote)

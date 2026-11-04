@@ -508,7 +508,7 @@ public static partial class FilterScenarioValidator
             case FilterConditionType.RevenueWithoutNormalCounterpart:
             case FilterConditionType.ManualRevenueEntry:
             case FilterConditionType.PreparerEqualsApprover:
-                // 需要的分類與欄位都在規則需求表；缺收入科目與缺對方科目各寫一句（裁定 2026-10-13-28 確認了用字）。
+                // 需要的分類與欄位都在規則需求表；缺收入科目與缺對方科目各寫一句（用字依裁定 2026-10-13-28）。
                 break;
             case FilterConditionType.TypedField:
                 ValidateTypedField(rule, label, context, errors);

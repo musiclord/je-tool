@@ -22,7 +22,7 @@
 //     Overview_ComposesRulePeriodBetweenPopulationAndConcentration_WithValidateStatsGate、RulePeriodChart_UsesEChartsOptionAndNeutralFullPeriodDenominatorLanguage；
 //     PrescreenPositioningFrontendTests.Overview_PrioritizesConcentrationAndUsesAuxiliarySignalAndRecordLanguage。
 //
-// 原 C# 方法裡焦點圈限的部分（Overview_IsSummaryFirst… 的 Focus.trapDialogTab 與 Escape，裁定 2026-10-13-02 選定總覽改用共用焦點圈限，
+// 原 C# 方法裡焦點圈限的部分（Overview_IsSummaryFirst… 的 Focus.trapDialogTab 與 Escape；總覽依裁定 2026-10-13-02 改用共用焦點圈限，
 // 該方法修改時的第一次失敗收據 20261013-072317663-5e4a0a6b9dcf47c49a75cdc70e9a40f3）不在這裡重寫，
 // 已由 frontend-workflow.test.cjs 的「overview opened from the header button…」「overview Escape and Tab use the shared document trap…」完整涵蓋。
 //
@@ -359,9 +359,10 @@ test('the concentration section explains a missing run and each not-applicable r
   const cases = [
     ['no prescreen run', null, text => { assert.match(text, /尚未執行預篩選/); }],
     ['not applicable with a reason', prescreenResult({ concentration: { status: 'NA', naReason: '合成原因：查核期間沒有編製人員' } }),
-      text => { assert.match(text, /不適用/); assert.match(text, /合成原因：查核期間沒有編製人員/); }],
+      // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+      text => { assert.match(text, /無法執行/); assert.match(text, /合成原因：查核期間沒有編製人員/); }],
     ['not applicable without a reason', prescreenResult({ concentration: { status: 'NA', naReason: null } }),
-      text => { assert.match(text, /不適用/); assert.match(text, /0/, 'the default explanation says not applicable is different from zero'); assert.ok(text.length > 10); }]
+      text => { assert.match(text, /無法執行/); assert.match(text, /0/, 'the default explanation says not applicable is different from zero'); assert.ok(text.length > 10); }]
   ];
   for (const [label, run, check] of cases) {
     f.store.setResult('prescreen', run);
@@ -439,7 +440,8 @@ test('the prescreen result distribution keeps not-applicable rules out of the ch
   const option = f.lastOption('rule-period');
   assert.equal(JSON.stringify(run), snapshot, 'drawing does not change the backend result');
   // 不適用的規則只列在「不適用規則」，寫出後端的原因；原因裡的 < > 照字面顯示（Ui.esc 跳脫後才放進畫面）。
-  const naList = content().querySelector('[aria-label="不適用規則"]');
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  const naList = content().querySelector('[aria-label="無法執行的規則"]');
   assert.ok(naList, 'not-applicable rules are listed below the chart');
   const naRows = naList.querySelectorAll('.overview-bi__na-row');
   assert.equal(naRows.length, 1);
@@ -463,7 +465,7 @@ test('the prescreen result distribution keeps not-applicable rules out of the ch
   assert.doesNotMatch(tip, /母體/);
   const note = content().querySelector('.overview-bi__note').textContent;
   assert.match(note, /GL 分錄數 1,000 筆/, 'the denominator is the GL entry count');
-  // 「此為分布描述，非風險評估。」原本每張圖說各寫一次；裁定 2026-10-29-02 指出常駐說明太多，改成同一句話在同一個畫面只說一次，
+  // 「此為分布描述，非風險評估。」原本每張圖說各寫一次；使用者指出常駐說明太多（裁定 2026-10-29-02），改成同一句話在同一個畫面只說一次，
   // 由總覽底部的定位說明說一次。這裡原本比對圖說裡的句子，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
   assert.doesNotMatch(note, /非風險評估/, 'the chart note no longer repeats the positioning');
   assert.match(f.card().querySelector('.overview__disclaimer').textContent, /分布.*由審計員判斷/, 'the overview says it once at the bottom');
@@ -481,7 +483,7 @@ test('the prescreen result distribution keeps not-applicable rules out of the ch
   // 全部不適用：沒有圖，只有清單。
   f.store.setResult('prescreen', prescreenResult({ rulePeriod: { population: 10, rules: [rulePeriod().rules[0]] } }));
   assert.ok(content().querySelector('[data-overview-chart]') === null);
-  assert.ok(content().querySelector('[aria-label="不適用規則"]'));
+  assert.ok(content().querySelector('[aria-label="無法執行的規則"]'));
   assert.deepEqual(plain(f.requests), []);
 });
 
@@ -598,7 +600,8 @@ test('the concentration view tabs switch with arrow keys, Home and End, keep foc
   for (const [key, expected] of sequence) {
     assert.ok(f.key(key).defaultPrevented, key + ' is handled');
     expectView(expected, key);
-    assert.match(panel().textContent, expected === 'accounts' ? /使用次數最低/ : /編製人員/, key + ': the panel shows the selected view');
+    // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+    assert.match(panel().textContent, expected === 'accounts' ? /分錄筆數最低/ : /傳票建立人員/, key + ': the panel shows the selected view');
   }
   f.key('End');
   const rare = f.lastOption('concentration');

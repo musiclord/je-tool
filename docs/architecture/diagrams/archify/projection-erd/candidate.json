@@ -36,8 +36,8 @@
   },
   "entities": [
     {
-      "id": "config_field_mapping",
-      "label": "config_field_mapping",
+      "id": "field_mapping",
+      "label": "field_mapping",
       "row": 0,
       "col": 0,
       "attributes": [
@@ -75,8 +75,8 @@
       "sublabel": "目前已確認的欄位配對"
     },
     {
-      "id": "config_field_mapping_previous",
-      "label": "config_field_mapping_previous",
+      "id": "field_mapping_previous",
+      "label": "field_mapping_previous",
       "row": 1,
       "col": 0,
       "attributes": [
@@ -116,6 +116,8 @@
     {
       "id": "import_batch",
       "label": "import_batch",
+      "row": 2,
+      "col": 0,
       "sublabel": "完整欄位見匯入批次的關聯圖",
       "tag": "參照",
       "attributes": [
@@ -124,13 +126,11 @@
           "type": "TEXT",
           "key": "pk"
         }
-      ],
-      "row": 2,
-      "col": 0
+      ]
     },
     {
-      "id": "target_gl_entry",
-      "label": "target_gl_entry",
+      "id": "gl",
+      "label": "gl",
       "row": 0,
       "col": 1,
       "attributes": [
@@ -148,7 +148,7 @@
           "type": "INTEGER"
         },
         {
-          "name": "document_number",
+          "name": "voucher_number",
           "type": "TEXT"
         },
         {
@@ -160,7 +160,7 @@
           "type": "TEXT"
         },
         {
-          "name": "post_date",
+          "name": "gl_date",
           "type": "TEXT"
         },
         {
@@ -168,7 +168,7 @@
           "type": "TEXT"
         },
         {
-          "name": "account_code",
+          "name": "account_number",
           "type": "TEXT"
         },
         {
@@ -176,7 +176,7 @@
           "type": "TEXT"
         },
         {
-          "name": "document_description",
+          "name": "description",
           "type": "TEXT"
         },
         {
@@ -216,7 +216,7 @@
           "type": "TEXT"
         },
         {
-          "name": "is_effective",
+          "name": "is_excluded",
           "type": "INTEGER"
         },
         {
@@ -225,11 +225,11 @@
         }
       ],
       "tag": "標準化資料",
-      "sublabel": "標準化 GL 分錄"
+      "sublabel": "GL 與 GL(未納入測試) 的分錄"
     },
     {
-      "id": "target_tb_balance",
-      "label": "target_tb_balance",
+      "id": "tb",
+      "label": "tb",
       "row": 1,
       "col": 1,
       "attributes": [
@@ -247,7 +247,7 @@
           "type": "INTEGER"
         },
         {
-          "name": "account_code",
+          "name": "account_number",
           "type": "TEXT"
         },
         {
@@ -263,8 +263,59 @@
       "sublabel": "標準化 TB 餘額"
     },
     {
-      "id": "config_gl_rde_field",
-      "label": "config_gl_rde_field",
+      "id": "gl_control_total",
+      "label": "gl_control_total",
+      "row": 2,
+      "col": 1,
+      "attributes": [
+        {
+          "name": "singleton",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "pbc_row_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "stored_row_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "stored_debit_scaled",
+          "type": "INTEGER"
+        },
+        {
+          "name": "stored_credit_scaled",
+          "type": "INTEGER"
+        },
+        {
+          "name": "gl_row_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "excluded_by_period_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "excluded_by_posting_status_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "gl_debit_scaled",
+          "type": "INTEGER"
+        },
+        {
+          "name": "gl_credit_scaled",
+          "type": "INTEGER"
+        }
+      ],
+      "tag": "標準化資料",
+      "sublabel": "存入筆數與合計核對的數字"
+    },
+    {
+      "id": "gl_rde_field",
+      "label": "gl_rde_field",
       "row": 0,
       "col": 2,
       "attributes": [
@@ -295,11 +346,11 @@
         }
       ],
       "tag": "動態欄位",
-      "sublabel": "GL 自訂欄位的定義"
+      "sublabel": "GL 攸關資料元素欄位的定義"
     },
     {
-      "id": "target_gl_rde_value",
-      "label": "target_gl_rde_value",
+      "id": "gl_rde_value",
+      "label": "gl_rde_value",
       "row": 1,
       "col": 2,
       "attributes": [
@@ -331,69 +382,14 @@
         }
       ],
       "tag": "動態欄位",
-      "sublabel": "每筆分錄的自訂欄位值"
-    },
-    {
-      "id": "gl_control_total",
-      "label": "gl_control_total",
-      "row": 2,
-      "col": 1,
-      "attributes": [
-        {
-          "name": "singleton",
-          "type": "INTEGER",
-          "key": "pk"
-        },
-        {
-          "name": "source_row_count",
-          "type": "INTEGER"
-        },
-        {
-          "name": "target_row_count",
-          "type": "INTEGER"
-        },
-        {
-          "name": "target_debit_scaled",
-          "type": "INTEGER"
-        },
-        {
-          "name": "target_credit_scaled",
-          "type": "INTEGER"
-        },
-        {
-          "name": "raw_row_count",
-          "type": "INTEGER"
-        },
-        {
-          "name": "effective_row_count",
-          "type": "INTEGER"
-        },
-        {
-          "name": "excluded_by_period_count",
-          "type": "INTEGER"
-        },
-        {
-          "name": "excluded_by_posting_status_count",
-          "type": "INTEGER"
-        },
-        {
-          "name": "effective_debit_scaled",
-          "type": "INTEGER"
-        },
-        {
-          "name": "effective_credit_scaled",
-          "type": "INTEGER"
-        }
-      ],
-      "tag": "標準化資料",
-      "sublabel": "完整性測試的 GL 控制總數"
+      "sublabel": "每筆分錄的攸關資料元素值"
     }
   ],
   "relationships": [
     {
       "id": "previous_current",
-      "from": "config_field_mapping_previous",
-      "to": "config_field_mapping",
+      "from": "field_mapping_previous",
+      "to": "field_mapping",
       "label": "同一 dataset_kind",
       "fromCardinality": "one",
       "toCardinality": "one",
@@ -403,7 +399,7 @@
     },
     {
       "id": "gl_batch",
-      "from": "target_gl_entry",
+      "from": "gl",
       "to": "import_batch",
       "label": "batch_id",
       "fromCardinality": "many",
@@ -414,7 +410,7 @@
     },
     {
       "id": "tb_batch",
-      "from": "target_tb_balance",
+      "from": "tb",
       "to": "import_batch",
       "label": "batch_id",
       "fromCardinality": "many",
@@ -425,8 +421,8 @@
     },
     {
       "id": "rde_entry",
-      "from": "target_gl_rde_value",
-      "to": "target_gl_entry",
+      "from": "gl_rde_value",
+      "to": "gl",
       "label": "entry_id",
       "fromCardinality": "many",
       "toCardinality": "one",
@@ -436,8 +432,8 @@
     },
     {
       "id": "rde_field",
-      "from": "target_gl_rde_value",
-      "to": "config_gl_rde_field",
+      "from": "gl_rde_value",
+      "to": "gl_rde_field",
       "label": "field_id",
       "fromCardinality": "many",
       "toCardinality": "one",
@@ -451,16 +447,18 @@
       "dot": "cyan",
       "title": "這些連線的依據",
       "items": [
-        "確認配對後，LocalGlRepository 與 LocalTbRepository 依 batch_id 讀原始列，寫入標準化表時也帶同一個 batch_id。",
-        "GL 自訂欄位值以 entry_id 對應分錄，以 field_id 對應欄位定義。",
-        "重新匯入時，LocalMappingStateStore 把同一 dataset_kind 的配對搬到上一版後刪除。"
+        "LocalGlRepository 與 LocalTbRepository 依 batch_id 讀原始列，寫入標準化表時也寫入同一個 batch_id。",
+        "攸關資料元素的值以 entry_id 對應分錄、以 field_id 對應欄位定義；重新匯入時 LocalMappingStateStore 把同一 dataset_kind 的配對搬到上一版後刪除。",
+        "來源：LocalGlRepository.cs 第 30–32、115、454–512 行；LocalTbRepository.cs 第 26、69 行；LocalMappingStateStore.cs 第 59–75 行。"
       ]
     },
     {
-      "dot": "slate",
-      "title": "線條不是外鍵",
+      "dot": "amber",
+      "title": "線條不是資料庫外鍵",
       "items": [
-        "虛線是程式在 SQL 裡用來連接的欄位，不是外鍵；這批建表定義沒有宣告外鍵，沒畫線也不代表兩張表無關。"
+        "現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。",
+        "沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。",
+        "PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。"
       ]
     }
   ]

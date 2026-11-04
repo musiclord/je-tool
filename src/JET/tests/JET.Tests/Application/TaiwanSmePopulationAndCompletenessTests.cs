@@ -58,7 +58,7 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         // P4、P5 不平，但都不在 GL，所以不平傳票為 0 張。
         Assert.Equal(0, validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());
         // 摘要空白：GL 內只有 P6 第 2 列；P1、P4 的空白摘要在期外，不計。
-        Assert.Equal(1, validation.GetProperty("blankRecordsTest").GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(1, validation.GetProperty("blankRecordsTest").GetProperty("blankDescriptionCount").GetInt64());
 
         var gl = await host.DispatchAsync("query.dataPreview", """{"dataset":"gl"}""");
         // GL 預覽 6 列，傳票號碼依序為 P2、P2、P3、P3、P6、P6。
@@ -214,12 +214,12 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
                 .Select(row => (row.GetProperty("voucherNumber").GetString()!, row.GetProperty("debit").GetDecimal(),
                     row.GetProperty("credit").GetDecimal(), row.GetProperty("diff").GetDecimal()))
                 .OrderBy(row => row.Item1, StringComparer.Ordinal));
-        var nulls = validation.GetProperty("blankRecordsTest");
+        var blankRecords = validation.GetProperty("blankRecordsTest");
         // 科目空白：U3 第 2 列、U4 第 1 列、X3，共 3 列。
-        Assert.Equal(3, nulls.GetProperty("nullAccountCount").GetInt64());
+        Assert.Equal(3, blankRecords.GetProperty("blankAccountNumberCount").GetInt64());
         // 傳票號碼空白：X1、X2、X3，共 3 列。
-        Assert.Equal(3, nulls.GetProperty("nullDocumentCount").GetInt64());
-        Assert.Equal(0, nulls.GetProperty("nullDescriptionCount").GetInt64());
+        Assert.Equal(3, blankRecords.GetProperty("blankVoucherNumberCount").GetInt64());
+        Assert.Equal(0, blankRecords.GetProperty("blankDescriptionCount").GetInt64());
         // 有號碼的傳票只有 U1 到 U4 四張。
         Assert.Equal(4, validation.GetProperty("stats").GetProperty("voucherCount").GetInt64());
 

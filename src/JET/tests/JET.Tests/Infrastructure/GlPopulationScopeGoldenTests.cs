@@ -113,9 +113,9 @@ public abstract class GlPopulationScopeGoldenTests
         var result = await ValidationExecutionTestData.ExecuteForFactsAsync(ValidationFactsPort, plan, CancellationToken.None);
 
         Assert.Equal(2, result.SourceQualityFindingCount);
-        Assert.Equal(0, result.NullAccountCount);
-        Assert.Equal(0, result.NullDocumentCount);
-        Assert.Equal(0, result.NullDescriptionCount);
+        Assert.Equal(0, result.BlankAccountNumberCount);
+        Assert.Equal(0, result.BlankVoucherNumberCount);
+        Assert.Equal(0, result.BlankDescriptionCount);
         Assert.Equal(0, result.ApprovalDateNotInPeriodCount);
 
     }
@@ -628,7 +628,7 @@ public sealed class SqlServerGlPopulationScopeGoldenTests
     }
 
     // 私有的引擎子類只由 CreateAsync 建立，xUnit 執行時不探索非公開類別。xunit.v3 4.0 的分析器仍把它當成測試類別、
-    // 要求公開建構子（xUnit1056），這裡不適用；裁定 2026-10-15-07 在 Visual Studio 升級套件後選擇修這裡後繼續。
+    // 要求公開建構子（xUnit1056），這裡不適用；Visual Studio 升級套件後，使用者選擇修這裡後繼續（裁定 2026-10-15-07）。
 #pragma warning disable xUnit1056
     private sealed class SqlServerEngine : GlPopulationScopeGoldenTests
 #pragma warning restore xUnit1056

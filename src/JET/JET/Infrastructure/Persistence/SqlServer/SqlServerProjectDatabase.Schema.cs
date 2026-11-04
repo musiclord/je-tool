@@ -7,7 +7,7 @@ namespace JET.Infrastructure;
 public sealed partial class SqlServerProjectDatabase
 {
     // 目前 schema 版本。新 schema 由 SchemaSql 直接寫現行版；既有 schema 只檢查版本，不升版。
-    internal const string SchemaVersion = "19";
+    internal const string SchemaVersion = "21";
 
     public async Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken)
     {
@@ -110,7 +110,7 @@ public sealed partial class SqlServerProjectDatabase
         IF OBJECT_ID(N'{s}.schema_info','U') IS NULL
             CREATE TABLE {s}.schema_info ([key] NVARCHAR(450) COLLATE Latin1_General_BIN2 PRIMARY KEY, [value] NVARCHAR(MAX) NOT NULL);
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'schema_version')
-            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '19');
+            INSERT INTO {s}.schema_info ([key], [value]) VALUES ('schema_version', '21');
         IF NOT EXISTS (SELECT 1 FROM {s}.schema_info WHERE [key] = 'filter_data_revision')
             INSERT INTO {s}.schema_info ([key], [value]) VALUES ('filter_data_revision', '0');
 
@@ -156,6 +156,10 @@ public sealed partial class SqlServerProjectDatabase
                 decimal_places       INT NULL CHECK (decimal_places IS NULL OR decimal_places >= 0),
                 max_rendered_length  INT NOT NULL CHECK (max_rendered_length >= 0),
                 has_observation      BIT NOT NULL,
+                -- 每一欄的來歷與對應的 JET 欄位（裁定 2026-11-03-11）；底稿與報告看這兩欄，不看欄名結尾。
+                field_origin         NVARCHAR(16) COLLATE Latin1_General_BIN2 NOT NULL
+                    CHECK (field_origin IN ('source','renamed','generated','temp')),
+                jet_field            NVARCHAR(128) COLLATE Latin1_General_BIN2 NULL,
                 PRIMARY KEY (batch_id, definition_scope, ordinal)
             );
 

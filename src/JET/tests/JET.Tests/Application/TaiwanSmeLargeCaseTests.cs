@@ -36,7 +36,7 @@ public sealed class TaiwanSmeLargeCaseTests
     {
         var (smeCase, _, oracle) = Fixture.Value;
 
-        // 裁定 2026-10-11-01 要求至少 1 萬張傳票與 200 個科目的試算表。
+        // 依裁定 2026-10-11-01，合成案件至少要有 1 萬張傳票，以及 200 個科目的試算表。
         Assert.True(oracle.Population.Select(line => line.VoucherNo).Distinct().Count() >= 10_000);
         Assert.Equal(200, smeCase.Accounts.Count);
         // 期初試算表平衡；GL 內每張傳票借貸相等，所以期末試算表也平衡。

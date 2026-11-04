@@ -192,21 +192,26 @@ public sealed class WorkingPaperProgramTests
     public void Finalize_Step41Columns_UsesLegacyPriorityThenRemainingOrdinal()
     {
         // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：step4-1 不再有傳票日期來源欄的排除，原本 ordinal 3 的 VOUCHER_DATE_JE 隨之拿掉。
+        // 裁定 2026-11-03-11：step4-1 依欄位的來歷挑 JET 欄位，不再看欄名結尾。原本靠 _JE 結尾進表的 ROW_TOKEN_JE、CUSTOM_FLAG_JE_S
+        // 改成沒有配對的原始來源欄，斷言它們不再出現；過帳碼_JE 照舊版補回（裁定 2026-11-03-15）。
+        // 第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
         var definitions = new[]
         {
-            Field(1, "ROW_TOKEN_JE"),
-            Field(2, "會計科目名稱_JE"),
-            Field(4, "傳票金額_JE", LegacyFieldKind.Number, description: "system generated"),
-            Field(5, "傳票號碼_JE", description: "Document"),
-            Field(6, "CUSTOM_FLAG_JE_S"),
-            Field(7, "總帳日期_JE"),
-            Field(8, "IGNORED_COLUMN"),
-            Field(9, "傳票文件項次_JE_S", LegacyFieldKind.Number),
+            Field(1, "ROW_TOKEN_JE", origin: FieldInfoOrigin.Source),
+            Field(2, "會計科目名稱_JE", description: "ACCT_NAME", jetField: JetFieldCatalog.GlAccountName),
+            Field(4, "傳票金額_JE", LegacyFieldKind.Number, description: "system generated", origin: FieldInfoOrigin.Generated, jetField: JetFieldCatalog.GlAmount),
+            Field(5, "傳票號碼_JE", description: "Document", jetField: JetFieldCatalog.GlVoucherNumber),
+            Field(6, "CUSTOM_FLAG_JE_S", origin: FieldInfoOrigin.Source),
+            Field(7, "總帳日期_JE", jetField: JetFieldCatalog.GlDate),
+            Field(8, "IGNORED_COLUMN", origin: FieldInfoOrigin.Source),
+            Field(9, "傳票文件項次_JE_S", LegacyFieldKind.Number, origin: FieldInfoOrigin.Generated, jetField: JetFieldCatalog.GlLineItem),
             Field(
                 10,
                 "人工傳票否_JE_S",
                 LegacyFieldKind.Text,
-                description: "ManualFlag")
+                description: "ManualFlag",
+                jetField: JetFieldCatalog.GlManual),
+            Field(11, "過帳碼_JE", description: "【過帳】過帳判斷值「Y」", origin: FieldInfoOrigin.Generated, jetField: JetFieldCatalog.GlPostingStatus)
         };
 
         var finalized = JetAuditProgram.Finalize(
@@ -234,7 +239,8 @@ public sealed class WorkingPaperProgramTests
             column =>
             {
                 Assert.Equal("會計科目名稱_JE", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.AccountName, column.ValueSource);
+                Assert.Equal(WorkingPaperStep41ValueSource.RawField, column.ValueSource);
+                Assert.Equal("ACCT_NAME", column.RawFieldName);
             },
             column =>
             {
@@ -250,14 +256,8 @@ public sealed class WorkingPaperProgramTests
             },
             column =>
             {
-                Assert.Equal("ROW_TOKEN_JE", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.RawField, column.ValueSource);
-                Assert.Equal("ROW_TOKEN_JE", column.RawFieldName);
-            },
-            column =>
-            {
-                Assert.Equal("CUSTOM_FLAG_JE_S", column.Header);
-                Assert.Equal(WorkingPaperStep41ValueSource.RawField, column.ValueSource);
+                Assert.Equal("過帳碼_JE", column.Header);
+                Assert.Equal(WorkingPaperStep41ValueSource.PostingStatus, column.ValueSource);
             });
     }
 
@@ -270,8 +270,9 @@ public sealed class WorkingPaperProgramTests
                 Facts(
                     targetGlDefinitions:
                     [
-                        Field(1, "DUPLICATE_JE"),
-                        Field(2, "DUPLICATE_JE", description: "SourceB")
+                        // 兩個都是配對後改名的 JET 欄位才算重複；第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+                        Field(1, "DUPLICATE_JE", description: "SourceA", jetField: JetFieldCatalog.GlDescription),
+                        Field(2, "DUPLICATE_JE", description: "SourceB", jetField: JetFieldCatalog.GlSourceModule)
                     ])));
 
         Assert.Contains("DUPLICATE_JE", exception.Message, StringComparison.Ordinal);
@@ -296,10 +297,11 @@ public sealed class WorkingPaperProgramTests
             Sheet(finalized, WorkingPaperSheetCatalog.Step3).AuditCondition);
         // 裁定 2026-10-19-17 刪掉方法說明裡的「專案」，畫面與底稿統一用「案件」或直接寫查核期間。
         // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍逐字比對整句。
-        // 裁定 2026-10-30-34 確認的對照表改寫整句：「矩陣」改稱高風險條件彙總，「無有效總帳日期之列」改用名詞表的未納入原因「總帳日期空白」。
+        // 裁定 2026-10-30-34 的對照表改寫整句：「矩陣」改稱高風險條件彙總，「無有效總帳日期之列」改用名詞表的未納入原因「總帳日期空白」。
         // 第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
+        // 裁定 2026-11-03-04 與 2026-11-03-17：底稿句子裡的欄位名稱用【】標示。第一次失敗：Focused 收據 20261103-073230360-a44a4c20d04b413282230557614fe9d3。
         Assert.Contains(
-            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與總帳日期空白的分錄，不列入本版各情境的結果與彙總。",
+            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。",
             Sheet(finalized, WorkingPaperSheetCatalog.Step3).Methodology);
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",
@@ -346,14 +348,18 @@ public sealed class WorkingPaperProgramTests
         int ordinal,
         string name,
         LegacyFieldKind kind = LegacyFieldKind.Text,
-        string? description = null) =>
+        string? description = null,
+        FieldInfoOrigin origin = FieldInfoOrigin.Renamed,
+        string? jetField = null) =>
         new(
             ordinal,
             name,
             description,
             kind,
             kind == LegacyFieldKind.Text ? 128 : null,
-            kind == LegacyFieldKind.Number ? 4 : null);
+            kind == LegacyFieldKind.Number ? 4 : null,
+            origin,
+            jetField);
 
     private static FilterScenarioSpec Scenario(params FilterConditionSpec[] rules) =>
         new(

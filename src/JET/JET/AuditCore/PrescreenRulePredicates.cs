@@ -5,7 +5,7 @@ namespace JET.AuditCore;
 /// <summary>
 /// 十條逐筆預篩選規則各對應一個述詞方法，一條規則一個定義（裁定 2026-10-22-13）。
 /// 第四步 prescreen.run 的計數、第五步「預篩選」條件的編譯與傳票明細的規則頁都從這裡取述詞，不再各列一份對應。
-/// 尾零規則和第五步「整數尾數符合」用同一個 <see cref="GlRulePredicates.TrailingDigits"/>。
+/// 尾零規則和第五步金額的「整數尾數符合」「尾數連續多個 0」用同一個 <see cref="GlRulePredicates.TrailingDigits"/>。
 /// </summary>
 internal static class PrescreenRulePredicates
 {

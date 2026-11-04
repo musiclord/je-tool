@@ -170,7 +170,7 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
         var step3 = workbook.Worksheet(Step3Sheet);
         Assert.Equal(longScenarioName, step3.Cell("C19").GetString());
         Assert.Equal(longScenarioRationale, step3.Cell("D19").GetString());
-        // step3 的條件與原因欄原本依最長的一段撐開。裁定 2026-10-29-01 要求工作表外觀對齊舊流程後，
+        // step3 的條件與原因欄原本依最長的一段撐開。依裁定 2026-10-29-01 把工作表外觀對齊舊流程後，
         // 兩欄分別以 60 與 50 為上限並換行：56 個全形字約 112 字寬，扣掉留白後每行約 50 字寬，換成 3 行，
         // 11 點字每行 16.5 點，所以第 19 列是 49.5 點。數量欄與 step4 的長文字仍依全部資料決定欄寬。
         // 第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。

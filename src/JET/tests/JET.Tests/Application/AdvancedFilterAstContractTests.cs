@@ -283,7 +283,7 @@ public sealed class AdvancedFilterAstContractTests
 
         Assert.Contains("包含任一值", rendered, StringComparison.Ordinal);
         Assert.Contains("完全符合任一值", rendered, StringComparison.Ordinal);
-        // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
         Assert.Contains("保留半形空白", rendered, StringComparison.Ordinal);
         Assert.Contains("移除半形空白", rendered, StringComparison.Ordinal);
     }
@@ -380,7 +380,7 @@ public sealed class AdvancedFilterAstContractTests
                 HasAccountMapping = true,
                 HasAnyAccountCategory = true
             }),
-            // 改鎖裁定 2026-10-13-28 確認後的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+            // 改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
             error => error == "第 1 組第 1 條：尚未選擇借方分類");
     }
 

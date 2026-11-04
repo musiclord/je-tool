@@ -117,7 +117,7 @@ public static class SqlServerEngineErrors
 
         if (HasNumber(sql, DuplicateKeyIndexNumber) || HasNumber(sql, DuplicateKeyConstraintNumber))
         {
-            // 引擎原文含資料表名與重複的鍵值，不送到畫面（裁定 2026-10-14-01 確認了用字）。
+            // 引擎原文含資料表名與重複的鍵值，不送到畫面（用字依裁定 2026-10-14-01）。
             return new JetActionException(
                 JetErrorCodes.DuplicateKey,
                 SqlServerMessages.DuplicateKey);

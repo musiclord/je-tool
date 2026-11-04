@@ -223,6 +223,7 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
             var tagMask = reader.IsDBNull(15)
                 ? 0L
                 : Convert.ToInt64(reader.GetValue(15), CultureInfo.InvariantCulture);
+            var postingStatus = reader.IsDBNull(16) ? null : reader.GetString(16);
 
             if (rawJson is null)
             {
@@ -253,7 +254,8 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
                 sourceModule,
                 isManual,
                 rawJson,
-                matchedPositions);
+                matchedPositions,
+                postingStatus);
         }
         Interlocked.Exchange(ref _readCompleted, 1);
         Metrics.ReaderCompleted = true;
@@ -634,7 +636,7 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
             + "       g.created_by, g.approved_by, g.account_number, g.account_name, "
             + "       g.amount_scaled, g.description, g.source_module, g.is_manual, "
             + "       raw.row_json, g.line_item_numeric_sort_key, g.entry_id, "
-            + "       COALESCE(t.tag_mask, 0) "
+            + "       COALESCE(t.tag_mask, 0), g.posting_status "
             + $"FROM {_schemaPrefix}gl g "
             + $"LEFT JOIN {_voucherTable} v ON v.voucher_number = g.voucher_number "
             + $"LEFT JOIN {_schemaPrefix}pbc_gl raw "

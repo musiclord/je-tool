@@ -1,4 +1,6 @@
 'use strict';
+// 常用查法的程式名稱改成常用查法的字根（裁定 2026-11-03-30）：data-add-check 改 data-add-shortcut、FILTER_PURPOSE_CHECK_GROUPS 改 FIELD_SHORTCUT_GROUPS、
+// findPurposeCheck 與 addPurposeCheck 改 findFieldShortcut 與 addFieldShortcut，只改名稱，核對的內容不變。第一次失敗：FrontendMapping 收據 20261103-122529439-5142ff4653664a1781743d0694d4c3af。
 // 裁定 2026-10-16-03：資料明細改為每頁 200 筆及前後換頁。首次失敗保留於
 // artifacts/harness/runs/20261016-093720476-14d8f06e13d34b44ac2b371b7a26ad3f/contract-specialized.stdout.log。
 // 同步舊的頁量與累加預期，保留排序、錯誤、重試及來源失效斷言。
@@ -18,10 +20,10 @@ const { root, settle, plain, batch9TreeDom, batch7Dom, batch7ControlDom, validat
   FILTER_STEP_FILES, FILTER_STEP_PARTS, readFilterStep, filterStepExposure } = require('./support/frontend-fixtures.cjs');
 // 本檔自己組的假後端也包進 contractJetApi，送出的資料與假回應照樣和正式後端的形狀核對（2026-10-15）。
 const { contractJetApi, unchecked } = require('./support/action-contract.cjs');
-// 上游修改清除篩選情境時的訊息，用字由裁定 2026-10-13-28 確認，原本是「前面的資料已更改，請重新設定篩選情境。」
+// 上游修改清除篩選情境時的訊息，用字依裁定 2026-10-13-28，原本是「前面的資料已更改，請重新設定篩選情境。」
 // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
 const UPSTREAM_RESET_MESSAGE = '前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。';
-// 已存滿 10 個情境時的提醒，用字由裁定 2026-10-13-28 確認，原本是「最多儲存 10 個篩選情境；請先移除既有情境。」（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+// 已存滿 10 個情境時的提醒，用字依裁定 2026-10-13-28，原本是「最多儲存 10 個篩選情境；請先移除既有情境。」（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
 const SCENARIO_LIMIT_MESSAGE = '最多可儲存 10 個篩選情境，請先移除不需要的情境。';
 
 // 改用分類樹與共用搜尋框。舊夾具首次失敗：20261014-125419175-08e0cec4d9cf4360ac4af81713f531b3。
@@ -319,7 +321,7 @@ test('a published report survives unavailable catalog refresh without losing oth
   store.applyReportExport({ publishedReport: second, reports: [], filterResultsCurrent: false });
   assert.deepEqual(Array.from(store.getState().reports, a => a.reportId), ['selected-paper', 'second-paper'],
     'an incomplete catalog cannot erase a confirmed publication or the retained list');
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(store.getState().reports[1].catalogWarning, '檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。');
 });
 
@@ -812,7 +814,7 @@ test('pending account categories ask before leaving the validation step and hono
   }
   assert.equal(editor.pendingCount(), 1);
   f.window.JetUi.gotoStep(4);
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.match(modal().textContent, /^科目分類尚未儲存有 1 個科目的分類尚未儲存。後續步驟只會使用已儲存的分類/);
   assert.equal(f.state.currentStepIndex, 3, 'nothing moves before the auditor chooses');
   choose('stay'); await settle();
@@ -966,7 +968,7 @@ test('running prescreen asks first only when account categories are unsaved', as
 // 送出前先用同一個「尚未儲存的分類」對話框詢問。選「留在這裡」不送出；選繼續才送出。沒有改動時照舊直接送出，
 // 由下方既有的匯入、配對與科目配對檔測試涵蓋。
 // 這幾個動作本身就會清除或取代已儲存的分類，先存也留不住，所以對話框不提供「儲存並繼續」
-// （實作時發現，裁定 2026-10-15-02 選擇「拿掉儲存，只留兩個按鈕」）。第三欄記錄呼叫端傳的 saveable。
+// （實作時發現，使用者選了「拿掉儲存，只留兩個按鈕」，裁定 2026-10-15-02）。第三欄記錄呼叫端傳的 saveable。
 // 第一次失敗：FrontendMapping 收據 20261015-072925964-d0a95b04d18f4c7dafaebb322576c444，當時預期三個按鈕的文字；
 // 這些測試是本次新增的，依裁定 2026-10-15-02 的選擇改預期。
 function stubPendingCategories(f) {
@@ -1015,7 +1017,8 @@ test('importing an account mapping file asks about unsaved account categories be
   f.draw(); f.click('[data-action="toggle-account-excel"]'); f.draw(); f.click('[data-action="toggle-account-excel"]'); f.draw();
   const pending = stubPendingCategories(f);
   f.click('[data-action="import-account-mapping"]'); await settle();
-  assert.deepEqual(pending.calls, [['匯入科目配對檔後，檔案內容會取代第四步的科目分類，這些改動不會保留。', '繼續匯入', false]]);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.deepEqual(pending.calls, [['匯入科目配對範本後，檔案內容會取代第四步的科目分類，這些改動不會保留。', '繼續匯入', false]]);
   assert.equal(f.requests.some(r => r.action === 'hostSelectFile'), false, 'staying does not open the file dialog');
   pending.proceed();
   f.click('[data-action="import-account-mapping"]'); await settle();
@@ -1031,7 +1034,7 @@ test('the dialog before importing an account mapping file offers only staying or
   const modal = () => f.dom.document.body.querySelector('[data-bind="account-pending-modal"]');
   f.click('[data-action="import-account-mapping"]');
   assert.equal(modal().querySelector('.modal__body').textContent,
-    '有 1 個科目的分類尚未儲存。匯入科目配對檔後，檔案內容會取代第四步的科目分類，這些改動不會保留。');
+    '有 1 個科目的分類尚未儲存。匯入科目配對範本後，檔案內容會取代第四步的科目分類，這些改動不會保留。');
   assert.deepEqual(modal().querySelectorAll('.modal__actions button').map(button => button.textContent), ['留在這裡', '繼續匯入']);
   assert.equal(f.dom.document.activeElement.getAttribute('data-pending-choice'), 'stay');
   modal().fire('click', { target: modal().querySelector('[data-pending-choice="continue"]') }); await settle();
@@ -1216,7 +1219,7 @@ test('account mapping file status reaches the JET tab only while preparing or af
   f.store.setValidationOutput('template', { resultId: 'run-1', status: 'failed', reason: '檔案被其他程式使用 <synthetic>',
     message: '範本尚未產生：檔案被其他程式使用 <synthetic> 可使用此區按鈕重試。' });
   html = jet();
-  assert.match(html, /<p class="form-notice" data-account-template-status="failed" role="status">科目配對檔尚未準備好：檔案被其他程式使用 &lt;synthetic&gt; <button[^>]*data-action="retry-account-template-in-excel">到「用 Excel 配對」重試<\/button><\/p>/);
+  assert.match(html, /<p class="form-notice" data-account-template-status="failed" role="status">科目配對範本尚未準備好：檔案被其他程式使用 &lt;synthetic&gt; <button[^>]*data-action="retry-account-template-in-excel">到「用 Excel 配對」重試<\/button><\/p>/);
   assert.doesNotMatch(html, /<synthetic>|可使用此區按鈕重試/);
   assert.doesNotMatch(html, /data-validation-output="template"/);
   html = excel();
@@ -1248,7 +1251,7 @@ test('left-side examples and actions use normal page flow without sticky overlay
   assert.match(source, /template\.pickField === 'text'/);
   assert.doesNotMatch(source, /data-legacy-example-field/);
   // 裁定 2026-10-02-01：用語統一以「已儲存」為準（第一次失敗：收據 20261003-024908090-6beccb9968d64a549df8acb53f0c5ff6）。
-  // 裁定 2026-10-29-02 指出常駐說明太多，後半句「已儲存的情境不受影響」拿掉，
+  // 使用者指出常駐說明太多（裁定 2026-10-29-02），後半句「已儲存的情境不受影響」拿掉，
   // 這條依預期失敗，首敗收據 20261029-042349219-80cd18acb17f46b19cd7967d9b7a0b55。意圖不變：範例清單先說套用的後果。
   assert.match(source, /套用後會替換目前的條件。/);
   assert.doesNotMatch(source, /已儲存的情境不受影響/);
@@ -1284,8 +1287,8 @@ test('missing document and account details have independent searchable sorted ta
   const f = fixture();
   f.store.getState().results.validate = validationFixture();
   const html = f.render().container.innerHTML;
-  const documentTable = html.match(/<tbody data-page-query="null-nullDocument">([\s\S]*?)<\/tbody>/)[1];
-  const accountTable = html.match(/<tbody data-page-query="null-nullAccount">([\s\S]*?)<\/tbody>/)[1];
+  const documentTable = html.match(/<tbody data-page-query="null-blankVoucherNumber">([\s\S]*?)<\/tbody>/)[1];
+  const accountTable = html.match(/<tbody data-page-query="null-blankAccountNumber">([\s\S]*?)<\/tbody>/)[1];
   assert.match(documentTable, /document only/); assert.doesNotMatch(documentTable, /account only/);
   assert.match(accountTable, /account only/); assert.doesNotMatch(accountTable, /document only/);
   assert.match(documentTable, /both missing/); assert.match(accountTable, /both missing/);
@@ -1588,7 +1591,7 @@ test('explanations stay visible and shared typography and focus rules cover the 
   const filter = readFilterStep(), vouchers = read('filter-vouchers.js');
   assert.doesNotMatch(filter, /<details class="filter-(readback|rule-notes)"/);
   assert.doesNotMatch(vouchers, /<details/);
-  // 上方改成兩個數字後，「上方筆數」指不清楚，改寫成「分錄筆數」（裁定 2026-10-16-08 要求分開顯示）；
+  // 上方改成兩個數字後，「上方筆數」指不清楚，改寫成「分錄筆數」（依裁定 2026-10-16-08 分開顯示）；
   // 第一次失敗：原始碼不符 /標示為參考的分錄不計入上方筆數/。
   assert.match(vouchers, /標示為參考的分錄不計入分錄筆數/);
   const css = read('../css/app.css');
@@ -1662,7 +1665,7 @@ test('failed or cancelled full imports retain selection and old data, retry alon
 
 // 2026-10-03 主線在瀏覽器主機重測匯入時發現：匯入成功後寫入新資料的那一次重繪，匯入精靈還在「匯入中」；之後收起精靈
 // 不會再重繪，卡片多停約 4 秒「匯入中…」，「剛剛重新匯入（時間）」徽章也從來沒有出現。這裡在資料更新的那一次通知就重畫並檢查。
-// 裁定 2026-10-19-31 同意按鈕改名「加入」「更換」後，加入的徽章一併改成「剛剛加入新檔（時間）」，不再寫「已加入來源」。
+// 依裁定 2026-10-19-31，按鈕改名「加入」「更換」後，加入的徽章一併改成「剛剛加入新檔（時間）」，不再寫「已加入來源」。
 for (const [mode, badge, other] of [['replace', /剛剛重新匯入（/, /剛剛加入新檔/], ['append', /剛剛加入新檔（/, /剛剛重新匯入|已加入來源/]])
 test('a finished ' + mode + ' import shows the result and the just-imported badge in the same update', async () => {
   const f = fixture(), calls = [];
@@ -1758,7 +1761,8 @@ test('authorized list explains counted rows and preserves all counts after proje
     assert.match(html, /略過空白 4 列/);
     assert.match(html, /重複識別值 15 列/);
     assert.match(html, /標頭.*完全空白.*不計入/);
-    assert.match(html, /有效名單 35 位中，有 2 位出現在 GL 傳票建立人員/);
+    // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+    assert.match(html, /授權編製人員清單 35 位中，有 2 位出現在 GL 傳票建立人員/);
   }
   assertCounts(f.render().html());
   f.store.resetWorkflow();
@@ -1774,8 +1778,8 @@ test('authorized list zero matches warn without rejecting the successful import 
   await f.importList({ rowCount: 35, sourceColumn: 'Employee ID', matchedPreparerCount: 0 });
   assert.equal(f.store.getState().importState.authorizedPreparer.rowCount, 35);
   assert.equal(f.store.getState().busy, false);
-  assert.match(f.render().html(), /有效名單 35 位中，有 0 位出現在 GL 傳票建立人員/);
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  assert.match(f.render().html(), /授權編製人員清單 35 位中，有 0 位出現在 GL 傳票建立人員/);
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   // 裁定 2026-10-14-02：黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）。
   assert.ok(f.render().html().includes('class="form-notice form-notice--warning">清單中的人員都不在 GL 的傳票建立人員裡，' +
     '請確認所選欄位是人員代號或姓名。</p>'),
@@ -1807,7 +1811,7 @@ test('authorized list preview explains Excel title rows and removal describes th
   f.render().click('clear-authorized-preparer'); f.clears[0].resolve({ cleared: true }); await settle();
   const message = f.store.getState().messages.map(item => item.text).join('\n');
   // 裁定 2026-10-07-03：上游修改清除下游，移除名單會清掉已存情境，不再說明「含非授權編製人員條件的情境要重新匯入名單」（第一次失敗紀錄 artifacts/review/kct-filter-ops/frontend-workflow-before-assertion-update-upstream-shape.txt）。
-  assert.match(message, /已移除授權清單/);
+  assert.match(message, /已移除授權編製人員清單/);
   assert.doesNotMatch(message, /情境設定仍保留/);
   assert.match(message, /預篩選.*重新執行/);
   assert.doesNotMatch(message, /依賴清單的結果會重新計算/);
@@ -1982,23 +1986,30 @@ function commonCardFixture() {
 // First post-change failures: 20261004-085250643-d905022f18374b579c7dabd630a8f646.
 // 2026-10-29：測試名稱原本以字母稱呼這張卡；身分標記改記卡片代號；自動名稱依加入順序以頓號接卡片名稱、動機每行不再以字母開頭
 //（原本兩者都以字母開頭，動機期望值原本由卡片資料組出，改成寫死）；原本核對「作用中組已選 2 項」的計數標題已刪，改數被標成已選的卡片。
-test('the non-business-day card joins the active group as one condition bracket of nonbusiness days excluding makeup days', () => {
+// 裁定 2026-11-03-09 拿掉只剩一條的子條件組，卡片直接加入一條「總帳日期 在非營業日」。原本核對卡片是一條子條件組、
+// 子條件組裡只有這一條而且子條件不帶卡片標記；改成核對卡片就是這一條欄位條件、卡片標記在它身上、底下沒有子條件。
+// 測試名稱原本是「…joins the active group as one condition bracket of nonbusiness days excluding makeup days」。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+test('the non-business-day card joins the active group as one condition of nonbusiness days excluding makeup days', () => {
   const f = commonCardFixture();
   const draft = f.toggle(BLANK); f.toggle(NON_BUSINESS);
   assert.equal(draft.groups.length, 1);
-  const [blank, bracket] = draft.groups[0].conditions;
+  const [blank, nonBusiness] = draft.groups[0].conditions;
+  assert.equal(draft.groups[0].conditions.length, 2);
   assert.equal(blank.__commonCard, BLANK);
-  assert.equal(bracket.type, 'group');
-  assert.equal(bracket.__commonCard, NON_BUSINESS);
-  assert.equal(bracket.join, 'AND');
-  assert.deepEqual(plain(bracket.conditions), [
-    { type: 'fieldValue', field: 'glDate', operator: 'isNonBusinessDay', join: 'AND' }]);
-  assert.ok(bracket.conditions.every(child => !child.__commonCard));
+  assert.equal(nonBusiness.type, 'fieldValue');
+  assert.equal(nonBusiness.__commonCard, NON_BUSINESS);
+  assert.equal(nonBusiness.join, 'AND');
+  assert.deepEqual(plain([nonBusiness.field, nonBusiness.operator, nonBusiness.includeBlank]), ['glDate', 'isNonBusinessDay', false]);
+  assert.equal(nonBusiness.conditions, undefined, 'no bracket and no children under the card');
   assert.equal(f.api.commonCardState(draft, f.item(NON_BUSINESS)), 'selected');
   assert.equal(draft.name, '空白摘要、非營業日之分錄');
   assert.equal(draft.rationale, '空白摘要\n非營業日之分錄');
   // 空白摘要卡改用欄位條件的文字比對，每條條件只表達一件事；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-  assert.match(f.text(f.api.readBackHtml(draft)), /傳票摘要 空白 且 非營業日（排除補班日）/);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  // 卡片改成一條欄位條件後（裁定 2026-11-03-09），讀回照欄位條件寫「總帳日期 在非營業日」；原本子條件組讀回「非營業日」。
+  // 舊的子條件組照樣讀回「非營業日」，由「non-business-day card adds the shared nonbusiness predicate…」那則測試核對。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.equal(f.text(f.api.readBackHtml(draft)), '篩選條件：傳票摘要 空白 且 總帳日期 在非營業日；空白不列入');
   const picker = f.api.commonPickerHtml(draft);
   assert.doesNotMatch(picker, /情境層級|適用整個情境|picker-card--preset/);
   assert.equal((picker.match(/aria-pressed="true"/g) || []).length, 2, 'two cards are marked as chosen in the active group');
@@ -2022,25 +2033,30 @@ test('the non-business-day card leaves no scenario-level block on the rendered f
 });
 
 // 2026-10-29：測試名稱原本以字母稱呼這張卡；預設清單常數與鍵改名；名稱期望值原本是字母串接，改成兩項卡片名稱以頓號相接。
-test('adding the non-business-day card twice never shares the bracket, its children or the preset definition', () => {
+// 裁定 2026-11-03-09 拿掉子條件組後，卡片加入的就是那一條欄位條件，沒有子條件可以共用。原本核對兩次加入的子條件組、
+// 子條件與預設定義都不是同一份；改成核對兩次加入的條件彼此、以及和預設定義都不是同一份，改其中一條不影響另一條與預設定義。
+// 舊的子條件組寫法留在 legacyOverrides，同樣核對沒有被改到。測試名稱原本是「…never shares the bracket, its children or the preset definition」。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+test('adding the non-business-day card twice never shares the condition or the preset definition', () => {
   const f = commonCardFixture();
   const draft = f.toggle(NON_BUSINESS);
   const second = { join: 'AND', matchScope: 'row', conditions: [] };
   draft.groups.push(second); f.api.setActiveGroup(draft, second); f.toggle(NON_BUSINESS);
   const one = draft.groups[0].conditions[0], two = draft.groups[1].conditions[0];
-  const preset = f.window.JetUi.FILTER_COMMON_PRESETS.find(p => p.key === 'nonBusinessDay').overrides;
+  const presetEntry = f.window.JetUi.FILTER_COMMON_PRESETS.find(p => p.key === 'nonBusinessDay');
+  const preset = presetEntry.overrides, legacy = presetEntry.legacyOverrides[0];
   assert.notEqual(one, two);
-  assert.notEqual(one.conditions, two.conditions);
-  assert.notEqual(one.conditions[0], two.conditions[0]);
-  assert.notEqual(one.conditions, preset.conditions);
-  assert.notEqual(one.conditions[0], preset.conditions[0]);
-  // Mutate the sole non-business-day date child, still proving both child identity and deep-copy isolation.
-  one.conditions[0].operator = 'isWeekend';
-  assert.equal(two.conditions[0].operator, 'isNonBusinessDay');
-  assert.equal(preset.conditions[0].operator, 'isNonBusinessDay');
-  one.conditions[0].join = 'OR';
-  assert.equal(two.conditions[0].join, 'AND');
-  assert.equal(preset.conditions[0].join, 'AND');
+  assert.notEqual(one, preset);
+  assert.notEqual(two, preset);
+  // 改加入的那一條，另一條、預設定義與舊寫法都不變。
+  one.operator = 'isWeekend';
+  assert.equal(two.operator, 'isNonBusinessDay');
+  assert.equal(preset.operator, 'isNonBusinessDay');
+  assert.equal(legacy.conditions[0].operator, 'isNonBusinessDay');
+  one.join = 'OR';
+  assert.equal(two.join, 'AND');
+  assert.equal(Object.hasOwn(preset, 'join'), false);
+  assert.equal(legacy.conditions[0].join, 'AND');
   assert.equal(draft.name, '非營業日之分錄、非營業日之分錄');
 });
 
@@ -2066,9 +2082,11 @@ test('the wire keeps the group order, strips UI keys and records no new preset g
   assert.equal(wire.source, 'common');
   assert.equal(wire.groups.length, 1);
   // 空白摘要卡改用欄位條件，保留身分與順序，只改條件的種類。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-  assert.deepEqual(plain(wire.groups[0].conditions.map(rule => rule.type)), ['group', 'fieldValue']);
+  // 非營業日卡片不再是子條件組，送出的是一條欄位條件（裁定 2026-11-03-09）；原本核對第一條是 group、送出它的子條件，
+  // 改成核對第一條本身。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.deepEqual(plain(wire.groups[0].conditions.map(rule => rule.type)), ['fieldValue', 'fieldValue']);
   assert.equal(JSON.stringify(wire).includes('__'), false);
-  assert.deepEqual(plain(wire.groups[0].conditions[0].conditions), [{ type: 'fieldValue', join: 'AND', field: 'glDate', operator: 'isNonBusinessDay', includeBlank: false }]);
+  assert.deepEqual(plain(wire.groups[0].conditions[0]), { type: 'fieldValue', join: 'AND', field: 'glDate', operator: 'isNonBusinessDay', includeBlank: false });
   assert.equal(wire.editorOrigins.version, 2);
   assert.deepEqual(plain(wire.editorOrigins.groups), [{ cards: [NON_BUSINESS, BLANK] }]);
   assert.equal(JSON.stringify(wire).includes('presetGroup'), false);
@@ -2110,13 +2128,16 @@ test('the non-business-day example puts both conditions in group 1 and names the
   f.api.applyTemplate('nonBusinessDayExcludingDates');
   const draft = f.store.getState().filter.draft;
   assert.equal(draft.groups.length, 1);
-  assert.deepEqual(plain(draft.groups[0].conditions.map(rule => rule.type)), ['group', 'fieldValue']);
+  // 非營業日卡片直接加入一條條件（裁定 2026-11-03-09），第 1 組依序是「在非營業日」與「排除指定日期」兩條欄位條件；
+  // 原本第一條是子條件組。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.deepEqual(plain(draft.groups[0].conditions.map(rule => [rule.type, rule.field, rule.operator])),
+    [['fieldValue', 'glDate', 'isNonBusinessDay'], ['fieldValue', 'glDate', 'notIn']]);
   // 身分標記 2026-10-29 改記卡片代號（原本記字母）。
   assert.equal(draft.groups[0].conditions[0].__commonCard, NON_BUSINESS);
   assert.equal(draft.groups[0].conditions[1].join, 'AND');
   assert.deepEqual(plain(draft.groups[0].conditions[1].values), [], 'the example never fills dates for the auditor');
   assert.equal(typeof f.window.deferred, 'function', 'focus moves to the value that still needs input');
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。位置字首維持原句，只換原因。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。位置字首維持原句，只換原因。
   assert.deepEqual(plain(f.gate()), { ok: false, notice: '尚需補齊：第 1 組第 2 條「總帳日期」請填 1 到 100 個值' });
   draft.groups[0].conditions[1].values = ['2025-01-01'];
   assert.equal(f.gate().ok, true);
@@ -2130,7 +2151,7 @@ test('missing values inside a condition bracket name the item within the conditi
     { type: 'fieldValue', join: 'OR', field: 'createdBy', operator: 'in', values: [], includeBlank: false }] });
   draft.groups.push({ join: 'AND', matchScope: 'row', conditions: [{ type: 'dateRange', field: 'glDate', from: '2025-02-01', to: '2025-01-01' }] });
   f.store.setFilterDraft(draft);
-  // 裁定 2026-10-14-01 確認了這兩句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。位置字首維持原句，只換原因。
+  // 這兩句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。位置字首維持原句，只換原因。
   assert.deepEqual(plain(f.gate()), { ok: false, notice: '尚需補齊：第 1 組第 2 條的第 2 項「' +
     f.window.JetUi.glFieldLabel('createdBy') + '」請填 1 到 100 個值、第 2 組第 1 條「日期區間」起日晚於迄日' });
 });
@@ -2147,7 +2168,9 @@ test('an example whose first group uses OR stays a separate group after the card
   f.api.applyTemplate('syntheticOrExample');
   const draft = f.store.getState().filter.draft;
   assert.equal(draft.groups.length, 2);
-  assert.deepEqual(plain(draft.groups[0].conditions.map(rule => rule.type)), ['group']);
+  // 卡片那一組只有非營業日卡片的一條欄位條件（裁定 2026-11-03-09），原本是一條子條件組。
+  // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.deepEqual(plain(draft.groups[0].conditions.map(rule => [rule.type, rule.operator])), [['fieldValue', 'isNonBusinessDay']]);
   assert.equal(draft.groups[0].conditions[0].__commonCard, NON_BUSINESS);
   assert.deepEqual(plain(draft.groups[1].conditions.map(rule => rule.prescreenKey)), ['blankDescription', 'weekendPosting']);
   assert.equal(draft.groups[1].join, 'AND');
@@ -2509,7 +2532,7 @@ test('project metadata editor sends only editable fields and failed saves and ca
   assert.deepEqual(Object.keys(page.form.elements).sort(), ['clientName', 'prepStartDate', 'projectCode']);
   assert.equal(page.form.clientName.value, 'Original client');
   assert.match(page.html(), /案件名稱.*查核期間.*不能修改/);
-  // 原本也鎖「已匯出的報告與工作底稿不會改寫」。裁定 2026-10-29-02 指出常駐說明太多後拿掉，
+  // 原本也鎖「已匯出的報告與工作底稿不會改寫」。使用者指出常駐說明太多（裁定 2026-10-29-02），所以拿掉，
   // 這條依預期失敗，首敗收據 20261029-042349219-80cd18acb17f46b19cd7967d9b7a0b55；不能修改的欄位仍要寫出。
   assert.doesNotMatch(page.html(), /已匯出.*不.*改寫/);
   page.input('clientName', ' New client '); page.input('projectCode', ' NEW-02 '); page.input('prepStartDate', '2025-03-01');
@@ -2630,7 +2653,7 @@ test('project update has a JetApi method and missing preparation dates point to 
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.reviewMetadataRule = FilterStep.ruleControlsHtml;'), context);
   const rule = { type: 'prescreen', prescreenKey: 'prepPeriodApproval' };
   const html = f.window.reviewMetadataRule(rule, 0, 0);
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.match(html, /<p class="rule-field__hint">尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫<\/p>/);
   assert.doesNotMatch(html, /prepStartDate|重新建立案件/);
   f.store.setProject({ projectId: 'synthetic', prepStartDate: '2024-02-01' });
@@ -2728,8 +2751,18 @@ test('scenario-used account category can be removed, cancelled, retried and save
   assert.equal(f.store.getState().messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
 });
 
+// 裁定 2026-11-03-27 先隱藏科目分類的上下層級與分類用途，開關 Ui.FEATURES.categoryHierarchy 預設關著。
+// 新增的斷言先核對開關關著時第四步不畫分類用途、上層分類、進階設定與它們的說明；之後打開開關，原本的斷言照舊核對休眠中的上下層編輯。
+// 第一次失敗：FrontendMapping 收據 20261103-102610249-33dada705bc54432a817530311880e4f。
 test('account category editor can submit a new parent and child together and inherits purpose only until manually changed', async () => {
+  const closed = categoryReviewFixture();
+  closed.render().click('[data-action="add-category"]');
+  const hidden = closed.render().html;
+  assert.match(hidden, /data-category-label="draft-1"/);
+  assert.doesNotMatch(hidden, /data-category-role=|data-category-parent=|toggle-category-advanced|is-advanced|category-role-help|category-parent-help|沿用上層/);
+  assert.match(hidden, /id="category-name-help"/);
   const f = categoryReviewFixture();
+  f.window.JetUi.FEATURES.categoryHierarchy = true;
   f.render().click('[data-action="add-category"]');
   f.render().change('[data-category-label="draft-1"]', '新上層', 'input');
   f.render().change('[data-category-role="draft-1"]', 'cash');
@@ -2774,8 +2807,15 @@ test('account category parent removal names direct children, waits for confirmat
 });
 
 // 裁定 2026-10-15-12：第四步「套用分類」改回下拉選單，改回檢查下拉的縮排。修改前失敗：20261015-011855792-4174f66464c84ffe990d516f57676fae。
+// 裁定 2026-11-03-27 先隱藏「進階設定」，開關 Ui.FEATURES.categoryHierarchy 預設關著。新增的斷言核對開關關著時沒有「進階設定」按鈕，
+// 但案件已有的上下層照樣畫出縮排；之後打開開關，原本的斷言照舊核對休眠中的進階設定按鈕。
+// 第一次失敗：FrontendMapping 收據 20261103-102610249-33dada705bc54432a817530311880e4f。
 test('account category editor and apply dropdown show hierarchy and newly added labels receive focus', () => {
   const f = categoryReviewFixture(); f.store.setCategory({ revision: 2, categories: classificationTree() });
+  const hidden = f.render().html;
+  assert.doesNotMatch(hidden, /toggle-category-advanced|data-category-role=|data-category-parent=/);
+  assert.match(hidden, /data-category-depth="1"/);
+  f.window.JetUi.FEATURES.categoryHierarchy = true;
   const html = f.render().html;
   assert.match(html, /data-category-depth="1"/);
   assert.match(html, /toggle-category-advanced"[^>]*data-focus-key=/);
@@ -2792,11 +2832,15 @@ test('new classification cards and the category pair check default to subtree wh
   for (const type of ['accountSide', 'accountPair', 'specialAccountCategoryPair']) assert.equal(ui.newFilterCondition(type).categorySelection, 'subtree');
   // 裁定 2026-10-08-06 重新設計自訂篩選條件：原本由舊目錄帶入的分類組合，改由常用查核條件「借方與貸方分類組合」加入，同樣包含下層分類。
   // 這份清單的常數 2026-10-29 跟著畫面改名「依審計目的」（原本的常數名稱改給常用篩選條件用）；第一次失敗見本檔開頭 BLANK 上方的收據。
-  const checks = ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks);
-  for (const key of ['categoryPair', 'accountInCategory']) {
+  const checks = ui.FIELD_SHORTCUT_GROUPS.flatMap(group => group.checks);
+  // 常用查法「科目分類」拿掉，改成欄位條件「類別」那一組的科目分類欄位（裁定 2026-11-03-06、2026-11-03-18），
+  // 加入的是一條分類留空的科目分類條件，不再預設借方。原本從常用查法 accountInCategory 的第二條子條件取規格，
+  // 改成從欄位的規格取，同樣核對預設包含下層。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.equal(checks.some(check => check.key === 'accountInCategory'), false);
+  const categoryField = ui.FilterStep.CHOICE_FIELDS.find(field => field.id === 'accountCategory').spec;
+  assert.deepEqual(plain(categoryField), { type: 'accountSide', categoryMode: 'is', categoryIds: [], categorySelection: 'subtree' });
+  for (const [key, spec] of [['categoryPair', checks.find(check => check.key === 'categoryPair').conditions[0]], ['accountCategory', categoryField]]) {
     // 每條條件只表達一件事，借方與分類分為兩條，仍核對分類預設包含下層。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
-    const root = checks.find(check => check.key === key).conditions[0];
-    const spec = key === 'accountInCategory' ? root.conditions[1] : root;
     assert.equal(spec.categorySelection ?? ui.newFilterCondition(spec.type).categorySelection, 'subtree', key);
   }
   f.store.setCategory({ revision: 2, categories: classificationTree() });
@@ -2804,6 +2848,11 @@ test('new classification cards and the category pair check default to subtree wh
   const wire = f.filterApi.wire({ name: 'Old rule', rationale: 'Synthetic', groups: [{ conditions: [old] }] });
   assert.equal(wire.groups[0].conditions[0].categorySelection, undefined);
   assert.match(f.filterApi.summary(old, 0), /相同分類用途/);
+  // 新增：「選取依據」下拉屬於隱藏的上下層級（裁定 2026-11-03-27），開關關著時條件卡片不畫；打開開關後照舊畫出，新條件選在包含下層分類。
+  const fresh = { ...ui.newFilterCondition('accountSide'), categoryIds: ['builtin.cash'] };
+  assert.doesNotMatch(f.filterApi.controls(fresh, 0, 0), /選取依據|data-rule-bind="categorySelection"/);
+  ui.FEATURES.categoryHierarchy = true;
+  assert.match(f.filterApi.controls(fresh, 0, 0), /選取依據<select data-rule-bind="categorySelection"><option value="role">相同分類用途<\/option><option value="node">僅分類本身<\/option><option value="subtree" selected>包含下層分類<\/option>/);
 });
 
 // 科目分類條件的借貸方向與「這一側都不屬於」已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），讀回不再寫「不限借貸」，
@@ -2973,8 +3022,10 @@ function batch7Fixture() {
   const context = vm.createContext({ window, document });
   // 第五步拆成五個檔案：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
+  // 「自訂篩選條件」分頁改成「欄位條件」，畫面函式從 customPickerHtml 改成 fieldPickerHtml（裁定 2026-11-03-05、2026-11-03-21）；
+  // 未預期借貸組合只留在預篩選分頁，一併匯出 prescreenPickerHtml。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('batch7', ['bind', 'customPickerHtml', 'addFieldCondition', 'addPurposeCheck', 'conditionFromSpec', 'findPurposeCheck','bindCompoundRule', 'compoundRuleHtml', 'ruleRowHtml', 'ruleSubjectHtml', 'ruleProblem', 'readBackHtml', 'toWireDraft', 'syncViewState'], 'getView: () => FilterStep.viewState')), context);
+    filterStepExposure('batch7', ['bind', 'fieldPickerHtml', 'prescreenPickerHtml', 'addFieldCondition', 'addFieldShortcut', 'conditionFromSpec', 'findFieldShortcut','bindCompoundRule', 'compoundRuleHtml', 'ruleRowHtml', 'ruleSubjectHtml', 'ruleProblem', 'readBackHtml', 'toWireDraft', 'syncViewState'], 'getView: () => FilterStep.viewState')), context);
   // 替換字串跟著正式匯出改：2026-10-16 加了 countText，2026-10-19 刪掉只給備用畫面用的 countText（第一次失敗：
   // 20261019-090901211-9e9ec7ffcbf34596ae2d8476cf613b45）。只多匯出 matchStatusHtml 供下面的測試使用。
   vm.runInContext(fs.readFileSync(path.join(root, 'filter-vouchers.js'), 'utf8').replace('Ui.FilterVouchers = { summary: summary, mount: mount };',
@@ -3095,7 +3146,7 @@ test('unavailable saved risk selections keep their name and explain on the card,
   for (const [key, label] of [['nonAuthorizedPreparer', '非授權編製人員'], ['unexpectedAccountPair', '未預期借貸組合']]) {
     const rule = { type: 'prescreen', prescreenKey: key };
     assert.match(f.api.ruleSubjectHtml(rule, 'pattern'), new RegExp('<option[^>]*value="prescreen:' + key + '"[^>]*selected[^>]*>' + label + '<'));
-    // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。授權編製人員改稱「清單」。
+    // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。授權編製人員改稱「清單」。
     assert.match(f.api.ruleRowHtml(rule, { conditions: [rule] }, 0, 0), /<p class="rule-field__hint">[^<]*(?:清單|科目配對)/);
   }
   assert.match(f.ui.FilterValues.fieldOptionsHtml(f.store.getState(), 'deleted-rde', []), /<option[^>]*value="deleted-rde"[^>]*selected[^>]*>[^<]*(?:未配對|重新選擇)/);
@@ -3149,7 +3200,9 @@ test('voucher status names the matching group and condition and keeps the full r
   const f = batch7Fixture(), ui = f.ui.FilterVouchers;
   const html = ui.matchStatusHtml({ isHit: true, matchDescription: '第 1 組第 2 條：摘要為空白', primaryConditions: [{ group: 1, rule: 2 }] });
   assert.match(html, /<strong>符合條件的分錄<\/strong>/);
-  assert.match(html, /<p>主要：第 1 組條件 2<\/p>/);
+  // 傳票表改成每列一行後，符合情形的第二行放在同一格的 span（裁定 2026-11-03-03）；這條斷言當時沒跟著改，
+  // 第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(html, /<span class="filter-match-reason__where">主要：第 1 組條件 2<\/span>/);
   assert.match(html, /title="第 1 組第 2 條：摘要為空白"/);
   assert.doesNotMatch(html.replace(/title="[^"]*"/, ''), /摘要為空白/, 'the full reason is not repeated in the cell');
 });
@@ -3158,9 +3211,19 @@ test('voucher status names the matching group and condition and keeps the full r
 test('non-business-day card adds the shared nonbusiness predicate while old weekend-or-holiday AST remains untouched and honestly named', () => {
   const f = commonCardFixture(), draft = f.toggle(NON_BUSINESS);
   const wire = plain(f.api.toWireDraft(draft));
-  assert.equal(wire.groups[0].conditions[0].type, 'group');
-  assert.deepEqual(wire.groups[0].conditions[0].conditions.map(rule => [rule.type, rule.field, rule.operator]), [['fieldValue', 'glDate', 'isNonBusinessDay']]);
-  assert.match(f.text(f.api.readBackHtml(draft)), /非營業日（排除補班日）/);
+  // 卡片直接加入一條「總帳日期 在非營業日」，不再包一層子條件組（裁定 2026-11-03-09）；原本核對第一條是 group、
+  // 再看它的子條件，改成核對第一條本身。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.deepEqual(wire.groups[0].conditions.map(rule => [rule.type, rule.field, rule.operator]), [['fieldValue', 'glDate', 'isNonBusinessDay']]);
+  assert.equal(wire.groups[0].conditions[0].conditions, undefined);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(f.text(f.api.readBackHtml(draft)), /非營業日/);
+  // 新增：2026-11-03 以前存下的子條件組寫法照舊讀回「非營業日」，也照舊認得是這張卡（裁定 2026-11-03-09）。
+  const legacyRule = { type: 'group', join: 'AND', __commonCard: NON_BUSINESS, conditions: [
+    { type: 'fieldValue', field: 'glDate', operator: 'isNonBusinessDay', join: 'AND' }] };
+  const legacyDraft = { name: 'Legacy synthetic', rationale: 'Synthetic', groups: [{ join: 'AND', matchScope: 'row', conditions: [legacyRule] }] };
+  f.api.refreshAutomaticMetadata(legacyDraft, false);
+  assert.equal(legacyRule.__commonCard, NON_BUSINESS, 'the saved bracket still counts as the card');
+  assert.equal(f.text(f.api.readBackHtml(legacyDraft)), '篩選條件：非營業日');
   const older = { name: 'Older synthetic', rationale: 'Preserve saved meaning', __preserveJoins: true, groups: [{ conditions: [{ type: 'group', join: 'AND', conditions: [
     { type: 'prescreen', prescreenKey: 'weekendPosting', join: 'AND' }, { type: 'prescreen', prescreenKey: 'holidayPosting', join: 'OR' } ] }] }] };
   const before = plain(older); const readback = f.text(f.api.readBackHtml(older));
@@ -3223,7 +3286,7 @@ test('group and between-group AND/OR switches update only the intended saved joi
 test('unexpected account pair uses the same revenue and any-counterpart prerequisites as step four', () => {
   const f = batch7Fixture(), rule = { type: 'prescreen', prescreenKey: 'unexpectedAccountPair' };
   for (const [mapping, reason] of [
-    // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。原因寫出缺的分類名稱；
+    // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。原因寫出缺的分類名稱；
     // 同一個樣式也套進常用查核條件的說明，所以不加行首行尾錨點。
     [{ hasRevenue: false, hasCounterpart: true }, /科目配對中尚無歸類為「Revenue」的科目，請先在第四步設定/],
     [{ hasRevenue: true, hasCounterpart: false }, /科目配對中尚無歸類為「Receivables」「Cash」或「Receipt in advance」的科目，請先在第四步設定/] ]) {
@@ -3231,13 +3294,16 @@ test('unexpected account pair uses the same revenue and any-counterpart prerequi
     assert.match(f.api.ruleProblem(rule)?.message || '', reason);
     assert.match(f.api.ruleSubjectHtml(rule, 'pattern'), /<option[^>]*value="prescreen:unexpectedAccountPair"[^>]*selected/);
     // 裁定 2026-10-08-06 重新設計自訂篩選條件：停用改看常用查核條件「未預期的借貸組合」，原因寫在該項下方。
-    assert.match(f.api.customPickerHtml(), /data-add-check="unexpectedAccountPair"[^>]*disabled/);
-    assert.match(f.api.customPickerHtml(), new RegExp('id="filter-check-note-unexpectedAccountPair">[^<]*(?:' + reason.source + ')'));
+    // 裁定 2026-11-03-05 之後這一項只留在預篩選分頁，欄位條件分頁不再列出；原本看自訂篩選條件分頁的常用查核條件，
+    // 改看預篩選分頁的同一條，停用與原因照舊。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+    assert.match(f.api.prescreenPickerHtml(), /data-add-prescreen="unexpectedAccountPair"[^>]*disabled/);
+    assert.match(f.api.prescreenPickerHtml(), new RegExp('id="filter-prescreen-note-unexpectedAccountPair">[^<]*(?:' + reason.source + ')'));
+    assert.doesNotMatch(f.api.fieldPickerHtml(), /unexpectedAccountPair/);
   }
   // One of the three counterpart roles is sufficient; no new all-three rule is invented.
   f.store.setAccountMappingState({ hasRevenue: true, hasCounterpart: true });
   assert.equal(f.api.ruleProblem(rule), null);
-  assert.doesNotMatch(f.api.customPickerHtml(), /data-add-check="unexpectedAccountPair"[^>]*disabled/);
+  assert.doesNotMatch(f.api.prescreenPickerHtml(), /data-add-prescreen="unexpectedAccountPair"[^>]*disabled/);
 });
 
 // The backend consumes this same hand-written JSON; neither side derives expected text from the other renderer.
@@ -3254,9 +3320,10 @@ test('validation interpretation uses the rewritten completeness and balance sent
   const f = batch8Fixture(), items = f.v.VALIDATION_ITEMS;
   // 裁定 2026-10-30-20：兩句的「可能」照確認頁的表改寫，取代原本逐字保留的使用者原句；
   // 改字前依預期失敗：FrontendMapping 收據 20261031-005738048-537d55bb503744e797c25b2b6ef9f583。
-  assert.match(items.find(item => item.title === '完整性測試').desc, /金額不符時，要確認總帳母體是否完整。/);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(items.find(item => item.title === '完整性測試').desc, /金額不符時，要確認 GL 分錄是否完整。/);
   assert.match(items.find(item => item.title === '借貸不平測試').desc, /借貸不平時，要確認傳票號碼與金額欄位是否正確。/);
-  assert.match(items.find(item => item.title === '資料可靠性測試').desc, /先確認.*(?:RDE|攸關資料元素).*可靠.*(?:再|後).*高風險/);
+  assert.match(items.find(item => item.title === '資料可靠性測試').desc, /先確認.*攸關資料元素.*可靠.*(?:再|後).*進階條件篩選/);
   f.store.setResult('validate', batch8ValidationData());
   assert.doesNotMatch(f.v.prescreenCardHtml(null, f.store.getState().results.validate, true, f.store.getState(), { isEligible: true }), /data-action="run-prescreen"[^>]*disabled/);
   f.controls().click('[data-action="run-prescreen"]');
@@ -3343,7 +3410,7 @@ test('a reason detail shows only the backend sentence and all blank-source categ
   assert.equal(f.v.DETAIL_PAGE_SPECS.sourceQuality.columns[0]({ category: 'blankGlDate' }), '總帳日期空白');
   // 一條規則只在一處定義，第四步不再註冊空白摘要的明細頁（空白摘要只留預篩選訊號那一處），這裡只剩兩類。
   // 第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
-  for (const [key, label] of [['nullDocument', '空白傳票號碼'], ['nullAccount', '空白科目編號']]) {
+  for (const [key, label] of [['blankVoucherNumber', '空白傳票號碼'], ['blankAccountNumber', '空白科目編號']]) {
     assert.equal(f.v.DETAIL_PAGE_SPECS['null-' + key].columns[4]({}), label);
   }
   assert.deepEqual(plain(item.detail(data).columns.slice(3, 5)), ['傳票號碼', '科目編號']);
@@ -3380,8 +3447,9 @@ test('null posting and hit counts never claim a measured zero or an all-clear re
   const f = batch8Fixture();
   assert.doesNotMatch(JSON.stringify(f.v.hitCountStatus({ count: null })), /未發現/);
   const pair = f.v.pairCountStatus({ postingCount: null, approvalCount: 2 });
-  assert.match(pair.text, /過帳.*(?:—|未知|未執行)/); assert.match(pair.text, /核准 2/);
-  assert.doesNotMatch(pair.text, /過帳 0/);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(pair.text, /總帳日期.*(?:—|未知|未執行)/); assert.match(pair.text, /傳票核准日 2 筆/);
+  assert.doesNotMatch(pair.text, /總帳日期 0/);
   assert.equal(f.v.hitCountStatus({ count: 0 }).text, '未發現');
 });
 
@@ -3512,7 +3580,8 @@ test('mapping date fields omit permanent explanations while invalid approval set
   state.mapping.gl.draft.approvalDate = 'Approval';
   // Approval-source errors are rendered by optionProblemsHtml, not the manual-code-only preflight.
   const invalidApproval = f.mapping.classicEditSection('gl', 'GL', f.ui.GL_FIELDS, f.ui.GL_MODES, state.importState.gl, state.mapping.gl, 'dual', null, false);
-  assert.match(invalidApproval, /核准日選「沒有核准日」時，不可同時指派/);
+  // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+  assert.match(invalidApproval, /核准日選「—」（沒有核准日）時，不可同時指派/);
   assert.doesNotMatch(invalidApproval, /核准日選「不提供」/);
 });
 
@@ -4023,7 +4092,9 @@ test('constants keep separate fixed audit thresholds and unchanged full labels a
 // 裁定 2026-10-29-27：第四步照舊版拿掉 11 筆以下的人員與科目，只留依筆數排序的兩份彙總；
 // 第五步「依審計目的」的兩項加入時仍預設 11 筆以下。裁定 2-5 與「照舊版列整張傳票」：未預期借貸組合的說明寫出正金額分錄的條件與整張傳票。
 // 第一次失敗：FrontendMapping 收據 20261030-162529376-aeb2afc4a9484224a5d3351ebe9e23ed。
-test('step four drops the eleven-entry preparer and account rules while step five purpose checks keep the eleven default', () => {
+// 測試名稱原本是「step four drops the eleven-entry preparer and account rules while step five purpose checks keep the eleven default」，
+// 依審計目的那個入口取消後，項目改叫欄位底下的常用查法（裁定 2026-11-03-06、2026-11-03-30）。
+test('step four drops the eleven-entry preparer and account rules while step five field shortcuts keep the eleven default', () => {
   const f = batch8Fixture();
   assert.deepEqual(plain(f.ui.PRESCREEN_RULES.map(item => item.value)), ['prepPeriodApproval', 'suspiciousKeywords', 'unexpectedAccountPair', 'trailingZeros',
     'weekendPosting', 'weekendApproval', 'holidayPosting', 'holidayApproval', 'blankDescription', 'nonAuthorizedPreparer']);
@@ -4034,7 +4105,7 @@ test('step four drops the eleven-entry preparer and account rules while step fiv
   const rare = f.v.PRESCREEN_ITEMS.find(item => item.title === '較少使用之科目');
   const status = rare.status({ rareAccounts: { distinctAccountCount: 500, accounts: [{ accountNumber: '101', entryCount: 2 }] } });
   assert.equal(status.text, '500 個科目');
-  const checks = Object.fromEntries(f.ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks).map(check => [check.key, check.conditions[0]]));
+  const checks = Object.fromEntries(f.ui.FIELD_SHORTCUT_GROUPS.flatMap(group => group.checks).map(check => [check.key, check.conditions[0]]));
   assert.equal(checks.rareAccounts.countFrom, '11'); assert.equal(checks.rareAccounts.countOperator, 'lessThanOrEqual');
   assert.equal(checks.rarePreparers.countFrom, '11'); assert.equal(checks.rarePreparers.countOperator, 'lessThanOrEqual');
   const pair = f.ui.prescreenConditionDescription('unexpectedAccountPair');
@@ -4210,7 +4281,7 @@ test('preparer count uses the full backend total and explains a partial table', 
   assert.equal(item.status(few).text, '3 位人員');
   assert.ok(!item.detail(few).prefix);
   // 裁定 2026-11-02-06：新的預篩選結果一定帶人數，拿掉只為舊結果留下的「預篩選結果未包含人員數，請重新執行預篩選」；
-  // 這句的用字原本由裁定 2026-10-14-01 確認。原本斷言缺人數時寫這句；第一次失敗：FrontendMapping 收據 20261102-043805783-6bde5de96ee64d44827c16a78569411c。
+  // 這句的用字原本依裁定 2026-10-14-01。原本斷言缺人數時寫這句；第一次失敗：FrontendMapping 收據 20261102-043805783-6bde5de96ee64d44827c16a78569411c。
   assert.doesNotMatch(item.status({ preparerSummary: { preparers: fifty } }).text, /重新執行預篩選/);
 });
 
@@ -4270,6 +4341,15 @@ test('both cash templates select the cash category including its subcategories',
     const rule = f.store.getState().filter.draft.groups[0].conditions[0];
     assert.equal(rule.pairMode, mode);
     assert.equal(rule.categorySelection, 'subtree');
+    // 裁定 2026-11-03-27：選的分類都沒有下層時，讀回不寫選取依據。這個夾具沒有分類資料，現金沒有下層，所以不寫「包含下層分類」；
+    // 原本的斷言改到下面現金有下層的案件照舊核對。第一次失敗：FrontendMapping 收據 20261103-102610249-33dada705bc54432a817530311880e4f。
+    assert.doesNotMatch(f.api.readBackHtml(f.store.getState().filter.draft), /包含下層分類|實際納入分類/);
+  }
+  f.store.setCategory({ revision: 2, categories: [
+    { categoryId: 'builtin.cash', label: '現金', semanticRole: 'cash', isBuiltIn: true },
+    { categoryId: 'bank', label: '銀行存款', semanticRole: 'cash', parentCategoryId: 'builtin.cash' }] });
+  for (const key of ['cashDebitNonCashCredit', 'cashCreditNonCashDebit']) {
+    f.api.applyTemplate(key);
     assert.match(f.api.readBackHtml(f.store.getState().filter.draft), /包含下層分類/);
   }
 });
@@ -4304,7 +4384,7 @@ test('the fixed-asset card creates empty subtree selections and blocks preview w
   assert.equal(f.api.draftRuleProblems(draft)[0].text, '第 1 組第 1 條：科目配對中尚無任何科目設定分類，請先在第四步設定');
   assert.match(f.api.commonPickerHtml(draft), /尚不可用/);
   f.store.getState().importState.accountMapping = { hasAnyCategory: false };
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.match(f.api.commonPickerHtml(draft), /科目配對中尚無任何科目設定分類，請先在第四步設定/);
   f.store.getState().importState.accountMapping = { hasAnyCategory: true };
   const fixedAsset = f.api.commonPickerHtml(draft).match(/<button[^>]*data-common-card="fixedAssetDebitExpenseCredit"[^>]*>/)[0];
@@ -4420,8 +4500,23 @@ test('all five field picker forms share source-aware labels without changing sav
    assert.ok(button[2].includes('（'+source+'）'),'duplicate names show the source column');
   }
  };
- buttons(f.filter.customPickerHtml(),'data-add-field',dates);
- buttons(f.filter.customPickerHtml(),'data-add-field',texts);
+ // 欄位條件分頁改成一列一個欄位（裁定 2026-11-03-05、2026-11-03-06）：欄位名稱寫在列首，按鈕字是「加入」，完整說明放在名稱的 title
+ // 與按鈕的 aria-label。原本核對欄位按鈕的 title 與按鈕文字，改成核對同一列的名稱與按鈕，保存的仍是欄位識別。
+ // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+ const rows=(html,ids)=>{
+  for(const [id,source] of ids){
+   const row=[...html.matchAll(/<li class="filter-field[^"]*">([\s\S]*?)<\/li>/g)].map(m=>m[1]).find(body=>body.includes('data-add-field="'+id+'"'));
+   assert.ok(row,id);
+   const name=/<span class="filter-field__name" title="([^"]*)">([^<]*)<\/span>/.exec(row);
+   assert.ok(name,id); assert.match(name[1],/來源欄：/); assert.ok(name[1].includes(source),source);
+   assert.ok(name[2].includes('（'+source+'）'),'duplicate names show the source column');
+   const button=/<button\b([^>]*data-add-field="[^"]*"[^>]*)>([^<]*)<\/button>/.exec(row);
+   assert.match(button[1],/aria-label="加入條件：[^"]*來源欄：/); assert.ok(button[1].includes(source),source);
+   assert.equal(button[2],'加入');
+  }
+ };
+ rows(f.filter.fieldPickerHtml(),dates);
+ rows(f.filter.fieldPickerHtml(),texts);
  f.filter.viewState.examplePick='manualDepartment';
  buttons(f.filter.exampleListHtml(),'data-example-field',texts);
  f.filter.viewState.examplePick=null;
@@ -4475,9 +4570,10 @@ test('calendar card has no template or folder button and keeps the upload button
  assert.doesNotMatch(html,/open-calendar-folder/);
  assert.match(html,/data-action="import-holiday"/);
  assert.match(html,/data-action="import-makeup"/);
- // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
- assert.match(html,/假日檔讀 Date_of_Holiday 欄，補班檔讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。/);
- assert.match(html,/未調整時預設週六、週日/);
+ // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+ // 裁定 2026-11-03-10 改畫面用字；第一次失敗：FrontendMapping 收據 20261103-075637257-ceeda6449f334daeaa9b121cbec08fb0。
+ assert.match(html,/國定假日清單讀 Date_of_Holiday 欄，補班日清單讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。/);
+ assert.match(html,/未調整時預設六、日/);
  assert.doesNotMatch(html,/2025 年資料/);
  const dom=batch7Dom(html);api.bindCalendarCard(dom);
  assert.ok(dom.querySelector('[data-action="import-holiday"]'));
@@ -4509,10 +4605,10 @@ test('mapping differences load only on demand, preserve paging and retry, and ig
  page.querySelector('[data-action="import-account-mapping"]').fire('click');await settle();await Promise.all(f.actions);
  page=f.render();assert.match(page.textContent,/本案沒有的科目.*2/);assert.match(page.textContent,/配對檔未列的科目.*3/);
  // 裁定 2026-10-10-02：兩份清單只留名稱與筆數，不再附說明句。
- // 裁定 2026-10-13-28 確認了用字：完成訊息只留第一行，「也可匯入前一個案件的配對檔」移到「1. 取得配對檔」的說明
+ // 用字依裁定 2026-10-13-28：完成訊息只留第一行，「也可匯入前一個案件的配對檔」移到「1. 取得配對檔」的說明
  // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
  assert.doesNotMatch(page.textContent,/不會出現在篩選結果/);assert.match(f.store.getState().messages.at(-1).text,/^科目配對匯入完成，共 4 個科目，耗時(?: \d+\.\d 秒|不到 0\.1 秒)。$/);
- // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。很快完成時寫「耗時不到 0.1 秒」。
+ // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。很快完成時寫「耗時不到 0.1 秒」。
  // 裁定 2026-10-30-35 採方案丙，提示句照選定的樣張改寫：補上存檔後「再重新匯入」，已匯入時另提醒重新匯入會覆蓋全部配對。
  // 第一次失敗：FrontendMapping 收據 20261031-095121839-24d9cd622b3242889605b39228f69a2e。
  // 裁定 2026-11-01-06 把「也可以匯入」改回「也可匯入」；第一次失敗：FrontendMapping 收據 20261101-062903506-eed7a916dd2a499dbedd83ced776f260。
@@ -4767,7 +4863,7 @@ test('scenario problems name each scenario with its reasons and give the next st
   // 裁定 2026-10-11-03：前置條件還沒完成的提示一律用琥珀色；舊斷言（紅色）第一次失敗：20261010-171353992-339f59bf533749bea822e143c14c1c0f。
   assert.match(html, /^<div class="form-notice form-notice--warning filter-scenario-problems"><strong>下列情境無法套用目前規則：<\/strong><ul>/);
   assert.match(html, /<li>情境 1「第一個」：合成欄位已移除。<\/li><li>情境 2「第二個」：合成條件無效；合成分類已刪除。<\/li><\/ul>/);
-  // 裁定 2026-10-13-28 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  // 這句的用字依裁定 2026-10-13-28（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
   // 裁定 2026-10-14-02：黃色提示不過度解釋，句子依同日確認的清單縮短（第一次失敗：FrontendMapping 收據 20261014-085644389-9bd9b20c579e4d95926d6ad0c4881504）。
   assert.equal((html.match(/請到「進階條件篩選」修改後儲存，或移除不需要的情境。/g) || []).length, 1, 'the next step is said once, after the list');
 });
@@ -5429,11 +5525,19 @@ test('a card and a custom condition in one group are both named', () => {
 
 // 2026-10-29：測試名稱原本以字母稱呼這三張卡；身分標記與編輯來源改記代號（原本記字母）；名稱期望值原本是字母串接，
 // 改成依加入順序以頓號接卡片名稱。第一次失敗見本檔開頭 BLANK 上方的收據。
-test('changing the non-business-day bracket child stops counting it as that card, filled values keep the revenue and trailing digit cards', () => {
+// 裁定 2026-11-03-09 拿掉非營業日卡片的子條件組，卡片加入的就是那一條欄位條件：原本改的是子條件組裡那一條的比較方式，
+// 改成直接改卡片加入的那一條；已儲存的舊子條件組改了子條件同樣不再算這張卡，另外核對。
+// 測試名稱原本是「changing the non-business-day bracket child stops counting it as that card, …」。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+test('changing the non-business-day condition stops counting it as that card, filled values keep the revenue and trailing digit cards', () => {
   const f = namingFixture(), draft = f.toggle(NON_BUSINESS);
-  draft.groups[0].conditions[0].conditions[0].operator = 'isWeekend'; f.api.refreshAutomaticMetadata(draft, false);
+  draft.groups[0].conditions[0].operator = 'isWeekend'; f.api.refreshAutomaticMetadata(draft, false);
   assert.equal(draft.groups[0].conditions[0].__commonCard, undefined);
   assert.equal(f.api.toWireDraft(draft).editorOrigins.groups[0].cards[0], null);
+  const legacy = { name: '', rationale: '', groups: [{ join: 'AND', matchScope: 'row', conditions: [{ type: 'group', join: 'AND', __commonCard: NON_BUSINESS,
+    conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isWeekend', join: 'AND' }] }] }] };
+  f.api.refreshAutomaticMetadata(legacy, false);
+  assert.equal(legacy.groups[0].conditions[0].__commonCard, undefined, 'a saved bracket whose child changed is no longer the card');
   const kept = namingFixture(), values = kept.toggle(REVENUE); kept.toggle(TRAILING);
   values.groups[0].conditions[0].windowDays = '10'; values.groups[0].conditions[1].keywords = '999999';
   kept.api.refreshAutomaticMetadata(values, false);
@@ -5694,18 +5798,18 @@ function remapAppFixture() {
 }
 
 test('failed project loading exports the same error correlation from the picker', async () => {
-  // 案件清單的「輸出支援日誌」只在 Debug 組建出現（裁定 2026-10-20-03 選「只藏案件清單的」），原本以 Release 夾具就按得到
+  // 案件清單的「輸出支援日誌」只在 Debug 組建出現（使用者選了「只藏案件清單的」，裁定 2026-10-20-03），原本以 Release 夾具就按得到
   // （第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker'); f.store.setDevToolsEnabled(true);
   const opening = f.window.JetUi.openProject('failed-synthetic');
   f.request('projectLoad').reject({ code: 'file_read_error', message: '合成載入失敗', correlationId: 'picker-load-x' }); await opening;
   f.app.renderPicker(f.state);
   assert.equal(f.state.project, null); assert.equal(f.state.pickerFeedbackContext.projectId, 'failed-synthetic'); assert.equal(f.state.pickerFeedbackContext.correlationId, 'picker-load-x');
-  // 裁定 2026-10-13-26 選「從錯誤框拿掉，改成一般工具」：錯誤框不再有「複製錯誤」，「輸出支援日誌」移到操作列、不帶 projectId，
+  // 使用者選了「從錯誤框拿掉，改成一般工具」（裁定 2026-10-13-26）：錯誤框不再有「複製錯誤」，「輸出支援日誌」移到操作列、不帶 projectId，
   // 匯出全部紀錄。原本斷言錯誤框有兩個按鈕、payload 帶這次的 projectId 與 correlationId
   // （第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。這次的 correlation 仍留給 Debug 組建的 DEV 按鈕。
   assert.match(f.dom.content.textContent, /合成載入失敗/); assert.ok(f.$('[data-action="picker-copy-error"]') === null, 'no copy button');
-  // 裁定 2026-10-20-04 指出案件清單底部一排按鈕看不出用途，「輸出支援日誌」改放在卡片下方的頁尾，不再和重新整理、同步排成一列。
+  // 使用者指出案件清單底部一排按鈕看不出用途（裁定 2026-10-20-04），「輸出支援日誌」改放在卡片下方的頁尾，不再和重新整理、同步排成一列。
   // 原本斷言它在 .picker-panel__actions（第一次失敗：FrontendMapping 收據 20261020-005208614-97bdab80cb6b426788fc317a68b9ab44）。
   assert.ok(f.$('.picker-footer [data-action="picker-support-export"]') !== null, 'support log button in the footer below the case card');
   f.click('[data-action="picker-support-export"]');
@@ -5770,7 +5874,7 @@ test('overview opened from the header button takes keyboard focus on its close b
     assert.ok(modal.contains(active), round + ': focus moves into the overview');
     assert.equal(active.tagName, 'BUTTON', round + ': focus lands on a button, not the backdrop');
     assert.ok(active.classList.contains('overview__close'), round + ': focus lands on the card close button');
-    // 2026-10-13 修改既有測試的原因：裁定 2026-10-13-02 選定總覽改用共用的焦點圈限，Escape 改由 document 捕獲階段的監聽處理，
+    // 2026-10-13 修改既有測試的原因：依裁定 2026-10-13-02，總覽改用共用的焦點圈限，Escape 改由 document 捕獲階段的監聽處理，
     // 直接對 modal 送 keydown 不再經過它而依預期失敗，第一次失敗收據 20261013-072254030-1d559fa4970d468eb505a5e111b2ce01。
     // 斷言不變，只改成照瀏覽器的順序送鍵。
     f.key('Escape');
@@ -5937,7 +6041,9 @@ test('applying an example replaces all existing conditions and focuses the first
   f.click('[data-action="apply-template"][data-template-key="nonBusinessDayExcludingDates"]');
   const dialog = f.dom.document.body.querySelector('[data-bind="filter-pending-modal"]');
   dialog.fire('click', { target: dialog.querySelector('.modal__actions [data-pending-choice="continue"]') });
-  assert.equal(f.draft().groups.length, 1); assert.deepEqual(plain(f.draft().groups[0].conditions.map(r => r.type)), ['group', 'fieldValue']);
+  // 非營業日卡片直接加入一條欄位條件（裁定 2026-11-03-09），範例第 1 組是兩條欄位條件；原本第一條是子條件組。
+  // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.equal(f.draft().groups.length, 1); assert.deepEqual(plain(f.draft().groups[0].conditions.map(r => [r.type, r.operator])), [['fieldValue', 'isNonBusinessDay'], ['fieldValue', 'notIn']]);
   assert.doesNotMatch(JSON.stringify(f.draft().groups), /blankDescription|roundAmount/); assert.equal(f.draft().name, '非營業日且排除指定日期');
   assert.ok(f.draft().rationale); assert.notEqual(f.draft().rationale, oldRationale); assert.equal(f.$('[data-save-panel]').hidden, false);
   assert.deepEqual(plain(f.draft().groups[0].conditions[1].values), []);
@@ -6048,7 +6154,8 @@ test('switching between filter and saved panes preserves the existing preview an
 });
 
 test('long custom metadata respects the documented limits and a cleared name can be regenerated', () => {
-  const f = filterOperationFixture(); f.click('[data-condition-source="custom"]');
+  // 分頁識別從 custom 改成 field（裁定 2026-11-03-21）。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  const f = filterOperationFixture(); f.click('[data-condition-source="field"]');
   for (const [subject, value] of [['description', '合成摘要'.repeat(80)], ['accountName', '合成科目名稱'.repeat(80)], ['voucherNumber', '合成傳票號碼'.repeat(80)]]) {
     // 裁定 2026-10-08-06 重新設計自訂篩選條件：欄位改由欄位按鈕直接加入。
     f.click('[data-add-field="' + subject + '"]');
@@ -6105,23 +6212,32 @@ for (const action of ['app-back-picker', 'app-exit']) test('' + action + ' retai
   const f = remapAppFixture(), project = f.state.project; f.store.setView('workflow'); f.click('[data-action="' + action + '"]'); await settle();
   f.request('projectSaveProgress').resolve({}); await settle(); f.request('projectReleaseLock').reject({ code: 'operation_in_progress' }); await settle();
   assert.equal(f.state.project, project); assert.equal(f.state.view, 'workflow'); assert.equal(f.state.busy, false); assert.equal(f.requests.some(r => r.action === 'hostExitApp'), false);
-  // 裁定 2026-10-13-28 確認了用字：句子不再寫按鈕名稱，原本比對「等待…完成…重試」（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  // 用字依裁定 2026-10-13-28：句子不再寫按鈕名稱，原本比對「等待…完成…重試」（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
   assert.ok(f.state.messages.some(m => m.level === 'warn' && m.text === '作業還在進行，請等它完成後再試一次。'));
 });
 
 // 裁定 2026-10-08-06 重新設計自訂篩選條件：左欄只剩「依欄位設定」與「常用查核條件」，範例移到右側「從範例開始」，
 // 每組多一個「⋯」選單。以下以正式第五步畫面與函式操作；名稱、規則與原因逐字寫死，不由被測程式算出。
-const CUSTOM_CHECK_LABELS = {
-  '日期與時點': ['總帳日期在週末', '總帳日期在國定假日', '總帳日期在非營業日', '傳票核准日在非營業日', '財報準備日起核准的分錄', '指定日期區間', '查核期末最後幾天'],
-  '金額': ['大額分錄', '金額尾數連續多個 0'],
-  '摘要': ['摘要含特定字詞', '空白摘要'],
-  '科目與借貸': ['只看借方或貸方', '科目屬於指定分類', '借方與貸方分類組合', '借方與貸方科目編號組合', '未預期的借貸組合', '較少使用的科目'],
-  '人員與分錄性質': ['人工分錄', '編製分錄較少的人員']
+// 裁定 2026-11-03-05、2026-11-03-06 拿掉「依審計目的」五類，常用查法改掛在各自的欄位底下；這份對照原本以五類分組（常數原名 CUSTOM_CHECK_LABELS），
+// 改成以欄位分組，每項寫欄位底下的短名稱與完整名稱。拿掉的五項：只看借方或貸方、科目分類、人工分錄改成「類別」那一組的欄位；
+// 借方與貸方科目編號組合改成情境範例；未預期借貸組合只留在預篩選分頁。傳票核准日底下新增週末、國定假日、日期區間，
+// 財報準備日起核准移到傳票核准日底下（裁定 2026-11-03-20）。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+const FIELD_CHECK_LABELS = {
+  glDate: [['週末', '總帳日期在週末'], ['國定假日', '總帳日期在國定假日'], ['非營業日', '總帳日期在非營業日'], ['日期區間', '總帳日期在指定日期區間'], ['期末最後幾天', '查核期末最後幾天']],
+  approvalDate: [['週末', '傳票核准日在週末'], ['國定假日', '傳票核准日在國定假日'], ['非營業日', '傳票核准日在非營業日'], ['日期區間', '傳票核准日在指定日期區間'],
+    ['財報準備日起核准', '財報準備日起核准的分錄']],
+  amount: [['大額', '大額分錄'], ['尾數連續多個 0', '金額尾數連續多個 0']],
+  description: [['含特定字詞', '摘要含特定字詞'], ['空白', '空白摘要']],
+  accountNumber: [['較少使用的科目', '較少使用的科目']],
+  createdBy: [['編製分錄較少的人員', '編製分錄較少的人員']],
+  accountCategory: [['借方與貸方分類組合', '借方與貸方分類組合']]
   // 「預篩選結果：沿用第四步預篩選規則」在裁定 2026-10-16-09 縮短套用預篩選條件的操作後，改成條件總覽的「預篩選」分頁，
   // 由 frontend-journey-filter-build.test.cjs 的分頁測試涵蓋；第一次失敗：常用查核條件少了「預篩選結果」一類。
 };
+// 「借方與貸方科目編號組合」從常用查法移到情境範例，共 11 個（裁定 2026-11-03-08、2026-11-03-20）。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
 const CUSTOM_EXAMPLE_NAMES = ['借現金、貸非現金', '貸現金、借非現金', '非營業日且排除指定日期', '期末最後 7 天的人工分錄', '空白摘要或空白核准人員',
-  '特定人員的大額分錄', '週末人工分錄的特定摘要', '人工分錄的特定部門', '指定借貸科目組合的大額分錄', '財報準備期間的人工假日分錄'];
+  '特定人員的大額分錄', '週末人工分錄的特定摘要', '人工分錄的特定部門', '借方與貸方科目編號組合', '指定借貸科目組合的大額分錄', '財報準備期間的人工假日分錄'];
 const DEFAULT_KEYWORDS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG', '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
   '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
 
@@ -6135,28 +6251,55 @@ function pickShape(actual, expected) {
 function customPaneFixture({ rdeFields = [], mapping = {} } = {}) {
   const f = filterOperationFixture();
   f.store.setMappingCommitted('gl', { mapping, mode: 'signed', options: { rdeFields } });
-  f.click('[data-condition-source="custom"]');
+  // 分頁識別從 custom 改成 field（裁定 2026-11-03-21）。夾具名稱沿用。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  f.click('[data-condition-source="field"]');
   return f;
 }
 
-test('custom pane lists every core field by type, marks relevant data element fields and adds the default rule to the active group', () => {
+// 裁定 2026-11-03-05、2026-11-03-06、2026-11-03-18、2026-11-03-21：「自訂篩選條件」改成「欄位條件」（分頁識別 field），依資料型別分成
+// 日期、數字、文字、類別四組，一列一個欄位，列首寫欄位名稱、列尾「加入」，常用查法掛在欄位底下；「依欄位設定」「依審計目的」兩個區塊不再有。
+// 原本核對兩個區塊標題、三列欄位按鈕與按鈕上的提示，改成核對四組標題、各組的欄位列、每列一顆「加入」，以及攸關資料元素那一列的名稱提示。
+// 原本先展開「金額」一類再按「大額分錄」，改成直接按金額底下的「大額」。測試名稱原本是「custom pane lists every core field by type, …」。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+test('field pane lists every core field by type, marks relevant data element fields and adds the default rule to the active group', () => {
   const f = customPaneFixture({ rdeFields: [{ fieldId: 'rde.d', sourceColumn: 'DocDay', label: '單據日', valueType: 'date' },
     { fieldId: 'rde.m', sourceColumn: 'Tax', label: '稅額', valueType: 'amount' }, { fieldId: 'rde.t', sourceColumn: 'Dept', label: '部門', valueType: 'text' }] });
-  const pane = f.$('[data-condition-pane="custom"]');
-  // 2026-10-29 區塊改用三個分頁共用的 filter-source-block，「常用查核條件」改名「依審計目的」（裁定 2026-10-29-10）。
-  // 第一次失敗見本檔開頭 BLANK 上方的收據。
-  assert.deepEqual(pane.querySelectorAll('.filter-source-block__title').map(node => node.textContent), ['依欄位設定', '依審計目的']);
-  assert.doesNotMatch(pane.innerHTML, /<h3|data-custom-subject|data-legacy|data-template-key|舊表|範例/);
-  const rows = pane.querySelectorAll('.filter-chip-row');
-  assert.deepEqual(rows.map(row => row.querySelector('.filter-chip-row__label').textContent), ['日期', '數字', '文字']);
+  assert.equal(f.$('[data-condition-pane="custom"]'), null);
+  assert.equal(f.$('[data-condition-source="field"]').textContent, '欄位條件');
+  const pane = f.$('[data-condition-pane="field"]');
+  assert.equal(pane.hidden, false);
+  assert.deepEqual(pane.querySelectorAll('.filter-source-block__title').map(node => node.textContent), []);
+  assert.doesNotMatch(pane.innerHTML, /<h3|data-custom-subject|data-legacy|data-template-key|data-check-category|舊表|範例/);
+  const sections = pane.querySelectorAll('section.filter-field-group');
+  assert.deepEqual(sections.map(group => group.querySelector('.filter-field-group__title').textContent), ['日期', '數字', '文字', '類別']);
   // 核心欄位不依配對狀態篩選（此案件沒有配對任何核心欄位，仍全部列出）。
-  assert.deepEqual(rows.map(row => row.querySelectorAll('[data-add-field]').map(button => button.textContent)), [
+  assert.deepEqual(sections.map(group => group.querySelectorAll('li.filter-field').map(row => row.querySelector('.filter-field__name').textContent)), [
     ['總帳日期', '傳票核准日', '單據日'], ['金額', '稅額'],
-    ['傳票摘要', '會計科目編號', '會計科目名稱', '傳票建立人員', '傳票核准人員', '傳票號碼', '分錄來源模組', '傳票文件項次', '部門']]);
-  assert.equal(f.$('[data-add-field="rde.t"]').classList.contains('filter-chip--extra'), true);
-  assert.equal(f.$('[data-add-field="glDate"]').classList.contains('filter-chip--extra'), false);
+    ['傳票摘要', '會計科目編號', '會計科目名稱', '傳票建立人員', '傳票核准人員', '傳票號碼', '分錄來源模組', '傳票文件項次', '部門'],
+    ['借貸別', '人工/自動分錄', '科目分類']]);
+  assert.deepEqual(sections.map(group => group.querySelectorAll('li.filter-field').map(row => row.querySelector('[data-add-field]').getAttribute('data-add-field'))), [
+    ['glDate', 'approvalDate', 'rde.d'], ['amount', 'rde.m'],
+    ['description', 'accountNumber', 'accountName', 'createdBy', 'approvedBy', 'voucherNumber', 'sourceModule', 'lineItem', 'rde.t'],
+    ['drCr', 'manualAuto', 'accountCategory']]);
+  // 裁定 2026-11-03-37：有常用查法的欄位，「加入」鍵打開選單，帶欄位識別的一般條件是選單第一項、寫欄位名稱。
+  // 原本核對每列帶欄位識別的按鈕寫「加入」；改成核對每列右邊的鍵都寫「加入」，有選單的列，一般條件在那把鍵打開的選單裡、寫欄位名稱。
+  // 第一次失敗：FrontendMapping 收據 20261103-160322547-996b0a7863f643239742942bd3bba3a2。
+  for (const row of pane.querySelectorAll('li.filter-field')) {
+    const key = row.querySelector('.btn--add');
+    const add = row.querySelector('[data-add-field]');
+    assert.equal(key.textContent, '加入');
+    if (key.getAttribute('aria-haspopup') === 'menu') {
+      assert.equal(add.closest('.jet-menu__items').getAttribute('id'), key.getAttribute('aria-controls'));
+      assert.equal(add.textContent, row.querySelector('.filter-field__name').textContent);
+    } else {
+      assert.equal(add, key);
+    }
+  }
   // 同上，欄位按鈕的提示與報讀名稱只加註來源欄。改名依裁定 2026-10-13-18；同時改名的 C# 測試第一次失敗收據是 20261013-092449164-3847782f6c50488b86a0ac3856e606ca，那次在 C# 測試步驟停止，Node 前端測試尚未執行。
-  assert.equal(f.$('[data-add-field="rde.t"]').getAttribute('title'), '部門（來源欄：Dept）');
+  // 原本攸關資料元素的按鈕多一個 filter-chip--extra 樣式；欄位改成一列之後，攸關資料元素以列首名稱的提示寫出來源欄來區別，核心欄位的提示只寫名稱。
+  const nameOf = id => f.$('[data-add-field="' + id + '"]').closest('li.filter-field').querySelector('.filter-field__name');
+  assert.equal(nameOf('rde.t').getAttribute('title'), '部門（來源欄：Dept）');
+  assert.equal(nameOf('glDate').getAttribute('title'), '總帳日期');
   assert.equal(f.$('[data-add-field="rde.t"]').getAttribute('aria-label'), '加入條件：部門（來源欄：Dept）');
 
   const deferred = []; f.window.JetFocus.defer = fn => deferred.push(fn);
@@ -6165,7 +6308,7 @@ test('custom pane lists every core field by type, marks relevant data element fi
   assert.deepEqual(plain(groups.map(group => group.conditions.map(rule => [rule.type, rule.field, rule.operator]))),
     [[['fieldValue', 'createdBy', 'in']], [['fieldValue', 'amount', 'equals']]]);
   assert.equal(f.$('.rule-row[data-gi="1"][data-ri="0"]').classList.contains('rule-row--selected'), true, 'the new condition is selected');
-  f.click('[data-check-category="amounts"]'); f.click('[data-add-check="largeAmount"]');
+  f.click('[data-add-shortcut="largeAmount"]');
   assert.equal(deferred.at(-1)(), f.$('.rule-row[data-gi="1"][data-ri="1"]').querySelector('[data-value-key="value"]'), 'an empty threshold receives focus');
   f.click('[data-add-field="rde.t"]');
   assert.deepEqual(plain([groups[1].conditions[2].fieldId, groups[1].conditions[2].field ?? null, groups[1].conditions[2].operator]), ['rde.t', null, 'contains']);
@@ -6183,26 +6326,41 @@ test('field buttons follow the active group join conditions: row groups keep the
   // 這次改的是測試資料，不是因為測試失敗。
 });
 
-test('common checks open one category at a time, start with the first, remember the choice and show only a name and an add button', () => {
+// 裁定 2026-11-03-06 拿掉「依審計目的」五類與展開收合，常用查法直接列在各自的欄位底下，每項一顆按鈕，按下只加入那一條。
+// 原本核對一次只開一類、一開始開第一類、重畫後記得開哪一類、每一列只有名稱與「加入」；改成核對沒有分類鍵、每個欄位底下依序列出
+// 自己的常用查法（短名稱寫在按鈕上，完整名稱放在 title 與 aria-label）、借貸別與人工/自動分錄底下不放（裁定 2026-11-03-20）、
+// 重畫後照樣列出，以及每一列只有欄位名稱、「加入」與常用查法，沒有另外的說明。
+// 測試名稱原本是「common checks open one category at a time, start with the first, remember the choice and show only a name and an add button」。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+test('common checks are listed under their own fields with one button each and no categories to open', () => {
   const f = customPaneFixture();
-  const open = () => f.dom.content.querySelectorAll('[data-check-category]').filter(button => button.getAttribute('aria-expanded') === 'true').map(button => button.textContent);
-  assert.deepEqual(open(), ['日期與時點']);
-  assert.equal(f.$('#filter-checks-dates').hidden, false); assert.equal(f.$('#filter-checks-amounts').hidden, true);
-  f.click('[data-check-category="amounts"]');
-  assert.deepEqual(open(), ['金額']); assert.equal(f.$('#filter-checks-dates').hidden, true); assert.equal(f.$('#filter-checks-amounts').hidden, false);
+  const pane = () => f.$('[data-condition-pane="field"]');
+  function listed() {
+    const result = {};
+    for (const row of pane().querySelectorAll('li.filter-field')) {
+      const checks = row.querySelectorAll('[data-add-shortcut]');
+      if (checks.length) result[row.querySelector('[data-add-field]').getAttribute('data-add-field')] = checks.map(button => [button.textContent, button.getAttribute('title')]);
+    }
+    return result;
+  }
+  assert.equal(f.dom.content.querySelectorAll('[data-check-category]').length, 0, 'there is no category to open');
+  assert.deepEqual(listed(), FIELD_CHECK_LABELS);
+  for (const button of pane().querySelectorAll('[data-add-shortcut]')) {
+    assert.equal(button.getAttribute('aria-label'), '加入「' + button.getAttribute('title') + '」');
+    assert.ok(button.closest('.filter-field__shortcuts'), 'each check sits in its field\'s add menu');
+  }
+  for (const id of ['drCr', 'manualAuto']) {
+    assert.equal(f.$('[data-add-field="' + id + '"]').closest('li.filter-field').querySelectorAll('[data-add-shortcut]').length, 0, id + ' has no shortcut');
+  }
   f.store.touch();
-  assert.deepEqual(open(), ['金額'], 'redrawing keeps the open category');
-  f.click('[data-check-category="amounts"]');
-  assert.deepEqual(open(), [], 'the open category can be closed');
-  const labels = Object.fromEntries(f.dom.content.querySelectorAll('[data-check-category]').map(button =>
-    [button.textContent, f.$('#' + button.getAttribute('aria-controls')).querySelectorAll('.filter-check__label').map(node => node.textContent)]));
-  assert.deepEqual(labels, CUSTOM_CHECK_LABELS);
-  // 2026-10-16 新增的「預篩選」分頁沿用同一種列樣式，這裡只檢查常用查核條件裡的列；第一次失敗：TypeError，
-  // 預篩選分頁的列沒有 [data-add-check]。分頁的列由 frontend-journey-filter-build.test.cjs 檢查。
-  for (const item of f.dom.content.querySelectorAll('.filter-check').filter(node => node.closest('.filter-check-group'))) {
-    assert.equal(item.querySelector('[data-add-check]').textContent, '加入');
-    const extra = item.children.filter(child => !child.matches('.filter-check__label') && !child.matches('[data-add-check]') && !child.matches('.filter-check__note'));
-    assert.deepEqual(extra, [], 'no extra explanation beside a check');
+  assert.deepEqual(listed(), FIELD_CHECK_LABELS, 'redrawing lists the same checks');
+  // 2026-10-16 新增的「預篩選」分頁沿用同一種列樣式，這裡只檢查欄位條件分頁的列；分頁的列由 frontend-journey-filter-build.test.cjs 檢查。
+  // 裁定 2026-11-03-37 起有常用查法的欄位，帶欄位識別的一般條件在「加入」打開的選單裡、寫欄位名稱，所以改核對每列右邊的鍵寫「加入」。
+  // 第一次失敗：FrontendMapping 收據 20261103-160322547-996b0a7863f643239742942bd3bba3a2。
+  for (const row of pane().querySelectorAll('li.filter-field')) {
+    assert.equal(row.querySelector('.btn--add').textContent, '加入');
+    const extra = row.children.filter(child => !child.matches('.filter-field__head') && !child.matches('.filter-field__shortcuts') && !child.matches('.filter-check__note'));
+    assert.deepEqual(extra, [], 'no extra explanation beside a field');
   }
 });
 
@@ -6211,44 +6369,68 @@ test('every common check adds its fixed rule shape to the active group', () => {
   f.store.getState().project.prepStartDate = '2025-12-01';
   f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
   f.store.setMappingCommitted('gl', { mapping: { createdBy: 'Maker', approvedBy: 'Checker' }, mode: 'signed', options: {} });
+  // 常用查法改依欄位分組（裁定 2026-11-03-06），鍵的順序跟著欄位：總帳日期、傳票核准日、金額、傳票摘要、會計科目編號、傳票建立人員、科目分類。
+  // 傳票核准日底下新增週末、國定假日、日期區間，財報準備日起核准移到傳票核准日底下（裁定 2026-11-03-20）。拿掉的五項改由下面的新入口核對同樣的條件形狀。
+  // 「金額尾數連續多個 0」改成一條條件（裁定 2026-11-03-07），原本是「整數尾數符合 000000」且「金額絕對值大於或等於 1」的子條件組。
+  // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
   const expected = {
     glDateWeekend: { type: 'fieldValue', field: 'glDate', operator: 'isWeekend' },
     glDateHoliday: { type: 'fieldValue', field: 'glDate', operator: 'isHoliday' },
     glDateNonBusinessDay: { type: 'fieldValue', field: 'glDate', operator: 'isNonBusinessDay' },
-    approvalDateNonBusinessDay: { type: 'fieldValue', field: 'approvalDate', operator: 'isNonBusinessDay' },
-    prepPeriodApproval: { type: 'prescreen', prescreenKey: 'prepPeriodApproval' },
     glDateRange: { type: 'fieldValue', field: 'glDate', operator: 'between', from: '', to: '' },
     periodEndDays: { type: 'fieldValue', field: 'glDate', operator: 'between', from: '2025-12-25', to: '2025-12-31' },
+    approvalDateWeekend: { type: 'fieldValue', field: 'approvalDate', operator: 'isWeekend' },
+    approvalDateHoliday: { type: 'fieldValue', field: 'approvalDate', operator: 'isHoliday' },
+    approvalDateNonBusinessDay: { type: 'fieldValue', field: 'approvalDate', operator: 'isNonBusinessDay' },
+    approvalDateRange: { type: 'fieldValue', field: 'approvalDate', operator: 'between', from: '', to: '' },
+    prepPeriodApproval: { type: 'prescreen', prescreenKey: 'prepPeriodApproval' },
     largeAmount: { type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' },
+    trailingZeros: { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '6', amountBasis: 'absolute' },
     // 空白摘要卡改用欄位條件；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
-    trailingZeros: { type: 'group', conditions: [{ type: 'fieldValue', field: 'amount', operator: 'endsWithDigits', value: '000000', amountBasis: 'absolute' },
-      { type: 'fieldValue', field: 'amount', operator: 'greaterThanOrEqual', value: '1', amountBasis: 'absolute' }] },
     descriptionKeywords: { type: 'fieldValue', field: 'description', operator: 'contains', values: DEFAULT_KEYWORDS },
     blankDescription: { type: 'fieldValue', field: 'description', operator: 'isBlank' },
-    debitOrCreditOnly: { type: 'drCrOnly', drCr: 'debit' },
-    // 借貸方向只用「借貸別」：保留借方預設，方向改放明示子條件。首次失敗：20261014-132501058-ef503fecc9824f3b9e6f009a7b154327。
-    accountInCategory: { type: 'group', conditions: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'accountSide', categoryMode: 'is', categorySelection: 'subtree' }] },
-    categoryPair: { type: 'specialAccountCategoryPair', pairMode: 'drAndCr', categorySelection: 'subtree' },
-    accountNumberPair: { type: 'group', conditions: [
-      { type: 'voucher', quantifier: 'any', conditions: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [] }] },
-      { type: 'voucher', quantifier: 'any', conditions: [{ type: 'drCrOnly', drCr: 'credit' }, { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [] }] }] },
-    unexpectedAccountPair: { type: 'prescreen', prescreenKey: 'unexpectedAccountPair' },
     rareAccounts: { type: 'entityFrequency', field: 'accountNumber', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' },
-    manualEntries: { type: 'manualAuto', isManual: 'true' },
-    rarePreparers: { type: 'entityFrequency', field: 'createdBy', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' }
+    rarePreparers: { type: 'entityFrequency', field: 'createdBy', countUnit: 'entries', countOperator: 'lessThanOrEqual', countFrom: '11' },
+    categoryPair: { type: 'specialAccountCategoryPair', pairMode: 'drAndCr', categorySelection: 'subtree' }
     // prescreenResult 已由「預篩選」分頁取代（裁定 2026-10-16-09）；第一次失敗：常用查核條件的鍵少了 prescreenResult。
   };
   // 清單常數與加入函式 2026-10-29 跟著「依審計目的」改名（第一次失敗見本檔開頭 BLANK 上方的收據）。
-  const keys = f.ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks.map(check => check.key));
+  const keys = f.ui.FIELD_SHORTCUT_GROUPS.flatMap(group => group.checks.map(check => check.key));
   assert.deepEqual(plain(keys), Object.keys(expected));
   for (const [key, shape] of Object.entries(expected)) {
     f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
-    f.api.addPurposeCheck(key);
+    f.api.addFieldShortcut(key);
     const rules = f.store.getState().filter.draft.groups[0].conditions;
     assert.equal(rules.length, 1, key);
     assert.deepEqual(plain(pickShape(rules[0], shape)), shape, key);
     assert.ok(f.api.toWireDraft(f.store.getState().filter.draft).groups[0].conditions[0].type, key);
   }
+  // 拿掉的五項改從新入口加入，條件形狀照舊（科目分類不再先帶借方與分類，改成一條分類留空的條件，見裁定 2026-11-03-06 的確認頁）：
+  // 只看借方或貸方、人工分錄、科目分類改成「類別」那一組的欄位；未預期借貸組合只留在預篩選分頁；借方與貸方科目編號組合改成情境範例。
+  for (const key of ['debitOrCreditOnly', 'manualEntries', 'accountInCategory', 'unexpectedAccountPair', 'accountNumberPair'])
+    assert.equal(f.api.findFieldShortcut(key), null, key + ' is no longer a common check');
+  const moved = {
+    drCr: { type: 'drCrOnly', drCr: 'debit' },
+    manualAuto: { type: 'manualAuto', isManual: 'true' },
+    accountCategory: { type: 'accountSide', categoryMode: 'is', categoryIds: [], categorySelection: 'subtree' }
+  };
+  for (const [field, shape] of Object.entries(moved)) {
+    f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
+    f.api.addFieldCondition(field);
+    const rules = f.store.getState().filter.draft.groups[0].conditions;
+    assert.equal(rules.length, 1, field);
+    assert.deepEqual(plain(pickShape(rules[0], shape)), shape, field);
+  }
+  f.store.setFilterDraft({ name: '', rationale: '', groups: [] });
+  f.ui.FilterStep.addPrescreenCondition('unexpectedAccountPair');
+  assert.deepEqual(plain(pickShape(f.store.getState().filter.draft.groups[0].conditions[0], { type: 'prescreen', prescreenKey: 'unexpectedAccountPair' })),
+    { type: 'prescreen', prescreenKey: 'unexpectedAccountPair' });
+  const pairShape = { type: 'group', conditions: [
+    { type: 'voucher', quantifier: 'any', conditions: [{ type: 'drCrOnly', drCr: 'debit' }, { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [] }] },
+    { type: 'voucher', quantifier: 'any', conditions: [{ type: 'drCrOnly', drCr: 'credit' }, { type: 'fieldValue', field: 'accountNumber', operator: 'in', values: [] }] }] };
+  const pairTemplate = f.ui.FILTER_SCENARIO_TEMPLATES.find(template => template.key === 'accountNumberPair');
+  assert.equal(pairTemplate.groups.length, 1); assert.equal(pairTemplate.groups[0].conditions.length, 1);
+  assert.deepEqual(plain(pickShape(pairTemplate.groups[0].conditions[0], pairShape)), pairShape);
   // 原本這裡檢查沒有期末財報準備日時，「沿用第四步預篩選規則」改帶下一個可用的規則。這個入口已由「預篩選」分頁取代，
   // 分頁直接停用「財報準備日起核准」並寫出原因，同樣不會帶入後端一定會擋的條件；改由 frontend-journey-filter-build.test.cjs
   // 的停用測試涵蓋（裁定 2026-10-16-09）。
@@ -6256,12 +6438,18 @@ test('every common check adds its fixed rule shape to the active group', () => {
 
 test('common checks are disabled only when the backend would reject them and say why under the item', () => {
   const f = batch7Fixture();
+  // 「自訂篩選條件」分頁改成「欄位條件」，畫面函式改成 fieldPickerHtml（裁定 2026-11-03-05、2026-11-03-21）。
+  // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
   const state = () => {
-    const html = f.api.customPickerHtml(), result = {};
-    for (const match of html.matchAll(/data-add-check="([^"]+)"([^>]*)>/g)) result[match[1]] = /\bdisabled\b/.test(match[2]);
-    return { html, disabled: Object.keys(result).filter(key => result[key]) };
+    const html = f.api.fieldPickerHtml(), result = {}, described = {};
+    for (const match of html.matchAll(/data-add-shortcut="([^"]+)"([^>]*)>/g)) {
+      result[match[1]] = /\bdisabled\b/.test(match[2]);
+      described[match[1]] = (/aria-describedby="([^"]*)"/.exec(match[2]) || [])[1];
+    }
+    return { html, described, disabled: Object.keys(result).filter(key => result[key]) };
   };
   const note = (html, key) => (new RegExp('id="filter-check-note-' + key + '">([^<]*)<').exec(html) || [])[1];
+  const fieldNote = html => (/id="filter-field-note">([^<]*)</.exec(html) || [])[1];
   // 2026-10-23 改了兩處：前端改讀後端算好的可用欄位，原本靠「沒有確認 GL 配對」表示傳票建立人員與
   // 傳票核准人員未配對，改成給一份沒有這兩個欄位的清單；欄位的原因接上和第四步相同的下一步（裁定 2026-10-22-05）。
   // 第一次失敗：FrontendMapping 收據 20261023-044331305-cc3be698efaa446eab8994f89154b247（「編製分錄較少的人員」沒有停用）。
@@ -6269,18 +6457,34 @@ test('common checks are disabled only when the backend would reject them and say
   f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {},
     availableGlFields: everyField.filter(field => field !== 'createdBy' && field !== 'approvedBy') });
   let page = state();
-  assert.deepEqual(page.disabled, ['prepPeriodApproval', 'accountInCategory', 'categoryPair', 'unexpectedAccountPair', 'rarePreparers']);
-  // 裁定 2026-10-14-01 確認了這兩句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 常用查法改掛在欄位底下（裁定 2026-11-03-06）：科目分類與未預期借貸組合不再是常用查法（改成「類別」那一組的欄位與預篩選分頁），
+  // 停用的鍵依欄位順序排列。欄位本身不能用時（傳票建立人員沒有來源欄、還沒有任何科目設定分類），底下的查法跟著停用，
+  // 原因不在每一把鍵下面重複，寫在分頁最後那一段，鍵以 aria-describedby 連過去；原本核對每一項下方的原因，改成核對那一段寫出同樣的兩句。
+  // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.deepEqual(page.disabled, ['prepPeriodApproval', 'rarePreparers', 'categoryPair']);
+  // 這兩句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(note(page.html, 'prepPeriodApproval'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
-  assert.equal(note(page.html, 'accountInCategory'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
-  assert.equal(note(page.html, 'categoryPair'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
-  assert.equal(note(page.html, 'unexpectedAccountPair'), '科目配對中尚無任何科目設定分類，請先在第四步設定');
-  assert.equal(note(page.html, 'rarePreparers'), '「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上');
+  assert.equal(page.described.prepPeriodApproval, 'filter-check-note-prepPeriodApproval');
+  for (const key of ['categoryPair', 'rarePreparers']) {
+    assert.equal(note(page.html, key), undefined, key + ' does not repeat the field reason');
+    assert.equal(page.described[key], 'filter-field-note', key);
+  }
+  // 那一段把不能用的欄位合成一句：傳票建立人員與傳票核准人員兩列都沒有來源欄，科目分類那一列還沒有任何科目設定分類。
+  assert.equal(fieldNote(page.html),
+    '「傳票建立人員」「傳票核准人員」尚未選擇來源欄，請回第三步欄位配對補上；科目配對中尚無任何科目設定分類，請先在第四步設定');
+  // 新增：不能用的欄位那一列標成 filter-field--unavailable，「加入」停用並連到同一段原因；能用的欄位照常可以按。
+  for (const [id, unavailable] of [['createdBy', true], ['approvedBy', true], ['accountCategory', true], ['description', false], ['drCr', false]]) {
+    const row = [...page.html.matchAll(/<li class="(filter-field[^"]*)">([\s\S]*?)<\/li>/g)].find(m => m[2].includes('data-add-field="' + id + '"'));
+    assert.ok(row, id);
+    assert.equal(row[1] === 'filter-field filter-field--unavailable', unavailable, id + ' row class');
+    const button = new RegExp('data-add-field="' + id + '"([^>]*)>').exec(row[2]);
+    assert.equal(/ disabled aria-describedby="filter-field-note"/.test(button[1]), unavailable, id + ' button');
+  }
   assert.equal(note(page.html, 'glDateHoliday'), undefined, 'a missing holiday list does not disable the check');
   const before = JSON.stringify(f.store.getState().filter.draft);
-  f.api.addPurposeCheck('rarePreparers');
+  f.api.addFieldShortcut('rarePreparers');
   assert.equal(JSON.stringify(f.store.getState().filter.draft), before, 'a disabled check never changes the draft');
-  // 裁定 2026-10-14-01 同意刪除「案件沒有查核截止日」這個停用分支：建立案件必填查核截止日
+  // 依裁定 2026-10-14-01，刪除「案件沒有查核截止日」這個停用分支：建立案件必填查核截止日
   // （create-step.js），畫面走不到這個狀態。原本「沒有截止日就停用」的核對改成鎖住刪除後的行為：
   // 不再因截止日停用，也不再寫這句（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4，
   // 本測試先在上面那一則確認過用字的句子失敗）。
@@ -6319,10 +6523,22 @@ test('the group heading adds a bracket or a voucher condition to its own group e
 // 裁定 2026-10-29-10 拿掉「從範例開始」按鈕，範例一直列在「常用篩選條件」分頁下半的「情境範例」。原本斷言清單一開始收起、
 // 按鈕展開後才列出、套用後收起；改成斷言清單一開始就在那個分頁列出、沒有展開按鈕、套用後清單仍在。測試名稱跟著改（原名說範例一開始隱藏）。
 // 第一次失敗見本檔開頭 BLANK 上方的收據。
-test('examples are listed on the common tab from the start with ten plain names and a one-line notice, and apply under the example name', () => {
-  const f = filterOperationFixture(), list = () => f.$('[data-example-list]');
+// 裁定 2026-11-03-05 把情境範例移到右側條件組合上方的「從情境範例開始」，裁定 2026-11-03-19 定這個托盤預設收起、按標題打開、
+// 同一次開案內記住開合；範例多了「借方與貸方科目編號組合」，共 11 個（裁定 2026-11-03-08）。原本核對清單在常用篩選條件分頁、一開始就列出、
+// 沒有展開按鈕、十個名稱；改成核對清單在條件組合上方的托盤、不在任何條件總覽分頁、托盤一開始收起而且打開後重畫照樣開著、十一個名稱。
+// 套用後清單仍在、名稱與條件的斷言不變。測試名稱原本是「examples are listed on the common tab from the start with ten plain names …」。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+test('examples sit in the folded tray above the condition groups with eleven plain names and a one-line notice, and apply under the example name', () => {
+  const f = filterOperationFixture(), list = () => f.$('[data-example-list]'), tray = () => f.$('details.filter-template-tray');
   assert.equal(list().hidden, false);
-  assert.equal(list().closest('[data-condition-pane]').getAttribute('data-condition-pane'), 'common');
+  assert.equal(list().closest('[data-condition-pane]'), null, 'the examples are not on a condition source tab');
+  assert.equal(list().closest('details.filter-template-tray'), tray());
+  assert.equal(tray().getAttribute('data-filter-disclosure'), 'templates');
+  assert.equal(tray().querySelector('summary.filter-template-tray__title').textContent, '從情境範例開始');
+  assert.equal(tray().hasAttribute('open'), false, 'the tray starts folded');
+  assert.deepEqual(plain(f.window.ops.view().disclosures), {});
+  tray().open = true; tray().fire('toggle'); f.store.touch();
+  assert.equal(tray().hasAttribute('open'), true, 'the opened tray stays open after redrawing');
   assert.equal(f.$('[data-action="toggle-examples"]'), null, 'there is no button to open the examples');
   // 後半句「已儲存的情境不受影響」在 2026-10-29 拿掉，首敗收據 20261029-042349219-80cd18acb17f46b19cd7967d9b7a0b55。
   assert.equal(f.$('.filter-example-list__hint').textContent, '套用後會替換目前的條件。');
@@ -6336,7 +6552,7 @@ test('examples are listed on the common tab from the start with ten plain names 
   assert.doesNotMatch(list().textContent, /舊表|A 到 U|範例 \d|[A-U](?:\+[A-U])+/);
   f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
   assert.equal(f.draft().name, '週末人工分錄的特定摘要');
-  assert.equal(list().hidden, false, 'applying leaves the example list on the common tab');
+  assert.equal(list().hidden, false, 'applying leaves the example list in the tray');
   assert.deepEqual(plain(f.draft().groups[0].conditions.map(rule => [rule.type, rule.field, rule.operator, rule.values])), [
     ['manualAuto', null, null, null], ['fieldValue', 'glDate', 'isWeekend', []], ['fieldValue', 'description', 'contains', ['迴轉']]]);
   f.click('[data-add-field="voucherNumber"]');
@@ -6356,10 +6572,10 @@ test('examples disable for missing approver mapping, preparation date or period 
   assert.equal(f.$('[data-example-list]').hidden, false);
   const note = key => f.$('#filter-example-note-' + key)?.textContent;
   assert.equal(f.$('[data-template-key="blankDescriptionOrApprover"]').disabled, true);
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(note('blankDescriptionOrApprover'), '「傳票核准人員」尚未選擇來源欄，請回第三步欄位配對補上');
   assert.equal(note('preparationManualHoliday'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
-  // 裁定 2026-10-14-01 同意刪除「案件沒有查核截止日」分支：建立案件必填查核截止日，範例不再因此停用。
+  // 依裁定 2026-10-14-01，刪除「案件沒有查核截止日」分支：建立案件必填查核截止日，範例不再因此停用。
   assert.equal(note('periodEndManual'), undefined);
   assert.equal(f.$('[data-template-key="periodEndManual"]').disabled, false);
   assert.equal(note('weekendManualDescription'), undefined);
@@ -6376,8 +6592,13 @@ for (const count of [1, 2]) test('the department example with ' + count + ' text
   f.click('[data-add-field="description"]');
   const before = f.draft(), json = JSON.stringify(before);
   // 2026-10-29 拿掉「從範例開始」按鈕，範例在「常用篩選條件」分頁；原本按那顆按鈕，改成切到那個分頁（第一次失敗見本檔開頭 BLANK 上方的收據）。
-  f.click('[data-condition-source="common"]');
+  // 裁定 2026-11-03-05、2026-11-03-19 之後範例在右側預設收起的「從情境範例開始」托盤，不在常用篩選條件分頁；
+  // 原本切到常用篩選條件分頁，改成打開托盤，欄位條件分頁照樣開著。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  const tray = f.$('details.filter-template-tray');
+  assert.equal(tray.hasAttribute('open'), false);
+  tray.open = true; tray.fire('toggle');
   assert.equal(f.$('[data-example-list]').hidden, false);
+  assert.equal(f.$('[data-condition-pane="field"]').hidden, false, 'the field tab stays open');
   f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
   if (count === 2) {
     const pick = f.$('[data-example-pick="manualDepartment"]');
@@ -6416,17 +6637,24 @@ test('saved conditions of the five removed types read back as disabled condition
     assert.ok(!f.ui.FILTER_RULE_TYPES.some(item => item.value === rule.type), rule.type + ' is not in the type table');
     assert.equal(f.text(f.api.readBackHtml({ groups: [{ conditions: [rule] }] })).replace(/^篩選條件：/, ''), f.ui.RETIRED_CONDITION_LABEL);
   }
-  assert.doesNotMatch(f.api.customPickerHtml(), /customPreparerEntryCount|customAccountEntryCount|customKeywords|customTrailingZeros|trailingDigits/);
+  // 「自訂篩選條件」分頁改成「欄位條件」（裁定 2026-11-03-05、2026-11-03-21），改看 fieldPickerHtml。
+  // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.doesNotMatch(f.api.fieldPickerHtml(), /customPreparerEntryCount|customAccountEntryCount|customKeywords|customTrailingZeros|trailingDigits/);
 });
 
 // 舊目錄（只留在測試夾具）代號與新選單的對照。keys 列出比較的鍵；null 表示整條規則結構相同（只比較舊目錄寫到的鍵）。
 // equivalence 表示有意改用別的規則，等價案例寫在 LegacyFormWorkflowTests，以既有固定答案的集合運算驗證。
+// 裁定 2026-11-03-06、2026-11-03-08、2026-11-03-20 拿掉五項常用查法後，對應的入口跟著改：C 未預期借貸組合改看預篩選分頁（kind 'prescreen'），
+// E 人工分錄與 M、N 只看借方或貸方改看「類別」那一組的欄位（kind 'field'），P 借方與貸方科目編號組合改看情境範例。比較的鍵不變。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
 const LEGACY_MENU_MAP = [
   { code: 'A', kind: 'check', key: 'prepPeriodApproval', keys: null },
   { code: 'B', kind: 'check', key: 'descriptionKeywords', equivalence: 'B_customKeywords' },
-  { code: 'C', kind: 'check', key: 'unexpectedAccountPair', keys: null },
-  { code: 'D', kind: 'check', key: 'trailingZeros', equivalence: 'D_customTrailingZeros' },
-  { code: 'E', kind: 'check', key: 'manualEntries', keys: null },
+  { code: 'C', kind: 'prescreen', key: 'unexpectedAccountPair', keys: null },
+  // 裁定 2026-11-03-07 之後選單加入的是一條尾數連續 6 個 0 的條件，等價案例改看 LegacyFormWorkflowTests 新增的 D_zeroRun；
+  // 原本指向的 D_customTrailingZeros 是改版前的子條件組寫法，案例保留。這一項只核對案例名稱存在，改之前沒有失敗。
+  { code: 'D', kind: 'check', key: 'trailingZeros', equivalence: 'D_zeroRun' },
+  { code: 'E', kind: 'field', key: 'manualAuto', keys: null },
   { code: 'F', kind: 'check', key: 'blankDescription', equivalence: 'F_fieldBlank' },
   { code: 'G', kind: 'check', key: 'glDateWeekend', keys: null },
   { code: 'H', kind: 'check', key: 'glDateHoliday', keys: null },
@@ -6434,10 +6662,10 @@ const LEGACY_MENU_MAP = [
   { code: 'J', kind: 'field', key: 'approvalDate', keys: ['type', 'field'] },
   { code: 'K', kind: 'field', key: 'approvalDate', keys: ['type', 'field'] },
   { code: 'L', kind: 'check', key: 'approvalDateNonBusinessDay', equivalence: 'JK_nonBusinessDay' },
-  { code: 'M', kind: 'check', key: 'debitOrCreditOnly', keys: null },
-  { code: 'N', kind: 'check', key: 'debitOrCreditOnly', keys: ['type'] },
+  { code: 'M', kind: 'field', key: 'drCr', keys: null },
+  { code: 'N', kind: 'field', key: 'drCr', keys: ['type'] },
   { code: 'O', kind: 'field', key: 'description', keys: ['type', 'field', 'operator'] },
-  { code: 'P', kind: 'check', key: 'accountNumberPair', equivalence: 'P_explicitSides' },
+  { code: 'P', kind: 'template', key: 'accountNumberPair', equivalence: 'P_explicitSides' },
   { code: 'P', kind: 'check', key: 'categoryPair', keys: ['type', 'pairMode', 'categorySelection'], source: 'categoryRules' },
   { code: 'Q', kind: 'field', key: 'amount', keys: ['type', 'field'] },
   { code: 'R', kind: 'check', key: 'glDateRange', keys: null },
@@ -6454,7 +6682,7 @@ test('common checks and examples keep the rule structure of the matching retired
   const f = batch7Fixture(), ui = f.ui;
   const catalogue = JSON.parse(fs.readFileSync(path.join(__dirname, '../../src/JET/tests/JET.Tests/Fixtures/legacy-form-2024-1210.json'), 'utf8'));
   const workflowTests = fs.readFileSync(path.join(__dirname, '../../src/JET/tests/JET.Tests/Application/LegacyFormWorkflowTests.cs'), 'utf8');
-  const checks = ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks);
+  const checks = ui.FIELD_SHORTCUT_GROUPS.flatMap(group => group.checks);
   function legacyRules(entry) {
     const item = catalogue.conditions.find(c => c.letter === entry.code) || catalogue.examples.find(e => e.key === entry.code);
     assert.ok(item, entry.code); return item[entry.source || 'conditions'];
@@ -6462,6 +6690,8 @@ test('common checks and examples keep the rule structure of the matching retired
   function menuRules(entry) {
     if (entry.kind === 'check') return checks.find(c => c.key === entry.key).conditions.map(spec => f.api.conditionFromSpec(spec));
     if (entry.kind === 'template') return ui.FILTER_SCENARIO_TEMPLATES.find(t => t.key === entry.key).groups[0].conditions;
+    // 預篩選分頁和畫面一樣，前置條件不足時不加入；這裡給齊科目配對，讓 C 加得進去。
+    if (entry.kind === 'prescreen') { f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true }); ui.FilterStep.addPrescreenCondition(entry.key); const draft = f.store.getState().filter.draft; return [draft.groups.at(-1).conditions.at(-1)]; }
     f.api.addFieldCondition(entry.key); const draft = f.store.getState().filter.draft; return [draft.groups.at(-1).conditions.at(-1)];
   }
   const strip = rule => JSON.parse(JSON.stringify(rule, (key, value) => key === 'join' ? undefined : value));
@@ -6484,7 +6714,11 @@ test('common checks and examples keep the rule structure of the matching retired
 test('common checks and examples use only rule types and operators the screen already knows, and carry no requirement list of their own', () => {
   const f = batch7Fixture(), ui = f.ui;
   const types = new Set(ui.FILTER_RULE_TYPES.map(type => type.value));
-  const operators = new Set(['in', 'notIn', 'contains', 'between', 'greaterThan', 'greaterThanOrEqual', 'isBlank', 'isWeekend', 'isHoliday', 'isNonBusinessDay', 'isNotMakeupDay', 'dayOfMonthNotIn', 'endsWithDigits']);
+  // 「金額尾數連續多個 0」改成一條條件，用新的比較方式 endsWithZeros（裁定 2026-11-03-07），加進已知的比較方式；
+  // 新比較方式本身在 filter-values.js 的比較方式清單裡，下面另外核對畫面認得它。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  const operators = new Set(['in', 'notIn', 'contains', 'between', 'greaterThan', 'greaterThanOrEqual', 'isBlank', 'isWeekend', 'isHoliday', 'isNonBusinessDay', 'isNotMakeupDay', 'dayOfMonthNotIn', 'endsWithDigits', 'endsWithZeros']);
+  assert.equal(ui.FilterValues.summary({ type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '6', amountBasis: 'absolute' }, f.store.getState()),
+    '金額 尾數連續「6」個 0；空白不列入');
   // 一條規則只在一處定義，前端只留一份 PRESCREEN_RULES。第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
   const prescreenKeys = new Set(ui.PRESCREEN_RULES.map(option => option.value));
   function visit(rule, where) {
@@ -6494,11 +6728,12 @@ test('common checks and examples use only rule types and operators the screen al
     (rule.conditions || []).forEach(child => visit(child, where));
   }
   assert.equal('FILTER_CONDITION_REQUIREMENTS' in ui, false);
-  for (const check of ui.FILTER_PURPOSE_CHECK_GROUPS.flatMap(group => group.checks)) {
+  for (const check of ui.FIELD_SHORTCUT_GROUPS.flatMap(group => group.checks)) {
     assert.equal('requires' in check, false, check.key);
     check.conditions.forEach(rule => visit(rule, check.key));
   }
-  assert.equal(ui.FILTER_SCENARIO_TEMPLATES.length, 10);
+  // 「借方與貸方科目編號組合」移到情境範例，共 11 個（裁定 2026-11-03-08）。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  assert.equal(ui.FILTER_SCENARIO_TEMPLATES.length, 11);
   for (const template of ui.FILTER_SCENARIO_TEMPLATES) {
     assert.equal('requires' in template, false, template.key);
     if (template.pickField) assert.equal(template.pickField, 'text', template.key);
@@ -6507,14 +6742,22 @@ test('common checks and examples use only rule types and operators the screen al
 });
 
 
-test('examples belong to the condition catalog and still replace only the draft', () => {
+// 裁定 2026-11-03-05：條件總覽只放一次加入一條條件的入口，情境範例移到右側條件組合上方的「從情境範例開始」托盤。
+// 原本核對範例清單在條件總覽、不在條件組合裡；改成核對清單不在條件總覽、放在條件組合正上方的托盤、也不在條件組合的卡片裡。
+// 套用後只替換草稿、不動已儲存情境的斷言不變。測試名稱原本是「examples belong to the condition catalog and still replace only the draft」。
+// 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+test('examples sit in the tray right above the condition groups and still replace only the draft', () => {
   const f = filterOperationFixture({ saved: [savedBlankDescription()] });
   // 2026-10-29 拿掉「從範例開始」按鈕：原本核對按鈕在條件總覽、不在條件組合，改成核對範例清單本身在條件總覽、不在條件組合，
   // 而且不用按任何按鈕就列出。第一次失敗見本檔開頭 BLANK 上方的收據。
-  assert.ok(f.$('.filter-entry [data-example-list]'));
+  assert.equal(f.$('.filter-entry [data-example-list]'), null);
+  const tray = f.$('details.filter-template-tray');
+  assert.ok(tray.querySelector('[data-example-list]'));
+  const siblings = tray.parentElement.children;
+  assert.ok(siblings[siblings.indexOf(tray) + 1].matches('.scenario-builder'), 'the tray sits right above the condition groups');
   assert.equal(!!f.$('.scenario-builder [data-example-list]'), false);
   assert.equal(f.$('[data-action="toggle-examples"]'), null);
-  assert.equal(f.$('.filter-entry [data-example-list]').hidden, false);
+  assert.equal(tray.querySelector('[data-example-list]').hidden, false);
   f.click('[data-action="apply-template"][data-template-key="weekendManualDescription"]');
   assert.equal(f.draft().name, '週末人工分錄的特定摘要');
   assert.deepEqual(plain(f.store.getState().filter.savedScenarios), [savedBlankDescription()]);
@@ -6787,7 +7030,7 @@ test('opening a saved scenario over unsaved conditions asks first and staying ke
   const draft = f.draft(), json = JSON.stringify(draft);
   f.click('[data-action="edit-scenario"][data-index="1"]');
   assert.equal(f.modals().length, 1);
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(f.modal().querySelector('.modal__title').textContent, '篩選情境尚未儲存');
   assert.equal(f.body(), '目前的條件尚未儲存為情境。開啟「乙情境」會換掉這些條件。');
   assert.deepEqual(f.buttons(), ['留在這裡', '不儲存，直接開啟', '儲存並開啟']);
@@ -6810,7 +7053,7 @@ test('save and open updates the edited scenario first and opens the next one onl
   f.click('[data-action="edit-scenario"][data-index="0"]');
   f.type('[data-bind="scenario-name"]', '甲情境（修改）');
   f.click('[data-action="edit-scenario"][data-index="1"]');
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(f.body(), '情境「甲情境」的修改尚未儲存。開啟「乙情境」會換掉這些修改。');
   f.choose('save');
   assert.equal(f.modal(), null, 'the dialog closes while saving');
@@ -6844,7 +7087,7 @@ test('copy and examples ask with their own wording; saving clears the draft', as
   f.click('[data-action="edit-scenario"][data-index="0"]');
   f.type('[data-bind="scenario-name"]', '甲情境（修改）');
   f.click('[data-action="copy-scenario"][data-index="1"]');
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(f.body(), '情境「甲情境」的修改尚未儲存。複製「乙情境」會換掉這些修改。');
   assert.deepEqual(f.buttons(), ['留在這裡', '不儲存，直接複製', '儲存並複製']);
   f.choose('stay');
@@ -6883,12 +7126,17 @@ test('an example that needs a field asks only when the chosen field is about to 
   f.click('[data-add-field="description"]');
   const before = f.draft(), json = JSON.stringify(before);
   // 2026-10-29 拿掉「從範例開始」按鈕，範例在「常用篩選條件」分頁；原本按那顆按鈕，改成切到那個分頁（第一次失敗見本檔開頭 BLANK 上方的收據）。
-  f.click('[data-condition-source="common"]');
+  // 裁定 2026-11-03-05、2026-11-03-19 之後範例在右側預設收起的「從情境範例開始」托盤，不在常用篩選條件分頁；
+  // 原本切到常用篩選條件分頁，改成打開托盤，欄位條件分頁照樣開著。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+  const tray = f.$('details.filter-template-tray');
+  assert.equal(tray.hasAttribute('open'), false);
+  tray.open = true; tray.fire('toggle');
   assert.equal(f.$('[data-example-list]').hidden, false);
+  assert.equal(f.$('[data-condition-pane="field"]').hidden, false, 'the field tab stays open');
   f.click('[data-action="apply-template"][data-template-key="manualDepartment"]');
   assert.ok(f.$('[data-example-pick="manualDepartment"]')); assert.equal(f.modal(), null, 'choosing the field comes first');
   f.click('[data-example-field="rde.unit"]');
-  // 裁定 2026-10-14-01 確認了這句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
+  // 這句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(f.body(), '目前的條件尚未儲存為情境。套用範例「人工分錄的特定部門」會換掉這些條件。');
   f.choose('stay'); assert.equal(f.draft(), before); assert.equal(JSON.stringify(f.draft()), json);
   f.click('[data-example-field="rde.unit"]'); f.choose('continue');
@@ -6937,8 +7185,8 @@ test('a failed workingPaper export shows a red notice under the step title until
     'the notice sits between the step title and its content');
   // 訊息面板留一則錯誤：有符號、讀屏軟體念「錯誤：」，耗時與最後進度只在這裡。
   const logged = f.state.messages[0];
-  // 裁定 2026-10-13-28 確認了用字：耗時收進括號（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
-  // 裁定 2026-10-14-01 確認了這兩句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。括號後加句號。
+  // 用字依裁定 2026-10-13-28：耗時收進括號（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  // 這兩句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。括號後加句號。
   assert.equal(logged.level, 'error'); assert.match(logged.text, /^產生工作底稿失敗：合成輸出失敗（耗時(?: \d+\.\d 秒|不到 0\.1 秒)）。$/);
   const item = f.messageItem(logged);
   assert.match(item.className, /messages__item--error/);
@@ -7007,7 +7255,7 @@ test('a failed or cancelled operation puts elapsed time and the last progress in
   f.store.setBusyDetail('工作底稿：正在寫入「合成表」，已完成 1 張工作表、寫入 10 列，經過 3.0 秒');
   f.request('exportWorkingPaperStream').reject(new Error('合成輸出失敗。')); await settle();
   const failed = f.state.messages[0].text;
-  // 裁定 2026-10-14-01 確認了這三句的用字（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。括號裡的進度不再有第二個冒號，括號後加句號。
+  // 這三句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。括號裡的進度不再有第二個冒號，括號後加句號。
   assert.match(failed, /^產生工作底稿失敗：合成輸出失敗（耗時(?: \d+\.\d 秒|不到 0\.1 秒)，最後進度：工作底稿正在寫入「合成表」，已完成 1 張工作表、寫入 10 列）。$/);
   assert.equal(failed.includes('經過'), false);
   f.show(); assert.equal(f.failureNotice().textContent, '產生工作底稿失敗：合成輸出失敗。');
@@ -7020,7 +7268,7 @@ test('a failed or cancelled operation puts elapsed time and the last progress in
   f.exportOnce({ code: 'completeness_prerequisite_failed', message: '合成完整性檢查未通過。' }); await settle();
   assert.equal(f.state.messages[0].text, '產生工作底稿尚無法執行：合成完整性檢查未通過。');
   f.show(); assert.equal(f.failureNotice().textContent, '產生工作底稿尚無法執行：合成完整性檢查未通過。');
-  // 裁定 2026-10-14-01 確認了用字：沒有已儲存的情境和前置條件不足同一種寫法，不附耗時，屬提醒而非錯誤。
+  // 用字依裁定 2026-10-14-01：沒有已儲存的情境和前置條件不足同一種寫法，不附耗時，屬提醒而非錯誤。
   f.exportOnce({ code: 'no_saved_scenario', message: '尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境' }); await settle();
   assert.equal(f.state.messages[0].text, '產生工作底稿尚無法執行：尚未儲存任何篩選情境，請先在「進階條件篩選」儲存情境。');
   assert.equal(f.state.messages[0].level, 'warn');
@@ -7043,7 +7291,7 @@ test('report progress reads as one sentence per phase with the elapsed time', ()
 });
 
 test('a release build shows no support log or developer tools on the case list', async () => {
-  // 裁定 2026-10-20-03 選「只藏案件清單的」：案件清單的「輸出支援日誌」和 DEV 面板一樣只在 Debug 組建出現，訊息面板那顆照舊。
+  // 使用者選了「只藏案件清單的」（裁定 2026-10-20-03）：案件清單的「輸出支援日誌」和 DEV 面板一樣只在 Debug 組建出現，訊息面板那顆照舊。
   // 原本 Release 也在頁尾顯示它（第一次失敗：FrontendMapping 收據 20261020-010431620-e949dfcb3f2b4aab9c7c44495ccd0dc3）。
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker'); f.store.setDevToolsEnabled(false);
   const opening = f.window.JetUi.openProject('failed-synthetic');
@@ -7068,7 +7316,7 @@ test('the case list error box has no buttons and a debug build puts the support 
   assert.ok(box !== null, 'the error box is shown');
   assert.match(box.textContent, /合成載入失敗/);
   assert.ok(box.querySelector('button') === null, 'the error box has no buttons');
-  // 裁定 2026-10-13-26 選定「另放一個不顯眼的同名按鈕」；裁定 2026-10-20-04 指出底部一排按鈕看不出用途後，它從操作列移到卡片下方的頁尾，
+  // 使用者選定「另放一個不顯眼的同名按鈕」（裁定 2026-10-13-26）；後來使用者指出底部一排按鈕看不出用途（裁定 2026-10-20-04），它從操作列移到卡片下方的頁尾，
   // 重新整理與同步移到各自的區標題。原本斷言它在 .picker-panel__actions 且排在重新整理與同步之後
   // （第一次失敗：FrontendMapping 收據 20261020-005208614-97bdab80cb6b426788fc317a68b9ab44）。
   const footer = f.$('.picker-footer');
@@ -7092,7 +7340,7 @@ test('the case list error box has no buttons and a debug build puts the support 
 });
 
 for (const [name, error, level, notice] of [
-  // 裁定 2026-10-13-28 確認了用字：「已阻擋」改「尚無法執行」，「請稍候，另一項作業進行中」改成統一的句子（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
+  // 用字依裁定 2026-10-13-28：「已阻擋」改「尚無法執行」，「請稍候，另一項作業進行中」改成統一的句子（第一次失敗：FrontendMapping 收據 20261013-141147763-5dc8acde89a2431d9568ff02be8bd79e）。
   ['blocked', { code: 'completeness_prerequisite_failed', message: '合成完整性檢查未通過。' }, 'warn', '產生工作底稿尚無法執行：合成完整性檢查未通過。'],
   ['another operation in progress', { code: 'operation_in_progress', message: '合成忙碌' }, 'warn', null],
   ['cancelled by the auditor', { code: 'operation_cancelled', message: '合成取消' }, 'info', null]
@@ -7185,7 +7433,7 @@ test('reopening an older case shows unknown or missing message levels as general
   assert.equal(unknown.className, 'messages__item messages__item--info'); assert.equal(unknown.querySelector('.messages__mark'), null);
 });
 
-// 裁定 2026-10-14-01 確認了用字：條件標題與讀回不印程式代號。認不得的欄位與不在欄位配對中的攸關資料元素欄位各有固定寫法。
+// 用字依裁定 2026-10-14-01：條件標題與讀回不印程式代號。認不得的欄位與不在欄位配對中的攸關資料元素欄位各有固定寫法。
 // 已移除欄位的名稱表拿掉後（裁定 2026-10-30-25），已移除的傳票日期和其他認不得的欄位寫法相同
 // （原本寫「傳票日期（已移除）」與「已移除的「傳票日期」」；第一次失敗收據 20261030-073559832-a58eb2ca8d684043bb4ff0c736d47ce8）。
 test('a removed GL field, an unknown field and a field no longer in the mapping are titled without program codes', () => {
@@ -7209,7 +7457,7 @@ test('a removed GL field, an unknown field and a field no longer in the mapping 
 });
 
 // 開案時還原篩選母體範圍的呼叫已刪除：母體只有查核期間一種，開案後仍是 auditPeriod。
-// 原本同一則也核對 retiredGlFieldLabels 存進畫面狀態（裁定 2026-10-14-01 確認了用字）；已移除欄位的名稱表拿掉後
+// 原本同一則也核對 retiredGlFieldLabels 存進畫面狀態（用字依裁定 2026-10-14-01）；已移除欄位的名稱表拿掉後
 // （裁定 2026-10-30-25），這部分跟著拿掉（第一次失敗收據 20261030-073559832-a58eb2ca8d684043bb4ff0c736d47ce8）。
 test('opening a case keeps the removed field names from project.load and the audit-period population', () => {
   const f = batch8Fixture(); f.store.resetWorkflow();
@@ -7223,7 +7471,7 @@ test('opening a case keeps the removed field names from project.load and the aud
   assert.equal(f.store.getState().filter.populationScope, 'auditPeriod');
 });
 
-// 裁定 2026-10-14-01 確認了用字：清單超過上限時提示框逐條寫出位置，原因和欄位條件同一句，
+// 用字依裁定 2026-10-14-01：清單超過上限時提示框逐條寫出位置，原因和欄位條件同一句，
 // 不再另列「文字值清單每組最多…」「攸關資料元素欄位的值清單每組最多…」。
 test('an oversized value list is named at its own position with the shared reason', () => {
   const f = commonCardFixture();
@@ -7238,7 +7486,7 @@ test('an oversized value list is named at its own position with the shared reaso
   assert.doesNotMatch(result.notice, /每組最多/);
 });
 
-// 裁定 2026-10-14-01 確認了用字：四捨五入是 0.0 秒時寫「不到 0.1 秒」，接在「耗時」「經過」後面不空格。
+// 用字依裁定 2026-10-14-01：四捨五入是 0.0 秒時寫「不到 0.1 秒」，接在「耗時」「經過」後面不空格。
 test('elapsed time under a tenth of a second reads as less than 0.1 seconds', () => {
   const f = batch7Fixture();
   assert.equal(f.ui.elapsedPhrase('耗時', 0), '耗時不到 0.1 秒');
@@ -7249,7 +7497,7 @@ test('elapsed time under a tenth of a second reads as less than 0.1 seconds', ()
   assert.equal(f.ui.formatElapsed(0), '不到 0.1 秒');
 });
 
-// 裁定 2026-10-14-01 同意刪除欄位條件裡的「分錄性質」選項與切換程式：畫面早已不提供，
+// 依裁定 2026-10-14-01，刪除欄位條件裡的「分錄性質」選項與切換程式：畫面早已不提供，
 // 欄位條件的標題只寫欄位名稱。
 test('field conditions no longer offer the entry-nature pseudo fields', () => {
   const f = batch7Fixture();
@@ -7260,7 +7508,7 @@ test('field conditions no longer offer the entry-nature pseudo fields', () => {
   assert.doesNotMatch(f.ui.FilterValues.render(rule, f.store.getState(), 'text-d'), /分錄性質/);
 });
 
-// 裁定 2026-10-14-01 確認了用字：進度接進訊息時拿掉「工作底稿：」的冒號，一句只留一個冒號；
+// 用字依裁定 2026-10-14-01：進度接進訊息時拿掉「工作底稿：」的冒號，一句只留一個冒號；
 // 取消時「當時進度」用同一個寫法（app.js），忙碌畫面上的進度照舊。
 test('progress quoted inside a message drops the second colon', () => {
   const f = batch7Fixture();

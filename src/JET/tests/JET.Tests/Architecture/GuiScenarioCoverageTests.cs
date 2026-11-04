@@ -37,8 +37,9 @@ public sealed class GuiScenarioCoverageTests
     // 原名 ExistingGuiScenariosExerciseBAndReadBackExportedManualFlags，原本斷言 Gui 程式逐張點 A 到 E、核對動機與 B 卡條件。
     // 裁定 2026-10-15-01：這些核對搬到前端點擊測試，刪掉 Gui 的 10 次操作。
     // 改成確認前端測試仍在、Gui 不再重複這段。首次失敗：Focused 20261015-075841706-f76d7d50908a45bca6e8ef478cb1e041。
+    // 2026-11-03 常用查法的程式名稱改成常用查法的字根（裁定 2026-11-03-30），方法名稱跟著改。
     [Fact]
-    public void CommonCardsAndPurposeChecksAreClickedInFrontendTestsAndGuiReadsBackExportedManualFlags()
+    public void CommonCardsAndFieldShortcutsAreClickedInFrontendTestsAndGuiReadsBackExportedManualFlags()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "tools/harness/gui-driver"))) directory = directory.Parent;
@@ -48,8 +49,10 @@ public sealed class GuiScenarioCoverageTests
         // 2026-10-29 Gui 的階段名稱拿掉舊的小組前綴，這裡改成不論前綴都不能有這兩種階段（比原本只擋一個名稱更嚴）。
         Assert.DoesNotContain("default_rationales", filter);
         var filterBuild = File.ReadAllText(Path.Combine(directory.FullName, "tools/tests/frontend-journey-filter-build.test.cjs"));
-        Assert.Contains("every common check is added by its own button with the exact type, opens only its category and can be removed", filterBuild);
-        Assert.Contains("a condition added from the custom pane stays selected after every pending timer has run", filterBuild);
+        // 第八階段第 7 步把這兩個前端測試改名時，舊名稱留在測試檔的註解裡，原本只比對名稱的 Assert.Contains 因此照樣通過，沒有第一次失敗的紀錄。
+        // 2026-11-03 改成比對 test(' 開頭的新名稱：測試真的存在才算，舊名稱只留在註解時會失敗。
+        Assert.Contains("test('every field shortcut sits on its field row, is added by its own button with the exact type and can be removed'", filterBuild);
+        Assert.Contains("test('a condition added from the field tab stays selected after every pending timer has run'", filterBuild);
         var export = File.ReadAllText(Path.Combine(root, "GuiSideMonthWorkflow.cs"));
         Assert.Contains("GuiWorkingPaperInspection.RequireManualAutoText", export);
         using var lanes = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory.FullName, "tools/harness/lanes.json")));
@@ -72,12 +75,15 @@ public sealed class GuiScenarioCoverageTests
         // 首次失敗：Focused 20261015-044801837-e00e67a1be2e42aaa9258bb069133c4d。
         // 完整 Gui 實跑收據 20261015-043313016-282c137bcba34a44870540029ef333c0。
         // 2026-10-15 改由前端點擊測試核對後，刪掉逐張點 A 到 E 的 10 次操作，減為 76 次（首次失敗收據同上方註解），待完整 Gui 實跑確認。
-        // 裁定 2026-10-16-09 要求縮短套用預篩選條件的操作：預篩選條件改從條件總覽的「預篩選」分頁直接加入，
+        // 依裁定 2026-10-16-09 縮短套用預篩選條件的操作：預篩選條件改從條件總覽的「預篩選」分頁直接加入，
         // 不再先展開常用查核條件的「預篩選結果」分類，這一步從點三次變成點兩次，減為 75 次。
         // 首次失敗：完整 Gui 20261016-054955308-2f29806b7e5b48d3a7f332ac7c4ddad8，實跑 75 次，情境本身的檢查都通過。
         // 2026-10-29 情境改名為 filter-common-editing（拿掉舊的小組名稱），只換卡片的選取方式與名稱期望值，操作次數不變。
-        Assert.Equal(75, scenario.GetProperty("actionBudget").GetInt32());
-        Assert.Equal(75, scenario.GetProperty("expectedActionCount").GetInt32());
+        // 裁定 2026-11-03-37 把有常用查法的欄位的一般條件收進「加入」打開的選單，情境裡加入金額與摘要各要先按一次「加入」，
+        // 由腳本逐步推算增為 77 次。首次失敗：Public 20261104-013554036-b0e5d07bfe3a4fd3ba57ea5ada9e78cf；
+        // 單跑實測 77 次，收據 20261104-012727876-8ed1642863dc42aaafedddbf6512b198，情境本身的檢查都通過。
+        Assert.Equal(77, scenario.GetProperty("actionBudget").GetInt32());
+        Assert.Equal(77, scenario.GetProperty("expectedActionCount").GetInt32());
     }
 
     private static JsonElement FindCommonEditing(JsonElement value)

@@ -9,7 +9,7 @@
     "id": "explicit-voucher-absence-and-classification",
     "scenario": { "groups": [{ "conditions": [{ "type": "voucher", "quantifier": "none", "conditions": [{ "type": "drCrOnly", "drCr": "credit" }, { "type": "accountSide", "categoryMode": "is", "categoryIds": ["builtin.cash"], "categorySelection": "subtree" }] }] }] },
     "rdeFields": [],
-    "expected": "整張傳票不存在符合：同一分錄（（僅貸方 且 科目屬於「Cash」（包含下層分類）））"
+    "expected": "整張傳票不存在符合：同一分錄（（僅貸方 且 科目屬於「Cash」））"
   },
   {
     "id": "explicit-voucher-witness-after-output-rule",
@@ -21,7 +21,7 @@
     "id": "classification-without-hidden-direction",
     "scenario": { "groups": [{ "conditions": [{ "type": "accountSide", "categoryMode": "is", "categoryIds": ["builtin.cash"], "categorySelection": "subtree" }] }] },
     "rdeFields": [],
-    "expected": "科目屬於「Cash」（包含下層分類）"
+    "expected": "科目屬於「Cash」"
   },
   {
     "id": "voucher-without-hidden-scope",
@@ -90,10 +90,34 @@
     "expected": "僅貸方 或 自動分錄"
   },
   {
+    "id": "zero-run-reads-the-zero-count",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "amount", "operator": "endsWithZeros", "value": "6", "amountBasis": "absolute" }] }] },
+    "rdeFields": [],
+    "expected": "金額 尾數連續「6」個 0；空白不列入"
+  },
+  {
+    "id": "zero-run-excluded",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "amount", "operator": "notEndsWithZeros", "value": "3", "amountBasis": "absolute", "includeBlank": true }] }] },
+    "rdeFields": [],
+    "expected": "金額 尾數沒有連續「3」個 0；空白也符合"
+  },
+  {
+    "id": "saved-trailing-zero-group-still-reads",
+    "scenario": { "groups": [{ "conditions": [{ "type": "group", "conditions": [{ "type": "fieldValue", "field": "amount", "operator": "endsWithDigits", "value": "000000", "amountBasis": "absolute" }, { "type": "fieldValue", "field": "amount", "operator": "greaterThanOrEqual", "value": "1", "amountBasis": "absolute", "join": "AND" }] }] }] },
+    "rdeFields": [],
+    "expected": "同一分錄（（金額 整數尾數符合「000000」；空白不列入 且 金額絕對值 大於或等於「1」；空白不列入））"
+  },
+  {
+    "id": "non-business-day-card-single-condition",
+    "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "glDate", "operator": "isNonBusinessDay" }] }] },
+    "rdeFields": [],
+    "expected": "總帳日期 在非營業日；空白不列入"
+  },
+  {
     "id": "non-business-day-card-excludes-makeup-days",
     "scenario": { "groups": [{ "conditions": [{ "type": "group", "conditions": [{ "type": "fieldValue", "field": "glDate", "operator": "isNonBusinessDay", "join": "AND" }] }] }] },
     "rdeFields": [],
-    "expected": "非營業日（排除補班日）"
+    "expected": "非營業日"
   },
   {
     "id": "old-weekend-or-holiday-still-describes-original-tree",
@@ -141,7 +165,7 @@
     "id": "retired-gl-field-non-business-day",
     "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "voucherDate", "operator": "isNonBusinessDay" }] }] },
     "rdeFields": [],
-    "expected": "已不存在的欄位 非營業日（排除補班日）；空白不列入"
+    "expected": "已不存在的欄位 在非營業日；空白不列入"
   },
   {
     "id": "unknown-gl-field-list",

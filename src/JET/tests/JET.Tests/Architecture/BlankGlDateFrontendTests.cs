@@ -19,6 +19,8 @@ public sealed class BlankGlDateFrontendTests
         Assert.DoesNotContain("nullLoadMoreSpec('blankGlDate'", source, StringComparison.Ordinal);
         // 2026-10-16 移除「載入更多」後，同一個函式改名為 nullPageSpec，新名稱也不得登記空白過帳日。
         Assert.DoesNotContain("nullPageSpec('blankGlDate'", source, StringComparison.Ordinal);
+        // 2026-11-03 資料缺漏輔助檢視改用 blank 字根，函式再改名為 blankPageSpec，新名稱同樣不得登記空白過帳日。
+        Assert.DoesNotContain("blankPageSpec('blankGlDate'", source, StringComparison.Ordinal);
         Assert.DoesNotContain("['blankGlDate']", source, StringComparison.Ordinal);
         Assert.DoesNotContain("glDate: '空白總帳日期'", source, StringComparison.Ordinal);
     }

@@ -24,7 +24,7 @@ internal static partial class FilterScenarioDiagnostics
         string reason_code);
 
     /// <summary>
-    /// 篩選條件編譯時的檢查沒過（裁定 2026-10-14-01 確認了用字）：驗證器與執行時檢查不一致的程式錯誤，
+    /// 篩選條件編譯時的檢查沒過（用字依裁定 2026-10-14-01）：驗證器與執行時檢查不一致的程式錯誤，
     /// 不是畫面送錯資料，所以不沿用 <c>action.payload_rejected</c>。欄位只有動作名稱、組號、條號與程式寫死的檢查代號。
     /// </summary>
     [LoggerMessage(EventId = 2501, EventName = "filter.compile_check_failed", Level = LogLevel.Warning,

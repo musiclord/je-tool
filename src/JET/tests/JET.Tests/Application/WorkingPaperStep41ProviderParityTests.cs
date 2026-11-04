@@ -18,9 +18,11 @@ namespace JET.Tests.Application;
 /// <summary>
 /// Step4-1 最終 Legacy 語意的 provider golden：
 /// fixture 刻意讓 source entry 順序不同於 Legacy 文件／項次排序，並同時涵蓋
-/// priority 12、remaining ordinal、native Time／Boolean／large Number、
-/// compact TAG 與 signed amount。
+/// priority 12、compact TAG 與 signed amount。
 /// 指紋只包含 Step4-1 的 logical cells／欄寬／BestFit，不納入 package timestamp 等揮發值。
+/// 裁定 2026-11-03-11 之後 step4-1 依欄位的來歷挑 JET 欄位，fixture 裡沒有配對、只是欄名以 _JE 結尾的
+/// ROW_TOKEN_JE 等六欄不再進表，原本靠它們檢查的 remaining ordinal 與 native Time／Boolean／large Number 一起拿掉；
+/// 列的順序改用傳票摘要_JE 檢查。第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
 /// </summary>
 public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper output)
 {
@@ -39,9 +41,9 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
     private const string EvidenceRootVariable = "JET_STEP41_PARITY_EVIDENCE_ROOT";
     private const string Step41SheetName = "step4-1 符合高風險條件傳票明細";
     private const string LegacyFingerprint =
-        "3190670025C0A2A6F077C6C16907F3E34CE6CE209D387F8A4A0A09115024EA76";
+        "0D33E48A48ED4751682552A72EC490DAFBD5C2330D7B6C21996442362133CC0D";
     private const string NumericCursorFingerprint =
-        "1EDA198B596A886F319A9F05CCA0D0333EA310B695AE958617690CCCCB0A2FC6";
+        "5E3414F94A85D2453BBDE00DB173EA2F7AD68EF710D81126E5672926AFB1EDDF";
 
     private static readonly string[] ExpectedHeaders =
     [
@@ -57,24 +59,19 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
         "傳票摘要_JE",
         "分錄來源模組_JE",
         "人工傳票否_JE_S",
-        "ROW_TOKEN_JE",
-        "過帳碼_JE",
-        "兩位小數_JE",
-        "核准時間_JE",
-        "原生布林_JE",
-        "超大數_JE",
         "C1_TAG"
     ];
 
+    // 傳票摘要_JE 的值，依 Legacy 文件／項次／entry_id 排序。
     private static readonly string[] ExpectedTokens =
     [
-        "A-NULL",
-        "A-01-FIRST",
-        "A-01-SECOND",
-        "A-01A",
-        "A-01a",
-        "B-02",
-        "B-03"
+        "命中 A-null",
+        "命中 A-01 first",
+        "命中 A-01 second",
+        "命中 A-01A",
+        "命中 A-01a",
+        "命中 B-02",
+        "命中 B-03"
     ];
 
     [Fact]
@@ -537,8 +534,8 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
     {
         Assert.Equal(LegacyFingerprint, snapshot.Fingerprint);
         Assert.Equal(ExpectedHeaders, snapshot.Headers);
-        Assert.Equal(ExpectedTokens, snapshot.Rows.Select(row => row[12]).ToArray());
-        Assert.All(snapshot.Rows, row => Assert.Equal("Y", row[18]));
+        Assert.Equal(ExpectedTokens, snapshot.Rows.Select(row => row[9]).ToArray());
+        Assert.All(snapshot.Rows, row => Assert.Equal("Y", row[12]));
         // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：fixture 不再有「傳票日期_僅條件_JE」來源欄，也不再檢查它被 step4-1 排除。
         Assert.DoesNotContain("C2_TAG", snapshot.Headers, StringComparer.Ordinal);
         Assert.Equal(7, snapshot.Rows.Count);
@@ -548,31 +545,9 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
         Assert.All(snapshot.CellKinds, row => Assert.Equal("N|yyyy-mm-dd", row[3]));
         Assert.All(snapshot.CellKinds, row => Assert.Equal("N|#,##0.0000", row[8]));
         Assert.All(snapshot.CellKinds, row => Assert.Equal("T|builtin:49", row[11]));
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[13]));
-        Assert.Equal(
-            ["N|0.00", "N|0.00", "N|0.00", "B|0.00", "N|0.00", "N|0.00", "N|0.00"],
-            snapshot.CellKinds.Select(row => row[14]).ToArray());
-        Assert.Equal(
-            ["N|hh:mm:ss", "N|hh:mm:ss", "N|hh:mm:ss", "B|hh:mm:ss", "N|hh:mm:ss", "N|hh:mm:ss", "N|hh:mm:ss"],
-            snapshot.CellKinds.Select(row => row[15]).ToArray());
         Assert.Equal(
             ["人工", "人工", "自動", "人工", "自動", "人工", "自動"],
             snapshot.Rows.Select(row => row[11]).ToArray());
-        Assert.Equal(
-            ["0", "10", "11", "20", "30", "40", "50"],
-            snapshot.Rows.Select(row => row[13]).ToArray());
-        Assert.Equal(
-            ["0.25", "10.56", "11.78", "", "30.34", "40.12", "50.9"],
-            snapshot.Rows.Select(row => row[14]).ToArray());
-        Assert.Equal(
-            ["0.5", "0.75", "0.25", "", "0.5", "0.25", "0.75"],
-            snapshot.Rows.Select(row => row[15]).ToArray());
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[16]));
-        Assert.Equal(
-            ["0", "0", "1", "1", "0", "1", "1"],
-            snapshot.Rows.Select(row => row[16]).ToArray());
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[17]));
-        Assert.All(snapshot.Rows, row => Assert.Equal("1E+100", row[17]));
         Assert.All(snapshot.BestFit, Assert.True);
     }
 
@@ -599,21 +574,15 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
 
         Assert.Equal(ExpectedHeaders, snapshot.Headers);
         Assert.Equal(205, snapshot.Rows.Count);
-        Assert.Equal(expectedTokens, snapshot.Rows.Select(row => row[12]).ToArray());
+        Assert.Equal(
+            expectedTokens.Select(token => $"命中 numeric cursor {token[2..]}").ToArray(),
+            snapshot.Rows.Select(row => row[9]).ToArray());
         Assert.Equal(expectedLineItems, snapshot.Rows.Select(row => row[1]).ToArray());
         Assert.All(
             snapshot.CellKinds,
             row => Assert.Equal(
                 "N|0.00000000000000000000",
                 row[1]));
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[13]));
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0.00", row[14]));
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|hh:mm:ss", row[15]));
-        Assert.All(snapshot.Rows, row => Assert.Equal("0.25", row[15]));
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[16]));
-        Assert.All(snapshot.Rows, row => Assert.Equal("1", row[16]));
-        Assert.All(snapshot.CellKinds, row => Assert.Equal("N|0", row[17]));
-        Assert.All(snapshot.Rows, row => Assert.Equal("1E+100", row[17]));
         Assert.All(snapshot.BestFit, Assert.True);
     }
 
@@ -664,7 +633,7 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
             workbookPath = WorkbookPath,
             logicalFingerprint = Snapshot.Fingerprint,
             headers = Snapshot.Headers,
-            rowTokens = Snapshot.Rows.Select(row => row[12]).ToArray(),
+            rowTokens = Snapshot.Rows.Select(row => row[9]).ToArray(),
             cellKinds = Snapshot.CellKinds,
             widths = Snapshot.Widths,
             bestFit = Snapshot.BestFit

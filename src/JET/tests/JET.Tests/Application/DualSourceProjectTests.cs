@@ -202,7 +202,7 @@ public sealed class DualSourceProjectTests
                     "project.load", $$"""{ "projectId": "{{name}}", "databaseProvider": "sqlServer" }"""));
 
             Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-            // 裁定 2026-10-14-01 確認了這句的用字。SQL Server 只經編譯，這個測試在 Provider 路線，當時沒有執行。
+            // 這句的用字依裁定 2026-10-14-01。SQL Server 只經編譯，這個測試在 Provider 路線，當時沒有執行。
             Assert.Contains("設定檔中的抽樣設定已損壞", exception.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("INF 抽樣種子", exception.Message, StringComparison.Ordinal);
             Assert.Contains("不會重新產生", exception.Message, StringComparison.Ordinal);

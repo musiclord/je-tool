@@ -203,12 +203,12 @@ internal static class ValidationSummaryShapeValidator
     {
         RequireExactObject(
             value,
-            "status", "nullAccountCount", "nullDocumentCount", "nullDescriptionCount",
-            "approvalDateNotInPeriodCount", "approvalDateNotInPeriodNaReason", "nullRows");
+            "status", "blankAccountNumberCount", "blankVoucherNumberCount", "blankDescriptionCount",
+            "approvalDateNotInPeriodCount", "approvalDateNotInPeriodNaReason", "blankRows");
         RequireStatus(value);
-        RequireNonNegativeLong(value, "nullAccountCount");
-        RequireNonNegativeLong(value, "nullDocumentCount");
-        RequireNonNegativeLong(value, "nullDescriptionCount");
+        RequireNonNegativeLong(value, "blankAccountNumberCount");
+        RequireNonNegativeLong(value, "blankVoucherNumberCount");
+        RequireNonNegativeLong(value, "blankDescriptionCount");
         // 「核准日不在期間」能檢查時是筆數、原因是 null；傳票核准日不可用時筆數是 null，原因寫缺什麼。
         var approvalDateNotInPeriodNaReason = Property(value, "approvalDateNotInPeriodNaReason");
         if (approvalDateNotInPeriodNaReason.ValueKind == JsonValueKind.Null)
@@ -221,7 +221,7 @@ internal static class ValidationSummaryShapeValidator
         {
             throw Invalid("approvalDateNotInPeriodNaReason");
         }
-        RequireArray(value, "nullRows");
+        RequireArray(value, "blankRows");
     }
 
     private static void ValidateSourceQuality(JsonElement value)

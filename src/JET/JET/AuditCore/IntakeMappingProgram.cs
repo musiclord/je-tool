@@ -279,10 +279,10 @@ internal sealed class AccountMappingProjection
 
         if (errorCount > 0)
         {
-            // 裁定 2026-10-13-28 確認了用字：SQL Server 與本機用同一句全形標點的句子，failureStyle 不再影響文字。
+            // 用字依裁定 2026-10-13-28：SQL Server 與本機用同一句全形標點的句子，failureStyle 不再影響文字。
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"科目配對檔有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
+                $"科目配對範本有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
         }
 
         return projected.Values.ToArray();
@@ -316,7 +316,7 @@ internal sealed record AccountMappingResult(
             var positional = new[] { (columns.Code, "科目編號"), (columns.Name, "科目名稱"), (columns.Category, "科目分類") }
                 .Where(item => item.Item1.Method == AccountMappingColumnResolver.MatchMethod.Position)
                 .Select(item => $"「{item.Item1.Column}」為{item.Item2}").ToArray();
-            // 裁定 2026-10-13-28 確認了這句的用字。
+            // 這句的用字依裁定 2026-10-13-28。
             return positional.Length == 0 ? null : "部分欄名無法辨識，已依欄位順序對應：" + string.Join("、", positional) + "。請確認科目配對預覽。";
         }
     }
@@ -414,7 +414,7 @@ internal sealed class AuthorizedPreparerProjection
         {
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
-                $"授權人員名單有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
+                $"授權編製人員清單有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
         }
 
         if (names.Count == 0)
@@ -814,7 +814,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型「{request.Extension}」，科目配對檔支援 .xlsx、.csv。");
+                $"不支援的檔案類型「{request.Extension}」，科目配對範本支援 .xlsx、.csv。");
         }
 
         return new AccountMappingPlan(
@@ -882,6 +882,10 @@ public static partial class JetAuditProgram
             normalized);
     }
 
+    /// <summary>兩份清單在畫面上的名稱（裁定 2026-11-03-10）。</summary>
+    private static string CalendarListName(CalendarDayType dayType) =>
+        dayType == CalendarDayType.Holiday ? "國定假日清單" : "補班日清單";
+
     internal static CalendarPlan Plan(CalendarFileRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -890,7 +894,7 @@ public static partial class JetAuditProgram
         {
             throw new JetActionException(
                 JetErrorCodes.UnsupportedFileType,
-                $"不支援的檔案類型「{request.Extension}」，行事曆檔僅支援 .xlsx。");
+                $"不支援的檔案類型「{request.Extension}」，{CalendarListName(request.DayType)}僅支援 .xlsx。");
         }
 
         return CalendarPlanFor(
@@ -1058,7 +1062,7 @@ public static partial class JetAuditProgram
         return new ProjectCreateResult(facts.Document);
     }
 
-    // 裁定 2026-10-13-28 確認了用字：缺少的必填欄寫畫面上的欄位名稱，不寫程式代號。
+    // 用字依裁定 2026-10-13-28：缺少的必填欄寫畫面上的欄位名稱，不寫程式代號。
     private static void EnsureMappingValid(MappingValidationResult validation, IReadOnlyList<JetMappingSlot> slots)
     {
         if (validation.MissingRequiredKeys.Count > 0)
@@ -1115,7 +1119,7 @@ public static partial class JetAuditProgram
             AuditMutationEffects.For(AuditMutation.Calendar));
     }
 
-    // 畫面只送 replace；其他值只有程式送錯資料才會出現（裁定 2026-10-14-01 確認了用字）。
+    // 畫面只送 replace；其他值只有程式送錯資料才會出現（用字依裁定 2026-10-14-01）。
     private static void RequireReplaceOnly(
         string mode,
         string check)

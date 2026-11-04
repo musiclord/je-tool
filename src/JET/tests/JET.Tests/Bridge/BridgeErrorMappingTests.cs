@@ -88,7 +88,7 @@ public sealed class BridgeErrorMappingTests
         Assert.Equal("情境名稱必填。", details[2].GetProperty("message").GetString());
     }
 
-// 預期值換成裁定 2026-10-13-28 確認的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         private const string UnexpectedErrorText =
         "發生非預期的錯誤，此操作未完成。請再試一次。";
 

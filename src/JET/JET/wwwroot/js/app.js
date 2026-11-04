@@ -875,7 +875,7 @@
             });
           },
           refreshWhen: 'success',
-          // 刪除後重新讀取清單失敗時的操作名稱（裁定 2026-10-13-28 確認了這個用字）。
+          // 刪除後重新讀取清單失敗時的操作名稱（這個用字依裁定 2026-10-13-28）。
           refreshLabel: '重新讀取案件清單',
           inlineError: true,
           onError: function (message, error) {
@@ -1964,7 +1964,7 @@
     return (
       '<p class="overview__disclaimer">' +
         Ui.esc(positioning.overviewGuidance) +
-        ' 列在「不適用規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。' +
+        ' 列在「無法執行的規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。' +
       '</p>'
     );
   }
@@ -2127,9 +2127,9 @@
     if (index === 1) {
       var supporting = [];
       if (imp.accountMapping) { supporting.push('科目配對'); }
-      if (imp.authorizedPreparer) { supporting.push('授權編製人員'); }
+      if (imp.authorizedPreparer) { supporting.push('授權編製人員清單'); }
       if (imp.calendar && (imp.calendar.calendarImported || imp.calendar.nonWorkingDaysConfigured)) {
-        supporting.push('行事曆');
+        supporting.push('國定假日與補班日');
       }
       return overviewImportFact('import.gl.source', 'PBC-GL', imp.gl, '列') +
         overviewImportFact('import.tb.source', 'PBC-TB', imp.tb, '列') +
@@ -2586,7 +2586,7 @@
 
     var reportLabels = {
       validationReport: '資料驗證報告',
-      accountMapping: '科目配對檔',
+      accountMapping: '科目配對範本',
       infReport: '資料可靠性抽樣清單',
       prescreenReport: '預篩選報告',
       criteriaSelectionReport: '條件篩選報告',
@@ -2619,7 +2619,7 @@
       return null;
     }
 
-    // 每個階段一句，裁定 2026-10-13-28 確認了這個寫法；準備資料時還沒有工作表與列數。
+    // 每個階段一句，這個寫法依裁定 2026-10-13-28；準備資料時還沒有工作表與列數。
     var phaseText = phaseLabels[progress.phase] + (isWritingSheet ? '「' + progress.sheetName + '」' : '');
     var counts = progress.phase === 'preparingData' ? ''
       : '，已完成 ' + Ui.countText(sheetsCompleted) + ' 張工作表、寫入 ' +
@@ -3593,7 +3593,7 @@
     }
 
     /* ---- 移除前的晃動 -------------------------------------------------------------------------------
-       清除條件時條件組晃了一下，裁定 2026-10-13-13 認為「類似蘋果那樣輕微快速地晃動來作為移除元素的設計」不錯，
+       清除條件時條件組晃了一下，使用者覺得「類似蘋果那樣輕微快速地晃動來作為移除元素的設計」不錯（裁定 2026-10-13-13），
        要整個條件組合、刪除案件與其他流程裡移除或清除東西時都這樣，讓使用者知道這個東西要被移除了。
        （那一下其實是清除時白紙的左右內距被撐開又收回，app.css 已經改掉；現在的晃動是刻意做的。）
        按下移除、清除或刪除的一方先用 removing 說明要拿掉的是哪些東西：keys 是那些東西自己的 data-motion-key，
@@ -4524,7 +4524,7 @@
   global.JetMotion = Motion;
 
   /* ---- 加入的東西從哪裡來、到了哪裡（純呈現） ---------------------------------------------------
-     動態要多參考 Apple 的設計思路（裁定 2026-10-11-14），所以第五步按常用篩選條件的卡片、欄位按鈕或「加入」時，
+     動態要多參考 Apple 的設計思路（裁定 2026-10-11-14），所以第五步按常用篩選條件的卡片、欄位選單裡的常用查法或「加入」時，
      看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。原本的做法像廉價的套版（裁定 2026-10-12-02）：
      一塊白板從卡片的大小一路長成整列的大小、字在半路淡掉、目的地先以霧狀出現，整個過程很突兀。所以改成拿起、帶過去、放下：
      - 按下時，一片小小的玻璃標籤在按下的名稱上浮起來，上面寫的就是新的一列的標題；
@@ -4539,9 +4539,14 @@
      這裡只畫一個不接收滑鼠的標籤與帶著中欄捲動，不改 state、不送 action，也不移動任何元件的位置。 */
   var ARRIVAL_SOURCES = [
     { trigger: '.filter-entry [data-common-card]', label: '.picker-card__label' },
-    { trigger: '.filter-entry [data-add-field]' },
-    { trigger: '.filter-entry [data-add-check]', within: '.filter-check', label: '.filter-check__label' },
-    // 2026-10-16 加入的「預篩選」分頁沿用依審計目的的條件列，按「加入」時同樣看得到標籤移進條件組。
+    // 欄位「加入」打開的選單裡的每一項，一般條件與常用查法都一樣（裁定 2026-11-03-37），標籤從按下的那一項上浮起來。
+    // 這裡在點擊的捕捉階段就量位置，那時選單還開著；選單隨後由共用選單關上。
+    // 這一條要排在下一條前面：選單裡的一般條件也帶著欄位識別，排在後面會改從列的名稱上浮起來，和常用查法不一致。
+    { trigger: '.filter-entry .filter-field__shortcuts > .jet-menu__item' },
+    // 欄位條件分頁一列一個欄位，按鈕上的字是「加入」（裁定 2026-11-03-06）：標籤從同一列的欄位名稱上浮起來，不從「加入」上浮起來。
+    // 原本欄位按鈕上的字就是欄位名稱，標籤直接從按鈕上浮起來。
+    { trigger: '.filter-entry [data-add-field]', within: '.filter-field', label: '.filter-field__name' },
+    // 2026-10-16 加入的「預篩選」分頁是名稱加「加入」的清單列，按「加入」時同樣看得到標籤移進條件組。
     { trigger: '.filter-entry [data-add-prescreen]', within: '.filter-check', label: '.filter-check__label' }
   ];
   var ARRIVAL_ROWS = '.filter-workspace .scenario-flat__list > .rule-row';
@@ -4970,7 +4975,7 @@
     if (Ui.initDataPreview) { Ui.initDataPreview(); }
     if (Ui.initDevPanel) { Ui.initDevPanel(); }
     if (Ui.initDevLogPanel) { Ui.initDevLogPanel(); }
-    // 不再記「畫面已載入」（裁定 2026-10-13-28 確認刪除這則訊息）。
+    // 不再記「畫面已載入」（依裁定 2026-10-13-28 刪除這則訊息）。
 
     if (!ready) {
       bridgeProbeSettled = true;

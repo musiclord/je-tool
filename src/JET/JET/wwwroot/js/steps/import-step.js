@@ -168,20 +168,21 @@
     var completed = !!(calendar && (calendar.calendarImported || calendar.nonWorkingDaysConfigured));
     var parts = [];
     if (calendar && calendar.calendarImported) {
-      parts.push('假日 ' + Ui.countText(calendar.holidayCount || 0));
-      parts.push('補班 ' + Ui.countText(calendar.makeupDayCount || 0));
+      parts.push('國定假日 ' + Ui.countText(calendar.holidayCount || 0) + ' 天');
+      parts.push('補班日 ' + Ui.countText(calendar.makeupDayCount || 0) + ' 天');
     }
     var nw = calendar && calendar.nonWorkingDaysConfigured
       ? nonWorkingSummary(calendar.nonWorkingDays)
       : '';
-    if (nw) { parts.push(nw); }
-    var meta = parts.length ? parts.join('，') : '尚未設定';
+    // 沒動過星期勾選時仍以六、日當週末，摘要寫出預設值，不寫「尚未設定」（裁定 2026-11-03-10）。
+    if (nw) { parts.push(nw); } else { parts.push('每週休息日 六、日（預設）'); }
+    var meta = parts.join('，');
 
     return taskItemHtml('calendar', {
       open: expanded.calendar,
       done: completed,
       required: false,
-      name: '假日與補班日',
+      name: '國定假日與補班日',
       meta: meta
     }, calendarCard(calendar));
   }
@@ -190,7 +191,7 @@
   // 純顯示轉換；非陣列才視為無資料，明示空集合代表「整週皆工作日」。
   function nonWorkingSummary(nonWorkingDays) {
     if (!Array.isArray(nonWorkingDays)) { return ''; }
-    if (!nonWorkingDays.length) { return '非工作日 無（整週皆工作日）'; }
+    if (!nonWorkingDays.length) { return '每週休息日 無（整週皆工作日）'; }
     var order = [
       { v: 1, label: '一' }, { v: 2, label: '二' }, { v: 3, label: '三' },
       { v: 4, label: '四' }, { v: 5, label: '五' }, { v: 6, label: '六' }, { v: 0, label: '日' }
@@ -198,7 +199,7 @@
     var labels = order.filter(function (d) {
       return nonWorkingDays.indexOf(d.v) >= 0;
     }).map(function (d) { return d.label; });
-    return labels.length ? '非工作日 ' + labels.join('、') : '';
+    return labels.length ? '每週休息日 ' + labels.join('、') : '';
   }
 
   // 就地展開／收合：切換該列的區域展開旗標並重繪。純呈現，不呼叫後端、不改任何資料。
@@ -215,7 +216,7 @@
   // 原檔預覽與有效授權集合分開呈現；識別值整理與比對只在後端執行。
   function authorizedPreparerCard(info) {
     var body = info
-      ? '<p class="import-card__status import-card__status--ok">有效授權清單：' + Ui.countText(info.rowCount) + ' 個人員代號或姓名' +
+      ? '<p class="import-card__status import-card__status--ok">授權編製人員清單：' + Ui.countText(info.rowCount) + ' 個人員代號或姓名' +
           (info.sourceColumn ? '，採用「' + Ui.esc(info.sourceColumn) + '」欄' : '') + '。</p>'
       : '';
     if (info && info.sourceRowCount != null && info.blankRowCount != null && info.duplicateRowCount != null) {
@@ -226,9 +227,9 @@
     }
     if (info) {
       if (info.matchedPreparerCount == null) {
-        body += '<p>請先確認 GL「傳票建立人員」的欄位配對後，再比對有效名單。</p>';
+        body += '<p>請先確認 GL「傳票建立人員」的欄位配對後，再比對授權編製人員清單。</p>';
       } else {
-        body += '<p>有效名單 ' + Ui.countText(info.rowCount) + ' 位中，有 ' + Ui.countText(info.matchedPreparerCount) +
+        body += '<p>授權編製人員清單 ' + Ui.countText(info.rowCount) + ' 位中，有 ' + Ui.countText(info.matchedPreparerCount) +
           ' 位出現在 GL 傳票建立人員。</p>';
         if (info.matchedPreparerCount === 0) {
           body += '<p class="form-notice form-notice--warning">清單中的人員都不在 GL 的傳票建立人員裡，' +
@@ -254,7 +255,7 @@
           return '<option value="' + Ui.esc(column) + '"' + (column === draft.sourceColumn ? ' selected' : '') +
             '>' + Ui.esc(column) + '</option>';
         }).join('') + '</select></label>' +
-        '<p>下方是原檔前 10 列。完成匯入後，授權清單只保留選定欄位去除空白及重複後的識別值。</p>' +
+        '<p>下方是原檔前 10 列。完成匯入後，授權編製人員清單只保留選定欄位去除空白及重複後的識別值。</p>' +
         (draft.previewError ? '<p role="alert">原檔預覽失敗：' + Ui.esc(draft.previewError) + '</p>' :
           previewTableHtml(draft, false)) +
         '<div class="import-card__actions"><button type="button" class="btn" data-action="commit-authorized-preparer"' +
@@ -268,13 +269,13 @@
       // 這一排有沒有清單都帶同一個 key：兩個鈕同時消失時沒有留下的鄰居可以對齊，要靠這一排找回原本的位置，
       // 才能先晃一下再左右收起（裁定 2026-10-13-13）。
       '<div class="import-card__actions" data-motion-key="preparer-actions"><button type="button" class="btn btn--ghost" data-action="import-authorized-preparer">' +
-      (info ? '重新選擇授權清單檔' : '選擇授權清單檔') + '</button>' +
+      (info ? '重新選擇授權編製人員清單' : '選擇授權編製人員清單') + '</button>' +
       // 只在有清單時出現的兩個鈕各自帶 key，移除後在這一排左右收起，旁邊的鈕跟著平順移動。
       // 打開右側資料預覽的檢視一律寫「資料預覽」，字後面接面板圖示（裁定 2026-10-30-36）。
       (info ? '<button type="button" class="jet-view jet-view--preview" data-action="preview-authorized-preparer" ' +
           'aria-label="資料預覽：授權編製人員清單" data-motion-key="preparer-preview-action" data-motion="inline">資料預覽</button>' +
         '<button type="button" class="btn btn--ghost" data-action="clear-authorized-preparer" ' +
-          'data-motion-key="preparer-clear-action" data-motion="inline">移除授權清單</button>' : '') +
+          'data-motion-key="preparer-clear-action" data-motion="inline">移除授權編製人員清單</button>' : '') +
       '</div>' + pending + '</section>';
   }
 
@@ -303,18 +304,18 @@
       if (global.JetMotion && typeof global.JetMotion.removing === 'function') {
         global.JetMotion.removing({ keys: ['preparer-summary', 'preparer-preview-action', 'preparer-clear-action'], wait: 15000 });
       }
-      Ui.run('移除授權清單', function () {
+      Ui.run('移除授權編製人員清單', function () {
         return global.JetApi.importAuthorizedPreparerClear({}).then(function (result) {
           preparerDraft = null;
           Store.setAuthorizedPreparerState(null);
           Store.applyMutationEffects(result);
-          Store.addMessage('已移除授權清單，預篩選要重新執行。', 'info');
+          Store.addMessage('已移除授權編製人員清單，預篩選要重新執行。', 'info');
           return result;
         });
       });
     });
     bind('retry-authorized-preparer-preview', function () {
-      if (preparerDraft) { Ui.run('讀取授權清單原檔預覽', function () { return readPreparerPreview(preparerDraft); }); }
+      if (preparerDraft) { Ui.run('讀取授權編製人員清單原檔預覽', function () { return readPreparerPreview(preparerDraft); }); }
     });
     bind('commit-authorized-preparer', function () {
       var draft = preparerDraft;
@@ -329,7 +330,7 @@
         });
       }, { completionMessage: function (data) {
         // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
-        return data ? '授權清單匯入完成：' + Ui.countText(data.rowCount) + ' 個有效人員代號或姓名。' : '';
+        return data ? '授權編製人員清單匯入完成：' + Ui.countText(data.rowCount) + ' 個有效人員代號或姓名。' : '';
       } });
     });
     bind('import-authorized-preparer', function () {
@@ -364,34 +365,34 @@
         sourceColumn: '', previewData: null, previewError: null });
       preparerDraft = draft;
       Store.touch();
-      Ui.run('讀取授權清單原檔預覽', function () { return readPreparerPreview(draft); });
+      Ui.run('讀取授權編製人員清單原檔預覽', function () { return readPreparerPreview(draft); });
     }); }
   }
 
   // 日期維度：上傳事務所假日／補班 .xlsx + 設定每週非工作日（週末判定）。前端零邏輯，權威在後端。
   function calendarCard(calendar) {
     var body = calendar && calendar.calendarImported
-      ? '<p class="import-card__status import-card__status--ok">假日 ' +
-          Ui.countText(calendar.holidayCount || 0) + ' 天、補班 ' + Ui.countText(calendar.makeupDayCount || 0) + ' 天。</p>'
+      ? '<p class="import-card__status import-card__status--ok">國定假日 ' +
+          Ui.countText(calendar.holidayCount || 0) + ' 天、補班日 ' + Ui.countText(calendar.makeupDayCount || 0) + ' 天。</p>'
       : calendar && calendar.nonWorkingDaysConfigured
-        ? '<p class="import-card__status import-card__status--ok">已設定每週非工作日；尚未上傳假日／補班檔。</p>'
-        : '<p class="import-card__status">上傳假日及補班日清單，或設定每週非工作日，供日期條件篩選使用。</p>';
+        ? '<p class="import-card__status import-card__status--ok">已設定每週休息日；尚未上傳國定假日清單與補班日清單。</p>'
+        : '<p class="import-card__status">上傳國定假日清單與補班日清單，或設定每週休息日，供日期條件使用。</p>';
 
     return (
       '<section class="import-card import-card--calendar" data-bind="import-card-calendar">' +
-        '<h3 class="import-card__title">假日與補班日</h3>' +
+        '<h3 class="import-card__title">國定假日與補班日</h3>' +
         body +
-        '<p class="calendar-nonworking__hint">假日檔讀 Date_of_Holiday 欄，補班檔讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。</p>' +
+        '<p class="calendar-nonworking__hint">國定假日清單讀 Date_of_Holiday 欄，補班日清單讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。</p>' +
         '<div class="import-card__actions">' +
-          '<button type="button" class="btn btn--ghost" data-action="import-holiday">上傳假日檔</button>' +
-          '<button type="button" class="btn btn--ghost" data-action="import-makeup">上傳補班檔</button>' +
+          '<button type="button" class="btn btn--ghost" data-action="import-holiday">上傳國定假日清單</button>' +
+          '<button type="button" class="btn btn--ghost" data-action="import-makeup">上傳補班日清單</button>' +
         '</div>' +
         '<div class="calendar-nonworking">' +
-          '<span class="calendar-nonworking__label">非工作日（週末判定）</span>' +
+          '<span class="calendar-nonworking__label">每週休息日</span>' +
           '<div class="calendar-nonworking__days" data-bind="nonworking-days">' +
             weekdayCheckboxesHtml(calendar && calendar.nonWorkingDays) +
           '</div>' +
-          '<p class="calendar-nonworking__hint">未調整時預設週六、週日。影響週末過帳／核准規則與週末篩選條件。</p>' +
+          '<p class="calendar-nonworking__hint">未調整時預設六、日。影響第四步的週末過帳與週末核准，以及第五步的週末條件。</p>' +
         '</div>' +
       '</section>'
     );
@@ -426,9 +427,9 @@
     var holidayBtn = container.querySelector('[data-action="import-holiday"]');
     if (holidayBtn) {
       holidayBtn.addEventListener('click', function () {
-        Ui.run('上傳假日檔', function () {
+        Ui.run('上傳國定假日清單', function () {
           return global.JetApi.hostSelectFile({
-            title: '選擇假日檔（Date_of_Holiday、Holiday_Name、IS_Holiday）',
+            title: '選擇國定假日清單（Date_of_Holiday、Holiday_Name、IS_Holiday）',
             extensions: ['.xlsx']
           }).then(function (file) {
             if (!file.filePath) { return; }
@@ -450,7 +451,7 @@
           });
         }, {
           // 完成句由 Ui.run 接上耗時後記一則；沒有選檔時不記（裁定 2026-10-13-17：成功時只留一則）。
-          completionMessage: function (data) { return data ? '假日匯入完成：' + Ui.countText(data.count) + ' 天。' : ''; }
+          completionMessage: function (data) { return data ? '國定假日匯入完成：' + Ui.countText(data.count) + ' 天。' : ''; }
         });
       });
     }
@@ -458,9 +459,9 @@
     var makeupBtn = container.querySelector('[data-action="import-makeup"]');
     if (makeupBtn) {
       makeupBtn.addEventListener('click', function () {
-        Ui.run('上傳補班檔', function () {
+        Ui.run('上傳補班日清單', function () {
           return global.JetApi.hostSelectFile({
-            title: '選擇補班檔（Date_of_MakeUpday、MakeUpDay_Desc）',
+            title: '選擇補班日清單（Date_of_MakeUpday、MakeUpDay_Desc）',
             extensions: ['.xlsx']
           }).then(function (file) {
             if (!file.filePath) { return; }
@@ -481,7 +482,7 @@
             });
           });
         }, {
-          completionMessage: function (data) { return data ? '補班匯入完成：' + Ui.countText(data.count) + ' 天。' : ''; }
+          completionMessage: function (data) { return data ? '補班日匯入完成：' + Ui.countText(data.count) + ' 天。' : ''; }
         });
       });
     }
@@ -493,7 +494,7 @@
         container.querySelectorAll('[data-bind="nonworking-days"] input[data-weekday]').forEach(function (b) {
           if (b.checked) { days.push(Number(b.getAttribute('data-weekday'))); }
         });
-        Ui.run('設定非工作日', function () {
+        Ui.run('設定每週休息日', function () {
           return global.JetApi.calendarSetNonWorkingDays({ days: days }).then(function (data) {
             var existing = Store.getState().importState.calendar || {};
             var changed = !sameNonWorkingDays(existing.nonWorkingDays, data.nonWorkingDays);
@@ -507,7 +508,7 @@
               });
             }
             // 沒有變更時不記（裁定 2026-10-13-28）。
-            if (changed) { Store.addMessage('已更新非工作日設定。', 'info'); }
+            if (changed) { Store.addMessage('已更新每週休息日設定。', 'info'); }
             Store.applyMutationEffects(data);
           });
         });
@@ -610,13 +611,13 @@
       return '<p class="wizard-pane__hint">加入：新檔的資料會附加到現有 ' +
         Ui.countText(info.rowCount) + ' 列（欄位名稱需與現有一致）。' +
         (wizard.kind === 'tb' ? '請只追加同一查核期間的試算表資料，不會自動配成期初與期末的期間變動。' : '') +
-        '成功加入後，這份資料集需要重新確認配對，受影響的測試結果需要重算。</p>';
+        '成功加入後，這份 ' + (wizard.kind === 'tb' ? 'TB' : 'GL') + ' 需要重新確認配對，受影響的測試結果需要重算。</p>';
     }
     if (info) {
       return '<p class="form-notice form-notice--warning">匯入後，現有的 ' +
         Ui.countText(info.rowCount) + ' 列會換成新檔，需重新確認欄位配對並重跑測試。</p>';
     }
-    return '<p class="wizard-pane__hint">建立資料集 — ' + (wizard.kind === 'tb'
+    return '<p class="wizard-pane__hint">建立 ' + (wizard.kind === 'tb' ? 'TB' : 'GL') + '：' + (wizard.kind === 'tb'
       ? '選擇同一查核期間的試算表來源，支援 Excel、CSV、文字檔及 Access；不會自動配成期初與期末的期間變動。'
       : '選擇一個或多個來源檔，支援 Excel、CSV、文字檔及 Access，可合併工作表或資料表。') + '</p>';
   }
@@ -1234,7 +1235,7 @@
     }, {
       // 完成句由 Ui.run 接上耗時（改用秒與分秒的共用寫法）後記一則（裁定 2026-10-13-17）。
       completionMessage: function (data) {
-        // 裁定 2026-10-13-28 確認了這句的用字。
+        // 這句的用字依裁定 2026-10-13-28。
         return data ? label + ' 匯入完成：本次新增 ' + Ui.countText(data.addedRowCount) + ' 列，目前共 ' +
           Ui.countText(data.rowCount) + ' 列、' + Ui.countText(data.columns.length) + ' 欄。' : '';
       }

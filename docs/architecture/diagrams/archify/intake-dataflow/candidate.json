@@ -75,7 +75,7 @@
       "stage": 2,
       "row": 0,
       "label": "PBC-GL",
-      "sublabel": "staging_gl_raw_row"
+      "sublabel": "pbc_gl"
     },
     {
       "id": "auditor",
@@ -91,7 +91,7 @@
       "stage": 2,
       "row": 2,
       "label": "PBC-TB",
-      "sublabel": "staging_tb_raw_row"
+      "sublabel": "pbc_tb"
     },
     {
       "id": "glmap",
@@ -115,7 +115,7 @@
       "stage": 4,
       "row": 0,
       "label": "GL",
-      "sublabel": "target_gl_entry"
+      "sublabel": "gl"
     },
     {
       "id": "tb",
@@ -123,7 +123,7 @@
       "stage": 4,
       "row": 2,
       "label": "TB",
-      "sublabel": "target_tb_balance"
+      "sublabel": "tb"
     }
   ],
   "flows": [
@@ -204,7 +204,7 @@
       "dot": "slate",
       "title": "沒有畫出的部分",
       "items": [
-        "產生標準 GL 時，另寫 gl_control_total，以及自訂欄位的 config_gl_rde_field 與 target_gl_rde_value；細節見資料表關聯圖。",
+        "產生標準 GL 時，另寫 gl_control_total，以及自訂欄位的 gl_rde_field 與 gl_rde_value；細節見資料表關聯圖。",
         "標準化 GL 表也存放不在測試母體內的分錄；查核期間與過帳狀態決定哪些分錄進入測試。",
         "重新匯入會刪除標準化資料表的舊資料，並把已確認的配對移到上一版；要再確認一次配對，才會重新產生標準化資料。"
       ]

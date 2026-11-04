@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 /// </summary>
 internal static class TaiwanSmeScenarioSupport
 {
-    internal const string BlankDocument = "-";
+    internal const string BlankVoucherNumber = "-";
 
     /// <summary>把「V1:1,2;V2:1」展開成排序後的「V1|1、V1|2、V2|1」。</summary>
     internal static string[] Keys(string compact) => compact.Length == 0
@@ -84,7 +84,7 @@ internal static class TaiwanSmeScenarioSupport
 
             var page = await host.DispatchAsync("query.filterHitsPage", request.ToJsonString());
             keys.AddRange(page.GetProperty("rows").EnumerateArray().Select(row =>
-                (row.GetProperty("voucherNumber").GetString() ?? BlankDocument) + "|" + row.GetProperty("lineItem").GetString()));
+                (row.GetProperty("voucherNumber").GetString() ?? BlankVoucherNumber) + "|" + row.GetProperty("lineItem").GetString()));
             var next = page.GetProperty("nextCursor");
             cursor = next.ValueKind == JsonValueKind.String ? next.GetString() : null;
         } while (cursor is not null);

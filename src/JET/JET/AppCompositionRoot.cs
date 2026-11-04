@@ -429,7 +429,7 @@ public static partial class AppCompositionRoot
                 {
                     handlers[index] =
                         agentGuiTestFixtures.DecorateExportAction(handlers[index]);
-                    handlers[index] = agentGuiTestFixtures.DecorateNullSearch(handlers[index]);
+                    handlers[index] = agentGuiTestFixtures.DecorateBlankSearch(handlers[index]);
                     handlers[index] = agentGuiTestFixtures.DecorateAuthorizedList(handlers[index]);
                 }
             }
