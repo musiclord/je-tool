@@ -498,6 +498,72 @@ public sealed class QueryDataPreviewHandlerTests
         }
     }
 
+    // 裁定 2026-11-05-04：TB 與 PBC-TB 也帶 columnDetails。PBC-TB 的欄名是來源欄名，確認配對前全部是文字，
+    // 確認後只有配到金額位置的來源欄是金額；TB 的欄名和欄位配對畫面相同，科目編號是文字。
+    [Fact]
+    public async Task Preview_TbAndPbcTb_DescribeColumnsAndMarkOnlyMappedAmountSourcesAsAmounts()
+    {
+        var tbPath = TestWorkbookBuilder.WriteWorkbook(ws =>
+        {
+            string[] headers = ["科目代號", "科目名稱", "借方金額", "貸方金額"];
+            for (var i = 0; i < headers.Length; i++)
+            {
+                ws.Cell(1, i + 1).Value = headers[i];
+            }
+
+            ws.Cell(2, 1).Value = "1111";
+            ws.Cell(2, 2).Value = "庫存現金";
+            ws.Cell(2, 3).Value = 410832;
+            ws.Cell(2, 4).Value = 440758;
+        });
+
+        try
+        {
+            using var host = new HandlerTestHost();
+            await host.DispatchAsync("project.create", CreatePayload);
+            await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tbPath }));
+
+            var beforeMapping = await host.DispatchAsync("query.dataPreview", """{ "dataset": "pbcTb" }""");
+            Assert.Equal(
+                [("科目代號", "科目代號", "text"), ("科目名稱", "科目名稱", "text"), ("借方金額", "借方金額", "text"), ("貸方金額", "貸方金額", "text")],
+                Details(beforeMapping));
+
+            await host.DispatchAsync(
+                "mapping.commit.tb",
+                """
+                {
+                  "mapping": {
+                    "accountNumber": "科目代號", "accountName": "科目名稱",
+                    "debitAmount": "借方金額", "creditAmount": "貸方金額"
+                  },
+                  "changeMode": "debitCredit"
+                }
+                """);
+
+            var afterMapping = await host.DispatchAsync("query.dataPreview", """{ "dataset": "pbcTb" }""");
+            Assert.Equal(
+                [("科目代號", "科目代號", "text"), ("科目名稱", "科目名稱", "text"), ("借方金額", "借方金額", "amount"), ("貸方金額", "貸方金額", "amount")],
+                Details(afterMapping));
+
+            var tb = await host.DispatchAsync("query.dataPreview", """{ "dataset": "tb" }""");
+            Assert.Equal(
+                [("accountNumber", "會計科目編號", "text"), ("accountName", "會計科目名稱", "text"), ("changeAmount", "年度變動金額", "amount")],
+                Details(tb));
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(tbPath);
+        }
+
+        static (string, string, string)[] Details(JsonElement data) =>
+            data.GetProperty("columnDetails").EnumerateArray()
+                .Select(detail => (
+                    detail.GetProperty("key").GetString()!,
+                    detail.GetProperty("label").GetString()!,
+                    detail.GetProperty("valueType").GetString()!))
+                .ToArray();
+    }
+
     [Fact]
     public async Task Preview_Limit_CapsRowsButReportsTotalCount()
     {

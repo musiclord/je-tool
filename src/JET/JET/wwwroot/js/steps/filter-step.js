@@ -215,12 +215,13 @@
           paneButton('filter', '篩選與檢視') + paneButton('saved', '已儲存情境（' + saved.length + '）') + '</div>' +
         '<section data-filter-pane="filter" id="filter-pane-filter" role="tabpanel" aria-labelledby="filter-tab-filter" data-motion-pane data-motion-key="filter-pane-filter"' + (FilterStep.viewState.workspacePane === 'filter' ? '' : ' hidden') + '>' +
           '<div class="filter-workbench"><aside class="filter-entry" tabindex="-1" aria-label="加入篩選條件">' +
-            '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3></div>' + conditionTargetHtml(draft) +
+            // 多組時「加入到第 N 組」和條件總覽的標題排在同一列（裁定 2026-11-05-16）。
+            '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3>' + conditionTargetHtml(draft) + '</div>' +
             '<div class="filter-source-tabs" role="tablist" aria-label="條件來源">' + sourceButton('common', '常用篩選條件') + sourceButton('prescreen', '預篩選') +
               sourceButton('field', '欄位條件') + '</div>' +
             '<div class="filter-entry-scroll" data-preserve-scroll="filter-condition-catalog">' +
             '<div' + conditionPaneAttributes('common') + '>' + commonPickerHtml(draft) + '</div>' +
-            '<div' + conditionPaneAttributes('prescreen') + '>' + prescreenPickerHtml() + '</div>' +
+            '<div' + conditionPaneAttributes('prescreen') + '>' + prescreenPickerHtml(draft) + '</div>' +
             '<div' + conditionPaneAttributes('field') + '>' + fieldPickerHtml() + '</div>' +
           '</div></aside><div class="filter-current">' + scenarioBuilderHtml(draft) + previewPaneHtml(state.filter.preview) + '</div></div>' +
         '</section>' +

@@ -67,18 +67,62 @@ public sealed class QueryDataPreviewHandler(
                 projectId, dataset, document.MoneyScale, limit, cancellationToken, offset, exclusionReason, glColumns),
             cancellationToken);
 
+        // TB、科目配對與 PBC 兩頁也帶欄名與型別，畫面依型別決定哪一欄靠右，不再逐格判斷是不是數字（裁定 2026-11-05-04）。
+        // PBC 兩頁的欄名就是來源欄名；只有已確認配對到金額位置的來源欄標成金額，還沒確認配對時全部是文字。
+        object[]? columnDetails = dataset switch
+        {
+            DataPreviewDataset.Gl or DataPreviewDataset.GlExcluded => preview.ColumnDetails?
+                .Select(static column => Detail(column.Key, column.Label, column.ValueType))
+                .ToArray(),
+            DataPreviewDataset.Tb or DataPreviewDataset.AccountMapping => preview.Columns.Select(StandardDetail).ToArray(),
+            DataPreviewDataset.PbcGl or DataPreviewDataset.PbcTb => await SourceDetailsAsync(),
+            _ => null
+        };
+
+        async Task<object[]> SourceDetailsAsync()
+        {
+            var kind = dataset == DataPreviewDataset.PbcGl ? DatasetKind.Gl : DatasetKind.Tb;
+            var state = await repositories.MappingStates.FindAsync(projectId, kind, cancellationToken);
+            var amountKeys = JetFieldCatalog.AmountMappingKeys(kind);
+            var amountColumns = (state?.Mapping ?? new Dictionary<string, string>())
+                .Where(pair => amountKeys.Contains(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                .Select(static pair => pair.Value)
+                .ToHashSet(StringComparer.Ordinal);
+            return preview.Columns
+                .Select(column => Detail(
+                    column,
+                    column,
+                    amountColumns.Contains(column) ? RdeFieldValueTypeNames.Amount : RdeFieldValueTypeNames.Text))
+                .ToArray();
+        }
+
         return new
         {
             dataset = datasetName,
             columns = preview.Columns,
-            columnDetails = preview.ColumnDetails?
-                .Select(static column => new { key = column.Key, label = column.Label, valueType = column.ValueType })
-                .ToArray(),
+            columnDetails,
             rows = preview.Rows,
             totalCount = preview.TotalCount,
             stats = ToWireStats(preview.Stats)
         };
     }
+
+    private static object Detail(string key, string label, string valueType) =>
+        new { key, label, valueType };
+
+    /// <summary>TB 與科目配對的欄名和欄位配對畫面相同，例如「會計科目編號」「年度變動金額」；只有變動金額是金額。</summary>
+    private static object StandardDetail(string column) => column switch
+    {
+        JetFieldCatalog.TbChangeAmount => Detail(column, TbSlotLabel(column), RdeFieldValueTypeNames.Amount),
+        JetFieldCatalog.TbAccountNumber or JetFieldCatalog.TbAccountName =>
+            Detail(column, TbSlotLabel(column), RdeFieldValueTypeNames.Text),
+        // 科目配對的第三欄是已存的分類，畫面一向寫「科目分類」。
+        "standardizedCategory" => Detail(column, "科目分類", RdeFieldValueTypeNames.Text),
+        _ => throw new InvalidOperationException($"TB 與科目配對的資料預覽沒有欄位 '{column}'。")
+    };
+
+    private static string TbSlotLabel(string key) =>
+        JetFieldCatalog.TbMappingSlots.Single(slot => slot.Key == key).Label;
 
     private static object? ToWireStats(DataPreviewStats? stats) => stats switch
     {

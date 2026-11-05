@@ -33,7 +33,11 @@ public sealed class ApprovedUxFrontendTests
         var app = ReadFrontend("js", "app.js");
         var markup = ReadFrontend("index.html");
         var css = ReadFrontend("css", "app.css");
-        var section = ExtractFunction(app, "stepSectionHtml");
+        // 2026-11-05 小筆電上已完成的步驟收成一列（裁定 2026-11-05-09）：stepSectionHtml 先決定要不要收合，
+        // 每一步的那一列改由 stepRowHtml 畫出，目前步驟的標題跟著搬過去。原本在 stepSectionHtml 裡找標題，
+        // 改成在 stepRowHtml 裡找，並確認 stepSectionHtml 仍交給它畫。第一次失敗：Public 收據 20261105-040816961-89151c2148e3414e991951ba43508f1d。
+        var section = ExtractFunction(app, "stepRowHtml");
+        Assert.Contains("stepRowHtml(state, step, index)", ExtractFunction(app, "stepSectionHtml"), StringComparison.Ordinal);
         var content = ExtractFunction(app, "renderContent");
         var focus = ExtractFunction(app, "focusCurrentStepHeading");
 
@@ -50,6 +54,30 @@ public sealed class ApprovedUxFrontendTests
         Assert.Matches(
             new Regex(@"\.stepflow-item\[data-step-nav\]:focus-visible[\s\S]*?outline:\s*2px", RegexOptions.CultureInvariant),
             css);
+    }
+
+    // Gui 的假選檔器靠選檔視窗的標題認出是哪一張卡片在選檔，標題對不上時改開真的 Windows 選檔視窗，Gui 要等到逾時才失敗。
+    // 2026-11-05「用 Excel 配對」的選檔標題改了（裁定 2026-11-05-07），假選檔器沒有跟著改，提交前複審才發現。
+    // 這是新加的測試：假選檔器寫的每個標題，都要在前端程式裡逐字出現。
+    [Fact]
+    public void AgentGuiFileChooserFixtures_UseTheTitlesTheScreensPass()
+    {
+        var fixtures = File.ReadAllText(Path.Combine(RepoRoot(), "JET", "AgentGuiTestFixtures.cs"));
+        var scripts = string.Join(
+            "\n",
+            Directory.GetFiles(Path.Combine(RepoRoot(), "JET", "wwwroot", "js"), "*.js", SearchOption.AllDirectories)
+                .Select(File.ReadAllText));
+        var titles = Regex.Matches(fixtures, @"private const string \w+Title = ""([^""]+)"";")
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+
+        Assert.Equal(3, titles.Length);
+        foreach (var title in titles)
+        {
+            Assert.True(
+                scripts.Contains("'" + title + "'", StringComparison.Ordinal),
+                $"假選檔器的標題「{title}」在前端程式裡找不到。");
+        }
     }
 
     [Fact]

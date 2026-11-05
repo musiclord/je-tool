@@ -8,7 +8,10 @@ namespace JET.Application;
 
 /// <summary>
 /// 從 JET 報告讀回 GL/TB mapping 草稿。唯讀：不保存 mapping、不投影 target、不推進流程。
-/// 相容性以目前兩個 import batch 的 columns 和 commit 共用 MappingValidator 權威驗證。
+/// 相容性以目前的 import batch columns 和 commit 共用 MappingValidator 權威驗證。
+/// 報告裡選到的來源欄在目前資料找不到時，不整份拒絕：對得上的照樣帶入，找不到的連同綁在它上面的設定拿掉，
+/// 列在 unmatchedFields 請審計員重選；沒有匯入 TB，或報告匯出時 TB 還沒確認配對，只帶入 GL，tb 回 null（裁定 2026-11-05-03）。
+/// 報告本身缺必要欄位或用了不支援的金額計算方式，仍整份拒絕。
 /// </summary>
 public sealed class MappingRestoreDraftHandler(
     IMappingMetadataReader metadataReader,
@@ -28,14 +31,15 @@ public sealed class MappingRestoreDraftHandler(
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
                 "目前案件尚未匯入 PBC-GL，不能驗證還原草稿的來源欄位。");
-        var tbBatch = await repositories.Imports.GetLatestBatchAsync(
-            projectId, DatasetKind.Tb, cancellationToken)
-            ?? throw new JetActionException(
-                JetErrorCodes.NoImportBatch,
-                "目前案件尚未匯入 PBC-TB，不能驗證還原草稿的來源欄位。");
+        // 沒有匯入 TB，或報告匯出時 TB 還沒確認配對，都只帶入 GL。
+        var tbBatch = metadata.Tb is null
+            ? null
+            : await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken);
+        var tbMetadata = tbBatch is null ? null : metadata.Tb;
 
+        var tbMode = default(TbChangeMode);
         if (!GlAmountModeNames.TryParse(metadata.Gl.AmountMode, out var glMode)
-            || !TbChangeModeNames.TryParse(metadata.Tb.ChangeMode, out var tbMode))
+            || (tbMetadata is not null && !TbChangeModeNames.TryParse(tbMetadata.ChangeMode, out tbMode)))
         {
             throw new JetActionException(
                 JetErrorCodes.MappingMetadataInvalid,
@@ -44,11 +48,13 @@ public sealed class MappingRestoreDraftHandler(
 
         var glValidation = MappingValidator.ValidateGl(
             new GlMappingSpec(metadata.Gl.Mapping, glMode), glBatch.Columns.ToList());
-        var tbValidation = MappingValidator.ValidateTb(
-            new TbMappingSpec(metadata.Tb.Mapping, tbMode), tbBatch.Columns.ToList());
+        var tbValidation = tbBatch is null || tbMetadata is null
+            ? null
+            : MappingValidator.ValidateTb(new TbMappingSpec(tbMetadata.Mapping, tbMode), tbBatch.Columns.ToList());
 
+        // 必要欄位看的是報告本身有沒有選；選了但在目前資料找不到，屬於下面要重選的欄位，不在這裡擋。
         var missing = glValidation.MissingRequiredKeys.Select(key => $"GL.{key}")
-            .Concat(tbValidation.MissingRequiredKeys.Select(key => $"TB.{key}"))
+            .Concat((tbValidation?.MissingRequiredKeys ?? []).Select(key => $"TB.{key}"))
             .ToArray();
         if (missing.Length > 0)
         {
@@ -63,23 +69,21 @@ public sealed class MappingRestoreDraftHandler(
                 $"報告裡的欄位配對缺少必要欄位：{string.Join("、", missing)}，無法還原。請回第三步欄位配對直接重新選擇。");
         }
 
-        var unknownColumns = glValidation.UnknownColumns.Select(column => $"GL:{column}")
-            .Concat(tbValidation.UnknownColumns.Select(column => $"TB:{column}"))
-            .ToArray();
-        if (unknownColumns.Length > 0)
-        {
-            throw new JetActionException(
-                JetErrorCodes.MappingColumnNotFound,
-                $"報告裡的欄位配對選到目前匯入資料中沒有的欄位：{string.Join("、", unknownColumns)}。請回第三步欄位配對重新選擇。");
-        }
+        var unmatched = new List<object>();
+        var glMapping = KeepMatchedColumns(
+            metadata.Gl.Mapping, glBatch.Columns, "gl", JetFieldCatalog.GlMappingSlots, unmatched);
+        var draftOptions = FitOptions(metadata.Gl.ToOptions(), glMapping, glBatch.Columns, unmatched);
+        var tbMapping = tbBatch is null || tbMetadata is null
+            ? null
+            : KeepMatchedColumns(tbMetadata.Mapping, tbBatch.Columns, "tb", JetFieldCatalog.TbMappingSlots, unmatched);
 
         GlMappingOptions glOptions;
         try
         {
             glOptions = GlMappingOptionsRules.NormalizeAndValidate(
-                metadata.Gl.Mapping,
+                glMapping,
                 glBatch.Columns,
-                metadata.Gl.ToOptions());
+                draftOptions);
         }
         catch (ArgumentException exception)
         {
@@ -98,7 +102,7 @@ public sealed class MappingRestoreDraftHandler(
             formatVersion = MappingMetadataFormat.CurrentVersion,
             gl = new
             {
-                mapping = metadata.Gl.Mapping,
+                mapping = glMapping,
                 amountMode = metadata.Gl.AmountMode,
                 approvalDateMode = glOptions.ApprovalDateMode,
                 postingStatusPolicy = glOptions.PostingStatusPolicy,
@@ -106,7 +110,78 @@ public sealed class MappingRestoreDraftHandler(
                 rdeFields = glOptions.RdeFields,
                 fillDownFields = glOptions.FillDownFields
             },
-            tb = new { mapping = metadata.Tb.Mapping, changeMode = metadata.Tb.ChangeMode }
+            tb = tbMapping is null || tbMetadata is null ? null : new { mapping = tbMapping, changeMode = tbMetadata.ChangeMode },
+            unmatchedFields = unmatched
+        };
+    }
+
+    /// <summary>
+    /// 只留下來源欄在目前資料找得到的配對；借方與貸方代碼是字面值，照樣帶入。找不到的寫進 unmatched：
+    /// dataset、配對位置的鍵與名稱，以及報告裡選的來源欄。
+    /// </summary>
+    private static Dictionary<string, string> KeepMatchedColumns(
+        IReadOnlyDictionary<string, string> mapping,
+        IReadOnlyList<string> columns,
+        string dataset,
+        IReadOnlyList<JetMappingSlot> slots,
+        List<object> unmatched)
+    {
+        var available = columns.ToHashSet(StringComparer.Ordinal);
+        var kept = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var slot in slots)
+        {
+            if (!mapping.TryGetValue(slot.Key, out var column) || string.IsNullOrWhiteSpace(column))
+            {
+                continue;
+            }
+
+            if (slot.IsLiteral || available.Contains(column))
+            {
+                kept[slot.Key] = column;
+            }
+            else
+            {
+                unmatched.Add(new { dataset, key = slot.Key, label = slot.Label, sourceColumn = column });
+            }
+        }
+
+        return kept;
+    }
+
+    /// <summary>
+    /// 拿掉綁在找不到的來源欄上的設定：核准日的來源欄不見了改成沒有核准日，過帳狀態的來源欄不見了就不帶過帳政策，
+    /// 往下填補只留還有來源欄的欄位；攸關資料元素的來源欄不見了，這個欄位寫進 unmatched。
+    /// </summary>
+    private static GlMappingOptions FitOptions(
+        GlMappingOptions options,
+        IReadOnlyDictionary<string, string> mapping,
+        IReadOnlyList<string> columns,
+        List<object> unmatched)
+    {
+        var available = columns.ToHashSet(StringComparer.Ordinal);
+        var rdeFields = new List<GlRdeFieldMetadata>(options.RdeFields.Count);
+        foreach (var field in options.RdeFields)
+        {
+            if (available.Contains(field.SourceColumn))
+            {
+                rdeFields.Add(field);
+            }
+            else
+            {
+                unmatched.Add(new { dataset = "gl", key = field.FieldId, label = field.Label, sourceColumn = field.SourceColumn });
+            }
+        }
+
+        var approvalDateMode = options.ApprovalDateMode == ApprovalDateModeNames.Mapped
+                               && !mapping.ContainsKey(JetFieldCatalog.GlApprovalDate)
+            ? ApprovalDateModeNames.Unmapped
+            : options.ApprovalDateMode;
+        return options with
+        {
+            ApprovalDateMode = approvalDateMode,
+            PostingStatusPolicy = mapping.ContainsKey(JetFieldCatalog.GlPostingStatus) ? options.PostingStatusPolicy : null,
+            RdeFields = rdeFields,
+            FillDownFields = options.FillDownFields.Where(mapping.ContainsKey).ToArray()
         };
     }
 }

@@ -264,6 +264,11 @@ GL 與 TB 的匯入或配對確認都回傳五個 true，使用同一條失效�
 兩項新筆數不存進開案摘要；清單查詢見下方 `query.accountMappingDifferencePage`。匯入完成後才讀取筆數，
 讀取失敗不撤銷匯入，兩個值回 null，支援日誌記下摘要失敗。畫面顯示「尚未核對」，展開清單時重新查詢。
 
+`import.accountMapping.fromFile` 另可帶 `sheetName`，指定 .xlsx 裡要讀的工作表，例如工作底稿的「自動化工具-科目配對資訊」
+（裁定 2026-11-05-07）。沒有帶時照舊讀第一個工作表；文字檔帶 `sheetName` 以 `sheet_name_not_applicable` 拒絕。
+畫面選了 .xlsx 會先送 `import.inspectFile` 讀工作表清單，有欄名的工作表超過一個時請審計員選，選定後才送匯入。
+工作底稿在 GL 有、TB 沒有的科目，科目名稱一格寫「Not in TB」；匯入時這一格當成沒有科目名稱。
+
 科目配對先辨識確切欄名，去頭尾空白且不分大小寫：科目編號為 `GL_Number`（含 `GL_NUMBER`），
 科目名稱為 `GL_Name`（含 `GL_NAME`），分類為 `Standardized Account Name*` 或 `STANDARDIZED_ACCOUNT_NAME`。
 三欄都先認領，再依分類、科目編號、科目名稱的順序比對尚未認領欄的中英文關鍵字；仍找不到的欄，依剩餘欄位順序補上。
@@ -330,7 +335,13 @@ Access 資料表的欄名來自資料表本身，帶了以 `invalid_payload` 拒
 - `mapping.commit.tb`
 
 沒有 `mapping.autoSuggest` 這類自動建議，GL 與 TB 欄位由審計員手動選取（裁定 2026-09-17-04）；已保存配對仍保留。
-從報告載入配對草稿的前端入口已撤下，`mapping.restoreDraft` 暫留後端，列為延後事項（裁定 2026-09-22-01、2026-10-30-17）。
+第三步的「從報告帶入配對」選了 JET 匯出的 .xlsx 後送 `mapping.restoreDraft`，payload 只有 `filePath`（裁定 2026-11-05-03）。
+後端先讀六份正式報表共用的隱藏工作表 `JET_Metadata`，沒有這張表時讀「自動化工具-檔案欄位資訊」的 F1:H1。
+這個 action 只讀不寫，不保存配對，也不建立標準資料。回應的 `gl` 是 GL 草稿。`tb` 是 TB 草稿；
+沒有匯入 TB，或報告匯出時 TB 還沒確認配對，`tb` 是 null。
+報告裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的連同綁在它上面的設定一起拿掉，列在 `unmatchedFields`。
+每一項有 `dataset`、`key`、`label`、`sourceColumn`；攸關資料元素的 `key` 是它的 `fieldId`。
+報告本身缺必要欄位、用了不支援的金額計算方式，或檔案裡沒有 JET 記下的配對時，整份拒絕並寫出原因。
 
 GL 的 `glDate` 在畫面顯示為「總帳日期」，用來界定案件期間。`approvalDate` 對應「傳票核准日」及資料庫 `approval_date`。
 JET 沒有傳票日期欄位與回溯過帳規則，`mapping.commit.gl` 不接受 `voucherDate`（裁定 2026-10-08-03）。
@@ -543,7 +554,10 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 負值視為 0。資料庫依固定順序只讀當頁資料。`offset` 為 0 時，`totalCount` 和 `stats` 描述完整資料集；
 `offset` 大於 0 時兩者為 null，前端沿用第一頁的值。
 回應有 `dataset`、`columns`、`columnDetails`、`rows`、`totalCount` 與 `stats`，欄位配對及右側預覽共用這個查詢。
-`columnDetails` 只有 `gl` 與 `glExcluded` 會給，其他資料集是 null。
+`columnDetails` 在 `gl`、`glExcluded`、`tb`、`accountMapping`、`pbcGl` 與 `pbcTb` 都會給，其他資料集是 null（裁定 2026-11-05-04）。
+`tb` 與 `accountMapping` 的 `label` 和欄位配對畫面相同，例如「會計科目編號」「年度變動金額」，只有 `changeAmount` 是 `amount`。
+`pbcGl` 與 `pbcTb` 的 `key` 與 `label` 都是來源欄名；只有已確認配對到金額位置的來源欄是 `amount`，還沒確認配對時全部是 `text`。
+金額位置以 `JetFieldCatalog.AmountMappingKeys` 為準：GL 是 `amount`、`debitAmount` 與 `creditAmount`，TB 是各種變動金額的來源位置。
 
 `dataset` 為 `gl` 或 `glExcluded` 時，兩頁依已確認的 GL 配對列同一組欄位（裁定 2026-10-22-09）。
 最前面是固定的八欄：`voucherNumber`、`lineItem`、`glDate`、`accountNumber`、`accountName`、`description`、
@@ -556,7 +570,8 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 `glExcluded` 沒有分錄時照樣列出欄位，只有 `rows` 是空陣列。
 
 `columnDetails` 和 `columns` 順序相同，每一欄是 `{ key, label, valueType }`。`label` 和欄位配對畫面上的名稱相同，
-攸關資料元素用審計員取的名稱；`valueType` 是 `text`、`date` 或 `amount`。前端用 `label` 當欄名，只把 `amount` 欄靠右對齊。
+攸關資料元素用審計員取的名稱；`valueType` 是 `text`、`date` 或 `amount`。前端用 `label` 當欄名，只把 `amount` 欄靠右對齊，
+不逐格判斷哪一欄是數字；`pbcGl` 與 `pbcTb` 的金額欄只靠右，數值照來源文字顯示。
 `rows` 裡的金額是照資料庫存值換算的十進位字串，例如 `1234.5678` 或 `-1000`，前端補成四位小數加千分位顯示。
 `gl` 的 `stats` 是 `{ amountAbsMin, amountAbsMax, glDateMin, glDateMax, voucherCount }`。兩個金額也是
 同樣的十進位字串，因為金額大到約 5,497 億以上時，經過浮點數會讓第四位小數失真。

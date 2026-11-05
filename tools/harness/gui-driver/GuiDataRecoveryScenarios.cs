@@ -287,8 +287,10 @@ internal static partial class GuiScenarios
         // 第五步用到 GL 沒有配對的欄位時，使用者選了「停用並寫原因」（裁定 2026-10-22-05）：核准人員沒有配對時，
         // 「編製人員與核准人員相同」的卡片停用、收在「尚不可用」裡並寫出缺的欄位，按不下去，也就不會走到儲存。原本這裡點這張卡、
         // 按儲存，再讀儲存失敗的說明（第一次失敗收據 20261028-070711231-27d8b512c4dc4ef5ab16939260b93d1f，停用的卡片捲動超過次數上限）。
+        // 2026-11-05 常用篩選條件改成清單列（裁定 2026-11-05-08），原因從卡片裡移到同一列名稱的下一行，鍵上只寫「加入」，
+        // 所以改讀那一列的文字。
         const string missingApprover = "state.filter.savedScenarios.length===0 && (()=>{var j=document.querySelector('[data-common-cards] .filter-unavailable [data-common-card=preparerEqualsApprover]');" +
-            "return !!j && j.disabled && j.getClientRects().length>0 && j.textContent.includes('核准人員');})()";
+            "return !!j && j.disabled && j.getClientRects().length>0 && j.closest('.filter-check').textContent.includes('核准人員');})()";
         async Task SaveApproverCard()
         {
             await Click("[data-condition-source=common]");

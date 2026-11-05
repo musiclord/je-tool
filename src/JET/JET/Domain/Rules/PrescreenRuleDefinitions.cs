@@ -20,7 +20,15 @@ public sealed record PrescreenRuleDefinition(
     string? ConditionLabel,
     string? LegacyCode,
     PrescreenRuleShape Shape,
-    IReadOnlyList<JetRulePrerequisite> Requirements);
+    IReadOnlyList<JetRulePrerequisite> Requirements)
+{
+    /// <summary>
+    /// 情境只有一組、這組只有這一條條件時，報告摘要的列數、第五步的分錄筆數與底稿的逐列標記改算整張命中傳票的全部分錄。
+    /// 只有「未預期借貸組合」照舊 IDEA 這樣算（裁定 2026-08-28-01）；和其他條件組合時仍只算直接命中的分錄。
+    /// 判斷寫在規則定義，<c>JetAuditProgram.UsesLegacyWholeVoucherRows</c> 讀這裡，不再比對規則代號（裁定 2026-11-05-02）。
+    /// </summary>
+    public bool ListsWholeHitVouchersWhenAlone { get; init; }
+}
 
 /// <summary>
 /// 十二條預篩選規則的唯一登錄，一條規則一個定義（裁定 2026-10-22-13）。
@@ -48,7 +56,10 @@ public static class PrescreenRuleDefinitions
         RowTag(PrescreenRuleKeys.SuspiciousKeywords, "suspicious_keywords", "分錄摘要出現特定描述", "摘要特定描述", "R2",
             Field(JetFieldCatalog.GlDescription)),
         RowTag(PrescreenRuleKeys.UnexpectedAccountPair, "unexpected_account_pair", "未預期出現之特定借貸組合", "未預期借貸組合", "R3",
-            AccountMapping, RevenueCategory, CounterpartCategory),
+            AccountMapping, RevenueCategory, CounterpartCategory) with
+        {
+            ListsWholeHitVouchersWhenAlone = true
+        },
         RowTag(PrescreenRuleKeys.TrailingZeros, "trailing_zeros", "分錄金額中有連續 0 的尾數",
             $"金額尾數連續 {TrailingZeroThreshold.DefaultZerosThreshold} 個 0", "R4",
             Field(JetFieldCatalog.GlAmount)),

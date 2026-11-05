@@ -280,13 +280,15 @@ internal static partial class GuiScenarios
             await Click(".rule-row[data-gi=\"1\"] .filter-rule-heading");
             await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.rule-row--selected').dataset.gi==='1'");
             await Check("!document.querySelector('.rule-row[data-gi=\"1\"] [data-period-end-days]') && !document.querySelector('.rule-row[data-gi=\"1\"] [data-value-key=operator]') && !document.querySelector('.rule-row[data-gi=\"1\"] .value-blank')");
-            await Choose("[data-condition-target]", "0");
-            await Check("document.querySelector('[data-condition-target]').value==='0' && draft.groups[0].__active && !draft.groups[1].__active && draft.groups.length===2 && !document.querySelector('.rule-row--selected')");
+            // 「加入到第 N 組」改成條件總覽標題同一列的組號分段切換（裁定 2026-11-05-16），原本是下拉選單：按那一格的組號，
+            // 核對選中的單選鈕。
+            await Click(".filter-target .join-toggle__option:has([data-condition-target][value=\"0\"])");
+            await Check("document.querySelector('[data-condition-target]:checked').value==='0' && draft.groups[0].__active && !draft.groups[1].__active && draft.groups.length===2 && !document.querySelector('.rule-row--selected')");
             var selectionBaseline = await cdp.EvaluateAsync("JSON.stringify({rev:window.JetStore.getFilterDraftRev(),conditions:window.JetStore.getState().filter.draft.groups.map(g=>g.conditions),preview:window.JetStore.getState().filter.preview})", ct);
             await Click("[data-group-index=\"1\"] .filter-group-heading strong");
-            await Check("document.querySelectorAll('.scenario-set--active').length===1 && document.querySelector('.scenario-set--active').dataset.groupIndex==='1' && document.querySelector('[data-condition-target]').value==='1' && !document.querySelector('.rule-row--selected') && !document.querySelector('[data-group-index=\"1\"] .filter-group-selected').hidden");
+            await Check("document.querySelectorAll('.scenario-set--active').length===1 && document.querySelector('.scenario-set--active').dataset.groupIndex==='1' && document.querySelector('[data-condition-target]:checked').value==='1' && !document.querySelector('.rule-row--selected') && !document.querySelector('[data-group-index=\"1\"] .filter-group-selected').hidden");
             await Click("[data-group-index=\"0\"] .filter-group-heading strong");
-            await Check("document.querySelector('.scenario-set--active').dataset.groupIndex==='0' && document.querySelector('[data-condition-target]').value==='0' && !document.querySelector('.rule-row--selected')");
+            await Check("document.querySelector('.scenario-set--active').dataset.groupIndex==='0' && document.querySelector('[data-condition-target]:checked').value==='0' && !document.querySelector('.rule-row--selected')");
             await Check($"JSON.stringify({{rev:window.JetStore.getFilterDraftRev(),conditions:draft.groups.map(g=>g.conditions),preview:preview}})==={selectionBaseline.GetRawText()}");
             await Click("[data-filter-pane-select=\"saved\"]");
             await Click("[data-filter-pane-select=\"filter\"]");

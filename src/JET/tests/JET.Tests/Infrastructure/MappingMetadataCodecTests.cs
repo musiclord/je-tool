@@ -62,9 +62,9 @@ public sealed class MappingMetadataCodecTests
 
         var decoded = MappingMetadataCodec.Decode(MappingMetadataFormat.CurrentVersion, json);
 
-        Assert.Equal(mode, decoded.Tb.ChangeMode);
-        Assert.Equal(TbMappingKeys.All, decoded.Tb.Mapping.Keys);
-        Assert.Equal(tb.Values, decoded.Tb.Mapping.Values);
+        Assert.Equal(mode, decoded.Tb!.ChangeMode);
+        Assert.Equal(TbMappingKeys.All, decoded.Tb!.Mapping.Keys);
+        Assert.Equal(tb.Values, decoded.Tb!.Mapping.Values);
     }
 
     [Fact]
@@ -105,8 +105,8 @@ public sealed class MappingMetadataCodecTests
             },
             new CommittedMapping(
                 DatasetKind.Tb,
-                decoded.Tb.Mapping,
-                decoded.Tb.ChangeMode,
+                decoded.Tb!.Mapping,
+                decoded.Tb!.ChangeMode,
                 "batch",
                 DateTimeOffset.UnixEpoch));
 
@@ -339,7 +339,7 @@ public sealed class OpenXmlMappingMetadataReaderTests
 
             Assert.Equal(GlAmountModeNames.Flag, result.Gl.AmountMode);
             Assert.Equal("D", result.Gl.Mapping[GlMappingKeys.DrCrDebitCode]);
-            Assert.Equal(TbChangeModeNames.Direct, result.Tb.ChangeMode);
+            Assert.Equal(TbChangeModeNames.Direct, result.Tb!.ChangeMode);
         }
         finally
         {

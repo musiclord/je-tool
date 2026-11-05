@@ -613,6 +613,25 @@ test('mapping: approval date has a single source choice; clearing the source mea
   }
 });
 
+// 裁定 2026-11-05-04：已確認配對的來源表，只把配到金額位置的來源欄靠右，數值照原樣；整欄都是數字的科目欄照樣靠左。
+// 還沒確認的草稿表全部靠左。
+test('mapping: the confirmed source table aligns only the columns mapped to amounts to the right and keeps the values as imported', async () => {
+  const f = journey();
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'aligned', currentStep: 2 },
+    importState: { gl: { batchId: 'gl-n', columns: GL_COLUMNS, rowCount: 1 } },
+    mapping: { gl: { mapping: DUAL, amountMode: 'dual', approvalDateMode: 'unmapped', committedUtc: '2025-12-31T00:00:00Z' } } },
+  { stayOnCurrentStep: true });
+  await settleAll();
+  const row = ['JV-1', '2025-03-01', '6206', '郵電費', '電話費', '8640', '0', '', '', '', '', '', '管理部', '北區'];
+  f.last('queryDataPreview').resolve({ columns: GL_COLUMNS, rows: [row], totalCount: 1 }); await settleAll();
+  const cells = f.$$('.map-grid tbody tr')[0].querySelectorAll('td');
+  assert.deepEqual(cells.map(cell => cell.classList.contains('num')),
+    GL_COLUMNS.map(column => column === 'Debit' || column === 'Credit'));
+  assert.equal(cells[5].textContent, '8640', 'the source value stays as imported');
+  f.press('[data-action="remap-gl"]'); await settleAll();
+  assert.ok(f.$$('.map-grid tbody td.num').length === 0, 'the draft table keeps every column on the left');
+});
+
 // 配對完成後一律寫「已確認配對」，時間寫「確認於」，不再寫「完成於」；
 // 科目分類在 GL 確認配對前的提示也用同一個說法。
 test('mapping: the confirmed summary and the classification gate both say the mapping was confirmed', () => {
@@ -1137,6 +1156,93 @@ test('redraw: after a new import, the old grid preview is never shown whether it
   f.store.setMappingUiMode('grid');
   assert.equal(f.sent('queryDataPreview').length, before + 1, 'the reopened case reads its preview again');
   assert.ok(!f.need('.map-grid').textContent.includes('BEFORE-REOPEN'), 'a reply from before reopening is not shown');
+});
+
+// 裁定 2026-11-05-03：第三步上方的「從報告帶入配對」選 JET 匯出的檔案後，把當時的配對填成草稿，審計員按確認配對才儲存。
+// 後端列出的找不到的來源欄列在配對區頂端請審計員重選，和重新匯入後來源欄不見時同一處；沒有匯入 TB 時只帶入 GL，TB 的草稿照舊。
+// 假回應只用正式後端回過的欄位（action-shapes.json 的 mapping.restoreDraft）。
+test('mapping: bringing a mapping from a report fills the GL draft, lists the source columns to choose again and leaves TB alone without a TB import', async () => {
+  const f = journey({ tb: null });
+  const button = f.body().querySelector('[data-action="restore-mapping-from-report"]');
+  assert.ok(button !== null, 'the entry is on the mapping step once GL is imported');
+  const tbBefore = plain(f.store.getState().mapping.tb.draft);
+  button.dispatch('click'); await settleAll();
+  assert.deepEqual(plain(f.last('hostSelectFile').payload.extensions), ['.xlsx']);
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' }); await settleAll();
+  assert.deepEqual(plain(f.last('mappingRestoreDraft').payload), { filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx' });
+  const restoredGl = { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo',
+    amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D', drCrCreditCode: 'C' };
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: restoredGl, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [{ fieldId: 'rde.synthetic-dept', label: '合成部門', sourceColumn: 'Dept', valueType: 'text' }],
+      fillDownFields: [] },
+    tb: null,
+    unmatchedFields: [
+      { dataset: 'gl', key: 'approvedBy', label: '傳票核准人員', sourceColumn: '舊核准人員' },
+      { dataset: 'gl', key: 'rde.synthetic-old', label: '合成舊欄位', sourceColumn: '舊攸關欄' }
+    ]
+  });
+  await settleAll(); f.timers.run();
+  assert.deepEqual(f.draftNow(), restoredGl);
+  assert.equal(f.store.getState().mapping.gl.amountMode, 'side');
+  assert.deepEqual(f.optionsNow().rdeFields.map(field => field.sourceColumn), ['Dept']);
+  assert.deepEqual(plain(f.store.getState().mapping.tb.draft), tbBefore, 'TB is left as it was');
+  assert.equal(f.need('[data-bind="mapping-banner-gl"]').textContent,
+    '報告裡這些欄位的來源欄在目前的資料找不到，請重新選擇：傳票核准人員（原為「舊核准人員」）、攸關資料元素「合成舊欄位」（原為「舊攸關欄」）。');
+  const texts = messageList(f).map(message => message.text);
+  assert.ok(texts.includes('目前沒有匯入 TB，匯入 TB 後可以再從報告帶入一次。'), texts.join(' | '));
+  assert.ok(texts.some(text => new RegExp('^已從報告帶入 GL 的配對草稿，' + ELAPSED + '。$').test(text)), texts.join(' | '));
+  assert.equal(f.sent('mappingCommitGl').length, 0, 'bringing a mapping in does not save it');
+});
+
+// 有匯入 TB 時兩份草稿一起換掉；TB 找不到的來源欄列在 TB 配對區頂端。按「從報告帶入配對」後選檔取消，什麼都不送也不記。
+test('mapping: bringing a mapping from a report with TB imported replaces both drafts and a cancelled file choice does nothing', async () => {
+  const f = journey({ tb: TB_COLUMNS, mode: 'side', draft: SIDE_DONE });
+  const press = () => { f.body().querySelector('[data-action="restore-mapping-from-report"]').dispatch('click'); };
+  const messagesBefore = messageList(f).length;
+  press(); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: null, fileName: null }); await settleAll();
+  assert.equal(f.sent('mappingRestoreDraft').length, 0, 'a cancelled file choice sends nothing');
+  assert.equal(messageList(f).length, messagesBefore, 'and logs nothing');
+  press(); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_ValidationReport.xlsx', fileName: '合成_ValidationReport.xlsx' }); await settleAll();
+  const restoredTb = { accountNumber: 'TbAccount', debitAmount: 'TbDebit', creditAmount: 'TbCredit' };
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+    tb: { mapping: restoredTb, changeMode: 'debitCredit' },
+    unmatchedFields: [{ dataset: 'tb', key: 'accountName', label: '會計科目名稱', sourceColumn: '舊科目名稱' }]
+  });
+  await settleAll(); f.timers.run();
+  assert.deepEqual(plain(f.store.getState().mapping.tb.draft), restoredTb);
+  assert.equal(f.$('[data-bind="mapping-banner-gl"]'), null, 'GL had nothing to choose again');
+  assert.match(f.need('[data-bind="mapping-banner-tb"]', 'tb').textContent,
+    /^報告裡這些欄位的來源欄在目前的資料找不到，請重新選擇：.+（原為「舊科目名稱」）。$/);
+  const texts = messageList(f).map(message => message.text);
+  assert.ok(texts.some(text => new RegExp('^已從報告帶入 GL 與 TB 的配對草稿，' + ELAPSED + '。$').test(text)), texts.join(' | '));
+  assert.ok(!texts.some(text => /沒有匯入 TB/.test(text)), texts.join(' | '));
+});
+
+// 報告匯出時 TB 還沒確認配對（tb 是 null），目前案件卻有匯入 TB：照實說明只帶入 GL，不說成沒有匯入 TB；TB 的草稿照舊。
+test('mapping: a report exported before TB was mapped brings only GL and says so when TB is imported', async () => {
+  const f = journey({ tb: TB_COLUMNS });
+  const tbBefore = plain(f.store.getState().mapping.tb.draft);
+  f.body().querySelector('[data-action="restore-mapping-from-report"]').dispatch('click'); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_PrescreenReport.xlsx', fileName: '合成_PrescreenReport.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+    tb: null,
+    unmatchedFields: []
+  });
+  await settleAll();
+  assert.deepEqual(plain(f.store.getState().mapping.tb.draft), tbBefore);
+  const texts = messageList(f).map(message => message.text);
+  assert.ok(texts.includes('這份報告匯出時 TB 還沒確認配對，只帶入 GL。'), texts.join(' | '));
+  assert.ok(!texts.some(text => /沒有匯入 TB/.test(text)), texts.join(' | '));
 });
 
 /* ---- 確認欄位配對後訊息面板的句子（2026-10-14 補上） ---------------- */

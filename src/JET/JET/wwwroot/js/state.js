@@ -855,10 +855,13 @@
       bump();
     },
 
-    // 從報告還原欄位配對草稿：後端已把兩份 metadata 與目前 import columns 整批驗證完畢，
+    // 從報告還原欄位配對草稿：後端已把 metadata 與目前 import columns 驗證完畢，找不到的來源欄已經拿掉，
     // 前端只做一次原子鏡像。既有 committed/invalidated 狀態刻意保留，草稿不冒充已生效配對。
-    restoreMappingDrafts: function (bundle) {
+    // 沒有匯入 TB 時 bundle.tb 是 null，TB 的草稿照舊（裁定 2026-11-05-03）。
+    // dropped：報告裡選了、目前資料找不到的欄位，格式同 droppedFields，畫面據此請審計員重新選擇。
+    restoreMappingDrafts: function (bundle, dropped) {
       state.mapping.gl.draft = Object.assign({}, bundle.gl.mapping || {});
+      state.mapping.gl.droppedFields = (dropped && dropped.gl) || [];
       state.mapping.gl.amountMode = bundle.gl.amountMode;
       // v2 草稿另帶核准日三態、過帳狀態政策、人工／自動代碼與攸關資料元素定義。
       // reader 已把 v1 正規化成 v2 形狀，因此這裡只做一次原子鏡像，不再逐欄推導。
@@ -871,8 +874,11 @@
         rdeFields: (bundle.gl.rdeFields || []).slice(),
         fillDownFields: (bundle.gl.fillDownFields || []).slice()
       };
-      state.mapping.tb.draft = Object.assign({}, bundle.tb.mapping || {});
-      state.mapping.tb.changeMode = bundle.tb.changeMode;
+      if (bundle.tb) {
+        state.mapping.tb.draft = Object.assign({}, bundle.tb.mapping || {});
+        state.mapping.tb.changeMode = bundle.tb.changeMode;
+        state.mapping.tb.droppedFields = (dropped && dropped.tb) || [];
+      }
       bump();
     },
 

@@ -1244,7 +1244,10 @@ test('left-side examples and actions use normal page flow without sticky overlay
     assert.doesNotMatch(rule[1], /position:\s*(?:sticky|fixed)|overflow-y:\s*auto/);
   }
   // 常用篩選條件卡片的 class 2026-10-29 從帶小組名稱的修飾改成 picker-card--common（第一次失敗見本檔開頭 BLANK 上方的收據）。
-  assert.match(css, /\.filter-entry \.picker-card:not\(\.picker-card--common\)[^{]*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  // 2026-11-05 條件總覽三個分頁改成同一種清單列（裁定 2026-11-05-08），卡片與它的樣式一起拿掉；原本核對左欄的卡片排成一欄、不留字母寬的欄，
+  // 改成核對清單列只有名稱與鍵兩欄，舊卡片的樣式不再留著。第一次失敗：FrontendMapping 收據 20261105-034631328-8ee93f9d3bd447cf96a047db4ce3c58d。
+  assert.match(css, /\n\.filter-check \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto;/);
+  assert.doesNotMatch(css, /picker-card|condition-picker__grid/);
   // 第五步拆成五個檔案：字樣檢查改讀五個檔案合起來的原始碼。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
   const source = readFilterStep();
   // 裁定 2026-10-08-06 重新設計自訂篩選條件：範例移到右側「從範例開始」，需要部門欄位的範例就地選欄位，不再有範例專用下拉。

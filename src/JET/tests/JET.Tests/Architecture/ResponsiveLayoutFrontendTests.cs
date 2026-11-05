@@ -70,7 +70,8 @@ public sealed class ResponsiveLayoutFrontendTests
             // 2026-10-29 卡片區的格線改名為 --common（原本叫小組名稱），規則本身不變。第一次失敗：Focused 收據 20261029-062123410-6be7ae8a47f140af98c112c94ca35612。
             // 2026-11-03 自訂篩選條件改成欄位條件分頁，欄位改成一欄的清單、不再用格線（裁定 2026-11-03-05、2026-11-03-26），
             // 原本兩個 --custom 格線跟著拿掉；情境範例移到右側托盤，改核對托盤的格線同樣會縮窄。第一次失敗：Focused 收據 20261103-100726697-97e6c3f1045d4beda092d17c7bec9ecb。
-            ".condition-picker__grid--common",
+            // 2026-11-05 常用篩選條件改成和預篩選分頁同一種清單列（裁定 2026-11-05-08），卡片與 --common 格線一起拿掉，
+            // 清單列在下面另外核對名稱那一欄可以縮窄。第一次失敗：Public 收據 20261105-040816961-89151c2148e3414e991951ba43508f1d。
             ".filter-template-tray .filter-example-list__items",
             ".stats-bar"
         })
@@ -93,6 +94,8 @@ public sealed class ResponsiveLayoutFrontendTests
                 "min-width",
                 @"min\([^;]*100%[^;]*\)");
         }
+        // 條件總覽三個分頁的清單列：名稱那一欄可以縮窄，鍵靠右。
+        AssertDeclaration(css, ".filter-check", "grid-template-columns", @"minmax\(\s*0\s*,\s*1fr\)\s+auto");
         // 欄位條件分頁的欄位名稱在窄欄裡換行，不撐寬清單。
         AssertDeclaration(css, ".filter-field__name", "overflow-wrap", @"anywhere");
         AssertDeclaration(css, ".rule-field__hint", "max-width", @"100%");
@@ -208,7 +211,9 @@ public sealed class ResponsiveLayoutFrontendTests
         AssertDeclaration(css, ".stepflow-item", "align-items", @"flex-start");
 
         // 單列標題列時，案件摘要的上下緣跟著標題列本身，和標誌、操作組置中在同一條水平線上。
-        var wideViewportCss = BlockBodies(css, "@media (min-width: 1536px)");
+        // 2026-11-05 小筆電上標題列也排成一列（裁定 2026-11-05-09），單列的起點從 1536px 改成 900px，原本在 1536px 的區塊裡找。
+        // 第一次失敗：Public 收據 20261105-040816961-89151c2148e3414e991951ba43508f1d。
+        var wideViewportCss = BlockBodies(css, "@media (min-width: 900px)");
         Assert.Matches(new Regex(@"top:\s*anchor\(--jet-header top", RegexOptions.CultureInvariant), wideViewportCss);
         Assert.Matches(new Regex(@"bottom:\s*anchor\(--jet-header bottom\)", RegexOptions.CultureInvariant), wideViewportCss);
 

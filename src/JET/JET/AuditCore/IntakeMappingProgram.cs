@@ -238,6 +238,11 @@ internal sealed class AccountMappingProjection
 
         row.Values.TryGetValue(nameColumn, out var rawName);
         var name = string.IsNullOrWhiteSpace(rawName) ? null : rawName.Trim();
+        // 工作底稿的科目配對工作表在 GL 有、TB 沒有的科目寫「Not in TB」，不是科目名稱，當成沒有名稱（裁定 2026-11-05-07）。
+        if (string.Equals(name, AccountMappingExportRow.NotInTbName, StringComparison.Ordinal))
+        {
+            name = null;
+        }
 
         // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就整批不儲存，不截斷。
         if (code.Length > TextStorageLimits.KeyUtf16CodeUnits)

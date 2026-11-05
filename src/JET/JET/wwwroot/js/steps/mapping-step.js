@@ -510,6 +510,7 @@
       '<div class="panel panel--wide panel--mapping" data-motion-key="mapping-panel">' +
         '<h2 class="panel__title">欄位配對</h2>' +
         Ui.downstreamResetNoticeHtml(state) +
+        restoreFromReportHtml(state) +
         mappingSection('gl', 'GL 欄位配對', Ui.GL_FIELDS, Ui.GL_MODES,
           state.importState.gl, state.mapping.gl, state.mapping.gl.amountMode) +
         mappingSection('tb', 'TB 欄位配對', Ui.TB_FIELDS, Ui.TB_MODES,
@@ -518,9 +519,63 @@
       '</div>';
 
     bindUiModeToggle(container);
+    bindRestoreFromReport(container);
     bindMappingSection(container, 'gl', Ui.GL_FIELDS);
     bindMappingSection(container, 'tb', Ui.TB_FIELDS);
     Ui.bindStepFooter(container);
+  }
+
+  // 從 JET 匯出的報告、抽樣清單、工作底稿或科目配對工作檔帶入當時的配對，填成草稿，審計員按確認配對才儲存（裁定 2026-11-05-03）。
+  // 給另一個案件用：同一客戶的下一年度、同事做過的案件，或刪除重建的案件。GL 匯入後才有來源欄可以比對。
+  function restoreFromReportHtml(state) {
+    if (!state.importState.gl) { return ''; }
+    return '<div class="panel__actions panel__actions--start">' +
+      '<button type="button" class="btn btn--ghost" data-action="restore-mapping-from-report">從報告帶入配對</button>' +
+    '</div>';
+  }
+
+  // 後端列在 unmatchedFields 的欄位轉成配對區頂端「請重新選擇」用的格式：配對位置的鍵照用，其餘是攸關資料元素。
+  function droppedFromReport(unmatched, kind) {
+    var fields = kind === 'gl' ? Ui.GL_FIELDS : Ui.TB_FIELDS;
+    return (unmatched || []).filter(function (item) { return item.dataset === kind; }).map(function (item) {
+      var isField = fields.some(function (field) { return field.key === item.key; });
+      return isField
+        ? { key: item.key, column: item.sourceColumn, fromReport: true }
+        : { rde: true, column: item.sourceColumn, label: item.label, fromReport: true };
+    });
+  }
+
+  // 報告裡找不到的來源欄列在配對區頂端請審計員重選；沒有匯入 TB 時只帶入 GL。
+  function bindRestoreFromReport(container) {
+    var btn = container.querySelector('[data-action="restore-mapping-from-report"]');
+    if (!btn) { return; }
+    btn.addEventListener('click', function () {
+      Ui.run('從報告帶入配對', function () {
+        return global.JetApi.hostSelectFile({
+          title: '選擇 JET 匯出的報告、工作底稿或科目配對工作檔',
+          extensions: ['.xlsx']
+        }).then(function (file) {
+          if (!file.filePath) { return null; }
+          return global.JetApi.mappingRestoreDraft({ filePath: file.filePath }).then(function (data) {
+            Store.restoreMappingDrafts(data, {
+              gl: droppedFromReport(data.unmatchedFields, 'gl'),
+              tb: droppedFromReport(data.unmatchedFields, 'tb')
+            });
+            if (!data.tb) {
+              Store.addMessage(Store.getState().importState.tb
+                ? '這份報告匯出時 TB 還沒確認配對，只帶入 GL。'
+                : '目前沒有匯入 TB，匯入 TB 後可以再從報告帶入一次。');
+            }
+            return data;
+          });
+        });
+      }, {
+        completionMessage: function (data) {
+          if (!data) { return ''; }
+          return data.tb ? '已從報告帶入 GL 與 TB 的配對草稿。' : '已從報告帶入 GL 的配對草稿。';
+        }
+      });
+    });
   }
 
   // 簡易清單與對照表格共用同一份提交資格鏡像；後端 mapping.commit 仍是權威驗證。
@@ -1204,9 +1259,15 @@
   }
 
   // 唯讀二維對照表:來源欄當表頭、其下標示對應到的 JET 欄位,再附樣本資料列(沿用 sourceCache)。
+  // 已確認配到金額位置的來源欄靠右，數值照原樣；表頭照樣靠左，和右側資料預覽的 PBC 兩頁同一個判斷（裁定 2026-11-05-04）。
+  // 還沒確認的草稿表（twoDimMappingTable）全部靠左。
   function committedTableHtml(kind, fields, importInfo, committed) {
     var columns = (importInfo && importInfo.columns) || [];
     var span = Math.max(columns.length, 1);
+    var amountColumns = columns.map(function (col) {
+      var field = fieldForCommitted(fields, committed.mapping, col);
+      return !!(field && field.amount);
+    });
 
     var assignRow = columns.map(function (col) {
       var field = fieldForCommitted(fields, committed.mapping, col);
@@ -1231,7 +1292,7 @@
       bodyHtml = cache.rows.map(function (row) {
         return '<tr>' + columns.map(function (col, i) {
           var cell = row[i];
-          return '<td class="map-grid__data' + (cell == null ? ' is-null' : '') + '">' +
+          return '<td class="map-grid__data' + (amountColumns[i] ? ' num' : '') + (cell == null ? ' is-null' : '') + '">' +
             (cell == null ? '∅' : Ui.esc(cell)) + '</td>';
         }).join('') + '</tr>';
       }).join('');
@@ -1490,17 +1551,20 @@
 
   // 編輯畫面頂端的狀態提示。重建整步與輸入時的就地更新共用這一份，兩條路徑的文字不會分歧。
   // 同次開啟保留目前草稿；重開案件才帶回上次確認的配對。缺少的來源欄逐一列出，讓審計員補選。
+  // 從報告帶入配對時找不到的來源欄也記在 droppedFields（fromReport），同一處列出，只換開頭的說明（裁定 2026-11-05-03）。
   function mappingBannerHtml(kind, mappingState, committed, matches) {
     var dropped = mappingState.droppedFields || [];
+    var fromReport = dropped.some(function (item) { return item.fromReport; });
     var droppedText = dropped.length
-      ? '新資料沒有這些來源欄，請重新選擇：' + dropped.map(function (item) {
+      ? (fromReport ? '報告裡這些欄位的來源欄在目前的資料找不到，請重新選擇：' : '新資料沒有這些來源欄，請重新選擇：') +
+        dropped.map(function (item) {
           return droppedFieldLabel(kind, item) + '（原為「' + item.column + '」）';
         }).join('、') + '。'
       : '';
     var text = mappingState.invalidatedByImport
       ? '來源資料已變更，請檢查配對後按「確認配對」。' + droppedText
-      : (committed && !matches ? '配對已修改，請按「重新確認配對」儲存。'
-        : (droppedText ? '來源資料已變更。' + droppedText : ''));
+      : (committed && !matches ? '配對已修改，請按「重新確認配對」儲存。' + (fromReport ? droppedText : '')
+        : (droppedText ? (fromReport ? '' : '來源資料已變更。') + droppedText : ''));
     // 提示會因為修改配對而出現或消失，標上識別，出現時從原處長出來、消失時收回去，下面的內容跟著平順移動。
     if (text) {
       return '<p class="mapping-section__warn" data-bind="mapping-banner-' + kind + '" data-motion-key="mapping-banner-' + kind + '">' +

@@ -76,6 +76,17 @@ test('JET starts from the local list only, syncing adds the online cases, and re
   assert.equal(f.sent('project.listLocal').length, 2);
 });
 
+// 本機案件排在線上資料庫上面，標題下不再寫重述標題的說明句（裁定 2026-11-05-06）。
+test('the local list comes before the online list and the title has no sentence restating it', async () => {
+  const f = await boot([LOCAL_A]);
+  const sections = f.$('.picker-panel').children.filter(node => node.className === 'picker-section');
+  assert.equal(sections.length, 2);
+  assert.ok(sections[0].querySelector('[data-motion-list="local"]') !== null, 'the first section is the local list');
+  assert.ok(sections[1].querySelector('[data-motion-list="online"]') !== null, 'the second section is the online list');
+  assert.ok(f.$('.picker-panel__hint') === null, 'no sentence under the title');
+  assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
+});
+
 test('a failed online sync keeps the local rows and puts the reason above the lists as an alert', async () => {
   const f = await boot([LOCAL_A]);
   f.click('[data-action="picker-sync-online"]');

@@ -360,7 +360,11 @@ public sealed record TbMappingDraftMetadata(
     IReadOnlyDictionary<string, string> Mapping,
     string ChangeMode);
 
+/// <summary>
+/// 報告記下的確認配對。報表共用中繼資料（JET_Metadata）在匯出時 TB 還沒確認配對的話沒有 TB，Tb 是 null；
+/// 「自動化工具-檔案欄位資訊」一定同時有 GL 與 TB。
+/// </summary>
 public sealed record MappingDraftMetadata(
     int FormatVersion,
     GlMappingDraftMetadata Gl,
-    TbMappingDraftMetadata Tb);
+    TbMappingDraftMetadata? Tb);

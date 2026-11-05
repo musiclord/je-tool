@@ -49,8 +49,6 @@ internal static class ActionShapeJourney
         // ImportAccountMappingHandler：匯入完成後計算兩種差異數失敗才回 null，匯入本身已完成；失敗無法穩定重現。
         ("import.accountMapping.fromFile response.mappingOnlyCount", "null"),
         ("import.accountMapping.fromFile response.unmappedCount", "null"),
-        // WorksheetInspection.RowCountEstimate：Access 資料表與沒有範圍資訊的工作表沒有估計值；合成資料做不出這種檔案。
-        ("import.inspectFile response.worksheets[].rowCountEstimate", "null"),
         // MappingValueProfileHandler：資料庫實作沒有來源值核對時回 null（sourceValueCheckStatus 是 unsupportedProvider）；
         // SQLite、DuckDB 與 SQL Server 都已實作（SQL Server 自 2026-10-19 起），合成流程做不出這個值。
         ("mapping.valueProfile response.missingComparisonValues", "null"),
@@ -146,7 +144,7 @@ internal static class ActionShapeJourney
             var prepStartDate = project.GetProperty("prepStartDate").GetString();
             const string mismatchedPrepStartDate = "2020-01-01";
             // create-step.js 允許先不填期末財報準備日（送 null），之後在案件資料補上；審計員先建了這樣一個案件。
-            await Send("project.create", new
+            var undatedProject = await Send("project.create", new
             {
                 projectName = "合成未填準備日",
                 projectCode,
@@ -667,9 +665,22 @@ internal static class ActionShapeJourney
             var criteria = await Send("export.criteriaSelectionReport", new { validationResultId, revision });
 
             // 第六步匯出底稿：export-step.js。
-            await Send("export.workingPaperStream", new
+            var workingPaper = await Send("export.workingPaperStream", new
             {
                 validationResultId, scenarioRevision = revision, scenarioPositions = new[] { 1, 2, 3, 4 },
+            });
+            // 第三步的「從報告帶入配對」：mapping-step.js 選了 JET 匯出的檔案後只送 filePath（裁定 2026-11-05-03）。
+            // 這份底稿的配對和目前匯入的資料一致，每個欄位都帶得回來。之後案件刪除時底稿也會刪掉，先複製一份留給最後一段。
+            var workingPaperPath = workingPaper.GetProperty("publishedReport").GetProperty("fullPath").GetString()!;
+            await Send("mapping.restoreDraft", new { filePath = workingPaperPath });
+            var workingPaperCopy = Track(Path.Combine(Path.GetTempPath(), $"jet-shape-working-paper-{Guid.NewGuid():N}.xlsx"));
+            File.Copy(workingPaperPath, workingPaperCopy);
+            // 第四步「用 Excel 配對」選了這份底稿：validate-step.js 先讀工作表清單，審計員選「自動化工具-科目配對資訊」後
+            // 帶 sheetName 匯入（裁定 2026-11-05-07）。科目配對換了一份，和下面其他上游修改一樣讓已匯出的報告過期。
+            await Send("import.inspectFile", new { filePath = workingPaperCopy });
+            await Send("import.accountMapping.fromFile", new
+            {
+                filePath = workingPaperCopy, fileName = "合成_WorkingPaper.xlsx", sheetName = WorkingPaperSheetCatalog.AccountMapping,
             });
 
             // 匯出後回頭修改上游資料。上游修改會清除下游（裁定 2026-10-07-03）：
@@ -692,6 +703,8 @@ internal static class ActionShapeJourney
             // 總帳再加入同一份檔案時，後端提醒可能重複匯入；審計員改用示範的原始總帳整批取代，試算表也重新匯入。
             await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx", "append");
             await ImportAsync("import.gl.fromFile", glExport.GetProperty("filePath").GetString()!, glExport.GetProperty("fileName").GetString()!);
+            // 原始總帳沒有前面那份底稿配到的核准人員欄與兩個攸關資料元素的欄：從底稿帶入時這三個列在 unmatchedFields，其餘照樣帶入。
+            await Send("mapping.restoreDraft", new { filePath = workingPaperPath });
             await Send("import.tb.fromFile", new { mode = "replace", sources = new[] { csvSource } });
             // 原始總帳沒有攸關資料元素的欄，確認配對時一併拿掉。總帳重新投影會清掉科目配對，審計員重新匯入科目配對檔。
             await Send("mapping.commit.gl", GlCommit(glMapping, amountMode, new JsonArray()));
@@ -788,6 +801,11 @@ internal static class ActionShapeJourney
 
             Directory.Delete(projectDirectory, recursive: true);
             await Send("project.listLocal");
+
+            // 審計員打開一開始建的另一個案件，只匯入了總帳就從前面那份底稿帶入配對：只帶入 GL，tb 回 null。
+            await Send("project.load", new { projectId = undatedProject.GetProperty("projectId").GetString() });
+            await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx");
+            await Send("mapping.restoreDraft", new { filePath = workingPaperCopy });
             await Send("host.exitApp");
         }
 

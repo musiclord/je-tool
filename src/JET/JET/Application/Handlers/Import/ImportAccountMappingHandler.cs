@@ -48,8 +48,16 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                 extension,
                 mode));
 
-        var request = new TabularSourceRequest(filePath);
-        var source = new ImportSourceDescriptor(filePath, fileName, null, null, null);
+        // Excel 檔有多個工作表時，畫面請審計員選科目配對所在的工作表，例如工作底稿的「自動化工具-科目配對資訊」；
+        // 沒有指定時照舊讀第一個工作表（裁定 2026-11-05-07）。
+        var sheetName = PayloadReader.GetOptionalString(payload, "sheetName");
+        if (sheetName is not null && extension != ".xlsx")
+        {
+            throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "sheet_name_not_applicable");
+        }
+
+        var request = new TabularSourceRequest(filePath, SheetName: sheetName);
+        var source = new ImportSourceDescriptor(filePath, fileName, sheetName, null, null);
         // 引號內換行的提醒也適用科目配對檔（裁定 2026-10-19-06）。
         var lineBreaks = new QuotedLineBreakTally();
 

@@ -443,7 +443,9 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains(".dev-panel, .filter-template-tray)::details-content {\n  height: 0;", css, StringComparison.Ordinal);
         Assert.Contains("global.JetMotion.morph(container, function () { render(container, Store.getState()); });", filter, StringComparison.Ordinal);
         Assert.Contains("' data-motion-key=\"' + esc('report-' + motion + '-' + report.reportId) + '\"'", core, StringComparison.Ordinal);
-        Assert.Contains(".filter-workspace .scenario-flat__list > .rule-row:not([data-motion-leaving]) ~ .rule-row::before {", css, StringComparison.Ordinal);
+        // 裁定 2026-11-05-16 把條件之間的連接詞從條件列的 ::before 改成條件之間的分隔線：分隔線跟著下面那一條條件的識別長出來、收起來，
+        // 移除第一條時和它一起收起。原本核對 ::before 不算收起中的舊條件。第一次失敗：Focused 收據 20261105-053153629-f43a382c37d44be8836307be8cd89da8。
+        Assert.Contains("var key = 'join-' + motionKey(rule, 'rule');", filter, StringComparison.Ordinal);
         Assert.Contains("[data-motion-rendering] :is([data-collapsible], [data-motion-pane]) {", css, StringComparison.Ordinal);
         Assert.Contains(".modal[hidden],\n.overview-modal[hidden] {", css, StringComparison.Ordinal);
 

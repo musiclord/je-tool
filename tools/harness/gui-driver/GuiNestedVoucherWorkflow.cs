@@ -31,6 +31,8 @@ internal static partial class GuiScenarios
         }
         async Task Fill(string selector, string value) { await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value, ct); }
         async Task AddChild(string parent, string kind) { await Choose(parent + " > label > [data-child-kind]", kind); await Click(parent + " > [data-child-add]"); }
+        // 子條件之間分隔線上的 AND、OR 分段切換（裁定 2026-11-05-16）：這一層第一條分隔線上寫著這個字的那一格。
+        static string ChildJoin(string parent, string value) => parent + " > .rule-join .join-toggle__option:has([data-child-join][value=\"" + value + "\"])";
         const string root = ".rule-row[data-ri='0']";
         const string exists = ".rule-row[data-ri='0.0']";
         const string all = ".rule-row[data-ri='0.1']";
@@ -66,13 +68,14 @@ internal static partial class GuiScenarios
         await AddChild(root, "type:voucher"); await AddChild(exists, "type:drCrOnly");
         await AddChild(root, "type:voucher"); await Choose(all + " > [data-compound-key=quantifier]", "all");
         await AddChild(all, "type:drCrOnly"); await Choose(opposite + " [data-rule-bind=drCr]", "credit");
-        await AddChild(all, "type:group"); await Choose(all + " > [data-child-join]", "OR");
+        // 子條件之間的連接改成分隔線上的 AND、OR 分段切換（裁定 2026-11-05-16），原本是下拉選單：按那一格。
+        await AddChild(all, "type:group"); await Click(ChildJoin(all, "OR"));
         await AddChild(condition, "field:accountNumber"); await Choose(field + " [data-value-kind]", "exact");
         await Fill(field + " [data-value-key=values]", "GUI-ABSENT-ACCOUNT"); await Choose(field + " [data-value-polarity]", "exclude");
         await AddChild(condition, "type:group"); await AddChild(group, "field:glDate");
         await Choose(date + " [data-value-kind]", "blank"); await Choose(date + " [data-value-polarity]", "exclude");
         await AddChild(group, "field:description"); await Choose(description + " [data-value-kind]", "blank");
-        await Choose(group + " > [data-child-join]", "OR");
+        await Click(ChildJoin(group, "OR"));
         // 「選取依據」一起隱藏（裁定 2026-11-03-27），科目分類條件照舊用包含下層分類；原本在這裡切到僅分類本身再切回來。
         await AddChild(condition, "type:accountSide");
         await Check("!document.querySelector(\"" + classification + " [data-rule-bind=categorySelection]\") && draft.groups[0].conditions[0].conditions[1].conditions[1].conditions[2].categorySelection==='subtree'");
@@ -95,7 +98,7 @@ internal static partial class GuiScenarios
         // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
         await Click(".saved-scenario .jet-menu__toggle"); await Click("[data-action=edit-scenario][data-index='0']");
         // 「選取依據」隱藏後，編輯時只改子條件組的連接再取消；原本另把選取依據改成相同分類用途。
-        await Choose(group + " > [data-child-join]", "AND"); await Click("[data-action=cancel-edit-scenario]");
+        await Click(ChildJoin(group, "AND")); await Click("[data-action=cancel-edit-scenario]");
         await Check("saved[0].groups[0].conditions[0].conditions[1].conditions[1].conditions[2].categorySelection==='subtree' && saved[0].groups[0].conditions[0].conditions[1].conditions[1].conditions[1].conditions[1].join==='OR'");
         await Click("[data-bind=step-nav] [data-step-index='3']"); await Click("[data-bind=step-nav] [data-step-index='4']");
         await Click("[data-filter-pane-select=saved]"); await Click("[data-action=export-criteria-report]");

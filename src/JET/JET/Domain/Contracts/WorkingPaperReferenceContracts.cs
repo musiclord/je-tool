@@ -11,7 +11,11 @@ public sealed record AccountMappingExportRow(
     string AccountNumber,
     string? AccountName,
     string Category,
-    bool NotInTb);
+    bool NotInTb)
+{
+    /// <summary>GL 有、TB 沒有的科目在 GL_NAME 寫的字。匯入科目配對時遇到它當成沒有科目名稱。</summary>
+    public const string NotInTbName = "Not in TB";
+}
 
 /// <summary>
 /// 科目配對範本列，供審計員填分類。使用有效 GL 與 TB 聯集的可配對科目母體，排除空白科目編號。

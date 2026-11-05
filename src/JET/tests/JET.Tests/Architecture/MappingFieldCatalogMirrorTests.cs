@@ -11,7 +11,7 @@ public sealed class MappingFieldCatalogMirrorTests
     {
         var frontend = ExtractFrontendSlots("GL_FIELDS");
         var expected = JetFieldCatalog.GlMappingUiSlots
-            .Select(ToMirrorSlot)
+            .Select(slot => ToMirrorSlot(slot, DatasetKind.Gl))
             .ToArray();
 
         Assert.NotEmpty(frontend);
@@ -22,13 +22,14 @@ public sealed class MappingFieldCatalogMirrorTests
     public void TbMappingFields_MirrorCatalogExactly()
     {
         var frontend = ExtractFrontendSlots("TB_FIELDS");
-        var expected = JetFieldCatalog.TbMappingUiSlots.Select(ToMirrorSlot).ToArray();
+        var expected = JetFieldCatalog.TbMappingUiSlots.Select(slot => ToMirrorSlot(slot, DatasetKind.Tb)).ToArray();
 
         Assert.NotEmpty(frontend);
         Assert.Equal(expected, frontend);
     }
 
-    private static MirrorSlot ToMirrorSlot(JetMappingSlot slot) =>
+    // amount 鏡射 JetFieldCatalog.AmountMappingKeys：第三步來源表只把配到這些位置的來源欄靠右（裁定 2026-11-05-04）。
+    private static MirrorSlot ToMirrorSlot(JetMappingSlot slot, DatasetKind dataset) =>
         new(
             slot.Key,
             slot.Label,
@@ -37,7 +38,8 @@ public sealed class MappingFieldCatalogMirrorTests
                 : slot.RequiredModes.Count == 0
                     ? "optional"
                     : string.Join("|", slot.RequiredModes),
-            slot.IsLiteral);
+            slot.IsLiteral,
+            JetFieldCatalog.AmountMappingKeys(dataset).Contains(slot.Key));
 
     private static IReadOnlyList<MirrorSlot> ExtractFrontendSlots(string arrayName)
     {
@@ -56,7 +58,8 @@ public sealed class MappingFieldCatalogMirrorTests
             var label = RequiredStringProperty(body, "label");
             var requirement = ReadRequirement(body);
             var literal = Regex.IsMatch(body, @"\bliteral\s*:\s*true\b");
-            slots.Add(new MirrorSlot(key, label, requirement, literal));
+            var amount = Regex.IsMatch(body, @"\bamount\s*:\s*true\b");
+            slots.Add(new MirrorSlot(key, label, requirement, literal, amount));
         }
 
         Assert.NotEmpty(slots);
@@ -111,5 +114,6 @@ public sealed class MappingFieldCatalogMirrorTests
         string Key,
         string Label,
         string Requirement,
-        bool IsLiteral);
+        bool IsLiteral,
+        bool IsAmount);
 }

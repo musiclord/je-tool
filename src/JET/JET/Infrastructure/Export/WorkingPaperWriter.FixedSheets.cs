@@ -497,7 +497,7 @@ public sealed partial class WorkingPaperWriter
         foreach (var account in mappings)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var glName = account.NotInTb ? "Not in TB" : account.AccountName ?? string.Empty;
+            var glName = account.NotInTb ? AccountMappingExportRow.NotInTbName : account.AccountName ?? string.Empty;
             widthTracker.Observe([account.AccountNumber, glName, account.Category]);
         }
         var widths = widthTracker.Widths;
@@ -523,7 +523,7 @@ public sealed partial class WorkingPaperWriter
             },
             (sheet, row, account) =>
             {
-                var glName = account.NotInTb ? "Not in TB" : account.AccountName ?? string.Empty;
+                var glName = account.NotInTb ? AccountMappingExportRow.NotInTbName : account.AccountName ?? string.Empty;
                 return
                 [
                     sheet.TextCell(row, 1, account.AccountNumber),

@@ -708,7 +708,7 @@ internal sealed class AgentGuiTestFixtures
         // validate-step.js 的科目配對卡片。標題對不上時交給正式的選檔視窗。
         private const string HolidayTitle = "選擇國定假日清單（Date_of_Holiday、Holiday_Name、IS_Holiday）";
         private const string MakeupTitle = "選擇補班日清單（Date_of_MakeUpday、MakeUpDay_Desc）";
-        private const string AccountMappingTitle = "選擇科目配對範本（科目編號、科目名稱、科目分類）";
+        private const string AccountMappingTitle = "選擇科目配對範本或工作底稿（科目編號、科目名稱、科目分類）";
 
         public string Action => inner.Action;
         public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)

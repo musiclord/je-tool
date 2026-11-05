@@ -160,6 +160,22 @@ public sealed class WorkingPaperProgramTests
         Assert.False(JetAuditProgram.UsesLegacyWholeVoucherRows(combined));
     }
 
+    // 裁定 2026-11-05-02：單獨使用時列整張命中傳票寫在規則定義。十二條規則裡只有「未預期借貸組合」這樣算（裁定 2026-08-28-01），
+    // 每一條逐筆規則單獨成情境時，判斷都和規則定義的標示一致。
+    [Fact]
+    public void ListsWholeHitVouchersWhenAlone_IsMarkedOnlyOnUnexpectedAccountPairAndDrivesTheStandaloneScenario()
+    {
+        Assert.Equal(
+            [PrescreenRuleKeys.UnexpectedAccountPair],
+            PrescreenRuleDefinitions.All.Where(static rule => rule.ListsWholeHitVouchersWhenAlone).Select(static rule => rule.Key));
+        foreach (var rule in PrescreenRuleDefinitions.RowTags)
+        {
+            Assert.Equal(
+                rule.Key == PrescreenRuleKeys.UnexpectedAccountPair,
+                JetAuditProgram.UsesLegacyWholeVoucherRows(Scenario(PrescreenRule(rule.Key))));
+        }
+    }
+
     [Fact]
     public void Finalize_CarriesScenarioTagScopeIntoFinalPlan()
     {

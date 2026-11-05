@@ -83,7 +83,50 @@ internal static class MappingMetadataCodec
         }
     }
 
-    private static GlMappingDraftMetadata ReadCurrentGl(JsonElement element)
+    /// <summary>
+    /// 六份正式報表共用的隱藏工作表 JET_Metadata（<see cref="ReportWorkbookMetadataCodec"/> 寫出）裡的確認配對。
+    /// 外層另有期間、過帳狀態政策與科目分類版本，這裡只取 mapping；各資料集多出的來源批次與確認時間不讀。
+    /// 匯出時 TB 還沒確認配對的話 tb 是 null（裁定 2026-11-05-03：JET 匯出的六種檔案都能帶入配對）。
+    /// </summary>
+    public static MappingDraftMetadata DecodeReportWorkbook(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json, StrictDocumentOptions);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("mapping", out var mappingElement))
+            {
+                throw new MappingMetadataFormatException("報表中繼資料沒有欄位配對。");
+            }
+
+            var root = JsonContractReader.RequireObject(mappingElement, "mapping", ["formatVersion", "gl", "tb"]);
+            var version = root.GetProperty("formatVersion");
+            if (version.ValueKind != JsonValueKind.Number
+                || !version.TryGetInt32(out var number)
+                || number != MappingMetadataFormat.CurrentVersion)
+            {
+                throw new MappingMetadataFormatException("mapping metadata 版本不受支援。");
+            }
+
+            var gl = ReadCurrentGl(root.GetProperty("gl"), ReportWorkbookDatasetProperties);
+            var tbElement = root.GetProperty("tb");
+            var tb = tbElement.ValueKind == JsonValueKind.Null ? null : ReadTb(tbElement, ReportWorkbookDatasetProperties);
+            return new MappingDraftMetadata(MappingMetadataFormat.CurrentVersion, gl, tb);
+        }
+        catch (MappingMetadataFormatException)
+        {
+            throw;
+        }
+        catch (JsonException ex)
+        {
+            throw new MappingMetadataFormatException("報表中繼資料 JSON 無法解析。", ex);
+        }
+    }
+
+    /// <summary>報表共用中繼資料的每個資料集多記的三項，見 ReportWorkbookMetadataCodec.WriteDatasetStart。</summary>
+    private static readonly string[] ReportWorkbookDatasetProperties = ["kind", "sourceBatchId", "committedUtc"];
+
+    private static GlMappingDraftMetadata ReadCurrentGl(JsonElement element, IReadOnlyCollection<string>? extraProperties = null)
     {
         var value = JsonContractReader.RequireObject(
             element,
@@ -97,7 +140,7 @@ internal static class MappingMetadataCodec
                 "rdeFields"
             ],
             // 往下填補的欄位與填了幾格是後來加的，改版前寫出的報告沒有這兩項。
-            ["fillDownFields", "fillDownCount"]);
+            ["fillDownFields", "fillDownCount", .. extraProperties ?? []]);
         var mapping = JsonContractReader.ReadMapping(
             value.GetProperty("mapping"),
             "gl.mapping",
@@ -128,9 +171,9 @@ internal static class MappingMetadataCodec
         return mode;
     }
 
-    private static TbMappingDraftMetadata ReadTb(JsonElement element)
+    private static TbMappingDraftMetadata ReadTb(JsonElement element, IReadOnlyCollection<string>? extraProperties = null)
     {
-        var value = JsonContractReader.RequireObject(element, "tb", ["mapping", "changeMode"]);
+        var value = JsonContractReader.RequireObject(element, "tb", ["mapping", "changeMode"], extraProperties);
         var mode = JsonContractReader.RequireString(value.GetProperty("changeMode"), "tb.changeMode");
         if (!TbChangeModeNames.TryParse(mode, out var parsed)
             || !string.Equals(mode, TbChangeModeNames.ToWireName(parsed), StringComparison.Ordinal))

@@ -249,8 +249,8 @@ test('primitives: a latest-response guard accepts only the newest issue and noth
 });
 
 test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps the committed snapshots', () => {
-  // Store.restoreMappingDrafts 目前沒有呼叫端（2026-09-22 撤下還原畫面，寫的是「直到報告還原流程談定」）；
-  // 函式保留期間由這個 Store 層級的行為測試守住；裁定 2026-10-30-17 先保留後端、不做入口。
+  // Store.restoreMappingDrafts 的呼叫端是第三步的「從報告帶入配對」（裁定 2026-11-05-03 恢復入口）；
+  // 畫面的操作由 frontend-journey-mapping.test.cjs 核對，這裡守住 Store 一次換掉兩份草稿、不動已確認配對的行為。
   const { store } = coreFixture();
   const state = store.getState();
   const glCommitted = { mapping: { voucherNumber: 'SynDoc' }, amountMode: 'dual', options: { rdeFields: [] } };

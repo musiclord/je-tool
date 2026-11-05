@@ -200,6 +200,14 @@
   var categoryOpen = false;
   var categoryAdvanced = false;
   var accountExcelOpen = false;
+  // 「用 Excel 配對」選了有多個工作表的 Excel 檔時，先在托盤裡選工作表再匯入（裁定 2026-11-05-07）：
+  // { projectId, filePath, fileName, sheets, sheetName }；取消、匯入或換案件後清掉。
+  var accountSheetPick = null;
+  // 工作底稿的科目配對工作表，和 WorkingPaperSheetCatalog.AccountMapping 同名；檔案裡有它時預先選它。
+  var WORKING_PAPER_ACCOUNT_MAPPING_SHEET = '自動化工具-科目配對資訊';
+  // JET 科目配對範本的主工作表（AccountMappingTemplateWriter）與報告共用的隱藏中繼資料工作表（ReportWorkbookMetadataFormat.WorksheetName）。
+  var ACCOUNT_MAPPING_TEMPLATE_SHEET = 'AccountMapping';
+  var REPORT_METADATA_SHEET = 'JET_Metadata';
   // 新增分類的本地識別（尚未取得後端 stable ID 前只用於 DOM 對位；絕不送進 payload）。
   var categoryDraftSeq = 0;
   var categoryRemoval = null;
@@ -804,7 +812,7 @@
                 Ui.tabAttributes(accountExcelOpen, 'account-method-panel', 'account-method-excel') + '>用 Excel 配對</button>' +
             '</div><div role="tabpanel" id="account-method-panel" data-motion-key="account-method-' + (accountExcelOpen ? 'excel' : 'jet') +
               '" aria-labelledby="account-method-' + (accountExcelOpen ? 'excel' : 'jet') + '">' +
-              (accountExcelOpen ? accountMappingCardHtml(state.importState.accountMapping, ready)
+              (accountExcelOpen ? accountMappingCardHtml(state.importState.accountMapping, ready, state.project && state.project.projectId)
                 : accountTemplateJetStatusHtml() + Ui.accountMappingEditor.html(state, ready)) + '</div></div>') +
         '</section>' +
         prescreenCardHtml(p, v, ready, state, eligibility) +
@@ -1094,18 +1102,22 @@
   // 「用 Excel 配對」是一個托盤：上面一排操作照做事的順序排，下面一張白紙列出匯入的結果（裁定 2026-10-30-35：
   // 採方案丙，參考方案乙增加設計感）。主要的藍色按鈕只在還沒匯入時給「匯入科目配對檔」；會清空分類的「重建科目配對檔」收進「更多」。
   // 科目配對需要已整理的科目，不依賴驗證結果；GL 還沒確認配對時沒有科目可列，托盤只寫要先做的事。
-  function accountMappingCardHtml(info, mappingReady) {
+  function accountMappingCardHtml(info, mappingReady, projectId) {
     if (!mappingReady) {
       return '<section class="excel-mapping" data-bind="account-mapping-card" tabindex="-1">' +
           '<p class="excel-mapping__gate">GL 尚未確認配對，請先按「確認配對」。</p>' +
         '</section>';
     }
+    if (accountSheetPick && accountSheetPick.projectId !== projectId) { accountSheetPick = null; }
+    var pick = accountSheetPick;
+    // 選工作表時，藍色的主要按鈕交給「匯入這個工作表」，上面那顆暫時改成一般按鈕。
+    var importPrimary = !info && !pick;
     var actions =
       '<div class="excel-mapping__actions">' +
         '<button type="button" class="btn btn--ghost" data-action="ensure-account-mapping-template">準備科目配對範本</button>' +
         '<button type="button" class="btn btn--ghost" data-action="open-account-mapping-folder">開啟案件資料夾</button>' +
         '<span class="excel-mapping__sep" aria-hidden="true"></span>' +
-        '<button type="button" class="btn' + (info ? ' btn--ghost' : '') + '" data-action="import-account-mapping">' +
+        '<button type="button" class="btn' + (importPrimary ? '' : ' btn--ghost') + '" data-action="import-account-mapping">' +
           (info ? '重新匯入科目配對範本' : '匯入科目配對範本') + '</button>' +
         '<span class="excel-mapping__spacer" aria-hidden="true"></span>' +
         '<span class="jet-menu">' +
@@ -1129,9 +1141,23 @@
             '<span class="excel-mapping__value">' + Ui.countText(info.rowCount) + ' 個科目</span>'
           : '<span class="excel-mapping__value excel-mapping__value--muted">尚未匯入</span>') +
       '</div></li>';
+    var sheetPick = pick
+      ? '<div class="excel-mapping__sheet-pick" data-bind="account-mapping-sheet-pick" data-motion-key="account-mapping-sheet-pick">' +
+          '<p class="excel-mapping__hint">「' + Ui.esc(pick.fileName) + '」有多個工作表，請選擇科目配對所在的工作表。</p>' +
+          '<div class="excel-mapping__actions">' +
+            '<label class="excel-mapping__sheet-label">工作表 <select data-account-mapping-sheet>' +
+              pick.sheets.map(function (name) {
+                return '<option value="' + Ui.esc(name) + '"' + (name === pick.sheetName ? ' selected' : '') + '>' + Ui.esc(name) + '</option>';
+              }).join('') +
+            '</select></label>' +
+            '<button type="button" class="btn" data-action="import-account-mapping-sheet">匯入這個工作表</button>' +
+            '<button type="button" class="btn btn--ghost" data-action="cancel-account-mapping-sheet">取消</button>' +
+          '</div>' +
+        '</div>'
+      : '';
     return (
       '<section class="excel-mapping" data-bind="account-mapping-card" tabindex="-1">' +
-        actions + hint + validationOutputStatusHtml('template') +
+        actions + sheetPick + hint + validationOutputStatusHtml('template') +
         '<ul class="excel-mapping__results" data-motion-key="account-mapping-results">' +
           saved + blankCategoryRowHtml(info) + mappingDifferenceRowsHtml(info) +
         '</ul>' +
@@ -1671,43 +1697,98 @@
         .then(function (proceed) { if (proceed) { importAccountMappingFile(); } });
     });
 
+    var sheetSelect = container.querySelector('[data-account-mapping-sheet]');
+    if (sheetSelect) {
+      sheetSelect.addEventListener('change', function () {
+        if (accountSheetPick) { accountSheetPick.sheetName = sheetSelect.value; }
+      });
+    }
+    var sheetImport = container.querySelector('[data-action="import-account-mapping-sheet"]');
+    if (sheetImport) {
+      sheetImport.addEventListener('click', function () {
+        var pick = accountSheetPick;
+        if (!pick) { return; }
+        Ui.run('匯入科目配對範本', function () {
+          return importAccountMappingSource({ filePath: pick.filePath, fileName: pick.fileName, sheetName: pick.sheetName })
+            .then(function (data) {
+              // 匯入失敗時留著選擇，審計員可以改選工作表再試；成功後收起來。
+              if (accountSheetPick === pick) { accountSheetPick = null; Store.touch(); }
+              return data;
+            });
+        }, { completionMessage: accountMappingCompletion });
+      });
+    }
+    var sheetCancel = container.querySelector('[data-action="cancel-account-mapping-sheet"]');
+    if (sheetCancel) {
+      sheetCancel.addEventListener('click', function () {
+        accountSheetPick = null;
+        Store.touch();
+      });
+    }
+
+    // 完成句由 Ui.run 接上耗時後記一則；沒有選檔或改成先選工作表時不記（裁定 2026-10-13-17：成功時只留一則）。
+    function accountMappingCompletion(data) {
+      // 這句的用字依裁定 2026-10-13-28；沿用前一個案件的說明寫在托盤的提示句。
+      return data ? '科目配對匯入完成，共 ' + Ui.countText(data.rowCount) + ' 個科目。' : '';
+    }
+
+    // 選了 Excel 檔時先看有幾個有欄名的工作表：只有一個就直接匯入它；有多個時在托盤列出來請審計員選，
+    // 有工作底稿的「自動化工具-科目配對資訊」時預先選它（裁定 2026-11-05-07）。
+    // JET 匯出的報告都有一張隱藏的中繼資料工作表，審計員在 Excel 看不到，不列進選單。
+    // JET 自己的科目配對範本另有一張分類清單，照舊直接匯入範本那一張，不多問一次；原本只要有兩張以上就問，
+    // 提交前複審發現按「準備科目配對範本」再匯入回來這條主要路徑因此多了一步。
     function importAccountMappingFile() {
+      var projectId = Store.getState().project && Store.getState().project.projectId;
       Ui.run('匯入科目配對範本', function () {
         return global.JetApi.hostSelectFile({
-          title: '選擇科目配對範本（科目編號、科目名稱、科目分類）',
+          title: '選擇科目配對範本或工作底稿（科目編號、科目名稱、科目分類）',
           extensions: ['.xlsx', '.csv']
         }).then(function (file) {
           if (!file.filePath) { return; }
-          return global.JetApi.importAccountMappingFromFile({
-            filePath: file.filePath,
-            fileName: file.fileName
-          }).then(function (data) {
-            Store.setAccountMappingState({
-              batchId: data.batchId,
-              rowCount: data.rowCount,
-              fileName: data.fileName,
-              importedUtc: data.importedUtc,
-              hasAnyCategory: data.hasAnyCategory,
-              hasRevenue: data.hasRevenue,
-              hasCounterpart: data.hasCounterpart,
-              blankCategoryCount: data.blankCategoryCount
-            });
-            if (data.columnMappingWarning) { Store.addMessage(data.columnMappingWarning, 'warn'); }
-            // 文字檔欄位內含換行的提醒，和 GL、TB 匯入同一句、同一種顯示方式（裁定 2026-10-19-06）。
-            (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
-            Store.applyMutationEffects(data);
-            var differences = mappingDifferenceView(Store.getState().importState.accountMapping);
-            differences.counts = { mappingOnly: data.mappingOnlyCount, unmapped: data.unmappedCount };
+          accountSheetPick = null;
+          if (!/\.xlsx$/i.test(file.filePath)) {
+            return importAccountMappingSource({ filePath: file.filePath, fileName: file.fileName });
+          }
+          return global.JetApi.importInspectFile({ filePath: file.filePath }).then(function (inspected) {
+            var visible = (inspected.worksheets || []).filter(function (sheet) { return sheet.name !== REPORT_METADATA_SHEET; });
+            var names = visible.map(function (sheet) { return sheet.name; });
+            var sheets = visible.filter(function (sheet) { return sheet.columns.length > 0; }).map(function (sheet) { return sheet.name; });
+            // 範本是依工作表名稱認的，不看第一列有沒有字：範本的欄名不在第一列。
+            var template = names.indexOf(ACCOUNT_MAPPING_TEMPLATE_SHEET) >= 0 && names.indexOf(WORKING_PAPER_ACCOUNT_MAPPING_SHEET) < 0;
+            if (template || sheets.length <= 1) {
+              return importAccountMappingSource({ filePath: file.filePath, fileName: file.fileName, sheetName: template ? ACCOUNT_MAPPING_TEMPLATE_SHEET : sheets[0] });
+            }
+            accountSheetPick = {
+              projectId: projectId, filePath: file.filePath, fileName: file.fileName, sheets: sheets,
+              sheetName: sheets.indexOf(WORKING_PAPER_ACCOUNT_MAPPING_SHEET) >= 0 ? WORKING_PAPER_ACCOUNT_MAPPING_SHEET : sheets[0]
+            };
             Store.touch();
-            return data;
+            return null;
           });
         });
-      }, {
-        // 完成句由 Ui.run 接上耗時後記一則；沒有選檔時不記（裁定 2026-10-13-17：成功時只留一則）。
-        completionMessage: function (data) {
-          // 這句的用字依裁定 2026-10-13-28；沿用前一個案件的說明寫在托盤的提示句。
-          return data ? '科目配對匯入完成，共 ' + Ui.countText(data.rowCount) + ' 個科目。' : '';
-        }
+      }, { completionMessage: accountMappingCompletion });
+    }
+
+    function importAccountMappingSource(source) {
+      return global.JetApi.importAccountMappingFromFile(source).then(function (data) {
+        Store.setAccountMappingState({
+          batchId: data.batchId,
+          rowCount: data.rowCount,
+          fileName: data.fileName,
+          importedUtc: data.importedUtc,
+          hasAnyCategory: data.hasAnyCategory,
+          hasRevenue: data.hasRevenue,
+          hasCounterpart: data.hasCounterpart,
+          blankCategoryCount: data.blankCategoryCount
+        });
+        if (data.columnMappingWarning) { Store.addMessage(data.columnMappingWarning, 'warn'); }
+        // 文字檔欄位內含換行的提醒，和 GL、TB 匯入同一句、同一種顯示方式（裁定 2026-10-19-06）。
+        (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
+        Store.applyMutationEffects(data);
+        var differences = mappingDifferenceView(Store.getState().importState.accountMapping);
+        differences.counts = { mappingOnly: data.mappingOnlyCount, unmapped: data.unmappedCount };
+        Store.touch();
+        return data;
       });
     }
   }

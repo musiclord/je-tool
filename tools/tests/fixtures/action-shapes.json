@@ -1603,9 +1603,13 @@
     "import.accountMapping.fromFile": {
       "request": {
         "kind": "object",
+        "optional": [
+          "sheetName"
+        ],
         "fields": {
           "fileName": "string",
-          "filePath": "string"
+          "filePath": "string",
+          "sheetName": "string"
         }
       },
       "response": {
@@ -2653,6 +2657,106 @@
           "warnings": {
             "kind": "array",
             "items": "string"
+          }
+        }
+      }
+    },
+    "mapping.restoreDraft": {
+      "request": {
+        "kind": "object",
+        "fields": {
+          "filePath": "string"
+        }
+      },
+      "response": {
+        "kind": "object",
+        "fields": {
+          "formatVersion": "number",
+          "gl": {
+            "kind": "object",
+            "fields": {
+              "amountMode": "string",
+              "approvalDateMode": "string",
+              "fillDownFields": {
+                "kind": "array",
+                "items": null
+              },
+              "manualAutoPolicy": {
+                "kind": "object",
+                "fields": {
+                  "automaticValues": {
+                    "kind": "array",
+                    "items": "string"
+                  },
+                  "manualValues": {
+                    "kind": "array",
+                    "items": "string"
+                  }
+                }
+              },
+              "mapping": {
+                "kind": "object",
+                "optional": [
+                  "approvedBy"
+                ],
+                "fields": {
+                  "accountName": "string",
+                  "accountNumber": "string",
+                  "amount": "string",
+                  "approvalDate": "string",
+                  "approvedBy": "string",
+                  "createdBy": "string",
+                  "description": "string",
+                  "drCr": "string",
+                  "drCrCreditCode": "string",
+                  "drCrDebitCode": "string",
+                  "glDate": "string",
+                  "isManual": "string",
+                  "lineItem": "string",
+                  "voucherNumber": "string"
+                }
+              },
+              "postingStatusPolicy": "null",
+              "rdeFields": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "fieldId": "string",
+                    "label": "string",
+                    "sourceColumn": "string",
+                    "valueType": "string"
+                  }
+                }
+              }
+            }
+          },
+          "tb": {
+            "kind": "null|object",
+            "fields": {
+              "changeMode": "string",
+              "mapping": {
+                "kind": "object",
+                "fields": {
+                  "accountName": "string",
+                  "accountNumber": "string",
+                  "creditAmount": "string",
+                  "debitAmount": "string"
+                }
+              }
+            }
+          },
+          "unmatchedFields": {
+            "kind": "array",
+            "items": {
+              "kind": "object",
+              "fields": {
+                "dataset": "string",
+                "key": "string",
+                "label": "string",
+                "sourceColumn": "string"
+              }
+            }
           }
         }
       }
@@ -3712,7 +3816,7 @@
               "operatorId": "string",
               "periodEnd": "string",
               "periodStart": "string",
-              "prepStartDate": "string",
+              "prepStartDate": "null|string",
               "projectCode": "string",
               "projectId": "string",
               "rocDateEnabled": "boolean",

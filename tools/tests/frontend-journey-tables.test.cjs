@@ -718,6 +718,46 @@ test('the GL pages take column names and alignment from the column details and s
   }
 });
 
+// 裁定 2026-11-05-04：TB、科目配對與 PBC 兩頁也讀回應的 columnDetails。科目編號這類看起來像數字的文字靠左，只有金額靠右；
+// PBC 兩頁的金額欄只靠右，數值照來源文字；沒有欄位型別的回應全部靠左，不再逐格判斷是不是數字。
+test('TB, account mapping and both PBC pages take names and alignment from the column details and never guess numbers', async () => {
+  const f = await previewOpened();
+  const text = (key, label) => ({ key, label: label || key, valueType: 'text' });
+  const amount = (key, label) => ({ key, label: label || key, valueType: 'amount' });
+  const check = (dataset, details, rows, headers, cells, alignedRight) => {
+    const ths = f.body().querySelectorAll('th');
+    assert.deepEqual(ths.map(header => header.textContent), headers, dataset);
+    assert.deepEqual(ths.map(header => header.classList.contains('num')), alignedRight, dataset);
+    const tds = f.body().querySelectorAll('tbody tr')[0].querySelectorAll('td');
+    assert.deepEqual(tds.map(cell => cell.textContent), cells, dataset);
+    assert.deepEqual(tds.map(cell => cell.classList.contains('num')), alignedRight, dataset);
+  };
+  // 打開資料預覽先停在 PBC-GL：配到借方金額的來源欄靠右，數值照原樣；會計科目、分錄序號整欄都是數字也靠左。
+  const pbcGl = [text('傳票編號'), text('分錄序號'), text('會計科目'), amount('借方金額')];
+  f.request('queryDataPreview').resolve({ dataset: 'pbcGl', columns: pbcGl.map(column => column.key), columnDetails: pbcGl,
+    rows: [['GL-1', '1', '6206', '8640']], totalCount: 1 }); await settle();
+  check('pbcGl', pbcGl, null, ['傳票編號', '分錄序號', '會計科目', '借方金額'], ['GL-1', '1', '6206', '8640'], [false, false, false, true]);
+  const cases = [
+    ['tb', [text('accountNumber', '會計科目編號'), text('accountName', '會計科目名稱'), amount('changeAmount', '年度變動金額')],
+      [['1111', '庫存現金', '-29926']], ['會計科目編號', '會計科目名稱', '年度變動金額'], ['1111', '庫存現金', '-29,926.0000'], [false, false, true]],
+    ['accountMapping', [text('accountNumber', '會計科目編號'), text('accountName', '會計科目名稱'), text('standardizedCategory', '科目分類')],
+      [['111301', '銀行存款', 'Cash']], ['會計科目編號', '會計科目名稱', '科目分類'], ['111301', '銀行存款', 'Cash'], [false, false, false]],
+    ['pbcTb', [text('科目代號'), amount('期末借方餘額')],
+      [['1111', '55074']], ['科目代號', '期末借方餘額'], ['1111', '55074'], [false, true]]
+  ];
+  for (const [dataset, details, rows, headers, cells, alignedRight] of cases) {
+    tab(f, dataset).fire('click');
+    previewRequests(f).at(-1).resolve({ dataset, columns: details.map(column => column.key), columnDetails: details, rows, totalCount: 1 });
+    await settle();
+    check(dataset, details, rows, headers, cells, alignedRight);
+  }
+  // 沒有欄位型別的回應：全部靠左，整欄都是數字也一樣。
+  tab(f, 'pbcGl').fire('click');
+  previewRequests(f).at(-1).resolve({ dataset: 'pbcGl', columns: ['分錄序號', '借方金額'], rows: [['1', '8640'], ['2', '0']], totalCount: 2 });
+  await settle();
+  assert.deepEqual(f.body().querySelectorAll('tbody tr')[0].querySelectorAll('td').map(cell => cell.classList.contains('num')), [false, false]);
+});
+
 // 2026-10-28 複審：前端說明寫人工或自動分錄沒有判定時顯示「—」，這裡鎖住畫面實際的寫法。程式本來就這樣顯示，第一次就通過，沒有第一次失敗的收據。
 test('the GL pages show an undetermined manual or automatic entry as a dash', async () => {
   const f = await previewOpened();
@@ -903,15 +943,18 @@ test('asking twice for the same dataset shows only the latest answer, and a re-i
 // 裁定 2026-10-22-06：資料預覽的金額固定顯示四位小數，例如 1,234.5000，只改資料預覽。
 // 原本這裡斷言兩位小數，出處是裁定 2026-10-02-01「畫面統一兩位小數加千分位」，其他畫面維持兩位。
 // 後端照存下的值傳精確的字串，超大金額補零時不經過浮點數。第一次失敗：FrontendMapping 收據 20261023-113338743-9460c2825756428082a55c788b6229eb。
+// 裁定 2026-11-05-04 起 TB 也由後端帶 columnDetails，畫面不再依欄位 id 認變動金額；原本這裡的 TB 回應沒帶欄位型別，
+// 改成和正式後端一樣帶上。改前的第一次失敗：FrontendMapping 收據 20261105-015855417-049b1b145a3c409f8ac92a9104040a7a。
 test('preview amounts on standardized data show four decimals exactly as stored while PBC source values stay as imported', async () => {
   const f = await previewOpened();
   // 資料預覽的每一格都是字串，和正式後端相同（2026-10-15 前後端契合前這裡給數字）。
   f.request('queryDataPreview').resolve({ columns: ['voucherNumber', 'amount'], rows: [['JV-1', '1234.5']], totalCount: 1 }); await settle();
   assert.match(f.body().textContent, /1234\.5/); assert.doesNotMatch(f.body().textContent, /1,234\.5/);
   const columnDetails = [{ key: 'voucherNumber', label: '傳票號碼', valueType: 'text' }, { key: 'amount', label: '金額', valueType: 'amount' }];
+  const tbColumnDetails = [{ key: 'voucherNumber', label: '傳票號碼', valueType: 'text' }, { key: 'changeAmount', label: '年度變動金額', valueType: 'amount' }];
   for (const [dataset, column] of [['gl', 'amount'], ['glExcluded', 'amount'], ['tb', 'changeAmount']]) {
     f.ui.openDataPreview(dataset);
-    f.request('queryDataPreview').resolve({ columns: ['voucherNumber', column], ...(dataset === 'tb' ? {} : { columnDetails }),
+    f.request('queryDataPreview').resolve({ columns: ['voucherNumber', column], columnDetails: dataset === 'tb' ? tbColumnDetails : columnDetails,
       rows: [['JV-1', '1234.5'], ['JV-2', '-10'], ['JV-3', '922337203685477.5807']], totalCount: 3 }); await settle();
     const amounts = f.body().querySelectorAll('tbody tr').map(row => row.querySelectorAll('td')[1].textContent);
     assert.deepEqual(amounts, ['1,234.5000', '-10.0000', '922,337,203,685,477.5807'], dataset);

@@ -3,20 +3,24 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 第三步「還原上次配對」畫面在 2026-09-22 撤下，直到報告還原流程談定前都不得回到畫面。
+/// 第三步「還原上次配對」畫面在 2026-09-22 撤下。2026-11-05 使用者決定恢復入口，改成「從報告帶入配對」
+/// （裁定 2026-11-05-03）：選 JET 匯出的檔案後填成草稿，審計員按確認配對才儲存。
 /// </summary>
 public sealed class MappingMetadataMirrorTests
 {
+    // 原本的 RestoreUi_IsWithdrawnUntilTheReportRestoreWorkflowIsAgreed 斷言畫面不呼叫 mappingRestoreDraft；
+    // 裁定 2026-11-05-03 恢復入口後改成核對新入口在、舊入口沒有回來。
+    // 第一次失敗：Focused 收據 20261105-022240747-fdb2032fda9d4353a0d7222b15349128。
+    // 入口的行為由 tools/tests/frontend-journey-mapping.test.cjs 的「bringing a mapping from a report」核對。
     [Fact]
-    public void RestoreUi_IsWithdrawnUntilTheReportRestoreWorkflowIsAgreed()
+    public void RestoreUi_IsTheReportEntryOnTheMappingStep_AndTheWithdrawnEntryStaysAway()
     {
         var source = ReadFrontend("steps", "mapping-step.js");
-        // 2026-09-22 明示撤下功能；既有 restore state 由 tools/tests/frontend-journey-transport.test.cjs 的
-        // restoreMappingDrafts 行為測試保留（2026-10-14 取代原本的字串比對方法），後端相容性由 Application 測試保留。
+        Assert.Contains("data-action=\"restore-mapping-from-report\"", source, StringComparison.Ordinal);
+        Assert.Contains("global.JetApi.mappingRestoreDraft(", source, StringComparison.Ordinal);
+        Assert.Contains("Store.restoreMappingDrafts(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("restore-mapping-draft", source, StringComparison.Ordinal);
         Assert.DoesNotContain("bindRestoreMappingDraft", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("mappingRestoreDraft", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("Store.restoreMappingDrafts", source, StringComparison.Ordinal);
     }
 
     private static string ReadFrontend(params string[] relativeSegments)

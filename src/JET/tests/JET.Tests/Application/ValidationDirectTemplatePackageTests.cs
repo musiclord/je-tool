@@ -900,7 +900,7 @@ public sealed class ValidationDirectTemplatePackageTests
                 MappingMetadataFormat.CurrentVersion,
                 sheet.Cell("H1").GetString());
             Assert.Equal("APPROVAL_DATE", metadata.Gl.Mapping[GlMappingKeys.ApprovalDate]);
-            Assert.Equal("ACCOUNT_CODE", metadata.Tb.Mapping[TbMappingKeys.AccountNumber]);
+            Assert.Equal("ACCOUNT_CODE", metadata.Tb!.Mapping[TbMappingKeys.AccountNumber]);
             Assert.True(sheet.Protection.IsProtected);
         }
 

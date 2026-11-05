@@ -308,7 +308,9 @@ public static partial class JetAuditProgram
     }
 
     /// <summary>
-    /// 舊 IDEA 的「未預期借貸組合」單一條件以整張命中傳票呈現。這個判斷同時供
+    /// 情境只有一組、這組只有一條預篩選條件，而且規則定義標明單獨使用時列整張命中傳票，就以整張命中傳票呈現。
+    /// 目前只有舊 IDEA 的「未預期借貸組合」是這樣（裁定 2026-08-28-01），標示寫在
+    /// <see cref="PrescreenRuleDefinition.ListsWholeHitVouchersWhenAlone"/>（裁定 2026-11-05-02）。這個判斷同時供
     /// 條件篩選報告摘要的列數口徑與工作底稿的逐列標記使用；篩選結果本身仍只
     /// 記錄直接命中的收入貸方列。複合情境維持同列條件，避免擴張其他規則的結果。
     /// </summary>
@@ -329,10 +331,9 @@ public static partial class JetAuditProgram
 
         var rule = group.Conditions[0];
         return rule.Type == FilterConditionType.Prescreen
-            && string.Equals(
-                rule.PrescreenKey,
-                PrescreenRuleKeys.UnexpectedAccountPair,
-                StringComparison.Ordinal);
+            && rule.PrescreenKey is { } key
+            && PrescreenRuleDefinitions.ByKey.TryGetValue(key, out var definition)
+            && definition.ListsWholeHitVouchersWhenAlone;
     }
 
     internal static WorkingPaperScenarioTagScope ResolveWorkingPaperTagScope(

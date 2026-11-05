@@ -57,13 +57,9 @@
     return !MAIN_TABS.some(function (t) { return t.value === d.value; });
   });
 
-  // GL 以外的資料集：固定欄位 id → 顯示標籤（query.dataPreview）。GL 與 GL(未納入測試) 的欄名由回應的 columnDetails 提供，
-  // 和欄位配對畫面同名，不在這裡另寫一份。
+  // 沒有 columnDetails 的資料集：固定欄位 id → 顯示標籤（query.dataPreview）。GL 兩頁、TB、科目配對與 PBC 兩頁的欄名
+  // 由回應的 columnDetails 提供，和欄位配對畫面同名，不在這裡另寫一份（裁定 2026-11-05-04）。
   var COLUMN_LABELS = {
-    accountNumber: '科目編號',
-    accountName: '科目名稱',
-    changeAmount: '變動金額',
-    standardizedCategory: '科目分類',
     preparerName: '人員代號或姓名',
     // calendar
     date: '日期',
@@ -94,6 +90,7 @@
   var EXCLUSION_REASON_FILTER_LABEL = '未納入原因';
 
   function isGlDataset(dataset) { return dataset === 'gl' || dataset === 'glExcluded'; }
+  function isPbcDataset(dataset) { return dataset === 'pbcGl' || dataset === 'pbcTb'; }
 
   // 資料預覽的金額固定顯示四位小數加千分位，例如 1,234.5000（裁定 2026-10-22-06，只改資料預覽；其他畫面維持 Ui.money 的兩位）。
   // 後端照存下的整數換算成精確的十進位字串，這裡只補零與加千分位，不轉成數字，超大金額的第四位小數也不會跑掉。
@@ -108,7 +105,7 @@
   }
 
   // 純顯示層的 cell 改寫（不改後端語意）：代碼轉中文；金額欄補成四位小數加千分位。
-  // detail 是 GL 兩頁 columnDetails 裡的那一欄，其他資料集沒有。
+  // detail 是回應 columnDetails 裡的那一欄，沒有欄位型別的資料集沒有。
   function displayCell(dataset, column, cell, detail) {
     if (cell === null) { return null; }
     if (isGlDataset(dataset) && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
@@ -120,9 +117,9 @@
     if (dataset === 'glExcluded' && column === 'exclusionReason') {
       return EXCLUSION_REASON_LABELS[cell] || cell;
     }
-    // 金額欄：GL 兩頁看回應標示的型別，含攸關資料元素的金額欄；TB 綁定變動金額這一欄。
-    // PBC-GL 與 PBC-TB 照來源文字呈現，來源欄剛好叫 amount 也不會誤中。
-    if ((detail && detail.valueType === 'amount') || (dataset === 'tb' && column === 'changeAmount')) {
+    // 金額欄看回應標示的型別，含攸關資料元素的金額欄與 TB 的變動金額。
+    // PBC-GL 與 PBC-TB 的金額欄只靠右，數值照來源文字呈現（裁定 2026-11-05-04）。
+    if (detail && detail.valueType === 'amount' && !isPbcDataset(dataset)) {
       return previewMoney(cell);
     }
     return cell;
@@ -584,29 +581,6 @@
     });
   }
 
-  // GL 以外的資料集沒有欄位型別，判斷各欄是否為數字欄（純顯示層：預覽列全非空值皆為數字才右對齊）。
-  function isNumericValue(v) {
-    if (typeof v === 'number') { return true; }
-    if (typeof v === 'string' && v !== '') { return /^-?[\d,]+(\.\d+)?$/.test(v); }
-    return false;
-  }
-
-  function detectNumericColumns(columns, rows) {
-    var flags = [];
-    for (var c = 0; c < columns.length; c++) {
-      var hasValue = false;
-      var allNumeric = true;
-      for (var r = 0; r < rows.length; r++) {
-        var cell = rows[r][c];
-        if (cell === null || cell === undefined || cell === '') { continue; }
-        hasValue = true;
-        if (!isNumericValue(cell)) { allNumeric = false; break; }
-      }
-      flags.push(hasValue && allNumeric);
-    }
-    return flags;
-  }
-
   function renderPreview(dataset, data) {
     if (!elBody) { return; }
     clearPreviewRequestState();
@@ -620,11 +594,10 @@
       return;
     }
 
-    // GL 兩頁的欄名與對齊讀回應的 columnDetails（和 columns 同順序）：只有金額欄靠右，項次、科目編號這類文字照樣靠左。
-    var details = isGlDataset(dataset) && Array.isArray(data.columnDetails) ? data.columnDetails : null;
-    var numeric = details
-      ? columns.map(function (c, i) { return !!details[i] && details[i].valueType === 'amount'; })
-      : detectNumericColumns(columns, rows);
+    // 欄名與對齊讀回應的 columnDetails（和 columns 同順序）：只有金額欄靠右，項次、科目編號這類看起來像數字的文字照樣靠左。
+    // 不逐格猜哪一欄是數字，換頁時對齊也不會跟著變；沒有欄位型別的資料集全部靠左（裁定 2026-11-05-04）。
+    var details = Array.isArray(data.columnDetails) ? data.columnDetails : null;
+    var numeric = columns.map(function (c, i) { return !!(details && details[i] && details[i].valueType === 'amount'); });
 
     var head = '<tr>' + columns.map(function (c, i) {
       var label = details ? (details[i] && details[i].label) || c : COLUMN_LABELS[c] || c;

@@ -87,8 +87,13 @@ const fieldPane = options => { const f = buildFixture(options); f.click('[data-c
 // 卡片以代號識別（Ui.FILTER_COMMON_CONDITIONS 的 key）。2026-10-29 拿掉卡片字母，原本以記字母的屬性找卡片；
 // 本檔因此改的選擇器、測試名稱與期望值，第一次失敗都是 FrontendMapping 收據 20261029-055947833-f591ce3960d6446c9dcd4785f98ac3c2。
 const card = (f, key) => f.$('[data-common-card="' + key + '"]');
-// 停用的卡最後一段說明是停用原因。固定資產與費用、收入對方科目兩張卡原本另有固定的判定說明排在前面，2026-10-29 拿掉，只剩停用原因。
-const cardReason = (f, key) => card(f, key).querySelectorAll('.picker-card__note').at(-1).textContent;
+// 2026-11-05 常用篩選條件改成和預篩選分頁同一種清單列（裁定 2026-11-05-08）：card() 找到的是列右邊那一把鍵，鍵上只寫「加入」或「已加入」，
+// 名稱與停用原因寫在同一列。原本名稱與原因寫在卡片裡，這裡改從那一列讀；本檔因此改的輔助與斷言，第一次失敗都是 FrontendMapping 收據 20261105-034631328-8ee93f9d3bd447cf96a047db4ce3c58d。
+const cardRow = (f, key) => card(f, key).closest('.filter-check');
+const cardName = (f, key) => cardRow(f, key).querySelector('.filter-check__label').textContent;
+const cardNotes = (f, key) => cardRow(f, key).querySelectorAll('.filter-check__note');
+// 停用的條件最後一段說明是停用原因。固定資產與費用、收入對方科目兩張卡原本另有固定的判定說明排在前面，2026-10-29 拿掉，只剩停用原因。
+const cardReason = (f, key) => cardNotes(f, key).at(-1).textContent;
 const rulesOf = f => plain(f.draft().groups.map(group => group.conditions.map(rule => rule.type)));
 
 // 畫面上的文字與 title、aria-label 逐項列出（用換行隔開，避免相鄰節點的字黏在一起湊出代號）；skip 內的節點略過。
@@ -130,7 +135,9 @@ test('the four cards that need account mapping follow its content and explain wh
     for (const key of Object.keys(MAPPING_CARD_TYPES)) {
       const button = card(f, key), on = state.enabled.includes(key);
       assert.equal(button.disabled, !on, state.name + ' ' + key + ' disabled');
-      assert.equal(button.getAttribute('aria-disabled'), on ? null : 'true', state.name + ' ' + key + ' aria-disabled');
+      // 停用的鍵連到同一列寫著原因的那一段，和預篩選分頁相同；原本卡片另帶 aria-disabled（第一次失敗見上面的 cardRow()）。
+      assert.equal(button.getAttribute('aria-describedby'), on ? null : 'filter-common-note-' + key, state.name + ' ' + key + ' described by its reason');
+      if (!on) assert.ok(f.$('#filter-common-note-' + key) === cardNotes(f, key).at(-1), state.name + ' ' + key + ' reason sits on its row');
       assert.equal(!!button.closest('.filter-unavailable'), !on, state.name + ' ' + key + ' listed under unavailable cards');
       notes[state.name + key] = on ? '' : cardReason(f, key);
       if (!on) assert.ok(notes[state.name + key], state.name + ' ' + key + ' explains why');
@@ -240,13 +247,13 @@ const K3_CASH_NOTE = '現金不算一般對方科目；要排除現金銷貨，�
 // 同日拿掉卡片字母，測試名稱原本以字母稱呼這張卡，改用條件名稱（第一次失敗見上面的 card()）。
 test('the revenue counterpart condition row explains cash with the approved sentence; the card no longer repeats it', () => {
   const f = buildFixture();
-  assert.equal(card(f, COUNTERPART).querySelectorAll('.picker-card__note').length, 0, 'the card shows only its name');
+  assert.equal(cardNotes(f, COUNTERPART).length, 0, 'the card shows only its name');
   f.click('[data-common-card="' + COUNTERPART + '"]');
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
   assert.ok(row.querySelectorAll('.rule-explanation').some(node => node.textContent === K3_CASH_NOTE), 'condition row shows the approved sentence');
   // 停用時卡片只寫停用原因。
   const blocked = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: true, hasCounterpart: false } });
-  const blockedNotes = card(blocked, COUNTERPART).querySelectorAll('.picker-card__note').map(node => node.textContent);
+  const blockedNotes = cardNotes(blocked, COUNTERPART).map(node => node.textContent);
   assert.equal(blockedNotes.length, 1); assert.notEqual(blockedNotes[0], K3_CASH_NOTE);
 });
 
@@ -256,7 +263,7 @@ test('the fixed-asset card no longer repeats its setup note; the condition row s
   const f = buildFixture();
   const note = f.window.JetUi.FILTER_COMMON_CONDITIONS.find(item => item.key === FIXED_ASSET).description;
   assert.ok(note, 'the fixed-asset card keeps a setup note for the condition row');
-  assert.equal(card(f, FIXED_ASSET).querySelectorAll('.picker-card__note').length, 0, 'the card shows only its name');
+  assert.equal(cardNotes(f, FIXED_ASSET).length, 0, 'the card shows only its name');
   f.click('[data-common-card="' + FIXED_ASSET + '"]');
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
   assert.ok(row.querySelectorAll('.rule-explanation').some(node => node.textContent === note), 'condition row shows the fixed-asset note');
@@ -279,7 +286,7 @@ test('the fixed-asset setup note appears once in the condition row, inside the l
 test('the quarter-end revenue card has no explanation on the card or in its condition row', () => {
   const f = buildFixture();
   assert.equal(f.window.JetUi.FILTER_COMMON_CONDITIONS.find(item => item.key === REVENUE).description, undefined);
-  assert.equal(card(f, REVENUE).querySelectorAll('.picker-card__note').length, 0, 'the card shows only its name');
+  assert.equal(cardNotes(f, REVENUE).length, 0, 'the card shows only its name');
   f.click('[data-common-card="' + REVENUE + '"]');
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
   assert.ok(row, 'the card adds a condition row');
@@ -316,10 +323,75 @@ test('the common tab reads 常用篩選條件, lists the ten cards in order with
   assert.equal(f.$('[data-condition-pane="common"] .filter-source-block__title'), null, 'the tab has no subtitle');
   assert.doesNotMatch(screenTexts(f.$('[data-condition-pane="common"]')).join('\n'), /單項條件/);
   const cards = f.$$('[data-condition-pane="common"] [data-common-card]');
-  assert.deepEqual(cards.map(node => [node.getAttribute('data-common-card'), node.textContent]), COMMON_CARDS);
-  for (const node of cards) assert.equal(node.querySelectorAll('.picker-card__letter').length, 0, node.getAttribute('data-common-card') + ' has no letter');
+  // 名稱寫在列上，鍵上寫「加入」；一列只有名稱和鍵，沒有字母（第一次失敗見上面的 cardRow()）。
+  assert.deepEqual(cards.map(node => [node.getAttribute('data-common-card'), cardName(f, node.getAttribute('data-common-card'))]), COMMON_CARDS);
+  for (const node of cards) {
+    const key = node.getAttribute('data-common-card'), name = COMMON_CARDS.find(item => item[0] === key)[1];
+    assert.equal(node.textContent, '加入', key);
+    assert.equal(node.getAttribute('aria-label'), '加入「' + name + '」', key);
+    assert.equal(cardRow(f, key).textContent, name + '加入', key + ' row shows only the name and the key, no letter');
+  }
   assert.equal(f.$('.condition-picker__title'), null, 'the old heading is gone');
   assert.doesNotMatch(screenTexts(f.$('[data-condition-pane="common"]')).join('\n'), /A 到 J/);
+});
+
+// 裁定 2026-11-05-08：條件總覽三個分頁用同一種列，名稱在左、右邊一把鍵。常用篩選條件與預篩選的條件還不在作用中的組時寫「加入」，
+// 已在這一組時鍵往下凹、寫「已加入」，再按一下就移出。欄位條件分頁的鍵永遠是「加入」，加入後再按一下就再加一條（裁定 2026-11-05-12）。
+// 常用篩選條件帶入的條件不算預篩選分頁加入的。換作用中的組時，兩個分頁換成那一組的狀態，只換掉狀態變了的列，換上的鍵照樣能按。
+// 「也在其他組」寫在名稱下一行，不放進名稱那一格，加入時浮起來的標籤只有名稱。這是新加的測試。
+// 「加入到第 N 組」是組號的分段切換（裁定 2026-11-05-16），換組用 pick 選組號。
+test('common and prescreen keys show 加入 or 已加入 for the active group, field keys always add, and 也在其他組 stays out of the name', () => {
+  const f = buildFixture();
+  const state = node => [node.textContent, node.getAttribute('aria-pressed'), node.getAttribute('aria-label'), node.classList.contains('condition-key--added'), node.classList.contains('btn--add')];
+
+  // 常用篩選條件：加入後寫「已加入」、沒有加號，報讀名稱改成移出；再按一下移出。
+  assert.deepEqual(state(card(f, 'blankDescription')), ['加入', 'false', '加入「空白摘要」', false, true]);
+  f.click('[data-common-card="blankDescription"]');
+  assert.deepEqual(state(card(f, 'blankDescription')), ['已加入', 'true', '移出「空白摘要」', true, false]);
+  f.click('[data-common-card="blankDescription"]');
+  assert.deepEqual(rulesOf(f), [[]]);
+  assert.deepEqual(state(card(f, 'blankDescription')), ['加入', 'false', '加入「空白摘要」', false, true]);
+
+  // 預篩選：同一把鍵加入與移出。
+  const prescreen = () => f.$('[data-add-prescreen="suspiciousKeywords"]');
+  assert.deepEqual(state(prescreen()), ['加入', 'false', '加入「摘要特定描述」', false, true]);
+  f.click('[data-add-prescreen="suspiciousKeywords"]');
+  assert.deepEqual(rulesOf(f), [['prescreen']]);
+  assert.deepEqual(state(prescreen()), ['已加入', 'true', '移出「摘要特定描述」', true, false]);
+  f.click('[data-add-prescreen="suspiciousKeywords"]');
+  assert.deepEqual(rulesOf(f), [[]]);
+
+  // 欄位條件：加入後那一列照樣寫「加入」，再按一下就再加一條；常用查法也一樣。
+  f.click('[data-condition-source="field"]');
+  const fieldKey = id => f.$('[data-add-field="' + id + '"]').closest('.filter-field').querySelector('.condition-key');
+  f.click('[data-add-field="voucherNumber"]');
+  assert.deepEqual([fieldKey('voucherNumber').textContent, fieldKey('voucherNumber').classList.contains('condition-key--added'), fieldKey('voucherNumber').getAttribute('aria-pressed')],
+    ['加入', false, null], 'a field key has no added state');
+  f.click('[data-add-field="voucherNumber"]');
+  assert.deepEqual(rulesOf(f), [['fieldValue', 'fieldValue']], 'pressing it again adds another condition');
+  f.click('[data-add-shortcut="rareAccounts"]');
+  assert.equal(fieldKey('accountNumber').textContent, '加入');
+  assert.equal(f.dom.content.querySelectorAll('.filter-field .condition-key--added, [data-remove-field]').length, 0);
+
+  // 換作用中的組：新的一組什麼都沒有，回到第一組時預篩選又是「已加入」；狀態沒變的列不換，換上的鍵照樣能按。
+  f.click('[data-add-prescreen="weekendPosting"]');
+  f.click('[data-action="add-set"]');
+  assert.equal(f.$('[data-add-prescreen="weekendPosting"]').textContent, '加入', 'the new empty group has nothing added');
+  const untouched = f.$('[data-add-prescreen="suspiciousKeywords"]');
+  f.pick('[data-condition-target]', '0');
+  assert.equal(f.$('[data-add-prescreen="weekendPosting"]').textContent, '已加入', 'switching back to the first group shows its condition as added');
+  assert.ok(f.$('[data-add-prescreen="suspiciousKeywords"]') === untouched, 'a row whose state did not change is kept');
+  f.click('[data-add-prescreen="weekendPosting"]');
+  assert.deepEqual(rulesOf(f), [['fieldValue', 'fieldValue', 'entityFrequency'], []], 'the swapped key still works');
+
+  // 空白摘要在第 1 組，換到第 2 組時寫「也在其他組」，但不在名稱那一格裡。
+  f.click('[data-condition-source="common"]');
+  f.click('[data-common-card="blankDescription"]');
+  f.pick('[data-condition-target]', '1');
+  const row = cardRow(f, 'blankDescription');
+  assert.equal(row.querySelector('.filter-check__elsewhere').textContent, '也在其他組');
+  assert.equal(cardName(f, 'blankDescription'), '空白摘要', 'the name the arrival label reads is only the name');
+  assert.equal(row.querySelector('.filter-check__label .filter-check__elsewhere'), null);
 });
 
 // 裁定 2026-10-07-06：動機每條自訂條件多一行「自訂：」；當時名稱用卡片字母串接，同組有自訂條件時加「+自訂」
@@ -459,13 +531,15 @@ test('two conditions offer AND or OR and explicit voucher conditions replace the
 
 // 裁定 2026-11-01-07：組內與組間連接的分段切換前面不寫「組內條件」「組與組之間」，只留 AND、OR；
 // 連接的是什麼由版面呈現，螢幕報讀仍讀得到各自的名稱。這是新增的測試，改程式前失敗：FrontendMapping 收據 20261101-062903506-eed7a916dd2a499dbedd83ced776f260。
+// 裁定 2026-11-05-16 把組內的切換從組標頭移到兩條條件之間的分隔線上，所以組內的切換改在第一條分隔線 .rule-join--switch 找，
+// 原本在組標頭的 .filter-group-settings；斷言不變。第一次失敗：FrontendMapping 收據 20261105-053106063-57492b5a836344aa879416abd4af9423。
 test('the join toggles inside and between groups show only AND and OR, and keep their accessible names', () => {
   const f = fieldPane();
   f.click('[data-add-field="description"]'); f.click('[data-add-field="voucherNumber"]');
   f.click('[data-action="add-set"]'); f.click('[data-add-field="voucherNumber"]');
   const inside = f.$('[data-set-combinator]').closest('.join-toggle');
   const between = f.$('[data-set-join]').closest('.join-toggle');
-  for (const [toggle, holder] of [[inside, f.$('.filter-group-settings')], [between, f.$('.set-rail')]]) {
+  for (const [toggle, holder] of [[inside, f.$('.rule-join--switch')], [between, f.$('.set-rail')]]) {
     assert.equal(holder.textContent.replace(/\s+/g, ''), 'ANDOR', 'only AND and OR are written next to the toggle');
     assert.ok(toggle.getAttribute('aria-label'), 'the toggle keeps an accessible name');
   }
@@ -533,13 +607,16 @@ test('"add conditions to" moves the target group and the groups never embed the 
   // 空白摘要與特定尾數兩張卡都以欄位條件加入，分組與隔離斷言不變。首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
   assert.match(f.$('.rule-row[data-gi="0"][data-ri="0"] .filter-rule-heading').textContent, /傳票摘要/);
   f.click('[data-action="add-set"]');
+  // 裁定 2026-11-05-16 把「加入到」的下拉選單改成條件總覽標題同一列的組號分段切換：選項從 option 改成單選鈕，
+  // 目前的組改看選中的單選鈕，換組改用 pick；斷言的意思不變。標題同一列的斷言是新加的。第一次失敗：FrontendMapping 收據 20261105-053106063-57492b5a836344aa879416abd4af9423。
   const target = f.$('[data-condition-target]');
   assert.ok(target.closest('.filter-entry'), 'the target choice sits with the condition catalogue');
+  assert.ok(target.closest('.filter-entry-heading'), 'the target choice sits on the catalogue heading row');
   assert.equal(target.closest('.scenario-set'), null);
-  assert.deepEqual(target.querySelectorAll('option').map(option => option.getAttribute('value')), ['0', '1']);
-  assert.equal(target.value, '1', 'the new group is the target');
+  assert.deepEqual(f.$$('[data-condition-target]').map(radio => radio.getAttribute('value')), ['0', '1']);
+  assert.deepEqual(f.$$('[data-condition-target]').filter(radio => radio.checked).map(radio => radio.value), ['1'], 'the new group is the target');
   assert.doesNotMatch(screenTexts(f.$('[data-filter-pane="filter"]')).join('\n'), /目前加入目標/);
-  f.choose('[data-condition-target]', '0');
+  f.pick('[data-condition-target]', '0');
   f.click('[data-common-card="specificTrailingDigits"]');
   assert.deepEqual(rulesOf(f), [['fieldValue', 'fieldValue'], []]);
   // 分頁識別改成 field（裁定 2026-11-03-21），第一次失敗見本檔的 fieldPane()。
@@ -548,6 +625,42 @@ test('"add conditions to" moves the target group and the groups never embed the 
   assert.equal(f.dom.content.querySelectorAll('.scenario-set [data-common-card], .scenario-set [data-add-field], .scenario-set [data-add-shortcut], .scenario-set [data-template-key]').length, 0);
   assert.equal(f.$('[data-inline-picker]'), null); assert.equal(f.$('[data-pick-for-group]'), null);
   assert.equal(f.dom.content.querySelectorAll('.scenario-set [data-select-group]').length, 0);
+});
+
+// 裁定 2026-11-05-16：AND、OR 放在被連接的兩者之間的分隔線上。組內第一條分隔線是這一組的分段切換，後面的只寫同一個字；
+// 兩組之間與子條件之間也是分隔線上的切換。組標頭不再放切換，條件列也不再帶只給連接詞用的 data-join。
+// 多組時「加入到第 1、2 組」和條件總覽的標題同一列，組號是同一種分段切換，點右側的組時選中的組號跟著換。這是新加的測試。
+test('AND and OR sit on the dividers between what they join, and the group numbers choose where conditions go', () => {
+  const f = fieldPane();
+  f.click('[data-add-field="description"]');
+  assert.equal(f.$('.rule-join'), null, 'one condition has no divider');
+  f.click('[data-add-field="voucherNumber"]'); f.click('[data-add-field="voucherNumber"]');
+  const list = f.$('.scenario-set .scenario-flat__list');
+  const kinds = () => list.children.map(node => node.classList.contains('rule-join--switch') ? 'switch' : node.classList.contains('rule-join') ? node.textContent : 'condition');
+  assert.deepEqual(kinds(), ['condition', 'switch', 'condition', 'AND', 'condition']);
+  assert.equal(f.$('.filter-group-settings'), null, 'the group heading no longer holds the toggle');
+  assert.equal(f.dom.content.querySelectorAll('.rule-row[data-join]').length, 0);
+  f.pick('[data-set-combinator]', 'OR');
+  assert.deepEqual(plain(f.draft().groups[0].conditions.map(rule => rule.join)), ['OR', 'OR', 'OR']);
+  assert.equal(f.$('.rule-join__word').textContent, 'OR', 'the later dividers repeat the group setting');
+
+  f.click('[data-add-compound="group"]');
+  const compound = f.$('.rule-row--compound');
+  for (const kind of ['field:glDate', 'type:drCrOnly']) {
+    f.choose('.rule-row--compound > label > [data-child-kind]', kind); f.click('.rule-row--compound > [data-child-add]');
+  }
+  assert.ok(compound, 'the sub-condition group was added');
+  assert.deepEqual(f.$$('.rule-row--compound > .rule-join--child [data-child-join]').map(radio => radio.value), ['AND', 'OR']);
+  f.pick('.rule-row--compound > .rule-join--child [data-child-join]', 'OR');
+  assert.equal(f.draft().groups[0].conditions[3].conditions[1].join, 'OR', 'the divider between sub-conditions sets that join');
+
+  f.click('[data-action="add-set"]'); f.click('[data-add-field="voucherNumber"]');
+  assert.ok(f.$('.set-rail [data-set-join]'), 'the groups are joined on the divider between them');
+  const heading = f.$('.filter-entry-heading');
+  const numbers = () => heading.querySelectorAll('[data-condition-target]').map(radio => [radio.value, radio.getAttribute('aria-label'), radio.checked]);
+  assert.deepEqual(numbers(), [['0', '第 1 組', false], ['1', '第 2 組', true]]);
+  f.click('[data-group-index="0"]');
+  assert.deepEqual(numbers().map(item => item[2]), [true, false], 'choosing a group on the right moves the chosen number');
 });
 
 // 取代 FilterCategorySelectFrontendTests 的兩個方法（2026-10-02 分類多選的參數少一個，欄位標題顯示成內部鍵名，

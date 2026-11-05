@@ -8,8 +8,11 @@ namespace JET.Tests.Application;
 
 public sealed class MappingRestoreDraftHandlerTests
 {
+    // 裁定 2026-11-05-03：報告裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的列出來請審計員重選，不整份拒絕。
+    // 原本這裡斷言整份回 mapping_column_not_found；改成斷言 TB 只少了找不到的那一欄、unmatchedFields 寫出它，
+    // 還原仍是唯讀，不改動已確認的配對與標準資料。改前的第一次失敗：Focused 收據 20261105-021308140-a48dfbf83644426388937a4bc7f51278。
     [Fact]
-    public async Task RestoreDraft_OneDatasetIncompatible_RejectsWholeResponseWithoutMutation()
+    public async Task RestoreDraft_OneDatasetColumnMissing_KeepsTheMatchedFieldsListsTheMissingOneWithoutMutation()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
@@ -28,10 +31,18 @@ public sealed class MappingRestoreDraftHandlerTests
 
         try
         {
-            var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
-                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path })));
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
 
-            Assert.Equal(JetErrorCodes.MappingColumnNotFound, ex.Code);
+            Assert.Equal(gl.Mapping, StringMap(restored.GetProperty("gl").GetProperty("mapping")));
+            var expectedTb = tb.Mapping.Where(pair => pair.Key != TbMappingKeys.AccountNumber)
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            Assert.Equal(expectedTb, StringMap(restored.GetProperty("tb").GetProperty("mapping")));
+            var unmatched = Assert.Single(restored.GetProperty("unmatchedFields").EnumerateArray());
+            Assert.Equal("tb", unmatched.GetProperty("dataset").GetString());
+            Assert.Equal(TbMappingKeys.AccountNumber, unmatched.GetProperty("key").GetString());
+            Assert.Equal("會計科目編號", unmatched.GetProperty("label").GetString());
+            Assert.Equal("目前批次不存在的欄位", unmatched.GetProperty("sourceColumn").GetString());
             var after = await host.DispatchAsync(
                 "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
             Assert.Equal(before.GetProperty("mapping").GetRawText(), after.GetProperty("mapping").GetRawText());
@@ -206,6 +217,125 @@ public sealed class MappingRestoreDraftHandlerTests
         {
             TestWorkbookBuilder.Delete(path);
         }
+    }
+
+    // 裁定 2026-11-05-03：沒有匯入 TB 時只帶入 GL，tb 回 null；報告裡的 TB 配對不檢查。
+    [Fact]
+    public async Task RestoreDraft_WithoutTbImport_ReturnsOnlyTheGlDraft()
+    {
+        using var host = new HandlerTestHost();
+        await host.DispatchAsync("project.create", """
+        {
+          "projectCode":"RESTORE-GL-ONLY",
+          "clientName":"合成案件",
+          "operatorId":"tester",
+          "periodStart":"2025-01-01",
+          "periodEnd":"2025-12-31",
+          "databaseProvider":"sqlite"
+        }
+        """);
+        var builder = new InlineGlWorkbookBuilder()
+            .WithColumns("Document", "GlDate", "Account", "AccountName", "Description", "Amount")
+            .AddRow("JV-1", "2025-03-01", "1101", "現金", "合成", "100")
+            .AddRow("JV-1", "2025-03-01", "4101", "收入", "合成", "-100");
+        var glPath = builder.WriteWorkbook();
+        var path = Workbook(MappingMetadataCodec.Encode(MinimalGl(), MinimalTb()));
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
+
+            Assert.Equal(MinimalGl().Mapping, StringMap(restored.GetProperty("gl").GetProperty("mapping")));
+            Assert.Equal(JsonValueKind.Null, restored.GetProperty("tb").ValueKind);
+            Assert.Empty(restored.GetProperty("unmatchedFields").EnumerateArray());
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(glPath);
+            TestWorkbookBuilder.Delete(path);
+        }
+    }
+
+    // 裁定 2026-11-05-03：JET 匯出的六種檔案都能帶入配對。科目配對工作檔與預篩選報告沒有「自動化工具-檔案欄位資訊」的配對，
+    // 只有六份正式報表共用的隱藏工作表 JET_Metadata；從它帶回的配對要和案件確認的配對相同。
+    [Fact]
+    public async Task RestoreDraft_FromReportsWithOnlyTheSharedHiddenMetadata_ReturnsTheCommittedMapping()
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        var (gl, tb) = CommittedFrom(await host.DispatchAsync(
+            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId })));
+        var validation = await host.DispatchAsync("validate.run");
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+        var template = await host.DispatchAsync(
+            "export.accountMappingTemplate", JsonSerializer.Serialize(new { resultId = validationResultId }));
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var prescreenReport = await host.DispatchAsync("export.prescreenReport", JsonSerializer.Serialize(new
+        {
+            resultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString(),
+        }));
+
+        foreach (var path in new[]
+                 {
+                     template.GetProperty("filePath").GetString()!,
+                     prescreenReport.GetProperty("publishedReport").GetProperty("fullPath").GetString()!,
+                 })
+        {
+            using (var workbook = new ClosedXML.Excel.XLWorkbook(path))
+            {
+                Assert.True(workbook.Worksheets.Contains(ReportWorkbookMetadataFormat.WorksheetName), path);
+                Assert.False(
+                    workbook.Worksheets.TryGetWorksheet(MappingMetadataFormat.WorksheetName, out var fieldInfo)
+                    && fieldInfo.Cell(MappingMetadataFormat.MarkerCell).GetString() == MappingMetadataFormat.Marker,
+                    "這份檔案不該靠「自動化工具-檔案欄位資訊」帶回配對：" + path);
+            }
+
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
+
+            Assert.Equal(gl.Mapping, StringMap(restored.GetProperty("gl").GetProperty("mapping")));
+            Assert.Equal(gl.ModeName, restored.GetProperty("gl").GetProperty("amountMode").GetString());
+            Assert.Equal(tb.Mapping, StringMap(restored.GetProperty("tb").GetProperty("mapping")));
+            Assert.Equal(tb.ModeName, restored.GetProperty("tb").GetProperty("changeMode").GetString());
+            Assert.Empty(restored.GetProperty("unmatchedFields").EnumerateArray());
+        }
+    }
+
+    // 報表匯出時 TB 還沒確認配對，JET_Metadata 的 tb 是 null：目前案件有匯入 TB 也只帶入 GL，tb 回 null。
+    [Fact]
+    public async Task RestoreDraft_ReportExportedWithoutTbMapping_ReturnsOnlyTheGlDraftEvenWithTbImported()
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        var (gl, _) = CommittedFrom(await host.DispatchAsync(
+            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId })));
+        var path = SharedMetadataWorkbook(new ReportWorkbookMetadata("2025-01-01", "2025-12-31", 1, gl, null));
+        try
+        {
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
+
+            Assert.Equal(gl.Mapping, StringMap(restored.GetProperty("gl").GetProperty("mapping")));
+            Assert.Equal(JsonValueKind.Null, restored.GetProperty("tb").ValueKind);
+            Assert.Empty(restored.GetProperty("unmatchedFields").EnumerateArray());
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(path);
+        }
+    }
+
+    /// <summary>只有一張空白工作表，再用正式報表的寫法加上 JET_Metadata。</summary>
+    private static string SharedMetadataWorkbook(ReportWorkbookMetadata metadata)
+    {
+        var path = TestWorkbookBuilder.WriteWorkbook(sheet => sheet.Name = "合成報表");
+        using (var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(path, true))
+        {
+            ReportWorkbookMetadataWorksheet.Append(document, metadata, CancellationToken.None);
+        }
+
+        return path;
     }
 
     private static (CommittedMapping Gl, CommittedMapping Tb) CommittedFrom(JsonElement loaded)

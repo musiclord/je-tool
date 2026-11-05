@@ -58,9 +58,10 @@ async function flush(times = 4) { for (let i = 0; i < times; i++) await settle()
 
 // 第四步的完整畫面：中欄、左側目錄與右側資料預覽都由正式程式畫出。
 // mapped：GL 與 TB 是否已確認配對（第四步按鈕是否可以按）；validation：Store 裡已有的驗證結果（null 表示從未驗證）。
-function step4Fixture({ mapped = true, validation = null, accountCategory = null } = {}) {
+// laptop：視窗寬度是否不到 1536px（小筆電版面，裁定 2026-11-05-09）；只有這一個斷點跟著它，其他斷點照舊是寬視窗。
+function step4Fixture({ mapped = true, validation = null, accountCategory = null, laptop = false } = {}) {
   const dom = batch9TreeDom({ bubbles: true, serialization: 'browser', rootAttributes: { 'data-jet-root': '' } });
-  const requests = [], timers = timerQueue(), media = fakeMatchMedia(false);
+  const requests = [], timers = timerQueue(), media = fakeMatchMedia(query => laptop && query === '(max-width: 1535px)');
   const window = { setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, setInterval: () => 0, clearInterval() {},
     addEventListener() {}, removeEventListener() {}, matchMedia: media.matchMedia, innerWidth: 1600, CSS: { escape: cssEscape },
     JetFocus: { defer() {} }, JetApi: recordingJetApi(requests),
@@ -198,6 +199,48 @@ test('step navigation switches on press and the release does not switch again', 
   assert.equal(f.state().currentStepIndex, 2, 'a right press does not switch');
   f.navItem(VALIDATE_INDEX).dispatch('click', { detail: 0 });
   assert.equal(f.state().currentStepIndex, VALIDATE_INDEX, 'the keyboard still switches with a click');
+});
+
+// 裁定 2026-11-05-09：小筆電（視窗寬度不到 1536px）上，目前步驟上方的已完成步驟收成一列「已完成的步驟」，後面寫各步驟名稱；
+// 點這一列在原地展開回原本的各列，再點一次或按 Enter 收起。寬視窗照舊一列一步；上方只有一步完成時不收。
+// 視窗跨過斷點時流程跟著重畫。這是新加的測試。
+test('on a laptop the finished steps above the current one fold into one row that opens in place', async () => {
+  const doneRows = f => f.middle.querySelectorAll('.stepflow-item--done[data-step-nav]').map(row => row.getAttribute('data-step-index'));
+  const wide = await openStep4();
+  assert.equal(wide.middle.querySelector('[data-done-group-toggle]'), null, 'a wide window lists every finished step');
+  assert.deepEqual(doneRows(wide), ['0', '1', '2']);
+
+  const f = await openStep4({ laptop: true });
+  const group = () => f.middle.querySelector('[data-done-group-toggle]');
+  assert.ok(group() !== null, 'the finished steps fold into one row');
+  assert.equal(group().querySelector('.stepflow-item__name').textContent, '已完成的步驟');
+  assert.equal(group().querySelector('.stepflow-item__summary').textContent, '建立案件、匯入資料、欄位配對');
+  assert.deepEqual([group().getAttribute('role'), group().getAttribute('tabindex'), group().getAttribute('aria-expanded')], ['button', '0', 'false']);
+  assert.deepEqual(doneRows(f), [], 'folded steps are not listed one by one');
+  assert.ok(f.middle.querySelector('.stepflow-item--current') !== null, 'the current step stays open below the folded row');
+
+  group().dispatch('click');
+  assert.equal(group().getAttribute('aria-expanded'), 'true');
+  assert.deepEqual(doneRows(f), ['0', '1', '2'], 'opening the row lists the finished steps again in place');
+  const row = f.middle.querySelector('.stepflow-item[data-step-nav][data-step-index="2"]');
+  row.dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'mouse' });
+  assert.equal(f.state().currentStepIndex, 2, 'an opened row still switches steps');
+  assert.equal(group().getAttribute('aria-expanded'), 'true', 'the row stays open after switching steps');
+  group().dispatch('keydown', { key: 'Enter' });
+  assert.equal(group().getAttribute('aria-expanded'), 'false');
+  assert.deepEqual(doneRows(f), [], 'Enter folds the steps again');
+
+  // 上方只有一步完成時不收；下方已完成的步驟本來就一列一步，不收。
+  f.navItem(1).dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'mouse' });
+  assert.equal(group(), null, 'a single finished step is not folded');
+  assert.deepEqual(doneRows(f), ['0', '2']);
+
+  // 視窗放寬到 1536px 以上時改回一列一步。
+  f.navItem(VALIDATE_INDEX).dispatch('pointerdown', { button: 0, isPrimary: true, pointerType: 'mouse' });
+  assert.ok(group() !== null);
+  f.media.lists.find(list => list.media === '(max-width: 1535px)').change(false);
+  assert.equal(group(), null, 'widening the window lists every finished step again');
+  assert.deepEqual(doneRows(f), ['0', '1', '2']);
 });
 
 // 2026-10-16 提交前複審找到按下就換步驟的三個漏洞：正在編輯的欄位來不及失焦，只在 change 存值的欄位會遺失；
@@ -940,6 +983,109 @@ test('the Excel tab preview opens the account mapping dataset in the data previe
   assert.deepEqual(plain(added[0].payload), { dataset: 'accountMapping', limit: 200, offset: 0 });
   const tab = f.dom.content.querySelector('[data-bind="data-preview"] [data-ds="accountMapping"]');
   assert.equal(tab.getAttribute('aria-selected'), 'true');
+});
+
+// 裁定 2026-11-05-07：「用 Excel 配對」選了有多個工作表的 Excel 檔，例如工作底稿，先在托盤列出有欄名的工作表請審計員選；
+// 有「自動化工具-科目配對資訊」時預先選它。選定後才送出匯入，帶 sheetName；取消時什麼都不送。
+// 只有一個有欄名的工作表時照舊直接匯入，文字檔不讀工作表清單。
+const WORKING_PAPER = { filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' };
+const WORKING_PAPER_SHEETS = [
+  { name: '封面', columns: ['合成標題'], rowCountEstimate: 5 },
+  { name: '空白頁', columns: [], rowCountEstimate: null },
+  { name: '自動化工具-科目配對資訊', columns: ['GL_NUMBER', 'GL_NAME', 'STANDARDIZED_ACCOUNT_NAME'], rowCountEstimate: 3 },
+];
+const inspected = worksheets => ({ fileType: 'xlsx', worksheets, columns: null, encoding: null, delimiter: null, notices: null });
+const mappingImported = { batchId: 'am-wp', rowCount: 3, columns: ['GL_NUMBER', 'GL_NAME', 'STANDARDIZED_ACCOUNT_NAME'],
+  fileName: '合成_WorkingPaper.xlsx', importedUtc: '2026-11-05T00:00:00Z', hasAnyCategory: true, hasRevenue: true, hasCounterpart: true,
+  blankCategoryCount: 0, mappingOnlyCount: 0, unmappedCount: 0, columnMappingWarning: null, warnings: [] };
+
+test('Excel mapping lists the sheets of a workbook, preselects the working paper account mapping sheet and imports the chosen one', async () => {
+  const f = await openStep4({ validation: validationResult() });
+  f.click('[data-action="toggle-account-excel"]');
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  assert.deepEqual(plain(f.request('hostSelectFile').payload.extensions), ['.xlsx', '.csv']);
+  f.request('hostSelectFile').resolve(WORKING_PAPER); await flush();
+  assert.deepEqual(plain(f.request('importInspectFile').payload), { filePath: WORKING_PAPER.filePath });
+  f.request('importInspectFile').resolve(inspected(WORKING_PAPER_SHEETS)); await flush();
+  assert.equal(f.pending('importAccountMappingFromFile').length, 0, 'nothing is imported before a sheet is chosen');
+  const pick = f.$('[data-bind="account-mapping-sheet-pick"]');
+  assert.ok(pick !== null, 'the sheet choice is in the tray');
+  assert.equal(pick.querySelector('.excel-mapping__hint').textContent, '「合成_WorkingPaper.xlsx」有多個工作表，請選擇科目配對所在的工作表。');
+  const select = pick.querySelector('[data-account-mapping-sheet]');
+  assert.deepEqual(select.querySelectorAll('option').map(option => option.textContent), ['封面', '自動化工具-科目配對資訊']);
+  assert.deepEqual(select.querySelectorAll('option').filter(option => option.getAttribute('selected') !== null).map(option => option.textContent),
+    ['自動化工具-科目配對資訊']);
+  assert.deepEqual(f.$$('.excel-mapping .btn:not(.btn--ghost)').map(button => button.textContent), ['匯入這個工作表'], 'one primary button while choosing');
+  f.click('[data-action="import-account-mapping-sheet"]'); await flush();
+  assert.deepEqual(plain(f.request('importAccountMappingFromFile').payload),
+    { filePath: WORKING_PAPER.filePath, fileName: WORKING_PAPER.fileName, sheetName: '自動化工具-科目配對資訊' });
+  f.request('importAccountMappingFromFile').resolve(mappingImported); await flush();
+  assert.equal(f.$('[data-bind="account-mapping-sheet-pick"]'), null, 'the choice closes after importing');
+  assert.equal(f.state().importState.accountMapping.rowCount, 3);
+  assert.ok(f.state().messages.some(m => /^科目配對匯入完成，共 3 個科目，耗時/.test(m.text)));
+});
+
+test('Excel mapping imports another chosen sheet, cancels without sending, and imports a single-sheet workbook directly', async () => {
+  const f = await openStep4({ validation: validationResult() });
+  f.click('[data-action="toggle-account-excel"]');
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  f.request('hostSelectFile').resolve(WORKING_PAPER); await flush();
+  f.request('importInspectFile').resolve(inspected(WORKING_PAPER_SHEETS)); await flush();
+  const messagesBefore = f.state().messages.length;
+  f.click('[data-action="cancel-account-mapping-sheet"]'); await flush();
+  assert.equal(f.$('[data-bind="account-mapping-sheet-pick"]'), null);
+  assert.equal(f.pending('importAccountMappingFromFile').length, 0, 'cancelling sends nothing');
+  assert.equal(f.state().messages.length, messagesBefore, 'and logs nothing');
+
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  f.request('hostSelectFile').resolve(WORKING_PAPER); await flush();
+  f.request('importInspectFile').resolve(inspected(WORKING_PAPER_SHEETS)); await flush();
+  const select = f.$('[data-account-mapping-sheet]');
+  select.value = '封面'; select.dispatch('change');
+  f.click('[data-action="import-account-mapping-sheet"]'); await flush();
+  assert.equal(f.request('importAccountMappingFromFile').payload.sheetName, '封面');
+  f.request('importAccountMappingFromFile').resolve(mappingImported); await flush();
+
+  const before = f.pending('importAccountMappingFromFile').length;
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  f.request('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成科目配對.xlsx', fileName: '合成科目配對.xlsx' }); await flush();
+  f.request('importInspectFile').resolve(inspected([WORKING_PAPER_SHEETS[2], WORKING_PAPER_SHEETS[1]])); await flush();
+  assert.equal(f.$('[data-bind="account-mapping-sheet-pick"]'), null, 'one sheet with headers needs no choice');
+  assert.equal(f.pending('importAccountMappingFromFile').length, before + 1);
+  assert.equal(f.request('importAccountMappingFromFile').payload.sheetName, '自動化工具-科目配對資訊');
+  f.request('importAccountMappingFromFile').resolve(mappingImported); await flush();
+
+  const inspectedBefore = f.pending('importInspectFile').length;
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  f.request('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成科目配對.csv', fileName: '合成科目配對.csv' }); await flush();
+  assert.equal(f.pending('importInspectFile').length, inspectedBefore, 'a text file is imported without reading sheets');
+  assert.deepEqual(plain(f.request('importAccountMappingFromFile').payload),
+    { filePath: 'C:\\synthetic\\合成科目配對.csv', fileName: '合成科目配對.csv' });
+});
+
+// 提交前複審發現：JET 匯出的科目配對範本有範本那一張、分類清單 List 與隱藏的中繼資料工作表，原本只要有兩張以上就要先選工作表，
+// 按「準備科目配對範本」、在 Excel 填好再匯入回來的主要路徑因此多了一步，選單裡還有審計員在 Excel 看不到的中繼資料工作表。
+// 改成 JET 自己的範本照舊直接匯入範本那一張，中繼資料工作表不列進選單。範本是依名稱認的，第一列沒有欄名照樣認得。這是新加的測試。
+test('Excel mapping imports JET\'s own template sheet directly and never lists the hidden metadata sheet', async () => {
+  const f = await openStep4({ validation: validationResult() });
+  f.click('[data-action="toggle-account-excel"]');
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  f.request('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_AccountMapping.xlsx', fileName: '合成_AccountMapping.xlsx' }); await flush();
+  f.request('importInspectFile').resolve(inspected([
+    { name: 'AccountMapping', columns: [], rowCountEstimate: 6 },
+    { name: 'List', columns: ['合成分類'], rowCountEstimate: 4 },
+    { name: 'JET_Metadata', columns: ['JET_REPORT_METADATA'], rowCountEstimate: 2 }
+  ])); await flush();
+  assert.equal(f.$('[data-bind="account-mapping-sheet-pick"]'), null, 'JET\'s own template needs no sheet choice');
+  assert.deepEqual(plain(f.request('importAccountMappingFromFile').payload),
+    { filePath: 'C:\\synthetic\\合成_AccountMapping.xlsx', fileName: '合成_AccountMapping.xlsx', sheetName: 'AccountMapping' });
+  f.request('importAccountMappingFromFile').resolve(mappingImported); await flush();
+
+  // 工作底稿也有中繼資料工作表，選單照樣不列它。
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  f.request('hostSelectFile').resolve(WORKING_PAPER); await flush();
+  f.request('importInspectFile').resolve(inspected(WORKING_PAPER_SHEETS.concat([{ name: 'JET_Metadata', columns: ['JET_REPORT_METADATA'], rowCountEstimate: 2 }]))); await flush();
+  assert.deepEqual(f.$('[data-account-mapping-sheet]').querySelectorAll('option').map(option => option.textContent), ['封面', '自動化工具-科目配對資訊']);
 });
 
 // ---- 訊息面板的句子（2026-10-14 補上） ----

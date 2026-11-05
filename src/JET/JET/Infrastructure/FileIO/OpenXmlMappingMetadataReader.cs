@@ -5,7 +5,10 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>唯讀擷取 JET 報告固定工作表 F1:H1 的版本化 mapping metadata。</summary>
+/// <summary>
+/// 唯讀擷取 JET 報告記下的確認配對。六份正式報表都有隱藏工作表 JET_Metadata，先讀它；
+/// 沒有時才讀「自動化工具-檔案欄位資訊」F1:H1（驗證報告與工作底稿另寫的同一份配對）。裁定 2026-11-05-03。
+/// </summary>
 public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 {
     public Task<MappingDraftMetadata> ReadAsync(string filePath, CancellationToken cancellationToken)
@@ -16,18 +19,13 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         try
         {
             using var document = SpreadsheetDocument.Open(filePath, false);
-            var workbookPart = document.WorkbookPart;
-            var sheet = workbookPart?.Workbook.Sheets?.Elements<Sheet>()
-                .SingleOrDefault(item => string.Equals(
-                    item.Name?.Value,
-                    MappingMetadataFormat.WorksheetName,
-                    StringComparison.Ordinal));
-            if (workbookPart is null || sheet?.Id?.Value is null
-                || workbookPart.GetPartById(sheet.Id.Value) is not WorksheetPart worksheetPart)
+            var workbookPart = document.WorkbookPart ?? throw Missing();
+            if (FindWorksheet(workbookPart, ReportWorkbookMetadataFormat.WorksheetName) is { } reportMetadata)
             {
-                throw Missing();
+                return Task.FromResult(ReadReportWorkbookMetadata(workbookPart, reportMetadata, cancellationToken));
             }
 
+            var worksheetPart = FindWorksheet(workbookPart, MappingMetadataFormat.WorksheetName) ?? throw Missing();
             var marker = ReadCell(workbookPart, worksheetPart, MappingMetadataFormat.MarkerCell);
             if (!string.Equals(marker, MappingMetadataFormat.Marker, StringComparison.Ordinal))
             {
@@ -77,6 +75,66 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 "無法讀取欄位配對報告。請確認檔案沒有被其他程式開啟，而且是 JET 匯出的 xlsx 檔。",
+                innerException: ex);
+        }
+    }
+
+    private static WorksheetPart? FindWorksheet(WorkbookPart workbookPart, string name)
+    {
+        var sheet = workbookPart.Workbook.Sheets?.Elements<Sheet>()
+            .SingleOrDefault(item => string.Equals(item.Name?.Value, name, StringComparison.Ordinal));
+        return sheet?.Id?.Value is { } id && workbookPart.GetPartById(id) is WorksheetPart part ? part : null;
+    }
+
+    /// <summary>
+    /// JET_Metadata 的格式見 ReportWorkbookMetadataWorksheet.Append：A1 標記、B1 版本、C1 分段數，
+    /// 第 2 列起 A 欄是段號、B 欄是 JSON 的一段，依序接起來。
+    /// </summary>
+    private static MappingDraftMetadata ReadReportWorkbookMetadata(
+        WorkbookPart workbookPart,
+        WorksheetPart worksheetPart,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(ReadCell(workbookPart, worksheetPart, "A1"), ReportWorkbookMetadataFormat.Marker, StringComparison.Ordinal))
+        {
+            throw Missing();
+        }
+
+        if (!int.TryParse(ReadCell(workbookPart, worksheetPart, "B1"), NumberStyles.None, CultureInfo.InvariantCulture, out var version)
+            || version != ReportWorkbookMetadataFormat.CurrentVersion)
+        {
+            throw Invalid("報告裡的欄位配對資訊版本不受支援，無法還原。請回第三步欄位配對直接重新選擇。");
+        }
+
+        if (!int.TryParse(ReadCell(workbookPart, worksheetPart, "C1"), NumberStyles.None, CultureInfo.InvariantCulture, out var chunks)
+            || chunks < 1)
+        {
+            throw Invalid("報告裡的欄位配對資訊不完整，無法還原。請回第三步欄位配對直接重新選擇。");
+        }
+
+        var json = new System.Text.StringBuilder();
+        for (var index = 1; index <= chunks; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var row = (index + 1).ToString(CultureInfo.InvariantCulture);
+            if (!string.Equals(ReadCell(workbookPart, worksheetPart, "A" + row), index.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+                || ReadCell(workbookPart, worksheetPart, "B" + row) is not { } chunk)
+            {
+                throw Invalid("報告裡的欄位配對資訊不完整，無法還原。請回第三步欄位配對直接重新選擇。");
+            }
+
+            json.Append(chunk);
+        }
+
+        try
+        {
+            return MappingMetadataCodec.DecodeReportWorkbook(json.ToString());
+        }
+        catch (MappingMetadataFormatException ex)
+        {
+            throw new JetActionException(
+                JetErrorCodes.MappingMetadataInvalid,
+                "報告裡的欄位配對資訊格式無效，無法還原。請回第三步欄位配對直接重新選擇。",
                 innerException: ex);
         }
     }

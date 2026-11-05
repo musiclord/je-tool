@@ -253,6 +253,25 @@ internal static class JetFieldCatalog
     internal static JetFieldDefinition FindTbSemanticFieldByMappingKey(string key) =>
         TbFieldsByMappingKey[key];
 
+    /// <summary>
+    /// 來源欄配到這些位置時，裡面是金額。資料預覽的 PBC-GL、PBC-TB 與第三步的來源表，只把配到這些位置的來源欄靠右（裁定 2026-11-05-04）；
+    /// 前端 ui-core.js 的 GL_FIELDS、TB_FIELDS 用 amount: true 鏡射這一份。GL 的金額欄位底下另有借貸別與借貸代碼，它們不是金額，所以逐一列出。
+    /// </summary>
+    internal static IReadOnlySet<string> AmountMappingKeys(DatasetKind dataset) => dataset switch
+    {
+        DatasetKind.Gl => GlAmountMappingKeys,
+        DatasetKind.Tb => TbAmountMappingKeys,
+        _ => throw new ArgumentOutOfRangeException(nameof(dataset), dataset, "只有 GL 與 TB 有欄位配對。")
+    };
+
+    private static readonly IReadOnlySet<string> GlAmountMappingKeys =
+        new HashSet<string>([GlAmount, GlDebitAmount, GlCreditAmount], StringComparer.Ordinal);
+
+    private static readonly IReadOnlySet<string> TbAmountMappingKeys =
+        new HashSet<string>(
+            TbFields.Single(static field => field.SemanticIdentity == TbChangeAmount).MappingSlots.Select(static slot => slot.Key),
+            StringComparer.Ordinal);
+
     /// <summary>依語意欄名稱找 GL 欄位；欄位資訊記下的 JetField 不是標準欄（例如攸關資料元素的 fieldId）時回 null。</summary>
     internal static JetFieldDefinition? FindGlFieldBySemanticIdentity(string semanticIdentity) =>
         GlFieldsBySemanticIdentity.GetValueOrDefault(semanticIdentity);

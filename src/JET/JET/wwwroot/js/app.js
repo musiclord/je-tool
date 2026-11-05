@@ -648,15 +648,24 @@
     container.innerHTML =
       // 每個按鈕放在它作用的內容旁邊，原本底部一排按鈕看不出用途（裁定 2026-10-20-04）：
       // 「新增案件」不屬於任何一區，放在標題右側；「同步線上案件」與「重新整理本機」只影響各自那一區，放在區標題右側。
+      // 本機案件排在線上資料庫上面，標題下不寫重述標題的說明句（裁定 2026-11-05-06）。
       '<div class="picker-panel">' +
         '<div class="picker-panel__head">' +
           '<div class="picker-panel__heading">' +
             '<h2 class="picker-panel__title">選擇案件</h2>' +
-            '<p class="picker-panel__hint">選擇案件繼續作業，或建立新案件。</p>' +
           '</div>' +
           '<button type="button" class="btn btn--ghost btn--add picker-panel__new" data-action="picker-new">新增案件</button>' +
         '</div>' +
         pickerFeedbackHtml(state.pickerFeedback, state.pickerFeedbackContext, state.pickerFeedbackLevel) +
+        '<section class="picker-section">' +
+          '<div class="picker-section__head">' +
+            '<h3 class="picker-section__title">本地資料庫</h3>' +
+            '<div class="picker-section__tools">' +
+              '<button type="button" class="btn btn--tiny" data-action="picker-refresh-local">重新整理本機</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="picker-section__list" data-motion-list="local">' + localBody + '</div>' +
+        '</section>' +
         '<section class="picker-section">' +
           '<div class="picker-section__head">' +
             '<h3 class="picker-section__title">線上資料庫（SQL Server）</h3>' +
@@ -667,15 +676,6 @@
           '</div>' +
           onlineAlert +
           '<div class="picker-section__list" data-motion-list="online">' + onlineBody + '</div>' +
-        '</section>' +
-        '<section class="picker-section">' +
-          '<div class="picker-section__head">' +
-            '<h3 class="picker-section__title">本地資料庫</h3>' +
-            '<div class="picker-section__tools">' +
-              '<button type="button" class="btn btn--tiny" data-action="picker-refresh-local">重新整理本機</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="picker-section__list" data-motion-list="local">' + localBody + '</div>' +
         '</section>' +
       '</div>' +
       pickerFooterHtml(state) +
@@ -1052,7 +1052,53 @@
       ' stepflow-item__failure" role="alert" data-motion-key="operation-failure">' + Ui.esc(failure.message) + '</p>';
   }
 
+  // 小筆電（視窗寬度不到 1536px）上，目前步驟上方的已完成步驟收成一列「已完成的步驟」，後面寫各步驟名稱；
+  // 點這一列在原地展開回原本的各列，再點一次收起（裁定 2026-11-05-09）。上方每一步都完成、至少兩步時才收。
+  // 使用者看過一列排出各步驟名稱小標籤的甲版後選了這一種。寬度和標題列只留圖示的版面同一個斷點（app.css 的小筆電一段）。
+  var DONE_GROUP_MEDIA = '(max-width: 1535px)';
+  var doneGroupOpen = false;
+  var doneGroupMedia = null;
+  function doneGroupApplies() {
+    if (!doneGroupMedia && typeof global.matchMedia === 'function') {
+      doneGroupMedia = global.matchMedia(DONE_GROUP_MEDIA);
+      // 視窗跨過斷點時重畫流程欄，收合跟著出現或消失。
+      var redraw = function () { Store.touch(); };
+      if (typeof doneGroupMedia.addEventListener === 'function') { doneGroupMedia.addEventListener('change', redraw); }
+      else if (typeof doneGroupMedia.addListener === 'function') { doneGroupMedia.addListener(redraw); }
+    }
+    return !!(doneGroupMedia && doneGroupMedia.matches);
+  }
+
+  function doneStepsAbove(state) {
+    if (state.view !== 'workflow' || !doneGroupApplies()) { return []; }
+    var indexes = [];
+    for (var i = 0; i < state.currentStepIndex; i++) {
+      if (Ui.stepPresentation(state, i).status !== 'done') { return []; }
+      indexes.push(i);
+    }
+    return indexes.length >= 2 ? indexes : [];
+  }
+
+  function doneGroupHtml(indexes) {
+    var names = indexes.map(function (index) { return Store.STEPS[index].label; });
+    return '<div class="stepflow-item stepflow-item--done stepflow-item--done-group" data-done-group-toggle role="button" tabindex="0"' +
+        ' aria-expanded="' + (doneGroupOpen ? 'true' : 'false') + '">' +
+        '<span class="stepflow-item__caret">' + (doneGroupOpen ? '▾' : '▸') + '</span>' +
+        '<span class="stepflow-item__mark stepflow-item__mark--done">✓</span>' +
+        '<span class="stepflow-item__name stepflow-item__name--done">已完成的步驟</span>' +
+        '<span class="stepflow-item__summary">' + Ui.esc(names.join('、')) + '</span>' +
+      '</div>';
+  }
+
   function stepSectionHtml(state, step, index) {
+    var grouped = doneStepsAbove(state);
+    if (grouped.indexOf(index) >= 0) {
+      return (index === grouped[0] ? doneGroupHtml(grouped) : '') + (doneGroupOpen ? stepRowHtml(state, step, index) : '');
+    }
+    return stepRowHtml(state, step, index);
+  }
+
+  function stepRowHtml(state, step, index) {
     var pres = Ui.stepPresentation(state, index);
     var label = Ui.esc(step.label);
 
@@ -1120,6 +1166,13 @@
   }
 
   function bindStepFlow(container) {
+    container.querySelectorAll('[data-done-group-toggle]').forEach(function (el) {
+      var toggle = function () { doneGroupOpen = !doneGroupOpen; Store.touch(); };
+      el.addEventListener('click', toggle);
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+    });
     container.querySelectorAll('[data-step-nav]').forEach(function (el) {
       var index = parseInt(el.getAttribute('data-step-index'), 10);
       bindStepPress(el, index);
@@ -3201,7 +3254,7 @@
   var Motion = (function () {
     // 舊複本只留下樣式用得到的 data- 屬性，其餘拿掉，程式與測試才找不到它。樣式要用的識別優先掛在 class 上；
     // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗，免得複本露出原形（裁定 2026-10-15-11）。
-    var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|common-card$|step-index$|child-|join$|period-end-days$)/;
+    var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|common-card$|step-index$|child-|period-end-days$)/;
     var DROP_ON_LEAVING = ['id', 'name', 'for', 'form', 'aria-controls', 'aria-describedby', 'aria-labelledby',
       'aria-owns', 'aria-activedescendant', 'aria-live', 'tabindex'];
     var BLOCK = ['height', 'paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth', 'marginTop', 'marginBottom'];
@@ -4538,7 +4591,8 @@
      飛行途中使用者自己捲動時，標籤改跟著新的一列走，不再搶捲軸。減少動態或 Windows 高對比佈景時不飛，也不捲。
      這裡只畫一個不接收滑鼠的標籤與帶著中欄捲動，不改 state、不送 action，也不移動任何元件的位置。 */
   var ARRIVAL_SOURCES = [
-    { trigger: '.filter-entry [data-common-card]', label: '.picker-card__label' },
+    // 常用篩選條件 2026-11-05 改成和預篩選分頁同一種清單列（裁定 2026-11-05-08）：標籤從同一列的名稱上浮起來。
+    { trigger: '.filter-entry [data-common-card]', within: '.filter-check', label: '.filter-check__label' },
     // 欄位「加入」打開的選單裡的每一項，一般條件與常用查法都一樣（裁定 2026-11-03-37），標籤從按下的那一項上浮起來。
     // 這裡在點擊的捕捉階段就量位置，那時選單還開著；選單隨後由共用選單關上。
     // 這一條要排在下一條前面：選單裡的一般條件也帶著欄位識別，排在後面會改從列的名稱上浮起來，和常用查法不一致。
@@ -4765,7 +4819,8 @@
 
     document.addEventListener('click', function (event) {
       var match = motionAllowed() ? matchTrigger(event.target, ARRIVAL_SOURCES) : null;
-      if (!match || match.trigger.disabled) { return; }
+      // 「已加入」再按一下是拿掉條件，不是加入，不飛。
+      if (!match || match.trigger.disabled || match.trigger.getAttribute('aria-pressed') === 'true') { return; }
       var holder = match.spec.within ? match.trigger.closest(match.spec.within) : match.trigger;
       var text = holder && match.spec.label ? holder.querySelector(match.spec.label) : match.trigger;
       if (!text) { return; }

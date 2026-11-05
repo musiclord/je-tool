@@ -204,9 +204,12 @@ public sealed class SixReportWorkflowJourneyTests
             JsonSerializer.Serialize(new { filePath = workingPaperPath }));
 
         Assert.Equal(MappingMetadataFormat.CurrentVersion, fromValidation.GetProperty("formatVersion").GetInt32());
+        // 回應多了 unmatchedFields，列出報告裡選了、目前資料找不到的來源欄；這份報告和目前資料一致，所以是空的（裁定 2026-11-05-03）。
+        // 第一次失敗收據 20261105-025407244-d7215948d9d640c4b0e1c33ae1ea7048（Focused）。
         Assert.Equal(
-            ["formatVersion", "gl", "tb"],
+            ["formatVersion", "gl", "tb", "unmatchedFields"],
             fromValidation.EnumerateObject().Select(property => property.Name).ToArray());
+        Assert.Empty(fromValidation.GetProperty("unmatchedFields").EnumerateArray());
         // 報告的 GL 配對資訊多寫往下填補的欄位 fillDownFields（裁定 2026-10-22-16）。
         // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
         Assert.Equal(

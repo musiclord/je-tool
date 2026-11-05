@@ -28,7 +28,7 @@
   var activeEditableGroup = forward('activeEditableGroup');
   var setActiveGroup = forward('setActiveGroup');
   var refreshAutomaticMetadata = forward('refreshAutomaticMetadata');
-  var commonCardsHtml = forward('commonCardsHtml');
+  var refreshConditionKeys = forward('refreshConditionKeys');
   var exampleListHtml = forward('exampleListHtml');
   var disclosureAttributes = forward('disclosureAttributes');
   var savedFeedbackText = forward('savedFeedbackText');
@@ -72,10 +72,9 @@
 
   /* ============================================================================
      區塊 3：建立篩選情境（彙總調整）— 統一條件建構器（單一介面、把分組融入，無模式切換）。
-     情境＝一個或多個「條件組(set)」，每組就是一塊淡底 well：頂部 AND/OR 組合器段控（該組 ≥2 條件才顯示）
-     ＋條件清單。一組時就是乾淨一塊（看不到「組」字）；「＋ 另一組條件」是常駐普通按鈕（非模式）。≥2 組時
-     組間出現一條水平軌道、藍色段控「組間 AND/OR」（父／情境層，與組內中性段控做出層級對比）。一組一種
-     組合器，要混就再開組；組內可用「子條件組」再組合一層。
+     情境＝一個或多個「條件組(set)」，每組是一塊托盤，條件寫在托盤上的白紙。AND、OR 一律放在被連接的兩者之間的分隔線上
+     （裁定 2026-11-05-16）：組內兩條條件之間、兩組之間與兩條子條件之間都是一條橫線，切換和條件標題、「第 N 組」同一條左緣。
+     一組一種連接方式，組內第一條分隔線是這一組的切換，後面的分隔線只寫同一個字；要混就再開組，組內可用「子條件組」再組合一層。
      新手層：教學空狀態＋行內布林 read-back＋4 拍提示；名稱/動機依條件自動帶入，留白時由後端補上同一段文字（裁定 2026-10-29-16）。
      兩層 AST 不變；空群組於 toWireScenario 送出時略過（建到一半不報錯）。
      ============================================================================ */
@@ -95,9 +94,8 @@
     return keys[0] === 'holidayPosting' && keys[1] === 'weekendPosting';
   }
 
-  // 一塊 well（一個條件組）：組內的 AND、OR 分段切換（該組有兩條以上條件才顯示）放在組標頭「第 N 組」旁，下面是條件清單。
-  // 一組＝一句標頭「符合以下 [全部/任一] 條件，條件在 [同一分錄/同一傳票]」＋條件列＋「＋」列。
-  // 標頭在單組時也顯示（一致的閱讀順序）；多組時多「第 N 組」、作用中徽章（只影響卡片與加入按鈕的落點）與移除。
+  // 一塊托盤（一個條件組）：組標頭是「第 N 組」與組的操作，下面的白紙是條件清單，兩條條件之間是寫著 AND 或 OR 的分隔線。
+  // 標頭在單組時也顯示（一致的閱讀順序）；多組時多「已選取」（只影響條件總覽加入的落點）與移除。
   // 組內與組間的連接是 AND、OR 兩格的分段切換（裁定 2026-10-30-32：中文說法太長，審計員也看得懂 AND 與 OR，所以只寫 AND 與 OR）。
   // 切換前面不寫「組內條件」「組與組之間」，連接的是什麼由版面呈現（裁定 2026-11-01-07）；螢幕報讀仍讀 label 寫的名稱。
   // 每組各一組單選鈕，name 用組號區分；選中的一格由 app.js 的滑動選取帶過去。
@@ -108,11 +106,20 @@
     }).join('') + '</span>';
   }
 
+  // 兩條條件之間的分隔線（裁定 2026-11-05-16）。第一條分隔線是這一組 AND、OR 的分段切換；後面的分隔線只寫同一個字，
+  // 一組一種連接方式（要混用時開子條件組）。分隔線跟著下面那一條條件長出來、收起來；舊情境裡同組混用的連接，字照每條條件的 join 寫。
+  // 原本切換在組標頭，條件左側 44px 的欄位逐條寫連接詞，同一件事有兩個位置。
+  function ruleJoinHtml(rule, gi, setNumber, ri, comb) {
+    var key = 'join-' + motionKey(rule, 'rule');
+    if (ri === 1) {
+      return '<div class="rule-join rule-join--switch" data-motion-key="' + key + '">' +
+        joinToggleHtml('data-set-combinator data-gi="' + gi + '"', 'set-combinator-' + gi, comb, '第 ' + setNumber + ' 組條件之間的關係') + '</div>';
+    }
+    return '<div class="rule-join" data-motion-key="' + key + '" aria-hidden="true"><span class="rule-join__word">' + effectiveConditionJoin(rule) + '</span></div>';
+  }
+
   function setWellHtml(group, gi, setNumber, multi, isActive) {
     var comb = group && group.conditions.length ? groupCombinator(group) : 'AND';
-    var combinator = group && group.conditions.length > 1
-      ? '<div class="filter-combinator">' +
-        joinToggleHtml('data-set-combinator data-gi="' + gi + '"', 'set-combinator-' + gi, comb, '第 ' + setNumber + ' 組條件之間的關係') + '</div>' : '';
     // 組標頭的按鈕只寫名稱，前面放灰色加號，整張傳票條件寫成「整張傳票」（裁定 2026-10-30-32）。
     var head = '<div class="filter-group-heading"><strong>第 ' + setNumber + ' 組' +
       '<span class="filter-group-selected" data-collapsible-inline' + (isActive && multi ? '' : ' hidden') + '>已選取</span></strong>' +
@@ -123,17 +130,16 @@
         (group && group.conditions.length ? '' : ' disabled') + '>清除</button>' +
       (multi ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="remove-set" data-gi="' + gi + '" aria-label="移除第 ' + setNumber + ' 組">移除</button>' : '') +
       '</div></div>';
-    var rows = group ? group.conditions.map(function (rule, ri) { return ruleRowHtml(rule, group, gi, ri); }).join('') : '';
+    var rows = group ? group.conditions.map(function (rule, ri) {
+      return (ri ? ruleJoinHtml(rule, gi, setNumber, ri, comb) : '') + ruleRowHtml(rule, group, gi, ri);
+    }).join('') : '';
     var wellKey = groupMotionKey(group);
-    var settings = combinator
-      ? '<div class="filter-group-settings" data-motion-key="settings-' + wellKey + '" role="group" aria-label="第 ' + setNumber + ' 組設定">' +
-        combinator + '</div>' : '';
     return '<div class="scenario-flat scenario-set' + (isActive ? ' scenario-set--active' : '') + '" data-motion-key="' + wellKey + '" data-group-index="' + gi + '" tabindex="0" role="group" aria-current="' + isActive + '" aria-label="第 ' + setNumber + ' 組條件">' +
-      head + settings + '<div class="scenario-flat__list" data-motion-list="rules">' +
+      head + '<div class="scenario-flat__list" data-motion-list="rules">' +
       (rows || '<p class="filter-group-empty" data-motion-key="empty-' + wellKey + '">從條件總覽選條件加入。</p>') + '</div></div>';
   }
 
-  // 條件組之間的連接器：上下各一段直線接到兩組，AND、OR 的分段切換接在線上。data-set-join 設「所有可編輯群組」的
+  // 條件組之間的連接器：一條橫線，AND、OR 的分段切換接在線上，和「第 N 組」同一條左緣（裁定 2026-11-05-16）。data-set-join 設「所有可編輯群組」的
   // join 為一致值（單一組間運算子）。name 以 gi 唯一，避免 3 組以上時多個連接器共用 name 互相撞群（各連接器顯示同一致值即可）。
   function interSetConnectorHtml(joinValue, gi, motion) {
     return (
@@ -285,7 +291,7 @@
   }
 
   // 一條條件＝一句話：家族小標、對象、比較方式、值、移除。列上沒有型別下拉；要換家族就移除再加。
-  // 條件列不再有逐條 AND/OR——群組內的結合由組標頭的「符合以下全部／任一條件」統一決定。
+  // 條件列不寫 AND、OR：兩條條件之間的分隔線寫出這一組的連接方式（ruleJoinHtml）。
   function ruleRowHtml(rule, group, gi, ri, insideVoucher) {
     if (rule.type === 'group' || rule.type === 'voucher') { return compoundRuleHtml(rule, gi, ri, insideVoucher, group); }
     var family = ruleFamily(rule);
@@ -296,9 +302,8 @@
             Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === rule.type; }) || {}).label || '分錄特徵'))
       : '';
 
-    // data-join 只給畫面在條件之間標出「且」「或」，送出的條件仍以 rule.join 為準。
     return (
-      '<div class="rule-row rule-row--' + family + (FilterStep.selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + ri + '" data-join="' + effectiveConditionJoin(rule) + '">' +
+      '<div class="rule-row rule-row--' + family + (FilterStep.selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + ri + '">' +
         '<div class="filter-rule-heading">' +
           (FilterStep.selectedRule === rule ? '<span class="filter-rule-selected" data-motion="inline">選取中</span>' : '') +
           (rule.type === 'drCrOnly' ? '<strong>借貸別</strong>' : rule.type === 'manualAuto' ? '<strong>人工/自動分錄</strong>' : '') +
@@ -333,7 +338,9 @@
       '<p class="rule-field__hint">以下條件由同一筆分錄判斷，再檢查整張傳票。需要限定方向時，加入「借貸別」子條件。</p>' :
       '<p class="rule-field__hint">把下面的條件一起判斷，比對同一筆分錄；用 AND 或 OR 連接。</p>';
     var children = (rule.conditions || []).map(function (child, i) {
-      var join = i ? '<select data-child-join="' + i + '" aria-label="子條件連接方式"><option value="AND"' + (child.join !== 'OR' ? ' selected' : '') + '>AND</option><option value="OR"' + (child.join === 'OR' ? ' selected' : '') + '>OR</option></select>' : '';
+      // 子條件之間也是分隔線上的 AND、OR 分段切換（裁定 2026-11-05-16），原本是下拉選單；子條件各自選連接方式，所以每一條分隔線都是切換。
+      var join = i ? '<div class="rule-join rule-join--switch rule-join--child" data-motion-key="join-' + motionKey(child, 'rule') + '">' +
+          joinToggleHtml('data-child-join="' + i + '"', 'child-join-' + gi + '-' + String(path).replace(/\./g, '-') + '-' + i, child.join === 'OR' ? 'OR' : 'AND', '子條件連接方式') + '</div>' : '';
       return join + ruleRowHtml(child, { matchScope: 'row' }, gi, path + '.' + i, insideVoucher || rule.type === 'voucher');
     }).join('');
     // GL 沒有配對的欄位與前置條件不足的條件照樣列出但不能選，選項後面寫原因。
@@ -349,7 +356,7 @@
     choices += typeChoice('accountSide', '科目分類') + typeChoice('drCrOnly', '借貸別') + typeChoice('manualAuto', '人工/自動分錄') +
       '<option value="type:group">子條件組</option>';
     if (rule.type === 'group' && !insideVoucher) { choices += '<option value="type:voucher">整張傳票條件</option>'; }
-    return '<div class="rule-row rule-row--compound' + (FilterStep.selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + path + '" data-join="' + effectiveConditionJoin(rule) + '"><div class="filter-rule-heading">' +
+    return '<div class="rule-row rule-row--compound' + (FilterStep.selectedRule === rule ? ' rule-row--selected' : '') + '" data-motion-key="' + motionKey(rule, 'rule') + '" data-gi="' + gi + '" data-ri="' + path + '"><div class="filter-rule-heading">' +
       (FilterStep.selectedRule === rule ? '<span class="filter-rule-selected" data-motion="inline">選取中</span>' : '') + '<strong>' +
       (rule.type === 'voucher' ? '整張傳票條件' : '子條件組') + '</strong><button type="button" class="rule-row__remove" data-compound-remove>移除</button></div>' + config + children +
       '<label>加入子條件<select data-child-kind>' + choices + '</select></label><button type="button" class="btn btn--ghost btn--tiny" data-child-add>加入</button></div>';
@@ -447,7 +454,7 @@
       Store.setFilterDraft(draft);
     }
     own('[data-compound-key]').forEach(function (select) { select.addEventListener('change', function () { rule[select.getAttribute('data-compound-key')] = select.value; changed(); }); });
-    own('[data-child-join]').forEach(function (select) { select.addEventListener('change', function () { rule.conditions[Number(select.getAttribute('data-child-join'))].join = select.value; changed(); }); });
+    own('[data-child-join]').forEach(function (radio) { radio.addEventListener('change', function () { if (!radio.checked) { return; } rule.conditions[Number(radio.getAttribute('data-child-join'))].join = radio.value; changed(); }); });
     own('[data-compound-remove]')[0].addEventListener('click', function () {
       focusAfterRuleRemoval(siblings, index, gi, row);
       siblings.splice(index, 1);
@@ -925,13 +932,20 @@
     }
   }
 
+  // 多組時，條件總覽標題同一列寫「加入到第 1、2、3 組」（裁定 2026-11-05-16）：組號是和 AND、OR 同一種分段切換，按一下就換加入的組，
+  // 右側選取的組跟著換；點右側的組時這裡也跟著換。只留這一套組別選擇（裁定 2026-09-09-08），原本是獨占一列的下拉選單。
+  // 「加入到第」與「組」只是畫面上的字，螢幕報讀讀單選鈕群組的「加入到」與每一格的「第 N 組」。
   function conditionTargetHtml(draft) {
     var groups = draft.groups.map(function (group, index) { return { group: group, index: index }; });
     if (groups.length < 2) { return ''; }
     var active = activeEditableGroup(draft);
-    return '<label class="filter-target" data-motion-key="target">加入到<select class="form__input" data-condition-target>' +
-      groups.map(function (item, position) { return '<option value="' + item.index + '"' +
-        (item.group === active ? ' selected' : '') + '>第 ' + (position + 1) + ' 組</option>'; }).join('') + '</select></label>';
+    return '<div class="filter-target" data-motion-key="target" data-motion="inline">' +
+      '<span class="filter-target__lead" aria-hidden="true">加入到第</span>' +
+      '<span class="join-toggle filter-target__groups" role="radiogroup" aria-label="加入到">' + groups.map(function (item, position) {
+        return '<label class="join-toggle__option"><input type="radio" name="filter-condition-target" value="' + item.index + '" data-condition-target' +
+          ' aria-label="第 ' + (position + 1) + ' 組"' + (item.group === active ? ' checked' : '') + '><span>' + (position + 1) + '</span></label>';
+      }).join('') + '</span>' +
+      '<span class="filter-target__tail" aria-hidden="true">組</span></div>';
   }
 
   // 會改變同一列可見控制項組合的規則鍵：改動後必須重繪，否則畫面會停在舊的輸入形狀。
@@ -939,10 +953,10 @@
 
   // 條件組與條件列：加入目標、組的增刪與連接方式、每一列的控制項（原本 bind 裡的兩段）。
   function bindConditionRows(container) {
-    var conditionTarget = container.querySelector('[data-condition-target]');
-    if (conditionTarget) {
-      conditionTarget.addEventListener('change', function () { chooseTargetGroup(Number(conditionTarget.value), true); });
-    }
+    var targetOptions = container.querySelectorAll('[data-condition-target]');
+    targetOptions.forEach(function (radio) {
+      radio.addEventListener('change', function () { if (radio.checked) { chooseTargetGroup(Number(radio.value), true); } });
+    });
     bindGroupSelection(container, chooseTargetGroup);
     // 只同步加入目標及其呈現，不重建正在輸入的條件，也不移動焦點或捲軸。
     function chooseTargetGroup(gi, clearSelection) {
@@ -953,22 +967,16 @@
         container.querySelectorAll('.rule-row--selected').forEach(function (row) { row.classList.remove('rule-row--selected'); });
         container.querySelectorAll('.filter-rule-selected:not([data-motion-folding])').forEach(dropRuleBadge);
       }
-      if (conditionTarget) { conditionTarget.value = String(gi); }
+      // 「加入到第 N 組」換一格；滑動的選取在下面換組框的 class 時跟著重新定位。
+      targetOptions.forEach(function (radio) { radio.checked = Number(radio.value) === gi; });
       container.querySelectorAll('[data-group-index]').forEach(function (well) {
         var active = Number(well.dataset.groupIndex) === gi;
         well.classList.toggle('scenario-set--active', active);
         well.setAttribute('aria-current', String(active));
         well.querySelector('.filter-group-selected').hidden = !active;
       });
-      // 沿用卡片的呈現函式；保留按鈕節點與事件，僅更新該組的勾選及「也在其他組」。
-      var template = document.createElement('template');
-      template.innerHTML = commonCardsHtml(draft);
-      container.querySelectorAll('.filter-entry [data-common-card]').forEach(function (button) {
-        var updated = template.content.querySelector('[data-common-card="' + button.dataset.commonCard + '"]');
-        button.className = updated.className;
-        button.setAttribute('aria-pressed', updated.getAttribute('aria-pressed'));
-        button.innerHTML = updated.innerHTML;
-      });
+      // 條件總覽三個分頁的「加入」與「已加入」跟著換成這一組的狀態，只換掉狀態變了的列。
+      refreshConditionKeys(container, draft);
     }
     // 「＋ 另一組條件」：新增一個可編輯群組（一個 set）。新組 join 繼承有效組間運算子——畫面上只有
     // 一個情境層運算子，硬編碼 'OR' 會在使用者已改 AND 時打破「全組一致」不變量（段控顯示 AND、
@@ -989,11 +997,12 @@
         setActiveGroup(draft, fresh); // 新組即新落點：設為作用中
         FilterStep.selectedRule = null;
         Store.setFilterDraft(draft);
-        // 新組已成為左側選單的加入位置；在右側直接呈現它，焦點不回到頁首。
+        // 新組已成為條件總覽「加入到」的組；在右側直接呈現它，焦點不回到頁首。
         if (global.JetFocus) { global.JetFocus.defer(function () {
           var workbench = document.querySelector('.filter-workbench');
           if (workbench && global.getComputedStyle(workbench).gridTemplateColumns.split(' ').length === 1) {
-            return document.querySelector('.filter-workspace [data-condition-target]') || document.querySelector('.filter-workspace [data-condition-source]');
+            var chosen = Array.prototype.filter.call(document.querySelectorAll('.filter-workspace [data-condition-target]'), function (radio) { return radio.checked; })[0];
+            return chosen || document.querySelector('.filter-workspace [data-condition-source]');
           }
           return document.querySelector('.filter-workspace [data-group-index="' + draft.groups.indexOf(fresh) + '"]');
         }); }
@@ -1254,6 +1263,7 @@
   FilterStep.isNonBusinessDayBracket = isNonBusinessDayBracket;
   FilterStep.isLegacyWeekendHolidayBracket = isLegacyWeekendHolidayBracket;
   FilterStep.joinToggleHtml = joinToggleHtml;
+  FilterStep.ruleJoinHtml = ruleJoinHtml;
   FilterStep.setWellHtml = setWellHtml;
   FilterStep.interSetConnectorHtml = interSetConnectorHtml;
   FilterStep.setsHtml = setsHtml;

@@ -70,6 +70,7 @@
   /* ---- 共用契約鏡像（key/label 對齊後端 action 契約） ------ */
 
   // GL 借方與貸方代碼都是字面值，不是來源欄位 select。
+  // amount: true 鏡射後端 JetFieldCatalog.AmountMappingKeys：配到這些位置的來源欄是金額，第三步來源表只把它們靠右（裁定 2026-11-05-04）。
   var GL_FIELDS = [
     { key: 'voucherNumber', label: '傳票號碼', req: 'always' },
     { key: 'lineItem', label: '傳票文件項次', req: 'optional' },
@@ -82,9 +83,9 @@
     { key: 'createdBy', label: '傳票建立人員', req: 'optional' },
     { key: 'approvedBy', label: '傳票核准人員', req: 'optional' },
     { key: 'isManual', label: '人工/自動分錄', req: 'optional' },
-    { key: 'amount', label: '金額', req: ['signed', 'side', 'flag'] },
-    { key: 'debitAmount', label: '借方金額', req: ['dual'] },
-    { key: 'creditAmount', label: '貸方金額', req: ['dual'] },
+    { key: 'amount', label: '金額', req: ['signed', 'side', 'flag'], amount: true },
+    { key: 'debitAmount', label: '借方金額', req: ['dual'], amount: true },
+    { key: 'creditAmount', label: '貸方金額', req: ['dual'], amount: true },
     { key: 'drCr', label: '借貸別', req: ['side', 'flag'] },
     { key: 'drCrDebitCode', label: '借方代碼', req: ['side', 'flag'], literal: true },
     { key: 'drCrCreditCode', label: '貸方代碼', req: ['side', 'flag'], literal: true },
@@ -94,15 +95,15 @@
   var TB_FIELDS = [
     { key: 'accountNumber', label: '會計科目編號', req: 'always' },
     { key: 'accountName', label: '會計科目名稱', req: 'always' },
-    { key: 'changeAmount', label: '年度變動金額', req: ['direct'] },
-    { key: 'debitAmount', label: '借方金額', req: ['debitCredit'] },
-    { key: 'creditAmount', label: '貸方金額', req: ['debitCredit'] },
-    { key: 'openingBalance', label: '期初餘額', req: ['openClose'] },
-    { key: 'closingBalance', label: '期末餘額', req: ['openClose'] },
-    { key: 'openingDebitBalance', label: '期初借方', req: ['openCloseBySide'] },
-    { key: 'openingCreditBalance', label: '期初貸方', req: ['openCloseBySide'] },
-    { key: 'closingDebitBalance', label: '期末借方', req: ['openCloseBySide'] },
-    { key: 'closingCreditBalance', label: '期末貸方', req: ['openCloseBySide'] }
+    { key: 'changeAmount', label: '年度變動金額', req: ['direct'], amount: true },
+    { key: 'debitAmount', label: '借方金額', req: ['debitCredit'], amount: true },
+    { key: 'creditAmount', label: '貸方金額', req: ['debitCredit'], amount: true },
+    { key: 'openingBalance', label: '期初餘額', req: ['openClose'], amount: true },
+    { key: 'closingBalance', label: '期末餘額', req: ['openClose'], amount: true },
+    { key: 'openingDebitBalance', label: '期初借方', req: ['openCloseBySide'], amount: true },
+    { key: 'openingCreditBalance', label: '期初貸方', req: ['openCloseBySide'], amount: true },
+    { key: 'closingDebitBalance', label: '期末借方', req: ['openCloseBySide'], amount: true },
+    { key: 'closingCreditBalance', label: '期末貸方', req: ['openCloseBySide'], amount: true }
   ];
 
   // GL 核准日三態（後端 mapping.commit.gl 接受的 approvalDateMode 固定值）。

@@ -307,48 +307,93 @@
   }
 
   /* ============================================================================
-     「常用篩選條件」分頁：十張可複選的卡片（裁定 2026-11-03-05）。情境範例在右側條件組合上方，套用後替換整份條件。
-     卡片由 FILTER_COMMON_CONDITIONS 一份資料驅動。已選／未選由身分標記得出（isCommonSelectedActive：
+     「常用篩選條件」分頁：十個可複選的常用條件（裁定 2026-11-03-05）。情境範例在右側條件組合上方，套用後替換整份條件。
+     條件總覽的三個分頁用同一種列（裁定 2026-11-05-08）：名稱在左、右邊一把鍵。常用篩選條件與預篩選的條件還不在作用中的組時寫「加入」（裁定 2026-11-05-17），
+     已在這一組時鍵往下凹、寫「已加入」，再按一下就從這一組移出。原本是一格一格的卡片，按下後整張變成淡藍底；
+     使用者看過勾選框外觀的整列開關與這一種之後選了這一種，並要求三個分頁一起改。欄位條件分頁的鍵永遠是「加入」：
+     欄位底下是多層的選單，「已加入」再加上「再加入一條」「移出」反而讓人困惑（裁定 2026-11-05-12）。
+     內容由 FILTER_COMMON_CONDITIONS 一份資料驅動。已加入與否由身分標記得出（isCommonSelectedActive：
      作用中組是否有帶該卡標記 __commonCard 的 rule），不做結構簽章猜測。
-     前置條件不足的卡片（依規則需求表，含 GL 沒有配對的欄位）：停用並寫原因，不綁 toggle。
+     前置條件不足的條件（依規則需求表，含 GL 沒有配對的欄位）：鍵停用，原因寫在名稱下一行，收在「尚不可用」裡。
      ============================================================================ */
   function commonCardsHtml(draft) {
-    var unavailable = [];
-    var cells = Ui.FILTER_COMMON_CONDITIONS.map(function (item) {
-      // 暫不提供的卡片優先；其次依卡片要加入的條件查規則需求表。
+    var available = [], unavailable = [];
+    Ui.FILTER_COMMON_CONDITIONS.forEach(function (item) {
+      // 暫不提供的條件優先；其次依要加入的條件查規則需求表。
       var requirement = item.disabled ? '' : requirementNote(commonRuleSpecs(item));
       var disabled = item.disabled || !!requirement;
       var note = item.disabled ? item.note : requirement;
-
       var state = disabled ? 'none' : commonCardState(draft, item);
-      var cls = 'picker-card picker-card--common' +
-        (state === 'selected' ? ' picker-card--selected' : '') +
-        (state === 'elsewhere' ? ' picker-card--elsewhere' : '') +
-        (disabled ? ' picker-card--disabled' : '');
-      var pressed = state === 'selected' ? 'true' : 'false';
-
-      // 卡片只寫名稱、停用原因與「也在其他組」。固定資產與費用組合、收入對方科目兩張卡的說明在加入後的條件列寫一次
-      //（commonDescriptionHtml）；原本卡片上也寫同一句，同一個畫面出現兩次，所以拿掉卡片上的（裁定 2026-10-29-09）。
-      var card = '<button type="button" class="' + cls + '"' +
-          ' data-common-card="' + item.key + '"' +
-          ' aria-pressed="' + pressed + '"' +
-          (disabled ? ' disabled aria-disabled="true"' : '') + '>' +
-        '<span class="picker-card__label" title="' + Ui.esc(item.label) + '">' + Ui.esc(item.label) + '</span>' +
-        (note ? '<span class="picker-card__note">' + Ui.esc(note) + '</span>' : '') +
-        (state === 'elsewhere' ? '<span class="picker-card__elsewhere">也在其他組</span>' : '') +
-      '</button>';
-      if (disabled) { unavailable.push(card); return ''; }
-      return card;
-    }).join('');
-
+      var noteId = 'filter-common-note-' + item.key;
+      // 列上只寫名稱、停用原因與「也在其他組」。固定資產與費用組合、收入對方科目兩個條件的說明在加入後的條件列寫一次
+      //（commonDescriptionHtml）；原本卡片上也寫同一句，同一個畫面出現兩次，所以拿掉（裁定 2026-10-29-09）。
+      // 「也在其他組」寫在名稱下一行，但不放進名稱那一格：加入時浮起來的標籤讀的是名稱那一格的字。
+      var row = '<li class="filter-check">' +
+        '<span class="filter-check__label">' + Ui.esc(item.label) + '</span>' +
+        conditionKeyHtml(state === 'selected', ' data-common-card="' + item.key + '"' + (disabled ? ' disabled aria-describedby="' + noteId + '"' : ''), item.label) +
+        (state === 'elsewhere' ? '<span class="filter-check__elsewhere">也在其他組</span>' : '') +
+        (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') +
+      '</li>';
+      (disabled ? unavailable : available).push(row);
+    });
     return '<div class="filter-source-block" data-common-cards>' +
-        '<div class="condition-picker__grid condition-picker__grid--common">' + cells + '</div>' +
+        '<ul class="filter-check-group__items filter-common-list">' + available.join('') + '</ul>' +
         (unavailable.length ? '<details class="filter-unavailable"' + disclosureAttributes('unavailable-common') +
-          '><summary>尚不可用（' + unavailable.length + '）</summary><div class="condition-picker__grid">' + unavailable.join('') + '</div></details>' : '') +
+          '><summary>尚不可用（' + unavailable.length + '）</summary><ul class="filter-check-group__items filter-common-list">' + unavailable.join('') + '</ul></details>' : '') +
       '</div>';
   }
 
-  // 常用篩選條件分頁只放十張卡片；情境範例移到右側條件組合上方的「從情境範例開始」（裁定 2026-11-03-05，取代 2026-10-29-10）。
+  // 條件總覽三個分頁共用的鍵：還不在作用中的組時寫「加入」，已在這一組時往下凹、寫「已加入」（裁定 2026-11-05-08）。
+  // 欄位條件分頁的「加入」直接加入或打開選單，不是開關，自己畫按鈕，但同樣掛 condition-key，三個分頁的鍵同一種大小。
+  // 報讀名稱寫按下會做的事：「加入「名稱」」或「移出「名稱」」。attrs 是識別與停用屬性。
+  function conditionKeyHtml(added, attrs, name) {
+    return '<button type="button" class="btn btn--ghost btn--tiny condition-key' + (added ? ' condition-key--added' : ' btn--add') + '"' + attrs +
+      ' aria-pressed="' + (added ? 'true' : 'false') + '" aria-label="' + Ui.esc((added ? '移出「' : '加入「') + name + '」') + '">' +
+      (added ? '已加入' : '加入') + '</button>';
+  }
+
+  // 作用中的組裡直接放著的條件；常用篩選條件帶入的不算，免得預篩選分頁把它們當成自己加入的。
+  function activeOwnConditions(draft) {
+    var active = draft ? activeEditableGroup(draft) : null;
+    return active ? active.conditions.filter(function (rule) { return !rule[COMMON_CARD_KEY]; }) : [];
+  }
+
+  function prescreenAdded(draft, key) {
+    return activeOwnConditions(draft).some(function (rule) { return rule.type === 'prescreen' && rule.prescreenKey === key; });
+  }
+
+  // 預篩選的「已加入」再按一下時，從作用中的組拿掉符合的條件（常用篩選條件帶入的不動），和常用篩選條件移出一樣先晃一下再收起。
+  function removeFromActiveGroup(matches) {
+    var draft = Store.getState().filter.draft;
+    var active = activeEditableGroup(draft);
+    if (!active) { return; }
+    var removing = active.conditions.filter(function (rule) { return !rule[COMMON_CARD_KEY] && matches(rule); });
+    if (!removing.length) { return; }
+    announceRemoval(removing);
+    active.conditions = active.conditions.filter(function (rule) { return removing.indexOf(rule) < 0; });
+    refreshAutomaticMetadata(draft, true);
+    Store.setFilterDraft(draft);
+  }
+
+  // 換作用中的組時，常用篩選條件與預篩選的「加入」與「已加入」跟著換；欄位條件分頁的鍵不分狀態，不必換。
+  // 只換掉狀態變了的列並重新綁定，不重繪整步，
+  // 右側正在輸入的條件、焦點與捲軸都不動。列的數量和現在對不上（例如配對剛改過）時才整步重繪。
+  function refreshConditionKeys(container, draft) {
+    var template = document.createElement('template');
+    template.innerHTML = commonCardsHtml(draft) + prescreenPickerHtml(draft);
+    var current = container.querySelectorAll('[data-condition-pane] .filter-check-group__items > li');
+    var updated = template.content.querySelectorAll('.filter-check-group__items > li');
+    if (current.length !== updated.length) { Store.touch(); return; }
+    Array.prototype.forEach.call(current, function (row, index) {
+      var next = updated[index];
+      if (row.innerHTML === next.innerHTML) { return; }
+      row.innerHTML = next.innerHTML;
+      bindConditionKeys(row);
+      Ui.bindMenus(row);
+    });
+  }
+
+  // 常用篩選條件分頁只放十個常用條件；情境範例移到右側條件組合上方的「從情境範例開始」（裁定 2026-11-03-05，取代 2026-10-29-10）。
   function commonPickerHtml(draft) {
     return '<section class="condition-picker condition-picker--common">' + commonCardsHtml(draft) + '</section>';
   }
@@ -359,14 +404,16 @@
   }
 
   // 審計員習慣直接套用預篩選條件（裁定 2026-10-16-09），原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選，
-  // 路徑太長。預篩選條件改成條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；每列是名稱加「加入」的清單列。
-  function prescreenPickerHtml() {
+  // 路徑太長。預篩選條件改成條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；每列是名稱加一把鍵的清單列，
+  // 已在作用中的組時寫「已加入」，再按一下移出（裁定 2026-11-05-08）。
+  function prescreenPickerHtml(draft) {
+    var current = draft || Store.getState().filter.draft;
     var items = Ui.PRESCREEN_RULES.map(function (option) {
       var note = prescreenRequirementNote(option.value);
       var noteId = 'filter-prescreen-note-' + option.value;
       return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(option.label) + '</span>' +
-        '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-action="add-rule" data-add-prescreen="' + option.value + '"' +
-          ' aria-label="' + Ui.esc('加入「' + option.label + '」') + '"' + (note ? ' disabled aria-describedby="' + noteId + '"' : '') + '>加入</button>' +
+        conditionKeyHtml(prescreenAdded(current, option.value), ' data-action="add-rule" data-add-prescreen="' + option.value + '"' +
+          (note ? ' disabled aria-describedby="' + noteId + '"' : ''), option.label) +
         (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') + '</li>';
     }).join('');
     return '<section class="condition-picker condition-picker--prescreen">' +
@@ -444,7 +491,7 @@
         (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '');
     }).join('');
     return '<span class="jet-menu">' +
-      '<button type="button" class="btn btn--ghost btn--tiny btn--add jet-menu__toggle" aria-haspopup="menu" aria-expanded="false" aria-controls="' + menuId + '"' +
+      '<button type="button" class="btn btn--ghost btn--tiny btn--add jet-menu__toggle condition-key" aria-haspopup="menu" aria-expanded="false" aria-controls="' + menuId + '"' +
         ' aria-label="' + Ui.esc(label) + '"' + fieldDisabled + '>加入</button>' +
       '<div class="jet-menu__items filter-field__shortcuts" id="' + menuId + '" role="menu" aria-label="' + Ui.esc(label) + '" hidden>' +
         '<button type="button" class="jet-menu__item" role="menuitem" tabindex="-1" data-action="add-rule" data-add-field="' + Ui.esc(field.id) + '"' +
@@ -455,14 +502,15 @@
   }
 
   // 一列一個欄位。名稱和其他欄位同名時加上來源欄名；攸關資料元素的完整名稱放在滑鼠提示。
-  // 名稱只是文字；右邊一把「加入」，有常用查法的欄位改成打開選單的「加入」。
+  // 名稱只是文字；右邊一把「加入」，有常用查法的欄位改成打開選單的「加入」。欄位已在作用中的組時照樣寫「加入」，
+  // 再按一下就再加入一條（裁定 2026-11-05-12）。
   function fieldRowHtml(field, fields, unmapped) {
     var duplicate = fields.filter(function (item) { return item.label === field.label; }).length > 1;
     var name = field.label + (duplicate && field.sourceColumn ? '（' + field.sourceColumn + '）' : '');
     var full = field.extra ? Ui.rdeFieldOptionLabel(field) : field.label;
     if (!field.mapped) { unmapped.push(field.spec || { type: 'fieldValue', field: field.id }); }
     var add = fieldShortcuts(field.id).length ? fieldShortcutsHtml(field, name, full, !field.mapped) :
-      '<button type="button" class="btn btn--ghost btn--tiny btn--add" data-action="add-rule" data-add-field="' + Ui.esc(field.id) + '"' +
+      '<button type="button" class="btn btn--ghost btn--tiny btn--add condition-key" data-action="add-rule" data-add-field="' + Ui.esc(field.id) + '"' +
         ' aria-label="' + Ui.esc('加入條件：' + full) + '"' + (field.mapped ? '' : ' disabled aria-describedby="' + FIELD_NOTE_ID + '"') + '>加入</button>';
     return '<li class="filter-field' + (field.mapped ? '' : ' filter-field--unavailable') + '">' +
       '<div class="filter-field__head"><span class="filter-field__name" title="' + Ui.esc(full) + '">' + Ui.esc(name) + '</span>' + add + '</div></li>';
@@ -799,18 +847,57 @@
       ' data-motion-pane' + (FilterStep.viewState.conditionSource === key ? '' : ' hidden');
   }
 
-  // 條件來源：欄位條件分頁、「預篩選」分頁、子條件組的加入按鈕、情境範例與常用篩選條件的卡片（原本 bind 裡的兩段）。
-  function bindConditionSources(container) {
+  // 條件總覽三個分頁的鍵。整步畫好時對整個容器綁一次；換作用中的組時 refreshConditionKeys 換掉的列再對那一列綁一次。
+  function bindConditionKeys(root) {
     // 欄位條件：欄位的「加入」，以及「加入」選單裡的一般條件與常用查法，都加入目前作用中的組。
-    container.querySelectorAll('[data-add-field]').forEach(function (button) {
+    root.querySelectorAll('[data-add-field]').forEach(function (button) {
       button.addEventListener('click', function () { addFieldCondition(button.getAttribute('data-add-field')); });
     });
-    container.querySelectorAll('[data-add-shortcut]').forEach(function (button) {
+    root.querySelectorAll('[data-add-shortcut]').forEach(function (button) {
       button.addEventListener('click', function () { addFieldShortcut(button.getAttribute('data-add-shortcut')); });
     });
-    container.querySelectorAll('[data-add-prescreen]').forEach(function (button) {
-      button.addEventListener('click', function () { addPrescreenCondition(button.getAttribute('data-add-prescreen')); });
+    // 預篩選：「加入」帶入那一條，「已加入」再按一下從作用中的組移出。
+    root.querySelectorAll('[data-add-prescreen]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var key = button.getAttribute('data-add-prescreen');
+        if (button.getAttribute('aria-pressed') === 'true') {
+          removeFromActiveGroup(function (rule) { return rule.type === 'prescreen' && rule.prescreenKey === key; });
+          return;
+        }
+        addPrescreenCondition(key);
+      });
     });
+    // 常用篩選條件可複選：已加入的再按一下從作用中的組移除，還沒加入的加入；累積成同一情境。
+    // 停用的條件（前置資料不足，例如科目配對未匯入）不綁事件。加入、移除與已選偵測都收在上方少數幾個函式。
+    // 畫面上馬上看得到結果，不另記加入或移除的訊息（裁定 2026-10-13-28）。
+    root.querySelectorAll('[data-common-card]').forEach(function (btn) {
+      if (btn.disabled) { return; }
+      btn.addEventListener('click', function () {
+        var item = Ui.FILTER_COMMON_CONDITIONS.filter(function (k) {
+          return k.key === btn.getAttribute('data-common-card');
+        })[0];
+        if (!item) { return; }
+        var draft = Store.getState().filter.draft;
+        if (isCommonSelectedActive(draft, item)) {
+          // 取消：只從「作用中組」移除（同訊號在別組不動）。
+          removeCommonFromActiveGroup(draft, item);
+          refreshAutomaticMetadata(draft, true);
+          Store.setFilterDraft(draft);
+        } else {
+          addCommonToDraft(draft, item); // 每個條件（含非營業日的子條件組）都加入作用中組
+          var targetGroup = activeEditableGroup(draft);
+          var addedRule = targetGroup && targetGroup.conditions.find(function (rule) { return rule[COMMON_CARD_KEY] === item.key; });
+          if (addedRule) { revealAddedRule(addedRule); }
+          refreshAutomaticMetadata(draft, true);
+          Store.setFilterDraft(draft);
+        }
+      });
+    });
+  }
+
+  // 條件來源：條件總覽三個分頁的鍵、子條件組的加入按鈕與情境範例（原本 bind 裡的兩段）。
+  function bindConditionSources(container) {
+    bindConditionKeys(container);
     // 在這一組加入子條件組或整張傳票條件；新草稿畫面上的空白第 1 組在這時才建立。
     container.querySelectorAll('[data-add-compound]').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -826,33 +913,6 @@
       });
     });
     bindExampleList(container);
-    // 常用篩選條件的卡片可複選 toggle —— 已選則移除、未選則加入；累積成同一情境。
-    // 停用卡（前置資料不足，例如科目配對未匯入）不綁事件。加入/移除/已選偵測全收斂於上方少數深函式。
-    // 畫面上馬上看得到結果，不另記加入或移除的訊息（裁定 2026-10-13-28）。
-    container.querySelectorAll('.picker-card--common').forEach(function (btn) {
-      if (btn.disabled) { return; }
-      btn.addEventListener('click', function () {
-        var item = Ui.FILTER_COMMON_CONDITIONS.filter(function (k) {
-          return k.key === btn.getAttribute('data-common-card');
-        })[0];
-        if (!item) { return; }
-        var draft = Store.getState().filter.draft;
-        if (isCommonSelectedActive(draft, item)) {
-          // 取消：只從「作用中組」移除（同訊號在別組不動）。
-          removeCommonFromActiveGroup(draft, item);
-          refreshAutomaticMetadata(draft, true);
-          Store.setFilterDraft(draft);
-        } else {
-          addCommonToDraft(draft, item); // 每張卡（含非營業日的子條件組）都加入作用中組
-          var targetGroup = activeEditableGroup(draft);
-          var addedRule = targetGroup && targetGroup.conditions.find(function (rule) { return rule[COMMON_CARD_KEY] === item.key; });
-          if (addedRule) { revealAddedRule(addedRule); }
-          refreshAutomaticMetadata(draft, true);
-          Store.setFilterDraft(draft);
-        }
-      });
-    });
-
   }
 
   // 掛到共用的 FilterStep，供其他檔案與測試取用。
@@ -888,6 +948,11 @@
   FilterStep.releaseTemplateMetadata = releaseTemplateMetadata;
   FilterStep.refreshAutomaticMetadata = refreshAutomaticMetadata;
   FilterStep.commonCardsHtml = commonCardsHtml;
+  FilterStep.conditionKeyHtml = conditionKeyHtml;
+  FilterStep.activeOwnConditions = activeOwnConditions;
+  FilterStep.prescreenAdded = prescreenAdded;
+  FilterStep.removeFromActiveGroup = removeFromActiveGroup;
+  FilterStep.refreshConditionKeys = refreshConditionKeys;
   FilterStep.commonPickerHtml = commonPickerHtml;
   FilterStep.fieldPickerHtml = fieldPickerHtml;
   FilterStep.prescreenPickerHtml = prescreenPickerHtml;
@@ -927,5 +992,6 @@
   FilterStep.applyTemplate = applyTemplate;
   FilterStep.sourceButton = sourceButton;
   FilterStep.conditionPaneAttributes = conditionPaneAttributes;
+  FilterStep.bindConditionKeys = bindConditionKeys;
   FilterStep.bindConditionSources = bindConditionSources;
 })(window);
