@@ -459,3 +459,19 @@ SQL Server 的驗證讀取程式 `SqlServerValidationRunRepository` 跟著改名
 所以建表程式 `SqlServerProjectDatabase.Schema.cs` 的結構版本由 18 升到 19，舊案件照現行訊息請審計員刪除後重新建立。
 同一次照第三個停點 2-2 的回覆，共用資料庫的六張管理表照現行名稱列進名詞表，名稱檢查一併核對共用資料庫的建表程式
 `SqlServerControlPlaneSchema.cs` 與 `SqlServerUserDirectory.cs`。依使用者裁定只經編譯，沒有啟動服務執行，也沒有在 SQL Server 上實際驗證。
+
+2026-11-05 延後事項與前端整理計畫第 16 步，照裁定 2026-11-05-25 把尾數 0 的個數改成照 IDEA 版由 GL 算出，和 SQL Server 有關的修改如下。
+SQL Server 的程式和本地資料庫同樣修改，只經編譯，沒有啟動服務執行，也沒有在 SQL Server 上實際驗證。
+
+- `SqlServerMappingStateStore` 讀目前已確認的 GL 配對時，和本機資料庫一樣連同 `gl_control_total` 的控制總數一起讀出。
+- `SqlServerPrescreenRunRepository` 的尾數連續 0 計數，改用由 GL 算出、跟著請求帶進來的個數，述詞和第五步「尾數連續多個 0」同一個。
+
+同一份計畫照 IDEA 版功能比對的回覆（裁定 2026-11-05-31 到 2026-11-05-64）改程式時，和 SQL Server 有關的修改如下。
+SQL Server 的程式和本地資料庫同樣修改，只經編譯，沒有在 SQL Server 執行：
+
+- `SqlServerPreparerSummaryExportRepository` 依人員與人工旗標分組，排序和本機相同（裁定 2026-11-05-32），人員名稱排序用 `COLLATE Latin1_General_BIN2`。
+- `SqlServerValidationRunRepository` 的「核准日不在期間」，計數與明細樣本改用 `ScopedWhenChecked`（裁定 2026-11-05-38）。
+- `SqlServerAccountMappingExportRepository` 的範本列多讀 `not_in_tb`（裁定 2026-11-05-40）。
+- 篩選相關的六個驗證入口多讀國定假日清單與補班日清單的筆數（裁定 2026-11-05-55、2026-11-05-66），SQL Server 的案件資料庫組也傳入 `SqlServerCalendarStore`。
+  補班日的筆數用同一個 `SqlServerCalendarStore.CountAsync` 依日期類別計數，SQL Server 的程式沒有另外改。
+- 線上案件在本機物化設定檔快取後，刪掉和設定檔一起發布的建案中標記（裁定 2026-11-05-72）。SQL Server 的開案仍沿用 `EnsureCreatedAsync`，由登記檢查擋下不存在的 schema，沒有另外改。

@@ -122,13 +122,8 @@
     return { key: key, tick: key, range: key };
   }
 
-  function prescreenLabel(key) {
-    var label = key;
-    Ui.PRESCREEN_RULES.forEach(function (option) {
-      if (option.value === key) { label = option.label; }
-    });
-    return label;
-  }
+  // 和第五步同一個標籤函式，尾數規則知道個數時寫「金額尾數連續 N 個 0」（裁定 2026-11-05-25）。
+  function prescreenLabel(key) { return Ui.prescreenConditionLabel(key); }
 
   function rulePeriodChartOption(rulePeriod) {
     // 不適用規則不進圖表；真正適用且零命中者仍以 0 值保留。

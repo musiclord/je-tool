@@ -120,7 +120,8 @@ internal static partial class GuiScenarios
           var suggest = section ? section.querySelector('[data-action="suggest-gl"]') : null;
           var remap = section ? section.querySelector('[data-action="remap-gl"]') : null;
           var commit = section ? section.querySelector('[data-action="commit-gl"]') : null;
-          var rail = section ? section.querySelector('.map-rail__title') : null;
+          // 右側必填清單拿掉後，還差幾個必填欄位寫在表格上方那一行（裁定 2026-11-05-24）。
+          var required = section ? section.querySelector('.map-required__title') : null;
           var requiredSelect = section
             ? section.querySelector('.mapping-table__row.is-required select[data-mapping-key]')
             : null;
@@ -145,8 +146,8 @@ internal static partial class GuiScenarios
             remapY: remapPoint.y,
             remapInViewport: remapPoint.x > 0 && remapPoint.y > 0 && remapPoint.x < innerWidth && remapPoint.y < innerHeight,
             remapHit: !!remap && document.elementFromPoint(remapPoint.x, remapPoint.y) === remap,
-            railTitle: rail ? rail.textContent.trim() : '',
-            missingCount: section ? section.querySelectorAll('.map-rail__item:not(.is-done)').length : -1,
+            requiredTitle: required ? required.textContent.trim() : '',
+            missingCount: section ? section.querySelectorAll('.mapping-table__row.is-missing, .map-required__tag.is-missing').length : -1,
             commitDisabled: !commit || commit.disabled,
             selectVisible: visible(requiredSelect),
             selectValue: requiredSelect ? requiredSelect.value : '',
@@ -295,7 +296,9 @@ internal static partial class GuiScenarios
             GuiScenarioCatalog.AuthorizedListRecovery => ExecuteAuthorizedListRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.CommonRemapRecovery => ExecuteCommonRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.UpstreamChangeAfterExport => ExecuteUpstreamChangeAfterExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
-            GuiScenarioCatalog.CaseToWorkingPaper => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
+            GuiScenarioCatalog.CaseToWorkingPaper => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, "sqlite", cancellationToken),
+            GuiScenarioCatalog.CaseToWorkingPaperDuckDb => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, "duckdb", cancellationToken),
+            GuiScenarioCatalog.CaseListCleanupCancelExport => ExecuteCaseListCleanupCancelExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.BlankDetailsRecovery => ExecuteBlankDetailsRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.FilterCommonEditing or GuiScenarioCatalog.FilterAuditorJourney =>
                 ExecuteFilterWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),
@@ -315,8 +318,13 @@ internal static partial class GuiScenarios
             return visible(select) && select.value === 'approvalDate';
           }) : null;
           var approvalSameDate = section ? section.querySelector('[data-approval-same-date]') : null;
+          var missingTags = section ? Array.prototype.filter.call(section.querySelectorAll('.map-required__tag'), function (tag) {
+            return tag.classList.contains('is-missing');
+          }) : [];
           return {
             mode: mapping.options.approvalDateMode,
+            missingTagLabels: missingTags.map(function (tag) { return tag.firstChild ? tag.firstChild.textContent : ''; }).join('|'),
+            requiredTagLinks: section ? section.querySelectorAll('.map-required button, .map-required a, .map-required [data-focus-mapping-field]').length : -1,
             approvalChoice: visible(approvalSelect) ? approvalSelect.value : approvalColumn ? 'column:' + approvalColumn.getAttribute('data-map-col') :
               visible(approvalSameDate) ? (approvalSameDate.checked ? 'mode:sameAsGlDate' : 'mode:unmapped') : '',
             approvalFieldPresent: visible(approvalSelect) || !!approvalColumn || visible(approvalSameDate),
@@ -335,7 +343,7 @@ internal static partial class GuiScenarios
             committedAmountMode: mapping.committed ? mapping.committed.mode : '',
             uiMode: state.mappingUiMode,
             focusedMappingKey: document.activeElement ? document.activeElement.getAttribute('data-mapping-key') || '' : '',
-            missingCount: section ? section.querySelectorAll('.map-rail__item:not(.is-done)').length : -1,
+            missingCount: section ? section.querySelectorAll('.mapping-table__row.is-missing, .map-required__tag.is-missing').length : -1,
             optionsRestored: !!mapping.committed && JSON.stringify(mapping.options) === JSON.stringify(mapping.committed.options),
             draftRestored: !!mapping.committed && JSON.stringify(mapping.draft) === JSON.stringify(mapping.committed.mapping),
             amountRestored: !!mapping.committed && mapping.amountMode === mapping.committed.mode,
@@ -535,16 +543,20 @@ internal static partial class GuiScenarios
         await ExpectApprovalAsync(cdp, process, "mapped", "傳票核准日", cancellationToken).ConfigureAwait(false);
         outcome.Assertions.GridApprovalModesCoherent = true;
 
-        outcome.RecordStage("required-field-jump");
+        // 原本在對照表格點右側必填清單的欄位名稱，切回簡易清單並定位。裁定 2026-11-05-24 拿掉右側清單，
+        // 對照表格上方改成不能點的名稱標籤；這一段改成核對取消一欄後那個名稱標成還沒選、標籤不是連結，
+        // 再按「簡易清單」回到後面要用的介面，操作次數和原本一樣是兩次。
+        outcome.RecordStage("required-field-tags");
         await ChooseOptionAsync(cdp, process, GlSection + "[data-map-col=\"傳票號碼\"]", "", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process,
-            probe => ReadInt32(probe, "missingCount") == 1 && !original.MatchesDraft(probe)
+            probe => ReadInt32(probe, "missingCount") == 1 && ReadString(probe, "missingTagLabels") == "傳票號碼"
+                && ReadInt32(probe, "requiredTagLinks") == 0 && !original.MatchesDraft(probe)
                 && original.MatchesCommitted(probe), cancellationToken, outcome, original).ConfigureAwait(false);
-        await ClickControlAsync(cdp, process, GlSection + "[data-focus-mapping-field=\"voucherNumber\"]", outcome, cancellationToken).ConfigureAwait(false);
+        await ClickControlAsync(cdp, process, GlSection + "[data-ui-mode=\"classic\"]", outcome, cancellationToken).ConfigureAwait(false);
         await WaitForMappingPolicyAsync(cdp, process,
-            probe => ReadString(probe, "uiMode") == "classic" && ReadString(probe, "focusedMappingKey") == "voucherNumber",
+            probe => ReadString(probe, "uiMode") == "classic" && ReadInt32(probe, "missingCount") == 1,
             cancellationToken, outcome, original).ConfigureAwait(false);
-        outcome.Assertions.RequiredFieldJumpFocused = true;
+        outcome.Assertions.RequiredFieldTagsShown = true;
 
         outcome.RecordStage("restore-mapping-options");
         await ClickControlAsync(cdp, process, GlSection + "[name=\"mode-gl\"][value=\"signed\"]", outcome, cancellationToken).ConfigureAwait(false);

@@ -32,12 +32,19 @@ public sealed class QueryPrescreenPageHandler(
         }
         else
         {
+            // 尾零規則的 0 的個數和第四步預篩選同一個來源：已確認 GL 配對的控制總數（裁定 2026-11-05-25）。
+            var glMapping = ruleKey == PrescreenRuleKeys.TrailingZeros
+                ? await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
+                : null;
             var context = new FilterConditionContext(
                 document.MoneyScale,
                 document.LastAccountingPeriodDate,
                 document.PeriodStart,
                 document.PeriodEnd,
-                document.NonWorkingDays);
+                document.NonWorkingDays)
+            {
+                ZerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale)
+            };
             page = await Task.Run(
                 () => repositories.PrescreenPages.GetPageAsync(
                     projectId, ruleKey, context, request, cancellationToken),

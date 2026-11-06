@@ -570,7 +570,8 @@
       }
     },
     // 傳票核准日不可用時後端不檢查，筆數是 null 並寫原因（裁定 2026-10-23-01）。
-    blankSubItem('核准日不在期間', '傳票核准日落在查核期間之外的分錄。', ['approvalDate'],
+    // 核准日空白的分錄照舊版也算不在期間（裁定 2026-11-05-38）。
+    blankSubItem('核准日不在期間', '傳票核准日落在查核期間之外或空白的分錄。', ['approvalDate'],
       function (brt) { return Number(brt.approvalDateNotInPeriodCount); }, ['approvalDateNotInPeriod'],
       function (brt) { return brt.approvalDateNotInPeriodNaReason || null; }),
     {
@@ -955,7 +956,10 @@
       '<section class="rule-card">' +
         '<div class="rule-card__head">' +
           '<h3 class="rule-card__title">資料驗證</h3>' +
-          '<button type="button" class="btn" data-action="run-validate"' + (ready ? '' : ' disabled') +
+          // 每個工作面只有一把藍色主要按鈕。已經有結果、結果也沒有過期時，重新執行改成白色次要按鈕，
+          // 藍色留給現在該按的那一把（裁定 2026-11-05-22、2026-10-29-06）。
+          '<button type="button" class="btn' + (v && !(state.staleState && state.staleState.validation) ? ' btn--ghost' : '') +
+            '" data-action="run-validate"' + (ready ? '' : ' disabled') +
             '>' + (v ? '重新執行驗證' : '執行驗證') + '</button>' +
         '</div>' +
         lastRunLineHtml(v) +
@@ -1822,7 +1826,9 @@
       '<section class="rule-card rule-card--prescreen">' +
         '<div class="rule-card__head">' +
           '<h3 class="rule-card__title" id="prescreen-primary-title">預篩選</h3>' +
-          '<button type="button" class="btn" data-action="run-prescreen"' + (canRun ? '' : ' disabled') +
+          // 和資料驗證同一個做法：已經有結果、結果也沒有過期時，重新執行預篩選是白色次要按鈕（裁定 2026-11-05-22）。
+          '<button type="button" class="btn' + (p && !(state.staleState && state.staleState.prescreen) ? ' btn--ghost' : '') +
+            '" data-action="run-prescreen"' + (canRun ? '' : ' disabled') +
             '>' + (p ? '重新執行預篩選' : '執行預篩選') + '</button>' +
         '</div>' +
         gate +

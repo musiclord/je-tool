@@ -496,6 +496,30 @@ internal sealed class DirectTemplateCellEditor
         }
     }
 
+    /// <summary>
+    /// 替整張工作表加上不設密碼的保護，屬性和串流寫出的保護頁相同。範本已經有保護時保留原本的設定。
+    /// 保護元素照 OpenXML 的順序接在 sheetCalcPr 之後；範本沒有 sheetCalcPr 時接在 sheetData 之後。
+    /// </summary>
+    internal void ProtectSheet()
+    {
+        if (_worksheet.GetFirstChild<SheetProtection>() is not null)
+        {
+            return;
+        }
+
+        OpenXmlElement anchor = (OpenXmlElement?)_worksheet.GetFirstChild<SheetCalculationProperties>()
+            ?? _worksheet.GetFirstChild<SheetData>()
+            ?? throw new InvalidDataException("Template worksheet has no sheetData element.");
+        anchor.InsertAfterSelf(new SheetProtection
+        {
+            Sheet = true,
+            Objects = true,
+            Scenarios = true,
+            SelectLockedCells = false,
+            SelectUnlockedCells = false
+        });
+    }
+
     internal void EnsureAllAllowedCellsWereEdited()
     {
         if (_edited.SetEquals(_allowed)

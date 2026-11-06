@@ -210,6 +210,9 @@ public sealed partial class WorkingPaperWriter
             cancellationToken: cancellationToken);
     }
 
+    // 舊版 idea-tool.bas 在沒有配對傳票建立人員時寫進 B13 的原句，「編制」照舊版用字。
+    internal const string MissingCreatedByNotice = "請注意，該測試作業於總帳資料欄位配對作業程序並挑選編制人員欄位。";
+
     /// <summary>
     /// 「step1-2 分錄編製人員說明」:A1-A4 共同表頭 + Step1-2 程序固定文字 + 第 11 列欄標 +
     /// FetchAllAsync 全名單(B 編製人員/D 傳票數/E 金額彙總自動;C 自動或人工、F 部門、G 職稱、H 說明留空)。
@@ -227,8 +230,11 @@ public sealed partial class WorkingPaperWriter
         var missingCreatedByMapping = glMapping is null
             || !glMapping.Mapping.TryGetValue(GlMappingKeys.CreatedBy, out var createdBySource)
             || string.IsNullOrWhiteSpace(createdBySource);
-        var preparers = await preparerSummaries.FetchAllAsync(
-            context.ProjectId, context.PeriodStart, context.PeriodEnd, cancellationToken);
+        // 裁定 2026-11-05-35：沒有配對傳票建立人員時照舊版不列名單，也不寫「（空白）」那一列，只在 B13 寫提示句。
+        IReadOnlyList<PreparerSummaryExportRow> preparers = missingCreatedByMapping
+            ? []
+            : await preparerSummaries.FetchAllAsync(
+                context.ProjectId, context.PeriodStart, context.PeriodEnd, cancellationToken);
         using var spool = WorkingPaperDisplaySpool.Create(
             [
                 "編製人員\n(來自JE測試母體)",
@@ -289,6 +295,10 @@ public sealed partial class WorkingPaperWriter
                     "經手之傳票數目\n(來自JE測試母體)", "經手之傳票金額彙總\n(來自JE測試母體)",
                     "部門", "職稱或職務", "是否為適當編製人員之說明"
                 ]));
+                if (missingCreatedByMapping)
+                {
+                    sheet.WriteFixedRow(13, [sheet.TextCell(13, 2, MissingCreatedByNotice)]);
+                }
                 return sheet;
             },
             (sheet, row, projected) => ProjectedCells(sheet, row, projected, firstColumn: 2),
@@ -429,6 +439,10 @@ public sealed partial class WorkingPaperWriter
         sheet.SetRowHeight(16, 42);
     }
 
+    /// <summary>
+    /// A1-A4 共同表頭(五張 step1 表逐字相同):公司名 / 測試期間 / 財報準備開始日 / 斜體說明。
+    /// A3 對應 ideascript 的 LastPeriod，只取 <see cref="WorkingPaperContext.PrepStartDate"/>；缺值時明示 N/A，不得改用 PeriodEnd。
+    /// </summary>
     private static void WriteCommonHeader(
         SheetWriter sheet,
         WorkingPaperContext context,
@@ -446,12 +460,6 @@ public sealed partial class WorkingPaperWriter
 
     private static string DisplayPrepStartDate(string? prepStartDate) =>
         string.IsNullOrWhiteSpace(prepStartDate) ? "N/A" : DigitsOnly(prepStartDate);
-
-    /// <summary>
-    /// 資料表共用骨架:寫欄標列(可略)+ 逐列資料(列號自 firstDataRow 內部累計);回資料列數。
-    /// 列來源是 <see cref="IAsyncEnumerable{T}"/>(每元素為「給列號→cells」的工廠),呼叫端決定
-    /// keyset 串流或全載入——本原語只管「不全載入地逐列寫出 + 累計列號」,是 step1 / step1-2 / step1-3 共用骨架。
-    /// </summary>
 
     private static IReadOnlyList<WorkingPaperDisplayCell> ProjectCompletenessRow(
         CompletenessDiffAccount acc,
@@ -486,7 +494,10 @@ public sealed partial class WorkingPaperWriter
         int moneyScale) =>
     [
         ProjectText(PreparerSummaryDisplay.NameOf(preparer.CreatedBy)),
-        ProjectBlank(WorkingPaperStyles.EditableNoFill),
+        // 裁定 2026-11-05-32：C 欄照舊版寫人工或自動；未判定或沒有配對人工傳票欄位時照範本表頭留白，審計員可以自己填。
+        preparer.IsManual is { } isManual
+            ? ProjectText(PreparerSummaryDisplay.ManualText(isManual))
+            : ProjectBlank(WorkingPaperStyles.EditableNoFill),
         ProjectInteger(preparer.EntryCount, groupedForWidth: true),
         ProjectAmount(preparer.DebitTotalScaled, moneyScale),
         ProjectBlank(WorkingPaperStyles.EditableNoFill),

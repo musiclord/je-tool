@@ -607,12 +607,14 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains("function typing(root) {", app, StringComparison.Ordinal);
         Assert.Contains("item.grow = !item.scrolls && item.before.height > 0 && Math.abs(item.to - item.before.height) > 2;", app, StringComparison.Ordinal);
 
-        // 第三步的提示、對照表、必填清單與資料處理都有識別；各步驟的主畫面也有，底下直接一層的區塊因此都會比對。
+        // 第三步的提示、對照表、表格上方的必填欄位那一行與資料處理都有識別；各步驟的主畫面也有，底下直接一層的區塊因此都會比對。
         Assert.Contains("data-motion-key=\"mapping-banner-' + kind + '\">", mapping, StringComparison.Ordinal);
         // 同功能的元件只留一套（裁定 2026-10-19-08），頁籤也是：對照表外框同時是第三步頁籤的面板，識別後面接面板屬性。
         // 首次失敗：20261019-102446198-5198acd5b7e747feae8ed16dcfac32a3；仍檢查外框帶識別。
         Assert.Contains("'<div class=\"map-layout\" data-motion-key=\"map-layout-' + kind + '\"' + mapLayoutPanelAttributes(kind) + '>' +", mapping, StringComparison.Ordinal);
-        Assert.Contains("'\" data-motion-key=\"map-rail-' + kind + '\">' +", mapping, StringComparison.Ordinal);
+        // 原本鎖右側必填清單的識別 map-rail；裁定 2026-11-05-24 拿掉右側清單，還差幾個必填欄位改寫在表格上方那一行，
+        // 識別跟著改成 map-required。首次失敗：Focused 收據 20261105-075647540-3c24ed1ec59b43a9aa41aff3b63e7f72；仍檢查這一塊帶識別。
+        Assert.Contains("'\" data-motion-key=\"map-required-' + kind + '\">' +", mapping, StringComparison.Ordinal);
         Assert.Contains("data-motion-key=\"map-options-gl\"", mapping, StringComparison.Ordinal);
         Assert.Contains("data-motion-key=\"mapping-panel\"", mapping, StringComparison.Ordinal);
         Assert.Contains("data-motion-key=\"validate-panel\"", validate, StringComparison.Ordinal);

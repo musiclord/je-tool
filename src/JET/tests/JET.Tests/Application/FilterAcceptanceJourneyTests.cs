@@ -130,8 +130,10 @@ public sealed class FilterAcceptanceJourneyTests
             ("""{"type":"fieldValue","field":"approvedBy","operator":"isBlank"}""", ["F|1", "F|2"]),
             ("""{"type":"fieldValue","field":"glDate","operator":"between","from":"2025-12-25","to":"2025-12-31"}""",
                 ["B|1", "B|2", "C|1", "C|2", "D|1", "D|2", "E|1", "E|2", "F|1", "F|2"]),
+            // 裁定 2026-11-05-45 照舊版輸出 Cash 借方列與同一張傳票的全部貸方列，原本只有 Cash 借方六列。
+            // 第一次失敗：Focused 收據 20261105-120830847-b2f3bd56c897410e8c582d6646f832d6（預期 6 筆，實際 12 筆）。
             ("""{"type":"specialAccountCategoryPair","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.cash"],"pairMode":"drNotCr"}""",
-                ["A|1", "B|1", "C|1", "D|1", "E|1", "F|1"])
+                ["A|1", "A|2", "B|1", "B|2", "C|1", "C|2", "D|1", "D|2", "E|1", "E|2", "F|1", "F|2"])
         };
         foreach (var item in cases)
         {
@@ -141,10 +143,13 @@ public sealed class FilterAcceptanceJourneyTests
             await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));
             Assert.Equal(item.Rows, (await SavedRowsAsync(host)).Order(StringComparer.Ordinal));
         }
-        // 最後保存的是每張傳票的 Cash 借方；固定金額順序與搜尋答案可跨頁核對。
-        Assert.Equal(["A|1", "B|1", "C|1", "D|1", "E|1", "F|1"], await SavedRowsAsync(host));
-        Assert.Equal(["F|1", "E|1", "D|1", "C|1", "B|1", "A|1"], await SavedRowsAsync(host, "desc"));
-        Assert.Equal(["C|1"], await SavedRowsAsync(host, "desc", "c"));
+        // 最後保存的是每張傳票的 Cash 借方與同傳票的 Other 貸方；旗標模式的貸方列金額為負，
+        // 固定金額順序與搜尋答案可跨頁核對。
+        Assert.Equal(["F|2", "E|2", "D|2", "C|2", "B|2", "A|2", "A|1", "B|1", "C|1", "D|1", "E|1", "F|1"],
+            await SavedRowsAsync(host));
+        Assert.Equal(["F|1", "E|1", "D|1", "C|1", "B|1", "A|1", "A|2", "B|2", "C|2", "D|2", "E|2", "F|2"],
+            await SavedRowsAsync(host, "desc"));
+        Assert.Equal(["C|1", "C|2"], await SavedRowsAsync(host, "desc", "c"));
     }
 
     [Theory]

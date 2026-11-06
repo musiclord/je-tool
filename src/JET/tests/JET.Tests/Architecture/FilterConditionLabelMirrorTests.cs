@@ -36,7 +36,10 @@ public sealed class FilterConditionLabelMirrorTests
         // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
         var frontend = FrontendConstantTextReader.ValueLabels(ReadUiCore(), "PRESCREEN_RULES");
         Assert.Equal(FilterConditionLabels.PrescreenKeys, frontend);
-        Assert.Equal("金額尾數連續 6 個 0", frontend["trailingZeros"]);
+        // 尾數規則的名稱改成「分錄金額中有連續 0 的尾數」；0 的個數由 GL 算出，知道個數時才寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25）。
+        // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        Assert.Equal("分錄金額中有連續 0 的尾數", frontend["trailingZeros"]);
+        Assert.Equal("金額尾數連續 4 個 0", FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.TrailingZeros, 4));
         // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），兩條規則的標籤跟著拿掉；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
         Assert.False(frontend.ContainsKey("rarePreparer"));
         Assert.False(frontend.ContainsKey("rareAccount"));

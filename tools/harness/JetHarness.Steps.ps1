@@ -218,10 +218,13 @@ function Invoke-JetGuiBuildPipeline {
         Select-Object -First 1 -ExpandProperty Source
     $applicationProject = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.applicationProject)
     $driverProject = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.driverProject)
+    # 測試專案用同一個 AgentGuiTest 組態建置，才會編譯 JET_AGENT_GUI_TEST 區塊；Gui 路線先執行這些測試再跑情境。
+    $testProject = Join-Path $RepositoryRoot ([string]$Registry.testSettings.project)
 
     foreach ($restore in @(
             [ordered]@{ Name = 'gui-app-restore'; Project = $applicationProject; Display = [string]$Registry.guiSettings.applicationProject },
-            [ordered]@{ Name = 'gui-driver-restore'; Project = $driverProject; Display = [string]$Registry.guiSettings.driverProject })) {
+            [ordered]@{ Name = 'gui-driver-restore'; Project = $driverProject; Display = [string]$Registry.guiSettings.driverProject },
+            [ordered]@{ Name = 'gui-tests-restore'; Project = $testProject; Display = [string]$Registry.testSettings.project })) {
         if ($results.Count -gt 0 -and $results[$results.Count - 1].status -cne 'passed') {
             break
         }
@@ -278,6 +281,28 @@ function Invoke-JetGuiBuildPipeline {
             -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
             @boundedTree
         $results.Add($driverBuild)
+    }
+
+    if ($results[$results.Count - 1].status -ceq 'passed') {
+        $testBuild = Invoke-JetChildStep `
+            -RepositoryRoot $RepositoryRoot `
+            -RunDirectory $RunDirectory `
+            -Name 'gui-tests-build' `
+            -FileName $dotnet `
+            -Arguments @(
+                'build', $testProject,
+                '--configuration', ([string]$Registry.guiSettings.configuration),
+                '--no-restore', '--disable-build-servers'
+            ) `
+            -DisplayCommand @(
+                'dotnet', 'build', ([string]$Registry.testSettings.project),
+                '--configuration', ([string]$Registry.guiSettings.configuration), '--no-restore', '--disable-build-servers'
+            ) `
+            -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
+            -TimeoutSeconds $TimeoutSeconds `
+            -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+            @boundedTree
+        $results.Add($testBuild)
     }
 
     return $results.ToArray()

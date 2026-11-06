@@ -43,7 +43,8 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         // 摘要空白：K09 與只含全形空白的 K11，共 4 列。
         Assert.Equal(4, validation.GetProperty("blankRecordsTest").GetProperty("blankDescriptionCount").GetInt64());
         var prescreen = await host.DispatchAsync("prescreen.run");
-        // 預設 25 個字詞含 ADJ、調整、迴轉、沖銷、重分類，不含更正、補登、暫估：K01、K02、K03、K04、K10，共 10 列。
+        // 預設 24 個字詞含 ADJ、調整、迴轉、沖銷、重分類，不含更正、補登、暫估：K01、K02、K03、K04、K10，共 10 列。
+        // 原本寫 25 個；裁定 2026-11-05-43 拿掉「帳外」後是 24 個，筆數不受影響，只改這句說明。
         Assert.Equal(10, prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         Assert.Equal(4, prescreen.GetProperty("blankDescription").GetProperty("count").GetInt64());
 

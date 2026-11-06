@@ -125,10 +125,21 @@ internal sealed class ProjectCreateFactsPort(
         }
     }
 
-    public Task CompleteAsync(
+    public async Task CompleteAsync(
         ProjectCreateFacts facts,
-        CancellationToken cancellationToken) =>
-        facts.BackendAttempt.CommitAsync(cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        await facts.BackendAttempt.CommitAsync(cancellationToken);
+        try
+        {
+            // 資料庫建好、建案確定之後才刪建案中的標記（裁定 2026-11-05-72 要求的穩健初始化）。
+            await projectStore.CompleteCreateAsync(facts.Document.ProjectId, cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // 建案已經完成，標記刪不掉不影響結果；下次開案確認資料庫已經建好後會再刪一次。
+        }
+    }
 
     public Task RollbackAsync(
         ProjectCreateFacts facts,

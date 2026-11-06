@@ -132,15 +132,16 @@ public static partial class AppCompositionRoot
             FilterHitMaterializer = filterHitMaterializer,
             FilterCommits = filterCommits,
             FilterFacts = new FilterFactsPort(filterHits, filterCommits),
+            // 篩選命中的惰性補算在查詢裡寫入，結束時由服務自己把記錄檔併回（見 IProjectDatabaseCheckpoint）。
             FilterHitMaterializeService = CreateFilterHitMaterializeService(
                 filterHitMaterializer, filterScenarios, mappingStates, accountMapping,
-                authorizedPreparer, accountCategories, resultStaleStates, assembly),
+                authorizedPreparer, accountCategories, resultStaleStates, calendar, assembly, database),
             FilterVoucherQueryService = CreateFilterVoucherQueryService(
                 filterVouchers, filterScenarios, mappingStates, accountMapping,
-                authorizedPreparer, accountCategories, resultPageRdeValues, assembly,
+                authorizedPreparer, accountCategories, calendar, resultPageRdeValues, assembly,
                 CreateFilterHitMaterializeService(
                     filterHitMaterializer, filterScenarios, mappingStates, accountMapping,
-                    authorizedPreparer, accountCategories, resultStaleStates, assembly),
+                    authorizedPreparer, accountCategories, resultStaleStates, calendar, assembly, database),
                 highRiskSummaryScenarios),
             DataPreview = new LocalDataPreviewRepository(database),
             CompletenessDiffPages = completenessDiffPages,
@@ -275,13 +276,13 @@ public static partial class AppCompositionRoot
             FilterFacts = new FilterFactsPort(filterHits, filterCommits),
             FilterHitMaterializeService = CreateFilterHitMaterializeService(
                 filterHitMaterializer, filterScenarios, mappingStates, accountMapping,
-                authorizedPreparer, accountCategories, resultStaleStates, assembly),
+                authorizedPreparer, accountCategories, resultStaleStates, calendar, assembly),
             FilterVoucherQueryService = CreateFilterVoucherQueryService(
                 filterVouchers, filterScenarios, mappingStates, accountMapping,
-                authorizedPreparer, accountCategories, resultPageRdeValues, assembly,
+                authorizedPreparer, accountCategories, calendar, resultPageRdeValues, assembly,
                 CreateFilterHitMaterializeService(
                     filterHitMaterializer, filterScenarios, mappingStates, accountMapping,
-                    authorizedPreparer, accountCategories, resultStaleStates, assembly),
+                    authorizedPreparer, accountCategories, resultStaleStates, calendar, assembly),
                 highRiskSummaryScenarios),
             DataPreview = new SqlServerDataPreviewRepository(database),
             CompletenessDiffPages = completenessDiffPages,
@@ -331,7 +332,9 @@ public static partial class AppCompositionRoot
         IAuthorizedPreparerStore authorizedPreparer,
         IAccountCategoryStore accountCategories,
         IResultStaleStateStore resultStaleStates,
-        ProjectRepositoryAssembly assembly) =>
+        ICalendarStore calendar,
+        ProjectRepositoryAssembly assembly,
+        IProjectDatabaseCheckpoint? databaseCheckpoint = null) =>
         new(
             materializer,
             assembly.ProjectStore,
@@ -342,7 +345,10 @@ public static partial class AppCompositionRoot
             accountMapping,
             authorizedPreparer,
             accountCategories,
-            resultStaleStates);
+            resultStaleStates,
+            calendar,
+            databaseCheckpoint,
+            assembly.LoggerFactory.CreateLogger<FilterHitMaterializeService>());
 
     private static FilterVoucherQueryService CreateFilterVoucherQueryService(
         IFilterVoucherRepository filterVouchers,
@@ -351,6 +357,7 @@ public static partial class AppCompositionRoot
         IAccountMappingStore accountMapping,
         IAuthorizedPreparerStore authorizedPreparer,
         IAccountCategoryStore accountCategories,
+        ICalendarStore calendar,
         IResultPageRdeValuesPort resultPageRdeValues,
         ProjectRepositoryAssembly assembly,
         FilterHitMaterializeService materializeService,
@@ -362,6 +369,7 @@ public static partial class AppCompositionRoot
             accountMapping,
             authorizedPreparer,
             accountCategories,
+            calendar,
             assembly.ProjectStore,
             assembly.Session,
             resultPageRdeValues,

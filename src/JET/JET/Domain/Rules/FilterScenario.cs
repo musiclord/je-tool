@@ -305,7 +305,16 @@ public sealed record FilterValidationContext(
     /// <summary>原因裡的分類名稱；沒有帶分類設定的呼叫端用內建名稱。</summary>
     public AccountCategoryLabels CategoryLabels { get; init; } = AccountCategoryLabels.BuiltIn;
 
-    /// <summary>交給規則需求表的案件事實。第五步照裁定 2026-10-04-01 不檢查假日檔。</summary>
+    /// <summary>
+    /// 案件有沒有上傳國定假日清單。沒有清單時第五步停用假日條件並寫原因（裁定 2026-11-05-55；原本引用 2026-10-04-01 而不檢查假日檔）。
+    /// null 只供沒有案件資料的獨立述詞驗證，不檢查假日檔；正式查詢由 <c>FilterValidationContextFactory</c> 帶入。
+    /// </summary>
+    public bool? HasHolidayCalendar { get; init; }
+
+    /// <summary>案件有沒有上傳補班日清單；沒有清單時第五步比照國定假日停用補班日條件並寫原因（裁定 2026-11-05-66）。null 的用法同上。</summary>
+    public bool? HasMakeupCalendar { get; init; }
+
+    /// <summary>交給規則需求表的案件事實。</summary>
     internal JetRuleFacts RuleFacts => new(
         AvailableGlFields,
         HasPrepStartDate,
@@ -314,8 +323,9 @@ public sealed record FilterValidationContext(
         HasRevenueCategory,
         HasCounterpartCategory,
         HasAuthorizedPreparers,
-        HasHolidayCalendar: null,
-        CategoryLabels);
+        HasHolidayCalendar,
+        CategoryLabels,
+        HasMakeupCalendar);
 
     /// <summary>
     /// 目前專案科目分類的全部分類身分，供科目配對多選驗證。預設只含五個內建 ID——
@@ -960,7 +970,8 @@ public static partial class FilterScenarioValidator
     /// 金額的「整數尾數符合」：尾數樣態放在 Keywords，
     /// 每組須為 1–12 位純數字（位數上限沿用 trailing zeros 的 long 溢位防線）。
     /// </summary>
-    private static void ValidateTrailingDigits(FilterConditionSpec rule, string label, List<string> errors)
+    /// <param name="noun">原因裡怎麼稱呼這些數字：整數尾數寫「尾數」，整數部分包含寫「數字」。</param>
+    private static void ValidateTrailingDigits(FilterConditionSpec rule, string label, List<string> errors, string noun = "尾數")
     {
         var patterns = rule.Keywords
             .Where(k => !string.IsNullOrWhiteSpace(k))
@@ -969,7 +980,7 @@ public static partial class FilterScenarioValidator
 
         if (patterns.Count == 0)
         {
-            errors.Add($"{label}：尚未輸入尾數");
+            errors.Add($"{label}：尚未輸入{noun}");
             return;
         }
 
@@ -979,7 +990,7 @@ public static partial class FilterScenarioValidator
                 || pattern.Length > TrailingZeroThreshold.MaxCustomDigits
                 || !pattern.All(character => character is >= '0' and <= '9'))
             {
-                errors.Add($"{label}：尾數「{pattern}」須為 "
+                errors.Add($"{label}：{noun}「{pattern}」須為 "
                     + $"{TrailingZeroThreshold.MinCustomDigits} 到 {TrailingZeroThreshold.MaxCustomDigits} 位數字");
             }
         }

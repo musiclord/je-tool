@@ -2100,6 +2100,9 @@ test('the wire keeps the group order, strips UI keys and records no new preset g
 // 草稿的舊版標記與它的斷言一起拿掉（第一次失敗收據 20261030-073559832-a58eb2ca8d684043bb4ff0c736d47ce8）。計算樹與讀回句子的斷言不變。
 test('a scenario saved with the old separate non-business-day group reopens as ordinary conditions with the same tree', () => {
   const f = commonCardFixture();
+  // 舊情境裡有「假日過帳」，裁定 2026-11-05-55 起要有國定假日清單才能保存，這裡補上清單，核對的仍是讀回與保存的樹。
+  // 第一次失敗：FrontendMapping 收據 20261105-124034563-731d85a5b2c54709b7daa7e73974d5f0。
+  f.store.setCalendarState({ holidayCount: 3 });
   const old = {
     name: '舊版非營業日情境', rationale: 'old', source: null,
     editorOrigins: { version: 2, nameIsAutomatic: true, rationaleIsAutomatic: true,
@@ -3588,12 +3591,16 @@ test('mapping date fields omit permanent explanations while invalid approval set
   assert.doesNotMatch(invalidApproval, /核准日選「不提供」/);
 });
 
-test('prescreen condition controls repeat the fourth-step logic and six-zero threshold while nested category hints remain row-scoped', () => {
+// 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：條件讀回寫這個案件的個數，沒有確認 GL 配對時寫規則名稱。原本的測試名稱是
+// prescreen condition controls repeat the fourth-step logic and six-zero threshold while nested category hints remain row-scoped。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
+test('prescreen condition controls repeat the fourth-step logic and the case zero count while nested category hints remain row-scoped', () => {
   const f = batch8Fixture();
   for (const [key, index] of [['prepPeriodApproval', 0], ['suspiciousKeywords', 1], ['unexpectedAccountPair', 2]]) {
     assert.ok(f.filter.ruleControlsHtml({ type: 'prescreen', prescreenKey: key }, 0, 0).includes(f.ui.esc(f.v.PRESCREEN_ITEMS[index].desc)), key);
   }
-  assert.match(f.filter.ruleSummaryLabel({ type: 'prescreen', prescreenKey: 'trailingZeros' }, 0), /6/);
+  assert.equal(f.filter.ruleSummaryLabel({ type: 'prescreen', prescreenKey: 'trailingZeros' }, 0), '預篩選：分錄金額中有連續 0 的尾數');
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {}, zerosThreshold: 5 });
+  assert.equal(f.filter.ruleSummaryLabel({ type: 'prescreen', prescreenKey: 'trailingZeros' }, 0), '預篩選：金額尾數連續 5 個 0');
   const rule = { type: 'voucher', side: 'credit', quantifier: 'any', conditions: [{ type: 'accountSide', drCr: 'credit', categoryMode: 'is', categoryIds: ['builtin.cash'] }] };
   const html = f.filter.compoundRuleHtml(rule, 0, 0, false, { conditions: [rule] });
   assert.doesNotMatch(html, /「整張傳票」模式輸出整張傳票的分錄/);
@@ -3627,6 +3634,8 @@ test('prescreen report handler sends the selected run and ignores callbacks afte
 for (const entry of JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/filter-readback-prep-start-date-and-trailing-zeros.json'), 'utf8'))) {
   test('shared preparation date and trailing zero readback sentence: ' + entry.id, () => {
     const f = batch8Fixture(); f.store.getState().project.prepStartDate = entry.preparationDate;
+    // 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：夾具寫了 zerosThreshold 的那一筆，模擬已確認 GL 配對帶回這個個數。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
+    if (entry.zerosThreshold) f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {}, zerosThreshold: entry.zerosThreshold });
     const scenario = { name: entry.id, rationale: 'Synthetic preparation-date readback', __preserveJoins: true, ...plain(entry.scenario) };
     assert.equal(f.text(f.filter.readBackHtml(scenario, false)).replace(/^篩選條件：/, ''), entry.expected);
     assert.equal(f.filter.toWireDraft(scenario).groups[0].conditions[0].preparationDate, undefined, 'project date is not frozen into the AST');
@@ -4081,14 +4090,19 @@ test('successful import shows backend duplicate-source warnings without blocking
 
 test('constants keep separate fixed audit thresholds and unchanged full labels and custom defaults', () => {
   const f = batch8Fixture();
-  assert.deepEqual(f.ui.PRESCREEN_DEFAULTS && plain(f.ui.PRESCREEN_DEFAULTS), { preparerMaxEntries: 11, accountMaxEntries: 11, trailingZeroDigits: 6 });
+  // 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：前端拿掉固定 6 個 0 的常數，標籤與說明不再寫死個數。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
+  assert.deepEqual(f.ui.PRESCREEN_DEFAULTS && plain(f.ui.PRESCREEN_DEFAULTS), { preparerMaxEntries: 11, accountMaxEntries: 11 });
   // 一條規則只在一處定義，前端只留一份 PRESCREEN_RULES。第一次失敗：FrontendMapping 收據 20261024-195429066-9dbfcc75dada4db6b7c3bf147795f7e2。
   const labels = Object.fromEntries(f.ui.PRESCREEN_RULES.map(item => [item.value, item.label]));
-  assert.equal(labels.trailingZeros, '金額尾數連續 6 個 0');
+  assert.equal(labels.trailingZeros, '分錄金額中有連續 0 的尾數');
+  assert.equal(f.ui.prescreenConditionLabel('trailingZeros'), '分錄金額中有連續 0 的尾數');
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {}, zerosThreshold: 5 });
+  assert.equal(f.ui.prescreenConditionLabel('trailingZeros'), '金額尾數連續 5 個 0');
+  assert.equal(f.ui.trailingZeroDigits(), 5);
   // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，原本核對兩條的全文；第一次失敗：FrontendMapping 收據 20261030-170713163-f548633afe0749a791469b97942983be。PRESCREEN_DEFAULTS 的兩個 11 筆是第五步依審計目的的預設值，照舊保留。
   assert.equal(labels.rarePreparer, undefined);
   assert.equal(labels.rareAccount, undefined);
-  assert.equal(f.ui.prescreenConditionDescription('trailingZeros'), '依本次測試的分錄，找出金額整數部分尾數連續 6 個 0 的分錄；不含小數，整數部分為 0 不列入。');
+  assert.equal(f.ui.prescreenConditionDescription('trailingZeros'), '依本次測試的分錄，找出金額整數部分尾數連續多個 0 的分錄。借方金額合計除以全部分錄筆數得到平均，0 的個數是平均整數部分的位數減一，例如平均 2,391,281 是 6 個 0，至少 1 個、最多 12 個。不含小數，整數部分為 0 不列入。');
   // 舊式兩種筆數、連續零尾數與金額尾數四種型別的預設值連同型別一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。第一次失敗：FrontendMapping 收據 20261030-083440599-39e381d7991c499ab8c08dc42ea5da2f。
 });
 
@@ -4113,6 +4127,15 @@ test('step four drops the eleven-entry preparer and account rules while step fiv
   assert.equal(checks.rarePreparers.countFrom, '11'); assert.equal(checks.rarePreparers.countOperator, 'lessThanOrEqual');
   const pair = f.ui.prescreenConditionDescription('unexpectedAccountPair');
   assert.match(pair, /借方金額大於 0 的分錄/); assert.match(pair, /全部分錄/);
+});
+
+// 裁定 2026-11-05-43：預設摘要關鍵字回到舊版 R2 的 24 個詞，拿掉 Agent 加的「帳外」。清單已經改了，第四步卡片的說明卻還寫 25 個，
+// 2026-11-06 提交前複審查到；說明改由預設清單的長度組出。這是新增的測試：卡片說明寫 24 個，和第五步「含特定字詞」帶入的字詞一樣多。
+test('step four keyword card states the twenty-four legacy keywords that step five fills in', () => {
+  const f = batch8Fixture();
+  assert.match(f.ui.prescreenConditionDescription('suspiciousKeywords'), /^摘要包含預設的 24 個中英文關鍵字之一，/);
+  const keywords = f.ui.FIELD_SHORTCUT_GROUPS.flatMap(group => group.checks).find(check => check.key === 'descriptionKeywords');
+  assert.equal(keywords.conditions[0].values.length, 24);
 });
 
 test('detail first page and later pages use two hundred while value profiles stay fifty', async () => {
@@ -4559,6 +4582,28 @@ test('message persistence skips a rejected payload, keeps transient failures for
  assert.ok(!calls.includes('old-project'));
  f.store.addMessage('new-project','warn');api.persistNewMessages(f.store.getState());await api.flushMessageWrites();
  assert.equal(calls.at(-1),'new-project');
+});
+
+// 第 22 步盤點的第 7 項：長作業的寫入交易占著資料庫，作業進行中寫訊息要等它結束，超過逾時就失敗。這是新增的測試。
+test('messages added while an operation runs are written in order after it ends, and copying still writes first',async()=>{
+ const f=batch8Fixture(),api=f.window.batch8App,calls=[];
+ f.store.setBridgeReady(true);
+ f.window.JetApi.logAppend=async payload=>{calls.push(payload.text);};
+ f.store.setBusy(true,'匯入 GL');
+ for(const text of ['started','progress'])f.store.addMessage(text,'info');
+ api.persistNewMessages(f.store.getState());await settle();await settle();
+ assert.deepEqual(calls,[],'nothing is written while the operation holds the case database');
+ f.store.setBusy(false);
+ f.store.addMessage('finished','info');
+ api.persistNewMessages(f.store.getState());await settle();await settle();await settle();
+ assert.deepEqual(calls,['started','progress','finished']);
+ // 明確要求先寫完再讀時，作業進行中也照樣寫入。
+ f.store.setBusy(true,'驗證');
+ f.store.addMessage('copied','warn');
+ api.persistNewMessages(f.store.getState());await settle();
+ assert.equal(calls.length,3);
+ await api.flushMessageWrites();
+ assert.equal(calls.at(-1),'copied');
 });
 
 // 改動原因：裁定 2026-10-08-08 移除假日與補班日卡片的範本入口與資料夾按鈕，
@@ -6241,7 +6286,9 @@ const FIELD_CHECK_LABELS = {
 // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
 const CUSTOM_EXAMPLE_NAMES = ['借現金、貸非現金', '貸現金、借非現金', '非營業日且排除指定日期', '期末最後 7 天的人工分錄', '空白摘要或空白核准人員',
   '特定人員的大額分錄', '週末人工分錄的特定摘要', '人工分錄的特定部門', '借方與貸方科目編號組合', '指定借貸科目組合的大額分錄', '財報準備期間的人工假日分錄'];
-const DEFAULT_KEYWORDS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG', '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
+// 裁定 2026-11-05-43：摘要的預設關鍵字回到舊版的 24 個詞，拿掉 Agent 另外加的「帳外」（舊版 idea-tool.bas 第 8215 行）。
+// 第一次失敗：FrontendMapping 收據 20261105-124816880-faf1406f8d7c4d2a9d09e4f75c2b43a8。
+const DEFAULT_KEYWORDS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG', '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外',
   '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
 
 // 只取預期值裡寫到的鍵比較；陣列逐項比較。
@@ -6371,7 +6418,11 @@ test('every common check adds its fixed rule shape to the active group', () => {
   const f = batch7Fixture();
   f.store.getState().project.prepStartDate = '2025-12-01';
   f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
-  f.store.setMappingCommitted('gl', { mapping: { createdBy: 'Maker', approvedBy: 'Checker' }, mode: 'signed', options: {} });
+  // 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：尾數連續多個 0 加入時帶這個案件的個數，這裡帶 5 和改版前固定的 6 區分。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
+  f.store.setMappingCommitted('gl', { mapping: { createdBy: 'Maker', approvedBy: 'Checker' }, mode: 'signed', options: {}, zerosThreshold: 5 });
+  // 裁定 2026-11-05-55 起，兩個「國定假日」查法要有國定假日清單才能加入；這個測試的前置都備齊，所以也補上清單。
+  // 第一次失敗：FrontendMapping 收據 20261105-124034563-731d85a5b2c54709b7daa7e73974d5f0。
+  f.store.setCalendarState({ holidayCount: 3 });
   // 常用查法改依欄位分組（裁定 2026-11-03-06），鍵的順序跟著欄位：總帳日期、傳票核准日、金額、傳票摘要、會計科目編號、傳票建立人員、科目分類。
   // 傳票核准日底下新增週末、國定假日、日期區間，財報準備日起核准移到傳票核准日底下（裁定 2026-11-03-20）。拿掉的五項改由下面的新入口核對同樣的條件形狀。
   // 「金額尾數連續多個 0」改成一條條件（裁定 2026-11-03-07），原本是「整數尾數符合 000000」且「金額絕對值大於或等於 1」的子條件組。
@@ -6388,7 +6439,7 @@ test('every common check adds its fixed rule shape to the active group', () => {
     approvalDateRange: { type: 'fieldValue', field: 'approvalDate', operator: 'between', from: '', to: '' },
     prepPeriodApproval: { type: 'prescreen', prescreenKey: 'prepPeriodApproval' },
     largeAmount: { type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' },
-    trailingZeros: { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '6', amountBasis: 'absolute' },
+    trailingZeros: { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '5', amountBasis: 'absolute' },
     // 空白摘要卡改用欄位條件；首次失敗：20261014-133406774-8241f3894ca54d84a987e8fa13814cea。
     descriptionKeywords: { type: 'fieldValue', field: 'description', operator: 'contains', values: DEFAULT_KEYWORDS },
     blankDescription: { type: 'fieldValue', field: 'description', operator: 'isBlank' },
@@ -6464,7 +6515,9 @@ test('common checks are disabled only when the backend would reject them and say
   // 停用的鍵依欄位順序排列。欄位本身不能用時（傳票建立人員沒有來源欄、還沒有任何科目設定分類），底下的查法跟著停用，
   // 原因不在每一把鍵下面重複，寫在分頁最後那一段，鍵以 aria-describedby 連過去；原本核對每一項下方的原因，改成核對那一段寫出同樣的兩句。
   // 第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
-  assert.deepEqual(page.disabled, ['prepPeriodApproval', 'rarePreparers', 'categoryPair']);
+  // 裁定 2026-11-05-55：這個夾具沒有國定假日清單，後端會擋兩個「國定假日」查法，所以它們也停用；
+  // 原本這裡核對「沒有假日檔也不停用」（下面的核對跟著改）。第一次失敗：FrontendMapping 收據 20261105-124034563-731d85a5b2c54709b7daa7e73974d5f0。
+  assert.deepEqual(page.disabled, ['glDateHoliday', 'approvalDateHoliday', 'prepPeriodApproval', 'rarePreparers', 'categoryPair']);
   // 這兩句的用字依裁定 2026-10-14-01（第一次失敗：FrontendMapping 收據 20261014-012331883-35a6efc8b8a145ad969793d34c2094a4）。
   assert.equal(note(page.html, 'prepPeriodApproval'), '尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫');
   assert.equal(page.described.prepPeriodApproval, 'filter-check-note-prepPeriodApproval');
@@ -6483,7 +6536,10 @@ test('common checks are disabled only when the backend would reject them and say
     const button = new RegExp('data-add-field="' + id + '"([^>]*)>').exec(row[2]);
     assert.equal(/ disabled aria-describedby="filter-field-note"/.test(button[1]), unavailable, id + ' button');
   }
-  assert.equal(note(page.html, 'glDateHoliday'), undefined, 'a missing holiday list does not disable the check');
+  for (const key of ['glDateHoliday', 'approvalDateHoliday']) {
+    assert.equal(note(page.html, key), '尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳', key + ' says the holiday list is missing');
+    assert.equal(page.described[key], 'filter-check-note-' + key, key);
+  }
   const before = JSON.stringify(f.store.getState().filter.draft);
   f.api.addFieldShortcut('rarePreparers');
   assert.equal(JSON.stringify(f.store.getState().filter.draft), before, 'a disabled check never changes the draft');
@@ -6499,6 +6555,7 @@ test('common checks are disabled only when the backend would reject them and say
   f.store.getState().project.periodEnd = '2025-12-31'; f.store.getState().project.prepStartDate = '2025-12-01';
   f.store.setAccountMappingState({ hasAnyCategory: true, hasRevenue: true, hasCounterpart: true });
   f.store.setMappingCommitted('gl', { mapping: { createdBy: 'Maker' }, mode: 'signed', options: {}, availableGlFields: everyField });
+  f.store.setCalendarState({ holidayCount: 3 });
   assert.deepEqual(state().disabled, []);
 });
 
@@ -6571,6 +6628,10 @@ test('examples disable for missing approver mapping, preparation date or period 
   const everyField = ['voucherNumber', 'lineItem', 'glDate', 'approvalDate', 'accountNumber', 'accountName', 'description', 'sourceModule', 'createdBy', 'approvedBy', 'isManual', 'amount'];
   f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {},
     availableGlFields: everyField.filter(field => field !== 'createdBy' && field !== 'approvedBy') });
+  // 這個測試只看傳票核准人員、期末財報準備日與查核截止日。範例「財報準備期間的人工假日分錄」照裁定 2026-11-05-55 要國定假日清單，
+  // 照裁定 2026-11-05-66 也要補班日清單，所以補上兩份清單，原因仍只寫期末財報準備日。第一次失敗是 FrontendMapping 收據
+  // 20261105-124034563-731d85a5b2c54709b7daa7e73974d5f0（國定假日清單）與 20261105-133129276-bbb2471767cd4aec9947511cd027a6cd（補班日清單）。
+  f.store.setCalendarState({ holidayCount: 3, makeupDayCount: 1 });
   // 2026-10-29 拿掉「從範例開始」按鈕；原本先按它，改成確認範例已經列出（第一次失敗見本檔開頭 BLANK 上方的收據）。
   assert.equal(f.$('[data-example-list]').hidden, false);
   const note = key => f.$('#filter-example-note-' + key)?.textContent;

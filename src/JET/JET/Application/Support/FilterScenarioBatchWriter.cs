@@ -14,7 +14,8 @@ internal sealed record FilterScenarioStores(
     IMappingStateStore MappingStates,
     IAccountMappingStore AccountMappings,
     IAuthorizedPreparerStore AuthorizedPreparers,
-    IAccountCategoryStore AccountCategories);
+    IAccountCategoryStore AccountCategories,
+    ICalendarStore Calendar);
 
 /// <summary>
 /// 第五步一次只存、刪或重新檢查一個情境（裁定 2026-10-13-24）。
@@ -73,6 +74,7 @@ internal static class FilterScenarioBatchWriter
         var populationScope = FilterPopulationScopeParser.ReadPayload(payload);
         var accountMappingState = await stores.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers = await stores.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
+        var calendarLists = await FilterCalendarLists.ReadAsync(stores.Calendar, projectId, cancellationToken);
         var categorySnapshot = await stores.AccountCategories.ReadAsync(projectId, cancellationToken);
 
         var validation = FilterValidationContextFactory.Create(
@@ -81,7 +83,8 @@ internal static class FilterScenarioBatchWriter
             accountMappingState,
             hasAuthorizedPreparers,
             populationScope,
-            categorySnapshot);
+            categorySnapshot,
+            calendarLists);
         var rule = new FilterConditionContext(
             document.MoneyScale,
             document.LastAccountingPeriodDate,
@@ -91,7 +94,8 @@ internal static class FilterScenarioBatchWriter
             populationScope)
         {
             RdeFields = glMapping.GlOptions?.RdeFields ?? [],
-            DateParseOptions = document.DateParseOptions
+            DateParseOptions = document.DateParseOptions,
+            ZerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale)
         };
         return new Prepared(projectId, document, validation, rule, populationScope,
             FilterScenarioMetadataContext.Create(document, glMapping, categorySnapshot));

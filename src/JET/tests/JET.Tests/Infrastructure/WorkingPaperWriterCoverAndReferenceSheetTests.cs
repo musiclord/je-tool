@@ -33,7 +33,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
     }
 
     [Fact]
-    public async Task WriteAsync_CoverSheet_WritesCompanyPeriodAndCaatsFileName()
+    public async Task WriteAsync_CoverSheet_WritesCompanyPeriodAndLeavesA6Blank()
     {
         using var host = new HandlerTestHost();
         var projectId = await SetupBalancedAsync(host);
@@ -43,8 +43,11 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal("公司名稱 : 示範科技股份有限公司", cover.Cell("A1").GetString());
         Assert.Equal("測試資料期間 :  2025-01-01 ~ 2025-12-31", cover.Cell("A2").GetString());
         Assert.Equal("篩選測試母體 : 查核期間", cover.Cell("A3").GetString());
-        // A6:CAATs 文件檔名,yyyymmdd 取 PeriodEnd 去非數字字元(全形冒號逐字對齊樣本)
-        Assert.Equal("請詳：示範科技股份有限公司_CAATS_JE_WP_20251231.docx", cover.Cell("A6").GetString());
+        // A6 原本寫「請詳：{公司}_CAATS_JE_WP_{日期}.docx」，是 2026-06-21 設計底稿寫出程式時定的檔名，兩份舊版 IDEA 程式都沒有寫。
+        // 命名來源與 CAATs 的步驟都無法確認，使用者 2026-11-05 要求拿掉（裁定 2026-11-05-29），所以這一格只留格式、不寫字。
+        // 改這則測試前的第一次失敗：Focused 收據 20261105-080037257-8a4432dead444bcc98e79d3953096131。
+        Assert.Equal(string.Empty, cover.Cell("A6").GetString());
+        Assert.DoesNotContain("CAATS", cover.Cell("A6").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -258,6 +261,22 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             ExcelDisplayWidth.Measure(longHolidayName));
         Assert.InRange(sheet.Column(2).Width, expectedNameWidth - 1.5D, expectedNameWidth + 1.5D);
         AssertSingleLine(sheet.Cell(holidayHeaderRow + 1, 2));
+    }
+
+    // 裁定 2026-11-05-31：週末表由週一排到週日，案件設定的每週休息日寫 Y；
+    // 沒有設定時照預設寫週六、週日，設定成空集合時七天都寫 N。
+    [Theory]
+    [InlineData(null, "NNNNNYY")]
+    [InlineData(new int[] { }, "NNNNNNN")]
+    [InlineData(new[] { 5, 0 }, "NNNNYNY")]
+    [InlineData(new[] { 1, 2, 3, 4, 5 }, "YYYYYNN")]
+    public void CalendarInfo_WeekendRows_FollowNonWorkingDays(int[]? nonWorkingDays, string expected)
+    {
+        var rows = WorkingPaperWriter.WeekendRows(nonWorkingDays);
+        Assert.Equal(
+            new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" },
+            rows.Select(row => row.DayName).ToArray());
+        Assert.Equal(expected, string.Concat(rows.Select(row => row.Workday)));
     }
 
     // ================= Task 5:自動化工具-科目配對資訊(Not-in-TB 字面值)=================

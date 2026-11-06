@@ -134,6 +134,7 @@ public sealed partial class LegacyReportWriter
         InfReportContext context,
         CancellationToken cancellationToken)
     {
+        // 樣本固定最多 InfReportSampleSize 筆：先依穩定鍵讀完，再照報告的順序排（裁定 2026-11-05-41、2026-11-06-06）。
         var samples = new List<InfSampleRow>(InfReportSampleSize);
         string? cursor = null;
         do
@@ -147,13 +148,10 @@ public sealed partial class LegacyReportWriter
                 cancellationToken).ConfigureAwait(false);
             samples.AddRange(page.Rows);
             cursor = page.NextCursor;
-        } while (cursor is not null && samples.Count < InfReportSampleSize);
+        } while (cursor is not null);
 
-        if (samples.Count > InfReportSampleSize)
-        {
-            samples.RemoveRange(InfReportSampleSize, samples.Count - InfReportSampleSize);
-        }
-        return samples;
+        var ordered = ResultPageSorting.InfSampleReportOrder(samples);
+        return ordered.Count > InfReportSampleSize ? ordered.Take(InfReportSampleSize).ToArray() : ordered;
     }
 
     private static IReadOnlyList<SheetStat> FillInfTemplate(

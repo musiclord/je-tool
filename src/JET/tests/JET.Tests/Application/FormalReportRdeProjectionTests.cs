@@ -80,9 +80,11 @@ public sealed class FormalReportRdeProjectionTests
         {
             foreach (var position in new[] { 1, 2 })
             {
+                // 裁定 2026-11-05-48：攸關資料元素後面多一欄符合標記 Final_TAG，所以改取最後四欄，三個攸關資料元素的順序照舊核對。
+                // 第一次失敗：Focused 收據 20261105-123150181-5717d8b34fc44bf9b81eadfc66c6a4d1。
                 Assert.Equal(
-                    new[] { MoneyHeader, TextHeader, DateHeader },
-                    ReadHeader(workbook.Worksheet($"#Criteria Select {position}"), 1).TakeLast(3));
+                    new[] { MoneyHeader, TextHeader, DateHeader, "Final_TAG" },
+                    ReadHeader(workbook.Worksheet($"#Criteria Select {position}"), 1).TakeLast(4));
             }
         }
 
@@ -131,6 +133,54 @@ public sealed class FormalReportRdeProjectionTests
     }
 
     // 2026-10-30 結案前的獨立複審查到：2026-10-29 改的列高，只有 V_Report 5、驗證報告的欄位資訊頁與底稿 step3 有測試。
+    // 裁定 2026-11-05-70：舊版的攸關資料元素欄是把來源欄改名加 _JE（legacy/idea-tool.bas 第 1688 到 1714 行），
+    // 條件篩選的明細頁再由 IDEA 匯出整個資料庫（Z_ExportDatabaseXLSX 的 IncludeAllFields，第 9321 行起），
+    // 所以攸關資料元素欄的表頭與內容和它的來源欄外觀相同，沒有一般明細的框線。這是新增的測試。
+    [Fact]
+    public async Task CriteriaSheets_RdeColumnsUseTheAppearanceOfTheirSourceColumns()
+    {
+        using var host = new HandlerTestHost();
+        var setup = await SetupAsync(host);
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var committed = await host.DispatchAsync("filter.commit", ScenarioPayload(setup));
+        var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()!;
+        var criteria = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new
+            {
+                validationResultId = setup.ValidationResultId,
+                prescreenResultId,
+                revision
+            }));
+        var criteriaPath = Path.Combine(
+            host.ProjectsRoot,
+            setup.ProjectId,
+            criteria.GetProperty("publishedReport").GetProperty("fileName").GetString()!);
+
+        using var workbook = new XLWorkbook(criteriaPath);
+        foreach (var position in new[] { 1, 2 })
+        {
+            var sheet = workbook.Worksheet($"#Criteria Select {position}");
+            var lastRow = sheet.LastRowUsed()!.RowNumber();
+            foreach (var (header, sourceHeader) in new[]
+                     {
+                         (MoneyHeader, "RDE 金額來源"),
+                         (TextHeader, "RDE 文字來源"),
+                         (DateHeader, "RDE 日期來源")
+                     })
+            {
+                var rdeColumn = FindHeaderColumn(sheet, 1, header);
+                var sourceColumn = FindHeaderColumn(sheet, 1, sourceHeader);
+                for (var row = 1; row <= lastRow; row++)
+                {
+                    Assert.Equal(Appearance(sheet.Cell(row, sourceColumn)), Appearance(sheet.Cell(row, rdeColumn)));
+                    Assert.Equal(XLBorderStyleValues.None, sheet.Cell(row, rdeColumn).Style.Border.TopBorder);
+                }
+            }
+        }
+    }
+
     // 這則補上其他 JET 自己寫的工作表。使用者選了「統一 15 點」（裁定 2026-10-29-08）：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
     // 與 Source_Quality，列高 15 點；12 點的「可靠性樣本_所有欄位」是 18 點。程式用字級的 1.5 倍算出這些值，這個算法是 Claude 的歸納。
     // 這是新增的測試。
@@ -316,6 +366,21 @@ public sealed class FormalReportRdeProjectionTests
             projectId,
             report.GetProperty("fileName").GetString()!);
     }
+
+    private static string Appearance(IXLCell cell) => string.Join(
+        "|",
+        cell.Style.Font.FontName,
+        cell.Style.Font.FontSize,
+        cell.Style.Font.Bold,
+        cell.Style.Fill.PatternType,
+        cell.Style.Alignment.Horizontal,
+        cell.Style.Alignment.Vertical,
+        cell.Style.Border.LeftBorder,
+        cell.Style.Border.RightBorder,
+        cell.Style.Border.TopBorder,
+        cell.Style.Border.BottomBorder,
+        cell.Style.NumberFormat.NumberFormatId,
+        cell.Style.NumberFormat.Format);
 
     private static string[] ReadHeader(IXLWorksheet sheet, int row)
     {

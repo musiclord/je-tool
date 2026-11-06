@@ -277,7 +277,7 @@
   // 還原，步驟模組不得各自發明保留機制。已文件化的例外：filter-step 規則值編輯
   // （patchFilterCondition＋softRefreshReadback／softExpirePreviewPane，連續輸入且重建成本高）；
   // 欄位配對的借方代碼與攸關資料元素顯示名稱（setMappingLiteralQuiet、patchGlMappingOptionsQuiet）。
-  // 後者每次 input 就地更新必填清單、提示與「確認配對」可用性，失焦時不重建：滑鼠按下確認鈕會先讓
+  // 後者每次 input 就地更新表格上方的必填欄位那一行、提示與「確認配對」可用性，失焦時不重建：滑鼠按下確認鈕會先讓
   // 輸入框失焦，若此時重建，按鈕會在按下與放開之間被換掉，第一次點擊就不會送出。
   function notify() {
     for (var i = 0; i < listeners.length; i++) {
@@ -806,7 +806,7 @@
         removeCoreMappedRdeFields();
         removeUnmappedFillDownFields();
       }
-      // 草稿餵給必填鐵軌、「確認配對」可用性與 GL 政策區的分支顯示，依通知慣例必須 bump；
+      // 草稿餵給必填標示、「確認配對」可用性與 GL 政策區的分支顯示，依通知慣例必須 bump；
       // 重繪後的焦點與捲動由 renderContent 統一還原，不在此犧牲衍生畫面的即時性。
       bump();
     },

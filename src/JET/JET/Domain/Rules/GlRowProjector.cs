@@ -215,7 +215,9 @@ public static class GlRowProjector
                     return false;
                 }
 
-                amount = isDebit ? Math.Abs(magnitude) : -Math.Abs(magnitude);
+                // 裁定 2026-11-05-37：照舊版 idea-tool.bas 第 12658、12676 行保留來源金額的正負號，借方代碼的列照原金額，其他列乘以 -1。
+                // 紅字沖銷（借方代碼的列寫 -100）因此算成貸方 100；資料本來就用正負號表示借貸時改選「單一帶號金額欄」。
+                amount = isDebit ? magnitude : -magnitude;
                 return true;
             }
 

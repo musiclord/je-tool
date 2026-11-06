@@ -617,10 +617,14 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.HasExactKeys(
             glMapping,
             "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
-            "manualAutoPolicy", "rdeFields", "fillDownFields", "fillDownCount", "sourceBatchId", "committedUtc", "availableGlFields");
+            "manualAutoPolicy", "rdeFields", "fillDownFields", "fillDownCount", "sourceBatchId", "committedUtc", "availableGlFields",
+            // 尾數 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25），第四步卡片與第五步「尾數連續多個 0」的預設讀這裡，GL 配對多帶 zerosThreshold。
+            // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+            "zerosThreshold");
         JsonShape.Element(JsonShape.Arr(glMapping, "fillDownFields"), field =>
             Assert.Equal(JsonValueKind.String, field.ValueKind));
         Assert.Equal(JsonValueKind.Number, glMapping.GetProperty("fillDownCount").ValueKind);
+        Assert.Equal(JsonValueKind.Number, glMapping.GetProperty("zerosThreshold").ValueKind);
         JsonShape.Element(JsonShape.Arr(glMapping, "availableGlFields"), field =>
             Assert.Equal(JsonValueKind.String, field.ValueKind));
         var tbMapping = JsonShape.Obj(mapping, "tb");

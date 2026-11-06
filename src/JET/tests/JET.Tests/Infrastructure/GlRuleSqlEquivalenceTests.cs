@@ -25,7 +25,7 @@ public abstract class GlRuleSqlEquivalenceTests
     ///   D03 2025-06-07(六) 核准 2025-10-10  摘要 NULL／「沖回」   |123.45|  旗標 NULL
     ///   D04 2025-10-10(五·假日) 核准 10-11(六) 摘要「例假日入帳」 |7.77|
     ///   D05 2025-02-08(六·補班) 核准 02-08  摘要「補班日傳票」    |5.00|   人工
-    ///   D06 2025-05-14(三) 核准 05-15       摘要「整數金額」      |2,000,000.00|（6 個尾數 0 = 固定預設門檻）
+    ///   D06 2025-05-14(三) 核准 05-15       摘要「整數金額」      |2,000,000.00|（6 個尾數 0，條件環境帶入 6 個 0）
     ///   D07 2026-01-05(一·期外) 核准 2025-12-22(一) 摘要「期外分錄」 |3.33|
     ///   D08 日期 NULL                        摘要「無日期」        |1.11|
     ///   D09 2025-07-09(三) 核准 07-10        摘要「零元測試」      借方 0 元＋貸方 |0.50|
@@ -33,11 +33,11 @@ public abstract class GlRuleSqlEquivalenceTests
     /// 科目配對（fixture 對照）：1101→Cash、2201→Receivables、4101→自訂分類（semantic role=revenue）、
     /// 5101→Others。4101 的 transitional standardized_category 刻意寫 Others；若述詞仍比較顯示文字，
     /// 所有收入規則都會失敗，因此同一套 SQLite／SQL Server golden 會鎖住 role-based 行為。
-    /// 連續零尾數門檻為方法學固定預設 6：先取主單位整數，再以 10⁶ 取模；
+    /// 預篩選尾數規則的 0 的個數正式流程由 GL 算出（裁定 2026-11-05-25），這組固定答案的條件環境帶入 6：先取主單位整數，再以 10⁶ 取模；
     /// 只有 D06（|2,000,000.00| 的主單位整數為 2,000,000）命中。
     /// 預期命中（傳票集合）：
     ///   prepPeriodApproval → {D02}；suspiciousKeywords → {D02}（調整）；
-    ///   trailingZeros → {D06}（固定預設 6；D02 的 1,000 僅 3 個 0 不再命中）；weekendPosting → {D03, D05}；
+    ///   trailingZeros → {D06}（帶入 6 個 0；D02 的 1,000 僅 3 個 0 不命中）；weekendPosting → {D03, D05}；
     ///   weekendApproval → {D04, D05}（週末規則皆納入補班日）；holidayPosting → {D04}；
     ///   holidayApproval → {D03}；blankDescription → {D03}（NULL 列）；
     ///   unexpectedAccountPair（否定面）→ {D10}（貸 Revenue 且同傳票無「金額 > 0 的
@@ -102,7 +102,12 @@ public abstract class GlRuleSqlEquivalenceTests
         "2025-12-31",
         "2025-01-01",
         "2025-12-31",
-        PopulationScope: GlPopulationScope.AuditPeriod);
+        PopulationScope: GlPopulationScope.AuditPeriod)
+    {
+        // 預篩選尾數規則的 0 的個數改由 GL 算出後，由條件環境帶入（裁定 2026-11-05-25）；這組固定答案照改版前的 6 個 0 設計，所以帶 6。
+        // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        ZerosThreshold = 6
+    };
 
     private static FilterScenarioSpec SingleRule(FilterConditionSpec rule) =>
         new("等價測試", "固定 fixture 的述詞等價斷言", [new FilterGroupSpec(FilterJoin.And, [rule])]);
@@ -315,7 +320,7 @@ public abstract class GlRuleSqlEquivalenceTests
     public async Task LeftFoldJoin_FixedFixture_OrThenAndGroups()
     {
         // ((suspiciousKeywords OR trailingZeros)) AND (|金額| >= 1,500.00)
-        // suspicious={D02}、trailingZeros={D06}（固定預設 6）→ OR={D02,D06}；
+        // suspicious={D02}、trailingZeros={D06}（帶入 6 個 0）→ OR={D02,D06}；
         // ∩ (|金額|>=1,500.00 → {D06}) = {D06}（鎖左折疊與群組 AND 的優先序）。
         var scenario = new FilterScenarioSpec("組合", "左折疊驗證",
         [

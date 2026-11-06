@@ -143,6 +143,17 @@ public static class ProjectFolderMessages
         (string.IsNullOrEmpty(projectName) ? "這個案件" : $"案件「{projectName}」")
         + "是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
 
+    /// <summary>
+    /// 本機案件的資料庫檔案不見了。只有建案會建立資料庫，開案與讀寫都不會默默建出空的資料庫，
+    /// 案件清單比照無法開啟的案件列出這一句（裁定 2026-11-05-72）。下一步和設定檔無法讀取時相同。
+    /// </summary>
+    public static string DatabaseMissing(string projectName) =>
+        $"案件「{projectName}」的資料庫檔案遺失，案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。";
+
+    /// <summary>本機案件的資料庫檔案是 0 位元組，或檔案裡沒有任何資料表（裁定 2026-11-05-72）。</summary>
+    public static string DatabaseEmpty(string projectName) =>
+        $"案件「{projectName}」的資料庫檔案沒有內容，案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。";
+
     private static string Missing(string projectName, string verb) =>
         $"案件「{projectName}」的資料夾已不在 JET 的案件位置，無法{verb}。請重新整理案件清單，並確認案件資料夾仍在原來的位置。";
 }
@@ -223,6 +234,12 @@ public static class JetErrorCodes
     public const string DatabaseStorageFull = "database_storage_full";
     /// <summary>本地資料庫檔案損壞或不是有效資料庫。</summary>
     public const string DatabaseCorrupt = "database_corrupt";
+    /// <summary>本地資料庫檔是唯讀，資料無法寫入；重新開啟案件前要先取消唯讀。</summary>
+    public const string DatabaseReadOnly = "database_read_only";
+    /// <summary>本地資料庫檔無法開啟或讀寫：沒有權限、所在磁碟無法使用，或正被防毒軟體這類程式占用。</summary>
+    public const string DatabaseUnavailable = "database_unavailable";
+    /// <summary>資料庫引擎沒有足夠的記憶體完成這項操作。</summary>
+    public const string DatabaseOutOfMemory = "database_out_of_memory";
 
     // SQL Server 引擎錯誤映射（單一映射點在 SqlServerEngineErrors、由 dispatcher 統一轉譯）。
     /// <summary>選用 SQL Server，但連線或單一資料庫名尚未設定。</summary>

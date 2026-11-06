@@ -80,7 +80,11 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
                 HasRevenue: true,
                 HasCounterpart: true,
                 HasAuthorizedPreparers: true,
-                NonWorkingDays: [0, 6]));
+                NonWorkingDays: [0, 6])
+            {
+                // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數。這則測試直接建立請求，照改版前的 6 個帶入，核對的筆數不變；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+                ZerosThreshold = 6
+            });
         IPrescreenFactsPort factsPort =
             new LocalPrescreenRunRepository(DatabaseFor(provider, host));
 

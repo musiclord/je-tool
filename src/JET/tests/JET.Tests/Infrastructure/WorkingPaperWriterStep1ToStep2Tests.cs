@@ -46,13 +46,14 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
             "JOIN gl g ON g.entry_id = s.entry_id " +
             "WHERE s.result_id = (SELECT result_id FROM validation_result " +
             "                  ORDER BY generated_utc DESC, result_id DESC LIMIT 1) " +
-            "ORDER BY g.entry_id LIMIT 1;");
+            "ORDER BY g.voucher_number, g.entry_id LIMIT 1;");
         var expectedDebit = await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT debit_amount_scaled FROM gl WHERE entry_id=@id;", ("@id", firstEntryId));
         var expectedCredit = await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT credit_amount_scaled FROM gl WHERE entry_id=@id;", ("@id", firstEntryId));
 
-        // 首樣本在第 53 列(INF 抽樣 ORDER BY entry_id 升冪,emitter 逐頁同序)。
+        // 首樣本在第 53 列。樣本原本依 entry_id 升冪列出，裁定 2026-11-05-41 改成照舊版依傳票號碼排序、同一張傳票照原本的列順序，
+        // 上面取首樣本的查詢原本是 ORDER BY g.entry_id，2026-11-06 提交前複審後照裁定改成同一個順序；改之前沒有失敗，斷言不變。
         Assert.Equal(expectedCredit > 0 ? "0" : "1", sheet.Cell("E53").GetString());
         Assert.Equal(
             (double)(expectedDebit - expectedCredit) / MoneyScale,
@@ -124,6 +125,81 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         AssertSingleLine(sheet.Cell(lateRow, 4));
         AssertSingleLine(sheet.Cell(lateRow, 11));
         AssertSingleLine(sheet.Cell(lateRow, 20));
+    }
+
+    // 裁定 2026-11-05-41：資料可靠性樣本照舊版依傳票號碼排序，同一張傳票照原本的列順序；INF 報告與底稿 Step 2 都照這個順序。
+    // 舊版在 IDEA 抽樣後依「傳票號碼_JE」升冪排序（legacy/idea-tool.bas 第 6789 到 6791 行）。2026-11-06 提交前複審查到這個順序沒有測試，
+    // 這是新增的測試：依分錄順序第 k 筆（從 0 起）的樣本，傳票號碼改成 V(200 - k / 2)、摘要寫 k，所以傳票號碼的順序和分錄順序相反，
+    // 而且每兩筆同一張傳票。兩份輸出都要依傳票號碼升冪，同一張傳票裡分錄順序在前的先列。
+    // 同日裁定 2026-11-06-06：傳票號碼空白的樣本照舊版排在最前面，所以第 10、30 筆改成沒有傳票號碼，第 20 筆只有空白字元，
+    // 這三筆依分錄順序排在最前面。
+    [Fact]
+    public async Task InfReportAndStep2_ListSamplesByVoucherNumber_KeepingTheRowOrderWithinAVoucher()
+    {
+        using var host = new HandlerTestHost();
+        var ctx = await DemoProjectPipeline.SetupAsync(host);
+        var validate = await host.DispatchAsync("validate.run");
+        var sampleSize = checked((int)validate.GetProperty("infSamplingTest").GetProperty("sampleSize").GetInt64());
+        Assert.Equal(59, sampleSize);
+        var resultId = validate.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var context = await CurrentContextForAsync(host, ctx.ProjectId);
+        Assert.Equal(resultId, context.ValidationResultId);
+        await ExecuteProjectSqlAsync(
+            host,
+            ctx.ProjectId,
+            """
+            UPDATE gl
+            SET voucher_number = CASE ranked.position
+                    WHEN 10 THEN NULL
+                    WHEN 30 THEN NULL
+                    WHEN 20 THEN '   '
+                    ELSE printf('V%03d', 200 - ranked.position / 2)
+                END,
+                description = printf('ORDER-%02d', ranked.position)
+            FROM (
+                SELECT entry_id, ROW_NUMBER() OVER (ORDER BY entry_id) - 1 AS position
+                FROM inf_sample
+                WHERE result_id = @resultId
+            ) AS ranked
+            WHERE gl.entry_id = ranked.entry_id;
+            """,
+            ("@resultId", resultId));
+
+        int[] blank = [10, 20, 30];
+        string Key(int position) =>
+            (blank.Contains(position) ? string.Empty : $"V{200 - position / 2:000}") + $"|ORDER-{position:00}";
+        // 空白的三筆在最前面；其餘的傳票號碼隨 k / 2 變小，所以依 k / 2 由大到小、同一張傳票裡 k 由小到大。
+        var expected = blank
+            .Concat(Enumerable.Range(0, sampleSize)
+                .Where(position => !blank.Contains(position))
+                .OrderByDescending(position => position / 2)
+                .ThenBy(position => position))
+            .Select(Key)
+            .ToArray();
+        // 前提：傳票號碼的順序和分錄順序不同，舊的順序過不了這個測試。
+        Assert.NotEqual(Enumerable.Range(0, sampleSize).Select(Key).ToArray(), expected);
+
+        using (var workbook = await WriteDemoAndReadAsync(host, ctx.ProjectId))
+        {
+            Assert.Equal(expected, SampleKeys(workbook.Worksheet(Step2Sheet), sampleSize));
+        }
+
+        var export = await host.DispatchAsync(
+            "export.validationReports",
+            JsonSerializer.Serialize(new { resultId }));
+        var fileName = export.GetProperty("publishedReports").EnumerateArray()
+            .Single(report => report.GetProperty("kind").GetString() == "infReport")
+            .GetProperty("fileName").GetString()!;
+        using var inf = new XLWorkbook(Path.Combine(host.ProjectsRoot, ctx.ProjectId, fileName));
+        Assert.Equal(expected, SampleKeys(inf.Worksheet("INF Testing 可靠性測試"), sampleSize));
+
+        // 兩份輸出的樣本都從第 53 列起，B 欄是傳票號碼、K 欄是傳票摘要；傳票號碼空白的列，B 欄不論寫成空字串或空白字元都算空白。
+        static string[] SampleKeys(IXLWorksheet sheet, int count) =>
+            Enumerable.Range(53, count)
+                .Select(row => sheet.Cell(row, 2).GetString() is var voucher && string.IsNullOrWhiteSpace(voucher)
+                    ? "|" + sheet.Cell(row, 11).GetString()
+                    : voucher + "|" + sheet.Cell(row, 11).GetString())
+                .ToArray();
     }
 
     [Fact]
@@ -534,6 +610,63 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.True(sheet.Cell($"F{jiaRow}").IsEmpty());
         Assert.True(sheet.Cell($"G{jiaRow}").IsEmpty());
         Assert.True(sheet.Cell($"H{jiaRow}").IsEmpty());
+    }
+
+    // 裁定 2026-11-05-35：沒有配對傳票建立人員時照舊版不列名單，也不寫「（空白）」那一列，只在 B13 寫提示句。
+    [Fact]
+    public async Task Step12_MissingCreatedByMapping_WritesLegacyNoticeInsteadOfBlankPreparerRow()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupMissingPreparerMappingAsync(host);
+        using var workbook = await WriteAndReadAsync(host, projectId);
+
+        var sheet = workbook.Worksheet(Step12Sheet);
+        Assert.True(sheet.Cell("B12").IsEmpty());
+        Assert.Equal(
+            "請注意，該測試作業於總帳資料欄位配對作業程序並挑選編制人員欄位。",
+            sheet.Cell("B13").GetString());
+        Assert.True(sheet.Cell("B13").Style.Font.Bold);
+        Assert.DoesNotContain(
+            Enumerable.Range(12, 30).Select(row => sheet.Cell(row, 2).GetString()),
+            value => value == "（空白）");
+    }
+
+    // 裁定 2026-11-05-32：配對了人工傳票欄位時，Step 1-2 照舊版依人工旗標分列，C 欄寫「人工建立分錄」或「自動拋轉分錄」。
+    // 人員依分錄總數由多到少，同一位人員先列自動、再列人工。
+    [Fact]
+    public async Task Step12_ManualFlagMapped_SplitsEachPreparerByFlagAndNamesTheEntryType()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await InlineWorkbookProject.SetupAsync(
+            host,
+            gl =>
+            {
+                gl.WithColumns(
+                    "傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "建立人員", "人工傳票", "金額", "借方旗標");
+                gl.AddRow("SYN-1", "2025-03-01", "SYN-D", "Synthetic debit", "Synthetic", "甲", "1", 100m, 1);
+                gl.AddRow("SYN-1", "2025-03-01", "SYN-C", "Synthetic credit", "Synthetic", "甲", "1", 100m, 0);
+                gl.AddRow("SYN-2", "2025-03-02", "SYN-D", "Synthetic debit", "Synthetic", "甲", "0", 50m, 1);
+                gl.AddRow("SYN-2", "2025-03-02", "SYN-C", "Synthetic credit", "Synthetic", "甲", "0", 50m, 0);
+                gl.AddRow("SYN-3", "2025-03-03", "SYN-D", "Synthetic debit", "Synthetic", "乙", "0", 20m, 1);
+                gl.AddRow("SYN-3", "2025-03-03", "SYN-C", "Synthetic credit", "Synthetic", "乙", "0", 20m, 0);
+            },
+            validateForDownstream: true);
+        using var workbook = await WriteAndReadAsync(host, projectId);
+
+        var sheet = workbook.Worksheet(Step12Sheet);
+        Assert.Equal(
+            new[] { "甲", "甲", "乙" },
+            Enumerable.Range(12, 3).Select(row => sheet.Cell(row, "B").GetString()).ToArray());
+        Assert.Equal(
+            new[] { "自動拋轉分錄", "人工建立分錄", "自動拋轉分錄" },
+            Enumerable.Range(12, 3).Select(row => sheet.Cell(row, "C").GetString()).ToArray());
+        Assert.Equal(
+            new[] { 2d, 2d, 2d },
+            Enumerable.Range(12, 3).Select(row => sheet.Cell(row, "D").GetDouble()).ToArray());
+        Assert.Equal(
+            new[] { 50d, 100d, 20d },
+            Enumerable.Range(12, 3).Select(row => sheet.Cell(row, "E").GetDouble()).ToArray());
+        Assert.True(sheet.Cell("B15").IsEmpty());
     }
 
     // ================= Task 3:step1-3 差異說明(僅 diff≠0)=================

@@ -42,6 +42,8 @@ public sealed class GlProjectionQualityProviderTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         var database = new SqliteProjectDatabase(folder);
+        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await AssertTypedOracleAsync(
             new LocalImportRepository(database),
             new LocalGlRepository(database),
@@ -59,6 +61,8 @@ public sealed class GlProjectionQualityProviderTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         var database = new DuckDbProjectDatabase(folder);
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await AssertTypedOracleAsync(
             new LocalImportRepository(database),
             new LocalGlRepository(database),
@@ -90,6 +94,8 @@ public sealed class GlProjectionQualityProviderTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         var database = new SqliteProjectDatabase(folder);
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await AssertExcludedBadRowRollbackAsync(
             new LocalImportRepository(database),
             new LocalGlRepository(database),
@@ -106,6 +112,8 @@ public sealed class GlProjectionQualityProviderTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         var database = new DuckDbProjectDatabase(folder);
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await AssertExcludedBadRowRollbackAsync(
             new LocalImportRepository(database),
             new LocalGlRepository(database),
@@ -135,6 +143,8 @@ public sealed class GlProjectionQualityProviderTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         var database = new SqliteProjectDatabase(folder);
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await AssertExcludedMalformedRdeRollbackAsync(
             new LocalImportRepository(database),
             new LocalGlRepository(database),
@@ -151,6 +161,8 @@ public sealed class GlProjectionQualityProviderTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         var database = new DuckDbProjectDatabase(folder);
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await AssertExcludedMalformedRdeRollbackAsync(
             new LocalImportRepository(database),
             new LocalGlRepository(database),

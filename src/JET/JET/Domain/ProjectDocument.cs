@@ -131,6 +131,12 @@ public interface IProjectStore
     /// </summary>
     Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
         => Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// 建案完成、資料庫已建好之後呼叫，刪掉和設定檔一起發布的建案中標記（裁定 2026-11-05-72 要求的穩健初始化）。
+    /// 沒有這個標記的實作不用做事。
+    /// </summary>
+    Task CompleteCreateAsync(string projectId, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 /// <summary>

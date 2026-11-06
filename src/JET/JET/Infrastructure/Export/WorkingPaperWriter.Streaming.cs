@@ -80,56 +80,6 @@ public sealed partial class WorkingPaperWriter
         }
     }
 
-    /// <summary>
-    /// A1-A4 共同表頭(五張 step1 表逐字相同):公司名 / 測試期間 / 財報準備開始日 / 斜體說明。
-    /// A3 對應 ideascript 的 LastPeriod，只取 <see cref="WorkingPaperContext.PrepStartDate"/>；缺值時明示 N/A，不得改用 PeriodEnd。
-    /// </summary>
-    private static async Task<long> EmitTableSheetAsync(
-        SheetWriter sheet, uint headerRow, IReadOnlyList<Cell> headerCells, uint firstDataRow,
-        IAsyncEnumerable<Func<uint, IReadOnlyList<Cell>>> rowFactories, CancellationToken cancellationToken,
-        Action<long>? reportRows,
-        bool writeHeader = true)
-    {
-        if (writeHeader && headerCells.Count > 0)
-        {
-            sheet.WriteFixedRow(headerRow, headerCells);
-        }
-
-        long count = 0;
-        var rowIndex = firstDataRow;
-        await foreach (var factory in rowFactories.WithCancellation(cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            sheet.WriteRow(rowIndex, factory(rowIndex));
-            rowIndex++;
-            count++;
-            reportRows?.Invoke(count);
-        }
-
-        return count;
-    }
-
-    /// <summary>keyset 分頁 repo → 列工廠序列(逐頁取、不全載入,直到 nextCursor==null)。</summary>
-    private static async IAsyncEnumerable<Func<uint, IReadOnlyList<Cell>>> StreamRowsAsync<T>(
-        Func<string?, CancellationToken, Task<PageResult<T>>> fetchPage,
-        Func<T, Func<uint, IReadOnlyList<Cell>>> rowFactory,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        string? cursor = null;
-        do
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var page = await fetchPage(cursor, cancellationToken);
-            foreach (var item in page.Rows)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return rowFactory(item);
-            }
-
-            cursor = page.NextCursor;
-        } while (cursor is not null);
-    }
-
     private static async IAsyncEnumerable<T> StreamItemsAsync<T>(
         Func<string?, CancellationToken, Task<PageResult<T>>> fetchPage,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
@@ -147,32 +97,6 @@ public sealed partial class WorkingPaperWriter
 
             cursor = page.NextCursor;
         } while (cursor is not null);
-    }
-
-    private static async IAsyncEnumerable<T> StreamItemsFromAsync<T>(
-        PageResult<T> firstPage,
-        Func<string?, Task<PageResult<T>>> fetchNext,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        foreach (var item in firstPage.Rows)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return item;
-        }
-
-        var cursor = firstPage.NextCursor;
-        while (cursor is not null)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var page = await fetchNext(cursor);
-            foreach (var item in page.Rows)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return item;
-            }
-
-            cursor = page.NextCursor;
-        }
     }
 
     private static async IAsyncEnumerable<T> ToItems<T>(

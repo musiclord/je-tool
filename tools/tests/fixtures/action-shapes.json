@@ -2534,7 +2534,8 @@
           "warnings": {
             "kind": "array",
             "items": "string"
-          }
+          },
+          "zerosThreshold": "number"
         }
       }
     },
@@ -3586,7 +3587,8 @@
                       }
                     }
                   },
-                  "sourceBatchId": "string"
+                  "sourceBatchId": "string",
+                  "zerosThreshold": "number"
                 }
               },
               "tb": {

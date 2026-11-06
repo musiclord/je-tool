@@ -186,7 +186,8 @@ internal sealed record FilterScenarioMetadataContext(
     IReadOnlyList<AccountCategory> Categories,
     string? PreparationDate,
     string PeriodStart,
-    string PeriodEnd)
+    string PeriodEnd,
+    int? ZerosThreshold = null)
 {
     internal static FilterScenarioMetadataContext Create(
         ProjectDocument document,
@@ -197,15 +198,16 @@ internal sealed record FilterScenarioMetadataContext(
             categorySnapshot.Categories,
             document.LastAccountingPeriodDate,
             document.PeriodStart,
-            document.PeriodEnd);
+            document.PeriodEnd,
+            TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale));
 
     internal string Render(JsonElement scenario, bool compact) =>
         FilterConditionRenderer.Render(scenario, CategoryLabels, RdeFieldLabels, Categories,
-            PreparationDate, PeriodStart, PeriodEnd, compact);
+            PreparationDate, PeriodStart, PeriodEnd, compact, zerosThreshold: ZerosThreshold);
 
     internal string RenderCondition(JsonElement rule, bool compact) =>
         FilterConditionRenderer.RenderCondition(rule, CategoryLabels, RdeFieldLabels, Categories,
-            PreparationDate, PeriodStart, PeriodEnd, compact);
+            PreparationDate, PeriodStart, PeriodEnd, compact, ZerosThreshold);
 }
 
 /// <summary>

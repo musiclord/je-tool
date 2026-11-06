@@ -31,7 +31,11 @@ public sealed class PrescreenFinalizeApplicabilityTests
             HasRevenue: false,
             HasCounterpart: false,
             HasAuthorizedPreparers: false,
-            NonWorkingDays: null);
+            NonWorkingDays: null)
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數；這則只核對適用性，帶 6 不影響結果。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 6
+        };
         var plan = JetAuditProgram.Plan(request);
         var voucherCounts = PrescreenRuleKeys.FilterableKeys.ToDictionary(key => key, _ => 5L, StringComparer.Ordinal);
         var facts = new PrescreenFacts(

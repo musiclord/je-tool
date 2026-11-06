@@ -14,6 +14,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     private readonly CurrentPrincipal principal;
     private readonly ProjectSession session;
     private readonly IProjectDatabaseRetention? databaseRetention;
+    private readonly IProjectDatabaseCheckpoint? databaseCheckpoint;
     private readonly ILogger? logger;
     private readonly ISupportCaseHistory? supportHistory;
 
@@ -26,7 +27,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         ProjectSession session,
         IProjectDatabaseRetention? databaseRetention = null,
         ILogger<ProjectLoadHandler>? logger = null,
-        ISupportCaseHistory? supportHistory = null)
+        ISupportCaseHistory? supportHistory = null,
+        IProjectDatabaseCheckpoint? databaseCheckpoint = null)
     {
         this.logger = logger;
         this.supportHistory = supportHistory;
@@ -37,6 +39,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         this.principal = principal;
         this.session = session;
         this.databaseRetention = databaseRetention;
+        this.databaseCheckpoint = databaseCheckpoint;
     }
 
     public string Action => "project.load";
@@ -99,8 +102,9 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
 
             // 載入時完整檢查一次建表與版本；之後同一程序內的讀寫只確認檔案仍在。
             // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本並拒絕舊版。
+            // 開案不建立新的資料庫：本機案件的資料庫不見或沒有內容時，比照無法開啟的案件回報（裁定 2026-11-05-72）。
             SupportOperationStage.Enter("database_open");
-            await repositories.DatabaseInitializer.EnsureCreatedAsync(document.ProjectId, cancellationToken);
+            await repositories.DatabaseInitializer.EnsureExistingAsync(document.ProjectId, cancellationToken);
 
             // 心跳間隔（供前端計時器；伺服器驅動）：sqlServer 讀 app_config、缺鍵/失敗回程式常數；本地回預設。
             var heartbeatSeconds = await ResolveHeartbeatSecondsAsync(document, cancellationToken);
@@ -210,6 +214,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         fillDownFields = glOptions!.FillDownFields,
                         // 確認配對時填了幾格隨配對保存（裁定 2026-10-28-05），第三步摘要列出來。
                         fillDownCount = glOptions!.FillDownCount,
+                        // 由 GL 借方平均算出的尾數 0 的個數（裁定 2026-11-05-25）；第四步卡片與第五步預設都讀這裡。
+                        zerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale),
                         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
                         availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glOptions),
                         sourceBatchId = glMapping.SourceBatchId,
@@ -347,6 +353,12 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                 if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "lock_release", releaseError);
             }
 
+            if (acquiredThisCall && databaseCheckpoint is not null)
+            {
+                // 沒有進入這個案件：開案途中開過的資料庫連線一併關閉，JET 不再開著它的資料庫檔（見 IProjectDatabaseCheckpoint）。
+                await ProjectDatabaseCheckpointSteps.TryCloseAsync(databaseCheckpoint, document.ProjectId, logger);
+            }
+
             throw;
         }
     }
@@ -373,6 +385,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
 
         var hasAuthorizedPreparers =
             await repositories.AuthorizedPreparers.CountAsync(document.ProjectId, cancellationToken) > 0;
+        var calendarLists = await FilterCalendarLists.ReadAsync(repositories.Calendar, document.ProjectId, cancellationToken);
         var validationContext = FilterValidationContextFactory.Create(
             document,
             glMapping ?? new CommittedMapping(DatasetKind.Gl, new Dictionary<string, string>(),
@@ -380,7 +393,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             accountMappingState,
             hasAuthorizedPreparers,
             GlPopulationScope.AuditPeriod,
-            categorySnapshot);
+            categorySnapshot,
+            calendarLists);
         return FilterScenarioRuleUpgrade.Evaluate(
             savedScenarios, validationContext, document.MoneyScale, DateTimeOffset.UtcNow);
     }
@@ -469,6 +483,16 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                 JetErrorCodes.InvalidPayload,
                 SqlServerMessages.LocalCaseWithSameName(projectId),
                 innerException: exception);
+        }
+
+        try
+        {
+            // 快取只有設定檔，發布後就完整了；建案中的標記只給本機資料庫用，這裡直接刪掉（裁定 2026-11-05-72）。
+            await projectStore.CompleteCreateAsync(projectId, cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // 標記留著不影響 SQL Server 案件的開啟。
         }
 
         return registered.Document;

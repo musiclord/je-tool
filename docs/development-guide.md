@@ -55,6 +55,17 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug
 都在 [`../tools/README.md`](../tools/README.md)，這裡不重複。每次回報只能涵蓋實際執行的命令；舊專案的建置、測試或
 資料庫結果不能當成 `je-tool` 的驗證結果。
 
+要找哪些程式沒有被測試執行到時，先建置 Debug，清掉 `tools/harness/lanes.json` 的 `environmentVariablesToRemove` 列出的環境變數，
+再直接執行建置出來的測試程式並收集涵蓋率。下面的命令排除私人案件、SQL Server 與大資料量三類測試，和 `Public` 相同：
+
+```powershell
+src\JET\tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-directory <暫存資料夾> --coverage `
+  --coverage-output-format cobertura --coverage-output jet.cobertura.xml `
+  --filter-not-trait TestProfile=PrivateCase TestProfile=Provider TestProfile=Scale
+```
+
+這是找缺口用的量法，不是正式驗證，也不產生收據；SQL Server 的測試沒有跑，它的程式涵蓋率會很低。
+
 本機設定、秘密、連線字串、案件資料夾、建置輸出與 WebView2 使用者資料都不得加入原始碼樹。
 
 ## 開發用的預覽工具

@@ -134,12 +134,13 @@ for (const nested of [false, true]) {
     f.store.setMappingMode('gl', 'side');
     f.store.replaceMappingDraft('gl', { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' });
     f.timers.run();
-    holdCrossfade(f, '.map-rail', nested);
+    // 原本盯住右側必填清單；裁定 2026-11-05-24 拿掉它之後，打字時就地換掉的是表格上方那一行（第一次失敗：FrontendMapping 收據 20261105-075417209-aad34b4a8aee4ac2834cb54522eeb8cc）。
+    holdCrossfade(f, '.map-required', nested);
     const input = f.body().querySelector('[data-mapping-key="drCrDebitCode"]');
     assert.ok(input, 'debit code editor is present');
     input.focus();
     for (const value of ['D', 'DR', 'DEBIT']) { input.value = value; input.dispatch('input'); }
-    assert.equal(live(f.body(), '[data-bind="mapping-gl"] .map-rail').length, 1);
+    assert.equal(live(f.body(), '[data-bind="mapping-gl"] .map-required').length, 1);
     assert.equal(f.dom.document.activeElement === input, true);
     assert.equal(f.store.getState().mapping.gl.draft.drCrDebitCode, 'DEBIT');
   });

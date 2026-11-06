@@ -17,7 +17,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
     public const string DatabaseFileName = "jet.duckdb";
 
     /// <summary>
-    /// 案件資料庫的現行結構，建成後標成第 19 版，表、欄位與索引名稱和 <see cref="SqliteProjectDatabase"/> 相同。
+    /// 案件資料庫的現行結構，建成後標成第 20 版，表、欄位與索引名稱和 <see cref="SqliteProjectDatabase"/> 相同。
     /// 只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，不是現行版本就請審計員刪除案件後重建
     /// （裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
     /// 和 SQLite 的差異只有三類：(1) SQLite <c>INTEGER PRIMARY KEY AUTOINCREMENT</c> → DuckDB
@@ -416,7 +416,8 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     /// <summary>
     /// 在一次操作期間保持 jet.duckdb 開啟：開一條連線並持有到操作結束，期間 repository 開的連線都沿用
-    /// 同一個資料庫實體，不必每次重新開啟。資料庫檔不存在時不持有，避免替缺檔的案件建出新檔；
+    /// 同一個資料庫實體，不必每次重新開啟。資料庫檔不存在或是 0 位元組時不持有，避免替缺檔的案件建出新檔，
+    /// 也讓開案照實回報資料庫沒有內容（裁定 2026-11-05-72）；
     /// SQLite 案件的資料夾沒有 jet.duckdb，因此自然不持有。開啟失敗回 null，讓 repository 照原本的方式報錯。
     /// </summary>
     public IDisposable? TryRetain(string projectId)
@@ -435,7 +436,7 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
         // 尚未開啟」之間。
         lock (retentionGate)
         {
-            if (!File.Exists(databasePath))
+            if (!File.Exists(databasePath) || LocalSchemaReadiness.IsEmptyFile(databasePath))
             {
                 return null;
             }
@@ -541,22 +542,45 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     private readonly LocalSchemaReadiness readiness = new();
 
-    /// <summary>建立或載入案件時呼叫：一律重新檢查版本，新資料庫在這裡建表。</summary>
+    /// <summary>建案時呼叫：一律重新檢查版本，新資料庫在這裡建表。只有建案會建立新的資料庫（裁定 2026-11-05-72）。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
-            ct => EnsureCreatedCoreAsync(projectId, ct),
+            ct => EnsureCreatedCoreAsync(projectId, allowCreate: true, ct),
             cancellationToken);
 
-    /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次。</summary>
+    /// <summary>開案時呼叫：一律重新檢查版本，不建立新的資料庫；建案中斷留下的案件在這裡把初始化做完。</summary>
+    public Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
+        readiness.EnsureExistingAsync(
+            GetDatabasePath(projectId),
+            folder.GetCreationMarkerPath(projectId),
+            (allowCreate, ct) => EnsureCreatedCoreAsync(projectId, allowCreate, ct),
+            cancellationToken);
+
+    /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次，不建立新的資料庫。</summary>
     public Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureReadyAsync(
             GetDatabasePath(projectId),
-            ct => EnsureCreatedCoreAsync(projectId, ct),
+            ct => EnsureCreatedCoreAsync(projectId, allowCreate: false, ct),
             cancellationToken);
 
-    private async Task EnsureCreatedCoreAsync(string projectId, CancellationToken cancellationToken)
+    private async Task EnsureCreatedCoreAsync(string projectId, bool allowCreate, CancellationToken cancellationToken)
     {
+        var databasePath = GetDatabasePath(projectId);
+        if (!allowCreate)
+        {
+            // 開案與讀寫只用已經建好的資料庫：檔案不見或是 0 位元組時比照無法開啟的案件回報，
+            // 不默默建出空的資料庫（裁定 2026-11-05-72）。
+            LocalSchemaReadiness.RequireDatabaseFile(projectId, databasePath);
+        }
+        else if (LocalSchemaReadiness.IsEmptyFile(databasePath))
+        {
+            // 建立時遇到 0 位元組的檔案，只會是建案中斷留下的；TryRetain 不持有 0 位元組的檔案，
+            // 這時沒有開著的資料庫實體，連同記錄檔刪掉再建。
+            TryDeleteFile(databasePath);
+            TryDeleteFile(databasePath + ".wal");
+        }
+
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
@@ -573,6 +597,12 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
                     await version.ExecuteScalarAsync(cancellationToken) as string);
                 return;
             }
+        }
+
+        if (!allowCreate)
+        {
+            // 有檔案但沒有任何資料表，同樣是沒有內容；在任何寫入之前回報，檔案保持原狀。
+            throw LocalSchemaReadiness.EmptyDatabase(projectId);
         }
 
         // 新資料庫在同一個交易裡建好全部的表，中途失敗時不留下只建一半的資料庫。
@@ -617,6 +647,15 @@ public sealed class DuckDbProjectDatabase(JetProjectFolder folder) : ILocalProje
 
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// DuckDB 不需要另外併回：每項作業結束時，同一路徑的最後一條連線關閉，資料庫實體跟著關閉，
+    /// 關閉時就把記錄檔併回 jet.duckdb（見 <see cref="TryRetain"/>）。兩次作業之間 JET 不開著資料庫檔。
+    /// </summary>
+    public Task CheckpointAsync(string projectId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>和 <see cref="CheckpointAsync"/> 相同：離開案件時 DuckDB 的資料庫實體已經關閉，不需要另外關閉。</summary>
+    public Task CloseAsync(string projectId, CancellationToken cancellationToken) => Task.CompletedTask;
 
     private static void TryDeleteFile(string path)
     {

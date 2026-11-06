@@ -10,7 +10,8 @@ public enum JetRulePrerequisiteKind
     RevenueCategory,
     CounterpartCategory,
     AuthorizedPreparer,
-    HolidayCalendar
+    HolidayCalendar,
+    MakeupCalendar
 }
 
 /// <summary>一項前置條件。<see cref="GlField"/> 只在種類是 GL 欄位時有值，是欄位目錄的語意欄位。</summary>
@@ -40,7 +41,9 @@ public sealed record AccountCategoryLabels(string Revenue, string Receivables, s
 /// <summary>
 /// 判斷前置條件用的案件事實。第四步與第五步各自從案件資料組出這一份，再交給同一張表判斷。
 /// <see cref="AvailableGlFields"/> 為 null 時不檢查 GL 欄位，只用在沒有配對資料的獨立測試；
-/// <see cref="HasHolidayCalendar"/> 為 null 時不檢查假日檔，第五步照裁定 2026-10-04-01 不擋。
+/// <see cref="HasHolidayCalendar"/> 為 null 時不檢查假日檔，只用在沒有案件資料的獨立測試；第四步與第五步都帶入實際狀態
+/// （第五步的假日條件照裁定 2026-11-05-55 停用並寫原因）。<see cref="HasMakeupCalendar"/> 是補班日清單，只有第五步的
+/// 補班日條件需要（裁定 2026-11-05-66）；第四步沒有規則用到補班日清單，不帶這項事實。
 /// </summary>
 internal sealed record JetRuleFacts(
     IReadOnlyCollection<string>? AvailableGlFields,
@@ -51,7 +54,8 @@ internal sealed record JetRuleFacts(
     bool HasCounterpartCategory,
     bool HasAuthorizedPreparers,
     bool? HasHolidayCalendar,
-    AccountCategoryLabels CategoryLabels);
+    AccountCategoryLabels CategoryLabels,
+    bool? HasMakeupCalendar = null);
 
 /// <summary>
 /// 每條規則需要什麼：預篩選規則、第四步兩項彙總、資料驗證的「核准日不在期間」與第五步條件各自需要的 GL 語意欄位與案件資料。
@@ -69,6 +73,8 @@ internal static class JetRuleRequirements
     private static readonly JetRulePrerequisite AnyAccountCategory = new(JetRulePrerequisiteKind.AnyAccountCategory);
     private static readonly JetRulePrerequisite RevenueCategory = new(JetRulePrerequisiteKind.RevenueCategory);
     private static readonly JetRulePrerequisite CounterpartCategory = new(JetRulePrerequisiteKind.CounterpartCategory);
+    private static readonly JetRulePrerequisite HolidayCalendar = new(JetRulePrerequisiteKind.HolidayCalendar);
+    private static readonly JetRulePrerequisite MakeupCalendar = new(JetRulePrerequisiteKind.MakeupCalendar);
 
     private static JetRulePrerequisite Field(string semanticIdentity) =>
         new(JetRulePrerequisiteKind.GlField, semanticIdentity);
@@ -97,7 +103,12 @@ internal static class JetRuleRequirements
             FilterConditionType.Prescreen => rule.PrescreenKey is { } key && PrescreenRuleKeys.FilterableKeys.Contains(key)
                 ? PrescreenRules[key]
                 : [],
-            FilterConditionType.FieldValue => rule.FieldId is null ? CatalogField(rule.Field) : [],
+            // 國定假日與補班日的比較方式另外需要各自的清單，排在欄位之後（裁定 2026-11-05-55、2026-11-05-66）。
+            FilterConditionType.FieldValue => [
+                .. rule.FieldId is null ? CatalogField(rule.Field) : [],
+                .. FieldValueConditions.IsHoliday(rule.TypedOperator) ? [HolidayCalendar] : Array.Empty<JetRulePrerequisite>(),
+                .. FieldValueConditions.IsMakeupDay(rule.TypedOperator) ? [MakeupCalendar] : Array.Empty<JetRulePrerequisite>()
+            ],
             FilterConditionType.Text or FilterConditionType.TextSet or FilterConditionType.DateRange or FilterConditionType.NumRange
                 or FilterConditionType.EntityFrequency => CatalogField(rule.Field),
             FilterConditionType.DrCrOnly => [Field(JetFieldCatalog.GlAmount)],
@@ -158,6 +169,7 @@ internal static class JetRuleRequirements
                 $"科目配對中尚無歸類為「{labels.Receivables}」「{labels.Cash}」或「{labels.ReceiptInAdvance}」的科目，請先在第四步設定",
             JetRulePrerequisiteKind.AuthorizedPreparer => "尚未匯入授權編製人員清單，請先在第二步匯入",
             JetRulePrerequisiteKind.HolidayCalendar => "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳",
+            JetRulePrerequisiteKind.MakeupCalendar => "尚未上傳補班日清單，請先在第二步「國定假日與補班日」上傳",
             _ => throw new ArgumentOutOfRangeException(nameof(prerequisite), prerequisite.Kind, null)
         };
     }
@@ -199,6 +211,7 @@ internal static class JetRuleRequirements
         JetRulePrerequisiteKind.CounterpartCategory => facts.HasCounterpartCategory,
         JetRulePrerequisiteKind.AuthorizedPreparer => facts.HasAuthorizedPreparers,
         JetRulePrerequisiteKind.HolidayCalendar => facts.HasHolidayCalendar ?? true,
+        JetRulePrerequisiteKind.MakeupCalendar => facts.HasMakeupCalendar ?? true,
         _ => throw new ArgumentOutOfRangeException(nameof(prerequisite), prerequisite.Kind, null)
     };
 }

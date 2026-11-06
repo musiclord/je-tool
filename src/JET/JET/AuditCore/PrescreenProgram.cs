@@ -23,11 +23,18 @@ internal sealed record PrescreenRequest(
     bool HasCounterpart,
     bool HasAuthorizedPreparers,
     IReadOnlyList<int>? NonWorkingDays,
-    AccountCategoryLabels? CategoryLabels = null);
+    AccountCategoryLabels? CategoryLabels = null)
+{
+    /// <summary>
+    /// 「分錄金額中有連續 0 的尾數」的 0 的個數，由已確認 GL 配對的控制總數算出（<see cref="TrailingZeroThreshold.FromCommittedGl"/>，
+    /// 裁定 2026-11-05-25）；計數與回應的 zerosThreshold 都用這個數字。
+    /// </summary>
+    public required int ZerosThreshold { get; init; }
+}
 
 /// <summary>
 /// Prescreen typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
-/// 各規則要不要執行，都從同一份程序適用性判定衍生。尾零門檻是規則定義的一部分（TrailingZeroThreshold），計畫不再另帶一份。
+/// 各規則要不要執行，都從同一份程序適用性判定衍生。尾零的 0 的個數跟著請求（<see cref="PrescreenRequest.ZerosThreshold"/>）。
 /// </summary>
 internal sealed record PrescreenPlan(
     PrescreenRequest Request,
@@ -212,7 +219,7 @@ public static partial class JetAuditProgram
             SuspiciousKeywordsCount: Runs(PrescreenRuleKeys.SuspiciousKeywords) ? facts.SuspiciousKeywordsCount : 0,
             UnexpectedAccountPairCount: Runs(PrescreenRuleKeys.UnexpectedAccountPair) ? facts.UnexpectedAccountPairCount : 0,
             TrailingZerosCount: Runs(PrescreenRuleKeys.TrailingZeros) ? facts.TrailingZerosCount : 0,
-            ZerosThreshold: TrailingZeroThreshold.DefaultZerosThreshold,
+            ZerosThreshold: plan.Request.ZerosThreshold,
             Preparers: Runs(JetRuleRequirements.PreparerSummary) ? facts.Preparers : Array.Empty<PreparerSummaryRow>(),
             DistinctAccountCount: Runs(JetRuleRequirements.RareAccounts) ? facts.DistinctAccountCount : 0,
             Accounts: Runs(JetRuleRequirements.RareAccounts) ? facts.Accounts : Array.Empty<AccountUsageRow>(),

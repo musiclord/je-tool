@@ -242,6 +242,9 @@ function batch9TreeDom(options = {}) {
       // 本模組補：app.js 的焦點辨識讀 element.attributes 與 element.id；剪貼簿備援會呼叫 select()。
       get attributes() { return Object.entries(this.attrs).map(([name, value]) => ({ name, value })); },
       get id() { return this.attrs.id || ''; }, set id(value) { this.attrs.id = String(value); },
+      // 2026-11-06：和瀏覽器一樣從屬性讀 type。條件值編輯區依 type 判斷勾選框要聽 change，原本這裡沒有 type，
+      // 「此欄位空白的分錄也列入結果」被綁在 input，和瀏覽器不同。第一次失敗：FrontendMapping 收據 20261106-015103519-ffacd1a800904d0cb999b5c4e698279b。
+      get type() { return this.attrs.type || ''; }, set type(value) { this.attrs.type = String(value); },
       select() { this.selectionStart = 0; this.selectionEnd = String(this.value ?? '').length; },
       appendChild(child) { this._text = ''; this.children.push(child); child.parentElement = this; child.isConnected = this.isConnected; return child; },
       contains(child) { for (let p = child; p; p = p.parentElement) if (p === this) return true; return false; },

@@ -7,8 +7,10 @@ internal sealed class PrivateCaseJourneyResult
 {
     internal PrivateCaseJourneyResult(
         LegacyAuditParityJourneyResult result,
-        PrivateCaseScenarioDiagnosticFacts? scenarioDiagnosticFacts)
+        PrivateCaseScenarioDiagnosticFacts? scenarioDiagnosticFacts,
+        LegacyAuditParityFollowUp? followUp = null)
     {
+        FollowUp = followUp;
         CaseAlias = result.CaseAlias;
         Provider = result.Provider;
         CompletedCheckpoint = result.CompletedCheckpoint;
@@ -33,6 +35,9 @@ internal sealed class PrivateCaseJourneyResult
         ScenarioVerificationFacts = result.ScenarioVerificationFacts;
         ScenarioDiagnosticFacts = scenarioDiagnosticFacts;
     }
+
+    /// <summary>第一次流程是 null；後續操作那一段的結果寫明是哪一段。</summary>
+    public LegacyAuditParityFollowUp? FollowUp { get; }
 
     public string CaseAlias { get; }
 
@@ -88,10 +93,20 @@ internal static class PrivateCaseJourney
         LegacyAuditParityProvider provider,
         LegacyAuditParityCheckpoint stopAfter,
         string? sqlServerConnectionString = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<LegacyAuditParityFollowUp>? followUps = null,
+        Func<PrivateCaseJourneyResult, Task>? afterEachExport = null)
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(prepared);
+        followUps ??= [];
+        // 每一段匯出都會覆蓋前一段的同名報告，所以要由呼叫端在下一段開始前取走並比對；
+        // 後續操作只接在完整匯出之後。
+        if (followUps.Count > 0
+            && (stopAfter != LegacyAuditParityCheckpoint.Export || afterEachExport is null))
+        {
+            throw new ArgumentException("後續操作只能接在完整匯出之後，並且要提供每段匯出後的比對。", nameof(followUps));
+        }
 
         var input = prepared.Input;
         var journeyInput = new LegacyAuditParityJourneyInput(
@@ -122,15 +137,39 @@ internal static class PrivateCaseJourney
             ObservationCase: null);
 
         PrivateCaseScenarioDiagnosticFacts? diagnostics = null;
-        Func<Task>? captureDiagnostics = stopAfter is
+        Task<PrivateCaseScenarioDiagnosticFacts> CaptureDiagnosticsAsync() =>
+            PrivateCaseScenarioDiagnostics.CaptureAsync(
+                input.FilterScenarios,
+                input.MakeupDates,
+                (action, payload) => host.DispatchAsync(action, payload, cancellationToken));
+
+        Func<LegacyAuditParityJourneyResult, Task>? afterJourney = stopAfter is
             LegacyAuditParityCheckpoint.Filter or LegacyAuditParityCheckpoint.Export
-                ? async () =>
+                ? async completed =>
                 {
-                    diagnostics = await PrivateCaseScenarioDiagnostics.CaptureAsync(
-                        input.FilterScenarios,
-                        input.MakeupDates,
-                        (action, payload) => host.DispatchAsync(action, payload, cancellationToken))
+                    RequireNoLegacyObservation(completed);
+                    diagnostics = await CaptureDiagnosticsAsync().ConfigureAwait(false);
+                    if (afterEachExport is null)
+                    {
+                        return;
+                    }
+
+                    // 第一次與每一段後續操作都在下一段開始前比對，且都在 SQL Server 清理之前完成。
+                    await afterEachExport(new PrivateCaseJourneyResult(completed, diagnostics))
                         .ConfigureAwait(false);
+                    foreach (var followUp in followUps)
+                    {
+                        var segment = await LegacyAuditParityJourney.RunFollowUpAsync(
+                            host,
+                            journeyInput,
+                            provider,
+                            completed.ProjectId!,
+                            followUp,
+                            cancellationToken).ConfigureAwait(false);
+                        var segmentDiagnostics = await CaptureDiagnosticsAsync().ConfigureAwait(false);
+                        await afterEachExport(new PrivateCaseJourneyResult(segment, segmentDiagnostics, followUp))
+                            .ConfigureAwait(false);
+                    }
                 }
                 : null;
 
@@ -141,13 +180,18 @@ internal static class PrivateCaseJourney
             stopAfter,
             sqlServerConnectionString,
             cancellationToken,
-            captureDiagnostics);
+            afterJourney);
+        RequireNoLegacyObservation(result);
+        return new PrivateCaseJourneyResult(result, diagnostics);
+    }
+
+    private static void RequireNoLegacyObservation(LegacyAuditParityJourneyResult result)
+    {
         if (result.Observation is not null)
         {
             throw new InvalidOperationException(
                 "PrivateCase 不得套用 case-A 或 case-B 的舊案件觀察結果。");
         }
-        return new PrivateCaseJourneyResult(result, diagnostics);
     }
 
     private static LegacyAuditParityImportSource ConvertSource(

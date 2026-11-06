@@ -196,6 +196,8 @@ function Read-JetRegistry {
             'privateCaseProviderEnvironmentVariable',
             'packageMinimumExpectedTests',
             'packageMethodPatterns',
+            'guiFixtureMinimumExpectedTests',
+            'guiFixtureMethodPatterns',
             'excludedProfiles',
             'protectedWorkspaceMethodPatterns',
             'focusedGuardNamespaces',
@@ -218,7 +220,8 @@ function Read-JetRegistry {
             'providerSqlMinimumExpectedTests',
             'providerLocalDbMinimumExpectedTests',
             'privateCaseMinimumExpectedTests',
-            'packageMinimumExpectedTests')) {
+            'packageMinimumExpectedTests',
+            'guiFixtureMinimumExpectedTests')) {
         if ([int]$testSettings[$minimumName] -lt 1) {
             throw [InvalidDataException]::new('Test seed and minimum test counts must be positive.')
         }
@@ -240,6 +243,16 @@ function Read-JetRegistry {
     foreach ($pattern in @($testSettings.providerLocalParityMethodPatterns) + @($testSettings.packageMethodPatterns)) {
         if ([string]$pattern -notmatch '^\*[A-Za-z0-9_.+]+\*$') {
             throw [InvalidDataException]::new('Provider and package test patterns must be bounded wildcard method names.')
+        }
+    }
+    # Gui 路線跑情境前，用 AgentGuiTest 組態執行的測試類別；每個樣式只選一個類別，避免清單悄悄擴大。
+    $guiFixturePatterns = @($testSettings.guiFixtureMethodPatterns)
+    if ($guiFixturePatterns.Count -eq 0 -or @($guiFixturePatterns | Sort-Object -Unique).Count -ne $guiFixturePatterns.Count) {
+        throw [InvalidDataException]::new('GUI fixture test patterns must be non-empty and unique.')
+    }
+    foreach ($pattern in $guiFixturePatterns) {
+        if ([string]$pattern -cnotmatch '^\*\.[A-Za-z][A-Za-z0-9_]*Tests\.\*$') {
+            throw [InvalidDataException]::new('GUI fixture test patterns must name one exact test class.')
         }
     }
     foreach ($trait in @($testSettings.providerSqlTraits) + @($testSettings.providerLocalDbTraits)) {

@@ -136,6 +136,8 @@ public sealed class PrescreenReportSourceLineageTests
         try
         {
             var database = new SqliteProjectDatabase(new JetProjectFolder(projectsRoot));
+            // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+            await database.EnsureCreatedAsync(projectId, CancellationToken.None);
             var writer = CreateWriter(database);
             var projection = ZeroHitProjection();
             var plan = ZeroHitPlan(projectId, projection);
@@ -336,7 +338,11 @@ public sealed class PrescreenReportSourceLineageTests
             TrailingZeros: notApplicable,
             PreparerSummary: new("V", null, 0),
             RareAccounts: new("V", null, 0),
-            BlankDescription: notApplicable);
+            BlankDescription: notApplicable)
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 6
+        };
     }
 
     private static PrescreenReportPlan ZeroHitPlan(

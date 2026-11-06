@@ -36,7 +36,7 @@ public sealed class QueryFilterVoucherRowsPageHandler(ProjectSession session) : 
 /// </summary>
 public sealed class FilterVoucherQueryService(IFilterVoucherRepository repository, IFilterScenarioStore scenarioStore,
     IMappingStateStore mappingStore, IAccountMappingStore accountMappingStore,
-    IAuthorizedPreparerStore authorizedPreparerStore, IAccountCategoryStore categoryStore,
+    IAuthorizedPreparerStore authorizedPreparerStore, IAccountCategoryStore categoryStore, ICalendarStore calendarStore,
     IProjectStore projectStore, ProjectSession session, IResultPageRdeValuesPort rdeValuesPort,
     FilterHitMaterializeService? materializeService = null, IHighRiskSummaryScenariosRepository? scenarioCounts = null)
 {
@@ -75,15 +75,17 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         var accountMapping = await accountMappingStore.FindStateAsync(projectId, ct);
         var categorySnapshot = await categoryStore.ReadAsync(projectId, ct);
         var hasPreparers = await authorizedPreparerStore.CountAsync(projectId, ct) > 0;
+        var calendarLists = await FilterCalendarLists.ReadAsync(calendarStore, projectId, ct);
         var scope = FilterPopulationScopeParser.ReadPayload(payload);
-        var validation = FilterValidationContextFactory.Create(project, mapping, accountMapping, hasPreparers, scope, categorySnapshot);
+        var validation = FilterValidationContextFactory.Create(project, mapping, accountMapping, hasPreparers, scope, categorySnapshot, calendarLists);
         var errors = FilterScenarioValidator.Validate(spec, validation, forSave: false);
         if (errors.Count > 0) throw FilterScenarioErrorDetails.InvalidScenario(errors);
         var context = new FilterConditionContext(project.MoneyScale, project.LastAccountingPeriodDate,
             project.PeriodStart, project.PeriodEnd, project.NonWorkingDays, scope)
         {
             RdeFields = mapping.GlOptions?.RdeFields ?? [],
-            DateParseOptions = project.DateParseOptions
+            DateParseOptions = project.DateParseOptions,
+            ZerosThreshold = TrailingZeroThreshold.FromCommittedGl(mapping, project.MoneyScale)
         };
         var queryRevision = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
         {
@@ -148,7 +150,8 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
         var fieldLabels = context.RdeFields.ToDictionary(item => item.FieldId, item => item.Label);
         string Condition(FilterConditionPosition position) => $"第 {position.Group} 組條件 {position.Rule}："
             + FilterConditionRenderer.Render(JsonSerializer.SerializeToElement(new { groups = new[] { new { conditions = new[] {
-                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("conditions")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd);
+                scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("conditions")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd,
+                zerosThreshold: context.ZerosThreshold);
         string Describe(FilterVoucherDetail row)
         {
             var descriptions = new List<string>();
@@ -175,7 +178,8 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
                 voucherTotal = (decimal)row.VoucherTotalScaled / project.MoneyScale }).ToArray();
         var columns = columnPlan.Columns.Select(column => new { key = column.Key, label = column.Label,
             valueType = column.ValueType, isCustom = column.IsCustom }).ToArray();
-        var conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd);
+        var conditionText = FilterConditionRenderer.Render(scenarioJson, categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd,
+            zerosThreshold: context.ZerosThreshold);
         var nextCursor = page.NextKey is null ? null : PageCursor.Encode(JsonSerializer.Serialize(new VoucherCursor(queryRevision, voucherNumber, page.NextKey)));
         if (savedCounts is null)
         {

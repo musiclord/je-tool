@@ -16,6 +16,7 @@ public sealed class ActionDispatcher
     private readonly Func<Exception, JetActionException?>? _engineErrorTranslator;
     private readonly ActionExecutionGate _executionGate;
     private readonly IProjectDatabaseRetention? _databaseRetention;
+    private readonly IProjectDatabaseCheckpoint? _databaseCheckpoint;
     // 同一案件同一動作上一次失敗或取消的操作識別碼，下一次開始時記成 retry_of；成功後清除（2026-10-21）。
     private readonly ConcurrentDictionary<string, string> _lastUnsuccessful = new(StringComparer.Ordinal);
 
@@ -29,7 +30,9 @@ public sealed class ActionDispatcher
         RequestCancellationRegistry? cancellationRegistry = null,
         ActionExecutionGate? executionGate = null,
         // 一次操作期間保持當前案件資料庫開啟（只有 DuckDB 有作用）；null 時不持有，自行組裝 dispatcher 的測試不受影響。
-        IProjectDatabaseRetention? databaseRetention = null)
+        IProjectDatabaseRetention? databaseRetention = null,
+        // 變更型作業結束後把當前案件資料庫的記錄檔併回（只有 SQLite 有作用）；null 時不併回。
+        IProjectDatabaseCheckpoint? databaseCheckpoint = null)
     {
         var map = new Dictionary<string, IApplicationActionHandler>(StringComparer.Ordinal);
 
@@ -48,6 +51,7 @@ public sealed class ActionDispatcher
         CancellationRegistry = cancellationRegistry ?? new RequestCancellationRegistry();
         _executionGate = executionGate ?? new ActionExecutionGate();
         _databaseRetention = databaseRetention;
+        _databaseCheckpoint = databaseCheckpoint;
     }
 
     public IReadOnlyCollection<string> RegisteredActions => _handlers.Keys.ToArray();
@@ -203,6 +207,11 @@ public sealed class ActionDispatcher
         IApplicationActionHandler handler, JsonElement payload, CancellationToken cancellationToken)
     {
         IDisposable? retention = null;
+        // 變更型作業結束後，把它用到的案件資料庫的記錄檔併回（見 IProjectDatabaseCheckpoint）。作業期間其他變更型
+        // 作業拿不到閘，案件不會換；併回時還持有閘，下一項作業開始前記錄檔已經清空。
+        var checkpointProjectId = _databaseCheckpoint is not null && ActionExecutionPolicy.CheckpointsProjectDatabase(handler.Action)
+            ? _session.CurrentProjectId
+            : null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -212,7 +221,15 @@ public sealed class ActionDispatcher
                 retention = _databaseRetention.TryRetain(projectId);
             return await handler.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
         }
-        finally { retention?.Dispose(); }
+        finally
+        {
+            retention?.Dispose();
+            if (checkpointProjectId is not null)
+            {
+                await ProjectDatabaseCheckpointSteps.TryCheckpointAsync(
+                    _databaseCheckpoint!, checkpointProjectId, _logger).ConfigureAwait(false);
+            }
+        }
     }
 
     private static string? TryReadSupportProjectId(JsonElement payload)

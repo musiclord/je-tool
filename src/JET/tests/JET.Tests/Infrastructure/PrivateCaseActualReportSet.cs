@@ -55,7 +55,8 @@ internal sealed class PrivateCaseActualReportSet
         IReadOnlyList<LegacyAuditParityJourneyReport> journeyReports,
         string generatedRootPath,
         PrivateCaseInputWorkspace workspace,
-        PrivateCaseFileAccess? fileAccess = null)
+        PrivateCaseFileAccess? fileAccess = null,
+        int segmentIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(journeyReports);
         ArgumentException.ThrowIfNullOrWhiteSpace(generatedRootPath);
@@ -63,7 +64,9 @@ internal sealed class PrivateCaseActualReportSet
         fileAccess ??= new PrivateCaseFileAccess();
 
         var requiredKinds = Enum.GetValues<LegacyReportKind>();
-        if (!TryIndexJourneyReports(journeyReports, generatedRootPath, requiredKinds, out var indexed))
+        // 同一個案件的每一段匯出各自複製一組，副本編號依段落往後排，不覆蓋前一段的副本。
+        if (segmentIndex < 0
+            || !TryIndexJourneyReports(journeyReports, generatedRootPath, requiredKinds, out var indexed))
         {
             throw Error(PrivateCaseActualReportFailure.InvalidInput);
         }
@@ -79,7 +82,7 @@ internal sealed class PrivateCaseActualReportSet
                 var copy = workspace.CopyInput(
                     opened,
                     PrivateCaseInputRole.ActualReport,
-                    index + 1,
+                    (segmentIndex * requiredKinds.Length) + index + 1,
                     ".xlsx");
                 if (copy.Length <= 0)
                 {

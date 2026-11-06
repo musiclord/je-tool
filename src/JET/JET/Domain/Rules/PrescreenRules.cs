@@ -24,33 +24,53 @@ public static class PrescreenRuleKeys
 
 /// <summary>
 /// 分錄摘要特定描述（suspicious_keywords）的預設關鍵字
-/// 保留 IDEA R2 的繁簡詞與新版既有「帳外」，共 25 個；比對包含任一。
+/// 照 IDEA 版 R2 的 24 個繁簡詞，順序也相同（idea-tool.bas 第 8215 行）；比對包含任一。
+/// 2026-06-20 Agent 自己加的「帳外」照裁定 2026-11-05-43 拿掉，需要時審計員在第五步自己加。
 /// </summary>
 public static class SuspiciousKeywordDefaults
 {
     public static readonly IReadOnlyList<string> Defaults =
     [
         "ADJ", "REV", "RECLASS", "SUSPENSE", "ERROR", "WRONG",
-        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外", "帳外",
+        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外",
         "调整", "回转", "冲销", "重分类", "避险", "重编", "错误", "计画外", "预算外"
     ];
 }
 
 /// <summary>
-/// 連續零尾數（trailing_zeros）的固定門檻：預篩選規則比對金額主單位整數的末 <see cref="DefaultZerosThreshold"/> 位是否全為 0，
-/// 和第五步金額的「整數尾數符合」「尾數連續多個 0」用同一個尾數述詞（<c>GlRulePredicates.TrailingDigits</c>），小數位不參與，整數部分為 0 不命中。
-/// 這與 legacy R4 的借方平均金額算法不同；裁定 2026-09-18-04 保留新版固定門檻。
-/// 需要其他位數時，審計員在第五步金額的「尾數連續多個 0」填入 0 的個數，1 到 <see cref="MaxCustomDigits"/>。
+/// 預篩選「分錄金額中有連續 0 的尾數」（trailing_zeros）的 0 的個數，照 IDEA 版 JET 的 R4 由 GL 決定（裁定 2026-11-05-25）：
+/// 列入 GL 的分錄，借方金額加總（貸方那一側算 0）除以筆數得到借方平均，平均的整數部分有幾位，0 的個數就是位數減一，
+/// 例如平均 2,391,281 是 6 個 0。算出來至少 <see cref="MinCustomDigits"/> 個、最多 <see cref="MaxCustomDigits"/> 個（裁定 2026-11-05-27）。
+/// 比對和第五步金額的「尾數連續多個 0」用同一個述詞（<c>GlRulePredicates.ZeroRun</c>），小數位不參與，整數部分為 0 不命中。
+/// 第五步「尾數連續多個 0」加入時預設同一個個數，審計員可以改成 1 到 <see cref="MaxCustomDigits"/>（裁定 2026-11-05-26）。
+/// 2026-11-05 以前這裡是固定 6 個 0 的常數。
 /// </summary>
 public static class TrailingZeroThreshold
 {
-    /// <summary>現行固定預設門檻；不能當成 legacy 或正式方法學來源。</summary>
-    public const int DefaultZerosThreshold = 6;
-
     /// <summary>尾數樣態的位數上限，也是「尾數連續多個 0」的 0 的個數上限：10^12 可安全放入 long。</summary>
     public const int MaxCustomDigits = 12;
 
     public const int MinCustomDigits = 1;
+
+    /// <summary>
+    /// 由 GL 控制總數算出 0 的個數。借方合計與筆數只算列入 GL 的分錄，和 IDEA 版 #GL# 的期間與過帳狀態範圍相同；
+    /// 借方金額是帶號金額大於或等於 0 的那一側（<see cref="GlRowProjector"/>），和 IDEA 版 DEBIT_傳票金額_JE_T 相同。
+    /// 平均用整數除法取整數部分，等同 IDEA 版 iInt；先除以金額倍率再除以筆數，結果和一次除以兩者的乘積相同。沒有分錄時平均是 0。
+    /// </summary>
+    public static int FromGlTotals(GlTotals totals, int moneyScale)
+    {
+        ArgumentNullException.ThrowIfNull(totals);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(moneyScale);
+        var average = totals.GlRowCount <= 0 || totals.GlDebitScaled <= 0
+            ? 0L
+            : totals.GlDebitScaled / moneyScale / totals.GlRowCount;
+        var digits = average.ToString(System.Globalization.CultureInfo.InvariantCulture).Length;
+        return Math.Clamp(digits - 1, MinCustomDigits, MaxCustomDigits);
+    }
+
+    /// <summary>已確認的 GL 配對帶著投影時寫下的控制總數；沒有 GL 配對或讀不到控制總數時沒有個數。</summary>
+    public static int? FromCommittedGl(CommittedMapping? glMapping, int moneyScale) =>
+        glMapping?.GlTotals is { } totals ? FromGlTotals(totals, moneyScale) : null;
 
     /// <summary>指定位數的全 0 尾數樣態，交給尾數述詞比對。</summary>
     public static string ZeroPattern(int digits)

@@ -281,7 +281,8 @@ internal static partial class GuiScenarios
             await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.rule-row--selected').dataset.gi==='1'");
             await Check("!document.querySelector('.rule-row[data-gi=\"1\"] [data-period-end-days]') && !document.querySelector('.rule-row[data-gi=\"1\"] [data-value-key=operator]') && !document.querySelector('.rule-row[data-gi=\"1\"] .value-blank')");
             // 「加入到第 N 組」改成條件總覽標題同一列的組號分段切換（裁定 2026-11-05-16），原本是下拉選單：按那一格的組號，
-            // 核對選中的單選鈕。
+            // 核對選中的單選鈕。選下拉選單算兩次操作，按一格算一次，這個情境少 1 次，lanes.json 跟著改成 87
+            // （第一次失敗收據 20261106-002800554-352815f6d6874c08867d0a3e3cce1d84，情境照常走完，只有次數是 87）。
             await Click(".filter-target .join-toggle__option:has([data-condition-target][value=\"0\"])");
             await Check("document.querySelector('[data-condition-target]:checked').value==='0' && draft.groups[0].__active && !draft.groups[1].__active && draft.groups.length===2 && !document.querySelector('.rule-row--selected')");
             var selectionBaseline = await cdp.EvaluateAsync("JSON.stringify({rev:window.JetStore.getFilterDraftRev(),conditions:window.JetStore.getState().filter.draft.groups.map(g=>g.conditions),preview:window.JetStore.getState().filter.preview})", ct);

@@ -127,10 +127,13 @@ public sealed partial class WorkingPaperWriter
         });
     }
 
+    // 續頁的那一段沒有日子時第 1 列是提示句，照舊版不加粗。
     private static WorkingPaperAppearanceProfile CalendarContinuationAppearance(
-        CalendarDayType type) =>
+        CalendarDayType type,
+        bool hasDays) =>
         new((row, column) =>
-            row == 1
+            hasDays
+            && row == 1
             && column >= 1
             && column <= (type == CalendarDayType.Holiday ? 3U : 2U)
                 ? LegacyCalibri12Bold

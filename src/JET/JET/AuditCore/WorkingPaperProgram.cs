@@ -77,11 +77,23 @@ internal sealed record WorkingPaperSheetPlan(
     string? NaText);
 
 /// <summary>
-/// Step 1 與 Step 1-1 依結果二選一的結論文字。照 legacy：有差異科目或不平傳票時才改寫範本原文
+/// 底稿計畫與寫出程式共用的固定文字。Step 1 與 Step 1-1 依結果二選一的結論文字照 legacy：有差異科目或不平傳票時才改寫範本原文
 /// （idea-tool.bas:10409-10411、10468、10521-10524）。範本原文就是「沒有差異」「沒有不平」的版本。
 /// </summary>
 internal static class WorkingPaperResultTexts
 {
+    // 裁定 2026-11-05-59：Step 3 的 B7「測試範圍」與 B9「選擇該測試範圍的理由」寫回舊版原文
+    // （idea-tool.bas:10664-10667，B9 句中的空白也照原文），JET 原本寫的查核期間與排除範圍另起一行接在後面。
+    internal static string Step3TestScope(string periodStart, string periodEnd) =>
+        "期末財務報表準備期間與整個財務報導期間之會計分錄\n"
+        + $"查核期間內（{periodStart} ~ {periodEnd}）之會計分錄";
+
+    internal const string Step3ScopeRationale =
+        "查核團隊考量舞弊風險相關之分錄，除了會於期末財務報表準備期間發生外，某些與舞弊風險因子相關之分錄類型(例如：收入)"
+        + "亦會在整個財務報導期間中被記錄。這些都將會對財務報表的正確性造成影響。因此，除測試期末財務報表準備期間之分錄外，"
+        + " 亦將對整個財務報表期間之會計分錄母體，篩選與舞弊風險類型相關之分錄。\n"
+        + "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。";
+
     internal static string Step1Conclusion(bool hasCompletenessDifferences) =>
         hasCompletenessDifferences
             ? "基於上述程序，查核團隊對於JE測試母體之完整性，尚需於Step1-3說明以取得足夠的查核證據。"
@@ -439,8 +451,7 @@ public static partial class JetAuditProgram
             Sheet(
                 WorkingPaperSheetCatalog.Step3,
                 scenarioPositions: selected,
-                auditCondition:
-                    $"查核期間內（{request.PeriodStart} ~ {request.PeriodEnd}）之會計分錄",
+                auditCondition: WorkingPaperResultTexts.Step3TestScope(request.PeriodStart, request.PeriodEnd),
                 methodology: Step3Methodology(request)),
             Sheet(
                 WorkingPaperSheetCatalog.Step4,
@@ -649,9 +660,9 @@ public static partial class JetAuditProgram
             "測試目的",
             "取得查核證據，以測試會計分錄及其他調整：\ni)  不存在因舞弊所導致的重大不實表達；\nii) 有適當的支持性文件；\niii) 反映了相關的事項、情況和交易，並且\niv) 按照財務報導架構，記錄在正確的會計期間。",
             "測試範圍",
-            $"查核期間內（{request.PeriodStart} ~ {request.PeriodEnd}）之會計分錄",
+            WorkingPaperResultTexts.Step3TestScope(request.PeriodStart, request.PeriodEnd),
             "選擇該測試範圍的理由",
-            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。",
+            WorkingPaperResultTexts.Step3ScopeRationale,
             "Step 3",
             "辨認高風險條件",
             "風險評估及查核程序：",

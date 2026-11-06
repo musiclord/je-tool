@@ -307,7 +307,7 @@ internal static class GlPopulationScopeSql
 /// 空白判定由方言的去空白方法產生，三種資料庫去掉的字元集合和 .NET 相同;
 /// approvalDateNotInPeriod 以 @periodStart/@periodEnd 綁參(述詞文字兩 provider 相同);
 /// 「核准日不在期間」以核准日 approval_date 判定，不看總帳日期，和舊版 JET 的「Approval date out of period」相同
-/// （裁定 2026-06-23-01）。核准日空白的分錄不命中。
+/// （裁定 2026-06-23-01）。核准日空白的分錄照舊版也算不在期間（裁定 2026-11-05-38）；傳票核准日沒有配對時這一項不執行。
 /// </summary>
 internal static class BlankRecordsCategoryPredicate
 {
@@ -326,13 +326,26 @@ internal static class BlankRecordsCategoryPredicate
     public static string Scoped(BlankRecordCategory category, ISqlDialect dialect) =>
         Scope(category, For(category, dialect));
 
+    /// <summary>
+    /// 這次驗證有檢查的類別才套原本的條件。傳票核准日不可用時「核准日不在期間」不執行（裁定 2026-10-23-01），
+    /// 這時核准日全是空白，照裁定 2026-11-05-38 會把每一筆都算成不在期間，所以這次驗證的計數與明細樣本都改用永遠不成立的條件。
+    /// 明細頁 <c>query.blankRecordsPage</c> 照目前的總帳判斷，畫面只在筆數大於零時才讀它。
+    /// </summary>
+    public static string ScopedWhenChecked(
+        BlankRecordCategory category,
+        ISqlDialect dialect,
+        bool approvalDateAvailable) =>
+        category == BlankRecordCategory.ApprovalDateNotInPeriod && !approvalDateAvailable
+            ? "(1 = 0)"
+            : Scoped(category, dialect);
+
     private static string Build(BlankRecordCategory category, ISqlDialect dialect) => category switch
     {
         BlankRecordCategory.BlankAccountNumber => SqlBlankText.IsBlank(dialect, "account_number"),
         BlankRecordCategory.BlankVoucherNumber => SqlBlankText.IsBlank(dialect, "voucher_number"),
         BlankRecordCategory.BlankDescription => SqlBlankText.IsBlank(dialect, "description"),
         BlankRecordCategory.ApprovalDateNotInPeriod =>
-            "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))",
+            "(approval_date IS NULL OR approval_date < @periodStart OR approval_date > @periodEnd)",
         _ => throw new ArgumentOutOfRangeException(nameof(category), category, "未知的 null 紀錄 category。")
     };
 

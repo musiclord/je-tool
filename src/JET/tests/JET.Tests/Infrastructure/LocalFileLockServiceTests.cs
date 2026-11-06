@@ -134,6 +134,50 @@ public sealed class LocalFileLockServiceTests
             await contender.AcquireAsync("案件F", "user-b", CancellationToken.None));
     }
 
+    /// <summary>
+    /// 鎖檔的位置被資料夾占住時，開案寫出原因與下一步，不鎖定這個案件；資料夾移走後照常鎖定。
+    /// 第 30 步量涵蓋率時發現這段沒有測試執行到。這是新增的測試。
+    /// </summary>
+    [Fact]
+    public async Task Acquire_WhenTheLockLocationIsAFolder_ReportsTheReason_AndWorksOnceTheFolderIsGone()
+    {
+        using var root = new TempProjectRoot();
+        var folder = CreateProjectFolder(root, "案件A");
+        var blocker = Path.Combine(root.Path, ".project-session-案件A.lock");
+        Directory.CreateDirectory(blocker);
+        using var service = new LocalFileLockService(folder);
+
+        var error = await Assert.ThrowsAsync<JetActionException>(
+            () => service.AcquireAsync("案件A", "user-a", CancellationToken.None));
+        Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+        Assert.Equal(
+            "無法確認案件鎖定檔的位置是否安全，系統沒有開始作業。請確認 JET 資料夾的權限，或重新啟動 JET。",
+            error.Message);
+
+        Directory.Delete(blocker);
+        Assert.IsType<LockOutcome.Acquired>(
+            await service.AcquireAsync("案件A", "user-a", CancellationToken.None));
+    }
+
+    /// <summary>
+    /// 案件清單列出之後，案件資料夾被移走或刪掉，再鎖定這個案件時寫出資料夾已不在，不替它建出空的資料夾。
+    /// 第 30 步量涵蓋率時發現這段沒有測試執行到。這是新增的測試。
+    /// </summary>
+    [Fact]
+    public async Task Acquire_WhenTheCaseFolderIsGone_ReportsThatTheCaseIsMissing_WithoutCreatingIt()
+    {
+        using var root = new TempProjectRoot();
+        var folder = CreateProjectFolder(root, "案件A");
+        Directory.Delete(folder.GetProjectDirectory("案件A"));
+        using var service = new LocalFileLockService(folder);
+
+        var error = await Assert.ThrowsAsync<JetActionException>(
+            () => service.AcquireAsync("案件A", "user-a", CancellationToken.None));
+        Assert.Equal(JetErrorCodes.ProjectNotFound, error.Code);
+        Assert.Equal(ProjectFolderMessages.ActiveProjectMissing, error.Message);
+        Assert.False(Directory.Exists(folder.GetProjectDirectory("案件A")));
+    }
+
     private static JetProjectFolder CreateProjectFolder(TempProjectRoot root, string projectId)
     {
         var folder = new JetProjectFolder(root.Path);

@@ -112,8 +112,9 @@ internal sealed partial class GlRulePredicates(
     /// 否定模式以 NOT EXISTS（即 NOT DocHasCreditSide(B) / NOT DocHasDebitSide(A)）藏在述詞內，
     /// 不洩漏到呼叫端：
     ///   drAndCr → 傳票同時有 A 借與 B 貸；tag「A 借 或 B 貸」的列。
-    ///   drNotCr → 傳票有 A 借、且無任何 B 貸；tag「A 借」的列。
-    ///   notDrCr → 傳票有 B 貸、且無任何 A 借；tag「B 貸」的列。
+    ///   drNotCr → 傳票有 A 借、且無任何 B 貸；tag「A 借」的列，以及同一張傳票貸方那一側的全部列。
+    ///   notDrCr → 傳票有 B 貸、且無任何 A 借；tag「B 貸」的列，以及同一張傳票借方那一側的全部列。
+    /// 兩個否定模式照舊版連對方那一側一起標記（裁定 2026-11-05-45），和 <see cref="AccountPair"/> 的錨定模式標記方式相同。
     /// 取捨（顯式陳述）：drAndCr 的 SQL 與 AccountPair 的 exact 模式邏輯重疊，但這是不同的
     /// 使用者面向條件（不同的模式標籤與否定語意），重複是刻意的——共用的是四個側別 closure，
     /// 而非條件本身。ANSI 共通（EXISTS / NOT EXISTS，全參數綁定），SQLite 與 SQL Server 由構造等價。
@@ -133,9 +134,9 @@ internal sealed partial class GlRulePredicates(
             SpecialAccountCategoryPairModes.DrAndCr =>
                 $"({side.DocHasDebitSide()} AND {side.DocHasCreditSide()} AND ({side.RowIsDebitSide()} OR {side.RowIsCreditSide()}))",
             SpecialAccountCategoryPairModes.DrNotCr =>
-                $"({side.DocHasDebitSide()} AND NOT {side.DocHasCreditSide()} AND {side.RowIsDebitSide()})",
+                $"({side.DocHasDebitSide()} AND NOT {side.DocHasCreditSide()} AND ({side.RowIsDebitSide()} OR g.amount_scaled < 0))",
             SpecialAccountCategoryPairModes.NotDrCr =>
-                $"({side.DocHasCreditSide()} AND NOT {side.DocHasDebitSide()} AND {side.RowIsCreditSide()})",
+                $"({side.DocHasCreditSide()} AND NOT {side.DocHasDebitSide()} AND ({side.RowIsCreditSide()} OR g.amount_scaled >= 0))",
             _ => throw new InvalidOperationException($"未處理的特殊科目類別配對模式 {pairMode}。")
         };
     }
@@ -666,6 +667,43 @@ internal sealed partial class GlRulePredicates(
             .ToList();
 
         return clauses.Count == 0 ? "1 = 0" : $"({string.Join(" OR ", clauses)})";
+    }
+
+    /// <summary>
+    /// 整數部分包含任一串數字：舊版 JET「特定數字篩選」的「包含」（裁定 2026-11-05-46）。等價於 legacy IDEA 的
+    /// <c>@RegExpr(@AllTrim(@Upper(@str(@int(amount),1,0))), "888|28")</c>，不同的是 JET 先取絕對值、輸入當成一般數字比對，
+    /// 和整數尾數相同地忽略正負號及小數：整數化金額 ABS(amount_scaled) / scale 轉成文字，包含任一串數字即命中。
+    /// 樣態已由 validator 保證為純數字；文字轉換用三種資料庫都接受的 VARCHAR(40)（BIGINT 最多 19 位）。
+    /// </summary>
+    public string IntegerPartContains(
+        FilterSqlParameterPlanBuilder command,
+        IReadOnlyList<string> patterns,
+        int moneyScale,
+        string amountColumn = "g.amount_scaled")
+    {
+        var scale = NextParam(command, (long)moneyScale);
+        var integerText = $"CAST({dialect.IntegerQuotient($"ABS({amountColumn})", scale)} AS VARCHAR(40))";
+        var clauses = patterns
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => dialect.ContainsIgnoreCase(integerText, NextParam(command, p.Trim())))
+            .ToList();
+
+        return clauses.Count == 0 ? "1 = 0" : $"({string.Join(" OR ", clauses)})";
+    }
+
+    /// <summary>
+    /// 金額尾數連續 N 個 0：預篩選「分錄金額中有連續 0 的尾數」與第五步金額的「尾數連續多個 0」共用（裁定 2026-11-03-07、2026-11-05-25）。
+    /// 就是 N 個 0 的尾數樣態，另加整數部分不是 0。N 至少 2 時尾數樣態本身要求整數至少 N 位，這個下界不改變結果；
+    /// N 為 1 時尾數樣態會讓整數部分為 0 的金額命中，由下界排除。
+    /// </summary>
+    public string ZeroRun(
+        FilterSqlParameterPlanBuilder command,
+        int zeros,
+        int moneyScale,
+        string amountColumn = "g.amount_scaled")
+    {
+        var tail = TrailingDigits(command, [TrailingZeroThreshold.ZeroPattern(zeros)], moneyScale, amountColumn);
+        return $"({tail} AND ABS({amountColumn}) >= {NextParam(command, (long)moneyScale)})";
     }
 
     /// <summary>

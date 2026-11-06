@@ -7,9 +7,15 @@ namespace Jet.GuiDriver;
 
 internal static partial class GuiScenarios
 {
+    // databaseProvider 是建案表單「資料儲存方式」的值（create-step.js）：case-to-working-paper 用預設的 sqlite，
+    // case-to-working-paper-duckdb 在同一份表單改選 duckdb，其餘經過完全相同。
     private static async Task ExecuteCaseToWorkingPaperAsync(CdpSession cdp, OwnedGuiRun ownedRun, Process process,
-        GuiRunner.UiProbe initialUi, GuiRunOutcome outcome, CancellationToken ct)
+        GuiRunner.UiProbe initialUi, GuiRunOutcome outcome, string databaseProvider, CancellationToken ct)
     {
+        if (databaseProvider is not ("sqlite" or "duckdb"))
+        {
+            throw new GuiInfrastructureException("case_journey_provider_invalid");
+        }
         Task Click(string selector) => ClickRecoveryControlAsync(cdp, process, selector, outcome, ct);
         Task Choose(string selector, string value) => ChooseOptionAsync(cdp, process, selector, value, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
@@ -23,11 +29,37 @@ internal static partial class GuiScenarios
         var name = "CaseJourney-" + ownedRun.RunId[..12];
         form = await FillTextFieldAsync(cdp, process, form, CreateField.ProjectName, name, outcome, ct);
         form = await FillDateFieldAsync(cdp, process, form, CreateField.PeriodStart, "2025-01-01", outcome, ct);
-        await FillDateFieldAsync(cdp, process, form, CreateField.PeriodEnd, "2025-12-31", outcome, ct);
+        form = await FillDateFieldAsync(cdp, process, form, CreateField.PeriodEnd, "2025-12-31", outcome, ct);
+        if (form.DatabaseProvider.Value != "sqlite")
+        {
+            throw new GuiCheckException("create_form_default_provider_invalid");
+        }
+        if (databaseProvider != "sqlite")
+        {
+            await Choose("[data-bind=create-form] [name=databaseProvider]", databaseProvider);
+            await Check("document.querySelector('[data-bind=create-form] [name=databaseProvider]').value===" +
+                JsonSerializer.Serialize(databaseProvider));
+        }
         await Click("[data-bind=create-form] [type=submit]");
         await WaitForCreatedProjectAsync(cdp, process, name, ct);
         var id = (await cdp.EvaluateAsync("window.JetStore.getState().project.projectId", ct)).GetString()!;
-        await Check("!state.importState.gl && !state.importState.tb && !state.mapping.gl.committed && !state.results.validate && state.filter.savedScenarios.length===0");
+        await Check("!state.importState.gl && !state.importState.tb && !state.mapping.gl.committed && !state.results.validate && state.filter.savedScenarios.length===0" +
+            " && state.project.databaseProvider===" + JsonSerializer.Serialize(databaseProvider));
+        // 案件資料夾裡只有選定種類的資料庫檔（JetProjectFolder.DatabaseFileName、DuckDbProjectDatabase.DatabaseFileName）。
+        var projectsRoot = Path.GetFullPath(ownedRun.ProjectsRootPath);
+        var projectRoot = Path.GetFullPath(Path.Combine(projectsRoot, id));
+        OwnedGuiRun.RejectReparsePoint(projectsRoot);
+        if (!Path.GetDirectoryName(projectRoot)!.Equals(projectsRoot, StringComparison.OrdinalIgnoreCase)
+            || !Directory.Exists(projectRoot))
+        {
+            throw new GuiCheckException("case_journey_directory_missing");
+        }
+        var expectedDatabase = databaseProvider == "duckdb" ? "jet.duckdb" : "jet.db";
+        var otherDatabase = databaseProvider == "duckdb" ? "jet.db" : "jet.duckdb";
+        if (!File.Exists(Path.Combine(projectRoot, expectedDatabase)) || File.Exists(Path.Combine(projectRoot, otherDatabase)))
+        {
+            throw new GuiCheckException("case_journey_database_file_invalid");
+        }
 
         outcome.RecordStage("import_two_gl_sheets_and_tb");
         foreach (var kind in new[] { "gl", "tb" })
@@ -67,7 +99,8 @@ internal static partial class GuiScenarios
         await Click("[data-action=app-back-picker]");
         await Click("[data-action=picker-open][data-project-id=" + JsonSerializer.Serialize(id) + "]");
         await Click("[data-bind=step-nav] [data-step-index='5']");
-        await Check("state.importState.gl.rowCount===4 && state.importState.tb.rowCount===2 && state.filter.savedScenarios.length===1 && !!window.JetUi.currentWorkingPaperReport(state) && document.body.textContent.includes('案件流程已完成') && document.querySelector('.toc-progress').textContent.includes('進度 6/6')");
+        await Check("state.importState.gl.rowCount===4 && state.importState.tb.rowCount===2 && state.filter.savedScenarios.length===1 && !!window.JetUi.currentWorkingPaperReport(state) && document.body.textContent.includes('案件流程已完成') && document.querySelector('.toc-progress').textContent.includes('進度 6/6')" +
+            " && state.project.databaseProvider===" + JsonSerializer.Serialize(databaseProvider));
 
         // 匯出後回頭修改上游資料（docs/history/specs/2026-10-15-motion-and-verification-plan.md「Gui 改到另一個桌面」第 3 點）。
         // 每一步清掉什麼照 AuditDependencyPolicy：科目配對與行事曆只讓預篩選與篩選失效，資料驗證保留；

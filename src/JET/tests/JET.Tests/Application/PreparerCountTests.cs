@@ -42,7 +42,8 @@ public sealed class PreparerCountTests
         var resultId = result.GetProperty("resultRef").GetProperty("resultId").GetString();
         var exported = await host.DispatchAsync("export.prescreenReport", JsonSerializer.Serialize(new { resultId }));
         using var workbook = new XLWorkbook(exported.GetProperty("publishedReport").GetProperty("fullPath").GetString()!);
-        Assert.Equal("彙總 61 項；詳 [R5] 工作表", workbook.Worksheet("Pre-screening_Report").Cell("D12").GetString());
+        // 裁定 2026-11-05-44：摘要頁 D 欄照舊版原句，不再寫人數；完整人數由 R5 的 61 列核對。第一次失敗：Focused 收據 20261105-105841963-25d6f65850974bbda831c58051526192。
+        Assert.Equal("符合預篩選條件之明細項請詳 [R5] 工作表", workbook.Worksheet("Pre-screening_Report").Cell("D12").GetString());
         Assert.Equal(61, workbook.Worksheet("R5").RowsUsed().Skip(1).Count());
     }
 

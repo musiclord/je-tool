@@ -60,8 +60,17 @@ public sealed class PrescreenRunLoggingTests
     // 把該收據的 14 條實際命令反向處理：拆掉第 3 條的整張傳票子查詢與正金額 EXISTS，並依「科目與人員統計」述詞補回 11 筆門檻的
     // 三條查詢後，SQLite 與 DuckDB 兩個 digest 都精確回到原值 86E7127E… 與 B0E2B903…，其餘 13 條命令與參數未變。
     // SQL Server 未執行，維持原值待核對。
-    private const string SqliteSnapshotDigest = "F781355CD2480853C336E0E7AD4AF9A78C94C0C88410A02CD265E2EDDC8B03CD";
-    private const string DuckDbSnapshotDigest = "613A62B41E037D33127E3BA12A00C1C1D06C73995795B9C51113F4CE2F7D3913";
+    // 裁定 2026-11-05-25 照 IDEA 版由 GL 算出尾數 0 的個數：第 4 條尾零查詢改走和第五步「尾數連續多個 0」共用的述詞，
+    // 多了「整數部分不是 0」的下界 `ABS(g.amount_scaled) >= @p4`（@p4 是金額比例 100），算出 1 個 0 時才會改變結果；這個案件算出 6 個 0，
+    // @p1、@p3 不變。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。把該收據的 14 條實際命令只拿掉這個下界、
+    // 外面那層括號與參數 @p4 後，SQLite 與 DuckDB 兩個 digest 都精確回到原值 F781355C… 與 613A62B4…，其餘 13 條命令與參數未變。
+    // SQL Server 未執行，維持原值待核對。
+    // 裁定 2026-11-05-43 拿掉預設摘要關鍵字「帳外」：第 2 條摘要查詢少一個綁定參數與一個比對條件，其餘不變。
+    // 第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。把該收據的 14 條實際命令在第 2 條補回「帳外」（第 16 個參數，
+    // 後面的參數往後編號，條件多一個 instr）後，SQLite 與 DuckDB 兩個 digest 都精確回到原值 DEC1D3A6… 與 6E8BCCCD…。
+    // SQL Server 未執行，維持原值待核對。
+    private const string SqliteSnapshotDigest = "EE1E31977E90BC1EA7DB29AAF669829D383754CA2A6AA1352CC74A67DB4FF527";
+    private const string DuckDbSnapshotDigest = "A942045E7336C34705519FE0CA3CE1A768871B432EB86D3000FF4A35E4C6640A";
     // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：命令數和本機版相同，漂移來自開發暫緩期間只經編譯的共用 SQL 修改
     // 與這輪 SQL Server 轉大寫改走方言。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
     private const string SqlServerSnapshotDigest = "E2A19883500A0386EF903F72FF32E9FD2889D5AD9EA85C8EEE5EFC6DA6E73D3B";
@@ -88,7 +97,11 @@ public sealed class PrescreenRunLoggingTests
             HasRevenue: true,
             HasCounterpart: true,
             HasAuthorizedPreparers: true,
-            NonWorkingDays: null));
+            NonWorkingDays: null)
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數；這則只核對日誌，帶 6 不影響結果。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 6
+        });
 
     private static (RingBufferLoggerProvider Diagnostic, ILoggerFactory Factory) NewDiagnostic()
     {
@@ -185,6 +198,8 @@ public sealed class PrescreenRunLoggingTests
         var database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var (diagnostic, factory) = NewDiagnostic();
         using (factory)
@@ -204,6 +219,8 @@ public sealed class PrescreenRunLoggingTests
         var database = new DuckDbProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var (diagnostic, factory) = NewDiagnostic();
         using (factory)

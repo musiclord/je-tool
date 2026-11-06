@@ -90,13 +90,15 @@ test('the preparer, keyword, blank description and trailing digit cards share fi
 // 裁定 2026-11-03-07 把「金額尾數連續多個 0」改成一條條件，比較方式是尾數連續幾個 0，0 元照舊不選入。原本核對加入的是
 // 「整數尾數符合 000000」與「金額絕對值大於或等於 1」兩條的子條件組，第二條讓絕對值小於 1 的金額看得出不選入；
 // 改成核對加入一條尾數連續 6 個 0 的條件，條件列寫出整數部分為 0 的金額不符合。第一次失敗：FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+// 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：加入時帶這個案件的個數，這裡帶 5 和改版前固定的 6 區分。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
 test('the trailing-zero preset visibly excludes absolute amounts below one', () => {
   const f = filterOperationFixture();
+  f.store.setMappingCommitted('gl', { mapping: {}, mode: 'signed', options: {}, zerosThreshold: 5 });
   f.click('[data-condition-source="field"]');
   f.click('[data-add-shortcut="trailingZeros"]');
   const rules = f.draft().groups[0].conditions;
   assert.deepEqual(plain(rules.map(rule => [rule.type, rule.field, rule.operator, rule.value, rule.amountBasis])), [
-    ['fieldValue', 'amount', 'endsWithZeros', '6', 'absolute']]);
+    ['fieldValue', 'amount', 'endsWithZeros', '5', 'absolute']]);
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
   assert.ok(row.querySelectorAll('.rule-explanation').some(node => /整數部分為 0 的金額不符合/.test(node.textContent)),
     'the row says amounts whose whole part is 0 do not match');

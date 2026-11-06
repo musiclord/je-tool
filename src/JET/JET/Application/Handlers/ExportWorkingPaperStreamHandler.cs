@@ -116,6 +116,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
         IReadOnlyDictionary<string, string>? conditionCategoryLabels = null;
         IReadOnlyDictionary<string, string>? conditionFieldLabels = null;
         IReadOnlyList<AccountCategory>? conditionCategories = null;
+        int? conditionZerosThreshold = null;
         SupportOperationStage.Enter("condition_render");
         foreach (var scenario in selectedScenarios)
         {
@@ -130,8 +131,10 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
                 conditionCategoryLabels = categorySnapshot.Categories.ToDictionary(category => category.CategoryId, category => category.Label);
                 var mapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
                 conditionFieldLabels = (mapping?.GlOptions?.RdeFields ?? []).ToDictionary(field => field.FieldId, field => field.Label);
+                conditionZerosThreshold = TrailingZeroThreshold.FromCommittedGl(mapping, document.MoneyScale);
             }
-            var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels, conditionCategories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true);
+            var conditionLogic = FilterConditionRenderer.Render(definition.RootElement, conditionCategoryLabels, conditionFieldLabels, conditionCategories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true,
+                zerosThreshold: conditionZerosThreshold);
             scenarioSelections.Add(new WorkingPaperScenarioSelection(
                 scenario.Position,
                 scenario.Name,
@@ -150,7 +153,8 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
             ValidationResultId: validationResult.ResultId,
             ScenarioRevision: scenarioRevision,
             ScenarioPositions: selectedPositions,
-            PopulationScope: filterRevision.PopulationScope);
+            PopulationScope: filterRevision.PopulationScope,
+            NonWorkingDays: document.NonWorkingDays);
 
         SupportOperationStage.Enter("report_plan");
         var workbookMetadata = await ReportWorkbookMetadataFactory.LoadAsync(

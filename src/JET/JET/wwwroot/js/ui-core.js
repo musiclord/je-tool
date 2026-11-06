@@ -134,10 +134,11 @@
   var VALUE_PROFILE_MAX_VALUES = 100;
   // 後端 TextStorageLimits.TextUtf16CodeUnits 的 UI 鏡像：搜尋文字輸入框的字數上限；後端仍是權威。
   var SEARCH_TEXT_MAX_LENGTH = 400;
-  // 既定門檻；只供預設值與文案使用，不在前端判斷命中。trailingZeroDigits 鏡像 Domain 的預篩選規則「金額尾數連續 6 個 0」；
+  // 既定門檻；只供預設值與文案使用，不在前端判斷命中。
   // preparerMaxEntries 與 accountMaxEntries 是第五步欄位條件裡「編製分錄較少的人員」「較少使用的科目」加入時預設的筆數，
   // 審計員可以改。第四步照舊版不挑出 11 筆以下的人員與科目（裁定 2026-10-29-27）。
-  var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11, trailingZeroDigits: 6 };
+  // 「分錄金額中有連續 0 的尾數」的 0 的個數不是固定值，由後端依 GL 的借方平均算出，見下面的 trailingZeroDigits（裁定 2026-11-05-25）。
+  var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11 };
   // 三種展示用途各自命名，不改後端query.*Page預設200列，也不共用審計門檻。
   var RESULT_PREVIEW_PAGE_SIZE = 50;
   var TABLE_PAGE_SIZE = 200;
@@ -200,7 +201,7 @@
   // legacyOverrides 是 2026-11-03 以前加入的寫法，只有這一條的子條件組；只用來認出已儲存情境裡的這張卡，按卡片時不再加入。
   // 鏡像 Domain SuspiciousKeywordDefaults；常用篩選條件的卡片與欄位條件分頁傳票摘要底下的「含特定字詞」共用同一份預填清單。
   var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
-    '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外', '帳外',
+    '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外',
     '调整', '回转', '冲销', '重分类', '避险', '重编', '错误', '计画外', '预算外'];
 
   var FILTER_COMMON_PRESETS = [
@@ -264,11 +265,13 @@
     { value: 'prepPeriodApproval', label: '財報準備日起核准', prerequisites: ['gl:approvalDate', 'prepStartDate'],
       description: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。' },
     { value: 'suspiciousKeywords', label: '摘要特定描述', prerequisites: ['gl:description'],
-      description: '摘要包含預設的 25 個中英文關鍵字之一，包含繁體與簡體文字。要檢視或調整整份清單，到第五步「欄位條件」分頁，按傳票摘要底下的「含特定字詞」。' },
+      // 字詞個數由預設清單算出：裁定 2026-11-05-43 拿掉「帳外」回到 24 個詞時，清單改了，這裡寫死的 25 沒跟著改（2026-11-06 提交前複審查到）。
+      description: '摘要包含預設的 ' + SUSPICIOUS_KEYWORD_DEFAULTS.length + ' 個中英文關鍵字之一，包含繁體與簡體文字。要檢視或調整整份清單，到第五步「欄位條件」分頁，按傳票摘要底下的「含特定字詞」。' },
     { value: 'unexpectedAccountPair', label: '未預期借貸組合', prerequisites: ['accountMapping', 'revenueCategory', 'counterpartCategory'],
       description: '貸方為收入的分錄，同張傳票沒有應收款項、現金或預收款借方，但至少有一筆借方金額大於 0 的分錄。第四步與預篩選報告列出這些傳票的全部分錄；在第五步作為條件時，符合的是收入貸方的分錄。需先完成科目配對。' },
-    { value: 'trailingZeros', label: '金額尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0', prerequisites: ['gl:amount'],
-      description: '依本次測試的分錄，找出金額整數部分尾數連續 ' + PRESCREEN_DEFAULTS.trailingZeroDigits + ' 個 0 的分錄；不含小數，整數部分為 0 不列入。' },
+    // 標籤是不知道 0 的個數時用的規則名稱；知道個數時 prescreenConditionLabel 寫成「金額尾數連續 N 個 0」。
+    { value: 'trailingZeros', label: '分錄金額中有連續 0 的尾數', prerequisites: ['gl:amount'],
+      description: '依本次測試的分錄，找出金額整數部分尾數連續多個 0 的分錄。借方金額合計除以全部分錄筆數得到平均，0 的個數是平均整數部分的位數減一，例如平均 2,391,281 是 6 個 0，至少 1 個、最多 12 個。不含小數，整數部分為 0 不列入。' },
     { value: 'weekendPosting', label: '週末過帳', prerequisites: ['gl:glDate'],
       description: '總帳日期落在第二步設定的每週休息日；補班日仍納入。' },
     { value: 'weekendApproval', label: '週末核准', prerequisites: ['gl:approvalDate'],
@@ -284,7 +287,19 @@
   ];
   function prescreenRule(key) { return PRESCREEN_RULES.find(function (item) { return item.value === key; }); }
   function prescreenConditionDescription(key) { var rule = prescreenRule(key); return rule ? rule.description : ''; }
-  function prescreenConditionLabel(key) { var rule = prescreenRule(key); return rule ? rule.label : key; }
+  function prescreenConditionLabel(key) {
+    var zeros = key === 'trailingZeros' ? trailingZeroDigits() : null;
+    if (zeros) { return '金額尾數連續 ' + zeros + ' 個 0'; }
+    var rule = prescreenRule(key); return rule ? rule.label : key;
+  }
+  // 「分錄金額中有連續 0 的尾數」的 0 的個數：後端照 IDEA 版由 GL 借方金額合計除以全部分錄筆數算出（裁定 2026-11-05-25），
+  // 跟著已確認的 GL 配對；第五步「尾數連續多個 0」加入時也預設這個個數（裁定 2026-11-05-26）。還沒確認 GL 配對時是 null。
+  function trailingZeroDigits() {
+    var state = Store.getState();
+    var committed = state && state.mapping && state.mapping.gl ? state.mapping.gl.committed : null;
+    var zeros = committed ? Number(committed.zerosThreshold) : NaN;
+    return zeros >= 1 && zeros <= TAIL_DIGITS_MAX ? zeros : null;
+  }
 
   // 每種條件型別需要什麼：逐項鏡像後端 Domain JetRuleRequirements.ForFilterCondition（正本在後端，FilterBackendRuleMirrorFrontendTests 逐項比對，順序也相同）。
   // 'gl:' 開頭的是 GL 語意欄位，其他是案件資料；預篩選條件的需求寫在上面 PRESCREEN_RULES 的 prerequisites。
@@ -334,8 +349,9 @@
   // accountPair exact 與 specialAccountCategoryPair drAndCr 述詞相同，新情境只用後者；exact 只給舊情境讀回。
   var ACCOUNT_COMBINATION_OPTIONS = [
     { type: 'specialAccountCategoryPair', mode: 'drAndCr', label: '借方是 A 且貸方是 B', hint: '同一張傳票同時有 A 借方與 B 貸方；輸出 A 借列與 B 貸列。' },
-    { type: 'specialAccountCategoryPair', mode: 'drNotCr', label: '借方是 A 且整張傳票沒有 B 貸方', hint: '輸出 A 借列。A、B 都選 Cash 就是「借現金、貸非現金」。' },
-    { type: 'specialAccountCategoryPair', mode: 'notDrCr', label: '貸方是 B 且整張傳票沒有 A 借方', hint: '輸出 B 貸列。A、B 都選 Cash 就是「貸現金、借非現金」。' },
+    // 兩個否定模式照舊版連同一張傳票對方那一側一起輸出（裁定 2026-11-05-45）。
+    { type: 'specialAccountCategoryPair', mode: 'drNotCr', label: '借方是 A 且整張傳票沒有 B 貸方', hint: '輸出 A 借列與同傳票所有貸方列。A、B 都選 Cash 就是「借現金、貸非現金」。' },
+    { type: 'specialAccountCategoryPair', mode: 'notDrCr', label: '貸方是 B 且整張傳票沒有 A 借方', hint: '輸出 B 貸列與同傳票所有借方列。A、B 都選 Cash 就是「貸現金、借非現金」。' },
     { type: 'accountPair', mode: 'debitAnchor', label: '借方是 A，看它的對方科目', hint: '輸出 A 借列與同傳票所有貸方列。' },
     { type: 'accountPair', mode: 'creditAnchor', label: '貸方是 B，看它的對方科目', hint: '輸出 B 貸列與同傳票所有借方列。' },
     { type: 'accountPair', mode: 'exact', label: '借方是 A 且貸方是 B（舊格式）', hint: '同一張傳票同時有 A 借方與 B 貸方；結果列出符合的借方與貸方分錄。', legacy: true }
@@ -444,8 +460,9 @@
     { key: 'amount', field: 'amount', checks: [
       { key: 'largeAmount', label: '大額', name: '大額分錄', focusValue: true, conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' }] },
       // 一條條件（裁定 2026-11-03-07）；改版前加入的是「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組，已儲存的照舊能讀。
+      // 個數留空，加入時帶由 GL 算出的個數（裁定 2026-11-05-26），見 FilterValues.zeroRunDefault。
       { key: 'trailingZeros', label: '尾數連續多個 0', name: '金額尾數連續多個 0', conditions: [
-        { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: String(PRESCREEN_DEFAULTS.trailingZeroDigits), amountBasis: 'absolute' }] }
+        { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '', amountBasis: 'absolute' }] }
     ] },
     { key: 'description', field: 'description', checks: [
       { key: 'descriptionKeywords', label: '含特定字詞', name: '摘要含特定字詞', conditions: [{ type: 'fieldValue', field: 'description', operator: 'contains', values: SUSPICIOUS_KEYWORD_DEFAULTS.slice() }] },
@@ -1003,13 +1020,18 @@
     if (!rule) { return []; }
     if (rule.type === 'prescreen') { var prescreen = prescreenRule(rule.prescreenKey); return prescreen ? prescreen.prerequisites : []; }
     if (FILTER_FIELD_RULE_TYPES.indexOf(rule.type) >= 0) {
-      if (rule.type === 'fieldValue' && rule.fieldId) { return []; }
-      return GL_SEMANTIC_FIELDS.indexOf(rule.field) >= 0 ? ['gl:' + rule.field] : [];
+      // 國定假日與補班日的比較方式另外需要各自的清單，排在欄位之後（裁定 2026-11-05-55、2026-11-05-66）。
+      var lists = rule.type !== 'fieldValue' ? []
+        : rule.operator === 'isHoliday' || rule.operator === 'isNotHoliday' ? ['holidayCalendar']
+        : rule.operator === 'isMakeupDay' || rule.operator === 'isNotMakeupDay' ? ['makeupCalendar'] : [];
+      if (rule.type === 'fieldValue' && rule.fieldId) { return lists; }
+      return (GL_SEMANTIC_FIELDS.indexOf(rule.field) >= 0 ? ['gl:' + rule.field] : []).concat(lists);
     }
     return FILTER_RULE_PREREQUISITES[rule.type] || [];
   }
 
-  // 第五步的案件事實。假日檔不檢查（裁定 2026-10-04-01），和後端第五步相同。
+  // 第五步的案件事實，和後端第五步相同。國定假日清單照裁定 2026-11-05-55 也檢查，原本引用 2026-10-04-01 而不檢查假日檔；
+  // 補班日清單照裁定 2026-11-05-66 比照國定假日。
   function rulePrerequisiteMet(state, prerequisite) {
     var imp = (state && state.importState) || {}, mapping = imp.accountMapping;
     if (prerequisite.indexOf('gl:') === 0) { return glFieldAvailable(state, prerequisite.slice(3)); }
@@ -1020,7 +1042,8 @@
       case 'revenueCategory': return !!(mapping && mapping.hasRevenue);
       case 'counterpartCategory': return !!(mapping && mapping.hasCounterpart);
       case 'authorizedPreparer': return !!imp.authorizedPreparer;
-      case 'holidayCalendar': return true;
+      case 'holidayCalendar': return Number(imp.calendar && imp.calendar.holidayCount) > 0;
+      case 'makeupCalendar': return Number(imp.calendar && imp.calendar.makeupDayCount) > 0;
     }
     return true;
   }
@@ -1038,6 +1061,7 @@
         return '科目配對中尚無歸類為「' + label('receivables') + '」「' + label('cash') + '」或「' + label('receipt_in_advance') + '」的科目，請先在第四步設定';
       case 'authorizedPreparer': return '尚未匯入授權編製人員清單，請先在第二步匯入';
       case 'holidayCalendar': return '尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳';
+      case 'makeupCalendar': return '尚未上傳補班日清單，請先在第二步「國定假日與補班日」上傳';
     }
     return '';
   }
@@ -2427,6 +2451,8 @@
         availableGlFields: data.mapping.gl.availableGlFields || null,
         // 確認配對時往下填補了幾格，跟著配對保存（裁定 2026-10-28-05），重開案件後第三步摘要照樣列出。
         fillDownCount: data.mapping.gl.fillDownCount || 0,
+        // 由 GL 借方平均算出的尾數 0 的個數（裁定 2026-11-05-25）。
+        zerosThreshold: data.mapping.gl.zerosThreshold || null,
         projectedRowCount: null
       });
     } else if (previousMapping.gl && data.importState && data.importState.gl) {
@@ -2806,6 +2832,7 @@
     PRESCREEN_RULES: PRESCREEN_RULES,
     prescreenConditionDescription: prescreenConditionDescription,
     prescreenConditionLabel: prescreenConditionLabel,
+    trailingZeroDigits: trailingZeroDigits,
     PRESCREEN_POSITIONING_COPY: PRESCREEN_POSITIONING_COPY,
     fileSizeMbText: fileSizeMbText,
     prescreenPositioningCopy: prescreenPositioningCopy,
@@ -2885,6 +2912,8 @@
     availableGlFields: availableGlFields,
     glFieldAvailable: glFieldAvailable,
     ruleRequirementNote: ruleRequirementNote,
+    rulePrerequisiteMet: rulePrerequisiteMet,
+    rulePrerequisiteReason: rulePrerequisiteReason,
     GL_FIELD_UNMAPPED: GL_FIELD_UNMAPPED,
     GL_FIELD_NEXT_STEP: GL_FIELD_NEXT_STEP,
     glFieldReadback: glFieldReadback,

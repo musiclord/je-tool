@@ -53,6 +53,8 @@ internal sealed class AgentGuiTestFixtures
     internal const string AuthorizedListSourceId = "authorized-list-source";
     internal const string CaseImportSourceId = "case-import-source";
     internal const string FailAuthorizedImportOnceId = "fail-authorized-import-once";
+    internal const string SeedMissingDatabaseProjectId = "seed-missing-database-project";
+    internal const string MissingDatabaseProjectId = "agent-gui-missing-database";
     internal const int MaximumFixtureCount = 3;
     internal const string TraceFileName = "agent-gui-fixtures.ndjson";
 
@@ -106,7 +108,8 @@ internal sealed class AgentGuiTestFixtures
 
     internal string DemoWorkbookRootPath { get; }
 
-    internal bool SeedsProjectState => ResolveProjectSeed() is not null;
+    internal bool SeedsProjectState =>
+        ResolveProjectSeed() is not null || IsEnabled(SeedMissingDatabaseProjectId);
 
     internal AgentGuiTestFixtures(AgentGuiTestProfile profile)
     {
@@ -153,7 +156,8 @@ internal sealed class AgentGuiTestFixtures
             or FailBlankSearchOnceId
             or AuthorizedListSourceId
             or CaseImportSourceId
-            or FailAuthorizedImportOnceId;
+            or FailAuthorizedImportOnceId
+            or SeedMissingDatabaseProjectId;
 
     /// <summary>
     /// 建立 GUI 驗證所需的封閉、確定性專案。fixture 不接收 action、路徑或資料參數；
@@ -164,11 +168,79 @@ internal sealed class AgentGuiTestFixtures
         CancellationToken cancellationToken)
     {
         var seed = ResolveProjectSeed();
-        if (seed is null)
+        if (seed is not null)
         {
-            return;
+            await SeedClosedProjectAsync(seed, dispatcher, cancellationToken).ConfigureAwait(false);
         }
 
+        // 資料庫檔不見的案件排在其他預先建立的案件之後，建完時作用中的案件就是它，再由審計員開別的案件切走。
+        if (IsEnabled(SeedMissingDatabaseProjectId))
+        {
+            await SeedMissingDatabaseProjectAsync(dispatcher, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// 案件清單上無法開啟的案件：照正式流程建一個 SQLite 空白案件、釋放案件鎖，再刪掉它的資料庫檔，
+    /// project.json 留著。案件清單照裁定 2026-11-05-72 列成無法開啟並寫出 ProjectFolderMessages.DatabaseMissing。
+    /// 只刪這個 run 的案件根目錄下、這個固定案件的資料庫檔與記錄檔。
+    /// </summary>
+    private async Task SeedMissingDatabaseProjectAsync(
+        ActionDispatcher dispatcher,
+        CancellationToken cancellationToken)
+    {
+        _trace.Write(SeedMissingDatabaseProjectId, "seed.started");
+        try
+        {
+            await DispatchAsync(dispatcher, "project.create", new
+            {
+                projectName = MissingDatabaseProjectId,
+                projectCode = "AGENT-GUI-MISSING-DB",
+                clientName = "Agent GUI Missing Database Fixture",
+                periodStart = "2025-01-01",
+                periodEnd = "2025-12-31",
+                databaseProvider = "sqlite",
+            }, cancellationToken).ConfigureAwait(false);
+            await DispatchAsync(
+                dispatcher, "project.releaseLock", new { }, cancellationToken).ConfigureAwait(false);
+
+            var folder = new JetProjectFolder(_projectsRootPath);
+            var databasePath = Path.GetFullPath(folder.GetDatabasePath(MissingDatabaseProjectId));
+            var projectsRoot = Path.GetFullPath(_projectsRootPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            if (!databasePath.StartsWith(projectsRoot, StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(folder.GetProjectJsonPath(MissingDatabaseProjectId)))
+            {
+                throw new InvalidOperationException(
+                    "Missing-database fixture requires its own run-owned SQLite project.");
+            }
+
+            // 建案留在連線池的連線會鎖住 jet.db；先全部關掉再刪。
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            foreach (var suffix in new[] { "", "-wal", "-shm" })
+            {
+                File.Delete(databasePath + suffix);
+            }
+            if (File.Exists(databasePath))
+            {
+                throw new InvalidOperationException("Missing-database fixture could not remove the database file.");
+            }
+
+            _trace.Write(SeedMissingDatabaseProjectId, "seed.completed");
+        }
+        catch
+        {
+            _trace.Write(SeedMissingDatabaseProjectId, "seed.failed");
+            throw;
+        }
+    }
+
+    private async Task SeedClosedProjectAsync(
+        ProjectSeedDefinition seed,
+        ActionDispatcher dispatcher,
+        CancellationToken cancellationToken)
+    {
         _trace.Write(seed.FixtureId, "seed.started");
         try
         {

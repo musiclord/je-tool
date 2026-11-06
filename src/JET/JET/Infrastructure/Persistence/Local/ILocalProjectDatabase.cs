@@ -9,19 +9,20 @@ namespace JET.Infrastructure;
 /// 引擎差異全部收進實作類：連線工廠、方言、匯入連線調校。<c>Local*</c> 家族只依賴
 /// 這個抽象與 <see cref="ISqlDialect"/>，不感知具體 ADO 型別，因此同一套 repository
 /// 與 SQL 文本可由多個本地引擎共用。<see cref="IProjectDatabaseInitializer"/> 與
-/// <see cref="IProjectDatabaseDeleter"/> 為既有契約（建立／刪除每專案資料庫）。
+/// <see cref="IProjectDatabaseDeleter"/> 為既有契約（建立／刪除每專案資料庫）；
+/// <see cref="IProjectDatabaseCheckpoint"/> 是作業結束與離開案件時的收尾。
 /// </summary>
-public interface ILocalProjectDatabase : IProjectDatabaseInitializer, IProjectDatabaseDeleter
+public interface ILocalProjectDatabase : IProjectDatabaseInitializer, IProjectDatabaseDeleter, IProjectDatabaseCheckpoint
 {
     /// <summary>該專案資料庫檔的實體路徑（dev 唯讀檢視定位檔案、回報檔案大小用）。</summary>
     string GetDatabasePath(string projectId);
 
     /// <summary>
-    /// repository 每次讀寫前呼叫。SQLite 與 DuckDB 實作在同一程序內對每個資料庫檔只做一次完整檢查
-    /// （見 <see cref="LocalSchemaReadiness"/>）；未覆寫的實作沿用完整檢查。
+    /// repository 每次讀寫前呼叫，不建立新的資料庫（裁定 2026-11-05-72）。SQLite 與 DuckDB 實作在同一程序內
+    /// 對每個資料庫檔只做一次完整檢查（見 <see cref="LocalSchemaReadiness"/>）；未覆寫的實作沿用開案時的完整檢查。
     /// </summary>
     Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
-        EnsureCreatedAsync(projectId, cancellationToken);
+        EnsureExistingAsync(projectId, cancellationToken);
 
     /// <summary>讀寫連線（目錄不存在則建立、檔不存在則建檔）。回傳引擎中立的 <see cref="DbConnection"/>。</summary>
     DbConnection CreateConnection(string projectId);

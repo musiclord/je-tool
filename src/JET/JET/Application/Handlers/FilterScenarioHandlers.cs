@@ -38,7 +38,8 @@ public sealed class FilterScenarioSaveHandler : IApplicationActionHandler
             repositories.MappingStates,
             repositories.AccountMappings,
             repositories.AuthorizedPreparers,
-            repositories.AccountCategories);
+            repositories.AccountCategories,
+            repositories.Calendar);
         var prepared = await FilterScenarioBatchWriter.LoadAsync(projectStore, projectId, stores, payload, cancellationToken);
         var saved = await stores.Scenarios.ListAsync(projectId, cancellationToken);
         var nowUtc = DateTimeOffset.UtcNow;
@@ -78,7 +79,8 @@ public sealed class FilterScenarioRemoveHandler : IApplicationActionHandler
             repositories.MappingStates,
             repositories.AccountMappings,
             repositories.AuthorizedPreparers,
-            repositories.AccountCategories);
+            repositories.AccountCategories,
+            repositories.Calendar);
         var prepared = await FilterScenarioBatchWriter.LoadAsync(projectStore, projectId, stores, payload, cancellationToken);
         var saved = await stores.Scenarios.ListAsync(projectId, cancellationToken);
         var change = FilterScenarioBatchWriter.PlanRemove(saved, payload);
@@ -120,7 +122,8 @@ public sealed class FilterScenarioRecheckHandler : IApplicationActionHandler
             repositories.MappingStates,
             repositories.AccountMappings,
             repositories.AuthorizedPreparers,
-            repositories.AccountCategories);
+            repositories.AccountCategories,
+            repositories.Calendar);
         var prepared = await FilterScenarioBatchWriter.LoadAsync(projectStore, projectId, stores, payload, cancellationToken);
         var saved = await stores.Scenarios.ListAsync(projectId, cancellationToken);
         // 清單是空的就不寫入；畫面在沒有情境時本來就不會送出。

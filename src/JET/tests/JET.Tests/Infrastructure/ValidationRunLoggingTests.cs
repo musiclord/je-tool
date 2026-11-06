@@ -45,8 +45,14 @@ public sealed class ValidationRunLoggingTests
     // 改叫 gl_by_account、tb_by_account 並用別名 g、t。命令數與其餘文字不變。第一次失敗：Focused 收據
     // 20261030-092756547-b71e94803d524218a0335bab44a69c8a。把收據 20261030-135241888-3c45f8ad7a044419beee5d439bf6db8a 裡的
     // 12 條實際命令只做上述反向改名，兩個 digest 都精確回到原值。SQL Server 未執行，維持原值待核對。
-    private const string SqliteSnapshotDigest = "F23A50B5603A4CBF3ABBA10E24BEE7CB93D615B878F21A67A7ED93CB61533999";
-    private const string DuckDbSnapshotDigest = "40AB65C09468FC8AB78D95F40C81B8871D1386C77CE222C77269D8AA5A8571CA";
+    // 裁定 2026-11-05-38 照舊版把核准日空白也算成不在期間：「核准日不在期間」的條件從
+    // `(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))` 改成
+    // `(approval_date IS NULL OR approval_date < @periodStart OR approval_date > @periodEnd)`，命令數與參數不變；這個情境有配對核准日，
+    // 所以沒有出現核准日不可用時的 `(1 = 0)`。第一次失敗：Focused 收據 20261105-111814127-dc4459ef65f048da9334a7beaca6e8f0。
+    // 把該收據的 12 條實際命令裡這 3 處條件換回舊字後，SQLite 與 DuckDB 兩個 digest 都精確回到原值 F23A50B5… 與 40AB65C0…。
+    // SQL Server 未執行，維持原值待核對。
+    private const string SqliteSnapshotDigest = "F5A37597F3F4CE1044980F9EA8862CA50FCD8A58E65886BD281A13EB75AC9C37";
+    private const string DuckDbSnapshotDigest = "24930F1471D5222FC2CAB19E9ED0FE21CC462FBECFC988DFB43317AA31D1C8BE";
     // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：12 條命令和本機版一一對應，漂移來自開發暫緩期間只經編譯的
     // 共用 SQL 修改（空白傳票號碼排除、第 12 條摘要計數與方言的去空白）。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
     private const string SqlServerSnapshotDigest = "E123F4F14083CDA051149B40A1FEFB9D126FE5E87AE1A11EB55D5944F9512EA9";

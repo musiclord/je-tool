@@ -39,6 +39,13 @@ const GL_COLUMNS = ['Doc', 'Date', 'Account', 'Name', 'Memo', 'Debit', 'Credit',
 const TB_COLUMNS = ['TbAccount', 'TbName', 'TbDebit', 'TbCredit'];
 // 分別設定借貸金額格式的全部必填欄位。
 const DUAL = { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', debitAmount: 'Debit', creditAmount: 'Credit' };
+const classes = node => (node.className || '').split(/\s+/);
+// 簡易清單每一列的 JET 欄位名稱。必填欄位的星號改成名稱後面的「必填」標籤（裁定 2026-11-05-23），名稱不含標籤的字。
+const rowLabel = row => {
+  const cell = row.querySelector('.mapping-table__label');
+  const tag = cell.querySelector('.mapping-table__req-tag');
+  return cell.textContent.replace(tag ? tag.textContent : '', '').trim();
+};
 const DEFAULT_MANUAL = { manualValues: ['1'], automaticValues: ['0'] };
 // 單欄金額加借貸別格式、而且借方代碼已填的完整草稿。
 const SIDE_DONE = { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side', drCrDebitCode: 'D' };
@@ -117,9 +124,18 @@ function journey({ ui = 'classic', columns = GL_COLUMNS, tb = null, mode = 'dual
   const commitDisabled = (kind = 'gl') => need('[data-action="commit-' + kind + '"]', kind).disabled;
   const problems = (kind = 'gl') => { const node = $('[data-bind="mapping-option-problems"]', kind); return node === null ? '' : node.textContent; };
   const legendGroup = text => $$('fieldset').find(set => { const legend = set.querySelector('legend'); return legend !== null && legend.textContent === text; }) || null;
-  const railItems = (kind = 'gl') => $$('.map-rail__item', kind).map(item => ({
-    label: item.querySelector('.map-rail__jump').textContent, done: item.className.split(/\s+/).includes('is-done') }));
-  return { ...f, section, $, $$, need, choose, tick, type, press, sent, last, draftNow, optionsNow, commitDisabled, problems, legendGroup, railItems };
+  // 裁定 2026-11-05-24 拿掉右側必填清單：簡易清單看每一列的「必填」標籤，對照表格看表格上方的名稱標籤，兩種介面只會有其中一種。
+  // 原本讀右側清單的每一項，用到它的測試在 FrontendMapping 收據 20261105-075417209-aad34b4a8aee4ac2834cb54522eeb8cc 第一次失敗；
+  // 意圖不變：每個必填欄位各一項，標出選了沒有。
+  const requiredItems = (kind = 'gl') => {
+    const tags = $$('.map-required__tag', kind);
+    if (tags.length) {
+      return tags.map(tag => ({ label: tag.textContent.replace('✓', '').replace(/，(已配對|還沒選)$/, ''), done: !classes(tag).includes('is-missing') }));
+    }
+    return $$('tr.mapping-table__row', kind).filter(row => classes(row).includes('is-required'))
+      .map(row => ({ label: rowLabel(row), done: !classes(row).includes('is-missing') }));
+  };
+  return { ...f, section, $, $$, need, choose, tick, type, press, sent, last, draftNow, optionsNow, commitDisabled, problems, legendGroup, requiredItems };
 }
 
 // 記下之後每一次焦點落在哪個元素（假 DOM 的 focus() 會設定 document.activeElement）。
@@ -213,8 +229,9 @@ test('mapping: every control has a distinguishable name, the preview button read
   const rows = f.$$('tr.mapping-table__row');
   assert.ok(rows.length > 10, 'the list shows every field of the side format');
   const names = [];
+  // 名稱原本去掉星號再比對；星號改成「必填」標籤後改去掉標籤的字（裁定 2026-11-05-23，第一次失敗：FrontendMapping 收據 20261105-075417209-aad34b4a8aee4ac2834cb54522eeb8cc）。
   for (const row of rows) {
-    const label = row.querySelector('.mapping-table__label').textContent.replace('*', '').trim();
+    const label = rowLabel(row);
     const control = row.querySelector('select, input');
     assert.ok(control !== null, 'row has a control: ' + label);
     const name = control.getAttribute('aria-label');
@@ -228,7 +245,7 @@ test('mapping: every control has a distinguishable name, the preview button read
   // 裁定 2026-10-13-18 改名（docs/history/specs/2026-10-06-kct-gl-requirements-plan.md「收尾四項：調查與裁定（2026-10-13）」
   // 選項「分錄金額（單欄）改成金額,借貸別欄位改成借貸別,分錄測試欄位改成 JET 欄位」），表頭與欄位名稱逐字比對。
   assert.equal(f.$('.mapping-table thead th').textContent, 'JET 欄位');
-  const labels = rows.map(row => row.querySelector('.mapping-table__label').textContent.replace('*', '').trim());
+  const labels = rows.map(rowLabel);
   assert.ok(labels.includes('金額'), 'the single amount field is named 金額');
   assert.ok(labels.includes('借貸別'), 'the debit-credit field is named 借貸別');
   assert.ok(!labels.some(label => /分錄金額|借貸別欄位|分錄測試欄位/.test(label)), 'old names are gone');
@@ -522,19 +539,19 @@ test('mapping: the list and the grid agree on the reason and on whether confirm 
     const seen = {};
     for (const ui of ['classic', 'grid']) {
       const f = journey({ ui, mode: state.mode, draft: state.draft });
-      const rail = f.need('.map-rail');
-      seen[ui] = { disabled: f.commitDisabled(), problems: f.problems(), rail: f.railItems(), title: rail.querySelector('.map-rail__title').textContent };
+      // 原本兩種介面讀同一份右側清單；清單拿掉後各讀自己的必填標示，表格上方那一行的字兩邊相同（裁定 2026-11-05-24）。
+      seen[ui] = { disabled: f.commitDisabled(), problems: f.problems(), required: f.requiredItems(), title: f.need('.map-required__title').textContent };
     }
     assert.deepEqual(seen.grid, seen.classic, state.name + ': both views agree');
     const view = seen.classic;
     if (state.name === 'missing required') {
       assert.ok(view.disabled === true);
-      assert.deepEqual(view.rail.filter(item => !item.done).map(item => item.label), ['總帳日期', '會計科目編號', '會計科目名稱', '傳票摘要', '借方金額', '貸方金額'],
+      assert.deepEqual(view.required.filter(item => !item.done).map(item => item.label), ['總帳日期', '會計科目編號', '會計科目名稱', '傳票摘要', '借方金額', '貸方金額'],
         'the list names every missing required field');
       assert.match(view.title, /6/);
     } else if (state.name === 'settings incomplete') {
       assert.ok(view.disabled === true);
-      assert.ok(view.rail.every(item => item.done));
+      assert.ok(view.required.every(item => item.done));
       assert.match(view.problems, /借方代碼|貸方代碼/, 'the reason points to the missing code');
     } else {
       assert.ok(view.disabled === false);
@@ -555,7 +572,7 @@ test('mapping: switching the amount format prunes fields the new format does not
   const draft = f.draftNow();
   assert.ok(!('debitAmount' in draft) && !('creditAmount' in draft), 'debit and credit columns are pruned');
   assert.equal(draft.isManual, 'Manual', 'fields shared by both formats stay');
-  assert.deepEqual(f.railItems().filter(item => !item.done).map(item => item.label), ['金額']);
+  assert.deepEqual(f.requiredItems().filter(item => !item.done).map(item => item.label), ['金額']);
 });
 
 test('mapping: approval date has a single source choice; clearing the source means no approval date and old contradictions block confirming', async () => {
@@ -721,7 +738,7 @@ test('mapping: a failed confirm is shown in place, and typing afterwards marks i
 /* ---- 情境 6：第三步重繪、焦點、捲動與連續輸入 ------------------------------------ */
 
 test('redraw: choosing a column redraws once, updates the required list and confirm, and keeps focus on the new select, also after remap', async () => {
-  // 草稿餵給必填清單、「確認配對」能不能按與過帳等設定區，選欄後一定要重繪。舊補丁「輸入框或已確認才重繪」讓全新草稿的下拉選欄
+  // 草稿餵給必填標示、「確認配對」能不能按與過帳等設定區，選欄後一定要重繪。舊補丁「輸入框或已確認才重繪」讓全新草稿的下拉選欄
   // 不重繪（右側必填檢查延遲），不得復發，所以全新草稿與按「重新配對」之後兩輪都測。
   const f = journey();
   const order = Object.entries(DUAL);
@@ -733,7 +750,7 @@ test('redraw: choosing a column redraws once, updates the required list and conf
     assert.ok(fresh !== old, key + ': the step was rebuilt');
     assert.ok(f.dom.document.activeElement === fresh, key + ': focus moved to the rebuilt select');
     assert.equal(fresh.value, column);
-    const pending = f.railItems().filter(item => !item.done).length;
+    const pending = f.requiredItems().filter(item => !item.done).length;
     assert.equal(pending, order.length - index - 1, key + ': the required list follows the draft');
     assert.ok(f.commitDisabled() === (pending > 0), key + ': confirm follows the required list');
   }
@@ -747,7 +764,7 @@ test('redraw: choosing a column redraws once, updates the required list and conf
   f.choose('select[data-mapping-key="accountName"]', '');
   assert.equal(f.contentVersion(), version + 1, 'after remap a choice still redraws');
   assert.ok(f.dom.document.activeElement === f.need('select[data-mapping-key="accountName"]'));
-  assert.deepEqual(f.railItems().filter(item => !item.done).map(item => item.label), ['會計科目名稱']);
+  assert.deepEqual(f.requiredItems().filter(item => !item.done).map(item => item.label), ['會計科目名稱']);
   assert.ok(f.commitDisabled() === true);
   assert.match(f.need('[data-bind="mapping-banner-gl"]').textContent, /修改/);
 
@@ -758,7 +775,7 @@ test('redraw: choosing a column redraws once, updates the required list and conf
   assert.equal(grid.contentVersion(), version2 + 1);
   const fresh = grid.need('select[data-map-col="Doc"]');
   assert.ok(fresh !== old && grid.dom.document.activeElement === fresh);
-  assert.ok(grid.railItems().find(item => item.label === '傳票號碼').done);
+  assert.ok(grid.requiredItems().find(item => item.label === '傳票號碼').done);
 });
 
 test('redraw: the grid and list keep their scroll positions when a column is chosen', () => {
@@ -1031,13 +1048,23 @@ test('redraw: redrawing the same step or shortening it while gliding home keeps 
   assert.equal(path.at(-1), 0, 'the glide still ends at the top');
 });
 
-test('redraw: after typing replaces the required list, its jump buttons still move focus to the matching select', () => {
-  const f = journey({ ui: 'grid', mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } });
-  const oldRail = f.need('.map-rail');
+test('redraw: after typing replaces the required line, a jump to a setting still moves focus to the matching select', async () => {
+  // 原本點右側必填清單的欄位名稱會切回簡易清單定位。裁定 2026-11-05-24 拿掉右側清單，對照表格上方的名稱標籤不能點，
+  // 跳到設定只剩確認失敗時的「前往設定」，所以改用它核對同一段定位與防呆（第一次失敗：FrontendMapping 收據 20261105-075417209-aad34b4a8aee4ac2834cb54522eeb8cc）。
+  const SIDE = { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' };
+  const failOn = (target, column) => {
+    target.press('[data-action="commit-gl"]');
+    target.last('mappingCommitGl').reject(Object.assign(new Error('有 1 列的值無法讀取。 第 3 列：A'), {
+      details: [{ sourceColumn: column, reasonCode: 'invalid_amount', message: '第 3 列：A' }] }));
+  };
+  const f = journey({ ui: 'grid', mode: 'side', draft: SIDE });
+  const oldLine = f.need('.map-required');
   f.type('input[data-mapping-key="drCrDebitCode"]', 'D');
-  assert.ok(f.need('.map-rail') !== oldRail, 'typing replaced the required list in place');
-  assert.match(f.need('.map-rail__title').textContent, /皆已/, 'the list title follows the draft');
-  const jump = f.need('[data-focus-mapping-field="accountName"]');
+  assert.ok(f.need('.map-required') !== oldLine, 'typing replaced the required line in place');
+  assert.match(f.need('.map-required__title').textContent, /皆已/, 'the line follows the draft');
+  failOn(f, 'Name');
+  await settleAll();
+  const jump = f.need('[data-bind="mapping-commit-error-gl"] [data-focus-mapping-field="accountName"]');
   jump.dispatch('click');
   f.timers.run();
   const select = f.need('select[data-mapping-key="accountName"]');
@@ -1045,16 +1072,20 @@ test('redraw: after typing replaces the required list, its jump buttons still mo
   assert.ok(f.dom.document.activeElement === select, 'focus lands on the matching select');
 
   // 按下後還沒定位就換了案件：不把焦點放到新案件的畫面。之後的步驟標題會接手焦點，所以記下每一次焦點落在哪裡。
-  const g = journey({ draft: { voucherNumber: 'Doc' } });
-  g.need('[data-focus-mapping-field="glDate"]').dispatch('click');
+  const g = journey({ mode: 'side', draft: { ...SIDE, drCrDebitCode: 'D' } });
+  failOn(g, 'Date');
+  await settleAll();
+  g.need('[data-bind="mapping-commit-error-gl"] [data-focus-mapping-field="glDate"]').dispatch('click');
   g.store.setProject({ projectId: 'another-case', periodStart: '2025-01-01', periodEnd: '2025-12-31' });
   g.store.setImportResult('gl', { batchId: 'gl-other', columns: GL_COLUMNS, rowCount: 3 });
   const focusedInG = focusHistory(g);
   g.timers.run();
   assert.ok(!focusedInG.some(node => node.getAttribute('data-mapping-key') === 'glDate'), 'focus does not move into another case');
   // 換到第四步之後也不定位。
-  const h = journey({ draft: { voucherNumber: 'Doc' } });
-  h.need('[data-focus-mapping-field="glDate"]').dispatch('click');
+  const h = journey({ mode: 'side', draft: { ...SIDE, drCrDebitCode: 'D' } });
+  failOn(h, 'Date');
+  await settleAll();
+  h.need('[data-bind="mapping-commit-error-gl"] [data-focus-mapping-field="glDate"]').dispatch('click');
   // 第四步的統計列會量版面；vm 沒有版面，給一個沒有欄位設定的樣式。
   h.window.getComputedStyle = () => ({ gridTemplateColumns: 'none' });
   h.store.setResult('validate', null);
@@ -1301,22 +1332,60 @@ test('mapping grid keeps the first page count when the next page arrives without
   assert.equal(f.need('[data-source-next]').disabled, false, 'the third page is still reachable');
 });
 
-// 裁定 2026-10-16-10：「GL和TB在欄位配對時的資料表高度至少要大於必填欄位的高度」。對照表格與必填清單放在同一列，
-// 分頁列排在表格下方；表格至少 480px，清單較長時表格跟著加高，兩者等高。實際高度只有瀏覽器量得到，這裡核對結構與樣式規則。
-test('mapping grid sits beside the required list in one row, with the pager below the table', async () => {
+// 裁定 2026-10-16-10：「GL和TB在欄位配對時的資料表高度至少要大於必填欄位的高度」。原本對照表格與右側必填清單放在同一列、兩者等高；
+// 裁定 2026-11-05-24 拿掉右側清單，等高不再適用：還沒選的必填欄位寫在表格上方，表格照舊 480px 高、佔滿整寬，分頁列排在表格下方。
+// 原本斷言右側清單在表格旁邊與並排的樣式，在 FrontendMapping 收據 20261105-075417209-aad34b4a8aee4ac2834cb54522eeb8cc 第一次失敗。實際高度只有瀏覽器量得到，這裡核對結構與樣式規則。
+test('mapping grid keeps its 480px table with the required fields above it and the pager below the table', async () => {
   const f = journey({ ui: 'grid', columns: ['Doc'], draft: { voucherNumber: 'Doc' } });
   f.last('queryDataPreview').resolve({ columns: ['Doc'], rows: Array.from({ length: 200 }, (_, i) => ['ROW-' + (i + 1)]), totalCount: 401 });
   await settleAll();
   const layout = f.need('.map-layout--grid');
   const main = layout.querySelector('.map-layout__main');
-  assert.ok(main.querySelector('.map-grid-wrap'), 'the table is in the layout row');
-  assert.ok(layout.children.some(node => (node.getAttribute('class') || '').split(/\s+/).includes('map-rail')), 'the required list is beside it');
+  assert.ok(main.querySelector('.map-grid-wrap'), 'the table is in the layout');
+  assert.equal(f.$$('.map-rail').length, 0, 'no required list beside the table');
+  const parts = f.section().children.map(node => classes(node));
+  assert.ok(parts.findIndex(name => name.includes('map-required')) >= 0, 'the required line is shown');
+  assert.ok(parts.findIndex(name => name.includes('map-required')) < parts.findIndex(name => name.includes('map-layout--grid')), 'the required line is above the table');
   const children = main.children.map(node => (node.getAttribute('class') || ''));
   assert.ok(children.indexOf('map-grid-wrap') < children.findIndex(name => name.split(/\s+/).includes('table-pager')), 'the pager follows the table');
   const css = readWwwroot('css/app.css');
-  assert.match(css, /\.map-layout--grid > \.map-layout__main \{ display: contents; \}/);
-  assert.match(css, /\.map-layout--grid > \.map-layout__main > \.map-grid-wrap \{\s*grid-row: 1;\s*contain: size;\s*min-height: 480px;/);
-  assert.match(css, /\.map-layout--grid > \.map-rail \{ grid-column: 2; grid-row: 1; \}/);
+  assert.match(css, /\.map-layout--grid \.map-grid-wrap \{\s*height: 480px;\s*max-height: none;\s*\}/);
+  assert.doesNotMatch(css, /\.map-rail/, 'the required list styles are gone');
+});
+
+// 裁定 2026-11-05-23、2026-11-05-24：必填欄位在簡易清單那一列標「必填」，還沒選是琥珀色；兩種介面都在表格上方寫還差幾個，
+// 全部選好時寫「必填欄位皆已配對」（裁定 2026-10-09-12）；對照表格再接每個必填欄位的名稱標籤，標籤不能點。這是新加的測試。
+test('mapping: required fields are tagged where they are chosen, and the grid lists their names above the table without links', () => {
+  const f = journey({ draft: { voucherNumber: 'Doc' } });
+  assert.equal(f.$$('.mapping-table .form__req').length, 0, 'no star is left in the list');
+  const doc = f.$$('tr.mapping-table__row').find(row => rowLabel(row) === '傳票號碼');
+  const date = f.$$('tr.mapping-table__row').find(row => rowLabel(row) === '總帳日期');
+  const approval = f.$$('tr.mapping-table__row').find(row => rowLabel(row) === '傳票核准日');
+  assert.equal(doc.querySelector('.mapping-table__req-tag').textContent, '必填');
+  assert.ok(!classes(doc).includes('is-missing'), 'a chosen required field is not marked as missing');
+  assert.ok(classes(date).includes('is-missing'), 'a required field not chosen yet is marked');
+  assert.ok(approval.querySelector('.mapping-table__req-tag') === null, 'an optional field has no tag');
+  assert.equal(f.need('.map-required__title').textContent, '還有 6 個必填欄位沒選');
+  assert.equal(f.$$('.map-required__tag').length, 0, 'the list carries the tags on its rows, not above them');
+  for (const [key, column] of Object.entries(DUAL)) f.choose('select[data-mapping-key="' + key + '"]', column);
+  assert.equal(f.need('.map-required__title').textContent, '必填欄位皆已配對');
+  assert.equal(f.$$('tr.mapping-table__row').filter(row => classes(row).includes('is-missing')).length, 0);
+  // 借方代碼與貸方代碼只要填一個，不算必填欄位，沒有「必填」標籤；沒填時由「尚需補齊」提醒。
+  const side = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } });
+  for (const key of ['drCrDebitCode', 'drCrCreditCode']) {
+    const row = side.need('input[data-mapping-key="' + key + '"]').closest('.mapping-table__row');
+    assert.ok(row.querySelector('.mapping-table__req-tag') === null, key + ' has no required tag');
+  }
+  assert.match(side.problems(), /借方代碼|貸方代碼/);
+
+  const grid = journey({ ui: 'grid', draft: { voucherNumber: 'Doc' } });
+  assert.equal(grid.need('.map-required__title').textContent, '還有 6 個必填欄位沒選');
+  const tags = grid.$$('.map-required__tag');
+  assert.equal(tags.length, 7, 'one tag for each required field');
+  assert.deepEqual(tags.filter(tag => !classes(tag).includes('is-missing')).map(tag => tag.textContent.replace('✓', '').replace(/，(已配對|還沒選)$/, '')), ['傳票號碼']);
+  assert.ok(tags.every(tag => tag.tagName === 'LI' && tag.querySelector('button, a') === null), 'the tags are not links');
+  assert.equal(grid.$$('.map-required [data-focus-mapping-field]').length, 0, 'no tag jumps back to the list');
+  assert.equal(grid.$$('.map-rail').length, 0, 'no required list beside the table');
 });
 
 // 裁定 2026-10-16-12：「按鈕 `預覽` 和 `重新配對` 相隔太遠，短時間比較難察覺到這兩個按鈕的存在」。

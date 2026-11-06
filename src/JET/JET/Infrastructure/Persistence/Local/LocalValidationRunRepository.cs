@@ -71,13 +71,13 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         var infSampleCount = await InsertInfSampleAsync(connection, transaction, input, cancellationToken);
 
         var (blankAccountNumber, blankVoucherNumber, blankDescription, approvalDateNotInPeriod) =
-            await ReadBlankRecordsAsync(connection, transaction, input, cancellationToken);
+            await ReadBlankRecordsAsync(connection, transaction, input, plan.RunOutOfPeriodApproval, cancellationToken);
         var sourceQualityFindingCount = await ReadSourceQualityFindingCountAsync(
             connection,
             transaction,
             cancellationToken);
 
-        var blankDetail = await ReadBlankDetailAsync(connection, transaction, input, cancellationToken);
+        var blankDetail = await ReadBlankDetailAsync(connection, transaction, input, plan.RunOutOfPeriodApproval, cancellationToken);
 
         var controlTotals = await ReadControlTotalsAsync(connection, transaction, cancellationToken);
         var voucherNumberAcrossGlDates = await ReadVoucherNumberAcrossGlDatesAsync(connection, transaction, cancellationToken);
@@ -288,7 +288,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
 
     private async Task<(long, long, long, long)> ReadBlankRecordsAsync(
         DbConnection connection, DbTransaction transaction,
-        ValidationRequest input, CancellationToken cancellationToken)
+        ValidationRequest input, bool approvalDateAvailable, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -297,7 +297,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         // 日期為投影時正規化的 yyyy-MM-dd ISO 字串，文字比較即時間序比較。
         var columns = string.Join(",\n                ",
             BlankRecordsCategoryPredicate.All.Select(c =>
-                $"COALESCE(SUM(CASE WHEN {BlankRecordsCategoryPredicate.Scoped(c, database.Dialect)} THEN 1 ELSE 0 END), 0)"));
+                $"COALESCE(SUM(CASE WHEN {BlankRecordsCategoryPredicate.ScopedWhenChecked(c, database.Dialect, approvalDateAvailable)} THEN 1 ELSE 0 END), 0)"));
         command.CommandText =
             $"""
             SELECT
@@ -354,16 +354,16 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
 
     private async Task<IReadOnlyList<BlankRecordRow>> ReadBlankDetailAsync(
         DbConnection connection, DbTransaction transaction,
-        ValidationRequest input, CancellationToken cancellationToken)
+        ValidationRequest input, bool approvalDateAvailable, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        // 四類旗標與 WHERE 皆走 BlankRecordsCategoryPredicate 中心，且全部只看納入測試的分錄。
+        // 四類旗標與 WHERE 皆走 BlankRecordsCategoryPredicate 中心，且全部只看納入測試的分錄；這次沒有檢查的類別不成立。
         var flags = string.Join(",\n                   ",
             BlankRecordsCategoryPredicate.All.Select(c =>
-                $"CASE WHEN {BlankRecordsCategoryPredicate.Scoped(c, database.Dialect)} THEN 1 ELSE 0 END"));
+                $"CASE WHEN {BlankRecordsCategoryPredicate.ScopedWhenChecked(c, database.Dialect, approvalDateAvailable)} THEN 1 ELSE 0 END"));
         var anyMatch = string.Join("\n               OR ",
-            BlankRecordsCategoryPredicate.All.Select(c => BlankRecordsCategoryPredicate.Scoped(c, database.Dialect)));
+            BlankRecordsCategoryPredicate.All.Select(c => BlankRecordsCategoryPredicate.ScopedWhenChecked(c, database.Dialect, approvalDateAvailable)));
         command.CommandText =
             $"""
             SELECT voucher_number, account_number, gl_date, description,

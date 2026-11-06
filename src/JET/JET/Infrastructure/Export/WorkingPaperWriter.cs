@@ -27,8 +27,6 @@ namespace JET.Infrastructure;
 ///
 /// 資料表共用骨架(DRY 閾值=3,本 task step1 / step1-2 / step1-3 達標):
 ///   <see cref="WriteCommonHeader"/> 出 A1-A4(公司/期間/財報準備日/斜體說明,五表全有);
-///   <see cref="EmitTableSheetAsync"/> 出「欄標列 + 逐列資料(列號內部累計)」;
-///   <see cref="StreamRowsAsync"/> 把 keyset 分頁 repo 轉成不全載入的列序列。
 ///   step1-1(條件例外表)與 step1-3(完整性差異條件表)結構不同,各自處理——
 ///   完整性差異科目數為零時,step1-3 不註冊工作表;條件由各 emitter 自己的前置判斷決定,不集中成一個大分支。
 ///

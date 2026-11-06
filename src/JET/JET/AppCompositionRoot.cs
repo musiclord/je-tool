@@ -207,9 +207,15 @@ public static partial class AppCompositionRoot
         var baseReportStore = new ProjectReportStore(
             folder,
             logger: loggerFactory.CreateLogger<ProjectReportStore>());
+        var session = new ProjectSession();
         // LoggerFactory.Create 不會釋放以執行個體加入的 provider；支援日誌最後才釋放，先寫完排隊中的案件紀錄，
-        // 包括放開工作鎖的那一筆。
-        var runtimeResources = new RuntimeOwnedResources(supportDiagnostic, loggerFactory, localFileLockService);
+        // 包括放開工作鎖的那一筆。結束 JET 時先關閉目前案件的資料庫連線，再放開案件鎖；
+        // 只有 SQLite 需要關閉，DuckDB 與 SQL Server 案件的資料夾沒有 jet.db，自然不做事。
+        var runtimeResources = new RuntimeOwnedResources(
+            supportDiagnostic,
+            loggerFactory,
+            localFileLockService,
+            new ProjectDatabaseShutdown(session, sqliteDatabase, loggerFactory.CreateLogger<ProjectDatabaseShutdown>()));
 
         // 啟動健康檢查（非阻斷）：SQL Server 已設定（base 連線字串非空）時，連一次 master
         // 跑 SELECT @@VERSION, DB_NAME(), SUSER_SNAME() 並把去敏結果寫進啟動日誌。連 master（而非單庫
@@ -240,7 +246,6 @@ public static partial class AppCompositionRoot
         JetApplicationRuntime? runtime = null;
         try
         {
-            var session = new ProjectSession();
             // dispatcher 與 concurrent query 的條件式補算共用同一個非阻塞的作業互斥鎖。
             var actionExecutionGate = new ActionExecutionGate();
 
@@ -340,7 +345,7 @@ public static partial class AppCompositionRoot
             new ProjectUpdateHandler(projectStore, projectRegistry, session, loggerFactory.CreateLogger<ProjectUpdateHandler>()),
             new ProjectLoadHandler(
                 projectStore, repositoryCatalog, projectRegistry, appConfigStore, currentPrincipal, session,
-                duckDbDatabase, loggerFactory.CreateLogger<ProjectLoadHandler>(), supportCaseHistory),
+                duckDbDatabase, loggerFactory.CreateLogger<ProjectLoadHandler>(), supportCaseHistory, sqliteDatabase),
             new AccountCategorySaveHandler(session, loggerFactory.CreateLogger<AccountCategorySaveHandler>()),
             new QueryAccountMappingPageHandler(session),
             new AccountMappingSaveHandler(session, loggerFactory.CreateLogger<AccountMappingSaveHandler>()),
@@ -352,7 +357,9 @@ public static partial class AppCompositionRoot
             new ProjectReleaseLockHandler(
                 currentPrincipal,
                 session,
-                actionExecutionGate),
+                actionExecutionGate,
+                sqliteDatabase,
+                loggerFactory.CreateLogger<ProjectReleaseLockHandler>()),
 #if DEBUG || JET_AGENT_GUI_TEST
             new ProjectLoadDemoHandler(),
             new DemoExportGlFileHandler(demoFileWriter),
@@ -460,7 +467,9 @@ public static partial class AppCompositionRoot
                 cancellationRegistry,
                 actionExecutionGate,
                 // DuckDB 案件在一次操作期間保持資料庫開啟；SQLite 案件的資料夾沒有 jet.duckdb，自然不持有。
-                duckDbDatabase);
+                duckDbDatabase,
+                // SQLite 案件在變更型作業結束後把記錄檔併回；DuckDB 與 SQL Server 案件的資料夾沒有 jet.db，自然不做事。
+                sqliteDatabase);
 #if JET_AGENT_GUI_TEST
             if (agentGuiTestFixtures is { SeedsProjectState: true })
             {

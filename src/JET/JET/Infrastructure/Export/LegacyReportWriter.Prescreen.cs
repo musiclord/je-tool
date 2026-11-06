@@ -12,6 +12,22 @@ public sealed partial class LegacyReportWriter
     private const string PrescreenSummaryOnlyMessage =
         "明細筆數超過10,000筆，明細資料不匯出";
 
+    // 裁定 2026-11-05-44：摘要頁 D 欄照舊版 idea-tool.bas 第 8105 到 8806 行與第 9176 行的原句，「編制」也照舊版用字。
+    private const string PrescreenNoHitMessage = "沒有符合預篩選條件之明細項";
+
+    private const string PrescreenApprovalDateNotMappedMessage = "沒有設定傳票核准日欄位";
+
+    private const string PrescreenPreparerNotMappedMessage =
+        "因於資料欄未配對時未配對【編制人員】欄位，故此預篩選程序未執行";
+
+    /// <summary>
+    /// 「財報準備日起核准」只因傳票核准日不可用而不能執行時，第四步存下的原因句；
+    /// 和這句相同時照舊版寫「沒有設定傳票核准日欄位」，其他原因（例如期末財報準備日留空）照 JET 寫出原因。
+    /// </summary>
+    private static readonly string ApprovalDateUnavailableReason = JetRuleRequirements.PrescreenSentences(
+        [new JetRulePrerequisite(JetRulePrerequisiteKind.GlField, JetFieldCatalog.GlApprovalDate)],
+        AccountCategoryLabels.BuiltIn);
+
     // idea-script.bas 7925：summary 第三欄整欄 WrapText，無條件套用。
     private static readonly WorkbookStylePatch PrescreenDescriptionColumnWrap =
         new(WrapText: true);
@@ -152,14 +168,18 @@ public sealed partial class LegacyReportWriter
             progress).ConfigureAwait(false);
 
         // R5／R6 是 legacy 的彙總表，不套用 10,000 列明細上限。
-        await EmitPreparerSummaryAsync(
-            editor.Document,
-            editor.Sheets,
-            stats,
-            context.Project,
-            legacyStyles,
-            cancellationToken,
-            progress).ConfigureAwait(false);
+        // 裁定 2026-11-05-36：「依分錄編製者彙總」不適用時，照舊版不產生 R5 工作表。
+        if (projection.PreparerSummary.NaReason is null)
+        {
+            await EmitPreparerSummaryAsync(
+                editor.Document,
+                editor.Sheets,
+                stats,
+                context.Project,
+                legacyStyles,
+                cancellationToken,
+                progress).ConfigureAwait(false);
+        }
         await EmitAccountUsageAsync(
             editor.Document,
             editor.Sheets,
@@ -217,8 +237,9 @@ public sealed partial class LegacyReportWriter
                         "xxxx/xx/xx",
                         context.Project.PrepStartDate ?? "N/A",
                         StringComparison.Ordinal);
+                // 照 IDEA 版寫那次預篩選由 GL 借方平均算出的個數（裁定 2026-11-05-25），範本 C11 是「設定連續0的位數為：」。
                 var zeroText = ReadTemplateCellText(part, "C11")
-                    + TrailingZeroThreshold.DefaultZerosThreshold
+                    + projection.ZerosThreshold
                         .ToString(CultureInfo.InvariantCulture);
                 var cells = new DirectTemplateCellEditor(
                     part.Worksheet,
@@ -241,24 +262,28 @@ public sealed partial class LegacyReportWriter
                 SetPrescreenHitSummaryRow(
                     cells,
                     8,
+                    "R1",
                     projection.PrepPeriodApproval,
                     plan.RequireDetail(
                         PrescreenReportDetailKind.PrepPeriodApproval));
                 SetPrescreenHitSummaryRow(
                     cells,
                     9,
+                    "R2",
                     projection.SuspiciousKeywords,
                     plan.RequireDetail(
                         PrescreenReportDetailKind.SuspiciousKeywords));
                 SetPrescreenHitSummaryRow(
                     cells,
                     10,
+                    "R3",
                     projection.UnexpectedAccountPair,
                     plan.RequireDetail(
                         PrescreenReportDetailKind.UnexpectedAccountPair));
                 SetPrescreenHitSummaryRow(
                     cells,
                     11,
+                    "R4",
                     projection.TrailingZeros,
                     plan.RequireDetail(
                         PrescreenReportDetailKind.TrailingZeros));
@@ -266,12 +291,14 @@ public sealed partial class LegacyReportWriter
                     cells,
                     12,
                     projection.PreparerSummary,
-                    "R5");
+                    "R5",
+                    PrescreenPreparerNotMappedMessage);
                 SetPrescreenAggregateSummaryRow(
                     cells,
                     13,
                     projection.RareAccounts,
-                    "R6");
+                    "R6",
+                    notApplicableMessage: null);
                 SetRetiredPrescreenSummaryRow(
                     cells,
                     14,
@@ -290,6 +317,7 @@ public sealed partial class LegacyReportWriter
                 SetPrescreenHitSummaryRow(
                     cells,
                     17,
+                    "R7",
                     projection.BlankDescription,
                     plan.RequireDetail(
                         PrescreenReportDetailKind.BlankDescription));
@@ -342,6 +370,7 @@ public sealed partial class LegacyReportWriter
     private static void SetPrescreenHitSummaryRow(
         DirectTemplateCellEditor cells,
         int row,
+        string sheetName,
         PrescreenReportRuleProjection projection,
         PrescreenReportDetailPlan detail)
     {
@@ -349,17 +378,17 @@ public sealed partial class LegacyReportWriter
         cells.SetInlineString($"D{row}", detail.Disposition switch
         {
             PrescreenReportDetailDisposition.NotApplicable =>
-                $"N/A（{detail.NaReason ?? "前置條件不足，未執行"}）",
-            PrescreenReportDetailDisposition.Omit => "沒有符合項目",
-            PrescreenReportDetailDisposition.Emit =>
-                $"符合 {CountText.Format(detail.Counts!.RowHitCount)} 筆",
+                NotApplicableResultText(detail),
+            PrescreenReportDetailDisposition.Omit => PrescreenNoHitMessage,
+            PrescreenReportDetailDisposition.Emit => DetailSheetResultText(detail.Kind, sheetName),
             PrescreenReportDetailDisposition.SummaryOnly =>
                 PrescreenSummaryOnlyMessage,
             _ => throw new InvalidOperationException(
                 $"Pre-screening detail '{detail.Kind}' 尚未 Finalize。")
         });
 
-        if (detail.Counts is null)
+        // 裁定 2026-11-05-44：零筆時照舊版沒有明細工作表，E、F 欄寫 N/A。
+        if (detail.Counts is null || detail.Counts.RowHitCount == 0)
         {
             cells.SetInlineString($"E{row}", "N/A");
             cells.SetInlineString($"F{row}", "N/A");
@@ -374,18 +403,30 @@ public sealed partial class LegacyReportWriter
         DirectTemplateCellEditor cells,
         int row,
         PrescreenReportRuleProjection projection,
-        string sheetName)
+        string sheetName,
+        string? notApplicableMessage)
     {
         cells.SetInlineString($"A{row}", projection.Status);
         cells.SetInlineString(
             $"D{row}",
-            SummaryResultText(
-                projection.ItemCount,
-                sheetName,
-                projection.NaReason));
+            projection.NaReason is not { } naReason
+                ? DetailSheetResultText(null, sheetName)
+                : notApplicableMessage ?? $"N/A（{naReason}）");
         cells.SetInlineString($"E{row}", "N/A");
         cells.SetInlineString($"F{row}", "N/A");
     }
+
+    // 舊版有明細工作表時寫「符合預篩選條件之明細項請詳 [Rn] 工作表」；空白摘要是舊版另外加的規則，句子多「新增」兩個字。
+    private static string DetailSheetResultText(PrescreenReportDetailKind? kind, string sheetName) =>
+        kind == PrescreenReportDetailKind.BlankDescription
+            ? $"符合新增預篩選條件之明細項請詳 [{sheetName}] 工作表"
+            : $"符合預篩選條件之明細項請詳 [{sheetName}] 工作表";
+
+    private static string NotApplicableResultText(PrescreenReportDetailPlan detail) =>
+        detail.Kind == PrescreenReportDetailKind.PrepPeriodApproval
+        && string.Equals(detail.NaReason, ApprovalDateUnavailableReason, StringComparison.Ordinal)
+            ? PrescreenApprovalDateNotMappedMessage
+            : $"N/A（{detail.NaReason ?? "前置條件不足，未執行"}）";
 
     private static void SetRetiredPrescreenSummaryRow(
         DirectTemplateCellEditor cells,
@@ -474,14 +515,6 @@ public sealed partial class LegacyReportWriter
             progress).ConfigureAwait(false);
     }
 
-    private static string SummaryResultText(
-        long count,
-        string sheetName,
-        string? naReason) =>
-        !string.IsNullOrWhiteSpace(naReason)
-            ? $"N/A（{naReason}）"
-            : $"彙總 {CountText.Format(count)} 項；詳 [{sheetName}] 工作表";
-
     private async Task EmitPreparerSummaryAsync(
         SpreadsheetDocument document,
         Sheets sheets,
@@ -496,9 +529,14 @@ public sealed partial class LegacyReportWriter
             context.PeriodStart,
             context.PeriodEnd,
             cancellationToken).ConfigureAwait(false);
+        // 裁定 2026-11-05-32：配對了人工傳票欄位時，照舊版在人員後面多一欄人工旗標，同一位人員依人工旗標分列。
+        var includeManual = await IsManualFlagMappedAsync(
+            context.ProjectId,
+            cancellationToken).ConfigureAwait(false);
         var widths = MeasurePreparerSummaryColumns(
             preparers,
             context.MoneyScale,
+            includeManual,
             cancellationToken);
         var autoFitMode = preparers.Count is > 0 and < 10_000
             ? RawSheetAutoFitMode.LegacyFirstTwenty
@@ -511,6 +549,7 @@ public sealed partial class LegacyReportWriter
             sheets,
             part,
             widths,
+            includeManual,
             styles,
             autoFitMode);
         try
@@ -533,33 +572,13 @@ public sealed partial class LegacyReportWriter
                         sheets,
                         part,
                         widths,
+                        includeManual,
                         styles,
                         autoFitMode);
                 }
                 sheet.WriteDataRow(
                     row,
-                    [
-                        sheet.TextCell(
-                            row,
-                            1,
-                            PreparerSummaryDisplay.NameOf(item.CreatedBy),
-                            LegacyReportStyles.ExportDatabaseText),
-                        sheet.NumberCell(
-                            row,
-                            2,
-                            item.EntryCount,
-                            LegacyReportStyles.ExportDatabaseNumber(0)),
-                        sheet.NumberCell(
-                            row,
-                            3,
-                            Display(item.DebitTotalScaled, context.MoneyScale),
-                            LegacyReportStyles.ExportDatabaseAmount),
-                        sheet.NumberCell(
-                            row,
-                            4,
-                            Display(item.CreditTotalScaled, context.MoneyScale),
-                            LegacyReportStyles.ExportDatabaseAmount)
-                    ]);
+                    PreparerSummaryCells(sheet, row, item, includeManual, context.MoneyScale));
                 row++;
                 ReportIntermediateRows(
                     stats,
@@ -585,13 +604,15 @@ public sealed partial class LegacyReportWriter
         Sheets sheets,
         int part,
         IReadOnlyList<double> widths,
+        bool includeManual,
         WorkbookStyleMap styles,
         RawSheetAutoFitMode autoFitMode)
     {
-        if (widths.Count != 4)
+        var headers = PreparerSummaryHeaders(includeManual);
+        if (widths.Count != headers.Count)
         {
             throw new InvalidDataException(
-                $"R5 display width count must be 4, actual {widths.Count}.");
+                $"R5 display width count must be {headers.Count}, actual {widths.Count}.");
         }
         var sheet = OpenSheet(
             document,
@@ -604,39 +625,122 @@ public sealed partial class LegacyReportWriter
                 PageMargins: StandardMargins,
                 DefaultRowHeight: LegacyReportStyles.ExportDatabaseRowHeight),
             styles.Map);
-        string[] headers = ["CREATED_BY", "ENTRY_COUNT", "DEBIT_TOTAL", "CREDIT_TOTAL"];
-        uint[] headerStyles =
-        [
-            LegacyReportStyles.ExportDatabaseText,
-            LegacyReportStyles.ExportDatabaseNumber(0),
-            LegacyReportStyles.ExportDatabaseAmount,
-            LegacyReportStyles.ExportDatabaseAmount
-        ];
+        uint[] headerStyles = includeManual
+            ?
+            [
+                LegacyReportStyles.ExportDatabaseText,
+                LegacyReportStyles.ExportDatabaseText,
+                LegacyReportStyles.ExportDatabaseNumber(0),
+                LegacyReportStyles.ExportDatabaseAmount,
+                LegacyReportStyles.ExportDatabaseAmount
+            ]
+            :
+            [
+                LegacyReportStyles.ExportDatabaseText,
+                LegacyReportStyles.ExportDatabaseNumber(0),
+                LegacyReportStyles.ExportDatabaseAmount,
+                LegacyReportStyles.ExportDatabaseAmount
+            ];
         sheet.WriteFixedRow(1, headers.Select((header, index) =>
                 sheet.TextCell(1, checked((uint)index + 1U), header, headerStyles[index]))
             .ToArray());
         return sheet;
     }
 
+    // 人工旗標欄的表頭沿用欄位目錄給報告與底稿的名稱「人工傳票否_JE_S」，和舊版 R5 的表頭相同。
+    private static IReadOnlyList<string> PreparerSummaryHeaders(bool includeManual) =>
+        includeManual
+            ? ["CREATED_BY", ManualFieldReportName(), "ENTRY_COUNT", "DEBIT_TOTAL", "CREDIT_TOTAL"]
+            : ["CREATED_BY", "ENTRY_COUNT", "DEBIT_TOTAL", "CREDIT_TOTAL"];
+
+    private static string ManualFieldReportName() =>
+        JetFieldCatalog.FindGlFieldBySemanticIdentity(JetFieldCatalog.GlManual)?.LegacyFieldName
+            ?? throw new InvalidOperationException("欄位目錄沒有人工傳票欄位的報告名稱。");
+
+    private static IReadOnlyList<Cell> PreparerSummaryCells(
+        ReportSheetWriter sheet,
+        uint row,
+        PreparerSummaryExportRow item,
+        bool includeManual,
+        int moneyScale)
+    {
+        var cells = new List<Cell>(5)
+        {
+            sheet.TextCell(
+                row,
+                1,
+                PreparerSummaryDisplay.NameOf(item.CreatedBy),
+                LegacyReportStyles.ExportDatabaseText)
+        };
+        if (includeManual)
+        {
+            cells.Add(sheet.TextCell(
+                row,
+                2,
+                item.IsManual is { } isManual ? PreparerSummaryDisplay.ManualText(isManual) : null,
+                LegacyReportStyles.ExportDatabaseText));
+        }
+        var countColumn = includeManual ? 3U : 2U;
+        cells.Add(sheet.NumberCell(
+            row,
+            countColumn,
+            item.EntryCount,
+            LegacyReportStyles.ExportDatabaseNumber(0)));
+        cells.Add(sheet.NumberCell(
+            row,
+            countColumn + 1U,
+            Display(item.DebitTotalScaled, moneyScale),
+            LegacyReportStyles.ExportDatabaseAmount));
+        cells.Add(sheet.NumberCell(
+            row,
+            countColumn + 2U,
+            Display(item.CreditTotalScaled, moneyScale),
+            LegacyReportStyles.ExportDatabaseAmount));
+        return cells;
+    }
+
     private static IReadOnlyList<double> MeasurePreparerSummaryColumns(
         IReadOnlyList<PreparerSummaryExportRow> preparers,
         int moneyScale,
+        bool includeManual,
         CancellationToken cancellationToken)
     {
-        var widths = new ExcelDisplayWidthTracker(
-            ["CREATED_BY", "ENTRY_COUNT", "DEBIT_TOTAL", "CREDIT_TOTAL"]);
+        var widths = new ExcelDisplayWidthTracker(PreparerSummaryHeaders(includeManual).ToArray());
         foreach (var item in preparers)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            widths.Observe(
-            [
-                PreparerSummaryDisplay.NameOf(item.CreatedBy),
-                CountText.Format(item.EntryCount),
-                FormatDisplayedAmount(item.DebitTotalScaled, moneyScale),
-                FormatDisplayedAmount(item.CreditTotalScaled, moneyScale)
-            ]);
+            string?[] values = includeManual
+                ?
+                [
+                    PreparerSummaryDisplay.NameOf(item.CreatedBy),
+                    item.IsManual is { } isManual ? PreparerSummaryDisplay.ManualText(isManual) : null,
+                    CountText.Format(item.EntryCount),
+                    FormatDisplayedAmount(item.DebitTotalScaled, moneyScale),
+                    FormatDisplayedAmount(item.CreditTotalScaled, moneyScale)
+                ]
+                :
+                [
+                    PreparerSummaryDisplay.NameOf(item.CreatedBy),
+                    CountText.Format(item.EntryCount),
+                    FormatDisplayedAmount(item.DebitTotalScaled, moneyScale),
+                    FormatDisplayedAmount(item.CreditTotalScaled, moneyScale)
+                ];
+            widths.Observe(values);
         }
         return widths.Widths;
+    }
+
+    private async Task<bool> IsManualFlagMappedAsync(
+        string projectId,
+        CancellationToken cancellationToken)
+    {
+        var mapping = await mappings.FindAsync(
+            projectId,
+            DatasetKind.Gl,
+            cancellationToken).ConfigureAwait(false);
+        return mapping is not null
+            && mapping.Mapping.TryGetValue(GlMappingKeys.IsManual, out var manualColumn)
+            && !string.IsNullOrWhiteSpace(manualColumn);
     }
 
     private async Task EmitAccountUsageAsync(

@@ -12,8 +12,10 @@ public sealed partial class WorkingPaperWriter
     // ================= 封面 / 固定文字 emitter(一次性、固定文字;非資料表)=================
 
     /// <summary>
-    /// 「資料預先整理之說明」:公司名 / 測試期間 / 固定說明 / CAATs 文件檔名。
-    /// A6 檔名的 yyyymmdd 取 PeriodEnd 去掉非數字字元(樣本 PeriodEnd 形式不一:20241231 或 2024/12/31)。
+    /// 「資料預先整理之說明」:公司名 / 測試期間 / 篩選測試母體 / 固定說明。
+    /// A6 照舊版樣本底稿的外觀保留儲存格格式，但不寫字。原本的「請詳：{公司}_CAATS_JE_WP_{日期}.docx」是 2026-06-21
+    /// 設計底稿寫出程式時定的檔名，兩份舊版 IDEA 程式都沒有寫這一格；命名來源與 CAATs 的步驟都無法確認，
+    /// 使用者 2026-11-05 要求拿掉（裁定 2026-11-05-29）。
     /// </summary>
     private static void EmitCoverSheet(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -30,8 +32,7 @@ public sealed partial class WorkingPaperWriter
             WorkingPaperStyles.Bold)]);
         sheet.WriteFixedRow(5, [sheet.TextCell(5, 1,
             "請於下方加入針對JE Testing Tool所需資料預先整理之說明底稿(CAATs Document)。", WorkingPaperStyles.Plain)]);
-        sheet.WriteFixedRow(6, [sheet.TextCell(6, 1,
-            $"請詳：{context.CompanyName}_CAATS_JE_WP_{DigitsOnly(context.PeriodEnd)}.docx", WorkingPaperStyles.Plain)]);
+        sheet.WriteFixedRow(6, [sheet.TextCell(6, 1, null, WorkingPaperStyles.Plain)]);
 
         AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
     }
@@ -267,10 +268,11 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// 「自動化工具-假期假日資訊」:固定週末表 + 假日表(calendar store holiday)+ 補班段(makeup)。
-    /// 週末表為資料化常數(<see cref="WeekendRows"/>:Mon-Fri=N、Sat/Sun=Y),非逐列特判——
-    /// 「WORKDAY=Y」反指「視為非工作日(週末)」是樣本既定語意,週末固定七天故以常數陣列表達。
+    /// 「自動化工具-假期假日資訊」:週末表 + 假日表(calendar store holiday)+ 補班段(makeup)。
+    /// 週末表照案件設定的每週休息日寫出(<see cref="WeekendRows"/>,裁定 2026-11-05-31)。
     /// 假日/補班逐日列出(日數有界):日期由 yyyy-MM-dd 轉樣本顯示形式 yyyy/MM/dd;假日 IS_HOLIDAY 一律 Y。
+    /// 沒有匯入國定假日或補班日時,照舊版寫提示句(裁定 2026-11-05-35),寫在原本該段標題的那一列:
+    /// 舊版把假日的提示句寫在第 12 列,有補班日時又被補班標題蓋掉,所以 JET 不照舊版的列號。
     /// </summary>
     private async Task EmitCalendarInfoSheetAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -283,7 +285,8 @@ public sealed partial class WorkingPaperWriter
             ["DATE_OF_MAKEUPDAY", "MAKEUPDAY_DESC", "IS_HOLIDAY"]);
         widthTracker.Observe(["DAYOFWEEK", "WORKDAY", null]);
         widthTracker.Observe(["DATE_OF_HOLIDAY", "HOLIDAY_NAME", "IS_HOLIDAY"]);
-        foreach (var (dayName, workday) in WeekendRows)
+        var weekendRows = WeekendRows(context.NonWorkingDays);
+        foreach (var (dayName, workday) in weekendRows)
         {
             widthTracker.Observe([dayName, workday, null]);
         }
@@ -304,6 +307,7 @@ public sealed partial class WorkingPaperWriter
             session,
             pageNumber,
             widths,
+            weekendRows,
             holidays.Count,
             makeups.Count > 0,
             autoFit,
@@ -351,14 +355,22 @@ public sealed partial class WorkingPaperWriter
                     pageNumber,
                     CalendarDayType.Makeup,
                     widths,
-                    autoFit);
+                    autoFit,
+                    hasDays: makeups.Count > 0);
                 rowIndex = 2;
                 pageRows = 0;
             }
             else
             {
                 var makeupHeaderRow = checked(rowIndex + 1);
-                WriteMakeupHeader(sheet, makeupHeaderRow);
+                if (makeups.Count > 0)
+                {
+                    WriteMakeupHeader(sheet, makeupHeaderRow);
+                }
+                else
+                {
+                    WriteCalendarNotice(sheet, makeupHeaderRow, NoMakeupDaysNotice);
+                }
                 rowIndex = checked(makeupHeaderRow + 1);
             }
 
@@ -402,6 +414,7 @@ public sealed partial class WorkingPaperWriter
         WorkingPaperWriteSession session,
         int pageNumber,
         IReadOnlyList<double> widths,
+        IReadOnlyList<(string DayName, string Workday)> weekendRows,
         int holidayCount,
         bool hasMakeupDays,
         bool autoFit,
@@ -417,7 +430,7 @@ public sealed partial class WorkingPaperWriter
             sheet.TextCell(1, 2, "WORKDAY", WorkingPaperStyles.Bold)
         ]);
         var weekendRow = 2u;
-        foreach (var (dayName, workday) in WeekendRows)
+        foreach (var (dayName, workday) in weekendRows)
         {
             cancellationToken.ThrowIfCancellationRequested();
             sheet.WriteFixedRow(weekendRow,
@@ -428,7 +441,14 @@ public sealed partial class WorkingPaperWriter
             weekendRow++;
         }
 
-        WriteHolidayHeader(sheet, 10);
+        if (holidayCount > 0)
+        {
+            WriteHolidayHeader(sheet, 10);
+        }
+        else
+        {
+            WriteCalendarNotice(sheet, 10, NoHolidaysNotice);
+        }
         return sheet;
     }
 
@@ -437,13 +457,21 @@ public sealed partial class WorkingPaperWriter
         int pageNumber,
         CalendarDayType type,
         IReadOnlyList<double> widths,
-        bool autoFit)
+        bool autoFit,
+        bool hasDays = true)
     {
         var sheet = session.OpenSheet(
             ExcelWorksheetConstraints.ContinuationSheetName(WorkingPaperSheetCatalog.CalendarInfo, pageNumber),
-            CalendarContinuationAppearance(type));
+            CalendarContinuationAppearance(type, hasDays));
         ConfigureCalendarLayout(sheet, widths, autoFit);
-        if (type == CalendarDayType.Holiday)
+        if (!hasDays)
+        {
+            WriteCalendarNotice(
+                sheet,
+                1,
+                type == CalendarDayType.Holiday ? NoHolidaysNotice : NoMakeupDaysNotice);
+        }
+        else if (type == CalendarDayType.Holiday)
         {
             WriteHolidayHeader(sheet, 1);
         }
@@ -469,6 +497,13 @@ public sealed partial class WorkingPaperWriter
             sheet.TextCell(row, 1, "DATE_OF_MAKEUPDAY", WorkingPaperStyles.Bold),
             sheet.TextCell(row, 2, "MAKEUPDAY_DESC", WorkingPaperStyles.Bold)
         ]);
+
+    // 舊版 idea-tool.bas 寫在 A 欄的提示句,不加粗、不參與欄寬自動調整(舊版在寫提示句之前就調完欄寬)。
+    internal const string NoHolidaysNotice = "未設定假期資訊";
+    internal const string NoMakeupDaysNotice = "未設定補班日/結帳日資訊";
+
+    private static void WriteCalendarNotice(SheetWriter sheet, uint row, string notice) =>
+        sheet.WriteFixedRow(row, [sheet.TextCell(row, 1, notice)]);
 
     /// <summary>
     /// 「自動化工具-科目配對資訊」:GL_NUMBER / GL_NAME / STANDARDIZED_ACCOUNT_NAME + 每科目列。
@@ -590,13 +625,23 @@ public sealed partial class WorkingPaperWriter
         ["K_R條件", "K_情境三四", "K_情境五", "K_情境八"];
 
     /// <summary>
-    /// 假期假日資訊的固定週末對照(DAYOFWEEK / WORKDAY)。WORKDAY=Y 反指「視為非工作日(週末)」:
-    /// 週一~五=N、週六日=Y(對齊樣本)。週末恆為固定七天,以資料化常數陣列表達,emitter 逐列輸出,不寫特判。
+    /// 假期假日資訊的週末對照(DAYOFWEEK / WORKDAY)。照舊版 X_Append_Weekend 由週一排到週日,
+    /// 案件設定為每週休息日的那幾天寫 Y、其他寫 N;WORKDAY=Y 表示「視為非工作日」,是舊版既定的意思。
+    /// 案件沒有設定時照 <see cref="NonWorkingDays.Default"/> 寫週六、週日;設定成空集合時七天都寫 N
+    /// (裁定 2026-11-05-31)。
     /// </summary>
-    private static readonly IReadOnlyList<(string DayName, string Workday)> WeekendRows =
+    internal static IReadOnlyList<(string DayName, string Workday)> WeekendRows(IReadOnlyList<int>? nonWorkingDays)
+    {
+        var resolved = NonWorkingDays.Resolve(nonWorkingDays);
+        return WeekendDayOrder
+            .Select(day => (day.ToString(), resolved.Contains((int)day) ? "Y" : "N"))
+            .ToArray();
+    }
+
+    private static readonly IReadOnlyList<DayOfWeek> WeekendDayOrder =
     [
-        ("Monday", "N"), ("Tuesday", "N"), ("Wednesday", "N"), ("Thursday", "N"),
-        ("Friday", "N"), ("Saturday", "Y"), ("Sunday", "Y")
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday,
+        DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
     ];
 
     // ================= 動態 C 欄集(step3/4/4-1 業務分支:data structure 消特例)=================

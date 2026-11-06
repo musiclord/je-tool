@@ -310,6 +310,10 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var warnings = CommittedOperationLog.WithWarning(result.Projection.Warnings, operationLogWarning);
         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
         var availableGlFields = JetFieldCatalog.AvailableGlFields(result.Spec.Mapping, result.Spec.Options);
+        // 這次投影的控制總數算出的尾數 0 的個數（裁定 2026-11-05-25），畫面不用重開案件就能更新第四步卡片與第五步的預設。
+        int? zerosThreshold = result.Projection.GlTotals is { } glTotals
+            ? TrailingZeroThreshold.FromGlTotals(glTotals, document.MoneyScale)
+            : null;
         AuthorizedPreparerState? authorizedPreparerState;
         try
         {
@@ -335,6 +339,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
                 batchId = batch.BatchId,
                 projectedRowCount = result.Projection.ProjectedRowCount,
                 fillDownCount = result.Projection.FillDownCellCount,
+                zerosThreshold,
                 warnings,
                 invalidatedResults = unavailable.InvalidatedResults,
                 staleState = unavailable.StaleState,
@@ -358,6 +363,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             batchId = batch.BatchId,
             projectedRowCount = result.Projection.ProjectedRowCount,
             fillDownCount = result.Projection.FillDownCellCount,
+            zerosThreshold,
             warnings,
             authorizedPreparerState,
             invalidatedResults = mutationState.InvalidatedResults,

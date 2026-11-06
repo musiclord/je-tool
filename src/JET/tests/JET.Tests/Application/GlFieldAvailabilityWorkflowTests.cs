@@ -149,7 +149,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
     public async Task Step4AndStep5_GiveTheSameReasonForTheSameRule(string provider)
     {
         using var host = new HandlerTestHost();
-        // 沒有期末財報準備日、科目配對與授權名單；假日檔已上傳，第五步照裁定 2026-10-04-01 本來就不檢查假日檔。
+        // 沒有期末財報準備日、科目配對與授權名單；假日檔已上傳，所以兩步的假日規則都不因假日檔寫原因（第五步也檢查假日檔，裁定 2026-11-05-55）。
         await SetupAsync(host, provider, holidays: ["2025-03-04"]);
         var prescreen = await host.DispatchAsync("prescreen.run");
         var step4 = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
@@ -238,6 +238,74 @@ public sealed class GlFieldAvailabilityWorkflowTests
         var weekend = prescreen.GetProperty("weekendActivity");
         Assert.Equal(JsonValueKind.Null, weekend.GetProperty("naReason").ValueKind);
         Assert.Equal(2, weekend.GetProperty("postingCount").GetInt64());
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task MissingHolidayCalendar_Step5HolidayConditionsAreDisabledWithTheStep4Reason(string provider)
+    {
+        // 裁定 2026-11-05-55：沒有國定假日清單時，第五步的假日條件比照未配對的欄位停用並寫原因，和第四步同一句；
+        // 「非營業日」也看週末，沒有清單時照常可用。
+        using var host = new HandlerTestHost();
+        await SetupAsync(host, provider);
+        const string noHolidayList = "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳";
+
+        var prescreen = await host.DispatchAsync("prescreen.run");
+        var step4 = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
+            .ToDictionary(
+                static rule => rule.GetProperty("key").GetString()!,
+                static rule => rule.GetProperty("naReason").GetString(),
+                StringComparer.Ordinal);
+        Assert.Equal(noHolidayList + "。", step4[PrescreenRuleKeys.HolidayPosting]);
+        Assert.Equal(noHolidayList + "。" + ApprovalDateMissing + FieldFix, step4[PrescreenRuleKeys.HolidayApproval]);
+
+        var cases = new (object Rule, string[] Reasons)[]
+        {
+            (new { join = "AND", type = "prescreen", prescreenKey = PrescreenRuleKeys.HolidayPosting }, [noHolidayList]),
+            (new { join = "AND", type = "prescreen", prescreenKey = PrescreenRuleKeys.HolidayApproval }, [noHolidayList, ApprovalDateMissing]),
+            (new { join = "AND", type = "fieldValue", field = "glDate", @operator = "isHoliday" }, [noHolidayList]),
+            (new { join = "AND", type = "fieldValue", field = "glDate", @operator = "isNotHoliday" }, [noHolidayList])
+        };
+        foreach (var (rule, reasons) in cases)
+        {
+            var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview", Preview(rule)));
+            Assert.Equal(string.Join("；", reasons.Select(static reason => "第 1 組第 1 條：" + reason)), error.Message);
+        }
+
+        // 非營業日也看週末，沒有清單時照常可以預覽。
+        await host.DispatchAsync(
+            "filter.preview",
+            Preview(new { join = "AND", type = "fieldValue", field = "glDate", @operator = "isNonBusinessDay" }));
+    }
+
+    [Theory]
+    [InlineData("sqlite")]
+    [InlineData("duckdb")]
+    public async Task MissingMakeupCalendar_Step5MakeupConditionsAreDisabledLikeHolidays(string provider)
+    {
+        // 裁定 2026-11-05-66：沒有補班日清單時，第五步的補班日條件比照國定假日停用並寫原因；上傳清單後就能預覽。
+        // 這裡只上傳國定假日清單，確認兩份清單各自判斷。
+        using var host = new HandlerTestHost();
+        await SetupAsync(host, provider, holidays: ["2025-03-04"]);
+        const string noMakeupList = "尚未上傳補班日清單，請先在第二步「國定假日與補班日」上傳";
+        foreach (var op in new[] { "isMakeupDay", "isNotMakeupDay" })
+        {
+            var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                "filter.preview",
+                Preview(new { join = "AND", type = "fieldValue", field = "glDate", @operator = op })));
+            Assert.Equal("第 1 組第 1 條：" + noMakeupList, error.Message);
+        }
+        await host.DispatchAsync(
+            "filter.preview",
+            Preview(new { join = "AND", type = "fieldValue", field = "glDate", @operator = "isHoliday" }));
+
+        await host.DispatchAsync("import.makeupDay", JsonSerializer.Serialize(new { dates = new[] { "2025-03-01" } }));
+        var preview = await host.DispatchAsync(
+            "filter.preview",
+            Preview(new { join = "AND", type = "fieldValue", field = "glDate", @operator = "isMakeupDay" }));
+        // 2025-03-01 是 JV-1 的兩列。
+        Assert.Equal(2, preview.GetProperty("scenario").GetProperty("count").GetInt64());
     }
 
     [Theory]

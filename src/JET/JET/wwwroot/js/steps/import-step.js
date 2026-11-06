@@ -103,11 +103,13 @@
   /* ---- 任務清單（呈現層：把四張卡收斂成四列，展開才嵌入完整卡片）------------- */
 
   // 任務列外框：狀態符號 + 名稱(+必要/選用標) + 單一關鍵數字 + 單一動作鈕。
-  // opts.done 決定符號與名稱色（✓ 已備／○ 未匯入）。四列的「操作」是同一種每列重複的動作，一律用同一種低調按鈕；
+  // opts.done 決定符號與名稱色（✓ 已備／○ 未匯入）。四列的按鈕是同一種每列重複的動作，一律用同一種低調按鈕；
   // 原本未匯入的授權清單另標成主要動作而多一圈外框，看起來像樣式漏掉，而且它是選用項目（裁定 2026-10-16-07）。
+  // 按鈕寫出這一列要做的事：還沒匯入寫「匯入」，國定假日與補班日還沒設定寫「設定」，已經有資料寫「更改」（裁定 2026-11-05-20）。
   // 展開（opts.open）時在列下方嵌入 cardHtml（既有卡片完整 UI，DOM 未改）。
   function taskItemHtml(key, opts, cardHtml) {
     var open = opts.open;
+    var actionLabel = opts.done ? '更改' : (key === 'calendar' ? '設定' : '匯入');
     var markClass = opts.done ? ' import-task__mark--done' : ' import-task__mark--todo';
     var mark = opts.done ? '✓' : '—';
     var nameClass = opts.done ? '' : ' import-task__name--todo';
@@ -122,8 +124,8 @@
           '<span class="import-task__name' + nameClass + '">' + opts.name + tag + '</span>' +
           '<span class="import-task__meta">' + opts.meta + '</span>' +
           '<button type="button" class="import-task__action jet-disclosure" ' +
-            'data-task-toggle="' + key + '" aria-label="操作：' + Ui.esc(opts.name) + '"' + Ui.disclosureAttributes(open) + '>' +
-            '操作</button>' +
+            'data-task-toggle="' + key + '" aria-label="' + actionLabel + '：' + Ui.esc(opts.name) + '"' + Ui.disclosureAttributes(open) + '>' +
+            actionLabel + '</button>' +
         '</div>' +
         (open ? '<div class="import-task__panel" data-motion-key="' + Ui.esc('task-' + key) + '">' + cardHtml + '</div>' : '') +
       '</div>'
@@ -131,7 +133,7 @@
   }
 
   // GL／TB 列。關鍵數字一律讀既有 importState 欄位（rowCount／columns.length／sources.length，與 summaryFaceHtml 同源），
-  // 前端不計算、不臆造；Ui.countText 只加千分位，非計算。四類資料都由「操作」展開。
+  // 前端不計算、不臆造；Ui.countText 只加千分位，非計算。四類資料都由這一列的按鈕展開。
   function datasetTask(kind, name, info) {
     var meta = info
       ? Ui.countText(info.rowCount) + ' 列，' + Ui.countText(info.columns.length) + ' 欄，' +

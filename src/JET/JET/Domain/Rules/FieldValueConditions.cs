@@ -24,6 +24,8 @@ public static class FieldValueConditions
         ["isHoliday"] = "在國定假日", ["isNotHoliday"] = "不在國定假日",
         ["isMakeupDay"] = "在補班日", ["isNotMakeupDay"] = "不在補班日",
         ["isNonBusinessDay"] = "在非營業日", ["isNotNonBusinessDay"] = "不在非營業日",
+        // 舊版「特定數字篩選」的包含與排除（裁定 2026-11-05-46），名稱照用（裁定 2026-11-05-67）。
+        ["containsDigits"] = "整數部分包含", ["notContainsDigits"] = "整數部分不包含",
         ["endsWithDigits"] = "整數尾數符合", ["notEndsWithDigits"] = "整數尾數不符合",
         // 尾數連續多個 0（裁定 2026-11-03-07）：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
         ["endsWithZeros"] = "尾數連續", ["notEndsWithZeros"] = "尾數沒有連續",
@@ -35,7 +37,7 @@ public static class FieldValueConditions
         DateParseOptions? dateOptions = null)
     {
         if (rule.TypedValues is null) return null;
-        if (IsDayOfMonth(rule.TypedOperator) || IsTail(rule.TypedOperator))
+        if (IsDayOfMonth(rule.TypedOperator) || IsTail(rule.TypedOperator) || IsDigitContains(rule.TypedOperator))
             return rule.TypedValues.Select(value => value.Trim()).Distinct(StringComparer.Ordinal).ToArray();
         return rule.TypedValues.Select(value => field.ValueType switch
         {
@@ -55,12 +57,12 @@ public static class FieldValueConditions
             "isWeekend", "isNotWeekend", "isHoliday", "isNotHoliday",
             "isMakeupDay", "isNotMakeupDay", "isNonBusinessDay", "isNotNonBusinessDay", "isBlank", "isNotBlank"],
         "amount" => ["equals", "notEquals", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween", "in", "notIn",
-            "endsWithDigits", "notEndsWithDigits", "endsWithZeros", "notEndsWithZeros", "isBlank", "isNotBlank"],
+            "containsDigits", "notContainsDigits", "endsWithDigits", "notEndsWithDigits", "endsWithZeros", "notEndsWithZeros", "isBlank", "isNotBlank"],
         _ => []
     };
 
     public static bool IsNegative(string? op) => op is "notEquals" or "notContains" or "notStartsWith" or "notEndsWith" or "notIn" or "notBetween" or DayOfMonthNotIn
-        or "isNotWeekend" or "isNotHoliday" or "isNotMakeupDay" or "isNotNonBusinessDay" or "notEndsWithDigits" or "notEndsWithZeros"
+        or "isNotWeekend" or "isNotHoliday" or "isNotMakeupDay" or "isNotNonBusinessDay" or "notContainsDigits" or "notEndsWithDigits" or "notEndsWithZeros"
         or "notMonthStartDays" or "notMonthEndDays";
 
     public static bool IsMonthWindow(string? op) => op is "monthStartDays" or "notMonthStartDays" or "monthEndDays" or "notMonthEndDays";
@@ -74,6 +76,21 @@ public static class FieldValueConditions
     public static bool IsCalendar(string? op) => op is "isWeekend" or "isNotWeekend" or "isHoliday" or "isNotHoliday"
         or "isMakeupDay" or "isNotMakeupDay" or "isNonBusinessDay" or "isNotNonBusinessDay";
     public static bool IsTail(string? op) => op is "endsWithDigits" or "notEndsWithDigits";
+
+    /// <summary>
+    /// 整數部分包含任一串數字（舊版 JET 的「特定數字篩選」，裁定 2026-11-05-46）：和整數尾數一樣只看絕對值的整數部分，
+    /// 忽略正負號及小數；值是 1 到 <see cref="TrailingZeroThreshold.MaxCustomDigits"/> 位的數字，可以多串，以 <see cref="TailPatterns"/> 讀取。
+    /// </summary>
+    public static bool IsDigitContains(string? op) => op is "containsDigits" or "notContainsDigits";
+
+    /// <summary>
+    /// 只看國定假日清單的兩個比較方式。沒有上傳國定假日清單時第五步停用它們並寫原因（裁定 2026-11-05-55）；
+    /// 「非營業日」也看週末，沒有清單時仍可使用。
+    /// </summary>
+    public static bool IsHoliday(string? op) => op is "isHoliday" or "isNotHoliday";
+
+    /// <summary>只看補班日清單的兩個比較方式；沒有上傳補班日清單時第五步比照國定假日停用並寫原因（裁定 2026-11-05-66）。</summary>
+    public static bool IsMakeupDay(string? op) => op is "isMakeupDay" or "isNotMakeupDay";
 
     /// <summary>
     /// 尾數連續多個 0（裁定 2026-11-03-07）：整數部分的末 N 位都是 0，整數部分為 0 的金額不符合；忽略正負號及小數。
@@ -183,6 +200,14 @@ public static partial class FilterScenarioValidator
             ValidateTrailingDigits(rule with { Keywords = patterns }, label, errors);
             return;
         }
+        if (FieldValueConditions.IsDigitContains(rule.TypedOperator))
+        {
+            var patterns = FieldValueConditions.TailPatterns(rule);
+            if (patterns.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
+                errors.Add($"{label}：{FieldValueListLimitReason(rule.TypedOperator)}");
+            ValidateTrailingDigits(rule with { Keywords = patterns }, label, errors, "數字");
+            return;
+        }
         if (FieldValueConditions.IsDayOfMonth(rule.TypedOperator))
         {
             if (!FieldValueConditions.TryParseDaysOfMonth(rule.TypedValues, out _))
@@ -212,5 +237,5 @@ public static partial class FilterScenarioValidator
     // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示照畫面上的字寫；前端 filter-values.js 同一句。
     private static string FieldValueListLimitReason(string? op) =>
         $"每條最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。請拆成多條條件，放進子條件組，用 "
-        + (op is "notIn" or "notContains" or "notEndsWithDigits" ? "AND" : "OR") + " 連接。";
+        + (op is "notIn" or "notContains" or "notContainsDigits" or "notEndsWithDigits" ? "AND" : "OR") + " 連接。";
 }

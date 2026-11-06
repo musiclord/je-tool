@@ -43,7 +43,12 @@ const ALL_MAPPED = { hasAnyCategory: true, hasRevenue: true, hasCounterpart: tru
 // availableGlFields 是後端 project.load 與 mapping.commit.gl 回傳的可用欄位清單（2026-10-23 加入，欄位可用性只在後端算一次）；
 // 沒給時已確認的配對不帶清單，畫面不檢查欄位，和後端沒有清單時相同。
 function buildFixture(options = {}) {
-  const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], accountCategory = null, saved = [], availableGlFields = null,
+  // zerosThreshold 模擬後端照 GL 借方平均算出、跟著已確認 GL 配對帶回的尾數 0 的個數（裁定 2026-11-05-25）；用 4 和改版前固定的 6 區分。
+  // 裁定 2026-11-05-55 起，沒有國定假日清單時第五步的假日條件停用並寫原因，補班日清單照裁定 2026-11-05-66 比照。
+  // 這個夾具代表兩份清單都已上傳的案件，預設帶 3 天國定假日與 1 天補班日；要看沒有清單的畫面時傳 calendar: null 或只帶其中一份。
+  // 本檔因此加的夾具選項，第一次失敗是 FrontendMapping 收據 20261105-124034563-731d85a5b2c54709b7daa7e73974d5f0。
+  const { accountMapping = ALL_MAPPED, glMapping = null, rdeFields = [], accountCategory = null, saved = [], availableGlFields = null, zerosThreshold = 4,
+    calendar = { holidayCount: 3, makeupDayCount: 1 },
     project = { projectId: 'filter-build-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-01' } } = options;
   const dom = batch9TreeDom(), requests = [];
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
@@ -59,8 +64,9 @@ function buildFixture(options = {}) {
   const store = window.JetStore, api = window.filterBuild;
   store.setProject(project);
   store.setAccountMappingState(accountMapping);
+  if (calendar) store.setCalendarState(calendar);
   if (glMapping || rdeFields.length || availableGlFields) store.setMappingCommitted('gl', { mapping: glMapping || {}, mode: 'signed', options: { rdeFields },
-    ...(availableGlFields ? { availableGlFields } : {}) });
+    zerosThreshold, ...(availableGlFields ? { availableGlFields } : {}) });
   if (accountCategory) store.setCategory(accountCategory);
   store.setSavedScenarios(saved);
   let version = -1;
@@ -762,10 +768,12 @@ test('category ticks store each identity once and a renamed category keeps the c
 });
 
 // 裁定 2026-11-03-07：「金額尾數連續多個 0」改成一條條件，用新的比較方式，排在篩選方式的「尾數」那一組。這是新增的測試：
-// 審計員從欄位條件加入金額，篩選方式選「尾數連續多個 0」，個數預設帶第四步預篩選的 6 個，輸入框只收 1 到 12，後面寫「個 0」，
+// 審計員從欄位條件加入金額，篩選方式選「尾數連續多個 0」，個數預設帶第四步預篩選的個數，輸入框只收 1 到 12，後面寫「個 0」，
 // 條件列寫出整數部分為 0 的金額不符合；改成「排除」換成沒有連續的比較方式；個數填 0 時說要填 1 到 12 的整數。
 // 這個比較方式不看正負號，攸關資料元素的金額選它時不出現比較基準。
-test('the trailing-zero comparison defaults to six zeros, takes one to twelve and has no amount basis', () => {
+// 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：預設不再是固定的 6 個，而是這個案件的個數，夾具帶 4。原本的測試名稱是 the trailing-zero comparison defaults to six zeros, takes one to twelve and has no amount basis。
+// 第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
+test('the trailing-zero comparison defaults to the case zero count, takes one to twelve and has no amount basis', () => {
   const f = fieldPane({ rdeFields: [{ fieldId: 'rde.money', sourceColumn: 'Tax', label: '稅額', valueType: 'amount' }] });
   const ui = f.window.JetUi;
   f.click('[data-add-field="amount"]');
@@ -775,15 +783,15 @@ test('the trailing-zero comparison defaults to six zeros, takes one to twelve an
   assert.equal(option.textContent, '尾數連續多個 0');
   assert.equal(option.closest('optgroup').getAttribute('label'), '尾數');
   f.choose('.rule-row[data-gi="0"][data-ri="0"] [data-value-kind]', 'zeros');
-  assert.deepEqual(plain([rule().operator, rule().value, rule().amountBasis]), ['endsWithZeros', '6', 'absolute']);
+  assert.deepEqual(plain([rule().operator, rule().value, rule().amountBasis]), ['endsWithZeros', '4', 'absolute']);
   const count = row().querySelector('input[data-value-key="value"]');
-  assert.deepEqual([count.getAttribute('type'), count.getAttribute('min'), count.getAttribute('max'), count.value], ['number', '1', '12', '6']);
+  assert.deepEqual([count.getAttribute('type'), count.getAttribute('min'), count.getAttribute('max'), count.value], ['number', '1', '12', '4']);
   assert.ok(row().querySelectorAll('span').some(node => node.textContent === '個 0'), 'the count is followed by 個 0');
   assert.ok(row().querySelectorAll('.rule-explanation').some(node => node.textContent.includes('整數部分為 0 的金額不符合')));
-  assert.equal(ui.FilterValues.summary(rule(), f.store.getState()), '金額 尾數連續「6」個 0；空白不列入');
+  assert.equal(ui.FilterValues.summary(rule(), f.store.getState()), '金額 尾數連續「4」個 0；空白不列入');
   f.choose('.rule-row[data-gi="0"][data-ri="0"] [data-value-polarity]', 'exclude');
   assert.equal(rule().operator, 'notEndsWithZeros');
-  assert.equal(ui.FilterValues.summary(rule(), f.store.getState()), '金額 尾數沒有連續「6」個 0；空白不列入');
+  assert.equal(ui.FilterValues.summary(rule(), f.store.getState()), '金額 尾數沒有連續「4」個 0；空白不列入');
   const input = row().querySelector('input[data-value-key="value"]');
   input.value = '0'; input.fire('input');
   assert.equal(ui.FilterValues.problem(rule(), f.store.getState()), '連續 0 的個數須為 1 到 12 的整數');
@@ -796,6 +804,67 @@ test('the trailing-zero comparison defaults to six zeros, takes one to twelve an
   f.choose('.rule-row[data-gi="0"][data-ri="1"] [data-value-kind]', 'zeros');
   assert.equal(f.draft().groups[0].conditions[1].operator, 'endsWithZeros');
   assert.equal(extra().querySelector('[data-value-key="amountBasis"]'), null, 'the trailing-zero comparison ignores the sign, so no basis is offered');
+});
+
+// 裁定 2026-11-05-47：額外加入的攸關資料元素數值欄位，金額比較的預設照舊版改成絕對值，仍可改成含正負號；
+// 舊版 IDEA JET 的數字條件一律用 @Abs 比較（legacy/idea-tool.bas 第 3624 到 3648 行）。從條件總覽按「加入」與在子條件組加入，
+// 原本都把攸關資料元素的金額欄設成含正負號，照裁定 2026-11-05-70 改善時查到。這是新增的測試：兩條路徑都預設絕對值，改成含正負號後照實送出。
+test('an extra amount field added from the overview or inside a sub-condition group compares absolute amounts by default', () => {
+  const f = fieldPane({ rdeFields: [{ fieldId: 'rde.money', sourceColumn: 'Tax', label: '稅額', valueType: 'amount' }] });
+  const ui = f.window.JetUi;
+  const selectedBasis = row => row.querySelector('[data-value-key="amountBasis"]').querySelectorAll('option')
+    .find(option => option.getAttribute('selected') !== null).getAttribute('value');
+  f.click('[data-add-field="rde.money"]');
+  const rule = () => f.draft().groups[0].conditions[0];
+  assert.equal(rule().amountBasis, 'absolute');
+  assert.equal(ui.FilterValues.wire(rule(), f.store.getState()).amountBasis, 'absolute');
+  assert.equal(selectedBasis(f.$('.rule-row[data-gi="0"][data-ri="0"]')), 'absolute');
+  f.choose('.rule-row[data-gi="0"][data-ri="0"] [data-value-key="amountBasis"]', 'signed');
+  assert.equal(ui.FilterValues.wire(rule(), f.store.getState()).amountBasis, 'signed', 'the auditor can still compare signed amounts');
+  f.click('[data-add-compound="group"]');
+  const kind = f.$('[data-child-kind]');
+  assert.ok(kind.querySelectorAll('option').some(option => option.getAttribute('value') === 'field:rde.money'), 'the group offers the extra amount field');
+  kind.value = 'field:rde.money';
+  f.click('[data-child-add]');
+  const child = f.draft().groups[0].conditions[1].conditions[0];
+  assert.equal(child.fieldId, 'rde.money');
+  assert.equal(ui.FilterValues.wire(child, f.store.getState()).amountBasis, 'absolute');
+});
+
+// 裁定 2026-11-05-56：文字欄位的否定比較，例如「不包含」「不在清單中」，照舊版預設把欄位空白的分錄也列入，審計員可以取消；
+// 日期欄位照裁定 2026-09-04-01 不列入。後端收到沒帶這個值的條件時照舊當成不列入，所以這個預設只在畫面上。
+// 2026-11-06 提交前複審查到前端行為檢查沒有核對它，這是新增的測試：傳票摘要改成「排除」時自動勾選空白也列入，改回「符合」時取消；
+// 「完整內容相同」改成排除就是「不在清單中」，審計員取消勾選後照實送出，換到另一種排除的比較方式也保留這個選擇；傳票核准日與金額改成「排除」時不勾選。
+test('excluding text values counts blank entries by default and the auditor can untick it, while dates and amounts stay unticked', () => {
+  const f = fieldPane();
+  const ui = f.window.JetUi;
+  const at = index => '.rule-row[data-gi="0"][data-ri="' + index + '"] ';
+  const rule = index => f.draft().groups[0].conditions[index];
+  const blank = index => f.$(at(index) + 'input[data-value-key="includeBlank"]');
+  const sent = index => ui.FilterValues.wire(rule(index), f.store.getState()).includeBlank;
+
+  f.click('[data-add-field="description"]');
+  assert.deepEqual(plain([rule(0).operator, rule(0).includeBlank, sent(0), blank(0).checked]), ['contains', false, false, false]);
+  f.choose(at(0) + '[data-value-polarity]', 'exclude');
+  assert.deepEqual(plain([rule(0).operator, rule(0).includeBlank, sent(0), blank(0).checked]), ['notContains', true, true, true]);
+  assert.match(ui.FilterValues.summary(rule(0), f.store.getState()), /；空白也符合$/);
+  f.choose(at(0) + '[data-value-polarity]', 'keep');
+  assert.deepEqual(plain([rule(0).operator, rule(0).includeBlank, sent(0), blank(0).checked]), ['contains', false, false, false]);
+
+  f.choose(at(0) + '[data-value-kind]', 'exact');
+  f.choose(at(0) + '[data-value-polarity]', 'exclude');
+  assert.deepEqual(plain([rule(0).operator, rule(0).includeBlank, sent(0)]), ['notIn', true, true]);
+  blank(0).checked = false; blank(0).fire('change');
+  assert.deepEqual(plain([rule(0).includeBlank, sent(0), blank(0).checked]), [false, false, false]);
+  f.choose(at(0) + '[data-value-kind]', 'starts');
+  assert.deepEqual(plain([rule(0).operator, rule(0).includeBlank, sent(0)]), ['notStartsWith', false, false]);
+
+  f.click('[data-add-field="approvalDate"]');
+  f.choose(at(1) + '[data-value-polarity]', 'exclude');
+  assert.deepEqual(plain([rule(1).operator, rule(1).includeBlank, sent(1), blank(1).checked]), ['notIn', false, false, false]);
+  f.click('[data-add-field="amount"]');
+  f.choose(at(2) + '[data-value-polarity]', 'exclude');
+  assert.deepEqual(plain([rule(2).operator, rule(2).includeBlank, sent(2)]), ['notEquals', false, false]);
 });
 
 // 裁定 2026-11-03-27 先隱藏科目分類的上下層級，新案件的分類都是平的一層。這是新增的測試：分類都是平的時，科目分類條件的分類清單
@@ -973,7 +1042,8 @@ test('every field shortcut sits on its field row, is added by its own button wit
     assert.equal(rules[0].type, type, key);
     // 新建的分類條件預設包含下層分類。
     if (key === 'categoryPair') assert.equal(rules[0].categorySelection, 'subtree');
-    if (key === 'trailingZeros') assert.deepEqual([rules[0].field, rules[0].operator, rules[0].value, rules[0].amountBasis], ['amount', 'endsWithZeros', '6', 'absolute']);
+    // 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：加入時帶這個案件的個數，夾具帶 4。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
+    if (key === 'trailingZeros') assert.deepEqual([rules[0].field, rules[0].operator, rules[0].value, rules[0].amountBasis], ['amount', 'endsWithZeros', '4', 'absolute']);
     const remove = f.$('.rule-row[data-ri="0"]').querySelector('[data-action="remove-rule"]');
     assert.ok(remove, key + ' offers a remove control on its row');
     remove.fire('click');
@@ -1131,7 +1201,8 @@ test('a field that cannot be used keeps its menu shut and a shortcut that needs 
 // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，清單由十二條減為十條；第一次失敗：FrontendMapping 收據 20261030-170713163-f548633afe0749a791469b97942983be。
 const PRESCREEN_RULES = [
   ['prepPeriodApproval', '財報準備日起核准'], ['suspiciousKeywords', '摘要特定描述'], ['unexpectedAccountPair', '未預期借貸組合'],
-  ['trailingZeros', '金額尾數連續 6 個 0'], ['weekendPosting', '週末過帳'], ['weekendApproval', '週末核准'],
+  // 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：知道個數時寫「金額尾數連續 N 個 0」，夾具帶 4。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
+  ['trailingZeros', '金額尾數連續 4 個 0'], ['weekendPosting', '週末過帳'], ['weekendApproval', '週末核准'],
   ['holidayPosting', '假日過帳'], ['holidayApproval', '假日核准'], ['blankDescription', '空白摘要'],
   ['nonAuthorizedPreparer', '非授權編製人員']
 ];
@@ -1187,6 +1258,70 @@ test('a prescreen rule the backend would reject is disabled with its reason and 
   f.store.setAuthorizedPreparerState({ rowCount: 2 });
   assert.equal(f.$('[data-add-prescreen="nonAuthorizedPreparer"]').disabled, true);
   assert.equal(reason('nonAuthorizedPreparer'), '「傳票建立人員」尚未選擇來源欄，請回第三步欄位配對補上');
+});
+
+// 裁定 2026-11-05-55：沒有上傳國定假日清單時，第五步的假日條件比照未配對的欄位停用並寫原因，和第四步同一句；
+// 「非營業日」也看週末，沒有清單時照常可用。上傳清單之後全部恢復可用。
+// 這裡只缺國定假日清單。範例「財報準備期間的人工假日分錄」也排除補班日，照裁定 2026-11-05-66 也要補班日清單，
+// 所以補班日清單照常帶著，範例的原因才只寫國定假日這一句；只缺補班日清單的情況見下一個測試。
+test('without a holiday list every holiday condition is disabled with the step-2 reason while non-business-day stays available', () => {
+  const holidayReason = '尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳';
+  const f = buildFixture({ ...EXAMPLE_READY, calendar: { makeupDayCount: 1 } });
+  const describedText = node => f.$('#' + node.getAttribute('aria-describedby')).textContent;
+  f.click('[data-condition-source="field"]');
+  for (const key of ['glDateHoliday', 'approvalDateHoliday']) {
+    const item = f.$('[data-add-shortcut="' + key + '"]');
+    assert.equal(item.disabled, true, key + ' is disabled');
+    assert.equal(describedText(item), holidayReason, key + ' says why');
+  }
+  for (const key of ['glDateWeekend', 'glDateNonBusinessDay', 'approvalDateNonBusinessDay'])
+    assert.equal(f.$('[data-add-shortcut="' + key + '"]').disabled, false, key + ' stays available');
+  // 已有的日期條件改篩選方式時，「國定假日」那一項停用，名稱後面寫同一句原因。
+  f.$('[data-add-shortcut="glDateWeekend"]').fire('click');
+  const holidayOption = () => f.$('.rule-row[data-ri="0"] [data-value-kind]').querySelectorAll('option')
+    .find(option => option.getAttribute('value') === 'holiday');
+  assert.notEqual(holidayOption().getAttribute('disabled'), null, 'the holiday choice is disabled');
+  assert.equal(holidayOption().textContent, '國定假日（' + holidayReason + '）');
+  f.$('.rule-row[data-ri="0"] [data-action="remove-rule"]').fire('click');
+  // 預篩選分頁的假日過帳與假日核准停用並寫同一句，按了也不加入。
+  f.click('[data-condition-source="prescreen"]');
+  for (const key of ['holidayPosting', 'holidayApproval']) {
+    const button = f.$('[data-add-prescreen="' + key + '"]');
+    assert.equal(button.disabled, true, key + ' is disabled');
+    assert.equal(describedText(button), holidayReason, key + ' says why');
+    button.fire('click');
+  }
+  assert.equal(f.draft().groups.flatMap(group => group.conditions).length, 0, 'a disabled condition adds nothing');
+  // 情境範例「財報準備期間的人工假日分錄」也要國定假日清單。
+  assert.equal(f.$('[data-template-key="preparationManualHoliday"]').disabled, true);
+  assert.equal(f.$('#filter-example-note-preparationManualHoliday').textContent, holidayReason);
+  f.store.setCalendarState({ holidayCount: 3, makeupDayCount: 1 });
+  for (const key of ['holidayPosting', 'holidayApproval']) assert.equal(f.$('[data-add-prescreen="' + key + '"]').disabled, false, key + ' after upload');
+  assert.equal(f.$('[data-template-key="preparationManualHoliday"]').disabled, false, 'the example after upload');
+  f.click('[data-condition-source="field"]');
+  for (const key of ['glDateHoliday', 'approvalDateHoliday']) assert.equal(f.$('[data-add-shortcut="' + key + '"]').disabled, false, key + ' after upload');
+});
+
+// 裁定 2026-11-05-66：沒有補班日清單時，「補班日」比照國定假日停用並在名稱後寫原因，用到補班日的範例也一起停用；
+// 兩份清單各自判斷。
+test('without a make-up day list the make-up choice is disabled with its own reason while holidays stay available', () => {
+  const makeupReason = '尚未上傳補班日清單，請先在第二步「國定假日與補班日」上傳';
+  const f = buildFixture({ ...EXAMPLE_READY, calendar: { holidayCount: 3 } });
+  // 範例「財報準備期間的人工假日分錄」排除補班日，所以也要補班日清單；只缺這份清單時原因只寫這一句。
+  const example = () => f.$('[data-template-key="preparationManualHoliday"]');
+  assert.equal(example().disabled, true, 'the example needs the make-up list');
+  assert.equal(f.$('#filter-example-note-preparationManualHoliday').textContent, makeupReason);
+  f.click('[data-condition-source="field"]');
+  f.$('[data-add-shortcut="glDateWeekend"]').fire('click');
+  const option = key => f.$('.rule-row[data-ri="0"] [data-value-kind]').querySelectorAll('option')
+    .find(node => node.getAttribute('value') === key);
+  assert.notEqual(option('makeup').getAttribute('disabled'), null, 'the make-up choice is disabled');
+  assert.equal(option('makeup').textContent, '補班日（' + makeupReason + '）');
+  assert.equal(option('holiday').getAttribute('disabled'), null, 'the holiday choice stays available');
+  f.store.setCalendarState({ holidayCount: 3, makeupDayCount: 1 });
+  assert.equal(option('makeup').getAttribute('disabled'), null, 'the make-up choice after upload');
+  assert.equal(option('makeup').textContent, '補班日');
+  assert.equal(example().disabled, false, 'the example after upload');
 });
 
 // 裁定 2026-10-16-08 與 2026-10-16-09 一起走一遍：從預篩選分頁一次加入「未預期借貸組合」，再查看符合的傳票。

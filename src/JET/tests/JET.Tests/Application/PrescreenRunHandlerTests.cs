@@ -66,13 +66,17 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         Assert.Equal(DemoDataFactory.PrepPeriodApprovalVouchers, distinctVouchers);
     }
 
+    // 改版前是 PrescreenRun_DemoFixture_TrailingZerosThresholdIsSix，鎖住固定 6 個 0。0 的個數改照 IDEA 版 R4 由 GL 算出
+    // （裁定 2026-11-05-25），預期值改由範例資料逐列獨立計算：查核期間內的借方金額合計除以分錄筆數，
+    // 平均的整數部分位數減一。第一次失敗：Focused 收據 20261105-083850941-ba07558d4ad14c96b0a1ca9fc181d8f3（預期 6，實際 4）。
     [Fact]
-    public async Task PrescreenRun_DemoFixture_TrailingZerosThresholdIsSix()
+    public async Task PrescreenRun_DemoFixture_TrailingZerosThresholdFollowsTheDebitAverage()
     {
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
-        // 校正後為方法學固定預設 6(取代原動態 max(3, floor(log10(avg))−1))。
-        Assert.Equal(6, data.GetProperty("trailingZeros").GetProperty("zerosThreshold").GetInt32());
+        Assert.Equal(DemoTrailingZeroDigits(), data.GetProperty("trailingZeros").GetProperty("zerosThreshold").GetInt32());
+        // 範例金額多在 1 到 5 萬元，每張傳票一借一貸，借方平均約一萬多元，是 5 位數、4 個 0。
+        Assert.Equal(4, DemoTrailingZeroDigits());
     }
 
     [Fact]
@@ -80,18 +84,30 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     {
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
-        // 固定預設 6、scale 10000：先向零取得主單位整數，再檢查 10^6 倍數。
-        // 小數尾數不參與 legacy 尾零判定；0 排除，母體固定查核期間。
-        // demo 金額多在 10^4 量級、無 10^6 倍數,此 recount 可能為 0(方法學正確);
-        // 因此不加 > 0 守門,只證 handler 與獨立 SQL 同源。
+        // scale 10000：先向零取得主單位整數，再檢查 10 的 N 次方倍數，N 是由範例資料獨立算出的 0 的個數（裁定 2026-11-05-25）。
+        // 小數尾數不參與 legacy 尾零判定；0 排除，母體固定查核期間。改版前固定比 10^6 倍數；範例的一般分錄沒有整數部分是一萬倍數的金額，
+        // 所以兩種個數選到的都是 30 筆種子分錄，這裡只證 handler 與獨立 SQL 同源。
+        var modulus = (long)Math.Pow(10, DemoTrailingZeroDigits());
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             "SELECT COUNT(*) FROM gl " +
             "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31' " +
             "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) <> 0 " +
-            "AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) % 1000000 = 0;");
+            $"AND CAST(ABS(amount_scaled) / 10000 AS INTEGER) % {modulus} = 0;");
 
         Assert.Equal(recount, data.GetProperty("trailingZeros").GetProperty("count").GetInt64());
+        Assert.Equal(DemoDataFactory.TrailingZerosVouchers * DemoDataFactory.LinesPerVoucher, recount);
+    }
+
+    /// <summary>範例資料查核期間內的借方金額合計除以分錄筆數，平均整數部分的位數減一，至少 1 個、最多 12 個；不經過被測程式。</summary>
+    private static int DemoTrailingZeroDigits()
+    {
+        var demo = DemoDataFactory.Create();
+        var start = DateOnly.Parse(demo.PeriodStart, System.Globalization.CultureInfo.InvariantCulture);
+        var end = DateOnly.Parse(demo.PeriodEnd, System.Globalization.CultureInfo.InvariantCulture);
+        var rows = demo.GlRows.Where(row => row.GlDate >= start && row.GlDate <= end).ToList();
+        var average = decimal.Truncate(rows.Where(row => row.IsDebit).Sum(row => row.Amount) / rows.Count);
+        return Math.Clamp(average.ToString(System.Globalization.CultureInfo.InvariantCulture).Length - 1, 1, 12);
     }
 
     [Fact]

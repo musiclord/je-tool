@@ -278,7 +278,9 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("E9", glBatch is null
                     ? "N/A"
                     : Path.GetFileName(glBatch.SourceFileName));
-                cells.SetNumber("E10", Math.Abs(projection.Net) > 0.01m ? projection.Net : 0m);
+                // 裁定 2026-11-05-33：E10 照舊版寫借貸淨額的絕對值，差額不到 0.01 時寫 0。
+                var netDifference = Math.Abs(projection.Net);
+                cells.SetNumber("E10", netDifference > 0.01m ? netDifference : 0m);
                 cells.SetNumber("E11", projection.TotalDebit);
                 cells.SetNumber("E12", projection.TotalCredit);
                 cells.SetNumber("E13", projection.GlRowCount);
@@ -349,6 +351,8 @@ public sealed partial class LegacyReportWriter
                     emitUnbalancedDetail
                         ? ValidationSummaryDifferenceFill
                         : null);
+                // 裁定 2026-11-05-42：主表照舊版加上工作表保護，不設密碼，和欄位資訊頁一樣。
+                cells.ProtectSheet();
                 cells.EnsureAllAllowedCellsWereEdited();
                 ExcelText.SaveWorksheet(part);
                 ct.ThrowIfCancellationRequested();

@@ -70,6 +70,22 @@ internal sealed record LegacyAuditParityJourneyReport(
     public override string ToString() => $"legacy parity report ({Kind})";
 }
 
+/// <summary>
+/// 第一次流程匯出六份報告之後，在同一個案件接著做的審計員操作（裁定 2026-11-06-01 要求的使用情境）。
+/// 每一段做完都重新匯出六份報告，用和第一次相同的規則再比一次。
+/// </summary>
+internal enum LegacyAuditParityFollowUp
+{
+    /// <summary>離開案件、從案件清單找到它、再開啟，然後重新匯出。</summary>
+    Reopen,
+
+    /// <summary>照第一次的配對重新確認 GL 配對，重做被清掉的下游再匯出。</summary>
+    MappingRecommit,
+
+    /// <summary>重新匯入同一份 GL，照第一次的配對與科目配對重做後面的步驟再匯出。</summary>
+    Reimport,
+}
+
 internal sealed class LegacyAuditParityJourneyResult
 {
     internal LegacyAuditParityJourneyResult(
@@ -204,7 +220,7 @@ internal static partial class LegacyAuditParityJourney
         LegacyAuditParityCheckpoint stopAfter,
         string? sqlServerConnectionString = null,
         CancellationToken cancellationToken = default,
-        Func<Task>? afterSuccessfulJourneyBeforeCleanup = null)
+        Func<LegacyAuditParityJourneyResult, Task>? afterSuccessfulJourneyBeforeCleanup = null)
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(input);
@@ -230,7 +246,7 @@ internal static partial class LegacyAuditParityJourney
             LegacyObservedCount.NotExecuted,
             LegacyObservedCount.NotExecuted);
         LegacyAuditParityObservation? observation = null;
-        var journeyCompleted = false;
+        LegacyAuditParityJourneyResult? completedResult = null;
 
         async Task<JsonElement> DispatchAsync(string action, string payload = "{}")
         {
@@ -242,8 +258,7 @@ internal static partial class LegacyAuditParityJourney
         LegacyAuditParityJourneyResult Result(LegacyAuditParityCheckpoint checkpoint)
         {
             stopwatch.Stop();
-            journeyCompleted = true;
-            return new LegacyAuditParityJourneyResult(
+            completedResult = new LegacyAuditParityJourneyResult(
                 input.CaseAlias,
                 provider,
                 checkpoint,
@@ -262,6 +277,7 @@ internal static partial class LegacyAuditParityJourney
                 reports.ToArray(),
                 actionNames.ToArray(),
                 stopwatch.Elapsed);
+            return completedResult;
         }
 
         try
@@ -497,9 +513,10 @@ internal static partial class LegacyAuditParityJourney
         {
             try
             {
-                if (journeyCompleted && afterSuccessfulJourneyBeforeCleanup is not null)
+                // 後續操作（重新開啟、重新確認配對、重新匯入）在這裡接著做：SQL Server 案件要等它們做完才刪除。
+                if (completedResult is not null && afterSuccessfulJourneyBeforeCleanup is not null)
                 {
-                    await afterSuccessfulJourneyBeforeCleanup().ConfigureAwait(false);
+                    await afterSuccessfulJourneyBeforeCleanup(completedResult).ConfigureAwait(false);
                 }
             }
             finally
@@ -513,6 +530,273 @@ internal static partial class LegacyAuditParityJourney
                     await StrictSqlServerCleanupAsync(sqlServerConnectionString, projectId)
                         .ConfigureAwait(false);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 在第一次流程完成的同一個案件、同一個測試主機上做一段後續操作，並重新匯出六份報告。
+    /// 要清掉什麼、重做什麼，照產品程式的失效政策：確認 GL 配對與匯入 GL 都依
+    /// <c>AuditDependencyPolicy</c> 清掉科目配對（分類保留）、資料驗證結果與抽樣、預篩選結果、
+    /// 第五步已儲存的條件與命中（裁定 2026-10-07-03、2026-10-08-12）；匯入 GL 另外退役已確認的 GL 配對。
+    /// TB 的匯入與配對、授權清單、假日與補班日都不受影響，所以不重做。回應裡的 invalidatedResults
+    /// 和這份清單不同時，這裡直接失敗，不猜要多做或少做哪一步。
+    /// SQL Server 案件要在 <see cref="RunAsync"/> 的清理之前呼叫，也就是在它的完成回呼裡呼叫。
+    /// </summary>
+    internal static async Task<LegacyAuditParityJourneyResult> RunFollowUpAsync(
+        HandlerTestHost host,
+        LegacyAuditParityJourneyInput input,
+        LegacyAuditParityProvider provider,
+        string projectId,
+        LegacyAuditParityFollowUp followUp,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        if (!Enum.IsDefined(followUp))
+        {
+            throw Incomplete("followUp");
+        }
+        if (!Enum.IsDefined(provider))
+        {
+            throw Incomplete("provider");
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        var actionNames = new List<string>();
+        var reports = new List<LegacyAuditParityJourneyReport>();
+        var currentAction = "followUp";
+        long? glImportedRowCount = null;
+        long? glProjectedRowCount = null;
+
+        async Task<JsonElement> DispatchAsync(string action, string payload = "{}")
+        {
+            currentAction = action;
+            actionNames.Add(action);
+            return await host.DispatchAsync(action, payload, cancellationToken);
+        }
+
+        try
+        {
+            JsonElement validation;
+            JsonElement prescreen;
+            string validationResultId;
+            string prescreenResultId;
+            string revision;
+            IReadOnlyList<JsonElement> infSampleRows;
+
+            if (followUp == LegacyAuditParityFollowUp.Reopen)
+            {
+                await DispatchAsync(JetActionNames.ProjectReleaseLock);
+                var list = await DispatchAsync("project.list");
+                RequireListedProject(list, projectId);
+                var loaded = await DispatchAsync(
+                    "project.load",
+                    JsonSerializer.Serialize(new { projectId }));
+                RequireCurrentResults(loaded);
+                validation = RequiredObject(loaded, "validationResult", "project.load.response.validationResult");
+                prescreen = RequiredObject(loaded, "prescreenResult", "project.load.response.prescreenResult");
+                validationResultId = RequiredResultReference(validation, "resultId", "project.load.response.validationResult.resultId");
+                prescreenResultId = RequiredResultReference(prescreen, "resultId", "project.load.response.prescreenResult.resultId");
+                revision = RequiredString(
+                    RequiredObject(loaded, "filterResultRef", "project.load.response.filterResultRef"),
+                    "revision",
+                    "project.load.response.filterResultRef.revision");
+
+                // 開啟後照第一次的順序重新匯出；結果沒有重算，報告要和第一次相同。
+                infSampleRows = await ReadInfSampleAsync(DispatchAsync);
+                var validationReports = await DispatchAsync(
+                    "export.validationReports",
+                    JsonSerializer.Serialize(new { resultId = validationResultId }));
+                CollectPublishedReports(host, projectId, validationReports, reports);
+                var accountMappingTemplate = await DispatchAsync(
+                    "export.accountMappingTemplate",
+                    JsonSerializer.Serialize(new { resultId = validationResultId }));
+                CollectWorkFile(host, projectId, accountMappingTemplate, LegacyReportKind.AccountMapping, reports);
+                RequireValidationEligible(validation);
+                await ReadWeekendUnionAsync(prescreen, DispatchAsync);
+                var prescreenReport = await DispatchAsync(
+                    "export.prescreenReport",
+                    JsonSerializer.Serialize(new { resultId = prescreenResultId }));
+                CollectPublishedReport(host, projectId, prescreenReport, reports);
+            }
+            else
+            {
+                if (followUp == LegacyAuditParityFollowUp.Reimport)
+                {
+                    var glImport = await DispatchAsync(
+                        "import.gl.fromFile",
+                        ImportPayload(input.GlImportMode, input.GlSources));
+                    glImportedRowCount = RequiredInt64(glImport, "rowCount", "import.gl.response.rowCount");
+                    RequireUpstreamInvalidation(glImport, "import.gl.response.invalidatedResults");
+                }
+
+                var glCommit = await DispatchAsync(
+                    "mapping.commit.gl",
+                    JsonSerializer.Serialize(new
+                    {
+                        mapping = input.GlMapping,
+                        amountMode = input.GlAmountMode,
+                    }));
+                glProjectedRowCount = RequiredInt64(
+                    glCommit,
+                    "projectedRowCount",
+                    "mapping.commit.gl.response.projectedRowCount");
+                RequireUpstreamInvalidation(glCommit, "mapping.commit.gl.response.invalidatedResults");
+
+                // 科目配對被清掉，審計員在第四步重新匯入同一份科目配對檔，再重跑資料驗證。
+                await DispatchAsync(
+                    "import.accountMapping.fromFile",
+                    ReferenceFilePayload(input.AccountMappingFile!));
+                validation = await DispatchAsync("validate.run");
+                validationResultId = RequiredResultReference(validation, "resultId", "validate.response.resultRef.resultId");
+                infSampleRows = await ReadInfSampleAsync(DispatchAsync);
+                var validationReports = await DispatchAsync(
+                    "export.validationReports",
+                    JsonSerializer.Serialize(new { resultId = validationResultId }));
+                CollectPublishedReports(host, projectId, validationReports, reports);
+                var accountMappingTemplate = await DispatchAsync(
+                    "export.accountMappingTemplate",
+                    JsonSerializer.Serialize(new { resultId = validationResultId }));
+                CollectWorkFile(host, projectId, accountMappingTemplate, LegacyReportKind.AccountMapping, reports);
+                RequireValidationEligible(validation);
+
+                prescreen = await DispatchAsync("prescreen.run");
+                prescreenResultId = RequiredResultReference(prescreen, "resultId", "prescreen.response.resultRef.resultId");
+                await ReadWeekendUnionAsync(prescreen, DispatchAsync);
+                var prescreenReport = await DispatchAsync(
+                    "export.prescreenReport",
+                    JsonSerializer.Serialize(new { resultId = prescreenResultId }));
+                CollectPublishedReport(host, projectId, prescreenReport, reports);
+
+                // 第五步已儲存的條件被清掉，照第一次的條件重新儲存。
+                var filter = await DispatchAsync(
+                    "filter.commit",
+                    JsonSerializer.Serialize(new { scenarios = input.FilterScenarios }));
+                revision = RequiredResultReference(filter, "revision", "filter.response.resultRef.revision");
+            }
+
+            var highRiskSummary = await DispatchAsync("query.highRiskSummaryScenarios");
+            var scenarioVerificationFacts = PrivateCaseScenarioVerificationFacts.Capture(highRiskSummary);
+            var infVerificationFacts = PrivateCaseInfVerificationFacts.Capture(validation, infSampleRows.Count);
+
+            var scenarioPositions = Enumerable.Range(1, input.FilterScenarios.GetArrayLength()).ToArray();
+            var criteriaSelectionReport = await DispatchAsync(
+                "export.criteriaSelectionReport",
+                JsonSerializer.Serialize(new
+                {
+                    validationResultId,
+                    prescreenResultId,
+                    revision,
+                }));
+            CollectPublishedReport(host, projectId, criteriaSelectionReport, reports);
+            var workingPaper = await DispatchAsync(
+                "export.workingPaperStream",
+                JsonSerializer.Serialize(new
+                {
+                    validationResultId,
+                    prescreenResultId,
+                    scenarioRevision = revision,
+                    scenarioPositions,
+                }));
+            CollectPublishedReport(host, projectId, workingPaper, reports);
+            EnsureSixReports(reports);
+
+            stopwatch.Stop();
+            return new LegacyAuditParityJourneyResult(
+                input.CaseAlias,
+                provider,
+                LegacyAuditParityCheckpoint.Export,
+                projectId,
+                glImportedRowCount,
+                tbImportedRowCount: null,
+                glProjectedRowCount,
+                tbProjectedRowCount: null,
+                validationCaptured: true,
+                prescreenCaptured: true,
+                filterCaptured: true,
+                highRiskSummaryCaptured: true,
+                infVerificationFacts,
+                scenarioVerificationFacts,
+                observation: null,
+                reports.ToArray(),
+                actionNames.ToArray(),
+                stopwatch.Elapsed);
+        }
+        catch (LegacyAuditParityJourneyCompletenessException)
+        {
+            throw;
+        }
+        catch (LegacyAuditParityObservationException exception)
+        {
+            throw new LegacyAuditParityJourneyExecutionException(
+                input.CaseAlias,
+                provider,
+                currentAction,
+                exception.FieldId);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(
+                $"Legacy audit parity follow-up cancelled for {input.CaseAlias}/{provider}; raw values were suppressed.",
+                cancellationToken);
+        }
+        catch (JetActionException exception)
+        {
+            throw new LegacyAuditParityJourneyExecutionException(
+                input.CaseAlias,
+                provider,
+                $"{followUp}:{currentAction}",
+                exception.Code);
+        }
+        catch (Exception exception)
+        {
+            throw new LegacyAuditParityJourneyExecutionException(
+                input.CaseAlias,
+                provider,
+                $"{followUp}:{currentAction}",
+                exception.GetType().Name);
+        }
+    }
+
+    private static void RequireListedProject(JsonElement list, string projectId)
+    {
+        var projects = RequiredArray(list, "projects", "project.list.response.projects");
+        var listed = projects.EnumerateArray().Count(project =>
+            project.ValueKind == JsonValueKind.Object
+            && project.TryGetProperty("projectId", out var id)
+            && id.ValueKind == JsonValueKind.String
+            && string.Equals(id.GetString(), projectId, StringComparison.Ordinal)
+            && !project.TryGetProperty("loadError", out _));
+        if (listed != 1)
+        {
+            throw Incomplete("project.list.response.project");
+        }
+    }
+
+    /// <summary>重新開啟不重算任何結果，三個步驟都不能被標成要重跑。</summary>
+    private static void RequireCurrentResults(JsonElement loaded)
+    {
+        var stale = RequiredObject(loaded, "staleState", "project.load.response.staleState");
+        foreach (var step in new[] { "validation", "prescreen", "filter" })
+        {
+            if (!stale.TryGetProperty(step, out var value) || value.ValueKind != JsonValueKind.False)
+            {
+                throw Incomplete($"project.load.response.staleState.{step}");
+            }
+        }
+    }
+
+    /// <summary>確認 GL 配對與匯入 GL 依失效政策清掉的範圍；和這裡重做的步驟一一對應。</summary>
+    private static void RequireUpstreamInvalidation(JsonElement response, string fieldId)
+    {
+        var invalidated = RequiredObject(response, "invalidatedResults", fieldId);
+        foreach (var item in new[] { "validation", "prescreen", "filter", "filterScenarios", "accountMapping" })
+        {
+            if (!invalidated.TryGetProperty(item, out var value) || value.ValueKind != JsonValueKind.True)
+            {
+                throw Incomplete($"{fieldId}.{item}");
             }
         }
     }

@@ -148,6 +148,7 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 `project.listLocal` 與 `project.list` 不再隱藏無法讀取的本機案件。正常列格式不變；損壞列只回
 `{ projectId, databaseProvider: null, loadError: { code, message } }`，說明檢查鎖檔、從備份復原或另建案件重新匯入，
 不捏造資料庫種類、名稱、期間或時間。其他正常案件仍可開啟，錯誤列也不會被重複列成只存在伺服器的案件。
+本機案件的資料庫檔不見或是 0 位元組時也列成錯誤列，`code` 是 `file_read_error`；建案中的標記還在時照常列出（裁定 2026-11-05-72）。
 
 建案時查核起始日不得晚於截止日，否則回 `invalid_payload`，`field` 為 `periodStart`，不建立案件。
 既有案件的期間格式不合法或起日晚於迄日時，載入回 `invalid_project_schema`，提示從備份復原或另建案件重新匯入。
@@ -162,6 +163,7 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 任一可改欄位真正改變時，既有報告索引標為過期，但不改寫或刪除已匯出的檔案；再次匯出才使用新資料。這是互斥寫入，SQL Server 登錄同步只經編譯。
 `project.load` 與 `project.update` 回應的 `project.rocDateEnabled` 帶回案件既有的民國年解析選項，供日期條件使用；這不是可由 `project.update` 修改的新欄位。
 `project.load` 的 payload 必填 `projectId`，另可選填 `databaseProvider`，值是案件清單列上的資料庫種類。
+本機案件的資料庫檔不見、是 0 位元組或沒有任何資料表時，`project.load` 回 `file_read_error`，不建立新的資料庫（裁定 2026-11-05-72）。
 本機沒有這個案件資料夾時，只有 `databaseProvider` 為 `sqlServer` 才會去線上登錄找只存在伺服器上的案件；
 沒帶或是其他值時直接回 `project_not_found`，不查線上登錄。本機已有案件資料夾時，資料庫種類一律以 `project.json`
 為準，這個欄位不影響載入。建立案件後的載入不必帶。
@@ -268,6 +270,8 @@ GL 與 TB 的匯入或配對確認都回傳五個 true，使用同一條失效�
 （裁定 2026-11-05-07）。沒有帶時照舊讀第一個工作表；文字檔帶 `sheetName` 以 `sheet_name_not_applicable` 拒絕。
 畫面選了 .xlsx 會先送 `import.inspectFile` 讀工作表清單，有欄名的工作表超過一個時請審計員選，選定後才送匯入。
 工作底稿在 GL 有、TB 沒有的科目，科目名稱一格寫「Not in TB」；匯入時這一格當成沒有科目名稱。
+JET 產生的科目配對範本也照舊版在這些科目的名稱欄寫「Not in TB」，和底稿一致；試算表也有的科目照舊寫試算表名稱。
+範本匯回時同樣把「Not in TB」當成沒有科目名稱（裁定 2026-11-05-40、2026-11-05-10）。
 
 科目配對先辨識確切欄名，去頭尾空白且不分大小寫：科目編號為 `GL_Number`（含 `GL_NUMBER`），
 科目名稱為 `GL_Name`（含 `GL_NAME`），分類為 `Standardized Account Name*` 或 `STANDARDIZED_ACCOUNT_NAME`。
@@ -356,10 +360,12 @@ GL 與 TB 都在投影資料的同一交易內保存配對與確認時間；任�
 
 GL 的 `side` 與 `flag` 金額模式共用判定，畫面合併為「金額與借貸別」；兩種模式都可以送出與讀取，`flag` 在畫面上顯示成同一個選項。
 `mapping.drCrDebitCode` 與 `mapping.drCrCreditCode` 至少填一個；兩者是字面代碼，不是來源欄名。前後空白修整後以 `OrdinalIgnoreCase` 比對。
+金額照舊版保留來源金額的正負號：借方代碼的列照原金額，其他列乘以 -1，不先取絕對值；借貸衍生欄再依結果的正負號決定。
+所以紅字沖銷，例如借方代碼的列寫 -100，算成貸方 100。資料本來就用正負號表示借貸時，改選「單一帶號金額欄」（裁定 2026-11-05-37）。
 只填借方碼時，其餘全部值包含空白都算貸方；只填貸方碼時方向相反。兩側都有填時，兩碼不得相同，來源空白或不符合任一碼仍以 `projection_failed` 列出來源列號，零金額也相同。
 單邊代碼的做法依裁定 2026-10-08-11。金額或日期解析失敗時，GL、TB 投影都保留原有資料；TB 不新增貸方代碼欄。
 已投影的資料不會自動重寫。重新確認 GL 配對才按目前設定投影；還原草稿接受有效的單邊代碼，但不猜另一側代碼，也不改寫已確認配對。
-千分位逗號只接受每組三位；括號可表示負數，不可再疊加正負號。正負號放在尾端時，前面可以有空白，有沒有千分位都讀成同一個值。
+千分位逗號只接受每組三位；括號可表示負數（裁定 2026-10-04-06），不可再疊加正負號。正負號放在尾端時，前面可以有空白，有沒有千分位都讀成同一個值。
 GL、TB、RDE 金額與篩選運算值共用相同解析。
 純數字不當成日期（裁定 2026-10-22-11）：沒套日期格式的數字儲存格與文字檔裡的 `2025`、`2025.12`、`45292` 這類值，
 都視為無法辨識的日期，確認配對時寫出列號。日期型儲存格由讀取器依儲存格格式換成 ISO，
@@ -409,7 +415,7 @@ SQL Server 也核對完整來源，比對鍵和它的分組相同。資料庫實
 填補是對來源欄做的，後端把配到同一個來源欄的其他可填欄位一起列入（裁定 2026-10-28-04）。
 確認配對時，JET 在投影每一列之前把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 原樣不動；多個來源追加時不跨來源延續，
 每個來源的第一列空白就是空白；以列序為準，只填勾選欄位的來源欄。成功回應帶 `fillDownFields`（照欄位目錄順序，含一起列入的欄位）
-與 `fillDownCount`（這次補了幾格，沒勾選是 0）。清單與格數跟著配對保存：`project.load` 回應的 `mapping.gl` 帶 `fillDownFields`
+與 `fillDownCount`（這次補了幾格，沒勾選是 0），以及由這次投影的控制總數算出的 `zerosThreshold`（見預篩選一節）。清單與格數跟著配對保存：`project.load` 回應的 `mapping.gl` 帶 `fillDownFields`
 與 `fillDownCount`（裁定 2026-10-28-05）；`previousMapping.gl` 與 `mapping.restoreDraft` 回應的 `gl`
 是草稿，只帶 `fillDownFields`。報告的配對資訊兩項都寫入；案件與報告沒有這兩項時，清單視為空、格數視為 0。
 改選擇只要重新確認配對，走既有的失效規則。往下填補放在第三步確認配對時（裁定 2026-10-22-16）。
@@ -452,7 +458,8 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 後端不再把「存在 INF 樣本」視為已完成驗證的證據。
 
 `blankRecordsTest` 另帶可為 null 的字串 `approvalDateNotInPeriodNaReason`，對應畫面的「核准日不在期間」。能檢查時，
-`approvalDateNotInPeriodCount` 是筆數，原因是 null。傳票核准日不可用時這一項無法執行，`approvalDateNotInPeriodCount` 是 null，
+`approvalDateNotInPeriodCount` 是筆數，原因是 null；照舊版，核准日落在查核期間之外或空白的分錄都算進來（裁定 2026-11-05-38）。
+傳票核准日不可用時這一項無法執行，`approvalDateNotInPeriodCount` 是 null，明細樣本與明細頁不列出任何一筆，
 原因由 `JetRuleRequirements` 產生，寫出缺什麼、到哪裡補，前端照原樣顯示。可不可用照 `JetFieldCatalog.AvailableGlFields` 判斷，
 和預篩選、第五步讀同一份答案。存下的摘要裡，筆數與原因必須恰好一個有值。存下的摘要沒有原因欄時，
 當成無效結果，需要重新執行資料驗證。
@@ -486,7 +493,10 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 
 `prescreen.run` 的 12 條規則與第五步 `prescreen` 條件的 10 個 `prescreenKey`，都登錄在 Domain 的 `PrescreenRuleDefinitions`；
 `RuleCatalog`、`FilterConditionLabels` 與前端的 `PRESCREEN_RULES` 由它衍生或鏡像，架構測試逐項比對。
-回應裡的 `zerosThreshold` 固定為 6，是「金額尾數連續 6 個 0」規則定義的一部分。
+回應裡的 `zerosThreshold` 是這次「分錄金額中有連續 0 的尾數」用的 0 的個數，照 IDEA 版由 GL 決定：借方金額合計除以分錄筆數的平均，
+整數部分的位數減一，至少 1、最多 12（裁定 2026-11-05-25、2026-11-05-27）。借方合計與筆數取確認 GL 配對時寫下的控制總數；
+`project.load` 的 `mapping.gl` 與 `mapping.commit.gl` 的成功回應也帶同名的 `zerosThreshold`，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡。
+沒有已確認的 GL 配對時 `project.load` 不帶 `mapping.gl`。預篩選報告讀保存的那次結果裡的 `zerosThreshold`。
 
 ### 進階篩選
 
@@ -635,10 +645,10 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 
 | `type` | wire 欄位 | 允許值與說明 |
 |:---|:---|:---|
-| `fieldValue` | `field` 或 `fieldId` 擇一、`operator`、`value`、`values`、`from`、`to`、`includeBlank`、`amountBasis` | 文字：`equals`、`notEquals`、`contains`、`notContains`、`startsWith`、`notStartsWith`、`endsWith`、`notEndsWith`、`in`、`notIn`、`isBlank`、`isNotBlank`；日期：`on`、`notEquals`、`before`、`onOrBefore`、`after`、`onOrAfter`、`between`、`notBetween`、`in`、`notIn`、`dayOfMonthIn`、`dayOfMonthNotIn`、`isBlank`、`isNotBlank`；金額：`equals`、`notEquals`、`greaterThan`、`greaterThanOrEqual`、`lessThan`、`lessThanOrEqual`、`between`、`notBetween`、`in`、`notIn`、`isBlank`、`isNotBlank`。`contains` 的 `values` 可放多個關鍵字（任一命中），`notContains` 是它的否定（一個都不含）；`dayOfMonthIn`、`dayOfMonthNotIn` 的 `values` 是 1 到 31 的整數，重複自動合併；`includeBlank` 省略時一律 false（空白不列入）。核心金額的 `amountBasis` 只接受 `absolute` 或省略；額外數值欄位仍可用 `signed` |
+| `fieldValue` | `field` 或 `fieldId` 擇一、`operator`、`value`、`values`、`from`、`to`、`includeBlank`、`amountBasis` | 文字：`equals`、`notEquals`、`contains`、`notContains`、`startsWith`、`notStartsWith`、`endsWith`、`notEndsWith`、`in`、`notIn`、`isBlank`、`isNotBlank`；日期：`on`、`notEquals`、`before`、`onOrBefore`、`after`、`onOrAfter`、`between`、`notBetween`、`in`、`notIn`、`dayOfMonthIn`、`dayOfMonthNotIn`、`isBlank`、`isNotBlank`；金額：`equals`、`notEquals`、`greaterThan`、`greaterThanOrEqual`、`lessThan`、`lessThanOrEqual`、`between`、`notBetween`、`in`、`notIn`、`containsDigits`、`notContainsDigits`、`isBlank`、`isNotBlank`，尾數與連續 0 見表下說明。`contains` 的 `values` 可放多個關鍵字（任一命中），`notContains` 是它的否定（一個都不含）；`dayOfMonthIn`、`dayOfMonthNotIn` 的 `values` 是 1 到 31 的整數，重複自動合併；`includeBlank` 省略時一律 false（空白不列入）；文字欄位的否定比較在畫面上預設勾選空白也符合，畫面一律明確送出 `includeBlank`（裁定 2026-11-05-56）。核心金額的 `amountBasis` 只接受 `absolute`，沒有帶或帶其他值都當成內容損毀，和舊版 IDEA JET 的數字條件一律比較絕對值一致（裁定 2026-11-05-70）；額外數值欄位仍可用 `signed`，畫面新增時預設 `absolute`（裁定 2026-11-05-47） |
 | `entityFrequency` | `field`、`countUnit`、`countOperator`、`countFrom`、`countTo` | `field` 為 `accountNumber`、`createdBy` 或 `approvedBy`；單位為 `entries` 或 `vouchers`；比較為 `equals`、`lessThan`、`greaterThan`、`between`、`lessThanOrEqual` 或 `greaterThanOrEqual`。門檻為非負整數，`between` 含兩端。依 GL 計算，空白識別值不命中；傳票張數同號只算一張，不計空白號碼 |
 | `accountSide` | `categoryMode`、`categoryIds[]` | `categoryMode` 為 `is`（科目屬於）或 `isNot`（科目不屬於），不帶 `drCr`；需要案件已匯入科目配對。分類留白的科目依 legacy 視為 `builtin.others`，不在配對檔的科目不屬於任何分類 |
-| `specialAccountCategoryPair` | `pairMode`、`debitCategoryIds[]`、`creditCategoryIds[]` | `drAndCr`（借方是 A 且貸方是 B）、`drNotCr`（借方是 A 且整張傳票沒有 B 貸方）、`notDrCr`（貸方是 B 且整張傳票沒有 A 借方） |
+| `specialAccountCategoryPair` | `pairMode`、`debitCategoryIds[]`、`creditCategoryIds[]` | `drAndCr`（借方是 A 且貸方是 B）、`drNotCr`（借方是 A 且整張傳票沒有 B 貸方）、`notDrCr`（貸方是 B 且整張傳票沒有 A 借方）。`drNotCr` 標記 A 類借方與同一張傳票貸方那一側的全部分錄，`notDrCr` 標記 B 類貸方與同一張傳票借方那一側的全部分錄，和 `accountPair` 的 `debitAnchor`、`creditAnchor` 相同（裁定 2026-11-05-45） |
 | `accountPair` | `pairMode`、`debitCategoryIds[]`、`creditCategoryIds[]` | `exact`（舊情境讀回用，不再新建）、`debitAnchor`（借方是 A，看它的對方科目）、`creditAnchor`（貸方是 B，看它的對方科目） |
 | `prescreen` | `prescreenKey` | 預篩選規則鍵 |
 | `text`、`textSet` | `keywords`（逗號分隔）、`mode`、`values[]`、`normalization` | `mode` 為 `contains`、`exact`、`notContains`、`notExact`；舊情境讀回與編輯用，不提供新建 |
@@ -658,9 +668,12 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 其餘各條分別放進 `quantifier: "any"` 的 `voucher`。
 金額另支援 `endsWithDigits`、`notEndsWithDigits`，`value` 為逗號分隔尾數，最多 100 組、每組最多 12 位。
 比較整數部分的絕對值，不看正負或小數，保留前導零的位數；核心欄位與攸關資料元素欄位共用相同規則。
+金額另支援 `containsDigits`、`notContainsDigits`（裁定 2026-11-05-46），畫面名稱是「整數部分包含」與「整數部分不包含」。
+`value` 和尾數一樣是逗號分隔的數字，每串 1 到 12 位，最多 100 串；只看絕對值的整數部分，不看正負、小數與 `amountBasis`。
+多串時任一串包含就符合，`notContainsDigits` 要每一串都不包含。否定形式不納入空白，除非 `includeBlank` 明示為 true。
 金額也支援 `endsWithZeros`、`notEndsWithZeros`（裁定 2026-11-03-07）。`value` 是整數部分結尾連續 0 的個數，1 到 12 的整數字串，
 不同時帶清單或區間；帶了 `values`、`from` 或 `to` 時當成條件內容損毀。比較整數部分的絕對值，不看正負、小數與 `amountBasis`，
-整數部分為 0 的金額不符合；和第四步「金額尾數連續 6 個 0」用同一條述詞。個數不合時回「金額：連續 0 的個數須為 1 到 12 的整數」。
+整數部分為 0 的金額不符合；和第四步「分錄金額中有連續 0 的尾數」用同一條述詞，前端加入時預設 `mapping.gl.zerosThreshold`。個數不合時回「金額：連續 0 的個數須為 1 到 12 的整數」。
 否定形式不納入空白，除非 `includeBlank` 明示為 true。
 
 情境沒有排除區域；排除寫成條件本身的否定，例如「不屬於」或「不在區間」。`filter.preview` 回 `count`、`voucherCount` 與 `previewRows`，沒有待判定計數。
@@ -674,6 +687,9 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 原因是「第 N 組第 M 條：「欄位名稱」尚未選擇來源欄」；有來源的欄位，空白資料仍可正常篩選。
 哪些欄位有來源，和 `availableGlFields` 用同一個方法算，`approvalDate` 採 `sameAsGlDate` 與 `lineItem` 自動編號都算有來源。
 期末財報準備日、授權編製人員清單與科目分類這些前置條件也由同一張 `JetRuleRequirements` 表決定，原因句和第四步讀同一張表。
+沒有上傳國定假日清單時，`isHoliday`、`isNotHoliday` 與預篩選的假日過帳、假日核准同樣回 `invalid_scenario`，原因是
+「尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳」；`isNonBusinessDay` 也看週末，沒有清單時照常可用（裁定 2026-11-05-55）。
+沒有上傳補班日清單時，`isMakeupDay` 與 `isNotMakeupDay` 同樣回 `invalid_scenario`，原因是「尚未上傳補班日清單，請先在第二步「國定假日與補班日」上傳」（裁定 2026-11-05-66）。
 這項檢查用在所有比較方式（裁定 2026-10-22-05）；擴大範圍時篩選版本沒有推進，因為能存下的情境命中不變，舊情境由開案的逐筆檢查列為待修正。
 文字讀回仍用「且」「或」，不改變條件的左至右合併順序。
 現行篩選版本為 `filter-2026-10-14-v20`，篩選條件每條只表達一件事（裁定 2026-10-14-08）；預篩選版本為 `prescreen-2026-10-08-v10`。

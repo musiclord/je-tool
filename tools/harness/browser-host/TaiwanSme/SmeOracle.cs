@@ -10,7 +10,7 @@ internal sealed class SmeOracle
     public static readonly IReadOnlyList<string> DefaultKeywords =
     [
         "ADJ", "REV", "RECLASS", "SUSPENSE", "ERROR", "WRONG",
-        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外", "帳外",
+        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外",
         "调整", "回转", "冲销", "重分类", "避险", "重编", "错误", "计画外", "预算外",
     ];
 
@@ -84,6 +84,18 @@ internal sealed class SmeOracle
     public HashSet<string> Select(Func<SmeLine, bool> predicate) =>
         Population.Where(predicate).Select(Key).ToHashSet(StringComparer.Ordinal);
 
+    /// <summary>
+    /// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數，照 IDEA 版 R4（裁定 2026-11-05-25、2026-11-05-27）：
+    /// 母體每筆分錄的借方金額加總（貸方那一側算 0）除以筆數，平均的整數部分有幾位，個數就是位數減一，至少 1、最多 12。
+    /// 改版前這裡固定比 100 萬的倍數，JET 照 IDEA 版改算後多選了 30 筆；第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+    /// </summary>
+    public int TrailingZeroDigits()
+    {
+        var debitTotal = Population.Sum(line => Math.Max(line.Debit - line.Credit, 0m));
+        var average = Population.Count == 0 ? 0m : decimal.Truncate(debitTotal / Population.Count);
+        return Math.Clamp(average.ToString(System.Globalization.CultureInfo.InvariantCulture).Length - 1, 1, 12);
+    }
+
     public Dictionary<string, int> PreparerCounts() =>
         Population.Where(line => !IsBlank(line.CreatedBy))
             .GroupBy(line => line.CreatedBy.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -96,6 +108,12 @@ internal sealed class SmeOracle
     public IReadOnlyDictionary<string, HashSet<string>> Prescreen()
     {
         var authorized = SmePeople.Authorized.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var zeroModulus = 1L;
+        for (var digit = 0; digit < TrailingZeroDigits(); digit++)
+        {
+            zeroModulus *= 10;
+        }
+
         return new Dictionary<string, HashSet<string>>(StringComparer.Ordinal)
         {
             ["prepPeriodApproval"] = Select(line => line.ApprovalDate >= SmeCalendar.PreparationDate),
@@ -103,7 +121,7 @@ internal sealed class SmeOracle
             ["unexpectedAccountPair"] = WholeVouchers(line =>
                 RevenueCreditWithout(line, ["receivables", "cash", "receipt_in_advance"])
                 && VoucherOf(line).Any(other => other.Debit > 0m)),
-            ["trailingZeros"] = Select(line => WholeAmount(line) != 0 && WholeAmount(line) % 1_000_000 == 0),
+            ["trailingZeros"] = Select(line => WholeAmount(line) != 0 && WholeAmount(line) % zeroModulus == 0),
             ["weekendPosting"] = Select(line => SmeCalendar.IsWeekend(line.GlDate)),
             ["weekendApproval"] = Select(line => line.ApprovalDate is { } approval && SmeCalendar.IsWeekend(approval)),
             ["holidayPosting"] = Select(line => SmeCalendar.IsHoliday(line.GlDate)),

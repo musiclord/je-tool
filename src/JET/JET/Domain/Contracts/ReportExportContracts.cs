@@ -50,8 +50,8 @@ public sealed record PrescreenReportContext(
 
 /// <summary>
 /// Prescreen report 內單一規則摘要的 provider-neutral、bounded 投影。
-/// <paramref name="ItemCount"/> 只供 R5／R6 彙總列顯示；命中規則的
-/// voucher／row counts 仍由既有 set-based report repository 查詢。
+/// <paramref name="ItemCount"/> 是預篩選結果記下的筆數或項目數。摘要頁照舊版原句不寫這個數字（裁定 2026-11-05-44），
+/// 報告寫出程式不讀它，報告測試用它組出計畫的筆數；命中規則的 voucher／row counts 由既有 set-based report repository 查詢。
 /// </summary>
 internal sealed record PrescreenReportRuleProjection(
     string Status,
@@ -69,7 +69,14 @@ internal sealed record PrescreenReportProjection(
     PrescreenReportRuleProjection TrailingZeros,
     PrescreenReportRuleProjection PreparerSummary,
     PrescreenReportRuleProjection RareAccounts,
-    PrescreenReportRuleProjection BlankDescription);
+    PrescreenReportRuleProjection BlankDescription)
+{
+    /// <summary>
+    /// 那次預篩選「分錄金額中有連續 0 的尾數」用的 0 的個數（回應的 zerosThreshold，裁定 2026-11-05-25）。
+    /// 報告的「設定連續0的位數為：N」與 [R4] 工作表的明細都用這個數字，和那次預篩選的筆數一致。
+    /// </summary>
+    public required int ZerosThreshold { get; init; }
+}
 
 /// <param name="PreparedDate">報告的編製日期，寫按下匯出那一天的本機日期（裁定 2026-11-01-04）。</param>
 public sealed record CriteriaSelectionReportContext(

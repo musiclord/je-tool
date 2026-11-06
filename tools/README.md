@@ -98,35 +98,21 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Mutation -Configuration Release 
 
 ### Gui
 
-`Gui` 固定使用 `AgentGuiTest` 組態，先建置一次，再分別用全新的暫存目錄執行下列情境。每個情境的操作上限、預期次數、
+`Gui` 固定使用 `AgentGuiTest` 組態，先建置一次，再分別用全新的暫存目錄執行各個情境。每個情境的操作上限、預期次數、
 逾時與截圖數只寫在 `tools/harness/lanes.json`；驅動程式與組態另有固定最大值（操作 120 次、截圖 2 張），調高情境預算超過時要一起改。
 截圖都是合成畫面，每張不超過 2 MB。
+
+跑任何情境之前，`Gui` 先用 `AgentGuiTest` 組態建置測試專案，執行只在這個組態才會編譯的測試：Gui 測試夾具的行為、開發人員工具的開關、
+WebView 的安全、當機與快捷鍵設定，以及前後端支援的 action 清單。測試類別與最少測試數寫在 `tools/harness/lanes.json` 的
+`guiFixtureMethodPatterns` 與 `guiFixtureMinimumExpectedTests`。這段沒有通過時整條路線失敗，一個情境都不跑，用 `-GuiScenario` 單跑時也一樣；
+收據的 `testBoundary.fixtureTests` 記下這段的結果與測試數。
 
 驅動程式為每個情境另建一個 Windows 桌面，用 `CreateProcess` 把 JET 開在那裡，情境結束時關閉（`OwnedGuiRun.cs`），
 不切換桌面，所以使用者看不到 JET 視窗，點擊與打字也不會落到 JET 上。調整視窗大小時找 JET 唯一看得見、
 沒有擁有者的主視窗，不用 `Process.MainWindowHandle`，因為輸入指示器的小視窗也屬於 JET 程序。
 完整執行要幾分鐘並占用 CPU，何時執行見 `AGENTS.md`「測試」。
 
-- `startup-smoke`：頁面、`JetApi`、`systemPing` 與專案選擇畫面，最後按「結束 JET」。
-- `synthetic-sqlite-create`：只用鍵盤建立 SQLite 案件，核對畫面、`project.json`、`jet.db` 與操作人員。
-- `case-to-working-paper`：從空白案件走到匯出底稿，再依序匯入科目配對、假日、補班日，附加與取代 GL、取代 TB，
-  核對每一步清除與保留的狀態，以及只有新的底稿是現行版本。
-- `mapping-required-sync`：改借方代碼後直接「重新確認配對」一次完成；清空並補回必填欄位，核對缺漏狀態與焦點。
-- `edited-report-still-loads`：底稿在 JET 之外被改寫後，案件仍能載入、第六步有標示、匯出可用，支援日誌不洩漏檔名與路徑，過期與缺檔不算完成。
-- `approval-mapping-modes`：兩種配對畫面的核准日方式與來源欄，含未提交提示、取消、還原與缺漏定位。
-- `validation-auto-outputs`：驗證後自動產生兩份報告與科目配對範本，填入分類重新驗證，已填範本逐位元組保留。
-- `filter-auditor-journey`：第五步從範本「借現金、貸非現金」開始，加條件、切換組、預覽、排序、保存並核對讀回文字。
-- `filter-common-editing`：常用篩選條件卡片的保存與重開還原、舊版情境的處理，以及移除、取消、金額門檻、文字排除與自動命名。
-- `feedback-workflow`：配對清單捲動、分類輸入、中文組字、取消、保存與重開，改配 TB 金額欄後仍可預篩選與匯出。
-- `blank-details-recovery`：資料缺漏輔助檢視兩類明細的跨頁、排序與搜尋，以及搜尋失敗後保留、重試與零筆。
-- `common-remap-recovery`：取消配對修改時情境仍在；移除必要欄位會清空已存情境，補回後重新儲存、驗證、匯出與重開。
-- `upstream-change-after-export`：已匯出底稿後回頭修改前面步驟。取消與只改文字保留情境；重新確認 TB 配對或改每週休息日會清除情境，
-  底稿仍能匯出；重新儲存後只勾一個情境匯出，重開仍是同一份結果。
-- `authorized-list-recovery`：授權編製人員清單的手動選欄、取消、匯入失敗重試、預覽、移除、重開、再匯入與下游失效。
-- `extended-conditions`：人工與自動補集、統計張數、日曆、金額尾數、人員清單與文字否定，保存五個情境、匯出與重開。
-- `side-month-workflow`：窄視窗用子條件組與整張傳票條件組合借貸別與科目編號，設定月初月底天數，核對報告、底稿與人工旗標。
-- `nested-voucher-workflow`：分類上層設定、巢狀條件、整張傳票條件與分類選取，空條件失敗後重試、保存、取消、重開與兩種報表。
-- `legacy-form-workflow`：套用原工作簿轉入的四個情境範例，再加「金額尾數連續多個 0」，核對預覽、保存、兩種報表與重開。
+各情境做了哪些操作、核對什麼，見 [Gui 情境](harness/gui-driver/README.md)。
 
 所有情境都走正式前端與 action，CDP 只讀取畫面與狀態；選檔回應由固定合成夾具提供，中文組字用 WebView2 的 CDP 組字事件驗證，
 不代表已實測各家輸入法。兩個篩選情境先用 1024 × 640 邏輯像素與 125% 放大核對網頁寬度 760 至 840px，再把本次視窗調成
@@ -152,6 +138,7 @@ Excel 不可用、工作簿無法開啟或無法證明行程歸屬時，結果�
 `PrivateCase` 是唯一可讀取私人案件的命令，每次都要提供完整根目錄、根目錄內的案件清單相對路徑與資料庫實作，
 缺一就在建置和資料存取前回報 `blocked`。它建立安全副本，用 JET 走完匯入、驗證、篩選、五份報告與科目配對範本輸出，
 六份工作簿同時比較內容與版面；INF 樣本檢查抽樣規則、實際母體與樣本有效性，不要求重現舊 IDEA 的隨機列。
+第一次比對之後，在同一個案件接著重新開啟、照原本的配對重新確認 GL 配對，以及重新匯入同一份 GL，每一段都重新匯出六份工作簿，照同樣的規則再比一次，全部通過才算通過。
 私人副本與輸出在收尾時一律清除，收據只保存去識別化的狀態、數量與差異類型。案件清單照舊寫法也能讀，讀取時換成現行名稱。
 
 ### ReleaseCandidate
@@ -307,6 +294,7 @@ pwsh -NoProfile -File tools/tests/verify-contract.tests.ps1
 
 它在 `artifacts/harness/contract-tests/` 產生隔離的測試證據，模擬子程序失敗、逾時、輸出截斷、遮蔽、憑證攔截、
 JSON 寫入失敗、清理拒絕及共享鎖衝突，也檢查 `tools/` 的目錄規則，以及 GUI 與 Excel 驅動程式的輸入和行程清理限制。
+它也確認 `Gui` 在情境之前執行上面那些只在 `AgentGuiTest` 組態編譯的測試，清單沒有漏掉 Gui 測試夾具的行為測試。
 它不啟動 Excel、不修改產品檔案、不讀私人案件資料；另執行 `FrontendMapping` 的實際派送與程序清理檢查，所以需要 Node.js。
 
 ## 技術依據

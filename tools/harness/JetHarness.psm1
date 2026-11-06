@@ -734,6 +734,22 @@ function Invoke-JetHarness {
                             -TimeoutSeconds $parsedTimeoutSeconds)) {
                         $steps.Add($buildStep)
                     }
+                    # 完整執行與 -GuiScenario 單跑都先執行夾具與組態相關測試；沒有通過就不跑任何情境。
+                    if ($steps.Count -gt 0 -and $steps[$steps.Count - 1].status -ceq 'passed') {
+                        $guiFixtureTests = Invoke-JetTestStep `
+                            -RepositoryRoot $repositoryFull `
+                            -RunDirectory $context.RunDirectory `
+                            -Configuration ([string]$registry.guiSettings.configuration) `
+                            -Name 'gui-fixture-tests' `
+                            -MinimumExpectedTests ([int]$registry.testSettings.guiFixtureMinimumExpectedTests) `
+                            -Registry $registry `
+                            -TimeoutSeconds $parsedTimeoutSeconds `
+                            -IncludeKind Method `
+                            -IncludeValues @($registry.testSettings.guiFixtureMethodPatterns) `
+                            -SkipPolicy NoSkips `
+                            -Parallelism Collections
+                        $steps.Add($guiFixtureTests)
+                    }
                     $selectedGuiScenarios = @($registry.guiSettings.scenarios | Where-Object {
                         [string]::IsNullOrWhiteSpace($GuiScenario) -or [string]$_.name -ceq $GuiScenario })
                     # 迴圈變數不能叫 $guiScenario：PowerShell 變數不分大小寫，會撞到 [string] 參數 $GuiScenario 而被轉成字串。
@@ -1013,6 +1029,23 @@ function Invoke-JetHarness {
                 [ordered]@{
                     configuration = [string]$registry.guiSettings.configuration
                     scenarios = @($registry.guiSettings.scenarios | ForEach-Object { [string]$_.name })
+                    fixtureTests = & {
+                        $fixtureStep = @($stepArray | Where-Object { [string]$_.name -ceq 'gui-fixture-tests' } | Select-Object -First 1)
+                        [ordered]@{
+                            configuration = [string]$registry.guiSettings.configuration
+                            methodPatterns = @($registry.testSettings.guiFixtureMethodPatterns)
+                            minimumExpectedTests = [int]$registry.testSettings.guiFixtureMinimumExpectedTests
+                            status = if ($fixtureStep.Count -gt 0) { [string]$fixtureStep[0].status } else { 'not_run' }
+                            total = if ($fixtureStep.Count -gt 0 -and $fixtureStep[0].Contains('test') -and
+                                $fixtureStep[0].test.Contains('counters')) {
+                                [int]$fixtureStep[0].test.counters.total
+                            }
+                            else {
+                                $null
+                            }
+                            requiredBeforeScenarios = $true
+                        }
+                    }
                     protocol = 'WebView2-CDP'
                     loopbackOnly = $true
                     arbitraryScriptAccepted = $false

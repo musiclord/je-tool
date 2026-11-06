@@ -34,13 +34,16 @@ public sealed class DrCrCodeProjectionTests
         Assert.True(result.IsValid);
     }
 
+    // \u88c1\u5b9a 2026-11-05-37 \u7167\u820a\u7248\u4fdd\u7559\u4f86\u6e90\u91d1\u984d\u7684\u6b63\u8ca0\u865f\uff1a\u501f\u65b9\u4ee3\u78bc\u7684\u5217\u7167\u539f\u91d1\u984d\uff0c\u5176\u4ed6\u5217\u4e58\u4ee5 -1\u3002
+    // \u9019\u88e1\u7684\u4f86\u6e90\u91d1\u984d\u662f -1.00\uff0c\u6240\u4ee5\u501f\u65b9\u4ee3\u78bc\u7684\u5217\u662f -10_000\u3001\u8cb8\u65b9\u4ee3\u78bc\u7684\u5217\u662f 10_000\uff1b\u539f\u672c\u5148\u53d6\u7d55\u5c0d\u503c\uff0c\u501f\u65b9 10_000\u3001\u8cb8\u65b9 -10_000\u3002
+    // \u7b2c\u4e00\u6b21\u5931\u6557\uff1aFocused \u6536\u64da 20261105-111930631-bf1582b63a4f4a6284ddd6210ae6cc1b\u3002
     [Theory]
-    [InlineData(GlAmountMode.AmountWithSide, " D ", 10_000L)]
-    [InlineData(GlAmountMode.AmountWithSide, "\u3000d\u00a0", 10_000L)]
-    [InlineData(GlAmountMode.AmountWithSide, " C ", -10_000L)]
-    [InlineData(GlAmountMode.AmountWithSide, "c", -10_000L)]
-    [InlineData(GlAmountMode.AmountWithFlag, " D ", 10_000L)]
-    [InlineData(GlAmountMode.AmountWithFlag, "c", -10_000L)]
+    [InlineData(GlAmountMode.AmountWithSide, " D ", -10_000L)]
+    [InlineData(GlAmountMode.AmountWithSide, "\u3000d\u00a0", -10_000L)]
+    [InlineData(GlAmountMode.AmountWithSide, " C ", 10_000L)]
+    [InlineData(GlAmountMode.AmountWithSide, "c", 10_000L)]
+    [InlineData(GlAmountMode.AmountWithFlag, " D ", -10_000L)]
+    [InlineData(GlAmountMode.AmountWithFlag, "c", 10_000L)]
     public void KnownSideCodes_CompareTrimmedAndCaseInsensitively(GlAmountMode mode, string code, long expected)
     {
         var row = Row(code, "-1.00");

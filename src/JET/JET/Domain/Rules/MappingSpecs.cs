@@ -70,7 +70,15 @@ public sealed record CommittedMapping(
     string SourceBatchId,
     DateTimeOffset CommittedUtc,
     int FormatVersion = MappingMetadataFormat.CurrentVersion,
-    GlMappingOptions? GlOptions = null);
+    GlMappingOptions? GlOptions = null)
+{
+    /// <summary>
+    /// GL 投影時和配對在同一個交易寫下的控制總數（gl_control_total），讀目前已確認的 GL 配對時一起帶出。
+    /// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數由這裡算（<see cref="TrailingZeroThreshold.FromCommittedGl"/>，裁定 2026-11-05-25）。
+    /// TB 配對與上次確認的配對沒有這份數字，是 null。
+    /// </summary>
+    public GlTotals? GlTotals { get; init; }
+}
 
 public interface IMappingStateStore
 {

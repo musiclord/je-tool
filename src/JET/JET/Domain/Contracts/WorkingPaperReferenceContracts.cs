@@ -19,14 +19,20 @@ public sealed record AccountMappingExportRow(
 
 /// <summary>
 /// 科目配對範本列，供審計員填分類。使用有效 GL 與 TB 聯集的可配對科目母體，排除空白科目編號。
-/// A=<see cref="AccountNumber"/>(population.account_number)、B=<see cref="AccountName"/>(population.account_name,
-/// GL∪TB 的名稱;GL-only 科目寫其 GL 名稱而**非**字面「Not in TB」——審計員要靠名稱辨識科目才能分類,
-/// 此為對匯出 sheet 15「GL-only 寫 Not in TB」的**刻意偏離**。
+/// A=<see cref="AccountNumber"/>(population.account_number)、B=<see cref="TemplateName"/>：
+/// <see cref="NotInTb"/> 為真(GL 有、TB 沒有,完整性 not_in_tb 集合)時照舊版寫字面「Not in TB」,
+/// 和匯出底稿 sheet 15 用同一個旗標(裁定 2026-11-05-40);其他科目寫 <see cref="AccountName"/>(TB 名稱,TB 沒寫時用 GL 名稱)。
+/// 匯回範本時「Not in TB」當成沒有科目名稱(裁定 2026-11-05-10)。
 /// C 欄(分類)由 writer 留空 + 下拉,不在此 model(範本產出前尚未配對)。
 /// </summary>
 public sealed record AccountMappingTemplateRow(
     string AccountNumber,
-    string? AccountName);
+    string? AccountName,
+    bool NotInTb = false)
+{
+    /// <summary>範本 B 欄實際寫的字。</summary>
+    public string? TemplateName => NotInTb ? AccountMappingExportRow.NotInTbName : AccountName;
+}
 
 /// <summary>
 /// 科目配對的唯讀全列匯出查詢(匯出底稿 sheet 15)。回 <see cref="account_mapping"/> 每一列

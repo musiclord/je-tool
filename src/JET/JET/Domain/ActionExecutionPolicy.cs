@@ -192,6 +192,14 @@ public static class ActionExecutionPolicy
     public static IReadOnlyCollection<string> ProjectDatabaseRetainingActionNames
         => [.. ProjectDatabaseRetainingActions];
 
+    /// <summary>
+    /// dispatcher 是否在這個 action 結束後把當前案件資料庫的記錄檔併回（見 IProjectDatabaseCheckpoint）：
+    /// 會開當前案件資料庫的變更型作業，成功、失敗或取消都併回。建案、開案、刪案與離開案件不在其中，
+    /// 離開案件與開案失敗由 handler 自己關閉資料庫。
+    /// </summary>
+    public static bool CheckpointsProjectDatabase(string action)
+        => ExclusiveActions.Contains(action) && ProjectDatabaseRetainingActions.Contains(action);
+
     /// <summary>此 action 是否為變更型（需序列化）。未歸類者 fail-safe 回 true。</summary>
     public static bool IsExclusive(string action)
         => ExclusiveActions.Contains(action) || !IsClassified(action);

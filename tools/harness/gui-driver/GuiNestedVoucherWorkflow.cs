@@ -69,6 +69,8 @@ internal static partial class GuiScenarios
         await AddChild(root, "type:voucher"); await Choose(all + " > [data-compound-key=quantifier]", "all");
         await AddChild(all, "type:drCrOnly"); await Choose(opposite + " [data-rule-bind=drCr]", "credit");
         // 子條件之間的連接改成分隔線上的 AND、OR 分段切換（裁定 2026-11-05-16），原本是下拉選單：按那一格。
+        // 選下拉選單算兩次操作，按一格算一次，這個情境三處共少 3 次，lanes.json 跟著改成 84
+        // （第一次失敗收據 20261106-004126295-982f6b845b43440c874f3a0b5489d229，情境照常走完，只有次數是 84）。
         await AddChild(all, "type:group"); await Click(ChildJoin(all, "OR"));
         await AddChild(condition, "field:accountNumber"); await Choose(field + " [data-value-kind]", "exact");
         await Fill(field + " [data-value-key=values]", "GUI-ABSENT-ACCOUNT"); await Choose(field + " [data-value-polarity]", "exclude");

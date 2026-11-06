@@ -72,7 +72,8 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
             excluded.GetProperty("rows").EnumerateArray().Select(row => row[0].GetString()).Order(StringComparer.Ordinal));
 
         var prescreen = await host.DispatchAsync("prescreen.run");
-        // 預設 25 個摘要字詞含「調整」：P2、P3 共 4 列命中；P5 的「補登調整」不在 GL。
+        // 預設 24 個摘要字詞含「調整」：P2、P3 共 4 列命中；P5 的「補登調整」不在 GL。
+        // 原本寫 25 個；裁定 2026-11-05-43 拿掉「帳外」後是 24 個，筆數不受影響，只改這句說明。
         Assert.Equal(4, prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         // 空白摘要只有 P6 第 2 列。
         Assert.Equal(1, prescreen.GetProperty("blankDescription").GetProperty("count").GetInt64());

@@ -79,9 +79,10 @@ public sealed class PrescreenDirectTemplatePackageTests
                 summary.Cell("B17").GetString());
             Assert.Equal(1, summary.Cell("E8").GetValue<long>());
             Assert.Equal(plannedRowCount, summary.Cell("F8").GetValue<long>());
+            // 裁定 2026-11-05-44：D 欄照舊版原句，筆數看 E、F 欄。第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
             Assert.Equal(
                 expectedDetailSheet
-                    ? $"符合 {plannedRowCount:N0} 筆"
+                    ? "符合預篩選條件之明細項請詳 [R1] 工作表"
                     : "明細筆數超過10,000筆，明細資料不匯出",
                 summary.Cell("D8").GetString());
             Assert.All(
@@ -165,6 +166,8 @@ public sealed class PrescreenDirectTemplatePackageTests
         using var root = new TempProjectRoot();
         var database = new SqliteProjectDatabase(
             new JetProjectFolder(root.Path));
+        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        await database.EnsureCreatedAsync("aggregate-width-project", CancellationToken.None);
         // R6 標題沿用 committed GL mapping 的來源欄名（欄位來源忠實性），
         // writer 層 fixture 因此需要既有 mapping state。
         await new LocalMappingStateStore(database).SaveAsync(
@@ -437,6 +440,21 @@ public sealed class PrescreenDirectTemplatePackageTests
                     OriginalHeaders,
                     ReadRow(second, 1));
                 Assert.Equal(17, first.LastRowUsed()!.RowNumber());
+                // 裁定 2026-11-05-48：最後一欄照舊版叫 Final_TAG，續頁同樣重複表頭；
+                // 直接符合條件的分錄寫 Y，同一張傳票帶出的其他分錄留白。
+                Assert.Equal("Final_TAG", first.Cell(1, OriginalHeaders.Length + 1).GetString());
+                Assert.Equal("Final_TAG", second.Cell(1, OriginalHeaders.Length + 1).GetString());
+                Assert.True(first.Cell(1, OriginalHeaders.Length + 2).IsEmpty());
+                var keyword = position == 1 ? "調整" : "正常";
+                var markers = Enumerable.Range(2, 16)
+                    .Select(row => (Description: first.Cell(row, 6).GetString(), Tag: first.Cell(row, 9).GetString()))
+                    .Concat(Enumerable.Range(2, 2)
+                        .Select(row => (Description: second.Cell(row, 6).GetString(), Tag: second.Cell(row, 9).GetString())))
+                    .ToArray();
+                Assert.Equal(9, markers.Count(marker => marker.Tag == "Y"));
+                Assert.All(markers, marker => Assert.Equal(
+                    marker.Description.StartsWith(keyword, StringComparison.Ordinal) ? "Y" : "",
+                    marker.Tag));
                 Assert.Equal(3, second.LastRowUsed()!.RowNumber());
                 var documents = first.Range("A2:A17").Cells()
                     .Concat(second.Range("A2:A3").Cells())
@@ -517,6 +535,21 @@ public sealed class PrescreenDirectTemplatePackageTests
         var scopedSummary = wholeVoucherSummaryWorkbook.Worksheet("Summary Inforamtion");
         Assert.Equal(18, scopedSummary.Cell("D5").GetValue<long>());
         Assert.Equal(9, scopedSummary.Cell("D6").GetValue<long>());
+        // 單獨使用「未預期借貸組合」的位置整張傳票都算符合（裁定 2026-11-05-48），和底稿 Step 4-1 的標記相同，
+        // Final_TAG 全部寫 Y；第 2 個位置照舊只標直接符合的分錄。
+        string[] TagsOf(string sheetName)
+        {
+            var sheet = wholeVoucherSummaryWorkbook.Worksheet(sheetName);
+            return Enumerable.Range(2, sheet.LastRowUsed()!.RowNumber() - 1)
+                .Select(row => sheet.Cell(row, OriginalHeaders.Length + 1).GetString())
+                .ToArray();
+        }
+        Assert.Equal(
+            Enumerable.Repeat("Y", 18),
+            TagsOf("#Criteria Select 1").Concat(TagsOf("#Criteria Select 1 (2)")));
+        var directTags = TagsOf("#Criteria Select 2").Concat(TagsOf("#Criteria Select 2 (2)")).ToArray();
+        Assert.Equal(9, directTags.Count(tag => tag == "Y"));
+        Assert.Equal(9, directTags.Count(tag => tag.Length == 0));
     }
 
     [Fact]
@@ -717,6 +750,142 @@ public sealed class PrescreenDirectTemplatePackageTests
 
         Assert.Equal(2, oracle.RowHitCount);
         Assert.False(oracle.HasExplanationRow);
+    }
+
+    // 裁定 2026-11-05-35 與 2026-11-05-44：摘要頁 D 欄照舊版原句。傳票核准日沒有配對寫「沒有設定傳票核准日欄位」，
+    // 已執行但沒有命中寫「沒有符合預篩選條件之明細項」，有明細頁時寫「請詳 [Rn] 工作表」，空白摘要那一列寫「新增預篩選條件」；
+    // 沒有命中或不適用時 E、F 欄寫 N/A。其他不適用原因照舊寫「N/A（原因）」。
+    [Fact]
+    public async Task Summary_DColumnUsesLegacySentencesForEachOutcome()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await ReportExportFixture.SetupProjectAsync(host);
+        var database = new SqliteProjectDatabase(
+            new JetProjectFolder(host.ProjectsRoot));
+        var writer = CreateWriter(database, new LocalPrescreenPageRepository(database));
+        var projection = new PrescreenReportProjection(
+            PrepPeriodApproval: new("na", "「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。"),
+            SuspiciousKeywords: new("V", null, 0),
+            UnexpectedAccountPair: new("na", "測試未執行"),
+            TrailingZeros: new("V", null, 2),
+            PreparerSummary: new("V", null, 1),
+            RareAccounts: new("V", null, 2),
+            BlankDescription: new("V", null, 1))
+        {
+            ZerosThreshold = 6
+        };
+        var plan = JetAuditProgram.Finalize(
+            JetAuditProgram.Plan(new PrescreenReportRequest(
+                projectId,
+                // 尾數規則的明細頁要帶那次預篩選的 0 的個數（裁定 2026-11-05-25），和投影的 ZerosThreshold 相同。
+                new FilterConditionContext(10_000, "2025-12-31", "2025-01-01", "2025-12-31") { ZerosThreshold = 6 },
+                projection.PrepPeriodApproval.NaReason,
+                projection.SuspiciousKeywords.NaReason,
+                projection.UnexpectedAccountPair.NaReason,
+                projection.TrailingZeros.NaReason,
+                projection.BlankDescription.NaReason)),
+            new PrescreenReportPlanningFacts(
+                new Dictionary<PrescreenReportDetailKind, PrescreenHitCounts>
+                {
+                    [PrescreenReportDetailKind.SuspiciousKeywords] = new(VoucherHitCount: 0, RowHitCount: 0),
+                    [PrescreenReportDetailKind.TrailingZeros] = new(VoucherHitCount: 1, RowHitCount: 2),
+                    [PrescreenReportDetailKind.BlankDescription] = new(VoucherHitCount: 1, RowHitCount: 1)
+                }));
+        await using var output = new MemoryStream();
+
+        await ((IPrescreenReportWriter)writer).WriteAsync(
+            output,
+            Context(projectId),
+            projection,
+            plan,
+            ReportWriterTestSupport.SyntheticMetadata(),
+            "tester",
+            CancellationToken.None);
+
+        using var workbook = new XLWorkbook(
+            new MemoryStream(output.ToArray(), writable: false));
+        var summary = workbook.Worksheet("Pre-screening_Report");
+        Assert.Equal("沒有設定傳票核准日欄位", summary.Cell("D8").GetString());
+        Assert.Equal("沒有符合預篩選條件之明細項", summary.Cell("D9").GetString());
+        Assert.Equal("N/A（測試未執行）", summary.Cell("D10").GetString());
+        Assert.Equal("符合預篩選條件之明細項請詳 [R4] 工作表", summary.Cell("D11").GetString());
+        Assert.Equal("符合新增預篩選條件之明細項請詳 [R7] 工作表", summary.Cell("D17").GetString());
+        foreach (var row in new[] { 8, 9, 10 })
+        {
+            Assert.Equal("N/A", summary.Cell(row, "E").GetString());
+            Assert.Equal("N/A", summary.Cell(row, "F").GetString());
+        }
+        Assert.Equal(1, summary.Cell("E11").GetValue<long>());
+        Assert.Equal(2, summary.Cell("F11").GetValue<long>());
+        Assert.Equal(1, summary.Cell("E17").GetValue<long>());
+        Assert.Equal(1, summary.Cell("F17").GetValue<long>());
+        var sheetNames = workbook.Worksheets.Select(static sheet => sheet.Name).ToArray();
+        Assert.Contains("R4", sheetNames);
+        Assert.Contains("R7", sheetNames);
+        Assert.DoesNotContain("R1", sheetNames);
+        Assert.DoesNotContain("R2", sheetNames);
+        Assert.DoesNotContain("R3", sheetNames);
+    }
+
+    // 裁定 2026-11-05-32：配對了人工傳票欄位時，R5 照舊版在人員後面多一欄「人工傳票否_JE_S」，
+    // 同一位人員依人工旗標分列，值寫「人工建立分錄」或「自動拋轉分錄」，旗標無法判斷時留白。
+    [Fact]
+    public async Task PreparerSummary_ManualFlagMapped_AddsTheManualColumnAndKeepsOneRowPerFlag()
+    {
+        PreparerSummaryExportRow[] preparers =
+        [
+            new("creator-1", 2, 30_000, 0, IsManual: true),
+            new("creator-1", 1, 0, 10_000, IsManual: false),
+            new("creator-2", 1, 10_000, 0, IsManual: null)
+        ];
+        using var root = new TempProjectRoot();
+        var database = new SqliteProjectDatabase(
+            new JetProjectFolder(root.Path));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await database.EnsureCreatedAsync("manual-column-project", CancellationToken.None);
+        await new LocalMappingStateStore(database).SaveAsync(
+            "manual-column-project",
+            new CommittedMapping(
+                DatasetKind.Gl,
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    [GlMappingKeys.AccountNumber] = "科目代號",
+                    [GlMappingKeys.AccountName] = "科目名稱",
+                    [GlMappingKeys.IsManual] = "人工傳票"
+                },
+                "flag",
+                "manual-column-batch",
+                DateTimeOffset.UtcNow),
+            CancellationToken.None);
+        var writer = CreateWriter(
+            database,
+            new LocalPrescreenPageRepository(database),
+            new LegacyReportWriterOptions(),
+            new FixedPreparerSummaryRepository(preparers),
+            new FixedAccountUsageRepository([]));
+        var projection = Projection(0);
+        await using var output = new MemoryStream();
+
+        await ((IPrescreenReportWriter)writer).WriteAsync(
+            output,
+            Context("manual-column-project"),
+            projection,
+            Plan("manual-column-project", projection, 0),
+            ReportWriterTestSupport.SyntheticMetadata(),
+            "tester",
+            CancellationToken.None);
+
+        using var workbook = new XLWorkbook(
+            new MemoryStream(output.ToArray(), writable: false));
+        var r5 = workbook.Worksheet("R5");
+        Assert.Equal(
+            new[] { "CREATED_BY", "人工傳票否_JE_S", "ENTRY_COUNT", "DEBIT_TOTAL", "CREDIT_TOTAL" },
+            ReadRow(r5, 1).Take(5).ToArray());
+        Assert.Equal(new[] { "creator-1", "人工建立分錄", "2" }, ReadRow(r5, 2).Take(3).ToArray());
+        Assert.Equal(new[] { "creator-1", "自動拋轉分錄", "1" }, ReadRow(r5, 3).Take(3).ToArray());
+        Assert.Equal(new[] { "creator-2", "", "1" }, ReadRow(r5, 4).Take(3).ToArray());
+        Assert.Equal(3, r5.Cell("D2").GetValue<decimal>());
+        Assert.Equal(1, r5.Cell("E3").GetValue<decimal>());
     }
 
     private static LegacyReportWriter CreateWriter(
@@ -958,7 +1127,11 @@ public sealed class PrescreenDirectTemplatePackageTests
             TrailingZeros: notApplicable,
             PreparerSummary: new("V", null, 1),
             RareAccounts: new("V", null, 2),
-            BlankDescription: notApplicable);
+            BlankDescription: notApplicable)
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 6
+        };
     }
 
     private static PrescreenReportPlan Plan(

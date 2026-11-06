@@ -46,6 +46,14 @@
       "*ProjectReportStoreTests*",
       "*EmbeddedReportTemplateFailureTests*"
     ],
+    "guiFixtureMinimumExpectedTests": 32,
+    "guiFixtureMethodPatterns": [
+      "*.AgentGuiTestFixtureBehaviorTests.*",
+      "*.DevToolsGatingTests.*",
+      "*.WebViewCrashAndAcceleratorPolicyTests.*",
+      "*.WebViewSecurityPolicyTests.*",
+      "*.SupportedActionsParityTests.*"
+    ],
     "excludedProfiles": [
       "PrivateCase",
       "Provider",
@@ -70,6 +78,10 @@
       "JET_PRIVATE_CASE_PROVIDER",
       "JET_PRIVATE_CASE_ROOT",
       "JET_PROJECTS_ROOT",
+      "JET_SCALE_JOURNEY",
+      "JET_SCALE_JOURNEY_OUTPUT",
+      "JET_SCALE_JOURNEY_PROVIDER",
+      "JET_SCALE_JOURNEY_ROWS",
       "JET_SIX_REPORT_EVIDENCE_DIR",
       "JET_SQLSERVER_CONNECTION",
       "JET_STEP41_BASELINE_ROOT",
@@ -92,6 +104,10 @@
       "JET_PRIVATE_CASE_PROVIDER",
       "JET_PRIVATE_CASE_ROOT",
       "JET_PROJECTS_ROOT",
+      "JET_SCALE_JOURNEY",
+      "JET_SCALE_JOURNEY_OUTPUT",
+      "JET_SCALE_JOURNEY_PROVIDER",
+      "JET_SCALE_JOURNEY_ROWS",
       "JET_SIX_REPORT_EVIDENCE_DIR",
       "JET_STEP41_BASELINE_ROOT",
       "JET_STEP41_PARITY_EVIDENCE_ROOT",
@@ -168,8 +184,8 @@
       {
         "name": "filter-auditor-journey",
         "timeoutSeconds": 240,
-        "actionBudget": 88,
-        "expectedActionCount": 88,
+        "actionBudget": 87,
+        "expectedActionCount": 87,
         "screenshotBudget": 2
       },
       {
@@ -215,6 +231,20 @@
         "screenshotBudget": 2
       },
       {
+        "name": "case-to-working-paper-duckdb",
+        "timeoutSeconds": 240,
+        "actionBudget": 82,
+        "expectedActionCount": 82,
+        "screenshotBudget": 2
+      },
+      {
+        "name": "case-list-cleanup-cancel-export",
+        "timeoutSeconds": 180,
+        "actionBudget": 10,
+        "expectedActionCount": 10,
+        "screenshotBudget": 1
+      },
+      {
         "name": "authorized-list-recovery",
         "timeoutSeconds": 240,
         "actionBudget": 37,
@@ -238,15 +268,15 @@
       {
         "name": "nested-voucher-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 87,
-        "expectedActionCount": 87,
+        "actionBudget": 84,
+        "expectedActionCount": 84,
         "screenshotBudget": 2
       },
       {
         "name": "legacy-form-workflow",
         "timeoutSeconds": 240,
-        "actionBudget": 44,
-        "expectedActionCount": 44,
+        "actionBudget": 48,
+        "expectedActionCount": 48,
         "screenshotBudget": 2
       }
     ]

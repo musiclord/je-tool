@@ -64,31 +64,36 @@ public sealed class PreparerSummaryExportTests
         var rows = await SqliteRepo(host).FetchAllAsync(
             context.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None);
 
-        // 全名單基數 == distinct created_by recount（§2 母體限本期 gl_date；export 已本期界定，recount 同口徑）。
+        // 裁定 2026-11-05-32：示範案件配對了人工傳票欄位，照舊版依編製人員加人工旗標分列，
+        // 所以基數改成「人員與人工旗標」的組數，每列的 recount 也多比人工旗標。第一次失敗：Focused 收據 20261105-105841963-25d6f65850974bbda831c58051526192。
+        // 全名單基數 == distinct (created_by, is_manual) recount（§2 母體限本期 gl_date；export 已本期界定，recount 同口徑）。
         var distinct = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
-            "SELECT COUNT(DISTINCT created_by) FROM gl " +
-            "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31';");
+            "SELECT COUNT(*) FROM (SELECT DISTINCT created_by, is_manual FROM gl " +
+            "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31');");
         Assert.Equal(distinct, rows.Count);
         Assert.True(rows.Count > 0, "demo 應有編製者");
+        Assert.Contains(rows, row => row.IsManual == true);
+        Assert.Contains(rows, row => row.IsManual == false);
 
         foreach (var row in rows)
         {
+            object manual = row.IsManual is { } isManual ? (isManual ? 1 : 0) : DBNull.Value;
             var entryCount = await DemoProjectPipeline.QueryScalarAsync(
                 host, context.ProjectId,
-                "SELECT COUNT(*) FROM gl WHERE created_by = @c " +
+                "SELECT COUNT(*) FROM gl WHERE created_by = @c AND is_manual IS @m " +
                 "AND gl_date >= '2025-01-01' AND gl_date <= '2025-12-31';",
-                ("@c", row.CreatedBy));
+                ("@c", row.CreatedBy), ("@m", manual));
             var debit = await DemoProjectPipeline.QueryScalarAsync(
                 host, context.ProjectId,
-                "SELECT COALESCE(SUM(debit_amount_scaled), 0) FROM gl WHERE created_by = @c " +
+                "SELECT COALESCE(SUM(debit_amount_scaled), 0) FROM gl WHERE created_by = @c AND is_manual IS @m " +
                 "AND gl_date >= '2025-01-01' AND gl_date <= '2025-12-31';",
-                ("@c", row.CreatedBy));
+                ("@c", row.CreatedBy), ("@m", manual));
             var credit = await DemoProjectPipeline.QueryScalarAsync(
                 host, context.ProjectId,
-                "SELECT COALESCE(SUM(credit_amount_scaled), 0) FROM gl WHERE created_by = @c " +
+                "SELECT COALESCE(SUM(credit_amount_scaled), 0) FROM gl WHERE created_by = @c AND is_manual IS @m " +
                 "AND gl_date >= '2025-01-01' AND gl_date <= '2025-12-31';",
-                ("@c", row.CreatedBy));
+                ("@c", row.CreatedBy), ("@m", manual));
 
             Assert.Equal(entryCount, row.EntryCount);
             Assert.Equal(debit, row.DebitTotalScaled);
@@ -97,27 +102,47 @@ public sealed class PreparerSummaryExportTests
     }
 
     /// <summary>
-    /// 排序鏡射既有 preparer 彙總:COUNT(*) DESC, created_by。逐位筆數遞減(同筆數則 created_by 升冪)。
+    /// 排序:先按這位人員的總筆數降冪、再按 created_by 升冪,同一位人員照舊版先自動、再人工,未判定放最後(裁定 2026-11-05-32)。
+    /// 原本一人一列時是「筆數降冪、再按 created_by」;分列後同一位人員的列排在一起,人員之間的順序不變。
+    /// 第一次失敗：Focused 收據 20261105-105841963-25d6f65850974bbda831c58051526192。
     /// demo 編製者以 voucherIndex % 5 輪派 → 筆數非全等,可證 DESC 主鍵生效。
     /// </summary>
     [Fact]
-    public async Task FetchAllAsync_OrdersByEntryCountDescThenCreatedBy()
+    public async Task FetchAllAsync_OrdersByPreparerTotalDescThenCreatedByThenManualFlag()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
         var rows = await SqliteRepo(host).FetchAllAsync(
             context.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None);
+        var totals = rows
+            .GroupBy(row => row.CreatedBy, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Sum(row => row.EntryCount), StringComparer.Ordinal);
+        static int ManualRank(PreparerSummaryExportRow row) => row.IsManual switch
+        {
+            false => 0,
+            true => 1,
+            null => 2
+        };
 
+        Assert.Contains(totals, pair => rows.Count(row => row.CreatedBy == pair.Key) > 1);
         for (var i = 1; i < rows.Count; i++)
         {
             var prev = rows[i - 1];
             var curr = rows[i];
-            var ordered = prev.EntryCount > curr.EntryCount
-                || (prev.EntryCount == curr.EntryCount
-                    && string.CompareOrdinal(prev.CreatedBy, curr.CreatedBy) <= 0);
+            var samePerson = string.Equals(prev.CreatedBy, curr.CreatedBy, StringComparison.Ordinal);
+            var ordered = samePerson
+                ? ManualRank(prev) < ManualRank(curr)
+                : totals[prev.CreatedBy] > totals[curr.CreatedBy]
+                    || (totals[prev.CreatedBy] == totals[curr.CreatedBy]
+                        && string.CompareOrdinal(prev.CreatedBy, curr.CreatedBy) < 0);
             Assert.True(ordered,
-                $"排序違規:[{prev.CreatedBy}:{prev.EntryCount}] 在 [{curr.CreatedBy}:{curr.EntryCount}] 之前。");
+                $"排序違規:[{prev.CreatedBy}:{prev.IsManual}:{prev.EntryCount}] 在 [{curr.CreatedBy}:{curr.IsManual}:{curr.EntryCount}] 之前。");
         }
+        Assert.Equal(
+            rows.Count,
+            rows.Select((row, index) => (row.CreatedBy, index))
+                .GroupBy(item => item.CreatedBy, StringComparer.Ordinal)
+                .Sum(group => group.Max(item => item.index) - group.Min(item => item.index) + 1));
     }
 }

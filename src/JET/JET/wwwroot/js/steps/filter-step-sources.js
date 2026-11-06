@@ -411,9 +411,11 @@
     var items = Ui.PRESCREEN_RULES.map(function (option) {
       var note = prescreenRequirementNote(option.value);
       var noteId = 'filter-prescreen-note-' + option.value;
-      return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(option.label) + '</span>' +
+      // 名稱走 prescreenConditionLabel，尾數規則知道個數時寫「金額尾數連續 N 個 0」（裁定 2026-11-05-25）。
+      var label = Ui.prescreenConditionLabel(option.value);
+      return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(label) + '</span>' +
         conditionKeyHtml(prescreenAdded(current, option.value), ' data-action="add-rule" data-add-prescreen="' + option.value + '"' +
-          (note ? ' disabled aria-describedby="' + noteId + '"' : ''), option.label) +
+          (note ? ' disabled aria-describedby="' + noteId + '"' : ''), label) +
         (note ? '<p class="filter-check__note" id="' + noteId + '">' + Ui.esc(note) + '</p>' : '') + '</li>';
     }).join('');
     return '<section class="condition-picker condition-picker--prescreen">' +
@@ -540,7 +542,7 @@
     if (['createdBy', 'approvedBy', 'accountNumber'].indexOf(field.id) >= 0) { rule.operator = 'in'; }
     delete rule.field; delete rule.fieldId;
     rule[field.extra ? 'fieldId' : 'field'] = field.id;
-    if (field.extra && field.type === 'amount') { rule.amountBasis = 'signed'; }
+    // 攸關資料元素的金額欄和核心金額一樣預設比較絕對值，create 已經帶上（裁定 2026-11-05-47、2026-11-05-70）。
     return rule;
   }
 
@@ -576,6 +578,8 @@
     Object.keys(copy).forEach(function (key) { rule[key] = copy[key]; });
     if (Array.isArray(copy.conditions)) { rule.conditions = copy.conditions.map(conditionFromSpec); }
     if (rule.type === 'prescreen' && !copy.prescreenKey) { rule.prescreenKey = firstUsablePrescreenKey(); }
+    // 尾數連續多個 0 的規格不寫個數，加入時帶由 GL 算出的個數（裁定 2026-11-05-26）。
+    if (rule.type === 'fieldValue' && Ui.FilterValues.isZeroRun(rule.operator) && !rule.value) { rule.value = Ui.FilterValues.zeroRunDefault(); }
     if (rule.__periodEndDays) {
       var range = periodEndRange(rule.__periodEndDays);
       rule.from = range.from; rule.to = range.to;

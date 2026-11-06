@@ -58,9 +58,8 @@ public sealed class PrescreenProgramTests
         Assert.Equal(0, result.Data.HolidayPostingCount);
         Assert.Null(result.Data.HolidayApprovalCount);
         Assert.Equal(0, result.Data.NonAuthorizedPreparerCount);
-        Assert.Equal(
-            TrailingZeroThreshold.DefaultZerosThreshold,
-            result.Data.ZerosThreshold);
+        // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉；Finalize 照請求帶出個數，預期值是 Request() 帶入的 5。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+        Assert.Equal(5, result.Data.ZerosThreshold);
 
         // 第四步的原因改由規則需求表產生，原因常數已拿掉，預期值改寫成常數原本的固定文字。
         // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
@@ -124,6 +123,7 @@ public sealed class PrescreenProgramTests
 
     // 尾零門檻是規則定義的一部分，計畫不再帶它；原本「Finalize 用計畫的門檻」那則隨之移除，
     // 回應固定回報六個 0 的斷言留在上面那則（第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf 之後的建置）。
+    // 2026-11-05 起 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），請求又帶個數；上面那則改成核對 Finalize 照請求帶出的個數。
 
     [Fact]
     public void Finalize_AllApplicable_PreservesRawCountsAndBoundedSummaries()
@@ -284,7 +284,11 @@ public sealed class PrescreenProgramTests
             HasRevenue: hasRevenue,
             HasCounterpart: hasCounterpart,
             HasAuthorizedPreparers: hasAuthorizedPreparers,
-            NonWorkingDays: [0, 6]);
+            NonWorkingDays: [0, 6])
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數；用 5 和改版前的 6 區分，Finalize 要照請求帶出。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 5
+        };
 
     private static PrescreenFacts Facts(bool nonZero = false)
     {

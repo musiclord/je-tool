@@ -282,7 +282,8 @@ public sealed partial class LegacyReportWriter(
         RawSheetAppearanceMode appearanceMode = RawSheetAppearanceMode.ExportDatabase,
         IReadOnlyList<GlRdeFieldMetadata>? customFields = null,
         IReadOnlyList<GlRdeFieldMetadata>? registryFields = null,
-        int? customFieldMoneyScale = null)
+        int? customFieldMoneyScale = null,
+        RawSheetMarkerColumn<T>? markerColumn = null)
     {
         var batch = await imports.GetLatestBatchAsync(projectId, DatasetKind.Gl, cancellationToken);
         var rawColumns = batch?.Columns ?? Array.Empty<string>();
@@ -293,17 +294,47 @@ public sealed partial class LegacyReportWriter(
         customFields ??= Array.Empty<GlRdeFieldMetadata>();
         registryFields ??= Array.Empty<GlRdeFieldMetadata>();
         // 攸關資料元素的表頭照舊版加 _JE（裁定 2026-11-03-14），撞名用整份配對判斷。
-        var columns = rawColumns.Concat(GlRdeOutputNames.For(customFields, registryFields)).ToArray();
+        var columns = rawColumns.Concat(GlRdeOutputNames.For(customFields, registryFields))
+            .Concat(markerColumn is null ? Array.Empty<string>() : new[] { markerColumn.Header })
+            .ToArray();
 
-        var bodyStyles = appearanceMode == RawSheetAppearanceMode.ExportDatabase
+        var sourceStyles = appearanceMode == RawSheetAppearanceMode.ExportDatabase
             ? await ResolveExportDatabaseStylesAsync(
                     projectId,
                     rawColumns,
                     cancellationToken)
                 .ConfigureAwait(false)
             : Enumerable.Repeat(LegacyReportStyles.RawBody, rawColumns.Count).ToArray();
-        bodyStyles = bodyStyles
-            .Concat(Enumerable.Repeat(LegacyReportStyles.RawBody, customFields.Count))
+        // 符合標記在舊版是 IDEA 資料庫裡的文字欄（idea-tool.bas 第 11660 行起的 Final_TAG），跟著其他欄一起匯出，
+        // 所以在 IDEA 匯出的明細頁用文字欄的樣式，和 R5 的人工旗標欄相同（裁定 2026-11-05-48）。
+        var markerStyles = markerColumn is null
+            ? Array.Empty<uint>()
+            : new[]
+            {
+                appearanceMode == RawSheetAppearanceMode.ExportDatabase
+                    ? LegacyReportStyles.ExportDatabaseText
+                    : LegacyReportStyles.RawBody
+            };
+        // 舊版的攸關資料元素欄是把來源欄改名加 _JE（idea-tool.bas 第 1688 到 1714 行），明細頁再由 IDEA 匯出整個資料庫
+        // （Z_ExportDatabaseXLSX 的 IncludeAllFields，第 9321 行起），所以在 IDEA 匯出的明細頁和它的來源欄同一種樣式；
+        // 找不到來源欄時，和沒有欄位定義的來源欄一樣用一般樣式（裁定 2026-11-05-70）。
+        var bodyStyles = sourceStyles
+            .Concat(customFields.Select(field =>
+            {
+                if (appearanceMode != RawSheetAppearanceMode.ExportDatabase)
+                {
+                    return LegacyReportStyles.RawBody;
+                }
+                for (var index = 0; index < rawColumns.Count; index++)
+                {
+                    if (string.Equals(rawColumns[index], field.SourceColumn, StringComparison.Ordinal))
+                    {
+                        return sourceStyles[index];
+                    }
+                }
+                return LegacyReportStyles.ExportDatabaseGeneral;
+            }))
+            .Concat(markerStyles)
             .ToArray();
         var headerStyles = appearanceMode == RawSheetAppearanceMode.ExportDatabase
             ? bodyStyles
@@ -339,6 +370,7 @@ public sealed partial class LegacyReportWriter(
                 var rowJson = pageRaw[id];
                 var values = ParseRawValues(rowJson, rawColumns)
                     .Concat(customFields.Select(field => pageRde[id][field.FieldId]))
+                    .Concat(markerColumn is null ? Array.Empty<string?>() : new[] { markerColumn.Value(item) })
                     .ToArray();
                 spool.Append(values);
                 spooledRows = checked(spooledRows + 1);
@@ -411,6 +443,11 @@ public sealed partial class LegacyReportWriter(
             sheet?.Dispose();
         }
     }
+
+    /// <summary>
+    /// 原始 GL 工作表最後多寫的一欄：欄名與每一列的值。目前只有條件篩選報告的「符合條件」標記（裁定 2026-11-05-48）。
+    /// </summary>
+    private sealed record RawSheetMarkerColumn<TRow>(string Header, Func<TRow, string?> Value);
 
     private static void EnsureRawRowsComplete(
         IReadOnlyCollection<long> requestedEntryIds,

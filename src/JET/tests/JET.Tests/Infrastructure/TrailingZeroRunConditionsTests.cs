@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 第五步金額的「尾數連續多個 0」（裁定 2026-11-03-07）：一條條件取代改版前的子條件組
-/// 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」，第四步預篩選規則「金額尾數連續 6 個 0」也改用同一個述詞。
+/// 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」，第四步預篩選規則「分錄金額中有連續 0 的尾數」也用同一個述詞，0 的個數由 GL 算出（裁定 2026-11-05-25）。
 /// 預期分錄逐筆手算：整數部分以 N 個 0 結尾，而且整數部分不是 0。新條件、改版前的子條件組與預篩選規則都要選到同一組分錄，
 /// 預期值不由被測程式算出。全部資料都是程式生成的合成資料。
 /// </summary>
@@ -58,11 +58,11 @@ public sealed class TrailingZeroRunConditionsTests
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
         var context = new FilterConditionContext(100, null, "2025-01-01", "2025-12-31");
-        async Task<string[]> Hits(string rule)
+        async Task<string[]> Hits(string rule, FilterConditionContext? ruleContext = null)
         {
             var scenario = FilterCompletenessTests.Scenario(rule);
             Assert.Empty(FilterScenarioValidator.Validate(scenario, new(false, true, true) { MoneyScale = 100 }));
-            var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, context, CancellationToken.None);
+            var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, ruleContext ?? context, CancellationToken.None);
             return result.PreviewRows.Select(row => row.VoucherNumber).Order().ToArray();
         }
 
@@ -78,9 +78,14 @@ public sealed class TrailingZeroRunConditionsTests
                   {"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute","join":"AND"}]}
                 """;
             Assert.Equal(hits, await Hits(oldGroup));
-            if (zeros == TrailingZeroThreshold.DefaultZerosThreshold)
-                Assert.Equal(hits, await Hits("""{"type":"prescreen","prescreenKey":"trailingZeros"}"""));
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），預篩選規則讀條件環境帶入的個數。改版前只在固定的 6 個時核對，
+            // 現在每個個數都核對預篩選規則選到同一組分錄，1 個時也不選整數部分為 0 的 Z01、Z02。
+            // 第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            Assert.Equal(hits, await Hits("""{"type":"prescreen","prescreenKey":"trailingZeros"}""", context with { ZerosThreshold = zeros }));
         }
+
+        // 條件環境沒有帶 0 的個數時，預篩選規則明確丟出，不會默默換成別的個數。
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Hits("""{"type":"prescreen","prescreenKey":"trailingZeros"}"""));
     }
 
     [Theory]

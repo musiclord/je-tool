@@ -2763,54 +2763,6 @@ dl.kv-list .kv-list__row:last-child {
 
 .mapping-section { container-type: inline-size; }
 
-/* 必填清單：同一工作面裡的淺灰區，不再是框中框；和左側配對區上下對齊。 */
-.map-rail {
-  flex: 0 0 240px;
-  border: 0;
-  border-radius: var(--radius-control);
-  padding: var(--space-4);
-  background: var(--color-surface-sunken);
-}
-.map-rail__title { margin: 0 0 var(--space-3); font-size: var(--text-sm); font-weight: 600; color: var(--color-ink); word-break: keep-all; }
-.map-rail.is-complete .map-rail__title { color: var(--color-success); }
-.map-rail__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.map-rail__item {
-  display: grid;
-  grid-template-columns: 16px 1fr;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-}
-.map-rail__item.is-done { color: var(--color-ink); }
-.map-rail__mark { color: var(--color-success); font-weight: 600; }
-.map-rail__label { font-weight: 500; word-break: keep-all; }
-/* 已配對的來源欄名稱是資料，用中性標籤；「已配對」由前面的綠色勾號表示，綠色不放在資料上。 */
-.map-rail__col {
-  grid-column: 2;
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 0 var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  line-height: 18px;
-  color: var(--color-text);
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  justify-self: start;
-}
-.map-rail__pending { grid-column: 2; font-size: var(--text-xs); color: var(--color-placeholder); }
-
-/* 中央文件流不足 780px 時，完成狀態卡完整移到表格下方。 */
-@container (max-width: 779px) {
-  .map-layout__main,
-  .map-rail {
-    flex: 1 1 100%;
-  }
-}
-
 .mapping-section {
   margin-bottom: var(--space-6);
   padding-top: var(--space-6);
@@ -2953,6 +2905,35 @@ dl.kv-list .kv-list__row:last-child {
   font-weight: 600;
 }
 
+/* 必填欄位在自己那一列標「必填」，和第四步的狀態標籤同一種尺寸；還沒選是琥珀色，選好後是灰色（裁定 2026-11-05-23）。
+   兩種配對介面都在表格上方用一行寫還差幾個，對照表格再接每個必填欄位的名稱標籤，標籤不能點（裁定 2026-11-05-24）。 */
+.mapping-table__req-tag,
+.map-required__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-style: normal;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+  color: var(--color-muted);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-control);
+}
+.mapping-table__req-tag { margin-left: var(--space-2); }
+.mapping-table__row.is-missing .mapping-table__req-tag,
+.map-required__tag.is-missing {
+  color: var(--color-warning);
+  background: var(--color-warning-subtle);
+}
+.map-required { margin: var(--space-3) 0 0; }
+.map-required__title { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--color-ink); }
+.map-required.is-complete .map-required__title { color: var(--color-success); }
+.map-required__list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+
 /* 對照表格(內嵌標頭下拉) */
 /* 表格外框不加圓角（表格本身與表格列都是直角）。 */
 .map-grid-wrap {
@@ -2964,28 +2945,11 @@ dl.kv-list .kv-list__row:last-child {
   margin: var(--space-3) 0;
 }
 .map-layout__main > .map-grid-wrap { margin: 0; }
-/* 對照表格：表格與右側必填清單放在同一列、上下等高，表格至少 480px，清單較長時表格跟著加高。
-   分頁列與其他設定排在表格下方，不算進對齊的高度。contain: size 讓 200 列的內容不撐高這一列，
-   表格高度由這一列決定，內容在表格內捲動（裁定 2026-10-16-10）。 */
-.map-layout--grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  column-gap: var(--space-5);
-  row-gap: 0;
-  align-items: stretch;
-}
-.map-layout--grid > .map-layout__main { display: contents; }
-.map-layout--grid > .map-layout__main > * { grid-column: 1; }
-.map-layout--grid > .map-layout__main > .map-grid-wrap {
-  grid-row: 1;
-  contain: size;
-  min-height: 480px;
+/* 對照表格 480px 高，內容在表格內捲動，分頁列與其他設定排在表格下方（裁定 2026-10-16-10）。
+   右側必填清單拿掉後表格佔滿整寬，還沒選的必填欄位寫在表格上方（裁定 2026-11-05-24）。 */
+.map-layout--grid .map-grid-wrap {
+  height: 480px;
   max-height: none;
-}
-.map-layout--grid > .map-rail { grid-column: 2; grid-row: 1; }
-@container (max-width: 779px) {
-  .map-layout--grid { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-4); }
-  .map-layout--grid > .map-rail { grid-column: 1; grid-row: auto; order: 1; }
 }
 .map-grid {
   border-collapse: collapse;
@@ -6925,9 +6889,6 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   line-height: 1.7;
   color: var(--color-muted);
 }
-/* 配對操作：日期方式與來源欄在同一區，缺漏名稱可直接定位。 */
-.map-rail__jump { border: 0; padding: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; }
-.map-rail__jump:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 
 /* 欄位條件列：主句一行「[欄位] [基準] [比較方式] 值」，輔助列（日期、期末最後 N 天、空白、格式提示）
    放在主句下方一行小字。窄幅時主句成員逐個換行，不撐出橫向捲軸。 */

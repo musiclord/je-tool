@@ -34,6 +34,8 @@ public static class FilterConditionRenderer
     /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId（裁定 2026-10-14-01）。
     /// <paramref name="accountCategories"/> 帶完整分類用途與階層，才能列出實際納入分類。省略時不猜分類範圍。
     /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只供讀回說明，不寫入條件 AST。
+    /// <paramref name="zerosThreshold"/> 是「分錄金額中有連續 0 的尾數」由 GL 算出的 0 的個數，條件寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25）；
+    /// 省略時寫規則名稱。上游修改會清掉已存情境（裁定 2026-10-07-03），所以已存情境讀回時用目前的個數就是儲存時的個數。
     /// <paramref name="forDocument"/> 為真時是底稿與報告用的寫法，欄位名稱加【】（裁定 2026-11-03-17）。
     /// </summary>
     public static string Render(
@@ -42,7 +44,7 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? rdeFieldLabels = null,
         IReadOnlyList<AccountCategory>? accountCategories = null,
         string? preparationDate = null, string? periodStart = null, string? periodEnd = null, bool compact = false,
-        bool forDocument = false)
+        bool forDocument = false, int? zerosThreshold = null)
     {
         var editable = ArrayItems(scenario, "groups");
 
@@ -52,14 +54,14 @@ public static class FilterConditionRenderer
         var expr = string.Empty;
         if (ne.Count == 1)
         {
-            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument).Text;
+            expr = GroupExpression(ne[0], categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold).Text;
         }
         else if (ne.Count >= 2)
         {
             var sop = ScenarioJoin(ne); // Empty editor groups do not contribute an operand or a join to the wire.
             var parts = ne.Select(g =>
             {
-                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument);
+                var rendered = GroupExpression(g, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold);
                 return rendered.AtomCount > 1 && !rendered.IsExactLeftFold
                     ? "（" + rendered.Text + "）"
                     : rendered.Text; // mixed 已逐邊累積精確括號；uniform 多原子組維持既有單層括號
@@ -84,8 +86,9 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountCategory>? accountCategories,
-        string? preparationDate, string? periodStart, string? periodEnd, bool compact) =>
-        ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument: false);
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact, int? zerosThreshold = null) =>
+        ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact,
+            forDocument: false, zerosThreshold: zerosThreshold);
 
     /// <summary>欄位值條件選的欄位名稱，等同前端 <c>FilterValues.field(rule).label</c>；欄位不在可選清單時是 null。</summary>
     internal static string? FieldValueFieldLabel(JsonElement rule, IReadOnlyDictionary<string, string>? rdeFieldLabels)
@@ -118,10 +121,11 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountCategory>? accountCategories,
-        string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument)
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument,
+        int? zerosThreshold)
     {
         var rules = ArrayItems(group, "conditions");
-        var atoms = rules.Select(rule => ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument)).ToList();
+        var atoms = rules.Select(rule => ConditionAtom(rule, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold)).ToList();
         if (!HasMixedEffectiveConditionJoins(rules))
         {
             return new GroupRendering(
@@ -242,7 +246,8 @@ public static class FilterConditionRenderer
         IReadOnlyDictionary<string, string>? categoryLabels,
         IReadOnlyDictionary<string, string>? rdeFieldLabels,
         IReadOnlyList<AccountCategory>? accountCategories,
-        string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument)
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument,
+        int? zerosThreshold)
     {
         var type = Str(r, "type");
         var text = type switch
@@ -251,9 +256,9 @@ public static class FilterConditionRenderer
             "group" when IsWeekendOrHolidayBracket(r) => "（"
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.WeekendPosting) + " 或 "
                 + FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.HolidayPosting) + "）",
-            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument),
-            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument),
-            "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate),
+            "group" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold),
+            "voucher" => NestedAtom(r, categoryLabels, rdeFieldLabels, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold),
+            "prescreen" => PrescreenAtom(Str(r, "prescreenKey"), preparationDate, zerosThreshold),
             "text" => GlFieldName(Str(r, "field"), forDocument) + " "
                 + FilterConditionLabels.TextModeLabel(Str(r, "mode")) + "「" + TextKeywords(r) + "」",
             "textSet" => TextSetAtom(r, forDocument),
@@ -305,9 +310,9 @@ public static class FilterConditionRenderer
         return text;
     }
 
-    private static string PrescreenAtom(string key, string? preparationDate)
+    private static string PrescreenAtom(string key, string? preparationDate, int? zerosThreshold)
     {
-        var text = "預篩選：" + FilterConditionLabels.PrescreenLabel(key);
+        var text = "預篩選：" + FilterConditionLabels.PrescreenLabel(key, zerosThreshold);
         return key == PrescreenRuleKeys.PrepPeriodApproval && !string.IsNullOrWhiteSpace(preparationDate)
             ? text + "（" + preparationDate + " 起，含當日）"
             : text;
@@ -331,13 +336,14 @@ public static class FilterConditionRenderer
 
     private static string NestedAtom(JsonElement rule, IReadOnlyDictionary<string, string>? categories,
         IReadOnlyDictionary<string, string>? fields, IReadOnlyList<AccountCategory>? accountCategories,
-        string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument)
+        string? preparationDate, string? periodStart, string? periodEnd, bool compact, bool forDocument,
+        int? zerosThreshold)
     {
         var children = ArrayItems(rule, "conditions");
         var text = string.Empty;
         foreach (var child in children)
         {
-            var atom = ConditionAtom(child, categories, fields, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument);
+            var atom = ConditionAtom(child, categories, fields, accountCategories, preparationDate, periodStart, periodEnd, compact, forDocument, zerosThreshold);
             text = text.Length == 0 ? atom : "（" + text + " " + JoinLabel(EffectiveConditionJoin(child)) + " " + atom + "）";
         }
         if (Str(rule, "type") == "group")
@@ -378,8 +384,9 @@ public static class FilterConditionRenderer
                 ? "「" + string.Join("、", listValues) + "」"
             : FieldValueConditions.IsContains(op) && listValues.Count > 0 ? "「" + string.Join("、", listValues) + "」"
             : "「" + Str(rule, "value") + "」";
-        // 尾數比對與尾數連續多個 0 都忽略正負號，不接金額比較基準。
-        if (fieldKnown && op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op) && !FieldValueConditions.IsZeroRun(op))
+        // 尾數比對、尾數連續多個 0 與整數部分包含都忽略正負號，不接金額比較基準。
+        if (fieldKnown && op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op) && !FieldValueConditions.IsZeroRun(op)
+            && !FieldValueConditions.IsDigitContains(op))
             field += Str(rule, "amountBasis") switch { "absolute" => "絕對值", "signed" => "含正負號", _ => "" };
         // 空白預設不列入（裁定 2026-10-14-15），與 GlRulePredicates.FieldValue 的預設一致。
         var includeBlank = rule.TryGetProperty("includeBlank", out var blank) && blank.ValueKind == JsonValueKind.True;

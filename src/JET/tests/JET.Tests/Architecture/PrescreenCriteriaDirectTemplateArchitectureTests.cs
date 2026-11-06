@@ -46,7 +46,9 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
         var detailPath = Slice(
             source,
             "private async Task EmitPrescreenRuleFromPlanAsync(",
-            "private static string SummaryResultText(");
+            // 裁定 2026-11-05-44 改寫摘要頁句子時拿掉了原本接在後面的 SummaryResultText，切片終點改成下一個方法，範圍仍只有明細寫出這一段。
+            // 第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+            "private async Task EmitPreparerSummaryAsync(");
 
         Assert.DoesNotContain(
             "GetCountsAsync",
@@ -83,13 +85,16 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "Infrastructure",
             "Export",
             "LegacyReportWriter.cs");
+        // 裁定 2026-11-05-48：明細頁多一欄 Final_TAG，讀明細的函式改成連同每一列是否符合條件一起回傳，
+        // 切段的起點跟著換成新的回傳型別，其餘核對不變。
+        // 第一次失敗：Focused 收據 20261105-123033930-d5150cc8f860468f85e0254b35929b48（找不到原本的函式開頭）。
         var exportPath = Slice(
             source,
             "private async Task<IReadOnlyList<SheetStat>> FillCriteriaTemplateAsync(",
-            "private async Task<PageResult<long>> ReadCriteriaVoucherRowsAsync(");
+            "private async Task<PageResult<CriteriaVoucherRow>> ReadCriteriaVoucherRowsAsync(");
         var detailPath = Slice(
             source,
-            "private async Task<PageResult<long>> ReadCriteriaVoucherRowsAsync(",
+            "private async Task<PageResult<CriteriaVoucherRow>> ReadCriteriaVoucherRowsAsync(",
             "private static void EditCriteriaSummary(");
 
         AssertAppearsInOrder(

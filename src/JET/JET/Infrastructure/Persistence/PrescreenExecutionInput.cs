@@ -20,6 +20,16 @@ internal sealed record PrescreenExecutionInput(
     bool RunHolidayApproval,
     bool RunNonAuthorizedPreparer)
 {
+    /// <summary>「分錄金額中有連續 0 的尾數」的 0 的個數，照請求帶入（裁定 2026-11-05-25）。</summary>
+    internal required int ZerosThreshold { get; init; }
+
+    /// <summary>兩個資料庫實作的預篩選計數共用的條件環境；尾零規則讀這裡的 0 的個數。</summary>
+    internal FilterConditionContext FilterContext() =>
+        new(MoneyScale, PrepStartDate, PeriodStart, PeriodEnd, NonWorkingDays, GlPopulationScope.AuditPeriod)
+        {
+            ZerosThreshold = ZerosThreshold
+        };
+
     internal static PrescreenExecutionInput FromPlan(PrescreenPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
@@ -37,6 +47,9 @@ internal sealed record PrescreenExecutionInput(
             plan.RunWeekendApproval,
             plan.RunHolidayPosting,
             plan.RunHolidayApproval,
-            plan.RunNonAuthorizedPreparer);
+            plan.RunNonAuthorizedPreparer)
+        {
+            ZerosThreshold = request.ZerosThreshold
+        };
     }
 }

@@ -111,33 +111,48 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            $"""
-            SELECT mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
-            FROM {table}
-            WHERE dataset_kind = @kind
-            LIMIT 1;
-            """;
-        command.AddWithValue("@kind", kind.ToStorageName());
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+        CommittedMapping committed;
+        await using (var command = connection.CreateCommand())
         {
-            return null;
+            command.CommandText =
+                $"""
+                SELECT mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
+                FROM {table}
+                WHERE dataset_kind = @kind
+                LIMIT 1;
+                """;
+            command.AddWithValue("@kind", kind.ToStorageName());
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return null;
+            }
+
+            var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(0), JsonOptions)
+                ?? [];
+
+            committed = MappingStateSerialization.Read(
+                kind,
+                mapping,
+                reader.GetString(1),
+                reader.GetString(2),
+                DateTimeOffset.Parse(reader.GetString(3)),
+                reader.GetInt32(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5));
         }
 
-        var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(0), JsonOptions)
-            ?? [];
+        if (kind != DatasetKind.Gl || table != "field_mapping")
+        {
+            return committed;
+        }
 
-        return MappingStateSerialization.Read(
-            kind,
-            mapping,
-            reader.GetString(1),
-            reader.GetString(2),
-            DateTimeOffset.Parse(reader.GetString(3)),
-            reader.GetInt32(4),
-            reader.IsDBNull(5) ? null : reader.GetString(5));
+        // 目前已確認的 GL 配對和控制總數在同一個交易寫下，一起讀出；0 的個數由這裡算（裁定 2026-11-05-25）。
+        // 第一個讀取器關掉之後才下這一段，DuckDB 與 SQL Server 不必在同一個連線上同時開兩個讀取器。
+        await using var totals = connection.CreateCommand();
+        totals.CommandText = MappingStateSerialization.GlTotalsQuery("gl_control_total");
+        await using var totalsReader = await totals.ExecuteReaderAsync(cancellationToken);
+        return committed with { GlTotals = await MappingStateSerialization.ReadGlTotalsAsync(totalsReader, cancellationToken) };
     }
 }
 
@@ -185,6 +200,43 @@ internal static class MappingStateSerialization
             committedUtc,
             formatVersion,
             options);
+    }
+
+    /// <summary>控制總數只有一列；SQLite、DuckDB 與 SQL Server 共用同一段，SQL Server 傳入加上 schema 的表名。</summary>
+    internal static string GlTotalsQuery(string table) =>
+        $"""
+        SELECT pbc_row_count, gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,
+               gl_debit_scaled, gl_credit_scaled
+        FROM {table}
+        WHERE singleton = 1;
+        """;
+
+    /// <summary>
+    /// 讀不到控制總數或其中有空值時回傳 null，用到 0 的個數的地方會明確丟出，不會默默換成別的個數。
+    /// 目前版本的資料庫在確認 GL 配對時一定寫下整列。
+    /// </summary>
+    internal static async Task<GlTotals?> ReadGlTotalsAsync(DbDataReader reader, CancellationToken cancellationToken)
+    {
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        for (var ordinal = 0; ordinal < 6; ordinal++)
+        {
+            if (reader.IsDBNull(ordinal))
+            {
+                return null;
+            }
+        }
+
+        return new GlTotals(
+            reader.GetInt64(0),
+            reader.GetInt64(1),
+            reader.GetInt64(2),
+            reader.GetInt64(3),
+            reader.GetInt64(4),
+            reader.GetInt64(5));
     }
 
     // 目前版本只寫入第 2 版；其他版本是舊版 JET 保存的配對，不能沿用舊語意讀取。

@@ -45,7 +45,9 @@ public sealed partial class HandlerRepositoryScopeTests
             "InfSamplePages,MappingStates,ResultPageRdeValues,Results"
         ),
         ("QueryBlankRecordsPageHandler", "Query/QueryBlankRecordsPageHandler.cs", "BlankRecordsPages"),
-        ("QueryPrescreenPageHandler", "Query/QueryPrescreenPageHandler.cs", "PrescreenPages"),
+        // 尾數 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25），預篩選明細頁要讀已確認的 GL 配對帶出的控制總數，因此多讀 GL 配對。
+        // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        ("QueryPrescreenPageHandler", "Query/QueryPrescreenPageHandler.cs", "MappingStates,PrescreenPages"),
         ("QuerySourceQualityPageHandler", "Query/QuerySourceQualityPageHandler.cs", "SourceQualityPages"),
         (
             "QueryHighRiskSummaryRowPageHandler", "Query/QueryHighRiskSummaryRowPageHandler.cs",
@@ -84,28 +86,30 @@ public sealed partial class HandlerRepositoryScopeTests
             "PrescreenRunHandler", "PrescreenRunHandler.cs",
             "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,MappingStates,PrescreenFacts,Results"
         ),
+        // 裁定 2026-11-05-55：沒有國定假日清單時，只看清單的假日條件停用並寫原因，第五步的預覽、保存與重新檢查
+        // 因此多讀行事曆的國定假日筆數。第一次失敗：Focused 收據 20261105-120457517-eb226061478b4e4792547272762e8dd2。
         (
             "FilterPreviewHandler", "FilterHandlers.cs",
-            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,MappingStates"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,MappingStates"
         ),
         (
             "FilterCommitHandler", "FilterHandlers.cs",
-            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,MappingStates,Results"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,MappingStates,Results"
         ),
         // 2026-10-13 第五步一次只存或刪一個情境：新增三個 handler，各自列出用到的資料庫組屬性；既有列不變。
         // 第一次失敗（未登錄新 handler）：Focused 收據 20261013-103223974-21ad5d61409a4678b759c656d07a3fbc。
         // 比 filter.commit 多出的 FilterScenarios、ResultStaleStates 用來讀出整批與寫入後的結果狀態。
         (
             "FilterScenarioSaveHandler", "FilterScenarioHandlers.cs",
-            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
         ),
         (
             "FilterScenarioRemoveHandler", "FilterScenarioHandlers.cs",
-            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
         ),
         (
             "FilterScenarioRecheckHandler", "FilterScenarioHandlers.cs",
-            "AccountCategories,AccountMappings,AuthorizedPreparers,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
+            "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,FilterScenarios,MappingStates,ResultStaleStates,Results"
         ),
         (
             "ExportWorkingPaperStreamHandler", "ExportWorkingPaperStreamHandler.cs",

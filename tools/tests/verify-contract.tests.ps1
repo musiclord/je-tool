@@ -344,6 +344,11 @@ try {
         Assert-Contract -Condition (@($registry.testSettings.packageMethodPatterns) -ccontains $requiredPattern) `
             -Message "Package must include the report storage regression family $requiredPattern."
     }
+    # Gui 路線跑情境前，先用 AgentGuiTest 組態執行只在該組態編譯的測試，沒通過就不跑情境。
+    foreach ($requiredPattern in @('*.AgentGuiTestFixtureBehaviorTests.*', '*.SupportedActionsParityTests.*')) {
+        Assert-Contract -Condition (@($registry.testSettings.guiFixtureMethodPatterns) -ccontains $requiredPattern) `
+            -Message "Gui must run the AgentGuiTest-only test class $requiredPattern before its scenarios."
+    }
     $workbookJourneyMethod = 'AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate'
     Assert-Contract -Condition ([string]$registry.excelSettings.fixtureMethodPattern -ceq `
         "*SixReportWorkflowJourneyTests.$workbookJourneyMethod*") `
@@ -586,6 +591,10 @@ try {
         Assert-Contract -Condition ($harnessSourceText.Contains("'tools/harness/$harnessPartName'", [StringComparison]::Ordinal)) `
             -Message "Get-JetRunnerIdentity must hash $harnessPartName, so receipts record which harness code ran."
     }
+    $guiFixtureStepIndex = $harnessSourceText.IndexOf("-Name 'gui-fixture-tests'", [StringComparison]::Ordinal)
+    $guiScenarioLoopIndex = $harnessSourceText.IndexOf('foreach ($guiScenarioEntry in $selectedGuiScenarios)', [StringComparison]::Ordinal)
+    Assert-Contract -Condition ($guiFixtureStepIndex -ge 0 -and $guiScenarioLoopIndex -gt $guiFixtureStepIndex) `
+        -Message 'Gui must run its AgentGuiTest fixture tests before any scenario.'
     $processRunnerSourceText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/JetHarness.Process.cs') -Raw -Encoding utf8
     Assert-Contract -Condition ($harnessSourceText.Contains('EnvironmentVariablesToSet', [StringComparison]::OrdinalIgnoreCase) -and
         $processRunnerSourceText.Contains('EnvironmentVariablesToSet', [StringComparison]::OrdinalIgnoreCase)) `

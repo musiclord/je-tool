@@ -64,6 +64,103 @@ public sealed class LegacyAuditParityJourneyTests
         }
     }
 
+    // 新增測試（裁定 2026-11-06-01，計畫第 30、31 步）：第一次流程匯出六份報告之後，在同一個案件、同一個測試主機上
+    // 依序重新開啟、重新確認 GL 配對、重新匯入 GL，每段都重新匯出六份報告。合成資料沒有舊版標準底稿，
+    // 改拿第一次 JET 匯出的副本當基準，用私人案件同一個比較器與政策比；合成資料沒有內容裁決，傳空清單。
+    // 情境的列數與張數、資料可靠性抽樣的母體與筆數也要和第一次相同。這段程式因此不靠私人資料也能驗證。
+    [Theory]
+    [InlineData((int)LegacyAuditParityProvider.Sqlite)]
+    [InlineData((int)LegacyAuditParityProvider.DuckDb)]
+    public async Task SyntheticJourney_FollowUpsAfterExport_ReproduceFirstReportsAndCounts(int providerValue)
+    {
+        var provider = (LegacyAuditParityProvider)providerValue;
+        using var fixture = SyntheticJourneyFixture.Create();
+
+        var completedFollowUps = await PrivateCaseRunScope.RunAsync(async (scope, token) =>
+        {
+            var followUpsDone = new List<LegacyAuditParityFollowUp>();
+            var first = await LegacyAuditParityJourney.RunAsync(
+                scope.Host,
+                fixture.Input,
+                provider,
+                LegacyAuditParityCheckpoint.Export,
+                cancellationToken: token,
+                afterSuccessfulJourneyBeforeCleanup: async completed =>
+                {
+                    // 後一段的匯出會覆蓋同名報告，所以每段都先複製一份再往下做。
+                    var baseline = CopyReports(scope, completed, segmentIndex: 0);
+                    for (var index = 0; index < PrivateCaseAcceptanceRunner.FollowUps.Count; index++)
+                    {
+                        var followUp = PrivateCaseAcceptanceRunner.FollowUps[index];
+                        var segment = await LegacyAuditParityJourney.RunFollowUpAsync(
+                            scope.Host,
+                            fixture.Input,
+                            provider,
+                            completed.ProjectId!,
+                            followUp,
+                            token);
+
+                        Assert.Equal(
+                            LegacyAuditParityJourneyContract.FollowUpActionOrder(followUp),
+                            LegacyAuditParityJourneyContract.NormalizePaginatedActionOrder(segment.ActionNames));
+                        Assert.Equal(Enum.GetValues<LegacyReportKind>(), segment.Reports.Select(report => report.Kind).Order());
+                        var comparison = PrivateCaseReportComparator.Compare(
+                            PrivateCaseReportPairSet.CreateFromJetBaseline(
+                                baseline,
+                                CopyReports(scope, segment, segmentIndex: index + 1)),
+                            PrivateCaseAcceptancePolicy.Current,
+                            []);
+                        Assert.True(comparison.Passed, DescribeFailedReports(followUp, comparison));
+                        Assert.Equal(
+                            completed.ScenarioVerificationFacts!.Counts,
+                            segment.ScenarioVerificationFacts!.Counts);
+                        Assert.Equal(completed.InfVerificationFacts, segment.InfVerificationFacts);
+                        if (followUp == LegacyAuditParityFollowUp.Reimport)
+                        {
+                            Assert.Equal(completed.GlImportedRowCount, segment.GlImportedRowCount);
+                        }
+                        if (followUp != LegacyAuditParityFollowUp.Reopen)
+                        {
+                            Assert.Equal(completed.GlProjectedRowCount, segment.GlProjectedRowCount);
+                        }
+                        followUpsDone.Add(followUp);
+                    }
+                });
+
+            Assert.Equal(LegacyAuditParityCheckpoint.Export, first.CompletedCheckpoint);
+            return followUpsDone;
+        });
+
+        Assert.Equal(PrivateCaseAcceptanceRunner.FollowUps, completedFollowUps);
+    }
+
+    private static PrivateCaseActualReportSet CopyReports(
+        PrivateCaseRunScope scope,
+        LegacyAuditParityJourneyResult segment,
+        int segmentIndex) =>
+        PrivateCaseActualReportSet.Create(
+            segment.Reports,
+            Path.GetFullPath(segment.ProjectId!, scope.Host.ProjectsRoot),
+            scope.InputWorkspace,
+            segmentIndex: segmentIndex);
+
+    private static string DescribeFailedReports(
+        LegacyAuditParityFollowUp followUp,
+        PrivateCaseReportComparisonResult comparison) =>
+        $"{followUp}: "
+        + string.Join(
+            ",",
+            comparison.Reports
+                .Where(static report => !report.Passed)
+                .Select(static report =>
+                    $"{report.Kind}[content={report.BlockingContentDifferenceCount};"
+                    + string.Join("+", report.BlockingContentDifferences.Select(static difference =>
+                        $"{difference.Dimension}:{difference.DifferenceCount}"))
+                    + $";appearance={report.UnclassifiedAppearanceDifferenceCount};"
+                    + string.Join("+", report.UnclassifiedAppearanceDifferences.Select(static difference =>
+                        $"{difference.ScopeKind}.{difference.Property}:{difference.DifferenceCount}"))
+                    + "]"));
+
     [Fact]
     public async Task SyntheticJourney_ProjectCreatePinsExplicitTestOnlySampleSeed()
     {

@@ -75,6 +75,8 @@ public sealed class FilterCommitCancellationTests
                 AccountMappings = new EmptyAccountMappingStore(),
                 AuthorizedPreparers = new EmptyAuthorizedPreparerStore(),
                 AccountCategories = new BuiltInAccountCategoryStore(),
+                // 裁定 2026-11-05-55：保存條件前要知道有沒有國定假日清單，替身資料庫組因此補上空的行事曆。
+                Calendar = new EmptyCalendarStore(),
                 Results = new EligibleValidationResultStore(),
             });
         return session;
@@ -276,6 +278,22 @@ public sealed class FilterCommitCancellationTests
                     && kind == DatasetKind.Gl
                         ? mapping
                         : null);
+    }
+
+    private sealed class EmptyCalendarStore : ICalendarStore
+    {
+        public Task ReplaceDaysAsync(
+            string projectId,
+            CalendarDayType type,
+            IReadOnlyList<CalendarDayEntry> days,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task InvalidateDependentResultsAsync(string projectId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> CountAsync(string projectId, CalendarDayType type, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
     }
 
     private sealed class EmptyAuthorizedPreparerStore : IAuthorizedPreparerStore

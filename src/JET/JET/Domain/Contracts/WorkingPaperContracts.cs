@@ -57,7 +57,9 @@ public sealed record WorkingPaperContext(
     string ValidationResultId,
     string? ScenarioRevision,
     IReadOnlyList<int> ScenarioPositions,
-    GlPopulationScope PopulationScope = GlPopulationScope.AuditPeriod);
+    GlPopulationScope PopulationScope = GlPopulationScope.AuditPeriod,
+    // 案件設定的每週休息日(週日=0…週六=6);null 表示沒有設定,底稿週末表照預設寫週六、週日。
+    IReadOnlyList<int>? NonWorkingDays = null);
 
 /// <summary>匯出底稿單張工作表的寫出統計:工作表名與資料列數(表頭/固定文字列不計入 RowsWritten)。</summary>
 public sealed record SheetStat(string SheetName, long RowsWritten);
@@ -69,15 +71,17 @@ public sealed record ExportStats(long BytesWritten, IReadOnlyList<SheetStat> She
 public sealed record WorkingPaperProgress(string SheetName, int SheetsCompleted, long RowsWritten);
 
 /// <summary>
-/// 全編製人員彙總的單列(匯出底稿 step1-2 用):編製人員、傳票筆數、借/貸金額彙總(scaled 整數)。
+/// 全編製人員彙總的單列(預篩選報告 R5 與匯出底稿 step1-2 用):編製人員、人工旗標、傳票筆數、借/貸金額彙總(scaled 整數)。
 /// 與 prescreen 的 <see cref="PreparerSummaryRow"/> 區別:那個截 50 列且帶人工筆數(預篩選摘要用);
-/// 這個是不截斷的全名單,step1-2 需列出每一位(含自動拋轉的傳票類型)。
+/// 這個是不截斷的全名單,照舊版依編製人員加人工旗標分列,同一位人員最多三列:自動、人工與未判定(裁定 2026-11-05-32)。
+/// <see cref="IsManual"/> 是 true 人工、false 自動、null 未判定;沒有配對人工傳票欄位時全部是 null,也就是一人一列。
 /// </summary>
 public sealed record PreparerSummaryExportRow(
     string CreatedBy,
     long EntryCount,
     long DebitTotalScaled,
-    long CreditTotalScaled);
+    long CreditTotalScaled,
+    bool? IsManual = null);
 
 /// <summary>
 /// 編製人員彙總的顯示名稱：建立人員空白的那一組，預篩選報告、工作底稿 Step 1-2 與畫面一律寫「（空白）」
@@ -89,6 +93,16 @@ public static class PreparerSummaryDisplay
 
     public static string NameOf(string? createdBy) =>
         string.IsNullOrWhiteSpace(createdBy) ? BlankLabel : createdBy;
+
+    /// <summary>
+    /// 人工旗標的寫法：照舊版 idea-tool.bas 第 10557 到 10562 行寫「人工建立分錄」「自動拋轉分錄」，
+    /// 預篩選報告 R5 與底稿 Step 1-2 用同一組字（裁定 2026-11-05-32）。
+    /// </summary>
+    public const string ManualEntryText = "人工建立分錄";
+
+    public const string AutomaticEntryText = "自動拋轉分錄";
+
+    public static string ManualText(bool isManual) => isManual ? ManualEntryText : AutomaticEntryText;
 }
 
 /// <summary>

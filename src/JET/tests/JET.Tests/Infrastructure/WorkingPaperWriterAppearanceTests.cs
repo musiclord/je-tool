@@ -77,6 +77,53 @@ public sealed class WorkingPaperWriterAppearanceTests
             baselineReference: "B12");
     }
 
+    // 裁定 2026-11-05-35：國定假日填滿第一頁、沒有補班日時，補班日的提示句寫在續頁第 1 列，照舊版不加粗。
+    [Fact]
+    public async Task CalendarContinuation_WithoutMakeupDays_WritesNoticeOnContinuationPage()
+    {
+        const uint continuationRowLimit = 25;
+        using var host = new HandlerTestHost();
+        var projectId = await SetupBalancedAsync(host);
+        var output = await WriteAppearanceWorkingPaperAsync(
+            host,
+            projectId,
+            DifferenceRows(0),
+            new FixedAppearanceCalendarRepository(
+                Enumerable.Range(1, 14)
+                    .Select(index => new CalendarDayEntry($"2025-07-{index:00}", "Synthetic holiday"))
+                    .ToArray(),
+                []),
+            FixedAppearanceAccountMappingRepository.Empty,
+            new WorkingPaperWriterOptions(continuationRowLimit));
+
+        using var document = OpenStage8Document(output.Bytes);
+        Assert.Equal("DATE_OF_HOLIDAY", ReadStage8CellText(document, CalendarInfoSheet, "A10"));
+        Assert.Equal("Synthetic holiday", ReadStage8CellText(document, CalendarInfoSheet, "B24"));
+        var continuation = ExcelWorksheetConstraints.ContinuationSheetName(CalendarInfoSheet, 2);
+        var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
+        var sheet = WorksheetsByName(document)[continuation];
+        Assert.Equal("未設定補班日/結帳日資訊", ReadStage8CellText(document, continuation, "A1"));
+        Assert.Equal("false", ReadCellAppearance(workbookPart, sheet, "A1", "font.bold"));
+    }
+
+    // 空白的那一段在原本標題的那一列寫舊版提示句，照舊版不加粗，B、C 欄不寫字。
+    private static void AssertCalendarNoticeRow(SpreadsheetDocument document, uint row, string notice)
+    {
+        var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
+        var sheet = WorksheetsByName(document)[CalendarInfoSheet];
+        Assert.Equal(notice, ReadStage8CellText(document, CalendarInfoSheet, $"A{row}"));
+        Assert.Equal("false", ReadCellAppearance(workbookPart, sheet, $"A{row}", "font.bold"));
+        Assert.Equal("微軟正黑體", ReadCellAppearance(workbookPart, sheet, $"A{row}", "font.name"));
+        Assert.Equal("11", ReadCellAppearance(workbookPart, sheet, $"A{row}", "font.size"));
+        foreach (var column in new[] { "B", "C" })
+        {
+            var reference = $"{column}{row}";
+            var cell = sheet.Descendants<Cell>()
+                .SingleOrDefault(item => string.Equals(item.CellReference?.Value, reference, StringComparison.Ordinal));
+            Assert.True(cell is null || string.IsNullOrEmpty(cell.InnerText), $"{reference} 不應該有文字");
+        }
+    }
+
     [Fact]
     public async Task CompletenessAndUnbalancedConditions_CoverAllFourStates()
     {
@@ -209,16 +256,21 @@ public sealed class WorkingPaperWriterAppearanceTests
             normalTargets,
             Stage8TrackWIds.Skip(39).Take(4));
 
+        // 裁定 2026-11-05-35：沒有國定假日與補班日時，原本該段標題的那一列改寫舊版的提示句，照舊版不加粗，
+        // 所以空白案件的這兩列不再比對標題外觀，改成確認提示句；欄寬不自動調整的比對照舊。
+        // 第一次失敗：Focused 收據 20261105-103507853-206ca975d0d44f5b901d0379f7f58bc2。
         AssertReferenceBaseline(
             emptyDocument,
             entries,
             normalTargets,
-            Stage8TrackWIds.Skip(31).Take(4));
+            [Stage8TrackWIds[34]]);
+        AssertCalendarNoticeRow(emptyDocument, 10, "未設定假期資訊");
         AssertReferenceBaseline(
             emptyDocument,
             entries,
             makeupTargets,
-            Stage8TrackWIds.Skip(35).Take(4));
+            [Stage8TrackWIds[38]]);
+        AssertCalendarNoticeRow(emptyDocument, 12, "未設定補班日/結帳日資訊");
         AssertReferenceBaseline(
             emptyDocument,
             entries,
@@ -260,8 +312,12 @@ public sealed class WorkingPaperWriterAppearanceTests
             Stage8TrackWIds.Skip(35).Take(4));
 
         Assert.Equal("DAYOFWEEK", ReadStage8CellText(emptyDocument, CalendarInfoSheet, "A1"));
-        Assert.Equal("DATE_OF_HOLIDAY", ReadStage8CellText(emptyDocument, CalendarInfoSheet, "A10"));
-        Assert.Equal("DATE_OF_MAKEUPDAY", ReadStage8CellText(emptyDocument, CalendarInfoSheet, "A12"));
+        // 裁定 2026-11-05-35：空白案件的 A10、A12 改成提示句（見上方 AssertCalendarNoticeRow），標題只在有日子的那一段出現。
+        // 第一次失敗：Focused 收據 20261105-103507853-206ca975d0d44f5b901d0379f7f58bc2。
+        Assert.Equal("DATE_OF_HOLIDAY", ReadStage8CellText(holidayDocument, CalendarInfoSheet, "A10"));
+        Assert.Equal("未設定補班日/結帳日資訊", ReadStage8CellText(holidayDocument, CalendarInfoSheet, "A13"));
+        Assert.Equal("未設定假期資訊", ReadStage8CellText(makeupDocument, CalendarInfoSheet, "A10"));
+        Assert.Equal("DATE_OF_MAKEUPDAY", ReadStage8CellText(makeupDocument, CalendarInfoSheet, "A12"));
         Assert.Equal("GL_NUMBER", ReadStage8CellText(emptyDocument, AccountMappingSheet, "A1"));
         Assert.Equal(
             "GL_NUMBER",

@@ -393,7 +393,7 @@ function Invoke-JetGuiScenarioStep {
                     [bool]$manifest.assertions.manualAutoPolicyResetAfterDetach -and
                     [bool]$manifest.assertions.postingStatusPolicyResetAfterSourceChange -and
                     [bool]$manifest.assertions.rdeSelectAllAndClearVerified -and
-                    [bool]$manifest.assertions.requiredFieldJumpFocused
+                    [bool]$manifest.assertions.requiredFieldTagsShown
             }
             'validation-auto-outputs' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
@@ -422,9 +422,13 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.upstreamChangeAfterExportVerified
             }
-            'case-to-working-paper' {
+            { $_ -in @('case-to-working-paper','case-to-working-paper-duckdb') } {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.caseToWorkingPaperVerified
+            }
+            'case-list-cleanup-cancel-export' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.caseListCleanupCancelExportVerified
             }
             'blank-details-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and

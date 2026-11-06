@@ -105,7 +105,9 @@ public sealed class AgentGuiTestFixtureBehaviorTests
                     AgentGuiTestFixtures.SeedStaleReportProjectId,
                     AgentGuiTestFixtures.SeedSixStageCompleteProjectId,
                     AgentGuiTestFixtures.SeedMappingReadyProjectId,
-                    AgentGuiTestFixtures.SeedConflictedJournalProjectId,
+                    // SeedConflictedJournalProjectId 已在提交 9ddd812 從產品夾具移除，這裡原本仍引用它，
+                    // 使 AgentGuiTest 組態的測試專案編譯失敗；Gui 路線第一次建置這個組態時的失敗收據是
+                    // 20261106-000548645-e3adaf44d1214fa5bb6316b472468099，因此從清單拿掉。
                 },
                 fixtureId => Assert.True(AgentGuiTestFixtures.IsAllowedFixtureId(fixtureId)));
             Assert.StartsWith(
@@ -127,6 +129,40 @@ public sealed class AgentGuiTestFixtureBehaviorTests
                 AgentGuiTestFixtures.SeedCompletenessIneligibleProjectId,
                 AgentGuiTestFixtures.SeedStaleReportProjectId);
             Assert.Throws<InvalidOperationException>(() => _ = conflictingSeeds.SeedsProjectState);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MissingDatabaseSeed_IsClosedAndCombinesWithOneProjectStateSeed()
+    {
+        var root = CreateTemporaryRoot();
+        try
+        {
+            Assert.True(AgentGuiTestFixtures.IsAllowedFixtureId(
+                AgentGuiTestFixtures.SeedMissingDatabaseProjectId));
+            Assert.True(JET.Infrastructure.JetProjectFolder.IsValidProjectId(
+                AgentGuiTestFixtures.MissingDatabaseProjectId));
+
+            var alone = CreateFixtures(root, AgentGuiTestFixtures.SeedMissingDatabaseProjectId);
+            Assert.True(alone.SeedsProjectState);
+
+            // 和一個預先建立的案件一起用時不算第二個案件狀態夾具；兩個案件狀態夾具仍然互斥。
+            var combined = CreateFixtures(
+                root,
+                AgentGuiTestFixtures.SeedExportReadyProjectId,
+                AgentGuiTestFixtures.SeedMissingDatabaseProjectId,
+                AgentGuiTestFixtures.DelayExportProgressOnceId);
+            Assert.True(combined.SeedsProjectState);
+            var conflicting = CreateFixtures(
+                root,
+                AgentGuiTestFixtures.SeedExportReadyProjectId,
+                AgentGuiTestFixtures.SeedMappingReadyProjectId,
+                AgentGuiTestFixtures.SeedMissingDatabaseProjectId);
+            Assert.Throws<InvalidOperationException>(() => _ = conflicting.SeedsProjectState);
         }
         finally
         {

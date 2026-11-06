@@ -72,14 +72,14 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
         var infSampleCount = await InsertInfSampleAsync(connection, projectId, transaction, input, cancellationToken);
 
         var (blankAccountNumber, blankVoucherNumber, blankDescription, approvalDateNotInPeriod) =
-            await ReadBlankRecordsAsync(connection, projectId, transaction, input, cancellationToken);
+            await ReadBlankRecordsAsync(connection, projectId, transaction, input, plan.RunOutOfPeriodApproval, cancellationToken);
         var sourceQualityFindingCount = await ReadSourceQualityFindingCountAsync(
             connection,
             projectId,
             transaction,
             cancellationToken);
 
-        var blankDetail = await ReadBlankDetailAsync(connection, projectId, transaction, input, cancellationToken);
+        var blankDetail = await ReadBlankDetailAsync(connection, projectId, transaction, input, plan.RunOutOfPeriodApproval, cancellationToken);
 
         var controlTotals = await ReadControlTotalsAsync(connection, projectId, transaction, cancellationToken);
         var voucherNumberAcrossGlDates = await ReadVoucherNumberAcrossGlDatesAsync(connection, projectId, transaction, cancellationToken);
@@ -293,14 +293,14 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
 
     private async Task<(long, long, long, long)> ReadBlankRecordsAsync(
         SqlConnection connection, string projectId, SqlTransaction transaction,
-        ValidationRequest input, CancellationToken cancellationToken)
+        ValidationRequest input, bool approvalDateAvailable, CancellationToken cancellationToken)
     {
         // 四類述詞走 BlankRecordsCategoryPredicate 中心(空白判定由方言的去空白方法產生;期外日期
         // = approval_date)，且全部只看納入測試的分錄。SUM(CASE→int) 在 SQL Server 回 INT,CAST AS BIGINT 對齊 long。
         // 日期為投影時正規化的 yyyy-MM-dd ISO 字串,文字比較即時間序比較。
         var columns = string.Join(",\n                ",
             BlankRecordsCategoryPredicate.All.Select(c =>
-                $"COALESCE(SUM(CAST(CASE WHEN {BlankRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END AS BIGINT)), 0)"));
+                $"COALESCE(SUM(CAST(CASE WHEN {BlankRecordsCategoryPredicate.ScopedWhenChecked(c, SqlServerDialect.Instance, approvalDateAvailable)} THEN 1 ELSE 0 END AS BIGINT)), 0)"));
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT
@@ -359,14 +359,14 @@ public sealed class SqlServerValidationRunRepository(SqlServerProjectDatabase da
 
     private async Task<IReadOnlyList<BlankRecordRow>> ReadBlankDetailAsync(
         SqlConnection connection, string projectId, SqlTransaction transaction,
-        ValidationRequest input, CancellationToken cancellationToken)
+        ValidationRequest input, bool approvalDateAvailable, CancellationToken cancellationToken)
     {
-        // 四類旗標與 WHERE 皆走 BlankRecordsCategoryPredicate 中心，且全部只看納入測試的分錄。
+        // 四類旗標與 WHERE 皆走 BlankRecordsCategoryPredicate 中心，且全部只看納入測試的分錄；這次沒有檢查的類別不成立。
         var flags = string.Join(",\n                   ",
             BlankRecordsCategoryPredicate.All.Select(c =>
-                $"CASE WHEN {BlankRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)} THEN 1 ELSE 0 END"));
+                $"CASE WHEN {BlankRecordsCategoryPredicate.ScopedWhenChecked(c, SqlServerDialect.Instance, approvalDateAvailable)} THEN 1 ELSE 0 END"));
         var anyMatch = string.Join("\n               OR ",
-            BlankRecordsCategoryPredicate.All.Select(c => BlankRecordsCategoryPredicate.Scoped(c, SqlServerDialect.Instance)));
+            BlankRecordsCategoryPredicate.All.Select(c => BlankRecordsCategoryPredicate.ScopedWhenChecked(c, SqlServerDialect.Instance, approvalDateAvailable)));
         await using var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT TOP ({{ResultPreviewLimits.SummaryRows}}) voucher_number, account_number, gl_date, description,

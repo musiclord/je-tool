@@ -59,16 +59,20 @@ internal sealed partial class GlRulePredicates
             positive = TrailingDigits(parameters, FieldValueConditions.TailPatterns(rule), context.MoneyScale, originalColumn);
             if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
         }
+        else if (FieldValueConditions.IsDigitContains(op))
+        {
+            // 整數部分包含任一串數字（裁定 2026-11-05-46）：和整數尾數一樣只看絕對值的整數部分，不接金額比較基準。
+            positive = IntegerPartContains(parameters, FieldValueConditions.TailPatterns(rule), context.MoneyScale, originalColumn);
+            if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
+        }
         else if (FieldValueConditions.IsZeroRun(op))
         {
-            // 尾數連續 N 個 0（裁定 2026-11-03-07）就是 N 個 0 的尾數樣態，和第四步預篩選規則「金額尾數連續 6 個 0」用同一個
-            // TrailingDigits，0 的個數由審計員指定；另加整數部分不是 0。N 至少 2 時尾數樣態本身要求整數至少 N 位，這個下界不改變結果；
-            // N 為 1 時尾數樣態會讓整數部分為 0 的金額命中，由下界排除。結果和改版前的子條件組
+            // 尾數連續 N 個 0（裁定 2026-11-03-07）和第四步預篩選規則「分錄金額中有連續 0 的尾數」用同一個 ZeroRun，
+            // 0 的個數由審計員指定，加入時預設是由 GL 算出的個數（裁定 2026-11-05-26）。結果和改版前的子條件組
             // 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」相同。
             if (!FieldValueConditions.TryParseZeroRun(rule.TypedValue, out var zeros))
                 throw Invalid("field_value_zero_run_invalid");
-            var tail = TrailingDigits(parameters, [TrailingZeroThreshold.ZeroPattern(zeros)], context.MoneyScale, originalColumn);
-            positive = $"({tail} AND ABS({originalColumn}) >= {NextParam(parameters, (long)context.MoneyScale)})";
+            positive = ZeroRun(parameters, zeros, context.MoneyScale, originalColumn);
             if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
         }
         else if (FieldValueConditions.IsCalendar(op))
@@ -146,6 +150,7 @@ internal sealed partial class GlRulePredicates
             positive = $"{column} {comparison} {Param(rule.TypedValue)}";
         }
         // 裁定 2026-10-14-15：日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
+        // 文字欄位的否定比較在畫面上預設勾選（裁定 2026-11-05-56），畫面一律送出勾選結果；沒有帶這個值時照舊當成不列入。
         var includeBlank = rule.IncludeBlank ?? false;
         return Complete($"(CASE WHEN ({blank}) THEN {(includeBlank ? 1 : 0)} WHEN ({positive}) THEN 1 ELSE 0 END = 1)", includeBlank);
     }

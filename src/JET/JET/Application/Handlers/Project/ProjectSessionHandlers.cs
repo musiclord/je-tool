@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -69,12 +70,15 @@ public sealed class ProjectHeartbeatHandler(
 /// 離場清理 action 由 handler 非阻塞試取與變更型作業相同的作業互斥鎖；取不到即 fail-fast，
 /// 取到後才把放鎖與 session 離場原子包在同一 lease。前端只在真正離開專案時呼叫。無 active session
 /// 專案時在取得互斥鎖後優雅 no-op 回 { ok }。只有底層放鎖成功才清掉取得互斥鎖後捕捉的 session 案件；
-/// 失敗或取消時保留 session 與心跳，讓使用者可安全重試。
+/// 失敗或取消時保留 session 與心跳，讓使用者可安全重試。離開案件後關閉這個案件的資料庫連線，
+/// 記錄檔併回資料庫檔，JET 不再開著案件資料庫（見 IProjectDatabaseCheckpoint）。
 /// </summary>
 public sealed class ProjectReleaseLockHandler(
     CurrentPrincipal principal,
     ProjectSession session,
-    ActionExecutionGate executionGate) : IApplicationActionHandler
+    ActionExecutionGate executionGate,
+    IProjectDatabaseCheckpoint? databaseCheckpoint = null,
+    ILogger<ProjectReleaseLockHandler>? logger = null) : IApplicationActionHandler
 {
     public string Action => JetActionNames.ProjectReleaseLock;
 
@@ -89,6 +93,10 @@ public sealed class ProjectReleaseLockHandler(
         {
             await repositories.LockService.ReleaseAsync(projectId, principal.Name, cancellationToken);
             session.Leave(projectId);
+            if (databaseCheckpoint is not null)
+            {
+                await ProjectDatabaseCheckpointSteps.TryCloseAsync(databaseCheckpoint, projectId, logger);
+            }
         }
 
         return new { ok = true };

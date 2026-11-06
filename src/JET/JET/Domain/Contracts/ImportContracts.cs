@@ -246,7 +246,15 @@ public interface IImportRepository
 
 public interface IProjectDatabaseInitializer
 {
+    /// <summary>建案時呼叫：沒有資料庫就建立，已經建好的只檢查版本。</summary>
     Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 開啟既有案件時呼叫：資料庫一定要已經建好而且是現行版本，不建立新的資料庫（裁定 2026-11-05-72）。
+    /// 沒有另外實作的資料庫照舊用 <see cref="EnsureCreatedAsync"/>，SQL Server 案件由開案時的登記檢查擋下不存在的 schema。
+    /// </summary>
+    Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
+        EnsureCreatedAsync(projectId, cancellationToken);
 
     /// <summary>
     /// 指定 provider 的後端是否已有此 projectId 的既有資料(SQLite:jet.db 檔;SQL Server:專案 schema——

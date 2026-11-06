@@ -394,7 +394,7 @@
       // （裁定 2026-10-30-30）。自訂條件只有一種時不放下拉，列標題已經寫了它的名稱。
       var source = patternSource(rule);
       var options = source === 'prescreen'
-        ? availablePrescreenKeys().map(function (o) { return { value: 'prescreen:' + o.value, label: o.label }; })
+        ? availablePrescreenKeys().map(function (o) { return { value: 'prescreen:' + o.value, label: Ui.prescreenConditionLabel(o.value) }; })
         : source === 'common'
           ? availableCommonTypes().map(function (t) { return { value: t.value, label: (commonTypeCard(t.value) || t).label }; })
           : patternTypeOptions().map(function (t) { return { value: t.value, label: t.label }; });
@@ -404,8 +404,9 @@
       var current = rule.type === 'prescreen'
         ? Ui.PRESCREEN_RULES.find(function (o) { return o.value === rule.prescreenKey; })
         : commonTypeCard(rule.type);
+      var currentLabel = current && rule.type === 'prescreen' ? Ui.prescreenConditionLabel(rule.prescreenKey) : current ? current.label : null;
       var placeholder = !known ? '<option value="' + Ui.esc(selected) + '" selected disabled>' +
-        Ui.esc(current ? current.label : RETIRED_TYPE_NOTE) + '</option>' : '';
+        Ui.esc(currentLabel || RETIRED_TYPE_NOTE) + '</option>' : '';
       // 左邊的列標題已經寫來源，下拉不再重複一次標題。
       return '<select data-pattern-subject aria-label="樣態">' + placeholder +
         options.map(function (item) { return option(item.value, item.label); }).join('') +
@@ -473,7 +474,7 @@
         delete fresh.field; delete fresh.fieldId;
         fresh[f.extra ? 'fieldId' : 'field'] = f.id;
         if (!f.extra && ['createdBy', 'approvedBy', 'accountNumber'].indexOf(f.id) >= 0) { fresh.operator = 'in'; }
-        if (f.extra && f.type === 'amount') { fresh.amountBasis = 'signed'; }
+        // 攸關資料元素的金額欄和核心金額一樣預設比較絕對值，create 已經帶上（裁定 2026-11-05-47、2026-11-05-70）。
       }
       fresh.join = 'AND'; rule.conditions.push(fresh); changed(true);
     });
@@ -673,7 +674,7 @@
         return pairSelect +
           (showDebit ? categoryMultiSelect('debitCategoryIds', rule.pairMode === 'notDrCr' ? '整張傳票不得有這些借方分類' : '借方分類') : '') +
           (showCredit ? categoryMultiSelect('creditCategoryIds', rule.pairMode === 'drNotCr' ? '整張傳票不得有這些貸方分類' : '貸方分類') : '') +
-          '<details class="filter-rule-help" data-rule-help' + disclosureAttributes('rule-help-' + motionKey(rule, 'rule')) + '><summary>查找說明</summary><p class="filter-pair-result">' + (rule.pairMode === 'drNotCr' ? '結果列出符合的借方分錄。' : rule.pairMode === 'notDrCr' ? '結果列出符合的貸方分錄。' :
+          '<details class="filter-rule-help" data-rule-help' + disclosureAttributes('rule-help-' + motionKey(rule, 'rule')) + '><summary>查找說明</summary><p class="filter-pair-result">' + (rule.pairMode === 'drNotCr' ? '整張傳票沒有這些貸方分類時，結果列出符合的借方分錄及同傳票全部貸方分錄。' : rule.pairMode === 'notDrCr' ? '整張傳票沒有這些借方分類時，結果列出符合的貸方分錄及同傳票全部借方分錄。' :
             rule.pairMode === 'debitAnchor' ? '結果列出符合的借方分錄及同傳票全部貸方分錄。' : rule.pairMode === 'creditAnchor' ? '結果列出符合的貸方分錄及同傳票全部借方分錄。' : '結果列出同傳票符合分類的借方與貸方分錄。') + '</p>' + commonDescriptionHtml(rule) + legacyRulePolicyHtml(rule) + '</details></div>';
       }
 
@@ -841,7 +842,8 @@
       case 'prescreen': {
         var hit = Ui.PRESCREEN_RULES.filter(function (o) { return o.value === rule.prescreenKey; })[0];
         var preparationDate = (Store.getState().project || {}).prepStartDate;
-        return prefix + '預篩選：' + (hit ? hit.label : Ui.RETIRED_CONDITION_LABEL) +
+        // 「分錄金額中有連續 0 的尾數」知道個數時寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25），和後端 FilterConditionRenderer 同一寫法。
+        return prefix + '預篩選：' + (hit ? Ui.prescreenConditionLabel(rule.prescreenKey) : Ui.RETIRED_CONDITION_LABEL) +
           (rule.prescreenKey === 'prepPeriodApproval' && preparationDate ? '（' + preparationDate + ' 起，含當日）' : '');
       }
       case 'text': {

@@ -106,6 +106,40 @@ public sealed class LongStatementCancellationProviderTests
             () => project.Database.CreateConnection(project.ProjectId), SqlServerLongRead, CancelCommand);
     }
 
+    /// <summary>第一列馬上出來，第二列要等遞迴數到十億才出來。</summary>
+    private const string SparseRows =
+        "SELECT x FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 1000000000) SELECT x FROM c) AS t "
+        + "WHERE x = 1 OR x = 1000000000";
+
+    /// <summary>
+    /// 第 22 步盤點的第 7 項：第一列很快讀到，下一列要掃很久才出來。原本讀下一列時只在開始前檢查一次取消，
+    /// 按取消後要等到下一列出來才停；現在讀下一列的期間也接上中斷。DuckDB 一次算完整個結果才交出第一列，
+    /// 長時間都花在上面已測的第一步，沒有這段等待。這是新增的測試。
+    /// </summary>
+    [Fact]
+    public async Task SlowNextRow_StopsSoonAfterCancel_AndConnectionStaysUsable_Sqlite()
+    {
+        using var root = new TempProjectRoot();
+        var (database, projectId) = CreateLocalProject(root, ProjectDocument.DefaultDatabaseProvider);
+        await using var connection = database.CreateConnection(projectId);
+        await connection.OpenAsync(CancellationToken.None);
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = SparseRows;
+            await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+            Assert.True(await reader.ReadAsync(CancellationToken.None));
+            Assert.Equal(1L, reader.GetInt64(0));
+
+            var exception = await RunUntilCanceledAsync(
+                connection, command, InterruptSqliteDirectly, token => reader.ReadAsync(token));
+            AssertCancellationException(exception, expectCancellationException: true);
+        }
+
+        // 取消不會留在連線上影響之後的語句。
+        Assert.Equal(1L, await ScalarAsync(connection, "SELECT CAST(1 AS BIGINT)"));
+    }
+
     private static (ILocalProjectDatabase Database, string ProjectId) CreateLocalProject(
         TempProjectRoot root, string provider)
     {

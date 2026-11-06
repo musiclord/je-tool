@@ -17,10 +17,10 @@ public sealed class PrescreenRuleFixedAnswerTests
 {
     // 母體：18 張傳票 36 列，查核期間 2025 全年，期末財報準備日 2025-12-01，假日只有 2025-01-27（星期一），週末是週六與週日。
     // V01 2025-01-06（一）核准 2025-12-15：現金借 1,000,000／銷貨收入貸 1,000,000，摘要「調整 Alpha」，E01
-    //     → 財報準備日起核准、摘要特定描述、尾數六個 0 各 2 列；現金是正常對方科目，不算未預期借貸組合。
+    //     → 財報準備日起核准、摘要特定描述、金額尾數連續 0 各 2 列；現金是正常對方科目，不算未預期借貸組合。
     // V02 2025-01-04（六）核准 2025-01-05（日）：應收借 999／銷貨收入貸 999，「進貨」，E02 → 週末過帳、週末核准各 2 列。
     // V03 2025-01-08（三）核准 2025-01-27（假日）：費用借 100,000／應付費用貸 100,000，摘要空白與全空白，E03
-    //     → 假日核准、空白摘要各 2 列；100,000 只有五個 0，不算尾數六個 0。
+    //     → 假日核准、空白摘要各 2 列；100,000 有五個 0，下面算出的 4 個 0 也符合，但不算尾數六個 0。
     // V04 2025-01-27（假日）核准 2025-01-28：費用借 500／銷貨收入貸 500，「服務收入」，zz（不在授權名單）
     //     → 假日過帳 2 列、非授權編製人員 2 列、未預期借貸組合 1 列（收入貸方，同張傳票只有費用借方）；
     //       第四步照舊版列整張命中傳票，未預期借貸組合是 V04 的 2 列。
@@ -29,12 +29,15 @@ public sealed class PrescreenRuleFixedAnswerTests
     // 第五步「編製分錄較少的人員」（預設 11 筆以下，空白人員不列入）：E01、E02、E03、zz、E05 各 2 列 → 10 列。
     // 第五步「較少使用的科目」（預設 11 筆以下）：1101 三列、4101 三列、1170 一列、5101 兩列、2209 三列 → 12 列。
     // 編製人員數：E01 到 E05、zz，加上空白一組 → 7。
+    // 尾數 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25）：借方合計 1,000,000 + 999 + 100,000 + 500 + 12 + 3 + 2 = 1,101,516，
+    // 除以 36 列，平均 30,597 是 5 位數，所以是 4 個 0；V01 的 1,000,000 與 V03 的 100,000 共 4 列符合。
+    // 改版前固定 6 個 0，只有 V01 的 2 列，固定答案是 2。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
     private static readonly Dictionary<string, long> RowTagAnswers = new(StringComparer.Ordinal)
     {
         ["prepPeriodApproval"] = 2,
         ["suspiciousKeywords"] = 2,
         ["unexpectedAccountPair"] = 1,
-        ["trailingZeros"] = 2,
+        ["trailingZeros"] = 4,
         ["weekendPosting"] = 2,
         ["weekendApproval"] = 2,
         ["holidayPosting"] = 2,
@@ -51,11 +54,15 @@ public sealed class PrescreenRuleFixedAnswerTests
     private const long RarePreparerStepFiveRows = 10;
     private const long RareAccountStepFiveRows = 12;
     private const long PreparerGroups = 7;
+    private const int TrailingZeroDigits = 4;
+    // 常用篩選條件「特定尾數」卡片預設 000000，仍是 6 個 0，只有 V01 的 2 列；由 GL 算出個數後它不再等於預篩選這條規則。
+    private const long SixZeroRows = 2;
 
+    // 和預篩選預設的 24 個摘要關鍵字相同（裁定 2026-11-05-43 拿掉「帳外」）；這組資料沒有含「帳外」的摘要，答案不變。
     private static readonly string[] SuspiciousKeywords =
     [
         "ADJ", "REV", "RECLASS", "SUSPENSE", "ERROR", "WRONG",
-        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外", "帳外",
+        "調整", "迴轉", "沖銷", "重分類", "避險", "重編", "錯誤", "計畫外", "預算外",
         "调整", "回转", "冲销", "重分类", "避险", "重编", "错误", "计画外", "预算外"
     ];
 
@@ -101,6 +108,8 @@ public sealed class PrescreenRuleFixedAnswerTests
         Expect("prescreen.run suspiciousKeywords", RowTagAnswers["suspiciousKeywords"], Count(prescreen, "suspiciousKeywords"));
         Expect("prescreen.run unexpectedAccountPair", UnexpectedAccountPairWholeVoucherRows, Count(prescreen, "unexpectedAccountPair"));
         Expect("prescreen.run trailingZeros", RowTagAnswers["trailingZeros"], Count(prescreen, "trailingZeros"));
+        Expect("prescreen.run trailingZeros.zerosThreshold", TrailingZeroDigits,
+            prescreen.GetProperty("trailingZeros").GetProperty("zerosThreshold").GetInt32());
         Expect("prescreen.run weekendPosting", RowTagAnswers["weekendPosting"], Side(prescreen, "weekendActivity", "postingCount"));
         Expect("prescreen.run weekendApproval", RowTagAnswers["weekendApproval"], Side(prescreen, "weekendActivity", "approvalCount"));
         Expect("prescreen.run holidayPosting", RowTagAnswers["holidayPosting"], Side(prescreen, "holidayActivity", "postingCount"));
@@ -122,12 +131,13 @@ public sealed class PrescreenRuleFixedAnswerTests
         {
             ("摘要含特定字詞（依審計目的、特定摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "contains", values = SuspiciousKeywords }), RowTagAnswers["suspiciousKeywords"]),
             ("空白摘要（依審計目的、空白摘要卡片）", Rule(new { type = "fieldValue", field = "description", operator_ = "isBlank" }), RowTagAnswers["blankDescription"]),
-            ("金額尾數連續六個 0（特定尾數卡片）", Rule(endsWithSixZeros), RowTagAnswers["trailingZeros"]),
+            ("金額尾數連續六個 0（特定尾數卡片）", Rule(endsWithSixZeros), SixZeroRows),
             ("金額尾數連續六個 0 加金額大於或等於 1（依審計目的）", new
             {
                 type = "group",
                 conditions = new object[] { Rule(endsWithSixZeros), Rule(new { type = "fieldValue", field = "amount", operator_ = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }) }
-            }, RowTagAnswers["trailingZeros"]),
+            }, SixZeroRows),
+            ("金額尾數連續多個 0，預設由 GL 算出的個數（裁定 2026-11-05-26）", Rule(new { type = "fieldValue", field = "amount", operator_ = "endsWithZeros", value = "4", amountBasis = "absolute" }), RowTagAnswers["trailingZeros"]),
             ("總帳日期在週末（依審計目的）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isWeekend" }), RowTagAnswers["weekendPosting"]),
             ("傳票核准日在週末", Rule(new { type = "fieldValue", field = "approvalDate", operator_ = "isWeekend" }), RowTagAnswers["weekendApproval"]),
             ("總帳日期在國定假日（依審計目的）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isHoliday" }), RowTagAnswers["holidayPosting"]),
@@ -215,7 +225,8 @@ public sealed class PrescreenRuleFixedAnswerTests
         var summary = workbook.Worksheet("Pre-screening_Report");
         Expect("摘要 R3 傳票張數", 1, summary.Cell("E10").GetValue<long>());
         Expect("摘要 R3 明細筆數", 4, summary.Cell("F10").GetValue<long>());
-        Assert.Equal("符合 4 筆", summary.Cell("D10").GetString());
+        // 裁定 2026-11-05-44：D 欄照舊版原句，筆數看 E、F 欄。第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+        Assert.Equal("符合預篩選條件之明細項請詳 [R3] 工作表", summary.Cell("D10").GetString());
     }
 
     /// <summary>

@@ -671,6 +671,66 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal(987, summary.Cell("E13").GetValue<int>());
     }
 
+    // 裁定 2026-11-05-33：舊版 GetTotal 先取借貸淨額的絕對值，大於 0.01 才寫出，否則寫 0。
+    // 裁定 2026-11-05-42：主表照舊版加上不設密碼的工作表保護。
+    [Theory]
+    [InlineData("-12.34", "12.34")]
+    [InlineData("12.34", "12.34")]
+    [InlineData("-0.01", "0")]
+    [InlineData("0.005", "0")]
+    public async Task ValidationReport_E10_WritesAbsoluteNetAndProtectsMainSheet(string net, string expected)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await ReportExportFixture.SetupProjectAsync(host);
+        var writer = BuildLegacyReportWriter(host, new LegacyReportWriterOptions());
+        var projection = new ValidationReportProjection(
+            Net: decimal.Parse(net, System.Globalization.CultureInfo.InvariantCulture),
+            TotalDebit: 56.78m,
+            TotalCredit: 44.44m,
+            GlRowCount: 987,
+            CompletenessDiffAccountCount: 0,
+            UnbalancedVoucherCount: 0,
+            BlankAccountNumberCount: 0,
+            BlankVoucherNumberCount: 0,
+            BlankDescriptionCount: 0,
+            ApprovalDateNotInPeriodCount: 0,
+            SourceQualityFindingCount: 0);
+        var context = new ValidationReportContext(
+            new ReportDocumentContext(
+                projectId,
+                "Typed Projection Entity",
+                "2025-01-01",
+                "2025-12-31",
+                "2024-12-31",
+                10_000),
+            "typed-run",
+            new DateOnly(2025, 12, 31),
+            "{}");
+        await using var stream = new MemoryStream();
+
+        await ((IValidationReportWriter)writer).WriteAsync(
+            stream,
+            context,
+            projection,
+            ReportWriterTestSupport.ValidationPlan(context, projection),
+            new FieldInfoProjection([], []),
+            ReportWriterTestSupport.SyntheticMetadata(),
+            "typed-operator",
+            CancellationToken.None);
+
+        stream.Position = 0;
+        using (var document = SpreadsheetDocument.Open(stream, false))
+        {
+            Assert.Empty(new OpenXmlValidator().Validate(document));
+        }
+        stream.Position = 0;
+        using var workbook = new XLWorkbook(stream);
+        var summary = workbook.Worksheet("ValidationReport");
+        Assert.Equal(decimal.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), summary.Cell("E10").GetValue<decimal>());
+        Assert.True(summary.Protection.IsProtected);
+        Assert.False(summary.Protection.IsPasswordProtected);
+    }
+
     [Fact]
     public async Task PrescreenReport_TypedWriter_UsesProjectionWithoutReadingLegacySummaryJson()
     {
@@ -685,7 +745,11 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             TrailingZeros: skipped,
             PreparerSummary: new("V", null, 7),
             RareAccounts: new("V", null, 9),
-            BlankDescription: skipped);
+            BlankDescription: skipped)
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數；這裡的尾零規則略過，帶 6 只為了組出完整的投影。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 6
+        };
         var context = new PrescreenReportContext(
             new ReportDocumentContext(
                 projectId,
@@ -712,8 +776,12 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
         var summary = workbook.Worksheet("Pre-screening_Report");
-        Assert.Contains("彙總 7 項", summary.Cell("D12").GetString(), StringComparison.Ordinal);
-        Assert.Contains("彙總 9 項", summary.Cell("D13").GetString(), StringComparison.Ordinal);
+        // 裁定 2026-11-05-44：R5、R6 的 D 欄照舊版原句，不再寫項目數；改看狀態與不適用原因都取自投影。
+        // 第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+        Assert.Equal("V", summary.Cell("A12").GetString());
+        Assert.Equal("符合預篩選條件之明細項請詳 [R5] 工作表", summary.Cell("D12").GetString());
+        Assert.Equal("符合預篩選條件之明細項請詳 [R6] 工作表", summary.Cell("D13").GetString());
+        Assert.Equal("N/A（typed projection skip）", summary.Cell("D8").GetString());
     }
 
     // 2026-10-22 清理技術債：只讀摘要 JSON 的公開預篩選入口已刪除，原本檢查它的測試一併移除；
@@ -853,10 +921,12 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         var path = fixture.ReportPath(response.GetProperty("publishedReport"));
 
         using var workbook = new XLWorkbook(path);
+        // 裁定 2026-11-05-36：這個案件沒有配對傳票建立人員，「依分錄編製者彙總」不適用，照舊版不產生 R5 工作表。
+        // 第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
         Assert.Equal(
             new[]
             {
-                "Pre-screening_Report", "R1", "R2", "R4", "R5", "R6", "R7",
+                "Pre-screening_Report", "R1", "R2", "R4", "R6", "R7",
                 ReportWorkbookMetadataFormat.WorksheetName
             },
             workbook.Worksheets.Select(sheet => sheet.Name).ToArray());
@@ -885,8 +955,11 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal("N/A", summary.Cell("E13").GetString());
         Assert.Equal("N/A", summary.Cell("F13").GetString());
         Assert.StartsWith("N/A", summary.Cell("D10").GetString(), StringComparison.Ordinal);
-        Assert.StartsWith("N/A", summary.Cell("D12").GetString(), StringComparison.Ordinal);
-        Assert.Contains("彙總", summary.Cell("D13").GetString(), StringComparison.Ordinal);
+        // 裁定 2026-11-05-44：R5、R6 的 D 欄照舊版原句，不再寫「彙總 N 項」。第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+        Assert.Equal(
+            "因於資料欄未配對時未配對【編制人員】欄位，故此預篩選程序未執行",
+            summary.Cell("D12").GetString());
+        Assert.Equal("符合預篩選條件之明細項請詳 [R6] 工作表", summary.Cell("D13").GetString());
         Assert.All(summary.Range("D14:D16").Cells(),
             cell => Assert.Contains("Step 4", cell.GetString(), StringComparison.Ordinal));
         Assert.Contains("A1:A5", summary.MergedRanges.Select(range => range.RangeAddress.ToString()));
@@ -947,6 +1020,26 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
                 .Range("A2:A3")
                 .Cells()
                 .Select(cell => cell.GetString())
+                .ToArray());
+    }
+
+    [Fact]
+    public async Task ExportCriteriaSelectionReport_FinalTagMarksOnlyTheMatchedRow()
+    {
+        // 裁定 2026-11-05-48：照舊版在每張「#Criteria Select」工作表最後加一欄 Final_TAG，
+        // 符合條件的分錄寫 Y，同一張傳票帶出的其他分錄留白。這裡只有「調整分錄」那一列的摘要含「調整」。
+        var response = await fixture.ExportCriteriaSelectionReportAsync();
+        using var workbook = new XLWorkbook(fixture.ReportPath(response.GetProperty("publishedReport")));
+        var sheet = workbook.Worksheet("#Criteria Select 1");
+        var tagColumn = OriginalGlHeaders.Length + 1;
+
+        Assert.Equal("Final_TAG", sheet.Cell(1, tagColumn).GetString());
+        Assert.True(sheet.Cell(1, tagColumn + 1).IsEmpty());
+        Assert.Equal(
+            new[] { ("調整分錄", "Y"), ("", "") },
+            Enumerable.Range(2, 2)
+                .Select(row => (sheet.Cell(row, 6).GetString(), sheet.Cell(row, tagColumn).GetString()))
+                .OrderByDescending(pair => pair.Item1, StringComparer.Ordinal)
                 .ToArray());
     }
 

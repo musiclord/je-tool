@@ -24,6 +24,31 @@ public sealed class JsonFileProjectStoreTests
         SampleSeed: 1_234_567,
         SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
+    // 裁定 2026-11-05-69 要求確認 SQLite 運行的穩健性：project.json 改成寫到磁碟後才換檔。斷電無法在自動測試裡重現，
+    // 這裡核對新寫法寫出的內容和原本 File.WriteAllTextAsync 一模一樣（UTF-8 不加 BOM），建案與之後的儲存都一樣，也沒有留下暫存檔。這是新增的測試。
+    [Fact]
+    public async Task ProjectJson_WrittenToDiskBeforePublishing_KeepsTheSameBytes()
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument();
+        var encoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+
+        await store.CreateAsync(document, CancellationToken.None);
+        Assert.Equal(
+            encoding.GetBytes(System.Text.Json.JsonSerializer.Serialize(document, JetJsonStorage.IndentedOptions)),
+            await File.ReadAllBytesAsync(path));
+
+        var saved = document with { ProjectCode = "SYNTHETIC-SAVED" };
+        await store.SaveAsync(saved, CancellationToken.None);
+        Assert.Equal(
+            encoding.GetBytes(System.Text.Json.JsonSerializer.Serialize(saved, JetJsonStorage.IndentedOptions)),
+            await File.ReadAllBytesAsync(path));
+        Assert.Empty(Directory.EnumerateFiles(folder.GetProjectDirectory(document.ProjectId), ".project-json-*.tmp"));
+    }
+
     [Fact]
     public async Task CreateListFindRoundTrip()
     {
@@ -92,9 +117,15 @@ public sealed class JsonFileProjectStoreTests
         Assert.Contains(
             published.ProjectCode,
             new[] { "SYNTHETIC-FIRST", "SYNTHETIC-SECOND" });
-        var publishedFiles = Directory.GetFiles(folder.GetProjectDirectory(projectId));
-        Assert.Single(publishedFiles);
-        Assert.Equal(JetProjectFolder.ProjectJsonFileName, Path.GetFileName(publishedFiles[0]));
+        // 裁定 2026-11-05-72：建案中的標記和 project.json 一起發布，資料庫建好、建案完成後才刪，所以剛發布的資料夾裡有這兩個檔。
+        // 原本只核對 project.json 一個檔。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        var publishedFiles = Directory.GetFiles(folder.GetProjectDirectory(projectId))
+            .Select(path => Path.GetFileName(path))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(
+            new[] { JetProjectFolder.CreationMarkerFileName, JetProjectFolder.ProjectJsonFileName }.Order(StringComparer.Ordinal),
+            publishedFiles);
         Assert.Empty(Directory.EnumerateDirectories(
             root.Path,
             ".project-create-*.tmp",

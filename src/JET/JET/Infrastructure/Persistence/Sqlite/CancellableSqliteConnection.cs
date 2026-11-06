@@ -54,6 +54,15 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         return Task.FromResult(reader);
     }
 
+    /// <summary>
+    /// 經由 <see cref="System.Data.Common.DbCommand"/> 取得的讀取器：逐列讀取時也接上中斷，見 <see cref="CancellableSqliteDataReader"/>。
+    /// 本地 repository 都經這個入口讀資料。
+    /// </summary>
+    protected override async Task<System.Data.Common.DbDataReader> ExecuteDbDataReaderAsync(
+        CommandBehavior behavior,
+        CancellationToken cancellationToken) =>
+        new CancellableSqliteDataReader(await ExecuteReaderAsync(behavior, cancellationToken), this);
+
     public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
@@ -88,7 +97,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         }
     }
 
-    private T ExecuteWithInterrupt<T>(Func<T> execute, CancellationToken cancellationToken)
+    internal T ExecuteWithInterrupt<T>(Func<T> execute, CancellationToken cancellationToken)
     {
         // 解除登記時會等執行中的回呼結束，所以這個方法返回後不會再有中斷送到這條連線。
         using var registration = cancellationToken.Register(
@@ -105,7 +114,7 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         }
     }
 
-    private static void DisposeAfterInterrupt(SqliteDataReader reader)
+    internal static void DisposeAfterInterrupt(SqliteDataReader reader)
     {
         try
         {
@@ -115,5 +124,145 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         {
             // 關閉時剩下的語句也被同一次取消中斷；結果本來就不再使用。
         }
+    }
+}
+
+/// <summary>
+/// 逐列讀取時也能取消：讀下一列的期間把取消接到 <c>sqlite3_interrupt</c>，和執行語句時相同，讀完就解除。
+/// 原本只有第一步可以中斷，之後每讀一列只在開始前檢查一次取消；下一列要掃過很多資料才出來時，
+/// 按取消後要等到它出來才停（第 22 步盤點的第 7 項）。其餘成員原樣交給 SQLite 的讀取器。
+/// </summary>
+internal sealed class CancellableSqliteDataReader(SqliteDataReader inner, CancellableSqliteCommand command)
+    : System.Data.Common.DbDataReader
+{
+    private bool interrupted;
+
+    public override Task<bool> ReadAsync(CancellationToken cancellationToken) =>
+        StepAsync(inner.Read, cancellationToken);
+
+    public override Task<bool> NextResultAsync(CancellationToken cancellationToken) =>
+        StepAsync(inner.NextResult, cancellationToken);
+
+    private Task<bool> StepAsync(Func<bool> step, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<bool>(cancellationToken);
+        }
+
+        try
+        {
+            var advanced = command.ExecuteWithInterrupt(step, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                // 取消在這一列剛讀完時才送達，語句仍帶著中斷旗標；不交出這一列，直接回報取消。
+                interrupted = true;
+                return Task.FromCanceled<bool>(cancellationToken);
+            }
+
+            return Task.FromResult(advanced);
+        }
+        catch (OperationCanceledException exception)
+        {
+            interrupted = true;
+            return Task.FromException<bool>(exception);
+        }
+        catch (Exception exception)
+        {
+            return Task.FromException<bool>(exception);
+        }
+    }
+
+    public override bool Read() => inner.Read();
+
+    public override bool NextResult() => inner.NextResult();
+
+    public override int Depth => inner.Depth;
+
+    public override int FieldCount => inner.FieldCount;
+
+    public override int VisibleFieldCount => inner.VisibleFieldCount;
+
+    public override bool HasRows => inner.HasRows;
+
+    public override bool IsClosed => inner.IsClosed;
+
+    public override int RecordsAffected => inner.RecordsAffected;
+
+    public override object this[int ordinal] => inner[ordinal];
+
+    public override object this[string name] => inner[name];
+
+    public override bool GetBoolean(int ordinal) => inner.GetBoolean(ordinal);
+
+    public override byte GetByte(int ordinal) => inner.GetByte(ordinal);
+
+    public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length) =>
+        inner.GetBytes(ordinal, dataOffset, buffer, bufferOffset, length);
+
+    public override char GetChar(int ordinal) => inner.GetChar(ordinal);
+
+    public override long GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length) =>
+        inner.GetChars(ordinal, dataOffset, buffer, bufferOffset, length);
+
+    public override string GetDataTypeName(int ordinal) => inner.GetDataTypeName(ordinal);
+
+    public override DateTime GetDateTime(int ordinal) => inner.GetDateTime(ordinal);
+
+    public override decimal GetDecimal(int ordinal) => inner.GetDecimal(ordinal);
+
+    public override double GetDouble(int ordinal) => inner.GetDouble(ordinal);
+
+    public override System.Collections.IEnumerator GetEnumerator() => inner.GetEnumerator();
+
+    public override Type GetFieldType(int ordinal) => inner.GetFieldType(ordinal);
+
+    public override T GetFieldValue<T>(int ordinal) => inner.GetFieldValue<T>(ordinal);
+
+    public override float GetFloat(int ordinal) => inner.GetFloat(ordinal);
+
+    public override Guid GetGuid(int ordinal) => inner.GetGuid(ordinal);
+
+    public override short GetInt16(int ordinal) => inner.GetInt16(ordinal);
+
+    public override int GetInt32(int ordinal) => inner.GetInt32(ordinal);
+
+    public override long GetInt64(int ordinal) => inner.GetInt64(ordinal);
+
+    public override string GetName(int ordinal) => inner.GetName(ordinal);
+
+    public override int GetOrdinal(string name) => inner.GetOrdinal(name);
+
+    public override DataTable? GetSchemaTable() => inner.GetSchemaTable();
+
+    public override Stream GetStream(int ordinal) => inner.GetStream(ordinal);
+
+    public override TextReader GetTextReader(int ordinal) => inner.GetTextReader(ordinal);
+
+    public override string GetString(int ordinal) => inner.GetString(ordinal);
+
+    public override object GetValue(int ordinal) => inner.GetValue(ordinal);
+
+    public override int GetValues(object[] values) => inner.GetValues(values);
+
+    public override bool IsDBNull(int ordinal) => inner.IsDBNull(ordinal);
+
+    public override void Close() => inner.Close();
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            if (interrupted)
+            {
+                CancellableSqliteCommand.DisposeAfterInterrupt(inner);
+            }
+            else
+            {
+                inner.Dispose();
+            }
+        }
+
+        base.Dispose(disposing);
     }
 }

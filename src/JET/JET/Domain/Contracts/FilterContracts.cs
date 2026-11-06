@@ -66,6 +66,12 @@ public sealed record FilterConditionContext(
     /// 來源是目前案件 committed GL mapping 的 RDE definitions（單一權威，不另建第二份目錄）。
     /// </summary>
     public IReadOnlyList<GlRdeFieldMetadata> RdeFields { get; init; } = [];
+
+    /// <summary>
+    /// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數，由已確認 GL 配對的控制總數算出（裁定 2026-11-05-25）；
+    /// 預篩選報告用那次預篩選記下的個數。null 時用到這條規則的條件在編譯時就丟出，不會默默換成別的個數。
+    /// </summary>
+    public int? ZerosThreshold { get; init; }
 }
 
 public sealed record FilterPreviewRow(

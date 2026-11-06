@@ -342,6 +342,22 @@ test('choosing GL and TB source files offers exactly the seven supported file ty
   assert.equal(f.requests.filter(r => r.action === 'hostSelectFiles').length, 2);
 });
 
+// 裁定 2026-11-05-20：四列的按鈕寫出這一列要做的事，還沒匯入寫「匯入」，國定假日與補班日還沒設定寫「設定」，
+// 已經有資料寫「更改」；報讀名稱是按鈕的字接這一列的名稱。四列仍是同一種低調按鈕，見下一個測試。這是新加的測試。
+test('each import task button says what the row needs: 匯入, 設定 or 更改', () => {
+  const f = importFixture();
+  const button = kind => f.$('[data-task-toggle="' + kind + '"]');
+  const kinds = ['gl', 'tb', 'authorizedPreparer', 'calendar'];
+  assert.deepEqual(kinds.map(kind => button(kind).textContent), ['匯入', '匯入', '匯入', '設定'], 'nothing imported yet');
+  assert.deepEqual(kinds.map(kind => button(kind).getAttribute('aria-label')),
+    ['匯入：GL (總帳明細)', '匯入：TB (試算表)', '匯入：授權編製人員清單', '設定：國定假日與補班日']);
+  f.store.setImportResult('gl', { batchId: 'gl-1', columns: ['Doc'], rowCount: 3 });
+  f.store.setCalendarState({ holidayCount: 3, makeupDayCount: 1, calendarImported: true, nonWorkingDays: [6, 0], nonWorkingDaysConfigured: true });
+  assert.deepEqual(kinds.map(kind => button(kind).textContent), ['更改', '匯入', '匯入', '更改'], 'rows that have data offer a change');
+  assert.equal(button('gl').getAttribute('aria-label'), '更改：GL (總帳明細)');
+  assert.ok(kinds.every(kind => !/操作/.test(button(kind).textContent)), 'no row says only 操作');
+});
+
 // 使用者指出第二步只有「授權編製人員清單」的「操作」有外框，展開後內容下緣還多一條淡線（裁定 2026-10-16-07）。
 // 四列的「操作」是同一種每列重複的動作，要長得一樣；展開中的那一列標出 aria-expanded，樣式由它保留淡藍底。
 // 嵌進列裡的匯入卡不再帶獨立卡片的陰影與圓角。

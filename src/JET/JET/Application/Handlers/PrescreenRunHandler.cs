@@ -75,7 +75,13 @@ public sealed class PrescreenRunHandler : IApplicationActionHandler
                 HasCounterpart: accountMappingState?.HasCounterpart ?? false,
                 HasAuthorizedPreparers: hasAuthorizedPreparers,
                 NonWorkingDays: document.NonWorkingDays,
-                CategoryLabels: AccountCategoryLabels.From(categorySnapshot)));
+                CategoryLabels: AccountCategoryLabels.From(categorySnapshot))
+            {
+                // 照 IDEA 版 R4 由 GL 的借方平均決定 0 的個數（裁定 2026-11-05-25 到 2026-11-05-27）。
+                // 確認 GL 配對時控制總數和配對同一個交易寫下，讀不到就是資料庫不完整，明確丟出。
+                ZerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale)
+                    ?? throw new InvalidOperationException("已確認的 GL 配對讀不到控制總數，無法決定尾數 0 的個數。")
+            });
         SupportOperationStage.Enter("prescreen_facts");
         var facts = await repositories.PrescreenFacts.ExecuteAsync(plan, cancellationToken);
         SupportOperationStage.Enter("summary");

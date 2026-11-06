@@ -21,6 +21,10 @@ public sealed class LocalEngineErrorsTests
         ("DatabaseLocked", "database_locked"),
         ("DatabaseStorageFull", "database_storage_full"),
         ("DatabaseCorrupt", "database_corrupt"),
+        // 第 27 步新加的三個錯誤碼（第 22 步盤點的第 4 項），一起核對常數與正式程式不寫裸字串。
+        ("DatabaseReadOnly", "database_read_only"),
+        ("DatabaseUnavailable", "database_unavailable"),
+        ("DatabaseOutOfMemory", "database_out_of_memory"),
         ("BridgeError", "bridge_error"),
         ("SqlServerNotConfigured", "sql_server_not_configured"),
         ("SqlServerExpressUnsupported", "sql_server_express_unsupported"),
@@ -61,6 +65,52 @@ public sealed class LocalEngineErrorsTests
 
         Assert.NotNull(translated);
         Assert.Equal(expectedCode, translated.Code);
+    }
+
+    // 第 22 步盤點的第 4 項：唯讀、沒有權限、開不了檔、讀寫失敗與記憶體不足原本都落到通用的非預期錯誤。這是新增的測試。
+    [Theory]
+    [InlineData(8, "database_read_only")]
+    [InlineData(8 | (1 << 8), "database_read_only")] // SQLITE_READONLY_RECOVERY
+    [InlineData(8 | (5 << 8), "database_read_only")] // SQLITE_READONLY_CANTINIT：共用記憶體檔無法寫入
+    [InlineData(3, "database_unavailable")]
+    [InlineData(14, "database_unavailable")]
+    [InlineData(10, "database_unavailable")]
+    [InlineData(10 | (10 << 8), "database_unavailable")] // SQLITE_IOERR_DELETE
+    [InlineData(7, "database_out_of_memory")]
+    [InlineData(10 | (12 << 8), "database_out_of_memory")] // SQLITE_IOERR_NOMEM 算記憶體不足，不算讀寫錯誤
+    public void TryTranslate_SqliteAccessAndMemoryCodes_ReturnTheReason(int extendedCode, string expectedCode)
+    {
+        var translated = TryTranslate(new SqliteException("測試用 SQLite 引擎錯誤", extendedCode & 0xFF, extendedCode));
+
+        Assert.NotNull(translated);
+        Assert.Equal(expectedCode, translated.Code);
+        Assert.DoesNotContain("非預期", translated.Message, StringComparison.Ordinal);
+    }
+
+    // DuckDB 把作業系統依語言翻譯的原因放進訊息；這台電腦的 Windows 是哪種語言，就用那種語言的句子組出訊息。這是新增的測試。
+    [Theory]
+    [InlineData(32, "database_unavailable")]  // ERROR_SHARING_VIOLATION：防毒軟體這類程式獨占檔案
+    [InlineData(5, "database_unavailable")]   // ERROR_ACCESS_DENIED：唯讀或沒有權限
+    [InlineData(112, "database_storage_full")] // ERROR_DISK_FULL
+    [InlineData(39, "database_storage_full")]  // ERROR_HANDLE_DISK_FULL
+    public void TryTranslate_DuckDbIoErrorWithTheSystemReason_ReturnsTheReason(int win32Code, string expectedCode)
+    {
+        var reason = new System.ComponentModel.Win32Exception(win32Code).Message;
+        var translated = TryTranslate(CreateDuckDbException(
+            $"DuckDBOpen failed: IO Error: Cannot open file \"C:\\projects\\jet.duckdb\": {reason}"));
+
+        Assert.NotNull(translated);
+        Assert.Equal(expectedCode, translated.Code);
+    }
+
+    [Fact]
+    public void TryTranslate_DuckDbOutOfMemory_ReturnsOutOfMemory()
+    {
+        var translated = TryTranslate(CreateDuckDbException(
+            "Out of Memory Error: failed to allocate data of size 256.0 MiB (7.9 GiB/8.0 GiB used)"));
+
+        Assert.NotNull(translated);
+        Assert.Equal("database_out_of_memory", translated.Code);
     }
 
     [Fact]

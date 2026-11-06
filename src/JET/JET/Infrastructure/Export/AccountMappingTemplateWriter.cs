@@ -181,7 +181,7 @@ public sealed class AccountMappingTemplateWriter :
         foreach (var row in rows)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            widths.Observe([row.AccountNumber, row.AccountName, null]);
+            widths.Observe([row.AccountNumber, row.TemplateName, null]);
         }
 
         return widths.Widths
@@ -203,7 +203,7 @@ public sealed class AccountMappingTemplateWriter :
             var row = CreateRow(prototype.DynamicRow, rowNumber, preserveFirstRowAttributes: index == 0);
             row.Add(
                 TextCell(rowNumber, "A", rows[index].AccountNumber, prototype.ColumnStyles[1]),
-                TextCell(rowNumber, "B", rows[index].AccountName, prototype.ColumnStyles[2]),
+                TextCell(rowNumber, "B", rows[index].TemplateName, prototype.ColumnStyles[2]),
                 BlankCell(rowNumber, "C", prototype.OriginalColumnStyles[3]));
             yield return row;
         }

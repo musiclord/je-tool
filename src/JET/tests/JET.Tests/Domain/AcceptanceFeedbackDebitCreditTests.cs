@@ -27,7 +27,10 @@ public sealed class AcceptanceFeedbackDebitCreditTests
             ["Name"] = "Synthetic", ["Description"] = "Synthetic entry", ["Amount"] = "-12.34", ["Side"] = value
         });
         Assert.True(GlRowProjector.TryProject(row, spec, 10_000, out var projected, out var error), error?.ToString());
-        Assert.Equal(matches == debit ? 123_400L : -123_400L, projected!.AmountScaled);
+        // 裁定 2026-11-05-37 照舊版保留來源金額的正負號：判成借方的列照原金額，其他列乘以 -1。
+        // 來源金額是 -12.34，所以借方列是 -123_400、貸方列是 123_400；原本先取絕對值，借方 123_400、貸方 -123_400。
+        // 第一次失敗：Focused 收據 20261105-111814127-dc4459ef65f048da9334a7beaca6e8f0。
+        Assert.Equal(matches == debit ? -123_400L : 123_400L, projected!.AmountScaled);
     }
 
     [Theory]

@@ -170,7 +170,11 @@ public abstract class GlPopulationScopeGoldenTests
             HasRevenue: true,
             HasCounterpart: true,
             HasAuthorizedPreparers: false,
-            NonWorkingDays: [0, 6]));
+            NonWorkingDays: [0, 6])
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數。這則測試直接建立請求，照改版前的 6 個帶入，核對的筆數不變；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 6
+        });
 
         var result = await PrescreenFactsPort.ExecuteAsync(plan, CancellationToken.None);
 
@@ -185,8 +189,10 @@ public abstract class GlPopulationScopeGoldenTests
         Assert.Equal(12, result.Accounts.Sum(row => row.EntryCount));
     }
 
+    // 0 的個數改照 IDEA 版由 GL 算出、跟著條件環境帶入（裁定 2026-11-05-25）。這組合成資料直接組條件環境，照改版前帶 6 個，
+    // 尾零規則的六個 0 邊界測試不變。第一次失敗：Focused 收據 20261105-083850941-ba07558d4ad14c96b0a1ca9fc181d8f3（沒有個數時明確丟出）。
     private static FilterConditionContext RuleContext(GlPopulationScope scope) =>
-        new(MoneyScale, null, "2025-01-01", "2025-12-31", PopulationScope: scope);
+        new(MoneyScale, null, "2025-01-01", "2025-12-31", PopulationScope: scope) { ZerosThreshold = 6 };
 
     private static GlPopulationContext PopulationContext(GlPopulationScope scope) =>
         new(scope, "2025-01-01", "2025-12-31");

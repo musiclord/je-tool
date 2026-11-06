@@ -125,11 +125,14 @@ public sealed class SpecialAccountCategoryPairPredicateTests
             "hand-calculated row identity oracle",
             [new FilterGroupSpec(FilterJoin.And, [rule])]);
 
+    // 裁定 2026-11-05-45 照舊版，兩個「沒有」模式也標記同一張傳票對方那一側的全部分錄：
+    // S2 多了 Receivables 貸方 S2|2，S3 多了 Receivables 借方 S3|1；原本只有 S2|1 與 S3|2。
+    // 第一次失敗：Focused 收據 20261105-120743283-660b6625fa1a47119b3e76ef188dcf3e（預期 1 筆，實際 2 筆）。
     private static string[] ExpectedRows(string pairMode) => pairMode switch
     {
         SpecialAccountCategoryPairModes.DrAndCr => ["S1|1", "S1|2", "S5|1", "S5|2"],
-        SpecialAccountCategoryPairModes.DrNotCr => ["S2|1"],
-        SpecialAccountCategoryPairModes.NotDrCr => ["S3|2"],
+        SpecialAccountCategoryPairModes.DrNotCr => ["S2|1", "S2|2"],
+        SpecialAccountCategoryPairModes.NotDrCr => ["S3|1", "S3|2"],
         _ => throw new ArgumentOutOfRangeException(nameof(pairMode), pairMode, "Unknown pair mode.")
     };
 }

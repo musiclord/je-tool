@@ -104,6 +104,8 @@ public sealed class GlProjectionLoggingTests
         var db = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 以未接 logger 的 import repo 播種 staging（不污染診斷緩衝）
         var batch = (await new LocalImportRepository(db).ReplaceBatchAsync(

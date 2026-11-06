@@ -1385,30 +1385,27 @@
           (glOptions().approvalDateMode === 'sameAsGlDate' ? ' checked' : '') + '>核准日與總帳日期相同</label>' : '');
   }
 
-  // 二維表右側必填鐵軌：每個當前模式必填欄位一列；未指派灰「待指派」，已指派綠「✓ + 來源欄名」。
-  // 清單與每一列都有識別：換金額欄位格式時多出來的欄位長出來、不再需要的收起來，標題原地交叉淡化（app.js 的 JetMotion）。
-  function requiredRailHtml(eligibility, mappingState, kind) {
-    var items = eligibility.required.map(function (f) {
-      var val = mappingState.draft[f.key];
-      var done = !!val;
-      var tail = done
-        ? '<span class="map-rail__col">' + Ui.esc(val) + '</span>'
-        : '<span class="map-rail__pending">待指派</span>';
-      return '<li class="map-rail__item' + (done ? ' is-done' : '') + '" data-motion-key="' + Ui.esc('map-rail-' + kind + '-' + f.key) + '">' +
-        '<span class="map-rail__mark" aria-hidden="true">' + (done ? '✓' : '') + '</span>' +
-        '<button type="button" class="map-rail__label map-rail__jump" title="在簡易清單中定位來源欄位" data-focus-mapping-field="' + Ui.esc(f.key) + '">' + Ui.esc(f.label) + '</button>' +
-        tail + '</li>';
-    }).join('');
-
+  // 表格上方一行寫還差幾個必填欄位，全部選好時寫「必填欄位皆已配對」（裁定 2026-11-05-24、2026-10-09-12）。
+  // 簡易清單的必填欄位在自己那一列標「必填」（裁定 2026-11-05-23）；對照表格沒有一列一個 JET 欄位，這一行後面接每個必填欄位的
+  // 名稱標籤，還沒選是琥珀色，選好是灰色加勾，標籤不能點（裁定 2026-11-05-24）。這一行與每個標籤都有識別：
+  // 換金額欄位格式時多出來的欄位長出來、不再需要的收起來，標題原地交叉淡化（app.js 的 JetMotion）。
+  function requiredSummaryHtml(eligibility, mappingState, kind, withTags) {
     var title = eligibility.missing.length > 0
-      ? '尚缺 ' + eligibility.missing.length + ' 個必填欄位'
+      ? '還有 ' + eligibility.missing.length + ' 個必填欄位沒選'
       : (eligibility.canCommit ? '必填欄位皆已配對' : '欄位已指派，請確認下方設定');
-    return '<aside class="map-rail' + (eligibility.canCommit ? ' is-complete' : '') + '" data-motion-key="map-rail-' + kind + '">' +
-      '<h4 class="map-rail__title">' + title + '</h4>' +
-      '<ul class="map-rail__list">' + items + '</ul></aside>';
+    var tags = withTags
+      ? '<ul class="map-required__list">' + eligibility.required.map(function (f) {
+          var done = !!mappingState.draft[f.key];
+          return '<li class="map-required__tag' + (done ? '' : ' is-missing') + '" data-motion-key="' + Ui.esc('map-required-' + kind + '-' + f.key) + '">' +
+            (done ? '<span aria-hidden="true">✓</span>' : '') + Ui.esc(f.label) +
+            '<span class="visually-hidden">' + (done ? '，已配對' : '，還沒選') + '</span></li>';
+        }).join('') + '</ul>'
+      : '';
+    return '<div class="map-required' + (eligibility.canCommit ? ' is-complete' : '') + '" data-motion-key="map-required-' + kind + '">' +
+      '<p class="map-required__title">' + title + '</p>' + tags + '</div>';
   }
 
-  // 標準化政策未補齊時的就近提示（與必填鐵軌同一位置語彙）；後端仍是權威驗證。
+  // 標準化政策未補齊時的就近提示；後端仍是權威驗證。
   function optionProblemsHtml(eligibility, kind) {
     if (!eligibility.problems || !eligibility.problems.length) { return ''; }
     return '<p class="form-notice" data-bind="mapping-option-problems" data-motion-key="mapping-option-problems-' + kind + '">尚需補齊：' +
@@ -1617,12 +1614,12 @@
           uiModeToggleHtml(kind) + '</div>' +
         banner +
         modeGroupHtml(kind, modes, mode) +
+        requiredSummaryHtml(eligibility, mappingState, kind, true) +
         '<div class="map-layout map-layout--grid" data-motion-key="map-layout-' + kind + '"' + mapLayoutPanelAttributes(kind) + '>' +
           '<div class="map-layout__main">' +
             twoDimMappingTable(kind, fields, importInfo, mappingState, mode) +
             literalHtml +
           '</div>' +
-          requiredRailHtml(eligibility, mappingState, kind) +
         '</div>' +
         (kind === 'gl' ? glOptionsHtml(importInfo, mappingState) : '') +
         optionProblemsHtml(eligibility, kind) +
@@ -1664,9 +1661,11 @@
           options + '</select>';
       }
 
-      return '<tr class="mapping-table__row' + (required ? ' is-required' : '') + '">' +
+      // 必填欄位在自己那一列標「必填」，還沒選時標籤是琥珀色（裁定 2026-11-05-23）。借方代碼與貸方代碼只要填一個，
+      // 不算必填欄位，沒填時由下方的「尚需補齊」提醒，和上方那一行的數字同一個判斷。
+      return '<tr class="mapping-table__row' + (required ? ' is-required' : '') + (required && !current ? ' is-missing' : '') + '">' +
           '<td class="mapping-table__label">' + field.label +
-            (required ? ' <em class="form__req">*</em>' : '') + '</td>' +
+            (required ? ' <em class="mapping-table__req-tag">必填</em>' : '') + '</td>' +
           '<td>' + control + '</td>' +
         '</tr>';
     }).join('');
@@ -1688,12 +1687,12 @@
           uiModeToggleHtml(kind) + '</div>' +
         banner +
         modeGroupHtml(kind, modes, mode) +
+        requiredSummaryHtml(eligibility, mappingState, kind, false) +
         '<div class="map-layout" data-motion-key="map-layout-' + kind + '"' + mapLayoutPanelAttributes(kind) + '>' +
           '<div class="map-layout__main mapping-table-wrap" data-preserve-scroll="mapping-table-' + kind + '"><table class="mapping-table">' +
             '<thead><tr><th>JET 欄位</th><th>來源欄位</th></tr></thead>' +
             '<tbody>' + rows + '</tbody>' +
           '</table></div>' +
-          requiredRailHtml(eligibility, mappingState, kind) +
         '</div>' +
         (kind === 'gl' ? glOptionsHtml(importInfo, mappingState) : '') +
         optionProblemsHtml(eligibility, kind) +
@@ -2069,7 +2068,7 @@
     if (Store.getState().mapping[kind].committed) { editing[kind] = true; }
   }
 
-  // 文字輸入的就地更新：只換掉由草稿推導的必填清單、狀態提示與待補提示，並調整「確認配對」
+  // 文字輸入的就地更新：只換掉由草稿推導的必填欄位那一行、狀態提示與待補提示，並調整「確認配對」
   // 是否可按。確認鈕與輸入框本身都保留原節點，滑鼠點擊與輸入焦點不受影響。
   function refreshMappingDerived(section, kind, fields) {
     if (kind === 'gl') { ensureDcCodeComparisons(); }
@@ -2084,8 +2083,8 @@
 
     // 提示就地出現或消失時也走 JetMotion：出現的長出來、消失的收回去，和整段重繪時一樣。
     function update() {
-      var rail = Ui.findLive(section, '.map-rail');
-      if (rail) { rail.outerHTML = requiredRailHtml(eligibility, mappingState, kind); }
+      var summary = Ui.findLive(section, '.map-required');
+      if (summary) { summary.outerHTML = requiredSummaryHtml(eligibility, mappingState, kind, Store.getState().mappingUiMode === 'grid'); }
 
       replaceDerivedNotice(section, '[data-bind="mapping-banner-' + kind + '"]',
         mappingBannerHtml(kind, mappingState, committed, matches), function (html) {
@@ -2138,8 +2137,7 @@
       bindGlOptions(section);
     }
 
-    // 必填清單會在文字輸入時就地換新（refreshMappingDerived），所以用委派綁在 section 上。
-    // 配對失敗訊息的「前往設定」也走這裡：data-focus-mapping-field 對到欄位的來源欄選單，
+    // 配對失敗訊息的「前往設定」會跟著草稿就地換新，所以用委派綁在 section 上：data-focus-mapping-field 對到欄位的來源欄選單，
     // data-focus-mapping-option 對到人工/自動判定方式或攸關資料元素型別（以 data-focus-key 找）。
     section.addEventListener('click', function (event) {
       var button = event.target && event.target.closest
@@ -2201,7 +2199,7 @@
       });
     });
 
-    // classic 的欄位下拉：寫入 draft。setMappingDraft 依通知慣例 bump 全步重繪，必填鐵軌、
+    // classic 的欄位下拉：寫入 draft。setMappingDraft 依通知慣例 bump 全步重繪，必填標示、
     // 「確認配對」可用性、偏離橫幅與 GL 政策區同步更新；焦點與捲動由 renderContent 框架層還原。
     section.querySelectorAll('select[data-mapping-key]').forEach(function (control) {
       // 傳票核准日的下拉值帶前綴，由 bindGlOptions 另外處理，不能直接寫進草稿。
@@ -2320,6 +2318,8 @@
             committed.availableGlFields = data.availableGlFields || null;
             // 這次投影往下填補了幾格，摘要列出來；審計員據此記在 CAATs 文件。
             committed.fillDownCount = data.fillDownCount || 0;
+            // 這次投影由 GL 借方平均算出的尾數 0 的個數（裁定 2026-11-05-25），第四步卡片與第五步預設跟著更新。
+            committed.zerosThreshold = data.zerosThreshold || null;
           }
           Store.setMappingCommitted(kind, committed);
           if (kind === 'gl' && Object.prototype.hasOwnProperty.call(data, 'authorizedPreparerState')) {

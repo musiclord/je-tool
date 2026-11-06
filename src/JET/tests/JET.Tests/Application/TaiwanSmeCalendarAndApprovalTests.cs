@@ -118,8 +118,10 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
         }, prepStartDate: "2026-01-15", databaseProvider: provider, validateForDownstream: true);
 
         var validation = await host.DispatchAsync("validate.run");
-        // 核准日不在查核期間：A0（2024-12-31）、A2、A3、A4（2026 年），各兩列共 8 列；A5 空白不計，A6 不在 GL。
-        Assert.Equal(8, validation.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetInt64());
+        // 核准日不在查核期間：A0（2024-12-31）、A2、A3、A4（2026 年），以及核准日空白的 A5，各兩列共 10 列；A6 不在 GL。
+        // 裁定 2026-11-05-38 照舊版把核准日空白也算成不在期間，原本 A5 不計、預期 8 列。
+        // 第一次失敗：Focused 收據 20261105-114443928-8849cc7de421490a84e48db9b234452c。
+        Assert.Equal(10, validation.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetInt64());
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 財報準備日起核准：核准日 >= 2026-01-15，即 A3（當天）、A4，共 4 列；A2 早一天不算。
         Assert.Equal(4, prescreen.GetProperty("prepPeriodApproval").GetProperty("count").GetInt64());

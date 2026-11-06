@@ -39,8 +39,13 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         Directory.CreateDirectory(stagingDirectory);
         try
         {
+            // 建案中的標記和 project.json 一起發布，資料庫建好、建案完成後才刪掉（見 JetProjectFolder.CreationMarkerFileName）。
+            await File.WriteAllBytesAsync(
+                Path.Combine(stagingDirectory, JetProjectFolder.CreationMarkerFileName),
+                [],
+                cancellationToken);
             var json = JsonSerializer.Serialize(document, JsonOptions);
-            await File.WriteAllTextAsync(
+            await WriteToDiskAsync(
                 Path.Combine(stagingDirectory, JetProjectFolder.ProjectJsonFileName),
                 json,
                 cancellationToken);
@@ -91,7 +96,11 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 var document = await ReadAsync(projectId, cancellationToken);
                 if (document is not null)
                 {
-                    entries.Add(new ProjectStoreEntry(projectId, document));
+                    // 本機案件的資料庫不見或是 0 位元組時，比照無法開啟的案件列出原因（裁定 2026-11-05-72）。
+                    var databaseProblem = LocalDatabaseProblem(projectId, document.DatabaseProvider);
+                    entries.Add(databaseProblem is null
+                        ? new ProjectStoreEntry(projectId, document)
+                        : new ProjectStoreEntry(projectId, null, JetErrorCodes.FileReadError, databaseProblem));
                 }
             }
             catch (JetActionException exception) when (
@@ -121,6 +130,40 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
     public Task SaveAsync(ProjectDocument document, CancellationToken cancellationToken)
     {
         return WriteAsync(document, cancellationToken);
+    }
+
+    public Task CompleteCreateAsync(string projectId, CancellationToken cancellationToken)
+    {
+        File.Delete(folder.GetCreationMarkerPath(projectId));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 案件清單上本機案件的資料庫狀態：資料庫檔不見或是 0 位元組時回原因句，其餘回 null。
+    /// 建案中的標記還在時是上一次建案中斷，開案時會把初始化做完，照常列出。
+    /// 只看檔案在不在與大小，不開資料庫；檔案裡沒有資料表的情形在開案時檢查。
+    /// </summary>
+    private string? LocalDatabaseProblem(string projectId, string databaseProvider)
+    {
+        var databasePath = databaseProvider switch
+        {
+            ProjectDocument.DefaultDatabaseProvider => folder.GetDatabasePath(projectId),
+            ProjectDocument.DuckDbDatabaseProvider =>
+                Path.Combine(folder.GetProjectDirectory(projectId), DuckDbProjectDatabase.DatabaseFileName),
+            _ => null
+        };
+        if (databasePath is null || File.Exists(folder.GetCreationMarkerPath(projectId)))
+        {
+            return null;
+        }
+
+        var file = new FileInfo(databasePath);
+        if (!file.Exists)
+        {
+            return ProjectFolderMessages.DatabaseMissing(projectId);
+        }
+
+        return file.Length == 0 ? ProjectFolderMessages.DatabaseEmpty(projectId) : null;
     }
 
     public Task DeleteAsync(string projectId, CancellationToken cancellationToken)
@@ -197,7 +240,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         await gate.WaitAsync(cancellationToken);
         try
         {
-            await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
+            await WriteToDiskAsync(temporaryPath, json, cancellationToken);
 
             // 每次重試都重新判斷：上一次換檔若已移走舊檔但沒換上新檔，這次直接搬入。
             await RetryTransientAsync(() =>
@@ -237,6 +280,27 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 gate.Release();
             }
         }
+    }
+
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
+    /// <summary>
+    /// 內容寫到磁碟後才關檔，換檔或發布前呼叫：斷電時設定檔不是舊的就是新的完整內容，不會換成空檔
+    /// （裁定 2026-11-05-69 要求確認 SQLite 運行的穩健性；報告與工作檔也是這樣寫）。
+    /// 編碼和 <see cref="File.WriteAllTextAsync(string, string?, CancellationToken)"/> 相同，UTF-8 不加 BOM。暫存檔名每次都是新的，所以用 CreateNew。
+    /// </summary>
+    internal static async Task WriteToDiskAsync(string path, string text, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            FileOptions.Asynchronous);
+        await stream.WriteAsync(Utf8NoBom.GetBytes(text), cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+        stream.Flush(flushToDisk: true);
     }
 
     /// <summary>

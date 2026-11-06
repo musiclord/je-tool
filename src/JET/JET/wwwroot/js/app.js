@@ -2414,12 +2414,15 @@
   // 以 id 水位增量持久化：無 active project 的訊息（專案選擇畫面）只推進觀察水位不落庫；
   // fromLog（log.recent 還原的歷史）不回寫，避免重複。append 以單一 promise queue 保序，
   // 只有後端確認後才推進持久化水位；暫時性失敗保留重試。格式拒收已由 dispatcher 寫入支援日誌，跳過該筆。
+  // 自動寫入在作業進行中先暫停：長作業的寫入交易占著案件資料庫，這時寫訊息要等它結束，超過逾時就失敗，
+  // 支援日誌也多出失敗紀錄（第 22 步盤點的第 7 項）。作業結束時狀態改變，persistNewMessages 會依序寫入留下的訊息。
+  // 複製紀錄這類明確要求不受影響，照舊先寫完再讀。
   var lastObservedMessageId = 0;
   var lastPersistedId = 0;
   var pendingMessageWrites = [];
   var messagePersistQueue = Promise.resolve();
 
-  function flushMessageWrites() {
+  function flushMessageWrites(deferWhileBusy) {
     messagePersistQueue = messagePersistQueue
       .catch(function () {})
       .then(function drain() {
@@ -2432,6 +2435,8 @@
           pendingMessageWrites.shift();
           return drain();
         }
+
+        if (deferWhileBusy === true && state.busy) { return; }
 
         return global.JetApi.logAppend({
           level: pending.level,
@@ -2472,7 +2477,7 @@
       }
     }
     if (pendingMessageWrites.length > 0) {
-      flushMessageWrites().catch(function () {});
+      flushMessageWrites(true).catch(function () {});
     }
   }
 
@@ -3424,7 +3429,7 @@
     }
 
     // 要比對的東西：標了 data-motion-key 的，以及它們底下直接一層、沒有自己識別的區塊。後者的識別由外層的 key、
-    // 標籤、第一個 class 與同名的第幾個組成，例如第三步的對照表與必填清單、第四步換掉的頁籤內容，
+    // 標籤、第一個 class 與同名的第幾個組成，例如第三步的對照表與表格上方的必填欄位那一行、第四步換掉的頁籤內容，
     // 不用另外標識別也一樣原地改變。表格、一行裡的字與浮在上面的東西不算。局部重繪時，標了識別的根也算。
     function tracked(root, withLeaving) {
       var items = [];

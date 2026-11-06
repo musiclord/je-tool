@@ -47,6 +47,7 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
             await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers =
             await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
+        var calendarLists = await FilterCalendarLists.ReadAsync(repositories.Calendar, projectId, cancellationToken);
         var categorySnapshot = await repositories.AccountCategories.ReadAsync(projectId, cancellationToken);
 
         var canonicalDocument = FilterScenarioPayloadParser.ParseDocument(
@@ -59,7 +60,8 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
             accountMappingState,
             hasAuthorizedPreparers,
             populationScope,
-            categorySnapshot);
+            categorySnapshot,
+            calendarLists);
         var ruleContext = new FilterConditionContext(
             document.MoneyScale,
             document.LastAccountingPeriodDate,
@@ -69,7 +71,8 @@ public sealed class FilterPreviewHandler : IApplicationActionHandler
             populationScope)
         {
             RdeFields = glMapping.GlOptions?.RdeFields ?? [],
-            DateParseOptions = document.DateParseOptions
+            DateParseOptions = document.DateParseOptions,
+            ZerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale)
         };
         var plan = JetAuditProgram.Plan(new FilterRequest(
             Action,
@@ -176,6 +179,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             await repositories.AccountMappings.FindStateAsync(projectId, cancellationToken);
         var hasAuthorizedPreparers =
             await repositories.AuthorizedPreparers.CountAsync(projectId, cancellationToken) > 0;
+        var calendarLists = await FilterCalendarLists.ReadAsync(repositories.Calendar, projectId, cancellationToken);
         var categorySnapshot = await repositories.AccountCategories.ReadAsync(projectId, cancellationToken);
 
         SupportOperationStage.Enter("scenario_parse");
@@ -190,7 +194,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             accountMappingState,
             hasAuthorizedPreparers,
             populationScope,
-            categorySnapshot);
+            categorySnapshot,
+            calendarLists);
         var ruleContext = new FilterConditionContext(
             document.MoneyScale,
             document.LastAccountingPeriodDate,
@@ -200,7 +205,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
             populationScope)
         {
             RdeFields = glMapping.GlOptions?.RdeFields ?? [],
-            DateParseOptions = document.DateParseOptions
+            DateParseOptions = document.DateParseOptions,
+            ZerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale)
         };
 
         var metadataContext = FilterScenarioMetadataContext.Create(document, glMapping, categorySnapshot);
@@ -290,6 +296,21 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 /// Preview 與 commit 的單一 mapping-aware validation context 組裝點。
 /// 能使用哪些 GL 欄位只由欄位目錄判定（<see cref="JetFieldCatalog.AvailableGlFields"/>），每條條件需要什麼只由規則需求表判定。
 /// </summary>
+/// <summary>
+/// 第五步驗證要知道的兩份日曆清單有沒有上傳。沒有清單時，只看清單的條件停用並寫原因（國定假日照裁定 2026-11-05-55，
+/// 補班日照裁定 2026-11-05-66）。第五步的六個驗證入口都從這裡讀，不各自查。
+/// </summary>
+internal readonly record struct FilterCalendarLists(bool HasHolidays, bool HasMakeupDays)
+{
+    internal static async Task<FilterCalendarLists> ReadAsync(
+        ICalendarStore calendar,
+        string projectId,
+        CancellationToken cancellationToken) =>
+        new(
+            await calendar.CountAsync(projectId, CalendarDayType.Holiday, cancellationToken) > 0,
+            await calendar.CountAsync(projectId, CalendarDayType.Makeup, cancellationToken) > 0);
+}
+
 internal static class FilterValidationContextFactory
 {
     internal static FilterValidationContext Create(
@@ -298,7 +319,8 @@ internal static class FilterValidationContextFactory
         AccountMappingState? accountMappingState,
         bool hasAuthorizedPreparers,
         GlPopulationScope populationScope,
-        AccountCategorySnapshot? categorySnapshot = null) =>
+        AccountCategorySnapshot? categorySnapshot = null,
+        FilterCalendarLists? calendarLists = null) =>
         new(
             HasPrepStartDate: document.LastAccountingPeriodDate is not null,
             HasAccountMapping: accountMappingState is not null,
@@ -309,6 +331,9 @@ internal static class FilterValidationContextFactory
             HasCounterpartCategory: accountMappingState?.HasCounterpart ?? false)
         {
             AvailableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions),
+            // 正式的六個入口都帶入案件有沒有國定假日清單與補班日清單（裁定 2026-11-05-55、2026-11-05-66）；null 只供沒有案件資料的獨立測試。
+            HasHolidayCalendar = calendarLists?.HasHolidays,
+            HasMakeupCalendar = calendarLists?.HasMakeupDays,
             CategoryIds = categorySnapshot is null
                 ? AccountCategoryCatalog.BuiltInSnapshot.Categories
                     .Select(static category => category.CategoryId)

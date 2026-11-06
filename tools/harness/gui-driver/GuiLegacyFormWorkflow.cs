@@ -26,6 +26,16 @@ internal static partial class GuiScenarios
                 value => outcome.LastFilterProbe = value.Clone());
         }
         async Task Fill(string selector, string value) { await Click(selector); outcome.RecordAction(); await cdp.TypeTextAsync(value, ct); }
+        // 改寫數字輸入框：照審計員的操作，按到最後再逐字刪掉原本的值，然後輸入新值，和 GuiSideMonthWorkflow 的寫法相同。
+        async Task ReplaceNumber(string selector, string value)
+        {
+            await Click(selector);
+            var length = (await cdp.EvaluateAsync("document.querySelector(" + JsonSerializer.Serialize(selector) + ").value.length", ct)).GetInt32();
+            if (length is < 1 or > 2) throw new GuiCheckException("legacy_form_zero_run_length_invalid");
+            await PressKeyAsync(cdp, "End", outcome, ct);
+            for (var index = 0; index < length; index++) await PressKeyAsync(cdp, "Backspace", outcome, ct);
+            outcome.RecordAction(); await cdp.TypeTextAsync(value, ct);
+        }
         ResizeFilterWindow(1180, 900);
         await WaitForFixtureEventAsync(ownedRun, process, "seed-export-ready-project", "seed.completed", ct);
         await Click("[data-action=picker-open][data-project-id=agent-gui-export-ready]");
@@ -77,8 +87,15 @@ internal static partial class GuiScenarios
         }
         // 尾數連續多個 0 改成一條條件（裁定 2026-11-03-07），原本是「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組；
         // 選到的分錄相同，筆數照舊是 30。
+        // 加入時預設的個數照 IDEA 版由 GL 借方平均算出，跟著已確認的 GL 配對（裁定 2026-11-05-25、2026-11-05-26），這個合成案件不是 6。
+        // 這個案件和 C# 的示範案件同樣用 DemoDataFactory 的母體，借方平均是 5 位數，所以預設是 4 個 0；
+        // PrescreenRunHandlerTests.DemoTrailingZeroDigits 逐列獨立算出同一個數。先核對預設是 4，再照審計員的操作改成 6，核對原本的 30 筆；
+        // 操作多 4 次，lanes.json 跟著改（第一次失敗收據 20261106-004207370-5028a0ca032d4b0dbfb1c54cf978141b，預設是 4，一直等不到 6 而逾時）。
+        // 2026-11-06 提交前複審指出，原本寫成和前端存的個數比較，等於拿被測程式算出的值當預期，所以改成寫死 4。
         await AddFieldConditionAsync(cdp, "shortcut:trailingZeros", Click, ct);
-        await Check("draft.groups.flatMap(g=>g.conditions).length===1 && draft.groups[0].conditions[0].type==='fieldValue' && draft.groups[0].conditions[0].operator==='endsWithZeros' && draft.groups[0].conditions[0].value==='6'");
+        await Check("draft.groups.flatMap(g=>g.conditions).length===1 && draft.groups[0].conditions[0].type==='fieldValue' && draft.groups[0].conditions[0].operator==='endsWithZeros' && draft.groups[0].conditions[0].value==='4'");
+        await ReplaceNumber(".rule-row[data-ri='0'] [data-value-key=value]", "6");
+        await Check("draft.groups[0].conditions[0].value==='6'");
         await Click("[data-action=preview-scenario]");
         await Check("!!preview && preview.count===30");
         await Click("[data-action=save-scenario]");

@@ -10,7 +10,7 @@ public enum PrescreenRuleShape
 /// <summary>
 /// 一條預篩選規則的定義：回應鍵、程序代號、規則名稱、第五步條件用的標籤、歷史代號、形狀，
 /// 以及需要的 GL 欄位與案件資料。規則名稱只流進 RuleCatalog 的顯示名稱；第四步卡片的標題另寫在前端 validate-step.js，
-/// 其中「金額尾數連續 6 個 0 的分錄」與「非授權編製人員之分錄」兩張卡和這裡的名稱不同（2026-10-28 複審查到，改正說明，畫面不動）。述詞由 AuditCore 的 PrescreenRulePredicates 依 <see cref="Key"/> 對應，一條規則一個方法。
+/// 其中「金額尾數連續 N 個 0 的分錄」與「非授權編製人員之分錄」兩張卡和這裡的名稱不同（2026-10-28 複審查到，改正說明，畫面不動）；N 是由 GL 算出的個數。述詞由 AuditCore 的 PrescreenRulePredicates 依 <see cref="Key"/> 對應，一條規則一個方法。
 /// 彙總規則沒有條件標籤。歷史代號只供回查舊文件，不進畫面、回應或資料表名稱。
 /// </summary>
 public sealed record PrescreenRuleDefinition(
@@ -60,8 +60,10 @@ public static class PrescreenRuleDefinitions
         {
             ListsWholeHitVouchersWhenAlone = true
         },
+        // 0 的個數由 GL 算出（裁定 2026-11-05-25），條件標籤在知道個數時才寫成「金額尾數連續 N 個 0」
+        // （FilterConditionLabels.PrescreenLabel 帶個數的寫法）；這裡是不知道個數時用的規則名稱。
         RowTag(PrescreenRuleKeys.TrailingZeros, "trailing_zeros", "分錄金額中有連續 0 的尾數",
-            $"金額尾數連續 {TrailingZeroThreshold.DefaultZerosThreshold} 個 0", "R4",
+            "分錄金額中有連續 0 的尾數", "R4",
             Field(JetFieldCatalog.GlAmount)),
         Aggregate(JetRuleRequirements.PreparerSummary, "preparer_summary", "依分錄編製者彙總", "R5",
             Field(JetFieldCatalog.GlCreatedBy)),

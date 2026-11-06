@@ -37,24 +37,47 @@ public sealed class PrivateCaseAcceptanceTests
 
     private static string BuildSafeFailureSummary(PrivateCaseAcceptanceResult result)
     {
-        var inf = result.InfVerification.Passed
+        var summary = "私人案件未通過：legacyScenarios=pass；" + BuildSegmentSummary(
+            result.InfVerification,
+            result.ScenarioVerification,
+            result.ScenarioPopulationComparison,
+            result.ReportComparison);
+        // 後續操作只列沒通過的段落，格式和第一次相同；比對沒通過不會中斷，三段都會做完。
+        var followUps = string.Concat(result.FollowUps
+            .Where(static followUp => !followUp.Passed)
+            .Select(static followUp => $"｜{followUp.FollowUp}：reportCount={followUp.ReportCount}；"
+                + BuildSegmentSummary(
+                    followUp.InfVerification,
+                    followUp.ScenarioVerification,
+                    followUp.ScenarioPopulationComparison,
+                    followUp.ReportComparison)));
+        return $"{summary}；followUps={result.FollowUps.Count}{followUps}。";
+    }
+
+    private static string BuildSegmentSummary(
+        PrivateCaseInfVerificationResult infVerification,
+        PrivateCaseScenarioVerificationResult scenarioVerification,
+        PrivateCaseScenarioPopulationComparisonResult scenarioPopulationComparison,
+        PrivateCaseReportComparisonResult reportComparison)
+    {
+        var inf = infVerification.Passed
             ? "pass"
             : string.Join(
                 ",",
                 new[]
                 {
-                    ("population_partition", result.InfVerification.PopulationPartitionMatches),
-                    ("excluded_partition", result.InfVerification.ExcludedPartitionMatches),
-                    ("sample_rule", result.InfVerification.SampleSizeMatchesRule),
-                    ("gl", result.InfVerification.GlPageMatchesRun),
+                    ("population_partition", infVerification.PopulationPartitionMatches),
+                    ("excluded_partition", infVerification.ExcludedPartitionMatches),
+                    ("sample_rule", infVerification.SampleSizeMatchesRule),
+                    ("gl", infVerification.GlPageMatchesRun),
                 }
                 .Where(static item => !item.Item2)
                 .Select(static item => item.Item1));
-        var scenarios = result.ScenarioVerification.Passed
+        var scenarios = scenarioVerification.Passed
             ? "pass"
             : string.Join(
                 ",",
-                result.ScenarioVerification.Scenarios
+                scenarioVerification.Scenarios
                     .Where(static scenario => !scenario.Passed)
                     .Select(static scenario =>
                     {
@@ -99,21 +122,21 @@ public sealed class PrivateCaseAcceptanceTests
                         }
                         return $"{scenario.Position}:{string.Join('+', differences)}";
                     }));
-        var populations = result.ScenarioPopulationComparison.Matches
+        var populations = scenarioPopulationComparison.Matches
             ? "pass"
             : string.Join(
                 ",",
-                result.ScenarioPopulationComparison.Scenarios
+                scenarioPopulationComparison.Scenarios
                     .Where(static scenario => !scenario.Matches)
                     .Select(static scenario =>
                         $"{scenario.Position}:overlap({scenario.OverlapVoucherCount})"
                         + $"+legacyOnly({scenario.LegacyOnlyVoucherCount})"
                         + $"+currentOnly({scenario.CurrentOnlyVoucherCount})"));
-        var reports = result.ReportComparison.Passed
+        var reports = reportComparison.Passed
             ? "pass"
             : string.Join(
                 ",",
-                result.ReportComparison.Reports
+                reportComparison.Reports
                     .Where(static report => !report.Passed)
                     .Select(static report =>
                     {
@@ -204,8 +227,7 @@ public sealed class PrivateCaseAcceptanceTests
                         return $"{report.Kind}:{string.Join('+', differences)}";
                     }));
 
-        return $"私人案件未通過：legacyScenarios=pass；INF={inf}；"
-            + $"scenarios={scenarios}；populations={populations}；reports={reports}。";
+        return $"INF={inf}；scenarios={scenarios}；populations={populations}；reports={reports}";
     }
 
     private static string RequiredEnvironmentVariable(string name)

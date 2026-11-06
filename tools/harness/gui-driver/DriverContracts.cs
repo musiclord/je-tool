@@ -29,6 +29,8 @@ internal static class GuiScenarioCatalog
     internal const string AuthorizedListRecovery = "authorized-list-recovery";
     internal const string UpstreamChangeAfterExport = "upstream-change-after-export";
     internal const string CaseToWorkingPaper = "case-to-working-paper";
+    internal const string CaseToWorkingPaperDuckDb = "case-to-working-paper-duckdb";
+    internal const string CaseListCleanupCancelExport = "case-list-cleanup-cancel-export";
 
     // 這裡只記每個情境需要的合成夾具。操作上限、預期次數、逾時與截圖數只寫在 tools/harness/lanes.json，
     // 由驗證框架以命令列參數傳進來。
@@ -52,6 +54,8 @@ internal static class GuiScenarioCatalog
         [LegacyFormWorkflow] = ["seed-export-ready-project", "legacy-form-source"],
         [UpstreamChangeAfterExport] = ["seed-six-stage-complete-project"],
         [CaseToWorkingPaper] = ["case-import-source"],
+        [CaseToWorkingPaperDuckDb] = ["case-import-source"],
+        [CaseListCleanupCancelExport] = ["seed-export-ready-project", "seed-missing-database-project", "delay-export-progress-once"],
     };
 
     internal static bool TryResolve(
@@ -208,7 +212,7 @@ internal sealed class GuiAssertions
     internal bool ManualAutoPolicyResetAfterDetach { get; set; }
     internal bool PostingStatusPolicyResetAfterSourceChange { get; set; }
     internal bool RdeSelectAllAndClearVerified { get; set; }
-    internal bool RequiredFieldJumpFocused { get; set; }
+    internal bool RequiredFieldTagsShown { get; set; }
     internal bool AutomaticValidationReportsCreated { get; set; }
     internal bool AutomaticMappingTemplateCreated { get; set; }
     internal bool FilledTemplatePreservedAfterValidation { get; set; }
@@ -224,6 +228,7 @@ internal sealed class GuiAssertions
     internal bool AuthorizedListRecoveryVerified { get; set; }
     internal bool UpstreamChangeAfterExportVerified { get; set; }
     internal bool CaseToWorkingPaperVerified { get; set; }
+    internal bool CaseListCleanupCancelExportVerified { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -383,7 +388,7 @@ internal static class ManifestWriter
                 manualAutoPolicyResetAfterDetach = outcome.Assertions.ManualAutoPolicyResetAfterDetach,
                 postingStatusPolicyResetAfterSourceChange = outcome.Assertions.PostingStatusPolicyResetAfterSourceChange,
                 rdeSelectAllAndClearVerified = outcome.Assertions.RdeSelectAllAndClearVerified,
-                requiredFieldJumpFocused = outcome.Assertions.RequiredFieldJumpFocused,
+                requiredFieldTagsShown = outcome.Assertions.RequiredFieldTagsShown,
                 automaticValidationReportsCreated = outcome.Assertions.AutomaticValidationReportsCreated,
                 automaticMappingTemplateCreated = outcome.Assertions.AutomaticMappingTemplateCreated,
                 filledTemplatePreservedAfterValidation = outcome.Assertions.FilledTemplatePreservedAfterValidation,
@@ -398,6 +403,7 @@ internal static class ManifestWriter
                 authorizedListRecoveryVerified = outcome.Assertions.AuthorizedListRecoveryVerified,
                 upstreamChangeAfterExportVerified = outcome.Assertions.UpstreamChangeAfterExportVerified,
                 caseToWorkingPaperVerified = outcome.Assertions.CaseToWorkingPaperVerified,
+                caseListCleanupCancelExportVerified = outcome.Assertions.CaseListCleanupCancelExportVerified,
                 workingPaperHistoryPaginationVerified = outcome.Assertions.WorkingPaperHistoryPaginationVerified
             },
             process = new

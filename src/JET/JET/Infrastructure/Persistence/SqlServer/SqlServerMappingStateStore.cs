@@ -122,30 +122,44 @@ public sealed class SqlServerMappingStateStore(SqlServerProjectDatabase database
         await connection.OpenAsync(cancellationToken);
 
         // dataset_kind 為 PK,至多一列;不需分頁。
-        await using var command = database.CreateCommand(connection, projectId,
+        CommittedMapping committed;
+        await using (var command = database.CreateCommand(connection, projectId,
             $$"""
             SELECT mapping_json, mode_name, source_batch_id, committed_utc, format_version, options_json
             FROM {s}.{{table}}
             WHERE dataset_kind = @kind;
-            """);
-        command.Parameters.AddWithValue("@kind", kind.ToStorageName());
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+            """))
         {
-            return null;
+            command.Parameters.AddWithValue("@kind", kind.ToStorageName());
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return null;
+            }
+
+            var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(0), JsonOptions)
+                ?? [];
+
+            committed = MappingStateSerialization.Read(
+                kind,
+                mapping,
+                reader.GetString(1),
+                reader.GetString(2),
+                DateTimeOffset.Parse(reader.GetString(3)),
+                reader.GetInt32(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5));
         }
 
-        var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(0), JsonOptions)
-            ?? [];
+        if (kind != DatasetKind.Gl || table != "field_mapping")
+        {
+            return committed;
+        }
 
-        return MappingStateSerialization.Read(
-            kind,
-            mapping,
-            reader.GetString(1),
-            reader.GetString(2),
-            DateTimeOffset.Parse(reader.GetString(3)),
-            reader.GetInt32(4),
-            reader.IsDBNull(5) ? null : reader.GetString(5));
+        // 和本機資料庫相同：目前已確認的 GL 配對連同控制總數一起讀出（裁定 2026-11-05-25）；第一個讀取器關掉後才查。
+        await using var totals = database.CreateCommand(connection, projectId,
+            MappingStateSerialization.GlTotalsQuery("{s}.gl_control_total"));
+        await using var totalsReader = await totals.ExecuteReaderAsync(cancellationToken);
+        return committed with { GlTotals = await MappingStateSerialization.ReadGlTotalsAsync(totalsReader, cancellationToken) };
     }
 }

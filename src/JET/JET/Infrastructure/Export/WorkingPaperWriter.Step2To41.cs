@@ -150,8 +150,10 @@ public sealed partial class WorkingPaperWriter
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var values = new InfSampleDisplayValues(glMapping);
+        // 樣本固定最多 59 筆：先依穩定鍵讀完，再照 INF 報告的順序排（裁定 2026-11-05-41、2026-11-06-06），
+        // 之後每 DefaultPageSize 筆一批讀原始 GL 列與攸關資料元素的值。
+        var samples = new List<InfSampleRow>();
         string? cursor = null;
-        var ordinal = 0L;
         do
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -161,9 +163,22 @@ public sealed partial class WorkingPaperWriter
                 context.MoneyScale,
                 new PageRequest(cursor, PageRequest.DefaultPageSize),
                 cancellationToken);
-            var entryIds = page.Rows.Select(sample => sample.EntryId).ToArray();
+            samples.AddRange(page.Rows);
+            cursor = page.NextCursor;
+        } while (cursor is not null);
 
-            if (_rawRows is null || entryIds.Any(entryId => entryId <= 0))
+        if (_rawRows is null)
+        {
+            throw MissingStep2RawSource();
+        }
+
+        var ordinal = 0L;
+        foreach (var chunk in ResultPageSorting.InfSampleReportOrder(samples).Chunk(PageRequest.DefaultPageSize))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entryIds = chunk.Select(sample => sample.EntryId).ToArray();
+
+            if (entryIds.Any(entryId => entryId <= 0))
             {
                 throw MissingStep2RawSource();
             }
@@ -184,7 +199,7 @@ public sealed partial class WorkingPaperWriter
                 context.MoneyScale,
                 cancellationToken).ConfigureAwait(false);
 
-            foreach (var sample in page.Rows)
+            foreach (var sample in chunk)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 using var raw = JsonDocument.Parse(rawPage[sample.EntryId]);
@@ -199,9 +214,7 @@ public sealed partial class WorkingPaperWriter
                     customFields,
                     rdePage[sample.EntryId]);
             }
-
-            cursor = page.NextCursor;
-        } while (cursor is not null);
+        }
     }
 
     private static JetActionException MissingStep2RawSource() => new(
@@ -2017,9 +2030,8 @@ public sealed partial class WorkingPaperWriter
                 nameof(context), context.PopulationScope, "未知的 GL 母體範圍。");
         }
 
-        var range = $"查核期間內（{context.PeriodStart} ~ {context.PeriodEnd}）之會計分錄";
-        const string rationale =
-            "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。";
+        var range = WorkingPaperResultTexts.Step3TestScope(context.PeriodStart, context.PeriodEnd);
+        const string rationale = WorkingPaperResultTexts.Step3ScopeRationale;
 
         return
         [

@@ -11,6 +11,20 @@ public sealed partial class LegacyReportWriter
     /// <summary>條件篩選報告的情境列從第 5 列起，一個已存情境一列，列數就是已存情境上限。</summary>
     private const int CriteriaFirstScenarioRow = 5;
 
+    /// <summary>
+    /// 「#Criteria Select」工作表最後一欄的欄名與值：照舊版 idea-tool.bas 第 11660 行的 Final_TAG，
+    /// 符合條件的分錄寫「Y」，同一張傳票的其他分錄留白（裁定 2026-11-05-48；欄名照用，裁定 2026-11-05-67）。
+    /// </summary>
+    internal const string CriteriaMatchedColumnName = "Final_TAG";
+
+    internal const string CriteriaMatchedValue = "Y";
+
+    /// <summary>
+    /// 命中傳票的一列：<see cref="Matched"/> 是這一列是否符合條件。單獨使用「未預期借貸組合」的情境照舊版以整張傳票呈現，
+    /// 整張傳票都算符合，和底稿 Step 4-1 的標記相同（<c>JetAuditProgram.UsesLegacyWholeVoucherRows</c>）。
+    /// </summary>
+    private readonly record struct CriteriaVoucherRow(long EntryId, bool Matched);
+
     Task<ExportStats> ICriteriaSelectionReportWriter.WriteAsync(
         Stream output,
         CriteriaSelectionReportContext context,
@@ -92,7 +106,7 @@ public sealed partial class LegacyReportWriter
                     scenario.Position,
                     page,
                     ct),
-                entryId => entryId,
+                row => row.EntryId,
                 legacyStyles,
                 // Resolve the legacy threshold from the full-voucher rows
                 // already counted by the disk spool, never from hit-row counts.
@@ -101,7 +115,10 @@ public sealed partial class LegacyReportWriter
                 progress,
                 customFields: customFields,
                 registryFields: workbookMetadata.GlMapping.GlOptions?.RdeFields,
-                customFieldMoneyScale: context.Project.MoneyScale).ConfigureAwait(false);
+                customFieldMoneyScale: context.Project.MoneyScale,
+                markerColumn: new RawSheetMarkerColumn<CriteriaVoucherRow>(
+                    CriteriaMatchedColumnName,
+                    static row => row.Matched ? CriteriaMatchedValue : null)).ConfigureAwait(false);
             exportedRowCounts[scenario.Position] = stats
                 .Skip(firstScenarioStatIndex)
                 .Sum(item => item.RowsWritten);
@@ -120,7 +137,7 @@ public sealed partial class LegacyReportWriter
         return stats;
     }
 
-    private async Task<PageResult<long>> ReadCriteriaVoucherRowsAsync(
+    private async Task<PageResult<CriteriaVoucherRow>> ReadCriteriaVoucherRowsAsync(
         CriteriaSelectionReportContext context,
         int scenarioPosition,
         PageRequest page,
@@ -141,8 +158,13 @@ public sealed partial class LegacyReportWriter
             page,
             [scenarioPosition],
             cancellationToken).ConfigureAwait(false);
-        return new PageResult<long>(
-            result.EntryIds,
+        var wholeVoucher = context.WholeVoucherSummaryPositions?.Contains(scenarioPosition) == true;
+        return new PageResult<CriteriaVoucherRow>(
+            result.EntryIds
+                .Select(entryId => new CriteriaVoucherRow(
+                    entryId,
+                    wholeVoucher || result.PositionsByEntry.ContainsKey(entryId)))
+                .ToArray(),
             result.Page.NextCursor);
     }
 

@@ -147,9 +147,34 @@ public sealed class FilterCompilationTests
     [Fact]
     public void BlankRecordCategoryPredicates_ApprovalDateNotInPeriod_IsTheSameOnEveryProvider()
     {
-        const string expected = "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))";
+        // 裁定 2026-11-05-38 照舊版把核准日空白也算成不在期間，原本的預期是
+        // "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))"。
+        // 第一次失敗：Focused 收據 20261105-111915760-b05263fa2bd54ac2b53aa14b49a2c698。
+        const string expected = "(approval_date IS NULL OR approval_date < @periodStart OR approval_date > @periodEnd)";
         Assert.Equal(expected, BlankRecordsCategoryPredicate.For(BlankRecordCategory.ApprovalDateNotInPeriod, SqliteDialect.Instance));
         Assert.Equal(expected, BlankRecordsCategoryPredicate.For(BlankRecordCategory.ApprovalDateNotInPeriod, SqlServerDialect.Instance));
+    }
+
+    [Fact]
+    public void BlankRecordCategoryScopedWhenChecked_UnavailableApprovalDate_NeverMatches_OtherCategoriesUnchanged()
+    {
+        // 裁定 2026-10-23-01：傳票核准日不可用時「核准日不在期間」不執行；照裁定 2026-11-05-38 核准日空白會算成不在期間，
+        // 所以這時計數與明細改用永遠不成立的條件。其他三類與核准日可用時照原本的條件。
+        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance, SqlServerDialect.Instance })
+        {
+            Assert.Equal(
+                "(1 = 0)",
+                BlankRecordsCategoryPredicate.ScopedWhenChecked(BlankRecordCategory.ApprovalDateNotInPeriod, dialect, approvalDateAvailable: false));
+            Assert.Equal(
+                BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.ApprovalDateNotInPeriod, dialect),
+                BlankRecordsCategoryPredicate.ScopedWhenChecked(BlankRecordCategory.ApprovalDateNotInPeriod, dialect, approvalDateAvailable: true));
+            foreach (var category in BlankRecordsCategoryPredicate.All.Where(static c => c != BlankRecordCategory.ApprovalDateNotInPeriod))
+            {
+                Assert.Equal(
+                    BlankRecordsCategoryPredicate.Scoped(category, dialect),
+                    BlankRecordsCategoryPredicate.ScopedWhenChecked(category, dialect, approvalDateAvailable: false));
+            }
+        }
     }
 
     [Fact]

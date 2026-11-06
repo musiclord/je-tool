@@ -45,13 +45,7 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
-        var filterContext = new FilterConditionContext(
-            input.MoneyScale,
-            input.PrepStartDate,
-            input.PeriodStart,
-            input.PeriodEnd,
-            input.NonWorkingDays,
-            GlPopulationScope.AuditPeriod);
+        var filterContext = input.FilterContext();
 
         // schema 限定詞唯一來源（集中驗證）；共用述詞片段內的專案表名前綴 [prj_xxx].。
         var schemaPrefix = SqlServerProjectSchema.QualifierFor(projectId);
@@ -81,7 +75,7 @@ public sealed class SqlServerPrescreenRunRepository(SqlServerProjectDatabase dat
                 cmd => Rule(PrescreenRuleKeys.UnexpectedAccountPair, cmd));
         }
 
-        // 尾數門檻是規則定義的一部分（固定六個 0），述詞和第五步「整數尾數符合」同一個。
+        // 0 的個數由 GL 算出、跟著請求帶進來（裁定 2026-11-05-25），述詞和第五步「尾數連續多個 0」同一個。
         var trailingZeros = await CountWhereAsync(
             connection, projectId, input, cancellationToken,
             cmd => Rule(PrescreenRuleKeys.TrailingZeros, cmd));

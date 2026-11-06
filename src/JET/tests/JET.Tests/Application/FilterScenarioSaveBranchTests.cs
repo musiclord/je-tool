@@ -362,7 +362,9 @@ public sealed class FilterScenarioSaveBranchTests
             MappingStates = new LocalMappingStateStore(database),
             AccountMappings = new LocalAccountMappingRepository(database),
             AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
-            AccountCategories = new LocalAccountCategoryStore(database)
+            AccountCategories = new LocalAccountCategoryStore(database),
+            // 裁定 2026-11-05-55：重新檢查保存的條件時要知道有沒有國定假日清單。
+            Calendar = new LocalCalendarStore(database)
         });
         var handler = new FilterScenarioSaveHandler(new JsonFileProjectStore(new JetProjectFolder(host.ProjectsRoot)), session);
         using var payload = JsonDocument.Parse(SavePayload(null, null, Scenario("情境甲", "debit")));

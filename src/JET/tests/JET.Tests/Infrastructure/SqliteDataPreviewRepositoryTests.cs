@@ -47,6 +47,8 @@ public sealed class SqliteDataPreviewRepositoryTests
     public async Task GetPreviewAsync_Calendar_ReturnsImportedHolidayAndMakeupDaysSortedByDate()
     {
         using var fixture = new Fixture();
+        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        await fixture.Database.EnsureCreatedAsync(fixture.ProjectId, CancellationToken.None);
 
         // 固定 fixture：2 假日（含一筆有名稱）+ 1 補班；刻意亂序匯入以驗 ORDER BY date。
         await fixture.Calendar.ReplaceDaysAsync(

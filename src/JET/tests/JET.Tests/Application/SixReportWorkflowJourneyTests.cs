@@ -179,7 +179,9 @@ public sealed class SixReportWorkflowJourneyTests
             Assert.Contains(texts, text => text.Contains("財報準備日起核准", StringComparison.Ordinal));
             // 固定預篩選名稱明示 6 位；仍核對 Criteria 與 WorkingPaper 的實際內容。
             // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d，確定停在舊名稱斷言。
-            Assert.Contains(texts, text => text.Contains("金額尾數連續 6 個 0", StringComparison.Ordinal));
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25）：借方 2,000,000 與 100 合計 2,000,100，除以 4 列，平均 500,025 是 6 位數，
+            // 所以是 5 個 0。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+            Assert.Contains(texts, text => text.Contains("金額尾數連續 5 個 0", StringComparison.Ordinal));
         }
         AssertHiddenMappingMetadata(validationPath);
         AssertHiddenMappingMetadata(workingPaperPath);

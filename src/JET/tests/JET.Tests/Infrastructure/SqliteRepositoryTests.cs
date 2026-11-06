@@ -169,6 +169,8 @@ public sealed class SqliteRepositoryTests
         var mappingStore = new LocalMappingStateStore(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 批次 A（gl，3 列）+ commit mapping + 模擬 target 資料
         var batchA = (await importRepo.ReplaceBatchAsync(
@@ -230,6 +232,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var batch = (await importRepo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
@@ -266,6 +270,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 交錯送入:批次排序鍵(source_row_number)依送入順序 → D1 在第1,3,4 位、D2 在第2,5 位。
         var batch = (await importRepo.ReplaceBatchAsync(
@@ -315,6 +321,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 多傳票、交錯送入(無 lineItem)。
         var batch = (await importRepo.ReplaceBatchAsync(
@@ -368,6 +376,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 缺 doc 鍵 → 投影後 voucher_number 為 NULL(present-but-blank 不算);仍給 debit 確保列可投影。
         StagingRow NoDocRow(int n, string debit) => new(n, new Dictionary<string, string>
@@ -437,6 +447,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 來源含項次欄 "ln",值有跳號(10,20);對應後應逐字保留、不重編成 1,2。
         StagingRow LineRow(int n, string doc, string ln, string debit) => new(n, new Dictionary<string, string>
@@ -484,6 +496,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 重現借貸欄誤配傳票總額的案例：借=貸，DualAmount 逐列淨額恆 0 → 整個母體退化。
         var batch = (await importRepo.ReplaceBatchAsync(
@@ -518,6 +532,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // desc 欄整欄空白（present-but-blank）；其餘必填欄正常、金額非退化（借/貸各 100）。
         StagingRow EmptyDescRow(int n, string doc, string? debit, string? credit)
@@ -561,6 +577,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var batch = (await importRepo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
@@ -587,6 +605,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var batch = (await importRepo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),
@@ -621,6 +641,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var rows = new List<StagingRow>
         {
@@ -677,6 +699,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 1) 先把 GL、TB 都匯入（GUI 順序），再投影 GL → gl_control_total 落地（stored_row_count=2）。
         var glBatch = (await importRepo.ReplaceBatchAsync(
@@ -738,6 +762,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 播種：U1(借300貸100→不平+200), U2(借50貸50→平), U3(借0貸30→不平-30)
         // amount_scaled：DEBIT 為正，CREDIT 為負。
@@ -807,6 +833,8 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 「核准日不在期間」以核准日 approval_date 判定，配對鍵是 approvalDate，和舊版 JET 的「Approval date out of period」相同
         // （裁定 2026-06-23-01）。故需配 approvalDate→approval 欄；NR2 的**過帳日在期內、
@@ -902,6 +930,8 @@ public sealed class SqliteRepositoryTests
         var inspector = new LocalDevDatabaseInspector(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         await importRepo.ReplaceBatchAsync(
             projectId, DatasetKind.Gl, [new ImportSourceInput(Source("a.xlsx"),

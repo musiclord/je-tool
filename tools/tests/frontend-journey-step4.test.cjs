@@ -360,6 +360,9 @@ test('running validation shows the backend GL entry count, no population summary
   const f = await openStep4();
   // 從未驗證時按鈕寫「執行驗證」，各項都還沒有結果。
   assert.equal(f.text('[data-action="run-validate"]'), '執行驗證');
+  // 裁定 2026-11-05-22：還沒執行時「執行驗證」是這個工作面的藍色主要按鈕；已經有結果時重新執行改成白色次要按鈕。這是新加的斷言。
+  const buttonClasses = selector => f.$(selector).getAttribute('class').split(/\s+/);
+  assert.ok(!buttonClasses('[data-action="run-validate"]').includes('btn--ghost'), 'running for the first time is the primary action');
   assert.equal(statCard(f, 'GL 分錄數'), '—');
   await runValidation(f, validationResult());
   // GL 分錄數直接取後端的 stats.glRowCount（77），不由原始筆數減排除筆數重算（那會是 80）。
@@ -403,6 +406,7 @@ test('running validation shows the backend GL entry count, no population summary
   assert.equal(f.body().textContent.includes('INF Report 只會發布'), false);
   // 驗證後按鈕改成重新執行；報告清單列出兩份報告（INF 的名稱由報告清單共用的對照顯示，只比對意思：含「抽樣」）。
   assert.equal(f.text('[data-action="run-validate"]'), '重新執行驗證');
+  assert.ok(buttonClasses('[data-action="run-validate"]').includes('btn--ghost'), 'running again is a secondary button');
   const labels = f.$$('.report-output .report-item__label').map(node => node.textContent);
   assert.equal(labels.length, 2);
   assert.ok(labels.some(label => /抽樣/.test(label)), 'the INF report is named as a sampling list: ' + labels.join('、'));
@@ -652,6 +656,10 @@ test('a warning still allows the prescreen and the fifth step without a prescree
 
 test('running the prescreen lists the two aggregates first, keeps the filter results folded and leaves the report optional', async () => {
   const f = await openStep4({ validation: validationResult() });
+  // 裁定 2026-11-05-22：驗證已經有結果，重新執行驗證是白色；還沒執行的預篩選是藍色，執行後也改成白色。這是新加的斷言。
+  const buttonClasses = selector => f.$(selector).getAttribute('class').split(/\s+/);
+  assert.ok(buttonClasses('[data-action="run-validate"]').includes('btn--ghost'));
+  assert.ok(!buttonClasses('[data-action="run-prescreen"]').includes('btn--ghost'), 'the prescreen still to run is the primary action');
   f.click('[data-action="run-prescreen"]');
   const run = f.request('prescreenRun');
   assert.deepEqual(plain(run.payload), {});
@@ -660,6 +668,7 @@ test('running the prescreen lists the two aggregates first, keeps the filter res
   run.resolve(remapPrescreen('p-step4'));
   await flush();
   assert.equal(f.state().results.prescreen.resultRef.resultId, 'p-step4');
+  assert.ok(buttonClasses('[data-action="run-prescreen"]').includes('btn--ghost'), 'running the prescreen again is a secondary button');
   const card = f.$('.rule-card--prescreen');
   // 卡片標題是預篩選，主要區由這個標題命名（只比對意思）。
   const heading = card.querySelector('#prescreen-primary-title');

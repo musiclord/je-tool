@@ -569,10 +569,15 @@ public sealed class AccountMappingTemplateExportTests
             configureTb: tb => tb.AddRow("1101", "現金", 300));
         var expected = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "薪資費用") };
 
+        // 裁定 2026-11-05-40：範本裡 GL 有、TB 沒有的科目照舊版寫「Not in TB」，原本寫 GL 名稱「薪資費用」。
+        // 第一次失敗：Focused 收據 20261105-114259819-314023ad21fc477cade2b6eb28f2c8fa。查詢結果照舊帶 GL 名稱，另外標出不在 TB。
+        var expectedTemplate = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "Not in TB") };
+
         var rows = await createRepository()
             .FetchTemplateRowsAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
         Assert.Equal(new[] { "1101", "5101" }, rows.Select(r => r.AccountNumber).ToArray());
         Assert.Equal(expected, rows.Select(r => (r.AccountNumber, r.AccountName ?? string.Empty)));
+        Assert.Equal(new[] { false, true }, rows.Select(r => r.NotInTb).ToArray());
 
         var population = await host.DispatchAsync("query.accountMappingDifferencePage", """{"kind":"unmapped"}""");
         Assert.Equal(
@@ -588,7 +593,7 @@ public sealed class AccountMappingTemplateExportTests
             var export = await host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { resultId }));
             Assert.Equal(2, export.GetProperty("rowCount").GetInt32());
             templatePath = export.GetProperty("filePath").GetString()!;
-            Assert.Equal(expected, ReadTemplateRows(templatePath));
+            Assert.Equal(expectedTemplate, ReadTemplateRows(templatePath));
             using (var wb = new XLWorkbook(templatePath))
             {
                 var ws = wb.Worksheet("AccountMapping");

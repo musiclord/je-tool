@@ -7,6 +7,10 @@ public sealed class GlRowProjectorTests
 {
     private const int Scale = 10_000;
 
+    // 裁定 2026-11-05-37 照舊版保留來源金額的正負號：借方代碼的列照原金額，其他列乘以 -1，借貸衍生欄再依結果的正負號決定。
+    // 第二列是貸方代碼、來源 -12.3456，結果是 123_456 借方，原本先取絕對值算成 -123_456 貸方；
+    // 第三列是借方代碼、來源 -12.3456，結果是 -123_456 貸方，原本算成 123_456 借方。
+    // 第一次失敗：Focused 收據 20261105-111906263-b71e1a79ee054a45af4716268a814442。
     [Theory]
     [InlineData(
         GlAmountMode.SignedAmount,
@@ -15,11 +19,11 @@ public sealed class GlRowProjectorTests
     [InlineData(
         GlAmountMode.AmountWithSide,
         "-12.3456", " C ", "D", null, null,
-        -123_456L, 0L, 123_456L, "CREDIT")]
+        123_456L, 123_456L, 0L, "DEBIT")]
     [InlineData(
         GlAmountMode.AmountWithFlag,
         "-12.3456", " 1 ", "1", null, null,
-        123_456L, 123_456L, 0L, "DEBIT")]
+        -123_456L, 0L, 123_456L, "CREDIT")]
     [InlineData(
         GlAmountMode.DualAmount,
         null, null, null, "0.00005", "0.00004",

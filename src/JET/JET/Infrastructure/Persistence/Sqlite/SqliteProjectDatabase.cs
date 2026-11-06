@@ -12,7 +12,7 @@ namespace JET.Infrastructure;
 public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase
 {
     /// <summary>
-    /// 案件資料庫的現行結構，建成後標成第 19 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
+    /// 案件資料庫的現行結構，建成後標成第 20 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
     /// 不是現行版本就請審計員刪除案件後重建（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
     /// staging 的 row_number = 批次內單調遞增排序鍵（INF 抽樣基礎），
     /// source_row_number = 來源檔內實際列號（錯誤定位），source_no 對應 import_batch_source。
@@ -390,18 +390,22 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             Directory.CreateDirectory(directory);
         }
 
+        return CreateConfiguredConnection(PooledConnectionString(databasePath));
+    }
+
+    /// <summary>
+    /// 案件讀寫連線的連線字串。連線池依連線字串分組，清掉這個案件的連線池時用同一個字串。
+    /// </summary>
+    private static string PooledConnectionString(string databasePath) =>
         // 私有快取：案件資料庫用 WAL，讀取讀上一次提交的資料，不等別條連線還沒提交的寫入。
         // 共用快取會改用表格鎖，長作業寫入期間其他要求讀同一張表要等到逾時。
         // 寫入仍然一次一條，由 Microsoft.Data.Sqlite 在逾時內重試。
-        var builder = new SqliteConnectionStringBuilder
+        new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
             Cache = SqliteCacheMode.Private
-        };
-
-        return CreateConfiguredConnection(builder.ToString());
-    }
+        }.ToString();
 
     /// <summary>
     /// dev 檢視專用的獨立唯讀連線：Mode=ReadOnly、私有快取、不進連線池——
@@ -450,22 +454,43 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     private readonly LocalSchemaReadiness readiness = new();
 
-    /// <summary>建立或載入案件時呼叫：一律重新檢查版本，新資料庫在這裡建表。</summary>
+    /// <summary>建案時呼叫：一律重新檢查版本，新資料庫在這裡建表。只有建案會建立新的資料庫（裁定 2026-11-05-72）。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
-            ct => EnsureCreatedCoreAsync(projectId, ct),
+            ct => EnsureCreatedCoreAsync(projectId, allowCreate: true, ct),
             cancellationToken);
 
-    /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次。</summary>
+    /// <summary>開案時呼叫：一律重新檢查版本，不建立新的資料庫；建案中斷留下的案件在這裡把初始化做完。</summary>
+    public Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
+        readiness.EnsureExistingAsync(
+            GetDatabasePath(projectId),
+            folder.GetCreationMarkerPath(projectId),
+            (allowCreate, ct) => EnsureCreatedCoreAsync(projectId, allowCreate, ct),
+            cancellationToken);
+
+    /// <summary>repository 每次讀寫前呼叫：同一程序內每個資料庫檔只完整檢查一次，不建立新的資料庫。</summary>
     public Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureReadyAsync(
             GetDatabasePath(projectId),
-            ct => EnsureCreatedCoreAsync(projectId, ct),
+            ct => EnsureCreatedCoreAsync(projectId, allowCreate: false, ct),
             cancellationToken);
 
-    private async Task EnsureCreatedCoreAsync(string projectId, CancellationToken cancellationToken)
+    private async Task EnsureCreatedCoreAsync(string projectId, bool allowCreate, CancellationToken cancellationToken)
     {
+        var databasePath = GetDatabasePath(projectId);
+        if (!allowCreate)
+        {
+            // 開案與讀寫只用已經建好的資料庫：檔案不見或是 0 位元組時比照無法開啟的案件回報，
+            // 不默默建出空的資料庫（裁定 2026-11-05-72）。
+            LocalSchemaReadiness.RequireDatabaseFile(projectId, databasePath);
+        }
+        else if (LocalSchemaReadiness.IsEmptyFile(databasePath))
+        {
+            // 建立時遇到 0 位元組的檔案，只會是建案中斷留下的；連同記錄檔刪掉再建。
+            DeleteDatabaseFiles(projectId);
+        }
+
         await using var connection = CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
@@ -474,6 +499,11 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         if (existing)
         {
             LocalSchemaReadiness.RejectUnsupportedSchemaVersion(await ReadVersionAsync(connection, cancellationToken));
+        }
+        else if (!allowCreate)
+        {
+            // 有檔案但沒有任何資料表，同樣是沒有內容；在任何寫入之前回報，檔案保持原狀。
+            throw LocalSchemaReadiness.EmptyDatabase(projectId);
         }
 
         // WAL 是資料庫檔案層的持久設定（冪等）：百萬列單交易寫入避免 rollback journal
@@ -508,13 +538,17 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
     /// </summary>
     public Task DeleteAsync(string projectId, CancellationToken cancellationToken)
     {
-        using (var connection = (SqliteConnection)CreateConnection(projectId))
-        {
-            SqliteConnection.ClearPool(connection);
-        }
+        readiness.Forget(folder.GetDatabasePath(projectId));
+        DeleteDatabaseFiles(projectId);
+        return Task.CompletedTask;
+    }
 
+    /// <summary>清掉這個案件的連線池釋放檔案鎖，再刪 jet.db 與 WAL/SHM 邊檔。</summary>
+    private void DeleteDatabaseFiles(string projectId)
+    {
         var databasePath = folder.GetDatabasePath(projectId);
-        readiness.Forget(databasePath);
+        ClearPool(databasePath);
+
         foreach (var suffix in new[] { "", "-wal", "-shm" })
         {
             var path = databasePath + suffix;
@@ -523,8 +557,53 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
                 File.Delete(path);
             }
         }
+    }
 
-        return Task.CompletedTask;
+    /// <summary>
+    /// 一項改資料的作業結束後呼叫：把記錄檔裡已提交的資料併回 jet.db，再把記錄檔清成 0 位元組。
+    /// 用一條不進連線池、不建立新檔的連線執行，jet.db 不存在時什麼都不做。有其他連線正在讀寫時，
+    /// SQLite 只併回能併的部分就回來，不等待；記錄檔留到下一次併回或關閉時再清。
+    /// </summary>
+    public async Task CheckpointAsync(string projectId, CancellationToken cancellationToken)
+    {
+        var databasePath = folder.GetDatabasePath(projectId);
+        if (!File.Exists(databasePath))
+        {
+            return;
+        }
+
+        var builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadWrite,
+            Cache = SqliteCacheMode.Private,
+            Pooling = false
+        };
+        await using var connection = new SqliteConnection(builder.ToString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// 離開案件、開案失敗與結束 JET 時呼叫：先清掉這個案件的連線池，再併回並清空記錄檔。併回用的連線是這個程序
+    /// 最後一條連線，關閉時 SQLite 會刪掉記錄檔與共用記憶體檔，JET 不再開著 jet.db。正在執行的查詢用完連線後才關閉。
+    /// </summary>
+    public Task CloseAsync(string projectId, CancellationToken cancellationToken)
+    {
+        ClearPool(folder.GetDatabasePath(projectId));
+        return CheckpointAsync(projectId, cancellationToken);
+    }
+
+    /// <summary>
+    /// 清掉這個案件的連線池：閒置的連線立刻關閉，使用中的連線用完後關閉。只清這個案件，
+    /// 不中斷其他案件的 SQLite 工作；不開啟連線，也不建立資料夾或檔案。
+    /// </summary>
+    private static void ClearPool(string databasePath)
+    {
+        using var connection = new SqliteConnection(PooledConnectionString(databasePath));
+        SqliteConnection.ClearPool(connection);
     }
 
     private static async Task<string?> ReadVersionAsync(DbConnection connection, CancellationToken cancellationToken)

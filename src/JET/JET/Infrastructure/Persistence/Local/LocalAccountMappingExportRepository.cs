@@ -61,7 +61,7 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
             AccountMappingPopulationQuery.Cte("", database.Dialect) +
             """
 
-            SELECT account_number, account_name
+            SELECT account_number, account_name, not_in_tb
             FROM population
             ORDER BY account_number;
             """;
@@ -71,7 +71,8 @@ public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase da
         {
             rows.Add(new AccountMappingTemplateRow(
                 reader.GetString(0),
-                reader.IsDBNull(1) ? null : reader.GetString(1)));
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                Convert.ToInt64(reader.GetValue(2), System.Globalization.CultureInfo.InvariantCulture) != 0));
         }
 
         return rows;

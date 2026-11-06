@@ -199,7 +199,11 @@ public sealed class ExportPrescreenReportHandler(
             project.MoneyScale,
             project.PrepStartDate,
             project.PeriodStart,
-            project.PeriodEnd);
+            project.PeriodEnd)
+        {
+            // [R4] 工作表的明細和那次預篩選的筆數用同一個 0 的個數（裁定 2026-11-05-25）。
+            ZerosThreshold = reportProjection.ZerosThreshold
+        };
         var unfinalizedReportPlan = JetAuditProgram.Plan(
             new PrescreenReportRequest(
                 projectId,
@@ -321,7 +325,8 @@ public sealed class ExportCriteriaSelectionReportHandler(
         {
             using var definition = JsonDocument.Parse(scenario.DefinitionJson);
             conditionLogic[scenario.Position] =
-                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, categorySnapshot.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true);
+                FilterConditionRenderer.Render(definition.RootElement, categoryLabels, rdeFieldLabels, categorySnapshot.Categories, document.LastAccountingPeriodDate, document.PeriodStart, document.PeriodEnd, forDocument: true,
+                    zerosThreshold: TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale));
             var scenarioSpec = FilterScenarioPayloadParser.Parse(
                 definition.RootElement,
                 document.MoneyScale);

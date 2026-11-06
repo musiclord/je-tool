@@ -47,13 +47,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
 
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
-        var filterContext = new FilterConditionContext(
-            input.MoneyScale,
-            input.PrepStartDate,
-            input.PeriodStart,
-            input.PeriodEnd,
-            input.NonWorkingDays,
-            GlPopulationScope.AuditPeriod);
+        var filterContext = input.FilterContext();
         // 每條規則的述詞都從同一張對應表取；第五步「預篩選」條件與傳票明細也是同一個方法。
         // 計數和第四步明細、預篩選報告列出同一批分錄：未預期借貸組合算整張命中傳票，其他規則算直接命中的列。
         string Rule(string key, FilterSqlParameterPlanBuilder cmd) =>
@@ -80,7 +74,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
                 cmd => Rule(PrescreenRuleKeys.UnexpectedAccountPair, cmd));
         }
 
-        // 尾數門檻是規則定義的一部分（固定六個 0），述詞和第五步「整數尾數符合」同一個。
+        // 0 的個數由 GL 算出、跟著請求帶進來（裁定 2026-11-05-25），述詞和第五步「尾數連續多個 0」同一個。
         var trailingZeros = await CountWhereAsync(
             connection, input, cancellationToken,
             cmd => Rule(PrescreenRuleKeys.TrailingZeros, cmd));

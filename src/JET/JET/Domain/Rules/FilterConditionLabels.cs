@@ -174,6 +174,15 @@ public static class FilterConditionLabels
     public static string PrescreenLabel(string? key) =>
         key is not null && PrescreenKeys.TryGetValue(key, out var label) ? label : RetiredCondition;
 
+    /// <summary>
+    /// 知道 0 的個數時，「分錄金額中有連續 0 的尾數」寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25）；其他規則和不知道個數時同上。
+    /// 前端 <c>prescreenConditionLabel</c> 同樣寫法。
+    /// </summary>
+    public static string PrescreenLabel(string? key, int? zerosThreshold) =>
+        key == PrescreenRuleKeys.TrailingZeros && zerosThreshold is { } zeros
+            ? $"金額尾數連續 {zeros} 個 0"
+            : PrescreenLabel(key);
+
     /// <summary>文字模式 → 標籤；未登錄時寫 <see cref="RetiredCondition"/>。</summary>
     public static string TextModeLabel(string? mode) =>
         mode is not null && TextModes.TryGetValue(mode, out var label) ? label : RetiredCondition;

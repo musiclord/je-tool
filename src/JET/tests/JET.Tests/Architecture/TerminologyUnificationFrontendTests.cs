@@ -101,7 +101,9 @@ public sealed class TerminologyUnificationFrontendTests
             ReadFrontend("js", "steps", "validate-step.js"), StringComparison.Ordinal);
         // 這裡只把門檻集中成常數，完整句不變；原本的 source literal 斷言在插值處截斷。
         // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
-        Assert.Equal("依本次測試的分錄，找出金額整數部分尾數連續 6 個 0 的分錄；不含小數，整數部分為 0 不列入。",
+        // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25、2026-11-05-27），說明改寫算法，不再寫死 6 個 0。
+        // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        Assert.Equal("依本次測試的分錄，找出金額整數部分尾數連續多個 0 的分錄。借方金額合計除以全部分錄筆數得到平均，0 的個數是平均整數部分的位數減一，例如平均 2,391,281 是 6 個 0，至少 1 個、最多 12 個。不含小數，整數部分為 0 不列入。",
             // 一條規則只有一個定義，說明文字搬進 PRESCREEN_RULES 的 description。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
             FrontendConstantTextReader.ValueProperty(ReadFrontend("js", "ui-core.js"), "PRESCREEN_RULES", "trailingZeros", "description"));
     }

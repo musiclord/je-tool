@@ -1,6 +1,8 @@
 using System.Text.Json;
 using JET.AuditCore;
 using JET.Domain;
+using JET.Infrastructure;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -67,5 +69,20 @@ public sealed class ProjectListLocalFirstTests
         await File.WriteAllTextAsync(
             Path.Combine(directory, "project.json"),
             JsonSerializer.Serialize(document, JetJsonStorage.IndentedOptions));
+
+        // 裁定 2026-11-05-72：本機案件的資料庫檔不見時，案件清單把它列成無法開啟的錯誤列，所以正常的本機案件要有建好的資料庫。
+        // 原本只寫 project.json。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        var folder = new JetProjectFolder(root);
+        ILocalProjectDatabase? database = document.DatabaseProvider switch
+        {
+            ProjectDocument.DefaultDatabaseProvider => new SqliteProjectDatabase(folder),
+            ProjectDocument.DuckDbDatabaseProvider => new DuckDbProjectDatabase(folder),
+            _ => null
+        };
+        if (database is not null)
+        {
+            await database.EnsureCreatedAsync(document.ProjectId, CancellationToken.None);
+            SqliteConnection.ClearAllPools();
+        }
     }
 }

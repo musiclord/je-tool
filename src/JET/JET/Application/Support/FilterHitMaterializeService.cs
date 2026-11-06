@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JET.Domain;
+using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
@@ -20,7 +21,10 @@ public sealed class FilterHitMaterializeService(
     IAccountMappingStore? accountMappingStore = null,
     IAuthorizedPreparerStore? authorizedPreparerStore = null,
     IAccountCategoryStore? accountCategoryStore = null,
-    IResultStaleStateStore? resultStaleStateStore = null)
+    IResultStaleStateStore? resultStaleStateStore = null,
+    ICalendarStore? calendarStore = null,
+    IProjectDatabaseCheckpoint? databaseCheckpoint = null,
+    ILogger? logger = null)
 {
     /// <summary>
     /// 已由 dispatcher exclusive 閘保護的呼叫路徑（正式匯出）使用此入口；本方法不重複取閘，
@@ -125,11 +129,13 @@ public sealed class FilterHitMaterializeService(
             && await authorizedPreparerStore.CountAsync(projectId, cancellationToken) > 0;
         var categorySnapshot = accountCategoryStore is null ? null
             : await accountCategoryStore.ReadAsync(projectId, cancellationToken);
+        FilterCalendarLists? calendarLists = calendarStore is null ? null
+            : await FilterCalendarLists.ReadAsync(calendarStore, projectId, cancellationToken);
         var validationContext = FilterValidationContextFactory.Create(
             document,
             glMapping ?? new CommittedMapping(DatasetKind.Gl, new Dictionary<string, string>(),
                 string.Empty, string.Empty, DateTimeOffset.MinValue),
-            accountMapping, hasAuthorizedPreparers, revision.PopulationScope, categorySnapshot);
+            accountMapping, hasAuthorizedPreparers, revision.PopulationScope, categorySnapshot, calendarLists);
         foreach (var scenario in materializable)
         {
             var errors = FilterScenarioValidator.Validate(scenario.Spec, validationContext, forSave: false);
@@ -152,7 +158,8 @@ public sealed class FilterHitMaterializeService(
                 revision.PopulationScope)
             {
                 RdeFields = glMapping?.GlOptions?.RdeFields ?? [],
-                DateParseOptions = document.DateParseOptions
+                DateParseOptions = document.DateParseOptions,
+                ZerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale)
             },
             replaceAll);
     }
@@ -193,7 +200,19 @@ public sealed class FilterHitMaterializeService(
 
         if (isStale)
         {
-            await MaterializeAllAsync(projectId, document, scenarios, cancellationToken);
+            try
+            {
+                await MaterializeAllAsync(projectId, document, scenarios, cancellationToken);
+            }
+            finally
+            {
+                // 補算在併行查詢裡寫入，dispatcher 只在變更型作業結束後併回，所以這裡在放開閘之前自己併回記錄檔
+                // （見 IProjectDatabaseCheckpoint）。
+                if (databaseCheckpoint is not null)
+                {
+                    await ProjectDatabaseCheckpointSteps.TryCheckpointAsync(databaseCheckpoint, projectId, logger);
+                }
+            }
         }
         return new FilterHitMaterializationSnapshot(document, scenarios);
     }

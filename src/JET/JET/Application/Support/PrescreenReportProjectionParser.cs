@@ -34,8 +34,7 @@ internal static class PrescreenReportProjectionParser
                 root,
                 "trailingZeros",
                 itemCount: RuleCount(root, "trailingZeros", "count")),
-            // 摘要列寫完整人數，和第四步、[R5] 工作表一致。新的預篩選結果一定帶這個數字，
-            // 只為舊結果留下的「改用清單列數」已拿掉（裁定 2026-11-02-06）；這項不適用時人數是 null，摘要列照舊寫 0。
+            // 完整人數。摘要頁照舊版原句不寫人數（裁定 2026-11-05-44）；新的預篩選結果一定帶這個數字（裁定 2026-11-02-06），不適用時是 null，這裡讀成 0。
             PreparerSummary: Rule(
                 root,
                 "preparerSummary",
@@ -47,7 +46,19 @@ internal static class PrescreenReportProjectionParser
             BlankDescription: Rule(
                 root,
                 "blankDescription",
-                itemCount: RuleCount(root, "blankDescription", "count")));
+                itemCount: RuleCount(root, "blankDescription", "count")))
+        {
+            ZerosThreshold = ReadZerosThreshold(root)
+        };
+    }
+
+    /// <summary>預篩選的回應一定寫下這次用的 0 的個數；讀不到或超出範圍就是保存的結果不完整，明確丟出。</summary>
+    private static int ReadZerosThreshold(JsonElement root)
+    {
+        var zeros = RuleCount(root, "trailingZeros", "zerosThreshold");
+        return zeros is >= TrailingZeroThreshold.MinCustomDigits and <= TrailingZeroThreshold.MaxCustomDigits
+            ? (int)zeros
+            : throw new InvalidOperationException("保存的預篩選結果沒有尾數 0 的個數。");
     }
 
     private static PrescreenReportRuleProjection Rule(

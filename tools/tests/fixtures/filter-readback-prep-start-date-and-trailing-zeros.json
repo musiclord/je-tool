@@ -12,10 +12,17 @@
     "expected": "預篩選：財報準備日起核准（2025-06-15 起，含當日）"
   },
   {
-    "id": "trailing-zeros-fixed-six",
+    "id": "trailing-zeros-computed-count",
+    "preparationDate": "2025-12-31",
+    "zerosThreshold": 4,
+    "scenario": { "groups": [{ "conditions": [{ "type": "prescreen", "prescreenKey": "trailingZeros" }] }] },
+    "expected": "預篩選：金額尾數連續 4 個 0"
+  },
+  {
+    "id": "trailing-zeros-count-unknown",
     "preparationDate": "2025-12-31",
     "scenario": { "groups": [{ "conditions": [{ "type": "prescreen", "prescreenKey": "trailingZeros" }] }] },
-    "expected": "預篩選：金額尾數連續 6 個 0"
+    "expected": "預篩選：分錄金額中有連續 0 的尾數"
   },
   {
     "id": "preparation-date-unavailable-does-not-invent-date",

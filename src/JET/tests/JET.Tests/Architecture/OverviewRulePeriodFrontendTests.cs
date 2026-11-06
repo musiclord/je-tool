@@ -40,7 +40,10 @@ public sealed class OverviewRulePeriodFrontendTests
         }
 
         // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
-        Assert.Contains("Ui.PRESCREEN_RULES", source, StringComparison.Ordinal);
+        // 尾數規則知道 0 的個數時寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25），總覽改呼叫和第五步同一個 Ui.prescreenConditionLabel，
+        // 它從 PRESCREEN_RULES 取名稱；這裡改核對總覽呼叫這個共用函式，而且不自己讀或另列一份規則。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        Assert.Contains("Ui.prescreenConditionLabel", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("PRESCREEN_RULES", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetApi", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetStore", source, StringComparison.Ordinal);
     }

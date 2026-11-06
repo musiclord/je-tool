@@ -74,6 +74,10 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
     // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），列層規則再減為 10 條；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
     private const int ExpectedRuleCount = 10;
     private const int MoneyScale = 10_000;
+    // 尾數 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25）。種子資料每列金額都是 10,000.00，借方的列占一半，
+    // 借方合計除以列數的平均是 5,000，共 4 位數，所以是 3 個 0。預篩選讀 GL 控制總數算出同一個個數，月份彙總用這個常數，兩邊才比得起來。
+    // 種子資料直接寫進 gl，因此照正式投影的算法另寫一列控制總數。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+    private const int BenchmarkZerosThreshold = 3;
     private const string ProjectId = "prescreen-monthly-benchmark";
     private const string PeriodStart = "2025-01-01";
     private const string PeriodEnd = "2025-12-31";
@@ -418,6 +422,10 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         Assert.Equal(rowCount, snapshot.Months.Sum(month => month.Population));
         Assert.All(snapshot.Months, month => Assert.Equal(ExpectedRuleCount, month.Rules.Count));
 
+        // 月份彙總用 BenchmarkZerosThreshold，預篩選由 GL 控制總數算出 0 的個數，兩邊要是同一個個數，下面的計數比較才有意義。
+        Assert.Equal(
+            BenchmarkZerosThreshold,
+            baseline.GetProperty("trailingZeros").GetProperty("zerosThreshold").GetInt32());
         var expected = BaselineRuleCounts(baseline);
         var actual = snapshot.Months
             .SelectMany(month => month.Rules)
@@ -750,7 +758,10 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             PeriodStart,
             PeriodEnd,
             [0, 6],
-            GlPopulationScope.AuditPeriod);
+            GlPopulationScope.AuditPeriod)
+        {
+            ZerosThreshold = BenchmarkZerosThreshold
+        };
         private readonly IReadOnlyList<CompiledRule> _rules;
 
         public MonthlyAggregationHarness(
@@ -1230,6 +1241,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 'CREDIT' ELSE 'DEBIT' END
         FROM range(1, @rowCount + 1) AS generated(i);
 
+        DELETE FROM gl_control_total;
+        INSERT INTO gl_control_total
+            (singleton, pbc_row_count, stored_row_count, stored_debit_scaled, stored_credit_scaled,
+             gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,
+             gl_debit_scaled, gl_credit_scaled)
+        SELECT 1, COUNT(*), COUNT(*), SUM(debit_amount_scaled), SUM(credit_amount_scaled),
+               COUNT(*), 0, 0, SUM(debit_amount_scaled), SUM(credit_amount_scaled)
+        FROM gl;
+
         COMMIT;
         ANALYZE;
         CHECKPOINT;
@@ -1327,6 +1347,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 100000000 ELSE 0 END,
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN 'CREDIT' ELSE 'DEBIT' END
         FROM generated;
+
+        DELETE FROM gl_control_total;
+        INSERT INTO gl_control_total
+            (singleton, pbc_row_count, stored_row_count, stored_debit_scaled, stored_credit_scaled,
+             gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,
+             gl_debit_scaled, gl_credit_scaled)
+        SELECT 1, COUNT(*), COUNT(*), SUM(debit_amount_scaled), SUM(credit_amount_scaled),
+               COUNT(*), 0, 0, SUM(debit_amount_scaled), SUM(credit_amount_scaled)
+        FROM gl;
 
         COMMIT;
         ANALYZE;
@@ -1427,6 +1456,15 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             CASE WHEN (i - 1) % 4 IN (0, 3) THEN N'CREDIT' ELSE N'DEBIT' END
         FROM generated
         OPTION (MAXRECURSION 0);
+
+        DELETE FROM {schemaPrefix}gl_control_total;
+        INSERT INTO {schemaPrefix}gl_control_total
+            (singleton, pbc_row_count, stored_row_count, stored_debit_scaled, stored_credit_scaled,
+             gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,
+             gl_debit_scaled, gl_credit_scaled)
+        SELECT 1, COUNT_BIG(*), COUNT_BIG(*), SUM(debit_amount_scaled), SUM(credit_amount_scaled),
+               COUNT_BIG(*), 0, 0, SUM(debit_amount_scaled), SUM(credit_amount_scaled)
+        FROM {schemaPrefix}gl;
 
         UPDATE STATISTICS {schemaPrefix}gl WITH FULLSCAN;
         """;

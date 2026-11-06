@@ -154,6 +154,10 @@ public sealed class FilterCompletenessTests
             ("notIn", "\"values\":[\"-10\",\"10\"]", [1,3,5,6]),
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
+            // 整數部分的特定數字（裁定 2026-11-05-46）：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
+            // 第一次失敗：Focused 收據 20261105-120844123-9faa7135eeaf42819f28589c2241c273（運算子清單多了這兩個，表格還沒有答案）。
+            ("containsDigits", "\"value\":\"1,2\"", [1,2,4,5,6]),
+            ("notContainsDigits", "\"value\":\"1,2\"", [3]),
             // 尾數連續多個 0（裁定 2026-11-03-07）：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
             ("endsWithZeros", "\"value\":\"1\"", [1,2,4,5,6]),
             ("notEndsWithZeros", "\"value\":\"1\"", [3]),
@@ -169,6 +173,10 @@ public sealed class FilterCompletenessTests
             ("in", "\"values\":[\"10\",\"10.00\"]", [2,4]), ("notIn", "\"values\":[\"10\"]", [1,3,5,6]),
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
+            // 整數部分的特定數字（裁定 2026-11-05-46）：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
+            // 第一次失敗：Focused 收據 20261105-120844123-9faa7135eeaf42819f28589c2241c273（運算子清單多了這兩個，表格還沒有答案）。
+            ("containsDigits", "\"value\":\"1,2\"", [1,2,4,5,6]),
+            ("notContainsDigits", "\"value\":\"1,2\"", [3]),
             // 尾數連續多個 0（裁定 2026-11-03-07）：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
             ("endsWithZeros", "\"value\":\"1\"", [1,2,4,5,6]),
             ("notEndsWithZeros", "\"value\":\"1\"", [3]),
@@ -193,7 +201,7 @@ public sealed class FilterCompletenessTests
                 if (type == "amount" && !isExtra)
                 {
                     expected.Remove(7);
-                    if (c.Op is "notEquals" or "lessThan" or "lessThanOrEqual" or "between" or "notIn" or "notEndsWithDigits" or "notEndsWithZeros" or "isNotBlank") expected.Add(7);
+                    if (c.Op is "notEquals" or "lessThan" or "lessThanOrEqual" or "between" or "notIn" or "notEndsWithDigits" or "notContainsDigits" or "notEndsWithZeros" or "isNotBlank") expected.Add(7);
                 }
                 else if (includeBlank && c.Op is not "isBlank" and not "isNotBlank") expected.AddRange(blanks);
                 var rule = $$"""
@@ -480,5 +488,21 @@ public sealed class FilterCompletenessTests
     [InlineData("""{"type":"fieldValue","field":"description","operator":"contains","values":["", "x"]}""")]
     public void InvalidConditions_ExplainWhatMustBeCorrected(string rule) =>
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rule), new(false, true, false, HasAnyAccountCategory: true) { MoneyScale = 100 }));
+
+    // 裁定 2026-11-05-70：核心金額只比較絕對值。舊版 IDEA JET 的數字條件一律用 @Abs 比較（legacy/idea-tool.bas 第 3624 到 3648 行），
+    // 所以 amountBasis 只接受 absolute，沒有帶或帶 signed 都當成內容損毀；畫面送出時一律帶上 absolute。這是新增的測試。
+    [Theory]
+    [InlineData("""{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"10"}""", "field_value_amount_basis_missing")]
+    [InlineData("""{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"10","amountBasis":"signed"}""", "field_value_core_amount_signed")]
+    public void CoreAmountBasis_AcceptsOnlyAbsolute(string rule, string reason)
+    {
+        var context = new FilterValidationContext(false, true, false, HasAnyAccountCategory: true) { MoneyScale = 100 };
+        Assert.Contains(
+            FilterScenarioCorruption.ReasonsOf(FilterScenarioValidator.Validate(Scenario(rule), context)),
+            item => item.Code == reason);
+        Assert.Empty(FilterScenarioValidator.Validate(
+            Scenario("""{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"10","amountBasis":"absolute"}"""),
+            context));
+    }
 
 }

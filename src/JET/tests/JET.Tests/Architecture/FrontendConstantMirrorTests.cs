@@ -14,27 +14,34 @@ public sealed class FrontendConstantMirrorTests
     {
         // 第四步照舊版拿掉 11 筆以下的人員與科目兩條規則後，後端沒有這兩個門檻（裁定 2026-10-29-27）；
         // 前端的 preparerMaxEntries 與 accountMaxEntries 只剩第五步「依審計目的」兩項的預設，仍是 11。第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
-        Assert.Equal(6, TrailingZeroThreshold.DefaultZerosThreshold);
+        // 「分錄金額中有連續 0 的尾數」的 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），前後端都拿掉固定 6 個 0 的常數；
+        // 前端改讀已確認 GL 配對帶回的個數（trailingZeroDigits）。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
         var constants = Regex.Match(core, @"var\s+PRESCREEN_DEFAULTS\s*=\s*\{(?<body>.*?)\};", RegexOptions.Singleline);
         Assert.True(constants.Success, "ui-core.js須集中列出各自的既定預篩選門檻。");
         Assert.Equal(11, NumberProperty(constants.Groups["body"].Value, "preparerMaxEntries"));
         Assert.Equal(11, NumberProperty(constants.Groups["body"].Value, "accountMaxEntries"));
-        Assert.Equal(6, NumberProperty(constants.Groups["body"].Value, "trailingZeroDigits"));
+        Assert.DoesNotContain("trailingZeroDigits", constants.Groups["body"].Value, StringComparison.Ordinal);
         Assert.Contains("PRESCREEN_DEFAULTS: PRESCREEN_DEFAULTS", core, StringComparison.Ordinal);
-        foreach (var key in new[] { "preparerMaxEntries", "accountMaxEntries", "trailingZeroDigits" })
+        foreach (var key in new[] { "preparerMaxEntries", "accountMaxEntries" })
             Assert.Contains("PRESCREEN_DEFAULTS." + key, core, StringComparison.Ordinal);
+        Assert.Contains("committed.zerosThreshold", core, StringComparison.Ordinal);
+        Assert.Contains("trailingZeroDigits: trailingZeroDigits", core, StringComparison.Ordinal);
     }
 
     [Fact]
     public void PrescreenLabels_UseTheAuthorityConstantsAndRetainExactApprovedSentences()
     {
-        Assert.Equal("金額尾數連續 6 個 0", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.TrailingZeros]);
+        // 0 的個數改由 GL 算出（裁定 2026-11-05-25）：不知道個數時寫規則名稱，知道時寫「金額尾數連續 N 個 0」。
+        // 第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+        Assert.Equal("分錄金額中有連續 0 的尾數", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.TrailingZeros]);
+        Assert.Equal("金額尾數連續 4 個 0", FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.TrailingZeros, 4));
+        Assert.Equal("空白摘要", FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.BlankDescription, 4));
         // 編製分錄較少的人員與使用較少的科目兩條規則照舊版拿掉，標籤與門檻常數跟著不在登錄裡（裁定 2026-10-29-27）；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
         Assert.DoesNotContain(FilterConditionLabels.PrescreenKeys.Values, label => label.Contains("11 筆以下", StringComparison.Ordinal));
         // 一條規則只有一個定義，所以標籤正本搬到 Domain PrescreenRuleDefinitions，FilterConditionLabels 由它衍生。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
         var source = Read("JET", "Domain", "Rules", "PrescreenRuleDefinitions.cs");
-        Assert.Contains("{TrailingZeroThreshold.DefaultZerosThreshold}", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("DefaultZerosThreshold", source, StringComparison.Ordinal);
         Assert.DoesNotContain("DefaultMaxEntries", source, StringComparison.Ordinal);
     }
 
@@ -73,13 +80,16 @@ public sealed class FrontendConstantMirrorTests
         using var json = JsonDocument.Parse(Read("tests", "JET.Tests", "Fixtures", "legacy-form-2024-1210.json"));
         var condition = json.RootElement.GetProperty("conditions").EnumerateArray().Single(item => item.GetProperty("letter").GetString() == "D");
         Assert.Equal("金額整數部分以至少 6 個零結尾，整數為零不選取。可另用「金額尾數連續 0 的位數」調整位數。", condition.GetProperty("help").GetString());
-        Assert.Equal(6, TrailingZeroThreshold.DefaultZerosThreshold);
         // 尾數條件改用欄位尾數與至少一元的子條件組；六位預設仍來自同一常數。
         // 首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
         // 2026-11-03 改成一條條件，新增「尾數連續多個 0」比較方式（裁定 2026-11-03-07）：原本核對尾數樣態與至少一元兩條子條件，
         // 改核對新的比較方式；預設個數仍取同一個六個零的門檻常數。第一次失敗：Focused 收據 20261103-100726697-97e6c3f1045d4beda092d17c7bec9ecb。
+        // 0 的個數改照 IDEA 版由 GL 算出，加入時預設這個個數（裁定 2026-11-05-25、2026-11-05-26）：常用查法不寫個數，
+        // 加入時由 FilterValues.zeroRunDefault 帶入；這份舊目錄是夾具原文，仍寫 6 個零。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
         var core = Read("JET", "wwwroot", "js", "ui-core.js");
-        Assert.Contains("operator: 'endsWithZeros', value: String(PRESCREEN_DEFAULTS.trailingZeroDigits)", core, StringComparison.Ordinal);
+        Assert.Contains("operator: 'endsWithZeros', value: '', amountBasis: 'absolute'", core, StringComparison.Ordinal);
+        Assert.Contains("Ui.FilterValues.zeroRunDefault()", Read("JET", "wwwroot", "js", "steps", "filter-step-sources.js"), StringComparison.Ordinal);
+        Assert.Contains("rule.value = zeroRunDefault();", Read("JET", "wwwroot", "js", "filter-values.js"), StringComparison.Ordinal);
     }
 
     [Fact]

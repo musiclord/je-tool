@@ -49,7 +49,7 @@ public sealed class LegacyFormWorkflowTests
         ["B"] = "V01:1,2,3;V04:1,2;V05:1,2;V08:1;V10:1,2",
         // 裁定 2026-10-29-29 改成照舊版 IDEA R3：未預期借貸組合要求同傳票至少有一筆金額大於 0 的分錄。
         // V08 只有一筆收入貸方，沒有正金額分錄，不再命中（原本是 V03:2;V08:1；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
-        ["C"] = "V03:2", ["D"] = "V05:1,2",
+        ["C"] = "V03:2", ["D"] = "V01:1,2;V03:1,2;V05:1,2;V07:1,2;V08:1",
         ["E"] = "V01:1,2,3;V03:1,2;V05:1,2;V06:1,2;V07:1,2;V09:1;V10:1,2",
         ["F"] = "V03:1,2;V09:1", ["G"] = "V01:1,2,3;V02:1,2;V04:1,2;V05:1,2",
         ["H"] = "V01:1,2,3;V03:1,2;V04:1,2;V06:1,2;V11:1,2",
@@ -65,7 +65,9 @@ public sealed class LegacyFormWorkflowTests
         ["T"] = "V01:1,2,3;V02:1,2;V03:1;V04:1;V05:1,2;V06:1;V07:1,2;V09:1;V10:1,2;V11:2",
         ["U"] = "V02:1,2;V05:1,2;V06:1,2;V10:1,2;V11:1,2",
         ["example1"] = "V01:1,2,3;V05:1,2", ["example2"] = "V01:1,2,3;V05:1,2;V07:1,2",
-        ["example3"] = "V01:1,2;V05:1,2", ["example4"] = "V05:1,2", ["example5"] = "V01:1,2,3;V03:1,2",
+        // 範例 4 在目錄裡就是 D 的組合，條件同樣是預篩選的尾數規則。0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25）後，答案跟著 D 變成 9 列；
+        // 改版前是 V05 的 2 列。第一次失敗：Public 收據 20261105-091443717-7d5ad085124941329c43b59c8aab463f。
+        ["example3"] = "V01:1,2;V05:1,2", ["example4"] = "V01:1,2;V03:1,2;V05:1,2;V07:1,2;V08:1", ["example5"] = "V01:1,2,3;V03:1,2",
         ["GH_I"] = "V01:1,2,3;V02:1,2;V03:1,2;V05:1,2;V11:1,2",
         ["JK_L"] = "V01:1,2,3;V03:1,2;V05:1,2;V06:1,2;V11:1,2",
         ["P_absence"] = "V07:1,2",
@@ -79,7 +81,10 @@ public sealed class LegacyFormWorkflowTests
     { var pieces = part.Split(':'); return pieces[1].Split(',').Select(line => pieces[0] + "|" + line); }).Order().ToArray();
 
     // 裁定 2026-10-08-06 重新設計了自訂篩選條件：新選單有四項改用別種規則，預期值由上面的手寫固定答案以集合運算取得。
-    // 摘要含特定字詞（預設字詞）等於 B；金額尾數連續 6 個 0 等於 D。
+    // 摘要含特定字詞（預設字詞）等於 B；金額尾數連續多個 0 帶入這個案件算出的 5 個 0 時等於 D。
+    // D 的 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25）：查核期間內 21 列，借方合計 400,001 + 100 + 300,000 + 99,999.55 + 1,000,000 + 10
+    // + 600,000 + 5 + 20 = 2,400,135.55，平均 114,292 是 6 位數，所以是 5 個 0；V01、V03、V05、V07 各 2 列與 V08 的 700,000 符合。
+    // 改版前固定 6 個 0，D 只有 V05 的 2 列；改版前的子條件組寫法仍寫 000000，答案照舊是 V05 的 2 列。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
     // 總帳日期在非營業日等於「(G 或 H) 且不是補班日」：I 是「不是補班日且不在每月 1 到 5 日」，R 是 10 月 1 到 5 日；
     // 這份合成資料在每月 1 到 5 日的週末或假日只有 10 月 2 日，且不是補班日，所以 I 與 R 的聯集在 G 或 H 之內就等於「不是補班日」。
     // 傳票核准日在非營業日等於「(J 或 K) 且不是補班日」：L 是「不是補班日且不在每月 1 到 5 日」；
@@ -87,7 +92,7 @@ public sealed class LegacyFormWorkflowTests
     private static readonly Dictionary<string, string[]> Derived = new()
     {
         ["B_customKeywords"] = Keys(Expected["B"]),
-        ["D_customTrailingZeros"] = Keys(Expected["D"]),
+        ["D_customTrailingZeros"] = Keys("V05:1,2"),
         ["D_zeroRun"] = Keys(Expected["D"]),
         ["F_fieldBlank"] = Keys(Expected["F"]),
         ["P_explicitSides"] = Keys(Expected["P"]),
@@ -106,7 +111,9 @@ public sealed class LegacyFormWorkflowTests
     // V08 沒有正金額分錄，照舊版 R3 不再命中（裁定 2026-10-29-29；原本是 V03:1,2;V08:1，第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
     private static readonly Dictionary<string, string> WholeVoucherExpected = new() { ["C"] = "V03:1,2" };
 
-    private const string DefaultKeywords = "ADJ,REV,RECLASS,SUSPENSE,ERROR,WRONG,調整,迴轉,沖銷,重分類,避險,重編,錯誤,計畫外,預算外,帳外,"
+    // 和預篩選預設的 24 個摘要關鍵字相同（裁定 2026-11-05-43 拿掉「帳外」）。這組資料沒有含「帳外」的摘要，
+    // 拿掉前後答案都一樣，所以沒有失敗的收據；改這裡只為了讓常數和預設清單一致。
+    private const string DefaultKeywords = "ADJ,REV,RECLASS,SUSPENSE,ERROR,WRONG,調整,迴轉,沖銷,重分類,避險,重編,錯誤,計畫外,預算外,"
         + "调整,回转,冲销,重分类,避险,重编,错误,计画外,预算外";
 
     [Theory]
@@ -206,7 +213,8 @@ public sealed class LegacyFormWorkflowTests
             """)!.AsArray());
         // 裁定 2026-11-03-07 把「金額尾數連續多個 0」改成一條條件，比較方式是尾數連續幾個 0；選單現在加入的是這一條，同樣對照 D 的固定答案。
         // 上面的 D_customTrailingZeros 是改版前加入的子條件組寫法，已儲存的情境照舊能讀，所以保留。這是新增的案例，沒有第一次失敗。
-        Add("D_zeroRun", JsonNode.Parse("""[{"type":"fieldValue","field":"amount","operator":"endsWithZeros","value":"6","amountBasis":"absolute"}]""")!.AsArray());
+        // 加入時預設這個案件算出的個數（裁定 2026-11-05-26），這裡寫 5；改版前寫 6。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        Add("D_zeroRun", JsonNode.Parse("""[{"type":"fieldValue","field":"amount","operator":"endsWithZeros","value":"5","amountBasis":"absolute"}]""")!.AsArray());
         Add("F_fieldBlank", JsonNode.Parse("""[{"type":"fieldValue","field":"description","operator":"isBlank"}]""")!.AsArray());
         // 借貸方向改成明示子條件，沿用原本手寫的固定答案；不修改歷史目錄。
         foreach (var key in new[] { "P", "example3" })

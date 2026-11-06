@@ -45,7 +45,11 @@ public sealed class PrescreenExecutionInputTests
             HasRevenue: true,
             HasCounterpart: true,
             HasAuthorizedPreparers: true,
-            NonWorkingDays: [0, 6]);
+            NonWorkingDays: [0, 6])
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數；這裡用 5，下面核對執行輸入照請求帶出。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 5
+        };
         var reviewPlan = JetAuditProgram.Plan(
             new AuditProjectSnapshot(
                 ProjectId: "p1",
@@ -158,7 +162,11 @@ public sealed class PrescreenExecutionInputTests
             HasRevenue: false,
             HasCounterpart: false,
             HasAuthorizedPreparers: false,
-            NonWorkingDays: [0, 6]));
+            NonWorkingDays: [0, 6])
+        {
+            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            ZerosThreshold = 6
+        });
 
         var facts = await port.ExecuteAsync(plan, CancellationToken.None);
 

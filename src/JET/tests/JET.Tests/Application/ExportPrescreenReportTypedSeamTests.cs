@@ -128,7 +128,11 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 TrailingZeros: new("V", null, 4),
                 PreparerSummary: new("V", null, 2),
                 RareAccounts: new("V", null, 11),
-                BlankDescription: new("na", null)),
+                BlankDescription: new("na", null))
+            {
+                // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數，預期值取上面 summary 寫的 3。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+                ZerosThreshold = 3
+            },
             writer.Projection);
         Assert.Equal(summaryJson, writer.Context?.SummaryJson);
         Assert.Equal(resultId, writer.Context?.ResultId);
@@ -167,7 +171,9 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     naReason = "尚未完成科目配對",
                     count = 0L
                 },
-                trailingZeros = new { status = "V", count = 10_000L },
+                // 保存的預篩選結果要記下那次用的 0 的個數（裁定 2026-11-05-25），報告讀這裡；這則不看個數，帶 6。
+                // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+                trailingZeros = new { status = "V", count = 10_000L, zerosThreshold = 6 },
                 preparerSummary = new
                 {
                     status = "V",

@@ -79,7 +79,9 @@ internal static class ReportWriterTestSupport
             prepPeriodApproval = new { status = "na", naReason = "尚未配對核准日", count = 0L },
             suspiciousKeywords = new { status = "V", count = 0L },
             unexpectedAccountPair = new { status = "na", naReason = "尚未完成科目配對", count = 0L },
-            trailingZeros = new { status = "V", count = 0L },
+            // 保存的預篩選結果要記下那次用的 0 的個數（裁定 2026-11-05-25），報告讀這裡；最小摘要帶 6。
+            // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+            trailingZeros = new { status = "V", count = 0L, zerosThreshold = 6 },
             preparerSummary = new { status = "V", preparers = Array.Empty<object>() },
             rareAccounts = new { status = "V", distinctAccountCount = 0L },
             blankDescription = new { status = "V", count = 0L },
