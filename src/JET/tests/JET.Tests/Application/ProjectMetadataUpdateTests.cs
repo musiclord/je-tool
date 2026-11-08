@@ -15,7 +15,6 @@ public sealed class ProjectMetadataUpdateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PartialMetadataUpdate_PersistsAfterRestart_AndDoesNotChangeImmutableFields(string provider)
     {
         using var root = new TempProjectRoot();
@@ -52,7 +51,6 @@ public sealed class ProjectMetadataUpdateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TextOnlyAndSameDateUpdates_PreserveValidationPrescreenAndSavedResults(string provider)
     {
         using var host = new HandlerTestHost();
@@ -72,7 +70,6 @@ public sealed class ProjectMetadataUpdateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ChangedPreparationDate_InvalidatesOnlyDependentResults_AndUsesNewFixedAnswer(string provider)
     {
         using var host = new HandlerTestHost();
@@ -99,7 +96,6 @@ public sealed class ProjectMetadataUpdateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ClearingPreparationDate_ClearsScenarios_AndExplainsWhereToRestoreIt(string provider)
     {
         using var host = new HandlerTestHost();
@@ -126,7 +122,6 @@ public sealed class ProjectMetadataUpdateTests
     // 情境、預篩選結果與舊日期都留著，審計員排除檔案問題後重送即可。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ChangedPreparationDate_WhenSettingsCannotBeSaved_KeepsScenariosResultsAndOldDate(string provider)
     {
         using var host = new HandlerTestHost();
@@ -157,9 +152,7 @@ public sealed class ProjectMetadataUpdateTests
 
     [Theory]
     [InlineData("sqlite", "2024-12-31")]
-    [InlineData("duckdb", "2024-12-31")]
     [InlineData("sqlite", "2027-01-01")]
-    [InlineData("duckdb", "2027-01-01")]
     public async Task UnusualPreparationDate_ReturnsWarningButStillPersists(string provider, string date)
     {
         using var host = new HandlerTestHost();
@@ -173,7 +166,6 @@ public sealed class ProjectMetadataUpdateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ChangedPreparationDate_InvalidatesUnsavedPreviewEvenWithoutPersistedFilterResults(string provider)
     {
         using var host = new HandlerTestHost();

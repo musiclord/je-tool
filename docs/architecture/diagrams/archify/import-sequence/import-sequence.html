@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>TB 取代匯入：從選檔到同一交易寫入</title>
+  <title>取代匯入 TB：呼叫順序</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>TB 取代匯入：從選檔到同一交易寫入</h1>
+        <h1>取代匯入 TB：呼叫順序</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1032 1311" data-sequence-column-fit="spread" data-reader-fit="width-first" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-motion-choreography="sequence">
-        <title id="archify-diagram-title">TB 取代匯入：從選檔到同一交易寫入</title>
+        <title id="archify-diagram-title">取代匯入 TB：呼叫順序</title>
         <desc id="archify-diagram-description">由 Archify 產生的循序圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5716,26 +5716,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>情境與前提</h3>
+          <h3>從選檔到寫入</h3>
         </div>
         <ul>
-          <li>審計員選好 TB 檔案後送出匯入，畫面只帶檔案路徑與讀檔選項；沒有指定 mode，所以是取代匯入。</li>
-          <li>前提：案件使用 SQLite 或 DuckDB。本圖畫正常完成的路徑；追加匯入改呼叫 AppendToBatchAsync，不在圖內。</li>
-          <li>交易裡清除和保留哪些資料，以及失敗時怎麼回復，見「TB 取代匯入」流程圖。</li>
+          <li>本圖是 SQLite 或 DuckDB 案件正常完成取代匯入的流程。未指定 mode 時採取代方式。</li>
+          <li>先讀完所有檔案標頭，再逐列寫入同一筆交易。追加匯入另走 AppendToBatchAsync。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot slate"></div>
-          <h3>實際執行的類別</h3>
+          <h3>寫入後的處理</h3>
         </div>
         <ul>
-          <li>ImportTbFromFileHandler 繼承 ImportFromFileHandler，處理流程寫在父類別，GL 匯入共用同一段。</li>
-          <li>CompositeTabularFileReader 依副檔名交給 OpenXml、CSV、舊版 Excel 或 Access 的讀取器。</li>
-          <li>「逐列讀取」這條線不是方法呼叫：LocalImportRepository 逐列取用讀檔器先準備好的資料列，所以程式碼裡看不到讀檔類別。</li>
-          <li>案件用 SQLite 或 DuckDB 時，匯入由 LocalImportRepository 執行；操作紀錄由 CommittedOperationLog 經 IProjectOperationLog 交給 BestEffortProjectOperationLog，再寫進 LocalProjectOperationLog。寫入失敗時回應附提醒「變更已儲存，但這次變更沒有寫入操作紀錄。」。</li>
-          <li>SQLite 案件在交易途中取消時，CancellableSqliteCommand 會中斷執行中的語句，被中斷的寫入由 SQLite 回復。</li>
+          <li>提交後才更新案件步驟與操作紀錄。紀錄失敗會附提醒，已提交的匯入仍保留。</li>
+          <li>清除範圍與取消處理見「取代匯入 TB」流程圖。</li>
         </ul>
       </div>
     </div>

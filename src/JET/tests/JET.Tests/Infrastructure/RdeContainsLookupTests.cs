@@ -15,31 +15,23 @@ public sealed class RdeContainsLookupTests
 
     [Theory]
     [InlineData("sqlite", 1)]
-    [InlineData("duckdb", 1)]
-    [InlineData("sqlServer", 1)]
     [InlineData("sqlite", 100)]
-    [InlineData("duckdb", 100)]
-    [InlineData("sqlServer", 100)]
     public void RdeContains_BuildsOneLookupForTheWholePredicate(string provider, int keywordCount)
     {
         IProviderSqlDialect dialect = provider switch
-        { "sqlite" => SqliteDialect.Instance, "duckdb" => DuckDbDialect.Instance, _ => SqlServerDialect.Instance };
+        { "sqlite" => SqliteDialect.Instance, _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unknown provider.") };
         var scenario = VoucherConditionSqlSemanticsTests.Scenario(new
         { type = "fieldValue", fieldId = TextId, @operator = "contains", values = Keywords.Take(keywordCount).ToArray() });
         var builder = new GlFilterWhereBuilder(dialect, new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate));
         var plan = builder.BuildPlan(scenario, Context);
-        Assert.Equal(1, Regex.Matches(plan.Sql, "FROM gl_rde_value", RegexOptions.CultureInvariant).Count);
+        Assert.Single(Regex.Matches(plan.Sql, "FROM gl_rde_value", RegexOptions.CultureInvariant));
     }
 
     [Theory]
     [InlineData("sqlite", "contains", false)]
-    [InlineData("duckdb", "contains", false)]
     [InlineData("sqlite", "contains", true)]
-    [InlineData("duckdb", "contains", true)]
     [InlineData("sqlite", "notContains", false)]
-    [InlineData("duckdb", "notContains", false)]
     [InlineData("sqlite", "notContains", true)]
-    [InlineData("duckdb", "notContains", true)]
     public async Task HundredKeywords_PreserveLiteralWildcardsCaseAndBlankSemantics(string provider, string op, bool includeBlank)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
@@ -56,9 +48,7 @@ public sealed class RdeContainsLookupTests
 
     [Theory]
     [InlineData("sqlite", "isBlank")]
-    [InlineData("duckdb", "isBlank")]
     [InlineData("sqlite", "isNotBlank")]
-    [InlineData("duckdb", "isNotBlank")]
     public async Task MissingAndStoredBlankRdeValues_KeepTheSameExplicitBlankAnswers(string provider, string op)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);

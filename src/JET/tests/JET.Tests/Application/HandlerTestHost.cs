@@ -22,7 +22,6 @@ internal sealed class HandlerTestHost : IDisposable
     public HandlerTestHost(
         IHostShell? hostShell = null,
         bool enableDevTools = true,
-        string? sqlServerConnectionString = null,
         bool withDiagnosticLogFile = false,
         string? principalName = null,
         IJetEventPublisher? eventPublisher = null,
@@ -32,21 +31,17 @@ internal sealed class HandlerTestHost : IDisposable
         _projectsRoot = projectsRootPath ?? _root.Path;
         _diagnostic = enableDevTools ? new RingBufferLoggerProvider(capacity: 10_000) : null;
         DiagnosticLogDirectory = withDiagnosticLogFile ? Path.Combine(_root.Path, "logs") : null;
-        // 每個 host 預設唯一 principal：共用 JET_Test 登記簿（dbo.project_registry/access）時，ListVisible 只回
-        // 本 host 授權的列，跨測試殘留互不可見（隔離）。需跨 host 共享身分的測試（如物化 serverOnly）顯式傳同一 principalName。
+        // 每個 host 預設唯一 principal，跨測試的身分互不相同；需要兩個 host 用同一個身分的測試顯式傳同一 principalName。
         Principal = principalName ?? $"test-principal-{Guid.NewGuid():N}";
         _runtime = AppCompositionRoot.CreateRuntime(
             hostShell ?? new StubHostShell(),
             _projectsRoot,
             enableDevTools,
             eventPublisher ?? _events,
-            sqlServerConnectionString,
             _diagnostic,
             DiagnosticLogDirectory,
-            // 測試固定使用隔離的 JET_Test；正式程式使用 appsettings 的 Sql:Database（預設為 JET）。
-            singleDatabaseNameOverride: "JET_Test",
             principalName: Principal,
-            // 使用者編號快取釘到本 host 的 temp 根之下，測試絕不碰真 %LOCALAPPDATA%\JET（比照 DiagnosticLogDirectory 作法）。
+            // 支援日誌所在的使用者資料目錄釘到本 host 的 temp 根之下，測試絕不碰真 %LOCALAPPDATA%\JET（比照 DiagnosticLogDirectory 作法）。
             userProfileDirectory: Path.Combine(_root.Path, "user-profile"));
         Dispatcher = _runtime.Dispatcher;
         SupportLogDirectory = Path.Combine(_root.Path, "user-profile", "logs");
@@ -54,7 +49,7 @@ internal sealed class HandlerTestHost : IDisposable
 
     public ActionDispatcher Dispatcher { get; }
 
-    /// <summary>本 host 注入 composition 的當前身分（線上可見性 ACL 雛形）；預設每 host 唯一，供測試安排/斷言登記簿列。</summary>
+    /// <summary>本 host 注入 composition 的當前身分；預設每 host 唯一。</summary>
     public string Principal { get; }
 
     /// <summary>診斷日誌檔案 sink 的目錄(withDiagnosticLogFile=true 時於 temp root 下;否則 null)。</summary>

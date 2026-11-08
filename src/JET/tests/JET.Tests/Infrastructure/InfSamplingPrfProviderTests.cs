@@ -1,9 +1,7 @@
 using System.Data.Common;
 using System.Globalization;
-using DuckDB.NET.Data;
 using JET.AuditCore;
 using JET.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -32,30 +30,6 @@ public sealed class InfSamplingPrfProviderTests
         await connection.OpenAsync();
 
         await AssertV2VectorsAsync(connection, SqliteDialect.Instance);
-    }
-
-    [Fact]
-    public async Task V2FixedVectors_DuckDbSqlEqualsCanonicalCSharp()
-    {
-        await using var connection = new DuckDbConnectionAdapter(new DuckDBConnection("DataSource=:memory:"));
-        await connection.OpenAsync();
-
-        await AssertV2VectorsAsync(connection, DuckDbDialect.Instance);
-    }
-
-    [SqlServerFact]
-    public async Task V2FixedVectors_SqlServerSqlEqualsCanonicalCSharp()
-    {
-        await using var project = await TempSqlServerProject.TryCreateAsync();
-        if (project is null)
-        {
-            return;
-        }
-
-        await using var connection = project.Database.CreateConnection(project.ProjectId);
-        await connection.OpenAsync();
-
-        await AssertV2VectorsAsync(connection, SqlServerDialect.Instance);
     }
 
     private static async Task AssertV2VectorsAsync(DbConnection connection, ISqlDialect dialect)

@@ -15,7 +15,6 @@ public sealed class ActionDispatcher
     private readonly ProjectSession _session;
     private readonly Func<Exception, JetActionException?>? _engineErrorTranslator;
     private readonly ActionExecutionGate _executionGate;
-    private readonly IProjectDatabaseRetention? _databaseRetention;
     private readonly IProjectDatabaseCheckpoint? _databaseCheckpoint;
     // 同一案件同一動作上一次失敗或取消的操作識別碼，下一次開始時記成 retry_of；成功後清除（2026-10-21）。
     private readonly ConcurrentDictionary<string, string> _lastUnsuccessful = new(StringComparer.Ordinal);
@@ -25,13 +24,11 @@ public sealed class ActionDispatcher
         ILogger<ActionDispatcher> logger,
         ProjectSession session,
         // 引擎錯誤的單一映射點：composition 注入 Infrastructure 的轉譯 delegate
-        // （SqlServerEngineErrors.TryTranslate），Bridge 不直接依賴 Infrastructure（維持分層依賴方向）。
+        // （LocalEngineErrors.TryTranslate），Bridge 不直接依賴 Infrastructure（維持分層依賴方向）。
         Func<Exception, JetActionException?>? engineErrorTranslator = null,
         RequestCancellationRegistry? cancellationRegistry = null,
         ActionExecutionGate? executionGate = null,
-        // 一次操作期間保持當前案件資料庫開啟（只有 DuckDB 有作用）；null 時不持有，自行組裝 dispatcher 的測試不受影響。
-        IProjectDatabaseRetention? databaseRetention = null,
-        // 變更型作業結束後把當前案件資料庫的記錄檔併回（只有 SQLite 有作用）；null 時不併回。
+        // 變更型作業結束後把當前案件資料庫的記錄檔併回；null 時不併回，自行組裝 dispatcher 的測試不受影響。
         IProjectDatabaseCheckpoint? databaseCheckpoint = null)
     {
         var map = new Dictionary<string, IApplicationActionHandler>(StringComparer.Ordinal);
@@ -50,7 +47,6 @@ public sealed class ActionDispatcher
         _engineErrorTranslator = engineErrorTranslator;
         CancellationRegistry = cancellationRegistry ?? new RequestCancellationRegistry();
         _executionGate = executionGate ?? new ActionExecutionGate();
-        _databaseRetention = databaseRetention;
         _databaseCheckpoint = databaseCheckpoint;
     }
 
@@ -123,11 +119,11 @@ public sealed class ActionDispatcher
                         "另一項作業正在進行中，請待其完成後再操作。");
             }
 
-            // 原生 UI 與取消控制保留原執行緒；同步資料庫呼叫及其 retention 開關都不能卡住 UI。
+            // 原生 UI 與取消控制保留原執行緒；同步資料庫呼叫不能卡住 UI。
             // token 同時傳入排程與 handler；Task.Run 本身只負責工作開始前的取消。
             var result = ActionExecutionPolicy.RunsInBackground(action)
-                ? await Task.Run(() => HandleWithRetentionAsync(handler, payload, cancellationToken), cancellationToken).ConfigureAwait(false)
-                : await HandleWithRetentionAsync(handler, payload, cancellationToken).ConfigureAwait(false);
+                ? await Task.Run(() => HandleWithCheckpointAsync(handler, payload, cancellationToken), cancellationToken).ConfigureAwait(false)
+                : await HandleWithCheckpointAsync(handler, payload, cancellationToken).ConfigureAwait(false);
             _lastUnsuccessful.TryRemove(retryKey, out _);
             var resultRefs = SupportResultRefs.Describe(result);
             using (resultRefs is null ? null : _logger.BeginScope(new Dictionary<string, object?> { ["result_refs"] = resultRefs }))
@@ -178,9 +174,8 @@ public sealed class ActionDispatcher
             // 第五步損毀的條件：畫面只看到通用句，哪一條、哪一種記進支援日誌。
             FilterScenarioDiagnostics.LogException(_logger, action, exception);
 
-            // 已要求取消時，資料庫驅動中止語句後丟出的例外一律回報成取消：SQL Server 中止執行中的語句時丟出
-            // SqlException，不是 OperationCanceledException。三種資料庫在畫面上都回「作業已取消」。
-            // 業務錯誤照舊原樣放行。
+            // 已要求取消時，資料庫驅動中止語句後丟出的例外一律回報成取消：驅動丟出的不一定是
+            // OperationCanceledException，畫面一律回「作業已取消」。業務錯誤照舊原樣放行。
             if (exception is not (JetActionException or OperationCanceledException)
                 && cancellationToken.IsCancellationRequested)
             {
@@ -198,15 +193,14 @@ public sealed class ActionDispatcher
         }
         finally
         {
-            // 先放開資料庫再放閘：下一個取得閘的變更型作業（例如刪除案件）開始時，這裡已經放手。
+            // 資料庫收尾做完才放閘：下一個取得閘的變更型作業（例如刪除案件）開始時，這裡已經放手。
             executionLease?.Dispose();
         }
     }
 
-    private async Task<object?> HandleWithRetentionAsync(
+    private async Task<object?> HandleWithCheckpointAsync(
         IApplicationActionHandler handler, JsonElement payload, CancellationToken cancellationToken)
     {
-        IDisposable? retention = null;
         // 變更型作業結束後，把它用到的案件資料庫的記錄檔併回（見 IProjectDatabaseCheckpoint）。作業期間其他變更型
         // 作業拿不到閘，案件不會換；併回時還持有閘，下一項作業開始前記錄檔已經清空。
         var checkpointProjectId = _databaseCheckpoint is not null && ActionExecutionPolicy.CheckpointsProjectDatabase(handler.Action)
@@ -215,15 +209,10 @@ public sealed class ActionDispatcher
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_databaseRetention is not null
-                && ActionExecutionPolicy.RetainsProjectDatabase(handler.Action)
-                && _session.CurrentProjectId is { } projectId)
-                retention = _databaseRetention.TryRetain(projectId);
             return await handler.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            retention?.Dispose();
             if (checkpointProjectId is not null)
             {
                 await ProjectDatabaseCheckpointSteps.TryCheckpointAsync(

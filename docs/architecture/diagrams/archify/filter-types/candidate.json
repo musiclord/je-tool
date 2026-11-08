@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "class",
   "meta": {
-    "title": "篩選情境儲存的類別與介面",
+    "title": "篩選情境的處理類別",
     "locale": "zh-TW",
     "output": "archify/filter-types/filter-types.html",
     "quality_profile": "showcase",
@@ -299,28 +299,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "實際執行哪個類別",
+      "title": "圖中涵蓋的範圍",
       "items": [
-        "依賴線指向介面時，編譯時只知道呼叫的是介面方法，例如 IFilterFactsPort.ExecuteAsync。",
-        "實際執行哪個類別，看 AppCompositionRoot 的「建立」線：案件用 SQLite 或 DuckDB 時，建立 FilterFactsPort、LocalFilterCommitRepository 與 LocalFilterScenarioStore，再交給使用它們的類別。",
-        "本圖不表示每次儲存都會走到每一條線。"
+        "本圖呈現 SQLite 或 DuckDB 的儲存流程；預覽與 SQL Server 實作未列入。",
+        "AppCompositionRoot 建立 FilterFactsPort、LocalFilterCommitRepository 與 LocalFilterScenarioStore。"
       ]
     },
     {
       "dot": "slate",
-      "title": "這張圖省略了什麼",
+      "title": "另外參與的元件",
       "items": [
-        "方法區只列這條流程用到的方法；SQL Server 版本的類別不在圖內。",
-        "FilterScenarioBatchWriter 另外經 IResultStaleStateStore 讀存好的結果是否過期，再決定只存一個情境還是整批處理。",
-        "FilterScenarioBatchWriter 另外呼叫 MappingCommitShared.AdvanceStepAsync 推進步驟，見業務流程圖。",
-        "預覽時，用整張傳票計數的情境另向 IFilterHitRepository 取整張命中傳票的分錄數；本圖只畫儲存。"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "成員寫法",
-      "items": [
-        "成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。"
+        "FilterScenarioBatchWriter 也會讀取結果是否過期，再決定單筆或整批處理。",
+        "推進案件步驟由 MappingCommitShared.AdvanceStepAsync 處理，分支見流程圖。"
       ]
     }
   ]

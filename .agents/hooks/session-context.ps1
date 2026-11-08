@@ -64,8 +64,9 @@ try {
         # 由新到舊掃，直到每個命令都找到一份完整收據，最多掃 2000 個執行目錄。
         $latest = [ordered]@{}
         $diagnostics = [ordered]@{}
+        # 原本也列 Provider，隨 DuckDB 與 SQL Server 移除（裁定 2026-11-06-08）；不在清單裡的舊收據不再列出。
         $expectedCommands = @('Build', 'Contract', 'Documentation', 'Excel', 'Focused', 'Gui', 'Mutation', 'Package',
-            'PrivateCase', 'Provider', 'Public', 'ReleaseCandidate', 'Restore')
+            'PrivateCase', 'Public', 'ReleaseCandidate', 'Restore')
         $recent = Get-ChildItem -LiteralPath $runsRoot -Directory -ErrorAction SilentlyContinue |
                   Sort-Object Name -Descending |
                   Select-Object -First 2000
@@ -77,7 +78,7 @@ try {
                 $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding utf8 | ConvertFrom-Json
             } catch { continue }
             $command = [string]$receipt.command
-            if ([string]::IsNullOrWhiteSpace($command)) { continue }
+            if ([string]::IsNullOrWhiteSpace($command) -or $expectedCommands -cnotcontains $command) { continue }
             $isPartial = $false
             foreach ($name in @('partial')) {
                 $property = $receipt.PSObject.Properties[$name]

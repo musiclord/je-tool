@@ -12,7 +12,6 @@ public sealed class MappingValueProfileTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Profile_GroupsBeforeLimit_WithFixedCaseInsensitiveCounts(string provider)
     {
         using var host = new HandlerTestHost();
@@ -33,7 +32,6 @@ public sealed class MappingValueProfileTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Profile_UsesAllExistingUnicodeEqualityAnswers(string provider)
     {
         using var host = new HandlerTestHost();
@@ -58,7 +56,6 @@ public sealed class MappingValueProfileTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExplicitSourceCheck_FindsCodesOutsideTop50_AndKeepsOrdinalUnicodeRules(string provider)
     {
         using var host = new HandlerTestHost();
@@ -117,8 +114,9 @@ public sealed class MappingValueProfileTests
     [Fact]
     public async Task SourceCheck_UnsupportedProviderPreservesProfileAndReturnsUnknownNotMissing()
     {
+        // 原本用 SQL Server 的資料庫組；判定看的是替身沒有實作來源值核對，與種類名稱無關，改用 SQLite 的組（裁定 2026-11-06-08）。
         var session = new ProjectSession();
-        session.Enter("synthetic-server-profile", TestProjectRepositories.Unconfigured(ProjectDocument.SqlServerDatabaseProvider) with
+        session.Enter("synthetic-server-profile", TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
         {
             Imports = new ProfileImportStub(), MappingValueProfiles = new ProfileOnlyStub()
         });

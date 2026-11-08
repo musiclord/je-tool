@@ -3,6 +3,7 @@ using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using JET.Domain;
+using JET.Infrastructure;
 using JET.Tests.Infrastructure;
 using Xunit;
 
@@ -18,7 +19,6 @@ public sealed class WorkingPaperFieldInfoJourneyTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LongSourceColumnName_WrapsAndRaisesRowHeight_WhileTbSectionStaysEmpty(string provider)
     {
         // 摘要配到一個 60 個全形字的欄名，寬度算 120。名稱欄寬度上限 40，扣掉留白與安全係數後每行放得下約 33，
@@ -106,9 +106,9 @@ public sealed class WorkingPaperFieldInfoJourneyTests
 
         using var document = SpreadsheetDocument.Open(path, false);
         var workbookPart = document.WorkbookPart!;
-        var sheetEntry = workbookPart.Workbook.Descendants<Sheet>()
+        var sheetEntry = workbookPart.RequiredWorkbook().Descendants<Sheet>()
             .Single(entry => entry.Name == WorkingPaperSheetCatalog.FieldInfo);
-        var worksheet = ((WorksheetPart)workbookPart.GetPartById(sheetEntry.Id!)).Worksheet;
+        var worksheet = ((WorksheetPart)workbookPart.GetPartById(sheetEntry.Id!)).RequiredWorksheet();
         var nameColumn = worksheet.GetFirstChild<Columns>()!.Elements<Column>()
             .Single(column => column.Min!.Value <= 1U && column.Max!.Value >= 1U);
         Assert.Equal(40D, nameColumn.Width!.Value);

@@ -15,7 +15,6 @@ public sealed class ImportAccountMappingHandlerTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ThirdRowHeaderWithAutoFilterAndHiddenRow_ImportsEveryAccount(string provider)
     {
         using var host = new HandlerTestHost();
@@ -65,7 +64,6 @@ public sealed class ImportAccountMappingHandlerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ImportCountsAndPages_UseGlUnionTb_NotTheMappingEditorUnion(string provider)
     {
         using var host = new HandlerTestHost();

@@ -21,7 +21,6 @@ public sealed class GlExcludedPopulationPartitionTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlAndGlExcluded_KeepCountsTotalsAndReasons(string provider)
     {
         using var host = new HandlerTestHost();

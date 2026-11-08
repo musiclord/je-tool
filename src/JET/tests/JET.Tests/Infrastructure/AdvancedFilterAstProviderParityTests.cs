@@ -159,55 +159,12 @@ public sealed class AdvancedFilterAstProviderParityTests
     ];
 
     [Fact]
-    public async Task AdvancedAst_SqliteAndDuckDb_ProduceIdenticalSemanticHitSets()
-    {
-        await using var sqlite = await FilterPredicateProviderFixture.CreateLocalAsync(
-            ProjectDocument.DefaultDatabaseProvider,
-            FixtureSql);
-        await using var duckDb = await FilterPredicateProviderFixture.CreateLocalAsync(
-            ProjectDocument.DuckDbDatabaseProvider,
-            FixtureSql);
-
-        var sqliteResults = await ExecuteCasesAsync(sqlite);
-        var duckDbResults = await ExecuteCasesAsync(duckDb);
-
-        AssertMatchesOracle(sqliteResults);
-        AssertMatchesOracle(duckDbResults);
-        AssertProvidersEqual(sqliteResults, duckDbResults);
-    }
-
-    [SqlServerFact]
-    public async Task AdvancedAst_SqlServerMatchesSqliteAndDuckDbSemanticHitSets()
-    {
-        await using var sqlite = await FilterPredicateProviderFixture.CreateLocalAsync(
-            ProjectDocument.DefaultDatabaseProvider,
-            FixtureSql);
-        await using var duckDb = await FilterPredicateProviderFixture.CreateLocalAsync(
-            ProjectDocument.DuckDbDatabaseProvider,
-            FixtureSql);
-        await using var sqlServer = await FilterPredicateProviderFixture.CreateSqlServerAsync(FixtureSql);
-
-        var sqliteResults = await ExecuteCasesAsync(sqlite);
-        var duckDbResults = await ExecuteCasesAsync(duckDb);
-        var sqlServerResults = await ExecuteCasesAsync(sqlServer);
-
-        AssertMatchesOracle(sqlServerResults);
-        AssertProvidersEqual(sqliteResults, duckDbResults);
-        AssertProvidersEqual(sqliteResults, sqlServerResults);
-        AssertProvidersEqual(duckDbResults, sqlServerResults);
-    }
-
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task SameVoucher_LocalProvider_PreviewCommitAndLazyMaterializationPersistSameAnchorSet(
-        string provider)
+)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -220,30 +177,6 @@ public sealed class AdvancedFilterAstProviderParityTests
             new LocalFilterHitMaterializer(database),
             database.CreateConnection,
             schemaPrefix: string.Empty);
-    }
-
-    [SqlServerFact]
-    public async Task SameVoucher_SqlServer_PreviewCommitAndLazyMaterializationPersistSameAnchorSet()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var schemaPrefix = SqlServerProjectSchema.QualifierFor(project.ProjectId);
-        var sqlServerFixture = FixtureSql.Replace(
-            "INSERT INTO gl",
-            $"INSERT INTO {schemaPrefix}gl",
-            StringComparison.Ordinal).Replace(
-            "UPDATE gl",
-            $"UPDATE {schemaPrefix}gl",
-            StringComparison.Ordinal);
-        await ExecuteAsync(project.Database.CreateConnection(project.ProjectId), sqlServerFixture);
-
-        await AssertPreviewCommitAndLazyParityAsync(
-            project.ProjectId,
-            new SqlServerFilterHitRepository(project.Database),
-            new SqlServerFilterCommitRepository(project.Database),
-            new SqlServerFilterHitMaterializer(project.Database),
-            project.Database.CreateConnection,
-            schemaPrefix);
     }
 
     private static async Task<ScenarioResult[]> ExecuteCasesAsync(

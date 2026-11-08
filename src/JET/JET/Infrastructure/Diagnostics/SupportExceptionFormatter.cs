@@ -6,7 +6,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 using JET.Domain;
-using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 
 namespace JET.Infrastructure;
@@ -94,9 +93,6 @@ internal static partial class SupportExceptionFormatter
                 break;
             case SqliteException sqlite:
                 builder.Append(" sqlite=").Append(sqlite.SqliteErrorCode).Append('/').Append(sqlite.SqliteExtendedErrorCode);
-                break;
-            case SqlException sql:
-                builder.Append(" number=").Append(sql.Number).Append(" class=").Append(sql.Class).Append(" state=").Append(sql.State);
                 break;
             case DbException db:
                 builder.Append(" error_code=").Append(db.ErrorCode);

@@ -1,0 +1,20 @@
+{
+  "title": "JET 流程圖",
+  "diagrams": [
+    {
+      "sheet": "審計作業",
+      "source": "audit-workflow",
+      "note": "六個操作步驟的主要順序。預篩選為選用，審計差異由人判斷。"
+    },
+    {
+      "sheet": "測試與複核",
+      "source": "review-workflow",
+      "note": "Agent 提供測試與修正結果；審計人員確認關鍵規則並填寫結論。"
+    },
+    {
+      "sheet": "首次送審",
+      "source": "sat-workflow",
+      "note": "建議流程，實際權責與通過條件依公司確認。"
+    }
+  ]
+}

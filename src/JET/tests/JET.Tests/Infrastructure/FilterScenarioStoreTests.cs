@@ -1,7 +1,6 @@
 using System.Data.Common;
 using JET.Domain;
 using JET.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Xunit;
 
 namespace JET.Tests.Infrastructure;
@@ -21,65 +20,9 @@ public sealed class FilterScenarioStoreTests
             static folder => new SqliteProjectDatabase(folder));
 
     [Fact]
-    public Task ReplaceAll_DuckDb_ClearsPreviousFilterHits() =>
-        ReplaceAllClearsPreviousFilterHitsAsync(
-            static folder => new DuckDbProjectDatabase(folder));
-
-    [Fact]
     public Task ReplaceAll_Sqlite_InsertFailureRollsBackDefinitionsAndHits() =>
         InsertFailureRollsBackDefinitionsAndHitsAsync(
             static folder => new SqliteProjectDatabase(folder));
-
-    [Fact]
-    public Task ReplaceAll_DuckDb_InsertFailureRollsBackDefinitionsAndHits() =>
-        InsertFailureRollsBackDefinitionsAndHitsAsync(
-            static folder => new DuckDbProjectDatabase(folder));
-
-    [SqlServerFact]
-    public async Task ReplaceAll_SqlServer_ClearsPreviousFilterHits()
-    {
-        var sql = Assert.IsType<TempSqlServerProject>(await TempSqlServerProject.TryCreateAsync());
-        await using var cleanup = sql;
-        var store = new SqlServerFilterScenarioStore(sql.Database);
-        await store.ReplaceAllAsync(
-            sql.ProjectId, [Scenario(1, "舊情境")], CancellationToken.None);
-        await SeedHitAsync(
-            sql.Database.CreateConnection(sql.ProjectId),
-            $"{SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit");
-
-        await store.ReplaceAllAsync(
-            sql.ProjectId, [Scenario(1, "新情境")], CancellationToken.None);
-
-        Assert.Equal(0, await ScalarAsync(
-            sql.Database.CreateConnection(sql.ProjectId),
-            $"SELECT COUNT(*) FROM {SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit;"));
-        var current = Assert.Single(await store.ListAsync(sql.ProjectId, CancellationToken.None));
-        Assert.Equal("新情境", current.Name);
-    }
-
-    [SqlServerFact]
-    public async Task ReplaceAll_SqlServer_InsertFailureRollsBackDefinitionsAndHits()
-    {
-        var sql = Assert.IsType<TempSqlServerProject>(await TempSqlServerProject.TryCreateAsync());
-        await using var cleanup = sql;
-        var store = new SqlServerFilterScenarioStore(sql.Database);
-        await store.ReplaceAllAsync(
-            sql.ProjectId, [Scenario(1, "舊情境")], CancellationToken.None);
-        await SeedHitAsync(
-            sql.Database.CreateConnection(sql.ProjectId),
-            $"{SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit");
-
-        await Assert.ThrowsAsync<SqlException>(() => store.ReplaceAllAsync(
-            sql.ProjectId,
-            [Scenario(1, "新情境一"), Scenario(1, "新情境二")],
-            CancellationToken.None));
-
-        var current = Assert.Single(await store.ListAsync(sql.ProjectId, CancellationToken.None));
-        Assert.Equal("舊情境", current.Name);
-        Assert.Equal(1, await ScalarAsync(
-            sql.Database.CreateConnection(sql.ProjectId),
-            $"SELECT COUNT(*) FROM {SqlServerProjectSchema.QualifierFor(sql.ProjectId)}filter_hit;"));
-    }
 
     private static async Task ReplaceAllClearsPreviousFilterHitsAsync(
         Func<JetProjectFolder, ILocalProjectDatabase> databaseFactory)

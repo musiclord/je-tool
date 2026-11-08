@@ -36,11 +36,6 @@ internal enum LegacyAuditParityComparisonId
 {
     LegacyInternal,
     LegacyVsSqlite,
-    LegacyVsDuckDb,
-    LegacyVsSqlServer,
-    SqliteVsDuckDb,
-    SqliteVsSqlServer,
-    DuckDbVsSqlServer,
 }
 
 internal enum LegacyAuditParityBasis
@@ -68,8 +63,6 @@ internal static class LegacyAuditParityComparisonIds
         provider switch
         {
             LegacyAuditParityProvider.Sqlite => LegacyAuditParityComparisonId.LegacyVsSqlite,
-            LegacyAuditParityProvider.DuckDb => LegacyAuditParityComparisonId.LegacyVsDuckDb,
-            LegacyAuditParityProvider.SqlServer => LegacyAuditParityComparisonId.LegacyVsSqlServer,
             _ => throw new ArgumentOutOfRangeException(nameof(provider)),
         };
 
@@ -86,12 +79,6 @@ internal static class LegacyAuditParityComparisonIds
         var second = (int)left < (int)right ? right : left;
         return (first, second) switch
         {
-            (LegacyAuditParityProvider.Sqlite, LegacyAuditParityProvider.DuckDb) =>
-                LegacyAuditParityComparisonId.SqliteVsDuckDb,
-            (LegacyAuditParityProvider.Sqlite, LegacyAuditParityProvider.SqlServer) =>
-                LegacyAuditParityComparisonId.SqliteVsSqlServer,
-            (LegacyAuditParityProvider.DuckDb, LegacyAuditParityProvider.SqlServer) =>
-                LegacyAuditParityComparisonId.DuckDbVsSqlServer,
             _ => throw new ArgumentOutOfRangeException(nameof(right)),
         };
     }
@@ -100,11 +87,6 @@ internal static class LegacyAuditParityComparisonIds
     {
         LegacyAuditParityComparisonId.LegacyInternal => "legacy-internal",
         LegacyAuditParityComparisonId.LegacyVsSqlite => "legacy-vs-sqlite",
-        LegacyAuditParityComparisonId.LegacyVsDuckDb => "legacy-vs-duckdb",
-        LegacyAuditParityComparisonId.LegacyVsSqlServer => "legacy-vs-sqlserver",
-        LegacyAuditParityComparisonId.SqliteVsDuckDb => "sqlite-vs-duckdb",
-        LegacyAuditParityComparisonId.SqliteVsSqlServer => "sqlite-vs-sqlserver",
-        LegacyAuditParityComparisonId.DuckDbVsSqlServer => "duckdb-vs-sqlserver",
         _ => throw new ArgumentOutOfRangeException(nameof(comparison)),
     };
 }
@@ -454,10 +436,9 @@ internal sealed class LegacyAuditParityHarnessBindingVerificationCatalog
         return verification;
     }
 
-    private static bool IsProviderComparison(LegacyAuditParityComparisonId comparisonId) =>
-        comparisonId is LegacyAuditParityComparisonId.SqliteVsDuckDb
-            or LegacyAuditParityComparisonId.SqliteVsSqlServer
-            or LegacyAuditParityComparisonId.DuckDbVsSqlServer;
+    // 只保留 SQLite 期間沒有兩種資料庫互相比對的情形（裁定 2026-11-06-08）；接回 DuckDB 或 SQL Server 時，
+    // 從還原點取回各組資料庫之間的比較種類。
+    private static bool IsProviderComparison(LegacyAuditParityComparisonId comparisonId) => false;
 }
 
 internal sealed class LegacyAuditParityDifference

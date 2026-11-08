@@ -13,30 +13,9 @@ public sealed class LocalPaginationBoundaryMatrixTests
     [InlineData("sqlite", 2)]
     [InlineData("sqlite", 3)]
     [InlineData("sqlite", 4)]
-    [InlineData("duckdb", 0)]
-    [InlineData("duckdb", 1)]
-    [InlineData("duckdb", 2)]
-    [InlineData("duckdb", 3)]
-    [InlineData("duckdb", 4)]
     public async Task FiveBoundaries_AllKeyFamilies_UseRealLookahead(string provider, int rowCount)
     {
         await using var engine = await PaginationBoundaryEngine.CreateLocalAsync(provider, rowCount);
-
-        await PaginationBoundaryAssertions.AssertAllAsync(engine, rowCount);
-    }
-}
-
-public sealed class SqlServerPaginationBoundaryMatrixTests
-{
-    [SqlServerTheory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    [InlineData(4)]
-    public async Task FiveBoundaries_AllKeyFamilies_UseRealLookahead(int rowCount)
-    {
-        await using var engine = await PaginationBoundaryEngine.CreateSqlServerAsync(rowCount);
 
         await PaginationBoundaryAssertions.AssertAllAsync(engine, rowCount);
     }
@@ -161,7 +140,6 @@ internal static class PaginationBoundaryAssertions
 internal sealed class PaginationBoundaryEngine : IAsyncDisposable
 {
     private readonly TempProjectRoot? _localRoot;
-    private readonly TempSqlServerProject? _sqlServer;
 
     private PaginationBoundaryEngine(
         string projectId,
@@ -169,8 +147,7 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
         IVoucherBalancePageRepository voucherBalance,
         IHighRiskSummaryVoucherPageRepository highRiskSummaryVouchers,
         IHighRiskSummaryRowPageRepository highRiskSummaryRows,
-        TempProjectRoot? localRoot = null,
-        TempSqlServerProject? sqlServer = null)
+        TempProjectRoot? localRoot = null)
     {
         ProjectId = projectId;
         FilterHits = filterHits;
@@ -178,7 +155,6 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
         HighRiskSummaryVouchers = highRiskSummaryVouchers;
         HighRiskSummaryRows = highRiskSummaryRows;
         _localRoot = localRoot;
-        _sqlServer = sqlServer;
     }
 
     public string ProjectId { get; }
@@ -193,7 +169,6 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
         var database = provider switch
         {
             "sqlite" => (ILocalProjectDatabase)new SqliteProjectDatabase(new JetProjectFolder(root.Path)),
-            "duckdb" => new DuckDbProjectDatabase(new JetProjectFolder(root.Path)),
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unknown local provider.")
         };
         var projectId = Guid.NewGuid().ToString("N");
@@ -207,23 +182,6 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
             new LocalHighRiskSummaryVoucherPageRepository(database),
             new LocalHighRiskSummaryRowPageRepository(database),
             localRoot: root);
-    }
-
-    public static async Task<PaginationBoundaryEngine> CreateSqlServerAsync(int rowCount)
-    {
-        var sql = Assert.IsType<TempSqlServerProject>(await TempSqlServerProject.TryCreateAsync());
-        await SeedAsync(
-            sql.Database.CreateConnection(sql.ProjectId),
-            SqlServerProjectSchema.QualifierFor(sql.ProjectId),
-            rowCount);
-
-        return new PaginationBoundaryEngine(
-            sql.ProjectId,
-            new SqlServerFilterHitsPageRepository(sql.Database),
-            new SqlServerVoucherBalancePageRepository(sql.Database),
-            new SqlServerHighRiskSummaryVoucherPageRepository(sql.Database),
-            new SqlServerHighRiskSummaryRowPageRepository(sql.Database),
-            sqlServer: sql);
     }
 
     private static async Task SeedAsync(DbConnection connection, string prefix, int rowCount)
@@ -256,13 +214,9 @@ internal sealed class PaginationBoundaryEngine : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_sqlServer is not null)
-        {
-            await _sqlServer.DisposeAsync();
-        }
-
         _localRoot?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

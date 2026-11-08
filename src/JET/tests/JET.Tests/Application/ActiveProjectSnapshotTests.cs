@@ -15,8 +15,8 @@ public sealed class ActiveProjectSnapshotTests
     public async Task ConcurrentQuery_KeepsItsSnapshotWhenAnotherCaseIsLoaded()
     {
         var sqlitePages = new BlockingBlankPageRepository();
-        var duckDbPages = new BlockingBlankPageRepository();
-        duckDbPages.Release();
+        var caseBPages = new BlockingBlankPageRepository();
+        caseBPages.Release();
         var session = new ProjectSession();
         session.Enter(
             "case-a",
@@ -29,23 +29,24 @@ public sealed class ActiveProjectSnapshotTests
         var running = handler.HandleAsync(EmptyPayload(), CancellationToken.None);
         await sqlitePages.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        // 查詢還卡在第一組時，另一個請求載入了 DuckDB 的案件 B。
+        // 查詢還卡在第一組時，另一個請求載入了另一個 SQLite 案件 B（原本是 DuckDB 案件；只保留 SQLite 之後改用
+        // 另一組 SQLite 替身，測的仍是查詢不換組，裁定 2026-11-06-08）。
         session.Enter(
             "case-b",
-            TestProjectRepositories.Unconfigured(ProjectDocument.DuckDbDatabaseProvider) with
+            TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
             {
-                AccountMappingBlankPages = duckDbPages,
+                AccountMappingBlankPages = caseBPages,
             });
         sqlitePages.Release();
         var response = JsonSerializer.SerializeToElement(await running.WaitAsync(TimeSpan.FromSeconds(10)));
 
         Assert.Equal(["case-a"], sqlitePages.ProjectIds);
-        Assert.Empty(duckDbPages.ProjectIds);
+        Assert.Empty(caseBPages.ProjectIds);
         Assert.Equal("case-a", response.GetProperty("rows")[0].GetProperty("accountNumber").GetString());
 
         // 之後的新查詢才用案件 B 與它的資料庫組。
         await handler.HandleAsync(EmptyPayload(), CancellationToken.None);
-        Assert.Equal(["case-b"], duckDbPages.ProjectIds);
+        Assert.Equal(["case-b"], caseBPages.ProjectIds);
         Assert.Equal(["case-a"], sqlitePages.ProjectIds);
     }
 

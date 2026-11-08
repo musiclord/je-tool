@@ -7,14 +7,16 @@ using JET.Bridge;
 namespace Jet.Harness.TaiwanSme;
 
 /// <summary>
-/// 瀏覽器主機的台灣中小企業案件種子：同一份總帳與試算表建立三個案件。
-/// SQLite 案件存常用篩選條件的十項情境，DuckDB 案件存十項自訂情境，兩者都走完六個步驟並匯出底稿；
+/// 瀏覽器主機的台灣中小企業案件種子：同一份總帳與試算表建立三個 SQLite 案件。
+/// 第一個案件存常用篩選條件的十項情境，第二個存十項自訂情境，兩者都走完六個步驟並匯出底稿；
 /// 第三個案件只匯入檔案，停在欄位配對。比對結果寫在主機資料夾的 seed-report。
+/// 自訂情境案件原本建成 DuckDB 案件，隨 DuckDB 移除改成 SQLite（裁定 2026-11-06-08）；
+/// 既有的主機資料夾要用 --reset 重建，舊的 DuckDB 案件才會換掉。
 /// </summary>
 internal static class TaiwanSmeSeeder
 {
     public const string CommonCase = "台灣中小企業-常用篩選情境（SQLite）";
-    public const string CustomCase = "台灣中小企業-自訂情境（DuckDB）";
+    public const string CustomCase = "台灣中小企業-自訂情境（SQLite）";
     public const string MappingCase = "台灣中小企業-待配對（SQLite）";
 
     public static async Task<bool> EnsureSeededAsync(ActionDispatcher dispatcher, string projectsRoot, string runRoot)
@@ -66,7 +68,7 @@ internal static class TaiwanSmeSeeder
         var ok = await RunAsync(CommonCase, log => SmePipeline.RunCompleteAsync(
             dispatch, CommonCase, "TW-SME-COMMON", "sqlite", files, oracle, SmeScenarios.Common, log)).ConfigureAwait(false);
         ok &= await RunAsync(CustomCase, log => SmePipeline.RunCompleteAsync(
-            dispatch, CustomCase, "TW-SME-CUSTOM", "duckdb", files, oracle, SmeScenarios.Custom, log)).ConfigureAwait(false);
+            dispatch, CustomCase, "TW-SME-CUSTOM", "sqlite", files, oracle, SmeScenarios.Custom, log)).ConfigureAwait(false);
         ok &= await RunAsync(MappingCase, log => SmePipeline.RunMappingPendingAsync(
             dispatch, MappingCase, "TW-SME-MAP", files, log)).ConfigureAwait(false);
 

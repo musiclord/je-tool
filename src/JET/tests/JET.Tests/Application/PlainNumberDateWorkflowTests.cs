@@ -14,7 +14,7 @@ public sealed class PlainNumberDateWorkflowTests
 {
     public static IEnumerable<object[]> Cases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var field in new[] { "glDate", "approvalDate", "rde" }) yield return [provider, field];
     }
 

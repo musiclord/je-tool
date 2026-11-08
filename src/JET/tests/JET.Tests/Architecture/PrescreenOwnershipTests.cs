@@ -54,7 +54,6 @@ public sealed class PrescreenOwnershipTests
     [Theory]
     [InlineData("JET.Application.PrescreenRunHandler")]
     [InlineData("JET.Infrastructure.LocalPrescreenRunRepository")]
-    [InlineData("JET.Infrastructure.SqlServerPrescreenRunRepository")]
     public void ExistingProductionTypes_RemainPublicDuringTypedCutover(string name)
     {
         var type = ProductionAssembly.GetType(name);

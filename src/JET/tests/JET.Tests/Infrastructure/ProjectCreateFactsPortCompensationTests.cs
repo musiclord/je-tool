@@ -269,7 +269,7 @@ public sealed class ProjectCreateFactsPortCompensationTests
         RecordingProjectStore store,
         RecordingCreateBackend backend,
         RecordingLockService locks) =>
-        new(store, new NoOpDatabaseInitializer(), new EmptyProjectRegistry(), backend, locks);
+        new(store, backend, locks);
 
     private static ProjectCreatePlan Plan(string projectId, bool hasUserSuppliedProjectName = false)
     {
@@ -281,7 +281,7 @@ public sealed class ProjectCreateFactsPortCompensationTests
             "2026-01-01",
             "2026-12-31",
             null,
-            ProjectDocument.SqlServerDatabaseProvider,
+            ProjectDocument.DefaultDatabaseProvider,
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             sampleSeed: 123,
             // 目前版本建案一律寫入現行 INF 抽樣版本；版本 1 已改判為舊版 JET 案件，測試資料跟著用現行版本。
@@ -418,11 +418,6 @@ public sealed class ProjectCreateFactsPortCompensationTests
             return Task.FromResult(outcome);
         }
 
-        public Task RenewAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-
         public Task ReleaseAsync(
             string projectId,
             string principal,
@@ -439,53 +434,6 @@ public sealed class ProjectCreateFactsPortCompensationTests
             Held = false;
             return Task.CompletedTask;
         }
-
-        public Task<IReadOnlyList<ProjectLockInfo>> ListActiveAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProjectLockInfo>>([]);
-    }
-
-    private sealed class NoOpDatabaseInitializer : IProjectDatabaseInitializer
-    {
-        public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task<bool> DatabaseExistsAsync(
-            string projectId,
-            string databaseProvider,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(false);
-    }
-
-    private sealed class EmptyProjectRegistry : IProjectRegistry
-    {
-        public Task RegisterAsync(
-            ProjectDocument document,
-            string principal,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task UpdateDocumentAsync(ProjectDocument document, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task<bool> ExistsAsync(string projectId, CancellationToken cancellationToken) =>
-            Task.FromResult(false);
-
-        public Task<IReadOnlyList<RegisteredProject>> ListVisibleAsync(
-            string principal,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RegisteredProject>>([]);
-
-        public Task<RegisteredProject?> FindVisibleAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<RegisteredProject?>(null);
-
-        public Task TouchLastOpenedAsync(string projectId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task UnregisterAsync(string projectId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
     }
 
     private sealed class SyntheticCreateFailureException : Exception;

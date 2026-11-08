@@ -14,7 +14,6 @@ public sealed class FilterCompletenessQueryTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task DraftAndSavedQueries_BindPagesToDefinitionAndDataVersion(string provider)
     {
         using var host = new HandlerTestHost();

@@ -10,7 +10,6 @@ public sealed class PrescreenOptionalSourceWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OptionalSources_AreUnavailableUntilMappedWithoutBlockingOtherFilters(string provider)
     {
         using var host = new HandlerTestHost();

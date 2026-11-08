@@ -341,7 +341,8 @@ function listedReports(resultId) {
 async function runValidation(f, data, templateOutcome = { resolve: { disposition: 'kept', fileName: '科目配對.xlsx' } }) {
   f.click('[data-action="run-validate"]');
   const run = f.request('validateRun');
-  assert.deepEqual(plain(run.payload), {});
+  // 抽樣筆數改為可設定；首次失敗 20261106-130605159-4db39e263ddc490bb199a5b42411bb42。
+  assert.deepEqual(plain(run.payload), { sampleSize: 59 });
   run.resolve(data); await flush();
   const reports = f.request('exportValidationReports');
   assert.deepEqual(plain(reports.payload), { resultId: data.resultRef.resultId });
@@ -1097,6 +1098,42 @@ test('Excel mapping imports JET\'s own template sheet directly and never lists t
   assert.deepEqual(f.$('[data-account-mapping-sheet]').querySelectorAll('option').map(option => option.textContent), ['封面', '自動化工具-科目配對資訊']);
 });
 
+// 裁定 2026-11-06-12：使用者回報「用 Excel 配對」選到 Excel 正開著的檔案時，原本的錯誤只出現在收合的訊息面板，
+// 看起來像什麼都沒發生。現在照樣匯入，後端另外列出的開著檔案提醒放在托盤的匯入結果上方，訊息面板照舊另記一則。
+// 提醒跟著那一次匯入走：上游修改清掉科目配對後不再畫（2026-11-06 獨立複審找到的殘留），下一次乾淨的匯入後也拿掉。這是新增的測試。
+test('Excel mapping of a workbook held open by Excel puts the reminder above the results in the tray and drops it after a clean import', async () => {
+  const held = '檔案「合成科目配對.xlsx」正被其他程式開啟（例如 Excel）。JET 匯入的是這個檔案最後一次存檔的內容，尚未存檔的修改沒有匯入。';
+  const f = await openStep4({ validation: validationResult() });
+  f.click('[data-action="toggle-account-excel"]');
+  let imports = 0;
+  const importOnce = async openElsewhereWarnings => {
+    imports++;
+    f.click('[data-action="import-account-mapping"]'); await flush();
+    f.request('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成科目配對.xlsx', fileName: '合成科目配對.xlsx' }); await flush();
+    f.request('importInspectFile').resolve(inspected([WORKING_PAPER_SHEETS[2]])); await flush();
+    f.request('importAccountMappingFromFile').resolve({ ...mappingImported, batchId: 'am-held-' + imports, fileName: '合成科目配對.xlsx',
+      warnings: openElsewhereWarnings.slice(), openElsewhereWarnings }); await flush();
+  };
+  const reminders = () => f.$$('.excel-mapping [data-open-elsewhere="accountMapping"]');
+
+  await importOnce([held]);
+  const notices = reminders();
+  assert.deepEqual(notices.map(notice => notice.textContent), [held]);
+  assert.ok(notices[0].classList.contains('form-notice--warning'), 'an amber notice, not an error');
+  assert.equal(notices[0].getAttribute('role'), 'status');
+  assert.ok(f.state().messages.some(m => m.text === held && m.level === 'warn'), 'the message panel keeps the record');
+
+  // 重新匯入 GL 或 TB 等上游修改會清掉科目配對，托盤上已經沒有這次匯入的結果，提醒跟著不畫。
+  f.store.applyMutationEffects({ invalidatedResults: { accountMapping: true } }); await flush();
+  assert.equal(f.state().importState.accountMapping, null);
+  assert.deepEqual(reminders(), []);
+
+  await importOnce([held]);
+  assert.deepEqual(reminders().map(notice => notice.textContent), [held]);
+  await importOnce([]);
+  assert.deepEqual(reminders(), []);
+});
+
 // ---- 訊息面板的句子（2026-10-14 補上） ----
 // 前面的測試刻意不斷言訊息面板，等文字確認並改進產品後才補上。逐字比對的句子都註明出自 final-wording.json 或
 // final-wording-r3.json；後端原因一律用合成字串。這幾個測試另取代：
@@ -1244,4 +1281,13 @@ test('a rule row with details is one toggle that keeps its label and reports the
   toggle().dispatch('click');
   assert.equal(panel().hidden, true);
   assert.equal(toggle().getAttribute('aria-expanded'), 'false');
+});
+
+test('reliability sample count defaults to 59 and sends a chosen count', async () => {
+  const f = await openStep4();
+  const input = f.$('#inf-sample-size');
+  assert.equal(input.value, '59');
+  f.type('#inf-sample-size', '120');
+  f.click('[data-action="run-validate"]');
+  assert.deepEqual(plain(f.request('validateRun').payload), { sampleSize: 120 });
 });

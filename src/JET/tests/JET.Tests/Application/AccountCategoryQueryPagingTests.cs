@@ -9,7 +9,6 @@ public sealed class AccountCategoryQueryPagingTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CategoryQuery_IncludesDescendants_NotRolePeers_AndCombinesSearchWithPaging(string provider)
     {
         using var host = new HandlerTestHost();
@@ -72,7 +71,6 @@ public sealed class AccountCategoryQueryPagingTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CategoryQuery_ReportsMoreThan100_AndKeeps200RowPageLimit(string provider)
     {
         using var host = new HandlerTestHost();

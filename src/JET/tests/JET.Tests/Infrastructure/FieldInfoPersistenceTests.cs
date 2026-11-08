@@ -15,7 +15,6 @@ public sealed class FieldInfoPersistenceTests
 {
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task FreshSchema_Replace_PersistsSourceDefinitionsAcrossReopen(string provider)
     {
         using var root = new TempProjectRoot();
@@ -64,7 +63,6 @@ public sealed class FieldInfoPersistenceTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task Append_PreservesFirstOrdinalsAndMergesMaximaAndTypeConflict(string provider)
     {
         using var env = new Env(provider);
@@ -114,7 +112,6 @@ public sealed class FieldInfoPersistenceTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task Replace_EnumeratesRowsOnceAndRemovesPriorSourceDefinitions(string provider)
     {
         using var env = new Env(provider);
@@ -161,7 +158,6 @@ public sealed class FieldInfoPersistenceTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task Replace_LazyPlaceholderOutsideHeader_PreservesNativeObservation(string provider)
     {
         using var env = new Env(provider);
@@ -192,7 +188,6 @@ public sealed class FieldInfoPersistenceTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task Append_LateColumnMismatch_RollsBackSourceDefinitions(string provider)
     {
         using var env = new Env(provider);
@@ -230,7 +225,6 @@ public sealed class FieldInfoPersistenceTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task Append_WhenSourceDefinitionsAreMissing_RejectsInsteadOfBackfilling(string provider)
     {
         using var env = new Env(provider);
@@ -273,9 +267,7 @@ public sealed class FieldInfoPersistenceTests
     }
 
     private static ILocalProjectDatabase CreateDatabase(string provider, JetProjectFolder folder) =>
-        provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        new SqliteProjectDatabase(folder);
 
     private static ImportSourceDescriptor Source(string fileName) =>
         new($@"C:\fixtures\{fileName}", fileName, null, null, null);

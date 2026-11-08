@@ -61,16 +61,12 @@ public sealed class ProjectionCancellationTests
             ["custom"] = "value"
         });
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task CancellationBeforeCommit_RollsBackEntireProjection(string provider)
+    [Fact]
+    public async Task CancellationBeforeCommit_RollsBackEntireProjection()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
@@ -81,19 +77,6 @@ public sealed class ProjectionCancellationTests
             projectId,
             () => database.CreateConnection(projectId),
             string.Empty);
-    }
-
-    [SqlServerFact]
-    public async Task CancellationBeforeCommit_RollsBackEntireProjection_SqlServer()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        await AssertCancellationRollbackAsync(
-            new SqlServerImportRepository(project.Database),
-            new SqlServerGlRepository(project.Database),
-            project.ProjectId,
-            () => project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
 
     private static async Task AssertCancellationRollbackAsync(

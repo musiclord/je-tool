@@ -18,7 +18,6 @@ public sealed class ProjectFolderPortabilityTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ClosedProjectFolderCopiedToNewRoot_ResumesCompleteJourney(string databaseProvider)
     {
         using var sourceRoot = new TempProjectRoot();
@@ -84,7 +83,7 @@ public sealed class ProjectFolderPortabilityTests
         var target = new HandlerTestHost(shell, projectsRootPath: targetRoot.Path);
         try
         {
-            var list = await target.DispatchAsync("project.list");
+            var list = await target.DispatchAsync("project.listLocal");
             Assert.Contains(
                 list.GetProperty("projects").EnumerateArray(),
                 project => project.GetProperty("projectId").GetString() == projectId);
@@ -294,9 +293,7 @@ public sealed class ProjectFolderPortabilityTests
         }
 
         var folder = new JetProjectFolder(targetRoot);
-        ILocalProjectDatabase database = databaseProvider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateReadOnlyConnection(projectId);
         await connection.OpenAsync(CancellationToken.None);
 

@@ -317,7 +317,8 @@ test('flush waits several settle rounds and noDunderKeys rejects payloads carryi
 // 2026-10-14 整併時：fullAppFixture 與 bootFullApp 從 frontend-journey-picker、-export、-operations 收進模組。
 test('full app fixture runs init() through the real jet-api.js and boot stops at the local case list', async () => {
   const f = await support.bootFullApp([{ projectId: '合成甲案', clientName: '合成客戶甲', databaseProvider: 'sqlite' }]);
-  assert.deepEqual(f.posted.slice(0, 4).map(request => request.action), ['system.ping', 'system.databaseInfo', 'system.whoAmI', 'project.listLocal']);
+  // 啟動時不再查 SQL Server 設定（裁定 2026-11-06-08）；第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+  assert.deepEqual(f.posted.slice(0, 3).map(request => request.action), ['system.ping', 'system.whoAmI', 'project.listLocal']);
   assert.equal(f.sent('project.listLocal').length, 1, 'the first list read is the local one');
   assert.equal(f.sent('project.listOnline').length, 0);
   assert.equal(f.state().view, 'picker');

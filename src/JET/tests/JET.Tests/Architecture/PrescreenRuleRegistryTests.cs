@@ -89,7 +89,7 @@ public sealed class PrescreenRuleRegistryTests
     }
 
     [Fact]
-    public void Compilation_AndBothPrescreenRepositories_TakePredicatesFromTheRegisteredMap()
+    public void Compilation_AndThePrescreenRepository_TakePredicatesFromTheRegisteredMap()
     {
         var map = ReadProduct("AuditCore", "PrescreenRulePredicates.cs");
         foreach (var constant in RowTagConstants)
@@ -101,9 +101,10 @@ public sealed class PrescreenRuleRegistryTests
         Assert.DoesNotContain("PrescreenRuleKeys.PrepPeriodApproval =>", compilation, StringComparison.Ordinal);
         Assert.Contains("PrescreenRulePredicates", compilation, StringComparison.Ordinal);
 
+        // 原本也讀 SQL Server 的預篩選倉儲。只保留 SQLite 之後它已刪除，只檢查本機倉儲，方法名稱跟著改（裁定 2026-11-06-08）；
+        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
         var local = ReadProduct("Infrastructure", "Persistence", "Local", "LocalPrescreenRunRepository.cs");
-        var sqlServer = ReadProduct("Infrastructure", "Persistence", "SqlServer", "SqlServerPrescreenRunRepository.cs");
-        foreach (var repository in new[] { local, sqlServer })
+        foreach (var repository in new[] { local })
         {
             Assert.Contains("PrescreenRulePredicates", repository, StringComparison.Ordinal);
             foreach (var call in new[]

@@ -54,27 +54,11 @@ public sealed class CommonFilterPredicateProviderTests
     [InlineData("sqlite", SpecificPreparer)]
     [InlineData("sqlite", BlankDescription)]
     [InlineData("sqlite", SamePreparerAndApprover)]
-    [InlineData("duckdb", ManualRevenue)]
-    [InlineData("duckdb", SpecificPreparer)]
-    [InlineData("duckdb", BlankDescription)]
-    [InlineData("duckdb", SamePreparerAndApprover)]
     public async Task ReadyPredicate_LocalProvider_HitsExactRows(
         string provider,
         string condition)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
-
-        await AssertConditionAsync(fixture, condition);
-    }
-
-    [SqlServerTheory]
-    [InlineData(ManualRevenue)]
-    [InlineData(SpecificPreparer)]
-    [InlineData(BlankDescription)]
-    [InlineData(SamePreparerAndApprover)]
-    public async Task ReadyPredicate_SqlServer_HitsExactRows(string condition)
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(FixtureSql);
 
         await AssertConditionAsync(fixture, condition);
     }

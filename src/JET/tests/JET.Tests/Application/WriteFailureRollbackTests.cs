@@ -10,7 +10,6 @@ public sealed class WriteFailureRollbackTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ValidationSummaryInsertFailure_RollsBackNewSamplesAndPreservesPriorRunAndStaleState(string provider)
     {
         using var host = new HandlerTestHost();
@@ -34,7 +33,6 @@ public sealed class WriteFailureRollbackTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TbMappingWriteFailure_RollsBackProjectionDefinitionAndResultInvalidation(string provider)
     {
         using var host = new HandlerTestHost();
@@ -71,7 +69,6 @@ public sealed class WriteFailureRollbackTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OrphanInfSamples_AreNotEvidenceThatValidationCompleted(string provider)
     {
         using var host = new HandlerTestHost();
@@ -93,7 +90,7 @@ public sealed class WriteFailureRollbackTests
     internal static async Task<long> ScalarAsync(HandlerTestHost host, string id, string provider, string sql)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(id);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand(); command.CommandText = sql;

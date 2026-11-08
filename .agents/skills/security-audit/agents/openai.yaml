@@ -1,0 +1,7 @@
+interface:
+  display_name: "Security Audit"
+  short_description: "使用 Cloudflare 的安全檢查流程，記錄原始碼證據與待確認事項"
+  default_prompt: "Use $security-audit for this JET security task. Read docs/security/README.md for the project output location before starting a full audit."
+
+policy:
+  allow_implicit_invocation: true

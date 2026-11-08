@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>正式工作底稿：核對版本、寫暫存檔、發布新版本</title>
+  <title>匯出正式底稿</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>正式工作底稿：核對版本、寫暫存檔、發布新版本</h1>
+        <h1>匯出正式底稿</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 864 652" data-reader-fit="width-first" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
-        <title id="archify-diagram-title">正式工作底稿：核對版本、寫暫存檔、發布新版本</title>
+        <title id="archify-diagram-title">匯出正式底稿</title>
         <desc id="archify-diagram-description">由 Archify 產生的工作流程圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5657,24 +5657,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>輸出內容的依據</h3>
+          <h3>匯出內容</h3>
         </div>
         <ul>
-          <li>畫面送來驗證結果編號與選取的情境位置，已有篩選情境時也送情境版本；任一和資料庫不符就停止，不寫檔。還沒存篩選情境也能匯出。</li>
-          <li>底稿直接用儲存情境時存好的結果；結果標成過期時，才只重算這次選取的情境，未選的照原樣保留，所以匯出不會把整個案件的篩選結果標成最新。</li>
-          <li>檔名由 JET 依案件與時間產生，審計員不能指定任意輸出路徑或工作表。</li>
+          <li>核對驗證結果、情境版本與位置後，使用已存結果；過期時只重算選取的情境。尚未儲存情境仍可匯出。</li>
+          <li>JET 產生檔名與工作表，每次另存新版本，保留同名舊檔。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot slate"></div>
-          <h3>檔案與報告清單</h3>
+          <div class="card-dot amber"></div>
+          <h3>發布與失敗處理</h3>
         </div>
         <ul>
-          <li>暫存檔全部寫完後，改名前最後一次檢查取消；之後更新報告清單 reports.json 時不再接受取消。</li>
-          <li>正式底稿每次都用新檔名，遇到同名檔就拒絕，原檔保留。改名或更新清單失敗會嘗試還原；還原失敗時回錯誤，並保留備份或新檔。這套做法不能保證程式當機時也全部還原。</li>
-          <li>發布前先數同類的既有報告，發布成功後連同這次的報告寫進操作紀錄；寫入失敗記在支援日誌，並在回應附提醒。</li>
+          <li>暫存檔寫完後，改名前最後檢查取消，再更新 reports.json。此後不再接受取消。</li>
+          <li>發布失敗會嘗試還原；還原失敗保留備份或新檔，程式當機時不保證全部還原。操作紀錄失敗會附提醒。</li>
         </ul>
       </div>
     </div>

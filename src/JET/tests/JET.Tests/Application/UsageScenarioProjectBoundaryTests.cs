@@ -11,8 +11,6 @@ public sealed class UsageScenarioProjectBoundaryTests
     [Theory]
     [InlineData("sqlite", "periodStart")]
     [InlineData("sqlite", "periodEnd")]
-    [InlineData("duckdb", "periodStart")]
-    [InlineData("duckdb", "periodEnd")]
     public async Task MissingAuditDate_IsRejectedWithoutCreatingProject(string provider, string missing)
     {
         using var host = new HandlerTestHost();
@@ -37,7 +35,6 @@ public sealed class UsageScenarioProjectBoundaryTests
     // frontend description picker errors and action contract support.log.export.
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FailedProjectLoad_ExportsSafeSupportLogWithoutOpeningProject(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);

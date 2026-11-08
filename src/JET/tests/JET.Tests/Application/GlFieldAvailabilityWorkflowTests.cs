@@ -47,7 +47,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UnmappedCoreFields_AreRejectedForEveryComparison(string provider)
     {
         using var host = new HandlerTestHost();
@@ -82,7 +81,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AutoNumberedLineItemAndApprovalDateSameAsGlDate_CountAsMapped(string provider)
     {
         using var host = new HandlerTestHost();
@@ -104,7 +102,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavedScenarioUsingUnmappedField_IsListedForEditOnLoad(string provider)
     {
         using var host = new HandlerTestHost();
@@ -145,7 +142,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Step4AndStep5_GiveTheSameReasonForTheSameRule(string provider)
     {
         using var host = new HandlerTestHost();
@@ -198,7 +194,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MissingApprovalDate_ActivityCardsShowPostingSideAndSayOnlyGlDateWasChecked(string provider)
     {
         using var host = new HandlerTestHost();
@@ -219,7 +214,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MissingHolidayCalendar_HolidayCardCannotRunAndListsEveryReason(string provider)
     {
         using var host = new HandlerTestHost();
@@ -242,7 +236,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MissingHolidayCalendar_Step5HolidayConditionsAreDisabledWithTheStep4Reason(string provider)
     {
         // 裁定 2026-11-05-55：沒有國定假日清單時，第五步的假日條件比照未配對的欄位停用並寫原因，和第四步同一句；
@@ -281,7 +274,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MissingMakeupCalendar_Step5MakeupConditionsAreDisabledLikeHolidays(string provider)
     {
         // 裁定 2026-11-05-66：沒有補班日清單時，第五步的補班日條件比照國定假日停用並寫原因；上傳清單後就能預覽。
@@ -310,7 +302,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MissingApprovalDate_OutOfPeriodApprovalCannotRun_AndTheReportSaysNa(string provider)
     {
         using var host = new HandlerTestHost();
@@ -344,7 +335,6 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ApprovalDateSameAsGlDate_OutOfPeriodApprovalRuns_AndTheReportWritesTheCount(string provider)
     {
         using var host = new HandlerTestHost();
@@ -425,7 +415,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task ExecuteAsync(

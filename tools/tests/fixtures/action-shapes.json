@@ -1638,6 +1638,10 @@
             }
           },
           "mappingOnlyCount": "null|number",
+          "openElsewhereWarnings": {
+            "kind": "array",
+            "items": "string"
+          },
           "reportWarning": "null",
           "reports": {
             "kind": "array",
@@ -1774,6 +1778,10 @@
             }
           },
           "matchedPreparerCount": "number",
+          "openElsewhereWarnings": {
+            "kind": "array",
+            "items": "string"
+          },
           "reportWarning": "null",
           "reports": {
             "kind": "array",
@@ -1814,6 +1822,10 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
           }
         }
       }
@@ -1863,6 +1875,10 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          },
+          "openElsewhereWarnings": {
+            "kind": "array",
+            "items": "string"
           },
           "reportWarning": "null",
           "reports": {
@@ -1948,6 +1964,10 @@
               "validation": "boolean"
             }
           },
+          "openElsewhereWarnings": {
+            "kind": "array",
+            "items": "string"
+          },
           "reportWarning": "null",
           "reports": {
             "kind": "array",
@@ -1985,6 +2005,10 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
           }
         }
       }
@@ -2049,6 +2073,10 @@
               "validation": "boolean"
             }
           },
+          "openElsewhereWarnings": {
+            "kind": "array",
+            "items": "string"
+          },
           "reportWarning": "null",
           "reports": {
             "kind": "array",
@@ -2086,6 +2114,10 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          },
+          "warnings": {
+            "kind": "array",
+            "items": "string"
           }
         }
       }
@@ -2173,6 +2205,10 @@
               "prescreen": "boolean",
               "validation": "boolean"
             }
+          },
+          "openElsewhereWarnings": {
+            "kind": "array",
+            "items": "string"
           },
           "reportWarning": "null",
           "reports": {
@@ -3050,7 +3086,6 @@
         "kind": "object",
         "fields": {
           "clientName": "string",
-          "databaseProvider": "string",
           "periodEnd": "string",
           "periodStart": "string",
           "prepStartDate": "null|string",
@@ -3103,54 +3138,6 @@
         }
       }
     },
-    "project.heartbeat": {
-      "request": {
-        "kind": "object",
-        "fields": {}
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "ok": "boolean"
-        }
-      }
-    },
-    "project.list": {
-      "request": {
-        "kind": "object",
-        "fields": {}
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "online": {
-            "kind": "object",
-            "fields": {
-              "message": "string",
-              "principal": "string",
-              "reachable": "boolean"
-            }
-          },
-          "projects": {
-            "kind": "array",
-            "items": {
-              "kind": "object",
-              "fields": {
-                "clientName": "string",
-                "createdUtc": "string",
-                "currentStep": "number",
-                "databaseProvider": "string",
-                "lastOpenedUtc": "null|string",
-                "periodEnd": "string",
-                "periodStart": "string",
-                "projectCode": "string",
-                "projectId": "string"
-              }
-            }
-          }
-        }
-      }
-    },
     "project.listLocal": {
       "request": {
         "kind": "object",
@@ -3182,11 +3169,7 @@
     "project.load": {
       "request": {
         "kind": "object",
-        "optional": [
-          "databaseProvider"
-        ],
         "fields": {
-          "databaseProvider": "string",
           "projectId": "string"
         }
       },
@@ -3389,7 +3372,6 @@
               }
             }
           },
-          "heartbeatSeconds": "number",
           "importState": {
             "kind": "object",
             "fields": {
@@ -3894,6 +3876,7 @@
                       "kind": "object",
                       "fields": {
                         "accountNumber": "string",
+                        "approvalDate": "string",
                         "description": "null|string",
                         "glDate": "string",
                         "issues": {
@@ -3964,6 +3947,7 @@
               "infSamplingTest": {
                 "kind": "object",
                 "fields": {
+                  "requestedSampleSize": "number",
                   "sampleSize": "number",
                   "seed": "number",
                   "status": "string"
@@ -4407,6 +4391,7 @@
               "kind": "object",
               "fields": {
                 "accountNumber": "string",
+                "approvalDate": "string",
                 "description": "null|string",
                 "glDate": "string",
                 "voucherNumber": "string"
@@ -5326,35 +5311,6 @@
         }
       }
     },
-    "system.databaseInfo": {
-      "request": {
-        "kind": "object",
-        "fields": {}
-      },
-      "response": {
-        "kind": "object",
-        "fields": {
-          "sqlServer": {
-            "kind": "object",
-            "fields": {
-              "configured": "boolean",
-              "database": "string",
-              "databaseSizeMb": "number",
-              "detail": "string",
-              "edition": "string",
-              "engineEdition": "number",
-              "isExpress": "boolean",
-              "productName": "string",
-              "productVersion": "string",
-              "reachable": "boolean",
-              "schemaCount": "number",
-              "server": "string",
-              "summary": "string"
-            }
-          }
-        }
-      }
-    },
     "system.ping": {
       "request": {
         "kind": "object",
@@ -5377,17 +5333,20 @@
       "response": {
         "kind": "object",
         "fields": {
-          "numberSource": "string",
           "principal": "string",
-          "shortName": "string",
-          "userNumber": "null"
+          "shortName": "string"
         }
       }
     },
     "validate.run": {
       "request": {
         "kind": "object",
-        "fields": {}
+        "optional": [
+          "sampleSize"
+        ],
+        "fields": {
+          "sampleSize": "number"
+        }
       },
       "response": {
         "kind": "object",
@@ -5421,6 +5380,7 @@
                   "kind": "object",
                   "fields": {
                     "accountNumber": "string",
+                    "approvalDate": "null|string",
                     "description": "null|string",
                     "glDate": "string",
                     "issues": {
@@ -5491,6 +5451,7 @@
           "infSamplingTest": {
             "kind": "object",
             "fields": {
+              "requestedSampleSize": "number",
               "sampleSize": "number",
               "seed": "number",
               "status": "string"

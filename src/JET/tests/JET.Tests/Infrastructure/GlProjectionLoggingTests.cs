@@ -124,31 +124,4 @@ public sealed class GlProjectionLoggingTests
 
         AssertGlProjectionLog(diagnostic, "sqlite", expectedRows: 3);
     }
-
-    [SqlServerFact]
-    public async Task Projection_SqlServer_LogsOneShotSqlAndMilestone_WhenLocalDbAvailable()
-    {
-        await using var temp = await TempSqlServerProject.TryCreateAsync();
-        if (temp is null)
-        {
-            return; // 無 LocalDB → 跳過（mystery-guest 豁免）
-        }
-
-        var batch = (await new SqlServerImportRepository(temp.Database).ReplaceBatchAsync(
-            temp.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync(ThreeRows))], CancellationToken.None)).Batch;
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var glRepo = new SqlServerGlRepository(temp.Database, factory.CreateLogger<SqlServerGlRepository>());
-            var result = await glRepo.ProjectStagingToTargetAsync(
-                temp.ProjectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
-                postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
-                CancellationToken.None);
-            Assert.Equal(3, result.ProjectedRowCount);
-        }
-
-        AssertGlProjectionLog(diagnostic, "sqlServer", expectedRows: 3,
-            SqlServerProjectSchema.QualifierFor(temp.ProjectId));
-    }
 }

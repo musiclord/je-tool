@@ -4,10 +4,9 @@ using Microsoft.Extensions.Logging;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite 與 DuckDB 案件的操作紀錄包裝。本機案件寫操作紀錄失敗時不擋作業（裁定 2026-10-02-06）：
+/// 本機案件的操作紀錄包裝。本機案件寫操作紀錄失敗時不擋作業（裁定 2026-10-02-06）：
 /// 重新匯入、重新配對與匯出報告的主要資料已經提交，紀錄表損壞也照常回報成功，
 /// 失敗只記一筆不含訊息、路徑或 SQL 的支援日誌事件。取消照常往外丟。
-/// SQL Server 案件不使用這個包裝，行為維持原樣。
 /// 寫不進操作紀錄時回報成功並提醒（裁定 2026-10-19-19）：TryAppendAsync 回 false，重新匯入與重新配對據此附提醒；
 /// 確認配對前讀不到紀錄表時 TryRequiresMappingRecommitAuditAsync 回 null，重新配對同樣附提醒。
 /// </summary>

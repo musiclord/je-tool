@@ -53,7 +53,7 @@ public sealed class LocalResultStore(ILocalProjectDatabase database) : IResultSt
 
         await using var command = connection.CreateCommand();
         // generated_utc 記到 100 奈秒，兩次執行幾乎不可能同時；真的同時就以 result_id 當平手鍵，
-        // 和 SqlServerResultStore 相同，三種資料庫選到同一筆。
+        // 每次都選到同一筆。
         command.CommandText =
             $"""
             SELECT result_id, generated_utc, summary_json

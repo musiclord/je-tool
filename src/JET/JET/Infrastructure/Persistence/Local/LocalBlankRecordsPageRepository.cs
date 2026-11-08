@@ -40,7 +40,7 @@ public sealed class LocalBlankRecordsPageRepository(ILocalProjectDatabase databa
         command.AddWithValue("@pageSize", request.ClampedPageSize + 1);
 
         command.CommandText =
-            "SELECT voucher_number, account_number, gl_date, description, entry_id" + paging.SelectSuffix + " " +
+            "SELECT voucher_number, account_number, gl_date, description, entry_id, approval_date" + paging.SelectSuffix + " " +
             "FROM gl " +
             "WHERE " + predicate + paging.Predicate + " " +
             paging.OrderBy + " " + database.Dialect.LimitClause("@pageSize") + ";";
@@ -50,7 +50,7 @@ public sealed class LocalBlankRecordsPageRepository(ILocalProjectDatabase databa
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            buffer.Add(BlankRecordRowMapper.MapRow(reader, category), paging.HasSort ? reader.GetValue(5) : null);
+            buffer.Add(BlankRecordRowMapper.MapRow(reader, category), paging.HasSort ? reader.GetValue(6) : null);
         }
 
         return buffer.ToPage(request, paging, static row => row.EntryId, totalCount);

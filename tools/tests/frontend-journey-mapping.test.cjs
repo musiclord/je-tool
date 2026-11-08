@@ -1370,11 +1370,12 @@ test('mapping: required fields are tagged where they are chosen, and the grid li
   for (const [key, column] of Object.entries(DUAL)) f.choose('select[data-mapping-key="' + key + '"]', column);
   assert.equal(f.need('.map-required__title').textContent, '必填欄位皆已配對');
   assert.equal(f.$$('tr.mapping-table__row').filter(row => classes(row).includes('is-missing')).length, 0);
-  // 借方代碼與貸方代碼只要填一個，不算必填欄位，沒有「必填」標籤；沒填時由「尚需補齊」提醒。
+  // 借方代碼與貸方代碼共同標示至少填一個，保留單側即可確認的規則。
   const side = journey({ mode: 'side', draft: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo', amount: 'Amount', drCr: 'Side' } });
   for (const key of ['drCrDebitCode', 'drCrCreditCode']) {
     const row = side.need('input[data-mapping-key="' + key + '"]').closest('.mapping-table__row');
-    assert.ok(row.querySelector('.mapping-table__req-tag') === null, key + ' has no required tag');
+    // 使用者要求代碼有必填提示；首次失敗 20261106-130605159-4db39e263ddc490bb199a5b42411bb42。
+    assert.equal(row.querySelector('.mapping-table__req-tag').textContent, '借貸代碼至少填一個');
   }
   assert.match(side.problems(), /借方代碼|貸方代碼/);
 

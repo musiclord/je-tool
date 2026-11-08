@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "dataflow",
   "meta": {
-    "title": "匯入資料如何成為審計母體",
+    "title": "來源檔如何成為審計資料",
     "locale": "zh-TW",
     "output": "archify/intake-dataflow/intake-dataflow.html",
     "quality_profile": "showcase",
@@ -193,20 +193,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "兩次動作，各自一筆交易",
+      "title": "匯入與配對分開進行",
       "items": [
-        "匯入時，讀檔器逐列讀出資料，LocalImportRepository 分批寫成原始列 JSON，同一筆交易也寫入批次與欄位定義。",
-        "審計員確認配對後，LocalGlRepository 與 LocalTbRepository 從原始表逐列讀回，依配對轉換，再分批寫入標準化資料表。",
-        "畫面只送檔案路徑、讀檔選項與配對設定，不經手資料列。"
+        "匯入先儲存原始資料；審計員確認欄位配對後，才轉成標準 GL 與 TB。兩次操作各用一筆交易。",
+        "畫面只傳檔案與配對設定，資料列由後端處理。"
       ]
     },
     {
       "dot": "slate",
-      "title": "沒有畫出的部分",
+      "title": "重新匯入後",
       "items": [
-        "產生標準 GL 時，另寫 gl_control_total，以及自訂欄位的 gl_rde_field 與 gl_rde_value；細節見資料表關聯圖。",
-        "標準化 GL 表也存放不在測試母體內的分錄；查核期間與過帳狀態決定哪些分錄進入測試。",
-        "重新匯入會刪除標準化資料表的舊資料，並把已確認的配對移到上一版；要再確認一次配對，才會重新產生標準化資料。"
+        "舊的標準化資料會清除，原配對移到上一版。重新確認配對後再產生標準化資料。",
+        "GL 也保存未納入測試的分錄；查核期間與過帳狀態決定測試母體。"
       ]
     }
   ]

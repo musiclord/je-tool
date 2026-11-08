@@ -6,7 +6,8 @@ namespace JET.Domain;
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
 /// SchemaVersion 是案件設定檔的格式版本；不是 <see cref="CurrentSchemaVersion"/> 的案件是舊版 JET 建立的，讀取時明確拒絕，
 /// 請審計員刪除後重建（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
-/// DatabaseProvider 標示會計資料所在引擎（"sqlite"／"duckdb" 本地檔；"sqlServer" 單庫）；目前版本的設定檔一定寫明，缺欄位是設定檔損壞。
+/// DatabaseProvider 標示會計資料所在的資料庫；目前版本只支援 "sqlite"（裁定 2026-11-06-08），設定檔一定寫明，缺欄位是設定檔損壞。
+/// 以前建立的 "duckdb" 與 "sqlServer" 案件，案件清單不列出、JET 也不動它們的資料夾（裁定 2026-11-06-09）。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；
 /// SampleSeedVersion 是 INF 抽樣演算法版本。兩者由建案寫入，缺任一欄位或版本不對都是設定檔損壞，
 /// 讀取 project.json 時明確拒絕，不回退固定種子或舊排序法。
@@ -41,9 +42,6 @@ public sealed record ProjectDocument(
     /// </summary>
     public const int CurrentSchemaVersion = 2;
     public const string DefaultDatabaseProvider = "sqlite";
-    public const string SqlServerDatabaseProvider = "sqlServer";
-    /// <summary>第二本地引擎（每專案一個 jet.duckdb；與 sqlite 共用本地 repository 家族與可攜性語意）。</summary>
-    public const string DuckDbDatabaseProvider = "duckdb";
 
     /// <summary>INF 抽樣 seed 的排他上界（模數 2147483647）。種子取 [1, 2147483646]。</summary>
     public const long SampleSeedExclusiveUpperBound = 2147483647;
@@ -63,7 +61,7 @@ public sealed record ProjectDocument(
 
     /// <summary>
     /// 新案件的純 Domain policy。Clock、entropy、provider 選擇、名稱、路徑、
-    /// schema、registry、lock 與 session 由外層提供；本方法只套用既有
+    /// schema、lock 與 session 由外層提供；本方法只套用既有
     /// period／money／date／sample defaults，不新增期間先後等新規則。
     /// </summary>
     internal static ProjectDocument CreateNew(
@@ -126,11 +124,19 @@ public interface IProjectStore
     Task DeleteAsync(string projectId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// 設定檔讀不通時，只為了刪除案件判斷它用哪一種本機資料庫：原始設定檔有記錄就照記錄，沒有記錄時看資料夾裡的資料庫檔。
-    /// 是 SQL Server 或判斷不出來時回 null。
+    /// 設定檔讀不通時，只為了刪除案件判斷它是不是 SQLite 案件：原始設定檔有記錄就照記錄，沒有記錄時看資料夾裡有沒有資料庫檔。
+    /// 記錄的是其他資料庫或判斷不出來時回 null。
     /// </summary>
     Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
         => Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// 這個名稱的資料夾是不是以前建立的 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
+    /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。這類案件不列在案件清單，JET 也不動它的資料夾
+    /// （裁定 2026-11-06-09）；案件清單與建案撞到同名時都用這一個判斷。判斷不出來時回 false。
+    /// </summary>
+    Task<bool> IsRetiredProviderCaseAsync(string projectId, CancellationToken cancellationToken)
+        => Task.FromResult(false);
 
     /// <summary>
     /// 建案完成、資料庫已建好之後呼叫，刪掉和設定檔一起發布的建案中標記（裁定 2026-11-05-72 要求的穩健初始化）。

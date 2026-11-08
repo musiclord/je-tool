@@ -375,11 +375,6 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
     /// <inheritdoc />
     public IProviderSqlDialect Dialect => SqliteDialect.Instance;
 
-    /// <summary>SQLite:jet.db 檔是否存在(同名資料夾的唯一性由 IProjectStore.FindAsync 把關,此處為防禦縱深)。
-    /// databaseProvider 由介面統一傳入;本實作即 sqlite 路徑,檔案位置由 projectId 唯一決定,不需分流。</summary>
-    public Task<bool> DatabaseExistsAsync(string projectId, string databaseProvider, CancellationToken cancellationToken)
-        => Task.FromResult(File.Exists(folder.GetDatabasePath(projectId)));
-
     public DbConnection CreateConnection(string projectId)
     {
         var databasePath = folder.GetDatabasePath(projectId);

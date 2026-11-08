@@ -7,15 +7,12 @@ namespace Jet.GuiDriver;
 
 internal static partial class GuiScenarios
 {
-    // databaseProvider 是建案表單「資料儲存方式」的值（create-step.js）：case-to-working-paper 用預設的 sqlite，
-    // case-to-working-paper-duckdb 在同一份表單改選 duckdb，其餘經過完全相同。
+    // 建案表單不再有「資料儲存方式」，一律建立 SQLite 案件（裁定 2026-11-06-08）。原本另有 case-to-working-paper-duckdb
+    // 在同一份表單改選 DuckDB，其餘經過完全相同，隨 DuckDB 一起移除；還原點是提交 7e88b7b。
     private static async Task ExecuteCaseToWorkingPaperAsync(CdpSession cdp, OwnedGuiRun ownedRun, Process process,
-        GuiRunner.UiProbe initialUi, GuiRunOutcome outcome, string databaseProvider, CancellationToken ct)
+        GuiRunner.UiProbe initialUi, GuiRunOutcome outcome, CancellationToken ct)
     {
-        if (databaseProvider is not ("sqlite" or "duckdb"))
-        {
-            throw new GuiInfrastructureException("case_journey_provider_invalid");
-        }
+        const string databaseProvider = "sqlite";
         Task Click(string selector) => ClickRecoveryControlAsync(cdp, process, selector, outcome, ct);
         Task Choose(string selector, string value) => ChooseOptionAsync(cdp, process, selector, value, outcome, ct);
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
@@ -29,23 +26,13 @@ internal static partial class GuiScenarios
         var name = "CaseJourney-" + ownedRun.RunId[..12];
         form = await FillTextFieldAsync(cdp, process, form, CreateField.ProjectName, name, outcome, ct);
         form = await FillDateFieldAsync(cdp, process, form, CreateField.PeriodStart, "2025-01-01", outcome, ct);
-        form = await FillDateFieldAsync(cdp, process, form, CreateField.PeriodEnd, "2025-12-31", outcome, ct);
-        if (form.DatabaseProvider.Value != "sqlite")
-        {
-            throw new GuiCheckException("create_form_default_provider_invalid");
-        }
-        if (databaseProvider != "sqlite")
-        {
-            await Choose("[data-bind=create-form] [name=databaseProvider]", databaseProvider);
-            await Check("document.querySelector('[data-bind=create-form] [name=databaseProvider]').value===" +
-                JsonSerializer.Serialize(databaseProvider));
-        }
+        await FillDateFieldAsync(cdp, process, form, CreateField.PeriodEnd, "2025-12-31", outcome, ct);
         await Click("[data-bind=create-form] [type=submit]");
         await WaitForCreatedProjectAsync(cdp, process, name, ct);
         var id = (await cdp.EvaluateAsync("window.JetStore.getState().project.projectId", ct)).GetString()!;
         await Check("!state.importState.gl && !state.importState.tb && !state.mapping.gl.committed && !state.results.validate && state.filter.savedScenarios.length===0" +
             " && state.project.databaseProvider===" + JsonSerializer.Serialize(databaseProvider));
-        // 案件資料夾裡只有選定種類的資料庫檔（JetProjectFolder.DatabaseFileName、DuckDbProjectDatabase.DatabaseFileName）。
+        // 案件資料夾裡只有 SQLite 的資料庫檔 jet.db（JetProjectFolder.DatabaseFileName），也沒有原本 DuckDB 案件用的 jet.duckdb。
         var projectsRoot = Path.GetFullPath(ownedRun.ProjectsRootPath);
         var projectRoot = Path.GetFullPath(Path.Combine(projectsRoot, id));
         OwnedGuiRun.RejectReparsePoint(projectsRoot);
@@ -54,9 +41,7 @@ internal static partial class GuiScenarios
         {
             throw new GuiCheckException("case_journey_directory_missing");
         }
-        var expectedDatabase = databaseProvider == "duckdb" ? "jet.duckdb" : "jet.db";
-        var otherDatabase = databaseProvider == "duckdb" ? "jet.db" : "jet.duckdb";
-        if (!File.Exists(Path.Combine(projectRoot, expectedDatabase)) || File.Exists(Path.Combine(projectRoot, otherDatabase)))
+        if (!File.Exists(Path.Combine(projectRoot, "jet.db")) || File.Exists(Path.Combine(projectRoot, "jet.duckdb")))
         {
             throw new GuiCheckException("case_journey_database_file_invalid");
         }

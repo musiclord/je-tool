@@ -8,7 +8,6 @@ public sealed class MoneyTailFieldConditionsTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MoneyTails_CoreAndExtraKeepLeadingZerosLengthAndBlankChoice(string provider)
     {
         const string extraId = "rde.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";

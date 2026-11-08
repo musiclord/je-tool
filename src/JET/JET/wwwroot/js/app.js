@@ -10,15 +10,9 @@
   var Store = global.JetStore;
   var Ui = global.JetUi;
 
-  // 單庫容量預警門檻（MB；純前端呈現、可後調）。system.databaseInfo 回報的整庫大小（databaseSizeMb，
-  // 含所有專案 schema 與交易記錄檔）超過此值時，於訊息面板補一則 warn 提示 DBA 留意容量／規劃備份與清理。
-  // 8192 MB ≈ 已淘汰的 SQL Server Express 10 GB 上限的 80%，作為單庫「偏大」的軟參考點；零商業邏輯。
-  var DB_CAPACITY_WARN_MB = 8192;
-
-  // 取消鈕只追蹤會實際形成長作業的 request；背景 heartbeat／log／query 即使在 busy
+  // 取消鈕只追蹤會實際形成長作業的 request；背景 log／query 即使在 busy
   // 期間送出，也不能覆寫目前長作業的 requestId。
   var CANCELLABLE_ACTIONS = {
-    'project.list': true,
     'project.load': true,
     'import.inspectFile': true,
     'import.previewFile': true,
@@ -410,7 +404,7 @@
 
   // 右上角身分徽章（原「主機連線」狀態徽章）。狀態序：
   // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分時顯示「操作人員：{短名}」。
-  // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法；畫面不露出系統用詞，裁定 2026-10-19-04）。title 帶完整 principal 與編號來源說明。
+  // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法；畫面不露出系統用詞，裁定 2026-10-19-04）。title 帶完整 principal。
   function renderIdentityBadge(state) {
     var badge = Ui.$('user-identity');
     if (!badge) { return; }
@@ -437,17 +431,9 @@
     badge.title = title;
   }
 
-  // 身分徽章 title：principal 全稱＋編號來源一句（online／cached／unavailable 三態）。
+  // 身分徽章 title：principal 全稱。
   function identityTitle(user) {
-    var note;
-    if (user.numberSource === 'online') {
-      note = '編號已向線上資料庫確認';
-    } else if (user.numberSource === 'cached') {
-      note = '編號來自本機快取（目前離線）';
-    } else {
-      note = '尚未取得使用者編號（未設定或無法連線線上資料庫）';
-    }
-    return '身分：' + user.principal + '，' + note;
+    return '身分：' + user.principal;
   }
 
   /* ---- 專案選擇畫面 ----------------------------------------------------- */
@@ -457,17 +443,14 @@
     '<svg viewBox="0 0 256 256" width="16" height="16" fill="currentColor" aria-hidden="true">' +
     '<path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16ZM96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Zm48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Z"></path></svg>';
 
+  // 目前只支援 SQLite 案件（裁定 2026-11-06-08），清單也只列 SQLite 案件。
   function providerText(provider) {
     if (!provider) { return '資料庫種類尚未確認'; }
-    if (provider === 'sqlServer') { return 'SQL Server'; }
-    if (provider === 'duckdb') { return 'DuckDB'; }
     return 'SQLite';
   }
 
   function providerClass(provider) {
     if (!provider) { return ''; }
-    if (provider === 'sqlServer') { return 'project-provider--sqlserver'; }
-    if (provider === 'duckdb') { return 'project-provider--duckdb'; }
     return 'project-provider--sqlite';
   }
 
@@ -483,34 +466,8 @@
     });
   }
 
-  // 同步狀態徽章（小、低噪，中性灰）。syncStatus 僅 sqlServer 條目有；synced 或缺欄位＝不加徽章。
-  // unreachable = online.reachable === false（失聯時 localOnly 只標「本機快取」，不斷言伺服器上找不到）。
-  function syncBadgeHtml(p, unreachable) {
-    var label;
-    if (p.syncStatus === 'serverOnly') {
-      label = '僅伺服器';
-    } else if (p.syncStatus === 'localOnly') {
-      label = unreachable ? '本機快取' : '本機快取（伺服器上找不到）';
-    } else if (p.syncStatus === 'noAccess') {
-      label = '無存取權';
-    } else {
-      return '';
-    }
-    return '<span class="sync-badge">' + Ui.esc(label) + '</span>';
-  }
-
-  // 租約鎖徽章：有 lock 的線上案件顯示「🔒 由 {持鎖者} 開啟中」；無鎖不加。
-  // 純鏡像後端 project.list 的 lock 欄，不做前端擋阻——點開仍走 project.load，被鎖與否以後端權威為準。
-  function lockBadgeHtml(p) {
-    if (!p.lock || !p.lock.lockedBy) { return ''; }
-    var by = p.lock.lockedBy;
-    var shortBy = by.indexOf('\\') >= 0 ? by.slice(by.lastIndexOf('\\') + 1) : by;
-    var title = '由 ' + by + '（' + (p.lock.machineName || '') + '）於 ' + (p.lock.lockedUtc || '') + ' 開啟中';
-    return '<span class="lock-badge" title="' + Ui.esc(title) + '">🔒 由 ' + Ui.esc(shortBy) + ' 開啟中</span>';
-  }
-
-  // 單列專案卡片（線上／本地兩區共用；provider 小徽章保留，sqlServer 條目再依 syncStatus 加同步徽章、依 lock 加鎖徽章）。
-  function projectRowHtml(p, unreachable) {
+  // 單列專案卡片（provider 小徽章保留）。
+  function projectRowHtml(p) {
     var displayName = p.projectId;
     var clientName = p.clientName
       ? '<span class="project-row__entity">' + Ui.esc(p.clientName) + '</span>'
@@ -521,7 +478,7 @@
     return (
       '<div class="project-row" data-project-id="' + Ui.esc(p.projectId) + '" data-motion-key="' + Ui.esc('project-' + p.projectId) + '">' +
         '<button type="button" class="project-row__open" data-action="picker-open" data-project-id="' +
-          Ui.esc(p.projectId) + '" data-project-provider="' + Ui.esc(p.databaseProvider) + '" ' +
+          Ui.esc(p.projectId) + '" ' +
           'aria-label="開啟案件 ' + Ui.esc(displayName) + '">' +
           '<span class="project-row__main">' +
             '<span class="project-row__title">' + Ui.esc(displayName) + '</span>' +
@@ -533,15 +490,12 @@
               // 後端的原因已是完整句子，不再加前綴（裁定 2026-10-19-23）。
               (p.loadError ? '<span class="project-row__load-error" role="status">' +
                 Ui.esc(p.loadError.message || '案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。') + '</span>' : '') +
-              syncBadgeHtml(p, unreachable) +
-              lockBadgeHtml(p) +
               '<span class="project-row__when">' + Ui.esc(pickerWhen(p)) + '</span>' +
             '</span>' +
           '</span>' +
         '</button>' +
         '<button type="button" class="project-row__delete" data-action="picker-delete" ' +
           'data-project-id="' + Ui.esc(p.projectId) + '" data-project-name="' + Ui.esc(displayName) + '" ' +
-          'data-project-provider="' + Ui.esc(p.databaseProvider) + '" ' +
           'title="刪除案件" aria-label="刪除案件">' + ICON_TRASH + '</button>' +
       '</div>'
     );
@@ -588,57 +542,16 @@
     var container = Ui.$('project-picker');
     if (!container) { return; }
 
-    // 身分註記（whoAmI）走 setCurrentUser、只 notify 不 bump contentVersion，故把它併入 memo key，
-    // 讓 whoAmI 晚於首次 picker 繪製抵達時仍能重繪、把註記從 online.principal 升級為「短名，U編號」。
-    var user = state.currentUser;
-    var identityKey = user ? (user.shortName + '/' + user.userNumber) : '';
     var feedbackContext = state.pickerFeedbackContext || {};
-    var key = 'picker|' + state.contentVersion + '|' + identityKey + '|' + (state.pickerFeedback || '') + '|' +
+    var key = 'picker|' + state.contentVersion + '|' + (state.pickerFeedback || '') + '|' +
       state.pickerFeedbackLevel + '|' + state.devToolsEnabled + '|' + (state.pickerSupportLogPath || '') + '|' +
       (feedbackContext.projectId || '') + '|' + (feedbackContext.correlationId || '') + '|' +
       (feedbackContext.devExportedPath || '');
     if (key === lastPickerKey) { return; }
     lastPickerKey = key;
 
-    // online=null 表示目前只有 project.listLocal snapshot、尚未手動同步；此時不能宣稱線上無案件。
-    var onlineNotSynced = state.online === null;
-    var online = state.online || {};
-    var reachabilityKnown = typeof online.reachable === 'boolean';
-    var unreachable = online.reachable === false;
-
-    // 分組依據：databaseProvider（sqlServer→線上、其餘→本地）。syncStatus 只影響 sqlServer 條目的徽章。
-    var onlineRows = [];
-    var localRows = [];
-    state.projects.forEach(function (p) {
-      if (p.databaseProvider === 'sqlServer') {
-        onlineRows.push(projectRowHtml(p, unreachable));
-      } else {
-        localRows.push(projectRowHtml(p, unreachable));
-      }
-    });
-
-    // 線上區標題右註記：僅在可連線且身分已知時顯示；失聯改用警示條、reachable 未知則不顯示。
-    // 有 whoAmI 且含編號時用「短名，U編號」，否則沿用 project.list 的 online.principal。
-    var identityLabel = (user && user.userNumber != null)
-      ? Ui.esc(user.shortName) + '（U' + user.userNumber + '）'
-      : (online.principal ? Ui.esc(online.principal) : '');
-    var principalNote = (reachabilityKnown && !unreachable && identityLabel)
-      ? '<span class="picker-section__note">以 ' + identityLabel + ' 身分檢視</span>'
-      : '';
-
-    // 失聯降級：不擋操作的「需要注意」提示，用琥珀色（裁定 2026-10-09-03）；此時線上區列的是本機快取條目。
-    // 後端 message 與這句同義，不再接在後面重複一次。
-    var onlineAlert = unreachable
-      ? '<div class="form-notice form-notice--warning picker-section__alert" data-motion-key="picker-online-alert" role="status">' +
-          (onlineRows.length ? '目前連不上線上案件，下面先列出這台電腦上次記下的清單。' : '目前連不上線上案件。') + '</div>'
-      : '';
-
-    // 未同步、同步後確實無案件、同步失聯是三個不同狀態；失聯以警示條代替空狀態句。
-    var onlineBody = onlineRows.length
-      ? onlineRows.join('')
-      : (onlineNotSynced
-          ? '<p class="picker-section__empty" data-motion-key="online-not-synced">尚未同步線上案件。</p>'
-          : (unreachable ? '' : '<p class="picker-section__empty" data-motion-key="online-empty">目前沒有你可存取的線上案件。</p>'));
+    // 後端只列 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件不列出（裁定 2026-11-06-09）。
+    var localRows = state.projects.map(function (p) { return projectRowHtml(p); });
     var localBody = localRows.length
       ? localRows.join('')
       : '<p class="picker-section__empty" data-motion-key="local-empty">尚無本地案件。</p>';
@@ -647,8 +560,8 @@
     var motion = contentMotion(container, pickerShownBefore);
     container.innerHTML =
       // 每個按鈕放在它作用的內容旁邊，原本底部一排按鈕看不出用途（裁定 2026-10-20-04）：
-      // 「新增案件」不屬於任何一區，放在標題右側；「同步線上案件」與「重新整理本機」只影響各自那一區，放在區標題右側。
-      // 本機案件排在線上資料庫上面，標題下不寫重述標題的說明句（裁定 2026-11-05-06）。
+      // 「新增案件」放在標題右側；「重新整理本機」放在區標題右側。標題下不寫重述標題的說明句（裁定 2026-11-05-06）。
+      // 線上資料庫那一區隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
       '<div class="picker-panel">' +
         '<div class="picker-panel__head">' +
           '<div class="picker-panel__heading">' +
@@ -665,17 +578,6 @@
             '</div>' +
           '</div>' +
           '<div class="picker-section__list" data-motion-list="local">' + localBody + '</div>' +
-        '</section>' +
-        '<section class="picker-section">' +
-          '<div class="picker-section__head">' +
-            '<h3 class="picker-section__title">線上資料庫（SQL Server）</h3>' +
-            '<div class="picker-section__tools">' +
-              principalNote +
-              '<button type="button" class="btn btn--tiny" data-action="picker-sync-online">同步線上案件</button>' +
-            '</div>' +
-          '</div>' +
-          onlineAlert +
-          '<div class="picker-section__list" data-motion-list="online">' + onlineBody + '</div>' +
         '</section>' +
       '</div>' +
       pickerFooterHtml(state) +
@@ -709,9 +611,7 @@
     var previewRetry = modal && modal.querySelector('[data-action="delete-preview-retry"]');
 
     function deleteDetail(target, countText) {
-      var scope = target.provider === 'sqlServer'
-        ? '將從伺服器永久刪除此案件，影響所有使用者。' : '將永久刪除此案件的資料庫。';
-      return Ui.esc(countText + scope + '案件資料夾及其中其他檔案也會一併刪除，無法復原。');
+      return Ui.esc(countText + '將永久刪除此案件的資料庫。案件資料夾及其中其他檔案也會一併刪除，無法復原。');
     }
 
     function loadDeletePreview(target) {
@@ -770,8 +670,7 @@
       var activate = isNew
         ? openCreate
         : function () {
-          // 資料庫種類只讓後端判斷本機找不到資料夾時要不要查線上登錄。
-          Ui.openProject(row.getAttribute('data-project-id'), row.getAttribute('data-project-provider'));
+          Ui.openProject(row.getAttribute('data-project-id'));
         };
 
       row.addEventListener('click', activate);
@@ -784,7 +683,6 @@
         pendingDelete = {
           id: btn.getAttribute('data-project-id'),
           name: btn.getAttribute('data-project-name'),
-          provider: btn.getAttribute('data-project-provider'),
           trigger: btn
         };
         if (modal) {
@@ -799,7 +697,6 @@
     });
 
     container.querySelector('[data-action="picker-refresh-local"]').addEventListener('click', Ui.loadProjects);
-    container.querySelector('[data-action="picker-sync-online"]').addEventListener('click', Ui.syncOnlineProjects);
 
     // 一般工具：不帶 projectId，後端匯出全部去識別紀錄；結果寫在按鈕旁，案件清單上原本的提示不動。
     var exportSupport = container.querySelector('[data-action="picker-support-export"]');
@@ -1186,6 +1083,7 @@
       var toggle = function () {
         var body = Store.getState().stepFlowCollapsed ? null : container.querySelector('.stepflow-item--current .stepflow-item__body');
         if (body && global.JetMotion) {
+          if (body.hasAttribute('data-motion-folding')) { global.JetMotion.unfold(body); return; }
           global.JetMotion.fold(body, function () { Store.setStepFlowCollapsed(true); });
           return;
         }
@@ -1416,7 +1314,6 @@
     var container = Ui.$('content');
     if (!container) { return; }
     if (current.id === 'create' && Ui.refreshCreateIdentity) { Ui.refreshCreateIdentity(container, state); }
-    if (current.id === 'create' && Ui.refreshCreateDatabaseAvailability) { Ui.refreshCreateDatabaseAvailability(container, state); }
     var composition = bindContentComposition(container);
     if (composition.target) {
       if (composition.target.isConnected && document.activeElement === composition.target && container.contains(composition.target) &&
@@ -3415,7 +3312,7 @@
       var animation = element.animate(frames, {
         duration: duration, delay: lead, easing: 'linear', fill: to === 0 ? 'both' : (lead ? 'backwards' : 'none')
       });
-      var record = { element: element, segment: segment, start: segment.start, duration: duration, animation: animation };
+      var record = { element: element, segment: segment, start: segment.start, duration: duration, animation: animation, size: size, delay: lead };
       state[key] = record;
       element.__jetMotionRecord = record;
       animation.onfinish = function () {
@@ -4442,9 +4339,18 @@
     function progress(element) {
       var record = element && element.__jetMotionRecord;
       if (!record || record.element !== element) { return null; }
-      var at = motionNow();
-      if (at - record.start >= record.duration) { return null; }
-      return { presence: presenceAt(record, at), velocity: speedAt(record, at), to: record.segment.to };
+      // WAAPI 可能到下一個畫面週期才起跑；反向時讀實際播放時間與畫面大小，不能只用呼叫時鐘推算。
+      var elapsed = typeof record.animation.currentTime === 'number'
+        ? Math.max(record.animation.currentTime - (record.delay || 0), 0) : motionNow() - record.start;
+      if (elapsed >= record.duration) { return null; }
+      var at = record.start + elapsed;
+      var presence = presenceAt(record, at);
+      if (record.size) {
+        var axis = record.size.inline ? 'width' : 'height';
+        var natural = record.size.natural[axis];
+        if (natural > 0) { presence = Math.min(Math.max(element.getBoundingClientRect()[axis] / natural, 0), 1); }
+      }
+      return { presence: presence, velocity: speedAt(record, at), to: record.segment.to };
     }
 
     // 已經從畫面上拿掉的舊元素放進 holder 的最後一格（整列寬），收起來再拿掉；用在換步驟時原本那一步的內容收回它的那一列。
@@ -4473,15 +4379,31 @@
     leave.count = 0;
 
     // 先把一整塊收回去，收完才交給 done 換畫面，用在收合目前的步驟：內容收回標題，再換成一行摘要。
-    // 收的期間不能按；再按一次開關不會重來。不能播動態時直接 done。
+    // 收的期間內容不能按，但標題仍可用 unfold 反向展開。不能播動態時直接 done。
     function fold(element, done) {
       if (!element || !element.isConnected || !motionAllowed() || !canAnimate() || pageHidden()) { done(); return; }
       if (element.hasAttribute('data-motion-folding')) { return; }
+      var current = progress(element);
+      if (element.__jetMotionRecord) { element.__jetMotionRecord.animation.cancel(); }
       element.setAttribute('data-motion-folding', '');
       element.inert = true;
-      run(element.parentElement || element, '__fold' + (++fold.count), element, measure(element), 1, 0, { done: done });
+      run(element.parentElement || element, '__fold' + (++fold.count), element, measure(element), current ? current.presence : 1, 0,
+        { velocity: current ? current.velocity : 0, done: done });
     }
     fold.count = 0;
+
+    // 再按一次標題就從收合途中的位置與速度展開，取消舊回呼，避免放開後又被收起。
+    function unfold(element) {
+      if (!element || !element.hasAttribute('data-motion-folding')) { return; }
+      var current = progress(element);
+      if (element.__jetMotionRecord) { element.__jetMotionRecord.animation.cancel(); }
+      element.removeAttribute('data-motion-folding');
+      element.inert = false;
+      if (!current || !element.isConnected || !motionAllowed() || !canAnimate() || pageHidden()) { return; }
+      run(element.parentElement || element, '__unfold' + (++unfold.count), element, measure(element), current.presence, 1,
+        { velocity: current.velocity });
+    }
+    unfold.count = 0;
 
     // 頁籤底下原地切換的窗格：窗格自己淡入，裡面原本就打開的展開區保持原樣，不因為窗格重新出現而再長一次。
     function setShown(element, visible) {
@@ -4573,7 +4495,7 @@
 
     return {
       findLive: findLiveElement,
-      begin: begin, play: play, morph: morph, still: still, enter: enter, fold: fold, setShown: setShown, swap: swap,
+      begin: begin, play: play, morph: morph, still: still, enter: enter, fold: fold, unfold: unfold, setShown: setShown, swap: swap,
       dismiss: dismiss, expect: expect, removing: removing, shake: shakeNow, leave: leave, progress: progress, allowed: motionAllowed,
       // 加入的條件正由標籤帶過去時，中欄的捲動交給標籤（見下面的 bindArrival），移焦點的一方不要再瞬間捲過去。
       carries: function (element) { return !!carried && !!element && carried.has(element); }
@@ -5049,28 +4971,7 @@
         bridgeProbeSettled = true;
         Store.setBridgeReady(true);
         Store.setDevToolsEnabled(ping && ping.devToolsEnabled === true);
-        // 背景查 SQL Server 後端身分，有設定時在訊息面板補一則（連到哪台、能否使用線上案件）。
-        // 不阻塞專案載入——伺服器慢／不可達時 connect timeout 可能達數秒。
-        global.JetApi.systemDatabaseInfo({}).then(function (info) {
-          var s = info && info.sqlServer;
-          // 建立案件的 SQL Server 選項只在確定沒有設定時停用；查詢失敗或還沒回來時維持可選。
-          if (s && typeof s.configured === 'boolean') { Store.setSqlServerConfigured(s.configured); }
-          // 沒有設定 SQL Server 時後端回空摘要，不加訊息（裁定 2026-10-13-28）。
-          if (s && s.summary) {
-            // 只有連不上 SQL Server 是需要注意：本機案件照常可用，不擋人。連上時不論版本都是一般訊息。
-            Store.addMessage(s.summary, (s.configured && !s.reachable) ? 'warn' : 'info');
-            // 容量提醒（純呈現）：整庫大小超過前端門檻時補一則一般訊息，審計員不需要採取行動。
-            // schemaCount＝線上專案數（＝prj_ schema 數）。
-            if (s.reachable && typeof s.databaseSizeMb === 'number' && s.databaseSizeMb > DB_CAPACITY_WARN_MB) {
-              Store.addMessage(
-                '資料庫容量偏大：單庫 ' + Ui.countText(s.databaseSizeMb) + ' MB（' + Ui.countText(s.schemaCount || 0) +
-                ' 個線上案件），已超過 ' + Ui.countText(DB_CAPACITY_WARN_MB) + ' MB 預警門檻。',
-                'info');
-            }
-            render();
-          }
-        }, function () { /* 身分查詢失敗不阻斷啟動，靜默略過 */ });
-        // 與 databaseInfo 並行取得使用者身分（右上角身分徽章與 picker 註記用）。
+        // 與案件清單並行取得使用者身分（右上角身分徽章用）。
         // 純 UI 狀態；失敗（bridge 錯誤）靜默略過，不阻斷啟動、不進訊息面板。
         global.JetApi.systemWhoAmI({}).then(function (who) {
           if (who) { Store.setCurrentUser(who); }

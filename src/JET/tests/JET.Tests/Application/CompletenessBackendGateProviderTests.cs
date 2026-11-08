@@ -22,7 +22,6 @@ public sealed class CompletenessBackendGateProviderTests
     // 固定一個科目差額 10，沿保存、匯出、重開及重跑核對，不把差異清零來換取成功。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CompletenessDifference_ContinuesThroughReportsReopenAndRerun(string databaseProvider)
     {
         using var host = new HandlerTestHost();
@@ -64,206 +63,135 @@ public sealed class CompletenessBackendGateProviderTests
     [Theory]
     [InlineData("sqlite", NoValidation)]
     [InlineData("sqlite", ReimportedGl)]
-    [InlineData("duckdb", NoValidation)]
-    [InlineData("duckdb", ReimportedGl)]
     public Task IneligibleCompletenessState_RejectsAllFourDownstreamActions_LocalProviders(
         string databaseProvider,
         string state) =>
-        RunRejectedStateAsync(databaseProvider, state, sqlServerConnectionString: null);
+        RunRejectedStateAsync(databaseProvider, state);
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public Task EligibleCompletenessState_AllowsAllFourDownstreamActions_LocalProviders(
         string databaseProvider) =>
-        RunEligibleStateAsync(databaseProvider, sqlServerConnectionString: null);
-
-    [SqlServerTheory]
-    [InlineData(NoValidation)]
-    [InlineData(ReimportedGl)]
-    public async Task IneligibleCompletenessState_RejectsAllFourDownstreamActions_SqlServer(
-        string state)
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerTheory 已判定可用，但執行期無法取得 SQL Server 連線。");
-
-        await RunRejectedStateAsync("sqlServer", state, connectionString);
-    }
-
-    [SqlServerFact]
-    public async Task EligibleCompletenessState_AllowsAllFourDownstreamActions_SqlServer()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerFact 已判定可用，但執行期無法取得 SQL Server 連線。");
-
-        await RunEligibleStateAsync("sqlServer", connectionString);
-    }
+        RunEligibleStateAsync(databaseProvider);
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public Task ReimportedTb_ClearsPrescreenResultAndRejectsPrescreenReport_LocalProviders(
         string databaseProvider) =>
         RunPrescreenReportAfterTbReimportAsync(
-            databaseProvider,
-            sqlServerConnectionString: null);
-
-    [SqlServerFact]
-    public async Task ReimportedTb_ClearsPrescreenResultAndRejectsPrescreenReport_SqlServer()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerFact 已判定可用，但執行期無法取得 SQL Server 連線。");
-
-        await RunPrescreenReportAfterTbReimportAsync("sqlServer", connectionString);
-    }
+            databaseProvider);
 
     private static async Task RunRejectedStateAsync(
         string databaseProvider,
-        string state,
-        string? sqlServerConnectionString)
+        string state)
     {
-        using var host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
-        try
+        using var host = new HandlerTestHost();
+        var references = state switch
         {
-            var references = state switch
-            {
-                NoValidation => await ArrangeNoValidationAsync(host, databaseProvider),
-                ReimportedGl => await ArrangeReimportedGlAsync(host, databaseProvider),
-                _ => throw new ArgumentOutOfRangeException(nameof(state), state, "未知的完整性閘門測試狀態。")
-            };
+            NoValidation => await ArrangeNoValidationAsync(host, databaseProvider),
+            ReimportedGl => await ArrangeReimportedGlAsync(host, databaseProvider),
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "未知的完整性閘門測試狀態。")
+        };
 
-            await AssertAllFourActionsRejectedAsync(host, references);
-        }
-        finally
-        {
-            await CleanupSqlServerProjectsAsync(
-                host.ProjectsRoot,
-                databaseProvider,
-                sqlServerConnectionString);
-        }
+        await AssertAllFourActionsRejectedAsync(host, references);
     }
 
     private static async Task RunEligibleStateAsync(
-        string databaseProvider,
-        string? sqlServerConnectionString)
+        string databaseProvider)
     {
-        using var host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
-        try
-        {
-            var projectId = await SetupProjectAsync(host, databaseProvider, hasCompletenessDifference: false);
-            var references = await SeedEligibleReferencesWithoutPrescreenAsync(host);
+        using var host = new HandlerTestHost();
+        var projectId = await SetupProjectAsync(host, databaseProvider, hasCompletenessDifference: false);
+        var references = await SeedEligibleReferencesWithoutPrescreenAsync(host);
 
-            var criteria = await host.DispatchAsync(
-                "export.criteriaSelectionReport",
-                CriteriaPayload(references));
-            var workingPaper = await host.DispatchAsync(
-                "export.workingPaperStream",
-                WorkingPaperPayload(references));
+        var criteria = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            CriteriaPayload(references));
+        var workingPaper = await host.DispatchAsync(
+            "export.workingPaperStream",
+            WorkingPaperPayload(references));
 
-            Assert.True(criteria.GetProperty("ok").GetBoolean());
-            Assert.Equal(
-                "criteriaSelectionReport",
-                criteria.GetProperty("publishedReport").GetProperty("kind").GetString());
-            Assert.True(workingPaper.GetProperty("ok").GetBoolean());
-            Assert.Equal(
-                "workingPaper",
-                workingPaper.GetProperty("publishedReport").GetProperty("kind").GetString());
-            Assert.Equal(
-                JsonValueKind.Null,
-                criteria.GetProperty("publishedReport").GetProperty("sourceRef")
-                    .GetProperty("prescreenResultId").ValueKind);
-            Assert.Equal(
-                JsonValueKind.Null,
-                workingPaper.GetProperty("publishedReport").GetProperty("sourceRef")
-                    .GetProperty("prescreenResultId").ValueKind);
+        Assert.True(criteria.GetProperty("ok").GetBoolean());
+        Assert.Equal(
+            "criteriaSelectionReport",
+            criteria.GetProperty("publishedReport").GetProperty("kind").GetString());
+        Assert.True(workingPaper.GetProperty("ok").GetBoolean());
+        Assert.Equal(
+            "workingPaper",
+            workingPaper.GetProperty("publishedReport").GetProperty("kind").GetString());
+        Assert.Equal(
+            JsonValueKind.Null,
+            criteria.GetProperty("publishedReport").GetProperty("sourceRef")
+                .GetProperty("prescreenResultId").ValueKind);
+        Assert.Equal(
+            JsonValueKind.Null,
+            workingPaper.GetProperty("publishedReport").GetProperty("sourceRef")
+                .GetProperty("prescreenResultId").ValueKind);
 
-            var prescreenReportError = await Assert.ThrowsAsync<JetActionException>(() =>
-                host.DispatchAsync(
-                    "export.prescreenReport",
-                    JsonSerializer.Serialize(new { resultId = "missing-prescreen-run" })));
-            Assert.Equal(JetErrorCodes.StaleResult, prescreenReportError.Code);
+        var prescreenReportError = await Assert.ThrowsAsync<JetActionException>(() =>
+            host.DispatchAsync(
+                "export.prescreenReport",
+                JsonSerializer.Serialize(new { resultId = "missing-prescreen-run" })));
+        Assert.Equal(JetErrorCodes.StaleResult, prescreenReportError.Code);
 
-            var originalReport = workingPaper.GetProperty("publishedReport");
-            var originalPath = Path.Combine(host.ProjectsRoot, projectId, originalReport.GetProperty("fileName").GetString()!);
-            var originalBytes = await File.ReadAllBytesAsync(originalPath);
-            await host.DispatchAsync(
-                "calendar.setNonWorkingDays",
-                """{ "days": [1] }""");
-            // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
-            // 原本直接沿用舊情境版本匯出，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
-            var resaved = await host.DispatchAsync("filter.commit", FilterCommitPayload());
-            references = references with { Revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString()! };
-            // 9/23：底稿自己重算目前資料，不再要求先重新產生 Criteria 檔案。
-            var recalculated = await host.DispatchAsync("export.workingPaperStream", WorkingPaperPayload(references));
-            Assert.True(recalculated.GetProperty("ok").GetBoolean());
-            var currentReport = recalculated.GetProperty("publishedReport");
-            Assert.False(currentReport.GetProperty("stale").GetBoolean());
-            Assert.NotEqual(originalReport.GetProperty("reportId").GetString(), currentReport.GetProperty("reportId").GetString());
-            Assert.Equal(references.ValidationResultId,
-                currentReport.GetProperty("sourceRef").GetProperty("validationResultId").GetString());
-            Assert.Equal(references.Revision,
-                currentReport.GetProperty("sourceRef").GetProperty("scenarioRevision").GetString());
-            Assert.Equal(originalBytes, await File.ReadAllBytesAsync(originalPath));
+        var originalReport = workingPaper.GetProperty("publishedReport");
+        var originalPath = Path.Combine(host.ProjectsRoot, projectId, originalReport.GetProperty("fileName").GetString()!);
+        var originalBytes = await File.ReadAllBytesAsync(originalPath);
+        await host.DispatchAsync(
+            "calendar.setNonWorkingDays",
+            """{ "days": [1] }""");
+        // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
+        // 原本直接沿用舊情境版本匯出，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        var resaved = await host.DispatchAsync("filter.commit", FilterCommitPayload());
+        references = references with { Revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString()! };
+        // 9/23：底稿自己重算目前資料，不再要求先重新產生 Criteria 檔案。
+        var recalculated = await host.DispatchAsync("export.workingPaperStream", WorkingPaperPayload(references));
+        Assert.True(recalculated.GetProperty("ok").GetBoolean());
+        var currentReport = recalculated.GetProperty("publishedReport");
+        Assert.False(currentReport.GetProperty("stale").GetBoolean());
+        Assert.NotEqual(originalReport.GetProperty("reportId").GetString(), currentReport.GetProperty("reportId").GetString());
+        Assert.Equal(references.ValidationResultId,
+            currentReport.GetProperty("sourceRef").GetProperty("validationResultId").GetString());
+        Assert.Equal(references.Revision,
+            currentReport.GetProperty("sourceRef").GetProperty("scenarioRevision").GetString());
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(originalPath));
 
-            var refreshedCriteria = await host.DispatchAsync(
-                "export.criteriaSelectionReport",
-                CriteriaPayload(references));
-            var refreshedWorkingPaper = await host.DispatchAsync(
-                "export.workingPaperStream",
-                WorkingPaperPayload(references));
-            Assert.True(refreshedCriteria.GetProperty("ok").GetBoolean());
-            Assert.True(refreshedWorkingPaper.GetProperty("ok").GetBoolean());
-        }
-        finally
-        {
-            await CleanupSqlServerProjectsAsync(
-                host.ProjectsRoot,
-                databaseProvider,
-                sqlServerConnectionString);
-        }
+        var refreshedCriteria = await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            CriteriaPayload(references));
+        var refreshedWorkingPaper = await host.DispatchAsync(
+            "export.workingPaperStream",
+            WorkingPaperPayload(references));
+        Assert.True(refreshedCriteria.GetProperty("ok").GetBoolean());
+        Assert.True(refreshedWorkingPaper.GetProperty("ok").GetBoolean());
     }
 
     private static async Task RunPrescreenReportAfterTbReimportAsync(
-        string databaseProvider,
-        string? sqlServerConnectionString)
+        string databaseProvider)
     {
-        using var host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
-        try
-        {
-            var projectId = await SetupProjectAsync(
-                host,
-                databaseProvider,
-                hasCompletenessDifference: false);
-            var references = await SeedEligibleReferencesAsync(host);
+        using var host = new HandlerTestHost();
+        var projectId = await SetupProjectAsync(
+            host,
+            databaseProvider,
+            hasCompletenessDifference: false);
+        var references = await SeedEligibleReferencesAsync(host);
 
-            await ReimportTbAsync(host);
+        await ReimportTbAsync(host);
 
-            var loaded = await host.DispatchAsync(
-                "project.load",
-                JsonSerializer.Serialize(new { projectId }));
-            Assert.Equal(
-                JsonValueKind.Null,
-                loaded.GetProperty("validationResult").ValueKind);
-            Assert.Equal(
-                JsonValueKind.Null,
-                loaded.GetProperty("prescreenResult").ValueKind);
+        var loaded = await host.DispatchAsync(
+            "project.load",
+            JsonSerializer.Serialize(new { projectId }));
+        Assert.Equal(
+            JsonValueKind.Null,
+            loaded.GetProperty("validationResult").ValueKind);
+        Assert.Equal(
+            JsonValueKind.Null,
+            loaded.GetProperty("prescreenResult").ValueKind);
 
-            var exception = await Assert.ThrowsAsync<JetActionException>(() =>
-                host.DispatchAsync(
-                    "export.prescreenReport",
-                    JsonSerializer.Serialize(new { resultId = references.PrescreenResultId })));
-            Assert.Equal(ExpectedErrorCode, exception.Code);
-        }
-        finally
-        {
-            await CleanupSqlServerProjectsAsync(
-                host.ProjectsRoot,
-                databaseProvider,
-                sqlServerConnectionString);
-        }
+        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
+            host.DispatchAsync(
+                "export.prescreenReport",
+                JsonSerializer.Serialize(new { resultId = references.PrescreenResultId })));
+        Assert.Equal(ExpectedErrorCode, exception.Code);
     }
 
     private static async Task<RunReferences> ArrangeNoValidationAsync(
@@ -484,26 +412,6 @@ public sealed class CompletenessBackendGateProviderTests
             scenarioRevision = references.Revision,
             scenarioPositions = new[] { 1 }
         });
-
-    private static async Task CleanupSqlServerProjectsAsync(
-        string projectsRoot,
-        string databaseProvider,
-        string? sqlServerConnectionString)
-    {
-        if (databaseProvider != "sqlServer"
-            || string.IsNullOrWhiteSpace(sqlServerConnectionString)
-            || !Directory.Exists(projectsRoot))
-        {
-            return;
-        }
-
-        foreach (var directory in Directory.GetDirectories(projectsRoot))
-        {
-            await TempSqlServerProject.DropDatabaseAsync(
-                sqlServerConnectionString,
-                Path.GetFileName(directory));
-        }
-    }
 
     private sealed record RunReferences(
         string ValidationResultId,

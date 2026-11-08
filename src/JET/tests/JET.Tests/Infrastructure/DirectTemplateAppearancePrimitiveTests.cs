@@ -78,9 +78,9 @@ public sealed class DirectTemplateAppearancePrimitiveTests
         Assert.Equal("FF0066FF", fill.PatternFill?.ForegroundColor?.Rgb?.Value);
 
         var cell = document.WorkbookPart.WorksheetParts.Single()
-            .Worksheet.Descendants<Cell>().Single();
+            .RequiredWorksheet().Descendants<Cell>().Single();
         cell.StyleIndex = patchedIndex;
-        document.WorkbookPart.WorksheetParts.Single().Worksheet.Save();
+        document.WorkbookPart.WorksheetParts.Single().RequiredWorksheet().Save();
         Assert.Empty(new OpenXmlValidator().Validate(document));
     }
 
@@ -254,7 +254,7 @@ public sealed class DirectTemplateAppearancePrimitiveTests
 
         stream.Position = 0;
         using var read = SpreadsheetDocument.Open(stream, false);
-        var result = read.WorkbookPart!.WorksheetParts.Single().Worksheet;
+        var result = read.WorkbookPart!.WorksheetParts.Single().RequiredWorksheet();
         Assert.Equal("new-15", Cell(result, "B15").InnerText);
         Assert.Equal("template-only", Cell(result, "B16").InnerText);
         Assert.Equal("new-17", Cell(result, "B17").InnerText);
@@ -313,7 +313,7 @@ public sealed class DirectTemplateAppearancePrimitiveTests
         stream.Position = 0;
         using var read = SpreadsheetDocument.Open(stream, false);
         var column = read.WorkbookPart!.WorksheetParts.Single()
-            .Worksheet.GetFirstChild<Columns>()!.Elements<Column>().Single();
+            .RequiredWorksheet().GetFirstChild<Columns>()!.Elements<Column>().Single();
         Assert.Equal(80D, column.Width?.Value);
         Assert.True(column.BestFit?.Value);
         Assert.True(column.CustomWidth?.Value);
@@ -351,7 +351,7 @@ public sealed class DirectTemplateAppearancePrimitiveTests
         stream.Position = 0;
         using var read = SpreadsheetDocument.Open(stream, false);
         var column = read.WorkbookPart!.WorksheetParts.Single()
-            .Worksheet.GetFirstChild<Columns>()!.Elements<Column>().Single();
+            .RequiredWorksheet().GetFirstChild<Columns>()!.Elements<Column>().Single();
         Assert.Equal(expectedWidth, column.Width?.Value);
         Assert.True(column.BestFit?.Value);
         Assert.True(column.CustomWidth?.Value);
@@ -384,7 +384,7 @@ public sealed class DirectTemplateAppearancePrimitiveTests
         stream.Position = 0;
         using var read = SpreadsheetDocument.Open(stream, false);
         var column = read.WorkbookPart!.WorksheetParts.Single()
-            .Worksheet.GetFirstChild<Columns>()!.Elements<Column>().Single();
+            .RequiredWorksheet().GetFirstChild<Columns>()!.Elements<Column>().Single();
         Assert.Equal(120D, column.Width?.Value);
         Assert.Null(column.BestFit);
         Assert.True(column.CustomWidth?.Value);
@@ -411,7 +411,7 @@ public sealed class DirectTemplateAppearancePrimitiveTests
 
         stream.Position = 0;
         using var read = SpreadsheetDocument.Open(stream, false);
-        var worksheet = read.WorkbookPart!.WorksheetParts.Single().Worksheet;
+        var worksheet = read.WorkbookPart!.WorksheetParts.Single().RequiredWorksheet();
         var column = Assert.Single(worksheet.GetFirstChild<Columns>()!.Elements<Column>());
         Assert.Equal(expectedWidth, column.Width?.Value);
         Assert.True(column.BestFit?.Value);

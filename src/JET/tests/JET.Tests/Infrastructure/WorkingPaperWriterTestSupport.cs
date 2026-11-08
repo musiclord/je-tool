@@ -66,8 +66,6 @@ internal static class WorkingPaperWriterTestSupport
         var voucherBalances = new LocalVoucherBalancePageRepository(database);
         var preparerSummaries = new LocalPreparerSummaryExportRepository(database);
         var infSamples = new LocalInfSamplePageRepository(database);
-        var filterScenarios = new LocalFilterScenarioStore(database);
-        var highRiskSummaryCounts = new LocalHighRiskSummaryScenariosRepository(database);
         var highRiskSummaryVouchers = highRiskSummaryVouchersOverride
             ?? new LocalHighRiskSummaryVoucherPageRepository(database);
         var highRiskSummaryRows = highRiskSummaryRowsOverride
@@ -89,8 +87,6 @@ internal static class WorkingPaperWriterTestSupport
                 voucherBalances,
                 preparerSummaries,
                 infSamples,
-                filterScenarios,
-                highRiskSummaryCounts,
                 highRiskSummaryVouchers,
                 highRiskSummaryRows,
                 mappingStates,
@@ -106,8 +102,6 @@ internal static class WorkingPaperWriterTestSupport
             voucherBalances,
             preparerSummaries,
             infSamples,
-            filterScenarios,
-            highRiskSummaryCounts,
             highRiskSummaryVouchers,
             highRiskSummaryRows,
             mappingStates,
@@ -506,7 +500,7 @@ internal static class WorkingPaperWriterTestSupport
     internal static string? FillArgb(WorkbookPart workbookPart, CellFormat format)
     {
         var fillId = checked((int)(format.FillId?.Value ?? 0U));
-        var fill = workbookPart.WorkbookStylesPart!.Stylesheet.Fills!.Elements<Fill>().ElementAt(fillId);
+        var fill = workbookPart.WorkbookStylesPart!.Stylesheet!.Fills!.Elements<Fill>().ElementAt(fillId);
         return fill.PatternFill?.ForegroundColor?.Rgb?.Value;
     }
 
@@ -684,14 +678,14 @@ internal static class WorkingPaperWriterTestSupport
         string sheetName,
         IReadOnlyList<string> cellReferences)
     {
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => item.Name?.Value == sheetName);
         var worksheetPart = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!));
-        Assert.NotNull(worksheetPart.Worksheet.Elements<SheetProtection>().SingleOrDefault());
+        Assert.NotNull(worksheetPart.RequiredWorksheet().Elements<SheetProtection>().SingleOrDefault());
 
         foreach (var reference in cellReferences)
         {
-            AssertCellUnlocked(workbookPart, worksheetPart.Worksheet, reference);
+            AssertCellUnlocked(workbookPart, worksheetPart.RequiredWorksheet(), reference);
         }
     }
 
@@ -716,7 +710,7 @@ internal static class WorkingPaperWriterTestSupport
             .Single(item => item.CellReference?.Value == cellReference);
         var format = ResolveCellFormat(workbookPart, cell);
         var numberFormatId = format.NumberFormatId?.Value;
-        var numberFormat = workbookPart.WorkbookStylesPart!.Stylesheet.NumberingFormats?
+        var numberFormat = workbookPart.WorkbookStylesPart!.Stylesheet!.NumberingFormats?
             .Elements<NumberingFormat>()
             .SingleOrDefault(item => item.NumberFormatId?.Value == numberFormatId);
         Assert.Equal(expectedFormatCode, numberFormat?.FormatCode?.Value);
@@ -726,7 +720,7 @@ internal static class WorkingPaperWriterTestSupport
     {
         var styleIndex = checked((int)(cell.StyleIndex?.Value ?? 0U));
         return Assert.IsType<CellFormat>(
-            workbookPart.WorkbookStylesPart!.Stylesheet.CellFormats!.ElementAt(styleIndex));
+            workbookPart.WorkbookStylesPart!.Stylesheet!.CellFormats!.ElementAt(styleIndex));
     }
 
     internal static void AssertTemplateFillAndBorder(
@@ -816,13 +810,13 @@ internal static class WorkingPaperWriterTestSupport
         string sheetName)
     {
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => string.Equals(
                 item.Name?.Value,
                 sheetName,
                 StringComparison.Ordinal));
         return Assert.IsType<WorksheetPart>(
-            workbookPart.GetPartById(sheet.Id!.Value!)).Worksheet;
+            workbookPart.GetPartById(sheet.Id!.Value!)).RequiredWorksheet();
     }
 
     internal static Cell CellFor(Worksheet worksheet, string reference) =>
@@ -1053,9 +1047,9 @@ internal static class WorkingPaperWriterTestSupport
     internal static Dictionary<string, Worksheet> WorksheetsByName(SpreadsheetDocument document)
     {
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        return workbookPart.Workbook.Sheets!.Elements<Sheet>().ToDictionary(
+        return workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>().ToDictionary(
             sheet => sheet.Name!.Value!,
-            sheet => Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!)).Worksheet,
+            sheet => Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!)).RequiredWorksheet(),
             StringComparer.Ordinal);
     }
 
@@ -1335,7 +1329,7 @@ internal static class WorkingPaperWriterTestSupport
         {
             return "<missing-cell>";
         }
-        var stylesheet = workbookPart.WorkbookStylesPart!.Stylesheet;
+        var stylesheet = workbookPart.WorkbookStylesPart!.Stylesheet!;
         var format = stylesheet.CellFormats!.Elements<CellFormat>()
             .ElementAt(checked((int)(cell.StyleIndex?.Value ?? 0U)));
         var font = stylesheet.Fonts!.Elements<DocumentFormat.OpenXml.Spreadsheet.Font>()

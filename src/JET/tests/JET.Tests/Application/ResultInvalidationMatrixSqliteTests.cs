@@ -5,7 +5,6 @@ using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Xunit;
 using static JET.Tests.Application.ResultInvalidationTestSupport;
 
@@ -26,7 +25,6 @@ public sealed class ResultInvalidationMatrixSqliteTests
         bool clearsFilterHits) =>
         RunInvalidationMatrixAsync(
             databaseProvider,
-            sqlServerConnectionString: null,
             mutation,
             clearsValidation,
             clearsPrescreen,

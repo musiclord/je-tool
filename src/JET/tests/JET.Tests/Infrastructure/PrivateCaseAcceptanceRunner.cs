@@ -134,15 +134,12 @@ internal static class PrivateCaseAcceptanceRunner
         string authorizedRootPath,
         string manifestRelativePath,
         LegacyAuditParityProvider provider,
-        string? sqlServerConnectionString = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(authorizedRootPath)
             || !System.IO.Path.IsPathFullyQualified(authorizedRootPath)
             || string.IsNullOrWhiteSpace(manifestRelativePath)
-            || !Enum.IsDefined(provider)
-            || (provider == LegacyAuditParityProvider.SqlServer
-                && string.IsNullOrWhiteSpace(sqlServerConnectionString)))
+            || !Enum.IsDefined(provider))
         {
             throw Error(PrivateCaseAcceptanceFailure.InvalidInput);
         }
@@ -219,7 +216,6 @@ internal static class PrivateCaseAcceptanceRunner
                     prepared,
                     provider,
                     LegacyAuditParityCheckpoint.Export,
-                    sqlServerConnectionString,
                     token,
                     FollowUps,
                     VerifySegmentAsync).ConfigureAwait(false);
@@ -251,7 +247,6 @@ internal static class PrivateCaseAcceptanceRunner
                             item.ReportComparison))
                         .ToArray());
             },
-            sqlServerConnectionString,
             cancellationToken);
     }
 

@@ -11,7 +11,6 @@ public sealed class FilterNestedVoucherTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExistingApprovalDateAndCreditOnlyRevenueRulesStayUnchanged(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed + """
@@ -33,7 +32,6 @@ public sealed class FilterNestedVoucherTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     // 原本用「同一傳票」比對範圍與欄位條件的分錄方向；這兩種寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
     // 照它們的重建方式改成借貸別子條件組與「整張傳票條件」的「至少一筆符合」：佐證分開放是各自可由不同分錄符合，
     // 放在同一個子條件組是要同一筆分錄同時符合，固定答案不變。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法在組成 SQL 時被擋下）。
@@ -102,7 +100,6 @@ public sealed class FilterNestedVoucherTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CompoundWitnessAndQuantifiers_HaveIndependentAnswers(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);

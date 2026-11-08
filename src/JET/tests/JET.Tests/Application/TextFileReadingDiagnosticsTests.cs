@@ -73,7 +73,6 @@ public sealed class TextFileReadingDiagnosticsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task QuotedLineBreaks_ImportSucceeds_AndNamesCountAndRowsInWarningAndSupportLog(string provider)
     {
         var (host, projectId) = await CreateAsync(provider);
@@ -108,7 +107,6 @@ public sealed class TextFileReadingDiagnosticsTests
     // 科目配對檔用文字檔匯入時，引號內換行的提醒與支援日誌和 GL、TB 相同（裁定 2026-10-19-06）。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task QuotedLineBreaks_InAccountMappingTextFile_AreReportedLikeGlAndTb(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);

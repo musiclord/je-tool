@@ -39,52 +39,6 @@ public sealed class PrescreenConcentrationTests
     }
 
     [Fact]
-    public async Task PrescreenRun_Concentration_DuckDb_MatchesHandComputedTotals()
-    {
-        using var host = new HandlerTestHost();
-        await InlineWorkbookProject.SetupAsync(
-            host,
-            BuildConcentrationGl,
-            databaseProvider: "duckdb",
-            validateForDownstream: true);
-
-        var data = await host.DispatchAsync("prescreen.run");
-
-        AssertConcentration(data);
-    }
-
-    [SqlServerFact]
-    public async Task PrescreenRun_Concentration_SqlServer_MatchesHandComputedTotals()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return; // 無 SQL Server → 乾淨 skip（由 [SqlServerFact] 標記）。
-        }
-
-        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        try
-        {
-            await InlineWorkbookProject.SetupAsync(
-                host,
-                BuildConcentrationGl,
-                databaseProvider: "sqlServer",
-                validateForDownstream: true);
-
-            var data = await host.DispatchAsync("prescreen.run");
-
-            AssertConcentration(data);
-        }
-        finally
-        {
-            foreach (var dir in Directory.GetDirectories(host.ProjectsRoot))
-            {
-                await TempSqlServerProject.DropDatabaseAsync(connectionString, Path.GetFileName(dir));
-            }
-        }
-    }
-
-    [Fact]
     public async Task PrescreenRun_Concentration_EmitsExactlyTheDeclaredWireKeys()
     {
         // 與前端鏡射守衛共用同一份 wire key 正本（JET.Tests.Architecture.ConcentrationWireKeys）：
@@ -183,14 +137,12 @@ public sealed class PrescreenConcentrationTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ProjectLoad_RefreshesPrescreenGuidanceWithoutChangingStoredResults(string provider)
     {
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(host, BuildConcentrationGl, databaseProvider: provider);
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var store = new LocalResultStore(database);
         var resultId = Guid.NewGuid().ToString("N");
         var generatedUtc = DateTimeOffset.UtcNow;

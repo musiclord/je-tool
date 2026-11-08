@@ -85,9 +85,8 @@
 
 - UI 只透過 `JetApi` 呼叫 action，不直接使用 WebView2 傳輸層。
 - Bridge 驗證外層格式、處理取消並轉送給處理器，不做審計判斷。
-- 已要求取消後，處理器丟出的例外除了業務錯誤，dispatcher 一律回 `operation_cancelled`。SQL Server 中止語句時驅動丟出自己的例外，
-  也照這條回報，三種資料庫一致（裁定 2026-10-16-23）。
-- 會變更案件資料的長作業由後端執行閘門協調；背景心跳與取消有明確的例外規則。
+- 已要求取消後，處理器丟出的例外除了業務錯誤，dispatcher 一律回 `operation_cancelled`（裁定 2026-10-16-23）。
+- 會變更案件資料的長作業由後端執行閘門協調；取消有明確的例外規則。
 - 大量資料只回摘要、中繼資料與有界分頁。`query.*Page` 使用游標與每頁筆數，不回完整母體。
 - 進度事件不攜帶資料列，也不是第二個狀態來源。
 - 原生選檔、開資料夾、退出與取消控制保留呼叫執行緒；其他 action 及其資料庫保留範圍由 dispatcher 排到背景執行，不改原有互斥分類。
@@ -122,37 +121,44 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 ### 系統與取消
 
 - `system.ping`
-- `system.databaseInfo`
 - `system.whoAmI`
 - `operation.cancel`
+
+`system.whoAmI` 回 `principal` 與 `shortName`。原本另有查 SQL Server 設定的 `system.databaseInfo`；`system.whoAmI` 原本也回
+從 SQL Server 取得的使用者編號 `userNumber` 與它的來源 `numberSource`。兩者都隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
 
 ### 案件
 
 - `project.listLocal`
-- `project.list`
 - `project.create`
 - `project.update`
 - `project.load`
 - `project.deletePreview`
 - `project.delete`
 - `project.saveProgress`
-- `project.heartbeat`
 - `project.releaseLock`
 - `project.loadDemo`（開發／GUI 測試專用）
 
+原本另有同步線上案件的 `project.list` 與線上案件的心跳 `project.heartbeat`，隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
+
 正式前端建立案件時，`projectName`、`periodStart` 與 `periodEnd` 必填，`projectCode`、`clientName`、
-`prepStartDate` 選填。`databaseProvider` 建立後不能更改。操作人員不由表單提供；
+`prepStartDate` 選填。建案一律建立 SQLite 案件，畫面不送 `databaseProvider`；送了也只接受 `sqlite`，其他值回 `invalid_payload`
+（裁定 2026-11-06-08）。名稱撞到以前建立的 DuckDB 或 SQL Server 案件時回 `invalid_payload`，`error.field` 是 `projectName`，
+句子說明這個名稱被不列在清單上的舊案件佔用，請改名或到 JET 的案件位置刪除那個資料夾（裁定 2026-11-06-09）。
+資料庫種類建立後不能更改。操作人員不由表單提供；
 `ProjectCreateHandler` 直接使用目前 `CurrentPrincipal.ShortName`。舊版呼叫者即使仍送 `operatorId`，後端也不採用。
 案件編號或客戶名稱留空時，`project.json` 仍保留空字串欄位，讓既有案件、清單與報告使用同一份資料形狀。
 
-`project.listLocal` 與 `project.list` 不再隱藏無法讀取的本機案件。正常列格式不變；損壞列只回
+`project.listLocal` 只列 SQLite 案件，回應頂層只有 `projects`。以前建立的 DuckDB 案件，以及 SQL Server 案件留在本機的資料夾不列出，
+JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，或沒有記錄種類、資料夾裡只有 `jet.duckdb` 的案件都算（裁定 2026-11-06-09）。
+清單不隱藏無法讀取的 SQLite 案件與判斷不出種類的案件。正常列格式不變；損壞列只回
 `{ projectId, databaseProvider: null, loadError: { code, message } }`，說明檢查鎖檔、從備份復原或另建案件重新匯入，
-不捏造資料庫種類、名稱、期間或時間。其他正常案件仍可開啟，錯誤列也不會被重複列成只存在伺服器的案件。
+不捏造資料庫種類、名稱、期間或時間。其他正常案件仍可開啟。
 本機案件的資料庫檔不見或是 0 位元組時也列成錯誤列，`code` 是 `file_read_error`；建案中的標記還在時照常列出（裁定 2026-11-05-72）。
 
 建案時查核起始日不得晚於截止日，否則回 `invalid_payload`，`field` 為 `periodStart`，不建立案件。
 既有案件的期間格式不合法或起日晚於迄日時，載入回 `invalid_project_schema`，提示從備份復原或另建案件重新匯入。
-檢查在物化伺服器案件、取得案件鎖及切換作用中案件之前完成，不自動改寫日期；SQL Server 登錄分支只有假資料測試與編譯，未實機執行。
+檢查在取得案件鎖及切換作用中案件之前完成，不自動改寫日期。
 正式畫面送來的空白 `projectName`（包括全形空白）回 `invalid_payload`，不改成隨機案件名稱；程式化呼叫未提供名稱時仍可沿用既有識別值產生方式。
 `project.create` 的成功回應另帶 `warnings` 字串陣列：準備日早於查核起始日，或晚於查核截止日超過一年時，提醒確認年份但不阻擋。
 
@@ -160,16 +166,12 @@ Excel 空白分類則沿用既有的 Others 處理方式，清單顯示其目前
 案件名稱、查核期間、建案者與資料庫種類不變，其他 payload 欄位不採用。回應包含 `project`、`warnings`、`invalidatedResults`、`staleState`、`reports` 與 `reportWarning`。
 `invalidatedResults` 由後端的失效政策提供本次需清除的範圍，前端據此清掉尚未儲存的舊預覽；`staleState` 只描述已持久化結果的過期狀態。
 只有準備日實際改變時，才依既有失效政策清除預篩選、篩選命中及全部已存篩選情境，保留驗證結果與配對；同值重送或只改文字不清除審計結果。
-任一可改欄位真正改變時，既有報告索引標為過期，但不改寫或刪除已匯出的檔案；再次匯出才使用新資料。這是互斥寫入，SQL Server 登錄同步只經編譯。
+任一可改欄位真正改變時，既有報告索引標為過期，但不改寫或刪除已匯出的檔案；再次匯出才使用新資料。這是互斥寫入。
 `project.load` 與 `project.update` 回應的 `project.rocDateEnabled` 帶回案件既有的民國年解析選項，供日期條件使用；這不是可由 `project.update` 修改的新欄位。
-`project.load` 的 payload 必填 `projectId`，另可選填 `databaseProvider`，值是案件清單列上的資料庫種類。
+`project.load` 的 payload 只需 `projectId`。原本另可選填 `databaseProvider`，用來找只存在伺服器上的 SQL Server 案件，
+回應也帶心跳間隔 `heartbeatSeconds`，都隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
+本機沒有這個案件資料夾時回 `project_not_found`；資料庫種類以 `project.json` 為準，不是 SQLite 時在取得案件鎖之前回 `unsupported_provider`。
 本機案件的資料庫檔不見、是 0 位元組或沒有任何資料表時，`project.load` 回 `file_read_error`，不建立新的資料庫（裁定 2026-11-05-72）。
-本機沒有這個案件資料夾時，只有 `databaseProvider` 為 `sqlServer` 才會去線上登錄找只存在伺服器上的案件；
-沒帶或是其他值時直接回 `project_not_found`，不查線上登錄。本機已有案件資料夾時，資料庫種類一律以 `project.json`
-為準，這個欄位不影響載入。建立案件後的載入不必帶。
-
-只有 SQL Server 案件會送 `project.heartbeat`：前端載入資料庫種類為 `sqlServer` 的案件後才啟動心跳計時器，
-SQLite 與 DuckDB 案件不送。這個 action 本身與 `project.load` 回應的 `heartbeatSeconds` 都沒有改變。
 
 `project.load` 回應的 `mapping.gl` 另含 `availableGlFields`，是已確認的 GL 配對裡有來源的 GL 語意欄位，例如 `voucherNumber`、`createdBy`。
 清單由 `JetFieldCatalog.AvailableGlFields` 算出：欄位有來源欄，或欄位目錄標示它有衍生來源，就列入。傳票文件項次 `lineItem`
@@ -193,19 +195,17 @@ SQLite 與 DuckDB 案件不送。這個 action 本身與 `project.load` 回應�
 相同，但不帶 `sourceBatchId`。它不是有效配對，驗證、篩選與匯出都不讀它，`mapping.commit.gl` 只從中沿用攸關資料元素
 欄位識別碼（見下方欄位配對一節）。前端只拿來預填草稿，只保留新資料仍有的來源欄，
 並把新資料沒有的欄位寫出來請審計員重新選。那一側有有效配對、沒有匯入資料，或從來沒有確認過配對時為 null。
-SQL Server 的保存與讀取只經過編譯，沒有實機執行。
 
 `project.load` 不會因為報告檔而拒絕載入。報告檔在 JET 之外被改寫、改名或刪除時，回應的 `reports`
 每筆多一個 `fileState`（`asPublished`、`modifiedOutside`、`missing`）讓前端標示，重新匯出即可。
 `project.delete` 只取得案件外的報告租約，刪案不受報告檔狀態影響。
-DuckDB 案件的資料庫若還有操作在使用，`project.delete` 回 `operation_in_progress`，不刪資料庫、
-`project.json` 或案件資料夾；等那個操作完成後再刪除即可。
-設定檔損壞、舊版或查核期間無效而無法開啟的案件，`project.delete` 仍可刪除：設定檔有記錄 SQLite 或 DuckDB 時照記錄，
-沒有記錄時看案件資料夾裡只有哪一種本機資料庫檔，再照一般流程刪除資料庫與資料夾。記錄是 SQL Server 或判斷不出來時，
-回應原本讀取設定檔的錯誤，不刪任何資料。
+設定檔損壞、舊版或查核期間無效而無法開啟的案件，`project.delete` 仍可刪除：確定是 SQLite 案件時，也就是設定檔記錄 SQLite，
+或沒有記錄種類、資料夾裡有 `jet.db` 而沒有 `jet.duckdb` 時，照一般流程刪除資料庫與資料夾。記錄的是其他種類或判斷不出來時，
+回應原本讀取設定檔的錯誤，不刪任何資料。設定檔讀得出來、記錄 SQLite 以外的種類時，在動任何檔案之前回 `unsupported_provider`，
+資料夾保持原狀（裁定 2026-11-06-09）。
 
 `project.deletePreview` 的 payload 只需 `projectId`，回應為 `{ projectId, databaseProvider, reportCount, workingPaperCount }`。
-這是可併行的唯讀動作，不開啟案件、不切換 session，也不持有目前案件的資料庫。SQL Server 案件先核對與刪除相同的授權。
+這是可併行的唯讀動作，不開啟案件、不切換 session，也不持有目前案件的資料庫。
 計數只包含 JET 索引中仍存在的相異檔名，外部修改過的檔案仍計入，已遺失檔案及科目配對工作檔不計入報告數。
 前端另明說整個案件資料夾及其他檔案都會刪除；計數失敗顯示未知及重試，不假設零份，也不增加刪除關卡。
 
@@ -302,10 +302,18 @@ GL 與 TB 匯入成功回應的 `warnings` 為字串陣列。追加來源的實�
 `import.inspectFile` 與 `import.previewFile` 的回應多一個可空的 `notices` 字串陣列，是給審計員看的提醒，不擋匯入；
 目前只有文字檔只讀到一欄時回「可能是報表格式」這一則。`.xls` 的錯誤儲存格（`#N/A`、`#REF!` 等）保留 Excel 顯示的原文，
 和 `.xlsx` 相同；`.xls` 與 Access 的是或否值寫成 `true`、`false`，只有時間的值用 `hh:mm:ss`，也和 `.xlsx` 相同。
-來源檔被其他程式開著、沒有權限、解碼失敗或結構讀不通時，`file_read_error` 的訊息只寫檔名與下一步，不寫完整路徑，
+來源檔沒有權限、解碼失敗或結構讀不通時，`file_read_error` 的訊息只寫檔名與下一步，不寫完整路徑，
 也不含 .NET 的英文例外文字。這兩個 action 失敗時和匯入一樣附上支援日誌的匯入診斷欄位；`import.inspectFile` 成功時
 另記一筆 `import.inspect` 事件，只含格式、欄數、工作表數、編碼與分隔符。解碼失敗時，診斷欄位的 `encoding`
 寫實際用來解碼的編碼；自動偵測編碼時也一樣，不寫 `unknown`。
+
+Excel 與文字檔的來源檔正被其他程式開著時，JET 照樣讀這個檔案最後一次存檔的內容（裁定 2026-11-06-12）。GL、TB、科目配對、
+授權編製人員清單、國定假日與補班日的匯入，在讀檔前先判斷每個來源檔是否被別的程式以可寫入的方式開著；是的話，成功回應的
+`warnings` 加一則「檔案「檔名」正被其他程式開啟（例如 Excel）。JET 匯入的是這個檔案最後一次存檔的內容，尚未存檔的修改沒有匯入。」，
+同一個檔案只提醒一次。`import.authorizedPreparer.fromFile`、`import.holiday.fromFile` 與 `import.makeupDay.fromFile` 的回應因此新增
+`warnings` 字串陣列，沒有提醒時是空陣列。這六個匯入的回應另有 `openElsewhereWarnings` 字串陣列，只列開著檔案的那幾則，
+句子和 `warnings` 裡的相同；畫面把它放在那一項的匯入結果旁，`warnings` 照舊全部記進訊息面板。
+`import.inspectFile`、`import.previewFile` 與 `mapping.restoreDraft` 也讀得到開著的檔，但不提醒。
 
 `import.previewFile` 的 payload 與 `import.gl.fromFile`、`import.tb.fromFile` 的每個來源都可以帶 `headerRow`，指欄名在第幾列，
 從 1 起算，以檔案的實際列號計算，空白列也算；省略時是 1，和以前一樣取第一個有內容的列當欄名。Excel 與文字檔都接受；
@@ -384,16 +392,14 @@ Access 原生日期不套 Excel 限制。帶逗號的數字不當成日期，也
 同時回傳 `comparisonKeys`，每項為 `{ value, key }`，保留每個原始字串及後端產生的比對鍵。前端用這個鍵連接不同請求的等價關係，
 不能自行把代碼轉大寫；空白的鍵為 null，表示已核對為空白，不是缺少資料，也不等於字串 `"null"`。
 每份回應最多包含當次有界顯示值與最多 100 個請求字串，不把完整來源清單傳給前端。
-可選的 `fillDown` 是布林值，前端在這個來源欄確認配對時會被往下填補時帶 `true`：三種資料庫在每份來源內依列序把空白補成上一列的值，
+可選的 `fillDown` 是布林值，前端在這個來源欄確認配對時會被往下填補時帶 `true`：資料庫在每份來源內依列序把空白補成上一列的值，
 再計算常見值、`blankCount` 與 `distinctCount`，每份來源開頭的空白仍算空白，和確認配對時的填補同一規則（裁定 2026-10-28-03）。
 來源存在性的核對照原樣做，填補只複製已有的值；`fillDown` 不是布林值，或和 `comparisonOnly: true` 一起送，都以 `invalid_payload` 拒絕。
-SQLite 和 DuckDB 在資料庫內先用相同的 .NET 比對鍵彙總全部來源，再取常見值與計算不同值數量，大小寫等價的值不分成兩組。
-SQL Server 在資料庫內去掉相同的空白字元後，用方言的轉大寫彙總，大小寫等價的值同樣不分組；罕用字元的已知差異見
-[`jet-guide.md`](jet-guide.md) 第 8 節。
+SQLite 在資料庫內先用 .NET 的比對鍵彙總全部來源，再取常見值與計算不同值數量，大小寫等價的值不分成兩組。
 `checkSourceValues: true` 必須搭配 `comparisonValues`，不能與 `comparisonOnly: true` 同時使用；它另外核對完整來源，
 回傳 `missingComparisonValues` 及 `sourceValueCheckStatus: "checked"`，不能拿前 50 個顯示值推定某個代碼不存在。
-SQL Server 也核對完整來源，比對鍵和它的分組相同。資料庫實作沒有這項核對時，原摘要仍可讀取，
-但 `missingComparisonValues` 回 null，狀態為 `unsupportedProvider`；畫面須寫尚未核對，不得當成缺值或空清單。
+資料庫實作沒有這項核對時，原摘要仍可讀取，但 `missingComparisonValues` 回 null，狀態為 `unsupportedProvider`；
+畫面須寫尚未核對，不得當成缺值或空清單。目前只有 SQLite，它會核對，所以不會出現這個狀態。
 `comparisonOnly: true` 時必須提供 `comparisonValues`，只回 `sourceColumn`、`comparisonGroups` 和 `comparisonKeys`；
 此模式仍要求已開啟案件，但不查匯入批次、不讀母體、不保存或驗證政策。100 是這項呈現資料的單次傳輸上限，
 不是人工、自動或過帳政策可保存的代碼上限。畫面將較長清單分批送出；只取得文字等價對應時不重查母體，核對來源是否存在時才另行查詢。
@@ -437,6 +443,10 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 
 - `validate.run`
 
+可傳入 `sampleSize` 整數，省略時為 59，允許 1 到 1048524；超出範圍或型別錯誤回傳 `invalid_payload`，欄位為 `sampleSize`。
+`infSamplingTest.requestedSampleSize` 保存指定筆數，`sampleSize` 是實際抽出筆數。可用分錄不足時全部抽出。
+舊摘要缺少 `requestedSampleSize` 時仍可讀取，畫面以 59 作為下一次執行的預設值。
+
 驗證摘要另含 `voucherNumberAcrossGlDates: { voucherNumberCount, entryCount }`，計算 GL 中，同一非空白傳票號碼出現在兩個以上總帳日期的號碼數及分錄筆數。
 同月不同日也計入，空白號碼與 GL(未納入測試) 不計入；不改傳票比對鍵或既有驗證判定。兩個數字隨驗證摘要保存，重開案件不另掃母體。
 第一步依有效摘要提醒，尚未驗證、缺欄或結果過期時顯示尚未確認，不把未知當零，也不阻擋後續操作。
@@ -464,6 +474,8 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 和預篩選、第五步讀同一份答案。存下的摘要裡，筆數與原因必須恰好一個有值。存下的摘要沒有原因欄時，
 當成無效結果，需要重新執行資料驗證。
 驗證報告讀同一份摘要，筆數是 null 時主表寫 N/A，也不建立核准日不在期間的明細表。
+`validate.run` 的空值明細樣本、`project.load` 帶回的同一份樣本與 `query.blankRecordsPage` 的每列另帶傳票核准日 `approvalDate`，
+可為 null，`query.blankRecordsPage` 也能依它排序；畫面只在「核准日不在期間」的明細顯示「傳票核准日」欄（裁定 2026-11-06-13）。
 
 ### 預篩選
 
@@ -601,13 +613,13 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 `invalid_payload` 並列出允許的鍵。`query.filterHitsPage` 與 `query.infSamplePage` 的 `columns` 另帶
 `sortable`，標示固定欄可以排序，攸關資料元素欄位不能。
 `query.completenessDiffPage` 省略排序時，科目編號空白的列排在最前，試算表那一列在總帳那一列之前，其餘依科目編號；
-驗證報告與底稿逐頁讀全科目表時也是這個順序，SQLite 與 DuckDB 相同。
+驗證報告與底稿逐頁讀全科目表時也是這個順序。
 
 | 查詢 | 搜尋比對 | 可排序的 `key` |
 |:---|:---|:---|
 | `query.completenessDiffPage` | 科目編號 | `accountNumber`、`accountName`、`tbAmount`、`glAmount`、`diff`、`notInTb` |
 | `query.voucherBalancePage` | 傳票號碼 | `voucherNumber`、`debit`、`credit`、`diff` |
-| `query.blankRecordsPage` | 傳票號碼、科目編號或摘要 | `voucherNumber`、`accountNumber`、`glDate`、`description` |
+| `query.blankRecordsPage` | 傳票號碼、科目編號或摘要 | `voucherNumber`、`accountNumber`、`glDate`、`approvalDate`、`description` |
 | `query.sourceQualityPage` | 傳票號碼 | `sourceRowNumber`、`voucherNumber`、`accountNumber`、`glDate`、`description` |
 | `query.infSamplePage` | 傳票號碼 | `voucherNumber`、`accountNumber`、`accountName`、`debit`、`credit`、`glDate`、`approvalDate`、`createdBy`、`approvedBy`、`description` |
 | `query.prescreenPage` | 傳票號碼 | `voucherNumber`、`lineItem`、`glDate`、`accountNumber`、`accountName`、`amount`、`drCr`、`description` |
@@ -737,7 +749,7 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 文字和第五步畫面自動帶入的相同；自動名稱和其他已存情境同名時加上數字。用了常用篩選條件卡片的情境仍帶 `source: "common"`；
 其他來源代碼或沒有來源，一律當成審計員自己寫的情境。
 驗證失敗回 `invalid_scenario`，`error.details` 帶每一條的位置與原因。
-情境名稱最多 400 字，三種資料庫相同；超過時回 `invalid_scenario`，訊息寫出上限，不截斷後儲存。
+情境名稱最多 400 字（裁定 2026-10-19-26）；超過時回 `invalid_scenario`，訊息寫出上限，不截斷後儲存。
 只有存檔內容損毀或程式送錯資料才會出現的錯誤，`message` 與 `details[].message` 一律是「此條件內容有誤，無法儲存。請刪除此條件後重新設定。」，
 能歸屬到條件時帶組號與條號，不能歸屬時兩者為 null；原本的檢查只以程式寫死的英文代號記進支援日誌的
 `filter.scenario_unreadable` 事件（`action`、`scenario_position`、`group_no`、`condition_no`、`reason_code` 欄），不含情境名稱或條件內容。
@@ -783,7 +795,6 @@ filter.scenario.recheck { populationScope?: "auditPeriod" }
 `position` 超出清單或 `expectedName` 和資料庫那一筆不同時回 `stale_result`，不寫入；新增時已有 10 個情境回
 `scenario_limit_reached`；條件不合格或名稱和其他情境重複時回 `invalid_scenario`。驗證結果不是目前的、GL 欄位配對未確認時，
 回應與 `filter.commit` 相同。失敗時資料庫不變。三個 action 都是變更型，同一時間只有一項變更作業。
-SQL Server 另有儲存一個情境與移除一個情境的寫法，結果表與 SQLite、DuckDB 相同；這部分只經過編譯，沒有實機執行。
 
 情境可帶 `editorOrigins`，現行是第 2 版：`{ version: 2, nameIsAutomatic?: boolean, rationaleIsAutomatic?: boolean, groups: [{ cards: [...] }] }`。
 每個 group 和 cards 的長度及位置對應原條件；cards 記帶入那一條的常用篩選條件卡片代號，例如 `blankDescription`，沒有卡片時記 null。
@@ -832,10 +843,9 @@ Payload 的 `resultId` 是選填，畫面會附上目前驗證結果的編號，
 可恢復的清單讀取失敗或 3 秒內未完成時，仍回 `ok: true` 及本次產物，`reports: null`，另回
 `reportWarning`。前端保留原清單並加入本次產物，在旁邊提示「檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。」。
 清單之後讀取成功就清除該暫時提示；不得將 null 當成空清單，也不把程式錯誤偽裝成成功。
-四個報告匯出 action 的回應另有 `warnings` 字串陣列，平常是空陣列。報告已發布、卻寫不進操作紀錄時，本機與 SQL Server 案件
-都回 `ok: true` 及本次產物，`warnings` 是「檔案已產生，但這次產生的檔案沒有寫入操作紀錄。」，前端把這句當成提醒放進訊息區。
-本機案件的失敗記在支援日誌的 `project_audit.write_failed`，SQL Server 案件記在 `operation_log.append_failed`。
-本機與 SQL Server 案件的處理相同（裁定 2026-10-19-20）。
+四個報告匯出 action 的回應另有 `warnings` 字串陣列，平常是空陣列。報告已發布、卻寫不進操作紀錄時，
+回 `ok: true` 及本次產物，`warnings` 是「檔案已產生，但這次產生的檔案沒有寫入操作紀錄。」，前端把這句當成提醒放進訊息區。
+失敗記在支援日誌的 `project_audit.write_failed`（裁定 2026-10-19-20）。
 清單即將超過 4,096 筆時，只移除已確認檔案不存在的底稿紀錄。
 產生內容後、正式發布前會再次確認，途中被放回或無法確認的檔案仍保留。若仍超限，本次不發布新檔，
 使用者可自行整理不需要的舊底稿後重試。
@@ -851,8 +861,9 @@ Payload 的 `resultId` 是選填，畫面會附上目前驗證結果的編號，
 - `host.exitApp`
 - `dev.db.overview`
 - `dev.db.tableData`
-- `dev.db.reconcile`
 - `dev.log.exportFile`
+
+原本另有核對 SQL Server 案件登記與資料夾的 `dev.db.reconcile`，隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
 
 `host.openFolder` 的既有參數為 `{ target: "projectFolder" }` 或 `{ reportId }`，兩者只能擇一，不接受
 任意路徑。第四、第五與第六步的報告入口共用 `reportId`，由後端在目前案件解析檔案並交給檔案總管選取。過期的
@@ -872,9 +883,7 @@ Payload 的 `resultId` 是選填，畫面會附上目前驗證結果的編號，
 `rdeFields` 或 `postingStatusPolicy` 形狀不對，錯誤碼不變（`invalid_payload` 或 `unsupported_mode`），
 訊息改為非預期錯誤的同一句「發生非預期的錯誤，此操作未完成。請再試一次。」。沒過的是哪一項檢查，
 只以程式寫死的英文代號記進支援日誌的 `action.payload_rejected` 事件（`payload_check` 欄），不含資料內容、
-本機路徑或來源欄名。`system.databaseInfo` 連不上 SQL Server 時，摘要不附原因，錯誤類別或錯誤碼只記進
-支援日誌的 `sql_server.unreachable` 事件（`failure_category` 欄）；沒有設定 SQL Server 時 `summary` 為空字串，
-畫面不加訊息。
+本機路徑或來源欄名。
 診斷匯出不要求案件已載入，也不解析 `project.json`；設定損壞或遺失時仍可將該次載入錯誤匯出到既有案件目錄。
 兩種日誌匯出都使用請求的案件 ID 定位，不使用設定檔內的 ID 改變目的地；非法 ID 或不存在的目錄回 `project_not_found`。
 

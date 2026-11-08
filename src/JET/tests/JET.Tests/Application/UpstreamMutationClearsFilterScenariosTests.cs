@@ -31,7 +31,7 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     public static TheoryData<string, string> KeepingCases() => Cross(KeepingActions);
 
     public static IEnumerable<object[]> MutationCases() =>
-        from provider in new[] { ProjectDocument.DefaultDatabaseProvider, ProjectDocument.DuckDbDatabaseProvider }
+        from provider in new[] { ProjectDocument.DefaultDatabaseProvider }
         from mutation in Enum.GetValues<AuditMutation>()
         select new object[] { provider, mutation };
 
@@ -154,7 +154,6 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FailedAccountMappingImport_RollsBackAndKeepsSavedScenariosAndHits(string provider)
     {
         using var host = new HandlerTestHost();
@@ -182,8 +181,6 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     [Theory]
     [InlineData("sqlite", "gl")]
     [InlineData("sqlite", "tb")]
-    [InlineData("duckdb", "gl")]
-    [InlineData("duckdb", "tb")]
     public async Task AppendImport_RemovesSavedScenariosHitsAndAccountMapping(string provider, string kind)
     {
         using var host = new HandlerTestHost();
@@ -227,7 +224,6 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CategorySave_DeletesCategoryUsedOnlyByScenario_AndClearsScenarios(string provider)
     {
         using var host = new HandlerTestHost();
@@ -267,7 +263,7 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     private static TheoryData<string, string> Cross(IEnumerable<string> actions)
     {
         var data = new TheoryData<string, string>();
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         {
             foreach (var action in actions)
             {
@@ -280,16 +276,14 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
     private static async Task<long> CountAsync(HandlerTestHost host, string projectId, string provider, string table)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         return await ScalarAsync(database.CreateConnection(projectId), $"SELECT COUNT(*) FROM {table};");
     }
 
     private static async Task<(ILocalProjectDatabase Database, string ProjectId)> CreateDatabaseAsync(TempProjectRoot root, string provider)
     {
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);

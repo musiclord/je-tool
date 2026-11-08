@@ -25,17 +25,9 @@ public sealed class FilterSinglePurposeVoucherEquivalenceTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SeparateVoucherWitnesses_KeepTheFixedAnswersAndExplainTheVoucherScope(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
-        await AssertSeparateVoucherWitnessesAsync(fixture);
-    }
-
-    [SqlServerFact]
-    public async Task SeparateVoucherWitnesses_KeepTheFixedAnswersAndExplainTheVoucherScope_SqlServer()
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
         await AssertSeparateVoucherWitnessesAsync(fixture);
     }
 

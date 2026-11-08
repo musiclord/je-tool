@@ -27,7 +27,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OnLoad_CurrentVersionThatNoLongerValidates_IsListedAndKeepsResultsLocked(string provider)
     {
         using var host = new HandlerTestHost();
@@ -63,7 +62,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OnLoad_CurrentValidScenarios_StayCurrentWithoutRecalculatingHits(string provider)
     {
         using var host = new HandlerTestHost();
@@ -92,7 +90,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TwoInvalid_FixingTheFirst_SavesItAndListsOnlyTheSecond(string provider)
     {
         var (host, screen, _) = await TwoInvalidAsync(provider);
@@ -110,7 +107,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TwoInvalid_FixingTheSecond_SavesItAndListsOnlyTheFirst(string provider)
     {
         var (host, screen, _) = await TwoInvalidAsync(provider);
@@ -128,7 +124,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OnlySecondInvalid_EditingAValidScenario_IsNotBlockedAndKeepsTheInvalidOne(string provider)
     {
         var (host, screen, _) = await PrepareAsync(provider, invalidFirst: false, invalidSecond: true);
@@ -148,7 +143,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TwoInvalid_RemovingTheValidOne_KeepsBothInvalidVerbatim(string provider)
     {
         var (host, screen, projectId) = await TwoInvalidAsync(provider);
@@ -167,7 +161,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TwoInvalid_Recheck_SucceedsAndListsBoth(string provider)
     {
         var (host, screen, _) = await TwoInvalidAsync(provider);
@@ -187,7 +180,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OnlyOneInvalid_FixingIt_PublishesHitsAndUnlocksResults(string provider)
     {
         var (host, screen, projectId) = await PrepareAsync(provider, invalidFirst: false, invalidSecond: true);
@@ -219,7 +211,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OnlyOneInvalid_RemovingIt_UnlocksResults(string provider)
     {
         var (host, screen, projectId) = await PrepareAsync(provider, invalidFirst: false, invalidSecond: true);
@@ -236,7 +227,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TwoInvalid_FixingOneThenTheOther_UnlocksHighRiskSummaryAndHits(string provider)
     {
         var (host, screen, _) = await TwoInvalidAsync(provider);
@@ -255,7 +245,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TwoInvalid_FixingOneThenRemovingTheOther_UnlocksResults(string provider)
     {
         var (host, screen, _) = await TwoInvalidAsync(provider);
@@ -270,7 +259,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavingWhileOthersNeedEdits_KeepsThemVerbatimAndKeepsResultsLocked(string provider)
     {
         var (host, screen, projectId) = await TwoInvalidAsync(provider);
@@ -310,7 +298,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavingACopy_AppendsItAndKeepsTheOthersVerbatim(string provider)
     {
         var (host, screen, projectId) = await TwoInvalidAsync(provider);
@@ -329,7 +316,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TenSaved_AddingAnotherIsRejectedButUpdatingOneSucceeds(string provider)
     {
         using var host = new HandlerTestHost();
@@ -357,7 +343,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RemovingTheMiddleScenario_RenumbersInOrder(string provider)
     {
         using var host = new HandlerTestHost();
@@ -379,7 +364,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RemovingTheLastScenario_ClearsTheListAndTheResultFlag(string provider)
     {
         using var host = new HandlerTestHost();
@@ -404,7 +388,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Recheck_UpgradesTheValidOldScenarioAndKeepsTheInvalidOnesVerbatim(string provider)
     {
         var (host, screen, projectId) = await TwoInvalidAsync(provider);
@@ -425,7 +408,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Recheck_AllValidOldScenarios_PublishesHits(string provider)
     {
         using var host = new HandlerTestHost();
@@ -451,7 +433,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ErrorInTheEditedScenario_NamesThatScenarioAndChangesNothing(string provider)
     {
         var (host, screen, projectId) = await TwoInvalidAsync(provider);
@@ -476,7 +457,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task DuplicateName_IsRejectedAndChangesNothing(string provider)
     {
         var (host, screen, projectId) = await TwoInvalidAsync(provider);
@@ -497,9 +477,8 @@ public sealed class FilterScenarioSingleChangeTests
         { "sqlite", "save", 2, "不存在的名稱" },
         { "sqlite", "remove", 2, "不存在的名稱" },
         { "sqlite", "save", 9, "情境甲" },
-        { "duckdb", "save", 2, "不存在的名稱" },
-        { "duckdb", "remove", 2, "不存在的名稱" },
-        { "duckdb", "remove", 9, "情境甲" }
+        // 原本這一列由 DuckDB 測；只保留 SQLite 之後改由 SQLite 測，情境不變（裁定 2026-11-06-08）。
+        { "sqlite", "remove", 9, "情境甲" }
     };
 
     [Theory]
@@ -530,7 +509,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MissingOrMalformedPayload_IsInvalidPayload(string provider)
     {
         var (host, screen, _) = await TwoInvalidAsync(provider);
@@ -554,7 +532,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MixedSavedTimes_AreAcceptedAndOthersKeepTheirOwnTimes(string provider)
     {
         using var host = new HandlerTestHost();
@@ -587,7 +564,6 @@ public sealed class FilterScenarioSingleChangeTests
     // 情境的儲存時間改到很久以前，報告仍要寫匯出當天的本機日期。這是新增的測試，改程式前失敗：Focused 收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CriteriaReport_PreparedDateIsTheExportDay_NotWhenTheScenariosWereSaved(string provider)
     {
         using var host = new HandlerTestHost();
@@ -614,15 +590,14 @@ public sealed class FilterScenarioSingleChangeTests
         var report = Assert.Single(CriteriaReports(await LoadAsync(host, context.ProjectId)));
         using var workbook = new ClosedXML.Excel.XLWorkbook(report.GetProperty("fullPath").GetString()!);
         var prepared = Assert.Single(workbook.Worksheets
-            .Select(sheet => sheet.Cell("D2").GetString())
-            .Where(text => text.StartsWith("Prepared date:", StringComparison.Ordinal)));
+            .Select(sheet => sheet.Cell("D2").GetString()),
+            text => text.StartsWith("Prepared date:", StringComparison.Ordinal));
         Assert.Contains(prepared, new[] { before, after }.Select(day =>
             string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Prepared date: {day:yyyy/MM/dd}")));
     }
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AllValidCase_StoresTheSameHitsAsThePreview(string provider)
     {
         using var host = new HandlerTestHost();
@@ -641,7 +616,6 @@ public sealed class FilterScenarioSingleChangeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FixingTheLastScenario_MarksTheOlderCriteriaReportStaleWithoutTouchingTheFile(string provider)
     {
         using var host = new HandlerTestHost();
@@ -677,10 +651,7 @@ public sealed class FilterScenarioSingleChangeTests
     {
         { "sqlite", "filter.scenario.save" },
         { "sqlite", "filter.scenario.remove" },
-        { "sqlite", "filter.scenario.recheck" },
-        { "duckdb", "filter.scenario.save" },
-        { "duckdb", "filter.scenario.remove" },
-        { "duckdb", "filter.scenario.recheck" }
+        { "sqlite", "filter.scenario.recheck" }
     };
 
     [Theory]
@@ -963,7 +934,7 @@ public sealed class FilterScenarioSingleChangeTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task<IReadOnlyList<StoredScenario>> ReadScenariosAsync(

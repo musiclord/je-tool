@@ -19,7 +19,6 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
     // 第一次失敗：匯出底稿時 step4-1 的欄位名稱「傳票金額_JE」重複，整份底稿產生失敗。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SourceColumnNamedLikeJetField_YieldsNameInsteadOfFailingExport(string provider)
     {
         var builder = new InlineGlWorkbookBuilder()
@@ -47,7 +46,6 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
     // 第一次失敗：欄位資訊把 COST_CENTER_JE 寫成配對後欄位，step4-1 多出這一欄。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UnmappedSourceColumnEndingWithJe_IsNotTreatedAsJetField(string provider)
     {
         var builder = new InlineGlWorkbookBuilder()
@@ -69,7 +67,6 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
     // 第一次失敗：step4-1 的「傳票核准日_JE」整欄空白。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ApprovalDateSameAsGlDate_Step41WritesTheGlDate(string provider)
     {
         var builder = new InlineGlWorkbookBuilder()
@@ -104,7 +101,6 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
     // 勾了往下填補的欄位，step4-1 寫填補後的值（裁定 2026-11-03-13）。新增的測試，改好程式後才寫，沒有第一次失敗的收據。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FillDownField_Step41WritesTheFilledValue(string provider)
     {
         var builder = new InlineGlWorkbookBuilder()
@@ -127,7 +123,6 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
     // 新增的測試，改好程式後才寫，沒有第一次失敗的收據。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RdeAndPostingStatus_AppearWithLegacySuffixes(string provider)
     {
         var builder = new InlineGlWorkbookBuilder()

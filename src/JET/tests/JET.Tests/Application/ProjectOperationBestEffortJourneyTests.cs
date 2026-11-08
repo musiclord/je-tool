@@ -15,7 +15,6 @@ public sealed class ProjectOperationBestEffortJourneyTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AuditTableMissing_ReimportRecommitAndExport_SucceedAndLogSupportEvent(string provider)
     {
         using var host = new HandlerTestHost();
@@ -115,9 +114,7 @@ public sealed class ProjectOperationBestEffortJourneyTests
 
     private static async Task DropAuditTableAsync(HandlerTestHost host, string projectId, string provider)
     {
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
-            : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        ILocalProjectDatabase database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

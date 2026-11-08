@@ -13,11 +13,7 @@ public sealed class FilterQueryFreshnessTests
         { "sqlite", "query.filterHitsPage" },
         { "sqlite", "query.highRiskSummaryScenarios" },
         { "sqlite", "query.highRiskSummaryVoucherPage" },
-        { "sqlite", "query.highRiskSummaryRowPage" },
-        { "duckdb", "query.filterHitsPage" },
-        { "duckdb", "query.highRiskSummaryScenarios" },
-        { "duckdb", "query.highRiskSummaryVoucherPage" },
-        { "duckdb", "query.highRiskSummaryRowPage" }
+        { "sqlite", "query.highRiskSummaryRowPage" }
     };
 
     [Theory]
@@ -68,7 +64,6 @@ public sealed class FilterQueryFreshnessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SearchWithNoMatchingRows_DoesNotInvalidateOrRecalculateExistingHits(string provider)
     {
         using var host = new HandlerTestHost();
@@ -96,8 +91,7 @@ public sealed class FilterQueryFreshnessTests
     private static async Task<long> ScalarAsync(HandlerTestHost host, string projectId, string provider, string sql)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

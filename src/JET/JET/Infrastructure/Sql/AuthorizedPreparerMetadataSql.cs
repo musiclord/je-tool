@@ -76,7 +76,7 @@ internal static class AuthorizedPreparerMetadataSql
         // 名單人員只計一次；只比對 GL，不算 GL(未納入測試) 的建立人員；GL 僅在資料庫內比對，不把大量識別值帶回記憶體。
         var personKey = dialect.Upper(dialect.Trim("ap.name"));
         var preparerKey = dialect.Upper(dialect.Trim("g.created_by"));
-        var count = dialect.ProviderName == "sqlServer" ? "COUNT_BIG" : "COUNT";
+        const string count = "COUNT";
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = $"""

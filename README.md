@@ -20,8 +20,8 @@ Thin-Bridge Action-Dispatcher：前端與 C# 之間只走 action 通道，Applic
 審計規則集中在 Domain 與 AuditCore，資料庫實作隔離在 Infrastructure。
 
 大量資料不進入前端或應用層記憶體：篩選、彙總與連接都以參數化、集合式 SQL 在資料庫內完成，前端只
-接收摘要與有界分頁。本機案件使用 SQLite 或 DuckDB（免伺服器、免系統管理權限），SQL Server 保留為
-線上實作；三種資料庫在相同輸入下必須得到相同業務結果。
+接收摘要與有界分頁。本機案件使用 SQLite（免伺服器、免系統管理權限）。短期上線期間 DuckDB 與 SQL Server
+暫時移除，還原點是提交 `7e88b7b`（裁定 2026-11-06-08）；接回後，三種資料庫在相同輸入下仍必須得到相同業務結果。
 
 各層的職責與資料流見 [`docs/jet-guide.md`](docs/jet-guide.md) 第 9 節。
 [架構與流程圖](docs/architecture/README.md)提供六個 LikeC4 視圖與十八張 Archify 圖，附可編輯模型和來源證據。
@@ -38,7 +38,6 @@ Thin-Bridge Action-Dispatcher：前端與 C# 之間只走 action 通道，Applic
 | PowerShell | 7.4 以上；只有正式驗證入口需要，VS Code F5 與發佈不依賴它 |
 | WebView2 | Microsoft Edge WebView2 執行階段 |
 | Microsoft Excel | 選用，只有 `Excel` 驗證路線需要 |
-| SQL Server | 選用，只有 `Provider` 驗證路線需要，且必須是專用測試環境 |
 
 ## 快速開始
 
@@ -76,7 +75,7 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Help
 ```
 
 結束碼：`0` 通過、`1` 失敗、`2` 受阻（尚無正誤結論，不能當成通過）、`3` 用法錯誤、`4` 框架本身錯誤。
-另有 `Provider`、`Package`、`Gui`、`Excel`、`PrivateCase`、`ReleaseCandidate` 六條較重的路線，見
+另有 `Package`、`Gui`、`Excel`、`PrivateCase`、`ReleaseCandidate` 五條較重的路線，見
 [`tools/README.md`](tools/README.md)。
 
 ## 專案結構

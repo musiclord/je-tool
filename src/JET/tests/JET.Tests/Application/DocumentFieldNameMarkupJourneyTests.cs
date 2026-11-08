@@ -19,7 +19,6 @@ public sealed class DocumentFieldNameMarkupJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExportedWorkingPaperAndCriteriaReport_MarkOnlyFieldNamesInConditionText(string provider)
     {
         using var host = new HandlerTestHost();

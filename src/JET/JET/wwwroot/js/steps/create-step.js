@@ -22,55 +22,8 @@
     );
   }
 
-  // note：固定顯示在下拉選單下方的一句說明；hint：依狀態出現的提示（hidden 切換）。
-  function formSelect(name, label, options, hint, note) {
-    var opts = options.map(function (option) {
-      return (
-        '<option value="' + option.value + '"' + (option.selected ? ' selected' : '') +
-          (option.disabled ? ' disabled' : '') + '>' +
-          Ui.esc(option.text) +
-        '</option>'
-      );
-    }).join('');
-    return (
-      '<label class="form__row">' +
-        '<span class="form__label">' + label + '</span>' +
-        '<select class="form__input" name="' + name + '">' + opts + '</select>' +
-      '</label>' +
-      (note ? '<p class="rule-card__sub">' + Ui.esc(note) + '</p>' : '') +
-      // 提示原地展開與收起；展開與收合要一致（裁定 2026-10-13-11），所以和其他提示共用 data-collapsible。
-      '<p class="rule-card__sub" data-bind="' + name + '-hint" data-collapsible role="status"' + (hint ? '' : ' hidden') + '>' +
-        Ui.esc(hint || '') + '</p>'
-    );
-  }
-
-  var SQL_SERVER_NOT_CONFIGURED_HINT = '這台電腦沒有設定線上資料庫，請改選 SQLite 或 DuckDB。';
-
-  // 只有 system.databaseInfo 明確回報沒有設定（false）才停用 SQL Server；還沒查到（null）或
-  // 已設定但連不上（true）都維持可選，連不上時照舊在建立案件時回報錯誤。
-  function sqlServerUnavailable(state) {
-    return state.sqlServerConfigured === false;
-  }
-
-  // system.databaseInfo 可能在輸入案件名稱後才回來；只改選項可用性與提示。
-  // 已選的資料庫不代替使用者切換，表單、焦點與尚未儲存的內容都留在原節點。
-  Ui.refreshCreateDatabaseAvailability = function (container, state) {
-    if (state.project) { return; }
-    var unavailable = sqlServerUnavailable(state);
-    var option = container.querySelector('[data-bind="create-form"] option[value="sqlServer"]');
-    var hint = container.querySelector('[data-bind="create-form"] [data-bind="databaseProvider-hint"]');
-    if (option) { option.disabled = unavailable; }
-    if (hint) {
-      // 收起時只設 hidden、留下原文字，提示才會帶著內容收合，不會先變成空框再消失。
-      if (unavailable) { hint.textContent = SQL_SERVER_NOT_CONFIGURED_HINT; }
-      hint.hidden = !unavailable;
-    }
-  };
-
-  // databaseProvider 顯示名（與後端 ProjectDocument 的值對應）。
-  function providerLabel(value) {
-    if (value === 'sqlServer') { return 'SQL Server（共用實例）'; }
-    if (value === 'duckdb') { return 'DuckDB（本機分析資料庫）'; }
+  // databaseProvider 顯示名。目前只建立 SQLite 案件（裁定 2026-11-06-08），建案表單不再讓使用者選擇。
+  function providerLabel() {
     return 'SQLite（本機檔案）';
   }
 
@@ -86,8 +39,8 @@
   function operatorNoticeHtml(state) {
     var user = state.currentUser;
     var name = user && user.shortName ? user.shortName : '目前 Windows 帳號';
-    return '<p class="form-notice form-notice--info create-form__operator" data-bind="create-operator">目前帳號：<strong>' + Ui.esc(name) +
-      '</strong>。建立案件時由系統取得，不能自行更改。</p>';
+    return '<p class="form-notice form-notice--info create-form__operator" data-bind="create-operator"><span>目前帳號：<strong>' + Ui.esc(name) +
+      '</strong>。建立案件時由系統取得，不能自行更改。</span></p>';
   }
 
   // whoAmI 可能晚於使用者開始填表；只更新身分這一行，不重建未儲存的案件表單。
@@ -277,7 +230,7 @@
             kv('建案者', state.project.operatorId) +
             kv('查核期間', (state.project.periodStart || '—') + ' ～ ' + (state.project.periodEnd || '—')) +
             kv('期末財報準備日', state.project.prepStartDate || '—') +
-            kv('資料儲存方式', providerLabel(state.project.databaseProvider)) +
+            kv('資料儲存方式', providerLabel()) +
           '</dl>' +
           voucherNumberAcrossGlDatesHtml(state) +
           metadataEditorHtml() +
@@ -302,11 +255,6 @@
           formRow('prepStartDate', '期末財報準備日', 'date', false) +
           preparationWarningHtml() +
           '<p class="rule-card__sub">查核期間決定本次分析的總帳範圍；期末財報準備日供「財報準備日起核准」條件使用，不會延長查核期間。</p>' +
-          formSelect('databaseProvider', '資料儲存方式', [
-            { value: 'sqlite', text: 'SQLite（本機檔案）', selected: true },
-            { value: 'duckdb', text: 'DuckDB（本機分析資料庫）' },
-            { value: 'sqlServer', text: 'SQL Server（共用實例）', disabled: sqlServerUnavailable(state) }
-          ], sqlServerUnavailable(state) ? SQL_SERVER_NOT_CONFIGURED_HINT : '', '建立案件後不能變更。') +
           '<div id="create-form-error" class="form-notice create-form__error" data-bind="create-error" data-collapsible role="alert" tabindex="-1" hidden></div>' +
           '<div class="panel__actions">' +
             '<button type="submit" class="btn">建立案件</button>' +
@@ -328,8 +276,7 @@
         clientName: form.clientName.value.trim(),
         periodStart: form.periodStart.value,
         periodEnd: form.periodEnd.value,
-        prepStartDate: form.prepStartDate.value || null,
-        databaseProvider: form.databaseProvider.value
+        prepStartDate: form.prepStartDate.value || null
       };
       if (!payload.projectName) {
         showCreateError(form, { field: 'projectName', message: '案件名稱不可為空白，請輸入可辨識這個案件的名稱。' });

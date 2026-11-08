@@ -20,7 +20,7 @@ public sealed class UsageScenarioMutationRollbackTests
     public static TheoryData<string, string> Cases()
     {
         var result = new TheoryData<string, string>();
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var action in new[] { "calendar.setNonWorkingDays", "import.makeupDay.fromFile", "accountMapping.save", "import.authorizedPreparer.clear", "accountCategory.save" })
             result.Add(provider, action);
         return result;
@@ -87,7 +87,7 @@ public sealed class UsageScenarioMutationRollbackTests
     internal static async Task<string[]> ReadTableAsync(HandlerTestHost host, string projectId, string provider, string table)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

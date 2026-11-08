@@ -10,20 +10,9 @@ public sealed class AccountCategorySaveHandlerTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public Task Save_CustomCategory_RoundTripsWithStableBackendId_AndRejectsStaleRevision(
         string provider) =>
         VerifySaveRoundTripAsync(provider);
-
-    [SqlServerFact]
-    public async Task SqlServer_Save_CustomCategory_RoundTripsWithStableBackendId_AndRejectsStaleRevision()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerFact 已判定可用，但執行期無法取得 SQL Server 連線。");
-
-        await VerifySaveRoundTripAsync("sqlServer", connectionString);
-    }
 
     [Fact]
     public async Task Save_RejectsBuiltInRoleChange()
@@ -151,44 +140,33 @@ public sealed class AccountCategorySaveHandlerTests
     }
 
     private static async Task VerifySaveRoundTripAsync(
-        string provider,
-        string? sqlServerConnectionString = null)
+        string provider)
     {
-        using var host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
+        using var host = new HandlerTestHost();
         var projectId = await CreateProjectAsync(host, provider);
-        try
-        {
-            var saved = await host.DispatchAsync(
+        var saved = await host.DispatchAsync(
+            "accountCategory.save",
+            SavePayload(1, AddCustom("Contract assets", AccountCategoryBuiltIns.ReceivablesRole)));
+
+        Assert.Equal(2, saved.GetProperty("revision").GetInt32());
+        var custom = saved.GetProperty("categories").EnumerateArray()
+            .Single(item => !item.GetProperty("isBuiltIn").GetBoolean());
+        var customId = custom.GetProperty("categoryId").GetString()!;
+        Assert.Matches("^custom\\.[0-9a-f]{32}$", customId);
+
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
+        Assert.Equal(
+            customId,
+            loaded.GetProperty("accountCategory").GetProperty("categories").EnumerateArray()
+                .Single(item => !item.GetProperty("isBuiltIn").GetBoolean())
+                .GetProperty("categoryId").GetString());
+
+        var stale = await Assert.ThrowsAsync<JetActionException>(() =>
+            host.DispatchAsync(
                 "accountCategory.save",
-                SavePayload(1, AddCustom("Contract assets", AccountCategoryBuiltIns.ReceivablesRole)));
-
-            Assert.Equal(2, saved.GetProperty("revision").GetInt32());
-            var custom = saved.GetProperty("categories").EnumerateArray()
-                .Single(item => !item.GetProperty("isBuiltIn").GetBoolean());
-            var customId = custom.GetProperty("categoryId").GetString()!;
-            Assert.Matches("^custom\\.[0-9a-f]{32}$", customId);
-
-            var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
-            Assert.Equal(
-                customId,
-                loaded.GetProperty("accountCategory").GetProperty("categories").EnumerateArray()
-                    .Single(item => !item.GetProperty("isBuiltIn").GetBoolean())
-                    .GetProperty("categoryId").GetString());
-
-            var stale = await Assert.ThrowsAsync<JetActionException>(() =>
-                host.DispatchAsync(
-                    "accountCategory.save",
-                    SavePayload(1, AccountCategoryBuiltIns.All.Select(item =>
-                        Item(item.CategoryId, item.Label, item.Ordinal, item.SemanticRole)))));
-            Assert.Equal(JetErrorCodes.CategoryRevisionConflict, stale.Code);
-        }
-        finally
-        {
-            if (sqlServerConnectionString is not null)
-            {
-                await TempSqlServerProject.DropDatabaseAsync(sqlServerConnectionString, projectId);
-            }
-        }
+                SavePayload(1, AccountCategoryBuiltIns.All.Select(item =>
+                    Item(item.CategoryId, item.Label, item.Ordinal, item.SemanticRole)))));
+        Assert.Equal(JetErrorCodes.CategoryRevisionConflict, stale.Code);
     }
 
     private static IEnumerable<object> AddCustom(string label, string semanticRole) =>

@@ -83,7 +83,8 @@ test('validation and the prescreen show a monotonic elapsed time and the long-op
   const f = await openCaseAtValidation();
   f.click('[data-action="run-validate"]');
   const run = f.request('validate.run');
-  assert.deepEqual(plain(run.payload), {});
+  // 抽樣筆數改為畫面輸入；首次失敗 20261106-133616379-2f8f12cd10ce48418a6955308396d496。
+  assert.deepEqual(plain(run.payload), { sampleSize: 59 });
   // 忙碌畫面的作業名稱由 jet-api.js 送出請求時的事件帶入：這時才知道是資料驗證，提示句與取消鈕跟著出現。
   assert.equal(f.state().busy, true);
   assert.equal(f.state().activeRequestId, run.requestId);
@@ -210,12 +211,14 @@ test('a refresh runs once after the operation is no longer busy, only on success
   const f = await boot([CASE]);
   const seen = [];
   // 預設成功或失敗都整理；整理在解除忙碌之後，所以整理裡再開一個作業也能送出。
+  // 整理用的請求原本是 system.databaseInfo，隨 SQL Server 移除改用 system.whoAmI；啟動時已送過一次，所以這裡是第二次
+  // （裁定 2026-11-06-08）。第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
   let done = f.ui.run('合成作業', () => f.api.systemPing({}), {
-    refresh: () => { seen.push({ busy: f.state().busy }); return f.ui.run('合成整理', () => f.api.systemDatabaseInfo({})); } });
+    refresh: () => { seen.push({ busy: f.state().busy }); return f.ui.run('合成整理', () => f.api.systemWhoAmI({})); } });
   const pings = f.sent('system.ping');
   f.reply(pings.at(-1), {}); await flush();
   assert.deepEqual(seen, [{ busy: false }]);
-  const nested = f.sent('system.databaseInfo');
+  const nested = f.sent('system.whoAmI');
   assert.equal(nested.length, 2, 'the refresh itself sent its request');
   assert.equal(f.state().busyLabel, '合成整理');
   f.reply(nested.at(-1), {}); await done; await flush();
@@ -247,26 +250,22 @@ test('a refresh runs once after the operation is no longer busy, only on success
   assert.equal(f.messages()[0].level, 'error');
 });
 
-test('listing online cases and opening a case can be cancelled with the request that is actually running', async () => {
+// 原本先測「同步線上案件」可以取消，隨 SQL Server 移除（裁定 2026-11-06-08）；取消中的按鈕狀態改在開案時核對。
+// 背景請求原本用心跳，改用讀訊息紀錄，測試名稱跟著改。第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+test('opening a case can be cancelled with the request that is actually running', async () => {
   const f = await boot([CASE]);
-  f.click('[data-action="picker-sync-online"]');
-  const list = f.request('project.list');
-  assert.equal(f.state().activeRequestId, list.requestId);
-  assert.deepEqual(f.overlay.cancel(), { text: '取消作業', disabled: false });
-  f.click('[data-action="cancel-operation"]');
-  assert.deepEqual(plain(f.request('operation.cancel').payload), { requestId: list.requestId });
-  assert.deepEqual(f.overlay.cancel(), { text: '取消中…', disabled: true });
-  f.reply('operation.cancel', { requested: true }); await flush();
-  f.fail(list, { code: 'operation_cancelled', message: '合成：已取消' }); await flush();
-  assert.equal(f.state().busy, false);
-
-  // 背景的心跳與訊息紀錄不是可以取消的作業，不能搶走開案這個請求。
+  // 背景的訊息紀錄不是可以取消的作業，不能搶走開案這個請求。
   f.click('[data-action="picker-open"]');
   const load = f.request('project.load');
-  f.api.projectHeartbeat({});
+  f.api.logRecent({});
+  assert.deepEqual(f.overlay.cancel(), { text: '取消作業', disabled: false });
   assert.equal(f.state().activeRequestId, load.requestId);
   f.click('[data-action="cancel-operation"]');
   assert.deepEqual(plain(f.request('operation.cancel').payload), { requestId: load.requestId });
+  assert.deepEqual(f.overlay.cancel(), { text: '取消中…', disabled: true });
+  f.reply('operation.cancel', { requested: true }); await flush();
+  f.fail(load, { code: 'operation_cancelled', message: '合成：已取消' }); await flush();
+  assert.equal(f.state().busy, false);
 });
 
 test('cancelling records the operation and its progress at that moment, a finished step keeps its result, and a failed cancel can be pressed again', async () => {
@@ -438,7 +437,9 @@ test('copying the log takes the newest one hundred after pending writes, oldest 
 
 test('when the clipboard refuses, copying falls back to the copy command with the same text', async () => {
   const f = messagePanelFixture({ clipboard: 'reject' });
-  f.store.setProject({ projectId: '合成案件', projectCode: null, databaseProvider: 'duckdb' });
+  // 案件原本是 DuckDB 案件，第三欄寫 DuckDB；只保留 SQLite 之後改成 SQLite 案件（裁定 2026-11-06-08）。
+  // 第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+  f.store.setProject({ projectId: '合成案件', projectCode: null, databaseProvider: 'sqlite' });
   f.copyButton().dispatch('click'); await settle(); await settle();
   f.request('logRecent').resolve({ messages: recentEntries(2) }); await settle(); await settle(); await settle();
   assert.equal(f.clipboardWrites.length, 0);
@@ -446,8 +447,8 @@ test('when the clipboard refuses, copying falls back to the copy command with th
   assert.equal(f.copyCommands[0].command, 'copy');
   // 案件編號是 null 時第二欄是空字串。
   assert.deepEqual(f.copyCommands[0].value.split('\r\n'), [COPIED_HEADER,
-    '合成案件\t\tDuckDB\t' + localTime(recentEntries(2)[1].occurredUtc) + '\t' + COPIED_LEVEL[recentEntries(2)[1].level] + '\t第 1 則',
-    '合成案件\t\tDuckDB\t' + localTime(recentEntries(2)[0].occurredUtc) + '\t' + COPIED_LEVEL[recentEntries(2)[0].level] + '\t第 2 則']);
+    '合成案件\t\tSQLite\t' + localTime(recentEntries(2)[1].occurredUtc) + '\t' + COPIED_LEVEL[recentEntries(2)[1].level] + '\t第 1 則',
+    '合成案件\t\tSQLite\t' + localTime(recentEntries(2)[0].occurredUtc) + '\t' + COPIED_LEVEL[recentEntries(2)[0].level] + '\t第 2 則']);
   assert.match(f.copyButton().textContent, /已複製/);
 });
 

@@ -24,7 +24,7 @@ public sealed class ReportSheetWriterTests
         }
         stream.Position = 0;
         using var read = SpreadsheetDocument.Open(stream, false);
-        var sheet = read.WorkbookPart!.WorksheetParts.Single().Worksheet;
+        var sheet = read.WorkbookPart!.WorksheetParts.Single().RequiredWorksheet();
         var view = Assert.Single(sheet.Descendants<SheetView>());
         Assert.Equal(0U, view.WorkbookViewId?.Value);
         Assert.Null(view.ZoomScale);
@@ -82,7 +82,7 @@ public sealed class ReportSheetWriterTests
 
         stream.Position = 0;
         using var read = SpreadsheetDocument.Open(stream, false);
-        var worksheet = Assert.IsType<WorksheetPart>(read.WorkbookPart!.WorksheetParts.Single()).Worksheet;
+        var worksheet = Assert.IsType<WorksheetPart>(read.WorkbookPart!.WorksheetParts.Single()).RequiredWorksheet();
         Assert.Equal(
             new[] { "sheetViews", "sheetFormatPr", "cols", "sheetData", "pageMargins", "pageSetup" },
             worksheet.ChildElements.Select(element => element.LocalName).ToArray());

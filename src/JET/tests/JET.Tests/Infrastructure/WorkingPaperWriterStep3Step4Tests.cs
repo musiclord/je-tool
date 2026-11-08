@@ -437,14 +437,14 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         stream.Position = 0;
         using var package = SpreadsheetDocument.Open(stream, false);
         var workbookPart = Assert.IsType<WorkbookPart>(package.WorkbookPart);
-        var sheetRef = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheetRef = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(sheet => string.Equals(
                 sheet.Name?.Value,
                 Step41Sheet,
                 StringComparison.Ordinal));
         var worksheet = Assert.IsType<WorksheetPart>(
                 workbookPart.GetPartById(sheetRef.Id!.Value!))
-            .Worksheet;
+            .RequiredWorksheet();
         var widths = Assert.Single(worksheet.Elements<Columns>())
             .Elements<Column>()
             .ToDictionary(column => checked((int)column.Min!.Value));

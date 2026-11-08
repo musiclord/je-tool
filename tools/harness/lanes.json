@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runnerContractVersion": "8.2",
+  "runnerContractVersion": "9.0",
   "limits": {
     "defaultTimeoutSeconds": 1800,
     "maximumTimeoutSeconds": 3600,
@@ -14,20 +14,6 @@
     "seed": 20260828,
     "publicMinimumExpectedTests": 3000,
     "publicSkipPolicy": "public-skip-policy.json",
-    "providerConnectionEnvironmentVariable": "JET_SQLSERVER_CONNECTION",
-    "providerLocalMinimumExpectedTests": 20,
-    "providerSqlMinimumExpectedTests": 259,
-    "providerLocalDbMinimumExpectedTests": 1,
-    "providerLocalParityMethodPatterns": [
-      "*ProviderParity*"
-    ],
-    "providerSqlTraits": [
-      "Capability=SqlServer"
-    ],
-    "providerLocalDbTraits": [
-      "Capability=LocalDbExpress"
-    ],
-    "providerSkipPolicy": "provider-skip-policy.json",
     "privateCaseMinimumExpectedTests": 2,
     "privateCaseRootEnvironmentVariable": "JET_PRIVATE_CASE_ROOT",
     "privateCaseManifestEnvironmentVariable": "JET_PRIVATE_CASE_MANIFEST",
@@ -46,7 +32,7 @@
       "*ProjectReportStoreTests*",
       "*EmbeddedReportTemplateFailureTests*"
     ],
-    "guiFixtureMinimumExpectedTests": 32,
+    "guiFixtureMinimumExpectedTests": 31,
     "guiFixtureMethodPatterns": [
       "*.AgentGuiTestFixtureBehaviorTests.*",
       "*.DevToolsGatingTests.*",
@@ -56,7 +42,6 @@
     ],
     "excludedProfiles": [
       "PrivateCase",
-      "Provider",
       "Scale"
     ],
     "protectedWorkspaceMethodPatterns": [],
@@ -64,32 +49,6 @@
       "JET.Tests.Architecture"
     ],
     "environmentVariablesToRemove": [
-      "JET_ACCOUNT_MAPPING_EVIDENCE_PATH",
-      "JET_AGENT_GUI_CHILD",
-      "JET_AGENT_GUI_ROOT",
-      "JET_LEGACY_PARITY_KEEP_OUTPUTS",
-      "JET_LEGACY_PARITY_PROVIDER",
-      "JET_LEGACY_PARITY_STOP_AFTER",
-      "JET_PRESCREEN_MONTHLY_BENCHMARK",
-      "JET_PRESCREEN_MONTHLY_BENCHMARK_OUTPUT",
-      "JET_PRESCREEN_POSTPERIOD_PROBE",
-      "JET_PRESCREEN_POSTPERIOD_PROBE_OUTPUT",
-      "JET_PRIVATE_CASE_MANIFEST",
-      "JET_PRIVATE_CASE_PROVIDER",
-      "JET_PRIVATE_CASE_ROOT",
-      "JET_PROJECTS_ROOT",
-      "JET_SCALE_JOURNEY",
-      "JET_SCALE_JOURNEY_OUTPUT",
-      "JET_SCALE_JOURNEY_PROVIDER",
-      "JET_SCALE_JOURNEY_ROWS",
-      "JET_SIX_REPORT_EVIDENCE_DIR",
-      "JET_SQLSERVER_CONNECTION",
-      "JET_STEP41_BASELINE_ROOT",
-      "JET_STEP41_PARITY_EVIDENCE_ROOT",
-      "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-      "WEBVIEW2_USER_DATA_FOLDER"
-    ],
-    "providerEnvironmentVariablesToRemove": [
       "JET_ACCOUNT_MAPPING_EVIDENCE_PATH",
       "JET_AGENT_GUI_CHILD",
       "JET_AGENT_GUI_ROOT",
@@ -231,13 +190,6 @@
         "screenshotBudget": 2
       },
       {
-        "name": "case-to-working-paper-duckdb",
-        "timeoutSeconds": 240,
-        "actionBudget": 82,
-        "expectedActionCount": 82,
-        "screenshotBudget": 2
-      },
-      {
         "name": "case-list-cleanup-cancel-export",
         "timeoutSeconds": 180,
         "actionBudget": 10,
@@ -305,7 +257,6 @@
   "releaseCandidateSettings": {
     "snapshotWorkspaceRoot": "artifacts/harness/rc",
     "privateCaseIncluded": false,
-    "liveProviderIncluded": false,
     "steps": [
       {
         "name": "contract",
@@ -410,12 +361,6 @@
       "requiresExclusiveLock": true,
       "privateDataAccess": false
     },
-    "Provider": {
-      "lane": "Provider",
-      "enabled": true,
-      "requiresExclusiveLock": true,
-      "privateDataAccess": false
-    },
     "Package": {
       "lane": "Package",
       "enabled": true,
@@ -466,11 +411,6 @@
     },
     "Public": {
       "stage": 2,
-      "enabled": true,
-      "privateDataAccess": false
-    },
-    "Provider": {
-      "stage": 3,
       "enabled": true,
       "privateDataAccess": false
     },

@@ -30,7 +30,7 @@ internal static class HighRiskSummaryRowPageReader
         string LineItemOrder,
         long EntryId);
 
-    // schemaPrefix 預設 ""（SQLite 裸名，逐字不變）；SQL Server 傳 QualifierFor(projectId) 前綴專案表名。
+    // schemaPrefix 預設 ""（SQLite 裸名，逐字不變）；參數保留給日後恢復的 SQL Server 傳專案 schema 前綴。
     private static string PageSqlHead(
         string schemaPrefix,
         string scenarioPredicate,
@@ -193,23 +193,22 @@ internal static class HighRiskSummaryRowPageReader
             }
         }
 
-        var documentOrder = OrdinalText(dialect, "COALESCE(g.voucher_number, '')");
+        // SQLite 的文字比較依字元碼（BINARY 定序），排序與游標比較不受語言設定影響。
+        const string documentOrder = "COALESCE(g.voucher_number, '')";
         var lineOrder = lineItemKind switch
         {
             LegacyFieldKind.Number =>
-                OrdinalText(
-                    dialect,
-                    "CASE WHEN g.line_item IS NULL THEN '' "
-                    + "ELSE COALESCE(g.line_item_numeric_sort_key, '') END"),
+                "CASE WHEN g.line_item IS NULL THEN '' "
+                + "ELSE COALESCE(g.line_item_numeric_sort_key, '') END",
             LegacyFieldKind.Text or LegacyFieldKind.Date or LegacyFieldKind.Time =>
-                OrdinalText(dialect, "COALESCE(g.line_item, '')"),
+                "COALESCE(g.line_item, '')",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(lineItemKind),
                 lineItemKind,
                 "Unsupported step4-1 line item field kind.")
         };
         const string lineNullRank = "CASE WHEN g.line_item IS NULL THEN 0 ELSE 1 END";
-        var cursorLineOrder = OrdinalText(dialect, "@cursorLine");
+        const string cursorLineOrder = "@cursorLine";
         var keyset = cursor is null
             ? string.Empty
             : "AND (" +
@@ -388,11 +387,6 @@ internal static class HighRiskSummaryRowPageReader
     private static JetActionException MissingWorkingPaperNumericLineItemSortKey() => new(
         JetErrorCodes.StaleResult,
         "底稿引用的 GL 傳票文件項次排序鍵已過期，請重新匯入、配對並執行對應步驟後再產出底稿。");
-
-    private static string OrdinalText(ISqlDialect dialect, string expression) =>
-        dialect is SqlServerDialect
-            ? $"({expression}) COLLATE Latin1_General_BIN2"
-            : expression;
 
     private static DbParameter Param(DbCommand command, string name, object value)
     {

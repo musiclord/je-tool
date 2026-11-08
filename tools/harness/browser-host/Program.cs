@@ -42,8 +42,6 @@ internal static class Program
             paths.Projects,
             enableDevTools: true,
             eventPublisher: events,
-            // 空字串讓 composition 不讀 JET_SQLSERVER_CONNECTION；此主機永遠不連 SQL Server。
-            sqlServerConnectionString: string.Empty,
             diagnosticLogDirectory: paths.Logs,
             principalName: Principal,
             userProfileDirectory: paths.Profile);

@@ -67,7 +67,6 @@ public sealed class ScaleJourneyTests(ITestOutputHelper output)
 
     [ScaleJourneyTheory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task SyntheticGlJourney_RecordsTimeMemoryAndFileSizes(string provider)
     {
         var only = Environment.GetEnvironmentVariable(ScaleJourneyAvailability.ProviderVariable);
@@ -105,10 +104,8 @@ public sealed class ScaleJourneyTests(ITestOutputHelper output)
     internal static async Task<List<Measurement>> RunJourneyAsync(
         string projects, string name, string provider, string glPath, string tbPath)
     {
-        var databasePath = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? Path.Combine(projects, name, DuckDbProjectDatabase.DatabaseFileName)
-            : Path.Combine(projects, name, JetProjectFolder.DatabaseFileName);
-        var logPath = provider == ProjectDocument.DuckDbDatabaseProvider ? databasePath + ".wal" : databasePath + "-wal";
+        var databasePath = Path.Combine(projects, name, JetProjectFolder.DatabaseFileName);
+        var logPath = databasePath + "-wal";
         var measurements = new List<Measurement>();
 
         using (var host = new HandlerTestHost(enableDevTools: false, projectsRootPath: projects))
@@ -273,40 +270,11 @@ public sealed class ScaleJourneyTests(ITestOutputHelper output)
     internal static async Task<string> CheckIntegrityAsync(string projects, string name, string provider)
     {
         var folder = new JetProjectFolder(projects);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(name);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandTimeout = 0;
-        if (provider == ProjectDocument.DuckDbDatabaseProvider)
-        {
-            var tables = new List<string>();
-            command.CommandText =
-                "SELECT table_name FROM information_schema.tables " +
-                "WHERE table_schema = 'main' AND table_type = 'BASE TABLE' ORDER BY table_name;";
-            await using (var reader = await command.ExecuteReaderAsync())
-            {
-                while (await reader.ReadAsync())
-                {
-                    tables.Add(reader.GetString(0));
-                }
-            }
-
-            foreach (var table in tables)
-            {
-                command.CommandText = $"SELECT * FROM \"{table.Replace("\"", "\"\"", StringComparison.Ordinal)}\";";
-                await using var reader = await command.ExecuteReaderAsync();
-                var values = new object[reader.FieldCount];
-                while (await reader.ReadAsync())
-                {
-                    reader.GetValues(values);
-                }
-            }
-
-            return tables.Count == 0 ? "no tables" : "ok";
-        }
 
         command.CommandText = "PRAGMA integrity_check;";
         var result = Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture) ?? "";

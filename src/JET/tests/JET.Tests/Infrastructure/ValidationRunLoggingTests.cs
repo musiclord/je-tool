@@ -51,11 +51,10 @@ public sealed class ValidationRunLoggingTests
     // 所以沒有出現核准日不可用時的 `(1 = 0)`。第一次失敗：Focused 收據 20261105-111814127-dc4459ef65f048da9334a7beaca6e8f0。
     // 把該收據的 12 條實際命令裡這 3 處條件換回舊字後，SQLite 與 DuckDB 兩個 digest 都精確回到原值 F23A50B5… 與 40AB65C0…。
     // SQL Server 未執行，維持原值待核對。
-    private const string SqliteSnapshotDigest = "F5A37597F3F4CE1044980F9EA8862CA50FCD8A58E65886BD281A13EB75AC9C37";
-    private const string DuckDbSnapshotDigest = "24930F1471D5222FC2CAB19E9ED0FE21CC462FBECFC988DFB43317AA31D1C8BE";
-    // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：12 條命令和本機版一一對應，漂移來自開發暫緩期間只經編譯的
-    // 共用 SQL 修改（空白傳票號碼排除、第 12 條摘要計數與方言的去空白）。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
-    private const string SqlServerSnapshotDigest = "E123F4F14083CDA051149B40A1FEFB9D126FE5E87AE1A11EB55D5944F9512EA9";
+    // 裁定 2026-11-06-13：空值明細多讀傳票核准日，第 10 條命令在旗標後面多一欄 `, approval_date`，命令數與參數不變。
+    // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。把該收據 12 條實際命令裡第 10 條的 `END, approval_date FROM gl` 換回 `END FROM gl`，
+    // digest 精確回到原值 F5A37597…。
+    private const string SqliteSnapshotDigest = "0767C4965E9B63A077A4A2FE1CBA080C4933B3240C49BBD2CAB1CEBB35E8E122";
 
     // 標準多列 INSERT（SQLite 與 SQL Server 皆合法）；只填 NOT NULL + 少數欄，entry_id 為自增/IDENTITY。
     // schema-per-project：SQL Server 端的 gl 須以 [schema]. 限定，SQLite 端維持裸名（schemaPrefix ""）。
@@ -155,8 +154,6 @@ public sealed class ValidationRunLoggingTests
         var expectedDigest = expectedProvider switch
         {
             "sqlite" => SqliteSnapshotDigest,
-            "duckdb" => DuckDbSnapshotDigest,
-            "sqlServer" => SqlServerSnapshotDigest,
             _ => throw new InvalidOperationException(
                 $"未登錄 provider '{expectedProvider}' 的 validation SQL snapshot。")
         };
@@ -187,32 +184,6 @@ public sealed class ValidationRunLoggingTests
         }
 
         AssertValidationLog(diagnostic, "sqlite");
-    }
-
-    [Fact]
-    public async Task Run_DuckDb_LogsTwelveSqlSites_WithTransactionAndInsertRowsAffected()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var db = new DuckDbProjectDatabase(folder);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-        await using (var seed = db.CreateConnection(projectId))
-        {
-            await seed.OpenAsync();
-            await SeedAsync(seed);
-        }
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var repo = new LocalValidationRunRepository(db, factory.CreateLogger<LocalValidationRunRepository>());
-            await ValidationExecutionTestData.ExecuteForFactsAsync(repo, Plan(projectId), CancellationToken.None);
-        }
-
-        AssertValidationLog(diagnostic, "duckdb");
     }
 
     [Fact]
@@ -257,31 +228,5 @@ public sealed class ValidationRunLoggingTests
         var commit = entries.Single(entry => entry.EventName == "tx.commit");
         Assert.Equal(begin.TransactionId, commit.TransactionId);
         Assert.All(sql, entry => Assert.Equal(begin.TransactionId, entry.TransactionId));
-    }
-
-    [SqlServerFact]
-    public async Task Run_SqlServer_LogsTwelveSqlSites_WhenSqlServer2022Available()
-    {
-        await using var temp = await TempSqlServerProject.TryCreateAsync();
-        if (temp is null)
-        {
-            return; // availability attribute 已具名略過；保留防禦性 guard。
-        }
-
-        var schemaPrefix = SqlServerProjectSchema.QualifierFor(temp.ProjectId);
-        await using (var seed = temp.Database.CreateConnection(temp.ProjectId))
-        {
-            await seed.OpenAsync();
-            await SeedAsync(seed, schemaPrefix);
-        }
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var repo = new SqlServerValidationRunRepository(temp.Database, factory.CreateLogger<SqlServerValidationRunRepository>());
-            await ValidationExecutionTestData.ExecuteForFactsAsync(repo, Plan(temp.ProjectId), CancellationToken.None);
-        }
-
-        AssertValidationLog(diagnostic, "sqlServer", schemaPrefix);
     }
 }

@@ -1,0 +1,105 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "首次送審建議流程",
+    "locale": "zh-TW",
+    "output": "docs/SAT/source/diagrams/sat-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "dev",
+      "label": "開發與測試"
+    },
+    {
+      "id": "company",
+      "label": "公司審核與驗收"
+    },
+    {
+      "id": "release",
+      "label": "部署"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "base",
+      "lane": "dev",
+      "col": 0,
+      "type": "backend",
+      "label": "選定首次送審版",
+      "sublabel": "整理本次功能範圍"
+    },
+    {
+      "id": "evidence",
+      "lane": "dev",
+      "col": 1,
+      "type": "backend",
+      "label": "完成測試與複核",
+      "sublabel": "附安全檢查紀錄"
+    },
+    {
+      "id": "companytest",
+      "lane": "company",
+      "col": 2,
+      "type": "backend",
+      "label": "公司環境實測",
+      "sublabel": "核對封裝與操作"
+    },
+    {
+      "id": "assessment",
+      "lane": "company",
+      "col": 3,
+      "type": "security",
+      "label": "ITS 與 NITSO 評估",
+      "sublabel": "權責依公司確認"
+    },
+    {
+      "id": "sat",
+      "lane": "company",
+      "col": 4,
+      "type": "external",
+      "label": "完成 SAT 驗收",
+      "sublabel": "補正與結論留存"
+    },
+    {
+      "id": "deploy",
+      "lane": "release",
+      "col": 4,
+      "type": "cloud",
+      "label": "部署核准檔案",
+      "sublabel": "僅支援 SQLite"
+    }
+  ],
+  "edges": [
+    {
+      "from": "base",
+      "to": "evidence"
+    },
+    {
+      "from": "evidence",
+      "to": "companytest"
+    },
+    {
+      "from": "companytest",
+      "to": "assessment"
+    },
+    {
+      "from": "assessment",
+      "to": "sat"
+    },
+    {
+      "from": "sat",
+      "to": "deploy",
+      "label": "完成核准"
+    }
+  ],
+  "mainPath": [
+    "base",
+    "evidence",
+    "companytest",
+    "assessment",
+    "sat",
+    "deploy"
+  ]
+}

@@ -13,7 +13,7 @@ public sealed class MutationInvalidationStateTests
     public static TheoryData<string, string, bool, bool, bool> Cases()
     {
         var data = new TheoryData<string, string, bool, bool, bool>();
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         {
             data.Add(provider, "import.gl.fromFile", true, true, true);
             data.Add(provider, "import.tb.fromFile", true, true, true);
@@ -53,7 +53,6 @@ public sealed class MutationInvalidationStateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MutationWithoutPriorRuns_StillInvalidatesAnUnsavedPreviewButDoesNotInventStaleResults(string provider)
     {
         using var host = new HandlerTestHost();
@@ -69,7 +68,6 @@ public sealed class MutationInvalidationStateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LockedCatalog_DoesNotTurnACommittedMutationIntoFailure(string provider)
     {
         using var host = new HandlerTestHost();

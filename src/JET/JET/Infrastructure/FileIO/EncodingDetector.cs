@@ -119,7 +119,7 @@ public static class EncodingDetector
     {
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = SourceFileAccess.OpenRead(filePath);
             var buffer = new byte[Math.Min(SampleSizeBytes, stream.Length)];
             stream.ReadExactly(buffer);
             return buffer;
@@ -135,7 +135,7 @@ public static class EncodingDetector
     {
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = SourceFileAccess.OpenRead(filePath);
             return stream.ReadByte() == 0xFE && stream.ReadByte() == 0xFF;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

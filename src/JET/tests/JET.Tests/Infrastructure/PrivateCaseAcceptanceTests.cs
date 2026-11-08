@@ -9,7 +9,6 @@ public sealed class PrivateCaseAcceptanceTests
     internal const string RootEnvironmentVariable = "JET_PRIVATE_CASE_ROOT";
     internal const string ManifestEnvironmentVariable = "JET_PRIVATE_CASE_MANIFEST";
     internal const string ProviderEnvironmentVariable = "JET_PRIVATE_CASE_PROVIDER";
-    internal const string SqlServerConnectionEnvironmentVariable = "JET_SQLSERVER_CONNECTION";
 
     [Fact]
     [Trait(TestProfileTraits.Key, "PrivateCase")]
@@ -18,15 +17,11 @@ public sealed class PrivateCaseAcceptanceTests
         var root = RequiredEnvironmentVariable(RootEnvironmentVariable);
         var manifest = RequiredEnvironmentVariable(ManifestEnvironmentVariable);
         var provider = ParseProvider(RequiredEnvironmentVariable(ProviderEnvironmentVariable));
-        var connection = provider == LegacyAuditParityProvider.SqlServer
-            ? RequiredEnvironmentVariable(SqlServerConnectionEnvironmentVariable)
-            : null;
 
         var result = await PrivateCaseAcceptanceRunner.RunAsync(
             root,
             manifest,
-            provider,
-            connection);
+            provider);
 
         Assert.True(result.Passed, BuildSafeFailureSummary(result));
 
@@ -242,8 +237,6 @@ public sealed class PrivateCaseAcceptanceTests
         value.Trim().ToLowerInvariant() switch
         {
             "sqlite" => LegacyAuditParityProvider.Sqlite,
-            "duckdb" => LegacyAuditParityProvider.DuckDb,
-            "sqlserver" => LegacyAuditParityProvider.SqlServer,
             _ => throw new PrivateCaseAcceptanceException(
                 PrivateCaseAcceptanceFailure.InvalidInput),
         };

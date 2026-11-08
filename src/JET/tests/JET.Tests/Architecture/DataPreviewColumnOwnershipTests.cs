@@ -4,8 +4,9 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 資料預覽 GL 與 GL(未納入測試) 的欄位、欄序、SQL 與讀值轉換只定義一次；本機與 SQL Server 兩個實作都呼叫共用定義，
-/// 避免其中一邊改了另一邊沒跟上（SQL Server 測試平時不連線執行，差異不會被發現）。
+/// 資料預覽 GL 與 GL(未納入測試) 的欄位、欄序、SQL 與讀值轉換只定義一次，資料預覽倉儲呼叫共用定義。原本本機與 SQL Server
+/// 兩個實作都要檢查；只保留 SQLite 之後 SQL Server 的實作已刪除，只檢查本機實作（裁定 2026-11-06-08），
+/// 這次的第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
 /// 資料預覽依配對列欄位（裁定 2026-10-22-09），所以把原本三處寫死的欄位清單收成一份欄位計畫：
 /// 原本檢查兩個實作呼叫 <c>DataPreviewColumns.Gl</c> 與 <c>DataPreviewColumns.ManualAuto(</c>，改成檢查它們呼叫共用的查詢，
 /// 而且不再自己寫欄位識別。第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
@@ -15,7 +16,6 @@ public sealed class DataPreviewColumnOwnershipTests
     private static readonly string[] PreviewRepositories =
     [
         "src/JET/JET/Infrastructure/Persistence/Local/LocalDataPreviewRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerDataPreviewRepository.cs",
     ];
 
     [Fact]

@@ -105,33 +105,9 @@ public sealed class ProviderLoggingParityTests
     }
 
     [Fact]
-    public async Task ImportReplace_DuckDb_EventTypeSequence_MatchesOracle()
-    {
-        Assert.Equal(ExpectedImportReplace, await CaptureDuckDbImportReplaceAsync());
-    }
-
-    [SqlServerFact]
-    public async Task ImportReplace_SqlServer_EventTypeSequence_MatchesSqliteOracle()
-    {
-        Assert.Equal(ExpectedImportReplace, await CaptureSqlServerImportReplaceAsync());
-    }
-
-    [Fact]
     public async Task GlProjection_Sqlite_EventTypeSequence_MatchesOracle()
     {
         Assert.Equal(ExpectedGlProjection, await CaptureSqliteGlProjectionAsync());
-    }
-
-    [Fact]
-    public async Task GlProjection_DuckDb_EventTypeSequence_MatchesOracle()
-    {
-        Assert.Equal(ExpectedGlProjection, await CaptureDuckDbGlProjectionAsync());
-    }
-
-    [SqlServerFact]
-    public async Task GlProjection_SqlServer_EventTypeSequence_MatchesSqliteOracle()
-    {
-        Assert.Equal(ExpectedGlProjection, await CaptureSqlServerGlProjectionAsync());
     }
 
     private static async Task<IReadOnlyList<string>> CaptureSqliteImportReplaceAsync()
@@ -143,43 +119,6 @@ public sealed class ProviderLoggingParityTests
             var projectId = Guid.NewGuid().ToString("N");
             Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
             // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
-            await db.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-            var (diagnostic, factory) = NewDiagnostic();
-            using (factory)
-            {
-                var repo = new LocalImportRepository(db, factory.CreateLogger<LocalImportRepository>());
-                await repo.ReplaceBatchAsync(projectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync(Rows))], CancellationToken.None);
-            }
-
-            AssertLocalImportSourceQuery(diagnostic);
-            return EventNames(diagnostic);
-        }
-    }
-
-    private static async Task<IReadOnlyList<string>> CaptureSqlServerImportReplaceAsync()
-    {
-        await using var temp = Assert.IsType<TempSqlServerProject>(await TempSqlServerProject.TryCreateAsync());
-
-        var (diag2, factory2) = NewDiagnostic();
-        using (factory2)
-        {
-            var repo = new SqlServerImportRepository(temp.Database, factory2.CreateLogger<SqlServerImportRepository>());
-            await repo.ReplaceBatchAsync(temp.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync(Rows))], CancellationToken.None);
-        }
-
-        return EventNames(diag2);
-    }
-
-    private static async Task<IReadOnlyList<string>> CaptureDuckDbImportReplaceAsync()
-    {
-        using (var root = new TempProjectRoot())
-        {
-            var folder = new JetProjectFolder(root.Path);
-            var db = new DuckDbProjectDatabase(folder);
-            var projectId = Guid.NewGuid().ToString("N");
-            Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-            // 照建案的做法先建表（裁定 2026-11-05-72）。
             await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
             var (diagnostic, factory) = NewDiagnostic();
@@ -214,57 +153,6 @@ public sealed class ProviderLoggingParityTests
                 await gl.ProjectStagingToTargetAsync(projectId, batch.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
                 postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
                 CancellationToken.None);
-            }
-
-            return EventNames(diagnostic);
-        }
-    }
-
-    private static async Task<IReadOnlyList<string>> CaptureSqlServerGlProjectionAsync()
-    {
-        await using var temp = Assert.IsType<TempSqlServerProject>(await TempSqlServerProject.TryCreateAsync());
-
-        var batch2 = (await new SqlServerImportRepository(temp.Database).ReplaceBatchAsync(
-            temp.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync(Rows))], CancellationToken.None)).Batch;
-
-        var (diag2, factory2) = NewDiagnostic();
-        using (factory2)
-        {
-            var gl = new SqlServerGlRepository(temp.Database, factory2.CreateLogger<SqlServerGlRepository>());
-            await gl.ProjectStagingToTargetAsync(temp.ProjectId, batch2.BatchId, DualSpec(), 10_000, DateParseOptions.Default, periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
-            postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
-            CancellationToken.None);
-        }
-
-        return EventNames(diag2);
-    }
-
-    private static async Task<IReadOnlyList<string>> CaptureDuckDbGlProjectionAsync()
-    {
-        using (var root = new TempProjectRoot())
-        {
-            var folder = new JetProjectFolder(root.Path);
-            var db = new DuckDbProjectDatabase(folder);
-            var projectId = Guid.NewGuid().ToString("N");
-            Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-            // 照建案的做法先建表（裁定 2026-11-05-72）。
-            await db.EnsureCreatedAsync(projectId, CancellationToken.None);
-            var batch = (await new LocalImportRepository(db).ReplaceBatchAsync(
-                projectId, DatasetKind.Gl, [new ImportSourceInput(Source(), Columns, ToAsync(Rows))], CancellationToken.None)).Batch;
-
-            var (diagnostic, factory) = NewDiagnostic();
-            using (factory)
-            {
-                var gl = new LocalGlRepository(db, factory.CreateLogger<LocalGlRepository>());
-                await gl.ProjectStagingToTargetAsync(
-                    projectId,
-                    batch.BatchId,
-                    DualSpec(),
-                    10_000,
-                    DateParseOptions.Default,
-                    periodStart: DateOnly.MinValue, periodEnd: DateOnly.MaxValue,
-                    postingStatusMapped: false, postingStatusPolicy: null, committedUtc: DateTimeOffset.UnixEpoch,
-                    CancellationToken.None);
             }
 
             return EventNames(diagnostic);

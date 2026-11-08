@@ -40,8 +40,6 @@ public sealed class InterruptedWriteProcessTests
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, "import")]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, "mapping")]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, "import")]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, "mapping")]
     public async Task ForcedEndInTheMiddleOfAWrite_KeepsTheEarlierData_AndTheRetrySucceeds(string provider, string operation)
     {
         var role = Environment.GetEnvironmentVariable(RoleVariable);
@@ -208,7 +206,7 @@ public sealed class InterruptedWriteProcessTests
     private static ILocalProjectDatabase Database(string projects, string provider)
     {
         var folder = new JetProjectFolder(projects);
-        return provider == ProjectDocument.DuckDbDatabaseProvider ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task<Dictionary<string, string[]>> SnapshotAsync(string projects, string name, string provider)
@@ -242,23 +240,8 @@ public sealed class InterruptedWriteProcessTests
         await using var connection = Database(projects, provider).CreateConnection(name);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        if (provider == ProjectDocument.DuckDbDatabaseProvider)
-        {
-            command.CommandText = string.Join(" UNION ALL ", ComparedTables.Select(table => $"SELECT COUNT(*) FROM {table}")) + ";";
-            await using var reader = await command.ExecuteReaderAsync();
-            var tables = 0;
-            while (await reader.ReadAsync())
-            {
-                tables++;
-            }
-
-            Assert.Equal(ComparedTables.Length, tables);
-        }
-        else
-        {
-            command.CommandText = "PRAGMA integrity_check;";
-            Assert.Equal("ok", Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
-        }
+        command.CommandText = "PRAGMA integrity_check;";
+        Assert.Equal("ok", Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture));
 
         await connection.CloseAsync();
         SqliteConnection.ClearAllPools();

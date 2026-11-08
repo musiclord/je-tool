@@ -1134,6 +1134,9 @@ function fixture() {
   }
   function render() {
     const controls = new Map();
+    // 新增抽樣筆數輸入；保留既有科目配對斷言。首次失敗：20261106-135810505。
+    const sampleInput = element(); sampleInput.value = '59';
+    controls.set('#inf-sample-size', sampleInput);
     for (const name of ['run-validate', 'run-prescreen', 'toggle-category', 'toggle-category-advanced', 'toggle-account-excel', 'select-account-jet', 'add-category', 'reset-category', 'save-category',
       'retry-account-template-in-excel']) {
       controls.set('[data-action="' + name + '"]', element());
@@ -3844,12 +3847,14 @@ test('delete count failures allow retry without a fake zero or an additional del
   f.node('[data-action="modal-confirm"]').click(); await settle(); assert.equal(f.requests[2].action, 'projectDelete');
 });
 
-test('cancelled or replaced delete preview responses cannot overwrite the new target and SQL Server remains explicit', async () => {
+// 原本另確認 SQL Server 案件的刪除說明寫出「所有使用者」，隨 SQL Server 移除改成本機案件的說明，測試名稱跟著改
+// （裁定 2026-11-06-08）；第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+test('cancelled or replaced delete preview responses cannot overwrite the new target', async () => {
   const f = batch9PickerFixture(); f.rows[0].click(); await settle();
   assert.equal(f.requests[0]?.action, 'projectDeletePreview');
   f.node('button[data-action="modal-cancel"]').click(); f.rows[1].click(); await settle();
-  f.requests[1].resolve({ projectId: 'b', databaseProvider: 'sqlServer', reportCount: 1, workingPaperCount: 4 }); await settle();
-  const expected = f.detail(); assert.match(expected, /所有使用者/); assert.match(expected, /工作底稿\s*4\s*份/);
+  f.requests[1].resolve({ projectId: 'b', databaseProvider: 'sqlite', reportCount: 1, workingPaperCount: 4 }); await settle();
+  const expected = f.detail(); assert.match(expected, /將永久刪除此案件的資料庫/); assert.match(expected, /工作底稿\s*4\s*份/);
   f.requests[0].resolve({ projectId: 'a', databaseProvider: 'sqlite', reportCount: 99, workingPaperCount: 99 }); await settle();
   assert.equal(f.detail(), expected);
 });
@@ -4088,6 +4093,36 @@ test('successful import shows backend duplicate-source warnings without blocking
   assert.match(w.f.store.getState().messages.map(item => item.text).join('\n'), /匯入完成/);
 });
 
+// 裁定 2026-11-06-12：GL 來源檔正被 Excel 開著時照樣匯入。後端另外列出的開著檔案提醒放在 GL 卡片的匯入結果旁，
+// 其他提醒（例如重複來源）只進訊息面板；兩種都照舊記進訊息面板。再「更換」一次、檔案沒開著時，結果旁的提醒拿掉。這是新增的測試。
+test('a GL source held open by Excel shows its reminder beside the import result while other reminders stay in the message panel', async () => {
+  const imports = [];
+  const w = importWizardFixture(api => {
+    api.hostSelectFiles = async () => ({ files: [{ filePath: 'synthetic.csv', fileName: 'synthetic.csv' }] });
+    api.importInspectFile = async () => ({ fileType: 'csv', columns: ['doc', 'amount'], encoding: 'utf-8', delimiter: ',' });
+    api.importGlFromFile = payload => new Promise((resolve, reject) => imports.push({ payload, resolve, reject }));
+  });
+  const held = '檔案「synthetic.csv」正被其他程式開啟（例如 Excel）。JET 匯入的是這個檔案最後一次存檔的內容，尚未存檔的修改沒有匯入。';
+  const duplicate = '「synthetic.csv」與已匯入的來源檔名、工作表及列數皆相同，已照常加入；請確認是否重複匯入。';
+  const reply = (warnings, openElsewhereWarnings) => ({ batchId: 'committed-' + imports.length, rowCount: 6, addedRowCount: 3,
+    columns: ['doc', 'amount'], sources: [], warnings, openElsewhereWarnings,
+    invalidatedResults: { validation: true, prescreen: true, filter: true, filterScenarios: true },
+    staleState: { validation: false, prescreen: false, filter: false }, reports: [] });
+  const besideResult = () => [...w.render().html().matchAll(/<p class="form-notice form-notice--warning" role="status" data-open-elsewhere="gl"[^>]*>([^<]*)<\/p>/g)]
+    .map(match => match[1]);
+
+  w.open(); w.render().click('wizard-pick'); await settle(); w.render().click('wizard-confirm');
+  imports[0].resolve(reply([held, duplicate], [held])); await settle();
+  assert.deepEqual(besideResult(), [held]);
+  const messages = w.f.store.getState().messages.filter(item => item.level === 'warn').map(item => item.text);
+  assert.ok(messages.includes(held) && messages.includes(duplicate), 'both reminders are still logged');
+
+  w.render().click('wizard-replace-gl'); w.render().click('wizard-pick'); await settle(); w.render().click('wizard-confirm');
+  assert.equal(imports.length, 2);
+  imports[1].resolve(reply([], [])); await settle();
+  assert.deepEqual(besideResult(), []);
+});
+
 test('constants keep separate fixed audit thresholds and unchanged full labels and custom defaults', () => {
   const f = batch8Fixture();
   // 0 的個數改照 IDEA 版由 GL 算出、跟著已確認的 GL 配對帶回（裁定 2026-11-05-25、2026-11-05-26）：前端拿掉固定 6 個 0 的常數，標籤與說明不再寫死個數。第一次失敗：FrontendMapping 收據 20261105-084109744-c22d6b74efbd4102a6f7d6ceadfaf904。
@@ -4161,11 +4196,12 @@ test('report history uses its own fifty-file page rather than a query or audit l
 // Full-validation GUI 112031834-83ece06749ab4a74aece1989cd8d4246 lost the first
 // create-field value. Exercise real state notifications and both real renderers,
 // rather than manually changing contentVersion or reproducing their memo logic.
-function batch9CreateStartupFixture(configured = null) {
-  const dom = batch9TreeDom(), requests = [], databaseRequests = [], window = { setTimeout: fn => { fn(); return 0; }, clearTimeout() {},
+// 原本另把 app.js 啟動時查 SQL Server 設定的那段切出來執行，測晚到的設定只更新資料庫選項、不重建建案表單；
+// 啟動查詢與資料庫選項隨 SQL Server 移除（裁定 2026-11-06-08），夾具只留兩個真正的繪製函式。第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+function batch9CreateStartupFixture() {
+  const dom = batch9TreeDom(), requests = [], window = { setTimeout: fn => { fn(); return 0; }, clearTimeout() {},
     CSS: { escape: value => value }, addEventListener() {}, JetApi: contractJetApi({
-      projectListLocal: payload => new Promise((resolve, reject) => requests.push({ payload, resolve, reject })),
-      systemDatabaseInfo: payload => new Promise((resolve, reject) => databaseRequests.push({ payload, resolve, reject }))
+      projectListLocal: payload => new Promise((resolve, reject) => requests.push({ payload, resolve, reject }))
     }) };
   dom.content.setAttribute('data-bind', 'synthetic-shell');
   const content = dom.element('main', { 'data-bind': 'content' });
@@ -4176,19 +4212,11 @@ function batch9CreateStartupFixture(configured = null) {
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   }
   const appSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-  const databaseBegin = appSource.indexOf('        global.JetApi.systemDatabaseInfo({}).then(');
-  const databaseEnd = appSource.indexOf('        // 與 databaseInfo 並行', databaseBegin);
-  assert.ok(databaseBegin >= 0 && databaseEnd > databaseBegin);
-  // Execute the actual bootstrap continuation with deferred JetApi responses, not
-  // a duplicate implementation of when SQL configuration becomes authoritative.
   vm.runInContext(appSource.replace("  if (document.readyState === 'loading') {",
-    '  window.batch9CreateStartup = { renderContent, renderPicker, beginDatabaseInfo: function () { return ' +
-    appSource.slice(databaseBegin, databaseEnd).trim() +
-    " } };\n  if (document.readyState === 'loading') {"), context);
+    "  window.batch9CreateStartup = { renderContent, renderPicker };\n  if (document.readyState === 'loading') {"), context);
   const store = window.JetStore, app = window.batch9CreateStartup;
-  assert.equal(store.getState().sqlServerConfigured, null, 'availability is unknown until system.databaseInfo answers');
-  assert.equal((appSource.match(/systemDatabaseInfo\(/g) || []).length, 1, 'startup reuses the single system.databaseInfo call');
-  store.setSqlServerConfigured(configured); store.setView('workflow');
+  assert.equal((appSource.match(/systemDatabaseInfo\(/g) || []).length, 0, 'startup no longer asks for the SQL Server configuration');
+  store.setView('workflow');
   function draw() {
     const state = store.getState();
     if (state.view === 'workflow') app.renderContent(state, store.STEPS[0]);
@@ -4197,7 +4225,7 @@ function batch9CreateStartupFixture(configured = null) {
   draw(); store.subscribe(draw);
   let form, fields;
   const values = { projectName: 'B9 synthetic unsaved', projectCode: 'B9-code', clientName: 'B9 synthetic customer',
-    periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-01', databaseProvider: 'duckdb' };
+    periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-01' };
   function enterDraft() {
     form = content.querySelector('[data-bind="create-form"]'); assert.ok(form);
     fields = Object.fromEntries(form.querySelectorAll('input, select').map(node => [node.getAttribute('name'), node]));
@@ -4217,7 +4245,7 @@ function batch9CreateStartupFixture(configured = null) {
     assert.equal(fields.projectName.selectionStart, 3); assert.equal(fields.projectName.selectionEnd, 12);
     assert.equal(fields.projectName.selectionDirection, 'backward');
   }
-  return { store, app, ui: window.JetUi, content, picker, requests, databaseRequests, get form() { return form; }, get fields() { return fields; },
+  return { store, app, ui: window.JetUi, content, picker, requests, get form() { return form; }, get fields() { return fields; },
     values, enterDraft, assertDraftRetained };
 }
 
@@ -4236,60 +4264,18 @@ for (const result of ['success', 'failure']) test('actual late project-list resp
   assert.doesNotMatch(f.store.getState().messages.map(message => message.text).join('\n'), /Synthetic late list error/);
 });
 
-test('late unconfigured SQL disables its option and explains it without resetting a selected provider or the create draft', async () => {
-  const f = batch9CreateStartupFixture();
-  f.fields.databaseProvider.value = f.values.databaseProvider = 'sqlServer';
-  assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, false);
-  const task = f.app.beginDatabaseInfo(); assert.equal(f.databaseRequests.length, 1);
-  f.databaseRequests[0].resolve({ sqlServer: { configured: false, reachable: false } }); await task;
-  f.assertDraftRetained();
-  assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, true, 'configuration absence remains visible, not suppressed to preserve the draft');
-  const hint = f.form.querySelector('[data-bind="databaseProvider-hint"]');
-  assert.ok(hint && !hint.hidden); assert.match(hint.textContent, /沒有設定線上資料庫.*SQLite.*DuckDB/);
-  assert.equal(hint.textContent, '這台電腦沒有設定線上資料庫，請改選 SQLite 或 DuckDB。');
-  assert.equal(f.form.querySelector('option[value="sqlServer"]').textContent, 'SQL Server（共用實例）');
-});
-
-test('a later configured SQL response refreshes only option and hint while preserving the create form', async () => {
-  const f = batch9CreateStartupFixture(false);
-  assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, true);
-  const task = f.app.beginDatabaseInfo(); f.databaseRequests[0].resolve({ sqlServer: { configured: true, reachable: false } }); await task;
-  f.assertDraftRetained();
-  assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, false);
-  const hint = f.form.querySelector('[data-bind="databaseProvider-hint"]');
-  assert.ok(!hint || hint.hidden || !hint.textContent.trim(), 'known-unconfigured hint must disappear when that fact is no longer current');
-});
-
-test('an initially unknown then configured SQL response does not rebuild the create draft', async () => {
-  const f = batch9CreateStartupFixture(), task = f.app.beginDatabaseInfo();
-  f.databaseRequests[0].resolve({ sqlServer: { configured: true, reachable: false } }); await task; f.assertDraftRetained();
-  assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, false);
-});
-
-test('a failed SQL configuration query leaves unknown availability and the create draft unchanged', async () => {
-  const f = batch9CreateStartupFixture(), task = f.app.beginDatabaseInfo();
-  f.databaseRequests[0].reject(new Error('Synthetic configuration query failure')); await task; f.assertDraftRetained();
-  assert.equal(f.store.getState().sqlServerConfigured, null);
-  assert.equal(f.form.querySelector('option[value="sqlServer"]').disabled, false);
-});
-
-// 裁定 2026-10-09-03：提示只顯示系統狀態、不重複也不列系統日誌，失聯提示改用前端自己的一句，
-// 不再接上後端同義的 message，所以改用提示本身確認線上狀態已更新。
-// 第一次失敗收據 20261008-173522118-1569597102f24a35ab54a3cc800403e0。
-test('project picker still refreshes both project rows and online status after startup-only notifications', () => {
+// 裁定 2026-10-09-03 的線上狀態提示隨 SQL Server 移除（裁定 2026-11-06-08）。原本也確認失聯提示與線上身分，
+// 改成只確認啟動時的通知之後，案件清單照樣跟著新的清單重繪，測試名稱跟著改。第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+test('project picker still refreshes its rows after startup-only notifications', () => {
   const f = batch9CreateStartupFixture(), state = f.store.getState();
   f.app.renderPicker(state); assert.match(f.picker.textContent, /尚無本地案件/);
   f.store.subscribe(current => f.app.renderPicker(current));
-  f.store.setProjects([{ projectId: 'picker-new-local', databaseProvider: 'duckdb' }], { reachable: false, message: 'Synthetic offline' });
-  assert.match(f.picker.textContent, /picker-new-local/); assert.match(f.picker.textContent, /目前連不上線上案件。/);
-  assert.doesNotMatch(f.picker.textContent, /Synthetic offline/, 'the backend message repeats the notice and is not appended');
-  f.store.setProjects([{ projectId: 'picker-next-online', databaseProvider: 'sqlServer' }], { reachable: true, principal: 'SYNTHETIC-ONLINE' });
-  assert.match(f.picker.textContent, /picker-next-online/); assert.match(f.picker.textContent, /SYNTHETIC-ONLINE/);
-  assert.doesNotMatch(f.picker.textContent, /picker-new-local|目前連不上線上案件/);
-  f.store.setProjects(state.projects, { reachable: false, message: 'Synthetic disconnected' });
-  assert.match(f.picker.textContent, /picker-next-online/);
-  assert.match(f.picker.textContent, /目前連不上線上案件，下面先列出這台電腦上次記下的清單。/);
-  assert.match(f.picker.innerHTML, /class="form-notice form-notice--warning picker-section__alert"/, 'offline is a non-blocking amber notice');
+  f.store.setProjects([{ projectId: 'picker-new-local', databaseProvider: 'sqlite' }]);
+  assert.match(f.picker.textContent, /picker-new-local/);
+  f.store.setProjects([{ projectId: 'picker-next-local', databaseProvider: 'sqlite' }]);
+  assert.match(f.picker.textContent, /picker-next-local/);
+  assert.doesNotMatch(f.picker.textContent, /picker-new-local/);
+  assert.doesNotMatch(f.picker.textContent, /線上/, 'no online section or notice');
 });
 
 // 裁定 2026-10-05-01：人數用後端的完整人數，不用最多 50 列的清單長度；表格只列一部分時說清楚。

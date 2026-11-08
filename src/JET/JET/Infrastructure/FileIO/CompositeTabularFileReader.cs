@@ -29,6 +29,8 @@ public sealed class CompositeTabularFileReader(params ITabularFileReader[] reade
         return Resolve(filePath).InspectAsync(filePath, cancellationToken);
     }
 
+    public bool IsOpenElsewhere(string filePath) => SourceFileAccess.IsOpenElsewhere(filePath);
+
     private ITabularFileReader Resolve(string filePath)
     {
         return readers.FirstOrDefault(r => r.Supports(filePath))

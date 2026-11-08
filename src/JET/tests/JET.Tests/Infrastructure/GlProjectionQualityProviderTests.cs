@@ -54,39 +54,6 @@ public sealed class GlProjectionQualityProviderTests
     }
 
     [Fact]
-    public async Task DuckDb_TypedProjectionQuality_MatchesOracle()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        var database = new DuckDbProjectDatabase(folder);
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-        await AssertTypedOracleAsync(
-            new LocalImportRepository(database),
-            new LocalGlRepository(database),
-            new LocalSourceQualityPageRepository(database),
-            projectId,
-            () => database.CreateConnection(projectId),
-            string.Empty);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_TypedProjectionQuality_MatchesOracle()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        await AssertTypedOracleAsync(
-            new SqlServerImportRepository(project.Database),
-            new SqlServerGlRepository(project.Database),
-            new SqlServerSourceQualityPageRepository(project.Database),
-            project.ProjectId,
-            () => project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
-    }
-
-    [Fact]
     public async Task Sqlite_PostingExcludedBadManual_RollsBackWholeProjection()
     {
         using var root = new TempProjectRoot();
@@ -105,37 +72,6 @@ public sealed class GlProjectionQualityProviderTests
     }
 
     [Fact]
-    public async Task DuckDb_PostingExcludedBadManual_RollsBackWholeProjection()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        var database = new DuckDbProjectDatabase(folder);
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-        await AssertExcludedBadRowRollbackAsync(
-            new LocalImportRepository(database),
-            new LocalGlRepository(database),
-            projectId,
-            () => database.CreateConnection(projectId),
-            string.Empty);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_PostingExcludedBadManual_RollsBackWholeProjection()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        await AssertExcludedBadRowRollbackAsync(
-            new SqlServerImportRepository(project.Database),
-            new SqlServerGlRepository(project.Database),
-            project.ProjectId,
-            () => project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
-    }
-
-    [Fact]
     public async Task Sqlite_PostingExcludedMalformedRde_RollsBackWholeProjection()
     {
         using var root = new TempProjectRoot();
@@ -151,37 +87,6 @@ public sealed class GlProjectionQualityProviderTests
             projectId,
             () => database.CreateConnection(projectId),
             string.Empty);
-    }
-
-    [Fact]
-    public async Task DuckDb_PostingExcludedMalformedRde_RollsBackWholeProjection()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        var database = new DuckDbProjectDatabase(folder);
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-        await AssertExcludedMalformedRdeRollbackAsync(
-            new LocalImportRepository(database),
-            new LocalGlRepository(database),
-            projectId,
-            () => database.CreateConnection(projectId),
-            string.Empty);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_PostingExcludedMalformedRde_RollsBackWholeProjection()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        await AssertExcludedMalformedRdeRollbackAsync(
-            new SqlServerImportRepository(project.Database),
-            new SqlServerGlRepository(project.Database),
-            project.ProjectId,
-            () => project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
 
     private static async Task AssertTypedOracleAsync(

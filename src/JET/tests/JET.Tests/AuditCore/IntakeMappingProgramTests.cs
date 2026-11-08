@@ -13,7 +13,7 @@ public sealed class IntakeMappingProgramTests
     {
         var projection = JetAuditProgram.PrepareAccountMappingProjection(columns);
         projection.Observe(Row(2, (code, "　A1　"), (name, "合成科目"), (category, "Cash")));
-        var actual = Assert.Single(projection.Complete(1, "synthetic.xlsx", AccountMappingFailureStyle.Local));
+        var actual = Assert.Single(projection.Complete(1, "synthetic.xlsx"));
         Assert.Equal("A1", actual.AccountNumber);
         Assert.Equal("合成科目", actual.AccountName);
         Assert.Equal(AccountCategoryBuiltIns.CashId, actual.CategoryId);
@@ -265,8 +265,7 @@ public sealed class IntakeMappingProgramTests
 
         var rows = projection.Complete(
             rowCount: 3,
-            fileName: "mapping.xlsx",
-            AccountMappingFailureStyle.Local);
+            fileName: "mapping.xlsx");
 
         Assert.Collection(
             rows,
@@ -284,20 +283,14 @@ public sealed class IntakeMappingProgramTests
             });
     }
 
-    [Theory]
+    [Fact]
     // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-    // SQL Server 與本機改用同一句全形標點的句子，兩種 style 的預期值因此相同。
+    // 原本分本機與 SQL Server 兩種寫法，後來兩者用同一句全形標點的句子；SQL Server 移除後只剩這一句（裁定 2026-11-06-08）。
     // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
-    [InlineData(
-        AccountMappingFailureStyle.Local,
-        "科目配對範本有 1 列無法讀取，本次匯入未儲存：第 7 列：分類「bad」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。")]
-    [InlineData(
-        AccountMappingFailureStyle.SqlServer,
-        "科目配對範本有 1 列無法讀取，本次匯入未儲存：第 7 列：分類「bad」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。")]
-    internal void AccountMappingProjection_PreservesProviderSpecificFailureText(
-        AccountMappingFailureStyle style,
-        string expected)
+    internal void AccountMappingProjection_PreservesProviderSpecificFailureText()
     {
+        const string expected =
+            "科目配對範本有 1 列無法讀取，本次匯入未儲存：第 7 列：分類「bad」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。";
         var projection = JetAuditProgram.PrepareAccountMappingProjection(
             ["code", "name", "category"]);
         projection.Observe(Row(
@@ -307,7 +300,7 @@ public sealed class IntakeMappingProgramTests
             ("category", "bad")));
 
         var error = Assert.Throws<JetActionException>(() =>
-            projection.Complete(1, "mapping.csv", style));
+            projection.Complete(1, "mapping.csv"));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(expected, error.Message);
@@ -342,7 +335,7 @@ public sealed class IntakeMappingProgramTests
         projection.Observe(Row(4, ("code", "1101"), ("name", new string('名', 401)), ("category", "Cash")));
 
         var error = Assert.Throws<JetActionException>(() =>
-            projection.Complete(3, "mapping.xlsx", AccountMappingFailureStyle.Local));
+            projection.Complete(3, "mapping.xlsx"));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(
@@ -356,7 +349,7 @@ public sealed class IntakeMappingProgramTests
         var projection = JetAuditProgram.PrepareAccountMappingProjection(["code", "name", "category"]);
         projection.Observe(Row(2, ("code", new string('A', 450)), ("name", new string('名', 400)), ("category", "Cash")));
 
-        var row = Assert.Single(projection.Complete(1, "mapping.xlsx", AccountMappingFailureStyle.Local));
+        var row = Assert.Single(projection.Complete(1, "mapping.xlsx"));
 
         Assert.Equal(new string('A', 450), row.AccountNumber);
         Assert.Equal(new string('名', 400), row.AccountName);

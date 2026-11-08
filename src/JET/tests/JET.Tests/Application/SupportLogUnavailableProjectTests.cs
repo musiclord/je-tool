@@ -13,7 +13,7 @@ namespace JET.Tests.Application;
 public sealed class SupportLogUnavailableProjectTests
 {
     public static IEnumerable<object[]> UnavailableCases() =>
-        from provider in new[] { "sqlite", "duckdb" }
+        from provider in new[] { "sqlite" }
         from damage in new[] { "invalid-json", "invalid-metadata", "missing-metadata" }
         from export in new[] { (Action: "support.log.export", Sink: false), (Action: "dev.log.exportFile", Sink: false), (Action: "dev.log.exportFile", Sink: true) }
         select new object[] { provider, damage, export.Action, export.Sink };

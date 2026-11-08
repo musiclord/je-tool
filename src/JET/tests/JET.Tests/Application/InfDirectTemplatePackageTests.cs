@@ -154,7 +154,7 @@ public sealed class InfDirectTemplatePackageTests(ReportExportFixture fixture)
         Assert.Empty(new OpenXmlValidator().Validate(document));
         var workbookPart = document.WorkbookPart
             ?? throw new InvalidDataException("INF output has no workbook part.");
-        var metadataSheet = workbookPart.Workbook.Sheets!.Elements<Sheet>().Single(sheet =>
+        var metadataSheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>().Single(sheet =>
             string.Equals(
                 sheet.Name?.Value,
                 ReportWorkbookMetadataFormat.WorksheetName,
@@ -162,7 +162,7 @@ public sealed class InfDirectTemplatePackageTests(ReportExportFixture fixture)
         Assert.Equal(SheetStateValues.VeryHidden, metadataSheet.State?.Value);
 
         var worksheet = Assert.IsType<WorksheetPart>(
-            workbookPart.GetPartById(metadataSheet.Id!.Value!)).Worksheet;
+            workbookPart.GetPartById(metadataSheet.Id!.Value!)).RequiredWorksheet();
         var rows = worksheet.GetFirstChild<SheetData>()!.Elements<Row>().ToArray();
         Assert.NotEmpty(rows);
         Assert.Equal(ReportWorkbookMetadataFormat.Marker, MetadataCellText(rows[0], "A1"));
@@ -391,16 +391,16 @@ public sealed class InfDirectTemplatePackageTests(ReportExportFixture fixture)
     {
         var workbookPart = document.WorkbookPart
             ?? throw new InvalidDataException("Workbook part is missing.");
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => item.Name?.Value == name);
-        return ((WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!)).Worksheet;
+        return ((WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!)).RequiredWorksheet();
     }
 
     private static Cell CellFor(Worksheet worksheet, string reference) =>
         worksheet.Descendants<Cell>().Single(cell => cell.CellReference?.Value == reference);
 
     private static CellFormat CellFormatFor(SpreadsheetDocument document, Cell cell) =>
-        document.WorkbookPart?.WorkbookStylesPart?.Stylesheet.CellFormats?
+        document.WorkbookPart?.WorkbookStylesPart?.Stylesheet?.CellFormats?
             .Elements<CellFormat>()
             .ElementAt(checked((int)(cell.StyleIndex?.Value ?? 0U)))
         ?? throw new InvalidDataException("Workbook cell format is missing.");

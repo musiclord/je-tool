@@ -39,72 +39,28 @@ public sealed class MappingValueProfileProviderParityTests
         await AssertLocalProfileAsync(database, folder);
     }
 
-    [Fact]
-    public async Task DuckDb_ValueProfile_MatchesSqliteOracle()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var database = new DuckDbProjectDatabase(folder);
-
-        await AssertLocalProfileAsync(database, folder);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_ValueProfile_MatchesSqliteOracle()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var batchId = await ImportSqlServerAsync(project);
-        var repository = new SqlServerMappingValueProfileRepository(project.Database);
-
-        // 裁定 2026-10-19-30：SQL Server 的值概況也不分大小寫。這個測試原名
-        // SqlServer_ValueProfile_PreservesExistingCaseSensitiveBehavior，鎖住舊的區分大小寫答案：3 個相異值，
-        // A、B、a 各 2 筆。現在改成和本機同一組固定答案。第一次失敗：2026-10-19 修改前直接執行測試程式連本機
-        // SQL Server，相異值是 3 個，預期 2 個；下方的來源核對回 null。
-        await AssertOracleAsync(repository, project.ProjectId, batchId);
-    }
-
     // 來源存在性核對和分組用同一個比對鍵：去空白、不分大小寫。請求空白值時，來源有空白列就算存在；
     // 查無的值依請求順序回傳。
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task Local_SourceValueCheck_MatchesOracle(string provider)
+    [Fact]
+    public async Task Local_SourceValueCheck_MatchesOracle()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var (projectId, batchId) = await ImportLocalAsync(database, folder);
 
         await AssertMissingValuesAsync(new LocalMappingValueProfileRepository(database), projectId, batchId);
     }
 
-    [SqlServerFact]
-    public async Task SqlServer_SourceValueCheck_MatchesSqliteOracle()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var batchId = await ImportSqlServerAsync(project);
-
-        await AssertMissingValuesAsync(
-            new SqlServerMappingValueProfileRepository(project.Database), project.ProjectId, batchId);
-    }
-
     // 裁定 2026-10-28-03：「讀取來源值」依往下填補的勾選先填補再計數，每份來源內的空白補成上一列的值，
     // 第二份來源開頭的空白不接第一份的值，仍算空白。不帶填補時照原樣計數。
     // 第一次失敗：Focused 收據 20261028-043705897-a0fbdeac3fa841d198c2fdedbd420b76，填補後空白預期 1、實際 6。
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task Local_ValueProfile_WithFillDown_CountsFilledValuesWithinEachSource(string provider)
+    [Fact]
+    public async Task Local_ValueProfile_WithFillDown_CountsFilledValuesWithinEachSource()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
@@ -113,18 +69,6 @@ public sealed class MappingValueProfileProviderParityTests
             projectId, DatasetKind.Gl, FillDownSources(), CancellationToken.None)).Batch;
 
         await AssertFillDownOracleAsync(new LocalMappingValueProfileRepository(database), projectId, batch.BatchId);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_ValueProfile_WithFillDown_MatchesSqliteOracle()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var batchId = (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
-            project.ProjectId, DatasetKind.Gl, FillDownSources(), CancellationToken.None)).Batch.BatchId;
-
-        await AssertFillDownOracleAsync(
-            new SqlServerMappingValueProfileRepository(project.Database), project.ProjectId, batchId);
     }
 
     private static async Task AssertFillDownOracleAsync(
@@ -194,15 +138,6 @@ public sealed class MappingValueProfileProviderParityTests
             CancellationToken.None)).Batch;
         return (projectId, batch.BatchId);
     }
-
-    private static async Task<string> ImportSqlServerAsync(TempSqlServerProject project) =>
-        (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
-            project.ProjectId,
-            DatasetKind.Gl,
-            [new ImportSourceInput(Source(),
-            Columns,
-            Rows())],
-            CancellationToken.None)).Batch.BatchId;
 
     private static async Task AssertMissingValuesAsync(
         IMappingValueProfileRepository repository,

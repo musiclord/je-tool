@@ -56,46 +56,6 @@ public sealed class PrescreenRulePeriodTests
     }
 
     [Fact]
-    public async Task PrescreenRun_RulePeriod_DuckDb_MatchesFourRowHandComputedOracle()
-    {
-        using var host = new HandlerTestHost();
-        await SetupFourRowProjectAsync(host, "duckdb");
-
-        var data = await host.DispatchAsync("prescreen.run");
-
-        AssertFourRowOracle(data);
-    }
-
-    [SqlServerFact]
-    public async Task PrescreenRun_RulePeriod_SqlServer_MatchesFourRowHandComputedOracle()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return;
-        }
-
-        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        try
-        {
-            await SetupFourRowProjectAsync(host, "sqlServer");
-
-            var data = await host.DispatchAsync("prescreen.run");
-
-            AssertFourRowOracle(data);
-        }
-        finally
-        {
-            foreach (var directory in Directory.GetDirectories(host.ProjectsRoot))
-            {
-                await TempSqlServerProject.DropDatabaseAsync(
-                    connectionString,
-                    Path.GetFileName(directory));
-            }
-        }
-    }
-
-    [Fact]
     public async Task MappingCommit_EmptyEffectivePeriod_RejectsBeforePrescreen()
     {
         using var host = new HandlerTestHost();

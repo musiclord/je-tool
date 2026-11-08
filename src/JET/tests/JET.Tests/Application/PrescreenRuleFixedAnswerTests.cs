@@ -90,7 +90,6 @@ public sealed class PrescreenRuleFixedAnswerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task EveryRule_HitsTheFixedAnswer_FromStepFourStepFiveAndTheFieldConditionForms(string provider)
     {
         using var host = new HandlerTestHost();
@@ -179,7 +178,6 @@ public sealed class PrescreenRuleFixedAnswerTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UnexpectedAccountPair_NeedsAPositiveEntry_AndStepFourAndTheReportListTheWholeVoucher(string provider)
     {
         using var host = new HandlerTestHost();
@@ -236,7 +234,6 @@ public sealed class PrescreenRuleFixedAnswerTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task StepFour_NoLongerPicksPreparersOrAccountsWithElevenEntriesOrFewer(string provider)
     {
         using var host = new HandlerTestHost();

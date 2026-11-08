@@ -12,7 +12,7 @@ namespace JET.Infrastructure;
 /// 內容，正規化後成「摘要_2」）。description 若配到空的那欄，blank_description 會對全列誤命中，
 /// 而症狀要到資料驗證才浮現。此提醒在「欄位配對提交」當下就點出哪個必填欄空、配到哪個來源欄。
 /// 金額欄不在此（退化母體守門已擋全 0）、日期欄不在此（期外日期另計）。純呈現，不阻斷投影。
-/// 欄位清單與查詢都由欄位目錄產生，本機與 SQL Server 的 GL 倉儲共用，和 TB 的 <see cref="TbMappedColumnAudit"/> 同一個寫法。
+/// 欄位清單與查詢都由欄位目錄產生，GL 倉儲直接使用，和 TB 的 <see cref="TbMappedColumnAudit"/> 同一個寫法。
 /// </summary>
 internal static class GlMappedColumnAudit
 {

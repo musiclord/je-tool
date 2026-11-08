@@ -438,10 +438,10 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
         foreach (var stat in step4Stats.Concat(step41Stats))
         {
-            var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+            var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
                 .Single(item => item.Name?.Value == stat.SheetName);
             var part = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!));
-            var worksheet = part.Worksheet;
+            var worksheet = part.RequiredWorksheet();
             Assert.NotNull(worksheet.Elements<Columns>().SingleOrDefault());
             if (!string.Equals(stat.SheetName, Step4Sheet, StringComparison.Ordinal)
                 && !string.Equals(stat.SheetName, Step41Sheet, StringComparison.Ordinal))

@@ -58,7 +58,7 @@ internal static class ImportSupportDiagnostics
                 ? typeof(DocumentFormat.OpenXml.Packaging.SpreadsheetDocument).Assembly.GetName().Version?.ToString()
                 : context.Format == ".xls" ? typeof(ExcelDataReader.ExcelReaderFactory).Assembly.GetName().Version?.ToString()
                 : context.Format is ".mdb" or ".accdb" ? typeof(System.Data.OleDb.OleDbConnection).Assembly.GetName().Version?.ToString() : null;
-        fields["provider"] = context.Provider is "sqlite" or "duckdb" or "sqlServer" ? context.Provider : "unknown";
+        fields["provider"] = context.Provider is "sqlite" ? context.Provider : "unknown";
         fields["rollback_state"] = context.Rollback switch
         {
             ImportRollbackState.Succeeded => "succeeded", ImportRollbackState.Failed => "failed", _ => "not_started"

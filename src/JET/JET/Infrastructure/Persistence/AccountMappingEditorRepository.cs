@@ -5,7 +5,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>三種 provider 共用同一份科目來源、局部更新及交易失效處理。</summary>
+/// <summary>科目配對編輯的科目來源、局部更新及交易失效處理。</summary>
 public sealed class AccountMappingEditorRepository : IAccountMappingEditorRepository
 {
     public const string EditorSourceName = "JET 科目配對";
@@ -20,14 +20,6 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         connect = database.CreateConnection;
         prefix = _ => "";
         dialect = database.Dialect;
-    }
-
-    public AccountMappingEditorRepository(SqlServerProjectDatabase database)
-    {
-        ensure = database.EnsureCreatedAsync;
-        connect = id => database.CreateConnection(id);
-        prefix = SqlServerProjectSchema.QualifierFor;
-        dialect = SqlServerDialect.Instance;
     }
 
     private static string AccountsCte(string p, ISqlDialect dialect) => AccountMappingPopulationQuery.Cte(p, dialect) + $"""
@@ -55,7 +47,7 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
             FROM {prefix}account_mapping m
             LEFT JOIN {prefix}account_category t ON t.category_id = m.category_id
             ORDER BY m.account_number
-            """ + " " + (dialect is SqlServerDialect ? "OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY" : "LIMIT @limit OFFSET @offset") + ";";
+            """ + " LIMIT @limit OFFSET @offset;";
         select.AddWithValue("@limit", limit);
         select.AddWithValue("@offset", offset);
         var rows = new List<IReadOnlyList<string?>>();
@@ -87,9 +79,8 @@ public sealed class AccountMappingEditorRepository : IAccountMappingEditorReposi
         if (!string.IsNullOrEmpty(search)) command.AddWithValue("@search", search.ToUpperInvariant());
         if (!string.IsNullOrEmpty(categoryId)) command.AddWithValue("@categoryId", categoryId);
         command.AddWithValue("@limit", request.ClampedPageSize + 1);
-        var count = dialect is SqlServerDialect ? "COUNT_BIG(*)" : "COUNT(*)";
         var totalCount = await PageTotalCount.ReadAsync(command, request,
-            AccountsCte(p, dialect) + $" SELECT {count} " + source, cancellationToken);
+            AccountsCte(p, dialect) + " SELECT COUNT(*) " + source, cancellationToken);
         var rows = new List<AccountMappingEditRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))

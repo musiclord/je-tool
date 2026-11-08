@@ -50,7 +50,7 @@
         }).join('');
 
         // provider 標籤只用於 dev-info 行(面板標題維持 provider 中立,見 index.html)。
-        var providerLabels = { sqlServer: 'SQL Server ', duckdb: 'DuckDB ', sqlite: 'SQLite ' };
+        var providerLabels = { sqlite: 'SQLite ' };
         var providerLabel = providerLabels[data.databaseProvider] || (data.databaseProvider + ' ');
         var sizeKb = Math.round((data.fileSizeBytes || 0) / 102.4) / 10;
         Ui.setText('dev-info',

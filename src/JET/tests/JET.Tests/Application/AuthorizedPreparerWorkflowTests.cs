@@ -17,7 +17,6 @@ public sealed class AuthorizedPreparerWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SelectedIdentifier_DeduplicatesCodesAndPreservesOldListOnInvalidSelection(string provider)
     {
         using var host = new HandlerTestHost();
@@ -50,7 +49,6 @@ public sealed class AuthorizedPreparerWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Remove_ReopenAndReimport_ClearsScenarioKeepsValidationAndInvalidatesDependentResults(string provider)
     {
         using var host = new HandlerTestHost();

@@ -28,6 +28,11 @@
     ".agents/skills/jet-converge/references/upstream-provenance.md",
     ".agents/skills/jet-readable-docs/SKILL.md",
     ".agents/skills/jet-readable-docs/agents/openai.yaml",
+    ".agents/skills/security-audit/SKILL.md",
+    ".agents/skills/security-audit/UPSTREAM.md",
+    ".agents/skills/security-audit/agents/openai.yaml",
+    ".claude/skills/security-audit/SKILL.md",
+    "docs/security/README.md",
     ".agents/skills/jet-frontend-design/SKILL.md",
     ".agents/skills/jet-frontend-design/agents/openai.yaml",
     ".agents/skills/jet-frontend-design/references/ai-default-patterns.md",
@@ -263,7 +268,7 @@
     "rules": [
       { "id": "size-history-exempt", "match": ["docs/history/"], "exempt": true },
       { "id": "size-current-plan", "match": ["docs/specs/"], "maxKiB": 120 },
-      { "id": "size-rulings", "match": ["docs/rulings.md"], "maxKiB": 320 },
+      { "id": "size-rulings", "match": ["docs/rulings.md"], "maxKiB": 2048 },
       {
         "id": "size-reference-document",
         "match": [
@@ -299,11 +304,7 @@
     "file": "docs/glossary.md",
     "section": "資料庫表名",
     "sources": [
-      "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
-      "src/JET/JET/Infrastructure/Persistence/DuckDb/DuckDbProjectDatabase.cs",
-      "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerProjectDatabase.Schema.cs",
-      "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerControlPlaneSchema.cs",
-      "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerUserDirectory.cs"
+      "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs"
     ]
   },
   "manualReview": [

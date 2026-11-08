@@ -11,7 +11,8 @@ internal static class BlankRecordRowMapper
 {
     /// <summary>
     /// reader 前四欄 → <see cref="BlankRecordRow"/> 顯示四值;旗標欄以本頁 category 對應者置 true,
-    /// 其餘 false(Page 版只輸出顯示四欄,旗標非 wire 必要,填 category 對應即可)。第五欄 entry_id 寫入 row 供分頁游標使用。
+    /// 其餘 false(Page 版只輸出顯示欄,旗標非 wire 必要,填 category 對應即可)。第五欄 entry_id 寫入 row 供分頁游標使用,
+    /// 第六欄是傳票核准日。
     /// </summary>
     public static BlankRecordRow MapRow(DbDataReader reader, BlankRecordCategory category) => new(
         reader.IsDBNull(0) ? null : reader.GetString(0),
@@ -22,5 +23,6 @@ internal static class BlankRecordRowMapper
         BlankVoucherNumber: category == BlankRecordCategory.BlankVoucherNumber,
         BlankDescription: category == BlankRecordCategory.BlankDescription,
         ApprovalDateNotInPeriod: category == BlankRecordCategory.ApprovalDateNotInPeriod,
-        EntryId: reader.GetInt64(4));
+        EntryId: reader.GetInt64(4),
+        ApprovalDate: reader.IsDBNull(5) ? null : reader.GetString(5));
 }

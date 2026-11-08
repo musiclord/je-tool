@@ -399,7 +399,7 @@ function New-JetTestArguments {
         [string[]] $IncludeValues = @(),
         [AllowNull()] [string[]] $ExcludedProfiles = $null,
         [AllowNull()] [string[]] $ProtectedMethodPatterns = $null,
-        # Collections：不同測試類別平行執行。None：循序，給共用 SQL Server 資料庫或私人案件副本的路線。
+        # Collections：不同測試類別平行執行。None：循序，給共用私人案件副本的路線。
         [ValidateSet('None', 'Collections')] [string] $Parallelism = 'None'
     )
 
@@ -473,9 +473,10 @@ function Invoke-JetTestStep {
         [AllowNull()] [string[]] $EnvironmentVariablesToRemove = $null,
         [hashtable] $EnvironmentVariablesToSet = @{},
         [string[]] $SensitiveValuesToRedact = @(),
-        [ValidateSet('NoSkips', 'BlockOnSkip', 'ProviderRequired', 'PublicPolicy', 'ProviderPolicy')]
+        [ValidateSet('NoSkips', 'BlockOnSkip', 'PublicPolicy')]
         [string] $SkipPolicy = 'NoSkips',
         [switch] $WithholdFailureMessages,
+        [switch] $CollectCoverage,
         [ValidateSet('None', 'Collections')] [string] $Parallelism = 'None'
     )
 
@@ -499,12 +500,19 @@ function Invoke-JetTestStep {
         -ExcludedProfiles $ExcludedProfiles `
         -ProtectedMethodPatterns $ProtectedMethodPatterns `
         -Parallelism $Parallelism
+    if ($CollectCoverage) {
+        $arguments += @('--coverage', '--coverage-output-format', 'cobertura',
+            '--coverage-output', (Join-Path $resultsDirectory 'coverage.cobertura.xml'))
+    }
     if ($null -eq $EnvironmentVariablesToRemove) {
         $EnvironmentVariablesToRemove = @($Registry.testSettings.environmentVariablesToRemove)
     }
     $displayArguments = foreach ($argument in $arguments) {
         if ($argument -ceq $resultsDirectory) {
             Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $resultsDirectory
+        }
+        elseif ($CollectCoverage -and $argument -ceq (Join-Path $resultsDirectory 'coverage.cobertura.xml')) {
+            Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $argument
         }
         else {
             $argument
@@ -579,36 +587,12 @@ function Invoke-JetTestStep {
                     $step.classification.reason = 'focused_selection_skipped'
                 }
             }
-            'ProviderRequired' {
-                if ($parsed.Summary.counters.skipped -gt 0 -and $parsed.Summary.counters.failed -eq 0) {
-                    $step.status = 'blocked'
-                    $step.classification.reason = 'sqlserver_capability_unavailable'
-                }
-            }
             'PublicPolicy' {
                 $assessment = Test-JetSkipPolicy `
                     -Records $parsed.Records `
                     -Policy (Read-JetSkipPolicy `
                         -FileName ([string]$Registry.testSettings.publicSkipPolicy) `
                         -PolicyName 'Public')
-                $step.test['skipPolicy'] = [ordered]@{
-                    status = $assessment.Status
-                    reason = $assessment.Reason
-                    errors = $assessment.Errors
-                    unexpectedSkips = $assessment.UnexpectedSkips
-                    capabilities = $assessment.Capabilities
-                }
-                if ($assessment.Status -cne 'passed' -and $step.status -ceq 'passed') {
-                    $step.status = 'failed'
-                    $step.classification.reason = $assessment.Reason
-                }
-            }
-            'ProviderPolicy' {
-                $assessment = Test-JetSkipPolicy `
-                    -Records $parsed.Records `
-                    -Policy (Read-JetSkipPolicy `
-                        -FileName ([string]$Registry.testSettings.providerSkipPolicy) `
-                        -PolicyName 'Provider')
                 $step.test['skipPolicy'] = [ordered]@{
                     status = $assessment.Status
                     reason = $assessment.Reason
@@ -632,6 +616,15 @@ function Invoke-JetTestStep {
         $step.classification.reason = 'test_report_invalid'
     }
 
+    if ($CollectCoverage) {
+        $coveragePath = Join-Path $resultsDirectory 'coverage.cobertura.xml'
+        if (Test-Path -LiteralPath $coveragePath -PathType Leaf) {
+            $step['coverage'] = Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $coveragePath
+        } else {
+            $step.status = 'infrastructure_error'
+            $step.classification.reason = 'coverage_report_missing'
+        }
+    }
     return $step
 }
 

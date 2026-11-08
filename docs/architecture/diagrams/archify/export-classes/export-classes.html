@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>正式底稿規劃與發布的類別與介面</title>
+  <title>正式底稿的處理類別</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>正式底稿規劃與發布的類別與介面</h1>
+        <h1>正式底稿的處理類別</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1529 946" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">正式底稿規劃與發布的類別與介面</title>
+        <title id="archify-diagram-title">正式底稿的處理類別</title>
         <desc id="archify-diagram-description">由 Archify 產生的類別與介面圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5751,33 +5751,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>實際執行哪個類別</h3>
+          <h3>規劃、寫檔與紀錄分工</h3>
         </div>
         <ul>
-          <li>ExportWorkingPaperStreamHandler 對規劃資料、寫出器與報告存檔類別都只呼叫介面。存檔類別有實作 IAuditedReportPublishingStore 才走 WriteAuditedAsync，回應才帶得到寫不進操作紀錄的提醒；否則退回 IReportPublishingStore.WriteWithPublishingAsync 或 IReportStore.WriteAsync。</li>
-          <li>AppCompositionRoot 先建立 ProjectReportStore，再交給 AuditedReportStore。外層只把內層當成 IReportStore 持有，呼叫前才轉型，所以兩者之間沒有依賴線；內層是哪個類別，看兩條「建立」線。</li>
+          <li>ExportWorkingPaperStreamHandler 透過介面取得資料、產生底稿並發布。ProjectReportStore 寫檔，AuditedReportStore 記錄發布。</li>
+          <li>存檔類別支援 IAuditedReportPublishingStore 時，回應才包含操作紀錄失敗的提醒；否則使用其他發布介面。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot slate"></div>
-          <h3>這張圖省略了什麼</h3>
+          <h3>圖中省略的部分</h3>
         </div>
         <ul>
-          <li>兩個存檔類別也都實作 IReportStore，負責報告清單、路徑與失效標記；圖只畫發布用的介面。</li>
-          <li>WorkingPaperWriter 由 CreateWorkingPaperWriter 建立；內層透過 ReportContentWriter，執行匯出處理事先交出的寫檔函式。</li>
-          <li>外層寫操作紀錄經 CommittedOperationLog 與 IProjectOperationLog；本機案件實際寫入的類別與失敗時的提醒，見底稿匯出循序圖。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>成員寫法</h3>
-        </div>
-        <ul>
-          <li>成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。</li>
+          <li>兩個存檔類別也實作 IReportStore，負責清單、路徑與失效標記。</li>
+          <li>寫檔函式與操作紀錄的呼叫順序見循序圖；圖中建立關係說明兩個存檔類別如何組合。</li>
         </ul>
       </div>
     </div>

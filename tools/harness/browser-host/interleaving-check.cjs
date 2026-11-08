@@ -51,7 +51,8 @@ const OUT = path.resolve(options.out || path.join(repoRoot, 'artifacts', 'browse
   new Date().toISOString().replace(/[:.]/g, '-')));
 const ONLY = String(options.only || '').split(',').filter(Boolean);
 const COMMON = '台灣中小企業-常用篩選情境（SQLite）';
-const CUSTOM = '台灣中小企業-自訂情境（DuckDB）';
+// 自訂情境案件原本是 DuckDB 案件，隨 DuckDB 移除改成 SQLite（裁定 2026-11-06-08）。
+const CUSTOM = '台灣中小企業-自訂情境（SQLite）';
 const { chromium } = require(findPlaywrightCore());
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -296,7 +297,7 @@ async function run(page, name, body) {
   await run(page, '06-switch-case-during-validate', async ({ check }) => {
     await openCase(page, CUSTOM);
     let s = await snapshot(page);
-    check('DuckDB 案件有 10 個自訂情境', s.saved.length === 10, s.saved.length);
+    check('自訂情境案件有 10 個情境', s.saved.length === 10, s.saved.length);
     await goStep(page, 3);
     await click(page, '[data-action="run-validate"]');
     await page.waitForTimeout(80);
@@ -306,12 +307,12 @@ async function run(page, name, body) {
     await openCase(page, COMMON);
     s = await snapshot(page);
     check('切回常用篩選案件後顯示它的準備日', s.prepStartDate === '2026-01-20', s.prepStartDate);
-    check('常用篩選案件沒有帶入 DuckDB 案件的情境', s.saved.length === 0, s.saved);
+    check('常用篩選案件沒有帶入自訂情境案件的情境', s.saved.length === 0, s.saved);
     check('常用篩選案件驗證筆數正確', s.validateRows === 30479, s.validateRows);
     await openCase(page, CUSTOM);
     s = await snapshot(page);
-    check('DuckDB 案件情境仍是 10 個', s.saved.length === 10, s.saved.length);
-    check('DuckDB 案件驗證未過期', s.stale && s.stale.validation === false, s.stale);
+    check('自訂情境案件的情境仍是 10 個', s.saved.length === 10, s.saved.length);
+    check('自訂情境案件驗證未過期', s.stale && s.stale.validation === false, s.stale);
   });
 
   // 裁定 2026-10-11-02：情境有修改還沒儲存時，開啟另一個已存情境前先詢問；沒有修改時直接換。

@@ -14,12 +14,6 @@ public sealed class LocalAccountMappingEligibilityStateTests
     [InlineData("sqlite", true, "Revenue", true, true, false)]
     [InlineData("sqlite", true, "Cash", true, false, true)]
     [InlineData("sqlite", true, "Revenue,Cash", true, true, true)]
-    [InlineData("duckdb", false, "", false, false, false)]
-    [InlineData("duckdb", true, "", false, false, false)]
-    [InlineData("duckdb", true, "Others", true, false, false)]
-    [InlineData("duckdb", true, "Revenue", true, true, false)]
-    [InlineData("duckdb", true, "Cash", true, false, true)]
-    [InlineData("duckdb", true, "Revenue,Cash", true, true, true)]
     public async Task FindState_ComputesEligibilityFromTargetContent(
         string provider, bool imported, string categories,
         bool hasAny, bool hasRevenue, bool hasCounterpart)
@@ -47,38 +41,17 @@ public sealed class LocalAccountMappingEligibilityStateTests
     }
 }
 
-public sealed class SqlServerAccountMappingEligibilityStateTests
-{
-    [SqlServerTheory]
-    [InlineData(false, "", false, false, false)]
-    [InlineData(true, "", false, false, false)]
-    [InlineData(true, "Others", true, false, false)]
-    [InlineData(true, "Revenue", true, true, false)]
-    [InlineData(true, "Cash", true, false, true)]
-    [InlineData(true, "Revenue,Cash", true, true, true)]
-    public async Task FindState_ComputesEligibilityFromTargetContent(
-        bool imported, string categories, bool hasAny, bool hasRevenue, bool hasCounterpart)
-    {
-        await using var fixture = await AccountMappingStateFixture.CreateSqlServerAsync(imported, categories);
-
-        await LocalAccountMappingEligibilityStateTests.AssertStateAsync(
-            fixture.Store, fixture.ProjectId, imported, hasAny, hasRevenue, hasCounterpart);
-    }
-}
-
 internal sealed class AccountMappingStateFixture : IAsyncDisposable
 {
     private readonly TempProjectRoot? _root;
-    private readonly TempSqlServerProject? _sql;
 
     private AccountMappingStateFixture(
         string projectId, IAccountMappingStore store,
-        TempProjectRoot? root = null, TempSqlServerProject? sql = null)
+        TempProjectRoot? root = null)
     {
         ProjectId = projectId;
         Store = store;
         _root = root;
-        _sql = sql;
     }
 
     public string ProjectId { get; }
@@ -91,22 +64,12 @@ internal sealed class AccountMappingStateFixture : IAsyncDisposable
         var database = provider switch
         {
             "sqlite" => (ILocalProjectDatabase)new SqliteProjectDatabase(new JetProjectFolder(root.Path)),
-            "duckdb" => new DuckDbProjectDatabase(new JetProjectFolder(root.Path)),
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unknown provider.")
         };
         var projectId = Guid.NewGuid().ToString("N");
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await SeedAsync(database.CreateConnection(projectId), string.Empty, imported, categories);
         return new AccountMappingStateFixture(projectId, new LocalAccountMappingRepository(database), root: root);
-    }
-
-    public static async Task<AccountMappingStateFixture> CreateSqlServerAsync(bool imported, string categories)
-    {
-        var sql = Assert.IsType<TempSqlServerProject>(await TempSqlServerProject.TryCreateAsync());
-        await SeedAsync(sql.Database.CreateConnection(sql.ProjectId),
-            SqlServerProjectSchema.QualifierFor(sql.ProjectId), imported, categories);
-        return new AccountMappingStateFixture(
-            sql.ProjectId, new SqlServerAccountMappingRepository(sql.Database), sql: sql);
     }
 
     private static async Task SeedAsync(
@@ -142,12 +105,9 @@ internal sealed class AccountMappingStateFixture : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_sql is not null)
-        {
-            await _sql.DisposeAsync();
-        }
         _root?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

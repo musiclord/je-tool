@@ -218,13 +218,12 @@ internal static partial class LegacyAuditParityJourney
         LegacyAuditParityJourneyInput input,
         LegacyAuditParityProvider provider,
         LegacyAuditParityCheckpoint stopAfter,
-        string? sqlServerConnectionString = null,
         CancellationToken cancellationToken = default,
         Func<LegacyAuditParityJourneyResult, Task>? afterSuccessfulJourneyBeforeCleanup = null)
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(input);
-        ValidateInput(input, provider, stopAfter, sqlServerConnectionString);
+        ValidateInput(input, provider, stopAfter);
 
         var stopwatch = Stopwatch.StartNew();
         var actionNames = new List<string>();
@@ -511,25 +510,10 @@ internal static partial class LegacyAuditParityJourney
         }
         finally
         {
-            try
+            // 後續操作（重新開啟、重新確認配對、重新匯入）在這裡接著做：SQL Server 案件要等它們做完才刪除。
+            if (completedResult is not null && afterSuccessfulJourneyBeforeCleanup is not null)
             {
-                // 後續操作（重新開啟、重新確認配對、重新匯入）在這裡接著做：SQL Server 案件要等它們做完才刪除。
-                if (completedResult is not null && afterSuccessfulJourneyBeforeCleanup is not null)
-                {
-                    await afterSuccessfulJourneyBeforeCleanup(completedResult).ConfigureAwait(false);
-                }
-            }
-            finally
-            {
-                // KEEP_OUTPUTS retains only the ignored local workspace. A SQL Server project is
-                // external shared state and must always be deleted once project.create succeeded.
-                if (provider == LegacyAuditParityProvider.SqlServer
-                    && projectId is not null
-                    && !string.IsNullOrWhiteSpace(sqlServerConnectionString))
-                {
-                    await StrictSqlServerCleanupAsync(sqlServerConnectionString, projectId)
-                        .ConfigureAwait(false);
-                }
+                await afterSuccessfulJourneyBeforeCleanup(completedResult).ConfigureAwait(false);
             }
         }
     }
@@ -589,7 +573,7 @@ internal static partial class LegacyAuditParityJourney
             if (followUp == LegacyAuditParityFollowUp.Reopen)
             {
                 await DispatchAsync(JetActionNames.ProjectReleaseLock);
-                var list = await DispatchAsync("project.list");
+                var list = await DispatchAsync("project.listLocal");
                 RequireListedProject(list, projectId);
                 var loaded = await DispatchAsync(
                     "project.load",
@@ -983,8 +967,6 @@ internal static partial class LegacyAuditParityJourney
     private static string ProviderWireValue(LegacyAuditParityProvider provider) => provider switch
     {
         LegacyAuditParityProvider.Sqlite => "sqlite",
-        LegacyAuditParityProvider.DuckDb => "duckdb",
-        LegacyAuditParityProvider.SqlServer => "sqlServer",
         _ => throw Incomplete("provider"),
     };
 
@@ -1278,41 +1260,10 @@ internal static partial class LegacyAuditParityJourney
         }
     }
 
-    private static async Task StrictSqlServerCleanupAsync(
-        string baseConnectionString,
-        string projectId)
-    {
-        try
-        {
-            var options = new SqlServerConnectionOptions(baseConnectionString, "JET_Test");
-            var database = new SqlServerProjectDatabase(options);
-            await database.DeleteAsync(projectId, CancellationToken.None);
-            var schemaExists = await database.DatabaseExistsAsync(
-                projectId,
-                "sqlServer",
-                CancellationToken.None);
-            var registryExists = await new SqlServerProjectRegistry(options)
-                .ExistsAsync(projectId, CancellationToken.None);
-            if (schemaExists || registryExists)
-            {
-                throw new LegacyAuditParityJourneyCleanupException();
-            }
-        }
-        catch (LegacyAuditParityJourneyCleanupException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            throw new LegacyAuditParityJourneyCleanupException();
-        }
-    }
-
     private static void ValidateInput(
         LegacyAuditParityJourneyInput input,
         LegacyAuditParityProvider provider,
-        LegacyAuditParityCheckpoint stopAfter,
-        string? sqlServerConnectionString)
+        LegacyAuditParityCheckpoint stopAfter)
     {
         var expectedObservationAlias = input.ObservationCase switch
         {
@@ -1342,11 +1293,6 @@ internal static partial class LegacyAuditParityJourney
         if (input.SampleSeed is < 1 or > 2_147_483_646)
         {
             throw Incomplete("sampleSeed");
-        }
-        if (provider == LegacyAuditParityProvider.SqlServer
-            && string.IsNullOrWhiteSpace(sqlServerConnectionString))
-        {
-            throw Incomplete("sqlServerConnectionString");
         }
         if (stopAfter == LegacyAuditParityCheckpoint.Profile)
         {

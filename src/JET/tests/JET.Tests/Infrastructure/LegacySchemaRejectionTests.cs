@@ -66,44 +66,13 @@ public sealed class LegacySchemaRejectionTests
         Assert.False(File.Exists(path + "-wal"));
     }
 
-    [Fact]
-    public async Task DuckDb_SchemaVersion5Database_IsRejectedWithoutChangingTheFile()
-    {
-        using var root = new TempProjectRoot();
-        var database = new DuckDbProjectDatabase(new JetProjectFolder(root.Path));
-        var projectId = Guid.NewGuid().ToString("N");
-
-        await using (var connection = database.CreateConnection(projectId))
-        {
-            await connection.OpenAsync();
-            await using var seed = connection.CreateCommand();
-            seed.CommandText = V5SchemaAndData + "\nCHECKPOINT;";
-            await seed.ExecuteNonQueryAsync();
-        }
-
-        var path = database.GetDatabasePath(projectId);
-        var before = await File.ReadAllBytesAsync(path);
-
-        var ex = await Assert.ThrowsAsync<JetActionException>(
-            () => database.EnsureCreatedAsync(projectId, CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.InvalidProjectSchema, ex.Code);
-        Assert.Equal(LegacySchemaMessage, ex.Message);
-        Assert.Equal(before, await File.ReadAllBytesAsync(path));
-    }
-
     [Theory]
-    [InlineData("sqlite", "14")]
-    [InlineData("duckdb", "14")]
-    [InlineData("sqlite", "15")]
-    [InlineData("duckdb", "15")]
-    [InlineData("sqlite", "16")]
-    [InlineData("duckdb", "16")]
-    [InlineData("sqlite", "17")]
-    [InlineData("duckdb", "17")]
-    [InlineData("sqlite", "18")]
-    [InlineData("duckdb", "18")]
-    public async Task PreviousSchemaVersion_IsRejectedAsLegacyProjectWithoutChangingTheFile(string provider, string olderVersion)
+    [InlineData("14")]
+    [InlineData("15")]
+    [InlineData("16")]
+    [InlineData("17")]
+    [InlineData("18")]
+    public async Task PreviousSchemaVersion_IsRejectedAsLegacyProjectWithoutChangingTheFile(string olderVersion)
     {
         // 拿掉升版程式前的最後一版是第 14 版：結構和現行相同，只差版本號，也要當成舊版案件擋下，不再升版。
         // 統一改名前建立的案件是第 15 版，同樣當成舊版案件擋下。
@@ -112,9 +81,7 @@ public sealed class LegacySchemaRejectionTests
         // 資料缺漏輔助檢視的驗證摘要鍵名改用 blank 字根之前建立的案件是第 18 版，同樣當成舊版案件擋下。第一次失敗收據 20261103-025603757-17ca9fea8bde42369861458b84ebd4dc。
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(folder)
-            : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -124,14 +91,12 @@ public sealed class LegacySchemaRejectionTests
             await connection.OpenAsync();
             await using var lower = connection.CreateCommand();
             lower.CommandText = $"UPDATE schema_info SET value = '{olderVersion}' WHERE key = 'schema_version';"
-                + (provider == "duckdb" ? "\nCHECKPOINT;" : "\nPRAGMA wal_checkpoint(TRUNCATE);");
+                + ("\nPRAGMA wal_checkpoint(TRUNCATE);");
             await lower.ExecuteNonQueryAsync();
         }
 
         SqliteConnection.ClearAllPools();
-        var reopened = provider == "sqlite"
-            ? (ILocalProjectDatabase)new SqliteProjectDatabase(folder)
-            : new DuckDbProjectDatabase(folder);
+        var reopened = (ILocalProjectDatabase)new SqliteProjectDatabase(folder);
         var path = reopened.GetDatabasePath(projectId);
         var before = await File.ReadAllBytesAsync(path);
 
@@ -145,19 +110,15 @@ public sealed class LegacySchemaRejectionTests
         Assert.Equal(before, await File.ReadAllBytesAsync(path));
     }
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task UnreadableSchemaVersion_IsRejectedWithoutChangingTheFile(string provider)
+    [Fact]
+    public async Task UnreadableSchemaVersion_IsRejectedWithoutChangingTheFile()
     {
         // 版本值讀不出整數代表檔案損壞；不得猜測從哪一版升級，也不得略過升版後照常開啟。
         const string unreadableMessage =
             "這個案件資料庫的版本資訊無法辨識，目前版本無法開啟。請從備份還原案件資料夾，或用目前版本重新建立案件，再重新匯入資料。";
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(folder)
-            : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
@@ -169,7 +130,7 @@ public sealed class LegacySchemaRejectionTests
                 """
                 CREATE TABLE schema_info (key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 INSERT INTO schema_info (key, value) VALUES ('schema_version', 'not-a-version');
-                """ + (provider == "duckdb" ? "\nCHECKPOINT;" : string.Empty);
+                """ + (string.Empty);
             await seed.ExecuteNonQueryAsync();
         }
 
@@ -187,16 +148,12 @@ public sealed class LegacySchemaRejectionTests
         Assert.Equal(before, await File.ReadAllBytesAsync(path));
     }
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task NewDatabase_IsCreatedAndUpgradedToCurrentVersion(string provider)
+    [Fact]
+    public async Task NewDatabase_IsCreatedAndUpgradedToCurrentVersion()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(folder)
-            : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 

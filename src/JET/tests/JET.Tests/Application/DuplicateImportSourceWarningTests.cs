@@ -8,11 +8,11 @@ public sealed class DuplicateImportSourceWarningTests
 {
     public static TheoryData<string, string, bool, bool, bool, int> Cases => new()
     {
-        { "sqlite", "append", true, true, true, 1 }, { "duckdb", "append", true, true, true, 1 },
-        { "sqlite", "append", false, true, true, 0 }, { "duckdb", "append", false, true, true, 0 },
-        { "sqlite", "append", true, false, true, 0 }, { "duckdb", "append", true, false, true, 0 },
-        { "sqlite", "append", true, true, false, 0 }, { "duckdb", "append", true, true, false, 0 },
-        { "sqlite", "replace", true, true, true, 0 }, { "duckdb", "replace", true, true, true, 0 }
+        { "sqlite", "append", true, true, true, 1 },
+        { "sqlite", "append", false, true, true, 0 },
+        { "sqlite", "append", true, false, true, 0 },
+        { "sqlite", "append", true, true, false, 0 },
+        { "sqlite", "replace", true, true, true, 0 }
     };
 
     [Theory]

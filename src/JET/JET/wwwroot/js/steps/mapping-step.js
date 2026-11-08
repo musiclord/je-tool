@@ -292,6 +292,8 @@
       return '<p class="map-options__note">清單代碼是否出現在來源裡尚未核對。按「讀取來源值」後，才會查詢完整來源。</p>';
     }
     if (profile.loading || profile.error) { return ''; }
+    // 只有不支援核對的資料庫會回 unsupportedProvider。只保留 SQLite 之後不會出現，句子照裁定 2026-10-14-01 的原文保留，
+    // 日後接回 SQL Server 時沿用（裁定 2026-11-06-08）。
     if (profile.sourceValueCheckStatus === 'unsupportedProvider') {
       return '<p class="map-options__note">線上案件無法核對清單代碼是否出現在來源中，仍可確認配對。</p>';
     }
@@ -1586,7 +1588,7 @@
       var litId = 'mapping-' + kind + '-' + litField.key + '-literal';
       var example = litField.key === 'drCrCreditCode' ? 'C 或 2' : 'D 或 1';
       return '<div class="map-literal">' +
-        '<label class="map-literal__label" for="' + litId + '">' + Ui.esc(litField.label) + '</label>' +
+        '<label class="map-literal__label" for="' + litId + '">' + Ui.esc(litField.label) + ' <em class="mapping-table__req-tag">借貸代碼至少填一個</em></label>' +
         '<input class="form__input map-literal__input" type="text" id="' + litId + '" data-mapping-key="' + litField.key +
           '" aria-label="' + Ui.esc(litField.label) + '" aria-describedby="' + litId + '-hint"' +
           ' data-focus-key="mapping-' + kind + '-' + litField.key + '" value="' +
@@ -1662,10 +1664,10 @@
       }
 
       // 必填欄位在自己那一列標「必填」，還沒選時標籤是琥珀色（裁定 2026-11-05-23）。借方代碼與貸方代碼只要填一個，
-      // 不算必填欄位，沒填時由下方的「尚需補齊」提醒，和上方那一行的數字同一個判斷。
+      // 兩列標示共同要求，不把其中一側單獨設成必填。
       return '<tr class="mapping-table__row' + (required ? ' is-required' : '') + (required && !current ? ' is-missing' : '') + '">' +
           '<td class="mapping-table__label">' + field.label +
-            (required ? ' <em class="mapping-table__req-tag">必填</em>' : '') + '</td>' +
+            (field.literal ? ' <em class="mapping-table__req-tag">借貸代碼至少填一個</em>' : required ? ' <em class="mapping-table__req-tag">必填</em>' : '') + '</td>' +
           '<td>' + control + '</td>' +
         '</tr>';
     }).join('');

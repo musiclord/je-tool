@@ -11,7 +11,6 @@ public sealed class CaseHandoverPreparedByTests
     // not the current Windows account. This does not add a field to the working paper template.
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AnotherAccountExports_ReportsKeepCreatorAndCaseIdentityIsUnchanged(string provider)
     {
         using var root = new TempProjectRoot();

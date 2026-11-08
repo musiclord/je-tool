@@ -38,7 +38,7 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
         _name = name;
         _part = part;
         _ensureProtection = ensureProtection;
-        var source = (Worksheet)part.Worksheet.CloneNode(true);
+        var source = (Worksheet)part.RequiredWorksheet().CloneNode(true);
         var sheetData = source.GetFirstChild<SheetData>()
             ?? throw new InvalidDataException(
                 $"Template worksheet '{name}' has no sheetData element.");

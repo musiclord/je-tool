@@ -16,7 +16,10 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.72" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.6" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+    <!-- Microsoft.Data.Sqlite 10.0.x 仍會帶入有漏洞的 SQLitePCLRaw 2.1.11（CVE-2025-6965、GHSA-2m69-gcr7-jv3q），
+         NuGet 因此一直提示更新。照主程式 src/JET/JET/JET.csproj 的做法明確指定同一版 SQLitePCLRaw。 -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
     <PackageReference Include="Sylvan.Data.Excel" Version="0.5.5" />
   </ItemGroup>

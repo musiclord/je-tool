@@ -539,39 +539,6 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task FilterPreview_DuckDb_AuditPeriodIncludesInPeriodAndExcludesOutOfPeriodMatches()
-    {
-        using var host = new HandlerTestHost();
-        await InlineWorkbookProject.SetupAsync(
-            host,
-            builder => builder
-                .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
-                .AddRow("IN-001", "2025-03-05", "1101", "現金", "期間測試命中", "100.00", 1)
-                .AddRow("IN-001", "2025-03-05", "4101", "收入", "期間測試命中", "100.00", 0)
-                .AddRow("OUT-001", "2024-03-05", "1101", "現金", "期間測試命中", "80.00", 1)
-                .AddRow("OUT-001", "2024-03-05", "4101", "收入", "期間測試命中", "80.00", 0),
-            databaseProvider: "duckdb");
-
-        var filterPreview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            new
-            {
-                join = "AND",
-                type = "text",
-                field = "description",
-                keywords = "期間測試命中",
-                mode = "contains"
-            })));
-
-        var scenario = filterPreview.GetProperty("scenario");
-        Assert.Equal(2, scenario.GetProperty("count").GetInt64());
-        Assert.Equal(1, scenario.GetProperty("voucherCount").GetInt64());
-        Assert.Equal(2, scenario.GetProperty("previewRows").GetArrayLength());
-        Assert.All(
-            scenario.GetProperty("previewRows").EnumerateArray(),
-            row => Assert.Equal("IN-001", row.GetProperty("voucherNumber").GetString()));
-    }
-
-    [Fact]
     public async Task FilterPreview_DrCrOnlyDebit_MatchesRecount()
     {
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(

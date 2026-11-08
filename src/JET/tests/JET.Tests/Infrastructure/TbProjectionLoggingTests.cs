@@ -106,29 +106,4 @@ public sealed class TbProjectionLoggingTests
 
         AssertTbProjectionLog(diagnostic, "sqlite", expectedRows: 2);
     }
-
-    [SqlServerFact]
-    public async Task Projection_SqlServer_LogsOneShotSqlAndMilestone_WhenLocalDbAvailable()
-    {
-        await using var temp = await TempSqlServerProject.TryCreateAsync();
-        if (temp is null)
-        {
-            return; // 無 LocalDB → 跳過（mystery-guest 豁免）
-        }
-
-        var batch = (await new SqlServerImportRepository(temp.Database).ReplaceBatchAsync(
-            temp.ProjectId, DatasetKind.Tb, [new ImportSourceInput(Source(), Columns, ToAsync(TwoRows))], CancellationToken.None)).Batch;
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var tbRepo = new SqlServerTbRepository(temp.Database, factory.CreateLogger<SqlServerTbRepository>());
-            var result = await tbRepo.ProjectStagingToTargetAsync(
-                temp.ProjectId, batch.BatchId, Spec(), 10_000, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
-            Assert.Equal(2, result.ProjectedRowCount);
-        }
-
-        AssertTbProjectionLog(diagnostic, "sqlServer", expectedRows: 2,
-            SqlServerProjectSchema.QualifierFor(temp.ProjectId));
-    }
 }

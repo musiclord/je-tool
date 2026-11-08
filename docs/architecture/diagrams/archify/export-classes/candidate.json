@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "class",
   "meta": {
-    "title": "正式底稿規劃與發布的類別與介面",
+    "title": "正式底稿的處理類別",
     "locale": "zh-TW",
     "output": "archify/export-classes/export-classes.html",
     "quality_profile": "showcase",
@@ -305,26 +305,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "實際執行哪個類別",
+      "title": "規劃、寫檔與紀錄分工",
       "items": [
-        "ExportWorkingPaperStreamHandler 對規劃資料、寫出器與報告存檔類別都只呼叫介面。存檔類別有實作 IAuditedReportPublishingStore 才走 WriteAuditedAsync，回應才帶得到寫不進操作紀錄的提醒；否則退回 IReportPublishingStore.WriteWithPublishingAsync 或 IReportStore.WriteAsync。",
-        "AppCompositionRoot 先建立 ProjectReportStore，再交給 AuditedReportStore。外層只把內層當成 IReportStore 持有，呼叫前才轉型，所以兩者之間沒有依賴線；內層是哪個類別，看兩條「建立」線。"
+        "ExportWorkingPaperStreamHandler 透過介面取得資料、產生底稿並發布。ProjectReportStore 寫檔，AuditedReportStore 記錄發布。",
+        "存檔類別支援 IAuditedReportPublishingStore 時，回應才包含操作紀錄失敗的提醒；否則使用其他發布介面。"
       ]
     },
     {
       "dot": "slate",
-      "title": "這張圖省略了什麼",
+      "title": "圖中省略的部分",
       "items": [
-        "兩個存檔類別也都實作 IReportStore，負責報告清單、路徑與失效標記；圖只畫發布用的介面。",
-        "WorkingPaperWriter 由 CreateWorkingPaperWriter 建立；內層透過 ReportContentWriter，執行匯出處理事先交出的寫檔函式。",
-        "外層寫操作紀錄經 CommittedOperationLog 與 IProjectOperationLog；本機案件實際寫入的類別與失敗時的提醒，見底稿匯出循序圖。"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "成員寫法",
-      "items": [
-        "成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。"
+        "兩個存檔類別也實作 IReportStore，負責清單、路徑與失效標記。",
+        "寫檔函式與操作紀錄的呼叫順序見循序圖；圖中建立關係說明兩個存檔類別如何組合。"
       ]
     }
   ]

@@ -35,57 +35,6 @@ public sealed class SixReportAppearanceProviderParityTests
         "workingPaper"
     ];
 
-    [Fact]
-    public async Task SixReports_SqliteAndDuckDb_HaveIdenticalValueBlindAppearanceSnapshots()
-    {
-        using var sqliteHost = new HandlerTestHost(principalName: PinnedPrincipal);
-        var sqlite = await ExportSixReportsAsync(sqliteHost, "sqlite");
-
-        using var duckDbHost = new HandlerTestHost(principalName: PinnedPrincipal);
-        var duckDb = await ExportSixReportsAsync(duckDbHost, "duckdb");
-
-        AssertEquivalent(sqlite, duckDb);
-    }
-
-    [SqlServerFact]
-    public async Task SixReports_SqliteAndSqlServer_HaveIdenticalValueBlindAppearanceSnapshots()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerFact 已判定可用，但執行期無法取得 SQL Server 連線。");
-
-        using var sqliteHost = new HandlerTestHost(principalName: PinnedPrincipal);
-        var sqlite = await ExportSixReportsAsync(sqliteHost, "sqlite");
-
-        HandlerTestHost? sqlServerHost = null;
-        try
-        {
-            sqlServerHost = new HandlerTestHost(
-                sqlServerConnectionString: connectionString,
-                principalName: PinnedPrincipal);
-            var sqlServer = await ExportSixReportsAsync(sqlServerHost, "sqlServer");
-
-            AssertEquivalent(sqlite, sqlServer);
-        }
-        finally
-        {
-            var projectIds = sqlServerHost is null
-                ? Array.Empty<string>()
-                : ProjectIds(sqlServerHost.ProjectsRoot);
-            try
-            {
-                sqlServerHost?.Dispose();
-            }
-            finally
-            {
-                foreach (var projectId in projectIds)
-                {
-                    await TempSqlServerProject.DropDatabaseAsync(connectionString, projectId);
-                }
-            }
-        }
-    }
-
     private static async Task<ProviderSnapshot> ExportSixReportsAsync(
         HandlerTestHost host,
         string databaseProvider)
@@ -398,7 +347,7 @@ public sealed class SixReportAppearanceProviderParityTests
             using var document = SpreadsheetDocument.Open(path, false);
             var workbookPart = document.WorkbookPart
                 ?? throw new InvalidDataException("Formal report workbook has no workbook part.");
-            var sheet = workbookPart.Workbook.Sheets!
+            var sheet = workbookPart.RequiredWorkbook().Sheets!
                 .Elements<Sheet>()
                 .Single(candidate => string.Equals(
                     candidate.Name?.Value,
@@ -409,7 +358,7 @@ public sealed class SixReportAppearanceProviderParityTests
                 throw new InvalidDataException("Formal report workbook metadata sheet is not VeryHidden.");
             }
             var worksheetPart = (WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!);
-            var cells = worksheetPart.Worksheet.Descendants<Cell>()
+            var cells = worksheetPart.RequiredWorksheet().Descendants<Cell>()
                 .ToDictionary(cell => cell.CellReference!.Value!, CellText, StringComparer.Ordinal);
 
             var chunkCount = int.Parse(cells["C1"], System.Globalization.CultureInfo.InvariantCulture);

@@ -9,7 +9,6 @@ public sealed class IndependentWorkingPaperWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AccountMappingTemplate_UsesMappedAccountsWithoutAValidationResult(string provider)
     {
         using var host = new HandlerTestHost();
@@ -26,7 +25,6 @@ public sealed class IndependentWorkingPaperWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task WorkingPaper_ExportsAfterCalendarChangeAndResave_WithoutPrescreenOrCriteriaReport(string provider)
     {
         using var host = new HandlerTestHost();

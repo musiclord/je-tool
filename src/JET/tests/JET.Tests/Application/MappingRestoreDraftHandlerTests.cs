@@ -327,6 +327,52 @@ public sealed class MappingRestoreDraftHandlerTests
     }
 
     /// <summary>只有一張空白工作表，再用正式報表的寫法加上 JET_Metadata。</summary>
+    [Fact]
+    public async Task FieldInfoSheetWithoutVersionText_StillCarriesTheCommittedMapping()
+    {
+        // 裁定 2026-11-06-11 拿掉「自動化工具-檔案欄位資訊」第 1 列的 V.2019。第 1 列右邊 F1:H1 的隱藏配對資訊照舊寫入，
+        // 拿掉 JET_Metadata 之後也讀得回同一份配對。這是新增的測試。
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        var (gl, tb) = CommittedFrom(await host.DispatchAsync(
+            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId })));
+        var validation = await host.DispatchAsync("validate.run");
+        var exported = await host.DispatchAsync("export.validationReports", JsonSerializer.Serialize(new
+        {
+            resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString(),
+        }));
+        var reportPath = exported.GetProperty("publishedReports").EnumerateArray()
+            .Single(item => item.GetProperty("kind").GetString() == "validationReport")
+            .GetProperty("fullPath").GetString()!;
+        var copyPath = Path.Combine(Path.GetTempPath(), $"jet-field-info-{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            using (var workbook = new ClosedXML.Excel.XLWorkbook(reportPath))
+            {
+                var sheet = workbook.Worksheet(MappingMetadataFormat.WorksheetName);
+                Assert.True(sheet.Cell("A1").IsEmpty());
+                Assert.DoesNotContain(sheet.MergedRanges, range => range.RangeAddress.ToString() == "A1:E1");
+                Assert.Equal(MappingMetadataFormat.Marker, sheet.Cell(MappingMetadataFormat.MarkerCell).GetString());
+                workbook.Worksheet(ReportWorkbookMetadataFormat.WorksheetName).Delete();
+                workbook.SaveAs(copyPath);
+            }
+
+            var draft = await new OpenXmlMappingMetadataReader().ReadAsync(copyPath, CancellationToken.None);
+
+            Assert.Equal(gl.Mapping.OrderBy(item => item.Key, StringComparer.Ordinal),
+                draft.Gl.Mapping.OrderBy(item => item.Key, StringComparer.Ordinal));
+            Assert.Equal(gl.ModeName, draft.Gl.AmountMode);
+            Assert.NotNull(draft.Tb);
+            Assert.Equal(tb.Mapping.OrderBy(item => item.Key, StringComparer.Ordinal),
+                draft.Tb.Mapping.OrderBy(item => item.Key, StringComparer.Ordinal));
+            Assert.Equal(tb.ModeName, draft.Tb.ChangeMode);
+        }
+        finally
+        {
+            File.Delete(copyPath);
+        }
+    }
+
     private static string SharedMetadataWorkbook(ReportWorkbookMetadata metadata)
     {
         var path = TestWorkbookBuilder.WriteWorkbook(sheet => sheet.Name = "合成報表");

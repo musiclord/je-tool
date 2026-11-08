@@ -19,7 +19,6 @@ public sealed class CaseLimitJourneyTests
     /// </summary>
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task NewerDatabaseVersion_IsRejected_TheFileStaysUnchanged_AndTheCaseCanBeDeleted(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -61,7 +60,6 @@ public sealed class CaseLimitJourneyTests
     /// </summary>
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task LongestChineseName_CompletesTheJourney_ReopensWithItsReports_AndCanBeDeleted(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -96,17 +94,13 @@ public sealed class CaseLimitJourneyTests
     private static string DatabasePath(string projects, string name, string provider)
     {
         var folder = new JetProjectFolder(projects);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         return database.GetDatabasePath(name);
     }
 
     /// <summary>不經 JET 的連線池，關閉時就真的關閉，記錄檔併回資料庫檔。</summary>
     private static System.Data.Common.DbConnection DirectConnection(string databasePath, string provider) =>
-        provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDB.NET.Data.DuckDBConnection($"DataSource={databasePath}")
-            : new SqliteConnection(new SqliteConnectionStringBuilder
+        new SqliteConnection(new SqliteConnectionStringBuilder
             {
                 DataSource = databasePath,
                 Mode = SqliteOpenMode.ReadWrite,

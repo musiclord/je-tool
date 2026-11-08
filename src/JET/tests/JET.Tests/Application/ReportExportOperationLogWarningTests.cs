@@ -21,13 +21,9 @@ public sealed class ReportExportOperationLogWarningTests
 
     [Theory]
     [InlineData("sqlite", "export.validationReports")]
-    [InlineData("duckdb", "export.validationReports")]
     [InlineData("sqlite", "export.prescreenReport")]
-    [InlineData("duckdb", "export.prescreenReport")]
     [InlineData("sqlite", "export.criteriaSelectionReport")]
-    [InlineData("duckdb", "export.criteriaSelectionReport")]
     [InlineData("sqlite", "export.workingPaperStream")]
-    [InlineData("duckdb", "export.workingPaperStream")]
     public async Task LocalCase_ReportIsPublishedWithTheReminderWhenTheAuditTableIsGone(string provider, string action)
     {
         using var host = new HandlerTestHost();

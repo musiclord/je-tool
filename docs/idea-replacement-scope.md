@@ -31,12 +31,12 @@ MAC 等外部多層會計科目表與對照不在目前職責範圍。2024 表�
 
 | IDEA 工作責任 | 目前 JET 落點 | 驗證入口 | 後續查核 |
 |:---|:---|:---|:---|
-| 建立本機案件並保存設定 | WinForms 和 WebView2 的六步驟流程；SQLite 與 DuckDB 本機儲存 | `Public`、`Gui` | 已知公司條件下的部署結果，環境政策見 `project-context.md` |
-| 匯入 CSV、TXT 或 XLSX 格式的 GL 與 TB，並做欄位配對 | `Application`、`AuditCore`、`Domain` 與 provider 實作 | `Public`；SQL Server 實跑另用 `Provider` | 格式責任已有契約；發現具體遷移差異才另行追溯 |
+| 建立本機案件並保存設定 | WinForms 和 WebView2 的六步驟流程；SQLite 本機儲存 | `Public`、`Gui` | 已知公司條件下的部署結果，環境政策見 `project-context.md` |
+| 匯入 CSV、TXT 或 XLSX 格式的 GL 與 TB，並做欄位配對 | `Application`、`AuditCore`、`Domain` 與 SQLite 資料庫實作 | `Public` | 格式責任已有契約；發現具體遷移差異才另行追溯 |
 | 資料驗證與 GL 範圍判定 | 現行驗證、INF 與失效規則 | `Public`、明示授權的 `PrivateCase` | 沿用已保存的業務基準；之後的變更在現行計畫補驗收對照 |
-| 預篩選與多條件篩選 | 後端規則及集合式 SQL，不由前端計算 | `Public`、明示執行的 `Provider` 或 `PrivateCase` | 有變更時在現行計畫補充驗收；不重問既有條件清單 |
+| 預篩選與多條件篩選 | 後端規則及集合式 SQL，不由前端計算 | `Public`、明示執行的 `PrivateCase` | 有變更時在現行計畫補充驗收；不重問既有條件清單 |
 | 產生審計底稿 | 五份報告、一份科目配對工作檔與原生 Excel 檢查 | `Package`、`Excel`、`PrivateCase` | 現行 writer、契約及既有人工驗收是基準；新差異逐項驗證 |
-| 不同資料庫得到相同業務結果 | SQLite、DuckDB、SQL Server provider 邊界 | live SQL Server 就緒時明示執行完整 `Provider` | 正式環境是否實際啟用 SQL Server |
+| 不同資料庫得到相同業務結果 | 短期上線只有 SQLite，DuckDB 與 SQL Server 暫時移除（裁定 2026-11-06-08） | 接回時從提交 `7e88b7b` 取回 `Provider` 路線 | 正式環境是否實際啟用 SQL Server |
 | 大量資料不進入前端或 Application 全量記憶體 | 資料庫集合式處理、摘要與分頁 | 架構測試、`Public` | 規模已定義於 `jet-guide.md` 第 10 節；公司硬體實測另記 |
 
 精確流程見 [`jet-guide.md`](jet-guide.md)。驗證命令見 [`../tools/README.md`](../tools/README.md)，驗證路線和私人案件
@@ -67,8 +67,9 @@ IDEA 替代範圍只有在下列條件都成立時才能標為完成：
 
 1. 維護者把既有 IDEA 工作、條件及底稿逐項對應現行實作、保留來源或明確的不做決定；不把來源查核責任
    改成使用者重新提供整份清單。只有具體且無法由原文解決的衝突才請使用者裁定。
-2. 每項現行實作都有對應的公開測試、需要時另行執行的 provider 比較、GUI、Excel 或明示授權的私人案件
-   驗證；不能用單一 `ReleaseCandidate` 名稱代替未執行的 SQL Server 或私人案件驗收。
+2. 每項現行實作都有對應的公開測試、GUI、Excel 或明示授權的私人案件驗證；不能用單一 `ReleaseCandidate`
+   名稱代替未執行的私人案件驗收。接回 DuckDB 與 SQL Server 後，資料庫之間的比較與 SQL Server 驗收也要另行執行
+   （裁定 2026-11-06-08）。
 3. 本機作業在公司允許的最低權限與網路條件下通過部署及操作驗收，不需要 AI 網路服務。
 4. 尚未完成的 KCT 小組新條件與 SQL Server 中心化工作明確留在後續範圍，不混入 IDEA 完成宣告。
 5. 文件、程式、測試與本次有效收據沒有互相矛盾；私人內容沒有進入 Git 或可同步證據。

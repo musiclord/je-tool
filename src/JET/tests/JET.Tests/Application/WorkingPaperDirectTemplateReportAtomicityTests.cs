@@ -386,8 +386,6 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
             new LocalVoucherBalancePageRepository(database),
             new LocalPreparerSummaryExportRepository(database),
             new LocalInfSamplePageRepository(database),
-            new LocalFilterScenarioStore(database),
-            new LocalHighRiskSummaryScenariosRepository(database),
             new LocalHighRiskSummaryVoucherPageRepository(database),
             highRiskSummaryRows,
             new LocalMappingStateStore(database),

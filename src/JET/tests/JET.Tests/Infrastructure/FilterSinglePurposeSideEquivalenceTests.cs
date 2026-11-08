@@ -30,17 +30,9 @@ public sealed class FilterSinglePurposeSideEquivalenceTests
     // 原寫法與明示方向子條件先比對通過；省略重複欄位首次失敗：20261014-132201427-ac4139a67469477a8c109420eba6632b。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExplicitSideGroups_KeepTheOriginalFixedEntryIdentities(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
-        await AssertExplicitSideGroupsAsync(fixture);
-    }
-
-    [SqlServerFact]
-    public async Task ExplicitSideGroups_KeepTheOriginalFixedEntryIdentities_SqlServer()
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
         await AssertExplicitSideGroupsAsync(fixture);
     }
 

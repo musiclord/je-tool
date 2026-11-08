@@ -76,7 +76,6 @@ public sealed class CommonFilterPredicateTests
     private const int MoneyScale = 100;
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CustomPpeSubtree_ExcludesSeparateConstructionCategory(string provider)
     {
         const string categorySql = """
@@ -112,7 +111,6 @@ public sealed class CommonFilterPredicateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NonQuarterPeriodEnd_HitsRevenueDebitOnBothProviders(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
@@ -139,7 +137,6 @@ public sealed class CommonFilterPredicateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CommonFilterCardBoundaries_ExecuteOnBothLocalDatabases(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);

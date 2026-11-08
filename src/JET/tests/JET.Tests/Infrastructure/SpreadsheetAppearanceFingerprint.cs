@@ -165,7 +165,7 @@ internal sealed class SpreadsheetAppearanceFingerprint
             }
         }
 
-        var sheets = workbookPart.Workbook.Sheets?.Elements<Sheet>().ToArray()
+        var sheets = workbookPart.Workbook?.Sheets?.Elements<Sheet>().ToArray()
             ?? throw new InvalidDataException("OpenXML workbook has no worksheets.");
         foreach (var sheet in sheets)
         {

@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>本機部署：隨發布交付、環境前提與案件資料</title>
+  <title>電腦環境與交付內容</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>本機部署：隨發布交付、環境前提與案件資料</h1>
+        <h1>電腦環境與交付內容</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1060 520" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5" data-reader-primary-text="14">
-        <title id="archify-diagram-title">本機部署：隨發布交付、環境前提與案件資料</title>
+        <title id="archify-diagram-title">電腦環境與交付內容</title>
         <desc id="archify-diagram-description">由 Archify 產生的架構圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5630,34 +5630,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>交付與環境前提</h3>
+          <h3>交付完整發布資料夾</h3>
         </div>
         <ul>
-          <li>用 FolderProfile 發布 Windows x64 自含式主程式；前端檔案、範本與設定要和整個發布資料夾一起交付，不能只拿 JET.exe。</li>
-          <li>電腦要先有 WebView2 執行階段，不能假設單檔發布已內含；讀 Access 檔還需要 x64 的 ACE 16。</li>
-          <li>正式環境不能假設有系統管理員權限、能另外安裝軟體或使用外部 AI 服務。</li>
+          <li>JET.exe、設定、範本與 wwwroot 一起交付。電腦需有 WebView2；讀 Access 時另需 x64 ACE 16。</li>
+          <li>正式環境的元件版本、安裝與發布權限仍待確認，不假設可取得管理員權限或外部 AI。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot slate"></div>
-          <h3>案件資料與支援日誌</h3>
+          <h3>案件與支援日誌</h3>
         </div>
         <ul>
-          <li>SQLite 案件用 jet.db，DuckDB 案件用 jet.duckdb；同一個案件資料夾也存 project.json 與報告檔。</li>
-          <li>支援日誌只匯出去識別化的事件；沒有指定案件時寫到 JET 日誌目錄，不必先載入案件。案件清單頁尾的「輸出支援日誌」按鈕只在 Debug 組建顯示，開案後訊息面板的按鈕在 Release 照舊。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>讀圖範圍</h3>
-        </div>
-        <ul>
-          <li>JET 是一個桌面程式，連線表示同一台電腦上的資源使用；SQL Server 開發暫緩，不在圖內。</li>
-          <li>公司電腦上的 WebView2、ACE 位元版本與發布權限，還要在正式環境確認。</li>
+          <li>案件資料夾包含 project.json、資料庫與報告。SQLite 使用 jet.db，DuckDB 使用 jet.duckdb。</li>
+          <li>支援日誌可寫入所選案件或 JET 日誌目錄。案件清單的匯出按鈕僅 Debug 顯示，開案後在 Release 仍可匯出。</li>
         </ul>
       </div>
     </div>

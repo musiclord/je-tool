@@ -60,6 +60,32 @@ def compact(edge):
     return {key: edge[key] for key in keep if key in edge}
 
 
+def archify_version(root):
+    package = read(root / "package.json")
+    release = read(root / "skill-release.json")
+    version = package.get("version")
+    if (package.get("name") != "archify" or not isinstance(version, str)
+            or not re.fullmatch(r"\d+\.\d+\.\d+", version) or release.get("version") != version):
+        raise ValueError("Archify package and release versions must agree.")
+    for relative in ("bin/archify.mjs", "SKILL.md", "LICENSE"):
+        if not (root / relative).is_file():
+            raise ValueError("Archify installation is incomplete: " + relative)
+    return version
+
+
+def verify_archify_finalize(receipt, candidate, artifact, version):
+    gates = receipt.get("gates") or {}
+    if (receipt.get("ok") is not True or receipt.get("command") != "finalize"
+            or any(gates.get(name) != "pass" for name in ("validate", "deliver", "check", "browser-check"))):
+        raise ValueError("Archify finalize did not pass: " + candidate.parent.name)
+    if (receipt.get("update") or {}).get("installedVersion") != version:
+        raise ValueError("Archify finalize version differs from --archify-root; rerun with the selected installation.")
+    if (receipt.get("specification") or {}).get("sha256") != digest(candidate):
+        raise ValueError("Archify candidate changed after finalize: " + candidate.parent.name)
+    if (receipt.get("artifact") or {}).get("sha256") != digest(artifact):
+        raise ValueError("Archify artifact changed after finalize: " + candidate.parent.name)
+
+
 def with_theme(document, css):
     """Insert the JET colour overrides right after <head>; only colour variables, a heading font and decorations change, never geometry.
     The rules use more specific selectors, so they win over the tool's own stylesheets that follow them."""
@@ -146,10 +172,13 @@ def main():
     parser.add_argument("--research-root", type=Path, required=True)
     parser.add_argument("--run", required=True, help="snapshot run under <research-root>/runs, e.g. 2026-10-22-head-07b97b3")
     parser.add_argument("--redraw", type=Path, required=True)
+    parser.add_argument("--archify-root", type=Path, required=True, help="Archify installation used for every finalize receipt")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--redraw-date", required=True)
     args = parser.parse_args()
     lab, work, package_dir = (p.resolve() for p in (args.research_root, args.redraw, args.output))
+    archify_root = args.archify_root.resolve()
+    tool_version = archify_version(archify_root)
     # docs/architecture keeps one package in a fixed directory; each redraw overwrites it and removes any other package, and earlier ones stay in Git history.
     def is_package(directory):
         manifest = directory / "manifest.json"
@@ -320,13 +349,12 @@ def main():
         candidate = candidates[diagram]
         reviews = sorted((work / "archify" / diagram).glob("review-*.log"), key=lambda p: int(p.stem.split("-")[1]))
         receipt = json.loads(reviews[-1].read_text(encoding="utf-8")) if reviews else {}
-        if receipt.get("ok") is not True:
-            raise ValueError("Archify finalize did not pass: " + diagram)
+        finalized = work / "archify" / diagram / f"{diagram}.html"
+        verify_archify_finalize(receipt, work / "archify" / diagram / "candidate.json", finalized, tool_version)
         entry = dict(id=diagram, title=candidate["meta"]["title"], type=candidate["diagram_type"],
                      candidate=f"archify/{diagram}/candidate.json", html=f"archify/{diagram}/{diagram}.html",
-                     finalize=dict(review=reviews[-1].stem, quality=candidate["meta"].get("quality_profile"), ok=True))
+                     finalize=dict(review=reviews[-1].stem, quality=candidate["meta"].get("quality_profile"), version=tool_version, ok=True))
         copy(work / "archify" / diagram / "candidate.json", out / entry["candidate"])
-        finalized = work / "archify" / diagram / f"{diagram}.html"
         (out / entry["html"]).parent.mkdir(parents=True, exist_ok=True)
         (out / entry["html"]).write_text(with_theme(finalized.read_text(encoding="utf-8"), archify_theme), encoding="utf-8", newline="\n")
         entry["finalizedHtmlSha256"] = digest(finalized)
@@ -353,7 +381,7 @@ def main():
         return found
     views = [dict(id=v, title=model["views"][v]["title"], html=f"likec4/index.html#/view/{v}/", evidence=view_evidence(v))
              for group in portal for v in group.get("likec4", [])]
-    copy(lab / "tools/archify-3.1.0/archify/LICENSE", out / "licenses/archify-LICENSE.txt")
+    copy(archify_root / "LICENSE", out / "licenses/archify-LICENSE.txt")
     copy(lab / "tools/node/node_modules/likec4/LICENSE", out / "licenses/likec4-LICENSE.txt")
     for name in ("class-signatures.json", "sqlite-schema.json", "source-manifest.json"):
         copy(baseline / name, out / "evidence" / name)
@@ -433,8 +461,8 @@ def main():
     save(out / "manifest.json", dict(
         schemaVersion=1, scope=SCOPE, snapshotRun=args.run, snapshot=dict(source=source_manifest.get("source"), commit=source_manifest.get("commit"),
                                                                             createdUtc=source_manifest.get("createdUtc")), redrawDate=args.redraw_date,
-        versions=dict(repowise="0.56.0", roslyn="5.9.0.0", likec4="1.59.4", archify="3.1.0"),
-        diagrams=diagrams, likec4Views=len(views), likec4Model="likec4/jet.c4",
+        versions=dict(repowise="0.56.0", roslyn="5.9.0.0", likec4="1.59.4", archify=tool_version),
+        diagrams=diagrams, readingOrder=portal, likec4Views=len(views), likec4Model="likec4/jet.c4",
         likec4Export=dict(html="likec4/index.html", sourceSha256=hashlib.sha256(likec4_source).hexdigest(),
                           portableSha256=digest(out / "likec4/index.html"), rewrittenLocalLinks=rewritten,
                           transformation="Rewrite local links relative to the package root, inline the favicon and insert likec4/jet-theme.css; keep the model and layout.",
@@ -486,8 +514,8 @@ h3{font-size:15px;margin:.15em 0}p{max-width:95ch}.muted,small{color:var(--muted
 [data-kind=return]{--kc:var(--k-return)}[data-kind=implements]{--kc:var(--k-implements)}[data-kind=injects]{--kc:var(--k-injects)}
 [data-kind=data]{--kc:var(--k-data)}[data-kind=uses]{--kc:var(--k-uses)}[data-kind=fact]{--kc:var(--k-fact)}
 [data-kind=dependency]{--kc:var(--k-dependency)}[data-kind=realization]{--kc:var(--k-realization)}[data-kind=inheritance]{--kc:var(--k-inheritance)}
-.viewer{display:grid;grid-template-columns:250px minmax(0,1fr) 330px;gap:18px;align-items:start}
-.menu,.panel{position:sticky;top:72px;max-height:calc(100vh - 88px);overflow:auto;padding:14px 14px 16px}
+.viewer{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;align-items:start}
+.menu{position:sticky;top:72px;max-height:calc(100vh - 88px);overflow:auto;padding:14px 14px 16px}
 input,select{width:100%;padding:6px 2px;font:inherit;border:0;border-bottom:1px solid var(--rule);border-radius:0;background:transparent;color:var(--ink)}
 input:focus,select:focus{outline:0;border-bottom-color:var(--ink)}select{cursor:pointer}select option{background:var(--paper)}
 .menu h3{font:500 12px/1.5 var(--display);letter-spacing:.12em;color:var(--muted);margin:18px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--line)}
@@ -498,7 +526,7 @@ border-radius:0;background:none;color:var(--muted);font:inherit;font-size:14px;l
 .actions{display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px}.actions a{text-decoration:none}
 .actions a::after{content:" \\2197";font-family:var(--display)}.actions a:hover{text-decoration:underline}
 iframe{display:block;width:100%;height:calc(100vh - 165px);min-height:560px;border:0;background:var(--paper)}
-.panel h2{font-size:16px;margin:0 0 6px}.panel h2 small{font:400 13px var(--display);letter-spacing:.04em}.panel p{font-size:13.5px;margin:.3em 0}
+.panel{grid-column:2;padding:12px 18px}.panel>summary{font-weight:600}.panel h2{font-size:16px;margin:0 0 6px}.panel h2 small{font:400 13px var(--display);letter-spacing:.04em}.panel p{font-size:13.5px;margin:.3em 0}
 .conn-list{list-style:none;margin:8px 0 14px;padding:0}.conn-list li{margin:0;padding:7px 0 7px 12px;border-left:2px solid var(--kc,var(--line));border-bottom:1px solid var(--line)}
 .conn-list a{display:block;text-decoration:none;color:var(--ink)}.conn-list a:hover .what{text-decoration:underline}
 .conn-list .what{font-size:14px}.conn-list .note{display:block;color:var(--muted);font-size:12.5px}
@@ -531,7 +559,7 @@ th{font:500 11.5px/1.5 var(--display);letter-spacing:.12em;color:var(--muted);wh
 .top nav a[aria-current=page]::after{bottom:-2px}.legend dl{grid-template-columns:minmax(0,1fr)}
 iframe{height:72vh;min-height:420px}main{padding:14px 16px 36px}.top-inner{padding:8px 16px}.conn dl{grid-template-columns:minmax(0,1fr)}.conn dt{margin-top:4px}h1{font-size:23px}}
 """
-PAGES = (("index.html", "圖表入口"), ("connections.html", "連線證據"), ("evidence.html", "已核對事實"), ("types.html", "類別與成員"),
+PAGES = (("index.html", "圖表入口"), ("connections.html", "連線依據"), ("evidence.html", "設計依據"), ("types.html", "類別與成員"),
          ("schema.html", "資料表欄位"), ("README.md", "閱讀說明"))
 HASH_OPEN = ('function openHash(){const id=decodeURIComponent(location.hash.slice(1));if(!id)return;const t=document.getElementById(id);if(!t)return;'
              'let d=t.closest("details");while(d){d.open=true;d=d.parentElement.closest("details")}if(t.tagName==="DETAILS")t.open=true;'
@@ -543,7 +571,7 @@ def page(out, name, title, body, redraw_date, script=""):
     (out / name).write_text(
         '<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
         '<title>' + escape(title) + '</title><style>' + CSS + '</style></head><body><header class="top"><div class="top-inner">'
-        '<a class="brand" href="index.html"><b>JET ARCHITECTURE</b><small>架構與流程圖．' + escape(redraw_date) + ' 重繪</small></a><nav>' + nav + '</nav></div></header>'
+        '<a class="brand" href="index.html"><b>JET ARCHITECTURE</b><small>架構與流程圖</small></a><nav>' + nav + '</nav></div></header>'
         '<main>' + body + '</main><script>' + script + '</script></body></html>', encoding="utf-8")
 
 
@@ -588,13 +616,13 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
             options.append(entry)
             menu += f'<button data-diagram="{escape(diagram)}">{escape(d["title"])}</button>'
     # The drawing comes first; line types are explained once on the connections page.
-    body = ('<h1 class="sr-only">JET 架構與流程圖</h1>'
+    body = ('<h1>JET 架構與流程圖</h1><p class="muted">先看系統總覽，再依需要查操作流程、資料流或程式細節。</p>'
             '<div class="viewer"><aside class="menu card"><input id="search" type="search" placeholder="搜尋圖表" aria-label="搜尋圖表">'
-            + menu + '</aside><section class="stage card"><div class="stage-head actions"><a id="evidence">完整證據</a>'
+            + menu + '</aside><section class="stage card"><div class="stage-head actions"><a id="evidence">查看程式依據</a>'
             '<a id="standalone" target="_blank" rel="noopener">在新分頁開啟</a></div><iframe id="diagram" title="目前選取的圖"></iframe></section>'
-            '<aside class="panel card" aria-live="polite"><h2>這張圖的線 <small id="connCount"></small></h2><div class="chips" id="kindChips"></div>'
-            '<ol class="conn-list" id="connList"></ol><details id="factBlock" class="facts"><summary>引用的事實 <small id="factCount"></small></summary>'
-            '<ul class="facts-list" id="factList"></ul></details></aside></div>')
+            '<details class="panel card"><summary>查閱這張圖的依據 <small id="connCount"></small></summary><div class="chips" id="kindChips"></div>'
+            '<ol class="conn-list" id="connList"></ol><details id="factBlock" class="facts"><summary>相關說明 <small id="factCount"></small></summary>'
+            '<ul class="facts-list" id="factList"></ul></details></details></div>')
     script = ('const diagrams=' + json.dumps(options, ensure_ascii=False) + ';const kinds=' + json.dumps(KIND_LABELS, ensure_ascii=False) +
               ';const notes=' + json.dumps(KIND_NOTES, ensure_ascii=False) + ';const facts=' + json.dumps(fact_titles, ensure_ascii=False) +
               ';const $=id=>document.getElementById(id);'
@@ -610,7 +638,7 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
               '$("connCount").textContent=d.conns.length+" 條";const chips=$("kindChips");chips.replaceChildren();'
               'for(const k in counts){const label=d.conns.find(c=>c.k===k).kl||kinds[k];chips.append(el("span",{class:"chip","data-kind":k,title:notes[k]?label+"："+notes[k]:label},label+" "+counts[k]))}'
               'const fl=$("factList");fl.replaceChildren();for(const f of d.facts){const li=el("li");li.append(el("a",{href:"evidence.html#f-"+f},facts[f]||f));fl.append(li)}'
-              '$("factCount").textContent=d.facts.length+" 項";$("factBlock").hidden=!d.facts.length;history.replaceState(null,"","#"+d.id)}'
+              '$("factCount").textContent=d.facts.length+" 項";$("factBlock").hidden=!d.facts.length;document.querySelector(".panel").open=false;history.replaceState(null,"","#"+d.id)}'
               'document.querySelectorAll("[data-diagram]").forEach(b=>b.onclick=()=>{show(b.dataset.diagram);'
               'if(matchMedia("(max-width:860px)").matches)document.querySelector(".stage").scrollIntoView({block:"start"})});'
               '$("search").oninput=e=>{const q=e.target.value.toLowerCase();document.querySelectorAll(".menu button").forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(q))};'
@@ -643,7 +671,7 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
         title = KIND_LABELS[kind] + ("：" + KIND_NOTES[kind] if kind in KIND_NOTES else "")
         return f'<span class="chip" data-kind="{kind}" title="{escape(title)}">{escape(KIND_LABELS[kind])}</span>'
 
-    body = ('<h1>連線證據</h1><p class="muted">每條線列出程式裡的呼叫位置，或依據的已核對事實；這些都來自閱讀程式碼，沒有實際執行。'
+    body = ('<h1>連線依據</h1><p class="muted">選擇圖表，查閱連線對應的程式位置與說明。'
             '類別圖的關係在<a href="types.html">類別與成員</a>頁。</p>'
             '<details class="legend"><summary>線的種類怎麼分</summary><dl>' +
             "".join(f'<dt>{kind_chip(k)}</dt><dd>{escape(KIND_NOTES[k])}</dd>' for k in used_kinds if k in KIND_NOTES) + '</dl></details>'
@@ -658,15 +686,15 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
         for c in rows:
             details = ""
             if c.get("roslyn"):
-                details += '<dt>編譯時目標</dt><dd><ul class="refs">' + "".join(edge_item(e) for e in c["roslyn"]) + '</ul></dd>'
+                details += '<dt>程式呼叫</dt><dd><ul class="refs">' + "".join(edge_item(e) for e in c["roslyn"]) + '</ul></dd>'
             if c.get("implementations") or c.get("assembly"):
-                details += '<dt>實際執行的類別</dt><dd><ul class="refs">' + "".join(edge_item(e) for e in c.get("implementations", []) + c.get("assembly", [])) + '</ul></dd>'
+                details += '<dt>對應的實作類別</dt><dd><ul class="refs">' + "".join(edge_item(e) for e in c.get("implementations", []) + c.get("assembly", [])) + '</ul></dd>'
             if c["kind"] == "return":
                 call = by_key[(diagram, c["returnOf"])]
                 details += ('<dt>對應呼叫</dt><dd><a href="#c-' + escape(diagram) + '-' + escape(c["returnOf"]) + '">' + escape(call["fromLabel"]) + ' 到 ' +
                             escape(call["toLabel"]) + (' ' + escape(call["label"]) if call["label"] else '') + '</a></dd>')
             if c["facts"]:
-                details += '<dt>事實</dt><dd>' + "、".join(f'<a href="evidence.html#f-{escape(f)}">{escape(fact_titles[f])}</a>' for f in c["facts"]) + '</dd>'
+                details += '<dt>相關說明</dt><dd>' + "、".join(f'<a href="evidence.html#f-{escape(f)}">{escape(fact_titles[f])}</a>' for f in c["facts"]) + '</dd>'
             body += ('<div class="conn" data-kind="' + c["kind"] + '" id="c-' + escape(diagram) + '-' + escape(c["connection"]) + '"><h3>' +
                      escape(c["fromLabel"]) + ' <small>到</small> ' + escape(c["toLabel"]) + kind_chip(c["kind"]) + '</h3><dl>' +
                      ('<dt>圖上文字</dt><dd>' + escape(c["label"]) + '</dd>' if c["label"] else '') + details + '</dl></div>')
@@ -685,20 +713,19 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
             used.setdefault(f, []).append(c)
     status_text = {"proposal-not-executed": "建議程序，未執行", "test-source-read-not-executed": "只讀測試程式，未執行",
                    "source-and-user-requirement": "依專案文件與使用者要求"}
-    body = ('<h1>已核對事實</h1><p class="muted">每項事實只列實際讀過的程式或文件範圍；沒有另外標示的，都只讀了程式或文件，沒有實際執行。</p>'
-            '<div class="filters card" style="grid-template-columns:minmax(0,1fr) auto"><div><label for="fText">搜尋事實</label><input id="fText" type="search"></div>'
+    body = ('<h1>設計依據</h1><p class="muted">展開主題，查看圖表採用的說明與程式摘錄。</p>'
+            '<div class="filters card" style="grid-template-columns:minmax(0,1fr) auto"><div><label for="fText">搜尋主題</label><input id="fText" type="search"></div>'
             '<output id="fCount"></output></div>')
     for f in facts:
         refs = "".join('<li><a href="connections.html#c-' + escape(c["diagram"]) + '-' + escape(c["connection"]) + '">' +
                        escape(titles.get(c["diagram"], c["diagram"])) + '：' + escape(c["fromLabel"]) + ' 到 ' + escape(c["toLabel"]) + '</a></li>'
                        for c in used.get(f["id"], []))
         meta = [status_text[f["status"]]] if f["status"] in status_text else []
-        meta += [f["addedOn"] + " 補充"] if f.get("addedOn") else []
-        body += ('<article class="card fact" id="f-' + escape(f["id"]) + '"><h2>' + escape(f["title"]) + '</h2>' +
+        body += ('<details class="group card fact" id="f-' + escape(f["id"]) + '"><summary><h2>' + escape(f["title"]) + '</h2></summary><div class="group-body">' +
                  ('<p class="muted">' + escape("．".join(meta)) + '</p>' if meta else '') +
                  '<p>' + escape(f["claim"]) + '</p>' + "".join(excerpt(f"{s['path']}:{s['line']}-{s['endLine']}") for s in f["sources"]) +
                  ('<details><summary>用到這項事實的連線</summary><ul class="refs">' + refs + '</ul></details>' if refs else '') +
-                 '</article>')
+                 '</div></details>')
     calls = [r for r in comparison["relations"] if r["kind"] == "invokes"]
     matched = sum(r["repowiseStatus"] == "matched" for r in calls)
     other = sum(r["repowiseStatus"] == "different_target" for r in calls)
@@ -707,8 +734,8 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
              f'2026-10-16 的研究人工選定 {len(calls)} 處呼叫，這份快照再比對一次：RepoWise 相符 {matched} 處、漏列 {missing} 處' +
              (f'、指到別的方法 {other} 處' if other else '') + '，Roslyn 全部相符。這是選定樣本，不能換算為全專案正確率。'
              '<a href="evidence/normalized-relations.json">完整對照資料</a></p></div></details>')
-    script = ('const items=[...document.querySelectorAll("article.fact")];function apply(){const q=fText.value.trim().toLowerCase();let n=0;'
-              'for(const a of items){a.hidden=!!q&&!a.textContent.toLowerCase().includes(q);if(!a.hidden)n++}fCount.textContent=(q?"符合 ":"共 ")+n+" 項"}'
+    script = ('const items=[...document.querySelectorAll("details.fact")];function apply(){const q=fText.value.trim().toLowerCase();let n=0;'
+              'for(const a of items){a.hidden=!!q&&!a.textContent.toLowerCase().includes(q);if(!a.hidden){n++;if(q)a.open=true}}fCount.textContent=(q?"符合 ":"共 ")+n+" 項"}'
               'fText.oninput=apply;apply();' + HASH_OPEN)
     page(out, "evidence.html", "JET 已核對事實", body, redraw_date, script)
 
@@ -758,26 +785,29 @@ def write_pages(out, portal, diagrams, views, facts, connections, bindings, memb
     page(out, "schema.html", "JET SQLite 資料表欄位", body, redraw_date, script)
 
     (out / "README.md").write_text(
-        f"# JET 架構圖表\n\n"
-        f"開啟[圖表入口](index.html)。這些圖在 {redraw_date} 依{snapshot_label}的程式快照重繪，沒有反映之後的修改；"
-        "程式現況以 src 與測試為準。\n\n"
-        "## 怎麼讀\n\n"
-        "循序圖與 LikeC4 用三種線條區分呼叫方式：\n\n"
-        "- 灰色實線是直接呼叫：程式碼直接呼叫那個類別的方法。\n"
-        "- 鋼藍色虛線是介面呼叫：程式碼只呼叫介面；實際執行哪個類別，看 AppCompositionRoot 在啟動時建立哪一個。\n"
-        "- 琥珀色線是間接觸發，例如畫面用 action 名稱送出的訊息、事先交出的函式，或逐列讀取的資料。Archify 畫成較粗的實線，LikeC4 畫成虛線。\n\n"
-        "其他圖面：\n\n"
-        "- 方框顏色兩種工具相同：石墨灰是元件與類別，鋼藍是資料庫，青銅是畫面與介面型別，暖灰是外部資源與檔案。\n"
-        "- 循序圖只畫標題寫明的情境與分支，沒畫的分支寫在圖下方的卡片；生命線上的長條是該類別處理呼叫的期間。\n"
-        "- 類別圖只畫編譯時存在的依賴、實作與繼承；實作類別不重複列出介面已有的成員。\n"
-        "- 資料表關聯圖的線是程式在 SQL 裡使用的連接欄位；這批 SQLite 建表定義沒有宣告外鍵。\n"
-        "- 所有連線都來自閱讀程式碼，沒有實際執行。每條線的依據在[連線證據](connections.html)，類別圖的關係與成員在[類別與成員](types.html)。\n\n"
-        "## 可編輯來源\n\n"
-        "LikeC4 模型在 [jet.c4](likec4/jet.c4)；Archify 的候選 JSON 在各圖的資料夾，例如[篩選情境儲存的循序圖](archify/action-sequence/candidate.json)。"
-        "配色檔與封裝方式見儲存庫的 `tools/harness/architecture/README.md`。\n\n"
-        "## 第三方授權\n\n"
-        "Archify 3.1.0 與 LikeC4 1.59.4 的原始授權保留在 [Archify 授權](licenses/archify-LICENSE.txt)和 [LikeC4 授權](licenses/likec4-LICENSE.txt)。\n",
+        "# 圖表閱讀說明\n\n"
+        "開啟[圖表入口](index.html)，從左側依用途選圖。一般讀者可先看「先認識 JET」、「看操作怎麼進行」與「看資料如何流動」。"
+        "要核對程式時，再展開圖下方的「查閱這張圖的依據」。\n\n"
+        "## 圖表範圍\n\n"
+        "圖表依固定程式快照整理，不包含之後的修改。來源版本、工具版本與檔案清單保留在 [manifest.json](manifest.json)。"
+        "連線來自程式碼分析，不是實際執行紀錄；現況以 src 與測試為準。部署與維護圖中的建議程序仍待公司確認。\n\n"
+        "## 線條怎麼讀\n\n"
+        "| 線條 | 意義 |\n|:---|:---|\n"
+        "| 灰色實線 | 直接呼叫類別的方法。 |\n"
+        "| 鋼藍色虛線 | 透過介面呼叫；啟動時決定使用哪個實作類別。 |\n"
+        "| 琥珀色線 | 畫面訊息、預先交出的函式或逐列讀取等間接觸發。兩種工具的線型略有不同。 |\n\n"
+        "<details>\n<summary>類別圖與資料表圖的補充</summary>\n\n"
+        "類別圖保留程式名稱與方法型別。成員省略參數名稱、CancellationToken 及預設參數；超過四個參數只列前兩個。"
+        "package 表示 internal，實作類別不重複列出介面已有的成員。完整宣告在[類別與成員](types.html)。\n\n"
+        "資料表圖的線代表 SQL 使用的關聯欄位。這批 SQLite 定義沒有宣告外鍵，不會由資料庫強制保護這些關聯。"
+        "PK 是主鍵，UK 是唯一約束或索引。未畫線不代表資料表互不相關；完整欄位在[資料表欄位](schema.html)。\n\n"
+        "</details>\n\n"
+        "## 修改圖表\n\n"
+        "LikeC4 來源是 [jet.c4](likec4/jet.c4)。Archify 來源是各圖資料夾的 candidate.json，"
+        "例如[篩選情境圖](archify/filter-save/candidate.json)。修改來源後，依 `tools/harness/architecture/README.md` 重新產生與封裝。\n\n"
+        "第三方授權：[Archify](licenses/archify-LICENSE.txt)、[LikeC4](licenses/likec4-LICENSE.txt)。\n",
         encoding="utf-8")
+
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "erd",
   "meta": {
-    "title": "SQLite：科目分類、篩選情境與命中",
+    "title": "SQLite：分類、情境與命中結果",
     "locale": "zh-TW",
     "output": "archify/rules-erd/rules-erd.html",
     "quality_profile": "standard",
@@ -389,21 +389,10 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "這些連線的依據",
+      "title": "從結果連回分錄",
       "items": [
-        "命中、符合條件的紀錄與抽樣明細都以 entry_id 連回 gl 取顯示欄；命中以 scenario_id 連到 filter_scenario，畫面再依 position 選出情境。",
-        "儲存或重算單一情境時，依 scenario_id 先刪 filter_hit_condition，再刪 filter_hit。",
-        "科目配對以 category_id 連到分類；分類階層表的兩個欄位都指向分類代碼。account_category 另以 parent_category_id 指向上層分類，圖上不畫自身連線。",
-        "來源：LocalFilterHitsPageRepository.cs 第 33–39 行；LocalInfSamplePageRepository.cs 第 38 行；LocalFilterHitMaterializer.cs 第 44–74 行；FilterHitInsertSql.cs 第 9–50 行；LocalAccountMappingRepository.cs 第 226–232 行；AccountCategoryHierarchy.cs 第 6–29 行。"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "線條不是資料庫外鍵",
-      "items": [
-        "現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。",
-        "沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。",
-        "PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。"
+        "命中與抽樣明細以 entry_id 連回 GL；命中再以 scenario_id 對應情境。重算單一情境時，先清除舊條件紀錄與命中。",
+        "科目以 category_id 對應分類。分類也可連至上層，圖中省略分類表的自身連線。"
       ]
     }
   ]

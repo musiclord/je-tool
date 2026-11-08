@@ -21,8 +21,6 @@ public sealed class FilterHitLoggingTests
     // 20261030-135241888-3c45f8ad7a044419beee5d439bf6db8a 裡的實際命令只做上述反向改名，兩個 digest 都精確回到原值。
     // SQL Server 未執行，維持原值待核對。
     private const string SqliteSnapshotDigest = "CC535F625B81289224E2F282ABEF85C748BBD73B62677979E4E602CFCFC5AF07";
-    private const string DuckDbSnapshotDigest = "CC535F625B81289224E2F282ABEF85C748BBD73B62677979E4E602CFCFC5AF07";
-    private const string SqlServerSnapshotDigest = "4F524489686D92D895809BC8E8C2986D3B0BEA868A1460D007DA152A65608AE5";
 
     private const long DistinctiveAmount = 123_456L; // 可辨識的下限值，應原樣出現在 parameters
 
@@ -73,8 +71,6 @@ public sealed class FilterHitLoggingTests
         var expectedDigest = expectedProvider switch
         {
             "sqlite" => SqliteSnapshotDigest,
-            "duckdb" => DuckDbSnapshotDigest,
-            "sqlServer" => SqlServerSnapshotDigest,
             _ => throw new InvalidOperationException(
                 $"未登錄 provider '{expectedProvider}' 的 filter SQL snapshot。")
         };
@@ -100,51 +96,5 @@ public sealed class FilterHitLoggingTests
         }
 
         AssertFilterSql(diagnostic, "sqlite");
-    }
-
-    [Fact]
-    public async Task Preview_DuckDb_LogsSql_WithDynamicWhereAndBoundParameterValue()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var database = new DuckDbProjectDatabase(folder);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var repo = new LocalFilterHitRepository(
-                database,
-                factory.CreateLogger<LocalFilterHitRepository>());
-            await repo.PreviewAsync(
-                projectId,
-                AmountFromScenario(),
-                Context,
-                CancellationToken.None);
-        }
-
-        AssertFilterSql(diagnostic, "duckdb");
-    }
-
-    [SqlServerFact]
-    public async Task Preview_SqlServer_LogsSql_WhenSqlServer2022Available()
-    {
-        await using var temp = await TempSqlServerProject.TryCreateAsync();
-        if (temp is null)
-        {
-            return; // availability attribute 已具名略過；保留防禦性 guard。
-        }
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var repo = new SqlServerFilterHitRepository(temp.Database, factory.CreateLogger<SqlServerFilterHitRepository>());
-            await repo.PreviewAsync(temp.ProjectId, AmountFromScenario(), Context, CancellationToken.None);
-        }
-
-        AssertFilterSql(diagnostic, "sqlServer", SqlServerProjectSchema.QualifierFor(temp.ProjectId));
     }
 }

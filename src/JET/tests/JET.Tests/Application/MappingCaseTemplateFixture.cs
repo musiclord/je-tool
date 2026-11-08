@@ -91,7 +91,7 @@ internal sealed class MappingCaseTemplateFixture : IDisposable
     internal async Task<long> ScalarAsync(string sql)
     {
         var folder = new JetProjectFolder(Host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(ProjectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

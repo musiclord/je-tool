@@ -40,6 +40,7 @@ public sealed partial class MessageLogWriteScopeTests
     /// <remarks>
     /// 2026-10-02 資料庫分流簡化：分流用的 ProviderRoutingMessageLogStore 已刪除，期望清單隨之只剩兩個受檢查的實作，
     /// 比原本更嚴。第一次失敗收據（引用已刪除的類別而無法建置）：20261002-120244042-2aa5edaa431d4f3e89e068361d5482f5。
+    /// 只保留 SQLite 之後，SQL Server 的實作隨之刪除，期望清單只剩本機的實作（裁定 2026-11-06-08）。
     /// </remarks>
     [Fact]
     public void MessageLogStoreImplementations_AreExactlyTheGuardedLeaves()
@@ -54,14 +55,12 @@ public sealed partial class MessageLogWriteScopeTests
             new[]
             {
                 typeof(LocalMessageLogStore),
-                typeof(SqlServerMessageLogStore)
             }.OrderBy(type => type.FullName, StringComparer.Ordinal),
             implementations);
     }
 
     [Theory]
     [InlineData("Local", "LocalMessageLogStore.cs")]
-    [InlineData("SqlServer", "SqlServerMessageLogStore.cs")]
     public void MessageLogLeafStore_AppendMutatesOnlyMessageLog(
         string providerFolder,
         string fileName)

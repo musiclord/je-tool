@@ -11,7 +11,6 @@ public sealed class SchemaV7MigrationTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FreshSchema_IsV7AndContainsMinimumInventory(string provider)
     {
         using var env = new LocalEnv(provider);
@@ -42,13 +41,6 @@ public sealed class SchemaV7MigrationTests
         Assert.Equal(3, await env.IndexCountAsync("gl_rde_value"));
     }
 
-    [Fact]
-    public void SqlServerColdCopy_IsNotAProjectDatabaseContract()
-    {
-        Assert.Equal(ProjectDocument.SqlServerDatabaseProvider, "sqlServer");
-        Assert.NotEqual(DuckDbProjectDatabase.DatabaseFileName, ProjectDocument.SqlServerDatabaseProvider);
-    }
-
     private sealed class LocalEnv : IDisposable
     {
         private readonly TempProjectRoot _root = new();
@@ -60,9 +52,7 @@ public sealed class SchemaV7MigrationTests
             Folder = new JetProjectFolder(_root.Path);
             ProjectId = Guid.NewGuid().ToString("N");
             Directory.CreateDirectory(Folder.GetProjectDirectory(ProjectId));
-            Database = _provider == "duckdb"
-                ? new DuckDbProjectDatabase(Folder)
-                : new SqliteProjectDatabase(Folder);
+            Database = new SqliteProjectDatabase(Folder);
         }
 
         public JetProjectFolder Folder { get; }

@@ -14,7 +14,6 @@ public sealed class FilterCompletenessTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UnicodeTextCase_MatchesBothSpellings(string provider)
     {
         const string seed = """
@@ -40,7 +39,6 @@ public sealed class FilterCompletenessTests
     // Answers are literal row numbers from the fixture, not a replay of production predicates.
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UnicodeTextComparison_ExtraLegacyAndPersonRulesAgree(string provider)
     {
         const string fieldId = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";
@@ -80,7 +78,6 @@ public sealed class FilterCompletenessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AllValueOperatorsMatchIndependentOracle(string provider)
     {
         const string textId = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";
@@ -263,7 +260,6 @@ public sealed class FilterCompletenessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CashSidesAndAbsence_HaveFixedTwoValuedResults(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
@@ -318,7 +314,6 @@ public sealed class FilterCompletenessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NegativeOperators_LeaveBlankValuesOutByDefault(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
@@ -340,7 +335,6 @@ public sealed class FilterCompletenessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ValueComparisons_PreserveDatesBlanksLiteralsAndMoney(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
@@ -369,14 +363,12 @@ public sealed class FilterCompletenessTests
         await Check("""{"type":"fieldValue","field":"description","operator":"notContains","value":"literal"}""", ["A|1"]);
     }
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task VoucherPages_ListHitVouchersAndTheirReferenceRows(string provider)
+    [Fact]
+    public async Task VoucherPages_ListHitVouchersAndTheirReferenceRows()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase db = provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase db = new SqliteProjectDatabase(folder);
         const string id = "filter-voucher-pages";
         Directory.CreateDirectory(folder.GetProjectDirectory(id));
         await db.EnsureCreatedAsync(id, CancellationToken.None);
@@ -429,7 +421,6 @@ public sealed class FilterCompletenessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExtraFields_SupportListsPrefixesAndExplicitBlankChoices(string provider)
     {
         const string textId = "rde.aaaa0000aaaa0000aaaa0000aaaa0000";

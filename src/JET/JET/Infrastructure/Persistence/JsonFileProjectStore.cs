@@ -106,6 +106,12 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             catch (JetActionException exception) when (
                 exception.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
             {
+                // 以前建立的 DuckDB 與 SQL Server 案件讀不通時同樣不列出（裁定 2026-11-06-09）。
+                if (await IsRetiredProviderCaseAsync(projectId, cancellationToken))
+                {
+                    continue;
+                }
+
                 // 一份損壞文件不隱藏該案件，也不阻止使用者開啟其他正常案件。
                 entries.Add(new ProjectStoreEntry(projectId, null, exception.Code, exception.Message));
             }
@@ -145,19 +151,13 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
     /// </summary>
     private string? LocalDatabaseProblem(string projectId, string databaseProvider)
     {
-        var databasePath = databaseProvider switch
-        {
-            ProjectDocument.DefaultDatabaseProvider => folder.GetDatabasePath(projectId),
-            ProjectDocument.DuckDbDatabaseProvider =>
-                Path.Combine(folder.GetProjectDirectory(projectId), DuckDbProjectDatabase.DatabaseFileName),
-            _ => null
-        };
-        if (databasePath is null || File.Exists(folder.GetCreationMarkerPath(projectId)))
+        if (databaseProvider != ProjectDocument.DefaultDatabaseProvider
+            || File.Exists(folder.GetCreationMarkerPath(projectId)))
         {
             return null;
         }
 
-        var file = new FileInfo(databasePath);
+        var file = new FileInfo(folder.GetDatabasePath(projectId));
         if (!file.Exists)
         {
             return ProjectFolderMessages.DatabaseMissing(projectId);
@@ -178,6 +178,9 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         return Task.CompletedTask;
     }
 
+    /// <summary>以前的 DuckDB 案件資料夾裡的資料庫檔名。只用來辨認舊案件，JET 不讀也不改它（裁定 2026-11-06-09）。</summary>
+    private const string RetiredDuckDbDatabaseFileName = "jet.duckdb";
+
     public async Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
     {
         if (!JetProjectFolder.IsValidProjectId(projectId) || !Directory.Exists(folder.GetProjectDirectory(projectId)))
@@ -185,48 +188,72 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             return null;
         }
 
+        var recorded = await ReadRecordedDatabaseProviderAsync(projectId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(recorded))
+        {
+            return recorded == ProjectDocument.DefaultDatabaseProvider ? recorded : null;
+        }
+
+        // 沒有記錄種類：資料夾裡只有 jet.db、沒有以前的 DuckDB 資料庫檔時才算 SQLite 案件；其他情形判斷不出來。
+        var hasSqlite = File.Exists(folder.GetDatabasePath(projectId));
+        return hasSqlite && !HasRetiredDuckDbDatabase(projectId) ? ProjectDocument.DefaultDatabaseProvider : null;
+    }
+
+    /// <summary>
+    /// 這個資料夾是否確定是以前建立的 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
+    /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。案件清單用它藏起讀不通的舊案件，
+    /// 建案用它說明名稱被舊案件佔用（裁定 2026-11-06-09）。判斷不出來或沒有這個資料夾時回 false。
+    /// </summary>
+    public async Task<bool> IsRetiredProviderCaseAsync(string projectId, CancellationToken cancellationToken)
+    {
+        if (!JetProjectFolder.IsValidProjectId(projectId) || !Directory.Exists(folder.GetProjectDirectory(projectId)))
+        {
+            return false;
+        }
+
+        var recorded = await ReadRecordedDatabaseProviderAsync(projectId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(recorded))
+        {
+            return recorded != ProjectDocument.DefaultDatabaseProvider;
+        }
+
+        return !File.Exists(folder.GetDatabasePath(projectId)) && HasRetiredDuckDbDatabase(projectId);
+    }
+
+    private bool HasRetiredDuckDbDatabase(string projectId) =>
+        File.Exists(Path.Combine(folder.GetProjectDirectory(projectId), RetiredDuckDbDatabaseFileName));
+
+    /// <summary>從設定檔原文讀出記錄的資料庫種類；設定檔不在、整份讀不通或沒有記錄時回 null。</summary>
+    private async Task<string?> ReadRecordedDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
+    {
         var path = folder.GetProjectJsonPath(projectId);
-        string? recorded = null;
         var gate = GateFor(path);
         await gate.WaitAsync(cancellationToken);
         try
         {
-            if (File.Exists(path))
+            if (!File.Exists(path))
             {
-                using var raw = JsonDocument.Parse(await ReadSharedAsync(path, cancellationToken));
-                if (raw.RootElement.ValueKind == JsonValueKind.Object)
-                {
-                    recorded = raw.RootElement.EnumerateObject()
-                        .Where(property => string.Equals(property.Name, "databaseProvider", StringComparison.OrdinalIgnoreCase)
-                            && property.Value.ValueKind == JsonValueKind.String)
-                        .Select(property => property.Value.GetString())
-                        .FirstOrDefault();
-                }
+                return null;
             }
+
+            using var raw = JsonDocument.Parse(await ReadSharedAsync(path, cancellationToken));
+            return raw.RootElement.ValueKind == JsonValueKind.Object
+                ? raw.RootElement.EnumerateObject()
+                    .Where(property => string.Equals(property.Name, "databaseProvider", StringComparison.OrdinalIgnoreCase)
+                        && property.Value.ValueKind == JsonValueKind.String)
+                    .Select(property => property.Value.GetString())
+                    .FirstOrDefault()
+                : null;
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
         {
-            // 整份讀不通時改看資料夾裡的資料庫檔。
+            // 整份讀不通時，呼叫端改看資料夾裡的資料庫檔。
+            return null;
         }
         finally
         {
             gate.Release();
         }
-
-        if (!string.IsNullOrWhiteSpace(recorded))
-        {
-            return recorded is ProjectDocument.DefaultDatabaseProvider or ProjectDocument.DuckDbDatabaseProvider ? recorded : null;
-        }
-
-        // 沒有記錄種類：資料夾裡只有一種本機資料庫檔時才算本機案件；兩種都有或都沒有，就判斷不出來。
-        var hasSqlite = File.Exists(folder.GetDatabasePath(projectId));
-        var hasDuckDb = File.Exists(Path.Combine(folder.GetProjectDirectory(projectId), DuckDbProjectDatabase.DatabaseFileName));
-        return (hasSqlite, hasDuckDb) switch
-        {
-            (true, false) => ProjectDocument.DefaultDatabaseProvider,
-            (false, true) => ProjectDocument.DuckDbDatabaseProvider,
-            _ => null
-        };
     }
 
     private async Task WriteAsync(ProjectDocument document, CancellationToken cancellationToken)
@@ -425,7 +452,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 }
 
 /// <summary>
-/// project.json 與 SQL Server registry 共用的 INF 種子讀取防線。AuditCore 保持演算法／版本
+/// project.json 的 INF 種子讀取防線。AuditCore 保持演算法／版本
 /// 判定的唯一來源；Infrastructure 只把損壞事實轉為明確的檔案讀取錯誤。
 /// </summary>
 internal static class ProjectDocumentSeedIntegrity
@@ -447,7 +474,7 @@ internal static class ProjectDocumentSeedIntegrity
 
     /// <summary>
     /// 抽樣設定損壞（用字依裁定 2026-10-14-01）：不寫檔名、鍵名與種子值。
-    /// 讀不到案件名稱時（線上案件登記簿的內容損壞）省略名稱。
+    /// 讀不到案件名稱時省略名稱。
     /// </summary>
     internal static JetActionException Corruption(string? projectName, Exception? innerException = null) =>
         new(

@@ -15,7 +15,6 @@ public sealed class AccountMappingWorkingPaperSheetTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task WorkingPaperSheet_ImportsTheChosenSheet_AndNotInTbIsNotStoredAsAName(string provider)
     {
         using var host = new HandlerTestHost();

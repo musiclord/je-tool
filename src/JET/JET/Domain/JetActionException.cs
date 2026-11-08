@@ -150,6 +150,14 @@ public static class ProjectFolderMessages
     public static string DatabaseMissing(string projectName) =>
         $"案件「{projectName}」的資料庫檔案遺失，案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。";
 
+    /// <summary>
+    /// 建案的名稱撞到以前建立的 DuckDB 或 SQL Server 案件。這類案件不列在案件清單，資料夾 JET 也不動，
+    /// 審計員要刪除時自己到案件位置刪除（裁定 2026-11-06-09）；只說「已存在」會讓人在清單上找不到原因。
+    /// </summary>
+    public static string RetiredProviderNameTaken(string projectName) =>
+        $"案件名稱「{projectName}」已被以前建立的 DuckDB 或 SQL Server 案件使用，這類案件不列在案件清單。" +
+        "請改用其他名稱，或到 JET 的案件位置刪除這個案件資料夾後再建立。";
+
     /// <summary>本機案件的資料庫檔案是 0 位元組，或檔案裡沒有任何資料表（裁定 2026-11-05-72）。</summary>
     public static string DatabaseEmpty(string projectName) =>
         $"案件「{projectName}」的資料庫檔案沒有內容，案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。";
@@ -206,12 +214,9 @@ public static class JetErrorCodes
     public const string GlAmountsAllZero = "gl_amounts_all_zero";
     public const string EmptyGl = "empty_gl";
 
-    /// <summary>當前使用者對此線上（sqlServer）案件無存取權（project.load／project.delete 授權前置）。</summary>
-    public const string NotAuthorized = "not_authorized";
-
     /// <summary>
-    /// 案件由另一持有人開啟時回此碼：SQL Server 代表未過期租約，本地代表另一程序持有排他檔案 handle。
-    /// project.load 與本地 project.delete 都會使用；訊息含持鎖者／機器／開啟時間。
+    /// 案件由另一持有人開啟時回此碼：另一個 JET 程序持有這個案件的排他檔案 handle。
+    /// project.load 與 project.delete 都會使用；訊息含持鎖者／機器／開啟時間。
     /// </summary>
     public const string ProjectLocked = "project_locked";
 
@@ -240,18 +245,4 @@ public static class JetErrorCodes
     public const string DatabaseUnavailable = "database_unavailable";
     /// <summary>資料庫引擎沒有足夠的記憶體完成這項操作。</summary>
     public const string DatabaseOutOfMemory = "database_out_of_memory";
-
-    // SQL Server 引擎錯誤映射（單一映射點在 SqlServerEngineErrors、由 dispatcher 統一轉譯）。
-    /// <summary>選用 SQL Server，但連線或單一資料庫名尚未設定。</summary>
-    public const string SqlServerNotConfigured = "sql_server_not_configured";
-    /// <summary>連線目標是已淘汰的 SQL Server Express（含 LocalDB）。</summary>
-    public const string SqlServerExpressUnsupported = "sql_server_express_unsupported";
-    /// <summary>SQL Server 登入失敗（引擎錯誤 18456）。</summary>
-    public const string SqlServerLoginFailed = "sql_server_login_failed";
-    /// <summary>唯一鍵／主鍵衝突（引擎錯誤 2601/2627）。</summary>
-    public const string DuplicateKey = "duplicate_key";
-    /// <summary>死鎖犧牲者（引擎錯誤 1205；有限次重試後仍失敗才上 wire）。</summary>
-    public const string SqlServerDeadlock = "sql_server_deadlock";
-    /// <summary>SQL Server 執行逾時（用戶端逾時 -2／WAIT_TIMEOUT 258）。</summary>
-    public const string SqlServerTimeout = "sql_server_timeout";
 }

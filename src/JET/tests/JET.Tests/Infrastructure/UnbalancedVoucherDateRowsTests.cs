@@ -13,7 +13,6 @@ public sealed class UnbalancedVoucherDateRowsTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task StreamVoucherDateRows_GroupsUnbalancedVouchersByGlDate(string provider)
     {
         using var host = new HandlerTestHost();
@@ -37,9 +36,7 @@ public sealed class UnbalancedVoucherDateRowsTests
             });
 
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(folder)
-            : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var repository = new LocalVoucherBalancePageRepository(database);
 
         var rows = new List<UnbalancedVoucherDateRow>();

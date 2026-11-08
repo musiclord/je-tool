@@ -99,7 +99,24 @@ public sealed class ReportTemplateExternalRelationshipTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(ExpectedSanitizationPackageDiffs, actualDiffs);
+        // 本輪只額外授權 Step 1-2 A4 的文字修正；其餘儲存格必須仍與來源相同。
+        // 首敗 20261106-134205437-3ea24431c2794227b2a24d4236b2145d。
+        var expected = ExpectedSanitizationPackageDiffs.AsEnumerable();
+        if (fileName == "WorkingPaper.xlsx")
+        {
+            expected = expected.Append("changed:xl/worksheets/sheet5.xml");
+            var sourceSheet = Load(sourceArchive.GetEntry("xl/worksheets/sheet5.xml")!);
+            var runtimeSheet = Load(runtimeArchive.GetEntry("xl/worksheets/sheet5.xml")!);
+            var original = sourceSheet.Descendants(Spreadsheet + "c").Single(c => (string?)c.Attribute("r") == "A4");
+            var revised = runtimeSheet.Descendants(Spreadsheet + "c").Single(c => (string?)c.Attribute("r") == "A4");
+            Assert.Equal("此處底稿係記錄分錄編製人員資訊",
+                string.Concat(revised.Descendants(Spreadsheet + "t").Select(t => t.Value)));
+            Assert.Equal((string?)original.Attribute("s"), (string?)revised.Attribute("s"));
+            original.ReplaceWith(new XElement(revised));
+            Assert.True(XNode.DeepEquals(sourceSheet.Root, runtimeSheet.Root),
+                "Only the requested A4 content may differ.");
+        }
+        Assert.Equal(expected.Order(StringComparer.Ordinal), actualDiffs);
     }
 
     private static XDocument Load(ZipArchiveEntry entry)

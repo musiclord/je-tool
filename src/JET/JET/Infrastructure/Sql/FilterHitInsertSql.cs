@@ -51,7 +51,7 @@ internal static class FilterHitInsertSql
 
     /// <summary>
     /// 在呼叫端的交易裡寫入一個情境的命中與符合第幾組第幾條。<paramref name="createCommand"/> 依資料庫建立命令
-    /// （SQL Server 會把 <c>{s}</c> 換成案件的 schema）；<paramref name="schemaPrefix"/> 是條件述詞用的表名前綴。
+    /// （原本 SQL Server 會把 <c>{s}</c> 換成案件的 schema）；<paramref name="schemaPrefix"/> 是條件述詞用的表名前綴。
     /// </summary>
     public static async Task InsertOneAsync(
         Func<string, DbCommand> createCommand,

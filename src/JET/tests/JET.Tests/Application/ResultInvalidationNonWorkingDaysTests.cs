@@ -5,7 +5,6 @@ using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Xunit;
 using static JET.Tests.Application.ResultInvalidationTestSupport;
 
@@ -20,7 +19,6 @@ public sealed class ResultInvalidationNonWorkingDaysTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ChangeNonWorkingDays_AfterRunsAndFilterCommit_InvalidatesDependentResultsAfterReopen(
         string databaseProvider)
     {
@@ -64,7 +62,6 @@ public sealed class ResultInvalidationNonWorkingDaysTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SaveEquivalentNonWorkingDays_AfterRunsAndFilterCommit_PreservesResults(
         string databaseProvider)
     {

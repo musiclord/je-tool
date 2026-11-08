@@ -528,11 +528,11 @@ internal static class PrivateCaseReportComparator
     {
         using var document = SpreadsheetDocument.Open(workbookPath, false);
         var workbookPart = document.WorkbookPart;
-        if (workbookPart?.Workbook.Sheets is null)
+        if (workbookPart?.Workbook?.Sheets is null)
         {
             return null;
         }
-        var shared = workbookPart.SharedStringTablePart?.SharedStringTable
+        var shared = workbookPart.SharedStringTablePart?.SharedStringTable?
             .Elements<SharedStringItem>()
             .Select(item => string.Concat(
                 item.Descendants<Text>().Select(static text => text.Text)))

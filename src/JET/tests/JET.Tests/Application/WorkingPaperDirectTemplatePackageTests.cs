@@ -15,6 +15,7 @@ namespace JET.Tests.Application;
 
 // 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
+// 使用者指定修改 Step 1-2 A4，更新範本指紋；首敗 20261106-134205437-3ea24431c2794227b2a24d4236b2145d。
 public sealed class WorkingPaperDirectTemplatePackageTests
 {
     private static readonly string[] DynamicSheets =
@@ -42,7 +43,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             "WorkingPaper.xlsx");
         var templateBytes = await File.ReadAllBytesAsync(templatePath);
         Assert.Equal(
-            "DBD81FC7C06028BA15149EB3F72BD64224D1F604683E9CDC152BA5686DC8A380",
+            "2FB16296BF2CCE16837558EB4E32A51121F8B877A98B3953D6C29C7727C698BA",
             Convert.ToHexString(SHA256.HashData(templateBytes)));
 
         var outputBytes = await ExportFourteenSheetWorkingPaperAsync();
@@ -104,7 +105,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             "WorkingPaper.xlsx");
         var templateBytes = await File.ReadAllBytesAsync(templatePath);
         Assert.Equal(
-            "DBD81FC7C06028BA15149EB3F72BD64224D1F604683E9CDC152BA5686DC8A380",
+            "2FB16296BF2CCE16837558EB4E32A51121F8B877A98B3953D6C29C7727C698BA",
             Convert.ToHexString(SHA256.HashData(templateBytes)));
         return templateBytes;
     }
@@ -260,8 +261,6 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             new LocalVoucherBalancePageRepository(database),
             new LocalPreparerSummaryExportRepository(database),
             new LocalInfSamplePageRepository(database),
-            new LocalFilterScenarioStore(database),
-            new LocalHighRiskSummaryScenariosRepository(database),
             new LocalHighRiskSummaryVoucherPageRepository(database),
             new LocalHighRiskSummaryRowPageRepository(database),
             new LocalMappingStateStore(database),
@@ -603,7 +602,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             Assert.Empty(new OpenXmlValidator().Validate(document));
             var workbookPart = document.WorkbookPart
                 ?? throw new InvalidDataException("WorkingPaper output has no workbook part.");
-            var metadataSheet = workbookPart.Workbook.Sheets!.Elements<Sheet>().Single(sheet =>
+            var metadataSheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>().Single(sheet =>
                 string.Equals(
                     sheet.Name?.Value,
                     ReportWorkbookMetadataFormat.WorksheetName,
@@ -611,7 +610,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             Assert.Equal(SheetStateValues.VeryHidden, metadataSheet.State?.Value);
 
             var worksheet = Assert.IsType<WorksheetPart>(
-                workbookPart.GetPartById(metadataSheet.Id!.Value!)).Worksheet;
+                workbookPart.GetPartById(metadataSheet.Id!.Value!)).RequiredWorksheet();
             var rows = worksheet.GetFirstChild<SheetData>()!.Elements<Row>().ToArray();
             Assert.NotEmpty(rows);
             Assert.Equal(ReportWorkbookMetadataFormat.Marker, MetadataCellText(rows[0], "A1"));

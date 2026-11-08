@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "class",
   "meta": {
-    "title": "Action 通道的類別與介面",
+    "title": "畫面訊息的處理類別",
     "locale": "zh-TW",
     "output": "archify/bridge-classes/bridge-classes.html",
     "quality_profile": "showcase",
@@ -293,27 +293,17 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "執行時怎麼找到處理類別",
+      "title": "依操作名稱找到處理類別",
       "items": [
-        "ActionDispatcher 只呼叫介面 IApplicationActionHandler.HandleAsync。AppCompositionRoot 在啟動時建立所有處理類別；執行時依畫面送來的 action 名稱，比對各類別的 Action 屬性挑出一個。",
-        "圖上三個實作只是其他圖會用到的處理類別，不是完整清單。",
-        "JavaScript 端的 JetApi 不是 C# 型別，圖中沒有畫；WebMessage 這段見循序圖。"
+        "ActionDispatcher 依 action 名稱呼叫 IApplicationActionHandler。圖中只列三個相關實作，JavaScript 的 JetApi 另見循序圖。",
+        "修改資料的作業同時只允許一項；已有作業時回錯誤，不排隊。"
       ]
     },
     {
       "dot": "slate",
-      "title": "分派前的判斷",
+      "title": "取消作業",
       "items": [
-        "ActionExecutionPolicy 判斷 action 是否互斥、是否在背景執行。會修改資料的互斥作業要先向 ActionExecutionGate 取得執行權；已有作業在跑時直接回錯誤，不排隊。",
-        "JetWebMessageBridge 用 RequestCancellationRegistry 包住分派，畫面可依 requestId 取消。",
-        "已要求取消後，資料庫中止語句時丟出的其他例外一律回報成取消，三種資料庫在畫面上都顯示「作業已取消」。"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "成員寫法",
-      "items": [
-        "成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。"
+        "JetWebMessageBridge 依 requestId 接收取消要求。資料庫因此中止時，畫面統一顯示「作業已取消」。"
       ]
     }
   ]

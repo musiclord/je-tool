@@ -19,16 +19,12 @@ public sealed class ResultStaleStateLifecycleTests
         PeriodEnd: "2025-12-31",
         PopulationScope: GlPopulationScope.AuditPeriod);
 
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
-    public async Task LocalProvider_ResultLifecycle_PreservesExactStaleTransitions(string provider)
+    [Fact]
+    public async Task LocalProvider_ResultLifecycle_PreservesExactStaleTransitions()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -42,23 +38,6 @@ public sealed class ResultStaleStateLifecycleTests
             new LocalFilterCommitRepository(database),
             database.CreateConnection,
             schemaPrefix: string.Empty);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_ResultLifecycle_PreservesExactStaleTransitions()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-
-        await AssertLifecycleAsync(
-            project.ProjectId,
-            new SqlServerResultStaleStateStore(project.Database),
-            new SqlServerResultStore(project.Database),
-            new SqlServerFilterScenarioStore(project.Database),
-            new SqlServerFilterHitMaterializer(project.Database),
-            new SqlServerFilterCommitRepository(project.Database),
-            project.Database.CreateConnection,
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
 
     private static async Task AssertLifecycleAsync(

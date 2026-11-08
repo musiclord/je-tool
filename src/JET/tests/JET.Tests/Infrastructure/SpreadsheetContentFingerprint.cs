@@ -199,7 +199,7 @@ internal sealed class SpreadsheetContentFingerprint
         SharedStringDigestStore sharedStrings,
         StreamWriter writer)
     {
-        var sheets = workbookPart.Workbook.Sheets?.Elements<Sheet>().ToArray()
+        var sheets = workbookPart.Workbook?.Sheets?.Elements<Sheet>().ToArray()
             ?? throw new InvalidDataException(
                 "Content fingerprint workbook has no worksheet collection.");
         WriteDocument(writer, reportId);

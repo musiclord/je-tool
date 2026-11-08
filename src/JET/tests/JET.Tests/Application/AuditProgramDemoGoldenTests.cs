@@ -15,7 +15,6 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
     // 只擴充 provider；兩個引擎必須符合下方同一份手寫固定答案。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Finalize_DemoValidationRun_MatchesGoldenVerdicts(string provider)
     {
         var (host, context) = fixture.For(provider);
@@ -52,7 +51,6 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Finalize_DemoPrescreenRun_MatchesGoldenVerdicts(string provider)
     {
         var (host, context) = fixture.For(provider);
@@ -114,7 +112,6 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
     private static ILocalProjectDatabase DatabaseFor(string provider, HandlerTestHost host) => provider switch
     {
         "sqlite" => new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)),
-        "duckdb" => new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot)),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 
@@ -151,7 +148,7 @@ public sealed class DemoGoldenProviderFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         {
             var host = new HandlerTestHost();
             try

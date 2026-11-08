@@ -18,7 +18,9 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
         try
         {
-            using var document = SpreadsheetDocument.Open(filePath, false);
+            // Excel 開著報告也讀得到最後一次存檔的內容（裁定 2026-11-06-12）。
+            using var stream = SourceFileAccess.OpenRead(filePath);
+            using var document = SpreadsheetDocument.Open(stream, false);
             var workbookPart = document.WorkbookPart ?? throw Missing();
             if (FindWorksheet(workbookPart, ReportWorkbookMetadataFormat.WorksheetName) is { } reportMetadata)
             {
@@ -81,7 +83,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
     private static WorksheetPart? FindWorksheet(WorkbookPart workbookPart, string name)
     {
-        var sheet = workbookPart.Workbook.Sheets?.Elements<Sheet>()
+        var sheet = workbookPart.Workbook?.Sheets?.Elements<Sheet>()
             .SingleOrDefault(item => string.Equals(item.Name?.Value, name, StringComparison.Ordinal));
         return sheet?.Id?.Value is { } id && workbookPart.GetPartById(id) is WorksheetPart part ? part : null;
     }
@@ -162,7 +164,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         WorksheetPart worksheetPart,
         string reference)
     {
-        var cell = worksheetPart.Worksheet.Descendants<Cell>()
+        var cell = worksheetPart.Worksheet?.Descendants<Cell>()
             .SingleOrDefault(item => string.Equals(item.CellReference?.Value, reference, StringComparison.Ordinal));
         if (cell is null)
         {
@@ -179,7 +181,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         if (cell.DataType?.Value == CellValues.SharedString
             && int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var index))
         {
-            return workbookPart.SharedStringTablePart?.SharedStringTable
+            return workbookPart.SharedStringTablePart?.SharedStringTable?
                 .Elements<SharedStringItem>().ElementAtOrDefault(index)?.InnerText is { } shared
                 ? ExcelText.Decode(shared)
                 : null;

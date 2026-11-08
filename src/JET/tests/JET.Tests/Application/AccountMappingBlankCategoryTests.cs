@@ -13,7 +13,6 @@ public sealed class AccountMappingBlankCategoryTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BlankCategories_AreCountedAndListed_ButProjectedAsOthers(string provider)
     {
         using var host = new HandlerTestHost();

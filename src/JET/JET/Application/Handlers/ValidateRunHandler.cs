@@ -34,6 +34,16 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
+        var sampleSize = InfSampling.DefaultSampleSize;
+        if (payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("sampleSize", out var size))
+        {
+            if (size.ValueKind != JsonValueKind.Number || !size.TryGetInt32(out sampleSize)
+                || sampleSize < 1 || sampleSize > InfSampling.MaximumSampleSize)
+            {
+                throw new JetActionException("invalid_payload",
+                    "抽樣筆數請填入 1 到 1048524 的整數。", "sampleSize");
+            }
+        }
 
         SupportOperationStage.Enter("state_read");
         var glMapping = await repositories.MappingStates.FindAsync(
@@ -76,7 +86,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 sampleSeed,
                 resultId,
                 generatedUtc,
-                InfSampling.DefaultSampleSize,
+                sampleSize,
                 sampleSeedResolution.AlgorithmVersion,
                 availableGlFields,
                 HasTbImport: tbBatch is not null));
@@ -232,6 +242,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
             {
                 status = Verdict(runManifest, "inf_sampling_test").Status!,
                 sampleSize = result.InfSampleCount,
+                requestedSampleSize = plan.Request.SampleSize,
                 seed = sampleSeed
             },
             blankRecordsTest = new
@@ -248,6 +259,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                     voucherNumber = r.VoucherNumber,
                     accountNumber = r.AccountNumber,
                     glDate = r.GlDate,
+                    approvalDate = r.ApprovalDate,
                     description = r.Description,
                     issues = BlankRowIssues(r)
                 }).ToArray()

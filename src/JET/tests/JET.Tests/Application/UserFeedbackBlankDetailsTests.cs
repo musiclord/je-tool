@@ -7,7 +7,6 @@ public sealed class UserFeedbackBlankDetailsTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SeparateBlankDetails_KeepOverlapSortSearchAndIndependentCursors(string provider)
     {
         using var host = new HandlerTestHost();

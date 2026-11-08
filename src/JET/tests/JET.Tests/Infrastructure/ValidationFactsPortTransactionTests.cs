@@ -20,31 +20,19 @@ public sealed class ValidationFactsPortTransactionTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public Task LocalFactsPort_CancellationAfterInfInsert_RollsBackEntireTransaction(string provider) =>
         VerifyLocalRollbackAsync(provider, FaultMode.Cancellation);
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public Task LocalFactsPort_ExceptionAfterInfInsert_RollsBackEntireTransaction(string provider) =>
         VerifyLocalRollbackAsync(provider, FaultMode.Exception);
-
-    [SqlServerFact]
-    public Task SqlServerFactsPort_CancellationAfterInfInsert_RollsBackEntireTransaction() =>
-        VerifySqlServerRollbackAsync(FaultMode.Cancellation);
-
-    [SqlServerFact]
-    public Task SqlServerFactsPort_ExceptionAfterInfInsert_RollsBackEntireTransaction() =>
-        VerifySqlServerRollbackAsync(FaultMode.Exception);
 
     private static async Task VerifyLocalRollbackAsync(string provider, FaultMode mode)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -63,33 +51,6 @@ public sealed class ValidationFactsPortTransactionTests
             () => ValidationExecutionTestData.ExecuteForFactsAsync(repository, Plan(projectId), cancellation.Token));
 
         await AssertRolledBackAsync(database.CreateConnection(projectId), schemaPrefix: "", logger);
-    }
-
-    private static async Task VerifySqlServerRollbackAsync(FaultMode mode)
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-
-        var schemaPrefix = SqlServerProjectSchema.QualifierFor(project.ProjectId);
-        await SeedPopulationAndExistingSampleAsync(
-            project.Database.CreateConnection(project.ProjectId),
-            schemaPrefix);
-
-        using var cancellation = new CancellationTokenSource();
-        var logger = new FaultAfterInfInsertLogger<SqlServerValidationRunRepository>(
-            mode == FaultMode.Cancellation
-                ? cancellation.Cancel
-                : static () => throw new InjectedValidationFactsException());
-        var repository = new SqlServerValidationRunRepository(project.Database, logger);
-
-        await AssertInjectedFaultAsync(
-            mode,
-            () => ValidationExecutionTestData.ExecuteForFactsAsync(repository, Plan(project.ProjectId), cancellation.Token));
-
-        await AssertRolledBackAsync(
-            project.Database.CreateConnection(project.ProjectId),
-            schemaPrefix,
-            logger);
     }
 
     private static ValidationPlan Plan(string projectId) =>

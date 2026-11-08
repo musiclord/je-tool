@@ -5,6 +5,10 @@
   const ready = fetch('/fixtures.json').then(response => {
     if (!response.ok) throw new Error('合成資料已失效或尚未建立，請依開發指南重建。');
     return response.json();
+  }).then(bundle => {
+    return window.JetPreviewData
+      ? window.JetPreviewData.prepareBundle(bundle, window.JetPreviewData.modeFrom(location.search))
+      : bundle;
   });
   // Install only in the generated preview, before the unchanged production JetApi.
   window.chrome = window.chrome || {};

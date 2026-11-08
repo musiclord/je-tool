@@ -1,6 +1,4 @@
-// JET 架構模型，2026-10-22 重繪。依據提交 07b97b3 的程式快照、Roslyn 呼叫證據與 AppCompositionRoot 的建立位置。
-// 關係種類：calls 是直接呼叫具體方法，viaInterface 只呼叫介面方法，indirect 是 action 名稱、WebMessage 或事先交出的函式，
-// injects 是 AppCompositionRoot 在啟動時建立物件。沒有任何一條是執行紀錄。
+// JET 架構模型。來源版本與對照位置保留在交付目錄的 manifest.json 與 evidence/。
 specification {
   element person { style { shape person color amber } }
   element system { style { color blue } }
@@ -27,16 +25,16 @@ model {
     link ../evidence.html#f-environment '環境限制與來源'
   }
   inputs = artifact '來源檔案' {
-    description '總帳、試算表與參考資料；xlsx、xls、CSV 或 Access。圖中不含任何案件內容。'
+    description '總帳、試算表與參考資料，可使用 xlsx、xls、CSV 或 Access。'
     link ../evidence.html#f-tb-import '匯入流程證據'
   }
   reports = artifact '報告與正式工作底稿' {
     technology '報告檔 · 報告清單'
-    description '寫在案件資料夾，先寫暫存檔再改名，並更新報告清單。正式底稿每次另建新版本檔名，不覆寫同名檔；其他報告的覆寫規則不同。'
+    description '報告寫在案件資料夾。正式底稿每次另存新版本，保留同名舊檔。'
     link ../evidence.html#f-workpaper '檔案發布證據'
   }
   webview2 = external 'WebView2 執行階段' {
-    description '電腦須事先具備；不能從單檔發布推定已內含。'
+    description '電腦需先具備 WebView2 執行階段。'
     link ../evidence.html#f-deployment '部署前提'
   }
   ace = external 'x64 ACE 16' {
@@ -50,29 +48,29 @@ model {
 
     desktop = app 'JET 桌面程序' {
       technology 'C# · .NET 10 · WinForms · WebView2'
-      description '畫面與 C# 程式在同一個程序裡；以下分層是程式責任，不是獨立部署的服務。'
+      description '畫面與 C# 程式在同一個桌面程序中，各層分工處理。'
 
       ui = component 'WebView2 畫面' {
         technology 'HTML · JavaScript · JetApi'
-        description '只負責操作與呈現；把 action 名稱與資料送給 C#，不做審計判斷。'
+        description '呈現資料並接收操作，再用 action 名稱將要求交給 C#。'
         link ../evidence.html#f-bridge '跨語言通道證據'
       }
       bridge = component 'Action 通道' {
         technology 'JetWebMessageBridge · ActionDispatcher'
-        description '接收 WebMessage，依 action 名稱找出處理類別；程式碼裡看不到直接呼叫。'
+        description '接收畫面訊息，依 action 名稱找到處理類別。'
         link ../evidence.html#f-bridge '訊息、字串與註冊的核對'
       }
       application = component 'Application 應用流程' {
-        description '各 action 的處理類別：檢查前提、規劃、執行與回應。'
+        description '安排每項操作的檢查、執行與回應。'
         link ../evidence.html#f-filter-save '篩選儲存流程'
       }
       audit = component 'AuditCore 與 Domain' {
-        description 'JetAuditProgram 建立計畫並整理結果；Domain 保存審計規則，以及資料修改後的失效政策。'
+        description '規劃審計計算、整理結果，並定義資料修改後哪些結果需要重算。'
         link ../evidence.html#f-tb-policy '失效政策'
       }
       persistence = component '資料庫實作' {
         technology 'SQLite 與 DuckDB 共用'
-        description '以集合式 SQL 讀寫案件資料庫；也包含 project.json 的讀寫。SQL Server 有程式實作，開發暫緩。'
+        description '使用 SQL 處理案件資料，也負責 project.json。SQL Server 開發暫緩。'
         link ../evidence.html#f-filter-commit 'SQL 與交易證據'
       }
       fileio = component '檔案讀寫與底稿發布' {
@@ -81,7 +79,7 @@ model {
       }
       composition = component '啟動時建立物件' {
         technology 'AppCompositionRoot'
-        description '程式啟動時建立各 action 的處理類別、資料庫實作與檔案元件，再交給使用它們的元件。'
+        description '啟動時建立並組合操作、資料庫與檔案元件。'
         link ../evidence.html#f-composition '建立位置的證據'
       }
 
@@ -119,7 +117,7 @@ model {
 
     caseData = store '案件資料庫' {
       technology 'SQLite：jet.db · DuckDB：jet.duckdb'
-      description '大量資料留在資料庫；畫面只取摘要或有界分頁。'
+      description '保存案件資料，畫面按需讀取摘要與分頁。'
       link ../evidence.html#f-storage '案件資料與檔名'
     }
     projectJson = store '案件進度檔' {
@@ -157,7 +155,7 @@ model {
   }
 
   filterSlice = component '篩選情境儲存的類別' {
-    description '同一個桌面程序裡處理 filter.scenario.save 的類別與介面，以 SQLite 或 DuckDB 案件為準；不是另外部署的系統。'
+    description '處理 filter.scenario.save 的類別與介面，以 SQLite 或 DuckDB 案件為準。'
     link ../archify/filter-types/filter-types.html '詳細類別與介面圖'
 
     jetapi = component 'JetApi' { technology 'JavaScript' }
@@ -236,7 +234,7 @@ model {
   }
 
   tbSlice = component 'TB 取代匯入的類別' {
-    description '同一個桌面程序裡處理 import.tb.fromFile 的類別與介面，以 SQLite 或 DuckDB 案件為準；不是另外部署的系統。'
+    description '處理 import.tb.fromFile 的類別與介面，以 SQLite 或 DuckDB 案件為準。'
     link ../archify/import-classes/import-classes.html '詳細類別與介面圖'
 
     handler = component 'ImportTbFromFileHandler' { technology '流程寫在父類別 ImportFromFileHandler' }
@@ -310,7 +308,7 @@ model {
   }
 
   paperSlice = component '正式底稿匯出的類別' {
-    description '同一個桌面程序裡處理 export.workingPaperStream 的類別與介面，以 SQLite 或 DuckDB 案件為準；不是另外部署的系統。'
+    description '處理 export.workingPaperStream 的類別與介面，以 SQLite 或 DuckDB 案件為準。'
     link ../archify/export-classes/export-classes.html '詳細類別與介面圖'
 
     handler = component 'ExportWorkingPaperStreamHandler'
@@ -380,22 +378,22 @@ model {
 
 views {
   view index {
-    title 'JET 系統情境'
-    description '審計員、來源檔、報告與電腦環境前提；不是正式部署驗收。'
+    title 'JET 的使用者與外部資料'
+    description '先認識誰使用 JET、資料從哪裡來，以及產出哪些檔案。'
     include auditor, inputs, jet, reports, webview2, ace
     autoLayout LeftRight
   }
 
   view containers of jet {
-    title 'JET 桌面程序與案件資料'
-    description '一個桌面程序，資料放在案件資料庫與案件資料夾；程式分層沒有畫成多個服務。'
+    title '程式與案件資料放在哪裡'
+    description 'JET 在本機執行，案件資料庫、設定與報告放在案件資料夾。'
     include auditor, inputs, jet.desktop, jet.caseData, jet.projectJson, reports, webview2
     autoLayout LeftRight
   }
 
   view components of jet.desktop {
-    title '桌面程序的內部責任'
-    description '灰色實線是直接呼叫，藍色虛線是透過介面呼叫，琥珀色虛線是 action 名稱或 WebMessage。啟動時建立了哪些元件，見「啟動時建立哪些物件」。'
+    title '程式各部分如何分工'
+    description '從畫面操作，看到處理流程、審計規則、資料庫與檔案讀寫的分工。'
     include jet.desktop.*, jet.caseData, jet.projectJson, inputs, reports
     exclude jet.desktop.composition
     style * { size small textSize large }
@@ -404,8 +402,8 @@ views {
   }
 
   view assembly of jet.desktop {
-    title '啟動時建立哪些物件'
-    description 'AppCompositionRoot 在程式啟動時建立 ActionDispatcher、各 action 的處理類別、資料庫實作與檔案元件，再交給使用它們的元件。點線表示建立，不是執行時的呼叫。'
+    title '啟動時如何組合程式'
+    description 'AppCompositionRoot 建立所需元件，再把它們交給各處理類別。點線表示建立關係。'
     include jet.desktop.composition, jet.desktop.bridge, jet.desktop.application, jet.desktop.persistence, jet.desktop.fileio
     exclude jet.desktop.bridge -> jet.desktop.application, jet.desktop.application -> jet.desktop.persistence, jet.desktop.application -> jet.desktop.fileio
     style * { size small textSize large }
@@ -414,8 +412,8 @@ views {
   }
 
   view filterComponents of filterSlice {
-    title '篩選情境儲存：實際建立的類別'
-    description '虛線框是介面，使用它的類別只依賴介面；AppCompositionRoot 的點線指出實際建立哪個類別。成員簽章見類別與介面圖。'
+    title '篩選情境的類別分工'
+    description '查看儲存流程使用哪些介面，以及啟動時建立哪個實作類別。'
     link ../archify/filter-types/filter-types.html '詳細類別與介面圖'
     include filterSlice.*
     rank same { filterSlice.handlerContract, filterSlice.factsContract, filterSlice.commitContract, filterSlice.storeContract }
@@ -425,8 +423,8 @@ views {
   }
 
   dynamic view filterSave {
-    title '篩選情境儲存：平常只存這一個情境'
-    description '從 FilterScenarioSaveHandler 收到呼叫開始，只畫平常的分支：其他情境都合格、已是目前規則，存好的結果也沒有過期，所以只換掉這一個情境。整批處理的兩個分支與前段的分派，見 Archify 循序圖。'
+    title '儲存單一情境的處理順序'
+    description '其他情境合格、符合目前規則且結果未過期時，只取代本次情境。整批處理另見完整循序圖。'
     link ../archify/action-sequence/action-sequence.html '三個分支的循序圖'
     variant diagram
     autoLayout LeftRight 40 80
@@ -455,8 +453,8 @@ views {
   }
 
   dynamic view tbImport {
-    title 'TB 取代匯入：從讀標頭到同一筆交易'
-    description '從 ImportTbFromFileHandler 收到呼叫開始，畫取代匯入正常完成的路徑。前段的分派、提交後寫操作紀錄與失敗時的回復，見 Archify 循序圖與流程圖。'
+    title '取代匯入 TB 的處理順序'
+    description '從讀檔到完成寫入。操作紀錄與失敗處理另見完整循序圖及流程圖。'
     link ../archify/import-sequence/import-sequence.html 'TB 取代匯入的循序圖'
     variant diagram
     autoLayout LeftRight 40 80
@@ -483,8 +481,8 @@ views {
   }
 
   dynamic view workingPaperExport {
-    title '正式底稿匯出：寫暫存檔與發布'
-    description '從 ExportWorkingPaperStreamHandler 收到呼叫開始，畫正常完成的路徑。發布失敗時怎麼還原，見 Archify 流程圖。'
+    title '匯出正式底稿的處理順序'
+    description '呈現正常完成匯出的路徑。發布失敗時的還原方式另見流程圖。'
     link ../archify/workpaper-sequence/workpaper-sequence.html '正式底稿匯出的循序圖'
     variant diagram
     style * { size large textSize medium }
@@ -510,8 +508,8 @@ views {
   }
 
   deployment view localRuntime {
-    title '本機執行配置'
-    description '一般權限的 Windows 工作站。WebView2 與 ACE 是電腦前提；SQL Server 開發暫緩，不在圖內。公司環境仍待正式部署階段確認。'
+    title '電腦上的程式與檔案'
+    description 'Windows 電腦需具備 WebView2；讀 Access 時另需 ACE。公司環境仍待部署確認。SQL Server 暫緩開發。'
     include *, local.caseFolder.*
     style * { size small textSize large }
     autoLayout LeftRight 40 80
@@ -520,7 +518,7 @@ views {
 
 deployment {
   workstation local 'Windows 工作站' {
-    description '不依賴系統管理員權限或外部 AI 服務。RepoWise、Roslyn、LikeC4 與 Archify 只用於寫文件。'
+    description '使用一般權限執行 JET，不需要外部 AI 服務。'
     folder release '發布資料夾' {
       description 'JET.exe、設定、範本與 wwwroot 要一起交付。'
       instanceOf jet.desktop

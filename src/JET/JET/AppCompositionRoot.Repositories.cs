@@ -7,35 +7,27 @@ using Microsoft.Extensions.Logging;
 namespace JET;
 
 /// <summary>
-/// 三種資料庫各自的 <see cref="ProjectRepositories"/> 組裝。SQLite 與 DuckDB 共用同一個本機工廠方法；
-/// 三組共用同一個本機檔案鎖、案件外的報告 base store、作業互斥鎖與 <see cref="ProjectSession"/>。
+/// SQLite 案件的 <see cref="ProjectRepositories"/> 組裝。資料庫組共用本機檔案鎖、案件外的報告 base store、
+/// 作業互斥鎖與 <see cref="ProjectSession"/>。目前只有 SQLite 一組（裁定 2026-11-06-08）；
 /// 組裝必須留在 composition root（namespace JET），Infrastructure 不得依賴 Application。
 /// </summary>
 public static partial class AppCompositionRoot
 {
-    /// <summary>三組資料庫共用的依賴。</summary>
+    /// <summary>資料庫組共用的依賴。</summary>
     internal sealed record ProjectRepositoryAssembly(
         IProjectStore ProjectStore,
-        IProjectRegistry Registry,
         IProjectCreateBackendPort ProjectCreateBackend,
         LocalFileLockService LocalFileLock,
-        ILockService SqlServerLock,
-        IProjectDeletionLockService SqlServerDeletionLock,
         IReportStore BaseReportStore,
         ILoggerFactory LoggerFactory,
         ProjectSession Session,
         ActionExecutionGate ActionExecutionGate);
 
-    /// <summary>組出三組資料庫與選組用的 catalog；正式組裝與測試都經過這裡。</summary>
+    /// <summary>組出資料庫組與選組用的 catalog；正式組裝與測試都經過這裡。</summary>
     internal static ProjectRepositoryCatalog CreateProjectRepositoryCatalog(
         ProjectRepositoryAssembly assembly,
-        SqliteProjectDatabase sqliteDatabase,
-        SqlServerProjectDatabase sqlServerDatabase,
-        DuckDbProjectDatabase duckDbDatabase) =>
-        new(
-            CreateLocalProjectRepositories(ProjectDocument.DefaultDatabaseProvider, sqliteDatabase, assembly),
-            CreateSqlServerProjectRepositories(sqlServerDatabase, assembly),
-            CreateLocalProjectRepositories(ProjectDocument.DuckDbDatabaseProvider, duckDbDatabase, assembly));
+        SqliteProjectDatabase sqliteDatabase) =>
+        new(CreateLocalProjectRepositories(ProjectDocument.DefaultDatabaseProvider, sqliteDatabase, assembly));
 
     private static ProjectRepositories CreateLocalProjectRepositories(
         string provider,
@@ -94,12 +86,9 @@ public static partial class AppCompositionRoot
             DatabaseDeleter = database,
             LockService = assembly.LocalFileLock,
             DeletionLockService = assembly.LocalFileLock,
-            // 本機建案的初始化與回滾都在 backend attempt 內用 document 選定的本機資料庫，
-            // 這裡的 initializer 只供 SQL Server 名稱預檢使用。
+            // 建案的初始化與回滾都在 backend attempt 內完成。
             ProjectCreateFacts = new ProjectCreateFactsPort(
                 assembly.ProjectStore,
-                database,
-                assembly.Registry,
                 assembly.ProjectCreateBackend,
                 assembly.LocalFileLock),
             Imports = imports,
@@ -168,7 +157,7 @@ public static partial class AppCompositionRoot
                 completenessDiffPages, voucherBalancePages, highRiskSummaryScenarios, fieldInfoFacts),
             WorkingPaperPlanWriter = CreateWorkingPaperWriter(
                 completenessAccountPages, completenessDiffPages, voucherBalancePages, preparerSummaryExport,
-                infSamplePages, filterScenarios, highRiskSummaryScenarios, highRiskSummaryVoucherPages, highRiskSummaryRowPages,
+                infSamplePages, highRiskSummaryVoucherPages, highRiskSummaryRowPages,
                 mappingStates, calendarExport, accountMappingExport, accountMapping, rawGlExport,
                 resultPageRdeValues),
             ValidationReportWriter = legacyReportWriter,
@@ -180,147 +169,6 @@ public static partial class AppCompositionRoot
             MessageLog = new LocalMessageLogStore(database),
             ProjectOperationLog = projectOperationLog,
             DevDatabaseInspector = new LocalDevDatabaseInspector(database),
-        };
-    }
-
-    private static ProjectRepositories CreateSqlServerProjectRepositories(
-        SqlServerProjectDatabase database,
-        ProjectRepositoryAssembly assembly)
-    {
-        var loggers = assembly.LoggerFactory;
-        var imports = new SqlServerImportRepository(database, loggers.CreateLogger<SqlServerImportRepository>());
-        var gl = new SqlServerGlRepository(database, loggers.CreateLogger<SqlServerGlRepository>());
-        var tb = new SqlServerTbRepository(database, loggers.CreateLogger<SqlServerTbRepository>());
-        var mappingStates = new SqlServerMappingStateStore(database);
-        var accountCategories = new SqlServerAccountCategoryStore(database);
-        var resultStaleStates = new SqlServerResultStaleStateStore(database);
-        var calendar = new SqlServerCalendarStore(database);
-        var accountMapping = new SqlServerAccountMappingRepository(database);
-        var authorizedPreparer = new SqlServerAuthorizedPreparerRepository(database);
-        var fieldInfoFacts = new SqlServerFieldInfoFactsPort(database);
-        var filterHits = new SqlServerFilterHitRepository(
-            database, loggers.CreateLogger<SqlServerFilterHitRepository>());
-        var filterScenarios = new SqlServerFilterScenarioStore(database);
-        var filterVouchers = new SqlServerFilterVoucherRepository(database);
-        var filterHitMaterializer = new SqlServerFilterHitMaterializer(
-            database, loggers.CreateLogger<SqlServerFilterHitMaterializer>());
-        var filterCommits = new SqlServerFilterCommitRepository(
-            database, loggers.CreateLogger<SqlServerFilterCommitRepository>());
-        var completenessDiffPages = new SqlServerCompletenessDiffPageRepository(database);
-        var completenessAccountPages = new SqlServerCompletenessAccountPageRepository(database);
-        var voucherBalancePages = new SqlServerVoucherBalancePageRepository(database);
-        var unbalancedGlEntryPages = new SqlServerUnbalancedVoucherPageRepository(database);
-        var blankRecordsPages = new SqlServerBlankRecordsPageRepository(database);
-        var sourceQualityPages = new SqlServerSourceQualityPageRepository(database);
-        var prescreenPages = new SqlServerPrescreenPageRepository(database);
-        var infSamplePages = new SqlServerInfSamplePageRepository(database);
-        var resultPageRdeValues = new SqlServerResultPageRdeValuesPort(database);
-        var rawGlExport = new SqlServerRawGlExportRepository(database);
-        var preparerSummaryExport = new SqlServerPreparerSummaryExportRepository(database);
-        var accountUsageExport = new SqlServerAccountUsageExportRepository(database);
-        var calendarExport = new SqlServerCalendarExportRepository(database);
-        var accountMappingExport = new SqlServerAccountMappingExportRepository(database);
-        var highRiskSummaryScenarios = new SqlServerHighRiskSummaryScenariosRepository(database);
-        var highRiskSummaryVoucherPages = new SqlServerHighRiskSummaryVoucherPageRepository(database);
-        var highRiskSummaryRowPages = new SqlServerHighRiskSummaryRowPageRepository(database);
-        var projectOperationLog = new SqlServerProjectOperationLog(database);
-        var legacyReportWriter = CreateLegacyReportWriter(
-            completenessAccountPages, completenessDiffPages, unbalancedGlEntryPages, blankRecordsPages,
-            infSamplePages, prescreenPages, rawGlExport, imports, mappingStates, preparerSummaryExport,
-            accountUsageExport, highRiskSummaryScenarios, highRiskSummaryRowPages, fieldInfoFacts,
-            resultPageRdeValues, sourceQualityPages);
-
-        return new ProjectRepositories
-        {
-            Provider = ProjectDocument.SqlServerDatabaseProvider,
-            DatabaseInitializer = database,
-            DatabaseDeleter = database,
-            LockService = assembly.SqlServerLock,
-            // SQL Server 刪案的原子交易本身會清租約，刪案鎖維持 no-op。
-            DeletionLockService = assembly.SqlServerDeletionLock,
-            ProjectCreateFacts = new ProjectCreateFactsPort(
-                assembly.ProjectStore,
-                database,
-                assembly.Registry,
-                assembly.ProjectCreateBackend,
-                assembly.SqlServerLock),
-            Imports = imports,
-            Gl = gl,
-            Tb = tb,
-            MappingStates = mappingStates,
-            MappingValueProfiles = new SqlServerMappingValueProfileRepository(database),
-            AccountCategories = accountCategories,
-            ResultStaleStates = resultStaleStates,
-            Calendar = calendar,
-            AccountMappings = accountMapping,
-            AccountMappingImport = accountMapping,
-            AuthorizedPreparers = authorizedPreparer,
-            AuthorizedPreparerImport = authorizedPreparer,
-            AccountMappingEditor = new AccountMappingEditorRepository(database),
-            IntakeFacts = new IntakeFactsPort(imports),
-            MappingFacts = new MappingFactsPort(gl, tb),
-            ReferenceDataFacts = new ReferenceDataFactsPort(accountMapping, authorizedPreparer, calendar),
-            Results = new SqlServerResultStore(database),
-            ValidationFacts = new SqlServerValidationRunRepository(
-                database, loggers.CreateLogger<SqlServerValidationRunRepository>()),
-            ValidationReportPlanningFacts = new SqlServerValidationReportPlanningFactsPort(database),
-            FieldInfoFacts = fieldInfoFacts,
-            PrescreenFacts = new SqlServerPrescreenRunRepository(
-                database, loggers.CreateLogger<SqlServerPrescreenRunRepository>()),
-            PrescreenReportPlanningFacts = new PrescreenReportPlanningFactsPort(prescreenPages),
-            FilterHits = filterHits,
-            FilterScenarios = filterScenarios,
-            FilterVouchers = filterVouchers,
-            FilterHitMaterializer = filterHitMaterializer,
-            FilterCommits = filterCommits,
-            FilterFacts = new FilterFactsPort(filterHits, filterCommits),
-            FilterHitMaterializeService = CreateFilterHitMaterializeService(
-                filterHitMaterializer, filterScenarios, mappingStates, accountMapping,
-                authorizedPreparer, accountCategories, resultStaleStates, calendar, assembly),
-            FilterVoucherQueryService = CreateFilterVoucherQueryService(
-                filterVouchers, filterScenarios, mappingStates, accountMapping,
-                authorizedPreparer, accountCategories, calendar, resultPageRdeValues, assembly,
-                CreateFilterHitMaterializeService(
-                    filterHitMaterializer, filterScenarios, mappingStates, accountMapping,
-                    authorizedPreparer, accountCategories, resultStaleStates, calendar, assembly),
-                highRiskSummaryScenarios),
-            DataPreview = new SqlServerDataPreviewRepository(database),
-            CompletenessDiffPages = completenessDiffPages,
-            CompletenessAccountPages = completenessAccountPages,
-            AccountMappingBlankPages = new SqlServerAccountMappingBlankPageRepository(database),
-            AccountMappingDifferences = new SqlServerAccountMappingDifferenceRepository(database),
-            VoucherBalancePages = voucherBalancePages,
-            UnbalancedVoucherPages = unbalancedGlEntryPages,
-            BlankRecordsPages = blankRecordsPages,
-            SourceQualityPages = sourceQualityPages,
-            FilterHitsPages = new SqlServerFilterHitsPageRepository(database),
-            PrescreenPages = prescreenPages,
-            InfSamplePages = infSamplePages,
-            ResultPageRdeValues = resultPageRdeValues,
-            HighRiskSummaryScenarios = highRiskSummaryScenarios,
-            HighRiskSummaryVoucherPages = highRiskSummaryVoucherPages,
-            HighRiskSummaryRowPages = highRiskSummaryRowPages,
-            RawGlExport = rawGlExport,
-            PreparerSummaryExport = preparerSummaryExport,
-            AccountUsageExport = accountUsageExport,
-            CalendarExport = calendarExport,
-            AccountMappingExport = accountMappingExport,
-            WorkingPaperPlanningFacts = new WorkingPaperPlanningFactsPort(
-                completenessDiffPages, voucherBalancePages, highRiskSummaryScenarios, fieldInfoFacts),
-            WorkingPaperPlanWriter = CreateWorkingPaperWriter(
-                completenessAccountPages, completenessDiffPages, voucherBalancePages, preparerSummaryExport,
-                infSamplePages, filterScenarios, highRiskSummaryScenarios, highRiskSummaryVoucherPages, highRiskSummaryRowPages,
-                mappingStates, calendarExport, accountMappingExport, accountMapping, rawGlExport,
-                resultPageRdeValues),
-            ValidationReportWriter = legacyReportWriter,
-            InfReportWriter = legacyReportWriter,
-            PrescreenReportWriter = legacyReportWriter,
-            CriteriaSelectionReportWriter = legacyReportWriter,
-            ReportStore = new AuditedReportStore(assembly.BaseReportStore, projectOperationLog,
-                assembly.LoggerFactory.CreateLogger<AuditedReportStore>()),
-            MessageLog = new SqlServerMessageLogStore(database),
-            ProjectOperationLog = projectOperationLog,
-            DevDatabaseInspector = new SqlServerDevDatabaseInspector(database),
         };
     }
 
@@ -382,8 +230,6 @@ public static partial class AppCompositionRoot
         IVoucherBalancePageRepository voucherBalancePages,
         IPreparerSummaryExportRepository preparerSummaryExport,
         IInfSamplePageRepository infSamplePages,
-        IFilterScenarioStore filterScenarios,
-        IHighRiskSummaryScenariosRepository highRiskSummaryScenarios,
         IHighRiskSummaryVoucherPageRepository highRiskSummaryVoucherPages,
         IHighRiskSummaryRowPageRepository highRiskSummaryRowPages,
         IMappingStateStore mappingStates,
@@ -398,8 +244,6 @@ public static partial class AppCompositionRoot
             voucherBalancePages,
             preparerSummaryExport,
             infSamplePages,
-            filterScenarios,
-            highRiskSummaryScenarios,
             highRiskSummaryVoucherPages,
             highRiskSummaryRowPages,
             mappingStates,

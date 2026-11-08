@@ -11,7 +11,6 @@ public sealed class FilterNestedVoucherWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task HierarchyAndNestedQuantifier_SaveRetryReopenAndExport(string provider)
     {
         using var host = new HandlerTestHost();

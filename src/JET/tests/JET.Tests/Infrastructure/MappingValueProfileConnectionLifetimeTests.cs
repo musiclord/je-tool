@@ -8,7 +8,6 @@ namespace JET.Tests.Infrastructure;
 public sealed class MappingValueProfileConnectionLifetimeTests
 {
     [Theory]
-    [InlineData("duckdb")]
     [InlineData("sqlite")]
     public async Task ProfileAndExistence_AfterConnectionDisposalGcAndDatabaseReopen_KeepFixedUnicodeAnswers(string provider)
     {
@@ -40,7 +39,6 @@ public sealed class MappingValueProfileConnectionLifetimeTests
 
     private static ILocalProjectDatabase Database(string provider, JetProjectFolder folder) => provider switch
     {
-        "duckdb" => new DuckDbProjectDatabase(folder),
         "sqlite" => new SqliteProjectDatabase(folder),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };

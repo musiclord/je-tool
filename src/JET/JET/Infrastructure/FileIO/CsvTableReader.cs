@@ -243,7 +243,7 @@ public sealed class CsvTableReader : ITabularFileReader
     {
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = SourceFileAccess.OpenRead(filePath);
             using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: true);
 
             var buffer = new char[32 * 1024];
@@ -268,7 +268,7 @@ public sealed class CsvTableReader : ITabularFileReader
     {
         try
         {
-            var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var stream = SourceFileAccess.OpenRead(filePath);
             return new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

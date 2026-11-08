@@ -10,40 +10,28 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed class GlQueryOwnershipTests
 {
+    // 兩份清單原本每個本機檔案後面接一個 SQL Server 檔案。只保留 SQLite 之後 SQL Server 的檔案已刪除，清單只留本機檔案
+    // （裁定 2026-11-06-08）；第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
     private static readonly string[] DirectQueryFiles =
     [
         "src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerValidationRunRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerPrescreenRunRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerPrescreenPageRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitsPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerFilterHitsPageRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalInfSamplePageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerInfSamplePageRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalHighRiskSummaryScenariosRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerHighRiskSummaryScenariosRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalAccountUsageExportRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerAccountUsageExportRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalPreparerSummaryExportRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerPreparerSummaryExportRepository.cs"
     ];
 
     private static readonly string[] CanonicalCoreConsumerFiles =
     [
         "src/JET/JET/Infrastructure/Persistence/Local/LocalCompletenessDiffPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerCompletenessDiffPageRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalCompletenessAccountPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerCompletenessAccountPageRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalVoucherBalancePageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerVoucherBalancePageRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalUnbalancedVoucherPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerUnbalancedVoucherPageRepository.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalValidationReportPlanningFactsPort.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerValidationReportPlanningFactsPort.cs",
         "src/JET/JET/Infrastructure/Persistence/Local/LocalAccountMappingExportRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerAccountMappingExportRepository.cs"
     ];
 
     [Fact]

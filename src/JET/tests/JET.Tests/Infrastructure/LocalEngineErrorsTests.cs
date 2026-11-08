@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
-using DuckDB.NET.Data;
 using JET.Domain;
 using JET.Infrastructure;
 using Microsoft.Data.Sqlite;
@@ -10,7 +9,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 本地引擎錯誤映射的單元測試。oracle 是 manifest Error Codes 章登錄的 wire code，
-/// SQLite 以公開 primary error code 建構真實例外；DuckDB 以 1.5.3 實際錯誤訊息型樣建構真實例外。
+/// SQLite 以公開 primary error code 建構真實例外。原本也測 DuckDB 的錯誤訊息型樣，隨 DuckDB 移除（裁定 2026-11-06-08）。
 /// LocalEngineErrors 尚未落地時以反射尋找，讓紅燈能先編譯並明確指出缺少的 production seam。
 /// </summary>
 public sealed class LocalEngineErrorsTests
@@ -26,8 +25,7 @@ public sealed class LocalEngineErrorsTests
         ("DatabaseUnavailable", "database_unavailable"),
         ("DatabaseOutOfMemory", "database_out_of_memory"),
         ("BridgeError", "bridge_error"),
-        ("SqlServerNotConfigured", "sql_server_not_configured"),
-        ("SqlServerExpressUnsupported", "sql_server_express_unsupported"),
+        // SQL Server 的兩個錯誤碼隨 SQL Server 移除（裁定 2026-11-06-08）。
         ("InvalidProjectSchema", "invalid_project_schema"),
         ("UnsupportedProvider", "unsupported_provider")
     ];
@@ -41,27 +39,6 @@ public sealed class LocalEngineErrorsTests
     public void TryTranslate_MappedSqlitePrimaryCode_ReturnsRegisteredCode(int sqliteCode, string expectedCode)
     {
         var translated = TryTranslate(new SqliteException("測試用 SQLite 引擎錯誤", sqliteCode));
-
-        Assert.NotNull(translated);
-        Assert.Equal(expectedCode, translated.Code);
-    }
-
-    // 等價分割：檔案鎖衝突與交易寫入衝突是 DuckDB 兩種不同可恢復故障面。
-    [Theory]
-    [InlineData(
-        "IO Error: Could not set lock on file \"C:\\projects\\jet.duckdb\": Conflicting lock is held in another process",
-        "database_locked")]
-    [InlineData("TransactionContext Error: Conflict on update!", "database_busy")]
-    [InlineData("TransactionContext Error: Conflict on tuple deletion!", "database_busy")]
-    [InlineData("TransactionContext Error: write-write conflict on table gl_target", "database_busy")]
-    [InlineData("IO Error: Could not write database file: No space left on device", "database_storage_full")]
-    [InlineData("IO Error: Could not write database file: There is not enough space on the disk.", "database_storage_full")]
-    [InlineData(
-        "Corrupt database file: computed checksum 101 does not match stored checksum 202 in block at location 0",
-        "database_corrupt")]
-    public void TryTranslate_MappedDuckDbMessagePattern_ReturnsRegisteredCode(string message, string expectedCode)
-    {
-        var translated = TryTranslate(CreateDuckDbException(message));
 
         Assert.NotNull(translated);
         Assert.Equal(expectedCode, translated.Code);
@@ -85,32 +62,6 @@ public sealed class LocalEngineErrorsTests
         Assert.NotNull(translated);
         Assert.Equal(expectedCode, translated.Code);
         Assert.DoesNotContain("非預期", translated.Message, StringComparison.Ordinal);
-    }
-
-    // DuckDB 把作業系統依語言翻譯的原因放進訊息；這台電腦的 Windows 是哪種語言，就用那種語言的句子組出訊息。這是新增的測試。
-    [Theory]
-    [InlineData(32, "database_unavailable")]  // ERROR_SHARING_VIOLATION：防毒軟體這類程式獨占檔案
-    [InlineData(5, "database_unavailable")]   // ERROR_ACCESS_DENIED：唯讀或沒有權限
-    [InlineData(112, "database_storage_full")] // ERROR_DISK_FULL
-    [InlineData(39, "database_storage_full")]  // ERROR_HANDLE_DISK_FULL
-    public void TryTranslate_DuckDbIoErrorWithTheSystemReason_ReturnsTheReason(int win32Code, string expectedCode)
-    {
-        var reason = new System.ComponentModel.Win32Exception(win32Code).Message;
-        var translated = TryTranslate(CreateDuckDbException(
-            $"DuckDBOpen failed: IO Error: Cannot open file \"C:\\projects\\jet.duckdb\": {reason}"));
-
-        Assert.NotNull(translated);
-        Assert.Equal(expectedCode, translated.Code);
-    }
-
-    [Fact]
-    public void TryTranslate_DuckDbOutOfMemory_ReturnsOutOfMemory()
-    {
-        var translated = TryTranslate(CreateDuckDbException(
-            "Out of Memory Error: failed to allocate data of size 256.0 MiB (7.9 GiB/8.0 GiB used)"));
-
-        Assert.NotNull(translated);
-        Assert.Equal("database_out_of_memory", translated.Code);
     }
 
     [Fact]
@@ -141,12 +92,6 @@ public sealed class LocalEngineErrorsTests
     public void TryTranslate_UnmappedSqliteCode_ReturnsNull()
     {
         Assert.Null(TryTranslate(new SqliteException("SQL logic error", 1)));
-    }
-
-    [Fact]
-    public void TryTranslate_UnmappedDuckDbMessage_ReturnsNull()
-    {
-        Assert.Null(TryTranslate(CreateDuckDbException("Catalog Error: Table with name missing does not exist!")));
     }
 
     [Fact]
@@ -195,7 +140,7 @@ public sealed class LocalEngineErrorsTests
 
     private static JetActionException? TryTranslate(Exception exception)
     {
-        var translatorType = typeof(SqlServerEngineErrors).Assembly.GetType("JET.Infrastructure.LocalEngineErrors");
+        var translatorType = typeof(SqliteProjectDatabase).Assembly.GetType("JET.Infrastructure.LocalEngineErrors");
         Assert.True(translatorType is not null, "JET.Infrastructure.LocalEngineErrors 尚未落地。");
 
         var method = translatorType.GetMethod(
@@ -207,21 +152,6 @@ public sealed class LocalEngineErrorsTests
         Assert.True(method is not null, "LocalEngineErrors 缺少 public static TryTranslate(Exception)。");
 
         return (JetActionException?)method.Invoke(null, [exception]);
-    }
-
-    private static Exception CreateDuckDbException(string message)
-    {
-        var exceptionType = typeof(DuckDBConnection).Assembly.GetType("DuckDB.NET.Data.DuckDBException");
-        Assert.True(exceptionType is not null, "DuckDB.NET.Data.DuckDBException 型別不存在。");
-
-        var constructor = exceptionType.GetConstructor(
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-            binder: null,
-            [typeof(string)],
-            modifiers: null);
-        Assert.True(constructor is not null, "DuckDBException 缺少 message 建構式。");
-
-        return Assert.IsAssignableFrom<Exception>(constructor.Invoke([message]));
     }
 
     private static IEnumerable<string> FindBareErrorCodeConstructions(

@@ -5,45 +5,29 @@ namespace JET.Application;
 /// <summary>
 /// 依資料庫種類取出對應的 <see cref="ProjectRepositories"/>。只有建案、載入與刪除會用到；
 /// 其他動作從 <see cref="ProjectSession"/> 的作用中案件取得已選定的那一組。
+/// 目前只有 SQLite 一組（裁定 2026-11-06-08）；其他種類的案件在動任何資料之前回 unsupported_provider。
 /// </summary>
 internal sealed class ProjectRepositoryCatalog
 {
     private readonly ProjectRepositories sqlite;
-    private readonly ProjectRepositories sqlServer;
-    private readonly ProjectRepositories duckDb;
 
-    public ProjectRepositoryCatalog(
-        ProjectRepositories sqlite,
-        ProjectRepositories sqlServer,
-        ProjectRepositories duckDb)
+    public ProjectRepositoryCatalog(ProjectRepositories sqlite)
     {
-        this.sqlite = RequireProvider(sqlite, ProjectDocument.DefaultDatabaseProvider, nameof(sqlite));
-        this.sqlServer = RequireProvider(sqlServer, ProjectDocument.SqlServerDatabaseProvider, nameof(sqlServer));
-        this.duckDb = RequireProvider(duckDb, ProjectDocument.DuckDbDatabaseProvider, nameof(duckDb));
+        ArgumentNullException.ThrowIfNull(sqlite);
+        if (!string.Equals(sqlite.Provider, ProjectDocument.DefaultDatabaseProvider, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"資料庫組的種類是 '{sqlite.Provider}'，這個位置需要 '{ProjectDocument.DefaultDatabaseProvider}'。",
+                nameof(sqlite));
+        }
+
+        this.sqlite = sqlite;
     }
 
     /// <summary>未知的資料庫種類回 unsupported_provider。</summary>
     public ProjectRepositories For(string provider) => provider switch
     {
         ProjectDocument.DefaultDatabaseProvider => sqlite,
-        ProjectDocument.SqlServerDatabaseProvider => sqlServer,
-        ProjectDocument.DuckDbDatabaseProvider => duckDb,
         _ => throw JetPayloadRejection.Create(JetErrorCodes.UnsupportedProvider, "database_provider_unsupported")
     };
-
-    private static ProjectRepositories RequireProvider(
-        ProjectRepositories repositories,
-        string expectedProvider,
-        string parameterName)
-    {
-        ArgumentNullException.ThrowIfNull(repositories, parameterName);
-        if (!string.Equals(repositories.Provider, expectedProvider, StringComparison.Ordinal))
-        {
-            throw new ArgumentException(
-                $"資料庫組的種類是 '{repositories.Provider}'，這個位置需要 '{expectedProvider}'。",
-                parameterName);
-        }
-
-        return repositories;
-    }
 }

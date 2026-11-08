@@ -352,11 +352,6 @@ public sealed class FilterHitMaterializeServiceGateTests
             CancellationToken cancellationToken) =>
             Task.FromResult<LockOutcome>(new LockOutcome.Acquired());
 
-        public Task RenewAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-
         public Task ReleaseAsync(
             string projectId,
             string principal,
@@ -365,10 +360,6 @@ public sealed class FilterHitMaterializeServiceGateTests
             ReleaseCalls++;
             return Task.CompletedTask;
         }
-
-        public Task<IReadOnlyList<ProjectLockInfo>> ListActiveAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProjectLockInfo>>([]);
     }
 
     private sealed class StubScenarioStore(IReadOnlyList<SavedFilterScenario> scenarios)

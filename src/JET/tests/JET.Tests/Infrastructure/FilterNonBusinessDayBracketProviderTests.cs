@@ -40,7 +40,6 @@ public sealed class FilterNonBusinessDayBracketProviderTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NewBracket_MatchesTheOldSeparateGroup(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);

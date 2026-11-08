@@ -10,16 +10,12 @@ public sealed class ProjectOperationLogProviderTests
     private static readonly DateTimeOffset FixedUtc =
         new(2026, 8, 19, 1, 2, 3, TimeSpan.Zero);
 
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
-    public async Task Append_LocalProviders_PreservesBothEventsAndExactMinimalFields(string provider)
+    [Fact]
+    public async Task Append_LocalProviders_PreservesBothEventsAndExactMinimalFields()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         var audit = new LocalProjectOperationLog(database);
@@ -38,41 +34,6 @@ public sealed class ProjectOperationLogProviderTests
         Assert.True(await reader.ReadAsync());
         AssertRow(reader, "event-2", ProjectOperations.MappingRecommit, "gl", 10, 1);
         Assert.False(await reader.ReadAsync());
-    }
-
-    [SqlServerFact]
-    public async Task Append_SqlServer_PreservesBothEventsAndExactMinimalFields()
-    {
-        var baseConnection = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (baseConnection is null) { return; }
-
-        var database = new SqlServerProjectDatabase(
-            new SqlServerConnectionOptions(baseConnection, "JET_Test"));
-        var projectId = $"audit-{Guid.NewGuid():N}";
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-        try
-        {
-            var audit = new SqlServerProjectOperationLog(database);
-            await AppendTwoAsync(audit, projectId);
-
-            await using var connection = database.CreateConnection(projectId);
-            await connection.OpenAsync();
-            await using var command = database.CreateCommand(
-                connection,
-                projectId,
-                "SELECT event_id, occurred_utc, operation, target_type, target_id, subject_count, replaced_count " +
-                "FROM {s}.operation_log ORDER BY event_id;");
-            await using var reader = await command.ExecuteReaderAsync();
-            Assert.True(await reader.ReadAsync());
-            AssertRow(reader, "event-1", ProjectOperations.DataReimport, "gl", 12, 1);
-            Assert.True(await reader.ReadAsync());
-            AssertRow(reader, "event-2", ProjectOperations.MappingRecommit, "gl", 10, 1);
-            Assert.False(await reader.ReadAsync());
-        }
-        finally
-        {
-            await database.DeleteAsync(projectId, CancellationToken.None);
-        }
     }
 
     private static async Task AppendTwoAsync(IProjectOperationLog audit, string projectId)

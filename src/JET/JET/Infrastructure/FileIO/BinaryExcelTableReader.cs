@@ -128,7 +128,7 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
         Stream? stream = null;
         try
         {
-            stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            stream = SourceFileAccess.OpenRead(path);
             return ExcelReaderFactory.CreateBinaryReader(stream);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

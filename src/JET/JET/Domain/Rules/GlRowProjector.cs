@@ -210,7 +210,7 @@ public static class GlRowProjector
                 if (!isDebit && !isCredit)
                 {
                     error = new RowProjectionError(row.SourceRowNumber,
-                        MappedColumnOrKey(spec, GlMappingKeys.DrCr), dcValue,
+                        MappedColumnOrKey(spec, GlMappingKeys.DrCr), dcValue ?? string.Empty,
                         ProjectionErrorReasons.DebitCreditUnlisted) { ReasonCode = ProjectionErrorCodes.DebitCreditUnlisted };
                     return false;
                 }

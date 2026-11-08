@@ -23,7 +23,6 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Taiwan2025Calendar_WeekendHolidayLunarNewYearAndMakeupSaturday(string provider)
     {
         using var host = new HandlerTestHost();
@@ -95,7 +94,6 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ApprovalOnOrAfterFinancialStatementPreparationDate_IncludesTheBoundaryDay(string provider)
     {
         using var host = new HandlerTestHost();

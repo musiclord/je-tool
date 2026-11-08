@@ -26,7 +26,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MissingValidation_IsRejectedWithTheFixedReason_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -42,7 +41,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ProjectJsonMissing_IsRejected_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -59,7 +57,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlMappingNotConfirmed_IsRejected_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -79,7 +76,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task DuplicateName_IsRejected_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -100,7 +96,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NullPosition_AppendsAtTheEnd_GivenPosition_ReplacesInPlace(string provider)
     {
         using var host = new HandlerTestHost();
@@ -128,7 +123,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExpectedNameMismatch_IsRejected_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -150,7 +144,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AllValid_WritesDefinitionsAndHitsAndClearsTheStaleFlag(string provider)
     {
         using var host = new HandlerTestHost();
@@ -185,7 +178,6 @@ public sealed class FilterScenarioSaveBranchTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task DefinitionWriteFailure_RollsBackTheWholeTransaction(string provider)
     {
         using var host = new HandlerTestHost();
@@ -226,7 +218,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AnotherSavedScenarioInvalid_WritesDefinitionsOnly_ClearsHits_MarksStale(string provider)
     {
         using var host = new HandlerTestHost();
@@ -263,7 +254,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AdvancesToStepFive_OnlyWhenBehind(string provider)
     {
         using var host = new HandlerTestHost();
@@ -289,7 +279,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ProjectJsonLocked_StillAnswersSuccess_AndLogsOneWarning(string provider)
     {
         using var host = new HandlerTestHost();
@@ -319,7 +308,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CancelledBeforeDispatch_ReportsCancellation_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -342,7 +330,6 @@ public sealed class FilterScenarioSaveBranchTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CancelledAfterCommit_StillAdvancesTheStep_AndAnswersSuccess(string provider)
     {
         using var host = new HandlerTestHost();
@@ -456,7 +443,7 @@ public sealed class FilterScenarioSaveBranchTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == ProjectDocument.DuckDbDatabaseProvider ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static Task ExecuteAsync(HandlerTestHost host, string projectId, string provider, string sql, params (string Name, object Value)[] parameters) =>

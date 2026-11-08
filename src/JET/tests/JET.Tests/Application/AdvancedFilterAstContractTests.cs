@@ -72,7 +72,7 @@ public sealed class AdvancedFilterAstContractTests
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
         Assert.Contains("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
-        Assert.True(FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == expected));
+        Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == expected);
     }
 
     // 原本第四個參數是訊息片段。這三種錯誤只會出自存檔損毀，審計員在畫面上無從修正，損毀的情境在畫面改寫通用句（裁定 2026-10-13-21）；
@@ -111,7 +111,7 @@ public sealed class AdvancedFilterAstContractTests
 
         var errors = FilterScenarioValidator.Validate(scenario, Ready);
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
-        Assert.True(FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == expected));
+        Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == expected);
     }
 
     [Theory]
@@ -158,7 +158,7 @@ public sealed class AdvancedFilterAstContractTests
         // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         var errors = FilterScenarioValidator.Validate(oversized, Ready);
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
-        Assert.True(FilterScenarioCorruption.ReasonsOf(errors).Any(reason => reason.Code == "text_set_values_too_many"));
+        Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == "text_set_values_too_many");
     }
 
     [Fact]

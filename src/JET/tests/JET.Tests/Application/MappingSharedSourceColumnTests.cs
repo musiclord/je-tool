@@ -16,7 +16,6 @@ public sealed class MappingSharedSourceColumnTests
 {
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task TwoGlFieldsOnOneSourceColumn_CommitAndBothCarryTheSourceValue(string provider)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -52,7 +51,6 @@ public sealed class MappingSharedSourceColumnTests
     // TB 的科目編號與科目名稱選同一欄，例如來源只有一欄「1101 現金」。
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task TbAccountNumberAndNameOnOneSourceColumn_CommitAndBothCarryTheSourceValue(string provider)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -74,9 +72,7 @@ public sealed class MappingSharedSourceColumnTests
         DatasetKind dataset = DatasetKind.Gl)
     {
         var folder = new JetProjectFolder(fixture.Host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         return await new LocalFieldInfoFactsPort(database).ReadAsync(
             fixture.ProjectId,
             dataset,

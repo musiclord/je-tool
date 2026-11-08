@@ -15,7 +15,6 @@ public sealed class MappingReimportDraftTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Reimport_ThenReopen_ReturnsLastConfirmedMappingAsDraftAndKeepsRdeFieldIds(string provider)
     {
         using var host = new HandlerTestHost();
@@ -68,7 +67,6 @@ public sealed class MappingReimportDraftTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FieldIdThatWasNeverIssued_IsStillRejectedAfterReimport(string provider)
     {
         using var host = new HandlerTestHost();
@@ -86,7 +84,6 @@ public sealed class MappingReimportDraftTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ManualAutoFailure_GroupsRowsByValueAndNamesTheSourceColumn(string provider)
     {
         using var host = new HandlerTestHost();

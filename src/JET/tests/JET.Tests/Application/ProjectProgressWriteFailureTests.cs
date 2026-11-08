@@ -10,7 +10,7 @@ public sealed class ProjectProgressWriteFailureTests
 {
     public static IEnumerable<object[]> Cases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var action in new[] { "import.gl.fromFile", "import.tb.fromFile", "mapping.commit.gl", "mapping.commit.tb", "validate.run", "prescreen.run", "filter.commit" })
             yield return [provider, action];
     }

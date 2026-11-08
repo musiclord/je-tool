@@ -289,7 +289,7 @@ internal static class LegacyAuditParityObservationFactory
                 ? VoucherKeyResolver.Empty
                 : VoucherKeyResolver.Create(workbookPart);
             var sheets = new List<KeyValuePair<string, long>>();
-            foreach (var sheet in workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? [])
+            foreach (var sheet in workbookPart.Workbook?.Sheets?.Elements<Sheet>() ?? [])
             {
                 if (sheet.Id?.Value is not { } relationshipId
                     || !workbookPart.TryGetPartById(relationshipId, out var part)

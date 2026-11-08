@@ -166,12 +166,13 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         FileStream? stream = null;
         try
         {
-            stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            // Excel 開著也讀得到最後一次存檔的內容（裁定 2026-11-06-12）。
+            stream = SourceFileAccess.OpenRead(filePath);
             return new WorkbookHandle(SpreadsheetDocument.Open(stream, isEditable: false), stream);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // 被 Excel 開著、沒有權限或磁碟讀取失敗：只寫檔名與下一步，不放 .NET 英文訊息與完整路徑。
+            // 被其他程式獨占、沒有權限或磁碟讀取失敗：只寫檔名與下一步，不放 .NET 英文訊息與完整路徑。
             stream?.Dispose();
             throw SourceFileErrors.CannotOpen(filePath, ex);
         }
@@ -197,7 +198,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
             return sheets;
         }
 
-        foreach (var sheet in workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? [])
+        foreach (var sheet in workbookPart.Workbook?.Sheets?.Elements<Sheet>() ?? [])
         {
             if (sheet.Id?.Value is not { } relationshipId)
             {
@@ -410,7 +411,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
                 return new CellContext([], [], false);
             }
 
-            var date1904 = workbookPart.Workbook.WorkbookProperties?.Date1904?.Value ?? false;
+            var date1904 = workbookPart.Workbook?.WorkbookProperties?.Date1904?.Value ?? false;
             return new CellContext(ReadSharedStrings(workbookPart), ReadStyleKinds(workbookPart), date1904);
         }
     }

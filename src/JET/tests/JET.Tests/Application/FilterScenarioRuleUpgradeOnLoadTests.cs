@@ -20,7 +20,6 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OlderValidScenario_IsRecalculatedWithCurrentRulesOnLoad(string provider)
     {
         using var host = new HandlerTestHost();
@@ -76,8 +75,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     // 這兩列跟著拿掉（第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
     public static TheoryData<string, string> InvalidVariants => new()
     {
-        { "sqlite", "missingRdeField" },
-        { "duckdb", "missingRdeField" }
+        { "sqlite", "missingRdeField" }
     };
 
     [Theory]
@@ -117,7 +115,6 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OneInvalidScenario_KeepsTheWholeBatchUntouched(string provider)
     {
         using var host = new HandlerTestHost();
@@ -153,9 +150,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     public static TheoryData<string, string> UnknownVersions => new()
     {
         { "sqlite", "filter-2099-01-01-v99" },
-        { "sqlite", "legacy-rules-v3" },
-        { "duckdb", "filter-2099-01-01-v99" },
-        { "duckdb", "legacy-rules-v3" }
+        { "sqlite", "legacy-rules-v3" }
     };
 
     [Theory]
@@ -182,7 +177,6 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OlderVersionWithNonAuditPeriodScope_IsNotUpgraded(string provider)
     {
         using var host = new HandlerTestHost();
@@ -209,7 +203,6 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Upgrade_MarksCriteriaReportAndWorkingPaperStaleWithoutTouchingFiles(string provider)
     {
         using var host = new HandlerTestHost();
@@ -253,7 +246,6 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SecondLoadAfterUpgrade_IsCurrentAndChangesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -300,7 +292,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task<IReadOnlyList<StoredScenario>> ReadScenariosAsync(

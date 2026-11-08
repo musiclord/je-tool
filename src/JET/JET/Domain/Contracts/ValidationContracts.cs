@@ -73,7 +73,10 @@ public sealed record UnbalancedVoucherDateRow(
     long DebitScaled,
     long CreditScaled);
 
-/// <summary>資料缺漏輔助檢視（blank_records_test）的單一異常列；四個旗標標明命中的檢查（可多項）。</summary>
+/// <summary>
+/// 資料缺漏輔助檢視（blank_records_test）的單一異常列；四個旗標標明命中的檢查（可多項）。
+/// <see cref="ApprovalDate"/> 是傳票核准日，「核准日不在期間」的明細顯示它，審計員才看得出落在哪一天。
+/// </summary>
 public sealed record BlankRecordRow(
     string? VoucherNumber,
     string? AccountNumber,
@@ -83,7 +86,8 @@ public sealed record BlankRecordRow(
     bool BlankVoucherNumber,
     bool BlankDescription,
     bool ApprovalDateNotInPeriod,
-    long EntryId = 0);
+    long EntryId = 0,
+    string? ApprovalDate = null);
 
 /// <summary>有效分錄內，同一非空傳票號碼出現在多個總帳日期的非阻擋提醒。</summary>
 public sealed record VoucherNumberAcrossGlDatesCounts(long VoucherNumberCount, long EntryCount);

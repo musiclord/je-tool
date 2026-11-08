@@ -19,8 +19,6 @@ public sealed class ReportClientNameHeaderTests
     [Theory]
     [InlineData("sqlite", "")]
     [InlineData("sqlite", "　 ")]
-    [InlineData("duckdb", "")]
-    [InlineData("duckdb", "　 ")]
     public async Task BlankClientName_FiveReportsUseProjectName(string provider, string clientName)
     {
         using var host = new HandlerTestHost();
@@ -32,7 +30,6 @@ public sealed class ReportClientNameHeaderTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UpdateClientName_PreservesOldFilesAndStaleState_ThenNewExportsUseNewName(string provider)
     {
         using var host = new HandlerTestHost();

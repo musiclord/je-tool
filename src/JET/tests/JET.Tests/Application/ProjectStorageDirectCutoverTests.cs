@@ -39,7 +39,7 @@ public sealed class ProjectStorageDirectCutoverTests
             driveTypeResolver: _ => DriveType.Fixed);
         using (var host = new HandlerTestHost(projectsRootPath: configuration.ProjectsRootPath))
         {
-            var beforeCreate = await host.DispatchAsync("project.list");
+            var beforeCreate = await host.DispatchAsync("project.listLocal");
             await host.DispatchAsync(
                 "project.create",
                 $$"""
@@ -54,7 +54,9 @@ public sealed class ProjectStorageDirectCutoverTests
                 }
                 """);
 
-            JsonShape.HasExactKeys(beforeCreate, "projects", "online");
+            // 線上清單隨 SQL Server 移除，project.listLocal 頂層只有 projects（裁定 2026-11-06-08）；原本預期還有 online，
+            // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+            JsonShape.HasExactKeys(beforeCreate, "projects");
             Assert.DoesNotContain(
                 beforeCreate.GetProperty("projects").EnumerateArray(),
                 project => project.GetProperty("projectId").GetString() == oldProjectId);

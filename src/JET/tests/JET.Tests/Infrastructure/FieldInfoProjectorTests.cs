@@ -137,7 +137,6 @@ public sealed class FieldInfoProjectorTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task GlDualProjection_PreservesCompleteSourceScopeAndAppliesActualLegacyNames(string provider)
     {
         await using var fixture = await ProjectionFixture.CreateAsync(provider);
@@ -246,9 +245,6 @@ public sealed class FieldInfoProjectorTests
     [InlineData(ProjectDocument.DefaultDatabaseProvider, TbChangeMode.DebitCredit)]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, TbChangeMode.OpenClose)]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, TbChangeMode.OpenCloseBySide)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, TbChangeMode.DebitCredit)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, TbChangeMode.OpenClose)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, TbChangeMode.OpenCloseBySide)]
     public async Task TbNonDirectProjection_AppendsNormalizedChangeAmountAfterAllSourceFields(
         string provider,
         TbChangeMode changeMode)
@@ -311,7 +307,6 @@ public sealed class FieldInfoProjectorTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task FailedGlProjection_PreservesPreviouslyCommittedTargetDefinitions(string provider)
     {
         await using var fixture = await ProjectionFixture.CreateAsync(provider);
@@ -370,10 +365,6 @@ public sealed class FieldInfoProjectorTests
     [InlineData(ProjectDocument.DefaultDatabaseProvider, GlAmountMode.AmountWithSide)]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, GlAmountMode.AmountWithFlag)]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, GlAmountMode.DualAmount)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, GlAmountMode.SignedAmount)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, GlAmountMode.AmountWithSide)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, GlAmountMode.AmountWithFlag)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, GlAmountMode.DualAmount)]
     public async Task GlAllAmountModes_PreserveOperandsAndAppendCanonicalAmount(
         string provider,
         GlAmountMode amountMode)
@@ -418,7 +409,6 @@ public sealed class FieldInfoProjectorTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task TbDirectProjection_RenamesSourceAndPreservesNativeMetadata(string provider)
     {
         await using var fixture = await ProjectionFixture.CreateAsync(provider);
@@ -640,9 +630,7 @@ public sealed class FieldInfoProjectorTests
         {
             var root = new TempProjectRoot();
             var folder = new JetProjectFolder(root.Path);
-            ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-                ? new DuckDbProjectDatabase(folder)
-                : new SqliteProjectDatabase(folder);
+            ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
             var projectId = Guid.NewGuid().ToString("N");
             Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);

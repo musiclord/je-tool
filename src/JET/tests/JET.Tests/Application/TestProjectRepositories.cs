@@ -16,10 +16,10 @@ internal static class TestProjectRepositories
         return empty with { Provider = provider };
     }
 
-    /// <summary>三種資料庫都放同一批替身；適合不在意資料庫種類的 handler 測試。</summary>
+    /// <summary>
+    /// 用同一批替身組出只有 SQLite 一組的 catalog；適合不在意資料庫種類的 handler 測試。
+    /// 目前只保留 SQLite（裁定 2026-11-06-08）。
+    /// </summary>
     public static ProjectRepositoryCatalog CatalogWithSameObjects(ProjectRepositories template) =>
-        new(
-            template with { Provider = ProjectDocument.DefaultDatabaseProvider },
-            template with { Provider = ProjectDocument.SqlServerDatabaseProvider },
-            template with { Provider = ProjectDocument.DuckDbDatabaseProvider });
+        new(template with { Provider = ProjectDocument.DefaultDatabaseProvider });
 }

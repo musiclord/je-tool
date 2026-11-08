@@ -12,7 +12,6 @@ public sealed class PrepStartDateReadbackTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ActualPreparationDate_ReachesSummaryDetailsCriteriaAndWorkingPaperWithoutEnteringTheAst(string provider)
     {
         using var host = new HandlerTestHost();
@@ -74,7 +73,6 @@ public sealed class PrepStartDateReadbackTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreparationDate_PropagatesThroughNestedGroupAndVoucherReadback(string provider)
     {
         using var host = new HandlerTestHost();

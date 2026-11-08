@@ -1,10 +1,9 @@
 'use strict';
 // 情境 1：案件清單（2026-10-14）。
 //
-// 審計員的操作：開啟 JET 看到本機案件清單；按「重新整理本機」；按「同步線上案件」，成功與失敗；刪除一個案件，失敗、成功、
+// 審計員的操作：開啟 JET 看到本機案件清單；按「重新整理本機」，成功與失敗；刪除一個案件，失敗、成功、
 // 資料夾沒刪乾淨；開一個會失敗的案件後輸出支援日誌；清單還在讀取時想開案或新增案件；按「退出」但視窗關不掉，回到案件清單；
-// 開著 JET 切到其他程式再回來。
-// 同步線上案件時按「取消作業」送出的是同一個請求，在 frontend-journey-operations 的情境 22 測試。
+// 開著 JET 切到其他程式再回來。原本還有「同步線上案件」的成功、失敗與取消，隨 SQL Server 移除（裁定 2026-11-06-08）。
 //
 // 夾具：支援模組的 fullAppFixture，經 bootFullApp（本檔叫 boot）開啟 JET 停在案件清單：
 // 整個 index.html 的 body 標記與全部前端腳本，正式的 jet-api.js 經假的 chrome.webview 收發，app.js 照瀏覽器執行正式的 init()。
@@ -18,7 +17,7 @@
 //   ProjectListLocalFirstFrontendTests.Picker_UsesLocalActionForBootstrapAndRefresh_AndOnlineActionOnlyForManualSync
 //   ProjectListLocalFirstFrontendTests.Picker_InvalidatesLateListResponsesBeforeLeavingOrOpeningAProject
 //
-// 逐字比對的只有使用者確認過的句子，出處寫在旁邊；「重新整理本機」「同步線上案件」這類按鈕文字查不到使用者裁定，
+// 逐字比對的只有使用者確認過的句子，出處寫在旁邊；「重新整理本機」這類按鈕文字查不到使用者裁定，
 // 按鈕用 data-action 找，文字只比對意思。預期值一律寫死；action payload 用 deepEqual 精確比對；
 // 斷言的失敗值不是假 DOM 節點（節點只用 === 轉成布林）。
 // 作業名稱（Ui.run 的 label）只有「讀取案件清單」與「開啟案件」（裁定 2026-10-13-28）以及「刪除案件」（裁定 2026-10-13-03）是使用者確認過的，
@@ -30,8 +29,8 @@ const assert = require('node:assert/strict');
 const { plain, flush, bootFullApp: boot, noDunderKeys } = require('./support/frontend-fixtures.cjs');
 
 const LOCAL_A = { projectId: '合成甲案', clientName: '合成客戶甲', databaseProvider: 'sqlite' };
-const LOCAL_B = { projectId: '合成乙案', clientName: '合成客戶乙', databaseProvider: 'duckdb' };
-const ONLINE_C = { projectId: '合成線上丙案', clientName: '合成客戶丙', databaseProvider: 'sqlServer' };
+// 正式後端只列 SQLite 案件（裁定 2026-11-06-09）：乙案原本是 DuckDB 案件，線上的丙案隨 SQL Server 移除。
+const LOCAL_B = { projectId: '合成乙案', clientName: '合成客戶乙', databaseProvider: 'sqlite' };
 
 const rowNames = (f, list) => f.dom.content.querySelectorAll('[data-motion-list="' + list + '"] .project-row__title').map(node => node.textContent);
 // 清單上方的錯誤框：標題（只比對意思）與內文分開讀。
@@ -42,65 +41,49 @@ const errorBox = f => {
   return { role: box.getAttribute('role'), title: title === null ? null : title.textContent, body: body === null ? null : body.textContent };
 };
 
-test('JET starts from the local list only, syncing adds the online cases, and refreshing asks only for the local list again', async () => {
+test('JET starts from the local list only, and refreshing asks only for the local list again', async () => {
   const f = await boot([LOCAL_A, LOCAL_B]);
-  // 啟動時只讀本機清單，不碰線上。
-  assert.deepEqual(f.posted.map(r => r.action), ['system.ping', 'system.databaseInfo', 'system.whoAmI', 'project.listLocal']);
+  // 啟動時只讀本機清單。原本另有「同步線上案件」把線上案件加進第二區，隨 SQL Server 移除（裁定 2026-11-06-08）；
+  // 第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+  assert.deepEqual(f.posted.map(r => r.action), ['system.ping', 'system.whoAmI', 'project.listLocal']);
   assert.deepEqual(plain(f.request('project.listLocal').payload), {});
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案', '合成乙案']);
-  // 線上區還沒同步（只比對意思）。
-  assert.match(f.$('[data-motion-list="online"]').textContent, /尚未同步/);
-  // 兩個按鈕各自說明是本機與線上（只比對意思）。
+  assert.ok(f.$('[data-motion-list="online"]') === null, 'there is no online list');
+  assert.ok(f.$('[data-action="picker-sync-online"]') === null, 'there is no online sync button');
+  // 重新整理的按鈕說明是本機（只比對意思）。
   assert.match(f.$('[data-action="picker-refresh-local"]').textContent, /本機/);
-  assert.match(f.$('[data-action="picker-sync-online"]').textContent, /線上/);
 
-  f.click('[data-action="picker-sync-online"]');
-  const sync = f.request('project.list');
-  assert.deepEqual(plain(sync.payload), {});
-  f.reply(sync, { projects: [LOCAL_A, LOCAL_B, ONLINE_C], online: { reachable: true, principal: '合成帳號' } }); await flush();
-  assert.deepEqual(rowNames(f, 'online'), ['合成線上丙案']);
-  assert.deepEqual(rowNames(f, 'local'), ['合成甲案', '合成乙案']);
-
-  // 先讓同步失敗留下錯誤，再按重新整理本機：錯誤立刻清掉，只送本機清單，線上區回到還沒同步。
-  f.click('[data-action="picker-sync-online"]');
-  f.fail('project.list', { code: 'synthetic', message: '合成：連不上線上資料庫' }); await flush();
-  assert.notEqual(errorBox(f), null);
-  const before = f.sent('project.list').length;
   f.click('[data-action="picker-refresh-local"]');
-  assert.equal(errorBox(f), null, 'the old error is cleared as soon as the refresh starts');
-  assert.equal(f.sent('project.list').length, before, 'refreshing does not ask for online cases');
   f.reply('project.listLocal', { projects: [LOCAL_B] }); await flush();
   assert.deepEqual(rowNames(f, 'local'), ['合成乙案']);
-  assert.deepEqual(rowNames(f, 'online'), []);
-  assert.match(f.$('[data-motion-list="online"]').textContent, /尚未同步/);
   assert.equal(f.sent('project.listLocal').length, 2);
 });
 
-// 本機案件排在線上資料庫上面，標題下不再寫重述標題的說明句（裁定 2026-11-05-06）。
-test('the local list comes before the online list and the title has no sentence restating it', async () => {
+// 標題下不再寫重述標題的說明句（裁定 2026-11-05-06）。本機案件原本排在線上資料庫上面，線上那一區隨 SQL Server 移除，
+// 只剩本機一區，測試名稱跟著改（裁定 2026-11-06-08）；第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+test('the case list has only the local section and the title has no sentence restating it', async () => {
   const f = await boot([LOCAL_A]);
   const sections = f.$('.picker-panel').children.filter(node => node.className === 'picker-section');
-  assert.equal(sections.length, 2);
-  assert.ok(sections[0].querySelector('[data-motion-list="local"]') !== null, 'the first section is the local list');
-  assert.ok(sections[1].querySelector('[data-motion-list="online"]') !== null, 'the second section is the online list');
+  assert.equal(sections.length, 1);
+  assert.ok(sections[0].querySelector('[data-motion-list="local"]') !== null, 'the only section is the local list');
   assert.ok(f.$('.picker-panel__hint') === null, 'no sentence under the title');
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
 });
 
-test('a failed online sync keeps the local rows and puts the reason above the lists as an alert', async () => {
+// 原本測「同步線上案件」失敗，隨 SQL Server 移除改成「重新整理本機」失敗，失敗句、錯誤框位置與按鈕的斷言照舊
+// （裁定 2026-11-06-08）；作業名稱「讀取案件清單」是裁定 2026-10-13-28 確認過的，逐字比對。第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+test('a failed refresh keeps the local rows, puts the reason above the list as an alert, and the next refresh clears it at once', async () => {
   const f = await boot([LOCAL_A]);
-  f.click('[data-action="picker-sync-online"]');
+  f.click('[data-action="picker-refresh-local"]');
   f.clock.advance(2500);
-  f.fail('project.list', { code: 'synthetic', message: '合成：連不上線上資料庫' }, 'sync-correlation'); await flush();
+  f.fail('project.listLocal', { code: 'synthetic', message: '合成：清單讀不出來' }, 'refresh-correlation'); await flush();
   assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
-  // 失敗句：用字依裁定 2026-10-13-28（final-wording.json），括號後的句號依裁定 2026-10-14-01；
-  // 「同步線上案件」這個作業名稱沒有使用者裁定，只確認提到線上。案件清單看不到訊息面板，同一句寫在清單上方的錯誤框。
+  // 失敗句：用字依裁定 2026-10-13-28（final-wording.json），括號後的句號依裁定 2026-10-14-01。
+  // 案件清單看不到訊息面板，同一句寫在清單上方的錯誤框。
   const box = errorBox(f);
   assert.equal(box.role, 'alert');
   assert.match(box.title, /無法/, 'the box says the operation could not be completed');
-  const sentence = box.body.match(/^(.+)失敗：合成：連不上線上資料庫（耗時 2\.5 秒）。$/);
-  assert.ok(sentence !== null, 'the confirmed failure sentence: ' + box.body);
-  assert.match(sentence[1], /線上/);
+  assert.equal(box.body, '讀取案件清單失敗：合成：清單讀不出來（耗時 2.5 秒）。');
   assert.deepEqual(f.messages()[0], { text: box.body, level: 'error' });
   // 錯誤框在兩個清單之前，而且框裡沒有按鈕（使用者選了「從錯誤框拿掉，改成一般工具」，裁定 2026-10-13-26）。
   const panel = f.$('.picker-panel').children;
@@ -109,6 +92,11 @@ test('a failed online sync keeps the local rows and puts the reason above the li
   assert.ok(f.$('.picker-feedback button') === null, 'no buttons inside the error box');
   // 案件清單不是步驟畫面，不加步驟提示框。
   assert.equal(f.state().operationFailure, null);
+  // 再按一次重新整理：舊的錯誤框立刻清掉，不等回應。
+  f.click('[data-action="picker-refresh-local"]');
+  assert.equal(errorBox(f), null, 'the old error is cleared as soon as the refresh starts');
+  f.reply('project.listLocal', { projects: [LOCAL_A] }); await flush();
+  assert.deepEqual(rowNames(f, 'local'), ['合成甲案']);
 });
 
 // 取代 ProjectDeletionFrontendTests.PickerDelete_DeclaresSuccessOnlyRefreshInsideRunPipeline 的刪除流程。原方法註解：裁定 2026-10-13-03 把案件清單的「專案」
@@ -133,7 +121,6 @@ test('deleting a case reloads the local list once only after it succeeds, the ro
   f.reply(remove, {}); await flush();
   // 刪除成功後才讀清單，而且是在忙碌解除之後，只讀一次本機清單。
   assert.equal(f.sent('project.listLocal').length, listsBefore + 1);
-  assert.equal(f.sent('project.list').length, 0);
   assert.equal(f.state().busyLabel, '讀取案件清單');
   f.reply('project.listLocal', { projects: [LOCAL_B] }); await flush();
   assert.deepEqual(rowNames(f, 'local'), ['合成乙案']);
@@ -210,7 +197,9 @@ test('a case that fails to open keeps the auditor on the list with the reason, a
   f.store.setDevToolsEnabled(true); await flush();
   f.click('[data-action="picker-open"][data-project-id="合成甲案"]');
   const load = f.request('project.load');
-  assert.deepEqual(plain(load.payload), { projectId: '合成甲案', databaseProvider: 'sqlite' });
+  // 開案請求只帶案件名稱；原本也帶清單列上的資料庫種類，只保留 SQLite 之後拿掉（裁定 2026-11-06-08）。
+  // 第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+  assert.deepEqual(plain(load.payload), { projectId: '合成甲案' });
   f.clock.advance(1200);
   f.fail(load, { code: 'file_read_error', message: '合成：案件資料讀不出來' }, 'load-correlation'); await flush();
   assert.equal(f.state().view, 'picker');

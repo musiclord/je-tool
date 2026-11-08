@@ -66,24 +66,6 @@ public sealed class LegacyAuditParityObservationsTests
     }
 
     [Fact]
-    public void ProviderComparison_WhenBothSidesDidNotExecuteMetric_FailsClosed()
-    {
-        var left = ProviderObservation(
-            LegacyAuditParityProvider.Sqlite,
-            missingRule: LegacyPrescreenRuleId.PrepPeriodApproval);
-        var right = ProviderObservation(
-            LegacyAuditParityProvider.DuckDb,
-            missingRule: LegacyPrescreenRuleId.PrepPeriodApproval);
-
-        var error = Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
-            LegacyAuditParityComparator.CompareProviders([left, right]));
-
-        Assert.Equal(
-            LegacyAuditParityMetricIds.PrescreenRowCount(LegacyPrescreenRuleId.PrepPeriodApproval),
-            error.MetricId);
-    }
-
-    [Fact]
     public void ReportComparison_NotExecutedAndExecutedZeroFailClosed()
     {
         var family = LegacyAuditParityReportFamily.WorkingPaperCompleteness;
@@ -260,7 +242,6 @@ public sealed class LegacyAuditParityObservationsTests
             LegacyParityCase.CaseA,
             $"artifact-{Guid.NewGuid():N}");
         var sqlite = ProviderObservation(LegacyAuditParityProvider.Sqlite);
-        var duckDb = ProviderObservation(LegacyAuditParityProvider.DuckDb);
         var provenance = new LegacyAuditParityMappingProvenance(
         [
             new(
@@ -274,10 +255,14 @@ public sealed class LegacyAuditParityObservationsTests
         ]);
 
         var path = LegacyAuditParityObservationArtifactStore.Write(workspace, sqlite, provenance);
+        var written = File.ReadAllText(path);
         var reloaded = LegacyAuditParityObservationArtifactStore.Load(path);
 
-        Assert.Empty(LegacyAuditParityComparator.CompareProviders([sqlite, duckDb]).Entries);
-        Assert.Empty(LegacyAuditParityComparator.CompareProviders([reloaded.Observation, duckDb]).Entries);
+        // 原本拿 SQLite 與 DuckDB 的觀測值互相比對，確認讀回來的觀測值和寫出前比對結果相同；DuckDB 移除後，
+        // 改成把讀回來的觀測值再寫一次，內容要和第一次寫出的完全一樣（裁定 2026-11-06-08）。
+        var rewritten = LegacyAuditParityObservationArtifactStore.Write(
+            workspace, reloaded.Observation, reloaded.MappingProvenance);
+        Assert.Equal(written, File.ReadAllText(rewritten));
         Assert.True(reloaded.MappingProvenance.UsesHeaderBindingFallback);
         var json = File.ReadAllText(path);
         Assert.DoesNotContain("sensitive-member", json, StringComparison.Ordinal);

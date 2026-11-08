@@ -134,7 +134,7 @@ public sealed partial class LegacyReportWriter
         InfReportContext context,
         CancellationToken cancellationToken)
     {
-        // 樣本固定最多 InfReportSampleSize 筆：先依穩定鍵讀完，再照報告的順序排（裁定 2026-11-05-41、2026-11-06-06）。
+        // 先依穩定鍵讀完實際樣本，再照報告的順序排（裁定 2026-11-05-41、2026-11-06-06）。
         var samples = new List<InfSampleRow>(InfReportSampleSize);
         string? cursor = null;
         do
@@ -151,7 +151,7 @@ public sealed partial class LegacyReportWriter
         } while (cursor is not null);
 
         var ordered = ResultPageSorting.InfSampleReportOrder(samples);
-        return ordered.Count > InfReportSampleSize ? ordered.Take(InfReportSampleSize).ToArray() : ordered;
+        return ordered;
     }
 
     private static IReadOnlyList<SheetStat> FillInfTemplate(
@@ -204,15 +204,15 @@ public sealed partial class LegacyReportWriter
         return stats;
     }
 
-    private static IReadOnlyCollection<string> InfMainMutableCells()
+    private static IReadOnlyCollection<string> InfMainMutableCells(int rowCount)
     {
-        var result = new List<string>(3 + 11 * InfReportSampleSize)
+        var result = new List<string>(3 + 11 * rowCount)
         {
             "A1",
             "A2",
             "L51"
         };
-        for (var row = 53; row <= 52 + InfReportSampleSize; row++)
+        for (var row = 53; row <= 52 + rowCount; row++)
         {
             for (var column = 2U; column <= 12; column++)
             {
@@ -235,7 +235,7 @@ public sealed partial class LegacyReportWriter
             $"財務報表期間 [{context.Project.PeriodStart} ~ {context.Project.PeriodEnd}]");
         cells.SetInlineString("L51", "傳票核准人員");
 
-        for (var index = 0; index < InfReportSampleSize; index++)
+        for (var index = 0; index < Math.Max(InfReportSampleSize, samples.Count); index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var row = (uint)index + 53;
@@ -307,23 +307,49 @@ public sealed partial class LegacyReportWriter
         IReadOnlySet<uint> textColumns,
         CancellationToken cancellationToken)
     {
+        var worksheet = part.RequiredWorksheet();
+        var rowCount = Math.Max(InfReportSampleSize, samples.Count);
+        var sheetData = worksheet.GetFirstChild<SheetData>()!;
+        var prototype = sheetData.Elements<Row>().Single(row => row.RowIndex?.Value == 111);
+        for (var rowIndex = 112U; rowIndex <= 52U + rowCount; rowIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var row = (Row)prototype.CloneNode(true);
+            row.RowIndex = rowIndex;
+            foreach (var cell in row.Elements<Cell>())
+            {
+                var column = new string(cell.CellReference!.Value!.TakeWhile(char.IsLetter).ToArray());
+                cell.CellReference = column + rowIndex.ToString(CultureInfo.InvariantCulture);
+                cell.RemoveAllChildren();
+                cell.DataType = CellValues.InlineString;
+                if (column == "A") cell.InlineString = ExcelText.InlineString($"{rowIndex - 52}.");
+            }
+            sheetData.Append(row);
+        }
+        foreach (var validation in worksheet.Descendants<DataValidation>())
+        {
+            if (validation.SequenceOfReferences is { } references)
+                references.InnerText = references.InnerText.Replace("111", (52 + rowCount).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        }
+        if (worksheet.GetFirstChild<SheetDimension>() is { } dimension)
+            dimension.Reference = $"A1:T{52 + rowCount}";
         // F51 is the template's no-wrap header prototype. K's header and all 59
         // description cells reuse corresponding no-wrap template styles so the
         // measured width is authoritative instead of Excel wrapping the text.
         // Do this before applying the legacy character number format: copying the
         // prototype afterwards would silently replace the mapped "@" component.
-        SetExactCellStyleFromPrototype(part.Worksheet, "K51", "F51");
-        for (var row = 53U; row <= 52U + InfReportSampleSize; row++)
+        SetExactCellStyleFromPrototype(worksheet, "K51", "F51");
+        for (var row = 53U; row <= 52U + rowCount; row++)
         {
             SetExactCellStyleFromPrototype(
-                part.Worksheet,
+                worksheet,
                 ReportSheetWriter.Reference(11, row),
                 ReportSheetWriter.Reference(12, row));
         }
 
         var cells = new DirectTemplateCellEditor(
-            part.Worksheet,
-            InfMainMutableCells(),
+            worksheet,
+            InfMainMutableCells(rowCount),
             stylePatcher);
         FillInfMainCells(cells, context, samples, textColumns, cancellationToken);
         cells.EnsureAllAllowedCellsWereEdited();
@@ -335,13 +361,13 @@ public sealed partial class LegacyReportWriter
         for (var index = 0; index < displayWidths.Count; index++)
         {
             EnsureMinimumColumnWidth(
-                part.Worksheet,
+                worksheet,
                 checked((uint)index + 2),
                 displayWidths[index]);
         }
 
         // The fixed template clips T51 when rendered; reuse the proven M width.
-        SetExactColumnWidth(part.Worksheet, 20, 22.453125D);
+        SetExactColumnWidth(worksheet, 20, 22.453125D);
         ExcelText.SaveWorksheet(part);
     }
 

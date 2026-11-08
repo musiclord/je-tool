@@ -100,7 +100,7 @@ public sealed class FrontendConstantMirrorTests
         Assert.NotNull(type);
         Assert.Equal(50, type.GetField("SummaryRows", BindingFlags.Public | BindingFlags.Static)?.GetRawConstantValue());
         Assert.Equal(50, NumericConstant(Read("JET", "wwwroot", "js", "ui-core.js"), "RESULT_PREVIEW_PAGE_SIZE"));
-        foreach (var provider in new[] { "Local", "SqlServer" })
+        foreach (var provider in new[] { "Local" })
         {
             var source = Read("JET", "Infrastructure", "Persistence", provider, provider + "ValidationRunRepository.cs");
             Assert.Contains("new PageRequest(null, ResultPreviewLimits.SummaryRows)", source, StringComparison.Ordinal);

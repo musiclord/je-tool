@@ -6,7 +6,7 @@ namespace Jet.Harness.TaiwanSme;
 internal sealed record SmeScenario(string Name, JsonObject Wire, Func<SmeOracle, HashSet<string>> Expected);
 
 /// <summary>
-/// 兩組情境：常用篩選條件的十項（SQLite 案件）與審計員自訂的十項（DuckDB 案件）。條件形狀比照前端
+/// 兩組情境：常用篩選條件的十項與審計員自訂的十項，各存在一個 SQLite 案件。條件形狀比照前端
 /// newFilterCondition 的預設欄位與送出前的整理，讓存進案件的定義和在畫面上操作存下的一樣。
 /// categoryIds 依分類名稱查表，分類 ID 由後端在分類設定儲存時產生。
 /// </summary>

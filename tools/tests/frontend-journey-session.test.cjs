@@ -1,7 +1,7 @@
 'use strict';
 // 情境 3：開案、換案、離開與重新開案（2026-10-13）。
 //
-// 審計員的操作：開 SQL Server 案件，再從案件清單換開本機案件；在案件裡快速切換步驟；按頁首與第四步的「開啟案件資料夾」；
+// 審計員的操作：開一個本機案件，再從案件清單換開另一個；在案件裡快速切換步驟；按頁首與第四步的「開啟案件資料夾」；
 // 作業進行中想回首頁；重新開案後看到情境版本與報告清單，直接到第六步匯出。
 // 夾具：tools/tests/support/frontend-fixtures.cjs 的 remapAppFixture（正式 state、ui-core、各步驟與 app.js 的頁首綁定、render、案件清單）。
 //
@@ -28,8 +28,8 @@ function loadResponse(projectId, databaseProvider, extra = {}) {
   return { project: { projectId, databaseProvider, periodStart: '2025-01-01', periodEnd: '2025-12-31', currentStep: 1 }, ...extra };
 }
 
-async function openThroughUi(f, projectId, provider, response) {
-  const opening = f.window.JetUi.openProject(projectId, provider);
+async function openThroughUi(f, projectId, response) {
+  const opening = f.window.JetUi.openProject(projectId);
   const load = f.request('projectLoad');
   load.resolve(response); await settle();
   f.request('logRecent').resolve({ messages: [] }); await opening; await settle();
@@ -38,43 +38,34 @@ async function openThroughUi(f, projectId, provider, response) {
 
 function liveIntervals(f) { return f.intervals.filter(entry => !entry.cleared); }
 
-test('an SQL Server case keeps its lease alive, a local case opened next stops it, and the case list sends the database kind', async () => {
+// 原本測 SQL Server 案件開啟後定時送心跳、換開本機案件時停掉，以及開案請求帶清單列上的資料庫種類。心跳與資料庫種類
+// 隨 SQL Server 與 DuckDB 移除（裁定 2026-11-06-08），只留本機案件不設計時器、開案請求只帶案件名稱這兩件事，測試名稱跟著改。
+// 第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+test('opening a case starts no background timer, and the case list sends only the case name', async () => {
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker');
 
-  // 裁定 2026-10-02-06：本機案件不再碰暫緩中的 SQL Server 機制，只有 SQL Server 案件啟動心跳，
-  // 其他案件先停掉舊計時器；案件清單的開啟按鈕把資料庫種類交給 project.load（原註解在 FrontendHardeningContractTests，出處 docs/jet-guide.md 第 581 行起）。
-  const sql = await openThroughUi(f, 'sql-synthetic', 'sqlServer', { ...loadResponse('sql-synthetic', 'sqlServer'), heartbeatSeconds: 45 });
-  assert.deepEqual(plain(sql.payload), { projectId: 'sql-synthetic', databaseProvider: 'sqlServer' });
-  assert.equal(f.state.project.projectId, 'sql-synthetic');
-  assert.equal(liveIntervals(f).length, 1, 'one heartbeat for the SQL Server case');
-  const heartbeat = liveIntervals(f)[0];
-  assert.equal(heartbeat.ms, 45000);
-  heartbeat.fn();
-  assert.deepEqual(plain(f.request('projectHeartbeat').payload), {});
-  f.request('projectHeartbeat').resolve({}); await settle();
-
-  // 換開本機 sqlite 案件：舊心跳清掉，不再設新的。
+  // 裁定 2026-10-02-06：本機案件不定時送心跳，工作鎖由本機檔案鎖負責。
   const before = f.intervals.length;
-  await openThroughUi(f, 'sqlite-synthetic', 'sqlite', loadResponse('sqlite-synthetic', 'sqlite'));
-  assert.equal(heartbeat.cleared, true, 'the SQL Server heartbeat stops when a local case opens');
-  assert.equal(f.intervals.length, before, 'a local case starts no heartbeat');
-  assert.equal(liveIntervals(f).length, 0);
+  const first = await openThroughUi(f, 'sqlite-synthetic', loadResponse('sqlite-synthetic', 'sqlite'));
+  assert.deepEqual(plain(first.payload), { projectId: 'sqlite-synthetic' });
+  assert.equal(f.state.project.projectId, 'sqlite-synthetic');
+  assert.equal(f.intervals.length, before, 'a local case starts no timer');
 
-  // 從案件清單點開 duckdb 案件：請求帶清單列上的資料庫種類。
+  // 從案件清單點開另一個案件：請求只帶案件名稱。
   f.store.setView('picker');
-  f.store.setProjects([{ projectId: 'duck-synthetic', databaseProvider: 'duckdb' }], null);
+  f.store.setProjects([{ projectId: 'second-synthetic', databaseProvider: 'sqlite' }]);
   f.app.renderPicker(f.state);
-  const open = f.$('[data-action="picker-open"][data-project-id="duck-synthetic"]');
+  const open = f.$('[data-action="picker-open"][data-project-id="second-synthetic"]');
   assert.ok(open, 'case row rendered');
   const loadsBefore = f.requests.filter(r => r.action === 'projectLoad').length;
   open.fire('click');
   const loads = f.requests.filter(r => r.action === 'projectLoad');
   assert.equal(loads.length, loadsBefore + 1);
-  assert.deepEqual(plain(loads.at(-1).payload), { projectId: 'duck-synthetic', databaseProvider: 'duckdb' });
-  loads.at(-1).resolve(loadResponse('duck-synthetic', 'duckdb')); await settle();
+  assert.deepEqual(plain(loads.at(-1).payload), { projectId: 'second-synthetic' });
+  loads.at(-1).resolve(loadResponse('second-synthetic', 'sqlite')); await settle();
   f.request('logRecent').resolve({ messages: [] }); await settle();
-  assert.equal(f.state.project.projectId, 'duck-synthetic');
-  assert.equal(liveIntervals(f).length, 0, 'a duckdb case starts no heartbeat either');
+  assert.equal(f.state.project.projectId, 'second-synthetic');
+  assert.equal(liveIntervals(f).length, 0, 'no timer is running');
 });
 
 test('switching steps quickly saves only the first and the last position, each as { currentStep }', async () => {
@@ -169,7 +160,7 @@ test('reopening a case brings back the saved scenario version and report list, a
     generatedUtc: '2026-02-03T04:05:00Z', sourceRef: { validationResultId: 'v9', scenarioRevision: 'r9', scenarioPositions: [1, 2] } };
   const report = { reportId: 'validation-v9', kind: 'validationReport', fileName: 'validation-v9.xlsx', fileState: 'present', stale: false,
     generatedUtc: '2026-02-03T04:00:00Z', sourceRef: { validationResultId: 'v9' } };
-  await openThroughUi(f, 'resume-synthetic', 'sqlite', {
+  await openThroughUi(f, 'resume-synthetic', {
     ...loadResponse('resume-synthetic', 'sqlite'),
     importState: importedState, mapping: committedMapping,
     validationResult: { resultRef: { resultId: 'v9' }, completenessTest: { eligibility: { isEligible: true } } }, prescreenResult: null,
@@ -205,7 +196,7 @@ test('reopening a case brings back the saved scenario version and report list, a
 test('reopening a case whose saved result used a retired scope keeps step six locked instead of reviving that scope', async () => {
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker');
   assert.equal(f.state.filter.populationScope, 'auditPeriod', 'a fresh workflow starts with the audit period');
-  await openThroughUi(f, 'old-scope-synthetic', 'sqlite', {
+  await openThroughUi(f, 'old-scope-synthetic', {
     ...loadResponse('old-scope-synthetic', 'sqlite'),
     importState: importedState, mapping: committedMapping,
     validationResult: { resultRef: { resultId: 'v9' }, completenessTest: { eligibility: { isEligible: true } } }, prescreenResult: null,

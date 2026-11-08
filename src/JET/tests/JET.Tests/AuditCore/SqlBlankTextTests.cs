@@ -30,7 +30,7 @@ public sealed class SqlBlankTextTests
     public void EachDatabase_TrimsWithItsOwnWhitespaceList()
     {
         // 三種資料庫的去空白字元集合不同，這裡只確認片段經過方言的去空白方法，不比對字元清單本身。
-        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance, SqlServerDialect.Instance })
+        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance })
         {
             Assert.Equal(
                 $"(created_by IS NULL OR {dialect.Trim("created_by")} = '')",

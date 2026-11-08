@@ -56,7 +56,6 @@ public sealed class CaseDatabaseAccessErrorTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task ReadOnlyCaseFolder_OpeningTheCaseExplainsTheReason_AndTheFilesStayUnchanged(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -86,7 +85,7 @@ public sealed class CaseDatabaseAccessErrorTests
             var rejected = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", LoadPayload(name)));
             // SQLite 遇到唯讀的資料庫檔仍然可以讀，開案到寫入案件設定時才失敗；DuckDB 開資料庫檔就要寫入，開檔時就失敗。
             Assert.Equal(
-                provider == ProjectDocument.DuckDbDatabaseProvider ? JetErrorCodes.DatabaseUnavailable : JetErrorCodes.FileReadError,
+                JetErrorCodes.FileReadError,
                 rejected.Code);
             Assert.Contains("唯讀", rejected.Message, StringComparison.Ordinal);
             foreach (var (path, bytes) in before)
@@ -107,7 +106,6 @@ public sealed class CaseDatabaseAccessErrorTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task DatabaseFileHeldByAnotherProgram_OpeningTheCaseExplainsTheReason_AndWorksAfterItIsReleased(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -262,18 +260,14 @@ public sealed class CaseDatabaseAccessErrorTests
     private static string DatabasePath(string projects, string name, string provider)
     {
         var folder = new JetProjectFolder(projects);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         return database.GetDatabasePath(name);
     }
 
     /// <summary>不經 JET 的連線池，用不進連線池的連線讀一個表的列數，讀完就關閉。</summary>
     private static async Task<long> CountAsync(string databasePath, string table, string provider = ProjectDocument.DefaultDatabaseProvider)
     {
-        await using System.Data.Common.DbConnection connection = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDB.NET.Data.DuckDBConnection($"DataSource={databasePath};ACCESS_MODE=READ_ONLY")
-            : new SqliteConnection(new SqliteConnectionStringBuilder
+        await using System.Data.Common.DbConnection connection = new SqliteConnection(new SqliteConnectionStringBuilder
             {
                 DataSource = databasePath,
                 Mode = SqliteOpenMode.ReadWrite,

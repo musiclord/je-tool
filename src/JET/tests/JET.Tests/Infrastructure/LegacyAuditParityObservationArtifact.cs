@@ -360,8 +360,6 @@ internal static class LegacyAuditParityObservationArtifactStore
     private static string ProviderId(LegacyAuditParityProvider provider) => provider switch
     {
         LegacyAuditParityProvider.Sqlite => "sqlite",
-        LegacyAuditParityProvider.DuckDb => "duckdb",
-        LegacyAuditParityProvider.SqlServer => "sqlserver",
         _ => throw new ArgumentOutOfRangeException(nameof(provider)),
     };
 
@@ -369,8 +367,6 @@ internal static class LegacyAuditParityObservationArtifactStore
     {
         null => null,
         "sqlite" => LegacyAuditParityProvider.Sqlite,
-        "duckdb" => LegacyAuditParityProvider.DuckDb,
-        "sqlserver" => LegacyAuditParityProvider.SqlServer,
         _ => throw new LegacyAuditParityObservationArtifactException(),
     };
 

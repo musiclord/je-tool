@@ -135,7 +135,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Arr(voucherBalance, "unbalancedVouchers"); // 元素形狀見 ValidateRun_DetailArrays
 
         var inf = JsonShape.Obj(data, "infSamplingTest");
-        JsonShape.HasExactKeys(inf, "status", "sampleSize", "seed");
+        // 抽樣設定讀回；首次失敗 20261106-131051115-eb2835589ca14f92a3556cbb16b09a77。
+        JsonShape.HasExactKeys(inf, "status", "sampleSize", "requestedSampleSize", "seed");
         JsonShape.Str(inf, "status");
         JsonShape.Number(inf, "sampleSize");
         JsonShape.Number(inf, "seed");
@@ -200,10 +201,13 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.True(blankRows.GetArrayLength() >= 1, "seed 應產生空值列");
         JsonShape.Element(blankRows, e =>
         {
-            JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "description", "issues");
+            // 空值明細多帶每一列的傳票核准日，第四步「核准日不在期間」的明細才顯示得出來（裁定 2026-11-06-13）；
+            // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+            JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "description", "issues");
             JsonShape.Str(e, "voucherNumber", nullable: true);
             JsonShape.Str(e, "accountNumber", nullable: true);
             JsonShape.Str(e, "glDate", nullable: true);
+            JsonShape.Str(e, "approvalDate", nullable: true);
             JsonShape.Str(e, "description", nullable: true);
             var issues = JsonShape.Arr(e, "issues");
             JsonShape.Element(issues, i => Assert.Equal(JsonValueKind.String, i.ValueKind));
@@ -596,10 +600,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         // 帶已移除的 GL 欄位與畫面名稱，第五步舊情境的條件標題與讀回用它寫出名稱。
         // 裁定 2026-10-30-25：讀回已儲存情境舊寫法的程式拿掉，retiredGlFieldLabels 跟著從回應拿掉
         // （拿掉後這裡第一次編譯失敗的收據 20261030-072053096-b7f05aee757c4a11a86f01fe840d74a1，同一批的名稱表一起拿掉）。
+        // heartbeatSeconds 只給 SQL Server 案件續鎖，隨 SQL Server 移除從回應拿掉（裁定 2026-11-06-08）；
+        // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
         JsonShape.HasExactKeys(data,
             "project", "mapping", "previousMapping", "accountCategory", "staleState",
             "importState", "validationResult", "prescreenResult", "filterScenarios",
-            "filterResultRef", "filterScenarioCheck", "reports", "heartbeatSeconds");
+            "filterResultRef", "filterScenarioCheck", "reports");
         JsonShape.Obj(data, "project");
         // 兩側都有有效配對時不帶上次的配對。
         var previousMapping = JsonShape.Obj(data, "previousMapping");
@@ -685,8 +691,6 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal("current", scenarioCheck.GetProperty("status").GetString());
         Assert.Equal(0, scenarioCheck.GetProperty("recalculatedCount").GetInt32());
         Assert.Equal(0, JsonShape.Arr(scenarioCheck, "problems").GetArrayLength());
-        // 租約鎖心跳間隔：sqlServer 讀 app_config、缺鍵回預設；本地案件為程式常數（此 demo 為 sqlite）。
-        JsonShape.Number(data, "heartbeatSeconds");
 
         // validationResult、prescreenResult 各為 null 或物件(巢狀 run 形狀由各自契約鎖負責)。
         JsonShape.Obj(data, "validationResult", nullable: true);
@@ -694,28 +698,23 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    public async Task ProjectList_ResponseShape_IsLocked()
+    public async Task ProjectListLocal_ResponseShape_IsLocked()
     {
         // 雙來源清單雛形（2026-07-07）：頂層新增 online 塊，sqlServer 條目新增 syncStatus。
         // 用獨立 host + 單一 sqlite 案，鎖信封與本地條目形狀（syncStatus 僅 sqlServer 條目有 → sqlite 條目不含）。
+        // 線上清單 project.list 隨 SQL Server 移除（裁定 2026-11-06-08），這裡改鎖 project.listLocal，方法名稱跟著改：
+        // 頂層只有 projects，條目照舊九鍵。原本也鎖 online 塊；第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", """
             { "projectCode": "CONTRACT-1", "clientName": "E", "operatorId": "op",
               "periodStart": "2024-01-01", "periodEnd": "2024-12-31" }
             """);
 
-        var data = await host.DispatchAsync("project.list");
+        var data = await host.DispatchAsync("project.listLocal");
 
-        JsonShape.HasExactKeys(data, "projects", "online");
+        JsonShape.HasExactKeys(data, "projects");
 
-        // online：reachable(bool) + principal(str) + message(str|null)。不鎖 reachable 的值（依環境 SQL 是否可達而定）。
-        var online = JsonShape.Obj(data, "online");
-        JsonShape.HasExactKeys(online, "reachable", "principal", "message");
-        Assert.Contains(online.GetProperty("reachable").ValueKind, new[] { JsonValueKind.True, JsonValueKind.False });
-        JsonShape.Str(online, "principal");
-        JsonShape.Str(online, "message", nullable: true);
-
-        // sqlite 條目：基礎九鍵，且**不含** syncStatus（syncStatus 僅 sqlServer 條目有）。
+        // sqlite 條目：基礎九鍵，且**不含** syncStatus。
         var projects = JsonShape.Arr(data, "projects");
         Assert.True(projects.GetArrayLength() >= 1);
         JsonShape.Element(projects, e => JsonShape.HasExactKeys(e,
@@ -726,21 +725,15 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task SystemWhoAmI_ResponseShape_IsLocked()
     {
-        // 身分徽章契約：恰四鍵＋型別（principal/shortName 字串、userNumber 數字或 null、numberSource 字串）。
-        // numberSource 的「值」env-相依（SQL 是否可達：online/cached/unavailable），故只鎖列舉成員、不硬鎖單一值
-        // （比照 ProjectList 對 online.reachable 的處理；確定性的「未設定→unavailable」由 SystemWhoAmIHandlerTests 單元鎖）。
-        using var host = new HandlerTestHost(sqlServerConnectionString: "");
+        // 身分徽章契約：恰兩鍵，principal 與 shortName 都是字串。使用者編號與編號來源要查線上資料庫，
+        // 隨 SQL Server 移除（裁定 2026-11-06-08）；原本鎖四鍵，第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+        using var host = new HandlerTestHost();
 
         var data = await host.DispatchAsync("system.whoAmI");
 
-        JsonShape.HasExactKeys(data, "principal", "shortName", "userNumber", "numberSource");
+        JsonShape.HasExactKeys(data, "principal", "shortName");
         JsonShape.Str(data, "principal");
         JsonShape.Str(data, "shortName");
-        JsonShape.Number(data, "userNumber", nullable: true);
-        JsonShape.Str(data, "numberSource");
-        Assert.Contains(
-            data.GetProperty("numberSource").GetString(),
-            new[] { "online", "cached", "unavailable" });
     }
 
     [Fact]
@@ -775,8 +768,9 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
+        // 每列多帶傳票核准日（裁定 2026-11-06-13）；第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
-            JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "description"));
+            JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "description"));
     }
 
     [Fact]

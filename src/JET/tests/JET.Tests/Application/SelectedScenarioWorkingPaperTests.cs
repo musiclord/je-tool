@@ -19,7 +19,6 @@ public sealed class SelectedScenarioWorkingPaperTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task WorkingPaper_RemapClearsScenarios_ThenOnlyResavedValidScenarioExports(string provider)
     {
         // 上游修改會清除下游（裁定 2026-10-07-03）：重新配對會清掉全部已存情境，不再出現「保留下來但缺來源的未選情境」。
@@ -85,7 +84,6 @@ public sealed class SelectedScenarioWorkingPaperTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task WorkingPaper_SelectedRefreshPreservesCurrentUnselectedHits(string provider)
     {
         using var host = new HandlerTestHost();
@@ -111,8 +109,7 @@ public sealed class SelectedScenarioWorkingPaperTests
     private static async Task<long> ScalarAsync(HandlerTestHost host, string projectId, string provider, string sql)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

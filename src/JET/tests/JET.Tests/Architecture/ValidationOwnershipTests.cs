@@ -49,7 +49,6 @@ public sealed class ValidationOwnershipTests
     [Theory]
     [InlineData("JET.Application.ValidateRunHandler")]
     [InlineData("JET.Infrastructure.LocalValidationRunRepository")]
-    [InlineData("JET.Infrastructure.SqlServerValidationRunRepository")]
     public void ExistingProductionTypes_RemainPublicDuringTypedCutover(string name)
     {
         var type = ProductionAssembly.GetType(name);

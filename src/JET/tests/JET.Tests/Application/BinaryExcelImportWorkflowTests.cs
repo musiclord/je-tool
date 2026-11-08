@@ -8,7 +8,6 @@ public sealed class BinaryExcelImportWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BiffWorkbook_InspectPreviewImportMapValidateAndReopen(string provider)
     {
         using var host = new HandlerTestHost();

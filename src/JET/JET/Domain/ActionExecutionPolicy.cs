@@ -77,12 +77,9 @@ public static class ActionExecutionPolicy
     private static readonly HashSet<string> ConcurrentActions = new(StringComparer.Ordinal)
     {
         "system.ping",
-        "system.databaseInfo",
         "system.whoAmI",
         "project.listLocal",
-        "project.list",
         "project.deletePreview",
-        "project.heartbeat",   // 背景心跳保活（專案租約鎖）——絕不可被作業 busy 閘擋住
         "operation.cancel",     // 必須能穿過 exclusive busy 閘，取消正在執行的目標 request
 
         "project.loadDemo", // 只取 demo metadata，尚未建案
@@ -119,15 +116,14 @@ public static class ActionExecutionPolicy
         "host.exitApp",
         "dev.db.overview",
         "dev.db.tableData",
-        "dev.db.reconcile",
         "dev.log.exportFile", // 讀 sink 檔／ring buffer、寫選定案件目錄中的獨立 DEV 文字檔
         "support.log.export", // 寫選定案件資料夾中的獨立支援文字檔，不改業務資料或報告清單
     };
 
-    // 一次操作期間保持當前案件資料庫開啟（見 IProjectDatabaseRetention）。只列出確實會開當前案件資料庫的
-    // action；沒列到就不持有。project.load 由 handler 自己在取得工作鎖之後持有；project.create、
-    // project.delete、project.releaseLock 會建立、刪除或離開案件，dev.db.reconcile 跨案件，都不得持有。
-    private static readonly HashSet<string> ProjectDatabaseRetainingActions = new(StringComparer.Ordinal)
+    // 確實會開當前案件資料庫的 action。其中的變更型作業結束後，dispatcher 把記錄檔併回（見 CheckpointsProjectDatabase）；
+    // 沒列到就不併回。project.load 由 handler 自己處理開案失敗；project.create、project.delete、project.releaseLock
+    // 會建立、刪除或離開案件，不在其中。
+    private static readonly HashSet<string> ProjectDatabaseActions = new(StringComparer.Ordinal)
     {
         // 變更型
         "project.update",
@@ -183,14 +179,14 @@ public static class ActionExecutionPolicy
     };
 
     /// <summary>
-    /// dispatcher 是否在這個 action 執行期間持有當前案件的資料庫。沒列到的一律不持有。
+    /// 這個 action 是否會開當前案件的資料庫。沒列到的一律視為不開。
     /// </summary>
-    public static bool RetainsProjectDatabase(string action)
-        => ProjectDatabaseRetainingActions.Contains(action);
+    public static bool OpensProjectDatabase(string action)
+        => ProjectDatabaseActions.Contains(action);
 
-    /// <summary>測試守衛用：全部持有資料庫的 action。</summary>
-    public static IReadOnlyCollection<string> ProjectDatabaseRetainingActionNames
-        => [.. ProjectDatabaseRetainingActions];
+    /// <summary>測試守衛用：全部會開當前案件資料庫的 action。</summary>
+    public static IReadOnlyCollection<string> ProjectDatabaseActionNames
+        => [.. ProjectDatabaseActions];
 
     /// <summary>
     /// dispatcher 是否在這個 action 結束後把當前案件資料庫的記錄檔併回（見 IProjectDatabaseCheckpoint）：
@@ -198,7 +194,7 @@ public static class ActionExecutionPolicy
     /// 離開案件與開案失敗由 handler 自己關閉資料庫。
     /// </summary>
     public static bool CheckpointsProjectDatabase(string action)
-        => ExclusiveActions.Contains(action) && ProjectDatabaseRetainingActions.Contains(action);
+        => ExclusiveActions.Contains(action) && ProjectDatabaseActions.Contains(action);
 
     /// <summary>此 action 是否為變更型（需序列化）。未歸類者 fail-safe 回 true。</summary>
     public static bool IsExclusive(string action)

@@ -134,7 +134,7 @@ Task／thread、memory、compaction 摘要與 ignored receipt 可以協助找回
    新增運算子時保留完整目錄對照，逐項補獨立固定答案，不以另有局部測試為由刪掉目錄檢查。
 5. 第二遍從返回、取消、失敗重試、重開與匯出反查上游。將已執行與未執行的路徑寫回同一份計畫。
 
-完整性案例由 `CompletenessBackendGateProviderTests` 在 SQLite 與 DuckDB 沿正式 action 驗證，
+完整性案例由 `CompletenessBackendGateProviderTests` 在 SQLite 沿正式 action 驗證（DuckDB 暫時移除，裁定 2026-11-06-08），
 `CompletenessEligibilitySupportTests` 核對舊案件摘要轉換，`frontend-workflow.test.cjs` 核對可繼續時
 畫面仍顯示差異。它們分別納入正式 Public 與 FrontendMapping 檢查；只通過文件檢查不能結案。
 
@@ -147,7 +147,7 @@ Task／thread、memory、compaction 摘要與 ignored receipt 可以協助找回
   使用者要求，有疑點才回查對應原話；不重讀整份歷史，也不把壓縮視為任務結束。
 - 更新目前摘要時取代過期敘述。已結束的執行紀錄移入有日期與來源連結的歷史文件，保留原話、首次失敗和驗證
   邊界；現況入口只保留短摘要及連結，不再複製一份逐輪紀錄。
-- 不用「全部完成」取代具體範圍。沒有執行 GUI、Excel、provider 或私人案件時，要逐項說明。
+- 不用「全部完成」取代具體範圍。沒有執行 GUI、Excel 或私人案件時，要逐項說明。
 - 大型階段結束或使用者詢問未完成事項時，逐項核對 `development-status.md` 的「已知但延後的事項」。只在
   有新證據或使用者裁定時更新狀態；問題解決後才移除，不能因目前不阻擋工作就省略。
 

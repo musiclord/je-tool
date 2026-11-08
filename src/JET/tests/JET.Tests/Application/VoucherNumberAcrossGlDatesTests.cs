@@ -10,7 +10,6 @@ public sealed class VoucherNumberAcrossGlDatesTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Validation_CountsDistinctNumbersAcrossDatesWithinEffectiveRows_AndPersistsTheSameFacts(string provider)
     {
         using var host = new HandlerTestHost();
@@ -31,7 +30,6 @@ public sealed class VoucherNumberAcrossGlDatesTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Validation_ExplicitlyReportsZeroAfterMeasuring_NoSameDayOrBlankNumberFalsePositive(string provider)
     {
         using var host = new HandlerTestHost();
@@ -43,7 +41,6 @@ public sealed class VoucherNumberAcrossGlDatesTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CurrentSummary_RequiresMeasuredCountsAndRejectsMissingMalformedOrImpossibleValues(string provider)
     {
         using var host = new HandlerTestHost();

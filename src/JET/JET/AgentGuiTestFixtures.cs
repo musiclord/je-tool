@@ -16,9 +16,6 @@ namespace JET;
 /// </summary>
 internal sealed class AgentGuiTestFixtures
 {
-    internal const string DelayProjectListOnceId = "delay-project-list-once";
-    internal const string FailProjectListOnceId = "fail-project-list-once";
-    internal const string FakeOnlineProjectListId = "fake-online-project-list";
     internal const string FailProjectListLocalOnceId = "fail-project-list-local-once";
     internal const string LateGlPreviewSuccessThenFailureId =
         "late-gl-preview-success-then-failure";
@@ -68,7 +65,6 @@ internal sealed class AgentGuiTestFixtures
         SeedMappingReadyProjectId,
     ];
 
-    private static readonly TimeSpan ProjectListDelay = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan GlPreviewDelay = TimeSpan.FromMilliseconds(2500);
     private static readonly TimeSpan CalendarSetNonWorkingDaysDelay =
         TimeSpan.FromMilliseconds(750);
@@ -77,29 +73,15 @@ internal sealed class AgentGuiTestFixtures
     private const string ExportProgressEvent = "export.progress";
     private const string WritingSheetPhase = "writingSheet";
 
-    internal const string FakeOnlineProjectId = "agent-gui-fake-online";
-    internal const string FakeOnlineProjectCode = "AGENT-GUI-ONLINE";
-    internal const string FakeOnlineClientName = "Agent GUI Online Fixture";
-    internal const string FakeOnlinePeriodStart = "2025-01-01";
-    internal const string FakeOnlinePeriodEnd = "2025-12-31";
-
-    private static readonly DateTimeOffset FakeOnlineCreatedUtc =
-        new(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
-    private static readonly DateTimeOffset FakeOnlineLastOpenedUtc =
-        new(2025, 1, 2, 0, 0, 0, TimeSpan.Zero);
-
     private readonly HashSet<string> _fixtureIds;
     private readonly FixtureTrace _trace;
     private string? _authorizedListSource;
     private readonly string _projectsRootPath;
-    private readonly SemaphoreSlim _projectListGate = new(1, 1);
     private readonly SemaphoreSlim _projectListLocalGate = new(1, 1);
     private readonly SemaphoreSlim _glPreviewGate = new(1, 1);
     private readonly SemaphoreSlim _calendarSetNonWorkingDaysGate = new(1, 1);
     private readonly SemaphoreSlim _projectSaveProgressGate = new(1, 1);
     private readonly AsyncLocal<string?> _currentExportAction = new();
-    private int _delayRemaining;
-    private int _failureRemaining;
     private int _projectListLocalFailureRemaining;
     private int _glPreviewMatchCount;
     private int _calendarSetNonWorkingDaysDelayRemaining;
@@ -115,8 +97,6 @@ internal sealed class AgentGuiTestFixtures
     {
         _fixtureIds = new HashSet<string>(profile.FixtureIds, StringComparer.Ordinal);
         _projectsRootPath = profile.ProjectsRootPath;
-        _delayRemaining = IsEnabled(DelayProjectListOnceId) ? 1 : 0;
-        _failureRemaining = IsEnabled(FailProjectListOnceId) ? 1 : 0;
         _projectListLocalFailureRemaining = IsEnabled(FailProjectListLocalOnceId) ? 1 : 0;
         _calendarSetNonWorkingDaysDelayRemaining =
             IsEnabled(DelayCalendarSetNonWorkingDaysOnceId) ? 1 : 0;
@@ -132,10 +112,7 @@ internal sealed class AgentGuiTestFixtures
     }
 
     internal static bool IsAllowedFixtureId(string fixtureId) =>
-        fixtureId is DelayProjectListOnceId
-            or FailProjectListOnceId
-            or FakeOnlineProjectListId
-            or FailProjectListLocalOnceId
+        fixtureId is FailProjectListLocalOnceId
             or LateGlPreviewSuccessThenFailureId
             or DelayCalendarSetNonWorkingDaysOnceId
             or DelayProjectSaveProgressOnceId
@@ -722,30 +699,6 @@ internal sealed class AgentGuiTestFixtures
         return JsonSerializer.SerializeToElement(result);
     }
 
-    internal (IProjectRegistry Registry, ILockService LockService) SelectProjectListDependencies(
-        IProjectRegistry registry,
-        ILockService lockService)
-    {
-        if (!IsEnabled(FakeOnlineProjectListId))
-        {
-            return (registry, lockService);
-        }
-
-        return (
-            new FakeOnlineProjectRegistry(registry, _trace),
-            new FakeOnlineProjectListLockService(lockService, _trace));
-    }
-
-    internal IApplicationActionHandler DecorateProjectList(IApplicationActionHandler handler)
-    {
-        if (!IsEnabled(DelayProjectListOnceId) && !IsEnabled(FailProjectListOnceId))
-        {
-            return handler;
-        }
-
-        return new ProjectListFixtureHandler(handler, this);
-    }
-
     internal IApplicationActionHandler DecorateBlankSearch(IApplicationActionHandler handler) =>
         IsEnabled(FailBlankSearchOnceId) && handler.Action == "query.blankRecordsPage"
             ? new FailBlankSearchHandler(handler, this) : handler;
@@ -1011,10 +964,6 @@ internal sealed class AgentGuiTestFixtures
 
     private bool IsEnabled(string fixtureId) => _fixtureIds.Contains(fixtureId);
 
-    private bool TakeDelay() => Interlocked.Exchange(ref _delayRemaining, 0) == 1;
-
-    private bool TakeFailure() => Interlocked.Exchange(ref _failureRemaining, 0) == 1;
-
     private bool TakeProjectListLocalFailure() =>
         Interlocked.Exchange(ref _projectListLocalFailureRemaining, 0) == 1;
 
@@ -1150,87 +1099,6 @@ internal sealed class AgentGuiTestFixtures
 
     private sealed class ExportProgressDelaySignalException : Exception
     {
-    }
-
-    private sealed class ProjectListFixtureHandler : IApplicationActionHandler
-    {
-        private const string ProjectListAction = "project.list";
-        private readonly IApplicationActionHandler _inner;
-        private readonly AgentGuiTestFixtures _fixtures;
-
-        internal ProjectListFixtureHandler(
-            IApplicationActionHandler inner,
-            AgentGuiTestFixtures fixtures)
-        {
-            if (!inner.Action.Equals(ProjectListAction, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    "Agent GUI project-list fixtures can wrap only project.list.");
-            }
-
-            _inner = inner;
-            _fixtures = fixtures;
-        }
-
-        public string Action => ProjectListAction;
-
-        public async Task<object?> HandleAsync(
-            JsonElement payload,
-            CancellationToken cancellationToken)
-        {
-            await _fixtures._projectListGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                return await HandleSerializedAsync(payload, cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                _fixtures._projectListGate.Release();
-            }
-        }
-
-        private async Task<object?> HandleSerializedAsync(
-            JsonElement payload,
-            CancellationToken cancellationToken)
-        {
-            if (_fixtures.IsEnabled(DelayProjectListOnceId))
-            {
-                if (_fixtures.TakeDelay())
-                {
-                    _fixtures._trace.Write(DelayProjectListOnceId, "delay.applied");
-                    try
-                    {
-                        await Task.Delay(ProjectListDelay, cancellationToken)
-                            .ConfigureAwait(false);
-                        _fixtures._trace.Write(DelayProjectListOnceId, "delay.completed");
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        _fixtures._trace.Write(DelayProjectListOnceId, "delay.cancelled");
-                        throw;
-                    }
-                }
-                else
-                {
-                    _fixtures._trace.Write(DelayProjectListOnceId, "delay.bypassed");
-                }
-            }
-
-            if (_fixtures.IsEnabled(FailProjectListOnceId))
-            {
-                if (_fixtures.TakeFailure())
-                {
-                    _fixtures._trace.Write(FailProjectListOnceId, "failure.applied");
-                    throw new JetActionException(
-                        JetErrorCodes.FileReadError,
-                        "Agent GUI deterministic project.list failure.");
-                }
-
-                _fixtures._trace.Write(FailProjectListOnceId, "failure.bypassed");
-            }
-
-            return await _inner.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
-        }
     }
 
     private sealed class ProjectListLocalFixtureHandler : IApplicationActionHandler
@@ -1548,105 +1416,6 @@ internal sealed class AgentGuiTestFixtures
         {
             fixtures._trace.Write(fixtureId, eventPrefix + "delay.cancelled");
             throw;
-        }
-    }
-
-    private sealed class FakeOnlineProjectRegistry(
-        IProjectRegistry inner,
-        FixtureTrace trace) : IProjectRegistry
-    {
-        private static readonly RegisteredProject Project = new(
-            new ProjectDocument(
-                FakeOnlineProjectId,
-                FakeOnlineProjectCode,
-                FakeOnlineClientName,
-                AgentGuiTestProfile.IsolatedPrincipal,
-                FakeOnlinePeriodStart,
-                FakeOnlinePeriodEnd,
-                LastAccountingPeriodDate: null,
-                ProjectDocument.DefaultMoneyScale,
-                ProjectDocument.DefaultRoundingMode,
-                FakeOnlineCreatedUtc,
-                CurrentStep: 1,
-                ProjectDocument.CurrentSchemaVersion,
-                ProjectDocument.SqlServerDatabaseProvider,
-                LastOpenedUtc: FakeOnlineLastOpenedUtc,
-                // 目前版本的案件一定有 INF 抽樣種子與演算法版本；缺欄位會被當成設定檔損壞拒絕。
-                SampleSeed: 1_234_567,
-                SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion,
-                CalendarImported: false),
-            FakeOnlineCreatedUtc,
-            FakeOnlineLastOpenedUtc);
-
-        public Task RegisterAsync(
-            ProjectDocument document,
-            string principal,
-            CancellationToken cancellationToken) =>
-            inner.RegisterAsync(document, principal, cancellationToken);
-
-        public Task UpdateDocumentAsync(
-            ProjectDocument document,
-            CancellationToken cancellationToken) =>
-            inner.UpdateDocumentAsync(document, cancellationToken);
-
-        public Task<bool> ExistsAsync(string projectId, CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            trace.Write(FakeOnlineProjectListId, "registry.exists");
-            return Task.FromResult(
-                projectId.Equals(FakeOnlineProjectId, StringComparison.Ordinal));
-        }
-
-        public Task<IReadOnlyList<RegisteredProject>> ListVisibleAsync(
-            string principal,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            trace.Write(FakeOnlineProjectListId, "registry.list-visible");
-            return Task.FromResult<IReadOnlyList<RegisteredProject>>([Project]);
-        }
-
-        public Task<RegisteredProject?> FindVisibleAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) =>
-            inner.FindVisibleAsync(projectId, principal, cancellationToken);
-
-        public Task TouchLastOpenedAsync(string projectId, CancellationToken cancellationToken) =>
-            inner.TouchLastOpenedAsync(projectId, cancellationToken);
-
-        public Task UnregisterAsync(string projectId, CancellationToken cancellationToken) =>
-            inner.UnregisterAsync(projectId, cancellationToken);
-    }
-
-    private sealed class FakeOnlineProjectListLockService(
-        ILockService inner,
-        FixtureTrace trace) : ILockService
-    {
-        public Task<LockOutcome> AcquireAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) =>
-            inner.AcquireAsync(projectId, principal, cancellationToken);
-
-        public Task RenewAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) =>
-            inner.RenewAsync(projectId, principal, cancellationToken);
-
-        public Task ReleaseAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) =>
-            inner.ReleaseAsync(projectId, principal, cancellationToken);
-
-        public Task<IReadOnlyList<ProjectLockInfo>> ListActiveAsync(
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            trace.Write(FakeOnlineProjectListId, "lock.list-active");
-            return Task.FromResult<IReadOnlyList<ProjectLockInfo>>([]);
         }
     }
 

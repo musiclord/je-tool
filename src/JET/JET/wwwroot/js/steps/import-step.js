@@ -43,6 +43,12 @@
   var justImported = null;
   var justImportedTimer = null;
 
+  // 匯入時正被 Excel 等程式開著的來源檔，後端另外列出的提醒（openElsewhereWarnings），依匯入項目記下：
+  // gl、tb、authorizedPreparer、holiday、makeupDay。畫面把它放在那一項的匯入結果旁，審計員不必打開訊息面板
+  // 就看得到（裁定 2026-11-06-12）；訊息面板照舊另記一則當紀錄。同一項再匯入成功時換成這次的提醒，
+  // 移除清單或換案件時清掉。純區域 UI，比照 justImported：不進 state.js、不持久化。
+  var openElsewhere = {};
+
   // 任務清單各列的就地展開狀態（純區域 UI，比照 wizard／justImported：不進 state.js、不持久化）。
   // key 對應四列：gl／tb／authorizedPreparer／calendar。點動作鈕切換，展開即在列下方嵌入既有卡片完整 UI。
   var expanded = { gl: false, tb: false, authorizedPreparer: false, calendar: false };
@@ -62,8 +68,24 @@
   Ui.registerWorkflowReset(function () {
     justImported = null;
     if (justImportedTimer) { clearTimeout(justImportedTimer); justImportedTimer = null; }
+    openElsewhere = {};
     resetExpanded();
   });
+
+  // 成功匯入後，依這次回應換掉那一項的開著檔案提醒；這次沒有時拿掉舊的。
+  function rememberOpenElsewhere(key, data) {
+    var warnings = data && Array.isArray(data.openElsewhereWarnings) ? data.openElsewhereWarnings : [];
+    if (warnings.length) { openElsewhere[key] = warnings.slice(); } else { delete openElsewhere[key]; }
+  }
+
+  // 匯入結果旁的琥珀色提示，一個檔案一則。動態識別用提醒文字本身（後端同一個檔案只回一次），
+  // 換成別的檔案時舊的收起、新的長出。
+  function openElsewhereHtml(key) {
+    return (openElsewhere[key] || []).map(function (text) {
+      return '<p class="form-notice form-notice--warning" role="status" data-open-elsewhere="' + key + '" ' +
+        'data-motion-key="' + Ui.esc('open-elsewhere-' + key + '|' + text) + '">' + Ui.esc(text) + '</p>';
+    }).join('');
+  }
 
   /* ---- 渲染 ----------------------------------------------------------------- */
 
@@ -219,7 +241,8 @@
   function authorizedPreparerCard(info) {
     var body = info
       ? '<p class="import-card__status import-card__status--ok">授權編製人員清單：' + Ui.countText(info.rowCount) + ' 個人員代號或姓名' +
-          (info.sourceColumn ? '，採用「' + Ui.esc(info.sourceColumn) + '」欄' : '') + '。</p>'
+          (info.sourceColumn ? '，採用「' + Ui.esc(info.sourceColumn) + '」欄' : '') + '。</p>' +
+        openElsewhereHtml('authorizedPreparer')
       : '';
     if (info && info.sourceRowCount != null && info.blankRowCount != null && info.duplicateRowCount != null) {
       body += '<p>原始資料 ' + Ui.countText(info.sourceRowCount) + ' 列，略過空白 ' + Ui.countText(info.blankRowCount) +
@@ -309,6 +332,7 @@
       Ui.run('移除授權編製人員清單', function () {
         return global.JetApi.importAuthorizedPreparerClear({}).then(function (result) {
           preparerDraft = null;
+          delete openElsewhere.authorizedPreparer;
           Store.setAuthorizedPreparerState(null);
           Store.applyMutationEffects(result);
           Store.addMessage('已移除授權編製人員清單，預篩選要重新執行。', 'info');
@@ -326,8 +350,11 @@
         return global.JetApi.importAuthorizedPreparerFromFile({ filePath: draft.filePath, fileName: draft.fileName,
           sheetName: draft.sheetName, sourceColumn: draft.sourceColumn }).then(function (data) {
           if (preparerDraft === draft) { preparerDraft = null; }
+          // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，提醒放在清單的匯入結果旁，訊息面板另記一則（裁定 2026-11-06-12）。
+          rememberOpenElsewhere('authorizedPreparer', data);
           Store.setAuthorizedPreparerState(data);
           Store.applyMutationEffects(data);
+          (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
           return data;
         });
       }, { completionMessage: function (data) {
@@ -383,7 +410,8 @@
     return (
       '<section class="import-card import-card--calendar" data-bind="import-card-calendar">' +
         '<h3 class="import-card__title">國定假日與補班日</h3>' +
-        body +
+        // 開著檔案的提醒只在日曆已匯入時畫；目前沒有會清掉日曆的操作，這裡和科目配對托盤用同一個原則（2026-11-06 獨立複審）。
+        body + (calendar && calendar.calendarImported ? openElsewhereHtml('holiday') + openElsewhereHtml('makeupDay') : '') +
         '<p class="calendar-nonworking__hint">國定假日清單讀 Date_of_Holiday 欄，補班日清單讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。</p>' +
         '<div class="import-card__actions">' +
           '<button type="button" class="btn btn--ghost" data-action="import-holiday">上傳國定假日清單</button>' +
@@ -439,6 +467,8 @@
               filePath: file.filePath,
               fileName: file.fileName
             }).then(function (data) {
+              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，提醒放在卡片的匯入結果旁，訊息面板另記一則（裁定 2026-11-06-12）。
+              rememberOpenElsewhere('holiday', data);
               var existing = Store.getState().importState.calendar || {};
               Store.setCalendarState({
                 holidayCount: data.count,
@@ -448,6 +478,8 @@
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
               Store.applyMutationEffects(data);
+              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒（裁定 2026-11-06-12）。
+              (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
               return data;
             });
           });
@@ -471,6 +503,8 @@
               filePath: file.filePath,
               fileName: file.fileName
             }).then(function (data) {
+              // 同國定假日清單：開著檔案的提醒放在卡片的匯入結果旁（裁定 2026-11-06-12）。
+              rememberOpenElsewhere('makeupDay', data);
               var existing = Store.getState().importState.calendar || {};
               Store.setCalendarState({
                 holidayCount: existing.holidayCount || 0,
@@ -480,6 +514,8 @@
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
               Store.applyMutationEffects(data);
+              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒（裁定 2026-11-06-12）。
+              (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
               return data;
             });
           });
@@ -552,6 +588,7 @@
       justBadge +
       '<p class="import-card__status import-card__status--ok">已匯入 ' + Ui.countText(info.rowCount) + ' 列、' +
         Ui.countText(info.columns.length) + ' 欄（' + Ui.countText((info.sources || []).length || 1) + ' 個來源）。</p>' +
+      openElsewhereHtml(kind) +
       sourceListHtml(info.sources || []) +
       '<div class="import-card__actions">' +
         '<button type="button" class="btn btn--ghost" data-action="wizard-append-' + kind + '">加入</button>' +
@@ -1220,6 +1257,7 @@
         // 先收起匯入精靈再寫入新資料：寫入時的那次重繪就畫出結果與「剛剛重新匯入」徽章。順序反過來時，
         // 那次重繪仍是「匯入中」，收起精靈又不會再重繪，卡片會多停約 4 秒，徽章也不會出現。
         resetWizard();
+        rememberOpenElsewhere(kind, data);
         applyResponse(kind, data);
         (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
         // 匯入期間動作鈕收起，按下的「開始匯入」已經不見；完成後焦點交給這份資料集的「加入」。

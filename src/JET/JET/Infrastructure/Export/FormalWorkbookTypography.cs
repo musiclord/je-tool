@@ -64,7 +64,7 @@ internal static class FormalWorkbookTypography
 
         foreach (var worksheetPart in workbookPart.WorksheetParts)
         {
-            var runFonts = worksheetPart.Worksheet.Descendants<RunFont>().ToArray();
+            var runFonts = worksheetPart.RequiredWorksheet().Descendants<RunFont>().ToArray();
             if (runFonts.Length == 0)
             {
                 continue;

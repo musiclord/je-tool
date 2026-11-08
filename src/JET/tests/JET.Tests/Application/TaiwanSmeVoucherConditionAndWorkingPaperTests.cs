@@ -53,7 +53,6 @@ public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task VoucherQuantifiersNestedGroupsSameVoucherAndOrGroups(string provider)
     {
         using var host = new HandlerTestHost();
@@ -107,7 +106,6 @@ public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SeveralSavedScenarios_WorkingPaperSheetsMatchHandCountedHits(string provider)
     {
         using var host = new HandlerTestHost();

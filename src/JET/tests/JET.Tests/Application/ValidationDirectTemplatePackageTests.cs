@@ -172,8 +172,8 @@ public sealed class ValidationDirectTemplatePackageTests
         var templateSummary = WorksheetPartFor(template, "ValidationReport");
         var outputSummary = WorksheetPartFor(output, "ValidationReport");
         Assert.Equal(
-            Assert.Single(templateSummary.Worksheet.Elements<Drawing>()).OuterXml,
-            Assert.Single(outputSummary.Worksheet.Elements<Drawing>()).OuterXml);
+            Assert.Single(templateSummary.RequiredWorksheet().Elements<Drawing>()).OuterXml,
+            Assert.Single(outputSummary.RequiredWorksheet().Elements<Drawing>()).OuterXml);
         AssertPartTreesEqual(
             WorksheetPartFor(template, GuideSheet),
             WorksheetPartFor(output, GuideSheet),
@@ -183,9 +183,10 @@ public sealed class ValidationDirectTemplatePackageTests
             outputSummary,
             includeRoot: false);
         AssertValidationPackageAllowedDiff(templateBytes, outputBytes);
-        var outputSheets = output.WorkbookPart!.Workbook.Sheets!.Elements<Sheet>().ToArray();
+        var outputWorkbook = output.WorkbookPart!.RequiredWorkbook();
+        var outputSheets = outputWorkbook.Sheets!.Elements<Sheet>().ToArray();
         var activeTab = Assert.Single(
-            output.WorkbookPart.Workbook.BookViews!.Elements<WorkbookView>()).ActiveTab!.Value;
+            outputWorkbook.BookViews!.Elements<WorkbookView>()).ActiveTab!.Value;
         Assert.Equal(GuideSheet, outputSheets[checked((int)activeTab)].Name?.Value);
         AssertOpenXmlValid(outputBytes);
     }
@@ -351,7 +352,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         using var document = Open(bytes);
         var mismatches = new List<string>();
-        var summary = WorksheetPartFor(document, "ValidationReport").Worksheet;
+        var summary = WorksheetPartFor(document, "ValidationReport").RequiredWorksheet();
         foreach (var expected in new[]
                  {
                      (Cell: "D20", Id: "validation-summary-missing-account-fill"),
@@ -381,14 +382,14 @@ public sealed class ValidationDirectTemplatePackageTests
                      (Sheet: "V_Report 6", Id: "validation-unbalanced-voucher-detail-autofit")
                  })
         {
-            var worksheet = WorksheetPartFor(document, expected.Sheet).Worksheet;
+            var worksheet = WorksheetPartFor(document, expected.Sheet).RequiredWorksheet();
             if (!FirstTwentyColumnsAreAutoFit(worksheet))
             {
                 mismatches.Add($"{expected.Id}: {expected.Sheet}!columns 1-20 column.autoFit");
             }
         }
 
-        var fieldInfoSheet = WorksheetPartFor(document, FieldInfoSheet).Worksheet;
+        var fieldInfoSheet = WorksheetPartFor(document, FieldInfoSheet).RequiredWorksheet();
         AddFieldInfoHeaderMismatches(
             document,
             fieldInfoSheet,
@@ -427,7 +428,7 @@ public sealed class ValidationDirectTemplatePackageTests
             new FieldInfoProjection([], []));
 
         using var document = Open(bytes);
-        var summary = WorksheetPartFor(document, "ValidationReport").Worksheet;
+        var summary = WorksheetPartFor(document, "ValidationReport").RequiredWorksheet();
         Assert.Equal(0m, ReadNumber(summary, "D25"));
         Assert.Equal(
             "FFFFFF00",
@@ -452,8 +453,8 @@ public sealed class ValidationDirectTemplatePackageTests
 
         using var template = Open(templateBytes);
         using var output = Open(outputBytes);
-        var templateSummary = WorksheetPartFor(template, "ValidationReport").Worksheet;
-        var outputSummary = WorksheetPartFor(output, "ValidationReport").Worksheet;
+        var templateSummary = WorksheetPartFor(template, "ValidationReport").RequiredWorksheet();
+        var outputSummary = WorksheetPartFor(output, "ValidationReport").RequiredWorksheet();
         var mismatches = new List<string>();
 
         foreach (var reference in new[] { "D20", "D21", "D22", "D23", "D24", "D25" })
@@ -529,8 +530,8 @@ public sealed class ValidationDirectTemplatePackageTests
         using var document = Open(bytes);
         var firstName = "V_Report 1";
         var secondName = LegacyReportWriter.SeriesName(firstName, 2);
-        var first = WorksheetPartFor(document, firstName).Worksheet;
-        var second = WorksheetPartFor(document, secondName).Worksheet;
+        var first = WorksheetPartFor(document, firstName).RequiredWorksheet();
+        var second = WorksheetPartFor(document, secondName).RequiredWorksheet();
         var firstColumns = Assert.IsType<Columns>(first.GetFirstChild<Columns>());
         var secondColumns = Assert.IsType<Columns>(second.GetFirstChild<Columns>());
         var firstCjkWidth = ColumnFor(firstColumns, 2).Width!.Value;
@@ -611,7 +612,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var bytes = output.ToArray();
         using var document = Open(bytes);
         const string sheetName = "可靠性樣本_所有欄位";
-        var worksheet = WorksheetPartFor(document, sheetName).Worksheet;
+        var worksheet = WorksheetPartFor(document, sheetName).RequiredWorksheet();
         var columns = Assert.IsType<Columns>(worksheet.GetFirstChild<Columns>());
         var amountColumn = ColumnFor(columns, 3);
 
@@ -672,7 +673,7 @@ public sealed class ValidationDirectTemplatePackageTests
         var bytes = output.ToArray();
         using var document = Open(bytes);
         const string sheetName = "INF Testing 可靠性測試";
-        var worksheet = WorksheetPartFor(document, sheetName).Worksheet;
+        var worksheet = WorksheetPartFor(document, sheetName).RequiredWorksheet();
         var columns = Assert.IsType<Columns>(worksheet.GetFirstChild<Columns>());
         var templateMinimums = new[]
         {
@@ -769,7 +770,7 @@ public sealed class ValidationDirectTemplatePackageTests
             CancellationToken.None);
 
         using var document = Open(output.ToArray());
-        var worksheet = WorksheetPartFor(document, "INF Testing 可靠性測試").Worksheet;
+        var worksheet = WorksheetPartFor(document, "INF Testing 可靠性測試").RequiredWorksheet();
         Assert.Equal(
             "@",
             EffectiveNumberFormatCode(document, worksheet, "B53"));
@@ -808,7 +809,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         using var document = Open(bytes);
         const string sheetName = "V_Report 5";
-        var worksheet = WorksheetPartFor(document, sheetName).Worksheet;
+        var worksheet = WorksheetPartFor(document, sheetName).RequiredWorksheet();
         var columns = Assert.IsType<Columns>(worksheet.GetFirstChild<Columns>());
 
         Assert.InRange(ColumnFor(columns, 2).Width!.Value, 94, 255);
@@ -849,7 +850,9 @@ public sealed class ValidationDirectTemplatePackageTests
         using (var workbook = Workbook(bytes))
         {
             var sheet = workbook.Worksheet(FieldInfoSheet);
-            Assert.Equal("V.2019", sheet.Cell("A1").GetString());
+            // 裁定 2026-11-06-11 拿掉第一列的版本字樣 V.2019，原本預期 A1 是 V.2019，改成空白；其餘列號與內容不變。
+            // 第一次失敗：Focused 收據 20261106-084035819-12cef79878a44a3198bc08e4445b76cb。
+            Assert.True(sheet.Cell("A1").IsEmpty());
             Assert.Equal("TB檔案配對前後欄位對照表", sheet.Cell("A2").GetString());
             Assert.Equal(
                 new[] { "配對前欄位名稱", "欄位型態", "文字長度", "小數位數", "配對後欄位名稱" },
@@ -905,7 +908,7 @@ public sealed class ValidationDirectTemplatePackageTests
         }
 
         using var document = Open(bytes);
-        var worksheet = WorksheetPartFor(document, FieldInfoSheet).Worksheet;
+        var worksheet = WorksheetPartFor(document, FieldInfoSheet).RequiredWorksheet();
         foreach (var blankRowIndex in new uint[] { 8, 9 })
         {
             var blankRow = worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
@@ -1087,7 +1090,7 @@ public sealed class ValidationDirectTemplatePackageTests
         string sheetName)
     {
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => string.Equals(item.Name?.Value, sheetName, StringComparison.Ordinal));
         return Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!));
     }
@@ -1170,7 +1173,7 @@ public sealed class ValidationDirectTemplatePackageTests
         string reference)
     {
         var format = EffectiveCellFormat(document, worksheet, reference);
-        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet.Fonts!
+        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet!.Fonts!
             .Elements<DocumentFormat.OpenXml.Spreadsheet.Font>()
             .ElementAt(checked((int)(format.FontId?.Value ?? 0U)));
     }
@@ -1181,7 +1184,7 @@ public sealed class ValidationDirectTemplatePackageTests
         string reference)
     {
         var format = EffectiveCellFormat(document, worksheet, reference);
-        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet.Fills!
+        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet!.Fills!
             .Elements<Fill>()
             .ElementAt(checked((int)(format.FillId?.Value ?? 0U)))
             .PatternFill?
@@ -1207,7 +1210,7 @@ public sealed class ValidationDirectTemplatePackageTests
             return "@";
         }
 
-        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet.NumberingFormats?
+        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet!.NumberingFormats?
             .Elements<NumberingFormat>()
             .SingleOrDefault(item => item.NumberFormatId?.Value == id)
             ?.FormatCode?
@@ -1225,7 +1228,7 @@ public sealed class ValidationDirectTemplatePackageTests
                 item.CellReference?.Value,
                 reference,
                 StringComparison.OrdinalIgnoreCase));
-        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet.CellFormats!
+        return document.WorkbookPart!.WorkbookStylesPart!.Stylesheet!.CellFormats!
             .Elements<CellFormat>()
             .ElementAt(checked((int)(cell.StyleIndex?.Value ?? 0U)));
     }
@@ -1249,8 +1252,8 @@ public sealed class ValidationDirectTemplatePackageTests
         string sheetName,
         params string[] references)
     {
-        var worksheet = WorksheetPartFor(document, sheetName).Worksheet;
-        var formats = document.WorkbookPart!.WorkbookStylesPart!.Stylesheet
+        var worksheet = WorksheetPartFor(document, sheetName).RequiredWorksheet();
+        var formats = document.WorkbookPart!.WorkbookStylesPart!.Stylesheet!
             .CellFormats!
             .Elements<CellFormat>()
             .ToArray();

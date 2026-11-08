@@ -655,8 +655,8 @@
       "basLine": 9449,
       "ismLine": 10831,
       "sourceText": "oSheet.Range(\"A1\").Font.Bold = True",
-      "jetOutput": "WorkingPaper!自動化工具-檔案欄位資訊:A1",
-      "noCorrespondenceReason": null
+      "jetOutput": null,
+      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
     },
     {
       "id": "workingpaper-field-info-version-font",
@@ -671,8 +671,8 @@
       "basLine": 9450,
       "ismLine": 10832,
       "sourceText": "oSheet.Range(\"A1\").Font.Name = \"Calibri\"",
-      "jetOutput": "WorkingPaper!自動化工具-檔案欄位資訊:A1",
-      "noCorrespondenceReason": null
+      "jetOutput": null,
+      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
     },
     {
       "id": "workingpaper-field-info-version-size",
@@ -687,8 +687,8 @@
       "basLine": 9451,
       "ismLine": 10833,
       "sourceText": "oSheet.Range(\"A1\").Font.Size = 16",
-      "jetOutput": "WorkingPaper!自動化工具-檔案欄位資訊:A1",
-      "noCorrespondenceReason": null
+      "jetOutput": null,
+      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
     },
     {
       "id": "workingpaper-field-info-version-color",
@@ -703,8 +703,8 @@
       "basLine": 9452,
       "ismLine": 10834,
       "sourceText": "oSheet.Range(\"A1\").Font.ColorIndex = 3",
-      "jetOutput": "WorkingPaper!自動化工具-檔案欄位資訊:A1",
-      "noCorrespondenceReason": null
+      "jetOutput": null,
+      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
     },
     {
       "id": "workingpaper-field-info-version-fill",
@@ -719,8 +719,8 @@
       "basLine": 9453,
       "ismLine": 10835,
       "sourceText": "oSheet.Range(\"A1\").Interior.Color = RGB(0, 102, 255)",
-      "jetOutput": "WorkingPaper!自動化工具-檔案欄位資訊:A1",
-      "noCorrespondenceReason": null
+      "jetOutput": null,
+      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
     },
     {
       "id": "workingpaper-field-info-tb-header-bold",

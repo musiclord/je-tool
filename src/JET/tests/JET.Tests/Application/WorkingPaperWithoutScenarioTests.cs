@@ -17,7 +17,6 @@ public sealed class WorkingPaperWithoutScenarioTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NoSavedScenario_ProducesWorkingPaperWithEmptyStep3AndStep4(string databaseProvider)
     {
         using var host = new HandlerTestHost();
@@ -49,7 +48,6 @@ public sealed class WorkingPaperWithoutScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavedScenariosNoneSelected_ProducesWorkingPaperWithEmptyStep3AndStep4(string databaseProvider)
     {
         using var host = new HandlerTestHost();

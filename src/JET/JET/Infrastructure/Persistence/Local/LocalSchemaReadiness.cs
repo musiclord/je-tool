@@ -90,7 +90,7 @@ internal sealed class LocalSchemaReadiness
         return file.Exists && file.Length == 0;
     }
 
-    /// <summary>SQLite 與 DuckDB 案件資料庫的現行結構版本；兩邊的建表程式都直接寫這一版。</summary>
+    /// <summary>SQLite 案件資料庫的現行結構版本；建表程式直接寫這一版。</summary>
     internal const int CurrentSchemaVersion = 20;
 
     /// <summary>

@@ -29,7 +29,6 @@ internal static class GuiScenarioCatalog
     internal const string AuthorizedListRecovery = "authorized-list-recovery";
     internal const string UpstreamChangeAfterExport = "upstream-change-after-export";
     internal const string CaseToWorkingPaper = "case-to-working-paper";
-    internal const string CaseToWorkingPaperDuckDb = "case-to-working-paper-duckdb";
     internal const string CaseListCleanupCancelExport = "case-list-cleanup-cancel-export";
 
     // 這裡只記每個情境需要的合成夾具。操作上限、預期次數、逾時與截圖數只寫在 tools/harness/lanes.json，
@@ -54,7 +53,6 @@ internal static class GuiScenarioCatalog
         [LegacyFormWorkflow] = ["seed-export-ready-project", "legacy-form-source"],
         [UpstreamChangeAfterExport] = ["seed-six-stage-complete-project"],
         [CaseToWorkingPaper] = ["case-import-source"],
-        [CaseToWorkingPaperDuckDb] = ["case-import-source"],
         [CaseListCleanupCancelExport] = ["seed-export-ready-project", "seed-missing-database-project", "delay-export-progress-once"],
     };
 
@@ -175,7 +173,6 @@ internal sealed class GuiAssertions
     internal bool NewProjectButtonVisible { get; set; }
     internal bool CreateFormVisible { get; set; }
     internal bool RequiredFieldsEntered { get; set; }
-    internal bool SqliteSelected { get; set; }
     internal bool ProjectCreated { get; set; }
     internal bool ImportStepVisible { get; set; }
     internal bool ProjectNameVisible { get; set; }
@@ -352,7 +349,6 @@ internal static class ManifestWriter
                 newProjectButtonVisible = outcome.Assertions.NewProjectButtonVisible,
                 createFormVisible = outcome.Assertions.CreateFormVisible,
                 requiredFieldsEntered = outcome.Assertions.RequiredFieldsEntered,
-                sqliteSelected = outcome.Assertions.SqliteSelected,
                 projectCreated = outcome.Assertions.ProjectCreated,
                 importStepVisible = outcome.Assertions.ImportStepVisible,
                 projectNameVisible = outcome.Assertions.ProjectNameVisible,

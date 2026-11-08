@@ -22,7 +22,6 @@ public sealed class NewCaseResultFieldsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NewCase_ValidationHasStoredTotals_AndPrescreenHasThePreparerCount(string provider)
     {
         using var host = new HandlerTestHost();
@@ -42,7 +41,6 @@ public sealed class NewCaseResultFieldsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NewCase_RunAndReopen_CarryEveryFieldTheOverviewAndStepFourRead(string provider)
     {
         using var host = new HandlerTestHost();

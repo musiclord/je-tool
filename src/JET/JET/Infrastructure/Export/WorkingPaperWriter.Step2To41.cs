@@ -136,7 +136,7 @@ public sealed partial class WorkingPaperWriter
             }
             sheet.WriteFixedRow(row, blanks);
         }
-        sheet.AddListValidation("M53:S111", "\"Y,N,N/A\"");
+        sheet.AddListValidation($"M53:S{Math.Max(111L, 52L + rows)}", "\"Y,N,N/A\"");
         sheet.Protect();
 
         AddStat(stats, sheet.CloseAndSummarizeWith(rows, cancellationToken), progress);
@@ -150,7 +150,7 @@ public sealed partial class WorkingPaperWriter
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var values = new InfSampleDisplayValues(glMapping);
-        // 樣本固定最多 59 筆：先依穩定鍵讀完，再照 INF 報告的順序排（裁定 2026-11-05-41、2026-11-06-06），
+        // 依使用者選的筆數抽樣，先依穩定鍵讀完，再照 INF 報告的順序排（裁定 2026-11-05-41、2026-11-06-06），
         // 之後每 DefaultPageSize 筆一批讀原始 GL 列與攸關資料元素的值。
         var samples = new List<InfSampleRow>();
         string? cursor = null;

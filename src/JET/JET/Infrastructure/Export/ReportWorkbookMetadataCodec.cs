@@ -142,7 +142,8 @@ internal static class ReportWorkbookMetadataWorksheet
         cancellationToken.ThrowIfCancellationRequested();
         var workbookPart = document.WorkbookPart
             ?? throw new InvalidDataException("Formal report workbook has no workbook part.");
-        var sheets = workbookPart.Workbook.Sheets
+        var workbook = workbookPart.RequiredWorkbook();
+        var sheets = workbook.Sheets
             ?? throw new InvalidDataException("Formal report workbook has no sheets collection.");
         if (sheets.Elements<Sheet>().Any(sheet => string.Equals(
                 sheet.Name?.Value,
@@ -187,7 +188,7 @@ internal static class ReportWorkbookMetadataWorksheet
             Name = ReportWorkbookMetadataFormat.WorksheetName,
             State = SheetStateValues.VeryHidden
         });
-        workbookPart.Workbook.Save();
+        workbook.Save();
         cancellationToken.ThrowIfCancellationRequested();
     }
 

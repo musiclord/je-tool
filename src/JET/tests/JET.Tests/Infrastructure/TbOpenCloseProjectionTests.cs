@@ -44,12 +44,11 @@ public sealed class TbOpenCloseProjectionTests
     }
 
     private static ILocalProjectDatabase MakeDatabase(string provider, JetProjectFolder folder) =>
-        provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        new SqliteProjectDatabase(folder);
 
     // OpenClose：期末 − 期初。兩科目一正一負變動。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OpenClose_ProjectsClosingMinusOpening(string provider)
     {
         using var root = new TempProjectRoot();
@@ -100,7 +99,6 @@ public sealed class TbOpenCloseProjectionTests
     // OpenCloseBySide：(期末借 − 期末貸) − (期初借 − 期初貸)。借方科目與貸方科目各 +500。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OpenCloseBySide_ProjectsNetSideChange(string provider)
     {
         using var root = new TempProjectRoot();
@@ -150,56 +148,5 @@ public sealed class TbOpenCloseProjectionTests
             "SELECT change_amount_scaled FROM tb WHERE account_number='1101'"));
         Assert.Equal(5_000_000L, await ScalarAsync(db, projectId,
             "SELECT change_amount_scaled FROM tb WHERE account_number='2101'"));
-    }
-
-    // SqlServer 閘控：OpenClose 於 SQL Server 專案 schema 亦正確落地（無 SQL Server 2022 → 略過）。
-    [SqlServerFact]
-    public async Task OpenClose_SqlServer_ProjectsClosingMinusOpening()
-    {
-        await using var sql = await TempSqlServerProject.TryCreateAsync();
-        if (sql is null)
-        {
-            return; // 無合規 SQL Server → 跳過（mystery-guest 豁免）
-        }
-
-        var rows = new List<StagingRow>
-        {
-            new(2, new Dictionary<string, string>
-            {
-                ["acc"] = "1101", ["name"] = "現金", ["opening"] = "1000", ["closing"] = "1500"
-            }),
-            new(3, new Dictionary<string, string>
-            {
-                ["acc"] = "1102", ["name"] = "銀行", ["opening"] = "800", ["closing"] = "300"
-            })
-        };
-
-        var batch = (await new SqlServerImportRepository(sql.Database).ReplaceBatchAsync(
-            sql.ProjectId, DatasetKind.Tb, [new ImportSourceInput(Source(),
-            ["acc", "name", "opening", "closing"], ToAsync(rows))], CancellationToken.None)).Batch;
-
-        var spec = new TbMappingSpec(
-            new Dictionary<string, string>
-            {
-                [TbMappingKeys.AccountNumber] = "acc",
-                [TbMappingKeys.AccountName] = "name",
-                [TbMappingKeys.OpeningBalance] = "opening",
-                [TbMappingKeys.ClosingBalance] = "closing"
-            },
-            TbChangeMode.OpenClose);
-
-        var result = await new SqlServerTbRepository(sql.Database).ProjectStagingToTargetAsync(
-            sql.ProjectId, batch.BatchId, spec, Scale, committedUtc: DateTimeOffset.UnixEpoch, CancellationToken.None);
-
-        Assert.Empty(result.Errors);
-        Assert.Equal(2, result.ProjectedRowCount);
-
-        await using var read = sql.Database.CreateConnection(sql.ProjectId);
-        await read.OpenAsync();
-        await using var command = sql.Database.CreateCommand(read, sql.ProjectId,
-            "SELECT change_amount_scaled FROM {s}.tb WHERE account_number=@acc;");
-        command.Parameters.AddWithValue("@acc", "1101");
-        var value = await command.ExecuteScalarAsync();
-        Assert.Equal(5_000_000L, Convert.ToInt64(value));
     }
 }

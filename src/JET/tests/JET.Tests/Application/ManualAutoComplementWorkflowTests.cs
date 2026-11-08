@@ -8,7 +8,6 @@ public sealed class ManualAutoComplementWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BothComplementDirections_RespectEveryBlankChoiceAndFailedProjectionKeepsLastSavedPolicy(string provider)
     {
         using var host = new HandlerTestHost();
@@ -76,7 +75,6 @@ public sealed class ManualAutoComplementWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Complement_ReopenReportRestoreFailedRemapAndRetryPreserveAuditorChoice(string provider)
     {
         using var host = new HandlerTestHost();

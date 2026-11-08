@@ -114,7 +114,7 @@ public sealed class ReportWorkbookMetadataCodecTests
         Assert.Empty(new OpenXmlValidator().Validate(read));
 
         var workbookPartRead = read.WorkbookPart!;
-        var metadataSheet = workbookPartRead.Workbook.Sheets!.Elements<Sheet>().Single(sheet =>
+        var metadataSheet = workbookPartRead.RequiredWorkbook().Sheets!.Elements<Sheet>().Single(sheet =>
             string.Equals(
                 sheet.Name?.Value,
                 ReportWorkbookMetadataFormat.WorksheetName,
@@ -122,7 +122,7 @@ public sealed class ReportWorkbookMetadataCodecTests
         Assert.Equal(SheetStateValues.VeryHidden, metadataSheet.State?.Value);
 
         var worksheet = Assert.IsType<WorksheetPart>(
-            workbookPartRead.GetPartById(metadataSheet.Id!.Value!)).Worksheet;
+            workbookPartRead.GetPartById(metadataSheet.Id!.Value!)).RequiredWorksheet();
         var columns = worksheet.GetFirstChild<Columns>()!.Elements<Column>().ToArray();
         Assert.Collection(
             columns,

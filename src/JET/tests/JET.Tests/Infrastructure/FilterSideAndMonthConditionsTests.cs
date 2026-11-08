@@ -11,7 +11,6 @@ public sealed class FilterSideAndMonthConditionsTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CalendarExceptions_BelongToEachDateField(string provider)
     {
         const string seed = """
@@ -41,7 +40,6 @@ public sealed class FilterSideAndMonthConditionsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MonthWindows_SupportDateRangeLimitsAndWholeShortMonths(string provider)
     {
         const string seed = """
@@ -90,7 +88,6 @@ public sealed class FilterSideAndMonthConditionsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SameVoucher_AccountAndSideMustMatchTheSameEntry(string provider)
     {
         const string seed = """
@@ -130,7 +127,6 @@ public sealed class FilterSideAndMonthConditionsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MonthWindows_UseEachSelectedDateMonthAndExplicitBlankPolicy(string provider)
     {
         const string extraId = "rde.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

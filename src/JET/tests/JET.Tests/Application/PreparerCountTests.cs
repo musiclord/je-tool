@@ -16,7 +16,6 @@ public sealed class PreparerCountTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MoreThanFiftyPreparers_ScreenAndReportUseTheFullCount_IncludingTheBlankGroup(string provider)
     {
         using var host = new HandlerTestHost();
@@ -49,7 +48,6 @@ public sealed class PreparerCountTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreparerFieldNotMapped_FullCountIsNullNotZero(string provider)
     {
         using var host = new HandlerTestHost();

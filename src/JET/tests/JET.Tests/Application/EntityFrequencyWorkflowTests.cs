@@ -9,7 +9,6 @@ public sealed class EntityFrequencyWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Frequency_UsesSelectedPopulationAndDistinctVouchersThenSurvivesSaveReopenAndExport(string provider)
     {
         using var host = new HandlerTestHost();

@@ -9,13 +9,9 @@ public sealed class AccountingParenthesesAmountTests
 {
     [Theory]
     [InlineData("sqlite", "signed")]
-    [InlineData("duckdb", "signed")]
     [InlineData("sqlite", "dual")]
-    [InlineData("duckdb", "dual")]
     [InlineData("sqlite", "rde")]
-    [InlineData("duckdb", "rde")]
     [InlineData("sqlite", "csv")]
-    [InlineData("duckdb", "csv")]
     public async Task AccountingParentheses_ReachGlOrRdeWithIdenticalFixedAnswers(string provider, string mode)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -50,13 +46,9 @@ public sealed class AccountingParenthesesAmountTests
 
     [Theory]
     [InlineData("sqlite", "direct", -12_345_000L)]
-    [InlineData("duckdb", "direct", -12_345_000L)]
     [InlineData("sqlite", "debitCredit", -13_347_500L)]
-    [InlineData("duckdb", "debitCredit", -13_347_500L)]
     [InlineData("sqlite", "openClose", 13_347_500L)]
-    [InlineData("duckdb", "openClose", 13_347_500L)]
     [InlineData("sqlite", "openCloseBySide", 13_347_500L)]
-    [InlineData("duckdb", "openCloseBySide", 13_347_500L)]
     public async Task TbFourModes_UseSameParenthesesParserAndFixedScaledResult(string provider, string changeMode, long expected)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);

@@ -145,3 +145,96 @@ for (const nested of [false, true]) {
     assert.equal(f.store.getState().mapping.gl.draft.drCrDebitCode, 'DEBIT');
   });
 }
+
+// 目前步驟的標題連按兩次應回到展開，不能被前一次收合的完成回呼再關掉。
+// 合成預覽的背景 Edge 首次重現記錄：artifacts/frontend-preview/motion-before.json。
+// 這裡控制時間與 WAAPI 完成事件；實際高度連續性另在背景瀏覽器量測。
+for (const reduced of [false, true]) {
+  for (const presses of [2, 3]) test('step fold responds to ' + presses + ' rapid presses with reduced motion ' + reduced, () => {
+    const f = usageJourneyFixture('filter', { clock: true });
+    f.window.addEventListener = () => {};
+    f.window.requestAnimationFrame = () => 0;
+    f.window.matchMedia = query => ({ matches: reduced && query.includes('prefers-reduced-motion') });
+    f.window.Element = function Element() {};
+    f.window.Element.prototype.animate = () => ({});
+    f.window.getComputedStyle = () => ({ display: 'block', flexDirection: 'column' });
+    vm.runInContext(exposeAt(readWwwroot('js/app.js'), '  function focusCurrentStepHeading(',
+      '  global.testBindStepFlow = bindStepFlow;\n'), f.context);
+    f.dom.content.innerHTML = '<div class="stepflow-item--current"><button data-step-toggle="">目前步驟</button><div class="stepflow-item__body">合成內容</div></div>';
+    const toggle = f.$('[data-step-toggle]');
+    const body = f.$('.stepflow-item__body');
+    body.isConnected = true;
+    let presentationHeight = 300;
+    body.getBoundingClientRect = () => ({ height: presentationHeight, width: 900 });
+    const animations = [];
+    body.animate = frames => {
+      const started = f.clock.now();
+      const animation = { frames, cancelled: false, get currentTime() { return f.clock.now() - started; },
+        cancel() { this.cancelled = true; presentationHeight = 300; if (this.oncancel) this.oncancel(); } };
+      presentationHeight = Number.parseFloat(frames[0].height);
+      animations.push(animation);
+      return animation;
+    };
+    f.window.testBindStepFlow(f.dom.content);
+    for (let index = 0; index < presses; index += 1) {
+      toggle.fire('click');
+      if (!reduced && index > 0) {
+        assert.equal(Number.parseFloat(animations.at(-1).frames[0].height), index === 1 ? 180 : 120,
+          'each reversal starts at the supplied browser presentation height');
+      }
+      f.clock.advance(60);
+      // 瀏覽器目前呈現的高度獨立給定，不用產品的彈簧公式產生預期值。
+      presentationHeight = index === 0 ? 180 : 120;
+    }
+    if (!reduced) {
+      assert.equal(animations.length, presses, 'each press redirects the current motion');
+      assert.ok(animations.slice(0, -1).every(animation => animation.cancelled), 'earlier completion callbacks are cancelled');
+      const height = Number.parseFloat(animations[1].frames[0].height);
+      assert.ok(height > 0 && height < 300, 'the reversal begins partway through the fold');
+      assert.equal(body.inert, presses % 2 === 1, 'reopening immediately restores interaction');
+      f.clock.advance(1000);
+      animations.filter(animation => !animation.cancelled).forEach(animation => animation.onfinish());
+    } else {
+      assert.equal(animations.length, 0, 'reduced motion changes state directly');
+    }
+    assert.equal(f.store.getState().stepFlowCollapsed, presses % 2 === 1, 'the final state follows the last press');
+  });
+}
+
+test('step collapse interrupts an opening body at its presented height', () => {
+  const f = usageJourneyFixture('filter', { clock: true });
+  f.window.addEventListener = () => {};
+  f.window.requestAnimationFrame = () => 0;
+  f.window.Element = function Element() {};
+  f.window.Element.prototype.animate = () => ({});
+  f.window.getComputedStyle = () => ({ display: 'block', flexDirection: 'column' });
+  vm.runInContext(exposeAt(readWwwroot('js/app.js'), '  function focusCurrentStepHeading(',
+    '  global.testBindStepFlow = bindStepFlow;\n'), f.context);
+  f.dom.content.innerHTML = '<div class="stepflow-item--current"><button data-step-toggle="">目前步驟</button><div class="stepflow-item__body">合成內容</div></div>';
+  const body = f.$('.stepflow-item__body');
+  body.isConnected = true;
+  body.getClientRects = () => [1];
+  let presentationHeight = 300;
+  body.getBoundingClientRect = () => ({ height: presentationHeight, width: 900 });
+  const animations = [];
+  body.animate = frames => {
+    const started = f.clock.now();
+    const animation = { frames, cancelled: false, get currentTime() { return f.clock.now() - started; },
+      cancel() { this.cancelled = true; presentationHeight = 300; if (this.oncancel) this.oncancel(); } };
+    presentationHeight = Number.parseFloat(frames[0].height);
+    animations.push(animation);
+    return animation;
+  };
+  f.window.testBindStepFlow(f.dom.content);
+  f.window.JetMotion.enter(body);
+  assert.equal(animations.length, 1, 'the body starts opening');
+  f.clock.advance(60);
+  presentationHeight = 120;
+  f.$('[data-step-toggle]').fire('click');
+  assert.equal(animations.length, 2, 'collapse redirects the opening animation');
+  assert.equal(animations[0].cancelled, true, 'the old opening animation is cancelled');
+  assert.equal(Number.parseFloat(animations[1].frames[0].height), 120, 'collapse starts at the browser presentation height');
+  assert.equal(body.inert, true, 'the folding body no longer accepts input');
+  animations[1].onfinish();
+  assert.equal(f.store.getState().stepFlowCollapsed, true, 'the last request finishes collapsed');
+});

@@ -560,6 +560,7 @@ function batch7Dom(html) {
     nodes.push(node);
   }
   function match(node, selector) {
+    if (selector.startsWith('#')) return node.getAttribute('id') === selector.slice(1);
     const attribute = /^\[([^=\]]+)(?:="?([^"\]]+)"?)?\]$/.exec(selector);
     return attribute ? node.hasAttribute(attribute[1]) && (attribute[2] === undefined || node.getAttribute(attribute[1]) === attribute[2]) : false;
   }
@@ -617,7 +618,8 @@ function batch8Fixture() {
   const previewDom = batch7ControlDom();
   window.batch8Preview.setup(previewDom.node('aside'), previewDom.node('body'), previewDom.node('note'));
   function controls(html = '') {
-    const dom = batch7Dom(html + '<button data-action="run-validate"></button><button data-action="run-prescreen"></button>');
+    // 新增數字輸入控制項；首次失敗 20261106-133616379-2f8f12cd10ce48418a6955308396d496。
+    const dom = batch7Dom(html + '<input id="inf-sample-size" type="number" value="59"><button data-action="run-validate"></button><button data-action="run-prescreen"></button>');
     window.batch8Validation.bind(dom, true);
     return { dom, click(selector) { const control = dom.querySelector(selector); assert.ok(control, selector + ' rendered'); control.fire(); } };
   }
@@ -1012,13 +1014,14 @@ function fullAppFixture({ autoReply = { 'log.append': {} } } = {}) {
     liveIntervals: () => intervals.filter(entry => !entry.cleared) };
 }
 
-// 開啟 JET：連線檢查、SQL Server 設定、目前使用者與本機案件清單都回來，畫面停在案件清單。
+// 開啟 JET：連線檢查、目前使用者與本機案件清單都回來，畫面停在案件清單。
+// 啟動時原本還查 SQL Server 設定，身分回應也帶使用者編號與編號來源，都隨 SQL Server 移除（裁定 2026-11-06-08）；
+// 第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
 async function bootFullApp(projects = [], options) {
   const f = fullAppFixture(options);
   f.reply('system.ping', { devToolsEnabled: false }); await flush();
-  f.reply('system.databaseInfo', { sqlServer: { configured: false, reachable: false, summary: '' } });
-  // 正式後端一定回身分物件；本機案件沒有線上使用者目錄時編號是 null（2026-10-15 前後端契合前這裡回 null）。
-  f.reply('system.whoAmI', { principal: 'synthetic.auditor', shortName: '合成審計員', userNumber: null, numberSource: 'unavailable' });
+  // 正式後端一定回身分物件，只有帳號全名與短名（2026-10-15 前後端契合前這裡回 null）。
+  f.reply('system.whoAmI', { principal: 'synthetic.auditor', shortName: '合成審計員' });
   f.reply('project.listLocal', { projects }); await flush();
   return f;
 }

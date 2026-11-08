@@ -5,7 +5,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 衍生結果與 schema v7 stale singleton 的同交易寫入點。呼叫端提供的 schema prefix
-/// 只來自固定本地空字串或經驗證的 SQL Server project schema。
+/// 目前只有 SQLite 的固定空字串；參數保留給日後恢復的 SQL Server 傳經驗證的 project schema。
 /// </summary>
 internal static class ResultStaleStateSql
 {

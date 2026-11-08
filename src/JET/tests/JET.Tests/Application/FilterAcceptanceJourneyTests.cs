@@ -14,7 +14,6 @@ public sealed class FilterAcceptanceJourneyTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ApprovalDateFromPostingDate_IsAvailableWithoutAnApprovalSourceColumn(string provider)
     {
         using var host = new HandlerTestHost();
@@ -112,7 +111,6 @@ public sealed class FilterAcceptanceJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task DatesPeopleAndBlankCategory_PreviewSaveAndPagingMatchFixedAnswers(string provider)
     {
         using var host = new HandlerTestHost();
@@ -154,7 +152,6 @@ public sealed class FilterAcceptanceJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ChineseConnectors_DoNotChangeLeftFoldOrFirstRuleMeaning(string provider)
     {
         using var host = new HandlerTestHost();

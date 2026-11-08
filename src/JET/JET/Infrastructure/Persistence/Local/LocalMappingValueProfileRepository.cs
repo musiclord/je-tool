@@ -5,9 +5,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite／DuckDB 共用的 mapping value profile。JSON key 只以參數比對 json_each.key，
+/// SQLite 案件的 mapping value profile。JSON key 只以參數比對 json_each.key，
 /// 不組成 JSON path 或 SQL identifier；SQL 只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時先填補再計數
-/// （裁定 2026-10-28-03），寫法和 SQL Server 共用 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
+/// （裁定 2026-10-28-03），寫法見 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
 /// </summary>
 public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase database)
     : IMappingValueProfileRepository
@@ -49,42 +49,6 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         ORDER BY top_values.value_count DESC, top_values.value COLLATE BINARY ASC;
         """;
 
-    private static string DuckDbSql(bool fillDown) =>
-        $"""
-        WITH extracted AS (
-            SELECT r.source_no, r.row_number, json_extract_string(j.value, '$') AS raw_value
-            FROM pbc_gl AS r
-            LEFT JOIN json_each(r.row_json) AS j ON j.key = @sourceColumn
-            WHERE r.batch_id = @batchId
-        ),
-        normalized AS (
-            SELECT source_no, row_number, NULLIF(TRIM(raw_value, @trimCharacters), '') AS value
-            FROM extracted
-        ),
-        {(fillDown ? MappingValueProfileNormalization.FillDownCtes("normalized") : "")}
-        grouped AS (
-            SELECT MIN(value) AS value, COUNT(*) AS value_count
-            FROM {(fillDown ? "filled" : "normalized")}
-            GROUP BY jet_mapping_ordinal_key(value)
-        ),
-        summary AS (
-            SELECT CAST(COALESCE(SUM(CASE WHEN value IS NULL THEN value_count ELSE 0 END), 0) AS BIGINT) AS blank_count,
-                   CAST(COALESCE(SUM(CASE WHEN value IS NOT NULL THEN 1 ELSE 0 END), 0) AS BIGINT) AS distinct_count
-            FROM grouped
-        ),
-        top_values AS (
-            SELECT value, value_count
-            FROM grouped
-            WHERE value IS NOT NULL
-            ORDER BY value_count DESC, value ASC
-            LIMIT @limit
-        )
-        SELECT summary.blank_count, summary.distinct_count, top_values.value, top_values.value_count
-        FROM summary
-        LEFT JOIN top_values ON TRUE
-        ORDER BY top_values.value_count DESC, top_values.value ASC;
-        """;
-
     public async Task<MappingValueProfile> GetAsync(
         string projectId,
         string batchId,
@@ -100,7 +64,7 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         MappingValueProfileNormalization.RegisterLocalFunction(connection);
 
         await using var command = connection.CreateCommand();
-        command.CommandText = database.Dialect.ProviderName == "duckdb" ? DuckDbSql(fillDown) : SqliteSql(fillDown);
+        command.CommandText = SqliteSql(fillDown);
         command.AddWithValue("@batchId", batchId);
         command.AddWithValue("@sourceColumn", sourceColumn);
         command.AddWithValue("@trimCharacters", MappingValueProfileNormalization.DotNetTrimCharacters);
@@ -118,9 +82,8 @@ public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase dat
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         MappingValueProfileNormalization.RegisterLocalFunction(connection);
-        var duckDb = database.Dialect.ProviderName == "duckdb";
-        var sourceValue = duckDb ? "json_extract_string(j.value, '$')" : "CAST(j.value AS TEXT)";
-        var requestedValue = duckDb ? "json_extract_string(c.value, '$')" : "CAST(c.value AS TEXT)";
+        const string sourceValue = "CAST(j.value AS TEXT)";
+        const string requestedValue = "CAST(c.value AS TEXT)";
         await using var command = connection.CreateCommand();
         // 完整來源先求相異正準值，再與最多 100 個請求值做集合式存在性核對，不使用 top-values 清單。
         command.CommandText = $"""

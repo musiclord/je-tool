@@ -25,13 +25,22 @@ function fixture() {
 function previewHtml() {
   const source = boundedRead(path.join(product, 'index.html')).toString('utf8');
   return source.replace(/(src|href)="\.\//g, '$1="/runtime/')
-    .replace('<script defer src="/runtime/js/jet-api.js">', '<script defer src="/preview/replay.js"></script><script defer src="/preview/bridge.js"></script><script defer src="/runtime/js/jet-api.js">')
-    .replace('</head>', '<script defer src="/preview/bootstrap.js"></script></head>')
+    .replace('<script defer src="/runtime/js/jet-api.js">', '<script defer src="/preview/replay.js"></script><script defer src="/preview/worst-case.js"></script><script defer src="/preview/bridge.js"></script><script defer src="/runtime/js/jet-api.js">')
+    .replace('</head>', '<script defer src="/preview/bootstrap.js"></script><style>' +
+      '#preview-data{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:40;display:flex;gap:3px;max-width:calc(100% - 16px);padding:4px;background:#e5e5e5;border:1px solid #aaa;border-radius:8px;font:12px/1.4 system-ui;box-shadow:0 2px 8px #0002}' +
+      '#preview-data button{border:0;border-radius:5px;padding:5px 9px;background:transparent;color:#333;font:inherit;white-space:nowrap;cursor:pointer}' +
+      '#preview-data button[aria-pressed="true"]{background:white;box-shadow:0 1px 3px #0002}' +
+      '#preview-data button:focus-visible{outline:2px solid #415e7c;outline-offset:1px}' +
+      '</style></head>')
     .replace('<body>', '<body><aside style="padding:8px 16px;background:#fff7dd;color:#292720;font:13px sans-serif" aria-label="設計預覽工具">' +
       '<strong id="preview-status">正在載入合成設計情境…</strong> ' +
       '<label>固定情境 <select id="preview-scene"><option value="matches">日期與金額（有結果）</option><option value="empty">日期與金額（無結果）</option><option value="stale">資料已變更（結果待更新）</option></select></label> ' +
       '<button id="preview-reload">重新載入</button> <button id="preview-requests">查看最近 action</button>' +
-      '<pre id="preview-request-output" hidden style="max-height:180px;overflow:auto;white-space:pre-wrap"></pre></aside>');
+      '<pre id="preview-request-output" hidden style="max-height:180px;overflow:auto;white-space:pre-wrap"></pre></aside>' +
+      '<div id="preview-data" role="group" aria-label="合成資料模式">' +
+      '<button type="button" data-preview-mode="demo" aria-pressed="true">一般資料</button>' +
+      '<button type="button" data-preview-mode="worst" aria-pressed="false">長文字</button>' +
+      '<button type="button" data-preview-mode="worst-input" aria-pressed="false">長條件值</button></div>');
 }
 function asset(base, relative) {
   if (relative.split(/[\\/]/).some(part => part === '..' || part === '.') || path.isAbsolute(relative)) throw new Error('Invalid path.');
@@ -51,7 +60,7 @@ function createServer() {
       if (route === '/') { fixture(); result = { body: previewHtml(), type: mime['.html'] }; }
       else if (route === '/fixtures.json') result = { body: JSON.stringify(fixture()), type: mime['.json'] };
       else if (route.startsWith('/runtime/')) result = asset(product, route.slice(9));
-      else if (['/preview/replay.js', '/preview/bridge.js', '/preview/bootstrap.js'].includes(route)) result = asset(__dirname, route.slice(9));
+      else if (['/preview/replay.js', '/preview/bridge.js', '/preview/bootstrap.js', '/preview/worst-case.js'].includes(route)) result = asset(__dirname, route.slice(9));
       else { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': result.type });
       res.end(req.method === 'HEAD' ? undefined : result.body);

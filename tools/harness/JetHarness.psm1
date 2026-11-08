@@ -115,6 +115,7 @@ function Invoke-JetHarness {
         [Parameter(Mandatory = $true)] [string] $Command,
         [Parameter(Mandatory = $true)] [string] $Configuration,
         [switch] $NoRestore,
+        [switch] $CollectCoverage,
         [Parameter(Mandatory = $true)] [AllowEmptyString()] [string] $Filter,
         [string] $MutationScope = '',
         [Parameter(Mandatory = $true)] [string] $WaitSeconds,
@@ -224,9 +225,12 @@ function Invoke-JetHarness {
         elseif (-not [string]::IsNullOrWhiteSpace($MutationScope)) {
             throw [ArgumentException]::new('MutationScope is accepted only by Mutation.')
         }
-        if ($NoRestore -and $Command -notin @('Build', 'Focused', 'Public', 'Provider', 'Package', 'PrivateCase')) {
+        if ($CollectCoverage -and $Command -notin @('Public', 'Focused')) {
+            throw [ArgumentException]::new('CollectCoverage is accepted only by Public or Focused.')
+        }
+        if ($NoRestore -and $Command -notin @('Build', 'Focused', 'Public', 'Package', 'PrivateCase')) {
             throw [ArgumentException]::new(
-                'NoRestore is accepted only by Build, Focused, Public, Provider, Package, or PrivateCase.')
+                'NoRestore is accepted only by Build, Focused, Public, Package, or PrivateCase.')
         }
         if ($Command -ceq 'Package' -and $Configuration -cne 'Release') {
             throw [ArgumentException]::new('Package requires Configuration Release.')
@@ -264,7 +268,7 @@ function Invoke-JetHarness {
             throw [ArgumentException]::new(
                 "ReleaseCandidate TimeoutSeconds must be at least $releaseCandidateMinimumTimeoutSeconds seconds per child.")
         }
-        if ($Command -in @('Restore', 'Build', 'Focused', 'Public', 'Provider', 'Package', 'Gui', 'Excel', 'PrivateCase', 'ReleaseCandidate') -and
+        if ($Command -in @('Restore', 'Build', 'Focused', 'Public', 'Package', 'Gui', 'Excel', 'PrivateCase', 'ReleaseCandidate') -and
             -not (Test-Path -LiteralPath (Join-Path $repositoryFull 'src/JET/JET.slnx') -PathType Leaf)) {
             throw [ArgumentException]::new('Repository solution contract is missing.')
         }
@@ -456,6 +460,7 @@ function Invoke-JetHarness {
                             -RunDirectory $context.RunDirectory `
                             -Configuration $Configuration `
                             -Name 'focused-selected' `
+                            -CollectCoverage:$CollectCoverage `
                             -MinimumExpectedTests 1 `
                             -Registry $registry `
                             -TimeoutSeconds $parsedTimeoutSeconds `
@@ -497,6 +502,7 @@ function Invoke-JetHarness {
                             -RunDirectory $context.RunDirectory `
                             -Configuration $Configuration `
                             -Name 'public-tests' `
+                            -CollectCoverage:$CollectCoverage `
                             -MinimumExpectedTests ([int]$registry.testSettings.publicMinimumExpectedTests) `
                             -Registry $registry `
                             -TimeoutSeconds $parsedTimeoutSeconds `
@@ -512,69 +518,8 @@ function Invoke-JetHarness {
                         }
                     }
                 }
-                'Provider' {
-                    $providerPreflight = Get-JetProviderConnectionPreflight -Registry $registry
-                    $steps.Add($providerPreflight.Step)
-                    if ($steps[$steps.Count - 1].status -ceq 'passed') {
-                        foreach ($buildStep in @(Invoke-JetBuildPipeline `
-                                -RepositoryRoot $repositoryFull `
-                                -RunDirectory $context.RunDirectory `
-                                -Configuration $Configuration `
-                                -SkipRestore ([bool]$NoRestore) `
-                                -Registry $registry `
-                                -TimeoutSeconds $parsedTimeoutSeconds)) {
-                            $steps.Add($buildStep)
-                        }
-                    }
-                    if ($steps[$steps.Count - 1].status -ceq 'passed') {
-                        $localParity = Invoke-JetTestStep `
-                            -RepositoryRoot $repositoryFull `
-                            -RunDirectory $context.RunDirectory `
-                            -Configuration $Configuration `
-                            -Name 'provider-local-parity' `
-                            -MinimumExpectedTests ([int]$registry.testSettings.providerLocalMinimumExpectedTests) `
-                            -Registry $registry `
-                            -TimeoutSeconds $parsedTimeoutSeconds `
-                            -IncludeKind Method `
-                            -IncludeValues @($registry.testSettings.providerLocalParityMethodPatterns) `
-                            -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove) `
-                            -SkipPolicy NoSkips
-                        $steps.Add($localParity)
-                    }
-                    if ($steps[$steps.Count - 1].status -ceq 'passed') {
-                        $sqlProvider = Invoke-JetTestStep `
-                            -RepositoryRoot $repositoryFull `
-                            -RunDirectory $context.RunDirectory `
-                            -Configuration $Configuration `
-                            -Name 'provider-sqlserver' `
-                            -MinimumExpectedTests ([int]$registry.testSettings.providerSqlMinimumExpectedTests) `
-                            -Registry $registry `
-                            -TimeoutSeconds $parsedTimeoutSeconds `
-                            -IncludeKind Trait `
-                            -IncludeValues @($registry.testSettings.providerSqlTraits) `
-                            -ExcludedProfiles @('Scale') `
-                            -EnvironmentVariablesToRemove @($registry.testSettings.providerEnvironmentVariablesToRemove) `
-                            -SensitiveValuesToRedact @($providerPreflight.SensitiveValues) `
-                            -SkipPolicy ProviderRequired
-                        $steps.Add($sqlProvider)
-                    }
-                    if ($steps[$steps.Count - 1].status -ceq 'passed') {
-                        $localDb = Invoke-JetTestStep `
-                            -RepositoryRoot $repositoryFull `
-                            -RunDirectory $context.RunDirectory `
-                            -Configuration $Configuration `
-                            -Name 'provider-localdb-express-guard' `
-                            -MinimumExpectedTests ([int]$registry.testSettings.providerLocalDbMinimumExpectedTests) `
-                            -Registry $registry `
-                            -TimeoutSeconds $parsedTimeoutSeconds `
-                            -IncludeKind Trait `
-                            -IncludeValues @($registry.testSettings.providerLocalDbTraits) `
-                            -ExcludedProfiles @('Scale') `
-                            -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove) `
-                            -SkipPolicy ProviderPolicy
-                        $steps.Add($localDb)
-                    }
-                }
+                # 原本另有 Provider 路線，跑兩種本機資料庫的一致性與 live SQL Server 測試；
+                # 隨 DuckDB 與 SQL Server 一起移除（裁定 2026-11-06-08），還原點是提交 7e88b7b。
                 'PrivateCase' {
                     $privatePreflight = Get-JetPrivateCasePreflight -Registry $registry
                     $privateDataPathInspected = [bool]$privatePreflight.PathInspected
@@ -613,7 +558,7 @@ function Invoke-JetHarness {
                             -TimeoutSeconds $parsedTimeoutSeconds `
                             -IncludeKind Trait `
                             -IncludeValues @('TestProfile=PrivateCase') `
-                            -ExcludedProfiles @('Provider', 'Scale') `
+                            -ExcludedProfiles @('Scale') `
                             -EnvironmentVariablesToRemove @($registry.testSettings.environmentVariablesToRemove) `
                             -EnvironmentVariablesToSet $privatePreflight.EnvironmentVariablesToSet `
                             -SensitiveValuesToRedact $privateSensitiveValues `
@@ -977,15 +922,6 @@ function Invoke-JetHarness {
                     assertionDrift = Get-JetTestAssertionDrift -RepositoryRoot $repositoryFull
                 }
             }
-            'Provider' {
-                [ordered]@{
-                    sqlServerCapabilityRequired = $true
-                    connectionVariable = [string]$registry.testSettings.providerConnectionEnvironmentVariable
-                    connectionValueRecorded = $false
-                    protectedWorkspaceTests = 'excluded'
-                    sqlStepSanitizedEnvironmentVariables = @($registry.testSettings.providerEnvironmentVariablesToRemove)
-                }
-            }
             'PrivateCase' {
                 [ordered]@{
                     provider = $privateCaseProvider
@@ -1008,10 +944,6 @@ function Invoke-JetHarness {
                     sourceGitIndexMutated = $releaseCandidateIndexMutated
                     failFast = $true
                     childCommands = @($registry.releaseCandidateSettings.steps | ForEach-Object { [string]$_.command })
-                    sqlServerCapabilityRequired = $false
-                    liveProviderIncluded = [bool]$registry.releaseCandidateSettings.liveProviderIncluded
-                    sqlServerCompatibilityCommand = 'Provider'
-                    connectionValueRecorded = $false
                     privateCaseIncluded = [bool]$registry.releaseCandidateSettings.privateCaseIncluded
                     privateRootsInspected = $false
                     sanitizedEnvironmentVariables = @($registry.testSettings.environmentVariablesToRemove)

@@ -24,7 +24,7 @@ public sealed class ProjectDeleteReportLeaseTests
                 PreviewReport("wpm", ReportKind.WorkingPaper, "working3.xlsx", ReportFileState.Missing),
                 PreviewReport("template", ReportKind.AccountMapping, "template.xlsx")]
         };
-        var handler = PreviewHandler(new FakeProjectStore(Document("project-1"), events), reports, new FakeRegistry());
+        var handler = PreviewHandler(new FakeProjectStore(Document("project-1"), events), reports);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
         var response = JsonSerializer.SerializeToElement(await handler.HandleAsync(payload.RootElement, default));
         Assert.Equal("project-1", response.GetProperty("projectId").GetString());
@@ -36,15 +36,16 @@ public sealed class ProjectDeleteReportLeaseTests
     }
 
     [Fact]
-    public async Task DeletePreview_UnauthorizedServerProjectDoesNotReadCatalog()
+    public async Task DeletePreview_RetiredProviderProjectDoesNotReadCatalog()
     {
+        // 原本驗證線上案件沒有權限時不讀報告索引；線上案件移除後，改驗證舊種類的案件同樣不讀索引（裁定 2026-11-06-09）。
         var events = new List<string>();
         var reports = new LeaseReportStore(events) { PreviewReports = [] };
         var handler = PreviewHandler(new FakeProjectStore(Document("project-1") with
-            { DatabaseProvider = ProjectDocument.SqlServerDatabaseProvider }, events), reports, new FakeRegistry(exists: true));
+            { DatabaseProvider = "sqlserver" }, events), reports);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
         var error = await Assert.ThrowsAsync<JetActionException>(() => handler.HandleAsync(payload.RootElement, default));
-        Assert.Equal(JetErrorCodes.NotAuthorized, error.Code);
+        Assert.Equal(JetErrorCodes.UnsupportedProvider, error.Code);
         Assert.Empty(events);
     }
 
@@ -54,7 +55,7 @@ public sealed class ProjectDeleteReportLeaseTests
         var events = new List<string>();
         var failure = new IOException("Synthetic catalog unavailable");
         var reports = new LeaseReportStore(events) { PreviewFailure = failure };
-        var handler = PreviewHandler(new FakeProjectStore(Document("project-1"), events), reports, new FakeRegistry());
+        var handler = PreviewHandler(new FakeProjectStore(Document("project-1"), events), reports);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
         Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => handler.HandleAsync(payload.RootElement, default)));
         Assert.Equal(["reports.list"], events);
@@ -69,7 +70,7 @@ public sealed class ProjectDeleteReportLeaseTests
         var session = new ProjectSession();
         session.Enter("project-1", TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider));
         var handler = new ProjectDeleteHandler(new FakeProjectStore(Document("project-1"), events, new IOException("Synthetic folder failure")),
-            CatalogWith(new FakeDatabaseDeleter(events, reports, locks), reports, locks), new FakeRegistry(), new CurrentPrincipal("synthetic"), session);
+            CatalogWith(new FakeDatabaseDeleter(events, reports, locks), reports, locks), new CurrentPrincipal("synthetic"), session);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
         var response = JsonSerializer.SerializeToElement(await handler.HandleAsync(payload.RootElement, default));
         var message = response.GetProperty("message").GetString()!;
@@ -81,7 +82,7 @@ public sealed class ProjectDeleteReportLeaseTests
         Assert.Null(session.CurrentProjectId);
     }
 
-    private static IApplicationActionHandler PreviewHandler(IProjectStore projects, IReportStore reports, IProjectRegistry registry)
+    private static IApplicationActionHandler PreviewHandler(IProjectStore projects, IReportStore reports)
     {
         // Reflection keeps the first-failure tests compilable before the new read-only handler exists.
         var type = typeof(ProjectDeleteHandler).Assembly.GetType("JET.Application.ProjectDeletePreviewHandler");
@@ -90,7 +91,7 @@ public sealed class ProjectDeleteReportLeaseTests
             TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with { ReportStore = reports });
         return Assert.IsAssignableFrom<IApplicationActionHandler>(Activator.CreateInstance(type,
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
-            binder: null, args: [projects, repositories, registry, new CurrentPrincipal("synthetic")], culture: null));
+            binder: null, args: [projects, repositories], culture: null));
     }
 
     private static Report PreviewReport(string id, ReportKind kind, string filename,
@@ -110,7 +111,6 @@ public sealed class ProjectDeleteReportLeaseTests
         var handler = new ProjectDeleteHandler(
             projectStore,
             CatalogWith(new FakeDatabaseDeleter(events, reports, deletionLocks), reports, deletionLocks),
-            new FakeRegistry(),
             new CurrentPrincipal("CONTOSO\\auditor"),
             session);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
@@ -134,33 +134,6 @@ public sealed class ProjectDeleteReportLeaseTests
     }
 
     [Fact]
-    public async Task Delete_UnauthorizedSqlServerProject_DoesNotAcquireReportLease()
-    {
-        var events = new List<string>();
-        var projectId = "project-1";
-        var projectStore = new FakeProjectStore(
-            Document(projectId) with { DatabaseProvider = ProjectDocument.SqlServerDatabaseProvider },
-            events);
-        var reports = new LeaseReportStore(events);
-        var deletionLocks = new LeaseDeletionLockService(events);
-        var handler = new ProjectDeleteHandler(
-            projectStore,
-            CatalogWith(new FakeDatabaseDeleter(events, reports, deletionLocks), reports, deletionLocks),
-            new FakeRegistry(exists: true, visible: null),
-            new CurrentPrincipal("CONTOSO\\intruder"),
-            new ProjectSession());
-        using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
-
-        var exception = await Assert.ThrowsAsync<JetActionException>(() =>
-            handler.HandleAsync(payload.RootElement, CancellationToken.None));
-
-        Assert.Equal(JetErrorCodes.NotAuthorized, exception.Code);
-        Assert.Empty(events);
-        Assert.False(reports.LeaseHeld);
-        Assert.False(deletionLocks.LeaseHeld);
-    }
-
-    [Fact]
     public async Task Delete_DatabaseFails_DoesNotCompleteLeaseOrLeaveSession()
     {
         var events = new List<string>();
@@ -174,7 +147,6 @@ public sealed class ProjectDeleteReportLeaseTests
         var handler = new ProjectDeleteHandler(
             projectStore,
             CatalogWith(new FakeDatabaseDeleter(events, reports, deletionLocks, failure), reports, deletionLocks),
-            new FakeRegistry(),
             new CurrentPrincipal("CONTOSO\\auditor"),
             session);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
@@ -212,7 +184,6 @@ public sealed class ProjectDeleteReportLeaseTests
         var handler = new ProjectDeleteHandler(
             projectStore,
             CatalogWith(new FakeDatabaseDeleter(events, reports, deletionLocks), reports, deletionLocks),
-            new FakeRegistry(),
             new CurrentPrincipal("CONTOSO\\auditor"),
             session);
         using var payload = JsonDocument.Parse("{\"projectId\":\"project-1\"}");
@@ -306,36 +277,6 @@ public sealed class ProjectDeleteReportLeaseTests
 
             return Task.CompletedTask;
         }
-    }
-
-    private sealed class FakeRegistry(bool exists = false, RegisteredProject? visible = null) : IProjectRegistry
-    {
-        public Task<bool> ExistsAsync(string projectId, CancellationToken cancellationToken) =>
-            Task.FromResult(exists);
-
-        public Task<RegisteredProject?> FindVisibleAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Task.FromResult(visible);
-
-        public Task RegisterAsync(
-            ProjectDocument document,
-            string principal,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task UpdateDocumentAsync(
-            ProjectDocument document,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<RegisteredProject>> ListVisibleAsync(
-            string principal,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task TouchLastOpenedAsync(string projectId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task UnregisterAsync(string projectId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 
     private sealed class LeaseReportStore(List<string> events) : IReportStore

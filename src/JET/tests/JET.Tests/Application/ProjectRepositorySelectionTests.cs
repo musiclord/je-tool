@@ -12,85 +12,26 @@ namespace JET.Tests.Application;
 /// 同一個 host 內切換不同資料庫種類的案件時，建案、載入與刪除都必須用該案件自己的資料庫。
 /// 這組測試在改成「案件建立或載入時選定 repository」之前先釘住現行行為（裁定 2026-10-02-07）；
 /// 斷言只看檔案、錯誤碼與 session 是否仍指向原案件，不看內部物件。
+/// 只保留 SQLite 之後沒有第二種資料庫可切換（裁定 2026-11-06-08）：原本作用中案件是 DuckDB 案件的情境改成另一個
+/// SQLite 案件；同名改用另一種資料庫重建的兩個情境沒有可用的資料庫，隨之刪除。
 /// </summary>
 public sealed class ProjectRepositorySelectionTests
 {
     private const string UnknownProvider = "synthetic-engine";
 
     [Fact]
-    public async Task LoadDuckDbCase_ThenCreateSqliteCaseAndImportGl_WritesOnlyTheNewSqliteDatabase()
-    {
-        using var root = new TempProjectRoot();
-        using var host = new HandlerTestHost(projectsRootPath: root.Path);
-        var duckDbCase = NewProjectId("duckdb-a");
-        var sqliteCase = NewProjectId("sqlite-b");
-
-        await host.DispatchAsync("project.create", CreatePayload(duckDbCase, ProjectDocument.DuckDbDatabaseProvider));
-        await host.DispatchAsync("project.load", LoadPayload(duckDbCase));
-        var duckDbPath = Path.Combine(root.Path, duckDbCase, DuckDbProjectDatabase.DatabaseFileName);
-        var duckDbHashBefore = FileHash(duckDbPath);
-
-        await host.DispatchAsync("project.create", CreatePayload(sqliteCase, ProjectDocument.DefaultDatabaseProvider));
-        var glFile = WriteGlWorkbook();
-        try
-        {
-            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glFile }));
-        }
-        finally
-        {
-            TestWorkbookBuilder.Delete(glFile);
-        }
-
-        Assert.True(File.Exists(Path.Combine(root.Path, sqliteCase, JetProjectFolder.DatabaseFileName)));
-        Assert.False(File.Exists(Path.Combine(root.Path, sqliteCase, DuckDbProjectDatabase.DatabaseFileName)));
-        Assert.False(File.Exists(Path.Combine(root.Path, duckDbCase, JetProjectFolder.DatabaseFileName)));
-        Assert.Equal(duckDbHashBefore, FileHash(duckDbPath));
-
-        var overview = await host.DispatchAsync("dev.db.overview");
-        Assert.Equal(ProjectDocument.DefaultDatabaseProvider, overview.GetProperty("databaseProvider").GetString());
-        AssertDatabaseUnder(overview, root.Path, sqliteCase);
-        Assert.Equal(2L, TableRowCount(overview, "pbc_gl"));
-    }
-
-    [Fact]
-    public async Task DeleteInactiveDuckDbCase_KeepsActiveSqliteCase_ThenDeletingActiveCaseClearsSession()
-    {
-        using var root = new TempProjectRoot();
-        using var host = new HandlerTestHost(projectsRootPath: root.Path);
-        var duckDbCase = NewProjectId("duckdb-c");
-        var sqliteCase = NewProjectId("sqlite-a");
-
-        await host.DispatchAsync("project.create", CreatePayload(duckDbCase, ProjectDocument.DuckDbDatabaseProvider));
-        await host.DispatchAsync("project.create", CreatePayload(sqliteCase, ProjectDocument.DefaultDatabaseProvider));
-
-        var deleted = await host.DispatchAsync("project.delete", LoadPayload(duckDbCase));
-
-        Assert.True(deleted.GetProperty("ok").GetBoolean());
-        Assert.False(Directory.Exists(Path.Combine(root.Path, duckDbCase)));
-        var overview = await host.DispatchAsync("dev.db.overview");
-        Assert.Equal(ProjectDocument.DefaultDatabaseProvider, overview.GetProperty("databaseProvider").GetString());
-        AssertDatabaseUnder(overview, root.Path, sqliteCase);
-
-        await host.DispatchAsync("project.delete", LoadPayload(sqliteCase));
-
-        var noSession = await Assert.ThrowsAsync<JetActionException>(
-            () => host.DispatchAsync("dev.db.overview"));
-        Assert.Equal(JetErrorCodes.NoActiveProject, noSession.Code);
-    }
-
-    [Fact]
     public async Task LoadOtherCaseFails_KeepsPreviousSessionAndReleasesTargetLock()
     {
         using var root = new TempProjectRoot();
         var sqliteCase = NewProjectId("sqlite-b");
-        var duckDbCase = NewProjectId("duckdb-a");
+        var activeCase = NewProjectId("sqlite-a");
         using (var creator = new HandlerTestHost(projectsRootPath: root.Path))
         {
             await creator.DispatchAsync("project.create", CreatePayload(sqliteCase, ProjectDocument.DefaultDatabaseProvider));
         }
 
         using var host = new HandlerTestHost(projectsRootPath: root.Path);
-        await host.DispatchAsync("project.create", CreatePayload(duckDbCase, ProjectDocument.DuckDbDatabaseProvider));
+        await host.DispatchAsync("project.create", CreatePayload(activeCase, ProjectDocument.DefaultDatabaseProvider));
 
         // 唯讀的 project.json 讓載入在取得工作鎖之後、寫回最近開啟時間時失敗。
         var projectJson = Path.Combine(root.Path, sqliteCase, JetProjectFolder.ProjectJsonFileName);
@@ -107,8 +48,8 @@ public sealed class ProjectRepositorySelectionTests
         }
 
         var overview = await host.DispatchAsync("dev.db.overview");
-        Assert.Equal(ProjectDocument.DuckDbDatabaseProvider, overview.GetProperty("databaseProvider").GetString());
-        AssertDatabaseUnder(overview, root.Path, duckDbCase);
+        Assert.Equal(ProjectDocument.DefaultDatabaseProvider, overview.GetProperty("databaseProvider").GetString());
+        AssertDatabaseUnder(overview, root.Path, activeCase);
         AssertLockFree(root.Path, sqliteCase);
     }
 
@@ -179,84 +120,6 @@ public sealed class ProjectRepositorySelectionTests
         AssertLockFree(root.Path, unknownCase);
     }
 
-    [Theory]
-    [InlineData("sqlite", "duckdb")]
-    [InlineData("duckdb", "sqlite")]
-    public async Task CreateFailsAtWorkLock_RetrySameNameWithOtherProvider_BuildsTheRetriedDatabase(
-        string firstProvider,
-        string retryProvider)
-    {
-        using var root = new TempProjectRoot();
-        using var host = new HandlerTestHost(projectsRootPath: root.Path);
-        var projectId = NewProjectId("create-retry");
-        var projectDirectory = Path.Combine(root.Path, projectId);
-
-        // 模擬另一個執行個體已持有同名案件的工作鎖：先建空資料夾取鎖，再移走資料夾讓建案能開始。
-        // 鎖檔放在案件根目錄，不在案件資料夾內，所以移走資料夾後鎖仍有效。
-        var external = new LocalFileLockService(new JetProjectFolder(root.Path));
-        try
-        {
-            Directory.CreateDirectory(projectDirectory);
-            Assert.IsType<LockOutcome.Acquired>(
-                await external.AcquireAsync(projectId, "external-holder", CancellationToken.None));
-            Directory.Delete(projectDirectory);
-
-            var held = await Assert.ThrowsAsync<JetActionException>(
-                () => host.DispatchAsync("project.create", CreatePayload(projectId, firstProvider)));
-            Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
-            Assert.False(Directory.Exists(projectDirectory));
-        }
-        finally
-        {
-            external.Dispose();
-        }
-
-        await host.DispatchAsync("project.create", CreatePayload(projectId, retryProvider));
-
-        Assert.True(File.Exists(Path.Combine(projectDirectory, DatabaseFileName(retryProvider))));
-        Assert.False(File.Exists(Path.Combine(projectDirectory, DatabaseFileName(firstProvider))));
-        var overview = await host.DispatchAsync("dev.db.overview");
-        Assert.Equal(retryProvider, overview.GetProperty("databaseProvider").GetString());
-        Assert.Equal(
-            Path.GetFullPath(Path.Combine(projectDirectory, DatabaseFileName(retryProvider))),
-            Path.GetFullPath(overview.GetProperty("databasePath").GetString()!),
-            ignoreCase: true);
-    }
-
-    [Theory]
-    [InlineData("sqlite", "duckdb")]
-    [InlineData("duckdb", "sqlite")]
-    public async Task DeleteThenRecreateSameNameWithOtherProvider_LaterImportUsesTheNewDatabase(
-        string firstProvider,
-        string recreatedProvider)
-    {
-        using var root = new TempProjectRoot();
-        using var host = new HandlerTestHost(projectsRootPath: root.Path);
-        var projectId = NewProjectId("recreate");
-        var projectDirectory = Path.Combine(root.Path, projectId);
-        var glFile = WriteGlWorkbook();
-        try
-        {
-            // 先匯入一次，讓還沒遷移的動作以案件編號記住第一種資料庫。
-            await host.DispatchAsync("project.create", CreatePayload(projectId, firstProvider));
-            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glFile }));
-            await host.DispatchAsync("project.delete", LoadPayload(projectId));
-
-            await host.DispatchAsync("project.create", CreatePayload(projectId, recreatedProvider));
-            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glFile }));
-        }
-        finally
-        {
-            TestWorkbookBuilder.Delete(glFile);
-        }
-
-        Assert.True(File.Exists(Path.Combine(projectDirectory, DatabaseFileName(recreatedProvider))));
-        Assert.False(File.Exists(Path.Combine(projectDirectory, DatabaseFileName(firstProvider))));
-        var overview = await host.DispatchAsync("dev.db.overview");
-        Assert.Equal(recreatedProvider, overview.GetProperty("databaseProvider").GetString());
-        Assert.Equal(2L, TableRowCount(overview, "pbc_gl"));
-    }
-
     private static void AssertLockFree(string rootPath, string projectId)
     {
         using var probe = new LocalFileLockService(new JetProjectFolder(rootPath));
@@ -300,9 +163,7 @@ public sealed class ProjectRepositorySelectionTests
         Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
     private static string DatabaseFileName(string provider) =>
-        provider == ProjectDocument.DuckDbDatabaseProvider
-            ? DuckDbProjectDatabase.DatabaseFileName
-            : JetProjectFolder.DatabaseFileName;
+        JetProjectFolder.DatabaseFileName;
 
     private static string NewProjectId(string scenario) =>
         $"repo-select-{scenario}-{Guid.NewGuid():N}";

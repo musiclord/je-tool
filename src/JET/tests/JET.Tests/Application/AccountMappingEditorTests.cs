@@ -10,7 +10,6 @@ public sealed class AccountMappingEditorTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FiftyAccountPages_HaveRealNextCursors_AndDoNotSaveClassifications(string provider)
     {
         using var host = new HandlerTestHost();
@@ -46,7 +45,6 @@ public sealed class AccountMappingEditorTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BulkAssignments_CommitTogetherAndKeepUnselectedCategory(string provider)
     {
         using var host = new HandlerTestHost();
@@ -72,7 +70,6 @@ public sealed class AccountMappingEditorTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AccountsWithMissingCodes_RemainInValidationButAreNotAssignable(string provider)
     {
         using var host = new HandlerTestHost();
@@ -92,7 +89,6 @@ public sealed class AccountMappingEditorTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PagedAssignments_PreserveOtherAccounts_RejectInvalidPatch_AndResume(string provider)
     {
         using var host = new HandlerTestHost();
@@ -148,9 +144,7 @@ public sealed class AccountMappingEditorTests
         Assert.Equal(2, dataPreview.GetProperty("totalCount").GetInt64());
         Assert.Equal(new[] { "Cash", "Revenue" }, dataPreview.GetProperty("rows").EnumerateArray()
             .Select(row => row[2].GetString()).ToArray());
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
-            : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        ILocalProjectDatabase database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         var exported = await new LocalAccountMappingExportRepository(database).FetchAllAsync(
             projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
         Assert.Equal(new[] { "Cash", "Revenue" }, exported.Select(row => row.Category));
@@ -162,7 +156,6 @@ public sealed class AccountMappingEditorTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExcelThenDirectThenExcel_PreservesUnchangedRows_AndReplacesOnlyOnImport(string provider)
     {
         using var host = new HandlerTestHost();

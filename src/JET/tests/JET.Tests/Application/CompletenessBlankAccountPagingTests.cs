@@ -56,7 +56,7 @@ public sealed class CompletenessBlankAccountPagingTests
     private static async Task<ILocalProjectDatabase> SeedAsync(TempProjectRoot root, string provider)
     {
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase db = provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase db = new SqliteProjectDatabase(folder);
         Directory.CreateDirectory(folder.GetProjectDirectory(ProjectId));
         await db.EnsureCreatedAsync(ProjectId, CancellationToken.None);
         await using var connection = db.CreateConnection(ProjectId);
@@ -99,9 +99,6 @@ public sealed class CompletenessBlankAccountPagingTests
     [InlineData("sqlite", 1)]
     [InlineData("sqlite", 2)]
     [InlineData("sqlite", PageRequest.DefaultPageSize)]
-    [InlineData("duckdb", 1)]
-    [InlineData("duckdb", 2)]
-    [InlineData("duckdb", PageRequest.DefaultPageSize)]
     public async Task AccountAndDiffPages_ReadBlankAccountRows_InTheSameOrderOnBothProviders(string provider, int pageSize)
     {
         using var root = new TempProjectRoot();
@@ -120,7 +117,6 @@ public sealed class CompletenessBlankAccountPagingTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SortedDiffPages_KeepBlankAccountRows_AndBreakTiesInDefaultOrder(string provider)
     {
         using var root = new TempProjectRoot();
@@ -153,7 +149,6 @@ public sealed class CompletenessBlankAccountPagingTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ValidationReportAndWorkingPaper_ListBlankAccount_WhenAccountsSpanSeveralPages(string provider)
     {
         using var host = new HandlerTestHost();

@@ -68,23 +68,12 @@ public sealed class AccountPairCategorySelectionPredicateTests
     public static TheoryData<string, string> LocalScenarios()
     {
         var data = new TheoryData<string, string>();
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         {
             foreach (var scenario in ScenarioKeys)
             {
                 data.Add(provider, scenario);
             }
-        }
-
-        return data;
-    }
-
-    public static TheoryData<string> SqlServerScenarios()
-    {
-        var data = new TheoryData<string>();
-        foreach (var scenario in ScenarioKeys)
-        {
-            data.Add(scenario);
         }
 
         return data;
@@ -111,18 +100,8 @@ public sealed class AccountPairCategorySelectionPredicateTests
         await AssertScenarioAsync(fixture, scenario);
     }
 
-    [SqlServerTheory]
-    [MemberData(nameof(SqlServerScenarios))]
-    public async Task CategorySelection_SqlServer_HitsExactRows(string scenario)
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(FixtureSql);
-
-        await AssertScenarioAsync(fixture, scenario);
-    }
-
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CategoryOrderAndDuplicates_DoNotChangeHits(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
@@ -145,7 +124,6 @@ public sealed class AccountPairCategorySelectionPredicateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MultiSelect_PositiveModes_EqualUnionOfSingleSelections(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);

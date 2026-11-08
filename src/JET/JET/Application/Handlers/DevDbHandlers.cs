@@ -60,27 +60,3 @@ public sealed class DevDbTableDataHandler(ProjectSession session) : IApplication
         };
     }
 }
-
-/// <summary>
-/// dev.db.reconcile（只供開發診斷）：資料庫漂移檢查，比對單庫 sys.schemas、專案登錄與本機資料夾，
-/// 回報 orphanSchemas／ghostRegistrations／zombieFolders 三種漂移供人工裁決（只列建議、不自動清理）。
-/// 不需 active project（跨專案）。僅 Debug 組建註冊（比照 dev.db.overview）。
-/// </summary>
-public sealed class DevDbReconcileHandler(IControlPlaneReconciler reconciler) : IApplicationActionHandler
-{
-    public string Action => "dev.db.reconcile";
-
-    public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
-    {
-        var report = await reconciler.ReconcileAsync(cancellationToken);
-
-        return new
-        {
-            orphanSchemas = report.OrphanSchemas,
-            ghostRegistrations = report.GhostRegistrations
-                .Select(g => new { projectId = g.ProjectId, schemaName = g.SchemaName })
-                .ToArray(),
-            zombieFolders = report.ZombieFolders
-        };
-    }
-}

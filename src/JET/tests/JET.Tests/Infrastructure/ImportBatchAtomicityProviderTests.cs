@@ -24,19 +24,14 @@ public sealed class ImportBatchAtomicityProviderTests
     private static readonly IReadOnlyList<string> Columns = ["doc", "amount"];
 
     [Theory]
-    [InlineData("sqlite", ReplaceMode)]
-    [InlineData("sqlite", AppendMode)]
-    [InlineData("duckdb", ReplaceMode)]
-    [InlineData("duckdb", AppendMode)]
+    [InlineData(ReplaceMode)]
+    [InlineData(AppendMode)]
     public async Task BatchImport_LaterSourceFailure_RollsBackWholeBatch_AndRetrySucceeds_LocalProviders(
-        string provider,
         string mode)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
@@ -49,24 +44,6 @@ public sealed class ImportBatchAtomicityProviderTests
             id => database.CreateConnection(id),
             schemaPrefix: string.Empty,
             mode: mode);
-    }
-
-    [SqlServerTheory]
-    [InlineData(ReplaceMode)]
-    [InlineData(AppendMode)]
-    public async Task BatchImport_LaterSourceFailure_RollsBackWholeBatch_AndRetrySucceeds_SqlServer(
-        string mode)
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        IImportRepository repository = new SqlServerImportRepository(project.Database);
-
-        await AssertAtomicFailureAndRetryAsync(
-            repository,
-            project.ProjectId,
-            id => project.Database.CreateConnection(id),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId),
-            mode);
     }
 
     private static async Task AssertAtomicFailureAndRetryAsync(

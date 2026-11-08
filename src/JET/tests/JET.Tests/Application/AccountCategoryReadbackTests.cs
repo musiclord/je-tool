@@ -12,7 +12,7 @@ public sealed class AccountCategoryReadbackTests
 {
     public static IEnumerable<object?[]> Cases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         {
             yield return [provider, "node", "僅分類本身", "子現金"];
             yield return [provider, "subtree", "包含下層分類", "子現金、次層其他"];
@@ -32,9 +32,7 @@ public sealed class AccountCategoryReadbackTests
             .AddRow("B5-1", "1", "2025-03-01", "B", "B", "Synthetic debit", "1", 1)
             .AddRow("B5-1", "2", "2025-03-01", "O", "O", "Synthetic credit", "1", 0),
             databaseProvider: provider, validateForDownstream: true);
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
-            : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        ILocalProjectDatabase database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         await using (var connection = database.CreateConnection(projectId))
         {
             await connection.OpenAsync();

@@ -41,9 +41,10 @@ node tools/harness/frontend-preview/server.cjs
 
 ### 接上正式後端的瀏覽器主機
 
-主機只綁定 `127.0.0.1`，action 交給正式 C# 程式，事件用 Server-Sent Events 傳送；不讀 SQL Server 連線設定。
+主機只綁定 `127.0.0.1`，action 交給正式 C# 程式，事件用 Server-Sent Events 傳送。
 資料、日誌與快取放在 `artifacts`；終端列出每個 action 的結果與 correlation id，可對照該主機資料夾下 `logs/` 的診斷日誌。
-`JET_BROWSER_HOST_SEED` 可選 `demo` 或 `taiwan-sme`；後者會建立 SQLite、DuckDB 與待配對案件，並把結果和產生器的獨立答案比對。合成資料來源在 `tools/harness/browser-host/TaiwanSme/`。
+`JET_BROWSER_HOST_SEED` 可選 `demo` 或 `taiwan-sme`；後者會建立常用篩選情境、自訂情境與待配對三個 SQLite 案件，並把結果和產生器的獨立答案比對。
+自訂情境案件原本是 DuckDB 案件，2026-11-06 改建成 SQLite（裁定 2026-11-06-08），既有的主機資料夾要重建合成案件才會換掉。合成資料來源在 `tools/harness/browser-host/TaiwanSme/`。
 
 #### 台灣中小企業合成案件與交錯操作檢查
 

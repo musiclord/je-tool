@@ -6,6 +6,7 @@ namespace JET.Infrastructure;
 /// OLAP 引擎（DuckDB）是最慢形；此縫讓各引擎自適配：SQLite 包裝現行參數化 INSERT，
 /// DuckDB 走原生 Appender（批量 flush，快一數量級）。業務邏輯與共用 SQL 文本零改動——呼叫端只把
 /// 「逐列 ExecuteNonQuery 迴圈」換成 <see cref="AppendAsync"/> 迴圈＋一次 <see cref="CompleteAsync"/>。
+/// 目前只有 SQLite 的實作（<c>SqliteBulkRowWriter</c>）；下面提到的 DuckDB 臂隨裁定 2026-11-06-08 暫時移除，契約保留給日後恢復。
 /// </summary>
 /// <remarks>
 /// 契約（兩引擎一致）：

@@ -9,9 +9,9 @@ namespace JET.AuditCore;
 /// 一律只消費投影已落地的 <c>is_excluded</c>，SQL 不重做期間或過帳狀態政策。唯一刻意的 raw
 /// source-quality 例外是 <c>blankGlDate</c>，只由 source-quality query／summary 消費。</para>
 ///
-/// <para><b>共用片段</b>：<see cref="UnbalancedCore"/>（voucher_balance 6 處共用的傳票彙總核心）、
+/// <para><b>共用片段</b>：<see cref="UnbalancedCore"/>（voucher_balance 3 處共用的傳票彙總核心）、
 /// <see cref="UnbalancedDetailCore"/>（借貸不平傳票回接有效 GL 的 count／page 共用核心）、
-/// <see cref="InfSampleInsert"/>（INF 抽樣 INSERT，Local/SqlServer 兩份逐字重複收斂為一，方言差
+/// <see cref="InfSampleInsert"/>（INF 抽樣 INSERT 的唯一定義，方言差
 /// 取 N 列走 <see cref="ISqlDialect.LimitClause"/> 既有縫）、blank_records 四類述詞則以
 /// <c>BlankRecordsCategoryPredicate</c> 為中心（計數/明細/分頁三形狀共用）。</para>
 ///
@@ -37,7 +37,7 @@ public static class ValidationProcedures
 
     /// <summary>
     /// voucher_balance 共用的借貸不平母體核心（自 FROM 起）——只看納入測試的分錄、依傳票彙總、留借貸淨額≠0。
-    /// 六處呼叫（validate 計數/明細 × Local/SqlServer + voucherBalancePage × Local/SqlServer）共用此單一定義；
+    /// 三處呼叫（validate 的計數與明細，以及 voucherBalancePage）共用此單一定義；
     /// 投影（COUNT 包裹 vs 明細欄）由各呼叫端在前綴 SELECT 決定，游標 keyset 由 <paramref name="extraFilter"/>
     /// 併入 WHERE（分頁用 <c>" AND voucher_number &gt; @cursor"</c>，否則空）。
     /// </summary>
@@ -89,7 +89,7 @@ public static class ValidationProcedures
         "ORDER BY g.voucher_number, g.gl_date";
 
     /// <summary>
-    /// INF 抽樣 INSERT 的共用定義：Local 與 SqlServer 共用主體，方言差由
+    /// INF 抽樣 INSERT 的唯一定義，方言差由
     /// <see cref="ISqlDialect"/> 渲染。母體限有效分錄。排序識別用 target 的
     /// source_row_number（批次內單調穩定），不用重投影會重編的 entry_id；entry_id 只作唯一 tiebreak。
     /// 排序鍵使用 AuditCore canonical PRF（演算法第 2 版）。
@@ -111,12 +111,12 @@ public static class ValidationProcedures
         """;
     }
 
-    /// <summary>完整性差異 CTE：GL 側只取 GL，不含 GL(未納入測試)。SQLite 與 DuckDB 直接用這份。</summary>
+    /// <summary>完整性差異 CTE：GL 側只取 GL，不含 GL(未納入測試)。SQLite 直接用這份。</summary>
     public static readonly string CompletenessDiffCte = CompletenessDiffCteFor("");
 
     /// <summary>
     /// 完整性差異 CTE 的唯一定義。<paramref name="schemaPrefix"/> 是兩張資料表 gl、tb 前面的限定詞：
-    /// SQLite 與 DuckDB 傳空字串，SQL Server 傳 <c>SqlServerProjectSchema.QualifierFor</c> 的結果。
+    /// SQLite 傳空字串；參數保留給日後恢復的 SQL Server 傳 schema 限定詞。
     /// 中間結果另取 gl_by_account、tb_by_account 這兩個名字，不和資料表 gl、tb 同名，
     /// 否則 SQLite 會把 CTE 裡的 FROM gl 當成引用自己。
     /// </summary>

@@ -134,7 +134,7 @@ internal static class LocalFieldInfoPersistence
     };
 }
 
-/// <summary>欄位來歷在三種資料庫 field_info.field_origin 的儲存值；SQL Server 的持久化也用這一份。</summary>
+/// <summary>欄位來歷在 field_info.field_origin 的儲存值；日後恢復 DuckDB 與 SQL Server 時也用這一份。</summary>
 internal static class FieldInfoOriginStorage
 {
     internal static string ToStorageName(FieldInfoOrigin origin) => origin switch

@@ -54,6 +54,7 @@ Codex 對未信任的專案會略過整個專案層 `.codex/`。非受管理的 
 |:---|:---|:---|
 | `jet-converge` | 收斂跨 session 的需求與裁定 | 只有使用者明示呼叫；Codex 的 `allow_implicit_invocation: false`，Claude 與 VS Code 的 `disable-model-invocation: true` |
 | `jet-readable-docs` | 寫清楚面向人的繁體中文，保留原有事實 | 可依任務自動使用 |
+| `security-audit` | 使用 Cloudflare 的流程檢查程式安全性 | 安全問題可依任務使用；完整稽核或報告須有明確要求，紀錄位置見 [docs/security/README.md](../../docs/security/README.md) |
 | `jet-frontend-design` | 延續已接受的視覺方向，設計與檢查前端；JET 前端用它，不用通用的 frontend-design | 可依任務自動使用；來源與詳細檢查按需讀 references |
 
 正本都在 `.agents/skills/`；`.claude/skills/` 只轉讀正本，不放第二份內容。沒有自動技能能力的工具仍能從 `AGENTS.md` 讀同一文件。

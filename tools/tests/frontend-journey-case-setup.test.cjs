@@ -57,8 +57,9 @@ function createFixture() {
   return { ...f, focus, page };
 }
 
+// 建案表單不再有資料儲存方式，一律建 SQLite 案件；原本這裡選 DuckDB（裁定 2026-11-06-08）。第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
 const VALID_CREATE = { projectName: '合成案件甲', projectCode: 'SYN-01', clientName: '合成客戶股份有限公司',
-  periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20', databaseProvider: 'duckdb' };
+  periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20' };
 
 function labelText(row) { return row.querySelector('.form__label').textContent.replace(/\s*\*$/, ''); }
 
@@ -80,9 +81,13 @@ test('the create form collects the case details without an operator field and la
   // 使用者選了「第一步標籤拿掉括號說明」（裁定 2026-10-13-19），選項說明（docs/history/specs/2026-10-06-kct-gl-requirements-plan.md
   // 「收尾四項：調查與裁定（2026-10-13）」的「寫法統一」列）原文：「第一步「案件編號（選填）」「客戶名稱（選填）」拿掉（選填），
   // 因為必填欄已經用星號標示；「資料儲存方式（建立後不可變更）」的限制改成欄位下方的一句說明。」三個標籤逐字比對。
+  // 「資料儲存方式」這一欄隨 SQL Server 與 DuckDB 移除，建案一律是 SQLite（裁定 2026-11-06-08）；原本也逐字比對它的標籤，
+  // 並確認建立後不能變更的說明寫在欄位下方。第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
   const rows = form.querySelectorAll('.form__row');
   const labels = rows.map(labelText);
-  for (const label of ['案件編號', '客戶名稱', '資料儲存方式']) assert.ok(labels.includes(label), label + ' is the exact label');
+  for (const label of ['案件編號', '客戶名稱']) assert.ok(labels.includes(label), label + ' is the exact label');
+  assert.ok(!labels.includes('資料儲存方式'), 'the form has no storage choice');
+  assert.ok(form.querySelector('[name="databaseProvider"]') === null, 'no database field');
   assert.deepEqual(labels.filter(label => /選填|（|\(|建立後/.test(label)), [], 'no label carries a bracketed note');
 
   // 必填欄用星號標示，選填欄沒有星號，也不寫「選填」。
@@ -92,12 +97,6 @@ test('the create form collects the case details without an operator field and la
   assert.deepEqual(starred, ['periodEnd', 'periodStart', 'projectName']);
   for (const name of ['projectName', 'periodStart', 'periodEnd']) assert.equal(form[name].hasAttribute('required'), true, name + ' required');
   for (const name of ['projectCode', 'clientName', 'prepStartDate']) assert.equal(form[name].hasAttribute('required'), false, name + ' optional');
-
-  // 資料儲存方式的限制寫在欄位下方（只比對意思：建立以後不能改）。
-  const providerRow = form.databaseProvider.closest('.form__row');
-  const siblings = form.children, after = siblings[siblings.indexOf(providerRow) + 1];
-  assert.ok(after !== undefined && after.tagName === 'P', 'a sentence follows the storage field');
-  assert.match(after.textContent, /建立.*不(能|可)變更/);
 });
 
 test('creating a case sends exactly the entered details without an operator, then opens it and shows its name and client', async () => {
@@ -111,7 +110,7 @@ test('creating a case sends exactly the entered details without an operator, the
 
   const create = f.request('projectCreate');
   assert.deepEqual(plain(create.payload), { projectName: '合成案件甲', projectCode: 'SYN-01', clientName: '合成客戶股份有限公司',
-    periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20', databaseProvider: 'duckdb' });
+    periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20' });
   assert.equal(Object.hasOwn(create.payload, 'operatorId'), false, 'the operator is taken by the backend, not sent');
   assert.ok(noDunderKeys(create.payload));
 
@@ -119,7 +118,7 @@ test('creating a case sends exactly the entered details without an operator, the
   const load = f.request('projectLoad');
   assert.deepEqual(plain(load.payload), { projectId: '合成案件甲' });
   load.resolve({ project: { projectId: '合成案件甲', clientName: '合成客戶股份有限公司', projectCode: 'SYN-01', operatorId: '合成審計員',
-    periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20', databaseProvider: 'duckdb', currentStep: 0 } });
+    periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20', databaseProvider: 'sqlite', currentStep: 0 } });
   await settle();
 
   // 案件以案件名稱識別，客戶名稱另外顯示。
@@ -140,7 +139,8 @@ test('the case list names each case by its case name and lists the client and ca
   const f = remapAppFixture(); f.store.resetWorkflow(); f.store.setView('picker');
   f.store.setProjects([
     { projectId: '合成案件甲', clientName: '合成客戶股份有限公司', projectCode: 'SYN-01', databaseProvider: 'sqlite' },
-    { projectId: '合成案件乙', clientName: '', databaseProvider: 'duckdb' }
+    // 正式後端只列 SQLite 案件，乙案原本是 DuckDB 案件（裁定 2026-11-06-09）。
+    { projectId: '合成案件乙', clientName: '', databaseProvider: 'sqlite' }
   ], null);
   f.app.renderPicker(f.state);
 
@@ -468,7 +468,7 @@ test('messages: creating a case logs that it was created with each backend warni
   fill(form, VALID_CREATE);
   submit(form);
   f.request('projectCreate').resolve({ projectId: '合成案件甲', warnings: ['合成：建案提醒。'] }); await settle();
-  f.request('projectLoad').resolve({ project: { projectId: '合成案件甲', periodStart: '2025-01-01', periodEnd: '2025-12-31', databaseProvider: 'duckdb', currentStep: 0 } });
+  f.request('projectLoad').resolve({ project: { projectId: '合成案件甲', periodStart: '2025-01-01', periodEnd: '2025-12-31', databaseProvider: 'sqlite', currentStep: 0 } });
   await settle(); await settle();
   // 裁定 2026-10-13-28 維持原句（final-wording.json）；後端提醒原樣、屬需要注意。
   assert.deepEqual(messageList(f).slice(0, 2), [{ text: '合成：建案提醒。', level: 'warn' }, { text: '案件「合成案件甲」已建立。', level: 'info' }]);
@@ -547,4 +547,29 @@ test('messages: holiday and make-up day imports log their day counts with the el
   f.requests.filter(r => r.action === 'calendarSetNonWorkingDays').at(-1).resolve({ nonWorkingDays: [0] }); await settle(); await settle();
   assert.deepEqual(messageList(f)[0], { text: '已更新每週休息日設定。', level: 'info' });
   assert.equal(messageList(f).length, before + 1);
+});
+
+// 裁定 2026-11-06-12：國定假日清單或補班日清單正被 Excel 開著時照樣匯入，開著檔案的提醒放在卡片的匯入結果旁，
+// 訊息面板照舊另記一則。同一份清單再匯入、檔案沒開著時，那一則拿掉，另一份清單的提醒不受影響。這是新增的測試。
+test('a holiday or make-up day list held open by Excel shows its reminder in the calendar card until that list is imported again cleanly', async () => {
+  const f = importFixture();
+  f.click('[data-task-toggle="calendar"]');
+  const held = name => '檔案「' + name + '」正被其他程式開啟（例如 Excel）。JET 匯入的是這個檔案最後一次存檔的內容，尚未存檔的修改沒有匯入。';
+  const importList = async (action, importAction, fileName, openElsewhereWarnings) => {
+    f.click('[data-action="' + action + '"]');
+    f.requests.filter(r => r.action === 'hostSelectFile').at(-1).resolve({ filePath: 'synthetic\\' + fileName, fileName }); await settle();
+    f.request(importAction).resolve({ count: 2, warnings: openElsewhereWarnings.slice(), openElsewhereWarnings }); await settle(); await settle();
+  };
+  const notices = () => f.dom.content.querySelectorAll('[data-bind="import-card-calendar"] [data-open-elsewhere]').map(node => node.textContent);
+
+  await importList('import-holiday', 'importHolidayFromFile', '合成國定假日.xlsx', [held('合成國定假日.xlsx')]);
+  await importList('import-makeup', 'importMakeupDayFromFile', '合成補班日.xlsx', [held('合成補班日.xlsx')]);
+  assert.deepEqual(notices(), [held('合成國定假日.xlsx'), held('合成補班日.xlsx')]);
+  const holidayNotice = f.$('[data-bind="import-card-calendar"] [data-open-elsewhere="holiday"]');
+  assert.ok(holidayNotice.classList.contains('form-notice--warning'), 'an amber notice, not an error');
+  assert.equal(holidayNotice.getAttribute('role'), 'status');
+  assert.ok(messageList(f).some(m => m.text === held('合成補班日.xlsx') && m.level === 'warn'), 'the message panel keeps the record');
+
+  await importList('import-holiday', 'importHolidayFromFile', '合成國定假日.xlsx', []);
+  assert.deepEqual(notices(), [held('合成補班日.xlsx')]);
 });

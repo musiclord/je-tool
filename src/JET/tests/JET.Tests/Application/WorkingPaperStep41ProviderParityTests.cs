@@ -28,7 +28,6 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task WorkingPaperManualAuto_UsesTextAndPreservesBlank(string provider)
     {
         using var host = CreateHost(provider, null);
@@ -74,176 +73,9 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
         "命中 B-03"
     ];
 
-    [Fact]
-    public async Task FinalLegacyDetail_SqliteAndDuckDb_HaveIdenticalLogicalFingerprint()
-    {
-        var evidenceRoot = ResolveEvidenceRoot();
-        using var sqliteHost = CreateHost("sqlite", evidenceRoot);
-        var sqlite = await ExportAsync(sqliteHost, "sqlite");
-
-        using var duckDbHost = CreateHost("duckdb", evidenceRoot);
-        var duckDb = await ExportAsync(duckDbHost, "duckdb");
-
-        output.WriteLine($"SQLite Step4-1 fingerprint: {sqlite.Snapshot.Fingerprint}");
-        output.WriteLine($"DuckDB Step4-1 fingerprint: {duckDb.Snapshot.Fingerprint}");
-        AssertLegacyOracle(sqlite.Snapshot);
-        AssertLegacyOracle(duckDb.Snapshot);
-        Assert.Equal(sqlite.Snapshot.Fingerprint, duckDb.Snapshot.Fingerprint);
-
-        WriteEvidence(
-            evidenceRoot,
-            "provider-parity-local.json",
-            new
-            {
-                oracle = "step4-1-legacy-v2-display-width",
-                sqlite = sqlite.ToEvidence(),
-                duckdb = duckDb.ToEvidence(),
-                identicalFingerprint = true
-            });
-    }
-
-    [Fact]
-    public async Task FinalLegacyDetail_NumericLineCursorCrossesDefaultPageBoundary_OnSqliteAndDuckDb()
-    {
-        var evidenceRoot = ResolveEvidenceRoot();
-        using var sqliteHost = CreateHost("sqlite-numeric-cursor", evidenceRoot);
-        var sqlite = await ExportAsync(
-            sqliteHost,
-            "sqlite",
-            ConfigureNumericCursorFixture,
-            verifyNumericPaging: true);
-
-        using var duckDbHost = CreateHost("duckdb-numeric-cursor", evidenceRoot);
-        var duckDb = await ExportAsync(
-            duckDbHost,
-            "duckdb",
-            ConfigureNumericCursorFixture,
-            verifyNumericPaging: true);
-
-        output.WriteLine($"SQLite numeric Step4-1 fingerprint: {sqlite.Snapshot.Fingerprint}");
-        output.WriteLine($"DuckDB numeric Step4-1 fingerprint: {duckDb.Snapshot.Fingerprint}");
-        AssertNumericCursorOracle(sqlite.Snapshot);
-        AssertNumericCursorOracle(duckDb.Snapshot);
-        Assert.Equal(sqlite.Snapshot.Fingerprint, duckDb.Snapshot.Fingerprint);
-
-        WriteEvidence(
-            evidenceRoot,
-            "provider-numeric-cursor-local.json",
-            new
-            {
-                oracle = "step4-1-numeric-line-cursor-v3-display-width",
-                sqlite = sqlite.ToEvidence(),
-                duckdb = duckDb.ToEvidence(),
-                identicalFingerprint = true
-            });
-    }
-
-    [SqlServerFact]
-    public async Task FinalLegacyDetail_SqliteAndSqlServer_HaveIdenticalLogicalFingerprint()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerFact 已判定可用，但執行期無法取得 SQL Server 連線。");
-        var evidenceRoot = ResolveEvidenceRoot();
-
-        using var sqliteHost = CreateHost("sqlite-sql-oracle", evidenceRoot);
-        var sqlite = await ExportAsync(sqliteHost, "sqlite");
-
-        HandlerTestHost? sqlServerHost = null;
-        ProviderResult? sqlServer = null;
-        try
-        {
-            sqlServerHost = CreateHost(
-                "sqlserver",
-                evidenceRoot,
-                connectionString);
-            sqlServer = await ExportAsync(sqlServerHost, "sqlServer");
-
-            AssertLegacyOracle(sqlite.Snapshot);
-            AssertLegacyOracle(sqlServer.Snapshot);
-            Assert.Equal(sqlite.Snapshot.Fingerprint, sqlServer.Snapshot.Fingerprint);
-
-            WriteEvidence(
-                evidenceRoot,
-                "provider-parity-sqlserver.json",
-                new
-                {
-                    oracle = "step4-1-legacy-v2-display-width",
-                    sqlite = sqlite.ToEvidence(),
-                    sqlserver = sqlServer.ToEvidence(),
-                    identicalFingerprint = true
-                });
-        }
-        finally
-        {
-            sqlServerHost?.Dispose();
-            if (sqlServer is not null)
-            {
-                await TempSqlServerProject.DropDatabaseAsync(
-                    connectionString,
-                    sqlServer.ProjectId);
-            }
-        }
-    }
-
-    [SqlServerFact]
-    public async Task FinalLegacyDetail_NumericLineCursorCrossesDefaultPageBoundary_OnSqliteAndSqlServer()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerFact 已判定可用，但執行期無法取得 SQL Server 連線。");
-        var evidenceRoot = ResolveEvidenceRoot();
-
-        using var sqliteHost = CreateHost("sqlite-sql-numeric-cursor", evidenceRoot);
-        var sqlite = await ExportAsync(
-            sqliteHost,
-            "sqlite",
-            ConfigureNumericCursorFixture);
-
-        HandlerTestHost? sqlServerHost = null;
-        ProviderResult? sqlServer = null;
-        try
-        {
-            sqlServerHost = CreateHost(
-                "sqlserver-numeric-cursor",
-                evidenceRoot,
-                connectionString);
-            sqlServer = await ExportAsync(
-                sqlServerHost,
-                "sqlServer",
-                ConfigureNumericCursorFixture);
-
-            AssertNumericCursorOracle(sqlite.Snapshot);
-            AssertNumericCursorOracle(sqlServer.Snapshot);
-            Assert.Equal(sqlite.Snapshot.Fingerprint, sqlServer.Snapshot.Fingerprint);
-
-            WriteEvidence(
-                evidenceRoot,
-                "provider-numeric-cursor-sqlserver.json",
-                new
-                {
-                    oracle = "step4-1-numeric-line-cursor-v3-display-width",
-                    sqlite = sqlite.ToEvidence(),
-                    sqlserver = sqlServer.ToEvidence(),
-                    identicalFingerprint = true
-                });
-        }
-        finally
-        {
-            sqlServerHost?.Dispose();
-            if (sqlServer is not null)
-            {
-                await TempSqlServerProject.DropDatabaseAsync(
-                    connectionString,
-                    sqlServer.ProjectId);
-            }
-        }
-    }
-
     private static HandlerTestHost CreateHost(
         string evidenceDirectoryName,
-        string? evidenceRoot,
-        string? sqlServerConnectionString = null)
+        string? evidenceRoot)
     {
         string? projectsRoot = null;
         if (evidenceRoot is not null)
@@ -253,7 +85,6 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
         }
 
         return new HandlerTestHost(
-            sqlServerConnectionString: sqlServerConnectionString,
             projectsRootPath: projectsRoot);
     }
 
@@ -375,7 +206,6 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
         ILocalProjectDatabase database = databaseProvider switch
         {
             ProjectDocument.DefaultDatabaseProvider => new SqliteProjectDatabase(folder),
-            ProjectDocument.DuckDbDatabaseProvider => new DuckDbProjectDatabase(folder),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(databaseProvider),
                 databaseProvider,
@@ -653,7 +483,7 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
             using var document = SpreadsheetDocument.Open(workbookPath, false);
             var workbookPart = document.WorkbookPart
                 ?? throw new InvalidDataException("WorkingPaper 缺少 workbook part。");
-            var sheet = workbookPart.Workbook
+            var sheet = workbookPart.RequiredWorkbook()
                 .Descendants<Sheet>()
                 .Single(item => string.Equals(
                     item.Name?.Value,
@@ -662,9 +492,9 @@ public sealed class WorkingPaperStep41ProviderParityTests(ITestOutputHelper outp
             var worksheetPart = (WorksheetPart)workbookPart.GetPartById(
                 sheet.Id?.Value
                 ?? throw new InvalidDataException("Step4-1 缺少 relationship id。"));
-            var worksheet = worksheetPart.Worksheet;
+            var worksheet = worksheetPart.RequiredWorksheet();
             var sharedStrings = workbookPart.SharedStringTablePart?
-                .SharedStringTable
+                .SharedStringTable?
                 .Elements<SharedStringItem>()
                 .Select(item => string.Concat(
                     item.Descendants<Text>().Select(text => text.Text)))

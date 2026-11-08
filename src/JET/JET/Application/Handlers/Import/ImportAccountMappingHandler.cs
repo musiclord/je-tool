@@ -60,6 +60,8 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
         var source = new ImportSourceDescriptor(filePath, fileName, sheetName, null, null);
         // 引號內換行的提醒也適用科目配對檔（裁定 2026-10-19-06）。
         var lineBreaks = new QuotedLineBreakTally();
+        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒（裁定 2026-11-06-12）。
+        var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
 
         var facts = await Task.Run(
             async () =>
@@ -93,7 +95,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             cancellationToken);
         var result = JetAuditProgram.Finalize(plan, facts);
         var lineBreakWarning = lineBreaks.Warning(fileName, sourceNo: 1, logger);
-        string[] warnings = lineBreakWarning is null ? [] : [lineBreakWarning];
+        string[] warnings = [.. openElsewhereWarnings, .. lineBreakWarning is null ? Array.Empty<string>() : [lineBreakWarning]];
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
         AccountMappingDifferenceCounts? differences = null;
@@ -120,7 +122,9 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             mappingOnlyCount = differences?.MappingOnlyCount,
             unmappedCount = differences?.UnmappedCount,
             columnMappingWarning = result.ColumnMappingWarning,
+            // 開著的檔案那則另外列一份，畫面放在「用 Excel 配對」的結果旁（裁定 2026-11-06-12）；warnings 照舊是全部提醒。
             warnings,
+            openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reports = mutationState.Reports,

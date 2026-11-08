@@ -14,7 +14,6 @@ public sealed class TaiwanSmeAccountCategoryTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FixedAssetDebitExpenseCredit_UsesSubtreeAndExcludesConstructionInProgress(string provider)
     {
         using var host = new HandlerTestHost();
@@ -89,7 +88,6 @@ public sealed class TaiwanSmeAccountCategoryTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RevenueWithoutNormalCounterpart_CreditSaleWithOutputVatIsNotFlagged(string provider)
     {
         using var host = new HandlerTestHost();

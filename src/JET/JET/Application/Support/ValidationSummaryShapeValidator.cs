@@ -193,7 +193,16 @@ internal static class ValidationSummaryShapeValidator
 
     private static void ValidateInf(JsonElement value)
     {
-        RequireExactObject(value, "status", "sampleSize", "seed");
+        if (value.TryGetProperty("requestedSampleSize", out var requested))
+        {
+            RequireExactObject(value, "status", "sampleSize", "seed", "requestedSampleSize");
+            if (requested.ValueKind != JsonValueKind.Number || !requested.TryGetInt32(out var size) || size < 1 || size > InfSampling.MaximumSampleSize)
+                throw Invalid("requestedSampleSize");
+        }
+        else
+        {
+            RequireExactObject(value, "status", "sampleSize", "seed");
+        }
         RequireStatus(value);
         RequireNonNegativeLong(value, "sampleSize");
         RequireLong(value, "seed");

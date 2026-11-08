@@ -13,37 +13,11 @@ public sealed class ScenarioNameLimitProviderTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ScenarioName_AtLimitRoundTrips_AndOverLimitIsRejected(string provider)
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await AssertNameLimitAsync(host, context.ProjectId);
-    }
-
-    [SqlServerFact]
-    public async Task ScenarioName_AtLimitRoundTrips_AndOverLimitIsRejected_SqlServer()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return;
-        }
-
-        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        string? projectId = null;
-        try
-        {
-            projectId = (await DemoProjectPipeline.SetupAsync(host, databaseProvider: "sqlServer")).ProjectId;
-            await AssertNameLimitAsync(host, projectId);
-        }
-        finally
-        {
-            if (projectId is not null)
-            {
-                await TempSqlServerProject.DropDatabaseAsync(connectionString, projectId);
-            }
-        }
     }
 
     private static async Task AssertNameLimitAsync(HandlerTestHost host, string projectId)

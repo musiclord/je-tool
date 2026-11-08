@@ -51,20 +51,20 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug
 ## 驗證
 
 所有正式驗證從 `tools/verify.ps1` 進入，日常改動用 `Focused`，整批改動用 `Public`，改過文件跑 `Documentation`。
-命令清單、參數、結束碼與較重的路線（`Package`、`Gui`、`Excel`、`Provider`、`PrivateCase`、`ReleaseCandidate`）
+命令清單、參數、結束碼與較重的路線（`Package`、`Gui`、`Excel`、`PrivateCase`、`ReleaseCandidate`）
 都在 [`../tools/README.md`](../tools/README.md)，這裡不重複。每次回報只能涵蓋實際執行的命令；舊專案的建置、測試或
 資料庫結果不能當成 `je-tool` 的驗證結果。
 
 要找哪些程式沒有被測試執行到時，先建置 Debug，清掉 `tools/harness/lanes.json` 的 `environmentVariablesToRemove` 列出的環境變數，
-再直接執行建置出來的測試程式並收集涵蓋率。下面的命令排除私人案件、SQL Server 與大資料量三類測試，和 `Public` 相同：
+再直接執行建置出來的測試程式並收集涵蓋率。下面的命令排除私人案件與大資料量兩類測試，和 `Public` 相同：
 
 ```powershell
 src\JET\tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-directory <暫存資料夾> --coverage `
   --coverage-output-format cobertura --coverage-output jet.cobertura.xml `
-  --filter-not-trait TestProfile=PrivateCase TestProfile=Provider TestProfile=Scale
+  --filter-not-trait TestProfile=PrivateCase TestProfile=Scale
 ```
 
-這是找缺口用的量法，不是正式驗證，也不產生收據；SQL Server 的測試沒有跑，它的程式涵蓋率會很低。
+這是找缺口用的量法，不是正式驗證，也不產生收據。
 
 本機設定、秘密、連線字串、案件資料夾、建置輸出與 WebView2 使用者資料都不得加入原始碼樹。
 
@@ -87,9 +87,13 @@ try {
 node tools/harness/frontend-preview/server.cjs
 ```
 
+合成預覽底部可切換「一般資料」「長文字」與「長條件值」，網址會保留選擇。
+「長文字」用合成名稱和檔名檢查換行；「長條件值」另加入長摘要條件，僅查看編輯畫面，不執行查詢。
+上方仍可切換有結果、無結果與結果待更新的固定情境。這些切換只出現在開發預覽。
+
 **瀏覽器主機**（`tools/harness/browser-host/`）讓正式前端在一般瀏覽器裡執行六個步驟。畫面直接讀 `src/JET/JET/wwwroot/`
-原檔，前端送出的 action 交給正式的 `ActionDispatcher`，資料庫、審計運算與報表都是正式程式。服務只綁定 `127.0.0.1`，
-不連 SQL Server；案件、診斷日誌與使用者快取放在 Git 忽略的 `artifacts/browser-host/`。案件目錄是空的時，主機會建立
+原檔，前端送出的 action 交給正式的 `ActionDispatcher`，資料庫、審計運算與報表都是正式程式。服務只綁定 `127.0.0.1`；
+案件、診斷日誌與使用者快取放在 Git 忽略的 `artifacts/browser-host/`。案件目錄是空的時，主機會建立
 兩個合成案件：「合成示範-篩選就緒」停在第五步，「合成示範-待配對」停在第三步。
 
 ```powershell
@@ -101,8 +105,9 @@ dotnet run --project tools/harness/browser-host/BrowserHost.csproj -c Debug --no
 需要中斷點時，用 VS Code 的「JET (attach)」附加到 `Jet.BrowserHost` 程序。
 
 Claude Desktop 的 Code 另用 `JET browser host (Claude)`，網址是 `http://127.0.0.1:4245`。它建立台灣中小企業的合成案件：
-一整年的製造業總帳（一萬一千多張傳票）與 200 個科目的試算表，SQLite 案件存常用篩選條件的十個情境，DuckDB 案件存十個自訂情境，
-都走完六個步驟；另一個案件只匯入檔案，停在欄位配對。`JET browser host (Claude QA)` 在 4246，給自動交錯操作檢查使用。
+一整年的製造業總帳（一萬一千多張傳票）與 200 個科目的試算表，三個案件都是 SQLite：一個存常用篩選條件的十個情境，
+一個存十個自訂情境，都走完六個步驟；另一個案件只匯入檔案，停在欄位配對。自訂情境案件原本是 DuckDB 案件，
+2026-11-06 改建成 SQLite（裁定 2026-11-06-08）；既有的主機資料夾要重建合成案件才會換掉。`JET browser host (Claude QA)` 在 4246，給自動交錯操作檢查使用。
 兩台的案件與建置輸出各自放在 `artifacts/browser-host-claude/` 與 `artifacts/browser-host-claude-qa/`，
 環境變數與重建方式見 [`frontend-design-mode.md`](../.agents/harness/frontend-design-mode.md#台灣中小企業合成案件與交錯操作檢查)。
 

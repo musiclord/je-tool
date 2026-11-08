@@ -140,7 +140,6 @@ public sealed class AccountMappingImportSummaryTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BlankAccountIsNotAnUnresolvableMappingDifference(string provider)
     {
         using var host = new HandlerTestHost();
@@ -173,37 +172,8 @@ public sealed class AccountMappingImportSummaryTests
         Assert.Null(FirstUsefulReadFailure(Array.Empty<string>()));
     }
 
-    // DuckDB 1.5.3 對「不帶排序的 COUNT(*) OVER ()」疊在分組加 NOT EXISTS 的查詢上，目前觀察到會偶發內部錯誤，
-    // 並讓同一資料庫的其他連線一起失效；完整觸發條件未確認。單次查詢和依序讀取也曾失敗，並行不是必要觸發條件；
-    // 本案例用重疊讀取增加回歸檢查的機會，第一頁總數仍須避開已知有問題的寫法。
-    [Fact]
-    public async Task UnmappedFirstPageSurvivesConcurrentReadsOnDuckDb()
-    {
-        using var host = new HandlerTestHost();
-        var projectId = await InlineWorkbookProject.SetupAsync(host, b => b
-            .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
-            .AddRow("JV-001", "2025-03-05", "", "空白科目", "借方", "300.00", 1)
-            .AddRow("JV-001", "2025-03-05", "  ", "空白科目二", "借方", "200.00", 1)
-            .AddRow("JV-001", "2025-03-05", "5101", "薪資費用", "貸方", "500.00", 0),
-            databaseProvider: "duckdb", configureTb: b => b.AddRow("1101", "現金", 300));
-        var repository = new LocalAccountMappingDifferenceRepository(new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot)));
-        var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        await Parallel.ForEachAsync(Enumerable.Range(0, 2000), new ParallelOptions { MaxDegreeOfParallelism = 8 }, async (_, ct) =>
-        {
-            try
-            {
-                var page = await repository.GetPageAsync(projectId, AccountMappingDifferenceKinds.Unmapped, new PageRequest(null, 200, IncludeTotalCount: true), ct);
-                if (page.TotalCount != 2 || string.Join(",", page.Rows.Select(row => row.AccountNumber)) != "1101,5101")
-                    failures.Enqueue($"total {page.TotalCount}, rows {string.Join(",", page.Rows.Select(row => row.AccountNumber))}");
-            }
-            catch (Exception exception) { failures.Enqueue(exception.GetType().Name + ": " + exception.Message.Split('\n')[0]); }
-        });
-        Assert.True(failures.IsEmpty, $"{failures.Count} of 2000 reads failed; first non-cascade: {FirstUsefulReadFailure(failures)}");
-    }
-
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreviewShowsSavedNormalizedMappingAndImportExplainsPositionalColumns(string provider)
     {
         using var host = new HandlerTestHost();

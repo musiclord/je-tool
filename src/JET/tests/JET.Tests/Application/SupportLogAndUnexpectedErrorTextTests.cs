@@ -10,8 +10,9 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 訊息用字經裁定 2026-10-13-28 與 2026-10-13-29 確認後新增的行為：
-/// 支援日誌可以不指定案件匯出全部紀錄；連不上 SQL Server 的原因與畫面送錯資料的檢查只進支援日誌，
-/// 畫面只看到確認過的句子。預期值都是寫死的確認句子，不由被測程式算出。
+/// 支援日誌可以不指定案件匯出全部紀錄；畫面送錯資料的檢查只進支援日誌，畫面只看到確認過的句子。
+/// 預期值都是寫死的確認句子，不由被測程式算出。原本也測連不上 SQL Server 的原因只進支援日誌，
+/// 那兩個測試隨 SQL Server 與 system.databaseInfo 移除（裁定 2026-11-06-08）。
 /// </summary>
 public sealed class SupportLogAndUnexpectedErrorTextTests
 {
@@ -65,49 +66,6 @@ public sealed class SupportLogAndUnexpectedErrorTextTests
             export.GetProperty("filePath").GetString()!,
             StringComparison.OrdinalIgnoreCase);
         Assert.False(Directory.Exists(host.SupportLogDirectory));
-    }
-
-    [Fact]
-    public async Task DatabaseInfo_Unreachable_KeepsReasonOutOfSummaryAndWritesItToSupportLog()
-    {
-        var info = SqlServerBackendInfo.Unreachable("synthetic-server", "JET", "SqlException Number=53");
-        using var support = new SupportRingBufferLoggerProvider(64);
-        using var factory = LoggerFactory.Create(builder => builder.AddProvider(support));
-        var handler = new SystemDatabaseInfoHandler(
-            new StubBackendProbe(info),
-            factory.CreateLogger<SystemDatabaseInfoHandler>());
-
-        using var payload = JsonDocument.Parse("{}");
-        var result = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
-        var summary = JsonDocument.Parse(JsonSerializer.Serialize(result))
-            .RootElement.GetProperty("sqlServer").GetProperty("summary").GetString();
-
-        Assert.Equal(
-            "無法連線至 SQL Server（伺服器 synthetic-server，資料庫 JET），目前無法使用線上案件；本機案件不受影響。",
-            summary);
-        var entry = Assert.Single(support.Snapshot(), item => item.EventName == "sql_server.unreachable");
-        Assert.Equal("SqlException Number=53", entry.Fields["failure_category"]?.ToString());
-        Assert.DoesNotContain(entry.Fields.Values, value => value?.ToString()?.Contains("synthetic-server") == true);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DatabaseInfo_Reachable_UsesOneSentenceForExpressAndOtherEditions(bool isExpress)
-    {
-        var info = new SqlServerBackendInfo(
-            Configured: true, Reachable: true, Server: "localhost", Database: "JET",
-            Edition: isExpress ? "Express Edition (64-bit)" : "Developer Edition (64-bit)",
-            ProductName: "Microsoft SQL Server 2022", ProductVersion: "16.0.1000.6",
-            EngineEdition: isExpress ? 4 : 3, IsExpress: isExpress, Detail: "");
-        var handler = new SystemDatabaseInfoHandler(new StubBackendProbe(info));
-
-        using var payload = JsonDocument.Parse("{}");
-        var result = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
-        var summary = JsonDocument.Parse(JsonSerializer.Serialize(result))
-            .RootElement.GetProperty("sqlServer").GetProperty("summary").GetString();
-
-        Assert.Equal("已連上 SQL Server（伺服器 localhost，資料庫 JET），可以使用線上案件。", summary);
     }
 
     [Fact]
@@ -177,11 +135,5 @@ public sealed class SupportLogAndUnexpectedErrorTextTests
             databaseProvider = "sqlite",
         }));
         return created.GetProperty("projectId").GetString()!;
-    }
-
-    private sealed class StubBackendProbe(SqlServerBackendInfo info) : ISqlServerBackendProbe
-    {
-        public Task<SqlServerBackendInfo> DescribeAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(info);
     }
 }

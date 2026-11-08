@@ -9,15 +9,14 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 依資料庫種類選組的 catalog 與 session 快照。catalog 走 composition root 的正式組裝，
-/// 只建立物件、不連任何資料庫；SQL Server 那一組只確認能被選到。
+/// 依資料庫種類選組的 catalog 與 session 快照。catalog 走 composition root 的正式組裝，只建立物件、不連任何資料庫。
+/// 原本有 SQLite、DuckDB 與 SQL Server 三組；只保留 SQLite 之後只剩一組，其他種類一律回 unsupported_provider
+/// （裁定 2026-11-06-08）。原本比較三組彼此不同的斷言隨之改寫，SQLite 那一組自己的斷言保留。
 /// </summary>
 public sealed class ProjectRepositoryCatalogTests
 {
     [Theory]
     [InlineData("sqlite", typeof(SqliteProjectDatabase))]
-    [InlineData("sqlServer", typeof(SqlServerProjectDatabase))]
-    [InlineData("duckdb", typeof(DuckDbProjectDatabase))]
     public void For_KnownProvider_ReturnsThatProvidersOnlySet(string provider, Type databaseType)
     {
         using var fixture = new CatalogFixture();
@@ -39,30 +38,24 @@ public sealed class ProjectRepositoryCatalogTests
     }
 
     [Fact]
-    public void For_ThreeProviders_AreDistinctSetsSharingLocalLockAndSession()
+    public void For_Sqlite_UsesTheLocalFileLockForWorkAndDeletion()
     {
+        // 原本比較三組彼此不同、兩個本機組共用檔案鎖；只剩 SQLite 一組後，保留它用本機檔案鎖的斷言。
         using var fixture = new CatalogFixture();
 
         var sqlite = fixture.Catalog.For(ProjectDocument.DefaultDatabaseProvider);
-        var sqlServer = fixture.Catalog.For(ProjectDocument.SqlServerDatabaseProvider);
-        var duckDb = fixture.Catalog.For(ProjectDocument.DuckDbDatabaseProvider);
 
-        Assert.NotSame(sqlite, duckDb);
-        Assert.NotSame(sqlite, sqlServer);
-        Assert.NotEqual(sqlite, duckDb);
-        Assert.NotSame(sqlite.Imports, duckDb.Imports);
         Assert.Same(fixture.LocalFileLock, sqlite.LockService);
-        Assert.Same(fixture.LocalFileLock, duckDb.LockService);
         Assert.Same(fixture.LocalFileLock, sqlite.DeletionLockService);
-        Assert.Same(fixture.LocalFileLock, duckDb.DeletionLockService);
-        Assert.Same(fixture.SqlServerLock, sqlServer.LockService);
-        Assert.Same(fixture.SqlServerDeletionLock, sqlServer.DeletionLockService);
     }
 
     [Theory]
     [InlineData("synthetic-engine")]
     [InlineData("SQLite")]
     [InlineData("")]
+    // 以前建立的 DuckDB 與 SQL Server 案件在動任何資料之前回 unsupported_provider（裁定 2026-11-06-09）。
+    [InlineData("duckdb")]
+    [InlineData("sqlServer")]
     public void For_UnknownProvider_RejectsWithUnsupportedProvider(string provider)
     {
         using var fixture = new CatalogFixture();
@@ -75,41 +68,40 @@ public sealed class ProjectRepositoryCatalogTests
     [Fact]
     public void Constructor_SetInWrongPosition_IsRejected()
     {
-        var sqlite = TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);
-        var sqlServer = TestProjectRepositories.Unconfigured(ProjectDocument.SqlServerDatabaseProvider);
-        var duckDb = TestProjectRepositories.Unconfigured(ProjectDocument.DuckDbDatabaseProvider);
+        // 原本把三組放錯位置；只剩 SQLite 一個位置後，改放一組種類不是 SQLite 的資料庫組。
+        var duckDb = TestProjectRepositories.Unconfigured("duckdb");
 
-        Assert.Throws<ArgumentException>(() => new ProjectRepositoryCatalog(duckDb, sqlServer, sqlite));
+        Assert.Throws<ArgumentException>(() => new ProjectRepositoryCatalog(duckDb));
     }
 
     [Fact]
     public void Session_EnterWithRepositories_PublishesSnapshotThatLaterEnterDoesNotChange()
     {
+        // 案件 B 原本用 DuckDB 的資料庫組；測的是快照不跟著換組，改用另一組 SQLite 替身。
         var session = new ProjectSession();
-        var sqlite = TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);
-        var duckDb = TestProjectRepositories.Unconfigured(ProjectDocument.DuckDbDatabaseProvider);
+        var caseA = TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);
+        var caseB = TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);
 
-        session.Enter("case-a", sqlite);
+        session.Enter("case-a", caseA);
         var captured = session.RequireActive();
-        session.Enter("case-b", duckDb);
+        session.Enter("case-b", caseB);
 
         Assert.Equal("case-a", captured.ProjectId);
-        Assert.Same(sqlite, captured.Repositories);
+        Assert.Same(caseA, captured.Repositories);
         Assert.Equal("case-b", session.RequireProjectId());
-        Assert.Same(duckDb, session.RequireActive().Repositories);
+        Assert.Same(caseB, session.RequireActive().Repositories);
     }
 
     /// <summary>
-    /// 刪案時用被刪案件那一組的報告 store 取得刪案租約；這段期間，另一組資料庫組的報告 store 也不能寫入同一案件的報告。
-    /// 兩組都包著同一個案件外報告 store，租約才擋得住任一組的匯出寫入。
+    /// 刪案時用被刪案件那一組的報告 store 取得刪案租約；這段期間，同一案件的報告不能寫入。
+    /// 原本取租約的是 SQLite 那一組、寫入的是 DuckDB 那一組；只剩 SQLite 一組後，取租約與寫入都走同一組。
     /// </summary>
     [Fact]
-    public async Task DeletionLeaseFromOneSet_BlocksReportWritesFromAnotherSet()
+    public async Task DeletionLease_BlocksReportWritesToTheSameCase()
     {
         using var fixture = new CatalogFixture();
         const string projectId = "lease-case";
         var sqlite = fixture.Catalog.For(ProjectDocument.DefaultDatabaseProvider);
-        var duckDb = fixture.Catalog.For(ProjectDocument.DuckDbDatabaseProvider);
         Directory.CreateDirectory(Path.Combine(fixture.RootPath, projectId));
         var contentWritten = false;
         var request = new ReportWriteRequest(
@@ -125,7 +117,7 @@ public sealed class ProjectRepositoryCatalogTests
         {
             using var waiting = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                duckDb.ReportStore.WriteAsync(projectId, request, waiting.Token));
+                sqlite.ReportStore.WriteAsync(projectId, request, waiting.Token));
         }
 
         Assert.False(contentWritten);
@@ -158,28 +150,18 @@ public sealed class ProjectRepositoryCatalogTests
         {
             var folder = new JetProjectFolder(root.Path);
             var projectStore = new JsonFileProjectStore(folder);
-            var sqlServerOptions = new SqlServerConnectionOptions(BaseConnectionString: null);
-            var sqlServerDatabase = new SqlServerProjectDatabase(sqlServerOptions);
             LocalFileLock = new LocalFileLockService(folder);
-            SqlServerLock = new SqlServerLockService(sqlServerOptions, new SqlServerAppConfigStore(sqlServerOptions));
-            SqlServerDeletionLock = new NoOpProjectDeletionLockService();
             var sqlite = new SqliteProjectDatabase(folder);
-            var duckDb = new DuckDbProjectDatabase(folder);
             Catalog = AppCompositionRoot.CreateProjectRepositoryCatalog(
                 new AppCompositionRoot.ProjectRepositoryAssembly(
                     projectStore,
-                    new SqlServerProjectRegistry(sqlServerOptions),
-                    new ProjectCreateBackendPort(sqlite, sqlServerDatabase, duckDb),
+                    new ProjectCreateBackendPort(sqlite),
                     LocalFileLock,
-                    SqlServerLock,
-                    SqlServerDeletionLock,
                     new ProjectReportStore(folder),
                     NullLoggerFactory.Instance,
                     new ProjectSession(),
                     new ActionExecutionGate()),
-                sqlite,
-                sqlServerDatabase,
-                duckDb);
+                sqlite);
         }
 
         public ProjectRepositoryCatalog Catalog { get; }
@@ -187,10 +169,6 @@ public sealed class ProjectRepositoryCatalogTests
         public string RootPath => root.Path;
 
         public LocalFileLockService LocalFileLock { get; }
-
-        public ILockService SqlServerLock { get; }
-
-        public IProjectDeletionLockService SqlServerDeletionLock { get; }
 
         public void Dispose()
         {

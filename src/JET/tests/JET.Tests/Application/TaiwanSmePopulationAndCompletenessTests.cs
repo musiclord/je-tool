@@ -17,7 +17,6 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PeriodScoping_OnlyInPeriodEntriesReachValidationPrescreenAndFilters(string provider)
     {
         using var host = new HandlerTestHost();
@@ -93,7 +92,6 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Completeness_OpeningAndClosingTbBySide_ReportsOnlyTheMismatchedBankAccount(string provider)
     {
         using var host = new HandlerTestHost();
@@ -177,7 +175,6 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UnbalancedVouchersBlankVoucherNumbersAndBlankAccounts_AreReportedSeparately(string provider)
     {
         using var host = new HandlerTestHost();

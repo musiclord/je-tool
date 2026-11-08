@@ -11,7 +11,6 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreparedSession_UsesOneConnectionTransactionAndOrderedReader(
         string provider)
     {
@@ -107,7 +106,6 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreparedSession_HitVoucherScopeMarksEveryRowWithoutExpandingOtherScenarios(
         string provider)
     {
@@ -149,7 +147,6 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreparedSession_CancellationDuringOrderedReader_CleansSessionState(
         string provider)
     {
@@ -268,12 +265,13 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
     /// 改成直接用 DuckDB 的 repository 準備，並拿掉「解析 provider 恰好一次」的指標斷言（指標隨分流層一起刪除）；
     /// 其餘連線、讀取、清理與交易斷言保留不變。第一次失敗收據（測試引用已刪除的分流類別而無法建置）：
     /// 20261002-120244042-2aa5edaa431d4f3e89e068361d5482f5。
+    /// 只保留 SQLite 之後改用 SQLite 的 repository，資料庫種類的預期從 duckdb 換成 sqlite，其餘斷言不變（裁定 2026-11-06-08）。
     /// </remarks>
     [Fact]
     public async Task PreparedSession_DirectRepository_UsesOneConnectionAndOneReader()
     {
         using var root = new TempProjectRoot();
-        var database = new DuckDbProjectDatabase(new JetProjectFolder(root.Path));
+        var database = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
         var projectId = Guid.NewGuid().ToString("N");
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         await SeedAsync(database, projectId);
@@ -296,74 +294,18 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
             }
         }
 
-        Assert.Equal("duckdb", session.Metrics.Provider);
+        Assert.Equal("sqlite", session.Metrics.Provider);
         Assert.Equal(1, session.Metrics.Connections);
         Assert.Equal(1, session.Metrics.OrderedReaderCommands);
         Assert.True(session.Metrics.CleanupCommandSucceeded);
         Assert.True(session.Metrics.TransactionCommitted);
         Assert.True(session.Metrics.DedicatedConnection);
-    }
-
-    [SqlServerFact]
-    public async Task PreparedSession_SqlServer_UsesConstantShapeAndCleansTempObjects()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        await SeedSqlServerAsync(project.Database, project.ProjectId);
-        var factory = (IWorkingPaperStep41PreparedSessionFactory)
-            new SqlServerHighRiskSummaryRowPageRepository(project.Database);
-        var session = await factory.PrepareAsync(
-            project.ProjectId,
-            new GlPopulationContext(
-                GlPopulationScope.AuditPeriod,
-                "2025-01-01",
-                "2025-12-31"),
-            [1, 2],
-            LegacyFieldKind.Text,
-            CancellationToken.None);
-        var rows = new List<WorkingPaperStep41SourceRow>();
-
-        await using (session)
-        {
-            await foreach (var row in session.ReadRowsAsync(CancellationToken.None))
-            {
-                rows.Add(row);
-            }
-        }
-
-        Assert.Equal(3, rows.Count);
-        Assert.Equal("sqlServer", session.Metrics.Provider);
-        Assert.Equal(1, session.Metrics.Connections);
-        Assert.Equal(1, session.Metrics.Transactions);
-        Assert.Equal(1, session.Metrics.TemporaryTableInitializationCommands);
-        Assert.Equal(1, session.Metrics.HitVoucherMaterializationCommands);
-        Assert.Equal(1, session.Metrics.RowTagMaterializationCommands);
-        Assert.Equal(1, session.Metrics.OrderedReaderCommands);
-        Assert.Equal(1, session.Metrics.CleanupCommands);
-        Assert.Equal(
-            IsolationLevel.Serializable.ToString(),
-            session.Metrics.TransactionIsolationLevel);
-        Assert.Equal(
-            "serializable",
-            session.Metrics.ConsistencyMode);
-        Assert.True(session.Metrics.ReaderCompleted);
-        Assert.True(session.Metrics.CleanupCommandSucceeded);
-        Assert.True(session.Metrics.TransactionCommitted);
-        Assert.False(session.Metrics.TransactionRolledBack);
-        Assert.True(session.Metrics.DedicatedConnection);
-        Assert.True(session.Metrics.TransactionDisposed);
-        Assert.True(session.Metrics.ConnectionDisposed);
-        Assert.True(session.Metrics.TemporaryObjectsCleared);
-        await AssertSqlServerNoTempObjectsAsync(
-            project.Database,
-            project.ProjectId);
     }
 
     private static ILocalProjectDatabase CreateDatabase(string provider, string root) =>
         provider switch
         {
             "sqlite" => new SqliteProjectDatabase(new JetProjectFolder(root)),
-            "duckdb" => new DuckDbProjectDatabase(new JetProjectFolder(root)),
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
         };
 
@@ -400,62 +342,5 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
             SELECT 2, entry_id FROM gl WHERE source_row_number IN (1, 3);
             """;
         await command.ExecuteNonQueryAsync();
-    }
-
-    private static async Task SeedSqlServerAsync(
-        SqlServerProjectDatabase database,
-        string projectId)
-    {
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync();
-        await using var command = database.CreateCommand(
-            connection,
-            projectId,
-            """
-            INSERT INTO {s}.pbc_gl
-                (batch_id, row_number, source_no, source_row_number, row_json)
-            VALUES
-                ('b', 1, 1, 1, N'{"token":"first"}'),
-                ('b', 2, 1, 2, N'{"token":"second"}'),
-                ('b', 3, 1, 3, N'{"token":"third"}');
-
-            INSERT INTO {s}.gl
-                (batch_id, source_row_number, voucher_number, line_item,
-                 gl_date, account_number, account_name, description,
-                 is_excluded, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr)
-            VALUES
-                ('b', 1, 'DOC-1', '1', '2025-06-01', '1000', 'Cash', 'first',
-                 0, 10000, 10000, 0, 'DEBIT'),
-                ('b', 2, 'DOC-1', '2', '2025-06-01', '1000', 'Cash', 'second',
-                 0, 20000, 20000, 0, 'DEBIT'),
-                ('b', 3, 'DOC-2', '1', '2025-06-01', '1000', 'Cash', 'third',
-                 0, 30000, 30000, 0, 'DEBIT');
-
-            INSERT INTO {s}.filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc) VALUES (1, 1, 'synthetic', 'synthetic', '{}', '2026-10-31T00:00:00Z'), (2, 2, 'synthetic', 'synthetic', '{}', '2026-10-31T00:00:00Z');
-            INSERT INTO {s}.filter_hit (scenario_id, entry_id)
-            SELECT 1, entry_id FROM {s}.gl WHERE source_row_number = 1;
-            INSERT INTO {s}.filter_hit (scenario_id, entry_id)
-            SELECT 2, entry_id FROM {s}.gl WHERE source_row_number IN (1, 3);
-            """);
-        await command.ExecuteNonQueryAsync();
-    }
-
-    private static async Task AssertSqlServerNoTempObjectsAsync(
-        SqlServerProjectDatabase database,
-        string projectId)
-    {
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            SELECT CASE
-                WHEN OBJECT_ID('tempdb..#jet_step41_hit_voucher') IS NULL
-                 AND OBJECT_ID('tempdb..#jet_step41_row_tag') IS NULL
-                THEN 0 ELSE 1 END;
-            """;
-        Assert.Equal(
-            0,
-            Convert.ToInt32(await command.ExecuteScalarAsync()));
     }
 }

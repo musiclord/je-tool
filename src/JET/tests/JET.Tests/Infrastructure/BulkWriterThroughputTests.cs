@@ -56,16 +56,13 @@ public sealed class BulkWriterThroughputTests(ITestOutputHelper output)
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task StagingThenProjection_FiftyThousandRows_MeasuresThroughput(string provider)
     {
         const int rowCount = 50_000;
 
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase db = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase db = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);

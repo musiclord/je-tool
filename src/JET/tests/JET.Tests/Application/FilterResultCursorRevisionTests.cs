@@ -15,11 +15,8 @@ public sealed class FilterResultCursorRevisionTests
 
     [Theory]
     [InlineData("sqlite", "selected")]
-    [InlineData("duckdb", "selected")]
     [InlineData("sqlite", "source")]
-    [InlineData("duckdb", "source")]
     [InlineData("sqlite", "definition")]
-    [InlineData("duckdb", "definition")]
     public async Task Continuation_DoesNotCombinePreviousPageWithChangedResults(string provider, string change)
     {
         using var host = new HandlerTestHost();
@@ -74,7 +71,6 @@ public sealed class FilterResultCursorRevisionTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task HighRiskSummaryContinuation_AfterLastScenarioIsRemoved_RequiresFirstPage(string provider)
     {
         using var host = new HandlerTestHost();

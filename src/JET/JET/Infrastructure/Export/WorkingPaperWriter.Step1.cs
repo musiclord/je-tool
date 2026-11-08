@@ -278,7 +278,7 @@ public sealed partial class WorkingPaperWriter
                 WriteCommonHeader(
                     sheet,
                     context,
-                    "此處底稿係記錄JE測試母體的是否有借貸不平情形",
+                    "此處底稿係記錄分錄編製人員資訊",
                     sheetPlan);
                 sheet.WriteFixedRow(6, [sheet.TextCell(6, 1, "Step 1-2", WorkingPaperStyles.Bold)]);
                 sheet.WriteFixedRow(7,

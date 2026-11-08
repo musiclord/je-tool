@@ -202,7 +202,7 @@ public sealed partial class LegacyReportWriter
             cancellationToken,
             progress).ConfigureAwait(false);
 
-        editor.Document.WorkbookPart!.Workbook.Save();
+        editor.Document.WorkbookPart!.RequiredWorkbook().Save();
         return stats;
     }
 
@@ -218,7 +218,8 @@ public sealed partial class LegacyReportWriter
             "Pre-screening_Report",
             (part, ct) =>
             {
-                AppendPrescreenSummaryRows(part.Worksheet);
+                var worksheet = part.RequiredWorksheet();
+                AppendPrescreenSummaryRows(worksheet);
                 var allowed = new List<string>
                 {
                     "E1", "E2", "E4", "E5", "C8", "C11",
@@ -242,7 +243,7 @@ public sealed partial class LegacyReportWriter
                     + projection.ZerosThreshold
                         .ToString(CultureInfo.InvariantCulture);
                 var cells = new DirectTemplateCellEditor(
-                    part.Worksheet,
+                    worksheet,
                     allowed,
                     editor.StylePatcher,
                     [3]);
@@ -448,7 +449,7 @@ public sealed partial class LegacyReportWriter
         WorksheetPart worksheetPart,
         string reference)
     {
-        var cell = worksheetPart.Worksheet.Descendants<Cell>()
+        var cell = worksheetPart.RequiredWorksheet().Descendants<Cell>()
             .Single(item => string.Equals(
                 item.CellReference?.Value,
                 reference,

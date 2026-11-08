@@ -133,7 +133,7 @@ public sealed partial class LegacyReportWriter
             operatorId,
             cancellationToken);
         ReportWorkbookMetadataWorksheet.Append(editor.Document, workbookMetadata, cancellationToken);
-        editor.Document.WorkbookPart!.Workbook.Save();
+        editor.Document.WorkbookPart!.RequiredWorkbook().Save();
         return stats;
     }
 
@@ -205,8 +205,9 @@ public sealed partial class LegacyReportWriter
                     allowed.Add($"D{row}");
                 }
 
+                var worksheet = part.RequiredWorksheet();
                 var cells = new DirectTemplateCellEditor(
-                    part.Worksheet,
+                    worksheet,
                     allowed);
                 cells.SetInlineString(
                     "C1",
@@ -224,7 +225,7 @@ public sealed partial class LegacyReportWriter
 
                 var scenarios = context.Scenarios
                     .ToDictionary(item => item.Position);
-                var sheetData = part.Worksheet.GetFirstChild<SheetData>()!;
+                var sheetData = worksheet.GetFirstChild<SheetData>()!;
                 var nextConditionRow = Math.Max(
                     (uint)(CriteriaFirstScenarioRow + FilterScenarioLimits.MaxSavedScenarios + 1),
                     sheetData.Elements<Row>().Max(row => row.RowIndex?.Value ?? 0) + 2);
@@ -238,7 +239,7 @@ public sealed partial class LegacyReportWriter
                             StyleIndex = style, InlineString = ExcelText.InlineString(text) })
                         { RowIndex = nextConditionRow });
                     nextConditionRow++;
-                    var dimension = part.Worksheet.GetFirstChild<SheetDimension>();
+                    var dimension = worksheet.GetFirstChild<SheetDimension>();
                     if (dimension is not null) dimension.Reference = $"A1:D{nextConditionRow - 1}";
                 }
 
@@ -268,7 +269,7 @@ public sealed partial class LegacyReportWriter
                     var blankVoucherNumberRows = blankVoucherNumberHitRows.GetValueOrDefault(position);
                     if (conditionParts.Count > 1 || blankVoucherNumberRows > 0)
                     {
-                        var style = part.Worksheet.Descendants<Cell>().Single(cell => cell.CellReference?.Value == $"B{row}").StyleIndex?.Value;
+                        var style = worksheet.Descendants<Cell>().Single(cell => cell.CellReference?.Value == $"B{row}").StyleIndex?.Value;
                         if (conditionParts.Count > 1)
                         {
                             foreach (var conditionPart in conditionParts)
@@ -302,7 +303,7 @@ public sealed partial class LegacyReportWriter
                 {
                     // idea-script.bas 8839：至少一筆 criteria log 被寫入時，
                     // Cells.EntireRow.AutoFit；OpenXML 以移除 explicit row height 表示。
-                    foreach (var row in part.Worksheet.GetFirstChild<SheetData>()!
+                    foreach (var row in worksheet.GetFirstChild<SheetData>()!
                                  .Elements<Row>())
                     {
                         row.Height = null;

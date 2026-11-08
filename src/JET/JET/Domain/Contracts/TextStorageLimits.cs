@@ -1,10 +1,10 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 三種資料庫共用的匯入文字上限，以 .NET UTF-16 字元數計算，和 SQL Server 的 <c>NVARCHAR(n)</c> 欄寬相同。
-/// 本機資料庫沒有欄寬，投影時先套用同一上限：超過就回列錯誤，不截斷，也不讓本機接受 SQL Server 存不下的值
-/// （文字欄長度三方一致，裁定 2026-10-19-28）。SQL Server 的建表語法與參數長度都引用這裡，
-/// 由 <c>SqlServerTextStorageLimitTests</c> 核對兩邊一致。
+/// 匯入文字上限，以 .NET UTF-16 字元數計算，和 SQL Server 的 <c>NVARCHAR(n)</c> 欄寬相同。
+/// SQLite 沒有欄寬，投影時先套用同一上限：超過就回列錯誤，不截斷，也不讓本機接受 SQL Server 存不下的值
+/// （文字欄長度三方一致，裁定 2026-10-19-28）。目前只支援 SQLite（裁定 2026-11-06-08），上限照舊保留，
+/// 日後恢復 SQL Server 時兩邊仍一致。
 /// </summary>
 public static class TextStorageLimits
 {

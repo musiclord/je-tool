@@ -17,16 +17,12 @@ public sealed class ResultStoreSeparationTests
     private static readonly DateTimeOffset Earlier = new(2025, 12, 31, 8, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Later = new(2025, 12, 31, 9, 0, 0, TimeSpan.Zero);
 
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
-    public async Task ValidationAndPrescreenResults_AreStoredReadClearedAndInvalidatedSeparately(string provider)
+    [Fact]
+    public async Task ValidationAndPrescreenResults_AreStoredReadClearedAndInvalidatedSeparately()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);

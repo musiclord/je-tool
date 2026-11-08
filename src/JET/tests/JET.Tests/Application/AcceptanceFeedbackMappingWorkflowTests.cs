@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 public sealed class AcceptanceFeedbackMappingWorkflowTests
 {
     public static IEnumerable<object[]> CodeCases() =>
-        from provider in new[] { "sqlite", "duckdb" }
+        from provider in new[] { "sqlite" }
         from mode in new[] { "side", "flag" }
         from debit in new[] { true, false }
         select new object[] { provider, mode, debit };
@@ -36,7 +36,7 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
     }
 
     public static IEnumerable<object[]> SourceChanges() =>
-        from provider in new[] { "sqlite", "duckdb" }
+        from provider in new[] { "sqlite" }
         from kind in new[] { "gl", "tb" }
         from change in new[] { "replace", "append", "mapping" }
         select new object[] { provider, kind, change };
@@ -80,9 +80,7 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
 
     [Theory]
     [InlineData("sqlite", "gl")]
-    [InlineData("duckdb", "gl")]
     [InlineData("sqlite", "tb")]
-    [InlineData("duckdb", "tb")]
     public async Task FailedProjection_PreservesSavedClassificationsAndTheirImportState(string provider, string kind)
     {
         using var f = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -102,7 +100,6 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ReplacingBothFilesWithDifferentColumns_UpdatesJetAndExcelAccounts_WithoutChangingProjectMetadata(string provider)
     {
         using var f = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -149,9 +146,7 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
 
     [Theory]
     [InlineData("sqlite", DatasetKind.Gl)]
-    [InlineData("duckdb", DatasetKind.Gl)]
     [InlineData("sqlite", DatasetKind.Tb)]
-    [InlineData("duckdb", DatasetKind.Tb)]
     public async Task CancellationAfterSourceReset_RollsBackAccountAssignmentsAndImportMetadata(string provider, DatasetKind kind)
     {
         using var f = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -181,7 +176,7 @@ public sealed class AcceptanceFeedbackMappingWorkflowTests
     private static ILocalProjectDatabase Database(MappingCaseTemplateFixture f, string provider)
     {
         var folder = new JetProjectFolder(f.Host.ProjectsRoot);
-        return provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static string WriteSource(string kind) => TestWorkbookBuilder.WriteWorkbook(sheet =>

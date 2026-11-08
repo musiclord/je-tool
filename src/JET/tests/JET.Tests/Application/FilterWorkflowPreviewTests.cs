@@ -23,7 +23,6 @@ public sealed class FilterWorkflowPreviewTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AutomaticAndManualNames_SurviveReopenWithoutChangingHits(string provider)
     {
         using var host = new HandlerTestHost();
@@ -52,7 +51,6 @@ public sealed class FilterWorkflowPreviewTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task EditorOrigins_SurviveSaveAndReopen(string provider)
     {
         using var host = new HandlerTestHost();

@@ -18,8 +18,7 @@ internal static class PageTotalCount
         if (!sql.StartsWith(cte, StringComparison.Ordinal) || !sql.EndsWith(suffix, StringComparison.Ordinal))
             throw new InvalidOperationException("分頁 SQL 與計數範圍不一致。");
         var population = sql[cte.Length..^suffix.Length] + paging.SearchPredicate;
-        var count = dialect is SqlServerDialect ? "COUNT_BIG(*)" : "COUNT(*)";
-        return ReadAsync(pageCommand, request, cte + $" SELECT {count} FROM ({population}) page_count;", cancellationToken);
+        return ReadAsync(pageCommand, request, cte + $" SELECT COUNT(*) FROM ({population}) page_count;", cancellationToken);
     }
 
     public static async Task<long?> ReadAsync(DbCommand pageCommand, PageRequest request,

@@ -23,12 +23,9 @@
     currentStepIndex: 0,
     bridgeReady: false,
     devToolsEnabled: false,    // system.ping 回報；Release 組建為 false（開發面板隱藏）
-    // system.whoAmI 回報的當前使用者身分 { principal, shortName, userNumber, numberSource }（純 UI 顯示：
-    // 右上角身分徽章與 picker 身分註記）。只 notify、不 bump、不持久化、不進 resetWorkflow、不進任何後端 payload。
+    // system.whoAmI 回報的當前使用者身分 { principal, shortName }（純 UI 顯示：右上角身分徽章）。
+    // 只 notify、不 bump、不持久化、不進 resetWorkflow、不進任何後端 payload。
     currentUser: null,
-    // system.databaseInfo 回報的 sqlServer.configured：true、false，或尚未查到時為 null。
-    // 只用來在建立案件時停用 SQL Server 選項；不持久化、不進 resetWorkflow、不進任何後端 payload。
-    sqlServerConfigured: null,
     caseId: null,
     caseClient: null,
     accountMappingGeneration: 0, // 後端清除科目配對時，連尚未儲存的編輯草稿一併作廢。
@@ -43,7 +40,7 @@
     busyDetail: null,          // 長作業進度事件的輕量顯示文字；不承載權威結果
     activeRequestId: null,     // 目前 Ui.run 的 bridge requestId，只供 operation.cancel
     cancellationRequested: false,
-    projects: [],              // picker 最近接受的 snapshot：本機清單，或使用者手動同步後的本機＋線上清單
+    projects: [],              // picker 最近接受的本機清單 snapshot
     pickerFeedback: null,      // picker 就地錯誤（訊息面板在 workflow app-body 內，picker 期間不可見）
     pickerFeedbackContext: null, // { projectId, errorCode, correlationId, devExportedPath }；只供 Debug 組建的 DEV 診斷日誌匯出
     // 案件清單操作列「輸出支援日誌」最近一次輸出的檔案位置（純 picker 呈現；不持久化、不進後端 payload）。
@@ -54,9 +51,6 @@
     // { id, label, message, level: 'error' | 'warn', stepIndex }（裁定 2026-10-13-16）。純畫面狀態：
     // 不持久化、不進後端 payload；任何 Ui.run 開始、換步驟、開案、換案與回案件清單時清掉。
     operationFailure: null,
-    // project.list 的頂層 online 區塊 { reachable, principal, message? }（僅手動線上同步後存在）。
-    // null 表示目前是 project.listLocal snapshot、尚未手動同步；picker 不得把它誤稱為「線上無案件」。
-    online: null,
     project: null,             // 當前專案 metadata（project.load / create 回傳）
     importState: {
       gl: null,                // { batchId, rowCount, columns, fileName, sources: [...] }
@@ -399,15 +393,6 @@
       notify();
     },
 
-    // 背景設定查詢只通知畫面就地更新資料庫選項與提示，不能重建尚未儲存的建案表單。
-    // 是否可選仍由明確的 false 判斷，不把未知狀態當作已確認沒有設定。
-    setSqlServerConfigured: function (configured) {
-      var next = configured === true ? true : (configured === false ? false : null);
-      if (next === state.sqlServerConfigured) { return; }
-      state.sqlServerConfigured = next;
-      notify();
-    },
-
     setView: function (view) {
       if (view !== state.view) { state.operationFailure = null; }
       state.view = view;
@@ -441,10 +426,8 @@
       notify();
     },
 
-    setProjects: function (projects, online) {
+    setProjects: function (projects) {
       state.projects = projects || [];
-      // online 缺席（後端未部署雙來源欄位）時存為 null＝reachable 未知；一次 bump 兩者同步更新。
-      state.online = online || null;
       bump();
     },
 

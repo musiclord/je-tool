@@ -96,7 +96,6 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         // 資料已提交後寫不進操作紀錄，或讀不回結果狀態、授權清單比對：只記操作代號、讀取階段與錯誤類型（2026-10-19）。
         "operation_log.append_failed",
         "workflow_state.read_failed",
-        "sql_server.unreachable",
         "filter.scenario_unreadable",
         "filter.compile_check_failed",
         // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑（裁定 2026-10-21-08）。
@@ -143,8 +142,6 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "multiline_record_rows",
         // action.payload_rejected：沒過的格式檢查代號，程式寫死，不含資料內容。
         "payload_check",
-        // sql_server.unreachable：連不上 SQL Server 時的錯誤分類代號，不含伺服器、帳號或原始訊息。
-        "failure_category",
         // filter.scenario_unreadable：第五步損毀條件的位置與程式寫死的原因代號，不含情境名稱或條件內容。
         "scenario_position",
         "group_no",
@@ -286,7 +283,6 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             "report.recovery.conflict" => "report recovery conflict",
             "report.manifest.reset" => "report manifest was unreadable and has been set aside",
             "project_audit.write_failed" => "project operation record not written",
-            "sql_server.unreachable" => $"sql server unreachable: {fields.GetValueOrDefault("failure_category") ?? "unknown"}",
             "filter.scenario_unreadable" => $"action {action} filter scenario {fields.GetValueOrDefault("scenario_position") ?? "n/a"} "
                 + $"group {fields.GetValueOrDefault("group_no") ?? "n/a"} condition {fields.GetValueOrDefault("condition_no") ?? "n/a"} "
                 + $"unreadable: {fields.GetValueOrDefault("reason_code") ?? "unknown"}",

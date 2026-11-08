@@ -21,9 +21,9 @@ internal static class CaseTemplates
 
     private sealed record Template(string ProjectDirectory, string ProjectId, object? State);
 
-    /// <summary>SQLite 與 DuckDB 的案件整個放在案件資料夾裡，可以複製。</summary>
+    /// <summary>SQLite 的案件整個放在案件資料夾裡，可以複製。</summary>
     internal static bool CanCopy(string databaseProvider) =>
-        databaseProvider is ProjectDocument.DefaultDatabaseProvider or ProjectDocument.DuckDbDatabaseProvider;
+        databaseProvider is ProjectDocument.DefaultDatabaseProvider;
 
     /// <summary>
     /// 把 <paramref name="key"/> 的範本複製到 <paramref name="host"/> 的案件根目錄，再用 project.load 開啟。

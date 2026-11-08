@@ -60,14 +60,12 @@ internal static partial class GuiScenarios
             viewportHeight: window.innerHeight,
             contentVersion: state ? state.contentVersion : null,
             view: state ? state.view : null,
-            sqlServerConfigured: state ? state.sqlServerConfigured : null,
             userResolved: !!(state && state.currentUser),
             projectName: field('projectName'),
             projectCode: field('projectCode'),
             clientName: field('clientName'),
             periodStart: field('periodStart'),
             periodEnd: field('periodEnd'),
-            databaseProvider: field('databaseProvider'),
             submitVisible: visible(submit),
             submitX: submitRect ? submitRect.left + (submitRect.width / 2) : 0,
             submitY: submitRect ? submitRect.top + (submitRect.height / 2) : 0
@@ -296,8 +294,7 @@ internal static partial class GuiScenarios
             GuiScenarioCatalog.AuthorizedListRecovery => ExecuteAuthorizedListRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.CommonRemapRecovery => ExecuteCommonRemapRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.UpstreamChangeAfterExport => ExecuteUpstreamChangeAfterExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
-            GuiScenarioCatalog.CaseToWorkingPaper => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, "sqlite", cancellationToken),
-            GuiScenarioCatalog.CaseToWorkingPaperDuckDb => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, "duckdb", cancellationToken),
+            GuiScenarioCatalog.CaseToWorkingPaper => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.CaseListCleanupCancelExport => ExecuteCaseListCleanupCancelExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.BlankDetailsRecovery => ExecuteBlankDetailsRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.FilterCommonEditing or GuiScenarioCatalog.FilterAuditorJourney =>
@@ -695,8 +692,9 @@ internal static partial class GuiScenarios
             && form.ClientName.Value.Length == 0
             && form.PeriodStart.Value == periodStart
             && form.PeriodEnd.Value == periodEnd;
-        outcome.Assertions.SqliteSelected = form.DatabaseProvider.Value == "sqlite";
-        if (!outcome.Assertions.RequiredFieldsEntered || !outcome.Assertions.SqliteSelected)
+        // 原本也核對「資料儲存方式」預設選 SQLite（sqliteSelected）。這一欄隨 DuckDB 與 SQL Server 移除，
+        // 建案一律是 SQLite（裁定 2026-11-06-08）；案件確實是 SQLite，由下面核對 jet.db 與 project.json。
+        if (!outcome.Assertions.RequiredFieldsEntered)
         {
             throw new GuiCheckException("create_form_values_invalid");
         }
@@ -1581,7 +1579,6 @@ internal static partial class GuiScenarios
             ReadField(value, "clientName"),
             ReadField(value, "periodStart"),
             ReadField(value, "periodEnd"),
-            ReadField(value, "databaseProvider"),
             ReadBoolean(value, "submitVisible"),
             ReadDouble(value, "submitX"),
             ReadDouble(value, "submitY"),
@@ -1694,7 +1691,6 @@ internal static partial class GuiScenarios
         FieldProbe ClientName,
         FieldProbe PeriodStart,
         FieldProbe PeriodEnd,
-        FieldProbe DatabaseProvider,
         bool SubmitVisible,
         double SubmitX,
         double SubmitY,
@@ -1706,7 +1702,6 @@ internal static partial class GuiScenarios
             && ClientName.IsReady
             && PeriodStart.IsReady
             && PeriodEnd.IsReady
-            && DatabaseProvider.IsReady
             && SubmitVisible
             && double.IsFinite(SubmitX)
             && double.IsFinite(SubmitY)

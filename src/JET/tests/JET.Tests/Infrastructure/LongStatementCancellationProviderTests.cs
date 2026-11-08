@@ -25,11 +25,6 @@ public sealed class LongStatementCancellationProviderTests
     private const string LocalLongCount =
         "SELECT COUNT(*) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 1000000000) SELECT x FROM c) AS t";
 
-    /// <summary>SQL Server 用等待四十秒代替長計算；取消時伺服器中止整批。</summary>
-    private const string SqlServerLongWait = "WAITFOR DELAY '00:00:40'";
-
-    private const string SqlServerLongRead = SqlServerLongWait + "; SELECT CAST(1 AS BIGINT);";
-
     private static readonly TimeSpan CancelAfter = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan StopWithin = TimeSpan.FromSeconds(10);
 
@@ -45,9 +40,6 @@ public sealed class LongStatementCancellationProviderTests
     [InlineData(ProjectDocument.DefaultDatabaseProvider, "scalar")]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, "reader")]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, "write")]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, "scalar")]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, "reader")]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, "write")]
     public async Task LongStatement_StopsSoonAfterCancel_AndConnectionStaysUsable_LocalProviders(
         string provider, string mode)
     {
@@ -64,29 +56,8 @@ public sealed class LongStatementCancellationProviderTests
             expectCancellationException: true);
     }
 
-    /// <summary>SQL Server 的驅動丟出自己的例外，轉成取消在 dispatcher 出口做，見下方經 dispatcher 的測試。</summary>
-    [SqlServerTheory]
-    [InlineData("scalar")]
-    [InlineData("reader")]
-    [InlineData("write")]
-    public async Task LongStatement_StopsSoonAfterCancel_AndConnectionStaysUsable_SqlServer(string mode)
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-
-        await AssertCancelsAsync(
-            () => project.Database.CreateConnection(project.ProjectId),
-            mode,
-            longRead: SqlServerLongRead,
-            probeTable: SqlServerProjectSchema.QualifierFor(project.ProjectId) + "cancel_probe",
-            longWrite: probe => $"INSERT INTO {probe} (n) VALUES (0); {SqlServerLongWait}; INSERT INTO {probe} (n) VALUES (2);",
-            CancelCommand,
-            expectCancellationException: false);
-    }
-
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task CanceledLongStatement_ReachesScreenAsOperationCancelled_LocalProviders(string provider)
     {
         using var root = new TempProjectRoot();
@@ -94,16 +65,6 @@ public sealed class LongStatementCancellationProviderTests
 
         await AssertDispatcherReportsCancelledAsync(
             () => database.CreateConnection(projectId), LocalLongCount, InterruptFor(provider));
-    }
-
-    [SqlServerFact]
-    public async Task CanceledLongStatement_ReachesScreenAsOperationCancelled_SqlServer()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-
-        await AssertDispatcherReportsCancelledAsync(
-            () => project.Database.CreateConnection(project.ProjectId), SqlServerLongRead, CancelCommand);
     }
 
     /// <summary>第一列馬上出來，第二列要等遞迴數到十億才出來。</summary>
@@ -144,16 +105,14 @@ public sealed class LongStatementCancellationProviderTests
         TempProjectRoot root, string provider)
     {
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         return (database, projectId);
     }
 
     private static Action<DbConnection, DbCommand> InterruptFor(string provider) =>
-        provider == ProjectDocument.DuckDbDatabaseProvider ? CancelCommand : InterruptSqliteDirectly;
+        InterruptSqliteDirectly;
 
     private static async Task AssertCancelsAsync(
         Func<DbConnection> createConnection,
@@ -212,12 +171,12 @@ public sealed class LongStatementCancellationProviderTests
         string longRead,
         Action<DbConnection, DbCommand> interruptDirectly)
     {
-        // 與 AppCompositionRoot 相同的引擎錯誤映射。
+        // 與 AppCompositionRoot 相同的引擎錯誤映射；SQL Server 的映射隨 SQL Server 移除（裁定 2026-11-06-08）。
         var dispatcher = new ActionDispatcher(
             [new LongStatementHandler(createConnection, longRead, interruptDirectly)],
             NullLogger<ActionDispatcher>.Instance,
             new ProjectSession(),
-            exception => LocalEngineErrors.TryTranslate(exception) ?? SqlServerEngineErrors.TryTranslate(exception));
+            exception => LocalEngineErrors.TryTranslate(exception));
         using var payload = JsonDocument.Parse("{}");
         using var cancellation = new CancellationTokenSource(CancelAfter);
 

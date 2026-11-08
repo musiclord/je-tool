@@ -11,7 +11,6 @@ public sealed class AuthorizedPreparerImportTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ImportStatistics_PersistAcrossHostRestart_WithTheSameFixedCounts(string provider)
     {
         using var root = new TempProjectRoot();
@@ -37,7 +36,6 @@ public sealed class AuthorizedPreparerImportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlMatch_CountsDistinctAuthorizedIdentifiers_NotGlRows_AndIgnoresCaseAndOuterSpaces(string provider)
     {
         using var host = new HandlerTestHost();
@@ -57,7 +55,6 @@ public sealed class AuthorizedPreparerImportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlMatch_ZeroMatchesDoesNotRejectAValidList(string provider)
     {
         using var host = new HandlerTestHost();
@@ -76,9 +73,7 @@ public sealed class AuthorizedPreparerImportTests
 
     [Theory]
     [InlineData("sqlite", false)]
-    [InlineData("duckdb", false)]
     [InlineData("sqlite", true)]
-    [InlineData("duckdb", true)]
     public async Task GlMatch_WithoutCommittedPreparerMapping_IsNullNotZero(string provider, bool importGl)
     {
         using var host = new HandlerTestHost();
@@ -110,7 +105,6 @@ public sealed class AuthorizedPreparerImportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlMapping_AfterListImportAndRemap_ReturnsFreshAuthorizedState_AndReimportClearsMatch(string provider)
     {
         using var host = new HandlerTestHost();
@@ -145,7 +139,6 @@ public sealed class AuthorizedPreparerImportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task EmptySelectedIdentifier_RejectsImportAndPreservesPriorListAndStatistics(string provider)
     {
         using var host = new HandlerTestHost();
@@ -176,9 +169,7 @@ public sealed class AuthorizedPreparerImportTests
 
     [Theory]
     [InlineData("sqlite", false)]
-    [InlineData("duckdb", false)]
     [InlineData("sqlite", true)]
-    [InlineData("duckdb", true)]
     public async Task SourceColumn_MissingOrBlank_IsRejectedInsteadOfGuessing(string provider, bool sendBlank)
     {
         using var host = new HandlerTestHost();
@@ -203,7 +194,6 @@ public sealed class AuthorizedPreparerImportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlMatch_CountsGlOnly_IgnoresPreparersOnlyInExcludedEntries(string provider)
     {
         // 比對人數只算 GL。E09 只出現在一筆總帳日期早於查核期間的分錄，
@@ -247,7 +237,7 @@ public sealed class AuthorizedPreparerImportTests
     private static async Task<long> QueryScalarAsync(HandlerTestHost host, string provider, string projectId, string sql)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

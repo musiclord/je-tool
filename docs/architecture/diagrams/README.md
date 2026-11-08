@@ -1,27 +1,30 @@
-# JET 架構圖表
+# 圖表閱讀說明
 
-開啟[圖表入口](index.html)。這些圖在 2026-11-03 依提交 40440b9 的程式快照重繪，沒有反映之後的修改；程式現況以 src 與測試為準。
+開啟[圖表入口](index.html)，從左側依用途選圖。一般讀者可先看「先認識 JET」、「看操作怎麼進行」與「看資料如何流動」。要核對程式時，再展開圖下方的「查閱這張圖的依據」。
 
-## 怎麼讀
+## 圖表範圍
 
-循序圖與 LikeC4 用三種線條區分呼叫方式：
+圖表依固定程式快照整理，不包含之後的修改。來源版本、工具版本與檔案清單保留在 [manifest.json](manifest.json)。連線來自程式碼分析，不是實際執行紀錄；現況以 src 與測試為準。部署與維護圖中的建議程序仍待公司確認。
 
-- 灰色實線是直接呼叫：程式碼直接呼叫那個類別的方法。
-- 鋼藍色虛線是介面呼叫：程式碼只呼叫介面；實際執行哪個類別，看 AppCompositionRoot 在啟動時建立哪一個。
-- 琥珀色線是間接觸發，例如畫面用 action 名稱送出的訊息、事先交出的函式，或逐列讀取的資料。Archify 畫成較粗的實線，LikeC4 畫成虛線。
+## 線條怎麼讀
 
-其他圖面：
+| 線條 | 意義 |
+|:---|:---|
+| 灰色實線 | 直接呼叫類別的方法。 |
+| 鋼藍色虛線 | 透過介面呼叫；啟動時決定使用哪個實作類別。 |
+| 琥珀色線 | 畫面訊息、預先交出的函式或逐列讀取等間接觸發。兩種工具的線型略有不同。 |
 
-- 方框顏色兩種工具相同：石墨灰是元件與類別，鋼藍是資料庫，青銅是畫面與介面型別，暖灰是外部資源與檔案。
-- 循序圖只畫標題寫明的情境與分支，沒畫的分支寫在圖下方的卡片；生命線上的長條是該類別處理呼叫的期間。
-- 類別圖只畫編譯時存在的依賴、實作與繼承；實作類別不重複列出介面已有的成員。
-- 資料表關聯圖的線是程式在 SQL 裡使用的連接欄位；這批 SQLite 建表定義沒有宣告外鍵。
-- 所有連線都來自閱讀程式碼，沒有實際執行。每條線的依據在[連線證據](connections.html)，類別圖的關係與成員在[類別與成員](types.html)。
+<details>
+<summary>類別圖與資料表圖的補充</summary>
 
-## 可編輯來源
+類別圖保留程式名稱與方法型別。成員省略參數名稱、CancellationToken 及預設參數；超過四個參數只列前兩個。package 表示 internal，實作類別不重複列出介面已有的成員。完整宣告在[類別與成員](types.html)。
 
-LikeC4 模型在 [jet.c4](likec4/jet.c4)；Archify 的候選 JSON 在各圖的資料夾，例如[篩選情境儲存的循序圖](archify/action-sequence/candidate.json)。配色檔與封裝方式見儲存庫的 `tools/harness/architecture/README.md`。
+資料表圖的線代表 SQL 使用的關聯欄位。這批 SQLite 定義沒有宣告外鍵，不會由資料庫強制保護這些關聯。PK 是主鍵，UK 是唯一約束或索引。未畫線不代表資料表互不相關；完整欄位在[資料表欄位](schema.html)。
 
-## 第三方授權
+</details>
 
-Archify 3.1.0 與 LikeC4 1.59.4 的原始授權保留在 [Archify 授權](licenses/archify-LICENSE.txt)和 [LikeC4 授權](licenses/likec4-LICENSE.txt)。
+## 修改圖表
+
+LikeC4 來源是 [jet.c4](likec4/jet.c4)。Archify 來源是各圖資料夾的 candidate.json，例如[篩選情境圖](archify/filter-save/candidate.json)。修改來源後，依 `tools/harness/architecture/README.md` 重新產生與封裝。
+
+第三方授權：[Archify](licenses/archify-LICENSE.txt)、[LikeC4](licenses/likec4-LICENSE.txt)。

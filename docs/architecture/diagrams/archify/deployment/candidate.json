@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "本機部署：隨發布交付、環境前提與案件資料",
+    "title": "電腦環境與交付內容",
     "locale": "zh-TW",
     "output": "archify/deployment/deployment.html",
     "quality_profile": "showcase",
@@ -210,27 +210,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "交付與環境前提",
+      "title": "交付完整發布資料夾",
       "items": [
-        "用 FolderProfile 發布 Windows x64 自含式主程式；前端檔案、範本與設定要和整個發布資料夾一起交付，不能只拿 JET.exe。",
-        "電腦要先有 WebView2 執行階段，不能假設單檔發布已內含；讀 Access 檔還需要 x64 的 ACE 16。",
-        "正式環境不能假設有系統管理員權限、能另外安裝軟體或使用外部 AI 服務。"
+        "JET.exe、設定、範本與 wwwroot 一起交付。電腦需有 WebView2；讀 Access 時另需 x64 ACE 16。",
+        "正式環境的元件版本、安裝與發布權限仍待確認，不假設可取得管理員權限或外部 AI。"
       ]
     },
     {
       "dot": "slate",
-      "title": "案件資料與支援日誌",
+      "title": "案件與支援日誌",
       "items": [
-        "SQLite 案件用 jet.db，DuckDB 案件用 jet.duckdb；同一個案件資料夾也存 project.json 與報告檔。",
-        "支援日誌只匯出去識別化的事件；沒有指定案件時寫到 JET 日誌目錄，不必先載入案件。案件清單頁尾的「輸出支援日誌」按鈕只在 Debug 組建顯示，開案後訊息面板的按鈕在 Release 照舊。"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "讀圖範圍",
-      "items": [
-        "JET 是一個桌面程式，連線表示同一台電腦上的資源使用；SQL Server 開發暫緩，不在圖內。",
-        "公司電腦上的 WebView2、ACE 位元版本與發布權限，還要在正式環境確認。"
+        "案件資料夾包含 project.json、資料庫與報告。SQLite 使用 jet.db，DuckDB 使用 jet.duckdb。",
+        "支援日誌可寫入所選案件或 JET 日誌目錄。案件清單的匯出按鈕僅 Debug 顯示，開案後在 Release 仍可匯出。"
       ]
     }
   ]

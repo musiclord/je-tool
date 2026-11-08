@@ -29,103 +29,11 @@ public sealed class GlExcludedPopulationProjectionProviderTests
     }
 
     [Fact]
-    public async Task DuckDb_Projection_MatchesGlOracle()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var database = new DuckDbProjectDatabase(folder);
-
-        await AssertLocalOracleAsync(database, folder);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_Projection_MatchesGlOracle()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var batch = (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
-            project.ProjectId,
-            DatasetKind.Gl,
-            [new ImportSourceInput(Source(),
-            Columns(),
-            Rows())],
-            CancellationToken.None)).Batch;
-
-        var repository = new SqlServerGlRepository(project.Database);
-        var result = await repository.ProjectStagingToTargetAsync(
-            project.ProjectId,
-            batch.BatchId,
-            Spec(),
-            ProjectDocument.DefaultMoneyScale,
-            DateParseOptions.Default,
-            PeriodStart,
-            PeriodEnd,
-            postingStatusMapped: true,
-            Policy,
-            DateTimeOffset.UnixEpoch,
-            CancellationToken.None);
-
-        await AssertResultAsync(result, project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
-        await AssertZeroEffectiveRollbackAsync(
-            repository,
-            new SqlServerMappingStateStore(project.Database),
-            project.ProjectId,
-            batch.BatchId,
-            () => project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
-    }
-
-    [Fact]
     public async Task Sqlite_ControlTotalOverflow_RollsBackProjection()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
         await AssertLocalControlTotalOverflowAsync(new SqliteProjectDatabase(folder), folder);
-    }
-
-    [Fact]
-    public async Task DuckDb_ControlTotalOverflow_RollsBackProjection()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        await AssertLocalControlTotalOverflowAsync(new DuckDbProjectDatabase(folder), folder);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_ControlTotalOverflow_RollsBackProjection()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var batch = (await new SqlServerImportRepository(project.Database).ReplaceBatchAsync(
-            project.ProjectId,
-            DatasetKind.Gl,
-            [new ImportSourceInput(Source(),
-            Columns(),
-            OverflowRows())],
-            CancellationToken.None)).Batch;
-
-        var result = await new SqlServerGlRepository(project.Database).ProjectStagingToTargetAsync(
-            project.ProjectId,
-            batch.BatchId,
-            Spec(),
-            ProjectDocument.DefaultMoneyScale,
-            DateParseOptions.Default,
-            PeriodStart,
-            PeriodEnd,
-            postingStatusMapped: true,
-            Policy,
-            DateTimeOffset.UnixEpoch,
-            CancellationToken.None);
-
-        await AssertControlTotalOverflowResultAsync(
-            result,
-            project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
-        Assert.Null(await new SqlServerMappingStateStore(project.Database).FindAsync(
-            project.ProjectId,
-            DatasetKind.Gl,
-            CancellationToken.None));
     }
 
     private static async Task AssertLocalOracleAsync(

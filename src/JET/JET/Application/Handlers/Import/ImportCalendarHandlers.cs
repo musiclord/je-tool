@@ -12,18 +12,15 @@ namespace JET.Application;
 public abstract class ImportCalendarHandler : IApplicationActionHandler
 {
     private readonly IProjectStore projectStore;
-    private readonly IProjectRegistry projectRegistry;
     private readonly ProjectSession session;
     private readonly ILogger? logger;
 
     internal ImportCalendarHandler(
         IProjectStore projectStore,
-        IProjectRegistry projectRegistry,
         ProjectSession session,
         ILogger? logger = null)
     {
         this.projectStore = projectStore;
-        this.projectRegistry = projectRegistry;
         this.session = session;
         this.logger = logger;
     }
@@ -71,13 +68,6 @@ public abstract class ImportCalendarHandler : IApplicationActionHandler
             // 已生效卻因取消而永久保留「從未匯入」狀態。Save 失敗仍向上回報，重試 replace 為冪等。
             await projectStore.SaveAsync(updated, CancellationToken.None);
         }
-
-        if (updated.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider)
-        {
-            // registry 的 project_json 是另一台機器 serverOnly 物化的來源。即使本機 marker
-            // 已是 true 仍重試同步，讓先前 registry 寫入失敗可由冪等重送修復。
-            await projectRegistry.UpdateDocumentAsync(updated, CancellationToken.None);
-        }
     }
 }
 
@@ -85,10 +75,9 @@ public sealed class ImportHolidayHandler : ImportCalendarHandler
 {
     internal ImportHolidayHandler(
         IProjectStore projectStore,
-        IProjectRegistry projectRegistry,
         ProjectSession session,
         ILogger? logger = null)
-        : base(projectStore, projectRegistry, session, logger)
+        : base(projectStore, session, logger)
     {
     }
 
@@ -101,10 +90,9 @@ public sealed class ImportMakeupDayHandler : ImportCalendarHandler
 {
     internal ImportMakeupDayHandler(
         IProjectStore projectStore,
-        IProjectRegistry projectRegistry,
         ProjectSession session,
         ILogger? logger = null)
-        : base(projectStore, projectRegistry, session, logger)
+        : base(projectStore, session, logger)
     {
     }
 
@@ -122,20 +110,17 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
 {
     private readonly ITabularFileReader reader;
     private readonly IProjectStore projectStore;
-    private readonly IProjectRegistry projectRegistry;
     private readonly ProjectSession session;
     private readonly ILogger? logger;
 
     internal ImportCalendarFromFileHandler(
         ITabularFileReader reader,
         IProjectStore projectStore,
-        IProjectRegistry projectRegistry,
         ProjectSession session,
         ILogger? logger = null)
     {
         this.reader = reader;
         this.projectStore = projectStore;
-        this.projectRegistry = projectRegistry;
         this.session = session;
         this.logger = logger;
     }
@@ -165,6 +150,9 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
 
         // 欄名固定在第 2 列，畫面不能改欄名列；找不到欄名時照舊說工作表是空的（2026-10-28 複審）。
         var request = new TabularSourceRequest(filePath, SheetName: sheetName, LeadingRowsToSkip: 1, FixedLeadingRows: true);
+        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒（裁定 2026-11-06-12）。
+        var fileName = ImportSourceFileName.Resolve(filePath, PayloadReader.GetOptionalString(payload, "fileName"));
+        var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
 
         var entries = await Task.Run(async () =>
         {
@@ -187,7 +175,10 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
+        // 和其他匯入一樣：warnings 是全部提醒，開著的檔案那則另外列一份，畫面放在日曆卡片的匯入結果旁（裁定 2026-11-06-12）。
         return new { count = result.Count,
+            warnings = openElsewhereWarnings,
+            openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reports = mutationState.Reports,
@@ -202,11 +193,6 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
             // 檔案已完整投影且 reference-data replace 已提交；見 inline handler 的同一 commit-point 政策。
             await projectStore.SaveAsync(updated, CancellationToken.None);
         }
-
-        if (updated.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider)
-        {
-            await projectRegistry.UpdateDocumentAsync(updated, CancellationToken.None);
-        }
     }
 }
 
@@ -215,10 +201,9 @@ public sealed class ImportHolidayFromFileHandler : ImportCalendarFromFileHandler
     internal ImportHolidayFromFileHandler(
         ITabularFileReader reader,
         IProjectStore projectStore,
-        IProjectRegistry projectRegistry,
         ProjectSession session,
         ILogger? logger = null)
-        : base(reader, projectStore, projectRegistry, session, logger)
+        : base(reader, projectStore, session, logger)
     {
     }
 
@@ -232,10 +217,9 @@ public sealed class ImportMakeupDayFromFileHandler : ImportCalendarFromFileHandl
     internal ImportMakeupDayFromFileHandler(
         ITabularFileReader reader,
         IProjectStore projectStore,
-        IProjectRegistry projectRegistry,
         ProjectSession session,
         ILogger? logger = null)
-        : base(reader, projectStore, projectRegistry, session, logger)
+        : base(reader, projectStore, session, logger)
     {
     }
 
@@ -252,18 +236,15 @@ public sealed class ImportMakeupDayFromFileHandler : ImportCalendarFromFileHandl
 public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
 {
     private readonly IProjectStore projectStore;
-    private readonly IProjectRegistry projectRegistry;
     private readonly ProjectSession session;
     private readonly ILogger? logger;
 
     internal CalendarSetNonWorkingDaysHandler(
         IProjectStore projectStore,
-        IProjectRegistry projectRegistry,
         ProjectSession session,
         ILogger? logger = null)
     {
         this.projectStore = projectStore;
-        this.projectRegistry = projectRegistry;
         this.session = session;
         this.logger = logger;
     }
@@ -293,18 +274,9 @@ public sealed class CalendarSetNonWorkingDaysHandler : IApplicationActionHandler
         }
 
         var result = JetAuditProgram.Finalize(plan);
-        var updated = document;
         if (plan.ShouldExecute)
         {
-            updated = document with { NonWorkingDays = result.NormalizedDays };
-            await projectStore.SaveAsync(updated, cancellationToken);
-        }
-
-        if (updated.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider)
-        {
-            // 與匯入 marker 相同：serverOnly 物化必須看見每週設定；即使本機已是同值，
-            // 仍允許重試先前失敗的 registry 快照同步。
-            await projectRegistry.UpdateDocumentAsync(updated, CancellationToken.None);
+            await projectStore.SaveAsync(document with { NonWorkingDays = result.NormalizedDays }, cancellationToken);
         }
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(

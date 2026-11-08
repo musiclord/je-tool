@@ -5,7 +5,6 @@ using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Xunit;
 using static JET.Tests.Application.ResultInvalidationTestSupport;
 
@@ -16,10 +15,9 @@ public sealed class ResultInvalidationProjectionAndFilterTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public Task GlProjection_LocalProviders_UpdateControlTotalAndPreserveExactInvalidationMatrixExceptions(
         string databaseProvider) =>
-        RunGlProjectionInvalidationAsync(databaseProvider, sqlServerConnectionString: null);
+        RunGlProjectionInvalidationAsync(databaseProvider);
 
     [Fact]
     public async Task ReimportTb_AfterFilterCommit_ClearsHitsAndScenarioDefinitions()

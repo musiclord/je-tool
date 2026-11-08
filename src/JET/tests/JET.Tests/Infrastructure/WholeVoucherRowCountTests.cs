@@ -43,14 +43,12 @@ public sealed class WholeVoucherRowCountTests
 
     private static readonly FilterConditionContext Context = new(100, "2025-12-31", "2025-01-01", "2025-12-31");
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task UnexpectedAccountPairAlone_CountsEveryEffectiveRowOfHitVouchers_SameAsTheReportRows(string provider)
+    [Fact]
+    public async Task UnexpectedAccountPairAlone_CountsEveryEffectiveRowOfHitVouchers_SameAsTheReportRows()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);

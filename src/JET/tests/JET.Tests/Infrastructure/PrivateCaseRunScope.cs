@@ -46,11 +46,10 @@ internal sealed class PrivateCaseRunScope : IDisposable
 
     internal static async Task<T> RunAsync<T>(
         Func<PrivateCaseRunScope, CancellationToken, Task<T>> work,
-        string? sqlServerConnectionString = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(work);
-        using var scope = Create(sqlServerConnectionString);
+        using var scope = Create();
         return await work(scope, cancellationToken).ConfigureAwait(false);
     }
 
@@ -110,7 +109,7 @@ internal sealed class PrivateCaseRunScope : IDisposable
 
     public override string ToString() => "private case run scope";
 
-    private static PrivateCaseRunScope Create(string? sqlServerConnectionString)
+    private static PrivateCaseRunScope Create()
     {
         string? inputRootPath = null;
         PrivateCaseInputWorkspace? workspace = null;
@@ -119,7 +118,7 @@ internal sealed class PrivateCaseRunScope : IDisposable
         {
             inputRootPath = Directory.CreateTempSubdirectory("jet-private-case-run-").FullName;
             workspace = PrivateCaseInputWorkspace.Create(inputRootPath);
-            host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
+            host = new HandlerTestHost();
             return new PrivateCaseRunScope(inputRootPath, workspace, host);
         }
         catch (Exception)

@@ -36,24 +36,11 @@ public sealed class FilterSinglePurposeEquivalenceTests
 
     [Theory]
     [InlineData("sqlite", 1)]
-    [InlineData("duckdb", 1)]
     [InlineData("sqlite", 2)]
-    [InlineData("duckdb", 2)]
     [InlineData("sqlite", 6)]
-    [InlineData("duckdb", 6)]
     public async Task TrailingZeros_ReplacementMustKeepTheFixedHits(string provider, int digits)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
-        await AssertTrailingZerosAsync(fixture, digits);
-    }
-
-    [SqlServerTheory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(6)]
-    public async Task TrailingZeros_ReplacementMustKeepTheFixedHits_SqlServer(int digits)
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
         await AssertTrailingZerosAsync(fixture, digits);
     }
 
@@ -72,17 +59,9 @@ public sealed class FilterSinglePurposeEquivalenceTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BlankAndPeople_ReplacementKeepsFixedHits(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
-        await AssertBlankAndPeopleAsync(fixture);
-    }
-
-    [SqlServerFact]
-    public async Task BlankAndPeople_ReplacementKeepsFixedHits_SqlServer()
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(Seed);
         await AssertBlankAndPeopleAsync(fixture);
     }
 
@@ -103,7 +82,7 @@ public sealed class FilterSinglePurposeEquivalenceTests
         }
     }
 
-    private static async Task<string[]> Hits(FilterPredicateProviderFixture fixture, string rule)
+    private static async Task<string?[]> Hits(FilterPredicateProviderFixture fixture, string rule)
     {
         var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse(
             $$"""{"name":"合成規則比對","rationale":"固定答案","groups":[{"conditions":[{{rule}}]}]}"""), 100);

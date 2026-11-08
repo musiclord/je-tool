@@ -146,11 +146,11 @@ public class LayerDependencyTests
     [Fact]
     public void Infrastructure_TypesDependingOnApplication_MatchDocumentedWhitelist()
     {
+        // 白名單原本還有 SqlServerBackendProbe 與 SqlServerHealthCheck，只保留 SQLite 之後隨 SQL Server 刪除（裁定 2026-11-06-08）；
+        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
         var expected = new[]
         {
-            "JET.Infrastructure.DemoWorkbookWriter",
-            "JET.Infrastructure.SqlServerBackendProbe",
-            "JET.Infrastructure.SqlServerHealthCheck"
+            "JET.Infrastructure.DemoWorkbookWriter"
         };
         var actual = Types.InAssembly(ProductionAssembly)
             .That().ResideInNamespace(InfrastructureNamespace)

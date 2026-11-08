@@ -5,7 +5,6 @@ using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -77,15 +76,6 @@ public static class ResultInvalidationTestSupport
         }
     }
 
-    public static IEnumerable<object[]> SqlServerMatrixCases() =>
-        MatrixExpectations.Select(expected => new object[]
-        {
-            expected.Mutation,
-            expected.Validation,
-            expected.Prescreen,
-            expected.FilterHits
-        });
-
     internal static async Task<JsonElement> LoadAsync(HandlerTestHost host, string projectId)
     {
         return await host.DispatchAsync(
@@ -138,116 +128,87 @@ public static class ResultInvalidationTestSupport
 
     internal static async Task RunInvalidationMatrixAsync(
         string databaseProvider,
-        string? sqlServerConnectionString,
         MatrixMutation mutation,
         bool clearsValidation,
         bool clearsPrescreen,
         bool clearsFilterHits)
     {
-        using var host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
-        try
-        {
-            var context = await DemoProjectPipeline.SetupAsync(
-                host,
-                databaseProvider: databaseProvider);
-            var before = await SeedInvalidationMatrixAsync(
-                host,
-                context.ProjectId,
-                databaseProvider,
-                sqlServerConnectionString);
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(
+            host,
+            databaseProvider: databaseProvider);
+        var before = await SeedInvalidationMatrixAsync(
+            host,
+            context.ProjectId,
+            databaseProvider);
 
-            await ExecuteMatrixMutationAsync(host, context, mutation);
+        await ExecuteMatrixMutationAsync(host, context, mutation);
 
-            var after = await CaptureInvalidationMatrixStateAsync(
-                host,
-                context.ProjectId,
-                databaseProvider,
-                sqlServerConnectionString);
-            AssertInvalidationMatrix(
-                before,
-                after,
-                clearsValidation,
-                clearsPrescreen,
-                clearsFilterHits,
-                expectedGlControlTotal: before.GlControlTotal);
-        }
-        finally
-        {
-            await CleanupSqlServerProjectsAsync(
-                host.ProjectsRoot,
-                databaseProvider,
-                sqlServerConnectionString);
-        }
+        var after = await CaptureInvalidationMatrixStateAsync(
+            host,
+            context.ProjectId,
+            databaseProvider);
+        AssertInvalidationMatrix(
+            before,
+            after,
+            clearsValidation,
+            clearsPrescreen,
+            clearsFilterHits,
+            expectedGlControlTotal: before.GlControlTotal);
     }
 
     internal static async Task RunGlProjectionInvalidationAsync(
-        string databaseProvider,
-        string? sqlServerConnectionString)
+        string databaseProvider)
     {
-        using var host = new HandlerTestHost(sqlServerConnectionString: sqlServerConnectionString);
-        try
-        {
-            var context = await DemoProjectPipeline.SetupAsync(
-                host,
-                databaseProvider: databaseProvider);
-            var projected = await SeedInvalidationMatrixAsync(
-                host,
-                context.ProjectId,
-                databaseProvider,
-                sqlServerConnectionString);
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(
+            host,
+            databaseProvider: databaseProvider);
+        var projected = await SeedInvalidationMatrixAsync(
+            host,
+            context.ProjectId,
+            databaseProvider);
 
-            await ExecuteMatrixNonQueryAsync(
-                host,
-                context.ProjectId,
-                databaseProvider,
-                sqlServerConnectionString,
-                """
-                UPDATE {s}.gl_control_total
-                SET pbc_row_count = -1,
-                    stored_row_count = -1,
-                    stored_debit_scaled = -1,
-                    stored_credit_scaled = -1
-                WHERE singleton = 1;
-                """);
+        await ExecuteMatrixNonQueryAsync(
+            host,
+            context.ProjectId,
+            databaseProvider,
+            """
+            UPDATE {s}.gl_control_total
+            SET pbc_row_count = -1,
+                stored_row_count = -1,
+                stored_debit_scaled = -1,
+                stored_credit_scaled = -1
+            WHERE singleton = 1;
+            """);
 
-            var sentinel = await CaptureInvalidationMatrixStateAsync(
-                host,
-                context.ProjectId,
-                databaseProvider,
-                sqlServerConnectionString);
-            Assert.False(
-                projected.GlControlTotal.SequenceEqual(sentinel.GlControlTotal, StringComparer.Ordinal),
-                "測試前置失敗：gl_control_total sentinel 未生效。");
+        var sentinel = await CaptureInvalidationMatrixStateAsync(
+            host,
+            context.ProjectId,
+            databaseProvider);
+        Assert.False(
+            projected.GlControlTotal.SequenceEqual(sentinel.GlControlTotal, StringComparer.Ordinal),
+            "測試前置失敗：gl_control_total sentinel 未生效。");
 
-            await RecommitGlMappingAsync(host, context);
+        await RecommitGlMappingAsync(host, context);
 
-            var after = await CaptureInvalidationMatrixStateAsync(
-                host,
-                context.ProjectId,
-                databaseProvider,
-                sqlServerConnectionString);
-            AssertInvalidationMatrix(
-                sentinel,
-                after,
-                clearsValidation: true,
-                clearsPrescreen: true,
-                clearsFilterHits: true,
-                expectedGlControlTotal: projected.GlControlTotal);
-        }
-        finally
-        {
-            await CleanupSqlServerProjectsAsync(
-                host.ProjectsRoot,
-                databaseProvider,
-                sqlServerConnectionString);
-        }
+        var after = await CaptureInvalidationMatrixStateAsync(
+            host,
+            context.ProjectId,
+            databaseProvider);
+        AssertInvalidationMatrix(
+            sentinel,
+            after,
+            clearsValidation: true,
+            clearsPrescreen: true,
+            clearsFilterHits: true,
+            expectedGlControlTotal: projected.GlControlTotal);
     }
 
     internal static async Task<InvalidationMatrixState> SeedInvalidationMatrixAsync(
         HandlerTestHost host,
         string projectId,
-        string databaseProvider,
-        string? sqlServerConnectionString)
+        string databaseProvider)
     {
         await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
@@ -256,8 +217,7 @@ public static class ResultInvalidationTestSupport
         var state = await CaptureInvalidationMatrixStateAsync(
             host,
             projectId,
-            databaseProvider,
-            sqlServerConnectionString);
+            databaseProvider);
         Assert.NotNull(state.ValidationResultJson);
         Assert.NotNull(state.PrescreenResultJson);
         Assert.True(state.FilterHitCount > 0);
@@ -271,15 +231,13 @@ public static class ResultInvalidationTestSupport
     internal static async Task<InvalidationMatrixState> CaptureInvalidationMatrixStateAsync(
         HandlerTestHost host,
         string projectId,
-        string databaseProvider,
-        string? sqlServerConnectionString)
+        string databaseProvider)
     {
         var loaded = await LoadAsync(host, projectId);
         var definitions = await RequiredMatrixStringsAsync(
             host,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             "SELECT definition_json FROM {s}.filter_scenario ORDER BY position;");
         // 2026-10-31 起每個情境各自儲存，情境的版本是「情境編號@保存時間」，整批版本依順序用分號接起來；
         // 原本直接比對保存時間，第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
@@ -287,20 +245,17 @@ public static class ResultInvalidationTestSupport
             host,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             "SELECT saved_utc FROM {s}.filter_scenario ORDER BY position;");
         var scenarioIds = await RequiredMatrixStringsAsync(
             host,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             "SELECT CAST(scenario_id AS VARCHAR(20)) FROM {s}.filter_scenario ORDER BY position;");
         var revisions = scenarioIds.Zip(savedTimes, (id, savedUtc) => id + "@" + savedUtc).ToArray();
         var glControlTotal = await ReadGlControlTotalAsync(
             host,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             """
             SELECT pbc_row_count,
                    stored_row_count,
@@ -318,7 +273,6 @@ public static class ResultInvalidationTestSupport
                 host,
                 projectId,
                 databaseProvider,
-                sqlServerConnectionString,
                 "SELECT COUNT(*) FROM {s}.filter_hit;"),
             definitions,
             revisions,
@@ -382,20 +336,17 @@ public static class ResultInvalidationTestSupport
         HandlerTestHost host,
         string projectId,
         string databaseProvider,
-        string? sqlServerConnectionString,
         string sql)
     {
         await using var connection = CreateMatrixConnection(
             host,
             projectId,
-            databaseProvider,
-            sqlServerConnectionString);
+            databaseProvider);
         await connection.OpenAsync();
         await using var command = CreateMatrixCommand(
             connection,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             sql);
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -412,20 +363,17 @@ public static class ResultInvalidationTestSupport
         HandlerTestHost host,
         string projectId,
         string databaseProvider,
-        string? sqlServerConnectionString,
         string sql)
     {
         await using var connection = CreateMatrixConnection(
             host,
             projectId,
-            databaseProvider,
-            sqlServerConnectionString);
+            databaseProvider);
         await connection.OpenAsync();
         await using var command = CreateMatrixCommand(
             connection,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             sql);
         await using var reader = await command.ExecuteReaderAsync();
 
@@ -445,20 +393,17 @@ public static class ResultInvalidationTestSupport
         HandlerTestHost host,
         string projectId,
         string databaseProvider,
-        string? sqlServerConnectionString,
         string sql)
     {
         await using var connection = CreateMatrixConnection(
             host,
             projectId,
-            databaseProvider,
-            sqlServerConnectionString);
+            databaseProvider);
         await connection.OpenAsync();
         await using var command = CreateMatrixCommand(
             connection,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             sql);
         var value = await command.ExecuteScalarAsync();
         return value is null or DBNull ? 0L : Convert.ToInt64(value, CultureInfo.InvariantCulture);
@@ -468,20 +413,17 @@ public static class ResultInvalidationTestSupport
         HandlerTestHost host,
         string projectId,
         string databaseProvider,
-        string? sqlServerConnectionString,
         string sql)
     {
         await using var connection = CreateMatrixConnection(
             host,
             projectId,
-            databaseProvider,
-            sqlServerConnectionString);
+            databaseProvider);
         await connection.OpenAsync();
         await using var command = CreateMatrixCommand(
             connection,
             projectId,
             databaseProvider,
-            sqlServerConnectionString,
             sql);
         return await command.ExecuteNonQueryAsync();
     }
@@ -489,16 +431,11 @@ public static class ResultInvalidationTestSupport
     internal static DbConnection CreateMatrixConnection(
         HandlerTestHost host,
         string projectId,
-        string databaseProvider,
-        string? sqlServerConnectionString) =>
+        string databaseProvider) =>
         databaseProvider switch
         {
             "sqlite" => new SqliteProjectDatabase(
                 new JetProjectFolder(host.ProjectsRoot)).CreateConnection(projectId),
-            "duckdb" => new DuckDbProjectDatabase(
-                new JetProjectFolder(host.ProjectsRoot)).CreateConnection(projectId),
-            "sqlServer" => new SqlServerProjectDatabase(
-                new SqlServerConnectionOptions(sqlServerConnectionString)).CreateConnection(projectId),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(databaseProvider),
                 databaseProvider,
@@ -509,39 +446,12 @@ public static class ResultInvalidationTestSupport
         DbConnection connection,
         string projectId,
         string databaseProvider,
-        string? sqlServerConnectionString,
         string sql)
     {
-        if (databaseProvider == "sqlServer")
-        {
-            var database = new SqlServerProjectDatabase(
-                new SqlServerConnectionOptions(sqlServerConnectionString));
-            return database.CreateCommand((SqlConnection)connection, projectId, sql);
-        }
 
         var command = connection.CreateCommand();
         command.CommandText = sql.Replace("{s}.", string.Empty, StringComparison.Ordinal);
         return command;
-    }
-
-    internal static async Task CleanupSqlServerProjectsAsync(
-        string projectsRoot,
-        string databaseProvider,
-        string? sqlServerConnectionString)
-    {
-        if (databaseProvider != "sqlServer"
-            || string.IsNullOrWhiteSpace(sqlServerConnectionString)
-            || !Directory.Exists(projectsRoot))
-        {
-            return;
-        }
-
-        foreach (var directory in Directory.GetDirectories(projectsRoot))
-        {
-            await TempSqlServerProject.DropDatabaseAsync(
-                sqlServerConnectionString,
-                Path.GetFileName(directory));
-        }
     }
 
     internal static async Task ExecuteMatrixMutationAsync(

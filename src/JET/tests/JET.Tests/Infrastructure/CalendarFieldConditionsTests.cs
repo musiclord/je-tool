@@ -8,7 +8,6 @@ public sealed class CalendarFieldConditionsTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CalendarConditions_CoreAndExtraDatesRespectMakeupDaysNegationAndBlankChoice(string provider)
     {
         const string extraId = "rde.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

@@ -140,17 +140,14 @@
   var SUPPORTED_ACTIONS = [
     'system.ping',
     'operation.cancel',
-    'system.databaseInfo',
     'system.whoAmI',
     'project.listLocal',
-    'project.list',
     'project.create',
     'project.update',
     'project.load',
     'project.delete',
     'project.deletePreview',
     'project.saveProgress',
-    'project.heartbeat',
     'project.releaseLock',
     'project.loadDemo',
     'demo.exportGlFile',
@@ -212,7 +209,6 @@
     'host.exitApp',
     'dev.db.overview',
     'dev.db.tableData',
-    'dev.db.reconcile',
     'dev.log.exportFile'
   ];
 

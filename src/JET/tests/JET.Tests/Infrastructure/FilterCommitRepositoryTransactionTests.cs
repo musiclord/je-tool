@@ -30,17 +30,13 @@ public sealed class FilterCommitRepositoryTransactionTests
         new(8, 800002)
     ];
 
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
+    [Fact]
     public async Task Commit_LocalProvider_FaultAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds(
-        string provider)
+)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -59,36 +55,13 @@ public sealed class FilterCommitRepositoryTransactionTests
             fault: fault);
     }
 
-    [SqlServerFact]
-    public async Task Commit_SqlServer_FaultAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var injected = new InjectedFilterCommitException("injected after first new filter hit insert");
-        var fault = new FaultAfterFirstHitInsertLogger<SqlServerFilterCommitRepository>(injected);
-        var repository = new SqlServerFilterCommitRepository(project.Database, fault);
-        var scenarioStore = new SqlServerFilterScenarioStore(project.Database);
-
-        await AssertRollbackAndRetryAsync(
-            project.ProjectId,
-            repository,
-            scenarioStore,
-            project.Database.CreateConnection,
-            SqlServerProjectSchema.QualifierFor(project.ProjectId),
-            fault);
-    }
-
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
+    [Fact]
     public async Task Commit_LocalProvider_CancelAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds(
-        string provider)
+)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -102,24 +75,6 @@ public sealed class FilterCommitRepositoryTransactionTests
             new LocalFilterScenarioStore(database),
             database.CreateConnection,
             schemaPrefix: string.Empty,
-            cancellation,
-            fault);
-    }
-
-    [SqlServerFact]
-    public async Task Commit_SqlServer_CancelAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        using var cancellation = new CancellationTokenSource();
-        var fault = new CancelAfterFirstHitInsertLogger<SqlServerFilterCommitRepository>(cancellation);
-        var repository = new SqlServerFilterCommitRepository(project.Database, fault);
-        await AssertCancellationRollbackAndRetryAsync(
-            project.ProjectId,
-            repository,
-            new SqlServerFilterScenarioStore(project.Database),
-            project.Database.CreateConnection,
-            SqlServerProjectSchema.QualifierFor(project.ProjectId),
             cancellation,
             fault);
     }

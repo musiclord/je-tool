@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>篩選情境儲存的類別與介面</title>
+  <title>篩選情境的處理類別</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>篩選情境儲存的類別與介面</h1>
+        <h1>篩選情境的處理類別</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1462 908" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">篩選情境儲存的類別與介面</title>
+        <title id="archify-diagram-title">篩選情境的處理類別</title>
         <desc id="archify-diagram-description">由 Archify 產生的類別與介面圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5727,35 +5727,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>實際執行哪個類別</h3>
+          <h3>圖中涵蓋的範圍</h3>
         </div>
         <ul>
-          <li>依賴線指向介面時，編譯時只知道呼叫的是介面方法，例如 IFilterFactsPort.ExecuteAsync。</li>
-          <li>實際執行哪個類別，看 AppCompositionRoot 的「建立」線：案件用 SQLite 或 DuckDB 時，建立 FilterFactsPort、LocalFilterCommitRepository 與 LocalFilterScenarioStore，再交給使用它們的類別。</li>
-          <li>本圖不表示每次儲存都會走到每一條線。</li>
+          <li>本圖呈現 SQLite 或 DuckDB 的儲存流程；預覽與 SQL Server 實作未列入。</li>
+          <li>AppCompositionRoot 建立 FilterFactsPort、LocalFilterCommitRepository 與 LocalFilterScenarioStore。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot slate"></div>
-          <h3>這張圖省略了什麼</h3>
+          <h3>另外參與的元件</h3>
         </div>
         <ul>
-          <li>方法區只列這條流程用到的方法；SQL Server 版本的類別不在圖內。</li>
-          <li>FilterScenarioBatchWriter 另外經 IResultStaleStateStore 讀存好的結果是否過期，再決定只存一個情境還是整批處理。</li>
-          <li>FilterScenarioBatchWriter 另外呼叫 MappingCommitShared.AdvanceStepAsync 推進步驟，見業務流程圖。</li>
-          <li>預覽時，用整張傳票計數的情境另向 IFilterHitRepository 取整張命中傳票的分錄數；本圖只畫儲存。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>成員寫法</h3>
-        </div>
-        <ul>
-          <li>成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。</li>
+          <li>FilterScenarioBatchWriter 也會讀取結果是否過期，再決定單筆或整批處理。</li>
+          <li>推進案件步驟由 MappingCommitShared.AdvanceStepAsync 處理，分支見流程圖。</li>
         </ul>
       </div>
     </div>

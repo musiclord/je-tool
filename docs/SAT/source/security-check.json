@@ -1,0 +1,17 @@
+{
+  "scope": "產品 NuGet 套件；現有還原清單；非完整資安稽核",
+  "checkedDate": "2026-11-06",
+  "result": {
+    "version": 1,
+    "parameters": "--vulnerable --include-transitive",
+    "sources": [
+      "https://api.nuget.org/v3/index.json",
+      "本機 SDK 套件來源"
+    ],
+    "projects": [
+      {
+        "path": "src/JET/JET/JET.csproj"
+      }
+    ]
+  }
+}

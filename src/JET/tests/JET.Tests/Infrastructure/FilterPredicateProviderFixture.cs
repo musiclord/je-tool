@@ -7,23 +7,19 @@ namespace JET.Tests.Infrastructure;
 /// <summary>
 /// Filter predicate provider tests share one fixture shape: a fresh project database,
 /// provider-neutral seed SQL, and the production preview repository for that provider.
-/// SQL Server tests remain behind <see cref="SqlServerTheoryAttribute"/> at the caller.
 /// </summary>
 internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
 {
     private readonly TempProjectRoot? _root;
-    private readonly TempSqlServerProject? _sqlServer;
 
     private FilterPredicateProviderFixture(
         string projectId,
         IFilterHitRepository repository,
-        TempProjectRoot? root = null,
-        TempSqlServerProject? sqlServer = null)
+        TempProjectRoot? root = null)
     {
         ProjectId = projectId;
         Repository = repository;
         _root = root;
-        _sqlServer = sqlServer;
     }
 
     public string ProjectId { get; }
@@ -42,7 +38,6 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
             ILocalProjectDatabase database = provider switch
             {
                 "sqlite" => new SqliteProjectDatabase(folder),
-                "duckdb" => new DuckDbProjectDatabase(folder),
                 _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unknown local provider.")
             };
             var projectId = Guid.NewGuid().ToString("N");
@@ -69,59 +64,9 @@ internal sealed class FilterPredicateProviderFixture : IAsyncDisposable
         }
     }
 
-    public static async Task<FilterPredicateProviderFixture> CreateSqlServerAsync(string fixtureSql)
+    public ValueTask DisposeAsync()
     {
-        var sqlServer = await TempSqlServerProject.TryCreateAsync()
-            ?? throw new InvalidOperationException(
-                "SqlServerTheory reported an available SQL Server, but no test project could be created.");
-        try
-        {
-            var transformed = ToSqlServerFixtureSql(fixtureSql);
-
-            await using (var connection = sqlServer.Database.CreateConnection(sqlServer.ProjectId))
-            {
-                await connection.OpenAsync();
-                await using var command = sqlServer.Database.CreateCommand(
-                    connection,
-                    sqlServer.ProjectId,
-                    transformed);
-                await command.ExecuteNonQueryAsync();
-            }
-
-            return new FilterPredicateProviderFixture(
-                sqlServer.ProjectId,
-                new SqlServerFilterHitRepository(sqlServer.Database),
-                sqlServer: sqlServer) { Vouchers = new SqlServerFilterVoucherRepository(sqlServer.Database) };
-        }
-        catch
-        {
-            await sqlServer.DisposeAsync();
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Fixture SQL is shared with SQLite/DuckDB. T-SQL needs Unicode literals for Chinese
-    /// fixture text and project-schema qualification for every target table.
-    /// </summary>
-    internal static string ToSqlServerFixtureSql(string fixtureSql) =>
-        Regex.Replace(
-                fixtureSql,
-                "'[^']*'",
-                match => "N" + match.Value)
-            .Replace("INSERT INTO ", "INSERT INTO {s}.", StringComparison.Ordinal)
-            .Replace("UPDATE gl", "UPDATE {s}.gl", StringComparison.Ordinal)
-            // INSERT..SELECT 形式的 fixture（如 typed RDE 值以 source_row_number 對應 entry）
-            // 也要 schema 限定子查詢中的 gl。
-            .Replace("FROM gl", "FROM {s}.gl", StringComparison.Ordinal);
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_sqlServer is not null)
-        {
-            await _sqlServer.DisposeAsync();
-        }
-
         _root?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

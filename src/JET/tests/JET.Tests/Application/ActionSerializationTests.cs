@@ -17,10 +17,36 @@ public sealed class ActionSerializationTests
 {
     // 改動原因：裁定 2026-10-08-08 移除假日範本入口，export.calendarTemplates 隨之移除；
     // 原測試的 accountMappingTemplate 斷言仍有意義，所以保留並改名。
+    // 原本查的是 DuckDB 的保留連線清單；只保留 SQLite 之後同一份清單改名為「會開案件資料庫的 action」（裁定 2026-11-06-08）。
     [Fact]
-    public void AccountMappingTemplateExport_RetainsProjectDatabase()
+    public void AccountMappingTemplateExport_OpensProjectDatabase()
     {
-        Assert.True(ActionExecutionPolicy.RetainsProjectDatabase("export.accountMappingTemplate"));
+        Assert.True(ActionExecutionPolicy.OpensProjectDatabase("export.accountMappingTemplate"));
+    }
+
+    // 原本在 DuckDbOperationRetentionTests 裡，守的是 DuckDB 保留連線的清單；那份清單現在是「會開案件資料庫的 action」，
+    // 決定哪些變更型作業結束後併回 SQLite 記錄檔，所以守衛照舊保留。dev.db.reconcile 已移除，從案件生命週期清單拿掉
+    // （裁定 2026-11-06-08）。
+    [Fact]
+    public void ProjectDatabaseActions_AreRegisteredAndClassified_AndCaseLifecycleActionsNeverOpen()
+    {
+        using var host = new HandlerTestHost(enableDevTools: true);
+        var registered = host.Dispatcher.RegisteredActions.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var action in ActionExecutionPolicy.ProjectDatabaseActionNames)
+        {
+            Assert.True(registered.Contains(action), $"會開案件資料庫的 {action} 沒有在 dispatcher 註冊");
+            Assert.True(ActionExecutionPolicy.IsClassified(action), $"會開案件資料庫的 {action} 沒有歸類");
+            Assert.True(ActionExecutionPolicy.OpensProjectDatabase(action));
+        }
+
+        foreach (var action in new[] { "project.create", "project.load", "project.delete", "project.releaseLock" })
+        {
+            Assert.False(ActionExecutionPolicy.OpensProjectDatabase(action), $"{action} 不得列為會開案件資料庫的 action");
+            Assert.False(ActionExecutionPolicy.CheckpointsProjectDatabase(action), $"{action} 不得由 dispatcher 併回記錄檔");
+        }
+
+        Assert.False(ActionExecutionPolicy.OpensProjectDatabase("not.a.real.action"));
     }
     [Fact]
     public void OperationCancel_IsConcurrentSoItCanReachAnInFlightExclusiveAction()
@@ -169,27 +195,23 @@ public sealed class ActionSerializationTests
     }
 
     [Fact]
-    public async Task HeartbeatAndLogAppend_RunConcurrently_WhileExclusiveActionInFlight()
+    public async Task LogAppend_RunsConcurrently_WhileExclusiveActionInFlight()
     {
+        // 原本同時驗心跳與 log.append；線上案件的心跳隨 SQL Server 移除，只留 log.append 這一半（裁定 2026-11-06-08）。
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var exclusive = new BlockingHandler("validate.run", release);
-        var locks = new RecordingLockService();
         var messages = new RecordingMessageLogStore();
-        // heartbeat 與 log.append 從作用中案件的資料庫組取鎖服務與訊息紀錄，替身放進資料庫組。
+        // log.append 從作用中案件的資料庫組取訊息紀錄，替身放進資料庫組。
         var session = new ProjectSession();
         session.Enter(
             "project-1",
             TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
             {
-                LockService = locks,
                 MessageLog = messages,
             });
         var dispatcher = new ActionDispatcher(
             [
                 exclusive,
-                new ProjectHeartbeatHandler(
-                    new CurrentPrincipal("CONTOSO\\auditor"),
-                    session),
                 new LogAppendHandler(session)
             ],
             NullLogger<ActionDispatcher>.Instance,
@@ -202,17 +224,12 @@ public sealed class ActionSerializationTests
             CancellationToken.None);
         await exclusive.Entered.Task;
 
-        await dispatcher.DispatchAsync(
-            "project.heartbeat",
-            payload.RootElement,
-            CancellationToken.None);
         using var logPayload = JsonDocument.Parse("""{ "text": "仍在處理" }""");
         await dispatcher.DispatchAsync(
             "log.append",
             logPayload.RootElement,
             CancellationToken.None);
 
-        Assert.Equal(1, locks.RenewCalls);
         Assert.Equal([("project-1", "info", "仍在處理")], messages.Appended);
 
         release.SetResult();
@@ -352,9 +369,7 @@ public sealed class ActionSerializationTests
     [InlineData("query.dataPreview", false)]
     [InlineData("filter.preview", false)]
     [InlineData("system.ping", false)]
-    [InlineData("project.list", false)]
     [InlineData("project.listLocal", false)]
-    [InlineData("project.heartbeat", false)]
     [InlineData("project.releaseLock", false)]
     [InlineData("host.selectFiles", false)]
     [InlineData("dev.log.exportFile", false)]
@@ -387,35 +402,6 @@ public sealed class ActionSerializationTests
                 ActionExecutionPolicy.IsClassified(action),
                 $"action 未在 ActionExecutionPolicy 歸類：{action}（新增 action 時須明確歸為 exclusive、concurrent 或 conditional-gate）");
         }
-    }
-
-    private sealed class RecordingLockService : ILockService
-    {
-        public int RenewCalls { get; private set; }
-
-        public Task<LockOutcome> AcquireAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<LockOutcome>(new LockOutcome.Acquired());
-
-        public Task RenewAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken)
-        {
-            RenewCalls++;
-            return Task.CompletedTask;
-        }
-
-        public Task ReleaseAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task<IReadOnlyList<ProjectLockInfo>> ListActiveAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProjectLockInfo>>([]);
     }
 
     private sealed class RecordingMessageLogStore : IMessageLogStore

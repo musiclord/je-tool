@@ -7,7 +7,6 @@ public sealed class LegacyKeywordWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LegacySimplifiedKeywordsAndCurrentTermsMatchPrescreenAndFilter(string provider)
     {
         using var host = new HandlerTestHost();

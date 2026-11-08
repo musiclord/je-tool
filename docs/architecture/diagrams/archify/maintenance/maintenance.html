@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>部署、移轉與問題處理：程序草案</title>
+  <title>部署與維護程序草案</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>部署、移轉與問題處理：程序草案</h1>
+        <h1>部署與維護程序草案</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 942 528" data-layout-contract="readable-v2" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-node-ui="">
-        <title id="archify-diagram-title">部署、移轉與問題處理：程序草案</title>
+        <title id="archify-diagram-title">部署與維護程序草案</title>
         <desc id="archify-diagram-description">由 Archify 產生的工作流程圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5648,23 +5648,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>哪些是現行做法</h3>
+          <h3>已記載的移轉方式</h3>
         </div>
         <ul>
-          <li>現行文件只記載一條：正常離開 JET 後，複製整個案件資料夾，再到目的地開啟。</li>
-          <li>其他步驟是這次研究的建議，例如版本核對、合成資料試跑、備份保留期限與復原演練；還不是產品功能，也未經公司核准。</li>
-          <li>三列是各自獨立的程序，JET 不會自動備份、更新或復原。</li>
+          <li>正常離開 JET 後，複製整個案件資料夾，再到目的地開啟。</li>
+          <li>用同步工具傳檔時，不要在同步途中共用開啟資料庫。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
-          <div class="card-dot slate"></div>
-          <h3>移轉時要注意</h3>
+          <div class="card-dot amber"></div>
+          <h3>待確認的程序</h3>
         </div>
         <ul>
-          <li>Teams、OneDrive 或網路磁碟可以傳檔，但不代表可以在同步途中直接共用開啟同一個資料庫。</li>
-          <li>支援日誌只含去識別化的事件；指定案件時，可再依 correlationId 篩選。</li>
+          <li>版本核對、合成資料試跑、備份期限與復原演練是建議，尚未經公司核准。</li>
+          <li>圖中三列各自獨立；JET 不會自動備份、更新或復原。舊版也未必能讀取新資料結構。</li>
         </ul>
       </div>
     </div>

@@ -347,7 +347,6 @@ function Invoke-JetGuiScenarioStep {
                     [int]$manifest.budget.screenshotCount -eq 1 -and
                     [bool]$manifest.assertions.createFormVisible -and
                     [bool]$manifest.assertions.requiredFieldsEntered -and
-                    [bool]$manifest.assertions.sqliteSelected -and
                     [bool]$manifest.assertions.projectCreated -and
                     [bool]$manifest.assertions.importStepVisible -and
                     [bool]$manifest.assertions.projectNameVisible -and
@@ -422,7 +421,7 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.upstreamChangeAfterExportVerified
             }
-            { $_ -in @('case-to-working-paper','case-to-working-paper-duckdb') } {
+            'case-to-working-paper' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq [int]$Scenario.screenshotBudget -and [bool]$manifest.assertions.caseToWorkingPaperVerified
             }
@@ -615,8 +614,9 @@ function Invoke-JetExcelFixtureStep {
         }
         $native = Get-Content -LiteralPath $nativePath -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable -Depth 10
         $nativeCases = @()
+        # 原本每種格式也在 DuckDB 案件各跑一次，共六個案例；隨 DuckDB 移除只剩 SQLite（裁定 2026-11-06-08）。
         foreach ($format in @('.mdb', '.accdb', '.xls')) {
-            foreach ($provider in @('sqlite', 'duckdb')) {
+            foreach ($provider in @('sqlite')) {
                 $case = @($native.cases | Where-Object { $_.format -ceq $format -and $_.provider -ceq $provider })
                 if ($case.Count -ne 1 -or $native.status -cne 'passed' -or [int]$case[0].importedRows -ne 2) {
                     throw [InvalidDataException]::new('Native source import case inventory is invalid.')
@@ -629,7 +629,7 @@ function Invoke-JetExcelFixtureStep {
                 $nativeCases += [ordered]@{ format = $format; provider = $provider; importedRows = 2; status = 'passed' }
             }
         }
-        if (@($native.cases).Count -ne 6) { throw [InvalidDataException]::new('Native source import has unexpected cases.') }
+        if (@($native.cases).Count -ne 3) { throw [InvalidDataException]::new('Native source import has unexpected cases.') }
         $step['excelFixture'] = [ordered]@{
             source = 'same_run_synthetic_six_report_journey'
             workbookCount = $artifacts.Count

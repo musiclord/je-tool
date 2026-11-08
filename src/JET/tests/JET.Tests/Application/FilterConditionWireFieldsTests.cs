@@ -118,7 +118,7 @@ public sealed class FilterConditionWireFieldsTests
             }
         }
 
-        foreach (IProviderSqlDialect dialect in new IProviderSqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance, SqlServerDialect.Instance })
+        foreach (IProviderSqlDialect dialect in new IProviderSqlDialect[] { SqliteDialect.Instance })
         {
             var expected = Compile(dialect, fullSpec);
             var actual = Compile(dialect, trimmedSpec);

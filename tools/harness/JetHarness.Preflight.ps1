@@ -1,70 +1,7 @@
 using namespace System.IO
 
-# 由 JetHarness.psm1 點號載入。執行前的檢查：SQL Server 連線設定與私人案件資料。
-
-function Get-JetProviderConnectionPreflight {
-    param([Parameter(Mandatory = $true)] $Registry)
-
-    $variableName = [string]$Registry.testSettings.providerConnectionEnvironmentVariable
-    $connectionString = [Environment]::GetEnvironmentVariable(
-        $variableName,
-        [EnvironmentVariableTarget]::Process)
-    if ([string]::IsNullOrWhiteSpace($connectionString)) {
-        return [pscustomobject]@{
-            Step = New-JetSyntheticStep `
-                -Name 'provider-connection-preflight' `
-                -Status 'blocked' `
-                -Reason 'sqlserver_connection_not_configured' `
-                -Evidence ([ordered]@{ variable = $variableName; configured = $false })
-            SensitiveValues = @()
-        }
-    }
-
-    try {
-        $builder = [Data.Common.DbConnectionStringBuilder]::new()
-        $builder.ConnectionString = $connectionString
-        if ($builder.Count -eq 0) {
-            throw [FormatException]::new('Connection string has no entries.')
-        }
-
-        $redactions = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
-        [void]$redactions.Add($connectionString)
-        if (-not [string]::IsNullOrWhiteSpace($builder.ConnectionString)) {
-            [void]$redactions.Add($builder.ConnectionString)
-        }
-        foreach ($keyObject in $builder.Keys) {
-            $key = [string]$keyObject
-            $value = [string]$builder[$keyObject]
-            if ([string]::IsNullOrWhiteSpace($value)) {
-                continue
-            }
-            [void]$redactions.Add("$key=$value")
-            [void]$redactions.Add("$key = $value")
-            if ($value.Length -ge 4 -and $key -match '^(?i:data source|server|address|addr|network address|initial catalog|database|user id|uid|password|pwd|attachdbfilename|application name)$') {
-                [void]$redactions.Add($value)
-            }
-        }
-
-        return [pscustomobject]@{
-            Step = New-JetSyntheticStep `
-                -Name 'provider-connection-preflight' `
-                -Status 'passed' `
-                -Reason $null `
-                -Evidence ([ordered]@{ variable = $variableName; configured = $true; syntax = 'parsed' })
-            SensitiveValues = @($redactions | Sort-Object)
-        }
-    }
-    catch {
-        return [pscustomobject]@{
-            Step = New-JetSyntheticStep `
-                -Name 'provider-connection-preflight' `
-                -Status 'failed' `
-                -Reason 'provider_connection_invalid' `
-                -Evidence ([ordered]@{ variable = $variableName; configured = $true; syntax = 'invalid' })
-            SensitiveValues = @($connectionString)
-        }
-    }
-}
+# 由 JetHarness.psm1 點號載入。執行前的檢查：私人案件資料。
+# 原本也檢查 SQL Server 的連線設定，隨 DuckDB 與 SQL Server 一起移除（裁定 2026-11-06-08），還原點是提交 7e88b7b。
 
 function Get-JetPrivateCasePreflight {
     param([Parameter(Mandatory = $true)] $Registry)
@@ -72,7 +9,6 @@ function Get-JetPrivateCasePreflight {
     $rootVariable = [string]$Registry.testSettings.privateCaseRootEnvironmentVariable
     $manifestVariable = [string]$Registry.testSettings.privateCaseManifestEnvironmentVariable
     $providerVariable = [string]$Registry.testSettings.privateCaseProviderEnvironmentVariable
-    $connectionVariable = [string]$Registry.testSettings.providerConnectionEnvironmentVariable
     $rootValue = [Environment]::GetEnvironmentVariable(
         $rootVariable,
         [EnvironmentVariableTarget]::Process)
@@ -109,8 +45,9 @@ function Get-JetPrivateCasePreflight {
         }
     }
 
+    # 目前只有 SQLite 案件（裁定 2026-11-06-08）；原本也接受 duckdb 與 sqlserver。
     $provider = $providerValue.Trim().ToLowerInvariant()
-    if ($provider -notin @('sqlite', 'duckdb', 'sqlserver')) {
+    if ($provider -cne 'sqlite') {
         return [pscustomobject]@{
             Step = New-JetSyntheticStep `
                 -Name 'private-case-preflight' `
@@ -122,37 +59,6 @@ function Get-JetPrivateCasePreflight {
             PathInspected = $false
             Provider = $null
         }
-    }
-
-    $connectionValue = $null
-    if ($provider -ceq 'sqlserver') {
-        $connectionPreflight = Get-JetProviderConnectionPreflight -Registry $Registry
-        foreach ($value in @($connectionPreflight.SensitiveValues)) {
-            if (-not [string]::IsNullOrWhiteSpace([string]$value)) {
-                [void]$sensitiveValues.Add([string]$value)
-            }
-        }
-        if ([string]$connectionPreflight.Step.status -cne 'passed') {
-            return [pscustomobject]@{
-                Step = New-JetSyntheticStep `
-                    -Name 'private-case-preflight' `
-                    -Status ([string]$connectionPreflight.Step.status) `
-                    -Reason ([string]$connectionPreflight.Step.classification.reason) `
-                    -Evidence ([ordered]@{
-                        configured = $configured
-                        provider = 'sqlserver'
-                        connectionConfigured = $false
-                        pathsRecorded = $false
-                    })
-                EnvironmentVariablesToSet = @{}
-                SensitiveValues = @($sensitiveValues | Sort-Object)
-                PathInspected = $false
-                Provider = 'sqlserver'
-            }
-        }
-        $connectionValue = [Environment]::GetEnvironmentVariable(
-            $connectionVariable,
-            [EnvironmentVariableTarget]::Process)
     }
 
     try {
@@ -240,9 +146,6 @@ function Get-JetPrivateCasePreflight {
         $rootVariable = $rootFull
         $manifestVariable = $manifestValue
         $providerVariable = $provider
-    }
-    if ($provider -ceq 'sqlserver') {
-        $environmentVariables[$connectionVariable] = $connectionValue
     }
 
     return [pscustomobject]@{

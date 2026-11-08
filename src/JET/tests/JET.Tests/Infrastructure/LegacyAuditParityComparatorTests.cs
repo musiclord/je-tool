@@ -123,7 +123,7 @@ public sealed class LegacyAuditParityComparatorTests
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
-            LegacyAuditParityProvider.DuckDb,
+            LegacyAuditParityProvider.Sqlite,
             Metrics(variant: true));
 
         var error = Assert.Throws<InvalidOperationException>(() =>
@@ -134,45 +134,6 @@ public sealed class LegacyAuditParityComparatorTests
 
         Assert.Contains("unclassified", error.Message, StringComparison.OrdinalIgnoreCase);
         AssertNoRawSentinels(error.Message);
-    }
-
-    [Fact]
-    public void CompareProviders_PreservesEachProviderPairAndForcesJetDefectWithoutLeakingInfMembers()
-    {
-        var sqlite = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseB,
-            LegacyAuditParityProvider.Sqlite,
-            Metrics(variant: false));
-        var duckDb = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseB,
-            LegacyAuditParityProvider.DuckDb,
-            Metrics(variant: true));
-        var sqlServer = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseB,
-            LegacyAuditParityProvider.SqlServer,
-            Metrics(variant: true));
-
-        var registry = LegacyAuditParityComparator.CompareProviders([sqlite, duckDb, sqlServer]);
-
-        Assert.NotEmpty(registry.Entries);
-        Assert.Contains(
-            registry.Entries,
-            entry => entry.ComparisonId == LegacyAuditParityComparisonId.SqliteVsDuckDb);
-        Assert.Contains(
-            registry.Entries,
-            entry => entry.ComparisonId == LegacyAuditParityComparisonId.SqliteVsSqlServer);
-        Assert.DoesNotContain(
-            registry.Entries,
-            entry => entry.ComparisonId == LegacyAuditParityComparisonId.DuckDbVsSqlServer);
-        Assert.All(registry.Entries, entry =>
-        {
-            Assert.Equal(LegacyAuditParityDifferenceCategory.JetDefect, entry.Category);
-            Assert.Equal(LegacyAuditParityCitation.ParityPlanProviderConsistency, entry.Citation);
-            Assert.Equal(LegacyAuditParityBasis.ProviderInconsistency, entry.Basis);
-            Assert.True(entry.IsProviderMismatch);
-        });
-        AssertNoRawSentinels(registry.Serialize());
-        AssertNoRawSentinels(registry.FormatSummary());
     }
 
     [Fact]
@@ -458,7 +419,7 @@ public sealed class LegacyAuditParityComparatorTests
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseA,
-            LegacyAuditParityProvider.DuckDb,
+            LegacyAuditParityProvider.Sqlite,
             Metrics(variant: true));
         var classifications = new LegacyAuditParityClassificationCatalog(
             ExpectedMismatchMetricIds().Select(metricId => metricId == LegacyAuditParityMetricIds.InfSampleSize
@@ -550,7 +511,7 @@ public sealed class LegacyAuditParityComparatorTests
                 rareAccountsLegacyApplicability: LegacyMetricApplicability.NotApplicable));
         var provider = LegacyAuditParityObservation.FromProvider(
             LegacyParityCase.CaseB,
-            LegacyAuditParityProvider.DuckDb,
+            LegacyAuditParityProvider.Sqlite,
             Metrics(variant: false, unavailablePrescreen: true));
 
         var unavailableMetricIds = LegacyPrescreenParityPlan.DirectRules.SelectMany(rule => new[]
@@ -705,30 +666,6 @@ public sealed class LegacyAuditParityComparatorTests
     }
 
     [Fact]
-    public void CompareProviders_AnyUnavailableMetricFailsClosedEvenWhenBothSidesAreMissing()
-    {
-        var sqlite = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseA,
-            LegacyAuditParityProvider.Sqlite,
-            Metrics(variant: false, unavailableStoredTotals: true, unavailablePrescreen: true));
-        var duckDbSharedUnavailable = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseA,
-            LegacyAuditParityProvider.DuckDb,
-            Metrics(variant: false, unavailableStoredTotals: true, unavailablePrescreen: true));
-        var sharedError = Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
-            LegacyAuditParityComparator.CompareProviders([sqlite, duckDbSharedUnavailable]));
-        Assert.Equal(LegacyAuditParityMetricIds.PbcRowCount, sharedError.MetricId);
-
-        var duckDbAvailable = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseA,
-            LegacyAuditParityProvider.DuckDb,
-            Metrics(variant: false));
-        var mismatchError = Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
-            LegacyAuditParityComparator.CompareProviders([sqlite, duckDbAvailable]));
-        Assert.Equal(LegacyAuditParityMetricIds.PbcRowCount, mismatchError.MetricId);
-    }
-
-    [Fact]
     public void CompareLegacyToProvider_ExecutedUnavailableVoucherKeepsExactRowComparisonIndependent()
     {
         var scenario = LegacyFilterScenarioId.FromOrdinal(1);
@@ -803,29 +740,6 @@ public sealed class LegacyAuditParityComparatorTests
     }
 
     [Fact]
-    public void CompareProviders_ExecutedUnavailableFilterVoucherFailsClosedAtVoucherMetric()
-    {
-        var scenario = LegacyFilterScenarioId.FromOrdinal(1);
-        var sqlite = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseA,
-            LegacyAuditParityProvider.Sqlite,
-            Metrics(
-                variant: false,
-                filterCounts: new LegacyRowVoucherCounts(
-                    LegacyObservedCount.Executed(1),
-                    LegacyObservedCount.ExecutedUnavailable)));
-        var duckDb = LegacyAuditParityObservation.FromProvider(
-            LegacyParityCase.CaseA,
-            LegacyAuditParityProvider.DuckDb,
-            Metrics(variant: false));
-
-        var error = Assert.Throws<LegacyAuditParityComparisonCompletenessException>(() =>
-            LegacyAuditParityComparator.CompareProviders([sqlite, duckDb]));
-
-        Assert.Equal(LegacyAuditParityMetricIds.FilterVoucherCount(scenario), error.MetricId);
-    }
-
-    [Fact]
     public void ArtifactComparison_RequiresExactMetricDependenciesBeforeClassification()
     {
         var scenario = LegacyFilterScenarioId.FromOrdinal(1);
@@ -897,73 +811,6 @@ public sealed class LegacyAuditParityComparatorTests
             LegacyAuditParityBasis.JetRequirementMismatch,
             [fallback],
             LegacyAuditParityHarnessBindingVerification.Unverified));
-    }
-
-    [Fact]
-    public void ArtifactProviderMismatch_FallbackRequiresExplicitTypedVerifiedCatalog()
-    {
-        var scenario = LegacyFilterScenarioId.FromOrdinal(1);
-        var metricId = LegacyAuditParityMetricIds.FilterRowCount(scenario);
-        var comparisonId = LegacyAuditParityComparisonId.SqliteVsDuckDb;
-        var fallback = new LegacyAuditParityMappingProvenanceEntry(
-            LegacyMappingDataset.Gl,
-            LegacyMappingSlot.GlVoucherNumber,
-            LegacyMappingResolutionSource.NormalizedHeaderIdentity);
-        var provenance = new LegacyAuditParityMappingProvenance([fallback]);
-        var sqlite = new LegacyAuditParityObservationArtifactBundle(
-            LegacyAuditParityObservation.FromProvider(
-                LegacyParityCase.CaseA,
-                LegacyAuditParityProvider.Sqlite,
-                Metrics(
-                    variant: false,
-                    filterCounts: new LegacyRowVoucherCounts(1, 1))),
-            provenance);
-        var duckDb = new LegacyAuditParityObservationArtifactBundle(
-            LegacyAuditParityObservation.FromProvider(
-                LegacyParityCase.CaseA,
-                LegacyAuditParityProvider.DuckDb,
-                Metrics(
-                    variant: false,
-                    filterCounts: new LegacyRowVoucherCounts(2, 1))),
-            provenance);
-
-        var missing = Assert.Throws<LegacyAuditParityHarnessBindingVerificationRequiredException>(() =>
-            LegacyAuditParityComparator.CompareProviders(
-                [sqlite, duckDb],
-                new LegacyAuditParityHarnessBindingVerificationCatalog([])));
-        var unverified = Assert.Throws<LegacyAuditParityHarnessBindingVerificationRequiredException>(() =>
-            LegacyAuditParityComparator.CompareProviders(
-                [sqlite, duckDb],
-                new LegacyAuditParityHarnessBindingVerificationCatalog(
-                [
-                    new LegacyAuditParityHarnessBindingVerificationEntry(
-                        LegacyParityCase.CaseA,
-                        comparisonId,
-                        metricId,
-                        LegacyAuditParityHarnessBindingVerification.Unverified),
-                ])));
-        var verifiedRegistry = LegacyAuditParityComparator.CompareProviders(
-            [sqlite, duckDb],
-            new LegacyAuditParityHarnessBindingVerificationCatalog(
-            [
-                new LegacyAuditParityHarnessBindingVerificationEntry(
-                    LegacyParityCase.CaseA,
-                    comparisonId,
-                    metricId,
-                    LegacyAuditParityHarnessBindingVerification.Verified),
-            ]));
-
-        Assert.Equal(metricId, missing.MetricId);
-        Assert.Equal(comparisonId, missing.ComparisonId);
-        Assert.Equal(metricId, unverified.MetricId);
-        var difference = Assert.Single(verifiedRegistry.Entries);
-        Assert.True(difference.IsProviderMismatch);
-        Assert.Equal(LegacyAuditParityDifferenceCategory.JetDefect, difference.Category);
-        Assert.Equal(LegacyAuditParityCitation.ParityPlanProviderConsistency, difference.Citation);
-        Assert.Equal(LegacyAuditParityBasis.ProviderInconsistency, difference.Basis);
-        Assert.Equal(LegacyAuditParityHarnessBindingVerification.Verified,
-            difference.HarnessBindingVerification);
-        Assert.Equal(fallback, Assert.Single(difference.MappingDependencies));
     }
 
     [Fact]

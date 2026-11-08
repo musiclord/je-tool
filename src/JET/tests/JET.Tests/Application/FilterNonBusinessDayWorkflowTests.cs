@@ -40,7 +40,6 @@ public sealed class FilterNonBusinessDayWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OldAndNewShapes_SaveReopenPreviewAndResaveWithTheSameHits(string provider)
     {
         using var host = new HandlerTestHost();

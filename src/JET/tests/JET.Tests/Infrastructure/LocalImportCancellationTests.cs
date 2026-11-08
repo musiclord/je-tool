@@ -14,17 +14,13 @@ public sealed class LocalImportCancellationTests
 {
     private static readonly IReadOnlyList<string> Columns = ["doc", "amount"];
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
+    [Fact]
     public async Task ReplaceBatchAsync_CancelledAtFiftyFirstRow_StopsPromptlyAndRollsBackOldBatch(
-        string provider)
+)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。

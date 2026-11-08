@@ -42,7 +42,7 @@ internal sealed class DirectTemplateWorkbookEditor
                 nameof(allowedWorksheetNames));
         }
 
-        var available = _workbookPart.Workbook.Sheets!
+        var available = Sheets
             .Elements<Sheet>()
             .Select(sheet => sheet.Name?.Value)
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -120,7 +120,7 @@ internal sealed class DirectTemplateWorkbookEditor
         ArgumentNullException.ThrowIfNull(edit);
         var part = TakeWorksheetPartForRewrite(worksheetName);
         var editor = new DirectTemplateCellEditor(
-            part.Worksheet,
+            part.RequiredWorksheet(),
             allowedCellReferences,
             StylePatcher,
             allowedStyleColumns);
@@ -143,7 +143,7 @@ internal sealed class DirectTemplateWorkbookEditor
     {
         ArgumentNullException.ThrowIfNull(rewrite);
         var part = TakeWorksheetPartForRewrite(worksheetName);
-        var sheetData = part.Worksheet.GetFirstChild<SheetData>();
+        var sheetData = part.RequiredWorksheet().GetFirstChild<SheetData>();
         if (sheetData is null || sheetData.Elements<Row>().Any())
         {
             throw new InvalidDataException(
@@ -190,7 +190,7 @@ internal sealed class DirectTemplateWorkbookEditor
     {
         cancellationToken.ThrowIfCancellationRequested();
         var part = TakeWorksheetPartForRewrite(worksheetName);
-        var existingSheets = _workbookPart.Workbook.Sheets!
+        var existingSheets = Sheets
             .Elements<Sheet>()
             .ToArray();
         var removedIndex = Array.FindIndex(existingSheets, item => string.Equals(
@@ -204,7 +204,7 @@ internal sealed class DirectTemplateWorkbookEditor
         }
         var sheet = existingSheets[removedIndex];
         var remainingCount = existingSheets.Length - 1;
-        foreach (var view in _workbookPart.Workbook.BookViews?.Elements<WorkbookView>()
+        foreach (var view in Workbook.BookViews?.Elements<WorkbookView>()
                      ?? Enumerable.Empty<WorkbookView>())
         {
             view.ActiveTab = ShiftTabIndex(view.ActiveTab?.Value, removedIndex, remainingCount);
@@ -218,7 +218,7 @@ internal sealed class DirectTemplateWorkbookEditor
         }
         sheet.Remove();
         _workbookPart.DeletePart(part);
-        _workbookPart.Workbook.Save();
+        Workbook.Save();
         cancellationToken.ThrowIfCancellationRequested();
     }
 
@@ -290,7 +290,7 @@ internal sealed class DirectTemplateWorkbookEditor
             SheetId = nextSheetId,
             Name = worksheetName
         });
-        _workbookPart.Workbook.Save();
+        Workbook.Save();
         cancellationToken.ThrowIfCancellationRequested();
         return clonePart;
     }
@@ -306,8 +306,10 @@ internal sealed class DirectTemplateWorkbookEditor
         _workbookPart.WorkbookStylesPart
         ?? throw new InvalidDataException("Template workbook has no styles part."));
 
-    internal Sheets Sheets => _workbookPart.Workbook.Sheets
+    internal Sheets Sheets => Workbook.Sheets
         ?? throw new InvalidDataException("Template workbook has no sheets collection.");
+
+    private Workbook Workbook => _workbookPart.RequiredWorkbook();
 
     private WorksheetPart TakeWorksheetPartForRewrite(string worksheetName)
     {
@@ -323,7 +325,7 @@ internal sealed class DirectTemplateWorkbookEditor
                 $"Worksheet '{worksheetName}' was already rewritten in this operation.");
         }
 
-        var sheet = _workbookPart.Workbook.Sheets!
+        var sheet = Sheets
             .Elements<Sheet>()
             .Single(item => string.Equals(
                 item.Name?.Value,

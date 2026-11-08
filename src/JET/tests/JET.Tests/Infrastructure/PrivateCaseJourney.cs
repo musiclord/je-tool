@@ -92,7 +92,6 @@ internal static class PrivateCaseJourney
         PrivateCasePreparedJourneyInput prepared,
         LegacyAuditParityProvider provider,
         LegacyAuditParityCheckpoint stopAfter,
-        string? sqlServerConnectionString = null,
         CancellationToken cancellationToken = default,
         IReadOnlyList<LegacyAuditParityFollowUp>? followUps = null,
         Func<PrivateCaseJourneyResult, Task>? afterEachExport = null)
@@ -178,7 +177,6 @@ internal static class PrivateCaseJourney
             journeyInput,
             provider,
             stopAfter,
-            sqlServerConnectionString,
             cancellationToken,
             afterJourney);
         RequireNoLegacyObservation(result);

@@ -42,7 +42,6 @@ public sealed class RareAccountBlankCodeTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BlankAccountNumbers_AreNotRareAccounts(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
@@ -50,7 +49,7 @@ public sealed class RareAccountBlankCodeTests
             """{"type":"entityFrequency","field":"accountNumber","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":11}"""));
     }
 
-    private static async Task<string[]> Hits(FilterPredicateProviderFixture fixture, string rule)
+    private static async Task<string?[]> Hits(FilterPredicateProviderFixture fixture, string rule)
     {
         var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse(
             $$"""{"name":"合成規則比對","rationale":"固定答案","groups":[{"conditions":[{{rule}}]}]}"""), 100);

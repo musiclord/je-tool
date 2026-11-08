@@ -14,7 +14,8 @@ using static JET.Tests.Infrastructure.WorkingPaperWriterTestSupport;
 
 namespace JET.Tests.Infrastructure;
 
-/// <summary>底稿寫出器：已登記的 43 項外觀逐格比對與空狀態條件。</summary>
+/// <summary>底稿寫出器：已登記的 43 項外觀逐格比對與空狀態條件。其中欄位資訊頁 A1 的版本列五項，
+/// JET 照裁定 2026-11-06-11 不寫，登記成沒有對應，不比對外觀。</summary>
 public sealed class WorkingPaperWriterAppearanceTests
 {
     [Fact]
@@ -27,7 +28,7 @@ public sealed class WorkingPaperWriterAppearanceTests
     }
 
     [Fact]
-    public async Task AllFortyThreeRegisteredAppearances_HaveNoCellOrColumnMismatch()
+    public async Task RegisteredAppearances_HaveNoCellOrColumnMismatch()
     {
         using var positiveHost = new HandlerTestHost();
         var positiveProject = await SetupContinuationProjectAsync(positiveHost, voucherCount: 3);
@@ -58,7 +59,16 @@ public sealed class WorkingPaperWriterAppearanceTests
         var entries = TrackWEntries();
         var mismatches = new List<string>();
 
-        foreach (var entry in entries)
+        // 裁定 2026-11-06-11 拿掉底稿欄位資訊頁的版本字樣與藍底紅字的版本列。原本 43 項都逐格比對；那五項在登記檔改記成
+        // 沒有對應，這裡只比對其餘 38 項，並確認沒有對應的恰好是那五項，方法名稱跟著拿掉項數。A1 不寫任何東西另由
+        // ReportWorkbookPresentationTests 與 WorkingPaperWriterCoverAndReferenceSheetTests 確認。第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+        Assert.Equal(
+            [
+                "workingpaper-field-info-version-bold", "workingpaper-field-info-version-font", "workingpaper-field-info-version-size",
+                "workingpaper-field-info-version-color", "workingpaper-field-info-version-fill"
+            ],
+            entries.Where(entry => entry.NoCorrespondenceReason is not null).Select(entry => entry.Id));
+        foreach (var entry in entries.Where(entry => entry.NoCorrespondenceReason is null))
         {
             var target = targets[entry.Id];
             var document = target.Output == Stage8TrackWOutput.Positive

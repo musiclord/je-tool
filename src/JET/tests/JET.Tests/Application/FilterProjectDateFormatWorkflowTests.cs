@@ -13,7 +13,6 @@ public sealed class FilterProjectDateFormatWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ProjectDateOptions_FlowThroughPreviewCommitReopenVoucherLazyHitsAndExport(string provider)
     {
         using var host = new HandlerTestHost();
@@ -52,7 +51,7 @@ public sealed class FilterProjectDateFormatWorkflowTests
         Assert.Equal(["D1"], VoucherNumbers(vouchers.GetProperty("rows")));
 
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using (var connection = database.CreateConnection(id))
         {
             await connection.OpenAsync();
@@ -79,7 +78,6 @@ public sealed class FilterProjectDateFormatWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RdeAndCoreDateSql_UseFixedNormalizedDateAnswers(string provider)
     {
         var sql = $$"""

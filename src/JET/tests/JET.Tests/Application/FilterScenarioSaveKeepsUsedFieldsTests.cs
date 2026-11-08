@@ -39,7 +39,6 @@ public sealed class FilterScenarioSaveKeepsUsedFieldsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavedRulesKeepOnlyUsedFields_AndFindTheSameEntriesAsTheFullRules(string provider)
     {
         using var host = new HandlerTestHost();
@@ -90,7 +89,7 @@ public sealed class FilterScenarioSaveKeepsUsedFieldsTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task<T> ScalarAsync<T>(ILocalProjectDatabase database, string projectId, string sql)

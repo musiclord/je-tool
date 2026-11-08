@@ -24,11 +24,8 @@ public sealed class WorkingPaperExportBranchTests
 
     [Theory]
     [InlineData("sqlite", "run")]
-    [InlineData("duckdb", "run")]
     [InlineData("sqlite", "revision")]
-    [InlineData("duckdb", "revision")]
     [InlineData("sqlite", "position")]
-    [InlineData("duckdb", "position")]
     public async Task Mismatch_IsRejectedWithTheFixedReason_AndWritesNoFile(string provider, string mismatch)
     {
         using var host = new HandlerTestHost();
@@ -60,7 +57,6 @@ public sealed class WorkingPaperExportBranchTests
     /// <summary>命中先清空並標成失效：只選第一個情境時只有它重算，案件仍是失效；全選之後才回到目前版本。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OnlySelectedScenarios_AreRecomputed_TheCaseStaysStaleUntilAllAreSelected(string provider)
     {
         using var host = new HandlerTestHost();
@@ -89,7 +85,6 @@ public sealed class WorkingPaperExportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CancelledWhileWritingSheets_LeavesNoFile_AndKeepsThePriorVersion(string provider)
     {
         using var source = new CancellationTokenSource();
@@ -266,7 +261,6 @@ public sealed class WorkingPaperExportBranchTests
     /// <summary>每個版本各留一筆；工作底稿每次都是新檔，汰換數永遠是 0。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task EachVersion_WritesOneReportPublishRecord_WithoutCountingAReplacement(string provider)
     {
         using var host = new HandlerTestHost();
@@ -288,7 +282,6 @@ public sealed class WorkingPaperExportBranchTests
     /// <summary>暫存檔已寫完、通知「即將發布」時取消：不改名、不更新清單、不寫操作紀錄；已重算的命中留著。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CancelledAtTheLastCheckBeforeRename_PublishesNothing_AndKeepsThePriorVersion(string provider)
     {
         using var source = new CancellationTokenSource();

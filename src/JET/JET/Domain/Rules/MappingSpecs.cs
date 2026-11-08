@@ -89,7 +89,7 @@ public interface IMappingStateStore
     /// <summary>
     /// 重新匯入（取代或附加）會讓已確認的配對失效；失效前最後一次確認的配對留在這裡，重開案件時當草稿帶回，
     /// 審計員不必逐欄重選。它不是有效配對，任何計算都不能讀它。沒有保存這份資料的實作回 null，
-    /// 畫面就和以前一樣從空白草稿開始；SQL Server 目前暫緩開發，維持回 null。
+    /// 畫面就和以前一樣從空白草稿開始。
     /// </summary>
     Task<CommittedMapping?> FindPreviousAsync(string projectId, DatasetKind kind, CancellationToken cancellationToken) =>
         Task.FromResult<CommittedMapping?>(null);

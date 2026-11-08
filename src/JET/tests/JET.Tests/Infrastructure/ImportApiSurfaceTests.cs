@@ -12,12 +12,10 @@ public sealed class ImportApiSurfaceTests
     [InlineData(typeof(IImportRepository), "AppendToBatchAsync")]
     [InlineData(typeof(LocalImportRepository), "ReplaceBatchAsync")]
     [InlineData(typeof(LocalImportRepository), "AppendToBatchAsync")]
-    [InlineData(typeof(SqlServerImportRepository), "ReplaceBatchAsync")]
-    [InlineData(typeof(SqlServerImportRepository), "AppendToBatchAsync")]
     public void ImportApi_ExposesOnlyTheBatchEntryPoint(Type type, string name)
     {
-        var method = Assert.Single(type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(method => method.Name == name));
+        var method = Assert.Single(type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+            method => method.Name == name);
         Assert.Equal(new[] { typeof(string), typeof(DatasetKind), typeof(IReadOnlyList<ImportSourceInput>), typeof(CancellationToken) },
             method.GetParameters().Select(parameter => parameter.ParameterType));
         if (type.IsInterface) Assert.True(method.IsAbstract); // 不留下只支援一個來源的預設介面實作。
@@ -27,14 +25,12 @@ public sealed class ImportApiSurfaceTests
     public void GlProjection_HasNoProductionFixtureCompatibilityExtension() =>
         Assert.Null(typeof(IGlRepository).Assembly.GetType("JET.Domain.GlRepositoryFixtureCompatibilityExtensions"));
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task SingleSourceAsBatch_UsesSameAtomicPathAndFixedRowProvenance(string provider)
+    [Fact]
+    public async Task SingleSourceAsBatch_UsesSameAtomicPathAndFixedRowProvenance()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         const string projectId = "batch9-import-api";
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。

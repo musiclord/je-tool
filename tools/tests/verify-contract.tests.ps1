@@ -303,7 +303,10 @@ try {
     $registry = Get-Content -LiteralPath (Join-Path $repositoryRoot 'tools/harness/lanes.json') -Raw -Encoding utf8 |
         ConvertFrom-Json -AsHashtable -Depth 20
     $enabledLanes = @($registry.lanes.Keys | Where-Object { [bool]$registry.lanes[$_].enabled })
-    Assert-Contract -Condition ((@($enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Provider,Public,ReleaseCandidate') `
+    # Provider 路線隨 DuckDB 與 SQL Server 移除（裁定 2026-11-06-08），這份清單、Help 列出的路線、ReleaseCandidate 的
+    # liveProviderIncluded 與契約版本一起改；第一次失敗是 suite 20261106-092713325-5c033e8458a846358846bbe6d1804784 的
+    # 「The enabled lanes must match the currently implemented Harness boundary.」。
+    Assert-Contract -Condition ((@($enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Public,ReleaseCandidate') `
         -Message 'The enabled lanes must match the currently implemented Harness boundary.'
     Assert-Contract -Condition ([bool]$registry.lanes.PrivateCase.enabled -and
         [bool]$registry.commands.PrivateCase.enabled -and
@@ -322,11 +325,11 @@ try {
         -Message 'ReleaseCandidate must retain its six reviewed public-candidate children.'
     Assert-Contract -Condition ([string]$registry.releaseCandidateSettings.snapshotWorkspaceRoot -ceq 'artifacts/harness/rc' -and
         -not [bool]$registry.releaseCandidateSettings.privateCaseIncluded -and
-        -not [bool]$registry.releaseCandidateSettings.liveProviderIncluded) `
-        -Message 'ReleaseCandidate must use the short owned workspace without PrivateCase or live Provider.'
-    # Contract 8.2 adds Context; keep the exact version assertion and the existing candidate checks above.
-    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '8.2') `
-        -Message 'The read-only Context entry and existing validation commands require runner contract 8.2.'
+        -not $registry.releaseCandidateSettings.ContainsKey('liveProviderIncluded')) `
+        -Message 'ReleaseCandidate must use the short owned workspace without PrivateCase or a live Provider setting.'
+    # Contract 8.2 added Context; 9.0 removes the Provider command and lane. Keep the exact version assertion.
+    Assert-Contract -Condition ([string]$registry.runnerContractVersion -ceq '9.0') `
+        -Message 'The validation commands without Provider require runner contract 9.0.'
     Assert-Contract -Condition ([int]$registry.testSettings.privateCaseMinimumExpectedTests -eq 2) `
         -Message 'PrivateCase must run both the manifest and full acceptance tests.'
     Assert-Contract -Condition ((@(
@@ -725,8 +728,10 @@ try {
     $scenarioNames.Add('Help')
     Assert-Contract -Condition ($help.NativeExitCode -eq 0) -Message 'Help native exit code must be 0.'
     Assert-Contract -Condition ($help.Envelope.status -ceq 'passed') -Message 'Help must pass.'
-    Assert-Contract -Condition ((@($help.Envelope.enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Provider,Public,ReleaseCandidate') `
-        -Message 'Help must expose the nine existing lanes and optional Mutation.'
+    Assert-Contract -Condition ((@($help.Envelope.enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Public,ReleaseCandidate') `
+        -Message 'Help must expose the eight existing lanes and optional Mutation.'
+    Assert-Contract -Condition (@($help.Envelope.commands) -cnotcontains 'Provider') `
+        -Message 'Help must not expose the removed Provider command.'
     Assert-Contract -Condition ([string]::IsNullOrEmpty($help.Stderr)) -Message 'Help must keep stderr empty.'
     Assert-Contract -Condition (@($help.Envelope.commands) -ccontains 'Documentation') `
         -Message 'Help must expose the Documentation command.'
@@ -1268,38 +1273,19 @@ try {
         $releaseShortTimeout.NativeExitCode -eq 3) `
         -Message 'ReleaseCandidate must require Release, its own restore plan, and a sufficient per-child timeout.'
 
-    $connectionVariable = [string]$registry.testSettings.providerConnectionEnvironmentVariable
-    $priorConnection = [Environment]::GetEnvironmentVariable(
-        $connectionVariable,
-        [EnvironmentVariableTarget]::Process)
-    try {
-        [Environment]::SetEnvironmentVariable(
-            $connectionVariable,
-            $null,
-            [EnvironmentVariableTarget]::Process)
-        $providerMissingConnection = Invoke-Runner -Label 'provider-missing-connection' -Arguments @(
-            '-Command', 'Provider',
-            '-NoRestore',
-            '-TimeoutSeconds', '30',
-            '-EvidenceRoot', $runsRelativeRoot)
-    }
-    finally {
-        [Environment]::SetEnvironmentVariable(
-            $connectionVariable,
-            $priorConnection,
-            [EnvironmentVariableTarget]::Process)
-    }
-    $scenarioNames.Add('ProviderPreflight')
-    Assert-Contract -Condition ($providerMissingConnection.NativeExitCode -eq 2) `
-        -Message 'Provider without its explicit connection must be blocked.'
-    $providerReceipt = Get-Receipt -Run $providerMissingConnection
-    Assert-CommonReceipt -Receipt $providerReceipt -ExpectedStatus 'blocked'
-    Assert-Contract -Condition ($providerReceipt.steps.Count -eq 1) `
-        -Message 'Blocked Provider preflight cannot start build or tests.'
-    Assert-Contract -Condition ($providerReceipt.firstRed.reason -ceq 'sqlserver_connection_not_configured') `
-        -Message 'Provider must retain its missing-connection reason.'
-    Assert-Contract -Condition ($providerReceipt.testBoundary.connectionValueRecorded -eq $false) `
-        -Message 'Provider receipts cannot record the connection value.'
+    # 原本這裡核對 Provider 缺少 SQL Server 連線時停在執行前檢查（ProviderPreflight）。Provider 命令隨 DuckDB 與
+    # SQL Server 移除（裁定 2026-11-06-08），改成確認它被當成未知命令擋下，不會改跑其他測試。
+    $removedProvider = Invoke-Runner -Label 'usage-removed-provider' -Arguments @(
+        '-Command', 'Provider',
+        '-NoRestore',
+        '-TimeoutSeconds', '30',
+        '-EvidenceRoot', $runsRelativeRoot)
+    $scenarioNames.Add('RemovedProviderCommand')
+    Assert-Contract -Condition ($removedProvider.NativeExitCode -eq 3) `
+        -Message 'The removed Provider command must be a usage error.'
+    Assert-Contract -Condition ($removedProvider.Envelope.status -ceq 'usage_error' -and
+        $removedProvider.Envelope.privateData.pathInspected -eq $false) `
+        -Message 'The removed Provider command must fail closed without inspecting private data.'
 
     $packageFixtureRoot = Join-Path $suiteRoot 'package-preflight-fixtures'
     $unsafeSourceRoot = Join-Path $packageFixtureRoot 'unsafe'

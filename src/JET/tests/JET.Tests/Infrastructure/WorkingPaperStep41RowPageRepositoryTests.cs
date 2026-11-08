@@ -14,7 +14,6 @@ public sealed class WorkingPaperStep41RowPageRepositoryTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TargetAndFilterRemainButRawRowIsMissing_ThrowsStaleResult(
         string provider)
     {
@@ -51,7 +50,6 @@ public sealed class WorkingPaperStep41RowPageRepositoryTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MigratedNumericLineWithoutSortKey_ThrowsStaleResult(
         string provider)
     {
@@ -98,7 +96,6 @@ public sealed class WorkingPaperStep41RowPageRepositoryTests
         provider switch
         {
             "sqlite" => new SqliteProjectDatabase(new JetProjectFolder(root)),
-            "duckdb" => new DuckDbProjectDatabase(new JetProjectFolder(root)),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(provider),
                 provider,

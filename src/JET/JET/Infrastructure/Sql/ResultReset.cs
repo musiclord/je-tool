@@ -20,7 +20,7 @@ namespace JET.Infrastructure;
 /// 裁定 2026-10-07-03)；stale flag 同時回到「從未執行」，因為已沒有可重跑的情境。
 ///
 /// 注意:存入筆數與合計核對的數字 <c>gl_control_total</c> **不**在此清除範圍。它的上游只有 GL target,
-/// 由 GL 投影(<see cref="LocalGlRepository"/>/<see cref="SqlServerGlRepository"/>)在同一交易內隨
+/// 由 GL 投影(<see cref="LocalGlRepository"/>)在同一交易內隨
 /// target 一起 upsert 覆寫,與 gl 恆一致。若併入本共用清除,TB 投影、科目配對／行事曆／
 /// 授權清單匯入等與 GL 無關的寫入會把它連帶刪掉,使存入筆數與合計核對在常見的「先 commit GL、後 commit TB」
 /// 順序下變成全 null（這一項形同沒跑）——2026-06-22 實務稽核發現的失效範圍過廣，已收斂。

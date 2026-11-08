@@ -8,7 +8,7 @@ public sealed class ImportParsingErrorWorkflowTests
 {
     public static IEnumerable<object[]> Cases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var kind in new[] { "amount", "glDate", "rdeAmount", "rdeDate" }) yield return [provider, kind];
     }
 
@@ -44,7 +44,6 @@ public sealed class ImportParsingErrorWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TbMalformedGrouping_ReportsSourceRowAndPreservesExistingProjection(string provider)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);

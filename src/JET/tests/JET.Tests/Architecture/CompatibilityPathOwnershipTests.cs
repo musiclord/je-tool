@@ -26,13 +26,12 @@ public sealed class CompatibilityPathOwnershipTests
         Assert.NotNull(input);
         Assert.Null(input!.GetMethod("FromCompatibility", AnyStatic));
 
-        foreach (var name in new[] { "JET.Infrastructure.LocalPrescreenRunRepository", "JET.Infrastructure.SqlServerPrescreenRunRepository" })
-        {
-            var repository = ProductSources.ProductType(name);
-            Assert.NotNull(repository);
-            Assert.Null(repository!.GetMethod("RunAsync", AnyInstance));
-            Assert.Null(repository.GetMethod("ToCompatibilityResult", AnyStatic));
-        }
+        // 原本也檢查 SqlServerPrescreenRunRepository。只保留 SQLite 之後它已刪除，只檢查本機倉儲（裁定 2026-11-06-08）；
+        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
+        var repository = ProductSources.ProductType("JET.Infrastructure.LocalPrescreenRunRepository");
+        Assert.NotNull(repository);
+        Assert.Null(repository!.GetMethod("RunAsync", AnyInstance));
+        Assert.Null(repository.GetMethod("ToCompatibilityResult", AnyStatic));
     }
 
     [Fact]

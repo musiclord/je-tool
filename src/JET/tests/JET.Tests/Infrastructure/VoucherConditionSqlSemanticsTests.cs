@@ -11,7 +11,7 @@ public sealed class VoucherConditionSqlSemanticsTests
 
     public static IEnumerable<object[]> VoucherCases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var quantifier in new[] { "any", "all", "none" })
         foreach (var value in new[] { "X", "NO-MATCH" })
             yield return [provider, quantifier, value];
@@ -39,11 +39,8 @@ public sealed class VoucherConditionSqlSemanticsTests
 
     [Theory]
     [InlineData("sqlite", "any")]
-    [InlineData("duckdb", "any")]
     [InlineData("sqlite", "debit")]
-    [InlineData("duckdb", "debit")]
     [InlineData("sqlite", "credit")]
-    [InlineData("duckdb", "credit")]
     public async Task CategoryAbsence_ExcludesBlankVoucherButPreservesNamedVoucherMeaning(string provider, string side)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, VoucherSeed);
@@ -66,7 +63,6 @@ public sealed class VoucherConditionSqlSemanticsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BlankVoucher_RemainsAvailableToRowLevelConditions(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, VoucherSeed);
@@ -79,7 +75,6 @@ public sealed class VoucherConditionSqlSemanticsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UnexpectedPairAndRevenueWithoutCounterpart_ExcludeBlankRevenue_WithoutChangingCashOrZeroDebitRules(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, PairSeed);
@@ -96,7 +91,6 @@ public sealed class VoucherConditionSqlSemanticsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NewNonBusinessDayCard_ExcludesMakeup_WhileWeekendPrescreenKeepsIt(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, CalendarSeed);
@@ -113,7 +107,7 @@ public sealed class VoucherConditionSqlSemanticsTests
 
     public static IEnumerable<object[]> FrequencyCases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var field in new[] { "accountNumber", "createdBy", "approvedBy" })
         foreach (var countUnit in new[] { "entries", "vouchers" })
         foreach (var countOperator in new[] { "lessThanOrEqual", "greaterThanOrEqual" })

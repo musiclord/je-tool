@@ -34,12 +34,10 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        // provider 只在建立時選定(之後不可改);僅接受 sqlite / sqlServer / duckdb。
+        // 目前只建立 SQLite 案件（裁定 2026-11-06-08）；畫面不送 databaseProvider，送了也只接受 sqlite。
         var databaseProvider = PayloadReader.GetOptionalString(payload, "databaseProvider")
             ?? ProjectDocument.DefaultDatabaseProvider;
-        if (databaseProvider != ProjectDocument.DefaultDatabaseProvider
-            && databaseProvider != ProjectDocument.SqlServerDatabaseProvider
-            && databaseProvider != ProjectDocument.DuckDbDatabaseProvider)
+        if (databaseProvider != ProjectDocument.DefaultDatabaseProvider)
         {
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "database_provider_unsupported");
         }
@@ -68,9 +66,17 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                     JetErrorFields.ProjectName);
             }
 
-            // 同名資料夾即視為重複(provider 無關;sqlServer 的後端殘留檢查在 projectId 決定後、
-            // 落檔前另行執行,見下)。
+            // 同名資料夾即視為重複。以前建立的 DuckDB 或 SQL Server 案件不列在案件清單（裁定 2026-11-06-09），
+            // 撞到它時先說清楚是哪一種資料夾、審計員能怎麼做；它的設定檔讀不通時也不報那個看不到的案件的錯誤。
             SupportOperationStage.Enter("name_check");
+            if (await projectStore.IsRetiredProviderCaseAsync(projectName, cancellationToken))
+            {
+                throw new JetActionException(
+                    JetErrorCodes.InvalidPayload,
+                    ProjectFolderMessages.RetiredProviderNameTaken(projectName),
+                    JetErrorFields.ProjectName);
+            }
+
             if (await projectStore.FindAsync(projectName, cancellationToken) is not null)
             {
                 throw new JetActionException(
@@ -85,16 +91,6 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         {
             projectId = Guid.NewGuid().ToString("N");
         }
-
-        // 保留既有失敗優先序：SQL orphan preflight 先於 required payload
-        // 解析；技術前置檢查不屬 Domain 案件政策，也不建立第二套 audit decision。
-        SupportOperationStage.Enter("preflight");
-        await projectCreateFactsPort.PreflightAsync(
-            new ProjectCreatePreflightRequest(
-                projectId,
-                databaseProvider,
-                HasUserSuppliedProjectName: !string.IsNullOrWhiteSpace(projectNameRaw)),
-            cancellationToken);
 
         // 案件編號與客戶名稱是選填 metadata，沒有填時存空字串，清單與報告照樣讀得到；
         // 不能為了空白顯示資訊阻擋建案。
@@ -165,8 +161,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
             var response = new { projectId = document.ProjectId, ok = true,
                 warnings = ProjectMetadataRules.GetWarnings(periodStart, periodEnd, prepStartDate) };
             session.Enter(document.ProjectId, repositories);
-            // SQL schema remains in an uncommitted create transaction until finalize／session are ready.
-            // Final registry／access／create-audit publication ignores request cancellation and commits once.
+            // finalize 與 session 都完成後才結算建案；結算不理會請求取消，只做一次。
             await projectCreateFactsPort.CompleteAsync(facts, CancellationToken.None);
             // 建案確定之後才建立支援紀錄資料夾並記下這次開啟；之前失敗時，回復刪除案件資料夾不受紀錄檔影響。
             SupportCaseDiagnostics.CaseOpened(

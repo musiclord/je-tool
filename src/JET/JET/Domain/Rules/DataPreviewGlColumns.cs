@@ -6,7 +6,7 @@ namespace JET.Domain;
 /// 兩頁列同一組欄位，GL(未納入測試) 最後多一欄未納入原因。選填欄位算不算已配對，讀第四步、第五步同一份
 /// <see cref="JetFieldCatalog.AvailableGlFields"/>，所以傳票核准日選「與總帳日期相同」時也列出；
 /// 傳票文件項次是核心欄位，自動編號時照樣列出。
-/// 欄名取自欄位目錄，和欄位配對畫面同名；本機與 SQL Server 的查詢都由這份計畫產生。
+/// 欄名取自欄位目錄，和欄位配對畫面同名；查詢由這份計畫產生。
 /// </summary>
 internal static class DataPreviewGlColumns
 {

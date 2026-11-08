@@ -14,17 +14,13 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class FilterHitMaterializerCancellationTests
 {
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task MaterializeAsync_CancelledAfterClear_RollsBackOriginalHitSet(string provider)
+    [Fact]
+    public async Task MaterializeAsync_CancelledAfterClear_RollsBackOriginalHitSet()
     {
         // State Transition：舊命中 → transaction 內 DELETE → 取消 → rollback 回舊命中（值與身分都不變）。
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -71,15 +67,12 @@ public sealed class FilterHitMaterializerCancellationTests
         }
     }
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task MaterializeSelected_CancelledAfterScopedClear_PreservesSelectedAndUnselectedHits(string provider)
+    [Fact]
+    public async Task MaterializeSelected_CancelledAfterScopedClear_PreservesSelectedAndUnselectedHits()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);

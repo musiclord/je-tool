@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "dataflow",
   "meta": {
-    "title": "審計計算、畫面查詢與底稿資料",
+    "title": "審計結果如何供畫面與底稿使用",
     "locale": "zh-TW",
     "output": "archify/audit-dataflow/audit-dataflow.html",
     "quality_profile": "showcase",
@@ -178,20 +178,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "計算在哪裡發生",
+      "title": "計算留在資料庫",
       "items": [
-        "驗證與預篩選用 SQL 在 gl 上計數與彙總，只把摘要以 JSON 存進 validation_result 或 prescreen_result。",
-        "進階篩選把條件樹轉成 SQL，直接在資料庫寫入命中的情境編號與分錄 ID，以及命中傳票裡每筆分錄符合第幾組第幾條。",
-        "畫面只取摘要與分頁，不把整批分錄送進前端。"
+        "驗證與預篩選儲存摘要。進階篩選儲存命中分錄，以及分錄符合的條件。",
+        "畫面讀取摘要與分頁，不載入整批分錄。"
       ]
     },
     {
       "dot": "slate",
-      "title": "正式底稿讀什麼",
+      "title": "底稿逐頁讀取明細",
       "items": [
-        "規劃時只讀需要的摘要資料；寫底稿時，WorkingPaperWriter 分頁讀取完整明細，邊讀邊寫入工作簿。",
-        "底稿另外讀欄位定義、配對與範本，圖只畫主要審計資料；執行順序與例外見底稿的循序圖。",
-        "本圖以 SQLite 或 DuckDB 案件為準。"
+        "規劃時先讀摘要；WorkingPaperWriter 寫檔時再分頁讀取明細。",
+        "底稿也使用欄位定義、配對與範本。這張圖只呈現 SQLite 或 DuckDB 的主要審計資料。"
       ]
     }
   ]

@@ -72,11 +72,13 @@ function bridgeFixture({ ready = true } = {}) {
 test('transport: a reload while project.load is pending rejects it with bridge_unloaded and ignores the late reply', async () => {
   const f = bridgeFixture();
   const load = f.track(f.api.projectLoad({ projectId: 'synthetic-case' }));
-  const list = f.track(f.api.projectList({}));
+  // 第二個請求原本是線上清單 project.list，隨 SQL Server 移除改用本機清單（裁定 2026-11-06-08）；
+  // 第一次失敗：Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337。
+  const list = f.track(f.api.projectListLocal({}));
   // 送出形狀精確：requestId、action 與 payload，沒有別的鍵。
   assert.deepEqual(plain(f.sent), [
     { requestId: 'req-1', action: 'project.load', payload: { projectId: 'synthetic-case' } },
-    { requestId: 'req-2', action: 'project.list', payload: {} }
+    { requestId: 'req-2', action: 'project.listLocal', payload: {} }
   ]);
   assert.equal(load.requestId, 'req-1', 'the promise exposes its requestId for operation.cancel');
   await settle();

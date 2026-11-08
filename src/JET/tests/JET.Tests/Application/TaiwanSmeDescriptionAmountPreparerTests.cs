@@ -13,7 +13,6 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AdjustingEntryKeywords_FullWidthDelimitersAndBlankDescriptions(string provider)
     {
         using var host = new HandlerTestHost();
@@ -71,7 +70,6 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RoundAndRepeatedTailAmounts_ExactThresholdsAndCreditSideBasis(string provider)
     {
         using var host = new HandlerTestHost();
@@ -127,7 +125,6 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreparerApproverSeniorAndUnauthorizedPreparers_IgnoreCaseAndSurroundingSpaces(string provider)
     {
         using var host = new HandlerTestHost();
@@ -176,7 +173,6 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RarePreparersAndAccounts_ElevenEntriesHitTwelveDoNot(string provider)
     {
         using var host = new HandlerTestHost();

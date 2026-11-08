@@ -14,7 +14,7 @@ namespace JET.Tests.Application;
 /// 第 22 步盤點的第 6 項：SQLite 先把資料寫進記錄檔再併回資料庫檔，原本離開案件時不清空連線池，產品也不併回，
 /// 一百萬筆的匯入後記錄檔一直有幾百 MB，JET 開著時只複製資料庫檔也會拿到不完整的副本。現在每項改資料的作業結束後併回並清空記錄檔，
 /// 離開案件、開案失敗與結束 JET 時關閉這個案件的連線（見 IProjectDatabaseCheckpoint）。這是新增的測試。
-/// DuckDB 每項作業結束時關閉資料庫，關閉時就會併回，所以同樣的情境也測 DuckDB，證明它不需要另外處理。
+/// 原本同樣的情境也測 DuckDB；只保留 SQLite 之後只測 SQLite（裁定 2026-11-06-08）。
 /// </summary>
 /// <remarks>
 /// SQLite 的情境另外開一條不進連線池的連線守在旁邊：別的測試清空全部連線池時，最後一條連線關閉也會併回並刪掉記錄檔，
@@ -29,7 +29,6 @@ public sealed class ProjectDatabaseCheckpointTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task AfterEachWrite_TheLogIsEmpty_AndTheDatabaseFileAloneHasTheData(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -54,7 +53,6 @@ public sealed class ProjectDatabaseCheckpointTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task AfterACancelledLargeImport_TheLogIsEmpty_AndTheEarlierDataStays(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -83,7 +81,6 @@ public sealed class ProjectDatabaseCheckpointTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task AfterLeavingTheCase_JetNoLongerHoldsTheDatabaseFile(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -101,7 +98,7 @@ public sealed class ProjectDatabaseCheckpointTests
         // JET 還開著，只是回到案件清單：記錄檔與共用記憶體檔都已刪掉，資料庫檔沒有被任何程式開著。
         var databasePath = DatabasePath(projects, name, provider);
         AssertNoSideFiles(databasePath, provider);
-        Assert.True(DuckDbFileProbe.CanOpenExclusively(databasePath), "離開案件後 JET 不應再開著案件資料庫");
+        Assert.True(CanOpenExclusively(databasePath), "離開案件後 JET 不應再開著案件資料庫");
 
         // 再開同一個案件照常可以讀寫。
         await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = name }));
@@ -111,7 +108,6 @@ public sealed class ProjectDatabaseCheckpointTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task AFailedLoad_LeavesTheDatabaseFileClosed(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -135,12 +131,38 @@ public sealed class ProjectDatabaseCheckpointTests
 
         // 沒有進入這個案件，開案途中開過的連線也要關掉，審計員才能在 JET 開著時搬移或刪除這個資料夾。
         AssertNoSideFiles(databasePath, provider);
-        Assert.True(DuckDbFileProbe.CanOpenExclusively(databasePath), "開案被拒後 JET 不應再開著案件資料庫");
+        Assert.True(CanOpenExclusively(databasePath), "開案被拒後 JET 不應再開著案件資料庫");
+    }
+
+    [Fact]
+    public async Task DeleteThenRecreateSameName_NewCaseStartsEmpty()
+    {
+        // 原本在 DuckDB 的測試檔裡；同名重建後不能沿用舊案件的資料庫，這一點不分資料庫，改測 SQLite（裁定 2026-11-06-08）。
+        const string provider = ProjectDocument.DefaultDatabaseProvider;
+        using var workspace = new TempProjectRoot();
+        var projects = Path.Combine(workspace.Path, "projects");
+        Directory.CreateDirectory(projects);
+        const string name = "同名重建";
+        var gl = WriteGl(workspace.Path, "gl.csv", GlRows);
+
+        using var host = new HandlerTestHost(projectsRootPath: projects);
+        await host.DispatchAsync("project.create", CreatePayload(name, provider));
+        await ImportAsync(host, gl);
+        var databasePath = DatabasePath(projects, name, provider);
+        Assert.Equal(GlRows, await CountInCopyAsync(databasePath, workspace.Path, "before-delete", name, provider, "pbc_gl"));
+
+        await host.DispatchAsync("project.delete", JsonSerializer.Serialize(new { projectId = name }));
+        Assert.False(File.Exists(databasePath));
+
+        // 同名重建後若沿用舊的資料庫，會讀到上一個案件匯入的 GL。離開案件後再直接讀資料庫檔，建案寫入的內容已經併回。
+        await host.DispatchAsync("project.create", CreatePayload(name, provider));
+        await host.DispatchAsync("project.releaseLock");
+        Assert.Equal(0, await ScalarDirectAsync(databasePath, provider, "SELECT COUNT(*) FROM pbc_gl;"));
+        Assert.Equal(0, await ScalarDirectAsync(databasePath, provider, "SELECT COUNT(*) FROM import_batch;"));
     }
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task EndingJetWithoutLeavingTheCase_ClosesTheDatabaseFile(string provider)
     {
         using var workspace = new TempProjectRoot();
@@ -158,13 +180,12 @@ public sealed class ProjectDatabaseCheckpointTests
 
         var databasePath = DatabasePath(projects, name, provider);
         AssertNoSideFiles(databasePath, provider);
-        Assert.True(DuckDbFileProbe.CanOpenExclusively(databasePath), "結束 JET 後不應再開著案件資料庫");
+        Assert.True(CanOpenExclusively(databasePath), "結束 JET 後不應再開著案件資料庫");
         Assert.Equal(GlRows, await CountInCopyAsync(databasePath, workspace.Path, "after-exit", name, provider, "pbc_gl"));
     }
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task RecalculatingFilterHitsInAQuery_AlsoEmptiesTheLog(string provider)
     {
         using var host = new HandlerTestHost();
@@ -267,36 +288,31 @@ public sealed class ProjectDatabaseCheckpointTests
     private static ILocalProjectDatabase Database(string projects, string provider)
     {
         var folder = new JetProjectFolder(projects);
-        return provider == ProjectDocument.DuckDbDatabaseProvider ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static string DatabasePath(string projects, string name, string provider) =>
         Database(projects, provider).GetDatabasePath(name);
 
-    /// <summary>SQLite 的記錄檔是 jet.db-wal，DuckDB 的是 jet.duckdb.wal；檔案不在時算 0。</summary>
+    /// <summary>SQLite 的記錄檔是 jet.db-wal；檔案不在時算 0。</summary>
     private static long LogLength(string databasePath, string provider)
     {
-        var path = databasePath + (provider == ProjectDocument.DuckDbDatabaseProvider ? ".wal" : "-wal");
+        var path = databasePath + "-wal";
         return File.Exists(path) ? new FileInfo(path).Length : 0;
     }
 
     private static void AssertNoSideFiles(string databasePath, string provider)
     {
-        var suffixes = provider == ProjectDocument.DuckDbDatabaseProvider ? new[] { ".wal" } : new[] { "-wal", "-shm" };
+        var suffixes = new[] { "-wal", "-shm" };
         foreach (var suffix in suffixes)
         {
             Assert.False(File.Exists(databasePath + suffix), $"關閉後不應留下 {Path.GetFileName(databasePath + suffix)}");
         }
     }
 
-    /// <summary>SQLite 才需要守著的連線，見類別說明；DuckDB 回 null，開著連線會讓資料庫實體一直不關閉。</summary>
+    /// <summary>SQLite 需要守著的連線，見類別說明。</summary>
     private static SqliteConnection? OpenGuard(string databasePath, string provider)
     {
-        if (provider == ProjectDocument.DuckDbDatabaseProvider)
-        {
-            return null;
-        }
-
         var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,
@@ -326,6 +342,23 @@ public sealed class ProjectDatabaseCheckpointTests
         return await ScalarDirectAsync(copyPath, provider, $"SELECT COUNT(*) FROM {table};");
     }
 
+    /// <summary>
+    /// 檔案能不能用獨占方式開啟：JET 或其他程式還開著這個檔時開不了。原本叫 DuckDbFileProbe，放在已刪除的 DuckDB
+    /// 測試檔裡；它不分資料庫，SQLite 的斷言照用（裁定 2026-11-06-08）。
+    /// </summary>
+    private static bool CanOpenExclusively(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>不經 JET 的連線池直接讀一個值，讀完就關閉，不留下開著的檔案。</summary>
     private static async Task<long> ScalarDirectAsync(string databasePath, string provider, string sql)
     {
@@ -346,9 +379,7 @@ public sealed class ProjectDatabaseCheckpointTests
     }
 
     private static System.Data.Common.DbConnection DirectConnection(string databasePath, string provider) =>
-        provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDB.NET.Data.DuckDBConnection($"DataSource={databasePath}")
-            : new SqliteConnection(new SqliteConnectionStringBuilder
+        new SqliteConnection(new SqliteConnectionStringBuilder
             {
                 DataSource = databasePath,
                 Mode = SqliteOpenMode.ReadWrite,

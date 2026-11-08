@@ -40,7 +40,6 @@ public sealed class ReportTextEncodingTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ControlCharactersInSourceText_BothValidationReportsAreProducedAndReadBackUnchanged(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);
@@ -78,7 +77,6 @@ public sealed class ReportTextEncodingTests
     /// <summary>審計員在 Excel 存出的總帳：控制字元已是 _xHHHH_ 寫法，JET 匯入後是 Excel 顯示的原文。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExcelSourceSavedWithEscapedText_ImportsWhatExcelShows(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);
@@ -103,7 +101,6 @@ public sealed class ReportTextEncodingTests
     /// <summary>JET 產生的科目配對工作檔，審計員用 Excel 填好分類後匯回，含控制字元的科目名稱和案件裡的一樣。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AccountMappingTemplateFilledInExcel_ImportsNamesWithControlCharactersUnchanged(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);
@@ -257,7 +254,7 @@ public sealed class ReportTextEncodingTests
         using var stream = new MemoryStream();
         using var document = CreateWorkbook(stream, out var parts, out var styles);
         parts[0].Worksheet = new Worksheet(new SheetData(new Row(RawTextCell("A1", "固定列")) { RowIndex = 1 }));
-        parts[0].Worksheet.Save();
+        parts[0].RequiredWorksheet().Save();
         using var cancellation = new CancellationTokenSource();
         var plan = new DirectTemplateWorksheetOverlayPlan(
             IsDynamicRow: _ => true,
@@ -278,7 +275,7 @@ public sealed class ReportTextEncodingTests
         });
 
         Assert.True(error is OperationCanceledException, error?.ToString());
-        Assert.Null(SupportFailureDiagnostics.Find(error));
+        Assert.Null(SupportFailureDiagnostics.Find(error!));
     }
 
     [Fact]
@@ -301,7 +298,7 @@ public sealed class ReportTextEncodingTests
         parts[1].Worksheet = new Worksheet(
             new Columns(new Column { Min = 1, Max = 1, Style = 0 }),
             new SheetData(new Row { RowIndex = 1 }, new Row { RowIndex = 2 }));
-        parts[1].Worksheet.Save();
+        parts[1].RequiredWorksheet().Save();
         XNamespace spreadsheet = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         var plan = new DirectTemplateWorksheetRewritePlan(
             FirstDynamicRow: 2,
@@ -417,9 +414,7 @@ public sealed class ReportTextEncodingTests
 
     private static async Task<UnbalancedVoucher> UnbalancedAsync(HandlerTestHost host, string provider, string id)
     {
-        ILocalProjectDatabase database = provider == "sqlite"
-            ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
-            : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        ILocalProjectDatabase database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         var page = await new LocalVoucherBalancePageRepository(database).GetPageAsync(
             id, ProjectDocument.DefaultMoneyScale, "2025-01-01", "2025-12-31", new PageRequest(null, 10), CancellationToken.None);
         Assert.Null(page.NextCursor);
@@ -505,7 +500,7 @@ public sealed class ReportTextEncodingTests
         using var document = SpreadsheetDocument.Open(path, isEditable: false);
         var workbook = document.WorkbookPart!;
         return workbook.WorksheetParts
-            .SelectMany(part => part.Worksheet.Descendants<Cell>())
+            .SelectMany(part => part.RequiredWorksheet().Descendants<Cell>())
             .Select(cell => CellText(workbook, cell))
             .Where(text => text is not null)
             .Select(text => text!)
@@ -517,9 +512,9 @@ public sealed class ReportTextEncodingTests
     {
         using var document = SpreadsheetDocument.Open(path, isEditable: false);
         var workbook = document.WorkbookPart!;
-        var sheet = workbook.Workbook.Sheets!.Elements<Sheet>().Single(item => item.Name?.Value == sheetName);
+        var sheet = workbook.RequiredWorkbook().Sheets!.Elements<Sheet>().Single(item => item.Name?.Value == sheetName);
         var part = (WorksheetPart)workbook.GetPartById(sheet.Id!.Value!);
-        return part.Worksheet.Descendants<Row>()
+        return part.RequiredWorksheet().Descendants<Row>()
             .Select(row =>
             {
                 var cells = row.Elements<Cell>().ToDictionary(cell => ColumnIndex(cell.CellReference!.Value!), cell => CellText(workbook, cell) ?? "");
@@ -535,7 +530,7 @@ public sealed class ReportTextEncodingTests
     {
         var text = cell.DataType?.Value == CellValues.InlineString ? cell.InlineString?.InnerText
             : cell.DataType?.Value == CellValues.SharedString && int.TryParse(cell.CellValue?.Text, CultureInfo.InvariantCulture, out var index)
-                ? workbook.SharedStringTablePart!.SharedStringTable.Elements<SharedStringItem>().ElementAt(index).InnerText
+                ? workbook.SharedStringTablePart!.SharedStringTable!.Elements<SharedStringItem>().ElementAt(index).InnerText
                 : cell.CellValue?.Text;
         return text is null ? null : Decode(text);
     }

@@ -23,7 +23,6 @@ public sealed class FilterScenarioReasonTextTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OnLoad_CorruptOldScenario_ListsUnreadableOnceWithoutCodesAndLogsTheReasons(string provider)
     {
         using var host = new HandlerTestHost();
@@ -65,9 +64,7 @@ public sealed class FilterScenarioReasonTextTests
 
     [Theory]
     [InlineData("sqlite", "validator")]
-    [InlineData("duckdb", "validator")]
     [InlineData("sqlite", "parser")]
-    [InlineData("duckdb", "parser")]
     public async Task Save_CorruptRule_IsMarkedOnThatRuleWithTheGenericSentence(string provider, string where)
     {
         using var host = new HandlerTestHost();
@@ -98,7 +95,6 @@ public sealed class FilterScenarioReasonTextTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Save_CorruptEditorOrigins_WithoutPosition_UsesTheGenericSentenceForTheWholeScenario(string provider)
     {
         using var host = new HandlerTestHost();
@@ -124,11 +120,8 @@ public sealed class FilterScenarioReasonTextTests
     // 裁定 2026-10-30-25：已移除欄位的名稱表拿掉，傳票日期和其他認不得的欄位一樣寫「此條件使用的欄位已不存在」
     // （原本寫「「傳票日期」已移除，請刪除此條件」；第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
     [InlineData("sqlite", """{"join":"AND","type":"dateRange","field":"voucherDate","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
-    [InlineData("duckdb", """{"join":"AND","type":"dateRange","field":"voucherDate","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
     [InlineData("sqlite", """{"join":"AND","type":"fieldValue","field":"voucherDate","operator":"isBlank"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
-    [InlineData("duckdb", """{"join":"AND","type":"fieldValue","field":"voucherDate","operator":"isBlank"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
     [InlineData("sqlite", """{"join":"AND","type":"dateRange","field":"synthRetiredField","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
-    [InlineData("duckdb", """{"join":"AND","type":"dateRange","field":"synthRetiredField","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
     public async Task OnLoad_OldScenarioWithRemovedField_NamesTheFieldOrSaysItNoLongerExists(
         string provider, string rule, string expected)
     {
@@ -151,7 +144,6 @@ public sealed class FilterScenarioReasonTextTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RenamedCategories_RevenueAndCounterpartReasonsUseTheCurrentNames(string provider)
     {
         using var host = new HandlerTestHost();
@@ -256,7 +248,7 @@ public sealed class FilterScenarioReasonTextTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task RewriteDefinitionAsync(

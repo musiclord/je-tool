@@ -145,7 +145,7 @@ internal static class FilterVoucherPageReader
             + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = e.voucher_number AND hit.is_hit = 1) "
             + "ORDER BY e.entry_id " + dialect.LimitClause("@pageSize");
         var detailCount = await PageTotalCount.ReadAsync(command, request, cte
-            + (dialect is SqlServerDialect ? "SELECT COUNT_BIG(*) " : "SELECT COUNT(*) ")
+            + "SELECT COUNT(*) "
             + "FROM evaluated e WHERE e.voucher_number = @document "
             + "AND EXISTS (SELECT 1 FROM evaluated hit WHERE hit.voucher_number = e.voucher_number AND hit.is_hit = 1)", ct);
         var details = new List<FilterVoucherDetail>();

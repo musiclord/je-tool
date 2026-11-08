@@ -20,6 +20,8 @@ public sealed partial class GlExcludedPopulationReadGuardTests
     /// <summary>刻意不限定母體的查詢：檔案、陳述句裡一定出現的片段（空白已壓成單一空格）、理由。</summary>
     private sealed record AllowedRead(string File, string Marker, string Reason);
 
+    // 兩份允許清單原本也列 SQL Server 倉儲的查詢。只保留 SQLite 之後那些檔案已刪除，項目跟著拿掉（裁定 2026-11-06-08）；
+    // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
     private static readonly AllowedRead[] AllowedReads =
     [
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
@@ -33,23 +35,11 @@ public sealed partial class GlExcludedPopulationReadGuardTests
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
             "WHERE g.batch_id = @batchId AND g.entry_id > @cursor",
             "匯入當下依批次回取原始列，為整批剛寫入的列寫入攸關資料元素欄位的值。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerGlRepository.cs",
-            "ROW_NUMBER() OVER (PARTITION BY voucher_number ORDER BY source_row_number) AS rn FROM {s}.gl",
-            "匯入時為整批剛寫入的列補傳票項次，GL 與 GL(未納入測試) 都要編號。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerGlRepository.cs",
-            "WHERE g.batch_id = @batchId AND g.entry_id > @cursor",
-            "匯入當下依批次回取原始列，為整批剛寫入的列寫入攸關資料元素欄位的值。"),
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalBlankRecordsPageRepository.cs",
-            "\"WHERE \" + predicate + paging.Predicate",
-            "WHERE 由 BlankRecordsCategoryPredicate.Scoped 產生，裡面已經只看納入測試的分錄。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerBlankRecordsPageRepository.cs",
             "\"WHERE \" + predicate + paging.Predicate",
             "WHERE 由 BlankRecordsCategoryPredicate.Scoped 產生，裡面已經只看納入測試的分錄。"),
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalRawGlExportRepository.cs",
             "WHERE g.entry_id IN (",
-            "依已選出的 entry_id 回取原始列，母體在選出時已限定。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerRawGlExportRepository.cs",
-            "WHERE g.entry_id IN (__ENTRY_IDS__)",
             "依已選出的 entry_id 回取原始列，母體在選出時已限定。"),
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
             "SELECT {columns} FROM gl;",
@@ -57,17 +47,10 @@ public sealed partial class GlExcludedPopulationReadGuardTests
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
             "WHERE {ValidationProcedures.BlankGlDateSourceQualityPredicate};",
             "總帳日期空白是 ValidationProcedures 寫明的唯一原始列例外。"),
+        // 空值明細多讀傳票核准日（裁定 2026-11-06-13），approval_date 接在旗標後面，認這句查詢的片段跟著改；
+        // 查詢的範圍條件與理由不變。第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
-            "{flags} FROM gl WHERE ({anyMatch})",
-            "空值明細的旗標與條件由 BlankRecordsCategoryPredicate.Scoped 產生，已經只看納入測試的分錄。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerValidationRunRepository.cs",
-            "SELECT {{columns}} FROM {s}.gl;",
-            "四類空值計數的條件由 BlankRecordsCategoryPredicate.Scoped 產生，各自都只看納入測試的分錄。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerValidationRunRepository.cs",
-            "WHERE {ValidationProcedures.BlankGlDateSourceQualityPredicate};",
-            "總帳日期空白是 ValidationProcedures 寫明的唯一原始列例外。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerValidationRunRepository.cs",
-            "{{flags}} FROM {s}.gl WHERE ({{anyMatch}})",
+            "approval_date FROM gl WHERE ({anyMatch})",
             "空值明細的旗標與條件由 BlankRecordsCategoryPredicate.Scoped 產生，已經只看納入測試的分錄。"),
         new("src/JET/JET/Infrastructure/Sql/SourceQualityPageReader.cs",
             "ValidationProcedures.BlankGlDateSourceQualityPredicateWith(\"g\")",
@@ -88,13 +71,10 @@ public sealed partial class GlExcludedPopulationReadGuardTests
             "匯入時批次寫入，不讀資料。"),
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
             "DatasetKind.Gl => JetSchemaCatalog.GlTableName",
-            "只用在重新匯入前的 DELETE，本機與 SQL Server 匯入倉儲共用。"),
+            "只用在重新匯入前的 DELETE。"),
         new("src/JET/JET/Infrastructure/Persistence/Local/LocalDataPreviewRepository.cs",
             "StagingPreviewAsync(connection, \"gl\", \"pbc_gl\"",
             "這裡的 \"gl\" 是資料集種類，用來找 PBC-GL 的匯入批次；讀的是 pbc_gl，不是 GL 分錄表。"),
-        new("src/JET/JET/Infrastructure/Persistence/SqlServer/SqlServerDataPreviewRepository.cs",
-            "StagingPreviewAsync(connection, projectId, \"gl\", \"pbc_gl\"",
-            "這裡的 \"gl\" 是資料集種類，用來找 PBC-GL 的匯入批次；讀的是 pbc_gl，不是 GL 分錄表。")
     ];
 
     // 2026-10-28 複審新增。資料預覽 GL 頁先改好才補這項檢查，沒有第一次失敗的收據；下面第一則 Theory 案例就是資料預覽原本的寫法。

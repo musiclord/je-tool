@@ -61,8 +61,6 @@ public sealed class MappingValueComparisonKeyTests
     [Theory]
     [InlineData("sqlite", false)]
     [InlineData("sqlite", true)]
-    [InlineData("duckdb", false)]
-    [InlineData("duckdb", true)]
     public async Task ProfileAndSourceCheck_KeysIncludeBothTopValuesAndEveryRequestedAlias(string provider, bool checkSourceValues)
     {
         using var host = new HandlerTestHost();

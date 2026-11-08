@@ -5,16 +5,14 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// project.delete：永久刪除專案（硬刪不可復原）。sqlServer 案件先做授權前置（同 project.load 的三路判定）：
-/// 登記存在但當前 principal 不可見 → not_authorized，且在動任何資料之前擋下——連本機快取資料夾也保留不刪。通過後
-/// 先刪資料庫（依案件的資料庫種類：SQLite 刪檔／SQL Server DROP SCHEMA），再刪 project.json 資料夾。不需 active project
-/// （從專案選擇畫面呼叫）。資料庫刪除失敗則例外冒泡、資料夾保留，供修正後重試（如 sqlServer 連線未設定）。
+/// project.delete：永久刪除專案（硬刪不可復原）。先刪資料庫檔，再刪 project.json 所在的案件資料夾。不需 active project
+/// （從專案選擇畫面呼叫）。資料庫刪除失敗則例外冒泡、資料夾保留，供修正後重試。不支援的資料庫種類在動任何檔案之前
+/// 回 unsupported_provider，資料夾保持原狀（裁定 2026-11-06-09）。
 /// </summary>
 public sealed class ProjectDeleteHandler : IApplicationActionHandler
 {
     private readonly IProjectStore projectStore;
     private readonly ProjectRepositoryCatalog repositoryCatalog;
-    private readonly IProjectRegistry registry;
     private readonly CurrentPrincipal principal;
     private readonly ProjectSession session;
     private readonly ILogger? logger;
@@ -23,7 +21,6 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
     internal ProjectDeleteHandler(
         IProjectStore projectStore,
         ProjectRepositoryCatalog repositoryCatalog,
-        IProjectRegistry registry,
         CurrentPrincipal principal,
         ProjectSession session,
         ILogger<ProjectDeleteHandler>? logger = null,
@@ -31,7 +28,6 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
     {
         this.projectStore = projectStore;
         this.repositoryCatalog = repositoryCatalog;
-        this.registry = registry;
         this.principal = principal;
         this.session = session;
         this.logger = logger;
@@ -52,8 +48,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         catch (JetActionException error) when (error.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
         {
             // 設定檔損壞、舊版或期間無效的案件，畫面請審計員從備份還原或另建案件，舊的這份也要能從案件清單刪掉。
-            // 只處理確定是本機資料庫的案件；SQL Server 案件還要清掉
-            // 伺服器上的資料，維持原本的錯誤（列在 SQL Server 的延後事項）。
+            // 只處理確定是 SQLite 的案件；判斷不出來時維持原本的錯誤。
             var localProvider = await projectStore.FindLocalDatabaseProviderAsync(projectId, cancellationToken);
             if (localProvider is null)
             {
@@ -72,18 +67,6 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         // 否則 session Leave 會把同一案件的大小寫變體當成兩個身分。
         projectId = document.ProjectId;
 
-        // 授權前置(sqlServer，同 project.load):登記存在但當前 principal 不可見 → not_authorized,在動任何
-        // 資料之前擋下——連本機快取資料夾也不刪(避免「刪了快取卻誤以為刪了案件」)。登記不存在的孤兒沿現行放行(那是
-        // 清理路徑,由開發用的 dev.db.reconcile 檢查)。serverOnly(本機無資料夾)在上方 FindAsync 已回 project_not_found,走不到這裡。
-        if (document.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider
-            && await registry.FindVisibleAsync(projectId, principal.Name, cancellationToken) is null
-            && await registry.ExistsAsync(projectId, cancellationToken))
-        {
-            throw new JetActionException(
-                JetErrorCodes.NotAuthorized,
-                "您沒有此線上案件的存取權，無法刪除。");
-        }
-
         return await DeleteAsync(projectId, document.DatabaseProvider, cancellationToken);
     }
 
@@ -96,8 +79,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         var reportStore = repositories.ReportStore;
         var databaseDeleter = repositories.DatabaseDeleter;
 
-        // 本地案件以與 project.load 相同的 OS 檔案鎖做非阻塞試取；SQL Server arm 維持 no-op，
-        // 其租約仍只由既有刪案交易處理。Held 時在報告檔、資料庫與案件資料夾有任何變更之前止步。
+        // 以與 project.load 相同的 OS 檔案鎖做非阻塞試取。Held 時在報告檔、資料庫與案件資料夾有任何變更之前止步。
         SupportOperationStage.Enter("deletion_lock");
         var deletionLockOutcome = await deletionLockService.TryAcquireAsync(
             projectId,
@@ -113,17 +95,14 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         };
         await using var heldDeletionLease = deletionLease;
 
-        // 授權通過後才取得案件外的報告租約。刪案路徑只排除其他讀寫報告檔的程式，不先
+        // 取得刪案鎖後才取得案件外的報告租約。刪案路徑只排除其他讀寫報告檔的程式，不先
         // 讀取或復原即將一併刪除的 journal；lease 一路保持到 provider 資料與案件資料夾處理完成。
         SupportOperationStage.Enter("report_lease");
         await using var reportDeletionLease = await reportStore.AcquireProjectDeletionLeaseAsync(
             projectId,
             cancellationToken);
 
-        // 1) 刪資料庫(須在刪資料夾前，資料夾裡的 project.json 記錄資料庫種類，失敗重試時仍要讀它)。sqlServer 走原子刪除:單一交易內
-        // drop schema → 寫 operation_log → 刪 dbo.project_access／project_registry（單庫的管理表統一在這裡清）,
-        // 故不再另呼 registry.UnregisterAsync（清單即時消失、可見性同步移除由同一交易保證,無兩連線半刪窗口）。
-        // schema drop 失敗殘留的孤兒由建案預檢擋同名、待 dev.db.reconcile 清。sqlite/duckdb 刪本地檔、不觸及 registry。
+        // 1) 先刪資料庫檔。要在刪資料夾之前做，因為資料夾裡的 project.json 記錄資料庫種類，失敗重試時仍要讀它。
         string? cleanupMessage = null;
         var databaseDeleted = false;
         try

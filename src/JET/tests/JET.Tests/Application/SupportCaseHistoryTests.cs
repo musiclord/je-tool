@@ -17,7 +17,6 @@ public sealed class SupportCaseHistoryTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ReopenedByAnotherProgram_ExportHasTheWholeHistoryInOrder(string provider)
     {
         using var root = new TempProjectRoot();
@@ -216,7 +215,9 @@ public sealed class SupportCaseHistoryTests
         var first = await CreateAsync(host, "sqlite", "Synthetic history first", "first-create");
         await host.DispatchAsync("log.recent", correlationId: "first-1");
         await host.DispatchAsync("project.releaseLock", correlationId: "first-leave");
-        var second = await CreateAsync(host, "duckdb", "Synthetic history second", "second-create");
+        // 第二個案件原本建 DuckDB 案件。只保留 SQLite 之後建不了，改成另一個 SQLite 案件，換案的情境與斷言不變
+        // （裁定 2026-11-06-08）；第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+        var second = await CreateAsync(host, "sqlite", "Synthetic history second", "second-create");
         await host.DispatchAsync("log.recent", correlationId: "second-1");
         await host.DispatchAsync("project.releaseLock", correlationId: "second-leave");
         await host.DispatchAsync("project.load", Json(new { projectId = first }), correlationId: "first-reopen");

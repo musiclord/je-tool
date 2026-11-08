@@ -12,16 +12,18 @@ namespace JET.Tests.Application;
 public sealed class ActionBackgroundDispatchTests
 {
     [Fact]
-    public async Task SynchronousLongOperation_ReturnsToCallerSoCancelCanReleaseGateAndRetention()
+    public async Task SynchronousLongOperation_ReturnsToCallerSoCancelCanReleaseGateAfterCheckpoint()
     {
+        // 原本驗 DuckDB 在作業期間保留資料庫連線，取消後放開；DuckDB 移除後改驗 SQLite 的記錄檔併回：
+        // 取消後照樣併回一次，之後閘也放開（裁定 2026-11-06-08）。
         var registry = new RequestCancellationRegistry();
         using var request = registry.Begin("batch9-sync");
         var handler = new SynchronousBlockingHandler();
-        var retention = new RetentionProbe();
+        var checkpoint = new CheckpointProbe();
         var session = new ProjectSession();
         session.Enter("batch9-thread", TestProjectRepositories.Unconfigured("sqlite"));
         var dispatcher = new ActionDispatcher([handler, new OperationCancelHandler(registry)],
-            NullLogger<ActionDispatcher>.Instance, session, cancellationRegistry: registry, databaseRetention: retention);
+            NullLogger<ActionDispatcher>.Instance, session, cancellationRegistry: registry, databaseCheckpoint: checkpoint);
         await OnDedicatedThreadAsync(async () =>
         {
             var work = dispatcher.DispatchAsync("validate.run", JsonSerializer.SerializeToElement(new { }), request.Token);
@@ -30,7 +32,7 @@ public sealed class ActionBackgroundDispatchTests
             var cancelled = await dispatcher.DispatchAsync("operation.cancel", JsonSerializer.SerializeToElement(new { requestId = "batch9-sync" }), CancellationToken.None);
             Assert.True(JsonSerializer.SerializeToElement(cancelled).GetProperty("requested").GetBoolean());
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => work);
-            Assert.True(retention.Disposed);
+            Assert.Equal(1, checkpoint.Calls);
             using var lease = dispatcher.TryAcquireExecutionLease();
             Assert.NotNull(lease);
             return null;
@@ -60,7 +62,7 @@ public sealed class ActionBackgroundDispatchTests
         Assert.True(match.Success);
         var actions = Regex.Matches(match.Groups["body"].Value, @"'([^']+)'\s*:\s*true")
             .Select(item => item.Groups[1].Value)
-            .Concat(ActionExecutionPolicy.ProjectDatabaseRetainingActionNames)
+            .Concat(ActionExecutionPolicy.ProjectDatabaseActionNames)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
         var data = new TheoryData<string>();
         foreach (var action in actions) data.Add(action);
@@ -71,23 +73,28 @@ public sealed class ActionBackgroundDispatchTests
 
     [Theory]
     [MemberData(nameof(DatabaseActions))]
-    public async Task CancellableAndDatabaseActions_MoveSynchronousHandlerAndRetentionOffCallerThread(string action)
+    public async Task CancellableAndDatabaseActions_MoveSynchronousHandlerAndCheckpointOffCallerThread(string action)
     {
+        // 原本驗 DuckDB 的保留連線也不在呼叫端執行緒；DuckDB 移除後改驗 SQLite 的記錄檔併回（裁定 2026-11-06-08）。
         var probe = new ProbeHandler(action);
-        var retention = new RetentionProbe();
+        var checkpoint = new CheckpointProbe();
         var session = new ProjectSession();
         session.Enter("batch9-thread", TestProjectRepositories.Unconfigured("sqlite"));
         var dispatcher = new ActionDispatcher([probe], NullLogger<ActionDispatcher>.Instance, session,
-            databaseRetention: retention);
+            databaseCheckpoint: checkpoint);
         var caller = await OnDedicatedThreadAsync(() => dispatcher.DispatchAsync(action, JsonSerializer.SerializeToElement(new { }), CancellationToken.None));
         Assert.NotEqual(caller, probe.ThreadId);
         Assert.True(probe.ThreadPool);
         Assert.Null(probe.Context);
-        if (ActionExecutionPolicy.RetainsProjectDatabase(action))
+        if (ActionExecutionPolicy.CheckpointsProjectDatabase(action))
         {
-            Assert.NotEqual(caller, retention.ThreadId);
-            Assert.True(retention.ThreadPool);
-            Assert.True(retention.Disposed);
+            Assert.NotEqual(caller, checkpoint.ThreadId);
+            Assert.True(checkpoint.ThreadPool);
+            Assert.Equal(1, checkpoint.Calls);
+        }
+        else
+        {
+            Assert.Equal(0, checkpoint.Calls);
         }
         Assert.Equal(1, probe.Calls);
     }
@@ -138,17 +145,18 @@ public sealed class ActionBackgroundDispatchTests
         }
     }
 
-    private sealed class RetentionProbe : IProjectDatabaseRetention, IDisposable
+    private sealed class CheckpointProbe : IProjectDatabaseCheckpoint
     {
         public int ThreadId { get; private set; }
         public bool ThreadPool { get; private set; }
-        public bool Disposed { get; private set; }
-        public IDisposable TryRetain(string projectId)
+        public int Calls { get; private set; }
+        public Task CheckpointAsync(string projectId, CancellationToken cancellationToken)
         {
             ThreadId = Environment.CurrentManagedThreadId;
             ThreadPool = Thread.CurrentThread.IsThreadPoolThread;
-            return this;
+            Calls++;
+            return Task.CompletedTask;
         }
-        public void Dispose() => Disposed = true;
+        public Task CloseAsync(string projectId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

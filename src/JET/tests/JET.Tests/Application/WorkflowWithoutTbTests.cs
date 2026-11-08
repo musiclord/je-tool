@@ -26,8 +26,6 @@ public sealed class WorkflowWithoutTbTests
     [Theory]
     [InlineData("sqlite", false)]
     [InlineData("sqlite", true)]
-    [InlineData("duckdb", false)]
-    [InlineData("duckdb", true)]
     public async Task CaseWithoutConfirmedTb_RunsEveryStepAndWritesWhyAccountComparisonCannotRun(
         string databaseProvider,
         bool tbImported)

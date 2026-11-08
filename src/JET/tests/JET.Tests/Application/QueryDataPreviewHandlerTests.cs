@@ -15,7 +15,6 @@ public sealed class QueryDataPreviewHandlerTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ManualAutoPreview_AppendsCanonicalValuesAndPreservesBlank(string provider)
     {
         using var host = new HandlerTestHost();
@@ -304,7 +303,6 @@ public sealed class QueryDataPreviewHandlerTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Preview_GlExcluded_SplitsDateMismatchIntoThreeReasons_AndFiltersByReason(string provider)
     {
         using var host = new HandlerTestHost();
@@ -684,32 +682,5 @@ public sealed class QueryDataPreviewHandlerTests
 
         Assert.Equal(0, data.GetProperty("totalCount").GetInt64());
         Assert.Equal(0, data.GetProperty("columns").GetArrayLength());
-    }
-
-    [SqlServerFact]
-    public async Task Preview_AuthorizedPreparers_SqlServerParity()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return; // 無 LocalDB → 跳過
-        }
-
-        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: "sqlServer");
-        try
-        {
-            var data = await host.DispatchAsync("query.dataPreview", """{ "dataset": "authorizedPreparer" }""");
-
-            Assert.Equal(["preparerName"],
-                data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToList());
-            var total = data.GetProperty("totalCount").GetInt64();
-            Assert.True(total > 0);
-            Assert.Equal((int)total, data.GetProperty("rows").GetArrayLength());
-        }
-        finally
-        {
-            await TempSqlServerProject.DropDatabaseAsync(connectionString, context.ProjectId);
-        }
     }
 }

@@ -11,7 +11,6 @@ public sealed class DrCrCodeMappingWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExistingCommittedMappingWithoutCreditCode_LoadsValidatesAndExportsWithoutReprojection(string provider)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -19,7 +18,7 @@ public sealed class DrCrCodeMappingWorkflowTests
         var current = (await fixture.LoadAsync()).GetProperty("mapping").GetProperty("gl");
         var oldMapping = Codes(); oldMapping.Remove("drCrCreditCode");
         var folder = new JetProjectFolder(fixture.Host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         // 合成舊 v2 案件：保留已完成的 D/C 投影，只讓已儲存 snapshot 缺少新版新增的貸方代碼。
         // 不經新版確認入口猜值，也不改任何 target 列。
         await new LocalMappingStateStore(database).SaveAsync(fixture.ProjectId,
@@ -55,9 +54,7 @@ public sealed class DrCrCodeMappingWorkflowTests
 
     [Theory]
     [InlineData("sqlite", "side")]
-    [InlineData("duckdb", "side")]
     [InlineData("sqlite", "flag")]
-    [InlineData("duckdb", "flag")]
     public async Task KnownTwoCodes_HaveFixedSignedAnswers_AndPersistLiteralCodes(string provider, string mode)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -73,9 +70,7 @@ public sealed class DrCrCodeMappingWorkflowTests
 
     [Theory]
     [InlineData("sqlite", "side")]
-    [InlineData("duckdb", "side")]
     [InlineData("sqlite", "flag")]
-    [InlineData("duckdb", "flag")]
     public async Task UnknownAndBlankCodesAcrossSources_ReportFullCountAndRetainPriorState(string provider, string mode)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider, manyRows: true);
@@ -86,8 +81,8 @@ public sealed class DrCrCodeMappingWorkflowTests
         // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
         Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.Equal(2, error.Details!.Count);
-        var unknown = Assert.Single(error.Details.Where(item => item.ReasonCode == "dc_unlisted"));
-        var blank = Assert.Single(error.Details.Where(item => item.ReasonCode == "dc_blank"));
+        var unknown = Assert.Single(error.Details, item => item.ReasonCode == "dc_unlisted");
+        var blank = Assert.Single(error.Details, item => item.ReasonCode == "dc_blank");
         Assert.All(error.Details, item => Assert.Equal("BadSide", item.SourceColumn));
         Assert.Contains("63 列", unknown.Message, StringComparison.Ordinal);
         Assert.Contains("共 60 列", unknown.Message, StringComparison.Ordinal);
@@ -103,9 +98,7 @@ public sealed class DrCrCodeMappingWorkflowTests
 
     [Theory]
     [InlineData("sqlite", false)]
-    [InlineData("duckdb", false)]
     [InlineData("sqlite", true)]
-    [InlineData("duckdb", true)]
     public async Task MissingBothOrOverlappingCodes_ExplainsNextStepWithoutChangingCommittedMapping(string provider, bool overlap)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
@@ -131,9 +124,7 @@ public sealed class DrCrCodeMappingWorkflowTests
 
     [Theory]
     [InlineData("sqlite", false)]
-    [InlineData("duckdb", false)]
     [InlineData("sqlite", true)]
-    [InlineData("duckdb", true)]
     public async Task Metadata_OneOrTwoCodesRoundTripWithoutMutatingTheCommittedMapping(string provider, bool hasCredit)
     {
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);

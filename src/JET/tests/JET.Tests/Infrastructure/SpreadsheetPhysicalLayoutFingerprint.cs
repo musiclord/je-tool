@@ -81,7 +81,7 @@ internal sealed class SpreadsheetPhysicalLayoutFingerprint
         using var document = SpreadsheetDocument.Open(path, false);
         var workbookPart = document.WorkbookPart
             ?? throw new InvalidDataException("OpenXML workbook has no workbook part.");
-        var sheets = workbookPart.Workbook.Sheets?.Elements<Sheet>().ToArray()
+        var sheets = workbookPart.Workbook?.Sheets?.Elements<Sheet>().ToArray()
             ?? throw new InvalidDataException("OpenXML workbook has no worksheets.");
         var properties = new Dictionary<PhysicalLayoutKey, string>();
 

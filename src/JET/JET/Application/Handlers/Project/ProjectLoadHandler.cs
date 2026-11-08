@@ -9,11 +9,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
 {
     private readonly IProjectStore projectStore;
     private readonly ProjectRepositoryCatalog repositoryCatalog;
-    private readonly IProjectRegistry registry;
-    private readonly IAppConfigStore appConfig;
     private readonly CurrentPrincipal principal;
     private readonly ProjectSession session;
-    private readonly IProjectDatabaseRetention? databaseRetention;
     private readonly IProjectDatabaseCheckpoint? databaseCheckpoint;
     private readonly ILogger? logger;
     private readonly ISupportCaseHistory? supportHistory;
@@ -21,11 +18,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
     internal ProjectLoadHandler(
         IProjectStore projectStore,
         ProjectRepositoryCatalog repositoryCatalog,
-        IProjectRegistry registry,
-        IAppConfigStore appConfig,
         CurrentPrincipal principal,
         ProjectSession session,
-        IProjectDatabaseRetention? databaseRetention = null,
         ILogger<ProjectLoadHandler>? logger = null,
         ISupportCaseHistory? supportHistory = null,
         IProjectDatabaseCheckpoint? databaseCheckpoint = null)
@@ -34,11 +28,8 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         this.supportHistory = supportHistory;
         this.projectStore = projectStore;
         this.repositoryCatalog = repositoryCatalog;
-        this.registry = registry;
-        this.appConfig = appConfig;
         this.principal = principal;
         this.session = session;
-        this.databaseRetention = databaseRetention;
         this.databaseCheckpoint = databaseCheckpoint;
     }
 
@@ -49,40 +40,22 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         var projectId = PayloadReader.GetRequiredString(payload, "projectId");
         SupportOperationStage.Enter("metadata_read");
         var document = await projectStore.FindAsync(projectId, cancellationToken);
-        var materializedFromServer = false;
 
-        // 本機與線上兩種來源的載入前置；本地案件路徑不受影響，維持可攜性。
         if (document is null)
         {
-            // 本機沒有案件資料夾時，只有前端明確標示是 SQL Server 案件，才去線上登錄找僅存在伺服器的案件，
-            // 找到就物化快取後載入。SQLite 與 DuckDB 案件或沒帶提示的請求不查線上登錄，直接回找不到專案。
-            var providerHint = PayloadReader.GetOptionalString(payload, "databaseProvider");
-            var notFound = new JetActionException(
+            throw new JetActionException(
                 JetErrorCodes.ProjectNotFound,
                 ProjectFolderMessages.CannotOpen(projectId));
-            if (providerHint != ProjectDocument.SqlServerDatabaseProvider)
-            {
-                throw notFound;
-            }
-
-            document = await TryMaterializeServerOnlyAsync(projectId, cancellationToken) ?? throw notFound;
-            materializedFromServer = true;
         }
 
-        // 依 project.json 的資料庫種類選定這個案件的資料庫組。未知種類在取鎖之前回 unsupported_provider，
-        // 不留下鎖；之後的讀取、取鎖與 session 都只用這一組。
+        // 依 project.json 的資料庫種類選定這個案件的資料庫組。不支援的種類在取鎖之前回 unsupported_provider，
+        // 不留下鎖，也不動案件資料夾；之後的讀取、取鎖與 session 都只用這一組。
         var repositories = repositoryCatalog.For(document.DatabaseProvider);
-        if (!materializedFromServer
-            && document.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider)
-        {
-            // 本機 sqlServer doc 在:核對 registry 登記(缺登記 → schema 在則 lazy-heal、不在則擋幽靈)。
-            await EnsureRegisteredOrRejectGhostAsync(document, repositories, cancellationToken);
-        }
 
         var lockService = repositories.LockService;
         var reportStore = repositories.ReportStore;
 
-        // 授權通過後、進入 session 前取工作鎖。sqlServer 走租約表，本地走跨程序檔案鎖。
+        // 進入 session 前取工作鎖（跨程序檔案鎖）。
         // Held → project_locked；不設 session、不進 workflow、不戳 last_opened。
         SupportOperationStage.Enter("lock_acquire");
         var lockOutcome = await lockService.AcquireAsync(document.ProjectId, principal.Name, cancellationToken);
@@ -96,18 +69,11 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
 
         try
         {
-            // 載入期間保持案件資料庫開啟（只有 DuckDB 有作用）。dispatcher 不替 project.load 持有，
-            // 由這裡在取得工作鎖之後才開始持有；離開 try 區塊就釋放，早於載入失敗時的放鎖。
-            using var retainedDatabase = databaseRetention?.TryRetain(document.ProjectId);
-
             // 載入時完整檢查一次建表與版本；之後同一程序內的讀寫只確認檔案仍在。
             // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本並拒絕舊版。
             // 開案不建立新的資料庫：本機案件的資料庫不見或沒有內容時，比照無法開啟的案件回報（裁定 2026-11-05-72）。
             SupportOperationStage.Enter("database_open");
             await repositories.DatabaseInitializer.EnsureExistingAsync(document.ProjectId, cancellationToken);
-
-            // 心跳間隔（供前端計時器；伺服器驅動）：sqlServer 讀 app_config、缺鍵/失敗回程式常數；本地回預設。
-            var heartbeatSeconds = await ResolveHeartbeatSecondsAsync(document, cancellationToken);
 
             SupportOperationStage.Enter("state_read");
             var glBatch = await repositories.Imports.GetLatestBatchAsync(document.ProjectId, DatasetKind.Gl, cancellationToken);
@@ -309,8 +275,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         messages = problem.Messages
                     }).ToArray()
                 },
-                reports = reports.Select(ReportExportSupport.ReportWire).ToArray(),
-                heartbeatSeconds
+                reports = reports.Select(ReportExportSupport.ReportWire).ToArray()
             };
 
             // response 已完整物化後才發布兩個可見副作用。SaveAsync 是 LastOpened 的 commit point；其後不再
@@ -318,18 +283,6 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var openedDocument = document with { LastOpenedUtc = DateTimeOffset.UtcNow };
             SupportOperationStage.Enter("metadata_save");
             await projectStore.SaveAsync(openedDocument, cancellationToken);
-
-            if (document.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider)
-            {
-                try
-                {
-                    await registry.TouchLastOpenedAsync(document.ProjectId, CancellationToken.None);
-                }
-                catch (Exception)
-                {
-                    // Registry 戳記是 commit 後的真正 best-effort：失敗或取消都不改變已完成的本機載入。
-                }
-            }
 
             session.Enter(document.ProjectId, repositories);
             // 持有工作鎖時才建立案件的支援紀錄資料夾，並記下這次開啟。
@@ -407,135 +360,6 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         FilterScenarioUpgradeStatus.Inconsistent => "inconsistent",
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
     };
-
-    /// <summary>
-    /// 心跳間隔（秒）：sqlServer 專案讀 <c>dbo.app_config</c> 的 <c>lock.heartbeatSeconds</c>（缺鍵／讀取失敗回程式常數 30）；
-    /// 本地（sqlite/duckdb）專案不涉 app_config（只屬 sqlServer 的設定表）→ 直接回程式常數。讀取失敗（伺服器抖動）
-    /// 不阻斷載入——退回預設，前端仍能起計時器（本地與 sqlServer 的 heartbeat action 皆為輕量、no-op 亦無害）。
-    /// </summary>
-    private async Task<int> ResolveHeartbeatSecondsAsync(ProjectDocument document, CancellationToken cancellationToken)
-    {
-        if (document.DatabaseProvider != ProjectDocument.SqlServerDatabaseProvider)
-        {
-            return ProjectLockDefaults.HeartbeatSeconds;
-        }
-
-        try
-        {
-            var raw = await appConfig.GetAsync(ProjectLockDefaults.HeartbeatSecondsKey, cancellationToken);
-            return ProjectLockDefaults.ParsePositive(raw, ProjectLockDefaults.HeartbeatSeconds);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return ProjectLockDefaults.HeartbeatSeconds;
-        }
-    }
-
-    /// <summary>
-    /// 本機無資料夾時:查 registry 是否有當前 principal 可見的登記(serverOnly)。有 → 把 project_json 物化為
-    /// projects/{id}/project.json 後回傳供載入;無、或登記簿不可達/未設定 → 回 null(呼叫端轉 project_not_found,
-    /// 維持「本機找不到又無法線上確認即不存在」的既有語意)。物化目標資料夾已被占用 → invalid_payload。
-    /// </summary>
-    private async Task<ProjectDocument?> TryMaterializeServerOnlyAsync(
-        string projectId, CancellationToken cancellationToken)
-    {
-        RegisteredProject? registered;
-        try
-        {
-            registered = await registry.FindVisibleAsync(projectId, principal.Name, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (JetActionException ex) when (
-            ex.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
-        {
-            // registry 的 project_json 若能讀到但 INF seed／版本已損壞或是舊版案件，必須明確阻斷；
-            // 不能降級成 project_not_found，更不能物化後另生 seed。
-            throw;
-        }
-        catch (Exception)
-        {
-            return null; // 登記簿不可達/未設定 → 無從確認線上 → 交回 project_not_found（不偽裝存在）。
-        }
-
-        if (registered is null)
-        {
-            return null;
-        }
-
-        // Remote documents have not passed the local file reader; reject invalid periods before creating a cache or taking a lock.
-        ProjectDocumentPeriodIntegrity.Validate(registered.Document, projectId);
-
-        // 物化快取:寫 projects/{id}/project.json。目標資料夾已被(其他 provider 的)同名案件占用 → invalid_payload。
-        try
-        {
-            await projectStore.CreateAsync(registered.Document, cancellationToken);
-        }
-        catch (ProjectStoreCollisionException exception)
-        {
-            throw new JetActionException(
-                JetErrorCodes.InvalidPayload,
-                SqlServerMessages.LocalCaseWithSameName(projectId),
-                innerException: exception);
-        }
-
-        try
-        {
-            // 快取只有設定檔，發布後就完整了；建案中的標記只給本機資料庫用，這裡直接刪掉（裁定 2026-11-05-72）。
-            await projectStore.CompleteCreateAsync(projectId, cancellationToken);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // 標記留著不影響 SQL Server 案件的開啟。
-        }
-
-        return registered.Document;
-    }
-
-    /// <summary>
-    /// 本機 sqlServer doc 存在時的三路授權前置(在操作層強制):
-    /// 對當前 principal **可見** → 放行;**登記存在但不可見** → not_authorized(他人建立的案件,即使本機已有快取資料夾也擋);
-    /// **登記不存在** → schema 在則 lazy-heal(以本機 doc 補登記＋授權當前開啟者,涵蓋 registry 問世前的既有線上案)、
-    /// schema 不在則 project_not_found(防幽靈快取無聲復活成新空 schema)。
-    /// registry 不可達時不吞:讓連線錯誤照常浮現(維持既有 sqlServer load 的失敗行為,不偽裝可用也不偽裝安全)。
-    /// </summary>
-    private async Task EnsureRegisteredOrRejectGhostAsync(
-        ProjectDocument document, ProjectRepositories repositories, CancellationToken cancellationToken)
-    {
-        // 可見 → 放行(登記存在且當前 principal 已獲授權)。
-        if (await registry.FindVisibleAsync(document.ProjectId, principal.Name, cancellationToken) is not null)
-        {
-            return;
-        }
-
-        // 不可見但登記存在 → 他人建立的線上案件,操作層擋下(即使本機已有快取資料夾)。
-        if (await registry.ExistsAsync(document.ProjectId, cancellationToken))
-        {
-            throw new JetActionException(
-                JetErrorCodes.NotAuthorized,
-                "此線上案件由其他使用者建立，您沒有存取權。");
-        }
-
-        if (await repositories.DatabaseInitializer.DatabaseExistsAsync(
-                document.ProjectId, ProjectDocument.SqlServerDatabaseProvider, cancellationToken))
-        {
-            // schema 在、registry 缺 → 以本機 doc 補登記＋授權當前 principal。
-            await registry.RegisterAsync(document, principal.Name, cancellationToken);
-        }
-        else
-        {
-            // schema 不在 → 幽靈快取:擋下,避免無聲復活成新空 schema。
-            throw new JetActionException(
-                JetErrorCodes.ProjectNotFound,
-                SqlServerMessages.ProjectMissingOnServer);
-        }
-    }
 
     /// <summary>
     /// validation resume 用：存入筆數與合計核對、GL 與 TB 逐科目比對的原始結果不重算，只由共用後端 renderer

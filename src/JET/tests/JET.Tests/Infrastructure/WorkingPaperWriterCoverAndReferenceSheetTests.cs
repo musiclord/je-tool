@@ -15,6 +15,7 @@ using static JET.Tests.Infrastructure.WorkingPaperWriterTestSupport;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>底稿寫出器：封面、說明、step5 與自動化工具參考工作表。</summary>
+// 使用者要求封面 A3 留白；首次失敗收據 20261106-130302916-209cba23338f4b12a0fd28bcaf09480b。
 public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 {
     // ================= Task 2:封面 / 固定文字三表(母體不影響,沿用既有逐字 oracle)=================
@@ -42,7 +43,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         var cover = workbook.Worksheet(CoverSheet);
         Assert.Equal("公司名稱 : 示範科技股份有限公司", cover.Cell("A1").GetString());
         Assert.Equal("測試資料期間 :  2025-01-01 ~ 2025-12-31", cover.Cell("A2").GetString());
-        Assert.Equal("篩選測試母體 : 查核期間", cover.Cell("A3").GetString());
+        Assert.Equal(string.Empty, cover.Cell("A3").GetString());
         // A6 原本寫「請詳：{公司}_CAATS_JE_WP_{日期}.docx」，是 2026-06-21 設計底稿寫出程式時定的檔名，兩份舊版 IDEA 程式都沒有寫。
         // 命名來源與 CAATs 的步驟都無法確認，使用者 2026-11-05 要求拿掉（裁定 2026-11-05-29），所以這一格只留格式、不寫字。
         // 改這則測試前的第一次失敗：Focused 收據 20261105-080037257-8a4432dead444bcc98e79d3953096131。
@@ -60,7 +61,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             new MemoryStream(outputBytes, writable: false),
             false);
         var workbookPart = Assert.IsType<WorkbookPart>(output.WorkbookPart);
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => string.Equals(
                 item.Name?.Value,
                 CoverSheet,
@@ -68,9 +69,10 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         var worksheetPart = Assert.IsType<WorksheetPart>(
             workbookPart.GetPartById(sheet.Id!.Value!));
 
-        Assert.Empty(worksheetPart.Worksheet.Elements<Drawing>());
-        Assert.Empty(worksheetPart.Worksheet.Elements<LegacyDrawing>());
-        Assert.Empty(worksheetPart.Worksheet.Elements<OleObjects>());
+        var worksheet = worksheetPart.RequiredWorksheet();
+        Assert.Empty(worksheet.Elements<Drawing>());
+        Assert.Empty(worksheet.Elements<LegacyDrawing>());
+        Assert.Empty(worksheet.Elements<OleObjects>());
         Assert.DoesNotContain(
             worksheetPart.Parts,
             relationship => relationship.OpenXmlPart is DrawingsPart
@@ -91,7 +93,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
         Assert.Equal(
-            "篩選測試母體 : 查核期間",
+            string.Empty,
             workbook.Worksheet(CoverSheet).Cell("A3").GetString());
         var step3 = workbook.Worksheet(Step3Sheet);
         Assert.Contains("2025-01-01 ~ 2025-12-31", step3.Cell("B7").GetString(), StringComparison.Ordinal);
@@ -149,14 +151,14 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         using (var package = SpreadsheetDocument.Open(stream, false))
         {
             var workbookPart = package.WorkbookPart!;
-            var sheetRef = workbookPart.Workbook.Sheets!
+            var sheetRef = workbookPart.RequiredWorkbook().Sheets!
                 .Elements<Sheet>()
                 .Single(sheet => string.Equals(
                     sheet.Name?.Value,
                     FieldInfoSheet,
                     StringComparison.Ordinal));
             var worksheet = ((WorksheetPart)workbookPart.GetPartById(sheetRef.Id!))
-                .Worksheet;
+                .RequiredWorksheet();
             var rows = worksheet.GetFirstChild<SheetData>()!
                 .Elements<Row>()
                 .ToDictionary(row => row.RowIndex!.Value);
@@ -167,7 +169,9 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
         var sheet = workbook.Worksheet(FieldInfoSheet);
-        Assert.Equal("V.2019", sheet.Cell("A1").GetString());
+        // 裁定 2026-11-06-11 拿掉第一列的版本字樣 V.2019，原本預期 A1 是 V.2019，改成空白；其餘列號與內容不變。
+        // 第一次失敗：Focused 收據 20261106-084046692-14d369b348a74677801bd994c8d906b6。
+        Assert.True(sheet.Cell("A1").IsEmpty());
         Assert.Equal("TB檔案配對前後欄位對照表", sheet.Cell("A2").GetString());
 
         AssertProjectionRows(sheet, 4, projection.TbRows);
@@ -390,8 +394,9 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(stream, false);
         Assert.NotNull(document.WorkbookPart);
         var workbookPart = document.WorkbookPart;
-        Assert.NotNull(workbookPart.Workbook.Sheets);
-        var sheet = workbookPart.Workbook.Sheets
+        var sheets = workbookPart.RequiredWorkbook().Sheets;
+        Assert.NotNull(sheets);
+        var sheet = sheets
             .Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>()
             .First();
         Assert.Equal(CoverSheet, sheet.Name?.Value);
@@ -400,7 +405,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.False(string.IsNullOrWhiteSpace(relationshipId));
         var worksheetPart = Assert.IsType<DocumentFormat.OpenXml.Packaging.WorksheetPart>(
             workbookPart.GetPartById(relationshipId!));
-        Assert.Single(worksheetPart.Worksheet.Elements<DocumentFormat.OpenXml.Spreadsheet.SheetData>());
+        Assert.Single(worksheetPart.RequiredWorksheet().Elements<DocumentFormat.OpenXml.Spreadsheet.SheetData>());
     }
 
 }

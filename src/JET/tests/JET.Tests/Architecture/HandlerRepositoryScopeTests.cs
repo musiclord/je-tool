@@ -25,7 +25,8 @@ public sealed partial class HandlerRepositoryScopeTests
         ("DevDbTableDataHandler", "DevDbHandlers.cs", "DevDatabaseInspector"),
         // 更新案件資料也必須讀目前版本，回傳後端權威的結果及報告狀態。
         ("ProjectUpdateHandler", "Project/ProjectUpdateHandler.cs", "FilterScenarios,ReportStore,ResultStaleStates,Results"),
-        ("ProjectHeartbeatHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
+        // project.heartbeat 只給線上案件續鎖，隨 SQL Server 刪除，ProjectHeartbeatHandler 那一列拿掉（裁定 2026-11-06-08）；
+        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
         ("ProjectReleaseLockHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
         ("QueryAccountMappingDifferencePageHandler", "Query/QueryAccountMappingDifferencePageHandler.cs", "AccountMappingDifferences"),
         ("QueryAccountMappingBlankPageHandler", "Query/QueryAccountMappingBlankPageHandler.cs", "AccountMappingBlankPages"),

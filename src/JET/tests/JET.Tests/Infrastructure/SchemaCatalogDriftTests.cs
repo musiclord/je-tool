@@ -116,36 +116,4 @@ public sealed class SchemaCatalogDriftTests
 
         Assert.Equal(physicalTables, registered);
     }
-
-    [Fact]
-    public async Task Catalog_PhysicalNames_EqualDuckDbMainSchemaTables()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        var database = new DuckDbProjectDatabase(folder);
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-        var physicalTables = new HashSet<string>(StringComparer.Ordinal);
-        await using (var connection = database.CreateConnection(projectId))
-        {
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText =
-                "SELECT table_name FROM information_schema.tables "
-                + "WHERE table_schema='main' ORDER BY table_name;";
-            await using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                physicalTables.Add(reader.GetString(0));
-            }
-        }
-
-        Assert.NotEmpty(physicalTables);
-        var registered = JetSchemaCatalog.All
-            .Select(entry => entry.PhysicalName)
-            .ToHashSet(StringComparer.Ordinal);
-        Assert.Equal(physicalTables, registered);
-    }
 }

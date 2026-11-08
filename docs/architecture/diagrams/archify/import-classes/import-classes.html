@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>TB 匯入的類別與介面</title>
+  <title>TB 匯入的處理類別</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>TB 匯入的類別與介面</h1>
+        <h1>TB 匯入的處理類別</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1478 826" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-class-ui="" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">TB 匯入的類別與介面</title>
+        <title id="archify-diagram-title">TB 匯入的處理類別</title>
         <desc id="archify-diagram-description">由 Archify 產生的類別與介面圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5748,33 +5748,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>實際執行哪個類別</h3>
+          <h3>讀檔與寫入分工</h3>
         </div>
         <ul>
-          <li>ImportFromFileHandler 的依賴線都指向介面，編譯時只知道呼叫的是介面方法。</li>
-          <li>案件用 SQLite 或 DuckDB 時，AppCompositionRoot.CreateLocalProjectRepositories 建立 LocalImportRepository，再交給新建的 IntakeFactsPort；CompositeTabularFileReader 與 JsonFileProjectStore 由 CreateRuntimeCore 建立，不分資料庫。</li>
+          <li>CompositeTabularFileReader 按格式交給 OpenXml、CSV、舊版 Excel 或 Access 讀取器。SQLite 與 DuckDB 由 LocalImportRepository 寫入。</li>
+          <li>ImportTbFromFileHandler 繼承共用的 ImportFromFileHandler。追加匯入另走 AppendToBatchAsync。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot slate"></div>
-          <h3>這張圖省略了什麼</h3>
+          <h3>圖外的操作紀錄</h3>
         </div>
         <ul>
-          <li>操作紀錄由 CommittedOperationLog.AppendAsync 經 IProjectOperationLog 寫入，本機案件實際是 BestEffortProjectOperationLog 交給 LocalProjectOperationLog；寫入失敗時回應附提醒，見 TB 匯入循序圖。</li>
-          <li>CompositeTabularFileReader 內部再交給 OpenXmlSaxTableReader、CsvTableReader、BinaryExcelTableReader 與 AccessTableReader。</li>
-          <li>追加匯入時 IntakeFactsPort 呼叫 AppendToBatchAsync；SQL Server 版本不在圖內。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>成員寫法</h3>
-        </div>
-        <ul>
-          <li>成員只寫參數型別與回傳型別，省略參數名稱、CancellationToken 與有預設值的參數；超過四個參數只列前兩個。package 表示 internal。實作類別不重複列出介面已有的成員。</li>
+          <li>CommittedOperationLog 經 IProjectOperationLog 寫入紀錄；本機案件寫入失敗會附提醒。SQL Server 實作未列入。</li>
         </ul>
       </div>
     </div>

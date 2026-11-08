@@ -6,13 +6,14 @@ namespace JET.Tests.Application;
 
 public sealed class ProjectDeletePreviewActionTests
 {
+    // 原本查的是 DuckDB 的保留連線清單；只保留 SQLite 之後同一份清單改名為「會開案件資料庫的 action」（裁定 2026-11-06-08）。
     [Fact]
-    public void Preview_IsConcurrentAndDoesNotRetainTheActiveProjectDatabase()
+    public void Preview_IsConcurrentAndDoesNotOpenTheActiveProjectDatabase()
     {
         Assert.True(ActionExecutionPolicy.IsClassified("project.deletePreview"));
         Assert.False(ActionExecutionPolicy.IsExclusive("project.deletePreview"));
         Assert.False(ActionExecutionPolicy.RequiresConditionalGate("project.deletePreview"));
-        Assert.False(ActionExecutionPolicy.RetainsProjectDatabase("project.deletePreview"));
+        Assert.False(ActionExecutionPolicy.OpensProjectDatabase("project.deletePreview"));
     }
 
     [Fact]

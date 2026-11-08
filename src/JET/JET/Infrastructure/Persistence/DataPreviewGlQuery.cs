@@ -8,14 +8,14 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 資料預覽 GL 與 GL(未納入測試) 的查詢與讀值，由欄位計畫（<see cref="DataPreviewGlColumns"/>）產生。
 /// 先在分錄表依 entry_id 取當頁，再對每個攸關資料元素欄位 LEFT JOIN 一次取值；一頁最多 200 筆，
-/// 攸關資料元素的值表以分錄與欄位為主鍵，每格只對到一列。本機與 SQL Server 只差資料表前綴與分頁語法，
+/// 攸關資料元素的值表以分錄與欄位為主鍵，每格只對到一列。資料表前綴與分頁語法由呼叫端傳入，
 /// 欄位、別名、參數名稱與讀值轉換都在這裡。
 /// 表名和母體條件寫在同一個 return 陳述句：表名不從參數傳入，GL 頁的條件由 <see cref="GlExcludedPopulation.SqlPredicate"/> 產生，
 /// GlExcludedPopulationReadGuardTests 才看得到這段讀取有沒有限定母體（2026-10-28 複審）。
 /// </summary>
 internal static class DataPreviewGlQuery
 {
-    /// <param name="tablePrefix">資料表前綴：本機是空字串，SQL Server 是 <c>{s}.</c>。</param>
+    /// <param name="tablePrefix">資料表前綴：SQLite 是空字串；參數保留給日後恢復的 SQL Server 傳 <c>{s}.</c>。</param>
     /// <param name="page">GL 頁讀納入測試的分錄；GL(未納入測試) 頁讀未納入的列，限定單一原因時另綁 <c>@exclusionReason</c>。</param>
     /// <param name="paging">分頁語法，接在分錄表的 <c>ORDER BY entry_id</c> 後面。</param>
     internal static string Select(

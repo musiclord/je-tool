@@ -40,7 +40,6 @@ public sealed class ValidationReportPlanningFactsPortTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LocalProviders_CountExactlyTheRowsReturnedByUnbalancedDetailPages(
         string provider)
     {
@@ -49,7 +48,6 @@ public sealed class ValidationReportPlanningFactsPortTests
         ILocalProjectDatabase database = provider switch
         {
             "sqlite" => new SqliteProjectDatabase(folder),
-            "duckdb" => new DuckDbProjectDatabase(folder),
             _ => throw new InvalidOperationException(provider)
         };
         var projectId = Guid.NewGuid().ToString("N");
@@ -63,36 +61,6 @@ public sealed class ValidationReportPlanningFactsPortTests
         var pageRows = await DrainAsync(
             new LocalUnbalancedVoucherPageRepository(database),
             projectId);
-
-        Assert.Equal(3, facts.UnbalancedDetailRowCount);
-        Assert.Equal(facts.UnbalancedDetailRowCount, (long)pageRows.Count);
-        Assert.Equal(pageRows.Count, pageRows.Distinct().Count());
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_CountExactlyTheRowsReturnedByUnbalancedDetailPages()
-    {
-        await using var sql = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        await using (var connection = sql.Database.CreateConnection(sql.ProjectId))
-        {
-            await connection.OpenAsync();
-            await using var command = sql.Database.CreateCommand(
-                connection,
-                sql.ProjectId,
-                FixtureSql.Replace(
-                    "INSERT INTO gl",
-                    "INSERT INTO {s}.gl",
-                    StringComparison.Ordinal));
-            await command.ExecuteNonQueryAsync();
-        }
-
-        IValidationReportPlanningFactsPort port =
-            new SqlServerValidationReportPlanningFactsPort(sql.Database);
-        var facts = await port.ExecuteAsync(Plan(sql.ProjectId), CancellationToken.None);
-        var pageRows = await DrainAsync(
-            new SqlServerUnbalancedVoucherPageRepository(sql.Database),
-            sql.ProjectId);
 
         Assert.Equal(3, facts.UnbalancedDetailRowCount);
         Assert.Equal(facts.UnbalancedDetailRowCount, (long)pageRows.Count);

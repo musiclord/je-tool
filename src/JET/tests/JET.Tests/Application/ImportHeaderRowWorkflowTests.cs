@@ -30,7 +30,6 @@ public sealed class ImportHeaderRowWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ImportWithHeaderRow_UsesThatRowAsHeader_AndKeepsTheChoiceWithTheSource(string provider)
     {
         using var host = new HandlerTestHost();

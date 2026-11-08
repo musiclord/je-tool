@@ -8,8 +8,6 @@ public sealed class DetailPaginationContractTests
     [Theory]
     [InlineData("sqlite", 201)]
     [InlineData("sqlite", 401)]
-    [InlineData("duckdb", 201)]
-    [InlineData("duckdb", 401)]
     public async Task PreviewAndResultPages_AreBoundedAndCountTheWholeQuery(string provider, int count)
     {
         using var host = new HandlerTestHost();
@@ -73,7 +71,6 @@ public sealed class DetailPaginationContractTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task EveryResultPage_CountsOnItsFirstPageAndWalksTheWholeQuery(string provider)
     {
         using var host = new HandlerTestHost();

@@ -36,28 +36,6 @@ public sealed class ResultPageRdeValuesPageLimitTests
         Assert.Empty(calls);
     }
 
-    [Fact]
-    public async Task SqlServerPort_OverPageSize_ThrowsBeforeOpeningConnection()
-    {
-        // 沒有設定連線字串：只要實作嘗試連線就會失敗成別種例外，所以拿到 ArgumentOutOfRangeException 代表先擋下。
-        var port = new SqlServerResultPageRdeValuesPort(
-            new SqlServerProjectDatabase(new SqlServerConnectionOptions(BaseConnectionString: null)));
-
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            port.ReadAsync("p1", OverPageSizeIds(), CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task SqlServerPort_EmptyBatch_ReturnsEmptyWithoutOpeningConnection()
-    {
-        var port = new SqlServerResultPageRdeValuesPort(
-            new SqlServerProjectDatabase(new SqlServerConnectionOptions(BaseConnectionString: null)));
-
-        var values = await port.ReadAsync("p1", [], CancellationToken.None);
-
-        Assert.Empty(values);
-    }
-
     private static long[] OverPageSizeIds() =>
         Enumerable.Range(1, PageRequest.MaxPageSize + 1)
             .Select(static value => (long)value)

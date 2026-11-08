@@ -90,7 +90,6 @@ public sealed class PrescreenExecutionInputTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LocalTypedExecution_UsesTheRegisteredSixZeroRule(string provider)
     {
         using var root = new TempProjectRoot();
@@ -98,7 +97,6 @@ public sealed class PrescreenExecutionInputTests
         ILocalProjectDatabase database = provider switch
         {
             "sqlite" => new SqliteProjectDatabase(folder),
-            "duckdb" => new DuckDbProjectDatabase(folder),
             _ => throw new InvalidOperationException($"Unexpected provider '{provider}'.")
         };
         var projectId = Guid.NewGuid().ToString("N");
@@ -115,31 +113,6 @@ public sealed class PrescreenExecutionInputTests
 
         IPrescreenFactsPort port = new LocalPrescreenRunRepository(database);
         await AssertTypedThresholdAsync(port, projectId);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServerTypedExecution_UsesTheRegisteredSixZeroRule()
-    {
-        await using var sql = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-        var transformed = Regex.Replace(
-                ThresholdFixtureSql,
-                "'[^']*'",
-                match => "N" + match.Value)
-            .Replace("INSERT INTO ", "INSERT INTO {s}.");
-
-        await using (var connection = sql.Database.CreateConnection(sql.ProjectId))
-        {
-            await connection.OpenAsync();
-            await using var command = sql.Database.CreateCommand(
-                connection,
-                sql.ProjectId,
-                transformed);
-            await command.ExecuteNonQueryAsync();
-        }
-
-        IPrescreenFactsPort port = new SqlServerPrescreenRunRepository(sql.Database);
-        await AssertTypedThresholdAsync(port, sql.ProjectId);
     }
 
     private static async Task AssertTypedThresholdAsync(

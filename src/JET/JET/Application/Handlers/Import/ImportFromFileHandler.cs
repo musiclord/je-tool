@@ -83,6 +83,10 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
         // 每個來源各記一份「欄位內含換行」的筆數與前幾個列號，匯入完成後寫進提醒與支援日誌。
         var lineBreakTallies = sourceRequests.Select(static _ => new QuotedLineBreakTally()).ToArray();
+        // Excel 開著的來源檔照樣匯入最後一次存檔的內容，匯入完成後提醒（裁定 2026-11-06-12）。
+        var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(
+            reader,
+            sourceRequests.Select(item => (item.Payload.FilePath, item.Payload.FileName)));
 
         // 檔案讀取 + bulk insert 移出 UI thread，避免匯入期間介面凍結
         var facts = await Task.Run(
@@ -183,6 +187,7 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
 
         string[] warnings =
         [
+            .. openElsewhereWarnings,
             .. DuplicateSourceWarnings(plan.Operation, previous, batch),
             .. QuotedLineBreakWarnings(sourceRequests, lineBreakTallies),
             .. operationLogWarning is null ? Array.Empty<string>() : [operationLogWarning]
@@ -197,7 +202,10 @@ public abstract class ImportFromFileHandler : IApplicationActionHandler
             addedRowCount = result.Data.AddedRowCount,
             columns = batch.Columns,
             sources = ImportStateShapes.ToSourceList(batch.Sources),
+            // warnings 是這次全部的提醒，畫面記進訊息面板；開著的來源檔那幾則另外列一份，
+            // 畫面放在匯入結果旁，審計員不必打開訊息面板就看得到（裁定 2026-11-06-12）。
             warnings,
+            openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,
             staleState = mutationState.StaleState,
             reports = mutationState.Reports,

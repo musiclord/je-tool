@@ -53,12 +53,11 @@ public sealed class TrailingZeroRunConditionsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NewCondition_OldGroupAndPrescreenRule_SelectTheSameEntries(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
         var context = new FilterConditionContext(100, null, "2025-01-01", "2025-12-31");
-        async Task<string[]> Hits(string rule, FilterConditionContext? ruleContext = null)
+        async Task<string?[]> Hits(string rule, FilterConditionContext? ruleContext = null)
         {
             var scenario = FilterCompletenessTests.Scenario(rule);
             Assert.Empty(FilterScenarioValidator.Validate(scenario, new(false, true, true) { MoneyScale = 100 }));
@@ -90,7 +89,6 @@ public sealed class TrailingZeroRunConditionsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExtraAmountField_IgnoresTheSignAndListsBlanksOnlyWhenAsked(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);

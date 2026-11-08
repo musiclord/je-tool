@@ -10,6 +10,7 @@ const vm = require('node:vm');
 const { dispatch } = require('../harness/frontend-preview/replay.js');
 const { checkResponse } = require('./support/action-contract.cjs');
 const { createServer, previewHtml, previewPort } = require('../harness/frontend-preview/server.cjs');
+const { modeFrom, prepareBundle, draftFor } = require('../harness/frontend-preview/worst-case.js');
 const root = path.resolve(__dirname, '../..');
 const scenario = { name: 'Synthetic', groups: [{ conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '200' }] }] };
 const bundle = { fixtures: [{ scenario, preview: { scenario: { count: 2 } }, page: { queryRevision: 'v1', rows: [] }, detail: { rows: [] } }] };
@@ -30,7 +31,8 @@ test('desktop preview configuration binds the same loopback port as its browser 
 // 預覽自己寫死的回應（開啟 JET 時的連線檢查、目前使用者、本機案件清單）也要是正式後端會回的形狀（2026-10-15 前後端契合）。
 // 情境資料來自 C# 用正式後端產生的 fixtures.json，不在這裡核對。
 test('the preview fixed answers have the same shape as the real backend', () => {
-  for (const action of ['system.ping', 'system.databaseInfo', 'system.whoAmI', 'project.listLocal', 'project.heartbeat']) {
+  // 原本也核對 system.databaseInfo 與 project.heartbeat，兩者隨 SQL Server 移除（裁定 2026-11-06-08）。
+  for (const action of ['system.ping', 'system.whoAmI', 'project.listLocal']) {
     assert.doesNotThrow(() => checkResponse(action, dispatch(bundle, action, {})), action);
   }
 });
@@ -48,6 +50,46 @@ test('prepared action matches exactly; changes never receive a fabricated answer
   assert.throws(() => dispatch(bundle, 'filter.preview', { ...payload, unexpected: true }));
   const result = dispatch(bundle, 'filter.preview', payload); result.scenario.count = 999;
   assert.equal(dispatch(bundle, 'filter.preview', payload).scenario.count, 2);
+});
+
+test('worst-case metadata preserves prepared conditions, quantities and the original fixture', () => {
+  const source = { ...structuredClone(bundle), loaded: {
+    project: { projectId: 'Synthetic', clientName: '範例', moneyScale: 10000 }, filterScenarios: [],
+    reports: [{ fileName: 'report.xlsx', reportId: 'report-1', bytes: 1234, kind: 'validationReport' }]
+  } };
+  const before = structuredClone(source);
+  const stress = prepareBundle(source, 'worst');
+  assert.deepEqual(source, before);
+  assert.deepEqual(prepareBundle(source, 'demo'), source);
+  assert.ok(stress.loaded.project.projectId.length > 70);
+  assert.ok(stress.loaded.project.projectId.length <= 100);
+  assert.ok(stress.fixtures[0].scenario.name.length <= 400);
+  assert.ok(stress.loaded.reports[0].fileName.length > 100);
+  assert.equal(stress.loaded.reports[0].reportId, 'report-1');
+  assert.equal(stress.loaded.reports[0].bytes, 1234);
+  assert.equal(stress.loaded.project.moneyScale, 10000);
+  assert.deepEqual(stress.fixtures[0].scenario.groups, source.fixtures[0].scenario.groups);
+  assert.equal(stress.fixtures[0].preview.scenario.count, 2);
+  assert.equal(stress.loaded.filterScenarios.length, 2);
+  assert.equal(stress.loaded.filterScenarios[1].name, 'J');
+  for (const saved of stress.loaded.filterScenarios) {
+    assert.equal(dispatch(stress, 'filter.preview', { populationScope: 'auditPeriod', scenario: saved }).scenario.count, 2);
+  }
+});
+
+test('long input enters through the draft and cannot receive the unchanged prepared answer', () => {
+  const draft = draftFor(scenario, 'worst-input');
+  assert.equal(scenario.groups[0].conditions.length, 1);
+  assert.equal(draft.groups[0].conditions.length, 2);
+  const condition = draft.groups[0].conditions[1];
+  assert.equal(condition.field, 'description');
+  assert.equal(condition.operator, 'contains');
+  assert.ok(condition.values[0].length > 100);
+  assert.doesNotMatch(condition.values[0], /\s/);
+  assert.throws(() => dispatch(bundle, 'filter.preview', { populationScope: 'auditPeriod', scenario: draft }));
+  assert.equal(modeFrom('?scene=empty&data=worst'), 'worst');
+  assert.equal(modeFrom('?data=worst-input'), 'worst-input');
+  assert.equal(modeFrom('?data=unknown'), 'demo');
 });
 test('production JetApi receives success and rejects unprepared action through preview bridge', async () => {
   const window = { JetPreviewReplay: { dispatch }, crypto, setTimeout, clearTimeout };
@@ -88,9 +130,40 @@ test('page reuses current production scripts and does not install preview into p
   assert.ok(html.indexOf('/preview/bridge.js') < html.indexOf('/runtime/js/jet-api.js'));
   assert.ok(html.includes('/runtime/js/steps/filter-step.js'));
   assert.ok(html.includes('/runtime/css/app.css'));
+  assert.ok(html.indexOf('/preview/worst-case.js') < html.indexOf('/preview/bridge.js'));
+  assert.match(html, /data-preview-mode="worst-input"/);
   const productIndex = fs.readFileSync(path.join(root, 'src/JET/JET/wwwroot/index.html'), 'utf8');
   assert.ok(!productIndex.includes('/preview/'));
   assert.ok(!fs.existsSync(path.join(root, 'src/JET/JET/wwwroot/fixtures.json')));
+});
+
+test('long-input bootstrap presents only a draft and keeps the selected scene in the URL', async () => {
+  const callbacks = {}, calls = [];
+  const buttons = ['demo', 'worst', 'worst-input'].map(mode => ({
+    getAttribute() { return mode; }, setAttribute(name, value) { this[name] = value; }
+  }));
+  const controls = Object.fromEntries(['preview-status', 'preview-scene', 'preview-reload',
+    'preview-requests', 'preview-request-output'].map(id => [id, {}]));
+  controls['preview-data'] = { querySelectorAll() { return buttons; } };
+  const source = { loaded: {}, fixtures: [{ id: 'empty', scenario }] };
+  const window = { JetPreviewData: { modeFrom, draftFor }, JetPreview: { ready: Promise.resolve(source), requests: [] },
+    JetUi: { applyLoadedProject() {} }, JetStore: {
+      setStepIndex() {}, setDataPreviewCollapsed() {}, setFilterDraft(draft) { calls.push(draft); },
+      setFilterPreview() { throw Error('long input must not show prepared results'); }
+    }, JetApi: { filterPreview() { throw Error('long input must not call a prepared query'); } } };
+  const document = { addEventListener(name, callback) { callbacks[name] = callback; }, getElementById(id) { return controls[id]; } };
+  const location = { search: '?scene=empty&data=worst-input' };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'tools/harness/frontend-preview/bootstrap.js'), 'utf8'),
+    { window, document, location, URLSearchParams, structuredClone });
+  await callbacks.DOMContentLoaded();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].groups[0].conditions.length, 2);
+  assert.match(controls['preview-status'].textContent, /未執行查詢/);
+  assert.equal(buttons[2]['aria-pressed'], 'true');
+  buttons[1].onclick();
+  assert.equal(location.search, '?scene=empty&data=worst');
+  controls['preview-scene'].onchange({ target: { value: 'stale' } });
+  assert.equal(location.search, '?scene=stale&data=worst');
 });
 test('stale preview mirrors a synthetic project-load state without claiming a fresh filter run', async () => {
   assert.match(previewHtml(), /<option value="stale">資料已變更（結果待更新）<\/option>/);
@@ -137,6 +210,7 @@ test('server exposes only preview resources, never repository or write endpoints
   try {
     assert.equal(await request('/runtime/css/app.css'), 200);
     assert.equal(await request('/preview/replay.js'), 200);
+    assert.equal(await request('/preview/worst-case.js'), 200);
     assert.equal(await request('/.git/config'), 404);
     assert.equal(await request('/runtime/%2e%2e/%2e%2e/AGENTS.md'), 409);
     assert.equal(await request('/runtime/css/app.css', 'POST'), 405);

@@ -75,9 +75,7 @@ public static partial class SupportPayloadShape
         ["ruleKey"] = Codes(PrescreenRuleKeys.FilterableKeys),
         ["level"] = Codes("info", "warn", "error"),
         ["target"] = Codes("projectFolder"),
-        ["databaseProvider"] = Codes(
-            ProjectDocument.DefaultDatabaseProvider, ProjectDocument.SqlServerDatabaseProvider,
-            ProjectDocument.DuckDbDatabaseProvider),
+        ["databaseProvider"] = Codes(ProjectDocument.DefaultDatabaseProvider),
     };
 
     // 欄位配對的值是來源檔的欄名與借貸代碼，整個物件底下只記型別。

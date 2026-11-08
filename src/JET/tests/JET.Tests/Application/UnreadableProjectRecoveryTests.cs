@@ -9,7 +9,6 @@ public sealed class UnreadableProjectRecoveryTests
 {
     [Theory]
     [InlineData("project.listLocal")]
-    [InlineData("project.list")]
     public async Task CorruptLocalDocument_RemainsVisibleWithoutInventingMetadata_AndHealthyCasesStillLoad(string action)
     {
         using var host = new HandlerTestHost();
@@ -21,7 +20,7 @@ public sealed class UnreadableProjectRecoveryTests
         var response = await host.DispatchAsync(action);
         var rows = response.GetProperty("projects").EnumerateArray().ToArray();
         Assert.Equal(2, rows.Length);
-        var broken = Assert.Single(rows.Where(row => row.GetProperty("projectId").GetString() == "batch9-broken"));
+        var broken = Assert.Single(rows, row => row.GetProperty("projectId").GetString() == "batch9-broken");
         Assert.Equal(JsonValueKind.Null, broken.GetProperty("databaseProvider").ValueKind);
         Assert.Equal(JetErrorCodes.FileReadError, broken.GetProperty("loadError").GetProperty("code").GetString());
         var message = broken.GetProperty("loadError").GetProperty("message").GetString()!;
@@ -41,11 +40,8 @@ public sealed class UnreadableProjectRecoveryTests
     // 舊的這份也要能從案件清單刪掉；SQLite 與 DuckDB 都一樣，其他案件不受影響。
     [Theory]
     [InlineData("sqlite", "corrupt")]
-    [InlineData("duckdb", "corrupt")]
     [InlineData("sqlite", "legacy")]
-    [InlineData("duckdb", "legacy")]
     [InlineData("sqlite", "invalidPeriod")]
-    [InlineData("duckdb", "invalidPeriod")]
     public async Task UnreadableLocalDocument_CanStillBeDeleted(string provider, string damage)
     {
         using var host = new HandlerTestHost();
@@ -68,26 +64,6 @@ public sealed class UnreadableProjectRecoveryTests
         Assert.False(Directory.Exists(directory));
         var healthy = await host.DispatchAsync("project.load", """{"projectId":"batch9-delete-healthy"}""");
         Assert.Equal("batch9-delete-healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
-    }
-
-    // 記錄是 SQL Server 的案件還要清掉伺服器上的資料，目前維持原本的錯誤，資料夾保留（SQL Server 開發暫緩）。
-    [Fact]
-    public async Task UnreadableSqlServerDocument_KeepsTheOriginalErrorAndFolder()
-    {
-        using var host = new HandlerTestHost();
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-delete-server","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        var directory = Path.Combine(host.ProjectsRoot, "batch9-delete-server");
-        var path = Path.Combine(directory, "project.json");
-        var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
-        document["databaseProvider"] = "sqlServer";
-        document["periodStart"] = "2026-01-01";
-        await File.WriteAllTextAsync(path, document.ToJsonString());
-
-        var error = await Assert.ThrowsAsync<JetActionException>(
-            () => host.DispatchAsync("project.delete", """{"projectId":"batch9-delete-server"}"""));
-
-        Assert.Equal(JetErrorCodes.InvalidProjectSchema, error.Code);
-        Assert.True(File.Exists(path));
     }
 
     [Theory]

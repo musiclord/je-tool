@@ -64,18 +64,8 @@ public sealed class TestEvidencePolicyTests
         Assert.Matches(
             new Regex(@"\[Fact\]\s+public async Task GlProjection_Sqlite_", RegexOptions.CultureInvariant),
             logging);
-        Assert.Matches(
-            new Regex(@"\[Fact\]\s+public async Task ImportReplace_DuckDb_", RegexOptions.CultureInvariant),
-            logging);
-        Assert.Matches(
-            new Regex(@"\[Fact\]\s+public async Task GlProjection_DuckDb_", RegexOptions.CultureInvariant),
-            logging);
-        Assert.Matches(
-            new Regex(@"\[SqlServerFact\]\s+public async Task ImportReplace_SqlServer_", RegexOptions.CultureInvariant),
-            logging);
-        Assert.Matches(
-            new Regex(@"\[SqlServerFact\]\s+public async Task GlProjection_SqlServer_", RegexOptions.CultureInvariant),
-            logging);
+        // 原本也要求 DuckDB 與 SQL Server 各有這兩個測試。只保留 SQLite 之後那四個測試隨兩種資料庫刪除，只留 SQLite 的兩項
+        // （裁定 2026-11-06-08）；第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
     }
 
     private static string RepoRoot()

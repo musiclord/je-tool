@@ -70,10 +70,6 @@ public sealed class PrescreenRunLoggingTests
     // 後面的參數往後編號，條件多一個 instr）後，SQLite 與 DuckDB 兩個 digest 都精確回到原值 DEC1D3A6… 與 6E8BCCCD…。
     // SQL Server 未執行，維持原值待核對。
     private const string SqliteSnapshotDigest = "EE1E31977E90BC1EA7DB29AAF669829D383754CA2A6AA1352CC74A67DB4FF527";
-    private const string DuckDbSnapshotDigest = "A942045E7336C34705519FE0CA3CE1A768871B432EB86D3000FF4A35E4C6640A";
-    // 2026-10-19 第一次在本機 SQL Server 2022 執行，依實際命令序列更新：命令數和本機版相同，漂移來自開發暫緩期間只經編譯的共用 SQL 修改
-    // 與這輪 SQL Server 轉大寫改走方言。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
-    private const string SqlServerSnapshotDigest = "E2A19883500A0386EF903F72FF32E9FD2889D5AD9EA85C8EEE5EFC6DA6E73D3B";
 
     private const string PeriodStart = "2025-09-30"; // 可辨識的期末日，後期核准述詞綁定後應現身於 parameters
 
@@ -137,40 +133,17 @@ public sealed class PrescreenRunLoggingTests
         Assert.All(pairedRuleCounts, entry =>
         {
             var text = entry.Fields["sql"]!.ToString()!;
-            if (expectedProvider == "sqlServer")
-            {
-                Assert.Contains("COUNT_BIG(*)", text, StringComparison.Ordinal);
-                Assert.Contains(
-                    "COUNT_BIG(DISTINCT g.voucher_number)",
-                    text,
-                    StringComparison.Ordinal);
-            }
-            else
-            {
-                Assert.Contains("COUNT(*)", text, StringComparison.Ordinal);
-                Assert.Contains(
-                    "COUNT(DISTINCT g.voucher_number)",
-                    text,
-                    StringComparison.Ordinal);
-            }
+            Assert.Contains("COUNT(*)", text, StringComparison.Ordinal);
+            Assert.Contains(
+                "COUNT(DISTINCT g.voucher_number)",
+                text,
+                StringComparison.Ordinal);
 
             Assert.Contains("g.is_excluded = 0", text, StringComparison.Ordinal);
             Assert.DoesNotContain("g.gl_date >= @periodStart", text, StringComparison.Ordinal);
             Assert.DoesNotContain("g.gl_date <= @periodEnd", text, StringComparison.Ordinal);
         });
-        // 編製者彙總：人員依去空白、不分大小寫的識別值分組（裁定 2026-10-04-01）；
-        // 原本斷言 GROUP BY created_by（第一次失敗：Public 收據 20261004-050120179-d7f0450b8a4940a39d1e58357427160f）。
-        // SQL Server 的去空白寫成 TRIM(NCHAR(...) FROM x)，2026-10-19 起轉大寫也改走方言，寫成 UPPER((x) COLLATE Latin1_General_100_BIN2)；
-        // 原本的字串只符合本機寫法，SQL Server 版從未通過。第一次失敗：20261019-030507727-5b8944f69c1749f28f33146ea1c9369a。
-        if (expectedProvider == "sqlServer")
-        {
-            Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY UPPER((TRIM(")
-                && e.Fields["sql"]!.ToString()!.Contains("FROM COALESCE(created_by, ''))) COLLATE Latin1_General_100_BIN2)"));
-        }
-        else
-        {
-            Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY UPPER(TRIM(COALESCE(created_by, '')"));
-        }
+        Assert.Contains(sql, e => e.Fields["sql"]!.ToString()!.Contains("GROUP BY UPPER(TRIM(COALESCE(created_by, '')"));
         // 後期核准述詞綁定期末日 → parameters 含可辨識值
         Assert.Contains(sql, e => e.Fields["parameters"]!.ToString()!.Contains(PeriodStart));
         // 事件數為小常數（無逐列執行）——遠低於任何母體規模
@@ -179,8 +152,6 @@ public sealed class PrescreenRunLoggingTests
         var expectedDigest = expectedProvider switch
         {
             "sqlite" => SqliteSnapshotDigest,
-            "duckdb" => DuckDbSnapshotDigest,
-            "sqlServer" => SqlServerSnapshotDigest,
             _ => throw new InvalidOperationException(
                 $"未登錄 provider '{expectedProvider}' 的 prescreen SQL snapshot。")
         };
@@ -209,47 +180,5 @@ public sealed class PrescreenRunLoggingTests
         }
 
         AssertPrescreenSql(diagnostic, "sqlite");
-    }
-
-    [Fact]
-    public async Task Run_DuckDb_LogsSql_WithPredicatesAndBoundParameterValue()
-    {
-        using var root = new TempProjectRoot();
-        var folder = new JetProjectFolder(root.Path);
-        var database = new DuckDbProjectDatabase(folder);
-        var projectId = Guid.NewGuid().ToString("N");
-        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
-        await database.EnsureCreatedAsync(projectId, CancellationToken.None);
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var repo = new LocalPrescreenRunRepository(
-                database,
-                factory.CreateLogger<LocalPrescreenRunRepository>());
-            await ((IPrescreenFactsPort)repo).ExecuteAsync(FullPlan(projectId), CancellationToken.None);
-        }
-
-        AssertPrescreenSql(diagnostic, "duckdb");
-    }
-
-    [SqlServerFact]
-    public async Task Run_SqlServer_LogsSql_WhenSqlServer2022Available()
-    {
-        await using var temp = await TempSqlServerProject.TryCreateAsync();
-        if (temp is null)
-        {
-            return; // availability attribute 已具名略過；保留防禦性 guard。
-        }
-
-        var (diagnostic, factory) = NewDiagnostic();
-        using (factory)
-        {
-            var repo = new SqlServerPrescreenRunRepository(temp.Database, factory.CreateLogger<SqlServerPrescreenRunRepository>());
-            await ((IPrescreenFactsPort)repo).ExecuteAsync(FullPlan(temp.ProjectId), CancellationToken.None);
-        }
-
-        AssertPrescreenSql(diagnostic, "sqlServer", SqlServerProjectSchema.QualifierFor(temp.ProjectId));
     }
 }

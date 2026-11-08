@@ -40,7 +40,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task HeaderUnreadable_SingleSource_IsRejectedWithTheFixedReason_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -68,7 +67,6 @@ public sealed class TbImportBranchTests
     /// <summary>所有來源的標頭先讀完才開始寫：第二個來源讀不到，第一個來源一列都不寫。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task HeaderUnreadable_OnTheSecondSource_WritesNothingFromTheFirst(string provider)
     {
         using var host = new HandlerTestHost();
@@ -98,7 +96,6 @@ public sealed class TbImportBranchTests
     /// <summary>選項錯誤是程式送錯 payload：畫面只看到通用句，前面加上是哪個來源。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OptionError_OnTheSecondSource_IsRejected_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -121,7 +118,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Replace_ClearsTheOldBatchMappingsAndResults_KeepsGlAndCategory(string provider)
     {
         using var host = new HandlerTestHost();
@@ -193,7 +189,6 @@ public sealed class TbImportBranchTests
     /// <summary>資料庫拒收新批次的資料列：清除舊結果、刪舊批次都已經在同一筆交易裡做過，回復後全部回到原樣。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RowWriteRejected_RollsBackTheWholeTransaction(string provider)
     {
         using var host = new HandlerTestHost();
@@ -239,7 +234,6 @@ public sealed class TbImportBranchTests
     /// <summary>串流到第 20,000 列時使用者取消：讀下一列就停，交易回復，回報成取消而不是失敗。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CancelledWhileRowsStream_RollsBack_AndReportsCancellation(string provider)
     {
         using var cancellation = new CancellationTokenSource();
@@ -262,7 +256,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FirstImportWritesNoRecord_ReplacingAPreviousBatchWritesOneReimportRecord(string provider)
     {
         using var host = new HandlerTestHost();
@@ -283,7 +276,6 @@ public sealed class TbImportBranchTests
     /// <summary>裁定 2026-10-19-19：資料已經提交，操作紀錄寫不進去時照常回報成功，只附一句提醒。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AuditTableMissing_StillAnswersSuccess_WithTheFixedWarning(string provider)
     {
         using var host = new HandlerTestHost();
@@ -304,7 +296,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AdvancesToStepTwo_OnlyWhenBehind(string provider)
     {
         using var host = new HandlerTestHost();
@@ -326,7 +317,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ProjectJsonLocked_StillAnswersSuccess_AndLogsOneWarning(string provider)
     {
         using var host = new HandlerTestHost();
@@ -357,7 +347,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Append_ContinuesTheBatch_AndStillClearsMappingsAndResults(string provider)
     {
         using var host = new HandlerTestHost();
@@ -399,7 +388,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Append_WithDifferentColumns_IsRejected_AndWritesNothing(string provider)
     {
         using var host = new HandlerTestHost();
@@ -416,7 +404,6 @@ public sealed class TbImportBranchTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Append_WithoutAnyTbBatch_IsRejectedWithTheFixedReason(string provider)
     {
         using var host = new HandlerTestHost();
@@ -434,7 +421,6 @@ public sealed class TbImportBranchTests
     /// <summary>檔名、工作表與列數都和已匯入的來源相同：照常加入，但提醒可能重複。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Append_TheSameSourceAgain_WarnsAboutTheDuplicate_ButStillAdds(string provider)
     {
         using var host = new HandlerTestHost();
@@ -458,7 +444,6 @@ public sealed class TbImportBranchTests
     /// <summary>第二個來源 40,000 列：恰好兩次進度，第一個小來源不回報，結尾不補發；事件帶的是本次 action 內的來源位置。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LargeSource_ReportsProgressEvery20000Rows_WithTheTbWireShape(string provider)
     {
         using var host = new HandlerTestHost();
@@ -594,7 +579,7 @@ public sealed class TbImportBranchTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == ProjectDocument.DuckDbDatabaseProvider ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static Task ExecuteAsync(HandlerTestHost host, string projectId, string provider, string sql) =>

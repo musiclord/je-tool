@@ -6,21 +6,6 @@ namespace JET.Tests.Application;
 
 public sealed class PrescreenPageTests
 {
-    [Fact]
-    public async Task WalkAllPages_IsEquivalentAcrossSqliteAndDuckDb()
-    {
-        using var sqlite = new HandlerTestHost();
-        using var duckDb = new HandlerTestHost();
-        await DemoProjectPipeline.SetupAsync(sqlite, databaseProvider: "sqlite");
-        await DemoProjectPipeline.SetupAsync(duckDb, databaseProvider: "duckdb");
-
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
-        var sqliteRows = await WalkRowsAsync(sqlite, PrescreenRuleKeys.NonAuthorizedPreparer, pageSize: 3);
-        var duckDbRows = await WalkRowsAsync(duckDb, PrescreenRuleKeys.NonAuthorizedPreparer, pageSize: 3);
-
-        Assert.NotEmpty(sqliteRows);
-        Assert.Equal(sqliteRows, duckDbRows);
-    }
 
     [Fact]
     public async Task WalkAllPages_MatchesPrescreenRunCount_AndEntryIdsAreStrictlyIncreasing()

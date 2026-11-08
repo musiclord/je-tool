@@ -15,7 +15,6 @@ public sealed class SupportLogDiagnosisTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ImportHeldOpen_ThenRetried_LogLinksInputShapeFailureRetryAndResultVersion(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);
@@ -78,7 +77,6 @@ public sealed class SupportLogDiagnosisTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CorruptCaseSettings_LogPointsToStageExceptionChainAndCallSites(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);
@@ -107,7 +105,6 @@ public sealed class SupportLogDiagnosisTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ReportHeldOpen_LogNamesReportKindPublishStepAndTheOpenFile(string provider)
     {
         using var host = new HandlerTestHost(enableDevTools: false);

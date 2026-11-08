@@ -32,7 +32,6 @@ public sealed class DataPreviewMappedColumnsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AllOptionalFieldsAndThreeRdeTypes_BothPagesListTheSameMappedColumnsWithStoredValues(string provider)
     {
         using var host = new HandlerTestHost();
@@ -132,7 +131,6 @@ public sealed class DataPreviewMappedColumnsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SomeOptionalFieldsMapped_ListsOnlyThoseIncludingDerivedApprovalDateAndAutoNumberedLineItem(string provider)
     {
         using var host = new HandlerTestHost();
@@ -184,7 +182,6 @@ public sealed class DataPreviewMappedColumnsTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task NoOptionalFieldMapped_BothPagesListOnlyTheCoreColumns(string provider)
     {
         using var host = new HandlerTestHost();
@@ -269,7 +266,6 @@ public sealed class DataPreviewMappedColumnsTests
     private static ILocalProjectDatabase DatabaseFor(string provider, HandlerTestHost host) => provider switch
     {
         "sqlite" => new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)),
-        "duckdb" => new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot)),
         _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
     };
 

@@ -1,9 +1,9 @@
 # JET Agent 指南
 
 JET 是 Windows 桌面審計工具，用 C# 與 .NET 10 寫成，WinForms 視窗承載 WebView2 網頁畫面，發布成單一執行檔。
-大量資料留在 SQLite、DuckDB 或 SQL Server，用集合式 SQL 處理。這份檔案是所有 AI 編碼工具（Claude Code、Codex、
-GitHub Copilot、VS Code）的共用入口，只寫不可協商的邊界，以及細節該去哪裡找。給 Agent 讀的流程文件放在 `.agents/`，
-給人讀的文件放在 `docs/`；兩邊都不複寫這裡的規則。
+大量資料留在 SQLite 案件資料庫，用集合式 SQL 處理；DuckDB 與 SQL Server 在短期上線期間暫時移除（裁定 2026-11-06-08）。
+這份檔案是所有 AI 編碼工具（Claude Code、Codex、GitHub Copilot、VS Code）的共用入口，只寫不可協商的邊界，
+以及細節該去哪裡找。給 Agent 讀的流程文件放在 `.agents/`，給人讀的文件放在 `docs/`；兩邊都不複寫這裡的規則。
 
 ## 常用命令
 
@@ -59,10 +59,10 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 
 **測試**
 
-- 日常開發與測試以 SQLite 和 DuckDB 為主。SQL Server 開發目前暫緩；只有使用者當次明示需要時，才啟動本機服務或執行
-  `Provider`、SQL Server 的 `PrivateCase`，不因環境有連線設定就自行加跑。
-- 本機 SQL Server 平時保持停止。當次用到時，不論成功、失敗或中止，結束前都要停止服務並確認沒有留下 `sqlservr.exe`；
-  步驟見 [`tools/README.md`](tools/README.md#日常資料庫測試與服務收尾)。
+- 短期上線版本只支援 SQLite，日常開發與測試只用 SQLite。DuckDB 與 SQL Server 的程式、測試與 `Provider` 路線暫時刪除，
+  還原點是提交 `7e88b7b`（裁定 2026-11-06-08）。
+- 本機 SQL Server 平時保持停止，只有使用者當次明示需要時才啟動，不因環境有連線設定就自行啟動。當次用到時，
+  不論成功、失敗或中止，結束前都要停止服務並確認沒有留下 `sqlservr.exe`；步驟見 [`tools/README.md`](tools/README.md#日常資料庫測試與服務收尾)。
 - 不為了讓測試通過而放寬、刪除或跳過既有斷言，也不把預期值改成由被測程式算出來；新增測試不受此限。
   要改既有測試時先寫明原因，並保留第一次失敗的證據。
 - 不要每次修改都跑完整 `Public`。先依改動範圍跑相關測試，失敗修正後只重跑受影響的部分；相關修改整合完成、確實需要完整驗證時再跑。
@@ -112,6 +112,8 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
   分工、停止與續接方式見 `.agents/harness/development-workflow.md`。
 - 計畫的「下一步」是工作順序；本輪交付範圍依使用者任務說清楚，不把做完一個步驟當成整輪完成。
 - 大型工作結束或使用者詢問未完成事項時，逐項回報 `docs/development-status.md` 的「已知但延後的事項」。
+- 本專案的 `security-audit` 執行紀錄放在 `docs/security/run-<N>/`，`<N>` 從 1 起取下一個未使用的整數。
+  執行完整稽核前，先讀 [`docs/security/README.md`](docs/security/README.md)。
 - 使用者明確呼叫 `$jet-converge` 時，完整讀 `.agents/skills/jet-converge/SKILL.md`；一般查詢或小修正不展開收斂訪談。
   多個 session 的觀點與待辦如何收斂，見 `.agents/harness/convergence-and-memory.md`。
 
@@ -143,7 +145,7 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 | 改驗證、預篩選、篩選或抽樣規則 | `docs/jet-guide.md` 第 4 到第 6 節；常用篩選條件十張卡和歷史紀錄裡 KCT A 到 J 的對應在第 6 節，更早的精確舊規則在 `docs/history/superseded/jet-guide-2026-08.md`；衝突裁決走 `docs/business-logic-provenance.md` |
 | 改 action、payload 或前端 | `docs/action-contract-manifest.md` 與 `docs/jet-frontend-description.md` |
 | 改報表輸出或範本 | `docs/jet-guide.md` 第 7 節與 `docs/data-and-legacy.md` |
-| 碰資料庫實作或 SQL Server | `docs/jet-guide.md` 第 8 節；SQL Server 的延後事項、已知安全缺口與暫緩期間的修改，封存在 `docs/history/2026-10-20-sqlserver-archive.md` |
+| 碰資料庫實作，或接回 DuckDB 與 SQL Server | `docs/jet-guide.md` 第 8 節；兩者的程式留在提交 `7e88b7b`（裁定 2026-11-06-08）；SQL Server 的延後事項、已知安全缺口與暫緩期間的修改，封存在 `docs/history/2026-10-20-sqlserver-archive.md` |
 | 與 IDEA 或 VBA 舊行為比對 | `docs/jet-guide.md` 第 17 節與 `legacy/jet-legacy-notes.md`；差異只分五類，不自創例外 |
 | 立案或接手大型開發 | `docs/development-status.md` 與 `.agents/harness/development-workflow.md` |
 

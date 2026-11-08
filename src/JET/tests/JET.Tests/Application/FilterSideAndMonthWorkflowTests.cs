@@ -9,7 +9,6 @@ public sealed class FilterSideAndMonthWorkflowTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreviewSaveRetryReopenAndReportsPreserveSideAndIndependentDates(string provider)
     {
         using var host = new HandlerTestHost();

@@ -88,10 +88,6 @@ public sealed partial class WorkingPaperWriter
     private static WorkingPaperAppearanceProfile FieldInfoAppearance(uint glHeaderRow) =>
         new((row, column) =>
         {
-            if (row == 1 && column == 1)
-            {
-                return FormalFieldInfoAppearance.Version;
-            }
             if (row == 3 && column is >= 1 and <= 5)
             {
                 return FormalFieldInfoAppearance.TbHeader;

@@ -38,7 +38,7 @@ public sealed class ProjectSaveProgressHandlerTests
         Assert.Equal(4, loaded.GetProperty("project").GetProperty("currentStep").GetInt32());
 
         // resume 路徑二：project.list 摘要同步反映
-        var list = await host.DispatchAsync("project.list");
+        var list = await host.DispatchAsync("project.listLocal");
         Assert.Equal(4, list.GetProperty("projects")[0].GetProperty("currentStep").GetInt32());
     }
 

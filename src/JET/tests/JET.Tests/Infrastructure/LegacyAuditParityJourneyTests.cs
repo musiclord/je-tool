@@ -70,7 +70,6 @@ public sealed class LegacyAuditParityJourneyTests
     // 情境的列數與張數、資料可靠性抽樣的母體與筆數也要和第一次相同。這段程式因此不靠私人資料也能驗證。
     [Theory]
     [InlineData((int)LegacyAuditParityProvider.Sqlite)]
-    [InlineData((int)LegacyAuditParityProvider.DuckDb)]
     public async Task SyntheticJourney_FollowUpsAfterExport_ReproduceFirstReportsAndCounts(int providerValue)
     {
         var provider = (LegacyAuditParityProvider)providerValue;

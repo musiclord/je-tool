@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>SQLite：結果版本與操作紀錄</title>
+  <title>SQLite：結果狀態與操作紀錄</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>SQLite：結果版本與操作紀錄</h1>
+        <h1>SQLite：結果狀態與操作紀錄</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1316 460" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">SQLite：結果版本與操作紀錄</title>
+        <title id="archify-diagram-title">SQLite：結果狀態與操作紀錄</title>
         <desc id="archify-diagram-description">由 Archify 產生的實體關聯圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5736,25 +5736,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>這些表怎麼被用到</h3>
+          <h3>資料修改後的處理</h3>
         </div>
         <ul>
-          <li>驗證與預篩選只把摘要 JSON 各自存進 validation_result 與 prescreen_result。</li>
-          <li>上游資料修改時，ResultReset 在同一交易清掉受影響的結果並標記 result_stale_state；篩選命中失效時，也把 schema_info 的 filter_data_revision 加一。</li>
-          <li>operation_log 由 IProjectOperationLog 寫入，例如 TB 重新匯入與報告發布；SQLite 與 DuckDB 案件寫入失敗時記在支援日誌，並在回應附提醒。</li>
-          <li>來源：ResultTables.cs 第 5–16 行；ResultReset.cs 第 37–81 行；AuditedReportStore.cs 第 166–186 行；ImportFromFileHandler.cs 第 169–182 行。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>線條不是資料庫外鍵</h3>
-        </div>
-        <ul>
-          <li>現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。</li>
-          <li>沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。</li>
-          <li>PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。</li>
+          <li>驗證與預篩選各自儲存摘要。上游資料改動時，清除受影響的結果並標記失效。</li>
+          <li>操作紀錄保存重新匯入與發布等事件；寫入失敗時留下支援日誌，並在回應附提醒。</li>
         </ul>
       </div>
     </div>

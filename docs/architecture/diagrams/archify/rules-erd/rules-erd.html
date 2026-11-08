@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>SQLite：科目分類、篩選情境與命中</title>
+  <title>SQLite：分類、情境與命中結果</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>SQLite：科目分類、篩選情境與命中</h1>
+        <h1>SQLite：分類、情境與命中結果</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1784 766" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="standard" data-erd-ui="cards" data-reader-fit="intrinsic-height" data-reader-min-text="7.5">
-        <title id="archify-diagram-title">SQLite：科目分類、篩選情境與命中</title>
+        <title id="archify-diagram-title">SQLite：分類、情境與命中結果</title>
         <desc id="archify-diagram-description">由 Archify 產生的實體關聯圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5972,25 +5972,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>這些連線的依據</h3>
+          <h3>從結果連回分錄</h3>
         </div>
         <ul>
-          <li>命中、符合條件的紀錄與抽樣明細都以 entry_id 連回 gl 取顯示欄；命中以 scenario_id 連到 filter_scenario，畫面再依 position 選出情境。</li>
-          <li>儲存或重算單一情境時，依 scenario_id 先刪 filter_hit_condition，再刪 filter_hit。</li>
-          <li>科目配對以 category_id 連到分類；分類階層表的兩個欄位都指向分類代碼。account_category 另以 parent_category_id 指向上層分類，圖上不畫自身連線。</li>
-          <li>來源：LocalFilterHitsPageRepository.cs 第 33–39 行；LocalInfSamplePageRepository.cs 第 38 行；LocalFilterHitMaterializer.cs 第 44–74 行；FilterHitInsertSql.cs 第 9–50 行；LocalAccountMappingRepository.cs 第 226–232 行；AccountCategoryHierarchy.cs 第 6–29 行。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>線條不是資料庫外鍵</h3>
-        </div>
-        <ul>
-          <li>現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。</li>
-          <li>沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。</li>
-          <li>PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。</li>
+          <li>命中與抽樣明細以 entry_id 連回 GL；命中再以 scenario_id 對應情境。重算單一情境時，先清除舊條件紀錄與命中。</li>
+          <li>科目以 category_id 對應分類。分類也可連至上層，圖中省略分類表的自身連線。</li>
         </ul>
       </div>
     </div>

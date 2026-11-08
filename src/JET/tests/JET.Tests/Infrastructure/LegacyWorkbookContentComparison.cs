@@ -197,7 +197,7 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
         using var document = SpreadsheetDocument.Open(stream, isEditable: false);
         var workbookPart = document.WorkbookPart
             ?? throw new InvalidDataException("Normalized capture workbook has no workbook part.");
-        var shared = workbookPart.SharedStringTablePart?.SharedStringTable
+        var shared = workbookPart.SharedStringTablePart?.SharedStringTable?
             .Elements<SharedStringItem>()
             .Select(item => string.Concat(item.Descendants<Text>().Select(static text => text.Text)))
             .ToArray() ?? [];
@@ -206,7 +206,7 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
 
         var sheets = new List<LegacyAuditParityNormalizedSheet>();
         var familyBuilders = new Dictionary<string, DirectFamilyBuilder>(StringComparer.Ordinal);
-        foreach (var sheet in workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? [])
+        foreach (var sheet in workbookPart.Workbook?.Sheets?.Elements<Sheet>() ?? [])
         {
             if (sheet.Id?.Value is not { } relationshipId
                 || !workbookPart.TryGetPartById(relationshipId, out var part)

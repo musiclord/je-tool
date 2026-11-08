@@ -8,7 +8,6 @@ public sealed class UserFeedbackXlsmImportTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Xlsm_SelectedSheetIsPreviewedImportedAndProjectedWithoutChangingSource(string provider)
     {
         using var host = new HandlerTestHost(principalName: "EXAMPLE\\xlsm.reader");

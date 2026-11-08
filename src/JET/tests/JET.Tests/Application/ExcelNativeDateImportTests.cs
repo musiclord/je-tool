@@ -13,7 +13,7 @@ public sealed class ExcelNativeDateImportTests
 {
     public static IEnumerable<object[]> Cases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var format in new[] { "csv", "xlsx", "xlsx1904", "xls", "xls1904" })
         // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，日期角色不再有 voucherDate。
         foreach (var field in new[] { "glDate", "approvalDate", "rde" }) yield return [provider, format, field];
@@ -66,13 +66,9 @@ public sealed class ExcelNativeDateImportTests
 
     [Theory]
     [InlineData("sqlite", "xlsx")]
-    [InlineData("duckdb", "xlsx")]
     [InlineData("sqlite", "xlsx1904")]
-    [InlineData("duckdb", "xlsx1904")]
     [InlineData("sqlite", "xls")]
-    [InlineData("duckdb", "xls")]
     [InlineData("sqlite", "xls1904")]
-    [InlineData("duckdb", "xls1904")]
     public async Task SevenDigitNativeSerial_CannotFallBackToRocText(string provider, string format)
     {
         var path = WriteSource(format, badOaSerial: 1_140_611);
@@ -134,8 +130,9 @@ public sealed class ExcelNativeDateImportTests
         if (date1904)
         {
             using var workbook = SpreadsheetDocument.Open(path, true);
-            workbook.WorkbookPart!.Workbook.WorkbookProperties = new WorkbookProperties { Date1904 = true };
-            workbook.WorkbookPart.Workbook.Save();
+            var workbookElement = workbook.WorkbookPart!.RequiredWorkbook();
+            workbookElement.WorkbookProperties = new WorkbookProperties { Date1904 = true };
+            workbookElement.Save();
         }
         return path;
     }

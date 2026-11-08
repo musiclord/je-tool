@@ -10,12 +10,8 @@ public sealed class ProjectRocDateOptionResponseTests
     [Theory]
     [InlineData("sqlite", true, "project.load")]
     [InlineData("sqlite", false, "project.load")]
-    [InlineData("duckdb", true, "project.load")]
-    [InlineData("duckdb", false, "project.load")]
     [InlineData("sqlite", true, "project.update")]
     [InlineData("sqlite", false, "project.update")]
-    [InlineData("duckdb", true, "project.update")]
-    [InlineData("duckdb", false, "project.update")]
     public async Task ProjectResponse_PreservesTheExistingRocDateOption(string provider, bool rocEnabled, string action)
     {
         using var host = new HandlerTestHost();

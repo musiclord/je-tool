@@ -93,147 +93,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         WriteIndented = true
     };
 
-    [Fact]
-    public async Task LocalProviderSmoke_SqliteAndDuckDb_ProducesEquivalentMonthlyCells()
-    {
-        Assert.Equal(ExpectedRuleCount, OrderedRuleKeys.Length);
-
-        var sqlite = await MeasureLocalScaleAsync(
-            "sqlite",
-            SmallScaleRows,
-            measurementRuns: 1,
-            CancellationToken.None);
-        var duckDb = await MeasureLocalScaleAsync(
-            "duckdb",
-            SmallScaleRows,
-            measurementRuns: 1,
-            CancellationToken.None);
-
-        Assert.Equal(sqlite.SemanticFingerprint, duckDb.SemanticFingerprint);
-        Assert.True(sqlite.CleanupVerified);
-        Assert.True(duckDb.CleanupVerified);
-
-        output.WriteLine(
-            $"S2a local smoke: sqlite={CompactTimings(sqlite)}, duckdb={CompactTimings(duckDb)}, " +
-            $"fingerprint={sqlite.SemanticFingerprint}");
-    }
-
-    [SqlServerFact]
-    public async Task SqlServerSmoke_ProducesSameMonthlyCellsAsCanonicalPredicates()
-    {
-        var project = await TempSqlServerProject.TryCreateAsync()
-            ?? throw new InvalidOperationException(SqlServerAvailability.SkipReason);
-        var projectRoot = new TempProjectRoot();
-        var projectRootPath = projectRoot.Path;
-        ScaleMeasurement? measurement = null;
-        var schemaCleanupVerified = false;
-
-        try
-        {
-            var schemaPrefix = SqlServerProjectSchema.QualifierFor(project.ProjectId);
-            var seedTimer = Stopwatch.StartNew();
-            await SeedSqlServerAsync(
-                project.Database,
-                project.ProjectId,
-                schemaPrefix,
-                SmallScaleRows,
-                CancellationToken.None);
-            seedTimer.Stop();
-
-            var harness = new MonthlyAggregationHarness(
-                "sqlServer",
-                SqlServerDialect.Instance,
-                schemaPrefix,
-                () => project.Database.CreateConnection(project.ProjectId));
-            var handler = await CreateSqlServerActionHandlerAsync(
-                project.Database,
-                project.ProjectId,
-                new JetProjectFolder(projectRootPath),
-                CancellationToken.None);
-            measurement = await MeasurePreparedScaleAsync(
-                "sqlServer",
-                SmallScaleRows,
-                databaseBytes: null,
-                seedTimer.Elapsed.TotalMilliseconds,
-                targetColumnCount: ExpectedTargetColumnCount,
-                harness,
-                token => RunPrescreenActionAsync(handler, token),
-                measurementRuns: 1,
-                CancellationToken.None);
-        }
-        finally
-        {
-            await project.DisposeAsync();
-            schemaCleanupVerified = await SqlServerSchemaIsAbsentAsync(
-                project.Database,
-                project.ProjectId,
-                CancellationToken.None);
-            projectRoot.Dispose();
-        }
-
-        Assert.NotNull(measurement);
-        Assert.True(schemaCleanupVerified);
-        Assert.False(Directory.Exists(projectRootPath));
-        measurement = measurement! with
-        {
-            CleanupVerified = schemaCleanupVerified && !Directory.Exists(projectRootPath)
-        };
-        output.WriteLine(
-            $"S2a SQL Server smoke: {CompactTimings(measurement!)}, " +
-            $"fingerprint={measurement!.SemanticFingerprint}; schema cleanup verified.");
-    }
-
-    [PrescreenMonthlyAggregationBenchmarkFact]
-    public async Task DuckDb_FiveMillionRows_ProducesGrayBandFullScaleEvidence()
-    {
-        Assert.Contains(
-            $"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}",
-            AppContext.BaseDirectory,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(ExpectedRuleCount, OrderedRuleKeys.Length);
-
-        var startedUtc = DateTimeOffset.UtcNow;
-        var firstStage = await MeasureLocalScaleAsync(
-            "duckdb",
-            FirstStageRows,
-            MeasurementRuns,
-            CancellationToken.None);
-
-        ScaleMeasurement? fullScale = null;
-        if (string.Equals(firstStage.Gate.Branch, "gray", StringComparison.Ordinal))
-        {
-            fullScale = await MeasureLocalScaleAsync(
-                "duckdb",
-                FullScaleRows,
-                MeasurementRuns,
-                CancellationToken.None);
-        }
-
-        var conclusion = FinalConclusion(firstStage, fullScale);
-        var evidence = new BenchmarkEvidence(
-            StartedUtc: startedUtc,
-            CompletedUtc: DateTimeOffset.UtcNow,
-            Environment: EnvironmentEvidence.Capture(),
-            Method:
-                "Warm-cache, one warm-up per strategy, balanced measured order " +
-                "B/S/M → S/M/B → M/B/S. Candidate timings include the same complete " +
-                "PrescreenRunHandler action plus bounded aggregation materialization.",
-            FirstStage: firstStage,
-            FullScale: fullScale,
-            Conclusion: conclusion);
-
-        Assert.True(firstStage.CleanupVerified);
-        if (fullScale is not null)
-        {
-            Assert.True(fullScale.CleanupVerified);
-        }
-
-        var json = JsonSerializer.Serialize(evidence, EvidenceJsonOptions);
-        output.WriteLine("S2A_BENCHMARK_JSON");
-        output.WriteLine(json);
-        await WriteEvidenceOutputIfRequestedAsync(json);
-    }
-
     private async Task<ScaleMeasurement> MeasureLocalScaleAsync(
         string provider,
         long rowCount,
@@ -250,7 +109,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             ILocalProjectDatabase database = provider switch
             {
                 "sqlite" => new SqliteProjectDatabase(folder),
-                "duckdb" => new DuckDbProjectDatabase(folder),
                 _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
             };
 
@@ -285,19 +143,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
                 token => RunPrescreenActionAsync(handler, token),
                 measurementRuns,
                 cancellationToken);
-
-            if (provider == "duckdb")
-            {
-                await ExecuteNonQueryAsync(
-                    database.CreateConnection(ProjectId),
-                    "CHECKPOINT;",
-                    [],
-                    cancellationToken);
-                measurement = measurement with
-                {
-                    DatabaseBytes = new FileInfo(databasePath).Length
-                };
-            }
         }
         finally
         {
@@ -515,42 +360,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         return new PrescreenRunHandler(projectStore, session);
     }
 
-    private static async Task<PrescreenRunHandler> CreateSqlServerActionHandlerAsync(
-        SqlServerProjectDatabase database,
-        string projectId,
-        JetProjectFolder folder,
-        CancellationToken cancellationToken)
-    {
-        var projectStore = new JsonFileProjectStore(folder);
-        await projectStore.CreateAsync(
-            BenchmarkProject(projectId, ProjectDocument.SqlServerDatabaseProvider),
-            cancellationToken);
-        var mappingStore = new SqlServerMappingStateStore(database);
-        await mappingStore.SaveAsync(
-            projectId,
-            BenchmarkGlMapping(),
-            cancellationToken);
-        var resultStore = new SqlServerResultStore(database);
-        await SeedEligibleValidationAsync(resultStore, projectId, cancellationToken);
-        // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQL Server 資料庫組後再進入 session。
-        var session = new ProjectSession();
-        session.Enter(
-            projectId,
-            // 同上，SQL Server 版只改不執行。
-            TestProjectRepositories.Unconfigured(ProjectDocument.SqlServerDatabaseProvider) with
-            {
-                PrescreenFacts = new SqlServerPrescreenRunRepository(database),
-                MappingStates = mappingStore,
-                Calendar = new SqlServerCalendarStore(database),
-                AccountMappings = new SqlServerAccountMappingRepository(database),
-                AccountCategories = new SqlServerAccountCategoryStore(database),
-                AuthorizedPreparers = new SqlServerAuthorizedPreparerRepository(database),
-                Results = resultStore,
-            });
-
-        return new PrescreenRunHandler(projectStore, session);
-    }
-
     private static Task SeedEligibleValidationAsync(
         IResultStore resultStore,
         string projectId,
@@ -613,19 +422,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
             "s2a-gl",
             DateTimeOffset.Parse("2026-07-30T00:00:00+08:00"));
 
-    private static async Task<bool> SqlServerSchemaIsAbsentAsync(
-        SqlServerProjectDatabase database,
-        string projectId,
-        CancellationToken cancellationToken)
-    {
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM sys.schemas WHERE name = @schema;";
-        command.AddWithValue("@schema", SqlServerProjectSchema.For(projectId));
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) == 0;
-    }
-
     private static async Task SeedLocalAsync(
         ILocalProjectDatabase database,
         long rowCount,
@@ -636,25 +432,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         await using var command = connection.CreateCommand();
         command.CommandTimeout = 0;
         command.AddWithValue("@rowCount", rowCount);
-        command.CommandText = database.Dialect.ProviderName == "duckdb"
-            ? DuckDbSeedSql
-            : SqliteSeedSql;
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private static async Task SeedSqlServerAsync(
-        SqlServerProjectDatabase database,
-        string projectId,
-        string schemaPrefix,
-        long rowCount,
-        CancellationToken cancellationToken)
-    {
-        await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandTimeout = 0;
-        command.AddWithValue("@rowCount", rowCount);
-        command.CommandText = SqlServerSeedSql(schemaPrefix);
+        command.CommandText = SqliteSeedSql;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -662,10 +440,7 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         ILocalProjectDatabase database,
         CancellationToken cancellationToken)
     {
-        var sql = database.Dialect.ProviderName == "duckdb"
-            ? "SELECT COUNT(*) FROM information_schema.columns " +
-              "WHERE table_schema = 'main' AND table_name = 'gl';"
-            : "SELECT COUNT(*) FROM pragma_table_info('gl');";
+        var sql = "SELECT COUNT(*) FROM pragma_table_info('gl');";
         await using var connection = database.CreateConnection(ProjectId);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
@@ -948,22 +723,16 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         }
 
         private string MonthExpression =>
-            _provider == "sqlServer"
-                ? "LEFT(g.gl_date, 7)"
-                : "SUBSTR(g.gl_date, 1, 7)";
+            "SUBSTR(g.gl_date, 1, 7)";
 
         private string CountAll =>
-            _provider == "sqlServer" ? "COUNT_BIG(*)" : "COUNT(*)";
+            "COUNT(*)";
 
         private string CountDistinctDocument =>
-            _provider == "sqlServer"
-                ? "COUNT_BIG(DISTINCT g.voucher_number)"
-                : "COUNT(DISTINCT g.voucher_number)";
+            "COUNT(DISTINCT g.voucher_number)";
 
         private string SumBig(string expression) =>
-            _provider == "sqlServer"
-                ? $"SUM(CAST({expression} AS BIGINT))"
-                : $"SUM({expression})";
+            $"SUM({expression})";
 
         private string Table(string name) => _schemaPrefix + name;
 
@@ -1157,104 +926,6 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         }
     }
 
-    private const string DuckDbSeedSql =
-        """
-        BEGIN TRANSACTION;
-        DELETE FROM gl;
-        DELETE FROM account_mapping;
-        DELETE FROM authorized_preparer;
-        DELETE FROM calendar_day;
-        DELETE FROM import_batch WHERE batch_id = 's2a-map';
-
-        INSERT INTO import_batch
-            (batch_id, dataset_kind, source_file_path, source_file_name,
-             imported_utc, row_count, columns_json)
-        VALUES
-            ('s2a-map', 'account_mapping', 's2a-map.csv', 's2a-map.csv',
-             '2026-07-30T00:00:00.0000000+08:00', 5,
-             '["account_number","account_name","standardized_category"]');
-
-        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
-        INSERT INTO account_mapping
-            (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
-        VALUES
-            ('s2a-map', 1, '1000', 'Cash', 'Cash', 'builtin.cash'),
-            ('s2a-map', 2, '2000', 'Receivables', 'Receivables', 'builtin.receivables'),
-            ('s2a-map', 3, '4000', 'Revenue', 'Revenue', 'builtin.revenue'),
-            ('s2a-map', 4, '5000', 'Expense A', 'Others', 'builtin.others'),
-            ('s2a-map', 5, '6000', 'Expense B', 'Others', 'builtin.others');
-
-        INSERT INTO authorized_preparer (name)
-        SELECT printf('P%04d', i)
-        FROM range(0, 500) AS preparers(i);
-
-        INSERT INTO calendar_day (day_type, date, day_name)
-        VALUES
-            ('holiday', '2025-01-01', 'New Year'),
-            ('holiday', '2025-02-28', 'Holiday'),
-            ('holiday', '2025-05-01', 'Holiday'),
-            ('holiday', '2025-10-10', 'Holiday'),
-            ('makeup', '2025-02-08', 'Make-up day');
-
-        INSERT INTO gl
-            (batch_id, source_row_number, voucher_number, line_item,
-             line_item_numeric_sort_key, gl_date, approval_date,
-             account_number, account_name, description, source_module,
-             created_by, approved_by, is_manual, is_excluded, amount_scaled,
-             debit_amount_scaled, credit_amount_scaled, dr_cr)
-        SELECT
-            's2a-gl',
-            i,
-            printf('JV%09d', CAST(floor((i - 1) / 4) AS BIGINT)),
-            CAST(((i - 1) % 4) + 1 AS VARCHAR),
-            printf('%04d', ((i - 1) % 4) + 1),
-            strftime(DATE '2025-01-01' + CAST((i - 1) % 365 AS INTEGER), '%Y-%m-%d'),
-            CASE
-                WHEN i % 17 = 0 THEN '2025-12-31'
-                ELSE strftime(DATE '2025-01-01' + CAST((i - 1) % 365 AS INTEGER), '%Y-%m-%d')
-            END,
-            CASE ((i - 1) % 4)
-                WHEN 0 THEN '4000'
-                WHEN 1 THEN CASE WHEN floor((i - 1) / 4) % 10 = 0 THEN '5000' ELSE '1000' END
-                WHEN 2 THEN '5000'
-                ELSE '6000'
-            END,
-            CASE ((i - 1) % 4)
-                WHEN 0 THEN 'Revenue'
-                WHEN 1 THEN CASE WHEN floor((i - 1) / 4) % 10 = 0 THEN 'Expense A' ELSE 'Cash' END
-                WHEN 2 THEN 'Expense A'
-                ELSE 'Expense B'
-            END,
-            CASE
-                WHEN i % 97 = 0 THEN ''
-                WHEN i % 23 = 0 THEN 'ADJ synthetic entry'
-                ELSE 'ordinary synthetic entry'
-            END,
-            CASE WHEN i % 3 = 0 THEN 'MANUAL' ELSE 'GL' END,
-            printf('P%04d', (i - 1) % 1000),
-            printf('A%03d', (i - 1) % 100),
-            CASE WHEN i % 3 = 0 THEN 1 ELSE 0 END,
-            0,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN -100000000 ELSE 100000000 END,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN 0 ELSE 100000000 END,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN 100000000 ELSE 0 END,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN 'CREDIT' ELSE 'DEBIT' END
-        FROM range(1, @rowCount + 1) AS generated(i);
-
-        DELETE FROM gl_control_total;
-        INSERT INTO gl_control_total
-            (singleton, pbc_row_count, stored_row_count, stored_debit_scaled, stored_credit_scaled,
-             gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,
-             gl_debit_scaled, gl_credit_scaled)
-        SELECT 1, COUNT(*), COUNT(*), SUM(debit_amount_scaled), SUM(credit_amount_scaled),
-               COUNT(*), 0, 0, SUM(debit_amount_scaled), SUM(credit_amount_scaled)
-        FROM gl;
-
-        COMMIT;
-        ANALYZE;
-        CHECKPOINT;
-        """;
-
     private const string SqliteSeedSql =
         """
         BEGIN TRANSACTION;
@@ -1360,112 +1031,5 @@ public sealed class PrescreenMonthlyAggregationBenchmarkTests(ITestOutputHelper 
         COMMIT;
         ANALYZE;
         PRAGMA wal_checkpoint(TRUNCATE);
-        """;
-
-    private static string SqlServerSeedSql(string schemaPrefix) =>
-        $"""
-        DELETE FROM {schemaPrefix}gl;
-        DELETE FROM {schemaPrefix}account_mapping;
-        DELETE FROM {schemaPrefix}authorized_preparer;
-        DELETE FROM {schemaPrefix}calendar_day;
-        DELETE FROM {schemaPrefix}import_batch WHERE batch_id = N's2a-map';
-
-        INSERT INTO {schemaPrefix}import_batch
-            (batch_id, dataset_kind, source_file_path, source_file_name,
-             imported_utc, row_count, columns_json)
-        VALUES
-            (N's2a-map', N'account_mapping', N's2a-map.csv', N's2a-map.csv',
-             N'2026-07-30T00:00:00.0000000+08:00', 5,
-             N'["account_number","account_name","standardized_category"]');
-
-        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
-        INSERT INTO {schemaPrefix}account_mapping
-            (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
-        VALUES
-            (N's2a-map', 1, N'1000', N'Cash', N'Cash', N'builtin.cash'),
-            (N's2a-map', 2, N'2000', N'Receivables', N'Receivables', N'builtin.receivables'),
-            (N's2a-map', 3, N'4000', N'Revenue', N'Revenue', N'builtin.revenue'),
-            (N's2a-map', 4, N'5000', N'Expense A', N'Others', N'builtin.others'),
-            (N's2a-map', 5, N'6000', N'Expense B', N'Others', N'builtin.others');
-
-        ;WITH preparers(i) AS (
-            SELECT 0
-            UNION ALL
-            SELECT i + 1 FROM preparers WHERE i < 499
-        )
-        INSERT INTO {schemaPrefix}authorized_preparer (name)
-        SELECT CONCAT(N'P', RIGHT(REPLICATE(N'0', 4) + CAST(i AS nvarchar(10)), 4))
-        FROM preparers
-        OPTION (MAXRECURSION 0);
-
-        INSERT INTO {schemaPrefix}calendar_day (day_type, date, day_name)
-        VALUES
-            (N'holiday', N'2025-01-01', N'New Year'),
-            (N'holiday', N'2025-02-28', N'Holiday'),
-            (N'holiday', N'2025-05-01', N'Holiday'),
-            (N'holiday', N'2025-10-10', N'Holiday'),
-            (N'makeup', N'2025-02-08', N'Make-up day');
-
-        ;WITH generated(i) AS (
-            SELECT CAST(1 AS bigint)
-            UNION ALL
-            SELECT i + 1 FROM generated WHERE i < @rowCount
-        )
-        INSERT INTO {schemaPrefix}gl
-            (batch_id, source_row_number, voucher_number, line_item,
-             line_item_numeric_sort_key, gl_date, approval_date,
-             account_number, account_name, description, source_module,
-             created_by, approved_by, is_manual, is_excluded, amount_scaled,
-             debit_amount_scaled, credit_amount_scaled, dr_cr)
-        SELECT
-            N's2a-gl',
-            i,
-            CONCAT(N'JV', RIGHT(REPLICATE(N'0', 9) + CAST((i - 1) / 4 AS nvarchar(20)), 9)),
-            CAST(((i - 1) % 4) + 1 AS nvarchar(10)),
-            RIGHT(REPLICATE(N'0', 4) + CAST(((i - 1) % 4) + 1 AS nvarchar(10)), 4),
-            CONVERT(nvarchar(10), DATEADD(day, (i - 1) % 365, CONVERT(date, '20250101')), 23),
-            CASE
-                WHEN i % 17 = 0 THEN N'2025-12-31'
-                ELSE CONVERT(nvarchar(10), DATEADD(day, (i - 1) % 365, CONVERT(date, '20250101')), 23)
-            END,
-            CASE ((i - 1) % 4)
-                WHEN 0 THEN N'4000'
-                WHEN 1 THEN CASE WHEN ((i - 1) / 4) % 10 = 0 THEN N'5000' ELSE N'1000' END
-                WHEN 2 THEN N'5000'
-                ELSE N'6000'
-            END,
-            CASE ((i - 1) % 4)
-                WHEN 0 THEN N'Revenue'
-                WHEN 1 THEN CASE WHEN ((i - 1) / 4) % 10 = 0 THEN N'Expense A' ELSE N'Cash' END
-                WHEN 2 THEN N'Expense A'
-                ELSE N'Expense B'
-            END,
-            CASE
-                WHEN i % 97 = 0 THEN N''
-                WHEN i % 23 = 0 THEN N'ADJ synthetic entry'
-                ELSE N'ordinary synthetic entry'
-            END,
-            CASE WHEN i % 3 = 0 THEN N'MANUAL' ELSE N'GL' END,
-            CONCAT(N'P', RIGHT(REPLICATE(N'0', 4) + CAST((i - 1) % 1000 AS nvarchar(10)), 4)),
-            CONCAT(N'A', RIGHT(REPLICATE(N'0', 3) + CAST((i - 1) % 100 AS nvarchar(10)), 3)),
-            CASE WHEN i % 3 = 0 THEN 1 ELSE 0 END,
-            0,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN -100000000 ELSE 100000000 END,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN 0 ELSE 100000000 END,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN 100000000 ELSE 0 END,
-            CASE WHEN (i - 1) % 4 IN (0, 3) THEN N'CREDIT' ELSE N'DEBIT' END
-        FROM generated
-        OPTION (MAXRECURSION 0);
-
-        DELETE FROM {schemaPrefix}gl_control_total;
-        INSERT INTO {schemaPrefix}gl_control_total
-            (singleton, pbc_row_count, stored_row_count, stored_debit_scaled, stored_credit_scaled,
-             gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,
-             gl_debit_scaled, gl_credit_scaled)
-        SELECT 1, COUNT_BIG(*), COUNT_BIG(*), SUM(debit_amount_scaled), SUM(credit_amount_scaled),
-               COUNT_BIG(*), 0, 0, SUM(debit_amount_scaled), SUM(credit_amount_scaled)
-        FROM {schemaPrefix}gl;
-
-        UPDATE STATISTICS {schemaPrefix}gl WITH FULLSCAN;
         """;
 }

@@ -34,15 +34,6 @@ internal sealed record AgentGuiTestProfile(
     internal const int MaximumActionBudget = 120;
     internal const int MaximumScreenshotBudget = 2;
 
-    internal const string IsolatedSqlServerConnectionString =
-        "Data Source=tcp:127.0.0.1,1;"
-        + "Initial Catalog=JET_AGENT_GUI_TEST;"
-        + "Integrated Security=True;"
-        + "Encrypt=True;"
-        + "TrustServerCertificate=True;"
-        + "Connect Timeout=1;"
-        + "Application Name=JET Agent GUI Harness";
-
     internal const string IsolatedPrincipal = @"JET\agent-gui";
 
     internal static AgentGuiTestProfile LoadRequired()

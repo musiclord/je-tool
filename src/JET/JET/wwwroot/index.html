@@ -151,8 +151,8 @@
 
     <!-- 開發工具：資料庫檢視（僅 Debug 組建顯示與註冊，非審計 workflow） -->
     <details class="dev-panel" data-bind="dev-panel">
-      <!-- 標題 provider 中立:provider 標籤讀 project.json,可能與實際路由後端不一致(孤兒/快取情境),
-           標題不背書;實際引擎資訊看面板內 dev-info 行(路由後 inspector 回報)。 -->
+      <!-- 標題不寫資料庫種類；實際的資料庫資訊看面板內 dev-info 那一行，由後端的檢視程式回報。
+           目前只有 SQLite（裁定 2026-11-06-08）。 -->
       <summary class="dev-panel__summary">DEV — 資料庫檢視</summary>
       <div class="dev-panel__body" data-bind="dev-panel-body"></div>
     </details>

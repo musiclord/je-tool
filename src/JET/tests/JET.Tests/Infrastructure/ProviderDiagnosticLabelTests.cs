@@ -36,10 +36,6 @@ public sealed class ProviderDiagnosticLabelTests
     private static IReadOnlyList<string> Columns => ["doc", "date", "acc", "name", "desc", "debit", "credit"];
 
     [Fact]
-    public Task DuckDbImport_DiagnosticEvents_AreLabeledDuckdb() => AssertProviderLabel(
-        folder => new DuckDbProjectDatabase(folder), "duckdb");
-
-    [Fact]
     public Task SqliteImport_DiagnosticEvents_AreLabeledSqlite() => AssertProviderLabel(
         folder => new SqliteProjectDatabase(folder), "sqlite");
 

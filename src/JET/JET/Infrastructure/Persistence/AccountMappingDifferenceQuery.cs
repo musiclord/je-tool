@@ -20,9 +20,8 @@ internal static class AccountMappingDifferenceQuery
     public static async Task<AccountMappingDifferenceCounts> CountAsync(
         DbConnection connection, ISqlDialect dialect, string prefix, CancellationToken ct)
     {
-        var count = dialect is SqlServerDialect ? "COUNT_BIG(*)" : "COUNT(*)";
         await using var command = connection.CreateCommand();
-        command.CommandText = Cte(prefix, dialect) + $" SELECT (SELECT {count} FROM mapping_only), (SELECT {count} FROM unmapped);";
+        command.CommandText = Cte(prefix, dialect) + " SELECT (SELECT COUNT(*) FROM mapping_only), (SELECT COUNT(*) FROM unmapped);";
         await using var reader = await command.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
         return new(Convert.ToInt64(reader.GetValue(0)), Convert.ToInt64(reader.GetValue(1)));
@@ -46,13 +45,11 @@ internal static class AccountMappingDifferenceQuery
             cursorCode = decoded[(kind.Length + 1)..];
         }
         await using var command = connection.CreateCommand();
-        var count = dialect is SqlServerDialect ? "COUNT_BIG(*)" : "COUNT(*)";
         // 第一頁的總數用同一語句的純量子查詢，與 CountAsync 同寫法，另計一次科目母體；之後的頁不再計算。
-        // SQLite 與 DuckDB 在同一語句讀同一快照；SQL Server 預設隔離不保證此事，只經編譯。
-        // 不用 COUNT(*) OVER ()：
-        // DuckDB 1.5.3 在這種分組加 NOT EXISTS 的形狀上多執行緒時偶發內部錯誤，並讓同一資料庫的其他連線一起失效。
+        // SQLite 在同一語句讀同一快照。不用 COUNT(*) OVER ()：DuckDB 1.5.3 在這種分組加 NOT EXISTS 的形狀上
+        // 多執行緒時偶發內部錯誤，並讓同一資料庫的其他連線一起失效；日後恢復 DuckDB 時仍要避開。
         command.CommandText = Cte(prefix, dialect) + $" SELECT account_number, account_name, "
-            + (request.IncludeTotalCount ? $"(SELECT {count} FROM {table})" : "NULL") + $" AS total_count FROM {table} "
+            + (request.IncludeTotalCount ? $"(SELECT COUNT(*) FROM {table})" : "NULL") + $" AS total_count FROM {table} "
             + (hasCursor ? "WHERE account_number > @cursor " : "")
             + "ORDER BY account_number " + dialect.LimitClause("@pageSize") + ";";
         if (hasCursor) command.AddWithValue("@cursor", cursorCode);

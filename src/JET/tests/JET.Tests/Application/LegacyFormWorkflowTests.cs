@@ -118,7 +118,6 @@ public sealed class LegacyFormWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AllLettersAndWorkbookExamples_PreviewSaveRetryReopenAndBothReports(string provider)
     {
         using var host = new HandlerTestHost();

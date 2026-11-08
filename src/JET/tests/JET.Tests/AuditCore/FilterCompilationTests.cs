@@ -132,7 +132,7 @@ public sealed class FilterCompilationTests
     public void BlankRecordCategoryPredicates_ProviderVariants_UseDialectTrim(BlankRecordCategory category, string column)
     {
         // 等價分割：三種空白欄位各取一個代表；期外核准日另測。
-        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance, SqlServerDialect.Instance })
+        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance })
         {
             Assert.Equal(
                 $"({column} IS NULL OR {dialect.Trim(column)} = '')",
@@ -140,8 +140,7 @@ public sealed class FilterCompilationTests
         }
 
         Assert.Contains("char(9,10,11,12,13,32,", SqliteDialect.Instance.Trim(column), StringComparison.Ordinal);
-        Assert.Contains("chr(12288)", DuckDbDialect.Instance.Trim(column), StringComparison.Ordinal);
-        Assert.Contains("NCHAR(160)", SqlServerDialect.Instance.Trim(column), StringComparison.Ordinal);
+        // DuckDB 與 SQL Server 方言的兩行隨兩個資料庫移除（裁定 2026-11-06-08）。
     }
 
     [Fact]
@@ -152,7 +151,7 @@ public sealed class FilterCompilationTests
         // 第一次失敗：Focused 收據 20261105-111915760-b05263fa2bd54ac2b53aa14b49a2c698。
         const string expected = "(approval_date IS NULL OR approval_date < @periodStart OR approval_date > @periodEnd)";
         Assert.Equal(expected, BlankRecordsCategoryPredicate.For(BlankRecordCategory.ApprovalDateNotInPeriod, SqliteDialect.Instance));
-        Assert.Equal(expected, BlankRecordsCategoryPredicate.For(BlankRecordCategory.ApprovalDateNotInPeriod, SqlServerDialect.Instance));
+        // SQL Server 方言那一行隨 SQL Server 移除（裁定 2026-11-06-08）。
     }
 
     [Fact]
@@ -160,7 +159,7 @@ public sealed class FilterCompilationTests
     {
         // 裁定 2026-10-23-01：傳票核准日不可用時「核准日不在期間」不執行；照裁定 2026-11-05-38 核准日空白會算成不在期間，
         // 所以這時計數與明細改用永遠不成立的條件。其他三類與核准日可用時照原本的條件。
-        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance, SqlServerDialect.Instance })
+        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance })
         {
             Assert.Equal(
                 "(1 = 0)",
@@ -186,22 +185,12 @@ public sealed class FilterCompilationTests
             BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.BlankAccountNumber, SqliteDialect.Instance));
     }
 
-    [Fact]
-    public void BlankRecordCategoryScope_SqlServerRegularCategory_UsesGl()
-    {
-        Assert.Equal(
-            "(is_excluded = 0) AND " +
-            $"((account_number IS NULL OR {SqlServerDialect.Instance.Trim("account_number")} = ''))",
-            BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.BlankAccountNumber, SqlServerDialect.Instance));
-    }
-
-    // 轉大寫改走方言（裁定 2026-10-19-30）。SQLite 與 DuckDB 的 SQL 文字不變；
-    // SQL Server 改用 Latin1_General_100_BIN2 的大小寫對照表，欄位本身的比較與排序仍是 Latin1_General_BIN2。
-    // 第一次失敗：20261019-025219572-8db61eaea8e248329c0efa0328ca3212，SQL Server 的一項在方言修改前失敗。
+    // 轉大寫改走方言（裁定 2026-10-19-30），SQLite 的 SQL 文字不變。SQL Server 的大小寫對照表寫法與它的
+    // 測試隨 SQL Server 移除（裁定 2026-11-06-08）。
     [Fact]
     public void PreparerEqualsApprover_LocalProviders_KeepPlainUpper()
     {
-        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance, DuckDbDialect.Instance })
+        foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance })
         {
             var preparer = dialect.Trim("g.created_by");
             var approver = dialect.Trim("g.approved_by");
@@ -211,19 +200,6 @@ public sealed class FilterCompilationTests
                 + $"AND UPPER({preparer}) = UPPER({approver}))",
                 new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate).PreparerEqualsApprover());
         }
-    }
-
-    [Fact]
-    public void PreparerEqualsApprover_SqlServer_UppercasesWithTheNewerBinaryCollation()
-    {
-        var dialect = SqlServerDialect.Instance;
-        var preparer = dialect.Trim("g.created_by");
-        var approver = dialect.Trim("g.approved_by");
-
-        Assert.Equal(
-            $"((g.created_by IS NOT NULL AND {preparer} <> '') AND g.approved_by IS NOT NULL "
-            + $"AND UPPER(({preparer}) COLLATE Latin1_General_100_BIN2) = UPPER(({approver}) COLLATE Latin1_General_100_BIN2))",
-            new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate).PreparerEqualsApprover());
     }
 
     private static FilterConditionSpec TextRule(string keyword) =>

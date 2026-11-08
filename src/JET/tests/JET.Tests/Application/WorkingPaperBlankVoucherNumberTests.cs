@@ -11,7 +11,6 @@ public sealed class WorkingPaperBlankVoucherNumberTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Unbalanced_CountSummaryPageAndStep11_ExcludeBlankNumbers(string provider)
     {
         using var host = new HandlerTestHost();
@@ -31,7 +30,6 @@ public sealed class WorkingPaperBlankVoucherNumberTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Step4And41_IncludeOnlyMatchedBlankEntries_WithoutMakingOneBlankVoucher(string provider)
     {
         using var host = new HandlerTestHost();
@@ -93,8 +91,7 @@ public sealed class WorkingPaperBlankVoucherNumberTests
         Assert.Equal(new long[] { 70000, 0, 90000 }, voucherRows.Select(row => row.Voucher.VoucherTotalScaled));
     }
 
-    private static ILocalProjectDatabase Database(HandlerTestHost host, string provider) => provider == "sqlite"
-        ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot)) : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+    private static ILocalProjectDatabase Database(HandlerTestHost host, string provider) => new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
 
     private static Task<string> PrepareAsync(HandlerTestHost host, string provider) => InlineWorkbookProject.SetupAsync(host, gl => gl
         .WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")

@@ -214,6 +214,12 @@ public interface ITabularFileReader
 
     /// <summary>唯讀檢視檔案結構（工作表清單/欄名/偵測到的編碼與分隔符），零副作用、不回資料列。</summary>
     Task<TabularFileInspection> InspectAsync(string filePath, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 其他程式（例如 Excel）是否正開著這個檔案並可能寫入。讀檔照樣進行，讀到的是最後一次存檔的內容；
+    /// 匯入結果據此提醒尚未存檔的修改沒有匯入（裁定 2026-11-06-12）。判斷不了時回 false。
+    /// </summary>
+    bool IsOpenElsewhere(string filePath) => false;
 }
 
 public interface IImportRepository
@@ -251,22 +257,14 @@ public interface IProjectDatabaseInitializer
 
     /// <summary>
     /// 開啟既有案件時呼叫：資料庫一定要已經建好而且是現行版本，不建立新的資料庫（裁定 2026-11-05-72）。
-    /// 沒有另外實作的資料庫照舊用 <see cref="EnsureCreatedAsync"/>，SQL Server 案件由開案時的登記檢查擋下不存在的 schema。
+    /// 沒有另外實作的資料庫照舊用 <see cref="EnsureCreatedAsync"/>。
     /// </summary>
     Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>
         EnsureCreatedAsync(projectId, cancellationToken);
-
-    /// <summary>
-    /// 指定 provider 的後端是否已有此 projectId 的既有資料(SQLite:jet.db 檔;SQL Server:專案 schema——
-    /// 含本機登記遺失後的孤兒殘留)。供 project.create 在寫入任何本機檔案之前攔截撞名與殘留。
-    /// provider 由呼叫端顯式傳入:此檢查發生在 project.json 落定之前,無法從案件文件讀取資料庫種類。
-    /// </summary>
-    Task<bool> DatabaseExistsAsync(string projectId, string databaseProvider, CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// 永久刪除某專案的資料庫（鏡射 <see cref="IProjectDatabaseInitializer"/>）。
-/// 本地引擎刪資料庫檔（jet.sqlite／jet.duckdb）；SQL Server 刪單庫 JET 內的專案 schema（DROP TABLE＋DROP SCHEMA）。
+/// 永久刪除某專案的資料庫（鏡射 <see cref="IProjectDatabaseInitializer"/>）。SQLite 刪案件資料夾裡的資料庫檔。
 /// project.delete 依被刪案件的資料庫種類取對應資料庫組裡的實作。
 /// </summary>
 public interface IProjectDatabaseDeleter

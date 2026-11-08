@@ -49,7 +49,7 @@ html:root[data-preset="editorial"] .diagram-container { border-radius: 2px; box-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 3.1.0">
   <meta name="archify-reader-contract" content="declared-wide-v1">
-  <title>正式底稿匯出：規劃、寫暫存檔與發布</title>
+  <title>匯出正式底稿：呼叫順序</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -5194,7 +5194,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
            data-preset-badge-blueprint="藍圖 / 修訂 01"
            data-preset-badge-editorial="編輯風格 / 現場筆記">
         <div class="pulse-dot"></div>
-        <h1>正式底稿匯出：規劃、寫暫存檔與發布</h1>
+        <h1>匯出正式底稿：呼叫順序</h1>
       </div>
     </div>
 
@@ -5204,7 +5204,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / 圖版 04">
       <svg viewBox="0 0 1053 1070" data-sequence-column-fit="spread" data-reader-fit="width-first" role="img" lang="zh-TW" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="editorial" data-quality-profile="showcase" data-motion-choreography="sequence">
-        <title id="archify-diagram-title">正式底稿匯出：規劃、寫暫存檔與發布</title>
+        <title id="archify-diagram-title">匯出正式底稿：呼叫順序</title>
         <desc id="archify-diagram-description">由 Archify 產生的循序圖。</desc>
         <!-- Definitions -->
         <defs>
@@ -5652,36 +5652,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>情境與前提</h3>
+          <h3>匯出前先確認</h3>
         </div>
         <ul>
-          <li>審計員在第六步選好情境，按下匯出正式底稿。</li>
-          <li>處理這個 action 的是 ExportWorkingPaperStreamHandler，圖上寫成「底稿匯出處理」。</li>
-          <li>前提：驗證結果是目前版本；已有篩選情境時，情境版本與選取的情境位置也要和資料庫一致；任一不符就回錯誤，不寫檔。還沒存篩選情境也能匯出。</li>
-          <li>本圖畫正常完成的路徑；發布失敗時怎麼還原，見「正式工作底稿」流程圖。</li>
+          <li>驗證結果必須符合目前版本。有篩選情境時，也要核對情境版本與位置；尚未儲存情境仍可匯出。</li>
+          <li>結果過期時，只重算選取的情境。規劃時先讀摘要，寫檔時再分頁讀明細。</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot slate"></div>
-          <h3>報告檔由兩個類別處理</h3>
+          <h3>寫檔與紀錄分工</h3>
         </div>
         <ul>
-          <li>外層 AuditedReportStore 先數既有報告，發布成功後寫操作紀錄；寫入失敗記在支援日誌，回應附提醒「檔案已產生，但這次產生的檔案沒有寫入操作紀錄。」，不撤回已發布的底稿。</li>
-          <li>內層 ProjectReportStore 寫暫存檔、改名，再更新報告清單。外層實作 IAuditedReportPublishingStore，底稿匯出處理經它發布才拿得到提醒；外層再經 IReportPublishingStore 呼叫內層，畫面才能顯示「發布中」。</li>
-          <li>強調色的兩條線不是直接呼叫：ReportContentWriter 與 publishingReport 是底稿匯出處理事先交給內層的兩段程式。內層寫暫存檔時執行前者，全部寫完、改名之前執行後者。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>準備階段讀什麼</h3>
-        </div>
-        <ul>
-          <li>底稿直接用儲存情境時存好的結果。FilterHitMaterializeService 只確認選定的情境仍能套用；結果標成過期時，才只重算這次選取的情境。</li>
-          <li>WorkingPaperPlanningFactsPort 只讀規劃需要的資料：完整性差異與借貸不平的傳票各自有沒有資料、各情境的筆數，以及 TB 與 GL 的目標欄位定義；分錄明細等 WorkingPaperWriter 寫底稿時再分頁讀取。</li>
+          <li>ProjectReportStore 寫暫存檔、改名並更新清單；AuditedReportStore 在成功後記錄這次發布。</li>
+          <li>操作紀錄失敗時附提醒，已發布底稿仍保留。發布失敗的還原方式見流程圖。</li>
         </ul>
       </div>
     </div>

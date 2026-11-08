@@ -3,8 +3,6 @@ namespace JET.Tests.Infrastructure;
 internal enum LegacyAuditParityProvider
 {
     Sqlite,
-    DuckDb,
-    SqlServer,
 }
 
 internal enum LegacyReportKind
@@ -60,18 +58,14 @@ internal sealed record LegacyAuditParityRunSelection(
             return
             [
                 LegacyAuditParityProvider.Sqlite,
-                LegacyAuditParityProvider.DuckDb,
-                LegacyAuditParityProvider.SqlServer,
             ];
         }
 
         return value.Trim().ToLowerInvariant() switch
         {
             "sqlite" => [LegacyAuditParityProvider.Sqlite],
-            "duckdb" => [LegacyAuditParityProvider.DuckDb],
-            "sqlserver" or "sql-server" => [LegacyAuditParityProvider.SqlServer],
             _ => throw new ArgumentException(
-                "Legacy parity provider must be sqlite, duckdb, sqlserver, or all.",
+                "Legacy parity provider must be sqlite or all.",
                 nameof(value)),
         };
     }

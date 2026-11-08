@@ -122,7 +122,8 @@ function Read-JetRegistry {
             throw [InvalidDataException]::new("Lane registry is missing '$required'.")
         }
     }
-    if ([string]$registry.runnerContractVersion -cne '8.2') {
+    # 9.0：拿掉 Provider 命令與路線（裁定 2026-11-06-08）。
+    if ([string]$registry.runnerContractVersion -cne '9.0') {
         throw [InvalidDataException]::new('Unsupported runner contract version.')
     }
     # 2026-10-13：建置、.NET 測試與前端測試的自有程序樹記憶體上限，至少 1024 MB。
@@ -136,7 +137,7 @@ function Read-JetRegistry {
             Where-Object { [bool]$registry.lanes[$_].enabled } |
             Sort-Object
     )
-    if (($enabledLaneNames -join ',') -cne 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Provider,Public,ReleaseCandidate') {
+    if (($enabledLaneNames -join ',') -cne 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Public,ReleaseCandidate') {
         throw [InvalidDataException]::new(
             'The enabled lane set does not match the currently implemented Harness boundary.')
     }
@@ -182,14 +183,6 @@ function Read-JetRegistry {
             'seed',
             'publicMinimumExpectedTests',
             'publicSkipPolicy',
-            'providerConnectionEnvironmentVariable',
-            'providerLocalMinimumExpectedTests',
-            'providerSqlMinimumExpectedTests',
-            'providerLocalDbMinimumExpectedTests',
-            'providerLocalParityMethodPatterns',
-            'providerSqlTraits',
-            'providerLocalDbTraits',
-            'providerSkipPolicy',
             'privateCaseMinimumExpectedTests',
             'privateCaseRootEnvironmentVariable',
             'privateCaseManifestEnvironmentVariable',
@@ -201,8 +194,7 @@ function Read-JetRegistry {
             'excludedProfiles',
             'protectedWorkspaceMethodPatterns',
             'focusedGuardNamespaces',
-            'environmentVariablesToRemove',
-            'providerEnvironmentVariablesToRemove')) {
+            'environmentVariablesToRemove')) {
         if (-not $testSettings.ContainsKey($required)) {
             throw [InvalidDataException]::new("Test settings are missing '$required'.")
         }
@@ -216,9 +208,6 @@ function Read-JetRegistry {
     }
     foreach ($minimumName in @(
             'publicMinimumExpectedTests',
-            'providerLocalMinimumExpectedTests',
-            'providerSqlMinimumExpectedTests',
-            'providerLocalDbMinimumExpectedTests',
             'privateCaseMinimumExpectedTests',
             'packageMinimumExpectedTests',
             'guiFixtureMinimumExpectedTests')) {
@@ -240,9 +229,9 @@ function Read-JetRegistry {
                 'Protected-workspace filters must name one exact test class instead of a broad family.')
         }
     }
-    foreach ($pattern in @($testSettings.providerLocalParityMethodPatterns) + @($testSettings.packageMethodPatterns)) {
+    foreach ($pattern in @($testSettings.packageMethodPatterns)) {
         if ([string]$pattern -notmatch '^\*[A-Za-z0-9_.+]+\*$') {
-            throw [InvalidDataException]::new('Provider and package test patterns must be bounded wildcard method names.')
+            throw [InvalidDataException]::new('Package test patterns must be bounded wildcard method names.')
         }
     }
     # Gui 路線跑情境前，用 AgentGuiTest 組態執行的測試類別；每個樣式只選一個類別，避免清單悄悄擴大。
@@ -253,11 +242,6 @@ function Read-JetRegistry {
     foreach ($pattern in $guiFixturePatterns) {
         if ([string]$pattern -cnotmatch '^\*\.[A-Za-z][A-Za-z0-9_]*Tests\.\*$') {
             throw [InvalidDataException]::new('GUI fixture test patterns must name one exact test class.')
-        }
-    }
-    foreach ($trait in @($testSettings.providerSqlTraits) + @($testSettings.providerLocalDbTraits)) {
-        if ([string]$trait -notmatch '^[A-Za-z][A-Za-z0-9]+=[A-Za-z][A-Za-z0-9]+$') {
-            throw [InvalidDataException]::new('Provider trait filters contain an invalid value.')
         }
     }
     foreach ($namespace in @($testSettings.focusedGuardNamespaces)) {
@@ -289,30 +273,8 @@ function Read-JetRegistry {
                 'General commands must remove every PrivateCase environment variable.')
         }
     }
-    $providerConnectionVariable = [string]$testSettings.providerConnectionEnvironmentVariable
-    if ($providerConnectionVariable -cne 'JET_SQLSERVER_CONNECTION' -or
-        $environmentNames -cnotcontains $providerConnectionVariable) {
-        throw [InvalidDataException]::new(
-            'Provider connection variable must use the declared JET SQL Server boundary.')
-    }
-    $providerEnvironmentNames = @($testSettings.providerEnvironmentVariablesToRemove)
-    if (@($providerEnvironmentNames | Sort-Object -Unique).Count -ne $providerEnvironmentNames.Count -or
-        $providerEnvironmentNames -ccontains $providerConnectionVariable) {
-        throw [InvalidDataException]::new('Provider environment sanitation is invalid.')
-    }
-    foreach ($name in $providerEnvironmentNames) {
-        if ([string]$name -notmatch '^[A-Z][A-Z0-9_]+$') {
-            throw [InvalidDataException]::new('Provider environment sanitation contains an invalid name.')
-        }
-    }
-    $expectedProviderEnvironment = @($environmentNames | Where-Object { $_ -cne $providerConnectionVariable } | Sort-Object)
-    if (($expectedProviderEnvironment -join ',') -cne (@($providerEnvironmentNames | Sort-Object) -join ',')) {
-        throw [InvalidDataException]::new('Provider sanitation may preserve only its declared connection variable.')
-    }
-    foreach ($policyName in @([string]$testSettings.publicSkipPolicy, [string]$testSettings.providerSkipPolicy)) {
-        if ($policyName -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]+\.json$') {
-            throw [InvalidDataException]::new('Skip-policy file name is invalid.')
-        }
+    if ([string]$testSettings.publicSkipPolicy -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]+\.json$') {
+        throw [InvalidDataException]::new('Skip-policy file name is invalid.')
     }
 
     $documentationSettings = $registry.documentationSettings
@@ -327,16 +289,15 @@ function Read-JetRegistry {
     }
 
     $releaseCandidateSettings = $registry.releaseCandidateSettings
-    foreach ($required in @('snapshotWorkspaceRoot', 'privateCaseIncluded', 'liveProviderIncluded', 'steps')) {
+    foreach ($required in @('snapshotWorkspaceRoot', 'privateCaseIncluded', 'steps')) {
         if (-not $releaseCandidateSettings.ContainsKey($required)) {
             throw [InvalidDataException]::new("ReleaseCandidate settings are missing '$required'.")
         }
     }
     if ([string]$releaseCandidateSettings.snapshotWorkspaceRoot -cne 'artifacts/harness/rc' -or
-        [bool]$releaseCandidateSettings.privateCaseIncluded -or
-        [bool]$releaseCandidateSettings.liveProviderIncluded) {
+        [bool]$releaseCandidateSettings.privateCaseIncluded) {
         throw [InvalidDataException]::new(
-            'ReleaseCandidate must use the short owned workspace without PrivateCase or live Provider.')
+            'ReleaseCandidate must use the short owned workspace without PrivateCase.')
     }
     $expectedReleaseCandidateSteps = @(
         [ordered]@{ name = 'contract'; command = 'Contract'; configuration = 'Release'; noRestore = $false },
@@ -596,7 +557,6 @@ function Get-JetRunnerIdentity {
         'tools/harness/documentation-check.json',
         'tools/harness/lanes.json',
         'tools/harness/public-skip-policy.json',
-        'tools/harness/provider-skip-policy.json',
         'tools/harness/contract-probe.ps1'
     )
     $files = foreach ($relativePath in $relativePaths) {

@@ -21,7 +21,7 @@ namespace JET.Infrastructure;
 /// </summary>
 internal static class HighRiskSummaryVoucherPageReader
 {
-    // schemaPrefix 預設 ""（SQLite 裸名，逐字不變）；SQL Server 傳 QualifierFor(projectId) 前綴專案表名。
+    // schemaPrefix 預設 ""（SQLite 裸名，逐字不變）；參數保留給日後恢復的 SQL Server 傳專案 schema 前綴。
     private static string PageSqlHead(
         string schemaPrefix,
         string scenarioPredicate,

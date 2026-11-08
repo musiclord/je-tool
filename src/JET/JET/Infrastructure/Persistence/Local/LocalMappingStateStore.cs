@@ -202,7 +202,7 @@ internal static class MappingStateSerialization
             options);
     }
 
-    /// <summary>控制總數只有一列；SQLite、DuckDB 與 SQL Server 共用同一段，SQL Server 傳入加上 schema 的表名。</summary>
+    /// <summary>控制總數只有一列；表名由呼叫端傳入，參數保留給日後恢復的 SQL Server 傳加上 schema 的表名。</summary>
     internal static string GlTotalsQuery(string table) =>
         $"""
         SELECT pbc_row_count, gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,

@@ -1205,8 +1205,8 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         {
             var outputPart = WorksheetPartFor(output, sheetName);
             var templatePart = WorksheetPartFor(template, sheetName);
-            var outputSetup = Assert.Single(outputPart.Worksheet.Elements<PageSetup>());
-            var templateSetup = Assert.Single(templatePart.Worksheet.Elements<PageSetup>());
+            var outputSetup = Assert.Single(outputPart.RequiredWorksheet().Elements<PageSetup>());
+            var templateSetup = Assert.Single(templatePart.RequiredWorksheet().Elements<PageSetup>());
             Assert.False(string.IsNullOrWhiteSpace(outputSetup.Id?.Value));
             Assert.Equal(templateSetup.Id?.Value, outputSetup.Id?.Value);
             Assert.Equal(
@@ -1216,15 +1216,15 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
 
         var fieldColumns = Assert.IsType<Columns>(
             WorksheetPartFor(output, "自動化工具-檔案欄位資訊")
-                .Worksheet.GetFirstChild<Columns>());
+                .RequiredWorksheet().GetFirstChild<Columns>());
         Assert.Contains(fieldColumns.Elements<Column>(), column =>
             column.Min?.Value <= 6
             && column.Max?.Value >= 8
             && column.Hidden?.Value == true);
         Assert.NotNull(WorksheetPartFor(output, "自動化工具-假期假日資訊")
-            .Worksheet.GetFirstChild<Columns>());
+            .RequiredWorksheet().GetFirstChild<Columns>());
         Assert.NotNull(WorksheetPartFor(output, "自動化工具-科目配對資訊")
-            .Worksheet.GetFirstChild<Columns>());
+            .RequiredWorksheet().GetFirstChild<Columns>());
     }
 
     [Fact]
@@ -1478,9 +1478,9 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
     private static Worksheet ReadWorksheet(SpreadsheetDocument document, string name)
     {
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => item.Name?.Value == name);
-        return Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!)).Worksheet;
+        return Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!)).RequiredWorksheet();
     }
 
     private static double ColumnWidth(Worksheet worksheet, uint column) =>
@@ -1677,7 +1677,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
     private static WorksheetPart WorksheetPartFor(SpreadsheetDocument document, string sheetName)
     {
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => string.Equals(item.Name?.Value, sheetName, StringComparison.Ordinal));
         return Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!));
     }

@@ -26,7 +26,6 @@ public sealed class ReportRevisionStateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task CriteriaExport_RecordsThePersistedFilterDataRevision(string provider)
     {
         using var host = new HandlerTestHost();
@@ -39,7 +38,6 @@ public sealed class ReportRevisionStateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OldCriteria_RemainsStaleAfterCalendarChangeAndResavingTheSameScenario(string provider)
     {
         using var host = new HandlerTestHost();
@@ -66,11 +64,8 @@ public sealed class ReportRevisionStateTests
 
     [Theory]
     [InlineData("sqlite", "export.validationReports")]
-    [InlineData("duckdb", "export.validationReports")]
     [InlineData("sqlite", "export.prescreenReport")]
-    [InlineData("duckdb", "export.prescreenReport")]
     [InlineData("sqlite", "export.workingPaperStream")]
-    [InlineData("duckdb", "export.workingPaperStream")]
     public async Task OtherExports_ReturnARefreshedCatalogWithoutReopeningTheProject(string provider, string action)
     {
         using var host = new HandlerTestHost();
@@ -94,7 +89,6 @@ public sealed class ReportRevisionStateTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ProjectLoad_ReportsObsoleteRunVersionsAsStaleWithoutInventingResults(string provider)
     {
         using var host = new HandlerTestHost();
@@ -149,7 +143,7 @@ public sealed class ReportRevisionStateTests
     internal static async Task ExecuteAsync(HandlerTestHost host, string id, string provider, string sql, params (string Name, object Value)[] parameters)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(id);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

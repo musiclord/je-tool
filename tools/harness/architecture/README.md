@@ -3,13 +3,38 @@
 這裡只放文件工具。閱讀方式見[架構文件](../../../docs/architecture/README.md)，agent 的完整流程見
 [分析與繪圖](../../../.agents/harness/architecture-documentation.md)。
 
+## Archify 安裝與版本
+
+2026-11-06 核對的最新正式版為 [Archify 3.2.0](https://github.com/tt-a1i/archify/releases/tag/v3.2.0)。
+使用該 release 的 `archify.zip`，SHA-256 為
+`70e210265c59f24dcbdf2a502ff671104b5454e7ee7d3554aecd86bad32384f5`。
+這個發行包採 MIT 授權，授權以包內 `LICENSE` 為準，不拿開發分支的檔案混入已發布版本。
+
+下載後先核對雜湊，再解壓到獨立工具目錄並執行 `doctor`。更新既有 skill 時保留完整備份與未受工具管理的檔案；
+不要覆蓋舊研究使用的版本。這台電腦的 JET 研究工具與 Codex 共用 skill 都已更新為 3.2.0。
+Codex 共用 skill 可這樣核對：
+
+~~~powershell
+$archifyRoot = Join-Path $env:USERPROFILE '.agents/skills/archify'
+Get-Content -LiteralPath (Join-Path $archifyRoot 'package.json')
+node (Join-Path $archifyRoot 'bin/archify.mjs') doctor
+~~~
+
+之後更新時重新查閱[官方最新正式版](https://github.com/tt-a1i/archify/releases/latest)，記下版本、下載來源與雜湊，
+並用既有圖表來源的副本檢查目前使用的圖型。只更新工具不會重繪交付目錄，也不能把舊圖的產生版本改成新版本。
+目前交付圖表的版本仍以各自的 `manifest.json` 為準。
+
+繪圖時從選定安裝目錄讀取 `SKILL.md`、schema 與例子；呼叫它的 `bin/archify.mjs finalize`，
+封裝時把同一目錄傳給 `--archify-root`。不要再沿用歷史腳本裡寫死的工具路徑。
+JET 的設計與看圖要求見[繪圖前的設計](../../../.agents/harness/architecture-documentation.md#繪圖前的設計)。
+
 ## 封裝圖表
 
 `package-redraw.py` 只用 Python 標準函式庫，把依某一份程式快照重繪的圖表封裝成 `docs/architecture/diagrams/`。這是唯一的圖表目錄，
 每次重繪都直接覆寫，不另開版本；快照由 `--run` 指定研究目錄 `runs/` 下的快照目錄，重繪日期由 `--redraw-date` 寫進頁面與 `manifest.json`：
 
 ~~~powershell
-python tools/harness/architecture/package-redraw.py --research-root <研究目錄> --run <快照目錄名稱> --redraw <重繪工作目錄> --output docs/architecture/diagrams --redraw-date <重繪日期>
+python tools/harness/architecture/package-redraw.py --research-root <研究目錄> --run <快照目錄名稱> --redraw <重繪工作目錄> --archify-root <Archify安裝目錄> --output docs/architecture/diagrams --redraw-date <重繪日期>
 ~~~
 
 快照目錄裡有程式快照 `snapshot/`，以及 `evidence/` 下的來源清單、Roslyn 紀錄、已核對事實、資料表結構、方法簽章與代表呼叫對照。
@@ -18,7 +43,9 @@ python tools/harness/architecture/package-redraw.py --research-root <研究目�
 `evidence-spec.json`。這份規格列出每條連線依據的呼叫、實作、AppCompositionRoot 的建立位置或事實，類別圖上每個成員的宣告位置，
 以及重繪時另外補充、快照目錄還沒有的事實；`dynamicViewPairs` 寫畫同一個流程的 LikeC4 動態視圖與 Archify 循序圖怎麼配對，少了就停止；
 內容從已封裝的 `docs/architecture/diagrams/evidence/dynamic-view-pairs.json` 複製，再依新圖修改。
-腳本核對來源檔雜湊，再產生連線證據、四張類別圖的關係證據、成員宣告位置、配對設定、來源摘錄、閱讀頁面與檔案清單。
+腳本先核對 Archify 的 `package.json` 與 `skill-release.json` 版本，再核對每張圖最新 finalize 收據的四項檢查、工具版本、候選 JSON 與 HTML 雜湊。
+使用不同版本的舊收據，或 finalize 後又改過來源與輸出，都會停止；修正方式是用選定工具重新 finalize。
+腳本從選定安裝目錄複製授權並記錄實際版本，不再寫死 3.1.0。來源檔雜湊也核對通過後，才產生連線證據、四張類別圖的關係證據、成員宣告位置、配對設定、來源摘錄、閱讀頁面與檔案清單。
 
 腳本先在重繪工作目錄裡組好整個目錄，全部檢查通過後，才刪除 `docs/architecture/` 下原有的圖表目錄並放入新目錄；前一版留在 Git 歷史。
 輸出目錄已存在但不是圖表目錄時會停止，不覆寫。下列情況也會直接停止，輸出目錄維持原樣：找不到某條連線的 Roslyn 證據、
@@ -64,3 +91,9 @@ python tools/harness/architecture/package-redraw.py --research-root <研究目�
 
 圖表自帶的檢查記錄仍有原來的用途。這項檢查不取代 LikeC4 模型檢查、Archify finalize、
 實際看圖或業務流程驗證，也不證明業務結果正確。
+
+## 只調整閱讀文字時
+
+從交付目錄的 `archify/*/candidate.json` 與 `likec4/jet.c4` 取得來源。保留節點、關係、程式名稱與證據編號，修改標題、說明和卡片後，仍須重新執行 Archify finalize、LikeC4 build 與本工具封裝。
+
+入口依閱讀目的分組，分組順序保存在 `manifest.json` 的 `readingOrder`；還原工作目錄時，將它放回 `evidence-spec.json` 的 `portal`。連線與設計依據預設收合，來源版本只在閱讀說明與機器紀錄保留，不放進各頁標頭或重複寫入卡片。

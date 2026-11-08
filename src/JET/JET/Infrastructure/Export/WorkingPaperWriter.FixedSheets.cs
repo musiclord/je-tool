@@ -12,7 +12,7 @@ public sealed partial class WorkingPaperWriter
     // ================= 封面 / 固定文字 emitter(一次性、固定文字;非資料表)=================
 
     /// <summary>
-    /// 「資料預先整理之說明」:公司名 / 測試期間 / 篩選測試母體 / 固定說明。
+    /// 「資料預先整理之說明」:公司名、測試期間與固定說明。
     /// A6 照舊版樣本底稿的外觀保留儲存格格式，但不寫字。原本的「請詳：{公司}_CAATS_JE_WP_{日期}.docx」是 2026-06-21
     /// 設計底稿寫出程式時定的檔名，兩份舊版 IDEA 程式都沒有寫這一格；命名來源與 CAATs 的步驟都無法確認，
     /// 使用者 2026-11-05 要求拿掉（裁定 2026-11-05-29）。
@@ -28,7 +28,7 @@ public sealed partial class WorkingPaperWriter
         sheet.WriteFixedRow(2, [sheet.TextCell(2, 1,
             $"測試資料期間 :  {context.PeriodStart} ~ {context.PeriodEnd}", WorkingPaperStyles.Bold)]);
         sheet.WriteFixedRow(3, [sheet.TextCell(3, 1,
-            $"篩選測試母體 : {sheetPlan?.AuditCondition ?? GlPopulationScopeValues.DisplayName(context.PopulationScope)}",
+            null,
             WorkingPaperStyles.Bold)]);
         sheet.WriteFixedRow(5, [sheet.TextCell(5, 1,
             "請於下方加入針對JE Testing Tool所需資料預先整理之說明底稿(CAATs Document)。", WorkingPaperStyles.Plain)]);
@@ -125,7 +125,6 @@ public sealed partial class WorkingPaperWriter
         {
             FieldInfoAutoFitWidth(new[]
             {
-                "V.2019",
                 "TB檔案配對前後欄位對照表",
                 "GL檔案配對前後欄位對照表",
                 headers[0]
@@ -145,7 +144,6 @@ public sealed partial class WorkingPaperWriter
             FieldInfoAppearance(glHeaderRow));
         var headerHeight = FormalWorkbookTypography.RowHeight(FormalFieldInfoAppearance.HeaderFontSize);
         sheet.SetDefaultRowHeight(FormalWorkbookTypography.RowHeight(WorkingPaperStyles.RegularFontSize));
-        sheet.SetRowHeight(1, FormalWorkbookTypography.RowHeight(FormalFieldInfoAppearance.VersionFontSize));
         sheet.SetRowHeight(3, headerHeight);
         sheet.SetRowHeight(glHeaderRow, headerHeight);
         SetWrappedFieldNameHeights(sheet, projection.TbRows, firstRow: 4, widths[0]);
@@ -156,16 +154,17 @@ public sealed partial class WorkingPaperWriter
         }
         sheet.SetColumnWidth(6, 8, 2, hidden: true);
 
-        var versionRow = new List<Cell> { sheet.TextCell(1, 1, "V.2019", WorkingPaperStyles.Bold) };
+        // 第一列只放隱藏的配對資料（F 到 H 欄）。以前 A1 寫舊版的版本字樣 V.2019，並套藍底紅字的版本列外觀，
+        // 使用者 2026-11-06 裁定拿掉（裁定 2026-11-06-11）；列號不動，配對資料的位置與還原方式照舊。
+        var firstRow = new List<Cell>();
         if (metadata is not null)
         {
-            versionRow.Add(sheet.TextCell(1, 6, MappingMetadataFormat.Marker));
-            versionRow.Add(sheet.TextCell(1, 7, MappingMetadataFormat.CurrentVersion.ToString(
+            firstRow.Add(sheet.TextCell(1, 6, MappingMetadataFormat.Marker));
+            firstRow.Add(sheet.TextCell(1, 7, MappingMetadataFormat.CurrentVersion.ToString(
                 CultureInfo.InvariantCulture)));
-            versionRow.Add(sheet.TextCell(1, 8, metadata));
+            firstRow.Add(sheet.TextCell(1, 8, metadata));
         }
-        sheet.WriteFixedRow(1, versionRow);
-        sheet.AddMerge("A1:E1");
+        sheet.WriteFixedRow(1, firstRow);
         sheet.WriteFixedRow(
             2,
             [sheet.TextCell(2, 1, "TB檔案配對前後欄位對照表", WorkingPaperStyles.Bold)]);

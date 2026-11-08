@@ -137,12 +137,12 @@ public sealed class AccountMappingTemplateExportTests
         using (var package = SpreadsheetDocument.Open(new MemoryStream(stream.ToArray()), false))
         {
             var workbookPart = Assert.IsType<WorkbookPart>(package.WorkbookPart);
-            var sheets = Assert.IsType<Sheets>(workbookPart.Workbook.Sheets);
+            var sheets = Assert.IsType<Sheets>(workbookPart.RequiredWorkbook().Sheets);
             var listSheet = sheets.Elements<Sheet>()
                 .Single(item => item.Name?.Value == "List");
             var listPart = Assert.IsType<WorksheetPart>(
                 workbookPart.GetPartById(listSheet.Id!.Value!));
-            var pageSetup = Assert.Single(listPart.Worksheet.Elements<PageSetup>());
+            var pageSetup = Assert.Single(listPart.RequiredWorksheet().Elements<PageSetup>());
             Assert.False(string.IsNullOrWhiteSpace(pageSetup.Id?.Value));
             Assert.Contains(
                 "printerSettings",
@@ -316,10 +316,10 @@ public sealed class AccountMappingTemplateExportTests
             new MemoryStream(stream.ToArray(), writable: false),
             false);
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        var mappingSheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var mappingSheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => item.Name?.Value == "AccountMapping");
         var worksheet = Assert.IsType<WorksheetPart>(
-            workbookPart.GetPartById(mappingSheet.Id!.Value!)).Worksheet;
+            workbookPart.GetPartById(mappingSheet.Id!.Value!)).RequiredWorksheet();
         var columns = worksheet.GetFirstChild<Columns>();
         var missingAutoFitColumns = Enumerable.Range(1, 3)
             .Where(index =>
@@ -352,9 +352,9 @@ public sealed class AccountMappingTemplateExportTests
         stream.Position = 0;
         using var document = SpreadsheetDocument.Open(stream, false);
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => item.Name?.Value == "AccountMapping");
-        var worksheet = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!)).Worksheet;
+        var worksheet = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(sheet.Id!.Value!)).RequiredWorksheet();
 
         Assert.Equal(
             new[] { "B1:C1", "A2:C2" },
@@ -470,7 +470,6 @@ public sealed class AccountMappingTemplateExportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RoundTrip_UnchangedTemplate_ImportsWithoutInventingMappings(string databaseProvider)
     {
         using var host = new HandlerTestHost();
@@ -517,40 +516,11 @@ public sealed class AccountMappingTemplateExportTests
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Template_ExcludesBlankGlAccountNumbers_AndFilledTemplateImportsBack(string databaseProvider)
     {
         using var host = new HandlerTestHost();
         await AssertTemplateExcludesBlankGlAccountNumbersAsync(host, databaseProvider, () =>
-            new LocalAccountMappingExportRepository(databaseProvider == "sqlite"
-                ? new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))
-                : new DuckDbProjectDatabase(new JetProjectFolder(host.ProjectsRoot))));
-    }
-
-    /// <summary>
-    /// SQL Server 的範本查詢也不得退回列出空白科目編號的舊寫法。三種資料庫用同一份含空白編號的合成資料，
-    /// 範本列的編號與名稱都對同一組固定答案，等於逐列核對三種資料庫的範本相同。
-    /// </summary>
-    [SqlServerFact]
-    public async Task Template_ExcludesBlankGlAccountNumbers_AndFilledTemplateImportsBack_SqlServer()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return;
-        }
-
-        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        try
-        {
-            await AssertTemplateExcludesBlankGlAccountNumbersAsync(host, "sqlServer", () =>
-                new SqlServerAccountMappingExportRepository(
-                    new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString))));
-        }
-        finally
-        {
-            await DropSqlServerProjectsAsync(host.ProjectsRoot, connectionString);
-        }
+            new LocalAccountMappingExportRepository(new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot))));
     }
 
     private static async Task AssertTemplateExcludesBlankGlAccountNumbersAsync(
@@ -680,76 +650,6 @@ public sealed class AccountMappingTemplateExportTests
         Assert.DoesNotContain("驗證", ex.Message);
     }
 
-    // ================= (e) provider parity：SQLite 對 SQL Server 範本列等價 =================
-
-    [SqlServerFact]
-    public async Task AccountMappingTemplate_SqlServerDemo_ReadsBackAndImportsUnchanged()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return;
-        }
-
-        // SQLite oracle：範本的 (code, name) 列序。
-        using var sqliteHost = new HandlerTestHost();
-        var sqliteProject = await DemoProjectPipeline.SetupAsync(sqliteHost);
-        var sqliteValidate = await sqliteHost.DispatchAsync("validate.run");
-        var sqliteExport = await sqliteHost.DispatchAsync("export.accountMappingTemplate",
-            JsonSerializer.Serialize(new
-            {
-                resultId = sqliteValidate.GetProperty("resultRef").GetProperty("resultId").GetString()
-            }));
-        var sqliteOut = sqliteExport.GetProperty("filePath").GetString()!;
-        List<(string Code, string Name)> sqliteRows;
-        sqliteRows = ReadTemplateRows(sqliteOut);
-
-        using var sqlServerHost = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        try
-        {
-            var sqlProject = await DemoProjectPipeline.SetupAsync(sqlServerHost, databaseProvider: "sqlServer");
-            var sqlValidate = await sqlServerHost.DispatchAsync("validate.run");
-            var sqlExport = await sqlServerHost.DispatchAsync("export.accountMappingTemplate",
-                JsonSerializer.Serialize(new
-                {
-                    resultId = sqlValidate.GetProperty("resultRef").GetProperty("resultId").GetString()
-                }));
-            var sqlServerOut = sqlExport.GetProperty("filePath").GetString()!;
-            var sqlServerRows = ReadTemplateRows(sqlServerOut);
-
-            // provider 等價：範本列（code + name）逐項相同。
-            Assert.Equal(sqliteRows, sqlServerRows);
-
-            // SQL Server 也必須接受自己產生的全空白 C 欄範本；blank 依科目分類契約投影為 Others。
-            var imported = await sqlServerHost.DispatchAsync(
-                "import.accountMapping.fromFile",
-                JsonSerializer.Serialize(new
-                {
-                    filePath = sqlServerOut,
-                    fileName = Path.GetFileName(sqlServerOut)
-            }));
-            Assert.Equal(sqlServerRows.Count, imported.GetProperty("rowCount").GetInt32());
-            var preview = await sqlServerHost.DispatchAsync(
-                "query.dataPreview",
-                JsonSerializer.Serialize(new { dataset = "accountMapping" }));
-            Assert.Equal(sqlServerRows.Count, preview.GetProperty("totalCount").GetInt32());
-            Assert.Equal("Others", preview.GetProperty("rows")[0][2].GetString());
-            var sqlServerRepository = new SqlServerAccountMappingExportRepository(
-                new SqlServerProjectDatabase(new SqlServerConnectionOptions(connectionString)));
-            var exportedRows = await sqlServerRepository.FetchAllAsync(
-                sqlProject.ProjectId,
-                "2025-01-01",
-                "2025-12-31",
-                CancellationToken.None);
-            Assert.Equal(sqlServerRows.Count, exportedRows.Count);
-            Assert.All(exportedRows, row => Assert.Equal("Others", row.Category));
-        }
-        finally
-        {
-            await DropSqlServerProjectsAsync(sqlServerHost.ProjectsRoot, connectionString);
-        }
-    }
-
     private static List<(string Code, string Name)> ReadTemplateRows(string path)
     {
         using var wb = new XLWorkbook(path);
@@ -762,19 +662,6 @@ public sealed class AccountMappingTemplateExportTests
         }
 
         return rows;
-    }
-
-    private static async Task DropSqlServerProjectsAsync(string projectsRoot, string connectionString)
-    {
-        if (!Directory.Exists(projectsRoot))
-        {
-            return;
-        }
-
-        foreach (var dir in Directory.GetDirectories(projectsRoot))
-        {
-            await TempSqlServerProject.DropDatabaseAsync(connectionString, Path.GetFileName(dir));
-        }
     }
 
     private sealed class OversizedAccountMappingRows : IReadOnlyList<AccountMappingTemplateRow>

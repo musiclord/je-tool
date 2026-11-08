@@ -12,7 +12,6 @@ public sealed class IntegerPartContainsFieldConditionsTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task IntegerPartContains_CoreAndExtraIgnoreSignAndDecimals(string provider)
     {
         const string extraId = "rde.cccccccccccccccccccccccccccccccc";

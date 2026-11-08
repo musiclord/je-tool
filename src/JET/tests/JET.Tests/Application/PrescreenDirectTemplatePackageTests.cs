@@ -111,14 +111,14 @@ public sealed class PrescreenDirectTemplatePackageTests
             actual,
             "Pre-screening_Report");
         Assert.Equal(
-            Assert.Single(templateSummary.Worksheet.Elements<Drawing>())
+            Assert.Single(templateSummary.RequiredWorksheet().Elements<Drawing>())
                 .OuterXml,
-            Assert.Single(actualSummary.Worksheet.Elements<Drawing>())
+            Assert.Single(actualSummary.RequiredWorksheet().Elements<Drawing>())
                 .OuterXml);
         var appearanceMismatches = new List<string>();
         if (!ColumnAndCellsAreWrapped(
                 actual,
-                actualSummary.Worksheet,
+                actualSummary.RequiredWorksheet(),
                 columnIndex: 3))
         {
             appearanceMismatches.Add(
@@ -126,7 +126,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         }
         if (expectedDetailSheet
             && !ColumnsAreAutoFit(
-                WorksheetPartFor(actual, "R1").Worksheet,
+                WorksheetPartFor(actual, "R1").RequiredWorksheet(),
                 first: 1,
                 last: 20))
         {
@@ -483,17 +483,17 @@ public sealed class PrescreenDirectTemplatePackageTests
         Assert.Empty(new OpenXmlValidator().Validate(document));
         Assert.Single(
             WorksheetPartFor(document, "Summary Inforamtion")
-                .Worksheet.Elements<Drawing>());
+                .RequiredWorksheet().Elements<Drawing>());
         var appearanceMismatches = new List<string>();
         var summaryWorksheet = WorksheetPartFor(
             document,
-            "Summary Inforamtion").Worksheet;
+            "Summary Inforamtion").RequiredWorksheet();
         if (!RowsAreAutoFit(summaryWorksheet))
         {
             appearanceMismatches.Add(
                 "criteria-summary-row-autofit: Summary Inforamtion!all rows row.autoFit");
         }
-        foreach (var sheetName in document.WorkbookPart!.Workbook.Sheets!
+        foreach (var sheetName in document.WorkbookPart!.RequiredWorkbook().Sheets!
                      .Elements<Sheet>()
                      .Select(sheet => sheet.Name?.Value!)
                      .Where(name => name.StartsWith(
@@ -502,9 +502,9 @@ public sealed class PrescreenDirectTemplatePackageTests
         {
             Assert.Empty(
                 WorksheetPartFor(document, sheetName)
-                    .Worksheet.Elements<Drawing>());
+                    .RequiredWorksheet().Elements<Drawing>());
             if (!ColumnsAreAutoFit(
-                    WorksheetPartFor(document, sheetName).Worksheet,
+                    WorksheetPartFor(document, sheetName).RequiredWorksheet(),
                     first: 1,
                     last: 20))
             {
@@ -663,43 +663,9 @@ public sealed class PrescreenDirectTemplatePackageTests
         }
     }
 
-    [SqlServerFact]
-    public async Task Criteria_OutputIdentityCountsAndOrder_AreEquivalentAcrossThreeProviders()
-    {
-        var connectionString =
-            await TempSqlServerProject.ProbeConnectionStringAsync();
-        Assert.NotNull(connectionString);
-
-        var sqlite = await ExportCriteriaOracleAsync(
-            "sqlite",
-            connectionString: null);
-        var duckDb = await ExportCriteriaOracleAsync(
-            "duckdb",
-            connectionString: null);
-        var sqlServer = await ExportCriteriaOracleAsync(
-            "sqlServer",
-            connectionString);
-
-        Assert.Equal(2, sqlite.VoucherHitCount);
-        Assert.Equal(2, sqlite.RowHitCount);
-        Assert.Equal(4, sqlite.DetailRows.Count);
-        Assert.Equal(
-            new[]
-            {
-                "JV-001|風險摘要 1",
-                "JV-001|一般摘要 1",
-                "JV-002|風險摘要 2",
-                "JV-002|一般摘要 2"
-            },
-            sqlite.DetailRows);
-        AssertProviderOracleEqual(sqlite, duckDb);
-        AssertProviderOracleEqual(sqlite, sqlServer);
-    }
-
     // 裁定 2026-10-19-12：傳票號碼空白的命中算進摘要頁的行層命中數，明細表不列，摘要頁加一列說明，數字不動。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Criteria_BlankVoucherNumberHits_AreExplainedOnTheSummary(string provider)
     {
         using var host = new HandlerTestHost();
@@ -993,7 +959,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         string? connectionString)
     {
         using var host = new HandlerTestHost(
-            sqlServerConnectionString: connectionString);
+);
         string? projectId = null;
         try
         {
@@ -1291,7 +1257,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         string sheetName)
     {
         var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
-        var sheet = workbookPart.Workbook.Sheets!.Elements<Sheet>()
+        var sheet = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
             .Single(item => string.Equals(
                 item.Name?.Value,
                 sheetName,
@@ -1363,7 +1329,7 @@ public sealed class PrescreenDirectTemplatePackageTests
     private static bool StyleHasWrapText(
         SpreadsheetDocument document,
         uint styleIndex) =>
-        document.WorkbookPart!.WorkbookStylesPart!.Stylesheet.CellFormats!
+        document.WorkbookPart!.WorkbookStylesPart!.Stylesheet!.CellFormats!
             .Elements<CellFormat>()
             .ElementAt(checked((int)styleIndex))
             .Alignment?

@@ -50,13 +50,13 @@ internal static class ActionShapeJourney
         ("import.accountMapping.fromFile response.mappingOnlyCount", "null"),
         ("import.accountMapping.fromFile response.unmappedCount", "null"),
         // MappingValueProfileHandler：資料庫實作沒有來源值核對時回 null（sourceValueCheckStatus 是 unsupportedProvider）；
-        // SQLite、DuckDB 與 SQL Server 都已實作（SQL Server 自 2026-10-19 起），合成流程做不出這個值。
+        // SQLite 已實作，合成流程做不出這個值。
         ("mapping.valueProfile response.missingComparisonValues", "null"),
     ];
 
     private const string Scope = "auditPeriod";
 
-    internal static async Task<ActionShapeRecorder> RecordAsync(string provider)
+    internal static async Task<ActionShapeRecorder> RecordAsync()
     {
         // 報告清單更新的 3 秒期限是給畫面的時間上限，不是資料形狀的一部分。這段流程固定走到清單更新完成，
         // 記到的形狀才不會隨機器快慢改變（2026-10-19 Public 曾因 DuckDB 的清單更新超過 3 秒而失敗）。
@@ -128,12 +128,10 @@ internal static class ActionShapeJourney
 
         async Task WalkAsync()
         {
-            // 開啟 JET：app.js 依序送出連線檢查、資料庫設定、目前使用者，ui-core.js 讀本機與共用案件清單。
+            // 開啟 JET：app.js 依序送出連線檢查與目前使用者，ui-core.js 讀本機案件清單。
             await Send("system.ping");
-            await Send("system.databaseInfo");
             await Send("system.whoAmI");
             await Send("project.listLocal");
-            await Send("project.list");
 
             // 第一步建案：create-step.js 的建案表單。期末財報準備日先填和查核期間不相符的年份，後端回警告；
             // 之後修改案件資料時清空、再填錯一次，最後改回示範值。
@@ -152,7 +150,6 @@ internal static class ActionShapeJourney
                 periodStart = project.GetProperty("periodStart").GetString(),
                 periodEnd = project.GetProperty("periodEnd").GetString(),
                 prepStartDate = (string?)null,
-                databaseProvider = provider,
             });
             var created = await Send("project.create", new
             {
@@ -162,25 +159,20 @@ internal static class ActionShapeJourney
                 periodStart = project.GetProperty("periodStart").GetString(),
                 periodEnd = project.GetProperty("periodEnd").GetString(),
                 prepStartDate = mismatchedPrepStartDate,
-                databaseProvider = provider,
             });
             var projectId = created.GetProperty("projectId").GetString()!;
             // 每個新案件的抽樣種子是隨機的；合成總帳有總帳日期空白的列，抽到與沒抽到時抽樣明細的形狀不同。
-            // 這裡把種子固定下來，兩種資料庫才抽到同一組列，每次產生的契約也相同。
+            // 這裡把種子固定下來，每次產生的契約才會相同。
             await FixSampleSeedAsync(projectId);
-            // ui-core.js 開案：知道資料庫種類時一併送出。
+            // ui-core.js 開案只送案件名稱，之後回案件清單時重讀本機案件。
             await Send("project.load", new { projectId });
-            await Send("project.load", new { projectId, databaseProvider = provider });
             await Send("project.listLocal");
-            // 案件清單的「同步線上案件」：沒有線上資料庫時也列出本機案件（ProjectListHandler）。
-            await Send("project.list");
             foreach (var value in new[] { null, mismatchedPrepStartDate, prepStartDate })
             {
                 await Send("project.update", new { clientName, projectCode, prepStartDate = value });
             }
 
             await Send("project.saveProgress", new { currentStep = 1 });
-            await Send("project.heartbeat");
 
             // 第二步匯入：import-step.js 先選檔、讀工作表、預覽十列，再整批匯入。GL 用示範檔加工的合成檔（見 SyntheticGl）。
             var glExport = await Demo("demo.exportGlFile");
@@ -463,7 +455,7 @@ internal static class ActionShapeJourney
             });
             await Send("accountCategory.save", categorySnapshot);
 
-            var validation = await Send("validate.run");
+            var validation = await Send("validate.run", new { sampleSize = 59 });
             var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
             foreach (var kind in new[] { "unmapped", "mappingOnly" })
             {
@@ -686,10 +678,21 @@ internal static class ActionShapeJourney
             // 匯出後回頭修改上游資料。上游修改會清除下游（裁定 2026-10-07-03）：
             // 已匯出的報告標成過期，已存情境全部清掉（AuditDependencyPolicy）。之後每個修改的回應都帶已匯出報告的狀態。
             await Send("calendar.setNonWorkingDays", new { days = new[] { 0 } });
-            await Send("import.holiday.fromFile", new { filePath = holidayFile, fileName = Path.GetFileName(holidayFile) });
-            await Send("import.makeupDay.fromFile", new { filePath = makeupFile, fileName = Path.GetFileName(makeupFile) });
+            // 這一段的再匯入，來源檔都用 Excel 的開檔方式佔住：後端照樣匯入，回應多開著檔案的提醒，
+            // 契約才錄得到 warnings 與 openElsewhereWarnings 有內容時的形狀（裁定 2026-11-06-12）。
+            using (HoldLikeExcel(holidayFile))
+            {
+                await Send("import.holiday.fromFile", new { filePath = holidayFile, fileName = Path.GetFileName(holidayFile) });
+            }
+            using (HoldLikeExcel(makeupFile))
+            {
+                await Send("import.makeupDay.fromFile", new { filePath = makeupFile, fileName = Path.GetFileName(makeupFile) });
+            }
             await Send("import.authorizedPreparer.clear");
-            await Send("import.authorizedPreparer.fromFile", preparer);
+            using (HoldLikeExcel(preparerPath))
+            {
+                await Send("import.authorizedPreparer.fromFile", preparer);
+            }
             await Send("project.update", new { clientName, projectCode, prepStartDate });
             await Send("accountMapping.save", new { changes = new[] { new { accountNumber = firstAccountNumber, categoryId = "builtin.cash" } } });
             // 報告清單檔（reports.json）一時被其他程式獨占時修改分類：變更照樣儲存，回應說明報告清單沒有更新。
@@ -701,15 +704,25 @@ internal static class ActionShapeJourney
             }
 
             // 總帳再加入同一份檔案時，後端提醒可能重複匯入；審計員改用示範的原始總帳整批取代，試算表也重新匯入。
-            await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx", "append");
+            // 加入的那份總帳也正被 Excel 開著：回應同時有開著檔案與重複來源兩則提醒，只有前一則另列在 openElsewhereWarnings。
+            using (HoldLikeExcel(glPath))
+            {
+                await ImportAsync("import.gl.fromFile", glPath, "合成總帳.xlsx", "append");
+            }
             await ImportAsync("import.gl.fromFile", glExport.GetProperty("filePath").GetString()!, glExport.GetProperty("fileName").GetString()!);
             // 原始總帳沒有前面那份底稿配到的核准人員欄與兩個攸關資料元素的欄：從底稿帶入時這三個列在 unmatchedFields，其餘照樣帶入。
             await Send("mapping.restoreDraft", new { filePath = workingPaperPath });
-            await Send("import.tb.fromFile", new { mode = "replace", sources = new[] { csvSource } });
+            using (HoldLikeExcel(tbCsvPath))
+            {
+                await Send("import.tb.fromFile", new { mode = "replace", sources = new[] { csvSource } });
+            }
             // 原始總帳沒有攸關資料元素的欄，確認配對時一併拿掉。總帳重新投影會清掉科目配對，審計員重新匯入科目配對檔。
             await Send("mapping.commit.gl", GlCommit(glMapping, amountMode, new JsonArray()));
             await Send("mapping.commit.tb", TbCommit(tbMapping, changeMode));
-            await Send("import.accountMapping.fromFile", new { filePath = accountPath, fileName = "合成科目配對.xlsx" });
+            using (HoldLikeExcel(accountPath))
+            {
+                await Send("import.accountMapping.fromFile", new { filePath = accountPath, fileName = "合成科目配對.xlsx" });
+            }
             await Send("project.load", new { projectId });
             // 欄位配對改了，驗證結果跟著失效；審計員重跑資料驗證（原始總帳沒有差異），再存情境。
             var revalidated = await Send("validate.run");
@@ -942,7 +955,7 @@ internal static class ActionShapeJourney
         async Task RewriteAsOlderScenarioAsync(string projectId, int position, string missingFieldId)
         {
             var folder = new JetProjectFolder(host.ProjectsRoot);
-            ILocalProjectDatabase database = provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+            ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
             await using var connection = database.CreateConnection(projectId);
             await connection.OpenAsync();
             string definitionJson;
@@ -1198,6 +1211,10 @@ internal static class ActionShapeJourney
     /// 示範科目配對檔加工：最後一個科目的分類清空（分類空白清單），另加兩個 GL 沒有的科目（只在配對檔的差異，清單有第二頁）。
     /// renameHeaders 時把三個欄名改成認不出的名稱，後端改依欄位順序對應。
     /// </summary>
+    /// <summary>Excel 開著檔案時的開檔方式：自己可以寫入，只准別人讀（裁定 2026-11-06-12）。</summary>
+    private static FileStream HoldLikeExcel(string path) =>
+        new(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+
     private static string SyntheticAccountMapping(string demoPath, bool renameHeaders = false)
     {
         var path = Path.Combine(Path.GetTempPath(), $"jet-shape-accounts-{Guid.NewGuid():N}.xlsx");

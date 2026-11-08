@@ -92,27 +92,6 @@ public sealed class PrepPeriodApprovalTimingProbeTests(ITestOutputHelper output)
         double MedianMilliseconds,
         string Plan);
 
-    [PrepPeriodApprovalTimingProbeFact]
-    public async Task SqliteAndDuckDb_OneMillionRows_TimeThePrepPeriodApprovalCount()
-    {
-        var results = new List<ProbeResult>();
-        var notes = new List<string>();
-        foreach (var provider in new[] { "sqlite", "duckdb" })
-        {
-            foreach (var shape in new[] { DateShape.Scattered, DateShape.Ordered })
-            {
-                var (measurements, seedMilliseconds, version) = await MeasureAsync(provider, shape, CancellationToken.None);
-                results.AddRange(measurements);
-                notes.Add($"{provider} {version}，{ShapeLabel(shape)}：灌入 {RowCount:N0} 列用了 {seedMilliseconds / 1000:F1} 秒。");
-            }
-        }
-
-        var report = Render(results, notes);
-        output.WriteLine(report);
-        await WriteOutputIfRequestedAsync(report);
-        Assert.Equal(2 * 2 * 3 * Thresholds.Length, results.Count);
-    }
-
     private static async Task<(List<ProbeResult> Results, double SeedMilliseconds, string Version)> MeasureAsync(
         string provider,
         DateShape shape,
@@ -125,7 +104,6 @@ public sealed class PrepPeriodApprovalTimingProbeTests(ITestOutputHelper output)
             ILocalProjectDatabase database = provider switch
             {
                 "sqlite" => new SqliteProjectDatabase(folder),
-                "duckdb" => new DuckDbProjectDatabase(folder),
                 _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, null)
             };
             await database.EnsureCreatedAsync(ProjectId, cancellationToken);
@@ -137,7 +115,7 @@ public sealed class PrepPeriodApprovalTimingProbeTests(ITestOutputHelper output)
                 await using var seed = seedConnection.CreateCommand();
                 seed.CommandTimeout = 0;
                 seed.AddWithValue("@rowCount", RowCount);
-                seed.CommandText = provider == "duckdb" ? DuckDbSeedSql(shape) : SqliteSeedSql(shape);
+                seed.CommandText = SqliteSeedSql(shape);
                 await seed.ExecuteNonQueryAsync(cancellationToken);
             }
 
@@ -150,7 +128,7 @@ public sealed class PrepPeriodApprovalTimingProbeTests(ITestOutputHelper output)
                 await connection.OpenAsync(cancellationToken);
                 version = await ScalarTextAsync(
                     connection,
-                    provider == "duckdb" ? "SELECT version();" : "SELECT sqlite_version();",
+                    "SELECT sqlite_version();",
                     cancellationToken);
                 foreach (var index in new[] { IndexVariant.None, IndexVariant.ApprovalDate, IndexVariant.ApprovalDateWithDocument })
                 {
@@ -371,13 +349,6 @@ public sealed class PrepPeriodApprovalTimingProbeTests(ITestOutputHelper output)
         _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null)
     };
 
-    private static string DuckDbOffset(DateShape shape) => shape switch
-    {
-        DateShape.Scattered => "((CAST(floor((i - 1) / 4) AS BIGINT) * 7919) % 365)",
-        DateShape.Ordered => "CAST(floor(((i - 1) * 365) / @rowCount) AS BIGINT)",
-        _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, null)
-    };
-
     private static string SqliteSeedSql(DateShape shape)
     {
         var day = $"date('2025-01-01', printf('+%d days', {SqliteOffset(shape)}))";
@@ -420,46 +391,6 @@ public sealed class PrepPeriodApprovalTimingProbeTests(ITestOutputHelper output)
 
             COMMIT;
             PRAGMA wal_checkpoint(TRUNCATE);
-            """;
-    }
-
-    private static string DuckDbSeedSql(DateShape shape)
-    {
-        var day = $"strftime(DATE '2025-01-01' + CAST({DuckDbOffset(shape)} AS INTEGER), '%Y-%m-%d')";
-        return $"""
-            BEGIN TRANSACTION;
-            DELETE FROM gl;
-
-            INSERT INTO gl
-                (batch_id, source_row_number, voucher_number, line_item,
-                 line_item_numeric_sort_key, gl_date, approval_date,
-                 account_number, account_name, description, source_module,
-                 created_by, approved_by, is_manual, is_excluded, amount_scaled,
-                 debit_amount_scaled, credit_amount_scaled, dr_cr)
-            SELECT
-                'probe-gl',
-                i,
-                printf('JV%09d', CAST(floor((i - 1) / 4) AS BIGINT)),
-                CAST(((i - 1) % 4) + 1 AS VARCHAR),
-                printf('%04d', ((i - 1) % 4) + 1),
-                {day},
-                {day},
-                CASE ((i - 1) % 4) WHEN 0 THEN '4000' WHEN 1 THEN '1000' WHEN 2 THEN '5000' ELSE '6000' END,
-                'synthetic account',
-                'ordinary synthetic entry',
-                'GL',
-                printf('P%04d', (i - 1) % 1000),
-                printf('A%03d', (i - 1) % 100),
-                0,
-                0,
-                CASE WHEN (i - 1) % 4 IN (0, 3) THEN -100000000 ELSE 100000000 END,
-                CASE WHEN (i - 1) % 4 IN (0, 3) THEN 0 ELSE 100000000 END,
-                CASE WHEN (i - 1) % 4 IN (0, 3) THEN 100000000 ELSE 0 END,
-                CASE WHEN (i - 1) % 4 IN (0, 3) THEN 'CREDIT' ELSE 'DEBIT' END
-            FROM range(1, @rowCount + 1) AS generated(i);
-
-            COMMIT;
-            CHECKPOINT;
             """;
     }
 }

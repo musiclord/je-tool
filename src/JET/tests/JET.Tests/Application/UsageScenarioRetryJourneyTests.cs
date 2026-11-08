@@ -12,9 +12,7 @@ public sealed class UsageScenarioRetryJourneyTests
     // Retrying after removing a synthetic I/O/SQL fault must produce a fresh complete result.
     [Theory]
     [InlineData("sqlite", "validate")]
-    [InlineData("duckdb", "validate")]
     [InlineData("sqlite", "prescreen")]
-    [InlineData("duckdb", "prescreen")]
     public async Task ResultWriteFailure_PreservesPreviousResultsAndRetryPublishesNewRun(string provider, string kind)
     {
         using var host = new HandlerTestHost();
@@ -64,7 +62,6 @@ public sealed class UsageScenarioRetryJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task WorkingPaperWriteFailure_PreservesPublishedVersionAndRetryPublishesAnother(string provider)
     {
         var events = new FailWorkingPaperWriteOnce();

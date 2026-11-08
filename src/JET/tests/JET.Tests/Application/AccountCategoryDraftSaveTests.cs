@@ -9,7 +9,6 @@ public sealed class AccountCategoryDraftSaveTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Save_ForwardDraftReferences_GetStableIdsAndPreserveExplicitRolesAfterReopen(string provider)
     {
         using var host = new HandlerTestHost();
@@ -55,7 +54,6 @@ public sealed class AccountCategoryDraftSaveTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Save_InvalidDraftIdentitiesAndCycles_DoNotPersistPartialCategory(string provider)
     {
         using var host = new HandlerTestHost();
@@ -91,7 +89,6 @@ public sealed class AccountCategoryDraftSaveTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Save_RemovingParentRequiresExplicitReparent_AndNamesTheAffectedChild(string provider)
     {
         using var host = new HandlerTestHost();

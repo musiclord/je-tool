@@ -62,7 +62,6 @@ public sealed class GlFillDownWorkflowTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FillDown_FillsBlanksOfChosenFieldsFromThePreviousRow_AndReportsTheCount(string provider)
     {
         using var host = new HandlerTestHost();
@@ -125,7 +124,6 @@ public sealed class GlFillDownWorkflowTests
     // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（回應只列出勾選的欄位）。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FillDown_FieldsSharingASourceColumn_AreFilledAndListedTogether(string provider)
     {
         using var host = new HandlerTestHost();
@@ -161,7 +159,6 @@ public sealed class GlFillDownWorkflowTests
     // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（重開案件的配對沒有 fillDownCount）。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FillDown_CountIsSavedWithTheConfirmedMapping(string provider)
     {
         using var host = new HandlerTestHost();
@@ -189,7 +186,6 @@ public sealed class GlFillDownWorkflowTests
     // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（續列的分錄來源與第 2 列的借貸代號是空白）。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FillDown_InfAndWorkingPaperStep2_ShowTheCleanedSourceModuleAndDirection(string provider)
     {
         using var host = new HandlerTestHost();
@@ -289,7 +285,6 @@ public sealed class GlFillDownWorkflowTests
     // 2026-10-28 複審補的整合測試；程式本來就這樣處理，第一次就通過，沒有第一次失敗的收據。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task FillDown_DoesNotCarryValuesIntoAnAppendedSource(string provider)
     {
         using var host = new HandlerTestHost();

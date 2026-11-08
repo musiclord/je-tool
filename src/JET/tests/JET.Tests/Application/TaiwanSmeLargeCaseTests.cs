@@ -51,7 +51,8 @@ public sealed class TaiwanSmeLargeCaseTests
 
     [Theory]
     [InlineData("sqlite", "common")]
-    [InlineData("duckdb", "custom")]
+    // 原本自訂的十個情境由 DuckDB 測；只保留 SQLite 之後改由 SQLite 測，情境不變（裁定 2026-11-06-08）。
+    [InlineData("sqlite", "custom")]
     public async Task FullWorkflow_MatchesIndependentlyComputedAnswers(string provider, string scenarioSet)
     {
         var (_, files, oracle) = Fixture.Value;

@@ -149,8 +149,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         {
             projected = projection.Complete(
                 rowCount,
-                source.FileName,
-                AccountMappingFailureStyle.Local);
+                source.FileName);
         }
         catch
         {

@@ -6,6 +6,8 @@ namespace JET.AuditCore;
 /// （instr ↔ CHARINDEX）、轉大寫、主單位整數商、參數命名。取模、ABS、EXISTS、ISO 日期字串比較
 /// 皆共通，不進介面。新增 provider = 新增一個 ISqlDialect 實作
 /// + 一組 *FilterHitRepository / *PrescreenRunRepository 的 SELECT 骨架。
+/// 目前只有 SQLite 的實作：DuckDB 與 SQL Server 隨裁定 2026-11-06-08 暫時移除，還原點是提交 7e88b7b。
+/// 各成員說明裡 DuckDB 與 SQL Server 的差異，是日後恢復時仍要遵守的寫法理由，不代表目前還有那些實作。
 /// </summary>
 public interface ISqlDialect
 {

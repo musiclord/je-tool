@@ -1183,7 +1183,7 @@
       "title": "命中條件表的連接欄位",
       "claim": "filter_hit_condition 以 scenario_id 連到 filter_scenario，以 entry_id 連回 gl。寫入時只在這個情境已命中的傳票裡，挑出符合某一條條件的分錄，記下第幾組第幾條；刪除一個情境或全部的結果時，先刪這張表再刪 filter_hit。這些是程式在 SQL 裡使用的欄位，不是資料庫宣告的外鍵。",
       "status": "source-reviewed-static",
-      "addedOn": "2026-11-03",
+      "addedOn": "2026-11-06",
       "sources": [
         {
           "path": "src/JET/JET/Infrastructure/Sql/FilterHitInsertSql.cs",

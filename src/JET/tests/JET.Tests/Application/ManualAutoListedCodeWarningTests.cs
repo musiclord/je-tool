@@ -61,7 +61,6 @@ public sealed class ManualAutoListedCodeWarningTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ListsManualOnly_CodeAbsentFromSource_WarnsWithoutBlocking(string provider)
     {
         var committed = await CommitAsync(provider, new
@@ -79,7 +78,6 @@ public sealed class ManualAutoListedCodeWarningTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ListsAutomaticOnly_CodesAbsentFromSource_WarnsWithEveryListedCode(string provider)
     {
         var committed = await CommitAsync(provider, new
@@ -97,7 +95,6 @@ public sealed class ManualAutoListedCodeWarningTests
     /// <summary>來源的「 m 」去頭尾空白、不分大小寫後就是清單上的「M」，與投影的比對方式相同，所以不提醒。</summary>
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ListedCodePresentInSource_DoesNotWarn(string provider)
     {
         var listsManual = await CommitAsync(provider, new

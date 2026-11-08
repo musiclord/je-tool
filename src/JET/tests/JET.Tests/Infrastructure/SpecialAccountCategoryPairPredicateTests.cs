@@ -53,23 +53,9 @@ public sealed class SpecialAccountCategoryPairPredicateTests
     [InlineData("sqlite", SpecialAccountCategoryPairModes.DrAndCr)]
     [InlineData("sqlite", SpecialAccountCategoryPairModes.DrNotCr)]
     [InlineData("sqlite", SpecialAccountCategoryPairModes.NotDrCr)]
-    [InlineData("duckdb", SpecialAccountCategoryPairModes.DrAndCr)]
-    [InlineData("duckdb", SpecialAccountCategoryPairModes.DrNotCr)]
-    [InlineData("duckdb", SpecialAccountCategoryPairModes.NotDrCr)]
     public async Task PairMode_LocalProvider_HitsExactRows(string provider, string pairMode)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
-
-        await AssertModeAsync(fixture, pairMode);
-    }
-
-    [SqlServerTheory]
-    [InlineData(SpecialAccountCategoryPairModes.DrAndCr)]
-    [InlineData(SpecialAccountCategoryPairModes.DrNotCr)]
-    [InlineData(SpecialAccountCategoryPairModes.NotDrCr)]
-    public async Task PairMode_SqlServer_HitsExactRows(string pairMode)
-    {
-        await using var fixture = await FilterPredicateProviderFixture.CreateSqlServerAsync(FixtureSql);
 
         await AssertModeAsync(fixture, pairMode);
     }

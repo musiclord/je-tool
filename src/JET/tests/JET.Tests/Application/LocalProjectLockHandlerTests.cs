@@ -19,7 +19,6 @@ public sealed class LocalProjectLockHandlerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Create_LocalProjectHoldsLockUntilOwnerReleases(string provider)
     {
         // State Transition：create 已發布 active session 時就必須持鎖，不能等下一次 project.load 才補取。
@@ -55,7 +54,6 @@ public sealed class LocalProjectLockHandlerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Load_SameLocalProjectFromTwoHosts_HoldsUntilOwnerReleases(string provider)
     {
         using var root = new TempProjectRoot();
@@ -72,12 +70,6 @@ public sealed class LocalProjectLockHandlerTests
         // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。句子不再有「開啟中」，改鎖整句。
         Assert.Equal(ExternalProcessLockMessage, held.Message);
 
-        // State Transition：心跳只續持有狀態，不得意外釋放本地檔案鎖。
-        await owner.DispatchAsync("project.heartbeat");
-        var heldAfterHeartbeat = await Assert.ThrowsAsync<JetActionException>(
-            () => contender.DispatchAsync("project.load", LoadPayload(projectId)));
-        Assert.Equal(JetErrorCodes.ProjectLocked, heldAfterHeartbeat.Code);
-
         await owner.DispatchAsync("project.releaseLock");
         var loaded = await contender.DispatchAsync("project.load", LoadPayload(projectId));
         Assert.Equal(projectId, loaded.GetProperty("project").GetProperty("projectId").GetString());
@@ -87,7 +79,6 @@ public sealed class LocalProjectLockHandlerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Delete_LocalProjectHeldByOtherHost_RejectsWithoutDeletingData(string provider)
     {
         using var root = new TempProjectRoot();
@@ -104,7 +95,7 @@ public sealed class LocalProjectLockHandlerTests
         Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
         Assert.True(File.Exists(Path.Combine(projectDirectory, "project.json")));
         Assert.True(File.Exists(Path.Combine(projectDirectory, DatabaseFileName(provider))));
-        Assert.Equal(projectId, SingleProjectId(await contender.DispatchAsync("project.list"), projectId));
+        Assert.Equal(projectId, SingleProjectId(await contender.DispatchAsync("project.listLocal"), projectId));
 
         await owner.DispatchAsync("project.releaseLock");
         var deleted = await contender.DispatchAsync("project.delete", LoadPayload(projectId));
@@ -114,7 +105,6 @@ public sealed class LocalProjectLockHandlerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Delete_CaseVariantLocalProject_UsesCanonicalIdForSessionAndProviderCache(string provider)
     {
         // State Transition：Windows 路徑大小寫不敏感；payload casing 不得分裂 session 或 provider cache 身分。
@@ -122,9 +112,6 @@ public sealed class LocalProjectLockHandlerTests
         using var host = new HandlerTestHost(projectsRootPath: root.Path);
         var projectId = $"Local-Lock-{provider}-Canonical-{Guid.NewGuid():N}";
         var caseVariant = projectId.ToLowerInvariant();
-        var replacementProvider = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? ProjectDocument.DefaultDatabaseProvider
-            : ProjectDocument.DuckDbDatabaseProvider;
 
         await host.DispatchAsync("project.create", CreatePayload(projectId, provider));
 
@@ -135,15 +122,14 @@ public sealed class LocalProjectLockHandlerTests
             () => host.DispatchAsync("project.saveProgress", """{ "currentStep": 2 }"""));
         Assert.Equal(JetErrorCodes.NoActiveProject, noSession.Code);
 
-        // 同名重建改選另一個本地 provider，必須重讀新 project.json，不得沿用刪案前的 cache。
-        await host.DispatchAsync("project.create", CreatePayload(projectId, replacementProvider));
-        Assert.True(File.Exists(Path.Combine(root.Path, projectId, DatabaseFileName(replacementProvider))));
-        Assert.False(File.Exists(Path.Combine(root.Path, projectId, DatabaseFileName(provider))));
+        // 原本同名重建改選另一個本機資料庫，驗證會重讀新的 project.json；只保留 SQLite 之後改成同名重建 SQLite 案件，
+        // 驗證刪案後的同名新案件照常建立資料庫檔（裁定 2026-11-06-08）。
+        await host.DispatchAsync("project.create", CreatePayload(projectId, provider));
+        Assert.True(File.Exists(Path.Combine(root.Path, projectId, DatabaseFileName(provider))));
     }
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Load_ResumeAssemblyFails_DoesNotPublishSessionOrLastOpenedAndReleasesLock(string provider)
     {
         using var root = new TempProjectRoot();
@@ -170,7 +156,7 @@ public sealed class LocalProjectLockHandlerTests
                 () => failingHost.DispatchAsync("project.saveProgress", """{ "currentStep": 2 }"""));
             Assert.Equal(JetErrorCodes.NoActiveProject, sessionError.Code);
 
-            var listed = SingleProject(await failingHost.DispatchAsync("project.list"), projectId);
+            var listed = SingleProject(await failingHost.DispatchAsync("project.listLocal"), projectId);
             Assert.Equal(JsonValueKind.Null, listed.GetProperty("lastOpenedUtc").ValueKind);
         }
         finally
@@ -187,7 +173,6 @@ public sealed class LocalProjectLockHandlerTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Load_SameProjectReloadFails_PreservesPreviouslyHeldLock(string provider)
     {
         using var root = new TempProjectRoot();
@@ -243,9 +228,7 @@ public sealed class LocalProjectLockHandlerTests
         $$"""{ "projectId": "{{projectId}}" }""";
 
     private static string DatabaseFileName(string provider) =>
-        provider == ProjectDocument.DuckDbDatabaseProvider
-            ? DuckDbProjectDatabase.DatabaseFileName
-            : JetProjectFolder.DatabaseFileName;
+        JetProjectFolder.DatabaseFileName;
 
     private static string SingleProjectId(JsonElement listResponse, string projectId) =>
         SingleProject(listResponse, projectId).GetProperty("projectId").GetString()!;

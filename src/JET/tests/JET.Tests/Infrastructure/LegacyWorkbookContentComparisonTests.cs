@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Infrastructure;
@@ -365,7 +366,7 @@ public sealed class LegacyWorkbookContentComparisonTests
             var builder = new SheetBuilder(sheetData);
             build(builder);
             worksheetPart.Worksheet.Save();
-            workbookPart.Workbook.Sheets!.Append(new Sheet
+            workbookPart.RequiredWorkbook().Sheets!.Append(new Sheet
             {
                 Id = workbookPart.GetIdOfPart(worksheetPart),
                 SheetId = _sheetId,

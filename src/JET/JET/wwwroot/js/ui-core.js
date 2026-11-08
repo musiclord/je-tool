@@ -900,42 +900,16 @@
       });
   }
 
-  /* ---- 專案租約鎖：心跳保活 / 離場釋放 ------------------------ */
-  // 鏡像後端：SQL Server 案件 project.load 成功後每 heartbeatSeconds 秒續租一次；實際離開專案時釋放。
-  // 本機案件不送心跳。純鏡像、零商業邏輯。
+  /* ---- 專案工作鎖：離場釋放 ------------------------ */
+  // 實際離開專案時釋放工作鎖。案件鎖是本機檔案鎖，不需要續租。純鏡像、零商業邏輯。
 
-  var heartbeatTimer = null;
-
-  // 停心跳（清 interval，冪等）。切換專案、回選擇、結束前呼叫。
-  function stopHeartbeat() {
-    if (heartbeatTimer !== null) {
-      global.clearInterval(heartbeatTimer);
-      heartbeatTimer = null;
-    }
-  }
-
-  // 起心跳：以伺服器驅動的 heartbeatSeconds 間隔，透過 runBackground 週期續租當前專案的租約鎖。
-  // 走 runBackground（不設 busy／不觸發遮罩／不佔 single-flight）——背景保活絕不可被進行中的作業擋住。
-  function startHeartbeat(seconds) {
-    stopHeartbeat();
-    var interval = (typeof seconds === 'number' && seconds > 0 ? seconds : 30) * 1000;
-    heartbeatTimer = global.setInterval(function () {
-      if (!global.JetApi.isReady()) { return; }
-      runBackground('確認線上案件使用狀態', function () { return global.JetApi.projectHeartbeat({}); });
-    }, interval);
-  }
-
-  // 離開專案時直接等後端釋放鎖；只有成功後才停心跳。不得走會吞掉
+  // 離開專案時直接等後端釋放鎖。不得走會吞掉
   // operation_in_progress 的 runBackground，否則長作業仍在寫入時可能誤離場。
   function releaseProjectLease() {
     if (global.JetApi.isReady()) {
-      return global.JetApi.projectReleaseLock({}).then(function (result) {
-        stopHeartbeat();
-        return result;
-      });
+      return global.JetApi.projectReleaseLock({});
     }
     if (!Store.getState().project) {
-      stopHeartbeat();
       return Promise.resolve({ ok: true });
     }
     var unavailable = new Error('應用程式連線尚未就緒，無法確認案件鎖已釋放。');
@@ -2216,7 +2190,7 @@
 
   /* ---- 專案載入 / 切換 ------------------------------------------------------ */
 
-  // Picker 清單的共用 latest-response generation。每次本機刷新／線上同步都使前一張 ticket 失效；
+  // Picker 清單的共用 latest-response generation。每次本機刷新都使前一張 ticket 失效；
   // 開案、建立新案或回到 picker 前另行 invalidate，避免晚到成功或失敗污染新的 view generation。
   var pickerProjectResponseGuard = createLatestResponseGuard();
 
@@ -2233,34 +2207,10 @@
       return global.JetApi.projectListLocal({})
         .then(function (data) {
           if (!acceptResponse()) { return; }
-          // 本機刷新發布新的 local snapshot，並清除先前手動同步留下的線上區狀態。
-          Store.setProjects(data.projects || [], null);
+          Store.setProjects(data.projects || []);
         })
         .catch(function (error) {
           // Stale failure 在進入 Ui.run 的共享 catch 前吸收，不能寫入新 view 的訊息或 picker feedback。
-          if (!acceptResponse()) { return; }
-          throw error;
-        });
-    }, {
-      // 案件清單的錯誤框就是這個操作的就地錯誤框。
-      inlineError: true,
-      onError: function (message) { Store.setPickerFeedback(message); }
-    });
-  }
-
-  function syncOnlineProjects() {
-    Store.setPickerFeedback(null);
-    return run('同步線上案件', function () {
-      var acceptResponse = pickerProjectResponseGuard.issue(function () {
-        return Store.getState().view === 'picker';
-      });
-      return global.JetApi.projectList({})
-        .then(function (data) {
-          if (!acceptResponse()) { return; }
-          Store.setProjects(data.projects || [], data.online);
-        })
-        .catch(function (error) {
-          // 取消／失敗只由仍屬目前 picker generation 的 request 進入 Ui.run feedback；snapshot 保持不變。
           if (!acceptResponse()) { return; }
           throw error;
         });
@@ -2313,15 +2263,12 @@
       });
   }
 
-  // databaseProvider 取自案件清單列。本機找不到案件資料夾時，後端只對 sqlServer 案件查線上登錄。
-  function openProject(projectId, databaseProvider) {
+  function openProject(projectId) {
     pickerProjectResponseGuard.invalidate();
     Store.setPickerFeedback(null);
-    var loadPayload = { projectId: projectId };
-    if (databaseProvider) { loadPayload.databaseProvider = databaseProvider; }
     return run('開啟案件', function () {
-      return global.JetApi.projectLoad(loadPayload).then(function (data) {
-        applyLoadedProject(data); // 是否啟動心跳由 applyLoadedProject 依資料庫種類決定，開案與建案共用。
+      return global.JetApi.projectLoad({ projectId: projectId }).then(function (data) {
+        applyLoadedProject(data);
 
         // 還原持久化的訊息歷史（log.recent）；失敗不影響專案載入
         return global.JetApi.logRecent({}).then(function (log) {
@@ -2501,16 +2448,6 @@
     Store.setStaleState(data.staleState || null);
 
     Store.setView('workflow');
-
-    // 租約鎖心跳只給 SQL Server 案件。開案與建案載入都經過這裡，所以建案後也不會漏掉續租；
-    // 漏掉時租約不會續期，120 秒後過期。SQLite 與 DuckDB 案件用本機檔案鎖，不送心跳；
-    // 先停掉計時器，避免從 SQL Server 案件切到本機案件時留下舊的心跳。
-    // project.load 被鎖時已回 project_locked，走不到這裡。heartbeatSeconds 由 project.load 回應提供。
-    if (data.project && data.project.databaseProvider === 'sqlServer') {
-      startHeartbeat(data.heartbeatSeconds);
-    } else {
-      stopHeartbeat();
-    }
 
     // 建立或載入案件時套用後端狀態，但停在目前步驟，不自行推進到匯入。
     if (options && options.stayOnCurrentStep) {
@@ -2951,7 +2888,6 @@
     bindMenus: bindMenus,
     closeMenus: closeMenus,
     loadProjects: loadProjects,
-    syncOnlineProjects: syncOnlineProjects,
     invalidateProjectListRequests: invalidateProjectListRequests,
     goBackToPicker: goBackToPicker,
     openProject: openProject,

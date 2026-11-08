@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "篩選情境儲存：從按下儲存到資料庫交易",
+    "title": "儲存篩選情境：呼叫順序",
     "locale": "zh-TW",
     "output": "archify/action-sequence/action-sequence.html",
     "quality_profile": "showcase",
@@ -35,13 +35,13 @@
     {
       "id": "bridge",
       "type": "backend",
-      "label": "WebMessage 橋接",
+      "label": "接收畫面訊息",
       "sublabel": "JetWebMessageBridge"
     },
     {
       "id": "dispatcher",
       "type": "backend",
-      "label": "依 action 分派",
+      "label": "找到處理類別",
       "sublabel": "ActionDispatcher"
     },
     {
@@ -311,28 +311,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "情境與前提",
+      "title": "這張圖怎麼讀",
       "items": [
-        "審計員在第五步按「儲存」，畫面只送本次情境、位置與名稱。",
-        "前提：案件使用 SQLite 或 DuckDB，找得到案件，驗證結果是目前版本，GL 欄位已確認配對。",
-        "其他情境都合格、已是目前規則，存好的結果也沒有過期時走分支 A；否則整批處理，全部合格走分支 B，仍有不合格走分支 C。一次只會走其中一支。"
-      ]
-    },
-    {
-      "dot": "slate",
-      "title": "實際執行的類別",
-      "items": [
-        "畫面送來的 action 名稱對應到 FilterScenarioSaveHandler。會修改資料的作業同一時間只執行一項，並在背景執行。",
-        "虛線呼叫的是介面。案件用 SQLite 或 DuckDB 時，實際執行的是 LocalFilterCommitRepository 與 LocalFilterScenarioStore；FilterFactsPort 不分資料庫。"
+        "第五步按下儲存後，JET 先檢查案件、目前驗證結果與 GL 配對。",
+        "其他情境合格且結果未過期時，只存本次情境；否則整批處理。"
       ]
     },
     {
       "dot": "amber",
-      "title": "沒有畫出的路徑",
+      "title": "三種儲存結果",
       "items": [
-        "前提不符或本次情境不合格時回錯誤，不寫入；細節見「儲存篩選情境」流程圖。",
-        "交易提交前取消時，交易回復，這次儲存不寫入。",
-        "有存下結果時，經 MappingCommitShared.AdvanceStepAsync 推進到第五步；失敗記在支援日誌，已存下的情境不撤回。"
+        "A 只換本次情境。B 全部合格，重算並儲存全部結果。C 仍有情境待修，只存定義並清除命中。",
+        "前提不符、本次情境不合格或提交前取消時不寫入。步驟更新失敗會記錄日誌，已存情境仍保留。"
       ]
     }
   ],

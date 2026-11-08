@@ -41,14 +41,12 @@ public sealed class KeysetPagingProviderParityTests
         return order;
     }
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public async Task SortedWalk_NullsLastAndStableKeyTieBreak_OnBothProviders(string provider)
+    [Fact]
+    public async Task SortedWalk_NullsLastAndStableKeyTieBreak_OnBothProviders()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase db = provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase db = new SqliteProjectDatabase(folder);
         const string id = "keyset-paging-parity";
         Directory.CreateDirectory(folder.GetProjectDirectory(id));
         await db.EnsureCreatedAsync(id, CancellationToken.None);

@@ -44,33 +44,11 @@ public sealed class ProjectSaveProgressHandler(
 }
 
 /// <summary>
-/// project.heartbeat（專案租約鎖）：續租當前 session 專案的鎖（更新 heartbeat_utc，只更新自己持有的列）。
-/// 背景保活 action、分類 concurrent（絕不被進行中的作業擋住）。sqlServer 續租；本地檔案鎖不需續期。
-/// 無 active session 專案時優雅 no-op 回 { ok }（背景保活不因偶發無 session 而報錯）。
-/// </summary>
-public sealed class ProjectHeartbeatHandler(
-    CurrentPrincipal principal,
-    ProjectSession session) : IApplicationActionHandler
-{
-    public string Action => "project.heartbeat";
-
-    public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
-    {
-        if (session.Current is (var projectId, var repositories))
-        {
-            await repositories.LockService.RenewAsync(projectId, principal.Name, cancellationToken);
-        }
-
-        return new { ok = true };
-    }
-}
-
-/// <summary>
-/// project.releaseLock（專案租約鎖）：釋放當前 session 專案的鎖（只刪自己持有的列，釋放他人為 no-op）。
+/// project.releaseLock：釋放當前 session 案件的工作鎖（不是自己持有的鎖不做事）。
 /// 離場清理 action 由 handler 非阻塞試取與變更型作業相同的作業互斥鎖；取不到即 fail-fast，
 /// 取到後才把放鎖與 session 離場原子包在同一 lease。前端只在真正離開專案時呼叫。無 active session
 /// 專案時在取得互斥鎖後優雅 no-op 回 { ok }。只有底層放鎖成功才清掉取得互斥鎖後捕捉的 session 案件；
-/// 失敗或取消時保留 session 與心跳，讓使用者可安全重試。離開案件後關閉這個案件的資料庫連線，
+/// 失敗或取消時保留 session，讓使用者可安全重試。離開案件後關閉這個案件的資料庫連線，
 /// 記錄檔併回資料庫檔，JET 不再開著案件資料庫（見 IProjectDatabaseCheckpoint）。
 /// </summary>
 public sealed class ProjectReleaseLockHandler(

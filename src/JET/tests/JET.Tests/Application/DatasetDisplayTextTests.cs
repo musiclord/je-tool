@@ -52,7 +52,6 @@ public sealed class DatasetDisplayTextTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AllZeroEffectiveAmounts_ExplainTheAffectedEntriesWithoutAuditJargon(string provider)
     {
         using var host = new HandlerTestHost();

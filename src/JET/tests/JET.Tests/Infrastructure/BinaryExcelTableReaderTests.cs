@@ -81,7 +81,6 @@ public sealed class BinaryExcelTableReaderTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ErrorCellInAmountColumn_FailsMappingExplicitly(string provider)
     {
         using var host = new HandlerTestHost();

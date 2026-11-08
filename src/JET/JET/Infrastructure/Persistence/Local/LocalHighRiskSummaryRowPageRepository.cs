@@ -90,7 +90,6 @@ public sealed class LocalHighRiskSummaryRowPageRepository(ILocalProjectDatabase 
         var connection = database.CreateConnection(projectId);
         if (connection is not SqliteConnection sqlite)
         {
-            // DuckDB.NET does not pool this physical connection.
             return connection;
         }
 

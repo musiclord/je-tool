@@ -21,18 +21,6 @@ public sealed class SqlDialectTests
         Assert.Equal(expected, actual);
     }
 
-    [Theory]
-    [InlineData(0, "@p0")]
-    [InlineData(7, "@p7")]
-    public void ParameterName_SqlServerIndex_ReturnsAtPrefixedOrdinal(int index, string expected)
-    {
-        ISqlDialect dialect = SqlServerDialect.Instance;
-
-        var actual = dialect.ParameterName(index);
-
-        Assert.Equal(expected, actual);
-    }
-
     // 週末述詞:非工作日以 .NET DayOfWeek 編碼(週日=0…週六=6)。預設 {0,6} 須完全重現舊行為(golden-master)。
     [Fact]
     public void WeekendPredicate_SqliteDefaultSatSun_ReturnsStrftimeInZeroSix()
@@ -66,42 +54,6 @@ public sealed class SqlDialectTests
         Assert.Equal("0 = 1", actual);
     }
 
-    // SQL Server 錨點編碼:canonical d → (d+6)%7。預設 {0,6} → {6,5} 排序後 (5, 6),重現舊行為。
-    [Fact]
-    public void WeekendPredicate_SqlServerDefaultSatSun_ReturnsDateDiffInFiveSix()
-    {
-        ISqlDialect dialect = SqlServerDialect.Instance;
-
-        var actual = dialect.WeekendPredicate("gl.posting_date", new[] { 0, 6 });
-
-        // 1900 年以前天數為負，SQL Server 的餘數也是負數，週末判斷不到。
-        // 原本預期 "(DATEDIFF(...) % 7) IN (5, 6)"；改成先加 7 再取餘數，第一次失敗的收據寫在下一個測試。
-        Assert.Equal("((DATEDIFF(day, '19000101', CONVERT(date, gl.posting_date)) % 7 + 7) % 7) IN (5, 6)", actual);
-    }
-
-    // canonical {5,6}(週五、週六)→ {(5+6)%7,(6+6)%7} = {4,5} 排序後 (4, 5)。
-    [Fact]
-    public void WeekendPredicate_SqlServerFridaySaturday_ReturnsDateDiffInFourFive()
-    {
-        ISqlDialect dialect = SqlServerDialect.Instance;
-
-        var actual = dialect.WeekendPredicate("gl.posting_date", new[] { 5, 6 });
-
-        // 同上一個測試的原因；原本預期 "(DATEDIFF(...) % 7) IN (4, 5)"。
-        // 第一次失敗：20261019-020138876-e796a4ac4bbb4395a0eba510d8cd489b，這兩個測試在方言修改前失敗。
-        Assert.Equal("((DATEDIFF(day, '19000101', CONVERT(date, gl.posting_date)) % 7 + 7) % 7) IN (4, 5)", actual);
-    }
-
-    [Fact]
-    public void WeekendPredicate_SqlServerEmpty_ReturnsAlwaysFalse()
-    {
-        ISqlDialect dialect = SqlServerDialect.Instance;
-
-        var actual = dialect.WeekendPredicate("gl.posting_date", System.Array.Empty<int>());
-
-        Assert.Equal("0 = 1", actual);
-    }
-
     [Fact]
     public void ContainsIgnoreCase_SqliteColumnExpression_ReturnsUpperCoalesceInstrPredicate()
     {
@@ -113,19 +65,6 @@ public sealed class SqlDialectTests
     }
 
     [Fact]
-    public void ContainsIgnoreCase_SqlServerColumnExpression_ReturnsUpperCoalesceCharIndexPredicate()
-    {
-        ISqlDialect dialect = SqlServerDialect.Instance;
-
-        var actual = dialect.ContainsIgnoreCase("gl.description", "@p2");
-
-        // 裁定 2026-10-19-30：SQL Server 的轉大寫改用 Latin1_General_100_BIN2 的對照表，
-        // 和 .NET 的差異從 546 個字元降到 308 個。原本預期 "CHARINDEX(@p2, UPPER(COALESCE(gl.description, N''))) > 0"。
-        // 第一次失敗：20261019-025254236-2c1646c01c27451a9f17a38cd88ee561，方言修改前失敗。
-        Assert.Equal("CHARINDEX(@p2, UPPER((COALESCE(gl.description, N'')) COLLATE Latin1_General_100_BIN2)) > 0", actual);
-    }
-
-    [Fact]
     public void LimitClause_SqliteParameterName_ReturnsLimitClause()
     {
         ISqlDialect dialect = SqliteDialect.Instance;
@@ -133,15 +72,5 @@ public sealed class SqlDialectTests
         var actual = dialect.LimitClause("@limit");
 
         Assert.Equal("LIMIT @limit", actual);
-    }
-
-    [Fact]
-    public void LimitClause_SqlServerParameterName_ReturnsOffsetFetchClause()
-    {
-        ISqlDialect dialect = SqlServerDialect.Instance;
-
-        var actual = dialect.LimitClause("@limit");
-
-        Assert.Equal("OFFSET 0 ROWS FETCH NEXT @limit ROWS ONLY", actual);
     }
 }

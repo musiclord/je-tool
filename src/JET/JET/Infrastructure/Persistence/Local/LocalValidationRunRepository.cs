@@ -367,7 +367,8 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         command.CommandText =
             $"""
             SELECT voucher_number, account_number, gl_date, description,
-                   {flags}
+                   {flags},
+                   approval_date
             FROM gl
             WHERE ({anyMatch})
             ORDER BY source_row_number, entry_id
@@ -387,7 +388,8 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
                 reader.GetInt64(4) != 0,
                 reader.GetInt64(5) != 0,
                 reader.GetInt64(6) != 0,
-                reader.GetInt64(7) != 0));
+                reader.GetInt64(7) != 0,
+                ApprovalDate: reader.IsDBNull(8) ? null : reader.GetString(8)));
         }
 
         return rows;

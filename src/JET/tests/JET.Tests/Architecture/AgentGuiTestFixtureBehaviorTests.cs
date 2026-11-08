@@ -9,17 +9,18 @@ namespace JET.Tests.Architecture;
 public sealed class AgentGuiTestFixtureBehaviorTests
 {
     [Fact]
-    public async Task ProjectListFixtures_ConcurrentCallsKeepDelayAndFailureOnFirstInvocation()
+    public async Task ProjectListLocalFixture_ConcurrentCallsKeepFailureOnFirstInvocation()
     {
+        // 原本驗線上案件清單的延遲與失敗夾具；只保留 SQLite 之後線上清單與這兩個夾具一起移除，
+        // 改驗還在的本機清單失敗夾具：同時呼叫兩次，只有第一次失敗（裁定 2026-11-06-08）。
         var root = CreateTemporaryRoot();
         try
         {
             var fixtures = CreateFixtures(
                 root,
-                AgentGuiTestFixtures.DelayProjectListOnceId,
-                AgentGuiTestFixtures.FailProjectListOnceId);
+                AgentGuiTestFixtures.FailProjectListLocalOnceId);
             var inner = new SucceedingProjectListHandler();
-            var handler = fixtures.DecorateProjectList(inner);
+            var handler = fixtures.DecorateProjectListLocal(inner);
 
             var first = CaptureAsync(handler.HandleAsync(default, CancellationToken.None));
             var second = CaptureAsync(handler.HandleAsync(default, CancellationToken.None));
@@ -33,47 +34,10 @@ public sealed class AgentGuiTestFixtureBehaviorTests
             var events = ReadTraceEvents(root);
             Assert.Equal(
                 [
-                    "delay.applied",
-                    "delay.completed",
                     "failure.applied",
-                    "delay.bypassed",
                     "failure.bypassed",
                 ],
                 events);
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Fact]
-    public async Task FakeOnlineRegistry_ExistsIsClosedAndNeverCallsRealRegistry()
-    {
-        var root = CreateTemporaryRoot();
-        try
-        {
-            var fixtures = CreateFixtures(
-                root,
-                AgentGuiTestFixtures.FakeOnlineProjectListId);
-            var throwingRegistry = new ThrowingProjectRegistry();
-            var dependencies = fixtures.SelectProjectListDependencies(
-                throwingRegistry,
-                new ThrowingLockService());
-
-            Assert.True(await dependencies.Registry.ExistsAsync(
-                AgentGuiTestFixtures.FakeOnlineProjectId,
-                CancellationToken.None));
-            Assert.False(await dependencies.Registry.ExistsAsync(
-                "local-sql-project-that-must-not-probe-the-network",
-                CancellationToken.None));
-            Assert.Equal(0, throwingRegistry.CallCount);
-
-            var visible = await dependencies.Registry.ListVisibleAsync(
-                AgentGuiTestProfile.IsolatedPrincipal,
-                CancellationToken.None);
-            var project = Assert.Single(visible);
-            Assert.Equal(AgentGuiTestFixtures.FakeOnlineProjectId, project.Document.ProjectId);
         }
         finally
         {
@@ -240,7 +204,7 @@ public sealed class AgentGuiTestFixtureBehaviorTests
     {
         private int _callCount;
 
-        public string Action => "project.list";
+        public string Action => "project.listLocal";
 
         internal int CallCount => Volatile.Read(ref _callCount);
 
@@ -252,84 +216,6 @@ public sealed class AgentGuiTestFixtureBehaviorTests
             Interlocked.Increment(ref _callCount);
             return Task.FromResult<object?>(new object());
         }
-    }
-
-    private sealed class ThrowingProjectRegistry : IProjectRegistry
-    {
-        private int _callCount;
-
-        internal int CallCount => Volatile.Read(ref _callCount);
-
-        public Task RegisterAsync(
-            ProjectDocument document,
-            string principal,
-            CancellationToken cancellationToken) => Throw();
-
-        public Task UpdateDocumentAsync(
-            ProjectDocument document,
-            CancellationToken cancellationToken) => Throw();
-
-        public Task<bool> ExistsAsync(
-            string projectId,
-            CancellationToken cancellationToken) => Throw<bool>();
-
-        public Task<IReadOnlyList<RegisteredProject>> ListVisibleAsync(
-            string principal,
-            CancellationToken cancellationToken) => Throw<IReadOnlyList<RegisteredProject>>();
-
-        public Task<RegisteredProject?> FindVisibleAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Throw<RegisteredProject?>();
-
-        public Task TouchLastOpenedAsync(
-            string projectId,
-            CancellationToken cancellationToken) => Throw();
-
-        public Task UnregisterAsync(
-            string projectId,
-            CancellationToken cancellationToken) => Throw();
-
-        private Task Throw()
-        {
-            Interlocked.Increment(ref _callCount);
-            return Task.FromException(new InvalidOperationException(
-                "The fake-online fixture must not call the real project registry."));
-        }
-
-        private Task<T> Throw<T>()
-        {
-            Interlocked.Increment(ref _callCount);
-            return Task.FromException<T>(new InvalidOperationException(
-                "The fake-online fixture must not call the real project registry."));
-        }
-    }
-
-    private sealed class ThrowingLockService : ILockService
-    {
-        public Task<LockOutcome> AcquireAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Throw<LockOutcome>();
-
-        public Task RenewAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Throw();
-
-        public Task ReleaseAsync(
-            string projectId,
-            string principal,
-            CancellationToken cancellationToken) => Throw();
-
-        public Task<IReadOnlyList<ProjectLockInfo>> ListActiveAsync(
-            CancellationToken cancellationToken) => Throw<IReadOnlyList<ProjectLockInfo>>();
-
-        private static Task Throw() => Task.FromException(new InvalidOperationException(
-            "The fake-online fixture must not call the real lock service."));
-
-        private static Task<T> Throw<T>() => Task.FromException<T>(new InvalidOperationException(
-            "The fake-online fixture must not call the real lock service."));
     }
 }
 #endif

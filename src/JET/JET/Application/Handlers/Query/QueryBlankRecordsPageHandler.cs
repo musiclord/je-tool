@@ -42,6 +42,7 @@ public sealed class QueryBlankRecordsPageHandler(
                 voucherNumber = r.VoucherNumber,
                 accountNumber = r.AccountNumber,
                 glDate = r.GlDate,
+                approvalDate = r.ApprovalDate,
                 description = r.Description
             }).ToArray(),
             totalCount = page.TotalCount,

@@ -8,7 +8,6 @@ namespace JET.Application;
 /// <summary>修改目前案件的顯示資料與期末財報準備日，不改名稱、查核期間或已匯出檔案。</summary>
 public sealed class ProjectUpdateHandler(
     IProjectStore projectStore,
-    IProjectRegistry projectRegistry,
     ProjectSession session,
     ILogger? logger = null) : IApplicationActionHandler
 {
@@ -65,12 +64,6 @@ public sealed class ProjectUpdateHandler(
         {
             await repositories.ReportStore.MarkStaleAsync(projectId, _ => true, cancellationToken);
             await projectStore.SaveAsync(updated, cancellationToken);
-        }
-
-        if (updated.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider)
-        {
-            // 即使本機已是同值，也同步登記簿，讓先前同步失敗可以安全重試。
-            await projectRegistry.UpdateDocumentAsync(updated, CancellationToken.None);
         }
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,

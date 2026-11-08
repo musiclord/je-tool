@@ -14,7 +14,6 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Restore
 pwsh -NoProfile -File tools/verify.ps1 -Command Build -Configuration Debug -NoRestore
 pwsh -NoProfile -File tools/verify.ps1 -Command Focused -Filter 'JET.Tests.Domain.MappingValidatorTests'
 pwsh -NoProfile -File tools/verify.ps1 -Command Public
-pwsh -NoProfile -File tools/verify.ps1 -Command Provider -Configuration Release
 pwsh -NoProfile -File tools/verify.ps1 -Command Package -Configuration Release
 pwsh -NoProfile -File tools/verify.ps1 -Command Gui -Configuration AgentGuiTest
 pwsh -NoProfile -File tools/verify.ps1 -Command Excel -Configuration Release
@@ -40,12 +39,12 @@ Context 自己的行為由 `Contract -ContractScenario Context` 驗證。
 公開測試，至少要找到 3,000 個案例。`public-skip-policy.json` 目前沒有允許略過的群組，任何跳過都會讓公開測試失敗。
 
 `Focused`、`Public` 與 `Package` 讓不同測試類別平行執行，同時執行的類別數等於 CPU 執行緒數；同一類別裡的測試依序執行。
-檢查實際經過時間上限的測試放在 `TimingSensitive` 集合，等其他測試結束後單獨執行。`Provider`、`PrivateCase` 與 `Excel`
+檢查實際經過時間上限的測試放在 `TimingSensitive` 集合，等其他測試結束後單獨執行。`PrivateCase` 與 `Excel`
 仍逐一執行。xUnit 依 UniqueID 排定類別先後，同一個 clone 路徑每次順序相同；`src/JET/tests/JET.Tests/LongRunningFirstCollectionOrderer.cs`
 把耗時最長的 `ActionShapeContractTests` 排第一，避免它最後獨自拖長整段測試。
 
 內容相同的合成案件在一個測試程序裡只用正式 action 建一次，之後每個測試把案件資料夾複製到自己的暫存目錄再開啟，
-做法在 `src/JET/tests/JET.Tests/Application/CaseTemplates.cs`；SQL Server 照舊從頭建案。要檢查建案者身分或建案過程本身的測試，
+做法在 `src/JET/tests/JET.Tests/Application/CaseTemplates.cs`。要檢查建案者身分或建案過程本身的測試，
 例如進度事件、稽核紀錄與日誌，呼叫 `DemoProjectPipeline.SetupAsync` 或 `ReportRevisionStateTests.PrepareAsync` 時加 `fromScratch: true`。
 
 ## 各路線的範圍
@@ -81,13 +80,6 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Mutation -Configuration Release 
 - `c/http` 是 NuGet 下載快取，整個刪掉；`c/packages` 保留，還原時不必連網。
 
 工具本身可用 `Contract -ContractScenario MutationBoundary` 與 `Contract -ContractScenario OwnedProcessTree` 檢查。
-
-### Provider
-
-`Provider` 不讀 `appsettings.json` 的 SQL 密碼，只接受程序環境中的 `JET_SQLSERVER_CONNECTION`；缺少時回報 `blocked`，
-連建置都不開始。正式執行使用 `JET_Test`，會建立及清除測試資料結構與資料，所以只能連到明確準備的測試環境；
-測試用專案清理失敗時，該次測試也失敗。連線只在確定要驗證的本機程序中暫時提供，不寫入儲存庫、設定範例、命令列、
-聊天或收據，stdout、stderr 與 TRX 在保存前都會遮蔽。何時執行見下方「日常資料庫測試與服務收尾」。
 
 ### Package
 
@@ -126,8 +118,8 @@ EdgeDriver 或網路下載。這些結果不代表原生檔案對話框或私人
 `SixReportWorkflowJourneyTests.AccountMappingHandoff_PreservesValidationResult_AndPublishesFiveReportsAndTemplate`
 （類別名稱與 `JET_SIX_REPORT_EVIDENCE_DIR` 沿用舊名，六份工作簿只有五份進入報告清單），再由 `tools/harness/excel-driver/`
 逐份用原生 Excel 以唯讀開啟、停用巨集與外部連結更新、完整重算、另存副本、重新開啟副本，並匯出第一頁 PDF。框架核對來源檔沒有改變、公式錯誤沒有增加、副本沒有外部連結、PDF 可讀，以及 V_Report 5 的表頭、
-中段與最後資料列都是 15 點。另由既有 Office 建立 .xls、.mdb 與 .accdb，在 SQLite 與 DuckDB 各走完預覽、錯表重試、匯入、配對、
-驗證、篩選、重開與原檔不變檢查，共六例，結果在收據的 `excelFixture.nativeSourceImports`。
+中段與最後資料列都是 15 點。另由既有 Office 建立 .xls、.mdb 與 .accdb，在 SQLite 案件走完預覽、錯表重試、匯入、配對、
+驗證、篩選、重開與原檔不變檢查，共三例，結果在收據的 `excelFixture.nativeSourceImports`。
 
 原生 Excel 部分只驗證開啟、重算和另存副本，沒有操作範本原檔填寫，也沒有測試 Excel 佔用中的再次匯出。
 驅動程式只能選設定檔中的六種合成工作簿，可在使用者已開啟 Excel 時執行，但只管理本次建立、已確認 PID 的 Excel 行程；
@@ -136,17 +128,17 @@ Excel 不可用、工作簿無法開啟或無法證明行程歸屬時，結果�
 ### PrivateCase
 
 `PrivateCase` 是唯一可讀取私人案件的命令，每次都要提供完整根目錄、根目錄內的案件清單相對路徑與資料庫實作，
-缺一就在建置和資料存取前回報 `blocked`。它建立安全副本，用 JET 走完匯入、驗證、篩選、五份報告與科目配對範本輸出，
+缺一就在建置和資料存取前回報 `blocked`；資料庫實作目前只接受 `sqlite`。它建立安全副本，用 JET 走完匯入、驗證、篩選、五份報告與科目配對範本輸出，
 六份工作簿同時比較內容與版面；INF 樣本檢查抽樣規則、實際母體與樣本有效性，不要求重現舊 IDEA 的隨機列。
 第一次比對之後，在同一個案件接著重新開啟、照原本的配對重新確認 GL 配對，以及重新匯入同一份 GL，每一段都重新匯出六份工作簿，照同樣的規則再比一次，全部通過才算通過。
 私人副本與輸出在收尾時一律清除，收據只保存去識別化的狀態、數量與差異類型。案件清單照舊寫法也能讀，讀取時換成現行名稱。
 
 ### ReleaseCandidate
 
-`ReleaseCandidate` 固定使用 Release，不要求 live SQL Server。候選內容直接取自 Git：已有提交時是全部已追蹤的檔案，
+`ReleaseCandidate` 固定使用 Release。候選內容直接取自 Git：已有提交時是全部已追蹤的檔案，
 而且工作樹必須乾淨；候選裡出現私人資料目錄的路徑就直接失敗。框架把檔案複製到本次專屬的快照
 `artifacts/harness/rc/<短代碼>/s`，建立前後比較來源儲存庫的 Git index entries，再在快照內依序執行 Contract、Documentation、
-Public、Package、Gui 與 Excel，任何一步不通過就停止；收尾時快照一律清除。`Provider` 與 `PrivateCase` 不在這條路線內。
+Public、Package、Gui 與 Excel，任何一步不通過就停止；收尾時快照一律清除。`PrivateCase` 不在這條路線內。
 
 ### 共享鎖、記憶體上限與 Contract
 
@@ -162,25 +154,21 @@ Restore、Gui 與 Excel 驅動程式自己管理的程序，以及 `Mutation` �
 
 `Documentation` 檢查目前仍有效的文件與 AI Agent 轉接檔。缺檔、必要指向缺漏及已確認過時的事實會失敗；不自然用語只列為提醒。
 `documentation-check.json` 的 `styleWarnings` 比對固定片語，`stylePatterns` 用正規表示式抓符號代句與工作用語，程式碼不檢查。
-`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 120 KiB；裁定總表 320 KiB；系統規格、action 契約、前端說明與名詞表 160 KiB；
-其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限（裁定 2026-11-02-04）。
+`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 120 KiB；裁定總表 2,048 KiB；系統規格、action 契約、前端說明與名詞表 160 KiB；
+其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限（裁定 2026-11-02-04，裁定總表的上限見 2026-11-06-14）。
 `rulingLocations` 核對裁定總表「落實位置」寫的檔案都存在；`rulingReferences` 核對 `src/JET` 與 `tools` 裡寫的「裁定 編號」都是現行裁定；
-`retiredNames` 在 `src/JET/JET` 找名詞表「不再使用的名稱」列的舊名稱，註解也算；`tableNames` 核對三種資料庫建立的表都列在名詞表，
+`retiredNames` 在 `src/JET/JET` 找名詞表「不再使用的名稱」列的舊名稱，註解也算；`tableNames` 核對 SQLite 建立的表都列在名詞表，
 名詞表列的表也都還存在。架構圖表另由 [`harness/architecture/`](harness/architecture/README.md) 檢查，結果寫在文件報告的
 `architecture` 欄位，它不重新繪圖，也不證明業務說明正確。這個命令不判斷文章品質，通過後仍要把改動段落完整讀一次。
 
 ## 日常資料庫測試與服務收尾
 
-SQL Server 開發目前暫緩（裁定 2026-09-02-04），日常工作集中在 SQLite 和 DuckDB。依修改範圍選擇
-`Focused` 或 `Public`；需要比較兩個本機資料庫時，可用 `Focused -Filter 'ProviderParity'`。
-`Provider` 包含 live SQL Server 測試，只有使用者當次明示需要時才執行，也不為了補齊一般開發驗證而啟動。
-`PrivateCase` 讀取本機私人案件的授權是常設的，不必每次再問；但選擇 SQL Server 不能從既有連線設定推定。
+目前只支援 SQLite 案件。DuckDB 與 SQL Server 的程式、測試、套件和 `Provider` 路線都暫時移除（裁定 2026-11-06-08），
+還原點是提交 `7e88b7b`，正式上線後要恢復時從那裡取回。日常依修改範圍選擇 `Focused` 或 `Public`。
+`PrivateCase` 讀取本機私人案件的授權是常設的，不必每次再問。
 
-`Focused` 和 `Public` 已排除 `Profile=Provider`，一般測試子程序也會移除 `JET_SQLSERVER_CONNECTION`。
-不需連線的 SQL 產生與契約測試仍保留，不按檔名整批移除 SQL Server 測試，也不把未執行的 live 驗證記成通過。
-
-`tools/verify.ps1` 不會管理 Windows 服務，啟停由執行開發工作的 Agent 或開發者負責，每次測試結束都確認本機
-SQL Server 沒有留在背景。明示授權使用本機 SQL Server 時，依下列方式收尾：
+`tools/verify.ps1` 不會管理 Windows 服務，JET 目前也不連 SQL Server。恢復 SQL Server 開發後，或因其他原因在這台電腦
+啟動本機 SQL Server 時，啟停由執行開發工作的 Agent 或開發者負責，結束時依下列方式收尾：
 
 1. 啟動前核對本次使用的本機執行個體、服務與相依服務，只開啟測試需要的服務；維持手動啟動。
 2. 把測試及收尾放在同一段 `try` 和 `finally` 流程。成功、失敗或可處理的中止都先結束測試連線、完成
@@ -219,8 +207,8 @@ ReleaseCandidate 需要 Node.js。
   合計最多 4 × 2048 MB，不超過框架給整個步驟的 8192 MB。自己用 `node --test` 一次跑多個測試檔時，也加 `--test-concurrency=4`。
 
 前端測試的假後端要和正式後端一致。`src/JET/tests/JET.Tests/Application/ActionShapeJourney.cs` 照審計員的順序用正式 dispatcher
-走一遍合成案件，SQLite 與 DuckDB 各一次，把每個 action 收到的資料與回應的欄位和型別寫在 `tools/tests/fixtures/action-shapes.json`；
-`ActionShapeContractTests` 每次重走，兩種資料庫不一致或和檔案不同就失敗。前端測試的假後端都包在
+在 SQLite 案件走一遍合成流程，把每個 action 收到的資料與回應的欄位和型別寫在 `tools/tests/fixtures/action-shapes.json`；
+`ActionShapeContractTests` 每次重走，和檔案不同就失敗。前端測試的假後端都包在
 `tools/tests/support/action-contract.cjs` 的 `contractJetApi` 裡，假回應與送出的資料都要在正式契約出現過。對不上時，先判斷是哪一種：
 
 - 審計員真的會遇到、流程還沒走到：在 `ActionShapeJourney` 補上那一步，再重新產生契約檔。
@@ -273,7 +261,7 @@ Restore 因 `NU1301` 無法讀取 NuGet 來源時回報 `blocked`，因為還沒
 標準輸出只有一行 JSON 摘要，失敗時其中的 `firstRed` 帶出第一個失敗步驟的名稱、原因碼與 `detail`；測試步驟的 `detail`
 是失敗數加上第一個失敗測試的名稱與一行訊息，不必再開 TRX。完整執行紀錄與限制大小的子程序輸出放在 `artifacts/harness/` 下的
 獨立資料夾，受 `.gitignore` 排除。保存前，框架把儲存庫根目錄與使用者目錄換成 `[repository]` 和 `[user-profile]`；
-Provider 另把連線字串及可辨識的連線欄位換成 `[sensitive]`，讀取 TRX 前也做相同處理。
+PrivateCase 另把私人根目錄、案件清單路徑與本次的暫存目錄換成 `[sensitive]`，讀取 TRX 前也做相同處理。
 
 依裁定 2026-10-14-14，每次命令寫好收據後，框架整理 `artifacts/harness/runs/` 的舊執行：同一種檢查只完整保留最新 10 次，
 只跑單一情境或篩選的執行另外計算；更舊的只留 `receipt.json`、各步驟的 `*.receipt.json` 與擁有者標記，所以文件或測試註解
@@ -314,3 +302,10 @@ JSON 寫入失敗、清理拒絕及共享鎖衝突，也檢查 `tools/` 的目�
 - [Excel `Application.CalculateFullRebuild`](https://learn.microsoft.com/office/vba/api/excel.application.calculatefullrebuild)
 - [Excel `Workbook.SaveCopyAs`](https://learn.microsoft.com/office/vba/api/excel.workbook.savecopyas)
 - [Excel `Workbook.LinkSources`](https://learn.microsoft.com/office/vba/api/excel.workbook.linksources)
+
+## SAT 測試涵蓋率
+
+`Public` 與 `Focused` 可加 `-CollectCoverage`，產生 C# 的 `coverage.cobertura.xml`。這個選項使用現有 Microsoft Testing Platform 涵蓋率功能，不另外啟動測試。
+收據的測試步驟會記錄涵蓋率檔位置。檔案未產生時回報執行環境錯誤，不能當成沒有未覆蓋的程式。
+
+SAT 交接以完整 `Public` 結果為主；`Focused` 用來定位或確認修正。報告產生方式見 [SAT 文件維護](../docs/SAT/scripts/README.md)。

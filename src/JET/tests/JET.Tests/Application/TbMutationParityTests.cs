@@ -19,12 +19,12 @@ public sealed class TbMutationParityTests
     private const string Scenarios = """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]},{"name":"合成貸方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"credit"}]}]}]}""";
 
     public static IEnumerable<object[]> SuccessfulCases() =>
-        from provider in new[] { "sqlite", "duckdb" }
+        from provider in new[] { "sqlite" }
         from change in new[] { "replace", "append", "mapping" }
         select new object[] { provider, change };
 
     public static IEnumerable<object[]> FailureCases() =>
-        from provider in new[] { "sqlite", "duckdb" }
+        from provider in new[] { "sqlite" }
         from change in new[] { "read", "mapping" }
         select new object[] { provider, change };
 
@@ -175,7 +175,7 @@ public sealed class TbMutationParityTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task<long> CountAsync(HandlerTestHost host, string id, string provider, string table)

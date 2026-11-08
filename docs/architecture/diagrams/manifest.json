@@ -7,7 +7,7 @@
     "commit": "40440b92398282252f8411e22000a2137d2db68c",
     "createdUtc": "2026-11-03T01:38:18.3804319Z"
   },
-  "redrawDate": "2026-11-03",
+  "redrawDate": "2026-11-06",
   "versions": {
     "repowise": "0.56.0",
     "roslyn": "5.9.0.0",
@@ -16,53 +16,8 @@
   },
   "diagrams": [
     {
-      "id": "action-sequence",
-      "title": "篩選情境儲存：從按下儲存到資料庫交易",
-      "type": "sequence",
-      "candidate": "archify/action-sequence/candidate.json",
-      "html": "archify/action-sequence/action-sequence.html",
-      "finalize": {
-        "review": "review-6",
-        "quality": "showcase",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "09720a5f9040f9030385caf2a089b64daf08d5ac0142a40b5eb7a0373582e484",
-      "candidateSha256": "eb19ab873994fe6684de341b8750f0307d7961867ed05b1637aeaa901c387737",
-      "htmlSha256": "75509f202a417ef129acf5e02937aec19f85b04ef0d17fb35476c19729415210"
-    },
-    {
-      "id": "import-sequence",
-      "title": "TB 取代匯入：從選檔到同一交易寫入",
-      "type": "sequence",
-      "candidate": "archify/import-sequence/candidate.json",
-      "html": "archify/import-sequence/import-sequence.html",
-      "finalize": {
-        "review": "review-1",
-        "quality": "showcase",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "b4bdf2b6a6f7da1350682bbf91ae5d40ea51b6b05c5a5ec0b0296c3c6a50bdf0",
-      "candidateSha256": "38f1b79fa4fe57177aeeb04bfc92fdbe6e84774eb948223e4c7cfc180019dc1a",
-      "htmlSha256": "fe38f92072e4cd5326f9bf1046c9d29275c221d4d9048a4c9e2bb95e12e4f9e7"
-    },
-    {
-      "id": "workpaper-sequence",
-      "title": "正式底稿匯出：規劃、寫暫存檔與發布",
-      "type": "sequence",
-      "candidate": "archify/workpaper-sequence/candidate.json",
-      "html": "archify/workpaper-sequence/workpaper-sequence.html",
-      "finalize": {
-        "review": "review-4",
-        "quality": "showcase",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "22fd87ccd5061a800cceebfaf168572843b7cd56976fba56905f36acaedf4f2a",
-      "candidateSha256": "af3d5d80a35f6ab7e37cd916469f84a92a60c4fb6d780c59577e0c2db404fe77",
-      "htmlSha256": "f7f230b0eefb5b8b6074033acf6de01e22a9997476482297ba3537186758d2a4"
-    },
-    {
       "id": "filter-save",
-      "title": "儲存篩選情境：檢查後只存一個或整批處理",
+      "title": "儲存篩選情境",
       "type": "workflow",
       "candidate": "archify/filter-save/candidate.json",
       "html": "archify/filter-save/filter-save.html",
@@ -71,13 +26,13 @@
         "quality": "showcase",
         "ok": true
       },
-      "finalizedHtmlSha256": "c9bb73cafaee668acf4adc297d1a13478c941be3dc04bd2000068fb16ac8c237",
-      "candidateSha256": "e1461fa1a4e07a1c0bcd51f6fe641ede15ef6cb8e84a440e33861e9181a59715",
-      "htmlSha256": "7848af61fe9ab5f473f6eb1b09d2f0919712812639800fce8a60deb4beacd2ac"
+      "finalizedHtmlSha256": "4d3db4cb45118afb541115420c83ad9ea3df1c3981644d584f96917fcaaf31b0",
+      "candidateSha256": "7db9427ec487fb3aeef739f7a19c86cf00018ae3453ea69f3fdb7719057b1085",
+      "htmlSha256": "f5179d217006085df157e3645b359002f4b1d70d611cde1792ab969f3f93726d"
     },
     {
       "id": "tb-import",
-      "title": "TB 取代匯入：先讀標頭，再在同一交易換掉資料",
+      "title": "取代匯入 TB",
       "type": "workflow",
       "candidate": "archify/tb-import/candidate.json",
       "html": "archify/tb-import/tb-import.html",
@@ -86,13 +41,13 @@
         "quality": "showcase",
         "ok": true
       },
-      "finalizedHtmlSha256": "05e45e5238dde3fb84d633544e662aafc359bbcb1b7b69f72b979464cc67b684",
-      "candidateSha256": "d429f75e82c407564907d059b5a8fb255e991858596b4823c54712f76bcb57d0",
-      "htmlSha256": "c0113e7a4ea020859f4192aa08ce75be58fbdbb14faf95fd79fafd7c47ce6c94"
+      "finalizedHtmlSha256": "8a7bff81d16b5f8ee5c6f902284c9be9d4394766b3d01af7c63d540aaefc7824",
+      "candidateSha256": "98937d475ea2cf9d95092d344e90744e60875883f7cefb9a6b859747b354c352",
+      "htmlSha256": "1b0a3931b5cc938465d2cdf779ba5e8b923227bd5d689eac9ac4ed23abce6cf5"
     },
     {
       "id": "workpaper",
-      "title": "正式工作底稿：核對版本、寫暫存檔、發布新版本",
+      "title": "匯出正式底稿",
       "type": "workflow",
       "candidate": "archify/workpaper/candidate.json",
       "html": "archify/workpaper/workpaper.html",
@@ -101,13 +56,13 @@
         "quality": "showcase",
         "ok": true
       },
-      "finalizedHtmlSha256": "56a11d9bc9a2a4ae75f5852aacdebd3ebaf3a6391d2949d0d0a9fe497d62360c",
-      "candidateSha256": "e9b27e3c5d19c95466ef811dac9c1282105be6d69f3cecd7ff3b63ffcc485d45",
-      "htmlSha256": "6834fa166a9237fd9f087e2b36fc2f0517eef48e19c211b6da00380e9e7bb00b"
+      "finalizedHtmlSha256": "afaaf00a9d92e26ec426a398186685617259a81dcb1625f6de8dc7739d0a97c9",
+      "candidateSha256": "f84c454f6feb4aa5131ff694e6abe53739eeb0aa6b324e6294d9a559d8dd0ade",
+      "htmlSha256": "b5648e7f8ff4fe6205f894f18301d49126e4b5f01f8b155449aea008374d1c2a"
     },
     {
       "id": "intake-dataflow",
-      "title": "匯入資料如何成為審計母體",
+      "title": "來源檔如何成為審計資料",
       "type": "dataflow",
       "candidate": "archify/intake-dataflow/candidate.json",
       "html": "archify/intake-dataflow/intake-dataflow.html",
@@ -116,13 +71,13 @@
         "quality": "showcase",
         "ok": true
       },
-      "finalizedHtmlSha256": "d591ee2ce63dbb698d1cffd915f65272a74d5343cdf51397b957613a66a09bb6",
-      "candidateSha256": "412bb67ac200799cf8a100700e58dfd44f3b25d64352cb7b8d4eafbf74561af3",
-      "htmlSha256": "d306a3a497862c91bcb80bbb24b9713bdb55cd474eba74d05b0d7af470d173ea"
+      "finalizedHtmlSha256": "d80b93b115281e2eb853ab986e34a7a09a6dfc177d0e9d87e560ee6b2f624b63",
+      "candidateSha256": "0fe10bdac62ebeac670536286db24c36d1d27f455a9d19a5b807bd737c74bc27",
+      "htmlSha256": "5e5da4eec2a3b3d93b99e08c91abba1453b5d7a71fc3f21884e72044b55cf852"
     },
     {
       "id": "audit-dataflow",
-      "title": "審計計算、畫面查詢與底稿資料",
+      "title": "審計結果如何供畫面與底稿使用",
       "type": "dataflow",
       "candidate": "archify/audit-dataflow/candidate.json",
       "html": "archify/audit-dataflow/audit-dataflow.html",
@@ -131,133 +86,13 @@
         "quality": "showcase",
         "ok": true
       },
-      "finalizedHtmlSha256": "4c639e858ba404752d06b700a2aa3978f41a2995df4322502d7a14c88cd71d67",
-      "candidateSha256": "d7ac0aef62f0e1858da0edbce6b3b0555e85b6d52bf0a0f1658e4f748a57badb",
-      "htmlSha256": "2380c9cbc43c27e63bcf4cd7fbadf7a703547835dc18686c4f8aed7b3fd6b2d5"
-    },
-    {
-      "id": "bridge-classes",
-      "title": "Action 通道的類別與介面",
-      "type": "class",
-      "candidate": "archify/bridge-classes/candidate.json",
-      "html": "archify/bridge-classes/bridge-classes.html",
-      "finalize": {
-        "review": "review-1",
-        "quality": "showcase",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "35b72601b9bea35934ace2a050eb7a940e5eea6038ab477681c814c523f78af6",
-      "candidateSha256": "dffa2023c77a75ab84603558d2c9cf583e6479f6120c117d57ec561616c81c0f",
-      "htmlSha256": "a989cc171cb508cbeae130c93a1ba8f85c34baa2bcb2c3c62c78c2b5081ba0f8"
-    },
-    {
-      "id": "filter-types",
-      "title": "篩選情境儲存的類別與介面",
-      "type": "class",
-      "candidate": "archify/filter-types/candidate.json",
-      "html": "archify/filter-types/filter-types.html",
-      "finalize": {
-        "review": "review-1",
-        "quality": "showcase",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "fba0c54c904d7b3e30835aba3da11713419ca649318be6ff6bc99a3a8d421450",
-      "candidateSha256": "cbfa3a796c6e32dbff732d2cded891c5daaef70061141d1a7f21019e2722d0fe",
-      "htmlSha256": "ff6268b52d149a6895adff7f9bf34df1ff3dcf8df6dcbd4ff5bb2a4a259c8249"
-    },
-    {
-      "id": "import-classes",
-      "title": "TB 匯入的類別與介面",
-      "type": "class",
-      "candidate": "archify/import-classes/candidate.json",
-      "html": "archify/import-classes/import-classes.html",
-      "finalize": {
-        "review": "review-1",
-        "quality": "showcase",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "d2529438202b0115e541451edec2d52343b95aeff72a5fe5a94e5fa3b5ba1814",
-      "candidateSha256": "7ece06278e5cfb08315189a41363c12e1ca13666c74f1630cf3a9c23508de1dd",
-      "htmlSha256": "85bdb04c626ebc64f392f3f0361f866a32c69348d88d25a08e7a227f79a1b4d5"
-    },
-    {
-      "id": "export-classes",
-      "title": "正式底稿規劃與發布的類別與介面",
-      "type": "class",
-      "candidate": "archify/export-classes/candidate.json",
-      "html": "archify/export-classes/export-classes.html",
-      "finalize": {
-        "review": "review-2",
-        "quality": "showcase",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "6f127351f6d40d863fb31e6481266786674dcbcfbdba32fda4f47a128ba813de",
-      "candidateSha256": "55b3ea6e5a9835f2e9c1b7e576e55fea1a3f28700be97b1dcb6dbffbfbb09f58",
-      "htmlSha256": "ab7fc3b7455fb31eff72ca0bbca71db51a1a4aabe306ac841601705518626258"
-    },
-    {
-      "id": "import-erd",
-      "title": "SQLite：匯入批次與原始資料",
-      "type": "erd",
-      "candidate": "archify/import-erd/candidate.json",
-      "html": "archify/import-erd/import-erd.html",
-      "finalize": {
-        "review": "review-3",
-        "quality": "standard",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "a5426e23e48e9a67f361ea66f477e3893649e5665cf4f2892a9af65c186cc054",
-      "candidateSha256": "ca1a08ec819546a5be2a806f6018486a98a9bf3a32f360106200f0eae0d5da6c",
-      "htmlSha256": "a4343ca95e9a2cdfbf4e1a25d3921b5024baf3c5a764491345a8d55929db8c44"
-    },
-    {
-      "id": "projection-erd",
-      "title": "SQLite：欄位配對與標準化資料",
-      "type": "erd",
-      "candidate": "archify/projection-erd/candidate.json",
-      "html": "archify/projection-erd/projection-erd.html",
-      "finalize": {
-        "review": "review-3",
-        "quality": "standard",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "caeea1ed60f255f2c0ed262f169c0a1971b7dbb56eba3468055ba8de8922f70d",
-      "candidateSha256": "410ddd55c86159e56bdb9166f425487ef33aeb45c84ec11f33f2d63865ec5a98",
-      "htmlSha256": "42e1d0ea4f770e722e3f2f134bb0b0097843e8840555e04a657e6c4d05516925"
-    },
-    {
-      "id": "rules-erd",
-      "title": "SQLite：科目分類、篩選情境與命中",
-      "type": "erd",
-      "candidate": "archify/rules-erd/candidate.json",
-      "html": "archify/rules-erd/rules-erd.html",
-      "finalize": {
-        "review": "review-3",
-        "quality": "standard",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "6b40d2f497483304f03de9cf5707fa96ff19278d3f9f587cbc13af1edb701bf3",
-      "candidateSha256": "a8bdc33ff8224773746ed7f7fd6d81ce8784a79deea04d17ff36135fde0e0523",
-      "htmlSha256": "6007b240fe835ecfdffa63eede962103d79c7d1dddc6976a936c11b96fd027c0"
-    },
-    {
-      "id": "system-erd",
-      "title": "SQLite：結果版本與操作紀錄",
-      "type": "erd",
-      "candidate": "archify/system-erd/candidate.json",
-      "html": "archify/system-erd/system-erd.html",
-      "finalize": {
-        "review": "review-3",
-        "quality": "standard",
-        "ok": true
-      },
-      "finalizedHtmlSha256": "519efb92bf735d0dccfdaac57946cbd2deccc351b0f57620b19e8d485003d14f",
-      "candidateSha256": "69c387d6d521ad2ef9d375f889718a8f104502e50e6c2020bd258cc9f20e0921",
-      "htmlSha256": "133109ea3b48acaa6d0594a2123aa3d90508b3df93f60a09c4b025f239125c04"
+      "finalizedHtmlSha256": "75fa4658daa44bc9a0cb4e7d36a4501c72751e500024d90be98db8b0de6f4236",
+      "candidateSha256": "6ade5af40fb3744e9ccfcaea6674a5c8ed34cdc4d3f05c39568134528cb99cf6",
+      "htmlSha256": "ab703168dc24c170655b18f1151e083ff9960f51317902a0ed66c6d36496639a"
     },
     {
       "id": "deployment",
-      "title": "本機部署：隨發布交付、環境前提與案件資料",
+      "title": "電腦環境與交付內容",
       "type": "architecture",
       "candidate": "archify/deployment/candidate.json",
       "html": "archify/deployment/deployment.html",
@@ -266,13 +101,13 @@
         "quality": "showcase",
         "ok": true
       },
-      "finalizedHtmlSha256": "bc6c4f29d26110dc4c3f3b4e20e7e10f2ebe012fde8707093825fc63d6ec59cb",
-      "candidateSha256": "f1b9c75a6c0a8c0fa51084c54c62dae471bc753f896ae49881cf1bcdfdb44d6b",
-      "htmlSha256": "07724a2680aaa958a675b2229de0f4c027c92ba5fd003c9b7bace49ad05aefdc"
+      "finalizedHtmlSha256": "b26b9f8f6adff4be9630ebf7afeeaf16cba388e96acd7d3250e734c1822a10d5",
+      "candidateSha256": "b872e4a9cdbc9a4042ff679c6195dcdc55f9dfb54493b86a7d84825b71ce8a09",
+      "htmlSha256": "a68dab13bb547b0703a4f59352cb4e3ba62f16e0575284dc6124575a434b1454"
     },
     {
       "id": "maintenance",
-      "title": "部署、移轉與問題處理：程序草案",
+      "title": "部署與維護程序草案",
       "type": "workflow",
       "candidate": "archify/maintenance/candidate.json",
       "html": "archify/maintenance/maintenance.html",
@@ -281,17 +116,252 @@
         "quality": "showcase",
         "ok": true
       },
-      "finalizedHtmlSha256": "decb2e6c63a1d71cc21e6fe7fc8c64349b6521011efe2f62bc7dd9a005070045",
-      "candidateSha256": "cafab31d565ae34eb873ba265065dad119207512fd220c0e071294335461f68b",
-      "htmlSha256": "7cb78778d04b563d0ca4509c475791aa5b2cb60ec2dbc0b38e124fad892ebea1"
+      "finalizedHtmlSha256": "6088b0b26aa6bda9cc528498f69f04c43cb3a54ed6946e318c92262560baea4b",
+      "candidateSha256": "a97e288d8406354a21bff9a15781aebb6bcff389a116beabe59df35b32944793",
+      "htmlSha256": "50f5633d7cced4c02de9b12b88f979c3f9ce110c1401e56b376ff53b8f647f8f"
+    },
+    {
+      "id": "action-sequence",
+      "title": "儲存篩選情境：呼叫順序",
+      "type": "sequence",
+      "candidate": "archify/action-sequence/candidate.json",
+      "html": "archify/action-sequence/action-sequence.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "showcase",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "24a528355e1d640661144ef573b0cadefee912dca625332315d71add19c8669b",
+      "candidateSha256": "1b9f4600802d907bcb5a4c47e4f021e012c600860c049cecc9365c4fda621603",
+      "htmlSha256": "6b4cd1adf1a4473ceef0626d03543925fab9813092c711ce8c47642efc86412b"
+    },
+    {
+      "id": "import-sequence",
+      "title": "取代匯入 TB：呼叫順序",
+      "type": "sequence",
+      "candidate": "archify/import-sequence/candidate.json",
+      "html": "archify/import-sequence/import-sequence.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "showcase",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "c242c1360caad78db8a8142ad8e5eeaa87f106145c2d26779debb8d2b68d9cc1",
+      "candidateSha256": "e7f3b131c5c22a365acf4df5a76d74b5d837cf331b3fe9b149dc8cee9a35911a",
+      "htmlSha256": "7cf2d48c25ecb34abe1fe65ba30b0825adf266f8661f8e6177f66e536ba86c55"
+    },
+    {
+      "id": "workpaper-sequence",
+      "title": "匯出正式底稿：呼叫順序",
+      "type": "sequence",
+      "candidate": "archify/workpaper-sequence/candidate.json",
+      "html": "archify/workpaper-sequence/workpaper-sequence.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "showcase",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "cc1c2beac4b29fb3654937dde763796a0809566c9bd4f72f0cef79405e64b80d",
+      "candidateSha256": "f65af05ccc2e023374154db636dd3515c09372a82567740e5041489d3c34566a",
+      "htmlSha256": "35d817c4efeb4bd893656c89fd52bfb12b32db1f292bed3a1d730472c5544fdf"
+    },
+    {
+      "id": "bridge-classes",
+      "title": "畫面訊息的處理類別",
+      "type": "class",
+      "candidate": "archify/bridge-classes/candidate.json",
+      "html": "archify/bridge-classes/bridge-classes.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "showcase",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "bb9beb92bb1b31265b167c3d92dc58b10404f253c8806275422a372ae30931fe",
+      "candidateSha256": "7a6b7dfdbf8d3261c1f96ab0ce334ffe0e74ecd41367093feffb4c07d1a530f0",
+      "htmlSha256": "bda830d63c9eb2de593af3e9d4d9511b178a02d02190a5f894564723087aebfd"
+    },
+    {
+      "id": "filter-types",
+      "title": "篩選情境的處理類別",
+      "type": "class",
+      "candidate": "archify/filter-types/candidate.json",
+      "html": "archify/filter-types/filter-types.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "showcase",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "f41ba14e4c9bfb659ba9adc7a171a678525c505e0ede9841ea73b8814ebe11b3",
+      "candidateSha256": "fc3b17dfac162adb09bcd875cc442d87132ee3930dadc3c41ce40c3559b9b4df",
+      "htmlSha256": "832c5b7889e0375867d849013cdd1a6bacd959869abf5f64facac7676c878c2a"
+    },
+    {
+      "id": "import-classes",
+      "title": "TB 匯入的處理類別",
+      "type": "class",
+      "candidate": "archify/import-classes/candidate.json",
+      "html": "archify/import-classes/import-classes.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "showcase",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "4daaa94ffeab5743acdd00a836a4feba129132d3031f7c643cff9caf4c2a3cf8",
+      "candidateSha256": "7423adc9986c2f29977b440856e9450d1cf40c0a2df8f41c175f3c806e5e108a",
+      "htmlSha256": "c77f572e6b6a13108d87d2a1d33b47abf4f19d44d77f2e54fb32a5056e11960b"
+    },
+    {
+      "id": "export-classes",
+      "title": "正式底稿的處理類別",
+      "type": "class",
+      "candidate": "archify/export-classes/candidate.json",
+      "html": "archify/export-classes/export-classes.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "showcase",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "1550149f65943dac09e2b3cde25f87b5eda94bb23e3794b54d523fc5c54cab72",
+      "candidateSha256": "e0b8c5457f6495d50d32b5f372b08051708e5f1e24bf448fff898f345f03d13c",
+      "htmlSha256": "1f48c3772aaab6e1380f86b2df2d57167d547a39dfdf3c40ff383b4cf978a1b4"
+    },
+    {
+      "id": "import-erd",
+      "title": "SQLite：匯入批次與原始資料",
+      "type": "erd",
+      "candidate": "archify/import-erd/candidate.json",
+      "html": "archify/import-erd/import-erd.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "standard",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "921e037c58393360a512102b49687635c9f9e8235fbff263929420bf33c2e522",
+      "candidateSha256": "4dcf301dbf7c1e261b789d28e02680f5146b133572a298f9c46c59f58eccbe26",
+      "htmlSha256": "70af7aba5cc30dd1be55f177abf2a6eb88e0180885834f95b285e74fffafcfdf"
+    },
+    {
+      "id": "projection-erd",
+      "title": "SQLite：欄位配對與標準化資料",
+      "type": "erd",
+      "candidate": "archify/projection-erd/candidate.json",
+      "html": "archify/projection-erd/projection-erd.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "standard",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "7d500d9f7e216b9e7b7b2eb160cb9c7f7c27440a48d7513ceb1a22403cfc01f1",
+      "candidateSha256": "176ec1c4a5188b8620483584d56fe33e149f74ef648b0bd825c01438511262b1",
+      "htmlSha256": "66f57f81b683682b68a55a6f4354fd6f521dc04fbdc4d4b9616bbf2c93adf19b"
+    },
+    {
+      "id": "rules-erd",
+      "title": "SQLite：分類、情境與命中結果",
+      "type": "erd",
+      "candidate": "archify/rules-erd/candidate.json",
+      "html": "archify/rules-erd/rules-erd.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "standard",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "19ae7e973775a2a5f89a6ab224b9b9a41ee0a0f03196009459997ac762c54dda",
+      "candidateSha256": "f8cc02d95f9b90443ba8b6f7197d122ce7de7a69c5b62b8903e984d74f6f4dab",
+      "htmlSha256": "ad331c0285b63fdbb5ce64797be0e80dec1047a23506464d9092d8d98187e0c7"
+    },
+    {
+      "id": "system-erd",
+      "title": "SQLite：結果狀態與操作紀錄",
+      "type": "erd",
+      "candidate": "archify/system-erd/candidate.json",
+      "html": "archify/system-erd/system-erd.html",
+      "finalize": {
+        "review": "review-1",
+        "quality": "standard",
+        "ok": true
+      },
+      "finalizedHtmlSha256": "f32e4da219c98c51dd706fe97353f3d52b79a49037433dfa50acf3e49e88591b",
+      "candidateSha256": "3af481a1233efeb00c19b8ec75e2a81ddbe37bc6640903863f04d7c3de62a683",
+      "htmlSha256": "d76b6900ace5bdb4de831b88bbcd524b1d1b522527ba312e117299e16ceeac4b"
+    }
+  ],
+  "readingOrder": [
+    {
+      "title": "先認識 JET",
+      "likec4": [
+        "index",
+        "containers",
+        "components"
+      ]
+    },
+    {
+      "title": "看操作怎麼進行",
+      "archify": [
+        "filter-save",
+        "tb-import",
+        "workpaper"
+      ]
+    },
+    {
+      "title": "看資料如何流動",
+      "archify": [
+        "intake-dataflow",
+        "audit-dataflow"
+      ]
+    },
+    {
+      "title": "準備部署與維護",
+      "archify": [
+        "deployment",
+        "maintenance"
+      ],
+      "likec4": [
+        "localRuntime"
+      ]
+    },
+    {
+      "title": "追查處理順序",
+      "likec4": [
+        "filterSave",
+        "tbImport",
+        "workingPaperExport"
+      ],
+      "archify": [
+        "action-sequence",
+        "import-sequence",
+        "workpaper-sequence"
+      ]
+    },
+    {
+      "title": "查程式分工",
+      "likec4": [
+        "assembly",
+        "filterComponents"
+      ],
+      "archify": [
+        "bridge-classes",
+        "filter-types",
+        "import-classes",
+        "export-classes"
+      ]
+    },
+    {
+      "title": "查資料表",
+      "archify": [
+        "import-erd",
+        "projection-erd",
+        "rules-erd",
+        "system-erd"
+      ]
     }
   ],
   "likec4Views": 9,
   "likec4Model": "likec4/jet.c4",
   "likec4Export": {
     "html": "likec4/index.html",
-    "sourceSha256": "724d9710c823722f498598d47786bc3ce8083525b2ad47f34d83a7960dbe348f",
-    "portableSha256": "33e8b768c80a5cc3fba547984ac32bb5796227a8829f85544ceea80df7931205",
+    "sourceSha256": "03e9fb2223ad8f9fdd80ef04f01cc97b8d84da7d61499da31a55400600ac4131",
+    "portableSha256": "e6748722caee69e1c357d510450cc5779370702a49361e95acd4838bb3f32b35",
     "rewrittenLocalLinks": 55,
     "transformation": "Rewrite local links relative to the package root, inline the favicon and insert likec4/jet-theme.css; keep the model and layout.",
     "themeConfig": "likec4/likec4.config.json"
@@ -314,91 +384,91 @@
   "files": [
     {
       "path": "archify/action-sequence/action-sequence.html",
-      "sha256": "75509f202a417ef129acf5e02937aec19f85b04ef0d17fb35476c19729415210"
+      "sha256": "6b4cd1adf1a4473ceef0626d03543925fab9813092c711ce8c47642efc86412b"
     },
     {
       "path": "archify/action-sequence/candidate.json",
-      "sha256": "eb19ab873994fe6684de341b8750f0307d7961867ed05b1637aeaa901c387737"
+      "sha256": "1b9f4600802d907bcb5a4c47e4f021e012c600860c049cecc9365c4fda621603"
     },
     {
       "path": "archify/audit-dataflow/audit-dataflow.html",
-      "sha256": "2380c9cbc43c27e63bcf4cd7fbadf7a703547835dc18686c4f8aed7b3fd6b2d5"
+      "sha256": "ab703168dc24c170655b18f1151e083ff9960f51317902a0ed66c6d36496639a"
     },
     {
       "path": "archify/audit-dataflow/candidate.json",
-      "sha256": "d7ac0aef62f0e1858da0edbce6b3b0555e85b6d52bf0a0f1658e4f748a57badb"
+      "sha256": "6ade5af40fb3744e9ccfcaea6674a5c8ed34cdc4d3f05c39568134528cb99cf6"
     },
     {
       "path": "archify/bridge-classes/bridge-classes.html",
-      "sha256": "a989cc171cb508cbeae130c93a1ba8f85c34baa2bcb2c3c62c78c2b5081ba0f8"
+      "sha256": "bda830d63c9eb2de593af3e9d4d9511b178a02d02190a5f894564723087aebfd"
     },
     {
       "path": "archify/bridge-classes/candidate.json",
-      "sha256": "dffa2023c77a75ab84603558d2c9cf583e6479f6120c117d57ec561616c81c0f"
+      "sha256": "7a6b7dfdbf8d3261c1f96ab0ce334ffe0e74ecd41367093feffb4c07d1a530f0"
     },
     {
       "path": "archify/deployment/candidate.json",
-      "sha256": "f1b9c75a6c0a8c0fa51084c54c62dae471bc753f896ae49881cf1bcdfdb44d6b"
+      "sha256": "b872e4a9cdbc9a4042ff679c6195dcdc55f9dfb54493b86a7d84825b71ce8a09"
     },
     {
       "path": "archify/deployment/deployment.html",
-      "sha256": "07724a2680aaa958a675b2229de0f4c027c92ba5fd003c9b7bace49ad05aefdc"
+      "sha256": "a68dab13bb547b0703a4f59352cb4e3ba62f16e0575284dc6124575a434b1454"
     },
     {
       "path": "archify/export-classes/candidate.json",
-      "sha256": "55b3ea6e5a9835f2e9c1b7e576e55fea1a3f28700be97b1dcb6dbffbfbb09f58"
+      "sha256": "e0b8c5457f6495d50d32b5f372b08051708e5f1e24bf448fff898f345f03d13c"
     },
     {
       "path": "archify/export-classes/export-classes.html",
-      "sha256": "ab7fc3b7455fb31eff72ca0bbca71db51a1a4aabe306ac841601705518626258"
+      "sha256": "1f48c3772aaab6e1380f86b2df2d57167d547a39dfdf3c40ff383b4cf978a1b4"
     },
     {
       "path": "archify/filter-save/candidate.json",
-      "sha256": "e1461fa1a4e07a1c0bcd51f6fe641ede15ef6cb8e84a440e33861e9181a59715"
+      "sha256": "7db9427ec487fb3aeef739f7a19c86cf00018ae3453ea69f3fdb7719057b1085"
     },
     {
       "path": "archify/filter-save/filter-save.html",
-      "sha256": "7848af61fe9ab5f473f6eb1b09d2f0919712812639800fce8a60deb4beacd2ac"
+      "sha256": "f5179d217006085df157e3645b359002f4b1d70d611cde1792ab969f3f93726d"
     },
     {
       "path": "archify/filter-types/candidate.json",
-      "sha256": "cbfa3a796c6e32dbff732d2cded891c5daaef70061141d1a7f21019e2722d0fe"
+      "sha256": "fc3b17dfac162adb09bcd875cc442d87132ee3930dadc3c41ce40c3559b9b4df"
     },
     {
       "path": "archify/filter-types/filter-types.html",
-      "sha256": "ff6268b52d149a6895adff7f9bf34df1ff3dcf8df6dcbd4ff5bb2a4a259c8249"
+      "sha256": "832c5b7889e0375867d849013cdd1a6bacd959869abf5f64facac7676c878c2a"
     },
     {
       "path": "archify/import-classes/candidate.json",
-      "sha256": "7ece06278e5cfb08315189a41363c12e1ca13666c74f1630cf3a9c23508de1dd"
+      "sha256": "7423adc9986c2f29977b440856e9450d1cf40c0a2df8f41c175f3c806e5e108a"
     },
     {
       "path": "archify/import-classes/import-classes.html",
-      "sha256": "85bdb04c626ebc64f392f3f0361f866a32c69348d88d25a08e7a227f79a1b4d5"
+      "sha256": "c77f572e6b6a13108d87d2a1d33b47abf4f19d44d77f2e54fb32a5056e11960b"
     },
     {
       "path": "archify/import-erd/candidate.json",
-      "sha256": "ca1a08ec819546a5be2a806f6018486a98a9bf3a32f360106200f0eae0d5da6c"
+      "sha256": "4dcf301dbf7c1e261b789d28e02680f5146b133572a298f9c46c59f58eccbe26"
     },
     {
       "path": "archify/import-erd/import-erd.html",
-      "sha256": "a4343ca95e9a2cdfbf4e1a25d3921b5024baf3c5a764491345a8d55929db8c44"
+      "sha256": "70af7aba5cc30dd1be55f177abf2a6eb88e0180885834f95b285e74fffafcfdf"
     },
     {
       "path": "archify/import-sequence/candidate.json",
-      "sha256": "38f1b79fa4fe57177aeeb04bfc92fdbe6e84774eb948223e4c7cfc180019dc1a"
+      "sha256": "e7f3b131c5c22a365acf4df5a76d74b5d837cf331b3fe9b149dc8cee9a35911a"
     },
     {
       "path": "archify/import-sequence/import-sequence.html",
-      "sha256": "fe38f92072e4cd5326f9bf1046c9d29275c221d4d9048a4c9e2bb95e12e4f9e7"
+      "sha256": "7cf2d48c25ecb34abe1fe65ba30b0825adf266f8661f8e6177f66e536ba86c55"
     },
     {
       "path": "archify/intake-dataflow/candidate.json",
-      "sha256": "412bb67ac200799cf8a100700e58dfd44f3b25d64352cb7b8d4eafbf74561af3"
+      "sha256": "0fe10bdac62ebeac670536286db24c36d1d27f455a9d19a5b807bd737c74bc27"
     },
     {
       "path": "archify/intake-dataflow/intake-dataflow.html",
-      "sha256": "d306a3a497862c91bcb80bbb24b9713bdb55cd474eba74d05b0d7af470d173ea"
+      "sha256": "5e5da4eec2a3b3d93b99e08c91abba1453b5d7a71fc3f21884e72044b55cf852"
     },
     {
       "path": "archify/jet-theme.css",
@@ -406,63 +476,63 @@
     },
     {
       "path": "archify/maintenance/candidate.json",
-      "sha256": "cafab31d565ae34eb873ba265065dad119207512fd220c0e071294335461f68b"
+      "sha256": "a97e288d8406354a21bff9a15781aebb6bcff389a116beabe59df35b32944793"
     },
     {
       "path": "archify/maintenance/maintenance.html",
-      "sha256": "7cb78778d04b563d0ca4509c475791aa5b2cb60ec2dbc0b38e124fad892ebea1"
+      "sha256": "50f5633d7cced4c02de9b12b88f979c3f9ce110c1401e56b376ff53b8f647f8f"
     },
     {
       "path": "archify/projection-erd/candidate.json",
-      "sha256": "410ddd55c86159e56bdb9166f425487ef33aeb45c84ec11f33f2d63865ec5a98"
+      "sha256": "176ec1c4a5188b8620483584d56fe33e149f74ef648b0bd825c01438511262b1"
     },
     {
       "path": "archify/projection-erd/projection-erd.html",
-      "sha256": "42e1d0ea4f770e722e3f2f134bb0b0097843e8840555e04a657e6c4d05516925"
+      "sha256": "66f57f81b683682b68a55a6f4354fd6f521dc04fbdc4d4b9616bbf2c93adf19b"
     },
     {
       "path": "archify/rules-erd/candidate.json",
-      "sha256": "a8bdc33ff8224773746ed7f7fd6d81ce8784a79deea04d17ff36135fde0e0523"
+      "sha256": "f8cc02d95f9b90443ba8b6f7197d122ce7de7a69c5b62b8903e984d74f6f4dab"
     },
     {
       "path": "archify/rules-erd/rules-erd.html",
-      "sha256": "6007b240fe835ecfdffa63eede962103d79c7d1dddc6976a936c11b96fd027c0"
+      "sha256": "ad331c0285b63fdbb5ce64797be0e80dec1047a23506464d9092d8d98187e0c7"
     },
     {
       "path": "archify/system-erd/candidate.json",
-      "sha256": "69c387d6d521ad2ef9d375f889718a8f104502e50e6c2020bd258cc9f20e0921"
+      "sha256": "3af481a1233efeb00c19b8ec75e2a81ddbe37bc6640903863f04d7c3de62a683"
     },
     {
       "path": "archify/system-erd/system-erd.html",
-      "sha256": "133109ea3b48acaa6d0594a2123aa3d90508b3df93f60a09c4b025f239125c04"
+      "sha256": "d76b6900ace5bdb4de831b88bbcd524b1d1b522527ba312e117299e16ceeac4b"
     },
     {
       "path": "archify/tb-import/candidate.json",
-      "sha256": "d429f75e82c407564907d059b5a8fb255e991858596b4823c54712f76bcb57d0"
+      "sha256": "98937d475ea2cf9d95092d344e90744e60875883f7cefb9a6b859747b354c352"
     },
     {
       "path": "archify/tb-import/tb-import.html",
-      "sha256": "c0113e7a4ea020859f4192aa08ce75be58fbdbb14faf95fd79fafd7c47ce6c94"
+      "sha256": "1b0a3931b5cc938465d2cdf779ba5e8b923227bd5d689eac9ac4ed23abce6cf5"
     },
     {
       "path": "archify/workpaper/candidate.json",
-      "sha256": "e9b27e3c5d19c95466ef811dac9c1282105be6d69f3cecd7ff3b63ffcc485d45"
+      "sha256": "f84c454f6feb4aa5131ff694e6abe53739eeb0aa6b324e6294d9a559d8dd0ade"
     },
     {
       "path": "archify/workpaper/workpaper.html",
-      "sha256": "6834fa166a9237fd9f087e2b36fc2f0517eef48e19c211b6da00380e9e7bb00b"
+      "sha256": "b5648e7f8ff4fe6205f894f18301d49126e4b5f01f8b155449aea008374d1c2a"
     },
     {
       "path": "archify/workpaper-sequence/candidate.json",
-      "sha256": "af3d5d80a35f6ab7e37cd916469f84a92a60c4fb6d780c59577e0c2db404fe77"
+      "sha256": "f65af05ccc2e023374154db636dd3515c09372a82567740e5041489d3c34566a"
     },
     {
       "path": "archify/workpaper-sequence/workpaper-sequence.html",
-      "sha256": "f7f230b0eefb5b8b6074033acf6de01e22a9997476482297ba3537186758d2a4"
+      "sha256": "35d817c4efeb4bd893656c89fd52bfb12b32db1f292bed3a1d730472c5544fdf"
     },
     {
       "path": "connections.html",
-      "sha256": "f373febba18f3db8a883f5edfb16d33189a7e86075144ed3d53c37987184d495"
+      "sha256": "e36e912c8db68d1ed5a8d6e673d536f1e92bc5603e49a4826a4fa2dfdbf24b51"
     },
     {
       "path": "evidence/class-relations.json",
@@ -474,7 +544,7 @@
     },
     {
       "path": "evidence/connection-evidence.json",
-      "sha256": "ec5b2d545d388c5a7abf544e832e335a5199473e9ba3ee401d892a69f0e0a52d"
+      "sha256": "a40b47e37126e41f3ced2abf364c51c854b5b13470fe0f5a6c2d070d8b0382d5"
     },
     {
       "path": "evidence/diagram-bindings.json",
@@ -506,15 +576,15 @@
     },
     {
       "path": "evidence/verified-facts.json",
-      "sha256": "9875c4cda56a6214835782b253da2c31d6dae6b6fa3f9dc001c48bf9e71df244"
+      "sha256": "cacd19f380a000d8e8ceaa3afad9ef368d0ea850c3925fa545320ed71fc1f0de"
     },
     {
       "path": "evidence.html",
-      "sha256": "00a3666397dacd152c38cf9a5b0686266c684147c75e5b52e5a3dc7933f08d9f"
+      "sha256": "f373b435db7b9237cd10ad267cf8d8f63ffa7512519d122b2e9df60fc0acfad5"
     },
     {
       "path": "index.html",
-      "sha256": "5c540d363ebcd683dd518ffc142a33a837c8c1b82c17e76c5f6f348e90fc3801"
+      "sha256": "96e9ea1cfc0b85dafd745ff4cda065f5fa4e295de3f64145227aa275c95e8b08"
     },
     {
       "path": "licenses/archify-LICENSE.txt",
@@ -526,7 +596,7 @@
     },
     {
       "path": "likec4/index.html",
-      "sha256": "33e8b768c80a5cc3fba547984ac32bb5796227a8829f85544ceea80df7931205"
+      "sha256": "e6748722caee69e1c357d510450cc5779370702a49361e95acd4838bb3f32b35"
     },
     {
       "path": "likec4/jet-theme.css",
@@ -534,7 +604,7 @@
     },
     {
       "path": "likec4/jet.c4",
-      "sha256": "2338e7bfbf35f0ed5f0d96281d0c913d7221ecd5e1bb340b8ec823cade9e4def"
+      "sha256": "e6a42cd882fd765277fa8d0376a69cbe8c41a6e62113c58ec1ccf2275828f0f1"
     },
     {
       "path": "likec4/likec4.config.json",
@@ -542,15 +612,15 @@
     },
     {
       "path": "README.md",
-      "sha256": "39086b7e3c69fd33ae8b853d3dc9ea95292e55e7cbeb2fa46b9dedc1db9d74c9"
+      "sha256": "3f1dcb6cbb2f1096de88e48c9304a12f4d6468ab2367a93f811072dbdb8e255f"
     },
     {
       "path": "schema.html",
-      "sha256": "dcf6974a7a8b3aedf6cc766117eaf0b074837e772ad30f62eb9cfd57674c013d"
+      "sha256": "77b89cc291a04f03267222b75c8efe735b591d34638c03b46179599ec4eb9aac"
     },
     {
       "path": "types.html",
-      "sha256": "4b708b6f65d3d21355fcff2e3167de691c3473c0e76b370a0e1edb336b46e4a6"
+      "sha256": "a089bb95a5c86ada40125128f4383f7c24b876a7c8f886b3cd4862d83431c384"
     }
   ],
   "limitations": [

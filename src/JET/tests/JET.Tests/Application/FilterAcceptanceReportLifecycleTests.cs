@@ -11,7 +11,6 @@ public sealed class FilterAcceptanceReportLifecycleTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task EditedWorkingPaper_ReopensThenReimportRebuildsWithoutLosingVersions(string provider)
     {
         using var host = new HandlerTestHost();

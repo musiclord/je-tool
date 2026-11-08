@@ -24,12 +24,10 @@ public sealed class FilterCompileCheckSupportLogTests
             RdeFields = [new GlRdeFieldMetadata(TextFieldId, "合成欄", "合成附註", RdeFieldValueTypeNames.Text)]
         };
 
-    [Theory]
-    [InlineData("sqlite")]
-    [InlineData("duckdb")]
-    public void CompileCheck_ShowsTheUnexpectedSentenceAndRemembersCheckAndPosition(string provider)
+    [Fact]
+    public void CompileCheck_ShowsTheUnexpectedSentenceAndRemembersCheckAndPosition()
     {
-        IProviderSqlDialect dialect = provider == "duckdb" ? DuckDbDialect.Instance : SqliteDialect.Instance;
+        IProviderSqlDialect dialect = SqliteDialect.Instance;
         var builder = new GlFilterWhereBuilder(dialect, new GlRulePredicates(dialect, GlPopulationScopeSql.Predicate));
         var scenario = new FilterScenarioSpec("合成", "compile check", [
             new FilterGroupSpec(FilterJoin.And, [Rule(TextFieldId, "Alpha")]),

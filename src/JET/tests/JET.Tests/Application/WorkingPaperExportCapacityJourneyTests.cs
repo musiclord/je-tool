@@ -10,7 +10,6 @@ public sealed class WorkingPaperExportCapacityJourneyTests
     // jet-guide section 7; action contract export.workingPaperStream.
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExportAtCapacity_ReturnsCompletePrunedCatalogAndKeepsExistingFiles(string provider)
     {
         using var host = new HandlerTestHost();
@@ -38,7 +37,6 @@ public sealed class WorkingPaperExportCapacityJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ExportAtCapacityWithExistingFiles_GuidesCleanupAndPreservesManifest(string provider)
     {
         using var host = new HandlerTestHost();

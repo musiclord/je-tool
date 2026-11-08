@@ -14,7 +14,7 @@ public sealed class UsageScenarioJourneyTests
     private const string Scenario = """{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]}""";
     public static TheoryData<string, string> ClearingCases() => UpstreamMutationClearsFilterScenariosTests.ClearingCases();
     public static IEnumerable<object[]> FailureCases() =>
-        from provider in new[] { "sqlite", "duckdb" }
+        from provider in new[] { "sqlite" }
         from failure in new[] { "gl-read", "gl-mapping", "holiday", "authorized", "category-conflict", "cancel" }
         select new object[] { provider, failure };
 
@@ -113,7 +113,6 @@ public sealed class UsageScenarioJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     // 裁定 2026-10-29-16：沒有已儲存情境也能匯出底稿。原本斷言清掉情境後匯出回 no_saved_scenario，現在畫面上舊的篩選版本與情境位置
     // 已不是目前的清單，改成斷言回 stale_result 與清單已變更的說明；重新儲存後匯出的斷言不變。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
     public async Task TrialBalanceReplacement_ClearsScenariosAndRejectsTheOldSelectionUntilResaved(string provider)
@@ -150,7 +149,6 @@ public sealed class UsageScenarioJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ScenarioNames_TrimWhitespaceButRemainOrdinalAndDoNotDeduplicateIdenticalConditions(string provider)
     {
         using var host = new HandlerTestHost();
@@ -167,7 +165,6 @@ public sealed class UsageScenarioJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     // 裁定 2026-10-29-16：沒有已儲存情境也能匯出底稿。原本斷言回 no_saved_scenario 且不寫檔；改成斷言帶著舊篩選版本與情境位置的請求
     // 回 stale_result、不寫檔，畫面在沒有情境時送 null 的篩選版本與空清單則寫出一份底稿。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
     public async Task NoSavedScenario_RejectsTheOldSelectionAndWritesWorkingPaperWithoutScenarios(string provider)
@@ -212,7 +209,7 @@ public sealed class UsageScenarioJourneyTests
     private static async Task<long> CountHitsAsync(HandlerTestHost host, string id, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb" ? new DuckDbProjectDatabase(folder) : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(id); await connection.OpenAsync();
         await using var command = connection.CreateCommand(); command.CommandText = "SELECT COUNT(*) FROM filter_hit;";
         return Convert.ToInt64(await command.ExecuteScalarAsync());

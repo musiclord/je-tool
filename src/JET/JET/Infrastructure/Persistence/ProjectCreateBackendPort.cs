@@ -4,23 +4,15 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// project.create 的 provider backend lifecycle。SQL Server 先只準備全域 control plane，
-/// Begin 再取得同名 ownership；工作鎖取得後才 materialize per-project backend，最後才發布
-/// registry、access 與 create audit。建立流程保留 project.json 到 rollback 完成。
-/// 本機建案的初始化與回滾都用 document 選定的那個本機資料庫；建案失敗後同名改選另一種資料庫重試時，
-/// 也是依新的 document 選資料庫，不沿用前一次的選擇。
+/// project.create 的資料庫建立流程。設定檔發布、取得工作鎖之後才建立案件資料庫；
+/// 建案失敗時回滾刪除資料庫，設定檔保留到回滾完成。目前只建立 SQLite 案件（裁定 2026-11-06-08）。
 /// </summary>
-internal sealed class ProjectCreateBackendPort(
-    ILocalProjectDatabase sqlite,
-    SqlServerProjectDatabase sqlServer,
-    ILocalProjectDatabase duckDb) : IProjectCreateBackendPort
+internal sealed class ProjectCreateBackendPort(ILocalProjectDatabase sqlite) : IProjectCreateBackendPort
 {
     public Task PrepareAsync(
         ProjectDocument document,
         CancellationToken cancellationToken) =>
-        document.DatabaseProvider == ProjectDocument.SqlServerDatabaseProvider
-            ? sqlServer.PrepareCreateAsync(cancellationToken)
-            : Task.CompletedTask;
+        Task.CompletedTask;
 
     public Task<IProjectCreateBackendAttempt> BeginAsync(
         ProjectDocument document,
@@ -31,11 +23,6 @@ internal sealed class ProjectCreateBackendPort(
             ProjectDocument.DefaultDatabaseProvider =>
                 Task.FromResult<IProjectCreateBackendAttempt>(
                     new LocalProjectCreateBackendAttempt(sqlite, document.ProjectId)),
-            ProjectDocument.SqlServerDatabaseProvider =>
-                sqlServer.BeginCreateProjectAsync(document, principal, cancellationToken),
-            ProjectDocument.DuckDbDatabaseProvider =>
-                Task.FromResult<IProjectCreateBackendAttempt>(
-                    new LocalProjectCreateBackendAttempt(duckDb, document.ProjectId)),
             _ => throw Unsupported(document.DatabaseProvider)
         };
 

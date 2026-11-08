@@ -5963,24 +5963,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>這些連線的依據</h3>
+          <h3>以批次連接來源資料</h3>
         </div>
         <ul>
-          <li>LocalImportRepository 取代匯入時，依 import_batch 的 dataset_kind 找出 batch_id，再刪除同一批次的原始列、來源與欄位定義。</li>
-          <li>寫入時，原始列、來源與欄位定義都帶同一個 batch_id。科目配對與授權編製人清單走其他匯入程式，本圖不畫它們與批次的連線。</li>
-          <li>來源：LocalImportRepository.cs 第 30–236、806–818 行。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>線條不是資料庫外鍵</h3>
-        </div>
-        <ul>
-          <li>現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。</li>
-          <li>沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。</li>
-          <li>PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。</li>
+          <li>原始列、來源檔與欄位定義共用 batch_id。取代匯入時，依資料種類找到批次並清除舊資料。</li>
+          <li>科目配對與授權編製人另走其他匯入程序，圖中未畫它們與批次的連線。</li>
         </ul>
       </div>
     </div>

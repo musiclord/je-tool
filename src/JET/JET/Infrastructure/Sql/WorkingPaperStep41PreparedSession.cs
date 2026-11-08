@@ -15,8 +15,6 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
 {
     private const string LocalVoucherTable = "jet_step41_hit_voucher";
     private const string LocalTagTable = "jet_step41_row_tag";
-    private const string SqlServerVoucherTable = "#jet_step41_hit_voucher";
-    private const string SqlServerTagTable = "#jet_step41_row_tag";
     private const int CleanupCommandTimeoutSeconds = 5;
     private static readonly TimeSpan CleanupDeadline = TimeSpan.FromSeconds(10);
 
@@ -30,7 +28,6 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
     private readonly string _schemaPrefix;
     private readonly string _voucherTable;
     private readonly string _tagTable;
-    private readonly bool _sqlServer;
     private int _readStarted;
     private int _readCompleted;
     private int _disposed;
@@ -44,7 +41,6 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
         HighRiskSummaryScenarioSqlScope hitVoucherScenarioScope,
         LegacyFieldKind lineItemKind,
         string schemaPrefix,
-        bool sqlServer,
         WorkingPaperStep41PreparedSessionMetrics metrics)
     {
         _connection = connection;
@@ -55,9 +51,8 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
         _hitVoucherScenarioScope = hitVoucherScenarioScope;
         _lineItemKind = lineItemKind;
         _schemaPrefix = schemaPrefix;
-        _sqlServer = sqlServer;
-        _voucherTable = sqlServer ? SqlServerVoucherTable : LocalVoucherTable;
-        _tagTable = sqlServer ? SqlServerTagTable : LocalTagTable;
+        _voucherTable = LocalVoucherTable;
+        _tagTable = LocalTagTable;
         Metrics = metrics;
     }
 
@@ -106,21 +101,14 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
             var hitVoucherScenarioScope =
                 HighRiskSummaryScenarioSqlScope.CreateHitVoucher(hitVoucherPositions);
 
-            var sqlServer = dialect is SqlServerDialect;
             metrics = new WorkingPaperStep41PreparedSessionMetrics(dialect.ProviderName)
             {
                 DedicatedConnection = dedicatedConnection,
-                ConsistencyMode = sqlServer
-                    ? "serializable"
-                    : "transaction-snapshot"
+                ConsistencyMode = "transaction-snapshot"
             };
             metrics.Connections++;
             await connection.OpenAsync(cancellationToken);
-            transaction = sqlServer
-                ? await connection.BeginTransactionAsync(
-                    IsolationLevel.Serializable,
-                    cancellationToken)
-                : await connection.BeginTransactionAsync(cancellationToken);
+            transaction = await connection.BeginTransactionAsync(cancellationToken);
             metrics.Transactions++;
             metrics.TransactionIsolationLevel = transaction.IsolationLevel.ToString();
 
@@ -133,7 +121,6 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
                 hitVoucherScenarioScope,
                 lineItemKind,
                 schemaPrefix,
-                sqlServer,
                 metrics);
             await session.VerifySchemaReadinessAsync(cancellationToken);
             await session.InitializeTemporaryTablesAsync(cancellationToken);
@@ -346,19 +333,14 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
     private async Task VerifySchemaReadinessAsync(CancellationToken cancellationToken)
     {
         await using var command = CreateCommand();
-        command.CommandText = _sqlServer
-            ? $"SELECT [value] FROM {_schemaPrefix}schema_info WHERE [key] = 'schema_version';"
-            : "SELECT value FROM schema_info WHERE key = 'schema_version';";
+        command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
         command.CommandTimeout = 0;
         Metrics.SchemaReadinessCommands++;
         RecordCommand("schemaReadiness", command);
         var raw = await command.ExecuteScalarAsync(cancellationToken);
         var versionText = Convert.ToString(raw, CultureInfo.InvariantCulture);
-        // 核對的是案件資料庫 schema_info 記的結構版本，要求和開案時接受的現行版本相同，不另寫一個數字；
-        // SQL Server 的現行版本和本機資料庫不同，各讀各的。
-        var requiredSchemaVersion = _sqlServer
-            ? int.Parse(SqlServerProjectDatabase.SchemaVersion, CultureInfo.InvariantCulture)
-            : LocalSchemaReadiness.CurrentSchemaVersion;
+        // 核對的是案件資料庫 schema_info 記的結構版本，要求和開案時接受的現行版本相同，不另寫一個數字。
+        var requiredSchemaVersion = LocalSchemaReadiness.CurrentSchemaVersion;
         if (!int.TryParse(
                 versionText,
                 NumberStyles.Integer,
@@ -536,34 +518,16 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
 
     private string InitializeTemporaryTablesSql()
     {
-        var voucher = _sqlServer
-            ? $"""
-               IF OBJECT_ID('tempdb..{_voucherTable}') IS NOT NULL DROP TABLE {_voucherTable};
-               CREATE TABLE {_voucherTable}
-                   (voucher_number NVARCHAR(450) COLLATE Latin1_General_BIN2 NOT NULL PRIMARY KEY);
-               """
-            : _dialect is SqliteDialect
-                ? $"""
-                   DROP TABLE IF EXISTS {_voucherTable};
-                   CREATE TEMP TABLE {_voucherTable}
-                       (voucher_number TEXT COLLATE BINARY NOT NULL PRIMARY KEY);
-                   """
-                : $"""
-                   DROP TABLE IF EXISTS {_voucherTable};
-                   CREATE TEMP TABLE {_voucherTable}
-                       (voucher_number TEXT NOT NULL PRIMARY KEY);
-                   """;
-        var tag = _sqlServer
-            ? $"""
-               IF OBJECT_ID('tempdb..{_tagTable}') IS NOT NULL DROP TABLE {_tagTable};
-               CREATE TABLE {_tagTable}
-                   (entry_id BIGINT NOT NULL PRIMARY KEY, tag_mask BIGINT NOT NULL);
-               """
-            : $"""
-               DROP TABLE IF EXISTS {_tagTable};
-               CREATE TEMP TABLE {_tagTable}
-                   (entry_id BIGINT NOT NULL PRIMARY KEY, tag_mask BIGINT NOT NULL);
-               """;
+        var voucher = $"""
+            DROP TABLE IF EXISTS {_voucherTable};
+            CREATE TEMP TABLE {_voucherTable}
+                (voucher_number TEXT COLLATE BINARY NOT NULL PRIMARY KEY);
+            """;
+        var tag = $"""
+            DROP TABLE IF EXISTS {_tagTable};
+            CREATE TEMP TABLE {_tagTable}
+                (entry_id BIGINT NOT NULL PRIMARY KEY, tag_mask BIGINT NOT NULL);
+            """;
         return voucher + Environment.NewLine + tag;
     }
 
@@ -616,15 +580,15 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
 
     private string OrderedRowsSql()
     {
-        var documentOrder = OrdinalText("COALESCE(g.voucher_number, '')");
+        // SQLite 的文字比較依字元碼（BINARY 定序），排序不受語言設定影響。
+        const string documentOrder = "COALESCE(g.voucher_number, '')";
         var lineOrder = _lineItemKind switch
         {
             LegacyFieldKind.Number =>
-                OrdinalText(
-                    "CASE WHEN g.line_item IS NULL THEN '' "
-                    + "ELSE COALESCE(g.line_item_numeric_sort_key, '') END"),
+                "CASE WHEN g.line_item IS NULL THEN '' "
+                + "ELSE COALESCE(g.line_item_numeric_sort_key, '') END",
             LegacyFieldKind.Text or LegacyFieldKind.Date or LegacyFieldKind.Time =>
-                OrdinalText("COALESCE(g.line_item, '')"),
+                "COALESCE(g.line_item, '')",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(_lineItemKind),
                 _lineItemKind,
@@ -647,25 +611,15 @@ internal sealed class WorkingPaperStep41PreparedSession : IWorkingPaperStep41Pre
             + $"ORDER BY {documentOrder}, {lineNullRank}, {lineOrder}, g.entry_id;";
     }
 
-    private string CleanupSql() => _sqlServer
-        ? $"""
-           IF OBJECT_ID('tempdb..{_tagTable}') IS NOT NULL DROP TABLE {_tagTable};
-           IF OBJECT_ID('tempdb..{_voucherTable}') IS NOT NULL DROP TABLE {_voucherTable};
-           """
-        : $"""
-           DROP TABLE IF EXISTS {_tagTable};
-           DROP TABLE IF EXISTS {_voucherTable};
-           """;
+    private string CleanupSql() => $"""
+        DROP TABLE IF EXISTS {_tagTable};
+        DROP TABLE IF EXISTS {_voucherTable};
+        """;
 
     private string ScenarioPredicate(string columnExpression) =>
         _scenarioScope.IsEmpty
             ? "AND 1 = 0"
             : _scenarioScope.Predicate(columnExpression);
-
-    private string OrdinalText(string expression) =>
-        _sqlServer
-            ? $"({expression}) COLLATE Latin1_General_BIN2"
-            : expression;
 
     private void ThrowIfDisposed()
     {

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "TB 取代匯入：從選檔到同一交易寫入",
+    "title": "取代匯入 TB：呼叫順序",
     "locale": "zh-TW",
     "output": "archify/import-sequence/import-sequence.html",
     "quality_profile": "showcase",
@@ -245,22 +245,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "情境與前提",
+      "title": "從選檔到寫入",
       "items": [
-        "審計員選好 TB 檔案後送出匯入，畫面只帶檔案路徑與讀檔選項；沒有指定 mode，所以是取代匯入。",
-        "前提：案件使用 SQLite 或 DuckDB。本圖畫正常完成的路徑；追加匯入改呼叫 AppendToBatchAsync，不在圖內。",
-        "交易裡清除和保留哪些資料，以及失敗時怎麼回復，見「TB 取代匯入」流程圖。"
+        "本圖是 SQLite 或 DuckDB 案件正常完成取代匯入的流程。未指定 mode 時採取代方式。",
+        "先讀完所有檔案標頭，再逐列寫入同一筆交易。追加匯入另走 AppendToBatchAsync。"
       ]
     },
     {
       "dot": "slate",
-      "title": "實際執行的類別",
+      "title": "寫入後的處理",
       "items": [
-        "ImportTbFromFileHandler 繼承 ImportFromFileHandler，處理流程寫在父類別，GL 匯入共用同一段。",
-        "CompositeTabularFileReader 依副檔名交給 OpenXml、CSV、舊版 Excel 或 Access 的讀取器。",
-        "「逐列讀取」這條線不是方法呼叫：LocalImportRepository 逐列取用讀檔器先準備好的資料列，所以程式碼裡看不到讀檔類別。",
-        "案件用 SQLite 或 DuckDB 時，匯入由 LocalImportRepository 執行；操作紀錄由 CommittedOperationLog 經 IProjectOperationLog 交給 BestEffortProjectOperationLog，再寫進 LocalProjectOperationLog。寫入失敗時回應附提醒「變更已儲存，但這次變更沒有寫入操作紀錄。」。",
-        "SQLite 案件在交易途中取消時，CancellableSqliteCommand 會中斷執行中的語句，被中斷的寫入由 SQLite 回復。"
+        "提交後才更新案件步驟與操作紀錄。紀錄失敗會附提醒，已提交的匯入仍保留。",
+        "清除範圍與取消處理見「取代匯入 TB」流程圖。"
       ]
     }
   ],

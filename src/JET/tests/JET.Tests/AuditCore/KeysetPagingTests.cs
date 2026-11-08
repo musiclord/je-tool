@@ -7,7 +7,7 @@ namespace JET.Tests.AuditCore;
 
 /// <summary>
 /// 排序、搜尋與複合游標的組譯守衛。這裡只鎖 SQL 文字的形狀與游標的往返，
-/// 真正跑在 SQLite 與 DuckDB 上的結果由 Application 與 Infrastructure 的走訪測試負責。
+/// 真正跑在 SQLite 上的結果由 Application 與 Infrastructure 的走訪測試負責。
 /// </summary>
 public sealed class KeysetPagingTests
 {
@@ -43,7 +43,8 @@ public sealed class KeysetPagingTests
     public void Sorted_PutsNullsLastAndCarriesSortValueInCursor()
     {
         var request = new PageRequest(null, 10, new PageSort("approvedBy", PageSortDirection.Descending));
-        var plan = KeysetPaging.Plan(DuckDbDialect.Instance, request, Catalog);
+        // 原本用 DuckDB 方言組；排序與游標的 SQL 不分方言，只保留 SQLite 之後改用 SQLite 方言，預期不變（裁定 2026-11-06-08）。
+        var plan = KeysetPaging.Plan(SqliteDialect.Instance, request, Catalog);
 
         Assert.Equal(
             "ORDER BY CASE WHEN (g.approved_by) IS NULL THEN 1 ELSE 0 END, (g.approved_by) DESC, (g.entry_id) DESC",
@@ -55,7 +56,7 @@ public sealed class KeysetPagingTests
         Assert.True(PageCursor.TryDecodeComposite(next, out var cursor));
         Assert.Equal(new PageCursorKey("approvedBy", PageSortDirection.Descending, false, "alice", "7"), cursor);
 
-        var continued = KeysetPaging.Plan(DuckDbDialect.Instance, request with { Cursor = next }, Catalog);
+        var continued = KeysetPaging.Plan(SqliteDialect.Instance, request with { Cursor = next }, Catalog);
         Assert.Equal(
             " AND (((g.approved_by) IS NULL OR (g.approved_by) < @sortCursor OR ((g.approved_by) = @sortCursor AND (g.entry_id) < @keyCursor)))",
             continued.Predicate);
@@ -64,7 +65,7 @@ public sealed class KeysetPagingTests
 
         // 上一頁末列的排序值是 NULL：後面只剩 NULL 段，只比穩定鍵。
         var afterNull = plan.NextCursor(DBNull.Value, 9L);
-        var tail = KeysetPaging.Plan(DuckDbDialect.Instance, request with { Cursor = afterNull }, Catalog);
+        var tail = KeysetPaging.Plan(SqliteDialect.Instance, request with { Cursor = afterNull }, Catalog);
         Assert.Equal(" AND (((g.approved_by) IS NULL AND (g.entry_id) < @keyCursor))", tail.Predicate);
         Assert.Equal(9L, Assert.Single(tail.Parameters).Value);
     }
@@ -84,13 +85,13 @@ public sealed class KeysetPagingTests
     [Fact]
     public void Search_UsesTheDialectContainsAndUpperCasesTheText()
     {
-        var plan = KeysetPaging.Plan(SqlServerDialect.Instance, new PageRequest(null, 10, null, " v-00a "), Catalog);
+        var plan = KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(null, 10, null, " v-00a "), Catalog);
 
-        // 裁定 2026-10-19-30：SQL Server 的轉大寫改用 Latin1_General_100_BIN2 的對照表，
-        // 原本預期 " AND (CHARINDEX(@pageSearch, UPPER(COALESCE(g.voucher_number, N''))) > 0)"。
-        // 第一次失敗：20261019-025219572-8db61eaea8e248329c0efa0328ca3212，方言修改前失敗。
+        // 原本用 SQL Server 方言，預期是 CHARINDEX 加 Latin1_General_100_BIN2 對照表的寫法（裁定 2026-10-19-30）。
+        // SQL Server 移除後改用 SQLite 方言，預期換成 SQLite 方言的包含寫法 instr(UPPER(COALESCE(欄, '')), 參數) > 0
+        // （裁定 2026-11-06-08）；搜尋文字去頭尾空白並轉大寫的斷言不變。
         Assert.Equal(
-            " AND (CHARINDEX(@pageSearch, UPPER((COALESCE(g.voucher_number, N'')) COLLATE Latin1_General_100_BIN2)) > 0)",
+            " AND (instr(UPPER(COALESCE(g.voucher_number, '')), @pageSearch) > 0)",
             plan.Predicate);
         Assert.Equal("V-00A", Assert.Single(plan.Parameters).Value);
     }

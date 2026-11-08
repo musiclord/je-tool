@@ -12,9 +12,7 @@ internal static class SavedScenarioReplay
     internal static async Task ReplaceLikeRuleUpgradeAsync(HandlerTestHost host, string projectId, string provider = "sqlite")
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var store = new LocalFilterScenarioStore(database);
         var scenarios = await store.ListAsync(projectId, CancellationToken.None);
         await store.ReplaceAllAsync(projectId, scenarios, CancellationToken.None);

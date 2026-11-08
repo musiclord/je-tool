@@ -15,10 +15,9 @@
   function dispatch(bundle, action, payload) {
     const p = payload || {};
     if (action === 'system.ping') return { devToolsEnabled: false };
-    if (action === 'system.databaseInfo') return {};
-    if (action === 'system.whoAmI') return { principal: 'PREVIEW\\auditor', shortName: 'auditor（範例）', userNumber: null, numberSource: 'unavailable' };
+    // 啟動時原本也查 SQL Server 設定、開案後送心跳，身分也帶使用者編號；都隨 SQL Server 移除（裁定 2026-11-06-08）。
+    if (action === 'system.whoAmI') return { principal: 'PREVIEW\\auditor', shortName: 'auditor（範例）' };
     if (action === 'project.listLocal') return { projects: [] };
-    if (action === 'project.heartbeat') return {};
     if (action === 'mapping.valueProfile') {
       const prepared = (bundle.mappingValueProfiles || []).find(item => canonical(item.payload) === canonical(p));
       if (!prepared) throw new Error('此來源值查詢尚未準備合成回應；預覽不會自行判定代碼是否相同。');

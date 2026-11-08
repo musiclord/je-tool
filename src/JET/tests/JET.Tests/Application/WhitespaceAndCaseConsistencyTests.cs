@@ -17,7 +17,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
 {
     public static IEnumerable<object[]> ProviderAndFormat()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var format in new[] { "csv", "xlsx", "xls" })
             yield return [provider, format];
     }
@@ -75,7 +75,6 @@ public sealed class WhitespaceAndCaseConsistencyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RowsStoredBeforeThisChange_AreNormalizedTheSameWayInBothDatabases(string provider)
     {
         // 這次修正之前匯入的案件，資料庫裡的文字可能還帶著頭尾空白；SQL 端去掉的空白字元要和 .NET 相同，兩個資料庫一樣。
@@ -116,9 +115,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
     private static async Task UpdateCreatedByAsync(HandlerTestHost host, string provider, string projectId, string description, string value)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        DbConnection connection = provider == "duckdb"
-            ? new DuckDbProjectDatabase(folder).CreateConnection(projectId)
-            : new SqliteProjectDatabase(folder).CreateConnection(projectId);
+        DbConnection connection = new SqliteProjectDatabase(folder).CreateConnection(projectId);
         await using (connection)
         {
             await connection.OpenAsync();

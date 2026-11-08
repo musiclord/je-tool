@@ -8,28 +8,12 @@ public sealed class WorkingPaperStep4StreamRepositoryTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LocalProviders_StreamHighVoucherCardinalityInOneOrderedEnumeration(
         string provider)
     {
         const int voucherCount = 757;
         await using var engine = await PaginationBoundaryEngine.CreateLocalAsync(
             provider,
-            voucherCount);
-
-        var rows = await ReadAllAsync(
-            Assert.IsAssignableFrom<IWorkingPaperStep4StreamRepository>(
-                engine.HighRiskSummaryVouchers),
-            engine.ProjectId);
-
-        AssertRows(rows, voucherCount);
-    }
-
-    [SqlServerFact]
-    public async Task SqlServer_StreamsHighVoucherCardinalityWithSameProjection()
-    {
-        const int voucherCount = 757;
-        await using var engine = await PaginationBoundaryEngine.CreateSqlServerAsync(
             voucherCount);
 
         var rows = await ReadAllAsync(

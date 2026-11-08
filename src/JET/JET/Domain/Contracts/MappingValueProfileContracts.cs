@@ -35,7 +35,7 @@ public interface IMappingValueProfileRepository
 
     /// <summary>
     /// 明確要求時核對完整來源；回傳原請求中查無的值。往下填補只複製來源裡已有的值，非空白的值存不存在不受它影響，所以這裡照原樣核對。null 代表 provider 尚未支援；
-    /// 目前 SQLite、DuckDB 與 SQL Server 都已實作（SQL Server 自 2026-10-19 起）。
+    /// SQLite 已實作。
     /// </summary>
     Task<IReadOnlyList<string>?> FindMissingValuesAsync(
         string projectId,

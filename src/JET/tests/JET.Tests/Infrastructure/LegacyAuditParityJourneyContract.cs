@@ -43,7 +43,7 @@ internal static class LegacyAuditParityJourneyContract
         LegacyAuditParityFollowUp.Reopen =>
         [
             "project.releaseLock",
-            "project.list",
+            "project.listLocal",
             "project.load",
             "query.infSamplePage",
             "export.validationReports",

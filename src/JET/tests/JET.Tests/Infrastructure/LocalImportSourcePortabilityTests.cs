@@ -15,7 +15,6 @@ public sealed class LocalImportSourcePortabilityTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task ReplaceBatch_RootedSourcePath_PersistsOnlyPortableFileName(string provider)
     {
         using var root = new TempProjectRoot();
@@ -45,9 +44,7 @@ public sealed class LocalImportSourcePortabilityTests
     }
 
     private static ILocalProjectDatabase CreateDatabase(string provider, JetProjectFolder folder)
-        => provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        => new SqliteProjectDatabase(folder);
 
     private static async IAsyncEnumerable<StagingRow> OneRow()
     {

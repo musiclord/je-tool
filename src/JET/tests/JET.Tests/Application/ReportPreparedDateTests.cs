@@ -15,7 +15,6 @@ public sealed class ReportPreparedDateTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ValidationAndPrescreenReports_PreparedDateIsTheExportDay_NotWhenTheRunsHappened(string provider)
     {
         using var host = new HandlerTestHost();
@@ -43,8 +42,8 @@ public sealed class ReportPreparedDateTests
         var expected = new[] { before, after }
             .Select(day => string.Create(CultureInfo.InvariantCulture, $"Prepared date: {day:yyyy/MM/dd}"))
             .ToArray();
-        var validationReport = Assert.Single(validationExport.GetProperty("publishedReports").EnumerateArray()
-            .Where(item => item.GetProperty("kind").GetString() == "validationReport"));
+        var validationReport = Assert.Single(validationExport.GetProperty("publishedReports").EnumerateArray(),
+            item => item.GetProperty("kind").GetString() == "validationReport");
         var paths = new[]
         {
             validationReport.GetProperty("fullPath").GetString()!,
@@ -66,7 +65,7 @@ public sealed class ReportPreparedDateTests
     private static async Task ExecuteAsync(HandlerTestHost host, string projectId, string provider, string sql)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        ILocalProjectDatabase database = provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();

@@ -357,8 +357,9 @@ public sealed partial class WorkingPaperWriter
     private static IReadOnlyList<LocalDefinedNameOwner> CaptureLocalDefinedNameOwners(
         WorkbookPart workbookPart)
     {
-        var sheets = workbookPart.Workbook.Sheets!.Elements<Sheet>().ToArray();
-        return workbookPart.Workbook.DefinedNames?
+        var workbook = workbookPart.RequiredWorkbook();
+        var sheets = workbook.Sheets!.Elements<Sheet>().ToArray();
+        return workbook.DefinedNames?
             .Elements<DefinedName>()
             .Select((name, ordinal) => (name, ordinal))
             .Where(item => item.name.LocalSheetId?.Value is not null)
@@ -412,7 +413,8 @@ public sealed partial class WorkingPaperWriter
         var indexes = desiredNames
             .Select((name, index) => (name, index: checked((uint)index)))
             .ToDictionary(item => item.name, item => item.index, StringComparer.Ordinal);
-        var definedNames = workbookPart.Workbook.DefinedNames?
+        var workbook = workbookPart.RequiredWorkbook();
+        var definedNames = workbook.DefinedNames?
             .Elements<DefinedName>()
             .ToArray()
             ?? [];
@@ -436,7 +438,7 @@ public sealed partial class WorkingPaperWriter
             }
         }
 
-        workbookPart.Workbook.Save();
+        workbook.Save();
     }
 
     private static DirectTemplateWorksheetOverlayPlan DirectOverlayPlan(
@@ -483,13 +485,13 @@ public sealed partial class WorkingPaperWriter
                 [(1U, 1U), (2U, 1U), (3U, 1U), (7U, 1U), (12U, 2U)],
                 WorkingPaperSourceProtection),
             WorkingPaperSheetCatalog.Step2 => RowsAndCells(
-                row => row is 49 or 51 || row is >= 53 and <= 111,
+                row => row is 49 or 51 || row >= 53,
                 (row, column) =>
                     row == 49 && column >= 21
                     || row == 51 && column >= 21
-                    || row is >= 53 and <= 111 && column >= 1,
+                    || row >= 53 && column >= 1,
                 [(1U, 1U), (2U, 1U), (51U, 12U)],
-                WorkingPaperSourceProtection),
+                WorkingPaperSourceProtectionAndValidation),
             // 條件或原因換行的列由 EmitStep3 依行數加高；其他列沿用範本的列高。
             WorkingPaperSheetCatalog.Step3 => RowsAndCells(
                 row => row >= 19,

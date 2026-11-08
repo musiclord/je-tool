@@ -203,6 +203,10 @@
   // 「用 Excel 配對」選了有多個工作表的 Excel 檔時，先在托盤裡選工作表再匯入（裁定 2026-11-05-07）：
   // { projectId, filePath, fileName, sheets, sheetName }；取消、匯入或換案件後清掉。
   var accountSheetPick = null;
+  // 匯入的檔案正被 Excel 等程式開著時，後端另外列出的提醒（openElsewhereWarnings）：{ projectId, batchId, warnings }。
+  // 放在托盤的匯入結果上方，審計員不必打開訊息面板就看得到（裁定 2026-11-06-12）；下一次匯入成功或換案件後換掉。
+  // 提醒跟著那一次匯入的批次走：科目配對被上游修改清掉，或換成別批之後就不畫（2026-11-06 獨立複審找到的殘留）。
+  var accountMappingOpenElsewhere = null;
   // 工作底稿的科目配對工作表，和 WorkingPaperSheetCatalog.AccountMapping 同名；檔案裡有它時預先選它。
   var WORKING_PAPER_ACCOUNT_MAPPING_SHEET = '自動化工具-科目配對資訊';
   // JET 科目配對範本的主工作表（AccountMappingTemplateWriter）與報告共用的隱藏中繼資料工作表（ReportWorkbookMetadataFormat.WorksheetName）。
@@ -227,6 +231,7 @@
     categoryAdvanced = false;
     categoryRemoval = null;
     accountExcelOpen = false;
+    accountMappingOpenElsewhere = null;
     prescreenSignalsOpen = false;
   });
 
@@ -360,20 +365,27 @@
   // 分頁數字欄靠右，和 detailHtml 的 numeric 對齊。
   function amountColumn(cell) { return { cell: cell, className: 'preview-table__amount' }; }
 
+  // 「核准日不在期間」的明細多一欄傳票核准日，接在總帳日期後面，審計員才看得出核准日落在哪一天；其他類別不顯示這一欄
+  // （裁定 2026-11-06-13）。
+  function showsApprovalDate(category) { return category === 'approvalDateNotInPeriod'; }
+
   // 空值子項對應後端 category 與固定的「異常類別」顯示字；id 形如 null-<category>，動態註冊進 DETAIL_PAGE_SPECS
   // （columns 與既有空值 table 欄序對齊）。空白摘要只在預篩選訊號那一處呈現，這裡不再註冊它的明細頁。
   function blankPageSpec(category, categoryLabel) {
+    var columns = [
+      function (r) { return r.voucherNumber || ''; },
+      function (r) { return r.accountNumber || ''; },
+      function (r) { return r.glDate || ''; }
+    ];
+    if (showsApprovalDate(category)) { columns.push(function (r) { return r.approvalDate || ''; }); }
+    columns.push(
+      function (r) { return r.description || ''; },
+      function () { return categoryLabel; });
     return {
       fetchPage: function (cursor, sort, search) {
         return global.JetApi.queryBlankRecordsPage({ category: category, cursor: cursor, pageSize: 200, sort: sort || null, search: search || null });
       },
-      columns: [
-        function (r) { return r.voucherNumber || ''; },
-        function (r) { return r.accountNumber || ''; },
-        function (r) { return r.glDate || ''; },
-        function (r) { return r.description || ''; },
-        function () { return categoryLabel; }
-      ]
+      columns: columns
     };
   }
 
@@ -448,15 +460,21 @@
       detail: function (v) {
         if (v && naReason(v)) { return { kind: 'reason', text: naReason(v) }; }
         if (!v || countOf(v.blankRecordsTest) <= 0) { return null; }
+        var withApprovalDate = showsApprovalDate(categories[0]);
+        // 欄名與排序鍵各寫一份完整清單，不是「核准日不在期間」時拿掉傳票核准日那一欄。排序鍵寫成完整清單，
+        // PagedTableFrontendTests 才核對得到每個鍵都在後端的白名單裡。
+        var keepApprovalDate = function (item) { return withApprovalDate || (item !== '傳票核准日' && item !== 'approvalDate'); };
         var rows = (v.blankRecordsTest.blankRows || []).filter(function (r) {
           return (r.issues || []).some(function (k) { return issueKeys.indexOf(k) >= 0; });
         }).map(function (r) {
-          return [r.voucherNumber || '', r.accountNumber || '', r.glDate || '', r.description || '', issuesCn(r.issues)];
+          var dates = withApprovalDate ? [r.glDate || '', r.approvalDate || ''] : [r.glDate || ''];
+          return [r.voucherNumber || '', r.accountNumber || ''].concat(dates, [r.description || '', issuesCn(r.issues)]);
         });
         return {
           kind: 'table',
-          columns: ['傳票號碼', '科目編號', '總帳日期', '摘要', '異常類別'],
-          sortAction: 'query.blankRecordsPage', sortKeys: ['voucherNumber', 'accountNumber', 'glDate', 'description', null],
+          columns: ['傳票號碼', '科目編號', '總帳日期', '傳票核准日', '摘要', '異常類別'].filter(keepApprovalDate),
+          sortAction: 'query.blankRecordsPage',
+          sortKeys: ['voucherNumber', 'accountNumber', 'glDate', 'approvalDate', 'description', null].filter(keepApprovalDate),
           searchLabel: '依傳票號碼、科目編號或摘要搜尋',
           rows: rows,
           pageQuery: 'null-' + categories[0]
@@ -951,7 +969,14 @@
         '到「用 Excel 配對」重試</button></p>';
   }
 
+  var sampleDraftProject = null, sampleDraftResult = null, sampleDraftValue = '59';
   function validationCardHtml(v, ready, state) {
+    var resultId = v && v.resultRef && v.resultRef.resultId;
+    if (sampleDraftProject !== state.project || sampleDraftResult !== resultId) {
+      sampleDraftProject = state.project;
+      sampleDraftResult = resultId;
+      sampleDraftValue = String(v && v.infSamplingTest && v.infSamplingTest.requestedSampleSize || 59);
+    }
     return (
       '<section class="rule-card">' +
         '<div class="rule-card__head">' +
@@ -962,6 +987,10 @@
             '" data-action="run-validate"' + (ready ? '' : ' disabled') +
             '>' + (v ? '重新執行驗證' : '執行驗證') + '</button>' +
         '</div>' +
+        '<div class="form__field validation-sample-size"><label class="form__label" for="inf-sample-size">資料可靠性測試抽樣筆數</label>' +
+          '<input class="form__input" id="inf-sample-size" data-focus-key="inf-sample-size" type="number" min="1" max="1048524" step="1" required value="' +
+          Ui.esc(sampleDraftValue) + '"' + (ready ? '' : ' disabled') + '>' +
+          '<p class="form__hint">預設 59 筆。分錄不足時全部抽出。</p></div>' +
         lastRunLineHtml(v) +
         ruleListHtml(VALIDATION_ITEMS, v, 'v') +
         validationReportsHtml(state, v) +
@@ -1113,7 +1142,15 @@
         '</section>';
     }
     if (accountSheetPick && accountSheetPick.projectId !== projectId) { accountSheetPick = null; }
+    if (accountMappingOpenElsewhere && accountMappingOpenElsewhere.projectId !== projectId) { accountMappingOpenElsewhere = null; }
     var pick = accountSheetPick;
+    // 開著的檔案的提醒，一個檔案一則；只在目前的匯入結果還是那一批時才畫。動態識別用提醒文字本身，
+    // 換成別的檔案時舊的收起、新的長出。
+    var openElsewhereCurrent = accountMappingOpenElsewhere && info && info.batchId === accountMappingOpenElsewhere.batchId;
+    var openElsewhereNotices = (openElsewhereCurrent ? accountMappingOpenElsewhere.warnings : []).map(function (text) {
+      return '<p class="form-notice form-notice--warning" role="status" data-open-elsewhere="accountMapping" ' +
+        'data-motion-key="' + Ui.esc('open-elsewhere-account-mapping|' + text) + '">' + Ui.esc(text) + '</p>';
+    }).join('');
     // 選工作表時，藍色的主要按鈕交給「匯入這個工作表」，上面那顆暫時改成一般按鈕。
     var importPrimary = !info && !pick;
     var actions =
@@ -1161,7 +1198,7 @@
       : '';
     return (
       '<section class="excel-mapping" data-bind="account-mapping-card" tabindex="-1">' +
-        actions + sheetPick + hint + validationOutputStatusHtml('template') +
+        actions + sheetPick + hint + validationOutputStatusHtml('template') + openElsewhereNotices +
         '<ul class="excel-mapping__results" data-motion-key="account-mapping-results">' +
           saved + blankCategoryRowHtml(info) + mappingDifferenceRowsHtml(info) +
         '</ul>' +
@@ -1775,6 +1812,12 @@
 
     function importAccountMappingSource(source) {
       return global.JetApi.importAccountMappingFromFile(source).then(function (data) {
+        // 檔案正被 Excel 開著時照樣匯入最後一次存檔的內容；提醒先記下，下面寫入狀態的那次重繪就畫在結果上方
+        // （裁定 2026-11-06-12）。訊息面板照舊另記一則。
+        var opened = Array.isArray(data.openElsewhereWarnings) ? data.openElsewhereWarnings : [];
+        var current = Store.getState().project;
+        accountMappingOpenElsewhere = opened.length && current
+          ? { projectId: current.projectId, batchId: data.batchId, warnings: opened.slice() } : null;
         Store.setAccountMappingState({
           batchId: data.batchId,
           rowCount: data.rowCount,
@@ -2008,9 +2051,19 @@
 
     if (!ready) { return; }
 
+    container.querySelector('#inf-sample-size').addEventListener('input', function (event) {
+      sampleDraftValue = event.target.value;
+    });
     container.querySelector('[data-action="run-validate"]').addEventListener('click', function () {
+      var sampleInput = container.querySelector('#inf-sample-size');
+      var sampleSize = Number(sampleInput.value);
+      if (!Number.isInteger(sampleSize) || sampleSize < 1 || sampleSize > 1048524) {
+        Store.addMessage('抽樣筆數請填入 1 到 1048524 的整數。', 'warn');
+        sampleInput.focus();
+        return;
+      }
       Ui.run('執行驗證並產生報告', function () {
-        return global.JetApi.validateRun({}).then(function (data) {
+        return global.JetApi.validateRun({ sampleSize: sampleSize }).then(function (data) {
           Store.setResult('validate', data);
           return exportValidationOutputs(data);
         });

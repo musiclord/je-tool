@@ -196,7 +196,7 @@ public sealed partial class LegacyReportWriter
 
         ReportWorkbookMetadataWorksheet.Append(document, workbookMetadata, cancellationToken);
 
-        document.WorkbookPart!.Workbook.Save();
+        document.WorkbookPart!.RequiredWorkbook().Save();
         return stats;
     }
 
@@ -267,7 +267,7 @@ public sealed partial class LegacyReportWriter
                 }
 
                 var cells = new DirectTemplateCellEditor(
-                    part.Worksheet,
+                    part.RequiredWorksheet(),
                     allowed,
                     editor.StylePatcher);
                 cells.SetInlineString("E1", $"Client: {context.Project.CompanyName}");
@@ -371,8 +371,6 @@ public sealed partial class LegacyReportWriter
         var defaultStyle = styles.Map(FormalFieldInfoStyles.Default);
         var boldStyle = styles.Map(FormalFieldInfoStyles.Bold);
         var wrappedStyle = styles.Map(FormalFieldInfoStyles.Wrapped);
-        // 驗證報告其他頁都是 10 點、沒有藍底橫幅，版本列跟著所在報告只用粗體（裁定 2026-10-29-07）。
-        var versionStyle = boldStyle;
         var tbHeaderStyle = editor.StylePatcher.Patch(
             boldStyle,
             FormalFieldInfoAppearance.TbHeader);
@@ -391,7 +389,7 @@ public sealed partial class LegacyReportWriter
                 var allRows = projection.TbRows.Concat(projection.GlRows).ToArray();
                 var widths = new[]
                 {
-                    AutoFitWidth(new[] { "V.2019", "TB檔案配對前後欄位對照表", "GL檔案配對前後欄位對照表", headers[0] }
+                    AutoFitWidth(new[] { "TB檔案配對前後欄位對照表", "GL檔案配對前後欄位對照表", headers[0] }
                         .Concat(allRows.Select(row => row.DisplayName))),
                     AutoFitWidth(new[] { headers[1] }.Concat(allRows.Select(row => row.FieldType))),
                     AutoFitWidth(new[] { headers[2] }.Concat(allRows.Select(row => row.TextLength?.ToString(CultureInfo.InvariantCulture)))),
@@ -414,11 +412,9 @@ public sealed partial class LegacyReportWriter
                     new ReportSheetOptions(
                         PageMargins: StandardMargins,
                         DefaultRowHeight: FormalWorkbookTypography.RowHeight(FormalFieldInfoStyles.BaseFontSize)));
-                sheet.AddMerge("A1:E1");
-                var firstRow = new List<Cell>
-                {
-                    sheet.TextCell(1, 1, "V.2019", versionStyle)
-                };
+                // 第一列只放隱藏的配對資料（F 到 H 欄）。以前 A1 寫舊版的版本字樣 V.2019，
+                // 使用者 2026-11-06 裁定底稿與驗證報告都拿掉（裁定 2026-11-06-11）；列號不動，配對資料的位置照舊。
+                var firstRow = new List<Cell>();
                 if (mappingMetadata is not null)
                 {
                     // Hidden round-trip metadata must never inherit a wrapped visible
@@ -545,13 +541,16 @@ public sealed partial class LegacyReportWriter
                 "完整性差異科目已與目前資料不一致，請重新執行資料驗證後再產出報告。");
         }
 
-        WorksheetPart? templatePart = null;
+        WorksheetPart? rewrittenPart = null;
         editor.RewriteWorksheetPart(
             WorkingPaperSheetCatalog.Step13,
-            (part, _) => templatePart = part,
+            (part, _) => rewrittenPart = part,
             cancellationToken);
+        // RewriteWorksheetPart 會同步呼叫上面的回呼，回到這裡時一定已經取得工作表。
+        WorksheetPart templatePart = rewrittenPart!;
+        var templateWorksheet = templatePart.RequiredWorksheet();
         var staticCells = new DirectTemplateCellEditor(
-            templatePart!.Worksheet,
+            templateWorksheet,
             ["A1", "A2", "A3"]);
         staticCells.SetInlineString("A1", $"公司名稱 : {context.CompanyName}");
         staticCells.SetInlineString(
@@ -561,8 +560,8 @@ public sealed partial class LegacyReportWriter
             "A3",
             $"財務報表準備期間 - 開始日 : {DisplayPrepStartDate(context.PrepStartDate)}");
         staticCells.EnsureAllAllowedCellsWereEdited();
-        var cellStyles = ResolveCompletenessDiffCellStyles(editor, templatePart.Worksheet);
-        var continuationPrototype = (Worksheet)templatePart.Worksheet.CloneNode(true);
+        var cellStyles = ResolveCompletenessDiffCellStyles(editor, templateWorksheet);
+        var continuationPrototype = (Worksheet)templateWorksheet.CloneNode(true);
 
         var partNumber = 1;
         uint rowIndex = 17;

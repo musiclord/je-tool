@@ -179,12 +179,6 @@ internal sealed record AccountMappingPlan(
     AccountMappingRequest Request,
     AuditMutationEffects Effects);
 
-internal enum AccountMappingFailureStyle
-{
-    Local,
-    SqlServer
-}
-
 internal sealed class AccountMappingProjection
 {
     private const int MaxReportedErrors = 10;
@@ -272,8 +266,7 @@ internal sealed class AccountMappingProjection
 
     internal IReadOnlyList<AccountMappingRow> Complete(
         int rowCount,
-        string fileName,
-        AccountMappingFailureStyle failureStyle)
+        string fileName)
     {
         if (rowCount == 0)
         {
@@ -284,7 +277,7 @@ internal sealed class AccountMappingProjection
 
         if (errorCount > 0)
         {
-            // 用字依裁定 2026-10-13-28：SQL Server 與本機用同一句全形標點的句子，failureStyle 不再影響文字。
+            // 用字依裁定 2026-10-13-28。
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
                 $"科目配對範本有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
@@ -539,11 +532,6 @@ internal sealed record ProjectCreateRequest(
     bool HasUserSuppliedProjectName,
     string Principal);
 
-internal sealed record ProjectCreatePreflightRequest(
-    string ProjectId,
-    string DatabaseProvider,
-    bool HasUserSuppliedProjectName);
-
 internal sealed record ProjectCreatePlan(
     ProjectDocument Document,
     bool HasUserSuppliedProjectName,
@@ -576,16 +564,10 @@ internal sealed class ProjectCreateLockHeldException(
     internal DateTimeOffset LockedUtc { get; } = lockedUtc;
 }
 
-internal sealed class ProjectCreateBackendDifferentOwnerException : Exception;
-
 internal sealed class ProjectCreateExistingWorkLockException : Exception;
 
 internal interface IProjectCreateFactsPort
 {
-    Task PreflightAsync(
-        ProjectCreatePreflightRequest request,
-        CancellationToken cancellationToken);
-
     Task<ProjectCreateFacts> ExecuteAsync(
         ProjectCreatePlan plan,
         CancellationToken cancellationToken);

@@ -1,14 +1,11 @@
-using System.ComponentModel;
-using DuckDB.NET.Data;
-using DuckDB.NET.Native;
 using JET.Domain;
 using Microsoft.Data.Sqlite;
 
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite 與 DuckDB 引擎錯誤的單一映射點。只接受明確的 SQLite result code 或
-/// DuckDB 強訊息型樣；未知例外維持 dispatcher 的 bridge_error fallback。
+/// SQLite 引擎錯誤的單一映射點。只接受明確的 SQLite result code；
+/// 未知例外維持 dispatcher 的 bridge_error fallback。
 /// </summary>
 public static class LocalEngineErrors
 {
@@ -35,7 +32,6 @@ public static class LocalEngineErrors
             var translated = current switch
             {
                 SqliteException sqlite => TranslateSqliteException(sqlite),
-                DuckDBException duckDb => TranslateDuckDbException(duckDb),
                 _ => null
             };
 
@@ -72,70 +68,6 @@ public static class LocalEngineErrors
             _ => null
         };
     }
-
-    private static JetActionException? TranslateDuckDbException(DuckDBException exception)
-    {
-        var message = exception.Message;
-
-        if (Contains(message, "Could not set lock on file")
-            || Contains(message, "Conflicting lock is held"))
-        {
-            return DatabaseLocked();
-        }
-
-        if (Contains(message, "Conflict on update")
-            || Contains(message, "Conflict on tuple deletion")
-            || Contains(message, "write-write conflict"))
-        {
-            return DatabaseBusy();
-        }
-
-        if (exception.ErrorType == DuckDBErrorType.OutOfMemory || Contains(message, "Out of Memory Error"))
-        {
-            return DatabaseOutOfMemory();
-        }
-
-        if (Contains(message, "No space left on device")
-            || Contains(message, "There is not enough space on the disk")
-            || Contains(message, "The disk is full")
-            || DiskFullSystemMessages.Any(text => Contains(message, text)))
-        {
-            return DatabaseStorageFull();
-        }
-
-        if (Contains(message, "Corrupt database file")
-            || Contains(message, "Corrupt WAL file")
-            || Contains(message, "Data corruption detected")
-            || Contains(message, "checksum mismatch")
-            || (Contains(message, "computed checksum") && Contains(message, "does not match stored checksum")))
-        {
-            return DatabaseCorrupt();
-        }
-
-        // 其餘開不了或讀寫不了資料庫檔的錯誤：沒有權限、檔案唯讀、磁碟不在，或防毒軟體這類程式獨占檔案。
-        // DuckDB 這類訊息以英文的 IO Error 開頭，後面接作業系統依語言翻譯的原因，所以只看開頭與錯誤分類，不比對原因的文字。
-        if (exception.ErrorType == DuckDBErrorType.Io || Contains(message, "IO Error:"))
-        {
-            return DatabaseUnavailable();
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// 磁碟已滿時作業系統的錯誤句子（ERROR_HANDLE_DISK_FULL、ERROR_DISK_FULL）。DuckDB 把作業系統依語言翻譯的句子
-    /// 直接放進訊息，中文 Windows 上不會出現上面的英文句子，所以向這台電腦的 Windows 取得同一句來比對。
-    /// </summary>
-    private static readonly string[] DiskFullSystemMessages = SystemMessages(39, 112);
-
-    private static string[] SystemMessages(params int[] win32Codes) =>
-        win32Codes
-            .Select(code => new Win32Exception(code).Message.Trim().TrimEnd('.', '。'))
-            .Where(text => text.Length > 0)
-            .ToArray();
-
-    private static bool Contains(string message, string pattern) =>
-        message.Contains(pattern, StringComparison.OrdinalIgnoreCase);
 
     private static JetActionException DatabaseBusy() => new(
         JetErrorCodes.DatabaseBusy,

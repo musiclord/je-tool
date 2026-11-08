@@ -33,36 +33,8 @@ public sealed class ValidationAmountDistributionTests
         AssertBoundaryOracle(data);
     }
 
-    [Fact]
-    public async Task ValidateRun_AmountDistribution_DuckDb_MatchesScaledBoundaryOracle()
-    {
-        using var host = new HandlerTestHost();
-        await InlineWorkbookProject.SetupAsync(host, BuildBoundaryGl, databaseProvider: "duckdb");
-
-        var data = await host.DispatchAsync("validate.run");
-
-        AssertBoundaryOracle(data);
-    }
-
-    [SqlServerFact]
-    public async Task ValidateRun_AmountDistribution_SqlServer_MatchesScaledBoundaryOracle()
-    {
-        await WithSqlServerHostAsync(async host =>
-        {
-            await InlineWorkbookProject.SetupAsync(
-                host,
-                BuildBoundaryGl,
-                databaseProvider: "sqlServer");
-
-            var data = await host.DispatchAsync("validate.run");
-
-            AssertBoundaryOracle(data);
-        });
-    }
-
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MappingCommitGl_EmptyGl_RollsBack(
         string databaseProvider)
     {
@@ -70,26 +42,13 @@ public sealed class ValidationAmountDistributionTests
         await AssertEmptyPeriodAsync(host, databaseProvider);
     }
 
-    [SqlServerFact]
-    public async Task MappingCommitGl_SqlServerEmptyGl_RollsBack()
-    {
-        await WithSqlServerHostAsync(host => AssertEmptyPeriodAsync(host, "sqlServer"));
-    }
-
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task MappingCommitGl_AllZeroGl_IgnoresExcludedNonzeroForDegenerateGuard(
         string databaseProvider)
     {
         using var host = new HandlerTestHost();
         await AssertAllZeroPeriodAsync(host, databaseProvider);
-    }
-
-    [SqlServerFact]
-    public async Task MappingCommitGl_SqlServerAllZeroGl_IgnoresExcludedNonzeroForDegenerateGuard()
-    {
-        await WithSqlServerHostAsync(host => AssertAllZeroPeriodAsync(host, "sqlServer"));
     }
 
     private static async Task AssertEmptyPeriodAsync(
@@ -242,31 +201,6 @@ public sealed class ValidationAmountDistributionTests
                 .Select(property => property.Name)
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray());
-    }
-
-    private static async Task WithSqlServerHostAsync(
-        Func<HandlerTestHost, Task> assertion)
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return;
-        }
-
-        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        try
-        {
-            await assertion(host);
-        }
-        finally
-        {
-            foreach (var directory in Directory.GetDirectories(host.ProjectsRoot))
-            {
-                await TempSqlServerProject.DropDatabaseAsync(
-                    connectionString,
-                    Path.GetFileName(directory));
-            }
-        }
     }
 
     private static async Task SaveMalformedCurrentValidationSummaryAsync(

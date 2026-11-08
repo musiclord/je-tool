@@ -9,7 +9,7 @@ public sealed class AccountCategorySideSelectionTests
 {
     public static IEnumerable<object[]> Cases()
     {
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         foreach (var selection in new[] { "node", "subtree", "role" })
         foreach (var mode in new[] { "is", "isNot", "absent" })
             yield return [provider, selection, mode];
@@ -50,9 +50,7 @@ public sealed class AccountCategorySideSelectionTests
 
     [Theory]
     [InlineData("sqlite", "debit")]
-    [InlineData("duckdb", "debit")]
     [InlineData("sqlite", "credit")]
-    [InlineData("duckdb", "credit")]
     public async Task ExistingDebitAndCreditSide_KeepTheirFixedAnswers(string provider, string side)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, AccountCategorySideFixture.AllSql);

@@ -1,7 +1,8 @@
 namespace JET.AuditCore;
 
-/// <summary>INF 可靠性測試的樣本數。第四步驗證抽這麼多筆，INF 報告的範本從第 53 列起也固定留這麼多列。</summary>
+/// <summary>INF 可靠性測試的預設筆數與 Excel 輸出容量。</summary>
 internal static class InfSampling
 {
     public const int DefaultSampleSize = 59;
+    public const int MaximumSampleSize = 1_048_576 - 52;
 }

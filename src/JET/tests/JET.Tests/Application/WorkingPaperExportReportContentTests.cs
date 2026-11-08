@@ -10,6 +10,7 @@ using static JET.Tests.Application.WorkingPaperExportTestSupport;
 namespace JET.Tests.Application;
 
 /// <summary>WorkingPaper 匯出：案件資料夾內的報告檔、固定工作表與情境欄位。</summary>
+// 使用者要求封面 A3 留白；首次失敗收據 20261106-130302916-209cba23338f4b12a0fd28bcaf09480b。
 public sealed class WorkingPaperExportReportContentTests
 {
     [Fact]
@@ -55,7 +56,7 @@ public sealed class WorkingPaperExportReportContentTests
         Assert.DoesNotContain("step1-3-1完整性差異調節", sheetNames);
         Assert.Equal(WorkingPaperSheetCatalog.Cover, workbook.Worksheet(1).Name);
         Assert.Equal(
-            "篩選測試母體 : 查核期間",
+            string.Empty,
             workbook.Worksheet(WorkingPaperSheetCatalog.Cover).Cell("A3").GetString());
         Assert.Contains(
             "查核期間內",

@@ -22,24 +22,11 @@ public sealed class CrossDatabaseConsistencyTests
     // 遞增排序空值在前、遞減在後，和 SQLite 與 SQL Server 的預設相同。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task LocalConnection_OrdersNullFirstAscendingAndLastDescending(string provider)
     {
         using var root = new TempProjectRoot();
         var (database, projectId) = await CreateLocalAsync(root, provider, seedSql: null);
         await using var connection = database.CreateConnection(projectId);
-        await connection.OpenAsync();
-
-        Assert.Equal(new[] { "(null)", "a", "b" }, await ReadColumnAsync(connection, NullOrderSql + " ORDER BY x"));
-        Assert.Equal(new[] { "b", "a", "(null)" }, await ReadColumnAsync(connection, NullOrderSql + " ORDER BY x DESC"));
-    }
-
-    [SqlServerFact]
-    public async Task SqlServerConnection_OrdersNullFirstAscendingAndLastDescending()
-    {
-        await using var sqlServer = await TempSqlServerProject.TryCreateAsync()
-            ?? throw new InvalidOperationException("SQL Server test project could not be created.");
-        await using var connection = sqlServer.Database.CreateConnection(sqlServer.ProjectId);
         await connection.OpenAsync();
 
         Assert.Equal(new[] { "(null)", "a", "b" }, await ReadColumnAsync(connection, NullOrderSql + " ORDER BY x"));
@@ -65,7 +52,6 @@ public sealed class CrossDatabaseConsistencyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task AccountUsageExport_BlankAccountTie_OrdersBlankAccountFirst(string provider)
     {
         using var root = new TempProjectRoot();
@@ -73,17 +59,6 @@ public sealed class CrossDatabaseConsistencyTests
 
         var rows = await new LocalAccountUsageExportRepository(database)
             .FetchAllAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
-
-        Assert.Equal(BlankAccountUsage, rows);
-    }
-
-    [SqlServerFact]
-    public async Task AccountUsageExport_BlankAccountTie_OrdersBlankAccountFirst_SqlServer()
-    {
-        await using var sqlServer = await CreateSqlServerAsync(BlankAccountSeed);
-
-        var rows = await new SqlServerAccountUsageExportRepository(sqlServer.Database)
-            .FetchAllAsync(sqlServer.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None);
 
         Assert.Equal(BlankAccountUsage, rows);
     }
@@ -124,17 +99,6 @@ public sealed class CrossDatabaseConsistencyTests
     public async Task TextCondition_UppercaseMatchesDotNetInvariant_Sqlite(string rule, string label, string[] expected) =>
         await AssertHitsAsync(await FilterPredicateProviderFixture.CreateLocalAsync("sqlite", UpperSeed), rule, label, expected);
 
-    [Theory]
-    [MemberData(nameof(UpperCases))]
-    [MemberData(nameof(DotlessIUpperCases))]
-    public async Task TextCondition_UppercaseMatchesDotNetInvariant_DuckDb(string rule, string label, string[] expected) =>
-        await AssertHitsAsync(await FilterPredicateProviderFixture.CreateLocalAsync("duckdb", UpperSeed), rule, label, expected);
-
-    [SqlServerTheory]
-    [MemberData(nameof(UpperCases))]
-    public async Task TextCondition_UppercaseMatchesDotNetInvariant_SqlServer(string rule, string label, string[] expected) =>
-        await AssertHitsAsync(await FilterPredicateProviderFixture.CreateSqlServerAsync(UpperSeed), rule, label, expected);
-
     // 編製者依去空白、轉大寫後的識別值分組。Ștefan 與 ștefan 是同一人，
     // 顯示值取同組碼位最小的寫法 Ștefan（U+0218 小於 U+0219）。
     private const string CaseVariantPreparerSeed = """
@@ -148,7 +112,6 @@ public sealed class CrossDatabaseConsistencyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task PreparerSummary_CaseVariantNames_GroupAsOnePerson(string provider)
     {
         using var root = new TempProjectRoot();
@@ -156,17 +119,6 @@ public sealed class CrossDatabaseConsistencyTests
 
         var rows = await new LocalPreparerSummaryExportRepository(database)
             .FetchAllAsync(projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
-
-        Assert.Equal(CaseVariantPreparers, rows);
-    }
-
-    [SqlServerFact]
-    public async Task PreparerSummary_CaseVariantNames_GroupAsOnePerson_SqlServer()
-    {
-        await using var sqlServer = await CreateSqlServerAsync(CaseVariantPreparerSeed);
-
-        var rows = await new SqlServerPreparerSummaryExportRepository(sqlServer.Database)
-            .FetchAllAsync(sqlServer.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None);
 
         Assert.Equal(CaseVariantPreparers, rows);
     }
@@ -188,16 +140,9 @@ public sealed class CrossDatabaseConsistencyTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ApprovalDateWeekend_BeforeAndAfter1900_MatchesCalendar(string provider) =>
         await AssertHitsAsync(
             await FilterPredicateProviderFixture.CreateLocalAsync(provider, PreCenturyApprovalSeed),
-            ApprovalWeekendRule, "weekend", PreCenturyWeekendHits);
-
-    [SqlServerFact]
-    public async Task ApprovalDateWeekend_BeforeAndAfter1900_MatchesCalendar_SqlServer() =>
-        await AssertHitsAsync(
-            await FilterPredicateProviderFixture.CreateSqlServerAsync(PreCenturyApprovalSeed),
             ApprovalWeekendRule, "weekend", PreCenturyWeekendHits);
 
     // 文字欄上限三種資料庫共用（裁定 2026-10-19-28），超過就回列錯誤、整批不寫入；
@@ -205,7 +150,6 @@ public sealed class CrossDatabaseConsistencyTests
     // 來源模組、編製者與核准者 400 字，摘要不限。第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514，修改前 SQLite 與 DuckDB 都照常保存超長值。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlProjection_TextStorageLimit_IsSharedByAllDatabases(string provider)
     {
         using var root = new TempProjectRoot();
@@ -218,40 +162,15 @@ public sealed class CrossDatabaseConsistencyTests
             string.Empty);
     }
 
-    [SqlServerFact]
-    public async Task GlProjection_TextStorageLimit_IsSharedByAllDatabases_SqlServer()
-    {
-        await using var project = await TempSqlServerProject.TryCreateAsync()
-            ?? throw new InvalidOperationException("SQL Server test project could not be created.");
-        await AssertGlTextLimitsAsync(
-            new SqlServerImportRepository(project.Database),
-            new SqlServerGlRepository(project.Database),
-            project.ProjectId,
-            () => project.Database.CreateConnection(project.ProjectId),
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
-    }
-
     // GL 必填文字欄整欄空白的提醒改由欄位目錄產生查詢。三種資料庫給同一組提醒，
     // 依欄位配對畫面的順序列出；只有空白字元的欄也算空白，有值的必填欄不提醒。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task GlProjection_BlankRequiredTextColumns_WarnInCatalogOrder(string provider)
     {
         using var root = new TempProjectRoot();
         var (database, projectId) = await CreateLocalAsync(root, provider, seedSql: null);
         await AssertBlankColumnWarningsAsync(new LocalImportRepository(database), new LocalGlRepository(database), projectId);
-    }
-
-    [SqlServerFact]
-    public async Task GlProjection_BlankRequiredTextColumns_WarnInCatalogOrder_SqlServer()
-    {
-        await using var project = await TempSqlServerProject.TryCreateAsync()
-            ?? throw new InvalidOperationException("SQL Server test project could not be created.");
-        await AssertBlankColumnWarningsAsync(
-            new SqlServerImportRepository(project.Database),
-            new SqlServerGlRepository(project.Database),
-            project.ProjectId);
     }
 
     private static async Task AssertBlankColumnWarningsAsync(IImportRepository imports, IGlRepository gl, string projectId)
@@ -424,7 +343,6 @@ public sealed class CrossDatabaseConsistencyTests
         ILocalProjectDatabase database = provider switch
         {
             "sqlite" => new SqliteProjectDatabase(folder),
-            "duckdb" => new DuckDbProjectDatabase(folder),
             _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Unknown local provider.")
         };
         var projectId = Guid.NewGuid().ToString("N");
@@ -440,26 +358,6 @@ public sealed class CrossDatabaseConsistencyTests
         }
 
         return (database, projectId);
-    }
-
-    private static async Task<TempSqlServerProject> CreateSqlServerAsync(string seedSql)
-    {
-        var sqlServer = await TempSqlServerProject.TryCreateAsync()
-            ?? throw new InvalidOperationException("SQL Server test project could not be created.");
-        try
-        {
-            await using var connection = sqlServer.Database.CreateConnection(sqlServer.ProjectId);
-            await connection.OpenAsync();
-            await using var command = sqlServer.Database.CreateCommand(
-                connection, sqlServer.ProjectId, FilterPredicateProviderFixture.ToSqlServerFixtureSql(seedSql));
-            await command.ExecuteNonQueryAsync();
-            return sqlServer;
-        }
-        catch
-        {
-            await sqlServer.DisposeAsync();
-            throw;
-        }
     }
 
     private static async Task<string[]> ReadColumnAsync(DbConnection connection, string sql)

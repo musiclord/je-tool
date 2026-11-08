@@ -19,7 +19,7 @@ internal static class NativeAccessImportAcceptance
     {
         var completed = new List<object>();
         foreach (var extension in new[] { ".mdb", ".accdb", ".xls" })
-        foreach (var provider in new[] { "sqlite", "duckdb" })
+        foreach (var provider in new[] { "sqlite" })
         {
             using var host = new HandlerTestHost();
             var sourceDirectory = Path.Combine(host.ProjectsRoot, "office-source");

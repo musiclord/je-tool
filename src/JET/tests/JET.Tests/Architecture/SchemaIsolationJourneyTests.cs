@@ -19,56 +19,6 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed class SchemaIsolationJourneyTests
 {
-    [SqlServerFact]
-    public async Task TwoProjectsInSingleDatabase_CompletenessQuery_ReturnsOnlyOwnSchemaAccounts()
-    {
-        var connectionString = await TempSqlServerProject.ProbeConnectionStringAsync();
-        if (connectionString is null)
-        {
-            return; // 無 SQL Server → 跳過
-        }
-
-        using var host = new HandlerTestHost(sqlServerConnectionString: connectionString);
-        string? projectA = null;
-        string? projectB = null;
-        try
-        {
-            // 同一單庫建立兩專案（→ 兩個 prj_ schema）；資料以科目代號前綴 A/B 當哨兵。
-            projectA = await InlineWorkbookProject.SetupAsync(
-                host, SentinelGl("A"), databaseProvider: "sqlServer", configureTb: SentinelTb("A"));
-            projectB = await InlineWorkbookProject.SetupAsync(
-                host, SentinelGl("B"), databaseProvider: "sqlServer", configureTb: SentinelTb("B"));
-
-            // 切到 A：完整性差異只應回 A 的科目，且集合精確 = {A1101, A7001, A9001}（account_number 升序）。
-            await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = projectA }));
-            var aCodes = await WalkDiffAccountNumbersAsync(host);
-            Assert.Equal(new[] { "A1101", "A7001", "A9001" }, aCodes);
-            Assert.DoesNotContain(aCodes, code => code.StartsWith('B'));
-
-            // 切到 B：對稱——只應回 B 的科目，絕不含 A。
-            await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = projectB }));
-            var bCodes = await WalkDiffAccountNumbersAsync(host);
-            Assert.Equal(new[] { "B1101", "B7001", "B9001" }, bCodes);
-            Assert.DoesNotContain(bCodes, code => code.StartsWith('A'));
-        }
-        finally
-        {
-            foreach (var id in new[] { projectA, projectB })
-            {
-                if (id is not null)
-                {
-                    try
-                    {
-                        await host.DispatchAsync("project.delete", JsonSerializer.Serialize(new { projectId = id }));
-                    }
-                    catch
-                    {
-                        // 清理盡力而為：GUID schema 名不重用，殘留不影響後續回合。
-                    }
-                }
-            }
-        }
-    }
 
     /// <summary>
     /// 前綴哨兵化的完整性 GL fixture（鏡射既有 <c>ConfigureCompletenessGl</c>，只把科目代號加 <paramref name="prefix"/>）。

@@ -56,17 +56,13 @@ public sealed class FilterCommitMaterializerHitSetParityTests
                 ])
         ]);
 
-    [Theory]
-    [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
+    [Fact]
     public async Task CommitAndLazyMaterializer_LocalProvider_SameScenario_PersistIdenticalEntryIdSet(
-        string provider)
+)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -77,20 +73,6 @@ public sealed class FilterCommitMaterializerHitSetParityTests
             new LocalFilterHitMaterializer(database),
             database.CreateConnection,
             schemaPrefix: string.Empty);
-    }
-
-    [SqlServerFact]
-    public async Task CommitAndLazyMaterializer_SqlServer_SameScenario_PersistIdenticalEntryIdSet()
-    {
-        await using var project = Assert.IsType<TempSqlServerProject>(
-            await TempSqlServerProject.TryCreateAsync());
-
-        await AssertEquivalentHitSetsAsync(
-            project.ProjectId,
-            new SqlServerFilterCommitRepository(project.Database),
-            new SqlServerFilterHitMaterializer(project.Database),
-            project.Database.CreateConnection,
-            SqlServerProjectSchema.QualifierFor(project.ProjectId));
     }
 
     private static async Task AssertEquivalentHitSetsAsync(

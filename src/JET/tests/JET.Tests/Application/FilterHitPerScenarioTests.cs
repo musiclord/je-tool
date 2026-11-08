@@ -25,7 +25,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavingAnotherScenario_KeepsTheEarlierScenarioResultsAsStored(string provider)
     {
         using var host = new HandlerTestHost();
@@ -45,7 +44,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ModifyingOneScenario_ReplacesOnlyItsOwnResults(string provider)
     {
         using var host = new HandlerTestHost();
@@ -67,7 +65,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RemovingTheMiddleScenario_KeepsTheOtherResultsAsStored(string provider)
     {
         using var host = new HandlerTestHost();
@@ -93,7 +90,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task RemovingAScenario_DeletesOnlyItsOwnStoredRows(string provider)
     {
         using var host = new HandlerTestHost();
@@ -127,7 +123,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavedScenarioVouchers_ReadTheStoredHits(string provider)
     {
         using var host = new HandlerTestHost();
@@ -154,7 +149,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavedScenarioEntries_ReadTheStoredConditions(string provider)
     {
         using var host = new HandlerTestHost();
@@ -182,7 +176,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavedScenarioVouchers_MatchTheLiveDraftRowForRow(string provider)
     {
         using var host = new HandlerTestHost();
@@ -249,7 +242,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task SavedScenarioPage_ReportsTheStoredCounts(string provider)
     {
         using var host = new HandlerTestHost();
@@ -279,7 +271,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OpenScenarioPages_StayValidWhenAnotherScenarioIsSaved(string provider)
     {
         using var host = new HandlerTestHost();
@@ -311,7 +302,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OpenScenarioPages_TurnStaleAfterAnUpstreamChange(string provider)
     {
         using var host = new HandlerTestHost();
@@ -332,7 +322,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task UpstreamChange_ClearsEveryScenarioAndStoredResult(string provider)
     {
         using var host = new HandlerTestHost();
@@ -356,7 +345,6 @@ public sealed class FilterHitPerScenarioTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task Exports_UseTheStoredResultsWithoutRecalculating(string provider)
     {
         using var host = new HandlerTestHost();
@@ -587,7 +575,7 @@ public sealed class FilterHitPerScenarioTests
     private static ILocalProjectDatabase Database(HandlerTestHost host, string provider)
     {
         var folder = new JetProjectFolder(host.ProjectsRoot);
-        return provider == "sqlite" ? new SqliteProjectDatabase(folder) : new DuckDbProjectDatabase(folder);
+        return new SqliteProjectDatabase(folder);
     }
 
     private static async Task<StoredRows> StoredRowsAsync(HandlerTestHost host, ProjectContext context, string provider)

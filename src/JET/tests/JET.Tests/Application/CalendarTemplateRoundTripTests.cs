@@ -14,7 +14,6 @@ public sealed class CalendarTemplateRoundTripTests
     // 這裡改由 ReportTemplateCatalog 直接複製隨附範本，其餘匯入列數與日期斷言不變。
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task BundledCalendarTemplates_ImportTheirDocumentedRows(string provider)
     {
         using var host = new HandlerTestHost();

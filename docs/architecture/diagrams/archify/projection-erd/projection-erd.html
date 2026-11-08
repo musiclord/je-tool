@@ -6124,24 +6124,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>這些連線的依據</h3>
+          <h3>保留資料的來源</h3>
         </div>
         <ul>
-          <li>LocalGlRepository 與 LocalTbRepository 依 batch_id 讀原始列，寫入標準化表時也寫入同一個 batch_id。</li>
-          <li>攸關資料元素的值以 entry_id 對應分錄、以 field_id 對應欄位定義；重新匯入時 LocalMappingStateStore 把同一 dataset_kind 的配對搬到上一版後刪除。</li>
-          <li>來源：LocalGlRepository.cs 第 30–32、115、454–512 行；LocalTbRepository.cs 第 26、69 行；LocalMappingStateStore.cs 第 59–75 行。</li>
-        </ul>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-dot amber"></div>
-          <h3>線條不是資料庫外鍵</h3>
-        </div>
-        <ul>
-          <li>現行建表程式沒有宣告任何外鍵；虛線是程式在 SQL 裡用來連接或清除的欄位，資料庫不會強制保護。</li>
-          <li>沒有畫線的兩張表不能推定互不相關；四張關聯圖合計涵蓋 29 張表，欄位照現行的建表程式。</li>
-          <li>PK 是主鍵，UK 是唯一約束或唯一索引。JSON 內容、CHECK 條件、索引組合與 DuckDB 型別差異請看來源。</li>
+          <li>標準 GL 與 TB 沿用原始資料的 batch_id。攸關資料元素以 entry_id 與 field_id 對應分錄及欄位。</li>
+          <li>重新匯入時，原配對移到上一版。</li>
         </ul>
       </div>
     </div>

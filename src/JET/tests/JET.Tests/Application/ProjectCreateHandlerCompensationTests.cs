@@ -90,10 +90,6 @@ public sealed class ProjectCreateHandlerCompensationTests
         internal bool CompleteTokenCanBeCanceled { get; private set; }
         internal bool RollbackTokenCanBeCanceled { get; private set; }
 
-        public Task PreflightAsync(
-            ProjectCreatePreflightRequest request,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-
         public Task<ProjectCreateFacts> ExecuteAsync(
             ProjectCreatePlan plan,
             CancellationToken cancellationToken)

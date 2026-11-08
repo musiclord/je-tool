@@ -65,6 +65,9 @@ EBWebView/
 # Agent transcripts and raw execution dumps are not project documentation.
 docs/specs/*-execution-details.md
 
+# Security audit runs stay local; docs/security/README.md is versioned.
+/docs/security/run-*/
+
 # ===== Secrets and local configuration =====
 *.env
 .env.*

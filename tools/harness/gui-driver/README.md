@@ -7,9 +7,7 @@
 - `startup-smoke`：頁面、`JetApi`、`systemPing` 與專案選擇畫面，最後按「結束 JET」。
 - `synthetic-sqlite-create`：只用鍵盤建立 SQLite 案件，核對畫面、`project.json`、`jet.db` 與操作人員。
 - `case-to-working-paper`：從空白案件走到匯出底稿，再依序匯入科目配對、假日、補班日，附加與取代 GL、取代 TB，
-  核對每一步清除與保留的狀態，以及只有新的底稿是現行版本。
-- `case-to-working-paper-duckdb`：經過和 `case-to-working-paper` 相同，只在建案時選 DuckDB。兩個情境都核對建案與重開後的資料庫種類，
-  以及案件資料夾裡只有那一種資料庫檔。
+  核對每一步清除與保留的狀態，以及只有新的底稿是現行版本。建案與重開後都核對案件是 SQLite，案件資料夾裡只有 `jet.db`。
 - `case-list-cleanup-cancel-export`：案件清單上資料庫檔不見的案件列成無法開啟並寫出原因，從清單刪掉它；接著開啟另一個案件，
   在第四步準備科目配對範本時按「取消作業」，核對畫面恢復可以操作、寫出已取消、沒有留下範本檔，再準備一次就成功。
 - `mapping-required-sync`：改借方代碼後直接「重新確認配對」一次完成；清空並補回必填欄位，核對缺漏狀態與焦點。

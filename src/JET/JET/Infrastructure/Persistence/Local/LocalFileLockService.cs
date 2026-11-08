@@ -3,16 +3,13 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite／DuckDB 共用的跨程序工作鎖。鎖檔位於 projects root、而非案件資料夾內，因此持鎖時仍可在
+/// SQLite 案件的跨程序工作鎖。鎖檔位於 projects root、而非案件資料夾內，因此持鎖時仍可在
 /// project.delete 成功後移除整個案件資料夾。鎖檔名用案件資料夾名，命名規則見 <see cref="JetProjectFolder.GetLockPathBesideProject"/>。
 /// </summary>
 public sealed class LocalFileLockService : ILockService, IProjectDeletionLockService, IDisposable
 {
     private const string LockFilePrefix = ".project-session-";
     private const string ExternalHolder = "另一個 JET 執行個體";
-
-    private static readonly Task<IReadOnlyList<ProjectLockInfo>> NoListedLocks =
-        Task.FromResult<IReadOnlyList<ProjectLockInfo>>([]);
 
     private readonly JetProjectFolder _folder;
     private readonly string _rootPath;
@@ -49,20 +46,12 @@ public sealed class LocalFileLockService : ILockService, IProjectDeletionLockSer
         return Task.FromResult(outcome);
     }
 
-    public Task RenewAsync(string projectId, string principal, CancellationToken cancellationToken)
-    {
-        // OS handle 沒有租期；只要程序仍活著且未 release，排他鎖就持續有效。
-        return Task.CompletedTask;
-    }
-
     public Task ReleaseAsync(string projectId, string principal, CancellationToken cancellationToken)
     {
+        // OS handle 沒有租期；只要程序仍活著且未 release，排他鎖就持續有效。
         ReleaseOwned(GetLockPath(projectId), principal);
         return Task.CompletedTask;
     }
-
-    public Task<IReadOnlyList<ProjectLockInfo>> ListActiveAsync(CancellationToken cancellationToken) =>
-        NoListedLocks;
 
     public Task<ProjectDeletionLockOutcome> TryAcquireAsync(
         string projectId,

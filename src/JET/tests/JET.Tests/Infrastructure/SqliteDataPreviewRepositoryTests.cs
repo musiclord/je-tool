@@ -23,7 +23,6 @@ public sealed class SqliteDataPreviewRepositoryTests
             Database = provider switch
             {
                 ProjectDocument.DefaultDatabaseProvider => new SqliteProjectDatabase(_folder),
-                ProjectDocument.DuckDbDatabaseProvider => new DuckDbProjectDatabase(_folder),
                 _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "未知的 local provider。")
             };
             ProjectId = Guid.NewGuid().ToString("N");
@@ -100,7 +99,6 @@ public sealed class SqliteDataPreviewRepositoryTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task GetPreviewAsync_GlPopulations_AreProviderNeutralAndBounded(string provider)
     {
         using var fixture = new Fixture(provider);
@@ -158,7 +156,6 @@ public sealed class SqliteDataPreviewRepositoryTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task GetPreviewAsync_GlExcluded_EmptyReturnsFixedContract(string provider)
     {
         using var fixture = new Fixture(provider);

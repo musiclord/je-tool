@@ -9,7 +9,6 @@ public sealed class MappingValueErrorReportTests
 {
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task OverlappingManualCodes_NameTheValueAndSourceWithStableReasonCode(string provider)
     {
         using var host = new HandlerTestHost();
@@ -27,7 +26,6 @@ public sealed class MappingValueErrorReportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ErrorsAfterFirstFiftyRows_AreCountedByValue_AndBlankHasItsOwnReasonCode(string provider)
     {
         using var host = new HandlerTestHost();
@@ -58,7 +56,6 @@ public sealed class MappingValueErrorReportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task ManyDistinctInvalidValues_KeepTheFullRowCountAndABoundedSummary(string provider)
     {
         using var host = new HandlerTestHost();
@@ -78,7 +75,6 @@ public sealed class MappingValueErrorReportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TwoSources_CountEveryRepeatedValueAndLateValue_AndExplainBoundedSourceSamples(string provider)
     {
         using var host = new HandlerTestHost();
@@ -111,7 +107,6 @@ public sealed class MappingValueErrorReportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TbProjectionErrors_IncludeLateValuesAndTheFullErrorCount(string provider)
     {
         using var host = new HandlerTestHost();
@@ -140,7 +135,6 @@ public sealed class MappingValueErrorReportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TbCommit_AllRequiredTextColumnsBlank_SucceedsWithSourceSpecificWarnings(string provider)
     {
         using var host = new HandlerTestHost();
@@ -161,7 +155,6 @@ public sealed class MappingValueErrorReportTests
 
     [Theory]
     [InlineData("sqlite")]
-    [InlineData("duckdb")]
     public async Task TbCommit_PartiallyBlankRequiredText_DoesNotWarnThatTheWholeColumnIsBlank(string provider)
     {
         using var host = new HandlerTestHost();

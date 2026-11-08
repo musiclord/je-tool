@@ -16,7 +16,6 @@ public sealed class MissingProjectDatabaseTests
 {
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task MissingDatabase_IsListedAsUnopenable_AndOpeningDoesNotCreateAFile(string provider)
     {
         using var root = new TempProjectRoot();
@@ -49,7 +48,6 @@ public sealed class MissingProjectDatabaseTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task ZeroByteDatabase_IsListedAsUnopenable_AndOpeningLeavesTheFileEmpty(string provider)
     {
         using var root = new TempProjectRoot();
@@ -72,7 +70,6 @@ public sealed class MissingProjectDatabaseTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task DatabaseWithoutTables_IsRejectedWithoutChangingTheFile(string provider)
     {
         using var root = new TempProjectRoot();
@@ -96,8 +93,6 @@ public sealed class MissingProjectDatabaseTests
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, false)]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, true)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, false)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider, true)]
     public async Task InterruptedCreate_IsListedNormally_AndOpeningFinishesTheInitialization(string provider, bool zeroByteFile)
     {
         using var root = new TempProjectRoot();
@@ -126,7 +121,6 @@ public sealed class MissingProjectDatabaseTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task CompletedCreate_RemovesTheMarker_AndTheNewCaseIsListedNormally(string provider)
     {
         using var root = new TempProjectRoot();
@@ -144,14 +138,11 @@ public sealed class MissingProjectDatabaseTests
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider)]
-    [InlineData(ProjectDocument.DuckDbDatabaseProvider)]
     public async Task ReadingAfterTheDatabaseWasDeleted_ReportsItMissingInsteadOfCreatingAnEmptyOne(string provider)
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = $"deleted-while-open-{provider}";
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
@@ -186,9 +177,7 @@ public sealed class MissingProjectDatabaseTests
         Path.Combine(
             projectsRoot,
             name,
-            provider == ProjectDocument.DuckDbDatabaseProvider
-                ? DuckDbProjectDatabase.DatabaseFileName
-                : JetProjectFolder.DatabaseFileName);
+            JetProjectFolder.DatabaseFileName);
 
     private static void DeleteDatabaseFiles(string databasePath)
     {
@@ -202,16 +191,12 @@ public sealed class MissingProjectDatabaseTests
     private static async Task WriteDatabaseWithoutTablesAsync(string projectsRoot, string name, string provider)
     {
         var folder = new JetProjectFolder(projectsRoot);
-        ILocalProjectDatabase database = provider == ProjectDocument.DuckDbDatabaseProvider
-            ? new DuckDbProjectDatabase(folder)
-            : new SqliteProjectDatabase(folder);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         await using (var connection = database.CreateConnection(name))
         {
             await connection.OpenAsync();
             await using var command = connection.CreateCommand();
-            command.CommandText = provider == ProjectDocument.DuckDbDatabaseProvider
-                ? "CREATE TABLE scratch (x INTEGER); DROP TABLE scratch; CHECKPOINT;"
-                : "CREATE TABLE scratch (x INTEGER); DROP TABLE scratch;";
+            command.CommandText = "CREATE TABLE scratch (x INTEGER); DROP TABLE scratch;";
             await command.ExecuteNonQueryAsync();
         }
 

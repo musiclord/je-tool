@@ -62,30 +62,6 @@ public sealed class SchemaIsolationGuardTests
         @"\[?(?<name>[A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_])",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-    [Fact]
-    public void SqlServerRepositories_NeverReferenceBareProjectTables()
-    {
-        var sqlServerDir = Path.Combine(
-            RepoRoot(), "JET", "Infrastructure", "Persistence", "SqlServer");
-        Assert.True(Directory.Exists(sqlServerDir), $"找不到 SqlServer repo 目錄：{sqlServerDir}");
-
-        var violations = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(sqlServerDir, "*.cs", SearchOption.AllDirectories))
-        {
-            var text = File.ReadAllText(file);
-            foreach (var (line, table) in FindBareTableReferences(text, ProjectTables))
-            {
-                violations.Add(
-                    $"{Path.GetFileName(file)}:{line} 裸引用專案表 '{table}'" +
-                    "（單庫模型下缺 schema 限定＝跨專案資料外洩）");
-            }
-        }
-
-        Assert.True(
-            violations.Count == 0,
-            "SQL Server 路徑出現未經 schema 限定的專案表引用：\n  " + string.Join("\n  ", violations));
-    }
-
     /// <summary>
     /// 正向對照（證明掃描真的有牙）：裸引用必被抓、各種合法限定必被放行、註解內提及不算。
     /// 這條若失敗，代表掃描邏輯壞掉，上面的「無違規」便可能是空掃真空通過。

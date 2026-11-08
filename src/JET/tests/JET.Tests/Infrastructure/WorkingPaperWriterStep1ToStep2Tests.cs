@@ -583,6 +583,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         using var workbook = await WriteAndReadAsync(host, projectId);
 
         var sheet = workbook.Worksheet(Step12Sheet);
+        Assert.Equal("此處底稿係記錄分錄編製人員資訊", sheet.Cell("A4").GetString());
 
         // 名單筆數 == distinct created_by recount。第 11 列欄標,資料自第 12 列起。
         var distinct = await DemoProjectPipeline.QueryScalarAsync(

@@ -3470,13 +3470,13 @@ internal sealed class LegacyWorkbookSnapshot
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var document = SpreadsheetDocument.Open(stream, isEditable: false);
         var workbookPart = document.WorkbookPart ?? throw new InvalidDataException();
-        var shared = workbookPart.SharedStringTablePart?.SharedStringTable
+        var shared = workbookPart.SharedStringTablePart?.SharedStringTable?
             .Elements<SharedStringItem>()
             .Select(ReadRichText)
             .ToArray() ?? [];
         var sheets = new List<WorksheetSnapshot>();
 
-        foreach (var sheet in workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? [])
+        foreach (var sheet in workbookPart.Workbook?.Sheets?.Elements<Sheet>() ?? [])
         {
             if (sheet.Id?.Value is not { } relationshipId
                 || !workbookPart.TryGetPartById(relationshipId, out var part)
@@ -3486,7 +3486,7 @@ internal sealed class LegacyWorkbookSnapshot
             }
 
             var cells = new Dictionary<(int Row, int Column), string>();
-            foreach (var row in worksheetPart.Worksheet.Descendants<Row>())
+            foreach (var row in worksheetPart.RequiredWorksheet().Descendants<Row>())
             {
                 var fallbackColumn = 0;
                 foreach (var cell in row.Elements<Cell>())
