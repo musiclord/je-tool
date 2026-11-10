@@ -13,6 +13,41 @@ namespace JET.Tests.Application;
 public sealed class FilterEditorOriginsParserTests
 {
     [Theory]
+    [InlineData("\"two\"")]
+    [InlineData("2147483648")]
+    [InlineData("null")]
+    public void Parse_UnreadableVersionValue_IsRejectedAsCorrupt(string version)
+    {
+        var exception = Assert.Throws<JetActionException>(() => Parse(
+            "{\"version\":" + version + ",\"groups\":[{\"cards\":[null]}]}"));
+
+        Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
+        Assert.Equal(FilterScenarioCorruption.RuleMessage, exception.Message);
+    }
+
+    [Theory]
+    [InlineData("name")]
+    [InlineData("rationale")]
+    [InlineData("conditionValue")]
+    public void Parse_UnpairedSurrogateInUserText_IsRejectedAsCorrupt(string where)
+    {
+        var json = """{"name":"synthetic","rationale":"shape","groups":[{"conditions":[{"type":"prescreen","prescreenKey":"blankDescription"}]}]}""";
+        json = where switch
+        {
+            "name" => json.Replace("synthetic", @"\ud800", StringComparison.Ordinal),
+            "rationale" => json.Replace("shape", @"\ud800", StringComparison.Ordinal),
+            _ => json.Replace("blankDescription", @"\ud800", StringComparison.Ordinal)
+        };
+        using var document = JsonDocument.Parse(json);
+
+        var exception = Assert.Throws<JetActionException>(() =>
+            FilterScenarioPayloadParser.Parse(document.RootElement, 100));
+
+        Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
+        Assert.Equal(FilterScenarioCorruption.RuleMessage, exception.Message);
+    }
+
+    [Theory]
     [InlineData("""{"version":2,"groups":[{"cards":["blank-description"]}]}""")]
     [InlineData("""{"version":2,"groups":[{"cards":[""]}]}""")]
     [InlineData("""{"version":2,"groups":[{"cards":[7]}]}""")]

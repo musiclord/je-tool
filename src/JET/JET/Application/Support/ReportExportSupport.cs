@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text.Json;
 using JET.Domain;
 
@@ -52,8 +53,13 @@ internal static class ReportExportSupport
         {
             return CatalogUnavailable(unavailableMessage);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-            || exception is JetActionException { Code: JetErrorCodes.FileReadError })
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or DbException
+            || exception is JetActionException
+            {
+                Code: JetErrorCodes.FileReadError or JetErrorCodes.DatabaseBusy or JetErrorCodes.DatabaseLocked
+                    or JetErrorCodes.DatabaseStorageFull or JetErrorCodes.DatabaseCorrupt or JetErrorCodes.DatabaseReadOnly
+                    or JetErrorCodes.DatabaseUnavailable or JetErrorCodes.DatabaseOutOfMemory
+            })
         {
             return CatalogUnavailable(unavailableMessage);
         }

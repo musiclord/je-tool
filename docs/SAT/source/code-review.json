@@ -14,11 +14,11 @@
     {
       "id": "R02",
       "title": "完整性測試",
-      "path": "AuditCore/ValidationProcedures.cs；AuditCore/AccountComparisonProcedure.cs；AuditCore/CompletenessEligibility.cs",
-      "question": "GL 與 TB 的逐科目比對、缺少 TB 的處理，以及差異提示是否正確？",
-      "example": "合成科目 A：GL 借方 100、貸方 30，淨額 70；TB 本期變動 70，應無差異。另測只在 GL 或只在 TB 出現的科目，以及沒有 TB 的案件。",
-      "focus": "同時核對存入筆數與合計。這項核對比較配對時和存下後的數字，不能寫成已核對外部來源檔。",
-      "tests": "CompletenessEligibilityTests、WorkflowWithoutTbTests、TaiwanSmePopulationAndCompletenessTests"
+      "path": "AuditCore/ValidationProcedures.cs；AuditCore/AccountComparisonProcedure.cs；AuditCore/CompletenessEligibility.cs；Infrastructure/Persistence/Local/LocalCompletenessAccountPageRepository.cs",
+      "question": "GL 與 TB 的逐科目比對、缺少 TB 的處理，以及差異提示是否正確？報告與底稿標示 TB 來源的科目名稱是否只取 TB？",
+      "example": "合成科目 A：GL 借方 100、貸方 30，淨額 70；TB 本期變動 70，應無差異。另核對只有 GL、只有 TB、沒有 TB，以及 TB 名稱為空值或空字串的情況。V_Report 5 的「會計科目名稱_TB」與底稿 step1 的「試算表科目名稱」只取 TB，缺少名稱時留白。差異頁維持 TB 名稱為空值時取 GL 名稱，空字串不補值。",
+      "focus": "同時核對存入筆數與合計。這項核對比較配對時和存下後的數字，不能寫成已核對外部來源檔。科目名稱只核對欄標指定的來源，不改金額、科目編號或差異判定。",
+      "tests": "CompletenessEligibilityTests、WorkflowWithoutTbTests、TaiwanSmePopulationAndCompletenessTests、CompletenessAccountPageTests"
     },
     {
       "id": "R03",
@@ -32,7 +32,7 @@
     {
       "id": "R04",
       "title": "可靠性抽樣",
-      "path": "AuditCore/ValidationProcedures.cs：InfSampleInsert；AuditCore/InfSamplingPrf.cs；AuditCore/InfSampling.cs",
+      "path": "AuditCore/ValidationProcedures.cs：InfSampleInsert、InfSamplingPrf；AuditCore/InfSampling.cs",
       "question": "抽樣範圍、筆數與重跑時保留樣本的做法，是否符合本案查核目的？",
       "example": "設定 120 筆且有足夠分錄時，清單與正式底稿均須保留 120 筆。只有少量可用分錄時全部抽出。預設為 59 筆。",
       "focus": "程式只產生樣本。筆數是否足夠、附件是否可靠，由審計人員判斷；範本既有查核方法說明仍需依案件確認。",
@@ -41,11 +41,11 @@
     {
       "id": "R05",
       "title": "篩選條件組合",
-      "path": "AuditCore/FilterCompilation.cs：BuildPlan、BuildGroup",
-      "question": "條件內與條件組之間的 AND、OR 組合順序，是否和畫面顯示的條件一致？",
-      "example": "以 A=true、B=false、C=false 驗算 (A OR B) AND C，結果應為 false。再比較 A OR (B AND C)，確認兩者不混用。",
-      "focus": "先確認括號與選取範圍。參數綁定、分頁和格式轉換由自動測試檢查。",
-      "tests": "FilterCompilationTests、CommonFilterPredicateTests"
+      "path": "AuditCore/FilterCompilation.cs：BuildPlan、BuildGroup；AuditCore/GlRulePredicates.Values.cs：FieldValue",
+      "question": "條件內與條件組之間的 AND、OR 組合順序，是否和畫面顯示的條件一致？文字的開頭符合與結尾符合填入多個值時，包含與排除是否正確？",
+      "example": "以 A=true、B=false、C=false 驗算 (A OR B) AND C，結果應為 false。再比較 A OR (B AND C)，確認兩者不混用。另以摘要「ALPHA-X」「BETA-X」「GAMMA-Y」核對：開頭符合 ALPHA、BETA 應命中前兩筆；排除應只命中第三筆。結尾符合 X、Z 也應命中前兩筆，排除只命中第三筆。",
+      "focus": "先確認括號與選取範圍。文字多值條件符合任一個就算，排除時每一個都不能符合。參數綁定、分頁和格式轉換由自動測試檢查。",
+      "tests": "FilterCompilationTests、CommonFilterPredicateTests、FilterCompletenessTests"
     },
     {
       "id": "R06",

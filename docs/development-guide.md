@@ -35,6 +35,31 @@ VS Code 應開啟儲存庫根目錄，而不是只開啟 `src/JET/`。選擇 `JE
 命令面板中的 `Tasks: Run Task` 另有 `publish`，會以既有 `FolderProfile` 產生與 Visual Studio 相同的 Release x64
 自含式單檔封裝。
 
+C# 擴充套件應載入正式方案。在 `.vscode/settings.json` 指定下列設定，避免自動探索時載入驗證工具產生的專案。
+這個檔案依 `.gitignore` 保留在本機，換機後需要重新設定；其他既有設定照常保留。
+
+```json
+{
+  "dotnet.defaultSolution": "src/JET/JET.slnx"
+}
+```
+
+若「輸出」面板的 C# 記錄列出 `artifacts/harness/mutation/` 裡的 `Synthetic.csproj`，並回報專案沒有 `Compile` target，
+代表擴充套件載入了驗證用的合成專案。這些檔案刻意沒有完整建置設定，不需要為它們安裝 .NET Framework 或
+Visual Studio Build Tools。先確認上述方案設定，再從命令面板執行 `Developer: Reload Window`。重新載入後，
+C# 記錄應顯示正式的 `JET.csproj` 與 `JET.Tests.csproj` 載入成功。
+設定的路徑處理方式見 [Microsoft C# 擴充套件原始碼](https://github.com/dotnet/vscode-csharp/blob/main/src/shared/options.ts)。
+
+若已安裝 C# Dev Kit，卻出現 `command 'csdevkit.showEntitlementsStatus' not found`，
+請檢查 `.vscode/settings.json` 的 `dotnet.preferCSharpExtension`。設為 `true` 會停用這個工作區的 C# Dev Kit，
+使它的命令無法使用。要使用 C# Dev Kit，將此設定改為 `false`，保留上述正式方案路徑，再執行
+`Developer: Reload Window`。原因與處理方式見 [C# Dev Kit 官方常見問題](https://code.visualstudio.com/docs/csharp/cs-dev-kit-faq#why-isnt-c-dev-kit-activating--c-dev-kit-commands-are-not-found)。
+
+如果 C# Dev Kit 記錄另有授權查詢回傳 HTTP 401，從命令面板執行「.NET: 請登入 Visual Studio 帳戶」，
+使用自己的 Microsoft 或公司帳戶完成登入。若公司帳戶仍無法取得授權，請 IT 確認該帳戶可用的 C# Dev Kit 授權；
+適用條件見[官方授權說明](https://code.visualstudio.com/docs/csharp/cs-dev-kit-faq#who-can-use-c-dev-kit)。
+JET 也能只用 Microsoft C# 擴充套件開發；選擇這種方式時，可在擴充套件面板對 C# Dev Kit 選擇「停用（工作區）」。
+
 Visual Studio 請開啟 `src/JET/JET.slnx`，將 `JET` 設為啟始專案。建置與 F5 通過後，在方案總管對 `JET` 按右鍵選「發佈」，
 選擇既有的 `FolderProfile` 再按「發佈」。設定檔位於 `src/JET/JET/Properties/PublishProfiles/FolderProfile.pubxml`，
 輸出位於 `src/JET/JET/bin/Release/net10.0-windows/publish/win-x64/`。這是資料夾發佈，不是 ClickOnce；結果是 Windows x64

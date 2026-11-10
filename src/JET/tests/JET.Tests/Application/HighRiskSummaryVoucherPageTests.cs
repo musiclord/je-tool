@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Text.Json;
 using JET.Domain;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -19,6 +20,40 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class HighRiskSummaryVoucherPageTests
 {
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(2, 1)]
+    [InlineData(1, 0)]
+    [InlineData(1, 2)]
+    public async Task SavedConditionPositionOutsideDefinition_ReturnsStaleResult(int group, int condition)
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("filter.commit", ThreeScenarioPayload());
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
+        var scenarioRevision = loaded.GetProperty("filterResultRef").GetProperty("revision").GetString();
+        var page = await host.DispatchAsync("query.filterVoucherPage", JsonSerializer.Serialize(new { scenarioPosition = 1, scenarioRevision }));
+        var voucherNumber = page.GetProperty("rows")[0].GetProperty("voucherNumber").GetString();
+        var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        await using (var connection = database.CreateConnection(context.ProjectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE filter_hit_condition SET group_no = @group, condition_no = @condition WHERE scenario_id = 1;";
+            command.AddWithValue("@group", group);
+            command.AddWithValue("@condition", condition);
+            Assert.True(await command.ExecuteNonQueryAsync() > 0);
+        }
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("query.filterVoucherRowsPage", JsonSerializer.Serialize(new
+        {
+            scenarioPosition = 1, scenarioRevision, voucherNumber,
+            queryRevision = page.GetProperty("queryRevision").GetString()
+        })));
+
+        Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
+    }
+
     private const int DemoMoneyScale = 10_000;
 
     /// <summary>命中(nonAuthorizedPreparer)+ 命中(廣域金額)+ 0 命中(天價金額)三情境,position 1/2/3。</summary>

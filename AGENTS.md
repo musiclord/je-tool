@@ -12,7 +12,7 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Build -Configuration Debug
 pwsh -NoProfile -File tools/verify.ps1 -Command Focused -Filter '<測試類別或方法名稱片段>'
 pwsh -NoProfile -File tools/verify.ps1 -Command Public          # 完整公開測試
 pwsh -NoProfile -File tools/verify.ps1 -Command Documentation   # 改過文件後必跑
-dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面程式（診斷用）
+dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面程式，供使用者自己操作；Agent 不在使用者的桌面執行
 ```
 
 正式驗證只從 `tools/verify.ps1` 進入，它負責共享鎖、收據與清理。不要直接執行 `dotnet test`，各平台的設定也會擋下它；
@@ -51,6 +51,8 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 
 - 讀者是第一次接觸專案的維護者。用台灣常見的日常中文寫完整句子；固定命令、程式名稱與必要術語保留英文，
   第一次出現時說用途。
+- 回覆使用者一律用繁體中文，長對話或對話壓縮之後也一樣。交給子代理、工作流程與其他 session 的指示也用繁體中文寫，
+  並要求對方用繁體中文回報；轉述給使用者時不改成英文（使用者 2026-11-09 裁定）。
 - 不用 `＋`、`／`、`→` 把名詞串成句子；不用兩層括號；一句只講一件事。只在讀者需要知道「這是什麼時候定的、
   取代了什麼」時才寫日期與計畫檔名，不每句都掛。
 - 驗證框架的工作用語（receipt、gate、lane、`紅燈`、`綠燈`）不進面向人的文字，改說收據、檢查、路線、通過、失敗。
@@ -70,6 +72,8 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
   點擊與打字也不會落到 JET 上；完整執行需要幾分鐘並占用 CPU。`ReleaseCandidate` 也會執行它。日常開發用 `Public`（含前端測試）、
   `Contract -ContractScenario FrontendMapping` 與瀏覽器主機確認畫面。`Gui` 只在提交、交付或使用者確認版本要整合時執行。
   除非使用者當次要求，不用 computer use 這類會操作實體滑鼠與鍵盤的工具。
+- 量測效能、截圖或診斷需要開 JET 時也一樣：不在使用者的桌面開 JET 視窗，沿用 `Gui` 另開 Windows 桌面的做法，
+  見 `tools/harness/gui-driver/OwnedGuiRun.cs`；做不到時先問使用者（使用者 2026-11-09 裁定）。
 
 **架構**（完整規格見 `docs/jet-guide.md`）
 

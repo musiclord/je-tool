@@ -7,6 +7,7 @@ using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
 using JET.Tests.Infrastructure;
+using Xunit;
 
 namespace JET.Tests.Application;
 
@@ -36,6 +37,14 @@ internal static class ActionShapeJourney
     /// </summary>
     internal static readonly IReadOnlyList<(string Path, string Kind)> UnreachedKinds =
     [
+        // 情境寫入完成後才讀取結果狀態；合成流程無法穩定在這個時間點使資料庫讀取失敗。
+        // FilterScenarioBatchWriter 保留成功結果並回既有提醒，staleState 為 null（裁定 2026-11-10-02）。
+        ("filter.scenario.save response.staleState", "null"),
+        ("filter.scenario.save response.reportWarning", "string"),
+        ("filter.scenario.remove response.staleState", "null"),
+        ("filter.scenario.remove response.reportWarning", "string"),
+        ("filter.scenario.recheck response.staleState", "null"),
+        ("filter.scenario.recheck response.reportWarning", "string"),
         // ReportExportSupport.ReadReportCatalogAfterPublicationAsync：檔案發布之後讀報告清單失敗或超過 3 秒，回 null 與警告。
         // 發布與讀清單之間沒有可以介入的時間點；這段流程也把清單更新期限固定成不會到期（見 RecordAsync），所以走不到。
         ("export.validationReports response.reports", "null"),
@@ -661,7 +670,7 @@ internal static class ActionShapeJourney
             {
                 validationResultId, scenarioRevision = revision, scenarioPositions = new[] { 1, 2, 3, 4 },
             });
-            // 第三步的「從報告帶入配對」：mapping-step.js 選了 JET 匯出的檔案後只送 filePath（裁定 2026-11-05-03）。
+            // 第三步的「由底稿匯入欄位」：mapping-step.js 選了檔案後只送 filePath（裁定 2026-11-05-03、2026-11-09-27）。
             // 這份底稿的配對和目前匯入的資料一致，每個欄位都帶得回來。之後案件刪除時底稿也會刪掉，先複製一份留給最後一段。
             var workingPaperPath = workingPaper.GetProperty("publishedReport").GetProperty("fullPath").GetString()!;
             await Send("mapping.restoreDraft", new { filePath = workingPaperPath });
@@ -762,6 +771,8 @@ internal static class ActionShapeJourney
             var reopened = await Send("project.load", new { projectId });
             // 審計員打開這個舊情境，沒改掉用到已拿掉欄位的條件就按儲存：後端擋下並寫出原因。
             var olderScenario = reopened.GetProperty("filterScenarios")[2];
+            // 這裡要測的是已移除的欄位，條件結構與來源標記仍須完整，不可因壞結構回空條件而誤通過。
+            Assert.Equal(moneyFieldId, olderScenario.GetProperty("groups")[0].GetProperty("conditions")[1].GetProperty("fieldId").GetString());
             await SendRejected("filter.scenario.save", new JsonObject
             {
                 ["populationScope"] = Scope, ["position"] = 3,
@@ -972,6 +983,9 @@ internal static class ActionShapeJourney
             {
                 ["join"] = "AND", ["type"] = "typed", ["fieldId"] = missingFieldId, ["operator"] = "isBlank",
             });
+            // 原夾具新增條件卻沒補逐條來源標記，實際變成結構損壞，掩蓋了要測的已移除欄位。
+            // 補上 null 表示手動條件，保留原本的拒絕斷言；首次失敗：Focused 20261110-050407069-f0309cb1736342a488ae09259138da93。
+            definition["editorOrigins"]!["groups"]![0]!["cards"]!.AsArray().Add((JsonNode?)null);
             await using var write = connection.CreateCommand();
             write.CommandText = "UPDATE filter_scenario SET definition_json = @definition WHERE position = @position;";
             write.AddWithValue("@definition", definition.ToJsonString());

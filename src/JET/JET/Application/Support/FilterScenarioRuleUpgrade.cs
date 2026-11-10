@@ -246,7 +246,9 @@ internal static partial class FilterScenarioRuleUpgrade
         JsonDocument document;
         try
         {
-            document = JsonDocument.Parse(scenario.DefinitionJson);
+            // 定義裡任何一處的文字讀不出來（不成對代理字元的跳脫寫法）也算在這裡，見 JetJsonStorage.Parse；
+            // 之後讀母體與版本、檢查條件、改版寫回與放進回應，都不會再因為文字丟例外。
+            document = JetJsonStorage.Parse(scenario.DefinitionJson);
         }
         catch (JsonException)
         {
@@ -259,6 +261,11 @@ internal static partial class FilterScenarioRuleUpgrade
             if (root.ValueKind != JsonValueKind.Object)
             {
                 return Unreadable(scenario, "definition_not_object");
+            }
+
+            if (!FilterScenarioPayloadParser.HasReadableStructure(root))
+            {
+                return Unreadable(scenario, "definition_structure_invalid");
             }
 
             var scope = ReadScope(root, out var scopeIsString);

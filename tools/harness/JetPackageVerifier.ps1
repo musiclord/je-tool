@@ -339,8 +339,9 @@ function Test-JetExecutable {
 }
 
 function New-PreflightManifest {
+    # 提交 61d4b43 刪掉 appsettings.json 後，JET 沒有任何 appsettings*.json，設定檔清單是空的也要能寫出紀錄。
     param(
-        [Parameter(Mandatory = $true)] [object[]] $ConfigurationFiles,
+        [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [object[]] $ConfigurationFiles,
         [Parameter(Mandatory = $true)] [DateTime] $StartedUtc
     )
 

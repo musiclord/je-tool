@@ -65,37 +65,29 @@ internal static class GuiRunner
                 options.Scenario.ScreenshotLimit);
             using var deadline = new CancellationTokenSource(options.Timeout);
             var process = ownedRun.StartApplication(options.ApplicationPath);
-            outcome.Process.ProcessId = process.Id;
-            outcome.Process.StartedUtc = ReadProcessStartTime(process);
-
-            var port = await WaitForDevToolsPortAsync(ownedRun, process, deadline.Token).ConfigureAwait(false);
-            var endpoint = await WaitForApplicationPageAsync(port, process, deadline.Token).ConfigureAwait(false);
-            await using var cdp = await CdpSession.ConnectAsync(endpoint, deadline.Token).ConfigureAwait(false);
-
-            var ui = await WaitForUiAsync(cdp, process, outcome.Assertions, deadline.Token).ConfigureAwait(false);
-            var bridgeProbe = await cdp.EvaluateAsync(BridgeProbeScript, deadline.Token).ConfigureAwait(false);
-            outcome.Assertions.SystemPingSucceeded = bridgeProbe.ValueKind == JsonValueKind.True;
-            if (!outcome.Assertions.SystemPingSucceeded)
+            RecordLaunch(outcome, process);
+            var (cdp, ui) = await ConnectAsync(ownedRun, process, outcome, deadline.Token).ConfigureAwait(false);
+            await using (cdp.ConfigureAwait(false))
             {
-                throw new GuiCheckException("system_ping_failed");
-            }
+                await GuiScenarios.ExecuteAsync(
+                    options.Scenario,
+                    cdp,
+                    ownedRun,
+                    process,
+                    ui,
+                    outcome,
+                    deadline.Token).ConfigureAwait(false);
 
-            await GuiScenarios.ExecuteAsync(
-                options.Scenario,
-                cdp,
-                ownedRun,
-                process,
-                ui,
-                outcome,
-                deadline.Token).ConfigureAwait(false);
-
-            await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
-            outcome.Process.Exited = true;
-            outcome.Process.ExitCode = process.ExitCode;
-            outcome.Assertions.ProcessExited = true;
-            if (process.ExitCode != 0)
-            {
-                throw new GuiCheckException("application_exit_code_nonzero");
+                // 關閉後重新啟動的情境，最後要等的是重新啟動的那個 JET。
+                var finalProcess = ownedRun.Process ?? process;
+                await finalProcess.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+                outcome.Process.Exited = true;
+                outcome.Process.ExitCode = finalProcess.ExitCode;
+                outcome.Assertions.ProcessExited = true;
+                if (finalProcess.ExitCode != 0)
+                {
+                    throw new GuiCheckException("application_exit_code_nonzero");
+                }
             }
 
             outcome.Status = "passed";
@@ -130,6 +122,9 @@ internal static class GuiRunner
         {
             if (ownedRun is not null)
             {
+                outcome.Process.LaunchCount = ownedRun.LaunchCount;
+                outcome.Process.StandardUserLaunches = ownedRun.StandardUserLaunchCount;
+                outcome.Process.Identity = ownedRun.LastIdentity;
                 var process = ownedRun.Process;
                 var stopped = await ownedRun.StopApplicationAsync(outcome.Process).ConfigureAwait(false);
                 if (process is not null && process.HasExited)
@@ -157,6 +152,44 @@ internal static class GuiRunner
         }
 
         return outcome;
+    }
+
+    /// <summary>
+    /// 等 JET 的頁面、`JetApi` 與專案選擇畫面就緒，並確認 `systemPing` 成功。第一次啟動與關閉後重新啟動都走這裡；
+    /// 回傳的連線由呼叫端關閉。
+    /// </summary>
+    internal static async Task<(CdpSession Cdp, UiProbe Ui)> ConnectAsync(
+        OwnedGuiRun ownedRun,
+        Process process,
+        GuiRunOutcome outcome,
+        CancellationToken cancellationToken)
+    {
+        var port = await WaitForDevToolsPortAsync(ownedRun, process, cancellationToken).ConfigureAwait(false);
+        var endpoint = await WaitForApplicationPageAsync(port, process, cancellationToken).ConfigureAwait(false);
+        var cdp = await CdpSession.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var ui = await WaitForUiAsync(cdp, process, outcome.Assertions, cancellationToken).ConfigureAwait(false);
+            var bridgeProbe = await cdp.EvaluateAsync(BridgeProbeScript, cancellationToken).ConfigureAwait(false);
+            outcome.Assertions.SystemPingSucceeded = bridgeProbe.ValueKind == JsonValueKind.True;
+            if (!outcome.Assertions.SystemPingSucceeded)
+            {
+                throw new GuiCheckException("system_ping_failed");
+            }
+
+            return (cdp, ui);
+        }
+        catch
+        {
+            await cdp.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    internal static void RecordLaunch(GuiRunOutcome outcome, Process process)
+    {
+        outcome.Process.ProcessId = process.Id;
+        outcome.Process.StartedUtc = ReadProcessStartTime(process);
     }
 
     private static async Task<int> WaitForDevToolsPortAsync(

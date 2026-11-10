@@ -905,6 +905,8 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.Equal("APPROVAL_DATE", metadata.Gl.Mapping[GlMappingKeys.ApprovalDate]);
             Assert.Equal("ACCOUNT_CODE", metadata.Tb!.Mapping[TbMappingKeys.AccountNumber]);
             Assert.True(sheet.Protection.IsProtected);
+            // 裁定 2026-11-09-16：欄位資訊在資料驗證報告與底稿都不合併標題列。
+            Assert.Empty(sheet.MergedRanges);
         }
 
         using var document = Open(bytes);

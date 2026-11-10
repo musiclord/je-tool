@@ -4,10 +4,10 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 完整性全科目 keyset 分頁(本地引擎)。鏡射 <see cref="LocalCompletenessDiffPageRepository"/>,
-/// 共用 <see cref="ValidationProcedures.CompletenessDiffCte"/>;**差別只在不加 <c>WHERE tb_s &lt;&gt; gl_s</c>**
-/// (step1 全科目,含差異為 0)。排序與換頁見 <see cref="CompletenessAccountPageQuery"/>:
-/// 空白科目在最前,換頁比較固定順序的序號,兩個本地引擎得到同一個順序。
+/// 完整性全科目 keyset 分頁，供資料驗證報告與底稿 step1 使用，包含差異為 0 的科目。
+/// 與差異頁共用 <see cref="ValidationProcedures.CompletenessDiffCteFor"/>，但科目名稱只取 TB，
+/// TB 名稱空白或 GL 有、TB 無時不以 GL 名稱補值。排序與換頁見 <see cref="CompletenessAccountPageQuery"/>：
+/// 空白科目在最前，換頁只比較固定順序的序號。
 /// </summary>
 public sealed class LocalCompletenessAccountPageRepository(ILocalProjectDatabase database)
     : ICompletenessAccountPageRepository
@@ -20,10 +20,11 @@ public sealed class LocalCompletenessAccountPageRepository(ILocalProjectDatabase
         await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
+        var cte = ValidationProcedures.CompletenessDiffCteFor("", useTbAccountNames: true);
         var paging = CompletenessAccountPageQuery.Plan(database.Dialect, request);
         CompletenessAccountPageQuery.Bind(command, paging, request);
         command.CommandText = CompletenessAccountPageQuery.Sql(
-            ValidationProcedures.CompletenessDiffCte, differencesOnly: false, paging, database.Dialect);
-        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken, database.Dialect, ValidationProcedures.CompletenessDiffCte);
+            cte, differencesOnly: false, paging, database.Dialect);
+        return await CompletenessAccountPageQuery.ReadAsync(command, paging, request, cancellationToken, database.Dialect, cte);
     }
 }

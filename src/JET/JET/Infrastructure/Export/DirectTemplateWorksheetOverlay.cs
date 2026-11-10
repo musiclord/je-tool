@@ -19,7 +19,8 @@ internal sealed record DirectTemplateWorksheetOverlayPlan(
     Func<uint, uint, uint, uint>? MapTemplateCellStyle = null,
     Func<uint, uint, uint?, uint, uint>? MergeCellStyle = null,
     Func<uint, uint, uint>? MapTemplateRowStyle = null,
-    Func<uint, bool>? UseSourceRowHeight = null);
+    Func<uint, bool>? UseSourceRowHeight = null,
+    Func<uint, uint>? MapTemplateColumnStyle = null);
 
 /// <summary>
 /// 接受 emitter 逐列產生的 XML，直接 forward-only 覆寫一個既有範本 worksheet part。
@@ -128,7 +129,12 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
                 && _plan.MergeSourceColumnWidths
                 && generatedColumns is not null)
             {
-                MergeMaximumColumnWidths(child, generatedColumns).WriteTo(_output);
+                MapColumnStyles(MergeMaximumColumnWidths(child, generatedColumns)).WriteTo(_output);
+                continue;
+            }
+            if (child.Name == SpreadsheetNamespace + "cols")
+            {
+                MapColumnStyles(new XElement(child)).WriteTo(_output);
                 continue;
             }
             child.WriteTo(_output);
@@ -266,6 +272,30 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
             ClearDynamicCells(row, rowIndex, _plan.IsDynamicCell);
         }
         row.WriteTo(_output);
+    }
+
+    /// <summary>
+    /// 範本欄的預設樣式決定沒有寫值的格子能不能編輯；受保護的底稿要讓這些格子保持可填（裁定 2026-11-09-15）。
+    /// 沒有設定時原樣保留。
+    /// </summary>
+    private XElement MapColumnStyles(XElement columns)
+    {
+        if (_plan.MapTemplateColumnStyle is null)
+        {
+            return columns;
+        }
+        foreach (var column in columns.Elements(SpreadsheetNamespace + "col"))
+        {
+            var style = ParseOptionalStyle(column.Attribute("style"));
+            var mapped = _plan.MapTemplateColumnStyle(style);
+            if (mapped != style)
+            {
+                column.SetAttributeValue(
+                    "style",
+                    mapped.ToString(CultureInfo.InvariantCulture));
+            }
+        }
+        return columns;
     }
 
     private void MapTemplateCellStyles(XElement row, uint rowIndex)

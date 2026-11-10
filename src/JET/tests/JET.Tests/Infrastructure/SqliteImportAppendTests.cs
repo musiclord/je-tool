@@ -322,6 +322,31 @@ public sealed class SqliteImportAppendTests
     }
 
     [Fact]
+    public async Task ReplaceBatch_PlaceholderWithDataOnlyInSecondSource_FailsAfterStreamingAndKeepsTheOldBatch()
+    {
+        using var env = new Env();
+        await env.ReplaceThreeRowsAsync(); // 先前匯入的批次：q1.csv，3 列
+
+        // 一次取代匯入兩個來源：具名欄相同，事前比對通過；第二個來源的佔位欄 COL_8 有資料，讀完才發現欄位不同。
+        // 訊息和追加時共用同一句（裁定 2026-11-09-22），交易還原後先前匯入的批次完全不變。這是新加的測試。
+        var ex = await Assert.ThrowsAsync<JetActionException>(
+            () => env.ImportRepo.ReplaceBatchAsync(
+                env.ProjectId, DatasetKind.Gl,
+                [
+                    new ImportSourceInput(Source("h1.csv"), GlColumns, ToAsync([Row(2, "D3", "7", null)])),
+                    new ImportSourceInput(Source("h2.csv"), [.. GlColumns, "COL_8"],
+                        ToAsync([RawRow(2, ("doc", "D4"), ("COL_8", "孤兒值"))]))
+                ],
+                CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);
+        Assert.Equal("檔案「h2.csv」的欄位與其他來源不一致（來源多出：COL_8）。本次未匯入，先前匯入的資料不受影響。請先在 Excel 把欄位對齊後再匯入。", ex.Message);
+        Assert.Equal(3, await env.ScalarAsync("SELECT COUNT(*) FROM pbc_gl"));
+        Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM import_batch_source"));
+        Assert.Equal(1, await env.ScalarAsync("SELECT COUNT(*) FROM import_batch WHERE source_file_name = 'q1.csv' AND row_count = 3"));
+    }
+
+    [Fact]
     public async Task AppendBatch_PhantomPlaceholderInFirstSource_MergesWithPlainSecondSource()
     {
         using var env = new Env();

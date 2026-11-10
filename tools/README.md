@@ -99,10 +99,16 @@ WebView 的安全、當機與快捷鍵設定，以及前後端支援的 action �
 `guiFixtureMethodPatterns` 與 `guiFixtureMinimumExpectedTests`。這段沒有通過時整條路線失敗，一個情境都不跑，用 `-GuiScenario` 單跑時也一樣；
 收據的 `testBoundary.fixtureTests` 記下這段的結果與測試數。
 
-驅動程式為每個情境另建一個 Windows 桌面，用 `CreateProcess` 把 JET 開在那裡，情境結束時關閉（`OwnedGuiRun.cs`），
-不切換桌面，所以使用者看不到 JET 視窗，點擊與打字也不會落到 JET 上。調整視窗大小時找 JET 唯一看得見、
+驅動程式為每個情境另建一個 Windows 桌面，用 `CreateProcessAsUserW` 把 JET 開在那裡，情境結束時關閉（`OwnedGuiRun.cs`），
+不切換桌面，所以使用者看不到 JET 視窗，點擊與打字也不會落到 JET 上。啟動用的權杖拿掉了系統管理員權限；JET 開始執行前，
+驅動程式讀回它的權杖，確認沒有提高權限、Administrators 群組只用於拒絕或不存在、完整性等級不高於中，結果記在情境紀錄的
+`process.identity`，每次啟動都確認過才算通過（裁定 2026-11-09-01、2026-11-09-02）。調整視窗大小時找 JET 唯一看得見、
 沒有擁有者的主視窗，不用 `Process.MainWindowHandle`，因為輸入指示器的小視窗也屬於 JET 程序。
 完整執行要幾分鐘並占用 CPU，何時執行見 `AGENTS.md`「測試」。
+
+選到 `single-file-relaunch` 時，`Gui` 先用 `FolderProfile` 把 `AgentGuiTest` 組態打包成單一執行檔，放在這次執行的 `scratch`，
+命令結束時隨 `scratch` 刪除。`JET.csproj` 只在帶 `JetAgentGuiOwnedBundle=true`、輸出在 `artifacts/harness/runs/` 底下時放行，
+用其他方式發布這個組態照樣失敗（裁定 2026-11-09-03）。
 
 各情境做了哪些操作、核對什麼，見 [Gui 情境](harness/gui-driver/README.md)。
 

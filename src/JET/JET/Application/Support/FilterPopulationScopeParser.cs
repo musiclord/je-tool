@@ -123,7 +123,7 @@ internal static class FilterPopulationScopeParser
         {
             foreach (var scenario in scenarios)
             {
-                using var document = JsonDocument.Parse(scenario.DefinitionJson);
+                using var document = JetJsonStorage.Parse(scenario.DefinitionJson);
                 var current = ReadDefinition(document.RootElement);
                 if (resolved is not null && resolved.Value != current)
                 {

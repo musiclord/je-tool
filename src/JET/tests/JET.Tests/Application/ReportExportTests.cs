@@ -433,6 +433,8 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal(-100d, sheet.Cell("F54").GetDouble());
         Assert.Equal("SAP-FI", sheet.Cell("J54").GetString());
         Assert.Equal("覆核乙", sheet.Cell("L54").GetString());
+        // 裁定 2026-11-09-11：有配對傳票核准人員時，INF 報告與底稿都照舊版把 L51 改寫成欄名。
+        Assert.Equal("傳票核准人員", sheet.Cell("L51").GetString());
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         var committed = await host.DispatchAsync(

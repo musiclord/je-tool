@@ -117,15 +117,16 @@ public sealed class LocalFilterScenarioStore(ILocalProjectDatabase database) : I
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            rows.Add(new SavedFilterScenario(
-                reader.GetInt32(0),
+            rows.Add(LocalEngineErrors.ReadStoredValue(() => new SavedFilterScenario(
+                LocalEngineErrors.ReadStoredInt32(reader, 0),
                 reader.GetString(1),
                 reader.GetString(2),
                 reader.GetString(3),
-                DateTimeOffset.Parse(reader.GetString(4)))
+                DateTimeOffset.TryParse(reader.GetString(4), out var savedUtc)
+                    ? savedUtc : throw new FormatException("Stored scenario time cannot be read."))
             {
-                ScenarioId = reader.GetInt32(5)
-            });
+                ScenarioId = LocalEngineErrors.ReadStoredInt32(reader, 5)
+            }));
         }
 
         return rows;

@@ -33,8 +33,9 @@ public sealed record GlPopulationSummary(
     ValidationGlTotals Gl,
     GlExcludedPopulationTotals Excluded);
 
-/// <summary>完整性測試（completeness_test）的單一差異科目。
-/// NotInTb=true 表示該科目「GL 有、TB 無」（具名化的 Not-in-TB）;false 表示兩側皆有但金額不符。</summary>
+/// <summary>完整性測試逐科目比對的一列，同時供全科目報表與差異頁使用。
+/// 全科目報表的 AccountName 只取 TB 名稱，TB 名稱空白或 GL 有、TB 無時保持空白；差異頁仍可由 GL 補值。
+/// NotInTb=true 表示該科目「GL 有、TB 無」；false 表示 TB 中有該科目。</summary>
 public sealed record CompletenessDiffAccount(
     string AccountNumber,
     string? AccountName,

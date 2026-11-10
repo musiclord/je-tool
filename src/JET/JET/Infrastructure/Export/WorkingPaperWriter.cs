@@ -649,7 +649,9 @@ public sealed partial class WorkingPaperWriter(
         private readonly bool _preserveTemplate;
         private readonly string? _pageSetupRelationshipId;
         private readonly List<string> _merges = [];
-        private readonly List<(string Range, string Formula)> _validations = [];
+        private readonly DataValidations? _templateValidations;
+        private readonly WorkingPaperLockedArea? _lockedArea;
+        private (uint TemplateLastRow, uint LastRow)? _validationExtension;
         private readonly List<(uint Min, uint Max, double Width, bool Hidden, bool BestFit)> _columns = [];
         private readonly Dictionary<uint, double> _rowHeights = [];
         private string? _dimension;
@@ -675,9 +677,13 @@ public sealed partial class WorkingPaperWriter(
             Func<uint, uint, uint, uint>? mapCellStyle,
             CancellationToken cancellationToken,
             bool preserveTemplate,
-            string? pageSetupRelationshipId = null)
+            string? pageSetupRelationshipId = null,
+            DataValidations? templateValidations = null,
+            WorkingPaperLockedArea? lockedArea = null)
         {
             _name = name;
+            _templateValidations = templateValidations;
+            _lockedArea = lockedArea;
             _part = part;
             _overlay = overlay;
             _styles = styles;
@@ -699,7 +705,9 @@ public sealed partial class WorkingPaperWriter(
             DirectTemplateWorksheetOverlayPlan plan,
             WorkbookStyleMap styles,
             Func<uint, uint, uint, uint>? mapCellStyle,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            DataValidations? templateValidations = null,
+            WorkingPaperLockedArea? lockedArea = null) =>
             new(
                 name,
                 part,
@@ -711,7 +719,9 @@ public sealed partial class WorkingPaperWriter(
                 styles,
                 mapCellStyle,
                 cancellationToken,
-                preserveTemplate: false);
+                preserveTemplate: false,
+                templateValidations: templateValidations,
+                lockedArea: lockedArea);
 
         internal static SheetWriter CreateContinuation(
             string name,
@@ -719,7 +729,9 @@ public sealed partial class WorkingPaperWriter(
             WorkbookStyleMap styles,
             Func<uint, uint, uint, uint>? mapCellStyle,
             CancellationToken cancellationToken,
-            string? pageSetupRelationshipId) =>
+            string? pageSetupRelationshipId,
+            DataValidations? templateValidations = null,
+            WorkingPaperLockedArea? lockedArea = null) =>
             new(
                 name,
                 part,
@@ -728,7 +740,9 @@ public sealed partial class WorkingPaperWriter(
                 mapCellStyle,
                 cancellationToken,
                 preserveTemplate: false,
-                pageSetupRelationshipId);
+                pageSetupRelationshipId,
+                templateValidations,
+                lockedArea);
 
         internal static SheetWriter PreserveTemplate(
             string name,
@@ -856,7 +870,7 @@ public sealed partial class WorkingPaperWriter(
         /// <summary>寫一列「資料列」(計入 RowsWritten)。供資料表 keyset 逐列呼叫。</summary>
         public void WriteRow(uint rowIndex, IReadOnlyList<Cell> cells)
         {
-            WriteRowCore(rowIndex, cells);
+            WriteRowCore(rowIndex, FillLockedArea(rowIndex, cells));
             _dataRows++;
         }
 
@@ -872,7 +886,18 @@ public sealed partial class WorkingPaperWriter(
             _merges.Add(range);
         }
 
-        public void AddListValidation(string range, string formula) => _validations.Add((range, formula));
+        /// <summary>
+        /// 範本的下拉選單照原本的選項寫出；結束列等於範本最後一列的範圍延伸到這張表的最後一列（裁定 2026-11-09-13）。
+        /// 資料沒有超過範本列數時照範本原樣。
+        /// </summary>
+        public void ExtendTemplateValidations(uint templateLastRow, uint lastRow)
+        {
+            if (_templateValidations is null)
+            {
+                throw new InvalidOperationException($"Worksheet '{_name}' 沒有範本下拉選單可以延伸。");
+            }
+            _validationExtension = (templateLastRow, lastRow);
+        }
 
         public void Protect() => _protect = true;
 
@@ -973,6 +998,47 @@ public sealed partial class WorkingPaperWriter(
             _writer?.Dispose();
             _overlay?.Dispose();
             _disposed = true;
+        }
+
+        /// <summary>
+        /// 舊版鎖定整個資料區，連沒有值的格子也鎖（裁定 2026-11-09-15）。資料列在鎖定欄裡缺的格子補成空白格，
+        /// 樣式和其他寫入的格子一樣經過鎖定判斷；例如 step4 只用到幾個條件時，其餘條件欄也照舊版鎖住。
+        /// </summary>
+        private IReadOnlyList<Cell> FillLockedArea(uint rowIndex, IReadOnlyList<Cell> cells)
+        {
+            if (_lockedArea is not { } area || rowIndex < area.FirstRow)
+            {
+                return cells;
+            }
+            var byColumn = new SortedDictionary<uint, Cell>();
+            foreach (var cell in cells)
+            {
+                byColumn.Add(ColumnOf(cell), cell);
+            }
+            for (var column = area.FirstColumn; column <= area.LastColumn; column++)
+            {
+                if (!byColumn.ContainsKey(column))
+                {
+                    byColumn.Add(column, BlankCell(rowIndex, column));
+                }
+            }
+            return byColumn.Count == cells.Count ? cells : [.. byColumn.Values];
+        }
+
+        private static uint ColumnOf(Cell cell)
+        {
+            var reference = cell.CellReference?.Value
+                ?? throw new InvalidOperationException("資料列的儲存格缺少位置。");
+            var column = 0U;
+            foreach (var character in reference)
+            {
+                if (character is < 'A' or > 'Z')
+                {
+                    break;
+                }
+                column = checked(column * 26U + (uint)(character - 'A' + 1));
+            }
+            return column;
         }
 
         private void WriteRowCore(uint rowIndex, IReadOnlyList<Cell> cells)
@@ -1088,20 +1154,21 @@ public sealed partial class WorkingPaperWriter(
                 elements.Add(mergeCells);
             }
 
-            if (_validations.Count > 0)
+            if (_templateValidations is not null)
             {
-                var validations = new DataValidations { Count = (uint)_validations.Count };
-                foreach (var (range, formula) in _validations)
+                var validations = (DataValidations)_templateValidations.CloneNode(true);
+                if (_validationExtension is { } extension && extension.LastRow > extension.TemplateLastRow)
                 {
-                    var validation = new DataValidation
+                    foreach (var validation in validations.Elements<DataValidation>())
                     {
-                        Type = DataValidationValues.List,
-                        AllowBlank = true,
-                        ShowErrorMessage = true,
-                        SequenceOfReferences = new ListValue<StringValue> { InnerText = range }
-                    };
-                    validation.Append(new Formula1(formula));
-                    validations.Append(validation);
+                        if (validation.SequenceOfReferences is { InnerText: { } sqref } references)
+                        {
+                            references.InnerText = ExtendSqref(
+                                sqref,
+                                extension.TemplateLastRow,
+                                extension.LastRow);
+                        }
+                    }
                 }
                 elements.Add(validations);
             }
@@ -1250,6 +1317,31 @@ public sealed partial class WorkingPaperWriter(
             var mapped = _styles.Map(sourceStyle);
             return _mapCellStyle?.Invoke(row, column, mapped) ?? mapped;
         }
+
+        /// <summary>sqref 以空白分隔多個範圍；只延伸結束列等於範本最後一列的範圍，其他範圍照原樣。</summary>
+        private static string ExtendSqref(string sqref, uint templateLastRow, uint lastRow) =>
+            string.Join(' ', sqref
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(range =>
+                {
+                    var colon = range.IndexOf(':', StringComparison.Ordinal);
+                    var end = colon < 0 ? range : range[(colon + 1)..];
+                    var digits = end.IndexOfAny("0123456789".ToCharArray());
+                    if (digits <= 0
+                        || !uint.TryParse(
+                            end[digits..],
+                            NumberStyles.None,
+                            CultureInfo.InvariantCulture,
+                            out var endRow)
+                        || endRow != templateLastRow)
+                    {
+                        return range;
+                    }
+                    var extendedEnd = end[..digits] + lastRow.ToString(CultureInfo.InvariantCulture);
+                    return colon < 0
+                        ? range + ":" + extendedEnd
+                        : range[..(colon + 1)] + extendedEnd;
+                }));
 
         /// <summary>(column, row) → A1 形式參考。column/row 皆 1-based。</summary>
         private static string Reference(uint column, uint rowIndex)

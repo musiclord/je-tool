@@ -281,14 +281,18 @@ button, input, select, textarea {
    - 案件清單畫面或視窗不夠寬時，第一列是標誌與操作組；開啟案件後，案件摘要在第二列，和標誌同一條左緣。
    整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01），所以標題列是一片玻璃：流程欄、中欄與資料預覽都從視窗頂端開始，
    上緣藏在標題列下面。靜止時透出底下各欄的明暗，內容捲上來時從它下面經過，只剩柔和的色塊；內容在下面時影子加深。
-   玻璃是 .app-shell::before 這一整片，兩列時也不會在案件摘要那裡斷開；標誌、案件摘要與操作組是貼在上面的字。 */
-.app-shell::before {
-  content: "";
+   玻璃是 .app-shell__glass 這一整片，兩列時也不會在案件摘要那裡斷開；標誌、案件摘要與操作組是貼在上面的字。
+   它是 index.html 裡一個 aria-hidden 的空元素，不畫在 .app-shell::before。WebView2 維護無障礙樹時，掛著虛擬元素的元素
+   只要樣式一改，就會把底下整棵子樹重送一遍；.app-shell 包著整個畫面，捲動時 data-under-chrome 一切換，
+   欄位配對每次卡 100 毫秒以上（2026-11-09 量測，見 docs/specs/2026-11-09-scroll-performance-plan.md）。
+   大型版面容器不掛虛擬元素，規則見 jet-frontend-design。 */
+.app-shell__glass {
   position: absolute;
   z-index: 30;
   top: 0;
   left: 0;
   right: 0;
+  box-sizing: content-box;   /* 高對比佈景的下緣細線畫在標題列高度之外，和原本的 ::before 一樣；全域的 border-box 不套用在虛擬元素上 */
   height: var(--chrome-h, 64px);
   background: var(--toolbar-bg);
   -webkit-backdrop-filter: var(--glass-bar-blur);
@@ -298,7 +302,7 @@ button, input, select, textarea {
   transition: background-color 240ms var(--ease-soft), box-shadow 240ms var(--ease-soft);
 }
 
-.app-shell[data-under-chrome]::before {
+.app-shell[data-under-chrome] > .app-shell__glass {
   background: var(--glass-bar-under);
   -webkit-backdrop-filter: var(--glass-bar-under-blur);
   backdrop-filter: var(--glass-bar-under-blur);
@@ -803,8 +807,9 @@ button, input, select, textarea {
   padding: var(--space-3) 0 10px var(--rail-width);
 }
 
-.stepflow-item::before {
-  content: "";
+/* 軸線與目前步驟的藍色圓環是步驟列裡 aria-hidden 的小元素（app.js 的 STEP_RAIL 與 STEP_CURRENT_MARK），不畫在步驟列的虛擬元素上：
+   目前步驟那一列包著整個工作面，它掛著虛擬元素時，滑鼠移入或樣式一改，WebView2 就把整個工作面的無障礙樹重送一遍，捲動跟著頓一下。 */
+.stepflow-item__rail {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -813,12 +818,12 @@ button, input, select, textarea {
   background: var(--color-border-strong);
 }
 
-.stepflow-item:first-child::before { top: 22px; }
-.stepflow-item:last-child::before { bottom: auto; height: 22px; }
-.stepflow-item:only-child::before { display: none; }
+.stepflow-item:first-child > .stepflow-item__rail { top: 22px; }
+.stepflow-item:last-child > .stepflow-item__rail { bottom: auto; height: 22px; }
+.stepflow-item:only-child > .stepflow-item__rail { display: none; }
 /* 目前步驟的節點對齊大標題，所以它在第一列或最後一列時，直線改從節點中心開始或結束。 */
-.stepflow-item--current:not(.stepflow-item--collapsed):first-child::before { top: calc(var(--space-6) + 18px); }
-.stepflow-item--current:not(.stepflow-item--collapsed):last-child::before { height: calc(var(--space-6) + 18px); }
+.stepflow-item--current:not(.stepflow-item--collapsed):first-child > .stepflow-item__rail { top: calc(var(--space-6) + 18px); }
+.stepflow-item--current:not(.stepflow-item--collapsed):last-child > .stepflow-item__rail { height: calc(var(--space-6) + 18px); }
 
 /* 收合／可開始／完成列可點；游標提示。 */
 .stepflow-item--done,
@@ -966,21 +971,13 @@ button, input, select, textarea {
 }
 
 /* 目前步驟的節點：藍色圓環，對齊標題的中線。 */
-.stepflow-item--current::after {
-  content: "";
-  position: absolute;
+.stepflow-item__mark--current {
   top: calc(var(--space-6) + 7px);
-  left: 0;
-  z-index: 1;
-  width: var(--rail-node);
-  height: var(--rail-node);
-  box-sizing: border-box;
-  border-radius: 50%;
   border: 6px solid var(--color-accent);
   background: var(--color-surface);
 }
 
-.stepflow-item--current.stepflow-item--collapsed::after { top: 11px; }
+.stepflow-item--collapsed > .stepflow-item__mark--current { top: 11px; }
 
 .stepflow-item__num {
   font-family: var(--font-sans);
@@ -2788,6 +2785,35 @@ dl.kv-list .kv-list__row:last-child {
 .panel--mapping > .mapping-section:last-of-type {
   margin-bottom: 0;
 }
+
+/* 「由底稿匯入欄位」：配對區上方往下凹的托盤，和第四步「用 Excel 配對」同一種做法（裁定 2026-11-09-29）。
+   上面一排是按鈕與一句說明，帶入的結果寫在托盤裡的一張白紙；托盤和下面的 GL 工作面之間留間距。
+   窄視窗時說明換到按鈕下一行，長檔名在紙裡斷行，不把版面撐寬。 */
+.mapping-import {
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-group);
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--recess);
+}
+.mapping-import__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.mapping-import__hint { flex: 1 1 16em; min-width: 0; margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
+.mapping-import > .form-notice { margin: var(--space-3) 0 0; }
+.mapping-import__result {
+  min-width: 0;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: 0 0 0 1px var(--color-border), var(--shadow-surface);
+}
+.mapping-import__summary { margin: 0; }
+.mapping-import__summary + .mapping-import__summary { margin-top: var(--space-1); }
+.mapping-import__fields { margin: var(--space-1) 0 0; padding-left: var(--space-5); }
 
 .mapping-section__title {
   margin: 0 0 var(--space-3);
@@ -8613,7 +8639,7 @@ html.window-inactive {
   --glass-blur: none;
 }
 
-html.window-inactive .app-shell::before,
+html.window-inactive .app-shell__glass,
 html.window-inactive .messages {
   transition: none;
 }
@@ -8716,7 +8742,9 @@ html.window-inactive .messages {
   .filter-workspace .filter-field-groups,
   .filter-workspace .filter-entry,
   .excel-mapping,
-  .excel-mapping__results {
+  .excel-mapping__results,
+  .mapping-import,
+  .mapping-import__result {
     border: 1px solid CanvasText;
   }
 
@@ -8782,7 +8810,7 @@ html.window-inactive .messages {
   }
 
   /* 玻璃的邊原本是影子，高對比佈景會拿掉影子：標題列、表格固定的表頭、選單與對話框改用系統色的細線或細框。 */
-  .app-shell::before {
+  .app-shell__glass {
     border-bottom: 1px solid CanvasText;
   }
 

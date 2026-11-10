@@ -42,8 +42,10 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             "Templates",
             "WorkingPaper.xlsx");
         var templateBytes = await File.ReadAllBytesAsync(templatePath);
+        // 裁定 2026-11-09-12 把 step4 A12 的整句寫進範本，只改了共用字串，範本的雜湊值跟著更新。
+        // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
         Assert.Equal(
-            "2FB16296BF2CCE16837558EB4E32A51121F8B877A98B3953D6C29C7727C698BA",
+            "CBCFE6DBE7E023D1DA62DCECC88C882B2F92CDAB06E210DD5065F8A0CC7D46A0",
             Convert.ToHexString(SHA256.HashData(templateBytes)));
 
         var outputBytes = await ExportFourteenSheetWorkingPaperAsync();
@@ -104,8 +106,10 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             "Templates",
             "WorkingPaper.xlsx");
         var templateBytes = await File.ReadAllBytesAsync(templatePath);
+        // 裁定 2026-11-09-12 把 step4 A12 的整句寫進範本，只改了共用字串，範本的雜湊值跟著更新。
+        // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
         Assert.Equal(
-            "2FB16296BF2CCE16837558EB4E32A51121F8B877A98B3953D6C29C7727C698BA",
+            "CBCFE6DBE7E023D1DA62DCECC88C882B2F92CDAB06E210DD5065F8A0CC7D46A0",
             Convert.ToHexString(SHA256.HashData(templateBytes)));
         return templateBytes;
     }

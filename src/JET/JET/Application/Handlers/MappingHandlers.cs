@@ -7,34 +7,66 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// 從 JET 報告讀回 GL/TB mapping 草稿。唯讀：不保存 mapping、不投影 target、不推進流程。
-/// 相容性以目前的 import batch columns 和 commit 共用 MappingValidator 權威驗證。
-/// 報告裡選到的來源欄在目前資料找不到時，不整份拒絕：對得上的照樣帶入，找不到的連同綁在它上面的設定拿掉，
-/// 列在 unmatchedFields 請審計員重選；沒有匯入 TB，或報告匯出時 TB 還沒確認配對，只帶入 GL，tb 回 null（裁定 2026-11-05-03）。
-/// 報告本身缺必要欄位或用了不支援的金額計算方式，仍整份拒絕。
+/// 從檔案讀回 GL/TB mapping 草稿（第三步「由底稿匯入欄位」）。唯讀：不保存 mapping、不投影 target、不推進流程。
+/// 檔案有 JET 記下的隱藏配對紀錄時照那一份帶入；沒有時讀「自動化工具-檔案欄位資訊」看得見的對照表推得草稿，
+/// 舊版 IDEA JET 的底稿也能帶入（裁定 2026-11-09-28）。
+/// 選到的來源欄在目前資料找不到時，不整份拒絕：對得上的照樣帶入，找不到的連同綁在它上面的設定拿掉，
+/// 列在 unmatchedFields 請審計員重選；沒有匯入 TB、檔案匯出時 TB 還沒確認配對，或推得的 TB 段沒有任何配對也沒有要重選的項目時，
+/// 只帶入 GL，tb 回 null（裁定 2026-11-05-03）。
+/// 隱藏紀錄本身缺必要欄位或用了不支援的金額計算方式，仍整份拒絕；推得的草稿缺的欄位不整份拒絕。
 /// </summary>
 public sealed class MappingRestoreDraftHandler(
     IMappingMetadataReader metadataReader,
     MappingRestoreDraftAuthorizationStore restoreAuthorizations,
     ProjectSession session) : IApplicationActionHandler
 {
+    private const string NextStep = "無法帶入。請直接在下方選擇欄位。";
+
     public string Action => "mapping.restoreDraft";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
         var (projectId, repositories) = session.RequireActive();
         var filePath = PayloadReader.GetRequiredString(payload, "filePath");
-        var metadata = await metadataReader.ReadAsync(filePath, cancellationToken);
+        var source = await metadataReader.ReadAsync(filePath, cancellationToken);
 
         var glBatch = await repositories.Imports.GetLatestBatchAsync(
             projectId, DatasetKind.Gl, cancellationToken)
             ?? throw new JetActionException(
                 JetErrorCodes.NoImportBatch,
-                "目前案件尚未匯入 PBC-GL，不能驗證還原草稿的來源欄位。");
-        // 沒有匯入 TB，或報告匯出時 TB 還沒確認配對，都只帶入 GL。
-        var tbBatch = metadata.Tb is null
-            ? null
-            : await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken);
+                "還沒有匯入 GL，無法帶入欄位配對。請先匯入 GL。");
+        var unmatched = new List<UnmatchedMappingField>();
+        MappingDraftMetadata metadata;
+        ImportBatchInfo? tbBatch;
+        if (source.Recorded is { } recorded)
+        {
+            metadata = recorded;
+            // 沒有匯入 TB，或檔案匯出時 TB 還沒確認配對，都只帶入 GL。
+            tbBatch = metadata.Tb is null
+                ? null
+                : await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken);
+        }
+        else
+        {
+            // 沒有隱藏紀錄時從看得見的對照表推得草稿；沒有匯入 TB 時不推 TB（裁定 2026-11-09-28）。
+            tbBatch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken);
+            var inferred = FieldInfoSheetMapping.Infer(
+                source.FieldInfoSheet!,
+                glBatch.Columns,
+                tbBatch?.Columns,
+                static () => "rde." + Guid.NewGuid().ToString("N"));
+            metadata = inferred.Draft;
+            unmatched.AddRange(inferred.Unmatched);
+            // GL 草稿會整份換掉。GL 的對照表推不出任何欄位時整份不帶入，審計員已選的欄位不動；
+            // 只有讀不懂的列也一樣。和讀檔時找不到 GL 的對照表一樣，不看 TB 段。
+            if (metadata.Gl.Mapping.Count == 0 && metadata.Gl.RdeFields.Count == 0)
+            {
+                throw new JetActionException(
+                    JetErrorCodes.MappingMetadataMissing,
+                    "這份檔案裡 GL 的欄位對照表沒有可帶入的欄位，" + NextStep);
+            }
+        }
+
         var tbMetadata = tbBatch is null ? null : metadata.Tb;
 
         var tbMode = default(TbChangeMode);
@@ -43,33 +75,14 @@ public sealed class MappingRestoreDraftHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.MappingMetadataInvalid,
-                "報告裡的欄位配對使用了目前版本不支援的金額計算方式，無法還原。請回第三步欄位配對直接重新選擇。");
+                "檔案裡的欄位配對使用了目前版本不支援的金額計算方式，" + NextStep);
         }
 
-        var glValidation = MappingValidator.ValidateGl(
-            new GlMappingSpec(metadata.Gl.Mapping, glMode), glBatch.Columns.ToList());
-        var tbValidation = tbBatch is null || tbMetadata is null
-            ? null
-            : MappingValidator.ValidateTb(new TbMappingSpec(tbMetadata.Mapping, tbMode), tbBatch.Columns.ToList());
-
-        // 必要欄位看的是報告本身有沒有選；選了但在目前資料找不到，屬於下面要重選的欄位，不在這裡擋。
-        var missing = glValidation.MissingRequiredKeys.Select(key => $"GL.{key}")
-            .Concat((tbValidation?.MissingRequiredKeys ?? []).Select(key => $"TB.{key}"))
-            .ToArray();
-        if (missing.Length > 0)
+        if (source.Recorded is not null)
         {
-            if (glValidation.MissingRequiredKeys.Any(key => key is "drCrDebitCode" or "drCrCreditCode"))
-            {
-                throw new JetActionException(
-                    JetErrorCodes.MappingMetadataInvalid,
-                    "報告裡的欄位配對沒有借貸代碼，無法還原。請回第三步至少指定一側代碼後再確認配對。");
-            }
-            throw new JetActionException(
-                JetErrorCodes.MappingMetadataInvalid,
-                $"報告裡的欄位配對缺少必要欄位：{string.Join("、", missing)}，無法還原。請回第三步欄位配對直接重新選擇。");
+            RejectIncompleteRecordedMapping(metadata.Gl.Mapping, glMode, glBatch, tbMetadata, tbMode, tbBatch);
         }
 
-        var unmatched = new List<object>();
         var glMapping = KeepMatchedColumns(
             metadata.Gl.Mapping, glBatch.Columns, "gl", JetFieldCatalog.GlMappingSlots, unmatched);
         var draftOptions = FitOptions(metadata.Gl.ToOptions(), glMapping, glBatch.Columns, unmatched);
@@ -89,7 +102,7 @@ public sealed class MappingRestoreDraftHandler(
         {
             throw new JetActionException(
                 JetErrorCodes.MappingMetadataInvalid,
-                "報告裡的欄位配對進階設定與目前匯入的資料不一致，無法還原。請回第三步欄位配對直接重新選擇。",
+                "檔案裡的欄位配對進階設定與目前匯入的資料不一致，" + NextStep,
                 innerException: exception);
         }
 
@@ -111,20 +124,77 @@ public sealed class MappingRestoreDraftHandler(
                 fillDownFields = glOptions.FillDownFields
             },
             tb = tbMapping is null || tbMetadata is null ? null : new { mapping = tbMapping, changeMode = tbMetadata.ChangeMode },
-            unmatchedFields = unmatched
+            unmatchedFields = UnmatchedFields(unmatched)
         };
     }
 
     /// <summary>
+    /// 隱藏紀錄是審計員確認過的配對，本身缺必要欄位或沒有借貸代碼時整份拒絕。
+    /// 必要欄位看的是紀錄本身有沒有選；選了但在目前資料找不到，屬於要重選的欄位，不在這裡擋。
+    /// </summary>
+    private static void RejectIncompleteRecordedMapping(
+        IReadOnlyDictionary<string, string> glMapping,
+        GlAmountMode glMode,
+        ImportBatchInfo glBatch,
+        TbMappingDraftMetadata? tbMetadata,
+        TbChangeMode tbMode,
+        ImportBatchInfo? tbBatch)
+    {
+        var glValidation = MappingValidator.ValidateGl(
+            new GlMappingSpec(glMapping, glMode), glBatch.Columns.ToList());
+        var tbValidation = tbBatch is null || tbMetadata is null
+            ? null
+            : MappingValidator.ValidateTb(new TbMappingSpec(tbMetadata.Mapping, tbMode), tbBatch.Columns.ToList());
+
+        var missing = glValidation.MissingRequiredKeys
+            .Select(key => "GL " + JetFieldCatalog.MappingSlotLabel(JetFieldCatalog.GlMappingSlots, key))
+            .Concat((tbValidation?.MissingRequiredKeys ?? [])
+                .Select(key => "TB " + JetFieldCatalog.MappingSlotLabel(JetFieldCatalog.TbMappingSlots, key)))
+            .ToArray();
+        if (missing.Length == 0)
+        {
+            return;
+        }
+
+        if (glValidation.MissingRequiredKeys.Any(key => key is "drCrDebitCode" or "drCrCreditCode"))
+        {
+            throw new JetActionException(
+                JetErrorCodes.MappingMetadataInvalid,
+                "檔案裡的欄位配對沒有借貸代碼，" + NextStep);
+        }
+
+        throw new JetActionException(
+            JetErrorCodes.MappingMetadataInvalid,
+            $"檔案裡的欄位配對缺少必要欄位：{string.Join("、", missing)}，" + NextStep);
+    }
+
+    /// <summary>回應的 unmatchedFields：同一個 dataset 與 key 只列一次，GL 在前、TB 在後，各自保持加入的順序。</summary>
+    private static object[] UnmatchedFields(IEnumerable<UnmatchedMappingField> unmatched)
+    {
+        var seen = new HashSet<(string Dataset, string Key)>();
+        return unmatched
+            .Where(field => seen.Add((field.Dataset, field.Key)))
+            .OrderBy(static field => field.Dataset == "gl" ? 0 : 1)
+            .Select(static field => (object)new
+            {
+                dataset = field.Dataset,
+                key = field.Key,
+                label = field.Label,
+                sourceColumn = field.SourceColumn
+            })
+            .ToArray();
+    }
+
+    /// <summary>
     /// 只留下來源欄在目前資料找得到的配對；借方與貸方代碼是字面值，照樣帶入。找不到的寫進 unmatched：
-    /// dataset、配對位置的鍵與名稱，以及報告裡選的來源欄。
+    /// dataset、配對位置的鍵與名稱，以及檔案裡選的來源欄。
     /// </summary>
     private static Dictionary<string, string> KeepMatchedColumns(
         IReadOnlyDictionary<string, string> mapping,
         IReadOnlyList<string> columns,
         string dataset,
         IReadOnlyList<JetMappingSlot> slots,
-        List<object> unmatched)
+        List<UnmatchedMappingField> unmatched)
     {
         var available = columns.ToHashSet(StringComparer.Ordinal);
         var kept = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -141,7 +211,7 @@ public sealed class MappingRestoreDraftHandler(
             }
             else
             {
-                unmatched.Add(new { dataset, key = slot.Key, label = slot.Label, sourceColumn = column });
+                unmatched.Add(new UnmatchedMappingField(dataset, slot.Key, slot.Label, column));
             }
         }
 
@@ -156,7 +226,7 @@ public sealed class MappingRestoreDraftHandler(
         GlMappingOptions options,
         IReadOnlyDictionary<string, string> mapping,
         IReadOnlyList<string> columns,
-        List<object> unmatched)
+        List<UnmatchedMappingField> unmatched)
     {
         var available = columns.ToHashSet(StringComparer.Ordinal);
         var rdeFields = new List<GlRdeFieldMetadata>(options.RdeFields.Count);
@@ -168,7 +238,7 @@ public sealed class MappingRestoreDraftHandler(
             }
             else
             {
-                unmatched.Add(new { dataset = "gl", key = field.FieldId, label = field.Label, sourceColumn = field.SourceColumn });
+                unmatched.Add(new UnmatchedMappingField("gl", field.FieldId, field.Label, field.SourceColumn));
             }
         }
 

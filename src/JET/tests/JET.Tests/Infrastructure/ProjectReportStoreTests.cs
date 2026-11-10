@@ -473,6 +473,50 @@ public sealed class ProjectReportStoreTests
         Assert.Equal(written.ReportId, Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).ReportId);
     }
 
+    // 檔名不能當成案件資料夾裡的一個檔案的紀錄，和其他讀不懂的紀錄一樣不列出；報告清單不因此擋住讀取（docs/jet-guide.md
+    // 寫報告清單「不會因此拒絕載入案件」）。JET 自己不會寫出這種檔名，只會出自 JET 以外對 reports.json 的改動。
+    [Theory]
+    [InlineData("..")]
+    [InlineData(".")]
+    [InlineData("NUL")]
+    [InlineData("null-character")]
+    public async Task ListAsync_EntryWhoseFileNameCannotBeAFileInTheFolder_IsNotListed(string fileNameCase)
+    {
+        using var root = new TempProjectRoot();
+        var (store, directory) = Create(root);
+        var kept = await store.WriteAsync(ProjectId, Request(ReportKind.ValidationReport, Bytes(1)), CancellationToken.None);
+        var fileName = fileNameCase == "null-character" ? "report" + (char)0 + ".xlsx" : fileNameCase;
+        var manifestPath = Path.Combine(directory, ProjectReportStore.ManifestFileName);
+        using (var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(manifestPath)))
+        {
+            var keptEntry = Assert.Single(manifest.RootElement.EnumerateArray().ToArray()).GetRawText();
+            var damagedEntry = $$"""
+                {
+                  "reportId": "0123456789abcdef0123456789abcdef",
+                  "kind": "infReport",
+                  "relativeFileName": {{JsonSerializer.Serialize(fileName)}},
+                  "sourceRef": { "validationResultId": "run-1" },
+                  "generatedUtc": "2026-08-01T00:00:00+00:00",
+                  "bytes": 4,
+                  "stale": false
+                }
+                """;
+            await File.WriteAllTextAsync(manifestPath, $"[{keptEntry},{damagedEntry}]");
+        }
+
+        var listed = Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None));
+        Assert.Equal(kept.ReportId, listed.ReportId);
+        Assert.Equal(ReportFileState.AsPublished, listed.FileState);
+        Assert.Equal(Path.Combine(directory, kept.RelativeFileName), listed.FullPath);
+
+        // 之後照常標過期與寫入，不會因為那一筆而失敗。
+        Assert.Equal(1, await store.MarkStaleAsync(ProjectId, ReportKind.ValidationReport, CancellationToken.None));
+        var written = await store.WriteAsync(ProjectId, Request(ReportKind.InfReport, Bytes(2)), CancellationToken.None);
+        Assert.Equal(
+            new[] { kept.ReportId, written.ReportId }.Order(StringComparer.Ordinal),
+            (await store.ListAsync(ProjectId, CancellationToken.None)).Select(report => report.ReportId).Order(StringComparer.Ordinal));
+    }
+
     private static (ProjectReportStore Store, string ProjectDirectory) Create(
         TempProjectRoot root,
         TimeProvider? timeProvider = null,

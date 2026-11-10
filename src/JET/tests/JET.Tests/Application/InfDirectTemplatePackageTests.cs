@@ -65,7 +65,9 @@ public sealed class InfDirectTemplatePackageTests(ReportExportFixture fixture)
             Assert.StartsWith("公司名稱 [", main.Cell("A1").GetString(), StringComparison.Ordinal);
             Assert.StartsWith("財務報表期間 [", main.Cell("A2").GetString(), StringComparison.Ordinal);
             Assert.Equal("證實測試 - 會計分錄及其他調整", main.Cell("A3").GetString());
-            Assert.Equal("傳票核准人員", main.Cell("L51").GetString());
+            // 這份合成資料沒有配對傳票核准人員。依裁定 2026-11-09-11 照舊版條件，L51 保留範本原本的文字；
+            // 有配對時的改寫由 ReportExportTests 檢查。首敗 20261109-052355141-718103d298d84bb2a0a0d2ce584ba400。
+            Assert.Equal("其他有用在高風險條件的RDE欄位\n(若有，請自行新增修改)", main.Cell("L51").GetString());
             Assert.Equal(
                 Enumerable.Range(1, 59).Select(value => $"{value}.").ToArray(),
                 main.Range("A53:A111").Cells().Select(cell => cell.GetString()).ToArray());

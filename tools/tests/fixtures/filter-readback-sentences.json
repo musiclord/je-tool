@@ -48,6 +48,12 @@
     "expected": "傳票摘要 包含任一文字「調整、測試」；空白不列入"
   },
   {
+    "id": "affix-values-any-and-none",
+    "scenario": { "groups": [{ "conditions": [{ "type": "group", "conditions": [{ "type": "fieldValue", "field": "accountNumber", "operator": "startsWith", "values": ["11", "12"] }, { "type": "fieldValue", "field": "description", "operator": "notEndsWith", "values": ["迴轉", "沖銷"], "includeBlank": true, "join": "AND" }] }] }] },
+    "rdeFields": [],
+    "expected": "同一分錄（（會計科目編號 開頭符合「11、12」；空白不列入 且 傳票摘要 結尾不符合「迴轉、沖銷」；空白也符合））"
+  },
+  {
     "id": "specified-date",
     "scenario": { "groups": [{ "conditions": [{ "type": "fieldValue", "field": "glDate", "operator": "on", "value": "2025-06-11" }] }] },
     "rdeFields": [],

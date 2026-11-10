@@ -72,7 +72,9 @@ internal static class ReportWriterTestSupport
                 DateTimeOffset.UnixEpoch),
             TbMapping: null);
 
-    /// <summary>可以被解析成報告投影的最小預篩選摘要：全部規則都有狀態，沒有命中。</summary>
+    /// <summary>發布流程使用的完整合成預篩選摘要：全部規則都有狀態，沒有命中。</summary>
+    // 裁定 2026-11-10-02 新增摘要形狀檢查，舊夾具只列報告會讀的欄位，補成正式回應形狀；既有斷言不變。
+    // 首次失敗：Focused 20261110-050034232-554a7819f55a498f96fe5d281f509b6d。
     internal static string PrescreenSummaryJson() => JsonSerializer.Serialize(
         new
         {
@@ -82,10 +84,29 @@ internal static class ReportWriterTestSupport
             // 保存的預篩選結果要記下那次用的 0 的個數（裁定 2026-11-05-25），報告讀這裡；最小摘要帶 6。
             // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
             trailingZeros = new { status = "V", count = 0L, zerosThreshold = 6 },
-            preparerSummary = new { status = "V", preparers = Array.Empty<object>() },
-            rareAccounts = new { status = "V", distinctAccountCount = 0L },
+            preparerSummary = new { status = "V", naReason = (string?)null, totalPreparerCount = 0L, preparers = Array.Empty<object>() },
+            rareAccounts = new { status = "V", distinctAccountCount = 0L, accounts = Array.Empty<object>() },
             blankDescription = new { status = "V", count = 0L },
-            resultRef = new { logicVersion = RuleLogicVersions.Prescreen }
+            weekendActivity = new { status = "V", naReason = (string?)null, approvalNaReason = (string?)null, postingCount = 0L, approvalCount = 0L },
+            holidayActivity = new { status = "V", naReason = (string?)null, approvalNaReason = (string?)null, postingCount = 0L, approvalCount = 0L },
+            nonAuthorizedPreparer = new { status = "na", naReason = "尚未提供授權編製人員清單", count = 0L },
+            concentration = new
+            {
+                status = "V", naReason = (string?)null,
+                preparers = new { top = Array.Empty<object>(), othersEntryCount = 0L, totalPreparerCount = 0L, totalEntryCount = 0L, top5SharePct = (decimal?)null },
+                rareAccounts = Array.Empty<object>(), distinctAccountCount = 0L
+            },
+            rulePeriod = new { population = 0L, rules = Array.Empty<object>() },
+            positioning = new
+            {
+                aggregateGuidance = "查看編製人員與較少使用科目的分錄筆數及金額。",
+                signalGuidance = "符合條件的分錄供初步查核；請在「進階條件篩選」設定本案的測試範圍。",
+                reportGuidance = "可在此產生預篩選報告，或在匯出底稿時一併產生。不產生也可繼續篩選與匯出底稿。",
+                overviewGuidance = "預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。",
+                exportDefaultGuidance = "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
+                exportPendingRunGuidance = "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。"
+            },
+            resultRef = new { resultId = "prescreen-current", generatedUtc = "2026-09-23T00:00:00+00:00", logicVersion = RuleLogicVersions.Prescreen }
         },
         JetJsonStorage.Options);
 

@@ -81,6 +81,11 @@ JET 是離線的 Windows 審計工具。審計員長時間閱讀分錄、科目�
 - 動作立刻開始，不等動畫完成才操作；連續輸入和重繪保留目前位置、速度與焦點。
 - 需要跨重繪辨識的元件使用穩定身分，不能用會變的索引。退場複本不再接收操作；視覺樣式掛 class，避免依賴會被複本移除的 action 屬性。
 - 尊重減少動態與高對比設定；視窗不在前景時玻璃改為不透明。新增或調整元件時一併檢查這些狀態。
+- 包著整個畫面、一欄、一個步驟、一份清單或一張表的大型版面容器，不掛 `::before`、`::after`。
+  電腦上有程式使用 UI Automation 時，WebView2 一直維護無障礙樹；掛著虛擬元素的元素一改樣式，例如滑鼠移入、切換屬性或轉場，
+  就把底下整棵子樹重送一遍，捲動跟著頓一下。這類容器上的裝飾改用 `aria-hidden` 的空元素，例如標題列玻璃 `.app-shell__glass`
+  與流程軸線 `.stepflow-item__rail`；按鍵、箭頭與標籤這類子樹很小的元素照常可用虛擬元素。
+  容器名單與檢查在 `DesignIntegrationFrontendTests` 的 `Frontend_LargeLayoutContainers_CarryNoPseudoElements`。
 
 實作細節讀 `app.js` 的 `JetMotion`、`SPRINGS`、`bindGlide`、`bindArrival` 與 `bindWindowFocus`，以及 `app.css` 的對應規則。
 參數與曲線要同步，不把歷史測量或舊參數當成現行規格。

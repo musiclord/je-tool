@@ -1,12 +1,8 @@
 ﻿ecosystem,package,version,scope,application_relation,test_relation,license,commercial_use,redistribution,license_source,official_url,evidence,reviewed_date
-NuGet,Apache.Arrow,23.0.0,僅供測試,,傳遞,Apache-2.0,可依條款商用；沒有另購商用版要求,保留授權及適用NOTICE；散布有修改的檔案時標示修改,https://licenses.nuget.org/Apache-2.0,https://www.nuget.org/packages/Apache.Arrow/23.0.0,現有還原圖及nuspec,2026-11-06
-NuGet,Apache.Arrow.Scalars,23.0.0,僅供測試,,傳遞,Apache-2.0,可依條款商用；沒有另購商用版要求,保留授權及適用NOTICE；散布有修改的檔案時標示修改,https://licenses.nuget.org/Apache-2.0,https://www.nuget.org/packages/Apache.Arrow.Scalars/23.0.0,現有還原圖及nuspec,2026-11-06
 NuGet,ClosedXML,0.105.1,應用程式及測試,直接,直接,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/ClosedXML/0.105.1,現有還原圖及nuspec,2026-11-06
 NuGet,ClosedXML.Parser,2.0.0,應用程式及測試,傳遞,傳遞,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/ClosedXML.Parser/2.0.0,現有還原圖及nuspec,2026-11-06
 NuGet,DocumentFormat.OpenXml,3.5.1,應用程式及測試,直接,直接,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/DocumentFormat.OpenXml/3.5.1,現有還原圖及nuspec,2026-11-06
 NuGet,DocumentFormat.OpenXml.Framework,3.5.1,應用程式及測試,傳遞,傳遞,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/DocumentFormat.OpenXml.Framework/3.5.1,現有還原圖及nuspec,2026-11-06
-NuGet,DuckDB.NET.Bindings.Full,1.5.6,僅供測試,,傳遞,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/DuckDB.NET.Bindings.Full/1.5.6,現有還原圖及nuspec,2026-11-06
-NuGet,DuckDB.NET.Data.Full,1.5.6,僅供測試,,直接,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/DuckDB.NET.Data.Full/1.5.6,現有還原圖及nuspec,2026-11-06
 NuGet,ExcelDataReader,3.9.0,應用程式及測試,直接,傳遞,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/ExcelDataReader/3.9.0,現有還原圖及nuspec,2026-11-06
 NuGet,ExcelNumberFormat,1.1.0,應用程式及測試,傳遞,傳遞,MIT,可依條款商用；沒有另購商用版要求,保留版權與完整授權文字,https://licenses.nuget.org/MIT,https://www.nuget.org/packages/ExcelNumberFormat/1.1.0,現有還原圖及nuspec,2026-11-06
 NuGet,FsCheck,3.4.0,僅供測試,,傳遞,BSD-3-Clause,可依條款商用；沒有另購商用版要求,保留版權、條件與免責文字；不得擅用作者名稱背書,https://licenses.nuget.org/BSD-3-Clause,https://www.nuget.org/packages/FsCheck/3.4.0,現有還原圖及nuspec,2026-11-06

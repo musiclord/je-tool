@@ -41,15 +41,12 @@ public enum BlankRecordCategory
 }
 
 /// <summary>
-/// 完整性「全科目」(含差異為 0 者)的 keyset 分頁回取——匯出底稿 step1 完整性測試的資料源。
-/// 與 <see cref="ICompletenessDiffPageRepository"/> 同一份 <c>JET.AuditCore.ValidationProcedures.CompletenessDiffCte</c>、
-/// 同排序鍵 account_number ASC、同游標展開布林式,**唯一差別是不加 <c>WHERE tb_s &lt;&gt; gl_s</c>**:
-/// 消費端以 bounded page 串流逐科目輸出；母體大小完全由目前專案查詢結果決定，不預設案件識別或固定筆數。
-///
-/// 為什麼是獨立介面而非在 diff repo 加參數:呼叫語意是「全科目 vs 僅差異」兩種不同視圖,
-/// 各有固定消費者(step1 全科目、step1-3 僅差異);用布林旗標切會讓同一段 SQL 多一條分支,
-/// 拆兩個窄介面讓各 repo 的 WHERE 固定、可讀。
-/// 回傳型別共用 <see cref="CompletenessDiffAccount"/>(欄位相同:科目編號/名稱/TB/GL/差異/not-in-tb)。
+/// 完整性全科目的 keyset 分頁，供資料驗證報告與底稿 step1 使用，包含差異為 0 的科目。
+/// 與 <see cref="ICompletenessDiffPageRepository"/> 共用逐科目比對的 SQL 定義、排序與游標，
+/// 但不過濾差異，且科目名稱只取 TB；TB 名稱空白或 GL 有、TB 無時不以 GL 名稱補值。
+/// 差異頁及底稿 step1-3 仍可用 GL 名稱補值。
+/// 消費端以有界分頁逐科目輸出；母體大小由目前案件查詢結果決定，不預設案件識別或固定筆數。
+/// 回傳型別共用 <see cref="CompletenessDiffAccount"/>，欄位包含科目編號、名稱、TB 與 GL 金額、差異及是否 GL 有而 TB 無。
 /// </summary>
 public interface ICompletenessAccountPageRepository
 {

@@ -304,13 +304,24 @@ internal static class FilterScenarioBatchWriter
         }
 
         // 寫入已提交；之後的取消不能丟掉權威狀態。
-        var current = await WorkflowResultStateSupport.ReadCurrentAsync(
-            prepared.ProjectId,
-            stores.Results,
-            stores.StaleStates,
-            stores.Scenarios,
-            CancellationToken.None);
-        var revision = write.AllValid && write.Rows.Count > 0 ? current.FilterRevision : null;
+        WorkflowResultStateSupport.CurrentSnapshot? current = null;
+        string? reportWarning = null;
+        try
+        {
+            current = await WorkflowResultStateSupport.ReadCurrentAsync(
+                prepared.ProjectId,
+                stores.Results,
+                stores.StaleStates,
+                stores.Scenarios,
+                CancellationToken.None);
+        }
+        catch (Exception error)
+        {
+            if (logger is not null)
+                WorkflowResultStateSupport.StateReadFailed(logger, "result_state", error.GetType().Name);
+            reportWarning = WorkflowResultStateSupport.MutationStateWarning;
+        }
+        var revision = write.AllValid && write.Rows.Count > 0 ? current?.FilterRevision : null;
         return new
         {
             ok = true,
@@ -335,12 +346,13 @@ internal static class FilterScenarioBatchWriter
                     messages = problem.Messages
                 }).ToArray()
             },
-            staleState = new
+            staleState = current is null ? null : new
             {
                 validation = current.StaleState.Validation,
                 prescreen = current.StaleState.Prescreen,
                 filter = current.StaleState.Filter
-            }
+            },
+            reportWarning
         };
     }
 

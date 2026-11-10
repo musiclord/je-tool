@@ -1054,8 +1054,7 @@ public static partial class JetAuditProgram
     {
         if (validation.MissingRequiredKeys.Count > 0)
         {
-            var labels = validation.MissingRequiredKeys.Select(key =>
-                slots.FirstOrDefault(slot => string.Equals(slot.Key, key, StringComparison.Ordinal))?.Label ?? key);
+            var labels = validation.MissingRequiredKeys.Select(key => JetFieldCatalog.MappingSlotLabel(slots, key));
             throw new JetActionException(
                 JetErrorCodes.MissingRequiredMapping,
                 $"尚有必填欄位未選擇來源欄：{string.Join("、", labels)}。");

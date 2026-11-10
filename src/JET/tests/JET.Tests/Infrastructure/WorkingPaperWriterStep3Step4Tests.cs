@@ -19,6 +19,60 @@ namespace JET.Tests.Infrastructure;
 /// <summary>底稿寫出器：step3 條件表、step4 符合高風險條件傳票與 step4-1 傳票明細。</summary>
 public sealed class WorkingPaperWriterStep3Step4Tests
 {
+    // 第一次失敗：20261110-044847118-bcd611cbcf7b4e729bce8dd6482cbc9c。
+    [Theory]
+    [InlineData("number")]
+    [InlineData("date")]
+    [InlineData("time")]
+    public async Task Step41StoredValueThatDoesNotMatchFieldType_IsReportedAsDatabaseCorruption(string kind)
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("filter.commit", ConditionColumnScenarioPayload());
+        var db = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        await using (var connection = db.CreateConnection(context.ProjectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE field_info SET field_kind = @kind, decimal_places = 0 WHERE definition_scope = 'target' AND jet_field = 'description';";
+            command.AddWithValue("@kind", kind);
+            Assert.True(await command.ExecuteNonQueryAsync() > 0);
+        }
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => WriteDemoAndReadAsync(host, context.ProjectId));
+
+        Assert.Equal(JetErrorCodes.DatabaseCorrupt, error.Code);
+        Assert.Contains("備份", error.Message);
+        Assert.DoesNotContain("重新下載", error.Message);
+    }
+
+    // 第一次失敗：20261110-044409036-d83584bd09084bc8ad6f3914db7343bf。
+    [Theory]
+    [InlineData("{")]
+    [InlineData("[]")]
+    [InlineData("{\"synthetic\":\"\\ud800\"}")]
+    public async Task UnreadableRawGlJson_IsReportedAsDatabaseCorruption(string damaged)
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("filter.commit", ConditionColumnScenarioPayload());
+        var db = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        await using (var connection = db.CreateConnection(context.ProjectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE pbc_gl SET row_json = @json;";
+            command.AddWithValue("@json", damaged);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => WriteDemoAndReadAsync(host, context.ProjectId));
+
+        Assert.Equal(JetErrorCodes.DatabaseCorrupt, error.Code);
+        Assert.Contains("備份", error.Message);
+        Assert.DoesNotContain("重新下載", error.Message);
+    }
+
     // ================= Task 4:step3 高風險條件彙總 =================
 
     [Fact]
@@ -49,6 +103,15 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         // 0 命中情境(C3 天價)仍列出、傳票數 0。
         var c3Row = FindRowByColumnValue(sheet, "B", "C3", 19);
         Assert.Equal(0d, sheet.Cell($"E{c3Row}").GetDouble());
+
+        // 裁定 2026-11-09-14、-15：step3 照舊版保護，只鎖 B7:E28；其他格子，包括沒有寫值的格子，都可以填。
+        Assert.True(sheet.Protection.IsProtected);
+        Assert.All(
+            new[] { "B7", "E7", $"C{c1Row}", "B28", "E28" },
+            reference => Assert.True(sheet.Cell(reference).Style.Protection.Locked, $"{reference} 應鎖定。"));
+        Assert.All(
+            new[] { "A1", "A19", "F19", "B29", "H40" },
+            reference => Assert.False(sheet.Cell(reference).Style.Protection.Locked, $"{reference} 應可填。"));
     }
 
     /// <summary>
@@ -125,6 +188,17 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         // 手填欄(P-U)留空。
         Assert.True(sheet.Cell($"P{docRow}").IsEmpty());
         Assert.True(sheet.Cell($"U{docRow}").IsEmpty());
+
+        // 裁定 2026-11-09-14、-15：step4 照舊版保護，只鎖程式寫入的 A13:O 資料列。
+        // 這裡只用到 C1 到 C3，I 到 O 的條件欄沒有值也照舊版鎖定；表頭、手填欄與資料列下方都可以填。
+        var lastRow = 12 + ReadColumnFrom(sheet, "A", 13).Count;
+        Assert.True(sheet.Protection.IsProtected);
+        Assert.All(
+            new[] { $"A{docRow}", $"E{docRow}", $"I{docRow}", $"O{docRow}", $"O{lastRow}" },
+            reference => Assert.True(sheet.Cell(reference).Style.Protection.Locked, $"{reference} 應鎖定。"));
+        Assert.All(
+            new[] { "A1", "A11", "A12", $"P{docRow}", $"U{docRow}", $"A{lastRow + 1}" },
+            reference => Assert.False(sheet.Cell(reference).Style.Protection.Locked, $"{reference} 應可填。"));
     }
 
     [Fact]

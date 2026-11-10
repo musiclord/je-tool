@@ -99,7 +99,7 @@ public sealed class ReportTemplateExternalRelationshipTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        // 本輪只額外授權 Step 1-2 A4 的文字修正；其餘儲存格必須仍與來源相同。
+        // 使用者只額外授權 Step 1-2 A4 與 step4 A12 的文字修正；其餘儲存格必須仍與來源相同。
         // 首敗 20261106-134205437-3ea24431c2794227b2a24d4236b2145d。
         var expected = ExpectedSanitizationPackageDiffs.AsEnumerable();
         if (fileName == "WorkingPaper.xlsx")
@@ -115,8 +115,53 @@ public sealed class ReportTemplateExternalRelationshipTests
             original.ReplaceWith(new XElement(revised));
             Assert.True(XNode.DeepEquals(sourceSheet.Root, runtimeSheet.Root),
                 "Only the requested A4 content may differ.");
+
+            // 裁定 2026-11-09-12 把空白傳票號碼的說明寫進範本 step4 A12，改的是 A12 引用的共用字串。
+            // 這裡只允許那一則字串不同，而且它只被 step4 A12 引用。首敗 20261109-052355141-718103d298d84bb2a0a0d2ce584ba400。
+            expected = expected.Append("changed:xl/sharedStrings.xml");
+            AssertOnlyStep4SelectionNoteStringChanged(sourceArchive, runtimeArchive);
         }
         Assert.Equal(expected.Order(StringComparer.Ordinal), actualDiffs);
+    }
+
+    private static void AssertOnlyStep4SelectionNoteStringChanged(ZipArchive sourceArchive, ZipArchive runtimeArchive)
+    {
+        const string Step4SheetEntry = "xl/worksheets/sheet9.xml";
+        var sourceStrings = Load(sourceArchive.GetEntry("xl/sharedStrings.xml")!).Root!
+            .Elements(Spreadsheet + "si").ToArray();
+        var runtimeStrings = Load(runtimeArchive.GetEntry("xl/sharedStrings.xml")!).Root!
+            .Elements(Spreadsheet + "si").ToArray();
+        Assert.Equal(sourceStrings.Length, runtimeStrings.Length);
+        var changed = Enumerable.Range(0, sourceStrings.Length)
+            .Where(index => !XNode.DeepEquals(sourceStrings[index], runtimeStrings[index]))
+            .ToArray();
+        var index = Assert.Single(changed);
+
+        var step4 = Load(runtimeArchive.GetEntry(Step4SheetEntry)!);
+        var a12 = step4.Descendants(Spreadsheet + "c").Single(c => (string?)c.Attribute("r") == "A12");
+        Assert.Equal("s", (string?)a12.Attribute("t"));
+        Assert.Equal(index.ToString(System.Globalization.CultureInfo.InvariantCulture), a12.Element(Spreadsheet + "v")?.Value);
+        var references = runtimeArchive.Entries
+            .Where(entry => entry.FullName.StartsWith("xl/worksheets/sheet", StringComparison.Ordinal))
+            .SelectMany(entry => Load(entry).Descendants(Spreadsheet + "c")
+                .Where(c => (string?)c.Attribute("t") == "s"
+                    && c.Element(Spreadsheet + "v")?.Value == a12.Element(Spreadsheet + "v")!.Value)
+                .Select(c => $"{entry.FullName}!{(string?)c.Attribute("r")}"))
+            .ToArray();
+        Assert.Equal([$"{Step4SheetEntry}!A12"], references);
+
+        Assert.Equal(
+            "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",
+            string.Concat(sourceStrings[index].Descendants(Spreadsheet + "t").Select(t => t.Value)));
+        Assert.Equal(
+            "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)"
+                + "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",
+            string.Concat(runtimeStrings[index].Descendants(Spreadsheet + "t").Select(t => t.Value)));
+        var sourceRest = new XElement(sourceStrings[index]);
+        var runtimeRest = new XElement(runtimeStrings[index]);
+        sourceRest.Elements(Spreadsheet + "t").Remove();
+        runtimeRest.Elements(Spreadsheet + "t").Remove();
+        Assert.True(XNode.DeepEquals(sourceRest, runtimeRest), "Only the A12 text may differ.");
     }
 
     private static XDocument Load(ZipArchiveEntry entry)

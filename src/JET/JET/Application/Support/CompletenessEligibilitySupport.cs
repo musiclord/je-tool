@@ -126,7 +126,7 @@ internal static class CompletenessEligibilitySupport
     {
         try
         {
-            using var summary = JsonDocument.Parse(run.SummaryJson);
+            using var summary = JetJsonStorage.Parse(run.SummaryJson);
             var root = summary.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {

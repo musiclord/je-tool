@@ -398,7 +398,10 @@ public sealed class TbImportBranchTests
         var error = await Assert.ThrowsAsync<JetActionException>(() => ImportAsync(host, new { filePath = path, mode = "append" }));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, error.Code);
-        Assert.Equal("檔案「tb-mismatch.csv」的欄位與已匯入的資料不一致（來源多出：金額；來源缺少：科目名稱、變動金額）。請改用取代匯入，或先在 Excel 把兩份檔案的欄位對齊。", error.Message);
+        // 原本斷言舊句「…的欄位與已匯入的資料不一致（…）。請改用取代匯入，或先在 Excel 把兩份檔案的欄位對齊。」。
+        // 裁定 2026-11-09-22 要追加與一次匯入多個檔案共用同一句，所以改成新句；差集的寫法不變。
+        // 第一次失敗：Focused 收據 20261109-092115030-2d69d0d607084ef188cf1dc9c8454df4。
+        Assert.Equal("檔案「tb-mismatch.csv」的欄位與其他來源不一致（來源多出：金額；來源缺少：科目名稱、變動金額）。本次未匯入，先前匯入的資料不受影響。請先在 Excel 把欄位對齊後再匯入。", error.Message);
         await AssertUnchangedAsync(host, projectId, provider, before);
     }
 
@@ -437,6 +440,78 @@ public sealed class TbImportBranchTests
             response.GetProperty("warnings").EnumerateArray().Select(warning => warning.GetString()));
         Assert.Equal(["1|inline-tb.xlsx|2", "2|inline-tb.xlsx|2"], response.GetProperty("sources").EnumerateArray()
             .Select(source => $"{source.GetProperty("sourceNo").GetInt32()}|{source.GetProperty("fileName").GetString()}|{source.GetProperty("rowCount").GetInt32()}"));
+    }
+
+    // ── 一次匯入多個來源 ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// 一次選兩個欄位相同的 TB 檔，以一個 action 取代：兩個來源的列依序疊成同一個批次，第三步只配對一次；
+    /// 兩個檔案都有的科目，每一列都保留，GL 與 TB 逐科目比對把變動金額加總後再比（裁定 2026-11-09-19）。這是新加的測試。
+    /// GL 由 PrepareAsync 佈置：1000 借 10、4000 貸 10。北區加南區：1000 是 4 + 6 = 10，和 GL 相同；
+    /// 4000 是 −7 + −2 = −9，GL 是 −10，差異（TB − GL）+1。只取其中一列不加總時，1000 也會出現差異。
+    /// </summary>
+    [Theory]
+    [InlineData("sqlite")]
+    public async Task TwoSourcesInOneImport_StackIntoOneTb_AndTheSharedAccountIsSummedForComparison(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await PrepareAsync(host, provider);
+        var oldBatch = await OldTbBatchAsync(host, projectId, provider);
+        var north = await WriteCsvAsync(host, "tb-north.csv", "1000,合成資產,4\n4000,合成收入,-7\n");
+        var south = await WriteCsvAsync(host, "tb-south.csv", "1000,合成資產,6\n4000,合成收入,-2\n");
+
+        var response = await ImportAsync(host, new { sources = new object[] { new { filePath = north }, new { filePath = south } } });
+
+        var batch = response.GetProperty("batchId").GetString()!;
+        Assert.NotEqual(oldBatch, batch);
+        Assert.Equal(4, response.GetProperty("rowCount").GetInt32());
+        Assert.Equal(4, response.GetProperty("addedRowCount").GetInt32());
+        Assert.Equal(["科目代號", "科目名稱", "變動金額"], response.GetProperty("columns").EnumerateArray().Select(column => column.GetString()));
+        Assert.Equal(["1|tb-north.csv|2", "2|tb-south.csv|2"], response.GetProperty("sources").EnumerateArray()
+            .Select(source => $"{source.GetProperty("sourceNo").GetInt32()}|{source.GetProperty("fileName").GetString()}|{source.GetProperty("rowCount").GetInt32()}"));
+        Assert.Equal([$"tb|{batch}|4"], await ReadStringsAsync(host, projectId, provider,
+            "SELECT dataset_kind || '|' || batch_id || '|' || CAST(row_count AS VARCHAR) FROM import_batch WHERE dataset_kind = 'tb';"));
+
+        var commit = await host.DispatchAsync("mapping.commit.tb", JsonSerializer.Serialize(new
+        {
+            mapping = InlineTbWorkbookBuilder.BuildDirectModeMapping(),
+            changeMode = "direct"
+        }));
+
+        Assert.Equal(4, commit.GetProperty("projectedRowCount").GetInt32());
+        Assert.Equal(["1000|40000", "1000|60000", "4000|-70000", "4000|-20000"], await ReadStringsAsync(host, projectId, provider,
+            "SELECT account_number || '|' || CAST(change_amount_scaled AS VARCHAR) FROM tb ORDER BY account_number, change_amount_scaled;"));
+
+        var completeness = (await host.DispatchAsync("validate.run")).GetProperty("completenessTest");
+        Assert.Equal(1, completeness.GetProperty("diffAccountCount").GetInt64());
+        var diff = Assert.Single(completeness.GetProperty("diffAccounts").EnumerateArray());
+        Assert.Equal("4000", diff.GetProperty("accountNumber").GetString());
+        Assert.Equal(-9m, diff.GetProperty("tbAmount").GetDecimal());
+        Assert.Equal(-10m, diff.GetProperty("glAmount").GetDecimal());
+        Assert.Equal(1m, diff.GetProperty("diff").GetDecimal());
+        Assert.False(diff.GetProperty("notInTb").GetBoolean());
+    }
+
+    /// <summary>
+    /// 一次匯入兩個 TB 檔，第二個檔的欄名和第一個不同：整批都不寫入，原本的 TB 與各項結果都不變。
+    /// 訊息和追加時共用同一句，不叫審計員改用取代匯入，因為這時本來就在取代匯入（裁定 2026-11-09-22）。這是新加的測試。
+    /// </summary>
+    [Theory]
+    [InlineData("sqlite")]
+    public async Task TwoSourcesInOneImport_WithDifferentColumns_AreRejected_AndWriteNothing(string provider)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await PrepareAsync(host, provider);
+        var before = await SnapshotAsync(host, projectId, provider);
+        var north = await WriteCsvAsync(host, "tb-north.csv", "1000,合成資產,4\n4000,合成收入,-7\n");
+        var mismatch = await WriteCsvAsync(host, "tb-mismatch.csv", "1100,25\n", header: "科目代號,金額\n");
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() =>
+            ImportAsync(host, new { sources = new object[] { new { filePath = north }, new { filePath = mismatch } } }));
+
+        Assert.Equal(JetErrorCodes.ColumnMismatch, error.Code);
+        Assert.Equal("檔案「tb-mismatch.csv」的欄位與其他來源不一致（來源多出：金額；來源缺少：科目名稱、變動金額）。本次未匯入，先前匯入的資料不受影響。請先在 Excel 把欄位對齊後再匯入。", error.Message);
+        await AssertUnchangedAsync(host, projectId, provider, before);
     }
 
     // ── 逐列寫入每 20,000 列回報一次進度 ─────────────────────────────────

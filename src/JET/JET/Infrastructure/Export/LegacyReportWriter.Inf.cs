@@ -170,6 +170,12 @@ public sealed partial class LegacyReportWriter
         Action<WorkingPaperProgress>? progress)
     {
         var stats = new List<SheetStat>(2);
+        // 舊版只在配對了傳票核准人員時把 L51 改成「傳票核准人員」（idea-tool.bas 第 6874、6878 行，裁定 2026-11-09-11）；
+        // 沒配對時保留範本原字。
+        var approverMapped = workbookMetadata.GlMapping.Mapping.TryGetValue(
+                GlMappingKeys.ApprovedBy,
+                out var approverSource)
+            && !string.IsNullOrWhiteSpace(approverSource);
         editor.RewriteWorksheetPart(
             InfMainSheet,
             (part, ct) => FillInfMainWorksheet(
@@ -178,6 +184,7 @@ public sealed partial class LegacyReportWriter
                 context,
                 templateSamples,
                 textColumns,
+                approverMapped,
                 ct),
             cancellationToken);
         AddStat(stats, new SheetStat(InfMainSheet, samples.Count), progress);
@@ -204,14 +211,17 @@ public sealed partial class LegacyReportWriter
         return stats;
     }
 
-    private static IReadOnlyCollection<string> InfMainMutableCells(int rowCount)
+    private static IReadOnlyCollection<string> InfMainMutableCells(int rowCount, bool approverMapped)
     {
         var result = new List<string>(3 + 11 * rowCount)
         {
             "A1",
-            "A2",
-            "L51"
+            "A2"
         };
+        if (approverMapped)
+        {
+            result.Add("L51");
+        }
         for (var row = 53; row <= 52 + rowCount; row++)
         {
             for (var column = 2U; column <= 12; column++)
@@ -227,13 +237,17 @@ public sealed partial class LegacyReportWriter
         InfReportContext context,
         IReadOnlyList<InfTemplateSample> samples,
         IReadOnlySet<uint> textColumns,
+        bool approverMapped,
         CancellationToken cancellationToken)
     {
         cells.SetInlineString("A1", $"公司名稱 [{context.Project.CompanyName}]");
         cells.SetInlineString(
             "A2",
             $"財務報表期間 [{context.Project.PeriodStart} ~ {context.Project.PeriodEnd}]");
-        cells.SetInlineString("L51", "傳票核准人員");
+        if (approverMapped)
+        {
+            cells.SetInlineString("L51", "傳票核准人員");
+        }
 
         for (var index = 0; index < Math.Max(InfReportSampleSize, samples.Count); index++)
         {
@@ -305,6 +319,7 @@ public sealed partial class LegacyReportWriter
         InfReportContext context,
         IReadOnlyList<InfTemplateSample> samples,
         IReadOnlySet<uint> textColumns,
+        bool approverMapped,
         CancellationToken cancellationToken)
     {
         var worksheet = part.RequiredWorksheet();
@@ -328,8 +343,8 @@ public sealed partial class LegacyReportWriter
         }
         foreach (var validation in worksheet.Descendants<DataValidation>())
         {
-            if (validation.SequenceOfReferences is { } references)
-                references.InnerText = references.InnerText.Replace("111", (52 + rowCount).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+            if (validation.SequenceOfReferences is { InnerText: { } sqref } references)
+                references.InnerText = sqref.Replace("111", (52 + rowCount).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         }
         if (worksheet.GetFirstChild<SheetDimension>() is { } dimension)
             dimension.Reference = $"A1:T{52 + rowCount}";
@@ -349,9 +364,9 @@ public sealed partial class LegacyReportWriter
 
         var cells = new DirectTemplateCellEditor(
             worksheet,
-            InfMainMutableCells(rowCount),
+            InfMainMutableCells(rowCount, approverMapped),
             stylePatcher);
-        FillInfMainCells(cells, context, samples, textColumns, cancellationToken);
+        FillInfMainCells(cells, context, samples, textColumns, approverMapped, cancellationToken);
         cells.EnsureAllAllowedCellsWereEdited();
 
         var displayWidths = MeasureInfMainColumns(
@@ -536,7 +551,7 @@ public sealed partial class LegacyReportWriter
         var result = new List<InfTemplateSample>(samples.Count);
         foreach (var sample in samples)
         {
-            using var document = JsonDocument.Parse(raw[sample.EntryId]);
+            using var document = LocalEngineErrors.ParseStoredObject(raw[sample.EntryId]);
             var (direction, sourceModule) = values.For(document.RootElement, sample);
             result.Add(new InfTemplateSample(sample, direction, sourceModule));
         }

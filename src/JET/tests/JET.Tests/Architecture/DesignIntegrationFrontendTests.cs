@@ -200,7 +200,18 @@ public sealed class DesignIntegrationFrontendTests
         var app = ReadFrontend("js", "app.js");
 
         // 仍是一整條：同一片玻璃從視窗左緣到右緣，兩列時也不在案件摘要那裡斷開；顏色是淺色的玻璃，不是深色框帶。
-        var band = css[css.IndexOf(".app-shell::before {", StringComparison.Ordinal)..];
+        // 2026-11-09 修正捲動卡頓：玻璃從 .app-shell::before 搬到 index.html 裡 aria-hidden 的空元素 .app-shell__glass，外觀不變。
+        // WebView2 維護無障礙樹時，掛著虛擬元素的 .app-shell 一改樣式就把整個畫面的子樹重送一遍，捲動時 data-under-chrome 切換就會頓一下
+        // （docs/specs/2026-11-09-scroll-performance-plan.md）。這裡與下面兩處原本找 .app-shell::before，改成找新元素，斷言的外觀不變。
+        // 第一次失敗：Focused 收據 20261109-121924464-873a110df8b84be39bb100cbbf1b5b6d。
+        // 玻璃是 .app-shell 的第一個子元素、標題列的前一個，疊放順序和原本的 ::before 相同。
+        Assert.Matches(
+            new System.Text.RegularExpressions.Regex(
+                @"<main id=""app"" class=""app-shell"" data-jet-root>\s*(<!--.*?-->\s*)*<div class=""app-shell__glass"" aria-hidden=""true""></div>\s*(<!--.*?-->\s*)*<header class=""app-header"">",
+                System.Text.RegularExpressions.RegexOptions.Singleline),
+            ReadFrontend("index.html"));
+        Assert.DoesNotMatch(new System.Text.RegularExpressions.Regex(@"\.app-shell(\[[^\]]*\])?::?(before|after)"), CssRules(css));
+        var band = css[css.IndexOf(".app-shell__glass {", StringComparison.Ordinal)..];
         band = band[..(band.IndexOf('}') + 1)];
         Assert.Contains("left: 0;", band, StringComparison.Ordinal);
         Assert.Contains("right: 0;", band, StringComparison.Ordinal);
@@ -244,7 +255,8 @@ public sealed class DesignIntegrationFrontendTests
         Assert.DoesNotMatch(new System.Text.RegularExpressions.Regex(@"\.map-grid__(?:assign|head) th[^{]*\{[^}]*--glass-head"), css);
 
         // 標題列的玻璃在中欄的選單之上、對話框之下，捲上來的選單不會畫到標題列上面。
-        var band = css[css.IndexOf(".app-shell::before {", StringComparison.Ordinal)..];
+        // 2026-11-09 玻璃改成 .app-shell__glass，原因與第一次失敗收據見 Frontend_TopIsOneBandAcrossTheWindow_AboveEveryColumn。
+        var band = css[css.IndexOf(".app-shell__glass {", StringComparison.Ordinal)..];
         band = band[..(band.IndexOf('}') + 1)];
         Assert.Contains("z-index: 30;", band, StringComparison.Ordinal);
 
@@ -270,11 +282,116 @@ public sealed class DesignIntegrationFrontendTests
         Assert.Contains("--glass-bar: var(--color-surface);", reduced, StringComparison.Ordinal);
         Assert.Contains("--glass-head-blur: none;", reduced, StringComparison.Ordinal);
         Assert.Contains("--glass-lens: var(--color-surface-raised);", reduced, StringComparison.Ordinal);
-        Assert.Contains(".app-shell::before {\n    border-bottom: 1px solid CanvasText;", css, StringComparison.Ordinal);
+        Assert.Contains(".app-shell__glass {\n    border-bottom: 1px solid CanvasText;", css, StringComparison.Ordinal);
         var forced = css[css.LastIndexOf("@media (forced-colors: active) {", StringComparison.Ordinal)..];
         Assert.Contains("--glass-bar: Canvas;", forced, StringComparison.Ordinal);
         Assert.Contains("--glass-blur: none;", forced, StringComparison.Ordinal);
         Assert.Contains("  .btn:not(.btn--tiny):not(:disabled):active {\n    transform: none;\n  }", css, StringComparison.Ordinal);
+    }
+
+    // 包著整個畫面、一欄、一個步驟、一份清單或一張表的容器。名稱加上 -- 修飾的寫法（例如 stepflow-item--current）也算。
+    private static readonly string[] LargeLayoutContainers =
+    [
+        "app-shell", "app-main", "app-body", "project-picker", "toc-col", "messages", "content",
+        "stepflow", "stepflow-item", "stepflow-item__body", "panel", "rule-card", "filter-workspace",
+        "map-grid-wrap", "map-grid", "preview-table", "voucher-table",
+        "data-preview", "data-preview__body", "data-preview__table", "overview", "overview-modal", "modal__card"
+    ];
+
+    private static readonly string[] LargeLayoutTags = ["html", "body", "main", "table", "tbody"];
+
+    [Fact]
+    public void Frontend_LargeLayoutContainers_CarryNoPseudoElements()
+    {
+        // 2026-11-09 修正捲動卡頓（docs/specs/2026-11-09-scroll-performance-plan.md）：電腦上有程式使用 UI Automation 時，WebView2 一直維護無障礙樹；
+        // 掛著 ::before 或 ::after 的元素只要樣式一改，例如滑鼠移入、切換屬性或轉場，就把它底下整棵子樹重送一遍。
+        // 量到的是 .app-shell::before 畫的標題列玻璃，以及目前步驟那一列的軸線與藍色圓環：欄位配對捲動時，畫面程序每次卡約 100 毫秒。
+        // 所以大型版面容器不掛虛擬元素，裝飾改用 aria-hidden 的小元素，規則寫在 jet-frontend-design。這是新加的測試。
+        var rules = CssRules(ReadFrontend("css", "app.css"));
+        var offenders = new List<string>();
+        foreach (System.Text.RegularExpressions.Match rule in System.Text.RegularExpressions.Regex.Matches(rules, @"([^{}]+)\{"))
+        {
+            var prelude = rule.Groups[1].Value.Trim();
+            if (prelude.StartsWith('@'))
+            {
+                continue;
+            }
+
+            foreach (var selector in SplitTopLevel(prelude, ','))
+            {
+                var pseudo = System.Text.RegularExpressions.Regex.Match(selector, @"::?(before|after)\b");
+                if (!pseudo.Success)
+                {
+                    continue;
+                }
+
+                var subject = SubjectCompound(selector[..pseudo.Index]);
+                var tag = System.Text.RegularExpressions.Regex.Match(subject, @"^[a-z][a-z0-9]*").Value;
+                var classes = System.Text.RegularExpressions.Regex.Matches(subject, @"\.([A-Za-z0-9_-]+)").Select(match => match.Groups[1].Value);
+                if (LargeLayoutTags.Contains(tag)
+                    || classes.Any(name => LargeLayoutContainers.Any(container => name == container || name.StartsWith(container + "--", StringComparison.Ordinal))))
+                {
+                    offenders.Add(selector.Trim());
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0, "大型版面容器不掛 ::before 或 ::after，改用 aria-hidden 的小元素：" + string.Join("、", offenders));
+
+        // 名單上的容器都還在畫面裡，改名時名單要跟著改，這個檢查才不會默默失效。
+        var markup = ReadFrontend("index.html") + string.Concat(
+            Directory.GetFiles(FrontendPath("js"), "*.js", SearchOption.AllDirectories).Select(File.ReadAllText));
+        foreach (var container in LargeLayoutContainers)
+        {
+            Assert.Matches(new System.Text.RegularExpressions.Regex("class=\\\\?[\"']([^\"']* )?" + System.Text.RegularExpressions.Regex.Escape(container) + "[ \"'\\\\]"), markup);
+        }
+    }
+
+    // 去掉註解，留下規則本身；註解裡可以照常寫出舊的選擇器。
+    private static string CssRules(string css) =>
+        System.Text.RegularExpressions.Regex.Replace(css, @"/\*.*?\*/", string.Empty, System.Text.RegularExpressions.RegexOptions.Singleline);
+
+    // 只在括號與方括號外面切開，:is(a, b) 與 :has(a, b) 裡的逗號不算。
+    private static List<string> SplitTopLevel(string text, char separator)
+    {
+        var parts = new List<string>();
+        var depth = 0;
+        var start = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] is '(' or '[') { depth++; }
+            else if (text[i] is ')' or ']') { depth--; }
+            else if (text[i] == separator && depth == 0)
+            {
+                parts.Add(text[start..i]);
+                start = i + 1;
+            }
+        }
+
+        parts.Add(text[start..]);
+        return parts;
+    }
+
+    // 虛擬元素掛在選擇器最後一段複合選擇器上；:not() 與 :has() 裡寫的是別的元素，不算這一段的 class。
+    private static string SubjectCompound(string selector)
+    {
+        var depth = 0;
+        var start = 0;
+        for (var i = 0; i < selector.Length; i++)
+        {
+            if (selector[i] is '(' or '[') { depth++; }
+            else if (selector[i] is ')' or ']') { depth--; }
+            else if (depth == 0 && selector[i] is ' ' or '>' or '+' or '~' or '\n' or '\t') { start = i + 1; }
+        }
+
+        var subject = selector[start..];
+        string stripped;
+        while ((stripped = System.Text.RegularExpressions.Regex.Replace(subject, @":(not|has)\([^()]*\)", string.Empty)) != subject)
+        {
+            subject = stripped;
+        }
+
+        return subject;
     }
 
     [Fact]

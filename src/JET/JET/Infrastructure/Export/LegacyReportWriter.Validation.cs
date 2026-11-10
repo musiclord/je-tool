@@ -424,7 +424,7 @@ public sealed partial class LegacyReportWriter
                     firstRow.Add(sheet.TextCell(1, 8, mappingMetadata, 0));
                 }
                 sheet.WriteFixedRow(1, firstRow);
-                sheet.AddMerge("A2:E2");
+                // TB 與 GL 的標題列都不合併儲存格，和底稿一致（裁定 2026-11-09-16）。
                 sheet.WriteFixedRow(2,
                     [sheet.TextCell(2, 1, "TB檔案配對前後欄位對照表", boldStyle)]);
                 WriteFieldInfoHeader(sheet, 3, headers, tbHeaderStyle, headerHeight);
@@ -440,7 +440,6 @@ public sealed partial class LegacyReportWriter
                 sheet.WriteFixedRow(rowIndex++, []);
                 sheet.WriteFixedRow(rowIndex++, []);
                 var glTitleRow = rowIndex++;
-                sheet.AddMerge($"A{glTitleRow}:E{glTitleRow}");
                 sheet.WriteFixedRow(glTitleRow,
                     [sheet.TextCell(glTitleRow, 1, "GL檔案配對前後欄位對照表", boldStyle)]);
                 WriteFieldInfoHeader(sheet, rowIndex++, headers, glHeaderStyle, headerHeight);

@@ -155,7 +155,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
                 .Elements<Sheet>()
                 .Single(sheet => string.Equals(
                     sheet.Name?.Value,
-                    FieldInfoSheet,
+                    WorkingPaperWriterTestSupport.FieldInfoSheet,
                     StringComparison.Ordinal));
             var worksheet = ((WorksheetPart)workbookPart.GetPartById(sheetRef.Id!))
                 .RequiredWorksheet();
@@ -168,11 +168,16 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
-        var sheet = workbook.Worksheet(FieldInfoSheet);
+        // JET.Domain 新增記錄型別 FieldInfoSheet（裁定 2026-11-09-28）後，這裡的工作表名稱常數要寫明出處才不會撞名；
+        // 第一次失敗：Build 收據 20261109-145225420-a56baf66e9a64e52951bd296df7a960e（編譯失敗）。
+        var sheet = workbook.Worksheet(WorkingPaperWriterTestSupport.FieldInfoSheet);
         // 裁定 2026-11-06-11 拿掉第一列的版本字樣 V.2019，原本預期 A1 是 V.2019，改成空白；其餘列號與內容不變。
         // 第一次失敗：Focused 收據 20261106-084046692-14d369b348a74677801bd994c8d906b6。
         Assert.True(sheet.Cell("A1").IsEmpty());
         Assert.Equal("TB檔案配對前後欄位對照表", sheet.Cell("A2").GetString());
+        // 裁定 2026-11-09-14：照舊版保護整張表。裁定 2026-11-09-16：標題列不合併。
+        Assert.True(sheet.Protection.IsProtected);
+        Assert.Empty(sheet.MergedRanges);
 
         AssertProjectionRows(sheet, 4, projection.TbRows);
         var glTitleRow = checked((int)secondBlankRow + 1);
@@ -219,6 +224,8 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 
         using var workbook = await WriteDemoAndReadAsync(host, ctx.ProjectId);
         var sheet = workbook.Worksheet(CalendarInfoSheet);
+        // 裁定 2026-11-09-14：照舊版保護整張表。
+        Assert.True(sheet.Protection.IsProtected);
 
         // 週末表固定(資料化常數,非逐列特判):A1/B1 標頭 + 7 列;Mon-Fri=N、Sat/Sun=Y。
         Assert.Equal("DAYOFWEEK", sheet.Cell("A1").GetString());

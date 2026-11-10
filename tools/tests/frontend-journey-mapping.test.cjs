@@ -1189,9 +1189,20 @@ test('redraw: after a new import, the old grid preview is never shown whether it
   assert.ok(!f.need('.map-grid').textContent.includes('BEFORE-REOPEN'), 'a reply from before reopening is not shown');
 });
 
-// 裁定 2026-11-05-03：第三步上方的「從報告帶入配對」選 JET 匯出的檔案後，把當時的配對填成草稿，審計員按確認配對才儲存。
-// 後端列出的找不到的來源欄列在配對區頂端請審計員重選，和重新匯入後來源欄不見時同一處；沒有匯入 TB 時只帶入 GL，TB 的草稿照舊。
+// 裁定 2026-11-05-03：第三步上方的按鈕選 JET 匯出的檔案後，把當時的配對填成草稿，審計員按確認配對才儲存；沒有匯入 TB 時只帶入 GL，TB 的草稿照舊。
+// 2026-11-09 按鈕改名為「由底稿匯入欄位」（裁定 2026-11-09-27），按鈕與結果放在配對區上方的托盤（裁定 2026-11-09-29）：
+// 後端列出的找不到的來源欄改列在托盤請審計員重選，GL 與 TB 卡片頂端不再列出；沒有帶入 TB 的原因也寫在托盤，不另記在訊息面板。
+// 下面三個測試原本逐字比對卡片頂端的提示、訊息面板裡沒有帶入 TB 的說明與完成句，照這兩則裁定改成比對托盤與新的完成句；
+// 沒有帶入 TB 的兩句沿用原本的意思，用詞照計畫「錯誤訊息」改成「檔案」，並換成新的按鈕名稱。
+// 草稿、金額格式、攸關資料元素、TB 不動、不儲存與取消選檔不送不記的斷言照舊。
+// 第一次失敗：FrontendMapping 收據 20261109-144632875-cc0ec12951b84de5a13474e165c1f6ea。
 // 假回應只用正式後端回過的欄位（action-shapes.json 的 mapping.restoreDraft）。
+// 托盤白紙上的每一行：帶入的結果、沒有帶入 TB 的原因、「下列欄位請重新選擇：」與每一個要重選的欄位。
+const importLines = f => f.body().querySelectorAll('[data-bind="mapping-import-result"] p, [data-bind="mapping-import-result"] li')
+  .map(node => node.textContent);
+const importFailure = f => f.body().querySelector('[data-bind="mapping-import-failure"]');
+const pressImport = f => { f.body().querySelector('[data-action="restore-mapping-from-report"]').dispatch('click'); };
+
 test('mapping: bringing a mapping from a report fills the GL draft, lists the source columns to choose again and leaves TB alone without a TB import', async () => {
   const f = journey({ tb: null });
   const button = f.body().querySelector('[data-action="restore-mapping-from-report"]');
@@ -1219,15 +1230,24 @@ test('mapping: bringing a mapping from a report fills the GL draft, lists the so
   assert.equal(f.store.getState().mapping.gl.amountMode, 'side');
   assert.deepEqual(f.optionsNow().rdeFields.map(field => field.sourceColumn), ['Dept']);
   assert.deepEqual(plain(f.store.getState().mapping.tb.draft), tbBefore, 'TB is left as it was');
-  assert.equal(f.need('[data-bind="mapping-banner-gl"]').textContent,
-    '報告裡這些欄位的來源欄在目前的資料找不到，請重新選擇：傳票核准人員（原為「舊核准人員」）、攸關資料元素「合成舊欄位」（原為「舊攸關欄」）。');
+  assert.equal(f.$('[data-bind="mapping-banner-gl"]'), null, 'the GL card does not list the fields again');
+  // 托盤的寫法照使用者看過的預覽（計畫「使用者的決定」）：帶入的檔名與欄數、要重新選擇的欄位前面標 GL。
+  // GL 8 欄＝七個配對的欄位加一個攸關資料元素，借方代碼與貸方代碼不算。
+  assert.deepEqual(importLines(f), [
+    '已由「合成_WorkingPaper.xlsx」帶入 GL 8 欄。',
+    '目前沒有匯入 TB，匯入 TB 後可以再按一次「由底稿匯入欄位」。',
+    '下列欄位請重新選擇：',
+    'GL 傳票核准人員（原為「舊核准人員」）',
+    'GL 攸關資料元素「合成舊欄位」（原為「舊攸關欄」）'
+  ]);
   const texts = messageList(f).map(message => message.text);
-  assert.ok(texts.includes('目前沒有匯入 TB，匯入 TB 後可以再從報告帶入一次。'), texts.join(' | '));
-  assert.ok(texts.some(text => new RegExp('^已從報告帶入 GL 的配對草稿，' + ELAPSED + '。$').test(text)), texts.join(' | '));
+  assert.ok(!texts.some(text => /沒有匯入 TB/.test(text)), 'the reason is in the tray, not in the message panel: ' + texts.join(' | '));
+  assert.ok(texts.some(text => new RegExp('^已由底稿匯入 GL 的欄位配對草稿，' + ELAPSED + '。$').test(text)), texts.join(' | '));
   assert.equal(f.sent('mappingCommitGl').length, 0, 'bringing a mapping in does not save it');
 });
 
-// 有匯入 TB 時兩份草稿一起換掉；TB 找不到的來源欄列在 TB 配對區頂端。按「從報告帶入配對」後選檔取消，什麼都不送也不記。
+// 有匯入 TB 時兩份草稿一起換掉；TB 找不到的來源欄列在托盤，前面標 TB。按「由底稿匯入欄位」後選檔取消，什麼都不送也不記。
+// 其他有配對紀錄的 JET 報告照舊可以選（裁定 2026-11-09-30）。
 test('mapping: bringing a mapping from a report with TB imported replaces both drafts and a cancelled file choice does nothing', async () => {
   const f = journey({ tb: TB_COLUMNS, mode: 'side', draft: SIDE_DONE });
   const press = () => { f.body().querySelector('[data-action="restore-mapping-from-report"]').dispatch('click'); };
@@ -1249,14 +1269,21 @@ test('mapping: bringing a mapping from a report with TB imported replaces both d
   await settleAll(); f.timers.run();
   assert.deepEqual(plain(f.store.getState().mapping.tb.draft), restoredTb);
   assert.equal(f.$('[data-bind="mapping-banner-gl"]'), null, 'GL had nothing to choose again');
-  assert.match(f.need('[data-bind="mapping-banner-tb"]', 'tb').textContent,
-    /^報告裡這些欄位的來源欄在目前的資料找不到，請重新選擇：.+（原為「舊科目名稱」）。$/);
+  assert.equal(f.$('[data-bind="mapping-banner-tb"]', 'tb'), null, 'the TB card does not list the field again');
+  const lines = importLines(f);
+  assert.match(lines.at(-1), /^TB .+（原為「舊科目名稱」）$/);
+  assert.ok(!lines.some(text => /^GL /.test(text)), 'GL had nothing to choose again: ' + lines.join(' | '));
+  // 2026-11-10 沒有帶入 TB 的原因句改寫，這條改比對新句的「TB 欄位配對」，原本比對的舊句已不會出現。
+  assert.ok(!lines.some(text => /沒有匯入 TB|TB 欄位配對/.test(text)), lines.join(' | '));
   const texts = messageList(f).map(message => message.text);
-  assert.ok(texts.some(text => new RegExp('^已從報告帶入 GL 與 TB 的配對草稿，' + ELAPSED + '。$').test(text)), texts.join(' | '));
+  assert.ok(texts.some(text => new RegExp('^已由底稿匯入 GL 與 TB 的欄位配對草稿，' + ELAPSED + '。$').test(text)), texts.join(' | '));
   assert.ok(!texts.some(text => /沒有匯入 TB/.test(text)), texts.join(' | '));
 });
 
-// 報告匯出時 TB 還沒確認配對（tb 是 null），目前案件卻有匯入 TB：照實說明只帶入 GL，不說成沒有匯入 TB；TB 的草稿照舊。
+// 檔案匯出時 TB 還沒確認配對，檔案裡就沒有可帶入的 TB 配對（tb 是 null），目前案件卻有匯入 TB：
+// 照實說明只帶入 GL，不說成沒有匯入 TB；TB 的草稿照舊。
+// 2026-11-10 後端改成 TB 段沒有任何配對時也回 null，不只是匯出時還沒確認 TB，托盤的原因句照實改寫，其餘斷言照舊。
+// 第一次失敗：FrontendMapping 收據 20261109-170849140-d4b8bb36949c4994a1432dda2f5d9fee。
 test('mapping: a report exported before TB was mapped brings only GL and says so when TB is imported', async () => {
   const f = journey({ tb: TB_COLUMNS });
   const tbBefore = plain(f.store.getState().mapping.tb.draft);
@@ -1271,9 +1298,249 @@ test('mapping: a report exported before TB was mapped brings only GL and says so
   });
   await settleAll();
   assert.deepEqual(plain(f.store.getState().mapping.tb.draft), tbBefore);
+  const lines = importLines(f);
+  assert.ok(lines.includes('這份檔案沒有可帶入的 TB 欄位配對，只帶入 GL。'), lines.join(' | '));
+  assert.ok(!lines.some(text => /沒有匯入 TB/.test(text)), lines.join(' | '));
   const texts = messageList(f).map(message => message.text);
-  assert.ok(texts.includes('這份報告匯出時 TB 還沒確認配對，只帶入 GL。'), texts.join(' | '));
-  assert.ok(!texts.some(text => /沒有匯入 TB/.test(text)), texts.join(' | '));
+  assert.ok(!texts.some(text => /沒有匯入 TB|TB 欄位配對/.test(text)), 'the reason is in the tray, not in the message panel: ' + texts.join(' | '));
+});
+
+// 上一份檔案帶入 TB 時留下要重選的 TB 欄位，這一份檔案沒有可帶入的 TB 配對：TB 草稿照舊，
+// 托盤只列這一份檔案的結果，上一份留下的 TB 項目拿掉。這是新加的測試。
+test('mapping: a file without a TB mapping drops the TB fields the previous file asked to choose again but keeps the TB draft', async () => {
+  const f = journey({ tb: TB_COLUMNS });
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' }); await settleAll();
+  const restoredTb = { accountNumber: 'TbAccount', debitAmount: 'TbDebit', creditAmount: 'TbCredit' };
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+    tb: { mapping: restoredTb, changeMode: 'debitCredit' },
+    unmatchedFields: [{ dataset: 'tb', key: 'accountName', label: '會計科目名稱', sourceColumn: '舊科目名稱' }]
+  });
+  await settleAll(); f.timers.run();
+  assert.match(importLines(f).at(-1), /^TB .+（原為「舊科目名稱」）$/);
+
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_GlOnly.xlsx', fileName: '合成_GlOnly.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+    tb: null,
+    unmatchedFields: []
+  });
+  await settleAll(); f.timers.run();
+  assert.deepEqual(plain(f.store.getState().mapping.tb.draft), restoredTb, 'the TB draft is left as it was');
+  assert.deepEqual(importLines(f), ['已由「合成_GlOnly.xlsx」帶入 GL 7 欄。', '這份檔案沒有可帶入的 TB 欄位配對，只帶入 GL。']);
+  assert.deepEqual(plain(f.store.getState().mapping.tb.droppedFields), [], 'the previous file no longer asks for TB fields');
+});
+
+// 重新匯入 TB 留下的重選項目不是這份檔案的結果：回應的 tb 是 null 時照舊列在 TB 卡片頂端，TB 草稿與金額格式也不動。
+// 這是新增的測試。
+test('mapping: a file without a TB mapping keeps the TB fields a TB re-import asked to choose again and the TB amount format', async () => {
+  const f = journey({ tb: TB_COLUMNS });
+  f.store.setMappingMode('tb', 'openClose');
+  f.store.replaceMappingDraft('tb', { accountNumber: 'TbAccount', accountName: 'TbName', openingBalance: 'TbDebit', closingBalance: 'TbCredit' });
+  f.store.setImportResult('tb', { batchId: 'tb-2', columns: ['TbAccount', 'TbDebit', 'TbCredit'], rowCount: 2 }); f.timers.run();
+  const droppedBefore = plain(f.store.getState().mapping.tb.droppedFields);
+  assert.deepEqual(droppedBefore, [{ key: 'accountName', column: 'TbName' }], 'the TB re-import dropped one field');
+  const tbDraftBefore = plain(f.store.getState().mapping.tb.draft);
+  assert.ok(f.$('[data-bind="mapping-banner-tb"]', 'tb') !== null, 'the TB card lists the field to choose again');
+
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_GlOnly.xlsx', fileName: '合成_GlOnly.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+    tb: null,
+    unmatchedFields: []
+  });
+  await settleAll(); f.timers.run();
+  assert.equal(f.store.getState().mapping.tb.changeMode, 'openClose', 'the TB amount format is left as it was');
+  assert.deepEqual(plain(f.store.getState().mapping.tb.draft), tbDraftBefore, 'the TB draft is left as it was');
+  assert.deepEqual(plain(f.store.getState().mapping.tb.droppedFields), droppedBefore, 'the TB re-import still asks for it');
+  assert.match(f.$('[data-bind="mapping-banner-tb"]', 'tb').textContent, /（原為「TbName」）/);
+  assert.deepEqual(importLines(f), ['已由「合成_GlOnly.xlsx」帶入 GL 7 欄。', '這份檔案沒有可帶入的 TB 欄位配對，只帶入 GL。']);
+});
+
+// 裁定 2026-11-09-27、2026-11-09-29、2026-11-09-30：托盤在 GL 匯入後才出現，放在 GL 工作面之前；按鈕名稱、說明句與選檔視窗的標題逐字比對。
+// 說明句出自使用者看過的預覽（計畫「使用者的決定」）。這是新加的測試。
+test('mapping: the import tray appears once GL is imported, says what it does and opens a window for a working paper or JET report', async () => {
+  const f = mappingRenderFixture();
+  const tray = () => f.body().querySelector('[data-bind="mapping-import"]');
+  assert.equal(tray(), null, 'no tray before GL is imported');
+  f.store.setImportResult('gl', { batchId: 'gl-1', columns: GL_COLUMNS, rowCount: 3 }); f.timers.run();
+  assert.ok(tray() !== null, 'the tray is there once GL is imported');
+  const order = f.body().querySelector('.panel--mapping').children.map(node => node.getAttribute('data-bind'));
+  assert.ok(order.indexOf('mapping-import') >= 0 && order.indexOf('mapping-import') < order.indexOf('mapping-gl'), 'the tray is above the GL mapping: ' + order.join(' | '));
+  const button = tray().querySelector('[data-action="restore-mapping-from-report"]');
+  assert.equal(button.textContent, '由底稿匯入欄位');
+  assert.equal(tray().querySelector('.mapping-import__hint').textContent, '選 JET 匯出的工作底稿，帶入當時的欄位配對，按「確認配對」後才儲存。');
+  assert.equal(tray().querySelector('[data-bind="mapping-import-result"]'), null, 'nothing is written before a file is brought in');
+  button.dispatch('click'); await settleAll();
+  const opened = f.requests.filter(request => request.action === 'hostSelectFile');
+  assert.equal(opened.length, 1);
+  assert.deepEqual(plain(opened[0].payload), { title: '選擇工作底稿或 JET 報告', extensions: ['.xlsx'] });
+  opened[0].resolve({ filePath: null, fileName: null }); await settleAll();
+  assert.equal(f.requests.filter(request => request.action === 'mappingRestoreDraft').length, 0, 'a cancelled file choice sends nothing');
+  assert.equal(tray().querySelector('[data-bind="mapping-import-result"]'), null, 'and writes nothing in the tray');
+});
+
+// 裁定 2026-11-09-29：帶入後托盤寫檔名與 GL、TB 各帶入幾欄，下面逐項列出要重新選擇的欄位，前面標 GL 或 TB；
+// 沒有原本來源欄可寫時（例如沒記借方代碼）只寫欄位名稱。GL 與 TB 卡片頂端不再列出。檔名取選檔路徑的最後一段。這是新加的測試。
+test('mapping: the tray names the file and how many fields came in, and lists the fields to choose again under GL or TB', async () => {
+  const f = journey({ tb: TB_COLUMNS });
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\上一年度\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: { voucherNumber: 'Doc', glDate: 'Date', accountNumber: 'Account', accountName: 'Name', description: 'Memo',
+      amount: 'Amount', drCr: 'Side', drCrCreditCode: 'C' }, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, fillDownFields: [], rdeFields: [
+        { fieldId: 'rde.synthetic-dept', label: '合成部門', sourceColumn: 'Dept', valueType: 'text' },
+        { fieldId: 'rde.synthetic-region', label: '合成地區', sourceColumn: 'Region', valueType: 'text' }] },
+    tb: { mapping: { accountNumber: 'TbAccount', debitAmount: 'TbDebit', creditAmount: 'TbCredit' }, changeMode: 'debitCredit' },
+    unmatchedFields: [
+      { dataset: 'gl', key: 'drCrDebitCode', label: '借方代碼', sourceColumn: '' },
+      { dataset: 'gl', key: 'approvedBy', label: '傳票核准人員', sourceColumn: '核准者' },
+      { dataset: 'tb', key: 'accountName', label: '會計科目名稱', sourceColumn: '科目名稱' }
+    ]
+  });
+  await settleAll(); f.timers.run();
+  // GL 9 欄＝七個配對的欄位加兩個攸關資料元素，貸方代碼不算；TB 3 欄。
+  assert.deepEqual(importLines(f), [
+    '已由「合成_WorkingPaper.xlsx」帶入 GL 9 欄、TB 3 欄。',
+    '下列欄位請重新選擇：',
+    'GL 借方代碼',
+    'GL 傳票核准人員（原為「核准者」）',
+    'TB 會計科目名稱（原為「科目名稱」）'
+  ]);
+  assert.equal(f.$('[data-bind="mapping-banner-gl"]'), null, 'the GL card does not list them again');
+  assert.equal(f.$('[data-bind="mapping-banner-tb"]', 'tb'), null, 'the TB card does not list them again');
+  assert.equal(importFailure(f), null);
+});
+
+// 裁定 2026-11-09-29：讀不到檔案或沒有可帶入的配對時，原因寫在托盤裡的琥珀色提示，不用步驟上方的提示框；
+// 原因照後端的原句，前面寫這次選的檔名，不加操作名稱與耗時。再按一次按鈕時拿掉，成功後也不再出現。訊息面板照共用的寫法記一則失敗。這是新加的測試。
+test('mapping: a file that cannot be brought in gives its reason in the tray instead of above the step, until the next press', async () => {
+  const f = journey({ tb: null });
+  const draftBefore = f.draftNow();
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_Other.xlsx', fileName: '合成_Other.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').reject(new Error('合成原因：這個檔案沒有可帶入的欄位配對。')); await settleAll(); f.timers.run();
+  const notice = importFailure(f);
+  assert.ok(notice !== null && notice.closest('[data-bind="mapping-import"]') !== null, 'the reason is in the tray');
+  assert.equal(notice.textContent, '「合成_Other.xlsx」：合成原因：這個檔案沒有可帶入的欄位配對。', 'the reason names the file chosen this time');
+  assert.ok(classes(notice).includes('form-notice--warning'), 'amber, not red');
+  assert.equal(notice.getAttribute('role'), 'status');
+  assert.equal(f.store.getState().operationFailure, null, 'no notice above the step');
+  assert.deepEqual(f.draftNow(), draftBefore, 'the draft is left as it was');
+  assert.equal(f.body().querySelector('[data-bind="mapping-import-result"]'), null, 'nothing was brought in');
+  assert.ok(messageList(f).some(message => message.level === 'error' && /^由底稿匯入欄位失敗：合成原因/.test(message.text)),
+    'the message panel keeps one failure line');
+  // 再按一次：還沒選檔就拿掉；取消選檔後也不再出現。
+  pressImport(f); await settleAll();
+  assert.equal(importFailure(f), null, 'pressing again clears the reason');
+  f.last('hostSelectFile').resolve({ filePath: null, fileName: null }); await settleAll();
+  assert.equal(importFailure(f), null, 'a cancelled choice does not bring it back');
+  // 又失敗一次，接著成功：提示不再出現，托盤寫帶入的結果。
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_Other.xlsx', fileName: '合成_Other.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').reject(new Error('合成原因：這個檔案沒有可帶入的欄位配對。')); await settleAll();
+  assert.ok(importFailure(f) !== null, 'a second failure is shown again');
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+    tb: null,
+    unmatchedFields: []
+  });
+  await settleAll(); f.timers.run();
+  assert.equal(importFailure(f), null, 'no reason after a success');
+  assert.equal(importLines(f)[0], '已由「合成_WorkingPaper.xlsx」帶入 GL 7 欄。');
+  assert.equal(f.store.getState().operationFailure, null);
+});
+
+// 先帶入成功、再選到帶不進來的檔案：失敗原因寫這次選的檔名，下方仍是上一次帶入的結果，草稿不動。
+// 原因本身已寫檔名時（例如檔案被其他程式獨占）不再重複。錯誤用後端實際的代碼與句子。這是新加的測試。
+test('mapping: a failed file after a successful one names the failed file and keeps the earlier result and draft', async () => {
+  const f = journey({ tb: null });
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').resolve({
+    formatVersion: 2,
+    gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+      manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+    tb: null,
+    unmatchedFields: []
+  });
+  await settleAll(); f.timers.run();
+  const draftAfterSuccess = f.draftNow();
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_Empty.xlsx', fileName: '合成_Empty.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').reject(Object.assign(
+    new Error('這份檔案裡 GL 的欄位對照表沒有可帶入的欄位，無法帶入。請直接在下方選擇欄位。'),
+    { code: 'mapping_metadata_missing' }));
+  await settleAll(); f.timers.run();
+  assert.equal(importFailure(f).textContent,
+    '「合成_Empty.xlsx」：這份檔案裡 GL 的欄位對照表沒有可帶入的欄位，無法帶入。請直接在下方選擇欄位。');
+  assert.equal(importLines(f)[0], '已由「合成_WorkingPaper.xlsx」帶入 GL 7 欄。', 'the earlier result stays below');
+  assert.deepEqual(f.draftNow(), draftAfterSuccess, 'the draft is left as it was');
+  assert.equal(f.store.getState().operationFailure, null, 'no notice above the step');
+
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_Locked.xlsx', fileName: '合成_Locked.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').reject(Object.assign(
+    new Error('檔案「合成_Locked.xlsx」正被其他程式開啟（例如 Excel）。請關閉該檔案後重試。'),
+    { code: 'file_read_error' }));
+  await settleAll(); f.timers.run();
+  assert.equal(importFailure(f).textContent, '檔案「合成_Locked.xlsx」正被其他程式開啟（例如 Excel）。請關閉該檔案後重試。',
+    'the file is named once');
+});
+
+// 帶入的檔名與欄數只屬於當時的案件與 GL 匯入：GL 重新匯入或換案件後不再顯示，失敗原因也一樣。
+// 匯入當時沒有 TB、之後才匯入 TB 時，「目前沒有匯入 TB」已不成立，不再寫。這是新加的測試。
+test('mapping: the tray forgets what was brought in after GL is imported again or another case is opened', async () => {
+  const f = journey({ tb: null });
+  const bringIn = async () => {
+    pressImport(f); await settleAll();
+    f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_WorkingPaper.xlsx', fileName: '合成_WorkingPaper.xlsx' }); await settleAll();
+    f.last('mappingRestoreDraft').resolve({
+      formatVersion: 2,
+      gl: { mapping: SIDE_DONE, amountMode: 'side', approvalDateMode: 'unmapped', postingStatusPolicy: null,
+        manualAutoPolicy: DEFAULT_MANUAL, rdeFields: [], fillDownFields: [] },
+      tb: null,
+      unmatchedFields: []
+    });
+    await settleAll(); f.timers.run();
+  };
+  await bringIn();
+  assert.deepEqual(importLines(f), ['已由「合成_WorkingPaper.xlsx」帶入 GL 7 欄。', '目前沒有匯入 TB，匯入 TB 後可以再按一次「由底稿匯入欄位」。']);
+  f.store.setImportResult('tb', { batchId: 'tb-1', columns: TB_COLUMNS, rowCount: 2 }); f.timers.run();
+  assert.deepEqual(importLines(f), ['已由「合成_WorkingPaper.xlsx」帶入 GL 7 欄。'], 'TB was imported afterwards');
+  f.store.setImportResult('gl', { batchId: 'gl-2', columns: GL_COLUMNS, rowCount: 4 }); f.timers.run();
+  assert.deepEqual(importLines(f), [], 'GL was imported again');
+  assert.ok(f.body().querySelector('[data-action="restore-mapping-from-report"]') !== null, 'the button stays');
+
+  await bringIn();
+  assert.deepEqual(importLines(f), ['已由「合成_WorkingPaper.xlsx」帶入 GL 7 欄。', '這份檔案沒有可帶入的 TB 欄位配對，只帶入 GL。']);
+  f.window.JetUi.applyLoadedProject({ project: { projectId: 'usage-synthetic-other', periodStart: '2025-01-01', periodEnd: '2025-11-30', currentStep: 2 },
+    importState: { gl: { batchId: 'gl-other', columns: GL_COLUMNS, rowCount: 3 } } }, { stayOnCurrentStep: true });
+  await settleAll(); f.timers.run();
+  assert.ok(f.body().querySelector('[data-bind="mapping-import"]') !== null, 'the other case has GL imported, so the tray is there');
+  assert.deepEqual(importLines(f), [], 'another case does not show the file of the first one');
+
+  pressImport(f); await settleAll();
+  f.last('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成_Other.xlsx', fileName: '合成_Other.xlsx' }); await settleAll();
+  f.last('mappingRestoreDraft').reject(new Error('合成原因：這個檔案沒有可帶入的欄位配對。')); await settleAll();
+  assert.ok(importFailure(f) !== null);
+  f.store.setImportResult('gl', { batchId: 'gl-other-2', columns: GL_COLUMNS, rowCount: 5 }); f.timers.run();
+  assert.equal(importFailure(f), null, 'the reason goes when GL is imported again');
 });
 
 /* ---- 確認欄位配對後訊息面板的句子（2026-10-14 補上） ---------------- */

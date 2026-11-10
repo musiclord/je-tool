@@ -335,7 +335,9 @@ public sealed class OpenXmlMappingMetadataReaderTests
             json);
         try
         {
-            var result = await new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None);
+            // ReadAsync 改回傳 MappingDraftSource（裁定 2026-11-09-28），隱藏紀錄在 Recorded；斷言不變。
+            // 第一次失敗：Build 收據 20261109-145225420-a56baf66e9a64e52951bd296df7a960e（編譯失敗）。
+            var result = (await new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None)).Recorded!;
 
             Assert.Equal(GlAmountModeNames.Flag, result.Gl.AmountMode);
             Assert.Equal("D", result.Gl.Mapping[GlMappingKeys.DrCrDebitCode]);
@@ -347,8 +349,10 @@ public sealed class OpenXmlMappingMetadataReaderTests
         }
     }
 
+    // 裁定 2026-11-09-28 之後，沒有標記時改讀看得見的對照表；這份表沒有 GL 段，所以仍然拒絕。
+    // 原名 ReadAsync_VisibleLegacyFieldsWithoutMarker_RejectsWithoutGuessing 描述的是被取代的規則，改名並補上訊息斷言，原本的代碼斷言保留。
     [Fact]
-    public async Task ReadAsync_VisibleLegacyFieldsWithoutMarker_RejectsWithoutGuessing()
+    public async Task ReadAsync_VisibleTableWithoutTheGlSection_ReportsMetadataMissing()
     {
         var path = TestWorkbookBuilder.WriteWorkbook(sheet =>
         {
@@ -362,6 +366,9 @@ public sealed class OpenXmlMappingMetadataReaderTests
             var ex = await Assert.ThrowsAsync<JetActionException>(() =>
                 new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None));
             Assert.Equal(JetErrorCodes.MappingMetadataMissing, ex.Code);
+            Assert.Equal(
+                "「自動化工具-檔案欄位資訊」裡找不到 GL 的欄位對照表，無法帶入欄位。請改選工作底稿，或直接在下方選擇欄位。",
+                ex.Message);
         }
         finally
         {

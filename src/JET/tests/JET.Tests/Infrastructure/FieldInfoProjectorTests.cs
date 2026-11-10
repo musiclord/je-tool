@@ -500,8 +500,10 @@ public sealed class FieldInfoProjectorTests
     {
         GlAmountMode.SignedAmount => "【傳票金額_JE】由系統產生 : 【金額】",
         GlAmountMode.DualAmount => "【傳票金額_JE】由系統產生 : 【借方】-【貸方】",
-        GlAmountMode.AmountWithSide => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「D」",
-        GlAmountMode.AmountWithFlag => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「1」",
+        // 裁定 2026-11-10-03 改為完整寫出兩側代碼，保留其他欄位與型態斷言。
+        // 首次失敗：Focused 20261110-044827744-7f31557e86654d2ab1b381b89b62c5c5。
+        GlAmountMode.AmountWithSide => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「D」，貸方為「C」",
+        GlAmountMode.AmountWithFlag => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「1」，貸方為「D」",
         _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.AmountMode, null)
     };
 
@@ -512,6 +514,44 @@ public sealed class FieldInfoProjectorTests
         TbChangeMode.OpenCloseBySide => "【試算表變動金額_TB】由系統產生 : (【期末借】 - 【期末貸】) - (【期初借】-【期初貸】)",
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
     };
+
+    /// <summary>
+    /// 金額加借貸別只填貸方代碼時（裁定 2026-10-08-11），說明句寫貸方代碼，不把配對鍵名稱寫進底稿。
+    /// 兩側都填時兩側都寫（裁定 2026-11-10-03）；首次失敗見 FieldInfoSheetRoundTripTests 的兩側代碼案例。
+    /// </summary>
+    [Theory]
+    [InlineData(null, "C", "，貸方為「C」")]
+    [InlineData("D", null, "，借方為「D」")]
+    [InlineData("D", "C", "，借方為「D」，貸方為「C」")]
+    public void SidedAmountDescription_WritesTheCodeThatWasFilled(string? debitCode, string? creditCode, string expectedEnding)
+    {
+        var source = new[]
+        {
+            new FieldInfoState(1, "傳票編號", null, LegacyFieldKind.Text, 8, null, 8, true),
+            new FieldInfoState(2, "金額", null, LegacyFieldKind.Number, 0, 2, 7, true),
+            new FieldInfoState(3, "借貸別", null, LegacyFieldKind.Text, 1, null, 1, true)
+        };
+        var mapping = new Dictionary<string, string>
+        {
+            [GlMappingKeys.VoucherNumber] = "傳票編號",
+            [GlMappingKeys.Amount] = "金額",
+            [GlMappingKeys.DrCr] = "借貸別"
+        };
+        if (debitCode is not null)
+        {
+            mapping[GlMappingKeys.DrCrDebitCode] = debitCode;
+        }
+
+        if (creditCode is not null)
+        {
+            mapping[GlMappingKeys.DrCrCreditCode] = creditCode;
+        }
+
+        var definitions = FieldInfoProjector.ProjectGl(source, new GlMappingSpec(mapping, GlAmountMode.AmountWithSide), moneyScale: 100);
+
+        var amount = definitions.Single(static definition => definition.FieldName == "傳票金額_JE");
+        Assert.Equal("【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】" + expectedEnding, amount.Description);
+    }
 
     /// <summary>
     /// 傳票核准日選「與總帳日期相同」時追加的欄位，說明句兩個欄位名稱都用【】標示（裁定 2026-11-03-04）。

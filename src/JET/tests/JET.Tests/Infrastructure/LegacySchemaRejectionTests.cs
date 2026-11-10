@@ -148,6 +148,48 @@ public sealed class LegacySchemaRejectionTests
         Assert.Equal(before, await File.ReadAllBytesAsync(path));
     }
 
+    // 版本值存成不是文字的內容（例如二進位）時，同樣讀不出整數；回的是版本資訊無法辨識那一句，不是非預期錯誤。
+    [Theory]
+    [InlineData("X'3230'")]
+    [InlineData("X''")]
+    public async Task SchemaVersionStoredAsBinary_IsRejectedAsUnreadableWithoutChangingTheFile(string storedValue)
+    {
+        const string unreadableMessage =
+            "這個案件資料庫的版本資訊無法辨識，目前版本無法開啟。請從備份還原案件資料夾，或用目前版本重新建立案件，再重新匯入資料。";
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
+        var projectId = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+
+        await using (var connection = database.CreateConnection(projectId))
+        {
+            await connection.OpenAsync();
+            await using var seed = connection.CreateCommand();
+            seed.CommandText =
+                "CREATE TABLE schema_info (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+                + $"INSERT INTO schema_info (key, value) VALUES ('schema_version', {storedValue});";
+            await seed.ExecuteNonQueryAsync();
+
+            await using var stored = connection.CreateCommand();
+            stored.CommandText = "SELECT typeof(value) FROM schema_info WHERE key = 'schema_version';";
+            Assert.Equal("blob", await stored.ExecuteScalarAsync());
+        }
+
+        SqliteConnection.ClearAllPools();
+        var path = database.GetDatabasePath(projectId);
+        var before = await File.ReadAllBytesAsync(path);
+
+        var ex = await Assert.ThrowsAsync<JetActionException>(
+            () => database.EnsureCreatedAsync(projectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.InvalidProjectSchema, ex.Code);
+        Assert.Equal(unreadableMessage, ex.Message);
+
+        SqliteConnection.ClearAllPools();
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
+    }
+
     [Fact]
     public async Task NewDatabase_IsCreatedAndUpgradedToCurrentVersion()
     {

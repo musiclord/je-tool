@@ -658,7 +658,7 @@ public sealed partial class LegacyReportWriter(
 
     private static IReadOnlyList<string?> ParseRawValues(string json, IReadOnlyList<string> columns)
     {
-        using var document = JsonDocument.Parse(json);
+        using var document = LocalEngineErrors.ParseStoredObject(json);
         var root = document.RootElement;
         var result = new string?[columns.Count];
         for (var index = 0; index < columns.Count; index++)

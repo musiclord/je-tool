@@ -32,6 +32,8 @@
 </head>
 <body>
   <main id="app" class="app-shell" data-jet-root>
+    <!-- 標題列的玻璃是一個空元素，不畫在 .app-shell 的虛擬元素上，原因見 app.css 的 .app-shell__glass。 -->
+    <div class="app-shell__glass" aria-hidden="true"></div>
     <!-- 頂部標題列：標誌、名稱與目前帳號在左，案件摘要是這一頁的標題，操作組在右。 -->
     <header class="app-header">
       <div class="app-header__brand">

@@ -36,6 +36,24 @@ public sealed partial class WorkingPaperWriter
             "dataValidations"
         };
 
+    /// <summary>
+    /// 受保護工作表裡要鎖定的資料區，範圍照舊版 idea-tool.bas 第 10446 到 10800 行鎖定的儲存格（裁定 2026-11-09-15）。
+    /// 程式寫的格子從 <see cref="FirstRow"/> 起往下都算；範本原有的格子只算到 <see cref="LastTemplateRow"/>，
+    /// 資料沒寫到的範本空白列維持可填。資料列在這幾欄裡沒有值的格子，寫出時補成空白格一起鎖定。
+    /// </summary>
+    internal sealed record WorkingPaperLockedArea(
+        uint FirstRow,
+        uint FirstColumn,
+        uint LastColumn,
+        uint LastTemplateRow)
+    {
+        internal bool LocksWrittenCell(uint row, uint column) =>
+            row >= FirstRow && column >= FirstColumn && column <= LastColumn;
+
+        internal bool LocksTemplateCell(uint row, uint column) =>
+            row <= LastTemplateRow && LocksWrittenCell(row, column);
+    }
+
     private sealed record LocalDefinedNameOwner(int Ordinal, string Owner);
 
     private sealed record ContinuationPrototype(string SheetName, WorksheetPart Part);
@@ -53,6 +71,8 @@ public sealed partial class WorkingPaperWriter
             new(StringComparer.Ordinal);
         private readonly Dictionary<string, IReadOnlyDictionary<string, uint>>
             _continuationPrototypeStyles = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, DataValidations?> _templateValidations =
+            new(StringComparer.Ordinal);
         private readonly List<string> _desiredNames = [];
         private readonly HashSet<string> _openedNames = new(StringComparer.Ordinal);
         private bool _topologyChanged;
@@ -74,9 +94,13 @@ public sealed partial class WorkingPaperWriter
             _localDefinedNameOwners = CaptureLocalDefinedNameOwners(_workbookPart);
         }
 
+        /// <param name="lockedArea">受保護工作表裡程式寫入的資料區；其他格子保持可填（裁定 2026-11-09-15）。</param>
+        /// <param name="keptTemplateCells">這次不寫、照範本原字保留的固定格。</param>
         internal SheetWriter OpenSheet(
             string name,
-            WorkingPaperAppearanceProfile? appearance = null)
+            WorkingPaperAppearanceProfile? appearance = null,
+            WorkingPaperLockedArea? lockedArea = null,
+            IReadOnlySet<(uint Row, uint Column)>? keptTemplateCells = null)
         {
             _cancellationToken.ThrowIfCancellationRequested();
             var normalizedName = ExcelWorksheetConstraints.ContinuationSheetName(name, 1);
@@ -96,6 +120,8 @@ public sealed partial class WorkingPaperWriter
                     appearance.PatchForCell(row, column) is { } patch
                         ? _stylePatcher.Patch(prototypeStyle, patch)
                         : prototypeStyle;
+            var writtenCellStyle = WithLockedArea(mapCellStyle, lockedArea, writtenCell: true);
+            var templateCellStyle = WithLockedArea(mapCellStyle, lockedArea, writtenCell: false);
 
             if (name is WorkingPaperSheetCatalog.Intro or WorkingPaperSheetCatalog.Step5)
             {
@@ -118,6 +144,12 @@ public sealed partial class WorkingPaperWriter
                         CaptureStep4ContinuationPrototypeStyles(
                             part,
                             _cancellationToken));
+                }
+                if (name is WorkingPaperSheetCatalog.Step2 or WorkingPaperSheetCatalog.Step4)
+                {
+                    _templateValidations.Add(
+                        name,
+                        ReadTemplateDataValidations(part, _cancellationToken));
                 }
                 _templateParts.Add(name, part);
                 Func<uint, uint, uint?, uint, uint>? mergeCellStyle = name is
@@ -144,17 +176,39 @@ public sealed partial class WorkingPaperWriter
                             : sourceStyle;
                     }
                     : null;
+                var plan = DirectOverlayPlan(
+                    name,
+                    _useFinalStep41Schema,
+                    templateCellStyle,
+                    mergeCellStyle);
+                if (lockedArea is not null)
+                {
+                    plan = plan with
+                    {
+                        MapTemplateColumnStyle = style => _editor.EnsureProtectionStyle(style, locked: false)
+                    };
+                }
+                if (keptTemplateCells is { Count: > 0 })
+                {
+                    var isDynamicCell = plan.IsDynamicCell;
+                    var useSourceCellStyle = plan.UseSourceCellStyle;
+                    plan = plan with
+                    {
+                        IsDynamicCell = (row, column) =>
+                            !keptTemplateCells.Contains((row, column)) && isDynamicCell(row, column),
+                        UseSourceCellStyle = (row, column) =>
+                            !keptTemplateCells.Contains((row, column)) && useSourceCellStyle(row, column)
+                    };
+                }
                 return SheetWriter.OverlayTemplate(
                     name,
                     part,
-                    DirectOverlayPlan(
-                        name,
-                        _useFinalStep41Schema,
-                        mapCellStyle,
-                        mergeCellStyle),
+                    plan,
                     _styles,
-                    mapCellStyle,
-                    _cancellationToken);
+                    writtenCellStyle,
+                    _cancellationToken,
+                    _templateValidations.GetValueOrDefault(name),
+                    lockedArea);
             }
 
             var prototype = FindContinuationPrototype(name);
@@ -172,9 +226,12 @@ public sealed partial class WorkingPaperWriter
                 Name = name
             });
             _topologyChanged = true;
-            var continuationStyleMap = CreateContinuationCellStyleMapper(
-                prototype.SheetName,
-                mapCellStyle);
+            var continuationStyleMap = WithLockedArea(
+                CreateContinuationCellStyleMapper(
+                    prototype.SheetName,
+                    mapCellStyle),
+                lockedArea,
+                writtenCell: true);
             return SheetWriter.CreateContinuation(
                 name,
                 continuationPart,
@@ -184,7 +241,50 @@ public sealed partial class WorkingPaperWriter
                 prototypePart.Parts
                     .SingleOrDefault(relationship =>
                         relationship.OpenXmlPart is SpreadsheetPrinterSettingsPart)
-                    .RelationshipId);
+                    .RelationshipId,
+                _templateValidations.GetValueOrDefault(prototype.SheetName),
+                lockedArea);
+        }
+
+        /// <summary>
+        /// 受保護的工作表照舊版先解鎖整張表，只鎖程式寫入的資料區（裁定 2026-11-09-15）。
+        /// 程式寫的格子在資料區裡就鎖定，留給審計員填寫的 <see cref="WorkingPaperStyles.Editable"/> 例外；
+        /// 範本原有的格子只在資料區的表頭範圍內鎖定。
+        /// </summary>
+        private Func<uint, uint, uint, uint>? WithLockedArea(
+            Func<uint, uint, uint, uint>? inner,
+            WorkingPaperLockedArea? lockedArea,
+            bool writtenCell)
+        {
+            if (lockedArea is null)
+            {
+                return inner;
+            }
+            var editable = _styles.Map(WorkingPaperStyles.Editable);
+            return (row, column, style) =>
+            {
+                var mapped = inner?.Invoke(row, column, style) ?? style;
+                var locked = writtenCell
+                    ? lockedArea.LocksWrittenCell(row, column) && style != editable
+                    : lockedArea.LocksTemplateCell(row, column);
+                return _editor.EnsureProtectionStyle(mapped, locked);
+            };
+        }
+
+        private static DataValidations? ReadTemplateDataValidations(
+            WorksheetPart part,
+            CancellationToken cancellationToken)
+        {
+            using var reader = OpenXmlReader.Create(part);
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reader.IsStartElement && reader.ElementType == typeof(DataValidations))
+                {
+                    return (DataValidations)reader.LoadCurrentElement()!;
+                }
+            }
+            return null;
         }
 
         private ContinuationPrototype FindContinuationPrototype(string continuationName)
@@ -497,16 +597,17 @@ public sealed partial class WorkingPaperWriter
                 row => row >= 19,
                 (row, column) => row >= 19 && column is >= 2 and <= 5,
                 [(1U, 1U), (2U, 1U), (7U, 2U), (9U, 2U)],
-                sourcePostElements: null) with
+                WorkingPaperSourceProtection) with
             {
                 UseSourceRowHeight = static row => row >= Step3FirstDataRow
             },
+            // A12 的說明句整句寫在範本裡，第一頁照範本原字（裁定 2026-11-09-12）。
             WorkingPaperSheetCatalog.Step4 => RowsAndCells(
                 row => row >= 13,
                 (row, column) => row >= 13
                     && (column is >= 1 and <= 15
                         || row > 1000 && column is >= 16 and <= 21),
-                [(1U, 1U), (2U, 1U), (12U, 1U)],
+                [(1U, 1U), (2U, 1U)],
                 WorkingPaperSourceProtectionAndValidation),
             WorkingPaperSheetCatalog.Step41 when useFinalStep41Schema =>
                 new DirectTemplateWorksheetOverlayPlan(
@@ -535,8 +636,13 @@ public sealed partial class WorkingPaperWriter
                 [(1U, 1U), (2U, 1U)],
                 WorkingPaperSourceProtection,
                 mergeSourceColumnWidths: false),
-            WorkingPaperSheetCatalog.FieldInfo => ReferenceData(maximumDynamicColumn: 8),
-            WorkingPaperSheetCatalog.CalendarInfo => ReferenceData(maximumDynamicColumn: 3),
+            // 舊版三張自動化工具表都整張保護（idea-tool.bas 第 10963、11101、11150 行，裁定 2026-11-09-14）。
+            WorkingPaperSheetCatalog.FieldInfo => ReferenceData(
+                maximumDynamicColumn: 8,
+                WorkingPaperSourceProtection),
+            WorkingPaperSheetCatalog.CalendarInfo => ReferenceData(
+                maximumDynamicColumn: 3,
+                WorkingPaperSourceProtection),
             WorkingPaperSheetCatalog.AccountMapping => ReferenceData(
                 maximumDynamicColumn: 3,
                 WorkingPaperSourceProtection),

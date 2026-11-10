@@ -243,6 +243,37 @@ test('on a laptop the finished steps above the current one fold into one row tha
   assert.deepEqual(doneRows(f), ['0', '1', '2']);
 });
 
+// 2026-11-09 修正捲動卡頓（docs/specs/2026-11-09-scroll-performance-plan.md）：WebView2 維護無障礙樹時，掛著 ::before 或 ::after 的元素
+// 一改樣式，就把底下整棵子樹重送一遍；目前步驟那一列包著整個工作面，捲動因此頓一下。流程軸線與目前步驟的藍色圓環改成每一列裡
+// aria-hidden 的空元素：軸線是第一個子元素、圓環是最後一個，疊放順序和原本的 ::before、::after 相同。這是新加的測試；
+// app.css 不在大型版面容器掛虛擬元素，由 DesignIntegrationFrontendTests 檢查。
+test('each flow row draws its rail and the current ring as hidden empty children', async () => {
+  const f = await openStep4({ laptop: true });
+  const classes = node => (node.getAttribute('class') || '').split(/\s+/);
+  const kind = node => classes(node).includes('stepflow-item__rail') ? 'rail' : classes(node).includes('stepflow-item__mark--current') ? 'ring' : null;
+  const check = label => {
+    const rows = f.middle.querySelectorAll('.stepflow > .stepflow-item');
+    assert.ok(rows.length >= 3, label + ': the flow rows are drawn');
+    for (const row of rows) {
+      const current = classes(row).includes('stepflow-item--current');
+      const marks = row.children.filter(kind);
+      assert.deepEqual(marks.map(kind), current ? ['rail', 'ring'] : ['rail'], label + ': ' + row.getAttribute('class'));
+      assert.equal(row.children[0], marks[0], label + ': the rail comes first, under the row like the old ::before');
+      if (current) assert.equal(row.children.at(-1), marks[1], label + ': the ring comes last, over the row like the old ::after');
+      for (const mark of marks) {
+        assert.equal(mark.getAttribute('aria-hidden'), 'true', label + ': screen readers skip the ' + kind(mark));
+        assert.equal(mark.children.length + mark.textContent.length, 0, label + ': the ' + kind(mark) + ' is empty');
+      }
+    }
+  };
+  check('finished steps folded');
+  f.middle.querySelector('[data-done-group-toggle]').dispatch('click');
+  check('finished steps opened');
+  f.store.setStepFlowCollapsed(true);
+  assert.ok(f.middle.querySelector('.stepflow-item--current.stepflow-item--collapsed') !== null, 'the current step is collapsed');
+  check('current step collapsed');
+});
+
 // 2026-10-16 提交前複審找到按下就換步驟的三個漏洞：正在編輯的欄位來不及失焦，只在 change 存值的欄位會遺失；
 // 按下的預設動作會把焦點移回按下的步驟，蓋過換步驟時開出的確認對話框；觸控與觸控筆按下時可能只是要捲動。
 test('pressing a step lets the field being edited save first and leaves touch presses to the tap', async () => {

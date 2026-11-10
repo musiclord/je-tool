@@ -61,9 +61,12 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         AssertSafeAmountColumn(sheet, 6);
         AssertSingleLine(sheet.Cell("F53"));
 
-        // Demo 未配對來源模組；L 欄採 current-required 核准人員欄標，T 說明手填留空。
+        // Demo 未配對來源模組與傳票核准人員，T 說明手填留空。
+        // 裁定 2026-11-09-11：照舊版只在配對了傳票核准人員時把 L51 改成「傳票核准人員」，沒配對時保留範本原字，L 欄沒有資料。
+        // 原本不論有沒有配對都寫「傳票核准人員」。第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
         Assert.True(sheet.Cell("J53").IsEmpty());
-        Assert.Equal("傳票核准人員", sheet.Cell("L51").GetString());
+        Assert.Equal("其他有用在高風險條件的RDE欄位\n(若有，請自行新增修改)", sheet.Cell("L51").GetString());
+        Assert.True(sheet.Cell("L53").IsEmpty());
         Assert.True(sheet.Cell("T53").IsEmpty());
     }
 
@@ -533,10 +536,10 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
             Assert.Equal(
                 templateFormat.ApplyAlignment?.Value,
                 outputFormat.ApplyAlignment?.Value);
-            Assert.Equal(templateFormat.Protection?.OuterXml, outputFormat.Protection?.OuterXml);
-            Assert.Equal(
-                templateFormat.ApplyProtection?.Value,
-                outputFormat.ApplyProtection?.Value);
+            // 裁定 2026-11-09-15：照舊版只鎖 B12:E 到資料末列（idea-tool.bas 第 10517 行），
+            // 表頭 B16:E16 鎖定、F16 可填；原本表頭照範本的保護設定，範本這幾格都未鎖定。
+            // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
+            Assert.Equal(reference != "F16", outputFormat.Protection?.Locked?.Value ?? true);
             Assert.Equal("FF0066FF", FillArgb(output.WorkbookPart!, outputFormat));
         }
 
@@ -545,6 +548,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
             var format = ResolveCellFormat(
                 output.WorkbookPart!,
                 CellFor(outputSheet, reference));
+            Assert.True(format.Protection?.Locked?.Value ?? true);
             Assert.False(format.Alignment?.WrapText?.Value ?? false);
             Assert.Equal(0U, format.Alignment?.Indent?.Value ?? 0U);
             Assert.False(format.Alignment?.ShrinkToFit?.Value ?? false);
@@ -552,6 +556,8 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         }
 
         AssertEditableCells(output.WorkbookPart!, Step11Sheet, ["F17"]);
+        // 裁定 2026-11-09-15：可以填的格子不再加淡黃色底色。
+        Assert.Null(FillArgb(output.WorkbookPart!, ResolveCellFormat(output.WorkbookPart!, CellFor(outputSheet, "F17"))));
     }
 
     [Fact]

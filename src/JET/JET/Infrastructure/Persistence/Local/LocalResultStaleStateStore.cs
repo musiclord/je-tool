@@ -45,13 +45,13 @@ public sealed class LocalResultStaleStateStore(ILocalProjectDatabase database)
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
-            throw new InvalidOperationException("Result stale state singleton is missing.");
+            throw LocalEngineErrors.DatabaseCorrupt();
         }
 
-        return new AuditResultStaleState(
+        return LocalEngineErrors.ReadStoredValue(() => new AuditResultStaleState(
             ReadBoolean(reader.GetValue(0)),
             ReadBoolean(reader.GetValue(1)),
-            ReadBoolean(reader.GetValue(2)));
+            ReadBoolean(reader.GetValue(2))));
     }
 
     private static bool ReadBoolean(object value) =>

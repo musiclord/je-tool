@@ -287,11 +287,11 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                         $"尚未匯入任何 {kindName.ToUpperInvariant()} 資料，無法附加來源。第一個來源請改用取代匯入。");
                 }
 
-                batchId = reader.GetString(0);
-                batchFileName = reader.GetString(1);
-                batchImportedUtc = DateTimeOffset.Parse(reader.GetString(2));
-                existingRowCount = reader.GetInt32(3);
-                batchColumns = JsonSerializer.Deserialize<List<string>>(reader.GetString(4), JsonOptions) ?? [];
+                batchId = LocalEngineErrors.ReadStoredValue(() => reader.GetString(0));
+                batchFileName = LocalEngineErrors.ReadStoredValue(() => reader.GetString(1));
+                batchImportedUtc = LocalEngineErrors.ReadStoredValue(() => DateTimeOffset.Parse(reader.GetString(2)));
+                existingRowCount = ReadRowCount(reader, 3);
+                batchColumns = ReadColumns(reader, 4);
             }
 
             var namedBatchColumns = batchColumns
@@ -525,11 +525,11 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 return null;
             }
 
-            batchId = reader.GetString(0);
-            fileName = reader.GetString(1);
-            importedUtc = DateTimeOffset.Parse(reader.GetString(2));
-            rowCount = reader.GetInt32(3);
-            columns = JsonSerializer.Deserialize<List<string>>(reader.GetString(4), JsonOptions) ?? [];
+            batchId = LocalEngineErrors.ReadStoredValue(() => reader.GetString(0));
+            fileName = LocalEngineErrors.ReadStoredValue(() => reader.GetString(1));
+            importedUtc = LocalEngineErrors.ReadStoredValue(() => DateTimeOffset.Parse(reader.GetString(2)));
+            rowCount = ReadRowCount(reader, 3);
+            columns = ReadColumns(reader, 4);
         }
 
         var sources = await LoadSourcesAsync(connection, transaction: null, batchId, cancellationToken);
@@ -537,7 +537,10 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         return new ImportBatchInfo(batchId, kind, fileName, importedUtc, rowCount, columns, sources);
     }
 
-    /// <summary>欄名「集合」一致性（順序無關；欄序以第一個來源為準）。不一致 → column_mismatch。</summary>
+    /// <summary>
+    /// 欄名「集合」一致性（順序無關；欄序以第一個來源為準）。不一致 → column_mismatch。
+    /// 追加時比的是已匯入的資料，一次匯入多個來源時比的是第一個來源；兩種情況共用同一句訊息（裁定 2026-11-09-22）。
+    /// </summary>
     internal static void EnsureColumnSetsMatch(
         string sourceFileName,
         IReadOnlyList<string> batchColumns,
@@ -567,7 +570,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
 
         throw new JetActionException(
             JetErrorCodes.ColumnMismatch,
-            $"檔案「{sourceFileName}」的欄位與已匯入的資料不一致（{string.Join("；", parts)}）。請改用取代匯入，或先在 Excel 把兩份檔案的欄位對齊。");
+            $"檔案「{sourceFileName}」的欄位與其他來源不一致（{string.Join("；", parts)}）。本次未匯入，先前匯入的資料不受影響。請先在 Excel 把欄位對齊後再匯入。");
     }
 
     private async Task<BatchSourceWriteResult> WriteBatchSourceAsync(
@@ -778,19 +781,36 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
         await using var reader = await command.ExecuteReaderLoggedAsync(_log, _provider, cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            sources.Add(new ImportSourceInfo(
-                reader.GetInt32(0),
+            sources.Add(LocalEngineErrors.ReadStoredValue(() => new ImportSourceInfo(
+                LocalEngineErrors.ReadStoredInt32(reader, 0),
                 reader.GetString(1),
                 reader.IsDBNull(2) ? null : reader.GetString(2),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.GetInt32(5),
+                ReadRowCount(reader, 5),
                 DateTimeOffset.Parse(reader.GetString(6)),
-                HeaderRow: reader.IsDBNull(7) ? null : Convert.ToInt32(reader.GetValue(7))));
+                HeaderRow: reader.IsDBNull(7) ? null : LocalEngineErrors.ReadStoredInt32(reader, 7))));
         }
 
         return sources;
     }
+
+    private static int ReadRowCount(DbDataReader reader, int ordinal) => LocalEngineErrors.ReadStoredValue(() =>
+    {
+        var count = LocalEngineErrors.ReadStoredInt32(reader, ordinal);
+        return count >= 0 ? count : throw new FormatException("Stored row count is negative.");
+    });
+
+    private static IReadOnlyList<string> ReadColumns(DbDataReader reader, int ordinal) => LocalEngineErrors.ReadStoredValue(() =>
+    {
+        using var json = JetJsonStorage.Parse(reader.GetString(ordinal));
+        var columns = json.RootElement.Deserialize<List<string>>(JsonOptions);
+        if (columns is null || columns.Any(string.IsNullOrEmpty))
+        {
+            throw new FormatException("Stored columns are missing or unreadable.");
+        }
+        return columns;
+    });
 
     internal static ImportSourceInfo ToSourceInfo(
         int sourceNo,

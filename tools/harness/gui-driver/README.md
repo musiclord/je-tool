@@ -3,11 +3,15 @@
 `tools/verify.ps1 -Command Gui` 依序執行下列情境。建置方式、每個情境開在另一個 Windows 桌面的做法與執行時機，見
 [`tools/README.md`](../../README.md) 的 Gui 一節。每個情境的操作上限、預期次數、逾時與截圖數只寫在 `tools/harness/lanes.json`，
 需要的合成夾具寫在這個資料夾的 `DriverContracts.cs`。2026-11-06 從 `tools/README.md` 移到這裡，因為那份文件快到長度上限。
+每個情境都用拿掉系統管理員權限的身分啟動 JET，並在 JET 開始執行前讀回權杖確認（裁定 2026-11-09-02）。
 
 - `startup-smoke`：頁面、`JetApi`、`systemPing` 與專案選擇畫面，最後按「結束 JET」。
 - `synthetic-sqlite-create`：只用鍵盤建立 SQLite 案件，核對畫面、`project.json`、`jet.db` 與操作人員。
 - `case-to-working-paper`：從空白案件走到匯出底稿，再依序匯入科目配對、假日、補班日，附加與取代 GL、取代 TB，
   核對每一步清除與保留的狀態，以及只有新的底稿是現行版本。建案與重開後都核對案件是 SQLite，案件資料夾裡只有 `jet.db`。
+- `single-file-relaunch`：啟動 `Gui` 這次打包的單一執行檔，建立 SQLite 案件，匯入兩個工作表的 GL 與一份 TB，確認
+  `e_sqlite3.dll` 與 `WebView2Loader.dll` 解壓到情境自己的 `bundle` 資料夾；按「結束 JET」後再啟動同一個執行檔，
+  從案件清單開啟同一個案件，核對列數與資料庫種類。兩次啟動都確認 JET 沒有系統管理員權限（裁定 2026-11-09-01、2026-11-09-03）。
 - `case-list-cleanup-cancel-export`：案件清單上資料庫檔不見的案件列成無法開啟並寫出原因，從清單刪掉它；接著開啟另一個案件，
   在第四步準備科目配對範本時按「取消作業」，核對畫面恢復可以操作、寫出已取消、沒有留下範本檔，再準備一次就成功。
 - `mapping-required-sync`：改借方代碼後直接「重新確認配對」一次完成；清空並補回必填欄位，核對缺漏狀態與焦點。

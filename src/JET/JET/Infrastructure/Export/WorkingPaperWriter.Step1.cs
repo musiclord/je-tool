@@ -68,7 +68,8 @@ public sealed partial class WorkingPaperWriter
             {
                 var sheet = session.OpenSheet(
                     name,
-                    Step1Appearance(applyDifferenceAppearance));
+                    Step1Appearance(applyDifferenceAppearance),
+                    Step1LockedArea);
                 ConfigureStep1Layout(
                     sheet,
                     dataWidths: widths);
@@ -162,7 +163,8 @@ public sealed partial class WorkingPaperWriter
                 includeTable = sheetPlan?.IncludeExceptionTable ?? includeTable;
                 var sheet = session.OpenSheet(
                     name,
-                    Step11Appearance(includeTable));
+                    Step11Appearance(includeTable),
+                    Step11LockedArea);
                 ConfigureStep1Layout(
                     sheet,
                     dataWidths: widths);
@@ -202,7 +204,11 @@ public sealed partial class WorkingPaperWriter
             (sheet, row, projected) => ProjectedCells(sheet, row, projected, firstColumn: 2),
             (sheet, rows, _, ct) =>
             {
-                sheet.Protect();
+                // 舊版只在有借貸不平的傳票時保護這張表（idea-tool.bas 第 10514 到 10518 行，裁定 2026-11-09-14）。
+                if (rows > 0)
+                {
+                    sheet.Protect();
+                }
                 return sheet.CloseAndSummarizeWith(rows, ct);
             },
             omitWhenEmpty: false,
@@ -273,7 +279,8 @@ public sealed partial class WorkingPaperWriter
             {
                 var sheet = session.OpenSheet(
                     name,
-                    Step12Appearance(missingCreatedByMapping));
+                    Step12Appearance(missingCreatedByMapping),
+                    Step12LockedArea);
                 ConfigureStep12Layout(sheet, widths);
                 WriteCommonHeader(
                     sheet,
@@ -304,7 +311,11 @@ public sealed partial class WorkingPaperWriter
             (sheet, row, projected) => ProjectedCells(sheet, row, projected, firstColumn: 2),
             (sheet, rows, _, ct) =>
             {
-                sheet.Protect();
+                // 舊版只在有編製人員名單時保護這張表（idea-tool.bas 第 10573 到 10576 行，裁定 2026-11-09-14）。
+                if (rows > 0)
+                {
+                    sheet.Protect();
+                }
                 return sheet.CloseAndSummarizeWith(rows, ct);
             },
             omitWhenEmpty: false,
@@ -365,7 +376,7 @@ public sealed partial class WorkingPaperWriter
             ReplayDisplaySpoolAsync(spool, cancellationToken),
             (name, _) =>
             {
-                var sheet = session.OpenSheet(name);
+                var sheet = session.OpenSheet(name, lockedArea: Step13LockedArea);
                 ConfigureStep13Layout(sheet, widths);
                 WriteCommonHeader(
                     sheet,
@@ -485,7 +496,7 @@ public sealed partial class WorkingPaperWriter
         ProjectText(row.GlDate),
         ProjectAmount(row.DebitScaled, moneyScale),
         ProjectAmount(-row.CreditScaled, moneyScale),
-        ProjectBlank(WorkingPaperStyles.EditableNoFill)
+        ProjectBlank(WorkingPaperStyles.Editable)
     ];
 
     /// <summary>step1-2 編製人員列:B 人員 / C 空(自動或人工) / D 傳票數 / E 借方彙總 / F-H 空(部門/職稱/說明)。</summary>
@@ -494,15 +505,16 @@ public sealed partial class WorkingPaperWriter
         int moneyScale) =>
     [
         ProjectText(PreparerSummaryDisplay.NameOf(preparer.CreatedBy)),
-        // 裁定 2026-11-05-32：C 欄照舊版寫人工或自動；未判定或沒有配對人工傳票欄位時照範本表頭留白，審計員可以自己填。
+        // 裁定 2026-11-05-32：C 欄照舊版寫人工或自動；未判定或沒有配對人工傳票欄位時照範本表頭留白。
+        // 留白的格子照舊版和 B12:E 一起鎖定，不用可填的樣式（裁定 2026-11-09-21）。
         preparer.IsManual is { } isManual
             ? ProjectText(PreparerSummaryDisplay.ManualText(isManual))
-            : ProjectBlank(WorkingPaperStyles.EditableNoFill),
+            : ProjectBlank(),
         ProjectInteger(preparer.EntryCount, groupedForWidth: true),
         ProjectAmount(preparer.DebitTotalScaled, moneyScale),
-        ProjectBlank(WorkingPaperStyles.EditableNoFill),
-        ProjectBlank(WorkingPaperStyles.EditableNoFill),
-        ProjectBlank(WorkingPaperStyles.EditableNoFill)
+        ProjectBlank(WorkingPaperStyles.Editable),
+        ProjectBlank(WorkingPaperStyles.Editable),
+        ProjectBlank(WorkingPaperStyles.Editable)
     ];
 
     /// <summary>step1-3 差異說明列:B 編號 / C 名稱 / D 差異金額 / E-G 空(原因/調節/調節後差異)。</summary>
@@ -519,6 +531,14 @@ public sealed partial class WorkingPaperWriter
     ];
 
     /// <summary>多欄欄標列工廠(欄自 B 起,對齊 step1 家族表頭都從 B 欄開始;BoldWrap 因欄標含換行)。</summary>
+
+    // 受保護時鎖定的資料區照舊版 idea-tool.bas 鎖的範圍（裁定 2026-11-09-15）：
+    // step1 是 B15:F 到資料末列（第 10449 行）、step1-1 是 B12:E（第 10517 行）、
+    // step1-2 是 B12:E（第 10575 行）、step1-3 是 B17:D（第 10637 行）。
+    private static readonly WorkingPaperLockedArea Step1LockedArea = new(15, 2, 6, 19);
+    private static readonly WorkingPaperLockedArea Step11LockedArea = new(12, 2, 5, 16);
+    private static readonly WorkingPaperLockedArea Step12LockedArea = new(12, 2, 5, 11);
+    private static readonly WorkingPaperLockedArea Step13LockedArea = new(17, 2, 4, 16);
 
     private const string Step13Conclusion =
         "基於上述程序，查核團隊對出現差異之科目均已取得足夠的查核證據，已確認其原因尚屬合理或進行調節使其無差異，" +

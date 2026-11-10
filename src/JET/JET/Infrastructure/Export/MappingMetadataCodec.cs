@@ -81,6 +81,11 @@ internal static class MappingMetadataCodec
         {
             throw new MappingMetadataFormatException("mapping metadata JSON 無法解析。", ex);
         }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            // 紀錄被改過而含單獨的代理字元等無效 UTF-16 時，System.Text.Json 丟這兩種例外，不是 JsonException；一樣算格式無效。
+            throw new MappingMetadataFormatException("mapping metadata JSON 無法解析。", ex);
+        }
     }
 
     /// <summary>
@@ -119,6 +124,11 @@ internal static class MappingMetadataCodec
         }
         catch (JsonException ex)
         {
+            throw new MappingMetadataFormatException("報表中繼資料 JSON 無法解析。", ex);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            // 同 Decode：無效 UTF-16 也算格式無效。
             throw new MappingMetadataFormatException("報表中繼資料 JSON 無法解析。", ex);
         }
     }

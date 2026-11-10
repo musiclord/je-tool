@@ -26,6 +26,19 @@ public static class FilterScenarioPayloadParser
 
     public static FilterScenarioSpec Parse(JsonElement scenario, int moneyScale)
     {
+        try
+        {
+            return ParseCore(scenario, moneyScale);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or OverflowException)
+        {
+            // 存檔被改壞或畫面送來讀不出來的字串時，沿用條件內容損毀的錯誤，不讓底層轉型例外流到 Bridge。
+            throw FilterScenarioCorruption.Exception(null, "definition_parse_failed");
+        }
+    }
+
+    private static FilterScenarioSpec ParseCore(JsonElement scenario, int moneyScale)
+    {
         if (scenario.ValueKind != JsonValueKind.Object)
         {
             throw FilterScenarioCorruption.Exception(null, "scenario_not_object");
@@ -50,6 +63,49 @@ public static class FilterScenarioPayloadParser
 
         ValidateEditorOrigins(scenario, groups);
         return new FilterScenarioSpec(name.Trim(), rationale.Trim(), groups, source);
+    }
+
+    /// <summary>畫面會逐組逐條列出條件。結構讀不出來時保留情境，但不把壞掉的陣列直接送到畫面。</summary>
+    internal static bool HasReadableStructure(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("groups", out var groups) || groups.ValueKind != JsonValueKind.Array)
+            return false;
+        foreach (var group in groups.EnumerateArray())
+            if (group.ValueKind != JsonValueKind.Object
+                || !group.TryGetProperty("conditions", out var conditions) || !ConditionsReadable(conditions))
+                return false;
+        if (!root.TryGetProperty("editorOrigins", out var origins)) return true;
+        if (origins.ValueKind != JsonValueKind.Object
+            || !origins.TryGetProperty("groups", out var originGroups) || originGroups.ValueKind != JsonValueKind.Array
+            || originGroups.GetArrayLength() != groups.GetArrayLength()) return false;
+        for (var index = 0; index < groups.GetArrayLength(); index++)
+        {
+            var origin = originGroups[index];
+            if (origin.ValueKind != JsonValueKind.Object
+                || !origin.TryGetProperty("cards", out var cards) || cards.ValueKind != JsonValueKind.Array
+                || cards.GetArrayLength() != groups[index].GetProperty("conditions").GetArrayLength()) return false;
+        }
+        return true;
+
+        static bool ConditionsReadable(JsonElement conditions)
+        {
+            if (conditions.ValueKind != JsonValueKind.Array) return false;
+            foreach (var rule in conditions.EnumerateArray())
+            {
+                if (rule.ValueKind != JsonValueKind.Object) return false;
+                if (rule.TryGetProperty("conditions", out var children))
+                {
+                    if (!ConditionsReadable(children)) return false;
+                }
+                else if (rule.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
+                    && type.GetString() is "group" or "voucher")
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     // Editing provenance is structurally checked, but never used by the rule compiler.

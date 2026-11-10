@@ -157,7 +157,9 @@ internal static partial class GuiScenarios
         outcome.RecordStage("extended_negative_text_rules");
         await Click("[data-filter-pane-select=filter]"); await Add("field:description");
         await Choose("[data-value-kind]", "starts"); await Choose("[data-value-polarity]", "exclude");
-        await Fill("[data-value-key=value]", "GUI-"); await Preview();
+        // 裁定 2026-11-09-09 將開頭與結尾改為多值清單，操作改用該清單，原條件值與後續檢查不變。
+        // 首次失敗收據：20261110-052307728-25422c931dc24e96afa1df9a14bf8445；舊單值欄位已不存在。
+        await Fill("[data-value-key=values]", "GUI-"); await Preview();
         await Check("draft.groups[0].conditions[0].operator==='notStartsWith'");
         await Choose("[data-value-kind]", "ends"); await Choose("[data-value-polarity]", "exclude");
         await Preview(); await Check("draft.groups[0].conditions[0].operator==='notEndsWith'"); await Save(5);

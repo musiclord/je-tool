@@ -1,6 +1,6 @@
 # JET action 介面契約
 
-更新日期：2026-11-01
+更新日期：2026-11-10
 
 這份文件是前端、WebView2 Bridge 與 C# 處理器之間的 action 登錄表。它適合用來搜尋 action 名稱，
 不需要逐段閱讀。
@@ -155,6 +155,8 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 `{ projectId, databaseProvider: null, loadError: { code, message } }`，說明檢查鎖檔、從備份復原或另建案件重新匯入，
 不捏造資料庫種類、名稱、期間或時間。其他正常案件仍可開啟。
 本機案件的資料庫檔不見或是 0 位元組時也列成錯誤列，`code` 是 `file_read_error`；建案中的標記還在時照常列出（裁定 2026-11-05-72）。
+設定檔的 `projectId` 與實際資料夾名稱不同時，也列成錯誤列，識別碼取資料夾名稱，刪除只作用於該資料夾（裁定 2026-11-10-01）。
+`moneyScale` 缺少或不是正數時沿用設定檔無法讀取的錯誤，不補預設值。
 
 建案時查核起始日不得晚於截止日，否則回 `invalid_payload`，`field` 為 `periodStart`，不建立案件。
 既有案件的期間格式不合法或起日晚於迄日時，載入回 `invalid_project_schema`，提示從備份復原或另建案件重新匯入。
@@ -194,7 +196,8 @@ JET 也不動這些資料夾：`project.json` 記錄 SQLite 以外的種類，�
 匯入時把失效前最後一次確認的配對另存一份，那一側還沒重新確認時，這裡回傳它，形狀和 `mapping.gl`、`mapping.tb`
 相同，但不帶 `sourceBatchId`。它不是有效配對，驗證、篩選與匯出都不讀它，`mapping.commit.gl` 只從中沿用攸關資料元素
 欄位識別碼（見下方欄位配對一節）。前端只拿來預填草稿，只保留新資料仍有的來源欄，
-並把新資料沒有的欄位寫出來請審計員重新選。那一側有有效配對、沒有匯入資料，或從來沒有確認過配對時為 null。
+並把新資料沒有的欄位寫出來請審計員重新選。那一側有有效配對、沒有匯入資料，或從來沒有確認過配對時為 null；
+存下的那一份讀不出來時（例如配對格式改版或內容被改壞）也是 null，開案與確認配對照常。
 
 `project.load` 不會因為報告檔而拒絕載入。報告檔在 JET 之外被改寫、改名或刪除時，回應的 `reports`
 每筆多一個 `fileState`（`asPublished`、`modifiedOutside`、`missing`）讓前端標示，重新匯出即可。
@@ -234,6 +237,11 @@ GL 與 TB 的匯入或配對確認都回傳五個 true，使用同一條失效�
 `export.validationReports` 與 `export.prescreenReport` 的 payload 以必填的 `resultId` 指定依據哪一次結果，
 不是目前結果時回 `stale_result`。
 `project.load` 會把舊規則版本的驗證或預篩選摘要改回 null，並在 `staleState` 明示過期，不冒充從未執行。
+摘要不是合法 JSON，或裡面有讀不出來的文字時（例如內容在 JET 以外被改壞），也一樣改回 null 並標成過期，重新執行就恢復。
+驗證或預篩選摘要缺欄、欄名重複或型別不對時，對應結果同樣回 null 並標成過期，相關報告索引也過期；已匯出的檔案保持原狀（裁定 2026-11-10-02）。
+預篩選仍保留既有舊摘要的回放支援：當時沒有提供的區塊不補造，已有區塊的必要欄位與型別會檢查；顯示用的 `positioning` 由目前程式刷新。
+舊摘要缺少匯出所需內容時，匯出回 `stale_result` 並請重新執行預篩選，不補成零命中。
+已存 JSON 超過 60 層時也當成無法讀取，避免到回應寫出時才失敗。結果列的時間無法解讀時也回 null 並標過期；重新執行成功時，在保存新結果的同一交易清除日期無效的舊結果列，有效舊結果保留。情境列的時間或整數無法解讀時回既有 `database_corrupt`，不捏造日期與編號。
 
 ### 合成 demo 檔案
 
@@ -288,6 +296,9 @@ GL 與 TB 的主資料匯入支援 `.xlsx`、`.xlsm`、`.xls`、`.csv`、`.txt`�
 `.xlsm` 和 `.xlsx` 共用唯讀 Open XML 讀取器，`.xls` 使用逐列 BIFF 讀取器，都不啟動 Excel 或執行巨集。
 Access 透過公司既有 Office 資料介面唯讀讀取一般資料表；`sheetName` 指選定資料表。`.xlsb` 不支援。
 一個 GL 或 TB 資料集可以追加多個欄位相同的檔案或工作表；這只會合併列，不會把兩份 TB 自動解讀成期初與期末。
+畫面一次選多個檔案或工作表時，把勾選的來源依序放進 payload 的 `sources` 陣列，以一個 action 送出，GL 與 TB 相同（裁定 2026-11-09-19）。
+`mode` 是 `replace` 或 `append`，省略時是 `replace`。同一批每個來源的欄名集合要相同，不同時以 `column_mismatch` 拒絕；任一來源讀不出來時，整批都不寫入。
+追加時每個來源也要和已匯入的資料欄名相同。兩種情況共用同一句訊息，寫出是哪個檔案、多出與缺少哪些欄，並說明本次未匯入、先前匯入的資料不受影響（裁定 2026-11-09-22）。
 GL 與 TB 匯入成功回應的 `warnings` 為字串陣列。追加來源的實際檔名、工作表與列數都和某份既有來源相同時，
 提醒來源檔名、工作表及列數皆相同、已照常加入，請使用者確認是否重複匯入；取代模式不提醒，不以預估列數判斷，也不把這個提醒當成去重功能。
 文字檔來源有用引號包住、內含換行的欄位時，每個來源再加一則提醒，寫出列數與前五個列號，匯入照常完成；
@@ -347,13 +358,28 @@ Access 資料表的欄名來自資料表本身，帶了以 `invalid_payload` 拒
 - `mapping.commit.tb`
 
 沒有 `mapping.autoSuggest` 這類自動建議，GL 與 TB 欄位由審計員手動選取（裁定 2026-09-17-04）；已保存配對仍保留。
-第三步的「從報告帶入配對」選了 JET 匯出的 .xlsx 後送 `mapping.restoreDraft`，payload 只有 `filePath`（裁定 2026-11-05-03）。
+第三步的「由底稿匯入欄位」選了 .xlsx 後送 `mapping.restoreDraft`，payload 只有 `filePath`（裁定 2026-11-05-03、2026-11-09-27）。
 後端先讀六份正式報表共用的隱藏工作表 `JET_Metadata`，沒有這張表時讀「自動化工具-檔案欄位資訊」的 F1:H1。
+F1:H1 三格都空白才算沒有這份紀錄；有內容而 F1 不是標記，算紀錄存在但格式不對。
+兩種隱藏紀錄都沒有時，讀「自動化工具-檔案欄位資訊」看得到的 A 到 E 欄，從「配對前欄位名稱」「欄位型態」「配對後欄位名稱」推得草稿，
+舊版 IDEA JET 與新版 JET 的寫法都認得（裁定 2026-11-09-28）。人工傳票否照舊版，`manualAutoPolicy` 是 `manualValues` `["1"]`、`automaticValues` `["0"]`；
+攸關資料元素的 `fieldId` 由後端新產生。推不出來的項目列在 `unmatchedFields`，不整份拒絕：TB 只有兩欄相減時看不出是借減貸還是期末減期初，
+列出 `changeAmount`；舊版沒記借方代碼時列出 `drCrDebitCode`，`sourceColumn` 是空字串。
+「配對前欄位名稱」和「配對後欄位名稱」相同時，新版要加了【】才算配對，舊版都算來源欄同名的配對。
+舊版金額說明句裡的「-」一律當成借方欄與貸方欄的分隔；新版說明句對不上時不套用這條，列出金額。
+新版說明句完整寫出已填代碼。兩側都填時寫「借方為「代碼」，貸方為「代碼」」，推回 `drCrDebitCode` 與 `drCrCreditCode`；
+只有一側時只寫該側並推回該側代碼（裁定 2026-11-10-03）。以前只寫借方代碼的檔案仍只帶回借方代碼，不猜貸方代碼。
+看得見的表沒有補值欄位，推得的 `fillDownFields` 是空的；`rdeFields` 依表上的列序排列。
+攸關資料元素名稱後面的「（來源欄名）」，去掉後的名稱和其他列相同或加 `_JE` 是標準欄名時，當成新版補上的後綴，推回的 `label` 不含這一段。
+來源欄名先找完全相同的，找不到時比對只留文字與數字、全形半形視為相同、不分大小寫的寫法，唯一一個對得上才算。
 這個 action 只讀不寫，不保存配對，也不建立標準資料。回應的 `gl` 是 GL 草稿。`tb` 是 TB 草稿；
-沒有匯入 TB，或報告匯出時 TB 還沒確認配對，`tb` 是 null。
-報告裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的連同綁在它上面的設定一起拿掉，列在 `unmatchedFields`。
+沒有匯入 TB、檔案匯出時 TB 還沒確認配對，或 TB 段沒有任何配對也沒有要重選的項目時，`tb` 是 null，不換掉 TB 草稿。
+檔案裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的連同綁在它上面的設定一起拿掉，列在 `unmatchedFields`。
 每一項有 `dataset`、`key`、`label`、`sourceColumn`；攸關資料元素的 `key` 是它的 `fieldId`。
-報告本身缺必要欄位、用了不支援的金額計算方式，或檔案裡沒有 JET 記下的配對時，整份拒絕並寫出原因。
+隱藏紀錄存在但格式不對（裁定 2026-11-05-14）、隱藏紀錄缺必要欄位或用了不支援的金額計算方式，或檔案裡沒有「自動化工具-檔案欄位資訊」與隱藏紀錄時，
+整份拒絕並寫出原因。沒有隱藏紀錄，而工作表裡找不到 GL 的欄位對照表，或 GL 的對照表推不出任何欄位時，也整份拒絕；
+這時不看 TB 段，因為 GL 草稿會整份換掉。還沒匯入 GL、檔案不是 .xlsx、找不到檔案、檔案讀不出來，
+以及進階設定和目前匯入的資料不一致時，也整份拒絕。每種拒絕的訊息都寫出下一步。
 
 GL 的 `glDate` 在畫面顯示為「總帳日期」，用來界定案件期間。`approvalDate` 對應「傳票核准日」及資料庫 `approval_date`。
 JET 沒有傳票日期欄位與回溯過帳規則，`mapping.commit.gl` 不接受 `voucherDate`（裁定 2026-10-08-03）。
@@ -707,8 +733,10 @@ GL 或 TB 已有確認過的配對，或重新匯入後第一次確認時，JET 
 現行篩選版本為 `filter-2026-10-14-v20`，篩選條件每條只表達一件事（裁定 2026-10-14-08）；預篩選版本為 `prescreen-2026-10-08-v10`。
 用較早版本算出的命中需重新計算，舊預篩選結果視為過期、需重新執行預篩選。已停用的寫法列為待修正，定義不自動轉換。
 日期運算值沿用 GL 匯入的 `DateNormalizer` 與案件 `DateParseOptions`，從預覽、儲存到重開及匯出都使用同一選項。
-摘要關鍵字、尾數、人員代號與科目編號的文字輸入接受換行、半形與全形逗號、頓號及 Tab；已送成 `values` 陣列的文字值不拆逗號。
+摘要關鍵字、開頭與結尾的值、尾數、人員代號與科目編號的文字輸入接受換行、半形與全形逗號、頓號及 Tab；已送成 `values` 陣列的文字值不拆逗號。
 「包含任一文字」依實際送出的清單計算 100 個上限，修剪前後空白後仍區分大小寫，不拿不分大小寫的摘要筆數代替。
+文字的 `startsWith`、`notStartsWith`、`endsWith`、`notEndsWith` 和 `contains` 一樣以 `values` 送出多個值，上限與計算方式相同；
+以前存下只帶 `value` 的條件，後端照舊讀成一個值（裁定 2026-11-09-09）。
 特定人員、特定摘要、空白摘要與特定尾數四張卡，分別使用人員、摘要與金額的 `fieldValue`，卡片來源仍保存於 `editorOrigins`。
 超過 100 個值時回報拆成多條並放進子條件組，用 OR 連接；否定清單則用 AND 連接（裁定 2026-10-30-32）。
 條件驗證訊息以「第 N 組第 M 條」指出位置；`FilterScenarioErrorDetails` 同時接受這個寫法與舊訊息，保留逐列錯誤定位。
@@ -777,7 +805,7 @@ filter.scenario.recheck { populationScope?: "auditPeriod" }
 三個 action 的回應相同：
 
 ```text
-{ ok, position, savedCount, scenarios, resultRef, filterScenarioCheck, staleState }
+{ ok, position, savedCount, scenarios, resultRef, filterScenarioCheck, staleState, reportWarning }
 ```
 
 `position` 是這次存下的那一個的位置，移除與重新檢查為 null。`scenarios` 與 `project.load.filterScenarios` 同形狀。
@@ -790,6 +818,7 @@ filter.scenario.recheck { populationScope?: "auditPeriod" }
 `resultRef` 為 null，高風險條件彙總、命中查詢、條件篩選報告與第六步照樣回 `stale_result`。
 `resultRef.revision` 是整批情境的版本，存或移除任何一個情境都會改變，前端只當成不能拆解的字串原樣送回；
 `resultRef.generatedUtc` 是最近一次儲存情境的時間。`staleState` 是寫入後讀出的結果狀態。
+寫入成功後讀不回結果狀態時，仍回成功並帶回已保存的情境清單，`resultRef` 與 `staleState` 回 null，`reportWarning` 沿用變更已儲存的提醒；前端保留原旗標，請審計員重新開啟案件（裁定 2026-11-10-02）。
 
 錯誤：缺 `scenario`、`position` 不是正整數或 null、給了 `position` 卻缺 `expectedName` 時回 `invalid_payload`；
 `position` 超出清單或 `expectedName` 和資料庫那一筆不同時回 `stale_result`，不寫入；新增時已有 10 個情境回

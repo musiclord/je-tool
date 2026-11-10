@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -63,6 +64,59 @@ public sealed class MappingReimportDraftTests
         Assert.Equal(
             fieldId,
             after.GetProperty("mapping").GetProperty("gl").GetProperty("rdeFields")[0].GetProperty("fieldId").GetString());
+    }
+
+    /// <summary>
+    /// 上次確認的配對只用來帶回草稿，讀不出來時當作沒有（LocalMappingStateStore.FindPreviousAsync 的註解）：
+    /// 日後配對格式改版或內容被改壞，開案照常，GL 從空白草稿開始，TB 那一份照常帶回，GL 也照常能確認配對。
+    /// 每一列把 GL 那一份的一個欄位改成讀不出來的內容：選項 JSON 語法錯誤、多了認不得的設定、含不成對的代理字元或整格空白，
+    /// 配對 JSON 語法錯誤或含不成對的代理字元、確認時間不是日期，以及格式版本是舊版或大到超過整數範圍。這是新增的測試。
+    /// </summary>
+    [Theory]
+    [InlineData("options_json", "{")]
+    [InlineData("options_json", """{"approvalDateMode":"unmapped","postingStatusPolicy":null,"manualAutoPolicy":{"manualValues":["1"],"automaticValues":["0"]},"rdeFields":[],"futureOption":true}""")]
+    [InlineData("options_json", """{"approvalDateMode":"\ud800","postingStatusPolicy":null,"manualAutoPolicy":{"manualValues":["1"],"automaticValues":["0"]},"rdeFields":[]}""")]
+    [InlineData("options_json", null)]
+    [InlineData("mapping_json", "{")]
+    [InlineData("mapping_json", """{"voucherNumber":"\ud800"}""")]
+    [InlineData("committed_utc", "not a date")]
+    [InlineData("format_version", 1)]
+    [InlineData("format_version", 1099511627776L)]
+    public async Task UnreadablePreviousGlMapping_IsTreatedAsMissingWhenOpeningAndConfirming(string column, object? storedValue)
+    {
+        using var host = new HandlerTestHost();
+        var gl = WriteCsv(host, "gl.csv", GlHeader, GlRows("Sales"));
+        var tb = WriteCsv(host, "tb.csv", TbHeader, [["1101", "Cash", "0"]]);
+        var projectId = await CreateAsync(host, "sqlite");
+        await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = gl }));
+        await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tb }));
+        await host.DispatchAsync("mapping.commit.gl", GlCommitPayload(fieldId: null));
+        await host.DispatchAsync("mapping.commit.tb", TbCommitPayload);
+        await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = gl }));
+        await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tb }));
+
+        ILocalProjectDatabase database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        await using (var connection = database.CreateConnection(projectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            // column 只來自上面固定的幾個欄名。
+            command.CommandText = $"UPDATE field_mapping_previous SET {column} = @value WHERE dataset_kind = 'gl';";
+            command.AddWithValue("@value", storedValue);
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        }
+
+        var reopened = await LoadAsync(host, projectId);
+
+        Assert.Equal(JsonValueKind.Null, reopened.GetProperty("mapping").GetProperty("gl").ValueKind);
+        Assert.Equal(JsonValueKind.Null, reopened.GetProperty("previousMapping").GetProperty("gl").ValueKind);
+        Assert.Equal(
+            "Account",
+            reopened.GetProperty("previousMapping").GetProperty("tb").GetProperty("mapping").GetProperty("accountNumber").GetString());
+
+        // 確認 GL 配對時也會讀上次確認的那一份（沿用攸關資料元素欄位身分），讀不出來時照樣發新的身分。
+        var recommitted = await host.DispatchAsync("mapping.commit.gl", GlCommitPayload(fieldId: null));
+        Assert.False(string.IsNullOrWhiteSpace(recommitted.GetProperty("rdeFields")[0].GetProperty("fieldId").GetString()));
     }
 
     [Theory]

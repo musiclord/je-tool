@@ -324,8 +324,11 @@ public sealed class WorkingPaperProgramTests
             + " 亦將對整個財務報表期間之會計分錄母體，篩選與舞弊風險類型相關之分錄。\n"
             + "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。",
             Sheet(finalized, WorkingPaperSheetCatalog.Step3).Methodology);
+        // 裁定 2026-11-09-12：空白傳票號碼的列法改寫進範本 A12，方法說明和範本同一句，後端不再另外接。
+        // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
         Assert.Equal(
-            "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)",
+            "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)"
+            + "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",
             Sheet(finalized, WorkingPaperSheetCatalog.Step4).Methodology[^1]);
         Assert.Equal(
             "若查核團隊發現受查客戶在財務報表關帳後，尚有入帳之調整分錄(Post-closing entries)，" +

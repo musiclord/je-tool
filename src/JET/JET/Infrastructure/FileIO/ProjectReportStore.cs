@@ -676,7 +676,7 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
         var reports = new List<Report>(entries.Length);
         foreach (var entry in entries)
         {
-            var report = FromManifestEntry(entry);
+            var report = FromManifestEntry(entry, paths.ProjectDirectory);
             if (report is not null)
             {
                 reports.Add(report);
@@ -686,16 +686,17 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
         return reports;
     }
 
-    private static Report? FromManifestEntry(ManifestEntry? entry)
+    private static Report? FromManifestEntry(ManifestEntry? entry, string projectDirectory)
     {
         if (entry is null
             || !IsValidReportId(entry.ReportId)
             || !ReportKindValues.TryParse(entry.Kind, out var kind)
             || kind == ReportKind.AccountMapping
-            || !IsDirectChildName(entry.RelativeFileName)
+            || !IsFileNameInFolder(projectDirectory, entry.RelativeFileName)
             || entry.Bytes < 0)
         {
             // 讀不懂的舊紀錄與已改為工作檔的帳戶對應範本都不列出；檔案本身還在資料夾裡。
+            // 檔名不能當成案件資料夾裡的一個檔案時也算讀不懂，否則之後每個用到路徑的地方都會丟例外，連開案都失敗。
             return null;
         }
 
@@ -821,13 +822,41 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
 
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
         var candidate = Path.GetFullPath(Path.Combine(root, relativeFileName));
-        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, PathComparison))
+        if (!IsInsideFolder(root, candidate))
         {
             throw JetPayloadRejection.Create(JetErrorCodes.FileReadError, "report_path_outside_folder");
         }
 
         return candidate;
     }
+
+    /// <summary>
+    /// 檔名能不能當成案件資料夾裡的一個檔案。條件和 <see cref="ResolveContainedPath"/> 相同，只是不丟例外：
+    /// 「..」、「.」、裝置名稱（例如 NUL）與含有不能當路徑的字元的名稱都不行。讀報告清單時用它判斷一筆紀錄讀不讀得懂。
+    /// </summary>
+    private static bool IsFileNameInFolder(string directory, string? relativeFileName)
+    {
+        if (!IsDirectChildName(relativeFileName))
+        {
+            return false;
+        }
+
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        string candidate;
+        try
+        {
+            candidate = Path.GetFullPath(Path.Combine(root, relativeFileName!));
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
+        {
+            return false;
+        }
+
+        return IsInsideFolder(root, candidate);
+    }
+
+    private static bool IsInsideFolder(string root, string candidate)
+        => candidate.StartsWith(root + Path.DirectorySeparatorChar, PathComparison);
 
     private static bool IsDirectChildName(string? value)
         => !string.IsNullOrWhiteSpace(value)

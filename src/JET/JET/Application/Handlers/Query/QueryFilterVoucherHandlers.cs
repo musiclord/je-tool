@@ -148,10 +148,15 @@ public sealed class FilterVoucherQueryService(IFilterVoucherRepository repositor
             group.Conditions.All(rule => rule.IsVoucherCondition));
         var categoryLabels = categorySnapshot.Categories.ToDictionary(item => item.CategoryId, item => item.Label);
         var fieldLabels = context.RdeFields.ToDictionary(item => item.FieldId, item => item.Label);
-        string Condition(FilterConditionPosition position) => $"第 {position.Group} 組條件 {position.Rule}："
+        string Condition(FilterConditionPosition position)
+        {
+            if (position.Group < 1 || position.Group > spec.Groups.Count
+                || position.Rule < 1 || position.Rule > spec.Groups[position.Group - 1].Conditions.Count) throw Stale();
+            return $"第 {position.Group} 組條件 {position.Rule}："
             + FilterConditionRenderer.Render(JsonSerializer.SerializeToElement(new { groups = new[] { new { conditions = new[] {
                 scenarioJson.GetProperty("groups")[position.Group - 1].GetProperty("conditions")[position.Rule - 1] } } } }), categoryLabels, fieldLabels, categorySnapshot.Categories, project.LastAccountingPeriodDate, project.PeriodStart, project.PeriodEnd,
                 zerosThreshold: context.ZerosThreshold);
+        }
         string Describe(FilterVoucherDetail row)
         {
             var descriptions = new List<string>();

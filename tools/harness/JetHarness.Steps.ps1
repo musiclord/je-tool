@@ -308,6 +308,55 @@ function Invoke-JetGuiBuildPipeline {
     return $results.ToArray()
 }
 
+function Invoke-JetGuiBundleStep {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
+        [Parameter(Mandatory = $true)] [string] $RunDirectory,
+        [Parameter(Mandatory = $true)] [string] $BundleDirectory,
+        [Parameter(Mandatory = $true)] $Registry,
+        [Parameter(Mandatory = $true)] [int] $TimeoutSeconds
+    )
+
+    # Gui 測試版不能發布。只有這裡帶 JetAgentGuiOwnedBundle=true，照正式版的 FolderProfile 打包成單一執行檔，
+    # 輸出到這次執行的 scratch，JET.csproj 才放行；scratch 在命令結束時整個刪除（裁定 2026-11-09-03）。
+    Assert-JetNoExistingReparsePoint -RepositoryRoot $RepositoryRoot -Candidate $BundleDirectory
+    $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1 -ExpandProperty Source
+    $boundedTree = Get-JetMemoryBoundedTreeSettings -Registry $Registry
+    $applicationProject = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.applicationProject)
+    $configuration = [string]$Registry.guiSettings.configuration
+    $runtimeIdentifier = [string]$Registry.packageSettings.runtimeIdentifier
+    $publishProfile = [string]$Registry.packageSettings.publishProfile
+    return Invoke-JetChildStep `
+        -RepositoryRoot $RepositoryRoot `
+        -RunDirectory $RunDirectory `
+        -Name 'gui-app-bundle' `
+        -FileName $dotnet `
+        -Arguments @(
+            'publish', $applicationProject,
+            '--configuration', $configuration,
+            '--runtime', $runtimeIdentifier,
+            '--no-restore', '--disable-build-servers',
+            '--output', $BundleDirectory,
+            "/p:PublishProfile=$publishProfile",
+            '/p:JetAgentGuiOwnedBundle=true'
+        ) `
+        -DisplayCommand @(
+            'dotnet', 'publish', ([string]$Registry.guiSettings.applicationProject),
+            '--configuration', $configuration,
+            '--runtime', $runtimeIdentifier,
+            '--no-restore', '--disable-build-servers',
+            '--output', (Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $BundleDirectory),
+            "/p:PublishProfile=$publishProfile",
+            '/p:JetAgentGuiOwnedBundle=true'
+        ) `
+        -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
+        -TimeoutSeconds $TimeoutSeconds `
+        -EnvironmentVariablesToRemove @($Registry.testSettings.environmentVariablesToRemove) `
+        -TreatNuGetSourceFailureAsBlocked `
+        @boundedTree
+}
+
 function Invoke-JetExcelBuildPipeline {
     param(
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,

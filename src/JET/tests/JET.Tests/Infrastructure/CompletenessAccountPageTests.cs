@@ -7,7 +7,8 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 完整性「全科目」keyset 分頁(<see cref="ICompletenessAccountPageRepository"/>,匯出底稿 step1 資料源)。
-/// 與既有 <see cref="ICompletenessDiffPageRepository"/> 唯一差別:不過濾 diff≠0,故必含差異為 0 的科目。
+/// 與既有 <see cref="ICompletenessDiffPageRepository"/> 共用科目集合；全科目表不過濾差異，名稱只取 TB。
+/// 差異表仍可由 GL 補上 TB 缺少的名稱。
 ///
 /// oracle:獨立 SQL recount(<see cref="DemoProjectPipeline.QueryScalarAsync"/>),
 /// 全科目數 = TB 科目 ∪ (GL 有 TB 無) 的基數;以小 pageSize 走訪驗「聯集==全集、無缺漏無重複、序穩」。
@@ -26,7 +27,41 @@ public sealed class CompletenessAccountPageTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
+        // V5 與底稿 step1 的名稱來自 TB；差異頁仍可由 GL 補上缺少的名稱。
+        // 全部為合成資料，另外加入足夠的零差異科目，讓既有 50 筆分頁確實跨頁。
+        // 首次失敗：Focused 20261110-061640554-bf7ece0a2a3348909ca7874bf8ab5a73；TB 名稱為 null 時原本帶入 GL 名稱。
+        var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        await using (var connection = database.CreateConnection(context.ProjectId))
+        {
+            await connection.OpenAsync();
+            await using var seed = connection.CreateCommand();
+            seed.CommandText = """
+                INSERT INTO gl
+                    (batch_id, source_row_number, voucher_number, gl_date, account_number, account_name,
+                     amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded)
+                VALUES
+                    ('name-source-fixture', 1, 'name-source-1', '2025-01-15', 'NAME-TB-FILLED', 'GL filled name', 1000, 1000, 0, 'DEBIT', 0),
+                    ('name-source-fixture', 2, 'name-source-2', '2025-01-15', 'NAME-TB-NULL', 'GL null fallback', 2000, 2000, 0, 'DEBIT', 0),
+                    ('name-source-fixture', 3, 'name-source-3', '2025-01-15', 'NAME-TB-EMPTY', 'GL empty fallback', 3000, 3000, 0, 'DEBIT', 0),
+                    ('name-source-fixture', 4, 'name-source-4', '2025-01-15', 'NAME-GL-ONLY', 'GL only name', 4000, 4000, 0, 'DEBIT', 0);
+                INSERT INTO tb (batch_id, source_row_number, account_number, account_name, change_amount_scaled)
+                VALUES
+                    ('name-source-fixture', 1, 'NAME-TB-FILLED', 'TB filled name', 800),
+                    ('name-source-fixture', 2, 'NAME-TB-NULL', NULL, 0),
+                    ('name-source-fixture', 3, 'NAME-TB-EMPTY', '', 0),
+                    ('name-source-fixture', 4, NULL, 'TB blank code', 100);
+                WITH RECURSIVE synthetic_accounts(n) AS (
+                    SELECT 1 UNION ALL SELECT n + 1 FROM synthetic_accounts WHERE n < 60
+                )
+                INSERT INTO tb (batch_id, source_row_number, account_number, account_name, change_amount_scaled)
+                SELECT 'name-source-fixture', n + 4, 'NAME-TB-SEED-' || printf('%03d', n), 'TB seed name', 0
+                FROM synthetic_accounts;
+                """;
+            await seed.ExecuteNonQueryAsync();
+        }
+
         var all = new List<string>();
+        var allRows = new List<CompletenessDiffAccount>();
         string? cursor = null;
         do
         {
@@ -34,6 +69,7 @@ public sealed class CompletenessAccountPageTests
                 context.ProjectId, moneyScale: 100, "2025-01-01", "2025-12-31",
                 new PageRequest(cursor, PageSize: 50), CancellationToken.None);
             all.AddRange(page.Rows.Select(r => r.AccountNumber));
+            allRows.AddRange(page.Rows);
             cursor = page.NextCursor;
         } while (cursor is not null);
 
@@ -51,6 +87,22 @@ public sealed class CompletenessAccountPageTests
         Assert.Equal(total, all.Count);
         Assert.Equal(all.Count, all.Distinct().Count()); // 無重複
         Assert.True(all.SequenceEqual(all.OrderBy(x => x, StringComparer.Ordinal))); // account_number 升冪穩定
+
+        Assert.True(all.Count > 50);
+        Assert.Equal(string.Empty, all[0]);
+        Assert.Equal("TB blank code", allRows[0].AccountName);
+        Assert.Equal("TB filled name", allRows.Single(r => r.AccountNumber == "NAME-TB-FILLED").AccountName);
+        Assert.Null(allRows.Single(r => r.AccountNumber == "NAME-TB-NULL").AccountName);
+        Assert.Equal(string.Empty, allRows.Single(r => r.AccountNumber == "NAME-TB-EMPTY").AccountName);
+        var glOnly = allRows.Single(r => r.AccountNumber == "NAME-GL-ONLY");
+        Assert.True(glOnly.NotInTb);
+        Assert.Null(glOnly.AccountName);
+
+        var differences = await DrainDiffAsync(new LocalCompletenessDiffPageRepository(database), context.ProjectId);
+        Assert.Equal("TB filled name", differences.Single(r => r.AccountNumber == "NAME-TB-FILLED").AccountName);
+        Assert.Equal("GL null fallback", differences.Single(r => r.AccountNumber == "NAME-TB-NULL").AccountName);
+        Assert.Equal(string.Empty, differences.Single(r => r.AccountNumber == "NAME-TB-EMPTY").AccountName);
+        Assert.Equal("GL only name", differences.Single(r => r.AccountNumber == "NAME-GL-ONLY").AccountName);
     }
 
     /// <summary>

@@ -226,9 +226,27 @@ internal static class FieldInfoProjector
             GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag =>
                 $"{target}由系統產生 : 金額欄位{SourceMark(spec.Mapping, GlMappingKeys.Amount)}、" +
                 $"借貸方判斷欄位{SourceMark(spec.Mapping, GlMappingKeys.DrCr)}，" +
-                $"借方為「{RequiredMappedSource(spec.Mapping, GlMappingKeys.DrCrDebitCode)}」",
+                DrCrCodeText(spec.Mapping),
             _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.AmountMode, null)
         };
+    }
+
+    /// <summary>
+    /// 舊版只寫借方代碼「借方為【代碼】」（idea-tool.bas 第 12656、12674 行）。
+    /// 新版完整寫出已填的兩側代碼，只有一側時只寫該側，讓看得見的表也能帶回相同設定（裁定 2026-11-10-03）。
+    /// </summary>
+    private static string DrCrCodeText(IReadOnlyDictionary<string, string> mapping)
+    {
+        var codes = new List<string>(2);
+        if (TryMappedSource(mapping, GlMappingKeys.DrCrDebitCode, out var debitCode))
+        {
+            codes.Add($"借方為「{debitCode}」");
+        }
+        if (TryMappedSource(mapping, GlMappingKeys.DrCrCreditCode, out var creditCode))
+        {
+            codes.Add($"貸方為「{creditCode}」");
+        }
+        return string.Join("，", codes);
     }
 
     private static string TbAmountDescription(TbMappingSpec spec)

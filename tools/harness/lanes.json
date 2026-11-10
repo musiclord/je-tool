@@ -190,6 +190,14 @@
         "screenshotBudget": 2
       },
       {
+        "name": "single-file-relaunch",
+        "application": "ownedBundle",
+        "timeoutSeconds": 240,
+        "actionBudget": 20,
+        "expectedActionCount": 17,
+        "screenshotBudget": 0
+      },
+      {
         "name": "case-list-cleanup-cancel-export",
         "timeoutSeconds": 180,
         "actionBudget": 10,

@@ -3344,7 +3344,11 @@ internal static partial class LegacyCriteriaLogParser
                 (LegacyParityCase.CaseA, 2) => new(
                     MatchScope: "row",
                     TextRuleShape: LegacyTextRuleShape.TextSetRemoveAsciiSpaces),
-                (LegacyParityCase.CaseA, 3 or 4 or 5) or (LegacyParityCase.CaseB, 2) => new(
+                // 2026-08-28-02 與 harness.md：情境 5 的三個條件必須在同一列成立。
+                (LegacyParityCase.CaseA, 5) => new(
+                    MatchScope: "row",
+                    TextRuleShape: LegacyTextRuleShape.TextSetPreserve),
+                (LegacyParityCase.CaseA, 3 or 4) or (LegacyParityCase.CaseB, 2) => new(
                     MatchScope: "row",
                     TextRuleShape: LegacyTextRuleShape.TextSetPreserve,
                     VoucherWitnesses: true),

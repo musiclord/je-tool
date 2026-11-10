@@ -3090,14 +3090,31 @@ test('text keywords normalize approved separators on wire without modifying lite
   assert.deepEqual(plain(rules[1].values), ['Alpha,Beta', 'Gamma，Delta']);
 });
 
-test('single-value comparisons retain their literal operand and warn about multiline input', () => {
-  const f = batch7Fixture();
+// 裁定 2026-11-09-09：開頭符合與結尾符合改成和包含一樣一次收多個值，分隔方式也和包含相同。原本的測試
+// 「single-value comparisons retain their literal operand and warn about multiline input」確認這四種只收一個值、
+// 多行只提醒，改需求後照新行為改寫；名稱同日使用者確認。第一次失敗：FrontendMapping 收據
+// 20261109-042107180-4566b0a408eb42658e837c61a34e30cc（wire 不再送 value）。
+test('prefix and suffix comparisons take a value list like contains and still read a saved single value', () => {
+  const f = batch7Fixture(), values = f.ui.FilterValues, state = f.store.getState();
   for (const operator of ['startsWith', 'notStartsWith', 'endsWith', 'notEndsWith']) {
-    const rule = { type: 'fieldValue', field: 'description', operator, value: 'Alpha\nBeta' };
-    assert.equal(f.ui.FilterValues.wire(rule, f.store.getState()).value, 'Alpha\nBeta');
-    assert.match(f.editor(rule).html, /只.*一個值.*多行|多行.*只.*一個值/);
-    assert.equal(f.ui.FilterValues.problem(rule, f.store.getState()), '', 'reminder does not invent a new blocker');
+    const rule = { type: 'fieldValue', field: 'description', operator, values: [] };
+    const page = f.editor(rule); page.input('values', 'Alpha,Beta，Gamma、Delta\tEpsilon\nZeta');
+    const sent = values.wire(rule, state);
+    assert.deepEqual(plain(sent.values), ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta'], operator);
+    assert.equal(sent.value, undefined, operator);
+    assert.match(page.html, /換行.*逗號.*頓號.*Tab/);
+    assert.doesNotMatch(page.html, /只收一個值/);
+    assert.equal(values.problem(rule, state), '');
+    // 以前存下的情境只帶一個 value：照原樣當成一個值送出，多行與逗號都不拆，命中和以前相同。
+    const saved = { type: 'fieldValue', field: 'description', operator, value: 'Alpha\nBeta' };
+    assert.deepEqual(plain(values.wire(saved, state).values), ['Alpha\nBeta'], operator);
+    assert.match(f.editor(saved).html, />Alpha\nBeta<\/textarea>/);
+    assert.equal(values.problem(saved, state), '');
   }
+  const tooMany = { type: 'fieldValue', field: 'description', operator: 'notStartsWith', values: Array.from({ length: 101 }, (_, i) => 'K' + i) };
+  assert.match(values.problem(tooMany, state), /用 AND 連接/);
+  tooMany.operator = 'endsWith';
+  assert.match(values.problem(tooMany, state), /用 OR 連接/);
 });
 
 test('filter dates use GL formats and the project ROC setting without changing month-day numbers', () => {
@@ -3567,10 +3584,28 @@ test('source preview states its ten-row boundary and TB merge guidance does not 
   const f = batch8Fixture();
   const preview = f.importer.previewTableHtml({ previewData: { columns: ['Synthetic'], sampleRows: [['value']] } });
   assert.match(preview, /前 10 列/);
-  assert.doesNotMatch(f.importer.emptyFaceHtml('tb'), /可合併欄位相同/);
-  assert.match(f.importer.emptyFaceHtml('gl'), /可合併欄位相同/);
-  f.importer.getWizard().kind = 'tb'; f.importer.getWizard().mode = 'replace';
-  assert.doesNotMatch(f.importer.wizardBannerHtml(null), /可合併工作表或資料表/);
+  // 原本斷言 TB 的兩處說明不寫「可合併欄位相同」「可合併工作表或資料表」，出自 2026-09-17 使用者回饋計畫第 8 批的 L11：
+  // 以免暗示能處理期初與期末兩檔。裁定 2026-11-09-19 要 TB 和 GL 一樣寫出可以合併欄位相同的檔案，期初與期末分檔仍不做，
+  // 所以改成檢查兩處都寫出可以合併，也都明寫不會自動配成期初與期末的期間變動。
+  // 第一次失敗：FrontendMapping 收據 20261109-085046392-375ec381c4d94fd383d6c43f2076f56f。
+  // 審計員試用後仍把期初與期末兩個 TB 檔一起匯入，以為會依科目接起來。裁定 2026-11-09-23 改寫 TB 的說明：
+  // 先寫期初與期末要放在同一個檔案，再寫多檔只會往下疊成一份 TB、不會接起來，斷言跟著改成新句子的這幾個意思。
+  // 第一次失敗：FrontendMapping 收據 20261109-093217918-f5c210768eb04b4ab1306a63a14f61ee。
+  // 使用者驗收時要 TB 的說明不暗示期初與期末的接合，裁定 2026-11-09-24 改成和 GL 同一套句子。
+  // 斷言改成確認 TB 的卡片、建立與「加入」時的說明和 GL 只差在 GL 與 TB，而且不提期初、期末與接合。
+  // 第一次失敗：FrontendMapping 收據 20261109-105542384-ab8e3aa26e20445c9c982d827098bce0。
+  assert.equal(f.importer.emptyFaceHtml('tb').replace('wizard-replace-tb', 'wizard-replace-gl'), f.importer.emptyFaceHtml('gl'));
+  assert.match(f.importer.emptyFaceHtml('gl'), /可合併欄位相同的檔案、工作表或資料表/);
+  assert.doesNotMatch(f.importer.emptyFaceHtml('tb'), /期初|期末|接起來/);
+  const banners = (mode, info) => {
+    f.importer.getWizard().mode = mode;
+    f.importer.getWizard().kind = 'gl'; const gl = f.importer.wizardBannerHtml(info);
+    f.importer.getWizard().kind = 'tb'; return { gl, tb: f.importer.wizardBannerHtml(info) };
+  };
+  const create = banners('replace', null), append = banners('append', { rowCount: 2 });
+  assert.equal(create.tb, create.gl.replace('建立 GL', '建立 TB'));
+  assert.equal(append.tb, append.gl.replace('這份 GL', '這份 TB'));
+  for (const html of [create.tb, append.tb]) assert.doesNotMatch(html, /期初|期末|接起來/);
 });
 
 test('mapping date fields omit permanent explanations while invalid approval settings still show a warning', () => {
@@ -3722,6 +3757,19 @@ test('state hydration setters do not maintain a second mutation dependency matri
     assert.equal(state.filter.preview?.count, 7, 'setter ' + index + ' cannot decide audit dependencies');
     assert.deepEqual(plain(state.reports), catalog);
   }
+});
+
+// 修正前診斷失敗：artifacts/post-write-recovery/frontend-before.txt，未知的旗標被改成 false。
+test('saved scenario response with unavailable result state keeps stale flags and shows the committed warning', () => {
+  const f = batch9Fixture(), state = seedBatch9Results(f);
+  const warning = '變更已儲存，但畫面上的結果狀態與報告清單沒有更新；重新開啟案件就會更新，不必重做變更。';
+  f.store.applyFilterCommit({ scenarios: [{ name: '已儲存的合成情境', groups: [] }], resultRef: null,
+    filterScenarioCheck: { status: 'current', problems: [] }, staleState: null, reportWarning: warning }, null, true);
+  assert.equal(state.filter.savedScenarios[0].name, '已儲存的合成情境');
+  assert.equal(state.filterResultRef, null, 'unavailable revision must never reuse the previous result');
+  assert.deepEqual(plain(state.staleState), { validation: true, prescreen: true, filter: true });
+  assert.equal(state.filter.draft.name, '', 'successful persistence clears the submitted draft');
+  assert.ok(state.messages.some(item => item.text === warning && item.level === 'warn'));
 });
 
 test('GL import response consumes authoritative effects including an unsaved preview with no persisted stale results', () => {
@@ -5708,18 +5756,28 @@ for (const kind of ['gl', 'tb']) test('' + kind + ' confirmation shows every sou
   assert.equal(f.state.messages.filter(m => m.text === UPSTREAM_RESET_MESSAGE).length, 1);
 });
 
-test('TB card and both import modes explain the same-period boundary positively', async () => {
+test('TB card and both import modes use the same wording as GL', async () => {
   const f = usageJourneyFixture('import'); f.draw(); f.click('[data-task-toggle="tb"]'); f.draw();
   const tbCard = f.$('[data-task-toggle="tb"]').closest('.import-task').querySelector('.import-task__panel');
-  assert.match(tbCard.textContent, /同一查核期間/); assert.match(tbCard.textContent, /不會自動.*期初與期末.*期間變動/);
+  // 原本斷言 TB 卡片與兩種匯入說明寫「不會自動…期初與期末…期間變動」。裁定 2026-11-09-23 依審計員意見改寫 TB 說明，
+  // 不再用「期間變動」的說法，改成寫明不會把期初與期末接起來；建立與「加入」各有一句，所以分開比對。
+  // 第一次失敗：FrontendMapping 收據 20261109-093217918-f5c210768eb04b4ab1306a63a14f61ee。
+  // 裁定 2026-11-09-24 再改成和 GL 同一套句子，TB 卡片、建立與「加入」都不提查核期間、期初、期末與接合，
+  // 斷言改成確認沒有這些字，建立時是 GL 也用的那一句，「加入」時逐字比對使用者選定的句子。
+  // 名稱原本是「…explain the same-period boundary positively」，使用者同日確認改成現在的名稱（裁定 2026-11-09-24）。
+  // 第一次失敗：FrontendMapping 收據 20261109-105542384-ab8e3aa26e20445c9c982d827098bce0。
+  assert.match(tbCard.textContent, /可合併欄位相同的檔案、工作表或資料表/);
+  assert.doesNotMatch(tbCard.textContent, /期初|期末|查核期間|接起來/);
   for (const mode of ['replace', 'append']) {
     if (mode === 'append') { f.store.setImportResult('tb', { batchId: 'same-period', rowCount: 2, columns: ['Code', 'Amount'] }); f.draw(); }
     f.click('[data-action="wizard-' + mode + '-tb"]');
     f.request('hostSelectFiles').resolve({ files: [{ filePath: 'synthetic.csv', fileName: 'synthetic.csv' }] }); await settle();
     f.request('importInspectFile').resolve({ fileType: 'csv', columns: ['Code', 'Amount'], encoding: 'utf-8', delimiter: ',' }); await settle(); f.draw();
-    assert.match(f.$('.wizard-pane__hint').textContent, /同一查核期間/); assert.match(f.$('.wizard-pane__hint').textContent, /不會自動配成期初與期末/);
+    assert.doesNotMatch(f.$('.wizard-pane__hint').textContent, /期初|期末|查核期間|接起來/);
+    if (mode === 'replace') assert.match(f.$('.wizard-pane__hint').textContent, /^建立 TB：選擇一個或多個來源檔/);
     // 裁定 2026-10-19-31：說明開頭跟著按鈕改成「加入：」。
-    if (mode === 'append') assert.match(f.$('.wizard-pane__hint').textContent, /^加入：新檔的資料會附加到現有 2 列/);
+    if (mode === 'append') assert.equal(f.$('.wizard-pane__hint').textContent,
+      '加入：新檔的資料會附加到現有 2 列（欄位名稱需與現有一致）。成功加入後，這份 TB 需要重新確認配對，受影響的測試結果需要重算。');
     f.click('[data-action="wizard-cancel"]'); f.draw();
   }
   f.click('[data-task-toggle="gl"]'); f.draw(); assert.match(f.dom.content.textContent, /可合併欄位相同/);

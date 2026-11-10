@@ -389,7 +389,11 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             {
                 var sheet = workbook.Worksheet(stat.SheetName);
                 Assert.Equal("傳票號碼", sheet.Cell("B11").GetString());
-                Assert.Contains("母體#2", sheet.Cell("A12").GetString(), StringComparison.Ordinal);
+                // 裁定 2026-11-09-12：第一頁照範本 A12 的整句，續頁由程式寫同一句；原本只確認含「母體#2」，改成整句比對。
+                Assert.Equal(
+                    "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)"
+                    + "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",
+                    sheet.Cell("A12").GetString());
                 if (!string.Equals(stat.SheetName, Step4Sheet, StringComparison.Ordinal))
                 {
                     Assert.True((sheet.LastRowUsed()?.RowNumber() ?? 0) <= continuationRowLimit);
@@ -451,16 +455,27 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
                 Assert.Empty(worksheet.Elements<PageMargins>());
                 Assert.Empty(worksheet.Elements<PageSetup>());
             }
-            Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
+            // 裁定 2026-11-09-14：照舊版只保護 step4，step4-1 不保護。
+            // 裁定 2026-11-09-13：step4 的下拉選單照範本的兩組選項，原本是程式自訂的 P13:T「Y,N,N/A」。
+            // 這一頁的傳票沒有超過範本第 27 列，所以範圍和範本相同。
+            // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
+            if (IsSheetSeries(stat.SheetName, Step4Sheet))
+            {
+                Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
+            }
+            else
+            {
+                Assert.Empty(worksheet.Elements<SheetProtection>());
+            }
 
             var validations = worksheet.Descendants<DataValidation>().ToArray();
             if (IsSheetSeries(stat.SheetName, Step4Sheet))
             {
-                var validation = Assert.Single(validations);
                 Assert.Equal(
-                    $"P13:T{12 + stat.RowsWritten}",
-                    validation.SequenceOfReferences?.InnerText);
-                Assert.Equal("\"Y,N,N/A\"", validation.Formula1?.Text);
+                    new (string?, string?)[] { ("P12:P27 Q13:R27", "\"v,no,n/a\""), ("S12:S27", "\"Yes,No\"") },
+                    validations.Select(validation => (
+                        validation.SequenceOfReferences?.InnerText,
+                        validation.Formula1?.Text)));
             }
             else
             {
@@ -508,7 +523,15 @@ public sealed class WorkingPaperWriterProgressAndCancellationTests
             }
         }
 
-        AssertEditableCells(workbookPart, Step12Sheet, ["C12", "F12", "G12", "H12"]);
+        // 裁定 2026-11-09-21：這個案件沒有配對人工傳票欄位，step1-2 的 C 欄留白，但照舊版和 B12:E 一起鎖定。
+        // 原本確認 C12 可以填，改成確認它鎖定；F 到 H 欄仍可填。
+        // 第一次失敗：Focused 收據 20261109-090954695-6b1cbf30f1eb4deea9d37900f4ac9ef4。
+        AssertEditableCells(workbookPart, Step12Sheet, ["F12", "G12", "H12"]);
+        var step12 = workbookPart.RequiredWorkbook().Sheets!.Elements<Sheet>()
+            .Single(item => item.Name?.Value == Step12Sheet);
+        var step12Worksheet = Assert.IsType<WorksheetPart>(workbookPart.GetPartById(step12.Id!.Value!)).RequiredWorksheet();
+        Assert.Null(CellFor(step12Worksheet, "C12").CellValue);
+        Assert.True(ResolveCellFormat(workbookPart, CellFor(step12Worksheet, "C12")).Protection?.Locked?.Value ?? true);
         AssertEditableCells(workbookPart, Step13Sheet, ["E17", "F17", "G17"]);
     }
 

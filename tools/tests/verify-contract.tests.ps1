@@ -637,6 +637,14 @@ try {
             '[bool]$manifest.process.killAttempted -or',
             [StringComparison]::Ordinal)) `
         -Message 'A GUI pass must still require graceful process exit without a kill fallback.'
+    # 裁定 2026-11-09-01、2026-11-09-02：每次啟動 JET 都要讀回權杖，確認沒有系統管理員權限才算通過。
+    Assert-Contract -Condition ($guiHarnessText.Contains(
+            '-not [bool]$manifest.process.identity.standardUser -or',
+            [StringComparison]::Ordinal) -and
+        $guiHarnessText.Contains(
+            '[int]$manifest.process.identity.standardUserLaunches -ne [int]$manifest.process.launchCount',
+            [StringComparison]::Ordinal)) `
+        -Message 'A GUI pass must require that every JET launch ran without administrator rights.'
     # 每個點號載入的檔案各自解析型別名稱，所以拆出去的檔案也要各自寫 using。
     foreach ($ioScriptPath in @($harnessModuleSourcePaths) + @($packageVerifierPath, $documentationVerifierPath)) {
         $ioScript = [IO.Path]::GetRelativePath($repositoryRoot, $ioScriptPath).Replace('\', '/')
@@ -662,6 +670,7 @@ try {
         'GuiSideMonthWorkflow.cs',
         'GuiNestedVoucherWorkflow.cs',
         'GuiLegacyFormWorkflow.cs',
+        'GuiSingleFileRelaunchScenario.cs',
         'Program.cs'
     )
     foreach ($guiDriverFile in $guiDriverFiles) {
@@ -678,6 +687,18 @@ try {
     ) -join "`n"
     Assert-Contract -Condition ($guiSourceText -notmatch 'OpenQA\.Selenium|msedgedriver|EdgeDriver') `
         -Message 'The GUI driver must not depend on Selenium or EdgeDriver.'
+    Assert-Contract -Condition ($guiSourceText.Contains('SaferComputeTokenFromLevel', [StringComparison]::Ordinal) -and
+            $guiSourceText.Contains('CreateProcessAsUserW', [StringComparison]::Ordinal) -and
+            $guiSourceText.Contains('standard_user_token_not_applied', [StringComparison]::Ordinal) -and
+            -not $guiSourceText.Contains('CreateProcessW(', [StringComparison]::Ordinal)) `
+        -Message 'The GUI driver must start JET with a token that has no administrator rights and read it back before JET runs.'
+    # 裁定 2026-11-09-03：Gui 測試版照舊不能發布，只有驗證框架打包到 artifacts/harness/runs 底下的單一執行檔例外。
+    $applicationProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src/JET/JET/JET.csproj') -Raw -Encoding utf8
+    Assert-Contract -Condition ($applicationProjectText.Contains('Name="RejectAgentGuiTestPublish"', [StringComparison]::Ordinal) -and
+            $applicationProjectText.Contains('Name="RestrictAgentGuiOwnedBundle"', [StringComparison]::Ordinal) -and
+            $applicationProjectText.Contains('artifacts\harness\runs', [StringComparison]::Ordinal) -and
+            $applicationProjectText.Contains("'`$(PublishSingleFile)' != 'true'", [StringComparison]::Ordinal)) `
+        -Message 'AgentGuiTest must stay unpublishable except for the single-file harness bundle under artifacts/harness/runs.'
     Assert-Contract -Condition ($guiSourceText.Contains('https://app.jet.local/index.html', [StringComparison]::Ordinal)) `
         -Message 'The GUI driver must target the fixed JET virtual host.'
     Assert-Contract -Condition ($guiSourceText.Contains('IPAddress.Loopback', [StringComparison]::Ordinal)) `
@@ -1324,6 +1345,18 @@ try {
         -Message 'An empty password placeholder must pass package source preflight.'
     Assert-Contract -Condition ($safePreflight.Manifest.privateData.pathInspected -eq $false) `
         -Message 'Package source preflight cannot inspect private data.'
+    # 提交 61d4b43 刪掉 appsettings.json 後，JET 的專案資料夾沒有任何 appsettings*.json；這種來源也要通過封裝前檢查。
+    $noConfigurationSourceRoot = Join-Path $packageFixtureRoot 'no-configuration'
+    [void][IO.Directory]::CreateDirectory($noConfigurationSourceRoot)
+    $noConfigurationPreflight = Invoke-PackagePreflight `
+        -SourceRoot $noConfigurationSourceRoot `
+        -ManifestPath (Join-Path $packageFixtureRoot 'no-configuration-manifest.json') `
+        -Label 'package-no-configuration'
+    Assert-Contract -Condition ($noConfigurationPreflight.NativeExitCode -eq 0 -and
+        $noConfigurationPreflight.Envelope.status -ceq 'passed') `
+        -Message 'A source without appsettings files must pass package source preflight.'
+    Assert-Contract -Condition (@($noConfigurationPreflight.Manifest.configurationFiles).Count -eq 0) `
+        -Message 'Package source preflight must record an empty configuration file list.'
 
     $verificationFixtureRoot = Join-Path $suiteRoot 'package-verification-fixture'
     $verificationSourceRoot = Join-Path $verificationFixtureRoot 'source'

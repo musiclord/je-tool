@@ -10,6 +10,111 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class SqliteRepositoryTests
 {
+    // 結果時間讀不出來要請重跑；第一次失敗：20261110-045654316-8ef5aee8de474b95af4b1b2d4142661c。
+    [Theory]
+    [InlineData("validation_result", ResultKind.Validation)]
+    [InlineData("prescreen_result", ResultKind.Prescreen)]
+    public async Task ResultWithUnreadableGeneratedTime_AsksForRerun(string table, ResultKind kind)
+    {
+        using var root = new TempProjectRoot();
+        var db = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
+        const string projectId = "damaged-result-time";
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
+        var repository = new LocalResultStore(db);
+        await repository.SaveAsync(projectId, new ResultRecord("synthetic-result", kind, DateTimeOffset.UnixEpoch, "{}"), CancellationToken.None);
+        await using (var connection = db.CreateConnection(projectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"UPDATE {table} SET generated_utc = 'broken';";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => repository.FindLatestAsync(projectId, kind, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.StaleResult, error.Code);
+        Assert.Contains("重新執行", error.Message);
+    }
+
+    // 其餘已存欄位損壞案例的第一次失敗：20261110-044348373-7b936177a3c24674bbed0e66d35f8191。
+    [Theory]
+    [InlineData("UPDATE filter_scenario SET saved_utc = 'broken';")]
+    [InlineData("UPDATE filter_scenario SET position = 2147483648;")]
+    [InlineData("UPDATE filter_scenario SET scenario_id = 2147483648;")]
+    public async Task ScenarioWithUnreadableColumns_IsReportedAsDatabaseCorruption(string damage)
+    {
+        using var root = new TempProjectRoot();
+        var db = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
+        const string projectId = "damaged-scenario-columns";
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
+        var repository = new LocalFilterScenarioStore(db);
+        await repository.ReplaceAllAsync(projectId, [new SavedFilterScenario(1, "synthetic", "", "{}", DateTimeOffset.UnixEpoch)], CancellationToken.None);
+        await using (var connection = db.CreateConnection(projectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = damage;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => repository.ListAsync(projectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.DatabaseCorrupt, error.Code);
+        Assert.Contains("備份", error.Message);
+    }
+
+    [Theory]
+    [InlineData("UPDATE import_batch SET imported_utc = 'broken';")]
+    [InlineData("UPDATE import_batch SET row_count = -1;")]
+    [InlineData("UPDATE import_batch SET columns_json = '{}';")]
+    [InlineData("UPDATE import_batch SET columns_json = 'null';")]
+    [InlineData("UPDATE import_batch_source SET imported_utc = 'broken';")]
+    [InlineData("UPDATE import_batch_source SET row_count = -1;")]
+    public async Task UnreadableImportBatch_IsReportedAsDatabaseCorruption(string damage)
+    {
+        using var root = new TempProjectRoot();
+        var db = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
+        const string projectId = "damaged-import-batch";
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
+        var repository = new LocalImportRepository(db);
+        await repository.ReplaceBatchAsync(projectId, DatasetKind.Gl,
+            [new ImportSourceInput(Source("synthetic.xlsx"), ["doc"], ToAsync([new StagingRow(2, new Dictionary<string, string> { ["doc"] = "J1" })]))], CancellationToken.None);
+        await using (var connection = db.CreateConnection(projectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = damage;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => repository.GetLatestBatchAsync(projectId, DatasetKind.Gl, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.DatabaseCorrupt, error.Code);
+        Assert.Contains("備份", error.Message);
+        Assert.DoesNotContain("broken", error.Message);
+    }
+
+    [Fact]
+    public async Task MissingResultStaleState_IsReportedAsDatabaseCorruption()
+    {
+        using var root = new TempProjectRoot();
+        var db = new SqliteProjectDatabase(new JetProjectFolder(root.Path));
+        const string projectId = "missing-result-state";
+        await db.EnsureCreatedAsync(projectId, CancellationToken.None);
+        await using (var connection = db.CreateConnection(projectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM result_stale_state;";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => new LocalResultStaleStateStore(db).ReadAsync(projectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.DatabaseCorrupt, error.Code);
+        Assert.Contains("備份", error.Message);
+    }
+
     [Fact]
     public async Task UnicodeUppercase_IsConsistentOnReopenedAndReadOnlyConnections()
     {
@@ -118,6 +223,40 @@ public sealed class SqliteRepositoryTests
         Assert.Contains("field_mapping", names);
         Assert.Contains("gl", names);
         Assert.Contains("tb", names);
+    }
+
+    /// <summary>
+    /// 上次確認的配對那一列讀不出來時當作沒有，但案件資料庫本身開不了時照常報錯，和讀有效配對一樣
+    /// （LocalMappingStateStore.FindPreviousAsync 的註解）。missing 是資料夾裡沒有資料庫檔，empty 是資料庫檔是 0 位元組。
+    /// 這是新增的測試。
+    /// </summary>
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("empty")]
+    public async Task MappingStateStore_PreviousMappingWhenDatabaseCannotBeOpened_ThrowsLikeCurrentMapping(string damage)
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new LocalMappingStateStore(new SqliteProjectDatabase(folder));
+        const string projectId = "previous-mapping-database";
+        Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
+        if (damage == "empty")
+        {
+            await File.WriteAllBytesAsync(folder.GetDatabasePath(projectId), []);
+        }
+
+        var current = await Assert.ThrowsAsync<JetActionException>(() => store.FindAsync(
+            projectId,
+            DatasetKind.Gl,
+            CancellationToken.None));
+        var previous = await Assert.ThrowsAsync<JetActionException>(() => store.FindPreviousAsync(
+            projectId,
+            DatasetKind.Gl,
+            CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.FileReadError, current.Code);
+        Assert.Equal(current.Code, previous.Code);
+        Assert.Equal(current.Message, previous.Message);
     }
 
     [Fact]

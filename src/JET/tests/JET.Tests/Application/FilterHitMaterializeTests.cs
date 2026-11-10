@@ -1,4 +1,6 @@
 using System.Text.Json;
+using JET.Domain;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -18,6 +20,37 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class FilterHitMaterializeTests
 {
+    [Fact]
+    public async Task SavedScenarioWithUnreadableStructure_QueryAndExportUseScenarioError()
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("filter.commit", ScenarioPayload("合成損壞情境"));
+        var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
+        var exportPayload = JsonSerializer.Serialize(new
+        {
+            validationResultId = loaded.GetProperty("validationResult").GetProperty("resultRef").GetProperty("resultId").GetString(),
+            revision = loaded.GetProperty("filterResultRef").GetProperty("revision").GetString()
+        });
+        var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        await using (var connection = database.CreateConnection(context.ProjectId))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE filter_scenario SET definition_json = json_set(definition_json, '$.editorOrigins', json(@origins));";
+            command.AddWithValue("@origins", """{"version":"two","groups":[{"cards":[null]}]}""");
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        }
+
+        foreach (var action in new[] { "query.highRiskSummaryScenarios", "export.criteriaSelectionReport" })
+        {
+            var exception = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(action,
+                action == "export.criteriaSelectionReport" ? exportPayload : "{}"));
+            Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
+            Assert.DoesNotContain("two", exception.Message);
+        }
+    }
+
     // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：recount 改數示範資料中建立人員為「未授權者」的分錄。
     private const string NonAuthorizedRecount =
         "SELECT COUNT(*) FROM gl g " +

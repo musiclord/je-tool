@@ -16,7 +16,7 @@ internal static class ValidationReportProjectionParser
 
         try
         {
-            using var document = JsonDocument.Parse(summaryJson);
+            using var document = JetJsonStorage.Parse(summaryJson);
             var root = document.RootElement;
             ValidationSummaryShapeValidator.Require(root);
             var stats = root.GetProperty("stats");

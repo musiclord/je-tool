@@ -2,6 +2,13 @@
 
 主要交付檔放在上一層，審查人員使用 Word 和 Excel 即可。source 保存文字、表單資料與圖表圖片；不直接把原始測試紀錄貼入 Word。
 
+## 執行環境
+
+Python 腳本需要 Python 3。Build-Documents.py 用到 python-docx，Set-WorkbookPrint.py 用到 lxml；Export-SatEvidence.py 與 Build-ReviewData.py 只用內建模組。
+使用 Codex 提供的執行環境時，Python、Node.js 與 @oai/artifact-tool 可從 `%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies` 取得。
+Node.js 找不到套件時，先確認這個目錄裡的 `node/node_modules/@oai/artifact-tool` 是否存在；套件已存在，可能只是目前腳本的搜尋位置沒有連到它。
+套件不裝進產品專案。另建 Python 虛擬環境時也放在儲存庫外，避免被誤加進 Git。下方命令的 python 指的是這些環境中的 python.exe；PowerShell 用引號包住執行檔路徑時，前面要加 `&` 才會執行。
+
 ## 更新測試紀錄
 
 在專案根目錄執行：
@@ -20,7 +27,7 @@ python docs/SAT/scripts/Export-SatEvidence.py <本次 receipt.json 路徑>
 ## 更新 Word 與 Excel
 
 1. 修改 source 的 Markdown 或資料來源。Build-ReviewData.py 會從現行程式重新擷取程式節錄；Code Review 的人工填寫結果應另存為已完成的審查紀錄，避免重新產生時被覆蓋。
-2. 執行 Build-Documents.py，產生五份 Word 文件。用 Word 更新頁碼，轉 PDF 檢查每頁排版。
+2. 執行 Build-Documents.py，產生五份 Word 文件。再執行 Update-WordFields.ps1，在背景用 Word 更新功能變數、重新分頁並存檔。最後轉成 PDF，逐頁檢查排版。
 3. 執行 Build-Workbooks.mjs，產生五份 Excel 文件。它需要 Node.js 與 @oai/artifact-tool；使用 Codex 提供的套件環境，不安裝到產品專案。
 4. 執行 Set-WorkbookPrint.py 設定列印範圍。用 Excel 核對圖表、下拉選單、公式及列印版面。
 5. 執行文件檢查。
@@ -28,12 +35,25 @@ python docs/SAT/scripts/Export-SatEvidence.py <本次 receipt.json 路徑>
 ```powershell
 python docs/SAT/scripts/Build-ReviewData.py
 python docs/SAT/scripts/Build-Documents.py
+pwsh -NoProfile -File docs/SAT/scripts/Update-WordFields.ps1
 node docs/SAT/scripts/Build-Workbooks.mjs <專案根目錄>
 python docs/SAT/scripts/Set-WorkbookPrint.py
 pwsh -NoProfile -File tools/verify.ps1 -Command Documentation
 ```
 
-若套件由外部執行環境提供，可將 Build-Workbooks.mjs 複製到該次暫存工作目錄，在該處的 node_modules 連接到提供的套件目錄後執行，第二個參數仍填本專案根目錄。舊 Build-Workbooks.py 已停用。
+若套件由外部執行環境提供，將 Build-Workbooks.mjs 複製到本次暫存目錄，並在該處建立指向套件目錄的 node_modules 連接點，再執行腳本。第二個參數仍填本專案根目錄。例如在專案根目錄執行：
+
+```powershell
+$repositoryRoot = (Resolve-Path '.').Path
+$runtimeDependencies = Join-Path $env:USERPROFILE '.cache/codex-runtimes/codex-primary-runtime/dependencies'
+$satTemporaryDirectory = Join-Path $env:TEMP ('jet-sat-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $satTemporaryDirectory | Out-Null
+New-Item -ItemType Junction -Path (Join-Path $satTemporaryDirectory 'node_modules') -Target (Join-Path $runtimeDependencies 'node/node_modules') | Out-Null
+Copy-Item -LiteralPath 'docs/SAT/scripts/Build-Workbooks.mjs' -Destination $satTemporaryDirectory
+& (Join-Path $runtimeDependencies 'node/bin/node.exe') (Join-Path $satTemporaryDirectory 'Build-Workbooks.mjs') $repositoryRoot
+```
+
+這個連接點只讓暫存腳本讀取既有套件，不變更套件目錄。舊 Build-Workbooks.py 已停用。
 
 ## 圖表與安全檢查
 

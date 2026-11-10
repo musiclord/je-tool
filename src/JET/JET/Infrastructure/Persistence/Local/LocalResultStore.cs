@@ -21,6 +21,30 @@ public sealed class LocalResultStore(ILocalProjectDatabase database) : IResultSt
     internal static async Task SaveWithinAsync(System.Data.Common.DbConnection connection,
         System.Data.Common.DbTransaction transaction, ResultRecord record, CancellationToken cancellationToken)
     {
+        // 重算成功後才在同一交易清除日期讀不出來的舊結果，避免壞時間文字一直排在新結果前面。
+        // 有效舊結果與報告來源紀錄都保留；交易失敗時清理和新結果一起回復。
+        var unreadableIds = new List<string>();
+        await using (var find = connection.CreateCommand())
+        {
+            find.Transaction = transaction;
+            find.CommandText = $"SELECT result_id, generated_utc FROM {ResultTables.For(record.Kind)};";
+            await using var reader = await find.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (reader.GetValue(1) is string generated && DateTimeOffset.TryParse(generated, out _)) continue;
+                unreadableIds.Add(reader.GetString(0));
+            }
+        }
+        foreach (var resultId in unreadableIds)
+        {
+            await using var remove = connection.CreateCommand();
+            remove.Transaction = transaction;
+            remove.CommandText = $"DELETE FROM {ResultTables.For(record.Kind)} WHERE result_id = @resultId;";
+            remove.AddWithValue("@resultId", resultId);
+            if (await remove.ExecuteNonQueryAsync(cancellationToken) != 1)
+                throw LocalEngineErrors.DatabaseCorrupt();
+        }
+
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
@@ -68,10 +92,22 @@ public sealed class LocalResultStore(ILocalProjectDatabase database) : IResultSt
             return null;
         }
 
-        return new ResultRecord(
-            reader.GetString(0),
-            kind,
-            DateTimeOffset.Parse(reader.GetString(1)),
-            reader.GetString(2));
+        try
+        {
+            return new ResultRecord(
+                reader.GetString(0),
+                kind,
+                DateTimeOffset.TryParse(reader.GetString(1), out var generatedUtc)
+                    ? generatedUtc : throw new FormatException("Stored result time cannot be read."),
+                reader.GetString(2));
+        }
+        catch (Exception error) when (error is FormatException or OverflowException or InvalidCastException
+            or InvalidOperationException or ArgumentException)
+        {
+            var button = kind == ResultKind.Prescreen ? "重新執行預篩選" : "重新執行驗證";
+            throw new JetActionException(JetErrorCodes.StaleResult,
+                $"這份報告依據的結果已不是目前資料的結果。請回到「資料驗證與測試」按「{button}」，再回來產生報告。",
+                innerException: error);
+        }
     }
 }

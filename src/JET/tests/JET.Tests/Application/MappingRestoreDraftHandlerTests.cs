@@ -172,6 +172,11 @@ public sealed class MappingRestoreDraftHandlerTests
     }
 
     // 裁定 2026-10-30-20：讀不到報告時不寫「可能」，改寫審計員接下來能做什麼。改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
+    // 按鈕改名「由底稿匯入欄位」後，舊版 IDEA JET 的底稿也能選，訊息用詞改成「檔案」，不再限定 JET 匯出（裁定 2026-11-09-27、2026-11-09-28）。
+    // 改字前依預期失敗：Focused 收據 20261109-145908138-d8bb48b344bd4556930b393e6ba6b450。
+    // 複審後拿掉「沒有被其他程式開啟」（開著的檔也讀得到，裁定 2026-11-06-12）並補上下一步，
+    // 改字前依預期失敗：Focused 收據 20261109-161450553-bdcd04fe17194aef923a7e94213d00a8。
+    // 第二次確認時拿掉推測原因的「可能」（裁定 2026-10-30-20），改字前依預期失敗：Focused 收據 20261109-170136963-bef1c5fabdf84abcaf8fa45265465d85。
     [Fact]
     public async Task RestoreDraft_UnreadableReport_SaysWhatToCheckWithoutGuessing()
     {
@@ -182,7 +187,7 @@ public sealed class MappingRestoreDraftHandlerTests
             var ex = await Assert.ThrowsAsync<JetActionException>(() =>
                 new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None));
             Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
-            Assert.Equal("無法讀取欄位配對報告。請確認檔案沒有被其他程式開啟，而且是 JET 匯出的 xlsx 檔。", ex.Message);
+            Assert.Equal("無法讀取這份檔案。請改選能用 Excel 開啟的 .xlsx 工作底稿，或直接在下方選擇欄位。", ex.Message);
         }
         finally
         {
@@ -357,7 +362,9 @@ public sealed class MappingRestoreDraftHandlerTests
                 workbook.SaveAs(copyPath);
             }
 
-            var draft = await new OpenXmlMappingMetadataReader().ReadAsync(copyPath, CancellationToken.None);
+            // ReadAsync 改回傳 MappingDraftSource（裁定 2026-11-09-28），F1:H1 的隱藏紀錄在 Recorded；斷言不變。
+            // 第一次失敗：Build 收據 20261109-145225420-a56baf66e9a64e52951bd296df7a960e（編譯失敗）。
+            var draft = (await new OpenXmlMappingMetadataReader().ReadAsync(copyPath, CancellationToken.None)).Recorded!;
 
             Assert.Equal(gl.Mapping.OrderBy(item => item.Key, StringComparer.Ordinal),
                 draft.Gl.Mapping.OrderBy(item => item.Key, StringComparer.Ordinal));
@@ -372,6 +379,380 @@ public sealed class MappingRestoreDraftHandlerTests
             File.Delete(copyPath);
         }
     }
+
+    // 裁定 2026-11-09-28：舊版 IDEA JET 的底稿沒有隱藏配對紀錄，從看得見的對照表推得草稿。
+    // 欄名正規化後唯一對得上的換成目前的欄名；改了名的來源欄與 TB 兩欄相減列出請審計員重選；草稿按確認配對就能儲存。這是新增的測試。
+    [Fact]
+    public async Task RestoreDraft_LegacyWorkingPaperWithoutHiddenRecords_InfersTheDraftAndListsFieldsToReselect()
+    {
+        using var host = new HandlerTestHost();
+        await CreateSyntheticProjectAsync(host, "RESTORE-LEGACY-PAPER");
+        var glPath = LegacyCaseGlWorkbook();
+        var tbPath = TestWorkbookBuilder.WriteWorkbook(sheet =>
+        {
+            string[][] rows =
+            [
+                ["Account", "Account Name", "End", "Begin"],
+                ["1101", "現金", "100", "0"],
+                ["4101", "收入", "-100", "0"]
+            ];
+            for (var row = 0; row < rows.Length; row++)
+            {
+                for (var column = 0; column < rows[row].Length; column++)
+                {
+                    sheet.Cell(row + 1, column + 1).SetValue(rows[row][column]);
+                }
+            }
+        });
+        var paperPath = LegacyWorkingPaper();
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+            await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tbPath }));
+
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = paperPath }));
+
+            var gl = restored.GetProperty("gl");
+            Assert.Equal(
+                new Dictionary<string, string>
+                {
+                    [GlMappingKeys.VoucherNumber] = "Doc No",
+                    [GlMappingKeys.GlDate] = "Post Date",
+                    [GlMappingKeys.AccountNumber] = "Acct",
+                    [GlMappingKeys.AccountName] = "ACCT_NAME",
+                    [GlMappingKeys.Description] = "Memo",
+                    [GlMappingKeys.Amount] = "Amount"
+                },
+                StringMap(gl.GetProperty("mapping")));
+            Assert.Equal(GlAmountModeNames.Signed, gl.GetProperty("amountMode").GetString());
+            Assert.Equal(ApprovalDateModeNames.SameAsGlDate, gl.GetProperty("approvalDateMode").GetString());
+            Assert.Equal(JsonValueKind.Null, gl.GetProperty("postingStatusPolicy").ValueKind);
+            Assert.Equal(["1"], gl.GetProperty("manualAutoPolicy").GetProperty("manualValues").EnumerateArray().Select(item => item.GetString()));
+            Assert.Equal(["0"], gl.GetProperty("manualAutoPolicy").GetProperty("automaticValues").EnumerateArray().Select(item => item.GetString()));
+            var rde = Assert.Single(gl.GetProperty("rdeFields").EnumerateArray());
+            Assert.Equal("Region", rde.GetProperty("sourceColumn").GetString());
+            Assert.Equal("地區", rde.GetProperty("label").GetString());
+            Assert.Equal(RdeFieldValueTypeNames.Text, rde.GetProperty("valueType").GetString());
+            var fieldId = rde.GetProperty("fieldId").GetString();
+            Assert.True(GlMappingOptionsRules.IsCanonicalFieldId(fieldId));
+
+            var tb = restored.GetProperty("tb");
+            Assert.Equal(
+                new Dictionary<string, string>
+                {
+                    [TbMappingKeys.AccountNumber] = "Account",
+                    [TbMappingKeys.AccountName] = "Account Name"
+                },
+                StringMap(tb.GetProperty("mapping")));
+            Assert.Equal(TbChangeModeNames.Direct, tb.GetProperty("changeMode").GetString());
+
+            Assert.Equal(
+                [
+                    ("gl", GlMappingKeys.ApprovedBy, "傳票核准人員", "核准者"),
+                    ("tb", TbMappingKeys.ChangeAmount, "年度變動金額", "End - Begin")
+                ],
+                UnmatchedFields(restored));
+
+            var committed = await host.DispatchAsync("mapping.commit.gl", gl.GetRawText());
+            Assert.Equal(fieldId, committed.GetProperty("rdeFields")[0].GetProperty("fieldId").GetString());
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(glPath);
+            TestWorkbookBuilder.Delete(tbPath);
+            TestWorkbookBuilder.Delete(paperPath);
+        }
+    }
+
+    // 裁定 2026-11-09-28 與 2026-11-05-03：沒有匯入 TB 時只推 GL，tb 回 null，也不列 TB 的欄位。這是新增的測試。
+    [Fact]
+    public async Task RestoreDraft_LegacyWorkingPaperWithoutTbImport_ReturnsOnlyTheGlDraft()
+    {
+        using var host = new HandlerTestHost();
+        await CreateSyntheticProjectAsync(host, "RESTORE-LEGACY-GL-ONLY");
+        var glPath = LegacyCaseGlWorkbook();
+        var paperPath = LegacyWorkingPaper();
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = paperPath }));
+
+            Assert.Equal("Doc No", restored.GetProperty("gl").GetProperty("mapping").GetProperty(GlMappingKeys.VoucherNumber).GetString());
+            Assert.Equal(JsonValueKind.Null, restored.GetProperty("tb").ValueKind);
+            Assert.Equal([("gl", GlMappingKeys.ApprovedBy, "傳票核准人員", "核准者")], UnmatchedFields(restored));
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(glPath);
+            TestWorkbookBuilder.Delete(paperPath);
+        }
+    }
+
+    // GL 的對照表推不出任何欄位時，回錯誤而不是回一份空的 GL 草稿蓋掉審計員已選的欄位；
+    // TB 段有配對、也已匯入 TB 時一樣，因為 GL 草稿會整份換掉；只有讀不懂的列時也一樣。這是新增的測試。
+    [Fact]
+    public async Task RestoreDraft_GlTableWithoutAnyMappedRow_RejectsInsteadOfReturningAnEmptyGlDraft()
+    {
+        using var host = new HandlerTestHost();
+        await CreateSyntheticProjectAsync(host, "RESTORE-LEGACY-EMPTY");
+        var glPath = LegacyCaseGlWorkbook();
+        var tbPath = LegacyCaseTbWorkbook();
+        string?[][] glRows =
+        [
+            ["Doc No", "文字型態", "12", null],
+            ["Amount", "數字型態", null, "2"]
+        ];
+        var emptyPath = FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.LegacyLayout([], glRows));
+        var tbOnlyPath = FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.LegacyLayout(
+            [["Account", "文字型態", "10", null, "會計科目編號_TB"]],
+            glRows));
+        var unreadableOnlyPath = FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.LegacyLayout(
+            [],
+            [["Status 看不懂的說明", "文字型態", "1", null, "過帳碼_JE"]]));
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+            await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tbPath }));
+
+            foreach (var paperPath in new[] { emptyPath, tbOnlyPath, unreadableOnlyPath })
+            {
+                var exception = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                    "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = paperPath })));
+
+                Assert.Equal(JetErrorCodes.MappingMetadataMissing, exception.Code);
+                Assert.Equal("這份檔案裡 GL 的欄位對照表沒有可帶入的欄位，無法帶入。請直接在下方選擇欄位。", exception.Message);
+            }
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(glPath);
+            TestWorkbookBuilder.Delete(tbPath);
+            TestWorkbookBuilder.Delete(emptyPath);
+            TestWorkbookBuilder.Delete(tbOnlyPath);
+            TestWorkbookBuilder.Delete(unreadableOnlyPath);
+        }
+    }
+
+    // TB 段沒有任何配對時不回 TB 草稿，審計員已選的 TB 欄位與金額格式不動。這是新增的測試。
+    [Fact]
+    public async Task RestoreDraft_TbTableWithoutAnyMappedRow_LeavesTheTbDraftAlone()
+    {
+        using var host = new HandlerTestHost();
+        await CreateSyntheticProjectAsync(host, "RESTORE-LEGACY-NO-TB-ROWS");
+        var glPath = LegacyCaseGlWorkbook();
+        var tbPath = LegacyCaseTbWorkbook();
+        var paperPath = FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.LegacyLayout(
+            [["Account", "文字型態", "10", null]],
+            [["Doc No", "文字型態", "12", null, "傳票號碼_JE"]]));
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+            await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new { filePath = tbPath }));
+
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = paperPath }));
+
+            Assert.Equal("Doc No", restored.GetProperty("gl").GetProperty("mapping").GetProperty(GlMappingKeys.VoucherNumber).GetString());
+            Assert.Equal(JsonValueKind.Null, restored.GetProperty("tb").ValueKind);
+            Assert.Empty(UnmatchedFields(restored));
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(glPath);
+            TestWorkbookBuilder.Delete(tbPath);
+            TestWorkbookBuilder.Delete(paperPath);
+        }
+    }
+
+    // 新版底稿拿掉隱藏紀錄後，兩個名稱相同、來源欄不同的攸關資料元素都帶入，也能確認配對。這是新增的測試。
+    [Fact]
+    public async Task RestoreDraft_RelevantDataElementsWithTheSameName_AreBothRestoredAndCommitted()
+    {
+        using var host = new HandlerTestHost();
+        await CreateSyntheticProjectAsync(host, "RESTORE-SAME-RDE-NAME");
+        var glPath = new InlineGlWorkbookBuilder()
+            .WithColumns("Doc No", "Post Date", "Acct", "Acct Name", "Memo", "Region", "Region 2", "Amount")
+            .AddRow("JV-1", "2025-03-01", "1101", "現金", "合成", "北區", "甲區", "100")
+            .AddRow("JV-1", "2025-03-01", "4101", "收入", "合成", "北區", "甲區", "-100")
+            .WriteWorkbook();
+        var paperPath = FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.CurrentLayout(
+            [],
+            [
+                ["【Doc No】", "文字型態", "12", null, "傳票號碼_JE"],
+                ["【Post Date】", "日期型態", null, null, "總帳日期_JE"],
+                ["【Acct】", "文字型態", "10", null, "會計科目編號_JE"],
+                ["【Acct Name】", "文字型態", "20", null, "會計科目名稱_JE"],
+                ["【Memo】", "文字型態", "40", null, "傳票摘要_JE"],
+                ["【Region】", "文字型態", "10", null, "地區（Region）_JE"],
+                ["【Region 2】", "文字型態", "10", null, "地區（Region 2）_JE"],
+                ["【傳票金額_JE】由系統產生 : 【Amount】", "數字型態", null, "2", "傳票金額_JE"]
+            ]));
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+
+            var restored = await host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = paperPath }));
+            var gl = restored.GetProperty("gl");
+            var committed = await host.DispatchAsync("mapping.commit.gl", gl.GetRawText());
+
+            Assert.Empty(UnmatchedFields(restored));
+            Assert.Equal(
+                [("Region", "地區"), ("Region 2", "地區")],
+                committed.GetProperty("rdeFields").EnumerateArray()
+                    .Select(field => (field.GetProperty("sourceColumn").GetString(), field.GetProperty("label").GetString()))
+                    .ToArray());
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(glPath);
+            TestWorkbookBuilder.Delete(paperPath);
+        }
+    }
+
+    // 訊息用詞照由底稿匯入欄位計畫改寫：寫欄位名稱而不是配對鍵、下一步寫「請直接在下方選擇欄位」。這是新增的測試。
+    [Fact]
+    public async Task RestoreDraft_MessagesNameTheGlImportAndTheMissingFieldInScreenWords()
+    {
+        using var host = new HandlerTestHost();
+        await CreateSyntheticProjectAsync(host, "RESTORE-MESSAGES");
+        var paperPath = LegacyWorkingPaper();
+        var incomplete = MinimalGl().Mapping
+            .Where(pair => pair.Key != GlMappingKeys.VoucherNumber)
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var recordedPath = Workbook(MappingMetadataCodec.Encode(MinimalGl() with { Mapping = incomplete }, MinimalTb()));
+        var glPath = new InlineGlWorkbookBuilder()
+            .WithColumns("Document", "GlDate", "Account", "AccountName", "Description", "Amount")
+            .AddRow("JV-1", "2025-03-01", "1101", "現金", "合成", "100")
+            .AddRow("JV-1", "2025-03-01", "4101", "收入", "合成", "-100")
+            .WriteWorkbook();
+        try
+        {
+            var noGl = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = paperPath })));
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+            var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = recordedPath })));
+
+            Assert.Equal(JetErrorCodes.NoImportBatch, noGl.Code);
+            Assert.Equal("還沒有匯入 GL，無法帶入欄位配對。請先匯入 GL。", noGl.Message);
+            Assert.Equal(JetErrorCodes.MappingMetadataInvalid, missing.Code);
+            Assert.Equal("檔案裡的欄位配對缺少必要欄位：GL 傳票號碼，無法帶入。請直接在下方選擇欄位。", missing.Message);
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(paperPath);
+            TestWorkbookBuilder.Delete(recordedPath);
+            TestWorkbookBuilder.Delete(glPath);
+        }
+    }
+
+    // 隱藏紀錄是金額加借貸別，卻兩側代碼都沒有：整份不帶入，訊息寫沒有借貸代碼與和其他拒絕相同的下一步，
+    // 不寫成「缺少必要欄位：GL 借方代碼、GL 貸方代碼」。這是新增的測試。
+    [Fact]
+    public async Task RestoreDraft_RecordedSideAmountWithoutAnyCode_SaysTheCodesAreMissing()
+    {
+        using var host = new HandlerTestHost();
+        await CreateSyntheticProjectAsync(host, "RESTORE-NO-CODES");
+        var sideMapping = new Dictionary<string, string>(MinimalGl().Mapping, StringComparer.Ordinal)
+        {
+            [GlMappingKeys.DrCr] = "Side"
+        };
+        var recordedPath = Workbook(MappingMetadataCodec.Encode(
+            MinimalGl() with { Mapping = sideMapping, ModeName = GlAmountModeNames.Side },
+            MinimalTb()));
+        var glPath = new InlineGlWorkbookBuilder()
+            .WithColumns("Document", "GlDate", "Account", "AccountName", "Description", "Amount", "Side")
+            .AddRow("JV-1", "2025-03-01", "1101", "現金", "合成", "100", "D")
+            .AddRow("JV-1", "2025-03-01", "4101", "收入", "合成", "100", "C")
+            .WriteWorkbook();
+        try
+        {
+            await host.DispatchAsync("import.gl.fromFile", JsonSerializer.Serialize(new { filePath = glPath }));
+            var exception = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                "mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = recordedPath })));
+
+            Assert.Equal(JetErrorCodes.MappingMetadataInvalid, exception.Code);
+            Assert.Equal("檔案裡的欄位配對沒有借貸代碼，無法帶入。請直接在下方選擇欄位。", exception.Message);
+        }
+        finally
+        {
+            TestWorkbookBuilder.Delete(recordedPath);
+            TestWorkbookBuilder.Delete(glPath);
+        }
+    }
+
+    private static async Task CreateSyntheticProjectAsync(HandlerTestHost host, string projectCode)
+    {
+        await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
+        {
+            projectCode,
+            clientName = "合成案件",
+            operatorId = "tester",
+            periodStart = "2025-01-01",
+            periodEnd = "2025-12-31",
+            databaseProvider = "sqlite"
+        }));
+    }
+
+    /// <summary>目前匯入的 GL：「ACCT_NAME」和舊底稿寫的「Acct Name」只差大小寫與符號；核准人員欄改名成「Approver」。</summary>
+    private static string LegacyCaseGlWorkbook() => new InlineGlWorkbookBuilder()
+        .WithColumns("Doc No", "Post Date", "Acct", "ACCT_NAME", "Memo", "Approver", "Region", "Amount")
+        .AddRow("JV-1", "2025-03-01", "1101", "現金", "合成", "甲", "北區", "100")
+        .AddRow("JV-1", "2025-03-01", "4101", "收入", "合成", "甲", "北區", "-100")
+        .WriteWorkbook();
+
+    /// <summary>目前匯入的 TB：欄名和舊底稿相同。</summary>
+    private static string LegacyCaseTbWorkbook() => TestWorkbookBuilder.WriteWorkbook(sheet =>
+    {
+        string[][] rows =
+        [
+            ["Account", "Account Name", "End", "Begin"],
+            ["1101", "現金", "100", "0"],
+            ["4101", "收入", "-100", "0"]
+        ];
+        for (var row = 0; row < rows.Length; row++)
+        {
+            for (var column = 0; column < rows[row].Length; column++)
+            {
+                sheet.Cell(row + 1, column + 1).SetValue(rows[row][column]);
+            }
+        }
+    });
+
+    /// <summary>舊版 IDEA JET 版面的合成底稿，沒有任何隱藏配對紀錄。</summary>
+    private static string LegacyWorkingPaper() => FieldInfoSheetWorkbook.Write(FieldInfoSheetWorkbook.LegacyLayout(
+        [
+            ["Account", "文字型態", "10", null, "會計科目編號_TB"],
+            ["Account Name", "文字型態", "20", null, "會計科目名稱_TB"],
+            ["End", "數字型態", null, "2"],
+            ["Begin", "數字型態", null, "2"],
+            ["試算表變動金額_TB 由系統產生 : End - Begin", "數字型態", null, "2", "試算表變動金額_TB"]
+        ],
+        [
+            ["Doc No", "文字型態", "12", null, "傳票號碼_JE"],
+            ["Post Date", "日期型態", null, null, "總帳日期_JE"],
+            ["Acct", "文字型態", "10", null, "會計科目編號_JE"],
+            ["Acct Name", "文字型態", "20", null, "會計科目名稱_JE"],
+            ["Memo", "文字型態", "40", null, "傳票摘要_JE"],
+            ["核准者", "文字型態", "10", null, "傳票核准人員_JE"],
+            ["Region", "文字型態", "10", null, "地區_JE"],
+            ["Amount", "數字型態", null, "2"],
+            ["傳票金額_JE 由系統產生 : Amount", "數字型態", null, "2", "傳票金額_JE"],
+            ["系統產生 : 同總帳日期_JE來源", "日期型態", null, null, "傳票核准日_JE"]
+        ]));
+
+    private static (string Dataset, string Key, string Label, string SourceColumn)[] UnmatchedFields(JsonElement restored) =>
+        restored.GetProperty("unmatchedFields").EnumerateArray()
+            .Select(item => (
+                item.GetProperty("dataset").GetString()!,
+                item.GetProperty("key").GetString()!,
+                item.GetProperty("label").GetString()!,
+                item.GetProperty("sourceColumn").GetString()!))
+            .ToArray();
 
     private static string SharedMetadataWorkbook(ReportWorkbookMetadata metadata)
     {

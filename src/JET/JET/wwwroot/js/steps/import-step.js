@@ -597,11 +597,10 @@
     );
   }
 
+  // TB 和 GL 走同一條多檔路徑（裁定 2026-11-09-19）。這裡、下方建立與按「加入」時的說明，GL 與 TB 用同一套句子（裁定 2026-11-09-24）。
   function emptyFaceHtml(kind) {
     return (
-      '<p class="import-card__status">尚未匯入。' + (kind === 'tb'
-        ? '請提供同一查核期間的試算表，不會自動將期初與期末兩份檔案配成期間變動。'
-        : '可合併欄位相同的檔案、工作表或資料表。') + '</p>' +
+      '<p class="import-card__status">尚未匯入。可合併欄位相同的檔案、工作表或資料表。</p>' +
       '<div class="import-card__actions">' +
         '<button type="button" class="btn" data-action="wizard-replace-' + kind + '">選擇來源檔</button>' +
       '</div>'
@@ -648,17 +647,14 @@
     }
     if (wizard.mode === 'append') {
       return '<p class="wizard-pane__hint">加入：新檔的資料會附加到現有 ' +
-        Ui.countText(info.rowCount) + ' 列（欄位名稱需與現有一致）。' +
-        (wizard.kind === 'tb' ? '請只追加同一查核期間的試算表資料，不會自動配成期初與期末的期間變動。' : '') +
-        '成功加入後，這份 ' + (wizard.kind === 'tb' ? 'TB' : 'GL') + ' 需要重新確認配對，受影響的測試結果需要重算。</p>';
+        Ui.countText(info.rowCount) + ' 列（欄位名稱需與現有一致）。成功加入後，這份 ' + (wizard.kind === 'tb' ? 'TB' : 'GL') + ' 需要重新確認配對，受影響的測試結果需要重算。</p>';
     }
     if (info) {
       return '<p class="form-notice form-notice--warning">匯入後，現有的 ' +
         Ui.countText(info.rowCount) + ' 列會換成新檔，需重新確認欄位配對並重跑測試。</p>';
     }
-    return '<p class="wizard-pane__hint">建立 ' + (wizard.kind === 'tb' ? 'TB' : 'GL') + '：' + (wizard.kind === 'tb'
-      ? '選擇同一查核期間的試算表來源，支援 Excel、CSV、文字檔及 Access；不會自動配成期初與期末的期間變動。'
-      : '選擇一個或多個來源檔，支援 Excel、CSV、文字檔及 Access，可合併工作表或資料表。') + '</p>';
+    return '<p class="wizard-pane__hint">建立 ' + (wizard.kind === 'tb' ? 'TB' : 'GL') +
+      '：選擇一個或多個來源檔，支援 Excel、CSV、文字檔及 Access，可合併工作表或資料表。</p>';
   }
 
   function wizardWorkspaceHtml(kind, info) {

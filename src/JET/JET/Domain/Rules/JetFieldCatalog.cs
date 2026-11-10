@@ -314,6 +314,10 @@ internal static class JetFieldCatalog
             .ToArray();
     }
 
+    /// <summary>配對鍵在第三步的欄位名稱；不在清單裡時回傳配對鍵本身。</summary>
+    internal static string MappingSlotLabel(IReadOnlyList<JetMappingSlot> slots, string key) =>
+        slots.FirstOrDefault(slot => slot.Key == key)?.Label ?? key;
+
     /// <summary>取得 semantic field 的主要使用者可見 mapping label。</summary>
     internal static string GlSemanticFieldMappingLabel(string semanticIdentity) =>
         GlFieldsBySemanticIdentity[semanticIdentity]

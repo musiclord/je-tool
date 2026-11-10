@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using JET.Application;
 using JET.AuditCore;
 using JET.Domain;
@@ -54,7 +55,9 @@ public sealed class ExportPrescreenReportTypedSeamTests
         const string projectId = "typed-prescreen-export";
         const string resultId = "prescreen-run";
         var generatedUtc = new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero);
-        var summaryJson = JsonSerializer.Serialize(
+        // 本次加入已存摘要的形狀檢查，原本省略的識別資訊與人員列欄位補成合法夾具，投影預期值與發布斷言不變。
+        // 第一次失敗：Public 20261110-050631280-602113d22d8e439d8c0a12183dc8ff6d。
+        var summaryJson = CompletePrescreenSummary(JsonSerializer.Serialize(
             new
             {
                 prepPeriodApproval = new { status = "na", naReason = (string?)null, count = 0L },
@@ -76,8 +79,8 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     totalPreparerCount = 2L,
                     preparers = new[]
                     {
-                        new { createdBy = "A" },
-                        new { createdBy = "B" }
+                        new { createdBy = "A", entryCount = 1L, debitTotal = 0m, creditTotal = 0m, manualCount = 0L },
+                        new { createdBy = "B", entryCount = 1L, debitTotal = 0m, creditTotal = 0m, manualCount = 0L }
                     }
                 },
                 rareAccounts = new
@@ -87,9 +90,9 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     accounts = Array.Empty<object>()
                 },
                 blankDescription = new { status = "na", count = 0L },
-                resultRef = new { logicVersion = RuleLogicVersions.Prescreen }
+                resultRef = new { resultId, generatedUtc, logicVersion = RuleLogicVersions.Prescreen }
             },
-            JetJsonStorage.Options);
+            JetJsonStorage.Options));
         var session = new ProjectSession();
         var writer = new RecordingPrescreenWriter();
         using var cancellation = new CancellationTokenSource();
@@ -155,7 +158,9 @@ public sealed class ExportPrescreenReportTypedSeamTests
             30,
             0,
             TimeSpan.Zero);
-        var summaryJson = JsonSerializer.Serialize(
+        // 同上：只補完整保存格式需要的欄位，不改本測試的計畫、命中數與寫出順序斷言。
+        // 第一次失敗：Public 20261110-050631280-602113d22d8e439d8c0a12183dc8ff6d。
+        var summaryJson = CompletePrescreenSummary(JsonSerializer.Serialize(
             new
             {
                 prepPeriodApproval = new
@@ -177,17 +182,20 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 preparerSummary = new
                 {
                     status = "V",
+                    naReason = (string?)null,
+                    totalPreparerCount = 0L,
                     preparers = Array.Empty<object>()
                 },
                 rareAccounts = new
                 {
                     status = "V",
-                    distinctAccountCount = 0L
+                    distinctAccountCount = 0L,
+                    accounts = Array.Empty<object>()
                 },
                 blankDescription = new { status = "na", count = 0L },
-                resultRef = new { logicVersion = RuleLogicVersions.Prescreen }
+                resultRef = new { resultId, generatedUtc, logicVersion = RuleLogicVersions.Prescreen }
             },
-            JetJsonStorage.Options);
+            JetJsonStorage.Options));
         var session = new ProjectSession();
         var writer = new RecordingPrescreenWriter();
         var factsPort = new RecordingPlanningFactsPort();
@@ -241,6 +249,14 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 PrescreenReportDetailKind.SuspiciousKeywords)
                 .Counts!
                 .VoucherHitCount);
+    }
+
+    private static string CompletePrescreenSummary(string scenarioJson)
+    {
+        // 共用夾具提供本測試不關心的完整零命中區塊；本測試自行指定的投影事實照原值覆蓋，預期值仍由上方固定答案決定。
+        var summary = JsonNode.Parse(ReportWriterTestSupport.PrescreenSummaryJson())!.AsObject();
+        foreach (var property in JsonNode.Parse(scenarioJson)!.AsObject()) summary[property.Key] = property.Value?.DeepClone();
+        return summary.ToJsonString(JetJsonStorage.Options);
     }
 
     // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、

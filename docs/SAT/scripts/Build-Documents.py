@@ -23,6 +23,7 @@ from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
+from docx.text.paragraph import Paragraph
 
 SAT = Path(__file__).resolve().parents[1]
 SOURCE = SAT / "source"
@@ -38,6 +39,12 @@ HEADER_FILL = "DCE3EA"
 CODE_FILL = "F3F5F7"
 BORDER_COLOR = "B9C4CF"
 TEXT_WIDTH_CM = 16.6
+# Gap between a table and the paragraph after it, matching the empty paragraph (10.5 pt text,
+# 1.2 line spacing, 4 pt after) that used to follow every table: its line is 21.8 pt in Word,
+# and Word then leaves the larger of its 4 pt space after and the next paragraph's space before.
+# Pages therefore only change where that empty paragraph used to start a page (see separate_tables).
+TABLE_SPACER_LINE_PT = 21.8
+TABLE_SPACER_AFTER_PT = 4
 
 
 # --------------------------------------------------------------------------- styles
@@ -267,8 +274,52 @@ def table(doc, rows: list[list[str]], header: bool = True) -> None:
             inline(paragraph, value.strip(), size=9.5, bold=label)
     for c, width in enumerate(widths):
         t.columns[c].width = Cm(width)
-    spacer = doc.add_paragraph()
-    spacer.paragraph_format.space_after = Pt(4)
+
+
+def add_table_spacer(table_element) -> None:
+    spacer = OxmlElement("w:p")
+    table_element.addnext(spacer)
+    Paragraph(spacer, None).paragraph_format.space_after = Pt(TABLE_SPACER_AFTER_PT)
+
+
+def last_row_keeps_with_next(table_element) -> bool:
+    last_row = table_element.findall(qn("w:tr"))[-1]
+    return bool(Paragraph(last_row.find(".//" + qn("w:p")), None).paragraph_format.keep_with_next)
+
+
+def separate_tables(doc) -> None:
+    """Leave the gap the empty paragraph used to leave after a table, without that empty
+    paragraph turning into a blank line at the top of a page.
+
+    The gap goes into the space before of the paragraph that follows the table, which Word
+    drops at the top of a page. Three cases keep the empty paragraph:
+    - a table followed by another table, which Word would otherwise merge into one;
+    - a table at the end of the document, where Word would add a paragraph itself;
+    - a table whose last row keeps with next (a header and at most one body row). The empty
+      paragraph then moves with the table and never starts a page, so leaving it keeps the
+      old page breaks.
+    In the first two cases the empty paragraph can still start a page, as before.
+    """
+    paragraphs = {p._p: p for p in doc.paragraphs}
+    for table_element in list(doc.element.body.iterchildren(qn("w:tbl"))):
+        following = table_element.getnext()
+        if following is None or following.tag != qn("w:p") or last_row_keeps_with_next(table_element):
+            add_table_spacer(table_element)
+            continue
+        paragraph = paragraphs[following]
+        before = paragraph.paragraph_format.space_before
+        style = paragraph.style
+        while before is None and style is not None:
+            before = style.paragraph_format.space_before
+            style = style.base_style
+        own = before.pt if before is not None else 0
+        if paragraph.paragraph_format.page_break_before:
+            # After the empty paragraph, Word placed a paragraph that forces a new page as if
+            # its space before were smaller by the empty paragraph's space after. Set that
+            # directly, so no empty paragraph can end up alone on a page before the break.
+            paragraph.paragraph_format.space_before = Pt(max(own - TABLE_SPACER_AFTER_PT, 0))
+            continue
+        paragraph.paragraph_format.space_before = Pt(TABLE_SPACER_LINE_PT + max(TABLE_SPACER_AFTER_PT, own))
 
 
 def code_block(doc, lines: list[str]) -> None:
@@ -402,6 +453,9 @@ def build(name: str) -> None:
             paragraph = doc.add_paragraph(style="Heading 1")
             if name == "Framework" and stripped.startswith("## 2."):
                 paragraph.paragraph_format.page_break_before = True
+                # Word keeps space before after a forced page break, unlike after an automatic one.
+                # Drop it so this page starts at the top margin like the others.
+                paragraph.paragraph_format.space_before = Pt(0)
             inline(paragraph, stripped[3:])
         elif re.fullmatch(r"\*\*[^*]+\*\*", stripped):
             inline(doc.add_paragraph(style="Heading 3"), stripped[2:-2])
@@ -423,6 +477,7 @@ def build(name: str) -> None:
             inline(paragraph, stripped)
         i += 1
 
+    separate_tables(doc)
     props = doc.core_properties
     props.author = "JET"
     props.title = f"JET {meta['title']}"

@@ -697,6 +697,19 @@ function Invoke-JetHarness {
                     }
                     $selectedGuiScenarios = @($registry.guiSettings.scenarios | Where-Object {
                         [string]::IsNullOrWhiteSpace($GuiScenario) -or [string]$_.name -ceq $GuiScenario })
+                    # 選到啟動單一執行檔的情境時，先把 Gui 測試版打包到這次執行的 scratch，命令結束時隨 scratch 刪除（裁定 2026-11-09-03）。
+                    $guiBundleDirectory = Join-Path $context.ScratchDirectory 'gui-bundle'
+                    if ($steps.Count -gt 0 -and $steps[$steps.Count - 1].status -ceq 'passed' -and
+                        @($selectedGuiScenarios | Where-Object {
+                            $_.ContainsKey('application') -and [string]$_['application'] -ceq 'ownedBundle' }).Count -gt 0) {
+                        $guiBundle = Invoke-JetGuiBundleStep `
+                            -RepositoryRoot $repositoryFull `
+                            -RunDirectory $context.RunDirectory `
+                            -BundleDirectory $guiBundleDirectory `
+                            -Registry $registry `
+                            -TimeoutSeconds $parsedTimeoutSeconds
+                        $steps.Add($guiBundle)
+                    }
                     # 迴圈變數不能叫 $guiScenario：PowerShell 變數不分大小寫，會撞到 [string] 參數 $GuiScenario 而被轉成字串。
                     foreach ($guiScenarioEntry in $selectedGuiScenarios) {
                         if ($steps.Count -gt 0 -and $steps[$steps.Count - 1].status -cne 'passed') {
@@ -707,6 +720,7 @@ function Invoke-JetHarness {
                             -RunDirectory $context.RunDirectory `
                             -Registry $registry `
                             -Scenario $guiScenarioEntry `
+                            -BundleDirectory $guiBundleDirectory `
                             -TimeoutSeconds ([int]$guiScenarioEntry.timeoutSeconds + 30)
                         $steps.Add($gui)
                     }

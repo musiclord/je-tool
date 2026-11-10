@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using JET.AuditCore;
+using JET.Domain;
 
 namespace JET.Application;
 
@@ -11,6 +12,178 @@ namespace JET.Application;
 /// </summary>
 internal static class ValidationSummaryShapeValidator
 {
+    internal static bool IsValidPrescreen(string summaryJson)
+    {
+        try
+        {
+            using var document = JetJsonStorage.Parse(summaryJson);
+            RequirePrescreen(document.RootElement);
+            return true;
+        }
+        catch (Exception exception) when (exception is JsonException or FormatException or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>只檢查已存摘要的結構與型別，不重算預篩選判斷或命中數。</summary>
+    internal static void RequirePrescreen(JsonElement root)
+    {
+        // 舊摘要可能只有當時已提供的區塊；顯示用彙總沒有出現時不能補造，也不能因此拒絕回放。
+        // positioning 會在回放時換成目前說明，不是已存的審計事實，這裡只一併拒絕重複欄名。
+        RequireUniqueProperties(root);
+        RequireObjectFields(root, "resultRef");
+        ValidateResultRef(Property(root, "resultRef"), RuleLogicVersions.Prescreen);
+        foreach (var key in new[] { "prepPeriodApproval", "unexpectedAccountPair", "nonAuthorizedPreparer" })
+        {
+            if (!root.TryGetProperty(key, out var rule)) continue;
+            RequireObjectFields(rule, "status", "naReason", "count");
+            RequireStatus(rule);
+            RequireNullableString(rule, "naReason");
+            RequireNonNegativeLong(rule, "count");
+        }
+        foreach (var key in new[] { "suspiciousKeywords", "blankDescription" })
+        {
+            if (!root.TryGetProperty(key, out var rule)) continue;
+            RequireObjectFields(rule, "status", "count");
+            RequireStatus(rule);
+            RequireNonNegativeLong(rule, "count");
+        }
+        if (root.TryGetProperty("trailingZeros", out var zeros))
+        {
+            RequireObjectFields(zeros, "status", "count", "zerosThreshold");
+            RequireStatus(zeros);
+            RequireNonNegativeLong(zeros, "count");
+            if (RequireLong(zeros, "zerosThreshold") is < TrailingZeroThreshold.MinCustomDigits or > TrailingZeroThreshold.MaxCustomDigits)
+                throw Invalid("prescreen trailingZeros.zerosThreshold");
+        }
+
+        if (root.TryGetProperty("preparerSummary", out var preparers))
+        {
+            RequireObjectFields(preparers, "status", "naReason", "preparers");
+            RequireStatus(preparers);
+            RequireNullableString(preparers, "naReason");
+            if (preparers.TryGetProperty("totalPreparerCount", out _)) RequireNullableNonNegativeLong(preparers, "totalPreparerCount");
+            RequireArray(preparers, "preparers");
+            foreach (var row in Property(preparers, "preparers").EnumerateArray())
+            {
+                RequireObjectFields(row, "createdBy", "entryCount", "debitTotal", "creditTotal", "manualCount");
+                RequireNullableString(row, "createdBy");
+                RequireNonNegativeLong(row, "entryCount");
+                RequireNonNegativeLong(row, "manualCount");
+                RequireNumber(row, "debitTotal");
+                RequireNumber(row, "creditTotal");
+            }
+        }
+        if (root.TryGetProperty("rareAccounts", out var accounts))
+        {
+            RequireObjectFields(accounts, "status", "distinctAccountCount", "accounts");
+            RequireStatus(accounts);
+            RequireNonNegativeLong(accounts, "distinctAccountCount");
+            RequireArray(accounts, "accounts");
+            foreach (var row in Property(accounts, "accounts").EnumerateArray())
+            {
+                RequireObjectFields(row, "accountNumber", "accountName", "entryCount", "debitTotal", "creditTotal");
+                RequireNullableString(row, "accountNumber");
+                RequireNullableString(row, "accountName");
+                RequireNonNegativeLong(row, "entryCount");
+                RequireNumber(row, "debitTotal");
+                RequireNumber(row, "creditTotal");
+            }
+        }
+        foreach (var key in new[] { "weekendActivity", "holidayActivity" })
+        {
+            if (!root.TryGetProperty(key, out var rule)) continue;
+            RequireObjectFields(rule, "status", "naReason", "approvalNaReason", "postingCount", "approvalCount");
+            RequireStatus(rule);
+            RequireNullableString(rule, "naReason");
+            RequireNullableString(rule, "approvalNaReason");
+            RequireNonNegativeLong(rule, "postingCount");
+            RequireNullableNonNegativeLong(rule, "approvalCount");
+        }
+        if (root.TryGetProperty("concentration", out var concentration))
+        {
+            RequireObjectFields(concentration, "status", "naReason", "preparers", "rareAccounts", "distinctAccountCount");
+            RequireStatus(concentration);
+            RequireNullableString(concentration, "naReason");
+            RequireNullableNonNegativeLong(concentration, "distinctAccountCount");
+            var leaders = Property(concentration, "preparers");
+            if (leaders.ValueKind != JsonValueKind.Null)
+            {
+                RequireObjectFields(leaders, "top", "othersEntryCount", "totalPreparerCount", "totalEntryCount", "top5SharePct");
+                RequireArray(leaders, "top");
+                foreach (var row in Property(leaders, "top").EnumerateArray())
+                {
+                    RequireObjectFields(row, "createdBy", "entryCount", "manualCount", "cumulativePct");
+                    RequireNullableString(row, "createdBy");
+                    RequireNonNegativeLong(row, "entryCount");
+                    RequireNonNegativeLong(row, "manualCount");
+                    RequireNullableNumber(row, "cumulativePct");
+                }
+                foreach (var key in new[] { "othersEntryCount", "totalPreparerCount", "totalEntryCount" }) RequireNonNegativeLong(leaders, key);
+                RequireNullableNumber(leaders, "top5SharePct");
+            }
+            var rare = Property(concentration, "rareAccounts");
+            if (rare.ValueKind != JsonValueKind.Null)
+            {
+                if (rare.ValueKind != JsonValueKind.Array) throw Invalid("concentration.rareAccounts");
+                foreach (var row in rare.EnumerateArray())
+                {
+                    RequireObjectFields(row, "accountNumber", "accountName", "entryCount");
+                    RequireNullableString(row, "accountNumber");
+                    RequireNullableString(row, "accountName");
+                    RequireNonNegativeLong(row, "entryCount");
+                }
+            }
+        }
+        if (root.TryGetProperty("rulePeriod", out var period))
+        {
+            RequireObjectFields(period, "population", "rules");
+            RequireNonNegativeLong(period, "population");
+            RequireArray(period, "rules");
+            foreach (var rule in Property(period, "rules").EnumerateArray())
+            {
+                RequireObjectFields(rule, "key", "hitLines");
+                RequireNullableString(rule, "key");
+                if (rule.TryGetProperty("naReason", out _)) RequireNullableString(rule, "naReason");
+                RequireNullableNonNegativeLong(rule, "hitLines");
+                if (rule.TryGetProperty("hitVouchers", out _)) RequireNullableNonNegativeLong(rule, "hitVouchers");
+                if (rule.TryGetProperty("ratePct", out _)) RequireNullableNumber(rule, "ratePct");
+            }
+        }
+    }
+
+    private static void RequireObjectFields(JsonElement value, params string[] requiredKeys)
+    {
+        if (value.ValueKind != JsonValueKind.Object || requiredKeys.Any(key => !value.TryGetProperty(key, out _)))
+            throw Invalid("object fields");
+    }
+
+    private static void RequireUniqueProperties(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in value.EnumerateObject())
+            {
+                if (!names.Add(property.Name)) throw Invalid("duplicate property");
+                RequireUniqueProperties(property.Value);
+            }
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray()) RequireUniqueProperties(item);
+    }
+
+    private static void RequireNullableNonNegativeLong(JsonElement value, string key)
+    {
+        if (Property(value, key).ValueKind != JsonValueKind.Null) RequireNonNegativeLong(value, key);
+    }
+
+    private static void RequireNullableNumber(JsonElement value, string key)
+    {
+        if (Property(value, key).ValueKind != JsonValueKind.Null) RequireNumber(value, key);
+    }
+
     private static readonly string[] RootKeys =
     [
         "stats", "populationSummary", "amountDistribution", "completenessTest",
@@ -21,7 +194,7 @@ internal static class ValidationSummaryShapeValidator
     {
         try
         {
-            using var document = JsonDocument.Parse(summaryJson);
+            using var document = JetJsonStorage.Parse(summaryJson);
             Require(document.RootElement);
             return true;
         }
@@ -193,6 +366,12 @@ internal static class ValidationSummaryShapeValidator
 
     private static void ValidateInf(JsonElement value)
     {
+        // 先確認是物件才找欄位：對不是物件的值呼叫 TryGetProperty 丟的是 InvalidOperationException，不會被當成形狀不對。
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            throw Invalid("infSamplingTest");
+        }
+
         if (value.TryGetProperty("requestedSampleSize", out var requested))
         {
             RequireExactObject(value, "status", "sampleSize", "seed", "requestedSampleSize");
@@ -264,7 +443,7 @@ internal static class ValidationSummaryShapeValidator
         }
     }
 
-    private static void ValidateResultRef(JsonElement value)
+    private static void ValidateResultRef(JsonElement value, string expectedVersion = RuleLogicVersions.Validation)
     {
         RequireExactObject(value, "resultId", "generatedUtc", "logicVersion");
         if (Property(value, "resultId").ValueKind != JsonValueKind.String
@@ -278,7 +457,7 @@ internal static class ValidationSummaryShapeValidator
             || Property(value, "logicVersion").ValueKind != JsonValueKind.String
             || !string.Equals(
                 Property(value, "logicVersion").GetString(),
-                RuleLogicVersions.Validation,
+                expectedVersion,
                 StringComparison.Ordinal))
         {
             throw Invalid("resultRef");

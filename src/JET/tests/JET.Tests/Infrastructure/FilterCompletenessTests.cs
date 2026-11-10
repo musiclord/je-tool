@@ -114,8 +114,7 @@ public sealed class FilterCompletenessTests
             ("contains", "\"values\":[\"alpha\",\"%_[\"]", [1,2,3]),
             ("notContains", "\"values\":[\"alpha\",\"%_[\"]", [6]),
             ("startsWith", "\"value\":\"alpha\"", [1,2]), ("endsWith", "\"value\":\"beta\"", [2,6]),
-            ("notStartsWith", "\"value\":\"alpha\"", [3,6]), ("notEndsWith", "\"value\":\"beta\"", [1,3]),
-            ("in", "\"values\":[\"alpha\",\"BETA\",\"alpha\"]", [1,6]),
+            ("notStartsWith", "\"value\":\"alpha\"", [3,6]), ("notEndsWith", "\"value\":\"beta\"", [1,3]),            ("in", "\"values\":[\"alpha\",\"BETA\",\"alpha\"]", [1,6]),
             ("notIn", "\"values\":[\"alpha\",\"beta\"]", [2,3]),
             ("isBlank", "", [4,5,7]), ("isNotBlank", "", [1,2,3,6])
         ];
@@ -361,6 +360,15 @@ public sealed class FilterCompletenessTests
         await Check("""{"type":"fieldValue","field":"description","operator":"contains","values":["START","nothing"]}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"description","operator":"notContains","values":["start","LITERAL"]}""", []);
         await Check("""{"type":"fieldValue","field":"description","operator":"notContains","value":"literal"}""", ["A|1"]);
+        // 裁定 2026-11-09-09：開頭符合與結尾符合也收多個值，符合任一個就算，萬用字元照字面比對；
+        // 排除時每一個都不能符合，所以開頭各是 start 與 lit 的分錄全部排除，空白的 A|2 只在勾選空白時列入。
+        await Check("""{"type":"fieldValue","field":"description","operator":"startsWith","values":["nothing","start 100%_["]}""", ["A|1"]);
+        await Check("""{"type":"fieldValue","field":"description","operator":"endsWith","values":["xyz","_[ end"]}""", ["A|1"]);
+        await Check("""{"type":"fieldValue","field":"description","operator":"notStartsWith","values":["start","LIT"]}""", []);
+        await Check("""{"type":"fieldValue","field":"description","operator":"notStartsWith","values":["start","LIT"],"includeBlank":true}""", ["A|2"]);
+        await Check("""{"type":"fieldValue","field":"description","operator":"notEndsWith","values":["end","RAL"]}""", []);
+        await Check("""{"type":"fieldValue","field":"description","operator":"notEndsWith","values":["end"]}""",
+            ["B|1", "B|2", "B|3", "B|4", "C|1", "C|2", "D|1", "D|2", "D|3", "E|1"]);
     }
 
     [Fact]

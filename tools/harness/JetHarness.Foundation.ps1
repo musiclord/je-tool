@@ -411,6 +411,10 @@ function Read-JetRegistry {
                 throw [InvalidDataException]::new("GUI scenario '$scenarioName' field '$numberField' must be an integer.")
             }
         }
+        # application 省略時啟動一般的 AgentGuiTest 建置；ownedBundle 啟動 Gui 路線這次打包的單一執行檔（裁定 2026-11-09-03）。
+        if ($scenario.ContainsKey('application') -and [string]$scenario.application -cnotin @('build', 'ownedBundle')) {
+            throw [InvalidDataException]::new("GUI scenario '$scenarioName' application must be 'build' or 'ownedBundle'.")
+        }
         if ([long]$scenario.timeoutSeconds -lt 1 -or
             [long]$scenario.actionBudget -lt 1 -or
             [long]$scenario.expectedActionCount -lt 1 -or

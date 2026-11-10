@@ -88,7 +88,14 @@ public sealed partial class WorkingPaperWriter
                 cancellationToken),
             cancellationToken);
 
-        using var sheet = session.OpenSheet(WorkingPaperSheetCatalog.Step2);
+        // 舊版只在配對了傳票核准人員時把 L51 改成「傳票核准人員」（idea-tool.bas 第 6874、6878 行，裁定 2026-11-09-11）；
+        // 沒配對時保留範本原字，L 欄也沒有資料。
+        var approverMapped = glMapping is not null
+            && glMapping.Mapping.TryGetValue(GlMappingKeys.ApprovedBy, out var approverSource)
+            && !string.IsNullOrWhiteSpace(approverSource);
+        using var sheet = session.OpenSheet(
+            WorkingPaperSheetCatalog.Step2,
+            keptTemplateCells: approverMapped ? null : new HashSet<(uint Row, uint Column)> { (51U, 12U) });
         ConfigureStep2Layout(sheet, spool.Widths);
         WriteSubstantiveHeader(sheet, context, "此Report將提供測試JE母體攸關資料元素可靠性之樣本");
 
@@ -100,7 +107,7 @@ public sealed partial class WorkingPaperWriter
         }
 
         // 第 49-52 列欄標(多層合併);資料第 53 列起。
-        WriteStep2ColumnHeaders(sheet, rdeHeaders);
+        WriteStep2ColumnHeaders(sheet, rdeHeaders, approverMapped);
         var rows = 0L;
         foreach (var projected in spool.ReadRows(cancellationToken))
         {
@@ -136,8 +143,9 @@ public sealed partial class WorkingPaperWriter
             }
             sheet.WriteFixedRow(row, blanks);
         }
-        sheet.AddListValidation($"M53:S{Math.Max(111L, 52L + rows)}", "\"Y,N,N/A\"");
-        sheet.Protect();
+        // 下拉選單照範本 M53:S111 與 B 欄的選項，樣本超過第 111 列時延伸到最後一個樣本（裁定 2026-11-09-13）。
+        // 舊版不保護這張表（裁定 2026-11-09-14）。
+        sheet.ExtendTemplateValidations(templateLastRow: 111, lastRow: checked(52U + (uint)rows));
 
         AddStat(stats, sheet.CloseAndSummarizeWith(rows, cancellationToken), progress);
     }
@@ -202,7 +210,7 @@ public sealed partial class WorkingPaperWriter
             foreach (var sample in chunk)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                using var raw = JsonDocument.Parse(rawPage[sample.EntryId]);
+                using var raw = LocalEngineErrors.ParseStoredObject(rawPage[sample.EntryId]);
                 var (direction, sourceModule) = values.For(raw.RootElement, sample);
 
                 yield return ProjectStep2Sample(
@@ -251,7 +259,9 @@ public sealed partial class WorkingPaperWriter
             .SelectMany(scenario => FilterConditionExcelText.Parts(scenario.Description)
                 .Select((part, index) => (Scenario: scenario, Part: part, Index: index)))
             .ToArray();
-        using var sheet = session.OpenSheet(WorkingPaperSheetCatalog.Step3);
+        using var sheet = session.OpenSheet(
+            WorkingPaperSheetCatalog.Step3,
+            lockedArea: Step3LockedArea);
         ConfigureStep3Layout(sheet, dataWidths);
         for (var position = 0; position < dataRows.Length; position++)
         {
@@ -305,10 +315,19 @@ public sealed partial class WorkingPaperWriter
             rowIndex++;
         }
 
+        // 舊版保護這張表（idea-tool.bas 第 10734 到 10737 行，裁定 2026-11-09-14）。
+        sheet.Protect();
         AddStat(stats, sheet.CloseAndSummarizeWith(dataRows.Length, cancellationToken), progress);
     }
 
     private const uint Step3FirstDataRow = 19;
+
+    // 受保護時鎖定的資料區照舊版鎖的 B7:E28（idea-tool.bas 第 10736 行，裁定 2026-11-09-15）；情境超過十個時往下延伸。
+    private static readonly WorkingPaperLockedArea Step3LockedArea = new(7, 2, 5, 28);
+
+    // 受保護時鎖定的資料區照舊版鎖的 A13:O 到資料末列（idea-tool.bas 第 10797 行，裁定 2026-11-09-15）；
+    // 覆核欄 P 到 U 與第 12 列以上維持可填。
+    private static readonly WorkingPaperLockedArea Step4LockedArea = new(13, 1, 15, 12);
 
     // 條件與原因欄的寬度上限，參考舊流程底稿約 50 與 34 個字元的欄寬；超過時換行並加高該列，
     // 不再依最長的一段條件把欄寬撐到 255（工作表外觀對齊舊流程底稿，裁定 2026-10-29-01）。
@@ -410,7 +429,8 @@ public sealed partial class WorkingPaperWriter
         int pageNumber)
     {
         var sheet = session.OpenSheet(
-            ExcelWorksheetConstraints.ContinuationSheetName(WorkingPaperSheetCatalog.Step4, pageNumber));
+            ExcelWorksheetConstraints.ContinuationSheetName(WorkingPaperSheetCatalog.Step4, pageNumber),
+            lockedArea: Step4LockedArea);
         ConfigureStep4Layout(sheet, dataWidths);
         WriteSubstantiveHeader(sheet, context, "證實測試 - 會計分錄及其他調整", omitSubtitle: true);
 
@@ -440,8 +460,7 @@ public sealed partial class WorkingPaperWriter
             sheet.TextCell(
                 12,
                 1,
-                PlannedText(sheetPlan, Step4HeaderLines.Count, Step4SelectionNote) +
-                "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",
+                PlannedText(sheetPlan, Step4HeaderLines.Count, Step4SelectionNote),
                 WorkingPaperStyles.Bold)
         ]);
         return sheet;
@@ -452,10 +471,12 @@ public sealed partial class WorkingPaperWriter
         long rows,
         CancellationToken cancellationToken)
     {
+        // 下拉選單照範本 P、Q、R 與 S 欄的選項，傳票超過第 27 列時延伸到最後一張傳票（裁定 2026-11-09-13）。
         if (rows > 0)
         {
-            var lastRow = CheckedLastDataRow(firstDataRow: 13, rows);
-            sheet.AddListValidation($"P13:T{lastRow}", "\"Y,N,N/A\"");
+            sheet.ExtendTemplateValidations(
+                templateLastRow: 27,
+                lastRow: CheckedLastDataRow(firstDataRow: 13, rows));
         }
 
         sheet.Protect();
@@ -749,7 +770,7 @@ public sealed partial class WorkingPaperWriter
         int moneyScale,
         IReadOnlyDictionary<string, string?>? rdeValues = null)
     {
-        using var raw = JsonDocument.Parse(source.RawJson);
+        using var raw = LocalEngineErrors.ParseStoredObject(source.RawJson);
         var values = new Step41ProjectedValue[columns.Count];
         for (var index = 0; index < columns.Count; index++)
         {
@@ -875,8 +896,7 @@ public sealed partial class WorkingPaperWriter
         }
         else
         {
-            throw new InvalidDataException(
-                $"step4-1 欄位 '{column.Header}' 的 Number 值 '{value}' 無法解析。");
+            throw LocalEngineErrors.DatabaseCorrupt();
         }
 
         return new Step41ProjectedValue(
@@ -896,8 +916,7 @@ public sealed partial class WorkingPaperWriter
                 DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.RoundtripKind,
                 out var date))
         {
-            throw new InvalidDataException(
-                $"step4-1 欄位 '{column.Header}' 的 Date 值 '{value}' 無法解析。");
+            throw LocalEngineErrors.DatabaseCorrupt();
         }
 
         return new Step41ProjectedValue(
@@ -915,8 +934,7 @@ public sealed partial class WorkingPaperWriter
     {
         if (!TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var time))
         {
-            throw new InvalidDataException(
-                $"step4-1 欄位 '{column.Header}' 的 Time 值 '{value}' 無法解析。");
+            throw LocalEngineErrors.DatabaseCorrupt();
         }
 
         return new Step41ProjectedValue(
@@ -1469,14 +1487,12 @@ public sealed partial class WorkingPaperWriter
         }
     }
 
+    // 舊版不保護 step4-1（裁定 2026-11-09-14）。
     private static SheetStat CloseStep41Page(
         SheetWriter sheet,
         long rows,
-        CancellationToken cancellationToken)
-    {
-        sheet.Protect();
-        return sheet.CloseAndSummarizeWith(rows, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        sheet.CloseAndSummarizeWith(rows, cancellationToken);
 
     private static uint CheckedLastDataRow(uint firstDataRow, long rows)
     {
@@ -1562,7 +1578,8 @@ public sealed partial class WorkingPaperWriter
     /// <summary>step2 第 49-52 列多層欄標(逐字對齊樣本;合併範圍見 Step2HeaderMerges)。</summary>
     private static void WriteStep2ColumnHeaders(
         SheetWriter sheet,
-        IReadOnlyList<string> customFields)
+        IReadOnlyList<string> customFields,
+        bool approverMapped)
     {
         var row49 = new List<Cell>
         {
@@ -1597,10 +1614,13 @@ public sealed partial class WorkingPaperWriter
             sheet.TextCell(51, 9, "分錄編製人員\n(或過帳人員)", WorkingPaperStyles.BoldWrap),
             sheet.TextCell(51, 10, "分錄來源或\n人工/自動分錄判斷(若有)", WorkingPaperStyles.BoldWrap),
             sheet.TextCell(51, 11, "分錄備註/說明", WorkingPaperStyles.BoldWrap),
-            sheet.TextCell(51, 12, "傳票核准人員", WorkingPaperStyles.BoldWrap),
             sheet.TextCell(51, 14, "非財務類型", WorkingPaperStyles.BoldWrap),
             sheet.TextCell(51, 20, "(例如：向誰詢問、觀察或檢視哪些內容或註記TickMark說明核至哪些相關文件。)", WorkingPaperStyles.BoldWrap)
         };
+        if (approverMapped)
+        {
+            row51.Add(sheet.TextCell(51, 12, "傳票核准人員", WorkingPaperStyles.BoldWrap));
+        }
         for (var index = 0; index < customFields.Count; index++)
         {
             row51.Add(sheet.TextCell(
@@ -2073,8 +2093,10 @@ public sealed partial class WorkingPaperWriter
         "B5:E5", "B7:E7", "P10:R10", "S10:S11"
     ];
 
+    // 範本 A12 直接寫著整句，續頁才由程式照寫（裁定 2026-11-09-12）。
     private const string Step4SelectionNote =
-        "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)";
+        "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)" +
+        "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。";
 
     /// <summary>
     /// 欄位資訊 GL 段尾的衍生旗標欄(對齊本機參考樣本 A49-A52)。原工具於匯入 precompute 這些 K_ 旗標欄並登錄於

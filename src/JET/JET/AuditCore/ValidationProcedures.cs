@@ -120,7 +120,9 @@ public static class ValidationProcedures
     /// 中間結果另取 gl_by_account、tb_by_account 這兩個名字，不和資料表 gl、tb 同名，
     /// 否則 SQLite 會把 CTE 裡的 FROM gl 當成引用自己。
     /// </summary>
-    public static string CompletenessDiffCteFor(string schemaPrefix) =>
+    /// <param name="schemaPrefix">資料表名稱前的限定詞；SQLite 使用空字串。</param>
+    /// <param name="useTbAccountNames">全科目報表只使用 TB 科目名稱；預設供差異頁沿用 GL 名稱補值。</param>
+    public static string CompletenessDiffCteFor(string schemaPrefix, bool useTbAccountNames = false) =>
         $$"""
         WITH gl_by_account AS (
             SELECT account_number, MAX(account_name) AS account_name, SUM(amount_scaled) AS s
@@ -135,14 +137,14 @@ public static class ValidationProcedures
         ),
         diff AS (
             SELECT t.account_number            AS account_number,
-                   COALESCE(t.account_name, g.account_name) AS account_name,
+                   {{(useTbAccountNames ? "t.account_name" : "COALESCE(t.account_name, g.account_name)")}} AS account_name,
                    t.s                        AS tb_s,
                    COALESCE(g.s, 0)           AS gl_s,
                    0                          AS not_in_tb
             FROM tb_by_account t
             LEFT JOIN gl_by_account g ON g.account_number = t.account_number
             UNION ALL
-            SELECT g.account_number, g.account_name, 0, g.s, 1
+            SELECT g.account_number, {{(useTbAccountNames ? "NULL" : "g.account_name")}}, 0, g.s, 1
             FROM gl_by_account g
             LEFT JOIN tb_by_account t ON t.account_number = g.account_number
             WHERE t.account_number IS NULL

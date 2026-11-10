@@ -296,6 +296,7 @@ internal static partial class GuiScenarios
             GuiScenarioCatalog.UpstreamChangeAfterExport => ExecuteUpstreamChangeAfterExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.CaseToWorkingPaper => ExecuteCaseToWorkingPaperAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.CaseListCleanupCancelExport => ExecuteCaseListCleanupCancelExportAsync(cdp, ownedRun, process, outcome, cancellationToken),
+            GuiScenarioCatalog.SingleFileRelaunch => ExecuteSingleFileRelaunchAsync(cdp, ownedRun, process, initialUi, outcome, cancellationToken),
             GuiScenarioCatalog.BlankDetailsRecovery => ExecuteBlankDetailsRecoveryAsync(cdp, ownedRun, process, outcome, cancellationToken),
             GuiScenarioCatalog.FilterCommonEditing or GuiScenarioCatalog.FilterAuditorJourney =>
                 ExecuteFilterWorkflowAsync(cdp, ownedRun, process, outcome, cancellationToken),

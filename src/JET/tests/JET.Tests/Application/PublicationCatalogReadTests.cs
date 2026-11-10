@@ -140,7 +140,31 @@ public sealed class PublicationCatalogReadTests
         Assert.Equal(0, store.ListCalls);
     }
 
-    private static ExportPrescreenReportHandler Handler(IReportStore store, IPrescreenReportWriter writer)
+    // 修正前 2 案失敗：Focused 20261110-044733575-4198533a94044a3199d9d55a30385ffb。
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handler_StateDatabaseFailureAfterPublication_StillReportsSuccessfulReport(bool translated)
+    {
+        Exception failure = translated
+            ? new JetActionException(JetErrorCodes.DatabaseCorrupt, "synthetic corrupted state")
+            : new Microsoft.Data.Sqlite.SqliteException("synthetic locked state", 5);
+        var store = new PublishedStore(null, executeWrite: true);
+        var writer = new TestWriter();
+        var handler = Handler(store, writer, failure);
+        var result = await handler.HandleAsync(JsonSerializer.SerializeToElement(new { resultId = "prescreen-current" }), CancellationToken.None);
+        var wire = JsonSerializer.SerializeToElement(result, JetJsonStorage.Options);
+
+        Assert.True(wire.GetProperty("ok").GetBoolean());
+        Assert.Equal("prescreenReport", wire.GetProperty("publishedReport").GetProperty("kind").GetString());
+        Assert.Equal(JsonValueKind.Null, wire.GetProperty("reports").ValueKind);
+        Assert.Equal(Warning, wire.GetProperty("reportWarning").GetString());
+        Assert.Equal(1, store.WriteCalls);
+        Assert.Equal(1, writer.Calls);
+        Assert.Equal(0, store.ListCalls);
+    }
+
+    private static ExportPrescreenReportHandler Handler(IReportStore store, IPrescreenReportWriter writer, Exception? stateFailure = null)
     {
         var time = new DateTimeOffset(2026, 9, 23, 0, 0, 0, TimeSpan.Zero);
         var session = new ProjectSession();
@@ -148,6 +172,7 @@ public sealed class PublicationCatalogReadTests
             new("validation-current", ResultKind.Validation, time, CurrentValidationSummaryTestData.Create("validation-current", time)),
             // 2026-10-22 清理技術債：handler 一定會解析預篩選摘要再規劃，所以摘要要能解析。
             new("prescreen-current", ResultKind.Prescreen, time, ReportWriterTestSupport.PrescreenSummaryJson()));
+        runs.ReadFailure = () => store is PublishedStore { WriteCalls: > 0 } ? stateFailure : null;
         var project = ProjectDocument.CreateNew("synthetic-project", "", "", "synthetic-user", "2025-01-01", "2025-12-31",
             null, ProjectDocument.DefaultDatabaseProvider, time, 1, 2);
         // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 store，替身放進資料庫組後再進入 session。
@@ -182,9 +207,11 @@ public sealed class PublicationCatalogReadTests
     private sealed class TestEvents : IJetEventPublisher { public void Publish(string eventName, object? payload) { } }
     private sealed class TestRunStore(params ResultRecord[] runs) : IResultStore
     {
+        internal Func<Exception?>? ReadFailure { get; set; }
         public Task SaveAsync(string projectId, ResultRecord record, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ResultRecord?> FindLatestAsync(string projectId, ResultKind kind, CancellationToken cancellationToken) =>
-            Task.FromResult(runs.SingleOrDefault(run => run.Kind == kind));
+            ReadFailure?.Invoke() is { } error ? Task.FromException<ResultRecord?>(error)
+                : Task.FromResult(runs.SingleOrDefault(run => run.Kind == kind));
     }
     private sealed class TestProjectStore(ProjectDocument project) : IProjectStore
     {

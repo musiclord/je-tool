@@ -94,8 +94,12 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             var filterDataRevision = await repositories.ResultStaleStates.ReadFilterDataRevisionAsync(document.ProjectId, cancellationToken);
             var holidayCount = await repositories.Calendar.CountAsync(document.ProjectId, CalendarDayType.Holiday, cancellationToken);
             var makeupDayCount = await repositories.Calendar.CountAsync(document.ProjectId, CalendarDayType.Makeup, cancellationToken);
-            var latestValidate = await repositories.Results.FindLatestAsync(document.ProjectId, ResultKind.Validation, cancellationToken);
-            var latestPrescreen = await repositories.Results.FindLatestAsync(document.ProjectId, ResultKind.Prescreen, cancellationToken);
+            var unreadableValidation = false;
+            var unreadablePrescreen = false;
+            var latestValidate = await WorkflowResultStateSupport.ReadResultForStateAsync(
+                document.ProjectId, ResultKind.Validation, repositories.Results, () => unreadableValidation = true, cancellationToken);
+            var latestPrescreen = await WorkflowResultStateSupport.ReadResultForStateAsync(
+                document.ProjectId, ResultKind.Prescreen, repositories.Results, () => unreadablePrescreen = true, cancellationToken);
             var savedScenarios = await repositories.FilterScenarios.ListAsync(document.ProjectId, cancellationToken);
 
             // 篩選規則更新後，先用目前規則逐一檢查已儲存情境。全部仍然有效才整批改用新規則：
@@ -115,6 +119,11 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                 staleState = await repositories.ResultStaleStates.ReadAsync(document.ProjectId, cancellationToken);
             }
 
+            staleState = staleState with
+            {
+                Validation = staleState.Validation || unreadableValidation,
+                Prescreen = staleState.Prescreen || unreadablePrescreen
+            };
             var currentResults = WorkflowResultStateSupport.Resolve(
                 staleState, latestValidate, latestPrescreen, savedScenarios, filterDataRevision);
             staleState = currentResults.StaleState;

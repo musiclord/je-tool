@@ -15,6 +15,9 @@ internal static class GlRdeOutputNames
         .Select(static name => name!)
         .ToHashSet(StringComparer.Ordinal);
 
+    /// <summary>名稱加 _JE 後剛好是標準 JET 欄位的輸出名稱；這時輸出欄名要補上來源欄名。</summary>
+    internal static bool IsStandardOutputName(string name) => StandardOutputNames.Contains(name);
+
     /// <summary>依整份配對裡的攸關資料元素算出每一個 fieldId 的輸出欄名。</summary>
     internal static IReadOnlyDictionary<string, string> Resolve(IReadOnlyList<GlRdeFieldMetadata> fields)
     {
@@ -29,7 +32,7 @@ internal static class GlRdeOutputNames
         foreach (var field in fields)
         {
             var plain = field.Label + Suffix;
-            result[field.FieldId] = labelCounts[field.Label] > 1 || StandardOutputNames.Contains(plain)
+            result[field.FieldId] = labelCounts[field.Label] > 1 || IsStandardOutputName(plain)
                 ? $"{field.Label}（{field.SourceColumn}）{Suffix}"
                 : plain;
         }

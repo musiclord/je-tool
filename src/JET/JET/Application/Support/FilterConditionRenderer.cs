@@ -382,7 +382,7 @@ public static class FilterConditionRenderer
             ? "「" + Str(rule, "from") + "」至「" + Str(rule, "to") + "」"
             : op is "in" or "notIn" or FieldValueConditions.DayOfMonthIn or FieldValueConditions.DayOfMonthNotIn
                 ? "「" + string.Join("、", listValues) + "」"
-            : FieldValueConditions.IsContains(op) && listValues.Count > 0 ? "「" + string.Join("、", listValues) + "」"
+            : (FieldValueConditions.IsContains(op) || FieldValueConditions.IsAffix(op)) && listValues.Count > 0 ? "「" + string.Join("、", listValues) + "」"
             : "「" + Str(rule, "value") + "」";
         // 尾數比對、尾數連續多個 0 與整數部分包含都忽略正負號，不接金額比較基準。
         if (fieldKnown && op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op) && !FieldValueConditions.IsZeroRun(op)

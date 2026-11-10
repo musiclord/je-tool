@@ -118,6 +118,49 @@ public sealed class ProjectListLocalFirstTests
         Assert.DoesNotContain(listed, id => id is not null && names.Contains(id));
     }
 
+    /// <summary>
+    /// 設定檔原文裡排在資料庫種類前面的欄名讀不出字來時（不成對代理字元的跳脫寫法），後面讀得出來的種類照樣算數，
+    /// 判斷不跟著欄位順序變：以前的 DuckDB 與 SQL Server 案件照樣不列出，也不會被當成 SQLite 案件刪掉；
+    /// 用同名建案時照樣說名稱被以前的案件使用；資料夾不動。JET 自己寫不出這種欄名，所以直接寫原文。這是新增的測試。
+    /// </summary>
+    [Theory]
+    [InlineData("sqlServer", false)]
+    [InlineData("duckdb", true)]
+    public async Task RecordedRetiredProvider_AfterAnUnreadablePropertyName_IsStillHonoured(string provider, bool hasSqliteFile)
+    {
+        const string name = "合成舊案丁";
+        // 反斜線用字元碼組出來；欄名在原文裡是反斜線加 udc00。
+        var unreadableName = (char)92 + "udc00";
+        using var host = new HandlerTestHost();
+        var root = host.ProjectsRoot;
+        WriteRaw(
+            root,
+            name,
+            $$"""{"{{unreadableName}}":1,"databaseProvider":"{{provider}}"}""",
+            hasSqliteFile ? new[] { "jet.db" } : Array.Empty<string>());
+        var before = FolderSnapshot(root, name);
+
+        var listed = (await host.DispatchAsync("project.listLocal")).GetProperty("projects").EnumerateArray()
+            .Select(project => project.GetProperty("projectId").GetString())
+            .ToArray();
+        Assert.DoesNotContain(name, listed);
+
+        var delete = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+            "project.delete",
+            JsonSerializer.Serialize(new { projectId = name })));
+        Assert.Equal(JetErrorCodes.FileReadError, delete.Code);
+
+        var create = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.create",
+            JsonSerializer.Serialize(new { projectName = name, periodStart = "2025-01-01", periodEnd = "2025-12-31" })));
+        Assert.Equal(JetErrorCodes.InvalidPayload, create.Code);
+        Assert.Equal(
+            $"案件名稱「{name}」已被以前建立的 DuckDB 或 SQL Server 案件使用，這類案件不列在案件清單。" +
+            "請改用其他名稱，或到 JET 的案件位置刪除這個案件資料夾後再建立。",
+            create.Message);
+
+        Assert.Equal(before, FolderSnapshot(root, name));
+    }
+
     private static void WriteRaw(string root, string projectId, string projectJson, params string[] databaseFiles)
     {
         var directory = Path.Combine(root, projectId);

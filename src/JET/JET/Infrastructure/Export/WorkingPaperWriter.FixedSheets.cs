@@ -165,10 +165,10 @@ public sealed partial class WorkingPaperWriter
             firstRow.Add(sheet.TextCell(1, 8, metadata));
         }
         sheet.WriteFixedRow(1, firstRow);
+        // TB 與 GL 的標題列都不合併儲存格，底稿和資料驗證報告一致（裁定 2026-11-09-16）。
         sheet.WriteFixedRow(
             2,
             [sheet.TextCell(2, 1, "TB檔案配對前後欄位對照表", WorkingPaperStyles.Bold)]);
-        sheet.AddMerge("A2:E2");
         WriteCanonicalFieldInfoHeader(sheet, 3, headers);
 
         uint rowIndex = 4;
@@ -189,7 +189,6 @@ public sealed partial class WorkingPaperWriter
                 1,
                 "GL檔案配對前後欄位對照表",
                 WorkingPaperStyles.Bold)]);
-        sheet.AddMerge($"A{glTitleRow}:E{glTitleRow}");
         WriteCanonicalFieldInfoHeader(sheet, rowIndex++, headers);
 
         foreach (var row in projection.GlRows)
@@ -422,6 +421,8 @@ public sealed partial class WorkingPaperWriter
         var sheet = session.OpenSheet(
             ExcelWorksheetConstraints.ContinuationSheetName(WorkingPaperSheetCatalog.CalendarInfo, pageNumber),
             CalendarBaseAppearance(holidayCount, hasMakeupDays));
+        // 舊版整張保護假期假日資訊（idea-tool.bas 第 11101 行，裁定 2026-11-09-14），續頁也一樣。
+        sheet.Protect();
         ConfigureCalendarLayout(sheet, widths, autoFit);
         sheet.WriteFixedRow(1,
         [
@@ -462,6 +463,7 @@ public sealed partial class WorkingPaperWriter
         var sheet = session.OpenSheet(
             ExcelWorksheetConstraints.ContinuationSheetName(WorkingPaperSheetCatalog.CalendarInfo, pageNumber),
             CalendarContinuationAppearance(type, hasDays));
+        sheet.Protect();
         ConfigureCalendarLayout(sheet, widths, autoFit);
         if (!hasDays)
         {

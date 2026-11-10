@@ -57,8 +57,10 @@ internal static partial class WorkflowResultStateSupport
         IReadOnlyList<SavedFilterScenario> scenarios,
         string filterDataRevision)
     {
-        var oldValidation = validation is not null && !RuleLogicVersions.IsCurrent(validation);
-        var oldPrescreen = prescreen is not null && !RuleLogicVersions.IsCurrent(prescreen);
+        var oldValidation = validation is not null && (!RuleLogicVersions.IsCurrent(validation)
+            || !ValidationSummaryShapeValidator.IsValid(validation.SummaryJson));
+        var oldPrescreen = prescreen is not null && (!RuleLogicVersions.IsCurrent(prescreen)
+            || !ValidationSummaryShapeValidator.IsValidPrescreen(prescreen.SummaryJson));
         CurrentFilterRevision? revision = null;
         if (scenarios.Count > 0)
         {
@@ -83,11 +85,27 @@ internal static partial class WorkflowResultStateSupport
         IFilterScenarioStore filterScenarios, CancellationToken cancellationToken)
     {
         var stale = await staleStates.ReadAsync(projectId, cancellationToken);
-        var validation = await results.FindLatestAsync(projectId, ResultKind.Validation, cancellationToken);
-        var prescreen = await results.FindLatestAsync(projectId, ResultKind.Prescreen, cancellationToken);
+        var validation = await ReadResultForStateAsync(projectId, ResultKind.Validation, results,
+            () => stale = stale with { Validation = true }, cancellationToken);
+        var prescreen = await ReadResultForStateAsync(projectId, ResultKind.Prescreen, results,
+            () => stale = stale with { Prescreen = true }, cancellationToken);
         var scenarios = await filterScenarios.ListAsync(projectId, cancellationToken);
         var revision = await staleStates.ReadFilterDataRevisionAsync(projectId, cancellationToken);
         return Resolve(stale, validation, prescreen, scenarios, revision);
+    }
+
+    internal static async Task<ResultRecord?> ReadResultForStateAsync(
+        string projectId, ResultKind kind, IResultStore results, Action markStale, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await results.FindLatestAsync(projectId, kind, cancellationToken);
+        }
+        catch (JetActionException error) when (error.Code == JetErrorCodes.StaleResult)
+        {
+            markStale();
+            return null;
+        }
     }
 
     internal static async Task<MutationState> AfterMutationAsync(

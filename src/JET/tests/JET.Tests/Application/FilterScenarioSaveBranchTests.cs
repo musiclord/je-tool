@@ -22,6 +22,45 @@ public sealed class FilterScenarioSaveBranchTests
 
     private sealed record StoredScenario(int Position, string Name, string DefinitionJson, string SavedUtc);
 
+    // 修正前 3 案失敗：Focused 20261110-044651169-4805c96f989b417fb62947d7145f838b。
+    [Theory]
+    [InlineData("save", 2)]
+    [InlineData("remove", 0)]
+    [InlineData("recheck", 1)]
+    public async Task CommittedScenarioChange_WhenResultStateCannotBeRead_StillReturnsSavedDefinitions(string operation, int expectedCount)
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await PrepareAsync(host, "sqlite");
+        await SaveAsync(host, null, null, Scenario("情境甲", "debit"));
+        // 注入寫入後才發生的讀取錯誤，讓儲存前的必要檢查照常完成。所有資料都是測試建立的合成案件。
+        var triggerEvent = operation == "remove" ? "DELETE" : "INSERT";
+        await ExecuteAsync(host, projectId, "sqlite", $"""
+            CREATE TRIGGER synthetic_unreadable_state AFTER {triggerEvent} ON filter_scenario
+            BEGIN
+                -- 壞結果日期現在會標成過期；改成缺少結果狀態列，才能測到真的讀不回狀態。
+                DELETE FROM result_stale_state WHERE singleton = 1;
+            END;
+            """);
+
+        var response = operation switch
+        {
+            "save" => await SaveAsync(host, null, null, Scenario("情境乙", "credit")),
+            "remove" => await host.DispatchAsync("filter.scenario.remove", """{"position":1,"expectedName":"情境甲"}"""),
+            _ => await host.DispatchAsync("filter.scenario.recheck")
+        };
+
+        Assert.True(response.GetProperty("ok").GetBoolean());
+        Assert.Equal(expectedCount, response.GetProperty("savedCount").GetInt32());
+        Assert.Equal(expectedCount, response.GetProperty("scenarios").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, response.GetProperty("resultRef").ValueKind);
+        Assert.Equal(JsonValueKind.Null, response.GetProperty("staleState").ValueKind);
+        Assert.Equal("變更已儲存，但畫面上的結果狀態與報告清單沒有更新；重新開啟案件就會更新，不必重做變更。",
+            response.GetProperty("reportWarning").GetString());
+        Assert.Equal(expectedCount, (await ReadScenariosAsync(host, projectId, "sqlite")).Count);
+        Assert.Equal(expectedCount == 0 ? 0 : expectedCount * 2,
+            await ScalarAsync(host, projectId, "sqlite", "SELECT COUNT(*) FROM filter_hit;"));
+    }
+
     // ── 前提不符就回錯誤、不寫入 ─────────────────────────────────────────────
 
     [Theory]

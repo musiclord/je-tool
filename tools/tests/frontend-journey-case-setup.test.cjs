@@ -324,6 +324,7 @@ test('choosing GL and TB source files offers exactly the seven supported file ty
   // 這裡原本讀頁首的 .panel__hint，改版後依預期失敗，首敗收據 20261029-040252723-dde1d637675742fd85d9576ba633dd2d。
   assert.doesNotMatch(panel, /支援 Excel/);
 
+  const guidanceOf = {};
   for (const [kind, name] of [['gl', /PBC-GL/], ['tb', /TB/]]) {
     f.click('[data-task-toggle="' + kind + '"]');
     f.click('[data-action="wizard-replace-' + kind + '"]');
@@ -333,13 +334,75 @@ test('choosing GL and TB source files offers exactly the seven supported file ty
     assert.deepEqual(plain(pick.payload.extensions), ['.xlsx', '.xlsm', '.xls', '.csv', '.txt', '.mdb', '.accdb']);
     assert.match(pick.payload.title, name);
     pick.resolve({ files: [] }); await settle();
-    // 只比對意思：選檔畫面列出 Excel、CSV、文字檔與 Access，試算表要同一查核期間。
+    // 只比對意思：選檔畫面列出 Excel、CSV、文字檔與 Access。
     const guidance = f.$('.wizard-pane__hint').textContent;
     for (const word of [/Excel/, /CSV/, /文字檔/, /Access/]) assert.match(guidance, word);
-    if (kind === 'tb') assert.match(guidance, /同一查核期間/);
+    guidanceOf[kind] = guidance;
     f.click('[data-action="wizard-cancel"]');
   }
+  // 原本也斷言 TB 的選檔說明寫「同一查核期間」。裁定 2026-11-09-24 要 GL 與 TB 用同一套句子，
+  // 所以改成確認兩者只差在 GL 與 TB，而且 TB 不提期初、期末與查核期間。
+  // 第一次失敗：FrontendMapping 收據 20261109-105542384-ab8e3aa26e20445c9c982d827098bce0。
+  assert.equal(guidanceOf.tb, guidanceOf.gl.replace('建立 GL', '建立 TB'));
+  assert.doesNotMatch(guidanceOf.tb, /期初|期末|查核期間/);
   assert.equal(f.requests.filter(r => r.action === 'hostSelectFiles').length, 2);
+});
+
+// 裁定 2026-11-09-19：TB 和 GL 走同一條多檔路徑。一次選兩個欄位相同的檔案，逐檔檢視後都列在待匯入清單，
+// 「開始匯入」只送一個匯入 action、帶兩個來源；匯入後按「加入」再選的檔案以 append 送出。
+// 還沒匯入時，GL 與 TB 的卡片都寫出可以合併欄位相同的檔案，選檔說明也是同一句（裁定 2026-11-09-24）。
+// 這是同日新加的測試。TB 的斷言先依裁定 2026-11-09-23 改過，第一次失敗是 FrontendMapping 收據
+// 20261109-093217918-f5c210768eb04b4ab1306a63a14f61ee；再依裁定 2026-11-09-24 改成和 GL 相同的句子，
+// 第一次失敗是 FrontendMapping 收據 20261109-105542384-ab8e3aa26e20445c9c982d827098bce0。
+test('GL and TB both send several files picked at once in one import and can add more files later', async () => {
+  for (const kind of ['gl', 'tb']) {
+    const f = importFixture();
+    const method = kind === 'gl' ? 'importGlFromFile' : 'importTbFromFile';
+    const fileName = name => kind + '-' + name + '.csv';
+    const picked = name => ({ filePath: 'C:\\in\\' + fileName(name), fileName: fileName(name) });
+    const sent = name => ({ ...picked(name), encoding: 'utf-8', delimiter: ',' });
+    const card = () => f.$('[data-bind="import-card-' + kind + '"]').textContent;
+    async function inspectEach(names) {
+      for (const name of names) {
+        const inspect = f.request('importInspectFile');
+        assert.equal(inspect.payload.filePath, picked(name).filePath, 'files are inspected one by one in the picked order');
+        inspect.resolve({ fileType: 'csv', columns: ['Code', 'Amount'], encoding: 'utf-8', delimiter: ',' }); await settle();
+      }
+    }
+
+    f.click('[data-task-toggle="' + kind + '"]');
+    assert.match(card(), /可合併欄位相同的檔案、工作表或資料表/);
+    assert.doesNotMatch(card(), /期初|期末|查核期間/);
+    f.click('[data-action="wizard-replace-' + kind + '"]');
+    const pick = f.request('hostSelectFiles');
+    assert.match(pick.payload.title, /可多選/);
+    pick.resolve({ files: [picked('north'), picked('south')] }); await settle();
+    await inspectEach(['north', 'south']);
+    assert.match(f.$('.wizard-pane__hint').textContent, /選擇一個或多個來源檔/);
+    assert.match(f.$('[data-action="wizard-confirm"]').textContent, /開始匯入（2 個來源）/);
+
+    f.click('[data-action="wizard-confirm"]');
+    const imports = () => f.requests.filter(r => r.action === method);
+    assert.equal(imports().length, 1, 'both files go out in one import action');
+    assert.deepEqual(plain(imports()[0].payload), { mode: 'replace', sources: [sent('north'), sent('south')] });
+    const listed = (sourceNo, name, rowCount) => ({ sourceNo, fileName: fileName(name), sheetName: null, encoding: 'utf-8',
+      delimiter: ',', headerRow: null, rowCount, importedUtc: '2026-11-09T08:00:00Z' });
+    imports()[0].resolve({ batchId: kind + '-two-files', rowCount: 5, addedRowCount: 5, columns: ['Code', 'Amount'],
+      sources: [listed(1, 'north', 3), listed(2, 'south', 2)], warnings: [], openElsewhereWarnings: [],
+      invalidatedResults: { validation: true, prescreen: true, filter: true, filterScenarios: true },
+      staleState: { validation: true, prescreen: true, filter: false }, reports: [] });
+    await settle();
+    assert.match(card(), /已匯入 5 列、2 欄（2 個來源）/);
+    for (const name of ['north', 'south']) assert.ok(card().includes(fileName(name)), fileName(name) + ' is listed as a source');
+
+    f.click('[data-action="wizard-append-' + kind + '"]');
+    f.click('[data-action="wizard-pick"]');
+    f.request('hostSelectFiles').resolve({ files: [picked('east')] }); await settle();
+    await inspectEach(['east']);
+    f.click('[data-action="wizard-confirm"]');
+    assert.equal(imports().length, 2);
+    assert.deepEqual(plain(imports()[1].payload), { mode: 'append', sources: [sent('east')] });
+  }
 });
 
 // 裁定 2026-11-05-20：四列的按鈕寫出這一列要做的事，還沒匯入寫「匯入」，國定假日與補班日還沒設定寫「設定」，

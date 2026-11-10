@@ -30,6 +30,8 @@ internal static class GuiScenarioCatalog
     internal const string UpstreamChangeAfterExport = "upstream-change-after-export";
     internal const string CaseToWorkingPaper = "case-to-working-paper";
     internal const string CaseListCleanupCancelExport = "case-list-cleanup-cancel-export";
+    // 啟動 Gui 測試版的單一執行檔，關閉後重新啟動再開同一個案件（裁定 2026-11-09-03）。
+    internal const string SingleFileRelaunch = "single-file-relaunch";
 
     // 這裡只記每個情境需要的合成夾具。操作上限、預期次數、逾時與截圖數只寫在 tools/harness/lanes.json，
     // 由驗證框架以命令列參數傳進來。
@@ -54,6 +56,7 @@ internal static class GuiScenarioCatalog
         [UpstreamChangeAfterExport] = ["seed-six-stage-complete-project"],
         [CaseToWorkingPaper] = ["case-import-source"],
         [CaseListCleanupCancelExport] = ["seed-export-ready-project", "seed-missing-database-project", "delay-export-progress-once"],
+        [SingleFileRelaunch] = ["case-import-source"],
     };
 
     internal static bool TryResolve(
@@ -226,6 +229,7 @@ internal sealed class GuiAssertions
     internal bool UpstreamChangeAfterExportVerified { get; set; }
     internal bool CaseToWorkingPaperVerified { get; set; }
     internal bool CaseListCleanupCancelExportVerified { get; set; }
+    internal bool SingleFileRelaunchVerified { get; set; }
 }
 
 internal sealed class GuiProcessEvidence
@@ -236,6 +240,19 @@ internal sealed class GuiProcessEvidence
     internal int? ExitCode { get; set; }
     internal bool KillAttempted { get; set; }
     internal bool KillSucceeded { get; set; }
+    internal int LaunchCount { get; set; }
+    internal int StandardUserLaunches { get; set; }
+    internal GuiApplicationIdentity? Identity { get; set; }
+}
+
+/// <summary>
+/// 驅動程式讀回的 JET 權杖：是否提高權限、Administrators 群組的狀態，以及完整性等級。三項都符合一般使用者才算
+/// 拿掉了系統管理員權限（裁定 2026-11-09-01）；群組只是停用而不是只用於拒絕時，仍可能被重新啟用，所以不算。
+/// </summary>
+internal sealed record GuiApplicationIdentity(bool Elevated, string AdministratorsGroup, string IntegrityLevel, uint IntegrityRid)
+{
+    internal bool StandardUser =>
+        !Elevated && (AdministratorsGroup is "deny_only" or "absent") && IntegrityRid <= 0x2000;
 }
 
 internal sealed class GuiCleanupEvidence
@@ -400,6 +417,7 @@ internal static class ManifestWriter
                 upstreamChangeAfterExportVerified = outcome.Assertions.UpstreamChangeAfterExportVerified,
                 caseToWorkingPaperVerified = outcome.Assertions.CaseToWorkingPaperVerified,
                 caseListCleanupCancelExportVerified = outcome.Assertions.CaseListCleanupCancelExportVerified,
+                singleFileRelaunchVerified = outcome.Assertions.SingleFileRelaunchVerified,
                 workingPaperHistoryPaginationVerified = outcome.Assertions.WorkingPaperHistoryPaginationVerified
             },
             process = new
@@ -409,7 +427,16 @@ internal static class ManifestWriter
                 exited = outcome.Process.Exited,
                 exitCode = outcome.Process.ExitCode,
                 killAttempted = outcome.Process.KillAttempted,
-                killSucceeded = outcome.Process.KillSucceeded
+                killSucceeded = outcome.Process.KillSucceeded,
+                launchCount = outcome.Process.LaunchCount,
+                identity = new
+                {
+                    standardUser = outcome.Process.Identity?.StandardUser ?? false,
+                    standardUserLaunches = outcome.Process.StandardUserLaunches,
+                    elevated = outcome.Process.Identity?.Elevated,
+                    administratorsGroup = outcome.Process.Identity?.AdministratorsGroup,
+                    integrityLevel = outcome.Process.Identity?.IntegrityLevel
+                }
             },
             cleanup = new
             {

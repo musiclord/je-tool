@@ -37,6 +37,10 @@
   var pendingCodeInputs = null;
   var codeComparisonScope = null;
   var pendingCreationDate = null;
+  // 「由底稿匯入欄位」托盤上次帶入的檔名與欄數，以及上次失敗的原因（裁定 2026-11-09-29）。
+  // 記下當時的案件與 GL 匯入，換案件或 GL 重新匯入後不再顯示；要重新選擇的欄位不記在這裡，每次從配對草稿的 droppedFields 列出。
+  var reportImport = null;
+  var reportImportFailure = null;
 
   Ui.registerWorkflowReset(function () {
     sourceResponseGuards.gl.invalidate();
@@ -50,6 +54,8 @@
     pendingCodeInputs = null;
     codeComparisonScope = null;
     pendingCreationDate = null;
+    reportImport = null;
+    reportImportFailure = null;
   });
 
   function glOptions() {
@@ -527,16 +533,70 @@
     Ui.bindStepFooter(container);
   }
 
-  // 從 JET 匯出的報告、抽樣清單、工作底稿或科目配對工作檔帶入當時的配對，填成草稿，審計員按確認配對才儲存（裁定 2026-11-05-03）。
-  // 給另一個案件用：同一客戶的下一年度、同事做過的案件，或刪除重建的案件。GL 匯入後才有來源欄可以比對。
+  // 「由底稿匯入欄位」：從 JET 匯出的工作底稿或其他有配對紀錄的 JET 報告帶入當時的欄位配對，填成草稿，審計員按確認配對才儲存
+  // （裁定 2026-11-05-03、2026-11-09-27、2026-11-09-30）。舊版 IDEA JET 的工作底稿由後端讀欄位對照表推得草稿（裁定 2026-11-09-28），
+  // 回應形狀相同，畫面不必知道配對是從哪裡讀到的。給另一個案件用：同一客戶的下一年度、同事做過的案件，或刪除重建的案件。
+  // GL 匯入後才有來源欄可以比對。
+  // 按鈕與結果放在配對區上方的托盤（裁定 2026-11-09-29）：上面一排按鈕與一句說明，失敗原因是托盤裡的琥珀色提示，
+  // 下面一張白紙寫帶入的檔名與欄數，逐項列出要重新選擇的欄位；GL 與 TB 卡片頂端不再重複列出。
   function restoreFromReportHtml(state) {
     if (!state.importState.gl) { return ''; }
-    return '<div class="panel__actions panel__actions--start">' +
-      '<button type="button" class="btn btn--ghost" data-action="restore-mapping-from-report">從報告帶入配對</button>' +
-    '</div>';
+    var projectId = state.project ? state.project.projectId : null;
+    if (reportImport && (reportImport.projectId !== projectId || reportImport.glImport !== state.importState.gl)) { reportImport = null; }
+    if (reportImportFailure && (reportImportFailure.projectId !== projectId || reportImportFailure.glImport !== state.importState.gl)) {
+      reportImportFailure = null;
+    }
+    var failure = reportImportFailure
+      ? '<p class="form-notice form-notice--warning" data-bind="mapping-import-failure" data-motion-key="mapping-import-failure" role="status">' +
+          Ui.esc(reportImportFailure.message) + '</p>'
+      : '';
+    var lines = '';
+    if (reportImport) {
+      lines += '<p class="mapping-import__summary">' + Ui.esc('已由「' + reportImport.fileName + '」帶入 GL ' + Ui.countText(reportImport.glCount) + ' 欄' +
+        (reportImport.tbCount === null ? '' : '、TB ' + Ui.countText(reportImport.tbCount) + ' 欄') + '。') + '</p>';
+      // 沒有帶入 TB 時寫原因。匯入當時沒有 TB、之後才匯入的，原因已經不成立，不寫。
+      var reason = reportImport.tbCount !== null ? ''
+        : reportImport.tbImported ? '這份檔案沒有可帶入的 TB 欄位配對，只帶入 GL。'
+          : !state.importState.tb ? '目前沒有匯入 TB，匯入 TB 後可以再按一次「由底稿匯入欄位」。' : '';
+      if (reason) { lines += '<p class="mapping-import__summary">' + Ui.esc(reason) + '</p>'; }
+    }
+    var reselect = reportImportReselectItems(state);
+    if (reselect.length) {
+      lines += '<p class="mapping-import__summary">下列欄位請重新選擇：</p>' +
+        '<ul class="mapping-import__fields">' + reselect.map(function (text) { return '<li>' + Ui.esc(text) + '</li>'; }).join('') + '</ul>';
+    }
+    return '<div class="mapping-import" data-bind="mapping-import" data-motion-key="mapping-import">' +
+        '<div class="mapping-import__actions">' +
+          '<button type="button" class="btn btn--ghost" data-action="restore-mapping-from-report" data-focus-key="restore-mapping-from-report">由底稿匯入欄位</button>' +
+          '<p class="mapping-import__hint">選 JET 匯出的工作底稿，帶入當時的欄位配對，按「確認配對」後才儲存。</p>' +
+        '</div>' +
+        failure +
+        (lines ? '<div class="mapping-import__result" data-bind="mapping-import-result" data-motion-key="mapping-import-result">' + lines + '</div>' : '') +
+      '</div>';
   }
 
-  // 後端列在 unmatchedFields 的欄位轉成配對區頂端「請重新選擇」用的格式：配對位置的鍵照用，其餘是攸關資料元素。
+  // 要重新選擇的欄位：由底稿帶入時後端列在 unmatchedFields、已記在配對草稿 droppedFields 的項目（fromReport）。
+  // 每次從目前的草稿列出，不另存一份；確認配對或重新匯入後，草稿的清單換掉，這裡跟著不列。
+  // 沒有原本來源欄可寫時（例如舊版底稿沒記借方代碼）只寫欄位名稱。
+  function reportImportReselectItems(state) {
+    var items = [];
+    ['gl', 'tb'].forEach(function (kind) {
+      (state.mapping[kind].droppedFields || []).forEach(function (item) {
+        if (!item.fromReport) { return; }
+        items.push((kind === 'gl' ? 'GL ' : 'TB ') + droppedFieldLabel(kind, item) + (item.column ? '（原為「' + item.column + '」）' : ''));
+      });
+    });
+    return items;
+  }
+
+  // 托盤寫的欄數：GL 是配對的欄位加攸關資料元素，借方代碼與貸方代碼是輸入的代碼，不算一欄；TB 是配對的欄位。
+  function importedFieldCount(mapping, excludedKeys) {
+    return Object.keys(mapping || {}).filter(function (key) {
+      return excludedKeys.indexOf(key) < 0 && !!mapping[key];
+    }).length;
+  }
+
+  // 後端列在 unmatchedFields 的欄位轉成托盤「請重新選擇」用的格式：配對位置的鍵照用，其餘是攸關資料元素。
   function droppedFromReport(unmatched, kind) {
     var fields = kind === 'gl' ? Ui.GL_FIELDS : Ui.TB_FIELDS;
     return (unmatched || []).filter(function (item) { return item.dataset === kind; }).map(function (item) {
@@ -547,34 +607,61 @@
     });
   }
 
-  // 報告裡找不到的來源欄列在配對區頂端請審計員重選；沒有匯入 TB 時只帶入 GL。
+  // 檔案裡找不到的來源欄列在托盤請審計員重選；沒有匯入 TB 時只帶入 GL，原因寫在托盤（裁定 2026-11-09-29）。
+  // 選檔視窗的標題照裁定 2026-11-09-30；取消選檔時什麼都不送、不記。
   function bindRestoreFromReport(container) {
     var btn = container.querySelector('[data-action="restore-mapping-from-report"]');
     if (!btn) { return; }
     btn.addEventListener('click', function () {
-      Ui.run('從報告帶入配對', function () {
+      var start = Store.getState();
+      var projectId = start.project ? start.project.projectId : null;
+      var glImport = start.importState.gl;
+      var selectedName = '';
+      Ui.run('由底稿匯入欄位', function () {
+        // 再按一次時，上次的失敗原因先拿掉。
+        if (reportImportFailure) { reportImportFailure = null; Store.touch(); }
         return global.JetApi.hostSelectFile({
-          title: '選擇 JET 匯出的報告、工作底稿或科目配對工作檔',
+          title: '選擇工作底稿或 JET 報告',
           extensions: ['.xlsx']
         }).then(function (file) {
           if (!file.filePath) { return null; }
+          selectedName = String(file.filePath).split(/[\\/]/).pop() || file.fileName || '';
           return global.JetApi.mappingRestoreDraft({ filePath: file.filePath }).then(function (data) {
+            // 托盤的結果先記下，下面換草稿的那次重繪就畫出來。
+            reportImport = {
+              projectId: projectId,
+              glImport: glImport,
+              fileName: selectedName,
+              glCount: importedFieldCount(data.gl.mapping, ['drCrDebitCode', 'drCrCreditCode']) + (data.gl.rdeFields || []).length,
+              tbCount: data.tb ? importedFieldCount(data.tb.mapping, []) : null,
+              tbImported: !!Store.getState().importState.tb
+            };
+            reportImportFailure = null;
             Store.restoreMappingDrafts(data, {
               gl: droppedFromReport(data.unmatchedFields, 'gl'),
               tb: droppedFromReport(data.unmatchedFields, 'tb')
             });
-            if (!data.tb) {
-              Store.addMessage(Store.getState().importState.tb
-                ? '這份報告匯出時 TB 還沒確認配對，只帶入 GL。'
-                : '目前沒有匯入 TB，匯入 TB 後可以再從報告帶入一次。');
-            }
             return data;
           });
         });
       }, {
         completionMessage: function (data) {
           if (!data) { return ''; }
-          return data.tb ? '已從報告帶入 GL 與 TB 的配對草稿。' : '已從報告帶入 GL 的配對草稿。';
+          return data.tb ? '已由底稿匯入 GL 與 TB 的欄位配對草稿。' : '已由底稿匯入 GL 的欄位配對草稿。';
+        },
+        // 讀不到檔案或沒有可帶入的配對時，原因寫在托盤裡的琥珀色提示，不用步驟上方的提示框（裁定 2026-11-09-29）。
+        // 另一項作業還在進行與取消不是這個檔案的問題，照共用的處理只記在訊息面板。
+        inlineError: true,
+        onError: function (_, error) {
+          if (error && (error.code === 'operation_in_progress' || error.code === 'operation_cancelled')) { return; }
+          // 失敗原因前面寫這次選的檔名，和下方上一次帶入的結果分得開；原因本身已寫檔名時不重複。
+          var message = Ui.errorText(error);
+          reportImportFailure = {
+            projectId: projectId,
+            glImport: glImport,
+            message: selectedName && message.indexOf(selectedName) < 0 ? '「' + selectedName + '」：' + message : message
+          };
+          Store.touch();
         }
       });
     });
@@ -1550,20 +1637,19 @@
 
   // 編輯畫面頂端的狀態提示。重建整步與輸入時的就地更新共用這一份，兩條路徑的文字不會分歧。
   // 同次開啟保留目前草稿；重開案件才帶回上次確認的配對。缺少的來源欄逐一列出，讓審計員補選。
-  // 從報告帶入配對時找不到的來源欄也記在 droppedFields（fromReport），同一處列出，只換開頭的說明（裁定 2026-11-05-03）。
+  // 由底稿匯入欄位時找不到的來源欄也記在 droppedFields（fromReport），但只列在配對區上方的托盤，這裡不重複列出（裁定 2026-11-09-29）。
   function mappingBannerHtml(kind, mappingState, committed, matches) {
-    var dropped = mappingState.droppedFields || [];
-    var fromReport = dropped.some(function (item) { return item.fromReport; });
+    var dropped = (mappingState.droppedFields || []).filter(function (item) { return !item.fromReport; });
     var droppedText = dropped.length
-      ? (fromReport ? '報告裡這些欄位的來源欄在目前的資料找不到，請重新選擇：' : '新資料沒有這些來源欄，請重新選擇：') +
+      ? '新資料沒有這些來源欄，請重新選擇：' +
         dropped.map(function (item) {
           return droppedFieldLabel(kind, item) + '（原為「' + item.column + '」）';
         }).join('、') + '。'
       : '';
     var text = mappingState.invalidatedByImport
       ? '來源資料已變更，請檢查配對後按「確認配對」。' + droppedText
-      : (committed && !matches ? '配對已修改，請按「重新確認配對」儲存。' + (fromReport ? droppedText : '')
-        : (droppedText ? (fromReport ? '' : '來源資料已變更。') + droppedText : ''));
+      : (committed && !matches ? '配對已修改，請按「重新確認配對」儲存。'
+        : (droppedText ? '來源資料已變更。' + droppedText : ''));
     // 提示會因為修改配對而出現或消失，標上識別，出現時從原處長出來、消失時收回去，下面的內容跟著平順移動。
     if (text) {
       return '<p class="mapping-section__warn" data-bind="mapping-banner-' + kind + '" data-motion-key="mapping-banner-' + kind + '">' +

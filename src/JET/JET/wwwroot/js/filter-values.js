@@ -34,9 +34,12 @@
     if (/^(isBlank|isNotBlank)$/.test(op) || isCalendar(op)) { return 'none'; }
     if (/^(notBetween|between)$/.test(op)) { return 'range'; }
     if (/^(notIn|in)$/.test(op) || isDayOfMonth(op)) { return 'set'; }
-    if (type === 'text' && /^(contains|notContains)$/.test(op)) { return 'set'; }
+    if (type === 'text' && (/^(contains|notContains)$/.test(op) || isAffix(op))) { return 'set'; }
     return 'value';
   }
+  // 開頭符合與結尾符合和包含一樣收多個值（裁定 2026-11-09-09）；後端 FieldValueConditions.IsAffix 同一組。
+  // 以前開頭與結尾只收一個值，已儲存情境只帶 value；values 還不是清單時把 value 當成一個值，和後端 AffixValues 相同。
+  function isAffix(op) { return /^(notS|s)tartsWith$|^(notE|e)ndsWith$/.test(op); }
   function isCalendar(op) { return /^is(Not)?(Weekend|Holiday|MakeupDay|NonBusinessDay)$/.test(op); }
   // 日曆選項下方只寫選到的那一項，並寫出本案的實際資料（裁定 2026-11-03-10）。
   var WEEKDAY_LABELS = [{ v: 1, label: '一' }, { v: 2, label: '二' }, { v: 3, label: '三' }, { v: 4, label: '四' }, { v: 5, label: '五' }, { v: 6, label: '六' }, { v: 0, label: '日' }];
@@ -93,7 +96,7 @@
   }
   function delimitedList(rule, state) {
     return isDayOfMonth(rule.operator) || fieldType(rule, state) === 'text' &&
-      (/^(contains|notContains)$/.test(rule.operator) || !rule.fieldId && ['createdBy', 'approvedBy', 'accountNumber'].indexOf(rule.field) >= 0);
+      (/^(contains|notContains)$/.test(rule.operator) || isAffix(rule.operator) || !rule.fieldId && ['createdBy', 'approvedBy', 'accountNumber'].indexOf(rule.field) >= 0);
   }
   // Mirrors the explicit formats in DateNormalizer. Unknown invariant-culture fallback formats
   // stay raw for the authoritative backend rather than being guessed by browser Date.parse.
@@ -119,7 +122,8 @@
   function values(rule, state) {
     if (isDigitList(rule.operator)) { return Array.from(new Set(splitDelimited(rule.value || ""))); }
     var selected = field(rule, state);
-    return Array.from(new Set((rule.values || []).map(function (value) {
+    var list = Array.isArray(rule.values) ? rule.values : isAffix(rule.operator) && rule.value ? [rule.value] : [];
+    return Array.from(new Set(list.map(function (value) {
       if (isDayOfMonth(rule.operator)) { return String(value).trim(); }
       return selected && selected.type === 'date' ? normalizeDate(value, state) : String(value).trim();
     }).filter(function (value) { return value.length > 0; })));
@@ -496,7 +500,7 @@
       var isPerson = ['createdBy', 'approvedBy'].indexOf(rule.field) >= 0 && !rule.fieldId;
       var listHint = type === 'date' ? '每行一個日期' : type === 'text' && /^(contains|notContains)$/.test(rule.operator) ? '每行一個關鍵字' :
         isPerson ? '每行一個人員代號或姓名' : rule.field === 'accountNumber' ? '每行一個科目編號' : '每行一個值';
-      var list = '<textarea rows="1" class="value-editor__list value-editor__values" data-value-key="values" data-values-for="' + Ui.esc(motionId(rule)) + '" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((rule.values || []).join('\n')) + '</textarea>';
+      var list = '<textarea rows="1" class="value-editor__list value-editor__values" data-value-key="values" data-values-for="' + Ui.esc(motionId(rule)) + '" aria-label="' + listHint + '" placeholder="' + listHint + '">' + Ui.esc((Array.isArray(rule.values) ? rule.values : isAffix(rule.operator) && rule.value ? [rule.value] : []).join('\n')) + '</textarea>';
       if (delimitedList(rule, state)) { list += '<p class="rule-field__hint">' + delimiterHint + '</p>'; }
       else if (type === 'text') { list += '<p class="rule-field__hint">文字值清單每行一個值；值內的逗號、頓號與 Tab 保留，不會拆開。</p>'; }
       if (isPerson) { list += '<p class="help-text">請填 GL 裡的姓名或員工代碼；姓名本身有逗號時，請改填員工代碼。</p>'; }
@@ -711,7 +715,7 @@
     if (count > Ui.TYPED_SET_MAX_VALUES) {
       // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示照畫面上的字寫；後端 FieldValueConditions 同一句。
       return '每條最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值。請拆成多條條件，放進子條件組，用 ' +
-        (/^(notIn|notContains|notContainsDigits|notEndsWithDigits)$/.test(rule.operator) ? 'AND' : 'OR') + ' 連接。';
+        (/^(notIn|notContains|notStartsWith|notEndsWith|notContainsDigits|notEndsWithDigits)$/.test(rule.operator) ? 'AND' : 'OR') + ' 連接。';
     }
     if (mode === 'set' && !inputs.length) { return '請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值'; }
     if (inputs.some(function (input) { return !input.trim(); })) { return selected.label + '請填好條件值'; }

@@ -893,10 +893,11 @@ public sealed class LegacyAuditParityProfileTests
     }
 
     [Theory]
-    [InlineData(3)]
-    [InlineData(5)]
+    [InlineData(3, true)]
+    [InlineData(5, false)]
     public void CriteriaLog_SameVoucherTextSet_PreservesAnchorOrderAndOriginalPosition(
-        int legacyPosition)
+        int legacyPosition,
+        bool voucherWitnesses)
     {
         var description = JetFieldCatalog.GlFields.Single(
             static field => field.SemanticIdentity == JetFieldCatalog.GlDescription).LegacyFieldName!;
@@ -913,20 +914,49 @@ public sealed class LegacyAuditParityProfileTests
         var scenario = AssertScenario(result);
         Assert.Equal($"legacy-scenario-{legacyPosition:D2}", scenario.GetProperty("name").GetString());
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Historical anchor order now has explicit voucher witnesses.
+        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776.
+        // 情境 5 原斷言違反 2026-08-28-02 的同列裁定；首次重現見 20261110-055205570-4da376e648374b37b0b581faccd958b1。
         Assert.Equal("row", group.GetProperty("matchScope").GetString());
         var rules = group.GetProperty("conditions").EnumerateArray().ToArray();
         Assert.Equal(3, rules.Length);
         Assert.Equal("drCrOnly", rules[0].GetProperty("type").GetString());
         foreach (var witness in rules.Skip(1))
         {
-            Assert.Equal("voucher", witness.GetProperty("type").GetString());
-            Assert.Equal("any", witness.GetProperty("quantifier").GetString());
-            Assert.False(witness.TryGetProperty("side", out _));
-            var rule = Assert.Single(witness.GetProperty("conditions").EnumerateArray());
+            var rule = witness;
+            if (voucherWitnesses)
+            {
+                Assert.Equal("voucher", witness.GetProperty("type").GetString());
+                Assert.Equal("any", witness.GetProperty("quantifier").GetString());
+                Assert.False(witness.TryGetProperty("side", out _));
+                rule = Assert.Single(witness.GetProperty("conditions").EnumerateArray());
+            }
             Assert.Equal("textSet", rule.GetProperty("type").GetString());
             Assert.Equal("preserve", rule.GetProperty("normalization").GetString());
         }
+    }
+
+    [Fact]
+    public void CriteriaLog_CaseAFifthPosition_KeepsAllConditionsOnSameRow()
+    {
+        // First failure: 20261110-055205570-4da376e648374b37b0b581faccd958b1.
+        var description = JetFieldCatalog.GlFields.Single(
+            static field => field.SemanticIdentity == JetFieldCatalog.GlDescription).LegacyFieldName!;
+        var result = LegacyCriteriaLogParser.TryParse(
+            $"#1. 僅考量借方傳票 #2. 分錄無摘要描述(即空白摘要) "
+                + $"#3. 文字欄位【{description}】值不包含 - alpha,beta",
+            "legacy-scenario-05",
+            "synthetic rationale",
+            "scenario-05-criteria-log",
+            LegacyParityCase.CaseA,
+            5);
+
+        var group = Assert.Single(AssertScenario(result).GetProperty("groups").EnumerateArray());
+        Assert.Equal("row", group.GetProperty("matchScope").GetString());
+        var rules = group.GetProperty("conditions").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "drCrOnly", "prescreen", "text" },
+            rules.Select(static rule => rule.GetProperty("type").GetString()).ToArray());
+        Assert.Equal("notContains", rules[2].GetProperty("mode").GetString());
+        Assert.Equal("alpha,beta", rules[2].GetProperty("keywords").GetString());
     }
 
     [Fact]

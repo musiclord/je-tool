@@ -40,6 +40,11 @@ public sealed class FilterSinglePurposeListLimitTests
     [InlineData("createdBy", "notIn", "用 AND 連接")]
     [InlineData("description", "notContains", "用 AND 連接")]
     [InlineData("amount", "notEndsWithDigits", "用 AND 連接")]
+    // 裁定 2026-11-09-09：開頭符合與結尾符合也收多個值，上限與拆法和包含相同。
+    [InlineData("description", "startsWith", "用 OR 連接")]
+    [InlineData("description", "endsWith", "用 OR 連接")]
+    [InlineData("description", "notStartsWith", "用 AND 連接")]
+    [InlineData("description", "notEndsWith", "用 AND 連接")]
     public void MoreThanOneHundredValues_ExplainsHowToSplitTheList(string field, string op, string combination)
     {
         var rule = new Dictionary<string, object>

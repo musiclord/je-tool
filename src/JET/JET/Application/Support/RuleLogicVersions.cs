@@ -34,7 +34,7 @@ internal static class RuleLogicVersions
 
         try
         {
-            using var summary = JsonDocument.Parse(run.SummaryJson);
+            using var summary = JetJsonStorage.Parse(run.SummaryJson);
             return summary.RootElement.TryGetProperty("resultRef", out var resultRef)
                 && resultRef.ValueKind == JsonValueKind.Object
                 && resultRef.TryGetProperty("logicVersion", out var version)
@@ -94,7 +94,7 @@ internal static class RuleLogicVersions
     {
         try
         {
-            using var document = JsonDocument.Parse(scenario.DefinitionJson);
+            using var document = JetJsonStorage.Parse(scenario.DefinitionJson);
             return document.RootElement.ValueKind == JsonValueKind.Object
                 && document.RootElement.TryGetProperty("logicVersion", out var version)
                 && version.ValueKind == JsonValueKind.String

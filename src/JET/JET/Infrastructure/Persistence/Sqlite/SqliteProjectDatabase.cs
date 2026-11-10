@@ -605,7 +605,8 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
     {
         await using var versionQuery = connection.CreateCommand();
         versionQuery.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        return (string?)await versionQuery.ExecuteScalarAsync(cancellationToken);
+        // 存的不是文字（例如二進位）時回 null，由 RejectUnsupportedSchemaVersion 當成版本資訊無法辨識；直接轉型會丟 InvalidCastException。
+        return await versionQuery.ExecuteScalarAsync(cancellationToken) as string;
     }
 
     /// <summary>資料庫裡是否已經有 schema_info；只讀取，不建立任何資料表。</summary>

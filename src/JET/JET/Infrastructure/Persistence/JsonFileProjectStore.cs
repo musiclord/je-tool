@@ -223,6 +223,22 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
     private bool HasRetiredDuckDbDatabase(string projectId) =>
         File.Exists(Path.Combine(folder.GetProjectDirectory(projectId), RetiredDuckDbDatabaseFileName));
 
+    /// <summary>
+    /// 這一欄是不是資料庫種類。欄名讀不出字來時（例如不成對的代理字元）不是要找的那一欄，繼續看下一欄；
+    /// 不然排在前面的壞欄名會讓後面讀得出來的種類也被放棄，結果跟著欄位順序變。
+    /// </summary>
+    private static bool IsDatabaseProviderName(JsonProperty property)
+    {
+        try
+        {
+            return string.Equals(property.Name, "databaseProvider", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>從設定檔原文讀出記錄的資料庫種類；設定檔不在、整份讀不通或沒有記錄時回 null。</summary>
     private async Task<string?> ReadRecordedDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
     {
@@ -237,17 +253,26 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             }
 
             using var raw = JsonDocument.Parse(await ReadSharedAsync(path, cancellationToken));
-            return raw.RootElement.ValueKind == JsonValueKind.Object
-                ? raw.RootElement.EnumerateObject()
-                    .Where(property => string.Equals(property.Name, "databaseProvider", StringComparison.OrdinalIgnoreCase)
-                        && property.Value.ValueKind == JsonValueKind.String)
-                    .Select(property => property.Value.GetString())
-                    .FirstOrDefault()
-                : null;
+            if (raw.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            foreach (var property in raw.RootElement.EnumerateObject())
+            {
+                if (IsDatabaseProviderName(property) && property.Value.ValueKind == JsonValueKind.String)
+                {
+                    return property.Value.GetString();
+                }
+            }
+
+            return null;
         }
-        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (
+            exception is JsonException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
-            // 整份讀不通時，呼叫端改看資料夾裡的資料庫檔。
+            // 整份讀不通，或種類的值讀不出字來（例如不成對的代理字元，InvalidOperationException）時，
+            // 呼叫端改看資料夾裡的資料庫檔。
             return null;
         }
         finally
@@ -418,6 +443,16 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 document.RequireCurrentSchemaVersion(projectId);
                 if (string.IsNullOrWhiteSpace(document.DatabaseProvider)
                     || !HasJsonProperty(json, "databaseProvider"))
+                {
+                    throw ProjectReadError(projectId);
+                }
+
+                // 清單、開案與刪案都必須指向實際讀取的資料夾，不讓複本沿用原案的識別碼。
+                // 金額倍率缺少或無效時不補預設值，避免改變已存資料的金額。
+                // Windows 的同一資料夾不因請求使用不同大小寫而變成另一個案件；仍回傳設定中的正式識別碼。
+                if (!string.Equals(document.ProjectId, projectId, StringComparison.OrdinalIgnoreCase)
+                    || document.MoneyScale <= 0
+                    || !HasJsonProperty(json, "moneyScale"))
                 {
                     throw ProjectReadError(projectId);
                 }

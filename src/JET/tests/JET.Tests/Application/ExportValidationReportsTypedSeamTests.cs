@@ -11,6 +11,43 @@ namespace JET.Tests.Application;
 // 第一次失敗是刪掉入口後測試專案建置失敗，那次沒有保存收據。
 public sealed class ExportValidationReportsTypedSeamTests
 {
+    // 修正前 2 案失敗：Focused 20261110-044754420-f40bf4188a1e4bcfa8dfd8a65c55d2ee。
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublishedValidationReports_WhenStateDatabaseReadFails_KeepBothPublishedFiles(bool translated)
+    {
+        const string projectId = "synthetic-validation-publication";
+        const string resultId = "validation-current";
+        var time = DateTimeOffset.UnixEpoch;
+        var published = false;
+        var reports = new ExecutingReportStore(projectId, time, () => published = true);
+        var runs = new FixedRunStore(new ResultRecord(resultId, ResultKind.Validation, time,
+            CurrentValidationSummaryTestData.Create(resultId, time)))
+        {
+            ReadFailure = () => !published ? null : translated
+                ? new JetActionException(JetErrorCodes.DatabaseCorrupt, "synthetic corrupted state")
+                : new Microsoft.Data.Sqlite.SqliteException("synthetic locked state", 5)
+        };
+        var writer = new RecordingPlannedValidationWriter();
+        var handler = CreateHandler(projectId, writer, new NoOpInfWriter(), runs,
+            new FixedProjectStore(Project(projectId)), reports, new ProjectSession(), new NullEventPublisher(),
+            new RecordingPlanningFactsPort(0), new RecordingFieldInfoFactsPort([], []),
+            new BuiltInAccountCategoryStore(), new FixedMetadataMappingStore());
+
+        var result = await handler.HandleAsync(JsonSerializer.SerializeToElement(new { resultId }), CancellationToken.None);
+        var wire = JsonSerializer.SerializeToElement(result, JetJsonStorage.Options);
+
+        Assert.True(wire.GetProperty("ok").GetBoolean());
+        Assert.Equal(2, wire.GetProperty("publishedReports").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, wire.GetProperty("reports").ValueKind);
+        Assert.Equal("檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。",
+            wire.GetProperty("reportWarning").GetString());
+        Assert.Equal(1, reports.WriteBatchCalls);
+        Assert.Equal(1, writer.Calls);
+        Assert.Equal(new[] { "content-written", "published" }, reports.CatalogOrder);
+    }
+
     [Fact]
     public async Task ProductionConstructor_FinalizesPlanAndProjectsTargetFieldInfoForPlannedWriter()
     {
@@ -441,6 +478,7 @@ public sealed class ExportValidationReportsTypedSeamTests
 
     private sealed class FixedRunStore(ResultRecord run) : IResultStore
     {
+        internal Func<Exception?>? ReadFailure { get; set; }
         public Task SaveAsync(
             string projectId,
             ResultRecord record,
@@ -451,7 +489,7 @@ public sealed class ExportValidationReportsTypedSeamTests
             string projectId,
             ResultKind kind,
             CancellationToken cancellationToken) =>
-            Task.FromResult<ResultRecord?>(run);
+            ReadFailure?.Invoke() is { } error ? Task.FromException<ResultRecord?>(error) : Task.FromResult<ResultRecord?>(run);
     }
 
     private sealed class FixedProjectStore(ProjectDocument document) : IProjectStore

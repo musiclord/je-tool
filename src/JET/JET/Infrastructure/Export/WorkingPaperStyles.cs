@@ -34,7 +34,10 @@ internal static class WorkingPaperStyles
     /// <summary>黃底橫幅:12 級、黃色填滿、自動換行、靠左靠上。step5 A1。</summary>
     public const uint YellowBanner = 4;
 
-    /// <summary>人工覆核欄：淡黃底、未鎖定，配合受保護工作表延展至實際資料末列。</summary>
+    /// <summary>
+    /// 審計員填寫的空白格：未鎖定、不加底色。受保護的工作表只鎖程式寫入的資料區，
+    /// 這種格子在資料區裡也維持可填（裁定 2026-11-09-15，後端不再加淡黃底）。
+    /// </summary>
     public const uint Editable = 5;
 
     /// <summary>金額：千分位且固定四位小數，對齊 JET 全域顯示精度。</summary>
@@ -56,7 +59,6 @@ internal static class WorkingPaperStyles
 
     // ---- fills 索引(0/1 為 Excel 保留;黃色自 2 起)----
     private const uint FillYellow = 2;
-    private const uint FillPaleYellow = 3;
 
     private const uint AmountNumberFormatId = 164;
     private const uint DateNumberFormatId = 165;
@@ -78,12 +80,9 @@ internal static class WorkingPaperStyles
     private const uint Step41GroupedNumberStyleFirst =
         Step41NumberStyleFirst + MaximumDecimalPlaces + 1;
 
-    /// <summary>人工填寫但不提示底色：未鎖定、無填色。</summary>
-    public const uint EditableNoFill =
-        Step41GroupedNumberStyleFirst + MaximumDecimalPlaces + 1;
-
     /// <summary>一般字、靠左靠上並自動換行。欄寬有上限的長文字用，例如欄位資訊頁的欄位名稱與 step3 的條件。</summary>
-    public const uint Wrap = EditableNoFill + 1;
+    public const uint Wrap =
+        Step41GroupedNumberStyleFirst + MaximumDecimalPlaces + 1;
 
     private const uint FontStep41 = 3;
 
@@ -198,11 +197,7 @@ internal static class WorkingPaperStyles
         {
             PatternType = PatternValues.Solid
         });
-        var paleYellow = new Fill(new PatternFill(new ForegroundColor { Rgb = "FFFFFFCC" })
-        {
-            PatternType = PatternValues.Solid
-        });
-        return new Fills(none, gray, yellow, paleYellow) { Count = 4 };
+        return new Fills(none, gray, yellow) { Count = 3 };
     }
 
     private static Borders BuildBorders()
@@ -229,7 +224,7 @@ internal static class WorkingPaperStyles
         var plainXf = TopAligned(FontRegular, fillId: 0, horizontalLeft: true, wrap: false);
         var bannerXf = TopAligned(FontBanner, fillId: FillYellow, horizontalLeft: true, wrap: true);
         var editableXf = TopAligned(
-            FontRegular, fillId: FillPaleYellow, horizontalLeft: true, wrap: false, unlocked: true);
+            FontRegular, fillId: 0, horizontalLeft: true, wrap: false, unlocked: true);
         var amountXf = TopAligned(
             FontRegular, fillId: 0, horizontalLeft: false, wrap: false, numberFormatId: AmountNumberFormatId);
         var dateXf = TopAligned(
@@ -283,13 +278,6 @@ internal static class WorkingPaperStyles
             formats.Append(Step41Aligned(
                 GroupedNumberFormatFirstId + checked((uint)decimalPlaces)));
         }
-
-        formats.Append(TopAligned(
-            FontRegular,
-            fillId: 0,
-            horizontalLeft: true,
-            wrap: false,
-            unlocked: true));
 
         formats.Append(TopAligned(FontRegular, fillId: 0, horizontalLeft: true, wrap: true));
 

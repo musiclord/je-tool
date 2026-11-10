@@ -83,8 +83,15 @@ internal static class FilterVoucherPageReader
         }
 
         var matched = await ReadStoredConditionsAsync(connection, prefix, scenarioId, page.Details, ct);
+        if (matched.Values.SelectMany(positions => positions).Any(position =>
+            position.Group < 1 || position.Group > scenario.Groups.Count
+            || position.Rule < 1 || position.Rule > scenario.Groups[position.Group - 1].Conditions.Count))
+        {
+            throw new JetActionException(JetErrorCodes.StaleResult, "資料或條件已改變，請重新預覽再查看傳票。");
+        }
         bool IsVoucherCondition(FilterConditionPosition position) =>
-            position.Group <= scenario.Groups.Count
+            position.Group >= 1 && position.Group <= scenario.Groups.Count
+            && position.Rule >= 1
             && position.Rule <= scenario.Groups[position.Group - 1].Conditions.Count
             && scenario.Groups[position.Group - 1].Conditions[position.Rule - 1].IsVoucherCondition;
         var details = page.Details.Select(row =>
@@ -192,9 +199,9 @@ internal static class FilterVoucherPageReader
         {
             var entryId = Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture);
             if (!matched.TryGetValue(entryId, out var list)) matched[entryId] = list = [];
-            list.Add(new FilterConditionPosition(
+            list.Add(LocalEngineErrors.ReadStoredValue(() => new FilterConditionPosition(
                 Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture),
-                Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture)));
+                Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture))));
         }
 
         return matched;

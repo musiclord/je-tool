@@ -3,7 +3,7 @@ namespace JET.Domain;
 /// <summary>
 /// 通用值條件（type:"fieldValue"）：核心文字、日期、金額欄位與已配對的攸關資料元素欄位共用同一份比較方式選單。
 /// 日期另有「每月幾日屬於」與「每月幾日不屬於」（裁定 2026-09-04-01，值為 1 到 31）；文字的「包含任一文字」
-/// 與「不包含任何文字」接受多個關鍵字（對齊 legacy 的包含就排除）。舊 typed 型別不變。
+/// 與「不包含任何文字」接受多個關鍵字（對齊 legacy 的包含就排除），開頭符合與結尾符合也一樣（裁定 2026-11-09-09）。舊 typed 型別不變。
 /// </summary>
 public static class FieldValueConditions
 {
@@ -116,6 +116,14 @@ public static class FieldValueConditions
         rule.TypedValues is { Count: > 0 } ? rule.TypedValues
             : rule.TypedValue is null ? [] : [rule.TypedValue];
 
+    /// <summary>
+    /// 文字的開頭符合、結尾符合和包含一樣接受多個值（裁定 2026-11-09-09）：符合任一個就算，排除時每一個都不能符合。
+    /// 以前只收一個值，已儲存情境只帶單一 value 時視為一個值。
+    /// </summary>
+    public static bool IsAffix(string? op) => op is "startsWith" or "notStartsWith" or "endsWith" or "notEndsWith";
+
+    public static IReadOnlyList<string> AffixValues(FilterConditionSpec rule) => ContainsKeywords(rule);
+
     /// <summary>每月幾日的值：1 到 31 的整數，去重；任一無法解析或越界即失敗。</summary>
     public static bool TryParseDaysOfMonth(IReadOnlyList<string>? raw, out IReadOnlyList<int> days)
     {
@@ -214,9 +222,10 @@ public static partial class FilterScenarioValidator
                 errors.Add($"{label}：每月日期須為 1 到 31 的整數，至少填寫一個");
             return;
         }
-        if (field.ValueType == "text" && FieldValueConditions.IsContains(rule.TypedOperator))
+        if (field.ValueType == "text" && (FieldValueConditions.IsContains(rule.TypedOperator) || FieldValueConditions.IsAffix(rule.TypedOperator)))
         {
-            var keywords = FieldValueConditions.ContainsKeywords(rule);
+            var keywords = FieldValueConditions.IsAffix(rule.TypedOperator)
+                ? FieldValueConditions.AffixValues(rule) : FieldValueConditions.ContainsKeywords(rule);
             if (keywords.Count > FilterScenarioLimits.MaxTypedInValuesPerRule)
                 errors.Add($"{label}：{FieldValueListLimitReason(rule.TypedOperator)}");
             else if (keywords.Count == 0 || keywords.Any(static keyword => string.IsNullOrWhiteSpace(keyword)))
@@ -237,5 +246,5 @@ public static partial class FilterScenarioValidator
     // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示照畫面上的字寫；前端 filter-values.js 同一句。
     private static string FieldValueListLimitReason(string? op) =>
         $"每條最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。請拆成多條條件，放進子條件組，用 "
-        + (op is "notIn" or "notContains" or "notContainsDigits" or "notEndsWithDigits" ? "AND" : "OR") + " 連接。";
+        + (op is "notIn" or "notContains" or "notStartsWith" or "notEndsWith" or "notContainsDigits" or "notEndsWithDigits" ? "AND" : "OR") + " 連接。";
 }

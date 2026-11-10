@@ -976,10 +976,15 @@
     return indexes.length >= 2 ? indexes : [];
   }
 
+  // 左側流程軸線與目前步驟的藍色圓環是每一列裡的小元素，不用步驟列的 ::before、::after：目前步驟那一列包著整個工作面，
+  // 掛著虛擬元素時只要樣式一改，WebView2 就把整個工作面的無障礙樹重送一遍，捲動會頓一下（2026-11-09 量測）。
+  var STEP_RAIL = '<span class="stepflow-item__rail" aria-hidden="true"></span>';
+  var STEP_CURRENT_MARK = '<span class="stepflow-item__mark stepflow-item__mark--current" aria-hidden="true"></span>';
+
   function doneGroupHtml(indexes) {
     var names = indexes.map(function (index) { return Store.STEPS[index].label; });
     return '<div class="stepflow-item stepflow-item--done stepflow-item--done-group" data-done-group-toggle role="button" tabindex="0"' +
-        ' aria-expanded="' + (doneGroupOpen ? 'true' : 'false') + '">' +
+        ' aria-expanded="' + (doneGroupOpen ? 'true' : 'false') + '">' + STEP_RAIL +
         '<span class="stepflow-item__caret">' + (doneGroupOpen ? '▾' : '▸') + '</span>' +
         '<span class="stepflow-item__mark stepflow-item__mark--done">✓</span>' +
         '<span class="stepflow-item__name stepflow-item__name--done">已完成的步驟</span>' +
@@ -1006,16 +1011,17 @@
       if (state.stepFlowCollapsed) {
         return (
           '<div class="stepflow-item stepflow-item--current stepflow-item--collapsed" ' +
-            'data-step-index="' + index + '" data-step-toggle role="button" tabindex="0">' +
+            'data-step-index="' + index + '" data-step-toggle role="button" tabindex="0">' + STEP_RAIL +
             '<span class="stepflow-item__caret">▸</span>' +
             '<span class="stepflow-item__name">' + label + '</span>' +
             '<span class="stepflow-item__flag">' + statusWord + '</span>' +
             '<span class="stepflow-item__summary">' + Ui.esc(stepSummary(state, index, 'current')) + '</span>' +
+            STEP_CURRENT_MARK +
           '</div>'
         );
       }
       return (
-        '<div class="stepflow-item stepflow-item--current">' +
+        '<div class="stepflow-item stepflow-item--current">' + STEP_RAIL +
           '<div class="stepflow-item__head" data-step-index="' + index + '" data-step-toggle role="button" tabindex="0">' +
             '<span class="stepflow-item__caret stepflow-item__caret--current">▾</span>' +
             '<h3 class="stepflow-item__title" data-bind="current-step-title" data-step-index="' + index +
@@ -1025,13 +1031,14 @@
           '</div>' +
           operationFailureHtml(state, index) +
           '<div class="stepflow-item__body"></div>' +
+          STEP_CURRENT_MARK +
         '</div>'
       );
     }
 
     if (pres.status === 'done') {
       return (
-        '<div class="stepflow-item stepflow-item--done" data-step-index="' + index + '" data-step-nav role="button" tabindex="0">' +
+        '<div class="stepflow-item stepflow-item--done" data-step-index="' + index + '" data-step-nav role="button" tabindex="0">' + STEP_RAIL +
           '<span class="stepflow-item__caret">▸</span>' +
           '<span class="stepflow-item__mark stepflow-item__mark--done">✓</span>' +
           '<span class="stepflow-item__name stepflow-item__name--done">' + label + '</span>' +
@@ -1042,7 +1049,7 @@
 
     if (pres.status === 'available') {
       return (
-        '<div class="stepflow-item stepflow-item--available" data-step-index="' + index + '" data-step-nav role="button" tabindex="0">' +
+        '<div class="stepflow-item stepflow-item--available" data-step-index="' + index + '" data-step-nav role="button" tabindex="0">' + STEP_RAIL +
           '<span class="stepflow-item__caret">▸</span>' +
           '<span class="stepflow-item__mark stepflow-item__mark--available">—</span>' +
           '<span class="stepflow-item__name stepflow-item__name--available">' + label + '</span>' +
@@ -1053,7 +1060,7 @@
 
     // locked：淡化行＋鎖定原因；不可點擊。
     return (
-      '<div class="stepflow-item stepflow-item--locked">' +
+      '<div class="stepflow-item stepflow-item--locked">' + STEP_RAIL +
         '<span class="stepflow-item__spacer-caret"></span>' +
         '<span class="stepflow-item__spacer-mark"></span>' +
         '<span class="stepflow-item__name stepflow-item__name--locked">' + label + '</span>' +

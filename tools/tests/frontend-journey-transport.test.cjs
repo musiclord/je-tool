@@ -251,7 +251,7 @@ test('primitives: a latest-response guard accepts only the newest issue and noth
 });
 
 test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps the committed snapshots', () => {
-  // Store.restoreMappingDrafts 的呼叫端是第三步的「從報告帶入配對」（裁定 2026-11-05-03 恢復入口）；
+  // Store.restoreMappingDrafts 的呼叫端是第三步的「由底稿匯入欄位」（裁定 2026-11-05-03 恢復入口，2026-11-09-27 改名）；
   // 畫面的操作由 frontend-journey-mapping.test.cjs 核對，這裡守住 Store 一次換掉兩份草稿、不動已確認配對的行為。
   const { store } = coreFixture();
   const state = store.getState();

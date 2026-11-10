@@ -65,6 +65,7 @@
     // GL 另帶 options 與後端算好的 availableGlFields（第五步依它停用用到未配對欄位的入口）。
     // invalidatedByImport = 來源變更使配對失效（顯示說明橫幅，重新提交後解除）。
     // droppedFields = 來源變更後，草稿裡被拿掉的欄位（新資料沒有那個來源欄），提示審計員重新選。
+    //   由底稿匯入欄位時對不上的欄位也放這裡，標 fromReport，只列在第三步上方的托盤（裁定 2026-11-09-29）。
     // options = GL 專有的投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位、往下填補的欄位）。
     mapping: {
       gl: {
@@ -700,14 +701,17 @@
       state.filterResultRef = state.filter.savedScenarios.length ? data.resultRef || null : null;
       // 一次只存或刪一個情境時，後端回傳寫入後的待修正清單與結果狀態；還有情境要修改時 resultRef 是 null，
       // 高風險條件彙總、報告與第六步照樣鎖住。舊的整批儲存回應沒有這兩項，視為全部已通過。
+      // staleState 是 null 表示變更已儲存、但讀不回結果狀態，保留原旗標並顯示後端提醒。
       state.filterScenarioCheck = data.filterScenarioCheck || null;
-      state.staleState.filter = data.staleState ? !!data.staleState.filter : false;
+      if (data.staleState) { state.staleState.filter = !!data.staleState.filter; }
+      else if (!Object.prototype.hasOwnProperty.call(data, 'staleState')) { state.staleState.filter = false; }
       if (clearDraft) {
         state.filter.draft = { name: '', rationale: '', groups: [] };
         state.filter.preview = null;
         state.filter.previewExpired = false;
         filterDraftRev++;
       } else if (draftPatch) { Object.assign(state.filter.draft, draftPatch); }
+      if (data.reportWarning) { Store.addMessage(data.reportWarning, 'warn'); }
       bump();
     },
 
@@ -838,10 +842,11 @@
       bump();
     },
 
-    // 從報告還原欄位配對草稿：後端已把 metadata 與目前 import columns 驗證完畢，找不到的來源欄已經拿掉，
-    // 前端只做一次原子鏡像。既有 committed/invalidated 狀態刻意保留，草稿不冒充已生效配對。
-    // 沒有匯入 TB 時 bundle.tb 是 null，TB 的草稿照舊（裁定 2026-11-05-03）。
-    // dropped：報告裡選了、目前資料找不到的欄位，格式同 droppedFields，畫面據此請審計員重新選擇。
+    // 第三步「由底稿匯入欄位」帶入的欄位配對草稿（裁定 2026-11-09-27）：後端已把檔案裡的配對與目前 import columns 驗證完畢，
+    // 找不到的來源欄已經拿掉，前端只做一次原子鏡像。既有 committed/invalidated 狀態刻意保留，草稿不冒充已生效配對。
+    // 沒有匯入 TB，或檔案裡沒有可帶入的 TB 配對時，bundle.tb 是 null，TB 的草稿照舊（裁定 2026-11-05-03）。
+    // 這時上一份檔案留下的 TB 重選項目拿掉，托盤只列這一份檔案的結果；重新匯入 TB 留下的項目照舊。
+    // dropped：檔案裡選了、目前資料找不到的欄位，格式同 droppedFields（標 fromReport），托盤據此請審計員重新選擇（裁定 2026-11-09-29）。
     restoreMappingDrafts: function (bundle, dropped) {
       state.mapping.gl.draft = Object.assign({}, bundle.gl.mapping || {});
       state.mapping.gl.droppedFields = (dropped && dropped.gl) || [];
@@ -861,6 +866,8 @@
         state.mapping.tb.draft = Object.assign({}, bundle.tb.mapping || {});
         state.mapping.tb.changeMode = bundle.tb.changeMode;
         state.mapping.tb.droppedFields = (dropped && dropped.tb) || [];
+      } else {
+        state.mapping.tb.droppedFields = (state.mapping.tb.droppedFields || []).filter(function (item) { return !item.fromReport; });
       }
       bump();
     },

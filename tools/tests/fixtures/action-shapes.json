@@ -877,6 +877,7 @@
           },
           "ok": "boolean",
           "position": "null",
+          "reportWarning": "null|string",
           "resultRef": {
             "kind": "null|object",
             "fields": {
@@ -1034,7 +1035,7 @@
             }
           },
           "staleState": {
-            "kind": "object",
+            "kind": "null|object",
             "fields": {
               "filter": "boolean",
               "prescreen": "boolean",
@@ -1079,6 +1080,7 @@
           },
           "ok": "boolean",
           "position": "null",
+          "reportWarning": "null|string",
           "resultRef": {
             "kind": "null|object",
             "fields": {
@@ -1160,7 +1162,7 @@
             }
           },
           "staleState": {
-            "kind": "object",
+            "kind": "null|object",
             "fields": {
               "filter": "boolean",
               "prescreen": "boolean",
@@ -1356,6 +1358,7 @@
           },
           "ok": "boolean",
           "position": "number",
+          "reportWarning": "null|string",
           "resultRef": {
             "kind": "null|object",
             "fields": {
@@ -1513,7 +1516,7 @@
             }
           },
           "staleState": {
-            "kind": "object",
+            "kind": "null|object",
             "fields": {
               "filter": "boolean",
               "prescreen": "boolean",

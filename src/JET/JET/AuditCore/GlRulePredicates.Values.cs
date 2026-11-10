@@ -127,15 +127,22 @@ internal sealed partial class GlRulePredicates
             positive = ContainsAnyKeyword(parameters, originalColumn, keywords);
             if (op == "notContains") positive = $"NOT ({positive})";
         }
-        else if (op is "startsWith" or "notStartsWith" or "endsWith" or "notEndsWith")
+        else if (FieldValueConditions.IsAffix(op))
         {
-            var value = (string)Normalize(rule.TypedValue);
-            // Escape literal wildcard characters for all supported providers, including SQL Server's brackets.
-            var escaped = value.Replace("\\", "\\\\", StringComparison.Ordinal)
-                .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal)
-                .Replace("[", "\\[", StringComparison.Ordinal);
-            var pattern = op is "startsWith" or "notStartsWith" ? escaped + "%" : "%" + escaped;
-            positive = $"{column} LIKE {NextParam(parameters, pattern)} ESCAPE '\\'";
+            // 開頭符合與結尾符合接受多個值，OR 串接；排除時每一個都不能符合（裁定 2026-11-09-09）。
+            // 只有一個值時 SQL 和以前一樣，不多包括號。
+            var values = FieldValueConditions.AffixValues(rule);
+            if (values.Count == 0) throw Invalid("field_value_value_invalid");
+            var clauses = values.Select(raw => (string)Normalize(raw)).Distinct(StringComparer.Ordinal).Select(value =>
+            {
+                // Escape literal wildcard characters for all supported providers, including SQL Server's brackets.
+                var escaped = value.Replace("\\", "\\\\", StringComparison.Ordinal)
+                    .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal)
+                    .Replace("[", "\\[", StringComparison.Ordinal);
+                var pattern = op is "startsWith" or "notStartsWith" ? escaped + "%" : "%" + escaped;
+                return $"{column} LIKE {NextParam(parameters, pattern)} ESCAPE '\\'";
+            }).ToList();
+            positive = clauses.Count == 1 ? clauses[0] : $"({string.Join(" OR ", clauses)})";
             if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
         }
         else

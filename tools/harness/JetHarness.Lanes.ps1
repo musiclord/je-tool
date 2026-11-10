@@ -229,13 +229,25 @@ function Invoke-JetGuiScenarioStep {
         [Parameter(Mandatory = $true)] [string] $RunDirectory,
         [Parameter(Mandatory = $true)] $Registry,
         [Parameter(Mandatory = $true)] $Scenario,
-        [Parameter(Mandatory = $true)] [int] $TimeoutSeconds
+        [Parameter(Mandatory = $true)] [int] $TimeoutSeconds,
+        [string] $BundleDirectory = ''
     )
 
     $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
         Select-Object -First 1 -ExpandProperty Source
     $scenarioName = [string]$Scenario.name
-    $applicationPath = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.applicationExecutable)
+    # ownedBundle 的情境啟動 Invoke-JetGuiBundleStep 這次打包的單一執行檔，其餘啟動一般的 AgentGuiTest 建置（裁定 2026-11-09-03）。
+    if ($Scenario.ContainsKey('application') -and [string]$Scenario['application'] -ceq 'ownedBundle') {
+        if ([string]::IsNullOrWhiteSpace($BundleDirectory)) {
+            throw [InvalidOperationException]::new('GUI bundle directory is required for an ownedBundle scenario.')
+        }
+        $applicationPath = Join-Path $BundleDirectory 'JET.exe'
+        $applicationDisplay = Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $applicationPath
+    }
+    else {
+        $applicationPath = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.applicationExecutable)
+        $applicationDisplay = [string]$Registry.guiSettings.applicationExecutable
+    }
     $driverPath = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.driverAssembly)
     $manifestPath = Join-Path $RunDirectory "gui-$scenarioName-manifest.json"
     Assert-JetNoExistingReparsePoint -RepositoryRoot $RepositoryRoot -Candidate $applicationPath
@@ -264,7 +276,7 @@ function Invoke-JetGuiScenarioStep {
         ) `
         -DisplayCommand @(
             'dotnet', ([string]$Registry.guiSettings.driverAssembly),
-            '--app', ([string]$Registry.guiSettings.applicationExecutable),
+            '--app', $applicationDisplay,
             '--manifest', (Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $manifestPath),
             '--scenario', $scenarioName,
             '--timeout-seconds', ([string]$driverTimeout),
@@ -334,6 +346,8 @@ function Invoke-JetGuiScenarioStep {
             status = [string]$manifest.status
             assertions = $manifest.assertions
             budget = $manifest.budget
+            launchCount = $manifest.process.launchCount
+            identity = $manifest.process.identity
             cleanup = $manifest.cleanup
             errorCodes = $errorCodes
         }
@@ -429,6 +443,10 @@ function Invoke-JetGuiScenarioStep {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.caseListCleanupCancelExportVerified
             }
+            'single-file-relaunch' {
+                [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
+                    [int]$manifest.process.launchCount -eq 2 -and [bool]$manifest.assertions.singleFileRelaunchVerified
+            }
             'blank-details-recovery' {
                 [int]$manifest.budget.actionCount -eq [int]$Scenario.expectedActionCount -and
                     [int]$manifest.budget.screenshotCount -eq 1 -and [bool]$manifest.assertions.blankDetailsRecoveryVerified
@@ -453,6 +471,7 @@ function Invoke-JetGuiScenarioStep {
         }
         switch -CaseSensitive ([string]$manifest.status) {
             'passed' {
+                # 每次啟動都讀回權杖、確認 JET 沒有系統管理員權限，才算通過（裁定 2026-11-09-01、2026-11-09-02）。
                 if (-not $step.process.hasExitCode -or $step.process.exitCode -ne 0 -or
                     [int]$manifest.exitCode -ne 0 -or $errorCodes.Count -ne 0 -or
                     -not [bool]$manifest.assertions.documentLoaded -or
@@ -465,7 +484,10 @@ function Invoke-JetGuiScenarioStep {
                     -not [bool]$manifest.assertions.processExited -or
                     -not [bool]$scenarioAssertionsComplete -or
                     [bool]$manifest.process.killAttempted -or
-                    -not [bool]$manifest.cleanup.rootRemoved) {
+                    -not [bool]$manifest.cleanup.rootRemoved -or
+                    [int]$manifest.process.launchCount -lt 1 -or
+                    -not [bool]$manifest.process.identity.standardUser -or
+                    [int]$manifest.process.identity.standardUserLaunches -ne [int]$manifest.process.launchCount) {
                     throw [InvalidDataException]::new('GUI scenario pass evidence is incomplete.')
                 }
                 $step.status = 'passed'

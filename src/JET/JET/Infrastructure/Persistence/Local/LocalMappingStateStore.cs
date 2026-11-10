@@ -81,29 +81,21 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         string projectId,
         DatasetKind kind,
         CancellationToken cancellationToken) =>
-        ReadAsync(projectId, kind, "field_mapping", cancellationToken);
+        ReadAsync(projectId, kind, previous: false, cancellationToken);
 
-    // 上次確認的配對只用來帶回草稿；它讀不出來（例如日後配對格式改版）時當作沒有，不能因此擋住開案。
-    public async Task<CommittedMapping?> FindPreviousAsync(
+    // 上次確認的配對只用來帶回草稿；那一列讀不出來（例如日後配對格式改版）時當作沒有，不能因此擋住開案，
+    // 也不擋住確認 GL 配對（見 TryReadRow）。開不了資料庫這類錯誤照常往外丟，和讀有效配對（FindAsync）一樣；
+    // 有效配對那一列讀不出來時也照常往外丟。
+    public Task<CommittedMapping?> FindPreviousAsync(
         string projectId,
         DatasetKind kind,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await ReadAsync(projectId, kind, "field_mapping_previous", cancellationToken);
-        }
-        catch (Exception exception) when (
-            exception is JetActionException or JsonException or InvalidOperationException or FormatException)
-        {
-            return null;
-        }
-    }
+        CancellationToken cancellationToken) =>
+        ReadAsync(projectId, kind, previous: true, cancellationToken);
 
     private async Task<CommittedMapping?> ReadAsync(
         string projectId,
         DatasetKind kind,
-        string table,
+        bool previous,
         CancellationToken cancellationToken)
     {
         await database.EnsureReadyAsync(projectId, cancellationToken);
@@ -111,7 +103,8 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
 
-        CommittedMapping committed;
+        var table = previous ? "field_mapping_previous" : "field_mapping";
+        CommittedMapping? committed;
         await using (var command = connection.CreateCommand())
         {
             command.CommandText =
@@ -129,20 +122,10 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
                 return null;
             }
 
-            var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(0), JsonOptions)
-                ?? [];
-
-            committed = MappingStateSerialization.Read(
-                kind,
-                mapping,
-                reader.GetString(1),
-                reader.GetString(2),
-                DateTimeOffset.Parse(reader.GetString(3)),
-                reader.GetInt32(4),
-                reader.IsDBNull(5) ? null : reader.GetString(5));
+            committed = previous ? TryReadRow(reader, kind) : ReadRow(reader, kind);
         }
 
-        if (kind != DatasetKind.Gl || table != "field_mapping")
+        if (committed is null || previous || kind != DatasetKind.Gl)
         {
             return committed;
         }
@@ -153,6 +136,43 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
         totals.CommandText = MappingStateSerialization.GlTotalsQuery("gl_control_total");
         await using var totalsReader = await totals.ExecuteReaderAsync(cancellationToken);
         return committed with { GlTotals = await MappingStateSerialization.ReadGlTotalsAsync(totalsReader, cancellationToken) };
+    }
+
+    private static CommittedMapping ReadRow(DbDataReader reader, DatasetKind kind)
+    {
+        var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(0), JsonOptions)
+            ?? [];
+
+        return MappingStateSerialization.Read(
+            kind,
+            mapping,
+            reader.GetString(1),
+            reader.GetString(2),
+            DateTimeOffset.Parse(reader.GetString(3)),
+            reader.GetInt32(4),
+            reader.IsDBNull(5) ? null : reader.GetString(5));
+    }
+
+    // 上次確認的配對那一列讀不出來時回 null。讀不出來的情形：舊版格式（JetActionException，EnsureReadableVersion）、
+    // 配對 JSON 壞掉（JsonException）、缺少選項或含不成對的代理字元（InvalidOperationException）、確認時間不是日期
+    // （FormatException）、選項 JSON 壞掉或有認不得的設定（MappingMetadataFormatException，GlMappingOptionsJsonCodec.Decode），
+    // 以及格式版本超過整數範圍（OverflowException）。這裡只解讀已經讀到的那一列，不碰資料庫本身。
+    private static CommittedMapping? TryReadRow(DbDataReader reader, DatasetKind kind)
+    {
+        try
+        {
+            return ReadRow(reader, kind);
+        }
+        catch (Exception exception) when (
+            exception is JetActionException
+                or JsonException
+                or InvalidOperationException
+                or FormatException
+                or MappingMetadataFormatException
+                or OverflowException)
+        {
+            return null;
+        }
     }
 }
 

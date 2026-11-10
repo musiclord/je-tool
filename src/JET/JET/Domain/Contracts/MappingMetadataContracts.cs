@@ -13,8 +13,9 @@ internal static class ManualAutoPolicyErrors
 }
 
 /// <summary>
-/// JET 報告內嵌欄位配對 metadata 的固定位置與版本。可見欄位資訊只供人閱讀；
-/// machine round-trip 一律以這組 marker/version/payload 為準，不能反推顯示名稱。
+/// JET 報告內嵌欄位配對 metadata 的固定位置與版本。有這組 marker/version/payload 時，帶入配對一律以它為準；
+/// 檔案沒有 JET 記下的隱藏配對時（例如舊版 IDEA JET 的底稿），改讀同一張工作表看得見的配對前後欄位對照表推得草稿
+/// （裁定 2026-11-09-28）。
 /// </summary>
 public static class MappingMetadataFormat
 {
@@ -361,10 +362,43 @@ public sealed record TbMappingDraftMetadata(
     string ChangeMode);
 
 /// <summary>
-/// 報告記下的確認配對。報表共用中繼資料（JET_Metadata）在匯出時 TB 還沒確認配對的話沒有 TB，Tb 是 null；
-/// 「自動化工具-檔案欄位資訊」一定同時有 GL 與 TB。
+/// 帶入第三步的欄位配對草稿，有兩種來源：檔案隱藏紀錄記下的確認配對，以及由「自動化工具-檔案欄位資訊」
+/// 看得見的對照表推得的草稿（FieldInfoSheetMapping）。
+/// 隱藏紀錄裡，報表共用中繼資料（JET_Metadata）在匯出時 TB 還沒確認配對的話沒有 TB，Tb 是 null；
+/// 「自動化工具-檔案欄位資訊」F1:H1 的紀錄一定同時有 GL 與 TB。
+/// 推得的草稿在沒有匯入 TB，或 TB 段沒有任何配對、也沒有要重選的項目時，Tb 是 null。
 /// </summary>
 public sealed record MappingDraftMetadata(
     int FormatVersion,
     GlMappingDraftMetadata Gl,
     TbMappingDraftMetadata? Tb);
+
+/// <summary>
+/// 「自動化工具-檔案欄位資訊」看得見的一列：A 欄「配對前欄位名稱」、B 欄「欄位型態」、E 欄「配對後欄位名稱」，
+/// 照儲存格原文，不去空白也不去【】。
+/// </summary>
+public sealed record FieldInfoSheetRow(
+    string BeforeName,
+    string? FieldType,
+    string? AfterName);
+
+/// <summary>
+/// 「自動化工具-檔案欄位資訊」看得見的 TB 與 GL 配對前後欄位對照表，各段只有資料列，不含標題與表頭。
+/// 舊版 IDEA JET 與新版 JET 寫的都是這張表；配對怎麼推得見 FieldInfoSheetMapping（裁定 2026-11-09-28）。
+/// </summary>
+public sealed record FieldInfoSheet(
+    IReadOnlyList<FieldInfoSheetRow> Tb,
+    IReadOnlyList<FieldInfoSheetRow> Gl);
+
+/// <summary>
+/// 從檔案讀到、要帶入第三步的配對來源，兩者恰有一個：Recorded 是 JET 記下的隱藏配對紀錄
+/// （JET_Metadata 或 F1:H1）；檔案沒有隱藏紀錄時，FieldInfoSheet 是看得見的對照表，由 handler 推得草稿（裁定 2026-11-09-28）。
+/// </summary>
+public sealed record MappingDraftSource(
+    MappingDraftMetadata? Recorded,
+    FieldInfoSheet? FieldInfoSheet)
+{
+    public MappingDraftMetadata? Recorded { get; init; } = (Recorded is null) != (FieldInfoSheet is null)
+        ? Recorded
+        : throw new ArgumentException("Recorded 與 FieldInfoSheet 必須恰有一個。", nameof(Recorded));
+}

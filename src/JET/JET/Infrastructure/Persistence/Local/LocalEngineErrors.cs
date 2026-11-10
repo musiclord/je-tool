@@ -1,5 +1,6 @@
 using JET.Domain;
 using Microsoft.Data.Sqlite;
+using System.Text.Json;
 
 namespace JET.Infrastructure;
 
@@ -81,9 +82,54 @@ public static class LocalEngineErrors
         JetErrorCodes.DatabaseStorageFull,
         "案件所在磁碟的空間不足，資料庫無法繼續寫入。請釋放空間後再試一次。");
 
-    private static JetActionException DatabaseCorrupt() => new(
+    internal static JetActionException DatabaseCorrupt(Exception? innerException = null) => new(
         JetErrorCodes.DatabaseCorrupt,
-        "案件資料庫已損壞，無法繼續使用。請從備份還原案件資料夾，或重新建立案件並匯入資料。");
+        "案件資料庫已損壞，無法繼續使用。請從備份還原案件資料夾，或重新建立案件並匯入資料。",
+        innerException: innerException);
+
+    // 僅包住讀到的欄位轉型與內容解析，不包開連線、讀列或寫入，避免把環境錯誤誤報為內容損壞。
+    internal static T ReadStoredValue<T>(Func<T> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception error) when (error is FormatException or OverflowException or InvalidCastException
+            or JsonException or InvalidOperationException or ArgumentException)
+        {
+            throw DatabaseCorrupt(error);
+        }
+    }
+
+    internal static int ReadStoredInt32(System.Data.Common.DbDataReader reader, int ordinal) => ReadStoredValue(() =>
+        reader.GetValue(ordinal) switch
+        {
+            long number => checked((int)number),
+            int number => number,
+            _ => throw new FormatException("Stored integer has an invalid type.")
+        });
+
+    internal static JsonDocument ParseStoredObject(string json) => ReadStoredValue(() =>
+    {
+        var document = JsonDocument.Parse(json);
+        try
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                throw new FormatException("Stored row is not a JSON object.");
+            // 原始列是欄名對值的物件；只讀欄名和字串，不把每一列重新寫出來檢查。
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                _ = property.Name;
+                if (property.Value.ValueKind == JsonValueKind.String) _ = property.Value.GetString();
+            }
+            return document;
+        }
+        catch
+        {
+            document.Dispose();
+            throw;
+        }
+    });
 
     // 唯讀時已經開著的連線不會變成可寫，所以下一步是取消唯讀後重新開啟案件；離開案件時 JET 會關閉這些連線。
     private static JetActionException DatabaseReadOnly() => new(

@@ -14,10 +14,13 @@ internal static class PrescreenReportProjectionParser
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(summaryJson);
 
-        using var document = JsonDocument.Parse(summaryJson);
-        var root = document.RootElement;
+        try
+        {
+            using var document = JetJsonStorage.Parse(summaryJson);
+            var root = document.RootElement;
+            ValidationSummaryShapeValidator.RequirePrescreen(root);
 
-        return new PrescreenReportProjection(
+            return new PrescreenReportProjection(
             PrepPeriodApproval: Rule(
                 root,
                 "prepPeriodApproval",
@@ -50,6 +53,13 @@ internal static class PrescreenReportProjectionParser
         {
             ZerosThreshold = ReadZerosThreshold(root)
         };
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or OverflowException)
+        {
+            throw new JetActionException(JetErrorCodes.StaleResult,
+                "這份報告依據的結果已不是目前資料的結果。請回到「資料驗證與測試」按「重新執行預篩選」，再回來產生報告。",
+                innerException: exception);
+        }
     }
 
     /// <summary>預篩選的回應一定寫下這次用的 0 的個數；讀不到或超出範圍就是保存的結果不完整，明確丟出。</summary>

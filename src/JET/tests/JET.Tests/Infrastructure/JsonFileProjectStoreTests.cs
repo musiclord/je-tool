@@ -7,6 +7,68 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class JsonFileProjectStoreTests
 {
+    // 第一次失敗：20261110-044457093-c8b3781b82b84584a4bdbb3bbbf9fbf8。
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CopiedOrRenamedFolder_IsUnreadable_AndDeletingItDoesNotDeleteTheOriginal(bool renameCopy)
+    {
+        using var host = new JET.Tests.Application.HandlerTestHost();
+        const string original = "synthetic-original";
+        var copied = renameCopy ? "synthetic-renamed" : "synthetic-copy";
+        await host.DispatchAsync("project.create", "{\"projectName\":\"synthetic-original\",\"periodStart\":\"2025-01-01\",\"periodEnd\":\"2025-12-31\"}");
+        await host.DispatchAsync("project.releaseLock");
+        var source = Path.Combine(host.ProjectsRoot, original);
+        var temporaryCopy = Path.Combine(host.ProjectsRoot, "synthetic-copy");
+        Directory.CreateDirectory(temporaryCopy);
+        foreach (var file in Directory.EnumerateFiles(source))
+        {
+            File.Copy(file, Path.Combine(temporaryCopy, Path.GetFileName(file)));
+        }
+        if (renameCopy) Directory.Move(temporaryCopy, Path.Combine(host.ProjectsRoot, copied));
+
+        var listed = await host.DispatchAsync("project.listLocal");
+        var row = Assert.Single(listed.GetProperty("projects").EnumerateArray(), item => item.GetProperty("projectId").GetString() == copied);
+        Assert.Equal(JetErrorCodes.FileReadError, row.GetProperty("loadError").GetProperty("code").GetString());
+        var loadError = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", System.Text.Json.JsonSerializer.Serialize(new { projectId = copied })));
+        Assert.Equal(JetErrorCodes.FileReadError, loadError.Code);
+        var deleted = await host.DispatchAsync("project.delete", System.Text.Json.JsonSerializer.Serialize(new { projectId = copied }));
+        Assert.True(deleted.GetProperty("ok").GetBoolean());
+        Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, copied)));
+        Assert.True(Directory.Exists(source));
+        var loaded = await host.DispatchAsync("project.load", System.Text.Json.JsonSerializer.Serialize(new { projectId = original }));
+        Assert.Equal(original, loaded.GetProperty("project").GetProperty("projectId").GetString());
+    }
+
+    // 第一次失敗：20261110-044318362-3d1863245a1741d787f86045ace00d81。
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task MoneyScaleMissingOrNotPositive_IsUnreadableWithoutChangingTheDocument(int? scale)
+    {
+        using var root = new TempProjectRoot();
+        var folder = new JetProjectFolder(root.Path);
+        var store = new JsonFileProjectStore(folder);
+        var document = NewDocument();
+        await store.CreateAsync(document, CancellationToken.None);
+        var path = folder.GetProjectJsonPath(document.ProjectId);
+        var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        if (scale is null) json.Remove("moneyScale");
+        else json["moneyScale"] = scale.Value;
+        var damaged = json.ToJsonString();
+        await File.WriteAllTextAsync(path, damaged);
+
+        var error = await Assert.ThrowsAsync<JetActionException>(() => store.FindAsync(document.ProjectId, CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.FileReadError, error.Code);
+        Assert.Contains("設定檔無法讀取", error.Message);
+        Assert.Equal(damaged, await File.ReadAllTextAsync(path));
+        var entry = Assert.Single(await store.ListEntriesAsync(CancellationToken.None));
+        Assert.Null(entry.Document);
+        Assert.Equal(document.ProjectId, entry.ProjectId);
+    }
+
     private static ProjectDocument NewDocument(string? id = null, DateTimeOffset? createdUtc = null) => new(
         id ?? Guid.NewGuid().ToString("N"),
         "ENG-2024-001",

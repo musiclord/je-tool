@@ -686,10 +686,13 @@ public sealed class FilterScenarioSingleChangeTests
             _ => await RecheckLikeTheScreenAsync(host, screen)
         };
 
+        // 裁定 2026-11-10-02 新增寫入後讀回失敗的 reportWarning，其他欄位與型別斷言保留。
+        // 首次失敗：Public 20261110-050631280-602113d22d8e439d8c0a12183dc8ff6d。
         Assert.Equal(
-            ["filterScenarioCheck", "ok", "position", "resultRef", "savedCount", "scenarios", "staleState"],
+            ["filterScenarioCheck", "ok", "position", "reportWarning", "resultRef", "savedCount", "scenarios", "staleState"],
             response.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
         Assert.True(response.GetProperty("ok").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, response.GetProperty("reportWarning").ValueKind);
         Assert.Equal(
             ["problems", "recalculatedCount", "status"],
             response.GetProperty("filterScenarioCheck").EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
