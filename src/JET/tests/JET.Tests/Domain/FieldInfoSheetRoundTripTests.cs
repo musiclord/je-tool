@@ -14,7 +14,7 @@ namespace JET.Tests.Domain;
 /// <item>JetAuditProgram.ProjectFieldInfo 產生欄位資訊表的每一列，只取看得見的 A、B、E 欄組成 FieldInfoSheet。</item>
 /// <item>FieldInfoSheetMapping.Infer 推得配對草稿（第三步帶入、還沒確認的配對），目前匯入的欄名用來源欄名清單。</item>
 /// </list>
-/// 預期值一律從輸入的 spec 推，不取 Infer 的輸出。計畫 docs/specs/2026-11-09-import-fields-from-working-paper-plan.md
+/// 預期值一律從輸入的 spec 推，不取 Infer 的輸出。計畫 docs/history/specs/2026-11-09-import-fields-from-working-paper-plan.md
 /// 「做法」寫明的刻意差異照規則寫進預期，並在用到的地方註明。欄名與資料都是程式生成的合成值。
 /// </summary>
 public sealed class FieldInfoSheetRoundTripTests

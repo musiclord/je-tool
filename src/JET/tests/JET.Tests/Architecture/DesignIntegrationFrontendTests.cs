@@ -202,7 +202,7 @@ public sealed class DesignIntegrationFrontendTests
         // 仍是一整條：同一片玻璃從視窗左緣到右緣，兩列時也不在案件摘要那裡斷開；顏色是淺色的玻璃，不是深色框帶。
         // 2026-11-09 修正捲動卡頓：玻璃從 .app-shell::before 搬到 index.html 裡 aria-hidden 的空元素 .app-shell__glass，外觀不變。
         // WebView2 維護無障礙樹時，掛著虛擬元素的 .app-shell 一改樣式就把整個畫面的子樹重送一遍，捲動時 data-under-chrome 切換就會頓一下
-        // （docs/specs/2026-11-09-scroll-performance-plan.md）。這裡與下面兩處原本找 .app-shell::before，改成找新元素，斷言的外觀不變。
+        // （docs/history/specs/2026-11-09-scroll-performance-plan.md）。這裡與下面兩處原本找 .app-shell::before，改成找新元素，斷言的外觀不變。
         // 第一次失敗：Focused 收據 20261109-121924464-873a110df8b84be39bb100cbbf1b5b6d。
         // 玻璃是 .app-shell 的第一個子元素、標題列的前一個，疊放順序和原本的 ::before 相同。
         Assert.Matches(
@@ -303,7 +303,7 @@ public sealed class DesignIntegrationFrontendTests
     [Fact]
     public void Frontend_LargeLayoutContainers_CarryNoPseudoElements()
     {
-        // 2026-11-09 修正捲動卡頓（docs/specs/2026-11-09-scroll-performance-plan.md）：電腦上有程式使用 UI Automation 時，WebView2 一直維護無障礙樹；
+        // 2026-11-09 修正捲動卡頓（docs/history/specs/2026-11-09-scroll-performance-plan.md）：電腦上有程式使用 UI Automation 時，WebView2 一直維護無障礙樹；
         // 掛著 ::before 或 ::after 的元素只要樣式一改，例如滑鼠移入、切換屬性或轉場，就把它底下整棵子樹重送一遍。
         // 量到的是 .app-shell::before 畫的標題列玻璃，以及目前步驟那一列的軸線與藍色圓環：欄位配對捲動時，畫面程序每次卡約 100 毫秒。
         // 所以大型版面容器不掛虛擬元素，裝飾改用 aria-hidden 的小元素，規則寫在 jet-frontend-design。這是新加的測試。

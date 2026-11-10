@@ -2,7 +2,7 @@
 
 日期：2026-11-09。
 
-狀態：待使用者驗收。TB 的畫面說明、欄名不同時的錯誤訊息、測試與文件都已改完，驗證通過。使用者驗收時要 TB 的說明改成和 GL 相同，也已改完。
+狀態：已完成，使用者 2026-11-10 驗收，同日移到歷史文件（裁定 2026-11-10-05）。TB 的畫面說明、欄名不同時的錯誤訊息、測試與文件都已改完，驗證通過。使用者驗收時要 TB 的說明改成和 GL 相同，也已改完。
 
 <!-- jet-context:start -->
 使用者要 TB 像 GL 一樣一次選多個檔案。查過程式，TB 從 2026-06-11 起就和 GL 共用同一條多檔路徑，只是畫面說明沒寫。
@@ -134,7 +134,7 @@
 
 `tools/tests/frontend-workflow.test.cjs` 的「source preview states its ten-row boundary and TB merge guidance does not imply period-file reconciliation」，
 原本斷言 TB 的兩處說明不寫「可合併欄位相同」，也不寫「可合併工作表或資料表」。
-這兩個斷言出自[使用者回饋計畫](../history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md)第 8 批的 L11，用意是避免暗示能處理期初與期末兩檔。
+這兩個斷言出自[使用者回饋計畫](2026-09-17-user-feedback-and-workflow-review-plan.md)第 8 批的 L11，用意是避免暗示能處理期初與期末兩檔。
 L 開頭的編號是那份計畫引用的複審清單 `low-unverified.md` 的行號，不是使用者的裁定；裁定總表裡也查不到關於這兩句說明的裁定。
 裁定 2026-11-09-19 要 TB 和 GL 一樣寫出可以合併，所以改成檢查兩處都寫出可以合併，也都明寫不會自動配成期初與期末的期間變動。原本的用意由後一項檢查保住。
 第一次失敗留在 `Contract -ContractScenario FrontendMapping` 的收據 20261109-085046392-375ec381c4d94fd383d6c43f2076f56f。
@@ -209,3 +209,5 @@ L 開頭的編號是那份計畫引用的複審清單 `low-unverified.md` 的行
 8. 已完成：使用者驗收後，TB 的三處說明改成和 GL 相同；改畫面說明與四則前端測試，再跑 `FrontendMapping`、瀏覽器主機與 `Documentation`。
 
 中斷後的下一個動作：等使用者驗收。這一輪沒有暫存、提交或推送。
+
+2026-11-10 使用者手動新建案件測試後驗收通過，回覆裡寫的是「GL和TB多個檔案合併」（裁定 2026-11-10-05）；修改已在提交 `a0e7a13`。

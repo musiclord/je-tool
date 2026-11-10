@@ -243,7 +243,7 @@ test('on a laptop the finished steps above the current one fold into one row tha
   assert.deepEqual(doneRows(f), ['0', '1', '2']);
 });
 
-// 2026-11-09 修正捲動卡頓（docs/specs/2026-11-09-scroll-performance-plan.md）：WebView2 維護無障礙樹時，掛著 ::before 或 ::after 的元素
+// 2026-11-09 修正捲動卡頓（docs/history/specs/2026-11-09-scroll-performance-plan.md）：WebView2 維護無障礙樹時，掛著 ::before 或 ::after 的元素
 // 一改樣式，就把底下整棵子樹重送一遍；目前步驟那一列包著整個工作面，捲動因此頓一下。流程軸線與目前步驟的藍色圓環改成每一列裡
 // aria-hidden 的空元素：軸線是第一個子元素、圓環是最後一個，疊放順序和原本的 ::before、::after 相同。這是新加的測試；
 // app.css 不在大型版面容器掛虛擬元素，由 DesignIntegrationFrontendTests 檢查。

@@ -284,7 +284,7 @@ button, input, select, textarea {
    玻璃是 .app-shell__glass 這一整片，兩列時也不會在案件摘要那裡斷開；標誌、案件摘要與操作組是貼在上面的字。
    它是 index.html 裡一個 aria-hidden 的空元素，不畫在 .app-shell::before。WebView2 維護無障礙樹時，掛著虛擬元素的元素
    只要樣式一改，就會把底下整棵子樹重送一遍；.app-shell 包著整個畫面，捲動時 data-under-chrome 一切換，
-   欄位配對每次卡 100 毫秒以上（2026-11-09 量測，見 docs/specs/2026-11-09-scroll-performance-plan.md）。
+   欄位配對每次卡 100 毫秒以上（2026-11-09 量測，見 docs/history/specs/2026-11-09-scroll-performance-plan.md）。
    大型版面容器不掛虛擬元素，規則見 jet-frontend-design。 */
 .app-shell__glass {
   position: absolute;
