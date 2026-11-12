@@ -5,9 +5,8 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 欄位資訊的「配對後欄位名稱」依每一欄的來歷填，不再看欄名結尾（裁定 2026-11-03-11）；
-/// 改名欄位的「配對前欄位名稱」描述的是來源欄，加【】（裁定 2026-11-03-17）。
-/// 第一次失敗：Focused 收據 20261103-070040356-7ea024157104489698958ad37a9ef5d4。
+/// 欄位資訊的「配對後欄位名稱」依每一欄的來歷填，不看欄名結尾；
+/// 改名欄位的「配對前欄位名稱」描述的是來源欄，加【】。
 /// </summary>
 public sealed class FieldInfoProjectionTests
 {
@@ -56,7 +55,7 @@ public sealed class FieldInfoProjectionTests
         Assert.Equal(5, actual.GlRows.Count);
     }
 
-    /// <summary>原本這個測試鎖的是「欄名以 _TB、_JE、_JE_S 結尾就算配對後欄位」；裁定 2026-11-03-11 改成看來歷，欄名結尾不再有意義。</summary>
+    /// <summary>配對後欄位名稱看每一欄的來歷，不看欄名是否以 _TB、_JE、_JE_S 結尾。</summary>
     [Fact]
     public void ProjectFieldInfo_ActualFieldNameFollowsOriginNotNameSuffix()
     {

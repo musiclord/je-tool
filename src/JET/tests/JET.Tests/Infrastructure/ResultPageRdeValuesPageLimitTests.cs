@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 結果分頁的 RDE 讀取一次只接受一頁的分錄。原本這個上限只在分流層有測試；2026-10-02 分流層刪除後，
-/// 改直接測每種資料庫自己的實作：超過頁大小丟 <see cref="ArgumentOutOfRangeException"/>，空清單直接回空，
+/// 結果分頁的 RDE 讀取一次只接受一頁的分錄。
+/// 這裡直接測資料庫的實作：超過頁大小丟 <see cref="ArgumentOutOfRangeException"/>，空清單直接回空，
 /// 兩者都不碰資料庫。
 /// </summary>
 public sealed class ResultPageRdeValuesPageLimitTests

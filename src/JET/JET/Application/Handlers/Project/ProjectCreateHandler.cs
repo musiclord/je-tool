@@ -34,7 +34,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
     {
-        // 目前只建立 SQLite 案件（裁定 2026-11-06-08）；畫面不送 databaseProvider，送了也只接受 sqlite。
+        // 目前只建立 SQLite 案件；畫面不送 databaseProvider，送了也只接受 sqlite。
         var databaseProvider = PayloadReader.GetOptionalString(payload, "databaseProvider")
             ?? ProjectDocument.DefaultDatabaseProvider;
         if (databaseProvider != ProjectDocument.DefaultDatabaseProvider)
@@ -66,7 +66,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
                     JetErrorFields.ProjectName);
             }
 
-            // 同名資料夾即視為重複。以前建立的 DuckDB 或 SQL Server 案件不列在案件清單（裁定 2026-11-06-09），
+            // 同名資料夾即視為重複。以前建立的 DuckDB 或 SQL Server 案件不列在案件清單，
             // 撞到它時先說清楚是哪一種資料夾、審計員能怎麼做；它的設定檔讀不通時也不報那個看不到的案件的錯誤。
             SupportOperationStage.Enter("name_check");
             if (await projectStore.IsRetiredProviderCaseAsync(projectName, cancellationToken))

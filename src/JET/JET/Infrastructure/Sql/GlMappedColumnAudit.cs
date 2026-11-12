@@ -55,7 +55,7 @@ internal static class GlMappedColumnAudit
     }
 
     /// <summary>
-    /// GL 與 TB 共用的整欄空白提醒句子（用字依裁定 2026-10-13-28）；有來源欄名時一併寫出。
+    /// GL 與 TB 共用的整欄空白提醒句子；有來源欄名時一併寫出。
     /// </summary>
     internal static string BlankColumnWarning(string friendlyName, string? sourceColumn) =>
         string.IsNullOrWhiteSpace(sourceColumn)

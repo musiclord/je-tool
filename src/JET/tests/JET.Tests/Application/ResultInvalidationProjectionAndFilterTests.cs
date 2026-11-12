@@ -61,8 +61,7 @@ public sealed class ResultInvalidationProjectionAndFilterTests
 
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId, "SELECT COUNT(*) FROM filter_hit;"));
-        // 上游修改會清除下游（裁定 2026-10-07-03）：科目配對匯入也清掉已存情境，原本斷言保留 1 個。
-        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：科目配對匯入也清掉已存情境。
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId, "SELECT COUNT(*) FROM filter_scenario;"));
     }

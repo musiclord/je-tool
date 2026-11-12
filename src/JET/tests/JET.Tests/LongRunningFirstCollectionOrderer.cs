@@ -10,7 +10,7 @@ namespace JET.Tests;
 /// <summary>
 /// 讓耗時最長的測試類別最先開始，其餘類別維持 xUnit 預設順序（依 collection 的 UniqueID 排序）。
 /// 平行執行時一個類別占一個名額直到跑完，再照順序放行下一個；排在後面的長測試會在其他類別跑完後獨自拖長整段測試。
-/// 使用者選了「只把它排第一」（裁定 2026-10-15-04），所以名單只有 <see cref="ActionShapeContractTests"/>。
+/// 只把耗時最長的類別排第一，所以名單只有 <see cref="ActionShapeContractTests"/>。
 /// </summary>
 public sealed class LongRunningFirstCollectionOrderer : ITestCollectionOrderer
 {

@@ -26,7 +26,7 @@ public sealed class DetailPaginationContractTests
             {
                 var preview = await host.DispatchAsync("query.dataPreview", JsonSerializer.Serialize(new { dataset, offset, limit = 9999 }));
                 var rows = preview.GetProperty("rows").EnumerateArray().ToArray();
-                // 總筆數與統計只在第一頁（offset 0）計算，換頁沿用第一頁的值，不再重掃完整資料（裁定 2026-10-16-06）。
+                // 總筆數與統計只在第一頁（offset 0）計算，換頁沿用第一頁的值，不再重掃完整資料。
                 if (offset == 0)
                 {
                     Assert.Equal(count, preview.GetProperty("totalCount").GetInt64());

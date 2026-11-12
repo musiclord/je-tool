@@ -39,7 +39,7 @@ public sealed class ResponsiveLayoutFrontendTests
         AssertOwnsHorizontalOverflow(css, ".data-preview__body");
 
         AssertResponsiveExit(css, ".app-header");
-        // 案件清單原本的底部操作列在 2026-10-20 拆到標題列、區標題與頁尾，三處都要能換行。
+        // 案件清單的操作分在標題列、區標題與頁尾，三處都要能換行。
         AssertResponsiveExit(css, ".picker-panel__head");
         AssertResponsiveExit(css, ".picker-section__head");
         AssertResponsiveExit(css, ".picker-section__tools");
@@ -67,11 +67,9 @@ public sealed class ResponsiveLayoutFrontendTests
             @"[^;]*minmax\(\s*(?:0|min\()[^;]*");
         foreach (var selector in new[]
         {
-            // 2026-10-29 卡片區的格線改名為 --common（原本叫小組名稱），規則本身不變。第一次失敗：Focused 收據 20261029-062123410-6be7ae8a47f140af98c112c94ca35612。
-            // 2026-11-03 自訂篩選條件改成欄位條件分頁，欄位改成一欄的清單、不再用格線（裁定 2026-11-03-05、2026-11-03-26），
-            // 原本兩個 --custom 格線跟著拿掉；情境範例移到右側托盤，改核對托盤的格線同樣會縮窄。第一次失敗：Focused 收據 20261103-100726697-97e6c3f1045d4beda092d17c7bec9ecb。
-            // 2026-11-05 常用篩選條件改成和預篩選分頁同一種清單列（裁定 2026-11-05-08），卡片與 --common 格線一起拿掉，
-            // 清單列在下面另外核對名稱那一欄可以縮窄。第一次失敗：Public 收據 20261105-040816961-89151c2148e3414e991951ba43508f1d。
+            // 情境範例在右側托盤，核對托盤的格線會縮窄。
+            // 常用篩選條件和預篩選分頁用同一種清單列，
+            // 清單列在下面另外核對名稱那一欄可以縮窄。
             ".filter-template-tray .filter-example-list__items",
             ".stats-bar"
         })
@@ -188,7 +186,7 @@ public sealed class ResponsiveLayoutFrontendTests
     }
 
     /// <summary>
-    /// 裁定 2026-10-27-02：視窗放大縮小時對不齊，寬視窗中欄右側空出一塊、單列標題列的案件摘要比標誌與操作組高、
+    /// 視窗放大縮小時會對不齊的情形：寬視窗中欄右側空出一塊、單列標題列的案件摘要比標誌與操作組高、
     /// 窄視窗時步驟列的箭頭掉到下一行、案件摘要換行後下一行縮排、驗證清單沒有「檢視」時狀態標籤沒有貼齊右緣、
     /// 長狀態文字把「檢視」推出卡片。這裡鎖住讓這些對齊線在任何寬度下都不移動的版面原語。
     /// </summary>
@@ -211,8 +209,7 @@ public sealed class ResponsiveLayoutFrontendTests
         AssertDeclaration(css, ".stepflow-item", "align-items", @"flex-start");
 
         // 單列標題列時，案件摘要的上下緣跟著標題列本身，和標誌、操作組置中在同一條水平線上。
-        // 2026-11-05 小筆電上標題列也排成一列（裁定 2026-11-05-09），單列的起點從 1536px 改成 900px，原本在 1536px 的區塊裡找。
-        // 第一次失敗：Public 收據 20261105-040816961-89151c2148e3414e991951ba43508f1d。
+        // 小筆電上標題列也排成一列，單列的起點是 900px。
         var wideViewportCss = BlockBodies(css, "@media (min-width: 900px)");
         Assert.Matches(new Regex(@"top:\s*anchor\(--jet-header top", RegexOptions.CultureInvariant), wideViewportCss);
         Assert.Matches(new Regex(@"bottom:\s*anchor\(--jet-header bottom\)", RegexOptions.CultureInvariant), wideViewportCss);
@@ -220,11 +217,8 @@ public sealed class ResponsiveLayoutFrontendTests
         // 案件摘要換行時，每一行開頭的項目不帶分隔線與縮排。
         AssertDeclaration(css, ".case-summary__details", "clip-path", @"inset\([^;]*\)");
 
-        // 狀態標籤可以縮窄換行，不把「檢視」推出卡片；整張卡片都沒有「檢視」時不保留那一欄的空位。
-        // 2026-10-28 複審時範圍由清單改成卡片：以清單為範圍時，預篩選卡片的上下清單只要一份有「檢視」就會錯開。
-        // 裁定 2026-10-30-36 拿掉「檢視」，有明細的規則整列就是開關，每一列都只剩標題與狀態，不必再依卡片保留空位。
-        // 改核對現在的守衛：標題那一欄可以縮窄、狀態靠右、狀態字可換行，清單很窄時狀態移到標題下方。
-        // 第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
+        // 狀態標籤可以縮窄換行。有明細的規則整列就是開關，每一列都只有標題與狀態，不必依卡片保留空位。
+        // 這裡核對：標題那一欄可以縮窄、狀態靠右、狀態字可換行，清單很窄時狀態移到標題下方。
         AssertDeclaration(css, ".rule-item > .rule-item__head", "grid-template-columns", @"10px\s+minmax\(\s*0\s*,\s*1fr\)\s+auto");
         AssertDeclaration(css, ".rule-item__aside", "justify-content", @"flex-end");
         AssertDeclaration(css, ".rule-item__aside > .rule-status", "white-space", @"normal");
@@ -233,13 +227,11 @@ public sealed class ResponsiveLayoutFrontendTests
     }
 
     /// <summary>
-    /// 同一份清單裡有的列整列可點、有的列沒有明細時，名稱與數字仍要上下對齊。裁定 2026-10-30-36 改成整列可點後，
-    /// 「用 Excel 配對」第一列沒有箭頭，名稱比其他列早開始，科目數也被「資料預覽」往左推；2026-10-31 在預覽主機量到後，
-    /// 改成和第四步規則清單一樣的固定箭頭欄。傳票表的分錄和傳票共用「符合情形」欄（裁定 2026-10-30-37），
-    /// 原本分錄另開一張表時留下的固定寬度會撐開整張表，金額要橫向捲動才看得到。
-    /// 裁定 2026-11-03-03 讓每一列只佔一行：符合第幾組第幾條接在名稱後面，不再是另一個段落。原本斷言那個段落沒有固定寬度、
-    /// 跟著欄寬換行；段落拿掉後找不到那條樣式，第一次失敗：Focused 收據 20261103-041447477-5df79ef74b9e422192d0a01554cd1749。
-    /// 現在改成斷言符合情形只佔一行，欄寬的下限由表頭決定，見下一個測試。
+    /// 同一份清單裡有的列整列可點、有的列沒有明細時，名稱與數字仍要上下對齊。
+    /// 「用 Excel 配對」的清單和第四步規則清單一樣用固定箭頭欄，沒有箭頭的列名稱才不會比其他列早開始。
+    /// 傳票表的分錄和傳票共用「符合情形」欄，固定寬度會撐開整張表，金額要橫向捲動才看得到。
+    /// 每一列只佔一行：符合第幾組第幾條接在名稱後面，不是另一個段落。
+    /// 這裡斷言符合情形只佔一行，欄寬的下限由表頭決定，見下一個測試。
     /// </summary>
     [Fact]
     public void RowsWithAndWithoutToggle_KeepNamesAndNumbersAligned()
@@ -257,8 +249,8 @@ public sealed class ResponsiveLayoutFrontendTests
     }
 
     /// <summary>
-    /// 傳票表展開分錄時，分錄列和傳票列一樣高、欄寬不變，分錄再多也不會擠開其他傳票（裁定 2026-11-03-03）。
-    /// 2026-11-03 在預覽主機量到：符合條件的分錄寫成兩行，列高 61px，其他列約 32px；分錄的科目與摘要一出現，整張表跟著變寬。
+    /// 傳票表展開分錄時，分錄列和傳票列一樣高、欄寬不變，分錄再多也不會擠開其他傳票。
+    /// 符合條件的分錄若寫成兩行，列高會比其他列高；分錄的科目與摘要一出現，整張表也會跟著變寬。
     /// 表格比外框寬時，瀏覽器只把儲存格的 width 當建議值，所以只有分錄才有內容的欄由表頭的支撐留好寬度。
     /// </summary>
     [Fact]

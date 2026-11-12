@@ -41,7 +41,7 @@ public sealed class CalendarContractsTests
 
         Assert.Equal(CalendarRowOutcome.Failed, outcome);
         Assert.Equal(8, error.SourceRowNumber);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("第 8 列：日期空白", error.Message);
     }
 
@@ -60,7 +60,7 @@ public sealed class CalendarContractsTests
 
         Assert.Equal(CalendarRowOutcome.Failed, outcome);
         Assert.Equal(9, error.SourceRowNumber);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("第 9 列：日期空白", error.Message);
     }
 

@@ -7,15 +7,15 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 季末前借記收入的季底與查核期末視窗：前端讀回顯示自己計算視窗，必須和後端 <see cref="QuarterEndWindows"/>
-/// 對同一張邊界表格給出相同答案；前端那一半在 tools/tests/frontend-workflow.test.cjs 讀同一個檔案。
+/// 對同一張邊界表格給出相同答案；前端那一半在前端測試讀同一個檔案。
 /// </summary>
 public sealed class QuarterEndWindowsFrontendParityTests
 {
     [Fact]
     public void QuarterWindowsUseTheSameFixedBoundaryTableAsFrontend()
     {
-        using var data = JsonDocument.Parse(File.ReadAllText(Path.Combine(
-            TestRepositoryPaths.RepositoryRoot, "tools", "tests", "fixtures", "quarter-end-windows.json")));
+        using var data = JsonDocument.Parse(File.ReadAllText(
+            TestRepositoryPaths.Fixture("quarter-end-windows.json")));
         foreach (var row in data.RootElement.EnumerateArray())
         {
             var expected = row.GetProperty("expected").EnumerateArray().Select(v => v.GetString());

@@ -4,18 +4,21 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using JET.Tests.Infrastructure;
 using Xunit;
+using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Architecture;
 
 public sealed class SensitiveDataPolicyTests
 {
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void SensitiveFixtureAndParityWorkspace_AreEffectivelyIgnored()
     {
         SensitiveDataPolicyGuard.ValidateEffectiveIgnoreRules(TestRepositoryPaths.RepositoryRoot);
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void TrackedFiles_DoNotEnterSensitiveFixtureDirectory()
     {
         var trackedPaths = SensitiveDataPolicyGuard.ReadTrackedPaths(TestRepositoryPaths.RepositoryRoot);
@@ -23,6 +26,7 @@ public sealed class SensitiveDataPolicyTests
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void ProductionSourceCandidates_DoNotContainSampleSpecificLiterals()
     {
         var candidatePaths = SensitiveDataPolicyGuard.ReadSafetyCandidatePaths(TestRepositoryPaths.RepositoryRoot);
@@ -32,6 +36,7 @@ public sealed class SensitiveDataPolicyTests
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void TestSourceCandidates_DoNotContainPrivateFixtureContracts()
     {
         var candidatePaths = SensitiveDataPolicyGuard.ReadSafetyCandidatePaths(TestRepositoryPaths.RepositoryRoot);
@@ -44,7 +49,7 @@ public sealed class SensitiveDataPolicyTests
     public void TrackedAppearanceSnapshots_UseTheClosedValueBlindSchemaWhenPresent()
     {
         SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.RepositoryRoot);
+            TestRepositoryPaths.SolutionRoot);
     }
 
     [Fact]

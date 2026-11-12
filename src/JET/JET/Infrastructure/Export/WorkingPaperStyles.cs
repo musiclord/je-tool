@@ -36,7 +36,7 @@ internal static class WorkingPaperStyles
 
     /// <summary>
     /// 審計員填寫的空白格：未鎖定、不加底色。受保護的工作表只鎖程式寫入的資料區，
-    /// 這種格子在資料區裡也維持可填（裁定 2026-11-09-15，後端不再加淡黃底）。
+    /// 這種格子在資料區裡也維持可填。
     /// </summary>
     public const uint Editable = 5;
 
@@ -202,7 +202,7 @@ internal static class WorkingPaperStyles
 
     private static Borders BuildBorders()
     {
-        // 單一空白邊框(索引 0):cellXfs 的 BorderId 都指 0。本 task 三表無框線。
+        // 單一空白邊框(索引 0):cellXfs 的 BorderId 都指 0,這份樣式表的樣式都沒有框線。
         var border = new Border(
             new LeftBorder(), new RightBorder(), new TopBorder(), new BottomBorder(), new DiagonalBorder());
         return new Borders(border) { Count = 1 };

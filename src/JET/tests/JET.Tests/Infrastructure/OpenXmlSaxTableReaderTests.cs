@@ -5,10 +5,10 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// OpenXML SAX 串流讀取器（guide §3.1.5）。
+/// OpenXML SAX 串流讀取器。
 /// 前五個測試自 ClosedXmlTableReaderTests 原樣移植（行為契約不變；fixture 由 ClosedXML
 /// 寫出，兼作讀寫互通檢查）；其後的 raw-zip 案例覆蓋 ClosedXML writer 寫不出的形狀。
-/// oracle：§3.1.5 規格手算（cell 型別表、數值 double→decimal 正規化、日期樣式判定）。
+/// oracle：規格手算（cell 型別表、數值 double→decimal 正規化、日期樣式判定）。
 /// </summary>
 public sealed class OpenXmlSaxTableReaderTests
 {
@@ -221,8 +221,8 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task SharedString_PhoneticRunsExcluded()
     {
-        // 真實 PBC 檔形狀：<si><t>科目名稱</t><phoneticPr/></si> 與 rPh 注音 run。
-        // 注音文字（カモク）不得混入欄名或值（guide §3.1.5）
+        // 共用字串帶注音資訊的形狀：<si><t>科目名稱</t><phoneticPr/></si> 與 rPh 注音 run。
+        // 注音文字（カモク）不得混入欄名或值
         var path = new RawXlsxBuilder()
             .WithSharedStrings(
                 """
@@ -317,7 +317,7 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task CellTypes_NormalizeLikeSpec()
     {
-        // 型別表（guide §3.1.5）：str=公式字串取快取值、b=true/false、e=錯誤原文、
+        // 型別表：str=公式字串取快取值、b=true/false、e=錯誤原文、
         // inlineStr、無型別=數值
         var path = new RawXlsxBuilder()
             .AddSheet("Sheet1",
@@ -349,15 +349,15 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task NumericNormalization_DoubleToDecimalAbsorbsFloatArtifacts()
     {
-        // 數值一致性（guide §3.1.5）：必走 double→(decimal)→InvariantCulture。
-        // 真實 PBC 檔實測值 535.04999999999995 必須輸出 "535.05"；
+        // 數值一致性：必走 double→(decimal)→InvariantCulture。
+        // Excel 把 218.35 存成 218.34999999999999，必須輸出 "218.35"；
         // 科學記號原文可解析；超出 decimal 範圍退 "R" 格式
         var path = new RawXlsxBuilder()
             .AddSheet("Sheet1",
                 """
                 <sheetData>
                 <row r="1"><c r="A1" t="inlineStr"><is><t>a</t></is></c><c r="B1" t="inlineStr"><is><t>b</t></is></c><c r="C1" t="inlineStr"><is><t>c</t></is></c></row>
-                <row r="2"><c r="A2"><v>535.04999999999995</v></c><c r="B2"><v>1.5E+3</v></c><c r="C2"><v>1E+300</v></c></row>
+                <row r="2"><c r="A2"><v>218.34999999999999</v></c><c r="B2"><v>1.5E+3</v></c><c r="C2"><v>1E+300</v></c></row>
                 </sheetData>
                 """)
             .Save();
@@ -366,7 +366,7 @@ public sealed class OpenXmlSaxTableReaderTests
         {
             var rows = await ReadAllRowsAsync(path);
 
-            Assert.Equal("535.05", rows[0].Values["a"]);
+            Assert.Equal("218.35", rows[0].Values["a"]);
             Assert.Equal("1500", rows[0].Values["b"]);
             Assert.Equal("1E+300", rows[0].Values["c"]); // decimal 溢位 → double "R"
         }
@@ -379,7 +379,7 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task DateStyles_NumericCellsConvertByNumFmt()
     {
-        // 日期樣式判定（guide §3.1.5）。styles：xf0=General、xf1=14(日期)、xf2=43(會計)、
+        // 日期樣式判定。styles：xf0=General、xf1=14(日期)、xf2=43(會計)、
         // xf3=176(自訂非日期)、xf4=164(自訂日期 yyyy"年"m"月")、xf5=21(時間)。
         // 45292 = 2024-01-01；型別優先於樣式（t="s" + 日期樣式仍是字串）
         var path = new RawXlsxBuilder()
@@ -640,8 +640,7 @@ public sealed class OpenXmlSaxTableReaderTests
     [Fact]
     public async Task LeadingRowsToSkip_BeyondContent_SaysTheHeaderRowHasNoContent()
     {
-        // 2026-10-28 複審時查到：欄名列填得比內容還多時，不說成工作表是空的，改寫那一列起沒有內容。
-        // 改程式之後才補，沒有第一次失敗的收據。
+        // 欄名列填得比內容還多時，不說成工作表是空的，訊息寫那一列起沒有內容。
         var path = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
             ws.Cell(1, 1).Value = "Title";

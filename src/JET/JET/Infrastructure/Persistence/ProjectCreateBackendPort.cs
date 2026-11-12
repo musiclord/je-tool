@@ -5,7 +5,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// project.create 的資料庫建立流程。設定檔發布、取得工作鎖之後才建立案件資料庫；
-/// 建案失敗時回滾刪除資料庫，設定檔保留到回滾完成。目前只建立 SQLite 案件（裁定 2026-11-06-08）。
+/// 建案失敗時回滾刪除資料庫，設定檔保留到回滾完成。目前只建立 SQLite 案件。
 /// </summary>
 internal sealed class ProjectCreateBackendPort(ILocalProjectDatabase sqlite) : IProjectCreateBackendPort
 {

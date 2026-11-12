@@ -16,10 +16,9 @@ public sealed class LegacyFormWorkflowTests
     public void VoucherDescriptionsDoNotImplyOneWitnessForBothSides()
     {
         var item = LegacyFormCatalogTests.ReadCatalog()["conditions"]!.AsArray().Single(item => item!["letter"]!.GetValue<string>() == "P")!;
-        // 凍結的目錄仍寫整張傳票條件的借貸範圍；這個寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
-        // 讀回文字不再寫「借方至少一筆符合」。照下面送出情境時的同一個換法，把方向改成子條件裡的借貸別，
-        // 核對借方與貸方仍是兩個各自的整張傳票條件，不是同一筆分錄。
-        // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（讀回少了借貸範圍）。
+        // 凍結的目錄仍寫整張傳票條件的借貸範圍；這個寫法不讀回，
+        // 讀回文字不寫「借方至少一筆符合」。照下面送出情境時的同一個換法，把方向改成子條件裡的借貸別，
+        // 核對借方與貸方是兩個各自的整張傳票條件，不是同一筆分錄。
         var scenario = Scenario("P", ExplicitSides(item["conditions"]!.DeepClone().AsArray()));
         var text = JET.Application.FilterConditionRenderer.Render(JsonElement.Parse(scenario.ToJsonString()));
         Assert.Contains("同張傳票（", text);
@@ -47,8 +46,8 @@ public sealed class LegacyFormWorkflowTests
     {
         ["A"] = "V01:1,2,3;V02:1,2;V03:1,2;V05:1,2;V06:1,2;V07:1,2;V08:1;V11:1,2",
         ["B"] = "V01:1,2,3;V04:1,2;V05:1,2;V08:1;V10:1,2",
-        // 裁定 2026-10-29-29 改成照舊版 IDEA R3：未預期借貸組合要求同傳票至少有一筆金額大於 0 的分錄。
-        // V08 只有一筆收入貸方，沒有正金額分錄，不再命中（原本是 V03:2;V08:1；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
+        // 照舊版 IDEA R3：未預期借貸組合要求同傳票至少有一筆金額大於 0 的分錄。
+        // V08 只有一筆收入貸方，沒有正金額分錄，不命中。
         ["C"] = "V03:2", ["D"] = "V01:1,2;V03:1,2;V05:1,2;V07:1,2;V08:1",
         ["E"] = "V01:1,2,3;V03:1,2;V05:1,2;V06:1,2;V07:1,2;V09:1;V10:1,2",
         ["F"] = "V03:1,2;V09:1", ["G"] = "V01:1,2,3;V02:1,2;V04:1,2;V05:1,2",
@@ -65,8 +64,7 @@ public sealed class LegacyFormWorkflowTests
         ["T"] = "V01:1,2,3;V02:1,2;V03:1;V04:1;V05:1,2;V06:1;V07:1,2;V09:1;V10:1,2;V11:2",
         ["U"] = "V02:1,2;V05:1,2;V06:1,2;V10:1,2;V11:1,2",
         ["example1"] = "V01:1,2,3;V05:1,2", ["example2"] = "V01:1,2,3;V05:1,2;V07:1,2",
-        // 範例 4 在目錄裡就是 D 的組合，條件同樣是預篩選的尾數規則。0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25）後，答案跟著 D 變成 9 列；
-        // 改版前是 V05 的 2 列。第一次失敗：Public 收據 20261105-091443717-7d5ad085124941329c43b59c8aab463f。
+        // 範例 4 在目錄裡就是 D 的組合，條件同樣是預篩選的尾數規則。0 的個數照 IDEA 版由 GL 算出，答案跟著 D 是 9 列。
         ["example3"] = "V01:1,2;V05:1,2", ["example4"] = "V01:1,2;V03:1,2;V05:1,2;V07:1,2;V08:1", ["example5"] = "V01:1,2,3;V03:1,2",
         ["GH_I"] = "V01:1,2,3;V02:1,2;V03:1,2;V05:1,2;V11:1,2",
         ["JK_L"] = "V01:1,2,3;V03:1,2;V05:1,2;V06:1,2;V11:1,2",
@@ -80,11 +78,11 @@ public sealed class LegacyFormWorkflowTests
     private static string[] Keys(string value) => value.Split(';').SelectMany(part =>
     { var pieces = part.Split(':'); return pieces[1].Split(',').Select(line => pieces[0] + "|" + line); }).Order().ToArray();
 
-    // 裁定 2026-10-08-06 重新設計了自訂篩選條件：新選單有四項改用別種規則，預期值由上面的手寫固定答案以集合運算取得。
+    // 自訂篩選條件的選單有四項用別種規則，預期值由上面的手寫固定答案以集合運算取得。
     // 摘要含特定字詞（預設字詞）等於 B；金額尾數連續多個 0 帶入這個案件算出的 5 個 0 時等於 D。
-    // D 的 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25）：查核期間內 21 列，借方合計 400,001 + 100 + 300,000 + 99,999.55 + 1,000,000 + 10
+    // D 的 0 的個數照 IDEA 版由 GL 算出：查核期間內 21 列，借方合計 400,001 + 100 + 300,000 + 99,999.55 + 1,000,000 + 10
     // + 600,000 + 5 + 20 = 2,400,135.55，平均 114,292 是 6 位數，所以是 5 個 0；V01、V03、V05、V07 各 2 列與 V08 的 700,000 符合。
-    // 改版前固定 6 個 0，D 只有 V05 的 2 列；改版前的子條件組寫法仍寫 000000，答案照舊是 V05 的 2 列。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+    // 子條件組寫法（D_customTrailingZeros）寫 000000，答案是 V05 的 2 列。
     // 總帳日期在非營業日等於「(G 或 H) 且不是補班日」：I 是「不是補班日且不在每月 1 到 5 日」，R 是 10 月 1 到 5 日；
     // 這份合成資料在每月 1 到 5 日的週末或假日只有 10 月 2 日，且不是補班日，所以 I 與 R 的聯集在 G 或 H 之內就等於「不是補班日」。
     // 傳票核准日在非營業日等於「(J 或 K) 且不是補班日」：L 是「不是補班日且不在每月 1 到 5 日」；
@@ -105,14 +103,13 @@ public sealed class LegacyFormWorkflowTests
 
     private static string[] ExpectedKeys(string key) => Derived.TryGetValue(key, out var keys) ? keys : Keys(Expected[key]);
 
-    // 畫面的分錄筆數要和條件篩選報告同一個口徑（裁定 2026-10-16-08）。只用一條「未預期借貸組合」的 C，展開傳票時整張傳票的
+    // 畫面的分錄筆數要和條件篩選報告同一個口徑。只用一條「未預期借貸組合」的 C，展開傳票時整張傳票的
     // 每一列都標為符合，和報告摘要及底稿 Step 4-1 相同；直接命中的列（count 與 filterHitsPage）仍是 Expected["C"]。
-    // 第一次失敗：Public 收據 20261016-051726257-ff7a19590e9c4c30a7f61b5bec0bc527，V03 的第 1 列也標為符合。
-    // V08 沒有正金額分錄，照舊版 R3 不再命中（裁定 2026-10-29-29；原本是 V03:1,2;V08:1，第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
+    // V03 的第 1 列也標為符合。
+    // V08 沒有正金額分錄，照舊版 R3 不命中。
     private static readonly Dictionary<string, string> WholeVoucherExpected = new() { ["C"] = "V03:1,2" };
 
-    // 和預篩選預設的 24 個摘要關鍵字相同（裁定 2026-11-05-43 拿掉「帳外」）。這組資料沒有含「帳外」的摘要，
-    // 拿掉前後答案都一樣，所以沒有失敗的收據；改這裡只為了讓常數和預設清單一致。
+    // 和預篩選預設的 24 個摘要關鍵字相同，常數要和預設清單一致。
     private const string DefaultKeywords = "ADJ,REV,RECLASS,SUSPENSE,ERROR,WRONG,調整,迴轉,沖銷,重分類,避險,重編,錯誤,計畫外,預算外,"
         + "调整,回转,冲销,重分类,避险,重编,错误,计画外,预算外";
 
@@ -182,7 +179,7 @@ public sealed class LegacyFormWorkflowTests
             }
             if (key == "R") { rules[0]!["from"] = "2018-10-01"; rules[0]!["to"] = "2018-10-05"; }
             if (key == "example2") rules[1]!["fieldId"] = fieldId;
-            // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Frozen catalogue stays historical; submitted scenarios use explicit directions.
+            //  Frozen catalogue stays historical; submitted scenarios use explicit directions.
             if (key is "P" or "example3") rules = ExplicitSides(rules);
             return (Key: key, Scenario: Scenario(key, rules));
         }).ToList();
@@ -201,8 +198,8 @@ public sealed class LegacyFormWorkflowTests
         foreach (var unit in new[] { "entries", "vouchers" })
         { var rules = Rules("T"); rules[0]!["countFrom"] = "3"; rules[0]!["countUnit"] = unit; Add("T_" + unit, rules); }
         Add("U_approver", JsonNode.Parse("""[{"type":"fieldValue","field":"approvedBy","operator":"in","values":["User99"]}]""")!.AsArray());
-        // 裁定 2026-10-08-06 重新設計了自訂篩選條件：新選單改用別種規則的四項，以 Derived 的集合運算答案驗證等價。
-        // 改用欄位條件後，對照同一份 B、D、F 固定答案；原案例名稱保留以追溯舊寫法。
+        // 自訂篩選條件的選單用別種規則的四項，以 Derived 的集合運算答案驗證等價。
+        // 這幾項用欄位條件，對照同一份 B、D、F 固定答案。
         Add("B_customKeywords", new JsonArray(new JsonObject { ["type"] = "fieldValue", ["field"] = "description", ["operator"] = "contains",
             ["values"] = JsonSerializer.SerializeToNode(DefaultKeywords.Split(',')) }));
         Add("D_customTrailingZeros", JsonNode.Parse("""
@@ -210,9 +207,9 @@ public sealed class LegacyFormWorkflowTests
             {"type":"fieldValue","field":"amount","operator":"endsWithDigits","value":"000000","amountBasis":"absolute"},
             {"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}]
             """)!.AsArray());
-        // 裁定 2026-11-03-07 把「金額尾數連續多個 0」改成一條條件，比較方式是尾數連續幾個 0；選單現在加入的是這一條，同樣對照 D 的固定答案。
-        // 上面的 D_customTrailingZeros 是改版前加入的子條件組寫法，已儲存的情境照舊能讀，所以保留。這是新增的案例，沒有第一次失敗。
-        // 加入時預設這個案件算出的個數（裁定 2026-11-05-26），這裡寫 5；改版前寫 6。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        // 「金額尾數連續多個 0」是一條條件，比較方式是尾數連續幾個 0；選單加入的是這一條，同樣對照 D 的固定答案。
+        // 上面的 D_customTrailingZeros 是較早的子條件組寫法，已儲存的情境照樣能讀，所以保留。
+        // 加入時預設這個案件算出的個數，這裡寫 5。
         Add("D_zeroRun", JsonNode.Parse("""[{"type":"fieldValue","field":"amount","operator":"endsWithZeros","value":"5","amountBasis":"absolute"}]""")!.AsArray());
         Add("F_fieldBlank", JsonNode.Parse("""[{"type":"fieldValue","field":"description","operator":"isBlank"}]""")!.AsArray());
         // 借貸方向改成明示子條件，沿用原本手寫的固定答案；不修改歷史目錄。
@@ -289,7 +286,7 @@ public sealed class LegacyFormWorkflowTests
                     foreach (var item in batch) Assert.Contains("舊表驗證 " + item.Key, text);
                 if (batch.Any(c => c.Key == "A")) Assert.Contains("財報準備日起核准", text);
                 if (batch.Any(c => c.Key == "example2")) Assert.Contains("合成部門", text);
-                // 用語統一後，條件讀回跟著畫面改成「傳票張數（同號只算一張）」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+                // 條件讀回和畫面一樣寫「傳票張數（同號只算一張）」。
                 if (batch.Any(c => c.Key == "T_vouchers")) Assert.Contains("傳票張數（同號只算一張）", text);
                 Assert.DoesNotContain("去重傳票張數", text);
             }

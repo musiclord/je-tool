@@ -19,7 +19,7 @@ namespace JET.Application;
 /// 仍按原樹描述，不改成新版定義，也不搬到其他位置；本類只影響顯示文字。
 ///
 /// 同一段文字有畫面與文件兩種寫法：底稿與報告（<c>forDocument</c>）把欄位名稱用【】標示，值照舊用「」；
-/// 畫面上的條件讀回、滑鼠提示與情境的自動名稱不加（裁定 2026-11-03-17）。認不得的欄位寫的是替代句，不是欄位名稱，不加【】。
+/// 畫面上的條件讀回、滑鼠提示與情境的自動名稱不加。認不得的欄位寫的是替代句，不是欄位名稱，不加【】。
 /// </summary>
 public static class FilterConditionRenderer
 {
@@ -30,13 +30,13 @@ public static class FilterConditionRenderer
     /// 供科目配對多選讀回。省略時只還原內建分類的預設 label，未知身分提示重新選擇；正式報表一律
     /// 傳入專案的科目分類，才會反映使用者改過的顯示名稱。
     /// <paramref name="rdeFieldLabels"/> 是目前 committed RDE 欄位的 fieldId → 顯示 label 對照，
-    /// 供 typed 條件讀回（凍結裁決：renderer 用目前 metadata，僅 label 改名時顯示新名稱）；
-    /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId（裁定 2026-10-14-01）。
+    /// 供 typed 條件讀回（renderer 用目前 metadata，僅 label 改名時顯示新名稱）；
+    /// 省略或欄位已不存在時寫「已不在欄位配對中的攸關資料元素欄位」，不印 fieldId。
     /// <paramref name="accountCategories"/> 帶完整分類用途與階層，才能列出實際納入分類。省略時不猜分類範圍。
     /// <paramref name="preparationDate"/> 是目前案件的期末財報準備日，只供讀回說明，不寫入條件 AST。
-    /// <paramref name="zerosThreshold"/> 是「分錄金額中有連續 0 的尾數」由 GL 算出的 0 的個數，條件寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25）；
-    /// 省略時寫規則名稱。上游修改會清掉已存情境（裁定 2026-10-07-03），所以已存情境讀回時用目前的個數就是儲存時的個數。
-    /// <paramref name="forDocument"/> 為真時是底稿與報告用的寫法，欄位名稱加【】（裁定 2026-11-03-17）。
+    /// <paramref name="zerosThreshold"/> 是「分錄金額中有連續 0 的尾數」由 GL 算出的 0 的個數，條件寫成「金額尾數連續 N 個 0」；
+    /// 省略時寫規則名稱。上游修改會清掉已存情境，所以已存情境讀回時用目前的個數就是儲存時的個數。
+    /// <paramref name="forDocument"/> 為真時是底稿與報告用的寫法，欄位名稱加【】。
     /// </summary>
     public static string Render(
         JsonElement scenario,
@@ -226,8 +226,8 @@ public static class FilterConditionRenderer
         return keys.SetEquals([PrescreenRuleKeys.WeekendPosting, PrescreenRuleKeys.HolidayPosting]);
     }
 
-    // 2026-11-03 以前非營業日卡片加入的子條件組，只有一條排除補班日的日期條件。卡片現在直接加入那一條條件
-    //（裁定 2026-11-03-09），已儲存情境裡的這種子條件組照舊讀回「非營業日」。
+    // 舊情境裡由非營業日卡片加入的子條件組，只有一條排除補班日的日期條件。卡片現在直接加入那一條條件，
+    // 已儲存情境裡的這種子條件組照舊讀回「非營業日」。
     private static bool IsNonBusinessDayBracket(JsonElement rule)
     {
         if (Str(rule, "type") != "group") return false;
@@ -366,7 +366,7 @@ public static class FilterConditionRenderer
     {
         var fieldId = Str(rule, "fieldId");
         var glKey = Str(rule, "field");
-        // 欄位已不存在時寫畫面名稱、不接金額比較基準（裁定 2026-10-14-01）；前端 FilterValues.summary 同構。
+        // 欄位已不存在時寫畫面名稱、不接金額比較基準；前端 FilterValues.summary 同構。
         var fieldKnown = fieldId.Length == 0
             ? glKey == "amount" || FilterConditionLabels.GlFields.ContainsKey(glKey)
             : labels is not null && labels.ContainsKey(fieldId);
@@ -388,7 +388,7 @@ public static class FilterConditionRenderer
         if (fieldKnown && op is not "isBlank" and not "isNotBlank" && !FieldValueConditions.IsTail(op) && !FieldValueConditions.IsZeroRun(op)
             && !FieldValueConditions.IsDigitContains(op))
             field += Str(rule, "amountBasis") switch { "absolute" => "絕對值", "signed" => "含正負號", _ => "" };
-        // 空白預設不列入（裁定 2026-10-14-15），與 GlRulePredicates.FieldValue 的預設一致。
+        // 空白預設不列入，與 GlRulePredicates.FieldValue 的預設一致。
         var includeBlank = rule.TryGetProperty("includeBlank", out var blank) && blank.ValueKind == JsonValueKind.True;
         // 精簡讀回（自動名稱與動機用）只寫「空白也符合」，不寫預設的「空白不列入」，和前端 FilterValues.summary 的 compact 相同。
         var blankText = op is "isBlank" or "isNotBlank" ? "" : includeBlank ? "；空白也符合" : compact ? "" : "；空白不列入";
@@ -442,7 +442,7 @@ public static class FilterConditionRenderer
     }
 
     /// <summary>
-    /// 裁定 2026-11-03-01：文字條件的關鍵字用比對時的同一套分隔字元拆開、去掉重複，再用半形逗號接回，
+    /// 文字條件的關鍵字用比對時的同一套分隔字元拆開、去掉重複，再用半形逗號接回，
     /// 和前端讀回與送出的寫法相同，自動名稱與動機、報告與底稿的條件說明因此和畫面一致。
     /// </summary>
     private static string TextKeywords(JsonElement r) =>
@@ -532,7 +532,7 @@ public static class FilterConditionRenderer
     }
 
     // 選的分類都沒有下層時，「包含下層分類」與「僅分類本身」選到的分類相同，讀回不寫選取依據與實際納入分類。新案件的分類都是
-    // 平的一層（裁定 2026-11-03-27），條件說明就和舊版一樣只寫分類；「相同分類用途」會納入同用途的其他分類，照舊寫出。
+    // 平的一層，條件說明就和舊版一樣只寫分類；「相同分類用途」會納入同用途的其他分類，照舊寫出。
     // 沒有分類清單時當成沒有下層，和前端沒有分類設定時用內建分類一樣。前端 ui-core.js 的 categorySelectionMatters 是同一個規則。
     private static bool CategorySelectionMatters(JsonElement rule, IReadOnlyList<AccountCategory>? categories,
         params string[] idsProperties)
@@ -580,7 +580,7 @@ public static class FilterConditionRenderer
     /// <summary>空值以刪節號替代（同前端 <c>rule.from || '…'</c>）。</summary>
     private static string Ellipsis(string value) => value.Length > 0 ? value : "…";
 
-    /// <summary>欄位名稱：底稿與報告用【】標示，畫面照原樣（裁定 2026-11-03-17）。</summary>
+    /// <summary>欄位名稱：底稿與報告用【】標示，畫面照原樣。</summary>
     private static string FieldName(string name, bool forDocument) => forDocument ? "【" + name + "】" : name;
 
     /// <summary>畫面上用「」包住的欄位名稱，在底稿與報告裡改成【】。</summary>

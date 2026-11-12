@@ -1091,12 +1091,10 @@ internal static partial class PrivateCaseManifestLoader
     }
 }
 
-// 2026-10-14 起「同一傳票」比對範圍停用，產品儲存條件時會擋下，請審計員保留第一條、其餘各條放進「整張傳票條件」並選「至少一筆符合」；
-// 舊版篩選紀錄的解析器也只產生這種寫法。私人案件清單是使用者在這之前寫的，讀清單時照同一句說明換成新寫法，
-// 送出情境與核對舊版紀錄都用換過的定義；清單檔本身不改。第一次失敗：PrivateCase
-// 20261016-021117397-692898c0b4e74d0596265996bd8d51c6（SQLite）與 20261016-021130320-79e7290e83f54e2ca3397a482bff22e6（DuckDB），
-// 使用者選了「測試先換成新寫法再比對」（裁定 2026-10-16-14）。
-// 2026-10-30 起情境裡的條件陣列從 rules 改名為 conditions。清單裡的情境仍寫 rules，讀清單時先把條件組與
+// 「同一傳票」比對範圍已停用，產品儲存條件時會擋下，請審計員保留第一條、其餘各條放進「整張傳票條件」並選「至少一筆符合」；
+// 舊版篩選紀錄的解析器也只產生這種寫法。私人案件清單仍是舊寫法，讀清單時照同一句說明換成新寫法，
+// 送出情境與核對舊版紀錄都用換過的定義；清單檔本身不改。
+// 情境裡的條件陣列叫 conditions。清單裡的情境仍寫 rules，讀清單時先把條件組與
 // 組合條件（group、voucher）裡的 rules 換成 conditions，再處理同一傳票的舊寫法。
 internal static class PrivateCaseScenarioShape
 {
@@ -1182,10 +1180,9 @@ internal static class PrivateCaseScenarioShape
     }
 }
 
-// 專案紀錄收斂計畫第四階段改名時，案件設定的兩個欄名、GL 與 TB 的欄位代號和一個預篩選代號都換了名稱。
-// 私人案件清單在儲存庫外，照裁定 2026-10-16-14 清單檔本身不改，讀清單時把改名前的寫法換成現在的名稱；
-// 清單已經寫新名稱的照原樣保留。舊名稱逐字照改名前的 JetFieldCatalog 與 PrescreenRuleKeys，新舊對應見名詞表
-// 「不再使用的名稱」。第一次失敗：PrivateCase 收據 20261102-232931191-d62be73f0156411685b9ed22d7f8a70d（SQLite）。
+// 案件設定的兩個欄名、GL 與 TB 的欄位代號和一個預篩選代號都換過名稱。
+// 私人案件清單在儲存庫外，清單檔本身不改，讀清單時把改名前的寫法換成現在的名稱；
+// 清單已經寫新名稱的照原樣保留。舊名稱逐字照改名前的 JetFieldCatalog 與 PrescreenRuleKeys。
 internal static class PrivateCaseManifestNames
 {
     private static readonly IReadOnlyDictionary<string, string> ProjectKeys =

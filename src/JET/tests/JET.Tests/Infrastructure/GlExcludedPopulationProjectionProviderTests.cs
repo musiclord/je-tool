@@ -3,11 +3,10 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 三 provider 共用的 GL 與 GL(未納入測試) 分割 projection oracle。全部資料為程式內合成，驗證 raw 1,000 列
+/// GL 與 GL(未納入測試) 分割 projection oracle。全部資料為程式內合成，驗證 raw 1,000 列
 /// 的互斥 900／40／60 分割、period-first、trim／case／multi-value／blank 及控制總數。
 /// </summary>
 public sealed class GlExcludedPopulationProjectionProviderTests
@@ -42,7 +41,7 @@ public sealed class GlExcludedPopulationProjectionProviderTests
     {
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         var batch = (await new LocalImportRepository(database).ReplaceBatchAsync(
             projectId,
@@ -82,7 +81,7 @@ public sealed class GlExcludedPopulationProjectionProviderTests
     {
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         var batch = (await new LocalImportRepository(database).ReplaceBatchAsync(
             projectId,
@@ -121,9 +120,7 @@ public sealed class GlExcludedPopulationProjectionProviderTests
         var error = Assert.Single(result.Errors);
         Assert.Equal(3, error.SourceRowNumber);
         Assert.Equal("amount", error.Field);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        // 裁定 2026-10-22-07 一併改寫叫審計員調整小數位數的訊息，因為案件沒有這個設定；
-        // 第一次失敗：Focused 收據 20261023-112041173-c7f4d8ed17aa453d851bc2a95d0a2590。
+        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
         Assert.Null(result.GlTotals);
 
@@ -180,8 +177,7 @@ public sealed class GlExcludedPopulationProjectionProviderTests
             Assert.Equal(900, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE is_excluded = 0;"));
-            // 裁定 2026-10-21-04 把日期不符分成三種原因：40 筆日期不符是 20 筆總帳日期空白與 20 筆晚於查核期間。
-            // 原本斷言 40 筆都記成 period；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+            // 日期不符分成三種原因：40 筆日期不符是 20 筆總帳日期空白與 20 筆晚於查核期間。
             Assert.Equal(20, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason = 'blank_gl_date';"));
@@ -311,8 +307,7 @@ public sealed class GlExcludedPopulationProjectionProviderTests
             Assert.Equal(900, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE is_excluded = 0;"));
-            // 裁定 2026-10-21-04 把日期不符分成三種原因；原本這四行都比對 period。
-            // 第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+            // 日期不符分成三種原因。
             Assert.Equal(40, await ScalarAsync(
                 connection,
                 $"SELECT COUNT(*) FROM {target} WHERE exclusion_reason IN ('blank_gl_date', 'before_period', 'after_period');"));

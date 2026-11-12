@@ -11,11 +11,11 @@ namespace JET.Infrastructure;
 /// 攸關資料元素的值表以分錄與欄位為主鍵，每格只對到一列。資料表前綴與分頁語法由呼叫端傳入，
 /// 欄位、別名、參數名稱與讀值轉換都在這裡。
 /// 表名和母體條件寫在同一個 return 陳述句：表名不從參數傳入，GL 頁的條件由 <see cref="GlExcludedPopulation.SqlPredicate"/> 產生，
-/// GlExcludedPopulationReadGuardTests 才看得到這段讀取有沒有限定母體（2026-10-28 複審）。
+/// GlExcludedPopulationReadGuardTests 才看得到這段讀取有沒有限定母體。
 /// </summary>
 internal static class DataPreviewGlQuery
 {
-    /// <param name="tablePrefix">資料表前綴：SQLite 是空字串；參數保留給日後恢復的 SQL Server 傳 <c>{s}.</c>。</param>
+    /// <param name="tablePrefix">資料表前綴：SQLite 是空字串。</param>
     /// <param name="page">GL 頁讀納入測試的分錄；GL(未納入測試) 頁讀未納入的列，限定單一原因時另綁 <c>@exclusionReason</c>。</param>
     /// <param name="paging">分頁語法，接在分錄表的 <c>ORDER BY entry_id</c> 後面。</param>
     internal static string Select(

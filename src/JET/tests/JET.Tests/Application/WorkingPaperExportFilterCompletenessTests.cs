@@ -47,8 +47,7 @@ public sealed class WorkingPaperExportFilterCompletenessTests
         var validation = await host.DispatchAsync("validate.run");
         var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
         var value = new string('X', 33_000);
-        // 底稿與報告的條件說明裡，欄位名稱加【】（裁定 2026-11-03-17、2026-11-03-24）；原本預期沒有【】。
-        // 第一次失敗：Focused 收據 20261103-100708672-82d6fd9b49c249a9ac0e533fc3a3eaf8。
+        // 底稿與報告的條件說明裡，欄位名稱加【】。
         var expected = "【傳票摘要】 開頭符合「" + value + "」；空白不列入";
         var scenario = new { name = "Long conditions", rationale = "Synthetic", groups = new[] { new { conditions = new[] {
             new { type = "fieldValue", field = "description", @operator = "startsWith", value, includeBlank = false }

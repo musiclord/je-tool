@@ -65,7 +65,7 @@ internal sealed class HandlerTestHost : IDisposable
 
     public IReadOnlyList<(string EventName, object Payload)> PublishedEvents => _events.Published;
 
-    /// <summary>手寫 recording stub（jet-testing skill §1：host boundary 不用 mock framework）。</summary>
+    /// <summary>手寫 recording stub：host boundary 不用 mock framework。</summary>
     private sealed class RecordingEventPublisher : IJetEventPublisher
     {
         public List<(string EventName, object Payload)> Published { get; } = [];

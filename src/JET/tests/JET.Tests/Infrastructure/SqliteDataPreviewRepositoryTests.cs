@@ -6,9 +6,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// LocalDataPreviewRepository 對真 SQLite／DuckDB 的 contract 測試。
+/// LocalDataPreviewRepository 對真 SQLite 的 contract 測試。
 /// oracle：calendar 用固定假日／補班 fixture 鎖身分與值；schemaOverview 由 JetSchemaCatalog
-/// 驅動，GL 母體則用固定有效／排除列鎖 provider parity 與有界讀取。
+/// 驅動，GL 母體則用固定有效／排除列鎖有界讀取。
 /// </summary>
 public sealed class SqliteDataPreviewRepositoryTests
 {
@@ -46,7 +46,7 @@ public sealed class SqliteDataPreviewRepositoryTests
     public async Task GetPreviewAsync_Calendar_ReturnsImportedHolidayAndMakeupDaysSortedByDate()
     {
         using var fixture = new Fixture();
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await fixture.Database.EnsureCreatedAsync(fixture.ProjectId, CancellationToken.None);
 
         // 固定 fixture：2 假日（含一筆有名稱）+ 1 補班；刻意亂序匯入以驗 ORDER BY date。
@@ -104,9 +104,8 @@ public sealed class SqliteDataPreviewRepositoryTests
         using var fixture = new Fixture(provider);
         await SeedGlPopulationAsync(fixture);
 
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
-        // 資料預覽依配對列欄位（裁定 2026-10-22-09）：倉儲改由呼叫端傳入欄位計畫，
-        // 這裡用配對了過帳狀態的計畫。原本不傳計畫、欄位固定；第一次失敗：Focused 收據 20261023-112236182-bd560fe8519e41f1b448404a6a45e026，建置失敗。
+        // 資料預覽依配對列欄位：倉儲由呼叫端傳入欄位計畫，
+        // 這裡用配對了過帳狀態的計畫。
         var effective = await fixture.Repository.GetPreviewAsync(
             fixture.ProjectId,
             DataPreviewDataset.Gl,
@@ -130,7 +129,7 @@ public sealed class SqliteDataPreviewRepositoryTests
             CancellationToken.None,
             glColumns: DataPreviewGlColumns.For(DataPreviewDataset.GlExcluded, PostingStatusMapping, options: null));
 
-        // 過帳狀態是選填欄位，接在核心八欄後面；原本固定十欄、過帳狀態排第四（第一次失敗同上）。
+        // 過帳狀態是選填欄位，接在核心八欄後面。
         Assert.Equal(
             [
                 "voucherNumber", "lineItem", "glDate", "accountNumber", "accountName",
@@ -140,13 +139,11 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(excluded.Columns, excluded.ColumnDetails!.Select(column => column.Key));
         Assert.Equal(3, excluded.TotalCount);
         var row = Assert.Single(excluded.Rows);
-        // 裁定 2026-10-21-04 把日期不符分成三種原因：總帳日期空白的列記成 blank_gl_date，讀成 blankGlDate。
-        // 種子原本是改版前的 period，第一次失敗是讀不出這個值（收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a）。
+        // 日期不符分成三種原因：總帳日期空白的列記成 blank_gl_date，讀成 blankGlDate。
         Assert.Equal(
             ["JV-200", "1", null, "5200", "一般費用", "期外", "10", "DEBIT", "POSTED", "blankGlDate"],
             row);
-        // 裁定 2026-10-21-04 把日期不符分成三種原因，兩個計數改成四個；改名前的建置失敗收據
-        // 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
+        // 日期不符分成三種原因，計數共四個。
         var excludedStats = Assert.IsType<GlExcludedPreviewStats>(excluded.Stats);
         Assert.Equal(1, excludedStats.BlankGlDateCount);
         Assert.Equal(0, excludedStats.BeforePeriodCount);
@@ -161,7 +158,7 @@ public sealed class SqliteDataPreviewRepositoryTests
         using var fixture = new Fixture(provider);
         await fixture.Database.EnsureCreatedAsync(fixture.ProjectId, CancellationToken.None);
 
-        // 還沒確認 GL 配對時只列核心八欄與未納入原因；原本固定十欄，第一次失敗同上一個測試。
+        // 還沒確認 GL 配對時只列核心八欄與未納入原因。
         var result = await fixture.Repository.GetPreviewAsync(
             fixture.ProjectId,
             DataPreviewDataset.GlExcluded,
@@ -173,8 +170,7 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(9, result.Columns.Count);
         Assert.Empty(result.Rows);
         Assert.Equal(0, result.TotalCount);
-        // 裁定 2026-10-21-04 把日期不符分成三種原因，兩個計數改成四個；改名前的建置失敗收據
-        // 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
+        // 日期不符分成三種原因，計數共四個。
         var stats = Assert.IsType<GlExcludedPreviewStats>(result.Stats);
         Assert.Equal(0, stats.BlankGlDateCount);
         Assert.Equal(0, stats.BeforePeriodCount);
@@ -187,7 +183,7 @@ public sealed class SqliteDataPreviewRepositoryTests
     [InlineData(DataPreviewDataset.GlExcluded)]
     public async Task GetPreviewAsync_GlPagesWithoutColumnPlan_Throw(DataPreviewDataset dataset)
     {
-        // GL 兩頁的欄位由呼叫端依配對決定，倉儲不自己猜；漏傳時明確失敗（第一次失敗同上）。
+        // GL 兩頁的欄位由呼叫端依配對決定，倉儲不自己猜；漏傳時明確失敗。
         using var fixture = new Fixture();
         await fixture.Database.EnsureCreatedAsync(fixture.ProjectId, CancellationToken.None);
 
@@ -223,8 +219,6 @@ public sealed class SqliteDataPreviewRepositoryTests
         Assert.Equal(expectedCanonical.Count, result.TotalCount);
 
         // 正向：曝光表確實在（含一張 DataView、一張 StructureOnly）。
-        // 裁定 2026-10-08-04 統一全系統的資料名稱。
-        // 裁定 2026-10-13-19 把 PBC GL 改寫成 PBC-GL；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
         Assert.Contains("PBC-GL", actualCanonical);
         Assert.Contains("VALIDATION_OVERVIEW", actualCanonical);
 
@@ -261,7 +255,7 @@ public sealed class SqliteDataPreviewRepositoryTests
             CancellationToken.None);
 
         // GL 列：正準名 / 實體名 / 層 / 用途 / 可瀏覽（逐欄身分，對齊 catalog 宣告）。
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：JE 改為 GL，同一張表也承載 GL(未納入測試)。
+        // 同一張表也承載 GL(未納入測試)。
         var gl = result.Rows.Single(r => r[0] == "GL、GL(未納入測試)");
         Assert.Equal(["GL、GL(未納入測試)", "gl", "Staging", "DataView", "是"], gl);
 

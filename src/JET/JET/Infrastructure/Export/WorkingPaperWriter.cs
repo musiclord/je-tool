@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 匯出底稿(WorkingPaper).xlsx 寫出器。<see cref="IWorkingPaperPlanWriter"/> 的實作:
-/// 對外只 <see cref="WriteAsync"/>,內部隱藏全部 OpenXML 細節與資料表 keyset 串流。
+/// 對外只 <see cref="IWorkingPaperPlanWriter.WriteAsync"/>,內部隱藏全部 OpenXML 細節與資料表 keyset 串流。
 ///
 /// 為什麼 SAX(OpenXmlPartWriter)、不用 ClosedXML:
 ///   真實母體達百萬列(實務見過 ~140 萬列)。ClosedXML(及 OpenXML DOM)要把整個 worksheet
@@ -25,8 +25,8 @@ namespace JET.Infrastructure;
 ///   worksheet 子序列為 …→ sheetData → … → mergeCells,即 mergeCells 必須在 sheetData 之後。
 ///   emitter 可任意順序呼叫 WriteRow / AddMerge;原語保證先串完整個 sheetData、關閉後才寫 mergeCells。
 ///
-/// 資料表共用骨架(DRY 閾值=3,本 task step1 / step1-2 / step1-3 達標):
-///   <see cref="WriteCommonHeader"/> 出 A1-A4(公司/期間/財報準備日/斜體說明,五表全有);
+/// step1 家族資料表的共用部分:
+///   <see cref="WriteCommonHeader"/> 出 A1-A4(公司/期間/財報準備日/斜體說明,四張表都有);
 ///   step1-1(條件例外表)與 step1-3(完整性差異條件表)結構不同,各自處理——
 ///   完整性差異科目數為零時,step1-3 不註冊工作表;條件由各 emitter 自己的前置判斷決定,不集中成一個大分支。
 ///
@@ -459,6 +459,7 @@ public sealed partial class WorkingPaperWriter(
         }
     }
 
+    /// <summary>多欄欄標列工廠(欄自 B 起,對齊 step1 家族表頭都從 B 欄開始;BoldWrap 因欄標含換行)。</summary>
     private static IReadOnlyList<Cell> HeaderCells(SheetWriter sheet, uint row, IReadOnlyList<string> labels)
     {
         var cells = new List<Cell>(labels.Count);
@@ -481,9 +482,19 @@ public sealed partial class WorkingPaperWriter(
     private static decimal Display(long scaled, int moneyScale) =>
         moneyScale <= 0 ? scaled : (decimal)scaled / moneyScale;
 
-    // ---- 固定字串(逐字對齊本機參考樣本,xlsx_inspect.py 復解;含原樣換行)----
-
-
+    /// <summary>
+    /// 高風險情境的欄集 data structure。把「step4 用全部所選 position」
+    /// 「step4-1 只用所選集合中 rowHitCount&gt;0 的 position」
+    /// 這個業務分支(對齊樣本的動態 schema)收斂成預先算好的有序 position list,emitter 只需:
+    /// (1) 依 list 順序加欄標 cell;(2) 逐列依該列 matchedPositions 是否含某 position 標 Y——
+    /// 完全由 data structure 對映,不寫「第幾欄特判」，新增情境欄時不必改 emitter。
+    ///
+    /// <see cref="Scenarios"/> 供 step3 列(name/rationale/voucherHitCount,position 升冪);
+    /// <see cref="AllPositions"/> = 全部所選 position 升冪(step4 欄集);
+    /// <see cref="RowHitPositions"/> = rowHitCount&gt;0 的 position 升冪(step4-1 欄集);
+    /// <see cref="HitVoucherPositions"/> = 有命中、而且整張命中傳票都標 Y 的 position。
+    /// 全部取自 <see cref="WorkingPaperPlan"/>;step3 另需 rationale(D 欄),wire 摘要不含此欄,故用內部 <see cref="ScenarioRow"/> 承載。
+    /// </summary>
     private sealed class TagColumnSet
     {
         private const uint Step4FixedColumns = 5;   // A-E
@@ -651,6 +662,9 @@ public sealed partial class WorkingPaperWriter(
         private readonly List<string> _merges = [];
         private readonly DataValidations? _templateValidations;
         private readonly WorkingPaperLockedArea? _lockedArea;
+        private readonly (uint Style, double Width)? _unlockedColumns;
+        private readonly (uint First, uint Last)? _lockedHeaderRows;
+        private uint _nextLockedHeaderRow;
         private (uint TemplateLastRow, uint LastRow)? _validationExtension;
         private readonly List<(uint Min, uint Max, double Width, bool Hidden, bool BestFit)> _columns = [];
         private readonly Dictionary<uint, double> _rowHeights = [];
@@ -679,11 +693,20 @@ public sealed partial class WorkingPaperWriter(
             bool preserveTemplate,
             string? pageSetupRelationshipId = null,
             DataValidations? templateValidations = null,
-            WorkingPaperLockedArea? lockedArea = null)
+            WorkingPaperLockedArea? lockedArea = null,
+            (uint Style, double Width)? unlockedColumns = null)
         {
             _name = name;
             _templateValidations = templateValidations;
             _lockedArea = lockedArea;
+            _unlockedColumns = unlockedColumns;
+            // 續頁沒有範本格。第一頁表頭範圍裡的範本格是鎖定的，續頁在同一個範圍補上鎖定的空白格。
+            if (part is not null && overlay is null
+                && lockedArea is { } area && area.FirstRow <= area.LastTemplateRow)
+            {
+                _lockedHeaderRows = (area.FirstRow, area.LastTemplateRow);
+                _nextLockedHeaderRow = area.FirstRow;
+            }
             _part = part;
             _overlay = overlay;
             _styles = styles;
@@ -723,6 +746,9 @@ public sealed partial class WorkingPaperWriter(
                 templateValidations: templateValidations,
                 lockedArea: lockedArea);
 
+        /// <param name="unlockedColumns">
+        /// 有鎖定區的續頁用：每一欄都套上的不鎖定樣式，以及沒有設定寬度的欄要用的範本預設欄寬。
+        /// </param>
         internal static SheetWriter CreateContinuation(
             string name,
             WorksheetPart part,
@@ -731,7 +757,8 @@ public sealed partial class WorkingPaperWriter(
             CancellationToken cancellationToken,
             string? pageSetupRelationshipId,
             DataValidations? templateValidations = null,
-            WorkingPaperLockedArea? lockedArea = null) =>
+            WorkingPaperLockedArea? lockedArea = null,
+            (uint Style, double Width)? unlockedColumns = null) =>
             new(
                 name,
                 part,
@@ -742,7 +769,8 @@ public sealed partial class WorkingPaperWriter(
                 preserveTemplate: false,
                 pageSetupRelationshipId,
                 templateValidations,
-                lockedArea);
+                lockedArea,
+                unlockedColumns);
 
         internal static SheetWriter PreserveTemplate(
             string name,
@@ -887,7 +915,7 @@ public sealed partial class WorkingPaperWriter(
         }
 
         /// <summary>
-        /// 範本的下拉選單照原本的選項寫出；結束列等於範本最後一列的範圍延伸到這張表的最後一列（裁定 2026-11-09-13）。
+        /// 範本的下拉選單照原本的選項寫出；結束列等於範本最後一列的範圍延伸到這張表的最後一列。
         /// 資料沒有超過範本列數時照範本原樣。
         /// </summary>
         public void ExtendTemplateValidations(uint templateLastRow, uint lastRow)
@@ -989,8 +1017,8 @@ public sealed partial class WorkingPaperWriter(
                 return;
             }
 
-            // 例外路徑也要關掉開啟的元素並釋放 writer,否則 part 留半截 XML。
-            // 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因。
+            // 例外路徑也要釋放 writer；不是寫列時丟出的例外還要關掉開啟的元素，否則 part 留半截 XML。
+            // 寫列時丟出例外後 XML 停在半途，再寫結束標記只會丟出新的例外，蓋掉原本的失敗原因，所以這時不關元素。
             if (!_faulted)
             {
                 CloseElements();
@@ -1001,8 +1029,9 @@ public sealed partial class WorkingPaperWriter(
         }
 
         /// <summary>
-        /// 舊版鎖定整個資料區，連沒有值的格子也鎖（裁定 2026-11-09-15）。資料列在鎖定欄裡缺的格子補成空白格，
+        /// 舊版鎖定整個資料區，連沒有值的格子也鎖。資料列在鎖定欄裡缺的格子補成空白格，
         /// 樣式和其他寫入的格子一樣經過鎖定判斷；例如 step4 只用到幾個條件時，其餘條件欄也照舊版鎖住。
+        /// 續頁的表頭範圍沒有範本格，也用這個方法補成鎖定的空白格。
         /// </summary>
         private IReadOnlyList<Cell> FillLockedArea(uint rowIndex, IReadOnlyList<Cell> cells)
         {
@@ -1043,6 +1072,21 @@ public sealed partial class WorkingPaperWriter(
 
         private void WriteRowCore(uint rowIndex, IReadOnlyList<Cell> cells)
         {
+            if (_lockedHeaderRows is { } header)
+            {
+                // 表頭範圍裡沒寫到的列，在寫後面的列之前先補一列鎖定的空白格；同一列只補一次。
+                while (_nextLockedHeaderRow <= header.Last && _nextLockedHeaderRow < rowIndex)
+                {
+                    var blankRow = _nextLockedHeaderRow++;
+                    WriteRowCore(blankRow, FillLockedArea(blankRow, []));
+                }
+                if (rowIndex == _nextLockedHeaderRow && rowIndex <= header.Last)
+                {
+                    cells = FillLockedArea(rowIndex, cells);
+                    _nextLockedHeaderRow++;
+                }
+            }
+
             ExcelWorksheetConstraints.EnsureCell(rowIndex, 1);
 
             var row = new Row { RowIndex = rowIndex };
@@ -1289,17 +1333,33 @@ public sealed partial class WorkingPaperWriter(
             writer.WriteStartElement(new SheetData());
         }
 
+        /// <summary>
+        /// 寫出欄寬設定。有鎖定區的續頁沒有範本的欄樣式，這時每一欄都套上不鎖定的樣式，
+        /// 沒有設定寬度的欄用範本的預設欄寬，沒寫值的格子才會和第一頁一樣可以填。
+        /// 欄寬設定要由左到右、不重疊。
+        /// </summary>
         private Columns? BuildColumns()
         {
-            if (_columns.Count == 0)
+            if (_columns.Count == 0 && _unlockedColumns is null)
             {
                 return null;
             }
 
             var columns = new Columns();
+            var nextColumn = 1U;
             foreach (var column in _columns)
             {
-                columns.Append(new Column
+                if (_unlockedColumns is { } gap && column.Min > nextColumn)
+                {
+                    columns.Append(new Column
+                    {
+                        Min = nextColumn,
+                        Max = column.Min - 1,
+                        Width = gap.Width,
+                        Style = gap.Style
+                    });
+                }
+                var element = new Column
                 {
                     Min = column.Min,
                     Max = column.Max,
@@ -1307,6 +1367,22 @@ public sealed partial class WorkingPaperWriter(
                     CustomWidth = true,
                     Hidden = column.Hidden,
                     BestFit = column.BestFit
+                };
+                if (_unlockedColumns is { } unlocked)
+                {
+                    element.Style = unlocked.Style;
+                }
+                columns.Append(element);
+                nextColumn = Math.Max(nextColumn, column.Max + 1);
+            }
+            if (_unlockedColumns is { } tail && nextColumn <= ExcelWorksheetConstraints.MaxColumns)
+            {
+                columns.Append(new Column
+                {
+                    Min = nextColumn,
+                    Max = ExcelWorksheetConstraints.MaxColumns,
+                    Width = tail.Width,
+                    Style = tail.Style
                 });
             }
             return columns;

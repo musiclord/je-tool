@@ -12,16 +12,14 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 執行中的長語句在取消後要很快停下，三種資料庫在畫面上都回「作業已取消」。
-/// 2026-10-05 最後獨立複審實測：SQLite 帶取消的長語句仍跑完 54.7 秒。這裡用真正的長語句，200 毫秒後取消，
+/// 執行中的長語句在取消後要很快停下，畫面上回「作業已取消」。
+/// 這裡用真正的長語句，200 毫秒後取消，
 /// 要求 10 秒內停下；交易內被中斷的寫入不得留下資料，同一條連線之後照常可用。
-/// 修正前第一次失敗見收據 20261019-053544183-355616838b7e4e6aaab0832e02473f2f：SQLite 三種執行方式都等到
-/// 測試自己的 30 秒中斷才停，丟出 SqliteException；同日 SQL Server 半秒內停下，但丟出 SqlException，
-/// 經 bridge 會變成非預期錯誤。
+/// 取消要以取消例外回報；丟出資料庫自己的例外（例如 SqliteException），經 bridge 會變成非預期錯誤。
 /// </summary>
 public sealed class LongStatementCancellationProviderTests
 {
-    /// <summary>十億層遞迴，不取消要跑很久；SQLite 與 DuckDB 共用同一段 SQL。</summary>
+    /// <summary>十億層遞迴，不取消要跑很久。</summary>
     private const string LocalLongCount =
         "SELECT COUNT(*) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 1000000000) SELECT x FROM c) AS t";
 
@@ -33,8 +31,6 @@ public sealed class LongStatementCancellationProviderTests
 
     private static readonly Action<DbConnection, DbCommand> InterruptSqliteDirectly =
         static (connection, _) => SQLitePCL.raw.sqlite3_interrupt(((SqliteConnection)connection).Handle);
-
-    private static readonly Action<DbConnection, DbCommand> CancelCommand = static (_, command) => command.Cancel();
 
     [Theory]
     [InlineData(ProjectDocument.DefaultDatabaseProvider, "scalar")]
@@ -73,9 +69,8 @@ public sealed class LongStatementCancellationProviderTests
         + "WHERE x = 1 OR x = 1000000000";
 
     /// <summary>
-    /// 第 22 步盤點的第 7 項：第一列很快讀到，下一列要掃很久才出來。原本讀下一列時只在開始前檢查一次取消，
-    /// 按取消後要等到下一列出來才停；現在讀下一列的期間也接上中斷。DuckDB 一次算完整個結果才交出第一列，
-    /// 長時間都花在上面已測的第一步，沒有這段等待。這是新增的測試。
+    /// 第一列很快讀到，下一列要掃很久才出來。讀下一列的期間也接上中斷，
+    /// 按取消後不必等到下一列出來才停。
     /// </summary>
     [Fact]
     public async Task SlowNextRow_StopsSoonAfterCancel_AndConnectionStaysUsable_Sqlite()
@@ -171,7 +166,7 @@ public sealed class LongStatementCancellationProviderTests
         string longRead,
         Action<DbConnection, DbCommand> interruptDirectly)
     {
-        // 與 AppCompositionRoot 相同的引擎錯誤映射；SQL Server 的映射隨 SQL Server 移除（裁定 2026-11-06-08）。
+        // 與 AppCompositionRoot 相同的引擎錯誤映射。
         var dispatcher = new ActionDispatcher(
             [new LongStatementHandler(createConnection, longRead, interruptDirectly)],
             NullLogger<ActionDispatcher>.Instance,

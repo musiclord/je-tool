@@ -8,9 +8,8 @@ public sealed class PrescreenSummaryCountTests
 {
     [Theory]
     [InlineData("sqlite")]
-    // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，第四步不再數 11 筆以下的科目與分錄，原本的 rareAccount.count 與 rareAccountCount 兩項斷言跟著拿掉，
-    // 測試改名；保留較少使用之科目彙總只看查核期間的科目數，並改在重新開啟後核對同一個科目數。
-    // 第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+    // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目，不數 11 筆以下的科目與分錄；
+    // 較少使用之科目彙總只看查核期間的科目數，重新開啟後核對同一個科目數。
     public async Task DistinctAccountCount_UsesAuditPeriodAndSurvivesReopen(string provider)
     {
         using var host = new HandlerTestHost();
@@ -35,7 +34,6 @@ public sealed class PrescreenSummaryCountTests
 
     [Theory]
     [InlineData("sqlite")]
-    // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，原本的 rareAccount.count 與 rareAccountCount 兩項斷言跟著拿掉，測試改名；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
     public async Task DistinctAccountCount_UsesWholePopulationBeyondFiftyRowSummary(string provider)
     {
         using var host = new HandlerTestHost();

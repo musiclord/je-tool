@@ -37,7 +37,7 @@
   var pendingCodeInputs = null;
   var codeComparisonScope = null;
   var pendingCreationDate = null;
-  // 「由底稿匯入欄位」托盤上次帶入的檔名與欄數，以及上次失敗的原因（裁定 2026-11-09-29）。
+  // 「由底稿匯入欄位」托盤上次帶入的檔名與欄數，以及上次失敗的原因。
   // 記下當時的案件與 GL 匯入，換案件或 GL 重新匯入後不再顯示；要重新選擇的欄位不記在這裡，每次從配對草稿的 droppedFields 列出。
   var reportImport = null;
   var reportImportFailure = null;
@@ -96,7 +96,7 @@
     return valueProfileCache;
   }
 
-  // 這個來源欄確認配對時會不會被往下填補。填補是對來源欄做的，看有沒有勾選的欄位配到它（裁定 2026-10-28-04）。
+  // 這個來源欄確認配對時會不會被往下填補。填補是對來源欄做的，看有沒有勾選的欄位配到它。
   function columnFilledDown(column) {
     var draft = Store.getState().mapping.gl.draft;
     return fillDownByColumn(draft, glOptions().fillDownFields || []).some(function (key) { return draft[key] === column; });
@@ -298,8 +298,8 @@
       return '<p class="map-options__note">清單代碼是否出現在來源裡尚未核對。按「讀取來源值」後，才會查詢完整來源。</p>';
     }
     if (profile.loading || profile.error) { return ''; }
-    // 只有不支援核對的資料庫會回 unsupportedProvider。只保留 SQLite 之後不會出現，句子照裁定 2026-10-14-01 的原文保留，
-    // 日後接回 SQL Server 時沿用（裁定 2026-11-06-08）。
+    // 只有不支援核對的資料庫會回 unsupportedProvider。目前只有 SQLite 案件，不會出現；
+    // 這一句保留給日後不支援核對的資料庫沿用。
     if (profile.sourceValueCheckStatus === 'unsupportedProvider') {
       return '<p class="map-options__note">線上案件無法核對清單代碼是否出現在來源中，仍可確認配對。</p>';
     }
@@ -316,7 +316,7 @@
 
   // 惰性取得來源欄值分布。只發 mapping.valueProfile，載入完成後 touch() 重繪；
   // 值、次數、空白數與是否截斷全部由後端決定，前端不補算 distinct。
-  // 來源欄會被往下填補時請求帶 fillDown，列數是填補後的；已讀到的清單在勾選改變時就地重新計數（裁定 2026-10-28-03）。
+  // 來源欄會被往下填補時請求帶 fillDown，列數是填補後的；已讀到的清單在勾選改變時就地重新計數。
   // quiet 給畫面綁定時用：畫面已經依 profileRecounting 畫成重新計數中，這裡只送請求、不在重繪途中再要求重繪。
   function ensureValueProfile(kind, column, quiet) {
     if (!column) { return; }
@@ -533,11 +533,11 @@
     Ui.bindStepFooter(container);
   }
 
-  // 「由底稿匯入欄位」：從 JET 匯出的工作底稿或其他有配對紀錄的 JET 報告帶入當時的欄位配對，填成草稿，審計員按確認配對才儲存
-  // （裁定 2026-11-05-03、2026-11-09-27、2026-11-09-30）。舊版 IDEA JET 的工作底稿由後端讀欄位對照表推得草稿（裁定 2026-11-09-28），
+  // 「由底稿匯入欄位」：從 JET 匯出的工作底稿或其他有配對紀錄的 JET 報告帶入當時的欄位配對，填成草稿，審計員按確認配對才儲存。
+  //舊版 IDEA JET 的工作底稿由後端讀欄位對照表推得草稿，
   // 回應形狀相同，畫面不必知道配對是從哪裡讀到的。給另一個案件用：同一客戶的下一年度、同事做過的案件，或刪除重建的案件。
   // GL 匯入後才有來源欄可以比對。
-  // 按鈕與結果放在配對區上方的托盤（裁定 2026-11-09-29）：上面一排按鈕與一句說明，失敗原因是托盤裡的琥珀色提示，
+  // 按鈕與結果放在配對區上方的托盤：上面一排按鈕與一句說明，失敗原因是托盤裡的琥珀色提示，
   // 下面一張白紙寫帶入的檔名與欄數，逐項列出要重新選擇的欄位；GL 與 TB 卡片頂端不再重複列出。
   function restoreFromReportHtml(state) {
     if (!state.importState.gl) { return ''; }
@@ -607,8 +607,8 @@
     });
   }
 
-  // 檔案裡找不到的來源欄列在托盤請審計員重選；沒有匯入 TB 時只帶入 GL，原因寫在托盤（裁定 2026-11-09-29）。
-  // 選檔視窗的標題照裁定 2026-11-09-30；取消選檔時什麼都不送、不記。
+  // 檔案裡找不到的來源欄列在托盤請審計員重選；沒有匯入 TB 時只帶入 GL，原因寫在托盤。
+  // 取消選檔時什麼都不送、不記。
   function bindRestoreFromReport(container) {
     var btn = container.querySelector('[data-action="restore-mapping-from-report"]');
     if (!btn) { return; }
@@ -649,7 +649,7 @@
           if (!data) { return ''; }
           return data.tb ? '已由底稿匯入 GL 與 TB 的欄位配對草稿。' : '已由底稿匯入 GL 的欄位配對草稿。';
         },
-        // 讀不到檔案或沒有可帶入的配對時，原因寫在托盤裡的琥珀色提示，不用步驟上方的提示框（裁定 2026-11-09-29）。
+        // 讀不到檔案或沒有可帶入的配對時，原因寫在托盤裡的琥珀色提示，不用步驟上方的提示框。
         // 另一項作業還在進行與取消不是這個檔案的問題，照共用的處理只記在訊息面板。
         inlineError: true,
         onError: function (_, error) {
@@ -669,7 +669,7 @@
 
   // 簡易清單與對照表格共用同一份提交資格鏡像；後端 mapping.commit 仍是權威驗證。
   // GL 另檢查標準化政策草稿（核准日互斥、過帳狀態政策、人工／自動代碼、攸關資料元素欄位）；
-  // 這些只是就近引導，值的正規化、去重與跨欄裁定仍全在系統端。
+  // 這些只是就近引導，值的正規化、去重與跨欄判定仍全在系統端。
   function mappingCommitEligibility(fields, mode, mappingState, kind) {
     var required = fields.filter(function (field) { return !field.literal && Ui.isRequired(field, mode); });
     var missing = missingRequired(fields, mode, mappingState);
@@ -752,9 +752,9 @@
     );
   }
 
-  // 傳票核准日只在這一個下拉設定（裁定 2026-10-08-09）：選來源欄就代表由來源欄提供，
+  // 傳票核准日只在這一個下拉設定：選來源欄就代表由來源欄提供，
   // 另有「沒有核准日」與「與總帳日期相同」兩個選項。值加前綴，因為來源欄名可能是任意字串；
-  // 送出的 approvalDateMode 與 approvalDate 組合和以前相同，後端契約不變。
+  // 送出的仍是 approvalDateMode 與 approvalDate 的組合。
   function approvalChoiceHtml(options, draft, importInfo) {
     var mode = options.approvalDateMode;
     var selected = mode === 'mapped' && draft.approvalDate
@@ -784,7 +784,7 @@
   }
 
   // 「讀取來源值」按下後按鈕不見，焦點依序交給：讀取中的提示、讀取失敗的重試鈕、讀出的值清單第一個控制項、值清單本身
-  //（app.js 的 data-focus-successor），原本按下後焦點會掉到頁面本身。提示與清單本身用 tabindex="-1" 才能拿焦點，不進 Tab 順序。
+  //（app.js 的 data-focus-successor），不這樣做的話按下後焦點會掉到頁面本身。提示與清單本身用 tabindex="-1" 才能拿焦點，不進 Tab 順序。
   var POSTING_VALUES_FOCUS = '[data-values-loading=posting]; [data-load-failure] [data-action=load-posting-profile]; .value-option-list [data-posting-value]; .value-option-list';
   var MANUAL_VALUES_FOCUS = '[data-values-loading=manual]; [data-load-failure] [data-action=load-manual-profile]; .value-assign-list [data-manual-assign]; .value-assign-list';
 
@@ -802,7 +802,7 @@
     var profile = valueProfiles('gl')[draft.postingStatus];
     var body;
     // 讀取中的提示、失敗提示與讀到的值清單各有識別：按「讀取來源值」後清單從標題下長出來，提示收起來，
-    // 和其他展開的區塊一樣（app.js 的 JetMotion，裁定 2026-10-13-11）。
+    // 和其他展開的區塊一樣（app.js 的 JetMotion）。
     // 提示用「state:」、清單用「:欄名」，來源欄剛好叫 loading 或 error 時兩者也不會被當成同一個東西。
     if (!profile || profile.metadataOnly) {
       body = '<button type="button" class="btn btn--ghost btn--tiny" data-action="load-posting-profile" data-focus-successor="' + POSTING_VALUES_FOCUS + '">' +
@@ -918,8 +918,8 @@
         '</fieldset>';
     }
 
-    // 先呈現判定方式與空白處理，再列代碼及按需核對的來源值，原本人工與自動分錄區的設計看不明白用意（裁定 2026-10-09-02）；
-    // 只顯示目前判定方式需要的代碼。預設值不寫入政策，空白與分類結果和以前相同。
+    // 先呈現判定方式與空白處理，再列代碼及按需核對的來源值；
+    // 只顯示目前判定方式需要的代碼。預設值不寫入政策，不影響空白與分類結果。
     var mode = policy.unlistedValueKind || 'reject';
     var blank = policy.blankValueKind || 'reject';
     var modeHint = {
@@ -1005,7 +1005,7 @@
     }
 
     // 代碼整塊與人工、自動兩組各有識別：「改從來源值選取／改用輸入代碼」換整塊、換判定方式多出或少掉一組時，
-    // 整塊長出來或收起來，不再一下跳過去（裁定 2026-10-13-11）。
+    // 整塊長出來或收起來，不會一下跳過去。
     var codes =
       '<div class="map-options__codes" data-motion-key="manual-codes">' +
         (mode === 'manual' ? '' : '<div class="map-options__code-group" data-motion-key="code-group-manual">' +
@@ -1099,7 +1099,7 @@
       '<button type="button" class="btn btn--ghost" data-action="cancel-created-date">取消</button></div>';
   }
 
-  // 往下填補是對來源欄做的：配到同一個來源欄的欄位一起勾、一起取消（裁定 2026-10-28-04）。
+  // 往下填補是對來源欄做的：配到同一個來源欄的欄位一起勾、一起取消。
   // 回傳照欄位目錄順序排好的清單，和後端正規化的結果相同，草稿與已確認版本才比得出「沒有改」。
   function fillDownByColumn(draft, keys) {
     var columns = Object.create(null);
@@ -1109,7 +1109,7 @@
     }).map(function (field) { return field.key; });
   }
 
-  // 往下填補空白放在第三步確認配對時（裁定 2026-10-22-16）：列出草稿裡有來源欄的欄位，
+  // 往下填補空白放在第三步確認配對時：列出草稿裡有來源欄的欄位，
   // 借方、貸方代碼是字面值不列；勾選的欄位在確認配對時由後端把空白補成同一來源內上一列的值，PBC-GL 保持原樣。
   // 還沒指派任何來源欄時不顯示這一區。
   function fillDownFieldsHtml(options, draft) {
@@ -1209,7 +1209,7 @@
     var committed = mappingState.committed;
     if (!committed || !committed.mapping) { return false; }
     if (committed.mode && committed.mode !== mode) { return false; }
-    // 往下填補的勾選依來源欄成組後再比：存下的清單可能只有其中一個欄位，畫面與送出的卻是整組（裁定 2026-10-28-04）。
+    // 往下填補的勾選依來源欄成組後再比：存下的清單可能只有其中一個欄位，畫面與送出的卻是整組。
     if (committed.options && JSON.stringify(comparableOptions(mappingState.options, mappingState.draft)) !==
         JSON.stringify(comparableOptions(committed.options, committed.mapping))) { return false; }
 
@@ -1229,7 +1229,7 @@
     return hit ? hit.label : mode;
   }
 
-  // 金額方式的單選群組。選取的方式要相減或依正負號判斷時，下方說明金額怎麼算（裁定 2026-10-21-11），
+  // 金額方式的單選群組。選取的方式要相減或依正負號判斷時，下方說明金額怎麼算，
   // 報讀器也從群組讀到這句說明；直接取用一欄的方式沒有說明。
   function modeGroupHtml(kind, modes, mode) {
     var radios = modes.map(function (m) {
@@ -1277,7 +1277,7 @@
     if (committed.projectedRowCount != null) {
       facts.push('共 ' + Ui.countText(committed.projectedRowCount) + ' 筆');
     }
-    // 確認配對時往下填補了幾格，跟著配對保存，重開案件也列得出來（裁定 2026-10-28-05）；沒有填補時不列。
+    // 確認配對時往下填補了幾格，跟著配對保存，重開案件也列得出來；沒有填補時不列。
     if (committed.fillDownCount) {
       facts.push('往下填補 ' + Ui.countText(committed.fillDownCount) + ' 格空白');
     }
@@ -1295,7 +1295,7 @@
           literalNoteHtml(fields, committed) +
           committedOptionsHtml(kind, committed) +
           '<div class="panel__actions panel__actions--start">' +
-            // 打開右側資料預覽的檢視一律寫「資料預覽」，字後面接面板圖示（裁定 2026-10-30-36）。
+            // 打開右側資料預覽的檢視一律寫「資料預覽」，字後面接面板圖示。
             '<button type="button" class="jet-view jet-view--preview" data-action="preview-target-' + kind +
               '" aria-label="資料預覽：' + (kind === 'gl' ? 'GL' : 'TB') + '">資料預覽</button>' +
             '<button type="button" class="btn btn--ghost" data-action="remap-' + kind + '">重新配對</button>' +
@@ -1348,7 +1348,7 @@
   }
 
   // 唯讀二維對照表:來源欄當表頭、其下標示對應到的 JET 欄位,再附樣本資料列(沿用 sourceCache)。
-  // 已確認配到金額位置的來源欄靠右，數值照原樣；表頭照樣靠左，和右側資料預覽的 PBC 兩頁同一個判斷（裁定 2026-11-05-04）。
+  // 已確認配到金額位置的來源欄靠右，數值照原樣；表頭照樣靠左，和右側資料預覽的 PBC 兩頁同一個判斷。
   // 還沒確認的草稿表（twoDimMappingTable）全部靠左。
   function committedTableHtml(kind, fields, importInfo, committed) {
     var columns = (importInfo && importInfo.columns) || [];
@@ -1474,9 +1474,9 @@
           (glOptions().approvalDateMode === 'sameAsGlDate' ? ' checked' : '') + '>核准日與總帳日期相同</label>' : '');
   }
 
-  // 表格上方一行寫還差幾個必填欄位，全部選好時寫「必填欄位皆已配對」（裁定 2026-11-05-24、2026-10-09-12）。
-  // 簡易清單的必填欄位在自己那一列標「必填」（裁定 2026-11-05-23）；對照表格沒有一列一個 JET 欄位，這一行後面接每個必填欄位的
-  // 名稱標籤，還沒選是琥珀色，選好是灰色加勾，標籤不能點（裁定 2026-11-05-24）。這一行與每個標籤都有識別：
+  // 表格上方一行寫還差幾個必填欄位，全部選好時寫「必填欄位皆已配對」。
+  // 簡易清單的必填欄位在自己那一列標「必填」；對照表格沒有一列一個 JET 欄位，這一行後面接每個必填欄位的
+  // 名稱標籤，還沒選是琥珀色，選好是灰色加勾，標籤不能點。這一行與每個標籤都有識別：
   // 換金額欄位格式時多出來的欄位長出來、不再需要的收起來，標題原地交叉淡化（app.js 的 JetMotion）。
   function requiredSummaryHtml(eligibility, mappingState, kind, withTags) {
     var title = eligibility.missing.length > 0
@@ -1518,7 +1518,7 @@
     var listsManual = policy.unlistedValueKind === 'automatic';
     var listed = listsManual ? policy.manualValues : (policy.unlistedValueKind === 'manual' ? policy.automaticValues : []);
     if (listed.length && (!profile || profile.metadataOnly || profile.error)) {
-      // 這句的用字依裁定 2026-10-14-01；黃色提示不過度解釋（裁定 2026-10-14-02），所以拿掉「可先按「讀取來源值」確認」，
+      // 黃色提示不過度解釋，所以不寫「可先按「讀取來源值」確認」，
       // 按鈕就在旁邊。讀取失敗時仍要說可以再試一次。
       warnings.push((listsManual ? '人工' : '自動') + '分錄代碼「' + listed.join('、') + '」尚未與來源核對；來源沒有' +
         (listed.length > 1 ? '這些' : '此') + '代碼時，有值的列都會視為' + (listsManual ? '自動' : '人工') +
@@ -1537,7 +1537,7 @@
         if (unclassified.length) { warnings.push('「' + unclassified.join('、') + '」未歸類為人工或自動，請歸類，或改用只列一側。'); }
       }
     }
-    // 這些是不擋確認的提醒，用「需要注意」的琥珀色；檢查真的沒通過時另有紅色的配對未完成（裁定 2026-10-09-03）。
+    // 這些是不擋確認的提醒，用「需要注意」的琥珀色；檢查真的沒通過時另有紅色的配對未完成。
     return warnings.length ? '<div class="form-notice form-notice--warning" data-bind="mapping-preflight-gl" data-motion-key="mapping-preflight-gl" role="status"><strong>確認前請留意：</strong><ul>' +
       warnings.map(function (warning) { return '<li>' + Ui.esc(warning) + '</li>'; }).join('') + '</ul></div>' : '';
   }
@@ -1626,7 +1626,7 @@
       if (fresh) { fresh.__jetCommitErrorHtml = html; }
     }
     // 內容變了（第一次修改多出「設定已修改」一行，或「前往設定」按鈕跟著草稿改變）時走 JetMotion，
-    // 提示框從原本的高度長到新的高度，下面的內容跟著移動，不再一下跳開（裁定 2026-10-13-11）。
+    // 提示框從原本的高度長到新的高度，下面的內容跟著移動，不會一下跳開。
     // section 本身有 data-motion-key（mapping-<kind>-edit），提示是 mapping-error-<kind>。
     if (global.JetMotion && typeof global.JetMotion.morph === 'function') {
       global.JetMotion.morph(section, update);
@@ -1637,7 +1637,7 @@
 
   // 編輯畫面頂端的狀態提示。重建整步與輸入時的就地更新共用這一份，兩條路徑的文字不會分歧。
   // 同次開啟保留目前草稿；重開案件才帶回上次確認的配對。缺少的來源欄逐一列出，讓審計員補選。
-  // 由底稿匯入欄位時找不到的來源欄也記在 droppedFields（fromReport），但只列在配對區上方的托盤，這裡不重複列出（裁定 2026-11-09-29）。
+  // 由底稿匯入欄位時找不到的來源欄也記在 droppedFields（fromReport），但只列在配對區上方的托盤，這裡不重複列出。
   function mappingBannerHtml(kind, mappingState, committed, matches) {
     var dropped = (mappingState.droppedFields || []).filter(function (item) { return !item.fromReport; });
     var droppedText = dropped.length
@@ -1696,7 +1696,7 @@
         (committed ? '重新確認配對' : '確認配對') + '</button>';
 
     // 對照表那一塊（map-layout）標上識別：換金額欄位格式或換表格樣式時，表格原地交叉淡化、高度平順改變，
-    // 下面的設定跟著移動，不再一下跳過去（app.js 的 JetMotion，裁定 2026-10-12-03）。
+    // 下面的設定跟著移動，不會一下跳過去（app.js 的 JetMotion）。
     return '<section class="mapping-section" data-bind="mapping-' + kind + '" data-motion-key="mapping-' + kind + '-edit">' +
         '<div class="mapping-section__toolbar"><h3 class="mapping-section__title">' + title + '</h3>' +
           uiModeToggleHtml(kind) + '</div>' +
@@ -1749,7 +1749,7 @@
           options + '</select>';
       }
 
-      // 必填欄位在自己那一列標「必填」，還沒選時標籤是琥珀色（裁定 2026-11-05-23）。借方代碼與貸方代碼只要填一個，
+      // 必填欄位在自己那一列標「必填」，還沒選時標籤是琥珀色。借方代碼與貸方代碼只要填一個，
       // 兩列標示共同要求，不把其中一側單獨設成必填。
       return '<tr class="mapping-table__row' + (required ? ' is-required' : '') + (required && !current ? ' is-missing' : '') + '">' +
           '<td class="mapping-table__label">' + field.label +
@@ -1769,7 +1769,7 @@
         (committed ? '重新確認配對' : '確認配對') + '</button>';
 
     // 對照表那一塊（map-layout）標上識別：換金額欄位格式或換表格樣式時，表格原地交叉淡化、高度平順改變，
-    // 下面的設定跟著移動，不再一下跳過去（app.js 的 JetMotion，裁定 2026-10-12-03）。
+    // 下面的設定跟著移動，不會一下跳過去（app.js 的 JetMotion）。
     return '<section class="mapping-section" data-bind="mapping-' + kind + '" data-motion-key="mapping-' + kind + '-edit">' +
         '<div class="mapping-section__toolbar"><h3 class="mapping-section__title">' + title + '</h3>' +
           uiModeToggleHtml(kind) + '</div>' +
@@ -2328,7 +2328,7 @@
     }
 
     // 草稿態（或已提交摘要卡）有二維表 → 惰性載入 PBC-GL 或 PBC-TB。
-    // 捲動位置由 renderContent 依 data-preserve-scroll 統一還原，此處不再持有本地暫存。
+    // 捲動位置由 renderContent 依 data-preserve-scroll 統一還原，此處不持有本地暫存。
     var gridWrap = section.querySelector('.map-grid-wrap');
     if (gridWrap) {
       ensureSourcePreview(kind, Store.getState().importState[kind]);
@@ -2406,7 +2406,7 @@
             committed.availableGlFields = data.availableGlFields || null;
             // 這次投影往下填補了幾格，摘要列出來；審計員據此記在 CAATs 文件。
             committed.fillDownCount = data.fillDownCount || 0;
-            // 這次投影由 GL 借方平均算出的尾數 0 的個數（裁定 2026-11-05-25），第四步卡片與第五步預設跟著更新。
+            // 這次投影由 GL 借方平均算出的尾數 0 的個數，第四步卡片與第五步預設跟著更新。
             committed.zerosThreshold = data.zerosThreshold || null;
           }
           Store.setMappingCommitted(kind, committed);
@@ -2425,7 +2425,7 @@
           throw error;
         });
       }, {
-        // 完成句由 Ui.run 接上耗時（共用的秒與分秒寫法）後記一則（裁定 2026-10-13-17）。
+        // 完成句由 Ui.run 接上耗時（共用的秒與分秒寫法）後記一則。
         completionMessage: function (data) {
           if (!data) { return ''; }
           // GL 有往下填補空白時，完成句一起寫出填了幾格。
@@ -2439,7 +2439,7 @@
           mappingCommitErrors[kind] = {
             project: project,
             importInfo: importInfo,
-            // 後端沒有附原因時的句子，這句的用字依裁定 2026-10-13-28。
+            // 後端沒有附原因時的句子。
             message: Ui.errorText(error, '確認配對未完成，請再試一次。'),
             details: error && Array.isArray(error.details) ? error.details : null
           };

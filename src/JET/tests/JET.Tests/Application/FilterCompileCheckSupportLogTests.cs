@@ -9,8 +9,8 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 篩選條件編譯時的檢查沒過，只會是程式送錯資料或存檔損毀，審計員在畫面上無從修正。畫面只寫非預期錯誤那一句，
-/// 檢查代號與位置記進支援日誌的 <c>filter.compile_check_failed</c>，不帶欄位名稱與輸入值；本機兩種資料庫的方言都走同一個檢查。
-/// 這段的用字依裁定 2026-10-14-01。預期值都是寫死的句子或代號，不由被測程式算出。
+/// 檢查代號與位置記進支援日誌的 <c>filter.compile_check_failed</c>，不帶欄位名稱與輸入值。
+/// 預期值都是寫死的句子或代號，不由被測程式算出。
 /// </summary>
 public sealed class FilterCompileCheckSupportLogTests
 {

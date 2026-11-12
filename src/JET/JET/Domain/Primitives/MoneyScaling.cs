@@ -3,7 +3,7 @@ using System.Globalization;
 namespace JET.Domain;
 
 /// <summary>
-/// 金額解析與 scaled integer 轉換（見 docs/jet-guide.md 第 10 節「大資料量原則」：金額以固定精度整數表示）。
+/// 金額解析與 scaled integer 轉換：金額以固定精度整數表示。
 /// 來源金額一律以 decimal 解析驗證，再乘以 project MoneyScale
 /// 以 AwayFromZero 取整為 64-bit scaled integer。
 /// </summary>

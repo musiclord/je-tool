@@ -6,8 +6,7 @@ namespace JET.Tests.Application;
 
 public sealed class ProgramMilestoneProgressTests
 {
-    // 2026-10-22 清理技術債：動作名對照表 WorkflowMilestones 已刪除（第一次失敗：Focused 收據 20261022-070441801），
-    // 改直接讀各 handler 宣告的 WorkflowStep；案例與期望值不變。
+    // 直接讀各 handler 宣告的 WorkflowStep。
     [Theory]
     [InlineData(2, ValidateRunHandler.WorkflowStep, 4, 1)]
     [InlineData(4, FilterCommitHandler.WorkflowStep, 5, 1)]

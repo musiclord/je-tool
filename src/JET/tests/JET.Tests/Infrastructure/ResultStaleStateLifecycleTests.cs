@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Schema v7 result stale state is durable lifecycle state, distinct from the absence of a result.
+/// Result stale state is durable lifecycle state, distinct from the absence of a result.
 /// The lowest provider seam locks the mutation -> stale -> successful regeneration transitions and
 /// the transaction boundary used by rule and filter result publication.
 /// </summary>
@@ -55,7 +55,7 @@ public sealed class ResultStaleStateLifecycleTests
             await staleStore.ReadAsync(projectId, CancellationToken.None));
 
         // No prior result means "never run", not stale, even for a mutation that invalidates every result family.
-        // 案件資料庫的升版程式拿掉後沒有升版用的 mutation，改用同樣三種結果都失效的 GL 投影。
+        // 這裡用三種結果都失效的 GL 投影。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,
@@ -67,8 +67,7 @@ public sealed class ResultStaleStateLifecycleTests
         await SeedAllResultKindsAsync(connectionFactory(projectId), schemaPrefix);
 
         // Account category changes affect prescreen/filter only. Validation summary and INF rows remain current.
-        // 上游修改會清除下游（裁定 2026-10-07-03）：篩選情境與命中一起清掉，沒有可重跑的篩選，filter 回到從未執行。
-        // 第一次失敗收據 20261007-033240978-87b22715a057481a849ce3013975e5c1。
+        // 上游修改會清除下游：篩選情境與命中一起清掉，沒有可重跑的篩選，filter 回到從未執行。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,
@@ -87,7 +86,7 @@ public sealed class ResultStaleStateLifecycleTests
             $"SELECT COUNT(*) FROM {schemaPrefix}inf_sample;"));
 
         // TB projection invalidates all families; only validation still exists after the earlier reset.
-        // filter 在上一步分類修改時已回到從未執行，以下 filter 期望值隨之改為 false（同一次第一次失敗收據）。
+        // filter 在上一步分類修改時已回到從未執行，以下 filter 期望值是 false。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,
@@ -128,8 +127,8 @@ public sealed class ResultStaleStateLifecycleTests
             await staleStore.ReadAsync(projectId, CancellationToken.None));
 
         // Replacing authoring definitions is not successful result materialization.
-        // 上游修改會清除下游（裁定 2026-10-07-03）：前面的分類修改已清掉情境與命中，這裡是從未執行的狀態，
-        // 寫入定義不會憑空產生待重跑；原本斷言 true，第一次失敗收據 20261007-034754014-ce0d7c7e932f4d58b70af5629c1da8c2。
+        // 上游修改會清除下游：前面的分類修改已清掉情境與命中，這裡是從未執行的狀態，
+        // 寫入定義不會憑空產生待重跑。
         await scenarioStore.ReplaceAllAsync(
             projectId,
             [new SavedFilterScenario(1, "definition", "rationale", "{}", DateTimeOffset.UnixEpoch)],
@@ -158,9 +157,8 @@ public sealed class ResultStaleStateLifecycleTests
             CancellationToken.None);
         Assert.False((await staleStore.ReadAsync(projectId, CancellationToken.None)).Filter);
 
-        // 上游修改會清除下游（裁定 2026-10-07-03）：上游修改不再把零命中的已存版本標成待重跑，而是連同定義一起清掉，
-        // filter 回到從未執行。原本「零命中版本也要標過期」的保護改由上方 ReplaceAllAsync 的檢查涵蓋。
-        // 第一次失敗收據 20261007-033240978-87b22715a057481a849ce3013975e5c1。
+        // 上游修改會清除下游：上游修改不把零命中的已存版本標成待重跑，而是連同定義一起清掉，
+        // filter 回到從未執行。
         await ResetAsync(
             connectionFactory(projectId),
             schemaPrefix,

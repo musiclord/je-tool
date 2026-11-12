@@ -26,38 +26,35 @@ internal static class LegacyReportStyles
     public const uint RawBody = 14;
 
     /// <summary>
-    /// ValidationReport D20:D25 conditional yellow marker. Legacy Step1 BAS
-    /// 3593/3625/3658/3691/3728/3799; ISM 5549/5582/5616/5650/5688/5762.
+    /// ValidationReport D20:D25 conditional yellow marker from legacy JET Step1.
     /// </summary>
     public const uint ValidationWarning = 15;
 
     /// <summary>
-    /// Validation field-info TB header: Calibri 12 bold + FFF0F000. Legacy
-    /// Step1 BAS 3834-3837; ISM 5798-5801. Kept distinct from the GL header.
+    /// Validation field-info TB header from legacy JET Step1: Calibri 12 bold + FFF0F000.
+    /// Kept distinct from the GL header.
     /// </summary>
     public const uint ValidationTbHeader = 16;
 
     /// <summary>
-    /// Validation field-info GL header: Calibri 12 bold + FFE6E600. Legacy
-    /// Step1 BAS 3894-3897; ISM 5878-5881. Kept distinct from the TB header.
+    /// Validation field-info GL header from legacy JET Step1: Calibri 12 bold + FFE6E600.
+    /// Kept distinct from the TB header.
     /// </summary>
     public const uint ValidationGlHeader = 17;
 
     /// <summary>
-    /// Calibri 12 bold red conditional message. Legacy Step5 BAS 9033-9036;
-    /// ISM 10412-10415. This named palette entry prevents magic style indices.
+    /// Calibri 12 bold red conditional message from legacy JET Step5.
+    /// This named palette entry prevents magic style indices.
     /// </summary>
     public const uint LegacyConditionalMessage = 18;
 
     /// <summary>
-    /// Calibri 12 bold white on FF0066FF table header. Legacy Step5 BAS
-    /// 9099-9104; ISM 10478-10483.
+    /// Calibri 12 bold white on FF0066FF table header from legacy JET Step5.
     /// </summary>
     public const uint LegacyBlueTableHeader = 19;
 
     /// <summary>
-    /// Calibri 16 bold red on FF0066FF version banner. Legacy Step5 BAS
-    /// 9449-9453; ISM 10831-10835.
+    /// Calibri 16 bold red on FF0066FF version banner from legacy JET Step5.
     /// </summary>
     public const uint LegacyVersionBanner = 20;
 
@@ -82,7 +79,7 @@ internal static class LegacyReportStyles
     private const uint ExportDatabaseAmountStyle =
         ExportDatabaseNumberStyleFirst + MaximumDecimalPlaces + 1;
 
-    // Font indices; source ranges are documented on the cellXf constants above.
+    // Font indices; cellXf constants 15-20 above name the legacy step each style comes from.
     private const uint FontRegular = 0;
     private const uint FontTitle = 1;
     private const uint FontWhiteBold = 2;

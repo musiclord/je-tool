@@ -18,10 +18,10 @@ internal sealed record FilterScenarioStores(
     ICalendarStore Calendar);
 
 /// <summary>
-/// 第五步一次只存、刪或重新檢查一個情境（裁定 2026-10-13-24）。
+/// 第五步一次只存、刪或重新檢查一個情境。
 /// 後端是已存情境的唯一來源：畫面只送正在處理的那一個，其他情境由這裡從資料庫讀出、照原樣寫回，
 /// 不經畫面重組，也不用儲存規則重新檢查。寫回的內容由 <see cref="FilterScenarioRuleUpgrade.PlanWrite"/> 決定：
-/// 平常儲存只算這一個情境的結果、移除只刪這一個的結果，其他情境存好的結果不重算（裁定 2026-10-30-33）；有不合格的情境時只寫定義、
+/// 平常儲存只算這一個情境的結果、移除只刪這一個的結果，其他情境存好的結果不重算；有不合格的情境時只寫定義、
 /// 清掉結果，高風險條件彙總、報告與第六步維持鎖住。
 /// </summary>
 internal static class FilterScenarioBatchWriter
@@ -149,7 +149,7 @@ internal static class FilterScenarioBatchWriter
             throw FilterScenarioErrorDetails.ForScenario(exception, target, ShownName(scenarioElement));
         }
 
-        // 裁定 2026-10-29-16：名稱或動機留白時依條件補上自動文字；撞名時和第五步畫面一樣附上數字，編輯中的情境不和自己比。
+        // 名稱或動機留白時依條件補上自動文字；撞名時和第五步畫面一樣附上數字，編輯中的情境不和自己比。
         var (persistName, persistRationale) = FilterScenarioAutomaticMetadata.Resolve(
             scenarioElement,
             canonical.Spec,
@@ -175,7 +175,7 @@ internal static class FilterScenarioBatchWriter
             target,
             persistName,
             persistRationale,
-            // 驗證通過後才整理：這個情境的條件只保留各類型用得到的屬性（裁定 2026-10-15-01）。
+            // 驗證通過後才整理：這個情境的條件只保留各類型用得到的屬性。
             RuleLogicVersions.StampSavedFilterDefinition(raw.RootElement),
             nowUtc)
         {
@@ -214,7 +214,7 @@ internal static class FilterScenarioBatchWriter
     /// 寫回並組成回應。儲存或移除時，其他情境都合格、已是目前規則而且存好的結果沒有過期，就只寫這一個：
     /// 儲存只算這一個情境的結果，移除只刪這一個的定義與結果，其他情境不重新檢查版本也不重算。
     /// 否則照整批處理：全部合格時用 filter facts 發布定義與命中（篩選失效旗標歸零），並把案件推進到第五步；
-    /// 有不合格的情境時只寫定義，同一筆交易清掉命中並標成失效，結果維持鎖住，和改成逐一存放之前相同。
+    /// 有不合格的情境時只寫定義，同一筆交易清掉命中並標成失效，結果維持鎖住。
     /// 清單是空的而且不必寫入（重新檢查時沒有情境）就直接回應。
     /// </summary>
     internal static async Task<object> PublishAsync(

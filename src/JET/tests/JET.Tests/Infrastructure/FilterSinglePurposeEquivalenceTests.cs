@@ -5,10 +5,7 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// 第九節 G 的改寫前比對，只使用本檔合成資料。SQLite 與 DuckDB 每次 Public 都執行；SQL Server 版在
-// 2026-10-19 為了核對三種資料庫結果一致而補上，只在 Provider 執行。三種資料庫比對同一組固定答案。
-// 停用寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改寫前的寫法無法再解析，所以拿掉停用寫法那一半，只留現行寫法對固定答案的比對（停用寫法與現行寫法命中相同，最後一次在 Focused 收據 20261030-075358791-be8fbb69606344368d7a86a233582c62 通過）。
-// 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（停用的型別讀不到）。
+// 現行寫法對固定答案的比對，只使用本檔合成資料。
 public sealed class FilterSinglePurposeEquivalenceTests
 {
     private const string Seed = """
@@ -26,7 +23,7 @@ public sealed class FilterSinglePurposeEquivalenceTests
         ('purpose',10,'USER-SUFFIX','1','2025-01-01','A','一般分錄','USER2',100,100,0,'DEBIT',0);
         """;
 
-    // 固定答案原本逐列寫在本機版的 InlineData；2026-10-19 補 SQL Server 版時移到這裡，讓三種資料庫讀同一份，答案不變。
+    // 固定答案集中寫在這裡。
     private static readonly Dictionary<int, string[]> TrailingZeroHits = new()
     {
         [1] = ["HUNDRED", "MILLION", "NEG-TEN", "TEN", "TEN-FRACTION"],
@@ -48,8 +45,7 @@ public sealed class FilterSinglePurposeEquivalenceTests
     {
         var expected = TrailingZeroHits[digits];
         var replacement = $$"""{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["{{new string('0', digits)}}"],"amountBasis":"absolute"}""";
-        // 裁定 2026-10-14-09 保留原結果，以子條件組排除主單位整數為零的金額。
-        // 首次失敗：20261014-130735069-edd5b356c42049308e609d1b8da99b1a；固定答案不變。
+        // 以子條件組排除主單位整數為零的金額。
         if (digits == 1)
             replacement = $$"""{"type":"group","combinator":"AND","conditions":[{{replacement}},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}""";
         // 所有改寫仍比對原本的固定答案。

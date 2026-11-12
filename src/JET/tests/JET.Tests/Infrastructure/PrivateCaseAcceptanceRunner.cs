@@ -121,7 +121,7 @@ internal sealed class PrivateCaseAcceptanceFollowUpResult
 internal static class PrivateCaseAcceptanceRunner
 {
     /// <summary>
-    /// 第一次流程通過比對後，在同一個案件依序做的審計員操作（裁定 2026-11-06-01）。
+    /// 第一次流程通過比對後，在同一個案件依序做的審計員操作。
     /// </summary>
     internal static IReadOnlyList<LegacyAuditParityFollowUp> FollowUps { get; } =
     [
@@ -163,7 +163,7 @@ internal static class PrivateCaseAcceptanceRunner
                     manifest,
                     expectedReports);
 
-                // 每一段匯出都在下一段開始前比對：後一段會覆蓋同名的報告，SQL Server 案件也要在清理前做完。
+                // 每一段匯出都在下一段開始前比對：後一段會覆蓋同名的報告。
                 // 第一次與三段後續操作用同一組預期底稿、同一份政策與 contentDecisions。
                 var segments = new List<SegmentVerification>(FollowUps.Count + 1);
                 Task VerifySegmentAsync(PrivateCaseJourneyResult segment)

@@ -10,7 +10,7 @@
   }
   function current(state) {
     if (!model || model.key !== key(state)) {
-      // 勾選與待儲存的分類都跨頁保留，一次儲存（裁定 2026-10-08-01）；
+      // 勾選與待儲存的分類都跨頁保留，一次儲存；
       // saved 記住每個載入過的科目目前已儲存的分類，套用到其他頁的勾選時才判斷得出是否真的有改。
       model = { key: key(state), rows: null, changes: Object.create(null), saved: Object.create(null), cursor: null, previous: [],
         nextCursor: null, search: '', searchDraft: '', selected: Object.create(null), anchor: null, category: '',
@@ -20,8 +20,8 @@
     return model;
   }
   function categoryRevision(state) { return state.accountCategory ? state.accountCategory.revision : null; }
-  // 分類設定刪掉分類後，要套用該分類的待儲存改動已經存不進去，拿掉並記下取消了幾個科目；其他待儲存改動保留
-  // （裁定 2026-10-15-01）。分類清單的版本沒變時不檢查。
+  // 分類設定刪掉分類後，要套用該分類的待儲存改動已經存不進去，拿掉並記下取消了幾個科目；其他待儲存改動保留。
+  //分類清單的版本沒變時不檢查。
   function dropDeletedCategories(m, state) {
     var revision = categoryRevision(state);
     if (m.categoryRevision === revision) { return; }
@@ -39,7 +39,7 @@
   function load(m) {
     if (m.loading) { return Promise.resolve(); }
     // 換頁或搜尋不清掉勾選與待儲存的分類；只重設以本頁列號計算的連選起點。
-    // 第一次讀取時畫面已經寫著正在載入，不再要求整個中欄重建：進入第四步時這次重建讓換步驟多頓七、八十毫秒（裁定 2026-10-15-09）。
+    // 第一次讀取時畫面已經寫著正在載入，不再要求整個中欄重建：進入第四步時這次重建讓換步驟多頓七、八十毫秒。
     var showingLoading = !m.rows && !m.error;
     m.loading = true; m.error = ''; m.rows = null; m.nextCursor = null; m.anchor = null;
     if (!showingLoading) { Store.touch(); }
@@ -79,10 +79,10 @@
         inputAttributes: { name: 'search', 'data-focus-key': 'account-search' }, maxLength: Ui.SEARCH_TEXT_MAX_LENGTH, value: m.searchDraft, disabled: m.loading }) +
       '<div class="account-editor__batch"><div class="account-editor__selection"><span role="status" data-account-selection-count>' + selectionText(m) + '</span>' +
       // 「全部取消」只在有勾選時出現；標 data-collapsible-inline，出現與消失時左右收放，旁邊的字跟著平順移動
-      // （app.css，裁定 2026-10-13-11）。
+      // （app.css）。
       '<button type="button" class="btn btn--ghost btn--tiny account-editor__clear" data-account-clear-selection data-collapsible-inline' +
         (Object.keys(m.selected).length ? '' : ' hidden') + '>全部取消</button></div>' +
-      // 第四步只選一個分類，用下拉選單；上下層以全形空白與「└」縮排（裁定 2026-10-15-12：改回下拉，第五步分類樹不變）。
+      // 第四步只選一個分類，用下拉選單；上下層以全形空白與「└」縮排。
       '<label><span class="visually-hidden">套用分類</span><select class="form__select" data-account-bulk-category data-focus-key="account-bulk-category">' +
         '<option value="">請選擇分類</option>' + categories.map(function (c) {
           return '<option value="' + Ui.esc(c.categoryId) + '"' + (m.category === c.categoryId ? ' selected' : '') + '>' +
@@ -133,8 +133,7 @@
       var size = Object.keys(selection).length;
       var onPage = boxes.filter(function (box) { return box.checked; }).length;
       if (count) { count.textContent = selectionText({ selected: selection, rows: rows }); }
-      // 「全部取消」展開時上方那一排會變高，把表格往下推；拖曳途中游標下的列會跟著跑掉，所以放開後才出現或收起
-      // （2026-10-14 Gui 在拖曳連選時查到）。
+      // 「全部取消」展開時上方那一排會變高，把表格往下推；拖曳途中游標下的列會跟著跑掉，所以放開後才出現或收起。
       if (clear && !drag) { clear.hidden = !size; }
       if (selectPage) {
         selectPage.checked = !!boxes.length && onPage === boxes.length;
@@ -258,7 +257,7 @@
     });
     card.querySelector('[data-account-cancel]').addEventListener('click', function () { m.changes = Object.create(null); m.selected = Object.create(null); m.anchor = null; m.notice = ''; m.droppedCount = 0; Store.touch(); });
     card.querySelector('[data-account-clear-selection]').addEventListener('click', function () {
-      // 清除前先讓勾選的列輕微快速地晃一下，讓使用者知道哪些勾選被拿掉（裁定 2026-10-13-13）。
+      // 清除前先讓勾選的列輕微快速地晃一下，讓使用者知道哪些勾選被拿掉。
       // 勾選只在畫面上，所以就地取消勾選（和逐列勾選相同），不整段重繪；重繪會把正在晃的列換掉。
       if (global.JetMotion && typeof global.JetMotion.shake === 'function') {
         global.JetMotion.shake(Array.from(card.querySelectorAll('tr.account-editor__row--selected')));
@@ -300,7 +299,7 @@
           if (Object.prototype.hasOwnProperty.call(m.saved, row.accountNumber)) { row.categoryId = m.saved[row.accountNumber]; }
         });
         // 存檔後讀不回科目配對摘要時，回應不帶摘要欄位：保留畫面上原本的摘要與比對用的批次，
-        // 只套用失效結果並顯示提醒（裁定 2026-10-19-21）。
+        // 只套用失效結果並顯示提醒。
         if (data.batchId) {
           // setter 同步重繪前先對齊新批次，分類設定改名不丟棄尚未保存的選擇。
           m.key = key(Object.assign({}, Store.getState(), { importState:
@@ -348,7 +347,7 @@
   // （Ui.confirmUnsaved）。回傳 Promise<boolean>：true 表示可以繼續。
   // consequence 說明不儲存會怎樣，continueLabel 是「不儲存也繼續」那顆按鈕的文字。
   // options.saveable 為 false 時不提供「儲存並繼續」：匯入 GL 或 TB、確認配對與匯入科目配對檔本身就會清除或取代
-  // 已儲存的分類，先存也留不住（裁定 2026-10-15-02）。
+  // 已儲存的分類，先存也留不住。
   function confirmPending(consequence, continueLabel, options) {
     var count = pendingCount();
     if (!count) { return Promise.resolve(true); }

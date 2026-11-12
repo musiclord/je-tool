@@ -28,7 +28,7 @@ public sealed class ImportParsingErrorWorkflowTests
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "signed", rde));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.Contains("以下僅列出部分的值與列號。", error.Message, StringComparison.Ordinal);
         var detail = Assert.Single(error.Details!);

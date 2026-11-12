@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// filter.commit 的整批 commit 邊界：caller token 必須原樣傳入原子 commit port；
 /// commit port 回報取消或錯誤時不得把案件步驟推進到 Step 5，也不得改寫原始例外。
-/// 真實三 provider 的 definitions + hits rollback 由 Infrastructure transaction tests 證明。
+/// 真實資料庫的 definitions + hits rollback 由 Infrastructure transaction tests 證明。
 /// </summary>
 public sealed class FilterCommitCancellationTests
 {
@@ -61,7 +61,7 @@ public sealed class FilterCommitCancellationTests
     }
 
     /// <summary>
-    /// handler 從作用中案件的資料庫組取 repository；把原本逐一傳給建構式的替身放進資料庫組後再進入 session。
+    /// handler 從作用中案件的資料庫組取 repository；替身放進資料庫組後再進入 session。
     /// </summary>
     private static ProjectSession ActiveSession(string projectId, IFilterCommitRepository commitRepository)
     {
@@ -75,7 +75,7 @@ public sealed class FilterCommitCancellationTests
                 AccountMappings = new EmptyAccountMappingStore(),
                 AuthorizedPreparers = new EmptyAuthorizedPreparerStore(),
                 AccountCategories = new BuiltInAccountCategoryStore(),
-                // 裁定 2026-11-05-55：保存條件前要知道有沒有國定假日清單，替身資料庫組因此補上空的行事曆。
+                // 保存條件前要知道有沒有國定假日清單，替身資料庫組因此帶空的行事曆。
                 Calendar = new EmptyCalendarStore(),
                 Results = new EligibleValidationResultStore(),
             });

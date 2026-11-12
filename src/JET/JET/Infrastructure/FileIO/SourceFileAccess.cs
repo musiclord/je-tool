@@ -2,7 +2,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 來源檔的開檔方式。審計員常在 Excel 開著來源檔時匯入，所以共用讀寫開檔：Excel 開著也讀得到，
-/// 讀到的是最後一次存檔的內容（裁定 2026-11-06-12）。FileShare.Delete 讓 Excel 存檔換檔時不受這個 handle 阻擋，
+/// 讀到的是最後一次存檔的內容。FileShare.Delete 讓 Excel 存檔換檔時不受這個 handle 阻擋，
 /// 已開著的 handle 繼續讀換檔前的內容。
 /// </summary>
 internal static class SourceFileAccess

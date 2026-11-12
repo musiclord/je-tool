@@ -8,10 +8,8 @@ namespace JET.Tests.Application;
 
 public sealed class CalendarTemplateRoundTripTests
 {
-    // jet-guide section 2 and test-environment-notes: row 1 is instructions,
-    // row 2 contains headers, and only Y rows from IS_Holiday are imported.
-    // 改動原因：裁定 2026-10-08-08 移除假日與補班日卡片的範本入口，export.calendarTemplates 隨之移除；
-    // 這裡改由 ReportTemplateCatalog 直接複製隨附範本，其餘匯入列數與日期斷言不變。
+    // Row 1 is instructions, row 2 contains headers, and only Y rows from IS_Holiday are imported.
+    // 這裡由 ReportTemplateCatalog 直接複製隨附範本。
     [Theory]
     [InlineData("sqlite")]
     public async Task BundledCalendarTemplates_ImportTheirDocumentedRows(string provider)

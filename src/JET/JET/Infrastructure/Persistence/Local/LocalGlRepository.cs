@@ -21,12 +21,11 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
 {
     private const int ProgressRowInterval = 20_000;
 
-    // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死。
     private readonly string _provider = database.Dialect.ProviderName;
 
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    /// <summary>GL target 批量寫入的欄位順序（各引擎的 <see cref="IBulkRowWriter"/> 依此對位；entry_id 由引擎補齊）。</summary>
+    /// <summary>GL target 批量寫入的欄位順序（<see cref="IBulkRowWriter"/> 依此對位；entry_id 由引擎補齊）。</summary>
     private static readonly string[] TargetColumns =
     [
         "batch_id", "source_row_number",
@@ -117,8 +116,6 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             """;
         select.AddWithValue("@batchId", batchId);
 
-        // 批量列寫入：SQLite 包裝參數化 INSERT、DuckDB 走 Appender。
-        // SQL 文本／欄序不變（見 TargetColumns）；entry_id auto-id 由引擎補齊。
         await using var insert = database.CreateBulkRowWriter(connection, transaction, JetSchemaCatalog.GlTableName, TargetColumns);
 
         var errors = new ProjectionErrorCollector();
@@ -269,8 +266,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             }
         }
 
-        // reader 已關閉後才 flush（DuckDB Appender 的 Close 須在 staging reader 迴圈結束後；本機探針實證）。
-        // 之後同交易內可見——line_item 補值、控制總數、空欄稽核皆讀得到已寫入的 target 列。
+        // flush 之後同交易內可見——line_item 補值、控制總數、空欄稽核皆讀得到已寫入的 target 列。
         await insert.CompleteAsync(cancellationToken);
 
         if (pbcRowCount > 0 && pbcRowCount % ProgressRowInterval != 0)
@@ -407,7 +403,7 @@ public sealed class LocalGlRepository(ILocalProjectDatabase database, ILogger<Lo
             batchId,
             committedUtc,
             MappingMetadataFormat.CurrentVersion,
-            // 填了幾格跟著配對保存（裁定 2026-10-28-05），重開案件與報告的配對資訊讀得到。
+            // 填了幾格跟著配對保存，重開案件與報告的配對資訊讀得到。
             projectionOptions with { FillDownCount = fillDown?.FilledCellCount ?? 0 });
         await LocalMappingStateStore.SaveWithinAsync(
             connection,

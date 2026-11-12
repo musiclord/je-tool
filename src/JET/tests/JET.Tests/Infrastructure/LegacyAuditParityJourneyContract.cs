@@ -18,7 +18,7 @@ internal static class LegacyAuditParityJourneyContract
         "import.makeupDay.fromFile",
         "mapping.commit.gl",
         "mapping.commit.tb",
-        // 確認配對會清除科目配對（裁定 2026-10-08-12），所以科目配對檔排在確認之後；原因見 LegacyAuditParityJourney。
+        // 確認配對會清除科目配對，所以科目配對檔排在確認之後；原因見 LegacyAuditParityJourney。
         "import.accountMapping.fromFile",
         "validate.run",
         "query.infSamplePage",

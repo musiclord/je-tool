@@ -11,7 +11,7 @@
   var Store = global.JetStore;
   var Ui = global.JetUi;
 
-  // 送出的值是後端接受的三種編碼名稱；畫面寫一般常見的寫法，不露出系統用詞（裁定 2026-10-19-04）。
+  // 送出的值是後端接受的三種編碼名稱；畫面寫一般常見的寫法，不露出系統用詞。
   var ENCODING_OPTIONS = [
     { value: 'utf-8', label: 'UTF-8' },
     { value: 'big5', label: 'Big5（繁體中文）' },
@@ -45,7 +45,7 @@
 
   // 匯入時正被 Excel 等程式開著的來源檔，後端另外列出的提醒（openElsewhereWarnings），依匯入項目記下：
   // gl、tb、authorizedPreparer、holiday、makeupDay。畫面把它放在那一項的匯入結果旁，審計員不必打開訊息面板
-  // 就看得到（裁定 2026-11-06-12）；訊息面板照舊另記一則當紀錄。同一項再匯入成功時換成這次的提醒，
+  // 就看得到；訊息面板照舊另記一則當紀錄。同一項再匯入成功時換成這次的提醒，
   // 移除清單或換案件時清掉。純區域 UI，比照 justImported：不進 state.js、不持久化。
   var openElsewhere = {};
 
@@ -91,7 +91,7 @@
 
   // 匯入步驟頂部：四列任務清單（GL／TB／授權編製人員清單／日期維度）。
   // 每列＝狀態符號＋名稱(＋必要/選用標)＋單一關鍵數字＋單一動作鈕；點動作鈕就地展開該列既有卡片完整 UI。
-  // 四張卡的 render 與事件綁定一律沿用既有函式，僅改由任務清單承載入口——呈現重組，不是行為變更。
+  // 四張卡的 render 與事件綁定一律沿用既有函式，任務清單只承載入口。
   function render(container, state) {
     if (!state.project) {
       container.innerHTML = Ui.noProjectPanel('匯入資料');
@@ -125,9 +125,9 @@
   /* ---- 任務清單（呈現層：把四張卡收斂成四列，展開才嵌入完整卡片）------------- */
 
   // 任務列外框：狀態符號 + 名稱(+必要/選用標) + 單一關鍵數字 + 單一動作鈕。
-  // opts.done 決定符號與名稱色（✓ 已備／○ 未匯入）。四列的按鈕是同一種每列重複的動作，一律用同一種低調按鈕；
-  // 原本未匯入的授權清單另標成主要動作而多一圈外框，看起來像樣式漏掉，而且它是選用項目（裁定 2026-10-16-07）。
-  // 按鈕寫出這一列要做的事：還沒匯入寫「匯入」，國定假日與補班日還沒設定寫「設定」，已經有資料寫「更改」（裁定 2026-11-05-20）。
+  // opts.done 決定符號與名稱色（✓ 已備／— 未匯入）。四列的按鈕是同一種每列重複的動作，一律用同一種低調按鈕；
+  // 未匯入的授權清單也不另標成主要動作，否則多一圈外框，看起來像樣式漏掉，而且它是選用項目。
+  // 按鈕寫出這一列要做的事：還沒匯入寫「匯入」，國定假日與補班日還沒設定寫「設定」，已經有資料寫「更改」。
   // 展開（opts.open）時在列下方嵌入 cardHtml（既有卡片完整 UI，DOM 未改）。
   function taskItemHtml(key, opts, cardHtml) {
     var open = opts.open;
@@ -198,7 +198,7 @@
     var nw = calendar && calendar.nonWorkingDaysConfigured
       ? nonWorkingSummary(calendar.nonWorkingDays)
       : '';
-    // 沒動過星期勾選時仍以六、日當週末，摘要寫出預設值，不寫「尚未設定」（裁定 2026-11-03-10）。
+    // 沒動過星期勾選時仍以六、日當週末，摘要寫出預設值，不寫「尚未設定」。
     if (nw) { parts.push(nw); } else { parts.push('每週休息日 六、日（預設）'); }
     var meta = parts.join('，');
 
@@ -262,8 +262,8 @@
         }
       }
     }
-    // 有清單時的摘要包成一塊並標上 data-motion-key：移除授權清單後這一塊整個不畫，JetMotion 先晃一下再收起
-    // （裁定 2026-10-13-13：移除時先晃一下）。沒有清單時不畫這個容器，才會被當成消失的東西。
+    // 有清單時的摘要包成一塊並標上 data-motion-key：移除授權清單後這一塊整個不畫，JetMotion 先晃一下再收起。
+    // 沒有清單時不畫這個容器，才會被當成消失的東西。
     if (body) { body = '<div class="authorized-preparer__summary" data-motion-key="preparer-summary">' + body + '</div>'; }
     var draft = preparerDraft;
     var pending = '';
@@ -292,11 +292,11 @@
       '<h3 class="import-card__title">授權編製人員清單</h3>' + body +
       '<p>匯入可編製分錄的人員名單，用來篩選名單外的編製人員。</p>' +
       // 這一排有沒有清單都帶同一個 key：兩個鈕同時消失時沒有留下的鄰居可以對齊，要靠這一排找回原本的位置，
-      // 才能先晃一下再左右收起（裁定 2026-10-13-13）。
+      // 才能先晃一下再左右收起。
       '<div class="import-card__actions" data-motion-key="preparer-actions"><button type="button" class="btn btn--ghost" data-action="import-authorized-preparer">' +
       (info ? '重新選擇授權編製人員清單' : '選擇授權編製人員清單') + '</button>' +
       // 只在有清單時出現的兩個鈕各自帶 key，移除後在這一排左右收起，旁邊的鈕跟著平順移動。
-      // 打開右側資料預覽的檢視一律寫「資料預覽」，字後面接面板圖示（裁定 2026-10-30-36）。
+      // 打開右側資料預覽的檢視一律寫「資料預覽」，字後面接面板圖示。
       (info ? '<button type="button" class="jet-view jet-view--preview" data-action="preview-authorized-preparer" ' +
           'aria-label="資料預覽：授權編製人員清單" data-motion-key="preparer-preview-action" data-motion="inline">資料預覽</button>' +
         '<button type="button" class="btn btn--ghost" data-action="clear-authorized-preparer" ' +
@@ -350,7 +350,7 @@
         return global.JetApi.importAuthorizedPreparerFromFile({ filePath: draft.filePath, fileName: draft.fileName,
           sheetName: draft.sheetName, sourceColumn: draft.sourceColumn }).then(function (data) {
           if (preparerDraft === draft) { preparerDraft = null; }
-          // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，提醒放在清單的匯入結果旁，訊息面板另記一則（裁定 2026-11-06-12）。
+          // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，提醒放在清單的匯入結果旁，訊息面板另記一則。
           rememberOpenElsewhere('authorizedPreparer', data);
           Store.setAuthorizedPreparerState(data);
           Store.applyMutationEffects(data);
@@ -358,7 +358,7 @@
           return data;
         });
       }, { completionMessage: function (data) {
-        // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
+        // 完成句由 Ui.run 接上耗時後記一則；成功時只留一則。
         return data ? '授權編製人員清單匯入完成：' + Ui.countText(data.rowCount) + ' 個有效人員代號或姓名。' : '';
       } });
     });
@@ -410,7 +410,7 @@
     return (
       '<section class="import-card import-card--calendar" data-bind="import-card-calendar">' +
         '<h3 class="import-card__title">國定假日與補班日</h3>' +
-        // 開著檔案的提醒只在日曆已匯入時畫；目前沒有會清掉日曆的操作，這裡和科目配對托盤用同一個原則（2026-11-06 獨立複審）。
+        // 開著檔案的提醒只在日曆已匯入時畫；目前沒有會清掉日曆的操作，這裡和科目配對托盤用同一個原則。
         body + (calendar && calendar.calendarImported ? openElsewhereHtml('holiday') + openElsewhereHtml('makeupDay') : '') +
         '<p class="calendar-nonworking__hint">國定假日清單讀 Date_of_Holiday 欄，補班日清單讀 Date_of_MakeUpday 欄，日期寫成 2026-12-31 的格式。</p>' +
         '<div class="import-card__actions">' +
@@ -467,7 +467,7 @@
               filePath: file.filePath,
               fileName: file.fileName
             }).then(function (data) {
-              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，提醒放在卡片的匯入結果旁，訊息面板另記一則（裁定 2026-11-06-12）。
+              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，提醒放在卡片的匯入結果旁，訊息面板另記一則。
               rememberOpenElsewhere('holiday', data);
               var existing = Store.getState().importState.calendar || {};
               Store.setCalendarState({
@@ -478,13 +478,13 @@
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
               Store.applyMutationEffects(data);
-              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒（裁定 2026-11-06-12）。
+              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒。
               (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
               return data;
             });
           });
         }, {
-          // 完成句由 Ui.run 接上耗時後記一則；沒有選檔時不記（裁定 2026-10-13-17：成功時只留一則）。
+          // 完成句由 Ui.run 接上耗時後記一則，成功時只留一則；沒有選檔時不記。
           completionMessage: function (data) { return data ? '國定假日匯入完成：' + Ui.countText(data.count) + ' 天。' : ''; }
         });
       });
@@ -503,7 +503,7 @@
               filePath: file.filePath,
               fileName: file.fileName
             }).then(function (data) {
-              // 同國定假日清單：開著檔案的提醒放在卡片的匯入結果旁（裁定 2026-11-06-12）。
+              // 同國定假日清單：開著檔案的提醒放在卡片的匯入結果旁。
               rememberOpenElsewhere('makeupDay', data);
               var existing = Store.getState().importState.calendar || {};
               Store.setCalendarState({
@@ -514,7 +514,7 @@
                 nonWorkingDaysConfigured: !!existing.nonWorkingDaysConfigured
               });
               Store.applyMutationEffects(data);
-              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒（裁定 2026-11-06-12）。
+              // 來源檔正被 Excel 開著時照樣匯入最後一次存檔的內容，後端回提醒。
               (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
               return data;
             });
@@ -545,7 +545,7 @@
                 nonWorkingDaysConfigured: true
               });
             }
-            // 沒有變更時不記（裁定 2026-10-13-28）。
+            // 沒有變更時不記。
             if (changed) { Store.addMessage('已更新每週休息日設定。', 'info'); }
             Store.applyMutationEffects(data);
           });
@@ -597,7 +597,7 @@
     );
   }
 
-  // TB 和 GL 走同一條多檔路徑（裁定 2026-11-09-19）。這裡、下方建立與按「加入」時的說明，GL 與 TB 用同一套句子（裁定 2026-11-09-24）。
+  // TB 和 GL 走同一條多檔路徑。這裡、下方建立與按「加入」時的說明，GL 與 TB 用同一套句子。
   function emptyFaceHtml(kind) {
     return (
       '<p class="import-card__status">尚未匯入。可合併欄位相同的檔案、工作表或資料表。</p>' +
@@ -638,7 +638,7 @@
   }
 
   // 模式橫幅：明講意圖與後果（append / 破壞性 replace / 首次建立）。取代時用「需要注意」提示（琥珀），
-  // 它說明後果但不擋操作（裁定 2026-10-09-03）。
+  // 它說明後果但不擋操作。
   // 匯入進行中改顯示中性「匯入中」：使用者已按下「開始匯入」，「即將取代」的預警已過時，
   // 不該在匯入期間（大檔可能數十秒）續掛破壞性警告，造成「完成後還掛著警告」的錯覺。
   function wizardBannerHtml(info) {
@@ -686,7 +686,7 @@
     );
   }
 
-  // 進度區原地展開與收起（data-collapsible，裁定 2026-10-13-11）。
+  // 進度區原地展開與收起（data-collapsible）。
   // 匯入中已有進度時照最後一次的內容畫成展開，重繪不重播展開動畫。
   function wizardProgressHtml(kind) {
     var shown = progressShown[kind];
@@ -718,7 +718,7 @@
             (failed
               ? '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-retry" ' +
                   'data-index="' + index + '">重新檢視</button>'
-              // 就地展開的檢視是淡底小標籤，箭頭在字前面；和打開右側資料預覽的「資料預覽」分開（裁定 2026-10-30-36）。
+              // 就地展開的檢視是淡底小標籤，箭頭在字前面；和打開右側資料預覽的「資料預覽」分開。
               : '<button type="button" class="jet-view jet-view--expand pending-row__preview" data-action="pending-preview" ' +
                   'data-index="' + index + '"' + Ui.disclosureAttributes(item.previewOpen) + '>預覽</button>') +
             '<button type="button" class="btn btn--ghost btn--tiny" data-action="pending-remove" ' +
@@ -777,7 +777,7 @@
     return '<span class="pending-row__detail">' + Ui.countText(item.columnCount) + ' 欄' + estimate + headerRowControlHtml(item, index) + '</span>';
   }
 
-  // 欄名在第幾列開放給 GL 與 TB 的一般匯入（裁定 2026-10-22-15）。來源檔前面有標題列時，
+  // 欄名在第幾列開放給 GL 與 TB 的一般匯入。來源檔前面有標題列時，
   // 審計員在這一格填欄名所在的列，Excel 與文字檔都有；Access 資料表的欄名來自資料表本身，沒有這一格。
   // 改了就重新讀前 10 列，欄數、提醒與預覽跟著換；它只解決表頭，表尾的合計列仍要在 Excel 刪。
   // 上限是 Excel 一張工作表的列數；超過的值不送出。
@@ -980,7 +980,7 @@
   // 首次建立（空資料集、無破壞性疑慮）直接開檔，少一次點擊；
   // 已有資料時不自動開檔——讓使用者先看到模式橫幅、可在開檔前反悔（尤其破壞性的重新匯入）。
   // 「加入」「更換」和工作區互換，按下的那一個跟著不見：打開時焦點交給「選擇來源檔」，
-  // 取消時交回打開它的按鈕；原本焦點會落到整個頁面。
+  // 取消時交回打開它的按鈕；不這樣做的話焦點會落到整個頁面。
   function focusImport(selectors) {
     if (global.JetFocus && global.JetFocus.deferFirst) { global.JetFocus.deferFirst(selectors); }
   }
@@ -1269,9 +1269,9 @@
         throw error; // 交給 run() 顯示錯誤訊息（如 column_mismatch 的差集說明）
       });
     }, {
-      // 完成句由 Ui.run 接上耗時（改用秒與分秒的共用寫法）後記一則（裁定 2026-10-13-17）。
+      // 完成句由 Ui.run 接上耗時（用秒與分秒的共用寫法）後記一則。
       completionMessage: function (data) {
-        // 這句的用字依裁定 2026-10-13-28。
+        // 這句的用字已定案。
         return data ? label + ' 匯入完成：本次新增 ' + Ui.countText(data.addedRowCount) + ' 列，目前共 ' +
           Ui.countText(data.rowCount) + ' 列、' + Ui.countText(data.columns.length) + ' 欄。' : '';
       }

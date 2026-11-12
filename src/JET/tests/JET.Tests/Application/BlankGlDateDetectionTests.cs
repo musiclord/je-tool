@@ -11,7 +11,7 @@ public sealed class BlankGlDateDetectionTests(DemoProjectFixture fixture)
     [Fact]
     public async Task Validate_BlankGlDates_AreSourceQualityAndBlankRecordsCategoryIsClosed()
     {
-        // 總帳日期空白的列依裁定 2026-10-21-04 記成 blank_gl_date（原本記成日期不符的 period），斷言不變。
+        // 總帳日期空白的列記成 blank_gl_date。
         await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             "INSERT INTO gl " +

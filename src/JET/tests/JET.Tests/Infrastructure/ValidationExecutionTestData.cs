@@ -3,7 +3,7 @@ using JET.Domain;
 
 namespace JET.Tests.Infrastructure;
 
-// 首敗103449633：正式port現在必須同交易保存summary；舊facts oracle仍經正式port，不走另一個樣本提交入口。
+// 正式port必須同交易保存summary；facts oracle經正式port，不走另一個樣本提交入口。
 internal static class ValidationExecutionTestData
 {
     internal static async Task<ValidationFacts> ExecuteForFactsAsync(

@@ -73,7 +73,7 @@ public sealed record WorkingPaperProgress(string SheetName, int SheetsCompleted,
 /// <summary>
 /// 全編製人員彙總的單列(預篩選報告 R5 與匯出底稿 step1-2 用):編製人員、人工旗標、傳票筆數、借/貸金額彙總(scaled 整數)。
 /// 與 prescreen 的 <see cref="PreparerSummaryRow"/> 區別:那個截 50 列且帶人工筆數(預篩選摘要用);
-/// 這個是不截斷的全名單,照舊版依編製人員加人工旗標分列,同一位人員最多三列:自動、人工與未判定(裁定 2026-11-05-32)。
+/// 這個是不截斷的全名單,照舊版依編製人員加人工旗標分列,同一位人員最多三列:自動、人工與未判定。
 /// <see cref="IsManual"/> 是 true 人工、false 自動、null 未判定;沒有配對人工傳票欄位時全部是 null,也就是一人一列。
 /// </summary>
 public sealed record PreparerSummaryExportRow(
@@ -95,8 +95,8 @@ public static class PreparerSummaryDisplay
         string.IsNullOrWhiteSpace(createdBy) ? BlankLabel : createdBy;
 
     /// <summary>
-    /// 人工旗標的寫法：照舊版 idea-tool.bas 第 10557 到 10562 行寫「人工建立分錄」「自動拋轉分錄」，
-    /// 預篩選報告 R5 與底稿 Step 1-2 用同一組字（裁定 2026-11-05-32）。
+    /// 人工旗標的寫法：照舊版 JET 寫「人工建立分錄」「自動拋轉分錄」，
+    /// 預篩選報告 R5 與底稿 Step 1-2 用同一組字。
     /// </summary>
     public const string ManualEntryText = "人工建立分錄";
 
@@ -109,7 +109,7 @@ public static class PreparerSummaryDisplay
 /// 不截斷的全編製人員彙總查詢(匯出底稿 step1-2)。鏡射既有 prescreen preparer 彙總 SQL 但去掉 LIMIT 50:
 /// step1-2 要列出每一位編製人員。distinct created_by 基數有界(人員數 + 自動拋轉傳票類型,實務數十~數百),
 /// 故回完整清單即可、**不需分頁**——對有界基數加分頁是過度工程化。
-/// 查詢 row 與介面相鄰放在 Domain;實作三 provider 在 Infrastructure。
+/// 查詢 row 與介面相鄰放在 Domain;實作在 Infrastructure。
 /// </summary>
 public interface IPreparerSummaryExportRepository
 {

@@ -30,8 +30,8 @@ internal sealed record ReportExportPlan(
     bool UseAtomicBatch);
 
 /// <summary>
-/// 發布的報告。OperationLogWarning 是報告已發布、卻寫不進操作紀錄時給審計員的提醒
-/// （裁定 2026-10-19-20），寫進去時是 null。
+/// 發布的報告。OperationLogWarning 是報告已發布、卻寫不進操作紀錄時給審計員的提醒，
+/// 寫進去時是 null。
 /// </summary>
 internal sealed record ReportExportFacts(IReadOnlyList<Report> Reports, string? OperationLogWarning = null);
 
@@ -84,7 +84,7 @@ public static partial class JetAuditProgram
 
         var (kinds, sourceRef, useAtomicBatch) = request.ActionName switch
         {
-            // 帳戶對應範本自 2026-09-02 起是工作檔，不在報告匯出計畫裡；驗證批次只剩兩份報告。
+            // 帳戶對應範本是工作檔，不在報告匯出計畫裡；驗證批次只有兩份報告。
             ValidationReportsAction => (
                 Kinds(
                     ReportKind.ValidationReport,

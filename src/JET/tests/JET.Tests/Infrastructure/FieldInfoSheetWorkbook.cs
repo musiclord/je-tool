@@ -18,13 +18,13 @@ internal static class FieldInfoSheetWorkbook
     internal static readonly string?[] Header = ["配對前欄位名稱", "欄位型態", "文字長度", "小數位數", "配對後欄位名稱"];
 
     /// <summary>
-    /// 舊版 IDEA JET 的版面（legacy/idea-tool.bas 第 10824 到 10963 行）：A1 版本字樣、A2 TB 標題、第 3 列表頭、TB 列，
+    /// 舊版 IDEA JET 的版面：A1 版本字樣、A2 TB 標題、第 3 列表頭、TB 列，
     /// 空一列後是 GL 標題、表頭與 GL 列。
     /// </summary>
     internal static IReadOnlyList<string?[]?> LegacyLayout(IEnumerable<string?[]> tb, IEnumerable<string?[]> gl) =>
         [["V.2019"], [TbTitle], Header, .. tb, null, [GlTitle], Header, .. gl];
 
-    /// <summary>新版 JET 拿掉 F1:H1 標記後的版面：第 1 列空白，TB 與 GL 之間空兩列。</summary>
+    /// <summary>新版 JET 的版面，不含 F1:H1 的隱藏紀錄：第 1 列空白，TB 與 GL 之間空兩列。</summary>
     internal static IReadOnlyList<string?[]?> CurrentLayout(IEnumerable<string?[]> tb, IEnumerable<string?[]> gl) =>
         [null, [TbTitle], Header, .. tb, null, null, [GlTitle], Header, .. gl];
 

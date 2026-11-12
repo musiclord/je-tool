@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging;
 
 namespace JET.Application;
 
-// 第五步一次只存、刪或重新檢查一個情境（裁定 2026-10-13-24）。
+// 第五步一次只存、刪或重新檢查一個情境。
 // 三個 handler 只負責取出用到的資料庫介面；讀出整批、決定寫回內容與組回應都在 FilterScenarioBatchWriter。
-// filter.commit 保留整批取代，正式畫面不再呼叫，供程式化佈置與既有測試使用。
+// filter.commit 保留整批取代，正式畫面不呼叫，供程式化佈置與既有測試使用。
 
 /// <summary>filter.scenario.save：新增、另存或取代一個情境，只計算並存下這個情境的結果，其他情境照資料庫原樣保留。</summary>
 public sealed class FilterScenarioSaveHandler : IApplicationActionHandler

@@ -11,7 +11,7 @@ internal static class ProductSources
 {
     internal static readonly Assembly ProductionAssembly = typeof(JetAuditProgram).Assembly;
 
-    internal static string ProductRoot { get; } = Path.Combine(TestRepositoryPaths.RepositoryRoot, "src", "JET", "JET");
+    internal static string ProductRoot { get; } = Path.Combine(TestRepositoryPaths.SolutionRoot, "JET");
 
     internal static string Product(params string[] parts) =>
         File.ReadAllText(Path.Combine([ProductRoot, .. parts]));
@@ -19,8 +19,8 @@ internal static class ProductSources
     internal static string Frontend(params string[] parts) =>
         Product(["wwwroot", "js", .. parts]);
 
-    /// <summary>第五步的前端程式。filter-step.js 依職責拆成五個檔案，index.html 依序載入；
-    /// 讀第五步字樣、常數與掛鉤的架構測試把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同。</summary>
+    /// <summary>第五步的前端程式依職責分成五個檔案，index.html 依序載入；
+    /// 讀第五步字樣、常數與掛鉤的架構測試把五個檔案合起來讀。</summary>
     internal static readonly string[] FilterStepFiles =
         ["filter-step-view.js", "filter-step-sources.js", "filter-step-rules.js", "filter-step-saved.js", "filter-step.js"];
 

@@ -5,14 +5,13 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 使用者接受「一條規則一個定義」（裁定 2026-10-22-13）：規則的身分只登錄一份、述詞每條只有一個方法、
-/// 第四步與第五步三個入口都從同一張對應表取述詞，前端只留一份鏡像。這裡讀原始碼確認各處不再各自列規則；
-/// 行為由 PrescreenRuleFixedAnswerTests 的固定答案鎖住。第一次失敗：收據 20261024-190913880-a45e823f31e745139f977c5c3481bdb3。
+/// 「一條規則一個定義」：規則的身分只登錄一份、述詞每條只有一個方法、
+/// 第四步與第五步三個入口都從同一張對應表取述詞，前端只留一份鏡像。這裡讀原始碼確認各處不各自列規則；
+/// 行為由 PrescreenRuleFixedAnswerTests 的固定答案鎖住。
 /// </summary>
 public sealed class PrescreenRuleRegistryTests
 {
-    // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目兩條規則（裁定 2026-10-29-27），兩份清單跟著少兩項；
-    // 第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+    // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目兩條規則，兩份清單都不含這兩項。
     private static readonly string[] Slugs =
     [
         "prep_period_approval", "suspicious_keywords", "unexpected_account_pair", "trailing_zeros",
@@ -41,7 +40,7 @@ public sealed class PrescreenRuleRegistryTests
             Assert.Contains($"\"{slug}\"", definitions, StringComparison.Ordinal);
         }
 
-        // 其他四處只引用定義，不再各自列一份規則。
+        // 其他四處只引用定義，不各自列一份規則。
         var catalog = ReadProduct("AuditCore", "RuleCatalog.cs");
         var program = ReadProduct("AuditCore", "JetAuditProgram.cs");
         var labels = ReadProduct("Domain", "Rules", "FilterConditionLabels.cs");
@@ -69,7 +68,7 @@ public sealed class PrescreenRuleRegistryTests
         var values = ReadProduct("AuditCore", "GlRulePredicates.Values.cs");
         var frequency = ReadProduct("AuditCore", "GlRulePredicates.Frequency.cs");
 
-        // 尾零併入尾數樣態；較少使用人員與較少使用科目改由統計條件同一個方法產生；自訂關鍵字與摘要特定描述共用同一個包含比對。
+        // 尾零併入尾數樣態；較少使用人員與較少使用科目由統計條件同一個方法產生；自訂關鍵字與摘要特定描述共用同一個包含比對。
         Assert.DoesNotContain("string TrailingZeros(", predicates, StringComparison.Ordinal);
         Assert.DoesNotContain("string RarePreparer(", predicates, StringComparison.Ordinal);
         Assert.DoesNotContain("string RareAccount(", predicates, StringComparison.Ordinal);
@@ -101,8 +100,7 @@ public sealed class PrescreenRuleRegistryTests
         Assert.DoesNotContain("PrescreenRuleKeys.PrepPeriodApproval =>", compilation, StringComparison.Ordinal);
         Assert.Contains("PrescreenRulePredicates", compilation, StringComparison.Ordinal);
 
-        // 原本也讀 SQL Server 的預篩選倉儲。只保留 SQLite 之後它已刪除，只檢查本機倉儲，方法名稱跟著改（裁定 2026-11-06-08）；
-        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
+        // 只檢查本機倉儲。
         var local = ReadProduct("Infrastructure", "Persistence", "Local", "LocalPrescreenRunRepository.cs");
         foreach (var repository in new[] { local })
         {
@@ -141,8 +139,7 @@ public sealed class PrescreenRuleRegistryTests
             Assert.Equal(FilterConditionLabels.RuleTypes[key], label);
         }
 
-        // 原本給舊情境讀回用的停用型別清單連同型別一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
-        // 第一次失敗：Focused 收據 20261030-082953351-8f6cfb9ca280470f879987a234d3f782。
+        // 前端沒有給舊情境讀回用的停用型別清單。
         Assert.DoesNotContain("RETIRED_RULE_TYPES", core, StringComparison.Ordinal);
     }
 

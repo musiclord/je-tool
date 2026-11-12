@@ -4,31 +4,27 @@ namespace JET.Infrastructure;
 
 public sealed partial class WorkingPaperWriter
 {
-    // Legacy Step5_Export_Excel_TW appearance registry:
-    // BAS 9033-9764 / ISM 10412-11146. These component patches deliberately
+    // Legacy JET Step5_Export_Excel_TW appearance registry. These component patches deliberately
     // derive from each template/generated prototype instead of replacing its
     // border, number format, alignment, or protection with a whole-cell style.
-    private const string LegacyRed = "FFFF0000"; // BAS 9036/9102/9207/9452; ISM 10415/10481/10586/10834.
-    private const string LegacyWhite = "FFFFFFFF"; // BAS 9103 / ISM 10482.
-    private const string LegacyBlue = "FF0066FF"; // BAS 9104/9453 / ISM 10483/10835.
+    private const string LegacyRed = "FFFF0000";
+    private const string LegacyWhite = "FFFFFFFF";
+    private const string LegacyBlue = "FF0066FF";
 
-    // Calibri 12 bold blocks: BAS 9099-9101,9601-9603,9641-9643,
-    // 9686-9688,9739-9741 / ISM 10478-10480,10983-10985,
-    // 11023-11025,11068-11070,11121-11123.
+    // Calibri 12 bold blocks.
     private static readonly WorkbookStylePatch LegacyCalibri12Bold = new(
         FontName: "Calibri",
         FontSize: 12D,
         Bold: true);
 
-    // Red Calibri 12 warnings: BAS 9033-9036,9102,9204-9207 /
-    // ISM 10412-10415,10481,10583-10586.
+    // Red Calibri 12 warnings.
     private static readonly WorkbookStylePatch LegacyCalibri12BoldRed = new(
         FontName: "Calibri",
         FontSize: 12D,
         Bold: true,
         FontColorArgb: LegacyRed);
 
-    // White-on-blue balance header: BAS 9103-9104 / ISM 10482-10483.
+    // White-on-blue balance header.
     private static readonly WorkbookStylePatch LegacyCalibri12BoldWhiteBlue = new(
         FontName: "Calibri",
         FontSize: 12D,
@@ -41,7 +37,7 @@ public sealed partial class WorkingPaperWriter
     private sealed record WorkingPaperAppearanceProfile(
         Func<uint, uint, WorkbookStylePatch?> PatchForCell);
 
-    // Completeness warning: BAS 9033-9036 / ISM 10412-10415.
+    // Completeness warning.
     private static WorkingPaperAppearanceProfile? Step1Appearance(bool hasDifferences) =>
         hasDifferences
             ? new((row, column) =>
@@ -50,7 +46,7 @@ public sealed partial class WorkingPaperWriter
                     : null)
             : null;
 
-    // Unbalanced-voucher block: BAS 9099-9104 / ISM 10478-10483.
+    // Unbalanced-voucher block.
     private static WorkingPaperAppearanceProfile? Step11Appearance(bool hasUnbalancedVouchers) =>
         hasUnbalancedVouchers
             ? new((row, column) =>
@@ -69,7 +65,7 @@ public sealed partial class WorkingPaperWriter
             })
             : null;
 
-    // Missing preparer-summary fallback: BAS 9204-9207 / ISM 10583-10586.
+    // Missing preparer-summary fallback.
     private static WorkingPaperAppearanceProfile? Step12Appearance(bool missingCreatedByMapping) =>
         missingCreatedByMapping
             ? new((row, column) =>
@@ -78,13 +74,12 @@ public sealed partial class WorkingPaperWriter
                     : null)
             : null;
 
-    // User-approved final schema: the entire step4-1 worksheet is borderless,
+    // The entire step4-1 worksheet is borderless,
     // including retained template placeholders outside the emitted data range.
     private static WorkingPaperAppearanceProfile Step41Appearance() =>
         new(static (_, _) => Borderless);
 
-    // FieldInfo version/TB/GL cells: BAS 9449-9525 / ISM 10831-10907.
-    // Its EntireColumn.AutoFit is BAS 9575 / ISM 10957 and is emitted by the writer.
+    // FieldInfo TB/GL header cells. Its EntireColumn.AutoFit is emitted by the writer.
     private static WorkingPaperAppearanceProfile FieldInfoAppearance(uint glHeaderRow) =>
         new((row, column) =>
         {
@@ -97,8 +92,7 @@ public sealed partial class WorkingPaperWriter
                 : null;
         });
 
-    // Weekend/holiday/make-up headers: BAS 9601-9688 / ISM 10983-11070.
-    // Conditional AutoFit: BAS 9669,9712 / ISM 11051,11094; emitted by the writer.
+    // Weekend/holiday/make-up headers. Conditional AutoFit is emitted by the writer.
     private static WorkingPaperAppearanceProfile CalendarBaseAppearance(
         int holidayCount,
         bool hasMakeupDays)
@@ -135,7 +129,7 @@ public sealed partial class WorkingPaperWriter
                 ? LegacyCalibri12Bold
                 : null);
 
-    // Account-mapping header/AutoFit: BAS 9739-9764 / ISM 11121-11146.
+    // Account-mapping header/AutoFit.
     private static WorkingPaperAppearanceProfile? AccountMappingAppearance(bool hasMappings) =>
         hasMappings
             ? new((row, column) =>

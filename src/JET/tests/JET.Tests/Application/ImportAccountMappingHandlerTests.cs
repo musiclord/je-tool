@@ -83,7 +83,7 @@ public sealed class ImportAccountMappingHandlerTests
             Assert.Equal(2, imported.GetProperty("mappingOnlyCount").GetInt64());
             Assert.Equal(3, imported.GetProperty("unmappedCount").GetInt64());
             Assert.Equal(1, imported.GetProperty("blankCategoryCount").GetInt32());
-            Assert.True(imported.GetProperty("hasRevenue").GetBoolean()); // 額外科目的前置條件影響依裁定保留。
+            Assert.True(imported.GetProperty("hasRevenue").GetBoolean()); // 額外科目對前置條件的影響保留。
             Assert.Equal(4, imported.GetProperty("rowCount").GetInt32());
             foreach (var (kind, expected) in new[]
             {
@@ -261,10 +261,10 @@ public sealed class ImportAccountMappingHandlerTests
 
         Assert.Equal("projection_failed", ex.Code);
         Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-                        // 裁定 2026-11-03-10 改畫面用字：一律寫「科目配對範本」。第一次失敗：Focused 收據 20261103-075436522-3ba8d414fe894889821d8e8efe76e0cf。
+                        // 這句的用字已定案。
+                        // 一律寫「科目配對範本」。
                         "科目配對範本有 1 列無法讀取，本次匯入未儲存："
-            // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+            // 這句的用字已定案。
             + "第 3 列：分類「NotACategory」不在本案件的科目分類中"
             + "（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。",
             ex.Message);
@@ -317,10 +317,10 @@ public sealed class ImportAccountMappingHandlerTests
 
         var data = await host.DispatchAsync("prescreen.run");
 
-        // 獨立 recount（guide §5 否定面；寫法獨立於述詞：貸方 Revenue 列 JOIN 取得，
+        // 獨立 recount（寫法獨立於述詞：貸方 Revenue 列 JOIN 取得，
         // 「同傳票有正常對方借方」以 voucher_number NOT IN 反查表達，等價於述詞的 NOT EXISTS）。
-        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29），並要求傳票裡有金額大於 0 的分錄（舊版 idea-tool.bas 第 8370、8385 行），
-        // recount 改數命中傳票的全部分錄；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票，並要求傳票裡有金額大於 0 的分錄，
+        // recount 改數命中傳票的全部分錄；
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             """
@@ -388,7 +388,7 @@ public sealed class ImportAccountMappingHandlerTests
             }
         }));
 
-        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29），第四步的筆數改和第五步畫面的分錄筆數（summaryRowCount）比；原本和直接命中的 count 比。第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票，第四步的筆數和第五步畫面的分錄筆數（summaryRowCount）比。
         Assert.Equal(
             prescreen.GetProperty("unexpectedAccountPair").GetProperty("count").GetInt64(),
             preview.GetProperty("scenario").GetProperty("summaryRowCount").GetInt64());
@@ -437,8 +437,7 @@ public sealed class ImportAccountMappingHandlerTests
         Assert.Equal(
             new[] { "accountNumber", "accountName", "standardizedCategory" },
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
-        // 2026-10-16 明細改為每頁最多 200 筆，這份固定合成母體的 150 筆應在同一頁。
-        // 首次失敗：20261016-095520371-60c9a9002376403f857a74b0ae85b6b8。
+        // 明細每頁最多 200 筆，這份固定合成母體的 150 筆應在同一頁。
         Assert.Equal(150, data.GetProperty("rows").GetArrayLength());
     }
 }

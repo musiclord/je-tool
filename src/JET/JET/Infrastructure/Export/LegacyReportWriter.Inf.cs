@@ -18,7 +18,7 @@ public sealed partial class LegacyReportWriter
     // 衍生來源欄位 number-format variant，表頭、資料與欄樣式保持一致。
     private const uint InfAllFieldsBaseStyle = 0;
 
-    // idea-script.bas 4828–4854：只有 legacy target TableDef 中的 character
+    // 舊版 JET：只有 legacy target TableDef 中的 character
     // 欄位，且確實對映到 INF 主表欄位時，實際 sample rows 才套文字格式。
     private static readonly WorkbookStylePatch InfCharacterNumberFormat =
         new(NumberFormatCode: "@");
@@ -134,7 +134,7 @@ public sealed partial class LegacyReportWriter
         InfReportContext context,
         CancellationToken cancellationToken)
     {
-        // 先依穩定鍵讀完實際樣本，再照報告的順序排（裁定 2026-11-05-41、2026-11-06-06）。
+        // 先依穩定鍵讀完實際樣本，再照報告的順序排。
         var samples = new List<InfSampleRow>(InfReportSampleSize);
         string? cursor = null;
         do
@@ -170,7 +170,7 @@ public sealed partial class LegacyReportWriter
         Action<WorkingPaperProgress>? progress)
     {
         var stats = new List<SheetStat>(2);
-        // 舊版只在配對了傳票核准人員時把 L51 改成「傳票核准人員」（idea-tool.bas 第 6874、6878 行，裁定 2026-11-09-11）；
+        // 舊版只在配對了傳票核准人員時把 L51 改成「傳票核准人員」；
         // 沒配對時保留範本原字。
         var approverMapped = workbookMetadata.GlMapping.Mapping.TryGetValue(
                 GlMappingKeys.ApprovedBy,
@@ -575,7 +575,7 @@ public sealed partial class LegacyReportWriter
         IReadOnlyDictionary<long, IReadOnlyDictionary<string, string?>> rdeValues,
         CancellationToken cancellationToken)
     {
-        // 攸關資料元素的表頭照舊版加 _JE（裁定 2026-11-03-14）。
+        // 攸關資料元素的表頭照舊版加 _JE。
         var outputColumns = columns.Concat(GlRdeOutputNames.For(customFields, registryFields)).ToArray();
         var styles = InfAllFieldsStyles(columns, sourceDefinitions, stylePatcher)
             .Concat(Enumerable.Repeat(InfAllFieldsBaseStyle, customFields.Count))

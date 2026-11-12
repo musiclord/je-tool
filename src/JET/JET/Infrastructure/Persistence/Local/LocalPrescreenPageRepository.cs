@@ -84,7 +84,7 @@ public sealed class LocalPrescreenPageRepository(ILocalProjectDatabase database)
 
     /// <summary>
     /// 第四步的卡片筆數與明細、預篩選報告的明細與摘要筆數，列出一條規則命中的哪些分錄；呼叫端外層的別名是 g，有效分錄母體由呼叫端加上。
-    /// 未預期借貸組合照舊版 R3 列整張命中傳票（舊版 idea-tool.bas 第 8526 到 8538 行只依傳票號碼對上；裁定 2026-10-29-29），
+    /// 未預期借貸組合照舊版 R3 列整張命中傳票（舊版只依傳票號碼對上），
     /// 和第五步只用這一個條件時的整張傳票是同一個判斷（<see cref="JetAuditProgram.UsesLegacyWholeVoucherRows"/>）：
     /// 先找直接命中的列，再列出這些傳票在同一個母體範圍裡的全部分錄。其他規則只列直接命中的列，原樣回傳規則述詞。
     /// 子查詢也用別名 g，規則述詞裡的 g 指子查詢的命中列。

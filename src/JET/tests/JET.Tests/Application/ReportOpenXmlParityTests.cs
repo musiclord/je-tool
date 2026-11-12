@@ -54,7 +54,7 @@ public sealed class ReportOpenXmlParityTests(ReportExportFixture fixture)
         var originalPath = fixture.ReportPath(report);
         var mutatedPath = Path.Combine(
             Path.GetDirectoryName(originalPath)!,
-            $"phase2-openxml-mutation-{Guid.NewGuid():N}.xlsx");
+            $"openxml-mutation-{Guid.NewGuid():N}.xlsx");
         File.Copy(originalPath, mutatedPath);
 
         try
@@ -71,7 +71,7 @@ public sealed class ReportOpenXmlParityTests(ReportExportFixture fixture)
                     document = XDocument.Load(input, LoadOptions.PreserveWhitespace);
                 }
 
-                document.Root!.SetAttributeValue("phase2ParityProbe", "changed");
+                document.Root!.SetAttributeValue("parityProbe", "changed");
                 using var output = entry.Open();
                 output.SetLength(0);
                 document.Save(output, SaveOptions.DisableFormatting);
@@ -103,10 +103,10 @@ public sealed class ReportOpenXmlParityTests(ReportExportFixture fixture)
         var originalPath = fixture.ReportPath(report);
         var expectedPath = Path.Combine(
             Path.GetDirectoryName(originalPath)!,
-            $"phase2-openxml-rid-expected-{Guid.NewGuid():N}.xlsx");
+            $"openxml-rid-expected-{Guid.NewGuid():N}.xlsx");
         var actualPath = Path.Combine(
             Path.GetDirectoryName(originalPath)!,
-            $"phase2-openxml-rid-actual-{Guid.NewGuid():N}.xlsx");
+            $"openxml-rid-actual-{Guid.NewGuid():N}.xlsx");
         File.Copy(originalPath, expectedPath);
         File.Copy(originalPath, actualPath);
 
@@ -114,10 +114,10 @@ public sealed class ReportOpenXmlParityTests(ReportExportFixture fixture)
         {
             AddEquivalentRelationshipAndLiteralAttribute(
                 expectedPath,
-                "rIdPhase2LiteralA");
+                "rIdLiteralA");
             AddEquivalentRelationshipAndLiteralAttribute(
                 actualPath,
-                "rIdPhase2LiteralB");
+                "rIdLiteralB");
 
             var expected = NormalizedOpenXmlWorkbookSnapshot.Capture(expectedPath);
             var actual = NormalizedOpenXmlWorkbookSnapshot.Capture(actualPath);
@@ -169,7 +169,7 @@ public sealed class ReportOpenXmlParityTests(ReportExportFixture fixture)
             ?? throw new InvalidDataException(
                 "Validation workbook has no xl/workbook.xml package part.");
         var workbook = LoadXml(workbookEntry);
-        workbook.Root!.SetAttributeValue("phase2LiteralRelationshipId", relationshipId);
+        workbook.Root!.SetAttributeValue("literalRelationshipId", relationshipId);
         RewriteXml(workbookEntry, workbook);
     }
 

@@ -5,9 +5,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-10-19-19：確認 GL 配對已存檔、卻讀不到授權清單比對時，回報成功並沿用結果狀態的提醒，
-/// 回應不帶 authorizedPreparerState，畫面保留原本的比對（前端情境在 frontend-workflow.test.cjs）。
-/// 獨立複審指出這條路徑沒有後端測試，也沒有留下支援日誌，所以補上這個測試。
+/// 確認 GL 配對已存檔、卻讀不到授權清單比對時，回報成功並沿用結果狀態的提醒，
+/// 回應不帶 authorizedPreparerState，畫面保留原本的比對（前端情境由前端測試核對）。
+/// 這裡核對後端這條路徑，並確認留下支援日誌。
 /// </summary>
 public sealed class MappingCommitAuthorizedPreparerStateTests
 {
@@ -40,7 +40,7 @@ public sealed class MappingCommitAuthorizedPreparerStateTests
         Assert.Equal(JsonValueKind.Null, commit.GetProperty("reports").ValueKind);
         Assert.Equal(StateUnavailableWarning, commit.GetProperty("reportWarning").GetString());
 
-        // 修正前的失敗收據 20261019-134426829-4331064a1f2747d69684016c60b3522e：回應正確，但支援日誌沒有任何紀錄。
+        // 回應正確之外，支援日誌也要留下紀錄。
         var export = await host.DispatchAsync(
             "support.log.export",
             JsonSerializer.Serialize(new { projectId = context.ProjectId, correlationId = "authorized-list-unreadable" }));

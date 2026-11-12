@@ -17,7 +17,7 @@ internal sealed record ValidationReportRequest(
 
 /// <summary>
 /// Workbook detail 的 provider-neutral semantic identity。Legacy 工作表名稱、欄位與
-/// 落點仍由 Infrastructure writer 持有，AuditCore 只裁定是否讀取／輸出明細。
+/// 落點仍由 Infrastructure writer 持有，AuditCore 只判定是否讀取／輸出明細。
 /// </summary>
 internal enum ValidationReportDetailKind
 {

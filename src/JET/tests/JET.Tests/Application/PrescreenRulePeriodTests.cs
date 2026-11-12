@@ -26,8 +26,7 @@ public sealed class PrescreenRulePeriodTests
         "holidayPosting",
         "holidayApproval",
         "blankDescription",
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，規則清單不再有 backdatedPosting。
-        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），規則清單不再有 rarePreparer 與 rareAccount；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 規則清單沒有 backdatedPosting；第四步照舊版也沒有 rarePreparer 與 rareAccount。
         "nonAuthorizedPreparer"
     ];
 
@@ -70,8 +69,7 @@ public sealed class PrescreenRulePeriodTests
                 validateForDownstream: true));
 
         Assert.Equal(JetErrorCodes.EmptyGl, exception.Code);
-        // 用語統一後，審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 審計員會看到的用語是「儲存」，不是「保存」。
         Assert.Contains("本次配對未儲存", exception.Message, StringComparison.Ordinal);
     }
 
@@ -96,7 +94,7 @@ public sealed class PrescreenRulePeriodTests
         Assert.Equal(2, rulePeriod.GetProperty("population").GetInt64());
         AssertApplicable(rules["prepPeriodApproval"], new RuleOracle(1, 1, 50.0m));
         AssertApplicable(rules["blankDescription"], new RuleOracle(1, 1, 50.0m));
-        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），原本這裡的兩條規則斷言跟著拿掉；期間邊界仍由上面兩條與下面兩條零命中的規則核對。
+        // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目；期間邊界由上面兩條與下面兩條零命中的規則核對。
         AssertApplicable(rules["suspiciousKeywords"], new RuleOracle(0, 0, 0.0m));
         AssertApplicable(rules["weekendPosting"], new RuleOracle(0, 0, 0.0m));
     }
@@ -145,7 +143,6 @@ public sealed class PrescreenRulePeriodTests
     /// <summary>
     /// 手算母體共四列、兩張傳票：
     /// A 兩列同時命中期末後核准、關鍵字、六位連續零、週末／假日過帳；
-    /// （裁定 2026-10-08-03 移除傳票日期與回溯過帳，原本的「傳票日期_僅條件_JE」欄隨之拿掉。）
     /// B 兩列命中週末核准，且只有第一列摘要空白；兩張傳票的核准日都是假日。
     /// 所有建立人與科目使用次數都不超過 11，故兩個較少使用規則命中四列。
     /// </summary>
@@ -222,7 +219,7 @@ public sealed class PrescreenRulePeriodTests
         }
 
         // 第四步與第五步要對同一條規則給同一個原因，句子寫出缺什麼、到哪裡補，
-        // 預期值換成規則需求表的句子。第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
+        // 預期值換成規則需求表的句子。
         AssertNotApplicable(
             rules["unexpectedAccountPair"],
             "科目配對中尚無任何科目設定分類，請先在第四步設定。");

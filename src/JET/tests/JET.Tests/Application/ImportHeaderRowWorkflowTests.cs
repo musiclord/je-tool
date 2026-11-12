@@ -6,10 +6,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 「欄名在第幾列」的匯入固定答案。裁定 2026-10-22-15 把這個選項開放給 GL 與 TB 的一般匯入，含文字檔，Access 不適用。
+/// 「欄名在第幾列」的匯入固定答案。這個選項適用於 GL 與 TB 的一般匯入，含文字檔，Access 不適用。
 /// 審計員在第二步的待匯入清單替每個來源填欄名在第幾列，匯入時從那一列起找欄名，前面的標題列與空白列都不算資料；
 /// 這個選擇和工作表、編碼、分隔符一樣跟著來源保存，匯入回應與重開案件都帶回來，審計員才知道這份來源是怎麼讀的。
-/// 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd（headerRow 被忽略，標題列被當成欄名；回應的來源沒有 headerRow）。
 /// </summary>
 public sealed class ImportHeaderRowWorkflowTests
 {
@@ -104,7 +103,6 @@ public sealed class ImportHeaderRowWorkflowTests
             Assert.Equal(2, HeaderRowOf(Assert.Single(importState.GetProperty("tb").GetProperty("sources").EnumerateArray())));
 
             // PBC-GL 的資料預覽直接讀暫存表：標題列不在裡面，兩份來源合計 3 列。
-            // 2026-10-28 複審：原註解另寫「列號是來源檔的實際列號」，但資料預覽不回傳列號，這裡沒有斷言它，所以拿掉那半句。
             var preview = await host.DispatchAsync("query.dataPreview", JsonSerializer.Serialize(new { dataset = "pbcGl", limit = 10, offset = 0 }));
             Assert.Equal(3, preview.GetProperty("rows").GetArrayLength());
         }

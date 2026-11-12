@@ -17,7 +17,6 @@ internal sealed class InlineGlWorkbookBuilder
             ["傳票號碼"] = "voucherNumber",
             ["傳票項次"] = "lineItem",
             ["傳票日期"] = "glDate",
-            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，不再有「傳票日期_僅條件_JE」對 voucherDate 的慣例。
             ["核准日期"] = "approvalDate",
             ["科目代號"] = "accountNumber",
             ["科目名稱"] = "accountName",
@@ -102,8 +101,8 @@ internal sealed class InlineGlWorkbookBuilder
         if (mapping.ContainsKey("drCr"))
         {
             mapping["drCrDebitCode"] = "1";
-            // Both debit and credit codes are required. Receipt 20261004-100405726 preserves the first failure;
-            // this synthetic fixture has always explicitly used 1/0, so no product fallback is introduced.
+            // Both debit and credit codes are required.
+            // This synthetic fixture explicitly uses 1/0, so it does not rely on any product fallback.
             mapping["drCrCreditCode"] = "0";
         }
 

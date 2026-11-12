@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第四步「分類留白 N 筆，視為 Others」提醒（裁定 2026-09-07-03 的輕量版科目配對完善）：
+/// 第四步「分類留白 N 筆，視為 Others」提醒：
 /// 留白列在投影時已落到 Others，篩選不受影響；狀態只回計數，清單走有界分頁。
 /// </summary>
 public sealed class AccountMappingBlankCategoryTests
@@ -45,7 +45,7 @@ public sealed class AccountMappingBlankCategoryTests
         Assert.Equal(JsonValueKind.Null, next.GetProperty("nextCursor").ValueKind);
 
         // 留白視為 Others：貸方「不屬於 Cash」兩張都命中，沒有待判定。
-        // 借貸方向與傳票佐證改成明示寫法，保留原固定答案；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+        // 借貸方向與傳票佐證用明示寫法。
         var scenario = JsonDocument.Parse("""
           {"name":"Blank as others","rationale":"Synthetic","groups":[{"conditions":[
             {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},

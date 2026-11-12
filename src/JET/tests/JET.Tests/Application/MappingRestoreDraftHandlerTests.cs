@@ -8,9 +8,9 @@ namespace JET.Tests.Application;
 
 public sealed class MappingRestoreDraftHandlerTests
 {
-    // 裁定 2026-11-05-03：報告裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的列出來請審計員重選，不整份拒絕。
-    // 原本這裡斷言整份回 mapping_column_not_found；改成斷言 TB 只少了找不到的那一欄、unmatchedFields 寫出它，
-    // 還原仍是唯讀，不改動已確認的配對與標準資料。改前的第一次失敗：Focused 收據 20261105-021308140-a48dfbf83644426388937a4bc7f51278。
+    // 報告裡選的來源欄在目前資料找不到時，對得上的照樣帶入，找不到的列出來請審計員重選，不整份拒絕。
+    // 這裡斷言 TB 只少了找不到的那一欄、unmatchedFields 寫出它，
+    // 還原是唯讀，不改動已確認的配對與標準資料。
     [Fact]
     public async Task RestoreDraft_OneDatasetColumnMissing_KeepsTheMatchedFieldsListsTheMissingOneWithoutMutation()
     {
@@ -69,9 +69,8 @@ public sealed class MappingRestoreDraftHandlerTests
             static pair => pair.Key,
             static pair => pair.Value,
             StringComparer.Ordinal);
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：示範資料不再有「傳票日期」欄。
-        // 改用「傳票核准日」當自訂日期欄，先移除 core approvalDate 配對並把核准日設為未配對，避免同一來源重複指派；
-        // stable ID 與 round-trip 斷言全部保留。
+        // 示範資料沒有「傳票日期」欄。
+        // 用「傳票核准日」當自訂日期欄，先移除 core approvalDate 配對並把核准日設為未配對，避免同一來源重複指派。
         mapping.Remove(GlMappingKeys.ApprovalDate);
         var committed = await host.DispatchAsync("mapping.commit.gl", JsonSerializer.Serialize(new
         {
@@ -171,12 +170,9 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 裁定 2026-10-30-20：讀不到報告時不寫「可能」，改寫審計員接下來能做什麼。改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
-    // 按鈕改名「由底稿匯入欄位」後，舊版 IDEA JET 的底稿也能選，訊息用詞改成「檔案」，不再限定 JET 匯出（裁定 2026-11-09-27、2026-11-09-28）。
-    // 改字前依預期失敗：Focused 收據 20261109-145908138-d8bb48b344bd4556930b393e6ba6b450。
-    // 複審後拿掉「沒有被其他程式開啟」（開著的檔也讀得到，裁定 2026-11-06-12）並補上下一步，
-    // 改字前依預期失敗：Focused 收據 20261109-161450553-bdcd04fe17194aef923a7e94213d00a8。
-    // 第二次確認時拿掉推測原因的「可能」（裁定 2026-10-30-20），改字前依預期失敗：Focused 收據 20261109-170136963-bef1c5fabdf84abcaf8fa45265465d85。
+    // 讀不到檔案時不寫「可能」這類推測的原因，只寫審計員接下來能做什麼。
+    // 舊版 IDEA JET 的底稿也能選，所以訊息用詞是「檔案」，不限定 JET 匯出；
+    // 訊息不寫「沒有被其他程式開啟」，因為開著的檔也讀得到。
     [Fact]
     public async Task RestoreDraft_UnreadableReport_SaysWhatToCheckWithoutGuessing()
     {
@@ -224,7 +220,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 裁定 2026-11-05-03：沒有匯入 TB 時只帶入 GL，tb 回 null；報告裡的 TB 配對不檢查。
+    // 沒有匯入 TB 時只帶入 GL，tb 回 null；報告裡的 TB 配對不檢查。
     [Fact]
     public async Task RestoreDraft_WithoutTbImport_ReturnsOnlyTheGlDraft()
     {
@@ -262,7 +258,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 裁定 2026-11-05-03：JET 匯出的六種檔案都能帶入配對。科目配對工作檔與預篩選報告沒有「自動化工具-檔案欄位資訊」的配對，
+    // JET 匯出的六種檔案都能帶入配對。科目配對工作檔與預篩選報告沒有「自動化工具-檔案欄位資訊」的配對，
     // 只有六份正式報表共用的隱藏工作表 JET_Metadata；從它帶回的配對要和案件確認的配對相同。
     [Fact]
     public async Task RestoreDraft_FromReportsWithOnlyTheSharedHiddenMetadata_ReturnsTheCommittedMapping()
@@ -335,8 +331,8 @@ public sealed class MappingRestoreDraftHandlerTests
     [Fact]
     public async Task FieldInfoSheetWithoutVersionText_StillCarriesTheCommittedMapping()
     {
-        // 裁定 2026-11-06-11 拿掉「自動化工具-檔案欄位資訊」第 1 列的 V.2019。第 1 列右邊 F1:H1 的隱藏配對資訊照舊寫入，
-        // 拿掉 JET_Metadata 之後也讀得回同一份配對。這是新增的測試。
+        // 「自動化工具-檔案欄位資訊」第 1 列不寫 V.2019。第 1 列右邊 F1:H1 的隱藏配對資訊照樣寫入，
+        // 拿掉 JET_Metadata 之後也讀得回同一份配對。
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
         var (gl, tb) = CommittedFrom(await host.DispatchAsync(
@@ -362,8 +358,7 @@ public sealed class MappingRestoreDraftHandlerTests
                 workbook.SaveAs(copyPath);
             }
 
-            // ReadAsync 改回傳 MappingDraftSource（裁定 2026-11-09-28），F1:H1 的隱藏紀錄在 Recorded；斷言不變。
-            // 第一次失敗：Build 收據 20261109-145225420-a56baf66e9a64e52951bd296df7a960e（編譯失敗）。
+            // ReadAsync 回傳 MappingDraftSource，F1:H1 的隱藏紀錄在 Recorded。
             var draft = (await new OpenXmlMappingMetadataReader().ReadAsync(copyPath, CancellationToken.None)).Recorded!;
 
             Assert.Equal(gl.Mapping.OrderBy(item => item.Key, StringComparer.Ordinal),
@@ -380,8 +375,8 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 裁定 2026-11-09-28：舊版 IDEA JET 的底稿沒有隱藏配對紀錄，從看得見的對照表推得草稿。
-    // 欄名正規化後唯一對得上的換成目前的欄名；改了名的來源欄與 TB 兩欄相減列出請審計員重選；草稿按確認配對就能儲存。這是新增的測試。
+    // 舊版 IDEA JET 的底稿沒有隱藏配對紀錄，從看得見的對照表推得草稿。
+    // 欄名正規化後唯一對得上的換成目前的欄名；改了名的來源欄與 TB 兩欄相減列出請審計員重選；草稿按確認配對就能儲存。
     [Fact]
     public async Task RestoreDraft_LegacyWorkingPaperWithoutHiddenRecords_InfersTheDraftAndListsFieldsToReselect()
     {
@@ -465,7 +460,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 裁定 2026-11-09-28 與 2026-11-05-03：沒有匯入 TB 時只推 GL，tb 回 null，也不列 TB 的欄位。這是新增的測試。
+    // 沒有匯入 TB 時只推 GL，tb 回 null，也不列 TB 的欄位。
     [Fact]
     public async Task RestoreDraft_LegacyWorkingPaperWithoutTbImport_ReturnsOnlyTheGlDraft()
     {
@@ -492,7 +487,7 @@ public sealed class MappingRestoreDraftHandlerTests
     }
 
     // GL 的對照表推不出任何欄位時，回錯誤而不是回一份空的 GL 草稿蓋掉審計員已選的欄位；
-    // TB 段有配對、也已匯入 TB 時一樣，因為 GL 草稿會整份換掉；只有讀不懂的列時也一樣。這是新增的測試。
+    // TB 段有配對、也已匯入 TB 時一樣，因為 GL 草稿會整份換掉；只有讀不懂的列時也一樣。
     [Fact]
     public async Task RestoreDraft_GlTableWithoutAnyMappedRow_RejectsInsteadOfReturningAnEmptyGlDraft()
     {
@@ -536,7 +531,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // TB 段沒有任何配對時不回 TB 草稿，審計員已選的 TB 欄位與金額格式不動。這是新增的測試。
+    // TB 段沒有任何配對時不回 TB 草稿，審計員已選的 TB 欄位與金額格式不動。
     [Fact]
     public async Task RestoreDraft_TbTableWithoutAnyMappedRow_LeavesTheTbDraftAlone()
     {
@@ -567,7 +562,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 新版底稿拿掉隱藏紀錄後，兩個名稱相同、來源欄不同的攸關資料元素都帶入，也能確認配對。這是新增的測試。
+    // 新版底稿沒有隱藏紀錄時，兩個名稱相同、來源欄不同的攸關資料元素都帶入，也能確認配對。
     [Fact]
     public async Task RestoreDraft_RelevantDataElementsWithTheSameName_AreBothRestoredAndCommitted()
     {
@@ -613,7 +608,7 @@ public sealed class MappingRestoreDraftHandlerTests
         }
     }
 
-    // 訊息用詞照由底稿匯入欄位計畫改寫：寫欄位名稱而不是配對鍵、下一步寫「請直接在下方選擇欄位」。這是新增的測試。
+    // 訊息寫欄位名稱而不是配對鍵，下一步寫「請直接在下方選擇欄位」。
     [Fact]
     public async Task RestoreDraft_MessagesNameTheGlImportAndTheMissingFieldInScreenWords()
     {
@@ -651,7 +646,7 @@ public sealed class MappingRestoreDraftHandlerTests
     }
 
     // 隱藏紀錄是金額加借貸別，卻兩側代碼都沒有：整份不帶入，訊息寫沒有借貸代碼與和其他拒絕相同的下一步，
-    // 不寫成「缺少必要欄位：GL 借方代碼、GL 貸方代碼」。這是新增的測試。
+    // 不寫成「缺少必要欄位：GL 借方代碼、GL 貸方代碼」。
     [Fact]
     public async Task RestoreDraft_RecordedSideAmountWithoutAnyCode_SaysTheCodesAreMissing()
     {

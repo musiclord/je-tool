@@ -18,7 +18,6 @@ public sealed class DynamicResultPageContractTests
         ("glDate", "總帳日期", "date"),
         ("accountNumber", "會計科目編號", "text"),
         ("accountName", "會計科目名稱", "text"),
-        // 裁定 2026-10-13-18 把分錄金額改名為金額、借貸別欄位改名為借貸別；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
         ("amount", "金額", "amount"),
         ("drCr", "借貸別", "text"),
         ("description", "傳票摘要", "text")
@@ -32,8 +31,6 @@ public sealed class DynamicResultPageContractTests
         ("debit", "借方金額", "amount"),
         ("credit", "貸方金額", "amount"),
         ("glDate", "總帳日期", "date"),
-        // 只更新 INF 顯示表頭，key、型別、順序與 RDE 值的逐欄斷言不變。
-        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         ("approvalDate", "傳票核准日", "date"),
         ("createdBy", "傳票建立人員", "text"),
         ("approvedBy", "傳票核准人員", "text"),
@@ -208,7 +205,7 @@ public sealed class DynamicResultPageContractTests
         Assert.Equal(expected.Length, columns.Length);
         for (var index = 0; index < expected.Length; index++)
         {
-            // 欄位定義多帶 sortable，固定欄可排序、攸關資料元素欄位不能（第一次失敗：收據 20260907-082210786）。
+            // 欄位定義帶 sortable，固定欄可排序、攸關資料元素欄位不能。
             JsonShape.HasExactKeys(columns[index], "key", "label", "valueType", "isCustom", "sortable");
             Assert.Equal(expected[index].Key, columns[index].GetProperty("key").GetString());
             Assert.Equal(expected[index].Label, columns[index].GetProperty("label").GetString());

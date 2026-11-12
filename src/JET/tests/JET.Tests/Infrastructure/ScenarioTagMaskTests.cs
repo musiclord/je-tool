@@ -6,7 +6,6 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 底稿第 4 與 4-1 頁共用的情境位置遮罩：SQL 片段與解碼都是固定答案，位置上限跟著已存情境上限。
-/// 2026-10-22 清理技術債時把兩份一樣的寫法收成這一個類別。
 /// </summary>
 public sealed class ScenarioTagMaskTests
 {

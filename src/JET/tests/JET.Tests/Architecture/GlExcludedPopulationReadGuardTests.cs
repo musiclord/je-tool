@@ -6,53 +6,48 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// GL 的範圍只由 <c>GlExcludedPopulation.SqlPredicate</c> 決定（系統規格第 4 節）。產品原始碼裡每一段讀 gl 的 SQL，
+/// GL 的範圍只由 <c>GlExcludedPopulation.SqlPredicate</c> 決定。產品原始碼裡每一段讀 gl 的 SQL，
 /// 都要在同一個 C# 陳述句裡帶上 GL 的範圍條件：直接寫 is_excluded、呼叫 GlExcludedPopulation.SqlPredicate 或包裝它的
 /// GlPopulationScopeSql.Predicate，或是經名稱含 population 的參數傳入。刻意讀全部列的查詢列在允許清單並附理由；
 /// 清單上的項目找不到對應查詢時也失敗，避免留下過期的例外。
-/// 2026-10-22 第一次執行時，授權名單比對把 GL(未納入測試) 的建立人員也算進去，是唯一沒有理由的查詢（第一次執行的
-/// 收據 20261022-062415992）。
-/// 表名不得當成值傳進讀取查詢：表名從參數傳入時，讀取寫在另一個陳述句，上面的掃描看不到。2026-10-28 複審查到資料預覽 GL 頁
-/// 就是這樣繞過，改成表名與母體條件寫在同一句；另加一項檢查，GL 分錄表名單獨成為字串值的地方只能是不讀資料的用途，列在第二份允許清單。
+/// 表名不得當成值傳進讀取查詢：表名從參數傳入時，讀取寫在另一個陳述句，上面的掃描看不到。
+/// 所以另有一項檢查：GL 分錄表名單獨成為字串值的地方只能是不讀資料的用途，列在第二份允許清單。
 /// </summary>
 public sealed partial class GlExcludedPopulationReadGuardTests
 {
     /// <summary>刻意不限定母體的查詢：檔案、陳述句裡一定出現的片段（空白已壓成單一空格）、理由。</summary>
     private sealed record AllowedRead(string File, string Marker, string Reason);
 
-    // 兩份允許清單原本也列 SQL Server 倉儲的查詢。只保留 SQLite 之後那些檔案已刪除，項目跟著拿掉（裁定 2026-11-06-08）；
-    // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
     private static readonly AllowedRead[] AllowedReads =
     [
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
             "ROW_NUMBER() OVER (PARTITION BY voucher_number ORDER BY source_row_number) AS rn FROM gl",
             "匯入時為整批剛寫入的列補傳票項次，GL 與 GL(未納入測試) 都要編號。"),
-        // GL 整欄空白偵測從兩個 GL 倉儲搬到 GlMappedColumnAudit，由欄位目錄產生查詢，
-        // 兩筆倉儲的例外合成這一筆。第一次失敗：20261023-024707063-4d0429b2cd094187af7242292420a252，搬家後兩筆倉儲例外過期、新位置沒有例外。
-        new("src/JET/JET/Infrastructure/Sql/GlMappedColumnAudit.cs",
+        // GL 整欄空白偵測在 GlMappedColumnAudit，由欄位目錄產生查詢。
+        new("JET/Infrastructure/Sql/GlMappedColumnAudit.cs",
             "FROM {prefix}gl;",
             "匯入當下對整批剛寫入的列偵測整欄空白，要看全部的列。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
             "WHERE g.batch_id = @batchId AND g.entry_id > @cursor",
             "匯入當下依批次回取原始列，為整批剛寫入的列寫入攸關資料元素欄位的值。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalBlankRecordsPageRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalBlankRecordsPageRepository.cs",
             "\"WHERE \" + predicate + paging.Predicate",
             "WHERE 由 BlankRecordsCategoryPredicate.Scoped 產生，裡面已經只看納入測試的分錄。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalRawGlExportRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalRawGlExportRepository.cs",
             "WHERE g.entry_id IN (",
             "依已選出的 entry_id 回取原始列，母體在選出時已限定。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
             "SELECT {columns} FROM gl;",
             "四類空值計數的條件由 BlankRecordsCategoryPredicate.Scoped 產生，各自都只看納入測試的分錄。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
             "WHERE {ValidationProcedures.BlankGlDateSourceQualityPredicate};",
             "總帳日期空白是 ValidationProcedures 寫明的唯一原始列例外。"),
-        // 空值明細多讀傳票核准日（裁定 2026-11-06-13），approval_date 接在旗標後面，認這句查詢的片段跟著改；
-        // 查詢的範圍條件與理由不變。第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+        // 空值明細多讀傳票核准日，approval_date 接在旗標後面，認這句查詢的片段跟著改；
+        // 查詢的範圍條件與理由不變。
+        new("JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
             "approval_date FROM gl WHERE ({anyMatch})",
             "空值明細的旗標與條件由 BlankRecordsCategoryPredicate.Scoped 產生，已經只看納入測試的分錄。"),
-        new("src/JET/JET/Infrastructure/Sql/SourceQualityPageReader.cs",
+        new("JET/Infrastructure/Sql/SourceQualityPageReader.cs",
             "ValidationProcedures.BlankGlDateSourceQualityPredicateWith(\"g\")",
             "總帳日期空白的分頁，和計數是同一個例外。")
     ];
@@ -60,32 +55,32 @@ public sealed partial class GlExcludedPopulationReadGuardTests
     /// <summary>GL 分錄表名單獨成為字串值、但不拿來讀資料的地方：檔案、陳述句裡一定出現的片段、理由。</summary>
     private static readonly AllowedRead[] AllowedTableNameValues =
     [
-        new("src/JET/JET/AuditCore/JetSchemaCatalog.cs",
+        new("JET/AuditCore/JetSchemaCatalog.cs",
             "public const string GlTableName = \"gl\";",
             "表名常數的唯一定義。"),
-        new("src/JET/JET/AuditCore/JetSchemaCatalog.cs",
+        new("JET/AuditCore/JetSchemaCatalog.cs",
             "new(GlTableName, \"GL、GL(未納入測試)\"",
             "資料表目錄只列名稱與說明，不讀資料。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalGlRepository.cs",
             "CreateBulkRowWriter(connection, transaction, JetSchemaCatalog.GlTableName, TargetColumns)",
             "匯入時批次寫入，不讀資料。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalImportRepository.cs",
             "DatasetKind.Gl => JetSchemaCatalog.GlTableName",
             "只用在重新匯入前的 DELETE。"),
-        new("src/JET/JET/Infrastructure/Persistence/Local/LocalDataPreviewRepository.cs",
+        new("JET/Infrastructure/Persistence/Local/LocalDataPreviewRepository.cs",
             "StagingPreviewAsync(connection, \"gl\", \"pbc_gl\"",
             "這裡的 \"gl\" 是資料集種類，用來找 PBC-GL 的匯入批次；讀的是 pbc_gl，不是 GL 分錄表。"),
     ];
 
-    // 2026-10-28 複審新增。資料預覽 GL 頁先改好才補這項檢查，沒有第一次失敗的收據；下面第一則 Theory 案例就是資料預覽原本的寫法。
-    // 2026-10-30 GL 分錄表改名為 gl，和資料集種類的值 "gl" 同字，原本逐字找 "gl" 的寫法把資料集種類都當成表名
-    // （第一次失敗的收據 20261030-094446703-a10ae02321f1477fa8df977229a4fd17）。改成三種情形才算表名：用表名常數
+    // 下面第一則 Theory 案例就是表名當成值傳入的寫法。
+    // GL 分錄表名是 gl，和資料集種類的值 "gl" 同字，逐字找 "gl" 會把資料集種類都當成表名。
+    // 所以三種情形才算表名：用表名常數
     // JetSchemaCatalog.GlTableName；字串帶 schema 限定（"{s}.gl"）；或字串 "gl" 和其他表名字串、SQL 文字寫在同一句。
     [Fact]
     public void ProductionCode_DoesNotPassTheGlEntryTableNameAsAValue_ExceptListedNonReads()
     {
-        var root = TestRepositoryPaths.RepositoryRoot;
-        var product = Path.Combine(root, "src", "JET", "JET");
+        var root = TestRepositoryPaths.SolutionRoot;
+        var product = Path.Combine(root, "JET");
         var violations = new List<string>();
         var used = new HashSet<AllowedRead>();
         foreach (var file in Directory
@@ -145,8 +140,8 @@ public sealed partial class GlExcludedPopulationReadGuardTests
     [Fact]
     public void ProductionSql_ReadsGlWithTheExcludedPopulationPredicate_OrIsListedWithAReason()
     {
-        var root = TestRepositoryPaths.RepositoryRoot;
-        var product = Path.Combine(root, "src", "JET", "JET");
+        var root = TestRepositoryPaths.SolutionRoot;
+        var product = Path.Combine(root, "JET");
         var files = Directory
             .EnumerateFiles(product, "*.cs", SearchOption.AllDirectories)
             .Where(file => !Path.GetRelativePath(product, file)

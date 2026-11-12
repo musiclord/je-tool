@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 一種資料庫的整組資料存取物件。程式啟動時每種資料庫各組一次，全程只有三組；建案或載入時依
+/// 一種資料庫的整組資料存取物件。程式啟動時組一次；建案或載入時依
 /// project.json 的資料庫種類選定一組，和案件編號一起存進 <see cref="ProjectSession"/>。
 /// repository 不保存案件狀態，案件編號仍是每次呼叫的參數，所以同一組可以服務同種資料庫的任何案件。
 /// 屬性型別只用 Domain、AuditCore 介面與 Application 的組合服務；實際物件由 composition root 組裝。

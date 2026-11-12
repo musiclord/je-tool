@@ -4,14 +4,14 @@ namespace JET.Domain;
 /// 把匯入時記下的來源欄位定義，投影成配對後的欄位定義，也就是舊版 IDEA 在配對後的 TableDef。
 /// 只依匯入時保存的來源欄位定義、確認配對用的 spec 與欄位目錄運作；不掃資料列，也不依資料庫 DDL 猜型別。
 /// 每一欄都記下來歷（<see cref="FieldInfoOrigin"/>）與對應的 JET 欄位，底稿與報告照這兩項判斷，
-/// 不再從欄名結尾推斷（裁定 2026-11-03-11）。
+/// 不從欄名結尾推斷。
 /// </summary>
 internal static class FieldInfoProjector
 {
     /// <summary>數字型傳票號碼與科目編號轉成文字前，原欄照 IDEA 的叫法加這個後綴。</summary>
     internal const string TempSuffix = "_Temp";
 
-    /// <summary>來源欄本來就叫 JET 輸出欄名時，原始來源欄讓名加上的字樣（裁定 2026-11-03-12）。</summary>
+    /// <summary>來源欄本來就叫 JET 輸出欄名時，原始來源欄讓名加上的字樣。</summary>
     internal const string SourceNameSuffix = "（來源）";
 
     internal static IReadOnlyList<FieldInfoState> ProjectGl(
@@ -38,7 +38,7 @@ internal static class FieldInfoProjector
             if (field.SemanticIdentity == JetFieldCatalog.GlPostingStatus)
             {
                 // 舊版配對了過帳狀態時，來源欄留在原位，另外照來源欄複製出文字欄「過帳碼_JE」，
-                // 說明寫來源欄與過帳判斷值（idea-tool.bas:12697；裁定 2026-11-03-15）。
+                // 說明寫來源欄與過帳判斷值。
                 if (TryMappedSource(spec.Mapping, slot.Key, out var postingSource))
                 {
                     projection.AppendTextCopy(
@@ -98,7 +98,7 @@ internal static class FieldInfoProjector
             }
         }
 
-        // 攸關資料元素照舊版「自行定義欄位」在原位置改名加 _JE，型態照審計員選的值型別（裁定 2026-11-03-14）。
+        // 攸關資料元素照舊版「自行定義欄位」在原位置改名加 _JE，型態照審計員選的值型別。
         var rdeNames = GlRdeOutputNames.Resolve(spec.Options.RdeFields);
         foreach (var rde in spec.Options.RdeFields)
         {
@@ -107,7 +107,7 @@ internal static class FieldInfoProjector
 
         var amountField = JetFieldCatalog.GlFields.Single(
             static field => field.SemanticIdentity == JetFieldCatalog.GlAmount);
-        // 較新的 idea-tool.bas 對單一帶號、金額與借貸別、借貸兩欄三種方式都保留來源欄，另外追加統一的帶號金額；
+        // 舊版 JET 的較新版本對單一帶號、金額與借貸別、借貸兩欄三種方式都保留來源欄，另外追加統一的帶號金額；
         // JET 的第四種（金額與旗標）和金額與借貸別共用同一個形狀。
         projection.AppendDerived(
             amountField.LegacyFieldName!,
@@ -192,7 +192,7 @@ internal static class FieldInfoProjector
     private static string RequiredMappedSource(IReadOnlyDictionary<string, string> mapping, string key) =>
         TryMappedSource(mapping, key, out var sourceName) ? sourceName : key;
 
-    // 說明句裡的欄位名稱一律用【】標示，借方代碼這類值不是欄位，照條件說明的寫法用「」（裁定 2026-11-03-04）。
+    // 說明句裡的欄位名稱一律用【】標示，借方代碼這類值不是欄位，照條件說明的寫法用「」。
     // 改名欄位的說明欄存的是來源欄名本身，底稿第四步之一拿它當讀原始資料的欄名；【】由欄位資訊的投影在顯示時加上。
     private static string FieldMark(string name) => $"【{name}】";
 
@@ -200,8 +200,8 @@ internal static class FieldInfoProjector
         FieldMark(RequiredMappedSource(mapping, key));
 
     /// <summary>
-    /// 過帳碼_JE 的說明照舊版寫來源欄與過帳判斷值，值用「」（裁定 2026-11-03-15）。
-    /// 審計員勾了空白也算已過帳時，在值後面寫明；這個寫法是 Claude 依裁定的格式延伸。
+    /// 過帳碼_JE 的說明照舊版寫來源欄與過帳判斷值，值用「」。
+    /// 審計員勾了空白也算已過帳時，在值後面寫明。
     /// </summary>
     private static string PostingCodeDescription(string sourceName, GlPostingStatusPolicy? policy)
     {
@@ -232,8 +232,8 @@ internal static class FieldInfoProjector
     }
 
     /// <summary>
-    /// 舊版只寫借方代碼「借方為【代碼】」（idea-tool.bas 第 12656、12674 行）。
-    /// 新版完整寫出已填的兩側代碼，只有一側時只寫該側，讓看得見的表也能帶回相同設定（裁定 2026-11-10-03）。
+    /// 舊版只寫借方代碼「借方為【代碼】」。
+    /// 新版完整寫出已填的兩側代碼，只有一側時只寫該側，讓看得見的表也能帶回相同設定。
     /// </summary>
     private static string DrCrCodeText(IReadOnlyDictionary<string, string> mapping)
     {
@@ -423,8 +423,8 @@ internal static class FieldInfoProjector
             });
         }
 
-        // 審計員可以把同一個來源欄配給多個欄位，例如總帳日期與傳票核准日都選同一欄（裁定 2026-10-19-07，
-        // 預設審計員可信，不擋）。依欄位目錄順序，第一個欄位在來源欄原位置改名，之後的欄位追加在後面。
+        // 審計員可以把同一個來源欄配給多個欄位，例如總帳日期與傳票核准日都選同一欄（預設審計員可信，不擋）。
+        // 依欄位目錄順序，第一個欄位在來源欄原位置改名，之後的欄位追加在後面。
         private (int Index, bool Shared) ClaimSource(string sourceName)
         {
             if (!_sourceIndexes.TryGetValue(sourceName, out var index))
@@ -489,8 +489,8 @@ internal static class FieldInfoProjector
         }
 
         /// <summary>
-        /// 來源檔本來就有 JET 輸出欄名時，原始來源欄讓名成「原名（來源）」，說明欄寫原名（裁定 2026-11-03-12）；
-        /// 原名仍是讀原始資料列的鍵。沒有配對的來源欄不再因為欄名結尾被當成 JET 欄位，所以讓名只為了讓名稱不重複。
+        /// 來源檔本來就有 JET 輸出欄名時，原始來源欄讓名成「原名（來源）」，說明欄寫原名；
+        /// 原名仍是讀原始資料列的鍵。沒有配對的來源欄不會因為欄名結尾被當成 JET 欄位，所以讓名只為了讓名稱不重複。
         /// </summary>
         private void YieldCollidingSourceNames()
         {

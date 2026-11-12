@@ -10,7 +10,6 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Application;
 
 /// <summary>
@@ -132,7 +131,7 @@ public sealed class ValidationDirectTemplatePackageTests
                     "V_Report 5",
                     "V_Report 6",
                     "Source_Quality",
-                    // 2026-10-22 清理技術債：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-080541492）。
+                    // 正式入口一定寫出隱藏的中繼資料工作表。
                     ReportWorkbookMetadataFormat.WorksheetName
                 },
                 workbook.Worksheets.Select(sheet => sheet.Name).ToArray());
@@ -219,9 +218,8 @@ public sealed class ValidationDirectTemplatePackageTests
                     null)
             ]
         };
-        // 裁定 2026-10-22-20 刪掉投影裡沒人讀的總帳日期空白樣本列，報告的總帳日期空白工作表只從倉儲分頁讀；
-        // 摘要 JSON 仍只存 50 筆樣本給前端，所以這則測試照舊確認報告讀到倉儲的全部 51 筆。
-        // 第一次失敗：Focused 收據 20261022-084228771-7b2316c36ab54315bf1eb067bdad7939（建置失敗）。
+        // 投影不帶總帳日期空白樣本列，報告的總帳日期空白工作表只從倉儲分頁讀；
+        // 摘要 JSON 只存 50 筆樣本給前端，所以這則測試確認報告讀到倉儲的全部 51 筆。
         var projection = Projection(sourceQualityFindingCount: fullFindings.Length);
         var plan = Plan(projection, unbalancedDetailRowCount: 0);
 
@@ -412,7 +410,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         Assert.True(
             mismatches.Count == 0,
-            "Stage 8 Track O Validation registry diff:\n" + string.Join("\n", mismatches));
+            "Validation registry diff:\n" + string.Join("\n", mismatches));
     }
 
     [Fact]
@@ -477,7 +475,7 @@ public sealed class ValidationDirectTemplatePackageTests
 
         Assert.True(
             mismatches.Count == 0,
-            $"Stage 8 Track O Validation off-state diff (raw detail count "
+            $"Validation off-state diff (raw detail count "
             + $"{unbalancedDetailRowCount}):\n{string.Join("\n", mismatches)}");
     }
 
@@ -823,9 +821,8 @@ public sealed class ValidationDirectTemplatePackageTests
     {
         var repositories = new ValidationRepositoryFakes();
         var longDescription = new string('欄', 300);
-        // 「配對後欄位名稱」依每一欄的來歷填，不再看欄名結尾（裁定 2026-11-03-11）：手工建的事實標出哪幾欄是配對後改名，
-        // 沒有標的 GL_DATE_je 等欄即使欄名像 JET 欄名也留白。改名欄位的「配對前欄位名稱」加【】（裁定 2026-11-03-17）。
-        // 第一次失敗：Focused 收據 20261103-070040356-7ea024157104489698958ad37a9ef5d4。
+        // 「配對後欄位名稱」依每一欄的來歷填，不看欄名結尾：手工建的事實標出哪幾欄是配對後改名，
+        // 沒有標的 GL_DATE_je 等欄即使欄名像 JET 欄名也留白。改名欄位的「配對前欄位名稱」加【】。
         var fieldInfo = JetAuditProgram.ProjectFieldInfo(
         [
             new FieldInfo(1, "TB_TEXT_TB", longDescription, LegacyFieldKind.Text, 300, null, FieldInfoOrigin.Renamed, JetFieldCatalog.TbAccountNumber),
@@ -850,8 +847,7 @@ public sealed class ValidationDirectTemplatePackageTests
         using (var workbook = Workbook(bytes))
         {
             var sheet = workbook.Worksheet(FieldInfoSheet);
-            // 裁定 2026-11-06-11 拿掉第一列的版本字樣 V.2019，原本預期 A1 是 V.2019，改成空白；其餘列號與內容不變。
-            // 第一次失敗：Focused 收據 20261106-084035819-12cef79878a44a3198bc08e4445b76cb。
+            // 第一列不寫版本字樣 V.2019，A1 是空白。
             Assert.True(sheet.Cell("A1").IsEmpty());
             Assert.Equal("TB檔案配對前後欄位對照表", sheet.Cell("A2").GetString());
             Assert.Equal(
@@ -905,7 +901,7 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.Equal("APPROVAL_DATE", metadata.Gl.Mapping[GlMappingKeys.ApprovalDate]);
             Assert.Equal("ACCOUNT_CODE", metadata.Tb!.Mapping[TbMappingKeys.AccountNumber]);
             Assert.True(sheet.Protection.IsProtected);
-            // 裁定 2026-11-09-16：欄位資訊在資料驗證報告與底稿都不合併標題列。
+            // 欄位資訊在資料驗證報告與底稿都不合併標題列。
             Assert.Empty(sheet.MergedRanges);
         }
 
@@ -931,9 +927,8 @@ public sealed class ValidationDirectTemplatePackageTests
             Assert.True(column.CustomWidth?.Value == true);
             Assert.InRange(column.Width?.Value ?? 0, 1, 255);
         });
-        // 原本欄位名稱欄依全部資料撐到 Excel 上限 255。依裁定 2026-10-29-01 把工作表外觀對齊舊流程後，
-        // 這欄上限改為 40 並換行：300 個全形字約 600 字寬，扣掉留白後每行約 33 字寬，換成 19 行，10 點字每行 15 點。
-        // 第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
+        // 工作表外觀對齊舊流程：欄位名稱欄的寬度上限是 40 並換行。
+        // 300 個全形字約 600 字寬，扣掉留白後每行約 33 字寬，換成 19 行，10 點字每行 15 點。
         Assert.Equal(40d, visibleColumns[0].Width?.Value);
         var longNameRow = worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
             .Single(row => row.RowIndex?.Value == 4U);
@@ -967,20 +962,6 @@ public sealed class ValidationDirectTemplatePackageTests
             CancellationToken.None,
             progress);
         return output.ToArray();
-    }
-
-    private static async Task<byte[]> WriteReportWithApprovalDateMappingAsync(
-        ValidationRepositoryFakes repositories,
-        ValidationReportProjection projection,
-        ValidationReportPlan plan,
-        FieldInfoProjection fieldInfo)
-    {
-        var result = await WriteReportWithApprovalDateMappingResultAsync(
-            repositories,
-            projection,
-            plan,
-            fieldInfo);
-        return result.Bytes;
     }
 
     private static async Task<(byte[] Bytes, ExportStats Stats)> WriteReportWithApprovalDateMappingResultAsync(
@@ -1346,7 +1327,7 @@ public sealed class ValidationDirectTemplatePackageTests
             $"Removed Validation package parts were: {string.Join(", ", removed.Order(StringComparer.Ordinal))}");
 
         var added = output.PartNames.Except(template.PartNames, StringComparer.Ordinal).ToArray();
-        // 2026-10-22 清理技術債：正式入口一定寫出隱藏的中繼資料工作表，新增的部件多一個（第一次失敗：Public 收據 20261022-081114521）。
+        // 正式入口一定寫出隱藏的中繼資料工作表，它也算在新增的部件裡。
         Assert.Equal(8, added.Length);
         Assert.All(added, name => Assert.Matches(@"^xl/worksheets/sheet\d+\.xml$", name));
 
@@ -1381,9 +1362,8 @@ public sealed class ValidationDirectTemplatePackageTests
             // The closed ExportDatabase raw-page family is appended. The
             // Field Info repair adds a borderless regular/bold/wrapped base plus
             // the shared TB/GL header patches. The validation copy
-            // no longer patches a blue version banner (ruling 2026-10-29-07: follow the
-            // host report), so one font and one fill fewer than before.
-            // First failure: Public receipt 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67.
+            // does not patch a blue version banner (it follows the host report),
+            // so it adds no font or fill for one.
             ["numFmts"] = 30,
             ["fonts"] = 13,
             ["fills"] = 15,

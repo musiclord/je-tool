@@ -34,7 +34,7 @@ public sealed class ValidationReportProgramTests
     [Fact]
     public void Finalize_OutOfPeriodApprovalNotChecked_ReadsNoDetail()
     {
-        // 驗證時傳票核准日不可用，筆數是 null；報告不讀這份明細，摘要的 N/A 由寫出器照同一個結果寫（裁定 2026-10-23-01）。
+        // 驗證時傳票核准日不可用，筆數是 null；報告不讀這份明細，摘要的 N/A 由寫出器照同一個結果寫。
         var plan = JetAuditProgram.Finalize(
             JetAuditProgram.Plan(Request(blankAccountNumberCount: 2) with { ApprovalDateNotInPeriodCount = null }),
             new ValidationReportPlanningFacts(UnbalancedDetailRowCount: 0));

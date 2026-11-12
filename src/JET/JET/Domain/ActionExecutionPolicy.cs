@@ -2,8 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 作業序列化的動作分類（單一事實來源）。dispatcher 依此判定是否對 action 上序列化閘。
-/// 純類別、無框架相依（Bridge 引用 Domain 合法）。現行契約見
-/// docs/action-contract-manifest.md 的「使用規則」。
+/// 純類別、無框架相依（Bridge 引用 Domain 合法）。
 /// </summary>
 /// <remarks>
 /// 分類原則：
@@ -21,7 +20,7 @@ namespace JET.Domain;
 /// <c>project.releaseLock</c> 則整個「放鎖＋離開 session」都由 handler 試取同一把閘；它不由 dispatcher
 /// 預先取閘，避免非重入閘自我阻塞。
 /// 新增 action 時必須在此明確歸類（<see cref="IsClassified"/> 有測試守衛，遍歷 dispatcher 已註冊 action，
-/// 未歸類即紅）。未歸類的 action 在執行期以 <see cref="IsExclusive"/> 回 true（fail-safe：預設保護狀態）。
+/// 未歸類時測試會失敗）。未歸類的 action 在執行期以 <see cref="IsExclusive"/> 回 true（fail-safe：預設保護狀態）。
 /// </remarks>
 public static class ActionExecutionPolicy
 {
@@ -204,7 +203,7 @@ public static class ActionExecutionPolicy
     public static bool RequiresConditionalGate(string action)
         => ConditionalGateActions.Contains(action);
 
-    /// <summary>此 action 是否已被明確歸類（測試守衛用；新增 action 未歸類即紅）。</summary>
+    /// <summary>此 action 是否已被明確歸類（測試守衛用；新增 action 未歸類時測試會失敗）。</summary>
     public static bool IsClassified(string action)
         => ExclusiveActions.Contains(action)
             || ConditionalGateActions.Contains(action)

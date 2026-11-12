@@ -15,10 +15,10 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 匯出底稿 SAX 寫出器(封面、固定文字表與 step1 家族)。
-/// 寫到 MemoryStream → 用 ClosedXML 讀回斷言(brief 允許測試端用 ClosedXML;鐵律只禁寫出器用)。
+/// 寫到 MemoryStream,再用 ClosedXML 讀回斷言;測試端可以用 ClosedXML,寫出器本身不用。
 ///
 /// oracle 來源:
-///   - 封面/固定文字:.git/sdd/xlsx_inspect.py 對本機參考樣本逐字復解的 cell 內容、合併範圍、表名。
+///   - 封面/固定文字:測試裡寫死的 cell 內容、合併範圍、表名。
 ///   - step1 家族資料列:獨立參數化 SQL recount(DemoProjectPipeline.QueryScalarAsync),
 ///     鎖「數值＋身分」(科目差異、名單筆數、diff≠0 子集),非弱斷言非空。
 ///
@@ -46,7 +46,7 @@ internal static class WorkingPaperWriterTestSupport
 
     internal const int MoneyScale = 10_000;
 
-    // ---- 寫出器組裝(真 SQLite repo;此 task 尚無 handler/DI 入口)----
+    // ---- 寫出器組裝(直接建立真 SQLite repo 注入,不經過 DI)----
 
     internal static WorkingPaperWriter BuildWriter(
         HandlerTestHost host,
@@ -193,7 +193,7 @@ internal static class WorkingPaperWriterTestSupport
         return JetAuditProgram.Finalize(initial, facts);
     }
 
-    /// <summary>沒有計畫的公開入口已刪除（2026-10-22）；測試和正式路徑一樣先算出目前的計畫再寫出。</summary>
+    /// <summary>測試和正式路徑一樣先算出目前的計畫再寫出。</summary>
     internal static async Task<ExportStats> WriteWithCurrentPlanAsync(
         HandlerTestHost host,
         WorkingPaperWriter writer,
@@ -303,7 +303,7 @@ internal static class WorkingPaperWriterTestSupport
                 new {
                     name = "非授權編製人員", rationale = "編製人員不在授權清單內",
                     groups = new[] { new { join = "and", conditions = new object[] {
-                        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        // 用非授權編製人員；示範資料裡它整張傳票兩列皆命中。
                         new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "借方行", rationale = "借方側可靠性較高之子集",
@@ -700,6 +700,33 @@ internal static class WorkingPaperWriterTestSupport
         Assert.False(format.Protection?.Locked?.Value ?? true);
     }
 
+    // 照 Excel 決定格子樣式的順序判斷鎖定，檔案裡沒有的格子也能判斷：有格子就看格子的樣式；
+    // 沒有格子時先看設了 customFormat 的列樣式，再看欄的預設樣式，都沒有時用第 0 號樣式。
+    // 樣式沒有保護設定時算鎖定。
+    internal static bool IsCellLocked(WorkbookPart workbookPart, Worksheet worksheet, string cellReference)
+    {
+        var letters = new string(cellReference.TakeWhile(char.IsAsciiLetterUpper).ToArray());
+        var rowIndex = uint.Parse(cellReference[letters.Length..], CultureInfo.InvariantCulture);
+        var columnIndex = letters.Aggregate(0U, (value, letter) => (value * 26U) + (uint)(letter - 'A' + 1));
+        var rows = worksheet.GetFirstChild<SheetData>()!.Elements<Row>()
+            .Where(row => row.RowIndex?.Value == rowIndex)
+            .ToArray();
+        var cell = rows.SelectMany(row => row.Elements<Cell>())
+            .SingleOrDefault(item => item.CellReference?.Value == cellReference);
+        var styleIndex = cell is not null
+            ? cell.StyleIndex?.Value ?? 0U
+            : rows.Where(row => row.CustomFormat?.Value == true)
+                    .Select(row => (uint?)(row.StyleIndex?.Value ?? 0U))
+                    .FirstOrDefault()
+                ?? worksheet.GetFirstChild<Columns>()?.Elements<Column>()
+                    .FirstOrDefault(item => item.Min?.Value <= columnIndex && columnIndex <= item.Max?.Value)
+                    ?.Style?.Value
+                ?? 0U;
+        var format = Assert.IsType<CellFormat>(
+            workbookPart.WorkbookStylesPart!.Stylesheet!.CellFormats!.ElementAt(checked((int)styleIndex)));
+        return format.Protection?.Locked?.Value ?? true;
+    }
+
     internal static void AssertCellNumberFormat(
         WorkbookPart workbookPart,
         Worksheet worksheet,
@@ -919,7 +946,7 @@ internal static class WorkingPaperWriterTestSupport
         }
     }
 
-    internal static readonly string[] Stage8TrackWIds =
+    internal static readonly string[] WorkingPaperAppearanceIds =
     [
         "workingpaper-step1-difference-bold",
         "workingpaper-step1-difference-font",
@@ -983,7 +1010,7 @@ internal static class WorkingPaperWriterTestSupport
         return $"{element.NamespaceUri}|{element.LocalName}[{attributeText}]({childText})";
     }
 
-    internal static IReadOnlyList<LegacyAppearanceRegistryEntry> TrackWEntries() =>
+    internal static IReadOnlyList<LegacyAppearanceRegistryEntry> WorkingPaperAppearanceEntries() =>
         LegacyAppearanceRegistry.Load().Entries
             .Where(entry => string.Equals(
                 entry.Procedure,
@@ -1041,7 +1068,7 @@ internal static class WorkingPaperWriterTestSupport
             },
             validateForDownstream: true);
 
-    internal static SpreadsheetDocument OpenStage8Document(byte[] bytes) =>
+    internal static SpreadsheetDocument OpenWorkingPaper(byte[] bytes) =>
         SpreadsheetDocument.Open(new MemoryStream(bytes, writable: false), false);
 
     internal static Dictionary<string, Worksheet> WorksheetsByName(SpreadsheetDocument document)
@@ -1053,25 +1080,25 @@ internal static class WorkingPaperWriterTestSupport
             StringComparer.Ordinal);
     }
 
-    internal static IReadOnlyDictionary<string, LegacyAppearanceTarget> Stage8TrackWTargets(uint glHeaderRow)
+    internal static IReadOnlyDictionary<string, LegacyAppearanceTarget> WorkingPaperAppearanceTargets(uint glHeaderRow)
     {
         var targets = new Dictionary<string, LegacyAppearanceTarget>(StringComparer.Ordinal);
-        AddTargets(targets, Stage8TrackWIds.Take(4), Stage8TrackWOutput.Positive, Step1Sheet, Cells(15, 17, 2, 2));
-        AddTargets(targets, Stage8TrackWIds.Skip(4).Take(3), Stage8TrackWOutput.Positive, Step11Sheet, Cells(12, 16, 2, 6));
-        AddTargets(targets, [Stage8TrackWIds[7]], Stage8TrackWOutput.Positive, Step11Sheet, Cells(12, 15, 2, 2));
-        AddTargets(targets, Stage8TrackWIds.Skip(8).Take(2), Stage8TrackWOutput.Positive, Step11Sheet, Cells(16, 16, 2, 6));
-        AddTargets(targets, Stage8TrackWIds.Skip(10).Take(4), Stage8TrackWOutput.MissingPreparer, Step12Sheet, ["B13"]);
-        AddTargets(targets, Stage8TrackWIds.Skip(14).Take(5), Stage8TrackWOutput.Positive, FieldInfoSheet, ["A1"]);
-        AddTargets(targets, Stage8TrackWIds.Skip(19).Take(4), Stage8TrackWOutput.Positive, FieldInfoSheet, Cells(3, 3, 1, 5));
-        AddTargets(targets, Stage8TrackWIds.Skip(23).Take(4), Stage8TrackWOutput.Positive, FieldInfoSheet, Cells(glHeaderRow, glHeaderRow, 1, 5));
-        targets.Add(Stage8TrackWIds[27], LegacyAppearanceTarget.Columns(Stage8TrackWOutput.Positive, FieldInfoSheet, 1, 5));
-        AddTargets(targets, Stage8TrackWIds.Skip(28).Take(3), Stage8TrackWOutput.Positive, CalendarInfoSheet, Cells(1, 1, 1, 2));
-        AddTargets(targets, Stage8TrackWIds.Skip(31).Take(3), Stage8TrackWOutput.Positive, CalendarInfoSheet, Cells(10, 10, 1, 3));
-        targets.Add(Stage8TrackWIds[34], LegacyAppearanceTarget.Columns(Stage8TrackWOutput.Positive, CalendarInfoSheet, 1, 3));
-        AddTargets(targets, Stage8TrackWIds.Skip(35).Take(3), Stage8TrackWOutput.Positive, CalendarInfoSheet, Cells(13, 13, 1, 2));
-        targets.Add(Stage8TrackWIds[38], LegacyAppearanceTarget.Columns(Stage8TrackWOutput.Positive, CalendarInfoSheet, 1, 3));
-        AddTargets(targets, Stage8TrackWIds.Skip(39).Take(3), Stage8TrackWOutput.Positive, AccountMappingSheet, Cells(1, 1, 1, 3));
-        targets.Add(Stage8TrackWIds[42], LegacyAppearanceTarget.Columns(Stage8TrackWOutput.Positive, AccountMappingSheet, 1, 3));
+        AddTargets(targets, WorkingPaperAppearanceIds.Take(4), WorkingPaperAppearanceOutput.Positive, Step1Sheet, Cells(15, 17, 2, 2));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(4).Take(3), WorkingPaperAppearanceOutput.Positive, Step11Sheet, Cells(12, 16, 2, 6));
+        AddTargets(targets, [WorkingPaperAppearanceIds[7]], WorkingPaperAppearanceOutput.Positive, Step11Sheet, Cells(12, 15, 2, 2));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(8).Take(2), WorkingPaperAppearanceOutput.Positive, Step11Sheet, Cells(16, 16, 2, 6));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(10).Take(4), WorkingPaperAppearanceOutput.MissingPreparer, Step12Sheet, ["B13"]);
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(14).Take(5), WorkingPaperAppearanceOutput.Positive, FieldInfoSheet, ["A1"]);
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(19).Take(4), WorkingPaperAppearanceOutput.Positive, FieldInfoSheet, Cells(3, 3, 1, 5));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(23).Take(4), WorkingPaperAppearanceOutput.Positive, FieldInfoSheet, Cells(glHeaderRow, glHeaderRow, 1, 5));
+        targets.Add(WorkingPaperAppearanceIds[27], LegacyAppearanceTarget.Columns(WorkingPaperAppearanceOutput.Positive, FieldInfoSheet, 1, 5));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(28).Take(3), WorkingPaperAppearanceOutput.Positive, CalendarInfoSheet, Cells(1, 1, 1, 2));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(31).Take(3), WorkingPaperAppearanceOutput.Positive, CalendarInfoSheet, Cells(10, 10, 1, 3));
+        targets.Add(WorkingPaperAppearanceIds[34], LegacyAppearanceTarget.Columns(WorkingPaperAppearanceOutput.Positive, CalendarInfoSheet, 1, 3));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(35).Take(3), WorkingPaperAppearanceOutput.Positive, CalendarInfoSheet, Cells(13, 13, 1, 2));
+        targets.Add(WorkingPaperAppearanceIds[38], LegacyAppearanceTarget.Columns(WorkingPaperAppearanceOutput.Positive, CalendarInfoSheet, 1, 3));
+        AddTargets(targets, WorkingPaperAppearanceIds.Skip(39).Take(3), WorkingPaperAppearanceOutput.Positive, AccountMappingSheet, Cells(1, 1, 1, 3));
+        targets.Add(WorkingPaperAppearanceIds[42], LegacyAppearanceTarget.Columns(WorkingPaperAppearanceOutput.Positive, AccountMappingSheet, 1, 3));
         Assert.Equal(43, targets.Count);
         return targets;
     }
@@ -1079,7 +1106,7 @@ internal static class WorkingPaperWriterTestSupport
     internal static void AddTargets(
         IDictionary<string, LegacyAppearanceTarget> targets,
         IEnumerable<string> ids,
-        Stage8TrackWOutput output,
+        WorkingPaperAppearanceOutput output,
         string sheet,
         IReadOnlyList<string> cells)
     {
@@ -1097,7 +1124,7 @@ internal static class WorkingPaperWriterTestSupport
                 (row, column) => $"{ColumnLetters(column)}{row}")
             .ToArray();
 
-    internal static IReadOnlyList<string> Stage8AppearanceMismatches(
+    internal static IReadOnlyList<string> WorkingPaperAppearanceMismatches(
         SpreadsheetDocument document,
         LegacyAppearanceRegistryEntry entry,
         LegacyAppearanceTarget target)
@@ -1137,7 +1164,7 @@ internal static class WorkingPaperWriterTestSupport
     {
         var mismatches = ids
             .Select(id => entries.Single(entry => entry.Id == id))
-            .SelectMany(entry => Stage8AppearanceMismatches(document, entry, targets[entry.Id]))
+            .SelectMany(entry => WorkingPaperAppearanceMismatches(document, entry, targets[entry.Id]))
             .ToArray();
         if (expectedApplied)
         {
@@ -1193,7 +1220,7 @@ internal static class WorkingPaperWriterTestSupport
         IEnumerable<string> ids) =>
         Assert.Empty(ids
             .Select(id => entries.Single(entry => entry.Id == id))
-            .SelectMany(entry => Stage8AppearanceMismatches(document, entry, targets[entry.Id])));
+            .SelectMany(entry => WorkingPaperAppearanceMismatches(document, entry, targets[entry.Id])));
 
     internal static void AssertGeneratedCellMatchesBaseline(
         SpreadsheetDocument document,
@@ -1294,7 +1321,7 @@ internal static class WorkingPaperWriterTestSupport
         }
     }
 
-    internal static string ReadStage8CellText(
+    internal static string ReadCellText(
         SpreadsheetDocument document,
         string sheetName,
         string reference)
@@ -1344,7 +1371,7 @@ internal static class WorkingPaperWriterTestSupport
             "fill.foregroundArgb" => stylesheet.Fills!.Elements<Fill>()
                 .ElementAt(checked((int)(format.FillId?.Value ?? 0U)))
                 .PatternFill?.ForegroundColor?.Rgb?.Value?.ToUpperInvariant() ?? "<missing-fill-rgb>",
-            _ => throw new InvalidOperationException($"Unsupported Stage 8 Track W property '{property}'.")
+            _ => throw new InvalidOperationException($"Unsupported appearance property '{property}'.")
         };
     }
 
@@ -1359,25 +1386,25 @@ internal static class WorkingPaperWriterTestSupport
 
     internal sealed record WorkingPaperAppearanceWriteResult(byte[] Bytes, WorkingPaperPlan Plan);
 
-    internal enum Stage8TrackWOutput
+    internal enum WorkingPaperAppearanceOutput
     {
         Positive,
         MissingPreparer
     }
 
     internal sealed record LegacyAppearanceTarget(
-        Stage8TrackWOutput Output,
+        WorkingPaperAppearanceOutput Output,
         string Sheet,
         IReadOnlyList<string> CellReferences,
         IReadOnlyList<uint> ColumnIndexes)
     {
         internal static LegacyAppearanceTarget Cells(
-            Stage8TrackWOutput output,
+            WorkingPaperAppearanceOutput output,
             string sheet,
             IReadOnlyList<string> cells) => new(output, sheet, cells, []);
 
         internal static LegacyAppearanceTarget Columns(
-            Stage8TrackWOutput output,
+            WorkingPaperAppearanceOutput output,
             string sheet,
             uint first,
             uint last) => new(
@@ -1441,7 +1468,7 @@ internal static class WorkingPaperWriterTestSupport
             IReadOnlyList<string> columns,
             IAsyncEnumerable<StagingRow> stagingRows,
             CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Stage 8 fixed account-mapping source is read-only.");
+            throw new NotSupportedException("The fixed account-mapping source is read-only.");
 
         public Task<AccountMappingState?> FindStateAsync(
             string projectId,
@@ -1450,9 +1477,9 @@ internal static class WorkingPaperWriterTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<AccountMappingState?>(sourceImported
                 ? new AccountMappingState(
-                    BatchId: "stage8-synthetic-account-mapping",
+                    BatchId: "synthetic-account-mapping",
                     RowCount: rows.Count,
-                    FileName: "stage8-synthetic-account-mapping.xlsx",
+                    FileName: "synthetic-account-mapping.xlsx",
                     ImportedUtc: DateTimeOffset.UnixEpoch,
                     HasAnyCategory: rows.Count > 0,
                     HasRevenue: rows.Any(row => string.Equals(

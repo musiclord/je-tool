@@ -38,7 +38,7 @@ public sealed class LegacyAppearanceSnapshotHashTests
     public void RepositorySnapshots_AreTheExactClosedGoldenSet()
     {
         SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.RepositoryRoot);
+            TestRepositoryPaths.SolutionRoot);
         Assert.Equal(
             SpreadsheetAppearanceSnapshotSchemaGuard.ExpectedSnapshots
                 .Select(item => item.FileName)
@@ -46,7 +46,7 @@ public sealed class LegacyAppearanceSnapshotHashTests
             ExpectedSha256.Keys.Order(StringComparer.Ordinal));
 
         var fixtureDirectory = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
+            TestRepositoryPaths.SolutionRoot,
             SpreadsheetAppearanceSnapshotSchemaGuard.FixtureRelativeDirectory.Replace(
                 '/',
                 Path.DirectorySeparatorChar));

@@ -3,12 +3,11 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// Legacy TableDef 等價欄位定義的本地 provider 持久化。
-/// Oracle：master spec「Legacy 等價欄位定義持久化」的小型手算資料集；
+/// Oracle：Legacy 等價欄位定義持久化的小型手算資料集；
 /// reader 如何產生 cell evidence 由 reader-side tests 獨立驗證。
 /// </summary>
 public sealed class FieldInfoPersistenceTests
@@ -23,7 +22,7 @@ public sealed class FieldInfoPersistenceTests
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
 
         var database = CreateDatabase(provider, folder);
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         IImportRepository repository = new LocalImportRepository(database);
 
@@ -319,7 +318,7 @@ public sealed class FieldInfoPersistenceTests
             var database = CreateDatabase(provider, folder);
             ProjectId = Guid.NewGuid().ToString("N");
             Directory.CreateDirectory(folder.GetProjectDirectory(ProjectId));
-            // 照建案的做法先建表（裁定 2026-11-05-72）。
+            // 照建案的做法先建表。
             database.EnsureCreatedAsync(ProjectId, CancellationToken.None).GetAwaiter().GetResult();
             Repository = new LocalImportRepository(database);
             FactsPort = new LocalFieldInfoFactsPort(database);

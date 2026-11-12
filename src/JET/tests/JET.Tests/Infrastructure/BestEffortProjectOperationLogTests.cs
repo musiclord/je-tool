@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 裁定 2026-10-02-06：本機案件寫操作紀錄失敗不擋作業，包裝類別吞下寫入與讀取失敗，
+/// 本機案件寫操作紀錄失敗不擋作業，包裝類別吞下寫入與讀取失敗，
 /// 只記一筆支援日誌事件；取消照常往外丟，成功時原樣轉交。
 /// </summary>
 public sealed class BestEffortProjectOperationLogTests
@@ -94,7 +94,7 @@ public sealed class BestEffortProjectOperationLogTests
         Assert.Empty(provider.Snapshot());
     }
 
-    // 裁定 2026-10-19-19：寫不進操作紀錄時回報成功並提醒；TryAppendAsync 告訴呼叫端有沒有寫進去，失敗仍不往外丟。
+    // 寫不進操作紀錄時回報成功並提醒；TryAppendAsync 告訴呼叫端有沒有寫進去，失敗仍不往外丟。
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -114,7 +114,7 @@ public sealed class BestEffortProjectOperationLogTests
         Assert.Equal(innerFails ? 1 : 0, provider.Snapshot().Count());
     }
 
-    // 同一裁定：確認配對前讀不到紀錄表時回 null，讓呼叫端分得出「不需要紀錄」與「無法判斷」，後者照樣提醒。
+    // 確認配對前讀不到紀錄表時回 null，讓呼叫端分得出「不需要紀錄」與「無法判斷」，後者照樣提醒。
     [Theory]
     [InlineData(true, true)]
     [InlineData(false, false)]

@@ -204,7 +204,7 @@ public static class GlRowProjector
                     debitCode?.Trim(),
                     StringComparison.OrdinalIgnoreCase);
                 var isCredit = hasCreditCode && string.Equals(dcValue?.Trim(), creditCode?.Trim(), StringComparison.OrdinalIgnoreCase);
-                // 只設單邊代碼時，其餘的值都歸另一側，空白也算（裁定 2026-10-08-11）；兩邊都設時仍拒絕未定義的值。
+                // 只設單邊代碼時，其餘的值都歸另一側，空白也算；兩邊都設時仍拒絕未定義的值。
                 if (hasDebitCode && !hasCreditCode) { isCredit = !isDebit; }
                 if (hasCreditCode && !hasDebitCode) { isDebit = !isCredit; }
                 if (!isDebit && !isCredit)
@@ -215,7 +215,7 @@ public static class GlRowProjector
                     return false;
                 }
 
-                // 裁定 2026-11-05-37：照舊版 idea-tool.bas 第 12658、12676 行保留來源金額的正負號，借方代碼的列照原金額，其他列乘以 -1。
+                // 照舊版 JET 保留來源金額的正負號，借方代碼的列照原金額，其他列乘以 -1。
                 // 紅字沖銷（借方代碼的列寫 -100）因此算成貸方 100；資料本來就用正負號表示借貸時改選「單一帶號金額欄」。
                 amount = isDebit ? magnitude : -magnitude;
                 return true;

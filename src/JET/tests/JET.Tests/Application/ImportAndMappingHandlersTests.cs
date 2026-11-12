@@ -119,7 +119,7 @@ public sealed class ImportAndMappingHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // 已支援 .xls；.xlsb 照裁定 2026-09-17-03 排除，仍須拒絕並保留多檔錯誤定位。
+        // 已支援 .xls；.xlsb 不支援，仍須拒絕並保留多檔錯誤定位。
         var xlsPath = Path.Combine(Path.GetTempPath(), $"jet-{Guid.NewGuid():N}.xlsb");
         await File.WriteAllTextAsync(xlsPath, "not a real xls");
         try
@@ -255,7 +255,6 @@ public sealed class ImportAndMappingHandlersTests
     [InlineData("""{"sources":[]}""")]
     [InlineData("""{"encoding":"utf-8","sources":[{"filePath":"C:\\missing.csv"}]}""")]
     // 欄名在第幾列是每個來源自己的選項，和編碼、分隔符一樣不能放在整批的外層。
-    // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd。
     [InlineData("""{"headerRow":3,"sources":[{"filePath":"C:\\missing.csv"}]}""")]
     public async Task Import_BatchPayload_InvalidShape_ThrowsInvalidPayload(string payload)
     {
@@ -346,7 +345,7 @@ public sealed class ImportAndMappingHandlersTests
     }
 
     // journey test：多工作表合併匯入的完整使用者旅程（replace Q1 → commit → append Q2 →
-    // 配對失效 → 重新 commit → resume）。分階段斷言屬同一行為鏈（jet-testing skill §3 例外條款）。
+    // 配對失效 → 重新 commit → resume）。分階段斷言屬同一行為鏈。
     [Fact]
     public async Task Append_TwoWorksheets_FullPipeline()
     {
@@ -434,7 +433,7 @@ public sealed class ImportAndMappingHandlersTests
                 JsonSerializer.Serialize(new { filePath = tbPath }));
             Assert.Equal(2, tbImport.GetProperty("rowCount").GetInt32());
 
-            // 裁定 2026-09-17-04 移除自動建議，必須以明確手動配對繼續。
+            // 沒有自動建議，必須以明確手動配對繼續。
             await Assert.ThrowsAsync<KeyNotFoundException>(() => host.DispatchAsync(
                 "mapping.autoSuggest", "{}"));
 
@@ -453,7 +452,7 @@ public sealed class ImportAndMappingHandlersTests
                     }
                     """));
             Assert.Equal(JetErrorCodes.MissingRequiredMapping, missing.Code);
-            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 這句的用字已定案。
             Assert.Contains("傳票摘要", missing.Message);
 
             // commit GL（dual）

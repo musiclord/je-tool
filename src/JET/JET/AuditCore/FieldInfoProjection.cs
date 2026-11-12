@@ -41,8 +41,8 @@ public static partial class JetAuditProgram
 
     /// <summary>
     /// 「配對前欄位名稱」依來歷寫：原始來源欄寫欄名本身；配對後改名與 _Temp 原欄寫來源欄名並加【】，
-    /// 因為那一格描述的是另一個欄位（裁定 2026-11-03-17）；系統產生的欄寫說明句，句裡的欄位名稱已經有【】。
-    /// 「配對後欄位名稱」只有 JET 欄位才填，不再看欄名結尾（裁定 2026-11-03-11）。
+    /// 因為那一格描述的是另一個欄位；系統產生的欄寫說明句，句裡的欄位名稱已經有【】。
+    /// 「配對後欄位名稱」只有 JET 欄位才填，不看欄名結尾。
     /// </summary>
     private static FieldInfoRow ProjectRow(FieldInfo definition)
     {

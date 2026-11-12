@@ -10,9 +10,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第 22 步盤點的第 4 項：唯讀、防毒軟體這類程式占用檔案與磁碟已滿時，原本畫面只寫「發生非預期的錯誤」，重試也不會成功。
+/// 唯讀、防毒軟體這類程式占用檔案與磁碟已滿時，重試也不會成功，畫面不能只寫「發生非預期的錯誤」。
 /// 這裡用合成資料在真正的檔案上重現這幾種情形，核對審計員看到的原因與下一步，以及案件資料保持原狀、排除後可以繼續。
-/// 這是新增的測試。
 /// </summary>
 public sealed class CaseDatabaseAccessErrorTests
 {
@@ -83,7 +82,7 @@ public sealed class CaseDatabaseAccessErrorTests
         try
         {
             var rejected = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", LoadPayload(name)));
-            // SQLite 遇到唯讀的資料庫檔仍然可以讀，開案到寫入案件設定時才失敗；DuckDB 開資料庫檔就要寫入，開檔時就失敗。
+            // SQLite 遇到唯讀的資料庫檔仍然可以讀，開案到寫入案件設定時才失敗。
             Assert.Equal(
                 JetErrorCodes.FileReadError,
                 rejected.Code);

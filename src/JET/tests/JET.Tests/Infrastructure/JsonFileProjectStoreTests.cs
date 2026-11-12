@@ -7,7 +7,6 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class JsonFileProjectStoreTests
 {
-    // 第一次失敗：20261110-044457093-c8b3781b82b84584a4bdbb3bbbf9fbf8。
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -40,7 +39,6 @@ public sealed class JsonFileProjectStoreTests
         Assert.Equal(original, loaded.GetProperty("project").GetProperty("projectId").GetString());
     }
 
-    // 第一次失敗：20261110-044318362-3d1863245a1741d787f86045ace00d81。
     [Theory]
     [InlineData(null)]
     [InlineData(0)]
@@ -86,8 +84,8 @@ public sealed class JsonFileProjectStoreTests
         SampleSeed: 1_234_567,
         SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 
-    // 裁定 2026-11-05-69 要求確認 SQLite 運行的穩健性：project.json 改成寫到磁碟後才換檔。斷電無法在自動測試裡重現，
-    // 這裡核對新寫法寫出的內容和原本 File.WriteAllTextAsync 一模一樣（UTF-8 不加 BOM），建案與之後的儲存都一樣，也沒有留下暫存檔。這是新增的測試。
+    // project.json 寫到磁碟後才換檔。斷電無法在自動測試裡重現，
+    // 這裡核對寫出的內容和 File.WriteAllTextAsync 寫出的一模一樣（UTF-8 不加 BOM），建案與之後的儲存都一樣，也沒有留下暫存檔。
     [Fact]
     public async Task ProjectJson_WrittenToDiskBeforePublishing_KeepsTheSameBytes()
     {
@@ -179,8 +177,7 @@ public sealed class JsonFileProjectStoreTests
         Assert.Contains(
             published.ProjectCode,
             new[] { "SYNTHETIC-FIRST", "SYNTHETIC-SECOND" });
-        // 裁定 2026-11-05-72：建案中的標記和 project.json 一起發布，資料庫建好、建案完成後才刪，所以剛發布的資料夾裡有這兩個檔。
-        // 原本只核對 project.json 一個檔。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 建案中的標記和 project.json 一起發布，資料庫建好、建案完成後才刪，所以剛發布的資料夾裡有這兩個檔。
         var publishedFiles = Directory.GetFiles(folder.GetProjectDirectory(projectId))
             .Select(path => Path.GetFileName(path))
             .Order(StringComparer.Ordinal)
@@ -251,15 +248,14 @@ public sealed class JsonFileProjectStoreTests
             store.FindAsync(document.ProjectId, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫鍵名與種子值。
+        // 訊息不寫鍵名與種子值。
         Assert.Equal(
             $"案件「{document.ProjectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
     }
 
-    // 裁定 2026-10-30-23：舊版案件只看 project.json 的設定檔版本判斷，不再從 databaseProvider 缺席或 sampleSeedVersion
-    // 缺漏、小於 2 推斷。這則原本用那三種欄位當舊版案件，改成設定檔版本是第 1 版；三種欄位的情況改由下一則當成設定檔損壞。
-    // 第一次失敗收據 20261030-071032167-0e244dd947aa491c97bf0a76ee591a57。
+    // 舊版案件只看 project.json 的設定檔版本判斷，不從 databaseProvider 缺席或 sampleSeedVersion
+    // 缺漏、小於 2 推斷。這則用設定檔版本是第 1 版的案件；那三種欄位的情況由下一則當成設定檔損壞。
     [Theory]
     [InlineData("schemaVersion", 1)]
     public async Task LegacyProjectJson_FindRejectsAsOldProject_ListSkipsIt(
@@ -290,8 +286,7 @@ public sealed class JsonFileProjectStoreTests
         var exception = await Assert.ThrowsAsync<JetActionException>(() =>
             store.FindAsync(legacy.ProjectId, CancellationToken.None));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
-        // 依裁定 2026-10-30-23，訊息要寫明刪除後重建，句子跟著改（同上一則第一次失敗收據）。
+        // 訊息不寫檔名與缺了哪個設定，要寫明刪除後重建。
         Assert.Equal(
             $"案件「{legacy.ProjectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
@@ -368,8 +363,8 @@ public sealed class JsonFileProjectStoreTests
     }
 
     /// <summary>
-    /// 2026-10-11 交錯操作檢查：切換步驟寫入 project.json（project.saveProgress）的同時，
-    /// 資料預覽讀 project.json（query.dataPreview，併行 action），讀取被誤報成「無法讀取或解析」。
+    /// 交錯操作檢查：切換步驟寫入 project.json（project.saveProgress）的同時，
+    /// 資料預覽讀 project.json（query.dataPreview，併行 action），讀取不能被誤報成「無法讀取或解析」。
     /// 寫入型 action 由 dispatcher 序列化，但唯讀查詢可和它們同時執行，所以讀寫必須互不干擾。
     /// </summary>
     [Fact]
@@ -412,7 +407,7 @@ public sealed class JsonFileProjectStoreTests
 
     /// <summary>
     /// 換檔不是一步完成：<c>File.Replace</c> 進行中，正式檔名會有一小段時間不存在。
-    /// 2026-10-12 的完整測試裡，上面的交錯讀寫測試失敗過一次：讀取在等寫入完成之前就判斷檔案在不在，把存在的案件讀成找不到。
+    /// 讀取如果在等寫入完成之前就判斷檔案在不在，會把存在的案件讀成找不到。
     /// 這裡拿寫入用的同一把鎖、把檔案暫時移開，固定重現換到一半的狀態，不靠時機碰運氣。
     /// </summary>
     [Fact]

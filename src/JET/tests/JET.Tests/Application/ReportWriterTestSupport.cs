@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 直接呼叫報告寫出器的測試共用的材料。2026-10-22 清理技術債時刪掉只給測試用的相容入口後，
+/// 直接呼叫報告寫出器的測試共用的材料。
 /// 測試和正式 handler 一樣，先把保存的摘要算成計畫、備好工作簿中繼資料，再呼叫唯一的正式入口。
 /// </summary>
 internal static class ReportWriterTestSupport
@@ -73,16 +73,14 @@ internal static class ReportWriterTestSupport
             TbMapping: null);
 
     /// <summary>發布流程使用的完整合成預篩選摘要：全部規則都有狀態，沒有命中。</summary>
-    // 裁定 2026-11-10-02 新增摘要形狀檢查，舊夾具只列報告會讀的欄位，補成正式回應形狀；既有斷言不變。
-    // 首次失敗：Focused 20261110-050034232-554a7819f55a498f96fe5d281f509b6d。
+    // 摘要要通過形狀檢查，所以夾具是正式回應的形狀，不只列報告會讀的欄位。
     internal static string PrescreenSummaryJson() => JsonSerializer.Serialize(
         new
         {
             prepPeriodApproval = new { status = "na", naReason = "尚未配對核准日", count = 0L },
             suspiciousKeywords = new { status = "V", count = 0L },
             unexpectedAccountPair = new { status = "na", naReason = "尚未完成科目配對", count = 0L },
-            // 保存的預篩選結果要記下那次用的 0 的個數（裁定 2026-11-05-25），報告讀這裡；最小摘要帶 6。
-            // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+            // 保存的預篩選結果要記下那次用的 0 的個數，報告讀這裡；最小摘要帶 6。
             trailingZeros = new { status = "V", count = 0L, zerosThreshold = 6 },
             preparerSummary = new { status = "V", naReason = (string?)null, totalPreparerCount = 0L, preparers = Array.Empty<object>() },
             rareAccounts = new { status = "V", distinctAccountCount = 0L, accounts = Array.Empty<object>() },

@@ -2,10 +2,10 @@ using System.Globalization;
 
 namespace JET.Domain;
 
-/// <summary>已裁定的案件期間檢查與財報準備日提醒；提醒不改變審計條件的日期語意。</summary>
+/// <summary>案件期間檢查與財報準備日提醒；提醒不改變審計條件的日期語意。</summary>
 public static class ProjectMetadataRules
 {
-    /// <summary>準備日偏離查核期間時的提醒（用字依裁定 2026-10-13-28）；建案畫面輸入時的即時提醒照抄這一句。</summary>
+    /// <summary>準備日偏離查核期間時的提醒；建案畫面輸入時的即時提醒照抄這一句。</summary>
     public const string PreparationDateWarning = "期末財報準備日與查核期間不相符，請確認年份；不影響後續操作。";
 
     public static void RequireValidPeriod(string periodStart, string periodEnd)

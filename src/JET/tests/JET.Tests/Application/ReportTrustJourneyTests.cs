@@ -6,11 +6,9 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>
 /// 「預設審計員可信」的旅程驗收：審計員照設計流程操作，或在 JET 之外動了報告檔，案件都要能繼續。
-/// 起因是 2026-09-02 公司測試環境的 artifact_recovery_conflict；第一個測試就是那條事故路徑。
+/// 起因是公司測試環境的 artifact_recovery_conflict；第一個測試就是那條事故路徑。
 /// </summary>
 public sealed class ReportTrustJourneyTests
 {
@@ -174,8 +172,7 @@ public sealed class ReportTrustJourneyTests
         Assert.True(loaded.TryGetProperty("reports", out _));
         Assert.Equal(new[] { "infReport", "validationReport" }, loaded.GetProperty("reports").EnumerateArray()
             .Select(report => report.GetProperty("kind").GetString()).Order(StringComparer.Ordinal));
-        // 原本另外確認舊版暫存檔 .report-artifacts.mutation-* 不在；產品早已不寫這種檔，那一行一定通過，拿掉。
-        // 現行三種暫存檔的檢查改用共用的寫法。
+        // 現行三種暫存檔的檢查用共用的寫法。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
     }
 
@@ -335,21 +332,6 @@ public sealed class ReportTrustJourneyTests
         Assert.Equal(path, retried.GetProperty("filePath").GetString());
         using var workbook = new XLWorkbook(path);
         Assert.Equal("AccountMapping", workbook.Worksheet(1).Name);
-    }
-
-    private static async Task<string> CreateEmptyProjectAsync(HandlerTestHost host)
-    {
-        var suffix = Guid.NewGuid().ToString("N")[..8];
-        var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
-        {
-            projectCode = $"TRUST-{suffix}",
-            clientName = "Trust Journey Test",
-            operatorId = "tester",
-            periodStart = "2025-01-01",
-            periodEnd = "2025-12-31",
-            databaseProvider = "sqlite",
-        }));
-        return created.GetProperty("projectId").GetString()!;
     }
 
     private static async Task<(string ValidationResultId, string PrescreenResultId, string Revision)> RunThroughFilterAsync(

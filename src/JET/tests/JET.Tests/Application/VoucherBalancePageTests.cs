@@ -23,7 +23,7 @@ public sealed class VoucherBalancePageTests(DemoProjectFixture fixture)
             cursor = nc.ValueKind == JsonValueKind.Null ? null : nc.GetString();
         } while (cursor is not null);
 
-        // 借貸不平 = 本期母體(§2:gl_date ∈ 會計期間)GROUP BY voucher_number HAVING SUM(amount_scaled)<>0 的組數。
+        // 借貸不平 = 本期母體(gl_date ∈ 會計期間)GROUP BY voucher_number HAVING SUM(amount_scaled)<>0 的組數。
         // recount 與分頁同口徑(限本期)——期外對照組的不平傳票不入母體,故不計。
         var total = await DemoProjectPipeline.QueryScalarAsync(fixture.Host, fixture.ProjectId,
             "SELECT COUNT(*) FROM (" +

@@ -6,7 +6,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// 新版 JET 實際寫出的「自動化工具-檔案欄位資訊」，交給「由底稿匯入欄位」的推得規則（FieldInfoSheetMapping.Infer）後，
-/// 推回的欄位配對要和當初確認的設定一致（裁定 2026-11-09-28）。每個案例照正式流程走一遍：
+/// 推回的欄位配對要和當初確認的設定一致。每個案例照正式流程走一遍：
 /// <list type="number">
 /// <item>用合成的來源欄位定義（FieldInfoState，匯入時記下的每一欄欄名與型態）和確認配對的請求，
 /// 經 JetAuditProgram.Plan 組出正式流程投影時用的 spec（GlMappingSpec、TbMappingSpec，也就是確認配對時選的來源欄與計算方式）。</item>
@@ -14,8 +14,8 @@ namespace JET.Tests.Domain;
 /// <item>JetAuditProgram.ProjectFieldInfo 產生欄位資訊表的每一列，只取看得見的 A、B、E 欄組成 FieldInfoSheet。</item>
 /// <item>FieldInfoSheetMapping.Infer 推得配對草稿（第三步帶入、還沒確認的配對），目前匯入的欄名用來源欄名清單。</item>
 /// </list>
-/// 預期值一律從輸入的 spec 推，不取 Infer 的輸出。計畫 docs/history/specs/2026-11-09-import-fields-from-working-paper-plan.md
-/// 「做法」寫明的刻意差異照規則寫進預期，並在用到的地方註明。欄名與資料都是程式生成的合成值。
+/// 預期值一律從輸入的 spec 推，不取 Infer 的輸出。刻意的差異照規則寫進預期，並在用到的地方註明。
+/// 欄名與資料都是程式生成的合成值。
 /// </summary>
 public sealed class FieldInfoSheetRoundTripTests
 {
@@ -26,7 +26,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// GL 四種金額方式：單一帶號金額、借貸兩欄、金額加借貸別、金額加借貸標誌。
-    /// 借貸別與借貸標誌由「借貸方判斷欄位」的欄位型態決定，計畫「做法」寫明：
+    /// 借貸別與借貸標誌由「借貸方判斷欄位」的欄位型態決定：
     /// 借貸別欄的「欄位型態」是數字型態時算借貸標誌（flag），其他算借貸別（side）；兩者的計算相同。
     /// 後兩列是這條規則造成的刻意差異：判斷欄的型態和當初選的方式不一致時，推回的是依型態決定的方式。
     /// </summary>
@@ -72,7 +72,7 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// 金額加借貸別只填一側代碼（裁定 2026-10-08-11）：只填借方或只填貸方，推回的都是當初填的那一側。
+    /// 金額加借貸別只填一側代碼：只填借方或只填貸方，推回的都是當初填的那一側。
     /// 判斷欄與金額欄的名稱本身有括號時也一樣。
     /// </summary>
     [Theory]
@@ -107,9 +107,7 @@ public sealed class FieldInfoSheetRoundTripTests
     [InlineData(GlAmountMode.AmountWithSide, "D", "C")]
     [InlineData(GlAmountMode.AmountWithFlag, "1", "2")]
     // 實際代碼剛好與舊版占位文字相同時，明確寫出的雙側代碼仍須完整保留。
-    // 首次失敗：Focused 20261110-045302026-6a01e2d821024b19adb8e8b04752104c。
     [InlineData(GlAmountMode.AmountWithSide, "drCrDebitCode", "C")]
-    // 裁定 2026-11-10-03；修正前失敗：Focused 20261110-044512794-d9d87e23d1604c5aa46401892a5dd5b8。
     public void SidedAmountWithBothCodes_ComesBackWithBothCodes(GlAmountMode mode, string debitCode, string creditCode)
     {
         var source = Columns(StandardGlColumns(drCrKind: mode == GlAmountMode.AmountWithFlag ? Number : Text));
@@ -157,7 +155,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// 攸關資料元素的名稱本身就以「（來源欄名）」結尾時，新版不補後綴；去掉這段後的名稱沒有和其他列相同、加 _JE 也不是標準欄名，
-    /// 推回的名稱照原樣。符合其中一種情形時推回的是去掉後的名稱，計畫寫成已知限制。
+    /// 推回的名稱照原樣。符合其中一種情形時推回的是去掉後的名稱，這是已知限制。
     /// </summary>
     [Fact]
     public void RelevantDataElementNamedWithItsSourceInBrackets_ComesBackWithTheSameName()
@@ -277,7 +275,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// 傳票核准日三種模式：配對來源欄、與總帳日期相同、不配對。第二列是核准日和總帳日期選同一個來源欄
-    /// （同一個來源欄可以配給多個欄位，裁定 2026-10-19-07），投影時核准日改成追加在後面的欄位。
+    /// （同一個來源欄可以配給多個欄位），投影時核准日改成追加在後面的欄位。
     /// </summary>
     [Theory]
     [InlineData(ApprovalDateModeNames.Mapped, "Approve Date")]
@@ -331,7 +329,7 @@ public sealed class FieldInfoSheetRoundTripTests
 
     /// <summary>
     /// 傳票文件項次：有配對時推回原來源欄；沒有配對時系統依列序自動編號，寫出一列 A 欄和 E 欄都是
-    /// 「傳票文件項次_JE_S」、沒有【】的系統產生欄位，計畫「做法」寫明新版這種列不算配對。
+    /// 「傳票文件項次_JE_S」、沒有【】的系統產生欄位，新版這種列不算配對。
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -357,8 +355,8 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// 人工傳票否：來源欄照樣推回。代碼依計畫「做法」照舊版，「1」是人工、「0」是自動；
-    /// 第二列當初選了其他代碼，推回時仍是 1 與 0，這是寫明的刻意差異（欄位資訊表上沒有寫人工與自動的代碼）。
+    /// 人工傳票否：來源欄照樣推回。代碼照舊版，「1」是人工、「0」是自動；
+    /// 第二列當初選了其他代碼，推回時仍是 1 與 0，這是刻意的差異（欄位資訊表上沒有寫人工與自動的代碼）。
     /// </summary>
     [Theory]
     [InlineData(new[] { "1" }, new[] { "0" })]
@@ -429,7 +427,7 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// 來源檔本來就有 JET 輸出欄名的欄位時，投影會把沒有配對的原始來源欄讓名成「原名（來源）」（裁定 2026-11-03-12），
+    /// 來源檔本來就有 JET 輸出欄名的欄位時，投影會把沒有配對的原始來源欄讓名成「原名（來源）」，
     /// 這種列的配對後欄位名稱空白，不算配對。涵蓋：
     /// 沒有配對的「傳票摘要_JE」（傳票摘要配給 Memo）、「傳票文件項次_JE_S」（傳票文件項次自動編號）、
     /// 「傳票金額_JE」（金額配給 Amount）、「地區_JE」（攸關資料元素「地區」配給 Area）；
@@ -508,7 +506,7 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// TB 借減貸與期末減期初，說明句都寫成兩欄相減「【A】 - 【B】」。計畫「做法」寫明：
+    /// TB 借減貸與期末減期初，說明句都寫成兩欄相減「【A】 - 【B】」。
     /// TB 只有兩欄相減時，看不出是借減貸還是期末減期初，不帶入金額，列出來請審計員選。
     /// 所以預期是 spec 去掉這兩欄，另列一項「年度變動金額」，來源寫說明句冒號後的算式。
     /// 草稿的金額方式不是 spec 的設定，這裡不比對；推得規則給的值另見 FieldInfoSheetMappingTests。
@@ -549,10 +547,9 @@ public sealed class FieldInfoSheetRoundTripTests
     }
 
     /// <summary>
-    /// GL 草稿和 spec 逐項比對。只有計畫「做法」寫明的差異照規則調整，其餘一律等於 spec：
+    /// GL 草稿和 spec 逐項比對。只有刻意的差異照規則調整，其餘一律等於 spec：
     /// <list type="bullet">
-    /// <item>借貸代碼完整帶回，包含兩側都有填的情形（裁定 2026-11-10-03）。
-    /// 比對原本排除了貸方代碼；新要求改為完整比對，首次失敗見上方兩側代碼測試。</item>
+    /// <item>借貸代碼完整帶回，包含兩側都有填的情形。</item>
     /// <item>人工傳票否照舊版，「1」是人工、「0」是自動，不看當初選的代碼。</item>
     /// <item>攸關資料元素的識別碼由後端新產生，這裡依序是 InferredFieldId(1)、InferredFieldId(2)…；名稱、來源欄與值型別照 spec。</item>
     /// </list>

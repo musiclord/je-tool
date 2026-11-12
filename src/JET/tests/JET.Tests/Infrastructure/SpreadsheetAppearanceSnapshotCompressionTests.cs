@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class SpreadsheetAppearanceSnapshotCompressionTests
 {
     private const string CompressionModeEnvironmentVariable =
-        "JET_STAGE10_APPEARANCE_COMPRESSION_MODE";
+        "JET_APPEARANCE_COMPRESSION_MODE";
 
     [Fact]
     public void LegacyAndCompressedDocuments_GiveTheSamePassAndFailInBothDirections()
@@ -122,9 +122,9 @@ public sealed class SpreadsheetAppearanceSnapshotCompressionTests
     public void RepositoryFixtures_AreCanonicalCompressedDocumentsWithLegacyEquivalentEntries()
     {
         SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.RepositoryRoot);
+            TestRepositoryPaths.SolutionRoot);
         var fixtureDirectory = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
+            TestRepositoryPaths.SolutionRoot,
             SpreadsheetAppearanceSnapshotSchemaGuard.FixtureRelativeDirectory.Replace(
                 '/',
                 Path.DirectorySeparatorChar));
@@ -172,7 +172,7 @@ public sealed class SpreadsheetAppearanceSnapshotCompressionTests
         }
 
         var fixtureDirectory = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
+            TestRepositoryPaths.SolutionRoot,
             SpreadsheetAppearanceSnapshotSchemaGuard.FixtureRelativeDirectory.Replace(
                 '/',
                 Path.DirectorySeparatorChar));
@@ -199,7 +199,7 @@ public sealed class SpreadsheetAppearanceSnapshotCompressionTests
             File.WriteAllBytes(Path.Combine(fixtureDirectory, fileName), bytes);
         }
         SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.RepositoryRoot);
+            TestRepositoryPaths.SolutionRoot);
     }
 
     private static byte[] NormalizeCheckoutLineEndings(byte[] bytes)

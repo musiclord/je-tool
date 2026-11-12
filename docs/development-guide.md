@@ -91,6 +91,15 @@ src\JET\tests\JET.Tests\bin\Debug\net10.0-windows\JET.Tests.exe --results-direct
 
 這是找缺口用的量法，不是正式驗證，也不產生收據。
 
+測試專案只靠 `src/JET` 這個方案資料夾就能建置與執行，共用的原始檔與前後端共用的固定答案檔都放在
+`src/JET/tests/JET.Tests/`。少數測試要讀方案資料夾以外的檔案：`data/` 的範本原檔、`legacy/` 的舊版腳本、
+`.gitignore` 與 Git 追蹤清單、`tools/harness/gui-driver` 的情境程式，以及 `docs/action-contract-manifest.md`。
+這些測試標記 `TestProfile=DevelopmentRepository`，在這個儲存庫由 `Public` 照常執行；只有方案資料夾時，
+執行測試程式要多排除這一組。
+
+寫新測試時，只讀 `src/JET` 裡的檔案就用 `TestRepositoryPaths.SolutionRoot` 找位置，它指向 `JET.slnx` 所在的資料夾。
+要讀外面的檔案才用 `TestRepositoryPaths.RepositoryRoot`，同時加上這個標記。
+
 本機設定、秘密、連線字串、案件資料夾、建置輸出與 WebView2 使用者資料都不得加入原始碼樹。
 
 ## 開發用的預覽工具

@@ -15,7 +15,7 @@ namespace JET.Tests.Infrastructure;
 internal static class SpreadsheetAppearanceSnapshotSchemaGuard
 {
     internal const string FixtureRelativeDirectory =
-        "src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-sample-appearance";
+        "tests/JET.Tests/Infrastructure/Fixtures/legacy-sample-appearance";
 
     private const int LegacySchemaVersion = 1;
     internal const int CompressedSchemaVersion = SpreadsheetAppearanceSnapshotCompression.SchemaVersion;
@@ -862,8 +862,8 @@ internal static class SpreadsheetAppearanceSnapshotSchemaGuard
 
     private static bool IsKnownSheet(LegacyReportKind report, string sheetName)
     {
-        // 六份正式報表自 2026-08-14 起共用一張 VeryHidden `JET_Metadata`
-        // （jet-guide §7.2）；它是 JET-only 的跨報表 sheet，不屬於 legacy 版面。
+        // 六份正式報表共用一張 VeryHidden `JET_Metadata`；
+        // 它是 JET-only 的跨報表 sheet，不屬於 legacy 版面。
         if (string.Equals(
                 sheetName,
                 JET.Domain.ReportWorkbookMetadataFormat.WorksheetName,

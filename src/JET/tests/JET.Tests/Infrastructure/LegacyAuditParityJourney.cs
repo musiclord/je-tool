@@ -71,7 +71,7 @@ internal sealed record LegacyAuditParityJourneyReport(
 }
 
 /// <summary>
-/// 第一次流程匯出六份報告之後，在同一個案件接著做的審計員操作（裁定 2026-11-06-01 要求的使用情境）。
+/// 第一次流程匯出六份報告之後，在同一個案件接著做的審計員操作。
 /// 每一段做完都重新匯出六份報告，用和第一次相同的規則再比一次。
 /// </summary>
 internal enum LegacyAuditParityFollowUp
@@ -193,15 +193,9 @@ internal sealed class LegacyAuditParityJourneyExecutionException : InvalidOperat
     }
 }
 
-internal sealed class LegacyAuditParityJourneyCleanupException()
-    : InvalidOperationException(
-        "Legacy audit parity SQL Server cleanup could not prove schema and registry removal; "
-        + "raw identifiers were suppressed.");
-
 /// <summary>
-/// 真實資料 parity 的正式 action journey。除既有 provider parity 測試採用的固定 seed
-/// test-only seam 與 SQL Server finally 清理外，所有產品行為只經
-/// <see cref="HandlerTestHost.DispatchAsync(string,string,CancellationToken)"/>。
+/// 真實資料 parity 的正式 action journey。除固定 seed 的 test-only seam 外，所有產品行為只經
+/// <see cref="HandlerTestHost.DispatchAsync"/>。
 /// </summary>
 internal static partial class LegacyAuditParityJourney
 {
@@ -316,8 +310,8 @@ internal static partial class LegacyAuditParityJourney
 
             if (input.AuthorizedPreparerFile is not null)
             {
-                // sourceColumn 改成必填，後端不再猜人員欄；只讓既有單欄清單明確指定唯一欄位。
-                // 只讀表頭，不在收據或例外中輸出私人欄名，保留原 action journey 的驗證目的。
+                // sourceColumn 是必填，後端不猜人員欄；只讓單欄清單明確指定唯一欄位。
+                // 只讀表頭，不在測試輸出或例外中輸出私人欄名。
                 currentAction = "import.authorizedPreparer.fromFile";
                 var authorizedColumns = await new OpenXmlSaxTableReader().ReadColumnsAsync(
                     new TabularSourceRequest(input.AuthorizedPreparerFile.FilePath), cancellationToken);
@@ -371,10 +365,8 @@ internal static partial class LegacyAuditParityJourney
                 "mapping.commit.tb.response.projectedRowCount");
 
             // 科目配對檔在確認 GL 與 TB 欄位配對之後才匯入，和審計員第三步之後才到第四步的順序相同。
-            // 重新確認配對會清除科目配對（裁定 2026-10-08-12）；原本排在匯入階段，確認後就被清掉，
+            // 重新確認配對會清除科目配對；如果在確認配對之前匯入，確認後就被清掉，
             // 預篩選與篩選因此看不到科目分類，「非預期科目組合」條件在 filter.commit 被擋下。
-            // 第一次失敗：PrivateCase 20261016-022256727-0eb81785cf2e4d06872346decef0c552（SQLite）與
-            // 20261016-022338940-03d1e548f9e349ffa2b665b753ebfe17（DuckDB）。
             await DispatchAsync(
                 "import.accountMapping.fromFile",
                 ReferenceFilePayload(input.AccountMappingFile!));
@@ -400,7 +392,7 @@ internal static partial class LegacyAuditParityJourney
                 "export.validationReports",
                 JsonSerializer.Serialize(new { resultId = validationResultId }));
             CollectPublishedReports(host, projectId, validationReports, reports);
-            // 科目配對範本自 2026-09-02 起是工作檔，不在驗證批次裡；比對仍需要這份工作簿。
+            // 科目配對範本是工作檔，不在驗證批次裡；比對仍需要這份工作簿。
             var accountMappingTemplate = await DispatchAsync(
                 "export.accountMappingTemplate",
                 JsonSerializer.Serialize(new { resultId = validationResultId }));
@@ -510,7 +502,7 @@ internal static partial class LegacyAuditParityJourney
         }
         finally
         {
-            // 後續操作（重新開啟、重新確認配對、重新匯入）在這裡接著做：SQL Server 案件要等它們做完才刪除。
+            // 後續操作（重新開啟、重新確認配對、重新匯入）在這裡接著做。
             if (completedResult is not null && afterSuccessfulJourneyBeforeCleanup is not null)
             {
                 await afterSuccessfulJourneyBeforeCleanup(completedResult).ConfigureAwait(false);
@@ -522,10 +514,9 @@ internal static partial class LegacyAuditParityJourney
     /// 在第一次流程完成的同一個案件、同一個測試主機上做一段後續操作，並重新匯出六份報告。
     /// 要清掉什麼、重做什麼，照產品程式的失效政策：確認 GL 配對與匯入 GL 都依
     /// <c>AuditDependencyPolicy</c> 清掉科目配對（分類保留）、資料驗證結果與抽樣、預篩選結果、
-    /// 第五步已儲存的條件與命中（裁定 2026-10-07-03、2026-10-08-12）；匯入 GL 另外退役已確認的 GL 配對。
+    /// 第五步已儲存的條件與命中；匯入 GL 另外退役已確認的 GL 配對。
     /// TB 的匯入與配對、授權清單、假日與補班日都不受影響，所以不重做。回應裡的 invalidatedResults
     /// 和這份清單不同時，這裡直接失敗，不猜要多做或少做哪一步。
-    /// SQL Server 案件要在 <see cref="RunAsync"/> 的清理之前呼叫，也就是在它的完成回呼裡呼叫。
     /// </summary>
     internal static async Task<LegacyAuditParityJourneyResult> RunFollowUpAsync(
         HandlerTestHost host,

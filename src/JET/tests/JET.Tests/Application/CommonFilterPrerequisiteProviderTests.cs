@@ -7,8 +7,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 常用篩選條件裡需要 GL 欄位的四張卡（收入之人工分錄、特定人員、空白摘要、編製與核准同一人）的 action-level provider matrix：同一份真匯入、mapping、validation 與
-/// account mapping 在三個 provider 上驗證「缺欄先拒絕」及「前置齊備後 preview＝commit 命中」。
+/// 常用篩選條件裡需要 GL 欄位的四張卡（收入之人工分錄、特定人員、空白摘要、編製與核准同一人）的 action 層級測試：
+/// 用正式匯入流程建好欄位配對、驗證與科目配對，確認缺欄時先拒絕，前置資料齊備後 preview 與 commit 命中相同。
 /// </summary>
 public sealed class CommonFilterPrerequisiteProviderTests
 {
@@ -146,9 +146,8 @@ public sealed class CommonFilterPrerequisiteProviderTests
             Assert.Equal(ReadyCases[index].ExpectedRows, RowIdentities(page.GetProperty("rows")));
         }
 
-        // 上游修改會清除下游（裁定 2026-10-07-03）：真正重新配對會連同已存情境一起清掉，不再保留情境並提示缺欄。
+        // 上游修改會清除下游：真正重新配對會連同已存情境一起清掉，不會保留情境並提示缺欄。
         // 缺少建立人員時，重新儲存需要該欄的情境仍要指出缺欄；補回配對後重新儲存才有命中。
-        // 原本斷言重新配對後保留 4 個情境，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
         var withoutPreparer = completeMapping.Mapping
             .Where(pair => pair.Key != GlMappingKeys.CreatedBy)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -162,7 +161,7 @@ public sealed class CommonFilterPrerequisiteProviderTests
         await host.DispatchAsync("validate.run");
         loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId }));
         Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
-        // 第 7 則重新配對已清除分類。重建本測試的分類前提後，仍驗證缺少建立人員的原訊息。
+        // 重新配對 GL 也會清除科目配對，所以先重新匯入分類，再驗證缺少建立人員的訊息。
         await ImportAccountMappingAsync(host);
         var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "filter.commit",
@@ -206,7 +205,7 @@ public sealed class CommonFilterPrerequisiteProviderTests
     private static void AssertMissingField(JetActionException exception, CommonMissingCase testCase)
     {
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 用字依裁定 2026-10-13-28：缺欄位時寫「「欄位」尚未選擇來源欄」。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 缺欄位時寫「「欄位」尚未選擇來源欄」。
         Assert.Contains("尚未選擇來源欄", exception.Message, StringComparison.Ordinal);
         foreach (var label in testCase.MissingFieldLabels)
         {

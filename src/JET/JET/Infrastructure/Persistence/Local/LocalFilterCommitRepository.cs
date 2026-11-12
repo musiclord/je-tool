@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite／DuckDB 共用的情境發布實作。整批發布在同一個交易裡取代全部定義與結果；儲存一個情境只換掉
+/// 情境發布實作。整批發布在同一個交易裡取代全部定義與結果；儲存一個情境只換掉
 /// 這個情境的定義與結果。任何命令失敗或 caller 取消都由 transaction disposal rollback。
 /// </summary>
 public sealed class LocalFilterCommitRepository(

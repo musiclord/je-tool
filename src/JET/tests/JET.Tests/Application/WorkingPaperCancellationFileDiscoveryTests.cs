@@ -4,7 +4,7 @@ namespace JET.Tests.Application;
 
 public sealed class WorkingPaperCancellationFileDiscoveryTests
 {
-    // docs/action-contract-manifest.md: 底稿檔名含時間尾碼，取消檢查必須能找出此種殘留檔案。
+    // 底稿檔名含時間尾碼，取消檢查必須能找出此種殘留檔案。
     [Fact]
     public void CancellationFileDiscovery_FindsTimestampedWorkingPaperInProjectSubdirectory()
     {

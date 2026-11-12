@@ -24,6 +24,10 @@
 | [`2026-09-23-frontend-terminology-review.md`](2026-09-23-frontend-terminology-review.md) | 2026-09-22 到 09-23 畫面用語與呈現的核對紀錄；現行用語表已併入 `../jet-frontend-description.md` |
 | [`2026-10-02-development-status-archive.md`](2026-10-02-development-status-archive.md) | 2026-09-17 到 09-23 寫在開發現況裡的逐輪進度敘述與較早的驗證數字，原文照抄 |
 | [`2026-11-05-superseded-rulings.md`](2026-11-05-superseded-rulings.md) | 2026-11-05 以前被取代的裁定；裁定總表快到長度上限時從 `../rulings.md` 移出，原文照搬 |
+| [`2026-11-10-source-comment-records.txt`](2026-11-10-source-comment-records.txt) | 2026-11-10 整理 `src/JET` 原始碼註解前的原文：含裁定編號、測試收據與修改經過的每一段註解，依檔案與行號排列（裁定 2026-11-10-11） |
+| [`2026-11-10-source-comment-cleanup-records.md`](2026-11-10-source-comment-cleanup-records.md) | 2026-11-10 整理 `src/JET` 原始碼註解的做法、一起改的地方與檢查紀錄；計畫檔只留摘要（裁定 2026-11-10-11） |
+| [`2026-11-11-frontend-test-comment-records.txt`](2026-11-11-frontend-test-comment-records.txt) | 2026-11-11 前端測試搬進 `src/JET` 前的註解原文與 19 個測試的原名稱，依搬移前在 `tools/tests` 的檔案與行號排列（裁定 2026-11-11-01、2026-11-11-02） |
+| [`test-change-records.md`](test-change-records.md) | 修改既有測試的原因與第一次失敗的情形，用文字寫、不寫收據編號；2026-11-10 起記在這裡，不寫進測試的註解 |
 | [`2026-11-06-deferred-items-plan-execution-records.md`](2026-11-06-deferred-items-plan-execution-records.md) | 延後事項與前端整理計畫第 2 到第 21 步的做法與驗證紀錄；計畫快到長度上限時移出，原文照搬 |
 | [`2026-10-20-sqlserver-archive.md`](2026-10-20-sqlserver-archive.md) | 使用者 2026-10-20 要求封存的全部 SQL Server 事項：延後事項、企業環境範圍與暫緩期間的修改清單；重新開發 SQL Server 時從這裡取回 |
 | [`architecture-2026-08-30/`](architecture-2026-08-30/README.md) | 2026-08-30 產生的執行期架構圖與說明；之後程式已大改，只供參考 |

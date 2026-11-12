@@ -5,7 +5,7 @@ namespace JET.Application;
 
 /// <summary>
 /// project.listLocal：從本機 store 投影 SQLite 案件。以前建立的 DuckDB 與 SQL Server 案件不列出，
-/// 也不動它們的資料夾（裁定 2026-11-06-09）；設定檔讀不通的案件照常列成錯誤列，讓審計員能刪除。
+/// 也不動它們的資料夾；設定檔讀不通的案件照常列成錯誤列，讓審計員能刪除。
 /// 排序維持 lastOpenedUtc ?? createdUtc 新到舊。
 /// </summary>
 public sealed class ProjectListLocalHandler(IProjectStore projectStore) : IApplicationActionHandler

@@ -9,7 +9,6 @@ namespace JET.Tests.Application;
 
 public sealed class UnreadableProjectRecoveryTests
 {
-    // 第一次失敗：20261110-045654316-8ef5aee8de474b95af4b1b2d4142661c。
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -150,19 +149,19 @@ public sealed class UnreadableProjectRecoveryTests
     public async Task CorruptLocalDocument_RemainsVisibleWithoutInventingMetadata_AndHealthyCasesStillLoad(string action)
     {
         using var host = new HandlerTestHost();
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-broken","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-healthy","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        var path = Path.Combine(host.ProjectsRoot, "batch9-broken", "project.json");
+        await host.DispatchAsync("project.create", """{"projectName":"broken","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        await host.DispatchAsync("project.create", """{"projectName":"healthy","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        var path = Path.Combine(host.ProjectsRoot, "broken", "project.json");
         const string corrupt = "{not-valid-synthetic-json";
         await File.WriteAllTextAsync(path, corrupt);
         var response = await host.DispatchAsync(action);
         var rows = response.GetProperty("projects").EnumerateArray().ToArray();
         Assert.Equal(2, rows.Length);
-        var broken = Assert.Single(rows, row => row.GetProperty("projectId").GetString() == "batch9-broken");
+        var broken = Assert.Single(rows, row => row.GetProperty("projectId").GetString() == "broken");
         Assert.Equal(JsonValueKind.Null, broken.GetProperty("databaseProvider").ValueKind);
         Assert.Equal(JetErrorCodes.FileReadError, broken.GetProperty("loadError").GetProperty("code").GetString());
         var message = broken.GetProperty("loadError").GetProperty("message").GetString()!;
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。句子不寫檔名，改寫「設定檔」。
+        // 句子不寫檔名，寫「設定檔」。
         Assert.Contains("設定檔無法讀取", message);
         Assert.DoesNotContain("project.json", message);
         Assert.Contains("備份", message);
@@ -170,12 +169,12 @@ public sealed class UnreadableProjectRecoveryTests
         Assert.DoesNotContain(corrupt, message);
         Assert.False(broken.TryGetProperty("periodStart", out _));
         Assert.Equal(corrupt, await File.ReadAllTextAsync(path));
-        var healthy = await host.DispatchAsync("project.load", """{"projectId":"batch9-healthy"}""");
-        Assert.Equal("batch9-healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
+        var healthy = await host.DispatchAsync("project.load", """{"projectId":"healthy"}""");
+        Assert.Equal("healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
     }
 
     // 設定檔損壞、舊版或期間無效的本機案件，畫面請審計員從備份還原或另建案件，
-    // 舊的這份也要能從案件清單刪掉；SQLite 與 DuckDB 都一樣，其他案件不受影響。
+    // 舊的這份也要能從案件清單刪掉；其他案件不受影響。
     [Theory]
     [InlineData("sqlite", "corrupt")]
     [InlineData("sqlite", "legacy")]
@@ -185,29 +184,29 @@ public sealed class UnreadableProjectRecoveryTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            projectName = "batch9-delete-broken", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "delete-broken", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-delete-healthy","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        var directory = Path.Combine(host.ProjectsRoot, "batch9-delete-broken");
+        await host.DispatchAsync("project.create", """{"projectName":"delete-healthy","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        var directory = Path.Combine(host.ProjectsRoot, "delete-broken");
         var path = Path.Combine(directory, "project.json");
         var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         if (damage == "legacy") { document.Remove("databaseProvider"); }
         if (damage == "invalidPeriod") { document["periodStart"] = "2026-01-01"; }
         await File.WriteAllTextAsync(path, damage == "corrupt" ? "{not-valid-synthetic-json" : document.ToJsonString());
-        await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", """{"projectId":"batch9-delete-broken"}"""));
+        await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", """{"projectId":"delete-broken"}"""));
 
-        var deleted = await host.DispatchAsync("project.delete", """{"projectId":"batch9-delete-broken"}""");
+        var deleted = await host.DispatchAsync("project.delete", """{"projectId":"delete-broken"}""");
 
         Assert.True(deleted.GetProperty("ok").GetBoolean());
         Assert.False(Directory.Exists(directory));
-        var healthy = await host.DispatchAsync("project.load", """{"projectId":"batch9-delete-healthy"}""");
-        Assert.Equal("batch9-delete-healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
+        var healthy = await host.DispatchAsync("project.load", """{"projectId":"delete-healthy"}""");
+        Assert.Equal("delete-healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
     }
 
     /// <summary>
     /// 設定檔的資料庫種類或根層欄名寫成不成對的代理字元（\ud800 這種跳脫寫法）時，也和其他損壞一樣：
     /// 案件清單照常列出、標出這個案件讀不出來，其他案件照常開啟；用同一個名稱建案時說這個案件讀不出來，
-    /// 這個案件也能刪掉。JET 自己寫設定檔時會把不成對的代理字元換成 U+FFFD，所以直接改原文。這是新增的測試。
+    /// 這個案件也能刪掉。JET 自己寫設定檔時會把不成對的代理字元換成 U+FFFD，所以直接改原文。
     /// </summary>
     [Theory]
     [InlineData("databaseProvider")]
@@ -215,9 +214,9 @@ public sealed class UnreadableProjectRecoveryTests
     public async Task DocumentWithUnreadableText_IsListedAsUnreadable_AndCanBeDeleted(string damage)
     {
         using var host = new HandlerTestHost();
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-unreadable-text","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-unreadable-text-healthy","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        var directory = Path.Combine(host.ProjectsRoot, "batch9-unreadable-text");
+        await host.DispatchAsync("project.create", """{"projectName":"unreadable-text","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        await host.DispatchAsync("project.create", """{"projectName":"unreadable-text-healthy","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        var directory = Path.Combine(host.ProjectsRoot, "unreadable-text");
         var path = Path.Combine(directory, "project.json");
         var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         string damaged;
@@ -236,30 +235,30 @@ public sealed class UnreadableProjectRecoveryTests
 
         var rows = listed.GetProperty("projects").EnumerateArray().ToArray();
         Assert.Equal(2, rows.Length);
-        var broken = Assert.Single(rows, row => row.GetProperty("projectId").GetString() == "batch9-unreadable-text");
+        var broken = Assert.Single(rows, row => row.GetProperty("projectId").GetString() == "unreadable-text");
         Assert.Equal(JetErrorCodes.FileReadError, broken.GetProperty("loadError").GetProperty("code").GetString());
-        var healthy = await host.DispatchAsync("project.load", """{"projectId":"batch9-unreadable-text-healthy"}""");
-        Assert.Equal("batch9-unreadable-text-healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
+        var healthy = await host.DispatchAsync("project.load", """{"projectId":"unreadable-text-healthy"}""");
+        Assert.Equal("unreadable-text-healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
 
         var duplicate = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "project.create",
-            """{"projectName":"batch9-unreadable-text","periodStart":"2025-01-01","periodEnd":"2025-12-31"}"""));
+            """{"projectName":"unreadable-text","periodStart":"2025-01-01","periodEnd":"2025-12-31"}"""));
         Assert.Equal(JetErrorCodes.FileReadError, duplicate.Code);
 
-        var deleted = await host.DispatchAsync("project.delete", """{"projectId":"batch9-unreadable-text"}""");
+        var deleted = await host.DispatchAsync("project.delete", """{"projectId":"unreadable-text"}""");
 
         Assert.True(deleted.GetProperty("ok").GetBoolean());
         Assert.False(Directory.Exists(directory));
     }
 
     /// <summary>
-    /// 已存的驗證結果摘要讀不出來時不擋住開案（裁定 2026-09-02-03：中間結果能重算就不擋住案件載入）。
-    /// 前三列是形狀不對：抽樣測試那一段不是物件。使用者 2026-11-10 要求開案時不帶結果並標成過期。
+    /// 已存的驗證結果摘要讀不出來時不擋住開案；中間結果能重算就不擋住案件載入。
+    /// 前三列是形狀不對：抽樣測試那一段不是物件；開案時不帶結果並標成過期。
     /// 後兩列是有讀不出來的文字（不成對代理字元的跳脫寫法），一個在形狀檢查會讀的欄位，
     /// 一個在形狀檢查不讀、開案時原樣轉寫的清單裡。這兩列和摘要不是合法 JSON 一樣，當成不是目前的結果：
     /// 開案時不帶驗證結果，並標成過期。
     /// 五列的開案都照常；後續步驟回「結果不完整，請重新執行」；產生報告用的解析也回結果不完整；重新執行資料驗證後恢復正常。
-    /// JET 自己寫不出這種內容，所以直接改資料庫裡的原文。這是新增的測試。
+    /// JET 自己寫不出這種內容，所以直接改資料庫裡的原文。
     /// </summary>
     [Theory]
     [InlineData("infSamplingTestIsArray")]
@@ -304,8 +303,7 @@ public sealed class UnreadableProjectRecoveryTests
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
 
         Assert.Equal(JsonValueKind.Null, loaded.GetProperty("validationResult").ValueKind);
-        // 使用者 2026-11-10 要求形狀不完整也標成過期，既有開案、拒絕與重新執行的斷言均保留。
-        // 第一次失敗：Focused 20261110-044619783-ad16c3048741494d804f04ddbbeb7e4c。
+        // 形狀不完整也標成過期。
         Assert.True(loaded.GetProperty("staleState").GetProperty("validation").GetBoolean());
 
         var blocked = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("prescreen.run"));
@@ -321,7 +319,7 @@ public sealed class UnreadableProjectRecoveryTests
 
     /// <summary>
     /// 已存的預篩選結果摘要有讀不出來的文字時，和摘要不是合法 JSON 一樣當成不是目前的結果：開案照常、不帶預篩選結果、
-    /// 標成需要重新執行；重新執行預篩選後恢復正常。在摘要加一個含這種文字的欄位，代表任何一處被改壞。這是新增的測試。
+    /// 標成需要重新執行；重新執行預篩選後恢復正常。在摘要加一個含這種文字的欄位，代表任何一處被改壞。
     /// </summary>
     [Fact]
     public async Task PrescreenSummaryWithUnreadableText_IsTreatedAsOutdated_AndCanBeRerun()
@@ -377,19 +375,19 @@ public sealed class UnreadableProjectRecoveryTests
     public async Task ExistingInvalidPeriod_HasARecoveryMessageBeforeChangingSession(string start, string end)
     {
         using var host = new HandlerTestHost();
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-invalid-period","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        var path = Path.Combine(host.ProjectsRoot, "batch9-invalid-period", "project.json");
+        await host.DispatchAsync("project.create", """{"projectName":"invalid-period","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        var path = Path.Combine(host.ProjectsRoot, "invalid-period", "project.json");
         var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
         document["periodStart"] = start; document["periodEnd"] = end;
         var saved = document.ToJsonString();
         await File.WriteAllTextAsync(path, saved);
-        await host.DispatchAsync("project.create", """{"projectName":"batch9-keep-active","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
-        var exception = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", """{"projectId":"batch9-invalid-period"}"""));
+        await host.DispatchAsync("project.create", """{"projectName":"keep-active","periodStart":"2025-01-01","periodEnd":"2025-12-31"}""");
+        var exception = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("project.load", """{"projectId":"invalid-period"}"""));
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
         Assert.Contains("查核期間", exception.Message);
         Assert.Contains("另建案件", exception.Message);
         Assert.Equal(saved, await File.ReadAllTextAsync(path));
         var unchangedSession = await host.DispatchAsync("project.update");
-        Assert.Equal("batch9-keep-active", unchangedSession.GetProperty("project").GetProperty("projectId").GetString());
+        Assert.Equal("keep-active", unchangedSession.GetProperty("project").GetProperty("projectId").GetString());
     }
 }

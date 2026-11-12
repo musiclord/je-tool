@@ -6,10 +6,10 @@ namespace JET.Domain;
 /// 經 <c>import.accountMapping.fromFile</c> 原檔上傳(標頭與匯入契約反向對齊,round-trip 由測試鎖)。
 ///
 /// 為什麼介面在 Domain、實作在 Infrastructure:比照底稿寫出器的放法——
-/// 由 Infrastructure 以 ClosedXML 實作,走正常的 Infrastructure→Domain 方向,故**不需**新增 AGENTS
-/// 反向依賴例外(勿誤放 Application/Ports,那才是 IDemoFileWriter 需要例外的原因)。範本體積小(科目數百),
+/// 由 Infrastructure 以 ClosedXML 實作,走正常的 Infrastructure→Domain 方向,故**不需**加進
+/// Infrastructure 依賴 Application 的白名單(勿誤放 Application/Ports;IDemoFileWriter 放在那裡,實作才需要列進白名單)。範本體積小(科目數百),
 /// ClosedXML 直接支援 DataValidation 下拉,故沿用 ClosedXML 而非 WorkingPaperWriter 的 OpenXML SAX 串流。
-/// caller 負責 <paramref name="output"/> 的生命週期(寫出器不關閉它,以便 caller 取長度)。
+/// caller 負責 <c>output</c> 的生命週期(寫出器不關閉它,以便 caller 取長度)。
 /// </summary>
 public interface IAccountMappingTemplateWriter
 {

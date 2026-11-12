@@ -14,14 +14,13 @@ public sealed class ActionBackgroundDispatchTests
     [Fact]
     public async Task SynchronousLongOperation_ReturnsToCallerSoCancelCanReleaseGateAfterCheckpoint()
     {
-        // 原本驗 DuckDB 在作業期間保留資料庫連線，取消後放開；DuckDB 移除後改驗 SQLite 的記錄檔併回：
-        // 取消後照樣併回一次，之後閘也放開（裁定 2026-11-06-08）。
+        // 驗 SQLite 的記錄檔併回：取消後照樣併回一次，之後閘也放開。
         var registry = new RequestCancellationRegistry();
-        using var request = registry.Begin("batch9-sync");
+        using var request = registry.Begin("sync-request");
         var handler = new SynchronousBlockingHandler();
         var checkpoint = new CheckpointProbe();
         var session = new ProjectSession();
-        session.Enter("batch9-thread", TestProjectRepositories.Unconfigured("sqlite"));
+        session.Enter("thread-project", TestProjectRepositories.Unconfigured("sqlite"));
         var dispatcher = new ActionDispatcher([handler, new OperationCancelHandler(registry)],
             NullLogger<ActionDispatcher>.Instance, session, cancellationRegistry: registry, databaseCheckpoint: checkpoint);
         await OnDedicatedThreadAsync(async () =>
@@ -29,7 +28,7 @@ public sealed class ActionBackgroundDispatchTests
             var work = dispatcher.DispatchAsync("validate.run", JsonSerializer.SerializeToElement(new { }), request.Token);
             Assert.False(work.IsCompleted);
             await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
-            var cancelled = await dispatcher.DispatchAsync("operation.cancel", JsonSerializer.SerializeToElement(new { requestId = "batch9-sync" }), CancellationToken.None);
+            var cancelled = await dispatcher.DispatchAsync("operation.cancel", JsonSerializer.SerializeToElement(new { requestId = "sync-request" }), CancellationToken.None);
             Assert.True(JsonSerializer.SerializeToElement(cancelled).GetProperty("requested").GetBoolean());
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => work);
             Assert.Equal(1, checkpoint.Calls);
@@ -75,11 +74,11 @@ public sealed class ActionBackgroundDispatchTests
     [MemberData(nameof(DatabaseActions))]
     public async Task CancellableAndDatabaseActions_MoveSynchronousHandlerAndCheckpointOffCallerThread(string action)
     {
-        // 原本驗 DuckDB 的保留連線也不在呼叫端執行緒；DuckDB 移除後改驗 SQLite 的記錄檔併回（裁定 2026-11-06-08）。
+        // 驗 SQLite 的記錄檔併回也不在呼叫端執行緒。
         var probe = new ProbeHandler(action);
         var checkpoint = new CheckpointProbe();
         var session = new ProjectSession();
-        session.Enter("batch9-thread", TestProjectRepositories.Unconfigured("sqlite"));
+        session.Enter("thread-project", TestProjectRepositories.Unconfigured("sqlite"));
         var dispatcher = new ActionDispatcher([probe], NullLogger<ActionDispatcher>.Instance, session,
             databaseCheckpoint: checkpoint);
         var caller = await OnDedicatedThreadAsync(() => dispatcher.DispatchAsync(action, JsonSerializer.SerializeToElement(new { }), CancellationToken.None));

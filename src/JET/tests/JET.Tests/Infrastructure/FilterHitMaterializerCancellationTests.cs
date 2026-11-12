@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 本地 filter 命中 replace-all 的 commit 邊界：清除舊集合後收到取消，SQLite／DuckDB 都必須 rollback，
+/// 本地 filter 命中 replace-all 的 commit 邊界：清除舊集合後收到取消，SQLite 必須 rollback，
 /// 保留完整舊集合。取消由真 SQL 完成事件觸發，避免用時間競速製造 flaky 測試。
 /// </summary>
 public sealed class FilterHitMaterializerCancellationTests

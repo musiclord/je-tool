@@ -13,7 +13,7 @@ internal enum FieldInfoScope
 /// Provider-neutral Legacy TableDef 欄位定義。TextLength 只對 Text 有值，
 /// DecimalPlaces 只對 Number 有值；Ordinal 為 scope 內 1-based 穩定欄序。
 /// Origin 是這一欄的來歷，JetField 是它對應的 JET 欄位（標準欄寫語意欄名稱，攸關資料元素寫 fieldId）；
-/// 欄位資訊與底稿第四步之一看這兩項判斷哪一欄是 JET 欄位（裁定 2026-11-03-11）。
+/// 欄位資訊與底稿第四步之一看這兩項判斷哪一欄是 JET 欄位。
 /// </summary>
 internal sealed record FieldInfo(
     int Ordinal,

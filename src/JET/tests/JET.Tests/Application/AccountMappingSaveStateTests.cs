@@ -8,9 +8,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-10-19-21：第四步科目分類存檔後讀不回科目配對摘要時，回報成功並提醒。分類已經存好，
-/// 不能把整個動作報成失敗。回應不帶摘要欄位並附提醒，畫面保留原本的摘要（前端情境在 frontend-workflow.test.cjs）；
-/// 存檔後的讀取不受取消影響。兩個測試在修正前都失敗（收據 20261019-152635975-416fa6c94f8847bb949a4c174aa9cec0）。
+/// 第四步科目分類存檔後讀不回科目配對摘要時，回報成功並提醒。分類已經存好，
+/// 不能把整個動作報成失敗。回應不帶摘要欄位並附提醒，畫面保留原本的摘要（前端情境由前端測試核對）；
+/// 存檔後的讀取不受取消影響。
 /// </summary>
 public sealed class AccountMappingSaveStateTests
 {
@@ -77,7 +77,7 @@ public sealed class AccountMappingSaveStateTests
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
         var db = new SqliteProjectDatabase(folder);
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不會順便建表，所以照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
         var mappings = new LocalAccountMappingRepository(db);
         var states = new StateReads(mappings);

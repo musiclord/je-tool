@@ -4,8 +4,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// <c>specialAccountCategoryPair</c> execution matrix over real SQLite, DuckDB, and gated
-/// SQL Server databases. A = Revenue debit; B = Cash credit. The hand-calculated fixture
+/// <c>specialAccountCategoryPair</c> execution matrix over a real SQLite database.
+/// A = Revenue debit; B = Cash credit. The hand-calculated fixture
 /// locks both voucher membership and exact tagged-row identity for all three modes.
 /// </summary>
 public sealed class SpecialAccountCategoryPairPredicateTests
@@ -36,7 +36,7 @@ public sealed class SpecialAccountCategoryPairPredicateTests
             ('pair', 10, 'S5', '2', '2025-07-01', '2025-07-02', '1101', 'Cash',        'mixed credit categories',NULL, 'P', NULL, 0, 0, -40000, 0,     40000, 'CREDIT'),
             ('pair', 11, 'S5', '3', '2025-07-01', '2025-07-02', '1131', 'Receivables', 'mixed credit categories',NULL, 'P', NULL, 0, 0, -60000, 0,     60000, 'CREDIT');
 
-        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
+        -- 科目配對一律以 category_id 連到分類表，測試資料帶 category_id。
         INSERT INTO account_mapping
             (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
@@ -100,7 +100,7 @@ public sealed class SpecialAccountCategoryPairPredicateTests
             null,
             PairMode: pairMode)
         {
-            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            // 用分類身分陣列表達這一組分類。
             DebitCategoryIds = [AccountCategoryBuiltIns.RevenueId],
             CreditCategoryIds = [AccountCategoryBuiltIns.CashId]
         };
@@ -111,9 +111,8 @@ public sealed class SpecialAccountCategoryPairPredicateTests
             "hand-calculated row identity oracle",
             [new FilterGroupSpec(FilterJoin.And, [rule])]);
 
-    // 裁定 2026-11-05-45 照舊版，兩個「沒有」模式也標記同一張傳票對方那一側的全部分錄：
-    // S2 多了 Receivables 貸方 S2|2，S3 多了 Receivables 借方 S3|1；原本只有 S2|1 與 S3|2。
-    // 第一次失敗：Focused 收據 20261105-120743283-660b6625fa1a47119b3e76ef188dcf3e（預期 1 筆，實際 2 筆）。
+    // 照舊版，兩個「沒有」模式也標記同一張傳票對方那一側的全部分錄：
+    // S2 包含 Receivables 貸方 S2|2，S3 包含 Receivables 借方 S3|1。
     private static string[] ExpectedRows(string pairMode) => pairMode switch
     {
         SpecialAccountCategoryPairModes.DrAndCr => ["S1|1", "S1|2", "S5|1", "S5|2"],

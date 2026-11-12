@@ -5,8 +5,8 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// 科目配對欄位辨識（manifest import.accountMapping.fromFile 細節）：
-/// 鎖定事務所英文標頭、中文標頭由關鍵字命中,未知標頭退位次 1/2/3 fallback。
-/// oracle：欄位辨識規格（關鍵字命中優先,三者互異才採用,否則整組退位次）。
+/// 涵蓋事務所英文標頭、中文標頭與認不出的標頭。
+/// oracle：欄位辨識規格（三欄各自判定：確切欄名優先，再比對還沒被認領的欄的關鍵字，最後照剩下的欄位順序）。
 /// </summary>
 public sealed class AccountMappingColumnResolverTests
 {

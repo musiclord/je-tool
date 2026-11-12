@@ -197,7 +197,7 @@ public sealed class AuthorizedPreparerImportTests
     public async Task GlMatch_CountsGlOnly_IgnoresPreparersOnlyInExcludedEntries(string provider)
     {
         // 比對人數只算 GL。E09 只出現在一筆總帳日期早於查核期間的分錄，
-        // 投影後落在 GL(未納入測試)，不能算進「出現在 GL 傳票建立人員」。第一次失敗的收據 20261022-062415992：兩種資料庫都算成 3 位。
+        // 投影後落在 GL(未納入測試)，不能算進「出現在 GL 傳票建立人員」。
         using var host = new HandlerTestHost();
         var gl = CreateGlBuilder()
             .AddRow("AUTH-5", "2024-12-31", "1101", "合成科目", "1", 1, "E09", "OTHER", "Synthetic before period");

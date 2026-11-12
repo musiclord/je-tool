@@ -50,7 +50,7 @@ public sealed class LegacyAuditParityProfileTests
                 [GlMappingKeys.Amount] = "gl-amount",
             },
             profile.GlMapping,
-            "Synthetic GL mapping values changed from the stage-3 fixture baseline.");
+            "Synthetic GL mapping values changed from the fixture baseline.");
         AssertMappingsEqual(
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -59,7 +59,7 @@ public sealed class LegacyAuditParityProfileTests
                 [TbMappingKeys.ChangeAmount] = "tb-change",
             },
             profile.TbMapping,
-            "Synthetic TB mapping values changed from the stage-3 fixture baseline.");
+            "Synthetic TB mapping values changed from the fixture baseline.");
         AssertResolutionSourcesMatchMappings(
             profile.GlMapping,
             profile.GlMappingResolutionSources);
@@ -806,7 +806,7 @@ public sealed class LegacyAuditParityProfileTests
         Assert.Equal(AccountPairModes.Exact, rule.GetProperty("pairMode").GetString());
     }
 
-    // 2026-10-02 刪除單選分類欄位後，舊底稿的分類名稱改成內建分類身分陣列；PrivateCase 不經過這段轉換，由這兩個測試鎖住。
+    // 舊底稿的分類名稱要換成內建分類身分陣列；私人案件檢查不經過這段轉換，由這兩個測試鎖住。
     [Fact]
     public void CriteriaLog_AccountPair_EmitsBuiltInCategoryIdArrays()
     {
@@ -914,8 +914,7 @@ public sealed class LegacyAuditParityProfileTests
         var scenario = AssertScenario(result);
         Assert.Equal($"legacy-scenario-{legacyPosition:D2}", scenario.GetProperty("name").GetString());
         var group = Assert.Single(scenario.GetProperty("groups").EnumerateArray());
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776.
-        // 情境 5 原斷言違反 2026-08-28-02 的同列裁定；首次重現見 20261110-055205570-4da376e648374b37b0b581faccd958b1。
+        // 情境 5 的條件必須在同一列成立。
         Assert.Equal("row", group.GetProperty("matchScope").GetString());
         var rules = group.GetProperty("conditions").EnumerateArray().ToArray();
         Assert.Equal(3, rules.Length);
@@ -938,7 +937,6 @@ public sealed class LegacyAuditParityProfileTests
     [Fact]
     public void CriteriaLog_CaseAFifthPosition_KeepsAllConditionsOnSameRow()
     {
-        // First failure: 20261110-055205570-4da376e648374b37b0b581faccd958b1.
         var description = JetFieldCatalog.GlFields.Single(
             static field => field.SemanticIdentity == JetFieldCatalog.GlDescription).LegacyFieldName!;
         var result = LegacyCriteriaLogParser.TryParse(

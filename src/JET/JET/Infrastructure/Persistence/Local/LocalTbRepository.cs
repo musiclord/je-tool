@@ -16,12 +16,11 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
 {
     private const int ProgressRowInterval = 20_000;
 
-    // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死。
     private readonly string _provider = database.Dialect.ProviderName;
 
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    /// <summary>TB target 批量寫入的欄位順序（各引擎的 <see cref="IBulkRowWriter"/> 依此對位；balance_id 由引擎補齊）。</summary>
+    /// <summary>TB target 批量寫入的欄位順序（<see cref="IBulkRowWriter"/> 依此對位；balance_id 由引擎補齊）。</summary>
     private static readonly string[] TargetColumns =
         ["batch_id", "source_row_number", "account_number", "account_name", "change_amount_scaled"];
 
@@ -71,8 +70,6 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
             """;
         select.AddWithValue("@batchId", batchId);
 
-        // 批量列寫入：SQLite 包裝參數化 INSERT、DuckDB 走 Appender。
-        // SQL 文本／欄序不變（見 TargetColumns）；balance_id auto-id 由引擎補齊。
         await using var insert = database.CreateBulkRowWriter(connection, transaction, "tb", TargetColumns);
 
         var errors = new ProjectionErrorCollector();
@@ -118,7 +115,6 @@ public sealed class LocalTbRepository(ILocalProjectDatabase database, ILogger<Lo
             }
         }
 
-        // reader 已關閉後才 flush（DuckDB Appender 的 Close 須在 staging reader 迴圈結束後；本機探針實證）。
         await insert.CompleteAsync(cancellationToken);
 
         if (sourceRowCount > 0 && sourceRowCount % ProgressRowInterval != 0)

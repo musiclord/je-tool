@@ -149,7 +149,7 @@ public static class AccountCategoryInvariant
     private static void Invalid(string message) =>
         throw new JetActionException(JetErrorCodes.InvalidPayload, message);
 
-    // 只有程式送錯資料才會走到：畫面顯示非預期錯誤那一句，檢查代號記進支援日誌（用字依裁定 2026-10-14-01）。
+    // 只有程式送錯資料才會走到：畫面顯示非預期錯誤那一句，檢查代號記進支援日誌。
     private static void Reject(string check) =>
         throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, check);
 }

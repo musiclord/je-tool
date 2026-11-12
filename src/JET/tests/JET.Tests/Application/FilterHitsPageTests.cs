@@ -14,11 +14,10 @@ namespace JET.Tests.Application;
 ///     gl 的獨立 ANSI recount(nonAuthorizedPreparer:示範資料的「未授權者」分錄)。
 ///     非以 C# 重實作規則,故為有效 oracle。
 ///   - 保證非空母體:採 nonAuthorizedPreparer(demo 母體確有命中),避免空跑 0==0 假性通過。
-///   - 裁定 2026-10-08-03 移除傳票日期與回溯過帳，原本的 backdatedPosting 情境改為 nonAuthorizedPreparer。
 /// </summary>
 public sealed class FilterHitsPageTests
 {
-    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：recount 改數示範資料中建立人員為「未授權者」的分錄。
+    // recount 數示範資料中建立人員為「未授權者」的分錄。
     private const string NonAuthorizedRecount =
         "SELECT COUNT(*) FROM gl g " +
         "WHERE g.created_by = '未授權者';";
@@ -29,7 +28,7 @@ public sealed class FilterHitsPageTests
             scenarios = new[] { new {
                 name, rationale = "test",
                 groups = new[] { new { join = "and", conditions = new[] {
-                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    // 用示範資料中整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         });
 
@@ -76,8 +75,7 @@ public sealed class FilterHitsPageTests
         await host.DispatchAsync("filter.commit", ScenarioPayload("非授權編製人員"));
 
         // 透過正式流程使結果失效；情境定義保留，不把手動刪表當作產品失效流程。
-        // 上游修改會清除下游（裁定 2026-10-07-03），所以行事曆修改會連情境一起清掉；改用開案規則升版的情境整批取代。
-        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游，所以行事曆修改會連情境一起清掉；這裡用開案規則升版的情境整批取代。
         await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(host, ctx.ProjectId);
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT COUNT(*) FROM filter_hit;"));

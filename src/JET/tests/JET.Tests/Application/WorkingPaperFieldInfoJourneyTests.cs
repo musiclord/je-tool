@@ -13,7 +13,6 @@ namespace JET.Tests.Application;
 /// 從建立案件、匯入 GL 一路做到匯出底稿，核對底稿「自動化工具-檔案欄位資訊」工作表。
 /// 配對前的欄名很長時，名稱欄維持寬度上限、欄名換行，列高跟著行數加高；沒有匯入 TB 時，TB 那一段沒有任何欄位列。
 /// 寫出程式的單元測試已經測過換行加高，這裡補上照審計員操作順序走正式流程匯出的底稿。
-/// 新增的測試，程式本來就這樣處理，第一次就通過，沒有第一次失敗的收據。
 /// </summary>
 public sealed class WorkingPaperFieldInfoJourneyTests
 {
@@ -97,7 +96,7 @@ public sealed class WorkingPaperFieldInfoJourneyTests
             // 沒有 TB：表頭下面直接是兩列空白，接著是 GL 的標題與表頭。
             Assert.All(sheet.Range("A4:E5").Cells(), cell => Assert.True(cell.IsEmpty()));
             Assert.Equal("GL檔案配對前後欄位對照表", sheet.Cell("A6").GetString());
-            // 改名欄位的「配對前欄位名稱」照裁定 2026-11-03-17 加【】。第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+            // 改名欄位的「配對前欄位名稱」加【】。
             var longCell = Assert.Single(sheet.Column(1).CellsUsed(), cell => cell.GetString() == $"【{longColumn}】");
             Assert.True(longCell.Address.RowNumber > 7);
             Assert.True(longCell.Style.Alignment.WrapText);

@@ -9,7 +9,6 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 記錄檔併回或關閉案件資料庫失敗時，作業結果照舊，只在支援日誌記一筆步驟失敗（見 IProjectDatabaseCheckpoint）。
-/// 第 30 步量涵蓋率時發現這段失敗的路徑沒有測試執行到。這是新增的測試。
 /// </summary>
 public sealed class ProjectDatabaseCheckpointFailureTests
 {

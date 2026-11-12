@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// ActionDispatcher 的診斷日誌（TDD #1 action 生命週期、#3 correlation 一致、#4 exception）。
+/// ActionDispatcher 的診斷日誌（action 生命週期、correlation 一致、exception）。
 /// oracle:dispatch 已知 action,斷言 ring buffer 內的 action.start/end/error 結構化欄位。
 /// </summary>
 public sealed class DispatcherDiagnosticsTests

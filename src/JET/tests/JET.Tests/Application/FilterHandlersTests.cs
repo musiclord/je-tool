@@ -7,8 +7,6 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>
 /// filter.preview / filter.commit 黑箱測試。
 /// preview 計數一律與獨立參數化 SQL recount 比對；prescreen 條件與
@@ -38,8 +36,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
     /* ---- 驗證與安全 ------------------------------------------------------ */
 
-    // 裁定 2026-10-29-16：情境名稱留白也能儲存，系統依條件補上名稱；原本斷言儲存被擋下，改成斷言存下自動名稱、保留填寫的動機。
-    // 改用獨立案件，存檔不影響共用案件的其他測試。第一次失敗：Focused 收據 20261030-234500311-9ba883376b6d458ca7cdbd4100155cc8。
+    // 情境名稱留白也能儲存，系統依條件補上名稱；這裡斷言存下自動名稱、保留填寫的動機。
+    // 用獨立案件，存檔不影響共用案件的其他測試。
     [Fact]
     public async Task FilterPreview_MissingName_PreviewsAndSavesGeneratedName()
     {
@@ -99,8 +97,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             groups = new object[]
             {
                 new { join = "AND", conditions = new object[] { new { join = "AND", type = "drCrOnly", drCr = "debit" } } },
-                // 原本這條帶著已停用的借貸方向，錯誤其實來自停用寫法；借貸方向拿掉後當成無法讀取（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
-                // 同一條多出一句，所以拿掉方向，只留沒填分類這一個錯誤。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+                // 這條不帶借貸方向（帶了會當成無法讀取，同一條多出一句），只留沒填分類這一個錯誤。
                 new { join = "AND", conditions = new object[] { new { join = "AND", type = "accountSide", categoryMode = "is", categoryIds = Array.Empty<string>() } } }
             }
         });
@@ -257,7 +254,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
 
         var payload = PreviewPayload(ValidScenario(
-            // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
+            // 只認分類身分陣列；用陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
             new { join = "AND", type = "accountPair", debitCategoryIds = new[] { AccountCategoryBuiltIns.CashId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }));
 
         var ex = await Assert.ThrowsAsync<JetActionException>(
@@ -321,7 +318,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         try
         {
-            // sourceColumn 改成必填，後端不再猜人員欄；保留非授權人員篩選的原斷言。
+            // 匯入人員清單必須指定 sourceColumn。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
 
@@ -589,7 +586,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal(recount, preview.GetProperty("scenario").GetProperty("count").GetInt64());
     }
 
-    /* ---- join 結合方式：正規化與 fail-loud（manifest 結合律段，2026-07-06 收緊） ---- */
+    /* ---- join 結合方式：正規化與 fail-loud ---- */
 
     private const string SuspiciousOrHolidayRecountSql =
         """
@@ -665,8 +662,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
-        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
         Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "condition_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
         Assert.DoesNotContain(badJoin, ex.Message, StringComparison.Ordinal);
@@ -692,8 +689,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             () => fixture.Host.DispatchAsync("filter.preview", payload));
 
         Assert.Equal("invalid_scenario", ex.Code);
-        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
-        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
         Assert.Equal("第 1 組：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", ex.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, null, "group_join_invalid"), FilterScenarioCorruption.ReasonsOf(ex));
         Assert.DoesNotContain(badJoin, ex.Message, StringComparison.Ordinal);
@@ -812,10 +809,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             loaded.GetProperty("filterResultRef").GetProperty("populationScope").GetString());
     }
 
-    // 原名 FilterCommit_PreservesUnknownPropertiesAndNumberLexemesInPersistenceAndResumeAst，原本也斷言條件層的未知屬性
-    // unknownRule 會存下並在開案讀回。裁定 2026-10-15-01：「後端儲存時只保留該條件類型用得到的欄位」，
-    // 所以條件層改成斷言 unknownRule 不再存下；情境層與條件組層的未知屬性和數字原文照舊保留。
-    // 首次失敗：Focused 20261015-081453588-5485c4afbf664ef4919b9fbc7f54398f。
+    // 後端儲存時只保留該條件類型用得到的欄位，所以條件層的未知屬性 unknownRule 不會存下；
+    // 情境層與條件組層的未知屬性和數字原文照樣保留。
     [Fact]
     public async Task FilterCommit_KeepsScenarioAndGroupPropertiesAndNumberLexemes_AndRulesKeepOnlyUsedFields()
     {
@@ -934,9 +929,9 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task ProjectLoad_PreEffectiveValidFilterLogic_RecalculatesWithCurrentRules()
     {
-        // 開案時不再要求逐案重新保存（裁定 2026-10-02-05）：舊版本但仍符合目前規則的情境，
+        // 開案時不要求逐案重新保存：舊版本但仍符合目前規則的情境，
         // 由 project.load 改成目前版本並清掉舊命中，第一次查詢時才用新規則重算。
-        // 原本斷言 filterResultRef 為 null 與 stale_result 的寫法隨裁定改成斷言已改版且查得到命中。
+        // 這裡斷言已改版且查得到命中。
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
         await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
@@ -1083,9 +1078,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
             "SELECT saved_utc FROM filter_scenario ORDER BY position;");
         Assert.Equal(2, persisted.Count);
         Assert.All(persisted, savedUtc => Assert.Equal(generatedUtc, savedUtc));
-        // 2026-10-31 起每個情境各自儲存，revision 改成依順序把每個情境的「情境編號@保存時間」用分號接起來，
-        // 保存時間移到 generatedUtc；原本斷言 revision 就是保存時間，第一次失敗的收據
-        // 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。一次寫入整批時情境編號就是位置。
+        // 每個情境各自儲存，revision 依順序把每個情境的「情境編號@保存時間」用分號接起來，
+        // 保存時間放在 generatedUtc。一次寫入整批時情境編號就是位置。
         Assert.Equal($"1@{generatedUtc};2@{generatedUtc}", revision);
     }
 
@@ -1356,10 +1350,10 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         }));
 
         var preview = await host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            // 2026-10-02 起只認分類身分陣列，單選分類欄位改成同一分類的陣列。
+            // 只認分類身分陣列，單選分類寫成同一分類的陣列。
             new { join = "AND", type = "accountPair", pairMode = "creditAnchor", creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } })));
 
-        // 貸方錨定（guide §6.1 C）：輸出貸方錨定列＋同傳票借方列（>= 0）。
+        // 貸方錨定：輸出貸方錨定列＋同傳票借方列（>= 0）。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             """
@@ -1389,7 +1383,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // 賒銷種子傳票即「應收借（1131）＋ 收入貸（4101）」同傳票（DemoDataFactory.CreditSaleVouchers），保證母體非空。
         // drAndCr 命中數須等於同述詞的獨立 recount（標記 Receivables 借「或」Revenue 貸的列）。
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(ValidScenario(
-            // 2026-10-02 起只認分類身分陣列，單選分類欄位改成同一分類的陣列。
+            // 只認分類身分陣列，單選分類寫成同一分類的陣列。
             new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountCategoryBuiltIns.ReceivablesId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } })));
 
         var recount = await DemoProjectPipeline.QueryScalarAsync(
@@ -1428,7 +1422,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
+                // 只認分類身分陣列；用陣列才能讓「科目配對未匯入」成為唯一的失敗原因。
                 new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { AccountCategoryBuiltIns.CashId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
@@ -1440,7 +1434,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // 分類不在白名單（共用 fixture 已匯入科目配對 → 僅分類越界觸發）。
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「分類不存在」成為唯一的失敗原因。
+                // 只認分類身分陣列；用陣列才能讓「分類不存在」成為唯一的失敗原因。
                 new { join = "AND", type = "specialAccountCategoryPair", pairMode = "drAndCr", debitCategoryIds = new[] { "NotACategory" }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
@@ -1452,7 +1446,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         // 非法 pairMode（沿用 accountPair 的模式名 exact 也屬非法——兩條件模式集合刻意分離）。
         var ex = await Assert.ThrowsAsync<JetActionException>(() => fixture.Host.DispatchAsync(
             "filter.preview", PreviewPayload(ValidScenario(
-                // 2026-10-02 起只認分類身分陣列；改成陣列才能讓「模式不合法」成為唯一的失敗原因。
+                // 只認分類身分陣列；用陣列才能讓「模式不合法」成為唯一的失敗原因。
                 new { join = "AND", type = "specialAccountCategoryPair", pairMode = "exact", debitCategoryIds = new[] { AccountCategoryBuiltIns.CashId }, creditCategoryIds = new[] { AccountCategoryBuiltIns.RevenueId } }))));
 
         Assert.Equal("invalid_scenario", ex.Code);
@@ -1573,8 +1567,6 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
 
     /* ---- 常用篩選條件來源的情境豁免名稱/動機必填（manifest scenario.source）---- */
 
-    // 2026-10-29 卡片改稱常用篩選條件、拿掉字母，程式內部一起改（裁定 2026-10-29-12）：來源代碼改成 common，名稱、輔助函式與案例改用卡片代號，斷言不變。
-    // 第一次失敗：Build 收據 20261029-055859529-4f7e4a2a4d624199811e82719d4b37ad（還引用舊常數，編譯不過）。
     // 常用篩選條件來源、名稱與動機皆留空；測 metadata 時用不需 mapping 前置的特定金額尾數，
     // 其他卡片的前置與命中另由 provider matrix 精確驗證。
     private static object CommonScenario(params object[] rules) => new
@@ -1585,8 +1577,6 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         groups = new object[] { new { join = "AND", conditions = rules } }
     };
 
-    // 舊式條件停用後的現行輸入。只組測試請求；預期命中與獨立 SQL 重算不變。
-    // 首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
     private static object TailRule(string value) => new
     {
         join = "AND", type = "fieldValue", field = "amount", @operator = "endsWithDigits", value, amountBasis = "absolute"
@@ -1619,14 +1609,13 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         var preview = await fixture.Host.DispatchAsync("filter.preview", PreviewPayload(CommonScenario(
             TailRule("000000"))));
 
-        // 原 count >= 0 永遠成立。Demo 只有 15 張金額 2,000,000 的傳票
-        // 符合六位零尾數，借貸兩列都命中；其餘金額不足六位，固定為 30 列、15 張。
+        // Demo 只有 15 張金額 2,000,000 的傳票符合六位零尾數，借貸兩列都命中；
+        // 其餘金額不足六位，固定為 30 列、15 張。
         Assert.Equal(30, preview.GetProperty("scenario").GetProperty("count").GetInt64());
         Assert.Equal(15, preview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
     }
 
-    // 裁定 2026-10-29-16：自訂條件的名稱與動機留白也能儲存，系統依條件補上；原本斷言儲存被擋下，改成斷言存下自動文字。
-    // 第一次失敗：Focused 收據 20261030-234500311-9ba883376b6d458ca7cdbd4100155cc8。
+    // 自訂條件的名稱與動機留白也能儲存，系統依條件補上；這裡斷言存下自動文字。
     [Fact]
     public async Task FilterPreview_NonCommonSourceWithEmptyNameAndRationale_PreviewsAndSavesGeneratedText()
     {
@@ -1731,9 +1720,8 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
     }
 
     [Fact]
-    // 裁定 2026-10-30-14：常用篩選條件的名稱與動機留白時，不再補固定的「常用篩選條件（第 N 項）」與「常用篩選條件」，
-    // 改依條件產生和第五步畫面相同的文字。這兩個情境沒有卡片編輯來源，所以照自訂條件的寫法。
-    // 第一次失敗：Build 收據 20261030-234325678-745ed07d9ff840a19bdca41038ac78d3（固定文字的常數已拿掉，編譯失敗）。
+    // 常用篩選條件的名稱與動機留白時，不補固定文字，
+    // 依條件產生和第五步畫面相同的文字。這兩個情境沒有卡片編輯來源，所以照自訂條件的寫法。
     public async Task FilterCommit_TwoCommonScenariosWithEmptyMetadata_UsesConditionGeneratedNames()
     {
         using var host = new HandlerTestHost();

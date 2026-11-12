@@ -18,7 +18,7 @@ internal static class RulePeriodWireKeys
 /// S2b 降級版「規則 × 全期」前端邊界守衛。所有命中數、去重傳票數與比率都由
 /// prescreen.run 的 rulePeriod 提供；前端只套用中文 mirror、格式化與 ECharts option。
 /// 這裡只核對前端鏡射了每個 wire key 與中文標籤；不適用、真的零與極小比率怎麼顯示、圖表設定與在總覽裡的位置，
-/// 2026-10-14 起改由 <c>tools/tests/frontend-journey-overview.test.cjs</c> 的情境 19 行為測試核對。
+/// 由前端的行為測試核對。
 /// </summary>
 public sealed class OverviewRulePeriodFrontendTests
 {
@@ -39,9 +39,9 @@ public sealed class OverviewRulePeriodFrontendTests
                 $"overview-bi.js 未鏡射 rulePeriod wire key '{key}'。");
         }
 
-        // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
-        // 尾數規則知道 0 的個數時寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25），總覽改呼叫和第五步同一個 Ui.prescreenConditionLabel，
-        // 它從 PRESCREEN_RULES 取名稱；這裡改核對總覽呼叫這個共用函式，而且不自己讀或另列一份規則。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。
+        // 尾數規則知道 0 的個數時寫成「金額尾數連續 N 個 0」，總覽改呼叫和第五步同一個 Ui.prescreenConditionLabel，
+        // 它從 PRESCREEN_RULES 取名稱；這裡改核對總覽呼叫這個共用函式，而且不自己讀或另列一份規則。
         Assert.Contains("Ui.prescreenConditionLabel", source, StringComparison.Ordinal);
         Assert.DoesNotContain("PRESCREEN_RULES", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetApi", source, StringComparison.Ordinal);

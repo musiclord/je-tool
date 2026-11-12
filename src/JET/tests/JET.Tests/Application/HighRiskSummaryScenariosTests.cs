@@ -26,7 +26,7 @@ public sealed class HighRiskSummaryScenariosTests
                 new {
                     name = "非授權編製人員", rationale = "命中情境",
                     groups = new[] { new { join = "and", conditions = new object[] {
-                        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                        // 用示範資料中整張傳票兩列皆命中的非授權編製人員。
                         new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } },
                 new {
                     name = "廣域金額", rationale = "命中情境",
@@ -94,8 +94,7 @@ public sealed class HighRiskSummaryScenariosTests
         await host.DispatchAsync("filter.commit", ThreeScenarioPayload());
 
         // 透過正式流程使結果失效；情境定義保留，不把手動刪表當作產品失效流程。
-        // 上游修改會清除下游（裁定 2026-10-07-03），所以行事曆修改會連情境一起清掉；改用開案規則升版的情境整批取代。
-        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游，所以行事曆修改會連情境一起清掉；這裡用開案規則升版的情境整批取代。
         await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(host, ctx.ProjectId);
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT COUNT(*) FROM filter_hit;"));
@@ -116,7 +115,7 @@ public sealed class HighRiskSummaryScenariosTests
         Assert.True(PositionOf(scenarios, 1) > 0, "惰性補算後 nonAuthorizedPreparer 應仍命中");
     }
 
-    // 第五步的分錄筆數要和過往底稿相同（裁定 2026-10-16-08）。只用「未預期借貸組合」一個條件時，預覽、
+    // 第五步的分錄筆數要和過往底稿相同。只用「未預期借貸組合」一個條件時，預覽、
     // 已存情境摘要與傳票清單都用整張命中傳票的分錄數（和 Criteria Selection 摘要同一個判斷）；其他情境維持直接符合的分錄數。
     // 獨立答案：傳票清單逐張列出的期間內全部分錄加總，走的是另一條 GROUP BY 查詢。
     [Fact]

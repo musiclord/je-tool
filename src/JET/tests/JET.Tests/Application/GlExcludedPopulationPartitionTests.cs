@@ -13,9 +13,6 @@ namespace JET.Tests.Application;
 /// G1、G2 期間內已過帳，進 GL；B1 早於查核期間、A1 晚於查核期間、N1 總帳日期空白、D1 過帳狀態是 DRAFT，
 /// 各兩列，進 GL(未納入測試)。D2 日期晚於查核期間且過帳狀態也不符，日期先判斷，記為晚於查核期間。
 /// 預期值逐列手算。
-/// 2026-10-30 把 is_effective 改成意思相反的 is_excluded 之前先寫好這則測試：改名前通過（收據
-/// 20261030-095606685-f09b1d56a249473784d4b6875e9a37b6）；故意只換欄名、不反轉 GL 條件時失敗（收據
-/// 20261030-100509301-c2358262f6ec42e29caccc3ce2312a07）；全部反轉後通過（收據 20261030-100403194-bf5cc37d0d5c47a58db68645b08f8837）。
 /// </summary>
 public sealed class GlExcludedPopulationPartitionTests
 {

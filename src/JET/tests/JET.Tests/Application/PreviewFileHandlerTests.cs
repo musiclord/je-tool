@@ -145,9 +145,8 @@ public sealed class PreviewFileHandlerTests
         }
     }
 
-    // 裁定 2026-10-22-15 把「欄名在第幾列」開放給 GL 與 TB 的一般匯入，Excel 與文字檔都適用。
+    // 「欄名在第幾列」適用 GL 與 TB 的一般匯入，Excel 與文字檔都適用。
     // 預覽帶 headerRow 時，從那一列起找第一個有內容的列當欄名，前面的標題列與空白列都不算資料。
-    // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd（headerRow 被忽略，標題列被當成欄名）。
     [Fact]
     public async Task PreviewFile_HeaderRow_UsesThatRowAsHeader_ForXlsxAndCsv()
     {
@@ -180,7 +179,7 @@ public sealed class PreviewFileHandlerTests
             Assert.Equal(["傳票號碼", "金額"], csv.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
             Assert.Equal("V1", Assert.Single(csv.GetProperty("sampleRows").EnumerateArray())[0].GetString());
 
-            // 不帶 headerRow 時維持原本的行為：第一個有內容的列是欄名，所以標題列會被當成欄名。
+            // 不帶 headerRow 時，第一個有內容的列是欄名，所以標題列會被當成欄名。
             var plain = await host.DispatchAsync("import.previewFile", JsonSerializer.Serialize(new { filePath = csvPath }));
             Assert.Equal(["合成公司 總帳明細"], plain.GetProperty("columns").EnumerateArray().Select(c => c.GetString()).ToArray());
         }

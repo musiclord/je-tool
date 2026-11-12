@@ -341,10 +341,9 @@ public sealed class LegacyAuditParityComparatorTests
     [Fact]
     public void LegacyNoCounterpartRules_AreTheIndependentExactThreeRuleSet()
     {
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，回溯過帳不再列入。
-        // 編製分錄較少的人員與使用較少的科目是 JET 自己加的兩條規則，第四步照舊版拿掉後（裁定 2026-10-29-27），
-        // 舊版無對應項只剩三條；這是拿掉 JET 的規則，不是改變差異的分類。
-        // 原名 LegacyNoCounterpartRules_AreTheIndependentExactFiveRuleSet；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+        // 沒有傳票日期與回溯過帳，回溯過帳不列入。
+        // 第四步照舊版，不含編製分錄較少的人員與使用較少的科目這兩條 JET 自己加的規則，
+        // 所以舊版無對應項只有三條。
         var expected = new HashSet<LegacyPrescreenRuleId>
         {
             LegacyPrescreenRuleId.HolidayPosting,
@@ -382,9 +381,9 @@ public sealed class LegacyAuditParityComparatorTests
     [Fact]
     public void LegacyNoCounterpartRules_EachRegisterBothRowAndVoucherMetrics()
     {
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，回溯過帳不再列入。
-        // 編製分錄較少的人員與使用較少的科目是 JET 自己加的兩條規則，第四步照舊版拿掉後（裁定 2026-10-29-27），
-        // 舊版無對應項只剩三條；這是拿掉 JET 的規則，不是改變差異的分類。
+        // 沒有傳票日期與回溯過帳，回溯過帳不列入。
+        // 第四步照舊版，不含編製分錄較少的人員與使用較少的科目這兩條 JET 自己加的規則，
+        // 所以舊版無對應項只有三條。
         var expectedRules = new[]
         {
             LegacyPrescreenRuleId.HolidayPosting,

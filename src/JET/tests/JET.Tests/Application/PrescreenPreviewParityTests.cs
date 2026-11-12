@@ -6,7 +6,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 守門測試：預篩選命中預覽重用 filter.preview，
 /// 任一預篩選鍵的 filter.preview 筆數必須等於 prescreen.run 同鍵筆數。
-/// 這是「共用述詞 seam」的行為不變式（見 jet-guide §共用述詞 / filter engine）。
+/// 這是「共用述詞 seam」的行為不變式。
 /// 若任何鍵出現不等，代表述詞分歧（如門檻值、context 不對齊），請勿弱化斷言。
 /// </summary>
 public sealed class PrescreenPreviewParityTests
@@ -152,8 +152,7 @@ public sealed class PrescreenPreviewParityTests
         var uapCount = prescreen.GetProperty("unexpectedAccountPair").GetProperty("count").GetInt64();
         var uapPreview = await host.DispatchAsync("filter.preview", PreviewPayload("unexpectedAccountPair"));
 
-        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29），第四步的筆數改和第五步只用這一個條件時畫面的分錄筆數（summaryRowCount）比，傳票張數仍相同；
-        // 原本和直接命中的 count 比。第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票，第四步的筆數和第五步只用這一個條件時畫面的分錄筆數（summaryRowCount）比，傳票張數仍相同。
         Assert.Equal(uapCount, uapPreview.GetProperty("scenario").GetProperty("summaryRowCount").GetInt64());
         var uapPeriod = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
             .Single(rule => rule.GetProperty("key").GetString() == "unexpectedAccountPair");

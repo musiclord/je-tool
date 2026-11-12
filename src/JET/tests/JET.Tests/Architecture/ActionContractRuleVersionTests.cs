@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using JET.Application;
 using JET.Tests.Infrastructure;
 using Xunit;
+using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Architecture;
 
@@ -14,6 +15,7 @@ public sealed class ActionContractRuleVersionTests
     private static readonly Regex FilterVersion = new(@"(?<![A-Za-z0-9_-])(?:filter-\d{4}-\d{2}-\d{2}-v\d+|v\d+)(?![A-Za-z0-9_])", RegexOptions.CultureInvariant);
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void EveryCurrentFilterVersionClaimInTheManifestMatchesTheProgramConstant()
     {
         var manifest = File.ReadAllText(Path.Combine(TestRepositoryPaths.RepositoryRoot, "docs", "action-contract-manifest.md"));

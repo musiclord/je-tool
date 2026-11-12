@@ -15,7 +15,7 @@
   var historyPage = 0;
   var historyNewestId = null;
   var HISTORY_PAGE_SIZE = Ui.REPORT_HISTORY_PAGE_SIZE;
-  // 只在第五步真的有尚未儲存的條件時出現，取代原本常駐的「草稿不會自動納入」，常駐說明不再多寫（裁定 2026-10-29-02）。
+  // 只在第五步真的有尚未儲存的條件時出現，不另寫常駐說明。
   var UNSAVED_DRAFT_NOTICE = '「進階條件篩選」還有尚未儲存的條件，儲存成情境後才會納入底稿。';
   // 預篩選報告預設納入輸出家族；使用者可取消，取消後只影響這一份。
   var includePrescreenReport = true;
@@ -96,7 +96,7 @@
   }
 
   // 匯出按鈕可用的條件：有目前可用的資料驗證結果，而且已儲存的情境都能套用目前規則。沒有情境、或一個都沒勾選，
-  // 照樣能產生底稿（裁定 2026-10-29-16、2026-10-30-15）。
+  // 照樣能產生底稿。
   function canExportWorkingPaper(state) {
     var hasScenarios = (state.filter.savedScenarios || []).length > 0;
     return !!resultId(state.results.validate) && (!hasScenarios || !!filterRevision(state)) &&
@@ -162,8 +162,7 @@
     );
   }
 
-  // 工作表與資料列數描述的是某一版已存情境的匯出；上游修改清掉情境、或情境換了版本後就不再顯示
-  // （裁定 2026-10-15-01）。
+  // 工作表與資料列數描述的是某一版已存情境的匯出；上游修改清掉情境、或情境換了版本後就不再顯示。
   function sheetStatsHtml(state) {
     if (!lastSheetStats || lastSheetStats.sheets.length === 0 || lastSheetStats.revision !== filterRevision(state)) { return ''; }
     var rows = lastSheetStats.sheets.map(function (sheet) {
@@ -184,7 +183,7 @@
      設計稿把「完成」畫成第六個步驟；此處刻意只轉成本步驟內的完成狀態——
      流程仍是六步（最後一步＝匯出底稿），STEPS、閘門、進度持久化與 action 語意皆不變。
      出現條件＝目前版本的工作底稿已產生（Ui.currentWorkingPaperReport），與左側進度、流程總覽同一個判斷。
-     條件篩選報告是獨立輸出，不再是前置。 */
+     條件篩選報告是獨立輸出，不是前置。 */
   function completionSummaryHtml(criteriaReport, currentWorkingPaper) {
     if (!currentWorkingPaper) { return ''; }
     var tags = (criteriaReport ? ['條件篩選報告', '工作底稿'] : ['工作底稿']).map(function (kind) {
@@ -215,7 +214,7 @@
     var validationResultId = resultId(state.results.validate);
     var scenarioRevision = filterRevision(state);
     var needsScenarioResave = state.filter.savedScenarios.length > 0 && !scenarioRevision;
-    // 裁定 2026-10-29-16：沒有已儲存的情境也能產生工作底稿，第三、四步留空，由審計員在底稿說明。
+    // 沒有已儲存的情境也能產生工作底稿，第三、四步留空，由審計員在底稿說明。
     var noScenario = state.filter.savedScenarios.length === 0;
     var criteriaReport = scenarioRevision
       ? Ui.findCurrentReport(state, 'criteriaSelectionReport', {
@@ -254,7 +253,7 @@
           '<div data-motion="fade" data-motion-key="workingPapers-page-' + historyPage + '">' +
           Ui.reportListHtml(visibleWorkingPapers, '尚未產生工作底稿。', { history: true, reveal: true, motion: 'workingPapers' }) +
           '</div>' +
-          // 換頁沿用明細表的共用分頁外觀（裁定 2026-10-16-03）；一頁仍是 50 份文件，只有一頁時不顯示。
+          // 換頁沿用明細表的共用分頁外觀；一頁仍是 50 份文件，只有一頁時不顯示。
           Ui.pageControlsHtml(historyPage + 1, workingPapers.length, { pageSize: HISTORY_PAGE_SIZE,
             previousAttribute: 'data-history-page="-1"', nextAttribute: 'data-history-page="1"' }) +
           sheetStatsHtml(state) +
@@ -293,7 +292,7 @@
     var clearButton = container.querySelector('[data-action="clear-scenario-selection"]');
     if (clearButton) {
       clearButton.addEventListener('click', function () {
-        // 清除時被取消勾選的情境先輕微晃一下，讓使用者知道哪些被拿掉了（裁定 2026-10-13-13）。
+        // 清除時被取消勾選的情境先輕微晃一下，讓使用者知道哪些被拿掉了。
         // 只晃原本有勾的；東西不會離開畫面，所以直接用 shake，不經過 removing。
         if (global.JetMotion && typeof global.JetMotion.shake === 'function') {
           var cleared = [];
@@ -336,13 +335,13 @@
   function runPrescreenForExport(project, payload) {
     return global.JetApi.prescreenRun({}).then(function (data) {
       requireExportActive(project, payload, true);
-      // 不再另記「預篩選已完成，接著產生預篩選報告」（裁定 2026-10-13-28）。
+      // 不另記「預篩選已完成，接著產生預篩選報告」。
       Store.setResult('prescreen', data);
       return resultId(data);
     });
   }
 
-  // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
+  // 完成句由 Ui.run 接上耗時後記一則；成功時只留一則。
   function exportWorkingPaper(payload, project) {
     return global.JetApi.exportWorkingPaperStream(payload).then(function (data) {
       requireExportActive(project, payload, true);
@@ -400,7 +399,7 @@
         return;
       }
 
-      // 要先補跑預篩選、第四步又有還沒儲存的科目分類時，和第四步的「執行預篩選」一樣先問（裁定 2026-10-15-01）。
+      // 要先補跑預篩選、第四步又有還沒儲存的科目分類時，和第四步的「執行預篩選」一樣先問。
       // 選「儲存並繼續」會清掉已存情境，這次匯出就不再送出。
       if (plan.needsRun && Ui.pendingAccountCategoryCount()) {
         Ui.confirmPendingAccountCategories('預篩選只會使用已儲存的分類。', '先不儲存，直接執行').then(function (proceed) {

@@ -165,7 +165,7 @@ public sealed class LocalAccountCategoryStore(ILocalProjectDatabase database) : 
             }
         }
 
-        // 已存篩選情境不擋刪除：分類設定的修改會在同一交易內清掉全部情境（上游修改清除下游，裁定 2026-10-07-03）。
+        // 已存篩選情境不擋刪除：分類設定的修改會在同一交易內清掉全部情境（上游修改清除下游）。
     }
 
     private static void EnsureRevision(int expected, int actual)

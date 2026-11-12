@@ -204,6 +204,27 @@ function Invoke-JetBuildPipeline {
     return $results.ToArray()
 }
 
+function Get-JetGuiBuildExtension {
+    param(
+        [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
+        [Parameter(Mandatory = $true)] $Registry
+    )
+
+    # AgentGuiTest 組態不在產品專案裡。建置 JET 與測試專案時帶入驗證框架的建置設定檔，
+    # 加入 Gui 測試的進入點、夾具與夾具的測試。MSBuild 找不到這個檔案時會略過它、照樣建置出一般的 JET，
+    # 所以先確認檔案存在。
+    $relativePath = [string]$Registry.guiSettings.buildExtension
+    $fullPath = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $relativePath))
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+        throw [IO.FileNotFoundException]::new("The AgentGuiTest build extension '$relativePath' is missing.")
+    }
+
+    return [pscustomobject]@{
+        Argument = "/p:CustomBeforeMicrosoftCommonTargets=$fullPath"
+        DisplayArgument = "/p:CustomBeforeMicrosoftCommonTargets=$relativePath"
+    }
+}
+
 function Invoke-JetGuiBuildPipeline {
     param(
         [Parameter(Mandatory = $true)] [string] $RepositoryRoot,
@@ -218,8 +239,9 @@ function Invoke-JetGuiBuildPipeline {
         Select-Object -First 1 -ExpandProperty Source
     $applicationProject = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.applicationProject)
     $driverProject = Join-Path $RepositoryRoot ([string]$Registry.guiSettings.driverProject)
-    # 測試專案用同一個 AgentGuiTest 組態建置，才會編譯 JET_AGENT_GUI_TEST 區塊；Gui 路線先執行這些測試再跑情境。
+    # 測試專案也用 AgentGuiTest 組態與同一份建置設定檔建置，才會編譯夾具的測試；Gui 路線先執行這些測試再跑情境。
     $testProject = Join-Path $RepositoryRoot ([string]$Registry.testSettings.project)
+    $buildExtension = Get-JetGuiBuildExtension -RepositoryRoot $RepositoryRoot -Registry $Registry
 
     foreach ($restore in @(
             [ordered]@{ Name = 'gui-app-restore'; Project = $applicationProject; Display = [string]$Registry.guiSettings.applicationProject },
@@ -252,11 +274,13 @@ function Invoke-JetGuiBuildPipeline {
             -Arguments @(
                 'build', $applicationProject,
                 '--configuration', ([string]$Registry.guiSettings.configuration),
-                '--no-restore', '--disable-build-servers'
+                '--no-restore', '--disable-build-servers',
+                $buildExtension.Argument
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', ([string]$Registry.guiSettings.applicationProject),
-                '--configuration', ([string]$Registry.guiSettings.configuration), '--no-restore', '--disable-build-servers'
+                '--configuration', ([string]$Registry.guiSettings.configuration), '--no-restore', '--disable-build-servers',
+                $buildExtension.DisplayArgument
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
@@ -292,11 +316,13 @@ function Invoke-JetGuiBuildPipeline {
             -Arguments @(
                 'build', $testProject,
                 '--configuration', ([string]$Registry.guiSettings.configuration),
-                '--no-restore', '--disable-build-servers'
+                '--no-restore', '--disable-build-servers',
+                $buildExtension.Argument
             ) `
             -DisplayCommand @(
                 'dotnet', 'build', ([string]$Registry.testSettings.project),
-                '--configuration', ([string]$Registry.guiSettings.configuration), '--no-restore', '--disable-build-servers'
+                '--configuration', ([string]$Registry.guiSettings.configuration), '--no-restore', '--disable-build-servers',
+                $buildExtension.DisplayArgument
             ) `
             -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
             -TimeoutSeconds $TimeoutSeconds `
@@ -318,7 +344,7 @@ function Invoke-JetGuiBundleStep {
     )
 
     # Gui 測試版不能發布。只有這裡帶 JetAgentGuiOwnedBundle=true，照正式版的 FolderProfile 打包成單一執行檔，
-    # 輸出到這次執行的 scratch，JET.csproj 才放行；scratch 在命令結束時整個刪除（裁定 2026-11-09-03）。
+    # 輸出到這次執行的 scratch，建置設定檔才放行；scratch 在命令結束時整個刪除（裁定 2026-11-09-03）。
     Assert-JetNoExistingReparsePoint -RepositoryRoot $RepositoryRoot -Candidate $BundleDirectory
     $dotnet = Get-Command dotnet -CommandType Application -ErrorAction Stop |
         Select-Object -First 1 -ExpandProperty Source
@@ -327,6 +353,7 @@ function Invoke-JetGuiBundleStep {
     $configuration = [string]$Registry.guiSettings.configuration
     $runtimeIdentifier = [string]$Registry.packageSettings.runtimeIdentifier
     $publishProfile = [string]$Registry.packageSettings.publishProfile
+    $buildExtension = Get-JetGuiBuildExtension -RepositoryRoot $RepositoryRoot -Registry $Registry
     return Invoke-JetChildStep `
         -RepositoryRoot $RepositoryRoot `
         -RunDirectory $RunDirectory `
@@ -339,7 +366,8 @@ function Invoke-JetGuiBundleStep {
             '--no-restore', '--disable-build-servers',
             '--output', $BundleDirectory,
             "/p:PublishProfile=$publishProfile",
-            '/p:JetAgentGuiOwnedBundle=true'
+            '/p:JetAgentGuiOwnedBundle=true',
+            $buildExtension.Argument
         ) `
         -DisplayCommand @(
             'dotnet', 'publish', ([string]$Registry.guiSettings.applicationProject),
@@ -348,7 +376,8 @@ function Invoke-JetGuiBundleStep {
             '--no-restore', '--disable-build-servers',
             '--output', (Get-JetRelativePath -RepositoryRoot $RepositoryRoot -Path $BundleDirectory),
             "/p:PublishProfile=$publishProfile",
-            '/p:JetAgentGuiOwnedBundle=true'
+            '/p:JetAgentGuiOwnedBundle=true',
+            $buildExtension.DisplayArgument
         ) `
         -MaximumCapturedBytes ([int]$Registry.limits.maximumCapturedBytesPerStream) `
         -TimeoutSeconds $TimeoutSeconds `

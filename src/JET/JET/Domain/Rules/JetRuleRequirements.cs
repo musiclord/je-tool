@@ -18,7 +18,7 @@ public enum JetRulePrerequisiteKind
 public sealed record JetRulePrerequisite(JetRulePrerequisiteKind Kind, string? GlField = null);
 
 /// <summary>
-/// 第四步分類設定裡內建分類目前的名稱，依用途對應；審計員改過名稱時原因寫新名稱（裁定 2026-10-13-23）。
+/// 第四步分類設定裡內建分類目前的名稱，依用途對應；審計員改過名稱時原因寫新名稱。
 /// 內建分類不可刪除，沒有帶分類設定時用內建名稱。
 /// </summary>
 public sealed record AccountCategoryLabels(string Revenue, string Receivables, string Cash, string ReceiptInAdvance)
@@ -42,8 +42,8 @@ public sealed record AccountCategoryLabels(string Revenue, string Receivables, s
 /// 判斷前置條件用的案件事實。第四步與第五步各自從案件資料組出這一份，再交給同一張表判斷。
 /// <see cref="AvailableGlFields"/> 為 null 時不檢查 GL 欄位，只用在沒有配對資料的獨立測試；
 /// <see cref="HasHolidayCalendar"/> 為 null 時不檢查假日檔，只用在沒有案件資料的獨立測試；第四步與第五步都帶入實際狀態
-/// （第五步的假日條件照裁定 2026-11-05-55 停用並寫原因）。<see cref="HasMakeupCalendar"/> 是補班日清單，只有第五步的
-/// 補班日條件需要（裁定 2026-11-05-66）；第四步沒有規則用到補班日清單，不帶這項事實。
+/// （沒有假日清單時，第五步的假日條件停用並寫原因）。<see cref="HasMakeupCalendar"/> 是補班日清單，只有第五步的
+/// 補班日條件需要；第四步沒有規則用到補班日清單，不帶這項事實。
 /// </summary>
 internal sealed record JetRuleFacts(
     IReadOnlyCollection<string>? AvailableGlFields,
@@ -60,7 +60,7 @@ internal sealed record JetRuleFacts(
 /// <summary>
 /// 每條規則需要什麼：預篩選規則、第四步兩項彙總、資料驗證的「核准日不在期間」與第五步條件各自需要的 GL 語意欄位與案件資料。
 /// 第四步的不適用原因、第五步的驗證器與前端的停用說明都讀這一張表，同一條規則給同一個原因
-/// （第五步不能用 GL 沒有配對的欄位，裁定 2026-10-22-05）。前端 ui-core.js 的 PRESCREEN_RULES 與
+/// （第五步不能用 GL 沒有配對的欄位）。前端 ui-core.js 的 PRESCREEN_RULES 與
 /// FILTER_RULE_PREREQUISITES 逐項鏡像預篩選規則與第五步條件；資料驗證的原因由後端寫好，前端只顯示。
 /// </summary>
 internal static class JetRuleRequirements
@@ -87,13 +87,13 @@ internal static class JetRuleRequirements
 
     /// <summary>
     /// 第四步資料驗證「核准日不在期間」需要的前置條件：以傳票核准日判斷，傳票核准日不可用時這一項無法執行，
-    /// 驗證報告照同一個結果寫 N/A（裁定 2026-10-23-01）。
+    /// 驗證報告照同一個結果寫 N/A。
     /// </summary>
     internal static IReadOnlyList<JetRulePrerequisite> OutOfPeriodApproval { get; } = [Field(JetFieldCatalog.GlApprovalDate)];
 
     /// <summary>
     /// 第五步一條條件需要的前置條件；括號與整張傳票條件由子條件各自檢查。凡條件引用核心 GL 欄位，不論比較方式都要求欄位可用；
-    /// 欄位已不在欄位目錄（例如已移除的傳票日期）或是攸關資料元素欄位時，由各型別自己的檢查說明。
+    /// 欄位已不在欄位目錄（例如傳票日期）或是攸關資料元素欄位時，由各型別自己的檢查說明。
     /// </summary>
     internal static IReadOnlyList<JetRulePrerequisite> ForFilterCondition(FilterConditionSpec rule)
     {
@@ -103,7 +103,7 @@ internal static class JetRuleRequirements
             FilterConditionType.Prescreen => rule.PrescreenKey is { } key && PrescreenRuleKeys.FilterableKeys.Contains(key)
                 ? PrescreenRules[key]
                 : [],
-            // 國定假日與補班日的比較方式另外需要各自的清單，排在欄位之後（裁定 2026-11-05-55、2026-11-05-66）。
+            // 國定假日與補班日的比較方式另外需要各自的清單，排在欄位之後。
             FilterConditionType.FieldValue => [
                 .. rule.FieldId is null ? CatalogField(rule.Field) : [],
                 .. FieldValueConditions.IsHoliday(rule.TypedOperator) ? [HolidayCalendar] : Array.Empty<JetRulePrerequisite>(),
@@ -150,7 +150,7 @@ internal static class JetRuleRequirements
     }
 
     /// <summary>
-    /// 第五步與前端停用說明用的原因，不含句號（第五步句子的用字依裁定 2026-10-13-28）。第五步的下一步由畫面在清單最後寫一次，
+    /// 第五步與前端停用說明用的原因，不含句號。第五步的下一步由畫面在清單最後寫一次，
     /// 所以 GL 欄位的句子只寫原因；其他句子的下一步和通用說法不同，自己帶下一步。
     /// </summary>
     internal static string Reason(JetRulePrerequisite prerequisite, AccountCategoryLabels labels)

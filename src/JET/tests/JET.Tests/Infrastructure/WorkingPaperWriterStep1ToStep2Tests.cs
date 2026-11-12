@@ -17,7 +17,7 @@ namespace JET.Tests.Infrastructure;
 /// <summary>底稿寫出器：step1 家族（完整性、借貸不平、編製人員、差異說明）與 step2 抽樣。</summary>
 public sealed class WorkingPaperWriterStep1ToStep2Tests
 {
-    // ================= Task 4:step2 可靠性(legacy 借貸代號＋帶號金額)=================
+    // ================= step2 可靠性(舊版 JET 的借貸代號與帶號金額)=================
 
     [Fact]
     public async Task Step2_SampleRows_LegacyDirectionAndSignedAmount_MatchInfSampleRecount()
@@ -52,8 +52,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         var expectedCredit = await DemoProjectPipeline.QueryScalarAsync(host, ctx.ProjectId,
             "SELECT credit_amount_scaled FROM gl WHERE entry_id=@id;", ("@id", firstEntryId));
 
-        // 首樣本在第 53 列。樣本原本依 entry_id 升冪列出，裁定 2026-11-05-41 改成照舊版依傳票號碼排序、同一張傳票照原本的列順序，
-        // 上面取首樣本的查詢原本是 ORDER BY g.entry_id，2026-11-06 提交前複審後照裁定改成同一個順序；改之前沒有失敗，斷言不變。
+        // 首樣本在第 53 列。樣本照舊版依傳票號碼排序、同一張傳票照原本的列順序，上面取首樣本的查詢用同一個順序。
         Assert.Equal(expectedCredit > 0 ? "0" : "1", sheet.Cell("E53").GetString());
         Assert.Equal(
             (double)(expectedDebit - expectedCredit) / MoneyScale,
@@ -62,8 +61,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         AssertSingleLine(sheet.Cell("F53"));
 
         // Demo 未配對來源模組與傳票核准人員，T 說明手填留空。
-        // 裁定 2026-11-09-11：照舊版只在配對了傳票核准人員時把 L51 改成「傳票核准人員」，沒配對時保留範本原字，L 欄沒有資料。
-        // 原本不論有沒有配對都寫「傳票核准人員」。第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
+        // 照舊版只在配對了傳票核准人員時把 L51 改成「傳票核准人員」，沒配對時保留範本原字，L 欄沒有資料。
         Assert.True(sheet.Cell("J53").IsEmpty());
         Assert.Equal("其他有用在高風險條件的RDE欄位\n(若有，請自行新增修改)", sheet.Cell("L51").GetString());
         Assert.True(sheet.Cell("L53").IsEmpty());
@@ -130,11 +128,11 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         AssertSingleLine(sheet.Cell(lateRow, 20));
     }
 
-    // 裁定 2026-11-05-41：資料可靠性樣本照舊版依傳票號碼排序，同一張傳票照原本的列順序；INF 報告與底稿 Step 2 都照這個順序。
-    // 舊版在 IDEA 抽樣後依「傳票號碼_JE」升冪排序（legacy/idea-tool.bas 第 6789 到 6791 行）。2026-11-06 提交前複審查到這個順序沒有測試，
-    // 這是新增的測試：依分錄順序第 k 筆（從 0 起）的樣本，傳票號碼改成 V(200 - k / 2)、摘要寫 k，所以傳票號碼的順序和分錄順序相反，
+    // 資料可靠性樣本照舊版依傳票號碼排序，同一張傳票照原本的列順序；INF 報告與底稿 Step 2 都照這個順序。
+    // 舊版在 IDEA 抽樣後依「傳票號碼_JE」升冪排序。
+    // 依分錄順序第 k 筆（從 0 起）的樣本，傳票號碼改成 V(200 - k / 2)、摘要寫 k，所以傳票號碼的順序和分錄順序相反，
     // 而且每兩筆同一張傳票。兩份輸出都要依傳票號碼升冪，同一張傳票裡分錄順序在前的先列。
-    // 同日裁定 2026-11-06-06：傳票號碼空白的樣本照舊版排在最前面，所以第 10、30 筆改成沒有傳票號碼，第 20 筆只有空白字元，
+    // 傳票號碼空白的樣本照舊版排在最前面，所以第 10、30 筆改成沒有傳票號碼，第 20 筆只有空白字元，
     // 這三筆依分錄順序排在最前面。
     [Fact]
     public async Task InfReportAndStep2_ListSamplesByVoucherNumber_KeepingTheRowOrderWithinAVoucher()
@@ -241,7 +239,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
             StringComparison.Ordinal);
     }
 
-    // ================= Task 3:step1 完整性(全科目)=================
+    // ================= step1 完整性(全科目)=================
 
     [Fact]
     public async Task Step1_ListsEveryAccount_IncludingZeroDiff()
@@ -384,7 +382,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.Equal((double)diffScaled / MoneyScale, sheet.Cell($"F{row2201}").GetDouble());
     }
 
-    // ================= Task 3:step1-1 借貸不平(條件例外表)=================
+    // ================= step1-1 借貸不平(條件例外表)=================
 
     [Fact]
     public async Task Step11_UnbalancedPopulation_EmitsExceptionRow()
@@ -395,8 +393,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
 
         var sheet = workbook.Worksheet(Step11Sheet);
 
-        // 裁定 2026-10-02-08：照 legacy 版面（idea-tool.bas:10468-10476、idea-script.bas:9089-9097）。
-        // 原本只確認 JV3 列存在、表頭在第 14 列且第三欄是借貸差額；legacy 在 B12 寫有不平的結論、B14 寫說明，
+        // 照舊版 JET 的版面：B12 寫有不平的結論、B14 寫說明，
         // 第 16 列是五欄表頭，明細依傳票號碼與總帳日期彙總，貸方合計為負數，最後一欄留給審計員填理由。
         Assert.Equal(
             "基於上述程序，查核團隊發現有部分傳票借貸不平，但已取得足夠的查核證據，確認其理由尚屬合理。",
@@ -420,7 +417,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
     [Fact]
     public async Task Step11_UnbalancedVoucherAcrossGlDates_ListsOneRowPerVoucherAndGlDate()
     {
-        // legacy 先以傳票號碼判定不平，再依傳票號碼與總帳日期彙總借方與貸方（idea-tool.bas:6618、6686-6691）。
+        // 舊版 JET 先以傳票號碼判定不平，再依傳票號碼與總帳日期彙總借方與貸方。
         using var host = new HandlerTestHost();
         var projectId = await InlineWorkbookProject.SetupAsync(
             host,
@@ -499,7 +496,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
     [Fact]
     public async Task Step11_UnbalancedPopulation_UsesLegacyRow16HeaderStylesAndPlainDataRows()
     {
-        // 原測試比對第 14 列表頭與範本格式。legacy 表頭在第 16 列並套藍底白字（idea-tool.bas:10472-10483），
+        // 舊版 JET 的表頭在第 16 列並套藍底白字，
         // 資料自第 17 列起，不能被套成表頭樣式；理由欄要讓審計員在保護工作表中仍可填寫。
         using var host = new HandlerTestHost();
         var projectId = await SetupUnbalancedAsync(host);
@@ -536,9 +533,8 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
             Assert.Equal(
                 templateFormat.ApplyAlignment?.Value,
                 outputFormat.ApplyAlignment?.Value);
-            // 裁定 2026-11-09-15：照舊版只鎖 B12:E 到資料末列（idea-tool.bas 第 10517 行），
-            // 表頭 B16:E16 鎖定、F16 可填；原本表頭照範本的保護設定，範本這幾格都未鎖定。
-            // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
+            // 照舊版 JET 只鎖 B12:E 到資料末列；
+            // 表頭 B16:E16 鎖定、F16 可填。
             Assert.Equal(reference != "F16", outputFormat.Protection?.Locked?.Value ?? true);
             Assert.Equal("FF0066FF", FillArgb(output.WorkbookPart!, outputFormat));
         }
@@ -556,7 +552,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         }
 
         AssertEditableCells(output.WorkbookPart!, Step11Sheet, ["F17"]);
-        // 裁定 2026-11-09-15：可以填的格子不再加淡黃色底色。
+        // 可以填的格子不加淡黃色底色。
         Assert.Null(FillArgb(output.WorkbookPart!, ResolveCellFormat(output.WorkbookPart!, CellFor(outputSheet, "F17"))));
     }
 
@@ -579,7 +575,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.Equal(0, CountColumnFrom(sheet, "B", 13)); // 例外表欄標之後無資料列
     }
 
-    // ================= Task 3:step1-2 編製人員(全名單)=================
+    // ================= step1-2 編製人員(全名單)=================
 
     [Fact]
     public async Task Step12_ListsEveryPreparer_WithCountsAndAmounts_ManualColumnsBlank()
@@ -619,7 +615,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.True(sheet.Cell($"H{jiaRow}").IsEmpty());
     }
 
-    // 裁定 2026-11-05-35：沒有配對傳票建立人員時照舊版不列名單，也不寫「（空白）」那一列，只在 B13 寫提示句。
+    // 沒有配對傳票建立人員時照舊版不列名單，也不寫「（空白）」那一列，只在 B13 寫提示句。
     [Fact]
     public async Task Step12_MissingCreatedByMapping_WritesLegacyNoticeInsteadOfBlankPreparerRow()
     {
@@ -638,7 +634,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
             value => value == "（空白）");
     }
 
-    // 裁定 2026-11-05-32：配對了人工傳票欄位時，Step 1-2 照舊版依人工旗標分列，C 欄寫「人工建立分錄」或「自動拋轉分錄」。
+    // 配對了人工傳票欄位時，Step 1-2 照舊版依人工旗標分列，C 欄寫「人工建立分錄」或「自動拋轉分錄」。
     // 人員依分錄總數由多到少，同一位人員先列自動、再列人工。
     [Fact]
     public async Task Step12_ManualFlagMapped_SplitsEachPreparerByFlagAndNamesTheEntryType()
@@ -676,7 +672,35 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.True(sheet.Cell("B15").IsEmpty());
     }
 
-    // ================= Task 3:step1-3 差異說明(僅 diff≠0)=================
+    // 受保護的 step1-2 只鎖到最後一位編製人員。舊版 JET 多鎖下面那一列，JET 留給審計員填。
+    [Fact]
+    public async Task Step12_LocksThroughTheLastPreparer_AndLeavesTheNextRowEditable()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupUnbalancedAsync(host);
+        var bytes = await WriteToBytesAsync(host, projectId);
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        using var document = OpenWorkingPaper(bytes);
+        var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
+        var worksheet = WorksheetFor(document, Step12Sheet);
+        Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
+
+        // 甲、乙寫在第 12、13 列。第 14 列在範本裡沒有格子，能不能填由欄的預設樣式決定。
+        var lastRow = 11 + ReadColumnFrom(workbook.Worksheet(Step12Sheet), "B", 12).Count;
+        Assert.Equal(13, lastRow);
+        Assert.All(
+            new[] { "B", "C", "D", "E" },
+            column => Assert.True(
+                IsCellLocked(workbookPart, worksheet, $"{column}{lastRow}"),
+                $"{column}{lastRow} 應鎖定。"));
+        Assert.All(
+            new[] { "B", "C", "D", "E" },
+            column => Assert.False(
+                IsCellLocked(workbookPart, worksheet, $"{column}{lastRow + 1}"),
+                $"{column}{lastRow + 1} 應可填。"));
+    }
+
+    // ================= step1-3 差異說明(僅 diff≠0)=================
 
     [Fact]
     public async Task Step13_ContainsOnlyNonZeroDiffAccounts_ManualColumnsBlank()
@@ -715,7 +739,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.True(sheet.Cell($"G{row2201}").IsEmpty());
     }
 
-    // ================= Task 3:step1-3 正準條件表 =================
+    // ================= step1-3 正準條件表 =================
 
     [Fact]
     public async Task Step13_ExistsWhenDiffPresent_WithoutRemovedStep131()
@@ -750,9 +774,36 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         var projectId = await SetupBalancedAsync(host);
         using var workbook = await WriteAndReadAsync(host, projectId);
 
-        // 全平衡母體(無 diff≠0 科目)→ step1-3 不出現，已移除的工作表永不出現。
+        // 全平衡母體(無 diff≠0 科目)→ step1-3 不出現；JET 不寫的 step1-3-1 也不出現。
         Assert.DoesNotContain(Step13Sheet, workbook.Worksheets.Select(ws => ws.Name));
         Assert.DoesNotContain(RemovedStep131Sheet, workbook.Worksheets.Select(ws => ws.Name));
     }
 
+    // 受保護的 step1-3 只鎖到最後一個差異科目。舊版 JET 多鎖下面那一列，JET 留給審計員填。
+    [Fact]
+    public async Task Step13_LocksThroughTheLastDiffAccount_AndLeavesTheNextRowEditable()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupUnbalancedAsync(host);
+        var bytes = await WriteToBytesAsync(host, projectId);
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        using var document = OpenWorkingPaper(bytes);
+        var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
+        var worksheet = WorksheetFor(document, Step13Sheet);
+        Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
+
+        // 唯一的差異科目 2201 寫在第 17 列。第 18 列在範本裡沒有格子，能不能填由欄的預設樣式決定。
+        var lastRow = 16 + ReadColumnFrom(workbook.Worksheet(Step13Sheet), "B", 17).Count;
+        Assert.Equal(17, lastRow);
+        Assert.All(
+            new[] { "B", "C", "D" },
+            column => Assert.True(
+                IsCellLocked(workbookPart, worksheet, $"{column}{lastRow}"),
+                $"{column}{lastRow} 應鎖定。"));
+        Assert.All(
+            new[] { "B", "C", "D" },
+            column => Assert.False(
+                IsCellLocked(workbookPart, worksheet, $"{column}{lastRow + 1}"),
+                $"{column}{lastRow + 1} 應可填。"));
+    }
 }

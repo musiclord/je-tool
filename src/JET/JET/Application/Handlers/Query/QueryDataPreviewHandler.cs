@@ -8,9 +8,9 @@ namespace JET.Application;
 /// query.dataPreview：正式版的使用者資料預覽。
 /// 有界唯讀——欄位配對時對照欄名與實際內容、進階篩選前掌握數值/日期/摘要的大概樣貌；
 /// 以 limit 與 offset 每次回傳最多 200 筆，不一次讀取完整母體。
-/// GL(未納入測試) 可以用 exclusionReason 只看一種未納入原因（裁定 2026-10-21-04）。
+/// GL(未納入測試) 可以用 exclusionReason 只看一種未納入原因。
 /// GL 與 GL(未納入測試) 依已確認的 GL 配對列欄位，回應另帶 columnDetails 寫出每欄的名稱與型別；
-/// 金額一律是照存下的值換算的精確字串，畫面補成四位小數（裁定 2026-10-22-06）。
+/// 金額一律是照存下的值換算的精確字串，畫面補成四位小數。
 /// </summary>
 public sealed class QueryDataPreviewHandler(
     IProjectStore projectStore,
@@ -67,7 +67,7 @@ public sealed class QueryDataPreviewHandler(
                 projectId, dataset, document.MoneyScale, limit, cancellationToken, offset, exclusionReason, glColumns),
             cancellationToken);
 
-        // TB、科目配對與 PBC 兩頁也帶欄名與型別，畫面依型別決定哪一欄靠右，不再逐格判斷是不是數字（裁定 2026-11-05-04）。
+        // TB、科目配對與 PBC 兩頁也帶欄名與型別，畫面依型別決定哪一欄靠右，不逐格判斷是不是數字。
         // PBC 兩頁的欄名就是來源欄名；只有已確認配對到金額位置的來源欄標成金額，還沒確認配對時全部是文字。
         object[]? columnDetails = dataset switch
         {

@@ -26,7 +26,7 @@ public interface IResultStore
 }
 
 /// <summary>
-/// Schema v7 的衍生結果失效狀態。true 表示該類結果曾存在、但已被上游 mutation
+/// 衍生結果失效狀態。true 表示該類結果曾存在、但已被上游 mutation
 /// 失效；從未執行仍為 false，因此不能由 latest result 是否為 null 反推。
 /// </summary>
 public sealed record AuditResultStaleState(

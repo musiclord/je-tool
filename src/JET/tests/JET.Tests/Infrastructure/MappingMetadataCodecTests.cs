@@ -175,15 +175,14 @@ public sealed class MappingMetadataCodecTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1)] // 舊版 JET 的第 1 版 metadata 不再讀取。
+    [InlineData(1)] // 舊版 JET 的第 1 版 metadata 不讀取。
     [InlineData(3)]
     public void Decode_RejectsUnsupportedVersion(int version)
     {
         Assert.Throws<MappingMetadataFormatException>(() => MappingMetadataCodec.Decode(version, "{}"));
     }
 
-    // 往下填補的欄位跟著配對寫進報告與案件。下面四個測試是新加的，沒有可保存的第一次失敗；
-    // 對外行為由 GlFillDownWorkflowTests 保存第一次失敗。
+    // 往下填補的欄位跟著配對寫進報告與案件；對外行為由 GlFillDownWorkflowTests 核對。
     [Fact]
     public void EncodeDecode_RoundTripsFillDownFields()
     {
@@ -255,8 +254,7 @@ public sealed class MappingMetadataCodecTests
     [Fact]
     public void FillDownCount_IsSavedInOptionsJsonAndWrittenIntoReports_AndOldJsonReadsZero()
     {
-        // 填了幾格跟著配對保存，報告的配對資訊也寫出來（裁定 2026-10-28-05：隨配對保存）；改版前的 JSON 沒有這一項時是 0。
-        // 改程式之後才補，沒有第一次失敗的收據；GlFillDownWorkflowTests 的重開案件測試保存了第一次失敗。
+        // 填了幾格跟著配對保存，報告的配對資訊也寫出來；JSON 沒有這一項時讀成 0。
         var mapping = AllGlMappings();
         var options = FullGlOptions() with { FillDownCount = 6 };
         var json = GlMappingOptionsJsonCodec.Encode(options, mapping);
@@ -279,7 +277,6 @@ public sealed class MappingMetadataCodecTests
     [InlineData("\"6\"")] // 不是數字
     public void Decode_RejectsFillDownCountThatIsNotANonNegativeInteger(string fillDownCount)
     {
-        // 改程式之後才補，沒有第一次失敗的收據。
         var json = MappingMetadataCodec.Encode(
             Committed(DatasetKind.Gl, AllGlMappings(), GlAmountModeNames.Flag),
             Committed(DatasetKind.Tb, AllTbMappings(), TbChangeModeNames.Direct));
@@ -335,8 +332,7 @@ public sealed class OpenXmlMappingMetadataReaderTests
             json);
         try
         {
-            // ReadAsync 改回傳 MappingDraftSource（裁定 2026-11-09-28），隱藏紀錄在 Recorded；斷言不變。
-            // 第一次失敗：Build 收據 20261109-145225420-a56baf66e9a64e52951bd296df7a960e（編譯失敗）。
+            // ReadAsync 回傳 MappingDraftSource，隱藏紀錄在 Recorded。
             var result = (await new OpenXmlMappingMetadataReader().ReadAsync(path, CancellationToken.None)).Recorded!;
 
             Assert.Equal(GlAmountModeNames.Flag, result.Gl.AmountMode);
@@ -349,8 +345,7 @@ public sealed class OpenXmlMappingMetadataReaderTests
         }
     }
 
-    // 裁定 2026-11-09-28 之後，沒有標記時改讀看得見的對照表；這份表沒有 GL 段，所以仍然拒絕。
-    // 原名 ReadAsync_VisibleLegacyFieldsWithoutMarker_RejectsWithoutGuessing 描述的是被取代的規則，改名並補上訊息斷言，原本的代碼斷言保留。
+    // 沒有標記時讀看得見的對照表；這份表沒有 GL 段，所以仍然拒絕。
     [Fact]
     public async Task ReadAsync_VisibleTableWithoutTheGlSection_ReportsMetadataMissing()
     {

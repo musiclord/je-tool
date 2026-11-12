@@ -21,8 +21,8 @@ public sealed record AccountMappingExportRow(
 /// 科目配對範本列，供審計員填分類。使用有效 GL 與 TB 聯集的可配對科目母體，排除空白科目編號。
 /// A=<see cref="AccountNumber"/>(population.account_number)、B=<see cref="TemplateName"/>：
 /// <see cref="NotInTb"/> 為真(GL 有、TB 沒有,完整性 not_in_tb 集合)時照舊版寫字面「Not in TB」,
-/// 和匯出底稿 sheet 15 用同一個旗標(裁定 2026-11-05-40);其他科目寫 <see cref="AccountName"/>(TB 名稱,TB 沒寫時用 GL 名稱)。
-/// 匯回範本時「Not in TB」當成沒有科目名稱(裁定 2026-11-05-10)。
+/// 和匯出底稿 sheet 15 用同一個旗標;其他科目寫 <see cref="AccountName"/>(TB 名稱,TB 沒寫時用 GL 名稱)。
+/// 匯回範本時「Not in TB」當成沒有科目名稱。
 /// C 欄(分類)由 writer 留空 + 下拉,不在此 model(範本產出前尚未配對)。
 /// </summary>
 public sealed record AccountMappingTemplateRow(
@@ -35,13 +35,13 @@ public sealed record AccountMappingTemplateRow(
 }
 
 /// <summary>
-/// 科目配對的唯讀全列匯出查詢(匯出底稿 sheet 15)。回 <see cref="account_mapping"/> 每一列
+/// 科目配對的唯讀全列匯出查詢(匯出底稿 sheet 15)。回 <c>account_mapping</c> 每一列
 /// 並附上 not-in-tb 旗標(以 <c>JET.AuditCore.ValidationProcedures.CompletenessDiffCte</c> 的
 /// not_in_tb 為單一事實來源:GL 有 TB 無 = 1)。科目數有界(實務數百),故回完整清單、不分頁
 /// (對有界基數加分頁是過度工程化;鏡射 <see cref="IPreparerSummaryExportRepository"/>)。
 ///
 /// 為什麼新立唯讀 repo 而非擴充 <see cref="IAccountMappingStore"/>:後者是匯入(replace-only)專用,
-/// 匯出走 WorkingPaperWriter 既有的「唯讀 repo 注入」管線(每種資料庫各一組),兩者關注點不同。
+/// 匯出走 WorkingPaperWriter 既有的「唯讀 repo 注入」管線,兩者關注點不同。
 /// </summary>
 public interface IAccountMappingExportRepository
 {
@@ -73,7 +73,7 @@ public interface IAccountMappingExportRepository
 /// 故回完整清單、不分頁。day_type 由 <see cref="CalendarDayType"/> 指定,日期升冪。
 ///
 /// 為什麼新立唯讀 repo 而非擴充 <see cref="ICalendarStore"/>:後者是匯入(replace 語意)+ 計數專用,
-/// 缺逐日讀回 API;匯出需逐日列出,走 WorkingPaperWriter 既有唯讀 repo 注入管線(三 provider)。
+/// 缺逐日讀回 API;匯出需逐日列出,走 WorkingPaperWriter 既有唯讀 repo 注入管線。
 /// </summary>
 public interface ICalendarExportRepository
 {

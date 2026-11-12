@@ -48,7 +48,7 @@ public static class TbRowProjector
 
             case TbChangeMode.OpenClose:
             {
-                // legacy SA=2（idea-script.bas:11242）：本期變動 = 期末 − 期初。
+                // 舊版 JET 的 SA=2：本期變動 = 期末 − 期初。
                 if (!TryParseAmountCell(row, spec, TbMappingKeys.OpeningBalance, out var opening, out error)
                     || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingBalance, out var closing, out error))
                 {
@@ -61,7 +61,7 @@ public static class TbRowProjector
 
             case TbChangeMode.OpenCloseBySide:
             {
-                // legacy SA=4（idea-script.bas:11283）：本期變動 = (期末借 − 期末貸) − (期初借 − 期初貸)。
+                // 舊版 JET 的 SA=4：本期變動 = (期末借 − 期末貸) − (期初借 − 期初貸)。
                 if (!TryParseAmountCell(row, spec, TbMappingKeys.OpeningDebitBalance, out var openingDr, out error)
                     || !TryParseAmountCell(row, spec, TbMappingKeys.OpeningCreditBalance, out var openingCr, out error)
                     || !TryParseAmountCell(row, spec, TbMappingKeys.ClosingDebitBalance, out var closingDr, out error)
@@ -90,7 +90,7 @@ public static class TbRowProjector
 
         var accountNumber = GetMappedValue(row, spec, TbMappingKeys.AccountNumber);
         var accountName = GetMappedValue(row, spec, TbMappingKeys.AccountName);
-        // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就回列錯誤，不截斷。
+        // 共用的長度上限（TextStorageLimits）；超過就回列錯誤，不截斷。
         if (TextTooLong(row, spec, TbMappingKeys.AccountNumber, accountNumber, TextStorageLimits.KeyUtf16CodeUnits, out error)
             || TextTooLong(row, spec, TbMappingKeys.AccountName, accountName, TextStorageLimits.TextUtf16CodeUnits, out error))
         {

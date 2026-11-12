@@ -11,10 +11,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第 22 步盤點的第 6 項：SQLite 先把資料寫進記錄檔再併回資料庫檔，原本離開案件時不清空連線池，產品也不併回，
-/// 一百萬筆的匯入後記錄檔一直有幾百 MB，JET 開著時只複製資料庫檔也會拿到不完整的副本。現在每項改資料的作業結束後併回並清空記錄檔，
-/// 離開案件、開案失敗與結束 JET 時關閉這個案件的連線（見 IProjectDatabaseCheckpoint）。這是新增的測試。
-/// 原本同樣的情境也測 DuckDB；只保留 SQLite 之後只測 SQLite（裁定 2026-11-06-08）。
+/// SQLite 先把資料寫進記錄檔再併回資料庫檔。如果不併回，一百萬筆的匯入後記錄檔會一直有幾百 MB，
+/// JET 開著時只複製資料庫檔也會拿到不完整的副本。所以每項改資料的作業結束後併回並清空記錄檔，
+/// 離開案件、開案失敗與結束 JET 時關閉這個案件的連線（見 IProjectDatabaseCheckpoint）。
 /// </summary>
 /// <remarks>
 /// SQLite 的情境另外開一條不進連線池的連線守在旁邊：別的測試清空全部連線池時，最後一條連線關閉也會併回並刪掉記錄檔，
@@ -70,7 +69,7 @@ public sealed class ProjectDatabaseCheckpointTests
         using var guard = OpenGuard(databasePath, provider);
         await ImportAsync(host, small);
 
-        // 匯入大檔寫到兩萬列時取消：沒提交的資料原本會一直留在記錄檔裡。
+        // 匯入大檔寫到兩萬列時取消：不清空記錄檔的話，沒提交的資料會一直留在記錄檔裡。
         canceller.Armed = true;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ImportAsync(host, large, cancellation.Token));
         Assert.True(canceller.Fired, "前置條件：取消應發生在匯入寫到一半時");
@@ -137,7 +136,7 @@ public sealed class ProjectDatabaseCheckpointTests
     [Fact]
     public async Task DeleteThenRecreateSameName_NewCaseStartsEmpty()
     {
-        // 原本在 DuckDB 的測試檔裡；同名重建後不能沿用舊案件的資料庫，這一點不分資料庫，改測 SQLite（裁定 2026-11-06-08）。
+        // 同名重建後不能沿用舊案件的資料庫。
         const string provider = ProjectDocument.DefaultDatabaseProvider;
         using var workspace = new TempProjectRoot();
         var projects = Path.Combine(workspace.Path, "projects");
@@ -343,8 +342,7 @@ public sealed class ProjectDatabaseCheckpointTests
     }
 
     /// <summary>
-    /// 檔案能不能用獨占方式開啟：JET 或其他程式還開著這個檔時開不了。原本叫 DuckDbFileProbe，放在已刪除的 DuckDB
-    /// 測試檔裡；它不分資料庫，SQLite 的斷言照用（裁定 2026-11-06-08）。
+    /// 檔案能不能用獨占方式開啟：JET 或其他程式還開著這個檔時開不了。
     /// </summary>
     private static bool CanOpenExclusively(string path)
     {

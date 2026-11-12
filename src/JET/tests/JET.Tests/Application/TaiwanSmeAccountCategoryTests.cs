@@ -7,8 +7,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 科目分類條件：借記固定資產且貸記費用的卡片（貸記營業費用，不含在建工程）與收入的非預期對方科目
-/// （收入無一般對方科目、預篩選「未預期借貸組合」、季末前借記收入）。預期值依 docs/jet-guide.md 第 6 節與
-/// docs/action-contract-manifest.md 的條件目錄手算。
+/// （收入無一般對方科目、預篩選「未預期借貸組合」、季末前借記收入）。預期值依規則與條件目錄手算。
 /// </summary>
 public sealed class TaiwanSmeAccountCategoryTests
 {
@@ -69,7 +68,7 @@ public sealed class TaiwanSmeAccountCategoryTests
         var node = Pair("固定資產與費用 僅分類本身", "node");
         var role = Pair("固定資產與費用 相同分類用途", "role");
         var noExpenseCredit = OneRule("貸方整張沒有營業費用",
-            // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Preserve the fixed whole-voucher answers with explicit absence.
+            //  Preserve the fixed whole-voucher answers with explicit absence.
             $$"""{"type":"voucher","quantifier":"none","conditions":[{"type":"drCrOnly","drCr":"credit"},{"type":"accountSide","categoryMode":"is","categorySelection":"subtree","categoryIds":["{{opex}}"]}]}""");
         // 這張卡預設包含下層：B1、B2、B6 三張。
         Assert.Equal((6L, 3L), await PreviewAsync(host, subtree));
@@ -133,8 +132,8 @@ public sealed class TaiwanSmeAccountCategoryTests
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 未預期借貸組合（應收、現金、預收都算正常對方科目）：命中 S4、S5。第四步照舊版列整張命中傳票，
-        // S4、S5 各 2 列，共 4 列（裁定 2026-10-29-29；原本只數收入貸方共 2 列，第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
-        // 第五步的判斷不變，下面 hits[0] 仍只有兩張傳票的收入貸方列。
+        // S4、S5 各 2 列，共 4 列。
+        // 第五步的判斷不受影響，下面 hits[0] 只有兩張傳票的收入貸方列。
         Assert.Equal(4, prescreen.GetProperty("unexpectedAccountPair").GetProperty("count").GetInt64());
 
         var hits = await CommitAndReadHitsAsync(host,

@@ -7,9 +7,9 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 只有測試或舊呼叫端在用的相容路徑已刪除，產品只留正式入口（裁定 2026-10-22-17：全部刪，測試改走正式入口）：
+/// 產品只留正式入口，沒有只給測試或舊呼叫端用的相容路徑，測試也走正式入口：
 /// 預篩選倉儲只服務 facts 介面；四種報告寫出器各只有一個正式方法；底稿只依計畫寫出；WorkingPaperContext 沒有舊欄位；
-/// 沒有空的稽核紀錄實作；只有測試在用的方法移到測試或刪除；前端沒有 setFilterPopulationScope。
+/// 沒有空的稽核紀錄實作；產品沒有只有測試在用的方法；前端沒有 setFilterPopulationScope。
 /// </summary>
 public sealed class CompatibilityPathOwnershipTests
 {
@@ -26,8 +26,6 @@ public sealed class CompatibilityPathOwnershipTests
         Assert.NotNull(input);
         Assert.Null(input!.GetMethod("FromCompatibility", AnyStatic));
 
-        // 原本也檢查 SqlServerPrescreenRunRepository。只保留 SQLite 之後它已刪除，只檢查本機倉儲（裁定 2026-11-06-08）；
-        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
         var repository = ProductSources.ProductType("JET.Infrastructure.LocalPrescreenRunRepository");
         Assert.NotNull(repository);
         Assert.Null(repository!.GetMethod("RunAsync", AnyInstance));

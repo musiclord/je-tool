@@ -9,10 +9,10 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-10-15-01 的原文：「後端儲存時只保留該條件類型用得到的欄位，存檔格式只在一個地方決定；
-/// 已存的舊情境在下次儲存時整理。前端送出的格式不變。」
+/// 後端儲存時只保留該條件類型用得到的欄位，存檔格式只在一個地方決定；
+/// 已存的舊情境在下次儲存時整理。前端送出的格式不變。
 /// 這裡核對 <see cref="FilterConditionWireFields"/>：每種條件只留 type、join 與該類型用得到的屬性，情境層與條件組層原樣保留；
-/// 整理前後的驗證結果、三種資料庫方言編譯出的 SQL 與參數、讀回文字完全相同；表上的類型和解析器認得的類型一一對應。
+/// 整理前後的驗證結果、編譯出的 SQL 與參數、讀回文字完全相同；表上的類型和解析器認得的類型一一對應。
 /// 「完整版」照前端 ui-core.js newFilterCondition 給多數條件類型的共同預設值補上用不到的屬性，模擬畫面實際送出的內容。
 /// </summary>
 public sealed class FilterConditionWireFieldsTests
@@ -29,8 +29,8 @@ public sealed class FilterConditionWireFieldsTests
     private static readonly FilterConditionContext RuleContext =
         new(100, "2025-12-01", "2025-01-01", "2025-12-31") { RdeFields = RdeFields };
 
-    // ui-core.js newFilterCondition 的共同預設值（2026-10-15 讀取）。categorySelection 只給借貸組合，那兩種本來就保留它。
-    // 2026-10-30 停用的尾數位數與筆數條件拿掉後，畫面不再送 digits 與 maxEntries，這裡跟著拿掉；改的是測試資料，不是因為測試失敗。
+    // ui-core.js newFilterCondition 的共同預設值。categorySelection 只給借貸組合，那兩種本來就保留它。
+    // 畫面不送 digits 與 maxEntries，這裡也不帶。
     private const string GenericDefaults = """
         {"prescreenKey":"suspiciousKeywords","field":"description","keywords":"","values":[],"mode":"contains",
          "normalization":"preserve","from":"","to":"","drCr":"debit","isManual":"true","pairMode":"exact",
@@ -50,8 +50,7 @@ public sealed class FilterConditionWireFieldsTests
         """{"join":"AND","type":"manualAuto","isManual":"false"}""",
         """{"join":"AND","type":"accountPair","pairMode":"debitAnchor","categorySelection":"subtree","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.revenue"]}""",
         """{"join":"AND","type":"specialAccountCategoryPair","pairMode":"drNotCr","categorySelection":"subtree","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.cash"]}""",
-        // 兩種舊式筆數條件已列為停用寫法，不再是可儲存的條件；精簡寫法的檢查仍涵蓋「科目與人員統計」。
-        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（驗證回「已停用」）。
+        // 兩種舊式筆數條件已列為停用寫法（驗證回「已停用」），不是可儲存的條件；精簡寫法的檢查仍涵蓋「科目與人員統計」。
         """{"join":"AND","type":"entityFrequency","field":"accountNumber","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":"11","countTo":""}""",
         """{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":"10"}""",
         """{"join":"AND","type":"revenueWithoutNormalCounterpart"}""",
@@ -61,7 +60,7 @@ public sealed class FilterConditionWireFieldsTests
         $$"""{"join":"AND","type":"typed","fieldId":"{{MoneyFieldId}}","operator":"greaterThan","value":"100","amountBasis":"absolute"}""",
         """{"join":"AND","type":"fieldValue","field":"description","operator":"contains","values":["合成"],"includeBlank":false}""",
         """{"join":"AND","type":"fieldValue","field":"amount","operator":"between","from":"100","to":"500","amountBasis":"absolute","includeBlank":false}""",
-        // 尾數連續多個 0（裁定 2026-11-03-07）：同時確認三種資料庫方言都編譯得出來。
+        // 尾數連續多個 0：同時確認 SQLite 方言編譯得出來。
         """{"join":"AND","type":"fieldValue","field":"amount","operator":"endsWithZeros","value":"6","amountBasis":"absolute","includeBlank":false}""",
         """{"join":"AND","type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}""",
         """{"join":"AND","type":"group","conditions":[{"join":"AND","type":"drCrOnly","drCr":"debit"},{"join":"OR","type":"manualAuto","isManual":"true"}]}""",
@@ -144,8 +143,7 @@ public sealed class FilterConditionWireFieldsTests
         var root = trimmed.RootElement;
         Assert.Equal(["name", "unknownTop", "groups", "editorOrigins", "source"], root.EnumerateObject().Select(property => property.Name));
         Assert.Equal("1e2", root.GetProperty("unknownTop").GetRawText());
-        // 2026-10-29 編輯來源改成第 2 版、來源代碼改成 common：輸入與期望的原文一起換成現行形狀，核對的仍是原文照樣保留。
-        // 這次改的是測試資料，不是因為測試失敗。
+        // 編輯來源是第 2 版、來源代碼是 common；核對的是原文照樣保留。
         Assert.Equal("""{"version":2,"groups":[{"cards":[null,null]}]}""", root.GetProperty("editorOrigins").GetRawText());
         var group = root.GetProperty("groups")[0];
         Assert.Equal(["join", "unknownGroup", "matchScope", "conditions"], group.EnumerateObject().Select(property => property.Name));
@@ -153,10 +151,9 @@ public sealed class FilterConditionWireFieldsTests
         var rules = group.GetProperty("conditions");
         Assert.Equal(["join", "type", "fieldId", "operator", "value"], rules[0].EnumerateObject().Select(property => property.Name));
         Assert.Equal("  Alpha ", rules[0].GetProperty("value").GetString());
-        // 舊式筆數條件已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），第二條改用「科目與人員統計」，一樣核對數值原文保留、用不到的屬性刪掉。
-        // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+        // 第二條用「科目與人員統計」，核對數值原文保留、用不到的屬性刪掉。
         Assert.Equal("5.0", rules[1].GetProperty("countFrom").GetRawText());
-        // 條件上已經沒有 digits 這個欄位，改用另一種條件才用得到的季末前天數，核對的仍是用不到的屬性被刪掉；改的是測試資料，不是因為測試失敗。
+        // 季末前天數 windowDays 是另一種條件才用得到的屬性，核對它被刪掉。
         Assert.False(rules[1].TryGetProperty("windowDays", out _));
     }
 
@@ -164,7 +161,7 @@ public sealed class FilterConditionWireFieldsTests
     public void ARuleWhoseTypeIsNotInTheTableIsKeptAsItIs()
     {
         // 驗證過的條件不會走到這裡；認不得的類型不猜要留哪些屬性。
-        // 原本用已拿掉的 digits；改用其他條件認得的 windowDays，認不得的類型連這種屬性也照留。改的是測試資料，不是因為測試失敗。
+        // 用其他條件認得的 windowDays：認不得的類型連這種屬性也照留。
         using var source = Scenario("""{"join":"AND","type":"noSuchCondition","windowDays":"10"}""");
 
         var rule = FirstRule(FilterConditionWireFields.KeepUsedRuleFields(source.RootElement));
@@ -182,7 +179,7 @@ public sealed class FilterConditionWireFieldsTests
 
         Assert.Equal(RuleLogicVersions.Filter, saved.RootElement.GetProperty("logicVersion").GetString());
         Assert.Equal(["join", "type", "isManual"], PropertyNames(FirstRule(saved.RootElement.GetRawText())));
-        // 共同預設值不再有 digits，改看同樣用不到的 windowDays。
+        // StampFilterDefinition 照原樣保留補上的共同預設值，以 windowDays 為例。
         Assert.True(FirstRule(verbatim.RootElement.GetRawText()).AsObject().ContainsKey("windowDays"));
     }
 
@@ -227,8 +224,7 @@ public sealed class FilterConditionWireFieldsTests
         HasRevenueCategory: mapped,
         HasCounterpartCategory: mapped)
     {
-        // 四個欄位旗標已拿掉，改由規則需求表讀可用欄位清單；這裡不帶清單就不檢查欄位，
-        // 等同原本四個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+        // 由規則需求表讀可用欄位清單；這裡不帶清單就不檢查欄位。
         RdeFields = RdeFields,
         MoneyScale = 100
     };

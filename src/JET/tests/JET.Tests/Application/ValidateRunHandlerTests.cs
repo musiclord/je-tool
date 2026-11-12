@@ -33,9 +33,6 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("validate.run"));
 
         Assert.Equal("gl_mapping_not_confirmed", ex.Code);
-        // 畫面不再說「提交」欄位配對，改用「完成」；斷言改鎖新句子。
-        // 之後再統一為「確認配對」；錯誤碼與完整訊息斷言保留。
-        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Equal(
             "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。",
             ex.Message);
@@ -207,13 +204,13 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     /// <summary>
-    /// 失效範圍收斂（2026-06-22 實務稽核）：gl_control_total（存入筆數與合計核對的控制總數）的上游只有 GL，
+    /// 失效範圍：gl_control_total（存入筆數與合計核對的控制總數）的上游只有 GL，
     /// 由 GL 投影（mapping.commit.gl）隨 gl 一起 upsert，與 gl 恆一致。與 GL 無關的
     /// 資料變動（行事曆／授權清單／TB 投影／科目配對匯入）雖同交易走 ResultReset 清規則結果，
     /// 但**不得**連帶清掉 gl_control_total——否則存入筆數與合計核對會在常見的「先 commit GL、後做其他匯入」
-    /// 順序下變全 null（控制總數核對形同沒跑），這是稽核發現的失效範圍過廣（已收斂）。
+    /// 順序下變全 null（控制總數核對形同沒跑）。
     /// 此處用 import.holiday（與 GL 無關）走清除路徑，驗證 gl_control_total 存活。
-    /// oracle：規格（gl_control_total 上游只有 GL target；收斂後 ResultReset 不再清它）。
+    /// oracle：規格（gl_control_total 上游只有 GL target；ResultReset 不清它）。
     /// </summary>
     [Fact]
     public async Task GlControlTotal_SurvivesGlUnrelatedDataChange()
@@ -275,7 +272,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
     }
 
     /// <summary>
-    /// sampleSeed 欄位問世前建立的舊專案 → validate.run 明確拒絕，不再回退固定種子。
+    /// sampleSeed 欄位問世前建立的舊專案 → validate.run 明確拒絕，不回退固定種子。
     /// fixture：建正常 inline 專案後移除 project.json 的 sampleSeed 欄位，並把設定檔版本改回第 1 版。
     /// </summary>
     [Fact]
@@ -288,8 +285,8 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             .AddRow("JV-001", "2025-03-05", "4101", "銷貨收入", "貸方", "100.00", 0));
 
         // 模擬舊專案：把 project.json 的 sampleSeed 與版本欄位一併移除（欄位問世前的形狀）。
-        // 裁定 2026-10-30-23：舊版案件改由設定檔版本判斷，缺抽樣欄位但版本是現行的設定檔算損壞；
-        // 所以這裡另把設定檔版本改回舊版 JET 寫的第 1 版。第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c。
+        // 舊版案件由設定檔版本判斷，缺抽樣欄位但版本是現行的設定檔算損壞；
+        // 所以這裡另把設定檔版本改回舊版 JET 寫的第 1 版。
         var path = Path.Combine(host.ProjectsRoot, projectId, "project.json");
         var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         node.Remove("sampleSeed");
@@ -301,8 +298,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
-        // 依裁定 2026-10-30-23，訊息要寫明刪除後重建，句子跟著改（第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c）。
+        // 訊息不寫檔名與缺了哪個設定，要寫明刪除後重建。
         Assert.Equal(
             $"案件「{projectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
@@ -331,7 +327,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -356,7 +352,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             host.DispatchAsync("validate.run"));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Equal(
             $"案件「{projectId}」設定檔中的抽樣設定已損壞。為避免改變抽樣結果，JET 不會重新產生，請從備份還原案件資料夾。",
             exception.Message);
@@ -401,7 +397,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         // demo 母體刻意埋兩種「空值/期外」:(1)「摘要空白」種子(借方行空白)→ blankDescription 命中數
         // 恰等於該種子張數;(2)「期末後核准」種子(20 張、核准日 2026-01-15 在期末 2025-12-31 之後),
         // 每張 2 列 → 核准日離期 40 列。科目/傳票號皆完整 → 其餘兩類為 0。
-        // 「核准日不在期間」以核准日判定，和舊版 JET 相同(裁定 2026-06-23-01)。
+        // 「核准日不在期間」以核准日判定，和舊版 JET 相同。
         var data = await fixture.Host.DispatchAsync("validate.run");
 
         var blankRecords = data.GetProperty("blankRecordsTest");

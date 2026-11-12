@@ -6,12 +6,9 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 2026-10-22 清理技術債：驗證報告寫出器只剩一個正式入口，handler 一定先規劃、投影欄位資訊並載入工作簿中繼資料，
-// 原本依 writer 型別退回的 typed 與 public 路徑都刪除，對應的替身與「公開 writer 不必解析摘要」的測試一併移除。
-// 第一次失敗是刪掉入口後測試專案建置失敗，那次沒有保存收據。
+// 驗證報告寫出器只有一個正式入口，handler 一定先規劃、投影欄位資訊並載入工作簿中繼資料。
 public sealed class ExportValidationReportsTypedSeamTests
 {
-    // 修正前 2 案失敗：Focused 20261110-044754420-f40bf4188a1e4bcfa8dfd8a65c55d2ee。
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -72,8 +69,8 @@ public sealed class ExportValidationReportsTypedSeamTests
         var fieldInfos = new RecordingFieldInfoFactsPort(
             tb:
             [
-                // 欄位事實多了來歷與對應的 JET 欄位（裁定 2026-11-03-11），手工建的事實照投影器的寫法補上；
-                // 改名欄位的「配對前欄位名稱」加【】（裁定 2026-11-03-17）。第一次失敗：Focused 收據 20261103-070040356-7ea024157104489698958ad37a9ef5d4。
+                // 欄位事實帶來歷與對應的 JET 欄位，手工建的事實照投影器的寫法填入；
+                // 改名欄位的「配對前欄位名稱」加【】。
                 new FieldInfo(2, "期末餘額", null, LegacyFieldKind.Number, null, 0),
                 new FieldInfo(1, "會計科目編號_TB", "客戶科目", LegacyFieldKind.Text, 20, null, FieldInfoOrigin.Renamed, JetFieldCatalog.TbAccountNumber)
             ],
@@ -231,8 +228,8 @@ public sealed class ExportValidationReportsTypedSeamTests
             BlankDescriptionCount: 7L,
             ApprovalDateNotInPeriodCount: 8L,
             SourceQualityFindingCount: 9L);
-        // 裁定 2026-10-22-20 刪掉投影裡沒人讀的總帳日期空白樣本列：投影只留計數，摘要 JSON 的 sampleRows 照舊留給前端，
-        // 上面仍把樣本列寫進摘要，確認解析器會略過它。第一次失敗：Focused 收據 20261022-084228771-7b2316c36ab54315bf1eb067bdad7939（建置失敗）。
+        // 投影只留總帳日期空白的計數，不帶樣本列；摘要 JSON 的 sampleRows 照舊留給前端，
+        // 上面仍把樣本列寫進摘要，確認解析器會略過它。
         var actualProjection = Assert.IsType<ValidationReportProjection>(validationWriter.Projection);
         Assert.Equal(expectedProjection, actualProjection);
         Assert.Equal(summaryJson, validationWriter.Context?.SummaryJson);
@@ -277,8 +274,8 @@ public sealed class ExportValidationReportsTypedSeamTests
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
     }
 
-    // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、
-    // session 與事件。2026-10-22 清理技術債：退回路徑已刪除，規劃、欄位定義、科目分類與欄位配對的替身都必須提供。
+    // handler 從作用中案件的資料庫組取 writer 與 repository，建構式只有案件 store、
+    // session 與事件。沒有退回路徑，規劃、欄位定義、科目分類與欄位配對的替身都必須提供。
     private static ExportValidationReportsHandler CreateHandler(
         string projectId,
         IValidationReportWriter validationWriter,
@@ -301,7 +298,6 @@ public sealed class ExportValidationReportsTypedSeamTests
                 InfReportWriter = infWriter,
                 Results = resultStore,
                 ReportStore = reportStore,
-                // Public首敗100911120的null是Unconfigured省略新必需依賴，非可恢復IO；原斷言保留。
                 ResultStaleStates = EmptyReportStateTestData.StaleStates,
                 FilterScenarios = EmptyReportStateTestData.Scenarios,
                 ValidationReportPlanningFacts = validationReportPlanningFactsPort,
@@ -656,7 +652,6 @@ public sealed class ExportValidationReportsTypedSeamTests
             Func<Report, bool> predicate,
             CancellationToken cancellationToken)
         {
-            // 套用新增的來源重判，不省略writer或發布順序的任何原斷言。
             Assert.Equal(expectedProjectId, projectId);
             var changed = _published.Count(report => !report.Stale && predicate(report));
             _published = _published.Select(report => predicate(report) ? report with { Stale = true } : report).ToArray();

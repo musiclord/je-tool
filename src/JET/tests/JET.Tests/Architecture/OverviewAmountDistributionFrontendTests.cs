@@ -39,7 +39,7 @@ internal static class AmountDistributionWireKeys
 /// <summary>
 /// 金額級距前端邊界守衛。Count 與 ECDF 都由 validate.run 提供；
 /// 前端只鏡射 exact keys、格式化並形成 ECharts option。這裡只核對 wire key 與級距表的鏡射；
-/// 缺值與空白點怎麼畫、圖表設定與在總覽裡的位置，2026-10-14 起改由 <c>tools/tests/frontend-journey-overview.test.cjs</c> 的情境 19 行為測試核對。
+/// 缺值與空白點怎麼畫、圖表設定與在總覽裡的位置，由前端的行為測試核對。
 /// </summary>
 public sealed class OverviewAmountDistributionFrontendTests
 {
@@ -69,8 +69,8 @@ public sealed class OverviewAmountDistributionFrontendTests
         var renderer = ExtractTopLevelFunction(source, "amountDistributionHtml");
         Assert.Contains("amountDistribution", renderer, StringComparison.Ordinal);
 
-        // 裁定 2026-11-02-10 拿掉 renderer 為舊結果檢查級距的那段之後，bins 只在組圖表設定時讀取，
-        // 所以區塊鍵改在 amountDistributionChartOption 核對，並核對完整的讀取寫法。
+        // bins 只在組圖表設定時讀取，
+        // 所以區塊鍵在 amountDistributionChartOption 核對，並核對完整的讀取寫法。
         var chart = ExtractTopLevelFunction(source, "amountDistributionChartOption");
         foreach (var key in AmountDistributionWireKeys.Block)
         {

@@ -8,18 +8,15 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 三種資料庫審計結果一致的固定答案，做法的出處見 docs/history/specs/2026-10-19-cross-database-consistency-plan.md。
-/// 同一份合成資料經正式查詢路徑，在 SQLite、DuckDB 與 SQL Server 要得到相同結果；預期值依 SQLite
-/// 與 .NET 的共用定義手算。SQLite 與 DuckDB 每次 Public 都執行，SQL Server 版只在 Provider 執行。
+/// 審計結果不因資料庫而異的固定答案：同一份合成資料經正式查詢路徑要得到相同結果；
+/// 預期值依 SQLite 與 .NET 的共用定義手算。
 /// </summary>
 public sealed class CrossDatabaseConsistencyTests
 {
-    // 第一次失敗：20261019-015812315-e9ef318a9283404baa71f9aa766d196d。修正前 DuckDB 的空值排序 2 項與大寫 4 項失敗，
-    // SQLite 全部通過，1900 年前後的週末判定在兩個本機資料庫都正確。
     private const string NullOrderSql =
         "SELECT x FROM (SELECT 'b' AS x UNION ALL SELECT NULL UNION ALL SELECT 'a') t";
 
-    // 遞增排序空值在前、遞減在後，和 SQLite 與 SQL Server 的預設相同。
+    // 遞增排序空值在前、遞減在後，和 SQLite 的預設相同。
     [Theory]
     [InlineData("sqlite")]
     public async Task LocalConnection_OrdersNullFirstAscendingAndLastDescending(string provider)
@@ -64,9 +61,7 @@ public sealed class CrossDatabaseConsistencyTests
     }
 
     // 轉大寫以 .NET ToUpperInvariant() 為準。ß 與 ı 轉大寫後不變，café 轉成 CAFÉ，
-    // 羅馬尼亞文的 ș 轉成 Ș。SQL Server 舊的大小寫對照表（Latin1_General_BIN2）不轉 ș，新版（Latin1_General_100_BIN2）會轉。
-    // SQL Server 的第一次失敗：2026-10-19 方言修改前直接執行測試程式連本機 SQL Server，COMMA-EQUALS 查無命中，
-    // 下方編製者彙總把 Ștefan 與 ștefan 分成兩人；同類別其餘 29 項通過。
+    // 羅馬尼亞文的 ș 轉成 Ș。
     private const string UpperSeed = """
         INSERT INTO gl (batch_id, source_row_number, voucher_number, line_item, gl_date,
             account_number, description, created_by, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded) VALUES
@@ -85,8 +80,7 @@ public sealed class CrossDatabaseConsistencyTests
         { """{"type":"fieldValue","field":"description","operator":"equals","value":"TIMIȘOARA"}""", "COMMA-EQUALS", ["COMMA"] }
     };
 
-    // SQL Server 的 Latin1_General_100_BIN2 會把 ı 轉成 I，和 .NET 不同。裁定 2026-10-19-30 把這類罕用字元記為已知差異，
-    // 所以這兩個案例只在 SQLite 與 DuckDB 核對。
+    // ı 這類罕用字元的大寫轉換，不同資料庫的結果可能和 .NET 不同，所以這兩個案例分開列。
     public static TheoryData<string, string, string[]> DotlessIUpperCases => new()
     {
         { """{"type":"fieldValue","field":"description","operator":"equals","value":"kırmızı"}""", "DOTLESS-EQUALS", ["DOTLESS"] },
@@ -145,9 +139,9 @@ public sealed class CrossDatabaseConsistencyTests
             await FilterPredicateProviderFixture.CreateLocalAsync(provider, PreCenturyApprovalSeed),
             ApprovalWeekendRule, "weekend", PreCenturyWeekendHits);
 
-    // 文字欄上限三種資料庫共用（裁定 2026-10-19-28），超過就回列錯誤、整批不寫入；
-    // 剛好等於上限時完整保存。上限照 SQL Server 欄寬：傳票號碼與科目編號 450 字，項次、科目名稱、
-    // 來源模組、編製者與核准者 400 字，摘要不限。第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514，修改前 SQLite 與 DuckDB 都照常保存超長值。
+    // 文字欄有上限，超過就回列錯誤、整批不寫入；
+    // 剛好等於上限時完整保存。上限：傳票號碼與科目編號 450 字，項次、科目名稱、
+    // 來源模組、編製者與核准者 400 字，摘要不限。
     [Theory]
     [InlineData("sqlite")]
     public async Task GlProjection_TextStorageLimit_IsSharedByAllDatabases(string provider)
@@ -162,8 +156,8 @@ public sealed class CrossDatabaseConsistencyTests
             string.Empty);
     }
 
-    // GL 必填文字欄整欄空白的提醒改由欄位目錄產生查詢。三種資料庫給同一組提醒，
-    // 依欄位配對畫面的順序列出；只有空白字元的欄也算空白，有值的必填欄不提醒。
+    // GL 必填文字欄整欄空白的提醒由欄位目錄產生查詢。
+    // 提醒依欄位配對畫面的順序列出；只有空白字元的欄也算空白，有值的必填欄不提醒。
     [Theory]
     [InlineData("sqlite")]
     public async Task GlProjection_BlankRequiredTextColumns_WarnInCatalogOrder(string provider)

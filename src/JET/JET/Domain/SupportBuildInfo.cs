@@ -4,7 +4,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 支援日誌寫出的 JET 版本：匯出檔開頭、案件開啟事件與案件紀錄裡每個程序的標頭共用這一組。
-/// 維護者依版本、模組代號與組建設定取得相應版本的程式，對回例外裡的方法位置（2026-10-21）。
+/// 維護者依版本、模組代號與組建設定取得相應版本的程式，對回例外裡的方法位置。
 /// </summary>
 public static class SupportBuildInfo
 {
@@ -17,12 +17,7 @@ public static class SupportBuildInfo
 
     public static string ModuleVersionId { get; } = JetAssembly.ManifestModule.ModuleVersionId.ToString("N");
 
+    /// <summary>建置時的組建設定名稱，例如 Debug 或 Release。</summary>
     public static string BuildConfiguration { get; } =
-#if JET_AGENT_GUI_TEST
-        "AgentGuiTest";
-#elif DEBUG
-        "Debug";
-#else
-        "Release";
-#endif
+        JetAssembly.GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration ?? "unknown";
 }

@@ -3,7 +3,6 @@ using JET.Application;
 using JET.Domain;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Application;
 
 public sealed class MappingValueProfileHandlerTests
@@ -22,7 +21,7 @@ public sealed class MappingValueProfileHandlerTests
     public async Task ComparisonOnly_UsesBackendEqualityWithoutReadingAnyImportedData(string left, string right, bool equal)
     {
         var repository = new RecordingProfileRepository();
-        // 資料庫組沒有放匯入 repository（維持 null），比照原本傳 null!：只比較時不得讀任何匯入資料。
+        // 資料庫組沒有放匯入 repository（維持 null）：只比較時不得讀任何匯入資料。
         var session = new ProjectSession();
         session.Enter(
             "project",
@@ -33,8 +32,7 @@ public sealed class MappingValueProfileHandlerTests
         var handler = new MappingValueProfileHandler(session);
         var response = await ExecuteAsync(handler, JsonSerializer.Serialize(new
         { dataset = "gl", sourceColumn = "Mode", comparisonOnly = true, comparisonValues = new[] { left, right } }));
-        // 加入跨請求等價鍵，避免兩頁非來源代碼無法接上；原 groups 與零來源讀取斷言保留。
-        // 新鍵缺漏首敗：20261004-082630695-e31fbd29293c438c9a216c1d6fc09da8；本方法舊形狀首敗：20261004-082945025-978d5adf53004b14ba34d94f729ac83c。
+        // 回應帶跨請求等價鍵，避免兩頁非來源代碼無法接上。
         Assert.Equal(["comparisonGroups", "comparisonKeys", "sourceColumn"], response.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray());
         var groups = response.GetProperty("comparisonGroups");
         Assert.Equal(equal ? 1 : 2, groups.GetArrayLength());
@@ -125,8 +123,7 @@ public sealed class MappingValueProfileHandlerTests
         Assert.Equal(50, repository.Limit);
     }
 
-    // 裁定 2026-10-28-03：「讀取來源值」依往下填補的勾選先填補再計數；沒帶時照原樣，帶了才交給資料庫實作。
-    // 處理器先改、這則測試後補，沒有第一次失敗。
+    // 「讀取來源值」依往下填補的勾選先填補再計數；沒帶時照原樣，帶了才交給資料庫實作。
     [Theory]
     [InlineData("""{ "dataset": "gl", "sourceColumn": "Status" }""", false)]
     [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": false }""", false)]
@@ -142,7 +139,7 @@ public sealed class MappingValueProfileHandlerTests
         Assert.Equal(expected, repository.FillDown);
     }
 
-    // 只比對文字時不讀來源，帶往下填補沒有意義；值不是布林也擋下。都不讀來源。處理器先改、這則測試後補，沒有第一次失敗。
+    // 只比對文字時不讀來源，帶往下填補沒有意義；值不是布林也擋下。都不讀來源。
     [Theory]
     [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": "true" }""")]
     [InlineData("""{ "dataset": "gl", "sourceColumn": "Status", "fillDown": 1 }""")]
@@ -264,7 +261,7 @@ public sealed class MappingValueProfileHandlerTests
         public int Limit { get; private set; }
         public bool FillDown { get; private set; }
 
-        // 2026-10-28 介面多了往下填補參數，替身跟著記下它，回傳不變。
+        // 替身把往下填補參數記下來，回傳不受它影響。
         public Task<MappingValueProfile> GetAsync(
             string projectId,
             string batchId,

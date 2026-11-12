@@ -53,7 +53,7 @@ internal sealed class WorkingPaperPlanningFactsPort(
             FieldInfoScope.Target,
             cancellationToken);
         RequireTargetDefinitions(targetGlDefinitions, "GL");
-        // 裁定 2026-10-29-16：沒有 TB 也能匯出底稿，只有逐科目比對能執行時才要求 TB 的欄位定義。
+        // 沒有 TB 也能匯出底稿，只有逐科目比對能執行時才要求 TB 的欄位定義。
         if (accountComparisonApplicable)
         {
             RequireTargetDefinitions(targetTbDefinitions, "TB");

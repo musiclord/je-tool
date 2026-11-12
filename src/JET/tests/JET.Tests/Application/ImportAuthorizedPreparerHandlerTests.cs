@@ -41,7 +41,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // sourceColumn 改成必填，後端不再猜人員欄；保留正規化與去重的原斷言。
+            // 匯入人員清單必須指定 sourceColumn。
             var data = await host.DispatchAsync("import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new
             {
                 filePath = path,
@@ -91,7 +91,6 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // sourceColumn 改成必填，後端不再猜人員欄；保留第二次匯入取代前次名單的原斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = first, sourceColumn = "姓名" }));
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
@@ -124,7 +123,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // sourceColumn 改成必填，後端不再猜人員欄；仍只驗證不支援 append 的原錯誤。
+            // 指定 sourceColumn，讓這則只驗證不支援 append 的錯誤。
             var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
                 "import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new
                 {
@@ -149,7 +148,7 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         var path = WriteCsv("姓名\n甲\n乙\n");
 
-        // sourceColumn 改成必填，後端不再猜人員欄；仍只驗證不支援 CSV 的原錯誤。
+        // 指定 sourceColumn，讓這則只驗證不支援 CSV 的錯誤。
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "import.authorizedPreparer.fromFile", JsonSerializer.Serialize(new { filePath = path, sourceColumn = "姓名" })));
 
@@ -175,7 +174,6 @@ public sealed class ImportAuthorizedPreparerHandlerTests
 
         try
         {
-            // sourceColumn 改成必填，後端不再猜人員欄；保留重新開案的原狀態斷言。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = path, sourceColumn = "姓名" }));
 

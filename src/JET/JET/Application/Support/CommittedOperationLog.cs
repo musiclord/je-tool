@@ -4,16 +4,16 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// 資料已提交之後才寫的操作紀錄。寫入失敗時變更仍然有效，回報成功並附提醒（裁定 2026-10-19-19 與 2026-10-19-20），
+/// 資料已提交之後才寫的操作紀錄。寫入失敗時變更仍然有效，回報成功並附提醒，
 /// 不讓畫面誤以為整個動作失敗。本機案件的包裝已把失敗記進支援日誌並回 false；
 /// 其他實作往外丟的錯誤在這裡記下錯誤類型。
 /// </summary>
 internal static partial class CommittedOperationLog
 {
-    /// <summary>這句的用字依裁定 2026-10-19-19。</summary>
+    /// <summary>這句的用字已定案。</summary>
     internal const string AppendFailedWarning = "變更已儲存，但這次變更沒有寫入操作紀錄。";
 
-    /// <summary>產生報告時的提醒（裁定 2026-10-19-20）。</summary>
+    /// <summary>產生報告時的提醒。</summary>
     internal const string ReportAppendFailedWarning = "檔案已產生，但這次產生的檔案沒有寫入操作紀錄。";
 
     /// <summary>寫入成功回傳 null；失敗回傳提醒句，由呼叫端放進回應的 warnings。</summary>

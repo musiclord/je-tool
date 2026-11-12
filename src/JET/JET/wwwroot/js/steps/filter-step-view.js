@@ -51,7 +51,7 @@
     if (previous && next && motionKeys.has(previous)) { motionKeys.set(next, motionKeys.get(previous)); }
   }
 
-  // 頁籤底下的窗格原地切換，切換時不閃（裁定 2026-10-12-02）：新的窗格從舊窗格的高度平順變成自己的高度，舊的那一份疊在底下淡掉，
+  // 頁籤底下的窗格原地切換，切換時不閃：新的窗格從舊窗格的高度平順變成自己的高度，舊的那一份疊在底下淡掉，
   // 下面的內容跟著移動；裡面原本就打開的展開區不因為窗格重新出現而再長一次（app.js 的 JetMotion.swap）。
   // chosen 挑出要顯示的窗格；fill 在它顯示之後、量高度之前補上還沒畫的內容。
   function showOnly(panes, chosen, fill) {
@@ -66,7 +66,7 @@
   }
 
   // focusValue：起訖或門檻留空的條件，焦點直接移到要填的值。
-  // 加入的條件正由標籤帶過去時，中欄跟著標籤平順捲到這一列（app.js 的 JetMotion），這裡不再瞬間捲過去，移焦點也不捲。
+  // 加入的條件正由標籤帶過去時，中欄跟著標籤平順捲到這一列（app.js 的 JetMotion），這裡不瞬間捲過去，移焦點也不捲。
   function revealAddedRule(rule, focusValue) {
     FilterStep.selectedRule = rule;
     global.JetFocus.defer(function () {
@@ -116,7 +116,7 @@
     input.setAttribute('aria-invalid', 'true');
     var row = input.parentNode;
     if (!row) { return; }
-    // 正在收起的舊訊息不沿用；新的一行從欄位下方長出來，清掉時收回去（裁定 2026-10-13-11：出現與消失都要有動態）。
+    // 正在收起的舊訊息不沿用；新的一行從欄位下方長出來，清掉時收回去（出現與消失都要有動態）。
     var err = row.querySelector('.field-error:not([data-motion-folding])');
     if (!err) {
       err = document.createElement('span');
@@ -164,7 +164,7 @@
        3. 已保存 resultRef 換版（revision／scope 變）→ 只作廢資料快取，保留展開狀態。
        4. 底層資料世代變（GL／科目配對／分類／授權清單／行事曆的匯入狀態，加上後端回報命中失效的次數）
           → 只作廢資料快取：已存定義沒變、展開狀態保留，但命中是舊資料算的，restore 會就地重抓。
-          哪些上游修改會作廢命中由後端回應的失效清單決定，TB 和 GL 相同（裁定 2026-10-07-04），
+          哪些上游修改會作廢命中由後端回應的失效清單決定，TB 和 GL 相同，
           前端收到後 filterResultGeneration 遞增，就落在這個訊號裡。
      ============================================================================ */
   function freshViewState() {
@@ -274,7 +274,7 @@
       FilterStep.viewState.highRiskSummaryOpen = false;
       FilterStep.viewState.highRiskSummaryData = null;
       FilterStep.viewState.pendingRemovalIndex = null;
-      // 「已儲存「A」」只在 A 仍是已存情境時顯示；上游修改清掉情境或 A 被刪除後就收起（裁定 2026-10-15-01）。
+      // 「已儲存「A」」只在 A 仍是已存情境時顯示；上游修改清掉情境或 A 被刪除後就收起。
       if (FilterStep.viewState.lastSavedName && !state.filter.savedScenarios.some(function (scenario) { return scenario.name === FilterStep.viewState.lastSavedName; })) {
         FilterStep.viewState.lastSavedName = null;
       }
@@ -297,7 +297,7 @@
   }
 
   // 一組條件還缺什麼前置條件，沒有缺項時是空字串。判斷與句子都在 ui-core.js 的規則需求表，它逐項鏡像後端（權威驗證在後端）；
-  // 欄位條件的欄位與常用查法、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式。第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05）。
+  // 欄位條件的欄位與常用查法、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都讀這一個函式。第五步不能用 GL 沒有配對的欄位。
   function requirementNote(rules) {
     return Ui.ruleRequirementNote(Store.getState(), rules);
   }
@@ -307,7 +307,7 @@
     return Ui.ruleRequirementNote(Store.getState(), [rule], true);
   }
 
-  // 要拿掉的條件先輕微快速地晃一下再收起來（裁定 2026-10-13-13；app.js 的 JetMotion.removing）。
+  // 要拿掉的條件先輕微快速地晃一下再收起來（app.js 的 JetMotion.removing）。
   // 移除鈕在條件列裡的由 app.js 的 REMOVAL_SOURCES 處理；按鈕不在要拿掉的條件裡時（例如再按一次常用篩選條件的卡片），在這裡說明是哪幾條。
   function announceRemoval(rules) {
     if (!rules.length || !global.JetMotion || typeof global.JetMotion.removing !== 'function') { return; }
@@ -321,7 +321,7 @@
   }
 
   // 晚一點才讀回來的內容（例如打開已儲存情境後才載入的傳票），整塊從原本的高度平順變成新的高度，
-  // 不在讀回來的那一刻一下子撐開（裁定 2026-10-13-11）。element 要有 data-motion-key，app.js 的 JetMotion 才認得是同一塊。
+  // 不在讀回來的那一刻一下子撐開。element 要有 data-motion-key，app.js 的 JetMotion 才認得是同一塊。
   function fillSmoothly(element, fill) {
     if (element && global.JetMotion && typeof global.JetMotion.morph === 'function' && element.hasAttribute('data-motion-key')) {
       global.JetMotion.morph(element, fill);
@@ -342,7 +342,7 @@
     var statusClass = needsResave
       ? 'population-scope__status population-scope__status--pending'
       : 'population-scope__status';
-    // 「尚無可用版本」改說已儲存的情境尚未套用目前規則（裁定 2026-10-14-01）。
+    // 「尚無可用版本」改說已儲存的情境尚未套用目前規則。
     var statusText = committed ? '在 GL 中篩選分錄。已儲存版本：查核期間內的分錄。' : '已儲存的篩選情境尚未套用目前規則。';
 
 
@@ -350,7 +350,7 @@
       '<section class="population-scope" aria-labelledby="population-scope-heading">' +
         '<div class="population-scope__head">' +
           '<div>' +
-            // GL 的定義收進標題的提示，常駐的只有狀態與下一步，常駐說明不再多寫（裁定 2026-10-29-02）。
+            // GL 的定義收進標題的提示，常駐的只有狀態與下一步，常駐說明不再多寫。
             '<h3 class="population-scope__title" id="population-scope-heading" title="' + Ui.esc(POPULATION_SCOPE_DEFINITION) + '">GL：查核期間內的分錄</h3>' +
           '</div>' +
         '</div>' +
@@ -411,7 +411,7 @@
     }
   }
 
-  // 頁籤與摺疊區的檢視狀態（原本在 bind 開頭那一段）。
+  // 頁籤與摺疊區的檢視狀態。
   function bindWorkspacePanes(container) {
     container.querySelectorAll('[data-filter-pane-select]').forEach(function (button) {
       button.addEventListener('click', function () {

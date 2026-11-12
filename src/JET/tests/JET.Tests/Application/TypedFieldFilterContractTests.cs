@@ -6,9 +6,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// Typed dynamic rule（2026-08-14 契約凍結）的 wire contract 守衛：closed grammar 解析、
+/// Typed dynamic rule 的 wire contract 守衛：closed grammar 解析、
 /// operand carrier、amountBasis、logicVersion 推進與 raw JSON read-back 保真。
-/// 完整驗證規則的唯一權威是 manifest「Mapping」段落的凍結條目。
 /// </summary>
 public sealed class TypedFieldFilterContractTests
 {
@@ -30,9 +29,6 @@ public sealed class TypedFieldFilterContractTests
     [Fact]
     public void FilterLogicVersion_CurrentContractIsV20()
     {
-        // 2026-10-06 條件 A 加入查核期末視窗，推進為 v18。
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，再推進為 v19；第一次失敗收據 20261008-042053814-db83ce7928b241c08a45387aea1a42fa。
-        // 停用重複寫法，推進 v20；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
         Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
     }
 
@@ -85,8 +81,8 @@ public sealed class TypedFieldFilterContractTests
             """));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
-        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
         Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", exception.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "typed_values_too_many"), FilterScenarioCorruption.ReasonsOf(exception));
     }

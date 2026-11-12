@@ -217,7 +217,7 @@ public sealed class InspectAndSelectFilesHandlerTests
         Assert.Equal([".csv"], shell.ReceivedExtensions);
     }
 
-    /// <summary>host boundary 的手寫 recording stub（jet-testing skill §1）。</summary>
+    /// <summary>host boundary 的手寫 recording stub。</summary>
     private sealed class MultiPickHostShell(IReadOnlyList<string> filePaths) : IHostShell
     {
         public IReadOnlyList<string>? ReceivedExtensions { get; private set; }

@@ -6,19 +6,17 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 前後端 action 清單的漂移守衛（2026-07-03 複審測試債）：前端 <c>jet-api.js</c> 的
+/// 前後端 action 清單的漂移守衛：前端 <c>jet-api.js</c> 的
 /// <c>SUPPORTED_ACTIONS</c> 必須涵蓋後端 dispatcher 的 <c>RegisteredActions</c>。
 /// 前端沒有自動測試——action 改名/新增只改一邊時，前端會默默拿到 unknown action 的 bridge_error；
-/// 這條守衛把該缺口升級為 CI 可擋。兩邊的共同 source of truth 是 docs/action-contract-manifest.md
-/// （新增順序：manifest → SUPPORTED_ACTIONS → handler）。
+/// 這條守衛把該缺口升級為 CI 可擋。
 /// 後端以 enableDevTools:true 組裝（dev.* 只在 Debug 註冊；前端清單含 dev.*，由 system.ping 的
 /// devToolsEnabled 在 Release 隱藏面板，而非從清單移除）。五個 demo facade method 同樣靜態保留，
 /// 但 Release composition 不註冊其 handler；Release 的前端單邊差異必須精確等於這五項。
 /// </summary>
 public sealed class SupportedActionsParityTests
 {
-    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，export.calendarTemplates 隨之移除；
-    // 原本確認它已註冊的測試，改成確認後端與前端都不再有這個 action。
+    // 產品沒有假日範本入口；確認後端與前端都沒有 export.calendarTemplates 這個 action。
     [Fact]
     public void RemovedCalendarTemplateAction_IsNotRegisteredOrSupported()
     {
@@ -39,7 +37,7 @@ public sealed class SupportedActionsParityTests
             .OrderBy(a => a, StringComparer.Ordinal)
             .ToList();
 
-#if DEBUG || JET_AGENT_GUI_TEST
+#if DEBUG
         Assert.Equal(frontendActions, backendActions);
 #else
         string[] buildConditionalDemoActions =
@@ -118,7 +116,7 @@ public sealed class SupportedActionsParityTests
             .ToList();
     }
 
-    /// <summary>由測試組件位置向上尋 `JET.slnx`，定位 repo 根（同 SchemaIsolationGuardTests 的慣例）。</summary>
+    /// <summary>從測試程式所在的資料夾往上找 `JET.slnx`，回傳方案檔所在的資料夾。</summary>
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

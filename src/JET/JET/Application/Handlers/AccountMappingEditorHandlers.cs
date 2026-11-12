@@ -35,7 +35,7 @@ public sealed class QueryAccountMappingPageHandler(
 public sealed class AccountMappingSaveHandler(
     ProjectSession session, ILogger? logger = null) : IApplicationActionHandler
 {
-    // 這句的用字依裁定 2026-10-19-21，句型比照讀不回結果狀態時的提醒。
+    // 句型比照讀不回結果狀態時的提醒。
     internal const string SummaryUnavailableWarning =
         "變更已儲存，但畫面上的科目配對摘要沒有更新；重新開啟案件就會更新，不必重做變更。";
 
@@ -61,7 +61,7 @@ public sealed class AccountMappingSaveHandler(
         }
         await Task.Run(() => repositories.AccountMappingEditor.SaveAsync(projectId, changes, cancellationToken), cancellationToken);
         // 分類已經存好，之後的讀取不受取消影響。讀不回科目配對摘要時回報成功並提醒，回應不帶摘要欄位，
-        // 前端保留畫面上原本的摘要（裁定 2026-10-19-21）；支援日誌記下錯誤類型，不記訊息內容。
+        // 前端保留畫面上原本的摘要；支援日誌記下錯誤類型，不記訊息內容。
         AccountMappingState? state = null;
         try
         {

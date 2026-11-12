@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace JET.Application;
 
 /// <summary>
-/// 損毀條件的支援日誌事件 <c>filter.scenario_unreadable</c>。損毀的情境在畫面只寫一句通用說明（裁定 2026-10-13-21）。
+/// 損毀條件的支援日誌事件 <c>filter.scenario_unreadable</c>。損毀的情境在畫面只寫一句通用說明。
 /// 畫面只寫通用句，哪一條、哪一種損毀記在這裡；欄位只有動作名稱、情境位置、組號、條號與程式寫死的原因代號，
 /// 不含情境名稱、使用者輸入的值、科目、金額或本機路徑。
 /// </summary>
@@ -24,7 +24,7 @@ internal static partial class FilterScenarioDiagnostics
         string reason_code);
 
     /// <summary>
-    /// 篩選條件編譯時的檢查沒過（用字依裁定 2026-10-14-01）：驗證器與執行時檢查不一致的程式錯誤，
+    /// 篩選條件編譯時的檢查沒過：驗證器與執行時檢查不一致的程式錯誤，
     /// 不是畫面送錯資料，所以不沿用 <c>action.payload_rejected</c>。欄位只有動作名稱、組號、條號與程式寫死的檢查代號。
     /// </summary>
     [LoggerMessage(EventId = 2501, EventName = "filter.compile_check_failed", Level = LogLevel.Warning,

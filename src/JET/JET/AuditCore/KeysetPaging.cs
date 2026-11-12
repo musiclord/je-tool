@@ -28,11 +28,11 @@ internal sealed record PageSortCatalog(SortColumn StableKey, IReadOnlyList<SortC
 }
 
 /// <summary>
-/// 一頁查詢要拼進 SQL 的三段文字與參數。三個 provider 共用同一份文字：
+/// 一頁查詢要拼進 SQL 的三段文字與參數：
 /// <list type="bullet">
 /// <item><see cref="SelectSuffix"/>：有排序時接在 SELECT 清單最後，取出排序值供編下一頁游標；沒有排序時是空字串。</item>
 /// <item><see cref="Predicate"/>：以「 AND (...)」開頭的搜尋與游標述詞，接在既有 WHERE 之後；首頁且無搜尋時是空字串。</item>
-/// <item><see cref="OrderBy"/>：完整的 ORDER BY 子句。有排序時 NULL 一律排最後（用 CASE 表達，不依賴各引擎的預設）。</item>
+/// <item><see cref="OrderBy"/>：完整的 ORDER BY 子句。有排序時 NULL 一律排最後（用 CASE 表達，不依賴資料庫的預設）。</item>
 /// </list>
 /// </summary>
 internal sealed class KeysetPagePlan
@@ -80,9 +80,8 @@ internal sealed class KeysetPagePlan
 }
 
 /// <summary>
-/// keyset 分頁的排序、搜尋與游標述詞組譯。沒有排序時維持原本「穩定鍵升冪、游標只裝穩定鍵」的形狀；
-/// 有排序時 ORDER BY 為「NULL 最後、排序欄、穩定鍵」，游標帶排序值與穩定鍵，續頁述詞依方向展開成布林式，
-/// 不用元組比較，三個 provider 都能跑。
+/// keyset 分頁的排序、搜尋與游標述詞組譯。沒有排序時用「穩定鍵升冪、游標只裝穩定鍵」的形狀；
+/// 有排序時 ORDER BY 為「NULL 最後、排序欄、穩定鍵」，游標帶排序值與穩定鍵，續頁述詞依方向展開成布林式。
 /// </summary>
 internal static class KeysetPaging
 {

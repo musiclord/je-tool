@@ -5,11 +5,9 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>
-/// 驗證結果可用性的 provider integration matrix。四個 action 都走真 dispatcher、
-/// 真 validation persistence 與各 provider 的資料庫；缺少目前結果時必須在任何
+/// 驗證結果可用性的 integration matrix。四個 action 都走真 dispatcher、
+/// 真 validation persistence 與 SQLite 資料庫；缺少目前結果時必須在任何
 /// action-specific run／revision 檢查之前 fail closed。
 /// </summary>
 public sealed class CompletenessBackendGateProviderTests
@@ -18,7 +16,7 @@ public sealed class CompletenessBackendGateProviderTests
     private const string NoValidation = "noValidation";
     private const string ReimportedGl = "reimportedGl";
 
-    // 裁定 2026-09-17-01：完整性差異是審計發現，不是禁止篩選的條件。
+    // 完整性差異是審計發現，不是禁止篩選的條件。
     // 固定一個科目差額 10，沿保存、匯出、重開及重跑核對，不把差異清零來換取成功。
     [Theory]
     [InlineData("sqlite")]
@@ -139,11 +137,10 @@ public sealed class CompletenessBackendGateProviderTests
         await host.DispatchAsync(
             "calendar.setNonWorkingDays",
             """{ "days": [1] }""");
-        // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
-        // 原本直接沿用舊情境版本匯出，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：行事曆修改清掉已存情境，審計員重新儲存情境後再匯出。
         var resaved = await host.DispatchAsync("filter.commit", FilterCommitPayload());
         references = references with { Revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString()! };
-        // 9/23：底稿自己重算目前資料，不再要求先重新產生 Criteria 檔案。
+        // 底稿自己重算目前資料，不要求先重新產生 Criteria 檔案。
         var recalculated = await host.DispatchAsync("export.workingPaperStream", WorkingPaperPayload(references));
         Assert.True(recalculated.GetProperty("ok").GetBoolean());
         var currentReport = recalculated.GetProperty("publishedReport");

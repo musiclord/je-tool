@@ -43,7 +43,6 @@ public sealed class KeysetPagingTests
     public void Sorted_PutsNullsLastAndCarriesSortValueInCursor()
     {
         var request = new PageRequest(null, 10, new PageSort("approvedBy", PageSortDirection.Descending));
-        // 原本用 DuckDB 方言組；排序與游標的 SQL 不分方言，只保留 SQLite 之後改用 SQLite 方言，預期不變（裁定 2026-11-06-08）。
         var plan = KeysetPaging.Plan(SqliteDialect.Instance, request, Catalog);
 
         Assert.Equal(
@@ -87,9 +86,8 @@ public sealed class KeysetPagingTests
     {
         var plan = KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(null, 10, null, " v-00a "), Catalog);
 
-        // 原本用 SQL Server 方言，預期是 CHARINDEX 加 Latin1_General_100_BIN2 對照表的寫法（裁定 2026-10-19-30）。
-        // SQL Server 移除後改用 SQLite 方言，預期換成 SQLite 方言的包含寫法 instr(UPPER(COALESCE(欄, '')), 參數) > 0
-        // （裁定 2026-11-06-08）；搜尋文字去頭尾空白並轉大寫的斷言不變。
+        // 預期是 SQLite 方言的包含寫法 instr(UPPER(COALESCE(欄, '')), 參數) > 0；
+        // 搜尋文字去頭尾空白並轉大寫。
         Assert.Equal(
             " AND (instr(UPPER(COALESCE(g.voucher_number, '')), @pageSearch) > 0)",
             plan.Predicate);
@@ -127,7 +125,7 @@ public sealed class KeysetPagingTests
             KeysetPaging.Plan(SqliteDialect.Instance, new PageRequest(null, 10, new PageSort("entry_id; DROP TABLE x", PageSortDirection.Ascending)), Catalog));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送表頭上的排序鍵，
+        // 畫面只送表頭上的排序鍵，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現，檢查代號記進支援日誌。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
         Assert.Equal("sort_key_invalid", JetPayloadRejection.CheckOf(error));

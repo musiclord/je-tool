@@ -5,8 +5,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 本機 target 投影只能走 IBulkRowWriter。若有人另加具體 INSERT INTO gl/tb，會繞過這條效能與 auto-id 契約，本守衛即擋下。
-/// 原本是 DuckDbTargetWriteGuardTests，檢查 DuckDb 與 Local 兩個資料夾；DuckDB 移除後改檢查 Sqlite 與 Local 兩個資料夾，
-/// 偵測規則與兩組偵測測試照舊（裁定 2026-11-06-08）。
+/// 檢查 Sqlite 與 Local 兩個資料夾。
 /// </summary>
 public sealed partial class LocalTargetWriteGuardTests
 {

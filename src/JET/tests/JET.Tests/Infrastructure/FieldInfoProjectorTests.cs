@@ -3,8 +3,6 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
-// TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -56,8 +54,8 @@ public sealed class FieldInfoProjectorTests
         AssertTextProjection(definitions[5], "account-source", textLength: 6);
     }
 
-    // 同一個來源欄配給多個欄位（裁定 2026-10-19-07；正式流程的重現在 MappingSharedSourceColumnTests）：
-    // 依欄位目錄順序，第一個欄位在原位置改名，之後的欄位照來源欄原本的定義追加；數字來源已被改名時不再留 _Temp。
+    // 同一個來源欄配給多個欄位（正式流程的測試在 MappingSharedSourceColumnTests）：
+    // 依欄位目錄順序，第一個欄位在原位置改名，之後的欄位照來源欄原本的定義追加；數字來源已被改名時不留 _Temp。
     [Fact]
     public void GlSharedSourceColumns_FirstFieldRenamesInPlaceAndLaterFieldsAppendFromTheSourceDefinition()
     {
@@ -233,8 +231,7 @@ public sealed class FieldInfoProjectorTests
         Assert.Null(definitions[18].DecimalPlaces);
         var amount = definitions[19];
         Assert.Equal("傳票金額_JE", amount.FieldName);
-        // 裁定 2026-11-03-04：說明句裡的欄位名稱用【】標示。原本斷言不加符號的寫法，
-        // 第一次失敗：Focused 收據 20261103-042136637-bdf023e2ad43408a9e6c502b5402a6b1。
+        // 說明句裡的欄位名稱用【】標示。
         Assert.Equal("【傳票金額_JE】由系統產生 : 【借方】-【貸方】", amount.Description);
         Assert.Equal(LegacyFieldKind.Number, amount.Kind);
         Assert.Null(amount.TextLength);
@@ -449,7 +446,7 @@ public sealed class FieldInfoProjectorTests
             [GlMappingKeys.LineItem] = "項次",
             [GlMappingKeys.GlDate] = "過帳日",
             [GlMappingKeys.ApprovalDate] = "核准日",
-            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：來源的「傳票日期」欄不再配對，留作未配對來源欄。
+            // 來源的「傳票日期」欄不配對，留作未配對來源欄。
             [GlMappingKeys.AccountNumber] = "科目代碼",
             [GlMappingKeys.AccountName] = "科目名稱",
             [GlMappingKeys.Description] = "摘要",
@@ -478,9 +475,8 @@ public sealed class FieldInfoProjectorTests
                 mapping[GlMappingKeys.Amount] = "金額";
                 mapping[GlMappingKeys.DrCr] = "借貸別";
                 mapping[GlMappingKeys.DrCrDebitCode] = mode == GlAmountMode.AmountWithFlag ? "1" : "D";
-                // 來源只有 D；flag 刻意設定借方 1、貸方 D，保留原來投影的符號。
-                // 此案例只驗 metadata，不把舊來源改成 1，也不放寬任何欄位描述斷言。
-                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                // 來源只有 D；flag 刻意設定借方 1、貸方 D。
+                // 此案例只驗 metadata。
                 mapping[GlMappingKeys.DrCrCreditCode] = mode == GlAmountMode.AmountWithFlag ? "D" : "C";
                 break;
             case GlAmountMode.DualAmount:
@@ -494,14 +490,12 @@ public sealed class FieldInfoProjectorTests
         return new GlMappingSpec(mapping, mode);
     }
 
-    // 裁定 2026-11-03-04：說明句裡的欄位名稱用【】標示，借方代碼這類值不是欄位，改用「」。
-    // 原本斷言欄名不加符號、借方代碼寫成【D】，第一次失敗：Focused 收據 20261103-042136637-bdf023e2ad43408a9e6c502b5402a6b1。
+    // 說明句裡的欄位名稱用【】標示，借方代碼這類值不是欄位，用「」。
     private static string GlDerivedDescription(GlMappingSpec spec) => spec.AmountMode switch
     {
         GlAmountMode.SignedAmount => "【傳票金額_JE】由系統產生 : 【金額】",
         GlAmountMode.DualAmount => "【傳票金額_JE】由系統產生 : 【借方】-【貸方】",
-        // 裁定 2026-11-10-03 改為完整寫出兩側代碼，保留其他欄位與型態斷言。
-        // 首次失敗：Focused 20261110-044827744-7f31557e86654d2ab1b381b89b62c5c5。
+        // 完整寫出兩側代碼。
         GlAmountMode.AmountWithSide => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「D」，貸方為「C」",
         GlAmountMode.AmountWithFlag => "【傳票金額_JE】由系統產生 : 金額欄位【金額】、借貸方判斷欄位【借貸別】，借方為「1」，貸方為「D」",
         _ => throw new ArgumentOutOfRangeException(nameof(spec), spec.AmountMode, null)
@@ -516,8 +510,8 @@ public sealed class FieldInfoProjectorTests
     };
 
     /// <summary>
-    /// 金額加借貸別只填貸方代碼時（裁定 2026-10-08-11），說明句寫貸方代碼，不把配對鍵名稱寫進底稿。
-    /// 兩側都填時兩側都寫（裁定 2026-11-10-03）；首次失敗見 FieldInfoSheetRoundTripTests 的兩側代碼案例。
+    /// 金額加借貸別只填貸方代碼時，說明句寫貸方代碼，不把配對鍵名稱寫進底稿。
+    /// 兩側都填時兩側都寫。
     /// </summary>
     [Theory]
     [InlineData(null, "C", "，貸方為「C」")]
@@ -554,7 +548,7 @@ public sealed class FieldInfoProjectorTests
     }
 
     /// <summary>
-    /// 傳票核准日選「與總帳日期相同」時追加的欄位，說明句兩個欄位名稱都用【】標示（裁定 2026-11-03-04）。
+    /// 傳票核准日選「與總帳日期相同」時追加的欄位，說明句兩個欄位名稱都用【】標示。
     /// </summary>
     [Fact]
     public void ApprovalDateSameAsGlDate_DescriptionMarksBothFieldNames()

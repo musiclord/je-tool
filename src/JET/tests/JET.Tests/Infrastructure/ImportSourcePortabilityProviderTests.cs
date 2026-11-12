@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 三種資料庫的匯入紀錄都只保存來源檔名（2026-10-19 跨資料庫一致性第二階段）。GL 取代、GL 加入與科目配對匯入時，
+/// 匯入紀錄只保存來源檔名。GL 取代、GL 加入與科目配對匯入時，
 /// 即使呼叫端把完整路徑當成檔名傳進存放層，import_batch 與 import_batch_source 也只留下最後一段檔名，
 /// 不在資料庫留下本機絕對路徑。
 /// </summary>
@@ -24,7 +24,7 @@ public sealed class ImportSourcePortabilityProviderTests
         ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         await AssertLeafFileNamesAsync(

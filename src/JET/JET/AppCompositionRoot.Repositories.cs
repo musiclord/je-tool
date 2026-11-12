@@ -8,7 +8,7 @@ namespace JET;
 
 /// <summary>
 /// SQLite 案件的 <see cref="ProjectRepositories"/> 組裝。資料庫組共用本機檔案鎖、案件外的報告 base store、
-/// 作業互斥鎖與 <see cref="ProjectSession"/>。目前只有 SQLite 一組（裁定 2026-11-06-08）；
+/// 作業互斥鎖與 <see cref="ProjectSession"/>。目前只有 SQLite 一組；
 /// 組裝必須留在 composition root（namespace JET），Infrastructure 不得依賴 Application。
 /// </summary>
 public static partial class AppCompositionRoot

@@ -6,6 +6,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using Xunit;
 using SpreadsheetColor = DocumentFormat.OpenXml.Spreadsheet.Color;
 using SpreadsheetFont = DocumentFormat.OpenXml.Spreadsheet.Font;
+using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Infrastructure;
 
@@ -141,9 +142,7 @@ public sealed class SpreadsheetAppearanceFingerprintTests
         Assert.DoesNotContain("SYNTHETIC-SHARED-SENTINEL", fingerprint.Json, StringComparison.Ordinal);
 
         var sourcePath = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
-            "src",
-            "JET",
+            TestRepositoryPaths.SolutionRoot,
             "tests",
             "JET.Tests",
             "Infrastructure",
@@ -158,9 +157,7 @@ public sealed class SpreadsheetAppearanceFingerprintTests
     public void UtilitySource_CellBranchReadsOnlyAddressAndStyleThenSkipsTheWholeSubtree()
     {
         var sourcePath = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
-            "src",
-            "JET",
+            TestRepositoryPaths.SolutionRoot,
             "tests",
             "JET.Tests",
             "Infrastructure",
@@ -347,6 +344,7 @@ public sealed class SpreadsheetAppearanceFingerprintTests
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void SixReportTemplates_ProduceByteIdenticalJsonOnRepeatedCapture()
     {
         var dataRoot = Path.Combine(TestRepositoryPaths.RepositoryRoot, "data");

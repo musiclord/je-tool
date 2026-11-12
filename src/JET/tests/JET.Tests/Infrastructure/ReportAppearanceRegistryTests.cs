@@ -4,7 +4,7 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class ReportAppearanceRegistryTests
 {
-    private static readonly string[] ExpectedTrackOIds =
+    private static readonly string[] ExpectedReportAppearanceIds =
     [
         "validation-summary-missing-account-fill",
         "validation-missing-account-detail-autofit",
@@ -46,7 +46,7 @@ public sealed class ReportAppearanceRegistryTests
             .ToArray();
 
         Assert.Equal(26, actual.Length);
-        Assert.Equal(ExpectedTrackOIds, actual);
+        Assert.Equal(ExpectedReportAppearanceIds, actual);
         Assert.DoesNotContain(
             actual,
             id => id.Contains("account-mapping", StringComparison.Ordinal));

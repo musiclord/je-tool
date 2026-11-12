@@ -7,8 +7,7 @@ namespace JET.Application;
 internal sealed record AuditedReportPublication(IReadOnlyList<Report> Reports, string? OperationLogWarning);
 
 /// <summary>
-/// 產生報告的動作用這個介面發布，才拿得到寫不進操作紀錄時的提醒，放進回應的 warnings
-/// （裁定 2026-10-19-20）。
+/// 產生報告的動作用這個介面發布，才拿得到寫不進操作紀錄時的提醒，放進回應的 warnings。
 /// </summary>
 internal interface IAuditedReportPublishingStore
 {
@@ -28,8 +27,8 @@ internal interface IAuditedReportPublishingStore
 /// <summary>
 /// 正式報告清單的單一 audit 裝飾器：成功發布或汰換後 append 一筆 project-local audit event。
 /// 寫不進操作紀錄時報告檔已經發布，兩種案件都不讓這次發布失敗；失敗記進支援日誌，
-/// 經 <see cref="IAuditedReportPublishingStore"/> 發布時另回提醒（裁定 2026-10-19-20）。
-/// 檔案 store 只負責暫存改名與 manifest；清理功能已於 2026-09-02 移除。
+/// 經 <see cref="IAuditedReportPublishingStore"/> 發布時另回提醒。
+/// 檔案 store 只負責暫存改名與 manifest，沒有清理功能。
 /// </summary>
 internal sealed class AuditedReportStore(
     IReportStore inner,

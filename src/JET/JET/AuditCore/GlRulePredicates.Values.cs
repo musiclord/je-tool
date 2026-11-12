@@ -6,9 +6,9 @@ internal sealed partial class GlRulePredicates
 {
     /// <summary>
     /// 通用值條件（fieldValue）。欄位空白（文字 NULL 或 TRIM 為空、日期與金額 NULL）預設不列入，除非
-    /// `includeBlank` 為真（裁定 2026-10-14-15）；其餘比較都在 UPPER(TRIM()) 文字、ISO 日期字串或 scaled 金額上進行，
+    /// `includeBlank` 為真；其餘比較都在 UPPER(TRIM()) 文字、ISO 日期字串或 scaled 金額上進行，
     /// 值全部參數綁定。每月幾日用 <see cref="ISqlDialect.DayOfMonth"/>；文字的包含比對接受多個關鍵字（OR 串接），
-/// 空白、週末、假日、補班日、包含與尾數連續多個 0 都呼叫預篩選規則同一組方法。
+    /// 空白、週末、假日、補班日、包含與尾數連續多個 0 都呼叫預篩選規則同一組方法。
     /// </summary>
     public string FieldValue(FilterSqlParameterPlanBuilder parameters, FilterConditionSpec rule,
         FilterConditionContext context, string schemaPrefix)
@@ -61,14 +61,14 @@ internal sealed partial class GlRulePredicates
         }
         else if (FieldValueConditions.IsDigitContains(op))
         {
-            // 整數部分包含任一串數字（裁定 2026-11-05-46）：和整數尾數一樣只看絕對值的整數部分，不接金額比較基準。
+            // 整數部分包含任一串數字：和整數尾數一樣只看絕對值的整數部分，不接金額比較基準。
             positive = IntegerPartContains(parameters, FieldValueConditions.TailPatterns(rule), context.MoneyScale, originalColumn);
             if (FieldValueConditions.IsNegative(op)) positive = $"NOT ({positive})";
         }
         else if (FieldValueConditions.IsZeroRun(op))
         {
-            // 尾數連續 N 個 0（裁定 2026-11-03-07）和第四步預篩選規則「分錄金額中有連續 0 的尾數」用同一個 ZeroRun，
-            // 0 的個數由審計員指定，加入時預設是由 GL 算出的個數（裁定 2026-11-05-26）。結果和改版前的子條件組
+            // 尾數連續 N 個 0和第四步預篩選規則「分錄金額中有連續 0 的尾數」用同一個 ZeroRun，
+            // 0 的個數由審計員指定，加入時預設是由 GL 算出的個數。結果和子條件組
             // 「整數尾數符合 N 個 0 且金額絕對值大於或等於 1」相同。
             if (!FieldValueConditions.TryParseZeroRun(rule.TypedValue, out var zeros))
                 throw Invalid("field_value_zero_run_invalid");
@@ -129,13 +129,13 @@ internal sealed partial class GlRulePredicates
         }
         else if (FieldValueConditions.IsAffix(op))
         {
-            // 開頭符合與結尾符合接受多個值，OR 串接；排除時每一個都不能符合（裁定 2026-11-09-09）。
-            // 只有一個值時 SQL 和以前一樣，不多包括號。
+            // 開頭符合與結尾符合接受多個值，OR 串接；排除時每一個都不能符合。
+            // 只有一個值時 SQL 不多包括號。
             var values = FieldValueConditions.AffixValues(rule);
             if (values.Count == 0) throw Invalid("field_value_value_invalid");
             var clauses = values.Select(raw => (string)Normalize(raw)).Distinct(StringComparer.Ordinal).Select(value =>
             {
-                // Escape literal wildcard characters for all supported providers, including SQL Server's brackets.
+                // 跳脫字元、%、_ 與 [ 都先加上跳脫，值裡的這些字元照字面比對。
                 var escaped = value.Replace("\\", "\\\\", StringComparison.Ordinal)
                     .Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal)
                     .Replace("[", "\\[", StringComparison.Ordinal);
@@ -156,8 +156,8 @@ internal sealed partial class GlRulePredicates
             };
             positive = $"{column} {comparison} {Param(rule.TypedValue)}";
         }
-        // 裁定 2026-10-14-15：日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
-        // 文字欄位的否定比較在畫面上預設勾選（裁定 2026-11-05-56），畫面一律送出勾選結果；沒有帶這個值時照舊當成不列入。
+        // 日期（與其他欄位）空白的分錄不列入，除非審計員勾選「空白也符合」。
+        // 文字欄位的否定比較在畫面上預設勾選，畫面一律送出勾選結果；沒有帶這個值時照舊當成不列入。
         var includeBlank = rule.IncludeBlank ?? false;
         return Complete($"(CASE WHEN ({blank}) THEN {(includeBlank ? 1 : 0)} WHEN ({positive}) THEN 1 ELSE 0 END = 1)", includeBlank);
     }
@@ -166,7 +166,7 @@ internal sealed partial class GlRulePredicates
     /// 借貸科目分類（accountSide）：兩值語意。分類留白的科目依 legacy 與 `AccountMappingContracts` 的
     /// 既有投影落到 Others（`Selected` 只看科目分類的 role，不看 `classification_explicit`）；不在配對檔的
     /// 科目不屬於任何分類。`is`／`isNot` 只判本列；要限定借方或貸方時另加借貸限定條件。
-    /// ANSI 共通（EXISTS／NOT EXISTS），值全部參數綁定。
+    /// 值全部參數綁定。
     /// </summary>
     public string AccountSide(FilterSqlParameterPlanBuilder parameters, FilterConditionSpec rule,
         FilterConditionContext context, string schemaPrefix)

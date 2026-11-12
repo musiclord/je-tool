@@ -56,7 +56,7 @@ public sealed record JetErrorDetail(int? Group, int? Rule, string Message)
 /// </summary>
 public static class JetPayloadRejection
 {
-    /// <summary>非預期錯誤回給畫面的句子（用字依裁定 2026-10-13-28）；畫面程式 jet-api.js 有同一句。</summary>
+    /// <summary>非預期錯誤回給畫面的句子；畫面程式 jet-api.js 有同一句。</summary>
     public const string UnexpectedErrorMessage = "發生非預期的錯誤，此操作未完成。請再試一次。";
 
     private const string CheckDataKey = "jet.payload_check";
@@ -75,7 +75,7 @@ public static class JetPayloadRejection
 
 /// <summary>
 /// 篩選條件編譯時的檢查沒過：驗證器已先檢查過，走到這裡表示驗證器與執行時檢查不一致，是程式錯誤，
-/// 不是畫面送錯資料（用字依裁定 2026-10-14-01）。畫面只看到非預期錯誤那一句，錯誤代碼仍是
+/// 不是畫面送錯資料。畫面只看到非預期錯誤那一句，錯誤代碼仍是
 /// <c>invalid_scenario</c>；程式寫死的檢查代號與組號、條號記進支援日誌事件 <c>filter.compile_check_failed</c>，
 /// 不帶欄位名稱、輸入值、科目、金額或路徑。
 /// </summary>
@@ -113,7 +113,7 @@ public static class FilterCompileCheck
 }
 
 /// <summary>
-/// 找不到案件資料夾，以及舊版 JET 建立的案件時的句子（用字依裁定 2026-10-14-01）。
+/// 找不到案件資料夾，以及舊版 JET 建立的案件時的句子。
 /// 同一種情況全程式只用這幾句，不印程式代號，也不寫「可能」。
 /// </summary>
 public static class ProjectFolderMessages
@@ -137,7 +137,7 @@ public static class ProjectFolderMessages
 
     /// <summary>
     /// 舊版 JET 建立的案件。案件設定檔、案件資料庫與欄位配對讀到舊版內容時都用這一句，下一步是刪除後重建
-    /// （裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。讀不到案件名稱時寫「這個案件」。
+    /// （案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。讀不到案件名稱時寫「這個案件」。
     /// </summary>
     public static string OldVersionProject(string? projectName = null) =>
         (string.IsNullOrEmpty(projectName) ? "這個案件" : $"案件「{projectName}」")
@@ -145,20 +145,20 @@ public static class ProjectFolderMessages
 
     /// <summary>
     /// 本機案件的資料庫檔案不見了。只有建案會建立資料庫，開案與讀寫都不會默默建出空的資料庫，
-    /// 案件清單比照無法開啟的案件列出這一句（裁定 2026-11-05-72）。下一步和設定檔無法讀取時相同。
+    /// 案件清單比照無法開啟的案件列出這一句。下一步和設定檔無法讀取時相同。
     /// </summary>
     public static string DatabaseMissing(string projectName) =>
         $"案件「{projectName}」的資料庫檔案遺失，案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。";
 
     /// <summary>
     /// 建案的名稱撞到以前建立的 DuckDB 或 SQL Server 案件。這類案件不列在案件清單，資料夾 JET 也不動，
-    /// 審計員要刪除時自己到案件位置刪除（裁定 2026-11-06-09）；只說「已存在」會讓人在清單上找不到原因。
+    /// 審計員要刪除時自己到案件位置刪除；只說「已存在」會讓人在清單上找不到原因。
     /// </summary>
     public static string RetiredProviderNameTaken(string projectName) =>
         $"案件名稱「{projectName}」已被以前建立的 DuckDB 或 SQL Server 案件使用，這類案件不列在案件清單。" +
         "請改用其他名稱，或到 JET 的案件位置刪除這個案件資料夾後再建立。";
 
-    /// <summary>本機案件的資料庫檔案是 0 位元組，或檔案裡沒有任何資料表（裁定 2026-11-05-72）。</summary>
+    /// <summary>本機案件的資料庫檔案是 0 位元組，或檔案裡沒有任何資料表。</summary>
     public static string DatabaseEmpty(string projectName) =>
         $"案件「{projectName}」的資料庫檔案沒有內容，案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。";
 
@@ -172,7 +172,7 @@ public static class JetErrorFields
     public const string ProjectName = "projectName";
 }
 
-/// <summary>錯誤碼註冊表。docs/action-contract-manifest.md 以此處為準，不另列清單。</summary>
+/// <summary>錯誤碼註冊表。錯誤碼以此處為準，文件不另列清單。</summary>
 public static class JetErrorCodes
 {
     public const string BridgeError = "bridge_error";
@@ -203,8 +203,7 @@ public static class JetErrorCodes
     public const string InvalidScenario = "invalid_scenario";
 
     /// <summary>
-    /// 還沒有已儲存的篩選情境，需要情境的動作無法執行。畫面把它當成前置條件不足，寫「尚無法執行」
-    /// （用字依裁定 2026-10-14-01）。
+    /// 還沒有已儲存的篩選情境，需要情境的動作無法執行。畫面把它當成前置條件不足，寫「尚無法執行」。
     /// </summary>
     public const string NoSavedScenario = "no_saved_scenario";
     public const string ScenarioLimitReached = "scenario_limit_reached";
@@ -222,8 +221,7 @@ public static class JetErrorCodes
 
     /// <summary>
     /// 已有一項變更型作業進行中，又收到第二項變更型作業，或 concurrent query 的空結果補算分支
-    /// 取不到共用閘時回此碼（非阻塞試取、不排隊）。變更型／唯讀分類見 <see cref="ActionExecutionPolicy"/>；
-    /// wire 契約見 docs/action-contract-manifest.md。
+    /// 取不到共用閘時回此碼（非阻塞試取、不排隊）。變更型／唯讀分類見 <see cref="ActionExecutionPolicy"/>。
     /// </summary>
     public const string OperationInProgress = "operation_in_progress";
 

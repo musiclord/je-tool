@@ -15,7 +15,7 @@ public sealed class ExcelNativeDateImportTests
     {
         foreach (var provider in new[] { "sqlite" })
         foreach (var format in new[] { "csv", "xlsx", "xlsx1904", "xls", "xls1904" })
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，日期角色不再有 voucherDate。
+        // 日期角色沒有 voucherDate。
         foreach (var field in new[] { "glDate", "approvalDate", "rde" }) yield return [provider, format, field];
     }
 
@@ -47,7 +47,7 @@ public sealed class ExcelNativeDateImportTests
             var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.gl",
                 JsonSerializer.Serialize(new { mapping, amountMode = "signed", rdeFields = rde })));
             Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 這句的用字已定案。
             Assert.StartsWith("有 1 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(error.Details!);
             Assert.Equal("NativeDate", detail.SourceColumn);
@@ -83,7 +83,7 @@ public sealed class ExcelNativeDateImportTests
             var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("mapping.commit.gl",
                 JsonSerializer.Serialize(new { mapping, amountMode = "signed" })));
             Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 這句的用字已定案。
             Assert.StartsWith("有 1 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
             var detail = Assert.Single(error.Details!);
             Assert.Equal("NativeDate", detail.SourceColumn);
@@ -101,16 +101,15 @@ public sealed class ExcelNativeDateImportTests
         string[] header = ["Document", "Date", "Account", "Name", "Description", "Amount", "NativeDate"];
         if (format == "csv")
         {
-            // 文字檔沒有日期型儲存格，第 3 列原本放純數字 45292 當控制列（以前換成 2024-01-01）。
-            // 純數字不再當成日期（裁定 2026-10-22-11），控制列改寫成文字日期 2024-01-01，第 2 列的 240115 仍是無法辨識；
-            // 第一次失敗：收據 20261024-050001386-bbbc237309534438b5098d3a5bb8efbf（當時第 3 列也被列為錯誤，訊息變成 2 列）。
-            var csv = Path.Combine(Path.GetTempPath(), $"jet-batch9-date-{Guid.NewGuid():N}.csv");
+            // 文字檔沒有日期型儲存格，第 3 列用文字日期 2024-01-01 當控制列。
+            // 純數字不當成日期，第 2 列的 240115 是無法辨識。
+            var csv = Path.Combine(Path.GetTempPath(), $"jet-date-{Guid.NewGuid():N}.csv");
             File.WriteAllText(csv, string.Join(',', header) + "\nV1,2025-03-05,A,Synthetic,Normal,1,240115\nV2,2025-03-05,A,Synthetic,Normal,1,2024-01-01\n", new UTF8Encoding(false));
             return csv;
         }
         if (format.StartsWith("xls", StringComparison.Ordinal) && !format.StartsWith("xlsx", StringComparison.Ordinal))
         {
-            var xls = Path.Combine(Path.GetTempPath(), $"jet-batch9-date-{Guid.NewGuid():N}.xls");
+            var xls = Path.Combine(Path.GetTempPath(), $"jet-date-{Guid.NewGuid():N}.xls");
             WriteBiff2(xls, header, bad, good, date1904);
             return xls;
         }

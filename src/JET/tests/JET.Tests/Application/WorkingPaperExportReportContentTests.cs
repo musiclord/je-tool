@@ -10,7 +10,7 @@ using static JET.Tests.Application.WorkingPaperExportTestSupport;
 namespace JET.Tests.Application;
 
 /// <summary>WorkingPaper 匯出：案件資料夾內的報告檔、固定工作表與情境欄位。</summary>
-// 使用者要求封面 A3 留白；首次失敗收據 20261106-130302916-209cba23338f4b12a0fd28bcaf09480b。
+// 封面 A3 留白。
 public sealed class WorkingPaperExportReportContentTests
 {
     [Fact]
@@ -108,8 +108,8 @@ public sealed class WorkingPaperExportReportContentTests
         Assert.True(workbook.TryGetWorksheet(WorkingPaperSheetCatalog.Step5, out _));
     }
 
-    // 裁定 2026-11-05-31：底稿的週末表照案件設定的每週休息日寫 Y，不再固定寫星期六、星期日。
-    // 裁定 2026-11-05-59：Step 3 的 B7、B9 寫回舊版原文，JET 原本寫的查核期間與排除範圍另起一行接在後面。
+    // 底稿的週末表照案件設定的每週休息日寫 Y，不固定寫星期六、星期日。
+    // Step 3 的 B7、B9 寫舊版原文，JET 寫的查核期間與排除範圍另起一行接在後面。
     [Fact]
     public async Task Export_WeekendTableFollowsProjectNonWorkingDays_AndStep3WritesLegacyScopeText()
     {

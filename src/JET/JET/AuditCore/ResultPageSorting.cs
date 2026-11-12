@@ -63,12 +63,11 @@ internal static class ResultPageSorting
         "g.voucher_number");
 
     /// <summary>
-    /// INF 報告與底稿 Step 2 列可靠性樣本的順序：照舊版依傳票號碼升冪，同一張傳票照原本的列順序（穩定鍵 entry_id；裁定 2026-11-05-41）。
-    /// 傳票號碼空白的樣本照舊版排在最前面（裁定 2026-11-06-06）：舊版在 IDEA 抽樣後依「傳票號碼_JE」升冪排序
-    /// （legacy/idea-tool.bas 第 6789 到 6791 行）。空白是 NULL 或只有空白字元，和 <see cref="SqlBlankText"/> 相同；
+    /// INF 報告與底稿 Step 2 列可靠性樣本的順序：照舊版依傳票號碼升冪，同一張傳票照原本的列順序（穩定鍵 entry_id）。
+    /// 傳票號碼空白的樣本照舊版排在最前面：舊版在 IDEA 抽樣後依「傳票號碼_JE」升冪排序。
+    /// 空白是 NULL 或只有空白字元，和 <see cref="SqlBlankText"/> 相同；
     /// 其餘傳票號碼依字元序數比較。樣本數由使用者指定，兩份輸出先依穩定鍵讀完樣本，
     /// 再用這個順序排。畫面的樣本明細照舊用分頁排序，審計員可以自己改排序。
-    /// 2026-11-06 以前這裡是依傳票號碼升冪的分頁排序，空白的樣本排在最後。
     /// </summary>
     internal static IReadOnlyList<JET.Domain.InfSampleRow> InfSampleReportOrder(IEnumerable<JET.Domain.InfSampleRow> samples) =>
         samples

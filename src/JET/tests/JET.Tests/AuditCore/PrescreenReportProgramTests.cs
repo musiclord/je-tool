@@ -143,8 +143,7 @@ public sealed class PrescreenReportProgramTests
             plan.RequireDetail(PrescreenReportDetailKind.PrepPeriodApproval));
     }
 
-    // 已 Finalize 的 plan 不得再查計數。AuditCore 的轉手方法移除後，這個防呆改由 planning port 開頭負責，
-    // 條件、例外型別與訊息都沿用原本的轉手方法。
+    // 已 Finalize 的 plan 不得再查計數。這個防呆由 planning port 開頭負責。
     [Fact]
     public async Task PlanningFactsPort_FinalizedPlan_IsRejectedBeforeQuerying()
     {

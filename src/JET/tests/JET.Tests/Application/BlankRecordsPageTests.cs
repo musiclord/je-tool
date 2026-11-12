@@ -32,7 +32,7 @@ public sealed class BlankRecordsPageTests(DemoProjectFixture fixture)
             cursor = nc.ValueKind == JsonValueKind.Null ? null : nc.GetString();
         } while (cursor is not null);
 
-        // category=blankDescription recount = 本期母體(§2:gl_date ∈ 會計期間)內 description 空白或 NULL。
+        // category=blankDescription recount = 本期母體(gl_date ∈ 會計期間)內 description 空白或 NULL。
         var total = await DemoProjectPipeline.QueryScalarAsync(fixture.Host, fixture.ProjectId,
             "SELECT COUNT(*) FROM gl " +
             "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31' " +
@@ -44,9 +44,9 @@ public sealed class BlankRecordsPageTests(DemoProjectFixture fixture)
     [Fact]
     public async Task ApprovalDateNotInPeriod_WalkAllPages_EqualsApprovalDateRecount()
     {
-        // 「核准日不在期間」以核准日 approval_date 判定（裁定 2026-06-23-01）；分頁述詞先前誤用 gl_date
-        // → 分頁走訪 0 列而計數端 40 列（demo R1：核准日 2026-01-15 期外、過帳日在期內）。
-        // 修正後分頁改核准日，分頁集合筆數 == 計數端 recount（spec 2026-07-08 §3 red→green）。
+        // 「核准日不在期間」以核准日 approval_date 判定，分頁述詞不能用 gl_date
+        // （demo R1：核准日 2026-01-15 期外、過帳日在期內，用 gl_date 會走訪 0 列而計數端 40 列）。
+        // 分頁集合筆數 == 計數端 recount。
         var all = new List<string>();
         string? cursor = null;
         do
@@ -65,9 +65,9 @@ public sealed class BlankRecordsPageTests(DemoProjectFixture fixture)
             cursor = nc.ValueKind == JsonValueKind.Null ? null : nc.GetString();
         } while (cursor is not null);
 
-        // recount = 本期母體(§2:gl_date ∈ 會計期間)內、核准日非空且落在會計期間之外的列。
+        // recount = 本期母體(gl_date ∈ 會計期間)內、核准日非空且落在會計期間之外的列。
         // 母體限本期 gl_date：R1（過帳日在期內、核准日 2026-01-15 期外）入母體並命中；期外對照組
-        // （過帳日 2026-01-05 期外、核准日亦期外）不入母體，故不計——正是 §2 spec 定案語意。
+        // （過帳日 2026-01-05 期外、核准日亦期外）不入母體，故不計。
         var total = await DemoProjectPipeline.QueryScalarAsync(fixture.Host, fixture.ProjectId,
             "SELECT COUNT(*) FROM gl " +
             "WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31' " +

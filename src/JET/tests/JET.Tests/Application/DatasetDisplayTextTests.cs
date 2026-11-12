@@ -17,7 +17,7 @@ public sealed class DatasetDisplayTextTests
     {
         var demo = DemoDataFactory.Create();
         Assert.Equal("總帳日期", demo.GlMapping[GlMappingKeys.GlDate]);
-        // 裁定 2026-10-08-03：拿掉傳票日期與回溯過帳，示範資料只剩總帳日期與傳票核准日。
+        // 示範資料沒有傳票日期，只有總帳日期與傳票核准日。
         Assert.DoesNotContain("voucherDate", demo.GlMapping.Keys);
         Assert.Equal("傳票核准日", demo.GlMapping[GlMappingKeys.ApprovalDate]);
         string[] expected = ["總帳日期", "傳票號碼", "傳票項次", "科目代號", "科目名稱", "摘要", "金額", "借方旗標", "建立人員", "傳票核准日", "人工傳票"];
@@ -46,7 +46,7 @@ public sealed class DatasetDisplayTextTests
     [Fact]
     public void ConfirmedTbPreview_UsesUnifiedTbNameAndKey()
     {
-        // 裁定 2026-10-08-04：資料名稱全系統統一，已確認配對的試算表叫 TB，資料集的鍵是 tb。
+        // 資料名稱全系統統一，已確認配對的試算表叫 TB，資料集的鍵是 tb。
         Assert.Equal("TB", DataPreviewDatasetLabels.MainTabs.Single(tab => tab.Dataset == "tb").Label);
     }
 
@@ -61,8 +61,7 @@ public sealed class DatasetDisplayTextTests
             .AddRow("OUT", "2024-12-31", "4101", "合成", "期外非零", "1.0000", 0), databaseProvider: provider));
         Assert.Equal(JetErrorCodes.GlAmountsAllZero, error.Code);
         Assert.DoesNotContain("母體", error.Message, StringComparison.Ordinal);
-        // 裁定 2026-10-08-04：資料名稱全系統統一，納入測試的分錄叫 GL。
-        // 這句的用字依裁定 2026-10-13-28，預期值換成確認後的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 資料名稱全系統統一，納入測試的分錄叫 GL。
         Assert.Contains("GL 借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("納入測試的分錄", error.Message, StringComparison.Ordinal);
         Assert.Contains("借方與貸方總額皆為 0", error.Message, StringComparison.Ordinal);

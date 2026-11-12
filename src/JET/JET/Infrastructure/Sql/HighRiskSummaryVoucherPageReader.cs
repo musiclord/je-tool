@@ -5,23 +5,19 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總傳票層分頁的共用兩段查詢讀取器(provider 中立)。三 provider 的分頁差異由
-/// 呼叫端帶入 <see cref="ISqlDialect"/> 的 LimitClause；
-/// 其餘 SQL 純 ANSI,故讀取邏輯共用一處，避免兩個 repository 逐字重複。
+/// 高風險條件彙總傳票層分頁的兩段查詢讀取器。
 ///
 /// 查詢 1(命中傳票 keyset 頁):GROUP BY voucher_number、以所選 filter_hit 判定
 /// 命中傳票，再對該傳票的完整 GL 行聚合；排除 NULL voucher_number、聚合
-/// MIN(gl_date)/MIN(created_by)/COALESCE(SUM(debit_amount_scaled),0)、
-/// 游標展開布林式 `voucher_number > @cursor`、ORDER BY voucher_number、LimitClause。reader 末欄取
-/// voucher_number 供編游標。查 pageSize+1 作 lookahead，只有 probe 存在才回本頁末鍵 cursor。
+/// MIN(gl_date)/MIN(created_by)/COALESCE(SUM(debit_amount_scaled),0)、LimitClause。排序與游標由
+/// <c>KeysetPaging.Plan</c> 依 <c>ResultPageSorting.HighRiskSummaryVoucher</c> 組出，沒有指定排序時依 voucher_number 升冪；
+/// reader 取 voucher_number 供編游標。查 pageSize+1 作 lookahead，只有 probe 存在才回本頁末鍵 cursor。
 ///
-/// 查詢 2(本頁傳票命中位置,鍵範圍 (@lo, @hi]):DISTINCT (voucher_number, filter_scenario.position)、
-/// 排除 NULL voucher_number、`voucher_number <= @hi`(@hi=本頁末鍵),非首頁再加 `voucher_number > @lo`
-/// (@lo=本頁游標)。鍵範圍與查詢 1 完全一致,故每傳票位置不漏不溢。空頁→不跑查詢 2,回空 dict。
+/// 查詢 2(本頁傳票命中位置):DISTINCT (voucher_number, filter_scenario.position)、
+/// 排除 NULL voucher_number、voucher_number IN(本頁的傳票號碼),故每傳票位置不漏不溢。空頁→不跑查詢 2,回空 dict。
 /// </summary>
 internal static class HighRiskSummaryVoucherPageReader
 {
-    // schemaPrefix 預設 ""（SQLite 裸名，逐字不變）；參數保留給日後恢復的 SQL Server 傳專案 schema 前綴。
     private static string PageSqlHead(
         string schemaPrefix,
         string scenarioPredicate,
@@ -106,8 +102,8 @@ internal static class HighRiskSummaryVoucherPageReader
                 new Dictionary<string, IReadOnlyList<int>>());
         }
 
-        // 查詢 2:本頁傳票命中位置。排序後本頁不再是連續鍵範圍，改把本頁的傳票號碼全部當參數帶進 IN 清單
-        // （一頁最多 500 張，低於各引擎的參數上限）。
+        // 查詢 2:本頁傳票命中位置。依欄位排序時本頁不是連續的鍵範圍，所以把本頁的傳票號碼全部當參數帶進 IN 清單
+        // （一頁最多 500 張，低於 SQLite 的參數上限）。
         var positions = new Dictionary<string, List<int>>();
         await using (var command = connection.CreateCommand())
         {

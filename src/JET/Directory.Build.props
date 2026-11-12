@@ -1,0 +1,11 @@
+<Project>
+  <!-- 建置時產生 XML 文件檔，讓編譯器檢查文件註解：引用不存在的型別、成員或參數，以及格式錯誤的說明，都會讓建置失敗。
+       沒寫說明的成員與參數不算錯。文件檔只留在建置輸出，不放進發布的資料夾。 -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1570;CS1572;CS1574;CS1580;CS1581;CS1584;CS1587;CS1734;CS1735</WarningsAsErrors>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+  </PropertyGroup>
+</Project>

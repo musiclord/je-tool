@@ -7,7 +7,7 @@ namespace JET.Tests.Application;
 
 public sealed class UsageScenarioProjectBoundaryTests
 {
-    // jet-guide section 2 and frontend description require both audit dates.
+    // Both audit dates are required.
     [Theory]
     [InlineData("sqlite", "periodStart")]
     [InlineData("sqlite", "periodEnd")]
@@ -24,8 +24,8 @@ public sealed class UsageScenarioProjectBoundaryTests
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
             host.DispatchAsync("project.create", payload.ToJsonString()));
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-        // 前端不露出系統用詞（裁定 2026-10-19-04）：建案畫面會先擋下空白日期，走到這裡是程式送錯資料，訊息改為非預期錯誤那一句。
-        // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
+        // 前端不露出系統用詞：建案畫面會先擋下空白日期，走到這裡是程式送錯資料，訊息用非預期錯誤那一句。
+        // 整句比對，並核對支援日誌記下的檢查代號。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
         Assert.Equal("payload_required_text_missing", JetPayloadRejection.CheckOf(error));
         Assert.False(Directory.Exists(Path.Combine(host.ProjectsRoot, "Synthetic missing period")));

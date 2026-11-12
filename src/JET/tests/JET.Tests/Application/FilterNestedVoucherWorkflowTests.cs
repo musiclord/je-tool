@@ -79,7 +79,7 @@ public sealed class FilterNestedVoucherWorkflowTests
         }
         var legacyPreview = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new { scenario = legacy }));
         Assert.Equal(3, legacyPreview.GetProperty("scenario").GetProperty("count").GetInt64());
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. All debit rows means at least one debit and every row is credit or a matching debit.
+        //  All debit rows means at least one debit and every row is credit or a matching debit.
         var nested = JsonElement.Parse($$"""
             {"name":"子分類傳票","rationale":"分類及摘要綁定同一筆","groups":[{"conditions":[
               {"type":"group","conditions":[

@@ -36,9 +36,8 @@ public sealed class PrescreenExecutionInputTests
             ResultId: "run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             PrepStartDate: "2025-12-31",
-            // 核准日與建立人員兩個旗標換成可用欄位清單；不帶清單就不檢查欄位，
-            // 等同原本兩個旗標都是 true，缺兩欄時改傳扣掉這兩欄的清單。
-            // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            // 不帶可用欄位清單就不檢查欄位，等同核准日與建立人員兩欄都可用；
+            // 要表示缺這兩欄時，傳扣掉這兩欄的清單。
             AvailableGlFields: null,
             HasHolidays: true,
             HasAccountMapping: true,
@@ -47,7 +46,7 @@ public sealed class PrescreenExecutionInputTests
             HasAuthorizedPreparers: true,
             NonWorkingDays: [0, 6])
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數；這裡用 5，下面核對執行輸入照請求帶出。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數；這裡用 5，下面核對執行輸入照請求帶出。
             ZerosThreshold = 5
         };
         var reviewPlan = JetAuditProgram.Plan(
@@ -73,7 +72,6 @@ public sealed class PrescreenExecutionInputTests
                 SampleSize: 0,
                 ActionName: "prescreen.run"));
 
-        // 尾零門檻是規則定義的一部分，計畫與執行輸入不再帶它（第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf 之後的建置）。
         var execution = PrescreenExecutionInput.FromPlan(new PrescreenPlan(request, reviewPlan));
 
         Assert.False(execution.RunPrepPeriodApproval);
@@ -83,10 +81,8 @@ public sealed class PrescreenExecutionInputTests
         Assert.False(execution.RunHolidayPosting);
         Assert.False(execution.RunHolidayApproval);
         Assert.False(execution.RunNonAuthorizedPreparer);
+        Assert.Equal(5, execution.ZerosThreshold);
     }
-
-    // 2026-10-22 清理技術債：FromCompatibility 隨公開的相容入口刪除，原本檢查它的測試一併移除
-    //（第一次失敗：Focused 收據 20261022-070441801-b717958da6bc461bb272ed374766bb78）。
 
     [Theory]
     [InlineData("sqlite")]
@@ -137,14 +133,14 @@ public sealed class PrescreenExecutionInputTests
             HasAuthorizedPreparers: false,
             NonWorkingDays: [0, 6])
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數。
             ZerosThreshold = 6
         });
 
         var facts = await port.ExecuteAsync(plan, CancellationToken.None);
 
-        // 一條規則只有一個定義，尾零規則固定六個 0 且由登錄的述詞產生，計畫不再帶可改的門檻；夾具裡只有 Z6（1,000,000.1234）命中，
-        // Z3（1,000.99）三個 0 不算。原本用門檻 3 期望兩筆都命中，第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        // 一條規則只有一個定義，尾零規則由登錄的述詞產生，這裡的請求帶六個 0；夾具裡只有 Z6（1,000,000.1234）命中，
+        // Z3（1,000.99）三個 0 不算。
         Assert.Equal(1, facts.TrailingZerosCount);
     }
 

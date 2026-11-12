@@ -3,11 +3,9 @@ using static JET.Tests.Application.TaiwanSmeScenarioSupport;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>
 /// 台灣中小企業常見的調整分錄摘要、整數與重複尾數金額、編製與核准人員，以及使用次數少的人員與科目。
-/// 預期值依 docs/jet-guide.md 第 5、6 節與 docs/action-contract-manifest.md 的條件目錄手算。
+/// 預期值依規則與條件目錄手算。
 /// </summary>
 public sealed class TaiwanSmeDescriptionAmountPreparerTests
 {
@@ -43,7 +41,6 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         Assert.Equal(4, validation.GetProperty("blankRecordsTest").GetProperty("blankDescriptionCount").GetInt64());
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 預設 24 個字詞含 ADJ、調整、迴轉、沖銷、重分類，不含更正、補登、暫估：K01、K02、K03、K04、K10，共 10 列。
-        // 原本寫 25 個；裁定 2026-11-05-43 拿掉「帳外」後是 24 個，筆數不受影響，只改這句說明。
         Assert.Equal(10, prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         Assert.Equal(4, prescreen.GetProperty("blankDescription").GetProperty("count").GetInt64());
 
@@ -195,9 +192,8 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
 
         await host.DispatchAsync("validate.run");
         var prescreen = await host.DispatchAsync("prescreen.run");
-        // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，第四步不再有 rareAccount、rarePreparer 與 rareAccountCount，原本的三項計數斷言拿掉；
-        // 11 筆以下的邊界改由下面第五步依審計目的的統計條件（預設 11 筆以下）核對同一組命中列。
-        // 第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目，回應沒有 rareAccount、rarePreparer 與 rareAccountCount；
+        // 11 筆以下的邊界由下面第五步依審計目的的統計條件（預設 11 筆以下）核對同一組命中列。
         Assert.False(prescreen.TryGetProperty("rareAccount", out _));
         Assert.False(prescreen.TryGetProperty("rarePreparer", out _));
         // 科目筆數：6120 有 11 列、1102 有 11 + 1 = 12 列、1101 有 1 列，共 3 個科目。
@@ -205,13 +201,12 @@ public sealed class TaiwanSmeDescriptionAmountPreparerTests
         // 編製者彙總：李大華、Amy（含 amy），以及空白人員一組。
         Assert.Equal(3, prescreen.GetProperty("preparerSummary").GetProperty("totalPreparerCount").GetInt64());
 
-        // 兩種舊式筆數條件已列為停用寫法，這裡改成等價的「科目與人員統計」；預期命中不變。
-        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
+        // 兩種舊式筆數條件是停用寫法（預覽回「已停用」），這裡用等價的「科目與人員統計」。
         var tenEntries = OneRule("編製者 10 筆以下", """{"type":"entityFrequency","field":"createdBy","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}""");
         // Amy 有 11 列，李大華 12 列，門檻 10 時沒有人命中。
         Assert.Equal((0L, 0L), await PreviewAsync(host, tenEntries));
         var hits = await CommitAndReadHitsAsync(host,
-            // 第五步依審計目的的「較少使用的科目」與「編製分錄較少的人員」預設 11 筆以下；原本用第四步的預篩選寫法。
+            // 第五步欄位條件裡的「較少使用的科目」與「編製分錄較少的人員」預設 11 筆以下。
             OneRule("較少使用的科目", """{"type":"entityFrequency","field":"accountNumber","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":11}"""),
             OneRule("編製分錄較少的人員", """{"type":"entityFrequency","field":"createdBy","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":11}"""),
             OneRule("科目 10 筆以下", """{"type":"entityFrequency","field":"accountNumber","countUnit":"entries","countOperator":"lessThanOrEqual","countFrom":10}"""),

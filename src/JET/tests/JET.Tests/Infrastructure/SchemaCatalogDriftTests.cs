@@ -7,13 +7,13 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 漂移守門:中央三層表名登錄(<see cref="JetSchemaCatalog"/>)必須與真 SQLite／DuckDB schema 完全對齊。
+/// 漂移守門:中央三層表名登錄(<see cref="JetSchemaCatalog"/>)必須與真 SQLite schema 完全對齊。
 ///
 /// 機制:以 <see cref="SqliteProjectDatabase.EnsureCreatedAsync"/> 在 temp 目錄建一個全新專案 DB
 /// (跑權威 SchemaSql),再查 <c>sqlite_master</c> 取得全部使用者表(排除 <c>sqlite_%</c> 內部表,
 /// 與 dev 檢視 inspector 同一過濾),雙向比對:
-///   (a) 每張實體表都已登錄 → 日後加表卻忘了登錄(漏登錄)即紅(負向保護)。
-///   (b) 登錄表沒有幽靈條目 → 登錄了一張其實不存在的表也紅。
+///   (a) 每張實體表都已登錄 → 日後加表卻忘了登錄(漏登錄)時測試會失敗(負向保護)。
+///   (b) 登錄表沒有幽靈條目 → 登錄了一張其實不存在的表也會失敗。
 ///
 /// 這是 metadata 加法模型(不實體改名)的安全網:目錄是事實來源,本測試確保它不與真實 schema 漂移。
 /// 注意 <c>sqlite_sequence</c> 由 AUTOINCREMENT 自動建立,屬 SQLite 內部簿記表,以 <c>sqlite_%</c>

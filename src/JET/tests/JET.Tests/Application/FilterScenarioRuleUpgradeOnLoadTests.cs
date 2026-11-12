@@ -9,8 +9,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-10-02-05：JET 更新篩選規則後不再要求逐案重新儲存情境。開案時整批仍符合目前規則就自動改版，
-/// 只要有一個不符合，整批都不動並列出問題。SQLite 與 DuckDB 都要成立。
+/// JET 更新篩選規則後不要求逐案重新儲存情境。開案時整批仍符合目前規則就自動改版，
+/// 只要有一個不符合，整批都不動並列出問題。
 /// </summary>
 public sealed class FilterScenarioRuleUpgradeOnLoadTests
 {
@@ -21,7 +21,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     [InlineData("conditionsNotArray")]
     [InlineData("nestedGroupMissingConditions")]
     [InlineData("nestedVoucherMissingConditions")]
-    // 巢狀條件缺子條件時仍須能移除；首次失敗：Focused 20261110-045607144-4f0795ff58c049069e314e58e4406654。
+    // 巢狀條件缺子條件時仍須能移除；
     [InlineData("deepUnusedMetadata")]
     public async Task DefinitionWithUnreadableStructure_UsesEmptyGroupsAndCanBeRemoved(string damage)
     {
@@ -92,8 +92,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         Assert.Equal(before.Rationale, after.Rationale);
         Assert.NotEqual(before.SavedUtc, after.SavedUtc);
         var resultRef = loaded.GetProperty("filterResultRef");
-        // 2026-10-31 起 revision 是「情境編號@保存時間」，保存時間在 generatedUtc；原本斷言 revision 就是保存時間，
-        // 第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // revision 是「情境編號@保存時間」，保存時間在 generatedUtc。
         Assert.Equal("1@" + after.SavedUtc, resultRef.GetProperty("revision").GetString());
         Assert.Equal(after.SavedUtc, resultRef.GetProperty("generatedUtc").GetString());
         Assert.Equal(RuleLogicVersions.Filter, resultRef.GetProperty("logicVersion").GetString());
@@ -117,8 +116,6 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         Assert.True(await ScalarAsync(host, context.ProjectId, provider, "SELECT COUNT(*) FROM filter_hit;") > 0);
     }
 
-    // 已移除的排除區原本也是一種失效寫法；裁定 2026-10-30-25 拿掉讀回舊寫法的程式後，排除區不再被當成失效，
-    // 這兩列跟著拿掉（第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
     public static TheoryData<string, string> InvalidVariants => new()
     {
         { "sqlite", "missingRdeField" }
@@ -134,7 +131,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
         await RewriteDefinitionAsync(host, context.ProjectId, provider, 1, definition =>
         {
             definition["logicVersion"] = OlderVersion;
-            // 排除區那一列拿掉後只剩這一種失效寫法：條件指向已不存在的攸關資料元素。
+            // 這組變體只有一種失效寫法：條件指向已不存在的攸關資料元素。
             Assert.Equal("missingRdeField", variant);
             definition["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
                 """{"join":"AND","type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"isBlank"}"""));
@@ -171,8 +168,7 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
             await RewriteDefinitionAsync(host, context.ProjectId, provider, position, definition =>
             {
                 definition["logicVersion"] = OlderVersion;
-                // 第二個情境原本靠已移除的排除區失效；排除區不再被讀回後，改用指向已不存在的攸關資料元素的條件
-                // （裁定 2026-10-30-25；第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
+                // 第二個情境用指向已不存在的攸關資料元素的條件讓它失效。
                 if (position == 2)
                 {
                     definition["groups"]![0]!["conditions"]!.AsArray().Add(JsonNode.Parse(
@@ -318,8 +314,8 @@ public sealed class FilterScenarioRuleUpgradeOnLoadTests
     /// <summary>
     /// 已存情境的定義裡有讀不出來的文字（不成對代理字元的跳脫寫法）時，不論出現在篩選範圍、規則版本、來源、條件、
     /// 編輯來源、舊版情境沒有用到的欄位或欄名，都和整份讀不出來的情境一樣：開案照常，這個情境列成「條件內容無法讀取」、
-    /// 條件組是空的，定義原文不動，其他情境不受影響，審計員可以移除它（裁定 2026-10-13-21 與 2026-10-13-24）。
-    /// JET 自己寫不出這種內容，所以直接改資料庫裡的原文。這是新增的測試。
+    /// 條件組是空的，定義原文不動，其他情境不受影響，審計員可以移除它。
+    /// JET 自己寫不出這種內容，所以直接改資料庫裡的原文。
     /// </summary>
     [Theory]
     [InlineData("populationScope")]

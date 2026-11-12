@@ -7,7 +7,7 @@ namespace JET.Application;
 internal static class ReportExportSupport
 {
     /// <summary>
-    /// 畫面持有的情境清單和已儲存的不一致（用字依裁定 2026-10-14-01）。
+    /// 畫面持有的情境清單和已儲存的不一致。
     /// 產生報告、底稿與重新計算選錯情境位置時共用。
     /// </summary>
     internal const string ScenarioListOutOfDate =
@@ -17,7 +17,7 @@ internal static class ReportExportSupport
 
     /// <summary>
     /// 報告清單更新期限用的時間來源，只讓測試在同一個非同步流程內替換；正式程式一律用系統時間。
-    /// 資料形狀紀錄的流程要確定走到清單更新完成的分支，不能隨機器快慢改走逾時分支（2026-10-19）。
+    /// 資料形狀紀錄的流程要確定走到清單更新完成的分支，不能隨機器快慢改走逾時分支。
     /// </summary>
     internal static AsyncLocal<TimeProvider?> CatalogRefreshClock { get; } = new();
 
@@ -132,7 +132,7 @@ internal static class ReportExportSupport
     }
 
     /// <summary>
-    /// 底稿用的篩選版本。裁定 2026-10-29-16：還沒有儲存篩選情境也能產出底稿，這時版本是 null、範圍是查核期間；
+    /// 底稿用的篩選版本。還沒有儲存篩選情境也能產出底稿，這時版本是 null、範圍是查核期間；
     /// 已有情境時照 <see cref="RequireRevisionState"/> 比對畫面送來的版本。
     /// </summary>
     public static (string? Revision, GlPopulationScope PopulationScope) RequireWorkingPaperRevisionState(
@@ -186,7 +186,7 @@ internal static class ReportExportSupport
             selected.Add(position);
         }
 
-        // 裁定 2026-10-30-15：有情境但一個都沒勾選時仍產出底稿，第三步與第四步留空。
+        // 有情境但一個都沒勾選時仍產出底稿，第三步與第四步留空。
         selected.Sort();
         return selected;
     }

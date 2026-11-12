@@ -92,7 +92,7 @@ internal sealed class ProjectCreateFactsPort(
         await facts.BackendAttempt.CommitAsync(cancellationToken);
         try
         {
-            // 資料庫建好、建案確定之後才刪建案中的標記（裁定 2026-11-05-72 要求的穩健初始化）。
+            // 資料庫建好、建案確定之後才刪建案中的標記。
             await projectStore.CompleteCreateAsync(facts.Document.ProjectId, cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

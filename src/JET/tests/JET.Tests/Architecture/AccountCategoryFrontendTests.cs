@@ -5,9 +5,9 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 科目分類編輯器的前端守衛。身分、semantic role 與分類能否刪除的最終裁定都在後端；
-/// 本組只鎖內建分類與 role 封閉選單的鏡像。內建保護、revision 樂觀鎖與儲存後的失效範圍，
-/// 2026-10-14 起改由 <c>tools/tests/frontend-journey-step4.test.cjs</c> 核對；後端失效政策由 <c>Domain/AuditDependencyPolicyTests</c> 核對。
+/// 科目分類編輯器的前端守衛。身分、semantic role 與分類能否刪除的最終決定都在後端；
+/// 本組只鎖內建分類與 role 封閉選單的鏡像。內建保護、revision 樂觀鎖與儲存後的失效範圍
+/// 由前端測試核對；後端失效政策由 <c>Domain/AuditDependencyPolicyTests</c> 核對。
 /// </summary>
 public sealed class AccountCategoryFrontendTests
 {

@@ -83,7 +83,7 @@ public sealed class PrivateCaseManifestTests
         Assert.Equal("synthetic", manifest.Scenarios[0].GetProperty("name").GetString());
     }
 
-    // 情境裡的條件陣列 2026-10-30 從 rules 改名為 conditions；私人案件清單仍寫 rules，
+    // 情境裡的條件陣列叫 conditions；私人案件清單仍寫 rules，
     // 讀進來時條件組與組合條件（group、voucher）裡的子條件都要換成 conditions，條件內容不變。
     [Fact]
     public void Load_ManifestWritingRules_IsReadAsConditions()
@@ -117,10 +117,9 @@ public sealed class PrivateCaseManifestTests
         Assert.DoesNotContain("\"rules\"", manifest.Scenarios[0].GetRawText(), StringComparison.Ordinal);
     }
 
-    // 專案紀錄收斂計畫第四階段改名時，案件設定的兩個欄名、GL 與 TB 的欄位代號和一個預篩選代號都換了名稱。
-    // 私人案件清單在儲存庫外，照裁定 2026-10-16-14 清單檔本身不改，仍是改名前的寫法；讀進來時要換成現在的名稱。
-    // 舊名稱逐字照改名前的 JetFieldCatalog 與 PrescreenRuleKeys 寫，新舊對應見名詞表「不再使用的名稱」。
-    // 本機私人案件檢查因此在讀清單時就失敗：PrivateCase 收據 20261102-232931191-d62be73f0156411685b9ed22d7f8a70d（SQLite）。
+    // 案件設定的兩個欄名、GL 與 TB 的欄位代號和一個預篩選代號都換過名稱。
+    // 私人案件清單在儲存庫外，清單檔本身不改，仍是改名前的寫法；讀進來時要換成現在的名稱。
+    // 舊名稱逐字照改名前的 JetFieldCatalog 與 PrescreenRuleKeys 寫。
     [Fact]
     public void Load_ManifestWritingPreRenameNames_IsReadWithCurrentNames()
     {

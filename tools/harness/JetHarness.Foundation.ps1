@@ -365,12 +365,13 @@ function Read-JetRegistry {
             'driverProject',
             'driverAssembly',
             'configuration',
+            'buildExtension',
             'scenarios')) {
         if (-not $guiSettings.ContainsKey($required)) {
             throw [InvalidDataException]::new("GUI settings are missing '$required'.")
         }
     }
-    foreach ($pathName in @('applicationProject', 'applicationExecutable', 'driverProject', 'driverAssembly')) {
+    foreach ($pathName in @('applicationProject', 'applicationExecutable', 'driverProject', 'driverAssembly', 'buildExtension')) {
         $relativePath = [string]$guiSettings[$pathName]
         if ([string]::IsNullOrWhiteSpace($relativePath) -or [IO.Path]::IsPathRooted($relativePath) -or
             $relativePath -eq '..' -or $relativePath.StartsWith('../', [StringComparison]::Ordinal) -or
@@ -382,7 +383,8 @@ function Read-JetRegistry {
         [string]$guiSettings.applicationExecutable -cne 'src/JET/JET/bin/AgentGuiTest/net10.0-windows/JET.exe' -or
         [string]$guiSettings.driverProject -cne 'tools/harness/gui-driver/GuiDriver.csproj' -or
         [string]$guiSettings.driverAssembly -cne 'tools/harness/gui-driver/bin/Release/net10.0-windows/Jet.GuiDriver.dll' -or
-        [string]$guiSettings.configuration -cne 'AgentGuiTest') {
+        [string]$guiSettings.configuration -cne 'AgentGuiTest' -or
+        [string]$guiSettings.buildExtension -cne 'tools/harness/agent-gui-test/AgentGuiTest.targets') {
         throw [InvalidDataException]::new('GUI settings escaped the fixed application and driver boundary.')
     }
 
@@ -545,7 +547,7 @@ function Get-JetRunnerIdentity {
         'tools/harness/gui-driver/GuiSideMonthWorkflow.cs',
         'tools/harness/gui-driver/GuiUpstreamChangeScenario.cs',
         'tools/harness/gui-driver/GuiCaseToWorkingPaperScenario.cs',
-        'tools/harness/gui-driver/GuiWorkingPaperInspection.cs',
+        'src/JET/tests/JET.Tests/TestInfrastructure/GuiWorkingPaperInspection.cs',
         'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs',
         'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs',
         'tools/harness/gui-driver/Program.cs',

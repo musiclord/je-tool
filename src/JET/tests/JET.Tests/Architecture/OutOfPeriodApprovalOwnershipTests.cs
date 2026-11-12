@@ -4,8 +4,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 「核准日不在期間」能不能檢查只判斷一次：資料驗證讀欄位目錄算出的可用欄位決定，驗證報告讀驗證結果，
-/// 不再自己看傳票核准日的配對模式（裁定 2026-10-23-01）。
-/// 第一次失敗：Focused 收據 20261023-101129018-372fcff87fc14cc1b75a4e2299f5bb65（資料驗證還沒有讀欄位目錄）。
+/// 不自己看傳票核准日的配對模式。
 /// </summary>
 public sealed class OutOfPeriodApprovalOwnershipTests
 {

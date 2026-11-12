@@ -4,23 +4,19 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
-// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
-
 /// <summary>
 /// 條件中文標籤的漂移守衛（比照 <see cref="SupportedActionsParityTests"/> 的樣式）：Domain 的
 /// <see cref="FilterConditionLabels"/> 為正本，前端 <c>ui-core.js</c> 的標籤常數必須與之逐鍵相等。
 /// 前端沒有自動測試——標籤只改一邊時，Criteria summary 與前端藍色 read-back
 /// 會漂移；這條守衛把該缺口升級為 CI 可擋。<c>PRESCREEN_RULES</c> 為雙向比對，故新增 row-tag 鍵卻
-/// 漏接前端（如 <c>nonAuthorizedPreparer</c>）會立即紅燈。
+/// 漏接前端（如 <c>nonAuthorizedPreparer</c>）會立即失敗。
 /// </summary>
 public sealed class FilterConditionLabelMirrorTests
 {
     [Fact]
     public void FilterConditionTypes_MirrorDomainLabels_Bidirectional()
     {
-        // 已停用的五種型別連同前端的 RETIRED_RULE_TYPES 一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
-        // 前後端型別表恢復逐鍵相等，Domain 標籤表仍涵蓋全部型別。第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（停用寫法的常數已不存在，無法編譯）。
+        // 前後端型別表逐鍵相等，Domain 標籤表涵蓋全部型別。
         var frontend = ExtractValueLabelMap("FILTER_RULE_TYPES");
         Assert.Equal(FilterConditionLabels.RuleTypes, frontend);
         Assert.Equal(Enum.GetValues<FilterConditionType>().Length, FilterConditionLabels.RuleTypes.Count);
@@ -31,16 +27,14 @@ public sealed class FilterConditionLabelMirrorTests
     public void PrescreenKeyOptions_MirrorDomainLabels_Bidirectional()
     {
         // 共用 11 與 6 的門檻常數後，literal-only regex 會把串接文字截斷，並非可見標籤變更。
-        // 首次失敗：20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
         // 從JS自己的常數求出完整文字；Domain只作另一側比對，全部鍵仍逐一核對。
-        // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
+        // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES。
         var frontend = FrontendConstantTextReader.ValueLabels(ReadUiCore(), "PRESCREEN_RULES");
         Assert.Equal(FilterConditionLabels.PrescreenKeys, frontend);
-        // 尾數規則的名稱改成「分錄金額中有連續 0 的尾數」；0 的個數由 GL 算出，知道個數時才寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25）。
-        // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        // 尾數規則的名稱是「分錄金額中有連續 0 的尾數」；0 的個數由 GL 算出，知道個數時才寫成「金額尾數連續 N 個 0」。
         Assert.Equal("分錄金額中有連續 0 的尾數", frontend["trailingZeros"]);
         Assert.Equal("金額尾數連續 4 個 0", FilterConditionLabels.PrescreenLabel(PrescreenRuleKeys.TrailingZeros, 4));
-        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），兩條規則的標籤跟著拿掉；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 第四步照舊版不含編製分錄較少的人員與使用較少的科目，這兩條規則沒有標籤。
         Assert.False(frontend.ContainsKey("rarePreparer"));
         Assert.False(frontend.ContainsKey("rareAccount"));
     }
@@ -128,7 +122,6 @@ public sealed class FilterConditionLabelMirrorTests
     [Fact]
     public void RuleFamilies_CoverEveryBackendRuleType()
     {
-        // 2026-10-14 從 FilterBuilderFrontendTests.EveryRuleRow_IsOneSentenceWithoutATypeDropdown 原樣搬來。
         // 家族只是畫面分類：三個家族合起來正好涵蓋後端認得的全部型別，wire 型別鍵不變。
         // 前端行為測試讀不到後端的 FilterConditionLabels.RuleTypes，後端新增型別而前端漏接時只有這裡看得出來。
         var filter = ProductSources.FilterStepFrontend();

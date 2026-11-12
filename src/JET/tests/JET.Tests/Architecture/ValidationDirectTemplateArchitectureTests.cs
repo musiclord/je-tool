@@ -32,8 +32,7 @@ public sealed class ValidationDirectTemplateArchitectureTests
         Assert.DoesNotContain(reachable, method =>
             method.DeclaringType == typeof(ReportTemplatePackage)
             && method.Name == "FillAsync");
-        // 裁定 2026-10-22-21 刪掉提交版本就沒人呼叫的 LegacyReportWriter.CreateWorkbook，原本擋它的斷言一併移除；
-        // 擋 SpreadsheetDocument.Create 的斷言留著，正式入口仍不能從空白工作簿建報告。
+        // 正式入口不能從空白工作簿建報告，所以擋 SpreadsheetDocument.Create。
         Assert.DoesNotContain(reachable, method =>
             method.DeclaringType == typeof(SpreadsheetDocument)
             && method.Name == "Create");

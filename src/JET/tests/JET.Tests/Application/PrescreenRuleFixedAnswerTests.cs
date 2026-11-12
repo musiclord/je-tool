@@ -6,12 +6,12 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 預篩選規則照「一條規則一個定義」（裁定 2026-10-22-13），在 SQLite 與 DuckDB 各有一份固定答案。
-/// 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目兩條規則，現在是十二條；
-/// 第五步依審計目的的兩個統計條件仍預設 11 筆以下，下面照舊用欄位條件寫法核對它們的固定答案。
+/// 預篩選規則照「一條規則一個定義」，在 SQLite 核對固定答案。
+/// 第四步照舊版沒有編製分錄較少的人員與使用較少的科目兩條規則，共十二條；
+/// 第五步依審計目的的兩個統計條件預設 11 筆以下，下面用欄位條件寫法核對它們的固定答案。
 /// 同一個合成母體，第四步 prescreen.run、第五步「預篩選」分頁的條件，以及依審計目的條件與常用篩選條件卡片用欄位條件寫的版本，都要算出同一個數字；
-/// 以前的等價測試只比對兩種寫法相等，這裡改成每種寫法都對照寫死的答案。
-/// 第一次執行：收據 20261024-190913880-a45e823f31e745139f977c5c3481bdb3（這一則在改程式前就通過，固定答案不是由程式算出來的，見檔內的母體說明）。
+/// 每種寫法都對照寫死的答案，不只比對兩種寫法相等。
+/// 固定答案不是由程式算出來的，見檔內的母體說明。
 /// </summary>
 public sealed class PrescreenRuleFixedAnswerTests
 {
@@ -29,9 +29,8 @@ public sealed class PrescreenRuleFixedAnswerTests
     // 第五步「編製分錄較少的人員」（預設 11 筆以下，空白人員不列入）：E01、E02、E03、zz、E05 各 2 列 → 10 列。
     // 第五步「較少使用的科目」（預設 11 筆以下）：1101 三列、4101 三列、1170 一列、5101 兩列、2209 三列 → 12 列。
     // 編製人員數：E01 到 E05、zz，加上空白一組 → 7。
-    // 尾數 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25）：借方合計 1,000,000 + 999 + 100,000 + 500 + 12 + 3 + 2 = 1,101,516，
+    // 尾數 0 的個數照 IDEA 版由 GL 算出：借方合計 1,000,000 + 999 + 100,000 + 500 + 12 + 3 + 2 = 1,101,516，
     // 除以 36 列，平均 30,597 是 5 位數，所以是 4 個 0；V01 的 1,000,000 與 V03 的 100,000 共 4 列符合。
-    // 改版前固定 6 個 0，只有 V01 的 2 列，固定答案是 2。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
     private static readonly Dictionary<string, long> RowTagAnswers = new(StringComparer.Ordinal)
     {
         ["prepPeriodApproval"] = 2,
@@ -44,21 +43,20 @@ public sealed class PrescreenRuleFixedAnswerTests
         ["holidayApproval"] = 2,
         ["blankDescription"] = 2,
         ["nonAuthorizedPreparer"] = 2
-        // 第四步照舊版拿掉 rarePreparer 與 rareAccount（裁定 2026-10-29-27；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad），
-        // 兩者的固定答案 10 與 12 改由下面第五步統計條件的寫法核對，第四步的 rareAccountCount 5 跟著拿掉。
+        // 第四步照舊版沒有 rarePreparer 與 rareAccount，
+        // 兩者的固定答案 10 與 12 由下面第五步統計條件的寫法核對。
     };
 
     // 第四步卡片照舊版列整張命中傳票：未預期借貸組合是 V04 的 2 列；第五步的條件仍只直接命中收入貸方 1 列。
-    // 原本第四步也是 1，第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
     private const long UnexpectedAccountPairWholeVoucherRows = 2;
     private const long RarePreparerStepFiveRows = 10;
     private const long RareAccountStepFiveRows = 12;
     private const long PreparerGroups = 7;
     private const int TrailingZeroDigits = 4;
-    // 常用篩選條件「特定尾數」卡片預設 000000，仍是 6 個 0，只有 V01 的 2 列；由 GL 算出個數後它不再等於預篩選這條規則。
+    // 常用篩選條件「特定尾數」卡片預設 000000，是 6 個 0，只有 V01 的 2 列；預篩選這條規則的個數由 GL 算出，兩者不相等。
     private const long SixZeroRows = 2;
 
-    // 和預篩選預設的 24 個摘要關鍵字相同（裁定 2026-11-05-43 拿掉「帳外」）；這組資料沒有含「帳外」的摘要，答案不變。
+    // 和預篩選預設的 24 個摘要關鍵字相同。
     private static readonly string[] SuspiciousKeywords =
     [
         "ADJ", "REV", "RECLASS", "SUSPENSE", "ERROR", "WRONG",
@@ -136,7 +134,7 @@ public sealed class PrescreenRuleFixedAnswerTests
                 type = "group",
                 conditions = new object[] { Rule(endsWithSixZeros), Rule(new { type = "fieldValue", field = "amount", operator_ = "greaterThanOrEqual", value = "1", amountBasis = "absolute" }) }
             }, SixZeroRows),
-            ("金額尾數連續多個 0，預設由 GL 算出的個數（裁定 2026-11-05-26）", Rule(new { type = "fieldValue", field = "amount", operator_ = "endsWithZeros", value = "4", amountBasis = "absolute" }), RowTagAnswers["trailingZeros"]),
+            ("金額尾數連續多個 0，預設由 GL 算出的個數", Rule(new { type = "fieldValue", field = "amount", operator_ = "endsWithZeros", value = "4", amountBasis = "absolute" }), RowTagAnswers["trailingZeros"]),
             ("總帳日期在週末（依審計目的）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isWeekend" }), RowTagAnswers["weekendPosting"]),
             ("傳票核准日在週末", Rule(new { type = "fieldValue", field = "approvalDate", operator_ = "isWeekend" }), RowTagAnswers["weekendApproval"]),
             ("總帳日期在國定假日（依審計目的）", Rule(new { type = "fieldValue", field = "glDate", operator_ = "isHoliday" }), RowTagAnswers["holidayPosting"]),
@@ -150,7 +148,7 @@ public sealed class PrescreenRuleFixedAnswerTests
         }
     }
 
-    // 未預期借貸組合照舊版 IDEA R3（裁定 2026-10-29-29）：
+    // 未預期借貸組合照舊版 IDEA R3：
     // W01 只有收入貸方 700 與應付費用貸方 300，沒有任何正金額分錄 → 第四步、第五步與報告都不挑中。
     // W02 費用借 1,000、收入貸 600、應付費用貸 300 與 100，缺正常對方科目但有正金額分錄 → 挑中；
     //     第五步直接命中的是收入貸方 1 列，第四步、第四步明細與報告列整張傳票 4 列。
@@ -172,9 +170,8 @@ public sealed class PrescreenRuleFixedAnswerTests
     }
 
     /// <summary>
-    /// 未預期借貸組合要求傳票裡至少有一筆正金額分錄（舊版 idea-tool.bas 第 8380 到 8388 行、第 8434 到 8442 行），
-    /// 第四步卡片、第四步明細與預篩選報告的 R3 列整張命中傳票（第 8526 到 8538 行）；第五步的條件仍只直接命中收入貸方。
-    /// 第一次失敗：Focused 收據 20261030-162353256-42d10eb5b3cd4899b3b8a0bdf1ea4630。
+    /// 未預期借貸組合照舊版 JET 要求傳票裡至少有一筆正金額分錄，
+    /// 第四步卡片、第四步明細與預篩選報告的 R3 列整張命中傳票；第五步的條件仍只直接命中收入貸方。
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
@@ -223,14 +220,13 @@ public sealed class PrescreenRuleFixedAnswerTests
         var summary = workbook.Worksheet("Pre-screening_Report");
         Expect("摘要 R3 傳票張數", 1, summary.Cell("E10").GetValue<long>());
         Expect("摘要 R3 明細筆數", 4, summary.Cell("F10").GetValue<long>());
-        // 裁定 2026-11-05-44：D 欄照舊版原句，筆數看 E、F 欄。第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+        // D 欄照舊版原句，筆數看 E、F 欄。
         Assert.Equal("符合預篩選條件之明細項請詳 [R3] 工作表", summary.Cell("D10").GetString());
     }
 
     /// <summary>
-    /// 第四步照舊版拿掉 11 筆以下的人員與科目（裁定 2026-10-29-27）：回應、規則期間分布與報告都沒有這兩條規則，
-    /// 依筆數排序的兩份彙總照舊。第五步「依審計目的」的兩項仍預設 11 筆以下，由前端測試核對。
-    /// 第一次失敗：Focused 收據 20261030-162353256-42d10eb5b3cd4899b3b8a0bdf1ea4630。
+    /// 第四步照舊版不列 11 筆以下的人員與科目：回應、規則期間分布與報告都沒有這兩條規則，
+    /// 依筆數排序的兩份彙總仍在。第五步「依審計目的」的兩項預設 11 筆以下，由前端測試核對。
     /// </summary>
     [Theory]
     [InlineData("sqlite")]

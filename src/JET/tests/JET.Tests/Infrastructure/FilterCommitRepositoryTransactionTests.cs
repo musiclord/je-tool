@@ -10,7 +10,7 @@ namespace JET.Tests.Infrastructure;
 /// <summary>
 /// filter.commit 的 provider transaction 邊界：definitions 與 materialized hits 必須在同一
 /// transaction 發布。故障於第一筆新 hit INSERT 已執行、transaction 尚未 commit 時注入，
-/// 證明 SQLite、DuckDB、SQL Server 都會精確保留前一 revision，且同 payload 可安全重試。
+/// 證明 SQLite 會精確保留前一 revision，且同 payload 可安全重試。
 /// </summary>
 public sealed class FilterCommitRepositoryTransactionTests
 {
@@ -31,8 +31,7 @@ public sealed class FilterCommitRepositoryTransactionTests
     ];
 
     [Fact]
-    public async Task Commit_LocalProvider_FaultAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds(
-)
+    public async Task Commit_LocalProvider_FaultAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
@@ -56,8 +55,7 @@ public sealed class FilterCommitRepositoryTransactionTests
     }
 
     [Fact]
-    public async Task Commit_LocalProvider_CancelAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds(
-)
+    public async Task Commit_LocalProvider_CancelAfterFirstNewHitInsert_RestoresPreviousRevisionAndRetrySucceeds()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);

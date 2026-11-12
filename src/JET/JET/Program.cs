@@ -16,22 +16,14 @@ namespace JET
         static void Main()
         {
             ProcessCulture.UseGregorianCalendar();
-#if JET_AGENT_GUI_TEST
-            var agentGuiProfile = AgentGuiTestProfile.LoadRequired();
-            using var agentGuiMutex = new Mutex(
-                initiallyOwned: true,
-                name: agentGuiProfile.MutexName,
-                createdNew: out var agentGuiMutexCreated);
-            if (!agentGuiMutexCreated)
-            {
-                throw new InvalidOperationException(
-                    $"Another JET AgentGuiTest '{agentGuiProfile.ChildId}' child is already running for this run id.");
-            }
+            Run(GlobalExceptionFallbackLog.CreateDefault(), () => new Form1());
+        }
 
-            var fallbackLog = new GlobalExceptionFallbackLog(agentGuiProfile.DiagnosticLogDirectory);
-#else
-            var fallbackLog = GlobalExceptionFallbackLog.CreateDefault();
-#endif
+        /// <summary>
+        /// 先掛上例外後盾再建立主視窗，主視窗建立時丟出的例外也會寫進後盾的檔案。
+        /// </summary>
+        internal static void Run(GlobalExceptionFallbackLog fallbackLog, Func<Form> createMainForm)
+        {
             FallbackLog = fallbackLog;
             System.Windows.Forms.Application.ThreadException += (_, eventArgs) =>
                 fallbackLog.Write("Application.ThreadException", eventArgs.Exception);
@@ -50,11 +42,7 @@ namespace JET
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-#if JET_AGENT_GUI_TEST
-            System.Windows.Forms.Application.Run(new Form1(agentGuiProfile));
-#else
-            System.Windows.Forms.Application.Run(new Form1());
-#endif
+            System.Windows.Forms.Application.Run(createMainForm());
         }
     }
 

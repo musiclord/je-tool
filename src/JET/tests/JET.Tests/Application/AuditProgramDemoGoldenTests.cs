@@ -6,13 +6,12 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// Golden oracle：以正式 demo 匯入與配對後的 SQLite 與 DuckDB 母體，直接走 Plan、facts port 與 Finalize，
+/// Golden oracle：以正式 demo 匯入與配對後的 SQLite 母體，直接走 Plan、facts port 與 Finalize，
 /// 釘住資料驗證與預篩選每項程序的順序、狀態、計數與 N/A 原因。
 /// </summary>
 public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixture)
     : IClassFixture<DemoGoldenProviderFixture>
 {
-    // 只擴充 provider；兩個引擎必須符合下方同一份手寫固定答案。
     [Theory]
     [InlineData("sqlite")]
     public async Task Finalize_DemoValidationRun_MatchesGoldenVerdicts(string provider)
@@ -70,8 +69,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
                 ResultId: "audit-core-prescreen-explain-golden",
                 GeneratedUtc: new DateTimeOffset(2025, 12, 31, 12, 0, 0, TimeSpan.Zero),
                 PrepStartDate: demoProject.GetProperty("prepStartDate").GetString(),
-                // 核准日與建立人員兩個旗標換成可用欄位清單；null 不檢查欄位，
-                // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+                // 可用欄位清單是 null 時不檢查欄位。
                 AvailableGlFields: null,
                 HasHolidays: true,
                 HasAccountMapping: true,
@@ -80,7 +78,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
                 HasAuthorizedPreparers: true,
                 NonWorkingDays: [0, 6])
             {
-                // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數。這則測試直接建立請求，照改版前的 6 個帶入，核對的筆數不變；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+                // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數。這則測試直接建立請求，帶入 6 個；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。
                 ZerosThreshold = 6
             });
         IPrescreenFactsPort factsPort =
@@ -94,7 +92,7 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
             result.Manifest,
             ("prep_period_approval", "V", 40L),
             ("suspicious_keywords", "V", 25L),
-            // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票（裁定 2026-10-29-29）：範例的 30 張傳票各 2 列，筆數由 30 改為 60；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+            // 未預期借貸組合照舊版 R3 在第四步列整張命中傳票：範例的 30 張傳票各 2 列，筆數是 60。
             ("unexpected_account_pair", "V", 60L),
             ("trailing_zeros", "V", 30L),
             ("preparer_summary", "V", 8L),
@@ -104,8 +102,8 @@ public sealed class AuditProgramDemoGoldenTests(DemoGoldenProviderFixture fixtur
             ("holiday_posting", "V", 28L),
             ("holiday_approval", "V", 16L),
             ("blank_description", "V", 18L),
-            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，不再有 backdated_posting 程序。
-            // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），不再有 rare_preparer 與 rare_account 兩個程序。
+            // 沒有 backdated_posting 程序。
+            // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目這兩條規則，沒有 rare_preparer 與 rare_account 兩個程序。
             ("non_authorized_preparer", "V", 32L));
     }
 

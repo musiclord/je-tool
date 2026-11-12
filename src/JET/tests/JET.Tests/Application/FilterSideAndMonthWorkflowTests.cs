@@ -25,7 +25,7 @@ public sealed class FilterSideAndMonthWorkflowTests
             .AddRow("V4", "2", "2025-02-28", "2025-03-01", "B", "合成 B", "Synthetic", 8, 0)
             .AddRow("V4", "3", "2025-02-28", "2025-03-01", "X", "合成 X", "Synthetic", 2, 0),
             databaseProvider: provider, validateForDownstream: true);
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Keep fixed hits and report coverage; wording follows the approved explicit conditions.
+        //  Keep fixed hits and report coverage; wording follows the explicit conditions.
         var pair = JsonElement.Parse("""
             {"name":"指定借貸科目","rationale":"固定答案","groups":[{"conditions":[
             {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"fieldValue","field":"accountNumber","operator":"in","values":["A"]}]},

@@ -12,7 +12,7 @@ public sealed partial class LegacyReportWriter
     private const string PrescreenSummaryOnlyMessage =
         "明細筆數超過10,000筆，明細資料不匯出";
 
-    // 裁定 2026-11-05-44：摘要頁 D 欄照舊版 idea-tool.bas 第 8105 到 8806 行與第 9176 行的原句，「編制」也照舊版用字。
+    // 摘要頁 D 欄照舊版 JET 的原句，「編制」也照舊版用字。
     private const string PrescreenNoHitMessage = "沒有符合預篩選條件之明細項";
 
     private const string PrescreenApprovalDateNotMappedMessage = "沒有設定傳票核准日欄位";
@@ -28,7 +28,7 @@ public sealed partial class LegacyReportWriter
         [new JetRulePrerequisite(JetRulePrerequisiteKind.GlField, JetFieldCatalog.GlApprovalDate)],
         AccountCategoryLabels.BuiltIn);
 
-    // idea-script.bas 7925：summary 第三欄整欄 WrapText，無條件套用。
+    // 舊版 JET：summary 第三欄整欄 WrapText，無條件套用。
     private static readonly WorkbookStylePatch PrescreenDescriptionColumnWrap =
         new(WrapText: true);
 
@@ -168,7 +168,7 @@ public sealed partial class LegacyReportWriter
             progress).ConfigureAwait(false);
 
         // R5／R6 是 legacy 的彙總表，不套用 10,000 列明細上限。
-        // 裁定 2026-11-05-36：「依分錄編製者彙總」不適用時，照舊版不產生 R5 工作表。
+        // 「依分錄編製者彙總」不適用時，照舊版不產生 R5 工作表。
         if (projection.PreparerSummary.NaReason is null)
         {
             await EmitPreparerSummaryAsync(
@@ -238,7 +238,7 @@ public sealed partial class LegacyReportWriter
                         "xxxx/xx/xx",
                         context.Project.PrepStartDate ?? "N/A",
                         StringComparison.Ordinal);
-                // 照 IDEA 版寫那次預篩選由 GL 借方平均算出的個數（裁定 2026-11-05-25），範本 C11 是「設定連續0的位數為：」。
+                // 照 IDEA 版寫那次預篩選由 GL 借方平均算出的個數，範本 C11 是「設定連續0的位數為：」。
                 var zeroText = ReadTemplateCellText(part, "C11")
                     + projection.ZerosThreshold
                         .ToString(CultureInfo.InvariantCulture);
@@ -388,7 +388,7 @@ public sealed partial class LegacyReportWriter
                 $"Pre-screening detail '{detail.Kind}' 尚未 Finalize。")
         });
 
-        // 裁定 2026-11-05-44：零筆時照舊版沒有明細工作表，E、F 欄寫 N/A。
+        // 零筆時照舊版沒有明細工作表，E、F 欄寫 N/A。
         if (detail.Counts is null || detail.Counts.RowHitCount == 0)
         {
             cells.SetInlineString($"E{row}", "N/A");
@@ -530,7 +530,7 @@ public sealed partial class LegacyReportWriter
             context.PeriodStart,
             context.PeriodEnd,
             cancellationToken).ConfigureAwait(false);
-        // 裁定 2026-11-05-32：配對了人工傳票欄位時，照舊版在人員後面多一欄人工旗標，同一位人員依人工旗標分列。
+        // 配對了人工傳票欄位時，照舊版在人員後面多一欄人工旗標，同一位人員依人工旗標分列。
         var includeManual = await IsManualFlagMappedAsync(
             context.ProjectId,
             cancellationToken).ConfigureAwait(false);
@@ -854,7 +854,7 @@ public sealed partial class LegacyReportWriter
     }
 
     /// <summary>
-    /// master spec「正式底稿欄位來源忠實性」：R6 取自 GL 來源欄位的標題必須沿用與 R2
+    /// 正式底稿欄位來源忠實性：R6 取自 GL 來源欄位的標題必須沿用與 R2
     /// 相同的 schema lineage（實際配對的來源欄名），不得改寫成固定 alias；彙總結果本身
     /// 的衍生欄位維持既有輸出契約名稱。沒有 committed GL mapping 時 fail closed。
     /// </summary>

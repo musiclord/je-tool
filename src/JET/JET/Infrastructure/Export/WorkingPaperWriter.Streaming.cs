@@ -7,6 +7,10 @@ namespace JET.Infrastructure;
 
 public sealed partial class WorkingPaperWriter
 {
+    /// <summary>
+    /// 可能超過 Excel 列上限的資料表共用續頁骨架。每頁重建固定表頭與欄標；普通規模只建立正準 sheet 名，
+    /// 第 2 頁起才加「(續N)」。列來源保持 forward-only，換頁不重查、不全載入。
+    /// </summary>
     private async Task<long> EmitContinuedRowsAsync<T>(
         List<SheetStat> stats,
         string baseSheetName,
@@ -111,8 +115,4 @@ public sealed partial class WorkingPaperWriter
 
         await Task.CompletedTask;
     }
-
-    // ---- 列 cell 工廠(各表欄序;手填欄一律 BlankCell)----
-
-    /// <summary>step1 全科目列:B 編號 / C 名稱 / D TB 變動(A) / E GL 彙總(C) / F 差異(B)-(A)。</summary>
 }

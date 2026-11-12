@@ -5,8 +5,6 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
-
 public sealed class FilterNestedVoucherTests
 {
     [Theory]
@@ -19,8 +17,8 @@ public sealed class FilterNestedVoucherTests
             UPDATE gl SET approval_date='2025-01-03' WHERE voucher_number='EMPTY';
             """);
         var context = new FilterConditionContext(100, "2025-01-02", "2025-01-01", "2025-12-31");
-        // 裁定 2026-10-29-29 改成照舊版 IDEA R3：未預期借貸組合要求同傳票至少有一筆金額大於 0 的分錄。
-        // EMPTY 只有一筆收入貸方，沒有正金額分錄，改為不命中（原本命中 EMPTY|1；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
+        // 照舊版 IDEA R3：未預期借貸組合要求同傳票至少有一筆金額大於 0 的分錄。
+        // EMPTY 只有一筆收入貸方，沒有正金額分錄，所以不命中。
         foreach (var (key, expected) in new[] { ("prepPeriodApproval", new[] { "EMPTY|1" }), ("unexpectedAccountPair", Array.Empty<string>()) })
         {
             var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse($$"""{"groups":[{"conditions":[{"type":"prescreen","prescreenKey":"{{key}}"}]}]}"""), 100);
@@ -32,9 +30,8 @@ public sealed class FilterNestedVoucherTests
 
     [Theory]
     [InlineData("sqlite")]
-    // 原本用「同一傳票」比對範圍與欄位條件的分錄方向；這兩種寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
-    // 照它們的重建方式改成借貸別子條件組與「整張傳票條件」的「至少一筆符合」：佐證分開放是各自可由不同分錄符合，
-    // 放在同一個子條件組是要同一筆分錄同時符合，固定答案不變。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法在組成 SQL 時被擋下）。
+    // 用借貸別子條件組與「整張傳票條件」的「至少一筆符合」：佐證分開放是各自可由不同分錄符合，
+    // 放在同一個子條件組是要同一筆分錄同時符合。
     public async Task SeparateAndCompoundVoucherWitnessesKeepDifferentMeanings(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, Seed);
@@ -122,8 +119,7 @@ public sealed class FilterNestedVoucherTests
         foreach (var (rule, expected) in cases)
         {
             var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse($$"""{"name":"合成量詞","rationale":"固定答案","groups":[{"conditions":[{{rule}}]}]}"""), 100);
-            // 欄位旗標拿掉後，不帶可用欄位清單就不檢查欄位，等同原本摘要旗標是 true。
-            // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            // 不帶可用欄位清單就不檢查欄位。
             Assert.Empty(FilterScenarioValidator.Validate(scenario, new(false, true, true)));
             var result = await fixture.Repository.PreviewAsync(fixture.ProjectId, scenario, context, CancellationToken.None);
             Assert.Equal(expected, result.PreviewRows.Select(row => row.VoucherNumber + "|" + row.LineItem).Order().ToArray());

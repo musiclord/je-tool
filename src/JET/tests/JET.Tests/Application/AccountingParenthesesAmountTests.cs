@@ -77,7 +77,7 @@ public sealed class AccountingParenthesesAmountTests
 
     private static string WriteCsv()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"jet-batch9-amount-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(Path.GetTempPath(), $"jet-amount-{Guid.NewGuid():N}.csv");
         File.WriteAllText(path, "Document,Date,Account,Name,Description,Amount\n"
             + "V000,2025-03-05,A,Synthetic,Normal,\"(1,234.50)\"\n"
             + "V001,2025-03-05,A,Synthetic,Normal,\"1,234.50\"\n", new UTF8Encoding(false));

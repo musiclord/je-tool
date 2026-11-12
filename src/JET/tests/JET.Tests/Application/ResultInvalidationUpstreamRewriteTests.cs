@@ -69,7 +69,7 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "validate"));
         Assert.NotEqual(JsonValueKind.Null, LatestResultKind(await LoadAsync(host, context.ProjectId), "prescreen"));
 
-        // 裁定 2026-10-07-04：TB 與 GL 同層級修改，一起清除驗證與預篩選。
+        // TB 與 GL 同層級修改，一起清除驗證與預篩選。
         var tbFile = await DemoProjectPipeline.DispatchDemoFixtureAsync("demo.exportTbFile");
         await host.DispatchAsync("import.tb.fromFile", JsonSerializer.Serialize(new
         {
@@ -170,7 +170,7 @@ public sealed class ResultInvalidationUpstreamRewriteTests
         {
             filePath = file.GetProperty("filePath").GetString(),
             fileName = file.GetProperty("fileName").GetString(),
-            // sourceColumn 改成必填，後端不再猜人員欄；保留只清除預篩選結果的原斷言。
+            // 匯入人員清單必須指定 sourceColumn。
             sourceColumn = "姓名"
         }));
 

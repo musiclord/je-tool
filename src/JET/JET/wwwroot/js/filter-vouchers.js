@@ -6,8 +6,8 @@
     return positions.map(function (position) { return '第 ' + position.group + ' 組條件 ' + position.rule; }).join('、');
   }
   // 狀態欄只寫符合哪一組的哪一條，條件的完整讀回放在滑鼠停留的提示，也不和上方的篩選條件重複，
-  // 常駐說明不再多寫（裁定 2026-10-29-02）。位置與說明都來自後端，畫面不自己判斷命中。
-  // 名稱和位置排在同一行，太長時以省略號收尾，分錄列和傳票列一樣高（裁定 2026-11-03-03）。
+  // 常駐說明不再多寫。位置與說明都來自後端，畫面不自己判斷命中。
+  // 名稱和位置排在同一行，太長時以省略號收尾，分錄列和傳票列一樣高。
   function matchStatusHtml(row) {
     // Only mirror the backend's declared match scope; do not infer new per-row hit semantics.
     var voucherMatch = row.isHit && /整張傳票條件成立/.test(row.matchDescription || '') && !/^符合條件的分錄/.test(row.matchDescription || '');
@@ -22,10 +22,10 @@
     return '<span class="filter-match-reason" title="' + Ui.esc(tip) + '"><strong>' + label + '</strong>' +
       (detail ? '<span class="filter-match-reason__where">' + Ui.esc(detail) + '</span>' : '') + '</span>';
   }
-  // 依過往底稿分開顯示「符合條件的傳票數量」與「符合條件的分錄筆數」（裁定 2026-10-16-08）。分錄筆數用後端的
+  // 依過往底稿分開顯示「符合條件的傳票數量」與「符合條件的分錄筆數」。分錄筆數用後端的
   // summaryRowCount，口徑與條件篩選報告的摘要相同：只用「未預期借貸組合」一個條件時是整張傳票的分錄數，畫面不自己換算。
-  // 統計列的數字從 28px 縮成 18px；情境之間由整列標題與下凹的底槽分開，數字比標題大也看得出屬於哪個情境。分錄筆數的口徑寫在那一格的提示裡；和一般情形不同時，
-  // 才在統計列下方說一次；常駐說明不再多寫，定義放在用到的地方（裁定 2026-10-29-02）。
+  // 統計列的數字用 18px；情境之間由整列標題與下凹的底槽分開，數字比標題大也看得出屬於哪個情境。分錄筆數的口徑寫在那一格的提示裡；和一般情形不同時，
+  // 才在統計列下方說一次；常駐說明不再多寫，定義放在用到的地方。
   var WHOLE_VOUCHER_ROWS_NOTE = '只用「未預期借貸組合」一個條件時，分錄筆數包含整張傳票的分錄。';
   function summary(preview) {
     function stat(label, value, tip) {
@@ -57,7 +57,7 @@
     view.generation = view.generation || 0;
     var id = motionId(preview);
     if (host.setAttribute && !(host.getAttribute && host.getAttribute('data-motion-key'))) { host.setAttribute('data-motion-key', id); }
-    // 展開與收合要一致（裁定 2026-10-13-11）：換頁、展開或收合分錄只重畫這一塊，交給 JetMotion.morph，
+    // 展開與收合要一致：換頁、展開或收合分錄只重畫這一塊，交給 JetMotion.morph，
     // 分錄明細從表格下方長出來、收合時收回，換頁時高度沿彈簧改變。第一次掛上時跟著整段重繪比對，不另外播。
     function redraw() {
       if (global.JetMotion && typeof global.JetMotion.morph === 'function') { global.JetMotion.morph(host, draw); } else { draw(); }
@@ -136,12 +136,12 @@
       if (index >= 0) { focus('[data-voucher-open="' + index + '"]'); }
     }
     function entriesId(index) { return id + '-entries-' + index; }
-    // 傳票表是同一張表：傳票是粗體的分組列，點整列就在下面展開這張傳票的分錄，分錄共用同一組欄位（裁定 2026-10-30-37）。
-    // 原本表內一顆「查看分錄」再在表外另開一張分錄表，按鈕在表內很突兀，所以改成這樣。
+    // 傳票表是同一張表：傳票是粗體的分組列，點整列就在下面展開這張傳票的分錄，分錄共用同一組欄位。
+    // 表內不另放「查看分錄」按鈕，也不在表外另開一張分錄表。
     // 欄位：傳票號碼、項次、總帳日期、傳票核准日、會計科目、摘要、符合情形、金額，再接攸關資料元素的自訂欄。
     // 金額與金額型自訂欄走共用的 Ui.money（兩位小數加千分位），和傳票總額同一格式。
     // 每一列都只佔一行；只有分錄才有內容的欄由表頭先留好寬度，文字太長以省略號收尾、滑過看全文，
-    // 展開或收合分錄時列高與欄寬都不變，其他傳票不會被擠開（裁定 2026-11-03-03）。
+    // 展開或收合分錄時列高與欄寬都不變，其他傳票不會被擠開。
     function extraClass(column) { return column.valueType === 'amount' ? 'preview-table__amount voucher-table__amount' : 'voucher-table__extra'; }
     function headHtml(extra) {
       var cells = Ui.sortableHeadCellsHtml('query.filterVoucherPage', [
@@ -199,7 +199,7 @@
         return '<tr class="voucher-table__entry' + (entry.isHit ? ' voucher-table__entry--hit' : '') + (last ? ' voucher-table__entry--last' : '') + '"' +
             (entryIndex === 0 ? ' id="' + Ui.esc(entriesId(index)) + '"' : '') +
             ' data-motion-key="' + Ui.esc(id + '-entry-' + row.voucherNumber + '-' + (view.detailHistory.length + 1) + '-' + entryIndex) + '"><td></td><td></td>' +
-          // 傳票文件項次自成一欄，表頭寫名詞表的短表頭「項次」，分錄列只寫數字，傳票號碼那一格留白（裁定 2026-11-02-01）。
+          // 傳票文件項次自成一欄，表頭寫名詞表的短表頭「項次」，分錄列只寫數字，傳票號碼那一格留白。
           cellHtml(entry.lineItem, 'voucher-table__line') +
           cellHtml(entry.glDate) + cellHtml(entry.approvalDate) +
           clipCellHtml([entry.accountNumber, entry.accountName].filter(function (value) { return value; }).join(' '), 'voucher-table__account') +
@@ -234,7 +234,7 @@
       form.onsubmit = function (event) { event.preventDefault(); if (view.loading) { return; } view.search = (input.value || '').trim(); restart(); };
       clear.onclick = function () {
         if (view.loading) { return; }
-        // 清除東西時先輕微快速地晃一下（裁定 2026-10-13-13）：輸入框不會拿掉，只是被清空，所以直接晃它。
+        // 清除東西時先輕微快速地晃一下：輸入框不會拿掉，只是被清空，所以直接晃它。
         if (global.JetMotion && typeof global.JetMotion.shake === 'function') { global.JetMotion.shake(input); }
         view.search = ''; restart();
       };

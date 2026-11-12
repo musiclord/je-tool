@@ -7,8 +7,6 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>
 /// 五份報告與科目配對工作檔的完整旅程：驗證、填回範本原檔、重新匯出驗證報告，再完成篩選與底稿。
 /// 類別名稱與 JET_SIX_REPORT_EVIDENCE_DIR 為既有篩選及證據介面保留；六份工作簿只有五份進報告清單。
@@ -98,9 +96,9 @@ public sealed class SixReportWorkflowJourneyTests
                {"type":"voucher","quantifier":"all","conditions":[{"type":"drCrOnly","drCr":"credit"},
                  {"type":"accountSide","join":"OR","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}]}]
           """).RootElement;
-        // Keep both existing independent answers; add A and D from the retired entry catalogue
-        // so the native Excel round-trip also exercises the formerly omitted prescreen descriptions.
-        // 裁定 2026-10-08-06 重新設計了自訂篩選條件：目錄改放在測試夾具，條件內容不變，固定答案照舊。
+        // Keep both independent answers; add A and D from the legacy entry catalogue
+        // so the native Excel round-trip also exercises their prescreen descriptions.
+        // 目錄放在測試夾具。
         var scenarios = JsonNode.Parse(originalScenarios.GetRawText())!.AsArray();
         var legacy = Architecture.LegacyFormCatalogTests.ReadCatalog()["conditions"]!.AsArray();
         foreach (var letter in new[] { "A", "D" })
@@ -118,7 +116,7 @@ public sealed class SixReportWorkflowJourneyTests
         var selectionPreview = await host.DispatchAsync("filter.preview",JsonSerializer.Serialize(new { scenario = scenarios[1] }));
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(host, projectId,
             "SELECT classification_explicit FROM account_mapping WHERE account_number='5101';"));
-        // 兩值語意：5101 分類留白視為 Others，原本「等待補分類」的那張傳票直接命中。
+        // 兩值語意：5101 分類留白視為 Others，兩張傳票都直接命中。
         Assert.Equal(2,selectionPreview.GetProperty("scenario").GetProperty("count").GetInt64());
         Assert.Equal(2,selectionPreview.GetProperty("scenario").GetProperty("voucherCount").GetInt64());
         var committed = await host.DispatchAsync("filter.commit",JsonSerializer.Serialize(new { scenarios }));
@@ -171,16 +169,15 @@ public sealed class SixReportWorkflowJourneyTests
             Assert.DoesNotContain(texts, text => text.Contains("待判定", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("2025-03-05", StringComparison.Ordinal) && text.Contains("2025-06-06", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("全部符合（至少有一筆）", StringComparison.Ordinal));
-            // 裁定 2026-11-03-27 起，選的分類都沒有下層時讀回不寫選取依據；這個案件的現金沒有下層分類，報告不再寫「包含下層分類」。
-            // 原本核對報告寫出包含下層分類，改核對同一份報告仍寫出會納入其他分類的「相同分類用途」，並確認不寫包含下層分類。
-            // 第一次失敗：Focused 收據 20261103-102428077-8a3e24e015e24d57835a2b136ff8e486。
+            // 選的分類都沒有下層時讀回不寫選取依據；這個案件的現金沒有下層分類，報告不寫「包含下層分類」。
+            // 這裡核對報告仍寫出會納入其他分類的「相同分類用途」，並確認不寫包含下層分類。
             Assert.Contains(texts, text => text.Contains("相同分類用途", StringComparison.Ordinal));
             Assert.DoesNotContain(texts, text => text.Contains("包含下層分類", StringComparison.Ordinal));
             Assert.Contains(texts, text => text.Contains("財報準備日起核准", StringComparison.Ordinal));
             // 固定預篩選名稱明示 6 位；仍核對 Criteria 與 WorkingPaper 的實際內容。
-            // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d，確定停在舊名稱斷言。
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25）：借方 2,000,000 與 100 合計 2,000,100，除以 4 列，平均 500,025 是 6 位數，
-            // 所以是 5 個 0。第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+            // 確定停在舊名稱斷言。
+            // 0 的個數改照 IDEA 版由 GL 算出：借方 2,000,000 與 100 合計 2,000,100，除以 4 列，平均 500,025 是 6 位數，
+            // 所以是 5 個 0。
             Assert.Contains(texts, text => text.Contains("金額尾數連續 5 個 0", StringComparison.Ordinal));
         }
         AssertHiddenMappingMetadata(validationPath);
@@ -206,14 +203,12 @@ public sealed class SixReportWorkflowJourneyTests
             JsonSerializer.Serialize(new { filePath = workingPaperPath }));
 
         Assert.Equal(MappingMetadataFormat.CurrentVersion, fromValidation.GetProperty("formatVersion").GetInt32());
-        // 回應多了 unmatchedFields，列出報告裡選了、目前資料找不到的來源欄；這份報告和目前資料一致，所以是空的（裁定 2026-11-05-03）。
-        // 第一次失敗收據 20261105-025407244-d7215948d9d640c4b0e1c33ae1ea7048（Focused）。
+        // 回應的 unmatchedFields 列出報告裡選了、目前資料找不到的來源欄；這份報告和目前資料一致，所以是空的。
         Assert.Equal(
             ["formatVersion", "gl", "tb", "unmatchedFields"],
             fromValidation.EnumerateObject().Select(property => property.Name).ToArray());
         Assert.Empty(fromValidation.GetProperty("unmatchedFields").EnumerateArray());
-        // 報告的 GL 配對資訊多寫往下填補的欄位 fillDownFields（裁定 2026-10-22-16）。
-        // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
+        // 報告的 GL 配對資訊也寫出往下填補的欄位 fillDownFields。
         Assert.Equal(
             [
                 "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
@@ -244,15 +239,14 @@ public sealed class SixReportWorkflowJourneyTests
             host, projectId, "SELECT COUNT(*) FROM tb;"));
 
         await ExportEvidenceIfRequestedAsync(projectId, reports, projectDirectory, mappingPath);
-        // 裁定 2026-09-17-05：路徑、查核期間與 V_Report 5 可讀性須沿完整旅程核對。
+        // 路徑、查核期間與 V_Report 5 可讀性須沿完整旅程核對。
         Assert.All(reports, report =>
         {
             Assert.Contains("_20250101-20251231_", report.GetProperty("fileName").GetString());
             Assert.Equal(Path.Combine(projectDirectory, report.GetProperty("fileName").GetString()!),
                 report.GetProperty("fullPath").GetString());
         });
-        // V_Report 5 原本因為字被切到而加高到 18 點。裁定 2026-10-29-08 把所有 10 點明細頁統一
-        // 為 15 點，V_Report 5 跟著改；15 點仍不會切到微軟正黑體 10 點。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
+        // 所有 10 點明細頁的列高統一為 15 點，V_Report 5 也一樣；15 點不會切到微軟正黑體 10 點。
         using var readableValidation = new XLWorkbook(validationPath);
         Assert.Equal(15D, readableValidation.Worksheet("V_Report 5").RowHeight);
         Assert.All(readableValidation.Worksheet("V_Report 5").RowsUsed(), row => Assert.Equal(15D, row.Height));

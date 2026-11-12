@@ -2,50 +2,10 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// Keeps the runtime's compact filter positions bound to the original, deidentified
-/// legacy scenario positions. The fixed stage-6 maps contain positions only; the
-/// profile-derived guard proves they still describe the captured profiles.
+/// legacy scenario positions.
 /// </summary>
 internal static class LegacyAuditParityFilterScenarioBindings
 {
-    private static readonly IReadOnlyList<LegacyFilterScenarioId> CaseA =
-    [
-        LegacyFilterScenarioId.FromOrdinal(1),
-        LegacyFilterScenarioId.FromOrdinal(4),
-        LegacyFilterScenarioId.FromOrdinal(5),
-        LegacyFilterScenarioId.FromOrdinal(6),
-    ];
-
-    private static readonly IReadOnlyList<LegacyFilterScenarioId> CaseB =
-    [
-        LegacyFilterScenarioId.FromOrdinal(1),
-    ];
-
-    private static readonly IReadOnlyList<LegacyFilterScenarioId> CurrentCaseA = Enumerable
-        .Range(1, 6)
-        .Select(LegacyFilterScenarioId.FromOrdinal)
-        .ToArray();
-
-    private static readonly IReadOnlyList<LegacyFilterScenarioId> CurrentCaseB = Enumerable
-        .Range(1, 2)
-        .Select(LegacyFilterScenarioId.FromOrdinal)
-        .ToArray();
-
-    internal static IReadOnlyList<LegacyFilterScenarioId> ForCapturedStage6Case(
-        LegacyParityCase @case) => @case switch
-        {
-            LegacyParityCase.CaseA => CaseA,
-            LegacyParityCase.CaseB => CaseB,
-            _ => throw new ArgumentOutOfRangeException(nameof(@case)),
-        };
-
-    internal static IReadOnlyList<LegacyFilterScenarioId> ForCurrentStage6ProfileCase(
-        LegacyParityCase @case) => @case switch
-        {
-            LegacyParityCase.CaseA => CurrentCaseA,
-            LegacyParityCase.CaseB => CurrentCaseB,
-            _ => throw new ArgumentOutOfRangeException(nameof(@case)),
-        };
-
     internal static IReadOnlyList<LegacyFilterScenarioId> FromProfile(
         LegacyAuditParityProfile profile)
     {

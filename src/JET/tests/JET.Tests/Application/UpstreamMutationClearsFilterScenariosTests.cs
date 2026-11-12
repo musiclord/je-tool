@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 上游修改會清除下游（裁定 2026-10-07-03）：會讓篩選結果過期的上游修改，要在同一筆交易內清掉全部已存篩選情境與命中，
+/// 上游修改會清除下游：會讓篩選結果過期的上游修改，要在同一筆交易內清掉全部已存篩選情境與命中，
 /// 回應以 <c>invalidatedResults.filterScenarios</c> 告知畫面；試算表與總帳的修改使用同一條規則。
 /// </summary>
 public sealed class UpstreamMutationClearsFilterScenariosTests
@@ -65,7 +65,7 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
             invalidated.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
         Assert.True(invalidated.GetProperty("filter").GetBoolean());
         Assert.True(invalidated.GetProperty("filterScenarios").GetBoolean());
-        // 第 7 則只擴充 GL/TB 來源與投影的配對清除，不擴大其他上游事件的影響。
+        // 重新匯入 GL 或 TB、重新確認 GL 或 TB 的配對，才會清除科目配對；其他上游事件不會。
         Assert.Equal(action is "import.gl.fromFile" or "import.tb.fromFile" or "mapping.commit.gl" or "mapping.commit.tb",
             invalidated.GetProperty("accountMapping").GetBoolean());
         // 情境已清掉，沒有可以重跑的篩選；第五步回到從未執行的預設狀態。
@@ -176,7 +176,7 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         Assert.Single(loaded.GetProperty("filterScenarios").EnumerateArray());
     }
 
-    // 上方的清除案例只用取代匯入。附加匯入走同一條規則：清除已存情境（裁定 2026-10-07-03），也清除科目配對（裁定 2026-10-08-12）。
+    // 上方的清除案例只用取代匯入。附加匯入走同一條規則：清除已存情境，也清除科目配對。
     // 附加要求欄名和既有資料相同，所以照 PrepareAsync 的 GL 欄名與 InlineTbWorkbookBuilder 的 TB 欄名另寫一列合成資料。
     [Theory]
     [InlineData("sqlite", "gl")]

@@ -4,9 +4,8 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 資料預覽 GL 兩頁的欄位計畫涵蓋欄位目錄的每個 GL 欄位（裁定 2026-10-22-09：預覽要看得到
+/// 資料預覽 GL 兩頁的欄位計畫涵蓋欄位目錄的每個 GL 欄位（預覽要看得到
 /// 已配對的欄位）。目錄以後多了欄位，這裡會失敗，提醒決定它在預覽列在哪裡，不會默默漏掉。
-/// 第一次失敗：Focused 收據 20261023-112355120-fddd838677804bc6918049b35c7ab70f，建置失敗。
 /// </summary>
 public sealed class DataPreviewGlColumnsTests
 {

@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 借貸科目分類與通用值條件的固定答案（2026-09-07 兩值語意）：分類留白視為 Others、未在配對檔的科目不屬於任何分類、
+/// 借貸科目分類與通用值條件的固定答案（兩值語意）：分類留白視為 Others、未在配對檔的科目不屬於任何分類、
 /// 欄位空白的分錄預設不列入。預期值逐張手算，不由被測程式反算。
 /// </summary>
 public sealed class FilterCompletenessTests
@@ -63,8 +63,7 @@ public sealed class FilterCompletenessTests
             ("""{"type":"typed","fieldId":"rde.aaaa0000aaaa0000aaaa0000aaaa0000","operator":"notEquals","value":"café"}""", ["U3"]),
             ("""{"type":"text","field":"description","mode":"exact","keywords":"café"}""", ["U1","U2"]),
             ("""{"type":"textSet","field":"description","mode":"notContains","values":["café"]}""", ["U3"]),
-            // 舊式關鍵字已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），照它的重建方式改用「傳票摘要」的「包含任一文字」，固定答案不變。
-            // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+            // 「傳票摘要」的「包含任一文字」。
             ("""{"type":"fieldValue","field":"description","operator":"contains","values":["café"]}""", ["U1","U2"]),
             ("""{"type":"preparerEqualsApprover"}""", ["U1","U2"])
         ];
@@ -150,11 +149,11 @@ public sealed class FilterCompletenessTests
             ("notIn", "\"values\":[\"-10\",\"10\"]", [1,3,5,6]),
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
-            // 整數部分的特定數字（裁定 2026-11-05-46）：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
-            // 第一次失敗：Focused 收據 20261105-120844123-9faa7135eeaf42819f28589c2241c273（運算子清單多了這兩個，表格還沒有答案）。
+            // 整數部分的特定數字：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
+            // （運算子清單多了這兩個，表格還沒有答案）。
             ("containsDigits", "\"value\":\"1,2\"", [1,2,4,5,6]),
             ("notContainsDigits", "\"value\":\"1,2\"", [3]),
-            // 尾數連續多個 0（裁定 2026-11-03-07）：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
+            // 尾數連續多個 0：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
             ("endsWithZeros", "\"value\":\"1\"", [1,2,4,5,6]),
             ("notEndsWithZeros", "\"value\":\"1\"", [3]),
             ("isBlank", "", [7]), ("isNotBlank", "", [1,2,3,4,5,6])
@@ -169,11 +168,11 @@ public sealed class FilterCompletenessTests
             ("in", "\"values\":[\"10\",\"10.00\"]", [2,4]), ("notIn", "\"values\":[\"10\"]", [1,3,5,6]),
             ("endsWithDigits", "\"value\":\"10\"", [1,2,4,5]),
             ("notEndsWithDigits", "\"value\":\"10\"", [3,6]),
-            // 整數部分的特定數字（裁定 2026-11-05-46）：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
-            // 第一次失敗：Focused 收據 20261105-120844123-9faa7135eeaf42819f28589c2241c273（運算子清單多了這兩個，表格還沒有答案）。
+            // 整數部分的特定數字：整數部分 10 包含 1 但不以 1 結尾，20 包含 2；R3 的整數部分 0 兩者都不含。
+            // （運算子清單多了這兩個，表格還沒有答案）。
             ("containsDigits", "\"value\":\"1,2\"", [1,2,4,5,6]),
             ("notContainsDigits", "\"value\":\"1,2\"", [3]),
-            // 尾數連續多個 0（裁定 2026-11-03-07）：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
+            // 尾數連續多個 0：整數部分 10 與 20 有一個 0；R3 的整數部分是 0，不算。
             ("endsWithZeros", "\"value\":\"1\"", [1,2,4,5,6]),
             ("notEndsWithZeros", "\"value\":\"1\"", [3]),
             ("isBlank", "", [7]), ("isNotBlank", "", [1,2,3,4,5,6])
@@ -205,9 +204,8 @@ public sealed class FilterCompletenessTests
                     """;
                 var scenario = Scenario(rule);
                 var errors = FilterScenarioValidator.Validate(scenario, new(false,true,false) { MoneyScale=100, RdeFields=context.RdeFields });
-                // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Core signed amounts are retired; keep compiler answers for historical definitions and validate the rejection exactly.
-                // 核心金額的「含正負號」不再寫重建方式，當成無法讀取的內容（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
-                // 第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（停用寫法的常數已不存在，無法編譯）。
+                // Core signed amounts are rejected by validation; the compiler answers are still checked and the rejection is validated exactly.
+                // 核心金額的「含正負號」當成無法讀取的內容。
                 if (basis == "signed" && !isExtra)
                     Assert.Equal("第 1 組第 1 條：" + FilterScenarioCorruption.RuleMessage, Assert.Single(errors));
                 else Assert.Empty(errors);
@@ -351,7 +349,7 @@ public sealed class FilterCompletenessTests
         await Check("""{"type":"fieldValue","field":"amount","amountBasis":"signed","operator":"in","values":["-50","0"]}""", ["B|4", "D|2", "D|3", "E|1"]);
         await Check("""{"type":"fieldValue","field":"amount","amountBasis":"absolute","operator":"notBetween","from":"1","to":"100"}""", ["E|1"]);
         await Check("""{"type":"fieldValue","field":"accountNumber","operator":"equals","value":"1"}""", []);
-        // 每月幾日（裁定 2026-09-04-01）：核准日 29 日只有 A|1；排除 1 日時核准日空白的 A|2 預設不列入。
+        // 每月幾日：核准日 29 日只有 A|1；排除 1 日時核准日空白的 A|2 預設不列入。
         await Check("""{"type":"fieldValue","field":"approvalDate","operator":"dayOfMonthIn","values":["29"]}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"approvalDate","operator":"dayOfMonthNotIn","values":["1","01"]}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"approvalDate","operator":"dayOfMonthNotIn","values":["1"],"includeBlank":true}""", ["A|1", "A|2"]);
@@ -360,7 +358,7 @@ public sealed class FilterCompletenessTests
         await Check("""{"type":"fieldValue","field":"description","operator":"contains","values":["START","nothing"]}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"description","operator":"notContains","values":["start","LITERAL"]}""", []);
         await Check("""{"type":"fieldValue","field":"description","operator":"notContains","value":"literal"}""", ["A|1"]);
-        // 裁定 2026-11-09-09：開頭符合與結尾符合也收多個值，符合任一個就算，萬用字元照字面比對；
+        // 開頭符合與結尾符合也收多個值，符合任一個就算，萬用字元照字面比對；
         // 排除時每一個都不能符合，所以開頭各是 start 與 lit 的分錄全部排除，空白的 A|2 只在勾選空白時列入。
         await Check("""{"type":"fieldValue","field":"description","operator":"startsWith","values":["nothing","start 100%_["]}""", ["A|1"]);
         await Check("""{"type":"fieldValue","field":"description","operator":"endsWith","values":["xyz","_[ end"]}""", ["A|1"]);
@@ -389,7 +387,7 @@ public sealed class FilterCompletenessTests
         var scenario = Scenario(CashDebit);
         var first = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(null, 1), countWholeVoucherRows: false, CancellationToken.None);
         Assert.Equal(new FilterVoucherSummary("A", "2025-01-01", 1, 2, 10000), Assert.Single(first.Vouchers));
-        // 2026-09-07 起傳票摘要頁改走共用 keyset 分頁，下一頁鍵成為 opaque 游標，內容仍是末列的傳票號碼。
+        // 傳票摘要頁走共用 keyset 分頁，下一頁鍵是 opaque 游標，內容是末列的傳票號碼。
         Assert.True(PageCursor.TryDecode(first.NextKey, out var firstKey));
         Assert.Equal("A", firstKey);
         var second = await repository.ReadAsync(id, scenario, Context, null, new PageRequest(first.NextKey, 1), countWholeVoucherRows: false, CancellationToken.None);
@@ -488,8 +486,8 @@ public sealed class FilterCompletenessTests
     public void InvalidConditions_ExplainWhatMustBeCorrected(string rule) =>
         Assert.NotEmpty(FilterScenarioValidator.Validate(Scenario(rule), new(false, true, false, HasAnyAccountCategory: true) { MoneyScale = 100 }));
 
-    // 裁定 2026-11-05-70：核心金額只比較絕對值。舊版 IDEA JET 的數字條件一律用 @Abs 比較（legacy/idea-tool.bas 第 3624 到 3648 行），
-    // 所以 amountBasis 只接受 absolute，沒有帶或帶 signed 都當成內容損毀；畫面送出時一律帶上 absolute。這是新增的測試。
+    // 核心金額只比較絕對值。舊版 IDEA JET 的數字條件一律用 @Abs 比較，
+    // 所以 amountBasis 只接受 absolute，沒有帶或帶 signed 都當成內容損毀；畫面送出時一律帶上 absolute。
     [Theory]
     [InlineData("""{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"10"}""", "field_value_amount_basis_missing")]
     [InlineData("""{"type":"fieldValue","field":"amount","operator":"greaterThan","value":"10","amountBasis":"signed"}""", "field_value_core_amount_signed")]

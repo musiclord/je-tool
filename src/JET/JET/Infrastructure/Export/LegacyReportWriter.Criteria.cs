@@ -12,8 +12,8 @@ public sealed partial class LegacyReportWriter
     private const int CriteriaFirstScenarioRow = 5;
 
     /// <summary>
-    /// 「#Criteria Select」工作表最後一欄的欄名與值：照舊版 idea-tool.bas 第 11660 行的 Final_TAG，
-    /// 符合條件的分錄寫「Y」，同一張傳票的其他分錄留白（裁定 2026-11-05-48；欄名照用，裁定 2026-11-05-67）。
+    /// 「#Criteria Select」工作表最後一欄的欄名與值：照舊版 JET 的 Final_TAG，
+    /// 符合條件的分錄寫「Y」，同一張傳票的其他分錄留白；欄名照用。
     /// </summary>
     internal const string CriteriaMatchedColumnName = "Final_TAG";
 
@@ -282,7 +282,7 @@ public sealed partial class LegacyReportWriter
                         if (blankVoucherNumberRows > 0)
                         {
                             // 空白傳票號碼不是一張傳票，明細表不會列出這些分錄。一般情境的 D 欄是行層命中數，含這些分錄；
-                            // 整張傳票情境的 D 欄是明細表的分錄數，不含。摘要頁加一列說明（裁定 2026-10-19-12），數字本身不動。
+                            // 整張傳票情境的 D 欄是明細表的分錄數，不含。摘要頁加一列說明，數字本身不動。
                             AppendContinuationRow(
                                 $"Criteria Selection {position}（說明）",
                                 $"另有 {CountText.Format(blankVoucherNumberRows)} 筆分錄的傳票號碼空白，未列入明細表。",
@@ -301,7 +301,7 @@ public sealed partial class LegacyReportWriter
 
                 if (context.Scenarios.Count > 0)
                 {
-                    // idea-script.bas 8839：至少一筆 criteria log 被寫入時，
+                    // 舊版 JET：至少一筆 criteria log 被寫入時，
                     // Cells.EntireRow.AutoFit；OpenXML 以移除 explicit row height 表示。
                     foreach (var row in worksheet.GetFirstChild<SheetData>()!
                                  .Elements<Row>())

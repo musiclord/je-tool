@@ -2,14 +2,10 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
-// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
-
 /// <summary>
 /// 前端工作流整合新增控制項的可用性守衛：每個輸入都有可讀名稱、群組選項用 fieldset 與 legend、
 /// 新區塊在窄視窗可收縮或自行捲動。實際縮放與 Windows DPI 仍由人工驗收。
-/// 停用的控制項要說明原因，2026-10-14 起改由 <c>tools/tests/frontend-journey-mapping.test.cjs</c>
-/// 與 <c>frontend-journey-step4.test.cjs</c> 在畫面上核對。
+/// 停用的控制項要說明原因，由前端測試在畫面上核對。
 /// </summary>
 public sealed class WorkflowControlsAccessibilityFrontendTests
 {
@@ -25,7 +21,7 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         Assert.Contains("class=\"visually-hidden\" for=\"rde-type-", mapping, StringComparison.Ordinal);
         Assert.Contains("class=\"visually-hidden\" for=\"manual-code-add\"", mapping, StringComparison.Ordinal);
         Assert.Contains("class=\"visually-hidden\" for=\"automatic-code-add\"", mapping, StringComparison.Ordinal);
-        // 9/21 分類標籤改為直接可見，for 仍對應原本控制項的 id。
+        // 分類標籤直接可見，for 對應控制項的 id。
         Assert.Contains("<label for=\"category-label-", validate, StringComparison.Ordinal);
         Assert.Contains("<label for=\"category-role-", validate, StringComparison.Ordinal);
         Assert.Contains("id=\"category-label-", validate, StringComparison.Ordinal);
@@ -69,8 +65,7 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         Assert.Contains("<legend class=\"map-options__legend\">", mapping, StringComparison.Ordinal);
         Assert.Contains("aria-describedby=\"gl-approval-help\"", mapping, StringComparison.Ordinal);
 
-        // 改由共同分類樹輸出群組。首次失敗收據：
-        // 20261004-075340533-87179f5019724ec89d7c19b4243fdb09；仍要求實際輸出 fieldset、legend 及有名稱的控制項。
+        // 群組由共同分類樹輸出；要求實際輸出 fieldset、legend 及有名稱的控制項。
         Assert.Contains("Ui.categoryPickerHtml(state, selected, idsKey, legend, view)", filter, StringComparison.Ordinal);
         var pickerStart = core.IndexOf("function categoryPickerHtml(", StringComparison.Ordinal);
         var pickerEnd = core.IndexOf("function bindCategoryPicker(", StringComparison.Ordinal);
@@ -78,18 +73,18 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
         var picker = core[pickerStart..pickerEnd];
         Assert.Contains("<fieldset class=\"category-select\" data-category-picker=", picker, StringComparison.Ordinal);
         Assert.Contains("<legend class=\"category-select__legend\">' + esc(legend) + '</legend>", picker, StringComparison.Ordinal);
-        // 2026-10-08 第 13 則移除搜尋，不移除有名稱的分類勾選與展開控制。
+        // 分類選取器沒有搜尋，但有名稱的分類勾選與展開控制都要在。
         Assert.DoesNotContain("data-category-search", picker, StringComparison.Ordinal);
         Assert.Contains("<label class=\"category-option\"><input type=\"checkbox\"", picker, StringComparison.Ordinal);
         Assert.Contains("<span>' + esc(category.label) + '</span></label>", picker, StringComparison.Ordinal);
-        // 第九節 F 把展開按鈕移到三處共用的樹函式，fieldset 與勾選語意仍留在選取器。
-        // 首次失敗：20261014-130014323-112f3ca2d352414ba9de606d2b6e0e09；仍檢查名稱及展開狀態。
+        // 展開按鈕在三處共用的樹函式，fieldset 與勾選語意留在選取器。
+        // 這裡檢查名稱及展開狀態。
         Assert.Contains("categoryTreeHtml(state, view, function (category)", picker, StringComparison.Ordinal);
         var treeStart = core.IndexOf("function categoryTreeHtml(", StringComparison.Ordinal);
         Assert.True(treeStart >= 0 && treeStart < pickerStart);
         var tree = core[treeStart..pickerStart];
-        // 同功能的元件只留一套（裁定 2026-10-19-08）：展開按鈕改用共用的 disclosureAttributes，名稱改說是哪一類的下層分類。
-        // 首次失敗：20261019-102446198-5198acd5b7e747feae8ed16dcfac32a3；仍檢查名稱及展開狀態。
+        // 同功能的元件只留一套：展開按鈕用共用的 disclosureAttributes，名稱說是哪一類的下層分類。
+        // 仍檢查名稱及展開狀態。
         Assert.Contains("aria-label=\"' + esc(category.label) + '的下層分類\"' +", tree, StringComparison.Ordinal);
         Assert.Contains("disclosureAttributes(open) + '></button>'", tree, StringComparison.Ordinal);
         Assert.Contains("return ' aria-expanded=\"' + (open ? 'true' : 'false') + '\"'", core, StringComparison.Ordinal);
@@ -116,7 +111,7 @@ public sealed class WorkflowControlsAccessibilityFrontendTests
             Assert.Contains("min-width: 0", block, StringComparison.Ordinal);
         }
 
-        // 第 11 則移除分錄摘要；剩下的長清單仍自行捲動，不把整頁撐長。
+        // 不顯示分錄摘要；長清單自行捲動，不把整頁撐長。
         var lists = css[css.IndexOf(".value-option-list,", StringComparison.Ordinal)..];
         Assert.Contains("overflow-y: auto", lists, StringComparison.Ordinal);
         Assert.DoesNotContain(".population-summary {", css, StringComparison.Ordinal);

@@ -4,10 +4,10 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 第五步情境名稱與篩選動機留白時，依條件補上的文字。裁定 2026-10-29-16 與 2026-10-30-14：名稱或動機留白也能儲存，
+/// 第五步情境名稱與篩選動機留白時，依條件補上的文字。名稱或動機留白也能儲存，
 /// 由系統依條件產生；畫面上自動帶入的文字和這裡產生的文字必須相同，所以這裡逐字照前端
 /// filter-step-sources.js 的 <c>automaticMetadata</c>、<c>commonScenarioRationale</c> 與 <c>uniqueAutomaticName</c> 寫，
-/// 兩邊共用 tools/tests/fixtures/filter-scenario-automatic-metadata.json 的固定答案。
+/// 兩邊共用 tests/JET.Tests/Fixtures/filter-scenario-automatic-metadata.json 的固定答案。
 /// </summary>
 internal static class FilterScenarioAutomaticMetadata
 {

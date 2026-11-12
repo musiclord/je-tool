@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// EncodingDetector 測試（guide §3.1.1）。
+/// EncodingDetector 測試。
 /// oracle：手寫 bytes fixture 與 manifest encoding 白名單。
 /// 設計技術：等價分割——覆寫值（utf-8 / big5 / utf-16 / invalid）與偵測鏈（BOM / 嚴格 UTF-8 / Big5 fallback）。
 /// </summary>
@@ -77,7 +77,7 @@ public sealed class EncodingDetectorTests
             () => EncodingDetector.Resolve("shift-jis", filePath: "unused.csv"));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送三種編碼，
+        // 畫面只送三種編碼，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，檢查代號記進支援日誌，送出的值不出現。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("encoding_invalid", JetPayloadRejection.CheckOf(ex));

@@ -9,6 +9,13 @@ namespace JET.Infrastructure;
 
 public sealed partial class WorkingPaperWriter
 {
+    // ================= step1 家族 emitter =================
+
+    /// <summary>
+    /// 「step1 完整性測試」:A1-A4 共同表頭 + Step1 程序固定文字 + 結論 + 第 19 列欄標 +
+    /// completenessAccounts **全科目逐頁**(科目編號/名稱/TB 變動(A)/GL 彙總(C)/差異(B)-(A))。
+    /// 差異欄用 repo 的 DiffScaled(= tb_s - gl_s),step1／step1-3 同一定義不漂移。
+    /// </summary>
     private async Task EmitStep1Async(
         WorkingPaperWriteSession session, List<SheetStat> stats,
         WorkingPaperContext context, WorkingPaperSheetPlan? sheetPlan,
@@ -123,7 +130,7 @@ public sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「step1-1 借貸不平測試」:A1-A4 共同表頭 + Step1-1 程序固定文字 + 依結果二選一的結論。
-    /// 有不平傳票時照 legacy 版面（idea-tool.bas:10468-10483）：B14 說明、第 16 列五欄表頭、
+    /// 有不平傳票時照舊版 JET 的版面：B14 說明、第 16 列五欄表頭、
     /// 第 17 列起依傳票號碼與總帳日期彙總的明細，最後一欄留給審計員填寫理由。
     /// </summary>
     private async Task EmitStep11Async(
@@ -204,7 +211,7 @@ public sealed partial class WorkingPaperWriter
             (sheet, row, projected) => ProjectedCells(sheet, row, projected, firstColumn: 2),
             (sheet, rows, _, ct) =>
             {
-                // 舊版只在有借貸不平的傳票時保護這張表（idea-tool.bas 第 10514 到 10518 行，裁定 2026-11-09-14）。
+                // 舊版只在有借貸不平的傳票時保護這張表。
                 if (rows > 0)
                 {
                     sheet.Protect();
@@ -216,7 +223,7 @@ public sealed partial class WorkingPaperWriter
             cancellationToken: cancellationToken);
     }
 
-    // 舊版 idea-tool.bas 在沒有配對傳票建立人員時寫進 B13 的原句，「編制」照舊版用字。
+    // 舊版 JET 在沒有配對傳票建立人員時寫進 B13 的原句，「編制」照舊版用字。
     internal const string MissingCreatedByNotice = "請注意，該測試作業於總帳資料欄位配對作業程序並挑選編制人員欄位。";
 
     /// <summary>
@@ -236,7 +243,7 @@ public sealed partial class WorkingPaperWriter
         var missingCreatedByMapping = glMapping is null
             || !glMapping.Mapping.TryGetValue(GlMappingKeys.CreatedBy, out var createdBySource)
             || string.IsNullOrWhiteSpace(createdBySource);
-        // 裁定 2026-11-05-35：沒有配對傳票建立人員時照舊版不列名單，也不寫「（空白）」那一列，只在 B13 寫提示句。
+        // 沒有配對傳票建立人員時照舊版不列名單，也不寫「（空白）」那一列，只在 B13 寫提示句。
         IReadOnlyList<PreparerSummaryExportRow> preparers = missingCreatedByMapping
             ? []
             : await preparerSummaries.FetchAllAsync(
@@ -311,7 +318,7 @@ public sealed partial class WorkingPaperWriter
             (sheet, row, projected) => ProjectedCells(sheet, row, projected, firstColumn: 2),
             (sheet, rows, _, ct) =>
             {
-                // 舊版只在有編製人員名單時保護這張表（idea-tool.bas 第 10573 到 10576 行，裁定 2026-11-09-14）。
+                // 舊版只在有編製人員名單時保護這張表。
                 if (rows > 0)
                 {
                     sheet.Protect();
@@ -412,14 +419,6 @@ public sealed partial class WorkingPaperWriter
             cancellationToken: cancellationToken);
     }
 
-    // ================= step2 / step3 / step4 / step4-1 emitter(高風險條件彙總這一族)=================
-
-    /// <summary>
-    /// 「step2 可靠性測試」:表頭跨 49-52 列(含多處合併,逐字對齊本機參考樣本);資料第 53 列起,逐頁 infSamplePage。
-    /// 借/貸兩欄直接用 InfSampleRow.DebitScaled / CreditScaled(brief 設計決策;scaled→顯示)。
-    /// A 樣本序號為列序 1..N(emitter 自累計);J 分錄來源與 E 借貸代號由 InfSampleDisplayValues 決定，T 說明手填留空。
-    /// </summary>
-
     private static void ConfigureStep1Layout(
         SheetWriter sheet,
         IReadOnlyList<double> dataWidths)
@@ -451,8 +450,8 @@ public sealed partial class WorkingPaperWriter
     }
 
     /// <summary>
-    /// A1-A4 共同表頭(五張 step1 表逐字相同):公司名 / 測試期間 / 財報準備開始日 / 斜體說明。
-    /// A3 對應 ideascript 的 LastPeriod，只取 <see cref="WorkingPaperContext.PrepStartDate"/>；缺值時明示 N/A，不得改用 PeriodEnd。
+    /// A1-A4 共同表頭(四張 step1 表共用):公司名 / 測試期間 / 財報準備開始日 / 各表傳入的斜體說明。
+    /// A3 對應舊版 JET 的 sLast_Accounting_Period_Date，只取 <see cref="WorkingPaperContext.PrepStartDate"/>；缺值時明示 N/A，不得改用 PeriodEnd。
     /// </summary>
     private static void WriteCommonHeader(
         SheetWriter sheet,
@@ -485,7 +484,7 @@ public sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// step1-1 明細列：B 傳票號碼、C 總帳日期、D 借方合計、E 貸方合計、F 理由（留白可編輯）。
-    /// legacy 的貸方欄是負數金額的加總（idea-tool.bas:6674-6677），所以這裡以負數顯示。
+    /// 舊版 JET 的貸方欄是負數金額的加總，所以這裡以負數顯示。
     /// 總帳日期沿用本底稿其他工作表的 yyyy-MM-dd 文字。
     /// </summary>
     private static IReadOnlyList<WorkingPaperDisplayCell> ProjectUnbalancedVoucherDateRow(
@@ -505,8 +504,8 @@ public sealed partial class WorkingPaperWriter
         int moneyScale) =>
     [
         ProjectText(PreparerSummaryDisplay.NameOf(preparer.CreatedBy)),
-        // 裁定 2026-11-05-32：C 欄照舊版寫人工或自動；未判定或沒有配對人工傳票欄位時照範本表頭留白。
-        // 留白的格子照舊版和 B12:E 一起鎖定，不用可填的樣式（裁定 2026-11-09-21）。
+        // C 欄照舊版寫人工或自動；未判定或沒有配對人工傳票欄位時照範本表頭留白。
+        // 留白的格子照舊版和 B12:E 一起鎖定，不用可填的樣式。
         preparer.IsManual is { } isManual
             ? ProjectText(PreparerSummaryDisplay.ManualText(isManual))
             : ProjectBlank(),
@@ -530,11 +529,8 @@ public sealed partial class WorkingPaperWriter
         ProjectBlank(WorkingPaperStyles.Editable)
     ];
 
-    /// <summary>多欄欄標列工廠(欄自 B 起,對齊 step1 家族表頭都從 B 欄開始;BoldWrap 因欄標含換行)。</summary>
-
-    // 受保護時鎖定的資料區照舊版 idea-tool.bas 鎖的範圍（裁定 2026-11-09-15）：
-    // step1 是 B15:F 到資料末列（第 10449 行）、step1-1 是 B12:E（第 10517 行）、
-    // step1-2 是 B12:E（第 10575 行）、step1-3 是 B17:D（第 10637 行）。
+    // 受保護時鎖定的資料區，欄與起始列照舊版 JET：step1 是 B15:F、step1-1 與 step1-2 是 B12:E、step1-3 是 B17:D。
+    // 列只鎖到最後一筆資料；舊版的 step1-2 與 step1-3 會多鎖最後一筆的下一列，JET 不鎖。
     private static readonly WorkingPaperLockedArea Step1LockedArea = new(15, 2, 6, 19);
     private static readonly WorkingPaperLockedArea Step11LockedArea = new(12, 2, 5, 16);
     private static readonly WorkingPaperLockedArea Step12LockedArea = new(12, 2, 5, 11);
@@ -543,8 +539,4 @@ public sealed partial class WorkingPaperWriter
     private const string Step13Conclusion =
         "基於上述程序，查核團隊對出現差異之科目均已取得足夠的查核證據，已確認其原因尚屬合理或進行調節使其無差異，" +
         "因此可確認JE測試母體之完整性。";
-
-    // ---- step2/3/4 表頭固定文字(逐字對齊本機參考樣本;列號/欄/合併皆照樣本)----
-
-    /// <summary>step2 測試說明 + 測試程序(A6-C47 區塊;欄標另見 WriteStep2ColumnHeaders)。</summary>
 }

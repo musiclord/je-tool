@@ -2,14 +2,14 @@ using System.Text.Json;
 using JET.Application;
 using JET.Domain;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
 public sealed class TrailingZeroLabelReadbackTests
 {
-    // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），共用夾具的尾零兩筆多一欄 zerosThreshold：有寫時讀回「金額尾數連續 N 個 0」，
-    // 沒寫時讀回規則名稱「分錄金額中有連續 0 的尾數」。原本只有一筆固定 6 個 0 的讀回，常數拿掉後這裡也不再核對常數。
-    // 第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+    // 0 的個數照 IDEA 版由 GL 算出，共用夾具的尾零兩筆帶 zerosThreshold 欄：有寫時讀回「金額尾數連續 N 個 0」，
+    // 沒寫時讀回規則名稱「分錄金額中有連續 0 的尾數」。
     public static TheoryData<string, string, string, string?, int?> SharedSentences()
     {
         using var json = Fixture();
@@ -28,8 +28,7 @@ public sealed class TrailingZeroLabelReadbackTests
         Assert.NotEmpty(id);
         using var scenario = JsonDocument.Parse(json);
         Assert.Equal(expected, FilterConditionRenderer.Render(scenario.RootElement, null, zerosThreshold: zerosThreshold));
-        // 舊式連續零尾數的兩筆連同型別一起從共用夾具拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），剩下的都沒有型別標題。
-        // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+        // 共用夾具不含舊式連續零尾數的寫法（已儲存情境的舊寫法不讀回），所以每一筆都沒有型別標題。
         Assert.Null(typeLabel);
     }
 
@@ -44,11 +43,7 @@ public sealed class TrailingZeroLabelReadbackTests
 
     private static JsonDocument Fixture()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "tools", "tests", "fixtures", "filter-readback-prep-start-date-and-trailing-zeros.json")))
-            directory = directory.Parent;
-        if (directory is null) throw new DirectoryNotFoundException("Repository fixture directory was not found.");
-        return JsonDocument.Parse(File.ReadAllText(Path.Combine(directory.FullName, "tools", "tests", "fixtures", "filter-readback-prep-start-date-and-trailing-zeros.json")));
+        return JsonDocument.Parse(File.ReadAllText(TestRepositoryPaths.Fixture("filter-readback-prep-start-date-and-trailing-zeros.json")));
     }
 
     private static IEnumerable<JsonElement> TrailingZeroItems(JsonDocument json) =>

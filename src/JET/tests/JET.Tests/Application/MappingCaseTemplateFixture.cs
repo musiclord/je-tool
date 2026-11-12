@@ -23,7 +23,7 @@ internal sealed class MappingCaseTemplateFixture : IDisposable
             return fixture;
         }
 
-        var copied = await CaseTemplates.CopyIntoAsync(fixture.Host, $"batch9-mapping:{manyRows}:{provider}",
+        var copied = await CaseTemplates.CopyIntoAsync(fixture.Host, $"mapping:{manyRows}:{provider}",
             async templateHost => (await BuildAsync(templateHost, provider, manyRows), (object?)null));
         fixture.ProjectId = copied.ProjectId;
         return fixture;
@@ -32,7 +32,7 @@ internal sealed class MappingCaseTemplateFixture : IDisposable
     private static async Task<string> BuildAsync(HandlerTestHost host, string provider, bool manyRows)
     {
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
-        { projectName = "Batch9 synthetic", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
+        { projectName = "Mapping synthetic", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider }));
         var projectId = created.GetProperty("projectId").GetString()!;
         await ImportSourceAsync(host, 0, manyRows ? 60 : 2, "first.xlsx", append: false);
         if (manyRows) await ImportSourceAsync(host, 60, 5, "second.xlsx", append: true);

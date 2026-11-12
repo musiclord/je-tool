@@ -13,7 +13,7 @@ public sealed class WebViewCrashAndAcceleratorPolicyTests
     {
         var property = Host.GetProperty("BrowserAcceleratorsEnabled", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.NotNull(property);
-#if DEBUG || JET_AGENT_GUI_TEST
+#if DEBUG
         Assert.Equal(true, property.GetValue(null));
 #else
         Assert.Equal(false, property.GetValue(null));

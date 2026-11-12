@@ -7,14 +7,11 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
-// TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// TB legacy 金額模式 OpenClose（SA=2）與 OpenCloseBySide（SA=4）在各引擎的 target 落地驗收。
-/// 投影純函式 <see cref="TbRowProjector"/> 由三引擎共用，此處驗「值真的寫進 tb」，
-/// 覆蓋 Local 家族雙引擎（SQLite / DuckDB）＋ SqlServer 閘控。
+/// TB legacy 金額模式 OpenClose（SA=2）與 OpenCloseBySide（SA=4）的 target 落地驗收。
+/// 投影純函式是 <see cref="TbRowProjector"/>，此處驗「值真的寫進 tb」。
 /// oracle：規格手算（closing−opening；(cdr−ccr)−(odr−ocr)）× scale=10000。斷言鎖值＋身分（科目碼）。
 /// </summary>
 public sealed class TbOpenCloseProjectionTests
@@ -56,7 +53,7 @@ public sealed class TbOpenCloseProjectionTests
         var db = MakeDatabase(provider, folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var rows = new List<StagingRow>
@@ -106,7 +103,7 @@ public sealed class TbOpenCloseProjectionTests
         var db = MakeDatabase(provider, folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var rows = new List<StagingRow>

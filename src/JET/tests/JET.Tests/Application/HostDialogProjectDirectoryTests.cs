@@ -79,7 +79,7 @@ public sealed class HostDialogProjectDirectoryTests
         Assert.Equal(["project-A", "project-B"], locator.ProjectIds);
     }
 
-    // 2026-10-02 資料庫分流簡化：只設案件編號的舊 Enter(string) 已移除，改帶資料庫組進入。這些對話框與開資料夾
+    // 進入案件時要帶資料庫組。這些對話框與開資料夾
     // 測試只看案件資料夾，不碰任何 repository，所以放一組全部維持 null 的資料庫組。
     private static ProjectRepositories AnyRepositories() =>
         TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);

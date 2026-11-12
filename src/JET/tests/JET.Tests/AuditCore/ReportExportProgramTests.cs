@@ -59,7 +59,7 @@ public sealed class ReportExportProgramTests
         int[] expectedScenarioPositions,
         bool expectedAtomicBatch)
     {
-        // Public首敗100911120：Criteria必須保存本次資料版本；其他報告仍不帶這個來源參照。
+        // Criteria必須保存本次資料版本；其他報告不帶這個來源參照。
         var expectedDataRevision = action == "export.criteriaSelectionReport" ? "41" : null;
         var request = new ReportExportRequest(
             action,

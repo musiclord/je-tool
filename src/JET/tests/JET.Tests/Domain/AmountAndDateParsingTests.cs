@@ -37,8 +37,8 @@ public sealed class AmountAndDateParsingTests
     public void Money_MalformedGroupingOrMultipleSigns_IsRejected(string raw) =>
         Assert.False(MoneyScaling.TryParseAmount(raw, out _));
 
-    // 裁定 2026-10-22-11：純數字不再當成 Excel 序列值。這四個值以前分別是
-    // 1900-01-01、2024-01-01、2100-12-31、2100-12-31，現在兩種民國年開關都拒絕；原始輸入不變。第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
+    // 純數字不當成 Excel 序列值。這四個值當成序列值會是
+    // 1900-01-01、2024-01-01、2100-12-31、2100-12-31，兩種民國年開關都拒絕。
     [Theory]
     [InlineData("2")]
     [InlineData("45292")]
@@ -50,7 +50,7 @@ public sealed class AmountAndDateParsingTests
         Assert.False(DateNormalizer.TryNormalize(raw, new DateParseOptions(false), out _));
     }
 
-    // 以前是超出 1900 到 2100 年的序列值而拒絕；純數字不再當成序列值後，所有純數字都拒絕，結果不變。
+    // 純數字不當成序列值，所有純數字都拒絕。
     [Theory]
     [InlineData("1")]
     [InlineData("73416")]

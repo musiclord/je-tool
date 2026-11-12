@@ -9,12 +9,12 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第 22 步盤點的第 7 項裡兩個沒有測試的邊界：比現行版本新的案件資料庫，以及最長的中文案件名稱。這是新增的測試。
+/// 兩個邊界：比現行版本新的案件資料庫，以及最長的中文案件名稱。
 /// </summary>
 public sealed class CaseLimitJourneyTests
 {
     /// <summary>
-    /// 較新的 JET 建立的案件，用這一版開啟時要被拒絕：照裁定 2026-10-30-23 寫出無法開啟與接下來能做什麼，
+    /// 較新的 JET 建立的案件，用這一版開啟時要被拒絕：寫出無法開啟與接下來能做什麼，
     /// 資料庫檔保持原狀，案件照樣可以從清單刪除。
     /// </summary>
     [Theory]

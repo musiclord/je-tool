@@ -114,6 +114,8 @@ DuckDB 與 SQL Server 的最後完整版本是提交 `7e88b7b`。短期目標上
   `warnings` 照舊全部記進訊息面板。同一項再匯入成功時換成這次的提醒，移除清單或換案件時拿掉。
 - 說明為什麼 SQL 要寫得能搬到 DuckDB 或 SQL Server 的註解保留，留給日後恢復時用；`ISqlDialect`、`ILocalProjectDatabase`
   與 `IBulkRowWriter` 的說明註明目前只有 SQLite。描述已不存在的實作、路徑或呼叫點的註解已改掉。
+  2026-11-10 起這類說明改記在專案紀錄，不留在註解（裁定 2026-11-10-16），清單見
+  [原始碼註解整理紀錄](../history/2026-11-10-source-comment-cleanup-records.md)的「為日後接回其他資料庫保留的寫法」。
 
 ### 測試
 
@@ -148,66 +150,66 @@ DuckDB 與 SQL Server 的最後完整版本是提交 `7e88b7b`。短期目標上
 
 ## 改動既有測試的紀錄
 
-每項寫原因與第一次失敗的收據，程式註解也寫了同一份收據。
+每項寫原因與第一次失敗的情形。當時多數項目的程式註解也寫了第一次失敗的收據，`src/JET` 的這些註解在 2026-11-10 起的整理中已經拿掉。
 
 只保留 SQLite（裁定 2026-11-06-08）：
 
 - `LegacyAuditParityControlTests.Parse_ProvidesBoundedProviderCheckpointAndRetentionControls`：不指定資料庫時的種類數 3 改 1。
-  Focused 收據 20261106-084027187-45312a25ca8043b8a0f4152099dca2a0。
+  第一次失敗出現在 Focused 執行，細節已經查不到。
 - 架構檢查 13 項拿掉已刪除的 SQL Server 檔案與型別：`CompatibilityPathOwnershipTests`、`GlMappedColumnAuditOwnershipTests`
   （方法改名 `GlBlankColumnProbe_IsBuiltFromTheFieldCatalog_AndUsedByTheGlRepository`）、`PrescreenRuleRegistryTests`
   （方法改名 `Compilation_AndThePrescreenRepository_TakePredicatesFromTheRegisteredMap`）、`IntakeMappingOwnershipTests` 兩項、
   `GlQueryOwnershipTests` 兩項、`DataPreviewColumnOwnershipTests`、`HandlerRepositoryScopeTests` 的心跳列、
   `GlExcludedPopulationReadGuardTests` 兩項、`TestEvidencePolicyTests` 與 `LayerDependencyTests`。
-  Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed；`IntakeMappingOwnershipTests` 的第三個型別 `AccountMappingFailureStyle`
-  是 Focused 收據 20261106-085055547-a2c9a7aec0f442e09a6e43dd7e32b968。
+  第一次失敗出現在 Focused 執行；`IntakeMappingOwnershipTests` 的第三個型別 `AccountMappingFailureStyle`
+  在另一次 Focused 執行才失敗，兩次的細節都已經查不到。
 - `ActionContractTests`：`project.load` 拿掉 `heartbeatSeconds`；原本鎖 `project.list` 的測試改鎖 `project.listLocal`，
-  方法改名 `ProjectListLocal_ResponseShape_IsLocked`；`system.whoAmI` 四個鍵改兩個。Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
-- `ProjectStorageDirectCutoverTests`：清單頂層只剩 `projects`。同上收據。
-- `ProviderParityJourneyTests`：SQLite 對 DuckDB 改成兩個各自建立的 SQLite 案件，方法改名 `InfSampleMemberSequence_FixedSeed_IsTheSameInTwoSeparateCases`。同上收據。
-- `SupportCaseHistoryTests.SwitchingCases_KeepsEachCaseHistorySeparate`：第二個案件改成 SQLite。同上收據。
+  方法改名 `ProjectListLocal_ResponseShape_IsLocked`；`system.whoAmI` 四個鍵改兩個。第一次失敗出現在 Public 執行，細節已經查不到。
+- `ProjectStorageDirectCutoverTests`：清單頂層只剩 `projects`。第一次失敗同上。
+- `ProviderParityJourneyTests`：SQLite 對 DuckDB 改成兩個各自建立的 SQLite 案件，方法改名 `InfSampleMemberSequence_FixedSeed_IsTheSameInTwoSeparateCases`。第一次失敗同上。
+- `SupportCaseHistoryTests.SwitchingCases_KeepsEachCaseHistorySeparate`：第二個案件改成 SQLite。第一次失敗同上。
 - `ActionShapeContractTests` 的契約檔重新產生：拿掉 `project.list`、`project.heartbeat`、`system.databaseInfo`、建案與開案的 `databaseProvider`、
   `heartbeatSeconds` 與 `system.whoAmI` 的兩個欄位；三個匯入多 `warnings`；空值明細多 `approvalDate`。
-  第一次失敗是 Focused 收據 20261106-084150657-c05d09a2b1bb4d639f2e79d1a56c2648。之後六個匯入多 `openElsewhereWarnings`，
-  再重新產生一次，第一次失敗是 Focused 收據 20261106-102248064-b2aa94d9387d405d9f63f7f1c4a00db6。
+  第一次失敗出現在 Focused 執行，細節已經查不到。之後六個匯入多 `openElsewhereWarnings`，
+  再重新產生一次，第一次失敗出現在另一次 Focused 執行，細節也已經查不到。
 - 錄形狀的 `ActionShapeJourney`：匯出後回頭修改上游的那一段，國定假日、補班日、授權編製人員清單、加入的總帳、試算表與科目配對的再匯入，
   改成在 Excel 的開檔方式佔住來源檔時送出，匯入結果不變。原本這幾次的提醒都是空陣列，前端測試給有內容的提醒時對不上契約，
-  第一次失敗是 FrontendMapping 收據 20261106-102438642-40eab56cacd64595943f7463210c1bf1 的三個新測試。
+  第一次失敗是 FrontendMapping 執行時的三個新測試。
 - 驗證框架自我檢查 `verify-contract.tests.ps1`：路線清單、Help 列出的路線、ReleaseCandidate 不再有 `liveProviderIncluded`、契約版本改 9.0；
   原本核對 Provider 缺少連線時停在執行前檢查的情境，改成確認 `-Command Provider` 被當成未知命令擋下。
-  第一次失敗是自我檢查 20261106-092713325-5c033e8458a846358846bbe6d1804784。
+  第一次失敗出現在自我檢查核對啟用路線清單的斷言，訊息是「The enabled lanes must match the currently implemented Harness boundary.」。
 - Gui 夾具行為測試 `AgentGuiTestFixtureBehaviorTests`：原本的 `ProjectListFixtures_ConcurrentCallsKeepDelayAndFailureOnFirstInvocation`
   驗線上案件清單的延遲與失敗夾具，這兩個夾具隨 `project.list` 刪掉，改成驗還在的本機清單失敗夾具，方法改名
   `ProjectListLocalFixture_ConcurrentCallsKeepFailureOnFirstInvocation`；驗假線上登記的 `FakeOnlineRegistry_ExistsIsClosedAndNeverCallsRealRegistry`
   跟著它的夾具刪除。這三個夾具 Gui 情境都沒有用到。Gui 前置測試的下限 `guiFixtureMinimumExpectedTests` 因此從 32 改成 31，
-  第一次失敗是 Gui 收據 20261106-103607193-bad85928c5c34b34945ba7ef5df73d0d（執行 31 個、少於下限）。改測試時舊寫法已經編譯不過，沒有那次的收據。
+  第一次失敗出現在 Gui 執行，前置測試執行 31 個、少於下限。改測試時舊寫法已經編譯不過，沒有留下那次失敗的紀錄。
 - Gui 的 `synthetic-sqlite-create` 不再核對資料儲存方式預設選 SQLite（收據欄位 `sqliteSelected`），`case-to-working-paper`
   也不再先核對這個預設值；案件是 SQLite 仍由 `jet.db` 與 `project.json` 核對。Excel 路線原生匯入的案例數 6 改 3。
-  這兩條路線改完後還沒執行，沒有第一次失敗的收據；建案表單已經沒有這一欄，舊的核對不可能通過。
+  這兩條路線改完後還沒執行，沒有第一次失敗的紀錄；建案表單已經沒有這一欄，舊的核對不可能通過。
 
 舊資料庫的案件不列出（裁定 2026-11-06-09）：
 
 - `ProjectListLocalFirstTests.ProjectListLocal_ReturnsOnlyLocalProvidersWithBoundedWireShape`：DuckDB 案件不再列出，兩筆改一筆。
-  Focused 收據 20261106-084017183-285ee971d2ad44c3b0f22bb9c5f69f21。
+  第一次失敗出現在 Focused 執行，細節已經查不到。
 
 拿掉 V.2019 與版本列（裁定 2026-11-06-11）：
 
 - `ValidationDirectTemplatePackageTests` 與 `WorkingPaperWriterCoverAndReferenceSheetTests`：A1 的 V.2019 改成空白。
-  Focused 收據 20261106-084035819-12cef79878a44a3198bc08e4445b76cb 與 20261106-084046692-14d369b348a74677801bd994c8d906b6。
+  兩者的第一次失敗各出現在一次 Focused 執行，細節已經查不到。
 - `ReportWorkbookPresentationTests.ValidationFieldInfo_UsesTheSameBorderlessVisibleGridAsWorkingPaper`：兩份都沒有 A1 的樣式，拿掉藍底的比對。
-  Focused 收據 20261106-084908758-24fb2c6e3edb4280be91c6f9b2febd97。
+  第一次失敗出現在 Focused 執行，細節已經查不到。
 - 外觀登記 `legacy-appearance-registry.json`：底稿版本列的五項改記成沒有對應，寫明原因。`WorkingPaperWriterAppearanceTests` 的方法改名
-  `RegisteredAppearances_HaveNoCellOrColumnMismatch`，只比對其餘 38 項，並確認沒有對應的恰好是這五項。Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
-- `LegacyAppearanceRegistryTests`：拿掉 A1 的對照，另確認這五項沒有對應。Focused 收據 20261106-090058591-fdb42007ccca4a8e9903e179017b508d。
+  `RegisteredAppearances_HaveNoCellOrColumnMismatch`，只比對其餘 38 項，並確認沒有對應的恰好是這五項。第一次失敗和「只保留 SQLite」的 `ActionContractTests` 出現在同一次 Public 執行，細節已經查不到。
+- `LegacyAppearanceRegistryTests`：拿掉 A1 的對照，另確認這五項沒有對應。第一次失敗出現在 Focused 執行，細節已經查不到。
 
 空值明細多傳票核准日（裁定 2026-11-06-13）：
 
-- `ActionContractTests` 的 `validate.run` 明細與 `query.blankRecordsPage` 多 `approvalDate`。Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
-- `ValidationRunLoggingTests`：SQLite 的 SQL 指紋更新。把第 10 條命令換回舊字後，指紋精確回到舊值 `F5A37597…`。同上收據。
+- `ActionContractTests` 的 `validate.run` 明細與 `query.blankRecordsPage` 多 `approvalDate`。第一次失敗和「只保留 SQLite」的 `ActionContractTests` 出現在同一次 Public 執行，細節已經查不到。
+- `ValidationRunLoggingTests`：SQLite 的 SQL 指紋更新。把第 10 條命令換回舊字後，指紋精確回到舊值 `F5A37597…`。第一次失敗同上。
 - `GlExcludedPopulationReadGuardTests`：本機驗證倉儲用來認查詢的片段改成 `approval_date FROM gl WHERE ({anyMatch})`。
-  Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
+  第一次失敗和「只保留 SQLite」的架構檢查出現在同一次 Focused 執行，細節已經查不到。
 
-前端測試，第一次失敗是 Public 收據 20261106-090143893-4f1fd1506e9b48cdbb57e5b6bab20337 的前端步驟：
+前端測試，第一次失敗出現在 Public 執行的前端步驟，細節已經查不到：
 
 - `support/frontend-fixtures.cjs` 的 `bootFullApp`：啟動不再回 `system.databaseInfo`，`system.whoAmI` 只回兩個欄位；`frontend-support.test.cjs` 的啟動順序改成三個請求。
 - `frontend-journey-picker`：第一個測試拿掉線上同步，改名「JET starts from the local list only, and refreshing asks only for the local list again」；

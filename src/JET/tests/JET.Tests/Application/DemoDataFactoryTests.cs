@@ -6,14 +6,13 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// demo 測試案件資料的建構不變量(spec C.2/C.3 的「baseline 不觸發、seed 確定觸發」)。
+/// demo 測試案件資料的建構不變量(baseline 不觸發、seed 確定觸發)。
 /// 不進 DB:純斷言資料物件,作為規則 oracle(DemoRuleOracleTests,端到端)之前的快速防線。
 /// </summary>
 public sealed class DemoDataFactoryTests
 {
     // 第五步「依審計目的」的「較少使用的科目」「編製分錄較少的人員」加入時預設 11 筆以下（前端 ui-core.js 的 PRESCREEN_DEFAULTS）。
-    // 第四步照舊版拿掉同樣門檻的兩條規則後，後端不再有這個常數（裁定 2026-10-29-27）；範例資料仍照這個預設安排較少使用的人員與科目。
-    // 第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+    // 第四步照舊版沒有同樣門檻的兩條規則，後端沒有這個常數；範例資料仍照這個預設安排較少使用的人員與科目。
     private const int StepFiveDefaultMaxEntries = 11;
 
     [Fact]
@@ -46,7 +45,7 @@ public sealed class DemoDataFactoryTests
             .Where(v => v.Sum(r => r.IsDebit ? r.Amount : -r.Amount) != 0m)
             .ToList();
 
-        // 唯一不平者為 §2 期外對照組（OutOfPeriodVouchers 張，全 gl_date=2026-01-05）——刻意造以驗證
+        // 唯一不平者為期外對照組（OutOfPeriodVouchers 張，全 gl_date=2026-01-05）——刻意造以驗證
         // 「期外不平傳票不入借貸不平母體」；兩張互為鏡像使全域借貸淨額仍為 0。
         Assert.Equal(DemoDataFactory.OutOfPeriodVouchers, unbalanced.Count);
         Assert.All(unbalanced, v => Assert.All(v, r =>
@@ -64,7 +63,7 @@ public sealed class DemoDataFactoryTests
         var data = DemoDataFactory.Create();
 
         var outOfPeriod = data.GlRows.Where(r => r.GlDate.Year != 2025).ToList();
-        // 期外對照組：OutOfPeriodVouchers 張 × LinesPerVoucher 行，全 2026-01-05（§2 母體期間界定素材）。
+        // 期外對照組：OutOfPeriodVouchers 張 × LinesPerVoucher 行，全 2026-01-05（母體期間界定素材）。
         Assert.Equal(DemoDataFactory.OutOfPeriodVouchers * DemoDataFactory.LinesPerVoucher, outOfPeriod.Count);
         Assert.All(outOfPeriod, r =>
         {
@@ -80,7 +79,7 @@ public sealed class DemoDataFactoryTests
     {
         var data = DemoDataFactory.Create();
 
-        // TB 本期變動只由本期（2025）GL 彙總而得（§2：期外對照組不計入 TB，與完整性 GL 側同口徑）。
+        // TB 本期變動只由本期（2025）GL 彙總而得（期外對照組不計入 TB，與完整性 GL 側同口徑）。
         var inPeriod = data.GlRows.Where(r => r.GlDate.Year == 2025).ToList();
         var glDebit = inPeriod.Where(r => r.IsDebit)
             .GroupBy(r => r.AccountNumber).ToDictionary(g => g.Key, g => g.Sum(r => r.Amount));
@@ -95,7 +94,7 @@ public sealed class DemoDataFactoryTests
         });
     }
 
-    // ── 建構不變量:baseline 不觸發任何規則(spec C.3 證明義務)──
+    // ── 建構不變量:baseline 不觸發任何規則 ──
 
     [Fact]
     public void Baseline_NoAmountIsMillionMultiple_ExceptTrailingZerosSeed()
@@ -163,7 +162,7 @@ public sealed class DemoDataFactoryTests
             !string.IsNullOrWhiteSpace(r.Description) &&
             keywords.Any(k => r.Description.ToUpperInvariant().Contains(k.ToUpperInvariant())));
 
-        // +1 各源自 §2 期外對照組：OOP-2 借方摘要空白、OOP-1 借方含關鍵字（原始資料層計數，未界定期間）。
+        // +1 各源自期外對照組：OOP-2 借方摘要空白、OOP-1 借方含關鍵字（原始資料層計數，未界定期間）。
         Assert.Equal(DemoDataFactory.BlankDescriptionVouchers + 1, blankCount);
         Assert.Equal(DemoDataFactory.SuspiciousKeywordVouchers + 1, keywordCount);
     }

@@ -7,7 +7,7 @@ namespace JET.Infrastructure;
 /// 科目配對全列匯出(本地引擎,匯出底稿 sheet 15)。自 <c>account_mapping</c> 取每一列,
 /// not-in-tb 旗標以 <see cref="ValidationProcedures.CompletenessDiffCte"/> 的 not_in_tb 為單一事實來源
 /// (GL 有 TB 無 = 1):科目代號落在該 CTE not_in_tb=1 子集者旗標為真。
-/// 科目數有界(實務數百),全載入即可、不分頁。排序鍵 account_number ASC(雙 provider 穩定一致,對齊樣本逐科目升冪)。
+/// 科目數有界(實務數百),全載入即可、不分頁。排序鍵 account_number ASC，和樣本一樣依科目升冪。
 /// not_in_tb 旗標本地引擎用 GetInt64。
 /// </summary>
 public sealed class LocalAccountMappingExportRepository(ILocalProjectDatabase database)

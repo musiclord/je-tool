@@ -29,8 +29,7 @@ public sealed class ActiveProjectSnapshotTests
         var running = handler.HandleAsync(EmptyPayload(), CancellationToken.None);
         await sqlitePages.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        // 查詢還卡在第一組時，另一個請求載入了另一個 SQLite 案件 B（原本是 DuckDB 案件；只保留 SQLite 之後改用
-        // 另一組 SQLite 替身，測的仍是查詢不換組，裁定 2026-11-06-08）。
+        // 查詢還卡在第一組時，另一個請求載入了另一個 SQLite 案件 B；測的是查詢不換組。
         session.Enter(
             "case-b",
             TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with

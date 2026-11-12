@@ -13,9 +13,7 @@ public sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「資料預先整理之說明」:公司名、測試期間與固定說明。
-    /// A6 照舊版樣本底稿的外觀保留儲存格格式，但不寫字。原本的「請詳：{公司}_CAATS_JE_WP_{日期}.docx」是 2026-06-21
-    /// 設計底稿寫出程式時定的檔名，兩份舊版 IDEA 程式都沒有寫這一格；命名來源與 CAATs 的步驟都無法確認，
-    /// 使用者 2026-11-05 要求拿掉（裁定 2026-11-05-29）。
+    /// A6 照舊版樣本底稿的外觀保留儲存格格式，但不寫字；兩份舊版 IDEA 程式都沒有寫這一格。
     /// </summary>
     private static void EmitCoverSheet(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -154,8 +152,8 @@ public sealed partial class WorkingPaperWriter
         }
         sheet.SetColumnWidth(6, 8, 2, hidden: true);
 
-        // 第一列只放隱藏的配對資料（F 到 H 欄）。以前 A1 寫舊版的版本字樣 V.2019，並套藍底紅字的版本列外觀，
-        // 使用者 2026-11-06 裁定拿掉（裁定 2026-11-06-11）；列號不動，配對資料的位置與還原方式照舊。
+        // 第一列只放隱藏的配對資料（F 到 H 欄）。A1 不寫舊版的版本字樣 V.2019，也不套藍底紅字的版本列外觀；
+        // 列號不動，配對資料的位置與還原方式照舊。
         var firstRow = new List<Cell>();
         if (metadata is not null)
         {
@@ -165,7 +163,7 @@ public sealed partial class WorkingPaperWriter
             firstRow.Add(sheet.TextCell(1, 8, metadata));
         }
         sheet.WriteFixedRow(1, firstRow);
-        // TB 與 GL 的標題列都不合併儲存格，底稿和資料驗證報告一致（裁定 2026-11-09-16）。
+        // TB 與 GL 的標題列都不合併儲存格，底稿和資料驗證報告一致。
         sheet.WriteFixedRow(
             2,
             [sheet.TextCell(2, 1, "TB檔案配對前後欄位對照表", WorkingPaperStyles.Bold)]);
@@ -267,9 +265,9 @@ public sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「自動化工具-假期假日資訊」:週末表 + 假日表(calendar store holiday)+ 補班段(makeup)。
-    /// 週末表照案件設定的每週休息日寫出(<see cref="WeekendRows"/>,裁定 2026-11-05-31)。
+    /// 週末表照案件設定的每週休息日寫出(<see cref="WeekendRows"/>)。
     /// 假日/補班逐日列出(日數有界):日期由 yyyy-MM-dd 轉樣本顯示形式 yyyy/MM/dd;假日 IS_HOLIDAY 一律 Y。
-    /// 沒有匯入國定假日或補班日時,照舊版寫提示句(裁定 2026-11-05-35),寫在原本該段標題的那一列:
+    /// 沒有匯入國定假日或補班日時,照舊版寫提示句,寫在原本該段標題的那一列:
     /// 舊版把假日的提示句寫在第 12 列,有補班日時又被補班標題蓋掉,所以 JET 不照舊版的列號。
     /// </summary>
     private async Task EmitCalendarInfoSheetAsync(
@@ -421,7 +419,7 @@ public sealed partial class WorkingPaperWriter
         var sheet = session.OpenSheet(
             ExcelWorksheetConstraints.ContinuationSheetName(WorkingPaperSheetCatalog.CalendarInfo, pageNumber),
             CalendarBaseAppearance(holidayCount, hasMakeupDays));
-        // 舊版整張保護假期假日資訊（idea-tool.bas 第 11101 行，裁定 2026-11-09-14），續頁也一樣。
+        // 舊版整張保護假期假日資訊，續頁也一樣。
         sheet.Protect();
         ConfigureCalendarLayout(sheet, widths, autoFit);
         sheet.WriteFixedRow(1,
@@ -499,7 +497,7 @@ public sealed partial class WorkingPaperWriter
             sheet.TextCell(row, 2, "MAKEUPDAY_DESC", WorkingPaperStyles.Bold)
         ]);
 
-    // 舊版 idea-tool.bas 寫在 A 欄的提示句,不加粗、不參與欄寬自動調整(舊版在寫提示句之前就調完欄寬)。
+    // 舊版 JET 寫在 A 欄的提示句，不加粗，也不參與欄寬自動調整（舊版在寫提示句之前就調完欄寬）。
     internal const string NoHolidaysNotice = "未設定假期資訊";
     internal const string NoMakeupDaysNotice = "未設定補班日/結帳日資訊";
 
@@ -509,7 +507,7 @@ public sealed partial class WorkingPaperWriter
     /// <summary>
     /// 「自動化工具-科目配對資訊」:GL_NUMBER / GL_NAME / STANDARDIZED_ACCOUNT_NAME + 每科目列。
     /// **Not-in-TB**(在 GL 有、TB 無的科目)GL_NAME 寫字面「Not in TB」而非 account_name——
-    /// 為什麼用字面值:對齊本機參考樣本中的固定字串「Not in TB」,標示「該科目在 GL 出現卻未配對到 TB 餘額」,
+    /// 為什麼用字面值:照舊版 JET 寫固定字串「Not in TB」,標示「該科目在 GL 出現卻未配對到 TB 餘額」,
     /// 供審計員一眼辨識完整性缺口。判定來源是完整性 not_in_tb 集合(repo 以 ValidationProcedures.CompletenessDiffCte 為單一事實來源),
     /// emitter 只依旗標渲染(data-structure 對映,非逐列特判)。
     /// </summary>
@@ -577,14 +575,6 @@ public sealed partial class WorkingPaperWriter
             cancellationToken: cancellationToken);
     }
 
-    // ================= step1 家族 emitter =================
-
-    /// <summary>
-    /// 「step1 完整性測試」:A1-A4 共同表頭 + Step1 程序固定文字 + 結論 + 第 19 列欄標 +
-    /// completenessAccounts **全科目逐頁**(科目編號/名稱/TB 變動(A)/GL 彙總(C)/差異(B)-(A))。
-    /// 差異欄用 repo 的 DiffScaled(= tb_s - gl_s),step1／step1-3 同一定義不漂移。
-    /// </summary>
-
     private static void ConfigureCalendarLayout(
         SheetWriter sheet,
         IReadOnlyList<double> widths,
@@ -622,14 +612,10 @@ public sealed partial class WorkingPaperWriter
         "若查核團隊發現受查客戶在財務報表關帳後，尚有入帳之調整分錄(Post-closing entries)，" +
         "或未入帳直接對財務報表之調整(Other adjustments)，\n則可將此類調整記錄於此處，或說明無此類情形。\n";
 
-    private static readonly IReadOnlyList<string> DerivedFieldFlags =
-        ["K_R條件", "K_情境三四", "K_情境五", "K_情境八"];
-
     /// <summary>
     /// 假期假日資訊的週末對照(DAYOFWEEK / WORKDAY)。照舊版 X_Append_Weekend 由週一排到週日,
     /// 案件設定為每週休息日的那幾天寫 Y、其他寫 N;WORKDAY=Y 表示「視為非工作日」,是舊版既定的意思。
-    /// 案件沒有設定時照 <see cref="NonWorkingDays.Default"/> 寫週六、週日;設定成空集合時七天都寫 N
-    /// (裁定 2026-11-05-31)。
+    /// 案件沒有設定時照 <see cref="NonWorkingDays.Default"/> 寫週六、週日;設定成空集合時七天都寫 N。
     /// </summary>
     internal static IReadOnlyList<(string DayName, string Workday)> WeekendRows(IReadOnlyList<int>? nonWorkingDays)
     {
@@ -644,20 +630,4 @@ public sealed partial class WorkingPaperWriter
         DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday,
         DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
     ];
-
-    // ================= 動態 C 欄集(step3/4/4-1 業務分支:data structure 消特例)=================
-
-    /// <summary>
-    /// 高風險情境的欄集 data structure。把「step4 用全部所選 position」
-    /// 「step4-1 只用所選集合中 rowHitCount&gt;0 的 position」
-    /// 這個業務分支(對齊樣本的動態 schema)收斂成兩個預先算好的有序 position list,emitter 只需:
-    /// (1) 依 list 順序加欄標 cell;(2) 逐列依該列 matchedPositions 是否含某 position 標 Y——
-    /// 完全由 data structure 對映,不寫「第幾欄特判」，新增情境欄時不必改 emitter。
-    ///
-    /// <see cref="Scenarios"/> 供 step3 列(name/rationale/voucherHitCount,position 升冪);
-    /// <see cref="_allPositions"/> = 全部所選 position 升冪(step4 欄集);
-    /// <see cref="_rowHitPositions"/> = rowHitCount&gt;0 的 position 升冪(step4-1 欄集)。
-    /// name/rationale/position 取自 scenario store、命中數取自 highRiskSummary counts,於此合併(鏡射 query.highRiskSummaryScenarios);
-    /// step3 另需 rationale(D 欄),wire 摘要不含此欄,故用內部 <see cref="ScenarioRow"/> 承載。
-    /// </summary>
 }

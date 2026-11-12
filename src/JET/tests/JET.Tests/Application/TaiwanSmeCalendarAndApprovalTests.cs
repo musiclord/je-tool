@@ -6,7 +6,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 台灣 2025 年行事曆與財報準備日：週末、國定假日、春節連假、2025-02-08 補班日，
 /// 以及核准日在財報準備日當日或之後的分錄。假日清單只匯入平日的國定假日，週末交給週末判斷；
-/// 預期值依 docs/jet-guide.md 第 5、6 節（非營業日 = 週末或假日，再排除補班日）手算。
+/// 預期值依規則（非營業日 = 週末或假日，再排除補班日）手算。
 /// </summary>
 public sealed class TaiwanSmeCalendarAndApprovalTests
 {
@@ -117,8 +117,7 @@ public sealed class TaiwanSmeCalendarAndApprovalTests
 
         var validation = await host.DispatchAsync("validate.run");
         // 核准日不在查核期間：A0（2024-12-31）、A2、A3、A4（2026 年），以及核准日空白的 A5，各兩列共 10 列；A6 不在 GL。
-        // 裁定 2026-11-05-38 照舊版把核准日空白也算成不在期間，原本 A5 不計、預期 8 列。
-        // 第一次失敗：Focused 收據 20261105-114443928-8849cc7de421490a84e48db9b234452c。
+        // 照舊版把核准日空白也算成不在期間。
         Assert.Equal(10, validation.GetProperty("blankRecordsTest").GetProperty("approvalDateNotInPeriodCount").GetInt64());
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 財報準備日起核准：核准日 >= 2026-01-15，即 A3（當天）、A4，共 4 列；A2 早一天不算。

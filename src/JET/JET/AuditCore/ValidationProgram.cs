@@ -23,7 +23,7 @@ internal sealed record ValidationRequest(
 
 /// <summary>
 /// Validation typed plan。<see cref="ReviewPlan"/> 沿用既有 public review contract，
-/// 讓 typed production path 與既有 Plan／Finalize 只有一套程序裁定。
+/// 讓 typed production path 與既有 Plan／Finalize 只有一套程序判定。
 /// <see cref="OutOfPeriodApprovalNaReason"/> 只在傳票核准日不可用、「核准日不在期間」無法執行時有值。
 /// </summary>
 internal sealed record ValidationPlan(
@@ -157,7 +157,7 @@ internal static class ValidationAmountDistributionCatalog
 
 /// <summary>
 /// gl_control_total 中納入核對的來源控制總數。Match flags 不在 Infrastructure 計算，
-/// 由 AuditCore Finalize 依目前 GL 那一側的 facts 裁定。
+/// 由 AuditCore Finalize 依目前 GL 那一側的 facts 判定。
 /// </summary>
 internal sealed record ValidationControlTotalsFacts(
     long EligibleSourceRowCount,

@@ -12,8 +12,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第 22 步盤點的第 3 項：寫到一半被強制結束（工作管理員結束程式或斷電）後重開，要確認四件事：
-/// 強制結束前的資料完整、資料庫完整性檢查通過、能重新取得案件鎖、重試會成功。SQLite 與 DuckDB 都測。這是新增的測試。
+/// 寫到一半被強制結束（工作管理員結束程式或斷電）後重開，要確認四件事：
+/// 強制結束前的資料完整、資料庫完整性檢查通過、能重新取得案件鎖、重試會成功。
 /// 子程式就是測試程式本身，以環境變數指定角色，只執行這個測試方法，寫法同 <see cref="SupportCaseHistoryProcessTests"/>。
 /// 子程式在寫入交易進行中送出的進度事件裡寫下「已開始」再停住，父程式這時強制結束它，所以結束的時間點是確定的，不靠等待時間：
 /// 匯入每兩萬列送一次進度，確認 GL 配對在投影寫完、交易提交之前一定送一次。
@@ -234,7 +234,6 @@ public sealed class InterruptedWriteProcessTests
         return snapshot;
     }
 
-    /// <summary>SQLite 用 integrity_check；DuckDB 沒有對應的檢查，改成讀完每一張比對的表，讀不到就失敗。</summary>
     private static async Task AssertIntegrityAsync(string projects, string name, string provider)
     {
         await using var connection = Database(projects, provider).CreateConnection(name);

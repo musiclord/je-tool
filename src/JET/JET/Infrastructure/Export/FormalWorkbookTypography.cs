@@ -15,8 +15,7 @@ internal static class FormalWorkbookTypography
     private const double RowHeightPerFontPoint = 1.5D;
 
     /// <summary>
-    /// JET 自己寫的工作表列高一律是字級的 1.5 倍：10 點 15、11 點 16.5、12 點 18。
-    /// 這三個數字出自裁定 2026-10-29-08；1.5 倍是 Claude 從這三個數字歸納的算法，其他字級也照它算。
+    /// JET 自己寫的工作表列高一律是字級的 1.5 倍：10 點 15、11 點 16.5、12 點 18；其他字級也照它算。
     /// 微軟正黑體比舊流程的 Arial 高，沿用 12.5 點會切到字；Excel 的標準列高又隨螢幕縮放改變，
     /// 1.5 倍在一般縮放與高縮放下都不低於字的自然高度。多行文字依行數加高。
     /// </summary>

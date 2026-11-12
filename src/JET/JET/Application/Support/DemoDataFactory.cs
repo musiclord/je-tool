@@ -85,8 +85,7 @@ public static class DemoDataFactory
     public const int HolidayPostingVouchers = 14;
     public const int HolidayApprovalVouchers = 8;
     public const int BlankDescriptionVouchers = 18;
-    // 原本是 22 張回溯過帳示範傳票。裁定 2026-10-08-03 移除傳票日期與回溯過帳後，改成不觸發任何規則的
-    // 一般傳票，保留原來的位置與張數，讓其他示範群組的日期、金額與抽樣結果維持不變。
+    // 不觸發任何規則的一般傳票。保留這個位置與張數，讓其他示範群組的日期、金額與抽樣結果維持不變。
     public const int FormerBackdatedPlainVouchers = 22;
     public const int NonAuthorizedVouchers = 16;
     public const int RarePreparerVouchers = 5;
@@ -410,7 +409,7 @@ public static class DemoDataFactory
                 NextPreparer(), NextCommonDebit(), NextCommonCredit(), NextAmount(), string.Empty, SafeDesc());
         }
 
-        // 原回溯過帳群組的位置：改為一般傳票，亂數與游標的取用順序和原本相同。
+        // 這個位置產生一般傳票，照固定的順序取用亂數與游標。
         for (var i = 0; i < FormerBackdatedPlainVouchers; i++)
         {
             var post = NextWeekday();

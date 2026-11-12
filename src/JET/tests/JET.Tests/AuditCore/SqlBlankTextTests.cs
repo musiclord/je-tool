@@ -5,8 +5,8 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 文字欄「是空白」「不是空白」的唯一 SQL 寫法。2026-10-22 清理技術債時把散在各規則與配對查詢裡的同一句收成這一個類別：
-/// 空白指 NULL 或經方言去空白後是空字串，兩個片段都帶外層括號。
+/// 文字欄「是空白」「不是空白」的唯一 SQL 寫法，各規則與配對查詢都用這一個類別：
+/// 空白指 NULL 或去空白後是空字串，兩個片段都帶外層括號。
 /// </summary>
 public sealed class SqlBlankTextTests
 {
@@ -29,7 +29,7 @@ public sealed class SqlBlankTextTests
     [Fact]
     public void EachDatabase_TrimsWithItsOwnWhitespaceList()
     {
-        // 三種資料庫的去空白字元集合不同，這裡只確認片段經過方言的去空白方法，不比對字元清單本身。
+        // 這裡只確認片段經過方言的去空白方法，不比對字元清單本身。
         foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance })
         {
             Assert.Equal(
@@ -57,7 +57,7 @@ public sealed class SqlBlankTextTests
         Assert.Throws<ArgumentNullException>(() => SqlBlankText.IsNotBlank(null!, "description"));
     }
 
-    /// <summary>只會用到去空白的方言替身，讓固定答案不必寫出三種資料庫的空白字元清單。</summary>
+    /// <summary>只會用到去空白的方言替身，讓固定答案不必寫出空白字元清單。</summary>
     private sealed class PlainTrimDialect : ISqlDialect
     {
         public string Trim(string expr) => $"TRIM({expr})";

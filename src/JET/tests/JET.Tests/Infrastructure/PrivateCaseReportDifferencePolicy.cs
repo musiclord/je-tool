@@ -14,8 +14,8 @@ internal sealed record PrivateCaseReportDecisionSummary(
     long DifferenceCount);
 
 /// <summary>
-/// 將舊 IDEA 與 JET 的差異分成已裁定與尚待處理兩類。這裡只收錄目前程式及
-/// new-je-tool 現行規格已有依據的差異，不以數量白名單放行。
+/// 將舊 IDEA 與 JET 的差異分成已核可與尚待處理兩類。這裡只收錄目前程式及
+/// 現行規格已有依據的差異，不以數量白名單放行。
 /// </summary>
 internal static class PrivateCaseReportDifferencePolicy
 {
@@ -27,7 +27,7 @@ internal static class PrivateCaseReportDifferencePolicy
     internal const string ApprovedCompletenessTotals = "approved-completeness-totals";
     internal const string ApprovedInfSampling = "approved-inf-sampling";
     internal const string ApprovedPrescreenRule = "approved-prescreen-rule";
-    // 2026-10-06 起只在明示比對裁定時正規化 Step 4-1 舊端人工旗標；正規化後不得放行該欄差異。
+    // 只在明示指定這項決定時正規化 Step 4-1 舊端人工旗標；正規化後不得放行該欄差異。
     internal const string ApprovedManualAutoDisplay = "approved-manual-auto-display";
 
     internal const string UnifiedFormalWorkbookFont = "unified-formal-workbook-font";
@@ -124,7 +124,7 @@ internal static class PrivateCaseReportDifferencePolicy
             {
                 if (decision.DecisionId == ApprovedManualAutoDisplay)
                 {
-                    // 此裁定只允許讀取舊端時正規化，不能接受正規化後的任何值差異。
+                    // 這項決定只允許讀取舊端時正規化，不能接受正規化後的任何值差異。
                     continue;
                 }
                 return decision.DecisionId;
@@ -171,7 +171,7 @@ internal static class PrivateCaseReportDifferencePolicy
         var rightColumn = right?.Columns.SingleOrDefault(c => c.Key == key);
         if (leftColumn?.SequenceDigest == rightColumn?.SequenceDigest
             && left?.ColumnNameHashes.Count(c => c == key) == right?.ColumnNameHashes.Count(c => c == key)) return comparison;
-        // 一般比對容許資料列排序或獨有欄位差異，此裁定不適用那些豁免。
+        // 一般比對容許資料列排序或獨有欄位差異，這項決定不適用那些豁免。
         if (comparison.Differences.Any(d => d.SheetName == sheet && d.Dimension == LegacyAuditParityContentDimension.RowValues)) return comparison;
         return comparison with { Differences = [.. comparison.Differences,
             new LegacyAuditParityContentDifference("working-paper", sheet, LegacyAuditParityContentDimension.RowValues, 1)] };
@@ -200,12 +200,11 @@ internal static class PrivateCaseReportDifferencePolicy
         ArgumentNullException.ThrowIfNull(group);
         ArgumentNullException.ThrowIfNull(allGroups);
 
-        // 裁定 2026-10-29-08：10 點明細頁統一 15 點，11 點與 12 點用 16.5 與 18 點，取代 2026-09-17 起只放行 V_Report 5 的 18 點的做法。
-        // 放行的高度由 PrivateCaseReportComparatorTests 核對，第一次失敗：Public 收據 20261029-033535234-ec60c658035b41ddba9416ad92c94a33。
+        // 10 點明細頁統一 15 點，11 點與 12 點用 16.5 與 18 點。
+        // 放行的高度由 PrivateCaseReportComparatorTests 核對，
         // 10 點的明細頁只接受 15 點，12 點的可靠性樣本只接受 18 點；其他頁或其他高度仍須處理。
         // 底稿各頁疊在範本上寫，列高沿用範本，不在此放行。
-        // 外觀快照不記錄 15 點的工作表預設列高，差異裡 JET 那邊因此是「沒有記錄」，照快照的同一規則讀回 15 點；
-        // 原本只比對實際值 15，在真正的報表上從未生效，第一次失敗：Focused 收據 20261102-234238092-5bf40710b30349fca922140acb7b1135。
+        // 外觀快照不記錄 15 點的工作表預設列高，差異裡 JET 那邊因此是「沒有記錄」，照快照的同一規則讀回 15 點。
         if (ApprovedFontScaledRowHeight(reportSlug, group.SheetName) is { } approvedHeight
             && CapturedRowHeight(group) == approvedHeight
             && ((group.ScopeKind == "row" && group.Property == "height")

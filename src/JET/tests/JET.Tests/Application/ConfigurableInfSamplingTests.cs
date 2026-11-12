@@ -50,8 +50,8 @@ public sealed class ConfigurableInfSamplingTests
             Assert.Contains(step2.DataValidations.SelectMany(v => v.Ranges), range => range.Contains(step2.Cell(52 + count, 13)));
         }
 
-        // 裁定 2026-11-09-13：step2 的下拉選單照範本的兩組選項。樣本超過範本第 111 列時，
-        // M 到 S 的範圍延伸到最後一個樣本；B 欄的選單和範本相同。裁定 2026-11-09-14：step2 照舊版不保護。
+        // step2 的下拉選單照範本的兩組選項。樣本超過範本第 111 列時，
+        // M 到 S 的範圍延伸到最後一個樣本；B 欄的選單和範本相同。step2 照舊版不保護。
         using var document = DocumentFormat.OpenXml.Packaging.SpreadsheetDocument.Open(workingPaperPath, false);
         var workbookPart = document.WorkbookPart!;
         var sheet = workbookPart.Workbook!.Sheets!.Elements<DocumentFormat.OpenXml.Spreadsheet.Sheet>()

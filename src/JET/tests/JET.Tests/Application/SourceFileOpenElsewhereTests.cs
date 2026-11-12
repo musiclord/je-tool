@@ -6,9 +6,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 審計員常在 Excel 開著來源檔時選它匯入（裁定 2026-11-06-12）。Excel 開檔時自己能寫入、只准別人讀，
+/// 審計員常在 Excel 開著來源檔時選它匯入。Excel 開檔時自己能寫入、只准別人讀，
 /// 這裡用同樣的開檔方式佔住檔案：JET 照樣讀到最後一次存檔的內容，匯入回應多一則提醒，說尚未存檔的修改沒有匯入。
-/// 其他程式獨占檔案、連讀都不准時照舊擋下，那一組在 TbImportBranchTests。這些是新增的測試。
+/// 其他程式獨占檔案、連讀都不准時照舊擋下，那一組在 TbImportBranchTests。
 /// </summary>
 public sealed class SourceFileOpenElsewhereTests
 {

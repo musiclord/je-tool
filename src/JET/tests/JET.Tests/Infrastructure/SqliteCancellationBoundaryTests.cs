@@ -8,7 +8,7 @@ namespace JET.Tests.Infrastructure;
 /// <summary>
 /// SQLite 的取消接在每一步執行上（見 CancellableSqliteCommand 與 CancellableSqliteDataReader）。這裡核對幾個時間點剛好落在
 /// 一步結束時的情形：取消在這一步算完、列已經出來時才送達，以及讀到後面某一列時發生錯誤。
-/// 用一個在 SQL 裡執行時就按下取消的函式，讓時間點固定，不靠等待。第 30 步量涵蓋率時發現這幾段沒有測試執行到。這是新增的測試。
+/// 用一個在 SQL 裡執行時就按下取消的函式，讓時間點固定，不靠等待。
 /// </summary>
 public sealed class SqliteCancellationBoundaryTests
 {

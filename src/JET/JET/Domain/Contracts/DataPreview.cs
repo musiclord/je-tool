@@ -62,7 +62,7 @@ public static class DataPreviewDatasetNames
 }
 
 /// <summary>
-/// GL(未納入測試) 每一列的未納入原因。日期不符分成前三種，分開標示並各自計數（裁定 2026-10-21-04），
+/// GL(未納入測試) 每一列的未納入原因。日期不符分成前三種，分開標示並各自計數，
 /// 資料預覽可以只看其中一種）；GL 範圍與審計結果不變。
 /// </summary>
 public enum GlExclusionReason

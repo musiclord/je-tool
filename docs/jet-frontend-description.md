@@ -1183,7 +1183,7 @@ JET 更新篩選規則後，不要求審計員逐案重新儲存情境（裁定 
   例外包括 filter-step 的規則值編輯、科目勾選和拖曳的暫時選取，以及欄位配對的借方代碼與攸關資料元素
   顯示名稱。這些操作就地同步相關控制項，避免重繪打斷輸入、指標捕捉或滑鼠點擊；
   真正套用分類和保存資料仍依 Store 更新。不能把是否呼叫 bump 當成是否完成業務程序的判定。
-  守衛測試：`tools/tests/frontend-journey-mapping.test.cjs` 在第三步畫面上檢查重繪次數、焦點、捲動與連續輸入。
+  守衛測試：`src/JET/tests/frontend/frontend-journey-mapping.test.cjs` 檢查第三步的重繪次數、焦點、捲動與連續輸入。
 
 欄位配對裡必填欄位的標示與「確認配對」按鈕都由同一份 draft 推導。文字輸入就地更新兩者，不重建；下拉選擇會立即 bump。
 中央內容重建後，`app.js` 把焦點放回重建前的同一個控制項，並還原 `data-preserve-scroll` 容器。

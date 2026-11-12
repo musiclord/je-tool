@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Architecture;
 
@@ -9,7 +10,7 @@ public sealed class TestEvidencePolicyTests
     [Fact]
     public void UngatedTests_DoNotTurnMissingEnvironmentIntoPassingEarlyReturn()
     {
-        TestEvidencePolicyGuard.ValidateTree(Path.Combine(RepoRoot(), "src", "JET", "tests", "JET.Tests"));
+        TestEvidencePolicyGuard.ValidateTree(Path.Combine(TestRepositoryPaths.SolutionRoot, "tests", "JET.Tests"));
     }
 
     [Fact]
@@ -55,8 +56,8 @@ public sealed class TestEvidencePolicyTests
     [Fact]
     public void ProviderTests_KeepTheirCapabilityContracts()
     {
-        var testsRoot = Path.Combine(RepoRoot(), "src", "JET", "tests", "JET.Tests", "Infrastructure");
-        var logging = File.ReadAllText(Path.Combine(testsRoot, "ProviderLoggingParityTests.cs"));
+        var testsRoot = Path.Combine(TestRepositoryPaths.SolutionRoot, "tests", "JET.Tests", "Infrastructure");
+        var logging = File.ReadAllText(Path.Combine(testsRoot, "ProviderLoggingFixedAnswerTests.cs"));
 
         Assert.Matches(
             new Regex(@"\[Fact\]\s+public async Task ImportReplace_Sqlite_", RegexOptions.CultureInvariant),
@@ -64,22 +65,7 @@ public sealed class TestEvidencePolicyTests
         Assert.Matches(
             new Regex(@"\[Fact\]\s+public async Task GlProjection_Sqlite_", RegexOptions.CultureInvariant),
             logging);
-        // 原本也要求 DuckDB 與 SQL Server 各有這兩個測試。只保留 SQLite 之後那四個測試隨兩種資料庫刪除，只留 SQLite 的兩項
-        // （裁定 2026-11-06-08）；第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
-    }
-
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null
-            && !(File.Exists(Path.Combine(directory.FullName, "AGENTS.md"))
-                && Directory.Exists(Path.Combine(directory.FullName, "src", "JET", "tests", "JET.Tests"))))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName
-            ?? throw new InvalidOperationException("向上尋不到含 AGENTS.md 與 JET.Tests 的 repository root。");
+        // 只要求 SQLite 的這兩個測試。
     }
 }
 

@@ -49,7 +49,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                 mode));
 
         // Excel 檔有多個工作表時，畫面請審計員選科目配對所在的工作表，例如工作底稿的「自動化工具-科目配對資訊」；
-        // 沒有指定時照舊讀第一個工作表（裁定 2026-11-05-07）。
+        // 沒有指定時照舊讀第一個工作表。
         var sheetName = PayloadReader.GetOptionalString(payload, "sheetName");
         if (sheetName is not null && extension != ".xlsx")
         {
@@ -58,9 +58,9 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
 
         var request = new TabularSourceRequest(filePath, SheetName: sheetName);
         var source = new ImportSourceDescriptor(filePath, fileName, sheetName, null, null);
-        // 引號內換行的提醒也適用科目配對檔（裁定 2026-10-19-06）。
+        // 引號內換行的提醒也適用科目配對檔。
         var lineBreaks = new QuotedLineBreakTally();
-        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒（裁定 2026-11-06-12）。
+        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒。
         var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
 
         var facts = await Task.Run(
@@ -77,7 +77,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                 {
                     // 正式 legacy AccountMapping 的標頭在第 3 列、資料自第 4 列；
                     // 舊版 JET 產物／一般 CSV 仍維持第 1 列標頭。只在第 1 列無法辨識時回退兩列。
-                    // 這兩列是舊範本固定的版面，不是審計員指定的欄名列（2026-10-28 複審）。
+                    // 這兩列是舊範本固定的版面，不是審計員指定的欄名列。
                     effectiveRequest = request with { LeadingRowsToSkip = 2, FixedLeadingRows = true };
                     columns = await reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
                     projection = JetAuditProgram.PrepareAccountMappingProjection(columns, categorySnapshot);
@@ -122,7 +122,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             mappingOnlyCount = differences?.MappingOnlyCount,
             unmappedCount = differences?.UnmappedCount,
             columnMappingWarning = result.ColumnMappingWarning,
-            // 開著的檔案那則另外列一份，畫面放在「用 Excel 配對」的結果旁（裁定 2026-11-06-12）；warnings 照舊是全部提醒。
+            // 開著的檔案那則另外列一份，畫面放在「用 Excel 配對」的結果旁；warnings 照舊是全部提醒。
             warnings,
             openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,

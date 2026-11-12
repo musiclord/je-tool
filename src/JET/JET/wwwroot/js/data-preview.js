@@ -4,12 +4,11 @@
   - 欄位配對時對照「欄名 ↔ 實際內容」（PBC-GL、PBC-TB）
   - 進階篩選前掌握數值/日期/摘要的大概樣貌（GL、TB 與概況統計）
   每頁最多 200 列，分頁讀取完整資料；權威計算一律在後端。
-
-  第二波呈現層：常駐右欄面板（頁籤切換資料表＋橫向捲動表格）。
-  - 資料集選擇由下拉改為頁籤：PBC／標準化的 GL、TB 與科目配對直接可見，其餘收進「其他資料」選單；
-    現行支援的全部資料集在新 UI 都可達（openDataPreview 對任一 key 都能定位並載入）。
+  呈現層：常駐右欄面板（頁籤切換資料表＋橫向捲動表格）。
+  - 資料集以頁籤選擇：PBC／標準化的 GL、TB 與科目配對直接可見，其餘收進「其他資料」選單；
+    現行支援的全部資料集都可達（openDataPreview 對任一 key 都能定位並載入）。
   - 載入節制：切頁籤／步驟按鈕（openDataPreview）才呼叫 query.dataPreview；
-    另在首次進入 workflow 且有專案時自動載入一次（沿用舊 <details> 首開自動載入的節制模式）。
+    另在首次進入 workflow 且有專案時自動載入一次。
   - 底層資料世代刷新：後端寫入成功且改變可預覽資料集後（匯入落地、配對提交、科目配對／授權
     清單／行事曆匯入），state.dataGeneration 遞增；本面板據此作廢快取——可見即自動重抓當前
     作用資料集，收合則待展開再抓。世代訊號只在真實資料落地時跳（非每個 action），故不會對大母體
@@ -17,7 +16,7 @@
   - 使用 query.dataPreview 的 limit 與 offset 分頁；不新增後端 action。
     GL(未納入測試) 另可帶 exclusionReason 只看一種未納入原因，換頁時沿用同一種。
   - GL 與 GL(未納入測試) 的欄位由後端依已確認的配對決定，欄名與型別讀回應的 columnDetails；
-    金額固定顯示四位小數（裁定 2026-10-22-06）。
+    金額固定顯示四位小數。
 */
 (function (global) {
   'use strict';
@@ -26,7 +25,7 @@
   var Ui = global.JetUi;
 
   // wire key → 顯示標籤。DATASETS 逐字鏡射 Domain DataPreviewDatasetLabels.All，MAIN_TABS 逐字鏡射 .MainTabs；
-  // 資料名稱全系統統一（裁定 2026-10-08-04），改名時兩邊一起改。
+  // 資料名稱全系統統一，改名時兩邊一起改。
   var DATASETS = [
     { value: 'pbcGl', label: 'PBC-GL' },
     { value: 'pbcTb', label: 'PBC-TB' },
@@ -58,7 +57,7 @@
   });
 
   // 沒有 columnDetails 的資料集：固定欄位 id → 顯示標籤（query.dataPreview）。GL 兩頁、TB、科目配對與 PBC 兩頁的欄名
-  // 由回應的 columnDetails 提供，和欄位配對畫面同名，不在這裡另寫一份（裁定 2026-11-05-04）。
+  // 由回應的 columnDetails 提供，和欄位配對畫面同名，不在這裡另寫一份。
   var COLUMN_LABELS = {
     preparerName: '人員代號或姓名',
     // calendar
@@ -77,7 +76,7 @@
   var DAY_TYPE_LABELS = { holiday: '假日', makeup: '補班' };
 
   // GL(未納入測試) 的未納入原因（後端 closed wire value）→ 中文顯示與統計鍵；未登錄值原樣呈現。
-  // 日期不符分成三種原因並各自計數（裁定 2026-10-21-04），資料預覽可以只看其中一種；三種日期原因的名稱逐字照當時的選項。
+  // 日期不符分成三種原因並各自計數，資料預覽可以只看其中一種；三種日期原因的名稱逐字照當時的選項。
   // 原因欄、下方統計列與篩選選項都用這一組名稱。
   var EXCLUSION_REASONS = [
     { value: 'blankGlDate', label: '總帳日期空白', countKey: 'blankGlDateCount' },
@@ -92,7 +91,7 @@
   function isGlDataset(dataset) { return dataset === 'gl' || dataset === 'glExcluded'; }
   function isPbcDataset(dataset) { return dataset === 'pbcGl' || dataset === 'pbcTb'; }
 
-  // 資料預覽的金額固定顯示四位小數加千分位，例如 1,234.5000（裁定 2026-10-22-06，只改資料預覽；其他畫面維持 Ui.money 的兩位）。
+  // 資料預覽的金額固定顯示四位小數加千分位，例如 1,234.5000（只有資料預覽這樣；其他畫面維持 Ui.money 的兩位）。
   // 後端照存下的整數換算成精確的十進位字串，這裡只補零與加千分位，不轉成數字，超大金額的第四位小數也不會跑掉。
   function previewMoney(value) {
     if (value === null || value === undefined || value === '') { return '—'; }
@@ -109,7 +108,7 @@
   function displayCell(dataset, column, cell, detail) {
     if (cell === null) { return null; }
     if (isGlDataset(dataset) && column === 'manualAuto') { return { manual: '人工', automatic: '自動' }[cell] || cell; }
-    // 借貸別和結果表格一樣寫「借」「貸」，不顯示資料庫存的英文值，畫面不露出系統用詞（裁定 2026-10-19-04）。
+    // 借貸別和結果表格一樣寫「借」「貸」，不顯示資料庫存的英文值，畫面不露出系統用詞。
     if (isGlDataset(dataset) && column === 'drCr') { return { DEBIT: '借', CREDIT: '貸' }[cell] || cell; }
     if (dataset === 'calendar' && column === 'dayType') {
       return DAY_TYPE_LABELS[cell] || cell;
@@ -118,7 +117,7 @@
       return EXCLUSION_REASON_LABELS[cell] || cell;
     }
     // 金額欄看回應標示的型別，含攸關資料元素的金額欄與 TB 的變動金額。
-    // PBC-GL 與 PBC-TB 的金額欄只靠右，數值照來源文字呈現（裁定 2026-11-05-04）。
+    // PBC-GL 與 PBC-TB 的金額欄只靠右，數值照來源文字呈現。
     if (detail && detail.valueType === 'amount' && !isPbcDataset(dataset)) {
       return previewMoney(cell);
     }
@@ -595,7 +594,7 @@
     }
 
     // 欄名與對齊讀回應的 columnDetails（和 columns 同順序）：只有金額欄靠右，項次、科目編號這類看起來像數字的文字照樣靠左。
-    // 不逐格猜哪一欄是數字，換頁時對齊也不會跟著變；沒有欄位型別的資料集全部靠左（裁定 2026-11-05-04）。
+    // 不逐格猜哪一欄是數字，換頁時對齊也不會跟著變；沒有欄位型別的資料集全部靠左。
     var details = Array.isArray(data.columnDetails) ? data.columnDetails : null;
     var numeric = columns.map(function (c, i) { return !!(details && details[i] && details[i].valueType === 'amount'); });
 
@@ -628,7 +627,7 @@
 
     var total = Ui.countText(data.totalCount || 0);
     var cols = (data.columns && data.columns.length) || 0;
-    // GL 與 TB 的分錄、科目用「筆」，來源檔與其他清單用「列」（裁定 2026-10-19-16）。
+    // GL 與 TB 的分錄、科目用「筆」，來源檔與其他清單用「列」。
     var unit = ENTRY_DATASETS.indexOf(activeDataset) >= 0 ? ' 筆' : ' 列';
     var count = '共 ' + total + unit + '，全 ' + Ui.countText(cols) + ' 欄';
 

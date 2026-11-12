@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 public sealed class UsageScenarioRetryJourneyTests
 {
-    // X-16: jet-guide sections 4 and 7: failed work leaves no partial new results.
+    // Failed work leaves no partial new results.
     // Retrying after removing a synthetic I/O/SQL fault must produce a fresh complete result.
     [Theory]
     [InlineData("sqlite", "validate")]
@@ -89,7 +89,7 @@ public sealed class UsageScenarioRetryJourneyTests
         Assert.Equal(oldManifest, await File.ReadAllBytesAsync(manifest));
         Assert.Single(WorkingPaperExportTestSupport.FindWorkingPapers(folder));
         Assert.Empty(Directory.GetFiles(folder, "*.tmp", SearchOption.AllDirectories));
-        // 原本只確認舊版的暫存檔 .report-artifacts.mutation-v1.json 不在；產品早已不寫這個檔，斷言一定通過。改成確認現行的暫存檔都沒有留下。
+        // 確認現行的暫存檔都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(folder);
 
         var retry = await host.DispatchAsync("export.workingPaperStream", payload);

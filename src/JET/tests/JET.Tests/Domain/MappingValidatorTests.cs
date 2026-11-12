@@ -76,8 +76,7 @@ public sealed class MappingValidatorTests
                 [GlMappingKeys.Description] = "摘要",
                 [GlMappingKeys.Amount] = "借方金額",
                 [GlMappingKeys.DrCr] = "部門代號",
-                // 兩個方向代碼都是字面值，完整驗證斷言維持不變。
-                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                // 兩個方向代碼都是字面值。
                 [GlMappingKeys.DrCrDebitCode] = "D",
                 [GlMappingKeys.DrCrCreditCode] = "C"
             },
@@ -117,7 +116,7 @@ public sealed class MappingValidatorTests
             new GlMappingSpec(mapping, mode),
             JeColumns);
 
-        // 2026-10-08 第 6 則：缺一側代碼可用補集；借貸別來源欄仍必填。
+        // 缺一側代碼可用補集；借貸別來源欄仍必填。
         Assert.Equal(missingKey != GlMappingKeys.DrCr, result.IsValid);
         Assert.Equal(missingKey == GlMappingKeys.DrCr ? new[] { missingKey } : [], result.MissingRequiredKeys);
         Assert.Empty(result.UnknownColumns);

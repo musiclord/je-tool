@@ -7,8 +7,6 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// 呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
-
 /// <summary>
 /// Validation repo 診斷日誌（SQL、參數值、rows_affected、duration；transaction 共享 id）。
 /// oracle：規格——TB mapping 存在時，ExecuteAsync 在單一交易內跑 stats / completeness（count + reader）/
@@ -16,48 +14,20 @@ namespace JET.Tests.Infrastructure;
 /// 存入筆數與合計核對的控制總數 / amount distribution / 同號多日期計數，共 12 條 SQL；TB mapping 不存在時只略過
 /// 逐科目比對的兩條，保留其餘 10 條。INF 為 INSERT，rows_affected 反映抽出列數。
 /// 斷言鎖 SQL 內容、rows_affected、共享 id、綁定期間值。
-/// 母體以固定 3 列直接播種（值可手算）。SQL Server 由 SqlServerFact 的本機 Developer gate 控制。
+/// 母體以固定 3 列直接播種（值可手算）。
 /// </summary>
 public sealed class ValidationRunLoggingTests
 {
-    // v2 INF PRF 是方言渲染後的 SQL，因此三 provider 各有自己的 command-sequence digest。
-    // 2026-08-14 起，驗證規則與 INF 只讀 GL 的分錄；原始統計、存入筆數與合計核對，以及總帳日期空白的檢查不受這個範圍限制。
-    // 依裁定 2026-10-04-01，空白紀錄述詞的去空白改走方言的 Trim（字元集合和 .NET 相同），驗證 SQL 的文字因此改變，
-    // SQLite 與 DuckDB 的 digest 依新 SQL 更新（第一次失敗：Public 收據 20261004-050120179-d7f0450b8a4940a39d1e58357427160f）。
-    // SQL Server 的述詞也從 LTRIM(RTRIM()) 改成 TRIM(NCHAR(...) FROM x)，但這次修改沒有實機執行 Provider，digest 沿用舊值，
-    // 下次執行 Provider 時預期先失敗一次，再依實際 SQL 更新。
-    // First digest failure: 20261004-101806919-e8b6a1be3d8b4bd3b5bbe7349a92eddc.
-    // Removing only command 12 (the voucher-number reuse check) and the two blank-voucher non-null guards reproduces both old digests exactly.
-    // SQL Server remains compile-only; its older digest is deliberately not guessed.
-    // 裁定 2026-10-21-04 把日期不符分成三種原因：第 1 條命令的日期不符筆數改成三種日期原因的合計，參數跟著改。
-    // 第一次失敗：Public 收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a；只把第 1 條換回舊 SQL 與參數即可重算出兩個舊 digest。
-    // SQL Server 的同一條命令也改了，這次沒有執行 Provider，digest 沿用舊值，下次執行 Provider 時預期先失敗一次。
-    // 2026-10-22 清理技術債：傳票號碼跨日重用的檢查改走 AuditCore 的 SqlBlankText，「不是空白」的片段多了一層外括號，
-    // 命令數與參數不變。第一次失敗：Public 收據 20261022-075335566-9bd5ebf8423944be8298ad73cb7ee242。
-    // SQL Server 未執行，維持原值待核對。
-    // 2026-10-28 複審：日期不符這組原因改由 GlExcludedPopulation.ExcludedByPeriodSqlPredicate 產生，第 1 條命令的三個日期參數
-    // 換成嵌入的原因清單，命令數不變。第一次失敗：Focused 收據 20261028-023757070-4d23b285ab774acea3df4e8eea2e21a2。SQL Server 未執行，維持原值待核對。
-    // 2026-10-30 統一改名：表名 target_gl_entry、target_tb_balance、result_inf_sampling_test_sample 改 gl、tb、inf_sample；
-    // 欄名 document_number、post_date、account_code、document_description、run_id 改 voucher_number、gl_date、account_number、
-    // description、result_id，參數 @runId 改 @resultId；gl_control_total 的 effective_row_count、effective_debit_scaled、
-    // effective_credit_scaled 改 gl_row_count、gl_debit_scaled、gl_credit_scaled；未納入原因值 blank_post_date 改 blank_gl_date；
-    // is_effective = 1 與 = 0 改 is_excluded = 0 與 = 1。完整性的中間結果原本叫 gl、tb 並用 gl.、tb. 限定，和表名同名，
-    // 改叫 gl_by_account、tb_by_account 並用別名 g、t。命令數與其餘文字不變。第一次失敗：Focused 收據
-    // 20261030-092756547-b71e94803d524218a0335bab44a69c8a。把收據 20261030-135241888-3c45f8ad7a044419beee5d439bf6db8a 裡的
-    // 12 條實際命令只做上述反向改名，兩個 digest 都精確回到原值。SQL Server 未執行，維持原值待核對。
-    // 裁定 2026-11-05-38 照舊版把核准日空白也算成不在期間：「核准日不在期間」的條件從
-    // `(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))` 改成
-    // `(approval_date IS NULL OR approval_date < @periodStart OR approval_date > @periodEnd)`，命令數與參數不變；這個情境有配對核准日，
-    // 所以沒有出現核准日不可用時的 `(1 = 0)`。第一次失敗：Focused 收據 20261105-111814127-dc4459ef65f048da9334a7beaca6e8f0。
-    // 把該收據的 12 條實際命令裡這 3 處條件換回舊字後，SQLite 與 DuckDB 兩個 digest 都精確回到原值 F23A50B5… 與 40AB65C0…。
-    // SQL Server 未執行，維持原值待核對。
-    // 裁定 2026-11-06-13：空值明細多讀傳票核准日，第 10 條命令在旗標後面多一欄 `, approval_date`，命令數與參數不變。
-    // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。把該收據 12 條實際命令裡第 10 條的 `END, approval_date FROM gl` 換回 `END FROM gl`，
-    // digest 精確回到原值 F5A37597…。
+    // v2 INF PRF 是 SQLite 方言渲染後的 SQL，所以 command-sequence digest 跟著實際執行的 SQL 文字走；SQL 文字改變時 digest 要依新 SQL 更新。
+    // 驗證規則與 INF 只讀 GL 的分錄；原始統計、存入筆數與合計核對，以及總帳日期空白的檢查不受這個範圍限制。
+    // 空白紀錄述詞的去空白走 SQLite 方言的 Trim（字元集合和 .NET 相同）。
+    // 第 1 條命令的日期不符筆數是三種日期原因的合計，原因清單由 GlExcludedPopulation.ExcludedByPeriodSqlPredicate 產生並嵌入 SQL。
+    // 核准日空白照舊版也算成不在期間；這個情境有配對核准日，所以沒有出現核准日不可用時的 `(1 = 0)`。
+    // 第 10 條命令的空值明細在旗標後面多讀傳票核准日 `, approval_date`。
+    // 第 12 條命令是傳票號碼跨日重用的檢查，「不是空白」的片段走 AuditCore 的 SqlBlankText。
     private const string SqliteSnapshotDigest = "0767C4965E9B63A077A4A2FE1CBA080C4933B3240C49BBD2CAB1CEBB35E8E122";
 
-    // 標準多列 INSERT（SQLite 與 SQL Server 皆合法）；只填 NOT NULL + 少數欄，entry_id 為自增/IDENTITY。
-    // schema-per-project：SQL Server 端的 gl 須以 [schema]. 限定，SQLite 端維持裸名（schemaPrefix ""）。
+    // 只填 NOT NULL + 少數欄，entry_id 為自增。
     private static string SeedThreeGlRows(string schemaPrefix = "") =>
         $"""
         INSERT INTO {schemaPrefix}gl
@@ -100,15 +70,13 @@ public sealed class ValidationRunLoggingTests
         await command.ExecuteNonQueryAsync();
     }
 
-    // schemaPrefix：SQL Server 端的專案表在 logged SQL 中以 [schema]. 限定（production 同），SQLite 端為 ""。
     private static void AssertValidationLog(
         RingBufferLoggerProvider diagnostic, string expectedProvider, string schemaPrefix = "")
     {
         var entries = diagnostic.Snapshot();
         var sql = entries.Where(e => e.EventName == "sql.executed").ToList();
 
-        // The voucher reuse check adds exactly one set-based query; blank voucher numbers are excluded from balance (ruling 2026-10-04-02).
-        // First failure: 20261004-100911120-57efb95a0cae44beb892ec3c2d058592.
+        // The voucher reuse check adds exactly one set-based query; blank voucher numbers are excluded from balance.
         Assert.Equal(12, sql.Count);
         Assert.All(sql, e => Assert.Equal(expectedProvider, e.Fields["provider"]?.ToString()));
         Assert.All(sql, e => Assert.True(Convert.ToInt64(e.Fields["duration_ms"]) >= 0));
@@ -120,7 +88,7 @@ public sealed class ValidationRunLoggingTests
         // null 記錄 SELECT 綁定查核期間 → parameters 含 2025-01-01（使用者值參數綁定）
         Assert.Contains(sql, e => e.Fields["parameters"]!.ToString()!.Contains("2025-01-01"));
 
-        // 金額級距為單一參數化、只讀 GL、set-based GROUP BY CASE；三 provider 只換 SQL 方言／schema。
+        // 金額級距為單一參數化、只讀 GL、set-based GROUP BY CASE。
         var amountDistribution = sql.Single(e =>
             e.Fields["sql"]!.ToString()!.Contains("@amount1k", StringComparison.Ordinal));
         var amountDistributionSql = amountDistribution.Fields["sql"]!.ToString()!;

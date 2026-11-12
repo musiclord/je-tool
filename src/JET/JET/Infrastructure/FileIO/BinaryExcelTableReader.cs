@@ -60,7 +60,7 @@ public sealed class BinaryExcelTableReader : ITabularFileReader
 
     /// <summary>
     /// 錯誤儲存格（#N/A、#REF! 等）保留 Excel 顯示的原文，和 Open XML 讀取器相同；金額欄因此會以金額無效明確失敗，
-    /// 不再被讀成空白後變成 0。
+    /// 不會被讀成空白後變成 0。
     /// </summary>
     private static (string Text, LegacyFieldKind Kind, int? DecimalPlaces)? ReadCell(IExcelDataReader reader, int column)
     {

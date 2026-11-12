@@ -13,7 +13,6 @@ namespace JET.Tests.Infrastructure;
 /// oracle:獨立 SQL recount(<see cref="DemoProjectPipeline.QueryScalarAsync"/>),
 /// 全科目數 = TB 科目 ∪ (GL 有 TB 無) 的基數;以小 pageSize 走訪驗「聯集==全集、無缺漏無重複、序穩」。
 /// 直接建 SQLite repo(比照 <see cref="PreparerSummaryExportTests"/>);此 query 無 action,不走 dispatcher。
-/// SQL Server parity 隨 Task 6 端到端匯出的 [SqlServerFact] 一併涵蓋(該 repo 無獨立 action 可走訪)。
 /// </summary>
 public sealed class CompletenessAccountPageTests
 {
@@ -29,7 +28,6 @@ public sealed class CompletenessAccountPageTests
 
         // V5 與底稿 step1 的名稱來自 TB；差異頁仍可由 GL 補上缺少的名稱。
         // 全部為合成資料，另外加入足夠的零差異科目，讓既有 50 筆分頁確實跨頁。
-        // 首次失敗：Focused 20261110-061640554-bf7ece0a2a3348909ca7874bf8ab5a73；TB 名稱為 null 時原本帶入 GL 名稱。
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         await using (var connection = database.CreateConnection(context.ProjectId))
         {
@@ -107,7 +105,7 @@ public sealed class CompletenessAccountPageTests
 
     /// <summary>
     /// 全科目集合 ⊋ 僅差異集合:全科目嚴格涵蓋 diff repo 的結果,且多出來的全是 diff=0 科目。
-    /// 這鎖住「不過濾 diff」這個唯一差異(若誤加 tb_s<>gl_s 過濾,兩集合相等 → 紅)。
+    /// 這鎖住「不過濾 diff」這個唯一差異(若誤加 tb_s &lt;&gt; gl_s 過濾,兩集合會相等,測試失敗)。
     /// </summary>
     [Fact]
     public async Task AllAccounts_StrictlySupersetOfDiffOnly_ExtraAreZeroDiff()

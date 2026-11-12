@@ -13,7 +13,7 @@ namespace JET.Infrastructure;
 /// JET 寫了什麼。它不核對檔案內容，不擋載入；審計員在 JET 之外改了檔案，<see cref="ListAsync"/> 只在
 /// <see cref="Report.FileState"/> 回報。
 ///
-/// 2026-09-02 依「預設審計員可信」（裁定 2026-09-02-03）把 journal、隔離區、SHA-256 核對與載入時拒絕整個拿掉；
+/// 依「預設審計員可信」，不做 journal、隔離區、SHA-256 核對，也不在載入時拒絕；
 /// 壞掉的 manifest 改名保留、以空清單繼續。
 /// 工作底稿每次匯出寫新版本檔，其餘報告覆蓋同名檔。
 /// </summary>
@@ -695,12 +695,12 @@ public sealed class ProjectReportStore : IReportStore, IReportPublishingStore
             || !IsFileNameInFolder(projectDirectory, entry.RelativeFileName)
             || entry.Bytes < 0)
         {
-            // 讀不懂的舊紀錄與已改為工作檔的帳戶對應範本都不列出；檔案本身還在資料夾裡。
+            // 讀不懂的舊紀錄與屬於工作檔的帳戶對應範本都不列出；檔案本身還在資料夾裡。
             // 檔名不能當成案件資料夾裡的一個檔案時也算讀不懂，否則之後每個用到路徑的地方都會丟例外，連開案都失敗。
             return null;
         }
 
-        // 報告清單舊設計的欄名 sourceRefs、createdUtc 不再讀回（裁定 2026-10-29-17：改名前的案件刪除後重建，不寫讀取相容）；
+        // 報告清單舊設計的欄名 sourceRefs、createdUtc 不讀回；
         // 只有舊欄名的紀錄和其他讀不懂的紀錄一樣不列出。
         var generatedUtc = entry.GeneratedUtc;
         if (generatedUtc is null)

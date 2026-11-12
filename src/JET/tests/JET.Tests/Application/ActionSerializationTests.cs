@@ -10,23 +10,19 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 作業序列化閘（design 2026-07-08）：變更型作業同一時間至多一項、第二項回 operation_in_progress；
+/// 作業序列化閘：變更型作業同一時間至多一項、第二項回 operation_in_progress；
 /// 唯讀作業不佔閘、可併行；依序 await 的變更型作業皆成功；分類漂移守衛。
 /// </summary>
 public sealed class ActionSerializationTests
 {
-    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，export.calendarTemplates 隨之移除；
-    // 原測試的 accountMappingTemplate 斷言仍有意義，所以保留並改名。
-    // 原本查的是 DuckDB 的保留連線清單；只保留 SQLite 之後同一份清單改名為「會開案件資料庫的 action」（裁定 2026-11-06-08）。
+    // export.accountMappingTemplate 列在「會開案件資料庫的 action」清單裡。
     [Fact]
     public void AccountMappingTemplateExport_OpensProjectDatabase()
     {
         Assert.True(ActionExecutionPolicy.OpensProjectDatabase("export.accountMappingTemplate"));
     }
 
-    // 原本在 DuckDbOperationRetentionTests 裡，守的是 DuckDB 保留連線的清單；那份清單現在是「會開案件資料庫的 action」，
-    // 決定哪些變更型作業結束後併回 SQLite 記錄檔，所以守衛照舊保留。dev.db.reconcile 已移除，從案件生命週期清單拿掉
-    // （裁定 2026-11-06-08）。
+    // 「會開案件資料庫的 action」清單決定哪些變更型作業結束後併回 SQLite 記錄檔，所以用這個測試守住它。
     [Fact]
     public void ProjectDatabaseActions_AreRegisteredAndClassified_AndCaseLifecycleActionsNeverOpen()
     {
@@ -197,7 +193,6 @@ public sealed class ActionSerializationTests
     [Fact]
     public async Task LogAppend_RunsConcurrently_WhileExclusiveActionInFlight()
     {
-        // 原本同時驗心跳與 log.append；線上案件的心跳隨 SQL Server 移除，只留 log.append 這一半（裁定 2026-11-06-08）。
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var exclusive = new BlockingHandler("validate.run", release);
         var messages = new RecordingMessageLogStore();
@@ -355,7 +350,7 @@ public sealed class ActionSerializationTests
     [InlineData("import.gl.fromFile", true)]
     [InlineData("mapping.commit.gl", true)]
     [InlineData("filter.commit", true)]
-    // 2026-10-13 新增案例（既有案例不變）：一次只存、刪或重新檢查一個情境的三個動作都是變更型，同一時間只能有一項。
+    // 一次只存、刪或重新檢查一個情境的三個動作都是變更型，同一時間只能有一項。
     [InlineData("filter.scenario.save", true)]
     [InlineData("filter.scenario.remove", true)]
     [InlineData("filter.scenario.recheck", true)]
@@ -390,7 +385,7 @@ public sealed class ActionSerializationTests
         Assert.False(ActionExecutionPolicy.RequiresConditionalGate(action));
     }
 
-    // 漂移守衛：每個已註冊 action 都必須被 ActionExecutionPolicy 明確歸類（新增 action 未歸類即紅）。
+    // 漂移守衛：每個已註冊 action 都必須被 ActionExecutionPolicy 明確歸類（新增 action 未歸類時這個測試會失敗）。
     [Fact]
     public void EveryRegisteredAction_IsClassifiedByPolicy()
     {

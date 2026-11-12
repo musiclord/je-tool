@@ -17,9 +17,8 @@ public sealed class FilterSinglePurposeListLimitTests
         var node = System.Text.Json.Nodes.JsonNode.Parse(json.GetRawText())!;
         if (op == "isBlank") node["groups"]![0]!["conditions"]![0]!.AsObject().Remove("values");
         var scenario = FilterScenarioPayloadParser.Parse(JsonElement.Parse(node.ToJsonString()), 100);
-        // 原本靠四個欄位旗標預設是 false 表示「傳票建立人員」與「傳票摘要」沒有配對。後來
-        // 拿掉旗標、改讀可用欄位清單，沒帶清單就不檢查欄位，所以改成明確給一份不含這兩欄的清單，斷言不變。
-        // 第一次失敗：Focused 收據 20261023-033450367-efcc5f97968c4691a01ae8ae6018b91a。
+        // 沒帶可用欄位清單就不檢查欄位，所以明確給一份不含「傳票建立人員」與「傳票摘要」的清單，
+        // 表示這兩欄沒有配對。
         var context = new FilterValidationContext(true, true, true)
         {
             AvailableGlFields = JetFieldCatalog.GlFields
@@ -31,8 +30,8 @@ public sealed class FilterSinglePurposeListLimitTests
         Assert.Contains(errors, message => message.Contains($"「{label}」尚未選擇來源欄", StringComparison.Ordinal));
     }
 
-    // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示改成「放進子條件組，用 OR 連接」或「用 AND 連接」，
-    // 不再寫畫面上已沒有的「任一符合」「全部符合」。第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
+    // 子條件組的連接在畫面上只寫 AND 與 OR，提示寫「放進子條件組，用 OR 連接」或「用 AND 連接」，
+    // 不寫畫面上沒有的「任一符合」「全部符合」。
     [Theory]
     [InlineData("createdBy", "in", "用 OR 連接")]
     [InlineData("description", "contains", "用 OR 連接")]
@@ -40,7 +39,7 @@ public sealed class FilterSinglePurposeListLimitTests
     [InlineData("createdBy", "notIn", "用 AND 連接")]
     [InlineData("description", "notContains", "用 AND 連接")]
     [InlineData("amount", "notEndsWithDigits", "用 AND 連接")]
-    // 裁定 2026-11-09-09：開頭符合與結尾符合也收多個值，上限與拆法和包含相同。
+    // 開頭符合與結尾符合也收多個值，上限與拆法和包含相同。
     [InlineData("description", "startsWith", "用 OR 連接")]
     [InlineData("description", "endsWith", "用 OR 連接")]
     [InlineData("description", "notStartsWith", "用 AND 連接")]

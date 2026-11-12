@@ -56,7 +56,7 @@ public sealed class ProjectOperationLoggingJourneyTests
             "subject_count || '|' || replaced_count FROM operation_log " +
             "ORDER BY occurred_utc, event_id;");
 
-        // 清理功能已於 2026-09-02 移除；報告發布仍各留一筆，第二次是覆蓋同名檔的汰換。
+        // 報告發布各留一筆，第二次是覆蓋同名檔的汰換。
         Assert.True(rows.Count == 6, $"Audit rows: {string.Join(" || ", rows)}");
         Assert.Contains($"{ProjectOperations.DataReimport}|dataset|gl|14000|1", rows);
         Assert.Contains($"{ProjectOperations.DataReimport}|dataset|tb|150|1", rows);

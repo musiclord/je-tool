@@ -53,7 +53,7 @@ internal sealed record JetFieldDefinition(
     IReadOnlyList<JetMappingSlot> MappingSlots)
 {
     /// <summary>
-    /// 報告與底稿上這個欄位的輸出名稱，照舊版範本加 _JE、_TB（裁定 2026-10-29-15）。欄位資訊、底稿第四步之一與
+    /// 報告與底稿上這個欄位的輸出名稱，照舊版範本加 _JE、_TB。欄位資訊、底稿第四步之一與
     /// 資料可靠性抽樣清單都從這裡取名，不另寫字面字串；過帳狀態的輸出欄是照來源欄複製出來的「過帳碼_JE」。
     /// </summary>
     internal string? LegacyFieldName { get; init; }
@@ -124,7 +124,7 @@ internal static class JetFieldCatalog
         {
             DerivedSource = JetFieldDerivedSource.SameAsGlDate
         },
-        // 裁定 2026-10-08-03 移除新版自行加入的傳票日期（voucherDate）；其餘欄位的順序值不重排。
+        // 沒有傳票日期（voucherDate）欄位，順序值 4 空著；其餘欄位的順序值不重排。
         Field(
             DatasetKind.Gl, GlAccountNumber, JetFieldValueKind.Text, 5, storageNullable: true, "account_number",
             "會計科目編號_JE", isGenericFilterField: true,
@@ -205,8 +205,7 @@ internal static class JetFieldCatalog
 
     /// <summary>
     /// runtime mapping UI 目前可見的相容投影。Contract-only 欄位仍可進 All/metadata，
-    /// 但在對應前端控制階段完成前不得藉 catalog mirror 提前出現在 UI；
-    /// 過帳狀態已於「前端工作流整合」接上配對控制項，故不再排除。
+    /// 但沒有對應的前端控制項時不得藉 catalog mirror 出現在 UI。
     /// </summary>
     internal static IReadOnlyList<JetMappingSlot> GlMappingUiSlots { get; } =
         GlMappingSlots.Where(static slot => slot.IncludeInMappingUi).ToArray();
@@ -254,7 +253,7 @@ internal static class JetFieldCatalog
         TbFieldsByMappingKey[key];
 
     /// <summary>
-    /// 來源欄配到這些位置時，裡面是金額。資料預覽的 PBC-GL、PBC-TB 與第三步的來源表，只把配到這些位置的來源欄靠右（裁定 2026-11-05-04）；
+    /// 來源欄配到這些位置時，裡面是金額。資料預覽的 PBC-GL、PBC-TB 與第三步的來源表，只把配到這些位置的來源欄靠右；
     /// 前端 ui-core.js 的 GL_FIELDS、TB_FIELDS 用 amount: true 鏡射這一份。GL 的金額欄位底下另有借貸別與借貸代碼，它們不是金額，所以逐一列出。
     /// </summary>
     internal static IReadOnlySet<string> AmountMappingKeys(DatasetKind dataset) => dataset switch

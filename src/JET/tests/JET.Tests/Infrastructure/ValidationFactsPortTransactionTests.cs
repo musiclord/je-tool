@@ -7,11 +7,9 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// 呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
-
 /// <summary>
 /// Validation facts port 的交易失敗邊界。故障只在 INF 樣本 INSERT 已完成並寫出
-/// sql.executed 後注入，證明 SQLite／DuckDB／SQL Server 都不會留下部分樣本。
+/// sql.executed 後注入，證明 SQLite 不會留下部分樣本。
 /// </summary>
 public sealed class ValidationFactsPortTransactionTests
 {
@@ -131,8 +129,6 @@ public sealed class ValidationFactsPortTransactionTests
 
             await using var reader = await command.ExecuteReaderAsync();
             Assert.True(await reader.ReadAsync());
-            // DuckDB 的 COUNT/SUM reader 型別是 BigInteger；以不失真的十進位文字
-            // 對照，避免為了跨 provider oracle 強制縮窄型別。
             Assert.Equal("1", reader.GetValue(0).ToString());
             Assert.Equal("1", reader.GetValue(1).ToString());
             Assert.Equal("0", reader.GetValue(2).ToString());

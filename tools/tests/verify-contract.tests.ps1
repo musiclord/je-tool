@@ -693,12 +693,29 @@ try {
             -not $guiSourceText.Contains('CreateProcessW(', [StringComparison]::Ordinal)) `
         -Message 'The GUI driver must start JET with a token that has no administrator rights and read it back before JET runs.'
     # 裁定 2026-11-09-03：Gui 測試版照舊不能發布，只有驗證框架打包到 artifacts/harness/runs 底下的單一執行檔例外。
-    $applicationProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot 'src/JET/JET/JET.csproj') -Raw -Encoding utf8
-    Assert-Contract -Condition ($applicationProjectText.Contains('Name="RejectAgentGuiTestPublish"', [StringComparison]::Ordinal) -and
-            $applicationProjectText.Contains('Name="RestrictAgentGuiOwnedBundle"', [StringComparison]::Ordinal) -and
-            $applicationProjectText.Contains('artifacts\harness\runs', [StringComparison]::Ordinal) -and
-            $applicationProjectText.Contains("'`$(PublishSingleFile)' != 'true'", [StringComparison]::Ordinal)) `
+    # 裁定 2026-11-10-13：AgentGuiTest 組態只寫在驗證框架的建置設定檔，產品專案與測試專案都不帶它。
+    $guiBuildExtensionText = Get-Content -LiteralPath (Join-Path $repositoryRoot ([string]$registry.guiSettings.buildExtension)) `
+        -Raw -Encoding utf8
+    Assert-Contract -Condition ($guiBuildExtensionText.Contains('Name="RejectAgentGuiTestPublish"', [StringComparison]::Ordinal) -and
+            $guiBuildExtensionText.Contains('Name="RestrictAgentGuiOwnedBundle"', [StringComparison]::Ordinal) -and
+            $guiBuildExtensionText.Contains('artifacts\harness\runs', [StringComparison]::Ordinal) -and
+            $guiBuildExtensionText.Contains("'`$(PublishSingleFile)' != 'true'", [StringComparison]::Ordinal)) `
         -Message 'AgentGuiTest must stay unpublishable except for the single-file harness bundle under artifacts/harness/runs.'
+    foreach ($productProject in @('src/JET/JET/JET.csproj', 'src/JET/tests/JET.Tests/JET.Tests.csproj')) {
+        $productProjectText = Get-Content -LiteralPath (Join-Path $repositoryRoot $productProject) -Raw -Encoding utf8
+        Assert-Contract -Condition (-not $productProjectText.Contains('AgentGuiTest', [StringComparison]::Ordinal)) `
+            -Message "$productProject must not define the AgentGuiTest configuration; the harness build extension adds it."
+    }
+    $productAgentGuiSources = @(
+        Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src/JET') -Recurse -File -Filter '*.cs' |
+            Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
+            Where-Object {
+                (Get-Content -LiteralPath $_.FullName -Raw -Encoding utf8) -cmatch 'JET_AGENT_GUI_TEST|\bAgentGuiTest(?:Profile|Fixtures|Program)\b(?!\.cs)'
+            }
+    )
+    $productAgentGuiSourceNames = @($productAgentGuiSources | ForEach-Object { $_.Name }) -join ', '
+    Assert-Contract -Condition ($productAgentGuiSources.Count -eq 0) `
+        -Message "Gui test entry points and fixtures belong to the harness, not src/JET: $productAgentGuiSourceNames"
     Assert-Contract -Condition ($guiSourceText.Contains('https://app.jet.local/index.html', [StringComparison]::Ordinal)) `
         -Message 'The GUI driver must target the fixed JET virtual host.'
     Assert-Contract -Condition ($guiSourceText.Contains('IPAddress.Loopback', [StringComparison]::Ordinal)) `
@@ -1122,7 +1139,7 @@ try {
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiFeedbackWorkflowScenario.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiDataRecoveryScenarios.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiSideMonthWorkflow.cs' -and
-        @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiWorkingPaperInspection.cs' -and
+        @($normalReceipt.runner.files.path) -ccontains 'src/JET/tests/JET.Tests/TestInfrastructure/GuiWorkingPaperInspection.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiNestedVoucherWorkflow.cs' -and
         @($normalReceipt.runner.files.path) -ccontains 'tools/harness/gui-driver/GuiLegacyFormWorkflow.cs') `
         -Message 'Runner identity must include every extracted GUI workflow source file.'

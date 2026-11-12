@@ -4,8 +4,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-11-05-38：資料驗證的「核准日不在期間」照舊版把核准日空白的分錄也算進來；
-/// 傳票核准日沒有配對時這一項照裁定 2026-10-23-01 不執行，明細樣本也不能因為核准日全是空白而列出每一筆。
+/// 資料驗證的「核准日不在期間」照舊版把核准日空白的分錄也算進來；
+/// 傳票核准日沒有配對時這一項不執行，明細樣本也不能因為核准日全是空白而列出每一筆。
 /// 合成總帳的總帳日期都在查核期間內，資料由程式逐列宣告。
 /// </summary>
 public sealed class ApprovalDateOutOfPeriodBlankTests
@@ -69,8 +69,8 @@ public sealed class ApprovalDateOutOfPeriodBlankTests
     [Fact]
     public async Task ApprovalDateNotInPeriod_ShowsEachRowsApprovalDate_AndSortsByIt()
     {
-        // 2026-11-06 使用者要求「核准日不在期間」的預覽多一欄傳票核准日，審計員才看得到是哪一天不在期間
-        // （裁定 2026-11-06-13）。這是新增的測試：驗證結果與明細頁都帶每一列的核准日，明細頁也能依核准日排序。
+        // 「核准日不在期間」的預覽帶傳票核准日一欄，審計員才看得到是哪一天不在期間。
+        // 驗證結果與明細頁都帶每一列的核准日，明細頁也能依核准日排序。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, builder => builder
                 .WithColumns("傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")

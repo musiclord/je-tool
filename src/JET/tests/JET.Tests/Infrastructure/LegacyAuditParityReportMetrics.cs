@@ -401,7 +401,7 @@ internal static class LegacyAuditParityReportMetrics
                 "blank_gl_date_detail",
                 "V_Report 7",
                 continuation: true),
-            // Validation v4（jet-guide §7.2）：blank post date 不建 V7，改由條件式
+            // Validation v4：blank post date 不建 V7，改由條件式
             // `Source_Quality` 揭示總帳日期空白明細。
             Counted(
                 LegacyReportKind.ValidationReport,

@@ -119,7 +119,7 @@ internal static partial class GuiScenarios
         await Check("saved.length===5 && saved[2].groups[0].conditions[0].conditions[1].quantifier==='any' && saved[3].groups[0].conditions[3].conditions[1].values.join(',')==='1,2,3' && saved[4].groups[0].conditions[0].type==='fieldValue' && saved[4].groups[0].conditions[0].operator==='endsWithZeros'");
         await Click("[data-action=toggle-scenario][data-index='2']");
         // 2026-10-14 借貸方向改用「借貸別」條件後，「借方且科目」放進同一個子條件組，讀回時本來就有「同一分錄（（僅借方 且 …））」
-        // （前後端共用的 tools/tests/fixtures/filter-readback-sentences.json 的 explicit-direction-and-account-child-group）。
+        // （前後端共用的 src/JET/tests/JET.Tests/Fixtures/filter-readback-sentences.json 的 explicit-direction-and-account-child-group）。
         // 原本「不含同一分錄」要防的是最外層變成同一分錄，所以改成核對開頭是同張傳票，兩個整張傳票條件各自讀回借方與貸方
         // （第一次失敗收據 20261015-041340236-dc48b21196bd43468c13761f7322d4b9）。
         await Check("(()=>{var text=document.querySelector('[data-bind=scenario-body-2] .scenario-readback').textContent;return text.startsWith('篩選條件：同張傳票') && text.includes('整張傳票至少一筆符合：同一分錄（（僅借方') && text.includes('整張傳票至少一筆符合：同一分錄（（僅貸方');})()");

@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 /// 建案時呼叫的 <see cref="IProjectDatabaseInitializer.EnsureCreatedAsync"/> 與開案時呼叫的
 /// <see cref="IProjectDatabaseInitializer.EnsureExistingAsync"/> 一律重新檢查，
 /// 刪除案件時清掉紀錄，所以程式開著時用舊的備份檔覆蓋已關閉的案件，下次載入會重新檢查版本並拒絕舊版。
-/// 只有建案會建立新的資料庫；開案與讀寫遇到資料庫不見或沒有內容時回報，不默默建出空的資料庫（裁定 2026-11-05-72）。
+/// 只有建案會建立新的資料庫；開案與讀寫遇到資料庫不見或沒有內容時回報，不默默建出空的資料庫。
 /// 同一個檔案的檢查一次只跑一個，避免兩個作業同時建表。
 /// </summary>
 internal sealed class LocalSchemaReadiness
@@ -35,7 +35,7 @@ internal sealed class LocalSchemaReadiness
     /// <summary>
     /// 開啟既有案件時呼叫，一律重新檢查。建案中的標記還在，表示上一次建案在完成前中斷，審計員沒有拿到這個案件，
     /// 資料庫裡不會有資料：照建案的做法把初始化做完，再刪掉標記。標記不在時，資料庫一定要已經建好，
-    /// 不建立新的資料庫（裁定 2026-11-05-72）。<paramref name="ensureCreated"/> 的第一個參數是可不可以建立資料庫。
+    /// 不建立新的資料庫。<paramref name="ensureCreated"/> 的第一個參數是可不可以建立資料庫。
     /// </summary>
     internal async Task EnsureExistingAsync(
         string databasePath,
@@ -94,7 +94,7 @@ internal sealed class LocalSchemaReadiness
     internal const int CurrentSchemaVersion = 20;
 
     /// <summary>
-    /// 已經建過表的資料庫只接受現行版本（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
+    /// 已經建過表的資料庫只接受現行版本：案件資料庫只留現行結構，版本不符時請審計員刪除後重建。
     /// 低於現行版本是舊版 JET 建立的案件；版本值缺漏、讀不出整數或高於現行版本時無法判斷內容，當成版本資訊無法辨識。
     /// 呼叫端必須在執行任何寫入之前檢查，讓檔案保持原狀。
     /// </summary>

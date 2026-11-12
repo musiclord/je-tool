@@ -9,10 +9,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 訊息用字經裁定 2026-10-13-28 與 2026-10-13-29 確認後新增的行為：
 /// 支援日誌可以不指定案件匯出全部紀錄；畫面送錯資料的檢查只進支援日誌，畫面只看到確認過的句子。
-/// 預期值都是寫死的確認句子，不由被測程式算出。原本也測連不上 SQL Server 的原因只進支援日誌，
-/// 那兩個測試隨 SQL Server 與 system.databaseInfo 移除（裁定 2026-11-06-08）。
+/// 預期值都是寫死的確認句子，不由被測程式算出。
 /// </summary>
 public sealed class SupportLogAndUnexpectedErrorTextTests
 {

@@ -6,7 +6,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 一個 action 收到的資料或送回的資料長什麼樣子：每一層可能是哪些 JSON 型別、物件有哪些欄位、哪些欄位不是每次都有、
 /// 陣列的元素長什麼樣子。只記型別與欄位名稱，不記任何值。
-/// 前端測試的假後端用寫出來的檔案核對自己假造的回應與送出的資料（<c>tools/tests/support/action-contract.cjs</c>）。
+/// 前端測試的假後端用寫出來的檔案核對自己假造的回應與送出的資料。
 /// 寫出的格式：只會是字串、數字、布林或 null 的位置寫成一個字串，例如 <c>"string|null"</c>；
 /// 可能是物件或陣列的位置寫成物件，<c>kind</c> 是型別，<c>fields</c> 是欄位，<c>optional</c> 列出不是每次都有的欄位，
 /// <c>items</c> 是陣列元素，<c>values</c> 是以資料為鍵的物件的值；只見過空陣列或空物件時寫 null。
@@ -263,27 +263,5 @@ internal sealed class ActionShapeRecorder(IReadOnlySet<string> mapPaths)
         }
 
         return Encoding.UTF8.GetString(stream.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
-    }
-
-    /// <summary>單一 action 的形狀文字（分行），用來指出兩種資料庫哪幾個 action、哪一行不一樣。</summary>
-    public string SerializeAction(string action)
-    {
-        var shapes = _actions[action];
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
-        {
-            Indented = true,
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        }))
-        {
-            writer.WriteStartObject();
-            writer.WritePropertyName("request");
-            shapes.Request.Write(writer);
-            writer.WritePropertyName("response");
-            shapes.Response.Write(writer);
-            writer.WriteEndObject();
-        }
-
-        return Encoding.UTF8.GetString(stream.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal);
     }
 }

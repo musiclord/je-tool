@@ -50,7 +50,7 @@ public sealed class WebViewEventPublisher : IJetEventPublisher
         }, null);
     }
 
-    /// <summary>信封序列化抽成純靜態，讓 wire shape 可單元測試（WebView2 marshal 走 GUI 手動驗證）。</summary>
+    /// <summary>信封序列化抽成純靜態，讓 wire shape 可單元測試。</summary>
     public static string SerializeEnvelope(string eventName, object payload)
     {
         return JsonSerializer.Serialize(new JetEventEnvelope(eventName, payload), JsonOptions);

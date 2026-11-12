@@ -4,11 +4,11 @@ using System.Data.Common;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 本地引擎家族（<c>Local*</c>）共用的參數樣板。<see cref="DbCommand"/>／
-/// <see cref="DbParameterCollection"/> 沒有 SQLite 具體 client 專屬的 AddWithValue／
-/// Add(name, SqliteType) 便利多載，此處以 provider 中立的 <see cref="DbCommand.CreateParameter"/>
-/// 樣式提供等價版本（型別與值語意等同原 Sqlite 呼叫；DbType.String↔Text、DbType.Int64↔Integer）。
-/// 與 <see cref="GlRulePredicates"/> 的 NextParam 為同一套 CreateParameter 慣用法。
+/// 本機資料庫倉儲（<c>Local*</c>）共用的參數輔助方法。<see cref="DbCommand"/> 與
+/// <see cref="DbParameterCollection"/> 沒有 SQLite client 專屬的 AddWithValue 與
+/// Add(name, SqliteType) 便利多載，這裡用 <see cref="DbCommand.CreateParameter"/> 提供同樣的寫法
+/// （DbType.String 對應 Text、DbType.Int64 對應 Integer）。
+/// 和 <c>GlRulePredicates</c> 的 NextParam 用同一套 CreateParameter 寫法。
 /// </summary>
 internal static class LocalDbCommandExtensions
 {

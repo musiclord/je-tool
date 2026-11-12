@@ -14,8 +14,8 @@ public sealed class FormalReportRdeProjectionTests
     private const string TextLabel = "RDE 文字";
     private const string DateLabel = "RDE 日期";
 
-    // 報告與底稿的表頭照舊版在攸關資料元素的顯示名稱後加 _JE（裁定 2026-11-03-14），上面三個是配對時填的顯示名稱。
-    // 第一次失敗：Public 收據 20261103-111153760-c5c19c4dc5b94ecaacaacbb58eab4608，可靠性樣本的表頭已是「RDE 金額_JE」。
+    // 報告與底稿的表頭照舊版在攸關資料元素的顯示名稱後加 _JE，上面三個是配對時填的顯示名稱。
+    // 可靠性樣本的表頭已是「RDE 金額_JE」。
     private const string MoneyHeader = "RDE 金額_JE";
     private const string TextHeader = "RDE 文字_JE";
     private const string DateHeader = "RDE 日期_JE";
@@ -80,8 +80,7 @@ public sealed class FormalReportRdeProjectionTests
         {
             foreach (var position in new[] { 1, 2 })
             {
-                // 裁定 2026-11-05-48：攸關資料元素後面多一欄符合標記 Final_TAG，所以改取最後四欄，三個攸關資料元素的順序照舊核對。
-                // 第一次失敗：Focused 收據 20261105-123150181-5717d8b34fc44bf9b81eadfc66c6a4d1。
+                // 攸關資料元素後面有一欄符合標記 Final_TAG，所以取最後四欄，核對三個攸關資料元素的順序。
                 Assert.Equal(
                     new[] { MoneyHeader, TextHeader, DateHeader, "Final_TAG" },
                     ReadHeader(workbook.Worksheet($"#Criteria Select {position}"), 1).TakeLast(4));
@@ -132,10 +131,9 @@ public sealed class FormalReportRdeProjectionTests
         Assert.DoesNotContain(MoneyHeader, valueHeaders);
     }
 
-    // 2026-10-30 結案前的獨立複審查到：2026-10-29 改的列高，只有 V_Report 5、驗證報告的欄位資訊頁與底稿 step3 有測試。
-    // 裁定 2026-11-05-70：舊版的攸關資料元素欄是把來源欄改名加 _JE（legacy/idea-tool.bas 第 1688 到 1714 行），
-    // 條件篩選的明細頁再由 IDEA 匯出整個資料庫（Z_ExportDatabaseXLSX 的 IncludeAllFields，第 9321 行起），
-    // 所以攸關資料元素欄的表頭與內容和它的來源欄外觀相同，沒有一般明細的框線。這是新增的測試。
+    // 舊版 JET 的攸關資料元素欄是把來源欄改名加 _JE，
+    // 條件篩選的明細頁再由 IDEA 匯出整個資料庫（Z_ExportDatabaseXLSX 的 IncludeAllFields），
+    // 所以攸關資料元素欄的表頭與內容和它的來源欄外觀相同，沒有一般明細的框線。
     [Fact]
     public async Task CriteriaSheets_RdeColumnsUseTheAppearanceOfTheirSourceColumns()
     {
@@ -181,9 +179,8 @@ public sealed class FormalReportRdeProjectionTests
         }
     }
 
-    // 這則補上其他 JET 自己寫的工作表。使用者選了「統一 15 點」（裁定 2026-10-29-08）：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
-    // 與 Source_Quality，列高 15 點；12 點的「可靠性樣本_所有欄位」是 18 點。程式用字級的 1.5 倍算出這些值，這個算法是 Claude 的歸納。
-    // 這是新增的測試。
+    // 這則核對其他 JET 自己寫的工作表：10 點的明細頁，例如 R1 到 R7、各張 #Criteria Select
+    // 與 Source_Quality，列高 15 點；12 點的「可靠性樣本_所有欄位」是 18 點。程式用字級的 1.5 倍算出這些值。
     [Fact]
     public async Task FormalReports_JetWrittenDetailSheets_UseTheRowHeightOfTheirFontSize()
     {

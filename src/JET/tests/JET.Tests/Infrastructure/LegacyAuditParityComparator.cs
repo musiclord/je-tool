@@ -436,8 +436,7 @@ internal sealed class LegacyAuditParityHarnessBindingVerificationCatalog
         return verification;
     }
 
-    // 只保留 SQLite 期間沒有兩種資料庫互相比對的情形（裁定 2026-11-06-08）；接回 DuckDB 或 SQL Server 時，
-    // 從還原點取回各組資料庫之間的比較種類。
+    // 只支援 SQLite 時沒有兩種資料庫互相比對的情形。
     private static bool IsProviderComparison(LegacyAuditParityComparisonId comparisonId) => false;
 }
 

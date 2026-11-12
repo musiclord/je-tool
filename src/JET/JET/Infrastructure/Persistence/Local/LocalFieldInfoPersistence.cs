@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite／DuckDB 共用的 field_info 持久化。所有 mutation 都接受 caller transaction，
+/// field_info 持久化。所有 mutation 都接受 caller transaction，
 /// 讓 staging、batch count 與欄位定義維持同一原子邊界。
 /// </summary>
 internal static class LocalFieldInfoPersistence
@@ -134,7 +134,7 @@ internal static class LocalFieldInfoPersistence
     };
 }
 
-/// <summary>欄位來歷在 field_info.field_origin 的儲存值；日後恢復 DuckDB 與 SQL Server 時也用這一份。</summary>
+/// <summary>欄位來歷在 field_info.field_origin 的儲存值。</summary>
 internal static class FieldInfoOriginStorage
 {
     internal static string ToStorageName(FieldInfoOrigin origin) => origin switch
@@ -156,7 +156,7 @@ internal static class FieldInfoOriginStorage
     };
 }
 
-/// <summary>SQLite／DuckDB 的 provider-neutral Legacy 欄位定義 facts port。</summary>
+/// <summary>Legacy 欄位定義 facts port。</summary>
 internal sealed class LocalFieldInfoFactsPort(ILocalProjectDatabase database)
     : IFieldInfoFactsPort
 {

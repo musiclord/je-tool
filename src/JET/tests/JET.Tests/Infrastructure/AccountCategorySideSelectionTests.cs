@@ -84,7 +84,7 @@ internal static class AccountCategorySideFixture
 
     internal static object ScenarioPayload(string side, string? selection, string mode = "is")
     {
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Keep fixed answers; express direction and absence explicitly.
+        //  Keep fixed answers; express direction and absence explicitly.
         var rule = new Dictionary<string, object>
         {
             ["type"] = "accountSide", ["categoryMode"] = mode == "absent" ? "is" : mode, ["categoryIds"] = new[] { B }
@@ -119,33 +119,33 @@ internal static class AccountCategorySideFixture
                ('builtin.cash','custom.cccccccccccccccccccccccccccccccc'),
                ('custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','custom.cccccccccccccccccccccccccccccccc');
         INSERT INTO import_batch (batch_id,dataset_kind,source_file_path,source_file_name,imported_utc,row_count,columns_json)
-        VALUES ('batch5-map','account_mapping','synthetic','synthetic.xlsx','2026-10-04T00:00:00Z',5,'[]');
+        VALUES ('mapping-batch','account_mapping','synthetic','synthetic.xlsx','2026-10-04T00:00:00Z',5,'[]');
         INSERT INTO account_mapping (batch_id,source_row_number,account_number,account_name,standardized_category,category_id)
-        VALUES ('batch5-map',1,'A','A','Cash','builtin.cash'),
-               ('batch5-map',2,'B','B','Cash','custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
-               ('batch5-map',3,'C','C','Others','custom.cccccccccccccccccccccccccccccccc'),
-               ('batch5-map',4,'D','D','Cash','custom.dddddddddddddddddddddddddddddddd'),
-               ('batch5-map',5,'O','O','Others','builtin.others');
+        VALUES ('mapping-batch',1,'A','A','Cash','builtin.cash'),
+               ('mapping-batch',2,'B','B','Cash','custom.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+               ('mapping-batch',3,'C','C','Others','custom.cccccccccccccccccccccccccccccccc'),
+               ('mapping-batch',4,'D','D','Cash','custom.dddddddddddddddddddddddddddddddd'),
+               ('mapping-batch',5,'O','O','Others','builtin.others');
         """;
 
     internal const string GlSql = """
         INSERT INTO gl
             (batch_id,source_row_number,voucher_number,line_item,gl_date,account_number,account_name,description,
              is_excluded,amount_scaled,debit_amount_scaled,credit_amount_scaled,dr_cr)
-        VALUES ('batch5-gl',1,'V1','1','2025-03-01','A','A','Synthetic',0,100,100,0,'DEBIT'),
-               ('batch5-gl',2,'V1','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
-               ('batch5-gl',3,'V2','1','2025-03-01','B','B','Synthetic',0,100,100,0,'DEBIT'),
-               ('batch5-gl',4,'V2','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
-               ('batch5-gl',5,'V3','1','2025-03-01','C','C','Synthetic',0,100,100,0,'DEBIT'),
-               ('batch5-gl',6,'V3','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
-               ('batch5-gl',7,'V4','1','2025-03-01','D','D','Synthetic',0,100,100,0,'DEBIT'),
-               ('batch5-gl',8,'V4','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
-               ('batch5-gl',9,'V5','1','2025-03-01','O','O','Synthetic',0,100,100,0,'DEBIT'),
-               ('batch5-gl',10,'V5','2','2025-03-01','B','B','Synthetic',0,-100,0,100,'CREDIT'),
-               ('batch5-gl',11,'V6','1','2025-03-01','U','U','Synthetic',0,100,100,0,'DEBIT'),
-               ('batch5-gl',12,'V6','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
-               ('batch5-gl',13,'ZERO','1','2025-03-01','B','B','Synthetic',0,0,0,0,'DEBIT'),
-               ('batch5-gl',14,'V6','3','2024-03-01','B','B','Outside period',1,100,100,0,'DEBIT');
+        VALUES ('gl-batch',1,'V1','1','2025-03-01','A','A','Synthetic',0,100,100,0,'DEBIT'),
+               ('gl-batch',2,'V1','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
+               ('gl-batch',3,'V2','1','2025-03-01','B','B','Synthetic',0,100,100,0,'DEBIT'),
+               ('gl-batch',4,'V2','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
+               ('gl-batch',5,'V3','1','2025-03-01','C','C','Synthetic',0,100,100,0,'DEBIT'),
+               ('gl-batch',6,'V3','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
+               ('gl-batch',7,'V4','1','2025-03-01','D','D','Synthetic',0,100,100,0,'DEBIT'),
+               ('gl-batch',8,'V4','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
+               ('gl-batch',9,'V5','1','2025-03-01','O','O','Synthetic',0,100,100,0,'DEBIT'),
+               ('gl-batch',10,'V5','2','2025-03-01','B','B','Synthetic',0,-100,0,100,'CREDIT'),
+               ('gl-batch',11,'V6','1','2025-03-01','U','U','Synthetic',0,100,100,0,'DEBIT'),
+               ('gl-batch',12,'V6','2','2025-03-01','O','O','Synthetic',0,-100,0,100,'CREDIT'),
+               ('gl-batch',13,'ZERO','1','2025-03-01','B','B','Synthetic',0,0,0,0,'DEBIT'),
+               ('gl-batch',14,'V6','3','2024-03-01','B','B','Outside period',1,100,100,0,'DEBIT');
         """;
 
     internal const string AllSql = CategoryAndMappingSql + GlSql;

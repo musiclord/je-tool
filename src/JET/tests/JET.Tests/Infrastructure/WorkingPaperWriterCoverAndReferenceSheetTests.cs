@@ -15,10 +15,10 @@ using static JET.Tests.Infrastructure.WorkingPaperWriterTestSupport;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>底稿寫出器：封面、說明、step5 與自動化工具參考工作表。</summary>
-// 使用者要求封面 A3 留白；首次失敗收據 20261106-130302916-209cba23338f4b12a0fd28bcaf09480b。
+// 封面 A3 留白。
 public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 {
-    // ================= Task 2:封面 / 固定文字三表(母體不影響,沿用既有逐字 oracle)=================
+    // ================= 封面 / 固定文字三表(內容不隨母體改變)=================
 
     [Fact]
     public async Task WriteAsync_EmitsCoverIntroAndStep5Sheets()
@@ -44,9 +44,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal("公司名稱 : 示範科技股份有限公司", cover.Cell("A1").GetString());
         Assert.Equal("測試資料期間 :  2025-01-01 ~ 2025-12-31", cover.Cell("A2").GetString());
         Assert.Equal(string.Empty, cover.Cell("A3").GetString());
-        // A6 原本寫「請詳：{公司}_CAATS_JE_WP_{日期}.docx」，是 2026-06-21 設計底稿寫出程式時定的檔名，兩份舊版 IDEA 程式都沒有寫。
-        // 命名來源與 CAATs 的步驟都無法確認，使用者 2026-11-05 要求拿掉（裁定 2026-11-05-29），所以這一格只留格式、不寫字。
-        // 改這則測試前的第一次失敗：Focused 收據 20261105-080037257-8a4432dead444bcc98e79d3953096131。
+        // A6 只留格式、不寫字，也不寫含 CAATS 的檔名；兩份舊版 IDEA 程式都沒有寫。
         Assert.Equal(string.Empty, cover.Cell("A6").GetString());
         Assert.DoesNotContain("CAATS", cover.Cell("A6").GetString(), StringComparison.OrdinalIgnoreCase);
     }
@@ -97,9 +95,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             workbook.Worksheet(CoverSheet).Cell("A3").GetString());
         var step3 = workbook.Worksheet(Step3Sheet);
         Assert.Contains("2025-01-01 ~ 2025-12-31", step3.Cell("B7").GetString(), StringComparison.Ordinal);
-        // 裁定 2026-10-30-34 的對照表改寫整句，「無有效總帳日期」改用名詞表的未納入原因「總帳日期空白」。
-        // 第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
-        // 裁定 2026-11-03-04 與 2026-11-03-17：底稿句子裡的欄位名稱用【】標示。第一次失敗：Focused 收據 20261103-073242223-6e3ff3f3d22a4ba29b6936a9a5bb476e。
+        // 這句用未納入原因的名稱「總帳日期空白」；底稿句子裡的欄位名稱用【】標示。
         Assert.Contains("查核期間外與【總帳日期】空白的分錄", step3.Cell("B9").GetString(), StringComparison.Ordinal);
     }
 
@@ -128,7 +124,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Contains("A1:R1", step5.MergedRanges.Select(r => r.RangeAddress.ToString()));
     }
 
-    // ================= Task 5:自動化工具-檔案欄位資訊(欄位配對正準名)=================
+    // ================= 自動化工具-檔案欄位資訊(欄位配對正準名)=================
 
     [Fact]
     public async Task FieldInfo_TypedPath_UsesCanonicalProjectionAndDynamicTwoRowGap()
@@ -168,14 +164,13 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
-        // JET.Domain 新增記錄型別 FieldInfoSheet（裁定 2026-11-09-28）後，這裡的工作表名稱常數要寫明出處才不會撞名；
-        // 第一次失敗：Build 收據 20261109-145225420-a56baf66e9a64e52951bd296df7a960e（編譯失敗）。
+        // JET.Domain 新增記錄型別 FieldInfoSheet後，這裡的工作表名稱常數要寫明出處才不會撞名；
+        // （編譯失敗）。
         var sheet = workbook.Worksheet(WorkingPaperWriterTestSupport.FieldInfoSheet);
-        // 裁定 2026-11-06-11 拿掉第一列的版本字樣 V.2019，原本預期 A1 是 V.2019，改成空白；其餘列號與內容不變。
-        // 第一次失敗：Focused 收據 20261106-084046692-14d369b348a74677801bd994c8d906b6。
+        // 第一列不寫版本字樣，A1 是空白。
         Assert.True(sheet.Cell("A1").IsEmpty());
         Assert.Equal("TB檔案配對前後欄位對照表", sheet.Cell("A2").GetString());
-        // 裁定 2026-11-09-14：照舊版保護整張表。裁定 2026-11-09-16：標題列不合併。
+        // 照舊版保護整張表，標題列不合併。
         Assert.True(sheet.Protection.IsProtected);
         Assert.Empty(sheet.MergedRanges);
 
@@ -193,7 +188,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.DoesNotContain("K_R條件", ReadEntireColumn(sheet, "A"));
     }
 
-    // ================= Task 5:自動化工具-假期假日資訊(週末固定 + 假日/補班)=================
+    // ================= 自動化工具-假期假日資訊(週末固定 + 假日/補班)=================
 
     [Fact]
     public async Task CalendarInfo_FixedWeekendTable_AndHolidayMakeupCountsMatchStore()
@@ -224,7 +219,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 
         using var workbook = await WriteDemoAndReadAsync(host, ctx.ProjectId);
         var sheet = workbook.Worksheet(CalendarInfoSheet);
-        // 裁定 2026-11-09-14：照舊版保護整張表。
+        // 照舊版保護整張表。
         Assert.True(sheet.Protection.IsProtected);
 
         // 週末表固定(資料化常數,非逐列特判):A1/B1 標頭 + 7 列;Mon-Fri=N、Sat/Sun=Y。
@@ -274,7 +269,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         AssertSingleLine(sheet.Cell(holidayHeaderRow + 1, 2));
     }
 
-    // 裁定 2026-11-05-31：週末表由週一排到週日，案件設定的每週休息日寫 Y；
+    // 週末表由週一排到週日，案件設定的每週休息日寫 Y；
     // 沒有設定時照預設寫週六、週日，設定成空集合時七天都寫 N。
     [Theory]
     [InlineData(null, "NNNNNYY")]
@@ -290,7 +285,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal(expected, string.Concat(rows.Select(row => row.Workday)));
     }
 
-    // ================= Task 5:自動化工具-科目配對資訊(Not-in-TB 字面值)=================
+    // ================= 自動化工具-科目配對資訊(Not-in-TB 字面值)=================
 
     [Fact]
     public async Task AccountMapping_NotInTbAccount_WritesLiteral_OthersWriteAccountName()
@@ -304,7 +299,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             gl =>
             {
                 // 過帳日對齊本測試 WorkingPaperContext 的期間(2025)——完整性 GL 彙總（含 not-in-tb 判定）
-                // 母體限本期 gl_date（§2），資料須落在 context.PeriodStart/End 內方可入母體。
+                // 母體限本期 gl_date，資料須落在 context.PeriodStart/End 內方可入母體。
                 gl.WithColumns("傳票號碼", "傳票日期", "科目代號", "科目名稱", "摘要", "建立人員", "金額", "借方旗標");
                 gl.AddRow("JV1", "2025-03-01", "1101", longAccountName, "說明", "甲", "100.00", 1);
                 gl.AddRow("JV1", "2025-03-01", "1101", longAccountName, "說明", "甲", "100.00", 0);

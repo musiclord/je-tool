@@ -78,8 +78,8 @@ public sealed class ProjectMetadataUpdateTests
         var before = await LoadAsync(host, projectId);
         Assert.Equal(4, await PreviewCountAsync(host));
         var updated = await UpdateAsync(host, new { prepStartDate = "2025-11-01" });
-        // 上游修改會清除下游（裁定 2026-10-07-03）：改財報準備日會清掉已存情境，篩選回到從未執行，
-        // 不再標成待重跑也不保留情境。第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：改財報準備日會清掉已存情境，篩選回到從未執行，
+        // 不標成待重跑也不保留情境。
         AssertStale(updated.GetProperty("staleState"), false, true, false);
         Assert.True(updated.GetProperty("invalidatedResults").GetProperty("filterScenarios").GetBoolean());
         var loaded = await LoadAsync(host, projectId);
@@ -105,8 +105,7 @@ public sealed class ProjectMetadataUpdateTests
         Assert.Equal(JsonValueKind.Null, updated.GetProperty("project").GetProperty("prepStartDate").ValueKind);
         Assert.Equal("", updated.GetProperty("project").GetProperty("projectCode").GetString());
         var loaded = await LoadAsync(host, projectId);
-        // 上游修改會清除下游（裁定 2026-10-07-03）：清除財報準備日會清掉已存情境，原本斷言情境保留。
-        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：清除財報準備日會清掉已存情境。
         Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         var error = await Assert.ThrowsAsync<JetActionException>(() => PreviewCountAsync(host));
         Assert.Equal(JetErrorCodes.InvalidScenario, error.Code);
@@ -118,7 +117,7 @@ public sealed class ProjectMetadataUpdateTests
         Assert.DoesNotContain("prepStartDate", reason, StringComparison.Ordinal);
     }
 
-    // 依裁定 2026-10-07-12 改善財報準備日的存檔：案件設定檔存不進去時，資料庫的清除一起回復，
+    // 財報準備日的存檔：案件設定檔存不進去時，資料庫的清除一起回復，
     // 情境、預篩選結果與舊日期都留著，審計員排除檔案問題後重送即可。
     [Theory]
     [InlineData("sqlite")]

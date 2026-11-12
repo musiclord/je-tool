@@ -17,13 +17,12 @@ namespace JET.Infrastructure;
 public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogger<LocalImportRepository>? logger = null)
     : IImportRepository
 {
-    // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死——避免 DuckDB 執行被誤標成 sqlite。
     private readonly string _provider = database.Dialect.ProviderName;
     private readonly ILogger _log = logger ?? NullLogger<LocalImportRepository>.Instance;
 
     private static readonly JsonSerializerOptions JsonOptions = JetJsonStorage.Options;
 
-    /// <summary>staging 批量寫入的欄位順序（各引擎的 <see cref="IBulkRowWriter"/> 依此對位）。</summary>
+    /// <summary>staging 批量寫入的欄位順序（<see cref="IBulkRowWriter"/> 依此對位）。</summary>
     private static readonly string[] StagingColumns =
         ["batch_id", "row_number", "source_no", "source_row_number", "row_json"];
 
@@ -328,8 +327,8 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 batchId,
                 FieldInfoScope.Source,
                 cancellationToken);
-            // 每次取代匯入都會寫入欄位定義，只有舊版 JET 匯入的資料會沒有；舊版案件一律刪除後重建
-            // （裁定 2026-10-29-17：改名前的案件刪除後重建，不寫讀取相容），所以和其他舊版案件用同一句。
+            // 每次取代匯入都會寫入欄位定義，只有舊版 JET 匯入的資料會沒有；舊版案件一律刪除後重建，
+            // 不寫讀取相容，所以和其他舊版案件用同一句。
             if (persistedDefinitions.Count == 0)
             {
                 throw new JetActionException(
@@ -539,7 +538,7 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
 
     /// <summary>
     /// 欄名「集合」一致性（順序無關；欄序以第一個來源為準）。不一致 → column_mismatch。
-    /// 追加時比的是已匯入的資料，一次匯入多個來源時比的是第一個來源；兩種情況共用同一句訊息（裁定 2026-11-09-22）。
+    /// 追加時比的是已匯入的資料，一次匯入多個來源時比的是第一個來源；兩種情況共用同一句訊息。
     /// </summary>
     internal static void EnsureColumnSetsMatch(
         string sourceFileName,

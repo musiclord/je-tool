@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 /// <summary>發布已成功之後，清單讀取失敗只能影響清單，不能把已完成的匯出改報失敗。</summary>
 public sealed class PublicationCatalogReadTests
 {
-    // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+    // 這句的用字已定案。
     private const string Warning = "檔案已產生，但報告清單沒有更新；重新開啟案件就會更新，不必重新產生。";
 
     [Theory]
@@ -140,7 +140,6 @@ public sealed class PublicationCatalogReadTests
         Assert.Equal(0, store.ListCalls);
     }
 
-    // 修正前 2 案失敗：Focused 20261110-044733575-4198533a94044a3199d9d55a30385ffb。
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -170,12 +169,12 @@ public sealed class PublicationCatalogReadTests
         var session = new ProjectSession();
         var runs = new TestRunStore(
             new("validation-current", ResultKind.Validation, time, CurrentValidationSummaryTestData.Create("validation-current", time)),
-            // 2026-10-22 清理技術債：handler 一定會解析預篩選摘要再規劃，所以摘要要能解析。
+            // handler 一定會解析預篩選摘要再規劃，所以摘要要能解析。
             new("prescreen-current", ResultKind.Prescreen, time, ReportWriterTestSupport.PrescreenSummaryJson()));
         runs.ReadFailure = () => store is PublishedStore { WriteCalls: > 0 } ? stateFailure : null;
         var project = ProjectDocument.CreateNew("synthetic-project", "", "", "synthetic-user", "2025-01-01", "2025-12-31",
             null, ProjectDocument.DefaultDatabaseProvider, time, 1, 2);
-        // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 store，替身放進資料庫組後再進入 session。
+        // handler 從作用中案件的資料庫組取 writer 與 store，替身放進資料庫組後再進入 session。
         session.Enter(
             "synthetic-project",
             TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
@@ -183,7 +182,6 @@ public sealed class PublicationCatalogReadTests
                 PrescreenReportWriter = writer,
                 Results = runs,
                 ReportStore = store,
-                // Public首敗100911120後補必要來源讀取，發布前後IO錯誤与次數斷言均保留。
                 ResultStaleStates = EmptyReportStateTestData.StaleStates,
                 FilterScenarios = EmptyReportStateTestData.Scenarios,
                 PrescreenReportPlanningFacts = new ReportWriterTestSupport.ZeroPrescreenPlanningFactsPort(),
@@ -261,7 +259,7 @@ public sealed class PublicationCatalogReadTests
         }
         public Task<string> ResolvePathAsync(string projectId, string reportId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<int> MarkStaleAsync(string projectId, ReportKind kind, CancellationToken cancellationToken) => throw new NotSupportedException();
-        // 清單刷新現在包含重判索引；仍維持原本發布與List失敗測試。
+        // 清單刷新包含重判索引。
         public Task<int> MarkStaleAsync(string projectId, Func<Report, bool> predicate, CancellationToken cancellationToken)
         {
             var changed = Published.Count(report => !report.Stale && predicate(report));

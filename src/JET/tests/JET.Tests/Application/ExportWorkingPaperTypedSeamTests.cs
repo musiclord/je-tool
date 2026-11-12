@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 正式工作底稿的唯一 constructor 必須走完整 typed lifecycle，沒有
-/// rollback fallback；底稿只經由依計畫寫出的正式入口寫出，公開的相容入口已於 2026-10-22 刪除。此測試同時鎖定惰性
+/// rollback fallback；底稿只經由依計畫寫出的正式入口寫出，沒有公開的相容入口。此測試同時鎖定惰性
 /// stale refresh 的既有 predicate 路徑。
 /// </summary>
 public sealed class ExportWorkingPaperTypedSeamTests
@@ -60,8 +60,8 @@ public sealed class ExportWorkingPaperTypedSeamTests
             order,
             cancellation,
             rejectUnusedPrepublicationCatalog);
-        // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，
-        // 原本逐一傳給建構式的替身改放進資料庫組後再進入 session。
+        // handler 從作用中案件的資料庫組取 writer 與 repository，
+        // 替身放進資料庫組後再進入 session。
         var session = new ProjectSession();
         session.Enter(
             projectId,
@@ -91,15 +91,13 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.True(cancellation.IsCancellationRequested);
 
         Assert.Equal(1, writer.TypedCalls);
-        // 原本另斷言公開入口沒被呼叫。2026-10-22 清理技術債時刪掉公開入口，替身不再計次；改由 CompatibilityPathOwnershipTests
-        // 斷言它不存在。第一次失敗是刪掉介面後測試專案建置失敗，那次沒有保存收據。
+        // 公開入口不存在，由 CompatibilityPathOwnershipTests 斷言。
         Assert.Equal(1, factsPort.Calls);
         Assert.False(factsPort.InitialPlan?.IsFinalized);
         Assert.True(writer.Plan?.IsFinalized);
-        // Public首敗101806919-e8b6a1be3d8b4bd3b5bbe7349a92eddc：發布後須再重判全部索引。
-        // 保留writer先完成、最後才刷新，以及發布前不讀清單的完整順序與次數斷言。
-        // 原本斷言順序含 materialize：底稿匯出前一律重算勾稽結果。改成每個條件組儲存時就存好結果、匯出直接讀，
-        // 結果沒有過期就不再重算；第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // 發布後須再重判全部索引。
+        // 斷言 writer 先完成、最後才刷新，以及發布前不讀清單的完整順序與次數。
+        // 每個條件組儲存時就存好結果、匯出直接讀，結果沒有過期就不重算，所以順序裡沒有 materialize。
         Assert.Equal(
             new[] { "stale-refresh", "facts", "typed-writer", "stale-refresh" },
             order);
@@ -107,8 +105,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.Equal(2, reportStore.MarkStaleCalls);
         Assert.False(reportStore.CriteriaWasMarkedStale);
         Assert.True(reportStore.OldWorkingPaperWasMarkedStale);
-        // 不再需要 Criteria 檔作為底稿前置，發布前的清單回傳也沒有消費者。
-        // 改驗只在發布後刷新清單；過期標記、完整typed計算與已發布內容的斷言仍保留。
+        // 不需要 Criteria 檔作為底稿前置，發布前的清單回傳也沒有消費者，所以只在發布後刷新清單。
         Assert.Equal(1, reportStore.ListCalls);
         Assert.Equal(new[] { "published", "response-catalog" }, reportStore.CatalogOrder);
         Assert.Equal(new[] { "criteria-current", "working-paper-old", "working-paper-current" }, Assert.Single(reportStore.CatalogReportIds));
@@ -127,8 +124,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.Null(typeof(WorkingPaperContext).GetProperty("PrescreenResultId"));
         Assert.Equal(revision, writer.Context?.ScenarioRevision);
         Assert.Equal(new[] { 1 }, writer.Context?.ScenarioPositions);
-        // 原本另斷言 ScenarioConditionLogic 是 null。2026-10-22 清理技術債時刪掉這個屬性，改由 CompatibilityPathOwnershipTests
-        // 斷言它不存在。第一次失敗是刪掉屬性後測試專案建置失敗，那次沒有保存收據。
+        // ScenarioConditionLogic 屬性不存在，由 CompatibilityPathOwnershipTests 斷言。
 
         var plan = Assert.IsType<WorkingPaperPlan>(writer.Plan);
         Assert.Equal(validationResultId, plan.Request.ValidationResultId);
@@ -147,7 +143,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
         Assert.Equal(3, selected.RowHitCount);
         var fieldInfo = Assert.IsType<FieldInfoProjection>(plan.FieldInfo);
         Assert.Equal(
-            // 改名欄位的「配對前欄位名稱」描述的是來源欄，照裁定 2026-11-03-17 加【】。第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+            // 改名欄位的「配對前欄位名稱」描述的是來源欄，加【】。
             [new FieldInfoRow("【來源科目】", "文字型態", 18, null, "會計科目編號_TB")],
             fieldInfo.TbRows);
         Assert.Equal(
@@ -306,8 +302,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
                 },
                 TargetTbDefinitions:
                 [
-                    // 欄位事實多了來歷與對應的 JET 欄位（裁定 2026-11-03-11），手工建的事實照投影器的寫法補上。
-                    // 第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+                    // 欄位事實多了來歷與對應的 JET 欄位，手工建的事實照投影器的寫法補上。
                     new FieldInfo(
                         1,
                         "會計科目編號_TB",
@@ -519,8 +514,8 @@ public sealed class ExportWorkingPaperTypedSeamTests
                 // 發布後清單有自己的短期限；使用者的晚到取消不得傳入此刷新。
                 Assert.True(cancellationToken.CanBeCanceled);
                 Assert.False(cancellationToken.IsCancellationRequested);
-                // 發布後清單要在第二次來源重判之後；其餘取消與發布順序斷言保留。
-                // 結果沒有過期時匯出不再重算，順序少了 materialize；收據同上方說明。
+                // 發布後清單要在第二次來源重判之後。
+                // 結果沒有過期時匯出不重算，順序沒有 materialize。
                 Assert.Equal(new[] { "stale-refresh", "facts", "typed-writer", "stale-refresh" }, order);
                 Assert.Equal(new[] { "published" }, CatalogOrder);
                 CatalogOrder.Add("response-catalog");
@@ -620,7 +615,7 @@ public sealed class ExportWorkingPaperTypedSeamTests
             throw new NotSupportedException();
     }
 
-    // 保存情境補算現在也驗證科目配對。明示此案例具備必要分類，不跳過產品檢查或放寬原有斷言。
+    // 保存情境補算也驗證科目配對。明示此案例具備必要分類，不跳過產品檢查。
     private sealed class ReadyAccountMappingStore : IAccountMappingStore
     {
         public Task<AccountMappingImportResult> ImportAsync(string projectId, ImportSourceDescriptor source,

@@ -3,9 +3,8 @@ using System.Data.Common;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite 的 <see cref="IBulkRowWriter"/> 實作：把現行「單一顯式交易內、單一 command 重用參數、逐列
-/// <c>ExecuteNonQueryAsync</c>」的寫入原封不動包起來，落庫結果與改用批量寫入介面前
-/// 逐字相同（SQLite 動態型別，int／long 皆存 INTEGER、string 存 TEXT、null 存 NULL，與原路徑一致）。
+/// SQLite 的 <see cref="IBulkRowWriter"/> 實作：在建構時給定的顯式交易內，以單一 command 重用參數、逐列
+/// <c>ExecuteNonQueryAsync</c> 寫入（SQLite 動態型別，int／long 皆存 INTEGER、string 存 TEXT、null 存 NULL）。
 /// 建構時以給定欄位清單組出 <c>INSERT INTO t (c0,…) VALUES (@c0,…)</c>，逐列只換參數值再執行。
 /// </summary>
 internal sealed class SqliteBulkRowWriter : IBulkRowWriter
@@ -54,7 +53,7 @@ internal sealed class SqliteBulkRowWriter : IBulkRowWriter
         await _command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>逐列已即時執行，無待 flush 的緩衝——no-op（介面對稱，供 DuckDB 臂延後 flush 用）。</summary>
+    /// <summary>逐列已即時執行，無待 flush 的緩衝——no-op。</summary>
     public Task CompleteAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public async ValueTask DisposeAsync() => await _command.DisposeAsync().ConfigureAwait(false);

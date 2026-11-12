@@ -91,7 +91,7 @@ internal static class MappingMetadataCodec
     /// <summary>
     /// 六份正式報表共用的隱藏工作表 JET_Metadata（<see cref="ReportWorkbookMetadataCodec"/> 寫出）裡的確認配對。
     /// 外層另有期間、過帳狀態政策與科目分類版本，這裡只取 mapping；各資料集多出的來源批次與確認時間不讀。
-    /// 匯出時 TB 還沒確認配對的話 tb 是 null（裁定 2026-11-05-03：JET 匯出的六種檔案都能帶入配對）。
+    /// 匯出時 TB 還沒確認配對的話 tb 是 null；JET 匯出的六種檔案都能帶入配對。
     /// </summary>
     public static MappingDraftMetadata DecodeReportWorkbook(string json)
     {
@@ -149,7 +149,7 @@ internal static class MappingMetadataCodec
                 "manualAutoPolicy",
                 "rdeFields"
             ],
-            // 往下填補的欄位與填了幾格是後來加的，改版前寫出的報告沒有這兩項。
+            // 較早版本寫出的報告沒有往下填補的欄位與填了幾格這兩項。
             ["fillDownFields", "fillDownCount", .. extraProperties ?? []]);
         var mapping = JsonContractReader.ReadMapping(
             value.GetProperty("mapping"),
@@ -289,7 +289,7 @@ internal static class GlMappingOptionsJsonCodec
                 document.RootElement,
                 "options",
                 ["approvalDateMode", "postingStatusPolicy", "manualAutoPolicy", "rdeFields"],
-                // 往下填補的欄位與填了幾格是後來加的，改版前確認的配對沒有這兩項。
+                // 較早版本確認的配對沒有往下填補的欄位與填了幾格這兩項。
                 ["fillDownFields", "fillDownCount"]);
             return ReadProperties(root, mapping, "options.");
         }

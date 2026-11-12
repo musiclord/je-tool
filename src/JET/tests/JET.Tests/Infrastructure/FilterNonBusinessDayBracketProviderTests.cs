@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 裁定 2026-10-02-03 移除「情境層級」：非營業日卡片改成組內的子條件組（週末過帳 或 假日過帳）。
-/// 舊版把 I 存成獨立條件組；同一則裁定也寫明不轉換舊情境，計算照原條件樹。這裡用合成資料在 SQLite 與 DuckDB
+/// 非營業日卡片是組內的子條件組（週末過帳 或 假日過帳）。
+/// 較早的版本把這張卡片存成獨立條件組；已儲存的舊情境不轉換，計算照原條件樹。這裡用合成資料
 /// 確認：只有一個條件組時，新形狀的命中與舊形狀相同，加上同組其他條件時也相同。
 /// </summary>
 public sealed class FilterNonBusinessDayBracketProviderTests

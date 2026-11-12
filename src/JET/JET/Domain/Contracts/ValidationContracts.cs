@@ -65,8 +65,8 @@ public sealed record UnbalancedVoucher(
     long DiffScaled);
 
 /// <summary>
-/// 不平傳票依傳票號碼與總帳日期彙總的一列，供底稿 Step 1-1 明細表使用（legacy 依這兩欄彙總，
-/// idea-tool.bas:6686-6691）。借方與貸方合計都是非負的 scaled 值，正負號由寫出端依 legacy 顯示。
+/// 不平傳票依傳票號碼與總帳日期彙總的一列，供底稿 Step 1-1 明細表使用（舊版 JET 依這兩欄彙總）。
+/// 借方與貸方合計都是非負的 scaled 值，正負號由寫出端依 legacy 顯示。
 /// </summary>
 public sealed record UnbalancedVoucherDateRow(
     string? VoucherNumber,

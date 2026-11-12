@@ -42,8 +42,7 @@ public sealed class AuditDependencyPolicyTests
         Assert.Equal(validation, impact.InvalidateValidation);
         Assert.Equal(prescreen, impact.InvalidatePrescreen);
         Assert.Equal(filterHits, impact.InvalidateFilterHits);
-        // 上游修改會清除下游（裁定 2026-10-07-03）：情境定義改為與命中同進退，不再是保留例外。
-        // 第一次失敗收據 20261007-033332600-7474a4e6d5034eec90a0e1e97389993a。
+        // 上游修改會清除下游：情境定義與命中同進退，不是保留例外。
         Assert.Equal(filterHits, impact.InvalidateFilterScenarioDefinitions);
         Assert.False(impact.ClearGlControlTotal);
     }

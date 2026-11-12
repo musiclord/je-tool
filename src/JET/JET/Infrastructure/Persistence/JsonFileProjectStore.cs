@@ -96,7 +96,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
                 var document = await ReadAsync(projectId, cancellationToken);
                 if (document is not null)
                 {
-                    // 本機案件的資料庫不見或是 0 位元組時，比照無法開啟的案件列出原因（裁定 2026-11-05-72）。
+                    // 本機案件的資料庫不見或是 0 位元組時，比照無法開啟的案件列出原因。
                     var databaseProblem = LocalDatabaseProblem(projectId, document.DatabaseProvider);
                     entries.Add(databaseProblem is null
                         ? new ProjectStoreEntry(projectId, document)
@@ -106,7 +106,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
             catch (JetActionException exception) when (
                 exception.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
             {
-                // 以前建立的 DuckDB 與 SQL Server 案件讀不通時同樣不列出（裁定 2026-11-06-09）。
+                // 以前建立的 DuckDB 與 SQL Server 案件讀不通時同樣不列出。
                 if (await IsRetiredProviderCaseAsync(projectId, cancellationToken))
                 {
                     continue;
@@ -178,7 +178,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         return Task.CompletedTask;
     }
 
-    /// <summary>以前的 DuckDB 案件資料夾裡的資料庫檔名。只用來辨認舊案件，JET 不讀也不改它（裁定 2026-11-06-09）。</summary>
+    /// <summary>以前的 DuckDB 案件資料夾裡的資料庫檔名。只用來辨認舊案件，JET 不讀也不改它。</summary>
     private const string RetiredDuckDbDatabaseFileName = "jet.duckdb";
 
     public async Task<string?> FindLocalDatabaseProviderAsync(string projectId, CancellationToken cancellationToken)
@@ -202,7 +202,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
     /// <summary>
     /// 這個資料夾是否確定是以前建立的 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
     /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。案件清單用它藏起讀不通的舊案件，
-    /// 建案用它說明名稱被舊案件佔用（裁定 2026-11-06-09）。判斷不出來或沒有這個資料夾時回 false。
+    /// 建案用它說明名稱被舊案件佔用。判斷不出來或沒有這個資料夾時回 false。
     /// </summary>
     public async Task<bool> IsRetiredProviderCaseAsync(string projectId, CancellationToken cancellationToken)
     {
@@ -312,7 +312,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // 寫不進 project.json 是環境問題（唯讀、被其他程式開啟、磁碟滿），給使用者出路而不是裸例外
-            // （不寫檔名與例外型別，用字依裁定 2026-10-14-01）。
+            // （不寫檔名與例外型別）。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 $"案件「{document.ProjectId}」的設定未能儲存。請確認案件資料夾不是唯讀、設定檔沒有被其他程式開啟，再試一次。",
@@ -338,7 +338,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 
     /// <summary>
     /// 內容寫到磁碟後才關檔，換檔或發布前呼叫：斷電時設定檔不是舊的就是新的完整內容，不會換成空檔
-    /// （裁定 2026-11-05-69 要求確認 SQLite 運行的穩健性；報告與工作檔也是這樣寫）。
+    /// （報告與工作檔也是這樣寫）。
     /// 編碼和 <see cref="File.WriteAllTextAsync(string, string?, CancellationToken)"/> 相同，UTF-8 不加 BOM。暫存檔名每次都是新的，所以用 CreateNew。
     /// </summary>
     internal static async Task WriteToDiskAsync(string path, string text, CancellationToken cancellationToken)
@@ -481,7 +481,7 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 
     private static JetActionException ProjectReadError(string projectId, Exception? innerException = null) => new(
         JetErrorCodes.FileReadError,
-        // 這句的用字依裁定 2026-10-14-01。
+        // 這句的用字已定案。
         $"案件「{projectId}」的設定檔無法讀取。請確認設定檔沒有被其他程式開啟；檔案已損壞時，請從備份還原案件資料夾，或另建案件重新匯入。",
         innerException: innerException);
 }
@@ -508,7 +508,7 @@ internal static class ProjectDocumentSeedIntegrity
         || string.Equals(path, "$.sampleSeedVersion", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// 抽樣設定損壞（用字依裁定 2026-10-14-01）：不寫檔名、鍵名與種子值。
+    /// 抽樣設定損壞：不寫檔名、鍵名與種子值。
     /// 讀不到案件名稱時省略名稱。
     /// </summary>
     internal static JetActionException Corruption(string? projectName, Exception? innerException = null) =>

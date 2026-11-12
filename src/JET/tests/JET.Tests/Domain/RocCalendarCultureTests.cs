@@ -74,7 +74,7 @@ public sealed class RocCalendarCultureTests
         Assert.Contains("2024-02-29 08:30", message, StringComparison.Ordinal);
     }
 
-    // 裁定 2026-10-19-25 防再犯：程式啟動時把日曆固定為西元，地區的其他設定不動。
+    // 程式啟動時把日曆固定為西元，地區的其他設定不動。
     [Fact]
     public void ProcessCulture_RocCalendar_SwitchesOnlyTheCalendarToGregorian()
     {

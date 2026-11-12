@@ -60,7 +60,7 @@
 
   var RETIRED_TYPE_NOTE = '此條件的類型已停用，請刪除此條件';
 
-  // 預篩選條件還缺什麼；鍵已停用時和後端同一句（裁定 2026-10-14-01）。
+  // 預篩選條件還缺什麼；鍵已停用時和後端同一句。
   function prescreenRequirementNote(key) {
     var known = Ui.PRESCREEN_RULES.some(function (item) { return item.value === key; });
     return known ? requirementNote([{ type: 'prescreen', prescreenKey: key }]) : RETIRED_TYPE_NOTE;
@@ -71,13 +71,11 @@
      一張卡 = 一份「rule 規格」陣列（commonRuleSpecs）。加入 = 把這些規格化成真 rule、
      在每條 rule 上打一個穩定的身分標記（__commonCard = 卡片代號）併進草稿；已選偵測 =
      草稿中是否存在帶該卡標記的 rule；移除 = 把所有帶該卡標記的 rule 挑掉。
-
-     為何用標記而非結構簽章（取捨顯式）：先前以 type(+field/mode/prescreenKey) 的結構簽章
-     猜「這條 rule 是不是這張卡帶進來的」。但卡片的簽章會與查核員「自訂」的同型別條件
+     為何用標記而非結構簽章（取捨顯式）：若以 type(+field/mode/prescreenKey) 的結構簽章
+     猜「這條 rule 是不是這張卡帶進來的」，卡片的簽章會與查核員「自訂」的同型別條件
      重疊——例如特定摘要卡會被任何手動加入的同型別關鍵字條件誤判為「已選」，且移除
-     時只刪「第一條」同簽章 rule，可能誤刪使用者手動加入的條件。改用精確身分標記後，這一整類
-     誤判／誤刪的 edge case 直接消失：自訂的同型別條件不帶標記，永遠不會被當成卡片帶入的條件。
-
+     時只刪「第一條」同簽章 rule，可能誤刪使用者手動加入的條件。用精確身分標記就沒有這一整類
+     誤判／誤刪的 edge case：自訂的同型別條件不帶標記，永遠不會被當成卡片帶入的條件。
      __commonCard 是 UI-only 標記（鍵名以雙底線開頭、明示「內部用途、不屬 wire 契約」），絕不可
      送進後端。所有送出點一律經 toWireScenario() 深拷貝並遞迴剝除；有卡片標記或已存
      source:'common' 時另送根層 source:'common'，groups 內每條 rule 不含任何 UI-only 鍵。
@@ -99,7 +97,7 @@
   }
 
   // Wire source 的單一推導點：草稿讀標記；project.load 的 saved summary 已沒有標記，故保留 canonical source。
-  // 2026-10-29 以前儲存的情境記的是另一個來源代碼，這一版不認得，一律當成審計員自訂的情境（見 filter-step-saved 的 editScenario）。
+  // 較早儲存的情境記的是另一個來源代碼，這一版不認得，一律當成審計員自訂的情境（見 filter-step-saved 的 editScenario）。
   function scenarioSource(scenario) {
     return hasCommonMarker(scenario) || (scenario.source === COMMON_SOURCE && !scenario.__restoredOrigins) ? COMMON_SOURCE : null;
   }
@@ -127,7 +125,7 @@
     return rule;
   }
 
-  // 已選偵測：草稿中是否存在帶該卡標記的 rule。純比對身分標記，不再做結構簽章猜測，
+  // 已選偵測：草稿中是否存在帶該卡標記的 rule。純比對身分標記，不做結構簽章猜測，
   // 故使用者自訂的同型別條件（不帶標記）永遠不會誤觸已選。空規格＝停用卡，不算已選。
   function isCommonSelected(draft, item) {
     if (commonRuleSpecs(item).length === 0) { return false; }
@@ -217,9 +215,9 @@
     return key ? Ui.FILTER_COMMON_CONDITIONS.filter(function (item) { return item.key === key; })[0] : undefined;
   }
 
-  // 有卡片時的動機只列評估說明（裁定 2026-10-30-02）：依卡片順序每張一行，沒有評估說明的卡片寫卡片名稱。
-  // 另有自訂條件時，每條自訂條件多一行「自訂：」加上畫面讀回的條件說明（裁定 2026-10-07-06）。
-  // 卡片字母已拿掉（裁定 2026-10-29-11），每行不再以字母開頭。
+  // 有卡片時的動機只列評估說明：依卡片順序每張一行，沒有評估說明的卡片寫卡片名稱。
+  // 另有自訂條件時，每條自訂條件多一行「自訂：」加上畫面讀回的條件說明。
+  // 每行不以卡片字母開頭。
   function commonScenarioRationale(draft) {
     var lines = Ui.FILTER_COMMON_CONDITIONS
       .filter(function (item) { return isCommonSelected(draft, item); })
@@ -250,7 +248,7 @@
   }
 
   // 卡片認得的條件種類：現在加入的規格，加上已儲存情境裡的舊寫法（FILTER_COMMON_PRESETS 的 legacyOverrides）。
-  // 舊寫法照舊認得是這張卡（裁定 2026-11-03-09）；重新按卡片時加入的是現在的規格。
+  // 舊寫法照舊認得是這張卡；重新按卡片時加入的是現在的規格。
   function commonRuleKinds(card) {
     var specs = commonRuleSpecs(card).slice(0, 1);
     if (!specs.length || card.kind !== 'preset') { return specs; }
@@ -285,7 +283,7 @@
     return candidate;
   }
 
-  // 範例帶入的名稱與動機在條件增減後改回自動（裁定 2026-10-07-07）；只填值或改值時保留，手改過的欄位不受影響。
+  // 範例帶入的名稱與動機在條件增減後改回自動；只填值或改值時保留，手改過的欄位不受影響。
   function releaseTemplateMetadata(draft) {
     if (draft.__templateName) { draft.__templateName = false; draft.__nameDirty = false; }
     if (draft.__templateRationale) { draft.__templateRationale = false; draft.__rationaleDirty = false; }
@@ -307,11 +305,10 @@
   }
 
   /* ============================================================================
-     「常用篩選條件」分頁：十個可複選的常用條件（裁定 2026-11-03-05）。情境範例在右側條件組合上方，套用後替換整份條件。
-     條件總覽的三個分頁用同一種列（裁定 2026-11-05-08）：名稱在左、右邊一把鍵。常用篩選條件與預篩選的條件還不在作用中的組時寫「加入」（裁定 2026-11-05-17），
-     已在這一組時鍵往下凹、寫「已加入」，再按一下就從這一組移出。原本是一格一格的卡片，按下後整張變成淡藍底；
-     使用者看過勾選框外觀的整列開關與這一種之後選了這一種，並要求三個分頁一起改。欄位條件分頁的鍵永遠是「加入」：
-     欄位底下是多層的選單，「已加入」再加上「再加入一條」「移出」反而讓人困惑（裁定 2026-11-05-12）。
+     「常用篩選條件」分頁：十個可複選的常用條件。情境範例在右側條件組合上方，套用後替換整份條件。
+     條件總覽的三個分頁用同一種列：名稱在左、右邊一把鍵。常用篩選條件與預篩選的條件還不在作用中的組時寫「加入」，
+     已在這一組時鍵往下凹、寫「已加入」，再按一下就從這一組移出。欄位條件分頁的鍵永遠是「加入」：
+     欄位底下是多層的選單，「已加入」再加上「再加入一條」「移出」反而讓人困惑。
      內容由 FILTER_COMMON_CONDITIONS 一份資料驅動。已加入與否由身分標記得出（isCommonSelectedActive：
      作用中組是否有帶該卡標記 __commonCard 的 rule），不做結構簽章猜測。
      前置條件不足的條件（依規則需求表，含 GL 沒有配對的欄位）：鍵停用，原因寫在名稱下一行，收在「尚不可用」裡。
@@ -326,7 +323,7 @@
       var state = disabled ? 'none' : commonCardState(draft, item);
       var noteId = 'filter-common-note-' + item.key;
       // 列上只寫名稱、停用原因與「也在其他組」。固定資產與費用組合、收入對方科目兩個條件的說明在加入後的條件列寫一次
-      //（commonDescriptionHtml）；原本卡片上也寫同一句，同一個畫面出現兩次，所以拿掉（裁定 2026-10-29-09）。
+      //（commonDescriptionHtml），列上不重複，免得同一個畫面出現兩次。
       // 「也在其他組」寫在名稱下一行，但不放進名稱那一格：加入時浮起來的標籤讀的是名稱那一格的字。
       var row = '<li class="filter-check">' +
         '<span class="filter-check__label">' + Ui.esc(item.label) + '</span>' +
@@ -343,7 +340,7 @@
       '</div>';
   }
 
-  // 條件總覽三個分頁共用的鍵：還不在作用中的組時寫「加入」，已在這一組時往下凹、寫「已加入」（裁定 2026-11-05-08）。
+  // 條件總覽三個分頁共用的鍵：還不在作用中的組時寫「加入」，已在這一組時往下凹、寫「已加入」。
   // 欄位條件分頁的「加入」直接加入或打開選單，不是開關，自己畫按鈕，但同樣掛 condition-key，三個分頁的鍵同一種大小。
   // 報讀名稱寫按下會做的事：「加入「名稱」」或「移出「名稱」」。attrs 是識別與停用屬性。
   function conditionKeyHtml(added, attrs, name) {
@@ -393,25 +390,24 @@
     });
   }
 
-  // 常用篩選條件分頁只放十個常用條件；情境範例移到右側條件組合上方的「從情境範例開始」（裁定 2026-11-03-05，取代 2026-10-29-10）。
+  // 常用篩選條件分頁只放十個常用條件；情境範例在右側條件組合上方的「從情境範例開始」。
   function commonPickerHtml(draft) {
     return '<section class="condition-picker condition-picker--common">' + commonCardsHtml(draft) + '</section>';
   }
 
-  // 欄位條件分頁：依欄位列出，常用查法收在「加入」鍵打開的選單裡（裁定 2026-11-03-06、2026-11-03-37）。分頁在程式裡的識別是 field（裁定 2026-11-03-21）。
+  // 欄位條件分頁：依欄位列出，常用查法收在「加入」鍵打開的選單裡。分頁在程式裡的識別是 field。
   function fieldPickerHtml() {
     return '<section class="condition-picker condition-picker--field">' + fieldListHtml() + '</section>';
   }
 
-  // 審計員習慣直接套用預篩選條件（裁定 2026-10-16-09），原本要先加入「沿用第四步預篩選規則」，再到條件卡片的下拉改選，
-  // 路徑太長。預篩選條件改成條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；每列是名稱加一把鍵的清單列，
-  // 已在作用中的組時寫「已加入」，再按一下移出（裁定 2026-11-05-08）。
+  // 審計員習慣直接套用預篩選條件，所以預篩選條件是條件總覽的一個分頁，條列每一條規則，按「加入」就帶入那一條；
+  // 每列是名稱加一把鍵的清單列，已在作用中的組時寫「已加入」，再按一下移出。
   function prescreenPickerHtml(draft) {
     var current = draft || Store.getState().filter.draft;
     var items = Ui.PRESCREEN_RULES.map(function (option) {
       var note = prescreenRequirementNote(option.value);
       var noteId = 'filter-prescreen-note-' + option.value;
-      // 名稱走 prescreenConditionLabel，尾數規則知道個數時寫「金額尾數連續 N 個 0」（裁定 2026-11-05-25）。
+      // 名稱走 prescreenConditionLabel，尾數規則知道個數時寫「金額尾數連續 N 個 0」。
       var label = Ui.prescreenConditionLabel(option.value);
       return '<li class="filter-check"><span class="filter-check__label">' + Ui.esc(label) + '</span>' +
         conditionKeyHtml(prescreenAdded(current, option.value), ' data-action="add-rule" data-add-prescreen="' + option.value + '"' +
@@ -427,11 +423,10 @@
     addConditions([conditionFromSpec({ type: 'prescreen', prescreenKey: key })]);
   }
 
-  // 欄位條件分頁依資料型別分成日期、數字、文字與類別四組（裁定 2026-11-03-06、2026-11-03-18），四組寫在同一張白紙上，用小標分開。
+  // 欄位條件分頁依資料型別分成日期、數字、文字與類別四組，四組寫在同一張白紙上，用小標分開。
   // 列和預篩選分頁的清單同一種寫法：一列一個欄位，名稱在左、「加入」在右，加入一條比較方式待選的條件。
-  // 有常用查法的欄位，名稱前有箭頭，按名稱打開玻璃選單列出常用查法；沒有的列在箭頭的位置留同樣寬的空位（裁定 2026-11-03-32）。
-  // 原本四組各是一張白卡，常用查法排在列的下一行、鍵和「加入」一樣大，使用者認為仍然雜亂（裁定 2026-11-03-26、2026-11-03-28）。
-  // 核心欄位全部列出；GL 沒有配對的照樣列出但不能按，分頁最後寫出是哪些欄位以及回第三步欄位配對補上（裁定 2026-10-22-05）。
+  // 有常用查法的欄位，「加入」打開玻璃選單：第一項同樣加入比較方式待選的條件，後面列出常用查法。
+  // 核心欄位全部列出；GL 沒有配對的照樣列出但不能按，分頁最後寫出是哪些欄位以及回第三步欄位配對補上。
   // 攸關資料元素欄位依型別接在核心欄位後面。
   var FIELD_GROUPS = [
     { type: 'date', label: '日期', core: ['glDate', 'approvalDate'] },
@@ -441,8 +436,8 @@
   ];
 
   // 類別這一組的三個入口不是 GL 欄位，各自帶入一條既有型別的條件：借貸別預設借方、人工/自動分錄預設人工、科目分類不預選分類
-  //（確認頁寫明照 2026-10-14-08 一起做：科目分類只加入一條條件，分類留空待選）。能不能按照各自條件的前置條件。
-  // 人工/自動分錄和第三步的欄位同名（裁定 2026-11-03-22）；借貸別與人工/自動分錄底下不放常用查法（裁定 2026-11-03-20）。
+  //（科目分類只加入一條條件，分類留空待選）。能不能按照各自條件的前置條件。
+  // 人工/自動分錄和第三步的欄位同名；借貸別與人工/自動分錄底下不放常用查法。
   var CHOICE_FIELDS = [
     { id: 'drCr', label: '借貸別', spec: { type: 'drCrOnly', drCr: 'debit' } },
     { id: 'manualAuto', label: '人工/自動分錄', spec: { type: 'manualAuto', isManual: 'true' } },
@@ -473,13 +468,11 @@
 
   var FIELD_NOTE_ID = 'filter-field-note';
 
-  // 有常用查法的欄位，「加入」鍵打開選單（裁定 2026-11-03-37）：選單用共用的 .jet-menu 與 Ui.bindMenus（裁定 2026-10-19-08），
+  // 有常用查法的欄位，「加入」鍵打開選單：選單用共用的 .jet-menu 與 Ui.bindMenus，
   // 和其他選單一樣從鍵的下方長出來。第一項加入這個欄位的一般條件，寫欄位名稱，和沒有選單的「加入」帶入同一條；
   // 下面是常用查法，每一項寫短名稱，按下只加入那一條，完整名稱放在滑鼠提示與報讀名稱。
   // 欄位本身不能用時，鍵與每一項都停用，原因寫在分頁最後那一段，不在每一項下面重複；
   // 欄位能用但查法另有前置條件時，原因寫在選單裡那一項的下一行。
-  // 2026-11-03 第三個停點原本是按名稱打開選單、箭頭在名稱前面（裁定 2026-11-03-32），使用者第二次驗收認為整體不夠協調，
-  // 在內建瀏覽器試用兩種開法後選了這一種。
   function fieldShortcutsHtml(field, name, full, fieldUnavailable) {
     var menuId = 'filter-field-menu-' + field.id;
     var label = '加入' + field.label + '的條件';
@@ -505,7 +498,7 @@
 
   // 一列一個欄位。名稱和其他欄位同名時加上來源欄名；攸關資料元素的完整名稱放在滑鼠提示。
   // 名稱只是文字；右邊一把「加入」，有常用查法的欄位改成打開選單的「加入」。欄位已在作用中的組時照樣寫「加入」，
-  // 再按一下就再加入一條（裁定 2026-11-05-12）。
+  // 再按一下就再加入一條。
   function fieldRowHtml(field, fields, unmapped) {
     var duplicate = fields.filter(function (item) { return item.label === field.label; }).length > 1;
     var name = field.label + (duplicate && field.sourceColumn ? '（' + field.sourceColumn + '）' : '');
@@ -542,7 +535,7 @@
     if (['createdBy', 'approvedBy', 'accountNumber'].indexOf(field.id) >= 0) { rule.operator = 'in'; }
     delete rule.field; delete rule.fieldId;
     rule[field.extra ? 'fieldId' : 'field'] = field.id;
-    // 攸關資料元素的金額欄和核心金額一樣預設比較絕對值，create 已經帶上（裁定 2026-11-05-47、2026-11-05-70）。
+    // 攸關資料元素的金額欄和核心金額一樣預設比較絕對值，create 已經帶上。
     return rule;
   }
 
@@ -578,7 +571,7 @@
     Object.keys(copy).forEach(function (key) { rule[key] = copy[key]; });
     if (Array.isArray(copy.conditions)) { rule.conditions = copy.conditions.map(conditionFromSpec); }
     if (rule.type === 'prescreen' && !copy.prescreenKey) { rule.prescreenKey = firstUsablePrescreenKey(); }
-    // 尾數連續多個 0 的規格不寫個數，加入時帶由 GL 算出的個數（裁定 2026-11-05-26）。
+    // 尾數連續多個 0 的規格不寫個數，加入時帶由 GL 算出的個數。
     if (rule.type === 'fieldValue' && Ui.FilterValues.isZeroRun(rule.operator) && !rule.value) { rule.value = Ui.FilterValues.zeroRunDefault(); }
     if (rule.__periodEndDays) {
       var range = periodEndRange(rule.__periodEndDays);
@@ -627,7 +620,7 @@
   }
 
   // 開合記在同一份 viewState.disclosures，但有兩種壽命：條件列裡的「查找說明」跟著草稿，儲存、取消編輯或移除編輯中的情境時收起；
-  // 條件總覽與「從情境範例開始」托盤跟著這次開案，換草稿不收（裁定 2026-11-03-19），換案件時整份 viewState 重建才收。
+  // 條件總覽與「從情境範例開始」托盤跟著這次開案，換草稿不收，換案件時整份 viewState 重建才收。
   var CASE_DISCLOSURES = ['templates', 'unavailable-common'];
   function clearDraftDisclosures() {
     var kept = {};
@@ -638,7 +631,7 @@
   }
 
   // 建議的名稱與動機只描述已選條件，不自行編出風險判斷；沒有條件時兩欄留空。名稱列出前兩項條件，超過兩項加上總數，
-  // 卡片帶入的條件用卡片名稱。卡片字母已拿掉（裁定 2026-10-29-11），名稱和自訂條件同一種寫法。
+  // 卡片帶入的條件用卡片名稱，和自訂條件同一種寫法。
   // 有卡片時動機用 commonScenarioRationale；只有自訂條件時把條件念一次。
   function automaticMetadata(draft) {
     var rules = draft.groups.reduce(function (all, group) { return all.concat(group.conditions); }, []);
@@ -757,7 +750,7 @@
     if (global.JetFocus) { global.JetFocus.defer(function () { return container.querySelector('[data-template-key="' + key + '"]'); }); }
   }
 
-  // 選欄位的那一列從範例下面長出來、取消時收回去（裁定 2026-10-13-11）。
+  // 選欄位的那一列從範例下面長出來、取消時收回去。
   function redrawExampleList(container) {
     var list = Ui.findLive(container, '[data-example-list]');
     if (!list) { return; }
@@ -832,7 +825,7 @@
     });
     FilterStep.viewState.lastSavedName = null;
     FilterStep.viewState.examplePick = null;
-    // 畫面上馬上看得到結果，不另記訊息（裁定 2026-10-13-28）。
+    // 畫面上馬上看得到結果，不另記訊息。
     Store.setFilterDraft(draft);
     var pending = draftRuleProblems(draft)[0];
     if (global.JetFocus) { global.JetFocus.defer(function () {
@@ -873,7 +866,7 @@
     });
     // 常用篩選條件可複選：已加入的再按一下從作用中的組移除，還沒加入的加入；累積成同一情境。
     // 停用的條件（前置資料不足，例如科目配對未匯入）不綁事件。加入、移除與已選偵測都收在上方少數幾個函式。
-    // 畫面上馬上看得到結果，不另記加入或移除的訊息（裁定 2026-10-13-28）。
+    // 畫面上馬上看得到結果，不另記加入或移除的訊息。
     root.querySelectorAll('[data-common-card]').forEach(function (btn) {
       if (btn.disabled) { return; }
       btn.addEventListener('click', function () {
@@ -899,7 +892,7 @@
     });
   }
 
-  // 條件來源：條件總覽三個分頁的鍵、子條件組的加入按鈕與情境範例（原本 bind 裡的兩段）。
+  // 條件來源：條件總覽三個分頁的鍵、子條件組的加入按鈕與情境範例。
   function bindConditionSources(container) {
     bindConditionKeys(container);
     // 在這一組加入子條件組或整張傳票條件；新草稿畫面上的空白第 1 組在這時才建立。

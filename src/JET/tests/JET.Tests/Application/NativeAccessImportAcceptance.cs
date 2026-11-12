@@ -84,7 +84,6 @@ internal static class NativeAccessImportAcceptance
             var filtered = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
             {
                 // The legacy keyword input is retired. Keep the fixed hit count and source-integrity assertions below.
-                // First failure: 20261014-144025150-94d84d333b3044e793ee67915326944a.
                 scenario = new { groups = new[] { new { conditions = new[] { new { type = "fieldValue", field = "description", @operator = "contains", values = new[] { "合成" } } } } } }
             }));
             Assert.Equal(2, filtered.GetProperty("scenario").GetProperty("count").GetInt64());
@@ -113,7 +112,7 @@ internal static class NativeAccessImportAcceptance
         {
             Assert.Equal(LongDescription, row[1].GetString());
             Assert.Equal(JsonValueKind.Null, row[2].ValueKind);
-            // Access 的是或否欄已改成和 .xlsx 一樣寫 true、false；原生Excel首敗20261004-114941125-6735047433f74b95b10e90c4620b93bd只更新此固定預期。
+            // Access 的是或否欄和 .xlsx 一樣寫 true、false。
             Assert.Equal("true", row[3].GetString());
         });
         var full = await host.DispatchAsync("import.gl.fromFile", textSource);

@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// User-approved presentation contract for the six formal workbooks. These
+/// Presentation contract for the six formal workbooks. These
 /// assertions intentionally supersede legacy font-family and Field Info grid
 /// styling while leaving workbook content and business semantics unchanged.
 /// </summary>
@@ -208,12 +208,9 @@ public sealed class ReportWorkbookPresentationTests(ReportExportFixture fixture)
         var validationStyles = VisibleFieldInfoStyles(validation);
         var workingPaperStyles = VisibleFieldInfoStyles(workingPaper);
 
-        // 兩頁外觀原本完全一致；裁定 2026-10-29-07 改成跟著所在報告：驗證報告 10 點、版本列不加藍底，
-        // 底稿 11 點、保留藍底紅字的版本列。兩頁仍是同樣的儲存格、黃色表頭、框線與對齊，所以除了版本列，
-        // 只把字級拿掉後比對；字級與版本列另外各自檢查。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
-        // 裁定 2026-11-06-11 拿掉兩份的版本字樣 V.2019，底稿藍底紅字的版本列一併取消，A1 不再寫任何東西。
-        // 原本把 A1 排除在比對外，再分別檢查驗證報告沒有藍底、底稿有藍底；改成確認兩份都沒有 A1，其餘儲存格照舊逐一比對。
-        // 第一次失敗：Focused 收據 20261106-084908758-24fb2c6e3edb4280be91c6f9b2febd97。
+        // 兩頁外觀跟著所在報告：驗證報告 10 點，底稿 11 點。兩頁仍是同樣的儲存格、黃色表頭、框線與對齊，
+        // 所以只把字級拿掉後比對，字級另外檢查。
+        // 兩份都沒有版本字樣，A1 不寫任何東西：這裡確認兩份都沒有 A1，其餘儲存格逐一比對。
         Assert.Equal(workingPaperStyles.Keys, validationStyles.Keys);
         Assert.DoesNotContain("A1", workingPaperStyles.Keys);
         foreach (var reference in workingPaperStyles.Keys)

@@ -78,7 +78,7 @@ public sealed class DrCrCodeMappingWorkflowTests
         var mapping = Codes(); mapping["drCr"] = "BadSide";
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, mode));
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.StartsWith("有 65 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.Equal(2, error.Details!.Count);
         var unknown = Assert.Single(error.Details, item => item.ReasonCode == "dc_unlisted");
@@ -104,12 +104,12 @@ public sealed class DrCrCodeMappingWorkflowTests
         using var fixture = await MappingCaseTemplateFixture.CreateAsync(provider);
         var before = await fixture.LoadAsync();
         var mapping = Codes();
-        // 第 6 則允許只填一側；改以兩側都空白驗證必要提示，重複代碼與不改原資料的斷言保留。
+        // 借貸代碼允許只填一側，所以用兩側都空白驗證必要提示。
         if (overlap) mapping["drCrCreditCode"] = "\u3000d ";
         else { mapping.Remove("drCrCreditCode"); mapping.Remove("drCrDebitCode"); }
         var error = await Assert.ThrowsAsync<JetActionException>(() => fixture.CommitAsync(mapping, "side"));
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-                if (overlap)
+        // 這句的用字已定案。
+        if (overlap)
         {
             Assert.Equal("借方與貸方代碼必須不同。", error.Message);
         }
@@ -144,7 +144,7 @@ public sealed class DrCrCodeMappingWorkflowTests
         });
         try
         {
-            // 第 6 則讓單邊舊草稿也可讀回；確認完整內容且不保存、不投影，不再要求杜撰貸方碼。
+            // 單邊舊草稿也可讀回；確認完整內容且不保存、不投影，不要求杜撰貸方碼。
             var restored = await fixture.Host.DispatchAsync("mapping.restoreDraft", JsonSerializer.Serialize(new { filePath = path }));
             Assert.Equal("D", restored.GetProperty("gl").GetProperty("mapping").GetProperty("drCrDebitCode").GetString());
             if (hasCredit)

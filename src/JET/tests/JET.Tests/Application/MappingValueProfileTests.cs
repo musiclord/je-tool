@@ -5,7 +5,6 @@ using JET.Domain;
 using JET.Tests.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Application;
 
 public sealed class MappingValueProfileTests
@@ -36,7 +35,7 @@ public sealed class MappingValueProfileTests
     {
         using var host = new HandlerTestHost();
         await CreateAsync(host, provider);
-        // 與 2026-09-23 已保存的 OrdinalIgnoreCase 固定案例同一答案，不採 JS 大寫或 provider 自有 collation。
+        // 與 OrdinalIgnoreCase 的固定案例同一答案，不採 JS 大寫或 provider 自有 collation。
         var cases = new (string Left, string Right, bool Equal)[]
         {
             ("ß", "SS", false), ("ı", "I", false), ("ſ", "S", false), ("K", "K", false),
@@ -114,7 +113,7 @@ public sealed class MappingValueProfileTests
     [Fact]
     public async Task SourceCheck_UnsupportedProviderPreservesProfileAndReturnsUnknownNotMissing()
     {
-        // 原本用 SQL Server 的資料庫組；判定看的是替身沒有實作來源值核對，與種類名稱無關，改用 SQLite 的組（裁定 2026-11-06-08）。
+        // 判定看的是替身沒有實作來源值核對，與種類名稱無關，所以用 SQLite 的資料庫組。
         var session = new ProjectSession();
         session.Enter("synthetic-server-profile", TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider) with
         {
@@ -158,7 +157,7 @@ public sealed class MappingValueProfileTests
 
     private sealed class ProfileOnlyStub : IMappingValueProfileRepository
     {
-        // 2026-10-28 介面多了往下填補參數，替身跟著加，回傳不變。
+        // 替身收下往下填補參數但不使用，回傳不受它影響。
         public Task<MappingValueProfile> GetAsync(string projectId, string batchId, string sourceColumn, int limit,
             bool fillDown, CancellationToken cancellationToken) => Task.FromResult(new MappingValueProfile("Mode", 0, 1,
                 [new MappingValueProfileValue("A", 2)], false));

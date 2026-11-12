@@ -38,7 +38,7 @@ public sealed class WebViewSecurityPolicyTests
         Assert.Contains("settings.AreHostObjectsAllowed = false;", source, StringComparison.Ordinal);
         Assert.Matches(
             new Regex(
-                @"#if DEBUG \|\| JET_AGENT_GUI_TEST(?s:.*?)settings\.AreDevToolsEnabled = true;(?s:.*?)settings\.AreDefaultContextMenusEnabled = true;(?s:.*?)#else(?s:.*?)settings\.AreDevToolsEnabled = false;(?s:.*?)settings\.AreDefaultContextMenusEnabled = false;(?s:.*?)#endif",
+                @"#if DEBUG\s+settings\.AreDevToolsEnabled = true;(?s:.*?)settings\.AreDefaultContextMenusEnabled = true;(?s:.*?)#else(?s:.*?)settings\.AreDevToolsEnabled = false;(?s:.*?)settings\.AreDefaultContextMenusEnabled = false;(?s:.*?)#endif",
                 RegexOptions.CultureInvariant),
             source);
     }

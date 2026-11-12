@@ -8,8 +8,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 文字長度與取樣數量的上限各只定義一次：400 字來自 <see cref="TextStorageLimits.TextUtf16CodeUnits"/>，
-/// 欄位值比對一次最多幾個來自 MappingValueProfileHandler；前端用具名常數鏡像，不把數字寫在用到的地方
-/// （裁定 2026-10-22-19：重複的常數全部收斂到一個定義）。
+/// 欄位值比對一次最多幾個來自 MappingValueProfileHandler；前端用具名常數鏡像，不把數字寫在用到的地方。
 /// </summary>
 public sealed class TextLimitOwnershipTests
 {

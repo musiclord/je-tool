@@ -8,7 +8,7 @@ public sealed class ValidationReportContextCompatibilityTests
     [Fact]
     public void SamePublicValues_PreserveEqualityHashAndFourMemberDeconstruction()
     {
-        // 裁定 2026-11-02-03：第三個成員由執行時間改成報告的編製日期，等值、雜湊與四個成員的拆解照舊。
+        // 第三個成員是報告的編製日期；核對等值、雜湊與四個成員的拆解。
         var preparedDate = new DateOnly(2025, 12, 31);
         var first = new ValidationReportContext(
             new ReportDocumentContext(

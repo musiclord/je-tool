@@ -3,10 +3,9 @@ using ClosedXML.Excel;
 using JET.Application;
 using JET.Domain;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
-
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
 
 public sealed class PrepStartDateReadbackTests
 {
@@ -53,8 +52,7 @@ public sealed class PrepStartDateReadbackTests
         var oldPaper = File.ReadAllBytes(paperPath);
 
         await host.DispatchAsync("project.update", """{"prepStartDate":"2025-12-31"}""");
-        // 上游修改會清除下游（裁定 2026-10-07-03）：改財報準備日會清掉已存情境，審計員重新儲存後才以新日期讀回。
-        // 原本直接用舊版本讀回保留的情境，第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：改財報準備日會清掉已存情境，審計員重新儲存後才以新日期讀回。
         var cleared = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = id }));
         Assert.Empty(cleared.GetProperty("filterScenarios").EnumerateArray());
         Assert.Equal(oldPaper, File.ReadAllBytes(paperPath));
@@ -118,11 +116,7 @@ public sealed class PrepStartDateReadbackTests
 
     private static IReadOnlyList<JsonElement> Fixtures()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "tools", "tests", "fixtures", "filter-readback-prep-start-date-and-trailing-zeros.json")))
-            directory = directory.Parent;
-        if (directory is null) throw new DirectoryNotFoundException("Repository fixture directory was not found.");
-        using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory.FullName, "tools", "tests", "fixtures", "filter-readback-prep-start-date-and-trailing-zeros.json")));
+        using var json = JsonDocument.Parse(File.ReadAllText(TestRepositoryPaths.Fixture("filter-readback-prep-start-date-and-trailing-zeros.json")));
         return json.RootElement.EnumerateArray().Select(item => item.Clone()).ToArray();
     }
 }

@@ -111,7 +111,7 @@ public sealed class ReportPageAppearanceCoverageTests
     public void TrackedCaseAliases_HaveTheExactDirectPhysicalOracleCoverage()
     {
         SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.RepositoryRoot);
+            TestRepositoryPaths.SolutionRoot);
 
         Assert.Equal(
             new[] { "case-A", "case-B" },
@@ -136,7 +136,7 @@ public sealed class ReportPageAppearanceCoverageTests
     public void TrackedCases_ConfirmTheConditionalStep13PageWasNotPhysicallyObserved()
     {
         SpreadsheetAppearanceSnapshotSchemaGuard.ValidateRepositoryInventory(
-            TestRepositoryPaths.RepositoryRoot);
+            TestRepositoryPaths.SolutionRoot);
 
         foreach (var caseAlias in new[] { "case-A", "case-B" })
         {
@@ -155,7 +155,7 @@ public sealed class ReportPageAppearanceCoverageTests
         var separator = page.IndexOf('|');
         if (separator <= 0 || separator == page.Length - 1)
         {
-            throw new InvalidDataException("Stage-9 base-page identity is invalid.");
+            throw new InvalidDataException("Base-page identity is invalid.");
         }
         return page[(separator + 1)..];
     }
@@ -193,7 +193,7 @@ public sealed class ReportPageAppearanceCoverageTests
             item => item.Report == kind
                 && item.FileName.StartsWith(caseAlias + "-", StringComparison.Ordinal));
         var fixtureDirectory = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
+            TestRepositoryPaths.SolutionRoot,
             SpreadsheetAppearanceSnapshotSchemaGuard.FixtureRelativeDirectory.Replace(
                 '/',
                 Path.DirectorySeparatorChar));
@@ -209,7 +209,7 @@ public sealed class ReportPageAppearanceCoverageTests
         "Pre-screeningReport" => LegacyReportKind.PrescreenReport,
         "CriteriaSelectionReport" => LegacyReportKind.CriteriaSelectionReport,
         "WorkingPaper" => LegacyReportKind.WorkingPaper,
-        _ => throw new InvalidDataException("Stage-9 registry report is outside the closed catalog."),
+        _ => throw new InvalidDataException("Registry report is outside the closed catalog."),
     };
 
     private static string? SheetName(string location)
@@ -221,7 +221,7 @@ public sealed class ReportPageAppearanceCoverageTests
         var separator = location.IndexOf('!');
         if (separator <= 0)
         {
-            throw new InvalidDataException("Stage-9 snapshot location is invalid.");
+            throw new InvalidDataException("Snapshot location is invalid.");
         }
         return location[..separator];
     }

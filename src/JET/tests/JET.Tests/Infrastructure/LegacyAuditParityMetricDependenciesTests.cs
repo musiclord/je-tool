@@ -74,7 +74,7 @@ public sealed class LegacyAuditParityMetricDependenciesTests
                 LegacyMappingSlot.GlPostingDate,
                 LegacyMappingSlot.GlCreatedBy,
             ],
-            // 編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），這裡跟著少兩列；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+            // 第四步照舊版不含編製分錄較少的人員與使用較少的科目，這裡沒有這兩列。
         };
 
     [Fact]

@@ -58,7 +58,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
     /// <summary>
     /// 重新匯入時，把目前已確認的配對搬到 <c>field_mapping_previous</c> 再刪除，兩步在匯入的同一個交易裡。
     /// 目前沒有已確認的配對時（例如連續匯入兩次都還沒確認）不覆蓋，留著更早那一次確認的配對。
-    /// SQLite 與 DuckDB 共用；SELECT 帶 WHERE，SQLite 才不會把 ON CONFLICT 讀成 join 的一部分。
+    /// SELECT 帶 WHERE，SQLite 才不會把 ON CONFLICT 讀成 join 的一部分。
     /// </summary>
     internal const string RetireCommittedMappingSql =
         """
@@ -130,8 +130,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
             return committed;
         }
 
-        // 目前已確認的 GL 配對和控制總數在同一個交易寫下，一起讀出；0 的個數由這裡算（裁定 2026-11-05-25）。
-        // 第一個讀取器關掉之後才下這一段，DuckDB 與 SQL Server 不必在同一個連線上同時開兩個讀取器。
+        // 目前已確認的 GL 配對和控制總數在同一個交易寫下，一起讀出；0 的個數由這裡算。
         await using var totals = connection.CreateCommand();
         totals.CommandText = MappingStateSerialization.GlTotalsQuery("gl_control_total");
         await using var totalsReader = await totals.ExecuteReaderAsync(cancellationToken);
@@ -222,7 +221,7 @@ internal static class MappingStateSerialization
             options);
     }
 
-    /// <summary>控制總數只有一列；表名由呼叫端傳入，參數保留給日後恢復的 SQL Server 傳加上 schema 的表名。</summary>
+    /// <summary>控制總數只有一列。</summary>
     internal static string GlTotalsQuery(string table) =>
         $"""
         SELECT pbc_row_count, gl_row_count, excluded_by_period_count, excluded_by_posting_status_count,

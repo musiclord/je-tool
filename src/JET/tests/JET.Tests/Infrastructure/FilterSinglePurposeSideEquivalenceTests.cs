@@ -5,11 +5,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// SQLite 與 DuckDB 每次 Public 都執行；SQL Server 版在 2026-10-19 為了核對三種資料庫結果一致而補上，只在 Provider 執行。
-// 三種資料庫比對同一組固定答案。
-// 借貸方向、借貸範圍、「這一側都不屬於」與核心金額的「含正負號」停用寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改寫前的寫法無法再解析，所以拿掉原寫法那一半，
-// 只留改寫後的寫法對固定答案的比對（停用寫法與現行寫法命中相同，最後一次在 Focused 收據 20261030-075358791-be8fbb69606344368d7a86a233582c62 通過）。改寫後的寫法本來就有一份省略 drCr:any 與 side:all 的版本，
-// 這兩個屬性現在也當成無法讀取，所以只留省略後的那一份。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法在組成 SQL 時被擋下）。
+// 現行寫法對固定答案的比對。
+// drCr:any 與 side:all 這兩個屬性當成無法讀取的內容，所以這裡用省略它們的寫法。
 public sealed class FilterSinglePurposeSideEquivalenceTests
 {
     private const string Seed = """
@@ -27,7 +24,7 @@ public sealed class FilterSinglePurposeSideEquivalenceTests
         VALUES ('side-map',1,'A','Cash','builtin.cash'),('side-map',2,'B','Revenue','builtin.revenue'),('side-map',3,'C','Others','builtin.others');
         """;
 
-    // 原寫法與明示方向子條件先比對通過；省略重複欄位首次失敗：20261014-132201427-ac4139a67469477a8c109420eba6632b。
+    // 原寫法與明示方向子條件先比對通過；省略重複欄位
     [Theory]
     [InlineData("sqlite")]
     public async Task ExplicitSideGroups_KeepTheOriginalFixedEntryIdentities(string provider)

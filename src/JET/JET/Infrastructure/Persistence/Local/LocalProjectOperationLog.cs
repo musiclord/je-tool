@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Infrastructure;
 
-/// <summary>SQLite／DuckDB 共用的專案 operation_log append-only 寫入實作。</summary>
+/// <summary>專案 operation_log append-only 寫入實作。</summary>
 public sealed class LocalProjectOperationLog(ILocalProjectDatabase database) : IProjectOperationLog
 {
     public async Task AppendAsync(

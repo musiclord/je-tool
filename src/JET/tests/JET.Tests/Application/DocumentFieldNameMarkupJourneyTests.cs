@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 底稿與條件篩選報告裡的條件說明，欄位名稱用【】標示、值照舊用「」（裁定 2026-11-03-17）。
+/// 底稿與條件篩選報告裡的條件說明，欄位名稱用【】標示、值照舊用「」。
 /// 用合成案件匯出兩份文件後讀檔，確認【】只包住欄位名稱，值與連接詞都不在【】裡。
 /// 畫面的讀回不加【】，由 FilterConditionRendererTests 守住。
 /// </summary>

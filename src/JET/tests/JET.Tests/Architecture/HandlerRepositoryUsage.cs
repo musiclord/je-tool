@@ -7,11 +7,11 @@ namespace JET.Tests.Architecture;
 /// 讀 handler 原始碼，找出它用到作用中案件資料庫組（<c>ProjectRepositories</c>）的哪些屬性。
 /// </summary>
 /// <remarks>
-/// 2026-10-02 資料庫分流簡化後，handler 不再從建構式收個別 repository，而是在一開始取
-/// <c>session.RequireActive()</c> 的快照，再從快照裡的資料庫組取用。原本「建構式只收哪些介面」的依賴範圍檢查
-/// 因此改成讀原始碼：handler 類別本體只能以名為 <c>repositories</c> 的變數、用 <c>repositories.屬性</c> 的形式取用，
+/// handler 不從建構式收個別 repository，而是在一開始取
+/// <c>session.RequireActive()</c> 的快照，再從快照裡的資料庫組取用。依賴範圍檢查
+/// 因此讀原始碼：handler 類別本體只能以名為 <c>repositories</c> 的變數、用 <c>repositories.屬性</c> 的形式取用，
 /// 不得把整組傳出去、不得用其他名稱或 <c>.Repositories</c> 取得整組，也不得把 session 交給別人，
-/// 讓「用到哪些屬性」可以從原始碼完整列出，範圍與原本建構式參數同樣窄。
+/// 讓「用到哪些屬性」可以從原始碼完整列出，範圍和建構式參數同樣窄。
 /// </remarks>
 internal static partial class HandlerRepositoryUsage
 {

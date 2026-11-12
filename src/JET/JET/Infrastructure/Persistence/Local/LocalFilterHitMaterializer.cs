@@ -13,7 +13,6 @@ namespace JET.Infrastructure;
 public sealed class LocalFilterHitMaterializer(ILocalProjectDatabase database, ILogger<LocalFilterHitMaterializer>? logger = null)
     : IFilterHitMaterializer
 {
-    // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死。
     private readonly string _provider = database.Dialect.ProviderName;
 
     private readonly ILogger _log = logger ?? NullLogger<LocalFilterHitMaterializer>.Instance;

@@ -1,0 +1,1517 @@
+using ClosedXML.Excel;
+using System.Text;
+using System.Text.Json;
+using JET.Application;
+using JET.AuditCore;
+using JET.Bridge;
+using JET.Domain;
+using JET.Infrastructure;
+
+namespace JET;
+
+/// <summary>
+/// AgentGuiTest-only deterministic action fixtures. The complete type is absent from normal
+/// Debug and Release assemblies.
+/// </summary>
+internal sealed class AgentGuiTestFixtures
+{
+    internal const string FailProjectListLocalOnceId = "fail-project-list-local-once";
+    internal const string LateGlPreviewSuccessThenFailureId =
+        "late-gl-preview-success-then-failure";
+    internal const string DelayCalendarSetNonWorkingDaysOnceId =
+        "delay-calendar-set-non-working-days-once";
+    internal const string DelayProjectSaveProgressOnceId =
+        "delay-project-save-progress-once";
+    internal const string DelayExportProgressOnceId =
+        "delay-export-progress-once";
+    internal const string SeparateChildProjectRootsId =
+        "separate-child-project-roots";
+    internal const string ReleaseVisibleSurfaceId =
+        "release-visible-surface";
+    internal const string SeedExportReadyProjectId =
+        "seed-export-ready-project";
+    internal const string SeedCompletenessIneligibleProjectId =
+        "seed-completeness-ineligible-project";
+    internal const string SeedStaleReportProjectId =
+        "seed-stale-report-project";
+    internal const string SeedSixStageCompleteProjectId =
+        "seed-six-stage-complete-project";
+    internal const string SeedEditedReportProjectId =
+        "seed-edited-report-project";
+    internal const string SeedMappingReadyProjectId =
+        "seed-mapping-ready-project";
+    internal const string FillTemplateAfterAutoExportId = "fill-template-after-auto-export";
+    internal const string MinimumWindow125Id = "minimum-window-125";
+    internal const string LegacyCardScenarioId = "legacy-card-scenario";
+    internal const string DataRecoverySourceId = "data-recovery-source";
+    internal const string LegacyFormSourceId = "legacy-form-source";
+    internal const string FailBlankSearchOnceId = "fail-blank-search-once";
+    internal const string AuthorizedListSourceId = "authorized-list-source";
+    internal const string CaseImportSourceId = "case-import-source";
+    internal const string FailAuthorizedImportOnceId = "fail-authorized-import-once";
+    internal const string SeedMissingDatabaseProjectId = "seed-missing-database-project";
+    internal const string MissingDatabaseProjectId = "agent-gui-missing-database";
+    internal const int MaximumFixtureCount = 3;
+    internal const string TraceFileName = "agent-gui-fixtures.ndjson";
+
+    private static readonly string[] ProjectStateFixtureIds =
+    [
+        SeedExportReadyProjectId,
+        SeedCompletenessIneligibleProjectId,
+        SeedStaleReportProjectId,
+        SeedSixStageCompleteProjectId,
+        SeedEditedReportProjectId,
+        SeedMappingReadyProjectId,
+    ];
+
+    private static readonly TimeSpan GlPreviewDelay = TimeSpan.FromMilliseconds(2500);
+    private static readonly TimeSpan CalendarSetNonWorkingDaysDelay =
+        TimeSpan.FromMilliseconds(750);
+    private static readonly TimeSpan ProjectSaveProgressDelay = TimeSpan.FromMilliseconds(750);
+    private const string AccountMappingExportAction = "export.accountMappingTemplate";
+    private const string ExportProgressEvent = "export.progress";
+    private const string WritingSheetPhase = "writingSheet";
+
+    private readonly HashSet<string> _fixtureIds;
+    private readonly FixtureTrace _trace;
+    private string? _authorizedListSource;
+    private readonly string _projectsRootPath;
+    private readonly SemaphoreSlim _projectListLocalGate = new(1, 1);
+    private readonly SemaphoreSlim _glPreviewGate = new(1, 1);
+    private readonly SemaphoreSlim _calendarSetNonWorkingDaysGate = new(1, 1);
+    private readonly SemaphoreSlim _projectSaveProgressGate = new(1, 1);
+    private readonly AsyncLocal<string?> _currentExportAction = new();
+    private int _projectListLocalFailureRemaining;
+    private int _glPreviewMatchCount;
+    private int _calendarSetNonWorkingDaysDelayRemaining;
+    private int _projectSaveProgressDelayRemaining;
+    private int _exportProgressDelayRemaining;
+    private DemoWorkbookWriter? _seedDemoFileWriter;
+
+    internal string DemoWorkbookRootPath { get; }
+
+    internal bool SeedsProjectState =>
+        ResolveProjectSeed() is not null || IsEnabled(SeedMissingDatabaseProjectId);
+
+    /// <summary>
+    /// 組裝 runtime 時套在每個 action handler 上：只包裝這次啟用的夾具指定的 action，其他照原樣傳回。
+    /// 預先建立案件時，示範檔的四個 action 改寫到這次執行專用的資料夾。
+    /// </summary>
+    internal IApplicationActionHandler DecorateHandler(IApplicationActionHandler handler, ProjectSession session)
+    {
+        if (SeedsProjectState)
+        {
+            var writer = _seedDemoFileWriter ??= new DemoWorkbookWriter(DemoWorkbookRootPath);
+            handler = handler.Action switch
+            {
+                "demo.exportGlFile" => new DemoExportGlFileHandler(writer),
+                "demo.exportTbFile" => new DemoExportTbFileHandler(writer),
+                "demo.exportAccountMappingFile" => new DemoExportAccountMappingFileHandler(writer),
+                "demo.exportAuthorizedPreparerFile" => new DemoExportAuthorizedPreparerFileHandler(writer),
+                _ => handler,
+            };
+        }
+
+        handler = handler.Action switch
+        {
+            "project.listLocal" => DecorateProjectListLocal(handler),
+            "calendar.setNonWorkingDays" => DecorateCalendarSetNonWorkingDays(handler),
+            "project.saveProgress" => DecorateProjectSaveProgress(handler),
+            "query.dataPreview" => DecorateDataPreview(handler, session),
+            _ => handler,
+        };
+        handler = DecorateExportAction(handler);
+        handler = DecorateBlankSearch(handler);
+        return DecorateAuthorizedList(handler);
+    }
+
+    internal AgentGuiTestFixtures(AgentGuiTestProfile profile)
+    {
+        _fixtureIds = new HashSet<string>(profile.FixtureIds, StringComparer.Ordinal);
+        _projectsRootPath = profile.ProjectsRootPath;
+        _projectListLocalFailureRemaining = IsEnabled(FailProjectListLocalOnceId) ? 1 : 0;
+        _calendarSetNonWorkingDaysDelayRemaining =
+            IsEnabled(DelayCalendarSetNonWorkingDaysOnceId) ? 1 : 0;
+        _projectSaveProgressDelayRemaining =
+            IsEnabled(DelayProjectSaveProgressOnceId) ? 1 : 0;
+        _exportProgressDelayRemaining =
+            IsEnabled(DelayExportProgressOnceId) ? 1 : 0;
+        _trace = new FixtureTrace(
+            Path.Combine(profile.DiagnosticLogDirectory, TraceFileName),
+            profile.RunId,
+            profile.ChildId);
+        DemoWorkbookRootPath = Path.Combine(profile.ArtifactDirectory, "seed-input");
+    }
+
+    internal static bool IsAllowedFixtureId(string fixtureId) =>
+        fixtureId is FailProjectListLocalOnceId
+            or LateGlPreviewSuccessThenFailureId
+            or DelayCalendarSetNonWorkingDaysOnceId
+            or DelayProjectSaveProgressOnceId
+            or DelayExportProgressOnceId
+            or SeparateChildProjectRootsId
+            or ReleaseVisibleSurfaceId
+            or SeedExportReadyProjectId
+            or SeedCompletenessIneligibleProjectId
+            or SeedStaleReportProjectId
+            or SeedSixStageCompleteProjectId
+            or SeedEditedReportProjectId
+            or SeedMappingReadyProjectId
+            or FillTemplateAfterAutoExportId
+            or MinimumWindow125Id
+            or LegacyCardScenarioId
+            or DataRecoverySourceId
+            or LegacyFormSourceId
+            or FailBlankSearchOnceId
+            or AuthorizedListSourceId
+            or CaseImportSourceId
+            or FailAuthorizedImportOnceId
+            or SeedMissingDatabaseProjectId;
+
+    /// <summary>
+    /// 建立 GUI 驗證所需的封閉、確定性專案。fixture 不接收 action、路徑或資料參數；
+    /// 所有狀態變更都走 production dispatcher，檔案只來自 run-owned demo writer。
+    /// </summary>
+    internal async Task SeedProjectStateAsync(
+        ActionDispatcher dispatcher,
+        CancellationToken cancellationToken)
+    {
+        var seed = ResolveProjectSeed();
+        if (seed is not null)
+        {
+            await SeedClosedProjectAsync(seed, dispatcher, cancellationToken).ConfigureAwait(false);
+        }
+
+        // 資料庫檔不見的案件排在其他預先建立的案件之後，建完時作用中的案件就是它，再由審計員開別的案件切走。
+        if (IsEnabled(SeedMissingDatabaseProjectId))
+        {
+            await SeedMissingDatabaseProjectAsync(dispatcher, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// 案件清單上無法開啟的案件：照正式流程建一個 SQLite 空白案件、釋放案件鎖，再刪掉它的資料庫檔，
+    /// project.json 留著。案件清單把它列成無法開啟並寫出 ProjectFolderMessages.DatabaseMissing。
+    /// 只刪這個 run 的案件根目錄下、這個固定案件的資料庫檔與記錄檔。
+    /// </summary>
+    private async Task SeedMissingDatabaseProjectAsync(
+        ActionDispatcher dispatcher,
+        CancellationToken cancellationToken)
+    {
+        _trace.Write(SeedMissingDatabaseProjectId, "seed.started");
+        try
+        {
+            await DispatchAsync(dispatcher, "project.create", new
+            {
+                projectName = MissingDatabaseProjectId,
+                projectCode = "AGENT-GUI-MISSING-DB",
+                clientName = "Agent GUI Missing Database Fixture",
+                periodStart = "2025-01-01",
+                periodEnd = "2025-12-31",
+                databaseProvider = "sqlite",
+            }, cancellationToken).ConfigureAwait(false);
+            await DispatchAsync(
+                dispatcher, "project.releaseLock", new { }, cancellationToken).ConfigureAwait(false);
+
+            var folder = new JetProjectFolder(_projectsRootPath);
+            var databasePath = Path.GetFullPath(folder.GetDatabasePath(MissingDatabaseProjectId));
+            var projectsRoot = Path.GetFullPath(_projectsRootPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            if (!databasePath.StartsWith(projectsRoot, StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(folder.GetProjectJsonPath(MissingDatabaseProjectId)))
+            {
+                throw new InvalidOperationException(
+                    "Missing-database fixture requires its own run-owned SQLite project.");
+            }
+
+            // 建案留在連線池的連線會鎖住 jet.db；先全部關掉再刪。
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            foreach (var suffix in new[] { "", "-wal", "-shm" })
+            {
+                File.Delete(databasePath + suffix);
+            }
+            if (File.Exists(databasePath))
+            {
+                throw new InvalidOperationException("Missing-database fixture could not remove the database file.");
+            }
+
+            _trace.Write(SeedMissingDatabaseProjectId, "seed.completed");
+        }
+        catch
+        {
+            _trace.Write(SeedMissingDatabaseProjectId, "seed.failed");
+            throw;
+        }
+    }
+
+    private async Task SeedClosedProjectAsync(
+        ProjectSeedDefinition seed,
+        ActionDispatcher dispatcher,
+        CancellationToken cancellationToken)
+    {
+        _trace.Write(seed.FixtureId, "seed.started");
+        try
+        {
+            var demo = DemoDataFactory.Create();
+            await DispatchAsync(dispatcher, "project.create", new
+            {
+                projectName = seed.ProjectId,
+                projectCode = seed.ProjectCode,
+                clientName = seed.ClientName,
+                periodStart = demo.PeriodStart,
+                periodEnd = demo.PeriodEnd,
+                prepStartDate = demo.PrepStartDate,
+                databaseProvider = "sqlite",
+            }, cancellationToken).ConfigureAwait(false);
+
+            var activeDemo = demo;
+            if (seed.UseSmallMappingData)
+            {
+                activeDemo = activeDemo with
+                {
+                    GlRows = activeDemo.GlRows.Take(4).ToArray(),
+                    TbRows = activeDemo.TbRows.Take(4).ToArray(),
+                };
+            }
+
+            JsonElement glFile;
+            JsonElement tbFile;
+            if (seed.MappingReadyOnly)
+            {
+                var writer = new DemoWorkbookWriter(DemoWorkbookRootPath, activeDemo);
+                var gl = await writer.WriteGlAsync(activeDemo, cancellationToken).ConfigureAwait(false);
+                var tb = await writer.WriteTbAsync(activeDemo, cancellationToken).ConfigureAwait(false);
+                glFile = JsonSerializer.SerializeToElement(new { filePath = gl.FilePath, fileName = gl.FileName });
+                tbFile = JsonSerializer.SerializeToElement(new { filePath = tb.FilePath, fileName = tb.FileName });
+            }
+            else
+            {
+                glFile = await DispatchAsync(
+                    dispatcher, "demo.exportGlFile", new { }, cancellationToken).ConfigureAwait(false);
+                tbFile = await DispatchAsync(
+                    dispatcher, "demo.exportTbFile", new { }, cancellationToken).ConfigureAwait(false);
+            }
+            if (IsEnabled(DataRecoverySourceId))
+            {
+                PrepareRecoverySource(glFile, activeDemo);
+                var mapping = new Dictionary<string, string>(activeDemo.GlMapping, StringComparer.Ordinal)
+                {
+                    [GlMappingKeys.ApprovedBy] = "GUI核准人員"
+                };
+                activeDemo = activeDemo with { GlMapping = mapping };
+            }
+            if (IsEnabled(LegacyFormSourceId))
+            {
+                var path = glFile.GetProperty("filePath").GetString()!;
+                using var book = new XLWorkbook(path);
+                var sheet = book.Worksheet(1);
+                var column = sheet.LastColumnUsed()!.ColumnNumber() + 1;
+                var lastRow = sheet.LastRowUsed()!.RowNumber();
+                sheet.Cell(1, column).Value = "GUI部門";
+                for (var row = 2; row <= lastRow; row++)
+                    sheet.Cell(row, column).Value = row % 2 == 0 ? "總經理室" : "合成營運組";
+                book.Save();
+            }
+            await DispatchAsync(dispatcher, "import.gl.fromFile", new
+            {
+                filePath = glFile.GetProperty("filePath").GetString(),
+                fileName = glFile.GetProperty("fileName").GetString(),
+            }, cancellationToken).ConfigureAwait(false);
+
+            if (seed.MakeCompletenessIneligible)
+            {
+                MakeRunOwnedTbCompletenessIneligible(
+                    tbFile,
+                    activeDemo.TbMapping[TbMappingKeys.DebitAmount]);
+            }
+            await DispatchAsync(dispatcher, "import.tb.fromFile", new
+            {
+                filePath = tbFile.GetProperty("filePath").GetString(),
+                fileName = tbFile.GetProperty("fileName").GetString(),
+            }, cancellationToken).ConfigureAwait(false);
+
+            if (seed.MappingReadyOnly)
+            {
+                await CommitMappingsAsync(dispatcher, activeDemo, cancellationToken).ConfigureAwait(false);
+                await DispatchAsync(dispatcher, "project.saveProgress", new
+                {
+                    currentStep = 2,
+                }, cancellationToken).ConfigureAwait(false);
+                await DispatchAsync(
+                    dispatcher, "project.releaseLock", new { }, cancellationToken).ConfigureAwait(false);
+                _trace.Write(seed.FixtureId, "seed.completed");
+                return;
+            }
+
+            var preparerFile = await DispatchAsync(
+                dispatcher,
+                "demo.exportAuthorizedPreparerFile",
+                new { },
+                cancellationToken).ConfigureAwait(false);
+            await DispatchAsync(dispatcher, "import.authorizedPreparer.fromFile", new
+            {
+                filePath = preparerFile.GetProperty("filePath").GetString(),
+                fileName = preparerFile.GetProperty("fileName").GetString(),
+                // sourceColumn 必填，後端不再依關鍵字猜欄；示範檔固定使用姓名欄。
+                sourceColumn = "姓名",
+            }, cancellationToken).ConfigureAwait(false);
+
+            if (IsEnabled(AuthorizedListSourceId))
+            {
+                _authorizedListSource = Path.Combine(DemoWorkbookRootPath, "authorized-list-multi-column.xlsx");
+                using var workbook = new XLWorkbook();
+                var sheet = workbook.AddWorksheet("人員清單");
+                sheet.Cell(1, 1).Value = "姓名";
+                sheet.Cell(1, 2).Value = "員工代碼";
+                for (var row = 2; row <= 5; row++) sheet.Cell(row, 1).Value = "合成人員";
+                sheet.Cell(2, 2).Value = " E01 ";
+                sheet.Cell(3, 2).Value = "E02";
+                sheet.Cell(4, 2).Value = "E01";
+                workbook.SaveAs(_authorizedListSource);
+            }
+
+            await DispatchAsync(dispatcher, "import.holiday", new
+            {
+                dates = activeDemo.Holidays,
+            }, cancellationToken).ConfigureAwait(false);
+            await DispatchAsync(dispatcher, "import.makeupDay", new
+            {
+                dates = activeDemo.MakeupDays,
+            }, cancellationToken).ConfigureAwait(false);
+
+            await CommitMappingsAsync(dispatcher, activeDemo, cancellationToken).ConfigureAwait(false);
+
+            var accountMappingFile = await DispatchAsync(
+                dispatcher,
+                "demo.exportAccountMappingFile",
+                new { },
+                cancellationToken).ConfigureAwait(false);
+            await DispatchAsync(dispatcher, "import.accountMapping.fromFile", new
+            {
+                filePath = accountMappingFile.GetProperty("filePath").GetString(),
+                fileName = accountMappingFile.GetProperty("fileName").GetString(),
+            }, cancellationToken).ConfigureAwait(false);
+
+            var validation = await DispatchAsync(
+                dispatcher, "validate.run", new { }, cancellationToken).ConfigureAwait(false);
+            // 已儲存、但條件沒有對應常用篩選條件的情境：編輯來源是第 2 版，卡片記 null，重開時不標記任何卡片。
+            if (IsEnabled(LegacyCardScenarioId))
+                await DispatchAsync(dispatcher, "filter.commit", new
+                {
+                    scenarios = new[] { new { name = "LEGACY-CARDS", rationale = "Synthetic scenario without card origins",
+                        groups = new[] { new { conditions = new[] { new { type = "prescreen", prescreenKey = "blankDescription" } } } },
+                        editorOrigins = new { version = 2, groups = new[] { new { cards = new string?[] { null } } } } } }
+                }, cancellationToken).ConfigureAwait(false);
+            if (seed.CompleteLifecycle)
+            {
+                await SeedCompletedReportChainAsync(
+                    dispatcher,
+                    validation,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            if (seed.EditReportOutsideJet)
+            {
+                await EditReportOutsideJetAsync(seed.ProjectId, cancellationToken).ConfigureAwait(false);
+            }
+            if (seed.RefreshValidationAfterReports)
+            {
+                await DispatchAsync(
+                    dispatcher,
+                    "validate.run",
+                    new { },
+                    cancellationToken).ConfigureAwait(false);
+            }
+            await DispatchAsync(dispatcher, "project.saveProgress", new
+            {
+                currentStep = seed.CompleteLifecycle ? 5 : 3,
+            }, cancellationToken).ConfigureAwait(false);
+            await DispatchAsync(
+                dispatcher, "project.releaseLock", new { }, cancellationToken).ConfigureAwait(false);
+
+            _trace.Write(seed.FixtureId, "seed.completed");
+        }
+        catch
+        {
+            _trace.Write(seed.FixtureId, "seed.failed");
+            throw;
+        }
+    }
+
+    private ProjectSeedDefinition? ResolveProjectSeed()
+    {
+        var enabled = ProjectStateFixtureIds.Where(IsEnabled).ToArray();
+        if (enabled.Length > 1)
+        {
+            throw new InvalidOperationException(
+                "Agent GUI profile may enable only one closed project-state seed fixture.");
+        }
+
+        return enabled.SingleOrDefault() switch
+        {
+            SeedExportReadyProjectId => new(
+                SeedExportReadyProjectId,
+                "agent-gui-export-ready",
+                "AGENT-GUI-EXPORT",
+                "Agent GUI Export Fixture",
+                MakeCompletenessIneligible: false,
+                CompleteLifecycle: false,
+                RefreshValidationAfterReports: false,
+                EditReportOutsideJet: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
+            SeedCompletenessIneligibleProjectId => new(
+                SeedCompletenessIneligibleProjectId,
+                "agent-gui-completeness-ineligible",
+                "AGENT-GUI-INELIGIBLE",
+                "Agent GUI Completeness Ineligible Fixture",
+                MakeCompletenessIneligible: true,
+                CompleteLifecycle: false,
+                RefreshValidationAfterReports: false,
+                EditReportOutsideJet: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
+            SeedStaleReportProjectId => new(
+                SeedStaleReportProjectId,
+                "agent-gui-stale-report",
+                "AGENT-GUI-STALE",
+                "Agent GUI Stale Report Fixture",
+                MakeCompletenessIneligible: false,
+                CompleteLifecycle: true,
+                RefreshValidationAfterReports: true,
+                EditReportOutsideJet: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
+            SeedSixStageCompleteProjectId => new(
+                SeedSixStageCompleteProjectId,
+                "agent-gui-six-stage-complete",
+                "AGENT-GUI-COMPLETE",
+                "Agent GUI Six Stage Complete Fixture",
+                MakeCompletenessIneligible: false,
+                CompleteLifecycle: true,
+                RefreshValidationAfterReports: false,
+                EditReportOutsideJet: false,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
+            SeedEditedReportProjectId => new(
+                SeedEditedReportProjectId,
+                "agent-gui-edited-report",
+                "AGENT-GUI-EDITED",
+                "Agent GUI Edited Report Fixture",
+                MakeCompletenessIneligible: false,
+                CompleteLifecycle: true,
+                RefreshValidationAfterReports: false,
+                EditReportOutsideJet: true,
+                MappingReadyOnly: false,
+                UseSmallMappingData: false),
+            SeedMappingReadyProjectId => new(
+                SeedMappingReadyProjectId,
+                "agent-gui-mapping-ready",
+                "AGENT-GUI-MAPPING",
+                "Agent GUI Mapping Ready Fixture",
+                MakeCompletenessIneligible: false,
+                CompleteLifecycle: false,
+                RefreshValidationAfterReports: false,
+                EditReportOutsideJet: false,
+                MappingReadyOnly: true,
+                UseSmallMappingData: true),
+            null => null,
+            _ => throw new InvalidOperationException("Unknown closed Agent GUI project-state seed fixture."),
+        };
+    }
+
+    private void MakeRunOwnedTbCompletenessIneligible(
+        JsonElement tbFile,
+        string mappedDebitColumn)
+    {
+        var filePath = tbFile.GetProperty("filePath").GetString()
+            ?? throw new InvalidOperationException("Run-owned TB fixture did not return a file path.");
+        var fullPath = Path.GetFullPath(filePath);
+        var fullRoot = Path.GetFullPath(DemoWorkbookRootPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Completeness fixture refused to modify a TB workbook outside its run-owned input root.");
+        }
+
+        using var workbook = new XLWorkbook(fullPath);
+        var worksheet = workbook.Worksheet("TB");
+        var mappedHeader = worksheet.Row(1).CellsUsed().SingleOrDefault(cell =>
+            string.Equals(cell.GetString(), mappedDebitColumn, StringComparison.Ordinal));
+        if (mappedHeader is null)
+        {
+            throw new InvalidOperationException(
+                "Completeness fixture could not find the mapped TB debit column in its run-owned workbook.");
+        }
+
+        var debitTotal = worksheet.Cell(2, mappedHeader.Address.ColumnNumber);
+        debitTotal.Value = debitTotal.GetValue<decimal>() + 1m;
+        workbook.Save();
+    }
+
+    private void PrepareRecoverySource(JsonElement source, DemoProjectData demo)
+    {
+        var path = Path.GetFullPath(source.GetProperty("filePath").GetString()!);
+        if (!path.StartsWith(Path.GetFullPath(DemoWorkbookRootPath) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Recovery fixture requires its own generated workbook.");
+        using var workbook = new XLWorkbook(path);
+        var sheet = workbook.Worksheets.First();
+        int Column(string key) => sheet.Row(1).CellsUsed().Single(cell => cell.GetString() == demo.GlMapping[key]).Address.ColumnNumber;
+        var document = Column(GlMappingKeys.VoucherNumber);
+        var account = Column(GlMappingKeys.AccountNumber);
+        var description = Column(GlMappingKeys.Description);
+        var preparer = Column(GlMappingKeys.CreatedBy);
+        var lastRow = sheet.LastRowUsed()!.RowNumber();
+        var approval = sheet.LastColumnUsed()!.ColumnNumber() + 1;
+        sheet.Cell(1, approval).Value = "GUI核准人員";
+        for (var row = 2; row <= lastRow; row++) sheet.Cell(row, approval).Value = "GUI-OTHER";
+        sheet.Cell(2, approval).Value = sheet.Cell(2, preparer).GetString();
+        for (var index = 0; index < 411; index++)
+        {
+            var row = lastRow + index + 1;
+            sheet.Row(2).CopyTo(sheet.Row(row));
+            sheet.Cell(row, approval).Value = "GUI-OTHER";
+            sheet.Cell(row, document).Value = index < 205 || index == 410 ? "" : $"GUI-DOC-{index:D3}";
+            if (index >= 205) sheet.Cell(row, account).Value = "";
+            sheet.Cell(row, description).Value = index == 410 ? "GUI-NULL-BOTH" : $"GUI-NULL-{index:D3}";
+        }
+        workbook.Save();
+    }
+
+    private static async Task SeedCompletedReportChainAsync(
+        ActionDispatcher dispatcher,
+        JsonElement validation,
+        CancellationToken cancellationToken)
+    {
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()
+            ?? throw new InvalidOperationException("Validation fixture response did not contain a result id.");
+        await DispatchAsync(
+            dispatcher,
+            "export.validationReports",
+            new { resultId = validationResultId },
+            cancellationToken).ConfigureAwait(false);
+
+        var prescreen = await DispatchAsync(
+            dispatcher,
+            "prescreen.run",
+            new { },
+            cancellationToken).ConfigureAwait(false);
+        var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()
+            ?? throw new InvalidOperationException("Prescreen fixture response did not contain a result id.");
+        await DispatchAsync(
+            dispatcher,
+            "export.prescreenReport",
+            new { resultId = prescreenResultId },
+            cancellationToken).ConfigureAwait(false);
+
+        var committed = await DispatchAsync(dispatcher, "filter.commit", new
+        {
+            scenarios = new[]
+            {
+                new
+                {
+                    name = "完整旅程情境",
+                    rationale = "以合成摘要條件驗證六階段生命週期",
+                    groups = new[]
+                    {
+                        new
+                        {
+                            join = "AND",
+                            // 每條篩選條件只表達一件事，舊式摘要關鍵字條件已停用，filter.commit 會拒絕它；
+                            // 這裡用停用訊息指定的「傳票摘要」「包含任一文字」。
+                            conditions = new[]
+                            {
+                                new { join = "AND", type = "fieldValue", field = "description", @operator = "contains", values = new[] { "調整" } },
+                            },
+                        },
+                    },
+                },
+            },
+        }, cancellationToken).ConfigureAwait(false);
+        var revision = committed.GetProperty("resultRef").GetProperty("revision").GetString()
+            ?? throw new InvalidOperationException("Filter fixture response did not contain a revision.");
+
+        await DispatchAsync(dispatcher, "export.criteriaSelectionReport", new
+        {
+            validationResultId,
+            prescreenResultId,
+            revision,
+        }, cancellationToken).ConfigureAwait(false);
+        await DispatchAsync(dispatcher, "export.workingPaperStream", new
+        {
+            validationResultId,
+            prescreenResultId,
+            scenarioRevision = revision,
+            scenarioPositions = new[] { 1 },
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task CommitMappingsAsync(
+        ActionDispatcher dispatcher,
+        DemoProjectData demo,
+        CancellationToken cancellationToken)
+    {
+        await DispatchAsync(dispatcher, "mapping.commit.gl", new
+        {
+            mapping = demo.GlMapping,
+            amountMode = demo.GlAmountMode,
+            rdeFields = IsEnabled(LegacyFormSourceId)
+                ? new[] { new { sourceColumn = "GUI部門", label = "GUI部門", valueType = "text" } }
+                : [],
+        }, cancellationToken).ConfigureAwait(false);
+        await DispatchAsync(dispatcher, "mapping.commit.tb", new
+        {
+            mapping = demo.TbMapping,
+            changeMode = demo.TbChangeMode,
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 模擬審計員在 JET 之外改過工作底稿：載入時要照常開啟，並在第六步清單把那份底稿標示為「已在 JET 之外修改」。
+    /// </summary>
+    private async Task EditReportOutsideJetAsync(
+        string projectId,
+        CancellationToken cancellationToken)
+    {
+        var folder = new JetProjectFolder(_projectsRootPath);
+        var projectDirectory = folder.GetProjectDirectory(projectId);
+        var workingPaper = Directory.GetFiles(projectDirectory, "*_WorkingPaper_*.xlsx").Single();
+        await File.AppendAllTextAsync(workingPaper, "edited outside JET", cancellationToken).ConfigureAwait(false);
+        var store = new ProjectReportStore(folder);
+        var original = (await store.ListAsync(projectId, cancellationToken).ConfigureAwait(false))
+            .Single(report => report.Kind == ReportKind.WorkingPaper);
+        var missing = await store.WriteAsync(projectId, new ReportWriteRequest(
+            ReportKind.WorkingPaper, original.SourceRef,
+            (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), cancellationToken).ConfigureAwait(false);
+        File.Delete(Path.Combine(projectDirectory, missing.RelativeFileName));
+        // Only metadata and one-byte temporary stand-ins are needed for pagination; no extra workbook generation.
+        for (var index = 0; index < 50; index++)
+        {
+            var historicalStore = new ProjectReportStore(folder,
+                new HistoryFixtureTimeProvider(original.GeneratedUtc.AddDays(-1).AddMinutes(index)));
+            var historical = await historicalStore.WriteAsync(projectId, new ReportWriteRequest(
+                ReportKind.WorkingPaper, original.SourceRef,
+                (stream, ct) => stream.WriteAsync(new byte[] { 1 }, ct).AsTask()), cancellationToken).ConfigureAwait(false);
+            File.Delete(Path.Combine(projectDirectory, historical.RelativeFileName));
+        }
+        await store.MarkStaleAsync(projectId, ReportKind.WorkingPaper, cancellationToken).ConfigureAwait(false);
+    }
+
+    private sealed class HistoryFixtureTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed record ProjectSeedDefinition(
+        string FixtureId,
+        string ProjectId,
+        string ProjectCode,
+        string ClientName,
+        bool MakeCompletenessIneligible,
+        bool CompleteLifecycle,
+        bool RefreshValidationAfterReports,
+        bool EditReportOutsideJet,
+        bool MappingReadyOnly,
+        bool UseSmallMappingData);
+
+    private static async Task<JsonElement> DispatchAsync(
+        ActionDispatcher dispatcher,
+        string action,
+        object payload,
+        CancellationToken cancellationToken)
+    {
+        var result = await dispatcher.DispatchAsync(
+            action,
+            JsonSerializer.SerializeToElement(payload),
+            cancellationToken).ConfigureAwait(false);
+        return JsonSerializer.SerializeToElement(result);
+    }
+
+    internal IApplicationActionHandler DecorateBlankSearch(IApplicationActionHandler handler) =>
+        IsEnabled(FailBlankSearchOnceId) && handler.Action == "query.blankRecordsPage"
+            ? new FailBlankSearchHandler(handler, this) : handler;
+
+    private sealed class FailBlankSearchHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
+        : IApplicationActionHandler
+    {
+        private int remaining = 1;
+        public string Action => inner.Action;
+        public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            if (payload.TryGetProperty("search", out var search) && search.GetString() == "GUI-NULL-BOTH"
+                && Interlocked.Exchange(ref remaining, 0) == 1)
+            {
+                fixtures._trace.Write(FailBlankSearchOnceId, "failure.injected");
+                throw new JetActionException(JetErrorCodes.DatabaseBusy, "合成搜尋失敗，請重試。");
+            }
+            return inner.HandleAsync(payload, cancellationToken);
+        }
+    }
+
+    internal IApplicationActionHandler DecorateAuthorizedList(IApplicationActionHandler handler) =>
+        IsEnabled(CaseImportSourceId) && handler.Action is "host.selectFiles" or "host.selectFile"
+            ? new CaseImportFixtureHandler(handler, this)
+            : (IsEnabled(AuthorizedListSourceId) && handler.Action == "host.selectFile")
+        || (IsEnabled(FailAuthorizedImportOnceId) && handler.Action == "import.authorizedPreparer.fromFile")
+            ? new AuthorizedListFixtureHandler(handler, this) : handler;
+
+    private sealed class CaseImportFixtureHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures) : IApplicationActionHandler
+    {
+        // 匯出後回頭修改上游資料的旅程用到的單檔選檔：標題照 import-step.js 的 bindCalendarCard 與
+        // validate-step.js 的科目配對卡片。標題對不上時交給正式的選檔視窗。
+        private const string HolidayTitle = "選擇國定假日清單（Date_of_Holiday、Holiday_Name、IS_Holiday）";
+        private const string MakeupTitle = "選擇補班日清單（Date_of_MakeUpday、MakeUpDay_Desc）";
+        private const string AccountMappingTitle = "選擇科目配對範本或工作底稿（科目編號、科目名稱、科目分類）";
+
+        public string Action => inner.Action;
+        public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            // 標題照第一步匯入卡片的資料名稱（import-step.js 的 bindDatasetCard），資料名稱是 PBC-GL、PBC-TB；
+            // 標題對不上時會打開真的 Windows 選檔視窗，桌面情境會停在那裡等到逾時。
+            var title = payload.TryGetProperty("title", out var value) ? value.GetString() : null;
+            if (Action == "host.selectFile")
+                return SelectSingleFile(title, payload, cancellationToken);
+            if (title is not "選擇 PBC-GL 來源檔（可多選）" and not "選擇 PBC-TB 來源檔（可多選）")
+                return inner.HandleAsync(payload, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var gl = title == "選擇 PBC-GL 來源檔（可多選）";
+            Directory.CreateDirectory(fixtures.DemoWorkbookRootPath);
+            var path = Path.Combine(fixtures.DemoWorkbookRootPath, gl ? "synthetic-gl.xlsx" : "synthetic-tb.xlsx");
+            using var workbook = new XLWorkbook();
+            if (gl)
+            {
+                for (var part = 1; part <= 2; part++)
+                {
+                    var sheet = workbook.AddWorksheet("Synthetic" + part);
+                    string[] columns = ["Doc", "Date", "Code", "Name", "Memo", "Debit", "Credit"];
+                    for (var c = 0; c < columns.Length; c++) sheet.Cell(1, c + 1).Value = columns[c];
+                    for (var row = 2; row <= 3; row++)
+                    {
+                        sheet.Cell(row, 1).Value = "SYN-" + part;
+                        sheet.Cell(row, 2).Value = part == 1 ? "2025-06-01" : "2025-07-01";
+                        sheet.Cell(row, 3).Value = row == 2 ? "1000" : "4000";
+                        sheet.Cell(row, 4).Value = row == 2 ? "合成現金" : "合成收入";
+                        sheet.Cell(row, 5).Value = row == 2 ? "" : "合成銷貨";
+                        sheet.Cell(row, 6).Value = row == 2 ? 100 : 0;
+                        sheet.Cell(row, 7).Value = row == 3 ? 100 : 0;
+                    }
+                }
+            }
+            else
+            {
+                var sheet = workbook.AddWorksheet("SyntheticTB");
+                sheet.Cell(1, 1).Value = "Code"; sheet.Cell(1, 2).Value = "Name"; sheet.Cell(1, 3).Value = "Amount";
+                sheet.Cell(2, 1).Value = "1000"; sheet.Cell(2, 2).Value = "合成現金"; sheet.Cell(2, 3).Value = 200;
+                sheet.Cell(3, 1).Value = "4000"; sheet.Cell(3, 2).Value = "合成收入"; sheet.Cell(3, 3).Value = -200;
+            }
+            workbook.SaveAs(path);
+            fixtures._trace.Write(CaseImportSourceId, gl ? "gl.selected" : "tb.selected");
+            return Task.FromResult<object?>(new { files = new[] { new { filePath = path, fileName = Path.GetFileName(path) } } });
+        }
+
+        // 假日與補班檔第一列是標題、第二列是欄名（同 MutationInvalidationStateTests）。假日落在 SYN-1 的總帳日期 2025-06-01，
+        // 補班日是週六 2025-06-07。科目配對檔用合成 GL 的兩個科目與內建分類名稱。
+        private Task<object?> SelectSingleFile(string? title, JsonElement payload, CancellationToken cancellationToken)
+        {
+            var (fileName, eventName) = title switch
+            {
+                HolidayTitle => ("synthetic-holiday.xlsx", "holiday.selected"),
+                MakeupTitle => ("synthetic-makeup.xlsx", "makeup.selected"),
+                AccountMappingTitle => ("synthetic-account-mapping.xlsx", "account-mapping.selected"),
+                _ => (null, null)
+            };
+            if (fileName is null || eventName is null)
+                return inner.HandleAsync(payload, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(fixtures.DemoWorkbookRootPath);
+            var path = Path.Combine(fixtures.DemoWorkbookRootPath, fileName);
+            using (var workbook = new XLWorkbook())
+            {
+                var sheet = workbook.AddWorksheet("Synthetic");
+                string[][] rows = title switch
+                {
+                    HolidayTitle => [["Synthetic calendar"], ["Date_of_Holiday", "Holiday_Name", "IS_Holiday"], ["2025-06-01", "合成假日", "Y"]],
+                    MakeupTitle => [["Synthetic calendar"], ["Date_of_MakeUpday", "MakeUpDay_Desc"], ["2025-06-07", "合成補班"]],
+                    _ => [["科目代號", "科目名稱", "標準化分類"], ["1000", "合成現金", "Cash"], ["4000", "合成收入", "Revenue"]]
+                };
+                for (var r = 0; r < rows.Length; r++)
+                    for (var c = 0; c < rows[r].Length; c++)
+                        sheet.Cell(r + 1, c + 1).Value = rows[r][c];
+                workbook.SaveAs(path);
+            }
+            fixtures._trace.Write(CaseImportSourceId, eventName);
+            return Task.FromResult<object?>(new { filePath = path, fileName });
+        }
+    }
+
+    private sealed class AuthorizedListFixtureHandler(IApplicationActionHandler inner, AgentGuiTestFixtures fixtures)
+        : IApplicationActionHandler
+    {
+        private int remaining = 1;
+        public string Action => inner.Action;
+        public Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            if (Action == "host.selectFile" && payload.TryGetProperty("title", out var title)
+                && title.GetString() == "授權編製人員清單")
+            {
+                var path = fixtures._authorizedListSource ?? throw new InvalidOperationException("Synthetic source not prepared.");
+                fixtures._trace.Write(AuthorizedListSourceId, "source.selected");
+                return Task.FromResult<object?>(new { filePath = path, fileName = Path.GetFileName(path) });
+            }
+            if (Action == "import.authorizedPreparer.fromFile" && payload.TryGetProperty("sourceColumn", out var column)
+                && column.GetString() == "員工代碼" && Interlocked.Exchange(ref remaining, 0) == 1)
+            {
+                fixtures._trace.Write(FailAuthorizedImportOnceId, "failure.injected");
+                throw new JetActionException(JetErrorCodes.FileReadError, "合成人員清單讀取失敗，請重試。");
+            }
+            return inner.HandleAsync(payload, cancellationToken);
+        }
+    }
+
+    internal IApplicationActionHandler DecorateProjectListLocal(
+        IApplicationActionHandler handler)
+    {
+        if (!IsEnabled(FailProjectListLocalOnceId))
+        {
+            return handler;
+        }
+
+        return new ProjectListLocalFixtureHandler(handler, this);
+    }
+
+    internal IApplicationActionHandler DecorateDataPreview(
+        IApplicationActionHandler handler,
+        ProjectSession session)
+    {
+        if (!IsEnabled(LateGlPreviewSuccessThenFailureId))
+        {
+            return handler;
+        }
+
+        return new DataPreviewFixtureHandler(handler, session, this);
+    }
+
+    internal IApplicationActionHandler DecorateCalendarSetNonWorkingDays(
+        IApplicationActionHandler handler)
+    {
+        if (!IsEnabled(DelayCalendarSetNonWorkingDaysOnceId))
+        {
+            return handler;
+        }
+
+        return new CalendarSetNonWorkingDaysFixtureHandler(handler, this);
+    }
+
+    internal IApplicationActionHandler DecorateProjectSaveProgress(
+        IApplicationActionHandler handler)
+    {
+        if (!IsEnabled(DelayProjectSaveProgressOnceId))
+        {
+            return handler;
+        }
+
+        return new ProjectSaveProgressFixtureHandler(handler, this);
+    }
+
+    internal IJetEventPublisher DecorateEventPublisher(IJetEventPublisher publisher)
+    {
+        if (!IsEnabled(DelayExportProgressOnceId))
+        {
+            return publisher;
+        }
+
+        return new ExportProgressFixturePublisher(publisher, this);
+    }
+
+    internal IApplicationActionHandler DecorateExportAction(
+        IApplicationActionHandler handler)
+    {
+        if (IsEnabled(FillTemplateAfterAutoExportId)
+            && handler.Action.Equals(AccountMappingExportAction, StringComparison.Ordinal))
+        {
+            handler = new AutomaticTemplateFixtureHandler(handler, this);
+        }
+        if (!IsEnabled(DelayExportProgressOnceId)
+            || !handler.Action.Equals(AccountMappingExportAction, StringComparison.Ordinal))
+        {
+            return handler;
+        }
+
+        return new ExportActionFixtureHandler(handler, this);
+    }
+
+
+    private sealed class AutomaticTemplateFixtureHandler(
+        IApplicationActionHandler inner, AgentGuiTestFixtures fixtures) : IApplicationActionHandler
+    {
+        private byte[]? _filledTemplate;
+        public string Action => AccountMappingExportAction;
+
+        public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+        {
+            if (!payload.TryGetProperty("onlyIfMissing", out var onlyIfMissing)
+                || onlyIfMissing.ValueKind != JsonValueKind.True)
+            {
+                throw new InvalidOperationException("Automatic template GUI fixture requires the UI's preserve-existing request.");
+            }
+            var response = await inner.HandleAsync(payload, cancellationToken).ConfigureAwait(false);
+            var data = JsonSerializer.SerializeToElement(response);
+            var path = data.GetProperty("filePath").GetString()!;
+            var expectedDirectory = Path.Combine(fixtures._projectsRootPath, "agent-gui-mapping-ready");
+            if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(path)), expectedDirectory,
+                    StringComparison.OrdinalIgnoreCase) || new FileInfo(path).Length > 1_048_576)
+            {
+                throw new InvalidOperationException("Automatic template GUI fixture received an unexpected file.");
+            }
+            if (_filledTemplate is null)
+            {
+                if (data.GetProperty("disposition").GetString() != "created")
+                {
+                    throw new InvalidOperationException("Automatic template GUI fixture did not create the first template.");
+                }
+                using (var workbook = new XLWorkbook(path))
+                {
+                    workbook.Worksheet("AccountMapping").Cell(4, 3).Value = AccountMappingCategories.All[0];
+                    workbook.Save();
+                }
+                _filledTemplate = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+                fixtures._trace.Write(FillTemplateAfterAutoExportId, "template.filled");
+            }
+            else
+            {
+                var actual = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+                if (data.GetProperty("disposition").GetString() != "kept" || !_filledTemplate.AsSpan().SequenceEqual(actual))
+                {
+                    throw new InvalidOperationException("Automatic template GUI fixture replaced the filled workbook.");
+                }
+                fixtures._trace.Write(FillTemplateAfterAutoExportId, "template.preserved");
+            }
+            return response;
+        }
+    }
+
+    private bool IsEnabled(string fixtureId) => _fixtureIds.Contains(fixtureId);
+
+    private bool TakeProjectListLocalFailure() =>
+        Interlocked.Exchange(ref _projectListLocalFailureRemaining, 0) == 1;
+
+    private bool TakeCalendarSetNonWorkingDaysDelay() =>
+        Interlocked.Exchange(ref _calendarSetNonWorkingDaysDelayRemaining, 0) == 1;
+
+    private bool TakeProjectSaveProgressDelay() =>
+        Interlocked.Exchange(ref _projectSaveProgressDelayRemaining, 0) == 1;
+
+    private bool TakeExportProgressDelay() =>
+        Interlocked.Exchange(ref _exportProgressDelayRemaining, 0) == 1;
+
+    private ExportActionScope EnterExportAction(string action)
+    {
+        var previous = _currentExportAction.Value;
+        _currentExportAction.Value = action;
+        return new ExportActionScope(this, previous);
+    }
+
+    private sealed class ExportActionFixtureHandler : IApplicationActionHandler
+    {
+        private readonly IApplicationActionHandler _inner;
+        private readonly AgentGuiTestFixtures _fixtures;
+
+        internal ExportActionFixtureHandler(
+            IApplicationActionHandler inner,
+            AgentGuiTestFixtures fixtures)
+        {
+            if (!inner.Action.Equals(AccountMappingExportAction, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Agent GUI export-progress fixture can wrap only export.accountMappingTemplate.");
+            }
+
+            _inner = inner;
+            _fixtures = fixtures;
+        }
+
+        public string Action => AccountMappingExportAction;
+
+        public async Task<object?> HandleAsync(
+            JsonElement payload,
+            CancellationToken cancellationToken)
+        {
+            using var scope = _fixtures.EnterExportAction(Action);
+            try
+            {
+                return await _inner.HandleAsync(payload, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (ExportProgressDelaySignalException)
+            {
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    _fixtures._trace.Write(DelayExportProgressOnceId, "delay.cancelled");
+                    throw;
+                }
+
+                throw new InvalidOperationException(
+                    "Agent GUI export-progress delay ended without cancellation.");
+            }
+        }
+    }
+
+    private sealed class ExportProgressFixturePublisher(
+        IJetEventPublisher inner,
+        AgentGuiTestFixtures fixtures) : IJetEventPublisher
+    {
+        public void Publish(string eventName, object payload)
+        {
+            // The real WebView publisher must receive the real event before this fixture pauses
+            // the request. Throwing a private sentinel lets the handler decorator leave the UI
+            // thread and wait asynchronously on the exact operation token.
+            inner.Publish(eventName, payload);
+
+            if (!eventName.Equals(ExportProgressEvent, StringComparison.Ordinal)
+                || !string.Equals(
+                    fixtures._currentExportAction.Value,
+                    AccountMappingExportAction,
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var phase = ReadPhase(payload);
+            if (phase is null)
+            {
+                throw new InvalidOperationException(
+                    "Agent GUI export-progress fixture received an event without phase.");
+            }
+
+            fixtures._trace.Write(
+                DelayExportProgressOnceId,
+                "progress." + phase + ".forwarded");
+            if (phase.Equals(WritingSheetPhase, StringComparison.Ordinal)
+                && fixtures.TakeExportProgressDelay())
+            {
+                fixtures._trace.Write(DelayExportProgressOnceId, "delay.applied");
+                throw new ExportProgressDelaySignalException();
+            }
+        }
+
+        private static string? ReadPhase(object payload)
+        {
+            var element = JsonSerializer.SerializeToElement(payload);
+            return element.ValueKind == JsonValueKind.Object
+                && element.TryGetProperty("phase", out var phase)
+                && phase.ValueKind == JsonValueKind.String
+                    ? phase.GetString()
+                    : null;
+        }
+    }
+
+    private sealed class ExportActionScope(
+        AgentGuiTestFixtures fixtures,
+        string? previous) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                fixtures._currentExportAction.Value = previous;
+            }
+        }
+    }
+
+    private sealed class ExportProgressDelaySignalException : Exception
+    {
+    }
+
+    private sealed class ProjectListLocalFixtureHandler : IApplicationActionHandler
+    {
+        private const string ProjectListLocalAction = "project.listLocal";
+        private readonly IApplicationActionHandler _inner;
+        private readonly AgentGuiTestFixtures _fixtures;
+
+        internal ProjectListLocalFixtureHandler(
+            IApplicationActionHandler inner,
+            AgentGuiTestFixtures fixtures)
+        {
+            if (!inner.Action.Equals(ProjectListLocalAction, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Agent GUI local project-list fixture can wrap only project.listLocal.");
+            }
+
+            _inner = inner;
+            _fixtures = fixtures;
+        }
+
+        public string Action => ProjectListLocalAction;
+
+        public async Task<object?> HandleAsync(
+            JsonElement payload,
+            CancellationToken cancellationToken)
+        {
+            await _fixtures._projectListLocalGate.WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+            try
+            {
+                if (_fixtures.TakeProjectListLocalFailure())
+                {
+                    _fixtures._trace.Write(FailProjectListLocalOnceId, "failure.applied");
+                    throw new JetActionException(
+                        JetErrorCodes.FileReadError,
+                        "無法讀取本機專案清單（固定驗收故障）。");
+                }
+
+                _fixtures._trace.Write(FailProjectListLocalOnceId, "failure.bypassed");
+                return await _inner.HandleAsync(payload, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _fixtures._projectListLocalGate.Release();
+            }
+        }
+    }
+
+    private sealed class DataPreviewFixtureHandler : IApplicationActionHandler
+    {
+        private const string DataPreviewAction = "query.dataPreview";
+        private const string GlDataset = "gl";
+        private readonly IApplicationActionHandler _inner;
+        private readonly ProjectSession _session;
+        private readonly AgentGuiTestFixtures _fixtures;
+
+        internal DataPreviewFixtureHandler(
+            IApplicationActionHandler inner,
+            ProjectSession session,
+            AgentGuiTestFixtures fixtures)
+        {
+            if (!inner.Action.Equals(DataPreviewAction, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Agent GUI late GL-preview fixture can wrap only query.dataPreview.");
+            }
+
+            _inner = inner;
+            _session = session;
+            _fixtures = fixtures;
+        }
+
+        public string Action => DataPreviewAction;
+
+        public async Task<object?> HandleAsync(
+            JsonElement payload,
+            CancellationToken cancellationToken)
+        {
+            var projectId = _session.RequireProjectId();
+            var isFrontendUsabilityProject = projectId.Equals(
+                "agent-gui-export-ready",
+                StringComparison.Ordinal);
+            if (!IsGlDataset(payload)
+                || (!projectId.EndsWith("-a", StringComparison.Ordinal)
+                    && !isFrontendUsabilityProject))
+            {
+                _fixtures._trace.Write(
+                    LateGlPreviewSuccessThenFailureId,
+                    "request.bypassed");
+                return await _inner.HandleAsync(payload, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            int matchNumber;
+            await _fixtures._glPreviewGate.WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+            try
+            {
+                matchNumber = ++_fixtures._glPreviewMatchCount;
+            }
+            finally
+            {
+                _fixtures._glPreviewGate.Release();
+            }
+
+            var result = await _inner.HandleAsync(payload, cancellationToken)
+                .ConfigureAwait(false);
+            if (isFrontendUsabilityProject)
+            {
+                if (matchNumber > 1)
+                {
+                    _fixtures._trace.Write(
+                        LateGlPreviewSuccessThenFailureId,
+                        "inline-failure.retry-bypassed");
+                    return result;
+                }
+
+                const string inlineOutcome = "inline-failure";
+                _fixtures._trace.Write(
+                    LateGlPreviewSuccessThenFailureId,
+                    inlineOutcome + ".inner-completed");
+                await DelayWithTraceAsync(
+                        _fixtures,
+                        LateGlPreviewSuccessThenFailureId,
+                        inlineOutcome,
+                        GlPreviewDelay,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                _fixtures._trace.Write(
+                    LateGlPreviewSuccessThenFailureId,
+                    inlineOutcome + ".applied");
+                throw new JetActionException(
+                    JetErrorCodes.FileReadError,
+                    "Agent GUI deterministic current query.dataPreview failure.");
+            }
+
+            if (matchNumber > 2)
+            {
+                _fixtures._trace.Write(
+                    LateGlPreviewSuccessThenFailureId,
+                    "match.bypassed");
+                return result;
+            }
+
+            var outcome = matchNumber == 1 ? "success" : "failure";
+            _fixtures._trace.Write(
+                LateGlPreviewSuccessThenFailureId,
+                outcome + ".inner-completed");
+            await DelayWithTraceAsync(
+                    _fixtures,
+                    LateGlPreviewSuccessThenFailureId,
+                    outcome,
+                    GlPreviewDelay,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (matchNumber == 2)
+            {
+                _fixtures._trace.Write(
+                    LateGlPreviewSuccessThenFailureId,
+                    "failure.applied");
+                throw new JetActionException(
+                    JetErrorCodes.FileReadError,
+                    "Agent GUI deterministic late query.dataPreview failure.");
+            }
+
+            return result;
+        }
+
+        private static bool IsGlDataset(JsonElement payload) =>
+            payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("dataset", out var dataset)
+            && dataset.ValueKind == JsonValueKind.String
+            && string.Equals(
+                dataset.GetString(),
+                GlDataset,
+                StringComparison.Ordinal);
+    }
+
+    private sealed class CalendarSetNonWorkingDaysFixtureHandler : IApplicationActionHandler
+    {
+        private const string CalendarSetNonWorkingDaysAction =
+            "calendar.setNonWorkingDays";
+        private readonly IApplicationActionHandler _inner;
+        private readonly AgentGuiTestFixtures _fixtures;
+
+        internal CalendarSetNonWorkingDaysFixtureHandler(
+            IApplicationActionHandler inner,
+            AgentGuiTestFixtures fixtures)
+        {
+            if (!inner.Action.Equals(
+                    CalendarSetNonWorkingDaysAction,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Agent GUI calendar fixture can wrap only calendar.setNonWorkingDays.");
+            }
+
+            _inner = inner;
+            _fixtures = fixtures;
+        }
+
+        public string Action => CalendarSetNonWorkingDaysAction;
+
+        public async Task<object?> HandleAsync(
+            JsonElement payload,
+            CancellationToken cancellationToken)
+        {
+            await _fixtures._calendarSetNonWorkingDaysGate.WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+            try
+            {
+                if (_fixtures.TakeCalendarSetNonWorkingDaysDelay())
+                {
+                    await DelayWithTraceAsync(
+                            _fixtures,
+                            DelayCalendarSetNonWorkingDaysOnceId,
+                            null,
+                            CalendarSetNonWorkingDaysDelay,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    _fixtures._trace.Write(
+                        DelayCalendarSetNonWorkingDaysOnceId,
+                        "delay.bypassed");
+                }
+
+                return await _inner.HandleAsync(payload, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _fixtures._calendarSetNonWorkingDaysGate.Release();
+            }
+        }
+    }
+
+    private sealed class ProjectSaveProgressFixtureHandler : IApplicationActionHandler
+    {
+        private const string ProjectSaveProgressAction = "project.saveProgress";
+        private readonly IApplicationActionHandler _inner;
+        private readonly AgentGuiTestFixtures _fixtures;
+
+        internal ProjectSaveProgressFixtureHandler(
+            IApplicationActionHandler inner,
+            AgentGuiTestFixtures fixtures)
+        {
+            if (!inner.Action.Equals(ProjectSaveProgressAction, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Agent GUI progress fixture can wrap only project.saveProgress.");
+            }
+
+            _inner = inner;
+            _fixtures = fixtures;
+        }
+
+        public string Action => ProjectSaveProgressAction;
+
+        public async Task<object?> HandleAsync(
+            JsonElement payload,
+            CancellationToken cancellationToken)
+        {
+            await _fixtures._projectSaveProgressGate.WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+            try
+            {
+                if (_fixtures.TakeProjectSaveProgressDelay())
+                {
+                    await DelayWithTraceAsync(
+                            _fixtures,
+                            DelayProjectSaveProgressOnceId,
+                            null,
+                            ProjectSaveProgressDelay,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    _fixtures._trace.Write(
+                        DelayProjectSaveProgressOnceId,
+                        "delay.bypassed");
+                }
+
+                return await _inner.HandleAsync(payload, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _fixtures._projectSaveProgressGate.Release();
+            }
+        }
+    }
+
+    private static async Task DelayWithTraceAsync(
+        AgentGuiTestFixtures fixtures,
+        string fixtureId,
+        string? prefix,
+        TimeSpan delay,
+        CancellationToken cancellationToken)
+    {
+        var eventPrefix = prefix is null ? string.Empty : prefix + ".";
+        fixtures._trace.Write(fixtureId, eventPrefix + "delay.applied");
+        try
+        {
+            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            fixtures._trace.Write(fixtureId, eventPrefix + "delay.completed");
+        }
+        catch (OperationCanceledException)
+        {
+            fixtures._trace.Write(fixtureId, eventPrefix + "delay.cancelled");
+            throw;
+        }
+    }
+
+    private sealed class FixtureTrace
+    {
+        internal const int MaximumEntries = 64;
+
+        private static readonly Encoding Utf8WithoutBom = new UTF8Encoding(false);
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        private readonly Lock _gate = new();
+        private readonly string _path;
+        private readonly string _runId;
+        private readonly string _childId;
+        private int _entriesWritten;
+
+        internal FixtureTrace(string path, string runId, string childId)
+        {
+            _path = path;
+            _runId = runId;
+            _childId = childId;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (File.Exists(path)
+                && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidOperationException(
+                    "Agent GUI fixture trace cannot be a reparse point.");
+            }
+
+            File.WriteAllText(path, string.Empty, Utf8WithoutBom);
+        }
+
+        internal void Write(string fixture, string @event)
+        {
+            lock (_gate)
+            {
+                if (_entriesWritten >= MaximumEntries)
+                {
+                    return;
+                }
+
+                var entry = new FixtureTraceEntry(
+                    SchemaVersion: 1,
+                    Sequence: ++_entriesWritten,
+                    TimestampUtc: DateTimeOffset.UtcNow,
+                    RunId: _runId,
+                    ChildId: _childId,
+                    Fixture: fixture,
+                    Event: @event);
+                File.AppendAllText(
+                    _path,
+                    JsonSerializer.Serialize(entry, JsonOptions) + '\n',
+                    Utf8WithoutBom);
+            }
+        }
+    }
+
+    private sealed record FixtureTraceEntry(
+        int SchemaVersion,
+        int Sequence,
+        DateTimeOffset TimestampUtc,
+        string RunId,
+        string ChildId,
+        string Fixture,
+        string Event);
+}

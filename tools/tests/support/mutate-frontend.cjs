@@ -21,7 +21,7 @@
 //       "file": "js/steps/mapping-step.js",                 // wwwroot 底下的相對路徑
 //       "find": "原本的文字", "replace": "改壞後的文字",
 //       "count": 1,                                          // 選填，find 必須剛好出現幾次，預設 1
-//       "test": "tools/tests/frontend-mapping.test.cjs",    // 儲存庫相對路徑，可以是字串或陣列；也接受還在撰寫的 *.wip.cjs
+//       "test": "src/JET/tests/frontend/frontend-mapping.test.cjs", // 儲存庫相對路徑，可以是字串或陣列；也接受還在撰寫的 *.wip.cjs
 //       "namePattern": "approval",                          // 選填，交給 node --test-name-pattern
 //       "expect": "fail",                                    // 選填，預設 fail；fail 表示副本上的測試必須失敗
 //       "timeoutSeconds": 300,                               // 選填，蓋過整份清單的設定
@@ -30,7 +30,9 @@
 //
 // 每個改壞方式的副本與輸出放在 artifacts/frontend-mutation/<batch>/<id>/：
 //   src/JET/JET/wwwroot/  改壞後的前端副本（不含 assets/ 的字型檔）
-//   tools/tests/          測試檔、support/ 與 fixtures/ 的副本，讓寫死相對路徑的舊測試檔也讀到改壞的副本
+//   src/JET/tests/frontend/  前端測試檔與 support/ 的副本，讓寫死相對路徑的測試檔也讀到改壞的副本
+//   tools/tests/          留在 tools/tests 的前端測試與 support/ 的副本
+//   src/JET/tests/JET.Tests/Fixtures/  前後端共用的固定答案檔的副本
 //   tree.tap              工作樹上的對照執行，必須通過
 //   copy.tap              副本改壞之前的對照執行；這裡已經失敗的測試（例如讀了副本沒有的 docs/ 或 C# 檔）不算改壞抓到的
 //   mutant.tap            副本改壞之後的執行，必須失敗
@@ -43,14 +45,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 // 只讀標記與常數，不載入 resource-guard.cjs：那會讓這支工具自己受測試程序的 900 秒上限管，長清單跑到一半就被停掉。
-const { MARKER: RESOURCE_GUARD_MARKER, MAX_PARALLEL_TEST_FILES } = require('./resource-guard-marker.cjs');
+const { MARKER: RESOURCE_GUARD_MARKER, MAX_PARALLEL_TEST_FILES } = require('../../../src/JET/tests/frontend/support/resource-guard-marker.cjs');
 
 const REPOSITORY_ROOT = path.resolve(__dirname, '../../..');
 const MUTATION_ROOT = path.join(REPOSITORY_ROOT, 'artifacts', 'frontend-mutation');
 const SESSION_LOCK = path.join(MUTATION_ROOT, '.session.lock');
 const WWWROOT_RELATIVE = path.join('src', 'JET', 'JET', 'wwwroot');
+const FIXTURES_RELATIVE = path.join('src', 'JET', 'tests', 'JET.Tests', 'Fixtures');
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/;
-const TEST_PATH = /^tools\/tests\/[^/]+\.(?:test|wip)\.cjs$/;
+const TEST_PATH = /^(?:src\/JET\/tests\/frontend|tools\/tests)\/[^/]+\.(?:test|wip)\.cjs$/;
 const DEFAULT_TIMEOUT_SECONDS = 300;
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
@@ -81,7 +84,7 @@ function mutationWorkDirectory(batch, id, mutationRoot = MUTATION_ROOT) {
   return directory;
 }
 
-// 能交給改壞檢查的測試檔：tools/tests/ 第一層的 *.test.cjs，以及還在撰寫、尚未收進正式路線的 *.wip.cjs。
+// 能交給改壞檢查的測試檔：src/JET/tests/frontend/ 與 tools/tests/ 第一層的 *.test.cjs，以及還在撰寫、尚未收進正式路線的 *.wip.cjs。
 function isMutationTestPath(test) {
   return TEST_PATH.test(String(test).replace(/\\/g, '/'));
 }
@@ -169,7 +172,7 @@ async function runMutation(spec, mutation) {
   const batch = spec.batch, id = mutation.id, tests = [].concat(mutation.test || []);
   assert.ok(tests.length > 0, id + ': at least one test file is required');
   for (const test of tests) {
-    assert.ok(isMutationTestPath(test), id + ': test must be a tools/tests/*.test.cjs or tools/tests/*.wip.cjs file: ' + test);
+    assert.ok(isMutationTestPath(test), id + ': test must be a *.test.cjs or *.wip.cjs file directly under src/JET/tests/frontend or tools/tests: ' + test);
     assert.ok(fs.existsSync(path.join(REPOSITORY_ROOT, test)), id + ': test file not found: ' + test);
   }
   const timeoutSeconds = timeoutFor(spec, mutation);
@@ -180,6 +183,9 @@ async function runMutation(spec, mutation) {
   const wwwroot = path.join(work, WWWROOT_RELATIVE);
   const assets = path.join(REPOSITORY_ROOT, WWWROOT_RELATIVE, 'assets');
   copyTree(path.join(REPOSITORY_ROOT, WWWROOT_RELATIVE), wwwroot, source => source === assets || source.startsWith(assets + path.sep));
+  copyTree(path.join(REPOSITORY_ROOT, FIXTURES_RELATIVE), path.join(work, FIXTURES_RELATIVE));
+  copyTree(path.join(REPOSITORY_ROOT, 'src', 'JET', 'tests', 'frontend'), path.join(work, 'src', 'JET', 'tests', 'frontend'),
+    source => fs.statSync(source).isFile() && !/\.(?:cjs|json)$/.test(source));
   copyTree(path.join(REPOSITORY_ROOT, 'tools', 'tests'), path.join(work, 'tools', 'tests'),
     source => fs.statSync(source).isFile() && !/\.(?:cjs|json)$/.test(source));
   const target = path.join(wwwroot, relativeFile);

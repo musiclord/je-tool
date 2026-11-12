@@ -150,10 +150,9 @@ public sealed class CompletenessEligibilitySupportTests
         var eligibility = CompletenessEligibilitySupport.ToWireSummary(run)
             .GetProperty("completenessTest").GetProperty("eligibility");
         Assert.True(eligibility.GetProperty("isEligible").GetBoolean());
-        // 裁定 2026-10-05-01：提醒照實說明比對的是確認配對時算出的數字，不再用「控制總數」這個術語。
-        // 裁定 2026-11-02-06 拿掉只為舊案件留下的「沒有確認欄位配對時算出的數字」提醒：新案件確認 GL 欄位配對時一定會算出這組數字，
-        // 萬一缺了，提醒和核對未通過相同，請審計員重新確認 GL 欄位配對。原本斷言提醒含「沒有確認欄位配對時算出的數字」；
-        // 第一次失敗：Focused 收據 20261102-044746069-f5a1803bbf3148b49a605ea96fc3cbf2。
+        // 提醒照實說明比對的是確認配對時算出的數字，不用「控制總數」這個術語。
+        // 新案件確認 GL 欄位配對時一定會算出這組數字；
+        // 萬一缺了，提醒和核對未通過相同，請審計員重新確認 GL 欄位配對。
         Assert.StartsWith("存入筆數與合計核對未通過：", eligibility.GetProperty("warning").GetString(), StringComparison.Ordinal);
     }
 

@@ -35,10 +35,7 @@ public sealed class ValidateRunFailureBoundaryTests
             () => handler.HandleAsync(default, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.GlMappingNotConfirmed, error.Code);
-        // 畫面不再說「提交」欄位配對，改用「完成」；斷言改鎖新句子。
         Assert.Equal(
-            // 確認配對用語統一後，只更新完整提示句，仍驗證 missing mapping 先於案件查找失敗。
-            // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
             "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。",
             error.Message);
         Assert.Equal(0, projectStore.FindCalls);
@@ -77,8 +74,7 @@ public sealed class ValidateRunFailureBoundaryTests
     {
         var boundary = Boundary(milestoneFailure: new BoundaryFailure("milestone"));
 
-        // Public首敗105344715-0a3f9684995a4a20bcdcb2fb954649f6：已commit後的導航戳記失敗只能記日誌，不能改報資料作業失敗。
-        // 原facts、summary及milestone次數與已保存record/舊step斷言全部保留。
+        // 已commit後的導航戳記失敗只能記日誌，不能改報資料作業失敗。
         var response = Assert.IsType<JsonElement>(await boundary.Handler.HandleAsync(default, CancellationToken.None));
         Assert.Equal(1, boundary.FactsPort.Calls);
         Assert.Equal(1, boundary.RunStore.SaveCalls);
@@ -127,7 +123,7 @@ public sealed class ValidateRunFailureBoundaryTests
             // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
             SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
         var resultStore = new RecordingRunStore(summaryFailure);
-        // summary保存改由正式facts port在callback之後執行；原各階段例外與呼叫次數斷言保留。
+        // summary保存由正式facts port在callback之後執行。
         var factsPort = new RecordingFactsPort(factsFailure, resultStore);
         var projectStore = new RecordingProjectStore(document, milestoneFailure);
         // handler 從作用中案件的資料庫組取 repository，替身放進資料庫組後再進入 session。
@@ -139,8 +135,7 @@ public sealed class ValidateRunFailureBoundaryTests
                 ValidationFacts = factsPort,
                 SourceQualityPages = new EmptySourceQualityPageRepository(),
                 MappingStates = new FixedMappingStore(document.ProjectId),
-                // 裁定 2026-10-29-16：驗證多讀 TB 的匯入紀錄來選逐科目比對的原因句，替身組補上沒有匯入 TB 的匯入紀錄。
-                // 只補替身，各階段例外與呼叫次數的斷言不變。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+                // 驗證會讀 TB 的匯入紀錄來選逐科目比對的原因句，替身組用沒有匯入 TB 的匯入紀錄。
                 Imports = new NoTbImportRepository(),
                 Results = resultStore,
             });
@@ -206,7 +201,7 @@ public sealed class ValidateRunFailureBoundaryTests
                 UnbalancedVouchers: [],
                 BlankRecordRows: [],
                 ControlTotals: null,
-                // Public首敗100911120：空母體替身必須明示已測得0/0，讓原本summary及milestone失敗邊界仍被測到。
+                // 空母體替身必須明示已測得0/0，讓summary及milestone失敗邊界被測到。
                 AmountBinCounts: [], VoucherNumberAcrossGlDates: new VoucherNumberAcrossGlDatesCounts(0, 0), SourceQualitySampleRows: []);
             var record = finalize(facts);
             await (resultStore ?? throw new InvalidOperationException("Missing summary store.")).SaveAsync(

@@ -45,10 +45,10 @@
     pickerFeedbackContext: null, // { projectId, errorCode, correlationId, devExportedPath }；只供 Debug 組建的 DEV 診斷日誌匯出
     // 案件清單操作列「輸出支援日誌」最近一次輸出的檔案位置（純 picker 呈現；不持久化、不進後端 payload）。
     pickerSupportLogPath: null,
-    // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色提示，不寫「無法完成操作」（訊息分三級，裁定 2026-10-13-15）。
+    // 'error' 或 'warning'：刪除案件成功但資料夾沒刪乾淨時，案件清單用琥珀色提示，不寫「無法完成操作」（訊息分三級）。
     pickerFeedbackLevel: 'error',
     // 審計員自己按的操作失敗或被阻擋、而且那個操作沒有自己的就地錯誤框時，在目前步驟標題下方顯示一次
-    // { id, label, message, level: 'error' | 'warn', stepIndex }（裁定 2026-10-13-16）。純畫面狀態：
+    // { id, label, message, level: 'error' | 'warn', stepIndex }。純畫面狀態：
     // 不持久化、不進後端 payload；任何 Ui.run 開始、換步驟、開案、換案與回案件清單時清掉。
     operationFailure: null,
     project: null,             // 當前專案 metadata（project.load / create 回傳）
@@ -65,7 +65,7 @@
     // GL 另帶 options 與後端算好的 availableGlFields（第五步依它停用用到未配對欄位的入口）。
     // invalidatedByImport = 來源變更使配對失效（顯示說明橫幅，重新提交後解除）。
     // droppedFields = 來源變更後，草稿裡被拿掉的欄位（新資料沒有那個來源欄），提示審計員重新選。
-    //   由底稿匯入欄位時對不上的欄位也放這裡，標 fromReport，只列在第三步上方的托盤（裁定 2026-11-09-29）。
+    //   由底稿匯入欄位時對不上的欄位也放這裡，標 fromReport，只列在第三步上方的托盤。
     // options = GL 專有的投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位、往下填補的欄位）。
     mapping: {
       gl: {
@@ -107,8 +107,8 @@
     // 不適合當「資料是否真的變了」的判準；dataGeneration 只對真正的資料落地事件跳，
     // 供資料預覽面板據此精準作廢快取並重抓（避免每個 action 都盲目重抓大母體）。
     dataGeneration: 0,
-    // 後端回報篩選命中失效的次數。第五步據此清掉已載入的命中；修改案件資料不再換掉 project 物件，
-    // 所以不能再靠「換了案件」順便清掉。
+    // 後端回報篩選命中失效的次數。第五步據此清掉已載入的命中；修改案件資料不會換掉 project 物件，
+    // 所以不能靠「換了案件」順便清掉。
     filterResultGeneration: 0
   };
 
@@ -171,7 +171,7 @@
     });
   }
 
-  // 往下填補是對來源欄做的，依來源欄成組（裁定 2026-10-28-04），畫面上和已勾欄位配同一個來源欄的欄位也顯示勾選。
+  // 往下填補是對來源欄做的，依來源欄成組，畫面上和已勾欄位配同一個來源欄的欄位也顯示勾選。
   // 改某個欄位的來源欄之前，先把清單補成畫面上看到的勾選，勾選才會跟著那個欄位走，不因為先勾哪一個欄位而不同。
   // 借方、貸方代碼是字面值，不算來源欄。
   function expandFillDownFieldsByColumn() {
@@ -293,7 +293,7 @@
   }
 
   // 第五步有沒有會被上游修改清掉的設定：已存情境，或已加入條件的草稿。上游畫面的提醒、清除後的訊息與
-  // 科目分類對話框都用這一個判斷；只有草稿時也要提醒（裁定 2026-10-15-01）。
+  // 科目分類對話框都用這一個判斷；只有草稿時也要提醒。
   function hasFilterWork(filter) {
     return !!filter && ((filter.savedScenarios || []).length > 0 || ((filter.draft && filter.draft.groups) || []).length > 0);
   }
@@ -309,7 +309,7 @@
     var clearFilter = !!(options && options.filter);
     if (clearValidation) {
       state.results.validate = null;
-      // 科目配對檔的狀態描述的是上一次驗證準備的檔案，驗證清掉後一起收起（裁定 2026-10-15-01）。
+      // 科目配對檔的狀態描述的是上一次驗證準備的檔案，驗證清掉後一起收起。
       state.validationOutput = { reports: null, template: null };
     }
     if (clearPrescreen) { state.results.prescreen = null; }
@@ -320,7 +320,7 @@
       filterDraftRev++;
       state.filterResultGeneration++;
     }
-    // 上游修改會清除後面步驟的篩選情境，第五步回到預設狀態（裁定 2026-10-07-03）。
+    // 上游修改會清除後面步驟的篩選情境，第五步回到預設狀態。
     if (options && options.filterScenarios) {
       var hadScenarios = hasFilterWork(state.filter);
       state.filter.savedScenarios = [];
@@ -330,8 +330,7 @@
       state.filterResultRef = null;
       state.filterScenarioCheck = null;
       filterDraftRev++;
-      // 審計員要回第五步重做，屬於「需要注意」（訊息分三級，裁定 2026-10-13-15）。
-      // 這句的用字依裁定 2026-10-13-28。
+      // 審計員要回第五步重做，屬於「需要注意」（訊息分三級）。
       if (hadScenarios) { Store.addMessage('前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。', 'warn'); }
     }
   }
@@ -566,7 +565,7 @@
       bumpData(); // 授權編製人員清單匯入：authorizedPreparer 預覽內容已變
     },
 
-    // GL 配對回傳的最新比對摘要；名單內容沒有改變，不再清除相依計算結果。
+    // GL 配對回傳的最新比對摘要；名單內容沒有改變，不清除相依計算結果。
     refreshAuthorizedPreparerState: function (info) {
       state.importState.authorizedPreparer = info;
       bump();
@@ -623,7 +622,7 @@
               ? Object.assign({}, report, { catalogWarning: warning }) : report;
           }));
       }
-        // 報告已產生、卻寫不進操作紀錄時，回應的 warnings 帶提醒（裁定 2026-10-19-20：回報成功並提醒）。
+        // 報告已產生、卻寫不進操作紀錄時，回應的 warnings 帶提醒；這時回報成功並提醒。
         (data.warnings || []).forEach(function (text) { Store.addMessage(text, 'warn'); });
     },
 
@@ -723,7 +722,7 @@
     },
 
     // GL 投影政策草稿（核准日三態、過帳狀態政策、人工／自動代碼、攸關資料元素欄位）。
-    // 只 patch 使用者編輯中的欄位；送出形狀與合法性由 mapping-step 組裝、後端裁定。
+    // 只 patch 使用者編輯中的欄位；送出形狀與合法性由 mapping-step 組裝、後端判定。
     patchGlMappingOptions: function (patch) {
       Object.assign(state.mapping.gl.options, patch);
       if (Object.prototype.hasOwnProperty.call(patch, 'approvalDateMode')
@@ -842,17 +841,17 @@
       bump();
     },
 
-    // 第三步「由底稿匯入欄位」帶入的欄位配對草稿（裁定 2026-11-09-27）：後端已把檔案裡的配對與目前 import columns 驗證完畢，
+    // 第三步「由底稿匯入欄位」帶入的欄位配對草稿：後端已把檔案裡的配對與目前 import columns 驗證完畢，
     // 找不到的來源欄已經拿掉，前端只做一次原子鏡像。既有 committed/invalidated 狀態刻意保留，草稿不冒充已生效配對。
-    // 沒有匯入 TB，或檔案裡沒有可帶入的 TB 配對時，bundle.tb 是 null，TB 的草稿照舊（裁定 2026-11-05-03）。
+    // 沒有匯入 TB，或檔案裡沒有可帶入的 TB 配對時，bundle.tb 是 null，TB 的草稿照舊。
     // 這時上一份檔案留下的 TB 重選項目拿掉，托盤只列這一份檔案的結果；重新匯入 TB 留下的項目照舊。
-    // dropped：檔案裡選了、目前資料找不到的欄位，格式同 droppedFields（標 fromReport），托盤據此請審計員重新選擇（裁定 2026-11-09-29）。
+    // dropped：檔案裡選了、目前資料找不到的欄位，格式同 droppedFields（標 fromReport），托盤據此請審計員重新選擇。
     restoreMappingDrafts: function (bundle, dropped) {
       state.mapping.gl.draft = Object.assign({}, bundle.gl.mapping || {});
       state.mapping.gl.droppedFields = (dropped && dropped.gl) || [];
       state.mapping.gl.amountMode = bundle.gl.amountMode;
       // v2 草稿另帶核准日三態、過帳狀態政策、人工／自動代碼與攸關資料元素定義。
-      // reader 已把 v1 正規化成 v2 形狀，因此這裡只做一次原子鏡像，不再逐欄推導。
+      // reader 已把 v1 正規化成 v2 形狀，因此這裡只做一次原子鏡像，不逐欄推導。
       state.mapping.gl.options = {
         approvalDateMode: bundle.gl.approvalDateMode || 'unmapped',
         postingStatusPolicy: bundle.gl.postingStatusPolicy || null,
@@ -878,7 +877,7 @@
     },
 
     // 換金額欄位格式：清掉不適用新格式的欄位指派與換格式是同一個操作，只 bump 一次。
-    // 分成兩次寫入時，同一次點擊會整段重繪兩次，主執行緒多卡一倍，切換的動態也晚一拍才開始（裁定 2026-10-12-03）。
+    // 分成兩次寫入時，同一次點擊會整段重繪兩次，主執行緒多卡一倍，切換的動態也晚一拍才開始。
     changeMappingMode: function (kind, draft, mode) {
       applyMappingDraft(kind, draft);
       applyMappingMode(kind, mode);
@@ -920,7 +919,7 @@
       bumpData(); // 配對提交（或載入還原）：GL 與 TB 預覽（gl、tb）內容已變
     },
 
-    // 訊息分三級（裁定 2026-10-13-15）：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
+    // 訊息分三級：error 是操作失敗，warn 是需要注意，info 是一般說明與完成紀錄。
     // 其他值與空白文字照舊不加入。
     addMessage: function (text, level) {
       if (level === undefined) { level = 'info'; }

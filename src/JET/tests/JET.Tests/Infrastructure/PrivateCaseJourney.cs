@@ -153,7 +153,7 @@ internal static class PrivateCaseJourney
                         return;
                     }
 
-                    // 第一次與每一段後續操作都在下一段開始前比對，且都在 SQL Server 清理之前完成。
+                    // 第一次與每一段後續操作都在下一段開始前比對。
                     await afterEachExport(new PrivateCaseJourneyResult(completed, diagnostics))
                         .ConfigureAwait(false);
                     foreach (var followUp in followUps)

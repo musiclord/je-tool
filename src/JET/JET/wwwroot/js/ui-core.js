@@ -10,7 +10,7 @@
   var Store = global.JetStore;
 
   // 畫面暫時隱藏的功能。categoryHierarchy 是科目分類的上下層級與進階設定：第四步分類設定的「進階設定」（分類用途、上層分類）
-  // 與第五步科目分類條件的「選取依據」。第一個正式版先隱藏，分類設定只填名稱，做到和舊版 JET 的科目配對一樣（裁定 2026-11-03-27）。
+  // 與第五步科目分類條件的「選取依據」。第一個正式版先隱藏，分類設定只填名稱，做到和舊版 JET 的科目配對一樣。
   // 前端程式、後端與資料都保留，之後的版本改成 true 就恢復。分類樹的縮排與展開箭頭、科目樹與條件讀回裡的「包含下層分類」
   // 不看這個開關，看案件資料：有分類設了上層才出現，所以開關關著時，新案件看不到它們。
   var FEATURES = { categoryHierarchy: false };
@@ -70,7 +70,7 @@
   /* ---- 共用契約鏡像（key/label 對齊後端 action 契約） ------ */
 
   // GL 借方與貸方代碼都是字面值，不是來源欄位 select。
-  // amount: true 鏡射後端 JetFieldCatalog.AmountMappingKeys：配到這些位置的來源欄是金額，第三步來源表只把它們靠右（裁定 2026-11-05-04）。
+  // amount: true 鏡射後端 JetFieldCatalog.AmountMappingKeys：配到這些位置的來源欄是金額，第三步來源表只把它們靠右。
   var GL_FIELDS = [
     { key: 'voucherNumber', label: '傳票號碼', req: 'always' },
     { key: 'lineItem', label: '傳票文件項次', req: 'optional' },
@@ -136,15 +136,15 @@
   var SEARCH_TEXT_MAX_LENGTH = 400;
   // 既定門檻；只供預設值與文案使用，不在前端判斷命中。
   // preparerMaxEntries 與 accountMaxEntries 是第五步欄位條件裡「編製分錄較少的人員」「較少使用的科目」加入時預設的筆數，
-  // 審計員可以改。第四步照舊版不挑出 11 筆以下的人員與科目（裁定 2026-10-29-27）。
-  // 「分錄金額中有連續 0 的尾數」的 0 的個數不是固定值，由後端依 GL 的借方平均算出，見下面的 trailingZeroDigits（裁定 2026-11-05-25）。
+  // 審計員可以改。第四步照舊版不挑出 11 筆以下的人員與科目。
+  // 「分錄金額中有連續 0 的尾數」的 0 的個數不是固定值，由後端依 GL 的借方平均算出，見下面的 trailingZeroDigits。
   var PRESCREEN_DEFAULTS = { preparerMaxEntries: 11, accountMaxEntries: 11 };
   // 三種展示用途各自命名，不改後端query.*Page預設200列，也不共用審計門檻。
   var RESULT_PREVIEW_PAGE_SIZE = 50;
   var TABLE_PAGE_SIZE = 200;
   var REPORT_HISTORY_PAGE_SIZE = 50;
 
-  // 金額方式名稱不用「＋」連接，免得被讀成相加（裁定 2026-10-21-11）：TB 沿用 legacy 的按鈕名稱，GL 只有雙欄方式改用 legacy 名稱。
+  // 金額方式名稱不用「＋」連接，免得被讀成相加：TB 沿用 legacy 的按鈕名稱，GL 只有雙欄方式用 legacy 名稱。
   // note 是選取後顯示的計算說明，只給要相減或依正負號判斷的方式；直接取用一欄的方式沒有說明。
   var GL_MODES = [
     { value: 'dual', label: '分別設定借貸金額', note: '配對借方與貸方金額欄位後，以借方減去貸方，計算金額。' },
@@ -163,8 +163,8 @@
   // 進階篩選的條件型別。label 逐鍵鏡像 Domain FilterConditionLabels.RuleTypes；
   // quickLabel 與 group 是前端呈現 metadata。
   // 每種型別需要什麼前置條件寫在下面的 FILTER_RULE_PREREQUISITES。
-  // group 只剩 'common' 有意義（風險樣態下拉的「常用篩選條件」分組）；其餘分組與 quickLabel 是舊挑選區的遺留 metadata，
-  // 2026-09-07 改版後畫面改用三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
+  // group 只有 'common' 有意義（風險樣態下拉的「常用篩選條件」分組）；其餘分組與 quickLabel 是遺留的 metadata，
+  // 畫面用的是三個家族（filter-step 的 RULE_FAMILIES）。value 是 AST 型別鍵（wire 契約），不隨標籤調整改動。
   var FILTER_RULE_TYPES = [
     { value: 'fieldValue', label: '欄位值比較', quickLabel: '指定值與排除', group: 'field' },
     { value: 'accountSide', label: '科目分類', group: 'nature' },
@@ -184,21 +184,18 @@
     { value: 'voucher', label: '整張傳票條件', group: 'compound' },
     // 攸關資料元素條件：舊式條件，只在舊情境讀回與編輯時出現，畫面不提供新增。
     { value: 'typed', label: '攸關資料元素條件', quickLabel: '攸關資料元素欄位條件', group: 'field' },
-    // 常用篩選條件專用的四種型別（分組獨立於其他四組）；特定尾數改用欄位條件的預設值（FILTER_COMMON_PRESETS）。
-    // 型別標籤和卡片名稱統一（裁定 2026-11-03-10）。
+    // 常用篩選條件專用的四種型別（group 是 common，不和其他型別同組）；特定尾數用欄位條件的預設值（FILTER_COMMON_PRESETS）。
+    // 型別標籤和卡片名稱統一。
     { value: 'revenueDebitNearQuarterEnd', label: '在該季度前 X 天借記收入', group: 'common' },
     { value: 'revenueWithoutNormalCounterpart', label: '貸方為收入但借方非一般對方科目', group: 'common' },
     { value: 'manualRevenueEntry', label: '收入之人工分錄', group: 'common' },
     { value: 'preparerEqualsApprover', label: '編製人員與核准人員相同', group: 'common' }
   ];
 
-  // 條件型別的分組（依審計意圖，非資料格式）。顯示順序即此陣列順序；
-  // 每組約 3–4 項，讓使用者只看自己要的那一塊，不必一次面對全部選項。
-
   // 常用篩選條件裡「重用既有型別」的五張卡（特定人員、特定摘要、空白摘要、特定尾數、非營業日）：點卡片即帶入既有型別的預填規則，
   // 不另立 wire 型別（避免重複既有述詞，單一事實在後端述詞）。overrides 套在 newFilterCondition 之上，加入時整份深拷貝。
-  // 非營業日直接加入一條「總帳日期 在非營業日」（排除補班日），和其他卡片一樣加入目前條件組（裁定 2026-10-02-03、2026-11-03-09）。
-  // legacyOverrides 是 2026-11-03 以前加入的寫法，只有這一條的子條件組；只用來認出已儲存情境裡的這張卡，按卡片時不再加入。
+  // 非營業日直接加入一條「總帳日期 在非營業日」（排除補班日），和其他卡片一樣加入目前條件組。
+  // legacyOverrides 是較早的寫法，只有這一條的子條件組；只用來認出已儲存情境裡的這張卡，按卡片時不會加入。
   // 鏡像 Domain SuspiciousKeywordDefaults；常用篩選條件的卡片與欄位條件分頁傳票摘要底下的「含特定字詞」共用同一份預填清單。
   var SUSPICIOUS_KEYWORD_DEFAULTS = ['ADJ', 'REV', 'RECLASS', 'SUSPENSE', 'ERROR', 'WRONG',
     '調整', '迴轉', '沖銷', '重分類', '避險', '重編', '錯誤', '計畫外', '預算外',
@@ -220,8 +217,8 @@
       ] }] }
   ];
 
-  // 2026-11-03 以前，非營業日卡片加入的是只有一條「總帳日期 在非營業日」的子條件組。已儲存情境裡的這種子條件組
-  // 照舊讀回「非營業日」，條件樹不改寫（裁定 2026-11-03-09）。正本是 Domain FilterConditionLabels.NonBusinessDayAtom，
+  // 較早儲存的情境裡，非營業日卡片加入的是只有一條「總帳日期 在非營業日」的子條件組。已儲存情境裡的這種子條件組
+  // 照舊讀回「非營業日」，條件樹不改寫。正本是 Domain FilterConditionLabels.NonBusinessDayAtom，
   // 後端 FilterConditionRenderer 以同一規則辨識。
   var FILTER_COMMON_ATOM_LABELS = {
     nonBusinessDay: '非營業日'
@@ -255,17 +252,17 @@
     { key: 'preparerEqualsApprover', kind: 'type', ref: 'preparerEqualsApprover', label: '編製人員與核准人員相同' }
   ];
 
-  // 十條逐筆預篩選規則的畫面鏡像，一條一筆，一條規則一個定義（裁定 2026-10-22-13）。後端正本是 Domain PrescreenRuleDefinitions：
+  // 十條逐筆預篩選規則的畫面鏡像，一條一筆，一條規則一個定義。後端正本是 Domain PrescreenRuleDefinitions：
   //   value 與 label 鏡像 Domain FilterConditionLabels.PrescreenKeys，FilterConditionLabelMirrorTests 雙向守衛；
   //   prerequisites 逐項鏡像 Domain JetRuleRequirements，順序相同，FilterBackendRuleMirrorFrontendTests 逐項比對，
   //   'gl:' 開頭的是 GL 語意欄位，其他是案件資料；description 是第四步卡片與第五步條件共用的說明。
   // 述詞與需求的正本都在後端；第五步欄位條件的欄位與常用查法、範例、常用篩選條件的卡片、預篩選分頁與條件卡片都依需求和後端算好的
-  // 可用欄位停用並寫原因，第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05）；前端不自己推。
+  // 可用欄位停用並寫原因，第五步不能用 GL 沒有配對的欄位；前端不自己推。
   var PRESCREEN_RULES = [
     { value: 'prepPeriodApproval', label: '財報準備日起核准', prerequisites: ['gl:approvalDate', 'prepStartDate'],
       description: '傳票核准日在案件設定的期末財報準備日當日或之後。檢查範圍為本次測試的分錄。' },
     { value: 'suspiciousKeywords', label: '摘要特定描述', prerequisites: ['gl:description'],
-      // 字詞個數由預設清單算出：裁定 2026-11-05-43 拿掉「帳外」回到 24 個詞時，清單改了，這裡寫死的 25 沒跟著改（2026-11-06 提交前複審查到）。
+      // 字詞個數由預設清單算出，不寫死數字，清單改了這裡才會跟著改。
       description: '摘要包含預設的 ' + SUSPICIOUS_KEYWORD_DEFAULTS.length + ' 個中英文關鍵字之一，包含繁體與簡體文字。要檢視或調整整份清單，到第五步「欄位條件」分頁，按傳票摘要底下的「含特定字詞」。' },
     { value: 'unexpectedAccountPair', label: '未預期借貸組合', prerequisites: ['accountMapping', 'revenueCategory', 'counterpartCategory'],
       description: '貸方為收入的分錄，同張傳票沒有應收款項、現金或預收款借方，但至少有一筆借方金額大於 0 的分錄。第四步與預篩選報告列出這些傳票的全部分錄；在第五步作為條件時，符合的是收入貸方的分錄。需先完成科目配對。' },
@@ -292,8 +289,8 @@
     if (zeros) { return '金額尾數連續 ' + zeros + ' 個 0'; }
     var rule = prescreenRule(key); return rule ? rule.label : key;
   }
-  // 「分錄金額中有連續 0 的尾數」的 0 的個數：後端照 IDEA 版由 GL 借方金額合計除以全部分錄筆數算出（裁定 2026-11-05-25），
-  // 跟著已確認的 GL 配對；第五步「尾數連續多個 0」加入時也預設這個個數（裁定 2026-11-05-26）。還沒確認 GL 配對時是 null。
+  // 「分錄金額中有連續 0 的尾數」的 0 的個數：後端照 IDEA 版由 GL 借方金額合計除以全部分錄筆數算出，
+  // 跟著已確認的 GL 配對；第五步「尾數連續多個 0」加入時也預設這個個數。還沒確認 GL 配對時是 null。
   function trailingZeroDigits() {
     var state = Store.getState();
     var committed = state && state.mapping && state.mapping.gl ? state.mapping.gl.committed : null;
@@ -338,7 +335,7 @@
     return p && p.positioning && typeof p.positioning === 'object' ? p.positioning : PRESCREEN_POSITIONING_COPY;
   }
 
-  // 科目配對分析三模式（見 docs/jet-guide.md 第 6 節「進階條件篩選」）。
+  // 科目配對分析三模式。
   var ACCOUNT_PAIR_MODE_OPTIONS = [
     { value: 'exact', label: '借方是 A 且貸方是 B' },
     { value: 'debitAnchor', label: '借方是 A，看它的對方科目' },
@@ -349,7 +346,7 @@
   // accountPair exact 與 specialAccountCategoryPair drAndCr 述詞相同，新情境只用後者；exact 只給舊情境讀回。
   var ACCOUNT_COMBINATION_OPTIONS = [
     { type: 'specialAccountCategoryPair', mode: 'drAndCr', label: '借方是 A 且貸方是 B', hint: '同一張傳票同時有 A 借方與 B 貸方；輸出 A 借列與 B 貸列。' },
-    // 兩個否定模式照舊版連同一張傳票對方那一側一起輸出（裁定 2026-11-05-45）。
+    // 兩個否定模式照舊版連同一張傳票對方那一側一起輸出。
     { type: 'specialAccountCategoryPair', mode: 'drNotCr', label: '借方是 A 且整張傳票沒有 B 貸方', hint: '輸出 A 借列與同傳票所有貸方列。A、B 都選 Cash 就是「借現金、貸非現金」。' },
     { type: 'specialAccountCategoryPair', mode: 'notDrCr', label: '貸方是 B 且整張傳票沒有 A 借方', hint: '輸出 B 貸列與同傳票所有借方列。A、B 都選 Cash 就是「貸現金、借非現金」。' },
     { type: 'accountPair', mode: 'debitAnchor', label: '借方是 A，看它的對方科目', hint: '輸出 A 借列與同傳票所有貸方列。' },
@@ -357,11 +354,11 @@
     { type: 'accountPair', mode: 'exact', label: '借方是 A 且貸方是 B（舊格式）', hint: '同一張傳票同時有 A 借方與 B 貸方；結果列出符合的借方與貸方分錄。', legacy: true }
   ];
 
-  // 第五步右側「從情境範例開始」的情境範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽（裁定 2026-11-03-05）。
+  // 第五步右側「從情境範例開始」的情境範例：一鍵把草稿換成常見的審計問題，審計員再改數值或直接預覽。
   // 純前端資料；套用時由 filter-step 的 applyTemplate 深拷貝規則。範例裡的規則不打卡片標記；
   // commonCard 指定的卡片照一般點卡片的方式帶入，帶有那張卡的標記。
   // 前置條件不另外標：filter-step 依範例裡每一條條件查上面的規則需求表，停用並寫原因。
-  // 查核截止日在建立案件時必填，不列為前置條件；沒有作用的「案件沒有查核截止日」分支已刪除（裁定 2026-10-14-03）。
+  // 查核截止日在建立案件時必填，不列為前置條件。
   // pickField: 'text' 表示條件裡 fieldId 空白的那一條，要換成一個文字型攸關資料元素欄位。
   // 兩個現金範本和新建條件一樣用「包含下層分類」。
   var FILTER_SCENARIO_TEMPLATES = [
@@ -435,13 +432,12 @@
           { type: 'fieldValue', field: 'glDate', operator: 'dayOfMonthNotIn', values: ['1', '2', '3'], includeBlank: false, __valueType: 'date' }] }] }] }
   ];
 
-  // 第五步「欄位條件」分頁每個欄位的常用查法：依欄位分組，收在欄位「加入」打開的選單裡（裁定 2026-11-03-37），
+  // 第五步「欄位條件」分頁每個欄位的常用查法：依欄位分組，收在欄位「加入」打開的選單裡，
   // 按下只把 conditions 這一條加入目前作用中的條件組。
-  // 項目原本按審計目的分類，那個入口已取消，改掛在各自的欄位底下（裁定 2026-11-03-05、2026-11-03-06）；
-  // 常數與相關函式的名稱用常用查法的字根（裁定 2026-11-03-30）。
+  // 項目掛在各自的欄位底下；常數與相關函式的名稱用常用查法的字根。
   // 型別與比較方式都是後端既有的；前置條件和範例一樣，由 filter-step 依條件內容查規則需求表。
   // __periodEndDays 與範例相同，加入時由查核截止日往前算出起訖日期。label 是選單裡顯示的短名稱，name 是完整名稱，
-  // 用在讀屏與滑鼠提示。field 是欄位條件分頁的欄位識別；accountCategory 是第四列「科目分類」的入口。
+  // 用在讀屏與滑鼠提示。field 是欄位條件分頁的欄位識別；accountCategory 是第四組「類別」裡「科目分類」的入口。
   var FIELD_SHORTCUT_GROUPS = [
     { key: 'glDate', field: 'glDate', checks: [
       { key: 'glDateWeekend', label: '週末', name: '總帳日期在週末', conditions: [{ type: 'fieldValue', field: 'glDate', operator: 'isWeekend' }] },
@@ -459,8 +455,8 @@
     ] },
     { key: 'amount', field: 'amount', checks: [
       { key: 'largeAmount', label: '大額', name: '大額分錄', focusValue: true, conditions: [{ type: 'fieldValue', field: 'amount', operator: 'greaterThan', value: '', amountBasis: 'absolute' }] },
-      // 一條條件（裁定 2026-11-03-07）；改版前加入的是「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組，已儲存的照舊能讀。
-      // 個數留空，加入時帶由 GL 算出的個數（裁定 2026-11-05-26），見 FilterValues.zeroRunDefault。
+      // 一條條件；已儲存情境裡「整數尾數符合 000000 且金額絕對值大於或等於 1」的子條件組照舊能讀。
+      // 個數留空，加入時帶由 GL 算出的個數，見 FilterValues.zeroRunDefault。
       { key: 'trailingZeros', label: '尾數連續多個 0', name: '金額尾數連續多個 0', conditions: [
         { type: 'fieldValue', field: 'amount', operator: 'endsWithZeros', value: '', amountBasis: 'absolute' }] }
     ] },
@@ -490,7 +486,7 @@
     { value: 'notDrCr', label: '貸方是 B 且整張傳票沒有 A 借方' }
   ];
 
-  // 借貸科目分類（accountSide）三模式（兩值語意，裁定 2026-09-07-03）。標籤鏡像 Domain FilterConditionLabels。
+  // 借貸科目分類（accountSide）的兩種模式。標籤鏡像 Domain FilterConditionLabels。
   var ACCOUNT_SIDE_MODE_OPTIONS = [
     { value: 'is', label: '科目屬於指定分類' },
     { value: 'isNot', label: '科目不屬於指定分類' }
@@ -524,7 +520,7 @@
 
   // 後端 FilterScenarioLimits.MaxSavedScenarios 的 UI 鏡像（每個案件可保存的篩選情境數）；後端仍是權威。
   var FILTER_MAX_SAVED_SCENARIOS = 10;
-  // 情境名稱上限，和後端 FilterScenarioLimits.MaxNameLength 相同（三種資料庫共用，裁定 2026-10-19-26）；輸入框直接限制字數。
+  // 情境名稱上限，和後端 FilterScenarioLimits.MaxNameLength 相同；輸入框直接限制字數。
   var FILTER_MAX_SCENARIO_NAME_LENGTH = 400;
 
   // typed（攸關資料元素）條件的 operator 封閉選單。value/label 逐鍵鏡像 Domain
@@ -584,7 +580,7 @@
     return [];
   }
 
-  // 認不得的預篩選條件、比對方式或借貸組合方式不印程式代號（裁定 2026-10-14-01）。
+  // 認不得的預篩選條件、比對方式或借貸組合方式不印程式代號。
   var RETIRED_CONDITION_LABEL = '已停用的條件';
 
   function typedOperatorLabel(op) {
@@ -594,7 +590,7 @@
   }
 
   // operand carrier 判定（固定三種）：只決定要渲染哪一種輸入框，
-  // 缺漏／型別錯誤的最終裁定仍由後端 invalid_scenario 負責。
+  // 缺漏／型別錯誤的最終判定仍由後端 invalid_scenario 負責。
   function typedOperatorCarrier(op) {
     if (op === 'isBlank' || op === 'isNotBlank') { return 'none'; }
     if (op === 'between') { return 'range'; }
@@ -646,10 +642,10 @@
       .replace(/'/g, '&#39;');
   }
 
-  // 畫面上金額的共用顯示格式：兩位小數加千分位（裁定 2026-10-02-01：「畫面統一兩位小數加千分位；
-  // 報表與底稿不變」）。唯一的例外是右側資料預覽，那裡的金額固定顯示四位（裁定 2026-10-22-06），
+  // 畫面上金額的共用顯示格式：兩位小數加千分位，各畫面統一；報表與底稿不適用。
+  // 唯一的例外是右側資料預覽，那裡的金額固定顯示四位，
   // 由 data-preview.js 的 previewMoney 照後端給的十進位字串補零，不經過這裡。
-  // 純顯示格式化，非計算——前端不得計算金額（見 AGENTS.md 前端邊界）；
+  // 純顯示格式化，非計算——前端不得計算金額；
   // 輸入框、篩選條件值與送給後端的值不經過這裡。
   // 空值或無效值一律 '—'（含 null、undefined、空字串、NaN）；其餘一律兩位小數（0 → 0.00、35920.33 → 35,920.33）。
   function money(value) {
@@ -660,7 +656,7 @@
       : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // 畫面上數量的唯一寫法：筆數、列數這類數量加千分位（裁定 2026-10-30-19）。Excel 列號、第幾組第幾條與頁碼這類位置，
+  // 畫面上數量的唯一寫法：筆數、列數這類數量加千分位。Excel 列號、第幾組第幾條與頁碼這類位置，
   // 以及年份、日期、傳票號碼與科目代號這類代碼不是數量，不經過這裡。空值或無效值寫「—」。
   // 後端訊息裡的數量由 Domain 的 CountText.Format 處理，兩邊寫法相同。
   function countText(value) {
@@ -704,11 +700,11 @@
   }
 
   // 統一的 action 執行包裝：權威 single-flight（同一時間至多一項作業）＋ busy 狀態 ＋ 錯誤導入訊息區。
-  // 進入時若已 busy：留下可見提示後回 resolved no-op（不執行 factory），把各步驟手寫的
-  //   `if (busy) return` 一般化到唯一入口，杜絕鍵盤／頂列／目錄／預覽等破口併發第二項作業。
+  // 進入時若已 busy：留下可見提示後回 resolved no-op（不執行 factory）；busy 判斷只在這個入口，各步驟不手寫
+  //   `if (busy) return`，杜絕鍵盤／頂列／目錄／預覽等破口併發第二項作業。
   // 錯誤在此吸收（已顯示給使用者），避免 unhandled rejection；後端 operation_in_progress 誠實呈現「另一項作業還在進行」。
-  // 成功時只留一則完成訊息；耗時保留，改成秒並合併（裁定 2026-10-13-17）：
-  // options.completionMessage(value) 回傳這個操作自己的完成句，Ui.run 記「完成句，耗時 X。」，操作本身不再另記完成句；
+  // 成功時只留一則完成訊息，耗時寫進同一則：
+  // options.completionMessage(value) 回傳這個操作自己的完成句，Ui.run 記「完成句，耗時 X。」，操作本身不另記完成句；
   // 回傳空字串表示這次其實沒有做事（例如沒有選檔），不記。沒有 completionMessage 而有 logCompletion 時，
   // 記「操作名稱完成，耗時 X。」。logCompletionWhen 可排除「檔案選擇已取消」這類 resolved no-op。
   // 失敗與取消在括號裡附總耗時，有 busyDetail 時再附最後進度；被擋下與「另一項作業還在進行」沒有開始做事，不附耗時。
@@ -723,9 +719,8 @@
     return Date.now();
   }
 
-  // 耗時的唯一寫法，不再用毫秒（裁定 2026-10-13-17）：不到 60 秒寫一位小數的秒，例如「4.2 秒」；
-  // 60 秒以上寫「2 分 51 秒」；一小時以上寫「1 小時 3 分」。四捨五入是 0.0 秒時寫「不到 0.1 秒」
-  // （這個寫法依裁定 2026-10-14-01）。
+  // 耗時的唯一寫法，不用毫秒：不到 60 秒寫一位小數的秒，例如「4.2 秒」；
+  // 60 秒以上寫「2 分 51 秒」；一小時以上寫「1 小時 3 分」。四捨五入是 0.0 秒時寫「不到 0.1 秒」。
   var UNDER_TENTH_SECOND = '不到 0.1 秒';
   function formatElapsed(milliseconds) {
     var value = Math.max(0, Number(milliseconds) || 0);
@@ -753,10 +748,10 @@
     return options.logCompletion ? label + '完成' : '';
   }
 
-  // 「另一項作業還在進行」的唯一寫法；原本兩處的寫法統一成同一句（裁定 2026-10-13-27）。
+  // 「另一項作業還在進行」的唯一寫法。
   var OTHER_OPERATION_RUNNING = '另一項作業還在進行，請等它完成後再試。';
 
-  // JavaScript 內建的程式錯誤（TypeError 這類）是程式本身的問題，英文原文不給審計員看，畫面不露出系統用詞（裁定 2026-10-19-04）。
+  // JavaScript 內建的程式錯誤（TypeError 這類）是程式本身的問題，英文原文不給審計員看，畫面不露出系統用詞。
   // 這時和錯誤沒有訊息時一樣，改寫呼叫端給的說明，沒有就寫後端非預期錯誤的同一句；後端回的錯誤與前端自己寫的說明照原句。
   var UNEXPECTED_ERROR_MESSAGE = '發生非預期的錯誤，此操作未完成。請再試一次。';
 
@@ -772,18 +767,18 @@
     return fallback == null ? UNEXPECTED_ERROR_MESSAGE : fallback;
   }
 
-  // 進度接進訊息時，開頭「工作底稿：正在…」的冒號拿掉，免得一句出現兩個冒號（裁定 2026-10-14-01）。
+  // 進度接進訊息時，開頭「工作底稿：正在…」的冒號拿掉，免得一句出現兩個冒號。
   // 忙碌畫面上的進度照舊，只有訊息面板用這個寫法。
   function progressInMessage(detail) {
     return String(detail || '').replace(/^([^：，「」]+)：(?=正在)/, '$1');
   }
 
-  // 最後進度不再重複耗時：進度文字結尾的「，經過 …」拿掉（裁定 2026-10-13-28）。
+  // 最後進度不重複耗時：進度文字結尾的「，經過 …」拿掉。
   function progressWithoutElapsed(detail) {
     return progressInMessage(detail).replace(/，經過[^，]*$/, '');
   }
 
-  // 操作是否已把錯誤寫在自己的就地錯誤框（裁定 2026-10-13-16：已經有就地錯誤框的操作維持原樣）。
+  // 操作是否已把錯誤寫在自己的就地錯誤框。
   // inlineError 可以是布林值，或收到錯誤後回傳真假的函式；沒有標的操作一律顯示步驟提示框。
   function showsErrorInline(options, error) {
     if (typeof options.inlineError === 'function') { return !!options.inlineError(error); }
@@ -810,7 +805,7 @@
     } catch (error) {
       promise = Promise.reject(error);
     }
-    // 取消目標只由 app.js 在請求送出時依可取消動作清單設定；這裡不再用 promise 上的 requestId 補設，
+    // 取消目標只由 app.js 在請求送出時依可取消動作清單設定；這裡不用 promise 上的 requestId 補設，
     // 否則開啟資料夾這類不能取消的動作也會出現取消鈕。
     return Promise.resolve(promise)
       .then(function (value) {
@@ -825,11 +820,10 @@
       })
       .catch(function (error) {
         var message;
-        // 訊息分三級（裁定 2026-10-13-15）：操作失敗是錯誤；被阻擋與另一項作業進行中是需要注意；使用者自己取消是一般說明。
+        // 訊息分三級：操作失敗是錯誤；被阻擋與另一項作業進行中是需要注意；使用者自己取消是一般說明。
         var level = 'error';
         var showInStep = true;
         var lastProgress = progressWithoutElapsed(Store.getState().busyDetail);
-        // 句子照裁定 2026-10-13-28 的用字：
         // 另一項作業還在進行與尚無法執行都沒有開始做事，不附耗時；取消與失敗把耗時與最後進度收進括號。
         var timed = false;
         if (error && error.code === 'operation_in_progress') {
@@ -842,7 +836,7 @@
           showInStep = false;
           timed = true;
         } else if (error && (error.code === 'completeness_prerequisite_failed' || error.code === 'no_saved_scenario')) {
-          // 沒有已儲存的情境也是前置條件不足，和尚無法執行用同一種寫法（裁定 2026-10-14-01）。
+          // 沒有已儲存的情境也是前置條件不足，和尚無法執行用同一種寫法。
           message = label + '尚無法執行：' + trimSentenceEnd(errorText(error));
           level = 'warn';
         } else {
@@ -852,7 +846,7 @@
         }
         // 步驟提示框只寫動作與原因；耗時與最後進度只進訊息面板。
         var stepNotice = message + '。';
-        // 失敗與取消的括號後面也以句號結尾（裁定 2026-10-14-01）。
+        // 失敗與取消的括號後面也以句號結尾。
         if (timed) {
           message += '（' + elapsedPhrase('耗時', monotonicNowMilliseconds() - startedAt) +
             (lastProgress ? '，最後進度：' + lastProgress : '') + '）。';
@@ -917,7 +911,7 @@
     return Promise.reject(unavailable);
   }
 
-  // 句子不再寫按鈕名稱，兩種離開動作用同一種寫法（裁定 2026-10-13-28）；departure 參數只標明是哪個離開動作。
+  // 句子不寫按鈕名稱，兩種離開動作用同一種寫法；departure 參數只標明是哪個離開動作。
   function departureRetryMessage(state) {
     return state.activeRequestId
       ? '作業還在進行。請先按「取消作業」，等取消完成後再試一次。'
@@ -945,7 +939,7 @@
       return;
     }
     Store.setBusy(false);
-    // 沒有原因時不寫「未知錯誤」（裁定 2026-10-14-01）。
+    // 沒有原因時不寫「未知錯誤」。
     Store.addMessage(
       errorText(error, '') ? '無法離開案件，已保留目前畫面：' + errorText(error, '') : '無法離開案件，已保留目前畫面。請再試一次。',
       'error');
@@ -962,7 +956,7 @@
     return hit ? hit.label : key;
   }
 
-  // 條件用的欄位已不存在時，標題與讀回寫的名稱，不印程式代號（裁定 2026-10-14-01）。
+  // 條件用的欄位已不存在時，標題與讀回寫的名稱，不印程式代號。
   function missingConditionFieldName(state, rule, usage) {
     var readback = usage === 'readback';
     if (rule && rule.fieldId) { return '已不在欄位配對中的攸關資料元素欄位'; }
@@ -994,7 +988,7 @@
     if (!rule) { return []; }
     if (rule.type === 'prescreen') { var prescreen = prescreenRule(rule.prescreenKey); return prescreen ? prescreen.prerequisites : []; }
     if (FILTER_FIELD_RULE_TYPES.indexOf(rule.type) >= 0) {
-      // 國定假日與補班日的比較方式另外需要各自的清單，排在欄位之後（裁定 2026-11-05-55、2026-11-05-66）。
+      // 國定假日與補班日的比較方式另外需要各自的清單，排在欄位之後。
       var lists = rule.type !== 'fieldValue' ? []
         : rule.operator === 'isHoliday' || rule.operator === 'isNotHoliday' ? ['holidayCalendar']
         : rule.operator === 'isMakeupDay' || rule.operator === 'isNotMakeupDay' ? ['makeupCalendar'] : [];
@@ -1004,8 +998,7 @@
     return FILTER_RULE_PREREQUISITES[rule.type] || [];
   }
 
-  // 第五步的案件事實，和後端第五步相同。國定假日清單照裁定 2026-11-05-55 也檢查，原本引用 2026-10-04-01 而不檢查假日檔；
-  // 補班日清單照裁定 2026-11-05-66 比照國定假日。
+  // 第五步的案件事實，和後端第五步相同。國定假日清單也檢查；補班日清單比照國定假日。
   function rulePrerequisiteMet(state, prerequisite) {
     var imp = (state && state.importState) || {}, mapping = imp.accountMapping;
     if (prerequisite.indexOf('gl:') === 0) { return glFieldAvailable(state, prerequisite.slice(3)); }
@@ -1131,7 +1124,7 @@
   }
 
   // 選的分類都沒有下層時，「包含下層分類」與「僅分類本身」選到的分類相同，條件讀回不必寫選取依據與實際納入分類。
-  // 新案件的分類都是平的一層（裁定 2026-11-03-27），讀回就和舊版一樣只寫分類；「相同分類用途」會納入同用途的其他分類，照舊寫出。
+  // 新案件的分類都是平的一層，讀回就和舊版一樣只寫分類；「相同分類用途」會納入同用途的其他分類，照舊寫出。
   // 後端 FilterConditionRenderer.CategorySelectionMatters 是同一個規則。
   function categorySelectionMatters(state, ids, mode) {
     if (mode !== 'subtree' && mode !== 'node') { return true; }
@@ -1161,12 +1154,12 @@
     var tree = categoryTree(state);
     var prefix = view.focusKey || 'category';
     var all = accountCategories(state);
-    // 分類都是平的一層時（裁定 2026-11-03-27 起新案件都是），沒有展開箭頭要對齊，不留空位。
+    // 分類都是平的一層時（新案件都是），沒有展開箭頭要對齊，不留空位。
     var branches = tree.some(function (category) { return tree.some(function (child) { return child.parentCategoryId === category.categoryId; }); });
     return '<div class="category-tree">' + tree.map(function (category) {
         var branch = tree.some(function (child) { return child.parentCategoryId === category.categoryId; });
         var open = !(view.collapsed || {})[category.categoryId];
-        // 展開與收合要一致（裁定 2026-10-13-11）：分類節點跟著上層收放，標 data-collapsible；一開始就藏起來的節點直接輸出 hidden。
+        // 展開與收合要一致：分類節點跟著上層收放，標 data-collapsible；一開始就藏起來的節點直接輸出 hidden。
         var hidden = categoryNodeHidden(all, view.collapsed, category.categoryId);
         return '<div class="category-tree__row" data-category-node="' + esc(category.categoryId) + '" data-collapsible' + (hidden ? ' hidden' : '') +
           ' style="margin-inline-start:' + category.depth + 'em">' +
@@ -1255,7 +1248,7 @@
       clearAttributes: { 'data-page-search-clear': true } });
   }
 
-  // 只有一頁時不顯示分頁列，超過 200 筆才分頁（裁定 2026-10-16-03）。總筆數未知時，以是否有前後頁判斷。
+  // 只有一頁時不顯示分頁列，超過 200 筆才分頁。總筆數未知時，以是否有前後頁判斷。
   function pagerNeeded(page, pages, canNext) {
     if (page > 1 || canNext) { return true; }
     return pages != null && pages > 1;
@@ -1312,7 +1305,7 @@
       var s = Store.getState();
       return (persistent || root.isConnected !== false) && s.project === project && s.dataGeneration === generation && resultSource(s) === source;
     }
-    // 展開與收合要一致（裁定 2026-10-13-11）：狀態列與重試按鈕原地收放，標 data-collapsible；收起時保留原來的字，
+    // 展開與收合要一致：狀態列與重試按鈕原地收放，標 data-collapsible；收起時保留原來的字，
     // 才看得到它收回去，不會先變成空白再消失。
     var status = document.createElement('p');
     status.className = 'page-status';
@@ -1539,14 +1532,13 @@
   }
 
   // 步驟 index 的進入條件；missing 描述「還缺什麼」。
-  // 對齊 docs/jet-frontend-description.md「六個步驟」。
   function stepGate(state, index) {
     var missing = [];
     switch (index) {
       case 1:
         if (!state.project) { missing.push('建立或載入案件'); }
         break;
-      // 裁定 2026-10-29-16：沒有 TB 也能往下做，逐科目比對由資料驗證寫無法執行和原因，審計員在底稿說明。
+      // 沒有 TB 也能往下做，逐科目比對由資料驗證寫無法執行和原因，審計員在底稿說明。
       case 2:
         if (!state.importState.gl) { missing.push('匯入 PBC-GL'); }
         break;
@@ -1562,7 +1554,7 @@
         }
         break;
       case 5:
-        // 裁定 2026-10-29-16：沒有已儲存的情境也能產生工作底稿，第三、四步留空。只有已儲存的情境無法套用目前規則時，
+        // 沒有已儲存的情境也能產生工作底稿，第三、四步留空。只有已儲存的情境無法套用目前規則時，
         // 底稿會用到過期的條件，才鎖住第六步；已經有版本紀錄時仍能進來查看，匯出按鈕照樣停用（見 export-step.js）。
         var unusable = unusableFilterScenarioReason(state);
         if (unusable && !hasWorkingPaperHistory(state)) { missing.push(unusable); }
@@ -1734,12 +1726,12 @@
     return global.JetUi.accountMappingEditor.confirmPending(consequence, continueLabel, options);
   }
 
-  // 「尚未儲存」對話框：第四步科目分類與第五步篩選情境共用這一個，同功能的元件只留一套（裁定 2026-10-19-08）。
+  // 「尚未儲存」對話框：第四步科目分類與第五步篩選情境共用這一個，同功能的元件只留一套。
   // 按鈕由左到右是「留在這裡」、不儲存也繼續、儲存並繼續；沒有 save 時只留前兩顆，第二顆改成主要按鈕。
   // 第二顆的字由呼叫端給：改動會留在畫面上時寫「先不儲存」，會被換掉或丟掉時寫「不儲存，直接…」。
   // 按 Esc 或點對話框外面等於留在這裡，焦點回到原本的按鈕。同一時間只開一個；開著或正在儲存時，新的要求當成留在這裡。
   // options：id、title、body、continueLabel、saveLabel、save（回傳 Promise，值為 true 表示存好了）、focusStay（預設焦點留在「留在這裡」）、
-  // proceed（選了不儲存時當下執行，儲存成功後接著執行；save 在按下時當下送出，和原本兩個對話框一樣）。
+  // proceed（選了不儲存時當下執行，儲存成功後接著執行；save 在按下時當下送出）。
   // 回傳 Promise<boolean>：true 表示可以繼續（選了不儲存，或儲存成功）；儲存失敗時焦點回到原本的按鈕並回傳 false。
   var unsavedDialogOpen = false;
   function confirmUnsaved(options) {
@@ -1823,13 +1815,13 @@
   // 清單與表格的列整列可點（.row-toggle，例如規則清單、已儲存情境與傳票表），箭頭同樣在字前面，再點一次就收起。
   // 打開右側資料預覽不是就地展開，一律寫「資料預覽」，字後面接面板圖示（.jet-view--preview）。
   // 會改設定或資料的展開，例如「進階設定」與匯入工作的「操作」，仍是按鍵，字後面接箭頭（.jet-disclosure）。
-  // 同功能的元件只留一套（裁定 2026-10-19-08）；點傳票分錄的標題就能收合（裁定 2026-10-29-04）；裁定 2026-10-30-36 用圖示區分兩種檢視。
+  // 同功能的元件只留一套；點傳票分錄的標題就能收合；兩種檢視用圖示區分。
   function disclosureAttributes(open, panelId) {
     return ' aria-expanded="' + (open ? 'true' : 'false') + '"' + (panelId ? ' aria-controls="' + esc(panelId) + '"' : '');
   }
 
   // 只用自訂條件時，第五步自動產生的情境動機只有這兩種開頭，內容是把篩選條件再念一次。產生動機的 automaticMetadata 與判斷用的
-  // isGeneratedRationale 讀同一份；畫面上條件已經列出，這種動機不列，因為它和篩選條件是同性質的說明（裁定 2026-10-29-03）。
+  // isGeneratedRationale 讀同一份；畫面上條件已經列出，這種動機不列，因為它和篩選條件是同性質的說明。
   var GENERATED_RATIONALE_PREFIXES = ['檢視符合以下條件的分錄：', '依已設定的條件組合篩選分錄，檢視'];
   function isGeneratedRationale(text) {
     var value = String(text || '');
@@ -1837,7 +1829,7 @@
   }
 
   // 第五步已儲存情境與第六步情境選項列出的動機；沒有要列的回傳空字串。存進情境與寫進底稿第三步的動機不變，這裡只決定畫面列什麼。
-  // 裁定 2026-10-30-02：有卡片時自動產生的動機只列前五張卡的評估說明，只寫卡片名稱或「自訂：」加條件的那幾行不列，
+  // 有卡片時自動產生的動機只列前五張卡的評估說明，只寫卡片名稱或「自訂：」加條件的那幾行不列，
   // 因為下方已經列出條件；審計員改寫過的動機整段列出。動機是否自動產生看編輯來源的 rationaleIsAutomatic。
   function scenarioRationaleText(scenario) {
     var text = String((scenario && scenario.rationale) || '');
@@ -1853,7 +1845,7 @@
     }).join('\n');
   }
 
-  // 頁籤：同一組裡選一個、切換底下內容的控制項，外觀是底線頁籤或凹槽分段都一樣，同功能的元件只留一套（裁定 2026-10-19-08）。
+  // 頁籤：同一組裡選一個、切換底下內容的控制項，外觀是底線頁籤或凹槽分段都一樣，同功能的元件只留一套。
   // 外層 role="tablist"，每個是 role="tab"，選中的寫 aria-selected="true"，只有它留在 Tab 鍵順序裡。
   // 畫面畫好後呼叫 Ui.bindTabs(範圍)：方向鍵左右、Home、End 直接換到那一個頁籤，等於按下它，所以各組只要處理按下。
   // 頁籤只決定畫面看哪一頁；要存進案件的設定（例如金額模式）用選項按鈕，開關式的選取（例如常用篩選條件的卡片）用 aria-pressed。
@@ -1908,7 +1900,7 @@
     });
   }
 
-  // 選單：按一個按鈕打開的一串選擇，例如已儲存情境的「操作」與資料預覽的「其他資料」。同功能的元件只留一套（裁定 2026-10-19-08）。
+  // 選單：按一個按鈕打開的一串選擇，例如已儲存情境的「操作」與資料預覽的「其他資料」。同功能的元件只留一套。
   // 外層 .jet-menu；按鈕 .jet-menu__toggle 寫 aria-haspopup="menu"、aria-expanded 與 aria-controls；
   // 選單 .jet-menu__items 是 role="menu"，關閉時 hidden；每一項是 role="menuitem"、tabindex="-1" 的按鈕。
   // 畫面畫好後呼叫 Ui.bindMenus(範圍)。開關、鍵盤與點外面關閉都在這裡處理，各畫面只處理按下項目：
@@ -1966,7 +1958,7 @@
   }
 
   // 選單預設從按鈕下方長出來；下方放不下、上方空間又比較多時，改從按鈕上方長出來。
-  // 第五步已儲存情境靠近捲動區底邊的那幾列，原本「操作」選單的最後一項會被底邊切掉。
+  // 第五步已儲存情境靠近捲動區底邊的那幾列，不這樣做的話「操作」選單的最後一項會被底邊切掉。
   // 量的是剛打開、還沒加 jet-menu--up 的位置；打開的動畫以上緣為原點縮放，上緣的位置不受影響。
   function placeMenu(menu) {
     var toggle = menuToggle(menu);
@@ -2126,7 +2118,7 @@
     };
   }
 
-  // 記下目前步驟失敗時的唯一寫法（裁定 2026-10-13-28）。開案時回到上次儲存的步驟。
+  // 記下目前步驟失敗時的唯一寫法。開案時回到上次儲存的步驟。
   function stepSaveFailureText(error) {
     return '目前所在的步驟未能儲存：' + trimSentenceEnd(errorText(error)) +
       '。下次開啟此案件時，會回到上次儲存的步驟。';
@@ -2274,11 +2266,11 @@
         return global.JetApi.logRecent({}).then(function (log) {
           Store.seedMessages(log.messages || []);
         }).catch(function () {}).then(function () {
-          // 案件名稱就是 projectId，這句的用字依裁定 2026-10-13-28。
+          // 案件名稱就是 projectId。
           Store.addMessage('已開啟案件「' + data.project.projectId + '」。', 'info');
           // 訊息歷史還原會整批取代畫面訊息，所以改版提示放在還原之後。
           var recalculated = filterScenarioRecalculatedMessage(data.filterScenarioCheck);
-          // 報告已過期、需要時要重新產生，屬於「需要注意」（訊息分三級，裁定 2026-10-13-15）。
+          // 報告已過期、需要時要重新產生，屬於「需要注意」（訊息分三級）。
           if (recalculated) { Store.addMessage(recalculated, 'warn'); }
         });
       });
@@ -2320,7 +2312,7 @@
             };
           })
         : [],
-      // 確認配對時往下填補空白的欄位；改版前確認的配對沒有這一項，是空清單。
+      // 確認配對時往下填補空白的欄位；已確認的配對沒有這一項時是空清單。
       fillDownFields: Array.isArray(source.fillDownFields) ? source.fillDownFields.slice() : []
     };
   }
@@ -2328,13 +2320,13 @@
   // project.load.filterScenarioCheck：開案時 JET 用目前規則檢查已儲存情境的結果。
   function filterScenarioRecalculatedMessage(check) {
     if (!check || check.status !== 'recalculated') { return null; }
-    // 這句的用字依裁定 2026-10-13-28。
+    // 這句的用字已定案。
     return '篩選規則已更新，已重算 ' + check.recalculatedCount +
       ' 個情境；之前的條件篩選報告與底稿需要重新產生。';
   }
 
-  // 待修正清單最後的下一步與沒有逐筆清單時的整批說明（裁定 2026-10-13-28）。
-  // 黃色提示不過度解釋（裁定 2026-10-14-02），所以這兩句和上面的重算訊息都縮短了。
+  // 待修正清單最後的下一步與沒有逐筆清單時的整批說明。
+  // 黃色提示不過度解釋，所以這兩句和上面的重算訊息都縮短了。
   var FILTER_SCENARIO_NEXT_STEP = '請到「進階條件篩選」修改後儲存，或移除不需要的情境。';
   var FILTER_SCENARIO_RECHECK_NEEDED = '已儲存的篩選情境無法套用目前規則，' +
     '請到「進階條件篩選」按「重新檢查並儲存情境」。';
@@ -2343,8 +2335,8 @@
     return String(text || '').replace(/[。；\s]+$/, '');
   }
 
-  // 更改前面已設定的資料，會清除後面步驟的篩選情境（裁定 2026-10-07-03）。已有篩選情境時才提醒一句，不列細節（裁定 2026-10-07-05）；
-  // 只有未儲存的第五步草稿時也提醒（裁定 2026-10-15-01）。
+  // 更改前面已設定的資料，會清除後面步驟的篩選情境。已有篩選情境時才提醒一句，不列細節；
+  // 只有未儲存的第五步草稿時也提醒。
   function downstreamResetNoticeHtml(state) {
     return state && Store.hasFilterWork(state.filter)
       ? '<p class="panel__hint panel__hint--wide" data-bind="downstream-reset-notice">更改已設定好的資料，會清除後面步驟的設定。</p>'
@@ -2353,12 +2345,12 @@
 
   // 已儲存情境無法套用目前規則時的說明：先說狀態，逐筆列出哪個情境、哪裡不符合，最後只說一次下一步。
   // 沒有逐筆清單時（資料不一致，或尚未重新開啟案件）改寫一句整批的說明，請審計員按「重新檢查並儲存情境」列出清單。
-  // 提示要避免專業術語、不得過長（裁定 2026-10-09-03），所以下一步不再逐筆重複。
+  // 提示要避免專業術語、不得過長，所以下一步不再逐筆重複。
   function filterScenarioProblemsHtml(state) {
     var check = state.filterScenarioCheck;
     var problems = check && Array.isArray(check.problems) ? check.problems : [];
     if (problems.length > 0) {
-      // 情境需要修改並重新儲存，是使用者接下來要去做的事，用琥珀色（裁定 2026-10-11-03）。
+      // 情境需要修改並重新儲存，是使用者接下來要去做的事，用琥珀色。
       return '<div class="form-notice form-notice--warning filter-scenario-problems"><strong>下列情境無法套用目前規則：</strong><ul>' +
         problems.map(function (problem) {
           var messages = (problem.messages || []).map(trimSentenceEnd).filter(Boolean).join('；');
@@ -2396,9 +2388,9 @@
         mode: data.mapping.gl.amountMode || 'dual',
         options: glMappingOptionsFrom(data.mapping.gl),
         availableGlFields: data.mapping.gl.availableGlFields || null,
-        // 確認配對時往下填補了幾格，跟著配對保存（裁定 2026-10-28-05），重開案件後第三步摘要照樣列出。
+        // 確認配對時往下填補了幾格，跟著配對保存，重開案件後第三步摘要照樣列出。
         fillDownCount: data.mapping.gl.fillDownCount || 0,
-        // 由 GL 借方平均算出的尾數 0 的個數（裁定 2026-11-05-25）。
+        // 由 GL 借方平均算出的尾數 0 的個數。
         zerosThreshold: data.mapping.gl.zerosThreshold || null,
         projectedRowCount: null
       });
@@ -2707,8 +2699,8 @@
       // 的 type-change handler），故各型別取自己模式集的預設，不會殘留另一型別的 pairMode。
       pairMode: type === 'specialAccountCategoryPair' ? 'drAndCr' : 'exact',
       categorySelection: ['accountPair', 'specialAccountCategoryPair'].indexOf(type) >= 0 ? 'subtree' : undefined,
-      // 借貸組合雙側一律以科目分類的分類身分陣列承載（2026-08-14 起雙側都可多選）；
-      // legacy scalar 只在回放舊定義時讀取，新規則不再產生第二份單選欄位。
+      // 借貸組合雙側一律以科目分類的分類身分陣列承載（雙側都可多選）；
+      // legacy scalar 只在回放舊定義時讀取，新規則不產生第二份單選欄位。
       debitCategoryIds: ['builtin.receivables'],
       creditCategoryIds: ['builtin.revenue'],
       // typed（攸關資料元素）條件：fieldId／operator 由使用者在建構器選定，初值留空以避免

@@ -195,8 +195,7 @@ public sealed class PrivateCaseReportComparatorTests
     [Fact]
     public void DifferencePolicy_FontScaledRowHeights_OnlyAcceptsTheApprovedHeightPerSheet()
     {
-        // 裁定 2026-10-29-08：10 點明細頁列高 15 點、12 點頁 18 點；原本只放行 V_Report 5 的 18 點。
-        // 第一次失敗：Public 收據 20261029-033535234-ec60c658035b41ddba9416ad92c94a33。
+        // 10 點明細頁列高 15 點、12 點頁 18 點。
         var group = new SpreadsheetAppearanceDifferenceGroup("V_Report 5", "row", "height", "12.5", "15", 1, "V_Report 5!row:1");
         Assert.Equal(PrivateCaseReportDifferencePolicy.FontScaledRowHeights,
             PrivateCaseReportDifferencePolicy.ResolveAppearance("validation-report", group, [group]));
@@ -210,10 +209,9 @@ public sealed class PrivateCaseReportComparatorTests
         Assert.Null(PrivateCaseReportDifferencePolicy.ResolveAppearance("inf-report", sample, [sample]));
     }
 
-    // 外觀快照把等於 Excel 預設的 15 點工作表列高省略不記，所以 JET 照裁定 2026-10-29-08 寫的 15 點，
+    // 外觀快照把等於 Excel 預設的 15 點工作表列高省略不記，所以 JET 寫的 15 點，
     // 在差異裡的實際值是「<default>」，不是 15。上面那則測試直接造出實際值 15 的差異、沒有經過快照，
-    // 放行因此在真正的報表上沒有生效，到本機私人案件檢查才看到：PrivateCase 收據
-    // 20261102-233759432-7d4f1f8587a5457d809fdaf9c665abe9（SQLite）。這裡讓兩份合成工作簿走真正的快照再判斷。
+    // 這裡讓兩份合成工作簿走真正的快照再判斷。
     [Fact]
     public void DifferencePolicy_FontScaledRowHeights_AcceptsTheCapturedFifteenPointSheetDefault()
     {

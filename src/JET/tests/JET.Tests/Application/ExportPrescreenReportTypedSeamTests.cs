@@ -7,9 +7,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 預篩選報告寫出器只剩一個正式入口，handler 一定先規劃並載入工作簿中繼資料，
-// 原本依 writer 型別退回的 typed 與 public 路徑都刪除；兩則測試各自守住投影與計畫的內容。
-// 第一次失敗是刪掉入口後測試專案建置失敗，那次沒有保存收據。
+// 預篩選報告寫出器只有一個正式入口，handler 一定先規劃並載入工作簿中繼資料；
+// 兩則測試各自守住投影與計畫的內容。
 public sealed class ExportPrescreenReportTypedSeamTests
 {
     [Fact]
@@ -55,8 +54,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
         const string projectId = "typed-prescreen-export";
         const string resultId = "prescreen-run";
         var generatedUtc = new DateTimeOffset(2025, 12, 31, 10, 30, 0, TimeSpan.Zero);
-        // 本次加入已存摘要的形狀檢查，原本省略的識別資訊與人員列欄位補成合法夾具，投影預期值與發布斷言不變。
-        // 第一次失敗：Public 20261110-050631280-602113d22d8e439d8c0a12183dc8ff6d。
+        // 已存摘要會做形狀檢查，所以夾具帶齊識別資訊與人員列欄位。
         var summaryJson = CompletePrescreenSummary(JsonSerializer.Serialize(
             new
             {
@@ -69,9 +67,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     count = 0L
                 },
                 trailingZeros = new { status = "V", count = 4L, zerosThreshold = 3 },
-                // 裁定 2026-11-02-06 拿掉舊結果沒有人員數時「改用清單列數」的退路，新的預篩選結果一定帶 totalPreparerCount。
-                // 原本這份摘要沒有這個欄位，靠清單的 2 列得到 2；改成照現在的形狀帶人員數，預期值不變。
-                // 第一次失敗：Public 收據 20261102-045345739-be7a7f1137474a3dbf96d8a0f0a3a01a。
+                // 預篩選結果一定帶 totalPreparerCount，沒有「改用清單列數」的退路；這份摘要照現在的形狀帶人員數。
                 preparerSummary = new
                 {
                     status = "V",
@@ -133,7 +129,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 RareAccounts: new("V", null, 11),
                 BlankDescription: new("na", null))
             {
-                // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數，預期值取上面 summary 寫的 3。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+                // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數，預期值取上面 summary 寫的 3。
                 ZerosThreshold = 3
             },
             writer.Projection);
@@ -158,8 +154,6 @@ public sealed class ExportPrescreenReportTypedSeamTests
             30,
             0,
             TimeSpan.Zero);
-        // 同上：只補完整保存格式需要的欄位，不改本測試的計畫、命中數與寫出順序斷言。
-        // 第一次失敗：Public 20261110-050631280-602113d22d8e439d8c0a12183dc8ff6d。
         var summaryJson = CompletePrescreenSummary(JsonSerializer.Serialize(
             new
             {
@@ -176,8 +170,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
                     naReason = "尚未完成科目配對",
                     count = 0L
                 },
-                // 保存的預篩選結果要記下那次用的 0 的個數（裁定 2026-11-05-25），報告讀這裡；這則不看個數，帶 6。
-                // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+                // 保存的預篩選結果要記下那次用的 0 的個數，報告讀這裡；這則不看個數，帶 6。
                 trailingZeros = new { status = "V", count = 10_000L, zerosThreshold = 6 },
                 preparerSummary = new
                 {
@@ -259,8 +252,8 @@ public sealed class ExportPrescreenReportTypedSeamTests
         return summary.ToJsonString(JetJsonStorage.Options);
     }
 
-    // 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer 與 repository，建構式只剩案件 store、
-    // session 與事件。2026-10-22 清理技術債：退回路徑已刪除，規劃替身與中繼資料用的 store 都必須提供。
+    // handler 從作用中案件的資料庫組取 writer 與 repository，建構式只有案件 store、
+    // session 與事件。沒有退回路徑，規劃替身與中繼資料用的 store 都必須提供。
     private static ExportPrescreenReportHandler CreateHandler(
         string projectId,
         IPrescreenReportWriter writer,
@@ -278,7 +271,6 @@ public sealed class ExportPrescreenReportTypedSeamTests
                 PrescreenReportWriter = writer,
                 Results = resultStore,
                 ReportStore = reportStore,
-                // Public首敗100911120後補目前來源的明示空替身。
                 ResultStaleStates = EmptyReportStateTestData.StaleStates,
                 FilterScenarios = EmptyReportStateTestData.Scenarios,
                 PrescreenReportPlanningFacts = prescreenReportPlanningFactsPort,
@@ -501,7 +493,7 @@ public sealed class ExportPrescreenReportTypedSeamTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        // 正式匯出會重判索引；替身套用相同predicate，不省略任何原writer、發布順序或catalog斷言。
+        // 正式匯出會重判索引；替身套用相同predicate。
         public Task<int> MarkStaleAsync(
             string projectId,
             Func<Report, bool> predicate,

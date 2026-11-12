@@ -1,0 +1,28 @@
+{
+  "title": "JET 案件資料庫（SQLite）",
+  "schemaSource": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+  "groups": [
+    { "id": "import", "label": "Import sources", "tables": ["import_batch", "import_batch_source", "field_info", "pbc_gl", "pbc_tb", "pbc_account_mapping", "pbc_authorized_preparer"] },
+    { "id": "standard", "label": "Mapping and standardized data", "tables": ["field_mapping", "field_mapping_previous", "gl", "tb", "gl_control_total", "gl_rde_field", "gl_rde_value"] },
+    { "id": "rules", "label": "Rules and results", "tables": ["account_category", "account_category_path", "account_mapping", "authorized_preparer", "calendar_day", "validation_result", "prescreen_result", "inf_sample", "filter_scenario", "filter_hit", "filter_hit_condition"] },
+    { "id": "system", "label": "System records", "tables": ["schema_info", "result_stale_state", "message_log", "operation_log"] }
+  ],
+  "relations": [
+    { "from": "import_batch_source", "to": "import_batch", "label": "batch_id" },
+    { "from": "field_info", "to": "import_batch", "label": "batch_id" },
+    { "from": "pbc_gl", "to": "import_batch", "label": "batch_id" },
+    { "from": "pbc_tb", "to": "import_batch", "label": "batch_id" },
+    { "from": "gl", "to": "import_batch", "label": "batch_id" },
+    { "from": "tb", "to": "import_batch", "label": "batch_id" },
+    { "from": "field_mapping_previous", "to": "field_mapping", "label": "dataset_kind", "oneToOne": true, "toOptional": true },
+    { "from": "gl_rde_value", "to": "gl", "label": "entry_id" },
+    { "from": "gl_rde_value", "to": "gl_rde_field", "label": "field_id" },
+    { "from": "account_category_path", "to": "account_category", "label": "ancestor_id, descendant_id" },
+    { "from": "account_mapping", "to": "account_category", "label": "category_id", "toOptional": true },
+    { "from": "filter_hit", "to": "filter_scenario", "label": "scenario_id" },
+    { "from": "filter_hit_condition", "to": "filter_scenario", "label": "scenario_id" },
+    { "from": "filter_hit", "to": "gl", "label": "entry_id" },
+    { "from": "filter_hit_condition", "to": "gl", "label": "entry_id" },
+    { "from": "inf_sample", "to": "gl", "label": "entry_id" }
+  ]
+}

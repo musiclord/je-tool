@@ -22,12 +22,12 @@ public static class GlProjectionGuard
         long totalCreditScaled) =>
         projectedRowCount > 0 && totalDebitScaled == 0 && totalCreditScaled == 0;
 
-    // 這句的用字依裁定 2026-10-13-28。
+    // 這句的用字已定案。
     public const string DegenerateAmountMessage =
         "GL 借方與貸方總額皆為 0，請確認所選金額欄是每列的分錄金額，而非傳票總額或空白欄。";
 
     /// <summary>
-    /// 依查核期間與過帳狀態篩選後母體為空。三種資料庫用同一句（用字依裁定 2026-10-13-28）。
+    /// 依查核期間與過帳狀態篩選後母體為空。
     /// </summary>
     public const string EmptyGlMessage =
         "依查核期間與過帳狀態篩選後，GL 沒有可測試的分錄，本次配對未儲存。請確認查核期間或過帳狀態要納入的值。";

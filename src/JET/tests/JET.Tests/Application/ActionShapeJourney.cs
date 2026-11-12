@@ -38,7 +38,7 @@ internal static class ActionShapeJourney
     internal static readonly IReadOnlyList<(string Path, string Kind)> UnreachedKinds =
     [
         // 情境寫入完成後才讀取結果狀態；合成流程無法穩定在這個時間點使資料庫讀取失敗。
-        // FilterScenarioBatchWriter 保留成功結果並回既有提醒，staleState 為 null（裁定 2026-11-10-02）。
+        // FilterScenarioBatchWriter 保留成功結果並回既有提醒，staleState 為 null。
         ("filter.scenario.save response.staleState", "null"),
         ("filter.scenario.save response.reportWarning", "string"),
         ("filter.scenario.remove response.staleState", "null"),
@@ -68,7 +68,7 @@ internal static class ActionShapeJourney
     internal static async Task<ActionShapeRecorder> RecordAsync()
     {
         // 報告清單更新的 3 秒期限是給畫面的時間上限，不是資料形狀的一部分。這段流程固定走到清單更新完成，
-        // 記到的形狀才不會隨機器快慢改變（2026-10-19 Public 曾因 DuckDB 的清單更新超過 3 秒而失敗）。
+        // 記到的形狀才不會隨機器快慢改變。
         // 只影響這個非同步流程，同時執行的其他測試仍用系統時間。報告清單檔被其他程式占用的情況照常走到，見 accountCategory.save。
         ReportExportSupport.CatalogRefreshClock.Value = NeverExpiringClock.Instance;
         var recorder = new ActionShapeRecorder(MapPaths);
@@ -241,9 +241,9 @@ internal static class ActionShapeJourney
             // 右側資料預覽與第三步的原始資料預覽：data-preview.js、mapping-step.js。
             foreach (var dataset in new[] { "pbcGl", "pbcTb" })
             {
-                // 2026-10-16 欄位配對改用有界的 200 筆分頁，offset 是實際送出的頁起點。
+                // 欄位配對用有界的 200 筆分頁，offset 是實際送出的頁起點。
                 await Send("query.dataPreview", new { dataset, limit = 200, offset = 0 });
-                // 換到下一頁：總筆數與統計只在第一頁計算，續頁回 null（裁定 2026-10-16-06）。
+                // 換到下一頁：總筆數與統計只在第一頁計算，續頁回 null。
                 await Send("query.dataPreview", new { dataset, limit = 1, offset = 1 });
             }
 
@@ -255,7 +255,7 @@ internal static class ActionShapeJourney
                 dataset = "gl", sourceColumn = profileColumn, limit = 50, comparisonValues = Array.Empty<string>(),
                 checkSourceValues = false,
             });
-            // 來源欄勾了往下填補時，mapping-step.js 另帶 fillDown，列數照填補後計數（裁定 2026-10-28-03）。
+            // 來源欄勾了往下填補時，mapping-step.js 另帶 fillDown，列數照填補後計數。
             await Send("mapping.valueProfile", new
             {
                 dataset = "gl", sourceColumn = profileColumn, limit = 50, comparisonValues = new[] { "1", "0" },
@@ -354,7 +354,7 @@ internal static class ActionShapeJourney
                 await Send("query.dataPreview", new { dataset });
             }
 
-            // GL(未納入測試) 只看一種未納入原因，換頁時沿用同一種（裁定 2026-10-21-04 把日期不符分成三種原因）。
+            // GL(未納入測試) 只看一種未納入原因，換頁時沿用同一種（日期不符分成三種原因）。
             await Send("query.dataPreview", new { dataset = "glExcluded", limit = 200, offset = 0, exclusionReason = "afterPeriod" });
             await Send("query.dataPreview", new { dataset = "glExcluded", limit = 1, offset = 1, exclusionReason = "afterPeriod" });
 
@@ -424,7 +424,7 @@ internal static class ActionShapeJourney
             // 審計員先匯入一份欄名不是標準名稱的科目配對檔：後端依欄位順序對應並提醒，審計員改用正確的檔案再匯入。
             var renamedAccountPath = Track(SyntheticAccountMapping(accountExport.GetProperty("filePath").GetString()!, renameHeaders: true));
             await Send("import.accountMapping.fromFile", new { filePath = renamedAccountPath, fileName = "合成科目配對（欄名不同）.xlsx" });
-            // 審計員改用文字檔匯入，其中一個科目名稱用引號包住、內含換行：匯入照常完成並附上提醒（裁定 2026-10-19-06）。
+            // 審計員改用文字檔匯入，其中一個科目名稱用引號包住、內含換行：匯入照常完成並附上提醒。
             var accountCsvPath = Track(AccountMappingCsvWithLineBreak(accountPath));
             await Send("import.accountMapping.fromFile", new { filePath = accountCsvPath, fileName = "合成科目配對.csv" });
             await Send("import.accountMapping.fromFile", new { filePath = accountPath, fileName = "合成科目配對.xlsx" });
@@ -487,7 +487,7 @@ internal static class ActionShapeJourney
             // 第四步預篩選：validate-step.js、export-step.js。各預篩選結果先讀一頁五十筆，展開後用共用的分頁表格。
             var prescreen = await Send("prescreen.run");
             var prescreenResultId = prescreen.GetProperty("resultRef").GetProperty("resultId").GetString()!;
-            // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），原本列在這裡的 rareAccount 跟著拿掉。
+            // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目這兩條規則，這裡不列 rareAccount。
             foreach (var ruleKey in new[] { "blankDescription", "weekendPosting", "holidayPosting" })
             {
                 await Send("query.prescreenPage", new { ruleKey, pageSize = 50 });
@@ -531,8 +531,7 @@ internal static class ActionShapeJourney
             commonDraft["source"] = "common";
             await PreviewAsync(commonDraft);
             await SaveAsync(commonDraft, null);
-            // 沒有編輯來源的情境：filter-step.js 預覽時不帶編輯來源與來源代碼。已儲存情境的第 1 版編輯來源已拿掉
-            // （裁定 2026-10-30-25），這裡原本送出的第 1 版預覽一起拿掉。
+            // 沒有編輯來源的情境：filter-step.js 預覽時不帶編輯來源與來源代碼。
             var legacyBare = (JsonObject)commonDraft.DeepClone();
             legacyBare.Remove("source");
             legacyBare.Remove("editorOrigins");
@@ -670,25 +669,25 @@ internal static class ActionShapeJourney
             {
                 validationResultId, scenarioRevision = revision, scenarioPositions = new[] { 1, 2, 3, 4 },
             });
-            // 第三步的「由底稿匯入欄位」：mapping-step.js 選了檔案後只送 filePath（裁定 2026-11-05-03、2026-11-09-27）。
+            // 第三步的「由底稿匯入欄位」：mapping-step.js 選了檔案後只送 filePath。
             // 這份底稿的配對和目前匯入的資料一致，每個欄位都帶得回來。之後案件刪除時底稿也會刪掉，先複製一份留給最後一段。
             var workingPaperPath = workingPaper.GetProperty("publishedReport").GetProperty("fullPath").GetString()!;
             await Send("mapping.restoreDraft", new { filePath = workingPaperPath });
             var workingPaperCopy = Track(Path.Combine(Path.GetTempPath(), $"jet-shape-working-paper-{Guid.NewGuid():N}.xlsx"));
             File.Copy(workingPaperPath, workingPaperCopy);
             // 第四步「用 Excel 配對」選了這份底稿：validate-step.js 先讀工作表清單，審計員選「自動化工具-科目配對資訊」後
-            // 帶 sheetName 匯入（裁定 2026-11-05-07）。科目配對換了一份，和下面其他上游修改一樣讓已匯出的報告過期。
+            // 帶 sheetName 匯入。科目配對換了一份，和下面其他上游修改一樣讓已匯出的報告過期。
             await Send("import.inspectFile", new { filePath = workingPaperCopy });
             await Send("import.accountMapping.fromFile", new
             {
                 filePath = workingPaperCopy, fileName = "合成_WorkingPaper.xlsx", sheetName = WorkingPaperSheetCatalog.AccountMapping,
             });
 
-            // 匯出後回頭修改上游資料。上游修改會清除下游（裁定 2026-10-07-03）：
+            // 匯出後回頭修改上游資料。上游修改會清除下游：
             // 已匯出的報告標成過期，已存情境全部清掉（AuditDependencyPolicy）。之後每個修改的回應都帶已匯出報告的狀態。
             await Send("calendar.setNonWorkingDays", new { days = new[] { 0 } });
             // 這一段的再匯入，來源檔都用 Excel 的開檔方式佔住：後端照樣匯入，回應多開著檔案的提醒，
-            // 契約才錄得到 warnings 與 openElsewhereWarnings 有內容時的形狀（裁定 2026-11-06-12）。
+            // 契約才錄得到 warnings 與 openElsewhereWarnings 有內容時的形狀。
             using (HoldLikeExcel(holidayFile))
             {
                 await Send("import.holiday.fromFile", new { filePath = holidayFile, fileName = Path.GetFileName(holidayFile) });
@@ -735,7 +734,7 @@ internal static class ActionShapeJourney
             await Send("project.load", new { projectId });
             // 欄位配對改了，驗證結果跟著失效；審計員重跑資料驗證（原始總帳沒有差異），再存情境。
             var revalidated = await Send("validate.run");
-            // 情境已被上游修改清掉，這時也能匯出底稿，第三步與第四步留空（裁定 2026-10-29-16、2026-10-30-15）；
+            // 情境已被上游修改清掉，這時也能匯出底稿，第三步與第四步留空；
             // export-step.js 沒有已存情境時送 null 的篩選版本與空的情境清單。
             await Send("export.workingPaperStream", new
             {
@@ -961,8 +960,6 @@ internal static class ActionShapeJourney
 
         // 模擬舊版 JET 存下的情境（同 FilterScenarioRuleUpgradeOnLoadTests）：把資料庫裡這個位置的情境定義改成舊的
         // 規則版本，再加一條指向已不存在的攸關資料元素的條件。這是畫面送不出來的狀態，只能直接改資料庫。
-        // 原本另加已移除的排除區（形狀檔的第一次失敗：Focused 收據 20261023-051331694-f416519f1b4d42c49555311415ed4735）；
-        // 裁定 2026-10-30-25 拿掉讀回舊寫法的程式後，排除區跟著拿掉。
         async Task RewriteAsOlderScenarioAsync(string projectId, int position, string missingFieldId)
         {
             var folder = new JetProjectFolder(host.ProjectsRoot);
@@ -983,8 +980,7 @@ internal static class ActionShapeJourney
             {
                 ["join"] = "AND", ["type"] = "typed", ["fieldId"] = missingFieldId, ["operator"] = "isBlank",
             });
-            // 原夾具新增條件卻沒補逐條來源標記，實際變成結構損壞，掩蓋了要測的已移除欄位。
-            // 補上 null 表示手動條件，保留原本的拒絕斷言；首次失敗：Focused 20261110-050407069-f0309cb1736342a488ae09259138da93。
+            // 新增的條件要補逐條來源標記，null 表示手動條件；沒補會變成結構損壞，掩蓋要測的已移除欄位。
             definition["editorOrigins"]!["groups"]![0]!["cards"]!.AsArray().Add((JsonNode?)null);
             await using var write = connection.CreateCommand();
             write.CommandText = "UPDATE filter_scenario SET definition_json = @definition WHERE position = @position;";
@@ -1221,14 +1217,14 @@ internal static class ActionShapeJourney
         return path;
     }
 
+    /// <summary>Excel 開著檔案時的開檔方式：自己可以寫入，只准別人讀。</summary>
+    private static FileStream HoldLikeExcel(string path) =>
+        new(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+
     /// <summary>
     /// 示範科目配對檔加工：最後一個科目的分類清空（分類空白清單），另加兩個 GL 沒有的科目（只在配對檔的差異，清單有第二頁）。
     /// renameHeaders 時把三個欄名改成認不出的名稱，後端改依欄位順序對應。
     /// </summary>
-    /// <summary>Excel 開著檔案時的開檔方式：自己可以寫入，只准別人讀（裁定 2026-11-06-12）。</summary>
-    private static FileStream HoldLikeExcel(string path) =>
-        new(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
-
     private static string SyntheticAccountMapping(string demoPath, bool renameHeaders = false)
     {
         var path = Path.Combine(Path.GetTempPath(), $"jet-shape-accounts-{Guid.NewGuid():N}.xlsx");

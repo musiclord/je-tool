@@ -16,7 +16,7 @@ public sealed class ActionDispatcher
     private readonly Func<Exception, JetActionException?>? _engineErrorTranslator;
     private readonly ActionExecutionGate _executionGate;
     private readonly IProjectDatabaseCheckpoint? _databaseCheckpoint;
-    // 同一案件同一動作上一次失敗或取消的操作識別碼，下一次開始時記成 retry_of；成功後清除（2026-10-21）。
+    // 同一案件同一動作上一次失敗或取消的操作識別碼，下一次開始時記成 retry_of；成功後清除。
     private readonly ConcurrentDictionary<string, string> _lastUnsuccessful = new(StringComparer.Ordinal);
 
     public ActionDispatcher(
@@ -259,7 +259,7 @@ internal static partial class DispatcherDiagnostics
         string error_code,
         Exception exception);
 
-    /// <summary>操作被取消；不算失敗，不佔支援日誌保留的失敗名額（2026-10-21）。</summary>
+    /// <summary>操作被取消；不算失敗，不佔支援日誌保留的失敗名額。</summary>
     [LoggerMessage(EventId = 1004, EventName = SupportEventNames.ActionCancelled, Level = LogLevel.Information,
         Message = "action {action} cancelled in {duration_ms} ms requested={cancellation_requested}")]
     public static partial void ActionCancelled(

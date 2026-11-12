@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 裁定 2026-11-09-28：檔案沒有 JET 記下的隱藏配對時，讀「自動化工具-檔案欄位資訊」看得見的 A 到 E 欄。
+/// 檔案沒有 JET 記下的隱藏配對時，讀「自動化工具-檔案欄位資訊」看得見的 A 到 E 欄。
 /// 舊版 IDEA JET 與新版 JET 的版面都用合成活頁簿檢查；配對怎麼推得另見 FieldInfoSheetMappingTests。
 /// </summary>
 public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
@@ -242,7 +242,6 @@ public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
     }
 
     // 列沒有寫列號時照出現順序推列號；前一列的列號已是 int 上限時，推算溢位也照讀不到的檔案處理，不變成非預期的錯誤。
-    // 這是新增的測試。
     [Fact]
     public async Task ReadAsync_InferredRowNumberTooLargeToRead_SaysTheFileCannotBeRead()
     {
@@ -283,7 +282,7 @@ public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
     }
 
     // 儲存格沒有寫參照時照出現順序推欄號；前一格的欄號已是 int 上限時，推算溢位也照讀不到的檔案處理，不變成非預期的錯誤。
-    // 欄名 FXSHRXW 換算成欄號剛好是 2,147,483,647。這是新增的測試。
+    // 欄名 FXSHRXW 換算成欄號剛好是 2,147,483,647。
     [Fact]
     public async Task ReadAsync_InferredColumnNumberTooLargeToRead_SaysTheFileCannotBeRead()
     {
@@ -314,7 +313,7 @@ public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
     }
 
     // 隱藏紀錄被改過、含單獨的代理字元（無效的 UTF-16）時，和其他壞掉的 JSON 一樣算格式無效，不說成讀不到檔案。
-    // F1:H1 與 JET_Metadata 兩種紀錄都檢查。這是新增的測試。
+    // F1:H1 與 JET_Metadata 兩種紀錄都檢查。
     [Fact]
     public async Task ReadAsync_HiddenRecordsWithInvalidUtf16_RejectAsInvalidFormat()
     {
@@ -352,7 +351,7 @@ public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
         }
     }
 
-    // 工作表的 XML 壞掉時，訊息只寫讀不到與下一步，不推測原因（裁定 2026-10-30-20）。
+    // 工作表的 XML 壞掉時，訊息只寫讀不到與下一步，不推測原因。
     [Fact]
     public async Task ReadAsync_BrokenWorksheetXml_SaysTheFileCannotBeRead()
     {
@@ -381,7 +380,7 @@ public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
         }
     }
 
-    // F1 到 H1 三格都空白才改讀看得見的表；有任何一格有內容而 F1 不是標記，算紀錄存在但格式不對，整份不帶入（裁定 2026-11-05-14）。
+    // F1 到 H1 三格都空白才改讀看得見的表；有任何一格有內容而 F1 不是標記，算紀錄存在但格式不對，整份不帶入。
     [Theory]
     [InlineData("不是標記", null, null)]
     [InlineData(null, "2", null)]
@@ -407,7 +406,7 @@ public sealed class OpenXmlMappingMetadataReaderFieldInfoSheetTests
         }
     }
 
-    // 只有其他程式獨占檔案時才讀不到，訊息和其他匯入共用同一句；Excel 一般開著的檔照樣讀得到（裁定 2026-11-06-12）。
+    // 只有其他程式獨占檔案時才讀不到，訊息和其他匯入共用同一句；Excel 一般開著的檔照樣讀得到。
     [Fact]
     public async Task ReadAsync_FileLockedByAnotherProgram_UsesTheSharedOpenMessage()
     {

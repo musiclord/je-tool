@@ -28,7 +28,7 @@ public sealed class MappingFieldCatalogMirrorTests
         Assert.Equal(expected, frontend);
     }
 
-    // amount 鏡射 JetFieldCatalog.AmountMappingKeys：第三步來源表只把配到這些位置的來源欄靠右（裁定 2026-11-05-04）。
+    // amount 鏡射 JetFieldCatalog.AmountMappingKeys：第三步來源表只把配到這些位置的來源欄靠右。
     private static MirrorSlot ToMirrorSlot(JetMappingSlot slot, DatasetKind dataset) =>
         new(
             slot.Key,

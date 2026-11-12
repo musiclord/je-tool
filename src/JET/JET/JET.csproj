@@ -5,38 +5,12 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
-    <Configurations>Debug;Release;AgentGuiTest</Configurations>
+    <Configurations>Debug;Release</Configurations>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting Condition="'$(OS)' != 'Windows_NT'">true</EnableWindowsTargeting>
     <!-- 發布只產生 win-x64 版本。 -->
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
-
-  <!-- Agent 專用的真實 WebView2 GUI 測試組態。一般 Debug/F5 與 Release/publish 都不編入此入口。
-       這個組態帶測試接點與遠端偵錯，不能發布。唯一的例外是驗證框架的 Gui 路線帶 JetAgentGuiOwnedBundle=true，
-       照 FolderProfile 打包成單一執行檔，輸出到驗證框架這次執行在 artifacts/harness/runs 底下的資料夾，跑完就刪除（裁定 2026-11-09-03）。 -->
-  <PropertyGroup Condition="'$(Configuration)' == 'AgentGuiTest'">
-    <DefineConstants>TRACE;JET_AGENT_GUI_TEST</DefineConstants>
-    <Optimize>false</Optimize>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>portable</DebugType>
-    <IsPublishable Condition="'$(JetAgentGuiOwnedBundle)' != 'true'">false</IsPublishable>
-  </PropertyGroup>
-
-  <Target Name="RejectAgentGuiTestPublish" BeforeTargets="Publish" Condition="'$(Configuration)' == 'AgentGuiTest' and '$(JetAgentGuiOwnedBundle)' != 'true'">
-    <Error Text="AgentGuiTest is an isolated test configuration and cannot be published." />
-  </Target>
-
-  <!-- 驗證框架的打包也要在任何檔案複製前確認：輸出在 artifacts/harness/runs 底下，而且是單一執行檔。 -->
-  <Target Name="RestrictAgentGuiOwnedBundle" BeforeTargets="PrepareForPublish;Publish" Condition="'$(Configuration)' == 'AgentGuiTest' and '$(JetAgentGuiOwnedBundle)' == 'true'">
-    <PropertyGroup>
-      <_JetHarnessRunsRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\..\artifacts\harness\runs').ToLowerInvariant())</_JetHarnessRunsRoot>
-      <_JetOwnedBundleDirectory>$([MSBuild]::NormalizeDirectory('$(PublishDir)').ToLowerInvariant())</_JetOwnedBundleDirectory>
-      <_JetOwnedBundleInsideRuns>$(_JetOwnedBundleDirectory.StartsWith('$(_JetHarnessRunsRoot)'))</_JetOwnedBundleInsideRuns>
-    </PropertyGroup>
-    <Error Condition="'$(_JetOwnedBundleInsideRuns)' != 'True' or '$(_JetOwnedBundleDirectory)' == '$(_JetHarnessRunsRoot)' or '$(PublishSingleFile)' != 'true'"
-           Text="AgentGuiTest can only be bundled as a single file by the verification harness, into its own run folder under artifacts/harness/runs." />
-  </Target>
 
   <ItemGroup>
     <Content Include="wwwroot\**\*">

@@ -6,7 +6,7 @@ using JET.Domain;
 namespace JET.Application;
 
 /// <summary>
-/// 第五步情境單獨出現的句子（用字依裁定 2026-10-13-28）。這幾句不在待修正清單裡，畫面不會另外補下一步，
+/// 第五步情境單獨出現的句子。這幾句不在待修正清單裡，畫面不會另外補下一步，
 /// 所以各自保留下一步。
 /// </summary>
 internal static class FilterScenarioRuleMessages
@@ -106,7 +106,7 @@ internal static partial class FilterScenarioRuleUpgrade
     [GeneratedRegex(@"^filter-\d{4}-\d{2}-\d{2}-v(?<number>\d+)$", RegexOptions.CultureInvariant)]
     private static partial Regex KnownVersion();
 
-    // 待修正清單的原因句（用字依裁定 2026-10-13-28）。清單格式是「情境 N「名稱」：原因；原因。」，
+    // 待修正清單的原因句。清單格式是「情境 N「名稱」：原因；原因。」，
     // 句尾句號由畫面統一處理；下一步由畫面在清單最後寫一次。
     internal const string NonAuditPeriodMessage =
         "篩選範圍不是查核期間內的分錄，不會自動改為查核期間";
@@ -114,7 +114,7 @@ internal static partial class FilterScenarioRuleUpgrade
     internal const string UnknownVersionMessage =
         "無法辨識儲存時的規則版本，不會自動更新";
 
-    /// <summary>整個定義讀不出來，或有損毀的條件；同一個情境只寫一次（裁定 2026-10-13-21）。</summary>
+    /// <summary>整個定義讀不出來，或有損毀的條件；同一個情境只寫一次。</summary>
     internal const string UnreadableDefinitionMessage =
         "條件內容無法讀取";
 
@@ -141,9 +141,9 @@ internal static partial class FilterScenarioRuleUpgrade
             return Inconsistent();
         }
 
-        // 開案也逐一檢查（裁定 2026-10-13-25）：開案和儲存、移除、重新檢查用同一段逐筆檢查，已是目前版本的情境也檢查，
-        // 因其他資料改變而不合格的情境開案時就列出，不會解鎖後查詢才失敗。條件內容讀不出來的情境也逐筆列出
-        // （「損毀的情境」與「情境卡住」兩項裁定），審計員才能移除它。
+        // 開案也逐一檢查：開案和儲存、移除、重新檢查用同一段逐筆檢查，已是目前版本的情境也檢查，
+        // 因其他資料改變而不合格的情境開案時就列出，不會解鎖後查詢才失敗。條件內容讀不出來的情境也逐筆列出，
+        // 審計員才能移除它。
         var problems = Problems(Review(scenarios, validationContext, moneyScale));
         if (problems.Count > 0)
         {

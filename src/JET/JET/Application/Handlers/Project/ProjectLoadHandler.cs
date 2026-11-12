@@ -71,7 +71,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         {
             // 載入時完整檢查一次建表與版本；之後同一程序內的讀寫只確認檔案仍在。
             // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本並拒絕舊版。
-            // 開案不建立新的資料庫：本機案件的資料庫不見或沒有內容時，比照無法開啟的案件回報（裁定 2026-11-05-72）。
+            // 開案不建立新的資料庫：本機案件的資料庫不見或沒有內容時，比照無法開啟的案件回報。
             SupportOperationStage.Enter("database_open");
             await repositories.DatabaseInitializer.EnsureExistingAsync(document.ProjectId, cancellationToken);
 
@@ -130,7 +130,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             latestValidate = currentResults.ValidationRecord;
             latestPrescreen = currentResults.PrescreenRecord;
             var currentFilterRevision = currentResults.FilterRevision;
-            // 開案也逐一檢查（裁定 2026-10-13-25）：已是目前版本、但因其他資料改變而不合格的情境，版本檢查會通過，
+            // 開案也逐一檢查：已是目前版本、但因其他資料改變而不合格的情境，版本檢查會通過，
             // 這裡照待修正的規則把篩選結果視為不可用，畫面維持鎖住並列出要修改的情境，報告依此標成過期。
             if (scenarioUpgrade.Status == FilterScenarioUpgradeStatus.NeedsEdit && currentFilterRevision is not null)
             {
@@ -187,9 +187,9 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
                         rdeFields = glOptions!.RdeFields,
                         // 確認配對時往下填補空白的欄位，重開案件帶回摘要與草稿。
                         fillDownFields = glOptions!.FillDownFields,
-                        // 確認配對時填了幾格隨配對保存（裁定 2026-10-28-05），第三步摘要列出來。
+                        // 確認配對時填了幾格隨配對保存，第三步摘要列出來。
                         fillDownCount = glOptions!.FillDownCount,
-                        // 由 GL 借方平均算出的尾數 0 的個數（裁定 2026-11-05-25）；第四步卡片與第五步預設都讀這裡。
+                        // 由 GL 借方平均算出的尾數 0 的個數；第四步卡片與第五步預設都讀這裡。
                         zerosThreshold = TrailingZeroThreshold.FromCommittedGl(glMapping, document.MoneyScale),
                         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
                         availableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glOptions),
@@ -311,7 +311,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
             catch (Exception releaseError)
             {
                 // 補償失敗不得遮蔽原始 resume／LastOpened 失敗。工作鎖沒放掉時，下次開案可能顯示已被開啟，
-                // 支援日誌另記一筆（2026-10-21）。
+                // 支援日誌另記一筆。
                 if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "lock_release", releaseError);
             }
 

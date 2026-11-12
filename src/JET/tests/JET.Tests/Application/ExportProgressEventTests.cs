@@ -6,9 +6,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
-/// <summary>master spec「匯出進度契約」：五個正式 action 的 event wire 與單調生命週期。</summary>
+/// <summary>匯出進度契約：五個正式 action 的 event wire 與單調生命週期。</summary>
 public sealed class ExportProgressEventTests
 {
     private static readonly string[] AllowedPhases =
@@ -20,16 +18,15 @@ public sealed class ExportProgressEventTests
     ];
 
     /// <remarks>
-    /// 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 repository，建構式不再列出
+    /// handler 從作用中案件的資料庫組取 repository，建構式不列出
     /// IAccountMappingExportRepository、IResultStore、IAccountCategoryStore 與 IMappingStateStore。
-    /// 改成檢查建構式只剩不分資料庫的依賴，再讀原始碼確認 handler 只用到資料庫組的這四個屬性，
-    /// 而且仍然不碰報告 store（資料庫組的 ReportStore）。第一次失敗收據：
-    /// 20261002-115426688-212aacd0011642418bc05dd51d524df6。
+    /// 這裡檢查建構式只有不分資料庫的依賴，再讀原始碼確認 handler 只用到資料庫組的這四個屬性，
+    /// 而且不碰報告 store（資料庫組的 ReportStore）。
     /// </remarks>
     [Fact]
     public void AccountMappingHandler_WritesWorkFileThroughProjectLocatorNotReportStore()
     {
-        // 範本是工作檔：handler 只拿案件資料夾定位器，不再依賴報告 store。
+        // 範本是工作檔：handler 只拿案件資料夾定位器，不依賴報告 store。
         Assert.NotNull(typeof(ExportAccountMappingTemplateHandler).GetConstructor(
         [
             typeof(IAccountMappingTemplateWriter),

@@ -4,8 +4,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// <see cref="CurrentPrincipal.ShortName"/> 的小單元測試（spec §1：短名＝最後一個反斜線之後的片段）。
-/// 等價分割：有網域前綴（含反斜線）／多段／無反斜線（裸名或機器帳號）。oracle：spec §1 定義，手算。
+/// <see cref="CurrentPrincipal.ShortName"/> 的小單元測試（短名＝最後一個反斜線之後的片段）。
+/// 等價分割：有網域前綴（含反斜線）／多段／無反斜線（裸名或機器帳號）。oracle：上面的定義，手算。
 /// </summary>
 public sealed class CurrentPrincipalTests
 {

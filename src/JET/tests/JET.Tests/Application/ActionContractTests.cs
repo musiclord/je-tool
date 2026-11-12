@@ -7,11 +7,11 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 回應契約鎖（harness TDD 強化,做法一:手寫語意斷言)。
+/// 回應契約鎖:手寫語意斷言。
 /// 目的:把 manifest 描述的回應形狀變成可執行的測試——欄位被改名／拿掉／改型別／悄悄新增時,
-/// 這裡會紅,逼人確認「故意還是改壞」(Linus「不破壞 userspace」用在 JS↔C# 介面)。
+/// 這裡會失敗,逼人確認「故意還是改壞」(Linus「不破壞 userspace」用在 JS↔C# 介面)。
 ///
-/// 鎖的是「欄位集合＋型別＋巢狀結構」,不鎖屬性順序、不鎖具體數值(jet-testing §3)。
+/// 鎖的是「欄位集合＋型別＋巢狀結構」,不鎖屬性順序、不鎖具體數值。
 /// 巢狀的 run 形狀(validationResult、prescreenResult 內)由各自 action 的契約鎖負責,project.load 只鎖外層信封。
 /// 陣列元素形狀「有資料才檢查」;新欄位(unbalancedVouchers／blankRows)另以固定 seed 保證有資料、確實鎖到。
 /// </summary>
@@ -22,7 +22,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("validate.run");
 
-        // 新增有界的同號多日期摘要，保留根層及巢狀精確形狀檢查；Public首敗100911120。
+        // 根層及巢狀都檢查精確形狀，包含有界的同號多日期摘要。
         JsonShape.HasExactKeys(data,
             "stats", "amountDistribution", "completenessTest", "voucherBalanceTest",
             "infSamplingTest", "blankRecordsTest", "populationSummary", "sourceQuality", "voucherNumberAcrossGlDates", "resultRef");
@@ -135,15 +135,15 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Arr(voucherBalance, "unbalancedVouchers"); // 元素形狀見 ValidateRun_DetailArrays
 
         var inf = JsonShape.Obj(data, "infSamplingTest");
-        // 抽樣設定讀回；首次失敗 20261106-131051115-eb2835589ca14f92a3556cbb16b09a77。
+        // 抽樣設定讀回。
         JsonShape.HasExactKeys(inf, "status", "sampleSize", "requestedSampleSize", "seed");
         JsonShape.Str(inf, "status");
         JsonShape.Number(inf, "sampleSize");
         JsonShape.Number(inf, "seed");
 
         var blankRecords = JsonShape.Obj(data, "blankRecordsTest");
-        // 裁定 2026-10-23-01：傳票核准日不可用時「核准日不在期間」改成無法執行，回應多一個原因欄，所以預期的欄位多列一項。
-        // 這個示範案件有配對傳票核准日，筆數仍是數字、原因是 null。第一次失敗收據 20261023-101645559-0f1f5a2c47644dfd9f035d23db690993。
+        // 傳票核准日不可用時「核准日不在期間」無法執行，回應帶一個原因欄。
+        // 這個示範案件有配對傳票核准日，筆數仍是數字、原因是 null。
         JsonShape.HasExactKeys(blankRecords,
             "status", "blankAccountNumberCount", "blankVoucherNumberCount", "blankDescriptionCount", "approvalDateNotInPeriodCount",
             "approvalDateNotInPeriodNaReason", "blankRows");
@@ -201,8 +201,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.True(blankRows.GetArrayLength() >= 1, "seed 應產生空值列");
         JsonShape.Element(blankRows, e =>
         {
-            // 空值明細多帶每一列的傳票核准日，第四步「核准日不在期間」的明細才顯示得出來（裁定 2026-11-06-13）；
-            // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+            // 空值明細多帶每一列的傳票核准日，第四步「核准日不在期間」的明細才顯示得出來；
             JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "description", "issues");
             JsonShape.Str(e, "voucherNumber", nullable: true);
             JsonShape.Str(e, "accountNumber", nullable: true);
@@ -222,8 +221,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.HasExactKeys(data,
             "prepPeriodApproval", "suspiciousKeywords", "unexpectedAccountPair", "trailingZeros",
             "preparerSummary", "rareAccounts", "weekendActivity", "holidayActivity", "blankDescription",
-            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，回應不再有 backdatedPosting。
-            // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），回應不再有 rarePreparer、rareAccount 與 rareAccounts.rareAccountCount；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+            // 回應沒有 backdatedPosting。
+            // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目這兩條規則，回應沒有 rarePreparer、rareAccount 與 rareAccounts.rareAccountCount。
             "nonAuthorizedPreparer",
             "rulePeriod", "concentration", "positioning", "resultRef");
 
@@ -251,8 +250,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Number(trailing, "zerosThreshold");
 
         var preparerSummary = JsonShape.Obj(data, "preparerSummary");
-        // 裁定 2026-10-05-01：preparers 最多 50 列，畫面與報告的人數改用完整人數，回應因此多一個 totalPreparerCount。
-        // 第一次失敗收據 20261005-044601454-1ab8711bd18d4134843046dbe6777340；原有三個鍵與型別檢查不變。
+        // preparers 最多 50 列，畫面與報告的人數用完整人數，所以回應帶 totalPreparerCount。
         JsonShape.HasExactKeys(preparerSummary, "status", "naReason", "totalPreparerCount", "preparers");
         JsonShape.Str(preparerSummary, "status");
         JsonShape.Str(preparerSummary, "naReason", nullable: true);
@@ -268,8 +266,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         });
 
         var rareAccounts = JsonShape.Obj(data, "rareAccounts");
-        // 原本另有完整母體的較少使用科目數，已隨第四步拿掉兩條規則移除；全科目數與命中分錄列數維持原義。
-        // 首次失敗：Public 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d；仍鎖定完整欄位集合。
+        // 回應不帶完整母體的較少使用科目數，只有全科目數與命中分錄列數。
+        // 鎖定完整欄位集合。
         JsonShape.HasExactKeys(rareAccounts, "status", "distinctAccountCount", "accounts");
         JsonShape.Str(rareAccounts, "status");
         JsonShape.Number(rareAccounts, "distinctAccountCount");
@@ -284,8 +282,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         });
 
         // 週末與假日卡分開「整張卡無法執行」與「只檢查了總帳日期」，
-        // 回應多一個 approvalNaReason；原有四個鍵與型別檢查不變。第一次失敗：Focused 收據
-        // 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
+        // 回應因此帶 approvalNaReason。
         foreach (var key in new[] { "weekendActivity", "holidayActivity" })
         {
             var rule = JsonShape.Obj(data, key);
@@ -363,13 +360,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             "可在此產生預篩選報告，或在匯出底稿時一併產生。不產生也可繼續篩選與匯出底稿。",
             positioning.GetProperty("reportGuidance").GetString());
         Assert.Equal(
-            // 用語統一後，畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
             "預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。",
             positioning.GetProperty("overviewGuidance").GetString());
         Assert.Equal(
             "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             positioning.GetProperty("exportDefaultGuidance").GetString());
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Equal(
             "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。",
             positioning.GetProperty("exportPendingRunGuidance").GetString());
@@ -402,8 +398,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         JsonShape.HasExactKeys(data, "scenario");
         var scenario = JsonShape.Obj(data, "scenario");
-        // 畫面要分開顯示傳票數量與分錄筆數，並和條件篩選報告同一個口徑（裁定 2026-10-16-08），所以每個情境另回
-        // summaryRowCount 與 countsWholeVoucherRows（第一次失敗：Public 收據 20261016-051726257-ff7a19590e9c4c30a7f61b5bec0bc527）。
+        // 畫面要分開顯示傳票數量與分錄筆數，並和條件篩選報告同一個口徑，所以每個情境另回
+        // summaryRowCount 與 countsWholeVoucherRows。
         JsonShape.HasExactKeys(scenario, "name", "populationScope", "count", "voucherCount", "summaryRowCount", "countsWholeVoucherRows", "previewRows");
         JsonShape.Str(scenario, "name");
         JsonShape.Str(scenario, "populationScope");
@@ -485,12 +481,12 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task QueryDataPreview_ResponseShape_IsLocked()
     {
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
+        // 資料名稱全系統統一：資料預覽的 wire key 與型別名稱用同一套名稱。
         var data = await fixture.Host.DispatchAsync(
             "query.dataPreview", JsonSerializer.Serialize(new { dataset = "gl" }));
 
-        // 資料預覽依配對列欄位（裁定 2026-10-22-09），欄名和欄位配對畫面相同：回應多帶 columnDetails，
-        // 和 columns 同順序寫出每欄的名稱與型別。原本的五個鍵不變；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        // 資料預覽依配對列欄位，欄名和欄位配對畫面相同：回應多帶 columnDetails，
+        // 和 columns 同順序寫出每欄的名稱與型別。
         JsonShape.HasExactKeys(data, "dataset", "columns", "columnDetails", "rows", "totalCount", "stats");
         JsonShape.Str(data, "dataset");
         JsonShape.Number(data, "totalCount");
@@ -508,8 +504,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         JsonShape.Element(JsonShape.Arr(data, "rows"), r => Assert.Equal(JsonValueKind.Array, r.ValueKind));
 
         // gl（GL）一律帶 stats(非 null)。
-        // 資料預覽的金額固定顯示四位小數（裁定 2026-10-22-06）：統計列的金額改用字串照存下的值傳，畫面補四位時不經過浮點數。
-        // 原本斷言數字；第一次失敗同上。
+        // 資料預覽的金額固定顯示四位小數：統計列的金額用字串照存下的值傳，畫面補四位時不經過浮點數。
         var stats = JsonShape.Obj(data, "stats");
         JsonShape.HasExactKeys(stats, "amountAbsMin", "amountAbsMax", "glDateMin", "glDateMax", "voucherCount");
         JsonShape.Str(stats, "amountAbsMin");
@@ -525,9 +520,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         var data = await fixture.Host.DispatchAsync(
             "query.dataPreview", JsonSerializer.Serialize(new { dataset = "glExcluded", limit = 1 }));
 
-        // 資料預覽依配對列欄位（裁定 2026-10-22-09）：示範案件配對了傳票核准日、傳票建立人員與
-        // 人工或自動分錄，沒有配對過帳狀態，所以列核心八欄、這三欄與未納入原因，共十二欄；回應多帶 columnDetails。
-        // 原本斷言固定十欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        // 資料預覽依配對列欄位：示範案件配對了傳票核准日、傳票建立人員與
+        // 人工或自動分錄，沒有配對過帳狀態，所以列核心八欄、這三欄與未納入原因，共十二欄；回應另帶 columnDetails。
         JsonShape.HasExactKeys(data, "dataset", "columns", "columnDetails", "rows", "totalCount", "stats");
         Assert.Equal(
             [
@@ -545,7 +539,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 cell => Assert.True(cell.ValueKind is JsonValueKind.String or JsonValueKind.Null));
         });
 
-        // 裁定 2026-10-21-04 把日期不符分成三種原因，兩個計數改成四個；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        // 日期不符分成三種原因，統計共四個計數。
         var stats = JsonShape.Obj(data, "stats");
         JsonShape.HasExactKeys(stats, "blankGlDateCount", "beforePeriodCount", "afterPeriodCount", "postingStatusCount");
         JsonShape.Number(stats, "blankGlDateCount");
@@ -563,7 +557,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         var validation = await host.DispatchAsync("validate.run");
         await host.DispatchAsync("prescreen.run");
         // 至少建立一筆正式報告，讓 project.load 的元素形狀（含 fileState）確實被鎖住。
-        // 科目配對範本自 2026-09-02 起是工作檔，不會出現在 reports。
+        // 科目配對範本是工作檔，不會出現在 reports。
         await host.DispatchAsync(
             "export.validationReports",
             JsonSerializer.Serialize(new
@@ -593,15 +587,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         var data = await host.DispatchAsync(
             "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }));
 
-        // 舊版配對確認旗標與每側 formatVersion 已隨舊案件相容程式移除，回應不再帶這些欄位。
-        // 新增 previousMapping，重新匯入後還沒重新確認時帶回上次確認的配對當草稿
-        // （第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。新增 retiredGlFieldLabels，
-        // 帶已移除的 GL 欄位與畫面名稱，第五步舊情境的條件標題與讀回用它寫出名稱。
-        // 裁定 2026-10-30-25：讀回已儲存情境舊寫法的程式拿掉，retiredGlFieldLabels 跟著從回應拿掉
-        // （拿掉後這裡第一次編譯失敗的收據 20261030-072053096-b7f05aee757c4a11a86f01fe840d74a1，同一批的名稱表一起拿掉）。
-        // heartbeatSeconds 只給 SQL Server 案件續鎖，隨 SQL Server 移除從回應拿掉（裁定 2026-11-06-08）；
-        // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+        // previousMapping 在重新匯入後還沒重新確認時，帶回上次確認的配對當草稿。
         JsonShape.HasExactKeys(data,
             "project", "mapping", "previousMapping", "accountCategory", "staleState",
             "importState", "validationResult", "prescreenResult", "filterScenarios",
@@ -615,17 +601,14 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         var mapping = JsonShape.Obj(data, "mapping");
         var glMapping = JsonShape.Obj(mapping, "gl");
         // 前端依後端算好的可用欄位停用第五步的入口，GL 配對多帶 availableGlFields；
-        // 原有八個鍵不變。第一次失敗：Focused 收據 20261023-034722896-edea6c2e6490491690174ff6552e60f8。
+        // 原有八個鍵不變。
         // 確認配對時往下填補空白的欄位跟著配對保存，GL 配對多帶 fillDownFields；
-        // 第一次失敗：Focused 收據 20261023-194740297-3ae629d46df04e06861cacc3aaccf1e9。
-        // 往下填補的格數隨配對保存（裁定 2026-10-28-05），GL 配對多帶 fillDownCount，第三步摘要在重開案件後也列得出來；
-        // 第一次失敗：Focused 收據 20261028-030052458-976ecec7163e46888ef1157effd56baf。
+        // 往下填補的格數隨配對保存，GL 配對多帶 fillDownCount，第三步摘要在重開案件後也列得出來；
         JsonShape.HasExactKeys(
             glMapping,
             "mapping", "amountMode", "approvalDateMode", "postingStatusPolicy",
             "manualAutoPolicy", "rdeFields", "fillDownFields", "fillDownCount", "sourceBatchId", "committedUtc", "availableGlFields",
-            // 尾數 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25），第四步卡片與第五步「尾數連續多個 0」的預設讀這裡，GL 配對多帶 zerosThreshold。
-            // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+            // 尾數 0 的個數照 IDEA 版由 GL 算出，第四步卡片與第五步「尾數連續多個 0」的預設讀這裡，GL 配對多帶 zerosThreshold。
             "zerosThreshold");
         JsonShape.Element(JsonShape.Arr(glMapping, "fillDownFields"), field =>
             Assert.Equal(JsonValueKind.String, field.ValueKind));
@@ -685,7 +668,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         });
         var filterResultRef = data.GetProperty("filterResultRef");
         Assert.Contains(filterResultRef.ValueKind, new[] { JsonValueKind.Null, JsonValueKind.Object });
-        // 2026-10-02：開案時用目前規則檢查已儲存情境的結果。這個 seed 已是目前版本，所以是 current。
+        // 開案時用目前規則檢查已儲存情境的結果。這個 seed 已是目前版本，所以是 current。
         var scenarioCheck = JsonShape.Obj(data, "filterScenarioCheck");
         JsonShape.HasExactKeys(scenarioCheck, "status", "recalculatedCount", "problems");
         Assert.Equal("current", scenarioCheck.GetProperty("status").GetString());
@@ -700,10 +683,8 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task ProjectListLocal_ResponseShape_IsLocked()
     {
-        // 雙來源清單雛形（2026-07-07）：頂層新增 online 塊，sqlServer 條目新增 syncStatus。
-        // 用獨立 host + 單一 sqlite 案，鎖信封與本地條目形狀（syncStatus 僅 sqlServer 條目有 → sqlite 條目不含）。
-        // 線上清單 project.list 隨 SQL Server 移除（裁定 2026-11-06-08），這裡改鎖 project.listLocal，方法名稱跟著改：
-        // 頂層只有 projects，條目照舊九鍵。原本也鎖 online 塊；第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+        // 用獨立 host + 單一 sqlite 案，鎖 project.listLocal 的信封與本地條目形狀：
+        // 頂層只有 projects，條目九鍵。
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", """
             { "projectCode": "CONTRACT-1", "clientName": "E", "operatorId": "op",
@@ -725,8 +706,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task SystemWhoAmI_ResponseShape_IsLocked()
     {
-        // 身分徽章契約：恰兩鍵，principal 與 shortName 都是字串。使用者編號與編號來源要查線上資料庫，
-        // 隨 SQL Server 移除（裁定 2026-11-06-08）；原本鎖四鍵，第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+        // 身分徽章契約：恰兩鍵，principal 與 shortName 都是字串。
         using var host = new HandlerTestHost();
 
         var data = await host.DispatchAsync("system.whoAmI");
@@ -741,7 +721,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("query.completenessDiffPage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
@@ -753,7 +733,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("query.voucherBalancePage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
@@ -765,10 +745,10 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     {
         var data = await fixture.Host.DispatchAsync("query.blankRecordsPage",
             JsonSerializer.Serialize(new { category = "blankDescription", pageSize = 200 }));
-        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
-        // 每列多帶傳票核准日（裁定 2026-11-06-13）；第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+        // 每列多帶傳票核准日；
         JsonShape.Element(JsonShape.Arr(data, "rows"), e =>
             JsonShape.HasExactKeys(e, "voucherNumber", "accountNumber", "glDate", "approvalDate", "description"));
     }
@@ -782,13 +762,13 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             scenarios = new[] { new {
                 name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", conditions = new[] {
-                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    // 用示範資料裡整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
         var data = await fixture.Host.DispatchAsync("query.filterHitsPage",
             JsonSerializer.Serialize(new { scenarioPosition = 1, pageSize = 200 }));
-        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "columns", "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
         var columns = JsonShape.Arr(data, "columns");
@@ -797,7 +777,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             columns.EnumerateArray().Select(column => column.GetProperty("key").GetString()!).ToArray());
         JsonShape.Element(columns, column =>
         {
-            // 固定欄多帶 sortable（第一次失敗：收據 20260907-082210786）。
+            // 固定欄帶 sortable。
             JsonShape.HasExactKeys(column, "key", "label", "valueType", "isCustom", "sortable");
             JsonShape.Str(column, "key");
             JsonShape.Str(column, "label");
@@ -820,7 +800,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             scenarios = new[] { new {
                 name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", conditions = new[] {
-                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    // 用示範資料裡整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
@@ -830,8 +810,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
         Assert.True(scenarios.GetArrayLength() >= 1, "已 commit 情境,scenarios 應非空");
         JsonShape.Element(scenarios, e =>
         {
-            // 每個情境另回 summaryRowCount 與 countsWholeVoucherRows，原因同 filter.preview
-            // （第一次失敗：Public 收據 20261016-051726257-ff7a19590e9c4c30a7f61b5bec0bc527）。
+            // 每個情境另回 summaryRowCount 與 countsWholeVoucherRows，原因同 filter.preview。
             JsonShape.HasExactKeys(e, "position", "name", "voucherHitCount", "rowHitCount", "summaryRowCount", "countsWholeVoucherRows");
             JsonShape.Number(e, "position");
             JsonShape.Str(e, "name");
@@ -853,13 +832,13 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             scenarios = new[] { new {
                 name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", conditions = new[] {
-                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    // 用示範資料裡整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
         var data = await fixture.Host.DispatchAsync("query.highRiskSummaryVoucherPage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
         var rows = JsonShape.Arr(data, "rows");
@@ -882,7 +861,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
 
         var data = await fixture.Host.DispatchAsync("query.infSamplePage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "columns", "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
         var columns = JsonShape.Arr(data, "columns");
@@ -892,7 +871,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             columns.EnumerateArray().Select(column => column.GetProperty("key").GetString()!).ToArray());
         JsonShape.Element(columns, column =>
         {
-            // 固定欄多帶 sortable（第一次失敗：收據 20260907-082210786）。
+            // 固定欄帶 sortable。
             JsonShape.HasExactKeys(column, "key", "label", "valueType", "isCustom", "sortable");
             JsonShape.Str(column, "key");
             JsonShape.Str(column, "label");
@@ -937,10 +916,10 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
                 scenarioPositions = new[] { 1 }
             }));
 
-            // 2026-09-23：已記入 manifest 的加法契約，分開所選底稿成功、全案結果狀態及清單刷新提醒。
-            // 原欄位與產物來源檢查保留；此處選全部情境且清單可讀，兩個新欄位有固定答案。
-            // 產生報告寫不進操作紀錄時回報成功並提醒（裁定 2026-10-19-20），回應多了 warnings；這裡寫得進操作紀錄，
-            // 所以是空陣列（加上這個欄位前的失敗收據 20261019-153611395-da8287ebb31a47dbac7419f7421eeae2）。
+            // 回應分開所選底稿成功、全案結果狀態及清單刷新提醒。
+            // 此處選全部情境且清單可讀，filterResultsCurrent 與 reportWarning 有固定答案。
+            // 產生報告寫不進操作紀錄時回報成功並提醒，回應帶 warnings；這裡寫得進操作紀錄，
+            // 所以是空陣列。
             JsonShape.HasExactKeys(data, "ok", "publishedReport", "sheetStats", "reports", "filterResultsCurrent", "reportWarning", "warnings");
             Assert.True(data.GetProperty("filterResultsCurrent").GetBoolean());
             Assert.Equal(JsonValueKind.Null, data.GetProperty("reportWarning").ValueKind);
@@ -989,7 +968,7 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
     [Fact]
     public async Task ExportAccountMappingTemplate_ResponseShape_IsLocked()
     {
-        // 範本是工作檔：回傳完整路徑讓前端顯示，不再回報告物件、不進報告清單。
+        // 範本是工作檔：回傳完整路徑讓前端顯示，不回報告物件、不進報告清單。
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
         var validation = await host.DispatchAsync("validate.run");
@@ -1064,13 +1043,13 @@ public sealed class ActionContractTests(DemoProjectFixture fixture) : IClassFixt
             scenarios = new[] { new {
                 name = "非授權編製人員", rationale = "contract",
                 groups = new[] { new { join = "and", conditions = new[] {
-                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    // 用示範資料裡整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         }));
 
         var data = await fixture.Host.DispatchAsync("query.highRiskSummaryRowPage",
             JsonSerializer.Serialize(new { pageSize = 200 }));
-        // 2026-10-16 每頁須回完整查詢總數以計算頁數；第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁須回完整查詢總數以計算頁數。
         JsonShape.HasExactKeys(data, "rows", "nextCursor", "totalCount");
         JsonShape.Number(data, "totalCount");
         var rows = JsonShape.Arr(data, "rows");

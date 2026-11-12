@@ -27,7 +27,7 @@ public sealed class EmbeddedReportTemplateFailureTests
             FillValidationTemplateAsync(catalog, output));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 裁定 2026-10-30-20：訊息不寫「可能」，改寫審計員接下來能做什麼。改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
+        // 訊息不寫「可能」，只寫審計員接下來能做什麼。
         Assert.Equal("無法讀取 JET 內附的範本「ValidationReport.xlsx」。請重新下載 JET 後再匯出。", exception.Message);
     }
 
@@ -46,7 +46,7 @@ public sealed class EmbeddedReportTemplateFailureTests
             FillValidationTemplateAsync(catalog, output));
 
         Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
-        // 裁定 2026-10-30-20：訊息不寫「可能」，改寫審計員接下來能做什麼。改字前依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
+        // 訊息不寫「可能」，只寫審計員接下來能做什麼。
         Assert.Equal("無法填入 JET 內附的範本「ValidationReport.xlsx」。請重新下載 JET 後再匯出。", exception.Message);
     }
 

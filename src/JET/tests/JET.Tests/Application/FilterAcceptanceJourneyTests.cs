@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 2026-09-07 九項人工驗收的補充資料：六張逐張平衡的合成傳票，經實際 XLSX 匯入、配對、驗證、
+/// 九項人工驗收的補充資料：六張逐張平衡的合成傳票，經實際 XLSX 匯入、配對、驗證、
 /// 預覽、保存及分頁。答案由下列明示資料決定，不能從第一次查詢的結果反算。
 /// </summary>
 public sealed class FilterAcceptanceJourneyTests
@@ -128,8 +128,7 @@ public sealed class FilterAcceptanceJourneyTests
             ("""{"type":"fieldValue","field":"approvedBy","operator":"isBlank"}""", ["F|1", "F|2"]),
             ("""{"type":"fieldValue","field":"glDate","operator":"between","from":"2025-12-25","to":"2025-12-31"}""",
                 ["B|1", "B|2", "C|1", "C|2", "D|1", "D|2", "E|1", "E|2", "F|1", "F|2"]),
-            // 裁定 2026-11-05-45 照舊版輸出 Cash 借方列與同一張傳票的全部貸方列，原本只有 Cash 借方六列。
-            // 第一次失敗：Focused 收據 20261105-120830847-b2f3bd56c897410e8c582d6646f832d6（預期 6 筆，實際 12 筆）。
+            // 照舊版輸出 Cash 借方列與同一張傳票的全部貸方列。
             ("""{"type":"specialAccountCategoryPair","debitCategoryIds":["builtin.cash"],"creditCategoryIds":["builtin.cash"],"pairMode":"drNotCr"}""",
                 ["A|1", "A|2", "B|1", "B|2", "C|1", "C|2", "D|1", "D|2", "E|1", "E|2", "F|1", "F|2"])
         };
@@ -182,7 +181,7 @@ public sealed class FilterAcceptanceJourneyTests
         var missing = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview",
             JsonSerializer.Serialize(new { scenario = unmapped })));
         Assert.Equal(JetErrorCodes.InvalidScenario, missing.Code);
-        // 用字依裁定 2026-10-13-28：原因只寫「「欄位」尚未選擇來源欄」，不再寫回欄位配對的下一步。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 原因只寫「「欄位」尚未選擇來源欄」，不寫回欄位配對的下一步。
         Assert.Contains("尚未選擇來源欄", missing.Message, StringComparison.Ordinal);
     }
 }

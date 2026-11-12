@@ -5,15 +5,14 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// <see cref="IBulkRowWriter"/> 兩引擎共通行為（spec §7 效能修法的正確性守恆）。
+/// <see cref="IBulkRowWriter"/> 的行為。
 /// oracle：手工固定值 + 直接讀回（值＋身分）。覆蓋：全欄提供的 staging 寫入、auto-id 欄（entry_id）
 /// 由引擎補齊且 MAX+1 起編、NULL 欄映射、型別強制轉換（int↔long）、同交易內可見、commit 後持久化、
-/// 值個數不符 fail loud。SQLite 走參數化 INSERT（行為凍結臂）、DuckDB 走原生 Appender——同一組斷言。
+/// 值個數不符 fail loud。
 /// </summary>
 public abstract class BulkRowWriterTests : IDisposable
 {
     // gl 的 17 個可寫欄（不含 entry_id auto-id；與 LocalGlRepository.TargetColumns 對齊）。
-    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，不再寫 voucher_date。
     private static readonly string[] TargetGlColumns =
     [
         "batch_id", "source_row_number",
@@ -56,7 +55,7 @@ public abstract class BulkRowWriterTests : IDisposable
             await writer.CompleteAsync(CancellationToken.None);
         }
 
-        // 同交易內可見（DuckDB Appender flush 於 Close 後、同交易可見；本機探針實證）。
+        // 同交易內可見。
         Assert.Equal(2L, await ScalarAsync(connection, transaction, "SELECT COUNT(*) FROM pbc_gl;"));
         // row_number(BIGINT) 收 int 1,2 → 3；source_row_number(INTEGER) 收 long 10,int 20 → 30（型別強制轉換落值正確）。
         Assert.Equal(3L, await ScalarAsync(connection, transaction, "SELECT SUM(row_number) FROM pbc_gl;"));
@@ -203,7 +202,6 @@ public abstract class BulkRowWriterTests : IDisposable
         command.Transaction = transaction;
         command.CommandText = sql;
         var value = await command.ExecuteScalarAsync(CancellationToken.None);
-        // DuckDB 的 SUM(整數) 回 HUGEINT → System.Numerics.BigInteger（非 IConvertible）；先收斂再轉。
         return value is System.Numerics.BigInteger big ? (long)big : Convert.ToInt64(value);
     }
 

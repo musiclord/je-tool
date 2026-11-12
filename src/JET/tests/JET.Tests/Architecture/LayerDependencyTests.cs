@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 依賴方向鐵律的機器守衛（AGENTS.md §Non-Negotiable Architecture）：
+/// 依賴方向鐵律的機器守衛：
 /// <code>Bridge / Form1(Host) → Application → AuditCore → Domain ← Infrastructure</code>
 ///
 /// 正式程式全部型別同在單一組件 <c>JET.dll</c>，層級以「命名空間」界定
@@ -17,7 +17,7 @@ namespace JET.Tests.Architecture;
 /// 因此連「在 handler 方法本體內 <c>new LocalXxxRepository()</c>」這種只在方法內部出現、
 /// 型別簽章看不到的違規也抓得到——把 code review 才守得住的邊界升級為 CI 可擋。
 ///
-/// 測試策略：以 <see cref="Domain.JetActionException"/> 定位正式組件，避免誤載入測試組件本身。
+/// 測試策略：以 <see cref="global::JET.Domain.JetActionException"/> 定位正式組件，避免誤載入測試組件本身。
 /// 每條 ShouldNot 都可能在「命名空間篩出空集合」時真空通過，故另立
 /// <see cref="NetArchTest_DetectsRealDependencies_PositiveControl"/> 作正向對照，
 /// 確認分析引擎真的讀到了 IL 依賴。
@@ -146,8 +146,6 @@ public class LayerDependencyTests
     [Fact]
     public void Infrastructure_TypesDependingOnApplication_MatchDocumentedWhitelist()
     {
-        // 白名單原本還有 SqlServerBackendProbe 與 SqlServerHealthCheck，只保留 SQLite 之後隨 SQL Server 刪除（裁定 2026-11-06-08）；
-        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
         var expected = new[]
         {
             "JET.Infrastructure.DemoWorkbookWriter"

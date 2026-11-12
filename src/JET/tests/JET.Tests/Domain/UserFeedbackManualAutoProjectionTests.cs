@@ -123,7 +123,7 @@ public sealed class UserFeedbackManualAutoProjectionTests
             out var error));
         Assert.NotNull(error);
         Assert.Contains(expected, error.Reason, StringComparison.Ordinal);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal(
             raw.Length == 0
                 ? "是空白。請在「來源空白時」選擇處理方式，或先補齊來源資料"
@@ -132,8 +132,7 @@ public sealed class UserFeedbackManualAutoProjectionTests
         Assert.Contains(raw.Length == 0 ? "來源空白時" : "判定方式", error.Reason, StringComparison.Ordinal);
         if (raw.Length == 0)
         {
-            // 確認後的句子不再逐一列出「視為人工、視為自動或不判定」，改說在「來源空白時」選擇處理方式。
-            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-131740634-2a35146b081648eb92cf69bc9c18b5ef）。
+            // 這句不逐一列出「視為人工、視為自動或不判定」，只說在「來源空白時」選擇處理方式。
             Assert.Contains("「來源空白時」選擇處理方式", error.Reason, StringComparison.Ordinal);
         }
     }

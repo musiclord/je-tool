@@ -3,13 +3,13 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// §2 母體期間界定：demo 的期外對照組（過帳日 2026-01-05 的兩張不平傳票，
+/// 母體期間界定：demo 的期外對照組（過帳日 2026-01-05 的兩張不平傳票，
 /// 見 <see cref="JET.Application.DemoDataFactory.OutOfPeriodVouchers"/>）一律不進驗證/預篩選/INF/完整性母體。
 ///
 /// oracle：期外對照組為固定 4 列（2 傳票 × 2 行，gl_date=2026-01-05），刻意帶多重「若在母體會命中」的訊號
 /// （2 張借貸不平、1 列摘要空白、1 列 suspicious 關鍵字、4 列核准日期外/期末後核准）。本測試先確認這 4 列
-/// 確實落在投影（否則排除斷言為偽綠），再斷言各母體命中數維持期內原值——若移除期間界定（PeriodBounds 退化
-/// 為恆真）則全數失敗。當時先確認過會失敗再改回，紀錄只在當時的暫存檔，沒有留在儲存庫。
+/// 確實落在投影（否則排除斷言只是看似通過），再斷言各母體命中數維持期內原值——若移除期間界定（PeriodBounds 退化
+/// 為恆真）則全數失敗。
 /// 與 <see cref="DemoRuleOracleTests"/> 的期內命中數互補，合起來即全母體 oracle 重推。
 /// </summary>
 public sealed class PeriodBoundingDemoTests
@@ -20,7 +20,7 @@ public sealed class PeriodBoundingDemoTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);
 
-        // 前置（反偽綠）：期外對照組確實落地投影 —— 4 列 gl_date=2026-01-05。
+        // 前置（避免看似通過）：期外對照組確實落地投影 —— 4 列 gl_date=2026-01-05。
         var outOfPeriodRows = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             "SELECT COUNT(*) FROM gl WHERE gl_date > '2025-12-31';");
@@ -42,7 +42,7 @@ public sealed class PeriodBoundingDemoTests
         // 空值摘要：期外空白摘要列被排除 → 維持 18（BlankDescriptionVouchers；未界定則 19）。
         Assert.Equal(18, blankRecords.GetProperty("blankDescriptionCount").GetInt64());
         // 期外日期：以核准日判定但母體限本期 gl_date → R1（過帳期內、核准 2026-01-15 期外）40 列命中；
-        //           期外對照組（過帳期外、核准期外）不入母體 → 不計（未界定則 44）。這正是 §2 spec 定案語意
+        //           期外對照組（過帳期外、核准期外）不入母體 → 不計（未界定則 44）。規則是
         //          「過帳日在期內、核准日在期外者屬母體且命中；過帳日期外者一律不入母體」。
         Assert.Equal(40, blankRecords.GetProperty("approvalDateNotInPeriodCount").GetInt64());
 

@@ -45,7 +45,7 @@ public sealed class WorkingPaperProgramTests
         Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.Step12).NaText);
         Assert.Equal("N/A", Sheet(finalized, WorkingPaperSheetCatalog.Step13).NaText);
 
-        // 沒有差異科目時，legacy 不改寫範本原文（idea-tool.bas:10409-10415）。
+        // 沒有差異科目時，舊版 JET 不改寫範本原文。
         Assert.Equal(
             "基於上述程序，查核團隊對於JE測試母體之完整性，已取得足夠的查核證據。",
             Sheet(finalized, WorkingPaperSheetCatalog.Step1).Conclusion);
@@ -75,8 +75,8 @@ public sealed class WorkingPaperProgramTests
         Assert.Equal(
             "#針對試算表科目金額本期異動與會計分錄(JE)進行推滾比對之清單列示如下：(有部分科目之差異數不為0，請於step1-3說明其理由，以確認JE母體的完整性)",
             Assert.Single(Sheet(finalized, WorkingPaperSheetCatalog.Step1).Methodology));
-        // 裁定 2026-10-02-08：照 legacy 依結果寫結論。原本預期「確認無借貸不平之情形」，但本案例有不平傳票；
-        // legacy 在有不平傳票時改寫這句（idea-tool.bas:10468、idea-script.bas:9089）。
+        // 照舊版 JET 的作法依結果寫結論：本案例有不平傳票，
+        // 舊版 JET 在有不平傳票時寫這一句。
         Assert.Equal(
             "基於上述程序，查核團隊發現有部分傳票借貸不平，但已取得足夠的查核證據，確認其理由尚屬合理。",
             Sheet(finalized, WorkingPaperSheetCatalog.Step11).Conclusion);
@@ -160,7 +160,7 @@ public sealed class WorkingPaperProgramTests
         Assert.False(JetAuditProgram.UsesLegacyWholeVoucherRows(combined));
     }
 
-    // 裁定 2026-11-05-02：單獨使用時列整張命中傳票寫在規則定義。十二條規則裡只有「未預期借貸組合」這樣算（裁定 2026-08-28-01），
+    // 單獨使用時列整張命中傳票寫在規則定義。十二條規則裡只有「未預期借貸組合」這樣算，
     // 每一條逐筆規則單獨成情境時，判斷都和規則定義的標示一致。
     [Fact]
     public void ListsWholeHitVouchersWhenAlone_IsMarkedOnlyOnUnexpectedAccountPairAndDrivesTheStandaloneScenario()
@@ -207,10 +207,9 @@ public sealed class WorkingPaperProgramTests
     [Fact]
     public void Finalize_Step41Columns_UsesLegacyPriorityThenRemainingOrdinal()
     {
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：step4-1 不再有傳票日期來源欄的排除，原本 ordinal 3 的 VOUCHER_DATE_JE 隨之拿掉。
-        // 裁定 2026-11-03-11：step4-1 依欄位的來歷挑 JET 欄位，不再看欄名結尾。原本靠 _JE 結尾進表的 ROW_TOKEN_JE、CUSTOM_FLAG_JE_S
-        // 改成沒有配對的原始來源欄，斷言它們不再出現；過帳碼_JE 照舊版補回（裁定 2026-11-03-15）。
-        // 第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+        // step4-1 沒有傳票日期來源欄的排除。
+        // step4-1 依欄位的來歷挑 JET 欄位，不看欄名結尾。ROW_TOKEN_JE、CUSTOM_FLAG_JE_S
+        // 是沒有配對的原始來源欄，斷言它們不出現；過帳碼_JE 照舊版 JET 列入。
         var definitions = new[]
         {
             Field(1, "ROW_TOKEN_JE", origin: FieldInfoOrigin.Source),
@@ -286,7 +285,7 @@ public sealed class WorkingPaperProgramTests
                 Facts(
                     targetGlDefinitions:
                     [
-                        // 兩個都是配對後改名的 JET 欄位才算重複；第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+                        // 兩個都是配對後改名的 JET 欄位才算重複。
                         Field(1, "DUPLICATE_JE", description: "SourceA", jetField: JetFieldCatalog.GlDescription),
                         Field(2, "DUPLICATE_JE", description: "SourceB", jetField: JetFieldCatalog.GlSourceModule)
                     ])));
@@ -308,24 +307,20 @@ public sealed class WorkingPaperProgramTests
         Assert.Equal(
             "測試說明：",
             Sheet(finalized, WorkingPaperSheetCatalog.Step2).Methodology[0]);
-        // 裁定 2026-11-05-59：Step 3 的 B7 與 B9 寫回舊版原文，JET 原本寫的查核期間與排除範圍另起一行接在後面。
-        // 第一次失敗：Focused 收據 20261105-103507853-206ca975d0d44f5b901d0379f7f58bc2。
+        // Step 3 的 B7 與 B9 寫舊版原文，JET 寫的查核期間與排除範圍另起一行接在後面。
         Assert.Equal(
             "期末財務報表準備期間與整個財務報導期間之會計分錄\n查核期間內（2025-01-01 ~ 2025-12-31）之會計分錄",
             Sheet(finalized, WorkingPaperSheetCatalog.Step3).AuditCondition);
-        // 裁定 2026-10-19-17 刪掉方法說明裡的「專案」，畫面與底稿統一用「案件」或直接寫查核期間。
-        // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍逐字比對整句。
-        // 裁定 2026-10-30-34 的對照表改寫整句：「矩陣」改稱高風險條件彙總，「無有效總帳日期之列」改用名詞表的未納入原因「總帳日期空白」。
-        // 第一次失敗：Focused 收據 20261031-101615482-c77433faf82d4c4f86b5fcc87daf2e32。
-        // 裁定 2026-11-03-04 與 2026-11-03-17：底稿句子裡的欄位名稱用【】標示。第一次失敗：Focused 收據 20261103-073230360-a44a4c20d04b413282230557614fe9d3。
+        // 方法說明不寫「專案」，畫面與底稿統一用「案件」或直接寫查核期間。
+        // 這裡逐字比對整句：不寫「矩陣」而寫高風險條件彙總，未納入原因寫「總帳日期空白」。
+        // 底稿句子裡的欄位名稱用【】標示。
         Assert.Contains(
             "查核團隊考量舞弊風險相關之分錄，除了會於期末財務報表準備期間發生外，某些與舞弊風險因子相關之分錄類型(例如：收入)"
             + "亦會在整個財務報導期間中被記錄。這些都將會對財務報表的正確性造成影響。因此，除測試期末財務報表準備期間之分錄外，"
             + " 亦將對整個財務報表期間之會計分錄母體，篩選與舞弊風險類型相關之分錄。\n"
             + "本次高風險條件以查核期間內的會計分錄為母體；查核期間外與【總帳日期】空白的分錄，不列入本版各情境的結果與彙總。",
             Sheet(finalized, WorkingPaperSheetCatalog.Step3).Methodology);
-        // 裁定 2026-11-09-12：空白傳票號碼的列法改寫進範本 A12，方法說明和範本同一句，後端不再另外接。
-        // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
+        // 空白傳票號碼的列法寫在範本 A12，方法說明和範本同一句，後端不另外接。
         Assert.Equal(
             "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)"
             + "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。",

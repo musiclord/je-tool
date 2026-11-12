@@ -16,7 +16,7 @@ public sealed record TbMappingSpec(
     TbChangeMode ChangeMode);
 
 /// <summary>
-/// GL logical mapping keys，也是前端與 action payload 使用的名稱。docs/action-contract-manifest.md 以此檔為準。
+/// GL logical mapping keys，也是前端與 action payload 使用的名稱。
 /// </summary>
 public static class GlMappingKeys
 {
@@ -74,7 +74,7 @@ public sealed record CommittedMapping(
 {
     /// <summary>
     /// GL 投影時和配對在同一個交易寫下的控制總數（gl_control_total），讀目前已確認的 GL 配對時一起帶出。
-    /// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數由這裡算（<see cref="TrailingZeroThreshold.FromCommittedGl"/>，裁定 2026-11-05-25）。
+    /// 預篩選「分錄金額中有連續 0 的尾數」的 0 的個數由這裡算（<see cref="TrailingZeroThreshold.FromCommittedGl"/>）。
     /// TB 配對與上次確認的配對沒有這份數字，是 null。
     /// </summary>
     public GlTotals? GlTotals { get; init; }
@@ -89,7 +89,7 @@ public interface IMappingStateStore
     /// <summary>
     /// 重新匯入（取代或附加）會讓已確認的配對失效；失效前最後一次確認的配對留在這裡，重開案件時當草稿帶回，
     /// 審計員不必逐欄重選。它不是有效配對，任何計算都不能讀它。沒有保存這份資料的實作回 null，
-    /// 畫面就和以前一樣從空白草稿開始。
+    /// 畫面就從空白草稿開始。
     /// </summary>
     Task<CommittedMapping?> FindPreviousAsync(string projectId, DatasetKind kind, CancellationToken cancellationToken) =>
         Task.FromResult<CommittedMapping?>(null);

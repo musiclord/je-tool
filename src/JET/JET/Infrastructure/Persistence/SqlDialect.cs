@@ -13,7 +13,7 @@ internal static class SqlWhitespaceList
 
 /// <summary>
 /// Infrastructure 的 SQL 方言合成介面。<see cref="ProviderName"/> 是診斷事件標籤而非 SQL 片段，
-/// 因此不進 <see cref="ISqlDialect"/>；本介面讓本地 repository 仍從同一個 provider 物件取得兩種職責。
+/// 因此不進 <see cref="ISqlDialect"/>；本介面讓 repository 仍從同一個 provider 物件取得兩種職責。
 /// </summary>
 public interface IProviderSqlDialect : ISqlDialect
 {
@@ -21,7 +21,7 @@ public interface IProviderSqlDialect : ISqlDialect
     string ProviderName { get; }
 }
 
-/// <summary>SQLite 方言。目前只支援 SQLite 案件（裁定 2026-11-06-08）。</summary>
+/// <summary>SQLite 方言。</summary>
 public sealed class SqliteDialect : IProviderSqlDialect
 {
     public static readonly SqliteDialect Instance = new();

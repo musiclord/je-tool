@@ -3,9 +3,9 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// 條件 AST → WHERE 片段的組譯（provider 中立：述詞經 <see cref="GlRulePredicates"/>，
+/// 條件 AST → WHERE 片段的組譯（述詞經 <see cref="GlRulePredicates"/>，
 /// 參數經純 ordered plan）。結合律為左折疊累積括號 ((c1 OP c2) OP c3)，
-/// 與 manifest 文件化語意一致。SELECT 骨架（COUNT/LIMIT 等）仍由各 provider
+/// 與 manifest 文件化語意一致。SELECT 骨架（COUNT/LIMIT 等）由
 /// repository 自寫——本類只負責 WHERE。
 /// </summary>
 internal sealed partial class GlFilterWhereBuilder(
@@ -79,8 +79,8 @@ internal sealed partial class GlFilterWhereBuilder(
     }
 
     /// <summary>
-    /// 第 N 組第 M 條的條件；編譯時的檢查沒過時把組號、條號記在例外上，供支援日誌使用
-    /// （用字依裁定 2026-10-14-01）。例外過濾器只記位置、不攔下例外。
+    /// 第 N 組第 M 條的條件；編譯時的檢查沒過時把組號、條號記在例外上，供支援日誌使用。
+    /// 例外過濾器只記位置、不攔下例外。
     /// </summary>
     private string BuildLocatedRule(
         FilterSqlParameterPlanBuilder parameters,
@@ -123,7 +123,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 if (rule.Side is not null) throw new InvalidOperationException("傳票判斷範圍無效。");
                 var population = GlPopulationScopeSql.Predicate(context, "g");
                 string Set(string predicate) => $"SELECT g.voucher_number FROM {schemaPrefix}gl g WHERE g.voucher_number IS NOT NULL AND {population} AND ({predicate})";
-                // CASE is portable to SQL Server, whose predicates are not scalar booleans.
+                // 條件算出 NULL 時 CASE 回 0，視為不符合，所以「全部」不會把 NULL 的分錄算成符合。
                 var matches = $"CASE WHEN {body} THEN 1 ELSE 0 END = 1";
                 var quantified = rule.Quantifier switch
                 {
@@ -211,7 +211,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 return predicates.PreparerEqualsApprover();
 
             case FilterConditionType.TypedField:
-                // typed dynamic rule（2026-08-14 凍結）：fieldId 經 context registry 解析、
+                // typed dynamic rule：fieldId 經 context registry 解析、
                 // blank＝missing value row、負向 operator 不納入 blank；值全部參數綁定。
                 return predicates.TypedField(parameters, rule, context, schemaPrefix);
 
@@ -304,10 +304,10 @@ internal static class GlPopulationScopeSql
 
 /// <summary>
 /// 資料缺漏輔助檢視分頁的 category → WHERE 述詞對映(白名單封閉集合,無任意字串注入)。
-/// 空白判定由方言的去空白方法產生，三種資料庫去掉的字元集合和 .NET 相同;
-/// approvalDateNotInPeriod 以 @periodStart/@periodEnd 綁參(述詞文字兩 provider 相同);
-/// 「核准日不在期間」以核准日 approval_date 判定，不看總帳日期，和舊版 JET 的「Approval date out of period」相同
-/// （裁定 2026-06-23-01）。核准日空白的分錄照舊版也算不在期間（裁定 2026-11-05-38）；傳票核准日沒有配對時這一項不執行。
+/// 空白判定由方言的去空白方法產生，去掉的字元集合和 .NET 相同;
+/// approvalDateNotInPeriod 以 @periodStart/@periodEnd 綁參;
+/// 「核准日不在期間」以核准日 approval_date 判定，不看總帳日期，和舊版 JET 的「Approval date out of period」相同。
+/// 核准日空白的分錄照舊版也算不在期間；傳票核准日沒有配對時這一項不執行。
 /// </summary>
 internal static class BlankRecordsCategoryPredicate
 {
@@ -320,15 +320,15 @@ internal static class BlankRecordsCategoryPredicate
         BlankRecordCategory.ApprovalDateNotInPeriod
     ];
 
-    /// <summary>空白判定去掉的字元集合由方言決定（和 .NET Trim 相同），三個 provider 答案一致。</summary>
+    /// <summary>空白判定去掉的字元集合由方言決定（和 .NET Trim 相同）。</summary>
     public static string For(BlankRecordCategory category, ISqlDialect dialect) => Build(category, dialect);
 
     public static string Scoped(BlankRecordCategory category, ISqlDialect dialect) =>
         Scope(category, For(category, dialect));
 
     /// <summary>
-    /// 這次驗證有檢查的類別才套原本的條件。傳票核准日不可用時「核准日不在期間」不執行（裁定 2026-10-23-01），
-    /// 這時核准日全是空白，照裁定 2026-11-05-38 會把每一筆都算成不在期間，所以這次驗證的計數與明細樣本都改用永遠不成立的條件。
+    /// 這次驗證有檢查的類別才套原本的條件。傳票核准日不可用時「核准日不在期間」不執行，
+    /// 這時核准日全是空白，原本的條件會把每一筆都算成不在期間，所以這次驗證的計數與明細樣本都改用永遠不成立的條件。
     /// 明細頁 <c>query.blankRecordsPage</c> 照目前的總帳判斷，畫面只在筆數大於零時才讀它。
     /// </summary>
     public static string ScopedWhenChecked(

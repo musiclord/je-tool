@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using JET.Domain;
@@ -9,11 +8,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 同一個 host 內切換不同資料庫種類的案件時，建案、載入與刪除都必須用該案件自己的資料庫。
-/// 這組測試在改成「案件建立或載入時選定 repository」之前先釘住現行行為（裁定 2026-10-02-07）；
+/// 同一個 host 內切換案件時，建案、載入與刪除都必須用該案件自己的資料庫。
 /// 斷言只看檔案、錯誤碼與 session 是否仍指向原案件，不看內部物件。
-/// 只保留 SQLite 之後沒有第二種資料庫可切換（裁定 2026-11-06-08）：原本作用中案件是 DuckDB 案件的情境改成另一個
-/// SQLite 案件；同名改用另一種資料庫重建的兩個情境沒有可用的資料庫，隨之刪除。
+/// 作用中案件與另一個案件都是 SQLite 案件。
 /// </summary>
 public sealed class ProjectRepositorySelectionTests
 {
@@ -135,19 +132,6 @@ public sealed class ProjectRepositorySelectionTests
         Assert.StartsWith(projectDirectory, databasePath, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static long TableRowCount(JsonElement overview, string tableName)
-    {
-        foreach (var table in overview.GetProperty("tables").EnumerateArray())
-        {
-            if (table.GetProperty("name").GetString() == tableName)
-            {
-                return table.GetProperty("rowCount").GetInt64();
-            }
-        }
-
-        throw new Xunit.Sdk.XunitException($"dev.db.overview 沒有回報資料表 {tableName}");
-    }
-
     private static void RewriteProvider(string rootPath, string projectId, string provider)
     {
         var path = Path.Combine(rootPath, projectId, JetProjectFolder.ProjectJsonFileName);
@@ -158,9 +142,6 @@ public sealed class ProjectRepositorySelectionTests
         node[propertyName] = provider;
         File.WriteAllText(path, node.ToJsonString());
     }
-
-    private static string FileHash(string path) =>
-        Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
     private static string DatabaseFileName(string provider) =>
         JetProjectFolder.DatabaseFileName;

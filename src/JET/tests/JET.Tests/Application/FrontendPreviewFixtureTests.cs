@@ -59,8 +59,7 @@ public sealed class FrontendPreviewFixtureTests
                 mappingProfiles.Add(new JsonObject { ["payload"] = JsonNode.Parse(payload.GetRawText()), ["response"] = JsonNode.Parse(comparison.GetRawText()) });
             }
         }
-        // 2026-10-29 編輯來源改成第 2 版：前端預覽用的這份情境改成現行前端送出的形狀。這次改的是測試資料，不是因為測試失敗；
-        // 第 1 版的資料仍能讀回，由 FilterNonBusinessDayWorkflowTests 核對。
+        // 前端預覽用的這份情境是現行前端送出的形狀，編輯來源是第 2 版。
         var draft = JsonNode.Parse("""
             {"name":"日期與金額","rationale":"合成設計情境","groups":[{"join":"OR","matchScope":"row","conditions":[
               {"type":"fieldValue","field":"glDate","operator":"between","from":"2025-12-25","to":"2025-12-31","join":"AND","includeBlank":false},

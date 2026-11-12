@@ -7,14 +7,12 @@ namespace JET.Tests.Application;
 
 public sealed class FilterSinglePurposeRetirementTests
 {
-    // 欄位旗標已拿掉，改由規則需求表讀可用欄位清單；不帶清單就不檢查欄位，
-    // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+    // 規則需求表讀可用欄位清單；不帶清單就不檢查欄位。
     private static readonly FilterValidationContext Context = new(true, true, true, HasAnyAccountCategory: true);
 
-    // 已停用的寫法連同重建說明一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。原本這裡核對每一種停用寫法
-    // 都寫出重建方式；現在借貸方向、借貸範圍、「這一側都不屬於」與核心金額的「含正負號」當成無法讀取的內容，
-    // 五種停用的型別和其他認不得的類型一樣寫「此條件的類型已停用」。預覽與儲存照舊擋下，已存的原文照舊不改。
-    // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（原因不再寫重建方式）。
+    // 借貸方向、借貸範圍、「這一側都不屬於」與核心金額的「含正負號」當成無法讀取的內容，
+    // 五種停用的型別和其他認不得的類型一樣寫「此條件的類型已停用」。預覽與儲存都擋下，已存的原文不改，
+    // 原因不寫重建方式。
     public static TheoryData<string> RetiredSettings => new()
     {
         """{"type":"fieldValue","field":"accountNumber","operator":"in","values":["A"],"drCr":"debit"}""",

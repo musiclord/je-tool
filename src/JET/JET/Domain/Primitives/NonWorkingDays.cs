@@ -2,8 +2,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 非工作日(週幾)設定。以 .NET DayOfWeek 編碼:週日=0、週一=1…週六=6
-/// (與 SQLite strftime('%w') 同編碼;SQL Server 錨點編碼換算由 <c>ISqlDialect</c> 之外的
-/// dialect 實作負責)。每案可於日期維度設定;未設定(null)時預設週六、週日。
+/// (與 SQLite strftime('%w') 同編碼)。每案可於日期維度設定;未設定(null)時預設週六、週日。
 /// 顯式空集合 [] 代表「整週皆工作日、週末規則無命中」,與 null(採預設)語意不同。
 /// </summary>
 public static class NonWorkingDays

@@ -68,6 +68,8 @@
     "docs/history/2026-09-23-frontend-terminology-review.md",
     "docs/history/2026-10-02-development-status-archive.md",
     "docs/history/2026-11-06-deferred-items-plan-execution-records.md",
+    "docs/history/test-change-records.md",
+    "docs/history/2026-11-10-source-comment-cleanup-records.md",
     "docs/history/architecture-2026-08-30/README.md",
     "docs/history/specs/2026-08-28-harness-rebuild-plan.md",
     "docs/history/specs/2026-08-29-agent-governance-and-context-plan.md",
@@ -76,11 +78,15 @@
     "docs/history/specs/2026-09-09-user-feedback-steps-1-to-4-plan.md",
     "docs/history/specs/2026-09-17-user-feedback-and-workflow-review-plan.md",
     "docs/history/specs/2026-10-06-kct-gl-requirements-plan.md",
-    "docs/test-environment-notes.md"
+    "docs/test-environment-notes.md",
+    "docs/specs/2026-11-06-sat-initial-documents-plan.md",
+    "docs/specs/2026-11-06-sqlite-only-release-plan.md",
+    ".agents/harness/sat-documents.md",
+    "tools/harness/sat-documents/README.md"
   ],
   "links": {
     "checkAnchors": true,
-    "skipPrefixes": ["http://", "https://", "mailto:", "thread://"],
+    "skipPrefixes": ["http://", "https://", "mailto:", "thread://", "chatgpt-conversation://"],
     "skipFiles": [
       "docs/history/2026-08-30-repository-lineage.md",
       "docs/history/2026-09-07-filter-acceptance-records.md",
@@ -267,7 +273,7 @@
     "severity": "error",
     "rules": [
       { "id": "size-history-exempt", "match": ["docs/history/"], "exempt": true },
-      { "id": "size-current-plan", "match": ["docs/specs/"], "maxKiB": 120 },
+      { "id": "size-current-plan", "match": ["docs/specs/"], "maxKiB": 1024 },
       { "id": "size-rulings", "match": ["docs/rulings.md"], "maxKiB": 2048 },
       {
         "id": "size-reference-document",

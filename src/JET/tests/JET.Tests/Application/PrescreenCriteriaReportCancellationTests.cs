@@ -272,7 +272,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
             RareAccounts: new("completed", null),
             BlankDescription: notApplicable)
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。
             ZerosThreshold = 6
         };
     }
@@ -334,7 +334,6 @@ public sealed class PrescreenCriteriaReportCancellationTests
                     new
                     {
                         join = "AND",
-                        // 舊式條件停用後改用欄位條件，保留取消與原產物斷言；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
                         type = "fieldValue", field = "description", @operator = "contains",
                         values = new[] { keyword }
                     }
@@ -396,7 +395,7 @@ public sealed class PrescreenCriteriaReportCancellationTests
             projectDirectory,
             "*.tmp",
             SearchOption.AllDirectories));
-        // 原本只確認舊版的暫存檔 .report-artifacts.mutation-v1.json 不在；產品早已不寫這個檔，斷言一定通過。改成確認現行的暫存檔都沒有留下。
+        // 確認現行的暫存檔都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
     }
 

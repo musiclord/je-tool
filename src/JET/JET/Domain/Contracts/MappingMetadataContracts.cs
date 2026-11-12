@@ -14,8 +14,7 @@ internal static class ManualAutoPolicyErrors
 
 /// <summary>
 /// JET 報告內嵌欄位配對 metadata 的固定位置與版本。有這組 marker/version/payload 時，帶入配對一律以它為準；
-/// 檔案沒有 JET 記下的隱藏配對時（例如舊版 IDEA JET 的底稿），改讀同一張工作表看得見的配對前後欄位對照表推得草稿
-/// （裁定 2026-11-09-28）。
+/// 檔案沒有 JET 記下的隱藏配對時（例如舊版 IDEA JET 的底稿），改讀同一張工作表看得見的配對前後欄位對照表推得草稿。
 /// </summary>
 public static class MappingMetadataFormat
 {
@@ -54,9 +53,7 @@ public static class RdeFieldValueTypeNames
 }
 
 /// <summary>
-/// RDE 在三個 provider 共用的儲存邊界。SQL Server 的可索引 text_value 是
-/// NVARCHAR(450)，因此所有 provider 都在投影前以 .NET UTF-16 code units 套用同一上限；
-/// 不截斷、不讓本機 provider 接受 SQL Server 無法保存的值。
+/// RDE 的儲存邊界：投影前以 .NET UTF-16 code units 套用上限，不截斷。
 /// </summary>
 public static class GlRdeStorageLimits
 {
@@ -110,14 +107,13 @@ public sealed record GlMappingOptions(
 {
     /// <summary>
     /// 確認配對時要「往下填補空白」的 GL 欄位（mapping key），照欄位目錄的順序、不重複，只能是有來源欄的非字面值欄位。
-    /// 投影時把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 不動；舊配對沒有這份設定時是空清單
-    /// （放在第三步確認配對時，裁定 2026-10-22-16）。
+    /// 投影時把這些欄位來源欄的空白補成同一來源內上一列的值，PBC-GL 不動；舊配對沒有這份設定時是空清單。
     /// </summary>
     public IReadOnlyList<string> FillDownFields { get; init; } = [];
 
     /// <summary>
     /// 確認配對時往下填補了幾格。由投影算出，跟著配對保存，重開案件時第三步摘要與報告的配對資訊寫得出來，
-    /// 審計員據此記在 CAATs 文件（隨配對保存，裁定 2026-10-28-05）。請求不帶這個數字；改版前確認的配對沒有時是 0。
+    /// 審計員據此記在 CAATs 文件。請求不帶這個數字；舊配對沒有這個數字時是 0。
     /// </summary>
     public long FillDownCount { get; init; }
 
@@ -264,7 +260,7 @@ public static class GlMappingOptionsRules
     /// 往下填補的欄位只能是有來源欄的 GL 非字面值欄位，不重複；回傳照欄位目錄順序排好的清單。
     /// 借方、貸方代碼是字面值不是來源欄，傳票文件項次自動編號與「與總帳日期相同」的核准日沒有來源欄，都不能填。
     /// 填補是對來源欄做的，配到同一個來源欄的其他欄位實際上也被填補，所以一起列入
-    /// （依來源欄成組，裁定 2026-10-28-04），回應、保存與摘要才寫得出全部被填的欄位。
+    /// （依來源欄成組），回應、保存與摘要才寫得出全部被填的欄位。
     /// </summary>
     public static IReadOnlyList<string> NormalizeFillDownFields(
         IReadOnlyDictionary<string, string> mapping,
@@ -384,7 +380,7 @@ public sealed record FieldInfoSheetRow(
 
 /// <summary>
 /// 「自動化工具-檔案欄位資訊」看得見的 TB 與 GL 配對前後欄位對照表，各段只有資料列，不含標題與表頭。
-/// 舊版 IDEA JET 與新版 JET 寫的都是這張表；配對怎麼推得見 FieldInfoSheetMapping（裁定 2026-11-09-28）。
+/// 舊版 IDEA JET 與新版 JET 寫的都是這張表；配對怎麼推得見 FieldInfoSheetMapping。
 /// </summary>
 public sealed record FieldInfoSheet(
     IReadOnlyList<FieldInfoSheetRow> Tb,
@@ -392,7 +388,7 @@ public sealed record FieldInfoSheet(
 
 /// <summary>
 /// 從檔案讀到、要帶入第三步的配對來源，兩者恰有一個：Recorded 是 JET 記下的隱藏配對紀錄
-/// （JET_Metadata 或 F1:H1）；檔案沒有隱藏紀錄時，FieldInfoSheet 是看得見的對照表，由 handler 推得草稿（裁定 2026-11-09-28）。
+/// （JET_Metadata 或 F1:H1）；檔案沒有隱藏紀錄時，FieldInfoSheet 是看得見的對照表，由 handler 推得草稿。
 /// </summary>
 public sealed record MappingDraftSource(
     MappingDraftMetadata? Recorded,

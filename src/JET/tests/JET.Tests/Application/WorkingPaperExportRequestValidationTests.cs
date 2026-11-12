@@ -38,7 +38,7 @@ public sealed class WorkingPaperExportRequestValidationTests
         var runError = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("export.workingPaperStream", staleRun));
         Assert.Equal(JetErrorCodes.StaleResult, runError.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Equal(
             "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             runError.Message);
@@ -52,7 +52,7 @@ public sealed class WorkingPaperExportRequestValidationTests
         var revisionError = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("export.workingPaperStream", staleRevision));
         Assert.Equal(JetErrorCodes.StaleResult, revisionError.Code);
-        // 2026-10-07：時間尾碼與子目錄反例首次失敗 ae7200be73cc4231bc617b19d5305d3d。
+        // 找殘留底稿時，檔名帶時間尾碼或放在子目錄的也算。
         Assert.Empty(FindWorkingPapers(folder));
     }
 

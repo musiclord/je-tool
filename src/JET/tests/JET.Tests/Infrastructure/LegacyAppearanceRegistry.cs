@@ -10,7 +10,7 @@ internal static class LegacyAppearanceRegistry
     public const string ScriptRelativePath = "legacy/idea-script.bas";
     public const string ToolRelativePath = "legacy/idea-tool.bas";
     public const string FixtureRelativePath =
-        "src/JET/tests/JET.Tests/Infrastructure/Fixtures/legacy-appearance-registry.json";
+        "tests/JET.Tests/Infrastructure/Fixtures/legacy-appearance-registry.json";
 
     public static IReadOnlyList<string> ProcedureNames { get; } =
     [
@@ -47,7 +47,7 @@ internal static class LegacyAppearanceRegistry
     public static LegacyAppearanceRegistryDocument Load()
     {
         var fixturePath = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
+            TestRepositoryPaths.SolutionRoot,
             FixtureRelativePath.Replace('/', Path.DirectorySeparatorChar));
         var json = File.ReadAllText(fixturePath, new UTF8Encoding(false, true));
         return JsonSerializer.Deserialize<LegacyAppearanceRegistryDocument>(json, JsonOptions)

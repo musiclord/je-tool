@@ -19,7 +19,6 @@ public sealed class LocalFilterHitRepository(ILocalProjectDatabase database, ILo
 {
     private const int PreviewRowLimit = 50;
 
-    // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死。
     private readonly string _provider = database.Dialect.ProviderName;
 
     private readonly GlFilterWhereBuilder WhereBuilder =

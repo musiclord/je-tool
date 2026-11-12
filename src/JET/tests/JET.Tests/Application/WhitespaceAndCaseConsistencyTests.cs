@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 依裁定 2026-10-04-01 修正空白與大小寫的比較：同一份資料不論從 .csv、.xlsx 或 .xls 匯入、存進 SQLite 或 DuckDB，
+/// 空白與大小寫的比較：同一份資料不論從 .csv、.xlsx 或 .xls 匯入，
 /// 人員識別值去掉頭尾空白（含全形空白、不換行空格與 Tab）、只含空白的值當成空白、比對與分組一律不分大小寫，固定答案都相同。
 /// Access 以讀取器替身另測（AccessTableReaderTests）。
 /// </summary>
@@ -45,7 +45,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
         Assert.Equal(12, await CountAsync(host, new { type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "equals", countFrom = 12 }));
         Assert.Equal(12, await CountAsync(host, new { type = "fieldValue", field = "createdBy", @operator = "in", values = new[] { " u1 " } }));
         Assert.Equal(2, await CountAsync(host, new { type = "fieldValue", field = "createdBy", @operator = "isBlank" }));
-        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27）：原本用預篩選條件 rarePreparer，改成第五步預設 11 筆以下的同一個統計條件；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目，這裡用第五步預設 11 筆以下的統計條件。
         Assert.Equal(1, await CountAsync(host, new { type = "entityFrequency", field = "createdBy", countUnit = "entries", countOperator = "lessThanOrEqual", countFrom = 11 }));
 
         var list = TestWorkbookBuilder.WriteWorkbook(sheet =>
@@ -77,7 +77,7 @@ public sealed class WhitespaceAndCaseConsistencyTests
     [InlineData("sqlite")]
     public async Task RowsStoredBeforeThisChange_AreNormalizedTheSameWayInBothDatabases(string provider)
     {
-        // 這次修正之前匯入的案件，資料庫裡的文字可能還帶著頭尾空白；SQL 端去掉的空白字元要和 .NET 相同，兩個資料庫一樣。
+        // 以前匯入的案件，資料庫裡的文字可能還帶著頭尾空白；SQL 端去掉的空白字元要和 .NET 相同。
         using var host = new HandlerTestHost();
         var rows = new List<string?[]>
         {

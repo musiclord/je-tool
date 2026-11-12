@@ -19,7 +19,7 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class FilterConditionRendererTests
 {
-    // 省略方向時仍寫借方的首次失敗：20261014-132814590-06c3b8e640d0499aa09a159dc379e8ce。
+    // 省略方向時仍寫借方的
     [Fact]
     public void ClassificationWithoutDirection_DoesNotDescribeItAsDebit()
     {
@@ -32,8 +32,8 @@ public sealed class FilterConditionRendererTests
         Assert.DoesNotContain("貸方", text);
     }
 
-    // 省略 categorySelection 的舊條件仍比對相同分類用途，讀回現在明說這個範圍。
-    // 十項固定預期只補此模式前綴；保留完整等值比較。第一次失敗收據：20261004-075513821-fc05ce3f66ae4f50bc2291ee57350ac9。
+    // 省略 categorySelection 的舊條件仍比對相同分類用途，讀回明說這個範圍。
+    // 十項固定預期帶此模式前綴，用完整等值比較。
     [Fact]
     public void ValueConditions_ReadNaturallyWithoutParenthesizedAnnotations()
     {
@@ -75,7 +75,7 @@ public sealed class FilterConditionRendererTests
     [Fact]
     public void SingleGroup_SinglePrescreen_RendersAtomWithoutOperators()
     {
-        // 單組單規則＝無組合器、無括號。裁定 2026-10-08-03 移除傳票日期與回溯過帳，代表原子改用週末過帳。
+        // 單組單規則＝無組合器、無括號。代表原子用週末過帳。
         var result = Render(new
         {
             groups = new[] { new { join = "AND", conditions = new object[]
@@ -275,11 +275,8 @@ public sealed class FilterConditionRendererTests
     }
 
     // ---- 舊版非營業日(I) 獨立條件組：照一般條件組讀回 ----
-    // 裁定 2026-10-02-03 移除「情境層級」：I 改成組內的子條件組，讀回改在括號辨識「週末過帳 或 假日過帳」。
-    // 下面三個測試原本斷言舊版獨立組會被讀成「非營業日（週末或假日）」並搬到最後
-    //（原名 PresetOnly_WithLeadingEmptyGroup_RendersNonBusinessDayAtom、SingleAtomGroup_PlusPreset_NoDisambiguatingParens、
-    // MultiRuleSingleGroup_PlusPreset_WrapsInDisambiguatingParens）。已保存的情境不轉換（裁定 2026-10-02-03），舊形狀改照條件樹讀回，
-    // 與重開後畫面顯示的兩條預篩選一致。第一次失敗：收據 20261003-031912333-532a31ca0cd1416d94dc1d3077d6f652。
+    // I 是組內的子條件組，讀回在括號辨識「週末過帳 或 假日過帳」。
+    // 已保存的情境不轉換，舊形狀照條件樹讀回，與重開後畫面顯示的兩條預篩選一致。
 
     [Fact]
     public void OldPresetOnlyGroup_WithLeadingEmptyGroup_RendersOrdinaryOrGroup()
@@ -348,7 +345,7 @@ public sealed class FilterConditionRendererTests
         Assert.Equal("（傳票摘要 包含「調整」 或 僅借方） 且 （預篩選：週末過帳 或 預篩選：假日過帳）", result);
     }
 
-    // ---- 非營業日(I) 子條件組：在原位置讀回「非營業日（週末或假日）」（2026-10-02 新增）----
+    // ---- 非營業日(I) 子條件組：在原位置讀回「非營業日（週末或假日）」----
 
     private static object NonBusinessDayBracket(string join = "AND", string secondJoin = "OR", bool holidayFirst = false) => new
     {
@@ -375,8 +372,7 @@ public sealed class FilterConditionRendererTests
             } } }
         });
 
-        // 非營業日改成也排除補班日後（裁定 2026-10-04-02），舊 AST 保留週末或假日語意，不冒稱已排除補班日；位置與命中不變。
-        // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
+        // 非營業日也排除補班日；舊 AST 保留週末或假日語意，不冒稱已排除補班日，位置與命中不變。
         Assert.Equal("預篩選：空白摘要 且 （週末過帳 或 假日過帳） 且 僅借方", result);
     }
 
@@ -400,8 +396,7 @@ public sealed class FilterConditionRendererTests
             }
         });
 
-        // 非營業日改成也排除補班日後（裁定 2026-10-04-02），只更新舊樹讀回名稱，保留完整組內與組間連接的固定句。
-        // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
+        // 非營業日也排除補班日，舊樹的讀回名稱只寫週末或假日；核對完整組內與組間連接的固定句。
         Assert.Equal("（僅借方 或 （週末過帳 或 假日過帳）） 或 （週末過帳 或 假日過帳）", result);
     }
 
@@ -431,8 +426,7 @@ public sealed class FilterConditionRendererTests
         // 符合原因由 QueryFilterVoucherHandlers 把單一條件包成一組再讀回，前面加「第 N 組條件 M：」。
         var single = Render(new { groups = new[] { new { conditions = new[] { NonBusinessDayBracket() } } } });
 
-        // 非營業日改成也排除補班日後（裁定 2026-10-04-02），舊樹只描述週末或假日，保留一般條件位置與不含情境字樣的斷言。
-        // 第一次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
+        // 非營業日也排除補班日，舊樹只描述週末或假日；讀回在一般條件位置，不含情境字樣。
         Assert.Equal("（週末過帳 或 假日過帳）", single);
         Assert.DoesNotContain("情境", single, StringComparison.Ordinal);
     }
@@ -444,8 +438,7 @@ public sealed class FilterConditionRendererTests
         Assert.Equal(string.Empty, Render(new { groups = new object[0] }));
     }
 
-    // 用語統一後，讀回跟著畫面改：借方與貸方改用逗號分開，「所選母體」改為「分錄測試範圍」，
-    // 「主單位整數(捨小數)」改為「金額整數部分（不含小數）」。第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a。
+    // 讀回的用語和畫面一致：借方與貸方用逗號分開。
     [Theory]
     [InlineData("exact", "相同分類用途：借貸科目組合：借方是 A 且貸方是 B（借方 Receivables，貸方 Revenue）")]
     [InlineData("debitAnchor", "相同分類用途：借貸科目組合：借方是 A，看它的對方科目（借方 Receivables）")]
@@ -463,7 +456,7 @@ public sealed class FilterConditionRendererTests
                     join = "AND",
                     type = "accountPair",
                     pairMode,
-                    // 2026-10-02 起讀回只認分類身分陣列，單選分類欄位改成同一分類的陣列。
+                    // 讀回只認分類身分陣列，分類用陣列帶入。
                     debitCategoryIds = new[] { "builtin.receivables" },
                     creditCategoryIds = new[] { "builtin.revenue" }
                 }
@@ -474,8 +467,7 @@ public sealed class FilterConditionRendererTests
     }
 
     // ---- 條件組層級的週末、假日預篩選：一律照一般條件組讀回 ----
-    // 2026-10-02 起非營業日只在子條件組辨識（見上方 NonBusinessDayBracket 測試），條件組本身不再做任何辨識；
-    // 這兩個測試原本就斷言一般讀回，條件與預期值不變。
+    // 非營業日只在子條件組辨識（見上方 NonBusinessDayBracket 測試），條件組本身不做任何辨識。
 
     [Fact]
     public void ManualAndCombinator_SameShapeGroup_RendersAsNormalGroup()
@@ -516,22 +508,17 @@ public sealed class FilterConditionRendererTests
     // oracle：前端 ruleSummaryLabel(rule, 0) 手算（等價分割：每型別一代表值；
     // manualAuto 補一負向變體、revenueDebitNearQuarterEnd 補缺值刪節號變體）。
 
-    // 用語統一後，讀回跟著畫面改：借方與貸方改用逗號分開，「所選母體」改為「分錄測試範圍」，
-    // 「主單位整數(捨小數)」改為「金額整數部分（不含小數）」。第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a。
     [Theory]
     [InlineData("""{"join":"AND","type":"manualAuto","isManual":"true"}""", "人工分錄")]
     [InlineData("""{"join":"AND","type":"manualAuto","isManual":"false"}""", "自動分錄")]
-    // 2026-10-02 起讀回只認分類身分陣列；下面兩列的單選分類欄位改成同一分類的陣列。
+    // 讀回只認分類身分陣列；下面兩列用陣列帶分類。
     [InlineData("""{"join":"AND","type":"accountPair","pairMode":"exact","debitCategoryIds":["builtin.receivables"],"creditCategoryIds":["builtin.revenue"]}""",
         "相同分類用途：借貸科目組合：借方是 A 且貸方是 B（借方 Receivables，貸方 Revenue）")]
     [InlineData("""{"join":"AND","type":"specialAccountCategoryPair","pairMode":"drNotCr","debitCategoryIds":["builtin.receivables"],"creditCategoryIds":["builtin.revenue"]}""",
         "相同分類用途：借貸科目組合：借方是 A 且整張傳票沒有 B 貸方（借方 Receivables，貸方 Revenue）")]
-    // 自訂尾數讀回補「金額」，原 AST、6 位參數與全文等值斷言保留。
-    // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
-    // 裁定 2026-10-08-04 統一全系統的資料名稱：「分錄測試範圍內」改為「GL 中」。
     [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":"5"}""", "季底或查核期末前 5 天借記收入")]
     [InlineData("""{"join":"AND","type":"revenueDebitNearQuarterEnd","windowDays":""}""", "季底或查核期末前 … 天借記收入")]
-    // 裁定 2026-11-03-10 改畫面用字：固定條件的讀回和卡片名稱統一。第一次失敗：Focused 收據 20261103-075151346-11bde93b2655412b942a8bddd963de67。
+    // 固定條件的讀回和卡片名稱統一。
     [InlineData("""{"join":"AND","type":"revenueWithoutNormalCounterpart"}""", "貸方為收入但借方非一般對方科目")]
     [InlineData("""{"join":"AND","type":"manualRevenueEntry"}""", "收入之人工分錄")]
     [InlineData("""{"join":"AND","type":"preparerEqualsApprover"}""", "編製人員與核准人員相同")]
@@ -547,8 +534,7 @@ public sealed class FilterConditionRendererTests
 
     // 多選讀回把每個分類身分還原成科目分類的顯示 label，依使用者選取順序、以 Domain 正本
     // 的分隔字元串接；帶陣列時 scalar 不參與呈現（與判定端一致）。
-    // 用語統一後，讀回跟著畫面改：借方與貸方改用逗號分開，「所選母體」改為「分錄測試範圍」，
-    // 「主單位整數(捨小數)」改為「金額整數部分（不含小數）」。第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a。
+    // 讀回的用語和畫面一致：借方與貸方用逗號分開。
     [Theory]
     [InlineData(
         """{"join":"AND","type":"accountPair","pairMode":"exact","debitCategoryIds":["builtin.receivables","builtin.cash"],"creditCategoryIds":["builtin.revenue"]}""",
@@ -592,7 +578,7 @@ public sealed class FilterConditionRendererTests
             FilterConditionRenderer.Render(document.RootElement, labels));
     }
 
-    // ---- typed 條件（type:"typed"，2026-08-14 凍結）----
+    // ---- typed 條件（type:"typed"）----
 
     [Fact]
     public void TypedAtom_UsesCurrentRdeLabel_AndRendersRawOperandStrings()
@@ -627,7 +613,7 @@ public sealed class FilterConditionRendererTests
             """;
         using var document = JsonDocument.Parse(json);
 
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不印程式代號。
+        // 不印程式代號。
         var rendered = FilterConditionRenderer.Render(document.RootElement);
         Assert.Equal("已不在欄位配對中的攸關資料元素欄位 為空白", rendered);
         Assert.DoesNotContain(fieldId, rendered, StringComparison.Ordinal);
@@ -659,7 +645,7 @@ public sealed class FilterConditionRendererTests
             FilterConditionRenderer.Render(document.RootElement, null, rdeLabels));
     }
 
-    // 底稿與報告的條件說明把欄位名稱用【】標示，值照舊用「」；畫面的讀回不加（裁定 2026-11-03-17）。
+    // 底稿與報告的條件說明把欄位名稱用【】標示，值照舊用「」；畫面的讀回不加。
     // 認不得的欄位寫的是替代句，不是欄位名稱，兩種寫法都不加【】。
     [Fact]
     public void ForDocument_MarksFieldNamesOnly_AndScreenReadbackStaysUnmarked()

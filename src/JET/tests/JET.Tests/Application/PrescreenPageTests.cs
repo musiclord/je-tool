@@ -55,7 +55,7 @@ public sealed class PrescreenPageTests
     {
         using var host = new HandlerTestHost();
         await DemoProjectPipeline.SetupAsync(host);
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用仍存在的規則鍵。
+        // 用現有的規則鍵。
         using var payload = JsonDocument.Parse("{\"ruleKey\":\"nonAuthorizedPreparer\",\"cursor\":\"not-base64\"}");
 
         var error = await Assert.ThrowsAsync<JetActionException>(() =>
@@ -63,27 +63,5 @@ public sealed class PrescreenPageTests
                 "query.prescreenPage", payload.RootElement, CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);
-    }
-
-    private static async Task<List<string>> WalkRowsAsync(
-        HandlerTestHost host,
-        string ruleKey,
-        int pageSize)
-    {
-        string? cursor = null;
-        var rows = new List<string>();
-        do
-        {
-            var page = await host.DispatchAsync(
-                "query.prescreenPage",
-                JsonSerializer.Serialize(new { ruleKey, cursor, pageSize }));
-            rows.AddRange(page.GetProperty("rows").EnumerateArray().Select(row => row.GetRawText()));
-            cursor = page.GetProperty("nextCursor").ValueKind == JsonValueKind.Null
-                ? null
-                : page.GetProperty("nextCursor").GetString();
-        }
-        while (cursor is not null);
-
-        return rows;
     }
 }

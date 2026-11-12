@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// CsvTableReader 測試（guide §3.1.1）。
+/// CsvTableReader 測試。
 /// oracle：手寫 bytes fixture（編碼與內容皆可人工驗證）。
 /// 設計技術：決策表——編碼來源（BOM UTF-8 / BOM UTF-16 / 無 BOM UTF-8 / 無 BOM Big5）×
 /// 引號形態（含分隔符 / 含換行 / "" 跳脫）；負向含不可解碼 bytes 與空檔。
@@ -220,7 +220,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task DuplicateAndBlankHeaders_NormalizedSameAsXlsx()
     {
-        // 標頭正規化與 xlsx 共用 TabularHeaderNormalizer（guide §3.1.1）
+        // 標頭正規化與 xlsx 共用 TabularHeaderNormalizer
         var path = TestCsvBuilder.WriteFile("金額,,金額\n1,2,3\n", TestCsvBuilder.Utf8NoBom);
         try
         {
@@ -325,7 +325,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task UnquotedFieldWithEmbeddedQuote_IsLiteralAndFollowingRowsStayIntact()
     {
-        // 沒有用引號包住的欄位裡出現一個雙引號（例如英吋符號），以前後面的列會被併成一列。
+        // 沒有用引號包住的欄位裡出現一個雙引號（例如英吋符號）時，後面的列不得被併成一列。
         // 一般 CSV 讀法（Excel、Python csv）把它當一般字元；資料列數不得減少。
         var path = TestCsvBuilder.WriteFile("doc,desc,amount\nV1,3/4\" pipe,10\nV2,plain,20\nV3,\"quoted, ok\",30\n", TestCsvBuilder.Utf8NoBom);
         try
@@ -388,7 +388,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task LeadingBlankLines_AreSkippedBeforeHeader_AndRowNumbersCountThem()
     {
-        // 第一行是空白行時以前找不到標頭；改成和 Excel 檔一樣略過開頭空白行。列號仍照檔案實際列數。
+        // 第一行是空白行時，和 Excel 檔一樣略過開頭空白行再找標頭。列號仍照檔案實際列數。
         var path = TestCsvBuilder.WriteFile("\n   \n傳票號碼,金額\nV1,10\n", TestCsvBuilder.Utf8NoBom);
         try
         {
@@ -408,9 +408,8 @@ public sealed class CsvTableReaderTests
         }
     }
 
-    // 裁定 2026-10-22-15：「欄名在第幾列」開放給 GL 與 TB 的一般匯入，含文字檔。
+    // 「欄名在第幾列」開放給 GL 與 TB 的一般匯入，含文字檔。
     // 文字檔和 Excel 讀取器同一規則：先略過指定的列數（以記錄計，空白列也算），再取第一個有內容的列當欄名；列號照檔案實際列數。
-    // 第一次失敗：Focused 收據 20261023-193734239-f6249c3be1e046cfa0c55b4181d2cabd（略過列數被忽略，標題列被當成欄名）。
     [Fact]
     public async Task HeaderRowSkip_SkipsTitleRows_ThenFirstContentRowIsHeader_AndRowNumbersCountThem()
     {
@@ -440,7 +439,7 @@ public sealed class CsvTableReaderTests
             var tooFar = await Assert.ThrowsAsync<JetActionException>(() =>
                 reader.ReadColumnsAsync(new TabularSourceRequest(path, LeadingRowsToSkip: 5), CancellationToken.None));
             Assert.Equal(JetErrorCodes.EmptyWorkbook, tooFar.Code);
-            // 2026-10-28 複審新增的斷言：訊息寫那一列起沒有內容，不說成檔案找不到標頭列。改程式之後才補，沒有第一次失敗的收據。
+            // 訊息寫那一列起沒有內容，不說成檔案找不到標頭列。
             Assert.Equal($"檔案「{Path.GetFileName(path)}」從第 6 列起沒有內容，找不到欄名。請確認欄名所在的列。", tooFar.Message);
         }
         finally
@@ -450,7 +449,7 @@ public sealed class CsvTableReaderTests
     }
 
     // 有 BOM 的 UTF-8 與 UTF-16 檔，StreamReader 認得 BOM 後
-    // 換成 .NET 預設的編碼，壞位元組被默默換成替代字元匯入。改成嚴格編碼後，和沒有 BOM 的 UTF-8 一樣以讀檔錯誤回報。
+    // 會換成 .NET 預設的編碼，壞位元組會被默默換成替代字元匯入。讀取時用嚴格編碼，和沒有 BOM 的 UTF-8 一樣以讀檔錯誤回報。
     public static TheoryData<string, byte[]> BomFilesWithBadBytes() => new()
     {
         { "utf-8 bom, 0xFF", [0xEF, 0xBB, 0xBF, .. "a,b\n1,"u8, 0xFF, .. ",2\n"u8] },
@@ -475,7 +474,7 @@ public sealed class CsvTableReaderTests
             });
 
             Assert.True(ex.Code == JetErrorCodes.FileReadError, label + ": " + ex.Code);
-            // 畫面避免系統用詞（裁定 2026-10-19-04）：訊息裡的編碼和匯入清單的選項一樣寫 UTF-8、Big5、UTF-16。
+            // 畫面避免系統用詞：訊息裡的編碼和匯入清單的選項一樣寫 UTF-8、Big5、UTF-16。
             Assert.Contains("改選編碼（UTF-8、Big5 或 UTF-16）", ex.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("utf-", ex.Message, StringComparison.Ordinal);
         }
@@ -488,7 +487,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task Utf16Override_OnBigEndianFile_ReadsByTheBom()
     {
-        // 指定「utf-16」時照 BOM 選大端或小端；以前一律用小端開檔，讀到大端的 BOM 才換成不嚴格的編碼。
+        // 指定「utf-16」時照 BOM 選大端或小端。
         var path = TestCsvBuilder.WriteFile(ChineseContent, new UnicodeEncoding(bigEndian: true, byteOrderMark: true));
         try
         {
@@ -515,8 +514,8 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task LeadingWhitespaceLine_TabFileStillSplitsIntoColumns()
     {
-        // 第一行只有空白字元時，分隔符偵測以前把它當成標頭，
-        // 改用預設的逗號，Tab 檔整個讀成一欄、無法配對。
+        // 第一行只有空白字元時，分隔符偵測不得把它當成標頭；
+        // 否則會改用預設的逗號，Tab 檔整個讀成一欄、無法配對。
         var path = TestCsvBuilder.WriteFile("   \r\n傳票號碼\t金額\r\nV1\t10\r\n", TestCsvBuilder.Utf8NoBom);
         try
         {
@@ -539,7 +538,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task ExtraCellsBeyondHeader_BecomePlaceholderColumns_LikeXlsx()
     {
-        // guide 3.1.5 的規則：有資料的欄絕不靜默丟棄，標頭範圍外的資料合成 COL_n 佔位欄；缺欄視為空。
+        // 規則：有資料的欄絕不靜默丟棄，標頭範圍外的資料合成 COL_n 佔位欄；缺欄視為空。
         var path = TestCsvBuilder.WriteFile("a,b\n1,2,3\n4\n", TestCsvBuilder.Utf8NoBom);
         try
         {
@@ -559,7 +558,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task InspectAsync_SingleColumn_ReportsPossibleReportLayout()
     {
-        // 報表格式的文字檔（上方有公司名稱或標題列）以前匯成單一欄而不提示。
+        // 報表格式的文字檔（上方有公司名稱或標題列）讀成單一欄時要提示。
         var path = TestCsvBuilder.WriteFile("合成公司 總帳明細表\n2025/01/01 V001 1000\n2025/01/02 V002 2000\n", TestCsvBuilder.Utf8NoBom);
         try
         {
@@ -569,8 +568,7 @@ public sealed class CsvTableReaderTests
             var notice = Assert.Single(inspection.Notices ?? []);
             Assert.Contains("報表", notice, StringComparison.Ordinal);
             Assert.Contains("Excel", notice, StringComparison.Ordinal);
-            // 待匯入清單有了「欄名在第幾列」，標題列在欄名前面時提醒要指到那一格，不再只叫審計員去 Excel 整理。
-            // 第一次失敗收據 20261024-035009182-d65b0b7be7854c92a2263a9c18ab810f。
+            // 待匯入清單有「欄名在第幾列」，標題列在欄名前面時提醒要指到那一格，不只叫審計員去 Excel 整理。
             Assert.Contains("欄名在第幾列", notice, StringComparison.Ordinal);
         }
         finally
@@ -597,7 +595,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task FileOpenedByAnotherProgram_MessageAsksToCloseIt_WithoutPath()
     {
-        // 檔案被 Excel 開著時以前顯示英文例外與完整路徑。
+        // 檔案被 Excel 開著時，訊息請使用者關閉檔案，不顯示英文例外與完整路徑。
         var path = TestCsvBuilder.WriteFile(ChineseContent, TestCsvBuilder.Utf8NoBom);
         using var locked = File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
         try
@@ -622,7 +620,7 @@ public sealed class CsvTableReaderTests
     [Fact]
     public async Task DecodeFailure_MessageIsPlainChinese_AndPointsToEncodingChoice()
     {
-        // 解碼失敗以前把 .NET 英文例外文字放進訊息，並要審計員「改以匯入參數指定編碼」。
+        // 解碼失敗的訊息用一般中文並指向編碼選項，不放 .NET 英文例外文字，也不寫「改以匯入參數指定編碼」。
         var path = TestCsvBuilder.WriteFile(ChineseContent, TestCsvBuilder.Big5);
         try
         {
@@ -631,8 +629,8 @@ public sealed class CsvTableReaderTests
                 () => reader.ReadColumnsAsync(new TabularSourceRequest(path, EncodingName: "utf-8"), CancellationToken.None));
 
             Assert.Equal(JetErrorCodes.FileReadError, ex.Code);
-            // 畫面避免系統用詞（裁定 2026-10-19-04）：編碼改寫成審計員常見的 UTF-8，不再顯示程式內部的小寫代號。
-            // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；仍檢查訊息說出讀取時用的編碼。
+            // 畫面避免系統用詞：編碼改寫成審計員常見的 UTF-8，不顯示程式內部的小寫代號。
+            // 仍檢查訊息說出讀取時用的編碼。
             Assert.Contains("UTF-8", ex.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("utf-8", ex.Message, StringComparison.Ordinal);
             Assert.Contains("改選編碼", ex.Message, StringComparison.Ordinal);

@@ -8,18 +8,16 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總行層分頁的共用兩段查詢讀取器(provider 中立)。三 provider 的分頁差異由
-/// 呼叫端帶入 <see cref="ISqlDialect"/> 的 LimitClause；
-/// 其餘 SQL 純 ANSI,故讀取邏輯共用一處(鏡射 <see cref="HighRiskSummaryVoucherPageReader"/> 的範式,
-/// 鍵改 entry_id、列集改命中傳票之所有行)。
+/// 高風險條件彙總行層分頁的兩段查詢讀取器。鏡射 <see cref="HighRiskSummaryVoucherPageReader"/> 的範式,
+/// 鍵改 entry_id、列集改命中傳票之所有行。
 ///
 /// 查詢 1(命中傳票之所有行 keyset 頁):FROM gl g WHERE voucher_number IN(命中傳票集
-/// = 命中行所屬傳票 DISTINCT voucher_number、排除 NULL)、游標展開布林式 `entry_id > @cursor`、
-/// ORDER BY entry_id、LimitClause。列集**含該傳票內未命中任何情境的行**(只要與命中行同傳票即列出)。
-/// reader 末欄取 entry_id 供編游標與對齊位置。查 pageSize+1 作 lookahead，只有 probe 存在才回本頁末鍵 cursor。
+/// = 命中行所屬傳票 DISTINCT voucher_number、排除 NULL)、LimitClause。
+/// 列集**含該傳票內未命中任何情境的行**(只要與命中行同傳票即列出)。排序與游標由 <c>KeysetPaging.Plan</c>
+/// 依 <c>ResultPageSorting.HighRiskSummaryRow</c> 組出，沒有指定排序時依 entry_id 升冪。
+/// reader 取 entry_id 供編游標與對齊位置。查 pageSize+1 作 lookahead，只有 probe 存在才回本頁末鍵 cursor。
 ///
-/// 查詢 2(本頁各行命中位置,鍵範圍 (@lo, @hi]):FROM filter_hit WHERE `entry_id <= @hi`
-/// (@hi=本頁末 entry_id),非首頁再加 `entry_id > @lo`(@lo=本頁游標)。鍵範圍與查詢 1 完全一致,
+/// 查詢 2(本頁各行命中位置):FROM filter_hit WHERE entry_id IN(本頁的 entry_id),
 /// 故每行的命中位置不漏不溢。空頁→不跑查詢 2,回空 dict、空 EntryIds。非命中行不在 dict(handler 補 [])。
 /// </summary>
 internal static class HighRiskSummaryRowPageReader
@@ -30,7 +28,6 @@ internal static class HighRiskSummaryRowPageReader
         string LineItemOrder,
         long EntryId);
 
-    // schemaPrefix 預設 ""（SQLite 裸名，逐字不變）；參數保留給日後恢復的 SQL Server 傳專案 schema 前綴。
     private static string PageSqlHead(
         string schemaPrefix,
         string scenarioPredicate,
@@ -118,8 +115,8 @@ internal static class HighRiskSummaryRowPageReader
                 new Dictionary<long, IReadOnlyList<int>>());
         }
 
-        // 查詢 2:本頁各行命中位置。排序後本頁不再是連續鍵範圍，改把本頁的 entry_id 全部當參數帶進 IN 清單
-        // （一頁最多 500 列，低於各引擎的參數上限）。
+        // 查詢 2:本頁各行命中位置。依欄位排序時本頁不是連續的鍵範圍，所以把本頁的 entry_id 全部當參數帶進 IN 清單
+        // （一頁最多 500 列，低於 SQLite 的參數上限）。
         var positions = new Dictionary<long, List<int>>();
         await using (var command = connection.CreateCommand())
         {
@@ -161,10 +158,10 @@ internal static class HighRiskSummaryRowPageReader
     }
 
     /// <summary>
-    /// WorkingPaper step4-1 export-only path。公開 ReadAsync 的 entry_id wire 順序不變；
-    /// 本路徑才以 voucher_number、line_item、entry_id 作 composite keyset，並在同一
-    /// row query bounded join 原始 row_json。第二段仍只讀本頁 tags，保留現行 paging
-    /// 與每頁兩個 command 的「正確但慢」baseline。
+    /// WorkingPaper step4-1 的逐頁讀取路徑：以 voucher_number、line_item、entry_id 作 composite keyset，
+    /// 並在同一 row query bounded join 原始 row_json；第二段只讀本頁 tags。每頁兩個 command，正確但慢。
+    /// 正式匯出用 <see cref="IWorkingPaperStep41PreparedSessionFactory"/> 一次讀完，這條路徑留給測試對照。
+    /// 只有這條路徑用 composite keyset；<see cref="ReadAsync"/> 的排序由 <c>ResultPageSorting.HighRiskSummaryRow</c> 決定。
     /// </summary>
     public static async Task<WorkingPaperStep41Page> ReadWorkingPaperAsync(
         DbConnection connection,

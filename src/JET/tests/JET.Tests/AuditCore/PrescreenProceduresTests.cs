@@ -4,16 +4,12 @@ using Xunit;
 
 namespace JET.Tests.AuditCore;
 
-// 第四步的原因改由規則需求表產生，原因常數已拿掉：原本「常數等於固定文字」的檢查
-// 改成直接拿固定文字比對規則的原因；快照的核准日與建立人員兩個旗標換成可用欄位清單。
-// 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
-// 同一階段第 3、4 項要求第四步與第五步對同一條規則給同一個原因，畫面只顯示後端一句寫出缺什麼、到哪裡補的原因，
-// 預期值因此換成規則需求表的句子；缺幾項就依表列順序各寫一句。第一次失敗：Focused 收據
-// 20261023-032846329-b8feeb7decf44e589688cc075a857504。
+// 第四步的原因由規則需求表產生：這裡直接拿固定文字比對規則的原因；快照帶可用欄位清單。
+// 第四步與第五步對同一條規則給同一個原因，畫面只顯示後端一句寫出缺什麼、到哪裡補的原因，
+// 預期值是規則需求表的句子；缺幾項就依表列順序各寫一句。
 public sealed class PrescreenProceduresTests
 {
     private const string ApprovalDateMissing = "「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
-    // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075405771-4def72d8e7964cfa9dce2fccff5e8630。
     private const string HolidayCalendarMissing = "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。";
     private const string PrepStartDateMissing = "尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫。";
 
@@ -26,7 +22,7 @@ public sealed class PrescreenProceduresTests
         Assert.Equal("科目配對中尚無任何科目設定分類，請先在第四步設定。", verdict.NaReason);
     }
 
-    // 缺收入分類與缺對方分類原本共用一句，現在和第五步一樣各寫各的分類名稱，所以每組資料多帶預期的原因。
+    // 缺收入分類與缺對方分類和第五步一樣各寫各的分類名稱，所以每組資料帶預期的原因。
     [Theory]
     [InlineData(false, true, "科目配對中尚無歸類為「Revenue」的科目，請先在第四步設定。")]
     [InlineData(true, false, "科目配對中尚無歸類為「Receivables」「Cash」或「Receipt in advance」的科目，請先在第四步設定。")]
@@ -71,7 +67,6 @@ public sealed class PrescreenProceduresTests
     public void Plan_WithoutCreatedByMapping_MarksPreparerSummaryNotApplicable()
     {
         // 只改確認配對用語，以下 N/A 事實與狀態仍逐項核對。
-        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         var verdict = Verdict(Plan(Snapshot(hasCreatedBy: false)), "preparer_summary");
 
         Assert.False(verdict.IsApplicable);
@@ -90,10 +85,9 @@ public sealed class PrescreenProceduresTests
     [Fact]
     public void Plan_WithoutApprovalDate_PreservesBothExistingReasons()
     {
-        // 兩個不同用途的原因都保留，只同步確認配對說法。
-        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
-        // 原因改由規則需求表產生後，核准側規則本身只寫缺什麼；「只檢查了總帳日期」改由週末與假日卡合併原因時附上，
-        // 所以第二個用途改查卡片的核准側說明。
+        // 兩個不同用途的原因都保留。
+        // 原因由規則需求表產生，核准側規則本身只寫缺什麼；「只檢查了總帳日期」由週末與假日卡合併原因時附上，
+        // 所以第二個用途查卡片的核准側說明。
         var snapshot = Snapshot(hasApprovalDate: false, prepStartDate: null);
         var plan = Plan(snapshot);
 
@@ -135,8 +129,7 @@ public sealed class PrescreenProceduresTests
     {
         var plan = Plan(Snapshot());
 
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
-        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），再減為 12 個；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 預篩選程序共 12 個：沒有傳票日期與回溯過帳，也照舊版 JET 不含編製分錄較少的人員與使用較少的科目。
         Assert.Equal(12, plan.Procedures.Count);
         Assert.All(plan.Procedures, verdict =>
         {
@@ -154,7 +147,7 @@ public sealed class PrescreenProceduresTests
             SuspiciousKeywordsCount: 0,
             UnexpectedAccountPairCount: 0,
             TrailingZerosCount: 0,
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉；這則不看個數，照改版前帶 6。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出；這則不看個數，帶 6。
             ZerosThreshold: 6,
             Preparers: Array.Empty<PreparerSummaryRow>(),
             DistinctAccountCount: 0,
@@ -170,8 +163,7 @@ public sealed class PrescreenProceduresTests
             plan,
             new AuditOutcome(Prescreen: result));
 
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，預篩選程序由 15 個減為 14 個。
-        // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27），再減為 12 個；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // 預篩選程序共 12 個：沒有傳票日期與回溯過帳，也照舊版 JET 不含編製分錄較少的人員與使用較少的科目。
         Assert.Equal(12, manifest.Procedures.Count);
         Assert.All(manifest.Procedures, verdict =>
         {

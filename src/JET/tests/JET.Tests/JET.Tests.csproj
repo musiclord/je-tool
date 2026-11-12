@@ -11,12 +11,8 @@
     <!-- xUnit1051 newly flags ~1,000 intentional CancellationToken.None calls which are test inputs
          (including cancellation semantics); keep other analyzer warnings active and gate them. -->
     <NoWarn>$(NoWarn);xUnit1051</NoWarn>
-    <Configurations>Debug;Release;AgentGuiTest</Configurations>
+    <Configurations>Debug;Release</Configurations>
     <EnableWindowsTargeting Condition="'$(OS)' != 'Windows_NT'">true</EnableWindowsTargeting>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)' == 'AgentGuiTest'">
-    <DefineConstants>$(DefineConstants);JET_AGENT_GUI_TEST</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,7 +26,7 @@
     <PackageReference Include="Microsoft.Testing.Platform" Version="2.5.1" />
     <PackageReference Include="Microsoft.Testing.Platform.MSBuild" Version="2.5.1" />
     <!-- 架構依賴方向的機器守衛（LayerDependencyTests）：以 IL 掃描層級 namespace 之間的依賴，
-         把「Application 不得依賴 Infrastructure」等 AGENTS.md 鐵律從人工審查升級為 CI 可擋。 -->
+         把「Application 不得依賴 Infrastructure」等架構規則從人工審查升級為 CI 可擋。 -->
     <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageReference Include="xunit.v3.mtp-v2" Version="4.0.2" />
@@ -38,9 +34,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\JET\JET.csproj" />
-    <Compile Include="..\..\..\..\tools\harness\gui-driver\GuiWorkingPaperInspection.cs" Link="Harness\GuiWorkingPaperInspection.cs" />
-    <!-- 台灣中小企業合成案件的產生器、獨立答案與建案流程，和 Claude 瀏覽器主機共用同一份原始檔。 -->
-    <Compile Include="..\..\..\..\tools\harness\browser-host\TaiwanSme\Sme*.cs" Link="Harness\TaiwanSme\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

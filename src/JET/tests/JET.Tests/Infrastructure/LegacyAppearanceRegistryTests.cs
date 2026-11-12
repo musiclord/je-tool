@@ -1,10 +1,12 @@
 using Xunit;
+using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Infrastructure;
 
 public sealed class LegacyAppearanceRegistryTests
 {
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void RegistryCountAndCrossScriptParity_AreDerivedFromOriginalSources()
     {
         var registry = LegacyAppearanceRegistry.Load();
@@ -34,6 +36,7 @@ public sealed class LegacyAppearanceRegistryTests
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void RegistryCoordinatesAndNormalizedSemantics_MatchBothOriginalScripts()
     {
         var registry = LegacyAppearanceRegistry.Load();
@@ -79,7 +82,7 @@ public sealed class LegacyAppearanceRegistryTests
     }
 
     [Fact]
-    public void Registry_ConditionsAndJetDestinations_ArePinnedForLaterParityStages()
+    public void Registry_ConditionsAndJetDestinations_ArePinned()
     {
         var registry = LegacyAppearanceRegistry.Load();
 
@@ -273,9 +276,8 @@ public sealed class LegacyAppearanceRegistryTests
             "workingpaper-weekend-header-bold",
             "workingpaper-weekend-header-font",
             "workingpaper-weekend-header-size");
-        // 底稿欄位資訊頁 A1 的版本列五項原本對到這一格。使用者 2026-11-06 裁定拿掉版本字樣與藍底紅字的版本列
-        // （裁定 2026-11-06-11），登記檔把這五項改記成沒有對應，所以不在這份對照裡，改由下面另外確認。
-        // 第一次失敗：Focused 收據 20261106-090058591-fdb42007ccca4a8e9903e179017b508d。
+        // 底稿欄位資訊頁 A1 沒有版本字樣與藍底紅字的版本列，
+        // 登記檔把版本列五項記成沒有對應，所以不在這份對照裡，由下面另外確認。
         AddJetDestination(expectedDestinations, "WorkingPaper!自動化工具-檔案欄位資訊:A3:E3",
             "workingpaper-field-info-tb-header-bold",
             "workingpaper-field-info-tb-header-fill",
@@ -326,7 +328,7 @@ public sealed class LegacyAppearanceRegistryTests
             ],
             withoutCorrespondence.Select(entry => entry.Id).Order(StringComparer.Ordinal));
         Assert.All(withoutCorrespondence, entry =>
-            Assert.Contains("裁定 2026-11-06-11", entry.NoCorrespondenceReason, StringComparison.Ordinal));
+            Assert.Contains("JET 不寫這一格", entry.NoCorrespondenceReason, StringComparison.Ordinal));
 
         var dynamicWorksheets = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -462,6 +464,7 @@ public sealed class LegacyAppearanceRegistryTests
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void LegacyReaders_UseUtf8WithoutBom()
     {
         var script = LegacyAppearanceRegistry.ReadScript(LegacyAppearanceRegistry.ScriptRelativePath);
@@ -521,6 +524,7 @@ public sealed class LegacyAppearanceRegistryTests
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void Registry_ListsEveryExportDatabaseBaseAppearanceAsScriptUnspecified()
     {
         var registry = LegacyAppearanceRegistry.Load();

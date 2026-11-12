@@ -10,8 +10,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 依資料庫種類選組的 catalog 與 session 快照。catalog 走 composition root 的正式組裝，只建立物件、不連任何資料庫。
-/// 原本有 SQLite、DuckDB 與 SQL Server 三組；只保留 SQLite 之後只剩一組，其他種類一律回 unsupported_provider
-/// （裁定 2026-11-06-08）。原本比較三組彼此不同的斷言隨之改寫，SQLite 那一組自己的斷言保留。
+/// 只有 SQLite 一組，其他種類一律回 unsupported_provider。
 /// </summary>
 public sealed class ProjectRepositoryCatalogTests
 {
@@ -40,7 +39,6 @@ public sealed class ProjectRepositoryCatalogTests
     [Fact]
     public void For_Sqlite_UsesTheLocalFileLockForWorkAndDeletion()
     {
-        // 原本比較三組彼此不同、兩個本機組共用檔案鎖；只剩 SQLite 一組後，保留它用本機檔案鎖的斷言。
         using var fixture = new CatalogFixture();
 
         var sqlite = fixture.Catalog.For(ProjectDocument.DefaultDatabaseProvider);
@@ -53,7 +51,7 @@ public sealed class ProjectRepositoryCatalogTests
     [InlineData("synthetic-engine")]
     [InlineData("SQLite")]
     [InlineData("")]
-    // 以前建立的 DuckDB 與 SQL Server 案件在動任何資料之前回 unsupported_provider（裁定 2026-11-06-09）。
+    // 以前建立的 DuckDB 與 SQL Server 案件在動任何資料之前回 unsupported_provider。
     [InlineData("duckdb")]
     [InlineData("sqlServer")]
     public void For_UnknownProvider_RejectsWithUnsupportedProvider(string provider)
@@ -68,7 +66,7 @@ public sealed class ProjectRepositoryCatalogTests
     [Fact]
     public void Constructor_SetInWrongPosition_IsRejected()
     {
-        // 原本把三組放錯位置；只剩 SQLite 一個位置後，改放一組種類不是 SQLite 的資料庫組。
+        // 只有 SQLite 一個位置，放一組種類不是 SQLite 的資料庫組。
         var duckDb = TestProjectRepositories.Unconfigured("duckdb");
 
         Assert.Throws<ArgumentException>(() => new ProjectRepositoryCatalog(duckDb));
@@ -77,7 +75,7 @@ public sealed class ProjectRepositoryCatalogTests
     [Fact]
     public void Session_EnterWithRepositories_PublishesSnapshotThatLaterEnterDoesNotChange()
     {
-        // 案件 B 原本用 DuckDB 的資料庫組；測的是快照不跟著換組，改用另一組 SQLite 替身。
+        // 案件 B 用另一組 SQLite 替身；測的是快照不跟著換組。
         var session = new ProjectSession();
         var caseA = TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);
         var caseB = TestProjectRepositories.Unconfigured(ProjectDocument.DefaultDatabaseProvider);
@@ -94,7 +92,6 @@ public sealed class ProjectRepositoryCatalogTests
 
     /// <summary>
     /// 刪案時用被刪案件那一組的報告 store 取得刪案租約；這段期間，同一案件的報告不能寫入。
-    /// 原本取租約的是 SQLite 那一組、寫入的是 DuckDB 那一組；只剩 SQLite 一組後，取租約與寫入都走同一組。
     /// </summary>
     [Fact]
     public async Task DeletionLease_BlocksReportWritesToTheSameCase()
@@ -123,10 +120,6 @@ public sealed class ProjectRepositoryCatalogTests
         Assert.False(contentWritten);
     }
 
-    /// <remarks>
-    /// 2026-10-02 資料庫分流簡化第二段移除只設案件編號的舊 Enter(string)，原本最後一段驗證舊入口的斷言隨之刪除，
-    /// Leave 清掉快照的斷言保留不變。
-    /// </remarks>
     [Fact]
     public void Session_Leave_ClearsTheSnapshot()
     {

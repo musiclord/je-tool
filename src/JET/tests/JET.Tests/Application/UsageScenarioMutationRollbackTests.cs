@@ -26,7 +26,7 @@ public sealed class UsageScenarioMutationRollbackTests
         return result;
     }
 
-    // X-03: jet-guide section 6 requires the whole database mutation to roll back,
+    // The whole database mutation must roll back,
     // including definitions and hits. The fault follows scenario deletion and database source
     // writes. Weekly-day settings live in project.json and must not be saved after this failure.
     [Theory]

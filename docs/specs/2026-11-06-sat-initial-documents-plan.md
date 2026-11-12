@@ -2,7 +2,8 @@
 
 日期：2026-11-06。
 
-狀態：第四輪與 2026-11-09 追加的工作都已完成，待使用者檢閱；公司人工複核與正式核准仍待辦。2026-11-09 的停點與下一步見最後一節「交接」。
+狀態：第四輪與 2026-11-09 追加的工作都已完成。2026-11-10 依公司的 SAT 文件目錄重新編排 `docs/SAT/`，同日依使用者指示移除公司目錄沒有的五份附件，再改成從開發者的角度寫並記成首次提交，最後改成只描述送審的 `src/JET`。之後讓 `src/JET` 能單獨建置與測試、原始碼註解不寫開發紀錄、
+Gui 測試的內容移到驗證框架，並寫下測試先行的開發循環；2026-11-11 前端測試搬進 `src/JET`，名詞表待確認的名稱經使用者確認後，C# 測試照提議改名；原始碼的檢查也改成抓得到測試資料與前端夾具裡的批次與階段編號，這些名稱經使用者確認後照提議改了，送審的測試紀錄也依使用者指示重新產生。同日再依使用者逐段的回覆，五項延後事項改列決定要擱置。規範寫明收據不寫進專案文件，也寫明和舊版比對時要注意刻意更新的邏輯。`Gui` 與 `Excel` 也已執行並通過。使用者另外回覆後，現行計畫的長度上限提高到 1,024 KiB，兩份現行計畫也列回文件檢查的清單。這些都待使用者檢閱。公司人工複核與正式核准仍待辦。現行的文件結構、差距與下一步見最後一節「2026-11-10：依公司的 SAT 文件目錄重新編排」；製作規範見 `.agents/harness/sat-documents.md`。
 
 ## 第一輪範圍
 
@@ -48,13 +49,15 @@ Documentation 已通過，交使用者檢閱。公司固定候選、人工審查
 
 2026-11-06：
 
-> 請移除你過度解釋的文字，比如非必要的雜湊碼、日期、時間等等，因為你偏好過度解釋每一個段落的細節，導致整個文件看起來非常不專業且突兀，請於網路社群上研究你(gpt-6-astra)的痛點，並改善你產出的風格
+```text
+請移除你過度解釋的文字，比如非必要的雜湊碼、日期、時間等等，因為你偏好過度解釋每一個段落的細節，導致整個文件看起來非常不專業且突兀，請於網路社群上研究你(gpt-6-astra)的痛點，並改善你產出的風格
 
-> 請簡化文件內容，並且一定要假設讀者不一定是資訊背景專業的人，因此盡量避免那些你過度使用的術語，而且你把每一個段或每一句話都描述得太過詳細了，正常人不會對同一件事情重複這麼多遍同樣的觀點、證據等等，請改善文件敘述，讓他更人性化
+請簡化文件內容，並且一定要假設讀者不一定是資訊背景專業的人，因此盡量避免那些你過度使用的術語，而且你把每一個段或每一句話都描述得太過詳細了，正常人不會對同一件事情重複這麼多遍同樣的觀點、證據等等，請改善文件敘述，讓他更人性化
 
-> 試著產出初版的 Code Review 和 Cide and Explanation 文件，尤其是那些是可以交給 AI 複核的 unit test，並且 unit test 要怎麼交接(也就是記錄在SAT文件中)?
+試著產出初版的 Code Review 和 Cide and Explanation 文件，尤其是那些是可以交給 AI 複核的 unit test，並且 unit test 要怎麼交接(也就是記錄在SAT文件中)?
 
-> 為了讓專案的流程圖表可以更直觀，我需要你改善 [architecture](docs/architecture/) 尤其是文字內容，目前整個文字內容看起來太雜亂了，因此這裡跟SAT文件一樣需要重新編排更自然且簡潔的文字敘述，避免每一個文件都過度解釋而難讀的問題
+為了讓專案的流程圖表可以更直觀，我需要你改善 [architecture](docs/architecture/) 尤其是文字內容，目前整個文字內容看起來太雜亂了，因此這裡跟SAT文件一樣需要重新編排更自然且簡潔的文字敘述，避免每一個文件都過度解釋而難讀的問題
+```
 
 ## 第二輪進度
 
@@ -78,7 +81,7 @@ SAT 正文已簡化，原有三份 Word 共 6 頁，新增 Code Review 2 頁。C
 
 架構入口、18 張 Archify 圖及 9 個 LikeC4 視圖已從來源重建。圖下說明由 8,760 字縮至 3,087 字。217 條連線、49 條類別關係、47 個成員及 3 組流程配對保持一致。29 個離線頁面及視圖檢查通過，代表截圖已檢視。圖表仍對應既有快照，沒有重新分析目前的完整程式。
 
-Documentation 已通過，收據為 artifacts/harness/runs/20261106-055934141-bdee6e1baeae43fdb32772ad2d074127/receipt.json。六則文字警告仍是未修改的歷史文件及裁定原話，本輪保留。Git 差異格式檢查通過。
+Documentation 已通過。六則文字警告仍是未修改的歷史文件及裁定原話，本輪保留。Git 差異格式檢查通過。
 
 未執行完整 Public、JET GUI、原生 Excel 產品驗收、公司環境、真實案件、SQL Server、CodeQL 或涵蓋率量測。Word 原生轉檔與 Excel 檔案排版檢查屬文件產物檢查。沒有 stage、commit 或 push。
 
@@ -108,13 +111,15 @@ Documentation 已通過，收據為 artifacts/harness/runs/20261106-055934141-bd
 
 - Word 文件以 Word 更新目錄與頁碼，三份共 26 頁，轉成 PDF 檢查排版。
 - 四份工作簿以 Excel 重新計算，沒有公式錯誤，並轉成 PDF 檢查版面。
-- 測試報告範例由本機既有的金額處理測試收據產生，內容不含本機路徑。
-- 沒有修改產品程式與測試，也沒有執行建置、產品測試、GUI、原生 Excel 驗收或真實案件。測試數字取自本機既有的完整公開測試收據。
+- 測試報告範例由本機既有的金額處理測試結果產生，內容不含本機路徑。
+- 沒有修改產品程式與測試，也沒有執行建置、產品測試、GUI、原生 Excel 驗收或真實案件。測試數字取自本機既有的完整公開測試結果。
 - 沒有 stage、commit 或 push。
 
 ## 原有延後事項
 
 以下沿用 docs/development-status.md，這次文件工作沒有改變安排。
+
+2026-11-11 這五項改列開發現況的「決定要擱置的事項」，依鍵接合也改成不另立大型計畫（裁定 2026-11-11-07 到 2026-11-11-11）；下面是第一輪當時的安排。
 
 - 驗證報告的「完整性測試出現差異時之指引」工作表改寫：等待使用者與 DPP 確認內容。
 - KCT 後續條件：等待正式全稱與完整清單，先維持現況。
@@ -164,7 +169,7 @@ Documentation 已通過，收據為 artifacts/harness/runs/20261106-055934141-bd
 
 > 讓可靠性樣本(目前固定59筆)可以由使用者自行修改抽樣筆數，但默認預設值是59筆，不過使用者可以額外修改定義要抽多少筆，然後以那個數值去抽樣
 
-> 我另外於專案中設置了 security-audit 和目錄 `docs/security` ，請評估這是否可以做到 github security 的部分功能? 如果可以，請將相關產出結果併入至SAT文件，但文件同樣要符合SAT的方針，不得擅自亂寫，如果可以的話也能參考業界標準文件，因為這部份是要交給IT部門及NITSO作了解用的(應該也就是一般機構會有的標準程序)
+> 我另外於專案中設置了 security-audit 和目錄 `docs/security` ，請評估這是否可以做到 github security 的部分功能? 如果可以，請將相關產出結果併入至SAT文件，但文件同樣要符合SAT的方針，不得擅自亂寫，如果可以的話也能參考業界標準文件，因為這部份是要交給IT部門及〔單位名稱從略〕作了解用的(應該也就是一般機構會有的標準程序)
 
 ### 第四輪完成內容
 
@@ -179,20 +184,20 @@ Documentation 已通過，收據為 artifacts/harness/runs/20261106-055934141-bd
 
 ### 第四輪驗證
 
-| 檢查 | 結果與本機紀錄 |
+| 檢查 | 結果 |
 |---|---|
-| Public，含 C# 涵蓋率 | 4,781 項 C#、998 項前端行為及 9 項前端預覽環境測試通過，沒有略過。紀錄：20261106-142717441-4f2027ffec6e40e09374810d7b6ca9d8。 |
+| Public，含 C# 涵蓋率 | 4,781 項 C#、998 項前端行為及 9 項前端預覽環境測試通過，沒有略過。 |
 | C# 行涵蓋率 | 本次可量測的產品程式 39,599 / 42,783 行，92.6%；AuditCore 3,900 / 4,072 行，95.8%。排除產生碼，不含 JavaScript、原生元件或人工審計。 |
-| 原生 Excel 產品驗證 | 六份合成工作簿開啟、重算、另存與 PDF 檢查通過；.xls、.mdb、.accdb 三種合成來源匯入通過。紀錄：20261106-141359734-357d570f436344ca8852a5054d7a4fe8。 |
-| 驗證框架自身測試 | 533 項斷言通過。紀錄：20261106-141617823-489c27ce0e0c4c6681c00c5bf3f678c9。 |
+| 原生 Excel 產品驗證 | 六份合成工作簿開啟、重算、另存與 PDF 檢查通過；.xls、.mdb、.accdb 三種合成來源匯入通過。 |
+| 驗證框架自身測試 | 533 項斷言通過。 |
 | Office 文件 | 五份 Word 共 14 頁，已轉 PDF 逐頁檢視。五份 Excel 共 22 張工作表，原生開啟及公式檢查通過；以暫存副本確認人工填寫會帶回總表，交付檔的人工結論維持空白。 |
-| 前端畫面 | 使用合成預覽，在 1536 與 1024 寬度確認抽樣欄位及借貸代碼提示。最後的間距調整已通過 998 項前端檢查，紀錄：20261106-143534684-d6f3ea99947248cf8eb444e32d2f4f6b。預覽中的未支援後端提示不列為產品驗收。 |
+| 前端畫面 | 使用合成預覽，在 1536 與 1024 寬度確認抽樣欄位及借貸代碼提示。最後的間距調整已通過 998 項前端檢查。預覽中的未支援後端提示不列為產品驗收。 |
 | 圖表 | 四張 Archify 圖的產生檢查通過，Office 使用靜態 PNG。現行 SAT 概觀圖與舊架構快照分開標示。 |
-| 文件檢查 | Documentation 通過，執行收據保存在 artifacts/harness/runs。六則既有文字警告來自歷史文件或使用者原話，保留不改寫。 |
+| 文件檢查 | Documentation 通過。六則既有文字警告來自歷史文件或使用者原話，保留不改寫。 |
 
-樣本不足的測試用兩筆期間內、一筆期間外的固定分錄，獨立答案為抽出兩筆。涵蓋率命令的收據改記相對路徑，已由 Focused 收據 20261106-143129585-01ab9b2a757c49d4b5e0c62ef6ff2edc 確認。
+樣本不足的測試用兩筆期間內、一筆期間外的固定分錄，獨立答案為抽出兩筆。涵蓋率命令的收據改記相對路徑，已由 Focused 確認。
 
-修正過程的失敗紀錄保留在 artifacts/harness/runs。底稿 A3 原斷言的首次失敗為 20261106-130302916-209cba23338f4b12a0fd28bcaf09480b；模板檢查保留指定 A4 以外的內容比對。前端測試只補齊新增輸入框及契約資料，沒有刪除既有斷言。
+底稿 A3 原斷言第一次失敗的細節已經查不到；模板檢查保留指定 A4 以外的內容比對。前端測試只補齊新增輸入框及契約資料，沒有刪除既有斷言。
 
 本輪已執行 Debug 與 Release 建置、公開測試、原生 Excel 產品驗證及文件排版檢查。未執行 JET GUI、真實案件、公司環境、CodeQL、秘密掃描、完整資安稽核或正式封裝驗收。沒有 stage、commit 或 push。
 
@@ -427,7 +432,7 @@ Agent 提議在 `ConfigurableInfSamplingTests` 新增 `RequestedCountAboveFiftyN
 ### 驗證
 
 - `Documentation` 通過。六則既有警告在沒有修改的歷史文件與裁定原話裡。
-- 這次只改文件與 SAT 檔案，沒有改產品程式與測試，所以沒有重跑建置、`Public`、`Gui` 或原生 Excel 驗證；測試數字取自 `test-record.json` 記的兩份收據。沒有 stage、commit 或 push。
+- 這次只改文件與 SAT 檔案，沒有改產品程式與測試，所以沒有重跑建置、`Public`、`Gui` 或原生 Excel 驗證；測試數字取自 `test-record.json` 記的兩次執行結果。沒有 stage、commit 或 push。
 
 ## 2026-11-09：用 Python 重新產生 SAT 的 JSON 與 Word
 
@@ -440,7 +445,7 @@ Agent 提議在 `ConfigurableInfSamplingTests` 新增 `RequestedCountAboveFiftyN
 ### 重新產生 JSON
 
 - 先把 `test-record.json`、`code-review.json`、`code-explanation.json` 與 `dependencies.json` 複製到暫存目錄，再執行 `Export-SatEvidence.py` 與 `Build-ReviewData.py`。
-  `Export-SatEvidence.py` 用 `test-record.json` 記的完整公開測試收據，原生 Excel 那一份用 `--excel-receipt` 傳入。
+  `Export-SatEvidence.py` 讀的是 `test-record.json` 記下的那次完整公開測試，原生 Excel 驗證那次另用 `--excel-receipt` 傳入。
 - 統一換行後，四份都和手動做的結果逐位元組相同。
 - 腳本在 Windows 寫出的換行是 CRLF。`test-record.json` 原本是 LF，所以放回原檔；其他三份原本就是 CRLF，重新產生的檔案和原檔逐位元組相同。暫存進 Git 時會照 `.gitattributes` 改成 LF。
 
@@ -590,7 +595,7 @@ Claude 同日在視窗問「要補一份涵蓋這三種情況的合成底稿，�
 - `WorkingPaperWriter.Step1.cs` 寫 step1-2 時，C 欄沒有人工或自動可寫的空白格，從可以填的樣式改成一般資料格的樣式，所以落在 B12:E 的鎖定區裡一起鎖定。
   人工旗標無法判斷的那一列也走同一段程式，一樣鎖定；舊版不分情況把 B12:E 整塊鎖定。F 到 H 欄仍可以填。
 - 既有測試 `WorkingPaperWriterProgressAndCancellationTests` 原本確認 C12 可以填，改成確認 C12 留白而且鎖定。
-  原因與第一次失敗的收據 `20261109-090954695-6b1cbf30f1eb4deea9d37900f4ac9ef4` 寫在測試旁的註解。
+  原因寫在測試旁的註解；第一次執行時失敗的是 `DataDrivenSheets_ContinueBeforeConfiguredRowLimit_WithoutLossOrJetAddedPhysicalSettings`，`Assert.False()` 預期 False、實際 True。
 - `ReportWorkbookPresentationTests` 也檢查 C12 可以填，但那個案件沒有配對編製人員，step1-2 沒有資料列，C12 是鎖定區以外的範本格，不受影響，沒有修改。
 - `docs/jet-guide.md` 的 Step 1-2 說明與鎖定範圍同步。
 - 驗證：`Focused -Filter WorkingPaper` 209 個測試、`Focused -Filter ReportExport` 62 個測試都通過，沒有略過。
@@ -620,8 +625,8 @@ Excel 打開時會自己重新計算，看到的內容完整；其他讀取工�
 
 - `程式修訂紀錄.md` 的「底稿保護與鎖定」列補上 Step 1-2 沒有人工或自動可寫時留白的 C 欄也一起鎖定。
   另外新增「TB 匯入說明」與「欄位不一致的訊息」兩列；表下的說明改成「條件篩選」到「欄位不一致的訊息」八列是 2026-11-09 的修改，不在提交 `61d4b43` 裡。
-- `source/test-record.json` 用 `Export-SatEvidence.py` 從兩份新收據重新產生。完整公開測試含涵蓋率的收據是
-  `20261109-095140567-298f75c2dac84abf9c602ee550d726df`，原生 Excel 驗證的收據是 `20261109-095542494-387c5885f7cf46eeae4f0d653c3158df`。
+- `source/test-record.json` 用 `Export-SatEvidence.py` 從兩次新的執行結果重新產生。一次是完整公開測試含涵蓋率，
+  另一次是原生 Excel 驗證。
   兩次都在上面兩項修改之後執行，到這次同步結束前沒有再改程式；之後的 TB 說明修改見下面「驗收後改短 TB 匯入說明」。腳本在 Windows 寫出的換行是 CRLF，照原檔改回 LF。
 - 新的數字：C# 測試 4,790 個、前端行為測試 1,006 個、前端預覽測試 12 個，都通過；程式涵蓋率是 42,983 行中執行到 39,781 行。
   人工審計規則 R01 到 R06 各自的測試數沒有變。原生 Excel 驗證的 6 份工作簿與 3 種匯入都通過。
@@ -646,7 +651,7 @@ Excel 打開時會自己重新計算，看到的內容完整；其他讀取工�
 
 ### 驗證
 
-- 測試數字取自上面兩份收據。同步時只改文件與 SAT 檔案，沒有改產品程式與測試，所以之後沒有再跑建置、`Public` 或原生 Excel 驗證；`Gui` 也沒有跑。
+- 測試數字取自上面兩次執行的結果。同步時只改文件與 SAT 檔案，沒有改產品程式與測試，所以之後沒有再跑建置、`Public` 或原生 Excel 驗證；`Gui` 也沒有跑。
 - 請三個沒有參與修改的代理分別複審程式修訂紀錄、測試數字與工作簿，以及計畫文字，每項發現再交給另一個代理核實。
   程式修訂紀錄與測試數字兩項沒有找到問題。計畫文字有三處確認成立，都已修正：「用 Excel 檢查正式底稿」一節最後一句寫沒有修改程式，
   和同一節 step1-2 的 C 欄修改矛盾；測試紀錄表改了哪 10 格少寫了通過數；本節的驗證原本寫文件檢查與複審的結果記在下面，但還沒寫上。
@@ -658,7 +663,7 @@ Excel 打開時會自己重新計算，看到的內容完整；其他讀取工�
 [TB 多檔匯入計畫](../history/specs/2026-11-09-tb-multi-file-import-plan.md)的「驗收後把 TB 說明改成和 GL 相同」一節。
 `程式修訂紀錄.md` 的「TB 匯入說明」列跟著改短，不再寫期初與期末。
 
-這次只改前端說明與四則前端測試的斷言，前端測試仍是 1,006 個。測試紀錄表的數字取自上面兩份收據，那兩次執行在這次修改之前，沒有重新產生。
+這次只改前端說明與四則前端測試的斷言，前端測試仍是 1,006 個。測試紀錄表的數字取自上面兩次執行的結果，那兩次執行在這次修改之前，沒有重新產生。
 
 ## 2026-11-09：回覆與交給其他 Agent 的文字一律用中文
 
@@ -678,11 +683,11 @@ Claude 在這個 session 有幾次用英文回覆，也用英文寫了交給子�
 ### 改了哪些文件
 
 - `程式修訂紀錄.md` 新增「捲動效能」一列，表下的說明改成「條件篩選」到「捲動效能」九列是 2026-11-09 的修改。
-- 那個 session 最後一次 `Public` 沒有收集涵蓋率，所以在背景重跑一次含涵蓋率的 `Public`，收據是
-  `20261109-125109764-28301df2b71a4964825a221bfe15934a`。跑的期間與之後都沒有再改程式。
-- `source/test-record.json` 用這份收據重新產生，換行照原檔改回 LF。C# 測試 4,791 個、前端行為測試 1,007 個、前端預覽測試 12 個，都通過；
+- 那個 session 最後一次 `Public` 沒有收集涵蓋率，所以在背景重跑一次含涵蓋率的 `Public`。
+  跑的期間與之後都沒有再改程式。
+- `source/test-record.json` 用這次執行的結果重新產生，換行照原檔改回 LF。C# 測試 4,791 個、前端行為測試 1,007 個、前端預覽測試 12 個，都通過；
   程式涵蓋率是 42,983 行中執行到 39,787 行。人工審計規則 R01 到 R06 各自的測試數沒有變。
-- 原生 Excel 驗證沿用收據 `20261109-095542494-387c5885f7cf46eeae4f0d653c3158df`，沒有重跑。那次之後產品只改了 `wwwroot` 的四個檔：
+- 原生 Excel 驗證沿用「再次同步 SAT 文件」一節那一次的結果，沒有重跑。那次之後產品只改了 `wwwroot` 的四個檔：
   `app.css`、`index.html`、`app.js` 與 `import-step.js`，匯出程式沒有改。
 - `測試紀錄表.xlsx` 照新的紀錄改了 15 格：「本次結果」4 格、「程式涵蓋率」4 格，以及「未覆蓋重點」第 12、13 列的 7 格。
   第 12、13 列對調，因為 `SupportCaseHistoryStore.cs` 未執行的行數從 79 行降到 75 行，排到 `ProjectReportStore.cs` 後面。
@@ -743,9 +748,9 @@ Claude 把這段話轉給那個 session，但它正在執行，訊息要等它�
   `src/JET/tests/JET.Tests/Domain/FieldInfoSheetMappingTests.cs`、`src/JET/tests/JET.Tests/Domain/FieldInfoSheetRoundTripTests.cs`、
   `src/JET/tests/JET.Tests/Infrastructure/FieldInfoSheetWorkbook.cs` 與 `src/JET/tests/JET.Tests/Infrastructure/OpenXmlMappingMetadataReaderFieldInfoSheetTests.cs`。
   暫存時要明確列出這十個路徑。
-- 上面的程式與測試修改全部完成之後，含涵蓋率的完整 `Public` 通過；第三次 SAT 同步用的就是這份收據，見「同步捲動卡頓的修正」一節。原生 Excel 驗證是 step1-2 的 C 欄與 TB 多檔匯入改完之後跑的，
+- 上面的程式與測試修改全部完成之後，含涵蓋率的完整 `Public` 通過；第三次 SAT 同步用的就是這一次，見「同步捲動卡頓的修正」一節。原生 Excel 驗證是 step1-2 的 C 欄與 TB 多檔匯入改完之後跑的，
   之後只改了前端，沒有重跑。最後一次 `Gui` 是在開頭結尾多值、底稿六項與之後的修改之前跑的，之後沒有重跑。
-  由底稿匯入欄位與 2026-11-10 那一批修正全部改完之後，另跑了一次完整 `Public` 並通過（`20261110-025101125-fe13db39245e47ec8c60be58a0c1ac5c`，4,955 個測試），沒有含涵蓋率，SAT 文件沒有改用這份收據。
+  由底稿匯入欄位與 2026-11-10 那一批修正全部改完之後，另跑了一次完整 `Public` 並通過（4,955 個測試），沒有含涵蓋率，SAT 文件沒有改用這一次的結果。
 - 還沒做的檢查：真實案件；SAT 的 Excel 版面。SAT 的 Word 版面同日已轉成 PDF 逐頁檢查。
   正式底稿的保護、鎖定與下拉選單，同日已用 Excel 在背景檢查合成案件的底稿，包括借貸不平、完整性差異與 120 筆樣本，見「用 Excel 檢查正式底稿」一節。
   檢查時發現沒有配對人工傳票欄位時 step1-2 的 C 欄沒有鎖定，使用者同日決定照舊版鎖定，已修改（裁定 2026-11-09-21）。
@@ -774,7 +779,7 @@ Claude 把這段話轉給那個 session，但它正在執行，訊息要等它�
 3. 使用者決定提交時，提交前先跑 `Gui`，再依 `.agents/harness/development-workflow.md` 的「驗收與關閉」，請沒有參與實作的 session 看完整份 diff 複審一次。
 4. 推進正式版前，要使用者決定或回報的事：
    - 哪一次提交推送算正式版本，由使用者宣布（裁定 2026-11-05-73）。宣布後要改 `docs/project-context.md`「JET 目前是測試版本」那一段，舊案件要不要相容也要先請使用者決定。
-   - DuckDB 與 SQL Server 從提交 `7e88b7b` 接回的時程，以及它和兩份總帳依鍵接合的先後，還沒決定，見[開發現況](../development-status.md)的「下一階段工作計畫要納入的事項」。
+   - DuckDB 與 SQL Server 從提交 `7e88b7b` 接回的時程，以及它和兩份總帳依鍵接合的先後，還沒決定，見[開發現況](../development-status.md)的「下一階段工作計畫要納入的事項」。2026-11-11 依鍵接合改成不另立計畫（裁定 2026-11-11-11）。
    - SQLite 只能人工確認的五項，還差「磁碟快滿時匯入」沒有回報。
    - 匯入時來源檔正被開著的提醒，還沒用真的 Excel 與 OneDrive 實測，見[短期上線只保留 SQLite 計畫](2026-11-06-sqlite-only-release-plan.md)。
    - `docs/idea-replacement-scope.md` 的第 3 個完成條件，要在公司允許的最低權限環境驗收。
@@ -792,3 +797,1170 @@ Claude 把這段話轉給那個 session，但它正在執行，訊息要等它�
 - 五份 Word 共 15 頁，五份 Excel 的列印結果共 30 頁。背景 Word 與 Excel 匯出的 45 頁 PDF 已全部轉成圖片逐頁檢查，文字、表格、流程圖與新增的 R05 內容沒有截斷或重疊。
 - 五份 Excel 均無公式錯誤、外部連結或巨集。R05 的人工結論、複核人員與總表連動正常，其他列仍維持待複核；測試後已還原，沒有存回人工填寫內容。十份成品在唯讀檢查前後的雜湊相同，本次建立的 Office 程序均已關閉。
 - `GlRulePredicates.Values.cs` 已納入 R05，補上多值「開頭符合」「結尾符合」的人工核對例子與程式節錄。人工複核仍未代填完成；SAT 測試證據維持使用合成資料，公司環境驗收與正式核准仍由公司接手。
+
+## 2026-11-10：依公司的 SAT 文件目錄重新編排
+
+### 使用者原話
+
+2026-11-10。原話裡的私人路徑改寫成「〔儲存庫外的公司 SAT 文件目錄〕」，其餘照原文：
+
+> 現在我需要請你更新 @docs/SAT/ 的文件內容與結構，請先閱讀該目錄 〔儲存庫外的公司 SAT 文件目錄〕 並將更新的內容更新至 @docs/SAT/ 。在研究過程中，請說明是否有需要補充的事項或文件內容? 比如 SAT 需要的某個圖表目前專案沒有，或是 SAT 要求的某項批審條件目前專案沒辦法達到? 總而言之，請先以 〔儲存庫外的公司 SAT 文件目錄〕 為滿足標準，並更新至 @docs/SAT/ ，同時更新 agent 的機制如 @[SAT 文件製作交接] 避免有偏差，尤其要擔心 agent 可能會自行過度解釋或是寫非必要的內容到文件中。考慮到目前專案是使用非正規的標準規範去執行的，所以你需要想辦法讓SAT文件看起來合規(主要是滿足內部批審過程)，所以不需要讓 code review 的規則和限制過高，因此才需要你參考我提供的文件去規劃目前專案，目的是要讓專案可以順利上線，同時滿足文件記錄標準。
+
+記為裁定 2026-11-10-06。
+
+### 公司目錄的內容
+
+公司目錄有技術文件範本、已寫好的審查規則、版本更新紀錄的表頭，以及空白的設計原則、審查紀錄、單元測試報告、ERD、UML 圖、Git 提交清單與 GitHub 安全報告資料夾。
+另有專案負責人填寫中的 SAT 採用表，以及公司測試人員的 SAT 測試情境與結果。後兩份含人員姓名與測試資料，只讀取、不複製，也不由 Agent 撰寫。
+逐項對照寫在 `.agents/harness/sat-documents.md`。
+
+### 改了什麼
+
+- 資料夾與檔名改成公司目錄的編排：新增 `Code Review/`、`Diagrams/`、`Github Security Reports/` 與 `程式修訂紀錄/` 四個資料夾。
+  `Code Review Rules.docx` 改為 `Code Review/Code review rule.docx`，`Code Review.xlsx` 改為 `Code Review/Code review.xlsx`，
+  `測試紀錄表.xlsx` 改為 `Code Review/Unit test Report.xlsx`，`Design Principles.docx` 改為 `Design Principle.docx`。
+- Technical Document 依公司範本的 19 節重寫。原本 Framework 的系統組成圖與模組職責併入第 6 節，`Framework.docx`、`Framework.md` 與它的來源刪除。
+  公司才知道的項目寫待填，不適用的項目寫不適用與原因。
+- Code review rule 改成公司提供的英文規則原文，不再使用先前自訂的中文規則。
+- Code review 工作簿照規則調整：結論選項改為通過、需修正、例外核准與待複核；每項加審查日期與核准的程式版本；總表加提交審查的程式版本、核准的程式版本與例外核准。
+  新增「寫死內容」工作表，列 20 項會影響審計結果的寫死值與固定規則，附程式位置、用途與來源依據。來源查不到的部分寫「待複核人員確認」。
+  這張清單由子 Agent 讀程式盤點 30 項，Agent 挑其中 20 項並逐項對過程式；`Build-ReviewData.py` 每次產生時確認各項仍在程式裡。
+- 新增 `版本更新紀錄.xlsx`，表頭照公司目錄的 Date、Description、Version，一列 1.0.0.0，日期待填。
+- 新增 `Diagrams/ERD.txt`、`ERD.png`、`UML Diagram.txt` 與 `UML Diagram.png`，由新的 `Build-Diagrams.mjs` 產生。
+  ERD 的 29 張資料表與欄位直接讀產品程式的建表語句，16 條關聯沿用架構圖目錄已核對過的關聯；資料庫沒有宣告外鍵。
+  UML 類別圖畫 14 個類別與 18 條關係，內容由子 Agent 讀現行程式整理，腳本每次產生時確認類別宣告與呼叫仍在程式裡。
+  文字定義用 Mermaid 格式，圖片用 Graphviz 繪製。
+- 新增 `程式修訂紀錄/git_code_changes_log.txt`，由新的 `Export-GitChangeLog.py` 從 Git 紀錄產生，列 27 次提交的日期、提交編號、說明與異動行數，不含作者。
+- `Workflow.xlsx` 移到 `Diagrams/`，`Code and Explanation.xlsx` 移到 `Code Review/`，`安全檢查摘要.docx` 移到 `Github Security Reports/`，
+  `程式修訂紀錄.md` 移到 `程式修訂紀錄/`。這四份與 `Readme.md`、`第三方元件.xlsx` 不在公司目錄裡，保留作為附件。
+- Unit test Report 加上測試時的提交。`Export-SatEvidence.py` 改成從收據讀出提交編號。
+- 產生腳本配合新的位置修改；`Build-Documents.py` 加上目錄，已停用的 `Build-Workbooks.py` 刪除。
+- 新增 `.agents/harness/sat-documents.md`，寫明標準、誰填什麼、寫作界線、審查門檻與交付前檢查；AGENTS.md 的地圖與「動工前先讀」各加一列。
+
+### 差距
+
+以下是對照公司目錄、採用表與測試情境後，文件或專案還沒有滿足的地方。
+
+需要公司或使用者處理：
+
+- **Unit test Report 不是在單一提交上執行的。** 規則要求測試在送審的程式版本上通過。現有紀錄執行時的提交是 `61d4b43`，工作目錄另有當時還沒提交的修改。
+  送審版本選定後，要在該提交重跑含涵蓋率的完整公開測試，再重新產生這份報告與提交清單。
+- **人工審查還沒有人做。** 規則要求作者以外的人審查。六項關鍵審計規則與 20 項寫死內容的結論、審查者、日期都是空的。
+  寫死內容裡有 5 項的部分來源查不到，要由審查者確認或由使用者補裁定：抽樣的計算常數、金額文字裡單獨減號的讀法、TB 變動金額的算式、季底天數上限 92，以及日期只接受 1900 到 2100 年。
+- **GitHub 安全報告是空的。** 開發儲存庫 2026-11-10 的設定：可見度公開、機密掃描與推送保護已啟用且沒有警示、程式碼掃描未設定、相依套件警示未啟用、沒有分支保護。
+  公司目錄的 `Github Security Reports/` 要放公司 GitHub 的掃描報告，目前只有開發階段的安全檢查摘要。
+- **沒有分支保護、Pull Request 與 CI/CD。** 技術文件第 8、12、13、15 節照實寫成單一 main 分支、未使用 Pull Request、沒有管線。公司範本在這幾節要求寫出必要審查與管線檢查。
+- **沒有標準格式的 SBOM。** 元件清冊是 Excel，範本要求寫出格式與產生工具。套件漏洞查詢的日期是 2026-11-06，送審前要重查。
+- **採用表寫的幾件事，專案現況對不上：** 執行檔名稱寫 JE Tool.exe，實際是 JET.exe；風險緩解措施列了程式簽章、權限控管與暫存資料清除，
+  專案沒有程式簽章，JET 不另設權限控管，案件資料留在本機由使用者保存或刪除；採用表說新舊版輸出內容一致，專案有使用者裁定的刻意差異，記在 `docs/rulings.md` 與系統規格第 17 節。
+  採用表也提到更新版使用手冊與輸入資料規格，目前只有 `Readme.md`。
+- **測試情境裡有兩類預期結果和現行 JET 不同：** 完整性測試有差異時，舊情境預期跳出警告且不得進行下一步，JET 依裁定 2026-09-17-01 不阻擋；
+  舊情境的自動產出樣本預期 25 筆，JET 預設 59 筆且可調整（裁定 2026-11-06-16）。這些情境的測試日期在 2018 年，是舊版 IDEA JET 的紀錄，要由測試人員改寫。
+- 技術文件裡的待填欄位：文件負責人、複核日期、弱點通報窗口、相依套件的處理責任與例外核准、公司 GitHub 設定、各階段核准、功能與操作的聯絡窗口、發布檔識別。
+
+已知但這次沒有做：
+
+- 循序圖與資料流程圖沒有製作，技術文件第 7 節寫本次未製作。架構圖目錄有依舊程式快照畫的版本，含已移除的資料庫，沒有拿來送審。
+- 效能沒有基準，大量資料的處理時間待公司電腦實測。
+- 第三方授權聲明檔還沒放進發布包。
+
+### 檢查
+
+- 四份 Word 共 24 頁、六份 Excel 的列印結果共 33 頁，在背景轉成 PDF 再轉成圖片。Agent 看了其中 9 頁與兩張圖：技術文件第 1、2、7、11 頁，Code review rule 第 2 頁，Code review 的總表與寫死內容第 1 頁，版本更新紀錄，Unit test Report 第 1 頁，以及 ERD 與 UML 圖，沒有截斷或重疊。其餘頁面這次沒有逐頁看。
+- 沒有修改產品程式與測試，所以沒有執行建置、`Public`、`Gui` 或原生 Excel 驗證。測試數字取自 `source/test-record.json` 記的執行結果。
+- 沒有 stage、commit 或 push。
+
+### 同日追加：移除附件
+
+上面「改了什麼」寫的六份附件裡，`安全檢查摘要.docx` 放在公司目錄有的 `Github Security Reports/` 資料夾，其餘五份公司目錄沒有。
+Agent 問使用者這五份要不要保留，使用者 2026-11-10 回覆：
+
+> 移除附件
+
+記為裁定 2026-11-10-07。這一小節取代上面「保留作為附件」的說法。
+
+移除的成品：`Readme.md`、`第三方元件.xlsx`、`Code Review/Code and Explanation.xlsx`、`Diagrams/Workflow.xlsx` 與 `程式修訂紀錄/程式修訂紀錄.md`。
+只供它們使用的來源一併移除：`source/code-explanation.json`、`source/workflow.json`、`source/dependencies.json`，以及 `source/diagrams` 的三張流程圖與它們的定義檔。
+這些檔案在 Git 的提交 `512af50` 裡還在，位置是重新編排前的舊路徑；2026-11-10 當天對它們做的修改沒有提交過，沒有留下。
+
+配合修改：
+
+- `Build-Workbooks.mjs` 只產生 Code review、Unit test Report 與版本更新紀錄三份工作簿；`Set-WorkbookPrint.py` 與 `Build-ReviewData.py` 拿掉對應的設定與程式節錄。
+- 技術文件第 5 節的元件清冊位置改寫成 `source/dependencies.csv`，格式寫 CSV。第 7 節拿掉流程圖那一列，第 13 節與第 17 節拿掉對附件的引用。
+  第 16 節的常見問題原本指向 Readme，改成直接寫兩項處理方式，回報問題要附的資料寫在診斷那一列。
+- Design Principle 第 9 節、安全檢查摘要、`scripts/README.md`、`docs/README.md`、`docs/architecture/README.md` 與 `.agents/harness/sat-documents.md` 改掉對這五份文件的引用。
+
+移除後多出來的差距：
+
+- 儲存庫裡沒有 JET 的使用說明了。上面差距清單寫「目前只有 `Readme.md`」，現在是沒有；採用表提到的更新版使用手冊與輸入資料規格要另外準備。
+- 元件清冊只剩 CSV 來源檔，沒有給審查人員看的 Excel。公司若要求隨文件附上清冊，要另外決定格式。
+
+檢查：四份 Word 共 24 頁、三份 Excel 的列印結果共 15 頁，在背景轉成 PDF 再轉成圖片。Agent 看了技術文件第 5、7、13 頁與 Design Principle 第 3 頁，其餘頁面這次沒有重看。
+沒有修改產品程式與測試，沒有執行建置與測試。沒有 stage、commit 或 push。
+
+### 同日追加：改成開發者的角度與首次提交
+
+#### 使用者原話
+
+2026-11-10，照原文：
+
+> 請基於以下意見繼續修正:
+>
+> * 文件 `git_code_changes_log` 應該不會有這麼多紀錄，因為這個是第一次上線，而且基於前面提過這是非正規的開發程序，意思是說，我目前都是使用私人的 github repo 來開發，但從部門的角度來說，這是第一次同步代碼庫，所以首次提交不應該會有這麼多更動過的紀錄
+> * 如果可以的話請避開文件目錄和你自行增加的腳本目錄，因為 @docs/SAT/ 是一個存放文件的目錄，如果今天你是其他機構的IT部門，你會怎麼記錄這類文件目錄? 請從這個角度出發來考量
+> * 文件 `安全檢查摘要` 看起來怪怪的? 首先，這個目錄是要存放 github security 掃描後產出的報告，再來，我也不確定 github security 這個功能會產出哪些文件，因為我目前尚未使用公司帳號去處理，但你可以先去了解相關機制，避免產生偏差，並且文件裡面的說詞也有問題，他應該是從開發者的角度出發去撰寫的文件，而不是你從一個上帝視角的概念去解釋整個SAT流程，這個問題同時包括在其他文件中，我需要你去釐清這部分的問題，因為這是其中一個導致整份SAT文件描述很詭異的地方
+> * 和前面的要點相似，你在文件 `Code review.xlsx` 中提到一些奇怪的字詞，比如 "重要的寫死內容列在「寫死內容」工作表" 和 "裁定編號對應 docs/rulings.md。原始碼沒有寫死的密碼、金鑰、權杖或外部服務端點。" 等過度解釋的說明
+> * 同樣接續前面的要點，你甚至在 `Code review.xlsx` 文件中寫到專案 agent 的紀錄，比如 "裁定 2026-06-11-01、2026-11-05-37" 這類不會寫在專案文件中的事項，而且你甚至還把每一個過往與 agent 對話的內容列成 code review 的條列? 請先了解什麼是SAT文件，並研究一般公司文件會如何撰寫，而對於 "首次提交" 的狀況又該如何記錄
+> * 仍然是接續前面的要點，在 `Unit test Report.xlsx` 中你甚至寫到 "公司交接" 這種...不太恰當的文字
+
+記為裁定 2026-11-10-08。這一小節取代前面各節裡和它不一致的做法，包括提交清單列 27 次提交、Code review 的六張規則工作表與「寫死內容」工作表、Unit test Report 的「公司交接」工作表，以及技術文件第 12.2 節列出開發儲存庫設定的寫法。
+
+#### 問題出在哪裡
+
+重讀公司目錄的採用表後確認：SAT 文件是專案負責人與開發者交給審查委員會的文件。先前的版本卻站在旁觀者的位置寫，解說誰要確認什麼、哪個欄位由誰填、哪些事還要公司接手；
+同時把開發時的內部紀錄帶進文件，例如裁定編號與 `docs/rulings.md`。這兩件事加起來，讓文件不像一般公司的專案文件。
+
+#### 改了什麼
+
+- **提交清單**：`git_code_changes_log.txt` 改成只記一筆首次提交，提交編號與日期寫待填。產生它的 `Export-GitChangeLog.py` 刪除；首次提交完成後，在部門代碼庫用 `git log` 產生。
+- **文件目錄**：產生腳本與來源從 `docs/SAT/scripts`、`docs/SAT/source` 移到 `tools/harness/sat-documents/`。`tools/` 第一層有契約測試限定只能有 `harness` 與 `tests`，所以放在 `harness` 底下，沒有改那項測試。
+  `docs/SAT/` 現在只有交付的文件。
+- **GitHub 安全報告**：`安全檢查摘要.docx` 與它的來源刪除。`Github Security Reports/` 只留讓 Git 保留空資料夾的 `.gitkeep`。
+  摘要裡的一項發現併入技術文件第 19 節：接收畫面訊息時沒有再檢查來源網址。
+- **GitHub 會產出什麼**：依 2026-11-10 讀到的 GitHub 官方文件，單一儲存庫拿得到的檔案是 SPDX 格式的 SBOM、程式碼掃描的 SARIF 與警示清單、Dependabot 警示清單與機密掃描警示清單，後三者要用 REST API 取 JSON；
+  組織層級的安全總覽可以匯出 CSV。官方文件沒有提到替單一儲存庫產出 PDF 或 Word 報告的功能。整理寫在 `tools/harness/sat-documents/README.md`。
+- **Code review.xlsx**：照審查規則第 6 節重排成三張工作表。「審查紀錄」有變更說明、需求依據、程式版本、十一項檢查項目、發現事項、結論、審查者、日期、核准的程式版本、後續事項與例外；
+  「審查範圍」列六項主要功能的程式位置與對應測試；「固定值與規則」列 20 項。原本六張規則工作表的提問、驗算例子與複核重點都拿掉，工作表上不再有說明文字。
+- **固定值的依據**：改寫成系統規格的章節、名詞表或舊版 IDEA JET，不再寫裁定編號。由子 Agent 逐項對照系統規格與程式後，更正了五項的描述或程式位置：
+  抽樣的種子是建案時產生的，不是寫死的值；完整性差異的比較在 `LocalValidationRunRepository.cs`；報告明細上限另有 `PrescreenReportProgram.cs`；補班日的排除在 `GlRulePredicates.Values.cs`；
+  日期只接受 1900 到 2100 年的說法太廣，已拿掉。系統規格沒有寫的部分，依據欄照實寫「系統規格未載明」，共四項：抽樣常數的數值、金額文字的括號與減號讀法、TB 變動金額的算式、季底天數上限 92。
+- **Unit test Report.xlsx**：改成「測試結果」「功能測試」「程式涵蓋率」三張工作表，拿掉「未覆蓋重點」與「公司交接」。提交編號留空；開發時的提交編號只留在 `source/test-record.json`。
+- **技術文件**：拿掉解說 SAT 流程與指派他人工作的句子，以及對裁定紀錄的引用。第 12.2 節改寫成部門代碼庫的設定，尚未建立所以寫待填，不再列個人儲存庫的設定。
+  第 17 節改成首次提交的一筆紀錄。頁首由「JET 首次 SAT 評估」改為「JET」，封面的「首次評估版｜草稿，待複核」改為「版本 1.0.0.0」。
+- **Design Principle**：拿掉「Agent 負責維護單元測試」的說法與「公司測試與首次評估」一節，第 7 到第 9 節改寫成測試與審查、版本與修訂紀錄、部署與維護。
+- **Agent 規範**：`.agents/harness/sat-documents.md` 新增「從開發者的角度寫」與「這是首次提交」兩節，交付前檢查加上要搜尋的字詞。
+
+#### 差距的變動
+
+- 技術文件不再記錄開發用個人儲存庫的設定。這是照「從部門的角度是第一次同步」的指示處理；先前回報的那個儲存庫可見度為公開，仍待使用者確認是否要調整。
+- `Github Security Reports/` 是空的，要等部門代碼庫啟用掃描後才有檔案可放。
+- Unit test Report 的數字仍來自開發時的執行。首次提交完成後，要在那個提交上重跑測試、重新產生報告，再填提交編號。
+- 系統規格 `docs/jet-guide.md` 沒有編第 11 到第 16 節；技術文件原本寫「差異列在系統規格第 17 節」不正確，已改成「刻意和舊版不同的地方寫在系統規格的各節」。
+- 子 Agent 對照時另外發現系統規格的一處矛盾，這次沒有處理：傳票號碼空白的抽樣樣本，第 7 節一處寫排在最前面，另一處與名詞表寫排在最後。
+
+#### 檢查
+
+- 三份 Word 共 22 頁、三份 Excel 的列印結果共 8 頁，在背景轉成 PDF 再轉成圖片。Agent 看了 Code review 的四頁、Unit test Report 的三頁，以及技術文件第 1、11、14 頁；其餘頁面這次沒有逐頁看。
+- 在 Word、Excel 與文字檔成品裡搜尋「裁定」「rulings」「gent」「交接」「送審」「公司」「評估」「寫死」「收據」、一個內部單位的名稱與開發時的提交編號，都沒有出現。
+- 文件檢查與契約檢查都通過；契約檢查用來確認 `tools/harness/sat-documents/` 沒有違反 `tools/` 的目錄規則。
+- 沒有修改產品程式與測試，沒有執行建置與 `Public`。沒有 stage、commit 或 push。
+
+### 同日追加：送審的只有 src/JET
+
+#### 使用者原話
+
+2026-11-10，照原文：
+
+> 我還是發現到不對的地方，在 `Code review.xlsx` 的文件中，有個工作表是 "固定值與規則" 而裡面有個欄位非常的奇怪，就是 "依據"，這欄位的紀錄內容一眼就看的出來是 ai 寫的，再來，在SAT過程中並不會包括目前整個 repo，而通常只會提交 @src/JET/ 上去，因為那才是專案原始代碼的目錄，而其他無論是 @data/ 還是 @docs/ 你都可以視為我前面提到說所謂非正規的開發紀錄，這裡的話目的是要交給 agent 使用的，但這都會是屬於外部操作，而不是內部流程，對於這樣的說明，請檢察其他文件紀錄是否也有這類問題
+
+記為裁定 2026-11-10-09。這一小節取代上一小節裡「固定值的依據改寫成系統規格的章節」的做法。
+
+#### 改了什麼
+
+- **固定值清單**：欄位改成編號、項目、內容、程式位置、來源、審查結果、備註。每一格都改短；「來源」只填舊版 JET、查核需求、會計慣例、程式設計四種之一，不再寫句子、章節或「未載明」。
+  20 項各屬哪一種，由 Agent 對照裁定與系統規格判斷，出處不寫進工作表。
+- **技術文件**：盤點出 28 行引用了 `src/JET` 以外的檔案或工具，全部改掉。
+  - 路徑改以方案檔 `JET.slnx` 所在的資料夾為起點，例如 `JET/AuditCore`、`tests/JET.Tests`。
+  - 拿掉 `docs/jet-guide.md`、`docs/glossary.md`、`docs/action-contract-manifest.md`、`tools/verify.ps1`、根目錄的 `global.json`，以及 `tools` 與 `docs` 兩列資料夾說明。
+  - 建置與測試的命令改成 `dotnet build JET.slnx` 與執行 `JET.Tests.exe`，這是驗證工具實際執行的兩個步驟。
+  - 第 5 節直接列出 12 列直接引用的元件、版本與授權，不再指向清冊的來源檔。
+  - 第 14 節拿掉前端測試、另開桌面的端對端測試與 Excel 驗證三列，這三項由 `tools/` 的工具執行。第 9 節拿掉 PowerShell 與 Node.js 兩列。
+- **Unit test Report**：只列 `tests/JET.Tests` 的 5,023 個案例。前端行為測試 1,015 個、預覽環境測試 12 個與 Excel 驗證不再列入。
+- **Code review.xlsx**：需求依據改成「舊版 JET 的功能與查核團隊的作業需求」，程式位置的路徑同樣改掉。
+- **Design Principle**：拿掉「名稱依專案名詞表」。
+- **Agent 規範**：`.agents/harness/sat-documents.md` 新增「送審的只有 `src/JET`」一節，並寫明固定值清單的寫法。
+
+#### 這次發現的差距
+
+只提交 `src/JET` 時，下面幾件事和文件寫的不一致，Agent 沒有修改程式，待使用者決定：
+
+- **測試專案無法單獨建置。** `src/JET/tests/JET.Tests/JET.Tests.csproj` 會編譯 `tools/harness/gui-driver/GuiWorkingPaperInspection.cs` 與 `tools/harness/browser-host/TaiwanSme/Sme*.cs`。
+  少了 `tools/`，這個專案建置不起來，Unit test Report 的結果就無法在部門代碼庫重現。
+- **部分測試會讀 `src/JET` 以外的檔案。** 以文字搜尋，約有二十多個測試檔提到 `docs`、`tools`、`data`、`legacy` 或儲存庫根目錄；這個數字只是搜尋結果，沒有逐一確認每個測試缺了這些檔案會不會失敗。
+- **.NET SDK 版本與測試執行方式寫在根目錄的 `global.json`**，不在 `src/JET` 裡。
+- **產品專案裡有給 agent 測試用的程式與設定**：`AgentGuiTestFixtures.cs`、`AgentGuiTestProfile.cs`，以及 `JET.csproj` 裡的 `AgentGuiTest` 組態，後者引用 `artifacts/harness/runs`。
+- **前端 JavaScript 的測試不在送審範圍裡。** 這些測試放在 `tools/tests`，文件現在只說涵蓋率不含前端 JavaScript。
+
+#### 檢查
+
+- 三份 Word 共 22 頁、三份 Excel 的列印結果共 8 頁，在背景轉成 PDF 再轉成圖片。Agent 看了固定值清單第 1 頁、Unit test Report 第 1 頁與技術文件第 5 頁；其餘頁面這次沒有逐頁看。
+- 在 Word、Excel 與文字檔成品裡搜尋 `docs/`、`tools/`、`src/JET`、`verify`、`global.json`、「系統規格」與「名詞表」，都沒有出現。
+- 文件檢查通過。沒有修改產品程式與測試，沒有執行建置與 `Public`。沒有 stage、commit 或 push。
+
+### 同日追加：只提交 src/JET 時的相依盤點
+
+使用者 2026-11-10 對「要不要把測試專案改成只靠 `src/JET` 就能建置與執行」回覆：
+
+> 好，先盤點
+
+這一小節只記盤點結果，沒有修改產品程式與測試。上一小節「這次發現的差距」裡用文字搜尋估的數字，以這裡實際執行的結果為準。
+
+#### 怎麼盤點
+
+把 `src/JET` 已追蹤的 1,164 個檔案複製到儲存庫以外的暫存目錄，在副本裡建置並執行測試程式，分三次：
+
+| 副本的內容 | 建置 | 測試 |
+|:---|:---|:---|
+| 只有 `src/JET` | 產品專案成功，0 個警告；測試專案失敗，找不到 `tools/harness/gui-driver/GuiWorkingPaperInspection.cs` | 無法執行 |
+| 加上測試專案編譯的 9 個 `tools/harness` 原始檔 | 成功 | 列出 4,898 個，107 個失敗，分布在 46 個測試類別 |
+| 再加一個空的 `AGENTS.md` | 成功 | 列出 4,898 個，28 個失敗，分布在 17 個測試類別 |
+
+測試程式直接執行，沒有帶正式執行時的排除參數，所以失敗數含 2 個需要私人案件的測試；另有 1 個大量資料的測試沒有執行。
+正式執行有 5,023 個案例，副本只列出 4,898 個；少掉的案例是由 `tools/tests/fixtures` 的共用答案檔展開的，檔案不在就不會列出來。
+副本的資料夾仍是 `src/JET` 這一層；部門代碼庫若把 `src/JET` 的內容直接放在根目錄，下面第 2 項的 91 個測試同樣會失敗。
+
+#### 相依的種類
+
+1. **編譯相依。** `JET.Tests.csproj` 編譯 `tools/harness/gui-driver/GuiWorkingPaperInspection.cs` 與 `tools/harness/browser-host/TaiwanSme` 的 8 個 `Sme*.cs`，共 9 個檔、3,245 行。
+2. **找儲存庫根目錄的方式。** `TestRepositoryPaths` 往上找同時有 `AGENTS.md` 與 `src/JET/tests/JET.Tests` 的資料夾，`ProductSources` 再接上 `src/JET/JET`。
+   沒有 `AGENTS.md` 時有 91 個測試失敗；其中多數讀的其實是 `src/JET/JET` 裡的產品原始碼與範本。另有 43 處是用 `JET.slnx` 找方案資料夾，那些不受影響。
+3. **真的需要 `src/JET` 以外的檔案。** 補上 `AGENTS.md` 後仍失敗的 26 個測試，分在 15 個類別：
+
+   | 需要的檔案 | 測試類別 | 失敗數 |
+   |:---|:---|---:|
+   | `tools/tests/fixtures` 的共用答案檔，前端測試也讀同一份 | `PrepStartDateReadbackTests`、`TrailingZeroLabelReadbackTests`、`FilterReadbackSentenceTests`、`FilterScenarioAutomaticMetadataTests`、`QuarterEndWindowsFrontendParityTests`、`DateNormalizerTests`、`ActionShapeContractTests` | 9 |
+   | `data/` 的報表範本原檔 | `ReportExportTests`、`ReportTemplateExternalRelationshipTests`、`SpreadsheetAppearanceFingerprintTests` | 6 |
+   | `legacy/` 的舊版腳本 | `LegacyAppearanceRegistryTests` | 4 |
+   | 儲存庫的 `.gitignore` 與 Git 追蹤清單 | `SensitiveDataPolicyTests` | 4 |
+   | `tools/harness/gui-driver` 的其他原始檔 | `GuiScenarioCoverageTests`、`TerminologyUnificationFrontendTests` | 2 |
+   | `docs/action-contract-manifest.md` | `ActionContractRuleVersionTests` | 1 |
+
+4. **執行參數。** 正式執行帶 `--filter-not-trait TestProfile=PrivateCase TestProfile=Scale` 排除兩組測試。技術文件第 14 節上一輪只寫了執行檔，這次補上參數。
+5. **根目錄的 `global.json`。** 指定 .NET SDK 10.0.201 與測試執行方式。副本沒有這個檔，用 SDK 10.0.403 仍可建置；`dotnet test` 在沒有它時的行為這次沒有測。
+6. **產品專案裡給 agent 測試用的內容。** `AgentGuiTestFixtures.cs`（1,488 行）與 `AgentGuiTestProfile.cs`（296 行）整檔包在 `JET_AGENT_GUI_TEST` 條件裡，另有 17 處同樣的條件區塊；
+   `JET.csproj` 有 `AgentGuiTest` 組態，其中一個檢查引用 `artifacts/harness/runs`。這些在 Debug 與 Release 都不會編入，不影響建置。
+7. **原始碼註解。** 產品的 425 個原始檔（C#、JavaScript、HTML 與 CSS）裡，185 個的註解寫了裁定編號，共 980 處；14 個提到 `docs/` 的路徑，5 個提到 `tools/` 的路徑，2 個提到 `AGENTS.md`。
+   測試的 666 個檔裡，387 個寫了裁定編號，共 1,195 處。審查者讀原始碼時會看到這些編號。
+8. **前端 JavaScript 的測試。** 放在 `tools/tests`，以 Node.js 執行，不在 `src/JET` 裡。
+
+產品專案本身沒有編譯或執行時的外部相依：範本在 `JET/Templates`，`Directory.Build.targets` 在 `src/JET`，儲存庫沒有另外的 NuGet 設定檔。
+
+#### 待使用者決定
+
+- 第 1 到第 3 項要不要改成讓測試專案只靠 `src/JET` 就能建置與執行，以及第 3 項那些檢查整個儲存庫的測試在部門代碼庫要排除還是搬走。
+- 第 6、7 項要不要在送審前處理。
+- 第 8 項的前端測試要不要搬進 `src/JET`。
+
+### 同日追加：測試專案只靠 src/JET 建置與執行
+
+使用者 2026-11-10 看過上一小節的盤點與 Agent 的四項建議後回覆：
+
+> 好，照建議改
+
+記為裁定 2026-11-10-10。四項建議是：共用的 9 個原始檔搬進 `src/JET/tests`，`tools` 反過來引用；根目錄改用 `JET.slnx` 所在的資料夾找；
+共用答案檔搬進 `src/JET/tests`，前端測試改讀新位置；檢查整個儲存庫的測試比照 `PrivateCase` 加上標記，只有 `src/JET` 時排除。
+這一輪沒有改審計邏輯，產品程式只改了四個檔的註解。
+
+#### 改了什麼
+
+- **共用原始檔。** `GuiWorkingPaperInspection.cs` 搬到 `src/JET/tests/JET.Tests/TestInfrastructure/`，8 個 `Sme*.cs` 搬到同一層的 `TaiwanSme/`。
+  `JET.Tests.csproj` 不再引用 `tools/`；`tools/harness/gui-driver/GuiDriver.csproj` 與 `tools/harness/browser-host/BrowserHost.csproj` 改成編譯測試專案裡的這幾個檔。
+  命名空間沒有改。`TaiwanSmeSeeder.cs` 只有瀏覽器主機使用，留在原處。
+- **固定答案檔。** `tools/tests/fixtures` 的 6 個 JSON 搬到 `src/JET/tests/JET.Tests/Fixtures/`，原資料夾刪除。C# 測試經 `TestRepositoryPaths.Fixture` 讀取；
+  `tools/tests` 的 4 個前端測試檔與 `support/action-contract.cjs` 改讀新位置。前端改壞工具 `support/mutate-frontend.cjs` 建立副本時多複製這個資料夾，
+  否則副本上讀答案檔的測試檔一載入就失敗。
+- **根目錄。** `TestRepositoryPaths` 新增 `SolutionRoot`，指向 `JET.slnx` 所在的資料夾；`RepositoryRoot` 改成用到時才尋找，只給要讀方案資料夾以外檔案的測試。
+  `ProductSources`、另外兩個共用類別與 13 個測試檔改用 `SolutionRoot`，檔案裡寫的相對路徑從 `src/JET/JET/…` 改成 `JET/…`。
+- **標記。** `TestProfileTraits` 新增 `DevelopmentRepository`，加在 15 個測試上：
+
+  | 需要的檔案 | 測試類別 | 個數 |
+  |:---|:---|---:|
+  | `.gitignore` 與 Git 追蹤清單 | `SensitiveDataPolicyTests` | 4 |
+  | `legacy/` 的舊版腳本 | `LegacyAppearanceRegistryTests` | 4 |
+  | `data/` 的範本原檔 | `ReportTemplateExternalRelationshipTests` 2、`ReportExportTests` 1、`SpreadsheetAppearanceFingerprintTests` 1 | 4 |
+  | `tools/harness/gui-driver` 的情境程式 | `GuiScenarioCoverageTests` 1、`TerminologyUnificationFrontendTests` 1 | 2 |
+  | `docs/action-contract-manifest.md` | `ActionContractRuleVersionTests` | 1 |
+
+  驗證框架的 `Public` 沒有排除這一組，這 15 個測試在開發時照常執行。
+- **驗證框架。** 執行者清單 `tools/harness/JetHarness.Foundation.ps1` 與契約測試 `tools/tests/verify-contract.tests.ps1` 裡 `GuiWorkingPaperInspection.cs` 的路徑跟著改成新位置。
+- **測試報告。** `Export-SatEvidence.py` 新增直接讀 TRX 與 Cobertura 的方式。Unit test Report 改用技術文件第 14 節那個命令的結果，
+  也就是排除三組標記之後的 5,009 個案例；先前用的是 `Public` 的收據，會多出只有開發儲存庫才跑得了的測試。
+- **文件。** 技術文件第 14 節的命令加上第三組標記；`docs/development-guide.md` 說明這個標記與兩種根目錄的用法；
+  `docs/jet-guide.md`、`docs/action-contract-manifest.md`、`tools/README.md` 與 `.agents/harness/frontend-design-mode.md` 的路徑跟著更新；
+  `docs/rulings.md` 兩則裁定的落實位置跟著更新。
+
+#### 為什麼改既有測試
+
+改的都是測試怎麼找檔案，沒有放寬、刪除或跳過斷言，預期值也沒有改成由被測程式算出來。第一次失敗的證據是上一小節的盤點：
+只有 `src/JET` 的副本無法建置測試專案；補上 9 個原始檔後有 107 個測試失敗，再補一個空的 `AGENTS.md` 後還有 28 個。逐項說明：
+
+- 13 個測試檔與 3 個共用類別改成用 `JET.slnx` 的資料夾當起點；原本多數用「有 `AGENTS.md` 的資料夾」當起點再接 `src/JET/…`。
+  `GlExcludedPopulationReadGuardTests`、`GlQueryOwnershipTests` 與 `DataPreviewColumnOwnershipTests` 的允許清單用相對路徑當識別，字串跟著少掉 `src/JET/` 這一段，清單的項目沒有增減。
+- `ReportExportTests`、`InfDirectTemplatePackageTests` 與 `TestEvidencePolicyTests` 各自寫的找根目錄函式刪除，改用共用的 `TestRepositoryPaths`。
+- 7 個讀答案檔的測試檔改成讀 `TestRepositoryPaths.Fixture`；其中 4 個原本各自往上找 `tools/tests/fixtures`。
+- `TerminologyUnificationFrontendTests.SaveWording_UsesStoreVerb_AndBlankSummaryIsOneName` 最後四項斷言讀的是 `tools/harness/gui-driver` 的情境程式，
+  拆成獨立的 `GuiScenarioChecks_UseTheSameSaveWordingAsTheProduct` 並加上標記；斷言照原樣，C# 案例數因此從 5,023 變成 5,024。
+- `FrontendPreviewFixtureTests` 沒有改：它只有在設定匯出用的環境變數時才找 `tools/verify.ps1`，平常不受影響。
+
+#### 檢查
+
+- **只有 `src/JET` 的副本。** 把 `src/JET` 的 1,179 個檔案（已追蹤的加上這次新增的，不含建置輸出）複製到儲存庫以外的暫存資料夾，`JET.slnx` 直接放在副本的最上層。
+  `dotnet build JET.slnx -c Debug` 成功，0 個警告。執行測試程式並排除三組標記：5,009 個案例全部通過。
+- **建置。** `Build` 通過。`GuiDriver.csproj` 與 `BrowserHost.csproj` 另外在暫存位置建置，各 0 個警告。
+- **契約檢查。** `Contract` 通過。
+- **完整公開測試。** `Public` 通過；C# 5,024 個案例全部通過，兩個前端步驟通過。
+- **測試報告的來源。** 在工作樹直接執行測試程式並排除三組標記，收集涵蓋率：5,009 個案例全部通過，C# 行涵蓋率 40,857 行對 44,015 行，和先前相同。
+  第一次給相對路徑的結果資料夾時，TRX 寫到了測試程式所在的資料夾底下，已移到 `artifacts/sat-test-record` 並把產生腳本說明改成給完整路徑。
+- 三份 Word 與三份 Excel 重新產生。讀回確認技術文件第 14 節的命令與 Unit test Report 的案例數；這次沒有轉成 PDF 逐頁看。
+- 沒有執行 `Gui`、`Excel`、`Package` 與 `PrivateCase`；沒有實際跑前端改壞工具，只改了它建立副本的程式。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 上一小節第 6、7、8 項仍待使用者決定：產品專案裡給 Gui 測試用的內容、原始碼註解裡的裁定編號，以及放在 `tools/tests` 的前端測試。
+  這次只改了四個產品檔註解裡答案檔的路徑，其他註解沒有動；測試檔的註解仍有許多提到 `tools/tests` 的地方。
+- 根目錄的 `global.json` 不在 `src/JET` 裡。副本沒有它，用本機的 SDK 10.0.403 可以建置與執行測試程式；`dotnet test` 在沒有它時的行為仍沒有測。
+- `DevelopmentRepository` 是這次新取的標記名稱，只用在測試程式與送審文件的測試命令，沒有進名詞表，待使用者確認是否沿用。
+- `docs/architecture/diagrams/evidence/source-manifest.json` 是某次提交的來源清單，仍記著搬移前的路徑，下次更新架構圖時會重新產生。
+- Unit test Report 的提交編號仍留空，數字來自開發儲存庫的工作樹；首次提交完成後要在那個提交上重跑。
+
+### 同日追加：原始碼註解不寫開發紀錄
+
+使用者 2026-11-10 從上一小節還沒處理的三項裡選了一項：
+
+> 原始碼註解
+
+接著在兩題確認裡選了做法與範圍，題目與選項照原文：
+
+- 「src/JET 的註解裡有裁定編號 2,182 處、測試收據 1,204 處、歷史日期約 3,400 處。要怎麼清掉這些開發紀錄？」＝直接改寫原始碼 (Recommended)
+- 「產品程式有 185 個檔約 1,000 行要改，測試程式有 392 個檔約 4,500 行要改。這一輪的範圍要到哪裡？」＝產品與測試一起做
+
+記為裁定 2026-11-10-11。做法、註解以外一起改的地方與每一項檢查，寫在
+[`2026-11-10-source-comment-cleanup-records.md`](../history/2026-11-10-source-comment-cleanup-records.md)，這裡只留摘要。
+
+- **註解。** 用規則刪掉 1,529 段裡的編號與收據句，再分兩輪交給子代理改寫：改寫 1,760 段、刪除 43 段。
+  整理前的原文保存在 `docs/history/2026-11-10-source-comment-records.txt`。
+- **註解以外。** 11 個 C# 檔的字串與 2 個測試素材檔也帶編號或修改經過，一起改掉；其中 1 個是產品的建表語句裡的 SQL 註解。
+  `LegacyAppearanceRegistryTests` 有一項斷言跟著改，原因與第一次失敗記在 `docs/history/test-change-records.md`。
+- **沒有改程式行為。** 用 Roslyn 逐檔比對 1,076 個 C# 檔，除了上面 11 個檔的字串，註解以外的語彙和整理前相同；
+  其他 28 個前端與專案檔去掉註解後逐字相同。沒有改審計邏輯。
+- **防止再寫入。** 新增 `SourceCommentPolicyTests`，掃描方案資料夾，不能出現裁定編號、測試執行的編號與「第一次失敗」。
+- **規範。** `AGENTS.md`、`.agents/harness/development-workflow.md` 與 `docs/rulings.md` 的說明跟著改。
+- **和選項說明不同的地方。** 選項寫的是修改既有測試的原因與收據「改記在計畫檔」。計畫檔有長度上限，
+  實際改成記在 `docs/history/test-change-records.md`。使用者同日看過這項差異後回覆「可以，照這樣」。
+
+#### 檢查
+
+- `Build`、`Contract` 與 `Public` 通過；`Public` 跑了 C# 5,029 個案例、兩個前端步驟。
+  `Public` 第一次執行時有 1 個刪除案件資料夾的測試失敗，當時同時在副本跑另一輪測試；單獨重跑與整輪重跑都通過，原因沒有再追查。
+- 只有 `src/JET` 的副本：建置 0 個警告，排除三組標記後 5,014 個案例全部通過。
+- Unit test Report 重新產生，案例數 5,014，C# 行涵蓋率 40,859 行對 44,015 行。
+- 文件檢查通過，0 個錯誤；6 個用字提醒都在這次沒有改的段落。
+- 沒有執行 `Gui`、`Excel`、`Package` 與 `PrivateCase`；沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 上一小節「還沒處理」的第一項剩兩件待使用者決定：產品專案裡給 Gui 測試用的內容，以及放在 `tools/tests` 的前端測試。
+- 還有 147 段註解提到已停用的 DuckDB 或 SQL Server，多數在說明程式為什麼這樣寫，有些說的程式可能已經不在。
+  要逐段對照程式才能判斷，這次沒有處理。
+- 兩個測試方法名稱帶 `UserRulings` 與 `AgentAddedKeyword`，沒有改名。
+
+### 同日追加：Gui 測試內容移出、註解再整理與測試先行
+
+使用者 2026-11-10 引用 Agent 前一則回覆裡的幾段，逐段回覆，最後另外交代一件事。下表前兩欄照原文抄錄。
+
+| 使用者引用的 Agent 原文 | 使用者的回覆 | 記為 |
+|:---|:---|:---|
+| 現在是 121,778 位元組，上限是 122,880 | 請提高上限 | 裁定 2026-11-10-12 |
+| 產品專案裡給 Gui 測試用的內容、放在 tools/tests 的前端測試，以及 DevelopmentRepository 這個標記名稱是否沿用。 | 請以最新的基準沿用 | 三件事在後面三列逐項回覆，各記一則 |
+| 還有 147 段註解提到已停用的 DuckDB 或 SQL Server：多數在說明程式為什麼這樣寫，有些說的程式可能已經不在，例如 SchemaIsolationGuardTests 的說明仍在講掃描 SQL Server 的資料夾。這要逐段對照程式才能判斷，這次沒有處理。 | 這應該歸給專案紀錄，盡量避免原始代碼中過度註解說明 | 裁定 2026-11-10-16 |
+| 子代理順帶指出的問題沒有修：有些註解的說明可能和程式對不上，也有沒有呼叫端的輔助方法，不屬於這次範圍。 | 可以修，但前提是你要摸清楚所有背景脈絡，避免抓到過時的資訊而影響上下文 | 裁定 2026-11-10-17 |
+| 產品專案裡給 Gui 測試用的內容要不要移出。 | 請移出，這個只要讓 agent 可以基於專案指引來執行就可以了，因為這本來就是設計給 agent 執行的 harness 之一 | 裁定 2026-11-10-13 |
+| 放在 tools/tests 的前端測試要不要搬進 src/JET。 | 如果他可以做為 unit test 來補充SAT文件，說明自動化測試的結果和紀錄，那就可以涵蓋在 `src/JET` 內，不然就是和其他內容一樣歸給專案的 harness 指引 | 裁定 2026-11-10-14 |
+| DevelopmentRepository 這個標記名稱是否沿用，它還沒進名詞表。 | 可以沿用 | 裁定 2026-11-10-15 |
+
+另外交代的一件事記為裁定 2026-11-10-18：
+
+> 另外，請確保 @src/JET/ 可以遵循 code as document 的規範，並遵循現代化的TDD開發循環，如果有缺漏請上網研究最新的資訊，尤其是 agent harness 機制。
+
+這一輪沒有改審計邏輯。每一輪註解改寫的做法與數字，以及為日後接回其他資料庫保留的寫法，寫在
+[原始碼註解整理紀錄](../history/2026-11-10-source-comment-cleanup-records.md)的「後續整理」；
+修改既有測試的原因與第一次失敗記在 `docs/history/test-change-records.md`。這裡只留摘要。
+
+#### 改了什麼
+
+- **計畫檔上限。** `tools/harness/documentation-check.json` 的現行計畫上限從 120 KiB 調到 160 KiB，`docs/README.md` 與 `tools/README.md` 的說明跟著改。
+- **Gui 測試的內容移出產品專案。** AgentGuiTest 組態原本定義在 `JET.csproj`；Gui 測試版的進入點、組裝與主視窗，原本是 `Program.cs`、
+  `AppCompositionRoot.cs` 與 `Form1.cs` 裡只在這個組態編譯的段落。現在都放在 `tools/harness/agent-gui-test/`，共 7 個檔：組態寫成 `AgentGuiTest.targets`，
+  進入點、組裝與主視窗各拆成一個檔，測試夾具 `AgentGuiTestFixtures.cs`、`AgentGuiTestProfile.cs` 與夾具的測試 `AgentGuiTestFixtureBehaviorTests.cs` 從 `src/JET` 搬過來。
+  `Gui` 建置 JET 與測試專案時，用 `/p:CustomBeforeMicrosoftCommonTargets` 帶入這個設定檔，位置寫在 `tools/harness/lanes.json` 的 `guiSettings.buildExtension`。
+  這個組態同時定義 `DEBUG`，產品程式的 `#if DEBUG || JET_AGENT_GUI_TEST` 因此改成 `#if DEBUG`。不能發布、只有驗證框架能暫存打包的限制照舊，改寫在設定檔裡。
+  支援日誌寫出的組建設定名稱，原本用條件編譯寫死 `AgentGuiTest`、`Debug` 與 `Release` 三個值，改成讀組件記下的設定；
+  這一項原本沒有測試，2026-11-11 補上 `SupportBuildInfoTests`。
+- **產品程式留下的接點。** `AppCompositionRoot.CreateRuntime` 可以包裝每個 action handler，也可以交給 runtime 一段啟動後在背景執行的工作；
+  `Program.Run` 先掛上例外後盾，再用呼叫端給的函式建立主視窗。前兩個接點先寫 `RuntimeCompositionTests`，第一次執行因為參數還不存在而編譯失敗；
+  加上接點後，這個類別通過。
+  同一次執行另有一項架構檢查失敗，原因是它讀的檔案已經搬走，後來改了路徑。編譯失敗不算對的失敗，這是後來寫進開發流程的規則，
+  所以另外暫時改壞接點，確認這組測試抓得到錯，結果寫在「檢查」。
+- **跟著改的檢查。** 測試修改紀錄記了四項。驗證框架的自我測試改讀 `lanes.json` 指到的設定檔，另外新增兩項檢查：
+  產品專案與測試專案不能定義 AgentGuiTest 組態；`src/JET` 的 C# 檔不能出現 Gui 測試的進入點、設定與夾具。
+  另外三項是：夾具的測試跟著搬家；讀假選檔器的測試改讀新位置，並加上 `DevelopmentRepository` 標記；核對條件編譯的測試跟著改成 `#if DEBUG`。
+  `tools/README.md` 的 `Gui` 一節跟著改。
+- **`DevelopmentRepository`。** 名詞表加入「要讀方案資料夾以外檔案的測試」一列，標記名稱照舊。
+- **前端測試的位置。** 清點 `tools/tests` 的前端測試：26 個測試檔、777 個測試，測的是 `src/JET/JET/wwwroot` 的產品程式，
+  可以當成單元測試補充送審的測試紀錄，符合放進 `src/JET` 的條件；其中 `frontend-preview.test.cjs` 載入驗證框架的程式，要留在 `tools/`。
+  搬移要拆開對 `tools/` 的相依、改寫測試檔裡的開發紀錄、改 `Public` 執行的路徑，並讓送審的測試紀錄納入前端測試，是一件獨立的工作。
+  這一輪沒有搬，另外提出「把前端測試搬進 src/JET 並納入送審測試紀錄」；使用者已開始這個工作，在另一個 session 進行。
+- **已停用資料庫的說明。** 第三輪改寫提到 DuckDB 或 SQL Server 的註解，140 個檔、242 段：改寫 181 段、刪除 31 段、保留 30 段。
+  為日後接回這兩種資料庫而保留的寫法與理由，改列在整理紀錄的「為日後接回其他資料庫保留的寫法」；
+  `docs/jet-guide.md` 第 8 節與 [SQLite 上線計畫](2026-11-06-sqlite-only-release-plan.md)保留註解的那一段指向那裡。
+- **子代理指出的問題。** 逐段對照現在的程式，以及提交 `7e88b7b`、`61d4b43` 的內容，才修改：說明和程式不符的註解改成相符；
+  刪掉沒有呼叫端的程式；補回 `61d4b43` 連同 DuckDB 一起刪掉的五個 SQLite 固定答案核對。另有一個測試的註解說會核對某個值，
+  實際沒有核對，補上這個斷言。
+- **另外兩輪註解。** 第四輪改寫測試裡的修改經過，117 段：改寫 41 段、刪除 72 段。第五輪逐段判斷用歷史語氣寫的註解，
+  587 段裡改寫 186 段、刪除 2 段，其餘照舊。
+- **原始碼本身的說明。** 照使用者說的 code as document，讓讀原始碼的人不必另查開發紀錄：
+  - `SourceCommentPolicyTests` 加上「計畫與階段的名稱」，擋下 `Stage 8`、`Track O` 這類階段代號，以及「第二波」這類說法。
+    加上後先看到它失敗，再改掉殘留的註解、失敗訊息與測試資料。
+  - 新增 `src/JET/Directory.Build.props`：建置時產生 XML 文件檔，讓編譯器核對文件註解。引用不存在的型別、成員或參數，
+    以及格式錯誤的說明，都會讓建置失敗；沒寫說明的成員不算錯。文件檔只留在建置輸出，不放進發布的資料夾。
+- **測試先行的開發循環。** 上網查了三份談 Agent 與測試先行的資料，連結寫在開發流程那一小節。專案已經有收尾時的驗證提醒、
+  收據保留第一次失敗、提交前的獨立複審與突變測試；缺的是把順序寫成 Agent 照做的步驟。
+  因此在 `.agents/harness/development-workflow.md` 新增「測試先行的開發循環」，`AGENTS.md` 的「測試」加一條指向它。
+
+#### 為什麼改既有測試
+
+這一輪在測試修改紀錄新增 12 列，每一列寫了改了什麼、為什麼，以及第一次失敗。沒有放寬或跳過斷言，預期值也沒有改成由被測程式算出來；
+刪掉的是已經沒有測試方法的四個測試檔，以及沒有呼叫端的輔助程式。
+
+#### 檢查
+
+- **計畫與階段名稱的檢查。** `SourceCommentPolicyTests` 加上新樣式後，`Focused` 失敗 1 個：`ProductAndTestSources_DoNotCarryDevelopmentRecords` 列出命中「計畫與階段的名稱」的行，例如 `src/JET/JET/wwwroot/css/app.css` 第 4749 行；
+  改完殘留的文字後通過。
+- **XML 文件註解的檢查。** 先在一個文件註解放進不存在的名稱，`Build` 失敗，編譯器回報 CS1574。
+  拿掉後通過，0 個警告；暫時加的文字已還原，那個檔和改之前相同。
+- **發布。** `Package` 通過。打包檢查不允許發布的資料夾出現 `.xml` 檔，文件檔因此沒有被發布。
+- **接點的測試抓得到錯。** 暫時讓 `CreateRuntime` 不包裝 handler、也不交出啟動工作，`RuntimeCompositionTests` 兩個測試都失敗：
+  一個是斷言失敗，handler 一個都沒被包裝；另一個等不到啟動工作開始而逾時。
+  改壞的檔已逐位元組還原，雜湊和改之前相同。
+- **組建設定名稱的測試。** 先暫時把名稱寫死成 `Release`，`SupportBuildInfoTests` 因斷言失敗，預期 `Debug`、實際 `Release`；
+  還原後通過，檔案和改之前相同。
+- **第三輪起，註解以外的改動都有紀錄。** 用第三輪前另存的 `src/JET` 比對：1,070 個 C# 檔裡註解以外不同的有 32 個，
+  另有 7 個搬走或刪掉的檔、1 個新檔 `RuntimeCompositionTests`，以及產品與測試的兩個專案檔。逐檔對照，都是這一小節列的改動：
+  Gui 測試內容的搬移、沒有呼叫端的程式、補回的固定答案核對、訊息與測試資料的文字，以及補上的斷言。`SupportBuildInfoTests` 是比對之後才加的。
+- **完整公開測試。** `Public` 通過：C# 5,041 個案例全部通過，兩個前端步驟通過；
+  這次還沒有 `SupportBuildInfoTests`。這次 `Public` 和 HEAD 比的斷言變動是刪掉 61 處、新增 10 處、少了 4 個測試方法，逐行核對：
+  4 個沒有測試方法的檔佔 24 處；搬到驗證框架的夾具測試佔 17 處與 3 個方法；刪掉的比對輔助程式佔 14 處；
+  其餘 6 處與 1 個方法是註解裡的字、訊息裡的路徑、移動位置的行，以及 2026-11-10 已記錄的一項斷言修改。斷言的判斷條件沒有被放寬。
+- **契約檢查與驗證框架的自我測試。** `Contract -ContractScenario FrontendMapping` 通過。
+  驗證框架的自我測試 544 項斷言全部通過；Gui 測試內容搬移後，這是它第一次完整通過，先前停在文件檢查。
+- **只有 `src/JET` 的副本。** 把 `src/JET` 的 1,176 個檔案複製到儲存庫以外的暫存資料夾，不含建置輸出。
+  `dotnet build JET.slnx -c Debug` 成功，0 個警告；執行測試程式並排除三組標記，5,026 個案例全部通過。
+- **測試報告與 SAT 文件。** 照送審文件寫的命令在工作樹執行測試程式並收集涵蓋率：5,026 個案例全部通過，C# 行涵蓋率 40,865 行對 43,998 行，
+  建置用 `Build` 執行並通過。`source/test-record.json`、審查資料與三份 Excel 重新產生，讀回確認 Unit test Report 的案例數與涵蓋率。
+  資料表關聯圖與 UML 類別圖重新產生，規模和先前相同：29 張資料表、16 條關聯，14 個類別、18 條關係。Word 文件的來源沒有改，沒有重新產生。
+- **文件檢查。** 這一小節寫到一半時跑過一次 `Documentation`，0 個錯誤；
+  從「接點的測試抓得到錯」以後的各項，都是那次之後才補上的。全部寫完後再跑，
+  只有一個錯誤：`docs/jet-frontend-description.md` 比長度上限多 9 位元組。那個檔只有第 1186 行和提交不同，是搬移前端測試時改了裡面的測試路徑，
+  留給搬移的 session 處理；這一輪改過的文件沒有錯誤，6 則警告和先前相同。上面其他檢查都在搬移開始之前跑完。
+- 沒有執行 `Gui`、`Excel` 與 `PrivateCase`；沒有用 Excel 開啟重新產生的三份 Excel，也沒有轉成 PDF 逐頁看。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 上一小節「還沒處理」的四項：Gui 測試用的內容已移出；前端測試已判斷要搬，搬移由另提的工作處理；已停用資料庫的註解在第三輪處理；
+  兩個測試方法的名稱還沒改。
+- 測試名稱帶著開發過程的說法。改名的提議寫進名詞表，標成待使用者確認，確認前不改。
+- `idea-tool.bas` 的行號、`SchemaIsolationGuardTests`、`AccountMappingImportSummaryTests` 的 `DuckDBException` 字串，以及前端已經不用的
+  `.overview-msg` 樣式，待使用者決定，細節見整理紀錄的「還沒處理」。
+- `Gui` 在搬移之後還沒有完整跑過；照規定只在提交、交付或使用者確認版本要整合時執行。`Program.Run` 會開出視窗，
+  沒有單元測試，要等 `Gui` 實際啟動 JET 時才涵蓋到。
+- 架構圖的來源清單 `docs/architecture/diagrams/evidence/source-manifest.json` 是提交 `40440b9` 的快照，仍列著這一輪搬走與刪掉的檔，
+  下次更新架構圖時重新產生。
+
+### 2026-11-11 追加：前端測試搬進 src/JET
+
+依裁定 2026-11-10-14，另開的 session 把能當成單元測試的前端測試從 `tools/tests` 搬進 `src/JET`，並讓送審的測試紀錄列出前端測試的結果。
+動手前先清點：`tools/tests` 有 26 個前端測試檔，原始碼裡有 777 個 `test()`，部分在迴圈裡逐項產生，執行時共 1,015 個測試。
+`frontend-preview.test.cjs` 載入驗證框架的程式，留在 `tools/`。其餘 25 個檔裡，有 8 個測試要讀 `src/JET` 以外的檔案，另外拆出去。
+
+#### 使用者的決定
+
+使用者 2026-11-11 在對話視窗回答兩題，題目與選項照原文：
+
+| 題目 | 使用者選的 | 記為 |
+|:---|:---|:---|
+| 前端測試的分法與位置：只讀 src/JET 檔案的 25 個測試檔與 4 個共用模組，搬到 src/JET/tests/frontend/，檔名不變；要讀 Gui 驅動程式、需求文件，或在測改壞工具的 8 個測試，拆到 tools/tests 的兩個新檔；預覽測試與改壞工具留在 tools。這樣分可以嗎？（名詞表「前端測試」一列已寫成待確認） | 照提議 (Recommended) | 裁定 2026-11-11-01 |
+| 搬進 src/JET 的測試裡，有 19 個名稱帶開發經過的說法（acceptance、no longer、approved、ruled、this batch）。要照名詞表「前端測試的名稱」一列寫的新名稱改嗎？ | 照新名稱改 (Recommended) | 裁定 2026-11-11-02 |
+
+#### 改了什麼
+
+- **搬移。** 25 個測試檔搬到 `src/JET/tests/frontend/`，共用模組 `frontend-fixtures.cjs`、`action-contract.cjs`、`resource-guard.cjs`、`resource-guard-marker.cjs`
+  搬到其下的 `support/`，檔名不變。讀 wwwroot、固定答案檔與 C# 測試檔的相對路徑改成從新位置起算，搬過去的程式不再指向 `src/JET` 以外。
+- **拆出的 8 個測試。** `frontend-workflow.test.cjs` 裡讀需求文件 `docs/kct-gl-workflow.md` 的 1 個、讀 `tools/harness/gui-driver` 腳本的 4 個，
+  連同它們用的夾具搬到 `tools/tests/frontend-development-repository.test.cjs`；`frontend-support.test.cjs` 裡測前端改壞工具與 `lanes.json` 上限的 3 個，
+  搬到 `tools/tests/frontend-mutation.test.cjs`。兩個檔只改了載入共用模組的路徑，斷言與註解照原樣。
+  `frontend-mutation.test.cjs` 另新增 1 個測試，核對前端改壞工具接受兩個資料夾的測試檔。
+- **資源上限。** 上限本身只依賴 Node.js 內建模組，搬進 `src/JET` 後照常運作。驗證框架反過來讀 `src/JET` 裡的上限：FrontendMapping 從新位置讀同時執行的檔數，
+  改壞工具也從新位置讀標記。上限要放得進驗證步驟記憶體上限的檢查留在 `tools/tests/frontend-mutation.test.cjs`。
+- **執行路徑。** `tools/tests/frontend-mapping-contract.tests.ps1` 改成收集兩處第一層的 `frontend-*.test.cjs`，兩處都檢查沒有漏掉的測試檔與資源上限，
+  再交給同一次 `node --test`。前端改壞工具 `tools/tests/support/mutate-frontend.cjs` 接受兩處的測試檔，建立副本時多複製 `src/JET/tests/frontend`。
+  留在 `tools/tests` 的 `frontend-preview.test.cjs` 改從新位置載入共用模組。`GuiScenarioCoverageTests` 改讀新位置的兩個前端測試檔。
+- **註解與測試名稱。** 照裁定 2026-11-10-11 改寫搬進來的 29 個檔的註解。改寫前的原文匯出到
+  [`docs/history/2026-11-11-frontend-test-comment-records.txt`](../history/2026-11-11-frontend-test-comment-records.txt)。
+  - 第一輪處理帶裁定編號、收據、日期、路徑或修改經過字樣的 933 段：改寫 822 段、刪除 62 段、保留 49 段。
+  - 第二輪逐段看第一輪沒有挑出、但用字可能在講修改經過的 102 段：保留 71 段、改寫 28 段、刪除 3 段。
+  - 最後核對時另外改了 9 處：2 個仍帶裁定編號的行尾註解；6 處還在講修改經過，或提到已經用不到的選項；
+    1 處引用的測試名稱在提交 `40440b9` 已經改掉，改成現在的名稱。
+  - 子代理指出和程式不符的說明，照裁定 2026-11-10-17 逐項對照現在的程式後修正。
+  - 19 個測試名稱照名詞表改名，改名前後的那一行列在原文紀錄最後一節。名詞表「前端測試」與「前端測試的名稱」兩列改成已確認。
+- **沒有讀取端的選項。** 子代理指出夾具已經不讀 `dialogFocus`：元素一律有 `parentNode`，`:not(...)` 一律照規則判斷。
+  照裁定 2026-11-10-17 拿掉 `support/frontend-fixtures.cjs` 四處呼叫傳入的這個選項，說明這個選項的註解跟著改。
+- **送審文件。** 技術文件第 8 節加上 `tests/frontend`，第 9 節加上 Node.js 26，第 14 節加上前端測試與執行命令。
+  `Export-SatEvidence.py` 多讀一份 `node --test` 的 JUnit 結果，`Build-Workbooks.mjs` 的 Unit test Report 多列一列前端測試；
+  `.agents/harness/sat-documents.md` 與 `tools/harness/sat-documents/README.md` 跟著改。
+- **其他文件。** 裁定總表 32 處落實位置改到新路徑，並登錄裁定 2026-11-11-01 與 2026-11-11-02。`tools/README.md`、`docs/development-status.md`
+  與歷史文件索引跟著改。`docs/jet-frontend-description.md` 第 1186 行的測試路徑變長，超出長度上限 9 位元組，同一句改成較短的寫法，意思不變。
+
+#### 為什麼改既有測試
+
+測試修改紀錄新增 6 列。沒有放寬或跳過斷言，預期值也沒有改成由被測程式算出來：搬移時只改路徑與名稱；
+`SourceCommentPolicyTests` 多掃 `.cjs`；FrontendMapping 的合成自我測試多一個案例；夾具呼叫拿掉沒有讀取端的選項。
+
+#### 檢查
+
+- **原始碼不寫開發紀錄的檢查。** `SourceCommentPolicyTests` 加上 `.cjs` 後，`Focused` 失敗 1 個：
+  29 個檔有 1,171 行帶開發紀錄。改寫註解後通過，10 個案例。
+- **搬移後先失敗的兩項。** FrontendMapping 的合成自我測試先加案例、還沒改辨認規則時失敗：合成的資源上限檢查標錯了檔案，標出的是 `frontend-cross-tree.test.cjs` 與 `frontend-a.test.cjs`。
+  `GuiScenarioCoverageTests` 搬移後讀不到檔案而失敗；
+  改路徑後通過。
+- **FrontendMapping。** `Contract -ContractScenario FrontendMapping` 通過：
+  兩處共 27 個測試檔、1,016 個測試全部通過，合成自我測試也通過。
+- **註解以外沒有變。** 用程式拿掉註解後逐行比對，29 個檔只有 `dialogFocus` 那 4 行不同。改掉或刪掉的 2,100 行註解，原文都在原文紀錄裡。
+- **只有 `src/JET` 的副本。** 把 `src/JET` 複製到儲存庫以外的暫存資料夾，不含建置輸出，用 Node.js 26 執行 `node --test --test-concurrency=4 tests/frontend/`，
+  1,007 個測試全部通過。這項沒有經過 `tools/verify.ps1`。
+- **送審的測試紀錄。** 照送審文件寫的命令重新產生，建置用 `Build` 執行並通過；C# 5,026 個案例與前端 1,007 個測試全部通過，
+  C# 行涵蓋率 40,870 行對 43,998 行。比上一小節多 5 行；這段期間產品程式沒有改，差異原因沒有追查。
+  `source/test-record.json` 與三份 Excel 重新產生，讀回確認 Unit test Report 多了「前端測試」一列，執行命令也寫到前端測試，紀錄裡沒有檔案路徑。
+  技術文件的來源有改，三份 Word 重新產生，並由 Word 更新目錄與頁碼；轉成 PDF 看第 9、12、13 頁，第 8、9、14 節新加的列與命令排版正常。
+  圖表沒有改，沒有重新產生。
+- **完整公開測試。** `Public` 通過：C# 5,042 個案例全部通過，
+  FrontendMapping 的 1,016 個與 FrontendPreview 的 12 個前端測試也全部通過。這次 `Public` 和 HEAD 比的斷言變動和上一小節相同：
+  刪掉 61 處、新增 10 處、少了 4 個測試方法；這次的修改沒有增減 C# 的斷言。這項比對只看 C# 測試檔，不含前端測試。
+- **文件檢查。** 這一小節寫好、檢查結果還沒填入時跑 `Documentation`，0 個錯誤；
+  6 則警告和先前相同，都不在這次改的段落。
+- 沒有執行 `Gui`、`Excel` 與 `PrivateCase`；沒有用 Excel 開啟重新產生的 Excel，只讀回儲存格內容。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 上一小節「還沒處理」的測試名稱一項：前端測試的 19 個名稱已改；C# 測試的名稱仍待使用者確認。
+- 搬進來的測試裡仍有帶批次編號或日期的識別字，例如 `batch7Fixture`、`batch8ValidationData`、`batch9TreeDom`，以及 `K3_CASH_NOTE`。
+  識別字改名要先經名詞表確認，這次沒有改；和 C# 測試的 `Stage8TrackWIds` 一樣延後。
+- `frontend-journey-mapping.test.cjs` 的測試名稱 `redraw: typing a debit code …` 和內容對不上，實際輸入的是貸方代碼。改名要先進名詞表，這次沒有改。
+- `frontend-journey-without-tb-or-scenario.test.cjs` 一則斷言訊息寫 `no saved scenario no longer locks step six`，帶著改動前後的說法。
+  斷言訊息不在這次改名的範圍，沒有改。
+- `tools/harness/gui-driver/GuiLegacyFormWorkflow.cs` 的註解仍引用 2026-11-03 改名前的測試名稱 `every common check is added by its own button…`，
+  現在的名稱是 `every field shortcut sits on its field row, …`。這不是這次改名造成的，留給整理 Gui 驅動程式時處理。
+- 架構圖的來源清單 `docs/architecture/diagrams/evidence/source-manifest.json` 仍列著 `tools/tests` 的舊路徑，下次更新架構圖時重新產生。
+
+### 2026-11-11 追加：名詞表四列的名稱確認與 C# 測試改名
+
+前面幾個小節留在名詞表、標成待使用者確認的四列名稱，使用者 2026-11-11 在對話裡回覆一題，題目照原文：
+
+| 題目 | 使用者的回覆 | 記為 |
+|:---|:---|:---|
+| 名詞表裡四列待確認的名稱，要照提議採用嗎？ | 照提議採用 | 裁定 2026-11-11-03 |
+
+#### 改了什麼
+
+- **名詞表。** 「Gui 測試的組態與接點」「原始碼不寫開發紀錄的檢查」「只跑 SQLite 的固定答案核對」「C# 測試的名稱」四列，確認的改法改成照舊，
+  依據寫上使用者的回覆。前三列的名稱原本就用在程式裡，程式沒有改。「攸關資料元素條件型別」一列列出的測試類別跟著換成新名稱。
+- **C# 測試改名。** 照「C# 測試的名稱」一列改了 19 個名稱：8 個測試方法、7 個測試類別，以及 `WorkingPaperWriterTestSupport` 的 4 個輔助程式；
+  7 個類別的檔名跟著改。只改名稱，測試內容與斷言不變。原名稱與新名稱的對照寫在
+  [原始碼註解整理紀錄](../history/2026-11-10-source-comment-cleanup-records.md)的「測試名稱」。
+- **跟著改的引用。** `TestEvidencePolicyTests` 讀的檔名改成 `ProviderLoggingFixedAnswerTests.cs`。`PreparerSummaryExportTests` 的類別說明原本引用舊的類別名稱，
+  還寫著這個查詢「尚無 handler」；現在底稿與報告的寫出程式都會呼叫這個查詢，所以照裁定 2026-11-10-17 改成只寫這個測試直接建立 repository、不經過 action handler。
+- **紀錄。** 裁定總表登錄 2026-11-11-03，測試修改紀錄新增 1 列。歷史文件與前面幾個小節照當時的名稱寫，沒有改；
+  架構圖的來源清單也還是舊名稱，等下次更新架構圖時重新產生。
+
+#### 檢查
+
+- **只有改名。** 改名前把 17 個檔另存一份，和改名後的檔逐行比對：69 行不同，每一行套用改名對照後都和改名後的內容相同，
+  只有 `PreparerSummaryExportTests` 那一行說明是另外改的；編碼、換行與行數都沒變。改名後 `src` 與 `tools` 都找不到這 19 個舊名稱。
+- **建置。** `Build` 通過，0 個警告。
+- **完整公開測試。** `Public` 通過：C# 5,042 個案例全部通過，
+  FrontendMapping 的 1,016 個與 FrontendPreview 的 12 個前端測試也全部通過。和上一小節的 `Public` 逐筆比對測試結果，改名前後都是 5,042 筆；
+  類別或方法名稱有改的 33 筆，套用改名對照後兩次完全相同，沒有多出或少掉的測試。
+- **斷言變動的數字變大，是因為檔名改了。** 這次 `Public` 和 HEAD 比的斷言變動是刪掉 137 處、新增 11 處、少了 16 個測試方法，
+  比上一小節多刪 76 處、多新增 1 處、多少 12 個方法。改名的 7 個新檔還沒加入 Git，比對時看成舊檔整個被刪掉：
+  這 7 個檔在 HEAD 的斷言共 85 處，扣掉上一小節已經算進去的 10 處，多出 75 處，測試方法多出 12 個。
+  另外 1 處是 `WorkingPaperWriterAppearanceTests` 裡同時有斷言和輔助程式名稱的一行，改名後算成刪掉 1 處、新增 1 處。新檔裡這些行都在，只差名稱。
+- **文件檢查。** 這一小節寫好、檢查結果還沒填入時跑 `Documentation`，0 個錯誤；
+  6 則警告和先前相同，都不在這次改的段落。
+- 送審的測試紀錄與三份 Excel 沒有重新產生：紀錄裡的測試分組只列類別名稱，沒有這次改名的類別，案例數也不變。
+  沒有執行 `Gui`、`Excel` 與 `PrivateCase`。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 「C# 測試的名稱」一列的提議漏了另外 7 個帶開發階段代號的測試識別字；測試資料裡也有 `Batch8`、`Batch9` 開頭的案件名稱，
+  以及 `rIdPhase2LiteralA`、`rIdPhase2LiteralB`。清單寫在整理紀錄的「還沒處理」，改名要先寫進名詞表，經使用者確認。
+  上一小節列的前端識別字，例如 `batch7Fixture`，也還沒改。
+- 整理紀錄「還沒處理」的其他三項仍待使用者決定：`idea-tool.bas` 的行號、`SchemaIsolationGuardTests` 與 `DuckDBException` 字串，以及前端已經不用的 `.overview-msg` 樣式。
+- `Gui` 在 Gui 測試內容搬移之後還沒有完整跑過。
+
+### 2026-11-11 追加：另外 7 個測試識別字與測試資料的名稱
+
+上一小節「還沒處理」的第一項，使用者 2026-11-11 在對話裡回覆三題，題目照原文：
+
+| 題目 | 使用者的回覆 | 記為 |
+|:---|:---|:---|
+| 另外 7 個帶開發階段代號的測試識別字，要我照同樣原則提出改名嗎？ | 提出改名 | 裁定 2026-11-11-04 |
+| 名詞表「C# 測試的名稱」一列新增 7 個待確認的改法：5 個改名，另外 2 個方法從第一次提交起就沒有呼叫端，提議刪除。要照提議採用嗎？ | 照提議採用 (Recommended) | 裁定 2026-11-11-04 |
+| 掃描 src/JET 時，另外找到帶批次或階段代號的字樣：C# 測試 40 多個、前端測試約 36 個，多半是案件名稱、暫存檔名、訊息與前端夾具的名稱，例如 batch9-broken、phase11-tb-import、Stage-9、batch8Fixture。產品程式沒有。要怎麼處理？ | 擴充檢查後一併提出 (Recommended) | 裁定 2026-11-11-05 |
+
+第三題選的選項附有說明：先讓「原始碼不寫開發紀錄的檢查」抓得到這類字樣，確認它先失敗；再把全部新名稱寫進名詞表給你確認，確認後才改。
+
+#### 改了什麼
+
+- **7 個測試識別字。** 5 個測試輔助程式照名詞表「C# 測試的名稱」一列改名；`LegacyAuditParityFilterScenarioBindings` 的兩個方法從第一次提交起就沒有呼叫端，
+  連同只給它們用的四個欄位刪除。名詞表那一列改成照舊。對照與刪除的內容寫在
+  [原始碼註解整理紀錄](../history/2026-11-10-source-comment-cleanup-records.md)的「測試名稱」。
+- **原始碼的檢查。** `SourceCommentPolicyTests` 的「計畫與階段的名稱」改成也抓接在識別字中間、寫在測試資料裡的批次與階段編號，先加例子確認檢查先失敗，再改樣式。
+- **改名提議。** 檢查抓到的名稱在 C# 測試 23 個檔、前端測試 10 個檔，另有 `tools/tests/frontend-development-repository.test.cjs` 引用其中一個前端夾具。
+  新名稱寫成整理紀錄的「測試資料與夾具的名稱」三張表，名詞表新增「測試資料與前端夾具的名稱」一列，標成待使用者確認。這些名稱還沒改。
+- **紀錄。** 裁定總表登錄 2026-11-11-04 與 2026-11-11-05，測試修改紀錄新增 2 列。
+
+#### 檢查
+
+- **只改名稱與刪除。** 改名前另存 5 個檔逐行比對：改名的 4 個檔共 35 行不同，每一行套用改名對照後都和改完的內容相同；
+  刪除的那個檔拿掉 41 行、新增 1 行，新增的是改寫後的類別說明。`Build` 通過，0 個警告。
+- **檢查先失敗。** 只加例子時 `Focused` 失敗，11 個該抓的例子有 7 個沒抓到；
+  改樣式後例子通過，掃描 `src/JET` 的測試照預期失敗。
+- **在副本試改。** 照提議在暫存資料夾的副本改完，用同一個樣式掃描沒有抓到；副本上 1,007 個前端測試全部通過。
+  這只是診斷，沒有經過 `tools/verify.ps1`，細節寫在整理紀錄的同一節。
+- **文件檢查。** 這一小節寫好、檢查結果還沒填入時跑 `Documentation`，0 個錯誤；
+  6 則警告和先前相同，都不在這次改的段落。
+- 7 個識別字改完之後還沒有跑 `Public`：掃描的測試要等提議的名稱改完才會通過，到時再一起跑。
+  沒有執行 `Gui`、`Excel` 與 `PrivateCase`。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 改名提議待使用者確認。確認後照整理紀錄的三張表改名，再跑 `Focused` 的 `SourceCommentPolicyTests`、`Public` 並逐筆比對測試結果，最後跑 `Documentation`。
+  在那之前，`ProductAndTestSources_DoNotCarryDevelopmentRecords` 會照預期失敗。
+- 前面小節列的 `K3_CASH_NOTE` 不含 stage、phase、batch 或 Track 的字樣，檢查不抓；這個名稱怎麼來、要不要改，這次沒有查。
+- 整理紀錄「還沒處理」的其他三項仍待使用者決定：`idea-tool.bas` 的行號、`SchemaIsolationGuardTests` 與 `DuckDBException` 字串，以及前端已經不用的 `.overview-msg` 樣式。
+- `Gui` 在 Gui 測試內容搬移之後還沒有完整跑過。
+
+### 2026-11-11 追加：測試資料與前端夾具改名
+
+上一小節的改名提議，使用者 2026-11-11 在對話裡回覆一題，題目照原文：
+
+| 題目 | 使用者的回覆 | 記為 |
+|:---|:---|:---|
+| 測試資料與前端夾具的名稱，要照提議改嗎？ | 照提議改 | 裁定 2026-11-11-06 |
+
+#### 改了什麼
+
+- **改名。** 照整理紀錄「測試資料與夾具的名稱」的三張表，改了 C# 測試 23 個檔、前端測試 10 個檔與 `tools/tests/frontend-development-repository.test.cjs`，共 334 行。
+  只改名稱與字串；斷言的寫法不變，比對的值跟著輸入一起改。短代號 `v8`、`b8-`、`b9-synthetic`、`v9`、`p9`、`f9` 照提議留著。
+- **名詞表與紀錄。** 名詞表「測試資料與前端夾具的名稱」一列改成照舊，裁定總表登錄 2026-11-11-06，測試修改紀錄新增 1 列，
+  [原始碼註解整理紀錄](../history/2026-11-10-source-comment-cleanup-records.md)的同一節補上改完的檢查。
+
+#### 檢查
+
+- **只改了表上的名稱。** 改名前另存 34 個檔，把三張表的改法套到另存的檔，結果和改完的檔逐位元組相同；行數與換行字元都沒變。
+- **原始碼的檢查。** `Focused` 的 `SourceCommentPolicyTests` 14 個案例全部通過。
+- **完整公開測試。** `Public` 通過：C# 5,046 個案例全部通過，
+  FrontendMapping 的 1,016 個與 FrontendPreview 的 12 個前端測試也全部通過。和「名詞表四列的名稱確認與 C# 測試改名」一小節的 `Public` 逐筆比對，
+  多出的 4 筆是新加的 4 個不該抓的例子，沒有少掉或改名的測試。斷言變動比那一次多刪 20 處、多新增 20 處，都是同一行斷言改了名稱，逐行對照寫在整理紀錄。
+- **文件檢查。** 這一小節寫好、檢查結果還沒填入時跑 `Documentation`，0 個錯誤；
+  6 則警告和先前相同，都不在這次改的段落。
+- 沒有執行 `Gui`、`Excel` 與 `PrivateCase`。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 送審的測試紀錄是加上那 4 個例子之前產生的，C# 寫 5,026 個案例。`SourceCommentPolicyTests` 不讀 `src/JET` 以外的檔，送審的測試也會執行它，
+  所以紀錄要重新產生才會對得上；這次沒有重新產生。
+- 上一小節列的 `K3_CASH_NOTE`、整理紀錄「還沒處理」的三項，以及 `Gui` 還沒有完整跑過，都和上一小節相同。
+
+### 2026-11-11 追加：重新產生送審的測試紀錄
+
+上一小節「還沒處理」的第一項，使用者 2026-11-11 在對話裡回覆一題，題目照原文：
+
+| 題目 | 使用者的回覆 |
+|:---|:---|
+| 送審的測試紀錄要現在重新產生嗎？ | 現在重新產生 |
+
+這是用完就結束的指示，照裁定總表的收錄原則，沒有登錄成裁定。
+
+#### 改了什麼
+
+- **送審的測試紀錄。** 照送審文件寫的命令重新產生 `source/test-record.json` 與三份 Excel，再設定列印範圍。
+  Word 文件沒有寫案例數與涵蓋的行數，沒有重新產生。
+
+#### 檢查
+
+- **建置與測試。** `Build` 通過。這次沒有重新編譯：
+  測試程式是上一小節改名之後建置的，`src/JET` 沒有比它新的原始檔。執行測試程式並排除三組標記，C# 5,030 個案例全部通過；
+  前端 1,007 個測試也全部通過，和上次相同。
+- **和 `Public` 逐筆比對。** 這次的 5,030 個案例和上一小節 `Public` 的 5,046 個逐筆比對，少的 16 個都帶 `DevelopmentRepository` 標記，沒有多出的。
+  比上次紀錄的 5,026 個多出 4 個，就是上一小節新加的 4 個例子；`SourceCommentPolicyTests` 的 14 個案例都有執行。
+- **涵蓋的行數少了 6 行。** C# 行涵蓋率是 40,864 行對 43,998 行，比上次少 6 行，都在 `src/JET/JET/Infrastructure/Diagnostics` 的兩個檔。
+  `SupportCaseHistoryStore.cs` 少 4 行，是遇到連結到其他位置的資料夾時不寫支援日誌的分支。
+  `SupportFailureFields.cs` 少 2 行，是把檔案錯誤分成找不到檔案與找不到資料夾的兩行。
+  拿今天三次產生測試紀錄時留下的涵蓋率檔逐檔比對，只有這兩個檔不同，這幾行在三次執行裡有時跑到、有時沒跑到。
+  「前端測試搬進 src/JET」一小節記的多 5 行，也是這兩個檔。依檔案的修改時間，三次執行期間 `src/JET/JET` 都沒有改；這幾行為什麼時有時無，沒有追查。
+- **讀回 Excel。** 讀回三份 Excel 的儲存格與列印範圍，和重新產生前比對。Unit test Report 只有「單元、整合與架構測試」一列的案例數，
+  以及 Infrastructure 與合計兩列的行數改了；Code review 與版本更新紀錄的內容沒變。
+  產生腳本會找 `#REF!` 這類錯誤值，三份都沒有找到。測試紀錄與 Excel 裡都沒有本機的絕對路徑。
+- **文件檢查。** 這一小節寫好、檢查結果還沒填入時跑 `Documentation`，0 個錯誤；
+  6 則警告和先前相同，都不在這次改的段落。
+- 沒有用 Excel 開啟，只讀回儲存格內容。沒有執行 `Gui`、`Excel` 與 `PrivateCase`。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 這次仍是在工作樹執行，Unit test Report 的程式版本沒有填提交編號。首次提交後要在那個提交上重跑並重新產生，
+  這項寫在「同日追加：改成開發者的角度與首次提交」的「差距的變動」。
+- 上一小節列的 `K3_CASH_NOTE`、整理紀錄「還沒處理」的三項，以及 `Gui` 還沒有完整跑過，都和上一小節相同。
+
+### 2026-11-11 追加：逐段回覆上一則回報
+
+使用者 2026-11-11 在對話裡逐段引用上一則回報的句子回覆。下面照錄，`>` 開頭的是引用的回報句子，接著是使用者的回覆：
+
+```text
+> 驗證報告的「完整性測試出現差異時之指引」工作表改寫：等你和 DPP 討論出新內容。
+這個繼續延後，但之後就先不要再提醒，因為這是決定要擱置的事項，不是未完成的事項
+
+> KCT 後續條件：等 KCT 提供完整清單。
+這個繼續延後，但之後就先不要再提醒，因為這是決定要擱置的事項，不是未完成的事項
+
+> 本機單人案件上的多人機制：和 SQL Server 一起處理。
+這個繼續延後，但之後就先不要再提醒，因為這是決定要擱置的事項，不是未完成的事項
+
+> 科目分類的上下層級：維持隱藏，和 SQL Server 一起處理。
+這個繼續延後，但之後就先不要再提醒，因為這是決定要擱置的事項，不是未完成的事項
+
+> 匯入前的資料前置處理：依鍵接合兩份總帳，另立下一份大型計畫。
+這個功能我決定先隱藏，或者說，先默認他沒有開發的必要，所以不用另外立一個大型計劃來處理，不過可以保留測試的態度，之後另行開發 sql server 的時候可以補上這個概念，但同樣的，就先延後並擱置，不要再把他列成未完成的事項
+
+> 底稿鎖定和舊版的兩個差異：等你決定要不要照舊版多鎖一列，或讓續頁的空白格可以填寫。
+我不太明白這件事，請補充說明
+
+> idea-tool.bas 的行號
+> SchemaIsolationGuardTests 和 DuckDBException 這兩個字串
+> 前端已經不用的 .overview-msg 樣式
+> K3_CASH_NOTE 這個名稱怎麼來、要不要改，還沒查
+> Gui 在測試內容搬移之後還沒完整跑過，要等提交或交付時再跑
+這些要交由我決定的事項請補充說明，只有這樣簡短的敘述我難以評斷脈絡
+
+> 建置和文件檢查有收據。C# 與前端測試是照 SAT 說明直接執行的，沒有經過 tools/verify.ps1，所以這兩項沒有收據。
+首先，收據是要給 agent harness 用的，不要把它混入專案文件和代碼
+
+> 沒有執行 Gui、Excel 和 PrivateCase。Excel 檔沒有開啟，只讀回儲存格內容。
+可以測試，但要注意或許會有一些偏差，因為 IDEA JET 的部分邏輯在新版的JET是有更新的，所以這部分要額外注意，不然你很有可能會把他們視為差異而做出非預期的 "修復行為"
+```
+
+前五段依序記為裁定 2026-11-11-07 到 2026-11-11-11，其中 2026-11-11-11 取代 2026-11-05-05。
+第五段的「這個功能」，Agent 照引用句子的後半解讀成兩份總帳依鍵接合；已經做好的欄名列與往下填補空白不受影響。
+第五段沒有直接說之後不再提醒，只寫「但同樣的，就先延後並擱置」，Agent 照前四段解讀成之後也不再提醒。
+第八段記為 2026-11-11-12，調整 2026-11-10-11 定的測試修改紀錄寫法。把 `docs/` 的計畫與紀錄也算成這句話說的專案文件，
+是 Agent 的解讀，和 2026-11-10-11 使用者同意的寫法不同，範圍等使用者確認。
+第九段記為 2026-11-11-13；裁定裡「比對出的差異照 `jet-guide.md` 第 17 節分類，分不出是 JET 缺陷還是刻意的更新時，
+歸為待使用者裁定，不直接改程式」是 Agent 依原話補的做法。
+第六、七段是請 Agent 補充說明，第九段開頭的「可以測試」是用完就結束的同意，照裁定總表的收錄原則都沒有登錄。
+
+Agent 處理這些回覆、回報 SAT 計畫接近長度上限時，使用者同日另外回覆：
+
+```text
+> SAT 計畫仍在處理；計畫檔有 160 KiB 上限
+提高上限到1MB
+
+現在重新產生
+```
+
+引用的是 Agent 當時說明的其中一段，字面相同。原句是「SQLite 計畫已清理完畢並在複核中，SAT 計畫仍在處理；計畫檔有 160 KiB 上限，SAT 已接近，所以補寫的逐段回覆要等清理後的大小確定再決定。」
+第一段記為裁定 2026-11-11-14，取代 2026-11-10-12；使用者說的 1MB 照設定檔的單位寫成 1,024 KiB。
+「現在重新產生」沒有寫明對象，Agent 照原句的後半解讀成：上限提高後，這一小節不必為了上限精簡，現在就寫出完整的紀錄。
+這是用完就結束的指示，沒有登錄。
+
+事後複核查到，Agent 當時「計畫檔有 160 KiB 上限」的說法不準確。設定檔確實有現行計畫的上限，但兩份現行計畫 2026-11-06 建立時
+沒有列進文件檢查的檔案清單，長度從來沒有被檢查；2026-11-10 調到 160 KiB 那次也一樣。先前的計畫在進行期間都列在清單裡，
+結案時才拿掉，所以 Agent 照這個做法把兩份計畫列回清單，上限才實際生效。
+
+#### 改了什麼
+
+- **五項改列決定要擱置。** `docs/development-status.md` 新增「決定要擱置的事項」一節，五項從「已知但延後的事項」移過去，
+  寫明大型工作結束或使用者詢問未完成事項時不逐項回報，使用者明示重新處理前不再提醒；依鍵接合也從下一階段的工作拿掉。
+  裁定總表登錄五則，2026-11-05-05 移到「已被取代的裁定」；`docs/project-context.md`、`docs/jet-guide.md`、`docs/README.md`
+  與 `.agents/harness/development-workflow.md` 的相關句子跟著改。
+- **鎖定的補充說明。** 「已知但延後的事項」留著底稿鎖定的兩個差異，補上鎖定的意思與 step4 的例子，
+  另加一列資料驗證報告 step1-3 的鎖定範圍。這一列是補充說明時查到的：依範本與寫出程式推論，
+  JET 只讓資料列的 A 欄與 E 到 H 欄可以填，比舊版鎖得多，還沒有實際產生報告確認；現有測試只檢查第 17 列與表頭兩格的鎖定。
+- **收據不寫進文件。** `AGENTS.md` 寫明收據只給驗證框架與 Agent 查核用，不寫進專案文件與程式碼；
+  `.agents/harness/development-workflow.md`、`.agents/harness/sat-documents.md` 與 `docs/history/README.md` 跟著改。
+  這份計畫、短期上線只保留 SQLite 計畫、測試修改紀錄與原始碼註解整理紀錄裡的收據編號都拿掉，改用文字寫命令、範圍與結果。
+  原本只靠收據交代第一次失敗的地方，收據還在的，照收據或同一次執行留下的錯誤輸出補上失敗的測試與訊息；
+  2026-11-06 的收據已經不在這台電腦，那幾處寫明細節已經查不到。
+  `docs/history/` 底下已提交的歷史計畫與舊版開發現況、兩份照錄註解原文的 `.txt` 紀錄，以及 `tools/` 驗證框架的程式註解沒有改。
+- **和舊版比對的注意事項。** `AGENTS.md`「有歧義時」、`docs/jet-guide.md` 第 17 節與 `docs/business-logic-provenance.md` 寫明，
+  新版 JET 有部分邏輯刻意和 IDEA 版不同，比出差異先照第 17 節分類，不把刻意的更新當成 JET 缺陷修掉。
+  分不出是缺陷還是刻意的更新時，歸為待使用者裁定、不直接改程式；這一句是 Agent 依原話補的。
+- **計畫的長度上限。** `tools/harness/documentation-check.json` 的現行計畫上限從 160 KiB 調到 1,024 KiB，`docs/README.md` 與
+  `tools/README.md` 的說明跟著改；裁定總表登錄 2026-11-11-14，2026-11-10-12 移到「已被取代的裁定」。
+- **文件檢查的清單。** 兩份現行計畫、`.agents/harness/sat-documents.md` 與 `tools/harness/sat-documents/README.md` 原本都沒有列在
+  同一個設定檔的檔案清單裡，這次列回去。`.agents/harness/development-workflow.md` 寫明計畫建好後要列進清單、結案時拿掉，
+  `tools/README.md` 寫明檢查只看清單裡的檔案。列回之後，這份計畫「使用者原話」的對話連結與第二輪原話裡的 `docs/architecture/`
+  被當成失效的連結：對話連結的開頭照 `thread://` 的前例加進略過的清單，第二輪的那則原話改放進文字區塊，字句沒有改。
+- **複核後的修正。** 獨立複核與事實查證之後，另外改了這些地方：
+  裁定總表 2026-11-11-07 到 2026-11-11-13 的原話補上引用的回報句子，2026-11-11-12 標明範圍是 Agent 的解讀，
+  2026-11-10-11 與 2026-10-30-27 補上後來的調整。開發現況與開發流程寫明改為擱置的事項整列移到「決定要擱置的事項」；
+  `docs/idea-replacement-scope.md` 與 `docs/project-context.md` 寫明 KCT 後續條件已擱置；
+  `.agents/harness/convergence-and-memory.md` 把第一次失敗的回寫位置改成測試修改紀錄；
+  `.agents/harness/sat-documents.md` 把測試數字的來源寫成直接執行測試的結果。兩份計畫的「細節沒有保存」改成「細節已經查不到」，
+  因為當時有收據，只是現在不在這台電腦。
+
+#### 檢查
+
+- **`Gui`。** 通過，20 個桌面操作情境與 31 個夾具測試都通過；JET 開在另一個 Windows 桌面。
+- **`Excel`。** 通過，六份合成工作簿逐份用原生 Excel 唯讀開啟、重算與另存副本，.xls、.mdb 與 .accdb 三種來源的匯入也通過。
+  這兩項都只用合成資料，沒有和 IDEA 版的結果比對。
+- **`PrivateCase`。** 把私人案件的根目錄設成 `data/test-case/` 執行；這台電腦沒有這個資料夾，執行前的檢查就停下，沒有讀到私人資料，也沒有比對。
+- 這三項都在本小節的修改之前執行，之後只改了文件與文件檢查的設定，沒有改 `src/JET`。
+- **文件檢查。** 四份文件列回清單、複核的修正都改完後跑 `Documentation`，檢查 80 份文件，0 個錯誤；
+  6 則警告和先前相同，都不在這次改的段落。
+- 沒有重跑 `Build` 與 `Public`。沒有 stage、commit 或 push。
+
+#### 還沒處理
+
+- 底稿鎖定的兩個差異與資料驗證報告 step1-3 的鎖定範圍，以及整理紀錄「還沒處理」的三項與 `K3_CASH_NOTE` 等用計畫編號取的名稱，
+  Agent 已在對話裡補充說明並提出建議，等使用者決定。
+- 收據不寫進文件的範圍是 Agent 的解讀，已套用到 `docs/` 的兩份計畫與兩份紀錄；只限送審文件與 `src/JET`，還是也包含這些紀錄，等使用者確認。
+- `docs/history/` 的歷史文件與 `tools/` 的程式註解裡還有收據編號，要不要也改，等使用者決定。
+- 拿掉收據編號時看到這份計畫第 172 行與第 954 行有疑似機構名稱，沒有改，已回報使用者，等使用者決定。
+- 事實查證時順帶看到一個疑點：底稿 step3 與 step4 的表頭固定文字是一格一格分開寫的。讀程式推論，step3 的第 7、9 列，
+  以及 step4 續頁的第 5、7、10 列，都會寫出兩個列號相同的列。本小節的 `Excel` 檢查用原生 Excel 開過合成底稿並通過，
+  但 Excel 有沒有默默修復，還沒有用合成資料確認。
+- `PrivateCase` 要等使用者提供私人案件資料夾才能執行。前幾小節列的「`Gui` 還沒有完整跑過」已經解決。
+
+### 2026-11-11 追加：底稿鎖定與原始碼整理的七項
+
+Agent 在對話裡補充說明上一小節「還沒處理」的事並提出建議，使用者 2026-11-11 回覆一題，題目照原文：
+
+| 題目 | 使用者的回覆 |
+|:---|:---|
+| 底稿鎖定與原始碼整理的七項要照建議處理嗎？ | 照建議處理 |
+
+那則說明最後列的七項建議照原文：
+
+```text
+1. 底稿鎖定差異一：建議維持 JET 只鎖到最後一筆。
+2. 底稿鎖定差異二：建議讓續頁的空白格可以填。
+3. 資料驗證報告 step1-3 的鎖定：建議先實際產生報告確認。
+4. `idea-tool.bas` 的行號：建議 A，兩個舊版檔的行號一起改成「舊版 JET」。
+5. `SchemaIsolationGuardTests` 與 `DuckDBException`：建議 A，兩個都刪，需要你明確同意；前端總覽測試要不要收緊也請一起決定。
+6. `.overview-msg`：建議 A，刪掉整段 9 條。
+7. `K3_CASH_NOTE` 和同一類的名稱：建議 A，改成說明用途的名稱；`window` 名稱的寫法要不要一起處理也請決定。
+```
+
+第 5 項的前端總覽測試、第 7 項的 `window` 名稱與同類用字，Agent 沒有提出建議，「照建議處理」沒有涵蓋，等使用者決定。
+
+各項建議的原句照原文。第 1 到 3 項在同一則說明第一節最後的「要你決定的三件事」，第 4 到 7 項是第二節的第 1 到 4 段，下面只摘標題、選項、建議，以及反面的考量與請使用者一起決定的事：
+
+```text
+**要你決定的三件事。**
+
+1. **差異一。** 我建議維持 JET 只鎖到最後一筆，記成刻意和舊版不同的地方。理由是這符合「只鎖程式寫入的資料區」的字面，多出的那一列也比較像舊版寫法造成的。這樣程式不用改。step4 已經有測試確認最後一筆的下一列可以填，step1-2 與 step1-3 要補同樣的測試。
+   反過來看，你 2026-11-09 選了 step1-2 的 C 欄照舊版鎖定（裁定 2026-11-09-21）。如果你要的是和舊版逐格一致，就該照舊版多鎖一列。那樣要改程式，step4 現有的「下一列可以填」斷言要改成「要鎖定」，原因會記在測試修改紀錄。另外還要決定兩件事：step4 沒有傳票時要不要照舊版鎖第 13 列，以及續頁的最後一頁要不要也多鎖一列。
+2. **差異二。** 我建議讓續頁沒寫值的格子和第一頁一樣可以填，先加測試再改程式。改的時候，要一併確認 step1 與 step1-1 續頁表頭區的空白格，鎖定和第一頁相同。
+3. **資料驗證報告的 step1-3。** 我建議先用合成資料實際產生報告，確認鎖定範圍，再決定要不要改成和底稿一樣只鎖資料區。
+
+**1. `idea-tool.bas` 的行號**
+
+- 選項：
+  - A：全部改成「舊版 JET」，兩個舊版檔的行號一起改，原句照前幾輪的做法存進原文紀錄。
+  - B：維持現狀。
+  - C：拿掉行號，改寫能在舊版檔裡搜尋的名稱，例如程序名稱 `Step5_Export_Excel_TW` 或欄位名稱 `Final_TAG`。
+- 建議 A。只改註解，程式行為與測試結果不變。「舊版怎麼寫、新版怎麼寫」的對照句要保留，以後比對時才分得出刻意的差異。底稿鎖定那幾段註解，等你決定鎖定之後再一起改。
+
+**2. `SchemaIsolationGuardTests` 與 `DuckDBException` 字串**
+
+- 選項：
+  - A：兩個都刪，在測試修改紀錄寫明要接回時從 `7e88b7b` 取回。
+  - B：留著，只把說明改成現況。
+  - C：維持現狀。
+- 建議 A，但這是刪除既有測試，要你明確同意。會刪 2 個測試方法、共 40 則斷言。送審測試紀錄的 C# 測試數會從 5,030 變成 5,028，所以要重新產生。刪的理由是它們保護的情況已經不存在，不是為了讓測試通過。`SupportedActionsParityTests` 有一句說明提到這個類別，架構圖的來源清單也列了它的路徑，都要跟著改。
+- 同一類的還有前端測試 `frontend-journey-overview.test.cjs` 第 262 行：流程總覽的資料庫欄位，比對時接受 SQLite、DuckDB、SQL Server 三種文字。要不要一起收緊成只接受 SQLite，也請你決定。
+
+**3. `.overview-msg` 樣式**
+
+- 選項：
+  - A：刪掉整段 9 條。
+  - B：只刪 `.overview-msg` 的 5 條。
+  - C：維持現狀。
+- 建議 A。畫面不會改變；改完會跑前端測試，並用瀏覽器主機看一次流程總覽。
+
+**4. `K3_CASH_NOTE` 和同一類的名稱**
+
+- 選項：
+  - A：四組都改成說明用途的名稱。
+  - B：維持現狀。
+  - C：改名，並讓檢查也抓「K 加數字」。
+- 建議 A。`K3_CASH_NOTE` 我提議改成 `COUNTERPART_CASH_NOTE`，和同一個檔裡指同一張卡的常數 `COUNTERPART` 對齊。其他三組等你同意方向後，我讀過用途再提名稱。新名稱要先寫進名詞表、經你確認才改，比對的句子照舊寫死在測試裡。不建議 C，因為「K 加數字」會誤抓 Excel 的儲存格位置，例如 K51。
+- 可以一起決定的同類寫法：
+  - 同一個檔第 219 行的失敗訊息寫「approved sentence」。
+  - `frontend-workflow.test.cjs` 第 823 行寫「as ruled on 2026-10-07」，第 1765 行寫「unapproved」。
+  - C# 測試名稱 `R3_IsSubsetOfC_…` 用的是預篩選 R3 與 KCT C 這兩個業務代號，不用改。
+- 另外查到：名詞表寫掛到 `window` 的名稱一律用 `exposed` 開頭，但程式裡還有 `calendarTest`、`filterBuild`、`importOps`、`step4App` 等不是這樣開頭的名稱。要不要一起處理，也請你決定。
+```
+
+第 3 項以外的六項依序記為裁定：第 1 項 2026-11-11-15，第 2 項 2026-11-11-16，第 4 項 2026-11-11-17，第 5 項 2026-11-11-18，第 6 項 2026-11-11-19，第 7 項 2026-11-11-20；2026-11-09-15 補上鎖到哪一列與續頁的後來調整。
+第 3 項只決定先產生報告確認，是用完就結束的指示，照裁定總表的收錄原則沒有登錄；使用者決定改法後再登錄。
+第 5 項的建議寫明刪除既有測試要使用者明確同意，使用者對包含這一項的題目回覆「照建議處理」，Agent 照這個回覆刪除。
+第 7 項的 `COUNTERPART_CASH_NOTE` 寫在同一則建議裡，Agent 把「照建議處理」當成照用這個名稱；另外三組的新名稱照建議先寫進名詞表，經使用者確認才改。
+
+處理到一半時，使用者同日另外說：
+
+```text
+這個工作階段執行超級久了，我擔心會有上下文過度壓縮而影響你的輸出品質，如果可以的話，請合理地在新的工作階段繼續未完成的事項，或是指派多個子代理和子工作階段來減緩目前工作階段的壓力。
+```
+
+所以第一個工作階段做完第 1、2、4 項的程式與測試就停下，其餘交給兩個接續的工作階段：一個做第 3、5、6、7 項的程式收尾，另一個做文件、裁定、送審文件與完整驗證。
+
+`src/JET` 原本就有的開發經過註解整理完之後，Agent 就留下來的章節引用問了一題，使用者 2026-11-12 回覆，題目照原文：
+
+| 題目 | 使用者的回覆 |
+|:---|:---|
+| 註解裡 65 行 guide 與 spec 的章節引用，要拿掉編號只留說明嗎？ | 拿掉章節編號 |
+
+這一題登錄成裁定 2026-11-12-01，處理的結果見「檢查」最後一點。
+
+#### 改了什麼
+
+- **第 4 項：舊版程式的行號。** `src/JET` 31 個檔、68 段註解拿掉 `idea-tool.bas` 與 `idea-script.bas` 的檔名與行號，
+  改成「舊版 JET」或直接拿掉。英文註解拿掉 `BAS`、`ISM` 與後面的行號；原本寫了舊版步驟名稱的，改成 legacy JET 加上步驟名稱。「舊版怎麼寫、新版怎麼寫」的對照句保留。
+  測試讀舊版檔的路徑字串、比對依據的出處字串、識別字，以及夾具的行號欄位都照舊。
+  `LegacyAuditParityLegacyObservationFactory.cs` 用兩個檔名分辨兩個舊版的那段，第一個工作階段原本保留，複核後也改成較新與較早的版本，見「檢查」。
+- 其中三段另外改了內容。A3 的說明原本寫兩個舊版檔都查不到的 `LastPeriod`，改成舊版寫 A3 時用的變數 `sLast_Accounting_Period_Date`。
+  一則測試註解句首的修改經過「原測試比對第 14 列表頭與範本格式。」拿掉。字型索引的說明改成點明上面 15 到 20 號樣式寫了來自舊版的哪一步。
+- **第 1 項：只鎖到最後一筆。** 程式沒有改。`WorkingPaperWriterStep1ToStep2Tests` 補兩則測試，確認 step1-2 與 step1-3 鎖到最後一筆、
+  下一列可以填。共用的判斷 `IsCellLocked` 放在 `WorkingPaperWriterTestSupport`，檔案裡沒有的格子也照 Excel 決定樣式的順序判斷。
+  `WorkingPaperWriter.Step1.cs` 與 `WorkingPaperWriter.Step2To41.cs` 的鎖定註解寫明欄與起始列照舊版、列只鎖到最後一筆，也寫出舊版多鎖的那一列。
+- **第 2 項：續頁的空白格。** 先加 `WorkingPaperWriterContinuationProtectionTests` 兩則測試，再改 `WorkingPaperWriter.cs` 與
+  `WorkingPaperWriter.Template.cs`。有鎖定區的續頁，每一欄都套上不鎖定的欄樣式，沒有設定寬度的欄用範本的預設欄寬。
+  step1 與 step1-1 續頁的表頭範圍補上鎖定的空白格，和第一頁相同。`WorkingPaperWriter.Template.cs` 的鎖定範圍說明拿掉舊版的行號，
+  原本寫範圍照舊版，改成寫明欄與起始列照舊版；也加一句續頁照同一個範圍鎖定、其他格子和第一頁一樣可以填。
+- 推論的外觀影響：續頁沒寫值的格子，原本是範本的預設樣式，新細明體 12、垂直置中；改完是 JET 寫出時的預設樣式，微軟正黑體 11、靠上。
+  複核從程式查證，第一頁的空白格是微軟正黑體 11、垂直置中，step1-2 的 D、E 欄與 step1-3 的 D 欄靠右；
+  所以字型和第一頁一致，只差垂直對齊與那三欄的靠右。這些都沒有用 Excel 實際確認。
+- **第 5 項：刪除兩個原本為 DuckDB 與 SQL Server 寫的測試。** `SchemaIsolationGuardTests.cs` 整個刪除；`AccountMappingImportSummaryTests` 刪除輔助方法
+  `FirstUsefulReadFailure` 與核對它的測試。兩處各刪 1 個測試方法，斷言分別是 35 則與 5 則。`SupportedActionsParityTests` 說明裡拿 `SchemaIsolationGuardTests` 當例子的那一句，
+  改成「從測試程式所在的資料夾往上找 `JET.slnx`，回傳方案檔所在的資料夾」。架構圖的來源清單沒有改，原因見「還沒處理」。
+- **第 7 項：`K3_CASH_NOTE` 改名。** `frontend-journey-filter-build.test.cjs` 的定義與兩處使用改成 `COUNTERPART_CASH_NOTE`，失敗訊息沒有改。
+  另外三組讀過用途後提出新名稱，寫進名詞表，標明待使用者確認，程式沒有改。
+- **第 6 項：刪除「最近訊息欄」的 9 條樣式。** `app.css` 刪除這 9 條規則與所屬的兩段註解，共 54 行，從 8,822 行變成 8,768 行。
+- **第 3 項：確認資料驗證報告 step1-3 的鎖定範圍。** 程式沒有改。用 4246 埠的 QA 瀏覽器主機建一個有 3 個差異科目的合成案件，
+  執行資料驗證並匯出報告，再讀「step1-3 完整性測試之差異說明」每一格的鎖定。第 1 到 16 列範本有格子的位置，以及資料列的 A 欄與 E 到 H 欄可以填；
+  資料列的 B 到 D 欄與 I 欄以後、最後一筆以下的每一列，以及第 1 到 16 列範本沒有格子的位置，例如 H1、F7:G9 與 A16，都鎖定。
+  這和開發現況先前依程式推論的範圍相同。照舊版的寫法，這份 3 筆的報告會鎖 B17:D20，比最後一筆多一列；舊版鎖的格子 JET 都有鎖。
+  先前準備給使用者的問題草稿寫「E 到 H 欄是差異原因、調節說明與調節後差異」，實際上 E 到 G 欄才是這三欄，H 欄沒有表頭。
+- **文件。** 裁定總表登錄六則裁定，2026-11-09-15 補上後來的調整。`docs/jet-guide.md` 第 7 節底稿鎖定那段補上刻意和舊版不同的那一列，
+  以及接續的工作表照第一張鎖定。開發現況刪掉「底稿鎖定和舊版的兩個差異」，「資料驗證報告 step1-3 的鎖定範圍」改成實際產生報告後的範圍，
+  介紹這份計畫的那一段也補一句。名詞表寫進第 1、2 項新取的程式與測試名稱，以及 `COUNTERPART_CASH_NOTE`；第 1、2 項的新名稱與另外三組提議的名稱都標明待使用者確認。
+  「C# 測試的名稱」與「測試資料與前端夾具的名稱」兩列的意思補上不寫計畫的事項編號，`WorkingPaper*Tests` 的類別數改成現在的 34 個。
+  測試修改紀錄記下第 5 項的刪除與第 7 項的改名。原始碼註解的整理紀錄把「還沒處理」換成「舊版程式的行號」「刪掉的測試與樣式」與「用計畫編號取的名稱」三節，另外留一節新的「還沒處理」，
+  原文紀錄接上第六部分。
+- **送審文件。** 技術文件第 19 節的「底稿鎖定範圍」一列寫的是舊版底稿比最後一筆多鎖一列，第 1 項定案後不再是已知問題；
+  這一列改寫成資料驗證報告的鎖定範圍，再重新產生技術文件的 Word。送審的測試紀錄照 `tools/harness/sat-documents/README.md` 的命令重新產生，數字見「檢查」。
+
+#### 檢查
+
+- **第 2 項先寫測試。** 改程式前執行，第一則在「應可填」的斷言失敗，step1 續頁的 A5、B8、A16、G15 等 10 格都是鎖定。
+  第二則通過，它用來擋住只補欄樣式、忘了補表頭空白格的改法。改完程式後兩則都通過。
+- **第 1 項的兩則測試**第一次執行就通過，因為這是替既有行為補測試。暫時拿掉第一頁把欄樣式換成不鎖定的程式後，
+  兩則都在「應可填」失敗，例如 step1-2 的 B14 到 E14；程式逐字還原後再比對，只剩註解的差異。
+- **第 4 項。** 用腳本比對改寫前後的檔案，註解以外的程式行完全相同。
+- `Focused` 篩選 `WorkingPaper`：選到的 224 則測試都通過，固定補跑的架構檢查 387 則也通過，其中包含原始碼註解的政策檢查。
+- **第 5 項。** `Focused` 篩選 `AccountMappingImportSummaryTests` 選到 5 個案例、篩選 `SupportedActionsParityTests` 選到 3 個案例，
+  固定補跑的架構檢查都是 386 個，全部通過；架構檢查比前一次少的 1 個就是刪掉的掃描測試。
+- **第 6 項。** 刪除前後都用 4246 埠的 QA 主機開「台灣中小企業-常用篩選情境（SQLite）」與「台灣中小企業-待配對（SQLite）」的流程總覽。
+  預覽分頁跑兩個 JavaScript 運算式：第一個確認畫面上沒有這 9 條規則的 class，刪除前後都是 0；第二個在刪除前比對得到這 9 條規則，刪除後比對不到。
+  另外量到載入的樣式表從 1,410 條規則變成 1,401 條，表示讀到的是刪除後的樣式表。
+  預覽窗格隱藏時動畫停住、縮放比例也會變，所以截圖改用不開視窗的 Edge，同時量測每個元素的計算後樣式。
+  刪除前後的計算後樣式完全相同；截圖和刪除前第二次量測逐位元組相同，和第一次只差總覽後面頁首標誌那一小塊，刪除前兩次量測之間就有同樣的差異。
+- **第 6、7 項的測試。** `Contract -ContractScenario FrontendMapping` 的 1,016 個前端測試全部通過；`Focused` 篩選 `DesignIntegrationFrontendTests`
+  選到的 19 個案例與架構檢查 386 個都通過，讀 `app.css` 的 7 個 C# 測試類別都在架構檢查裡。
+- **第 3 項。** 報告的工作表受保護、沒有密碼。抽查的格子都符合上面的範圍，列與儲存格的順序檢查沒有問題，這張表沒有重複的列號。做完停止 QA 主機。
+- **程式改完後的 `Public`。** 這次要改的程式都改完後跑 `Public`：C# 5,048 個案例，前端測試 FrontendMapping 1,016 個、FrontendPreview 12 個，全部通過。
+  和同一個提交上一次的 5,046 個案例逐筆比對，少的 2 個是第 5 項刪掉的測試，多的 4 個是第 1、2 項新增的測試，沒有其他增減。
+- **送審的測試紀錄。** 這次要改的程式都改完後重新 `Build`，確認 `src/JET` 底下的 C# 原始檔都比測試程式舊；比測試程式新的 `app.css` 和建置輸出裡的副本相同，
+  比較新的前端測試檔由 node 直接執行，不經過建置。再照 `tools/harness/sat-documents/README.md` 的命令直接執行測試程式與前端測試，排除三組標記。
+  C# 5,032 個案例、前端測試 1,007 個案例，全部通過；C# 是先前的 5,030 個減掉第 5 項刪除的 2 個，加上第 1、2 項新增的 4 個。
+  涵蓋的程式行從 40,864 行變成 40,933 行，計入的程式行從 43,998 行變成 44,077 行，只有續頁鎖定改到的 `WorkingPaperWriter.cs` 與 `WorkingPaperWriter.Template.cs` 有變動。
+  重新產生三份 Excel 並設定列印範圍後，和產生前逐格比對：Unit test Report 只有 C# 案例數與涵蓋率的格子不同，Code review 與版本更新紀錄的內容相同；
+  Code review「固定值與規則」工作表列的固定值，`Build-ReviewData.py` 產生時都在程式裡找到。
+- **技術文件。** 只重新產生 Technical Document，再執行 `Update-WordFields.ps1`，用 Word 在背景更新目錄與功能變數。和產生前比對文字，只差第 19 節那一列；
+  轉成 PDF 看第 19 節所在的第 15 頁，也就是最後一頁，表格排版正常。
+- **完整驗證。** 送審紀錄與技術文件產生完後跑 `Public`：C# 5,048 個案例，前端測試 FrontendMapping 1,016 個、FrontendPreview 12 個，全部通過，建置沒有警告。
+- **複核。** 六個沒有參與實作的子代理分別查裁定總表、名詞表與現行文件、三份歷史紀錄、這一小節、底稿鎖定的程式與測試，以及註解的改寫與刪除，逐條對照出處。
+  確定有誤的都已修正，這次沒有改的寫在「還沒處理」。修正的地方：
+  - 技術文件第 19 節那一列把程式寫入、但可以填的 A1 也算成鎖定。改寫成程式寫入的格子裡只有科目編號、科目名稱與差異金額鎖定，列名也改成只講 step1-3；
+    改完再產生一次 Technical Document 並執行 `Update-WordFields.ps1`，和上一版比對文字只差這一列，轉成 PDF 看第 15 頁排版正常。
+  - `LegacyAuditParityLegacyObservationFactory.cs` 還留著兩個舊版檔名。使用者回覆「照建議處理」的那則建議，寫到 `idea-tool.bas` 的只留路徑與出處兩行，
+    所以這段也改掉，原文補進原文紀錄第六部分，計數改成 31 個檔、68 段。
+  - `WorkingPaperWriter.Appearance.cs` 一段英文註解拿掉行號後提到不會寫的版本格，`WorkingPaperWriter.Template.cs` 一段說明把續頁的欄寬寫成和沒有設定時一樣，
+    都改成符合程式。`IsCellLocked` 遇到設了 customFormat 但沒寫樣式的列時，改照 Excel 用第 0 號樣式；目前寫出的檔案沒有這種列，判斷結果不變。
+  - 裁定總表六則的原話改標成 Agent 的建議，「落實位置」的檔數一律算進整理紀錄；第 4、5、7 項裡 Agent 實作時定的做法與 Agent 的解讀，都在裁定欄寫明。
+  - 其餘是整理紀錄、測試修改紀錄、名詞表、開發現況與這一小節的用詞、計數與出處。
+- **複核後的測試。** `Focused` 篩選 `WorkingPaper` 選到的 224 個案例、篩選 `LegacyAuditParity` 選到的 174 個案例，以及兩次固定補跑的架構檢查 386 個都通過。
+  送審的測試紀錄產生後只改了註解與測試輔助程式，行數不變，C# 案例數與涵蓋的程式行不受影響，所以沒有重新產生。
+- **文件檢查。** 複核的修正做完後跑 `Documentation`：80 份文件、0 個錯誤，6 則既有的提醒。
+- 沒有執行 `Excel` 與 `PrivateCase`，三份 Excel 也沒有用 Excel 開啟核對。沒有 stage、commit 或 push。
+- **複核修正之後的核對。** 複核的修正做完後，又跑一次完整的 `Public`：C# 5,048 個案例，前端測試 FrontendMapping 1,016 個、FrontendPreview 12 個，全部通過，建置沒有警告。
+  之後另外請五個唯讀的子代理，分別核對裁定總表、現行文件、歷史紀錄、程式修改與這一小節，再由一個子代理逐條查證、試著推翻；一共提出 26 條，確認成立 19 條。
+  其中 10 條在文件裡，已經改正：裁定總表 2026-11-11-17 的 Agent 做法、名詞表 `COUNTERPART_CASH_NOTE` 的但書、`docs/jet-guide.md` 的 Step 3 鎖定範圍、
+  開發現況第 41 行、整理紀錄兩處，以及這一小節的四處。`docs/jet-guide.md` 那一條在提交 `512af50` 就是這樣寫，其餘 9 條是這次改文件時漏記或寫錯的地方。
+  另外 9 條是 `src/JET` 原本就有的註解問題，提交 `512af50` 就是這樣寫，不是這次造成的。例如註解寫著 brief、task、鐵律、User-approved 這類用字或 `.git/sdd` 的路徑，
+  也有引用不存在的 jet-testing 章節。這 9 條不符合 `src/JET` 註解只寫程式現在做什麼的規定（裁定 2026-11-10-11），核對當時沒有處理，後來另外整理，見「檢查」裡「`src/JET` 原本就有的開發經過註解」那一點。
+- **核對後修正的複查。** 上面 10 條改完後，另外請三個唯讀的子代理複查這些修正，分別看裁定總表與現行文件、整理紀錄，以及這一小節。
+  修正的事實都成立，另外指出幾處寫得不夠準確，已經再改：裁定總表 2026-11-11-17 把 Agent 實作時定的三種做法分開寫；
+  `docs/jet-guide.md` 第 7 節寫明 Step 3 和舊版的差異還沒有裁定；
+  開發現況把「續頁的空白格和第一頁一樣可以填」改成「續頁照第一頁的範圍鎖定，範圍以外沒有寫值的格子可以填」；
+  整理紀錄補上兩個 Agent 的解讀等使用者確認，並把 `WorkingPaperWriter.Step2To41.cs` 那段註解的修正獨立成一項；這一小節的用字與範圍也一起改正。
+  `WorkingPaperWriter.Step2To41.cs` 第 325 行的註解也補寫多出的列鎖 B 到 E 欄，舊版只鎖到第 28 列。
+  全部改完後跑 `Documentation`：80 份文件、0 個錯誤，6 則既有的提醒。`Focused` 篩選 `SourceCommentPolicyTests` 選到的 14 個案例與固定補跑的架構檢查 386 個都通過。
+  這些修正之後沒有再跑 `Public`；程式只改了一行註解。
+- **`src/JET` 原本就有的開發經過註解。** 上面那 9 條後來另外整理（裁定 2026-11-10-11、2026-11-10-17）：每一條先對照現在的程式與提交紀錄，再改寫，查不到依據的說法拿掉。
+  同類的寫法、`TbOpenCloseMappingTests.cs` 用箭號與全形加號串接的三行，以及底稿寫出程式四段掛錯位置的說明一起處理。
+  共改 33 個檔的註解，產品程式 10 個、測試 23 個；改寫前的原文在原文紀錄第七部分，32 個檔、49 段。做法與逐項的說明見原始碼註解整理紀錄的「原本就有的開發經過註解」。
+  改寫前把 33 個檔另存一份，用腳本比對，註解以外的程式行完全相同。改完第一批 26 個檔後，請一個沒有參與改寫的唯讀子代理逐段複查，它指出的問題改完後檔數變成 33 個。
+  `Focused` 篩選 `SourceCommentPolicyTests` 選到的 14 個案例、篩選 `WorkingPaper` 選到的 224 個案例，以及另外 12 個改到的測試類別各自選到的案例都通過，每次固定補跑的架構檢查 386 個也通過；
+  `Contract -ContractScenario FrontendMapping` 的 1,016 個前端測試全部通過。全部改完後跑 `Public`：C# 5,048 個案例，前端測試 FrontendMapping 1,016 個、FrontendPreview 12 個，全部通過，建置沒有警告。
+  文件改完後跑 `Documentation`：80 份文件、0 個錯誤，6 則既有的提醒。沒有執行 `Gui`、`Excel` 與 `PrivateCase`，送審文件沒有重新產生。
+- **註解裡的文件章節引用。** 上一點留下 65 行引用文件章節的註解，分在 37 個檔，產品程式只有 `LegacyReportWriter.Prescreen.cs` 1 行。
+  使用者 2026-11-12 決定拿掉章節編號（裁定 2026-11-12-01）。拿掉的是章節編號與文件名稱，說明的內容留著；文件名稱一起拿掉是 Agent 照題目「只留說明」的解讀。
+  另外 3 行本身沒有編號，因為和相鄰的行是同一句，跟著調整斷句，一共改 68 行。引用外部標準 ECMA-376 條文編號的 2 行沒有改。
+  改寫前的原文在原文紀錄第八部分，37 個檔、63 段。逐項的改法見原始碼註解整理紀錄的「註解裡的文件章節引用」。
+  改寫前把 37 個檔另存一份，用腳本比對，註解以外的程式行完全相同，有差異的 68 行在改寫前後都是註解行；重新掃描只剩 ECMA-376 那 2 行。
+  改完後跑 `Public`：C# 5,048 個案例，前端測試 FrontendMapping 1,016 個、FrontendPreview 12 個，全部通過，建置沒有警告。
+  文件改完後跑 `Documentation`：80 份文件、0 個錯誤，6 則既有的提醒。
+  這一輪只拿掉引用，沒有逐句核對留下的說明和現在的程式是否相符，也沒有請子代理獨立複查。沒有執行 `Gui`、`Excel` 與 `PrivateCase`，送審文件沒有重新產生。
+
+#### 還沒處理
+
+這一小節的工作資料留在 `artifacts/handoff/2026-11-11-seven-items/`，這個資料夾不進 Git，只在這台電腦上。
+
+- **第 3 項的改法。** 資料驗證報告 step1-3 要不要改成和底稿一樣只鎖資料區，等使用者決定；要改的話，也要決定資料區照舊版多鎖一列，
+  還是和底稿一樣只鎖到最後一筆。決定後再登錄裁定，先在 `ReportExportTests` 加上鎖定的檢查，確認它失敗再改程式。
+- **架構圖的來源清單。** 第 5 項的建議寫了架構圖的來源清單要跟著改。那份清單是提交 `40440b9` 的封存快照，改了會讓架構圖的檢查失敗，
+  所以沒有改，等使用者確認；下次重繪架構圖時會重新產生。
+- **待確認的名稱。** 第 1、2 項新取的程式與測試名稱，以及第 7 項另外三組提議的新名稱，寫在名詞表，等使用者確認。
+- **重複的列號。** 用合成資料確認過 step3：合成底稿的 step3 工作表有兩個第 7 列與兩個第 9 列。
+  step4 續頁的第 5、7、10 列是讀程式推論的。要不要修，等使用者決定。
+- **沒有提出建議的部分。** 第 5 項的前端總覽測試要不要收緊成只接受 SQLite；第 7 項掛到 `window` 的名稱不是 `exposed` 開頭的寫法，
+  以及失敗訊息裡 approved、as ruled on、unapproved 這類用字，等使用者決定。
+- **上一小節的其他事項。** 收據不寫進文件的範圍、歷史文件與 `tools/` 的收據編號、這份計畫第 172 與 954 行，以及 `PrivateCase` 的資料夾，仍等使用者決定。
+- **複核提出、這次沒有改的事。** 寫出欄設定的程式要求呼叫端由左到右、不重疊，但沒有檢查，目前的呼叫都符合；
+  有鎖定區的表都會讀範本的預設欄寬，連不會有續頁的 step3 也讀，範本缺這個值時匯出會失敗。
+  續頁空白格和第一頁的垂直對齊不同；第一頁 step1-2 的 D、E 欄與 step1-3 的 D 欄靠右，續頁的這三欄沒有靠右。
+  `TbOpenCloseMappingTests.cs` 第 12 到 14 行的說明原本都有問題：第 13 行指向已經不存在的「guide §2.2」，三行也都用全形加號或箭號串接名詞。
+  串接名詞的寫法後來已經改成完整的句子，見「檢查」裡「`src/JET` 原本就有的開發經過註解」那一點；
+  「guide §2.2」後來依裁定 2026-11-12-01 和其他章節引用一起拿掉，見「檢查」最後一點。
+  `src/JET/tests/JET.Tests/Architecture` 底下有 15 個測試檔用「無法定位 repo 根」這句例外訊息，`SupportedActionsParityTests` 只是其中一個；
+  同一個資料夾也有 25 個測試檔，把往上找 `JET.slnx` 的方法取名 `RepoRoot`，`Application` 與 `Infrastructure` 資料夾另外有 3 個。這些地方都說是 repo 根，實際找到的是 `JET.slnx` 所在的 `src/JET`。
+  這兩件不在這次的範圍。這些等使用者決定要不要處理。
+- **技術文件第 19 節那一列。** 這一列已經改寫成資料驗證報告 step1-3 的鎖定範圍；要維持這樣寫，還是刪掉這一列，等使用者決定。
+- **Agent 的解讀待確認。** 第 5 項，Agent 把「照建議處理」當成刪除既有測試所需的明確同意；使用者不同意時，刪掉的測試可以從提交 `7e88b7b` 取回。
+  第 7 項，Agent 把「照建議處理」當成照用 `COUNTERPART_CASH_NOTE` 這個名稱。這兩個解讀等使用者確認。
+- **Step 3 寫過第 28 列時的鎖定。** 條件說明超過 Excel 單格的容量時，程式會拆成多列寫，可能寫過第 28 列。
+  現在的程式在多出的列也鎖定 B 到 E 欄，舊版固定只鎖 B7:E28。
+  `WorkingPaperWriter.Step2To41.cs` 第 326 行的 `Step3LockedArea` 是 `new(7, 2, 5, 28)`，`WorkingPaperWriter.Template.cs` 第 51 到 52 行的 `LocksWrittenCell` 沒有列的上限。
+  資料從第 19 列寫起，`FilterScenario.cs` 第 78 行限定情境最多 10 個，所以不拆列時最多寫到第 28 列；
+  `WorkingPaperExportFilterCompletenessTests.cs` 第 49 行用了 33,000 字的條件，就會拆成多列、寫過第 28 列。
+  要維持現在的做法並記成刻意和舊版不同的地方，還是改回只鎖 B7:E28，等使用者決定。
+  程式註解原本寫「情境超過十個時往下延伸」，這次已改成寫實際的條件；`docs/jet-guide.md` 第 7 節原本寫「Step 3 固定是 B7:E28」，也改成寫這個情形。
+  多出的列會鎖定是讀程式得到的結論，沒有測試核對；`WorkingPaperWriterStep3Step4Tests.cs` 只核對條件沒有拆列時 B7 到 E28 鎖定、B29 可以填。
+- **`src/JET` 原本就有的開發經過註解。** 複核修正之後的核對查到的 9 條註解問題，後來已經逐條對照程式改寫，同類的寫法與上面 `TbOpenCloseMappingTests.cs` 那一件一起處理，見「檢查」裡同名的那一點。
+  使用者 2026-11-10 對子代理順帶指出的問題回覆可以修，前提是先查清楚背景（裁定 2026-11-10-17）；這 9 條是 2026-11-11 另外查到的，照同一個前提整理。
+  註解裡引用文件章節的寫法原本也在等決定，共 65 行、37 個檔；使用者 2026-11-12 決定拿掉章節編號（裁定 2026-11-12-01），已經處理，見「檢查」最後一點。
+  同類但還沒處理的事都等使用者決定，主要有三件：註解裡的「舊版 JET」指的是哪一個版本，沒有逐段分辨；
+  另外 17 行寫「對齊樣本」這類說法的註解，沒有逐行查證；前幾輪採用的「用字已定案」這類寫法，拿掉章節編號之後共 185 行、77 個檔。細節與其餘幾件見原始碼註解整理紀錄的「還沒處理」。
+  `RepoRoot` 的名稱與例外訊息不是註解，等使用者決定。
+- 送審的測試紀錄仍是在工作樹產生的，首次提交後要在那個提交上重跑，見「同日追加：改成開發者的角度與首次提交」的「差距的變動」。
+- 這一小節的修改之後沒有跑 `Gui`，留到提交或交付時再跑。
+
+#### 2026-11-12 追加：提交前的五題與後續事項
+
+上面「還沒處理」列的事，以及先前幾輪留下等使用者決定的事，2026-11-12 整理成一頁網頁請使用者作答。
+提交前要回答的 5 題編成 A1 到 A5，可以之後再決定的 23 題編成 B1 到 B23。下面每一行冒號前面是題目的標題，後面是使用者選的選項。
+B18 是要不要把「註解不寫文件章節」寫進 `AGENTS.md` 的註解規定，使用者沒有選，照網頁上寫的當成之後再說。
+這一節之後的狀況以這裡為準，上面「還沒處理」的說法不逐條改。
+
+使用者 2026-11-12 的回覆原文：
+
+```text
+提交前：
+A1 SAT 計畫裡疑似機敏的名稱：讓你讀這兩行，改成不含名稱再提交
+A2 測試註解裡提到真實的 PBC 檔：改寫成不提真實檔案與數值
+A3 刪掉的兩個測試：同意刪除
+A4 這幾輪新取的名稱：照用
+A5 提交的範圍：全部一起提交並推送
+
+其他，沒列的都之後再說：
+B1 底稿 step3 有重複的列號：照測試先行修
+B2 資料驗證報告 step1-3 的鎖定範圍：照舊版多鎖一列，B17:D20
+B3 Step 3 寫過第 28 列時的鎖定：維持，登錄成刻意和舊版不同並補測試
+B4 另外三組用計畫編號取的名稱：照提議改
+B5 架構圖的來源清單：下次重繪架構圖時再產生
+B6 前端總覽測試第 262 行：收緊成只接受 SQLite
+B7 掛到 window 的名稱：全部改名
+B8 測試失敗訊息的用字：照草稿改
+B9 文件與工具裡既有的收據編號：包括，拿掉編號
+B10 技術文件第 19 節：維持改寫後的那一列
+B11 複核提出、沒有改的三件：照測試先行處理
+B12 RepoRoot 的名稱與訊息：改名並改訊息
+B13 「對齊樣本」這類說法的 17 行註解：逐行對照後改寫
+B14 「用字已定案」這類註解：照舊保留
+B15 「凍結契約」3 行註解：改成直接寫規定的內容
+B16 註解裡的「舊版 JET」指哪一版：另立一輪逐段分辨
+B17 擴充原始碼註解的檢查：照測試先行擴充
+B19 只寫文件名稱、沒有章節編號的註解：逐行分辨後改寫
+B20 兩個帶 approved 的識別字：和 B4 一起改名
+B21 底稿寫出測試的分段標題：逐段核對
+B22 兩段說明和方法之間的空行：順手拿掉
+B23 PrivateCase 的資料夾：我之後設定好再通知你
+```
+
+照回覆已經做的：
+
+- **A1。** 這份計畫有兩處寫了一個內部單位的名稱。一處在使用者的原話裡，換成「〔單位名稱從略〕」；另一處在列搜尋字詞的句子裡，改成「一個內部單位的名稱」。
+  工作樹其他檔案查不到這個名稱。提交 `512af50` 裡這份計畫與幾份已刪除的舊 SAT 檔案仍有這個名稱，這次修改不會改掉 Git 的歷史（裁定 2026-11-12-02）。
+- **A2。** `OpenXmlSaxTableReaderTests.cs` 兩處註解不再提真實的 PBC 檔。其中一則測試的輸入值與預期值原本取自真實檔案，換成有同樣浮點誤差的合成數值，
+  原因與第一次失敗的情形記在測試修改紀錄（裁定 2026-11-12-03）。把測試資料一起換掉，是 Agent 照「不提真實檔案與數值」的解讀。
+- **A3 與 A4。** 使用者確認同意刪除兩個測試，也確認 2026-11-11 新取的名稱照用。裁定 2026-11-11-18 與 2026-11-11-20、名詞表與原始碼註解整理紀錄裡「等使用者確認」的說法已經改成確認的結果。
+- **B5、B10 與 B14。** 這三題的回覆是維持現在的做法，不用動手：架構圖的來源清單下次重繪時再產生，技術文件第 19 節維持改寫後的那一列，「用字已定案」這類註解照舊保留。
+
+還沒做的：
+
+- B 類其餘各題都要動手，這次提交不含這些修改。動手時逐項登錄成裁定，並寫進名詞表、開發現況與各自的紀錄。
+- B1、B2 與 B11 會改程式的行為，照測試先行的順序做。B2 是資料驗證報告 step1-3 照舊版多鎖一列；B3 是 Step 3 寫過第 28 列的鎖定維持現狀，登錄成刻意和舊版不同並補測試。
+- B23：`PrivateCase` 等使用者設定好資料夾後再跑。
+
+提交前的檢查：
+
+- **驗證。** A1 到 A4 的修改與複審後的修正都做完後跑 `Public`：C# 5,048 個案例全部通過。接著跑 `Gui`：31 個案例全部通過。
+  文件改完後跑 `Documentation`：80 份文件、0 個錯誤，6 則既有的提醒。沒有執行 `Excel` 與 `PrivateCase`。
+- **提交前複審。** 一位沒有參與實作的子代理看了相對於提交 `512af50` 的完整差異，只讀不寫，沒有執行建置或測試。
+  它的結論：產品程式註解以外的改動有 13 個檔，每一處都對得上計畫或裁定；沒有找到被放寬、跳過，或把預期值改成由被測程式算出來的既有斷言；
+  沒有新增會擋審計員的檢查；新增的內容沒有查到私人路徑、電子郵件或憑證。
+  它沒有逐句核對改寫後的註解，沒有逐行讀文件的差異，Word、Excel 與圖檔也沒有解開。
+- **複審指出、已經改的。** `tools/tests/frontend-development-repository.test.cjs` 有一句註解指向這個檔裡不存在的位置，那一句拿掉了。
+  另外 4 處測試註解寫「真實 PBC」，照裁定 2026-11-12-03 一起改成不提真實檔案。
+
+複審指出、還沒處理的：
+
+- `tools/tests/frontend-development-repository.test.cjs` 的註解還有收據編號與裁定編號，和 B9 一起處理。
+- A2 換掉的那個數值，還留在 `docs/history/superseded/` 的兩份舊版 jet-guide 裡，當成浮點誤差的例子，沒有寫來源。提交 `512af50` 就有，等使用者決定要不要改。
+- 這份計畫開頭的使用者原話帶一個外部對話的連結，裡面有對話的識別碼，提交 `512af50` 就有。等使用者決定要不要留。
+- `docs/SAT/程式修訂紀錄/git_code_changes_log.txt` 與 `tools/harness/sat-documents/source/release-notes.json` 的提交編號與日期還是「待填」，
+  送審的測試紀錄也是在工作樹產生的。這次提交之後，要在那個提交上重新產生。
+- `tools/tests/frontend-mapping-contract.tests.ps1` 只要求 `src/JET/tests/frontend` 收集到的檔數不是零；留在 `tools/tests` 的前端測試檔如果被刪掉，這支腳本不會失敗。
+- `.agents/skills/jet-readable-docs/references/rewrite-examples.md` 有兩處來源還寫 `docs/SAT/source/` 底下的舊檔名。
+- `JourneyFixedAnswerTests` 有一則是兩個 SQLite 案件互相比對，沒有寫死的答案；這個寫法在提交 `61d4b43` 就有。

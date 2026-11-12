@@ -275,7 +275,7 @@ internal sealed class DirectTemplateWorksheetOverlayWriter : IDisposable
     }
 
     /// <summary>
-    /// 範本欄的預設樣式決定沒有寫值的格子能不能編輯；受保護的底稿要讓這些格子保持可填（裁定 2026-11-09-15）。
+    /// 範本欄的預設樣式決定沒有寫值的格子能不能編輯；受保護的底稿要讓這些格子保持可填。
     /// 沒有設定時原樣保留。
     /// </summary>
     private XElement MapColumnStyles(XElement columns)

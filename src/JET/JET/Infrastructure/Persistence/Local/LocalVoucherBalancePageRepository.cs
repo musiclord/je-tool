@@ -75,7 +75,6 @@ public sealed class LocalVoucherBalancePageRepository(ILocalProjectDatabase data
         }
     }
 
-    /// <summary>DuckDB 的 SUM 可能回 BigInteger；SQLite 則是 Int64。</summary>
     private static long ReadInt64(System.Data.Common.DbDataReader reader, int ordinal)
     {
         var value = reader.GetValue(ordinal);

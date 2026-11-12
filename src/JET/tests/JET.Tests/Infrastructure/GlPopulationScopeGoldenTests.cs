@@ -9,10 +9,8 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// 呼叫改走正式同交易summary發布；透過tests-only capture保留原facts、取消、rollback及SQL日誌的全部斷言。
-
 /// <summary>
-/// revision-level populationScope 的跨 provider golden fixture。
+/// revision-level populationScope 的 golden fixture，由 SQLite 的子類別執行。
 /// Oracle 是依 manifest Filter / Criteria 與投影後有效分錄母體手算的 21 列固定資料；
 /// 每條斷言都鎖定 voucher_number + line_item 身分，不只比較筆數。
 /// </summary>
@@ -23,8 +21,8 @@ public abstract class GlPopulationScopeGoldenTests
     /// <summary>
     /// 固定 fixture（21 列，MoneyScale=10,000，查核期間 2025-01-01～2025-12-31）：
     /// C01：Revenue 貸方有效、正常 Receivables 對方分別為期外與 status-excluded，否證 counterpart 子查詢繞過「只看納入測試的分錄」。
-    ///      未預期借貸組合另要求同傳票在 GL 中有金額大於 0 的分錄（裁定 2026-10-29-29 改成照舊版 IDEA R3），
-    ///      C01 的正金額列都在母體外，所以它對未預期借貸組合不命中，改由它鎖住正金額子查詢也只看納入測試的分錄。
+    ///      未預期借貸組合另要求同傳票在 GL 中有金額大於 0 的分錄（照舊版 IDEA R3），
+    ///      C01 的正金額列都在母體外，所以它對未預期借貸組合不命中，由它鎖住正金額子查詢也只看納入測試的分錄。
     /// F01/F02：同科目各一筆有效／期外，另有一筆 status-excluded；maxEntries=1 鎖 frequency 子查詢 scope。
     /// N01：gl_date=NULL，固定不進查核期間母體。
     /// ZP/ZN/ZSUB：1,000.99、-1,000.99、0.99；Z6/Z6N：1,000,000.1234／999,999.9999，
@@ -62,7 +60,7 @@ public abstract class GlPopulationScopeGoldenTests
             ('scope', 20, 'F01',   '2', '2025-02-02', '2025-02-02', '6001', '較少使用科目', '狀態排除頻率列',       NULL, 'CrossPreparer', NULL, 0, 1,  999900,     999900,      0,         'DEBIT'),
             ('scope', 21, 'T1',    '4', '2025-05-03', '2025-05-03', '7306', '彙總',     'summary-hit-in',         NULL, 'TagOne',        NULL, 0, 1,  500000,     500000,      0,         'DEBIT');
 
-        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
+        -- 科目配對一律以 category_id 連到分類表，測試資料帶 category_id。
         INSERT INTO account_mapping
             (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
@@ -71,7 +69,6 @@ public abstract class GlPopulationScopeGoldenTests
             ('scope-map', 3, '6001', '較少使用科目', 'Others', 'builtin.others');
 
         -- 條件組結果依條件組編號儲存，高風險條件彙總要從條件組定義表找顯示順序，彙總測試用的兩個條件組先登記定義。
-        -- 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
         INSERT INTO filter_scenario (scenario_id, position, name, rationale, definition_json, saved_utc)
         VALUES
             (1, 1, 'summary-in',  'synthetic', '{}', '2026-10-31T00:00:00Z'),
@@ -162,8 +159,7 @@ public abstract class GlPopulationScopeGoldenTests
             ResultId: "effective-prescreen-run",
             GeneratedUtc: DateTimeOffset.UnixEpoch,
             PrepStartDate: "2025-12-31",
-            // 核准日與建立人員兩個旗標換成可用欄位清單；不帶清單就不檢查欄位，
-            // 等同原本兩個旗標都是 true。第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            // 不帶可用欄位清單就不檢查欄位，等同核准日與建立人員兩欄都可用。
             AvailableGlFields: null,
             HasHolidays: false,
             HasAccountMapping: true,
@@ -172,15 +168,14 @@ public abstract class GlPopulationScopeGoldenTests
             HasAuthorizedPreparers: false,
             NonWorkingDays: [0, 6])
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數。這則測試直接建立請求，照改版前的 6 個帶入，核對的筆數不變；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數。這則測試直接建立請求，帶入 6 個；由 GL 算出個數另由 PrescreenRunHandlerTests 核對。
             ZerosThreshold = 6
         });
 
         var result = await PrescreenFactsPort.ExecuteAsync(plan, CancellationToken.None);
 
         Assert.Equal(0, result.PrepPeriodApprovalCount);
-        // C01 的正金額列都不在 GL 中，照舊版 IDEA R3 不命中未預期借貸組合（裁定 2026-10-29-29）；
-        // 原本是 1，第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+        // C01 的正金額列都不在 GL 中，照舊版 IDEA R3 不命中未預期借貸組合。
         Assert.Equal(0, result.UnexpectedAccountPairCount);
         Assert.Equal(12, result.TotalEntryCount);
         Assert.Equal(12, result.TotalPreparerCount);
@@ -189,8 +184,8 @@ public abstract class GlPopulationScopeGoldenTests
         Assert.Equal(12, result.Accounts.Sum(row => row.EntryCount));
     }
 
-    // 0 的個數改照 IDEA 版由 GL 算出、跟著條件環境帶入（裁定 2026-11-05-25）。這組合成資料直接組條件環境，照改版前帶 6 個，
-    // 尾零規則的六個 0 邊界測試不變。第一次失敗：Focused 收據 20261105-083850941-ba07558d4ad14c96b0a1ca9fc181d8f3（沒有個數時明確丟出）。
+    // 0 的個數照 IDEA 版由 GL 算出、跟著條件環境帶入。這組合成資料直接組條件環境，固定帶 6 個，
+    // 用來測尾零規則的六個 0 邊界。沒有個數時會明確丟出例外。
     private static FilterConditionContext RuleContext(GlPopulationScope scope) =>
         new(MoneyScale, null, "2025-01-01", "2025-12-31", PopulationScope: scope) { ZerosThreshold = 6 };
 
@@ -259,8 +254,8 @@ public abstract class GlPopulationScopeGoldenTests
     }
 
     // C01 的正常對方只存在於期外或 status-excluded 列，收入無一般對方科目必須命中 Revenue 貸方。
-    // 未預期借貸組合照舊版 IDEA R3 還要求同傳票在 GL 中有金額大於 0 的分錄（idea-tool.bas 第 8380 到 8388 行，
-    // 取自同一個 #GL# 母體）；C01 的正金額列都在母體外，改為不命中（原本命中 C01|1；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
+    // 未預期借貸組合照舊版 IDEA R3 還要求同傳票在 GL 中有金額大於 0 的分錄（取自同一個 #GL# 母體）；
+    // C01 的正金額列都在母體外，所以不命中。
     // 若正金額子查詢繞過「只看納入測試的分錄」，C01 會被期外的應收借方湊成命中，這一列因此仍有否證力。
     // 正常對方與正金額兩個子查詢共用同一個母體述詞，正常對方的母體範圍由收入無一般對方科目這一列一起鎖住。
     [Theory]
@@ -285,7 +280,7 @@ public abstract class GlPopulationScopeGoldenTests
         var exactPair = Rule(FilterConditionType.AccountPair) with
         {
             PairMode = AccountPairModes.Exact,
-            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            // 用分類身分陣列表達這一組分類。
             DebitCategoryIds = [AccountCategoryBuiltIns.ReceivablesId],
             CreditCategoryIds = [AccountCategoryBuiltIns.RevenueId]
         };
@@ -294,8 +289,7 @@ public abstract class GlPopulationScopeGoldenTests
     }
 
     // 同一分組鍵在 GL 中只有 1 列；期外與 status-excluded 不能拉高 frequency count。
-    // 舊式兩種筆數條件已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改用「科目與人員統計」的分錄筆數小於或等於 1，
-    // 和舊型別呼叫同一個述詞，固定答案不變。第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261（舊型別已不存在）。
+    // 條件用「科目與人員統計」的分錄筆數小於或等於 1。
     [Theory]
     [InlineData("createdBy", "CrossPreparer", GlPopulationScope.AuditPeriod, new[] { "C01|1" })]
     [InlineData("accountNumber", "6001", GlPopulationScope.AuditPeriod, new[] { "F01|1" })]
@@ -318,8 +312,7 @@ public abstract class GlPopulationScopeGoldenTests
     public async Task CustomTrailingZeros_DecimalAndNegativeAmounts_UsesMajorUnitInteger()
     {
         // Legacy @int oracle：±1,000.99 的主單位整數都是 1,000，故命中 3 個尾零；0.99 與零值不命中。
-        // 舊式連續零尾數已拿掉（裁定 2026-10-30-25），照它的重建方式改成同一個子條件組裡的「整數尾數符合 000」與「大於或等於 1」，
-        // 固定答案不變。第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261。
+        // 條件寫成同一個子條件組裡的「整數尾數符合 000」與「大於或等於 1」。
         var rule = Parsed("""{"type":"group","conditions":[{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["000"],"amountBasis":"absolute"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}""");
 
         Assert.Equal(
@@ -345,8 +338,7 @@ public abstract class GlPopulationScopeGoldenTests
     public async Task TrailingDigits_DecimalAndNegativeAmount_UsesMajorUnitIntegerAndLengthGuard()
     {
         // Legacy @Right(@Str(@int(amount),1,0),3)：-12,345.67 → 345；45.67 因主單位只有兩位不匹配。
-        // 舊式金額尾數已拿掉（裁定 2026-10-30-25），改用「金額」的「整數尾數符合」，固定答案不變。
-        // 第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261。
+        // 條件用「金額」的「整數尾數符合」。
         var rule = Parsed("""{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["345"],"amountBasis":"absolute"}""");
 
         Assert.Equal(

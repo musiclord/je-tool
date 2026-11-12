@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Excel 數字格式的日期/時間判定（guide §3.1.5）。
+/// Excel 數字格式的日期/時間判定。
 /// oracle：ECMA-376 §18.8.30 內建格式登錄表（id 0–49 標準、50–58 東亞地區變體）。
 /// 設計技術：內建 id 邊界值分析（日期區段的下鄰/邊界/上鄰）+ 自訂格式碼等價分割。
 /// </summary>
@@ -19,7 +19,7 @@ public sealed class ExcelDateFormatDetectorTests
     [Theory]
     [InlineData(0, ExcelNumberKind.None)]   // General
     [InlineData(13, ExcelNumberKind.None)]
-    [InlineData(14, ExcelNumberKind.Date)]  // 真實 PBC 檔的日期欄樣式
+    [InlineData(14, ExcelNumberKind.Date)]  // 內建的日期格式
     [InlineData(17, ExcelNumberKind.Date)]
     [InlineData(18, ExcelNumberKind.Time)]
     [InlineData(21, ExcelNumberKind.Time)]
@@ -52,7 +52,7 @@ public sealed class ExcelDateFormatDetectorTests
     [InlineData("h:mm:ss", ExcelNumberKind.Time)]
     [InlineData("[h]:mm", ExcelNumberKind.Time)]                      // 經過時間 token [h]
     [InlineData("mm:ss", ExcelNumberKind.Time)]
-    [InlineData("0_);[Red]\\(0\\)", ExcelNumberKind.None)]            // 真實 PBC 檔的自訂 176：[Red] 區段 + \( 跳脫
+    [InlineData("0_);[Red]\\(0\\)", ExcelNumberKind.None)]            // 自訂格式：[Red] 區段 + \( 跳脫
     [InlineData("_-* #,##0.00_-;\\-* #,##0.00_-;_-* \"-\"??_-;_-@_-", ExcelNumberKind.None)] // 會計格式 43 的格式碼
     [InlineData("\"day: \"0.0", ExcelNumberKind.None)]                // 引號內的 day 不算日期記號
     [InlineData("0.00E+00", ExcelNumberKind.None)]

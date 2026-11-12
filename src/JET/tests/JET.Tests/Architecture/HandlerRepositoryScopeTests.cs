@@ -5,18 +5,15 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 2026-10-02 資料庫分流簡化後，handler 從作用中案件的資料庫組（<see cref="ProjectRepositories"/>）取 repository，
-/// 建構式不再列出依賴。這裡逐一讀原始碼，確認每個 handler 用到的資料庫組屬性，恰好對應改寫前建構式收的那些介面，
-/// 讓依賴範圍不因改收整組而變寬；也確認沒有漏列的 handler，以及只有選組的程式碼能拿到整組。
+/// handler 從作用中案件的資料庫組（<see cref="ProjectRepositories"/>）取 repository，
+/// 建構式不列出依賴。這裡逐一讀原始碼，確認每個 handler 用到的資料庫組屬性恰好是下表列的那些，
+/// 讓依賴範圍不因收整組而變寬；也確認沒有漏列的 handler，以及只有選組的程式碼能拿到整組。
 /// </summary>
 public sealed partial class HandlerRepositoryScopeTests
 {
-    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，ExportCalendarTemplatesHandler 隨之刪除，
-    // 原本只檢查該 handler 的測試一併移除。
 
     /// <summary>handler 類別、所在檔案（Application/Handlers 之下）與它可用的資料庫組屬性（以逗號分隔）。</summary>
-    // Public 首敗 100911120-57efb95a0cae44beb892ec3c2d058592。
-    // 變更回應及匯出清單必須重新讀取目前結果，因此逐項加入四個明示port；整組傳遞禁令及精確相等斷言不變。
+    // 變更回應及匯出清單必須重新讀取目前結果，因此逐項列出四個明示port；整組傳遞禁令及精確相等斷言仍然適用。
     private static readonly (string ClassName, string HandlerFile, string Properties)[] Table =
     [
         ("LogAppendHandler", "MessageLogHandlers.cs", "MessageLog"),
@@ -25,14 +22,11 @@ public sealed partial class HandlerRepositoryScopeTests
         ("DevDbTableDataHandler", "DevDbHandlers.cs", "DevDatabaseInspector"),
         // 更新案件資料也必須讀目前版本，回傳後端權威的結果及報告狀態。
         ("ProjectUpdateHandler", "Project/ProjectUpdateHandler.cs", "FilterScenarios,ReportStore,ResultStaleStates,Results"),
-        // project.heartbeat 只給線上案件續鎖，隨 SQL Server 刪除，ProjectHeartbeatHandler 那一列拿掉（裁定 2026-11-06-08）；
-        // 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
         ("ProjectReleaseLockHandler", "Project/ProjectSessionHandlers.cs", "LockService"),
         ("QueryAccountMappingDifferencePageHandler", "Query/QueryAccountMappingDifferencePageHandler.cs", "AccountMappingDifferences"),
         ("QueryAccountMappingBlankPageHandler", "Query/QueryAccountMappingBlankPageHandler.cs", "AccountMappingBlankPages"),
         ("QueryCompletenessDiffPageHandler", "Query/QueryCompletenessDiffPageHandler.cs", "CompletenessDiffPages"),
-        // 裁定 2026-10-22-09：GL 與 GL(未納入測試) 依已確認的配對列欄位，資料預覽因此多讀 GL 配對。
-        // 第一次失敗：Focused 收據 20261023-112050227-6678ef4dc9de4804aca3ff0460be86bf。
+        // GL 與 GL(未納入測試) 依已確認的配對列欄位，資料預覽因此多讀 GL 配對。
         ("QueryDataPreviewHandler", "Query/QueryDataPreviewHandler.cs", "DataPreview,MappingStates"),
         ("QueryVoucherBalancePageHandler", "Query/QueryVoucherBalancePageHandler.cs", "VoucherBalancePages"),
         (
@@ -46,8 +40,7 @@ public sealed partial class HandlerRepositoryScopeTests
             "InfSamplePages,MappingStates,ResultPageRdeValues,Results"
         ),
         ("QueryBlankRecordsPageHandler", "Query/QueryBlankRecordsPageHandler.cs", "BlankRecordsPages"),
-        // 尾數 0 的個數照 IDEA 版由 GL 算出（裁定 2026-11-05-25），預篩選明細頁要讀已確認的 GL 配對帶出的控制總數，因此多讀 GL 配對。
-        // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        // 尾數 0 的個數照 IDEA 版由 GL 算出，預篩選明細頁要讀已確認的 GL 配對帶出的控制總數，因此多讀 GL 配對。
         ("QueryPrescreenPageHandler", "Query/QueryPrescreenPageHandler.cs", "MappingStates,PrescreenPages"),
         ("QuerySourceQualityPageHandler", "Query/QuerySourceQualityPageHandler.cs", "SourceQualityPages"),
         (
@@ -77,18 +70,17 @@ public sealed partial class HandlerRepositoryScopeTests
         ("MappingCommitGlHandler", "MappingHandlers.cs", "AuthorizedPreparers,FilterScenarios,Imports,MappingFacts,MappingStates,ProjectOperationLog,ReportStore,ResultStaleStates,Results"),
         ("MappingCommitTbHandler", "MappingHandlers.cs", "FilterScenarios,Imports,MappingFacts,MappingStates,ProjectOperationLog,ReportStore,ResultStaleStates,Results"),
         ("MappingValueProfileHandler", "MappingValueProfileHandler.cs", "Imports,MappingValueProfiles"),
-        // Public首敗105344715：來源樣本與summary持久化移入正式同交易port，精確移除兩個handler依賴，不放寬整組禁令。
-        // 裁定 2026-10-29-16：逐科目比對無法執行時要分辨「沒有匯入 TB」與「TB 欄位配對尚未確認」，驗證因此多讀 TB 的匯入紀錄。
-        // 第一次失敗：Focused 收據 20261030-233429113-ff2a5c92f59341aa8eee007c6882ea00。
+        // 來源樣本與summary持久化由正式同交易port負責，這個handler不列這兩項依賴；整組傳遞的禁令不放寬。
+        // 逐科目比對無法執行時要分辨「沒有匯入 TB」與「TB 欄位配對尚未確認」，驗證因此多讀 TB 的匯入紀錄。
         ("ValidateRunHandler", "ValidateRunHandler.cs", "Imports,MappingStates,ValidationFacts"),
         // 第四步的原因要和第五步寫同一套分類名稱，預篩選因此多讀科目分類設定，
-        // 第五步的驗證本來就讀它。第一次失敗：Focused 收據 20261023-032741823-a968cacaaf3948e7b0174596698c9d49。
+        // 第五步的驗證本來就讀它。
         (
             "PrescreenRunHandler", "PrescreenRunHandler.cs",
             "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,MappingStates,PrescreenFacts,Results"
         ),
-        // 裁定 2026-11-05-55：沒有國定假日清單時，只看清單的假日條件停用並寫原因，第五步的預覽、保存與重新檢查
-        // 因此多讀行事曆的國定假日筆數。第一次失敗：Focused 收據 20261105-120457517-eb226061478b4e4792547272762e8dd2。
+        // 沒有國定假日清單時，只看清單的假日條件停用並寫原因，第五步的預覽、保存與重新檢查
+        // 因此多讀行事曆的國定假日筆數。
         (
             "FilterPreviewHandler", "FilterHandlers.cs",
             "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,MappingStates"
@@ -97,8 +89,7 @@ public sealed partial class HandlerRepositoryScopeTests
             "FilterCommitHandler", "FilterHandlers.cs",
             "AccountCategories,AccountMappings,AuthorizedPreparers,Calendar,FilterFacts,MappingStates,Results"
         ),
-        // 2026-10-13 第五步一次只存或刪一個情境：新增三個 handler，各自列出用到的資料庫組屬性；既有列不變。
-        // 第一次失敗（未登錄新 handler）：Focused 收據 20261013-103223974-21ad5d61409a4678b759c656d07a3fbc。
+        // 第五步一次只存或刪一個情境：三個 handler 各自列出用到的資料庫組屬性。
         // 比 filter.commit 多出的 FilterScenarios、ResultStaleStates 用來讀出整批與寫入後的結果狀態。
         (
             "FilterScenarioSaveHandler", "FilterScenarioHandlers.cs",

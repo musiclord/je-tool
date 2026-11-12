@@ -1,0 +1,92 @@
+classDiagram
+    namespace host {
+        class Form1 {
+            +Form1()
+            -InitializeWebViewAsync() Task
+            +RequestExit() void
+        }
+        class AppCompositionRoot {
+            <<static>>
+            +CreateRuntime(IHostShell, IJetEventPublisher) JetApplicationRuntime
+        }
+    }
+    namespace bridge {
+        class JetWebMessageBridge {
+            +Attach() void
+            -OnWebMessageReceived(object, CoreWebView2WebMessageReceivedEventArgs) void
+            +ToErrorDto(Exception) JetErrorDto
+        }
+        class ActionDispatcher {
+            +RegisteredActions IReadOnlyCollection~string~
+            +DispatchAsync(string, JsonElement) Task~object~
+        }
+    }
+    namespace application {
+        class IApplicationActionHandler {
+            <<interface>>
+            +Action string
+            +HandleAsync(JsonElement) Task~object~
+        }
+        class ValidateRunHandler {
+            +Action string = validate.run
+            +HandleAsync(JsonElement) Task~object~
+        }
+        class ExportWorkingPaperStreamHandler {
+            +Action string = export.workingPaperStream
+            +HandleAsync(JsonElement) Task~object~
+        }
+        class ProjectSession {
+            +CurrentProjectId string
+            ~Enter(string, ProjectRepositories) void
+            +Leave(string) bool
+            ~RequireActive() ActiveProject
+        }
+    }
+    namespace auditcore {
+        class JetAuditProgram {
+            <<static>>
+            ~Plan(ValidationRequest) ValidationPlan
+            ~Finalize(ValidationPlan, ValidationFacts) ValidationResult
+            ~Plan(WorkingPaperRequest) WorkingPaperPlan
+        }
+        class AccountComparisonProcedure {
+            <<static>>
+            ~Plan(AccountComparisonRequest) AccountComparisonPlan
+            ~Finalize(AccountComparisonPlan, AccountComparisonFacts) ProcedureVerdict
+        }
+        class IValidationFactsPort {
+            <<interface>>
+            +ExecuteAsync(ValidationPlan, Func) Task~ResultRecord~
+        }
+    }
+    namespace infrastructure {
+        class LocalValidationRunRepository {
+            +ExecuteAsync(ValidationPlan, Func) Task~ResultRecord~
+        }
+        class SqliteProjectDatabase {
+            +CreateConnection(string) DbConnection
+            +EnsureReadyAsync(string) Task
+            +CheckpointAsync(string) Task
+        }
+        class WorkingPaperWriter {
+            +WriteAsync(Stream, WorkingPaperContext, WorkingPaperPlan) Task~ExportStats~
+        }
+    }
+    Form1 --> AppCompositionRoot : CreateRuntime
+    Form1 ..> JetWebMessageBridge : creates
+    AppCompositionRoot ..> ActionDispatcher : creates
+    AppCompositionRoot ..> ProjectSession : creates
+    AppCompositionRoot ..> SqliteProjectDatabase : creates
+    JetWebMessageBridge --> ActionDispatcher : DispatchAsync
+    ActionDispatcher --> IApplicationActionHandler : HandleAsync
+    ValidateRunHandler ..|> IApplicationActionHandler
+    ExportWorkingPaperStreamHandler ..|> IApplicationActionHandler
+    ValidateRunHandler --> ProjectSession : RequireActive
+    ValidateRunHandler --> JetAuditProgram : Plan, Finalize
+    ValidateRunHandler --> IValidationFactsPort : ExecuteAsync
+    JetAuditProgram --> AccountComparisonProcedure : Plan, Finalize
+    LocalValidationRunRepository ..|> IValidationFactsPort
+    LocalValidationRunRepository --> SqliteProjectDatabase : CreateConnection
+    ExportWorkingPaperStreamHandler --> ProjectSession : RequireActive
+    ExportWorkingPaperStreamHandler --> JetAuditProgram : Plan, Finalize
+    ExportWorkingPaperStreamHandler --> WorkingPaperWriter : WriteAsync

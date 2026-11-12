@@ -17,12 +17,11 @@ public sealed class DataPreviewFrontendTests
 
         Assert.True(tabs.Success, "找不到 data-preview.js 的 MAIN_TABS。");
         var body = tabs.Groups["body"].Value;
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：PBC-GL、GL、PBC-TB、TB；wire key 同步改名。
+        // 全系統的資料名稱統一為 PBC-GL、GL、PBC-TB、TB，wire key 也用同一組名稱。
         Assert.Contains("{ value: 'pbcGl', label: 'PBC-GL' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'gl', label: 'GL' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'pbcTb', label: 'PBC-TB' }", body, StringComparison.Ordinal);
-        // The confirmed label is unified (ruling 2026-10-04-01); retain both the fixed label and the full Domain mirror below.
-        // First fixed-label failure: 20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d.
+        // The label is unified; check both the fixed label and the full Domain mirror below.
         Assert.Contains("{ value: 'tb', label: 'TB' }", body, StringComparison.Ordinal);
         Assert.Contains("{ value: 'accountMapping', label: '科目配對' }", body, StringComparison.Ordinal);
         Assert.DoesNotContain("GL (PBC)", body, StringComparison.Ordinal);
@@ -41,7 +40,7 @@ public sealed class DataPreviewFrontendTests
     [Fact]
     public void Datasets_MirrorDomainLabelsIncludingGlExcluded()
     {
-        // 裁定 2026-10-08-04 統一全系統的資料名稱；「其他資料」選單與載入狀態也逐字鏡射 Domain 權威。
+        // 全系統的資料名稱已統一；「其他資料」選單與載入狀態也逐字鏡射 Domain 權威。
         var preview = ReadFrontend("js", "data-preview.js");
         var datasets = Regex.Match(
             preview,

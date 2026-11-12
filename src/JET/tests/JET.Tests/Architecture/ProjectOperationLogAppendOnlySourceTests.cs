@@ -4,9 +4,8 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// operation_log 的 append-only 程式紀律守衛。SQLite 與 SQL Server 已由 schema v9 的 trigger
-/// 在資料庫層強制，DuckDB 1.5.3 沒有可用的引擎機制（見 guide §13），因此 persistence 層一律不得
-/// 出現針對該表的 UPDATE 或 DELETE；少了這條，DuckDB 專案的 append-only 就沒有任何守門。
+/// operation_log 的 append-only 程式紀律守衛。SQLite 已由資料庫的 trigger
+/// 在資料庫層強制；persistence 層一律不得出現針對該表的 UPDATE 或 DELETE。
 /// </summary>
 public sealed partial class ProjectOperationLogAppendOnlySourceTests
 {

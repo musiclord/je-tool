@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 借貸組合雙側多選在 SQLite、DuckDB 與受閘控 SQL Server 上的實際執行矩陣。
+/// 借貸組合雙側多選在 SQLite 上的實際執行矩陣。
 /// Fixture 以手算 oracle 鎖定傳票歸屬與逐列命中身分，涵蓋：多選、零元借方列、
 /// 自訂分類（同 role 者一併參與、自訂 role 者自成一組）、否定模式，以及排列／重複不變性。
 ///
@@ -250,8 +250,7 @@ public sealed class AccountPairCategorySelectionPredicateTests
             ["M1|1", "M1|2", "M2|1", "M2|2", "M3|1", "M3|2", "M5|1", "M5|2"]),
 
         // 借 A（多選）且整張傳票沒有任何 B 貸方：只有 M6 沒有 Revenue 貸方。
-        // 裁定 2026-11-05-45 照舊版也輸出同傳票的全部貸方列，所以多了 M6 的 Cash 貸方；原本只有 M6|1。
-        // 第一次失敗：Focused 收據 20261105-120757280-7fd2529d7c524bd49ef9652092a1d692。
+        // 照舊版也輸出同傳票的全部貸方列，所以包含 M6 的 Cash 貸方。
         "drNotCrMultiSelect" => (
             Rule(
                 FilterConditionType.SpecialAccountCategoryPair,
@@ -262,8 +261,7 @@ public sealed class AccountPairCategorySelectionPredicateTests
 
         // 貸 B 且整張傳票沒有 A 借方：M2（Cash 借）、M3（零用金借）、M4（Others 借）、
         // M7（履約保證金借）。M5 的零元 Receivables 列仍屬借方側，所以不算。
-        // 裁定 2026-11-05-45 照舊版也輸出同傳票的全部借方列；原本只輸出 B 貸方列。
-        // 第一次失敗：Focused 收據 20261105-120757280-7fd2529d7c524bd49ef9652092a1d692。
+        // 照舊版也輸出同傳票的全部借方列。
         "notDrCrSingle" => (
             Rule(
                 FilterConditionType.SpecialAccountCategoryPair,

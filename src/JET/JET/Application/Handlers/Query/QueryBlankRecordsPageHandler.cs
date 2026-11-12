@@ -9,8 +9,8 @@ namespace JET.Application;
 /// 請求多一個必填 <c>category</c>(白名單四值;非法值丟 <see cref="JetActionException"/>);
 /// 排序鍵 entry_id ASC、cursor opaque、pageSize 預設 200/上限 500。
 /// approvalDateNotInPeriod 以專案 PeriodStart/End 判定(handler 取自 document 傳入 repo)。
-/// 這一頁照目前的總帳逐筆判斷，核准日空白也算不在期間（裁定 2026-11-05-38）。傳票核准日不可用時這一項不執行
-/// （裁定 2026-10-23-01），驗證結果不記筆數、只寫原因；畫面與報告只在驗證結果的筆數大於零時才要明細，所以不會在這時列出每一筆。
+/// 這一頁照目前的總帳逐筆判斷，核准日空白也算不在期間。傳票核准日不可用時這一項不執行，
+/// 驗證結果不記筆數、只寫原因；畫面與報告只在驗證結果的筆數大於零時才要明細，所以不會在這時列出每一筆。
 /// </summary>
 public sealed class QueryBlankRecordsPageHandler(
     IProjectStore projectStore,

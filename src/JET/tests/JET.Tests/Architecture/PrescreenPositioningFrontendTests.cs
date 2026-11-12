@@ -8,7 +8,7 @@ namespace JET.Tests.Architecture;
 /// 步驟四預篩選重定位的 backend-authority／frontend-mirror 守衛。
 /// 可見審計語意由 AuditCore renderer 產生；有預篩選結果時前端用回應裡的 positioning，
 /// 同一份文字的前端鏡像只給還沒有預篩選結果的畫面用（例如流程總覽、第四步卡片與匯出面）。
-/// 兩條彙總排在逐筆輔助訊號與可選報告之前，2026-10-14 起改由 <c>tools/tests/frontend-journey-step4.test.cjs</c> 核對。
+/// 兩條彙總排在逐筆輔助訊號與可選報告之前，由前端測試核對。
 /// </summary>
 public sealed class PrescreenPositioningFrontendTests
 {
@@ -22,12 +22,11 @@ public sealed class PrescreenPositioningFrontendTests
             ["ReportGuidance"] =
                 "可在此產生預篩選報告，或在匯出底稿時一併產生。不產生也可繼續篩選與匯出底稿。",
             ["OverviewGuidance"] =
-                // 用語統一後，畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
                 "預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。",
             ["ExportDefaultGuidance"] =
                 "預設一併產出預篩選報告；取消勾選不影響其他報告及底稿內容。",
             ["ExportPendingRunGuidance"] =
-                // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+                // 這句的用字已定案。
                 "尚無預篩選結果，匯出時會先執行預篩選；資料量大時需要數分鐘到十餘分鐘。"
         };
 

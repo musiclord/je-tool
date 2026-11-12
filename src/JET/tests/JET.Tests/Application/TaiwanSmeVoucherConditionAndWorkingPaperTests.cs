@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 傳票層條件（任一、全部、不存在；借方、貸方或整張）、巢狀括號混用「且」「或」、同一傳票佐證、
 /// 多組以「或」相連，以及同時儲存多個情境後匯出工作底稿。資料是一組七月份的費用與零用金傳票。
-/// 預期值依 docs/jet-guide.md 第 6、7 節與 docs/action-contract-manifest.md 的條件目錄手算。
+/// 預期值依規則與條件目錄手算。
 /// </summary>
 public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
 {
@@ -30,8 +30,7 @@ public sealed class TaiwanSmeVoucherConditionAndWorkingPaperTests
             .AddRow(null, "X1", "2025-07-05", "6112", "租金支出", "調整", "陳會計", 100, 1),
             databaseProvider: provider, validateForDownstream: true);
 
-    // 舊式條件停用、借貸方向與傳票佐證改成明示寫法後改寫輸入，保留所有手算命中、金額及底稿標記；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-    // 原「借方全部符合」還要求至少有借方，因此保留一條存在條件。
+    // 借貸方向與傳票佐證用明示寫法；「借方全部符合」還要求至少有借方，因此保留一條存在條件。
     private static JsonObject AllDebitsAreExpenses() => OneRule("借方全部是費用", """
         {"type":"group","conditions":[
           {"type":"voucher","quantifier":"any","conditions":[{"type":"drCrOnly","drCr":"debit"}]},

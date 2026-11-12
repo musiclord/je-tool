@@ -5,13 +5,11 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-10-02-03 移除「情境層級」：當時的非營業日卡片（字母 I）由獨立組改成組內子條件組。
-/// 符合原因照一般條件寫「第 N 組條件 M」。舊版把非營業日卡片存成獨立條件組並在 editorOrigins 帶 presetGroup；
-/// 同一則裁定也寫明已保存的情境不受影響，這裡確認這兩種歷史形狀仍能儲存、重開、預覽與重新儲存，命中相同。
-/// 依裁定 2026-10-04-02，新版的非營業日另排除補班日；本測試不把歷史 AST 換成新版。
-/// 兩種形狀的 source 照當時原樣；現在讀回時舊的來源代碼不認得，當成查核員手寫，名稱與動機本來就有，照樣能存回。
-/// 原本兩種形狀都帶第 1 版編輯來源；裁定 2026-10-30-25 拿掉第 1 版的讀回後，改成第 2 版，卡片記 null 或非營業日卡片，
-/// 條件樹不變（第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
+/// 非營業日卡片有兩種已保存的形狀：存成獨立條件組，以及存成組內子條件組。
+/// 這裡確認這兩種形狀都能儲存、重開、預覽與重新儲存，命中相同；符合原因照一般條件寫「第 N 組條件 M」。
+/// 現行的非營業日另排除補班日；本測試不把這兩種形狀的 AST 換成現行寫法。
+/// 兩種形狀的 source 是讀回時不認得的來源代碼，當成查核員手寫，名稱與動機本來就有，照樣能存回。
+/// 編輯來源是第 2 版，卡片記 null 或非營業日卡片。
 /// </summary>
 public sealed class FilterNonBusinessDayWorkflowTests
 {
@@ -77,8 +75,7 @@ public sealed class FilterNonBusinessDayWorkflowTests
         var oldPage = await host.DispatchAsync("query.filterVoucherPage", JsonSerializer.Serialize(new { scenario = OldShape }));
         var newPage = await host.DispatchAsync("query.filterVoucherPage", JsonSerializer.Serialize(new { scenario = NewShape }));
         Assert.Equal("僅借方 且 （預篩選：週末過帳 或 預篩選：假日過帳）", oldPage.GetProperty("conditionText").GetString());
-        // 非營業日改成也排除補班日後（裁定 2026-10-04-02），歷史 AST 不改命中，只改成不聲稱排除補班日的名稱。
-        // SQLite、DuckDB 首次失敗：20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11。
+        // 這種已保存的寫法不排除補班日，命中不變；條件文字用不聲稱排除補班日的名稱。
         Assert.Equal("僅借方 且 （週末過帳 或 假日過帳）", newPage.GetProperty("conditionText").GetString());
 
         var voucher = newPage.GetProperty("rows")[0].GetProperty("voucherNumber").GetString();
@@ -90,7 +87,7 @@ public sealed class FilterNonBusinessDayWorkflowTests
         Assert.NotEmpty(reasons);
         Assert.All(reasons, reason =>
         {
-            // 同批裁定同步套用讀回與命中原因，保留既有組別、規則與所有命中斷言。
+            // 命中原因和條件讀回用同一種寫法。
             Assert.Contains("第 1 組條件 2：（週末過帳 或 假日過帳）", reason, StringComparison.Ordinal);
             Assert.DoesNotContain("情境層級", reason, StringComparison.Ordinal);
         });

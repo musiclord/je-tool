@@ -12,7 +12,7 @@ internal enum GlExcludedPopulationDisposition
 /// <summary>
 /// 一列 GL 的分類：<see cref="Reason"/> 是 null 表示列入 GL，否則是未納入原因。
 /// GL 範圍、控制總數與驗證摘要只看由原因推出的 <see cref="Disposition"/>；日期不符的三種原因合計就是日期不符
-/// （三種原因分開標示，裁定 2026-10-21-04）。
+/// （三種原因分開標示）。
 /// </summary>
 internal readonly record struct GlExcludedPopulationClassification(GlExclusionReason? Reason)
 {
@@ -86,7 +86,7 @@ internal static class GlExcludedPopulation
 
     /// <summary>
     /// 日期不符這組原因的 SQL 述詞：由 <see cref="GlExcludedPopulationClassification.Disposition"/> 是日期不符的原因產生，
-    /// C# 的分組和 SQL 只有這一個來源（三種原因分開標示，裁定 2026-10-21-04；驗證摘要的日期不符仍是三種原因的合計）。
+    /// C# 的分組和 SQL 只有這一個來源（三種原因分開標示；驗證摘要的日期不符仍是三種原因的合計）。
     /// 儲存值是內部常數，直接嵌成字面值。
     /// </summary>
     internal static string ExcludedByPeriodSqlPredicate() =>

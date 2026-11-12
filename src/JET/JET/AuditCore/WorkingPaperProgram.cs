@@ -77,13 +77,13 @@ internal sealed record WorkingPaperSheetPlan(
     string? NaText);
 
 /// <summary>
-/// 底稿計畫與寫出程式共用的固定文字。Step 1 與 Step 1-1 依結果二選一的結論文字照 legacy：有差異科目或不平傳票時才改寫範本原文
-/// （idea-tool.bas:10409-10411、10468、10521-10524）。範本原文就是「沒有差異」「沒有不平」的版本。
+/// 底稿計畫與寫出程式共用的固定文字。Step 1 與 Step 1-1 依結果二選一的結論文字照舊版 JET：有差異科目或不平傳票時才改寫範本原文。
+/// 範本原文就是「沒有差異」「沒有不平」的版本。
 /// </summary>
 internal static class WorkingPaperResultTexts
 {
-    // 裁定 2026-11-05-59：Step 3 的 B7「測試範圍」與 B9「選擇該測試範圍的理由」寫回舊版原文
-    // （idea-tool.bas:10664-10667，B9 句中的空白也照原文），JET 原本寫的查核期間與排除範圍另起一行接在後面。
+    // Step 3 的 B7「測試範圍」與 B9「選擇該測試範圍的理由」照舊版原文寫
+    // （B9 句中的空白也照原文），JET 另外寫的查核期間與排除範圍另起一行接在後面。
     internal static string Step3TestScope(string periodStart, string periodEnd) =>
         "期末財務報表準備期間與整個財務報導期間之會計分錄\n"
         + $"查核期間內（{periodStart} ~ {periodEnd}）之會計分錄";
@@ -112,7 +112,7 @@ internal static class WorkingPaperResultTexts
 
     internal const string Step11ExceptionTableTitle = "出現借貸不平之個別傳票說明：";
 
-    // 裁定 2026-10-29-16：沒有 TB 也照常產出底稿，第一步改寫無法比對的說明，科目清單留空、不產生 Step1-3。
+    // 沒有 TB 也照常產出底稿，第一步寫無法比對的說明，科目清單留空、不產生 Step1-3。
     internal const string Step1NotApplicableConclusion =
         "基於上述程序，查核團隊對於JE測試母體之完整性，尚需另行說明以取得足夠的查核證據。";
 
@@ -213,7 +213,7 @@ public static partial class JetAuditProgram
     private static readonly IReadOnlyList<WorkingPaperStep41Column> NoStep41Columns =
         Array.AsReadOnly(Array.Empty<WorkingPaperStep41Column>());
 
-    // 舊版 step4-1 的固定欄序（idea-tool.bas:6735）：十二個標準欄，第十三是過帳碼_JE；其餘 JET 欄位照欄位序號。
+    // 舊版 step4-1 的固定欄序：十二個標準欄，第十三是過帳碼_JE；其餘 JET 欄位照欄位序號。
     private static readonly IReadOnlyList<string> Step41PriorityFields =
         Array.AsReadOnly(new[]
         {
@@ -278,7 +278,7 @@ public static partial class JetAuditProgram
         "決定進行測試之高風險範圍條件",
         "查核程序",
         "有無舞弊\n或不實表達\n(Yes/No)",
-        // 範本 A12 整句寫著空白傳票號碼的列法，這裡和範本相同（裁定 2026-11-09-12）。
+        // 範本 A12 整句寫著空白傳票號碼的列法，這裡和範本相同。
         "因為設定高風險範圍條件，從母體#2挑選之分錄傳票(執行重大性或其他固定金額不應作為挑選的門檻)" +
         "；空白傳票號碼的命中分錄逐筆列出，不計傳票張數，金額為該筆借方金額。");
 
@@ -323,8 +323,8 @@ public static partial class JetAuditProgram
 
     /// <summary>
     /// 情境只有一組、這組只有一條預篩選條件，而且規則定義標明單獨使用時列整張命中傳票，就以整張命中傳票呈現。
-    /// 目前只有舊 IDEA 的「未預期借貸組合」是這樣（裁定 2026-08-28-01），標示寫在
-    /// <see cref="PrescreenRuleDefinition.ListsWholeHitVouchersWhenAlone"/>（裁定 2026-11-05-02）。這個判斷同時供
+    /// 目前只有舊 IDEA 的「未預期借貸組合」是這樣，標示寫在
+    /// <see cref="PrescreenRuleDefinition.ListsWholeHitVouchersWhenAlone"/>。這個判斷同時供
     /// 條件篩選報告摘要的列數口徑與工作底稿的逐列標記使用；篩選結果本身仍只
     /// 記錄直接命中的收入貸方列。複合情境維持同列條件，避免擴張其他規則的結果。
     /// </summary>
@@ -357,8 +357,8 @@ public static partial class JetAuditProgram
             : WorkingPaperScenarioTagScope.DirectHitRows;
 
     /// <summary>
-    /// 只搬移既有 writer decision：完整性差異為零時省略 step1-3，
-    /// step1-1 仍固定 emit、但僅在不平傳票有列時顯示例外表；step4 使用全部所選
+    /// writer 的工作表取捨：完整性差異為零時省略 step1-3，
+    /// step1-1 固定 emit、但僅在不平傳票有列時顯示例外表；step4 使用全部所選
     /// position，step4-1 只使用 row-hit count 大於零的 position。
     /// </summary>
     internal static WorkingPaperPlan Finalize(
@@ -510,9 +510,9 @@ public static partial class JetAuditProgram
         Array.AsReadOnly(values);
 
     /// <summary>
-    /// step4-1 的欄位依欄位資訊的來歷挑出 JET 欄位，不再看欄名結尾（裁定 2026-11-03-11）。
+    /// step4-1 的欄位依欄位資訊的來歷挑出 JET 欄位，不看欄名結尾。
     /// 標準欄依舊版的固定順序排在前面，其餘 JET 欄位照欄位序號；
-    /// 攸關資料元素照舊只列所選情境用到的，表頭照舊版加 _JE（裁定 2026-11-03-14）。
+    /// 攸關資料元素照舊只列所選情境用到的，表頭照舊版加 _JE。
     /// </summary>
     private static IReadOnlyList<WorkingPaperStep41Column> ProjectStep41Columns(
         IReadOnlyList<FieldInfo> definitions,
@@ -610,8 +610,8 @@ public static partial class JetAuditProgram
 
     /// <summary>
     /// 欄值來源依對應的 JET 欄位決定。系統產生的欄讀整理後的值，所以同總帳日期的傳票核准日寫總帳日期的值；
-    /// 配對後改名的欄照舊讀原始資料列，只有勾了往下填補的欄位讀填補後的值（裁定 2026-11-03-13）；
-    /// 人工/自動照裁定 2026-10-06-02 寫「人工」「自動」，空白仍留白。
+    /// 配對後改名的欄照舊讀原始資料列，只有勾了往下填補的欄位讀填補後的值；
+    /// 人工/自動寫「人工」「自動」，空白仍留白。
     /// </summary>
     private static WorkingPaperStep41Column ToStep41Column(
         FieldInfo definition,

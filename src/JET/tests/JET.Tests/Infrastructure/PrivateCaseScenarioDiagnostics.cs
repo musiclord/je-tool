@@ -478,7 +478,7 @@ internal static class PrivateCaseScenarioDiagnostics
         return DiagnosticRules(groups).Any(rule => IsPrescreenRule(rule, expected));
     }
 
-    // First failure: 20261014-141711404-ba7f6967b4d243638a85f11994adac28. Explicit single-rule witnesses retain the original diagnostic subject.
+    //  Explicit single-rule witnesses retain the original diagnostic subject.
     private static IEnumerable<JsonElement> DiagnosticRules(JsonElement groups)
     {
         foreach (var group in groups.EnumerateArray())

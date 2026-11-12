@@ -5,7 +5,7 @@ namespace JET.Application;
 /// <summary>
 /// 依資料庫種類取出對應的 <see cref="ProjectRepositories"/>。只有建案、載入與刪除會用到；
 /// 其他動作從 <see cref="ProjectSession"/> 的作用中案件取得已選定的那一組。
-/// 目前只有 SQLite 一組（裁定 2026-11-06-08）；其他種類的案件在動任何資料之前回 unsupported_provider。
+/// 目前只有 SQLite 一組；其他種類的案件在動任何資料之前回 unsupported_provider。
 /// </summary>
 internal sealed class ProjectRepositoryCatalog
 {

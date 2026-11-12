@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 科目配對匯入後的摘要與預覽：寫入成功後摘要失敗不影響已存配對、空白科目編號不算差異、
-/// 預覽顯示已存配對，以及依欄位順序判斷的欄位會在匯入回應中說明；另檢查 DuckDB 差異清單重疊讀取。
+/// 預覽顯示已存配對，以及依欄位順序判斷的欄位會在匯入回應中說明。
 /// </summary>
 public sealed class AccountMappingImportSummaryTests
 {
@@ -23,7 +23,7 @@ public sealed class AccountMappingImportSummaryTests
         var id = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(id));
         var db = new SqliteProjectDatabase(folder);
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不會順便建表，所以照建案的做法先建表。
         await db.EnsureCreatedAsync(id, CancellationToken.None);
         var mappings = new LocalAccountMappingRepository(db);
         using var cancellation = new CancellationTokenSource();
@@ -60,10 +60,9 @@ public sealed class AccountMappingImportSummaryTests
         finally { TestWorkbookBuilder.Delete(path); }
     }
 
-    // 匯入已提交後讀不回結果狀態時，回應仍成功（裁定 2026-10-19-18）；結果狀態與報告清單回 null，
+    // 匯入已提交後讀不回結果狀態時，回應仍成功；結果狀態與報告清單回 null，
     // 前端保留畫面上的值，提醒變更已儲存、重新開啟案件就會更新。這條路徑是所有變更動作共用的提交後讀取。
-    // 獨立複審後加上支援日誌的斷言：讀不回狀態時改成回報成功，原本由失敗動作留下的錯誤紀錄不能跟著消失
-    // （修正前的失敗收據 20261019-134414012-42d09703a21d4bd5b6fdc0dd9308624e）。
+    // 也核對支援日誌：讀不回狀態時回報成功，錯誤紀錄不能跟著消失。
     [Fact]
     public async Task CommittedImportSurvivesAStateReadFailure()
     {
@@ -73,7 +72,7 @@ public sealed class AccountMappingImportSummaryTests
         var id = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(id));
         var db = new SqliteProjectDatabase(folder);
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(id, CancellationToken.None);
         var mappings = new LocalAccountMappingRepository(db);
         var session = new ProjectSession();
@@ -151,25 +150,6 @@ public sealed class AccountMappingImportSummaryTests
         var page = await host.DispatchAsync("query.accountMappingDifferencePage", """{"kind":"unmapped"}""");
         Assert.DoesNotContain(page.GetProperty("rows").EnumerateArray(), row =>
             string.IsNullOrWhiteSpace(row.GetProperty("accountNumber").GetString()));
-    }
-
-    private static string? FirstUsefulReadFailure(IEnumerable<string> failures)
-    {
-        var ordered = failures.ToArray();
-        return ordered.FirstOrDefault(failure => !failure.Contains("database has been invalidated", StringComparison.OrdinalIgnoreCase))
-            ?? ordered.FirstOrDefault();
-    }
-
-    [Fact]
-    public void ReadFailureDiagnosticPrefersTheFirstRootErrorOverInvalidatedConnections()
-    {
-        const string cascade = "DuckDBException: database has been invalidated because of a previous fatal error";
-        const string root = "DuckDBException: INTERNAL Error: synthetic root cause";
-        Assert.Equal(root, FirstUsefulReadFailure(new[] { cascade, root, "another root", cascade }));
-        Assert.Equal(root, FirstUsefulReadFailure(new[] { root, cascade }));
-        Assert.Equal("wrong total", FirstUsefulReadFailure(new[] { cascade, "wrong total", root }));
-        Assert.Equal(cascade, FirstUsefulReadFailure(new[] { cascade, cascade }));
-        Assert.Null(FirstUsefulReadFailure(Array.Empty<string>()));
     }
 
     [Theory]

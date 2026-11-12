@@ -8,8 +8,8 @@ namespace JET.Tests.Application;
 
 public sealed class SelectedScenarioWorkingPaperTests
 {
-    // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目（裁定 2026-10-29-27）：第二個情境原本用預篩選條件 rarePreparer，改成第五步「依審計目的」的「編製分錄較少的人員」同一個條件，
-    // 一樣需要傳票建立人員；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad。
+    // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目；第二個情境用第五步「依審計目的」的「編製分錄較少的人員」條件，
+    // 需要傳票建立人員。
     private const string Scenarios = """
         {"scenarios":[
           {"name":"借方分錄","rationale":"合成選取範圍","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]},
@@ -21,10 +21,9 @@ public sealed class SelectedScenarioWorkingPaperTests
     [InlineData("sqlite")]
     public async Task WorkingPaper_RemapClearsScenarios_ThenOnlyResavedValidScenarioExports(string provider)
     {
-        // 上游修改會清除下游（裁定 2026-10-07-03）：重新配對會清掉全部已存情境，不再出現「保留下來但缺來源的未選情境」。
-        // 原本驗證未選的缺欄情境不擋所選底稿；改成驗證重新配對後情境清空、缺欄情境無法重新儲存、
+        // 上游修改會清除下游：重新配對會清掉全部已存情境，不會出現「保留下來但缺來源的未選情境」。
+        // 這裡驗證重新配對後情境清空、缺欄情境無法重新儲存、
         // 只重新儲存有效情境即可匯出，且之後再改資料，已產出的底稿仍標示過期。
-        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
         using var host = new HandlerTestHost();
         var setup = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         await host.DispatchAsync("filter.commit", Scenarios);

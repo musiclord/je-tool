@@ -144,7 +144,7 @@
     return false;
   }
 
-  // 對話框堆疊讓一次 Escape 只關最上層，原本兩層同時開著時會一起關掉：刪除案件對話框、「尚未儲存」對話框與流程總覽
+  // 對話框堆疊讓一次 Escape 只關最上層，不會把同時開著的兩層一起關掉：刪除案件對話框、「尚未儲存」對話框與流程總覽
   // 開啟時登記元素與關閉函式，關閉時移除；整個頁面只有這一個捕獲階段的鍵盤監聽，Escape 與 Tab 只交給最上層。
   // 原生 <dialog> 開著時不處理，這是防衛用：目前畫面沒有原生對話框，日後若加入用 showModal 開的對話框，鍵盤交給它。登記的元素已經不在畫面上（例如清單重繪把對話框一起換掉）時這筆不算；
   // entry.active 回 false 時也不處理，總覽用它在作業進行中把鍵盤留給作業遮罩的「取消作業」。
@@ -402,9 +402,9 @@
     Ui.setText('case-period', state.view === 'picker' ? '—' : (auditPeriodText(state) || '—'));
   }
 
-  // 右上角身分徽章（原「主機連線」狀態徽章）。狀態序：
+  // 右上角身分徽章。狀態序：
   // 尚未結論＝「偵測中」；bridge 就緒但無 whoAmI＝「已連線」；有身分時顯示「操作人員：{短名}」。
-  // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法；畫面不露出系統用詞，裁定 2026-10-19-04）。title 帶完整 principal。
+  // 探測已結論但未就緒＝「應用程式連線失敗」（和訊息面板同一個說法；畫面不露出系統用詞）。title 帶完整 principal。
   function renderIdentityBadge(state) {
     var badge = Ui.$('user-identity');
     if (!badge) { return; }
@@ -443,7 +443,7 @@
     '<svg viewBox="0 0 256 256" width="16" height="16" fill="currentColor" aria-hidden="true">' +
     '<path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16ZM96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Zm48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Z"></path></svg>';
 
-  // 目前只支援 SQLite 案件（裁定 2026-11-06-08），清單也只列 SQLite 案件。
+  // 目前只支援 SQLite 案件，清單也只列 SQLite 案件。
   function providerText(provider) {
     if (!provider) { return '資料庫種類尚未確認'; }
     return 'SQLite';
@@ -487,7 +487,7 @@
               projectCode +
               '<span class="project-provider ' + providerClass(p.databaseProvider) + '">' +
                 Ui.esc(providerText(p.databaseProvider)) + '</span>' +
-              // 後端的原因已是完整句子，不再加前綴（裁定 2026-10-19-23）。
+              // 後端的原因已是完整句子，不再加前綴。
               (p.loadError ? '<span class="project-row__load-error" role="status">' +
                 Ui.esc(p.loadError.message || '案件資料無法讀取。請從備份還原案件資料夾，或另建案件重新匯入。') + '</span>' : '') +
               '<span class="project-row__when">' + Ui.esc(pickerWhen(p)) + '</span>' +
@@ -503,20 +503,20 @@
 
   function pickerFeedbackHtml(message, context, level) {
     if (!message) { return ''; }
-    // 操作已成功、只是留下要審計員自己處理的事時，用琥珀色提示，不寫「無法完成操作」（訊息分三級，裁定 2026-10-13-15）。
+    // 操作已成功、只是留下要審計員自己處理的事時，用琥珀色提示，不寫「無法完成操作」（訊息分三級）。
     if (level === 'warning') {
       return '<p class="form-notice form-notice--warning picker-feedback--warning" data-motion-key="picker-feedback" role="status">' +
         Ui.esc(message) + '</p>';
     }
-    // 錯誤框只寫發生什麼事與能做什麼，不放按鈕（裁定 2026-10-13-26）。
+    // 錯誤框只寫發生什麼事與能做什麼，不放按鈕。
     return '<div class="picker-feedback" data-motion-key="picker-feedback" role="alert" aria-live="polite">' +
       '<strong class="picker-feedback__title">無法完成操作</strong>' +
       '<span class="picker-feedback__body">' + Ui.esc(message) + '</span>' +
       '</div>';
   }
 
-  // 案件清單看不到訊息面板，所以另放一個「輸出支援日誌」（裁定 2026-10-13-26）。
-  // 它只給開發人員用，和 DEV 面板一樣只在 Debug 組建出現（system.ping.devToolsEnabled；裁定 2026-10-20-03），
+  // 案件清單看不到訊息面板，所以另放一個「輸出支援日誌」。
+  // 它只給開發人員用，和 DEV 面板一樣只在 Debug 組建出現（system.ping.devToolsEnabled），
   // 放在卡片外的頁尾。開案後訊息面板的「輸出支援日誌」在 Release 照舊。
   // 不帶 projectId：後端匯出全部去識別紀錄到 logs 資料夾。剛發生開案或刪除失敗時，
   // 原始診斷日誌的出口也放在頁尾，並帶同一次 correlation。
@@ -550,7 +550,7 @@
     if (key === lastPickerKey) { return; }
     lastPickerKey = key;
 
-    // 後端只列 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件不列出（裁定 2026-11-06-09）。
+    // 後端只列 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件不列出。
     var localRows = state.projects.map(function (p) { return projectRowHtml(p); });
     var localBody = localRows.length
       ? localRows.join('')
@@ -559,9 +559,8 @@
     // 加入與移除的動態（JetMotion）：案件清單已經在畫面上時，新增的案件長出來、刪除的收起來；從流程畫面切回來時是整頁換掉，不比對。
     var motion = contentMotion(container, pickerShownBefore);
     container.innerHTML =
-      // 每個按鈕放在它作用的內容旁邊，原本底部一排按鈕看不出用途（裁定 2026-10-20-04）：
-      // 「新增案件」放在標題右側；「重新整理本機」放在區標題右側。標題下不寫重述標題的說明句（裁定 2026-11-05-06）。
-      // 線上資料庫那一區隨 SQL Server 暫時移除（裁定 2026-11-06-08）。
+      // 每個按鈕放在它作用的內容旁邊，全排在底部會看不出用途：
+      // 「新增案件」放在標題右側；「重新整理本機」放在區標題右側。標題下不寫重述標題的說明句。
       '<div class="picker-panel">' +
         '<div class="picker-panel__head">' +
           '<div class="picker-panel__heading">' +
@@ -747,7 +746,7 @@
       modal.querySelector('[data-action="modal-confirm"]').addEventListener('click', function () {
         if (!pendingDelete) { return; }
         var target = pendingDelete;
-        // 刪除後重新讀回案件清單時，這一列先輕微快速地晃一下再收起（裁定 2026-10-13-13：刪除案件時也這樣）。
+        // 刪除後重新讀回案件清單時，這一列先輕微快速地晃一下再收起。
         if (global.JetMotion) { global.JetMotion.removing({ keys: 'project-' + target.id, wait: 20000 }); }
         closeModal(false);
         Store.setPickerFeedback(null);
@@ -772,7 +771,7 @@
             });
           },
           refreshWhen: 'success',
-          // 刪除後重新讀取清單失敗時的操作名稱（這個用字依裁定 2026-10-13-28）。
+          // 刪除後重新讀取清單失敗時的操作名稱。
           refreshLabel: '重新讀取案件清單',
           inlineError: true,
           onError: function (message, error) {
@@ -798,13 +797,12 @@
     Ui.gotoStep(index);
   }
 
-  // 換步驟在按下時就開始，和 macOS 側邊欄一樣：原本要等放開滑鼠才換，按住的那一下畫面不動
-  // （裁定 2026-10-15-09：「點下去的時候我會預期元素開始移動，但他會頓一下才開始移動」）。
+  // 換步驟在按下時就開始，和 macOS 側邊欄一樣；等放開滑鼠才換的話，按住的那一下畫面不動。
   // 只認滑鼠主要按鍵、沒有按著修飾鍵的按下；按下後的那一次放開（click）不再換一次。觸控與觸控筆按下時可能是要捲動，
   // 和鍵盤的 Enter、空白鍵一樣照舊走 click。
   // 按下就換會讓兩件原本由放開前的失焦處理的事落空，所以先做：正在編輯的欄位先失焦，只在 change 存值的欄位
   // （例如第五步「期末前 X 天」）才不會隨中欄重建而遺失；擋下按下的預設動作，瀏覽器才不會在換步驟開出的
-  // 確認對話框之後，再把焦點移回這顆按鈕（2026-10-16 提交前複審找到）。
+  // 確認對話框之後，再把焦點移回這顆按鈕。
   function bindStepPress(element, index) {
     var pressed = false;
     element.addEventListener('pointerdown', function (event) {
@@ -895,7 +893,7 @@
 
     if (id === 'import') {
       var seg = [];
-      // 來源檔的資料用「列」，GL 與 TB 的分錄、科目用「筆」（裁定 2026-10-19-16）。
+      // 來源檔的資料用「列」，GL 與 TB 的分錄、科目用「筆」。
       if (imp.gl) { seg.push('PBC-GL ' + Ui.countText(imp.gl.rowCount) + ' 列'); }
       if (imp.tb) { seg.push('PBC-TB ' + Ui.countText(imp.tb.rowCount) + ' 列'); }
       return seg.length ? seg.join(' / ') : '匯入總帳明細與試算表';
@@ -939,8 +937,8 @@
     return '<span class="stepflow-item__cond">尚缺：' + Ui.esc(gate.missing.join('、')) + '</span>';
   }
 
-  // 審計員自己按的操作失敗或被阻擋、那個操作又沒有就地錯誤框時，在目前步驟標題下方寫出動作與原因
-  // （裁定 2026-10-13-16）。失敗是紅色；被阻擋是琥珀色，因為那是前置條件還沒完成，不是執行失敗。
+  // 審計員自己按的操作失敗或被阻擋、那個操作又沒有就地錯誤框時，在目前步驟標題下方寫出動作與原因。
+  //失敗是紅色；被阻擋是琥珀色，因為那是前置條件還沒完成，不是執行失敗。
   // 由 Ui.run 寫入 state.operationFailure；重試任何操作或換步驟時拿掉。
   function operationFailureHtml(state, index) {
     var failure = state.operationFailure;
@@ -950,8 +948,8 @@
   }
 
   // 小筆電（視窗寬度不到 1536px）上，目前步驟上方的已完成步驟收成一列「已完成的步驟」，後面寫各步驟名稱；
-  // 點這一列在原地展開回原本的各列，再點一次收起（裁定 2026-11-05-09）。上方每一步都完成、至少兩步時才收。
-  // 使用者看過一列排出各步驟名稱小標籤的甲版後選了這一種。寬度和標題列只留圖示的版面同一個斷點（app.css 的小筆電一段）。
+  // 點這一列在原地展開回原本的各列，再點一次收起。上方每一步都完成、至少兩步時才收。
+  // 寬度和標題列只留圖示的版面同一個斷點（app.css 的小筆電一段）。
   var DONE_GROUP_MEDIA = '(max-width: 1535px)';
   var doneGroupOpen = false;
   var doneGroupMedia = null;
@@ -977,7 +975,7 @@
   }
 
   // 左側流程軸線與目前步驟的藍色圓環是每一列裡的小元素，不用步驟列的 ::before、::after：目前步驟那一列包著整個工作面，
-  // 掛著虛擬元素時只要樣式一改，WebView2 就把整個工作面的無障礙樹重送一遍，捲動會頓一下（2026-11-09 量測）。
+  // 掛著虛擬元素時只要樣式一改，WebView2 就把整個工作面的無障礙樹重送一遍，捲動會頓一下。
   var STEP_RAIL = '<span class="stepflow-item__rail" aria-hidden="true"></span>';
   var STEP_CURRENT_MARK = '<span class="stepflow-item__mark stepflow-item__mark--current" aria-hidden="true"></span>';
 
@@ -1005,7 +1003,7 @@
     var label = Ui.esc(step.label);
 
     if (pres.status === 'current') {
-      // 標題旁的狀態字和流程總覽同一階段的狀態字相同（裁定 2026-10-30-21），由 overviewStageStatus 判斷，不另寫一套。
+      // 標題旁的狀態字和流程總覽同一階段的狀態字相同，由 overviewStageStatus 判斷，不另寫一套。
       var statusWord = Ui.esc(OVERVIEW_STAGE_STATUS[overviewStageStatus(state, index)]);
       // 手動收合：一行摘要；否則展開，body 交給既有步驟渲染器。
       if (state.stepFlowCollapsed) {
@@ -1121,7 +1119,7 @@
   }
 
   // 換步驟時中欄捲回頂部的動態：和原本那一步收起來用同一條彈簧（SPRINGS.close），新步驟的標題一路朝同一個方向移到定位。
-  // 原本第一格就一下跳到頂部、移焦點時又瞬間捲到標題，接著才開始收放，看起來像頓了一下才動（裁定 2026-10-15-09）。
+  // 若第一格就一下跳到頂部、移焦點時又瞬間捲到標題，接著才開始收放，看起來會像頓了一下才動。
   // 捲動期間關掉瀏覽器的捲動錨定，上方收起的內容才不會讓瀏覽器另外改捲軸；使用者自己捲了就放手。不能播動態時直接回到頂部。
   var contentGlide = null;
 
@@ -1180,12 +1178,12 @@
   }
 
   // 「凡寫入即 bump 重繪」慣例（state.js）的框架層配套：重繪後把焦點放回同一個控制項。
-  // 標了 data-focus-key 的照舊用它找。沒標的用控制項本身認得出來的地方找：所在區塊的 data-motion-key、
+  // 標了 data-focus-key 的用它找。沒標的用控制項本身認得出來的地方找：所在區塊的 data-motion-key、
   // 標籤、type、role、aria-label、name、id 與 data- 屬性；這樣仍有兩個以上一樣時，再加上按鈕上的字（數字不算，筆數會變）。
   // 重繪前後都只有一個符合時才放回去，有兩個以上就不猜，避免把焦點送到同名的另一個控制項。
-  // 原本只認 data-focus-key，沒標的按鈕與勾選框重繪後焦點都落到整個頁面。
+  // 只認 data-focus-key 的話，沒標的按鈕與勾選框重繪後焦點都會落到整個頁面。
   // 控制項可以用 data-focus-successor 宣告接替者（分號分開的選擇器，依序找第一個看得到且能按的）：重繪後找不到它時，
-  // 焦點交給接替者並把接替者捲進畫面，例如第三步「讀取來源值」先交給讀取中的提示，再交給讀出的值清單；原本按下後焦點會掉到頁面本身。
+  // 焦點交給接替者並把接替者捲進畫面，例如第三步「讀取來源值」先交給讀取中的提示，再交給讀出的值清單；沒有接替者時，按下後焦點會掉到頁面本身。
   var FOCUS_CANDIDATES = 'button, summary, a[href], input:not([type="hidden"]), select, textarea, [tabindex]';
   var FOCUS_TRANSIENT = /^data-(?:focus-key|motion-(?:leaving|rendering|revealing|folding))$/;
 
@@ -1358,8 +1356,8 @@
     var stepScrollKey = state.view + '|' + current.id;
     var stepChanged = stepScrollKey !== lastStepScrollKey;
 
-    // 換步驟像同一排的展開區（裁定 2026-10-13-11：展開與收合要一致。完成的步驟列和目前步驟一樣有展開箭頭，
-    // 原本按下去卻是一瞬間換掉）：原本那一步的內容收回它的那一列，新的一步從標題長出來。
+    // 換步驟像同一排的展開區，展開與收合要一致（完成的步驟列和目前步驟一樣有展開箭頭）：
+    // 原本那一步的內容收回它的那一列，新的一步從標題長出來。
     // 只在流程畫面裡換步驟時這樣做；從案件清單開啟案件時直接顯示。
     // 長到一半或收到一半又整段重繪時（例如換步驟後讀回的資料），從此刻的進度接著播。
     var oldBody = global.JetMotion ? container.querySelector('.stepflow-item--current > .stepflow-item__body') : null;
@@ -1389,7 +1387,7 @@
         }
       }
 
-      // 展開的當前步驟：把 body 元素交給既有已註冊渲染器（等同過去傳 content 容器）。
+      // 展開的當前步驟：把 body 元素交給既有已註冊渲染器。
       if (!state.stepFlowCollapsed) {
         var body = container.querySelector('.stepflow-item--current .stepflow-item__body');
         if (body) { Ui.renderStep(current.id, body, state); }
@@ -1605,7 +1603,7 @@
     }
   }
 
-  // 訊息分三級（裁定 2026-10-13-15）：錯誤與需要注意在時間前面加一個符號，另加只給讀屏軟體的等級文字；
+  // 訊息分三級：錯誤與需要注意在時間前面加一個符號，另加只給讀屏軟體的等級文字；
   // 一般說明沒有符號。.messages__text 的內容與位置不變（Gui 驅動從它找「支援日誌已輸出」）。
   var MESSAGE_LEVEL_NAMES = { error: '錯誤：', warn: '需要注意：' };
 
@@ -1630,7 +1628,7 @@
   // 視窗矮、左欄放不下時，訊息區黏在欄底，流程步驟從它後面捲過去；這時在左欄加 data-under-messages，
   // 讓 app.css 把訊息區變成玻璃。抽屜打開或收起、視窗改變大小與左欄捲動時都重算。純呈現，不改 state。
   // 訊息區的高度另外寫進左欄的 --messages-h，app.css 用它當 scroll-padding-bottom：用鍵盤移到第五、六步時，
-  // 左欄會把它捲到訊息區上方，不會停在訊息區後面（2026-10-14 在 125% 縮放的最小視窗查到）。
+  // 左欄會把它捲到訊息區上方，不會停在訊息區後面。
   function bindMessagesEdge() {
     var column = document.querySelector('.toc-col');
     var messages = document.querySelector('.messages');
@@ -1655,8 +1653,8 @@
     measure();
   }
 
-  // 收合/展開與未讀徽章。徽章照未讀裡最嚴重的一級：有錯誤時紅底加「!」，有需要注意時琥珀底加「!」，其他維持灰底
-  // （裁定 2026-10-13-15）；aria-label 用文字說出等級，不只靠顏色。開關固定在欄底，展開與收合是同一顆按鈕。
+  // 收合/展開與未讀徽章。徽章照未讀裡最嚴重的一級：有錯誤時紅底加「!」，有需要注意時琥珀底加「!」，其他維持灰底；
+  //aria-label 用文字說出等級，不只靠顏色。開關固定在欄底，展開與收合是同一顆按鈕。
   function renderMessagesPanel(state) {
     var panel = document.querySelector('[data-bind="messages-panel"]');
     if (!panel) { return; }
@@ -1747,7 +1745,7 @@
         overviewSelectedStepIndex >= Store.STEPS.length) {
       overviewSelectedStepIndex = state.currentStepIndex;
     }
-    // 開啟中：資料版本／當前步驟改變才重繪；最近訊息不再複製進總覽。
+    // 開啟中：資料版本／當前步驟改變才重繪；最近訊息不複製進總覽。
     var key = state.contentVersion + '|' + state.currentStepIndex;
     if (key === lastOverviewKey) { return; }
     lastOverviewKey = key;
@@ -1759,11 +1757,11 @@
     }
   }
 
-  // 卡片內容重繪（開啟時的一般渲染，以及分頁切換這類純 UI 變動的即時重繪共用）。
+  // 整張卡片重繪：總覽的一般渲染用它；分頁切換找不到原本的分頁內容時也退回這裡。
   function renderOverviewCard(state) {
     var card = document.querySelector('.overview-modal__card');
     if (!card) { return; }
-    // 總覽開著時資料或目前步驟改變會整張重畫，重畫時要保留焦點（裁定 2026-10-13-02）：焦點原本在卡片裡時，
+    // 總覽開著時資料或目前步驟改變會整張重畫，重畫時要保留焦點：焦點原本在卡片裡時，
     // 用和中欄重繪同一套認法放回同一個控制項；那個控制項不見了就放到 ✕，Escape 與 Tab 才接得住。焦點不在卡片裡時不動。
     var hadFocus = card.contains(document.activeElement);
     var focusMemory = hadFocus ? captureContentFocus(card) : null;
@@ -2040,8 +2038,8 @@
     );
   }
 
-  // 技術資訊只留資料庫（裁定 2026-10-19-15）：執行識別碼與規則版本是程式內部的代號，報告上也沒有，
-  // 不再顯示；兩者仍存在案件資料裡。
+  // 其他資訊只留資料庫：執行識別碼與規則版本是程式內部的代號，報告上也沒有，
+  // 不顯示；兩者仍存在案件資料裡。
   function overviewTechnicalHtml(state) {
     var provider = state.project ? providerText(state.project.databaseProvider) : '—';
     return (
@@ -2163,7 +2161,7 @@
       missing = Ui.stepCompletionMissing(state, index);
     } else {
       // 第六步可能只因為已有版本紀錄而能進入；情境無法套用目前規則時先說明情境，再談產生底稿。
-      // 沒有已儲存的情境不用先說明，底稿照樣能產生（裁定 2026-10-29-16）。
+      // 沒有已儲存的情境不用先說明，底稿照樣能產生。
       var unusable = Ui.unusableFilterScenarioReason(state);
       missing = unusable ? [unusable] : ['產生目前版本的工作底稿'];
     }
@@ -2214,7 +2212,7 @@
         var state = Store.getState();
         panel.className = 'overview-step-detail';
         panel.setAttribute('aria-labelledby', 'overview-stage-tab-' + index);
-        // 換階段時詳情在原處交叉淡化、高度平順改變，和其他頁籤換窗格一樣（裁定 2026-10-13-11）。
+        // 換階段時詳情在原處交叉淡化、高度平順改變，和其他頁籤換窗格一樣。
         var fill = function () { panel.innerHTML = overviewStepDetailBodyHtml(state, index); };
         if (global.JetMotion) { global.JetMotion.morph(panel, fill); } else { fill(); }
       }
@@ -2248,7 +2246,7 @@
   function bindOverviewConcentrationTabs(card) {
     var tabs = Array.prototype.slice.call(card.querySelectorAll('[data-overview-tab]'));
     // 只換分頁底下的內容與圖表：分頁的選取滑過去，內容在原處交叉淡化、高度平順改變，
-    // 不再整張卡片重畫、所有圖表重來一次（裁定 2026-10-13-11）。
+    // 不會整張卡片重畫、所有圖表重來一次。
     function select(key) {
       if (key !== 'preparers' && key !== 'accounts') { return; }
       overviewConcentrationTab = key;
@@ -2319,7 +2317,7 @@
   // fromLog（log.recent 還原的歷史）不回寫，避免重複。append 以單一 promise queue 保序，
   // 只有後端確認後才推進持久化水位；暫時性失敗保留重試。格式拒收已由 dispatcher 寫入支援日誌，跳過該筆。
   // 自動寫入在作業進行中先暫停：長作業的寫入交易占著案件資料庫，這時寫訊息要等它結束，超過逾時就失敗，
-  // 支援日誌也多出失敗紀錄（第 22 步盤點的第 7 項）。作業結束時狀態改變，persistNewMessages 會依序寫入留下的訊息。
+  // 支援日誌也多出失敗紀錄。作業結束時狀態改變，persistNewMessages 會依序寫入留下的訊息。
   // 複製紀錄這類明確要求不受影響，照舊先寫完再讀。
   var lastObservedMessageId = 0;
   var lastPersistedId = 0;
@@ -2410,7 +2408,7 @@
   }
 
   // 複製出來的紀錄給審計員貼到 Excel 或文件保存：欄名、資料庫、等級都寫畫面上的說法，
-  // 時間換成這台電腦的當地日期與時間，畫面不露出系統用詞（裁定 2026-10-19-04）。
+  // 時間換成這台電腦的當地日期與時間，畫面不露出系統用詞。
   var COPIED_LEVEL_NAMES = { error: '錯誤', warn: '需要注意', info: '一般' };
 
   function localTimestamp(utc) {
@@ -2581,7 +2579,7 @@
       return null;
     }
 
-    // 每個階段一句，這個寫法依裁定 2026-10-13-28；準備資料時還沒有工作表與列數。
+    // 每個階段一句；準備資料時還沒有工作表與列數。
     var phaseText = phaseLabels[progress.phase] + (isWritingSheet ? '「' + progress.sheetName + '」' : '');
     var counts = progress.phase === 'preparingData' ? ''
       : '，已完成 ' + Ui.countText(sheetsCompleted) + ' 張工作表、寫入 ' +
@@ -2591,7 +2589,7 @@
   }
 
   /* ---- 按下的光（純呈現） -------------------------------------------------------
-     按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉。這是依 Apple Liquid Glass 的理念調整（裁定 2026-10-11-14）：
+     按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉。這是依 Apple Liquid Glass 的理念調整：
      材質在被按下時從裡面亮起來，告訴使用者按到了。這裡只記下按下的位置，亮光由 app.css 的 :active::after 畫出；
      用鍵盤按下時清掉位置，光從按鈕中央亮起。只寫 CSS 變數，不改 state、不送 action。 */
   function bindPressLight() {
@@ -2613,7 +2611,7 @@
   }
 
   /* ---- 玻璃標題列的高度（純呈現） -------------------------------------------------
-     整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01），所以標題列是一片玻璃，流程欄、中欄、資料預覽與案件清單
+     整個 JE Tool 要帶有 Liquid Glass 的質感，所以標題列是一片玻璃，流程欄、中欄、資料預覽與案件清單
      都從視窗頂端開始，上緣藏在標題列下面。標題列一列或兩列的高度不同，這裡量出它的下緣，寫入 .app-shell 的 --chrome-h，
      app.css 依它讓出各欄的上內距與 scroll-padding-top。內容捲到標題列下面時，在 .app-shell 加 data-under-chrome，
      標題列的影子加深。只改呈現，不改 state、不送 action。 */
@@ -2664,10 +2662,10 @@
      選取底由 app.css 的 .has-glide::before 畫。很多選項組換選取時會整段重繪，所以每組記住上一次的位置：
      同一批重繪裡在原地換上的新組，從舊的一組此刻看到的位置滑過去；一組消失後再出現、出現在別的位置，或視窗大小與字型改變時，
      就直接放好，不滑動。Windows 高對比佈景不加 .has-glide，選中的樣式由 app.css 用系統色畫。
-     整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01），所以滑動照 Apple 控制項的做法：
+     整個 JE Tool 要帶有 Liquid Glass 的質感，所以滑動照 Apple 控制項的做法：
      選取在滑動時浮起來變成玻璃（組的 ::after），朝目的地拉長，前緣先到、後緣跟上，到位後落回原本的一片（組的 ::before）。
      底線頁籤（line: true）只有底線滑過去，也是前緣先到。路徑在這裡算好交給瀏覽器播放，滑到一半又重繪時，從當下看到的形狀接著滑。
-     流程欄（rigid: true）不浮起也不拉長：放大縮小過於醒目，要維持原本的樣子與相同的寬度（裁定 2026-10-12-02），
+     流程欄（rigid: true）不浮起也不拉長：放大縮小過於醒目，要維持原本的樣子與相同的寬度，
      所以那一片照原樣、同樣大小平移到新的步驟。
      選中的字也跟著選取一起換：目的地的字等選取快到時才變粗、變色，原本的字在選取離開時就變回一般（item 是選項，text 是要換樣子的字）。
      減少動態時直接放到新的位置。只改呈現，不改 state、不送 action。 */
@@ -2928,7 +2926,7 @@
           var entry = { group: group, rect: rect, at: at, owner: owner, motion: null };
           var fresh = !group.classList.contains('has-glide');
           // 同一批重繪剛換掉舊的一組：新的一組接著舊的一組此刻看到的樣子。屬於同一個區塊（同一個 data-motion-key）就是同一組，
-          // 即使上方同時多了提示、整組被往下推也一樣（裁定 2026-10-12-03：第三步換金額欄位格式時選取曾直接跳過去）；
+          // 即使上方同時多了提示、整組被往下推也一樣（例如第三步換金額欄位格式時）；
           // 沒有區塊識別的組，才用「在原地換上」判斷。選取畫在組自己的座標裡，組被推動時選取跟著組走。
           // 舊的一組在交叉淡化的舊畫面裡時，雖然還在頁面上，也算已經換掉。
           var replaced = fresh && !jump && last && last.group !== group &&
@@ -3003,18 +3001,16 @@
   }
 
   /* ---- 動態共用的設定（純呈現） -------------------------------------------------------------
-     動態原本仍然突兀，所以先研究 Apple 的設計理念、人機介面指引與開發者文件再重做（裁定 2026-10-12-03）。
-     整個 JE Tool 的動態改用 Apple 的彈簧（WWDC23「Animate with springs」）：duration 是看起來完成的時間，bounce 0 不回彈；
+     整個 JE Tool 的動態用 Apple 的彈簧（WWDC23「Animate with springs」）：duration 是看起來完成的時間，bounce 0 不回彈；
      stiffness 是 (2π ÷ duration)²，阻尼比是 1 − bounce。被下一個操作打斷時，從此刻的位置與速度接著走向新的目標，
      不會頓一下再從零速重新起跑。人機介面指引 Motion 說 Liquid Glass 用觸控板操作時的反應比直接觸控收斂，用滑鼠操作的 JET 跟著收斂，所以時間比 Apple 預設的 0.5 秒短一點。
      app.css 的 --ease-spring 與 --motion-* 是同一組參數算出來的，兩邊要一起改。
-     淡入淡出原本太慢（裁定 2026-10-13-10），所以長出來與收起來再縮短一點，字的淡入淡出也改成更早開始、更快完成。
-     移除或清除東西時（裁定 2026-10-13-13），要收起的那一個先「類似蘋果那樣輕微快速地晃動」再收起來：shake 是一條會來回的彈簧，
+     長出來與收起來的時間短一點，字的淡入淡出較早開始、較快完成，免得淡入淡出顯得太慢。
+     移除或清除東西時，要收起的那一個先輕微快速地晃一下再收起來：shake 是一條會來回的彈簧，
      從原位帶著速度出發，左右晃兩下半就停（約 0.2 秒），見下面 JetMotion 的 removing。 */
-  // 進階條件篩選的動態原本拖累操作，要加快但不偏離原本的風格（裁定 2026-10-15-08）。不回彈的彈簧形狀都一樣、只差時間長短，
-  // 所以全部同比例縮短約兩成，各動態之間的節奏不變。選取與帶過去的標籤仍約 0.3 秒，看得出從哪裡到哪裡，
+  // 動態不能拖累進階條件篩選的操作，所以時間偏短。不回彈的彈簧形狀都一樣、只差時間長短，
+  // 所以各動態的時間同比例縮放，彼此之間的節奏不變。選取與帶過去的標籤約 0.3 秒，看得出從哪裡到哪裡，
   // 不會一閃而過；收起的字先淡出，不需要看清去向，所以可以短到 0.22 秒。
-  // 同一天澄清了 2026-10-13 不喜歡的是拋物線軌跡、不是回彈，並要求完整依 Apple 的 Liquid Glass 設計重新整理（裁定 2026-10-15-05）。
   // Apple 的玻璃在互動時帶一點彈性，「減少動態效果」才把彈性關掉，所以動態分成兩種性格：
   // - 玻璃層被操作的東西用 bounce 0.15，接近 Apple 的 snappy：分段切換的玻璃選取、加入時帶過去的玻璃標籤，
   //   以及 app.css 的選單、對話框浮現與按鍵放開。看不出在彈，只是早一點到、收尾俐落，最多超過目標 0.6%。
@@ -3128,17 +3124,16 @@
   }
 
   /* ---- 加入與移除的動態（JetMotion）：加入、移除、清除與換掉的東西長出來、收起來或原地改變（純呈現） ----------------
-     原本只有加入條件有動態，移除、清除條件時沒有，其他步驟也一樣，操作起來不一致（裁定 2026-10-12-02）。
+     加入、移除與清除在每個步驟都有動態，操作起來才一致。
      畫面多半是整段重繪，所以重繪前記下要比對的東西（capture），重繪後比對（play）：
      - 新出現的從 0 長到自己的大小，字等空間打開大半才淡入；
      - 消失的，把重繪前的那一個放回原本的位置收到 0，字先淡出，收完才拿掉；後面的內容跟著收上來，不會一次跳上去。
        放回去的舊元素不能按、讀屏軟體不唸，也拿掉 id、data-action 這類會被程式找到的識別；
      - 長到一半或收到一半又重繪的，從此刻的樣子與速度接著播，連續快速操作也不會跳；
      - 外層也是新出現或消失時，只動最外層的那一個。data-motion-list 標出清單容器，清單裡的東西全部消失時仍放得回去。
-     使用者同一天再指出第三步切換金額欄位格式時選取一閃而過、提示直接跳出來，並要求動態更有質感、更自然，全部流程畫面一致。
-     所以除了標了 data-motion-key 的東西，也比對它們底下直接一層、沒有自己識別的區塊，並補上原地的改變：
+     除了標了 data-motion-key 的東西，也比對它們底下直接一層、沒有自己識別的區塊，並處理原地的改變，全部流程畫面的動態才一致：
      - 同一個東西重繪後高度變了，沿彈簧從原本的高度變成新的高度，下面的內容跟著平順移動；
-     - 同一個東西重繪後自己的字變了，或同一個位置舊的換成新的（例如頁籤換窗格），在原處交叉淡化，不再一閃而過；
+     - 同一個東西重繪後自己的字變了，或同一個位置舊的換成新的（例如頁籤換窗格），在原處交叉淡化，不會一閃而過；
      - 裡面還有東西在長出來、收起來或改變時，交給裡面的處理，外層的高度跟著自然改變；
        裡面沒有接住的改變（例如表格換了列數），由內往外補上外層的高度改變。
      - 內容差很多的整塊（高過 THROUGH_HEIGHT，或頁籤換窗格的 swap）先淡掉舊的、再淡入新的，兩種內容不疊在一起。
@@ -3162,7 +3157,7 @@
 
   var Motion = (function () {
     // 舊複本只留下樣式用得到的 data- 屬性，其餘拿掉，程式與測試才找不到它。樣式要用的識別優先掛在 class 上；
-    // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗，免得複本露出原形（裁定 2026-10-15-11）。
+    // app.css 用到這裡沒留的屬性時，架構測試 DesignIntegrationFrontendTests 會失敗，免得複本露出原形。
     var KEEP_ON_LEAVING = /^data-(?:motion$|motion-key$|common-card$|step-index$|child-|period-end-days$)/;
     var DROP_ON_LEAVING = ['id', 'name', 'for', 'form', 'aria-controls', 'aria-describedby', 'aria-labelledby',
       'aria-owns', 'aria-activedescendant', 'aria-live', 'tabindex'];
@@ -3172,7 +3167,7 @@
     var UNSIZED = /^(?:TABLE|THEAD|TBODY|TFOOT|TR|TD|TH|COL|COLGROUP|CAPTION|SCRIPT|STYLE|TEMPLATE)$/;
     var MOVED = '::moved';  // 換了順序的東西，舊位置那一份的識別
     // 原地交叉淡化：新的疊在舊的上面很快淡入，舊的在底下晚一點才淡掉。沒變的字兩份疊在一起，看起來一直是實的，
-    // 只有變了的地方看得到舊的淡掉、新的淡入。淡入淡出原本太慢（裁定 2026-10-13-10），所以全部在 0.15 秒左右完成。
+    // 只有變了的地方看得到舊的淡掉、新的淡入。淡入淡出不能太慢，所以全部在 0.15 秒左右完成。
     var FADE_IN = 100;
     var FADE_OUT_DELAY = 30;
     var FADE_OUT = 130;
@@ -3483,7 +3478,7 @@
 
     /* 重繪前打開的選單（共用的 .jet-menu，例如已儲存情境的「操作」）：重繪後同一個位置是收起的新選單，舊的會一下子不見，
        例如按下「移除」後整步重繪。所以記下它們，重繪後在原處放一份很快淡出、稍微縮回按鈕，
-       和直接關閉選單時 app.css 的淡出一樣（裁定 2026-10-13-11）。 */
+       和直接關閉選單時 app.css 的淡出一樣。 */
     var OPEN_MENU_TOGGLES = '.jet-menu__toggle[aria-expanded="true"]';
     var MENUS = '.jet-menu';
     var MENU_FADE = 120;
@@ -3555,9 +3550,8 @@
     }
 
     /* ---- 移除前的晃動 -------------------------------------------------------------------------------
-       清除條件時條件組晃了一下，使用者覺得「類似蘋果那樣輕微快速地晃動來作為移除元素的設計」不錯（裁定 2026-10-13-13），
-       要整個條件組合、刪除案件與其他流程裡移除或清除東西時都這樣，讓使用者知道這個東西要被移除了。
-       （那一下其實是清除時白紙的左右內距被撐開又收回，app.css 已經改掉；現在的晃動是刻意做的。）
+       整個條件組合、刪除案件與其他流程裡移除或清除東西時，要拿掉的東西先輕微快速地晃一下，
+       讓使用者知道這個東西要被移除了。
        按下移除、清除或刪除的一方先用 removing 說明要拿掉的是哪些東西：keys 是那些東西自己的 data-motion-key，
        within 是外層的 data-motion-key，表示裡面消失的東西都算，only 可以再限定是哪一種（CSS 選擇器）；
        等確認或等 JetApi 回來才重繪的，用 wait 說最多等多久。接下來比對時，符合的舊元素先在原位左右晃一下，
@@ -3639,7 +3633,7 @@
         neighbor = lookup(item.siblings[previous]);
         if (neighbor && neighbor.parentElement && listOf(neighbor.parentElement) === item.list) {
           // 前面的鄰居自己是新出現的（例如「編輯」情境時兩個窗格交換顯示）：同一個空隙裡舊的一樣放在新的前面，
-          // 由 play 讓兩個在原處交叉淡化，和按頁籤換窗格時一樣，同一個改變用同一種動態（裁定 2026-10-13-11）。
+          // 由 play 讓兩個在原處交叉淡化，和按頁籤換窗格時一樣，同一個改變用同一種動態。
           if (entering(neighbor)) {
             while (neighbor.previousElementSibling && entering(neighbor.previousElementSibling)) { neighbor = neighbor.previousElementSibling; }
             neighbor.parentElement.insertBefore(ghost, neighbor);
@@ -3902,7 +3896,7 @@
       return depth;
     }
 
-    // 原地改變：切換時要流暢、不要一閃而過（裁定 2026-10-12-02）：
+    // 原地改變：切換時要流暢、不要一閃而過：
     // - options.height 為 true 時，element 的高度沿彈簧從 options.from 變成 options.to，下面的內容跟著平順移動；
     // - 有 options.ghost（舊的那一份）時，舊的疊在 element 底下晚一點淡掉，element 很快淡入，也就是原地交叉淡化；
     //   options.through 為 true 時改成先後淡換（見 THROUGH_OUT）。改高度時兩份跟著同樣的高度。
@@ -4023,8 +4017,8 @@
         }
         if (!before.visible || before.across) { return; }
         // 舊元素還在頁面上、只是被藏起來（例如高風險條件彙總第一次載入時藏起沒選的頁籤，藏起來後追蹤的編號也會跟著變）：
-        // 收起來的要是它的複本。下面放回舊元素時會拿掉識別，用元素本身會讓還在用的元素再也找不到
-        // （2026-10-14 曾因此切不到傳票那一頁）。
+        // 收起來的要是它的複本。下面放回舊元素時會拿掉識別，用元素本身會讓還在用的元素再也找不到，
+        // 例如切不到傳票那一頁。
         if (!before.leaving && before.element.isConnected) {
           leaving.push(Object.assign({}, before, { element: before.element.cloneNode(true) }));
           return;
@@ -4252,7 +4246,7 @@
       // 最後是只換字的：原地交叉淡化，高度不變。
       changing.forEach(function (item) { if (item.fade && !item.started) { start(item, false); } });
 
-      // 只淡入的窗格（data-motion="fade"）消失時，在原來的位置淡掉，不再一下子不見；它不佔位置，旁邊的東西照常移動。
+      // 只淡入的窗格（data-motion="fade"）消失時，在原來的位置淡掉，不會一下子不見；它不佔位置，旁邊的東西照常移動。
       fadingOut.forEach(function (item) {
         var ghost = item.element;
         var parent = ghost.parentElement;
@@ -4369,7 +4363,7 @@
       retire(element);
       element.style.flex = '0 0 100%';
       // 排在那一列所有東西之後：列裡的展開箭頭用 order 排到最右邊，收回的內容排在它前面時，箭頭會被擠到下一行，
-      // 收完拿掉的那一格，下面各列一次往上跳，切換尾段因此抖動（裁定 2026-10-15-10）。
+      // 收完拿掉的那一格，下面各列一次往上跳，切換尾段因此抖動。
       var last = 0;
       Array.prototype.forEach.call(holder.children, function (child) {
         if (child !== element) { last = Math.max(last, parseFloat(global.getComputedStyle(child).order) || 0); }
@@ -4434,7 +4428,7 @@
       return found;
     }
 
-    // 頁籤底下原地換窗格，切換時不閃（裁定 2026-10-12-02）：新的窗格從舊窗格的高度平順變成自己的高度，
+    // 頁籤底下原地換窗格，切換時不閃：新的窗格從舊窗格的高度平順變成自己的高度，
     // 舊的那一份疊在底下先淡掉，新的接著淡入，兩份內容不會同時疊在一起；下面的內容跟著平順移動。
     // fill 在新的窗格顯示之後、量高度之前補上內容。
     // 兩個窗格要在同一個容器裡；不能播動態時直接換。
@@ -4511,30 +4505,28 @@
   global.JetMotion = Motion;
 
   /* ---- 加入的東西從哪裡來、到了哪裡（純呈現） ---------------------------------------------------
-     動態要多參考 Apple 的設計思路（裁定 2026-10-11-14），所以第五步按常用篩選條件的卡片、欄位選單裡的常用查法或「加入」時，
-     看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。原本的做法像廉價的套版（裁定 2026-10-12-02）：
-     一塊白板從卡片的大小一路長成整列的大小、字在半路淡掉、目的地先以霧狀出現，整個過程很突兀。所以改成拿起、帶過去、放下：
+     動態要多參考 Apple 的設計思路，所以第五步按常用篩選條件的卡片、欄位選單裡的常用查法或「加入」時，
+     看得到條件從按下的地方移進目前的條件組（Apple 的空間一致性）。做法是拿起、帶過去、放下：
      - 按下時，一片小小的玻璃標籤在按下的名稱上浮起來，上面寫的就是新的一列的標題；
      - 標籤大小不變，沿直線移到新的一列的標題上，用上面的 SPRINGS.carry：玻璃的彈簧從靜止起步，起步俐落，約 0.24 秒到標題上
-       （原本先拱起再落下的弧線像在跳，所以不再走弧線，裁定 2026-10-13-12）；
+       （不走先拱起再落下的弧線，那樣像在跳）；
        目的地同時由 JetMotion 讓出空間，下面的內容跟著平順地讓開，不會一次跳開；
      - 到了標題上，標籤的字剛好疊在新的一列的標題上一起淡掉，玻璃也淡掉，像標籤被放進去。
      新的一列先向 JetMotion 預約：它照一般的方式長出來、內容淡入，只有標題空著，等標籤放下才出現。
      新的一列在中欄看得到的範圍外時（例如第二條以後的條件常在畫面下方），中欄跟著標籤用同一條曲線平順捲到新的一列，
-     標籤飛向捲完之後的位置，兩者同時到；原本由移焦點造成的瞬間捲動因此不再發生（見 filter-step-view.js 的 revealAddedRule）。
+     標籤飛向捲完之後的位置，兩者同時到；移焦點不會造成瞬間捲動（見 filter-step-view.js 的 revealAddedRule）。
      飛行途中使用者自己捲動時，標籤改跟著新的一列走，不再搶捲軸。減少動態或 Windows 高對比佈景時不飛，也不捲。
      這裡只畫一個不接收滑鼠的標籤與帶著中欄捲動，不改 state、不送 action，也不移動任何元件的位置。 */
   var ARRIVAL_SOURCES = [
-    // 常用篩選條件 2026-11-05 改成和預篩選分頁同一種清單列（裁定 2026-11-05-08）：標籤從同一列的名稱上浮起來。
+    // 常用篩選條件和預篩選分頁是同一種清單列：標籤從同一列的名稱上浮起來。
     { trigger: '.filter-entry [data-common-card]', within: '.filter-check', label: '.filter-check__label' },
-    // 欄位「加入」打開的選單裡的每一項，一般條件與常用查法都一樣（裁定 2026-11-03-37），標籤從按下的那一項上浮起來。
+    // 欄位「加入」打開的選單裡的每一項，一般條件與常用查法都一樣，標籤從按下的那一項上浮起來。
     // 這裡在點擊的捕捉階段就量位置，那時選單還開著；選單隨後由共用選單關上。
     // 這一條要排在下一條前面：選單裡的一般條件也帶著欄位識別，排在後面會改從列的名稱上浮起來，和常用查法不一致。
     { trigger: '.filter-entry .filter-field__shortcuts > .jet-menu__item' },
-    // 欄位條件分頁一列一個欄位，按鈕上的字是「加入」（裁定 2026-11-03-06）：標籤從同一列的欄位名稱上浮起來，不從「加入」上浮起來。
-    // 原本欄位按鈕上的字就是欄位名稱，標籤直接從按鈕上浮起來。
+    // 欄位條件分頁一列一個欄位，按鈕上的字是「加入」：標籤從同一列的欄位名稱上浮起來，不從「加入」上浮起來。
     { trigger: '.filter-entry [data-add-field]', within: '.filter-field', label: '.filter-field__name' },
-    // 2026-10-16 加入的「預篩選」分頁是名稱加「加入」的清單列，按「加入」時同樣看得到標籤移進條件組。
+    // 「預篩選」分頁是名稱加「加入」的清單列，按「加入」時同樣看得到標籤移進條件組。
     { trigger: '.filter-entry [data-add-prescreen]', within: '.filter-check', label: '.filter-check__label' }
   ];
   var ARRIVAL_ROWS = '.filter-workspace .scenario-flat__list > .rule-row';
@@ -4733,8 +4725,7 @@
           return;
         }
         // 標籤飛向捲完之後新的一列標題的位置，所以一路平順，不會被捲動帶著上下晃。
-        // 裁定 2026-10-13-12：標籤「以跳躍的形式」移到右側、看起來有點 goofy。原本的弧線先往上拱再落下，半路又放大一點。
-        // 所以改成沿直線滑過去，大小不變，只靠彈簧的起步與放慢表現移動。
+        // 標籤沿直線滑過去，大小不變，只靠彈簧的起步與放慢表現移動；先往上拱再落下的弧線看起來像在跳。
         var to = { x: point.x - offset.x, y: point.y - offset.y - remaining };
         var x = from.x + (to.x - from.x) * eased;
         var y = from.y + (to.y - from.y) * eased;
@@ -4783,7 +4774,7 @@
   }
 
   /* ---- 使用者要拿掉的東西（純呈現） ---------------------------------------------------
-     移除或清除東西時，要拿掉的東西先輕微快速地晃一下再收起來（裁定 2026-10-13-13）（見上面 JetMotion 的 removing）。
+     移除或清除東西時，要拿掉的東西先輕微快速地晃一下再收起來（見上面 JetMotion 的 removing）。
      移除鈕放在要拿掉的東西裡面時，在這裡記下：按下的那一刻找出按鈕外層的 scope，記下它的 data-motion-key；
      inside 為 true 表示拿掉的是 scope 裡面的東西（例如清除一組的條件），only 再限定是哪一種。
      按鈕不在要拿掉的東西裡面（例如再按一次常用篩選條件的卡片），或要先確認、等 JetApi 回來才重繪（例如刪除案件）時，
@@ -4909,7 +4900,7 @@
               if (!result.requested) {
                 Store.addMessage('目前的動作已完成，結果已保留；尚未開始的後續作業不會執行。', 'info');
               } else {
-                // 進度接進訊息時拿掉「工作底稿：」的冒號，免得一句出現兩個冒號（裁定 2026-10-14-01）。
+                // 進度接進訊息時拿掉「工作底稿：」的冒號，免得一句出現兩個冒號。
                 var snapshot = latest.busyDetail
                   ? '，當時進度：' + Ui.progressInMessage(latest.busyDetail)
                   : '';
@@ -4964,7 +4955,6 @@
     if (Ui.initDataPreview) { Ui.initDataPreview(); }
     if (Ui.initDevPanel) { Ui.initDevPanel(); }
     if (Ui.initDevLogPanel) { Ui.initDevLogPanel(); }
-    // 不再記「畫面已載入」（依裁定 2026-10-13-28 刪除這則訊息）。
 
     if (!ready) {
       bridgeProbeSettled = true;

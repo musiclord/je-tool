@@ -4,7 +4,7 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-/// <summary>三 provider 的 operation_log 共用同一組欄位、closed operation 與 append 語意。</summary>
+/// <summary>operation_log 的欄位、closed operation 與 append 語意。</summary>
 public sealed class ProjectOperationLogProviderTests
 {
     private static readonly DateTimeOffset FixedUtc =

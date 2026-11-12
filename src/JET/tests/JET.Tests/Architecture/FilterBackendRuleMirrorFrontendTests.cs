@@ -6,9 +6,6 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
-// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
-
 /// <summary>
 /// 前端為了就近提示，持有幾份後端規則的副本。這裡逐份比對副本與後端權威值，任何一邊改了另一邊沒跟上就失敗。
 /// 後端仍是權威；本檔只讀前端原始碼並用正則擷取，不執行 JavaScript。所有資料都是合成值。
@@ -30,8 +27,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             .ToArray();
 
         // 連順序一起比：「特定摘要」卡片照這份清單的順序帶入字詞（ui-core.js 的 SUSPICIOUS_KEYWORD_DEFAULTS.slice()），
-        // 審計員在畫面上看到的就是這個順序。原本核對的是舊式關鍵字條件串成輸入框的寫法，那個型別已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
-        // 第一次失敗：Focused 收據 20261030-082953351-8f6cfb9ca280470f879987a234d3f782。
+        // 審計員在畫面上看到的就是這個順序。
         Assert.Equal(SuspiciousKeywordDefaults.Defaults, frontend);
         Assert.Contains("values: SUSPICIOUS_KEYWORD_DEFAULTS.slice()", core, StringComparison.Ordinal);
     }
@@ -46,8 +42,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     // 尾數比對每組的位數與尾數連續 0 的位數，上限都是後端同一個常數，
-    // 前端兩處都引用 Ui.TAIL_DIGITS_MAX，不寫數字。舊式連續零尾數的輸入框連同型別一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
-    // 只剩尾數比對引用它。第一次失敗：Focused 收據 20261030-082953351-8f6cfb9ca280470f879987a234d3f782。
+    // 前端兩處都引用 Ui.TAIL_DIGITS_MAX，不寫數字。
     [Fact]
     public void TailDigitsMax_MatchesBackendTrailingZeroLimit()
     {
@@ -63,7 +58,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.DoesNotContain("max=\"" + TrailingZeroThreshold.MaxCustomDigits + "\"", filter, StringComparison.Ordinal);
     }
 
-    // 裁定 2026-10-19-14：第五步檢查句不用「型別」，寫出欄位目前的設定；後端的名稱要和第三步下拉選單的選項文字相同。
+    // 第五步檢查句不用「型別」，寫出欄位目前的設定；後端的名稱要和第三步下拉選單的選項文字相同。
     [Theory]
     [InlineData(RdeFieldValueTypeNames.Text)]
     [InlineData(RdeFieldValueTypeNames.Date)]
@@ -80,9 +75,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
 
     /// <summary>
     /// 文字值清單（舊式條件 textSet）每條的值數上限，前端副本必須等於後端 <c>FilterScenarioLimits.MaxTextSetValuesPerRule</c>。
-    /// 2026-10-14 原樣搬自 <c>FilterAstFrontendContractTests.TextSet_UsesLineDelimitedTextareaAndClosedModeOptions</c>
-    /// （收尾四項第一項第二、三波整併）。前端行為測試讀不到後端常數，只能在這裡比對原始碼；
-    /// 101 個值時預覽與儲存都擋下的行為，由 <c>tools/tests/frontend-journey-filter-saved.test.cjs</c> 核對。
+    /// 前端行為測試讀不到後端常數，只能在這裡比對原始碼；
+    /// 101 個值時預覽與儲存都擋下的行為，由前端測試核對。
     /// </summary>
     [Fact]
     public void TextSetMaxValues_MatchesBackendTextSetLimit()
@@ -114,19 +108,18 @@ public sealed class FilterBackendRuleMirrorFrontendTests
 
         Assert.Contains("最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同值，空行不列入。'", values, StringComparison.Ordinal);
         // 第九節 E 移除自製月曆，改在加入日期前擋下已滿清單，仍引用同一上限。
-        // 首次失敗：20261014-130014323-112f3ca2d352414ba9de606d2b6e0e09；100 筆與重複日期由 frontend-shared-controls.test.cjs 操作驗證。
+        // 100 筆與重複日期由 frontend-shared-controls.test.cjs 操作驗證。
         Assert.Contains("!duplicate && selected.length >= Ui.TYPED_SET_MAX_VALUES", values, StringComparison.Ordinal);
         Assert.Contains("'最多選取 ' + Ui.TYPED_SET_MAX_VALUES + ' 個不同日期，請先移除不需要的日期。'", values, StringComparison.Ordinal);
         // Counts the exact distinct strings that wire() sends, not a second uppercase-derived set.
-        // First failure: 20261004-084834579-2436b90e840c4c53bec70aa81bf5a84b.
         // The Node behavior case also fixes the 100/101 mixed-case wire counts; keep this source-to-limit guard.
         var problem = ExtractFunctionBody(values, "problem(rule, state)");
         Assert.Contains("var value = wire(rule, state), mode = carrier(rule.operator, selected.type);", problem, StringComparison.Ordinal);
         Assert.Contains("var inputs = mode === 'set' ? value.values", problem, StringComparison.Ordinal);
-        // 尾數與一般清單共用超限指引，計數仍用 wire 的值；首次失敗：20261014-133317716-754ea282ab3842268400b7daca79b593。
+        // 尾數與一般清單共用超限指引，計數仍用 wire 的值；
         Assert.Contains("count > Ui.TYPED_SET_MAX_VALUES", problem, StringComparison.Ordinal);
         Assert.DoesNotContain("toUpperCase", problem, StringComparison.Ordinal);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Contains("'請填 1 到 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值'", values, StringComparison.Ordinal);
     }
 
@@ -139,13 +132,13 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Equal(FilterScenarioLimits.MaxSavedScenarios, ReadIntVar(core, "FILTER_MAX_SAVED_SCENARIOS"));
         Assert.Contains("FILTER_MAX_SAVED_SCENARIOS: FILTER_MAX_SAVED_SCENARIOS", core, StringComparison.Ordinal);
         Assert.Contains("scenarios.length > Ui.FILTER_MAX_SAVED_SCENARIOS", filter, StringComparison.Ordinal);
-        // 情境名稱上限：前端輸入框鏡像後端的三種資料庫共用上限（裁定 2026-10-19-26：三種共用 400 字上限）。
+        // 情境名稱上限：前端輸入框鏡像後端的 400 字上限。
         Assert.Equal(FilterScenarioLimits.MaxNameLength, ReadIntVar(core, "FILTER_MAX_SCENARIO_NAME_LENGTH"));
         Assert.Contains("FILTER_MAX_SCENARIO_NAME_LENGTH: FILTER_MAX_SCENARIO_NAME_LENGTH", core, StringComparison.Ordinal);
         Assert.Contains("data-bind=\"scenario-name\" maxlength=\"' + Ui.FILTER_MAX_SCENARIO_NAME_LENGTH + '\"", filter, StringComparison.Ordinal);
-        // 用語統一以「已儲存」為準（裁定 2026-10-02-01），前後端訊息一起改成「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 用語以「已儲存」為準，前後端訊息都寫「儲存」。
         Assert.Contains(
-            // 這句的用字依裁定 2026-10-13-28（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+            // 這句的用字已定案。
             "'最多可儲存 ' + Ui.FILTER_MAX_SAVED_SCENARIOS + ' 個篩選情境，請先移除不需要的情境。'",
             filter,
             StringComparison.Ordinal);
@@ -162,7 +155,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     /// 第五步各入口的停用原因讀 ui-core.js 的規則需求表，這張表逐項鏡像後端
     /// <see cref="JetRuleRequirements"/>，順序也相同，因為原因依表列的順序寫。預篩選比對每一個可篩選的鍵；條件型別比對每一種型別，
     /// 需要條件自己所選 GL 欄位的型別另列一份清單；GL 語意欄位的清單比對欄位目錄。
-    /// 第一次失敗：Focused 收據 20261023-043250303-106f37c3021445109eac5f58b7560bbc（前端還沒有這張表）。
+    /// （前端還沒有這張表）。
     /// </summary>
     [Fact]
     public void RulePrerequisiteTables_MirrorTheBackendRequirementTable()
@@ -209,7 +202,6 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     /// 停用時的文字由後端的原因句決定，前端不另造句。不帶分類名稱的句子逐字出現在前端；
     /// 帶分類名稱的句子用合成名稱算出後端的句子，名稱前後的文字也逐字出現在前端。GL 欄位的句子加上前端那句下一步再加句號，
     /// 就是第四步同一條規則的句子；欄位名稱和第三步欄位配對的名稱相同。
-    /// 第一次失敗：同上收據。
     /// </summary>
     [Fact]
     public void RulePrerequisiteReasons_AreTheBackendSentences()
@@ -229,8 +221,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
                 StringComparison.Ordinal);
         }
 
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）：
-        // 前端和後端同一句，分類名稱取第四步分類設定裡目前的名稱。原本由 AssertFrontendPrescreenEligibilityExpression 核對 filter-step.js。
+        // 前端和後端同一句，分類名稱取第四步分類設定裡目前的名稱。
         Assert.Contains("function label(role) { return accountCategoryLabel(state, 'builtin.' + role); }", reasons, StringComparison.Ordinal);
 
         char[] sentinels = ['\u0001', '\u0002', '\u0003', '\u0004'];
@@ -260,9 +251,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     /// <summary>
     /// 第五步依 ui-core.js 的規則需求表與 rulePrerequisiteMet 停用條件；後端驗證器是權威。逐一把每個條件型別交給
     /// 後端驗證器，在每一種科目配對狀態下比對「前端可用」與「後端不因科目配對擋下」是否一致。
-    /// 型別上的 accountMappingRequirement 與 filter-step.js 的 availableRuleTypes 已拿掉，
-    /// 前端可用改由需求表算；比對的型別與科目配對狀態不變。
-    /// 第一次失敗：Focused 收據 20261023-045253734-62b9cd9c0604461dbc4f70ec63236833（filter-step.js 找不到 availableRuleTypes）。
+    /// 前端可用由需求表算。
     /// </summary>
     [Fact]
     public void AccountMappingRequirements_AgreeWithBackendValidatorForEveryRuleType()
@@ -293,7 +282,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
 
     /// <summary>
     /// 需求表上要科目分類的型別，在表上列的分類剛好都有時，一條完整合成規則要能通過後端驗證。
-    /// 同一階段把最低需求改由需求表上的分類算，型別不變。第一次失敗：同上收據（型別上已經沒有 accountMappingRequirement）。
+    /// 最低需求由需求表上的分類算。
     /// </summary>
     [Theory]
     [InlineData("accountSide")]
@@ -318,8 +307,6 @@ public sealed class FilterBackendRuleMirrorFrontendTests
 
     /// <summary>
     /// 預篩選鍵的科目配對需求：前端依同一張需求表停用，每個鍵在每一種科目配對狀態下和後端驗證器比對。
-    /// 同一階段拿掉 PRESCREEN_KEY_OPTIONS 的 requiresAccountMapping 與 prescreenRequirementNote 裡未預期借貸組合的特例，
-    /// 改由需求表算；比對的鍵與科目配對狀態不變。第一次失敗：同上收據（prescreenRequirementNote 裡找不到 requiresAccountMapping 的判斷）。
     /// </summary>
     [Fact]
     public void PrescreenKeyAccountMappingRequirements_AgreeWithBackendValidator()
@@ -336,10 +323,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             var rule = new Dictionary<string, object?> { ["type"] = "prescreen", ["prescreenKey"] = key };
             foreach (var facts in MappingFactStates)
             {
-                // The fix changed the actual frontend helper, not this metadata flag. The old test reproduced
-                // only requiresAccountMapping and therefore missed the new two-summary-flag requirement.
-                // First failures: 20261004-084834579-2436b90e840c4c53bec70aa81bf5a84b,
-                // 20261004-085118314-9c43f4a2a69c4f718bab4f9f3d6aaa11. Keep every snapshot and every key.
+                // This compares the actual frontend helper, not a metadata flag: comparing a flag alone
+                // would miss the two-summary-flag requirement. Keep every snapshot and every key.
                 if (FrontendMet(prerequisites, facts) == BackendBlocksBecauseOfMapping(rule, facts))
                 {
                     mismatches.Add($"{key}（科目配對狀態：{facts}）");
@@ -353,11 +338,8 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     /// <summary>
     /// 預篩選鍵與條件型別需要的 GL 欄位：前端需求表和後端驗證器一致。每個鍵、每個型別都逐一拿掉一個 GL 欄位，
     /// 看後端是否因此擋下；條件自己選欄位的型別，每個 GL 欄位各比對一次。
-    /// 2026-10-16 複審找到第五步「預篩選」分頁在沒有傳票建立人員時沒有停用「編製分錄較少的人員」與「非授權編製人員」，
-    /// 按下後一預覽就被後端擋下，所以原本這裡逐一核對每個預篩選鍵的傳票建立人員需求（PrescreenKeyCreatedByRequirements_AgreeWithBackendValidator）。
-    /// 拿掉 requiresCreatedBy 後，第五步不能用任何 GL 沒有配對的欄位（裁定 2026-10-22-05），
-    /// 這裡改成核對每個 GL 欄位，條件型別也一起核對。
-    /// 第一次失敗：同上收據（prescreenRequirementNote 裡找不到 requiresCreatedBy 的判斷）。
+    /// 第五步不能用任何 GL 沒有配對的欄位，否則按下後一預覽就被後端擋下，
+    /// 所以這裡核對每個 GL 欄位，條件型別也一起核對。
     /// </summary>
     [Fact]
     public void GlFieldRequirements_AgreeWithBackendValidator()
@@ -422,9 +404,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         Assert.Contains("case 'anyAccountCategory': return !!(mapping && mapping.hasAnyCategory);", met, StringComparison.Ordinal);
         Assert.Contains("case 'revenueCategory': return !!(mapping && mapping.hasRevenue);", met, StringComparison.Ordinal);
         Assert.Contains("case 'counterpartCategory': return !!(mapping && mapping.hasCounterpart);", met, StringComparison.Ordinal);
-        // 每一種前置條件都有自己的判斷：後端新增種類時這裡失敗，前端不會把它當成已成立。原本由
-        // FilterTemplatesFrontendTests.AssertClosedRequirements 核對範例的 requires 只用畫面認得的幾種
-        // （第一次失敗：Focused 收據 20261023-045313479-2a121804a0e04b518609f80bf108ad65）。
+        // 每一種前置條件都有自己的判斷：後端新增種類時這裡失敗，前端不會把它當成已成立。
         Assert.Equal(
             Enum.GetValues<JetRulePrerequisiteKind>()
                 .Where(kind => kind != JetRulePrerequisiteKind.GlField)
@@ -438,7 +418,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
     }
 
     // 預篩選分頁與預篩選條件卡都依 prescreenRequirementNote 停用；它把鍵交給同一張需求表，沒有任何鍵的特例。
-    // 原本這裡另外鎖住裁定 2026-10-14-01 的那一句，現在句子和分類名稱的來源由 RulePrerequisiteReasons_AreTheBackendSentences 核對。
+    // 句子和分類名稱的來源由 RulePrerequisiteReasons_AreTheBackendSentences 核對。
     private static void AssertFrontendPrescreenEligibilityExpression(string filter)
     {
         var available = ExtractFunctionBody(filter, "availablePrescreenKeys()");
@@ -520,8 +500,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
             HasRevenueCategory: facts.HasRevenue,
             HasCounterpartCategory: facts.HasCounterpart)
         {
-            // 四個欄位旗標拿掉後，改由規則需求表讀可用欄位清單。
-            // 第一次失敗：收據 20261023-031856475-04f811a69e3346428de91091f0d02655（編譯失敗）。
+            // 由規則需求表讀可用欄位清單。
             AvailableGlFields = availableGlFields
         };
         return FilterScenarioValidator.Validate(spec, context);
@@ -532,7 +511,7 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         "accountSide" => new()
         {
             ["type"] = type,
-            // 科目分類條件只判斷分類；首次失敗：20261014-135448833-0915d3416a0e48208774011f8499f528。
+            // 科目分類條件只判斷分類；
             ["categoryMode"] = "is",
             ["categorySelection"] = "node",
             ["categoryIds"] = new[] { AccountCategoryBuiltIns.CashId }
@@ -577,7 +556,6 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         .ToArray();
 
     // 一條規則只有一個定義，前端只留一份 PRESCREEN_RULES，每條規則的 prerequisites 寫在同一筆。
-    // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
     private static Dictionary<string, string[]> ReadPrescreenRuleTable(string source)
     {
         var match = Regex.Match(

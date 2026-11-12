@@ -77,8 +77,8 @@ public sealed class ImportFailureWorkflowTests
             if (trigger == "cell")
             {
                 Assert.Contains("第 6000 列、第 1 欄", error.Message);
-                // 裁定 2026-10-19-14：「型別」改用具體說法。首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；
-                // 仍檢查訊息指出儲存格位置與審計員能做的事。
+                // 訊息不寫「型別」，改用具體說法；
+                // 並檢查訊息指出儲存格位置與審計員能做的事。
                 Assert.Contains("請在 Excel 確認該儲存格的格式與數值後重試", error.Message);
                 Assert.DoesNotContain("型別", error.Message);
             }
@@ -94,8 +94,7 @@ public sealed class ImportFailureWorkflowTests
             var log = string.Join('\n', lines);
             Assert.DoesNotContain("PRIVATE_", log);
             Assert.DoesNotContain(host.ProjectsRoot, log);
-            // 原本取消也記成 action.error。2026-10-21 補足支援日誌時把取消另記成 action.cancelled，不佔失敗的保留名額；
-            // 匯入階段、原因與回復結果的斷言不變。第一次失敗收據：20261021-102227415-b178106f4d7f43cb902a4a7c246f3c6d。
+            // 取消另記成 action.cancelled，不佔失敗的保留名額；匯入階段、原因與回復結果照樣核對。
             var expectedEvent = trigger == "cancel" ? "action.cancelled" : "action.error";
             var entryLog = lines.Select(line => JsonDocument.Parse(line).RootElement.Clone())
                 .Single(entry => entry.GetProperty("eventName").GetString() == expectedEvent);

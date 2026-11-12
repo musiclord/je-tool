@@ -46,8 +46,7 @@ internal static class AccountMappingDifferenceQuery
         }
         await using var command = connection.CreateCommand();
         // 第一頁的總數用同一語句的純量子查詢，與 CountAsync 同寫法，另計一次科目母體；之後的頁不再計算。
-        // SQLite 在同一語句讀同一快照。不用 COUNT(*) OVER ()：DuckDB 1.5.3 在這種分組加 NOT EXISTS 的形狀上
-        // 多執行緒時偶發內部錯誤，並讓同一資料庫的其他連線一起失效；日後恢復 DuckDB 時仍要避開。
+        // SQLite 在同一語句讀同一快照。
         command.CommandText = Cte(prefix, dialect) + $" SELECT account_number, account_name, "
             + (request.IncludeTotalCount ? $"(SELECT COUNT(*) FROM {table})" : "NULL") + $" AS total_count FROM {table} "
             + (hasCursor ? "WHERE account_number > @cursor " : "")

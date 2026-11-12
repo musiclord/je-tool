@@ -3,15 +3,15 @@ using System.Text.Json;
 namespace JET.Application;
 
 /// <summary>
-/// 已存條件的格式只在這裡決定（裁定 2026-10-15-01：「後端儲存時只保留該條件類型用得到的欄位，
-/// 存檔格式只在一個地方決定；已存的舊情境在下次儲存時整理。前端送出的格式不變。」）。
+/// 已存條件的格式只在這裡決定：後端儲存時只保留該條件類型用得到的欄位，已存的舊情境在下次儲存時整理，
+/// 前端送出的格式不變。
 /// 儲存一個情境時，每一條條件只保留 type、join 和下表列出的屬性；情境層與條件組層原樣保留。
 /// </summary>
 internal static class FilterConditionWireFields
 {
     /// <summary>
-    /// 每種 wire 條件類型除了 type、join 之外用得到的屬性。來源是 2026-10-15 逐處讀過的解析、驗證、編譯、讀回文字、
-    /// 底稿說明與前端讀取位置；FilterConditionWireFieldsTests 核對整理前後這些結果完全相同，並核對表上的類型和解析器一一對應。
+    /// 每種 wire 條件類型除了 type、join 之外用得到的屬性。來源是解析、驗證、編譯、讀回文字、
+    /// 底稿說明與前端讀取的位置；FilterConditionWireFieldsTests 核對整理前後這些結果完全相同，並核對表上的類型和解析器一一對應。
     /// </summary>
     internal static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> UsedByType =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)

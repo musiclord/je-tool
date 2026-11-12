@@ -48,9 +48,8 @@ public sealed class ReportRevisionStateTests
         Assert.InRange(new FileInfo(path).Length, 1, 10_000_000);
         var bytes = File.ReadAllBytes(path);
         await host.DispatchAsync("import.holiday", """{"dates":["2025-06-01"]}""");
-        // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改會清掉已存情境，不再有舊版本可以惰性重算。
-        // 改成驗證情境清掉、重新儲存同一情境後，舊報告仍標成先前版本且檔案不被改寫。
-        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：行事曆修改會清掉已存情境，沒有舊版本可以惰性重算。
+        // 這裡驗證情境清掉、重新儲存同一情境後，舊報告仍標成先前版本且檔案不被改寫。
         var cleared = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = prepared.Id }));
         Assert.Empty(cleared.GetProperty("filterScenarios").EnumerateArray());
         Assert.False(cleared.GetProperty("staleState").GetProperty("filter").GetBoolean());
@@ -74,8 +73,8 @@ public sealed class ReportRevisionStateTests
         { validationResultId = prepared.ValidationResultId, revision = prepared.Revision }));
         await host.DispatchAsync("import.holiday", """{"dates":["2025-06-01"]}""");
         var prescreen = await host.DispatchAsync("prescreen.run");
-        // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改清掉已存情境，舊版本不能再惰性重算；
-        // 改為重新儲存同一情境，再用新版本匯出。第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：行事曆修改清掉已存情境，舊版本不能再惰性重算；
+        // 所以重新儲存同一情境，再用新版本匯出。
         var resaved = await host.DispatchAsync("filter.commit", """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]}]}""");
         var revision = resaved.GetProperty("resultRef").GetProperty("revision").GetString();
         var response = await host.DispatchAsync(action, JsonSerializer.Serialize(new
@@ -119,7 +118,7 @@ public sealed class ReportRevisionStateTests
             return await BuildPreparedAsync(host, provider);
         }
 
-        var copied = await CaseTemplates.CopyIntoAsync(host, $"batch9-artifact-state:{provider}", async templateHost =>
+        var copied = await CaseTemplates.CopyIntoAsync(host, $"artifact-state:{provider}", async templateHost =>
         {
             var prepared = await BuildPreparedAsync(templateHost, provider);
             return (prepared.Id, prepared);

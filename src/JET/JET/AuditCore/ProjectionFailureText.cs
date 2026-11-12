@@ -21,7 +21,7 @@ internal static class ProjectionFailureText
     {
         ArgumentNullException.ThrowIfNull(projection);
         var errors = projection.Errors;
-        // 用字依裁定 2026-10-13-28：開頭一句，清單只列一部分時再接一句；不再寫「以下依前 k 列整理」。
+        // 開頭一句，清單只列一部分時再接一句；不寫「以下依前 k 列整理」。
         var partial = projection.ErrorGroups is null
             ? projection.TotalErrorCount > errors.Count && errors.Count > 0
             : projection.ErrorGroups.Any(group => group.OmittedValueRowCount > 0

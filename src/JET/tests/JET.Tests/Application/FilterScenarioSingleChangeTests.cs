@@ -8,13 +8,13 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第五步篩選情境一次只存或刪一個（裁定 2026-10-13-24）。
-/// 開案時有情境不能套用目前規則，審計員仍要能一個一個改或刪：其他情境照資料庫原樣保留，不再整批重新檢查；
-/// 錯誤只會屬於正在編輯的情境；全部改好或刪掉之前，高風險條件彙總、報告與第六步照樣鎖住。SQLite 與 DuckDB 都要成立。
+/// 第五步篩選情境一次只存或刪一個。
+/// 開案時有情境不能套用目前規則，審計員仍要能一個一個改或刪：其他情境照資料庫原樣保留，不整批重新檢查；
+/// 錯誤只會屬於正在編輯的情境；全部改好或刪掉之前，高風險條件彙總、報告與第六步照樣鎖住。
 /// </summary>
 /// <remarks>
 /// 每個操作都透過「照畫面送法」的輔助方法送出。輔助方法記住畫面上的已存清單（開案與每次回應的 <c>scenarios</c>），
-/// 照畫面的送法組請求，所以第一次失敗重現的是審計員在畫面上遇到的錯誤，而不是「動作不存在」。
+/// 照畫面的送法組請求，所以測試失敗時重現的是審計員在畫面上遇到的錯誤，而不是「動作不存在」。
 /// </remarks>
 public sealed class FilterScenarioSingleChangeTests
 {
@@ -23,7 +23,7 @@ public sealed class FilterScenarioSingleChangeTests
 
     private sealed record StoredScenario(int Position, string Name, string Rationale, string DefinitionJson, string SavedUtc);
 
-    // ── 開案也逐一檢查（裁定 2026-10-13-25）：開案與儲存用同一套檢查 ────────────────
+    // ── 開案也逐一檢查：開案與儲存用同一套檢查 ────────────────
 
     [Theory]
     [InlineData("sqlite")]
@@ -193,8 +193,8 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal(2, check.GetProperty("recalculatedCount").GetInt32());
         Assert.Equal(2, response.GetProperty("position").GetInt32());
         var stored = await ReadScenariosAsync(host, projectId, provider);
-        // 2026-10-31 起 revision 依順序把每個情境的「情境編號@保存時間」用分號接起來；原本斷言 revision 就是保存時間，
-        // 第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。情境由 filter.commit 建立，編號就是位置。
+        // revision 依順序把每個情境的「情境編號@保存時間」用分號接起來。
+        // 情境由 filter.commit 建立，編號就是位置。
         Assert.Equal(
             string.Join(";", stored.Select(row => row.Position + "@" + row.SavedUtc)),
             response.GetProperty("resultRef").GetProperty("revision").GetString());
@@ -477,7 +477,6 @@ public sealed class FilterScenarioSingleChangeTests
         { "sqlite", "save", 2, "不存在的名稱" },
         { "sqlite", "remove", 2, "不存在的名稱" },
         { "sqlite", "save", 9, "情境甲" },
-        // 原本這一列由 DuckDB 測；只保留 SQLite 之後改由 SQLite 測，情境不變（裁定 2026-11-06-08）。
         { "sqlite", "remove", 9, "情境甲" }
     };
 
@@ -544,8 +543,7 @@ public sealed class FilterScenarioSingleChangeTests
             "UPDATE filter_scenario SET saved_utc = @savedUtc WHERE position = 2;",
             ("@savedUtc", "2026-01-01T00:00:00.0000000+00:00"));
         var loaded = await LoadAsync(host, context.ProjectId);
-        // 2026-10-31 起每個情境各自儲存，保存時間本來就不同，不再算成不一致，下一次儲存也只換掉存的那一個；
-        // 原斷言（開案為 inconsistent、儲存後全部換成同一個時間）第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // 每個情境各自儲存，保存時間本來就不同，不算成不一致，下一次儲存也只換掉存的那一個。
         Assert.Equal("current", loaded.GetProperty("filterScenarioCheck").GetProperty("status").GetString());
         var screen = new Screen();
         screen.Show(loaded.GetProperty("filterScenarios"));
@@ -560,8 +558,8 @@ public sealed class FilterScenarioSingleChangeTests
         Assert.Equal("2026-01-01T00:00:00.0000000+00:00", stored[1].SavedUtc);
     }
 
-    // 裁定 2026-11-01-04：條件篩選報告的編製日期寫按下匯出的那一天，不寫最近一次儲存情境的日期。
-    // 情境的儲存時間改到很久以前，報告仍要寫匯出當天的本機日期。這是新增的測試，改程式前失敗：Focused 收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
+    // 條件篩選報告的編製日期寫按下匯出的那一天，不寫最近一次儲存情境的日期。
+    // 情境的儲存時間改到很久以前，報告仍要寫匯出當天的本機日期。
     [Theory]
     [InlineData("sqlite")]
     public async Task CriteriaReport_PreparedDateIsTheExportDay_NotWhenTheScenariosWereSaved(string provider)
@@ -686,8 +684,7 @@ public sealed class FilterScenarioSingleChangeTests
             _ => await RecheckLikeTheScreenAsync(host, screen)
         };
 
-        // 裁定 2026-11-10-02 新增寫入後讀回失敗的 reportWarning，其他欄位與型別斷言保留。
-        // 首次失敗：Public 20261110-050631280-602113d22d8e439d8c0a12183dc8ff6d。
+        // 回應包含寫入後讀回失敗時的 reportWarning。
         Assert.Equal(
             ["filterScenarioCheck", "ok", "position", "reportWarning", "resultRef", "savedCount", "scenarios", "staleState"],
             response.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
@@ -900,9 +897,7 @@ public sealed class FilterScenarioSingleChangeTests
         response.GetProperty("scenarios").EnumerateArray().Select(item => item.GetProperty("name").GetString()!).ToArray();
 
     // ── 照畫面送法 ──────────────────────────────────────────────────────────────
-    // 第一版照修正前的畫面，把全部已存情境連同草稿整批送給 filter.commit；第一次失敗收據
-    // 20261013-102455912-39b9e3db64d248ed99336afed02d5731（10 個全部失敗，錯誤就是審計員看到的「第 1 組第 N 條：…」）。
-    // 修正後畫面只送正在處理的那一個情境，這裡跟著改送新動作；上面的斷言一字未改。
+    // 畫面只送正在處理的那一個情境，這裡照同樣的送法。
 
     private static Task<JsonElement> SaveLikeTheScreenAsync(
         HandlerTestHost host, Screen screen, int? position, JsonObject scenario) =>

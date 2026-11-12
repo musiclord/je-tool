@@ -151,7 +151,7 @@ public sealed record ImportBatchResult(
 /// LeadingRowsToSkip 在 Excel 以實際列號計算、文字檔以記錄計，都包含空白列；一般匯入的「欄名在第幾列」
 /// 由 handler 換算成這個值（欄名在第 N 列就是略過 N-1 列），Access 讀取器不使用它。
 /// FixedLeadingRows 表示略過列數是匯入版面固定的，不是審計員指定的欄名列，例如行事曆範本的欄名在第 2 列、
-/// 科目配對舊範本在第 3 列；這時找不到欄名照舊說檔案或工作表是空的，不叫審計員去改畫面上沒有的欄名列（2026-10-28 複審）。
+/// 科目配對舊範本在第 3 列；這時找不到欄名照舊說檔案或工作表是空的，不叫審計員去改畫面上沒有的欄名列。
 /// </summary>
 public sealed record TabularSourceRequest(
     string FilePath,
@@ -217,7 +217,7 @@ public interface ITabularFileReader
 
     /// <summary>
     /// 其他程式（例如 Excel）是否正開著這個檔案並可能寫入。讀檔照樣進行，讀到的是最後一次存檔的內容；
-    /// 匯入結果據此提醒尚未存檔的修改沒有匯入（裁定 2026-11-06-12）。判斷不了時回 false。
+    /// 匯入結果據此提醒尚未存檔的修改沒有匯入。判斷不了時回 false。
     /// </summary>
     bool IsOpenElsewhere(string filePath) => false;
 }
@@ -256,7 +256,7 @@ public interface IProjectDatabaseInitializer
     Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// 開啟既有案件時呼叫：資料庫一定要已經建好而且是現行版本，不建立新的資料庫（裁定 2026-11-05-72）。
+    /// 開啟既有案件時呼叫：資料庫一定要已經建好而且是現行版本，不建立新的資料庫。
     /// 沒有另外實作的資料庫照舊用 <see cref="EnsureCreatedAsync"/>。
     /// </summary>
     Task EnsureExistingAsync(string projectId, CancellationToken cancellationToken) =>

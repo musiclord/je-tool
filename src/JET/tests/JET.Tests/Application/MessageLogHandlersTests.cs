@@ -47,15 +47,14 @@ public sealed class MessageLogHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // 裁定 2026-10-13-15 把訊息分成三級，error 成為合法等級；不合法的例子改用不在清單裡的 warning。
-        // 第一次失敗收據 20261013-095524347-4880ee59c1384a9b8c9539922d680c35。
+        // 訊息分成三級，error 是合法等級；不合法的例子用不在清單裡的 warning。
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("log.append", """{ "level": "warning", "text": "x" }"""));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
     }
 
-    // 裁定 2026-10-13-15 把訊息分成三級：操作失敗寫成 error，存進案件後重開仍讀得回來。
+    // 訊息分成三級：操作失敗寫成 error，存進案件後重開仍讀得回來。
     [Fact]
     public async Task Append_ErrorLevel_IsSavedAndReadBack()
     {

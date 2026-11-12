@@ -6,10 +6,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 驗證結果與預篩選結果各存一張表（validation_result、prescreen_result）以後，存放的行為要和原本一張表、
-/// 以種類欄分開時相同：各自取最新一筆、同一時間以結果編號較大者為準、兩種結果互不看見，
+/// 驗證結果與預篩選結果各存一張表（validation_result、prescreen_result）：
+/// 各自取最新一筆、同一時間以結果編號較大者為準、兩種結果互不看見，
 /// 只清除上游真的變更的那一種，失效旗標只在有結果被清掉時立起，存入新結果時放下。資料全為合成。
-/// 2026-10-30 拆表時新寫；拆表前的行為由 ResultStaleStateLifecycleTests 與 ResultLatestTieBreakProviderTests 鎖住，
 /// 這裡把兩種結果放在一起核對它們不會互相干擾。
 /// </summary>
 public sealed class ResultStoreSeparationTests

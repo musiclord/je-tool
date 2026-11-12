@@ -34,7 +34,7 @@ internal sealed class PrivateCaseAcceptancePolicyException : InvalidOperationExc
 }
 
 /// <summary>
-/// 私人案件驗收的固定規則（裁定 2026-08-28-03），不接受環境變數或執行參數改寫。
+/// 私人案件驗收的固定規則，不接受環境變數或執行參數改寫。
 /// </summary>
 internal sealed class PrivateCaseAcceptancePolicy
 {

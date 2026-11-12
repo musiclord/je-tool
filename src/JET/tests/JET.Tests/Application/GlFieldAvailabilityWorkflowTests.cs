@@ -9,14 +9,11 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// GL 欄位可用性的處理器固定答案。第五步不能用 GL 沒有配對的欄位（裁定 2026-10-22-05），用到這種欄位的已存情境列進待修正清單（裁定 2026-10-22-04）；
+/// GL 欄位可用性的處理器固定答案。第五步不能用 GL 沒有配對的欄位，用到這種欄位的已存情境列進待修正清單；
 /// 傳票文件項次自動編號與傳票核准日選「與總帳日期相同」都算已配對。第四步與第五步對同一條規則給同一個原因，
 /// 缺傳票核准日的配對時，週末與假日兩張卡照常顯示總帳日期那一側，並說明只檢查了總帳日期。
-/// 第一次失敗：Focused 收據 20261023-031239785-46183e1247de492ebc2157e840e38b45（10 則失敗，例如缺傳票核准日的配對時週末卡整張無法執行，
-/// 用到未配對欄位的已存情境開案時沒有列進待修正清單）。
-/// 裁定 2026-10-23-01 追加：傳票核准日不可用時，第四步資料驗證的「核准日不在期間」無法執行並寫原因，
-/// 判斷讀欄位目錄算出的可用欄位，驗證報告照同一個結果寫 N/A。第一次失敗：Focused 收據
-/// 20261023-101047314-3a877fec42034e99b98965fd1a79c0b2（5 則失敗：沒有配對時筆數仍是 0、回應沒有原因欄、存下的結果還不接受原因欄）。
+/// 傳票核准日不可用時，第四步資料驗證的「核准日不在期間」無法執行並寫原因，
+/// 判斷讀欄位目錄算出的可用欄位，驗證報告照同一個結果寫 N/A。
 /// </summary>
 public sealed class GlFieldAvailabilityWorkflowTests
 {
@@ -116,7 +113,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
             } }
         }));
 
-        // 模擬裁定 2026-10-22-05 之前存下的情境：條件用到沒有配對的傳票建立人員，當時的檢查不擋「包含任一文字」。
+        // 模擬較早版本存下的情境：條件用到沒有配對的傳票建立人員，當時的檢查不擋「包含任一文字」。
         var definitionJson = await TextAsync(host, projectId, provider,
             "SELECT definition_json FROM filter_scenario WHERE position = 1;");
         var definition = JsonNode.Parse(definitionJson)!.AsObject();
@@ -145,7 +142,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
     public async Task Step4AndStep5_GiveTheSameReasonForTheSameRule(string provider)
     {
         using var host = new HandlerTestHost();
-        // 沒有期末財報準備日、科目配對與授權名單；假日檔已上傳，所以兩步的假日規則都不因假日檔寫原因（第五步也檢查假日檔，裁定 2026-11-05-55）。
+        // 沒有期末財報準備日、科目配對與授權名單；假日檔已上傳，所以兩步的假日規則都不因假日檔寫原因（第五步也檢查假日檔）。
         await SetupAsync(host, provider, holidays: ["2025-03-04"]);
         var prescreen = await host.DispatchAsync("prescreen.run");
         var step4 = prescreen.GetProperty("rulePeriod").GetProperty("rules").EnumerateArray()
@@ -169,7 +166,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
             [PrescreenRuleKeys.HolidayApproval] = (ApprovalDateMissing + FieldFix, [ApprovalDateMissing]),
             [PrescreenRuleKeys.BlankDescription] = (null, []),
             [PrescreenRuleKeys.NonAuthorizedPreparer] = (noPreparerList + "。" + CreatedByMissing + FieldFix, [noPreparerList, CreatedByMissing])
-            // 第四步照舊版拿掉編製分錄較少的人員與使用較少的科目兩條規則（裁定 2026-10-29-27），這裡跟著少兩列；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+            // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目兩條規則，這裡也沒有這兩列。
         };
         Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), step4.Keys.Order(StringComparer.Ordinal));
 
@@ -224,7 +221,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         var holiday = prescreen.GetProperty("holidayActivity");
         Assert.Equal("na", holiday.GetProperty("status").GetString());
         Assert.Equal(
-            // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075328999-91d0abe94c75427bb2babda5bdd66cc4。
+            // 這句的用字已定案。
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。" + ApprovalDateMissing + FieldFix,
             holiday.GetProperty("naReason").GetString());
         Assert.Equal(JsonValueKind.Null, holiday.GetProperty("approvalNaReason").ValueKind);
@@ -238,7 +235,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
     [InlineData("sqlite")]
     public async Task MissingHolidayCalendar_Step5HolidayConditionsAreDisabledWithTheStep4Reason(string provider)
     {
-        // 裁定 2026-11-05-55：沒有國定假日清單時，第五步的假日條件比照未配對的欄位停用並寫原因，和第四步同一句；
+        // 沒有國定假日清單時，第五步的假日條件比照未配對的欄位停用並寫原因，和第四步同一句；
         // 「非營業日」也看週末，沒有清單時照常可用。
         using var host = new HandlerTestHost();
         await SetupAsync(host, provider);
@@ -276,7 +273,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
     [InlineData("sqlite")]
     public async Task MissingMakeupCalendar_Step5MakeupConditionsAreDisabledLikeHolidays(string provider)
     {
-        // 裁定 2026-11-05-66：沒有補班日清單時，第五步的補班日條件比照國定假日停用並寫原因；上傳清單後就能預覽。
+        // 沒有補班日清單時，第五步的補班日條件比照國定假日停用並寫原因；上傳清單後就能預覽。
         // 這裡只上傳國定假日清單，確認兩份清單各自判斷。
         using var host = new HandlerTestHost();
         await SetupAsync(host, provider, holidays: ["2025-03-04"]);
@@ -309,7 +306,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
 
         var validation = await host.DispatchAsync("validate.run");
 
-        // 沒有傳票核准日就無法判斷核准日在不在期間：筆數不寫 0，改寫缺什麼、到哪裡補（裁定 2026-10-23-01）。
+        // 沒有傳票核准日就無法判斷核准日在不在期間：筆數不寫 0，改寫缺什麼、到哪裡補。
         var blankRecords = validation.GetProperty("blankRecordsTest");
         Assert.Equal(JsonValueKind.Null, blankRecords.GetProperty("approvalDateNotInPeriodCount").ValueKind);
         Assert.Equal(ApprovalDateMissing + FieldFix, blankRecords.GetProperty("approvalDateNotInPeriodNaReason").GetString());
@@ -328,7 +325,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         using var workbook = await ExportValidationReportAsync(host, projectId, validation);
         var summary = workbook.Worksheet("ValidationReport");
         Assert.Equal("N/A", summary.Cell("D23").GetString());
-        // 裁定 2026-11-03-04 與 2026-11-03-17：報告句子裡的欄位名稱用【】標示。第一次失敗：Focused 收據 20261103-073302593-afc0685ef03e47fea453092a25ec1f17。
+        // 報告句子裡的欄位名稱用【】標示。
         Assert.Equal("未設定【傳票核准日】欄位", summary.Cell("E23").GetString());
         Assert.DoesNotContain("V_Report 4", workbook.Worksheets.Select(static sheet => sheet.Name));
     }
@@ -373,7 +370,7 @@ public sealed class GlFieldAvailabilityWorkflowTests
         numericReason["blankRecordsTest"]!["approvalDateNotInPeriodCount"] = null;
         numericReason["blankRecordsTest"]!["approvalDateNotInPeriodNaReason"] = 0;
         Assert.False(ValidationSummaryShapeValidator.IsValid(numericReason.ToJsonString()));
-        // 2026-10-23 以前的結果沒有原因欄，傳票核准日沒有配對時也寫 0，必須重新驗證。
+        // 較早版本的結果沒有原因欄，傳票核准日沒有配對時也寫 0，必須重新驗證。
         var withoutReason = complete.DeepClone().AsObject();
         withoutReason["blankRecordsTest"]!.AsObject().Remove("approvalDateNotInPeriodNaReason");
         withoutReason["blankRecordsTest"]!["approvalDateNotInPeriodCount"] = 0;

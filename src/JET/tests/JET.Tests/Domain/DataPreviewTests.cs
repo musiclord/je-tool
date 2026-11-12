@@ -36,7 +36,7 @@ public sealed class DataPreviewTests
     [InlineData("")]
     [InlineData("tb_staging")]
     [InlineData("PbcTb")]
-    // 裁定 2026-10-08-04 統一全系統的資料名稱；舊 wire key 不再接受。
+    // 全系統的資料名稱統一；舊 wire key 不接受。
     [InlineData("glStaging")]
     [InlineData("glEntries")]
     [InlineData("glExcludedEntries")]

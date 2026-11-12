@@ -254,8 +254,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             reader.GetInt32(1),
             reader.GetString(2),
             DateTimeOffset.Parse(reader.GetString(3)),
-            // EXISTS(...) 的結果型別跨本地引擎不同：SQLite 回 INTEGER 0/1，DuckDB 回 BOOLEAN。
-            // 以 Convert.ToBoolean(值) 統一（int 0/1 與 bool 皆正確），SQL 文本不動、SQLite 行為不變。
+            // EXISTS(...) 在 SQLite 回 INTEGER 0/1，以 Convert.ToBoolean(值) 轉成布林。
             Convert.ToBoolean(reader.GetValue(4)),
             Convert.ToBoolean(reader.GetValue(5)),
             Convert.ToBoolean(reader.GetValue(6)),

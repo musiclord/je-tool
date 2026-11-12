@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 資料預覽 GL 與 GL(未納入測試) 的欄位計畫（裁定 2026-10-22-09）。
+/// 資料預覽 GL 與 GL(未納入測試) 的欄位計畫。
 /// 核心欄位在前，接著是已配對的選填欄位與攸關資料元素欄位；未配對的不列，借方與貸方金額不分欄。
 /// 兩頁列同一組欄位，GL(未納入測試) 最後多一欄未納入原因。選填欄位算不算已配對，讀第四步、第五步同一份
 /// <see cref="JetFieldCatalog.AvailableGlFields"/>，所以傳票核准日選「與總帳日期相同」時也列出；
@@ -10,7 +10,7 @@ namespace JET.Domain;
 /// </summary>
 internal static class DataPreviewGlColumns
 {
-    /// <summary>核心欄位，照原本 GL 頁的順序；識別沿用原本的回應鍵。</summary>
+    /// <summary>核心欄位與它在回應裡的鍵，依 GL 頁的欄位順序排列。</summary>
     private static readonly (string Field, string Key)[] CoreFields =
     [
         (JetFieldCatalog.GlVoucherNumber, "voucherNumber"),

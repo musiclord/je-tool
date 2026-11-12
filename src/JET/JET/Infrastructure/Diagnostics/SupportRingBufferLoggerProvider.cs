@@ -21,7 +21,7 @@ public sealed class SupportRingBufferLoggerProvider :
     private IExternalScopeProvider _scopeProvider = new LoggerExternalScopeProvider();
 
     /// <param name="caseHistory">
-    /// 屬於案件的事件另外附加到該案件的紀錄檔，關閉案件或重新啟動後匯出仍讀得到（2026-10-21）；
+    /// 屬於案件的事件另外附加到該案件的紀錄檔，關閉案件或重新啟動後匯出仍讀得到；
     /// provider 結束時一起結束，先寫完排隊中的事件。
     /// </param>
     public SupportRingBufferLoggerProvider(int capacity, SupportCaseHistoryStore? caseHistory = null)
@@ -80,7 +80,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         SupportEventNames.ActionStart,
         SupportEventNames.ActionEnd,
         SupportEventNames.ActionError,
-        // 取消不是失敗，另記一筆，不佔失敗摘要的保留名額（2026-10-21）。
+        // 取消不是失敗，另記一筆，不佔失敗摘要的保留名額。
         SupportEventNames.ActionCancelled,
         // 主要工作已完成或已失敗後，附帶步驟（更新案件步驟、刪資料夾、放工作鎖）也失敗。
         SupportEventNames.ActionStepFailed,
@@ -93,12 +93,12 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "report.recovery.conflict",
         "report.manifest.reset",
         "project_audit.write_failed",
-        // 資料已提交後寫不進操作紀錄，或讀不回結果狀態、授權清單比對：只記操作代號、讀取階段與錯誤類型（2026-10-19）。
+        // 資料已提交後寫不進操作紀錄，或讀不回結果狀態、授權清單比對：只記操作代號、讀取階段與錯誤類型。
         "operation_log.append_failed",
         "workflow_state.read_failed",
         "filter.scenario_unreadable",
         "filter.compile_check_failed",
-        // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑（裁定 2026-10-21-08）。
+        // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑。
         SupportEventNames.CaseOpened,
     };
 
@@ -150,7 +150,7 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         // filter.compile_check_failed：篩選條件編譯時沒過的檢查代號，程式寫死，不含欄位名稱或輸入值。
         "compile_check",
         // action.start：輸入結構只有程式定義的欄位名稱、型別與筆數，程式代號類的值才照記；
-        // retry_of 是同一案件同一動作上一次失敗或取消的操作識別碼（2026-10-21）。
+        // retry_of 是同一案件同一動作上一次失敗或取消的操作識別碼。
         "payload_shape",
         "retry_of",
         // action.end：這次操作產生的批次、執行、報告等版本代號與筆數，不含檔名或路徑。

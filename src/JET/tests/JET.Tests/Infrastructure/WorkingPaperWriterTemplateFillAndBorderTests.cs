@@ -167,7 +167,7 @@ public sealed class WorkingPaperWriterTemplateFillAndBorderTests
                         || entry.Property.StartsWith("border.", StringComparison.Ordinal)))
                 .ToArray();
             var fixtureDirectory = Path.Combine(
-                TestRepositoryPaths.RepositoryRoot,
+                TestRepositoryPaths.SolutionRoot,
                 SpreadsheetAppearanceSnapshotSchemaGuard.FixtureRelativeDirectory.Replace(
                     '/',
                     Path.DirectorySeparatorChar));

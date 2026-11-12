@@ -7,9 +7,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第二個流程「正式底稿匯出」（export.workingPaperStream）的固定答案測試：每個分支至少一個方法，
-/// 合成資料固定、預期值寫死。走完整 action 的案例 SQLite 與 DuckDB 各跑一次；只碰案件資料夾的改名與清單更新，
-/// 直接對報告檔儲存測，資料庫種類無關，只跑一次。
+/// 「正式底稿匯出」（export.workingPaperStream）的固定答案測試：每個分支至少一個方法，
+/// 合成資料固定、預期值寫死。只碰案件資料夾的改名與清單更新的案例，直接對報告檔儲存測。
 /// 已有測試的分支不重複：請求驗證在 WorkingPaperExportRequestValidationTests，取消清暫存檔在 WorkingPaperExportCancellationTests，
 /// 驗證報告那一組的改名還原在 ReportBatchPublicationTests。
 /// </summary>
@@ -18,7 +17,7 @@ public sealed class WorkingPaperExportBranchTests
     private const string TwoScenarios = """{"scenarios":[{"name":"合成借方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"debit"}]}]},{"name":"合成貸方","rationale":"固定答案","groups":[{"conditions":[{"type":"drCrOnly","drCr":"credit"}]}]}]}""";
     private const string ScenarioListOutOfDate = "畫面上的情境清單與已儲存的內容不一致，本次未產生。請重新開啟案件後再操作。";
     private const string ReportCannotBeWritten = "報告檔無法寫入。請先關閉 Excel 或其他開啟檔案的程式，並確認檔案不是唯讀且有寫入權限，再重新匯出。";
-    private const string StoreProjectId = "phase11-working-paper-store";
+    private const string StoreProjectId = "working-paper-store";
 
     // ── 版本不符就回錯誤、不寫檔 ───────────────────────────────────────────
 
@@ -337,7 +336,7 @@ public sealed class WorkingPaperExportBranchTests
     /// <summary>GL 兩筆、驗證與預篩選各跑一次，存兩個情境（借方、貸方各命中一筆）；同一種資料庫只建一次範本。</summary>
     private static async Task<ReportRevisionStateTests.Prepared> PrepareAsync(HandlerTestHost host, string provider)
     {
-        var copied = await CaseTemplates.CopyIntoAsync(host, $"phase11-working-paper:{provider}", async templateHost =>
+        var copied = await CaseTemplates.CopyIntoAsync(host, $"working-paper:{provider}", async templateHost =>
         {
             var prepared = await ReportRevisionStateTests.PrepareAsync(templateHost, provider, fromScratch: true);
             var saved = await templateHost.DispatchAsync("filter.commit", TwoScenarios);

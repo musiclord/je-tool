@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 
 public sealed class ReportBatchPublicationTests
 {
-    private const string ProjectId = "batch8";
+    private const string ProjectId = "publication";
 
     [Theory]
     [InlineData(false)]
@@ -52,14 +52,14 @@ public sealed class ReportBatchPublicationTests
     {
         using var root = new TempProjectRoot();
         var (store, directory) = Create(root);
-        var blocked = Path.Combine(directory, "batch8_INFReport.xlsx");
+        var blocked = Path.Combine(directory, "publication_INFReport.xlsx");
         Directory.CreateDirectory(blocked);
 
         var error = await Assert.ThrowsAsync<JetActionException>(() => store.WriteBatchAsync(
             ProjectId, Requests("new", [1, 2], [3, 4]), CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.FileReadError, error.Code);
-        Assert.False(File.Exists(Path.Combine(directory, "batch8_ValidationReport.xlsx")));
+        Assert.False(File.Exists(Path.Combine(directory, "publication_ValidationReport.xlsx")));
         Assert.False(File.Exists(Path.Combine(directory, ProjectReportStore.ManifestFileName)));
         Assert.Empty(await store.ListAsync(ProjectId, CancellationToken.None));
         Assert.Empty(Directory.GetFiles(directory, "*.tmp"));

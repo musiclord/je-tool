@@ -37,7 +37,7 @@ public static class FilterConditionLabels
             ["voucher"] = "整張傳票條件",
             ["typed"] = "攸關資料元素條件",
             ["fieldValue"] = "欄位值比較",
-            // 型別標籤和卡片名稱統一（裁定 2026-11-03-10）。
+            // 型別標籤和卡片名稱統一。
             ["accountSide"] = "科目分類",
             ["revenueDebitNearQuarterEnd"] = "在該季度前 X 天借記收入",
             ["revenueWithoutNormalCounterpart"] = "貸方為收入但借方非一般對方科目",
@@ -110,14 +110,14 @@ public static class FilterConditionLabels
                 static field => field.MappingSlots.Single(static slot => slot.IncludeInFieldInfo).Label,
                 StringComparer.Ordinal);
 
-    /// <summary>2026-11-03 以前非營業日卡片加入的子條件組讀回；已儲存情境照舊這樣寫（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
+    /// <summary>已儲存情境裡，非營業日卡片加入的子條件組讀回這個名稱（前端 <c>FILTER_COMMON_ATOM_LABELS.nonBusinessDay</c> 鏡像）。</summary>
     public const string NonBusinessDayAtom = "非營業日";
 
     public const string TextSetContainsAny = "包含任一值";
 
     public const string TextSetExactAny = "完全符合任一值";
 
-    // 用字依裁定 2026-10-14-01：「ASCII 空白」改說半形空白。
+    // 「ASCII 空白」說成半形空白。
     public const string TextSetPreserveAsciiSpaces = "保留半形空白";
 
     public const string TextSetRemoveAsciiSpaces = "移除半形空白";
@@ -156,7 +156,7 @@ public static class FilterConditionLabels
 
     /// <summary>
     /// 認不得的預篩選條件、比對方式、借貸組合方式或條件型別在讀回裡的寫法，不印程式代號
-    /// （裁定 2026-10-14-01；前端 <c>RETIRED_CONDITION_LABEL</c> 同一句）。
+    /// （前端 <c>RETIRED_CONDITION_LABEL</c> 同一句）。
     /// </summary>
     public const string RetiredCondition = "已停用的條件";
 
@@ -175,7 +175,7 @@ public static class FilterConditionLabels
         key is not null && PrescreenKeys.TryGetValue(key, out var label) ? label : RetiredCondition;
 
     /// <summary>
-    /// 知道 0 的個數時，「分錄金額中有連續 0 的尾數」寫成「金額尾數連續 N 個 0」（裁定 2026-11-05-25）；其他規則和不知道個數時同上。
+    /// 知道 0 的個數時，「分錄金額中有連續 0 的尾數」寫成「金額尾數連續 N 個 0」；其他規則和不知道個數時同上。
     /// 前端 <c>prescreenConditionLabel</c> 同樣寫法。
     /// </summary>
     public static string PrescreenLabel(string? key, int? zerosThreshold) =>

@@ -7,11 +7,10 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 「往下填補空白」的固定答案。裁定 2026-10-22-16 把它放在第三步確認配對時：
+/// 「往下填補空白」的固定答案。它在第三步確認配對時執行：
 /// 審計員勾選已配對的 GL 欄位，確認配對時把那些欄位來源欄的空白補成上一列的值，PBC-GL 保持原樣，
 /// 配對確認的回應寫出填了幾格；勾選跟著配對保存，重開案件帶回來；改選擇只要重新確認配對，走既有的失效規則。
 /// 合成資料是傳票號碼與傳票日期只寫在每張傳票第一列的總帳，另配一個攸關資料元素欄，確認第二遍投影也照同一份填補。
-/// 第一次失敗：Focused 收據 20261023-194731179-deb160873ed24e5794b04cfe70125f3f（fillDownFields 被忽略，回應沒有 fillDownFields 與 fillDownCount，空白列仍是空白）。
 /// </summary>
 public sealed class GlFillDownWorkflowTests
 {
@@ -120,8 +119,7 @@ public sealed class GlFillDownWorkflowTests
     }
 
     // 填補是對來源欄做的：總帳日期和傳票核准日配同一個來源欄時只勾總帳日期，傳票核准日也一起填補，
-    // 回應與重開案件都列出兩者（依來源欄成組，裁定 2026-10-28-04）。
-    // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（回應只列出勾選的欄位）。
+    // 回應與重開案件都列出兩者（依來源欄成組）。
     [Theory]
     [InlineData("sqlite")]
     public async Task FillDown_FieldsSharingASourceColumn_AreFilledAndListedTogether(string provider)
@@ -155,8 +153,7 @@ public sealed class GlFillDownWorkflowTests
             Strings(loaded.GetProperty("mapping").GetProperty("gl").GetProperty("fillDownFields")));
     }
 
-    // 填了幾格跟著已確認的配對保存，重開案件時第三步摘要看得到；取消勾選重新確認後是 0（隨配對保存，裁定 2026-10-28-05）。
-    // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（重開案件的配對沒有 fillDownCount）。
+    // 填了幾格跟著已確認的配對保存，重開案件時第三步摘要看得到；取消勾選重新確認後是 0（隨配對保存）。
     [Theory]
     [InlineData("sqlite")]
     public async Task FillDown_CountIsSavedWithTheConfirmedMapping(string provider)
@@ -182,8 +179,7 @@ public sealed class GlFillDownWorkflowTests
 
     // 往下填補之後，INF 報告主表與底稿第二步的「分錄來源」讀整理後的值，和同一列的傳票號碼一致；
     // 「借貸代號」在原始列空白時，依整理後的借貸方向寫已確認配對的借方或貸方代碼。
-    // 「可靠性樣本_所有欄位」仍是 PBC-GL 原樣；哪些地方改讀整理後的值見裁定 2026-10-28-02。
-    // 第一次失敗：Focused 收據 20261028-025427302-c9b53532147943d28f35cdcfb18402d2（續列的分錄來源與第 2 列的借貸代號是空白）。
+    // 「可靠性樣本_所有欄位」仍是 PBC-GL 原樣。
     [Theory]
     [InlineData("sqlite")]
     public async Task FillDown_InfAndWorkingPaperStep2_ShowTheCleanedSourceModuleAndDirection(string provider)
@@ -282,7 +278,6 @@ public sealed class GlFillDownWorkflowTests
 
     // 多個來源追加時不跨來源延續：第二份來源第一列的傳票號碼空白，不會補成第一份來源最後一列的值；
     // 同一份來源裡的空白照樣補。配一個攸關資料元素欄，確認第二遍投影也走同一份填補。
-    // 2026-10-28 複審補的整合測試；程式本來就這樣處理，第一次就通過，沒有第一次失敗的收據。
     [Theory]
     [InlineData("sqlite")]
     public async Task FillDown_DoesNotCarryValuesIntoAnAppendedSource(string provider)

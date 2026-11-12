@@ -19,7 +19,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
 {
     private const int SummaryRowLimit = 50;
 
-    // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死。
     private readonly string _provider = database.Dialect.ProviderName;
 
     private readonly GlRulePredicates Predicates =
@@ -74,7 +73,7 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
                 cmd => Rule(PrescreenRuleKeys.UnexpectedAccountPair, cmd));
         }
 
-        // 0 的個數由 GL 算出、跟著請求帶進來（裁定 2026-11-05-25），述詞和第五步「尾數連續多個 0」同一個。
+        // 0 的個數由 GL 算出、跟著請求帶進來，述詞和第五步「尾數連續多個 0」同一個。
         var trailingZeros = await CountWhereAsync(
             connection, input, cancellationToken,
             cmd => Rule(PrescreenRuleKeys.TrailingZeros, cmd));
@@ -188,8 +187,8 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         DbConnection connection, PrescreenExecutionInput input, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        // 編製者彙總與預篩選規則共用有效分錄母體。人員依去空白、不分大小寫的識別值分組（裁定 2026-10-04-01），
-        // 顯示值固定取同一組裡碼位最小的去空白寫法（例如 U1 與 u1 顯示 U1），兩個本地資料庫相同。
+        // 編製者彙總與預篩選規則共用有效分錄母體。人員依去空白、不分大小寫的識別值分組，
+        // 顯示值固定取同一組裡碼位最小的去空白寫法（例如 U1 與 u1 顯示 U1），所以結果不受資料列順序影響。
         var person = PersonKey(database.Dialect);
         command.CommandText =
             $"""
@@ -289,7 +288,6 @@ public sealed class LocalPrescreenRunRepository(ILocalProjectDatabase database, 
         return (distinct, rows);
     }
 
-    /// <summary>DuckDB aggregate 可能回 BigInteger；SQLite 則通常是 Int64。</summary>
     private static long ReadInt64(DbDataReader reader, int ordinal)
     {
         var value = reader.GetValue(ordinal);

@@ -5,9 +5,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第四步「依分錄編製者彙總」的人數原本用最多 50 列的清單長度，超過 50 位時顯示「50 位人員」；
-/// 預篩選報告的摘要列也一樣。改成後端的完整人數，和流程總覽的「全部 N 位編製人員」同一個數字。
-/// 依 R6，空白人員列成一組，所以也算一位。人員比對去頭尾空白、不分大小寫（裁定 2026-10-04-01）。
+/// 第四步「依分錄編製者彙總」的人數用後端的完整人數，不用最多 50 列的清單長度，
+/// 和流程總覽的「全部 N 位編製人員」同一個數字。
+/// 依 R6，空白人員列成一組，所以也算一位。人員比對去頭尾空白、不分大小寫。
 /// </summary>
 public sealed class PreparerCountTests
 {
@@ -41,7 +41,7 @@ public sealed class PreparerCountTests
         var resultId = result.GetProperty("resultRef").GetProperty("resultId").GetString();
         var exported = await host.DispatchAsync("export.prescreenReport", JsonSerializer.Serialize(new { resultId }));
         using var workbook = new XLWorkbook(exported.GetProperty("publishedReport").GetProperty("fullPath").GetString()!);
-        // 裁定 2026-11-05-44：摘要頁 D 欄照舊版原句，不再寫人數；完整人數由 R5 的 61 列核對。第一次失敗：Focused 收據 20261105-105841963-25d6f65850974bbda831c58051526192。
+        // 摘要頁 D 欄照舊版原句，不寫人數；完整人數由 R5 的 61 列核對。
         Assert.Equal("符合預篩選條件之明細項請詳 [R5] 工作表", workbook.Worksheet("Pre-screening_Report").Cell("D12").GetString());
         Assert.Equal(61, workbook.Worksheet("R5").RowsUsed().Skip(1).Count());
     }

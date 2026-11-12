@@ -1,0 +1,48 @@
+<Project>
+  <!--
+    Gui 路線專用的 AgentGuiTest 組態。驗證框架建置 JET 與 JET.Tests 時用
+    /p:CustomBeforeMicrosoftCommonTargets 帶入這個檔案，產品專案本身沒有這個組態。
+    這個組態和 Debug 一樣有開發人員工具與示範資料的 action，另外加入 Gui 測試的進入點、測試夾具與夾具的測試。
+
+    這個組態帶測試接點與遠端偵錯，不能發布。唯一的例外是 Gui 路線帶 JetAgentGuiOwnedBundle=true，
+    照 FolderProfile 打包成單一執行檔，輸出到這次執行在 artifacts/harness/runs 底下的資料夾，跑完就刪除。
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'AgentGuiTest'">
+    <DefineConstants>$(DefineConstants);DEBUG;TRACE</DefineConstants>
+    <Optimize>false</Optimize>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <_JetHarnessRunsRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\..\artifacts\harness\runs').ToLowerInvariant())</_JetHarnessRunsRoot>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'AgentGuiTest' and '$(MSBuildProjectName)' == 'JET'">
+    <StartupObject>JET.AgentGuiTestProgram</StartupObject>
+    <IsPublishable Condition="'$(JetAgentGuiOwnedBundle)' != 'true'">false</IsPublishable>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(Configuration)' == 'AgentGuiTest' and '$(MSBuildProjectName)' == 'JET'">
+    <Compile Include="$(MSBuildThisFileDirectory)AgentGuiTestProgram.cs" Link="AgentGuiTest\%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)AgentGuiTestProfile.cs" Link="AgentGuiTest\%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)AgentGuiTestFixtures.cs" Link="AgentGuiTest\%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)AppCompositionRoot.AgentGuiTest.cs" Link="AgentGuiTest\%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)Form1.AgentGuiTest.cs" Link="AgentGuiTest\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)' == 'AgentGuiTest' and '$(MSBuildProjectName)' == 'JET.Tests'">
+    <Compile Include="$(MSBuildThisFileDirectory)AgentGuiTestFixtureBehaviorTests.cs" Link="AgentGuiTest\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <Target Name="RejectAgentGuiTestPublish" BeforeTargets="Publish" Condition="'$(Configuration)' == 'AgentGuiTest' and '$(MSBuildProjectName)' == 'JET' and '$(JetAgentGuiOwnedBundle)' != 'true'">
+    <Error Text="AgentGuiTest is an isolated test configuration and cannot be published." />
+  </Target>
+
+  <!-- 打包也要在任何檔案複製前確認：輸出在 artifacts/harness/runs 底下，而且是單一執行檔。 -->
+  <Target Name="RestrictAgentGuiOwnedBundle" BeforeTargets="PrepareForPublish;Publish" Condition="'$(Configuration)' == 'AgentGuiTest' and '$(MSBuildProjectName)' == 'JET' and '$(JetAgentGuiOwnedBundle)' == 'true'">
+    <PropertyGroup>
+      <_JetOwnedBundleDirectory>$([MSBuild]::NormalizeDirectory('$(PublishDir)').ToLowerInvariant())</_JetOwnedBundleDirectory>
+      <_JetOwnedBundleInsideRuns>$(_JetOwnedBundleDirectory.StartsWith('$(_JetHarnessRunsRoot)'))</_JetOwnedBundleInsideRuns>
+    </PropertyGroup>
+    <Error Condition="'$(_JetOwnedBundleInsideRuns)' != 'True' or '$(_JetOwnedBundleDirectory)' == '$(_JetHarnessRunsRoot)' or '$(PublishSingleFile)' != 'true'"
+           Text="AgentGuiTest can only be bundled as a single file by the verification harness, into its own run folder under artifacts/harness/runs." />
+  </Target>
+</Project>

@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Xml.Linq;
 using Xunit;
+using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Infrastructure;
 
@@ -69,6 +70,7 @@ public sealed class ReportTemplateExternalRelationshipTests
     [Theory]
     [InlineData("INFReport.xlsx")]
     [InlineData("WorkingPaper.xlsx")]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void FixedTemplate_DiffFromSourceAnchor_IsOnlyExternalWorkbookSanitation(string fileName)
     {
         using var sourceArchive = ZipFile.OpenRead(Path.Combine(SourceTemplateRoot(), fileName));
@@ -99,8 +101,7 @@ public sealed class ReportTemplateExternalRelationshipTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        // 使用者只額外授權 Step 1-2 A4 與 step4 A12 的文字修正；其餘儲存格必須仍與來源相同。
-        // 首敗 20261106-134205437-3ea24431c2794227b2a24d4236b2145d。
+        // 只有 Step 1-2 A4 與 step4 A12 的文字可以和來源不同；其餘儲存格必須仍與來源相同。
         var expected = ExpectedSanitizationPackageDiffs.AsEnumerable();
         if (fileName == "WorkingPaper.xlsx")
         {
@@ -116,8 +117,8 @@ public sealed class ReportTemplateExternalRelationshipTests
             Assert.True(XNode.DeepEquals(sourceSheet.Root, runtimeSheet.Root),
                 "Only the requested A4 content may differ.");
 
-            // 裁定 2026-11-09-12 把空白傳票號碼的說明寫進範本 step4 A12，改的是 A12 引用的共用字串。
-            // 這裡只允許那一則字串不同，而且它只被 step4 A12 引用。首敗 20261109-052355141-718103d298d84bb2a0a0d2ce584ba400。
+            // 空白傳票號碼的說明寫在範本 step4 A12，改的是 A12 引用的共用字串。
+            // 這裡只允許那一則字串不同，而且它只被 step4 A12 引用。
             expected = expected.Append("changed:xl/sharedStrings.xml");
             AssertOnlyStep4SelectionNoteStringChanged(sourceArchive, runtimeArchive);
         }

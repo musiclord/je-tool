@@ -70,7 +70,7 @@ public sealed class MappingReimportDraftTests
     /// 上次確認的配對只用來帶回草稿，讀不出來時當作沒有（LocalMappingStateStore.FindPreviousAsync 的註解）：
     /// 日後配對格式改版或內容被改壞，開案照常，GL 從空白草稿開始，TB 那一份照常帶回，GL 也照常能確認配對。
     /// 每一列把 GL 那一份的一個欄位改成讀不出來的內容：選項 JSON 語法錯誤、多了認不得的設定、含不成對的代理字元或整格空白，
-    /// 配對 JSON 語法錯誤或含不成對的代理字元、確認時間不是日期，以及格式版本是舊版或大到超過整數範圍。這是新增的測試。
+    /// 配對 JSON 語法錯誤或含不成對的代理字元、確認時間不是日期，以及格式版本是舊版或大到超過整數範圍。
     /// </summary>
     [Theory]
     [InlineData("options_json", "{")]
@@ -164,7 +164,7 @@ public sealed class MappingReimportDraftTests
             })));
 
         Assert.Equal(JET.Domain.JetErrorCodes.ProjectionFailed, error.Code);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.StartsWith("有 3 列的值無法讀取，本次配對未儲存。", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
         Assert.Collection(

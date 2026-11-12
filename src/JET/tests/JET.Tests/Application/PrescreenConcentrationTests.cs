@@ -42,7 +42,7 @@ public sealed class PrescreenConcentrationTests
     public async Task PrescreenRun_Concentration_EmitsExactlyTheDeclaredWireKeys()
     {
         // 與前端鏡射守衛共用同一份 wire key 正本（JET.Tests.Architecture.ConcentrationWireKeys）：
-        // 後端加欄位卻沒更新正本 → 這裡紅燈；更新了正本卻沒更新前端 → 前端守衛紅燈。
+        // 後端加欄位卻沒更新正本時，這個測試會失敗；更新了正本卻沒更新前端時，前端守衛會失敗。
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(
             host,

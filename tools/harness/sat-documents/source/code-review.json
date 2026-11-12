@@ -1,0 +1,225 @@
+{
+  "title": "JET 程式碼審查紀錄",
+  "change": "首次提交。審查範圍為全部原始碼。",
+  "requirement": "舊版 JET 的功能與查核團隊的作業需求",
+  "scope": [
+    {
+      "title": "納入測試的分錄範圍",
+      "path": "AuditCore/GlExcludedPopulation.cs",
+      "tests": "GlExcludedPopulationTests、GlProjectionQualityProviderTests"
+    },
+    {
+      "title": "完整性測試",
+      "path": "AuditCore/ValidationProcedures.cs；AuditCore/AccountComparisonProcedure.cs；AuditCore/CompletenessEligibility.cs",
+      "tests": "CompletenessEligibilityTests、WorkflowWithoutTbTests、TaiwanSmePopulationAndCompletenessTests、CompletenessAccountPageTests"
+    },
+    {
+      "title": "借貸不平測試",
+      "path": "AuditCore/ValidationProcedures.cs",
+      "tests": "UnbalancedVoucherDateRowsTests、TaiwanSmePopulationAndCompletenessTests"
+    },
+    {
+      "title": "資料可靠性抽樣",
+      "path": "AuditCore/ValidationProcedures.cs；AuditCore/InfSampling.cs",
+      "tests": "ConfigurableInfSamplingTests、InfSamplingPrfTests、InfSamplingPrfProviderTests"
+    },
+    {
+      "title": "進階條件篩選",
+      "path": "AuditCore/FilterCompilation.cs；AuditCore/GlRulePredicates.Values.cs",
+      "tests": "FilterCompilationTests、CommonFilterPredicateTests、FilterCompletenessTests"
+    },
+    {
+      "title": "預篩選",
+      "path": "AuditCore/PrescreenRulePredicates.cs；AuditCore/RuleCatalog.cs",
+      "tests": "PrescreenProgramTests、CommonFilterPredicateTests"
+    }
+  ],
+  "checklist": [
+    {
+      "rule": "2. Unit-Test Acceptance",
+      "item": "新增或修改的程式都有對應的單元測試，涵蓋預期行為、邊界條件、無效輸入與錯誤處理。"
+    },
+    {
+      "rule": "2. Unit-Test Acceptance",
+      "item": "必要的測試與受影響的回歸測試，在提交審查的程式版本上全部通過。"
+    },
+    {
+      "rule": "2. Unit-Test Acceptance",
+      "item": "測試的預期結果來自需求或業務規則，不是取自實作。"
+    },
+    {
+      "rule": "2. Unit-Test Acceptance",
+      "item": "測試結果可以重複；沒有略過、停用或不穩定的必要測試。"
+    },
+    {
+      "rule": "2. Unit-Test Acceptance",
+      "item": "變更的行為與重要的判斷分支有被測試執行。"
+    },
+    {
+      "rule": "3. Hard-Coded Content",
+      "item": "程式內的固定值與規則已逐項列出，來源與用途經確認。"
+    },
+    {
+      "rule": "3. Hard-Coded Content",
+      "item": "原始碼沒有密碼、金鑰、權杖等機密。"
+    },
+    {
+      "rule": "4. Supporting Review",
+      "item": "實作符合需求，沒有無關的變更。"
+    },
+    {
+      "rule": "4. Supporting Review",
+      "item": "命名、流程與註解清楚，符合專案的程式撰寫規範。"
+    },
+    {
+      "rule": "4. Supporting Review",
+      "item": "輸入驗證、例外處理、資源釋放與機敏資料的處理適當。"
+    },
+    {
+      "rule": "4. Supporting Review",
+      "item": "單元測試無法涵蓋的行為，已有整合測試或端對端測試。"
+    }
+  ],
+  "hardCoded": [
+    {
+      "id": 1,
+      "item": "抽樣預設筆數",
+      "content": "59 筆，可在執行前修改",
+      "path": "AuditCore/InfSampling.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 2,
+      "item": "抽樣計算常數",
+      "content": "模數 2,147,483,647，以及三組乘數與偏移",
+      "path": "AuditCore/ValidationProcedures.cs",
+      "origin": "程式設計"
+    },
+    {
+      "id": 3,
+      "item": "金額精度",
+      "content": "小數 4 位，四捨五入",
+      "path": "Domain/ProjectDocument.cs",
+      "origin": "程式設計"
+    },
+    {
+      "id": 4,
+      "item": "金額文字",
+      "content": "括號為負數；單獨的減號為 0",
+      "path": "Domain/Primitives/MoneyScaling.cs",
+      "origin": "會計慣例"
+    },
+    {
+      "id": 5,
+      "item": "借貸判斷",
+      "content": "金額大於等於 0 為借方，小於 0 為貸方",
+      "path": "Domain/Rules/GlRowProjector.cs",
+      "origin": "查核需求"
+    },
+    {
+      "id": 6,
+      "item": "TB 變動金額",
+      "content": "借方減貸方；期末減期初；期末借貸差減期初借貸差",
+      "path": "Domain/Rules/TbRowProjector.cs",
+      "origin": "會計慣例"
+    },
+    {
+      "id": 7,
+      "item": "測試範圍",
+      "content": "總帳日期空白或不在查核期間的分錄不納入，起迄日包含在內",
+      "path": "AuditCore/GlExcludedPopulation.cs",
+      "origin": "查核需求"
+    },
+    {
+      "id": 8,
+      "item": "借貸不平",
+      "content": "同一傳票的借貸淨額不為 0，沒有容許差",
+      "path": "AuditCore/ValidationProcedures.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 9,
+      "item": "報告的借貸淨額",
+      "content": "差額不超過 0.01 時寫 0",
+      "path": "Infrastructure/Export/LegacyReportWriter.Validation.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 10,
+      "item": "完整性差異",
+      "content": "GL 與 TB 的科目金額不相等，沒有容許差",
+      "path": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 11,
+      "item": "核准日檢查",
+      "content": "傳票核准日空白或不在查核期間",
+      "path": "AuditCore/FilterCompilation.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 12,
+      "item": "報告明細列數",
+      "content": "最多 10,000 列，借貸不平與預篩選為 9,999 列；超過只留摘要",
+      "path": "AuditCore/ValidationReportProgram.cs；AuditCore/PrescreenReportProgram.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 13,
+      "item": "期末準備期間",
+      "content": "傳票核准日在財報準備開始日當天或之後",
+      "path": "AuditCore/GlRulePredicates.cs",
+      "origin": "查核需求"
+    },
+    {
+      "id": 14,
+      "item": "摘要關鍵字",
+      "content": "預設 24 個：英文 6、繁體中文 9、簡體中文 9，可編輯",
+      "path": "Domain/Rules/PrescreenRules.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 15,
+      "item": "未預期借貸組合",
+      "content": "貸方為收入，同一傳票沒有金額大於 0 的應收、現金或預收借方",
+      "path": "AuditCore/GlRulePredicates.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 16,
+      "item": "尾數 0 的個數",
+      "content": "依借方平均金額的位數，1 到 12 個",
+      "path": "Domain/Rules/PrescreenRules.cs",
+      "origin": "舊版 JET"
+    },
+    {
+      "id": 17,
+      "item": "非營業日",
+      "content": "預設週六、週日；週末或假日，扣除補班日",
+      "path": "Domain/Primitives/NonWorkingDays.cs；AuditCore/GlRulePredicates.Values.cs",
+      "origin": "查核需求"
+    },
+    {
+      "id": 18,
+      "item": "季底",
+      "content": "3/31、6/30、9/30、12/31；季底前 1 到 92 天",
+      "path": "Domain/Rules/QuarterEndWindows.cs",
+      "origin": "查核需求"
+    },
+    {
+      "id": 19,
+      "item": "篩選上限",
+      "content": "每條清單條件 100 個值；每個案件 10 個情境",
+      "path": "Domain/Rules/FilterScenario.cs",
+      "origin": "程式設計"
+    },
+    {
+      "id": 20,
+      "item": "日期換算",
+      "content": "民國年加 1911；其他純數字不視為日期",
+      "path": "Domain/Primitives/DateNormalizer.cs",
+      "origin": "查核需求"
+    }
+  ]
+}

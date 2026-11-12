@@ -1,7 +1,7 @@
 namespace JET.Infrastructure;
 
 /// <summary>
-/// infSamplePage 共用 SQL 片段(雙 provider 同一份;參數化、無方言差異)。
+/// infSamplePage 的 SQL 片段(參數化)。
 /// </summary>
 internal static class InfSamplePageSql
 {

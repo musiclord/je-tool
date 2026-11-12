@@ -19,9 +19,8 @@ internal sealed record FieldInfoSheetMappingResult(
     IReadOnlyList<UnmatchedMappingField> Unmatched);
 
 /// <summary>
-/// 從「自動化工具-檔案欄位資訊」看得見的配對前後欄位對照表推得欄位配對草稿（裁定 2026-11-09-28）。
-/// 舊版 IDEA JET 與新版 JET 的寫法都要認得：舊版寫這張表在 legacy/idea-tool.bas 第 10824 到 10963 行，
-/// 改名時把原欄名寫進說明在第 5316 到 5421 行，系統產生欄位的說明句在第 12611 到 12846 行；
+/// 從「自動化工具-檔案欄位資訊」看得見的配對前後欄位對照表推得欄位配對草稿。
+/// 舊版 IDEA JET 與新版 JET 的寫法都要認得：舊版改名時把原欄名寫進說明，系統產生的欄位另有說明句；
 /// 新版寫法見 FieldInfoProjector 與 FieldInfoProjection。
 /// 欄名和目前匯入的欄位對得上的帶入；對不上的留著原名，由 handler 列出請審計員重選；表上看不出來的直接列在 Unmatched。
 /// 推得的結果只是草稿，按「確認配對」才儲存。
@@ -54,12 +53,12 @@ internal static class FieldInfoSheetMapping
     // 來源欄名可能有 Excel 儲存格裡的換行（匯入時只去掉頭尾空白，TabularHeaderNormalizer），說明句裡的「.」要能比到換行。
     private const RegexOptions SentenceOptions = RegexOptions.CultureInvariant | RegexOptions.Singleline;
 
-    // 舊版「傳票金額_JE 由系統產生 : …」（idea-tool.bas 第 12611、12632、12656、12674 行），新版「【傳票金額_JE】由系統產生 : …」。
+    // 舊版「傳票金額_JE 由系統產生 : …」，新版「【傳票金額_JE】由系統產生 : …」。
     private static readonly Regex GlAmountSentence = GeneratedSentence(GlAmountName);
     private static readonly Regex TbChangeAmountSentence = GeneratedSentence(TbChangeAmountName);
 
-    // 核准日選「與總帳日期相同」：舊版寫「系統產生 : 同總帳日期_JE來源」（idea-tool.bas 第 12846 行），
-    // 新版寫「【傳票核准日_JE】由系統產生 : 同【總帳日期_JE】來源」；2026-11-03 以前的新版寫「傳票核准日_JE 由系統產生 : 同總帳日期_JE來源」。
+    // 核准日選「與總帳日期相同」：舊版寫「系統產生 : 同總帳日期_JE來源」，
+    // 新版寫「【傳票核准日_JE】由系統產生 : 同【總帳日期_JE】來源」；不帶【】的「傳票核准日_JE 由系統產生 : 同總帳日期_JE來源」也認得。
     private static readonly Regex SameAsGlDateSentence = new(
         $@"^(?:【?{Regex.Escape(GlApprovalDateName)}】?\s*由)?\s*系統產生\s*[:：]\s*同\s*【?{Regex.Escape(GlDateName)}】?\s*來源$",
         SentenceOptions);
@@ -82,7 +81,7 @@ internal static class FieldInfoSheetMapping
         @"^\(\s*【(?<closingDebitBalance>[^】]+)】\s*-\s*【(?<closingCreditBalance>[^】]+)】\s*\)\s*-\s*\(\s*【(?<openingDebitBalance>[^】]+)】\s*-\s*【(?<openingCreditBalance>[^】]+)】\s*\)$",
         SentenceOptions);
 
-    // 新版「【X】過帳判斷值「V1」「V2」，空白也算已過帳」；舊版「X ：過帳判斷值【V】」（idea-tool.bas 第 12702 行）。
+    // 新版「【X】過帳判斷值「V1」「V2」，空白也算已過帳」；舊版「X ：過帳判斷值【V】」。
     // 「】過帳判斷值」後面的寫法固定，欄名本身有「】」也分得開。
     private static readonly Regex MarkedPostingSentence = new(
         @"^【(?<column>.+)】過帳判斷值(?<values>(?:「[^」]*」)*)(?<blank>，空白也算已過帳)?$",
@@ -94,7 +93,7 @@ internal static class FieldInfoSheetMapping
 
     private static readonly Regex QuotedValue = new(@"「(?<value>[^」]*)」", SentenceOptions);
 
-    /// <summary>舊版過帳判斷值填「XXXX」表示只留過帳狀態空白的分錄（idea-tool.bas 第 1637 到 1638 行）。</summary>
+    /// <summary>舊版過帳判斷值填「XXXX」表示只留過帳狀態空白的分錄。</summary>
     private const string LegacyBlankPostingValue = "XXXX";
 
     internal static FieldInfoSheetMappingResult Infer(
@@ -192,7 +191,7 @@ internal static class FieldInfoSheetMapping
         }
 
         var rdeFields = ReadRdeFields(rdeRows, newVersion, columns, mapping, newRdeFieldId, unmatched);
-        // 人工傳票否照舊版：人工是 1、自動是 0，同 GlMappingOptions.NormalizeLegacy（裁定 2026-11-09-28）。
+        // 人工傳票否照舊版：人工是 1、自動是 0，同 GlMappingOptions.NormalizeLegacy。
         return new GlMappingDraftMetadata(
             mapping,
             amountMode,
@@ -247,7 +246,7 @@ internal static class FieldInfoSheetMapping
             {
                 mapping[GlMappingKeys.DrCrDebitCode] = code;
             }
-            // 2026-11-10 以前只填貸方代碼時，說明句可能只寫配對鍵，沒有可帶回的代碼。
+            // 較早的版本只填貸方代碼時，說明句可能只寫配對鍵，沒有可帶回的代碼。
             else if (string.IsNullOrWhiteSpace(creditCode))
             {
                 unmatched.Add(GlUnmatched(GlMappingKeys.DrCrDebitCode, string.Empty));
@@ -292,8 +291,8 @@ internal static class FieldInfoSheetMapping
             return GlAmountModeNames.Signed;
         }
 
-        // 舊版不加括號：單一帶號金額的說明句與算式都只寫欄名（idea-tool.bas 第 12611 到 12613 行），
-        // 借貸兩欄的說明句寫「借方欄-貸方欄」、算式寫「借方欄 - 貸方欄」（第 12632 到 12634 行）。
+        // 舊版不加括號：單一帶號金額的說明句與算式都只寫欄名，
+        // 借貸兩欄的說明句寫「借方欄-貸方欄」、算式寫「借方欄 - 貸方欄」。
         // 欄名若有「-」，單一金額的算式就成了減法，所以說明句裡的「-」一律當成借方欄與貸方欄的分隔。
 
         if (!expression.Contains('-', StringComparison.Ordinal))
@@ -363,7 +362,7 @@ internal static class FieldInfoSheetMapping
     }
 
     /// <summary>
-    /// 其他以 _JE 結尾、不是標準欄名的列當作攸關資料元素（舊版的自行定義欄位，idea-tool.bas 第 1686 到 1716 行）。
+    /// 其他以 _JE 結尾、不是標準欄名的列當作攸關資料元素（舊版的自行定義欄位）。
     /// 顯示名稱去掉 _JE。新版只在名稱和另一個攸關資料元素相同，或加 _JE 剛好是標準欄名時，在名稱後補「（來源欄名）」
     /// （GlRdeOutputNames.Resolve），照同一條規則反推：去掉後綴的名稱有兩列以上相同，或加 _JE 是標準欄名，就當成補上的後綴去掉，
     /// 其他情形照寫的名稱。名稱本身就叫「X（來源欄名）」而 X 符合上面兩種情形時，寫出來的欄名和補了後綴的一模一樣，
@@ -463,7 +462,7 @@ internal static class FieldInfoSheetMapping
 
     /// <summary>
     /// 試算表變動金額_TB 那一列。沒有前綴是原位改名，算直接變動金額；「(A - B) - (C-D)」是期末與期初各分借貸。
-    /// 只有兩欄相減時看不出是借減貸還是期末減期初（idea-tool.bas 第 12723、12744 行寫法相同），不帶入金額，列出請審計員選。
+    /// 只有兩欄相減時看不出是借減貸還是期末減期初（舊版這兩種寫法相同），不帶入金額，列出請審計員選。
     /// </summary>
     private static string ReadTbChangeAmount(
         SheetRow row,
@@ -506,7 +505,7 @@ internal static class FieldInfoSheetMapping
         return TbChangeModeNames.Direct;
     }
 
-    /// <summary>舊版「(期末借 - 期末貸) - (期初借-期初貸)」（idea-tool.bas 第 12764 行），欄名不加括號。</summary>
+    /// <summary>舊版「(期末借 - 期末貸) - (期初借-期初貸)」，欄名不加括號。</summary>
     private static bool TryReadLegacyOpenCloseBySide(
         string expression,
         ImportedColumnNames columns,
@@ -651,8 +650,8 @@ internal static class FieldInfoSheetMapping
     /// 這一列算不算配對。E 欄空白是原樣的來源欄或 _Temp 原欄，A 欄空白是系統產生，都不算；A 欄和 E 欄不同就是配對。
     /// A 欄和 E 欄相同時，表示來源欄本來就叫這個 JET 欄名，或是說明空白的系統產生欄位：
     /// 新版同名改名的 A 欄寫成「【X】」，沒有括號的是系統產生，例如自動編號的傳票文件項次_JE_S（FieldInfoProjection.ProjectRow）。
-    /// 舊版 A 欄寫欄位說明，沒有說明時寫欄名，改名時說明是原欄名（idea-tool.bas 第 10948 到 10952 行、第 5375 到 5417 行）；
-    /// 寫進 E 欄而說明空白的系統產生欄位在 idea-tool.bas 查不到（第 7661 行的 Step1_Append_IsManual 沒有被呼叫），
+    /// 舊版 A 欄寫欄位說明，沒有說明時寫欄名，改名時說明是原欄名；
+    /// 寫進 E 欄而說明空白的系統產生欄位在舊版 JET 查不到（Step1_Append_IsManual 沒有被呼叫），
     /// 所以舊版 A 欄和 E 欄相同就算配對。整張表有任何一格 A 欄整格加【】，就當成新版。
     /// </summary>
     private static bool IsMapping(SheetRow row, bool newVersion) =>

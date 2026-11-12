@@ -67,7 +67,7 @@ public sealed class JetSchemaCatalogTests
                 $"曝光表「{e.PhysicalName}」缺正準名。"));
     }
 
-    /// <summary>恰好 7 張 DataView 表(任務鎖定;多 / 少一張即紅,逼明確決策)。</summary>
+    /// <summary>恰好 7 張 DataView 表(多 / 少一張即失敗,逼明確決策)。</summary>
     [Fact]
     public void DataView_HasExactlySevenTables()
     {
@@ -99,12 +99,10 @@ public sealed class JetSchemaCatalogTests
 
     /// <summary>
     /// 逐表決策對照(physical → canonical / layer / audience)。值＋身分同鎖:
-    /// 改正準名、改層、改曝光任一即紅。涵蓋全部 24 張登錄表。
+    /// 改正準名、改層、改曝光任一即失敗。涵蓋全部 24 張登錄表。
     /// </summary>
     [Theory]
     // Source / DataView
-    // 裁定 2026-10-08-04 統一全系統的資料名稱。
-    // 裁定 2026-10-13-19 把 PBC GL 改寫成 PBC-GL；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
     [InlineData("pbc_gl", "PBC-GL", SchemaLayer.Source, SchemaAudience.DataView)]
     [InlineData("pbc_tb", "PBC-TB", SchemaLayer.Source, SchemaAudience.DataView)]
     [InlineData("account_mapping", "ACCOUNT_MAPPING", SchemaLayer.Source, SchemaAudience.DataView)]
@@ -155,7 +153,6 @@ public sealed class JetSchemaCatalogTests
     public void DecisionTable_Covers_EveryEntry()
     {
         // 上面 [Theory] 列舉的 physical 名集合,必須與 All 完全相同(雙向涵蓋)。
-        // 2026-10-03 新增 field_mapping_previous(第一次失敗:收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89)。
         var decisionTablePhysicals = new HashSet<string>(StringComparer.Ordinal)
         {
             "pbc_gl", "pbc_tb", "account_mapping",
@@ -181,7 +178,7 @@ public sealed class JetSchemaCatalogTests
     [Fact]
     public void ResolveCanonical_KnownAndUnknown()
     {
-        // 裁定 2026-10-08-04 統一全系統的資料名稱。
+        // 用全系統統一的資料名稱。
         Assert.Equal("GL、GL(未納入測試)", JetSchemaCatalog.ResolveCanonical("gl"));
         Assert.Null(JetSchemaCatalog.ResolveCanonical("no_such_table"));
     }

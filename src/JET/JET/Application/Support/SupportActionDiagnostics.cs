@@ -13,14 +13,14 @@ namespace JET.Application;
 /// <summary>
 /// 支援日誌 action.start 的輸入結構：只寫程式定義的欄位名稱、值的型別與陣列筆數，陣列只描述第一項。
 /// 名稱不像程式欄位時寫成「?」。只有 <see cref="CodeValues"/> 列出的欄位、而且值是該欄位認得的代碼時才照記；
-/// 欄位配對物件底下、檔名、路徑、欄名、搜尋字與條件值一律只記型別，案件代號連欄位名稱都不記（2026-10-21）。
+/// 欄位配對物件底下、檔名、路徑、欄名、搜尋字與條件值一律只記型別，案件代號連欄位名稱都不記。
 /// </summary>
 public static partial class SupportPayloadShape
 {
     private const int MaxLength = 1024;
     private const int MaxDepth = 6;
 
-    // 值是程式代碼的請求欄位與各欄位認得的代碼。欄位依 tools/tests/fixtures/action-shapes.json 的請求欄位挑選，
+    // 值是程式代碼的請求欄位與各欄位認得的代碼。欄位依 tests/JET.Tests/Fixtures/action-shapes.json 的請求欄位挑選，
     // 代碼取自解析這些欄位的程式。表外的值只記型別：前端錯誤送來的未知值，以及 C# 接受任意文字的 scenario.source、
     // semanticRole 與案件載入的 databaseProvider，都不照記。同名欄位在不同 action 意思不同時，合併各處的代碼。
     // field 只放 JET 欄位代號；自訂欄位另用 fieldId，不在這份清單。
@@ -185,7 +185,7 @@ public static partial class SupportPayloadShape
 /// <summary>
 /// 支援日誌 action.end 的結果版本：從回應取出批次、執行、報告與條件的版本代號、筆數和狀態，最多往下四層。
 /// 回應可以是 C# 物件或 JSON（例如驗證結果）。只取白名單內的名稱：版本代號與狀態必須像程式代號，
-/// 筆數只取白名單內的計數，清單只記筆數；檔名、路徑、案件名稱、金額與資料內容一律不取（2026-10-21）。
+/// 筆數只取白名單內的計數，清單只記筆數；檔名、路徑、案件名稱、金額與資料內容一律不取。
 /// 版本代號排在前面，超過長度上限時先截掉後面的筆數與狀態。
 /// </summary>
 public static partial class SupportResultRefs
@@ -402,7 +402,7 @@ public static partial class SupportResultRefs
 
 /// <summary>
 /// 操作中不影響結果的附帶步驟失敗：資料已保存後更新不了案件步驟、刪案後清不掉資料夾、開案失敗後放不掉工作鎖。
-/// 畫面照原本規則回應；支援日誌記下步驟代號與例外的型別、位置（2026-10-21）。
+/// 畫面照原本規則回應；支援日誌記下步驟代號與例外的型別、位置。
 /// </summary>
 internal static partial class SupportStepDiagnostics
 {
@@ -413,7 +413,7 @@ internal static partial class SupportStepDiagnostics
 
 /// <summary>
 /// 建立或載入案件後的支援紀錄：先讓案件紀錄檔可以寫入，再記一筆開啟事件，帶 JET 版本與資料庫種類，
-/// 不記電腦、帳號或路徑，只記啟動代號與版本（裁定 2026-10-21-08）。都不丟例外，不擋開案。
+/// 不記電腦、帳號或路徑，只記啟動代號與版本。都不丟例外，不擋開案。
 /// </summary>
 internal static partial class SupportCaseDiagnostics
 {

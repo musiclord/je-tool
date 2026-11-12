@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 退化母體守門判定（jet-testing §1 Domain 純函式）。BVA：空母體不守門、
+/// 退化母體守門判定（Domain 純函式）。BVA：空母體不守門、
 /// 非空且借貸皆 0 才退化、任一側非 0 即正常。對齊借貸欄誤配傳票總額的退化情境（逐列淨額恆 0）。
 /// </summary>
 public sealed class GlProjectionGuardTests

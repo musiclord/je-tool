@@ -86,7 +86,7 @@
 
   FilterStep.saveDraftForReplacement = null; // bind 時接上目前畫面的儲存動作，回傳 Promise。
 
-  // 裁定 2026-10-11-02：目前的情境有修改還沒儲存時，開啟或複製已存情境與套用範例都先詢問，
+  // 目前的情境有修改還沒儲存時，開啟或複製已存情境與套用範例都先詢問，
   // 用第四步科目分類也在用的共用對話框（Ui.confirmUnsaved）；沒有修改時直接換。取消編輯是明確放棄修改，不經過這裡。
   // 不儲存時修改會被換掉，所以第二顆按鈕寫「不儲存，直接…」，和科目分類在退出時的寫法相同。
   // 儲存情境不會清掉其他結果，預設焦點停在儲存，比照科目分類沒有東西會被清除時的做法。
@@ -123,7 +123,7 @@
       detail.scenarioPosition === targetPosition;
   }
 
-  // 儲存按鈕上方的失敗說明。錯誤屬於別的情境時寫出是哪一個情境（2026-10-13 先寫的暫定句）。
+  // 儲存按鈕上方的失敗說明。錯誤屬於別的情境時寫出是哪一個情境。
   function saveFailureText(error, targetPosition) {
     var details = error && Array.isArray(error.details) ? error.details : [];
     var other = details.filter(function (detail) { return detail && !belongsToTarget(detail, targetPosition); })[0];
@@ -133,7 +133,7 @@
       : '儲存失敗：' + reason;
   }
 
-  // 「重新檢查並儲存情境」的結果，這句的用字依裁定 2026-10-13-28。還有要修改的情境不算失敗。
+  // 「重新檢查並儲存情境」的結果。還有要修改的情境不算失敗。
   function scenarioRecheckSentence(data) {
     var check = data && data.filterScenarioCheck;
     var remaining = check && Array.isArray(check.problems) ? check.problems.length : 0;
@@ -186,7 +186,7 @@
         FilterStep.clearDraftDisclosures();
         FilterStep.selectedRule = null;
       }
-      // 比對基準的條件用送出時的內容：後端存檔時只保留每種條件用得到的欄位（裁定 2026-10-15-01），回應裡的條件
+      // 比對基準的條件用送出時的內容：後端存檔時只保留每種條件用得到的欄位，回應裡的條件
       // 比草稿精簡，直接拿來比會一直判成尚未儲存。名稱與動機仍用回應，有卡片的情境名稱留白時後端會補上預設名稱。
       FilterStep.viewState.savedDraftKey = scenarioContentKey(toWireScenario(
         Object.assign({}, authored, { name: saved.name, rationale: saved.rationale })));
@@ -215,8 +215,8 @@
           // restoreViewState 以快取回填，不重抓）。
           var open = !!FilterStep.viewState.openScenarios[i];
           var confirmingRemoval = FilterStep.viewState.pendingRemovalIndex === i;
-          // 整列標題就是開關，再點一次收起；展開的內容放在下凹的底槽裡和下一個情境分開。原本情境之間只有不明顯的分隔線（裁定 2026-10-29-03）。
-          // 點標題就收合原本是對「傳票XXX的分錄」標題的期望（裁定 2026-10-29-04）；同功能的元件只留一套（裁定 2026-10-19-08），所以情境的整列標題也用同一種開關。
+          // 整列標題就是開關，再點一次收起；展開的內容放在下凹的底槽裡和下一個情境分開。
+          // 同功能的元件只留一套，所以情境的整列標題和「傳票XXX的分錄」標題用同一種開關。
           return (
             '<article class="saved-scenario' + (open ? ' saved-scenario--open' : '') + '" data-motion-key="' + Ui.esc('saved-' + s.name) + '">' +
               '<div class="saved-scenario__head">' +
@@ -262,8 +262,8 @@
         '<h3 class="rule-card__title" data-bind="saved-scenarios-title" tabindex="-1">已儲存篩選情境' +
           '<span class="check-item__count">' + saved.length + ' / 10</span></h3>' +
         // 有情境無法套用目前規則時，原因、下一步與「重新檢查並儲存情境」只在上方「GL：查核期間內的分錄」說一次；
-        // 這裡和下面的彙總、報告只寫目前狀態，同一畫面不重複說明（裁定 2026-10-13-04）。
-        // 原本標題下另寫一句已儲存版本的 GL 範圍，這句多餘，已拿掉（裁定 2026-10-29-02）；範圍只在上方說一次。
+        // 這裡和下面的彙總、報告只寫目前狀態，同一畫面不重複說明。
+        // 標題下不另寫已儲存版本的 GL 範圍；範圍只在上方說一次。
         items +
       '</section>'
     );
@@ -289,7 +289,7 @@
       '<section class="report-output">' +
         '<div class="report-output__head">' +
           '<div>' +
-            // 報告是否為目前版本由按鈕名稱與下方清單表示，標題下不另寫「條件或資料變更後，請重新產生」，常駐說明不再多寫（裁定 2026-10-29-02）。
+            // 報告是否為目前版本由按鈕名稱與下方清單表示，標題下不另寫「條件或資料變更後，請重新產生」，常駐說明不再多寫。
             '<h3 class="report-output__title">條件篩選報告</h3>' +
           '</div>' +
           '<button type="button" class="btn btn--ghost" data-action="export-criteria-report"' +
@@ -337,7 +337,7 @@
       '<section class="rule-card">' +
         '<div class="rule-card__head">' +
           '<h3 class="rule-card__title">高風險條件彙總</h3>' +
-          // 就地展開的檢視是淡底小標籤，箭頭在字前面（裁定 2026-10-30-36）。
+          // 就地展開的檢視是淡底小標籤，箭頭在字前面。
           '<button type="button" class="jet-view jet-view--expand" data-action="toggle-high-risk-summary"' +
             Ui.disclosureAttributes(open, 'filter-high-risk-summary-body') + '>查看彙總</button>' +
         '</div>' +
@@ -352,7 +352,7 @@
   }
 
   // 由情境摘要組「C 欄定義」：依 position 升冪,每欄 { position, label:'C{p}', name }。
-  // C 欄欄序與標頭一律以此為準(brief：依 highRiskSummaryScenarios 回的 position 升冪)。
+  // C 欄欄序與標頭一律以此為準：依 highRiskSummaryScenarios 回的 position 升冪。
   function buildTagColumns(scenarios) {
     return (scenarios || [])
       .slice()
@@ -389,7 +389,7 @@
   }
 
   // 動態 C 欄的標頭只顯示 C{p}，完整情境名稱放在 title 與輔助技術可讀的隱藏文字；
-  // 名稱對照在「符合條件摘要」。十個條件的「傳票符合的條件」因此不必橫向捲動（裁定 2026-10-16-02）。
+  // 名稱對照在「符合條件摘要」。十個條件的「傳票符合的條件」因此不必橫向捲動。
   function tagColumnHeadHtml(columns) {
     return columns.map(function (c) {
       return '<th class="preview-table__tag" title="' + Ui.esc(c.name) + '">' + Ui.esc(c.label) +
@@ -409,7 +409,7 @@
   }
 
   // 已存情境展開後的傳票清單。s 帶著符合的傳票數、分錄筆數與 query.filterVoucherPage 的第一頁。
-  // 後端一律回傳傳票清單；原本只在清單是空值時才改列完整命中分錄的那段走不到，已刪除（裁定 2026-10-19-01）。
+  // 後端一律回傳傳票清單。
   function renderScenarioHitPreview(previewEl, s) {
     previewEl.innerHTML = Ui.FilterVouchers.summary(s);
     previewEl.setAttribute('data-loaded', '1');
@@ -420,7 +420,7 @@
   // commit 時變，跨草稿編輯保留快取是安全的），沒有快取才讀取並寫入快取。
   // 有可用的已儲存版本時，直接讀儲存情境時存好的結果：傳票頁第一頁另帶符合的傳票數與分錄筆數，不再即時預覽一次。
   // 還沒有可用的已儲存版本時（例如有情境還不能套用目前規則），照舊用 filter.preview 依目前範圍即時計算。
-  // data-loaded 旗標防同一份 DOM 生命週期內重複載入（重複展開/收合不重抓，行為同改版前）。
+  // data-loaded 旗標防同一份 DOM 生命週期內重複載入（重複展開/收合不重抓）。
   function ensureScenarioPreview(container, index) {
     var previewEl = Ui.findLive(container, '[data-bind="scenario-preview-' + index + '"]');
     if (!previewEl || previewEl.getAttribute('data-loaded') === '1') { return; }
@@ -481,7 +481,7 @@
       }).catch(function (error) {
         // 舊案件／舊 revision 的失敗不可污染目前案件訊息；當前失敗則留可重試提示並交給共用訊息區。
         if (!acceptResponse()) { return; }
-        // 會讓已存情境失效的上游修改都會清掉情境（裁定 2026-10-07-03），這裡只剩暫時性的讀取失敗，提供重試即可。
+        // 會讓已存情境失效的上游修改都會清掉情境，這裡只剩暫時性的讀取失敗，提供重試即可。
         fillSmoothly(previewEl, function () {
           previewEl.innerHTML = '<p role="status">載入失敗：' + Ui.esc(Ui.errorText(error, '請稍後重試。')) + '</p>' +
             '<p>可以直接重試讀取結果。</p>' +
@@ -645,7 +645,7 @@
     });
   }
 
-  // 已存情境：編輯、複製、取消編輯、重新檢查、條件篩選報告、展開、移除與高風險條件彙總（原本 bind 裡的三段）。
+  // 已存情境：編輯、複製、取消編輯、重新檢查、條件篩選報告、展開、移除與高風險條件彙總。
   function bindSavedScenarios(container) {
     function editScenario(index, copy) {
       var state = Store.getState(), saved = state.filter.savedScenarios[index];
@@ -705,7 +705,7 @@
             populationScope: selectedPopulationScope(state)
           }).then(function (data) {
             if (!completeScenarioListChange(snapshot, data)) { return; }
-            // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
+            // 完成句由 Ui.run 接上耗時後記一則；成功時只留一則。
             return scenarioRecheckSentence(data);
           });
         }, { completionMessage: function (sentence) { return sentence || ''; } });

@@ -14,12 +14,9 @@ using static JET.Tests.Infrastructure.WorkingPaperWriterTestSupport;
 
 namespace JET.Tests.Infrastructure;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
-
 /// <summary>底稿寫出器：step3 條件表、step4 符合高風險條件傳票與 step4-1 傳票明細。</summary>
 public sealed class WorkingPaperWriterStep3Step4Tests
 {
-    // 第一次失敗：20261110-044847118-bcd611cbcf7b4e729bce8dd6482cbc9c。
     [Theory]
     [InlineData("number")]
     [InlineData("date")]
@@ -46,7 +43,6 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         Assert.DoesNotContain("重新下載", error.Message);
     }
 
-    // 第一次失敗：20261110-044409036-d83584bd09084bc8ad6f3914db7343bf。
     [Theory]
     [InlineData("{")]
     [InlineData("[]")]
@@ -73,7 +69,7 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         Assert.DoesNotContain("重新下載", error.Message);
     }
 
-    // ================= Task 4:step3 高風險條件彙總 =================
+    // ================= step3 高風險條件彙總 =================
 
     [Fact]
     public async Task Step3_ConditionTable_MatchesScenariosNameRationaleAndVoucherHits()
@@ -104,7 +100,7 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         var c3Row = FindRowByColumnValue(sheet, "B", "C3", 19);
         Assert.Equal(0d, sheet.Cell($"E{c3Row}").GetDouble());
 
-        // 裁定 2026-11-09-14、-15：step3 照舊版保護，只鎖 B7:E28；其他格子，包括沒有寫值的格子，都可以填。
+        // step3 照舊版保護，只鎖 B7:E28；其他格子，包括沒有寫值的格子，都可以填。
         Assert.True(sheet.Protection.IsProtected);
         Assert.All(
             new[] { "B7", "E7", $"C{c1Row}", "B28", "E28" },
@@ -116,7 +112,7 @@ public sealed class WorkingPaperWriterStep3Step4Tests
 
     /// <summary>
     /// WorkingPaper 的 step3 可見情境表固定止於 E 欄；計畫裡的條件文字不得鏡射到 F 欄。
-    /// 2026-10-22 起 WorkingPaperContext 沒有舊的 ScenarioConditionLogic 欄位，條件文字只在計畫裡。
+    /// WorkingPaperContext 沒有 ScenarioConditionLogic 欄位，條件文字只在計畫裡。
     /// </summary>
     [Fact]
     public async Task Step3_VisibleConditionTable_EndsAtColumnE()
@@ -137,7 +133,7 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             row => Assert.True(sheet.Cell(row, 6).IsEmpty(), $"F{row} 應保持空白。"));
     }
 
-    // ================= Task 4:step4 符合高風險條件傳票(動態全 position 欄)=================
+    // ================= step4 符合高風險條件傳票(動態全 position 欄)=================
 
     [Fact]
     public async Task Step4_ConditionColumns_AllPositions_YMatchesMatchedPositions()
@@ -189,7 +185,7 @@ public sealed class WorkingPaperWriterStep3Step4Tests
         Assert.True(sheet.Cell($"P{docRow}").IsEmpty());
         Assert.True(sheet.Cell($"U{docRow}").IsEmpty());
 
-        // 裁定 2026-11-09-14、-15：step4 照舊版保護，只鎖程式寫入的 A13:O 資料列。
+        // step4 照舊版保護，只鎖程式寫入的 A13:O 資料列。
         // 這裡只用到 C1 到 C3，I 到 O 的條件欄沒有值也照舊版鎖定；表頭、手填欄與資料列下方都可以填。
         var lastRow = 12 + ReadColumnFrom(sheet, "A", 13).Count;
         Assert.True(sheet.Protection.IsProtected);
@@ -246,8 +242,8 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             .Where(row => details.Cell(row, 1).GetString() == "DOC-C2")
             .ToList();
         Assert.Equal(3, c2Rows.Count); // 命中傳票的三條 GL 行要完整列出。
-        // 2026-10-22 清理技術債：沒有計畫的舊寫出路徑已刪除，step4-1 依計畫只列所選集合裡有行層命中的位置，
-        // 標記欄緊接在計畫的欄位之後（第一次失敗：Public 收據 20261022-075335566-9bd5ebf8423944be8298ad73cb7ee242）。
+        // step4-1 依計畫只列所選集合裡有行層命中的位置，
+        // 標記欄緊接在計畫的欄位之後。
         var tagColumn = plan.Step41Columns.Count + 1;
         Assert.Equal(new[] { c2Position }, plan.RowHitScenarioPositions);
         Assert.Equal("C2_TAG", details.Cell(5, tagColumn).GetString());
@@ -282,7 +278,7 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             cell => Assert.True(cell.IsEmpty()));
     }
 
-    // ================= Task 4:step4-1 行層明細(動態欄只 rowHitCount>0 的 position)=================
+    // ================= step4-1 行層明細(動態欄只 rowHitCount>0 的 position)=================
 
     [Fact]
     public async Task Step41_ConditionColumns_OnlyRowHitPositions_YMatchesMatchedPositions()
@@ -391,9 +387,9 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             host,
             gl =>
             {
-                // 裁定 2026-11-03-11 之後 step4-1 只列 JET 欄位，沒有配對、只是欄名以 _JE 結尾的來源欄不再進表。
-                // 晚頁最大值、欄寬上限與時間型原始值改由配對成分錄來源模組、傳票建立人員與傳票核准人員的來源欄檢查，
-                // 列的順序記在傳票摘要。第一次失敗：Focused 收據 20261103-065006568-d4478bbc5fd8447f82aa77ce32345943。
+                // step4-1 只列 JET 欄位，沒有配對、只是欄名以 _JE 結尾的來源欄不進表。
+                // 晚頁最大值、欄寬上限與時間型原始值由配對成分錄來源模組、傳票建立人員與傳票核准人員的來源欄檢查，
+                // 列的順序記在傳票摘要。
                 gl.WithColumns(
                     "傳票號碼",
                     "傳票項次",
@@ -524,7 +520,7 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             .ToDictionary(column => checked((int)column.Min!.Value));
         Assert.Equal(71d, widths[noCapColumn].Width!.Value);
         Assert.Equal(255d, widths[capColumn].Width!.Value);
-        // 時間欄改配成傳票核准人員後，欄寬由表頭「傳票核准人員_JE」決定，不再是資料值的 12。第一次失敗：Focused 收據 20261103-065908057-75f1700835174f1eb2aca3d836756e5e。
+        // 時間欄配成傳票核准人員，欄寬由表頭「傳票核准人員_JE」決定，不是資料值的 12。
         Assert.Equal(20d, widths[timeColumn].Width!.Value);
         Assert.All(widths.Values, column => Assert.True(column.BestFit?.Value));
     }

@@ -62,7 +62,6 @@ public sealed class DevToolsGatingTests
         using var host = new HandlerTestHost(enableDevTools: false);
 
         // 正式版的使用者預覽仍註冊：丟出的是業務錯誤（無 active project），不是 unknown action
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => host.DispatchAsync("query.dataPreview", """{ "dataset": "pbcGl" }"""));
 
@@ -76,7 +75,7 @@ public sealed class DevToolsGatingTests
         // 不能讓錯誤的 if (enableDevTools) 實作假綠。
         using var host = new HandlerTestHost(enableDevTools: true);
 
-#if DEBUG || JET_AGENT_GUI_TEST
+#if DEBUG
         Assert.All(DemoActions, action => Assert.Contains(action, host.Dispatcher.RegisteredActions));
 #else
         Assert.DoesNotContain(
@@ -93,7 +92,7 @@ public sealed class DevToolsGatingTests
 
         await host.DispatchAsync("system.ping"); // 產生 action.start/end 診斷日誌
 
-        // 檔案 sink 與 ring buffer 並列:agent 跑完即可直接讀 NDJSON 檔(免手動複製)
+        // 檔案 sink 與 ring buffer 並列:跑完即可直接讀 NDJSON 檔(免手動複製)
         var file = Assert.Single(Directory.GetFiles(host.DiagnosticLogDirectory!, "jet-dev-*.ndjson"));
         Assert.Contains("action.start", await File.ReadAllTextAsync(file));
     }

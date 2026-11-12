@@ -153,8 +153,7 @@ public sealed class ValidationProgramTests
         Assert.All(result.AmountDistribution.Bins, bin => Assert.Null(bin.EcdfPct));
     }
 
-    // 配對沒確認的情境一律當成已匯入 TB；沒有匯入的原因句另由 WorkflowWithoutTbTests 檢查（裁定 2026-10-29-16 區分兩種原因，
-    // 第一次失敗：Focused 收據 20261030-233643806-ed2a7f02f1624b629dd004cd56a4e85a）。
+    // 配對沒確認的情境一律當成已匯入 TB；沒有匯入的原因句另由 WorkflowWithoutTbTests 檢查。
     private static ValidationRequest Request(bool hasTbMapping = true) => new(
         ProjectId: "project",
         HasGlMapping: true,

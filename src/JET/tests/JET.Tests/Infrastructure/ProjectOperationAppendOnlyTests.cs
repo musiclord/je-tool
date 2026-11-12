@@ -6,11 +6,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// schema v9 起，<c>operation_log</c> 的 append-only 在具引擎機制的 provider 由資料庫層強制：
-/// SQLite 以 BEFORE UPDATE／BEFORE DELETE trigger 的 <c>RAISE(ABORT, …)</c>，SQL Server 以
-/// INSTEAD OF UPDATE, DELETE trigger 的 <c>THROW</c>。兩者都只擋改與刪，INSERT 照常。
-/// DuckDB 1.5.3 沒有 trigger、也沒有 table-level 權限，append-only 在該 provider 仍是程式紀律；
-/// 本檔把「DuckDB 確實沒有這個機制」釘成可失效的事實，引擎日後補上時這條會紅，提醒補齊防護。
+/// <c>operation_log</c> 的 append-only 由資料庫層強制：
+/// SQLite 以 BEFORE UPDATE／BEFORE DELETE trigger 的 <c>RAISE(ABORT, …)</c> 只擋改與刪，INSERT 照常。
 /// </summary>
 public sealed class ProjectOperationAppendOnlyTests
 {
@@ -64,26 +61,10 @@ public sealed class ProjectOperationAppendOnlyTests
         await command.ExecuteNonQueryAsync();
     }
 
-    private static async Task ExecuteAsync(DbCommand command)
-    {
-        await using (command)
-        {
-            await command.ExecuteNonQueryAsync();
-        }
-    }
-
     private static async Task<long> CountAsync(DbConnection connection, string sql)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         return Convert.ToInt64(await command.ExecuteScalarAsync());
-    }
-
-    private static async Task<long> CountAsync(DbCommand command)
-    {
-        await using (command)
-        {
-            return Convert.ToInt64(await command.ExecuteScalarAsync());
-        }
     }
 }

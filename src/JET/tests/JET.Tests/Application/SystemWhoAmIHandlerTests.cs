@@ -7,9 +7,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// system.whoAmI 的純 Application 單元測試。驗收契約來源：docs/action-contract-manifest.md 的 system.whoAmI 列。
-/// 只保留 SQLite 之後，身分就是本機的 Windows 帳號，不再向線上使用者目錄取編號，也沒有編號的離線快取
-/// （裁定 2026-11-06-08）。
+/// system.whoAmI 的純 Application 單元測試。
+/// 身分就是本機的 Windows 帳號，不向線上使用者目錄取編號，也沒有編號的離線快取。
 /// </summary>
 public sealed class SystemWhoAmIHandlerTests
 {

@@ -28,7 +28,7 @@ public sealed class ReportTextEncodingTests
     private const string Description = "合成\u0001摘要\u000B第二段_x0041_\t定位\r\n下一行";
     private const string AccountName = "合成\u001F資產￿";
     private const string Preparer = "合成\u0008人員";
-    // 只在總帳出現的科目：科目配對工作檔的名稱欄照舊版寫「Not in TB」（裁定 2026-11-05-40），試算表也有的科目取試算表名稱。
+    // 只在總帳出現的科目：科目配對工作檔的名稱欄照舊版寫「Not in TB」，試算表也有的科目取試算表名稱。
     private const string GlOnlyAccountName = "合成\u001F費用￿";
     // 欄名本身像跳脫格式，報告裡記下的欄位配對要能原樣讀回。
     private const string DescriptionColumn = "摘要_x0041_";
@@ -129,9 +129,8 @@ public sealed class ReportTextEncodingTests
         var mappedRows = preview.GetProperty("rows").EnumerateArray()
             .Select(row => row.EnumerateArray().Select(cell => cell.GetString()).ToArray())
             .ToArray();
-        // 裁定 2026-11-05-40：只在總帳出現的 5000 在工作檔寫「Not in TB」，匯回時照 2026-11-05-10 當成沒有科目名稱；
-        // 原本工作檔寫總帳名稱，匯回後的名稱是 GlOnlyAccountName。第一次失敗：Focused 收據 20261105-114259819-314023ad21fc477cade2b6eb28f2c8fa。
-        // 含控制字元的名稱改由試算表也有的 1000 帶進工作檔，同樣要原樣讀回。
+        // 只在總帳出現的 5000 在工作檔寫「Not in TB」，匯回時當成沒有科目名稱。
+        // 含控制字元的名稱由試算表也有的 1000 帶進工作檔，同樣要原樣讀回。
         var mapped = mappedRows.Single(row => row[0] == "5000");
         Assert.Null(mapped[1]);
         Assert.Equal(AccountMappingCategories.Cash, mapped[2]);
@@ -214,7 +213,7 @@ public sealed class ReportTextEncodingTests
             sheet.WriteDataRow(5, [sheet.TextCell(5, 2, "合成"), RawTextCell("C5", "合成\u0001摘要")]);
         });
 
-        // 結束標記不再蓋掉原本的字元錯誤。
+        // 結束標記不會蓋掉原本的字元錯誤。
         AssertLocation(Assert.IsType<ArgumentException>(error), "合成2", "C5", 0x0001);
     }
 
@@ -337,8 +336,8 @@ public sealed class ReportTextEncodingTests
         await File.WriteAllTextAsync(glPath, gl.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         await host.DispatchAsync("import.gl.fromFile", Json(new { filePath = glPath, encoding = "utf-8", delimiter = "," }));
 
-        // 1000 的試算表名稱也含控制字元：科目配對工作檔取試算表名稱，含控制字元的名稱才會經過工作檔再讀回（裁定 2026-11-05-40 之後，
-        // 只在總帳出現的科目寫「Not in TB」，原本由 5000 帶控制字元）。
+        // 1000 的試算表名稱也含控制字元：科目配對工作檔取試算表名稱，含控制字元的名稱才會經過工作檔再讀回；
+        // 只在總帳出現的科目寫「Not in TB」。
         var tbPath = new InlineTbWorkbookBuilder()
             .AddRow("1000", AccountName, 10m)
             .AddRow("4000", "合成收入", -9m)

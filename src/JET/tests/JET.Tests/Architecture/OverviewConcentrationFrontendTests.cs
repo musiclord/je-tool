@@ -6,7 +6,7 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 集中度分析（流程總覽區塊⑤）的 wire key 正本。後端回應的實際欄位集合由
 /// <c>PrescreenConcentrationTests</c> 逐層對照本表；前端鏡射則由本檔的守衛對照本表。
-/// 任何一邊改名或加欄位而沒有同步，就會有一條測試紅燈。
+/// 任何一邊改名或加欄位而沒有同步，就會有一條測試失敗。
 /// </summary>
 internal static class ConcentrationWireKeys
 {
@@ -28,7 +28,7 @@ internal static class ConcentrationWireKeys
 /// 分母）一律由後端算好，前端只鏡射與格式化；「不適用」與「舊執行結果沒有此統計」都必須
 /// 以文字降級，不得以 0 冒充統計。圖表 option 只交給本地 vendored ECharts 的 SVG renderer。
 /// 這裡留下 wire key 鏡射、不在前端重算、中性用語與圖表設定來源的原始碼檢查；降級說明、檢視分頁的鍵盤操作與
-/// 只在統計就緒時顯示，2026-10-14 起改由 <c>tools/tests/frontend-journey-overview.test.cjs</c> 的情境 19 行為測試核對。
+/// 只在統計就緒時顯示，由前端的行為測試核對。
 /// </summary>
 public sealed class OverviewConcentrationFrontendTests
 {
@@ -66,7 +66,7 @@ public sealed class OverviewConcentrationFrontendTests
         Assert.DoesNotContain("JetApi", source, StringComparison.Ordinal);
         Assert.DoesNotContain("JetStore", source, StringComparison.Ordinal);
 
-        // 總數、累積筆數與排序也照後端給的值：原本只查金額級距與圖表設定函式，併入後改查整個檔。
+        // 總數、累積筆數與排序也照後端給的值，檢查整個檔。
         Assert.DoesNotContain("totalCount", source, StringComparison.Ordinal);
         Assert.DoesNotContain("cumulativeCount", source, StringComparison.Ordinal);
         Assert.DoesNotContain(".sort(", source, StringComparison.Ordinal);
@@ -77,9 +77,8 @@ public sealed class OverviewConcentrationFrontendTests
     {
         var source = ReadFrontend("js", "overview-bi.js");
 
-        // 三張圖說原本各自寫一次「此為分布描述，非風險評估。」。介面上的常駐說明太多（裁定 2026-10-29-02），改成同一句話在同一個畫面只說一次，
-        // 改由流程總覽底部的定位說明說一次；這條原本鎖住圖說裡的句子，改版後依預期失敗，
-        // 首敗收據 20261029-040132519-63b6b682d8554f9796feeccf6fbaf7ef。意圖不變：總覽說明這是分布描述，判斷留給審計員。
+        // 「此為分布描述，非風險評估。」這句話在同一個畫面只說一次，
+        // 由流程總覽底部的定位說明說；圖說裡不重複。總覽說明這是分布描述，判斷留給審計員。
         Assert.DoesNotContain("此為分布描述", source, StringComparison.Ordinal);
         Assert.Contains("Ui.esc(positioning.overviewGuidance)", ReadFrontend("js", "app.js"), StringComparison.Ordinal);
         Assert.DoesNotContain("風險評分", source, StringComparison.Ordinal);
@@ -102,8 +101,8 @@ public sealed class OverviewConcentrationFrontendTests
         }
 
         var app = ReadFrontend("js", "app.js");
-        // 裁定 2026-10-19-15：「其他資訊」只留資料庫，不再顯示執行識別碼與規則版本。
-        // 首次失敗：20261019-122628964-b12373a9d2f2420182c3d05d5982134a；仍檢查標題，並改為確認兩個內部代號不上畫面。
+        // 「其他資訊」只留資料庫，不顯示執行識別碼與規則版本。
+        // 檢查標題，並確認兩個內部代號不上畫面。
         Assert.Contains("'<summary>其他資訊</summary>'", app, StringComparison.Ordinal);
         Assert.DoesNotContain("overviewKvRow('執行識別碼'", app, StringComparison.Ordinal);
         Assert.DoesNotContain("overviewKvRow('規則版本'", app, StringComparison.Ordinal);

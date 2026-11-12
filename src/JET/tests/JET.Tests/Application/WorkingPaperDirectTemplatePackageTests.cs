@@ -13,9 +13,6 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
-// 使用者指定修改 Step 1-2 A4，更新範本指紋；首敗 20261106-134205437-3ea24431c2794227b2a24d4236b2145d。
 public sealed class WorkingPaperDirectTemplatePackageTests
 {
     private static readonly string[] DynamicSheets =
@@ -42,8 +39,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             "Templates",
             "WorkingPaper.xlsx");
         var templateBytes = await File.ReadAllBytesAsync(templatePath);
-        // 裁定 2026-11-09-12 把 step4 A12 的整句寫進範本，只改了共用字串，範本的雜湊值跟著更新。
-        // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
+        // step4 A12 的整句寫在範本的共用字串裡，這是目前範本的雜湊值。
         Assert.Equal(
             "CBCFE6DBE7E023D1DA62DCECC88C882B2F92CDAB06E210DD5065F8A0CC7D46A0",
             Convert.ToHexString(SHA256.HashData(templateBytes)));
@@ -106,8 +102,7 @@ public sealed class WorkingPaperDirectTemplatePackageTests
             "Templates",
             "WorkingPaper.xlsx");
         var templateBytes = await File.ReadAllBytesAsync(templatePath);
-        // 裁定 2026-11-09-12 把 step4 A12 的整句寫進範本，只改了共用字串，範本的雜湊值跟著更新。
-        // 第一次失敗：Focused 收據 20261109-051456426-28ab5a06105246d6b87033f0aa4d0b42。
+        // step4 A12 的整句寫在範本的共用字串裡，這是目前範本的雜湊值。
         Assert.Equal(
             "CBCFE6DBE7E023D1DA62DCECC88C882B2F92CDAB06E210DD5065F8A0CC7D46A0",
             Convert.ToHexString(SHA256.HashData(templateBytes)));

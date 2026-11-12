@@ -2,7 +2,7 @@ using JET.Domain;
 
 namespace JET.Tests.Application;
 
-// Public首敗100911120：匯出現在須讀完整目前來源，這兩個替身只供明示沒有篩選情境的seam fixture。
+// 匯出須讀完整目前來源，這兩個替身只供明示沒有篩選情境的seam fixture。
 // 不加到Unconfigured的預設值；其他未宣告依賴仍保持null並立即失敗。
 internal static class EmptyReportStateTestData
 {

@@ -4,8 +4,6 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>人工驗收第 1、8 項：實際工作簿編輯、重開、GL 重匯與重新產生報告，最後刪除合成案件。</summary>
 public sealed class FilterAcceptanceReportLifecycleTests
 {

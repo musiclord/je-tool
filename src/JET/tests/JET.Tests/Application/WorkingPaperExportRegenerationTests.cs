@@ -58,9 +58,8 @@ public sealed class WorkingPaperExportRegenerationTests
     [Fact]
     public async Task Export_RecomputesFilterHitsWhenResultsAreStale()
     {
-        // 原本只刪掉儲存的結果就斷言匯出會重建：底稿匯出前一律重算。改成每個條件組儲存時就存好結果，
-        // 匯出直接讀；只有勾稽結果標成過期時才重算，所以這裡同時標記過期。
-        // 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83；不重算的情形見 FilterHitPerScenarioTests。
+        // 每個條件組儲存時就存好結果，匯出直接讀；只有勾稽結果標成過期時才重算，
+        // 所以這裡除了刪掉儲存的結果，也同時標記過期。不重算的情形見 FilterHitPerScenarioTests。
         using var host = new HandlerTestHost();
         var prepared = await PrepareAsync(host);
         await DemoProjectPipeline.QueryScalarAsync(

@@ -3,7 +3,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 裁定 2026-10-20-05：測試清理加上查出持有者的診斷，刪不掉暫存根目錄時照樣失敗，
+/// 測試清理帶有查出持有者的診斷，刪不掉暫存根目錄時照樣失敗，
 /// 訊息要列出還留著的檔案與開著它的程序；這裡由測試程序自己開著一個合成鎖檔。
 /// </summary>
 public sealed class TempProjectRootTests

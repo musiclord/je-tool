@@ -3,14 +3,12 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 批量列寫入吞吐量對照（spec §7 效能證據）：N 萬合成 GL 列走「匯入 staging → 落地投影」的實路徑，
-/// 分別於 SQLite 與 DuckDB 計時，以 <see cref="ITestOutputHelper"/> 記錄——**不設硬性 wall-clock 斷言**
-/// （本 repo 有 wall-clock flake 教訓）。唯一守恆斷言：投影列數 = 母體列數（正確性，非速度）。
-/// 用途是回報修前後 DuckDB 數字與 SQLite 對照，非把速度釘進 CI。
+/// 批量列寫入吞吐量量測：N 萬合成 GL 列走「匯入 staging → 落地投影」的實路徑，
+/// 於 SQLite 計時，以 <see cref="ITestOutputHelper"/> 記錄——**不設硬性 wall-clock 斷言**
+/// （執行時間不穩定，會讓測試偶發失敗）。唯一守恆斷言：投影列數 = 母體列數（正確性，非速度）。
 /// </summary>
 public sealed class BulkWriterThroughputTests(ITestOutputHelper output)
 {

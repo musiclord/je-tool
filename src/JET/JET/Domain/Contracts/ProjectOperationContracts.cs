@@ -83,7 +83,7 @@ public interface IProjectOperationLog
 
     /// <summary>
     /// 資料已提交之後寫操作紀錄，寫進去回 true。本機案件的包裝寫入失敗時不往外丟，記一筆支援日誌後回 false；
-    /// 呼叫端據此回報成功並附提醒（裁定 2026-10-19-19）。其他實作沿用 AppendAsync，失敗照常往外丟。
+    /// 呼叫端據此回報成功並附提醒。其他實作沿用 AppendAsync，失敗照常往外丟。
     /// </summary>
     async Task<bool> TryAppendAsync(
         string projectId,
@@ -105,7 +105,7 @@ public interface IProjectOperationLog
 
     /// <summary>
     /// 確認配對前判斷要不要記重新配對。本機案件的包裝讀不到紀錄表時不往外丟，記一筆支援日誌後回 null；
-    /// 呼叫端照常提交、不寫可能不實的紀錄，並附寫不進操作紀錄的提醒（裁定 2026-10-19-19）。
+    /// 呼叫端照常提交、不寫可能不實的紀錄，並附寫不進操作紀錄的提醒。
     /// 其他實作沿用 RequiresMappingRecommitAuditAsync，失敗照常往外丟。
     /// </summary>
     async Task<bool?> TryRequiresMappingRecommitAuditAsync(

@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 報告檔儲存的最小單元測試（2026-09-02 重寫後）。只涵蓋這個 store 自己的承諾：寫壞或取消不留暫存檔、
+/// 報告檔儲存的最小單元測試。只涵蓋這個 store 自己的承諾：寫壞或取消不留暫存檔、
 /// 工作底稿每次新檔、其餘覆蓋同名檔、舊 manifest 仍能列出、檔案狀態如實回報、殘留的舊控制檔
 /// 直接清掉。不核對內容、不擋載入，那些是它刻意不做的事。
 /// </summary>
@@ -397,9 +397,8 @@ public sealed class ProjectReportStoreTests
         Assert.Equal(3, listed.Count);
     }
 
-    // 報告清單舊設計的欄名 sourceRefs、createdUtc 不再讀回（裁定 2026-10-29-17：改名前的案件刪除後重建，不寫讀取相容）。
-    // 原本這裡用舊欄名的紀錄核對照樣列出；現在列出的那一筆改用現行欄名，另加一筆只有舊欄名的紀錄，核對它不列出。
-    // 第一次失敗：Focused 收據 20261030-084625784-a36dec767d6d4962a737ce65bf661999（舊欄名的紀錄不再列出）。
+    // 報告清單舊設計的欄名 sourceRefs、createdUtc 不讀回。
+    // 這裡列出的那一筆用現行欄名，另加一筆只有舊欄名的紀錄，核對它不列出。
     [Fact]
     public async Task ListAsync_Manifest_IgnoresSha256AccountMappingAndOldFieldNameEntries()
     {
@@ -473,8 +472,8 @@ public sealed class ProjectReportStoreTests
         Assert.Equal(written.ReportId, Assert.Single(await store.ListAsync(ProjectId, CancellationToken.None)).ReportId);
     }
 
-    // 檔名不能當成案件資料夾裡的一個檔案的紀錄，和其他讀不懂的紀錄一樣不列出；報告清單不因此擋住讀取（docs/jet-guide.md
-    // 寫報告清單「不會因此拒絕載入案件」）。JET 自己不會寫出這種檔名，只會出自 JET 以外對 reports.json 的改動。
+    // 檔名不能當成案件資料夾裡的一個檔案的紀錄，和其他讀不懂的紀錄一樣不列出；報告清單不因此擋住讀取。
+    // JET 自己不會寫出這種檔名，只會出自 JET 以外對 reports.json 的改動。
     [Theory]
     [InlineData("..")]
     [InlineData(".")]

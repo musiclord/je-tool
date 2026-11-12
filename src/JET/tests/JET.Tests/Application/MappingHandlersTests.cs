@@ -269,7 +269,7 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "amountMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 
@@ -284,7 +284,7 @@ public sealed class MappingHandlersTests
             """{ "mapping": {}, "changeMode": "bogus" }"""));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, ex.Code);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("發生非預期的錯誤，此操作未完成。請再試一次。", ex.Message);
     }
 

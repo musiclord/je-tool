@@ -7,7 +7,7 @@ namespace JET.Tests.Application;
 
 public sealed class WorkingPaperExportCapacityJourneyTests
 {
-    // jet-guide section 7; action contract export.workingPaperStream.
+    // Action contract export.workingPaperStream.
     [Theory]
     [InlineData("sqlite")]
     public async Task ExportAtCapacity_ReturnsCompletePrunedCatalogAndKeepsExistingFiles(string provider)

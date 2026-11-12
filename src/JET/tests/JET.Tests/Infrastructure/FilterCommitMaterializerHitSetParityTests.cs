@@ -7,7 +7,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// filter.commit 與空命中結果的惰性補算必須以同一情境產生完全相同的 entry_id 集合。
-/// 每個 provider 都走真實 commit repository 與 materializer，SQL Server 沿用 availability gate。
+/// 測試走真實的 commit repository 與 materializer。
 /// </summary>
 public sealed class FilterCommitMaterializerHitSetParityTests
 {
@@ -57,8 +57,7 @@ public sealed class FilterCommitMaterializerHitSetParityTests
         ]);
 
     [Fact]
-    public async Task CommitAndLazyMaterializer_LocalProvider_SameScenario_PersistIdenticalEntryIdSet(
-)
+    public async Task CommitAndLazyMaterializer_LocalProvider_SameScenario_PersistIdenticalEntryIdSet()
     {
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);

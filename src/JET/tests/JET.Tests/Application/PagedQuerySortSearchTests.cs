@@ -19,7 +19,7 @@ public sealed class PagedQuerySortSearchTests
             scenarios = new[] { new {
                 name = "非授權編製人員", rationale = "test",
                 groups = new[] { new { join = "and", conditions = new[] {
-                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    // 用示範資料裡整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } } } }
         });
 
@@ -114,7 +114,7 @@ public sealed class PagedQuerySortSearchTests
         await AssertSortAndSearchAsync(host, "query.blankRecordsPage", new() { ["category"] = "blankDescription" }, "glDate", "voucherNumber", 5);
         await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "approvedBy", "voucherNumber", 7);
         await AssertSortAndSearchAsync(host, "query.infSamplePage", [], "debit", "voucherNumber", 7);
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用同樣命中多頁的非授權編製人員。
+        // 用命中多頁的非授權編製人員。
         await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "amount", "voucherNumber", 3);
         await AssertSortAndSearchAsync(host, "query.prescreenPage", new() { ["ruleKey"] = "nonAuthorizedPreparer" }, "description", "voucherNumber", 3);
 
@@ -156,7 +156,7 @@ public sealed class PagedQuerySortSearchTests
         var badKey = await Assert.ThrowsAsync<JET.Domain.JetActionException>(() => host.DispatchAsync("query.voucherBalancePage",
             JsonSerializer.Serialize(new { sort = new { key = "voucher_number; DROP TABLE x", direction = "asc" } })));
         Assert.Equal("invalid_payload", badKey.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送表頭上的排序鍵，
+        // 畫面只送表頭上的排序鍵，
         // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現，檢查代號記進支援日誌。
         Assert.Equal(JET.Domain.JetPayloadRejection.UnexpectedErrorMessage, badKey.Message);
         Assert.Equal("sort_key_invalid", JET.Domain.JetPayloadRejection.CheckOf(badKey));
@@ -170,7 +170,7 @@ public sealed class PagedQuerySortSearchTests
             JsonSerializer.Serialize(new { search = new string('x', 201) })));
         Assert.Equal("invalid_payload", tooLong.Code);
 
-        // 換了排序卻沿用舊游標：明確擋下，不靜默回到第一頁。demo 的非授權編製人員命中超過一頁，游標一定存在（裁定 2026-10-08-03 移除傳票日期與回溯過帳，原用回溯過帳）。
+        // 換了排序卻沿用舊游標：明確擋下，不靜默回到第一頁。demo 的非授權編製人員命中超過一頁，游標一定存在。
         var first = await host.DispatchAsync("query.prescreenPage",
             JsonSerializer.Serialize(new { ruleKey = "nonAuthorizedPreparer", pageSize = 1, sort = new { key = "amount", direction = "asc" } }));
         var cursor = first.GetProperty("nextCursor").GetString();

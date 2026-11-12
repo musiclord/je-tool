@@ -5,14 +5,14 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 資料驗證報告與工作底稿的欄位資訊頁共用的欄位、黃色表頭與欄寬上限。
-/// 字級跟著所在報告：驗證報告 10 點、底稿 11 點（裁定 2026-10-29-07）。兩份的第一列都不再寫版本字樣 V.2019，
-/// 底稿的藍底紅字版本列一併取消（裁定 2026-11-06-11）。
+/// 字級跟著所在報告：驗證報告 10 點、底稿 11 點。兩份的第一列都不寫版本字樣 V.2019，
+/// 底稿也不寫藍底紅字版本列。
 /// </summary>
 internal static class FormalFieldInfoAppearance
 {
     internal const double HeaderFontSize = 12D;
 
-    /// <summary>欄位名稱欄的寬度上限；「由系統產生」的長說明超過時換行，不再把整欄撐到一百多個字元。</summary>
+    /// <summary>欄位名稱欄的寬度上限；「由系統產生」的長說明超過時換行，不把整欄撐到一百多個字元。</summary>
     internal const double NameColumnMaxWidth = 40D;
 
     internal static readonly WorkbookStylePatch TbHeader = new(

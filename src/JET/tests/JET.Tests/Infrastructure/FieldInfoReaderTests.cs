@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// Legacy TableDef 等價欄位定義的 reader-side evidence。
-/// Oracle：master spec「Legacy 等價欄位定義持久化」——XLSX 依 native cell type
+/// Oracle：Legacy 等價欄位定義持久化的規則——XLSX 依 native cell type
 /// 與日期／時間 number format；CSV/TXT 固定為文字。這裡只鎖 reader 觀察值，
 /// 跨列／Append 合併與持久化另由 repository seam 驗證。
 /// </summary>

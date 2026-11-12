@@ -6,8 +6,6 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 public sealed class WorkingPaperDirectTemplateReportAtomicityTests
 {
     [Fact]
@@ -195,8 +193,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
     [Fact]
     public async Task DirectWriter_ExistingWorkingPaperLockedByExcelLikeHandle_WritesNewVersionAndLeavesLockedFileAlone()
     {
-        // 工作底稿每次匯出都是新版本檔，正式底稿不得被默默改寫（裁定 2026-09-02-03）。舊版被 Excel 開著不會擋住匯出，也不會被改寫；
-        // 修改前這個測試預期 IOException，因為舊設計會嘗試覆蓋同名檔。
+        // 工作底稿每次匯出都是新版本檔，正式底稿不得被默默改寫。舊版被 Excel 開著不會擋住匯出，也不會被改寫。
         using var prepared = await PrepareAsync();
         var writer = (IWorkingPaperPlanWriter)CreateWriter(
             prepared.Database,
@@ -485,7 +482,7 @@ public sealed class WorkingPaperDirectTemplateReportAtomicityTests
             projectDirectory,
             "*.tmp",
             SearchOption.AllDirectories));
-        // 原本只確認舊版的暫存檔 .report-artifacts.mutation-v1.json 不在；產品早已不寫這個檔，斷言一定通過。改成確認現行的暫存檔都沒有留下。
+        // 確認現行的暫存檔都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
     }
 

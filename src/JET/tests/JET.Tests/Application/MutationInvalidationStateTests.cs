@@ -40,9 +40,8 @@ public sealed class MutationInvalidationStateTests
         using var host = new HandlerTestHost();
         var prepared = await ReportRevisionStateTests.PrepareAsync(host, provider);
         var response = await MutateAsync(host, prepared.Id, action);
-        // 上游修改會清除下游（裁定 2026-10-07-03）：invalidatedResults 多了 filterScenarios，與 filter 同值；
+        // 上游修改會清除下游：invalidatedResults 帶 filterScenarios，與 filter 同值；
         // 篩選命中失效時情境也一起清掉，staleState.filter 回到從未執行，因此恆為 false。
-        // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
         AssertInvalidated(response.GetProperty("invalidatedResults"), validation, prescreen, filter,
             accountMapping: action is "import.gl.fromFile" or "import.tb.fromFile" or "mapping.commit.gl" or "mapping.commit.tb");
         AssertFlags(response.GetProperty("staleState"), validation, prescreen, false);
@@ -58,10 +57,10 @@ public sealed class MutationInvalidationStateTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            projectName = "Batch9-Empty", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
+            projectName = "Empty-Project", periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         var response = await host.DispatchAsync("import.holiday", """{"dates":["2025-01-01"]}""");
-        // 鍵集合多了 filterScenarios（上游修改清除下游，裁定 2026-10-07-03）；第一次失敗收據同上。
+        // 鍵集合包含 filterScenarios（上游修改清除下游）。
         AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
         AssertFlags(response.GetProperty("staleState"), false, false, false);
     }
@@ -83,12 +82,11 @@ public sealed class MutationInvalidationStateTests
                 .WaitAsync(TimeSpan.FromSeconds(6));
             Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5));
             Assert.Equal(1, response.GetProperty("count").GetInt32());
-            // 上游修改會清除下游（裁定 2026-10-07-03）：情境一起清掉，filter 回到從未執行；第一次失敗收據
-            // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            // 上游修改會清除下游：情境一起清掉，filter 回到從未執行。
             AssertInvalidated(response.GetProperty("invalidatedResults"), false, true, true);
             AssertFlags(response.GetProperty("staleState"), false, true, false);
             Assert.Equal(JsonValueKind.Null, response.GetProperty("reports").ValueKind);
-            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 這句的用字已定案。
             Assert.Equal("變更已儲存，但報告清單沒有更新；重新開啟案件就會更新，不必重做變更。",
                 response.GetProperty("reportWarning").GetString());
         }
@@ -172,7 +170,6 @@ public sealed class MutationInvalidationStateTests
 
     private static void AssertInvalidated(JsonElement value, bool validation, bool prescreen, bool filter, bool accountMapping = false)
     {
-        // 第 7 則新增科目配對清除旗標；精確鍵集合與所有既有結果斷言仍保留。
         Assert.Equal(new[] { "accountMapping", "filter", "filterScenarios", "prescreen", "validation" }, value.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
         Assert.Equal(accountMapping, value.GetProperty("accountMapping").GetBoolean());
         Assert.Equal(validation, value.GetProperty("validation").GetBoolean());

@@ -7,8 +7,8 @@ namespace JET.Domain;
 public sealed record FilterScenarioCorruptReason(int? Group, int? Rule, string Code);
 
 /// <summary>
-/// 存檔內容損毀或程式送錯資料時才會出現的條件錯誤（裁定 2026-10-13-21；用字依裁定 2026-10-13-28）。
-/// 畫面與回應的 message、details 不再出現原本的句子與英文代碼：儲存與預覽時那一條條件只寫
+/// 存檔內容損毀或程式送錯資料時才會出現的條件錯誤。
+/// 畫面與回應的 message、details 不出現原因的句子與英文代碼：儲存與預覽時那一條條件只寫
 /// <see cref="RuleMessage"/>，開案的待修正清單同一個情境只寫一次「條件內容無法讀取」。
 /// 原因代號隨例外或驗證結果帶到應用層，再記進支援日誌的 <c>filter.scenario_unreadable</c> 事件。
 /// </summary>

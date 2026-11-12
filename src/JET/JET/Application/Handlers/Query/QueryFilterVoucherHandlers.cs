@@ -31,8 +31,8 @@ public sealed class QueryFilterVoucherRowsPageHandler(ProjectSession session) : 
 /// <summary>
 /// 命中傳票分頁（傳票摘要與展開分錄）。草稿用同一個編譯器即時判斷條件；已儲存的情境讀儲存時存下的命中與
 /// 符合第幾組第幾條，不再判斷條件。每一頁綁定情境、資料版本與查詢版本，上游變更後游標失效；
-/// 已儲存情境的頁面只綁這個情境自己的版本，存或移除別的情境不會讓它過期。只有命中傳票，沒有待判定（裁定 2026-09-07-03）。
-/// 每種資料庫各有一個實例，放在該種資料庫組裡；案件編號由 handler 從作用中案件快照傳入。
+/// 已儲存情境的頁面只綁這個情境自己的版本，存或移除別的情境不會讓它過期。只有命中傳票，沒有待判定。
+/// 案件編號由 handler 從作用中案件快照傳入。
 /// </summary>
 public sealed class FilterVoucherQueryService(IFilterVoucherRepository repository, IFilterScenarioStore scenarioStore,
     IMappingStateStore mappingStore, IAccountMappingStore accountMappingStore,

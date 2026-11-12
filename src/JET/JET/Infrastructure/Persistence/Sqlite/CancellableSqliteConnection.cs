@@ -6,7 +6,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 讓 SQLite 執行中的語句可以取消。Microsoft.Data.Sqlite 的 <see cref="SqliteCommand.Cancel"/> 不做任何事，
-/// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停（2026-10-05 最後獨立複審實測 54.7 秒）。
+/// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停（實測 54.7 秒）。
 /// 這條連線建立的命令改用 <see cref="CancellableSqliteCommand"/>；設定與基底的 <c>CreateCommand</c> 相同。
 /// </summary>
 internal sealed class CancellableSqliteConnection(string connectionString) : SqliteConnection(connectionString)
@@ -21,7 +21,7 @@ internal sealed class CancellableSqliteConnection(string connectionString) : Sql
 
 /// <summary>
 /// 執行期間把取消接到 <c>sqlite3_interrupt</c>：SQLite 在最近的檢查點中止目前語句，交易內被中斷的寫入由 SQLite
-/// 整筆回復；中斷錯誤轉成 <see cref="OperationCanceledException"/>，和 DuckDB 一樣回報成取消。
+/// 整筆回復；中斷錯誤轉成 <see cref="OperationCanceledException"/>，回報成取消。
 /// 取消只在執行呼叫期間登記，呼叫返回前解除，
 /// 不會中斷之後在同一條連線上執行的其他語句。
 /// </summary>
@@ -129,8 +129,8 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
 
 /// <summary>
 /// 逐列讀取時也能取消：讀下一列的期間把取消接到 <c>sqlite3_interrupt</c>，和執行語句時相同，讀完就解除。
-/// 原本只有第一步可以中斷，之後每讀一列只在開始前檢查一次取消；下一列要掃過很多資料才出來時，
-/// 按取消後要等到它出來才停（第 22 步盤點的第 7 項）。其餘成員原樣交給 SQLite 的讀取器。
+/// 只在每讀一列開始前檢查一次取消的話，下一列要掃過很多資料才出來時，
+/// 按取消後要等到它出來才停。其餘成員原樣交給 SQLite 的讀取器。
 /// </summary>
 internal sealed class CancellableSqliteDataReader(SqliteDataReader inner, CancellableSqliteCommand command)
     : System.Data.Common.DbDataReader

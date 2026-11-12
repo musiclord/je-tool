@@ -7,8 +7,8 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 日期欄位的前後端鏡像守衛。Domain 的 GL 欄位白名單是正本；前端 <c>ui-core.js</c> 的 <c>GL_FIELDS</c> 與
 /// <c>FILTER_DATE_FIELDS</c> 只做顯示鏡像，日期欄位集合不得漂移。
-/// 組內 AND 與 OR 混用的讀回句子改由 <c>tools/tests/frontend-journey-readback.test.cjs</c> 與共用夾具
-/// <c>tools/tests/fixtures/filter-readback-sentences.json</c> 以行為核對（2026-10-14 刪除原本的字串比對方法）。
+/// 組內 AND 與 OR 混用的讀回句子由前端測試與共用夾具
+/// <c>tests/JET.Tests/Fixtures/filter-readback-sentences.json</c> 以行為核對。
 /// </summary>
 public sealed class FilterFrontendParityTests
 {
@@ -27,7 +27,7 @@ public sealed class FilterFrontendParityTests
         Assert.Empty(MissingFrom(backendDateFields, FilterConditionLabels.GlFields.Keys));
         Assert.Empty(MissingFrom(backendDateFields, frontendGlFields));
         Assert.Equal(backendDateFields, frontendDateFields.OrderBy(static key => key, StringComparer.Ordinal));
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：日期欄只剩總帳日期與傳票核准日，前後端都不再有 voucherDate。
+        // 不含傳票日期與回溯過帳：日期欄只有總帳日期與傳票核准日，前後端都沒有 voucherDate。
         Assert.Equal(["approvalDate", "glDate"], backendDateFields);
         Assert.DoesNotContain("voucherDate", frontendGlFields);
         Assert.False(FilterConditionLabels.GlFields.ContainsKey("voucherDate"));

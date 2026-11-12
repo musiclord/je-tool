@@ -90,7 +90,11 @@ pwsh -NoProfile -File tools/verify.ps1 -Command Mutation -Configuration Release 
 
 ### Gui
 
-`Gui` 固定使用 `AgentGuiTest` 組態，先建置一次，再分別用全新的暫存目錄執行各個情境。每個情境的操作上限、預期次數、
+`Gui` 固定使用 `AgentGuiTest` 組態，先建置一次，再分別用全新的暫存目錄執行各個情境。這個組態不在產品專案裡：
+`Gui` 建置 JET 與測試專案時，用 `/p:CustomBeforeMicrosoftCommonTargets` 帶入
+`tools/harness/agent-gui-test/AgentGuiTest.targets`。它和 Debug 一樣有開發人員工具與示範資料的 action，另外加入同一個資料夾裡
+Gui 測試用的進入點、測試夾具與夾具的測試（裁定 2026-11-10-13）。產品程式只提供通用的接點：組裝 runtime 時可以包裝每個
+action handler，也可以交給 runtime 一段啟動後在背景執行的工作；`Program.Run` 先掛上例外後盾，再用呼叫端給的函式建立主視窗。每個情境的操作上限、預期次數、
 逾時與截圖數只寫在 `tools/harness/lanes.json`；驅動程式與組態另有固定最大值（操作 120 次、截圖 2 張），調高情境預算超過時要一起改。
 截圖都是合成畫面，每張不超過 2 MB。
 
@@ -107,7 +111,7 @@ WebView 的安全、當機與快捷鍵設定，以及前後端支援的 action �
 完整執行要幾分鐘並占用 CPU，何時執行見 `AGENTS.md`「測試」。
 
 選到 `single-file-relaunch` 時，`Gui` 先用 `FolderProfile` 把 `AgentGuiTest` 組態打包成單一執行檔，放在這次執行的 `scratch`，
-命令結束時隨 `scratch` 刪除。`JET.csproj` 只在帶 `JetAgentGuiOwnedBundle=true`、輸出在 `artifacts/harness/runs/` 底下時放行，
+命令結束時隨 `scratch` 刪除。`AgentGuiTest.targets` 只在帶 `JetAgentGuiOwnedBundle=true`、輸出在 `artifacts/harness/runs/` 底下時放行，
 用其他方式發布這個組態照樣失敗（裁定 2026-11-09-03）。
 
 各情境做了哪些操作、核對什麼，見 [Gui 情境](harness/gui-driver/README.md)。
@@ -159,9 +163,10 @@ Restore、Gui 與 Excel 驅動程式自己管理的程序，以及 `Mutation` �
 ### Documentation
 
 `Documentation` 檢查目前仍有效的文件與 AI Agent 轉接檔。缺檔、必要指向缺漏及已確認過時的事實會失敗；不自然用語只列為提醒。
+檢查哪些檔案以 `documentation-check.json` 的 `files` 為準，沒有列進去的檔案不會被檢查；現行計畫在進行期間要列進去。
 `documentation-check.json` 的 `styleWarnings` 比對固定片語，`stylePatterns` 用正規表示式抓符號代句與工作用語，程式碼不檢查。
-`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 120 KiB；裁定總表 2,048 KiB；系統規格、action 契約、前端說明與名詞表 160 KiB；
-其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限（裁定 2026-11-02-04，裁定總表的上限見 2026-11-06-14）。
+`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 1,024 KiB；裁定總表 2,048 KiB；系統規格、action 契約、前端說明與名詞表 160 KiB；
+其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限（裁定 2026-11-02-04，裁定總表的上限見 2026-11-06-14，現行計畫的上限見 2026-11-11-14）。
 `rulingLocations` 核對裁定總表「落實位置」寫的檔案都存在；`rulingReferences` 核對 `src/JET` 與 `tools` 裡寫的「裁定 編號」都是現行裁定；
 `retiredNames` 在 `src/JET/JET` 找名詞表「不再使用的名稱」列的舊名稱，註解也算；`tableNames` 核對 SQLite 建立的表都列在名詞表，
 名詞表列的表也都還存在。架構圖表另由 [`harness/architecture/`](harness/architecture/README.md) 檢查，結果寫在文件報告的
@@ -200,22 +205,23 @@ Restore、Gui 與 Excel 驅動程式自己管理的程序，以及 `Mutation` �
 Public 在 .NET 測試通過後依序執行 FrontendMapping 與 FrontendPreview，任何一項失敗都讓 Public 失敗，所以 Public 與
 ReleaseCandidate 需要 Node.js。
 
-- FrontendMapping 自動收集 `tools/tests/` 第一層所有 `frontend-*.test.cjs`，只有 `frontend-preview.test.cjs` 留給 FrontendPreview；
-  其他沒有被任何路線執行的 `*.test.cjs`、`*.test.js` 或 `*.test.mjs` 會讓檢查失敗。
+- 只讀 `src/JET` 裡檔案的前端測試放在 `src/JET/tests/frontend/`，只有 `src/JET` 時，在它底下執行 `node --test --test-concurrency=4 tests/frontend/`；
+  要讀 Gui 驅動程式、需求文件或改壞工具的留在 `tools/tests/`。FrontendMapping 自動收集兩處第一層所有 `frontend-*.test.cjs`，
+  只有 `frontend-preview.test.cjs` 留給 FrontendPreview；其他沒有被任何路線執行的 `*.test.cjs`、`*.test.js` 或 `*.test.mjs` 會讓檢查失敗。
 - 依審計員使用情境寫的測試命名為 `frontend-journey-<情境>.test.cjs`，檔案開頭的註解寫審計員的操作步驟與使用的夾具。
-  兩個以上測試檔共用的夾具放在 `tools/tests/support/frontend-fixtures.cjs`，只服務一個測試檔的夾具留在那個檔裡；
+  兩個以上測試檔共用的夾具放在 `src/JET/tests/frontend/support/frontend-fixtures.cjs`，只服務一個測試檔的夾具留在那個檔裡；
   改了共用夾具要在 `frontend-support.test.cjs` 補測試。支援模組的檔名不含 `.test.`，Node 不會把它當成測試執行。
-- 每個前端測試程序都要直接或經由共用夾具載入 `tools/tests/support/resource-guard.cjs`，FrontendMapping 會檢查。它每 100 毫秒
+- 每個前端測試程序都要直接或經由共用夾具載入 `src/JET/tests/frontend/support/resource-guard.cjs`，FrontendMapping 會檢查。它每 100 毫秒
   檢查一次記憶體與執行時間，預設超過 2048 MB 或 900 秒就結束程序，並在錯誤輸出寫一行以 `JET test resource guard:` 開頭的說明；
   上限可用 `JET_TEST_MAX_RSS_MB` 與 `JET_TEST_MAX_SECONDS` 調整。2026-10-13 曾有測試失敗時沿著假 DOM 的父子連結不停展開，
   占用數十 GB 記憶體讓整台電腦停擺；共用夾具已把這些連結改成不可列舉。
-- FrontendMapping 與前端改壞工具一次最多執行 4 個測試檔，數值在 `tools/tests/support/resource-guard-marker.cjs`，
+- FrontendMapping 與前端改壞工具一次最多執行 4 個測試檔，數值在 `src/JET/tests/frontend/support/resource-guard-marker.cjs`，
   合計最多 4 × 2048 MB，不超過框架給整個步驟的 8192 MB。自己用 `node --test` 一次跑多個測試檔時，也加 `--test-concurrency=4`。
 
 前端測試的假後端要和正式後端一致。`src/JET/tests/JET.Tests/Application/ActionShapeJourney.cs` 照審計員的順序用正式 dispatcher
-在 SQLite 案件走一遍合成流程，把每個 action 收到的資料與回應的欄位和型別寫在 `tools/tests/fixtures/action-shapes.json`；
+在 SQLite 案件走一遍合成流程，把每個 action 收到的資料與回應的欄位和型別寫在 `src/JET/tests/JET.Tests/Fixtures/action-shapes.json`；
 `ActionShapeContractTests` 每次重走，和檔案不同就失敗。前端測試的假後端都包在
-`tools/tests/support/action-contract.cjs` 的 `contractJetApi` 裡，假回應與送出的資料都要在正式契約出現過。對不上時，先判斷是哪一種：
+`src/JET/tests/frontend/support/action-contract.cjs` 的 `contractJetApi` 裡，假回應與送出的資料都要在正式契約出現過。對不上時，先判斷是哪一種：
 
 - 審計員真的會遇到、流程還沒走到：在 `ActionShapeJourney` 補上那一步，再重新產生契約檔。
 - 假資料用了正式後端不會回的欄位：照正式的形狀改假資料並註明原因，斷言不動。
@@ -288,7 +294,8 @@ pwsh -NoProfile -File tools/tests/verify-contract.tests.ps1
 
 它在 `artifacts/harness/contract-tests/` 產生隔離的測試證據，模擬子程序失敗、逾時、輸出截斷、遮蔽、憑證攔截、
 JSON 寫入失敗、清理拒絕及共享鎖衝突，也檢查 `tools/` 的目錄規則，以及 GUI 與 Excel 驅動程式的輸入和行程清理限制。
-它也確認 `Gui` 在情境之前執行上面那些只在 `AgentGuiTest` 組態編譯的測試，清單沒有漏掉 Gui 測試夾具的行為測試。
+它也確認 `Gui` 在情境之前執行上面那些只在 `AgentGuiTest` 組態編譯的測試，清單沒有漏掉 Gui 測試夾具的行為測試；
+產品專案、測試專案與 `src/JET` 的程式都不帶 `AgentGuiTest` 組態與 Gui 測試的進入點和夾具。
 它不啟動 Excel、不修改產品檔案、不讀私人案件資料；另執行 `FrontendMapping` 的實際派送與程序清理檢查，所以需要 Node.js。
 
 ## 技術依據
@@ -314,4 +321,4 @@ JSON 寫入失敗、清理拒絕及共享鎖衝突，也檢查 `tools/` 的目�
 `Public` 與 `Focused` 可加 `-CollectCoverage`，產生 C# 的 `coverage.cobertura.xml`。這個選項使用現有 Microsoft Testing Platform 涵蓋率功能，不另外啟動測試。
 收據的測試步驟會記錄涵蓋率檔位置。檔案未產生時回報執行環境錯誤，不能當成沒有未覆蓋的程式。
 
-SAT 交接以完整 `Public` 結果為主；`Focused` 用來定位或確認修正。報告產生方式見 [SAT 文件維護](../docs/SAT/scripts/README.md)。
+SAT 交接以完整 `Public` 結果為主；`Focused` 用來定位或確認修正。報告產生方式見 [SAT 文件的產生工具](harness/sat-documents/README.md)。

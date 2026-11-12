@@ -15,16 +15,14 @@ public sealed class ValidationOwnershipTests
         Assert.Null(ProductionAssembly.GetType("JET.Domain.ValidationReportProjectionParser"));
         Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.ValidationAuditRuntime"));
         Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.ProviderRoutingValidationRunRepository"));
-        // 2026-10-02 資料庫分流簡化：分流用的 ProviderRoutingValidationFactsPort 隨分流層刪除，
-        // 從下一個測試的 internal 清單移出，改在這裡確認它不再存在。第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
+        // 沒有資料庫分流層，確認分流用的 ProviderRoutingValidationFactsPort 不存在。
         Assert.Null(ProductionAssembly.GetType("JET.Infrastructure.ProviderRoutingValidationFactsPort"));
     }
 
     [Fact]
     public void TypedValidationSurface_IsInternal()
     {
-        // 2026-10-02 起 ProgramGraph 與 ProgramNode 隨只供測試使用的程式外殼一起刪除，因此從清單移除；
-        // 其餘型別仍須存在且維持 internal。
+        // 清單裡的型別都須存在且維持 internal。
         var expected = new[]
         {
             "JET.Application.ValidationReportProjectionParser",

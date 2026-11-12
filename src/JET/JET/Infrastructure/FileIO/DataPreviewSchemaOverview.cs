@@ -4,12 +4,11 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 「資料庫結構總覽」資料集的列建構——把 <see cref="JetSchemaCatalog"/> 的曝光條目轉成預覽列，
-/// 集中於一處（兩個 provider 共用，避免各抄一份）。
+/// 「資料庫結構總覽」資料集的列建構——把 <see cref="JetSchemaCatalog"/> 的曝光條目轉成預覽列。
 ///
-/// 為什麼放 Infrastructure：這是 <see cref="IDataPreviewRepository"/> 兩實作的共用細節，
+/// 為什麼放 Infrastructure：這是 <see cref="IDataPreviewRepository"/> 實作的細節，
 /// 不是 Domain 契約。rows 全來自 catalog metadata（DataView + StructureOnly，Hidden 不列），
-/// 不查任何資料庫——故與 provider 無關，無 SQL 方言差異。
+/// 不查任何資料庫。
 /// </summary>
 internal static class DataPreviewSchemaOverview
 {

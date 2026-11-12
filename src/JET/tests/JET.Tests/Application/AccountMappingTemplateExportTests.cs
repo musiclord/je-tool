@@ -13,11 +13,10 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 科目配對範本產生（export.accountMappingTemplate）驗收：
-/// (a) 母體＝GL∪TB（使用者關切點，必測）——repo 讀回 GL-only／TB-only／共有科目皆列、升冪、GL-only 寫真實 GL 名；
+/// (a) 母體＝GL∪TB——repo 讀回 GL-only／TB-only／共有科目皆列、升冪、GL-only 寫真實 GL 名；
 /// (b) 下拉存在——writer 讀回 C4 DataValidation 為 list 型五類別、inCellDropdown、A/B 已填 C 留空；
 /// (c) round-trip——產範本→填 C 欄→import.accountMapping.fromFile→account_mapping 落地正確；
-/// (d) handler 端到端——GL+TB 已 commit → 範本檔寫出、rowCount == 獨立 recount diff 基數；
-/// (e) provider parity——SQLite 對 SQL Server 的範本列等價（[SqlServerFact]）。
+/// (d) handler 端到端——GL+TB 已 commit → 範本檔寫出、rowCount == 獨立 recount diff 基數。
 ///
 /// oracle 一律獨立參數化 SQL recount（DemoProjectPipeline.QueryScalarAsync）或 ClosedXML 讀回，
 /// 不做弱斷言。母體以 InlineWorkbookProject（自含小母體）或 DemoProjectPipeline（deterministic demo）建。
@@ -335,7 +334,7 @@ public sealed class AccountMappingTemplateExportTests
             .ToArray();
         Assert.True(
             missingAutoFitColumns.Length == 0,
-            "Stage 8 AccountMapping consistency diff: AccountMapping!columns A-C "
+            "AccountMapping consistency diff: AccountMapping!columns A-C "
             + "must retain width and carry BestFit/CustomWidth; missing columns "
             + string.Join(",", missingAutoFitColumns));
     }
@@ -539,8 +538,8 @@ public sealed class AccountMappingTemplateExportTests
             configureTb: tb => tb.AddRow("1101", "現金", 300));
         var expected = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "薪資費用") };
 
-        // 裁定 2026-11-05-40：範本裡 GL 有、TB 沒有的科目照舊版寫「Not in TB」，原本寫 GL 名稱「薪資費用」。
-        // 第一次失敗：Focused 收據 20261105-114259819-314023ad21fc477cade2b6eb28f2c8fa。查詢結果照舊帶 GL 名稱，另外標出不在 TB。
+        // 範本裡 GL 有、TB 沒有的科目照舊版寫「Not in TB」，不寫 GL 名稱「薪資費用」。
+        // 查詢結果照舊帶 GL 名稱，另外標出不在 TB。
         var expectedTemplate = new (string Code, string Name)[] { ("1101", "現金"), ("5101", "Not in TB") };
 
         var rows = await createRepository()
@@ -645,7 +644,6 @@ public sealed class AccountMappingTemplateExportTests
             host.DispatchAsync("export.accountMappingTemplate", JsonSerializer.Serialize(new { resultId = new string('a', 32) })));
         Assert.Equal(JetErrorCodes.StaleResult, ex.Code);
         // 已確認配對的狀態說法統一後，仍要求缺 GL 配對時明確拒絕。
-        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Contains("正式報表需要目前已確認配對的 GL 欄位", ex.Message);
         Assert.DoesNotContain("驗證", ex.Message);
     }

@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 規則命名登錄表（guide §4）的結構不變量：識別字唯一、命名公約成立、
+/// 規則命名登錄表的結構不變量：識別字唯一、命名公約成立、
 /// row-tag 集合與 FilterableKeys 一致（單一事實來源不可分岔）。
 /// </summary>
 public sealed class RuleCatalogTests
@@ -56,8 +56,8 @@ public sealed class RuleCatalogTests
     [Fact]
     public void PreparerRowTags_ArePresentAndFilterable()
     {
-        // 非授權編製人員須登錄且納入可篩選鍵。編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），
-        // 只測那兩條的 Catalog_Contains_RareAccount_AsRowTag 一併刪除，這裡改成確認兩個代號不在登錄裡；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+        // 非授權編製人員須登錄且納入可篩選鍵。照舊版 JET 的作法，沒有編製分錄較少的人員與使用較少的科目，
+        // 這裡確認兩個代號不在登錄裡。
         Assert.Contains(RuleCatalog.All, r => r.WireKey == PrescreenRuleKeys.NonAuthorizedPreparer && r.Shape == RuleShape.RowTag);
         Assert.Contains(PrescreenRuleKeys.NonAuthorizedPreparer, PrescreenRuleKeys.FilterableKeys);
         Assert.DoesNotContain(RuleCatalog.All, r => r.Slug is "rare_preparer" or "rare_account");

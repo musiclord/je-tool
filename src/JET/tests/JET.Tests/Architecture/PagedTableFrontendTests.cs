@@ -4,13 +4,10 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-// filter-step.js 依職責拆成五個檔案後，讀第五步前端的斷言改用 ProductSources.FilterStepFrontend()，
-// 把五個檔案合起來讀，範圍和拆檔前讀單一檔案相同；斷言本身不變。第一次失敗：Focused 收據 20261025-053438454-333c59b548b548008f977941c5502503。
-
 /// <summary>
 /// 明細表排序與搜尋的前端守衛：畫面上每個可排序表頭的鍵名都要在後端該查詢的白名單裡。
-/// 排序與搜尋一律送回後端從第一頁重載、前端不自己排序也不自己過濾，2026-10-14 起改由
-/// <c>tools/tests/frontend-journey-tables.test.cjs</c> 以實際送出的請求核對。
+/// 排序與搜尋一律送回後端從第一頁重載、前端不自己排序也不自己過濾，
+/// 由前端測試以實際送出的請求核對。
 /// </summary>
 public sealed class PagedTableFrontendTests
 {
@@ -59,8 +56,7 @@ public sealed class PagedTableFrontendTests
             Collect(seen, match.Groups["action"].Value, Regex.Matches(match.Groups["body"].Value, @"'(?<key>\w+)'").Select(m => m.Groups["key"].Value));
         }
 
-        // 裁定 2026-10-16-05 移除矩陣的分錄明細頁；其餘固定表頭逐項保留，不能只降低數量門檻。
-        // 第一次失敗：20261016-093839202-e342e301c3f14aa2ae0b43abe98a30ed。
+        // 矩陣沒有分錄明細頁；其餘固定表頭逐項保留，不能只降低數量門檻。
         var expectedActions = new[]
         {
             "query.completenessDiffPage", "query.voucherBalancePage", "query.blankRecordsPage",

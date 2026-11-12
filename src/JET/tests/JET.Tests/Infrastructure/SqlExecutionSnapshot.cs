@@ -6,9 +6,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// Phase 1 characterization helper。只正規化 provider schema qualifier，以及 SQL
-/// 字串常值、quoted identifier 與註解以外的非語意 whitespace。SQL、command order、
-/// 實際參數 marker、參數 name/value/order 與 rows affected 全部進入 digest。
+/// 把 SQL 執行紀錄算成 digest，固定現有 SQL 行為的測試輔助。SQL、command order、實際參數 marker、
+/// 參數 name/value/order 與 rows affected 全部進入 digest；只正規化字串常值、quoted identifier 與註解以外的
+/// 非語意 whitespace，有給 schemaPrefix 時另把這個前綴換成 <c>{s}.</c>。
 /// </summary>
 internal static class SqlExecutionSnapshot
 {

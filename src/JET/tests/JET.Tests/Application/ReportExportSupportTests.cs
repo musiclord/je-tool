@@ -37,7 +37,7 @@ public sealed class ReportExportSupportTests
                 "22222222222222222222222222222222"));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Equal(
             "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);
@@ -86,7 +86,7 @@ public sealed class ReportExportSupportTests
     public void IsSourceStale_ScenarioReportIgnoresLegacyPrescreenReference(
         ReportKind kind)
     {
-        // Public首敗100911120：Criteria現在須有同一資料版本，補明示來源版本以繼續只測舊prescreen參照不影響判定。
+        // Criteria須有同一資料版本；明示來源版本，讓這則只測舊prescreen參照不影響判定。
         var report = Report(
             kind,
             new ReportSourceRefs(
@@ -110,10 +110,9 @@ public sealed class ReportExportSupportTests
     [InlineData("8", "9", false, true)]
     [InlineData("8", null, false, true)]
     [InlineData(null, "8", true, true)]
-    // 缺來源版本的底稿一律過期，和 CriteriaSelection 報告的判斷相同；原本沿用全案旗標、這一列預期不過期
-    // （第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
+    // 缺來源版本的底稿一律過期，和 CriteriaSelection 報告的判斷相同。
     [InlineData(null, "8", false, true)]
-    public void IsSourceStale_SelectedWorkingPaperUsesItsDataRevision_AndLegacyKeepsPriorFlagRule(
+    public void IsSourceStale_SelectedWorkingPaperUsesItsDataRevision_AndIsStaleWithoutOne(
         string? reportRevision, string? currentRevision, bool allScenarioResultsStale, bool expected)
     {
         var report = Report(ReportKind.WorkingPaper, new ReportSourceRefs(

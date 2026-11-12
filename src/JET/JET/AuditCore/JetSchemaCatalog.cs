@@ -43,9 +43,9 @@ internal enum SchemaAudience
 /// <summary>
 /// 中央三層表名登錄的單筆條目:實體表名 → 正準審計名 + 層 + 曝光 + 中文說明。
 /// </summary>
-/// <param name="PhysicalName">實體表名(SQLite 與 SQL Server 同一扁平名;CREATE TABLE 的權威名)。</param>
-/// <param name="CanonicalName">正準審計名,只用於資料表摘要顯示(如 PBC-GL、GL)。裁定 2026-10-08-04 把資料名稱全系統統一,
-/// legacy 的 JE_PBC、TB_PBC、JE 改為 PBC-GL、PBC-TB、GL;不是 SQL 識別字或檔名。</param>
+/// <param name="PhysicalName">實體表名(CREATE TABLE 的權威名)。</param>
+/// <param name="CanonicalName">正準審計名,只用於資料表摘要顯示(如 PBC-GL、GL)。資料名稱全系統統一,
+/// legacy 的 JE_PBC、TB_PBC、JE 對應 PBC-GL、PBC-TB、GL;不是 SQL 識別字或檔名。</param>
 /// <param name="Layer">審計三層 + System。</param>
 /// <param name="Audience">資料預覽 / 結構總覽的曝光程度。</param>
 /// <param name="Description">一句中文說明(用途 / 由來)。</param>
@@ -61,13 +61,13 @@ internal sealed record SchemaTableEntry(
 ///
 /// 為什麼存在:審計方法學承襲 legacy Excel-VBA 工具乾淨的三層結構(Source / ETL-Staging /
 /// Target-Report)與審計詞彙表名(JE_PBC、JE、ACCOUNT_MAPPING…);現行實體表名是資料預覽名稱的轉寫
-/// (<c>pbc_gl</c>、<c>gl</c>…),這是裁定 2026-10-29-15 定的,取代 2026-10-08-04 實體表名不動的部分。
+/// (<c>pbc_gl</c>、<c>gl</c>…)。
 /// 本目錄把兩套名稱併列,讓資料預覽能以審計人員熟悉的正準名呈現。
 ///
 /// 深模組:對外只給窄查詢介面(<see cref="All"/> / <see cref="ByAudience"/> /
 /// <see cref="ResolveCanonical"/> / <see cref="TryGet"/>),內部是一份宣告式 <see cref="All"/> 表;
 /// 新增規則 = 加一列,不是散落的 if。實體表清單以 Infrastructure 的 SchemaSql 為準逐一登錄,
-/// 漏登錄由 Infrastructure 的漂移守門測試(查 sqlite_master 比對本目錄)轉紅。
+/// 漏登錄時 Infrastructure 的漂移守門測試(查 sqlite_master 比對本目錄)會失敗。
 ///
 /// 註:legacy 的 <c>COMPLETENESS_CALCULATED / DIFF / DETAIL</c>、<c>JE_IN_PERIOD /
 /// JE_NOT_IN_PERIOD</c>、各 <c>*_OVERVIEW</c> 是查詢時即算的**計算檢視(衍生,不落表)**

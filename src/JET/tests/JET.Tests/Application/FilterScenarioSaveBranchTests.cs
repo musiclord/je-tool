@@ -9,10 +9,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 篩選情境儲存（filter.scenario.save）的業務分支，各給一個固定輸入與寫死的預期結果；要補哪些分支見裁定 2026-10-25-01。
-/// 分支依架構圖「篩選情境儲存」的循序圖與流程圖列出：前提不符、本次不合格、
-/// 位置與名稱、整批合格、仍有不合格、推進到第五步、取消與例外。合成母體固定四列：兩列借方、兩列貸方，所以借方情境的命中
-/// 一定是 2 筆。SQLite 與 DuckDB 各跑一次。這些測試鎖的是現行行為，預期一次通過；有測試失敗就是發現，先回報再決定改什麼。
+/// 篩選情境儲存（filter.scenario.save）的業務分支，各給一個固定輸入與寫死的預期結果。
+/// 分支有：前提不符、本次不合格、位置與名稱、整批合格、仍有不合格、推進到第五步、取消與例外。
+/// 合成母體固定四列：兩列借方、兩列貸方，所以借方情境的命中一定是 2 筆。這些測試鎖的是現行行為。
 /// </summary>
 public sealed class FilterScenarioSaveBranchTests
 {
@@ -22,7 +21,6 @@ public sealed class FilterScenarioSaveBranchTests
 
     private sealed record StoredScenario(int Position, string Name, string DefinitionJson, string SavedUtc);
 
-    // 修正前 3 案失敗：Focused 20261110-044651169-4805c96f989b417fb62947d7145f838b。
     [Theory]
     [InlineData("save", 2)]
     [InlineData("remove", 0)]
@@ -37,7 +35,7 @@ public sealed class FilterScenarioSaveBranchTests
         await ExecuteAsync(host, projectId, "sqlite", $"""
             CREATE TRIGGER synthetic_unreadable_state AFTER {triggerEvent} ON filter_scenario
             BEGIN
-                -- 壞結果日期現在會標成過期；改成缺少結果狀態列，才能測到真的讀不回狀態。
+                -- 壞結果日期會標成過期；缺少結果狀態列，才能測到真的讀不回狀態。
                 DELETE FROM result_stale_state WHERE singleton = 1;
             END;
             """);
@@ -198,9 +196,8 @@ public sealed class FilterScenarioSaveBranchTests
         Assert.Equal(4, await ScalarAsync(host, projectId, provider, "SELECT COUNT(*) FROM filter_hit;"));
         Assert.Equal(0, await StaleFlagAsync(host, projectId, provider));
         Assert.False(second.GetProperty("staleState").GetProperty("filter").GetBoolean());
-        // 原本斷言版本就是共同的儲存時間，且兩個條件組時間相同：每次儲存都整批重寫。改成只寫入這一個條件組的結果後，
-        // 版本由每個條件組的編號與自己的儲存時間組成，先存的條件組保留原本的時間。
-        // 第一次失敗收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // 每次儲存只寫入這一個情境的結果，
+        // 版本由每個情境的編號與自己的儲存時間組成，先存的情境保留原本的時間。
         var stored = await ReadScenariosAsync(host, projectId, provider);
         Assert.Equal(
             string.Join(";", stored.Select(row => row.Position + "@" + row.SavedUtc)),
@@ -212,7 +209,7 @@ public sealed class FilterScenarioSaveBranchTests
 
     /// <summary>
     /// 同一筆交易：清掉命中與定義之後，寫新定義時失敗，命中與定義都要回到原樣。失敗由測試在情境定義表加上的 CHECK 製造，
-    /// 只允許原本那個儲存時間，所以任何新寫入都會被擋下；兩種資料庫同一招。這也是取消與例外那一組裡「例外」的回應：
+    /// 只允許原本那個儲存時間，所以任何新寫入都會被擋下。這也是取消與例外那一組裡「例外」的回應：
     /// 不是業務錯誤也不是取消，畫面會看到一般錯誤。
     /// </summary>
     [Theory]
@@ -389,7 +386,7 @@ public sealed class FilterScenarioSaveBranchTests
             AccountMappings = new LocalAccountMappingRepository(database),
             AuthorizedPreparers = new LocalAuthorizedPreparerRepository(database),
             AccountCategories = new LocalAccountCategoryStore(database),
-            // 裁定 2026-11-05-55：重新檢查保存的條件時要知道有沒有國定假日清單。
+            // 重新檢查保存的條件時要知道有沒有國定假日清單。
             Calendar = new LocalCalendarStore(database)
         });
         var handler = new FilterScenarioSaveHandler(new JsonFileProjectStore(new JetProjectFolder(host.ProjectsRoot)), session);
@@ -427,7 +424,7 @@ public sealed class FilterScenarioSaveBranchTests
     /// </summary>
     private static async Task<string> PrepareAsync(HandlerTestHost host, string provider, bool validated = true)
     {
-        var copied = await CaseTemplates.CopyIntoAsync(host, $"phase11-filter-save:{validated}:{provider}", async templateHost =>
+        var copied = await CaseTemplates.CopyIntoAsync(host, $"filter-save:{validated}:{provider}", async templateHost =>
         {
             var id = await InlineWorkbookProject.SetupAsync(templateHost, builder => builder
                 .WithColumns("傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")

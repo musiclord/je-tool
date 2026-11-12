@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 /// 鏡射既有 prescreen preparer 彙總 SQL,但**去掉 LIMIT 50**:step1-2 需「全名單」。
 /// oracle:獨立參數化 SQL recount(<see cref="DemoProjectPipeline.QueryScalarAsync"/>);
 /// 斷言鎖「數值＋身分」(每位編製者的筆數、總名單基數),而非弱斷言非空。
-/// 直接建 SQLite repo(比照 ProviderParityJourneyTests 直接建 repo),此 task 尚無 handler。
+/// 測試直接建立 SQLite 的 repository 呼叫這個查詢，不經過 action handler。
 /// </summary>
 public sealed class PreparerSummaryExportTests
 {
@@ -53,7 +53,7 @@ public sealed class PreparerSummaryExportTests
 
     /// <summary>
     /// 每列數值正確且鎖身分:demo 五位編製者,逐位以獨立 recount 比對筆數/借方/貸方彙總。
-    /// 這鎖住「SUM 不被 COUNT 取代、借貸欄不對調」(mutation 思維:換聚合函式或欄即紅)。
+    /// 這鎖住「SUM 不被 COUNT 取代、借貸欄不對調」(mutation 思維:換聚合函式或欄就會失敗)。
     /// </summary>
     [Fact]
     public async Task FetchAllAsync_DemoPopulation_EachRowMatchesIndependentRecount()
@@ -64,9 +64,9 @@ public sealed class PreparerSummaryExportTests
         var rows = await SqliteRepo(host).FetchAllAsync(
             context.ProjectId, "2025-01-01", "2025-12-31", CancellationToken.None);
 
-        // 裁定 2026-11-05-32：示範案件配對了人工傳票欄位，照舊版依編製人員加人工旗標分列，
-        // 所以基數改成「人員與人工旗標」的組數，每列的 recount 也多比人工旗標。第一次失敗：Focused 收據 20261105-105841963-25d6f65850974bbda831c58051526192。
-        // 全名單基數 == distinct (created_by, is_manual) recount（§2 母體限本期 gl_date；export 已本期界定，recount 同口徑）。
+        // 示範案件配對了人工傳票欄位，照舊版依編製人員加人工旗標分列，
+        // 所以基數是「人員與人工旗標」的組數，每列的 recount 也比對人工旗標。
+        // 全名單基數 == distinct (created_by, is_manual) recount（母體限本期 gl_date；export 已本期界定，recount 同口徑）。
         var distinct = await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             "SELECT COUNT(*) FROM (SELECT DISTINCT created_by, is_manual FROM gl " +
@@ -102,9 +102,8 @@ public sealed class PreparerSummaryExportTests
     }
 
     /// <summary>
-    /// 排序:先按這位人員的總筆數降冪、再按 created_by 升冪,同一位人員照舊版先自動、再人工,未判定放最後(裁定 2026-11-05-32)。
-    /// 原本一人一列時是「筆數降冪、再按 created_by」;分列後同一位人員的列排在一起,人員之間的順序不變。
-    /// 第一次失敗：Focused 收據 20261105-105841963-25d6f65850974bbda831c58051526192。
+    /// 排序:先按這位人員的總筆數降冪、再按 created_by 升冪,同一位人員照舊版先自動、再人工,未判定放最後。
+    /// 同一位人員的列排在一起。
     /// demo 編製者以 voucherIndex % 5 輪派 → 筆數非全等,可證 DESC 主鍵生效。
     /// </summary>
     [Fact]

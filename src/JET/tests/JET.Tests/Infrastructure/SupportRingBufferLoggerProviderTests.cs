@@ -112,7 +112,7 @@ public sealed class SupportRingBufferLoggerProviderTests
     }
 
     /// <summary>
-    /// 2026-10-02：本機操作紀錄寫失敗只留這個支援事件。只保留允許的 operation 與 phase，
+    /// 本機操作紀錄寫失敗只留這個支援事件。只保留允許的 operation 與 phase，
     /// 訊息換成固定的安全句子，例外只留型別與堆疊位置。
     /// </summary>
     [Fact]

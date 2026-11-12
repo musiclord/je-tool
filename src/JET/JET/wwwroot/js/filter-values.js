@@ -3,20 +3,20 @@
   'use strict';
   var Ui = global.JetUi;
   // 值清單上限一律用 Ui.TYPED_SET_MAX_VALUES：fieldValue 的清單與文字包含比對，
-  // 後端都以 FilterScenarioLimits.MaxTypedInValuesPerRule 驗證（架構測試守住本檔不再寫死上限）。
+  // 後端都以 FilterScenarioLimits.MaxTypedInValuesPerRule 驗證（架構測試守住本檔不寫死上限）。
   // 標籤鏡像 Domain FieldValueConditions.Labels（FilterAstFrontendContractTests 逐鍵守衛）。
   var labels = { equals: '等於', notEquals: '不等於', contains: '包含任一文字', notContains: '不包含任何文字',
     startsWith: '開頭符合', notStartsWith: '開頭不符合', endsWith: '結尾符合', notEndsWith: '結尾不符合', in: '符合清單任一值', notIn: '不在清單中',
     on: '指定日期', before: '早於', onOrBefore: '當日或以前', after: '晚於', onOrAfter: '當日或以後',
     dayOfMonthIn: '每月幾日屬於', dayOfMonthNotIn: '每月幾日不屬於',
     monthStartDays: '每月月初天數', notMonthStartDays: '排除每月月初天數', monthEndDays: '每月月底天數', notMonthEndDays: '排除每月月底天數',
-    // 日曆選項的入口、選項與讀回用同一個詞（裁定 2026-11-03-10）。
+    // 日曆選項的入口、選項與讀回用同一個詞。
     isWeekend: '在週末', isNotWeekend: '不在週末', isHoliday: '在國定假日', isNotHoliday: '不在國定假日',
     isMakeupDay: '在補班日', isNotMakeupDay: '不在補班日', isNonBusinessDay: '在非營業日', isNotNonBusinessDay: '不在非營業日',
-    // 舊版「特定數字篩選」的包含與排除（裁定 2026-11-05-46），名稱照用（裁定 2026-11-05-67）。
+    // 舊版「特定數字篩選」的包含與排除，名稱照用。
     containsDigits: '整數部分包含', notContainsDigits: '整數部分不包含',
     endsWithDigits: '整數尾數符合', notEndsWithDigits: '整數尾數不符合',
-    // 尾數連續多個 0（裁定 2026-11-03-07）：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
+    // 尾數連續多個 0：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
     endsWithZeros: '尾數連續', notEndsWithZeros: '尾數沒有連續',
     greaterThan: '大於', greaterThanOrEqual: '大於或等於', lessThan: '小於', lessThanOrEqual: '小於或等於',
     between: '介於', notBetween: '不介於', isBlank: '空白', isNotBlank: '非空白' };
@@ -37,11 +37,11 @@
     if (type === 'text' && (/^(contains|notContains)$/.test(op) || isAffix(op))) { return 'set'; }
     return 'value';
   }
-  // 開頭符合與結尾符合和包含一樣收多個值（裁定 2026-11-09-09）；後端 FieldValueConditions.IsAffix 同一組。
-  // 以前開頭與結尾只收一個值，已儲存情境只帶 value；values 還不是清單時把 value 當成一個值，和後端 AffixValues 相同。
+  // 開頭符合與結尾符合和包含一樣收多個值；後端 FieldValueConditions.IsAffix 同一組。
+  // 較早儲存的情境只帶 value；values 還不是清單時把 value 當成一個值，和後端 AffixValues 相同。
   function isAffix(op) { return /^(notS|s)tartsWith$|^(notE|e)ndsWith$/.test(op); }
   function isCalendar(op) { return /^is(Not)?(Weekend|Holiday|MakeupDay|NonBusinessDay)$/.test(op); }
-  // 日曆選項下方只寫選到的那一項，並寫出本案的實際資料（裁定 2026-11-03-10）。
+  // 日曆選項下方只寫選到的那一項，並寫出本案的實際資料。
   var WEEKDAY_LABELS = [{ v: 1, label: '一' }, { v: 2, label: '二' }, { v: 3, label: '三' }, { v: 4, label: '四' }, { v: 5, label: '五' }, { v: 6, label: '六' }, { v: 0, label: '日' }];
   function weekdayText(nonWorkingDays) {
     var set = Array.isArray(nonWorkingDays) ? nonWorkingDays : [0, 6];
@@ -53,12 +53,12 @@
     if (/Weekend$/.test(operator)) { return '第二步設定的每週休息日：' + weekdayText(calendar.nonWorkingDays); }
     if (/Holiday$/.test(operator)) {
       return Number(calendar.holidayCount) > 0 ? '第二步上傳的國定假日清單，共 ' + Ui.countText(calendar.holidayCount) + ' 天'
-        // 沒有清單時這個條件停用並寫原因（裁定 2026-11-05-55），原因和停用說明同一句。
+        // 沒有清單時這個條件停用並寫原因，原因和停用說明同一句。
         : Ui.rulePrerequisiteReason(state, 'holidayCalendar') + '。';
     }
     if (/MakeupDay$/.test(operator)) {
       return Number(calendar.makeupDayCount) > 0 ? '第二步上傳的補班日清單，共 ' + Ui.countText(calendar.makeupDayCount) + ' 天'
-        // 沒有清單時這個條件比照國定假日停用並寫原因（裁定 2026-11-05-66），原因和停用說明同一句。
+        // 沒有清單時這個條件比照國定假日停用並寫原因，原因和停用說明同一句。
         : Ui.rulePrerequisiteReason(state, 'makeupCalendar') + '。';
     }
     return '週末或國定假日，補班日除外';
@@ -68,7 +68,7 @@
   // 整數尾數與整數部分包含的值都是逗號分隔的數字，輸入、計數與檢查相同。
   function isDigitList(op) { return isTail(op) || isDigitContains(op); }
   function isZeroRun(op) { return op === 'endsWithZeros' || op === 'notEndsWithZeros'; }
-  // 尾數連續多個 0 加入時預設的個數：第四步預篩選由 GL 借方平均算出的個數（裁定 2026-11-05-26）；還沒確認 GL 配對時留空，由審計員填。
+  // 尾數連續多個 0 加入時預設的個數：第四步預篩選由 GL 借方平均算出的個數；還沒確認 GL 配對時留空，由審計員填。
   function zeroRunDefault() { var zeros = Ui.trailingZeroDigits(); return zeros ? String(zeros) : ''; }
   // 尾數比對與尾數連續多個 0 都只看整數部分、忽略正負號，不接金額比較基準。
   function ignoresSign(op) { return isTail(op) || isZeroRun(op) || isDigitContains(op); }
@@ -86,8 +86,8 @@
   }
   function field(rule, state) { return fields(state).find(function (item) { return item.id === (rule.fieldId || rule.field); }); }
   function fieldType(rule, state) { var selected = field(rule, state); return selected ? selected.type : (rule.__valueType || 'date'); }
-  // 裁定 2026-10-14-15：欄位空白的分錄預設不列入，勾選「空白也符合」才列入；與後端 GlRulePredicates.FieldValue 一致。
-  // 文字欄位的否定比較改成預設勾選（裁定 2026-11-05-56，見 blankIncludedByDefault），勾選結果照樣明確送出。
+  // 欄位空白的分錄預設不列入，勾選「空白也符合」才列入；與後端 GlRulePredicates.FieldValue 一致。
+  // 文字欄位的否定比較預設勾選（見 blankIncludedByDefault），勾選結果照樣明確送出。
   function blankMatches(rule) { return rule.includeBlank === true; }
   function day(year, month, date) { var value = new Date(0); value.setUTCHours(0, 0, 0, 0); value.setUTCFullYear(year, month - 1, date); return value; }
   function iso(value) { return String(value.getUTCFullYear()).padStart(4, '0') + '-' + String(value.getUTCMonth() + 1).padStart(2, '0') + '-' + String(value.getUTCDate()).padStart(2, '0'); }
@@ -114,9 +114,9 @@
       var expected = match[1].padStart(4, '0') + '-' + match[2].padStart(2, '0') + '-' + match[3].padStart(2, '0');
       return Number(match[1]) >= 1 && Number(match[1]) <= 9999 && iso(day(Number(match[1]), Number(match[2]), Number(match[3]))) === expected ? expected : text;
     }
-    // 純數字不當成日期（裁定 2026-10-22-11），帶千分位的也一樣（裁定 2026-10-19-09）：和後端 DateNormalizer 相同，
-    // 保留原文由 problem() 與後端寫出無法辨識；以前這裡把 1 到 2958465 的數字當 Excel 序列值換算。
-    // 兩邊共用 tools/tests/fixtures/date-normalization.json 的固定答案。
+    // 純數字不當成日期，帶千分位的也一樣：和後端 DateNormalizer 相同，
+    // 保留原文由 problem() 與後端寫出無法辨識。
+    // 兩邊共用 tests/JET.Tests/Fixtures/date-normalization.json 的固定答案。
     return text;
   }
   function values(rule, state) {
@@ -141,7 +141,7 @@
     if (mode === 'value') { result.value = operand(rule.value); }
     if (mode === 'range') { result.from = operand(rule.from); result.to = operand(rule.to); }
     if (mode === 'set') { result.values = values(rule, state); }
-    // 金額比較預設用絕對值，攸關資料元素的數值欄位也一樣，需要時才改成含正負號（裁定 2026-11-05-47）。
+    // 金額比較預設用絕對值，攸關資料元素的數值欄位也一樣，需要時才改成含正負號。
     if (selected && selected.type === 'amount') { result.amountBasis = rule.amountBasis || 'absolute'; }
     return result;
   }
@@ -160,7 +160,7 @@
     if ((mode !== 'none' || isCalendar(rule.operator)) && (!compact || blankMatches(rule))) { text += blankMatches(rule) ? '；空白也符合' : '；空白不列入'; }
     return text;
   }
-  // 條件標題的欄位名稱；欄位已不存在時寫畫面名稱，不印程式代號（裁定 2026-10-14-01）。
+  // 條件標題的欄位名稱；欄位已不存在時寫畫面名稱，不印程式代號。
   function fieldTitle(rule, state) {
     var selected = field(rule, state);
     return selected ? selected.label : Ui.missingConditionFieldName(state, rule, 'title');
@@ -221,7 +221,7 @@
   }
   function accountTreeHtml(rule, state, focusKey) {
     var tree = accountTreeView(rule, state), selected = new Set(values(rule, state));
-    // 選分類時後端一律連下層分類的科目一起列出；案件沒有分類設上層時（裁定 2026-11-03-27 起新案件都沒有），不寫「包含下層分類」。
+    // 選分類時後端一律連下層分類的科目一起列出；案件沒有分類設上層時（新案件都沒有），不寫「包含下層分類」。
     var hierarchy = Ui.categoryHierarchyInUse(state);
     tree.focusKey = focusKey + '-category';
     var categoryRows = Ui.categoryTreeHtml(state, tree, function (category) {
@@ -241,7 +241,7 @@
     });
     var accounts = groups.map(function (group) {
       var label = group.categoryId ? Ui.accountCategoryLabel(state, group.categoryId) : '尚未分類';
-      // 展開與收合要一致（裁定 2026-10-13-11）：每個分類的科目區跟著分類標識別，換分類或載入完成時舊的收起、新的長出來。
+      // 展開與收合要一致：每個分類的科目區跟著分類標識別，換分類或載入完成時舊的收起、新的長出來。
       return '<section class="account-tree__accounts" data-motion-key="' + Ui.esc('acct-' + motionId(rule) + '-' + (group.categoryId || 'none')) +
         '" aria-label="' + Ui.esc(label) + '的科目"><strong>' + Ui.esc(label) + '</strong>' +
         group.rows.map(function (row) {
@@ -331,7 +331,7 @@
     });
     root.querySelectorAll('[data-account-tree-select-category]').forEach(function (control) {
       control.addEventListener('change', function () {
-        // 勾選分類一律選整個分類與下層分類，不受搜尋字限制（裁定 2026-10-19-13）；
+        // 勾選分類一律選整個分類與下層分類，不受搜尋字限制；
         // 清單跟著顯示整個分類，搜尋框一併清空，畫面上看到的就是選到的範圍。
         var request = payload(control.getAttribute('data-account-tree-select-category'), null);
         request.search = ''; tree.searchDraft = '';
@@ -390,7 +390,7 @@
       { key: 'blank', label: '空白金額', yes: 'isBlank', no: 'isNotBlank' }
     ]
   };
-  // 篩選方式選單依類別分組並加小標，選項名稱不變（裁定 2026-10-30-31）。
+  // 篩選方式選單依類別分組並加小標，選項名稱不變。
   // 每一種篩選方式都要列在其中一組；「查核期末最後幾天」只在案件有查核截止日時出現。
   var MODE_GROUPS = {
     date: [['指定日期', ['dates', 'range', 'before', 'after']], ['每月固定日', ['monthDays', 'monthStart', 'monthEnd', 'periodEnd']],
@@ -404,7 +404,7 @@
     });
   }
   function excluded(rule, mode) { return !!mode && (rule.operator === mode.no || rule.operator === 'notEquals'); }
-  // 文字欄位的否定比較預設把欄位空白的分錄也列入，審計員可以取消；日期與金額照舊預設不列入（裁定 2026-11-05-56）。
+  // 文字欄位的否定比較預設把欄位空白的分錄也列入，審計員可以取消；日期與金額照舊預設不列入。
   function blankIncludedByDefault(type, operator) {
     return type === 'text' && ['notEquals', 'notContains', 'notStartsWith', 'notEndsWith', 'notIn'].indexOf(operator) >= 0;
   }
@@ -445,7 +445,7 @@
     var choice = selectedMode(rule, state), view = editorView(rule);
     var main = '';
     if (choice) {
-      // 開頭寫「符合」「排除」（裁定 2026-11-03-10）；只有一種方向的比較方式只寫「符合」。
+      // 開頭寫「符合」「排除」；只有一種方向的比較方式只寫「符合」。
       main += choice.no ? '<select data-value-polarity aria-label="符合或排除"><option value="keep"' + (!excluded(rule, choice) ? ' selected' : '') +
         '>符合</option><option value="exclude"' + (excluded(rule, choice) ? ' selected' : '') + '>排除</option></select>' : '<span>符合</span>';
     } else { main += '<span class="value-advanced-current">' + Ui.esc(labels[rule.operator] || '請設定比較方式') + '</span>'; }
@@ -456,8 +456,8 @@
         var options = group[1].map(function (key) {
           if (key === 'periodEnd') { return periodEndOption; }
           var item = commonModes[type].find(function (mode) { return mode.key === key; });
-          // 沒有國定假日清單或補班日清單時，只看清單的那一項停用並在名稱後寫原因，和未配對的欄位相同
-          // （裁定 2026-11-05-55、2026-11-05-66）；已選的條件照樣顯示。
+          // 沒有國定假日清單或補班日清單時，只看清單的那一項停用並在名稱後寫原因，和未配對的欄位相同；
+          //已選的條件照樣顯示。
           var listKey = !item ? null : item.key === 'holiday' ? 'holidayCalendar' : item.key === 'makeup' ? 'makeupCalendar' : null;
           var blocked = !!listKey && choice !== item && !Ui.rulePrerequisiteMet(state, listKey);
           return item ? '<option value="' + item.key + '"' + (choice === item && !view.periodEnd ? ' selected' : '') + (blocked ? ' disabled' : '') + '>' +
@@ -521,7 +521,7 @@
     }
     if (type === 'text' && mode === 'value') { main += '<p class="rule-field__hint">此比較方式只收一個值；不會將逗號或多行內容拆成多個條件。</p>'; }
     if (mode === 'set' || isDigitList(rule.operator)) { main += '<p class="rule-field__hint" data-value-count role="status">已輸入 ' + values(rule, state).length + ' 個值，上限 ' + Ui.TYPED_SET_MAX_VALUES + '</p>'; }
-    // 展開與收合要一致（裁定 2026-10-13-11）：提醒原地收放，標 data-collapsible；收起時保留原來的字（見 bind）。
+    // 展開與收合要一致：提醒原地收放，標 data-collapsible；收起時保留原來的字（見 bind）。
     main += '<p class="form-notice form-notice--warning" data-value-warning data-collapsible role="status"' + (warning(rule, state) ? '' : ' hidden') + '>' + Ui.esc(warning(rule, state)) + '</p>';
     if (canIncludeBlank) {
       extra.push('<label class="value-blank"><input type="checkbox" data-value-key="includeBlank"' + (blankMatches(rule) ? ' checked' : '') + '>' +
@@ -541,7 +541,7 @@
   function bind(root, rule, state, changed) {
     if (!root) { return; }
     function fitLists() {
-      // 值清單（value-editor__values）一開始就是固定的多行高度，貼上或拆成多行都不改高度（裁定 2026-10-16-13）；
+      // 值清單（value-editor__values）一開始就是固定的多行高度，貼上或拆成多行都不改高度；
       // 這裡只調整單值與每月幾日這類單行輸入。
       root.querySelectorAll('textarea.value-editor__list:not(.value-editor__values)').forEach(function (input) {
         if (!input.getClientRects().length) { return; }
@@ -571,7 +571,7 @@
       if (!next) { return; }
       changeOperator(rule, state, excluded(rule, current) && next.no ? next.no : next.yes);
       if (isMonthWindow(rule.operator) && !/^\d{1,2}$/.test(rule.value || '')) { rule.value = '2'; }
-      // 改成尾數連續多個 0 時，個數沒填或不是數字就帶第四步預篩選由 GL 算出的個數（裁定 2026-11-05-26）。
+      // 改成尾數連續多個 0 時，個數沒填或不是數字就帶第四步預篩選由 GL 算出的個數。
       if (isZeroRun(rule.operator) && !/^\d{1,2}$/.test(rule.value || '')) { rule.value = zeroRunDefault(); }
       changed(true);
     });
@@ -627,7 +627,7 @@
       chips.querySelectorAll('[data-date-remove]').forEach(function (button) {
         button.addEventListener('click', function () {
           var date = button.getAttribute('data-date-remove');
-          // 移除時先輕微快速地晃一下（裁定 2026-10-13-13）：被移除的日期標籤先晃，再在下一次重繪時收起。
+          // 移除時先輕微快速地晃一下：被移除的日期標籤先晃，再在下一次重繪時收起。
           if (motion() && typeof motion().removing === 'function') { motion().removing({ keys: [dateChipKey(rule, date)] }); }
           rule.values = values(rule, state).filter(function (value) { return value !== date; });
           changed(true);
@@ -646,7 +646,7 @@
     var clear = root.querySelector('[data-values-clear]');
     if (clear) { clear.addEventListener('click', function () {
       var jet = motion();
-      // 清除時先輕微快速地晃一下（裁定 2026-10-13-13）：所有日期標籤先晃再收起；值清單不會拿掉，只是被清空，
+      // 清除時先輕微快速地晃一下：所有日期標籤先晃再收起；值清單不會拿掉，只是被清空，
       // 所以重繪後直接晃新的那一個（重繪是同步的；沒有重繪時晃原本那一個）。
       if (jet && typeof jet.removing === 'function') {
         jet.removing({ keys: values(rule, state).map(function (date) { return dateChipKey(rule, date); }) });
@@ -693,7 +693,7 @@
     if (!selected) { return '重新選擇欄位，或回到第三步確認配對'; }
     var value = wire(rule, state), mode = carrier(rule.operator, selected.type);
     if (operators[selected.type].indexOf(rule.operator) < 0) { return selected.label + '需選擇比較方式'; }
-    // 分錄方向無效只會出現在存檔內容損毀時，沿用損毀條件的儲存句（裁定 2026-10-14-01）。
+    // 分錄方向無效只會出現在存檔內容損毀時，沿用損毀條件的儲存句。
     if (rule.drCr && ['debit', 'credit'].indexOf(rule.drCr) < 0) { return '此條件內容有誤，無法儲存。請刪除此條件後重新設定。'; }
     if (isMonthWindow(rule.operator)) {
       return /^\d{1,2}$/.test(value.value.trim()) && Number(value.value) >= 1 && Number(value.value) <= 31 ? '' : '每月月初或月底天數須為 1 到 31 的整數';
@@ -705,7 +705,7 @@
     }
     if (isDayOfMonth(rule.operator)) {
       var days = value.values;
-      // 沒有填與填錯用同一句（裁定 2026-10-14-01）。
+      // 沒有填與填錯用同一句。
       if (!days.length || days.some(function (item) { return !/^\d{1,2}$/.test(item) || Number(item) < 1 || Number(item) > 31; })) { return '每月日期須為 1 到 31 的整數，至少填寫一個'; }
       return '';
     }
@@ -713,7 +713,7 @@
     // Count exactly what wire() sends; never guess case equivalence in JavaScript.
     var count = isDigitList(rule.operator) ? values(rule, state).length : mode === 'set' ? inputs.length : 0;
     if (count > Ui.TYPED_SET_MAX_VALUES) {
-      // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示照畫面上的字寫；後端 FieldValueConditions 同一句。
+      // 子條件組的連接在畫面上只寫 AND 與 OR，提示照畫面上的字寫；後端 FieldValueConditions 同一句。
       return '每條最多 ' + Ui.TYPED_SET_MAX_VALUES + ' 個值。請拆成多條條件，放進子條件組，用 ' +
         (/^(notIn|notContains|notStartsWith|notEndsWith|notContainsDigits|notEndsWithDigits)$/.test(rule.operator) ? 'AND' : 'OR') + ' 連接。';
     }
@@ -727,7 +727,7 @@
       }
       return '';
     }
-    // 原因句寫出無法辨識的那個值（裁定 2026-10-14-01）。
+    // 原因句寫出無法辨識的那個值。
     if (selected.type === 'amount') {
       var badAmount = inputs.find(function (input) { return moneyNumber(input) === null; });
       if (badAmount !== undefined) { return '金額「' + badAmount + '」不是數字'; }
@@ -737,7 +737,7 @@
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input)) {
         // Recognizable invalid dates can be corrected here. Other invariant-culture formats
         // are forwarded unchanged to DateNormalizer; browser parsing must not redefine GL dates.
-        // 純數字不是日期（裁定 2026-10-22-11），在這裡就寫出無法辨識。
+        // 純數字不是日期，在這裡就寫出無法辨識。
         return /^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(input) || moneyNumber(input) !== null;
       }
       var p = input.split('-').map(Number); return p[0] < 1 || iso(day(p[0], p[1], p[2])) !== input;

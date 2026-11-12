@@ -40,7 +40,7 @@ public sealed class ImportCalendarHandlersTests
             () => host.DispatchAsync("import.holiday", """{ "dates": ["2025/01/01"] }"""));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送檔案，不送日期清單；
+        // 畫面只送檔案，不送日期清單；
         // 只有程式送錯資料才會走到，畫面顯示非預期錯誤那一句，送出的值不出現在訊息。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("calendar_date_invalid", JetPayloadRejection.CheckOf(ex));
@@ -173,9 +173,8 @@ public sealed class ImportCalendarHandlersTests
         Assert.Equal(JetErrorCodes.UnsupportedFileType, ex.Code);
     }
 
-    // 2026-10-28 獨立複審查到：行事曆範本的欄名固定在第 2 列，畫面不能改欄名列，空的工作表卻被說成
-    // 「從第 2 列起沒有內容，找不到欄名。請確認欄名所在的列。」。固定版面的匯入照舊說工作表是空的。
-    // 第一次失敗：Focused 收據 20261028-050846565-1f062061b1a042f9a0c536e2afd51e85。
+    // 行事曆範本的欄名固定在第 2 列，畫面不能改欄名列，所以空的工作表不寫
+    // 「從第 2 列起沒有內容，找不到欄名。請確認欄名所在的列。」；固定版面的匯入說工作表是空的。
     [Fact]
     public async Task ImportHolidayFromFile_EmptySheet_SaysTheSheetIsEmptyWithoutAskingForAHeaderRow()
     {
@@ -258,7 +257,7 @@ public sealed class ImportCalendarHandlersTests
 
             Assert.Equal(JetErrorCodes.ProjectionFailed, ex.Code);
             Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                                // 這句的用字已定案。
                                 "檔案有 1 列無法讀取：第 3 列：日期「2025/01/01」不是 2026-12-31 這種格式",
                 ex.Message);
         }
@@ -307,7 +306,7 @@ public sealed class ImportCalendarHandlersTests
             "import.holiday.fromFile", JsonSerializer.Serialize(new { filePath = path })));
 
         Assert.Equal(JetErrorCodes.FileNotFound, ex.Code);
-        // Public首敗105344715：錯誤只顯示檔名，保留FileNotFound並新增完整路徑不得外洩的斷言。
+        // 錯誤只顯示檔名，完整路徑不得外洩。
         Assert.Contains(Path.GetFileName(path), ex.Message);
         Assert.DoesNotContain(path, ex.Message);
     }

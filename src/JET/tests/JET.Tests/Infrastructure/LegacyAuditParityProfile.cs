@@ -1509,7 +1509,7 @@ internal static partial class LegacyAuditParityProfileBuilder
         }
 
         // Legacy stores the pre-rename IDEA field name in Description
-        // (legacy/idea-tool.bas Z_renameFields), which need not equal the raw OpenXML
+        // (Z_renameFields in the legacy JET), which need not equal the raw OpenXML
         // header. For explicitly mapped, always-required targets only, accept a
         // role-qualified assignment after exact targetless reservations when the
         // complete target/header bipartite graph has exactly one injective solution.
@@ -2598,7 +2598,7 @@ internal static partial class LegacyAuditParityProfileBuilder
             {
                 scenarios.Add(scenario);
             }
-            else if (LegacyCriteriaLogParser.RequiresStage5Ast(@case, position))
+            else if (LegacyCriteriaLogParser.RequiresAdvancedFilterAst(@case, position))
             {
                 throw Error($"scenario-{position:D2}-criteria-log-{parsed.Failure.FixedId()}");
             }
@@ -2886,7 +2886,7 @@ internal static partial class LegacyCriteriaLogParser
             LegacyCriteriaAstPolicy.For(@case, legacyPosition));
     }
 
-    internal static bool RequiresStage5Ast(LegacyParityCase @case, int legacyPosition) =>
+    internal static bool RequiresAdvancedFilterAst(LegacyParityCase @case, int legacyPosition) =>
         LegacyCriteriaAstPolicy.For(@case, legacyPosition) != LegacyCriteriaAstPolicy.LegacyRow;
 
     internal static LegacyCriteriaParseResult TryParseUsingExpectedShape(
@@ -3305,7 +3305,7 @@ internal static partial class LegacyCriteriaLogParser
         return true;
     }
 
-    // 規則只認分類身分陣列（2026-10-02 起刪除單選分類欄位），舊底稿的分類名稱在這裡換成內建分類身分。
+    // 規則只認分類身分陣列，舊底稿的分類名稱在這裡換成內建分類身分。
     private static string[] BuiltInCategoryIds(string category) =>
         [AccountCategoryBuiltIns.All.Single(item => string.Equals(item.Label, category, StringComparison.Ordinal)).CategoryId];
 
@@ -3344,7 +3344,7 @@ internal static partial class LegacyCriteriaLogParser
                 (LegacyParityCase.CaseA, 2) => new(
                     MatchScope: "row",
                     TextRuleShape: LegacyTextRuleShape.TextSetRemoveAsciiSpaces),
-                // 2026-08-28-02 與 harness.md：情境 5 的三個條件必須在同一列成立。
+                // 情境 5 的三個條件必須在同一列成立。
                 (LegacyParityCase.CaseA, 5) => new(
                     MatchScope: "row",
                     TextRuleShape: LegacyTextRuleShape.TextSetPreserve),

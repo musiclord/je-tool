@@ -42,7 +42,7 @@ public sealed class DemoHandlersTests
         // 匯出的檔案必須能被正式 import reader 讀出（同一條 pipeline）
         var columns = await new OpenXmlSaxTableReader().ReadColumnsAsync(
             new JET.Domain.TabularSourceRequest(filePath!), CancellationToken.None);
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：示範 GL 少了「傳票日期」欄，欄數由 12 改為 11。
+        // 示範 GL 沒有「傳票日期」欄，共 11 欄。
         Assert.Equal(11, columns.Count);
         Assert.Contains("傳票號碼", columns);
         Assert.Contains("金額", columns);

@@ -54,7 +54,7 @@ public sealed class ExportValidationReportsHandler(
         var reportContext = new ValidationReportContext(
             project,
             run.ResultId,
-            // 裁定 2026-11-02-03：編製日期寫按下匯出的那一天，用本機日期，不寫執行資料驗證的時間。
+            // 編製日期寫按下匯出的那一天，用本機日期，不寫執行資料驗證的時間。
             DateOnly.FromDateTime(DateTime.Now),
             run.SummaryJson);
         var reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
@@ -191,7 +191,7 @@ public sealed class ExportPrescreenReportHandler(
         var reportContext = new PrescreenReportContext(
             project,
             run.ResultId,
-            // 裁定 2026-11-02-03：編製日期寫按下匯出的那一天，用本機日期，不寫執行預篩選的時間。
+            // 編製日期寫按下匯出的那一天，用本機日期，不寫執行預篩選的時間。
             DateOnly.FromDateTime(DateTime.Now),
             run.SummaryJson);
         var reportProjection = PrescreenReportProjectionParser.Parse(run.SummaryJson);
@@ -201,7 +201,7 @@ public sealed class ExportPrescreenReportHandler(
             project.PeriodStart,
             project.PeriodEnd)
         {
-            // [R4] 工作表的明細和那次預篩選的筆數用同一個 0 的個數（裁定 2026-11-05-25）。
+            // [R4] 工作表的明細和那次預篩選的筆數用同一個 0 的個數。
             ZerosThreshold = reportProjection.ZerosThreshold
         };
         var unfinalizedReportPlan = JetAuditProgram.Plan(
@@ -312,8 +312,8 @@ public sealed class ExportCriteriaSelectionReportHandler(
             static category => category.Label,
             StringComparer.Ordinal);
 
-        // typed 條件讀回用目前 committed RDE metadata 的顯示 label（凍結裁決：僅 label 改名時
-        // renderer 直接反映新名稱；欄位不存在時 renderer 退回 fieldId 原字串）。
+        // typed 條件讀回用目前 committed RDE metadata 的顯示 label：僅 label 改名時
+        // renderer 直接反映新名稱；欄位不存在時 renderer 寫 FilterConditionLabels.MissingRdeField，不印 fieldId。
         var glMapping = await mappingStore.FindAsync(projectId, DatasetKind.Gl, cancellationToken);
         var rdeFieldLabels = (glMapping?.GlOptions?.RdeFields ?? []).ToDictionary(
             static field => field.FieldId,
@@ -360,7 +360,7 @@ public sealed class ExportCriteriaSelectionReportHandler(
         var reportContext = new CriteriaSelectionReportContext(
             ReportExportSupport.ProjectContext(document),
             revision,
-            // 裁定 2026-11-01-04：編製日期寫按下匯出的那一天，用本機日期，不寫情境的儲存時間。
+            // 編製日期寫按下匯出的那一天，用本機日期，不寫情境的儲存時間。
             DateOnly.FromDateTime(DateTime.Now),
             scenarios,
             conditionLogic,

@@ -26,9 +26,8 @@ public sealed class FilterOperandParsingTests
         }) Assert.Empty(FilterScenarioValidator.Validate(Parse(rule), Context(rocEnabled)));
     }
 
-    // 第五步的日期操作元也不再把純數字當成 Excel 序列值（裁定 2026-10-22-11）。
-    // 「45292」原本在上面的通用格式裡期待三種條件寫法都接受；現在三種寫法、兩種民國年開關都寫出那個值無法辨識。
-    // 第一次失敗：收據 20261024-050001386-bbbc237309534438b5098d3a5bb8efbf（改程式後上面的理論才失敗，當時沒有這一則）。
+    // 第五步的日期操作元也不把純數字當成 Excel 序列值。
+    // 「45292」在三種條件寫法、兩種民國年開關下都寫出那個值無法辨識。
     [Theory]
     [InlineData("45292", true)]
     [InlineData("45292", false)]
@@ -69,12 +68,11 @@ public sealed class FilterOperandParsingTests
             """{"type":"fieldValue","field":"glDate","operator":"in","values":["114/6/11","20250611"]}"""), Context(true)));
         var reversed = FilterScenarioValidator.Validate(Parse(
             """{"type":"fieldValue","field":"glDate","operator":"between","from":"2025/6/12","to":"114/6/11"}"""), Context(true));
-        // 用字依裁定 2026-10-13-28：原因只寫原因。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 原因只寫原因。
         Assert.Equal(["第 1 組第 1 條：起日晚於迄日"], reversed);
     }
 
-    // 舊式關鍵字與金額尾數兩列連同型別一起拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），只留文字條件。
-    // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+    // 這裡只核對文字條件。
     [Theory]
     [InlineData("text")]
     public void LegacyStringLists_AcceptAllAgreedSeparators(string type)
@@ -115,9 +113,9 @@ public sealed class FilterOperandParsingTests
     public void MoneyListErrors_UsePlainLanguageAndPreserveTheExactRulePosition()
     {
         var errors = FilterScenarioValidator.Validate(Parse(
-            // 借貸方向改成明示寫法後，核心金額只比較絕對值，保留原數字格式錯誤斷言；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+            // 核心金額只比較絕對值；這裡核對數字格式的錯誤。
             """{"type":"fieldValue","field":"amount","operator":"in","amountBasis":"absolute","values":["10","abc"]}"""), Context(true));
-        // 用字依裁定 2026-10-13-28：位置字首不變，只換原因。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 這句的用字已定案。
         Assert.Equal(["第 1 組第 1 條：清單第 2 個值：金額「abc」不是數字"], errors);
         var detail = Assert.Single(FilterScenarioErrorDetails.Parse(errors));
         Assert.Equal(1, detail.Group);
@@ -125,7 +123,7 @@ public sealed class FilterOperandParsingTests
         Assert.Equal("清單第 2 個值：金額「abc」不是數字", detail.Message);
     }
 
-    // 用字依裁定 2026-10-13-28：預期句換成確認後的句子，仍區分缺上限與上下限顛倒。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    // 預期句區分缺上限與上下限顛倒。
     [Theory]
     [InlineData(null, "上限須為 0 以上的整數")]
     [InlineData(-1, "上限須為 0 以上的整數")]
@@ -157,12 +155,12 @@ public sealed class FilterOperandParsingTests
 
     private static FilterValidationContext Context(bool rocEnabled)
     {
-        var project = new ProjectDocument("batch7", "", "", "test", "2025-01-01", "2025-12-31", null,
+        var project = new ProjectDocument("filter-operands", "", "", "test", "2025-01-01", "2025-12-31", null,
             100, "AwayFromZero", DateTimeOffset.UnixEpoch, 5, ProjectDocument.CurrentSchemaVersion, RocDateEnabled: rocEnabled);
         var mapping = new CommittedMapping(DatasetKind.Gl, new Dictionary<string, string>
         {
             ["glDate"] = "Date", ["accountNumber"] = "Account", ["amount"] = "Amount", ["description"] = "Description"
-        }, "signed", "batch7", DateTimeOffset.UnixEpoch,
+        }, "signed", "gl-batch", DateTimeOffset.UnixEpoch,
             GlOptions: new GlMappingOptions("unmapped", null, new GlManualAutoPolicy([], []),
                 [new GlRdeFieldMetadata(DateFieldId, "Review", "合成審核日", "date")]));
         return FilterValidationContextFactory.Create(project, mapping, null, false, GlPopulationScope.AuditPeriod);

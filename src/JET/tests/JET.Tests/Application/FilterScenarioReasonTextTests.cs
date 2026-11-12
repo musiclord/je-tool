@@ -9,9 +9,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第五步情境的原因句，用字由裁定 2026-10-13-28 與 2026-10-13-29 確認。
+/// 第五步情境的原因句，用字已定案。
 /// 損毀的條件開案時只寫一次「條件內容無法讀取」、儲存時標在那一條條件、原句與英文代碼只進支援日誌；
-/// 已移除的欄位寫出名稱；科目分類寫第四步分類設定裡目前的名稱。SQLite 與 DuckDB 都要成立。
+/// 條件用到的欄位已不存在時寫「此條件使用的欄位已不存在」；科目分類寫第四步分類設定裡目前的名稱。
 /// 預期句子一律寫死，不由被測程式算出。所有資料都是合成值。
 /// </summary>
 public sealed class FilterScenarioReasonTextTests
@@ -114,11 +114,10 @@ public sealed class FilterScenarioReasonTextTests
         Assert.Equal(CorruptRuleSentence, detail.Message);
     }
 
-    // ── 已移除的欄位寫出名稱 ─────────────────────────────────────────────────────
+    // ── 條件使用的欄位已不存在 ────────────────────────────────────────────────────
 
     [Theory]
-    // 裁定 2026-10-30-25：已移除欄位的名稱表拿掉，傳票日期和其他認不得的欄位一樣寫「此條件使用的欄位已不存在」
-    // （原本寫「「傳票日期」已移除，請刪除此條件」；第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
+    // 傳票日期和其他認不得的欄位一樣寫「此條件使用的欄位已不存在」。
     [InlineData("sqlite", """{"join":"AND","type":"dateRange","field":"voucherDate","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
     [InlineData("sqlite", """{"join":"AND","type":"fieldValue","field":"voucherDate","operator":"isBlank"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]
     [InlineData("sqlite", """{"join":"AND","type":"dateRange","field":"synthRetiredField","from":"2025-01-01"}""", "第 1 組第 2 條：此條件使用的欄位已不存在")]

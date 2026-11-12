@@ -22,7 +22,7 @@ public sealed class AccountCategoryQueryPagingTests
             .AddRow("SYN-3", "2025-01-01", "U500", "尚未分類", "合成", 1, 0),
             databaseProvider: provider);
 
-        // 使用既有兩次儲存建立 fixture，讓第一次失敗針對查詢篩選而不是新暫存 ID 契約。
+        // 使用既有兩次儲存建立 fixture，讓這則測試針對查詢篩選，而不是新暫存 ID 契約。
         var rows = AccountCategoryDraftTestSupport.BuiltIns();
         rows.Add(AccountCategoryDraftTestSupport.Item(null, "合成銀行", 5, "cash", "builtin.cash"));
         rows.Add(AccountCategoryDraftTestSupport.Item(null, "合成下層其他用途", 6, "others"));
@@ -83,8 +83,7 @@ public sealed class AccountCategoryQueryPagingTests
         var selection = await QueryAsync(host, "builtin.cash", pageSize: 100);
         Assert.Equal(Enumerable.Range(1, 100).Select(number => $"C{number:D3}"), Codes(selection));
         Assert.False(string.IsNullOrEmpty(selection.GetProperty("nextCursor").GetString()));
-        // 裁定 2026-10-16-03 統一每頁最多 200 筆；仍逐頁核對全部 501 筆，不縮小原有合成母體。
-        // 第一次失敗：20261016-094952219-d2e1f780f92649c4a72a3f03c4b46396。
+        // 每頁最多 200 筆；仍逐頁核對全部 501 筆，不縮小合成母體。
         var remaining = await QueryAsync(host, "builtin.cash", pageSize: 500,
             cursor: selection.GetProperty("nextCursor").GetString());
         Assert.Equal(Enumerable.Range(101, 200).Select(number => $"C{number:D3}"), Codes(remaining));
@@ -109,8 +108,7 @@ public sealed class AccountCategoryQueryPagingTests
             cursor: middle.GetProperty("nextCursor").GetString());
         Assert.Equal(Enumerable.Range(401, 101).Select(number => $"C{number:D3}"), Codes(last));
         Assert.Equal(JsonValueKind.Null, last.GetProperty("nextCursor").ValueKind);
-        // 總筆數只在第一頁計算，續頁回 null，畫面沿用第一頁的總頁數（裁定 2026-10-16-06）。
-        // 第一次失敗：20261016-110107604-643d3eac8ee8476fafdf625540660e37。
+        // 總筆數只在第一頁計算，續頁回 null，畫面沿用第一頁的總頁數。
         foreach (var page in new[] { selection, bounded })
             Assert.Equal(501, page.GetProperty("totalCount").GetInt64());
         foreach (var page in new[] { remaining, remainingSecond, remainingLast, middle, last })

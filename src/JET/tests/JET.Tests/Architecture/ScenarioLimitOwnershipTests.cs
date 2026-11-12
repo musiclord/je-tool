@@ -6,8 +6,7 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 已存情境上限只定義在 <see cref="FilterScenarioLimits.MaxSavedScenarios"/>。底稿第 4 與 4-1 頁把位置換成位元的 SQL、
-/// 解回位置的方法、高風險條件彙總與暫存檔的範圍檢查、條件篩選報告的列範圍，以及「最多可儲存」的句子都引用它，不各自寫 10
-/// （裁定 2026-10-22-19：重複的常數全部收斂到一個定義）。
+/// 解回位置的方法、高風險條件彙總與暫存檔的範圍檢查、條件篩選報告的列範圍，以及「最多可儲存」的句子都引用它，不各自寫 10。
 /// </summary>
 public sealed class ScenarioLimitOwnershipTests
 {

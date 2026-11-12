@@ -7,7 +7,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 診斷日誌檔案 sink(dev-only;與 ring buffer 並列):每筆 entry 以 NDJSON append 到指定目錄的檔案,
-/// 讓 agent 跑完 app 後直接讀執行時日誌。oracle:讀回檔案逐行解析 + scope 捕捉(重用 ring buffer 同一轉換)。
+/// 跑完 app 後可以直接讀執行時日誌。oracle:讀回檔案逐行解析 + scope 捕捉(重用 ring buffer 同一轉換)。
 /// </summary>
 public sealed class NdjsonFileLoggerProviderTests
 {

@@ -166,7 +166,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
         FileStream? stream = null;
         try
         {
-            // Excel 開著也讀得到最後一次存檔的內容（裁定 2026-11-06-12）。
+            // Excel 開著也讀得到最後一次存檔的內容。
             stream = SourceFileAccess.OpenRead(filePath);
             return new WorkbookHandle(SpreadsheetDocument.Open(stream, isEditable: false), stream);
         }
@@ -443,7 +443,7 @@ public sealed class OpenXmlSaxTableReader : ITabularFileReader
     /// <summary>
     /// 只取 &lt;t&gt; 與 &lt;r&gt;&lt;t&gt;，排除 rPh / phoneticPr（注音標示不屬儲存格內容）。
     /// 呼叫端再以 <see cref="ExcelText.Decode"/> 還原 Excel 的 _xHHHH_ 寫法：Excel 存檔時把控制字元寫成這種樣子，
-    /// 審計員在 Excel 看到什麼，JET 就匯入什麼（2026-10-21）。
+    /// 審計員在 Excel 看到什麼，JET 就匯入什麼。
     /// </summary>
     private static string ExtractRichText(OpenXmlElement container)
     {

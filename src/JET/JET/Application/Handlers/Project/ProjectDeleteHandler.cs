@@ -7,7 +7,7 @@ namespace JET.Application;
 /// <summary>
 /// project.delete：永久刪除專案（硬刪不可復原）。先刪資料庫檔，再刪 project.json 所在的案件資料夾。不需 active project
 /// （從專案選擇畫面呼叫）。資料庫刪除失敗則例外冒泡、資料夾保留，供修正後重試。不支援的資料庫種類在動任何檔案之前
-/// 回 unsupported_provider，資料夾保持原狀（裁定 2026-11-06-09）。
+/// 回 unsupported_provider，資料夾保持原狀。
 /// </summary>
 public sealed class ProjectDeleteHandler : IApplicationActionHandler
 {
@@ -116,7 +116,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             SupportOperationStage.Enter("folder_delete");
             try
             {
-                // 支援紀錄保留到刪除案件，跟著案件資料夾刪除（裁定 2026-10-21-08）。先停止寫入這個案件，
+                // 支援紀錄保留到刪除案件，跟著案件資料夾刪除。先停止寫入這個案件，
                 // 紀錄檔不會在刪除時被占用；之後這個案件的事件只留在記憶體。
                 if (supportHistory is not null) await supportHistory.ForgetAsync(projectId, CancellationToken.None);
                 await projectStore.DeleteAsync(projectId, cancellationToken);
@@ -127,7 +127,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
             }
             catch (Exception exception)
             {
-                // 這句的用字依裁定 2026-10-13-28。支援日誌記下刪不掉的原因，例如檔案正被開啟（2026-10-21）。
+                // 支援日誌記下刪不掉的原因，例如檔案正被開啟。
                 if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "folder_delete", exception);
                 cleanupMessage = "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。";
             }

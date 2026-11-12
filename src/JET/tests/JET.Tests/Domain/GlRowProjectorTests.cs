@@ -7,10 +7,9 @@ public sealed class GlRowProjectorTests
 {
     private const int Scale = 10_000;
 
-    // 裁定 2026-11-05-37 照舊版保留來源金額的正負號：借方代碼的列照原金額，其他列乘以 -1，借貸衍生欄再依結果的正負號決定。
-    // 第二列是貸方代碼、來源 -12.3456，結果是 123_456 借方，原本先取絕對值算成 -123_456 貸方；
-    // 第三列是借方代碼、來源 -12.3456，結果是 -123_456 貸方，原本算成 123_456 借方。
-    // 第一次失敗：Focused 收據 20261105-111906263-b71e1a79ee054a45af4716268a814442。
+    // 照舊版保留來源金額的正負號：借方代碼的列照原金額，其他列乘以 -1，借貸衍生欄再依結果的正負號決定。
+    // 第二列是貸方代碼、來源 -12.3456，結果是 123_456 借方；
+    // 第三列是借方代碼、來源 -12.3456，結果是 -123_456 貸方。
     [Theory]
     [InlineData(
         GlAmountMode.SignedAmount,
@@ -51,8 +50,7 @@ public sealed class GlRowProjectorTests
                 mapping[GlMappingKeys.Amount] = "amount";
                 mapping[GlMappingKeys.DrCr] = "dc";
                 mapping[GlMappingKeys.DrCrDebitCode] = drCrDebitCode!;
-                // 本合成表明定 D/C 與 1/0，完整金額與借貸斷言不變。
-                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+                // 本合成表明定 D/C 與 1/0。
                 mapping[GlMappingKeys.DrCrCreditCode] = mode == GlAmountMode.AmountWithFlag ? "0" : "C";
                 break;
             case GlAmountMode.DualAmount:
@@ -233,7 +231,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(423, error.SourceRowNumber);
         Assert.Equal("借方金額", error.Field);
         Assert.Equal("12..3", error.RawValue);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -272,7 +270,7 @@ public sealed class GlRowProjectorTests
         Assert.False(GlRowProjector.TryProject(garbage, DualSpec(), Scale, out _, out var error));
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("日期", error.Field);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
 
         var missing = new StagingRow(10, new Dictionary<string, string>
@@ -288,7 +286,7 @@ public sealed class GlRowProjectorTests
         Assert.Null(projected!.GlDate);
     }
 
-    // 裁定 2026-10-19-09：總帳日期帶千分位時和其他無法辨識的日期相同，確認配對列出列號，不再換成 1903 年。
+    // 總帳日期帶千分位時和其他無法辨識的日期相同，確認配對列出列號，不換成 1903 年。
     [Fact]
     public void DateProjection_NumberWithThousandsSeparator_FailsWithRowNumber()
     {
@@ -309,12 +307,12 @@ public sealed class GlRowProjectorTests
         Assert.Equal("無法辨識為日期。請確認來源的日期格式，或改選正確的日期欄", error.Reason);
     }
 
-    // 裁定 2026-10-22-11：總帳日期是純數字時不再當成 Excel 序列值，和其他無法辨識的日期相同，
-    // 確認配對列出列號。「45292」原本在 DateProjection_NormalizesVariants 期待 2024-01-01；第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
+    // 總帳日期是純數字時不當成 Excel 序列值，和其他無法辨識的日期相同，
+    // 確認配對列出列號。
     [Theory]
-    [InlineData("2025")]     // 以前換成 1905-07-17
-    [InlineData("2025.12")]  // 以前也是 1905 年
-    [InlineData("45292")]    // 以前換成 2024-01-01
+    [InlineData("2025")]     // 當成 Excel 序列值會是 1905-07-17
+    [InlineData("2025.12")]  // 當成 Excel 序列值也會落在 1905 年
+    [InlineData("45292")]    // 當成 Excel 序列值會是 2024-01-01
     public void DateProjection_PlainNumber_FailsWithRowNumber(string raw)
     {
         var row = new StagingRow(13, new Dictionary<string, string>
@@ -354,9 +352,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(88, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("922337203685477.5808", error.RawValue);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        // 裁定 2026-10-22-07 一併改寫叫審計員調整小數位數的訊息，因為案件沒有這個設定；
-        // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
@@ -380,9 +376,7 @@ public sealed class GlRowProjectorTests
         Assert.Equal(89, error.SourceRowNumber);
         Assert.Equal("amt", error.Field);
         Assert.Equal("-922337203685477.5808", error.RawValue);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        // 裁定 2026-10-22-07 一併改寫叫審計員調整小數位數的訊息，因為案件沒有這個設定；
-        // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("加總後的金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
@@ -496,10 +490,9 @@ public sealed class GlRowProjectorTests
     }
 
     [Theory]
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        [InlineData("date", "2025/13/40", "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字")]
-    // 裁定 2026-10-22-07 一併改寫：超過四位小數會四捨五入，不會失敗，案件也沒有小數位數設定；這句改寫成金額無效或超出可儲存的範圍。
-    // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+    // 這句的用字已定案。
+    [InlineData("date", "2025/13/40", "無法辨識為日期。請確認來源的日期格式，或將此攸關資料元素欄位改為文字")]
+    // 超過四位小數會四捨五入，不會失敗，案件也沒有小數位數設定；所以這句寫金額無效或超出可儲存的範圍。
     [InlineData("amount", "12.abc", "不是有效的金額，或超出可儲存的範圍。請確認來源資料，或將此攸關資料元素欄位改為文字")]
     public void TypedRde_InvalidValue_ReturnsChineseReasonWithNextStep(string valueType, string raw, string expectedReason)
     {
@@ -560,7 +553,7 @@ public sealed class GlRowProjectorTests
         else
         {
             Assert.Equal("custom", error!.Field);
-            // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+            // 這句的用字已定案。
             Assert.Equal("文字超過 450 個字。請縮短來源資料，或取消保留此欄位", error.Reason);
         }
     }

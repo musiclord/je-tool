@@ -10,28 +10,27 @@ namespace JET.Tests.Architecture;
 /// </summary>
 public sealed class GlQueryOwnershipTests
 {
-    // 兩份清單原本每個本機檔案後面接一個 SQL Server 檔案。只保留 SQLite 之後 SQL Server 的檔案已刪除，清單只留本機檔案
-    // （裁定 2026-11-06-08）；第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
+    // 兩份清單只列本機檔案。
     private static readonly string[] DirectQueryFiles =
     [
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalPrescreenPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalFilterHitsPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalInfSamplePageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalHighRiskSummaryScenariosRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalAccountUsageExportRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalPreparerSummaryExportRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalPrescreenRunRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalPrescreenPageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalFilterHitsPageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalInfSamplePageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalHighRiskSummaryScenariosRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalAccountUsageExportRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalPreparerSummaryExportRepository.cs",
     ];
 
     private static readonly string[] CanonicalCoreConsumerFiles =
     [
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalCompletenessDiffPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalCompletenessAccountPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalVoucherBalancePageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalUnbalancedVoucherPageRepository.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalValidationReportPlanningFactsPort.cs",
-        "src/JET/JET/Infrastructure/Persistence/Local/LocalAccountMappingExportRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalCompletenessDiffPageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalCompletenessAccountPageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalVoucherBalancePageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalUnbalancedVoucherPageRepository.cs",
+        "JET/Infrastructure/Persistence/Local/LocalValidationReportPlanningFactsPort.cs",
+        "JET/Infrastructure/Persistence/Local/LocalAccountMappingExportRepository.cs",
     ];
 
     [Fact]
@@ -51,12 +50,12 @@ public sealed class GlQueryOwnershipTests
     [Fact]
     public void AuditCorePopulationCores_AndScopeAdapter_CallCanonicalEffectivePredicate()
     {
-        var procedures = Read("src/JET/JET/AuditCore/ValidationProcedures.cs");
+        var procedures = Read("JET/AuditCore/ValidationProcedures.cs");
         Assert.Contains("GlExcludedPopulation.SqlPredicate()", procedures, StringComparison.Ordinal);
         Assert.DoesNotContain("WHERE {PeriodBounds}", procedures, StringComparison.Ordinal);
         Assert.DoesNotContain("WHERE {{PeriodBounds}}", procedures, StringComparison.Ordinal);
 
-        var compilation = Read("src/JET/JET/AuditCore/FilterCompilation.cs");
+        var compilation = Read("JET/AuditCore/FilterCompilation.cs");
         Assert.Contains("return GlExcludedPopulation.SqlPredicate(tableAlias);", compilation, StringComparison.Ordinal);
         Assert.Contains(
             "$\"({GlExcludedPopulation.SqlPredicate()}) AND ({predicate})\";",
@@ -80,6 +79,6 @@ public sealed class GlQueryOwnershipTests
 
     private static string Read(string relativePath) =>
         File.ReadAllText(Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
+            TestRepositoryPaths.SolutionRoot,
             relativePath.Replace('/', Path.DirectorySeparatorChar)));
 }

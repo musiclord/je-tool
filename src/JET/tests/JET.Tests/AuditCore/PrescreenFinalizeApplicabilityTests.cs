@@ -5,9 +5,8 @@ using Xunit;
 namespace JET.Tests.AuditCore;
 
 /// <summary>
-/// 預篩選收尾丟棄不適用規則的計數時，改讀規則需求表的判定，不再只依手列的清單。
-/// 先前查到只需要必填欄的六條規則即使判定不適用，計數也照傳；這裡讓每一條規則都照同一個判定。
-/// 第一次失敗：收據 20261024-190913880-a45e823f31e745139f977c5c3481bdb3。
+/// 預篩選收尾丟棄不適用規則的計數時，讀規則需求表的判定，不只依手列的清單。
+/// 每一條規則都照同一個判定，只需要必填欄的六條規則也一樣。
 /// </summary>
 public sealed class PrescreenFinalizeApplicabilityTests
 {
@@ -33,7 +32,7 @@ public sealed class PrescreenFinalizeApplicabilityTests
             HasAuthorizedPreparers: false,
             NonWorkingDays: null)
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，請求要帶 0 的個數；這則只核對適用性，帶 6 不影響結果。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，請求要帶 0 的個數；這則只核對適用性，帶 6 不影響結果。
             ZerosThreshold = 6
         };
         var plan = JetAuditProgram.Plan(request);
@@ -68,7 +67,7 @@ public sealed class PrescreenFinalizeApplicabilityTests
         Assert.Equal(0, data.BlankDescriptionCount);
         Assert.Equal(0, data.WeekendPostingCount);
         Assert.Equal(0, data.HolidayPostingCount);
-        // 編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），三個計數跟著不在結果裡；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+        // 照舊版 JET 的作法，沒有編製分錄較少的人員與使用較少的科目，結果裡不帶這兩條的計數。
         Assert.Equal(0, data.DistinctAccountCount);
         Assert.Empty(data.Accounts);
         Assert.Empty(data.Preparers);

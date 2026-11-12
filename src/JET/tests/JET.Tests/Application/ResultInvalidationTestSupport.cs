@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 結果失效驗收：規則執行結果(validation_result、prescreen_result 與抽樣)是衍生資料,
 /// 一旦其實際上游被改寫，project.load 的 validationResult 或 prescreenResult 必須回 null（要求重跑），
-/// 依裁定 2026-10-07-04，GL 與 TB 同層級修改，影響兩種 run，
+/// GL 與 TB 同層級修改，影響兩種 run，
 /// 科目配對／行事曆／授權清單只影響 prescreen。
 ///
 /// 設計技術：狀態轉換 —— 每條合法的「上游改寫」轉換各一測試,涵蓋三個失效機制:
@@ -20,7 +20,7 @@ namespace JET.Tests.Application;
 ///   (b) 重投影交易（mapping re-commit）
 ///   (c) 行事曆 replace 交易（假日/補班匯入）
 /// oracle：依賴到該上游的 latest run 應為 JSON null；無依賴者必須保留。篩選命中失效時，
-/// 已存篩選情境也一起清掉（上游修改清除下游，裁定 2026-10-07-03）。
+/// 已存篩選情境也一起清掉（上游修改清除下游）。
 /// 每個測試自建 host（會變更狀態,不可共用 DemoProjectFixture）。
 /// </summary>
 public static class ResultInvalidationTestSupport
@@ -239,8 +239,7 @@ public static class ResultInvalidationTestSupport
             projectId,
             databaseProvider,
             "SELECT definition_json FROM {s}.filter_scenario ORDER BY position;");
-        // 2026-10-31 起每個情境各自儲存，情境的版本是「情境編號@保存時間」，整批版本依順序用分號接起來；
-        // 原本直接比對保存時間，第一次失敗的收據 20261031-015438711-e019d04ff2b64ad08bc34c916334bd83。
+        // 每個情境各自儲存，情境的版本是「情境編號@保存時間」，整批版本依順序用分號接起來。
         var savedTimes = await RequiredMatrixStringsAsync(
             host,
             projectId,
@@ -294,9 +293,8 @@ public static class ResultInvalidationTestSupport
         AssertResultState(before.PrescreenResultJson, after.PrescreenResultJson, clearsPrescreen);
         Assert.Equal(clearsFilterHits ? 0 : before.FilterHitCount, after.FilterHitCount);
 
-        // 上游修改會清除下游（裁定 2026-10-07-03）：命中失效時，已存情境定義與版本也一起清掉；
-        // 若政策保留命中，定義與版本也必須逐字保留。原本斷言情境一律保留，第一次失敗收據
-        // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：命中失效時，已存情境定義與版本也一起清掉；
+        // 若政策保留命中，定義與版本也必須逐字保留。
         if (clearsFilterHits)
         {
             Assert.Empty(after.ScenarioDefinitions);
@@ -534,7 +532,7 @@ public static class ResultInvalidationTestSupport
             {
                 filePath = file.GetProperty("filePath").GetString(),
                 fileName = file.GetProperty("fileName").GetString(),
-                // sourceColumn 改成必填，後端不再猜人員欄；保留上游改動的結果失效測試。
+                // 匯入人員清單必須指定 sourceColumn。
                 sourceColumn
             }));
     }

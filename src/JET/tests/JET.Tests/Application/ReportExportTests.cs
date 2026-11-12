@@ -12,10 +12,10 @@ using JET.AuditCore;
 using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
+using JET.Tests.Infrastructure;
+using JET.Tests.TestInfrastructure;
 
 namespace JET.Tests.Application;
-
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
 
 /// <summary>
 /// 五份正式報告與科目配對範本工作檔的 application 驗收測試。Oracle 來自 action manifest、
@@ -131,7 +131,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         Assert.False(response.TryGetProperty("outputPath", out _));
         Assert.False(response.TryGetProperty("filePath", out _));
 
-        // 2026-09-02 起科目配對範本是工作檔，由 export.accountMappingTemplate 單獨產生；驗證批次只剩兩份。
+        // 科目配對範本是工作檔，由 export.accountMappingTemplate 單獨產生；驗證批次只有兩份。
         var reports = response.GetProperty("publishedReports");
         Assert.Equal(2, reports.GetArrayLength());
         Assert.Equal(
@@ -226,7 +226,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             projectDirectory,
             "*.tmp",
             SearchOption.AllDirectories));
-        // 原本只確認舊版的暫存檔 .report-artifacts.mutation-v1.json 不在；產品早已不寫這個檔，斷言一定通過。改成確認現行的暫存檔都沒有留下。
+        // 確認現行的暫存檔都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(projectDirectory);
 
         var currentReports = await store.ListAsync(projectId, CancellationToken.None);
@@ -433,7 +433,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal(-100d, sheet.Cell("F54").GetDouble());
         Assert.Equal("SAP-FI", sheet.Cell("J54").GetString());
         Assert.Equal("覆核乙", sheet.Cell("L54").GetString());
-        // 裁定 2026-11-09-11：有配對傳票核准人員時，INF 報告與底稿都照舊版把 L51 改寫成欄名。
+        // 有配對傳票核准人員時，INF 報告與底稿都照舊版把 L51 改寫成欄名。
         Assert.Equal("傳票核准人員", sheet.Cell("L51").GetString());
 
         var prescreen = await host.DispatchAsync("prescreen.run");
@@ -572,7 +572,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             projectId, ResultKind.Validation, CancellationToken.None));
         var writer = BuildLegacyReportWriter(host, new LegacyReportWriterOptions(18));
         await using var stream = new MemoryStream();
-        // 2026-10-22 清理技術債：只讀摘要的公開入口已刪除，測試和 handler 一樣先解析投影、規劃，再走正式入口。
+        // 測試和 handler 一樣先解析投影、規劃，再走正式入口。
         var reportContext = new ValidationReportContext(
             new ReportDocumentContext(
                 projectId, "測試自含案件", "2025-01-01", "2025-12-31", "2024-01-01", 10_000),
@@ -673,8 +673,8 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal(987, summary.Cell("E13").GetValue<int>());
     }
 
-    // 裁定 2026-11-05-33：舊版 GetTotal 先取借貸淨額的絕對值，大於 0.01 才寫出，否則寫 0。
-    // 裁定 2026-11-05-42：主表照舊版加上不設密碼的工作表保護。
+    // 舊版 GetTotal 先取借貸淨額的絕對值，大於 0.01 才寫出，否則寫 0。
+    // 主表照舊版加上不設密碼的工作表保護。
     [Theory]
     [InlineData("-12.34", "12.34")]
     [InlineData("12.34", "12.34")]
@@ -749,7 +749,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             RareAccounts: new("V", null, 9),
             BlankDescription: skipped)
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數；這裡的尾零規則略過，帶 6 只為了組出完整的投影。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則略過，帶 6 只為了組出完整的投影。
             ZerosThreshold = 6
         };
         var context = new PrescreenReportContext(
@@ -778,16 +778,14 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         stream.Position = 0;
         using var workbook = new XLWorkbook(stream);
         var summary = workbook.Worksheet("Pre-screening_Report");
-        // 裁定 2026-11-05-44：R5、R6 的 D 欄照舊版原句，不再寫項目數；改看狀態與不適用原因都取自投影。
-        // 第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+        // R5、R6 的 D 欄照舊版原句，不寫項目數；狀態與不適用原因都取自投影。
         Assert.Equal("V", summary.Cell("A12").GetString());
         Assert.Equal("符合預篩選條件之明細項請詳 [R5] 工作表", summary.Cell("D12").GetString());
         Assert.Equal("符合預篩選條件之明細項請詳 [R6] 工作表", summary.Cell("D13").GetString());
         Assert.Equal("N/A（typed projection skip）", summary.Cell("D8").GetString());
     }
 
-    // 2026-10-22 清理技術債：只讀摘要 JSON 的公開預篩選入口已刪除，原本檢查它的測試一併移除；
-    // 彙總列的內容由上一則走正式入口的測試守住（第一次失敗：Focused 收據 20261022-070441801-b717958da6bc461bb272ed374766bb78）。
+    // 彙總列的內容由上一則走正式入口的測試守住。
 
     [Fact]
     public async Task ValidationReport_UnbalancedVoucher_WritesEveryOriginalGlLineNotAggregate()
@@ -923,8 +921,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         var path = fixture.ReportPath(response.GetProperty("publishedReport"));
 
         using var workbook = new XLWorkbook(path);
-        // 裁定 2026-11-05-36：這個案件沒有配對傳票建立人員，「依分錄編製者彙總」不適用，照舊版不產生 R5 工作表。
-        // 第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+        // 這個案件沒有配對傳票建立人員，「依分錄編製者彙總」不適用，照舊版不產生 R5 工作表。
         Assert.Equal(
             new[]
             {
@@ -957,7 +954,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         Assert.Equal("N/A", summary.Cell("E13").GetString());
         Assert.Equal("N/A", summary.Cell("F13").GetString());
         Assert.StartsWith("N/A", summary.Cell("D10").GetString(), StringComparison.Ordinal);
-        // 裁定 2026-11-05-44：R5、R6 的 D 欄照舊版原句，不再寫「彙總 N 項」。第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+        // R5、R6 的 D 欄照舊版原句，不寫「彙總 N 項」。
         Assert.Equal(
             "因於資料欄未配對時未配對【編制人員】欄位，故此預篩選程序未執行",
             summary.Cell("D12").GetString());
@@ -1028,7 +1025,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
     [Fact]
     public async Task ExportCriteriaSelectionReport_FinalTagMarksOnlyTheMatchedRow()
     {
-        // 裁定 2026-11-05-48：照舊版在每張「#Criteria Select」工作表最後加一欄 Final_TAG，
+        // 照舊版在每張「#Criteria Select」工作表最後加一欄 Final_TAG，
         // 符合條件的分錄寫 Y，同一張傳票帶出的其他分錄留白。這裡只有「調整分錄」那一列的摘要含「調整」。
         var response = await fixture.ExportCriteriaSelectionReportAsync();
         using var workbook = new XLWorkbook(fixture.ReportPath(response.GetProperty("publishedReport")));
@@ -1050,8 +1047,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
     {
         using var host = new HandlerTestHost();
         // 第五步不能用 GL 沒有配對的欄位，「編製人員分錄筆數」需要傳票建立人員，
-        // 共用資料沒有這一欄，所以這則測試改用多一欄「建立人員」的同一份資料；情境與斷言不變。
-        // 第一次失敗：Focused 收據 20261023-034759122-0f1124c6ec3e4030ace8fcfd8be8f824（確認情境時回「「傳票建立人員」尚未選擇來源欄」）。
+        // 共用資料沒有這一欄，所以這則測試用多一欄「建立人員」的同一份資料。
         var projectId = await ReportExportFixture.SetupProjectAsync(host, withCreatedBy: true);
         var validation = await host.DispatchAsync("validate.run");
         var prescreen = await host.DispatchAsync("prescreen.run");
@@ -1064,7 +1060,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
                     new
                     {
                         name = "核准文字情境",
-                        rationale = "鎖定 Phase 6 枚舉式可見差異",
+                        rationale = "核對條件說明的文字",
                         groups = new object[]
                         {
                             new
@@ -1072,8 +1068,8 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
                                 join = "AND",
                                 conditions = new object[]
                                 {
-                                    // 兩種舊式筆數條件已列為停用寫法，情境改成等價的「科目與人員統計」，
-                                    // 預期文字跟著變成統計條件的讀回；斷言的位置與結構不變。
+                                    // 兩種舊式筆數條件已列為停用寫法，情境用等價的「科目與人員統計」，
+                                    // 預期文字是統計條件的讀回。
                                     new
                                     {
                                         join = "AND",
@@ -1121,12 +1117,9 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
                 scenarioPositions = new[] { 1 }
             }));
 
-        // 用語統一後，條件讀回跟著畫面改成「分錄測試範圍」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
         const string expected =
-            // 裁定 2026-10-08-04 統一全系統的資料名稱：「分錄測試範圍內」改為「GL 中」。
-            // 改用統計條件後的讀回。第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（儲存回「已停用」）。
-            // 報告的條件說明用【】標欄位名稱；「僅借方」不是欄位名稱，不加（裁定 2026-11-03-17）。
-            // 第一次失敗：Public 收據 20261103-111153760-c5c19c4dc5b94ecaacaacbb58eab4608。
+            // 統計條件的讀回，資料名稱寫「GL 中」。
+            // 報告的條件說明用【】標欄位名稱；「僅借方」不是欄位名稱，不加。
             "（（GL 中【傳票建立人員】分錄筆數 小於或等於 11 或 GL 中【會計科目編號】分錄筆數 小於或等於 11） 且 僅借方）";
         var criteriaPath = Path.Combine(
             host.ProjectsRoot,
@@ -1193,8 +1186,8 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         var response = await fixture.ExportWorkingPaperAsync();
         var outputPath = fixture.ReportPath(response.GetProperty("publishedReport"));
         var templatePath = Path.Combine(
-            FindRepositoryRoot(),
-            "src", "JET", "JET", "Templates", "WorkingPaper.xlsx");
+            TestRepositoryPaths.SolutionRoot,
+            "JET", "Templates", "WorkingPaper.xlsx");
 
         using var output = SpreadsheetDocument.Open(outputPath, false);
         using var template = SpreadsheetDocument.Open(templatePath, false);
@@ -1334,7 +1327,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         };
 
         Assert.Equal(6, reportTemplates.Length);
-        var templateDirectory = Path.Combine(FindRepositoryRoot(), "src", "JET", "JET", "Templates");
+        var templateDirectory = Path.Combine(TestRepositoryPaths.SolutionRoot, "JET", "Templates");
         Assert.All(reportTemplates, pair => AssertTemplatePackageFidelity(
             pair.OutputPath,
             Path.Combine(templateDirectory, pair.TemplateName),
@@ -1342,11 +1335,11 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
     }
 
     [Fact]
+    [Trait(TestProfileTraits.Key, TestProfileTraits.DevelopmentRepository)]
     public void RuntimeTemplateAssets_MatchSourceAnchors_ExceptClosedHygienePair()
     {
-        var repositoryRoot = FindRepositoryRoot();
-        var sourceDirectory = Path.Combine(repositoryRoot, "data");
-        var embeddedDirectory = Path.Combine(repositoryRoot, "src", "JET", "JET", "Templates");
+        var sourceDirectory = Path.Combine(TestRepositoryPaths.RepositoryRoot, "data");
+        var embeddedDirectory = Path.Combine(TestRepositoryPaths.SolutionRoot, "JET", "Templates");
 
         Assert.Equal(2, TemplateHygieneExceptions.Count);
         Assert.All(EmbeddedTemplateNames.Where(fileName => !TemplateHygieneExceptions.Contains(fileName)), fileName =>
@@ -1356,7 +1349,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             Assert.True(File.Exists(sourcePath), $"Missing repository template source: data/{fileName}");
             Assert.True(
                 File.Exists(embeddedPath),
-                $"Missing embedded template asset: src/JET/JET/Templates/{fileName}");
+                $"Missing embedded template asset: JET/Templates/{fileName}");
             Assert.Equal(
                 Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath))),
                 Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(embeddedPath))));
@@ -1401,7 +1394,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
             })));
 
         Assert.Equal(JetErrorCodes.StaleResult, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Equal(
             "這份報告依據的資料驗證結果已不是目前的結果，請重新執行資料驗證後再產生。",
             exception.Message);
@@ -1824,23 +1817,6 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return reader.ReadToEnd();
     }
-
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
-             directory is not null;
-             directory = directory.Parent)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "data"))
-                && Directory.Exists(Path.Combine(directory.FullName, "src", "JET", "JET", "Templates")))
-            {
-                return directory.FullName;
-            }
-        }
-
-        throw new DirectoryNotFoundException(
-            "Could not locate repository root containing data/ and src/JET/JET/Templates/.");
-    }
 }
 
 public sealed class ReportExportFixture : IAsyncLifetime
@@ -1857,8 +1833,8 @@ public sealed class ReportExportFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        // 操作人員由目前 principal 決定，不再由 project.create payload 假造；
-        // 固定測試 principal，讓報表署名仍是可重現的 synthetic 值。
+        // 操作人員由目前 principal 決定，不由 project.create payload 假造；
+        // 固定測試 principal，讓報表署名是可重現的 synthetic 值。
         Host = new HandlerTestHost(principalName: "tester");
         ProjectId = await SetupProjectAsync(Host);
 
@@ -1901,8 +1877,8 @@ public sealed class ReportExportFixture : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    // withCreatedBy 在同一份資料後面多一欄「建立人員」。現在第五步不能用 GL 沒有配對的欄位，
-    // 用到編製人員的情境需要這一欄；其他測試照舊用原本的欄位。
+    // withCreatedBy 在同一份資料後面多一欄「建立人員」。第五步不能用 GL 沒有配對的欄位，
+    // 用到編製人員的情境需要這一欄；其他測試用原本的欄位。
     internal static Task<string> SetupProjectAsync(HandlerTestHost host, bool withCreatedBy = false) =>
         InlineWorkbookProject.SetupAsync(
             host,

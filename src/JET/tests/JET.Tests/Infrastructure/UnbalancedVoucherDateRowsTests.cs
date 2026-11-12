@@ -6,8 +6,8 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 底稿 Step 1-1 明細的資料來源：不平傳票依傳票號碼與總帳日期彙總（legacy idea-tool.bas:6686-6691）。
-/// 兩個本機資料庫都要得到同一份結果；平衡傳票與查核期間外的分錄不列入。
+/// 底稿 Step 1-1 明細的資料來源：不平傳票依傳票號碼與總帳日期彙總（照舊版 JET）。
+/// 平衡傳票與查核期間外的分錄不列入。
 /// </summary>
 public sealed class UnbalancedVoucherDateRowsTests
 {

@@ -7,16 +7,16 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 欄位的來歷記成資料後，底稿「自動化工具-檔案欄位資訊」與 step4-1 不再從欄名結尾與說明文字推斷
-/// （裁定 2026-11-03-11 到 2026-11-03-15）。前三個測試先用合成資料重現 2026-11-03 審查欄位後綴時找到的三個錯誤：
+/// 欄位的來歷記成資料，底稿「自動化工具-檔案欄位資訊」與 step4-1 不從欄名結尾與說明文字推斷。
+/// 前三個測試用合成資料確認下面三個錯誤不會發生：
 /// 來源欄撞到 JET 欄名時產生底稿失敗、沒有配對但欄名以 _JE 結尾的來源欄被當成已配對、
-/// 傳票核准日選「與總帳日期相同」時 step4-1 整欄空白。第一次失敗：Focused 收據見各測試旁的註解。
+/// 傳票核准日選「與總帳日期相同」時 step4-1 整欄空白。
 /// </summary>
 public sealed class WorkingPaperFieldProvenanceJourneyTests
 {
     private const string Step41SheetName = WorkingPaperSheetCatalog.Step41;
 
-    // 第一次失敗：匯出底稿時 step4-1 的欄位名稱「傳票金額_JE」重複，整份底稿產生失敗。
+    // 要防止的錯誤：匯出底稿時 step4-1 的欄位名稱「傳票金額_JE」重複，整份底稿產生失敗。
     [Theory]
     [InlineData("sqlite")]
     public async Task SourceColumnNamedLikeJetField_YieldsNameInsteadOfFailingExport(string provider)
@@ -43,7 +43,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
         });
     }
 
-    // 第一次失敗：欄位資訊把 COST_CENTER_JE 寫成配對後欄位，step4-1 多出這一欄。
+    // 要防止的錯誤：欄位資訊把 COST_CENTER_JE 寫成配對後欄位，step4-1 多出這一欄。
     [Theory]
     [InlineData("sqlite")]
     public async Task UnmappedSourceColumnEndingWithJe_IsNotTreatedAsJetField(string provider)
@@ -64,7 +64,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
         });
     }
 
-    // 第一次失敗：step4-1 的「傳票核准日_JE」整欄空白。
+    // 要防止的錯誤：step4-1 的「傳票核准日_JE」整欄空白。
     [Theory]
     [InlineData("sqlite")]
     public async Task ApprovalDateSameAsGlDate_Step41WritesTheGlDate(string provider)
@@ -98,7 +98,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
         });
     }
 
-    // 勾了往下填補的欄位，step4-1 寫填補後的值（裁定 2026-11-03-13）。新增的測試，改好程式後才寫，沒有第一次失敗的收據。
+    // 勾了往下填補的欄位，step4-1 寫填補後的值。
     [Theory]
     [InlineData("sqlite")]
     public async Task FillDownField_Step41WritesTheFilledValue(string provider)
@@ -119,8 +119,7 @@ public sealed class WorkingPaperFieldProvenanceJourneyTests
         });
     }
 
-    // 攸關資料元素照舊版加 _JE 並標成已配對（裁定 2026-11-03-14）；配對了過帳狀態時多一欄過帳碼_JE（裁定 2026-11-03-15）。
-    // 新增的測試，改好程式後才寫，沒有第一次失敗的收據。
+    // 攸關資料元素照舊版加 _JE 並標成已配對；配對了過帳狀態時多一欄過帳碼_JE。
     [Theory]
     [InlineData("sqlite")]
     public async Task RdeAndPostingStatus_AppearWithLegacySuffixes(string provider)

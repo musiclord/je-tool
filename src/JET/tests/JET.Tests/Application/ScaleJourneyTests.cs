@@ -43,13 +43,13 @@ internal sealed class ScaleJourneyTheoryAttribute : TheoryAttribute, ITraitAttri
 }
 
 /// <summary>
-/// 第 22 步盤點的第 1 項：SQLite 沒有大資料量的完整流程證據。用程式生成的合成 GL，照審計員的順序走完建案、匯入 GL 與 TB、
+/// 用程式生成的合成 GL，照審計員的順序走完建案、匯入 GL 與 TB、
 /// 確認兩份配對、驗證、預篩選、條件保存、條件篩選報告與底稿，每一步記下耗時、程式的記憶體、資料庫檔與記錄檔大小，
-/// 最後檢查資料庫完整性。只記數字，不斷言快慢；SQLite 與 DuckDB 各量一次，DuckDB 用來和過去的量測對照。
-/// 只在設定 JET_SCALE_JOURNEY=1 時執行，帶 Scale 特徵，Focused 與 Public 都不會跑到它；要量時直接執行建置好的測試程式，
-/// 用 --filter-class 指定這個類別。記憶體尖峰是整個程式的數字，兩種資料庫要分開量時，用 JET_SCALE_JOURNEY_PROVIDER 各跑一次。
-/// 列數預設一百萬，可用 JET_SCALE_JOURNEY_ROWS 改小先試流程；JET_SCALE_JOURNEY_PROVIDER 只量其中一種資料庫；
-/// JET_SCALE_JOURNEY_OUTPUT 指定時另把結果寫成檔案。資料全部合成，放在系統暫存資料夾，結束時刪除。這是新增的測試。
+/// 最後檢查資料庫完整性。只記數字，不斷言快慢。
+/// 只在設定 JET_SCALE_JOURNEY=1 時執行，帶 Scale 特徵，一般的測試執行不會跑到它；要量時直接執行建置好的測試程式，
+/// 用 --filter-class 指定這個類別。記憶體尖峰是整個程式的數字。
+/// 列數預設一百萬，可用 JET_SCALE_JOURNEY_ROWS 改小先試流程；JET_SCALE_JOURNEY_PROVIDER 指定只量哪一種資料庫；
+/// JET_SCALE_JOURNEY_OUTPUT 指定時另把結果寫成檔案。資料全部合成，放在系統暫存資料夾，結束時刪除。
 /// </summary>
 public sealed class ScaleJourneyTests(ITestOutputHelper output)
 {
@@ -263,9 +263,7 @@ public sealed class ScaleJourneyTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// SQLite 用 integrity_check。DuckDB 沒有對應的檢查，改成逐表讀完每一列的每一欄：DuckDB 載入資料塊時會核對檢查碼，
-    /// 壞掉的塊會丟出錯誤；沒有任何資料表時回報 "no tables"。2026-11-06 提交前複審指出，原本只數 GL 與命中兩張表的筆數，
-    /// DuckDB 可以不讀欄位資料就答出筆數，所以除了查詢出錯以外都會通過，等於沒有檢查。
+    /// 用 SQLite 的 integrity_check 檢查資料庫。
     /// </summary>
     internal static async Task<string> CheckIntegrityAsync(string projects, string name, string provider)
     {

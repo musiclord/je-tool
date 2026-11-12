@@ -4,7 +4,7 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 底稿第 4 與 4-1 頁把已存情境位置換成位元遮罩的唯一寫法：位置 n 對應位元 n-1，位置上限是
-/// <see cref="FilterScenarioLimits.MaxSavedScenarios"/>，三種資料庫的 SQL 相同。
+/// <see cref="FilterScenarioLimits.MaxSavedScenarios"/>。
 /// </summary>
 internal static class ScenarioTagMask
 {

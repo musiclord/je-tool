@@ -123,8 +123,7 @@ public sealed class FilterCompilationTests
             BlankRecordsCategoryPredicate.All);
     }
 
-    // 空白判定改走方言的 Trim（裁定 2026-10-04-01），去掉的字元集合和 .NET 相同，三個 provider 一致。
-    // 原本斷言的是引擎原生 TRIM 與 LTRIM(RTRIM)（第一次失敗：收據 20261004-045437671），這裡改成以方言組出預期字串。
+    // 空白判定走 SQLite 方言的 Trim，去掉的字元集合和 .NET 相同。
     [Theory]
     [InlineData(BlankRecordCategory.BlankAccountNumber, "account_number")]
     [InlineData(BlankRecordCategory.BlankVoucherNumber, "voucher_number")]
@@ -140,25 +139,21 @@ public sealed class FilterCompilationTests
         }
 
         Assert.Contains("char(9,10,11,12,13,32,", SqliteDialect.Instance.Trim(column), StringComparison.Ordinal);
-        // DuckDB 與 SQL Server 方言的兩行隨兩個資料庫移除（裁定 2026-11-06-08）。
     }
 
     [Fact]
     public void BlankRecordCategoryPredicates_ApprovalDateNotInPeriod_IsTheSameOnEveryProvider()
     {
-        // 裁定 2026-11-05-38 照舊版把核准日空白也算成不在期間，原本的預期是
-        // "(approval_date IS NOT NULL AND (approval_date < @periodStart OR approval_date > @periodEnd))"。
-        // 第一次失敗：Focused 收據 20261105-111915760-b05263fa2bd54ac2b53aa14b49a2c698。
+        // 照舊版 JET 的作法，核准日空白也算成不在期間。
         const string expected = "(approval_date IS NULL OR approval_date < @periodStart OR approval_date > @periodEnd)";
         Assert.Equal(expected, BlankRecordsCategoryPredicate.For(BlankRecordCategory.ApprovalDateNotInPeriod, SqliteDialect.Instance));
-        // SQL Server 方言那一行隨 SQL Server 移除（裁定 2026-11-06-08）。
     }
 
     [Fact]
     public void BlankRecordCategoryScopedWhenChecked_UnavailableApprovalDate_NeverMatches_OtherCategoriesUnchanged()
     {
-        // 裁定 2026-10-23-01：傳票核准日不可用時「核准日不在期間」不執行；照裁定 2026-11-05-38 核准日空白會算成不在期間，
-        // 所以這時計數與明細改用永遠不成立的條件。其他三類與核准日可用時照原本的條件。
+        // 傳票核准日不可用時「核准日不在期間」不執行；核准日空白會算成不在期間，
+        // 所以這時計數與明細用永遠不成立的條件。其他三類與核准日可用時照原本的條件。
         foreach (ISqlDialect dialect in new ISqlDialect[] { SqliteDialect.Instance })
         {
             Assert.Equal(
@@ -185,8 +180,6 @@ public sealed class FilterCompilationTests
             BlankRecordsCategoryPredicate.Scoped(BlankRecordCategory.BlankAccountNumber, SqliteDialect.Instance));
     }
 
-    // 轉大寫改走方言（裁定 2026-10-19-30），SQLite 的 SQL 文字不變。SQL Server 的大小寫對照表寫法與它的
-    // 測試隨 SQL Server 移除（裁定 2026-11-06-08）。
     [Fact]
     public void PreparerEqualsApprover_LocalProviders_KeepPlainUpper()
     {
@@ -194,7 +187,7 @@ public sealed class FilterCompilationTests
         {
             var preparer = dialect.Trim("g.created_by");
             var approver = dialect.Trim("g.approved_by");
-            // 2026-10-22 清理技術債：「不是空白」改走 SqlBlankText，自帶一層括號（第一次失敗：Public 收據 20261022-075335566）。
+            // 「不是空白」走 SqlBlankText，自帶一層括號。
             Assert.Equal(
                 $"((g.created_by IS NOT NULL AND {preparer} <> '') AND g.approved_by IS NOT NULL "
                 + $"AND UPPER({preparer}) = UPPER({approver}))",

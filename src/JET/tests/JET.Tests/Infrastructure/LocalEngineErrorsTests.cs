@@ -8,9 +8,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 本地引擎錯誤映射的單元測試。oracle 是 manifest Error Codes 章登錄的 wire code，
-/// SQLite 以公開 primary error code 建構真實例外。原本也測 DuckDB 的錯誤訊息型樣，隨 DuckDB 移除（裁定 2026-11-06-08）。
-/// LocalEngineErrors 尚未落地時以反射尋找，讓紅燈能先編譯並明確指出缺少的 production seam。
+/// 本地引擎錯誤映射的單元測試。oracle 是已登錄的 wire code，
+/// SQLite 以公開 primary error code 建構真實例外。
+/// LocalEngineErrors 以反射尋找，找不到時測試會明確指出缺少這個型別。
 /// </summary>
 public sealed class LocalEngineErrorsTests
 {
@@ -20,12 +20,11 @@ public sealed class LocalEngineErrorsTests
         ("DatabaseLocked", "database_locked"),
         ("DatabaseStorageFull", "database_storage_full"),
         ("DatabaseCorrupt", "database_corrupt"),
-        // 第 27 步新加的三個錯誤碼（第 22 步盤點的第 4 項），一起核對常數與正式程式不寫裸字串。
+        // 下面三個錯誤碼一起核對常數與正式程式不寫裸字串。
         ("DatabaseReadOnly", "database_read_only"),
         ("DatabaseUnavailable", "database_unavailable"),
         ("DatabaseOutOfMemory", "database_out_of_memory"),
         ("BridgeError", "bridge_error"),
-        // SQL Server 的兩個錯誤碼隨 SQL Server 移除（裁定 2026-11-06-08）。
         ("InvalidProjectSchema", "invalid_project_schema"),
         ("UnsupportedProvider", "unsupported_provider")
     ];
@@ -44,7 +43,7 @@ public sealed class LocalEngineErrorsTests
         Assert.Equal(expectedCode, translated.Code);
     }
 
-    // 第 22 步盤點的第 4 項：唯讀、沒有權限、開不了檔、讀寫失敗與記憶體不足原本都落到通用的非預期錯誤。這是新增的測試。
+    // 唯讀、沒有權限、開不了檔、讀寫失敗與記憶體不足各有自己的錯誤碼，不落到通用的非預期錯誤。
     [Theory]
     [InlineData(8, "database_read_only")]
     [InlineData(8 | (1 << 8), "database_read_only")] // SQLITE_READONLY_RECOVERY

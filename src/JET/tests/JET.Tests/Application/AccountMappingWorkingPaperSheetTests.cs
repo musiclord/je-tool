@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-11-05-07：第四步「用 Excel 配對」也能匯入工作底稿的「自動化工具-科目配對資訊」工作表。
+/// 第四步「用 Excel 配對」也能匯入工作底稿的「自動化工具-科目配對資訊」工作表。
 /// 底稿的第一個工作表不是科目配對，審計員選了工作表後帶 sheetName 匯入；GL 有、TB 沒有的科目在底稿寫「Not in TB」，
 /// 匯入時當成沒有科目名稱，不存成名稱。
 /// </summary>

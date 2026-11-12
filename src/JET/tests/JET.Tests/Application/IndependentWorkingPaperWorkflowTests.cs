@@ -36,9 +36,8 @@ public sealed class IndependentWorkingPaperWorkflowTests
         await host.DispatchAsync("filter.commit", scenarios);
         await host.DispatchAsync("calendar.setNonWorkingDays", """{"days":[6]}""");
         var loaded = await host.DispatchAsync("project.load", JsonSerializer.Serialize(new { projectId = setup.ProjectId }));
-        // 上游修改會清除下游（裁定 2026-10-07-03）：行事曆修改清掉已存情境，篩選回到從未執行；
-        // 審計員重新儲存後即可直接匯出底稿。原本斷言情境保留且標成待重跑，第一次失敗收據
-        // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+        // 上游修改會清除下游：行事曆修改清掉已存情境，篩選回到從未執行；
+        // 審計員重新儲存後即可直接匯出底稿。
         Assert.False(loaded.GetProperty("staleState").GetProperty("filter").GetBoolean());
         Assert.Empty(loaded.GetProperty("filterScenarios").EnumerateArray());
         Assert.False(loaded.GetProperty("staleState").GetProperty("validation").GetBoolean());

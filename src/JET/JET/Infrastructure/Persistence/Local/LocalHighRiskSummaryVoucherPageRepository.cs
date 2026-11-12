@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總傳票層 keyset 分頁(本地引擎)。兩段查詢委派給 provider 中立的
+/// 高風險條件彙總傳票層 keyset 分頁。兩段查詢委派給
 /// <see cref="HighRiskSummaryVoucherPageReader"/>,本類別只負責開連線與帶入注入的 <see cref="ISqlDialect"/>
 /// (LIMIT 由方言出)。鏡射 <see cref="LocalFilterHitsPageRepository"/> 的 keyset/游標/Dialect 範式。
 /// </summary>

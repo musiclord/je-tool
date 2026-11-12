@@ -26,7 +26,7 @@ internal sealed record FilterPlan(
     IReadOnlyList<FilterCommitItem> CommitItems)
 {
     /// <summary>
-    /// 預覽的「符合條件的分錄筆數」改用整張命中傳票的分錄數。判斷與 Criteria Selection 摘要、
+    /// 預覽的「符合條件的分錄筆數」用整張命中傳票的分錄數。判斷與 Criteria Selection 摘要、
     /// 工作底稿逐列標記相同（<see cref="JetAuditProgram.UsesLegacyWholeVoucherRows"/>），畫面才不會和報告不同。
     /// </summary>
     internal bool PreviewCountsWholeVoucherRows { get; init; }

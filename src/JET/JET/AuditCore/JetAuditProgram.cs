@@ -108,7 +108,7 @@ public static partial class JetAuditProgram
             facts.BlankAccountNumberCount,
             facts.BlankVoucherNumberCount,
             facts.BlankDescriptionCount,
-            // 傳票核准日不可用時不能判斷，筆數是 null，不以 0 冒充通過（裁定 2026-10-23-01）。
+            // 傳票核准日不可用時不能判斷，筆數是 null，不以 0 冒充通過。
             plan.RunOutOfPeriodApproval ? facts.ApprovalDateNotInPeriodCount : null,
             facts.SourceQualityFindingCount,
             facts.UnbalancedVouchers,
@@ -208,7 +208,7 @@ public static partial class JetAuditProgram
 
     /// <summary>
     /// Validation／prescreen 共用的 GL target 前置條件。Application 可在讀取其他
-    /// 案件 metadata 前先呼叫，以維持既有 gl_mapping_not_confirmed 錯誤優先序；實際裁定
+    /// 案件 metadata 前先呼叫，以維持既有 gl_mapping_not_confirmed 錯誤優先序；實際判定
     /// 仍只有 AuditCore 這一份。
     /// </summary>
     internal static void RequireGlMapping([System.Diagnostics.CodeAnalysis.DoesNotReturnIf(false)] bool hasGlMapping)
@@ -221,7 +221,7 @@ public static partial class JetAuditProgram
         }
     }
 
-    /// <summary>依 action 選取 validation／prescreen 家族，裁定 N/A，並綁定執行參數。</summary>
+    /// <summary>依 action 選取 validation／prescreen 家族，判定 N/A，並綁定執行參數。</summary>
     public static AuditExecutionPlan Plan(
         AuditProjectSnapshot caseSnapshot,
         AuditUserParameters userParameters)
@@ -274,7 +274,7 @@ public static partial class JetAuditProgram
     private static IReadOnlyList<ProcedureDefinition> BuildProgram()
     {
         // 正式流程只用這張表挑出 validate.run 與 prescreen.run 兩個家族的程序；
-        // 規則 slug 一律取 RuleCatalog；預篩選十二條照規則登錄的順序加入，不再另列一份。
+        // 規則 slug 一律取 RuleCatalog；預篩選十二條照規則登錄的順序加入，不另列一份。
         var definitions = new List<ProcedureDefinition>
         {
             ValidationProcedures.Definition,
@@ -302,7 +302,7 @@ public static partial class JetAuditProgram
             // 只支援目前的 INF 抽樣演算法；沒有版本或其他版本的案件不得靜默改用新排序。
             if (snapshot.SampleSeedVersion != InfSamplingPrf.CurrentAlgorithmVersion)
             {
-                // 開案與資料驗證前都已擋下抽樣設定不對的案件，畫面照正常操作走不到這裡（用字依裁定 2026-10-14-01）。
+                // 開案與資料驗證前都已擋下抽樣設定不對的案件，畫面照正常操作走不到這裡。
                 throw JetPayloadRejection.Create(JetErrorCodes.InvalidProjectSchema, "inf_algorithm_version_legacy");
             }
         }

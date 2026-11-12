@@ -2,7 +2,7 @@ using Xunit;
 
 namespace JET.Tests.Architecture;
 
-/// <summary>Picker 與 JetApi 不再保留舊專案根搬遷契約、狀態或樣式。</summary>
+/// <summary>Picker 與 JetApi 不保留舊專案根搬遷契約、狀態或樣式。</summary>
 public sealed class ProjectStorageRootFrontendTests
 {
     [Fact]

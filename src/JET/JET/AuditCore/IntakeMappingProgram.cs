@@ -232,13 +232,13 @@ internal sealed class AccountMappingProjection
 
         row.Values.TryGetValue(nameColumn, out var rawName);
         var name = string.IsNullOrWhiteSpace(rawName) ? null : rawName.Trim();
-        // 工作底稿的科目配對工作表在 GL 有、TB 沒有的科目寫「Not in TB」，不是科目名稱，當成沒有名稱（裁定 2026-11-05-07）。
+        // 工作底稿的科目配對工作表在 GL 有、TB 沒有的科目寫「Not in TB」，不是科目名稱，當成沒有名稱。
         if (string.Equals(name, AccountMappingExportRow.NotInTbName, StringComparison.Ordinal))
         {
             name = null;
         }
 
-        // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就整批不儲存，不截斷。
+        // 共用的長度上限（TextStorageLimits）；超過就整批不儲存，不截斷。
         if (code.Length > TextStorageLimits.KeyUtf16CodeUnits)
         {
             AddError($"第 {row.SourceRowNumber} 列：科目編號超過 {TextStorageLimits.KeyUtf16CodeUnits} 個字，請縮短來源資料。");
@@ -277,7 +277,7 @@ internal sealed class AccountMappingProjection
 
         if (errorCount > 0)
         {
-            // 用字依裁定 2026-10-13-28。
+            // 這句的用字已定案。
             throw new JetActionException(
                 JetErrorCodes.ProjectionFailed,
                 $"科目配對範本有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
@@ -314,7 +314,7 @@ internal sealed record AccountMappingResult(
             var positional = new[] { (columns.Code, "科目編號"), (columns.Name, "科目名稱"), (columns.Category, "科目分類") }
                 .Where(item => item.Item1.Method == AccountMappingColumnResolver.MatchMethod.Position)
                 .Select(item => $"「{item.Item1.Column}」為{item.Item2}").ToArray();
-            // 這句的用字依裁定 2026-10-13-28。
+            // 這句的用字已定案。
             return positional.Length == 0 ? null : "部分欄名無法辨識，已依欄位順序對應：" + string.Join("、", positional) + "。請確認科目配對預覽。";
         }
     }
@@ -340,7 +340,7 @@ internal sealed class AuthorizedPreparerProjection
     private readonly List<string> firstErrors = [];
     private int errorCount;
     private readonly string? requestedColumn;
-    // 人員識別值去頭尾空白後不分大小寫去重（裁定 2026-10-04-01，和 GL 建立人員的比對同一規則）；保留第一次看到的寫法。
+    // 人員識別值去頭尾空白後不分大小寫去重（和 GL 建立人員的比對同一規則）；保留第一次看到的寫法。
     private readonly HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
     private string? nameColumn;
     private bool isResolved;
@@ -380,7 +380,7 @@ internal sealed class AuthorizedPreparerProjection
         var name = rawName?.Trim();
         if (name?.Length > TextStorageLimits.KeyUtf16CodeUnits)
         {
-            // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就整批不儲存，不截斷。
+            // 共用的長度上限（TextStorageLimits）；超過就整批不儲存，不截斷。
             errorCount++;
             if (firstErrors.Count < MaxReportedErrors)
             {
@@ -869,7 +869,7 @@ public static partial class JetAuditProgram
             normalized);
     }
 
-    /// <summary>兩份清單在畫面上的名稱（裁定 2026-11-03-10）。</summary>
+    /// <summary>兩份清單在畫面上的名稱。</summary>
     private static string CalendarListName(CalendarDayType dayType) =>
         dayType == CalendarDayType.Holiday ? "國定假日清單" : "補班日清單";
 
@@ -978,7 +978,7 @@ public static partial class JetAuditProgram
                 name = string.IsNullOrWhiteSpace(rawName) ? null : rawName.Trim();
             }
 
-            // 和 SQL Server 欄寬相同的共用上限（TextStorageLimits）；超過就整批不儲存，不截斷。
+            // 共用的長度上限（TextStorageLimits）；超過就整批不儲存，不截斷。
             if (name?.Length > TextStorageLimits.CalendarDayNameUtf16CodeUnits)
             {
                 errors.Add(
@@ -1049,7 +1049,7 @@ public static partial class JetAuditProgram
         return new ProjectCreateResult(facts.Document);
     }
 
-    // 用字依裁定 2026-10-13-28：缺少的必填欄寫畫面上的欄位名稱，不寫程式代號。
+    // 缺少的必填欄寫畫面上的欄位名稱，不寫程式代號。
     private static void EnsureMappingValid(MappingValidationResult validation, IReadOnlyList<JetMappingSlot> slots)
     {
         if (validation.MissingRequiredKeys.Count > 0)
@@ -1105,7 +1105,7 @@ public static partial class JetAuditProgram
             AuditMutationEffects.For(AuditMutation.Calendar));
     }
 
-    // 畫面只送 replace；其他值只有程式送錯資料才會出現（用字依裁定 2026-10-14-01）。
+    // 畫面只送 replace；其他值只有程式送錯資料才會出現。
     private static void RequireReplaceOnly(
         string mode,
         string check)

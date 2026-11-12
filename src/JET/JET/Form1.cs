@@ -30,7 +30,7 @@ namespace JET
         {
             get
             {
-#if DEBUG || JET_AGENT_GUI_TEST
+#if DEBUG
                 return true;
 #else
                 return false;
@@ -40,9 +40,6 @@ namespace JET
 
         internal static bool RequiresWebViewRestart(CoreWebView2ProcessFailedKind kind) =>
             kind is CoreWebView2ProcessFailedKind.BrowserProcessExited or CoreWebView2ProcessFailedKind.RenderProcessExited;
-#if JET_AGENT_GUI_TEST
-        private System.Windows.Forms.Timer? _agentGuiDeadlineTimer;
-#endif
 
         public Form1()
         {
@@ -66,32 +63,6 @@ namespace JET
             InitializeWebViewHost();
         }
 
-#if JET_AGENT_GUI_TEST
-        internal Form1(AgentGuiTestProfile profile)
-        {
-            _runtime = AppCompositionRoot.CreateAgentGuiTestRuntime(
-                this,
-                profile,
-                _eventPublisher);
-            _dispatcher = _runtime.Dispatcher;
-            _webViewUserDataFolder = profile.WebViewUserDataFolder;
-
-            InitializeComponent();
-            ConfigureWindowChrome();
-            WindowState = FormWindowState.Maximized;
-            InitializeWebViewHost();
-            if (profile.FixtureIds.Contains(AgentGuiTestFixtures.MinimumWindow125Id))
-            {
-                WindowState = FormWindowState.Normal;
-                Size = MinimumSize;
-                // 測試尺寸以 96 DPI 邏輯像素定義；Shown 後用視窗所在螢幕的 DPI 換算。
-                Shown += (_, _) => Size = LogicalToDeviceUnits(new Size(1024, 640));
-                _webView!.ZoomFactor = 1.25;
-            }
-            ConfigureAgentGuiDeadline(profile.DeadlineUtc);
-        }
-#endif
-
         /// <summary>
         /// 視窗外觀屬於 host chrome，designer 檔不可手改，
         /// 故在此覆寫預設的 800×450：前端三欄佈局至少需要約 1000px 寬。
@@ -112,7 +83,7 @@ namespace JET
 
         /// <summary>
         /// host.selectFile 的原生能力：開啟 OpenFileDialog。
-        /// 純 host capability，不含業務邏輯（分層見 docs/jet-guide.md 第 9 節「系統分層」）。
+        /// 純 host capability，不含業務邏輯。
         /// </summary>
         public Task<string?> PickOpenFileAsync(
             string title,
@@ -366,11 +337,6 @@ namespace JET
 
             try
             {
-#if JET_AGENT_GUI_TEST
-                _agentGuiDeadlineTimer?.Stop();
-                _agentGuiDeadlineTimer?.Dispose();
-                _agentGuiDeadlineTimer = null;
-#endif
                 _runtime?.Dispose();
             }
             finally
@@ -419,7 +385,7 @@ namespace JET
 
         private async void NotifyBusyNativeExitAsync()
         {
-            // 和忙碌畫面注入的提示同一句（用字依裁定 2026-10-14-01）。
+            // 和忙碌畫面注入的提示同一句。
             const string fallbackMessage = "作業還在進行，請等它完成後再試一次。";
             try
             {
@@ -478,7 +444,7 @@ namespace JET
             var settings = _webView.CoreWebView2.Settings;
             settings.AreHostObjectsAllowed = false;
             settings.AreBrowserAcceleratorKeysEnabled = BrowserAcceleratorsEnabled;
-#if DEBUG || JET_AGENT_GUI_TEST
+#if DEBUG
             settings.AreDevToolsEnabled = true;
             settings.AreDefaultContextMenusEnabled = true;
 #else
@@ -544,24 +510,6 @@ namespace JET
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "JET",
                 "WebView2");
-
-#if JET_AGENT_GUI_TEST
-        private void ConfigureAgentGuiDeadline(DateTimeOffset deadlineUtc)
-        {
-            var remaining = deadlineUtc - DateTimeOffset.UtcNow;
-            var interval = Math.Clamp(
-                (int)Math.Ceiling(remaining.TotalMilliseconds),
-                1,
-                AgentGuiTestProfile.MaximumDurationSeconds * 1000);
-            _agentGuiDeadlineTimer = new System.Windows.Forms.Timer { Interval = interval };
-            _agentGuiDeadlineTimer.Tick += (_, _) =>
-            {
-                _agentGuiDeadlineTimer?.Stop();
-                Close();
-            };
-            _agentGuiDeadlineTimer.Start();
-        }
-#endif
 
         internal static bool IsAppNavigationAllowed(string? rawUri)
         {

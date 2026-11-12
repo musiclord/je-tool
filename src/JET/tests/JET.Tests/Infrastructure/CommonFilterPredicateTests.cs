@@ -10,8 +10,6 @@ namespace JET.Tests.Infrastructure;
 /// 常用篩選條件的專用述詞（季末前借記收入、收入無一般對方科目、收入之人工分錄、特定金額尾數、編製與核准同一人）的正確性測試，
 /// 另有固定資產與費用組合的自訂分類子樹與非季末期末日兩個案例。
 /// 固定答案是手算的 9 張合成傳票（每張借貸兩列）；斷言比對命中的傳票號碼，不只比筆數。
-/// 每個案例都在 SQLite 與 DuckDB 各跑一次，SQL Server 不在這裡跑。原本另有 12 個只在 SQLite 跑、內容相同的案例，
-/// 依裁定 2026-10-15-01 刪除（出處見 docs/history/specs/2026-10-15-motion-and-verification-plan.md）。
 /// </summary>
 public sealed class CommonFilterPredicateTests
 {
@@ -62,7 +60,7 @@ public sealed class CommonFilterPredicateTests
 
         UPDATE gl SET is_excluded = 0;
 
-        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），測試資料補上 category_id。
+        -- 科目配對一律以 category_id 連到分類表，測試資料帶 category_id。
         INSERT INTO account_mapping
             (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
@@ -111,7 +109,7 @@ public sealed class CommonFilterPredicateTests
 
     [Theory]
     [InlineData("sqlite")]
-    public async Task NonQuarterPeriodEnd_HitsRevenueDebitOnBothProviders(string provider)
+    public async Task NonQuarterPeriodEnd_HitsRevenueDebit(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, FixtureSql);
         var result = await fixture.Repository.PreviewAsync(fixture.ProjectId,
@@ -154,8 +152,7 @@ public sealed class CommonFilterPredicateTests
             // 尾數比對＝整數化金額(捨小數)末 k 位與樣態相等,等價 legacy @Right(@Str(@int(x),1,0),k)=pattern。
             // 位數 ≥ k 才可能以 k 位樣態結尾；位數 < k 時字串短於樣態、長度不符不相等：
             // K08(整數 0) 不命中 000000，K09(整數 39) 僅 2 位、不命中 000039。多樣態任一相等即命中。
-            // 舊式金額尾數已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改用「特定尾數」卡片加入的現行寫法，
-            // 和舊型別呼叫同一個尾數述詞，固定答案不變。第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261。
+            // 這裡用「特定尾數」卡片加入的寫法。
             (Tail("999999"), ["K06"]),
             (Tail("000000"), ["K07"]),
             (Tail("999999","000000"), ["K06","K07"]),

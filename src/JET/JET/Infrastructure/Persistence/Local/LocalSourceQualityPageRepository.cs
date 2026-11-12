@@ -5,7 +5,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite/DuckDB 共用的 current successful generation source-quality page。
+/// current successful generation source-quality page。
 /// target 保存全部 raw projection rows，所以 null post date 即使被 period 排除仍會列出；
 /// join staging/source metadata 只為還原實際來源列號與來源標籤。
 /// </summary>

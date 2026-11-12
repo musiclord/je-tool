@@ -27,10 +27,10 @@ internal sealed record LegacyAuditParityNormalizedSheet(
 }
 
 /// <summary>
-/// Direct-physical 家族的欄名對齊投影：`ColumnNameHashes` 是標題列（依 §7.2
-/// 的固定標題列位置）逐 ordinal 的欄名 hash；
+/// Direct-physical 家族的欄名對齊投影：`ColumnNameHashes` 是標題列（依
+/// 固定標題列位置）逐 ordinal 的欄名 hash；
 /// `RowValueHashes` 是跨續頁合併、排除標題列、以欄名 key 排序後的資料列
-/// semantic value hash（含 §3.1.2／§3.1.3 正規化與零值摒除）。
+/// semantic value hash（含匯入可接受格式的正規化與零值摒除）。
 /// </summary>
 internal sealed record LegacyAuditParityNormalizedFamilyColumn(
     string Key,
@@ -123,8 +123,8 @@ internal sealed record LegacyAuditParityNormalizedWorkbook(
 /// <summary>
 /// 讀取一份報表工作簿並產生 normalized content。storage 層：shared string 解出、
 /// 數字 lexeme 收斂為 invariant G29、boolean 收斂為 TRUE/FALSE、formula 文字保留；
-/// 空字串 cell 與純樣式 cell 不是 content。direct 家族的 value 層依 jet-guide
-/// §3.1.2／§3.1.3 匯入可接受格式正規化金額與日期文字、摒除正規化後為 0 的
+/// 空字串 cell 與純樣式 cell 不是 content。direct 家族的 value 層依
+/// 匯入可接受格式正規化金額與日期文字、摒除正規化後為 0 的
 /// 無 formula cell（IDEA 匯出以 0 表來源空白，JET raw 回放忠實省略），並以
 /// 欄名對齊取代 ordinal 對齊，讓欄位集合／順序差異與值差異分維量測。
 /// </summary>
@@ -257,7 +257,7 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
                 .ToArray());
     }
 
-    /// <summary>續頁沿用基底名稱＋「 (」起始的後綴（`(2)`／`(續2)` 兩型，§7.2）。</summary>
+    /// <summary>續頁沿用基底名稱＋「 (」起始的後綴（`(2)`／`(續2)` 兩型）。</summary>
     private static string? ResolveDirectFamilyBase(
         IEnumerable<string> baseNames,
         string sheetName)
@@ -312,8 +312,8 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
             foreach (var row in parsed.Rows)
             {
                 // 標題列與其上方的前導區（報表標題、期間、產表資訊）不屬於明細
-                // 資料列；它們仍由物理 sheet 的 storage 層完整涵蓋。續頁重複欄標
-                // （jet-guide §7.2），欄名對齊一律以首張基底頁的標題列為準。
+                // 資料列；它們仍由物理 sheet 的 storage 層完整涵蓋。續頁重複欄標，
+                // 欄名對齊一律以首張基底頁的標題列為準。
                 if (row.RowIndex <= headerRowIndex)
                 {
                     if (row.RowIndex == headerRowIndex && _columnNameHashes is null)
@@ -452,7 +452,7 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
 
             // A row whose content is entirely random still participates in row-count
             // comparison. The fixed sentinel carries no source value and never becomes
-            // part of a receipt.
+            // part of the test output.
             if (cells.Count == 0 && maskedCellCount > 0)
             {
                 cells.Add((0, "masked-row", "masked", string.Empty));
@@ -554,7 +554,7 @@ internal static class LegacyAuditParityNormalizedWorkbookReader
     }
 
     /// <summary>
-    /// jet-guide §3.1.2／§3.1.3 匯入可接受格式的 value 正規化。文字金額
+    /// 匯入可接受格式的 value 正規化。文字金額
     /// （千分位、前置正負號、會計零 `-`）收斂為 G29；文字日期（ISO、
     /// `yyyy/M/d`、`yyyy.M.d`、8 位西元、民國年 `1yy/M/d`／`1yyMMdd`）收斂為
     /// `yyyy-MM-dd`。不處理貨幣符號、括號負數、歐陸格式與兩位數年；

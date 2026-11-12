@@ -92,9 +92,7 @@ public sealed class SpreadsheetPhysicalLayoutFingerprintTests
         Assert.DoesNotContain(secondSentinel, second.Json, StringComparison.Ordinal);
 
         var sourcePath = Path.Combine(
-            TestRepositoryPaths.RepositoryRoot,
-            "src",
-            "JET",
+            TestRepositoryPaths.SolutionRoot,
             "tests",
             "JET.Tests",
             "Infrastructure",

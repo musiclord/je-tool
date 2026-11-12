@@ -5,7 +5,7 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-/// <summary>直接切換新根後，舊根不再形成產品契約或自動處理來源。</summary>
+/// <summary>直接使用新根，舊根不形成產品契約或自動處理來源。</summary>
 public sealed class ProjectStorageDirectCutoverTests
 {
     [Fact]
@@ -54,8 +54,7 @@ public sealed class ProjectStorageDirectCutoverTests
                 }
                 """);
 
-            // 線上清單隨 SQL Server 移除，project.listLocal 頂層只有 projects（裁定 2026-11-06-08）；原本預期還有 online，
-            // 第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
+            // project.listLocal 頂層只有 projects。
             JsonShape.HasExactKeys(beforeCreate, "projects");
             Assert.DoesNotContain(
                 beforeCreate.GetProperty("projects").EnumerateArray(),

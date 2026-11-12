@@ -50,7 +50,6 @@ public sealed class InfSamplingPrfTests
         Assert.InRange(chiSquare, 0, chiSquareUpperBound);
     }
 
-    // 舊版案件的三列（缺版本、缺種子、第 1 版）已隨固定種子與舊排序法一起移除，改由下一個測試鎖定拒絕行為。
     [Theory]
     [InlineData(123_456L, 2, true, 123_456L, 2)]
     [InlineData(null, 1, false, 0L, 0)]
@@ -85,8 +84,7 @@ public sealed class InfSamplingPrfTests
         var result = JetAuditProgram.ResolveInfSamplingSeed(persistedSeed, persistedVersion);
 
         Assert.False(result.IsValid);
-        // 裁定 2026-10-30-23：舊版案件改由設定檔版本判斷，抽樣設定不再分「舊版」與「損壞」，原本對舊版旗標的檢查拿掉。
-        // 拿掉旗標後這裡第一次編譯失敗的收據 20261030-070530156-b82166306a754f338cc80dc48c4883d6。
+        // 舊版案件由設定檔版本判斷，抽樣設定不分「舊版」與「損壞」。
         Assert.Equal(0L, result.Seed);
         Assert.NotNull(result.Error);
     }

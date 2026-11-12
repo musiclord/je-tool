@@ -1,0 +1,252 @@
+erDiagram
+    %% Import sources
+    import_batch {
+        TEXT batch_id PK
+        TEXT dataset_kind
+        TEXT source_file_path
+        TEXT source_file_name
+        TEXT imported_utc
+        INTEGER row_count
+        TEXT columns_json
+    }
+    import_batch_source {
+        TEXT batch_id PK
+        INTEGER source_no PK
+        TEXT source_file_path
+        TEXT source_file_name
+        TEXT sheet_name
+        TEXT encoding
+        TEXT delimiter
+        INTEGER header_row
+        INTEGER row_count
+        TEXT imported_utc
+    }
+    field_info {
+        TEXT batch_id PK
+        TEXT definition_scope PK
+        INTEGER ordinal PK
+        TEXT field_name
+        TEXT description
+        TEXT field_kind
+        INTEGER text_length
+        INTEGER decimal_places
+        INTEGER max_rendered_length
+        INTEGER has_observation
+        TEXT field_origin
+        TEXT jet_field
+    }
+    pbc_gl {
+        TEXT batch_id PK
+        INTEGER row_number PK
+        INTEGER source_no
+        INTEGER source_row_number
+        TEXT row_json
+    }
+    pbc_tb {
+        TEXT batch_id PK
+        INTEGER row_number PK
+        INTEGER source_no
+        INTEGER source_row_number
+        TEXT row_json
+    }
+    pbc_account_mapping {
+        TEXT batch_id PK
+        INTEGER row_number PK
+        INTEGER source_no
+        INTEGER source_row_number
+        TEXT row_json
+    }
+    pbc_authorized_preparer {
+        TEXT batch_id PK
+        INTEGER row_number PK
+        INTEGER source_no
+        INTEGER source_row_number
+        TEXT row_json
+    }
+    %% Mapping and standardized data
+    field_mapping {
+        TEXT dataset_kind PK
+        TEXT mapping_json
+        TEXT mode_name
+        TEXT source_batch_id
+        TEXT committed_utc
+        INTEGER format_version
+        TEXT options_json
+    }
+    field_mapping_previous {
+        TEXT dataset_kind PK
+        TEXT mapping_json
+        TEXT mode_name
+        TEXT source_batch_id
+        TEXT committed_utc
+        INTEGER format_version
+        TEXT options_json
+    }
+    gl {
+        INTEGER entry_id PK
+        TEXT batch_id
+        INTEGER source_row_number
+        TEXT voucher_number
+        TEXT line_item
+        TEXT line_item_numeric_sort_key
+        TEXT gl_date
+        TEXT approval_date
+        TEXT account_number
+        TEXT account_name
+        TEXT description
+        TEXT source_module
+        TEXT created_by
+        TEXT approved_by
+        INTEGER is_manual
+        INTEGER amount_scaled
+        INTEGER debit_amount_scaled
+        INTEGER credit_amount_scaled
+        TEXT dr_cr
+        TEXT posting_status
+        INTEGER is_excluded
+        TEXT exclusion_reason
+    }
+    tb {
+        INTEGER balance_id PK
+        TEXT batch_id
+        INTEGER source_row_number
+        TEXT account_number
+        TEXT account_name
+        INTEGER change_amount_scaled
+    }
+    gl_control_total {
+        INTEGER singleton PK
+        INTEGER pbc_row_count
+        INTEGER stored_row_count
+        INTEGER stored_debit_scaled
+        INTEGER stored_credit_scaled
+        INTEGER gl_row_count
+        INTEGER excluded_by_period_count
+        INTEGER excluded_by_posting_status_count
+        INTEGER gl_debit_scaled
+        INTEGER gl_credit_scaled
+    }
+    gl_rde_field {
+        TEXT field_id PK
+        TEXT source_column
+        TEXT label
+        TEXT value_type
+        INTEGER ordinal
+        INTEGER is_rde
+    }
+    gl_rde_value {
+        INTEGER entry_id PK
+        TEXT field_id PK
+        TEXT value_type
+        TEXT text_value
+        TEXT date_value
+        INTEGER amount_scaled
+    }
+    %% Rules and results
+    account_category {
+        TEXT category_id PK
+        TEXT label
+        INTEGER ordinal UK
+        TEXT semantic_role
+        INTEGER is_builtin
+        INTEGER revision
+        TEXT parent_category_id
+    }
+    account_category_path {
+        TEXT ancestor_id PK
+        TEXT descendant_id PK
+    }
+    account_mapping {
+        INTEGER mapping_id PK
+        TEXT batch_id
+        INTEGER source_row_number
+        TEXT account_number UK
+        TEXT account_name
+        TEXT standardized_category
+        TEXT category_id
+        INTEGER classification_explicit
+    }
+    authorized_preparer {
+        TEXT name PK
+    }
+    calendar_day {
+        TEXT day_type PK
+        TEXT date PK
+        TEXT day_name
+    }
+    validation_result {
+        TEXT result_id PK
+        TEXT generated_utc
+        TEXT summary_json
+    }
+    prescreen_result {
+        TEXT result_id PK
+        TEXT generated_utc
+        TEXT summary_json
+    }
+    inf_sample {
+        TEXT result_id PK
+        INTEGER entry_id PK
+        TEXT voucher_number
+        TEXT line_item
+    }
+    filter_scenario {
+        INTEGER scenario_id PK
+        INTEGER position
+        TEXT name
+        TEXT rationale
+        TEXT definition_json
+        TEXT saved_utc
+    }
+    filter_hit {
+        INTEGER scenario_id PK
+        INTEGER entry_id PK
+    }
+    filter_hit_condition {
+        INTEGER scenario_id PK
+        INTEGER entry_id PK
+        INTEGER group_no PK
+        INTEGER condition_no PK
+    }
+    %% System records
+    schema_info {
+        TEXT key PK
+        TEXT value
+    }
+    result_stale_state {
+        INTEGER singleton PK
+        INTEGER validation_stale
+        INTEGER prescreen_stale
+        INTEGER filter_stale
+    }
+    message_log {
+        INTEGER message_id PK
+        TEXT occurred_utc
+        TEXT level
+        TEXT text
+    }
+    operation_log {
+        TEXT event_id PK
+        TEXT occurred_utc
+        TEXT operation
+        TEXT target_type
+        TEXT target_id
+        INTEGER subject_count
+        INTEGER replaced_count
+    }
+    import_batch ||--o{ import_batch_source : "batch_id"
+    import_batch ||--o{ field_info : "batch_id"
+    import_batch ||--o{ pbc_gl : "batch_id"
+    import_batch ||--o{ pbc_tb : "batch_id"
+    import_batch ||--o{ gl : "batch_id"
+    import_batch ||--o{ tb : "batch_id"
+    field_mapping |o--o| field_mapping_previous : "dataset_kind"
+    gl ||--o{ gl_rde_value : "entry_id"
+    gl_rde_field ||--o{ gl_rde_value : "field_id"
+    account_category ||--o{ account_category_path : "ancestor_id, descendant_id"
+    account_category |o--o{ account_mapping : "category_id"
+    filter_scenario ||--o{ filter_hit : "scenario_id"
+    filter_scenario ||--o{ filter_hit_condition : "scenario_id"
+    gl ||--o{ filter_hit : "entry_id"
+    gl ||--o{ filter_hit_condition : "entry_id"
+    gl ||--o{ inf_sample : "entry_id"

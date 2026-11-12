@@ -3,9 +3,9 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 「文字欄是空白」「文字欄不是空白」的 SQL 只寫在 AuditCore 的 SqlBlankText 一處，去空白的字元集合由方言決定；
+/// 「文字欄是空白」「文字欄不是空白」的 SQL 只寫在 AuditCore 的 SqlBlankText 一處；
 /// 驗證、預篩選、篩選與科目配對的查詢都呼叫它，不各自手寫 IS NULL OR TRIM(x) = ''，避免同一個判斷散在各處各寫一份。
-/// 傳票號碼跨日重用的檢查也改用同一個判定，純空白的傳票號碼和空白傳票號碼類別一樣視為空白。
+/// 傳票號碼跨日重用的檢查也用同一個判定，純空白的傳票號碼和空白傳票號碼類別一樣視為空白。
 /// </summary>
 public sealed class BlankTextPredicateOwnershipTests
 {
@@ -29,7 +29,6 @@ public sealed class BlankTextPredicateOwnershipTests
         {
             var source = ProductSources.Product(parts);
             // 一條規則只有一個定義，所以欄位條件的空白判斷改呼叫 GlRulePredicates.BlankText（它呼叫 SqlBlankText），和第四步空白摘要同一個方法。
-            // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf。
             Assert.True(source.Contains("SqlBlankText.", StringComparison.Ordinal) || source.Contains("BlankText(", StringComparison.Ordinal),
                 string.Join("/", parts) + " 沒有呼叫共用的空白判定");
             Assert.DoesNotContain("IS NULL OR {dialect.Trim(", source, StringComparison.Ordinal);

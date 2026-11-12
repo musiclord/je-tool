@@ -3,8 +3,7 @@ using JET.Domain;
 namespace JET.AuditCore;
 
 /// <summary>
-/// GL 規則述詞的單一事實來源（方言相異片段經 <see cref="ISqlDialect"/> 取得，
-/// 其餘為 ANSI 共通）。每個方法回傳針對別名 g 的 WHERE 片段，
+/// GL 規則述詞的單一事實來源（部分片段經 <see cref="ISqlDialect"/> 取得）。每個方法回傳針對別名 g 的 WHERE 片段，
 /// 並把值依序累積到純參數計畫；DbCommand 建立與綁定只由 Infrastructure 負責。
 /// prescreen.run 的計數與 filter 條件組合共用同一份片段。
 /// 識別字一律出自 GlFieldWhitelist 或本檔常數；使用者值只進參數。
@@ -28,15 +27,15 @@ internal sealed partial class GlRulePredicates(
 
     /// <summary>
     /// 未預期借貸組合（unexpected_account_pair）照舊版 IDEA R3 寫：本列是收入貸方（amount_scaled &lt; 0），
-    /// 同一張傳票、同一個母體範圍裡，沒有應收款項、現金或預收款且金額大於 0 的分錄（舊版 idea-tool.bas 第 8370 行），
-    /// 但至少有一筆金額大於 0 的分錄（第 8380 到 8388 行先取這類傳票裡金額大於 0 的分錄，第 8434 到 8442 行再依傳票號碼和收入貸方對上；
-    /// 裁定 2026-10-29-29 改成和舊版一樣）。整張傳票沒有正金額分錄時借貸一定不平，借貸不平測試會列出來，這條規則不挑。
+    /// 同一張傳票、同一個母體範圍裡，沒有應收款項、現金或預收款且金額大於 0 的分錄，
+    /// 但至少有一筆金額大於 0 的分錄（舊版先取這類傳票裡金額大於 0 的分錄，再依傳票號碼和收入貸方對上）。
+    /// 整張傳票沒有正金額分錄時借貸一定不平，借貸不平測試會列出來，這條規則不挑。
     /// 正常對方科目要大於 0，0 元的應收或現金不算有正常對方科目，和舊版相同。
     /// 直接命中的只有收入貸方這一列；第四步與預篩選報告要列整張傳票，由列出命中分錄的地方處理，判斷式不變。
     /// 「收入無一般對方科目」是另一條常用篩選條件：對方科目不含現金，借方側採 amount_scaled >= 0，也不要求正金額分錄。
     /// 現銷傳票與沒有正金額分錄的傳票只有它挑中；傳票的應收或預收借方只有 0 元、另有其他正金額分錄時，只有這條規則挑中。
     /// 其他借貸組合條件（accountPair、specialAccountCategoryPair）照樣以 amount_scaled >= 0 判定借方側。
-    /// 需科目配對已匯入。三種資料庫共用同一段 SQL（EXISTS 與 NOT EXISTS）。
+    /// 需科目配對已匯入。
     /// </summary>
     public string UnexpectedAccountPair(
         FilterSqlParameterPlanBuilder command,
@@ -80,9 +79,9 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 科目配對分析（account_pair）的三種模式，見 docs/jet-guide.md 第 6 節「進階條件篩選」。借貸側判定統一：
+    /// 科目配對分析（account_pair）的三種模式。借貸側判定統一：
     /// `amount_scaled >= 0` 屬借方側、`&lt; 0` 屬貸方側。錨定模式輸出
-    /// 錨定分錄與同傳票的對方側分錄。ANSI 共通。
+    /// 錨定分錄與同傳票的對方側分錄。
     /// </summary>
     public string AccountPair(
         FilterSqlParameterPlanBuilder command,
@@ -114,10 +113,10 @@ internal sealed partial class GlRulePredicates(
     ///   drAndCr → 傳票同時有 A 借與 B 貸；tag「A 借 或 B 貸」的列。
     ///   drNotCr → 傳票有 A 借、且無任何 B 貸；tag「A 借」的列，以及同一張傳票貸方那一側的全部列。
     ///   notDrCr → 傳票有 B 貸、且無任何 A 借；tag「B 貸」的列，以及同一張傳票借方那一側的全部列。
-    /// 兩個否定模式照舊版連對方那一側一起標記（裁定 2026-11-05-45），和 <see cref="AccountPair"/> 的錨定模式標記方式相同。
+    /// 兩個否定模式照舊版連對方那一側一起標記，和 <see cref="AccountPair"/> 的錨定模式標記方式相同。
     /// 取捨（顯式陳述）：drAndCr 的 SQL 與 AccountPair 的 exact 模式邏輯重疊，但這是不同的
     /// 使用者面向條件（不同的模式標籤與否定語意），重複是刻意的——共用的是四個側別 closure，
-    /// 而非條件本身。ANSI 共通（EXISTS / NOT EXISTS，全參數綁定），SQLite 與 SQL Server 由構造等價。
+    /// 而非條件本身。
     /// </summary>
     public string SpecialAccountCategoryPair(
         FilterSqlParameterPlanBuilder command,
@@ -236,7 +235,7 @@ internal sealed partial class GlRulePredicates(
         Func<string> DocHasCreditSide);
 
     /// <summary>
-    /// typed dynamic rule（type:"typed"，2026-08-14 契約凍結）：committed RDE 欄位的有型別述詞。
+    /// typed dynamic rule（type:"typed"）：committed RDE 欄位的有型別述詞。
     /// blank＝沒有 <c>gl_rde_value</c> row；所有比較 operator（含負向 notEquals／notContains／
     /// notIn）都以「存在 value row 且 row 值滿足述詞」的 EXISTS 表達——(entry_id, field_id) 是主鍵、
     /// 每列至多一筆值，因此負向 operator 是 evidence row 自身的述詞、blank 永不命中；`isBlank`／
@@ -244,7 +243,7 @@ internal sealed partial class GlRulePredicates(
     /// UPPER(TRIM(...))）；date 以正規化 ISO 字串精確比較；amount 在 scaled integer 域比較並依
     /// amountBasis 決定 signed／ABS。fieldId 與所有 operand 一律參數綁定，永不成為 SQL identifier。
     /// registry 缺欄位或 operator 型別不相容時 fail loud 擲 invalid_scenario 並指名 field——
-    /// validator 是第一道，本層是未經驗證回放路徑的最後一道。ANSI 共通（EXISTS／NOT EXISTS）。
+    /// validator 是第一道，本層是未經驗證回放路徑的最後一道。
     /// </summary>
     public string TypedField(
         FilterSqlParameterPlanBuilder command,
@@ -337,7 +336,7 @@ internal sealed partial class GlRulePredicates(
         string op,
         DateParseOptions dateOptions)
     {
-        // date_value 由投影正規化為 yyyy-MM-dd；ISO 字串比較三 provider 等價。
+        // date_value 由投影正規化為 yyyy-MM-dd。
         const string columnExpr = "v.date_value";
         string DateParam(string? raw) =>
             TypedFieldOperandRules.TryNormalizeDate(raw, dateOptions, out var iso)
@@ -428,7 +427,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     // 驗證器已先檢查過同樣的條件；走到這裡是驗證器與執行時檢查不一致的程式錯誤。畫面只顯示非預期錯誤那一句，
-    // 檢查代號記進支援日誌（用字依裁定 2026-10-14-01）。check 只能是程式寫死的代號。
+    // 檢查代號記進支援日誌。check 只能是程式寫死的代號。
     private static JetActionException Invalid(string check) => FilterCompileCheck.Create(check);
 
     /// <summary>週末（weekend_*）：日期落在案件設定的週末日，補班日仍納入。dateExpr 只接受本層常數或欄位目錄解析出的欄位。</summary>
@@ -446,14 +445,14 @@ internal sealed partial class GlRulePredicates(
     private static string CalendarDay(string dateExpr, string dayType, string schemaPrefix) =>
         $"EXISTS (SELECT 1 FROM {schemaPrefix}calendar_day d WHERE d.day_type = '{dayType}' AND d.date = {dateExpr})";
 
-    /// <summary>文字欄位空白：NULL 或去空白後為空。去空白的字元集合和 .NET 相同（dialect.Trim），兩個本地資料庫結果一致。</summary>
+    /// <summary>文字欄位空白：NULL 或去空白後為空。去空白的字元集合和 .NET 相同（dialect.Trim）。</summary>
     public string BlankText(string columnExpr) => SqlBlankText.IsBlank(dialect, columnExpr);
 
     /// <summary>空白摘要（blank_description）：和第五步「傳票摘要」的「空白」同一個判斷。</summary>
     public string BlankDescription() => BlankText("g.description");
 
     /// <summary>非授權編製人員（non_authorized_preparer）：created_by 非空白且不在授權清單。
-    /// 人員識別值的比對去頭尾空白、不分大小寫，和人員清單、編製等於核准同一規則（裁定 2026-10-04-01）。
+    /// 人員識別值的比對去頭尾空白、不分大小寫，和人員清單、編製等於核准同一規則。
     /// 前綴 EXISTS 自保:授權清單為空時 `x NOT IN (空集合)` 會反轉成全命中,
     /// 故名單空 → 整體述詞 FALSE(無命中,與 prescreen.run 的 na 語意對齊),
     /// 即便 validator 或 handler 的前置檢查被繞過仍安全。</summary>
@@ -529,7 +528,7 @@ internal sealed partial class GlRulePredicates(
     /// <summary>
     /// 季末前借記收入(revenue_debit_near_quarter_end):科目分類 = Revenue 且借方側
     /// (amount_scaled >= 0),且 gl_date 落在任一季底視窗內。視窗由 Domain QuarterEndWindows 算出,
-    /// 邊界參數綁定。視窗為空(X 非法或與期間無交集)→ 零命中。需科目配對已匯入。ANSI 共通。
+    /// 邊界參數綁定。視窗為空(X 非法或與期間無交集)→ 零命中。需科目配對已匯入。
     /// </summary>
     public string RevenueDebitNearQuarterEnd(
         FilterSqlParameterPlanBuilder command,
@@ -560,7 +559,7 @@ internal sealed partial class GlRulePredicates(
     /// {Receivables, Receipt in advance}」的分錄(不含 Cash)。
     /// 和未預期借貸組合(<see cref="UnexpectedAccountPair"/>)不同：對方科目不含現金、0 元的借方也算對方科目，
     /// 也不要求傳票裡有正金額分錄。現銷傳票與沒有正金額分錄的傳票只有這條挑中；應收或預收借方只有 0 元、另有其他正金額分錄時，只有未預期借貸組合挑中。
-    /// ANSI 共通(EXISTS + NOT EXISTS)。需科目配對已匯入。
+    /// 需科目配對已匯入。
     /// </summary>
     public string RevenueWithoutNormalCounterpart(
         FilterSqlParameterPlanBuilder command,
@@ -590,7 +589,7 @@ internal sealed partial class GlRulePredicates(
 
     /// <summary>
     /// 收入之人工分錄(manual_revenue_entry):科目分類 = Revenue 且 is_manual = 1
-    /// (來源未提供人工旗標的列為 NULL,永不匹配,同 manualAuto)。需科目配對已匯入。ANSI 共通。
+    /// (來源未提供人工旗標的列為 NULL,永不匹配,同 manualAuto)。需科目配對已匯入。
     /// </summary>
     public string ManualRevenueEntry(FilterSqlParameterPlanBuilder command, string schemaPrefix = "")
     {
@@ -625,7 +624,7 @@ internal sealed partial class GlRulePredicates(
     ///   尾數比對   intAmount % 10^k = 樣態之數值             ——末 k 位相等。
     /// 字尾長度:數字要「以 k 位樣態結尾」須本身至少有 k 位(等同 @Right 在字串短於 k 時回傳整串、
     /// 長度不符即不相等)。故 k≥2 時加 intAmount ≥ 10^(k-1);k=1 時每個整數(含 0)都 ≥1 位、不設下界
-    /// (與 legacy @Right(@Str(0,1,0),1) = "0" 對整數 0 命中樣態 "0" 一致)。整數 / 與 % 皆 ANSI,三 provider 等價。
+    /// (與 legacy @Right(@Str(0,1,0),1) = "0" 對整數 0 命中樣態 "0" 一致)。
     /// 樣態已由 validator 保證為純數字。
     /// </summary>
     public string TrailingDigits(
@@ -650,7 +649,7 @@ internal sealed partial class GlRulePredicates(
 
                 var modulus = NextParam(command, tenK);
                 var tail = NextParam(command, long.Parse(trimmed, System.Globalization.CultureInfo.InvariantCulture));
-                // 整數化金額：捨去小數的主單位整數(= @int(ABS(amount)));DuckDB 的 / 會回浮點，必須走方言縫。
+                // 整數化金額：捨去小數的主單位整數(= @int(ABS(amount)))。
                 var intAmount = dialect.IntegerQuotient($"ABS({amountColumn})", scale);
                 var tailMatch = $"{intAmount} % {modulus} = {tail}";
 
@@ -670,10 +669,10 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 整數部分包含任一串數字：舊版 JET「特定數字篩選」的「包含」（裁定 2026-11-05-46）。等價於 legacy IDEA 的
+    /// 整數部分包含任一串數字：舊版 JET「特定數字篩選」的「包含」。等價於 legacy IDEA 的
     /// <c>@RegExpr(@AllTrim(@Upper(@str(@int(amount),1,0))), "888|28")</c>，不同的是 JET 先取絕對值、輸入當成一般數字比對，
     /// 和整數尾數相同地忽略正負號及小數：整數化金額 ABS(amount_scaled) / scale 轉成文字，包含任一串數字即命中。
-    /// 樣態已由 validator 保證為純數字；文字轉換用三種資料庫都接受的 VARCHAR(40)（BIGINT 最多 19 位）。
+    /// 樣態已由 validator 保證為純數字；文字轉換用 VARCHAR(40)（BIGINT 最多 19 位）。
     /// </summary>
     public string IntegerPartContains(
         FilterSqlParameterPlanBuilder command,
@@ -692,7 +691,7 @@ internal sealed partial class GlRulePredicates(
     }
 
     /// <summary>
-    /// 金額尾數連續 N 個 0：預篩選「分錄金額中有連續 0 的尾數」與第五步金額的「尾數連續多個 0」共用（裁定 2026-11-03-07、2026-11-05-25）。
+    /// 金額尾數連續 N 個 0：預篩選「分錄金額中有連續 0 的尾數」與第五步金額的「尾數連續多個 0」共用。
     /// 就是 N 個 0 的尾數樣態，另加整數部分不是 0。N 至少 2 時尾數樣態本身要求整數至少 N 位，這個下界不改變結果；
     /// N 為 1 時尾數樣態會讓整數部分為 0 的金額命中，由下界排除。
     /// </summary>
@@ -709,7 +708,6 @@ internal sealed partial class GlRulePredicates(
     /// <summary>
     /// 編製與核准同一人(preparer_equals_approver):created_by 與 approved_by 皆非空白
     /// 且(忽略大小寫與前後空白)相等。createdBy/approvedBy 未配對時對應欄為 NULL,零命中。
-    /// 純 ANSI 欄位比較,雙 provider 相同。
     /// </summary>
     public string PreparerEqualsApprover() =>
         $"({SqlBlankText.IsNotBlank(dialect, "g.created_by")} " +

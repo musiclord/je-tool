@@ -4,8 +4,8 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 「往下填補空白」的串流狀態與欄位規則。這兩個類別是新加的，沒有可保存的第一次失敗；
-/// 對外行為（確認配對的回應、投影結果、重開案件）由 GlFillDownWorkflowTests 保存第一次失敗。
+/// 「往下填補空白」的串流狀態與欄位規則。
+/// 對外行為（確認配對的回應、投影結果、重開案件）由 GlFillDownWorkflowTests 核對。
 /// </summary>
 public sealed class GlStagingFillDownTests
 {
@@ -119,8 +119,7 @@ public sealed class GlStagingFillDownTests
     {
         var mapping = Spec().Mapping;
 
-        // 裁定 2026-10-28-04：往下填補依來源欄成組，總帳日期與傳票核准日都配到來源欄「傳票日期」，勾總帳日期時傳票核准日也一起列入。
-        // 這行原本預期只有勾選的三個欄位，寫在裁定之前；結案前的完整 Public 才跑到它而失敗，預期值依裁定改寫。
+        // 往下填補依來源欄成組，總帳日期與傳票核准日都配到來源欄「傳票日期」，勾總帳日期時傳票核准日也一起列入。
         Assert.Equal(
             [GlMappingKeys.VoucherNumber, GlMappingKeys.GlDate, GlMappingKeys.ApprovalDate, GlMappingKeys.AccountNumber],
             GlMappingOptionsRules.NormalizeFillDownFields(

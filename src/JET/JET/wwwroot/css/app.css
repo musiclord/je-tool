@@ -1,10 +1,8 @@
 /*
   Runtime UI stylesheet.
   Keep visual styles here; do not encode business rules in CSS classes.
-
   Chinese text uses the bundled Noto Sans TC; Latin letters and digits use the bundled Instrument Sans.
-  Colors, type sizes and radii come only from the :root variables. The design direction and the
-  ban list of AI-default patterns live in .agents/skills/jet-frontend-design/SKILL.md.
+  Colors, type sizes and radii come only from the :root variables.
 */
 
 @font-face {
@@ -45,15 +43,15 @@
 
   --color-heading: #183348;          /* 步驟與工作面標題：和重點色同色相的深墨色 */
 
-  /* 底與工作面：2026-10-08「混合二」的暖紙色系；整體色系回到這組顏色（裁定 2026-10-11-07）。
+  /* 底與工作面：暖紙色系。
      頂列、中欄與畫布是同一張暖紙，工作面是放在上面的近白紙面。 */
   --color-canvas: #f5f3ed;
   --color-surface: #fffefb;
   --color-surface-raised: #ffffff;   /* 輸入框、選單、對話框 */
   --color-surface-sunken: #f0ede8;   /* 表頭、條件組、內凹區：和暖紙畫布、紙面工作面各差一階 */
   --color-surface-hover: #e9e6de;    /* 滑鼠移上、分段切換的底 */
-  /* 直接放在畫布上的托盤：第五步的條件總覽，以及第五步、第六步獨立的報告區。原本和工作面裡的內凹區同色，
-     和畫布只差一點點、主要靠細線分開；後來加深成比畫布明顯低一階（裁定 2026-10-13-07）。
+  /* 直接放在畫布上的托盤：第五步的條件總覽，以及第五步、第六步獨立的報告區。比畫布明顯低一階；
+     和工作面裡的內凹區同色的話，和畫布只差一點點、主要靠細線分開。
      托盤上的一般文字、說明文字與藍字仍至少 4.5:1。 */
   --color-tray: #e9e6de;
   --color-surface-lit: #f7f5f0;      /* 滑鼠移上去的紙面卡片：只比工作面暗一點，不像停用 */
@@ -104,7 +102,7 @@
   --chart-bar-manual: #a9c7e1;
   --chart-line: #183348;
 
-  /* 材質與光：整個 JE Tool 要帶有 Liquid Glass 的質感，通透、有自然的光澤，不用漸層填色（裁定 2026-10-12-01）。
+  /* 材質與光：整個 JE Tool 要帶有 Liquid Glass 的質感，通透、有自然的光澤，不用漸層填色。
      畫面分兩層：
      - 內容層是不透明的實物：畫布、工作面、表格與托盤是紙，按鈕是實體按鍵，輸入框與底槽往下凹。
      - 功能層是玻璃，浮在內容上方：標題列、表格固定的表頭、選單、對話框，以及滑動中的選取。
@@ -204,12 +202,11 @@
   /* 動態：照 Apple 的彈簧（WWDC23「Animate with springs」）。duration 是看起來完成的時間，bounce 0 不回彈；
      stiffness 是 (2π ÷ duration)²、阻尼比是 1 − bounce。不回彈的彈簧形狀都一樣、只差時間長短，所以共用一條 --ease-spring；
      下面的時間是彈簧真的停下來的時間，約是 duration 的 1.47 倍。人機介面指引 Motion 說 Liquid Glass 用觸控板操作時的反應比直接觸控收斂，用滑鼠操作的 JET 跟著收斂，
-     所以 duration 比 Apple 預設的 0.5 秒短一點。數值和 app.js 的 SPRINGS 是同一組參數算出來的，兩邊要一起改。
+     所以 duration 比 Apple 預設的 0.5 秒短。數值和 app.js 的 SPRINGS 是同一組參數算出來的，兩邊要一起改。
      CSS 轉場被打斷時會從零速重來，所以會被連續操作打斷的動態由 app.js 用同一組彈簧接著原本的速度播。按下時的變化不用轉場，立刻出現。
-     淡入淡出原本太慢（裁定 2026-10-13-10）：長出來與收起來縮短一點，單純的淡入淡出改用 --motion-fade 與 --motion-fade-out，
-     不再跟著彈簧拖到最後；大小與位置的變化仍走彈簧。
-     進階條件篩選的動態原本拖累操作（裁定 2026-10-15-08）：選取、長出來、收起來與選單同比例縮短約兩成，曲線形狀不變。
-     同一天依 Apple 的 Liquid Glass 重新整理，動態分成兩種性格（裁定 2026-10-15-05）：內容層的版面改變用不回彈的 --ease-spring；
+     單純的淡入淡出用 --motion-fade 與 --motion-fade-out，不跟著彈簧拖到最後；大小與位置的變化仍走彈簧。
+     選取、長出來、收起來與選單的時間取得較短，進階條件篩選的操作才不會被動態拖累；曲線形狀不變。
+     依 Apple 的 Liquid Glass，動態分成兩種性格：內容層的版面改變用不回彈的 --ease-spring；
      玻璃層被操作的東西，也就是選單與對話框浮現、按鍵放開，用 bounce 0.15 的 --ease-glass，接近 Apple 的 snappy，
      早一點到、收尾俐落，看不出在彈。bounce 0.15 的彈簧停下來的時間約是 duration 的 1.41 倍。 */
   --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
@@ -274,25 +271,25 @@ button, input, select, textarea {
 }
 
 /* ---- 頂部：一條橫跨整個視窗的標題列 -----------------------------------------------------------------
-   裁定 2026-10-11-10：標誌與帳號併進左側流程欄、案件摘要浮在畫布上、操作組獨自在右上角時，
-   各區塊彼此割裂，沒有先前整條標題列的一致性。所以頂部回到一條橫跨整個視窗的標題列，流程欄、中欄與資料預覽都從它下面開始：
+   標誌與帳號併進左側流程欄、案件摘要浮在畫布上、操作組獨自在右上角的排法，會讓各區塊彼此割裂、沒有一致性。
+   所以頂部是一條橫跨整個視窗的標題列，流程欄、中欄與資料預覽都從它下面開始：
    - 左邊是標誌、名稱與目前帳號，三者對齊同一條左緣。
    - 開啟案件且視窗夠寬時只有一列：案件摘要是這一頁的標題，從中欄的左緣排到操作組前面；右邊是操作組。
    - 案件清單畫面或視窗不夠寬時，第一列是標誌與操作組；開啟案件後，案件摘要在第二列，和標誌同一條左緣。
-   整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01），所以標題列是一片玻璃：流程欄、中欄與資料預覽都從視窗頂端開始，
+   整個 JE Tool 要帶有 Liquid Glass 的質感，所以標題列是一片玻璃：流程欄、中欄與資料預覽都從視窗頂端開始，
    上緣藏在標題列下面。靜止時透出底下各欄的明暗，內容捲上來時從它下面經過，只剩柔和的色塊；內容在下面時影子加深。
    玻璃是 .app-shell__glass 這一整片，兩列時也不會在案件摘要那裡斷開；標誌、案件摘要與操作組是貼在上面的字。
    它是 index.html 裡一個 aria-hidden 的空元素，不畫在 .app-shell::before。WebView2 維護無障礙樹時，掛著虛擬元素的元素
    只要樣式一改，就會把底下整棵子樹重送一遍；.app-shell 包著整個畫面，捲動時 data-under-chrome 一切換，
-   欄位配對每次卡 100 毫秒以上（2026-11-09 量測，見 docs/history/specs/2026-11-09-scroll-performance-plan.md）。
-   大型版面容器不掛虛擬元素，規則見 jet-frontend-design。 */
+   實測欄位配對每次卡 100 毫秒以上。
+   大型版面容器不掛虛擬元素。 */
 .app-shell__glass {
   position: absolute;
   z-index: 30;
   top: 0;
   left: 0;
   right: 0;
-  box-sizing: content-box;   /* 高對比佈景的下緣細線畫在標題列高度之外，和原本的 ::before 一樣；全域的 border-box 不套用在虛擬元素上 */
+  box-sizing: content-box;   /* 高對比佈景的下緣細線畫在標題列高度之外 */
   height: var(--chrome-h, 64px);
   background: var(--toolbar-bg);
   -webkit-backdrop-filter: var(--glass-bar-blur);
@@ -339,8 +336,8 @@ button, input, select, textarea {
 }
 
 /* 字標：名稱裡的 JE 放進石板藍的圓角方形，Tool 接在後面。JE 就是 Journal Entry，審計員一看就知道這是分錄測試的工具。
-   圖形標誌看不出意思（裁定 2026-10-11-08）：勾記號像勾選框，一頁分錄加光帶又像一般的清單圖示；
-   試過的 T 字帳戶在實際大小下又像中文字「示」。所以改成字標，不再用圖形。字標只出現在這裡一次。 */
+   圖形標誌看不出意思：勾記號像勾選框，一頁分錄加光帶又像一般的清單圖示；
+   T 字帳戶在實際大小下又像中文字「示」。所以用字標，不用圖形。字標只出現在這裡一次。 */
 .app-header__title {
   display: flex;
   align-items: center;
@@ -438,7 +435,7 @@ button, input, select, textarea {
 .app-header__status > [data-action="app-exit"] { --btn-icon: url("../assets/icons/fluent/sign_out_20_regular.svg"); }
 
 /* 操作組：同一組的按鈕收在同一個淡框裡，表示它們是一組；框用錨點定位，從第一顆看得到的按鈕包到「退出」。
-   四角和按鈕同心：框 10px、內距 4px、按鈕 6px。它在標題列裡面，和標誌、案件摘要同一列，不再獨自浮在畫布上。
+   四角和按鈕同心：框 10px、內距 4px、按鈕 6px。它在標題列裡面，和標誌、案件摘要同一列。
    標題列已經是玻璃，玻璃上不再疊玻璃，所以操作組是貼在玻璃上的一層淡白，上緣接到一道光。
    窄視窗的頂列會換行，這時改成各按鈕各自細框。 */
 .app-header__status > .btn:not([hidden]):not(.btn:not([hidden]) ~ .btn) {
@@ -481,12 +478,11 @@ button, input, select, textarea {
   }
 }
 
-/* 開啟案件且視窗寬度至少 900px 時，標題列只有一列。原本 1536px 以上才這樣（常見的 1920×1080 螢幕縮放 125% 正好是這個寬度），
-   小筆電（1280×720）上案件摘要另佔一列；2026-11-05 改成 900px 起都排成一列（裁定 2026-11-05-09），900 到 1535px 的收緊見下一段。
+/* 開啟案件且視窗寬度至少 900px 時，標題列只有一列，小筆電（1280×720）也一樣；900 到 1535px 的收緊見下一段。
    案件摘要移到第一列，從中欄的左緣排到操作組前面。名稱特別長時，案件名稱與客戶名稱以刪節號縮短，
    查核期間完整顯示；完整名稱在第一步看得到。
    摘要的上下緣跟著標題列本身，和標誌、操作組置中在同一條水平線上；標題列的高度由標誌兩行字決定，
-   不寫死成固定高度，否則摘要會比另外兩組高出幾個像素（裁定 2026-10-27-02）。 */
+   不寫死成固定高度，否則摘要會比另外兩組高出幾個像素。 */
 @media (min-width: 900px) {
   .app-shell:has(.app-body:not([hidden])) .case-summary {
     position: absolute;
@@ -510,9 +506,9 @@ button, input, select, textarea {
   }
 }
 
-/* 小筆電：900 到 1535px 的標題列放不下原本的間距與按鈕文字（裁定 2026-11-05-09）。摘要與操作組之間、摘要各項之間改用 16px，
+/* 小筆電：900 到 1535px 的標題列放不下原本的間距與按鈕文字。摘要與操作組之間、摘要各項之間改用 16px，
    「案件名稱」「客戶名稱」「查核期間」三個標籤照樣寫；右上角的操作按鈕只留圖示，按鈕的字仍在，給螢幕閱讀器報讀，
-   滑鼠停在按鈕上時照樣看得到說明。使用者看過只留值、不寫標籤的甲版後選了這一種。 */
+   滑鼠停在按鈕上時照樣看得到說明。 */
 @media (min-width: 900px) and (max-width: 1535px) {
   .app-shell:has(.app-body:not([hidden])) .case-summary {
     right: calc(anchor(--jet-first-action left) + var(--space-5));
@@ -709,7 +705,7 @@ button, input, select, textarea {
 .toc-item__mark--available { color: var(--color-muted); }
 .toc-item__mark--locked { color: var(--color-disabled); }
 
-/* 目前步驟改由左側短藍條標示，這個圓點不再顯示。 */
+/* 目前步驟由左側短藍條標示，這個圓點不顯示。 */
 .toc-item__dot {
   display: none;
 }
@@ -785,7 +781,7 @@ button, input, select, textarea {
 }
 
 /* 流程填滿中欄，左右各留同樣的 --content-inline：視窗放大、資料預覽收合或拖窄時，中欄的兩側間距不變，
-   多出的寬度全部給內容，不會只在右邊空出一塊，寬視窗的右側留白才一致（裁定 2026-10-27-02）。
+   多出的寬度全部給內容，不會只在右邊空出一塊，寬視窗的右側留白才一致。
    收合列與目前步驟的標題列共用同一條右緣，換步驟時箭頭位置不變。
    建立案件、匯入資料與匯出底稿的表單本身維持 720px 的閱讀寬度；長說明文字各自限制行寬。 */
 .stepflow {
@@ -886,7 +882,7 @@ button, input, select, textarea {
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   transform: rotate(-45deg);
-  /* 原地打開與收起時箭頭跟著轉過去，不是一下子翻過來（裁定 2026-10-13-11：展開與收合都要有動態）。 */
+  /* 原地打開與收起時箭頭跟著轉過去，不是一下子翻過來；展開與收合都要有動態。 */
   transition: transform var(--motion-pop) var(--ease-spring);
 }
 
@@ -907,7 +903,7 @@ button, input, select, textarea {
 }
 
 /* 資料預覽是靠右的抽屜，和左下角的訊息區同一種想法：箭頭指向它要移動的方向。
-   展開時「收合」的箭頭朝右，收起來的窄條箭頭朝左（裁定 2026-10-13-09：展開符號統一，「▾」「◂」換成這一種細箭頭）。 */
+   展開時「收合」的箭頭朝右，收起來的窄條箭頭朝左；展開符號統一用這一種細箭頭。 */
 .data-preview__rail::before {
   transform: translateX(2.5px) rotate(135deg);   /* 轉過的箭頭看起來偏左，往右移回直排字的中線 */
 }
@@ -915,7 +911,7 @@ button, input, select, textarea {
 .stepflow-item__caret--current { color: var(--color-accent); }
 
 /* 箭頭一律放在列的最右邊，固定在第一行的中線：名稱或摘要再長、中欄再窄，箭頭都不會被擠到下一行，
-   每一列的箭頭維持在同一條直線上，窄視窗時也不掉到下一行（裁定 2026-10-27-02）。
+   每一列的箭頭維持在同一條直線上，窄視窗時也不掉到下一行。
    列與目前步驟的標題列先在右側讓出箭頭加一個間距，箭頭再貼著右緣擺進去，和左側軸線上的圓點同一種擺法。 */
 .stepflow-item:not(.stepflow-item--current),
 .stepflow-item--current.stepflow-item--collapsed,
@@ -1099,7 +1095,7 @@ button, input, select, textarea {
 
 .stepflow-item__cond--ok { color: var(--color-success); }
 
-/* 操作失敗或被阻擋時，目前步驟標題下方的提示框（裁定 2026-10-13-16）。和標題、內容的距離照工作面的間距，
+/* 操作失敗或被阻擋時，目前步驟標題下方的提示框。和標題、內容的距離照工作面的間距，
    紅色與琥珀色沿用 .form-notice。 */
 .stepflow-item__failure {
   margin: var(--space-4) 0 0;
@@ -1113,7 +1109,7 @@ button, input, select, textarea {
 }
 
 /* 換步驟時，原本那一步的內容收回它的那一列（JetMotion.leave），在可換行的列裡自己一行。flex 的一行不會因為負的外距
-   變得比 0 矮，列距收不掉，收完拿掉的那一格下面各列會往上跳，切換尾段因此抖動（裁定 2026-10-15-10）。
+   變得比 0 矮，列距收不掉，收完拿掉的那一格下面各列會往上跳，切換尾段因此抖動。
    所以收的期間這一列不用列距，改由內容的上外距帶著同樣的距離，一起收到 0。 */
 .stepflow-item:has(> .stepflow-item__body[data-motion-leaving]) { row-gap: 0; }
 .stepflow-item > .stepflow-item__body[data-motion-leaving] { margin-top: calc(var(--space-5) + var(--space-3)); }
@@ -1266,7 +1262,7 @@ button, input, select, textarea {
   border: 1px solid var(--color-border);
 }
 
-/* 報告與底稿清單：同一工作面裡的一列一份檔案，以細線分隔，不再一份一個灰框。 */
+/* 報告與底稿清單：同一工作面裡的一列一份檔案，以細線分隔。 */
 .report-list {
   display: grid;
   gap: 0;
@@ -1313,7 +1309,7 @@ button, input, select, textarea {
   color: var(--color-muted);
 }
 
-/* 第六步的報告勾選：工作面裡的一般勾選列，不再一項一個灰框。 */
+/* 第六步的報告勾選：工作面裡的一般勾選列。 */
 .scenario-export-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
@@ -1477,8 +1473,8 @@ kbd {
 }
 
 /* ---- 狀態 / 訊息區（左欄底部可收合）----------------------------------- */
-/* 搬到左欄底部：margin-top:auto 推到底，頂部 hairline 相隔。訊息區的文字和上方「流程」、步驟名稱對齊同一條左緣。
-   訊息區展開之後要再收合時曾經整塊錯位（裁定 2026-10-12-02），所以做成從欄底拉開的抽屜：
+/* 位在左欄底部：margin-top:auto 推到底，頂部 hairline 相隔。訊息區的文字和上方「流程」、步驟名稱對齊同一條左緣。
+   訊息區做成從欄底拉開的抽屜，展開之後再收合時不會整塊錯位：
    「訊息」那一列是唯一的開關，固定在欄底，展開與收合都按同一個位置；訊息清單與「複製紀錄」「輸出支援日誌」從它上方長出來，
    收合時收回它後面。內容貼著開關排，長出來時內容不動、上緣往上打開。開關右邊的細箭頭收合時朝上、展開時朝下，
    表示清單在上方出現與收回。
@@ -1565,7 +1561,7 @@ kbd {
   border-radius: 999px;
 }
 
-/* 未讀裡最嚴重的一級（訊息分三級，裁定 2026-10-13-15）：錯誤紅底、需要注意琥珀底，數字前加和提示框同樣的「!」；
+/* 未讀裡最嚴重的一級（訊息分三級）：錯誤紅底、需要注意琥珀底，數字前加和提示框同樣的「!」；
    只有一般訊息時維持灰底、沒有符號。等級另由 app.js 寫進 aria-label，不只靠顏色。 */
 .messages__badge--error {
   background: var(--color-danger);
@@ -1667,7 +1663,7 @@ kbd {
   color: var(--color-placeholder);
 }
 
-/* 訊息分三級（裁定 2026-10-13-15）：錯誤與需要注意在時間前面加一個圓形「!」，時間跟著換成同一個顏色；
+/* 訊息分三級：錯誤與需要注意在時間前面加一個圓形「!」，時間跟著換成同一個顏色；
    一般訊息沒有符號、時間維持淡灰。訊息本文的顏色三級都一樣。符號和時間排在同一行，本文另起一行。 */
 .messages__item {
   display: flex;
@@ -1808,7 +1804,7 @@ kbd {
   line-height: 1.55;
 }
 
-/* 案件清單的「輸出支援日誌」只給開發人員用，只在 Debug 組建出現（裁定 2026-10-20-03）：
+/* 案件清單的「輸出支援日誌」只給開發人員用，只在 Debug 組建出現：
    放在卡片外的頁尾、靠右，和審計員的操作分開。輸出結果另起一行，長路徑在頁尾寬度內換行。
    Release 沒有頁尾，卡片下方維持原本的留白。 */
 .picker-panel:has(+ .picker-footer) {
@@ -1836,7 +1832,7 @@ kbd {
   overflow-wrap: anywhere;
 }
 
-/* 案件清單分區：一條小標題列與自有空狀態（裁定 2026-11-05-06）。線上區隨 SQL Server 暫時移除（裁定 2026-11-06-08）。 */
+/* 案件清單分區：一條小標題列與自有空狀態。 */
 .picker-section {
   margin-bottom: var(--space-6);
 }
@@ -1870,7 +1866,7 @@ kbd {
   color: var(--color-ink);
 }
 
-/* 案件清單是工作面裡以細線分隔的一列一案，不再一案一個灰框。 */
+/* 案件清單是工作面裡以細線分隔的一列一案。 */
 .picker-section__list {
   display: flex;
   flex-direction: column;
@@ -2039,7 +2035,7 @@ kbd {
   box-shadow: var(--shadow-overlay);
 }
 
-/* 對話框標題和總覽標題同為 22px（字級規格，裁定 2026-10-13-08 整理標題字級；原本是 18px，和工作面標題同級）。 */
+/* 對話框標題和總覽標題同為 22px。 */
 .modal__title {
   flex: 0 0 auto;
   margin: 0 0 var(--space-3);
@@ -2160,7 +2156,7 @@ kbd {
   cursor: not-allowed;
 }
 
-/* 單行下拉選單的箭頭和全介面的展開箭頭同一種：線條畫的細箭頭，朝下（裁定 2026-10-13-09：展開符號統一）。
+/* 單行下拉選單的箭頭和全介面的展開箭頭同一種：線條畫的細箭頭，朝下。
    原生箭頭的樣子跟著系統走，所以拿掉原生外觀，用兩條 1.5px 的斜線拼出和其他展開箭頭同樣大小的灰色箭頭，停用時跟著字變淡。
    這條規則要壓過各元件的內距，權重刻意比 :where 高；高對比佈景會拿掉這種畫出來的箭頭，改回原生箭頭，見最後的 forced-colors 一節。 */
 select:not([multiple]):not([size]) {
@@ -2240,7 +2236,7 @@ select.map-grid__select,
   font-size: var(--text-xs);
 }
 
-/* 提示框只用底色區分種類，不再同時加外框；圖示表示類型。 */
+/* 提示框只用底色區分種類，不同時加外框；圖示表示類型。 */
 .form-notice {
   margin: 0 0 var(--space-3);
   padding: var(--space-2) var(--space-3);
@@ -2410,7 +2406,7 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* 重新匯入/加入來源完成:卡片短暫成功態,數秒後淡出。出現時由 app.js 的 JetMotion 長出來一次；
-   原本的進場動畫在每次重繪時都會重播，所以拿掉。 */
+   不用進場動畫，因為每次重繪都會重播。 */
 .import-card__just {
   margin: 0 0 8px;
   font-size: var(--text-sm);
@@ -2599,8 +2595,8 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* 就地展開面板：嵌入既有匯入卡完整 UI。卡片的外框、內距、底色、圓角與陰影在此一併中性化，
-   讓它讀作該列的就地延伸，而非重複的方框卡片（DOM 不變，純樣式收斂）。原本漏了陰影，
-   展開後內容下緣多出一條淡線與圓角邊（裁定 2026-10-16-07）。 */
+   讓它讀作該列的就地延伸，而非重複的方框卡片（DOM 不變，純樣式收斂）。陰影沒有一起中性化的話，
+   展開後內容下緣會多出一條淡線與圓角邊。 */
 .import-task__panel {
   padding: 0 0 var(--space-4) 26px;
 }
@@ -2637,7 +2633,7 @@ dl.kv-list .kv-list__row:last-child {
 .panel--mapping { padding: 0; border: 0; border-radius: 0; background: transparent; }
 
 /* ---- 分段切換：全介面同一種畫法 -------------------------------------------
-   淺灰底槽，選中的一格白底細框加粗，沿用第五步條件來源分頁的樣式（裁定 2026-10-09-06 肯定這個設計）。
+   淺灰底槽，選中的一格白底細框加粗，沿用第五步條件來源分頁的樣式。
    簡易清單與對照表格、金額格式、彙總切換與總覽圖表切換都用這一種；整組 32px 高。
    金額格式保留原生單選鈕，桌面測試會直接點它。 */
 .seg-toggle,
@@ -2714,8 +2710,8 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* 條件組的 AND、OR：和其他分段切換同一種底槽與選中的按鍵，放在一行字裡，所以矮一點、字小一點。
-   單選鈕本身看不到但仍能用鍵盤操作，焦點框畫在那一格（裁定 2026-10-30-32：組內與組間的連接只寫 AND 與 OR）。
-   兩格一樣寬：只靠左右留白撐開時 AND 比 OR 寬，切換鍵看起來一邊長一邊短（裁定 2026-11-03-26）。 */
+   單選鈕本身看不到但仍能用鍵盤操作，焦點框畫在那一格；組內與組間的連接只寫 AND 與 OR。
+   兩格一樣寬：只靠左右留白撐開時 AND 比 OR 寬，切換鍵看起來一邊長一邊短。 */
 .join-toggle {
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
@@ -2786,7 +2782,7 @@ dl.kv-list .kv-list__row:last-child {
   margin-bottom: 0;
 }
 
-/* 「由底稿匯入欄位」：配對區上方往下凹的托盤，和第四步「用 Excel 配對」同一種做法（裁定 2026-11-09-29）。
+/* 「由底稿匯入欄位」：配對區上方往下凹的托盤，和第四步「用 Excel 配對」同一種做法。
    上面一排是按鈕與一句說明，帶入的結果寫在托盤裡的一張白紙；托盤和下面的 GL 工作面之間留間距。
    窄視窗時說明換到按鈕下一行，長檔名在紙裡斷行，不把版面撐寬。 */
 .mapping-import {
@@ -2933,8 +2929,8 @@ dl.kv-list .kv-list__row:last-child {
   font-weight: 600;
 }
 
-/* 必填欄位在自己那一列標「必填」，和第四步的狀態標籤同一種尺寸；還沒選是琥珀色，選好後是灰色（裁定 2026-11-05-23）。
-   兩種配對介面都在表格上方用一行寫還差幾個，對照表格再接每個必填欄位的名稱標籤，標籤不能點（裁定 2026-11-05-24）。 */
+/* 必填欄位在自己那一列標「必填」，和第四步的狀態標籤同一種尺寸；還沒選是琥珀色，選好後是灰色。
+   兩種配對介面都在表格上方用一行寫還差幾個，對照表格再接每個必填欄位的名稱標籤，標籤不能點。 */
 .mapping-table__req-tag,
 .map-required__tag {
   display: inline-flex;
@@ -2973,8 +2969,8 @@ dl.kv-list .kv-list__row:last-child {
   margin: var(--space-3) 0;
 }
 .map-layout__main > .map-grid-wrap { margin: 0; }
-/* 對照表格 480px 高，內容在表格內捲動，分頁列與其他設定排在表格下方（裁定 2026-10-16-10）。
-   右側必填清單拿掉後表格佔滿整寬，還沒選的必填欄位寫在表格上方（裁定 2026-11-05-24）。 */
+/* 對照表格 480px 高，內容在表格內捲動，分頁列與其他設定排在表格下方。
+   表格佔滿整寬，還沒選的必填欄位寫在表格上方。 */
 .map-layout--grid .map-grid-wrap {
   height: 480px;
   max-height: none;
@@ -3000,7 +2996,7 @@ dl.kv-list .kv-list__row:last-child {
 .mapping-summary .map-grid__cell.is-assigned { background: var(--color-surface-sunken); }
 .map-grid__select { width: 100%; min-width: 120px; }
 .map-grid__data { color: var(--color-text); }
-/* 已確認配到金額位置的來源欄靠右，表頭照樣靠左（裁定 2026-11-05-04）。 */
+/* 已確認配到金額位置的來源欄靠右，表頭照樣靠左。 */
 .map-grid__data.num { text-align: right; font-variant-numeric: tabular-nums; }
 .map-grid__data.is-null { color: var(--color-placeholder); }
 .map-grid__loading { padding: var(--space-4); color: var(--color-muted); text-align: center; }
@@ -3115,7 +3111,7 @@ dl.kv-list .kv-list__row:last-child {
   border-radius: var(--radius-control);
 }
 
-/* 統計列：一條相連的工作面，各統計以細線分隔，和流程總覽的統計列同一種畫法，不再一個數字一張卡片。
+/* 統計列：一條相連的工作面，各統計以細線分隔，和流程總覽的統計列同一種畫法。
    每格用 -1px 外距把上緣與左緣細線疊進外框，換行時第二列的上緣也會自動出現。 */
 .stats-bar {
   display: grid;
@@ -3168,7 +3164,7 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* 工作面裡的統計列：工作面已經有框，只留上下與格子之間的細線，不再包第二層框；第一格不內縮，
-   數字和工作面裡的文字同一條左緣。第五步預覽用它分開顯示符合條件的傳票數量與分錄筆數（裁定 2026-10-16-08）。 */
+   數字和工作面裡的文字同一條左緣。第五步預覽用它分開顯示符合條件的傳票數量與分錄筆數。 */
 .stats-bar--flush {
   margin-bottom: var(--space-3);
   background: transparent;
@@ -3183,7 +3179,7 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* 精簡統計列：第五步預覽與已儲存情境裡的傳票數量與分錄筆數固定 18px，流程總覽與第四步仍是 28px；情境之間由整列標題與下凹的底槽分開。
-   fitStatRows 縮級時加上的 class 也一併蓋過；數字仍放不下時，照常改成較少的格數。情境名稱比統計數字小時，情境之間分不清（裁定 2026-10-29-03）。 */
+   fitStatRows 縮級時加上的 class 也一併蓋過；數字仍放不下時，照常改成較少的格數。情境名稱比統計數字小時，情境之間分不清。 */
 .stats-bar--compact > .stat-card {
   padding-block: var(--space-2);
 }
@@ -3311,7 +3307,7 @@ dl.kv-list .kv-list__row:last-child {
   border-radius: var(--radius-control);
 }
 
-/* 有情境無法套用目前規則時，狀態條維持一般底色，只用裡面的紅框表示問題（裁定 2026-10-09-03）。 */
+/* 有情境無法套用目前規則時，狀態條維持一般底色，只用裡面的紅框表示問題。 */
 .population-scope__status > .form-notice,
 .population-scope__status > .population-scope__notice {
   flex-basis: 100%;
@@ -3461,8 +3457,8 @@ dl.kv-list .kv-list__row:last-child {
   color: var(--color-muted);
 }
 
-/* 條件組之間的連接器：一條橫線，AND、OR 的分段切換接在線上，和「第 N 組」同一條左緣，和組內兩條條件之間的分隔線同一種畫法
-   （裁定 2026-11-05-16；裁定 2026-11-01-07：不寫「組與組之間」，由版面呈現）。原本是左側一段上下接到兩組的短直線。
+/* 條件組之間的連接器：一條橫線，AND、OR 的分段切換接在線上，和「第 N 組」同一條左緣，和組內兩條條件之間的分隔線同一種畫法；
+   不寫「組與組之間」，由版面呈現。
    線比組內的分隔線深一階，看得出是組與組之間。滑過或用鍵盤移到切換時，線變成重點色。線用上框線畫，高對比佈景時仍看得到。 */
 .set-rail {
   display: flex;
@@ -3630,8 +3626,8 @@ dl.kv-list .kv-list__row:last-child {
   min-width: min(140px, 100%);
 }
 
-/* 帶範例 helper 的欄位：input 佔位同一條文字輸入；hint 改絕對定位掛在 input 正下方，不再撐高該欄，
-   讓 input 回到與同列控制項置中對齊（修「提示頂歪輸入框」的錯位）。列底空間由下方 :has 規則預留。 */
+/* 帶範例 helper 的欄位：input 佔位同一條文字輸入；hint 排在 input 下方，
+   排法見下方 .rule-field__hint。 */
 .rule-field {
   position: relative;
   flex: 1 1 180px;
@@ -3672,7 +3668,7 @@ dl.kv-list .kv-list__row:last-child {
 }
 
 /* 控制項的前導欄位標籤：比 rule-row__sep 明顯（實字色＋淺底小標籤），
-   讓使用者一眼看出這格在篩什麼（如「金額（絕對值）」），不再只有隱晦的小符號。 */
+   讓使用者一眼看出這格在篩什麼（如「金額（絕對值）」）。 */
 .rule-row__field-label {
   display: inline-flex;
   align-items: center;
@@ -3848,7 +3844,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   max-width: 100%;
 }
 
-/* 數字資料靠右；表頭統一置左（裁定 2026-10-16-01）。數字欄只取內容需要的寬度，
+/* 數字資料靠右；表頭統一置左。數字欄只取內容需要的寬度，
    靠左的標題和靠右的數字留在同一個窄欄，多出的寬度給文字欄，不讓兩者分在寬欄的兩端。 */
 .preview-table__amount,
 .preview-table td.preview-table__amount {
@@ -3890,9 +3886,9 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 .table-pager__arrow--next { transform: rotate(45deg); }
 .data-preview__note > .table-pager { margin-inline: var(--space-4); }
 
-/* 已儲存情境：工作面裡以細線分隔的一列一個情境，不再一個情境一個框。整列標題就是開關，箭頭在名稱前面，
+/* 已儲存情境：工作面裡以細線分隔的一列一個情境，不用一個情境一個框。整列標題就是開關，箭頭在名稱前面，
    再點一次標題就收起；「操作」選單留在右側。展開的內容放進和第四步明細同一種下凹的淺灰底槽，標題留在槽外，
-   和下一個情境分得出來。原本情境之間只有細線、名稱比統計數字小，區塊分不清（裁定 2026-10-29-03）。 */
+   和下一個情境分得出來。 */
 .saved-scenario {
   margin: 0;
   padding: var(--space-2) 0;
@@ -3964,7 +3960,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   margin-top: var(--space-3);
 }
 
-/* 確認文字是「需要注意」的琥珀提示；紅色只留在「確認移除」按鈕（裁定 2026-10-09-03）。 */
+/* 確認文字是「需要注意」的琥珀提示；紅色只留在「確認移除」按鈕。 */
 .saved-scenario__confirm p {
   margin: 0;
 }
@@ -4062,7 +4058,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 }
 
 /* 規則在做什麼寫在展開的明細最上方一次，最多約 60 個字一行；並排的兩項彙總把明細放在清單下方時，
-   另寫是哪一項。常駐說明不再多寫（裁定 2026-10-29-02）。 */
+   另寫是哪一項。常駐說明不再多寫。 */
 .rule-detail__title {
   margin: 0 0 var(--space-1);
   font-size: var(--text-sm);
@@ -4134,7 +4130,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
   background: var(--color-surface);
 }
 
-/* 兩項彙總並排在同一工作面裡，以細線分隔，不再是灰底上的兩張白卡片；清單窄到放不下兩欄時上下排。 */
+/* 兩項彙總並排在同一工作面裡，以細線分隔；清單窄到放不下兩欄時上下排。 */
 .prescreen-primary {
   margin-top: var(--space-4);
   padding: 0;
@@ -4179,7 +4175,7 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 }
 
 /* 兩項彙總各自只有標題、狀態與「檢視」，並排時靠上對齊；按「檢視」後明細接在兩格下方、佔滿整寬，
-   另一格不會被撐高，內容也不會被推到中間；較窄視窗展開右欄時也一樣（裁定 2026-10-29-05）。 */
+   另一格不會被撐高，內容也不會被推到中間；較窄視窗展開右欄時也一樣。 */
 .prescreen-primary > .rule-detail {
   margin: 0 0 var(--space-4);
 }
@@ -4269,8 +4265,8 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 }
 
 /* 每條規則一列：箭頭、標題與狀態。有明細的整列是一個按鈕（.row-toggle），點整列就地展開，不另外放「檢視」；
-   沒有明細的列在箭頭那一格留空，每一列的標題上下對齊（裁定 2026-10-30-36：就地展開的檢視和打開資料預覽的要分得出來）。
-   狀態一律貼齊右緣，和卡片右上的主要按鈕同一條線，「未執行」和「執行驗證」才對得齊（裁定 2026-10-27-02）。 */
+   沒有明細的列在箭頭那一格留空，每一列的標題上下對齊。就地展開的檢視和打開資料預覽的要分得出來。
+   狀態一律貼齊右緣，和卡片右上的主要按鈕同一條線，「未執行」和「執行驗證」才對得齊。 */
 .rule-item > .rule-item__head {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) auto;
@@ -4369,13 +4365,13 @@ th[aria-sort="descending"] .th-sort:hover .th-sort__mark::after {
 }
 
 /* 目錄鎖定步驟：停用灰字、不可點（步驟狀態一律由 ui-core 閘門推導，畫面不自行放行）。
-   不再疊半透明，文字對比維持 3:1 以上。 */
+   不疊半透明，文字對比維持 3:1 以上。 */
 .toc-item:disabled {
   opacity: 1;
 }
 
 /* ---- 禁用按鈕 ---------------------------------------------------------------
-   主要與次要按鈕停用時都是中性灰底灰字（對比至少 3:1），不再是淡藍色或半透明。 */
+   主要與次要按鈕停用時都是中性灰底灰字（對比至少 3:1）。 */
 .btn:disabled,
 .btn:disabled:hover {
   color: var(--color-disabled);
@@ -4520,8 +4516,8 @@ body.is-busy {
 }
 
 /* 減少動態：CSS 動畫直接停在最後的樣子，轉場直接關掉，改變都瞬間完成；表格表頭捲動時加深的影子照常。
-   轉場用 transition: none 關掉，不要改成替每個元素設極短的時間。減少動態時重繪變慢，查明的原因如下（裁定 2026-10-12-04）：
-   原本替每個元素設 0.001ms 的轉場，頁面一開始就套用時，之後的重繪慢兩到四倍，例如第三步換金額欄位格式，
+   轉場用 transition: none 關掉，不要改成替每個元素設極短的時間：
+   替每個元素設 0.001ms 的轉場，頁面一開始就套用時，之後的重繪慢兩到四倍，例如第三步換金額欄位格式，
    主執行緒從約 30ms 變成 110 到 120ms。transition: none 也不留轉場的延遲，收合的訊息區裡的按鈕立刻不能用 Tab 移到。 */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -4750,7 +4746,7 @@ body.is-busy {
 }
 
 /* ---- 資料預覽（右欄常駐面板：標題＋頁籤＋橫向捲動表格＋底部註記）------------
-   第二波：從頁面底部 <details> 摺疊區升級為 app-body 的常駐右欄（436px）。
+   是 app-body 的常駐右欄，預設寬 436px。
    .data-preview 為右欄容器；.data-preview__body 為表格捲動區（保留 data-bind）。
    注意：.data-preview__table 基底樣式（見本區塊末）另供 import-step 內嵌表格沿用，
    右欄專用外觀以 .data-preview__body .data-preview__table 加權覆寫，不動基底、不改名。 */
@@ -4923,7 +4919,7 @@ body.is-resizing-preview {
 }
 
 /* 選單按鈕（例如「其他資料」「操作」）與按鈕形式的展開區（例如「檢視」「查看結果」「預覽」）：
-   字後面接同一種細箭頭，取代原本的「▾」「▸」；箭頭的畫法見上方共用的細箭頭。 */
+   字後面接同一種細箭頭；箭頭的畫法見上方共用的細箭頭。 */
 .jet-menu__toggle,
 .jet-disclosure {
   display: inline-flex;
@@ -4938,7 +4934,7 @@ body.is-resizing-preview {
 }
 
 /* 檢視：只打開或展開內容、不改資料的操作，用淡底小標籤，和白底細框的按鍵分得開，也不像一般文字只多一條底線。
-   兩種檢視用圖示區分（裁定 2026-10-30-36）：在畫面裡就地展開的，箭頭在字前面；打開右側資料預覽的一律寫「資料預覽」，
+   兩種檢視用圖示區分：在畫面裡就地展開的，箭頭在字前面；打開右側資料預覽的一律寫「資料預覽」，
    字後面接面板圖示。清單與表格的列整列可點時用 .row-toggle，不另外放按鈕。 */
 .jet-view {
   display: inline-flex;
@@ -5194,7 +5190,7 @@ body.is-resizing-preview {
 }
 
 /* 收合態：整欄縮成窄豎條，只留 rail 可再展開。
-   收合與展開都有動態（裁定 2026-10-13-11）；原本整欄一下子變寬變窄，中欄跟著跳：
+   收合與展開都有動態，整欄不會一下子變寬變窄、中欄跟著跳：
    寬度沿彈簧變；收合時裡面的內容先很快淡掉、寬度晚一點才開始收，收好之後窄豎條才淡入；
    展開時窄豎條先淡掉，內容等寬度打開大半才淡入，不會在很窄的時候擠成一團。拖曳調整寬度時不走轉場。 */
 .data-preview {
@@ -5500,7 +5496,7 @@ body.is-resizing-preview .data-preview {
 }
 
 /* 六階段狀態登錄：三欄兩列相連的一組格子，按鈕只切換下方執行紀錄，不是流程導航。
-   格子共用細線（-1px 外距讓相鄰邊線重疊），不再是六張一樣的卡片；狀態靠文字與顏色，選取的格子用藍框。 */
+   格子共用細線（-1px 外距讓相鄰邊線重疊）；狀態靠文字與顏色，選取的格子用藍框。 */
 .overview__pipeline {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -5731,60 +5727,6 @@ body.is-resizing-preview .data-preview {
 .overview-kv__value--mono {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-}
-
-/* 最近訊息欄：標題列＋三筆訊息（頂線分隔、無左邊條）。 */
-.overview__col-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.overview__col-all {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--color-faint);
-  cursor: pointer;
-}
-
-.overview__col-all:hover {
-  color: var(--color-muted);
-}
-
-.overview__msg-list {
-  margin-top: 6px;
-}
-
-.overview-msg {
-  padding: 9px 0;
-  border-top: 1px solid var(--color-border-row);
-}
-
-.overview-msg__time {
-  margin-bottom: 2px;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--color-faint);
-}
-
-/* 系統僅 info/warn 兩級（無 success 級）：warn 用錯誤紅，其餘中性灰（沿用第一波約定）。 */
-.overview-msg--warn .overview-msg__time {
-  color: var(--color-danger);
-}
-
-.overview-msg__text {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--color-text);
-}
-
-.overview-msg--empty {
-  padding: 9px 0;
-  border-top: 1px solid var(--color-border-row);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--color-faint);
 }
 
 /* ---- 流程總覽：執行識別基準行、母體概況、唯讀聲明 -------------------------
@@ -6329,7 +6271,7 @@ body.is-resizing-preview .data-preview {
 }
 
 /* ---- 匯出完成摘要（步驟內的完成狀態，非獨立步驟）-------------------------
-   第六步完成區改樣式（裁定 2026-10-13-06），處理原本的淡綠底加綠框、方框裡的勾與綠框檔名標籤：提示框只用底色、不加框；
+   第六步完成區：提示框只用底色、不加框；
    勾號和流程軸線的「完成」同一種綠色實心圓，綠色只用在這個符號上；做出的檔案和報告區一樣用灰色文件圖示列出。 */
 .completion {
   display: flex;
@@ -6419,7 +6361,7 @@ body.is-resizing-preview .data-preview {
    中間 .app-main／.app-body 的 overflow:hidden 又不會裁切這種 absolutely
    positioned 後代——結果是這顆 1px 元素可能落在視窗之外並撐大整份文件的捲動
    範圍，讓標題列被捲出視窗。clip 只影響繪製，clip-path 才真正移出 hit-test。
-   （兩者都由 Agent GUI 的可見流程實測到。） */
+   （兩者都由桌面測試實測到。） */
 .visually-hidden {
   position: absolute;
   left: 0;
@@ -6452,8 +6394,8 @@ body.is-resizing-preview .data-preview {
   max-width: none;
 }
 
-/* 過帳狀態、人工/自動分錄代碼與攸關資料元素欄位三個小區塊：不再各自包框，
-   標題改成粗體小標，區塊之間用細線分隔（裁定 2026-10-09-05）。
+/* 過帳狀態、人工/自動分錄代碼與攸關資料元素欄位三個小區塊：不各自包框，
+   標題是粗體小標，區塊之間用細線分隔。
    legend 設成 float 才會排進區塊內容，不會壓在分隔線上。 */
 .map-options__group {
   margin: var(--space-4) 0 0;
@@ -6703,8 +6645,8 @@ body.is-resizing-preview .data-preview {
 .category-guide dt { font-weight: 600; }
 .category-guide dd { margin: var(--space-1) 0 0; color: var(--color-muted); }
 
-/* 「用 Excel 配對」：整區是往下凹的托盤，上面一排操作依做事的順序排，下面一張白紙列出匯入的結果
-   （裁定 2026-10-30-35：採方案丙，參考方案乙增加設計感，但不華麗、不複雜、不分心）。分頁下方已有底線，托盤不再加第二條。 */
+/* 「用 Excel 配對」：整區是往下凹的托盤，上面一排操作依做事的順序排，下面一張白紙列出匯入的結果；
+   外觀要有設計感，但不華麗、不複雜、不分心。分頁下方已有底線，托盤不再加第二條。 */
 .excel-mapping {
   min-width: 0;
   padding: var(--space-3);
@@ -6717,7 +6659,7 @@ body.is-resizing-preview .data-preview {
 .excel-mapping__spacer { flex: 1 1 auto; }
 .excel-mapping__hint { margin: var(--space-2) 2px 0; font-size: var(--text-sm); color: var(--color-muted); }
 .excel-mapping__gate { margin: 0; font-size: var(--text-sm); color: var(--color-text); }
-/* 選了有多個工作表的 Excel 檔時，接在操作列下面請審計員選工作表（裁定 2026-11-05-07）：一句說明，下面一排選單與按鈕。 */
+/* 選了有多個工作表的 Excel 檔時，接在操作列下面請審計員選工作表：一句說明，下面一排選單與按鈕。 */
 .excel-mapping__sheet-pick { margin-top: var(--space-3); }
 .excel-mapping__sheet-pick > .excel-mapping__hint { margin: 0 2px var(--space-2); color: var(--color-text); }
 .excel-mapping__sheet-label { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-sm); }
@@ -6941,7 +6883,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .selected-dates .scenario-pill { cursor: pointer; color: var(--color-ink); }
 .value-editor :focus-visible, .filter-voucher-host button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .value-editor .value-editor__date-error { flex-basis: 100%; }
-/* 傳票表：同一張表，傳票是粗體的分組列，點整列就在下面展開這張傳票的分錄，分錄共用同一組欄位（裁定 2026-10-30-37）。
+/* 傳票表：同一張表，傳票是粗體的分組列，點整列就在下面展開這張傳票的分錄，分錄共用同一組欄位。
    展開中的傳票列用淡淡的紙面底色標出，淡藍只留給符合條件的分錄；最後一列用較深的線和下一張傳票分開，不另外包一層。 */
 .voucher-table th.voucher-table__toggle,
 .voucher-table td.voucher-table__toggle { width: 22px; padding-right: 0; }
@@ -6958,7 +6900,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .voucher-table tr.voucher-table__entry--hit > td { background: var(--color-accent-subtle); }
 .voucher-table tr.voucher-table__entry--last > td { border-bottom-color: var(--color-border-strong); }
 .voucher-table tr.voucher-table__pager .table-pager { margin: 0; }
-/* 每一列都只佔一行，分錄列和傳票列一樣高（裁定 2026-11-03-03）。只有分錄才有內容的欄由表頭先留好寬度，
+/* 每一列都只佔一行，分錄列和傳票列一樣高。只有分錄才有內容的欄由表頭先留好寬度，
    文字太長以省略號收尾，滑過看全文；展開或收合分錄時欄寬不變，其他欄不會被擠開。
    表格比外框寬時，瀏覽器只把儲存格的 width 當建議值，所以表頭放一條沒有高度的固定寬度支撐，當作這一欄的下限。
    開關按鈕貼齊行框上緣，傳票列才不會比分錄列高出半個像素。 */
@@ -6992,16 +6934,15 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-work-tabs button { margin-bottom: -1px; padding: var(--space-2) 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-muted); cursor: pointer; font: inherit; font-weight: 500; line-height: 20px; }
 .filter-work-tabs button:hover { color: var(--color-ink); }
 .filter-work-tabs button[aria-selected="true"] { color: var(--filter-accent); border-bottom-color: var(--color-accent); font-weight: 600; }
-/* 常用篩選條件、預篩選與欄位條件撐滿左欄寬度；外觀見共用的「分段切換」。2026-10-16 加入「預篩選」成為三格，
-   三格等寬會把當時的第三格擠成兩行，所以依字數分配寬度、不換行。當時三格的完整名稱排成一列約需 228px，
-   1100px 以下改用小一階的字約需 191px，左欄寬度依此訂；2026-11-03 第三格改成較短的「欄位條件」，照樣放得下，名稱不省略。
+/* 常用篩選條件、預篩選與欄位條件撐滿左欄寬度；外觀見共用的「分段切換」。
+   三格等寬時名稱會擠成兩行，所以依字數分配寬度、不換行；左欄寬度依三格完整名稱排成一列所需的寬度訂，名稱不省略。
    選中的白色按鍵由 app.js 的 bindGlide 量實際寬度移動。 */
 .filter-source-tabs { display: flex; }
 .filter-source-tabs button { flex: 1 1 auto; padding: 4px var(--space-2); white-space: nowrap; }
 .filter-high-risk-summary-tabs { display: flex; }
 .filter-workspace button:focus-visible, .filter-workspace summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
-/* 條件總覽的左欄隨視窗放寬，佔工作區三成，在 280 到 420px 之間（裁定 2026-11-05-08）；原本固定 280px，寬螢幕上左欄的名稱擠成兩行。
-   901 到 1100px 照舊 240px，900px 以下排成一欄，見下面兩段。 */
+/* 條件總覽的左欄隨視窗放寬，佔工作區三成，在 280 到 420px 之間；固定 280px 的話，寬螢幕上左欄的名稱會擠成兩行。
+   901 到 1100px 是 240px，900px 以下排成一欄，見下面兩段。 */
 .filter-workbench { display: grid; grid-template-columns: clamp(280px, 30%, 420px) minmax(0, 1fr); gap: 24px; align-items: start; }
 .filter-current, .filter-entry { min-width: 0; }
 .filter-workspace .filter-entry .condition-picker { border: 0; background: transparent; padding: 16px 0; margin: 0; }
@@ -7036,7 +6977,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .filter-more { margin-top: 12px; border-top: 1px solid var(--color-border-row); font-size: var(--text-xs); }
 .filter-workspace .filter-primary-actions { position: relative; z-index: 4; margin: 16px 0 0; padding: 12px 0 0; border-top: 1px solid var(--filter-border); background: var(--color-surface); }
 .filter-save-panel { margin-top: var(--space-4); }
-/* 已儲存情境是清單列，不再一個情境一個框；見 .saved-scenario。 */
+/* 已儲存情境是清單列；見 .saved-scenario。 */
 .filter-workspace .saved-scenario { margin: 0; border: 0; border-bottom: 1px solid var(--filter-border); background: transparent; }
 .filter-workspace .filter-high-risk-summary-tabs { margin: var(--space-3) 0 var(--space-4); width: fit-content; }
 .filter-workspace .empty-state { padding: var(--space-6) var(--space-4); background: var(--color-surface); color: var(--color-muted); line-height: 1.6; }
@@ -7049,7 +6990,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   .filter-work-tabs button { padding: var(--space-2) 0; }
 }
 
-/* 多組時，條件總覽標題同一列寫「加入到第 1、2、3 組」，組號是和 AND、OR 同一種分段切換（裁定 2026-11-05-16）。
+/* 多組時，條件總覽標題同一列寫「加入到第 1、2、3 組」，組號是和 AND、OR 同一種分段切換。
    組多到放不下時換到標題下一行；標題列固定是切換的高度，「加入到」左右收放出現時，下面的內容不跟著跳。 */
 .filter-entry-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; min-height: 28px; margin-bottom: 16px; }
 .filter-entry-title { margin: 0; font-family: var(--font-sans); font-size: var(--text-md); font-weight: 600; }
@@ -7063,8 +7004,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 @media (min-width: 901px) and (min-height: 600px) {
   .filter-workspace .filter-entry { position: static; max-height: none; }
 }
-/* 左欄 240px 扣掉左右內距後剩 216px，放得下條件來源三格的完整名稱。2026-10-16 量到需要 190.4px，當時定 220px；
-   2026-10-29 第一格改名「常用篩選條件」後量到需要 212px，220px 只剩 196px，第三格會擠到第二行，所以加寬。 */
+/* 左欄 240px 扣掉左右內距後剩 216px，放得下條件來源三格的完整名稱（量到需要 212px）；
+   220px 只剩 196px，第三格會擠到第二行。 */
 @media (min-width: 901px) and (max-width: 1100px) {
   .filter-workbench { grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-4); }
   .filter-workspace .rule-card { padding: var(--space-4); }
@@ -7133,7 +7074,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .value-editor__range input { width: 100%; box-sizing: border-box; }
 .filter-workspace .value-editor__list { box-sizing: border-box; line-height: 20px; min-height: var(--control-height); max-height: 160px; margin: 0; resize: vertical; }
 /* 值清單固定五行高、獨占一列，放在下拉選單下方；貼上或自動拆成多行時高度不變，內容在框內捲動。
-   要看更多行時由使用者自己往下拉。輸入後突然撐高很突兀（裁定 2026-10-16-13）。 */
+   要看更多行時由使用者自己往下拉。輸入後突然撐高很突兀。 */
 .filter-workspace .value-editor__values { flex: 1 1 100%; height: calc(5 * 20px + 14px); max-height: 320px; overflow-y: auto; }
 /* 清單下方的分隔方式、人員提示與已輸入數量各占一行，彼此只用版面的 8px 間距，不再疊加段落外距。 */
 .filter-workspace .value-editor__main > :is(.rule-field__hint, .help-text) { flex-basis: 100%; margin: 0; }
@@ -7193,7 +7134,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .report-item__label { font-size: var(--text-md); font-weight: 600; }
 .report-item__name { font-size: var(--text-xs); overflow-wrap: anywhere; color: var(--color-muted); }
 .report-item__meta { font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
-/* 符合情形和第幾組第幾條排在同一行，位置用較淡的字接在後面；欄寬由表頭決定，太長以省略號收尾，完整讀回在滑鼠提示（裁定 2026-11-03-03）。 */
+/* 符合情形和第幾組第幾條排在同一行，位置用較淡的字接在後面；欄寬由表頭決定，太長以省略號收尾，完整讀回在滑鼠提示。 */
 .filter-match-reason { display: block; max-width: 10.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .filter-match-reason__where { margin-left: var(--space-2); font-weight: 400; color: var(--color-muted); }
 .filter-readback { padding: 8px 0; }
@@ -7209,8 +7150,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 預篩選的「篩選結果」下緣已有細線，接著的報告區不再畫第二條。 */
 .filter-entry .form__row { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); }
 .filter-entry .form__row select { width: 100%; min-width: 0; max-width: 100%; }
-/* 常用篩選條件分頁的區塊。2026-11-03 起分頁只放十個常用條件，不寫小標，也沒有第二個區塊（裁定 2026-11-03-05、2026-11-03-20），
-   原本區塊之間的細線與小標題的樣式一起拿掉。2026-11-05 起和預篩選分頁一樣是一張白紙清單（裁定 2026-11-05-08）。 */
+/* 常用篩選條件分頁的區塊。分頁只放十個常用條件，不寫小標，也沒有第二個區塊；和預篩選分頁一樣是一張白紙清單。 */
 .filter-source-block { padding: var(--space-1) 0 var(--space-4); }
 /* 情境範例選欄位時的欄位按鈕：28px 的緊湊次要按鈕；攸關資料元素欄位用虛線框和核心欄位區分。 */
 .filter-chip { min-height: var(--control-height-sm); padding: 3px 10px; border: 1px solid var(--color-border-control); border-bottom-color: var(--color-border-control-strong); border-radius: var(--radius-control); background: var(--color-surface-raised); color: var(--color-text); font: inherit; font-size: var(--text-xs); line-height: 20px; cursor: pointer; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
@@ -7235,15 +7175,13 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-example__apply:disabled { color: var(--color-disabled); background: var(--color-surface-sunken); cursor: not-allowed; }
 .filter-example__note { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--color-muted); }
 .filter-example__pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--text-xs); }
-/* 欄位條件（裁定 2026-11-03-32、2026-11-03-37）：日期、數字、文字、類別四組寫在同一張白紙上，用小標分開，組與組之間一條細線。
+/* 欄位條件：日期、數字、文字、類別四組寫在同一張白紙上，用小標分開，組與組之間一條細線。
    列和預篩選分頁的清單同一種寫法：一列一個欄位，名稱在左、「加入」在右，列之間細線分開，名稱和預篩選分頁一樣靠左。
    有常用查法的欄位，「加入」字後面接向下箭頭，按下打開共用選單，和其他選單一樣從鍵的下方長出來，打開時鍵往下凹；
    選單和整列一樣寬，蓋住底下的列。第一項是這個欄位的一般條件，下面隔一條細線是常用查法。
-   選單裡的每一項都會加入一條條件，所以和「加入」一樣在名稱前加灰色加號，滑鼠移上時加號轉深；加號和欄位名稱左緣對齊（裁定 2026-11-03-35）。
+   選單裡的每一項都會加入一條條件，所以和「加入」一樣在名稱前加灰色加號，滑鼠移上時加號轉深；加號和欄位名稱左緣對齊。
    「加入」都一樣寬，有沒有箭頭，左右兩緣都上下對齊。
-   第三個停點原本按名稱打開選單、箭頭在名稱前面，選單只有半列寬，蓋住名稱、右邊的「加入」從旁邊露出來；
-   名稱前的箭頭在 JET 其他地方代表原地展開，和浮起的選單混用。使用者第二次驗收認為整體不夠協調，試用兩種開法後選了這一種。
-   更早四組各是一張白卡，常用查法排在列的下一行、鍵和「加入」一樣大，使用者認為仍然雜亂（裁定 2026-11-03-28）。 */
+   箭頭不放在名稱前面：名稱前的箭頭在 JET 其他地方代表原地展開，不和浮起的選單混用。 */
 .filter-field-groups { padding: 0 0 var(--space-1); background: var(--color-surface); border-radius: var(--radius-card); box-shadow: 0 0 0 1px var(--color-border), var(--shadow-surface); }
 .filter-field-group + .filter-field-group { border-top: 1px solid var(--color-border-row); }
 .filter-field-group__title { margin: 0; padding: var(--space-3) var(--space-3) 2px; font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 600; line-height: 16px; color: var(--color-muted); }
@@ -7281,7 +7219,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 選單裡停用的一項，原因寫在下一行，和項目的字左緣對齊。 */
 .filter-field__shortcuts > .filter-check__note { padding: 0 var(--space-3) 6px calc(var(--space-2) + 18px); font-size: var(--text-xs); line-height: 16px; white-space: normal; }
 .filter-field-note { margin-top: var(--space-3); }
-/* 從情境範例開始：和條件總覽同一種托盤，放在條件組合那張紙的上方；範例是托盤上等寬的鍵，排成整齊的格子（裁定 2026-11-03-26）。 */
+/* 從情境範例開始：和條件總覽同一種托盤，放在條件組合那張紙的上方；範例是托盤上等寬的鍵，排成整齊的格子。 */
 .filter-template-tray { --filter-border: var(--color-border-strong); padding: var(--space-3); background: var(--color-tray); border-radius: var(--radius-surface); box-shadow: inset 0 0 0 1px var(--color-border-strong), var(--recess); }
 .filter-template-tray__title { display: flex; align-items: center; gap: 2px; margin: 0; font-family: var(--font-sans); font-size: var(--text-md); font-weight: 600; line-height: 24px; color: var(--color-ink); cursor: pointer; list-style: none; }
 .filter-template-tray__title::-webkit-details-marker { display: none; }
@@ -7328,9 +7266,9 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* 「加入」緊鄰 32px 的子條件選單，改用一般按鈕高度對齊。 */
 .filter-workspace .rule-row--compound > [data-child-add] { min-height: var(--control-height); padding: 5px var(--space-3); font-size: var(--text-sm); }
 
-/* 條件組（裁定 2026-10-11-06：選定「深藍框架」並採用全部結構改變）：
+/* 條件組：
    組是一塊淺色區，不加框；「第 N 組」與操作按鈕排在同一列。
-   組內兩條條件之間是一條分隔線，AND、OR 寫在線上、靠左和條件標題對齊（裁定 2026-11-05-16，用字見裁定 2026-10-11-04）；
+   組內兩條條件之間是一條分隔線，AND、OR 寫在線上、靠左和條件標題對齊；
    第一條分隔線上的切換有可報讀的名稱，後面分隔線上的字不給螢幕報讀。
    子條件組往內縮，左側一條括號線。選取的組仍是藍框加「已選取」。 */
 /* 上下的間距用外距、不用 row-gap：「組內條件」那一列和條件會增減，格線的間距收不掉，收完拿掉時會一次跳 8px
@@ -7347,7 +7285,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   border: 0;
   border-radius: var(--radius-card);
   background: var(--color-surface-sunken);
-  /* 沒選取時藍框是透明的同一圈：換選取的組時藍框淡入淡出，不一下子跳到別組（裁定 2026-10-13-11：出現與消失都要有動態）。 */
+  /* 沒選取時藍框是透明的同一圈：換選取的組時藍框淡入淡出，不一下子跳到別組；出現與消失都要有動態。 */
   box-shadow: 0 0 0 2px transparent, var(--recess);
   transition: box-shadow var(--motion-fade) var(--ease-soft), background-color var(--motion-fade) var(--ease-soft);
 }
@@ -7359,8 +7297,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .filter-workspace .scenario-set > .filter-group-heading > .filter-group-actions { grid-column: 3; grid-row: 1; }
 .filter-workspace .scenario-set > :not(.filter-group-heading) { grid-column: 1 / -1; min-width: 0; }
 /* 窄的時候標題列固定排成兩行：「第 N 組」一行，操作按鈕在下一行靠右，高度不隨選取改變。
-   原本按鈕欄先取滿寬度，標題欄被壓到約 44px，1440px 寬時「已選取」壓在「加入子條件組」上（2026-10-16 量到）。
-   改成放不下才換行也不行：809px 寬時只有選取中的組多了「已選取」而換成兩行，換選取的組時下面的條件跟著上下跳。 */
+   按鈕欄先取滿寬度的排法會把標題欄壓到約 44px，1440px 寬時「已選取」壓在「加入子條件組」上。
+   放不下才換行也不行：809px 寬時只有選取中的組多了「已選取」而換成兩行，換選取的組時下面的條件跟著上下跳。 */
 @container composer (max-width: 520px) {
   .filter-workspace .scenario-set { grid-template-columns: minmax(0, 1fr); }
   .filter-workspace .scenario-set > .filter-group-heading { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: var(--space-2); grid-column: 1; grid-row: 1; margin: 0; }
@@ -7387,8 +7325,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   box-shadow: calc(-1 * var(--space-3)) 0 0 var(--color-accent-subtle), var(--space-3) 0 0 var(--color-accent-subtle);
 }
 .filter-workspace .scenario-flat__list > .rule-row--invalid { background: var(--color-danger-subtle); box-shadow: calc(-1 * var(--space-3)) 0 0 var(--color-danger-subtle), var(--space-3) 0 0 var(--color-danger-subtle); }
-/* 兩條條件之間的分隔線（裁定 2026-11-05-16）：AND、OR 寫在線上，靠左和條件標題對齊。第一條是這一組的分段切換，後面的只寫同一個字，灰色。
-   原本切換在組標頭，條件左側 44px 的欄位逐條寫連接詞，子條件之間是下拉選單，同一件事有三種畫法。
+/* 兩條條件之間的分隔線：AND、OR 寫在線上，靠左和條件標題對齊。第一條是這一組的分段切換，後面的只寫同一個字，灰色。
    分隔線往上疊 4px，壓進上一條條件的下內距，條件之間不會因為多了一列而拉得太開。線用上框線畫，高對比佈景時仍看得到。 */
 .filter-workspace .rule-join {
   display: flex;
@@ -7418,7 +7355,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   padding-top: var(--space-2);
 }
 
-/* 分隔線上的 AND、OR 不寫「組內條件」（裁定 2026-11-01-07）：滑過或用鍵盤移到第一條分隔線上的切換時，這一組其他分隔線的字與線
+/* 分隔線上的 AND、OR 不寫「組內條件」：滑過或用鍵盤移到第一條分隔線上的切換時，這一組其他分隔線的字與線
    一起變成重點色，看得出它們是同一個設定。 */
 .filter-workspace .scenario-flat__list:has(> .rule-join--switch .join-toggle:hover, > .rule-join--switch .join-toggle:focus-within) > .rule-join .rule-join__word {
   color: var(--color-accent);
@@ -7430,8 +7367,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 子條件組：標題與說明在上面，其餘內容（子條件、子條件之間寫著 AND 或 OR 的分隔線與「加入子條件」）
    排在一條連續的括號線右側，表示它們屬於同一組。 */
-/* 第二欄最多用到整列寬度減去「加入」一顆按鈕：資料預覽打開、中欄變窄時，原本選單吃掉整列，
-   「加入」被壓成直排並超出右緣（2026-10-14 在 1536×864 量到）。放不下一行時「加入子條件」換到選單上方，
+/* 第二欄最多用到整列寬度減去「加入」一顆按鈕：資料預覽打開、中欄變窄時，選單若吃掉整列，
+   「加入」會被壓成直排並超出右緣（在 1536×864 量到）。放不下一行時「加入子條件」換到選單上方，
    選單撐滿這一欄，「加入」和選單同一行。 */
 .filter-workspace .rule-row--compound {
   display: grid;
@@ -7468,7 +7405,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 案件基本資料一行排完，項目之間用細線分隔；目前步驟由左側流程表示。
    視窗窄到要換行時，每一行開頭的項目不能帶著分隔線與左內距，否則換下來的「查核期間」會比上一行的「案件名稱」縮進一截
-   （裁定 2026-10-27-02）。每個項目都畫左分隔線，整列往左移出一段「分隔線加內距」，再把移出去的那段裁掉：
+。每個項目都畫左分隔線，整列往左移出一段「分隔線加內距」，再把移出去的那段裁掉：
    不論在哪個項目換行，每一行的第一個標籤都落在同一條左緣上。 */
 .case-summary__details {
   display: flex;
@@ -7494,7 +7431,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .account-editor__range { display: block; margin-top: var(--space-1); color: var(--color-muted); font-size: var(--text-xs); }
 
 
-/* ---- 改版檢查後的修正（2026-10-11 獨立檢查） --------------------------------- */
+/* ---- 各步驟的對齊與按鈕外觀調整 --------------------------------- */
 
 /* 第五步左欄的標題和右欄工作面標題同一條基線；左欄的清單借出焦點用的 3px 內距，清單邊緣對齊左欄標題。 */
 .filter-workspace .filter-entry { padding-top: calc(var(--surface-pad) + 1px); }
@@ -7505,8 +7442,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 中間工作區的按鈕只有兩種：每個工作面唯一的主要動作是藍色實心，其他按鈕一律是白底深字的按鍵，
    細框、下緣略深，停用時灰底灰字。形狀本身就看得出可以按，
-   所以列內的「移除」「檢視」「操作」等不再用藍字。灰字的「加入」像一般文字（裁定 2026-10-11-13）；
-   強調色用在左側流程很好，中間操作區不需要到處用（裁定 2026-10-29-06）。 */
+   所以列內的「移除」「檢視」「操作」等不用藍字。灰字的「加入」像一般文字；
+   強調色用在左側流程很好，中間操作區不需要到處用。 */
 .btn--tiny,
 .btn--ghost.btn--tiny {
   font-weight: 500;
@@ -7576,8 +7513,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 
 /* ==== 材質、光與動態 ====================================================================================
-   漸層框帶與立體高光不採用：Liquid Glass 不是單純增加立體感，而是設計理念和自然的表達（裁定 2026-10-11-09）。
-   之後畫面仍看不到玻璃效果，所以整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01）：通透、有自然的光澤，不用漸層填色，
+   漸層框帶與立體高光不採用：Liquid Glass 不是單純增加立體感，而是設計理念和自然的表達。
+   整個 JE Tool 要帶有 Liquid Glass 的質感：通透、有自然的光澤，不用漸層填色，
    甚至有擬物化復興的感覺。這一節依 Apple 從 1987 年的介面原則到 2026 年 Mac 介面調整一貫的想法：
    每個光影、材質或動態，都要回答「這是哪一層、能不能按、目前選中什麼、剛才的動作有沒有生效」其中一個問題，
    答不出來就不做。
@@ -7585,11 +7522,11 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
      功能層是玻璃，標題列、表格固定的表頭、選單、對話框與滑動中的選取，底下真的有內容經過。
      玻璃上不再疊玻璃，也不用漸層填色或上半部的亮面；光只在 1px 的邊上，從左上方來。
    - 光與影：浮得越高影子越長；按下藍色主要按鈕時，光從按下的位置亮起來，放開後淡掉。
-   - 動態：選取浮起來變成玻璃滑到新的位置，選單從按鈕長出來，對話框浮現；都用不回彈的彈簧，可以隨時被打斷。
+   - 動態：選取浮起來變成玻璃滑到新的位置，選單從按鈕長出來，對話框浮現；都用可以隨時被打斷的彈簧，玻璃層用 bounce 0.15 的 --ease-glass。
      按下時立刻變深並稍微鼓起，只放大不縮小，按在邊緣的點擊也還在按鈕上。
    - 退路：關閉透明效果、高對比、高對比佈景與減少動態都有對應的畫法，見本節最後。 */
 
-/* 表格固定的表頭是一條玻璃，因為整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01）：
+/* 表格固定的表頭是一條玻璃，因為整個 JE Tool 要帶有 Liquid Glass 的質感：
    表格列捲到它下面時看得到，只剩柔和的色塊，不會和表頭的字疊在一起；Apple 在 Mac 上對固定的表頭用界線清楚、比較不透明的捲動邊緣。
    整列表頭一起固定、一起是一片玻璃，每個表格只模糊一次，格與格之間不會斷開；玻璃帶一點托盤的灰，和表格列分得出來。
    下緣是玻璃的邊：內側一道光、外側一條細線；列捲到它下面時，影子加深，表示內容從它下面經過。
@@ -7629,11 +7566,11 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* ---- 選取底的滑動 -----------------------------------------------------------------------------
    換選取時，選取底從原本的位置滑到新的位置，讓人看到選取移到哪裡（Apple 的空間一致性）。
    app.js 量出目前選中的那一格，寫入 --glide-x、--glide-y、--glide-w、--glide-h，並在組上加 .has-glide；
-   選取底改由組自己的 ::before 畫。沒有 .has-glide 時，各格畫自己的選取樣式。
-   整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01），所以滑動照 Apple 控制項的做法：
+   選取底由組自己的 ::before 畫。沒有 .has-glide 時，各格畫自己的選取樣式。
+   整個 JE Tool 要帶有 Liquid Glass 的質感，所以滑動照 Apple 控制項的做法：
    選取平時是實心的一片，屬於內容層；換選取時浮起來變成玻璃（組的 ::after），在字的上面、字透得過來，
    朝目的地拉長，前緣先到、後緣跟上，到位後落回原本的一片。底線頁籤只有底線滑過去，也是前緣先到。
-   流程欄是導覽，不是控制項：換步驟時放大縮小過於醒目（裁定 2026-10-12-02），所以那一片照原樣、同樣大小平移，不浮起成玻璃。
+   流程欄是導覽，不是控制項：換步驟時放大縮小過於醒目，所以那一片照原樣、同樣大小平移，不浮起成玻璃。
    路徑由 app.js 的 bindGlide 算好交給瀏覽器播放，這裡只畫外觀，沒有轉場。 */
 .step-nav,
 .seg-toggle,
@@ -7687,7 +7624,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   pointer-events: none;
 }
 
-/* 左側流程欄：目前步驟是淡藍的一片加左側短藍條（使用者選的混合二，裁定 2026-10-08-14），凹下去的流程欄上，它像一片被拿起來的按鍵；
+/* 左側流程欄：目前步驟是淡藍的一片加左側短藍條，凹下去的流程欄上，它像一片被拿起來的按鍵；
    短藍條畫在這一片上，換步驟時連同這一片照原樣平移到新的步驟。 */
 .step-nav.has-glide::before {
   border-radius: var(--radius-card);
@@ -7755,7 +7692,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* ---- 按鍵與按下的回應 ---------------------------------------------------------------------------
-   整個 JE Tool 要帶有 Liquid Glass 的質感，甚至有擬物化復興的感覺（裁定 2026-10-12-01）。按鈕是內容層的實體按鍵：
+   整個 JE Tool 要帶有 Liquid Glass 的質感，甚至有擬物化復興的感覺。按鈕是內容層的實體按鍵：
    - 實心的藍色與紅色按鈕上緣接到一道光、底部有厚度，影子帶一點同色；白色的次要按鈕上緣一道光，底下貼著淺影；
      會新增東西的按鈕也是白色按鍵。光只在 1px 的邊上，不做上半部的亮面，也不用漸層填色。停用的按鈕是平的。
    - 按下時立刻再深一階並稍微鼓起，放開後彈回原本的大小（macOS 27 替玻璃控制項加的回饋，Apple 提醒一點點就夠）。
@@ -7853,11 +7790,11 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* ---- 浮在內容上的玻璃：選單與對話框 ------------------------------------------------------------
    選單與對話框底下有內容，所以是玻璃：不透明度八成，模糊背後的內容並提高一點飽和度，文字仍清楚。
    邊緣左上最亮、右下淡一點，外面一圈很細的暗邊和底下的內容分開，影子最長，因為它們浮得最高。
-   選單從打開它的按鈕長出來，原點對準按鈕；關閉時很快淡掉、稍微縮回按鈕（裁定 2026-10-13-11：展開與收合都要有動態，
-   原本關閉時一瞬間消失）。四角和裡面的項目同心：選單 10px、內距 4px、項目 6px。
+   選單從打開它的按鈕長出來，原點對準按鈕；關閉時很快淡掉、稍微縮回按鈕；展開與收合都要有動態。
+   四角和裡面的項目同心：選單 10px、內距 4px、項目 6px。
    外觀寫在不分開關的選擇器上：關閉的那一段仍是同一個玻璃選單，只有透明度與大小在變。
-   2026-10-15 起，選單和對話框用同一種浮現：大小走玻璃的彈簧（--ease-glass），同時從稍霧變清楚；
-   原本選單只有淡入和放大，和對話框不一致。模糊不能超過目標變成負值，所以清晰度另外走不回彈的彈簧。 */
+   選單和對話框用同一種浮現：大小走玻璃的彈簧（--ease-glass），同時從稍霧變清楚。
+   模糊不能超過目標變成負值，所以清晰度另外走不回彈的彈簧。 */
 .jet-menu__items {
   padding: var(--space-1);
   background: var(--glass-fill);
@@ -7941,10 +7878,10 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   animation: jet-dim var(--motion-fade) var(--ease-soft) both;
 }
 
-/* 關閉時也不是一瞬間消失：整個對話框連同背後變暗的部分一起淡出（裁定 2026-10-12-02：移除與關閉也要有動態）。
+/* 關閉時也不是一瞬間消失：整個對話框連同背後變暗的部分一起淡出；移除與關閉也要有動態。
    加上 hidden 的對話框在淡出期間仍顯示，播完才收起；這段時間不接收滑鼠。直接從畫面移除的對話框由 JetMotion.dismiss 淡出。
    流程總覽整片本身要淡入淡出，所以用轉場而不是浮現動畫：動畫會一直把透明度定在最後一格，關閉時就淡不出去。
-   長作業的「處理中」遮罩也一樣，作業結束時淡出，不再一下子不見（裁定 2026-10-13-11）。 */
+   長作業的「處理中」遮罩也一樣，作業結束時淡出，不是一下子不見。 */
 .modal,
 .overview-modal,
 .busy-overlay {
@@ -7983,8 +7920,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* ==== 層級、產出與條件篩選的材質 ======================================================================
-   幾個層級問題：驗證報告和測試項目看起來是同一層（裁定 2026-10-11-11），分類的上下層看不出來（裁定 2026-10-11-12），
-   「加入」看起來像一般文字（裁定 2026-10-11-13）。第五步「進階條件篩選」也要多參考 Apple 近年的 Liquid Glass 與擬物化復興（裁定 2026-10-11-14）。
+   幾個層級問題：驗證報告和測試項目看起來是同一層，分類的上下層看不出來，
+   「加入」看起來像一般文字。第五步「進階條件篩選」也要多參考 Apple 近年的 Liquid Glass 與擬物化復興。
    這一節用實物之間的關係表達層級，不加漸層、光澤或立體高光：
    - 產出是做完之後拿到的文件：工作面底部一塊低一階的托盤，每份檔案是一張文件卡，和上面的測試項目分開。
    - 分類的上下層用連續的線接起來，像在紙上畫的樹；內建分類標出「內建」，說明它為什麼沒有「移除分類」。
@@ -8086,7 +8023,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* ---- 分類的上下層 -------------------------------------------------------------------------------
    每一層往內縮 24px。下層分類用 1px 的深灰線接到上層，和白底的對比至少 3:1：同一個上層底下的分類共用一條直線，
    最後一個下層的線停在它的中間（└）；validate-step.js 依分類樹算出每一格要畫直線、├ 還是 └。
-   名稱輸入框的右緣一律對齊，右邊固定一欄放「移除分類」或「內建」，不再因為有沒有按鈕而長短不一。 */
+   名稱輸入框的右緣一律對齊，右邊固定一欄放「移除分類」或「內建」，不因為有沒有按鈕而長短不一。 */
 .account-classification {
   --category-indent: 24px;
   --category-line: var(--color-border-control-strong);
@@ -8106,8 +8043,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* 縮排只移動名稱欄，後面的分類用途、上層分類與右邊固定欄在每一列都對齊同一組欄線。
-   名稱欄在一般與進階設定都是同一個寬度（最多 520px）：切換進階設定時名稱輸入框不再一下子變窄、樹狀線不再跳到別處，
-   只有右邊多出來的欄位淡入（裁定 2026-10-13-11）。 */
+   名稱欄在一般與進階設定都是同一個寬度（最多 520px）：切換進階設定時名稱輸入框不會一下子變窄、樹狀線不會跳到別處，
+   只有右邊多出來的欄位淡入。 */
 .account-classification .category-row > .category-row__field:has(> .category-row__label) {
   margin-inline-start: calc(var(--category-depth, 0) * var(--category-indent));
 }
@@ -8192,10 +8129,10 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* ---- 會新增東西的按鈕 ---------------------------------------------------------------------------
    「加入」「新增條件組」「新增分類」「新增案件」：和其他次要按鈕同樣是白底深字的按鍵，名稱前一個灰色加號，
-   滑鼠移上時加號轉深。原本是淡藍底藍字；中間工作區
-   不要到處用強調色（裁定 2026-10-29-06），所以改成這樣。標記上一律同時有 btn--ghost，按鍵的材質與按下的回饋和其他白色按鍵相同。
+   滑鼠移上時加號轉深。中間工作區不要到處用強調色，所以不用淡藍底藍字。
+   標記上一律同時有 btn--ghost，按鍵的材質與按下的回饋和其他白色按鍵相同。
    樣式掛在 .btn--add 上，不掛在 data-action：JetMotion 收起或淡掉的舊複本會拿掉 data-action，
-   掛在屬性上時複本會露出原形，例如切換第五步頁籤時的「新增條件組」（裁定 2026-10-15-11）。 */
+   掛在屬性上時複本會露出原形，例如切換第五步頁籤時的「新增條件組」。 */
 .btn.btn--add {
   display: inline-flex;
   align-items: center;
@@ -8219,7 +8156,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   background: currentColor;
 }
 
-/* 情境範例選欄位時的欄位按鈕：名稱前一個小加號。2026-11-03 以前條件總覽的欄位按鈕也用這個樣式，欄位條件改成一列一個欄位後只剩這裡。 */
+/* 情境範例選欄位時的欄位按鈕：名稱前一個小加號。這個樣式只用在這裡。 */
 .filter-chip {
   display: inline-flex;
   align-items: center;
@@ -8262,7 +8199,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* 編輯已儲存的情境時，右邊工作面的標題是「情境：名稱」，和條件總覽同一級；「條件組合」成為工作面裡的分區，
-   用 14px 粗體的分區標題，分得出上下層（裁定 2026-10-13-08 整理標題字級；原本兩者同為 18px、又上下緊貼）。 */
+   用 14px 粗體的分區標題，分得出上下層。 */
 .filter-workspace .filter-builder-heading[data-motion-key="editing-heading"] ~ .filter-builder-heading--composition .filter-entry-title {
   font-size: var(--text-md);
 }
@@ -8284,7 +8221,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   border-top: 1px solid var(--color-border-row);
 }
 
-/* 條件總覽三個分頁的鍵同寬，「加入」與「已加入」切換時不跳動，同一欄的鍵左右兩緣對齊（裁定 2026-11-05-08）。
+/* 條件總覽三個分頁的鍵同寬，「加入」與「已加入」切換時不跳動，同一欄的鍵左右兩緣對齊。
    欄位條件有選單的「加入」後面多一個向下箭頭，和前面有勾的「已加入」一樣放得進 78px。 */
 .filter-workspace .filter-entry .btn.condition-key {
   flex: none;
@@ -8294,7 +8231,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
   font-size: var(--text-xs);
 }
 
-/* 已加入：鍵往下凹，字前面一個石板藍的勾；和展開中的按鈕同一種下凹，不用淡藍底。原本常用篩選條件加入後整張卡片變成淡藍底。 */
+/* 已加入：鍵往下凹，字前面一個石板藍的勾；和展開中的按鈕同一種下凹，不用淡藍底。 */
 .filter-workspace .filter-entry .btn.condition-key.condition-key--added {
   display: inline-flex;
   align-items: center;
@@ -8332,7 +8269,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* 沒有條件時，白紙換成虛線框。虛線框畫在提示那一段上，所以清除條件時，白紙跟著收起來的條件留到最後，才淡成虛線框，
    不會一按就先變樣（收起來的條件仍是 .rule-row，見 app.js 的 JetMotion）。
-   白紙左右的內距不跟著變：原本沒有條件時內距是 0，清除時收起來的條件被撐開 12px、收完又縮回去，看起來像晃了一下
+   白紙左右的內距不跟著變：沒有條件時內距若是 0，清除時收起來的條件會被撐開 12px、收完又縮回去，看起來像晃了一下
    （清除條件時看得到的那一下）。所以內距固定，虛線框用負的左右外距撐滿整個寬度。 */
 .filter-workspace .scenario-set > .scenario-flat__list:not(:has(> .rule-row)) {
   background: transparent;
@@ -8449,8 +8386,8 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 
 /* ---- 原地展開與收起的區塊 ----------------------------------------------------------------------
    用按鈕切換 hidden 的區塊標 data-collapsible，例如儲存情境、查看結果、高風險條件彙總與第四步的檢視。
-   打開時從標題長出來、字晚一點淡入，收起時字先淡掉、再收回標題，兩個方向都有。第五步原本的條件分類切換時
-   畫面曾經閃動（裁定 2026-10-12-02），因為原本只有打開有動畫、收起是一瞬間；現在收起也有動畫，下面的內容跟著平順移動。
+   打開時從標題長出來、字晚一點淡入，收起時字先淡掉、再收回標題，兩個方向都有動畫：
+   只有打開有動畫、收起是一瞬間時，切換時畫面會閃動；收起也有動畫，下面的內容才跟著平順移動。
    頁籤底下原地切換的窗格標 data-motion-pane，只淡入、不改高度，舊的直接收起。窗格重新出現時帶 data-motion-revealing
    （見 app.js 的 JetMotion.setShown），裡面原本就打開的展開區保持原樣，不因為窗格出現而再長一次。
    整段重繪時中欄帶 data-motion-rendering（見 app.js 的 renderContent 與 JetMotion），重建出來的區塊直接是原本的樣子，不重播。
@@ -8493,7 +8430,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* 一排裡出現與消失的按鈕或標籤（例如勾選後才出現的「清除勾選」）標 data-collapsible-inline：左右收放、淡入淡出，
-   旁邊的按鈕跟著平順移動，不再一下子被擠開（裁定 2026-10-13-11）。高度不變，只收寬度。 */
+   旁邊的按鈕跟著平順移動，不會一下子被擠開。高度不變，只收寬度。 */
 [data-collapsible-inline] {
   overflow: clip;
   white-space: nowrap;
@@ -8508,7 +8445,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 }
 
 /* 寬度要真的從 0 長出來。flex 子項預設的最小寬度（min-width: auto）會把按鈕撐在字的寬度，上層卻照 0 算寬度，
-   「全部取消」因此在展開途中擠到第二行，整排先變高再變回來（2026-10-15 在第四步科目清單量到）。
+   「全部取消」因此在展開途中擠到第二行，整排先變高再變回來（在第四步科目清單量到）。
    用 :where() 不加權重，徽章這類自己設了最小寬度的元素照舊。 */
 :where([data-collapsible-inline]) {
   min-width: 0;
@@ -8567,7 +8504,7 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 /* ---- 原生展開區從標題長出來 ----------------------------------------------------------------------
    details 打開與收起時，內容的高度跟著變，而不是一瞬間出現或消失；收起時也收回標題。
    只用在內容區的展開說明，不用在「⋯」「操作」這類選單（選單見「浮在內容上的玻璃」）。
-   展開與收合都要有動態（裁定 2026-10-13-11），所以流程總覽裡的分析區與 DEV 面板也一樣，不再只有「技術資訊」會長出來；
+   展開與收合都要有動態，所以流程總覽裡的分析區與 DEV 面板也一樣；
    第五步右側的「從情境範例開始」托盤也一樣。 */
 :is(.prescreen-signals, .filter-unavailable, .value-editor__options, .filter-rule-help, .overview__technical, .overview__analysis, .dev-panel, .filter-template-tray) {
   interpolate-size: allow-keywords;

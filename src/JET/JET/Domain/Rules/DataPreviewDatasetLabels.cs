@@ -3,8 +3,8 @@ namespace JET.Domain;
 internal sealed record DataPreviewDatasetLabel(string Dataset, string Label);
 
 /// <summary>
-/// 資料預覽各資料集的顯示文字權威。資料名稱全系統統一（裁定 2026-10-08-04 與 2026-10-08-05）：
-/// PBC-GL、GL、PBC-TB、TB、GL(未納入測試)；wire dataset key 同步改為 pbcGl、gl、pbcTb、tb、glExcluded。
+/// 資料預覽各資料集的顯示文字權威。資料名稱全系統統一：
+/// PBC-GL、GL、PBC-TB、TB、GL(未納入測試)；對應的 wire dataset key 是 pbcGl、gl、pbcTb、tb、glExcluded。
 /// 前端 data-preview.js 的 DATASETS 與 MAIN_TABS 逐字鏡射本檔，由 DataPreviewFrontendTests 把關。
 /// </summary>
 internal static class DataPreviewDatasetLabels

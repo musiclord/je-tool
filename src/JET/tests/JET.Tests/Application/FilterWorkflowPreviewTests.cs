@@ -27,9 +27,7 @@ public sealed class FilterWorkflowPreviewTests
     {
         using var host = new HandlerTestHost();
         var setup = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
-        // 2026-10-29 卡片改稱常用篩選條件、拿掉字母：資料改成現行前端送出的第 2 版編輯來源與 source:common，
-        // 名稱改成卡片名稱，斷言不變。2026-10-29 以前的第 1 版資料能存回，由 FilterNonBusinessDayWorkflowTests 核對。
-        // 這次改的是測試資料，不是因為測試失敗。
+        // 資料是現行前端送出的第 2 版編輯來源與 source:common，名稱是卡片名稱。
         var scenario = JsonDocument.Parse("""
           {"name":"空白摘要","rationale":"Synthetic","source":"common",
            "editorOrigins":{"version":2,"nameIsAutomatic":true,"rationaleIsAutomatic":false,
@@ -62,8 +60,8 @@ public sealed class FilterWorkflowPreviewTests
           """).RootElement;
         var saved = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new { scenarios = new[] { scenario } }));
         Assert.Equal(scenario.GetProperty("editorOrigins").GetRawText(), saved.GetProperty("scenarios")[0].GetProperty("editorOrigins").GetRawText());
-        // 裁定 2026-10-29-16 拿掉名稱必填後，空白名稱不再讓儲存失敗；這裡要的是一次失敗的儲存，改用不存在的欄位。
-        // 「失敗的儲存不覆蓋已存情境」的斷言不變。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+        // 空白名稱不會讓儲存失敗；這裡要的是一次失敗的儲存，所以用不存在的欄位，
+        // 核對失敗的儲存不覆蓋已存情境。
         var invalid = JsonDocument.Parse("""{"name":"","groups":[{"conditions":[{"type":"text","field":"no_such_field","keywords":"x","mode":"contains"}]}]}""").RootElement;
         var failedSave = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.commit",
             JsonSerializer.Serialize(new { scenarios = new[] { invalid } })));
@@ -77,8 +75,8 @@ public sealed class FilterWorkflowPreviewTests
         Assert.False(page.TryGetProperty("resultKind", out _));
     }
 
-    // 裁定 2026-10-29-16：沒有名稱的草稿也能儲存，系統依條件補上名稱與動機。原本斷言儲存回 invalid_scenario，
-    // 改成斷言存下自動名稱與動機。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+    // 沒有名稱的草稿也能儲存，系統依條件補上名稱與動機；
+    // 這裡斷言存下自動名稱與動機。
     [Fact]
     public async Task UnnamedDraft_CanPreviewReadAndSaveWithGeneratedName()
     {

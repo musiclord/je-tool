@@ -9,7 +9,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 底稿欄位來源忠實性 synthetic regression（master spec「正式底稿欄位來源忠實性」節）。
+/// 底稿欄位來源忠實性 synthetic regression。
 /// R2 的欄位集合、實際名稱與 ordinal 由獨立的資料庫 schema metadata
 /// （field_info 的 source scope，依 ordinal）驗證，且必須包含未被欄位配對
 /// 選中的來源欄位；R6 取自 GL 來源欄位的標題必須沿用與 R2 相同的 schema lineage，
@@ -136,7 +136,7 @@ public sealed class PrescreenReportSourceLineageTests
         try
         {
             var database = new SqliteProjectDatabase(new JetProjectFolder(projectsRoot));
-            // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+            // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
             await database.EnsureCreatedAsync(projectId, CancellationToken.None);
             var writer = CreateWriter(database);
             var projection = ZeroHitProjection();
@@ -246,7 +246,6 @@ public sealed class PrescreenReportSourceLineageTests
                 ["amount"] = AmountColumn,
                 ["drCr"] = DebitFlagColumn,
                 // 上方合成來源明確使用 1/0，補貸方 0，來源與報告固定預期不變。
-                // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
                 ["drCrDebitCode"] = "1",
                 ["drCrCreditCode"] = "0"
             },
@@ -340,7 +339,7 @@ public sealed class PrescreenReportSourceLineageTests
             RareAccounts: new("V", null, 0),
             BlankDescription: notApplicable)
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。
             ZerosThreshold = 6
         };
     }

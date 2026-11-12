@@ -68,7 +68,7 @@ public sealed class GlExcludedPopulationTests
     }
 
     /// <summary>
-    /// 裁定 2026-10-21-04 把日期不符分成三種原因。同一組產生的列逐列比對獨立算出的原因：
+    /// 日期不符分成三種原因。同一組產生的列逐列比對獨立算出的原因：
     /// 產生的總帳日期涵蓋空白、查核起日前一天、整個期間與迄日之後四天。
     /// </summary>
     [Property(Replay = "20260815,105", MaxTest = 256)]
@@ -126,9 +126,8 @@ public sealed class GlExcludedPopulationTests
         Assert.Equal(expected, GlExcludedPopulation.SqlPredicate(tableAlias));
     }
 
-    // 2026-10-28 複審：日期不符這組原因原本在兩個驗證倉儲各寫一份，改由分類的處置產生。驗證摘要的數字由
-    // QueryDataPreviewHandlerTests 的三種日期原因案例在 SQLite 與 DuckDB 核對；這裡核對條件涵蓋的原因。
-    // 改程式之後才補，沒有第一次失敗的收據。
+    // 日期不符這組原因由分類的處置產生。驗證摘要的數字由
+    // QueryDataPreviewHandlerTests 的三種日期原因案例核對；這裡核對條件涵蓋的原因。
     [Fact]
     public void ExcludedByPeriodSqlPredicate_CoversExactlyTheReasonsWhoseDispositionIsDateMismatch()
     {
@@ -152,7 +151,7 @@ public sealed class GlExcludedPopulationTests
 
         Assert.Equal(GlExcludedPopulationDisposition.ExcludedByPeriod, result.Disposition);
         Assert.True(result.IsExcluded);
-        // 裁定 2026-10-21-04 把日期不符分成三種原因，早於查核期間另記；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        // 日期不符分成三種原因，早於查核期間另記。
         Assert.Equal("before_period", result.StorageReason);
     }
 
@@ -166,7 +165,7 @@ public sealed class GlExcludedPopulationTests
             policy: Policy(["posted"]));
 
         Assert.Equal(GlExcludedPopulationDisposition.ExcludedByPeriod, result.Disposition);
-        // 裁定 2026-10-21-04 把日期不符分成三種原因，總帳日期空白另記；建置失敗收據 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
+        // 日期不符分成三種原因，總帳日期空白另記。
         Assert.Equal(GlExcludedPopulation.BlankGlDateStorageReason, result.StorageReason);
     }
 
@@ -254,7 +253,7 @@ public sealed class GlExcludedPopulationTests
         Assert.Equal(
             GlExcludedPopulationDisposition.ExcludedByPeriod,
             outsidePeriod.Disposition);
-        // 裁定 2026-10-21-04 把日期不符分成三種原因，晚於查核期間另記；建置失敗收據 20261021-080724377-52540d9f361849b9a99477c6ec7ae4cc。
+        // 日期不符分成三種原因，晚於查核期間另記。
         Assert.Equal(GlExcludedPopulation.AfterPeriodStorageReason, outsidePeriod.StorageReason);
     }
 

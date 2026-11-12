@@ -6,10 +6,7 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// SQLite 與 DuckDB 每次 Public 都執行；SQL Server 版在 2026-10-19 為了核對三種資料庫結果一致而補上，只在 Provider 執行。
-// 三種資料庫比對同一組固定答案。
-// 「同一傳票」比對範圍停用寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改寫前的寫法無法再解析，所以拿掉它那一半，只留整張傳票條件對固定答案與傳票明細說明的比對
-// （停用寫法與現行寫法命中相同，最後一次在 Focused 收據 20261030-075358791-be8fbb69606344368d7a86a233582c62 通過）。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊的比對範圍改成無法讀取，原寫法沒有命中）。
+// 整張傳票條件對固定答案與傳票明細說明的比對。
 public sealed class FilterSinglePurposeVoucherEquivalenceTests
 {
     private const string Seed = """
@@ -52,7 +49,6 @@ public sealed class FilterSinglePurposeVoucherEquivalenceTests
             Assert.Equal([new FilterConditionPosition(1, 1)], detail.Details[0].PrimaryConditions);
             Assert.All(detail.Details.Skip(1), row => Assert.Empty(row.PrimaryConditions));
             Assert.All(detail.Details, row => Assert.Equal([new FilterConditionPosition(1, 2), new FilterConditionPosition(1, 3)], row.VoucherConditions));
-            // 原本另斷言每列的佐證條件為空；舊的「同一傳票」寫法拿掉後，傳票明細不再有佐證條件這一欄，這則斷言跟著拿掉。
         }
     }
 

@@ -9,12 +9,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>
-/// 科目編號空白的列，SQLite 排在最前、DuckDB 排在最後，
-/// 舊的換頁條件「科目編號大於上一頁最後一個」又會排除空白，所以 DuckDB 在科目超過一頁時漏掉它。
-/// 這裡用固定答案要求兩個資料庫逐頁讀到同一個順序：空白科目在最前，試算表那一列在總帳那一列之前，
+/// 用固定答案要求逐頁讀到同一個順序：空白科目在最前，試算表那一列在總帳那一列之前，
 /// 其餘依科目編號；換頁不漏不重，每頁 1 列時也一樣。
 /// </summary>
 public sealed class CompletenessBlankAccountPagingTests
@@ -99,7 +95,7 @@ public sealed class CompletenessBlankAccountPagingTests
     [InlineData("sqlite", 1)]
     [InlineData("sqlite", 2)]
     [InlineData("sqlite", PageRequest.DefaultPageSize)]
-    public async Task AccountAndDiffPages_ReadBlankAccountRows_InTheSameOrderOnBothProviders(string provider, int pageSize)
+    public async Task AccountAndDiffPages_ReadBlankAccountRows_InTheDefaultOrder(string provider, int pageSize)
     {
         using var root = new TempProjectRoot();
         var db = await SeedAsync(root, provider);

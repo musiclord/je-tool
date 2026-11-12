@@ -14,7 +14,6 @@ namespace JET.Tests.Application;
 ///   - oracle：filter_hit 命中數 == 對 gl 的獨立 recount。
 ///     採 nonAuthorizedPreparer 情境（示範資料的「未授權者」分錄；demo 母體確有命中），
 ///     recount 以建立人員名稱獨立重數（非以 C# 重實作規則），故為有效 oracle。
-///     （裁定 2026-10-08-03 移除傳票日期與回溯過帳，原本的 backdatedPosting 情境改為 nonAuthorizedPreparer。）
 ///   - 失效不變量：重投影後 filter_hit 為空（與 validation_result、prescreen_result 及抽樣同失效集）。
 /// 每個測試自建 host（會變更狀態，不可共用 DemoProjectFixture）。
 /// </summary>
@@ -51,7 +50,7 @@ public sealed class FilterHitMaterializeTests
         }
     }
 
-    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳：recount 改數示範資料中建立人員為「未授權者」的分錄。
+    // recount 數示範資料中建立人員為「未授權者」的分錄。
     private const string NonAuthorizedRecount =
         "SELECT COUNT(*) FROM gl g " +
         "WHERE g.created_by = '未授權者';";
@@ -62,7 +61,7 @@ public sealed class FilterHitMaterializeTests
             scenarios = new[] { new {
                 name, rationale = "test",
                 groups = new[] { new { join = "and", conditions = new[] {
-                    // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，改用示範資料同樣整張傳票兩列皆命中的非授權編製人員。
+                    // 用示範資料中整張傳票兩列皆命中的非授權編製人員。
                     new { join = "and", type = "prescreen", prescreenKey = "nonAuthorizedPreparer" } } } }
             } }
         });

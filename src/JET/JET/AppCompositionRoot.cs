@@ -28,7 +28,10 @@ public static partial class AppCompositionRoot
             diagnosticLogDirectory: GetDiagnosticLogDirectory());
     }
 
-    /// <summary>測試可注入 temp projects root 與開發工具旗標（測試預設啟用以涵蓋 dev.db.* 契約）。</summary>
+    /// <summary>
+    /// 測試可注入 temp projects root 與開發工具旗標（測試預設啟用以涵蓋 dev.db.* 契約）。
+    /// 呼叫端也可以包裝每個 action handler，並交給 runtime 一段啟動後在背景執行的工作；桌面程式本身兩者都不用。
+    /// </summary>
     public static JetApplicationRuntime CreateRuntime(
         IHostShell hostShell,
         string projectsRootPath,
@@ -37,72 +40,13 @@ public static partial class AppCompositionRoot
         RingBufferLoggerProvider? diagnosticLoggerProvider = null,
         string? diagnosticLogDirectory = null,
         string? principalName = null,
-        string? userProfileDirectory = null)
-    {
-#if JET_AGENT_GUI_TEST
-        return CreateRuntimeCore(
-            hostShell,
-            projectsRootPath,
-            enableDevTools,
-            eventPublisher,
-            diagnosticLoggerProvider,
-            diagnosticLogDirectory,
-            principalName,
-            userProfileDirectory,
-            agentGuiTestFixtures: null);
-#else
-        return CreateRuntimeCore(
-            hostShell,
-            projectsRootPath,
-            enableDevTools,
-            eventPublisher,
-            diagnosticLoggerProvider,
-            diagnosticLogDirectory,
-            principalName,
-            userProfileDirectory);
-#endif
-    }
-
-#if JET_AGENT_GUI_TEST
-    internal static JetApplicationRuntime CreateAgentGuiTestRuntime(
-        IHostShell hostShell,
-        AgentGuiTestProfile profile,
-        IJetEventPublisher eventPublisher)
-    {
-        var fixtures = new AgentGuiTestFixtures(profile);
-        var releaseVisibleSurface = profile.FixtureIds.Contains(
-            AgentGuiTestFixtures.ReleaseVisibleSurfaceId,
-            StringComparer.Ordinal);
-        return CreateRuntimeCore(
-            hostShell,
-            profile.ProjectsRootPath,
-            enableDevTools: !releaseVisibleSurface,
-            eventPublisher: eventPublisher,
-            diagnosticLoggerProvider: null,
-            diagnosticLogDirectory: profile.DiagnosticLogDirectory,
-            principalName: AgentGuiTestProfile.IsolatedPrincipal,
-            userProfileDirectory: profile.UserProfileDirectory,
-            agentGuiTestFixtures: fixtures);
-    }
-#endif
-
-    private static JetApplicationRuntime CreateRuntimeCore(
-        IHostShell hostShell,
-        string projectsRootPath,
-        bool enableDevTools,
-        IJetEventPublisher? eventPublisher,
-        RingBufferLoggerProvider? diagnosticLoggerProvider,
-        string? diagnosticLogDirectory,
-        string? principalName,
-        string? userProfileDirectory
-#if JET_AGENT_GUI_TEST
-        , AgentGuiTestFixtures? agentGuiTestFixtures
-#endif
-        )
+        string? userProfileDirectory = null,
+        Func<IApplicationActionHandler, ProjectSession, IApplicationActionHandler>? decorateHandler = null,
+        Func<ActionDispatcher, CancellationToken, Task>? startupWork = null)
     {
         var folder = new JetProjectFolder(projectsRootPath);
         var projectStore = new JsonFileProjectStore(folder);
-        // 目前只支援 SQLite 案件（裁定 2026-11-06-08），每個案件資料夾一個 jet.db。
+        // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
         var sqliteDatabase = new SqliteProjectDatabase(folder);
 
         // 專案工作鎖是跨程序檔案鎖。鎖 handle 由 runtime 擁有，關窗／測試 host dispose 時一定釋放。
@@ -115,13 +59,13 @@ public static partial class AppCompositionRoot
 
         // Release-safe 支援日誌永遠註冊，只收 Information+ allowlist 並在寫入 buffer 前去識別；Debug
         // 另掛原有完整 ring/file sink。Release minimum level=Information，不格式化 sql/tx 的 Debug 內容。
-        // 屬於案件的事件另外附加到案件資料夾的支援紀錄，跨次開啟仍匯出得到（裁定 2026-10-21-08）。
+        // 屬於案件的事件另外附加到案件資料夾的支援紀錄，跨次開啟仍匯出得到。
         var supportCaseHistory = new SupportCaseHistoryStore(folder);
         var supportDiagnostic = new SupportRingBufferLoggerProvider(SupportLogCapacity, supportCaseHistory);
         var diagnostic = enableDevTools
             ? diagnosticLoggerProvider ?? new RingBufferLoggerProvider(DiagnosticLogCapacity)
             : null;
-        // 診斷日誌檔案 sink(dev-only):與 ring buffer 並列,讓 agent 跑完 app 後直接讀 NDJSON 執行時日誌。
+        // 診斷日誌檔案 sink(dev-only):與 ring buffer 並列,app 跑完後可以直接讀 NDJSON 執行時日誌。
         // 僅在啟用 dev 工具且指定目錄時建立；Release 不建立 raw sink，另有去識別 support buffer。
         var diagnosticFile = diagnostic is not null && diagnosticLogDirectory is not null
             ? new NdjsonFileLoggerProvider(diagnosticLogDirectory)
@@ -177,50 +121,12 @@ public static partial class AppCompositionRoot
                 new BinaryExcelTableReader(), new AccessTableReader());
             var mappingMetadataReader = new OpenXmlMappingMetadataReader();
             var mappingRestoreAuthorizations = new MappingRestoreDraftAuthorizationStore();
-#if DEBUG || JET_AGENT_GUI_TEST
-#if JET_AGENT_GUI_TEST
-            var demoFileWriter = agentGuiTestFixtures is { SeedsProjectState: true }
-                ? new DemoWorkbookWriter(agentGuiTestFixtures.DemoWorkbookRootPath)
-                : new DemoWorkbookWriter();
-#else
+#if DEBUG
             var demoFileWriter = new DemoWorkbookWriter();
-#endif
 #endif
             var hostDialogProjectContext = new HostDialogProjectContext(session, folder);
             var events = eventPublisher ?? new NullEventPublisher();
-#if JET_AGENT_GUI_TEST
-            if (agentGuiTestFixtures is not null)
-            {
-                events = agentGuiTestFixtures.DecorateEventPublisher(events);
-            }
-#endif
             var cancellationRegistry = new RequestCancellationRegistry();
-            IApplicationActionHandler projectListLocalHandler =
-                new ProjectListLocalHandler(projectStore);
-            IApplicationActionHandler calendarSetNonWorkingDaysHandler =
-                new CalendarSetNonWorkingDaysHandler(
-                    projectStore,
-                    session,
-                    loggerFactory.CreateLogger<CalendarSetNonWorkingDaysHandler>());
-            IApplicationActionHandler projectSaveProgressHandler =
-                new ProjectSaveProgressHandler(projectStore, session);
-            IApplicationActionHandler queryDataPreviewHandler =
-                new QueryDataPreviewHandler(projectStore, session);
-#if JET_AGENT_GUI_TEST
-            if (agentGuiTestFixtures is not null)
-            {
-                projectListLocalHandler =
-                    agentGuiTestFixtures.DecorateProjectListLocal(projectListLocalHandler);
-                calendarSetNonWorkingDaysHandler =
-                    agentGuiTestFixtures.DecorateCalendarSetNonWorkingDays(
-                        calendarSetNonWorkingDaysHandler);
-                projectSaveProgressHandler =
-                    agentGuiTestFixtures.DecorateProjectSaveProgress(
-                        projectSaveProgressHandler);
-                queryDataPreviewHandler =
-                    agentGuiTestFixtures.DecorateDataPreview(queryDataPreviewHandler, session);
-            }
-#endif
 
             List<IApplicationActionHandler> handlers =
             [
@@ -229,7 +135,7 @@ public static partial class AppCompositionRoot
             new OperationCancelHandler(cancellationRegistry),
             // 使用者身分徽章：回報合格化 Windows 帳號與短名，不連線，也不會失敗。
             new SystemWhoAmIHandler(currentPrincipal),
-            projectListLocalHandler,
+            new ProjectListLocalHandler(projectStore),
             new ProjectCreateHandler(
                 projectStore, repositoryCatalog, currentPrincipal, session,
                 supportCaseHistory, loggerFactory.CreateLogger<ProjectCreateHandler>()),
@@ -250,7 +156,7 @@ public static partial class AppCompositionRoot
                 actionExecutionGate,
                 sqliteDatabase,
                 loggerFactory.CreateLogger<ProjectReleaseLockHandler>()),
-#if DEBUG || JET_AGENT_GUI_TEST
+#if DEBUG
             new ProjectLoadDemoHandler(),
             new DemoExportGlFileHandler(demoFileWriter),
             new DemoExportTbFileHandler(demoFileWriter),
@@ -270,7 +176,8 @@ public static partial class AppCompositionRoot
                 loggerFactory.CreateLogger<ImportHolidayFromFileHandler>()),
             new ImportMakeupDayFromFileHandler(fileReader, projectStore, session,
                 loggerFactory.CreateLogger<ImportMakeupDayFromFileHandler>()),
-            calendarSetNonWorkingDaysHandler,
+            new CalendarSetNonWorkingDaysHandler(
+                projectStore, session, loggerFactory.CreateLogger<CalendarSetNonWorkingDaysHandler>()),
             new MappingRestoreDraftHandler(mappingMetadataReader, mappingRestoreAuthorizations, session),
             new MappingValueProfileHandler(session),
             new MappingCommitGlHandler(mappingRestoreAuthorizations, projectStore, session, events, loggerFactory.CreateLogger<MappingCommitGlHandler>()),
@@ -282,8 +189,8 @@ public static partial class AppCompositionRoot
             new FilterScenarioSaveHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioSaveHandler>()),
             new FilterScenarioRemoveHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioRemoveHandler>()),
             new FilterScenarioRecheckHandler(projectStore, session, loggerFactory.CreateLogger<FilterScenarioRecheckHandler>()),
-            projectSaveProgressHandler,
-            queryDataPreviewHandler,
+            new ProjectSaveProgressHandler(projectStore, session),
+            new QueryDataPreviewHandler(projectStore, session),
             new QueryCompletenessDiffPageHandler(projectStore, session),
             new QueryAccountMappingBlankPageHandler(session),
             new QueryAccountMappingDifferencePageHandler(session),
@@ -319,19 +226,6 @@ public static partial class AppCompositionRoot
             new HostExitAppHandler(hostShell)
             ];
 
-#if JET_AGENT_GUI_TEST
-            if (agentGuiTestFixtures is not null)
-            {
-                for (var index = 0; index < handlers.Count; index++)
-                {
-                    handlers[index] =
-                        agentGuiTestFixtures.DecorateExportAction(handlers[index]);
-                    handlers[index] = agentGuiTestFixtures.DecorateBlankSearch(handlers[index]);
-                    handlers[index] = agentGuiTestFixtures.DecorateAuthorizedList(handlers[index]);
-                }
-            }
-#endif
-
             // 開發者工具 action 只在 Debug 組建註冊；Release 呼叫 dev.db.* 得到 unknown action
             if (enableDevTools)
             {
@@ -345,6 +239,14 @@ public static partial class AppCompositionRoot
                     folder));
             }
 
+            if (decorateHandler is not null)
+            {
+                for (var index = 0; index < handlers.Count; index++)
+                {
+                    handlers[index] = decorateHandler(handlers[index], session);
+                }
+            }
+
             // 引擎錯誤映射：辨識 SQLite 強型樣；Bridge 只收 delegate，不依賴 Infrastructure，未知例外維持 bridge_error。
             var dispatcher = new ActionDispatcher(
                 handlers, loggerFactory.CreateLogger<ActionDispatcher>(), session,
@@ -354,18 +256,9 @@ public static partial class AppCompositionRoot
                 // SQLite 案件在變更型作業結束後把記錄檔併回資料庫檔。
                 sqliteDatabase);
 
-            // 啟動工作在背景執行，視窗照常立即顯示。正式程式沒有啟動工作；Gui 測試組態在這裡建立測試案件。
-            Func<CancellationToken, Task>? startupWork = null;
-#if JET_AGENT_GUI_TEST
-            if (agentGuiTestFixtures is { SeedsProjectState: true })
-            {
-                startupWork = cancellationToken => agentGuiTestFixtures.SeedProjectStateAsync(
-                    dispatcher,
-                    cancellationToken);
-            }
-#endif
             runtime = new JetApplicationRuntime(dispatcher, runtimeResources);
-            runtime.Start(startupWork);
+            // 啟動工作在背景執行，視窗照常立即顯示。
+            runtime.Start(startupWork is null ? null : cancellationToken => startupWork(dispatcher, cancellationToken));
             return runtime;
         }
         catch
@@ -385,7 +278,7 @@ public static partial class AppCompositionRoot
 
     private static string GetDiagnosticLogDirectory()
     {
-        // 診斷日誌檔(dev-only):每次啟動寫一檔到 %LOCALAPPDATA%\JET\logs\,供 agent 讀執行時真相。
+        // 診斷日誌檔(dev-only):每次啟動寫一檔到 %LOCALAPPDATA%\JET\logs\,供診斷時讀取執行時日誌。
         return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JET", "logs");
     }

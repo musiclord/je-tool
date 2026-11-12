@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "extractionMode": "One appearance behavior per non-comment line in the five named procedures; trim leading whitespace, skip lines whose first non-whitespace character is an apostrophe, and match the Stage 3 property allowlist case-insensitively. The entry count is always derived from the current source files.",
+  "extractionMode": "One appearance behavior per non-comment line in the five named procedures; trim leading whitespace, skip lines whose first non-whitespace character is an apostrophe, and match the property allowlist case-insensitively. The entry count is always derived from the current source files.",
   "entries": [
     {
       "id": "validation-summary-missing-account-fill",
@@ -656,7 +656,7 @@
       "ismLine": 10831,
       "sourceText": "oSheet.Range(\"A1\").Font.Bold = True",
       "jetOutput": null,
-      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
+      "noCorrespondenceReason": "底稿的欄位資訊頁不放版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格。"
     },
     {
       "id": "workingpaper-field-info-version-font",
@@ -672,7 +672,7 @@
       "ismLine": 10832,
       "sourceText": "oSheet.Range(\"A1\").Font.Name = \"Calibri\"",
       "jetOutput": null,
-      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
+      "noCorrespondenceReason": "底稿的欄位資訊頁不放版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格。"
     },
     {
       "id": "workingpaper-field-info-version-size",
@@ -688,7 +688,7 @@
       "ismLine": 10833,
       "sourceText": "oSheet.Range(\"A1\").Font.Size = 16",
       "jetOutput": null,
-      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
+      "noCorrespondenceReason": "底稿的欄位資訊頁不放版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格。"
     },
     {
       "id": "workingpaper-field-info-version-color",
@@ -704,7 +704,7 @@
       "ismLine": 10834,
       "sourceText": "oSheet.Range(\"A1\").Font.ColorIndex = 3",
       "jetOutput": null,
-      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
+      "noCorrespondenceReason": "底稿的欄位資訊頁不放版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格。"
     },
     {
       "id": "workingpaper-field-info-version-fill",
@@ -720,7 +720,7 @@
       "ismLine": 10835,
       "sourceText": "oSheet.Range(\"A1\").Interior.Color = RGB(0, 102, 255)",
       "jetOutput": null,
-      "noCorrespondenceReason": "使用者 2026-11-06 裁定底稿的欄位資訊頁拿掉版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格（裁定 2026-11-06-11）。"
+      "noCorrespondenceReason": "底稿的欄位資訊頁不放版本字樣 V.2019 與藍底紅字的版本列，JET 不寫這一格。"
     },
     {
       "id": "workingpaper-field-info-tb-header-bold",

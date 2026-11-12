@@ -79,9 +79,8 @@ public sealed class AccountCategorySaveHandlerTests
             Item(item.CategoryId, item.Label, item.Ordinal, item.SemanticRole)));
         if (useKind == "scenario")
         {
-            // 上游修改會清除下游（裁定 2026-10-07-03）：分類設定的修改會清掉全部已存情境，
-            // 所以只被情境使用的分類改為可以刪除，情境一併清除。第一次失敗收據
-            // 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            // 上游修改會清除下游：分類設定的修改會清掉全部已存情境，
+            // 所以只被情境使用的分類可以刪除，情境一併清除。
             var saved2 = await host.DispatchAsync("accountCategory.save", deleteCustom);
             Assert.Equal(3, saved2.GetProperty("revision").GetInt32());
             Assert.DoesNotContain(

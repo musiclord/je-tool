@@ -16,7 +16,7 @@ public sealed class MappingValueProfileHandler(
 
     public string Action => "mapping.valueProfile";
 
-    // 所選來源欄已不在最近一次匯入的 GL 中（用字依裁定 2026-10-14-01）。
+    // 所選來源欄已不在最近一次匯入的 GL 中。
     private static string SourceColumnMissing(string sourceColumn) =>
         $"所選來源欄已不在本次匯入的資料中：{sourceColumn}，請重新選擇。";
 
@@ -48,7 +48,7 @@ public sealed class MappingValueProfileHandler(
         }
         if (checkSourceValues && (comparisonOnly || !hasComparisonValues))
             throw JetPayloadRejection.Create(JetErrorCodes.InvalidPayload, "check_source_values_shape");
-        // 來源欄勾了往下填補時，值概況照填補後的值計數（裁定 2026-10-28-03）；只比對文字時不讀來源，帶它沒有意義。
+        // 來源欄勾了往下填補時，值概況照填補後的值計數；只比對文字時不讀來源，帶它沒有意義。
         var fillDown = false;
         if (payload.TryGetProperty("fillDown", out var fillDownElement))
         {

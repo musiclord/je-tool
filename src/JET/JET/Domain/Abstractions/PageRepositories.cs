@@ -13,9 +13,8 @@ public interface ISourceQualityPageRepository
 }
 
 /// <summary>
-/// 空值/期外日期紀錄的 keyset 分頁回取。排序鍵 entry_id ASC(PK);游標述詞為展開布林式
-/// <c>AND entry_id &gt; @cursor</c>(@cursor 綁 long;首頁省略);limit 由方言出。
-/// <paramref name="category"/> 決定 WHERE 述詞(白名單列舉,非任意字串);approvalDateNotInPeriod 需期間。
+/// 空值/期外日期紀錄的 keyset 分頁回取。沒有指定排序時依 entry_id(PK) 升冪，也可依審計員選的欄位排序。
+/// <c>category</c> 決定 WHERE 述詞(白名單列舉,非任意字串);approvalDateNotInPeriod 需期間。
 /// </summary>
 public interface IBlankRecordsPageRepository
 {
@@ -56,10 +55,6 @@ public interface ICompletenessAccountPageRepository
 }
 
 /// <summary>
-/// 完整性全科目差異(diff≠0)的 keyset 分頁回取。排序鍵 account_number ASC(唯一、有索引);
-/// 游標述詞為展開布林式(跨 provider,不用元組比較);limit 由方言出。
-/// </summary>
-/// <summary>
 /// 科目配對檔分類欄留白的科目 keyset 分頁（排序鍵 account_number ASC）。留白已依 legacy 投影為 Others，
 /// 這裡只是讓審計員看到哪些科目沒填，不影響篩選結果。
 /// </summary>
@@ -69,6 +64,10 @@ public interface IAccountMappingBlankPageRepository
         string projectId, PageRequest request, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// 完整性全科目差異(diff≠0)的 keyset 分頁回取。排序鍵 account_number ASC(唯一、有索引);
+/// 游標述詞為展開布林式(不用元組比較)。
+/// </summary>
 public interface ICompletenessDiffPageRepository
 {
     /// <summary>periodStart/periodEnd 界定完整性 GL 彙總的本期母體（與 CTE 8 消費端一致）。</summary>
@@ -78,8 +77,7 @@ public interface ICompletenessDiffPageRepository
 
 /// <summary>
 /// 借貸不平傳票(GROUP BY voucher_number HAVING SUM(amount_scaled)≠0)的 keyset 分頁回取。
-/// 排序鍵 voucher_number ASC(有索引);游標述詞為展開布林式(跨 provider,不用元組比較);
-/// limit 由方言出。
+/// 排序鍵 voucher_number ASC(有索引);游標述詞為展開布林式(不用元組比較)。
 /// </summary>
 public interface IVoucherBalancePageRepository
 {
@@ -112,7 +110,7 @@ public interface IUnbalancedVoucherPageRepository
 
 /// <summary>
 /// 已存篩選情境命中(filter_hit)行層明細的 keyset 分頁回取。排序鍵 entry_id ASC;
-/// 游標述詞為展開布林式 <c>AND g.entry_id &gt; @cursor</c>(@cursor 綁 long;首頁省略);limit 由方言出。
+/// 游標述詞為展開布林式 <c>AND g.entry_id &gt; @cursor</c>(@cursor 綁 long;首頁省略)。
 /// filter_hit 依 scenario_id 接 filter_scenario 取位置，主鍵 (scenario_id, entry_id) 覆蓋本 seek。
 /// 惰性補算(該 position 無列但 filter_scenario 有定義)由 Application handler 重用
 /// <see cref="JET.Domain.IFilterHitMaterializer"/> 落地後再呼叫本方法,維持 Infrastructure 不反向依賴 Application。
@@ -152,8 +150,8 @@ public sealed record PrescreenHitCounts(long VoucherHitCount, long RowHitCount);
 
 /// <summary>
 /// INF 抽樣(inf_sample)行層明細的 keyset 分頁回取。排序鍵 entry_id ASC(PK);
-/// 游標述詞為展開布林式 <c>AND g.entry_id &gt; @cursor</c>(@cursor 綁 long;首頁省略);limit 由方言出。
-/// 樣本表以 (result_id, entry_id) 跨 run 累積；caller 必須明確提供 <paramref name="resultId" />，
+/// 游標述詞為展開布林式 <c>AND g.entry_id &gt; @cursor</c>(@cursor 綁 long;首頁省略)。
+/// 樣本表以 (result_id, entry_id) 跨 run 累積；caller 必須明確提供 <c>resultId</c>，
 /// 使正式報告可證明資料屬於指定 validation run，而不是在 repository 內隱含選「最新一次」。
 /// </summary>
 public interface IInfSamplePageRepository

@@ -104,8 +104,8 @@ internal static class LegacyAuditParityLegacyObservationFactory
             "legacy-inf-sheet");
         var keys = new List<LegacyInfMemberKey>();
         var encounteredGap = false;
-        // The two repository legacy writers disagree by one sample: idea-tool.bas
-        // writes 59 rows (53-111), while idea-script.bas writes 60 (53-112).
+        // The two legacy JET versions disagree by one sample: the newer one writes
+        // 59 rows (53-111), while the older one writes 60 (53-112).
         // Both are valid legacy observations and remain distinguishable by the
         // captured sample-size/member metrics.
         const int lastDataRow = 112;

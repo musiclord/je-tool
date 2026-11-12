@@ -182,7 +182,7 @@ public sealed class AccessTableReader : ITabularFileReader
         Enumerable.Range(0, reader.FieldCount).Select(i => (i + 1, (string?)reader.GetName(i))).ToArray());
 
     private static JetActionException Failure(Exception exception) => new(JetErrorCodes.FileReadError,
-        // 用字依裁定 2026-10-13-28：不再請 IT 確認元件；元件問題由支援日誌的 failure_cause 分辨。
+        // 訊息不請 IT 確認元件；元件問題由支援日誌的 failure_cause 分辨。
         "無法讀取 Access 資料表。請確認檔案可以開啟、未加密且未被其他程式使用，關閉檔案後重試；或將資料表另存為 CSV 或 .xlsx 後匯入。",
         innerException: exception);
 }

@@ -1,13 +1,8 @@
 namespace JET.AuditCore;
 
 /// <summary>
-/// SQL 方言縫隙：只收錄引擎間「確實不同」的片段——
-/// 週末判定（SQLite strftime ↔ SQL Server DATEPART）、不分大小寫包含
-/// （instr ↔ CHARINDEX）、轉大寫、主單位整數商、參數命名。取模、ABS、EXISTS、ISO 日期字串比較
-/// 皆共通，不進介面。新增 provider = 新增一個 ISqlDialect 實作
-/// + 一組 *FilterHitRepository / *PrescreenRunRepository 的 SELECT 骨架。
-/// 目前只有 SQLite 的實作：DuckDB 與 SQL Server 隨裁定 2026-11-06-08 暫時移除，還原點是提交 7e88b7b。
-/// 各成員說明裡 DuckDB 與 SQL Server 的差異，是日後恢復時仍要遵守的寫法理由，不代表目前還有那些實作。
+/// 由資料庫引擎決定寫法的 SQL 片段：週末判定、不分大小寫包含、轉大寫、主單位整數商、參數命名等。
+/// 目前只有 SQLite 的實作。
 /// </summary>
 public interface ISqlDialect
 {
@@ -23,27 +18,25 @@ public interface ISqlDialect
 
     /// <summary>
     /// 把 expr 轉成大寫，作為不分大小寫比較與分組的鍵；條件值在 .NET 端用 <c>ToUpperInvariant()</c> 轉換。
-    /// SQLite 與 DuckDB 的連線把 <c>upper</c> 換成同一個 .NET 轉換。SQL Server 無法這樣替換，改用
-    /// <c>Latin1_General_100_BIN2</c> 的大小寫對照表；仍不同的罕用字元是已知差異，見 <c>docs/jet-guide.md</c> 第 8 節。
+    /// SQLite 的連線把 <c>upper</c> 換成同一個 .NET 轉換。
     /// </summary>
     string Upper(string expr);
 
     /// <summary>
     /// 去掉 expr 頭尾的空白字元，字元集合是 .NET <c>string.Trim()</c> 的集合（<see cref="JET.Domain.TextWhitespace"/>）：
-    /// 半形空白、Tab、換行、全形空白、不換行空格等。各引擎原生 TRIM 去的字元不同（SQLite 只去半形空白，DuckDB 不去 Tab），
-    /// 所以判斷空白、比較文字與分組都必須經過這裡，兩個本地資料庫與 SQL Server 才會給相同答案。
+    /// 半形空白、Tab、換行、全形空白、不換行空格等。SQLite 原生 TRIM 只去半形空白，
+    /// 所以判斷空白、比較文字與分組都必須經過這裡。
     /// </summary>
     string Trim(string expr);
 
     /// <summary>
-    /// 非負整數 dividend 除以正整數 divisor 的向零整數商。DuckDB 的 <c>/</c> 會回浮點，
-    /// 必須使用 <c>//</c>；SQLite／SQL Server 則使用整數 <c>/</c>。
+    /// 非負整數 dividend 除以正整數 divisor 的向零整數商。
     /// </summary>
     string IntegerQuotient(string dividendExpression, string divisorExpression);
 
     /// <summary>
-    /// ISO 日期字串（yyyy-MM-dd，三個 provider 的日期欄都是這種字串）的「幾日」整數（1 到 31）。
-    /// 用第 9 到 10 字元轉整數，不依賴各引擎的日期函式；空值由呼叫端另外判斷。
+    /// ISO 日期字串（yyyy-MM-dd，日期欄都是這種字串）的「幾日」整數（1 到 31）。
+    /// 用第 9 到 10 字元轉整數；空值由呼叫端另外判斷。
     /// </summary>
     string DayOfMonth(string dateExpr);
 
@@ -56,13 +49,11 @@ public interface ISqlDialect
     /// </summary>
     string InfSampleOrderingKey(string sourceRowNumberExpression, string seedExpression);
 
-    /// <summary>取前 N 列子句(需查詢已有 ORDER BY)。SQLite: LIMIT @p;SQL Server: OFFSET 0 ROWS FETCH NEXT @p ROWS ONLY。</summary>
+    /// <summary>取前 N 列子句(需查詢已有 ORDER BY)。</summary>
     string LimitClause(string parameterName);
 
     /// <summary>
     /// dev 唯讀檢視「列出使用者資料表名」查詢（第一欄為表名；排除引擎內部表）。
-    /// 本地引擎（SQLite／DuckDB）為整檔一份、無參數；SQL Server 版帶 <c>@schema</c> 具名參數
-    /// （schema-per-project，由呼叫端綁定），故其 dev 檢視自持 schema 限定查法、不走本成員。
     /// </summary>
     string ListTablesSql { get; }
 

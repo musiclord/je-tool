@@ -5,8 +5,6 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
-
 public sealed class PrivateCaseLegacyScenarioEvidenceTests
 {
     [Fact]
@@ -87,8 +85,8 @@ public sealed class PrivateCaseLegacyScenarioEvidenceTests
         Assert.Equal(PrivateCaseLegacyScenarioEvidenceFailure.ScenarioDefinitionMismatch, changed.Failure);
     }
 
-    // 2026-10-14 以前存下的寫法：同一張傳票的佐證條件直接列在群組裡，群組標成 sameVoucher。
-    // 私人案件清單裡的條件陣列仍叫 rules，讀清單時才換成 conditions。
+    // 舊寫法：同一張傳票的佐證條件直接列在群組裡，群組標成 sameVoucher。
+    // 私人案件清單裡的條件陣列叫 rules，讀清單時才換成 conditions。
     private static JsonElement OldSameVoucherScenario(string[] values) =>
         JsonSerializer.SerializeToElement(new
         {

@@ -79,7 +79,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                 summary.Cell("B17").GetString());
             Assert.Equal(1, summary.Cell("E8").GetValue<long>());
             Assert.Equal(plannedRowCount, summary.Cell("F8").GetValue<long>());
-            // 裁定 2026-11-05-44：D 欄照舊版原句，筆數看 E、F 欄。第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+            // D 欄照舊版原句，筆數看 E、F 欄。
             Assert.Equal(
                 expectedDetailSheet
                     ? "符合預篩選條件之明細項請詳 [R1] 工作表"
@@ -135,7 +135,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         }
         Assert.True(
             appearanceMismatches.Count == 0,
-            "Stage 8 Track O Pre-screening registry diff:\n"
+            "Pre-screening registry diff:\n"
             + string.Join("\n", appearanceMismatches));
         Assert.Empty(new OpenXmlValidator().Validate(actual));
     }
@@ -162,11 +162,11 @@ public sealed class PrescreenDirectTemplatePackageTests
                 index == rowCount - 1 ? long.MinValue : -10_000))
             .ToArray();
         // 每次用新的暫存資料夾：固定放在系統暫存資料夾時，前一次執行留下的資料庫會被下一次沿用，
-        // 案件資料庫推進版本後就被當成舊版案件拒絕（收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c）。
+        // 案件資料庫推進版本後就被當成舊版案件拒絕。
         using var root = new TempProjectRoot();
         var database = new SqliteProjectDatabase(
             new JetProjectFolder(root.Path));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await database.EnsureCreatedAsync("aggregate-width-project", CancellationToken.None);
         // R6 標題沿用 committed GL mapping 的來源欄名（欄位來源忠實性），
         // writer 層 fixture 因此需要既有 mapping state。
@@ -410,7 +410,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                     "#Criteria Select 1 (2)",
                     "#Criteria Select 2",
                     "#Criteria Select 2 (2)",
-                    // 2026-10-22 清理技術債：正式入口一定寫出隱藏的中繼資料工作表（第一次失敗：Public 收據 20261022-075335566）。
+                    // 正式入口一定寫出隱藏的中繼資料工作表。
                     ReportWorkbookMetadataFormat.WorksheetName
                 },
                 workbook.Worksheets.Select(sheet => sheet.Name).ToArray());
@@ -440,7 +440,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                     OriginalHeaders,
                     ReadRow(second, 1));
                 Assert.Equal(17, first.LastRowUsed()!.RowNumber());
-                // 裁定 2026-11-05-48：最後一欄照舊版叫 Final_TAG，續頁同樣重複表頭；
+                // 最後一欄照舊版叫 Final_TAG，續頁同樣重複表頭；
                 // 直接符合條件的分錄寫 Y，同一張傳票帶出的其他分錄留白。
                 Assert.Equal("Final_TAG", first.Cell(1, OriginalHeaders.Length + 1).GetString());
                 Assert.Equal("Final_TAG", second.Cell(1, OriginalHeaders.Length + 1).GetString());
@@ -514,7 +514,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         }
         Assert.True(
             appearanceMismatches.Count == 0,
-            "Stage 8 Track O Criteria registry diff:\n"
+            "Criteria registry diff:\n"
             + string.Join("\n", appearanceMismatches));
 
         // AuditCore 只會把舊 IDEA 的單一「未預期借貸組合」位置放入此集合。
@@ -535,7 +535,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         var scopedSummary = wholeVoucherSummaryWorkbook.Worksheet("Summary Inforamtion");
         Assert.Equal(18, scopedSummary.Cell("D5").GetValue<long>());
         Assert.Equal(9, scopedSummary.Cell("D6").GetValue<long>());
-        // 單獨使用「未預期借貸組合」的位置整張傳票都算符合（裁定 2026-11-05-48），和底稿 Step 4-1 的標記相同，
+        // 單獨使用「未預期借貸組合」的位置整張傳票都算符合，和底稿 Step 4-1 的標記相同，
         // Final_TAG 全部寫 Y；第 2 個位置照舊只標直接符合的分錄。
         string[] TagsOf(string sheetName)
         {
@@ -575,7 +575,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                     "2025-03-06",
                     "SYN-A",
                     "Synthetic account",
-                    "Stage9 family marker",
+                    "Sample family marker",
                     "100.00",
                     1);
                 builder.AddRow(
@@ -584,7 +584,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                     "2025-03-06",
                     "SYN-B",
                     "Synthetic account",
-                    "Stage9 family marker",
+                    "Sample family marker",
                     "100.00",
                     0);
             },
@@ -595,8 +595,8 @@ public sealed class PrescreenDirectTemplatePackageTests
             {
                 scenarios = Enumerable.Range(1, 10)
                     .Select(position => KeywordScenario(
-                        $"Stage9 family {position}",
-                        "Stage9 family marker"))
+                        $"Sample family {position}",
+                        "Sample family marker"))
                     .ToArray()
             }));
         var revision = committed.GetProperty("resultRef")
@@ -613,7 +613,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         var context = new CriteriaSelectionReportContext(
             new ReportDocumentContext(
                 projectId,
-                "Stage9 synthetic",
+                "Sample synthetic",
                 "2025-01-01",
                 "2025-12-31",
                 null,
@@ -623,7 +623,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             scenarios,
             Enumerable.Range(1, 10).ToDictionary(
                 position => position,
-                position => $"Stage9 family {position}"));
+                position => $"Sample family {position}"));
         await using var output = new MemoryStream();
 
         await ((ICriteriaSelectionReportWriter)writer).WriteAsync(
@@ -663,7 +663,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         }
     }
 
-    // 裁定 2026-10-19-12：傳票號碼空白的命中算進摘要頁的行層命中數，明細表不列，摘要頁加一列說明，數字不動。
+    // 傳票號碼空白的命中算進摘要頁的行層命中數，明細表不列，摘要頁加一列說明，數字不動。
     [Theory]
     [InlineData("sqlite")]
     public async Task Criteria_BlankVoucherNumberHits_AreExplainedOnTheSummary(string provider)
@@ -708,19 +708,39 @@ public sealed class PrescreenDirectTemplatePackageTests
         Assert.True(note.RowNumber() >= 16);
     }
 
+    // 固定答案核對整張傳票展開，以及傳票與傳票內各列的順序。
+    [Fact]
+    public async Task Criteria_OutputIdentityCountsAndOrder_MatchTheFixedAnswer()
+    {
+        var oracle = await ExportCriteriaOracleAsync();
+
+        Assert.Equal(2, oracle.VoucherHitCount);
+        Assert.Equal(2, oracle.RowHitCount);
+        Assert.Equal(4, oracle.DetailRows.Count);
+        Assert.Equal(
+            new[]
+            {
+                "JV-001|風險摘要 1",
+                "JV-001|一般摘要 1",
+                "JV-002|風險摘要 2",
+                "JV-002|一般摘要 2"
+            },
+            oracle.DetailRows);
+    }
+
     // 沒有空白傳票號碼的命中時不加說明列。
     [Fact]
     public async Task Criteria_WithoutBlankVoucherNumberHits_AddsNoExplanationRow()
     {
-        var oracle = await ExportCriteriaOracleAsync("sqlite", connectionString: null);
+        var oracle = await ExportCriteriaOracleAsync();
 
         Assert.Equal(2, oracle.RowHitCount);
         Assert.False(oracle.HasExplanationRow);
     }
 
-    // 裁定 2026-11-05-35 與 2026-11-05-44：摘要頁 D 欄照舊版原句。傳票核准日沒有配對寫「沒有設定傳票核准日欄位」，
+    // 摘要頁 D 欄照舊版原句。傳票核准日沒有配對寫「沒有設定傳票核准日欄位」，
     // 已執行但沒有命中寫「沒有符合預篩選條件之明細項」，有明細頁時寫「請詳 [Rn] 工作表」，空白摘要那一列寫「新增預篩選條件」；
-    // 沒有命中或不適用時 E、F 欄寫 N/A。其他不適用原因照舊寫「N/A（原因）」。
+    // 沒有命中或不適用時 E、F 欄寫 N/A。其他不適用原因仍寫「N/A（原因）」。
     [Fact]
     public async Task Summary_DColumnUsesLegacySentencesForEachOutcome()
     {
@@ -743,7 +763,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         var plan = JetAuditProgram.Finalize(
             JetAuditProgram.Plan(new PrescreenReportRequest(
                 projectId,
-                // 尾數規則的明細頁要帶那次預篩選的 0 的個數（裁定 2026-11-05-25），和投影的 ZerosThreshold 相同。
+                // 尾數規則的明細頁要帶那次預篩選的 0 的個數，和投影的 ZerosThreshold 相同。
                 new FilterConditionContext(10_000, "2025-12-31", "2025-01-01", "2025-12-31") { ZerosThreshold = 6 },
                 projection.PrepPeriodApproval.NaReason,
                 projection.SuspiciousKeywords.NaReason,
@@ -793,7 +813,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         Assert.DoesNotContain("R3", sheetNames);
     }
 
-    // 裁定 2026-11-05-32：配對了人工傳票欄位時，R5 照舊版在人員後面多一欄「人工傳票否_JE_S」，
+    // 配對了人工傳票欄位時，R5 照舊版在人員後面多一欄「人工傳票否_JE_S」，
     // 同一位人員依人工旗標分列，值寫「人工建立分錄」或「自動拋轉分錄」，旗標無法判斷時留白。
     [Fact]
     public async Task PreparerSummary_ManualFlagMapped_AddsTheManualColumnAndKeepsOneRowPerFlag()
@@ -807,7 +827,7 @@ public sealed class PrescreenDirectTemplatePackageTests
         using var root = new TempProjectRoot();
         var database = new SqliteProjectDatabase(
             new JetProjectFolder(root.Path));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await database.EnsureCreatedAsync("manual-column-project", CancellationToken.None);
         await new LocalMappingStateStore(database).SaveAsync(
             "manual-column-project",
@@ -921,7 +941,6 @@ public sealed class PrescreenDirectTemplatePackageTests
                     new
                     {
                         join = "AND",
-                        // 舊式條件停用後改用欄位條件，保留範本與套件斷言；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
                         type = "fieldValue", field = "description", @operator = "contains",
                         values = new[] { keyword }
                     }
@@ -954,12 +973,9 @@ public sealed class PrescreenDirectTemplatePackageTests
         Assert.False(cell.Style.Alignment.ShrinkToFit);
     }
 
-    private static async Task<CriteriaProviderOracle> ExportCriteriaOracleAsync(
-        string provider,
-        string? connectionString)
+    private static async Task<CriteriaProviderOracle> ExportCriteriaOracleAsync()
     {
-        using var host = new HandlerTestHost(
-);
+        using var host = new HandlerTestHost();
         string? projectId = null;
         try
         {
@@ -1003,7 +1019,6 @@ public sealed class PrescreenDirectTemplatePackageTests
                         "一般摘要 2",
                         "200.00",
                         0),
-                databaseProvider: provider,
                 configureTb: tb => tb
                     .AddRow("1101", "現金", 300)
                     .AddRow("4101", "收入", -300));
@@ -1071,16 +1086,6 @@ public sealed class PrescreenDirectTemplatePackageTests
         IReadOnlyList<string> DetailRows,
         bool HasExplanationRow);
 
-    private static void AssertProviderOracleEqual(
-        CriteriaProviderOracle expected,
-        CriteriaProviderOracle actual)
-    {
-        Assert.Equal(expected.VoucherHitCount, actual.VoucherHitCount);
-        Assert.Equal(expected.RowHitCount, actual.RowHitCount);
-        Assert.Equal(expected.DetailRows, actual.DetailRows);
-        Assert.Equal(expected.HasExplanationRow, actual.HasExplanationRow);
-    }
-
     private static PrescreenReportProjection Projection(long rowCount)
     {
         var notApplicable = new PrescreenReportRuleProjection(
@@ -1095,7 +1100,7 @@ public sealed class PrescreenDirectTemplatePackageTests
             RareAccounts: new("V", null, 2),
             BlankDescription: notApplicable)
         {
-            // 0 的個數改照 IDEA 版由 GL 算出（裁定 2026-11-05-25），固定 6 個 0 的常數拿掉，投影多帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。第一次失敗是建置失敗：收據 20261105-082826731-60a7ec59299d423aa561526e307e604b。
+            // 0 的個數照 IDEA 版由 GL 算出，投影帶那次預篩選的個數；這裡的尾零規則不執行，帶 6 只為了組出完整的投影。
             ZerosThreshold = 6
         };
     }

@@ -20,6 +20,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\..\src\JET\JET\JET.csproj" />
+    <!-- 台灣中小企業合成案件的產生器、獨立答案與建案流程放在測試專案；主機編譯同一份原始檔。 -->
+    <Compile Include="..\..\..\src\JET\tests\JET.Tests\TestInfrastructure\TaiwanSme\Sme*.cs" Link="TaiwanSme\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

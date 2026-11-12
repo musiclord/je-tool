@@ -258,8 +258,7 @@ public sealed class LegacyAuditParityObservationsTests
         var written = File.ReadAllText(path);
         var reloaded = LegacyAuditParityObservationArtifactStore.Load(path);
 
-        // 原本拿 SQLite 與 DuckDB 的觀測值互相比對，確認讀回來的觀測值和寫出前比對結果相同；DuckDB 移除後，
-        // 改成把讀回來的觀測值再寫一次，內容要和第一次寫出的完全一樣（裁定 2026-11-06-08）。
+        // 把讀回來的觀測值再寫一次，內容要和第一次寫出的完全一樣。
         var rewritten = LegacyAuditParityObservationArtifactStore.Write(
             workspace, reloaded.Observation, reloaded.MappingProvenance);
         Assert.Equal(written, File.ReadAllText(rewritten));

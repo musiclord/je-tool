@@ -11,8 +11,7 @@ public sealed class AdvancedFilterAstContractTests
     private static readonly FilterValidationContext Ready =
         new(HasPrepStartDate: true, HasAccountMapping: false, HasAuthorizedPreparers: false);
 
-    // 已儲存情境的「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），讀到時當成無法讀取的內容。
-    // 這則只留文字值清單的形狀檢查，條件組改用同一分錄列。第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（比對範圍的型別已不存在，無法編譯）。
+    // 這則只檢查文字值清單的形狀，條件組用同一分錄列。
     [Fact]
     public void ParseAndValidate_TextSet_PreservesClosedWireShape()
     {
@@ -33,12 +32,11 @@ public sealed class AdvancedFilterAstContractTests
         Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
     }
 
-    // 原本第四個參數是訊息片段（matchScope、至少需要兩條、只允許 AND）。這三種錯誤只會出自存檔損毀，審計員在畫面上無從修正，
-    // 損毀的情境在畫面改寫通用句（裁定 2026-10-13-21）；參數改成程式寫死的原因代號，仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    // 這類錯誤只會出自存檔損毀，審計員在畫面上無從修正，損毀的情境在畫面寫通用句；
+    // 第四個參數是程式寫死的原因代號。
     [Theory]
     [InlineData("mystery", 2, "AND", "group_match_scope_invalid")]
-    // 已儲存情境的「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），讀到時當成無法讀取的內容。
-    // 原本 sameVoucher 的兩列檢查的是它自己的條數與連接詞，現在改成和其他未知值同一個原因。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊的比對範圍改成無法讀取）。
+    // 已儲存情境沒有「同一傳票」比對範圍，讀到 sameVoucher 時當成無法讀取的內容，原因和其他未知值相同。
     [InlineData("sameVoucher", 2, "AND", "group_match_scope_invalid")]
     public void Validate_InvalidSameVoucherGroup_FailsLoudly(
         string matchScope,
@@ -75,8 +73,8 @@ public sealed class AdvancedFilterAstContractTests
         Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == expected);
     }
 
-    // 原本第四個參數是訊息片段。這三種錯誤只會出自存檔損毀，審計員在畫面上無從修正，損毀的情境在畫面改寫通用句（裁定 2026-10-13-21）；
-    // 參數改成程式寫死的原因代號，仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+    // 這三種錯誤只會出自存檔損毀，審計員在畫面上無從修正，損毀的情境在畫面寫通用句；
+    // 第四個參數是程式寫死的原因代號，仍逐項區分。
     [Theory]
     [InlineData("notContains", "preserve", "value", "text_set_mode_invalid")]
     [InlineData("contains", "unknown", "value", "text_set_normalization_invalid")]
@@ -154,8 +152,8 @@ public sealed class AdvancedFilterAstContractTests
             Groups = [group with { Conditions = [rule] }]
         };
 
-        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
-        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
         var errors = FilterScenarioValidator.Validate(oversized, Ready);
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.Contains(FilterScenarioCorruption.ReasonsOf(errors), reason => reason.Code == "text_set_values_too_many");
@@ -194,8 +192,8 @@ public sealed class AdvancedFilterAstContractTests
             () => FilterScenarioPayloadParser.Parse(document.RootElement, moneyScale: 100));
 
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 損毀的情境在畫面只寫通用句（裁定 2026-10-13-21）；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
-        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+        // 損毀的情境在畫面只寫通用句；這類錯誤只會出自程式送錯資料或存檔損毀，審計員在畫面上無從修正，所以原句與英文代碼改記支援日誌；
+        // 改鎖通用句與程式寫死的原因代號，檢查仍逐項區分。
         Assert.Equal("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", exception.Message);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "text_set_values_too_many"), FilterScenarioCorruption.ReasonsOf(exception));
     }
@@ -207,8 +205,7 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("normalization")]
     public void ParseAndValidate_PaddedClosedToken_FailsBeforePersistenceOrReadBack(string property)
     {
-        // 「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25），合格的原文改用 row，前後加空白的那一份仍要被擋下。
-        // 這次改的是測試資料，不是因為測試失敗。
+        // 合格的原文用 row，前後加空白的那一份要被擋下。
         const string canonical =
             """
             {"name":"synthetic","rationale":"closed tokens","groups":[{"matchScope":"row","conditions":[
@@ -260,14 +257,13 @@ public sealed class AdvancedFilterAstContractTests
             """);
 
         var group = Assert.Single(scenario.Groups);
-        // 比對範圍只剩同一分錄列，型別已拿掉，改看沒有未知值。第一次失敗：Build 收據 20261030-080858642-d5c1719481744042bbfc70329c5fcceb（比對範圍的型別已不存在，無法編譯）。
+        // 比對範圍只有同一分錄列，這裡看沒有未知值。
         Assert.Null(group.UnknownMatchScope);
         Assert.Equal(FilterJoin.Or, group.Conditions[1].Join);
         Assert.Empty(FilterScenarioValidator.Validate(scenario, Ready));
     }
 
-    // 已儲存情境的「同一傳票」比對範圍已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），讀到時當成無法讀取的內容。
-    // 讀回文字也不再寫「主要條件」與「同一傳票」的說明，這則只留文字值清單的片語。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊的比對範圍改成無法讀取）。
+    // 讀回文字不寫「主要條件」與「同一傳票」的說明，這則只核對文字值清單的片語。
     [Fact]
     public void Renderer_TextSet_UsesBackendAuthorityPhrases()
     {
@@ -283,7 +279,7 @@ public sealed class AdvancedFilterAstContractTests
 
         Assert.Contains("包含任一值", rendered, StringComparison.Ordinal);
         Assert.Contains("完全符合任一值", rendered, StringComparison.Ordinal);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+        // 這句的用字已定案。
         Assert.Contains("保留半形空白", rendered, StringComparison.Ordinal);
         Assert.Contains("移除半形空白", rendered, StringComparison.Ordinal);
     }
@@ -301,12 +297,9 @@ public sealed class AdvancedFilterAstContractTests
     [InlineData("filter-2026-10-08-v19")]
     public void FilterLogicVersion_IsV20AndV19OrEarlierDefinitionsAreStale(string savedVersion)
     {
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，現行版本推進為 v19；第一次失敗收據 20261008-042049371-eba08c280cca4ff59170a6e88e87291a。
-        // 2026-10-06 條件 A 納入查核期末視窗，現行版本推進為 v18。
-        // v17 與更早保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
-        // 2026-10-02 起開案時若整批仍符合目前規則，會由 FilterScenarioRuleUpgrade 改成目前版本後再重算；
+        // 現行版本是 v20。較早版本保存的情境不是目前版本，不得沿用舊 resultRef 或直接惰性補算。
+        // 開案時若整批仍符合目前規則，會由 FilterScenarioRuleUpgrade 改成目前版本後再重算；
         // 不符合時整批維持舊版本，查詢與匯出仍會擋下。
-        // First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose conditions are retired.
         Assert.Equal("filter-2026-10-14-v20", RuleLogicVersions.Filter);
         var saved = new SavedFilterScenario(
             1,
@@ -338,8 +331,7 @@ public sealed class AdvancedFilterAstContractTests
         var rule = scenario.Groups[0].Conditions[0];
         Assert.Equal(["builtin.receivables", "builtin.cash"], rule.DebitCategoryIds);
         Assert.Equal(["builtin.revenue"], rule.CreditCategoryIds);
-        // 2026-10-02 起規則不再有單選分類欄位，原本「scalar 為 null」的兩行斷言隨欄位刪除；
-        // 單選欄位只是未知欄位，判定只看陣列。
+        // 規則沒有單選分類欄位；單選欄位只是未知欄位，判定只看陣列。
         Assert.Equal(["builtin.cash", "builtin.receivables"], rule.EffectiveDebitCategoryIds);
     }
 
@@ -354,7 +346,7 @@ public sealed class AdvancedFilterAstContractTests
             ]}]}
             """);
 
-        // 只認分類身分陣列；單選欄位照未知欄位處理，不再換算成內建分類。
+        // 只認分類身分陣列；單選欄位照未知欄位處理，不換算成內建分類。
         var rule = scenario.Groups[0].Conditions[0];
         Assert.Empty(rule.EffectiveDebitCategoryIds);
         Assert.Empty(rule.EffectiveCreditCategoryIds);
@@ -380,7 +372,7 @@ public sealed class AdvancedFilterAstContractTests
                 HasAccountMapping = true,
                 HasAnyAccountCategory = true
             }),
-            // 改鎖裁定 2026-10-13-28 的整句。第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
+            // 這句的用字已定案，鎖整句。
             error => error == "第 1 組第 1 條：尚未選擇借方分類");
     }
 

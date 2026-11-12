@@ -41,7 +41,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     {
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
-        // recount 與 prescreen 母體同口徑（§2：限本期 gl_date）——期外對照組核准日雖 ≥ 期末，
+        // recount 與 prescreen 母體同口徑（限本期 gl_date）——期外對照組核准日雖 ≥ 期末，
         // 但總帳日期在查核期間外，不入母體，故不計。
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -56,7 +56,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     public async Task PrescreenRun_DemoFixture_PrepPeriodApprovalHitsSeedVouchers()
     {
         // R1 種子:核准日 2026-01-15(期末後)共 PrepPeriodApprovalVouchers 張,過帳日在期內;
-        // baseline 核准日 = 過帳日(平日、< 期末),不可能跨入期末日。母體限本期 gl_date（§2）：
+        // baseline 核准日 = 過帳日(平日、< 期末),不可能跨入期末日。母體限本期 gl_date：
         // R1 過帳期內入母體；期外對照組（過帳 2026-01-05）核准日雖 ≥ 期末，但不入母體 → 不計。
         var distinctVouchers = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -66,9 +66,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         Assert.Equal(DemoDataFactory.PrepPeriodApprovalVouchers, distinctVouchers);
     }
 
-    // 改版前是 PrescreenRun_DemoFixture_TrailingZerosThresholdIsSix，鎖住固定 6 個 0。0 的個數改照 IDEA 版 R4 由 GL 算出
-    // （裁定 2026-11-05-25），預期值改由範例資料逐列獨立計算：查核期間內的借方金額合計除以分錄筆數，
-    // 平均的整數部分位數減一。第一次失敗：Focused 收據 20261105-083850941-ba07558d4ad14c96b0a1ca9fc181d8f3（預期 6，實際 4）。
+    // 0 的個數照 IDEA 版 R4 由 GL 算出，
+    // 預期值由範例資料逐列獨立計算：查核期間內的借方金額合計除以分錄筆數，
+    // 平均的整數部分位數減一。
     [Fact]
     public async Task PrescreenRun_DemoFixture_TrailingZerosThresholdFollowsTheDebitAverage()
     {
@@ -84,9 +84,9 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     {
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
-        // scale 10000：先向零取得主單位整數，再檢查 10 的 N 次方倍數，N 是由範例資料獨立算出的 0 的個數（裁定 2026-11-05-25）。
-        // 小數尾數不參與 legacy 尾零判定；0 排除，母體固定查核期間。改版前固定比 10^6 倍數；範例的一般分錄沒有整數部分是一萬倍數的金額，
-        // 所以兩種個數選到的都是 30 筆種子分錄，這裡只證 handler 與獨立 SQL 同源。
+        // scale 10000：先向零取得主單位整數，再檢查 10 的 N 次方倍數，N 是由範例資料獨立算出的 0 的個數。
+        // 小數尾數不參與 legacy 尾零判定；0 排除，母體固定查核期間。範例的一般分錄沒有整數部分是一萬倍數的金額，
+        // 所以選到的都是 30 筆種子分錄，這裡只證 handler 與獨立 SQL 同源。
         var modulus = (long)Math.Pow(10, DemoTrailingZeroDigits());
         var recount = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
@@ -266,14 +266,10 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var data = await host.DispatchAsync("prescreen.run");
 
         // 兩張卡用同一個方法合併兩側的原因。缺傳票核准日的配對時，
-        // 兩張卡都照常顯示總帳日期那一側，「只檢查了總帳日期」改放在 approvalNaReason，naReason 只在整張卡無法執行時才有。
-        // 原本週末卡把核准側的說明放進 naReason，假日卡則沒有說明；狀態、筆數與優先序斷言不變。
-        // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
+        // 兩張卡都照常顯示總帳日期那一側，「只檢查了總帳日期」放在 approvalNaReason，naReason 只在整張卡無法執行時才有。
         const string onlyGlDateChecked = "只檢查了總帳日期。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。";
         var weekendActivity = data.GetProperty("weekendActivity");
         Assert.Equal("na", weekendActivity.GetProperty("status").GetString());
-        // 確認配對用語統一後，複合狀態與優先序斷言不變。
-        // 第一次失敗：20261004-092023464-13b0a6928d5e400492fbe8a6a24eb69d。
         Assert.Equal(JsonValueKind.Null, weekendActivity.GetProperty("naReason").ValueKind);
         Assert.Equal(onlyGlDateChecked, weekendActivity.GetProperty("approvalNaReason").GetString());
         Assert.Equal(0, weekendActivity.GetProperty("postingCount").GetInt64());
@@ -288,8 +284,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     }
 
     // 整張卡無法執行時，原因列出兩側缺的每一項，一項一句、依表列順序，
-    // 假日檔排在最前面；原本只寫假日檔那一句，測試名稱也從「假日檔原因勝出」改成「假日檔原因排在最前面」。
-    // 狀態與筆數斷言不變。第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7。
+    // 假日檔排在最前面。
     [Fact]
     public async Task PrescreenRun_MissingApprovalDateWithoutHolidayCalendar_HolidayCalendarReasonComesFirst()
     {
@@ -311,7 +306,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var holidayActivity = data.GetProperty("holidayActivity");
         Assert.Equal("na", holidayActivity.GetProperty("status").GetString());
         Assert.Equal(
-            // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075345142-f820ea2c977d4709ab2eaaa3d5448d77。
+            // 這句的用字已定案。
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。「傳票核准日」尚未選擇來源欄，請回第三步欄位配對補上。",
             holidayActivity.GetProperty("naReason").GetString());
         Assert.Equal(JsonValueKind.Null, holidayActivity.GetProperty("approvalNaReason").ValueKind);
@@ -338,7 +333,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
         var data = await fixture.Host.DispatchAsync("prescreen.run");
 
         // demo 編製者數遠少於彙總上限(50),故全員列出;名單基數 == 本期 distinct recount,
-        // 各人筆數合計 == 本期母體列數(§2：編製者彙總限本期 gl_date；期外對照組 4 列不計)。
+        // 各人筆數合計 == 本期母體列數(編製者彙總限本期 gl_date；期外對照組 4 列不計)。
         var distinctPreparers = await DemoProjectPipeline.QueryScalarAsync(
             fixture.Host, fixture.ProjectId,
             "SELECT COUNT(DISTINCT created_by) FROM gl " +
@@ -419,7 +414,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
 
         try
         {
-            // sourceColumn 改成必填，後端不再猜人員欄；保留非授權人員預篩選的原斷言。
+            // 匯入人員清單必須指定 sourceColumn。
             await host.DispatchAsync("import.authorizedPreparer.fromFile",
                 JsonSerializer.Serialize(new { filePath = listPath, fileName = "ap.xlsx", sourceColumn = "AUTHORIZED_PREPARER" }));
 
@@ -446,8 +441,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     public async Task FilterPreview_CustomPreparerEntryCount_MatchesRecount()
     {
         // 編製人員分錄筆數 200 以下：filter.preview 的命中數須等於同述詞的獨立 recount（handler 與獨立 SQL 同源，不另設命中量級假設）。
-        // 舊式 customPreparerEntryCount 已列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
-        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
+        // 舊式 customPreparerEntryCount 是停用寫法，情境用等價的「科目與人員統計」。
         const int maxEntries = 200;
         var payload = JsonSerializer.Serialize(new
         {
@@ -479,8 +473,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
     public async Task FilterPreview_CustomAccountEntryCount_MatchesRecount()
     {
         // 科目分錄筆數 11 以下：filter.preview 的命中數須等於同述詞的獨立 recount（和第五步依審計目的「較少使用的科目」的預設條件相同）。
-        // 舊式 customAccountEntryCount 已列為停用寫法，情境改成等價的「科目與人員統計」；斷言不變。
-        // 第一次失敗：Focused 收據 20261024-195604731-a54ac30c8a994b46878d21f5b82967bf（預覽回「已停用」）。
+        // 舊式 customAccountEntryCount 是停用寫法，情境用等價的「科目與人員統計」。
         const int maxEntries = 11;
         var payload = JsonSerializer.Serialize(new
         {
@@ -530,7 +523,7 @@ public sealed class PrescreenRunHandlerTests(DemoProjectFixture fixture) : IClas
             new LocalPrescreenRunRepository(database));
         // handler 從作用中案件的資料庫組取 repository，把這些物件放進 SQLite 資料庫組後再進入 session。
         // 預篩選現在多讀科目分類設定，取原因裡的分類名稱，資料庫組一併放進去。
-        // 第一次失敗：Focused 收據 20261023-033416473-0f25ea4f0cd94c14b96c7607c741f7e7（處理器讀分類設定時遇到空參考）。
+        // （處理器讀分類設定時遇到空參考）。
         var session = new ProjectSession();
         session.Enter(
             fixture.ProjectId,

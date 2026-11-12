@@ -36,8 +36,8 @@ public sealed class JetProjectFolder(string rootPath) : IProjectExportLocator
         => Path.Combine(GetProjectDirectory(projectId), ProjectJsonFileName);
 
     /// <summary>
-    /// 建案中的標記檔。建案時和 project.json 一起寫進暫存資料夾再發布，資料庫建好、建案完成後才刪掉
-    /// （裁定 2026-11-05-72 要求的穩健初始化）。開案時標記還在，表示上一次建案在完成前中斷，審計員沒有拿到這個案件，
+    /// 建案中的標記檔。建案時和 project.json 一起寫進暫存資料夾再發布，資料庫建好、建案完成後才刪掉。
+    /// 開案時標記還在，表示上一次建案在完成前中斷，審計員沒有拿到這個案件，
     /// 資料庫裡不會有資料，所以開案時把初始化做完；標記不在而資料庫不見或沒有內容，才是資料遺失。
     /// </summary>
     public const string CreationMarkerFileName = ".project-creating";

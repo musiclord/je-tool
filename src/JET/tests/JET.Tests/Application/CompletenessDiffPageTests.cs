@@ -24,7 +24,7 @@ public sealed class CompletenessDiffPageTests(DemoProjectFixture fixture)
             cursor = nc.ValueKind == JsonValueKind.Null ? null : nc.GetString();
         } while (cursor is not null);
 
-        // gl 側限本期(§2)、tb 側取全部(TB 本身即本期變動)——與完整性 CTE 同口徑;期外對照組不入 gl 彙總。
+        // gl 側限本期、tb 側取全部(TB 本身即本期變動)——與完整性 CTE 同口徑;期外對照組不入 gl 彙總。
         var total = await DemoProjectPipeline.QueryScalarAsync(fixture.Host, fixture.ProjectId,
             "WITH gl_by_account AS (SELECT account_number, SUM(amount_scaled) s FROM gl " +
             "  WHERE gl_date >= '2025-01-01' AND gl_date <= '2025-12-31' GROUP BY account_number), " +

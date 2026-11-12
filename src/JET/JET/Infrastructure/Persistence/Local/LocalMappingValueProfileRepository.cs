@@ -6,8 +6,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// SQLite 案件的 mapping value profile。JSON key 只以參數比對 json_each.key，
-/// 不組成 JSON path 或 SQL identifier；SQL 只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時先填補再計數
-/// （裁定 2026-10-28-03），寫法見 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
+/// 不組成 JSON path 或 SQL identifier；SQL 只回 summary 與最多 limit 筆 group。來源欄勾了往下填補時先填補再計數，
+/// 寫法見 <see cref="MappingValueProfileNormalization.FillDownCtes"/>。
 /// </summary>
 public sealed class LocalMappingValueProfileRepository(ILocalProjectDatabase database)
     : IMappingValueProfileRepository

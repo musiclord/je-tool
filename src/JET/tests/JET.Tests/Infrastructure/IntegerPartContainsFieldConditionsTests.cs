@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 裁定 2026-11-05-46：金額與其他數字欄位補上舊版「特定數字篩選」的「整數部分包含」與「整數部分不包含」。
+/// 金額與其他數字欄位有舊版「特定數字篩選」的「整數部分包含」與「整數部分不包含」。
 /// 只看絕對值的整數部分，忽略正負號及小數；多串數字任一包含就算符合。金額倍率 100，預期值逐列手算。
 /// </summary>
 public sealed class IntegerPartContainsFieldConditionsTests

@@ -8,8 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// Master spec「本機先顯示、線上手動同步」的最低 Application seam。
-/// project.listLocal 只列目前 root 的 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件不列出（裁定 2026-11-06-09）。
+/// project.listLocal 只列目前 root 的 SQLite 案件；以前建立的 DuckDB 與 SQL Server 案件不列出。
 /// </summary>
 public sealed class ProjectListLocalFirstTests
 {
@@ -25,8 +24,7 @@ public sealed class ProjectListLocalFirstTests
 
         Assert.Equal(["projects"], data.EnumerateObject().Select(property => property.Name));
         var projects = data.GetProperty("projects").EnumerateArray().ToArray();
-        // 裁定 2026-11-06-09：以前建立的 DuckDB 案件也不列出。原本預期 DuckDB 與 SQLite 兩個案件，改成只剩 SQLite 案件；
-        // 第一次失敗：Focused 收據 20261106-084017183-285ee971d2ad44c3b0f22bb9c5f69f21。
+        // 以前建立的 DuckDB 案件不列出，清單只有 SQLite 案件。
         var listed = Assert.Single(projects);
         Assert.Equal("sqlite-case", listed.GetProperty("projectId").GetString());
         Assert.All(projects, project =>
@@ -45,9 +43,9 @@ public sealed class ProjectListLocalFirstTests
     }
 
     /// <summary>
-    /// 裁定 2026-11-06-09：以前建立的 DuckDB 與 SQL Server 案件不列出，資料夾也不動。設定檔讀得通時看記錄的種類；
+    /// 以前建立的 DuckDB 與 SQL Server 案件不列出，資料夾也不動。設定檔讀得通時看記錄的種類；
     /// 讀不通時看設定檔原文記錄的種類，連原文都讀不通就看資料夾裡是不是只有以前的 DuckDB 資料庫檔。
-    /// 判斷不出來或確定是 SQLite 的案件，讀不通時照舊列成錯誤列，審計員才找得到它、能刪除。這是新增的測試。
+    /// 判斷不出來或確定是 SQLite 的案件，讀不通時仍列成錯誤列，審計員才找得到它、能刪除。
     /// </summary>
     [Fact]
     public async Task ProjectListLocal_HidesRetiredProviderCases_AndStillListsUnreadableOtherCases()
@@ -84,9 +82,9 @@ public sealed class ProjectListLocalFirstTests
     }
 
     /// <summary>
-    /// 以前的 DuckDB 與 SQL Server 案件不列在清單上（裁定 2026-11-06-09）。審計員用同一個名稱建立 SQLite 案件時，
+    /// 以前的 DuckDB 與 SQL Server 案件不列在清單上。審計員用同一個名稱建立 SQLite 案件時，
     /// 訊息要說出名稱被以前的案件佔用與能怎麼做，不能只說「已存在」，也不能報那個看不到的案件的設定檔錯誤；
-    /// 資料夾照樣不動。獨立複審 2026-11-06 找到的缺口，這是新增的測試。
+    /// 資料夾照樣不動。
     /// </summary>
     [Fact]
     public async Task ProjectCreate_WithTheNameOfAHiddenRetiredCase_ExplainsTheOldFolderAndLeavesItUntouched()
@@ -121,7 +119,7 @@ public sealed class ProjectListLocalFirstTests
     /// <summary>
     /// 設定檔原文裡排在資料庫種類前面的欄名讀不出字來時（不成對代理字元的跳脫寫法），後面讀得出來的種類照樣算數，
     /// 判斷不跟著欄位順序變：以前的 DuckDB 與 SQL Server 案件照樣不列出，也不會被當成 SQLite 案件刪掉；
-    /// 用同名建案時照樣說名稱被以前的案件使用；資料夾不動。JET 自己寫不出這種欄名，所以直接寫原文。這是新增的測試。
+    /// 用同名建案時照樣說名稱被以前的案件使用；資料夾不動。JET 自己寫不出這種欄名，所以直接寫原文。
     /// </summary>
     [Theory]
     [InlineData("sqlServer", false)]
@@ -209,8 +207,7 @@ public sealed class ProjectListLocalFirstTests
             Path.Combine(directory, "project.json"),
             JsonSerializer.Serialize(document, JetJsonStorage.IndentedOptions));
 
-        // 裁定 2026-11-05-72：本機案件的資料庫檔不見時，案件清單把它列成無法開啟的錯誤列，所以正常的本機案件要有建好的資料庫。
-        // 原本只寫 project.json。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 本機案件的資料庫檔不見時，案件清單把它列成無法開啟的錯誤列，所以正常的本機案件要有建好的資料庫。
         var folder = new JetProjectFolder(root);
         ILocalProjectDatabase? database = document.DatabaseProvider switch
         {

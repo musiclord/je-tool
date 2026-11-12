@@ -55,7 +55,7 @@
     return 'jet-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   }
 
-  // host→web 事件訂閱表（docs/action-contract-manifest.md「主程式進度事件」：信封 { event, data }、無 requestId）
+  // host→web 事件訂閱表（主程式進度事件：信封 { event, data }、無 requestId）
   var eventHandlers = Object.create(null);
 
   function receive(event) {
@@ -135,8 +135,8 @@
     global.addEventListener('pagehide', rejectAllPending);
   }
 
-  // 正式契約 actions（docs/action-contract-manifest.md 為 source of truth）。
-  // 新增 action：先改 manifest，再加進這份清單，最後才能在 UI 呼叫 JetApi.<method>。
+  // 正式契約 actions。
+  // 新增 action：先加進這份清單，才能在 UI 呼叫 JetApi.<method>。
   var SUPPORTED_ACTIONS = [
     'system.ping',
     'operation.cancel',
@@ -223,7 +223,7 @@
     return name;
   }
 
-  // host→web 事件訂閱（docs/action-contract-manifest.md「主程式進度事件」）。handler 收到 data 物件。
+  // host→web 事件訂閱（主程式進度事件）。handler 收到 data 物件。
   function on(eventName, handler) {
     (eventHandlers[eventName] = eventHandlers[eventName] || []).push(handler);
   }

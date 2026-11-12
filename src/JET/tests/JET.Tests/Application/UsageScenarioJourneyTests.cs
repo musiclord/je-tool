@@ -113,8 +113,8 @@ public sealed class UsageScenarioJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    // 裁定 2026-10-29-16：沒有已儲存情境也能匯出底稿。原本斷言清掉情境後匯出回 no_saved_scenario，現在畫面上舊的篩選版本與情境位置
-    // 已不是目前的清單，改成斷言回 stale_result 與清單已變更的說明；重新儲存後匯出的斷言不變。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+    // 沒有已儲存情境也能匯出底稿。情境清掉後，畫面上舊的篩選版本與情境位置
+    // 已不是目前的清單，匯出回 stale_result 與清單已變更的說明；重新儲存後可以匯出。
     public async Task TrialBalanceReplacement_ClearsScenariosAndRejectsTheOldSelectionUntilResaved(string provider)
     {
         using var host = new HandlerTestHost();
@@ -165,8 +165,8 @@ public sealed class UsageScenarioJourneyTests
 
     [Theory]
     [InlineData("sqlite")]
-    // 裁定 2026-10-29-16：沒有已儲存情境也能匯出底稿。原本斷言回 no_saved_scenario 且不寫檔；改成斷言帶著舊篩選版本與情境位置的請求
-    // 回 stale_result、不寫檔，畫面在沒有情境時送 null 的篩選版本與空清單則寫出一份底稿。第一次失敗：Focused 收據 20261031-002829777-a1443dc136ce49c099783f391f496573。
+    // 沒有已儲存情境也能匯出底稿。帶著舊篩選版本與情境位置的請求
+    // 回 stale_result、不寫檔；畫面在沒有情境時送 null 的篩選版本與空清單，則寫出一份底稿。
     public async Task NoSavedScenario_RejectsTheOldSelectionAndWritesWorkingPaperWithoutScenarios(string provider)
     {
         using var host = new HandlerTestHost();

@@ -22,7 +22,7 @@
     );
   }
 
-  // databaseProvider 顯示名。目前只建立 SQLite 案件（裁定 2026-11-06-08），建案表單不再讓使用者選擇。
+  // databaseProvider 顯示名。目前只建立 SQLite 案件，建案表單不讓使用者選擇。
   function providerLabel() {
     return 'SQLite（本機檔案）';
   }
@@ -122,7 +122,7 @@
     var values = metadataDraft.values;
     return '<form class="form" data-bind="project-update-form" data-motion-key="metadata-form">' +
       '<h3>修改案件資料</h3>' +
-      // 原本另寫「已匯出的報告與工作底稿不會改寫」；常駐說明太多（裁定 2026-10-29-02），所以拿掉這類保證句。
+      // 這裡不寫「已匯出的報告與工作底稿不會改寫」這類保證句，免得常駐說明太多。
       '<p>案件名稱與查核期間不能修改。</p>' +
       formRow('clientName', '客戶名稱', 'text', false, values.clientName) +
       formRow('projectCode', '案件編號', 'text', false, values.projectCode) +
@@ -135,8 +135,8 @@
       '<button type="submit" class="btn">儲存案件資料</button></div></form>';
   }
 
-  // 按鈕和表單互換，按下的那一個跟著不見：打開表單時焦點交給第一個欄位，收起時交回「修改案件資料」
-  // 原本焦點會落到整個頁面。
+  // 按鈕和表單互換，按下的那一個跟著不見：打開表單時焦點交給第一個欄位，收起時交回「修改案件資料」；
+  // 不這樣做的話焦點會落到整個頁面。
   function focusMetadata(selector) {
     if (global.JetFocus && global.JetFocus.deferFirst) { global.JetFocus.deferFirst([selector]); }
   }

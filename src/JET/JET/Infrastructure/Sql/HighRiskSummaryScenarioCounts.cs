@@ -5,10 +5,8 @@ using JET.AuditCore;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 高風險條件彙總情境摘要命中數的共用合併器:跑「傳票層」與「行層」兩個 GROUP BY,
+/// 高風險條件彙總情境摘要命中數的合併器:跑「傳票層」與「行層」兩個 GROUP BY,
 /// 把每個情境位置(filter_scenario.position)的兩筆 count 併成 dict&lt;position,(voucher,row)&gt;。
-/// 兩 provider 唯一差異是 SELECT 片段(COUNT vs COUNT_BIG)由呼叫端各自帶入;
-/// 合併與讀取邏輯 provider 中立(DbConnection/DbCommand),避免兩處重複。
 /// 無命中的位置不會出現在任一查詢結果,故自然不入 dict。
 /// </summary>
 internal static class HighRiskSummaryScenarioCounts
@@ -32,7 +30,7 @@ internal static class HighRiskSummaryScenarioCounts
 
     /// <summary>
     /// 指定情境的整張命中傳票分錄數。集合與 <see cref="HighRiskSummaryRowPageReader"/> 查詢 1 相同：命中列所屬
-    /// 具名傳票（排除空白傳票號碼）在 GL 中的全部分錄。兩 provider 只差 COUNT 與 COUNT_BIG 及 schema 前綴。
+    /// 具名傳票（排除空白傳票號碼）在 GL 中的全部分錄。
     /// </summary>
     public static async Task<IReadOnlyDictionary<int, long>> ReadWholeVoucherRowCountsAsync(
         DbConnection connection, string schemaPrefix, string countExpression,
@@ -74,7 +72,6 @@ internal static class HighRiskSummaryScenarioCounts
 
     /// <summary>
     /// 各情境命中列中傳票號碼空白的分錄數：行層命中數裡，<see cref="HighRiskSummaryRowPageReader"/> 不會展開的那一部分。
-    /// 兩 provider 只差 COUNT 與 COUNT_BIG 及 schema 前綴。
     /// </summary>
     public static async Task<IReadOnlyDictionary<int, long>> ReadBlankVoucherNumberRowCountsAsync(
         DbConnection connection, string schemaPrefix, string countExpression, CancellationToken cancellationToken) =>

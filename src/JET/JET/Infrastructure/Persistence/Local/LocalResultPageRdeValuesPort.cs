@@ -3,7 +3,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite／DuckDB 共用的 result-page RDE reader。只接受單一 page 的 entry ids，以參數化
+/// result-page RDE reader。只接受單一 page 的 entry ids，以參數化
 /// IN set 一次回取 present cells；不依 action field subset 分支，也不逐 entry 查詢。
 /// </summary>
 public sealed class LocalResultPageRdeValuesPort(ILocalProjectDatabase database)

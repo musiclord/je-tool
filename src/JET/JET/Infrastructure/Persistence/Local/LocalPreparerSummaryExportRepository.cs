@@ -7,8 +7,8 @@ namespace JET.Infrastructure;
 /// <summary>
 /// 不截斷的全編製人員彙總(本地引擎,預篩選報告 R5 與匯出底稿 step1-2)。人員的分組與
 /// <see cref="LocalPrescreenRunRepository"/> 的 preparer 彙總相同,但**去掉 LIMIT 50**——要列出每一位編製人員。
-/// 照舊版再依人工旗標分列(裁定 2026-11-05-32);同一位人員的列排在一起:先按這位人員的總筆數降冪、再按人員,
-/// 人員內照舊版先自動、再人工,未判定放最後。沒有配對人工傳票欄位時 is_manual 全是 NULL,就是原本的一人一列。
+/// 照舊版再依人工旗標分列;同一位人員的列排在一起:先按這位人員的總筆數降冪、再按人員,
+/// 人員內照舊版先自動、再人工,未判定放最後。沒有配對人工傳票欄位時 is_manual 全是 NULL,就是一人一列。
 /// 不需分頁:distinct created_by 基數有界(實務數十~數百),全載入即可。
 /// </summary>
 public sealed class LocalPreparerSummaryExportRepository(ILocalProjectDatabase database)

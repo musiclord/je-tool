@@ -4,13 +4,11 @@ using JET.Infrastructure;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
-// TB 提交時間固定使用 DateTimeOffset.UnixEpoch。
 namespace JET.Tests.Infrastructure;
 
 public sealed class SqliteRepositoryTests
 {
-    // 結果時間讀不出來要請重跑；第一次失敗：20261110-045654316-8ef5aee8de474b95af4b1b2d4142661c。
+    // 結果時間讀不出來要請重跑；
     [Theory]
     [InlineData("validation_result", ResultKind.Validation)]
     [InlineData("prescreen_result", ResultKind.Prescreen)]
@@ -36,7 +34,7 @@ public sealed class SqliteRepositoryTests
         Assert.Contains("重新執行", error.Message);
     }
 
-    // 其餘已存欄位損壞案例的第一次失敗：20261110-044348373-7b936177a3c24674bbed0e66d35f8191。
+    // 其餘已存欄位損壞案例的
     [Theory]
     [InlineData("UPDATE filter_scenario SET saved_utc = 'broken';")]
     [InlineData("UPDATE filter_scenario SET position = 2147483648;")]
@@ -228,7 +226,6 @@ public sealed class SqliteRepositoryTests
     /// <summary>
     /// 上次確認的配對那一列讀不出來時當作沒有，但案件資料庫本身開不了時照常報錯，和讀有效配對一樣
     /// （LocalMappingStateStore.FindPreviousAsync 的註解）。missing 是資料夾裡沒有資料庫檔，empty 是資料庫檔是 0 位元組。
-    /// 這是新增的測試。
     /// </summary>
     [Theory]
     [InlineData("missing")]
@@ -284,15 +281,14 @@ public sealed class SqliteRepositoryTests
             await command.ExecuteNonQueryAsync();
         }
 
-        // 舊版 JET 保存的第 1 版配對不再沿用舊語意讀取，而是明確告訴使用者重新建立案件。
+        // 舊版 JET 保存的第 1 版配對不沿用舊語意讀取，而是明確告訴使用者重新建立案件。
         var exception = await Assert.ThrowsAsync<JetActionException>(() => new LocalMappingStateStore(db).FindAsync(
             projectId,
             DatasetKind.Gl,
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 用語統一以「已儲存」為準（裁定 2026-10-02-01），審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 裁定 2026-10-30-23：舊版案件的訊息全程式用同一句，寫明刪除後重建（第一次失敗收據 20261030-071032167-0e244dd947aa491c97bf0a76ee591a57）。
+        // 舊版案件的訊息全程式用同一句，寫明刪除後重建。
         Assert.Equal(
             "這個案件是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
@@ -308,7 +304,7 @@ public sealed class SqliteRepositoryTests
         var mappingStore = new LocalMappingStateStore(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 批次 A（gl，3 列）+ commit mapping + 模擬 target 資料
@@ -371,7 +367,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var batch = (await importRepo.ReplaceBatchAsync(
@@ -409,7 +405,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 交錯送入:批次排序鍵(source_row_number)依送入順序 → D1 在第1,3,4 位、D2 在第2,5 位。
@@ -460,7 +456,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 多傳票、交錯送入(無 lineItem)。
@@ -500,7 +496,7 @@ public sealed class SqliteRepositoryTests
     }
 
     /// <summary>
-    /// 設計 §39 / 邊角:voucher_number 為 NULL 時,逐傳票編號把所有 NULL-doc 列視為單一分區,
+    /// 邊角:voucher_number 為 NULL 時,逐傳票編號把所有 NULL-doc 列視為單一分區,
     /// 在該分區內依 source_row_number 決定性地編 1..k;真實傳票 "D1" 獨立編 1,2,互不干擾。
     /// 為產生 NULL voucher_number,NULL-doc 列的 value 字典「不含」doc 鍵(present-but-blank ""
     /// 不是 null),故這些列以 inline StagingRow 建構,不用一律塞 doc 的 Row()。
@@ -515,7 +511,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 缺 doc 鍵 → 投影後 voucher_number 為 NULL(present-but-blank 不算);仍給 debit 確保列可投影。
@@ -586,7 +582,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 來源含項次欄 "ln",值有跳號(10,20);對應後應逐字保留、不重編成 1,2。
@@ -635,7 +631,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 重現借貸欄誤配傳票總額的案例：借=貸，DualAmount 逐列淨額恆 0 → 整個母體退化。
@@ -671,7 +667,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // desc 欄整欄空白（present-but-blank）；其餘必填欄正常、金額非退化（借/貸各 100）。
@@ -716,7 +712,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var batch = (await importRepo.ReplaceBatchAsync(
@@ -744,7 +740,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var batch = (await importRepo.ReplaceBatchAsync(
@@ -780,7 +776,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var rows = new List<StagingRow>
@@ -822,12 +818,12 @@ public sealed class SqliteRepositoryTests
     }
 
     /// <summary>
-    /// 失效範圍收斂（2026-06-22 實務稽核發現）：存入筆數與合計核對的控制總數 gl_control_total 的上游只有 GL，
+    /// 失效範圍收斂：存入筆數與合計核對的控制總數 gl_control_total 的上游只有 GL，
     /// 由 GL 投影隨 gl 一起 upsert。TB 投影（及科目配對／行事曆／授權清單匯入）與 GL 無關，
     /// **不得**把它連帶清掉。否則 GUI 最自然的「先 commit GL、後 commit TB」順序，會讓 GL 投影落地的
     /// 控制總數被 TB commit 清除，存入筆數與合計核對變全 null（控制總數核對形同沒跑）。
     /// 不變量：先投影 GL（寫入 gl_control_total）、再投影 TB，控制總數仍應存活且值不變。
-    /// oracle：規格（gl_control_total 上游只有 GL target；ResultReset 失效收斂後 TB 不碰它）。
+    /// oracle：規格（gl_control_total 上游只有 GL target；ResultReset 處理 TB 時不碰它）。
     /// </summary>
     [Fact]
     public async Task TbProjection_DoesNotClearGlControlTotal()
@@ -838,7 +834,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 1) 先把 GL、TB 都匯入（GUI 順序），再投影 GL → gl_control_total 落地（stored_row_count=2）。
@@ -901,7 +897,7 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         // 播種：U1(借300貸100→不平+200), U2(借50貸50→平), U3(借0貸30→不平-30)
@@ -972,11 +968,11 @@ public sealed class SqliteRepositoryTests
         var importRepo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
-        // 「核准日不在期間」以核准日 approval_date 判定，配對鍵是 approvalDate，和舊版 JET 的「Approval date out of period」相同
-        // （裁定 2026-06-23-01）。故需配 approvalDate→approval 欄；NR2 的**過帳日在期內、
+        // 「核准日不在期間」以核准日 approval_date 判定，配對鍵是 approvalDate，和舊版 JET 的「Approval date out of period」相同。
+        //故需配 approvalDate→approval 欄；NR2 的**過帳日在期內、
         // 但核准日在期外**，藉此鎖住「此旗標看核准日、不看過帳日」。沿用 DualSpec 的借/貸欄並加 approvalDate。
         // 注意：StagingRow 值字典若缺鍵則投影時欄位為 NULL。
         var spec = new GlMappingSpec(new Dictionary<string, string>
@@ -1069,7 +1065,7 @@ public sealed class SqliteRepositoryTests
         var inspector = new LocalDevDatabaseInspector(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         await importRepo.ReplaceBatchAsync(

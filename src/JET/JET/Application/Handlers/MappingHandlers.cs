@@ -9,10 +9,10 @@ namespace JET.Application;
 /// <summary>
 /// 從檔案讀回 GL/TB mapping 草稿（第三步「由底稿匯入欄位」）。唯讀：不保存 mapping、不投影 target、不推進流程。
 /// 檔案有 JET 記下的隱藏配對紀錄時照那一份帶入；沒有時讀「自動化工具-檔案欄位資訊」看得見的對照表推得草稿，
-/// 舊版 IDEA JET 的底稿也能帶入（裁定 2026-11-09-28）。
+/// 舊版 IDEA JET 的底稿也能帶入。
 /// 選到的來源欄在目前資料找不到時，不整份拒絕：對得上的照樣帶入，找不到的連同綁在它上面的設定拿掉，
 /// 列在 unmatchedFields 請審計員重選；沒有匯入 TB、檔案匯出時 TB 還沒確認配對，或推得的 TB 段沒有任何配對也沒有要重選的項目時，
-/// 只帶入 GL，tb 回 null（裁定 2026-11-05-03）。
+/// 只帶入 GL，tb 回 null。
 /// 隱藏紀錄本身缺必要欄位或用了不支援的金額計算方式，仍整份拒絕；推得的草稿缺的欄位不整份拒絕。
 /// </summary>
 public sealed class MappingRestoreDraftHandler(
@@ -48,7 +48,7 @@ public sealed class MappingRestoreDraftHandler(
         }
         else
         {
-            // 沒有隱藏紀錄時從看得見的對照表推得草稿；沒有匯入 TB 時不推 TB（裁定 2026-11-09-28）。
+            // 沒有隱藏紀錄時從看得見的對照表推得草稿；沒有匯入 TB 時不推 TB。
             tbBatch = await repositories.Imports.GetLatestBatchAsync(projectId, DatasetKind.Tb, cancellationToken);
             var inferred = FieldInfoSheetMapping.Infer(
                 source.FieldInfoSheet!,
@@ -305,7 +305,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
             ? true
             : await repositories.ProjectOperationLog.TryRequiresMappingRecommitAuditAsync(projectId, "gl", cancellationToken);
         // 重新匯入會刪掉已確認的配對，但畫面的草稿仍帶著上次確認時發出的攸關資料元素欄位身分。
-        // 還沒重新確認時沿用那一份，草稿才送得出去。已儲存情境會隨重新匯入一併清除（裁定 2026-10-07-03）。
+        // 還沒重新確認時沿用那一份，草稿才送得出去。已儲存情境會隨重新匯入一併清除。
         var reusableMapping = existingMapping
             ?? await repositories.MappingStates.FindPreviousAsync(projectId, DatasetKind.Gl, cancellationToken);
         var existingRdeIds = reusableMapping?.GlOptions?.RdeFields
@@ -380,7 +380,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         var warnings = CommittedOperationLog.WithWarning(result.Projection.Warnings, operationLogWarning);
         // 第五步依這份清單停用用到未配對欄位的入口；和驗證器、第四步讀同一份欄位目錄的答案。
         var availableGlFields = JetFieldCatalog.AvailableGlFields(result.Spec.Mapping, result.Spec.Options);
-        // 這次投影的控制總數算出的尾數 0 的個數（裁定 2026-11-05-25），畫面不用重開案件就能更新第四步卡片與第五步的預設。
+        // 這次投影的控制總數算出的尾數 0 的個數，畫面不用重開案件就能更新第四步卡片與第五步的預設。
         int? zerosThreshold = result.Projection.GlTotals is { } glTotals
             ? TrailingZeroThreshold.FromGlTotals(glTotals, document.MoneyScale)
             : null;
@@ -392,7 +392,7 @@ public sealed class MappingCommitGlHandler : IApplicationActionHandler
         catch (Exception error)
         {
             // 變更已提交，讀不到授權清單比對狀態時和讀不回結果狀態相同處理：回報成功、附提醒，
-            // 回應不帶這個欄位，前端保留畫面上的狀態（裁定 2026-10-19-19）。支援日誌記下錯誤類型。
+            // 回應不帶這個欄位，前端保留畫面上的狀態。支援日誌記下錯誤類型。
             if (logger is not null) WorkflowResultStateSupport.StateReadFailed(logger, "authorized_preparer_state", error.GetType().Name);
             var unavailable = WorkflowResultStateSupport.StateUnavailable(mutationState.InvalidatedResults);
             return new
@@ -570,7 +570,7 @@ internal static class MappingCommitShared
         catch (Exception exception)
         {
             // Only a navigation milestone failed after data commit. Do not repeat the completed operation or expose paths.
-            // 先前只寫一般警告，支援日誌收不到；改成支援日誌事件，記下例外型別與位置（2026-10-21）。
+            // 寫成支援日誌事件，記下例外型別與位置。
             if (logger is not null) SupportStepDiagnostics.StepFailed(logger, "workflow.milestone", exception);
         }
     }
@@ -762,7 +762,7 @@ internal static class MappingV2CommitPayloadPrerequisite
             rdeFields = fields;
         }
 
-        // 往下填補的欄位：只收形狀，哪些欄位能填由 Domain 的規則裁定。
+        // 往下填補的欄位：只收形狀，哪些欄位能填由 Domain 的規則決定。
         IReadOnlyList<string> fillDownFields = [];
         if (payload.TryGetProperty("fillDownFields", out var fillDownElement))
         {

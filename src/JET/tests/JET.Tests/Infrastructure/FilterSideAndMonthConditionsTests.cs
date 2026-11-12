@@ -5,8 +5,6 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
-
 public sealed class FilterSideAndMonthConditionsTests
 {
     [Theory]
@@ -69,7 +67,6 @@ public sealed class FilterSideAndMonthConditionsTests
         var scenario = FilterCompletenessTests.Scenario(JsonSerializer.Serialize(new
         { type = "fieldValue", field = "accountNumber", @operator = "equals", value = "A", drCr = direction }));
         // 分錄方向的值不在允許範圍只會是內容損毀，畫面改寫通用句，改鎖原因代號。
-        // 第一次失敗：收據 20261013-141745059-73ff4afda2d1464bbfbe918459a13666。
         var errors = FilterScenarioValidator.Validate(scenario, new(false, true, true));
         Assert.Contains("第 1 組第 1 條：此條件內容有誤，無法儲存。請刪除此條件後重新設定。", errors);
         Assert.Contains(new FilterScenarioCorruptReason(1, 1, "field_value_side_invalid"), FilterScenarioCorruption.ReasonsOf(errors));
@@ -171,8 +168,7 @@ public sealed class FilterSideAndMonthConditionsTests
         }
         foreach (var rule in new[]
         {
-            // 欄位條件的分錄方向已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改成同一個子條件組裡的「借貸別」與欄位條件，
-            // 固定答案不變。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98。
+            // 分錄方向用同一個子條件組裡的「借貸別」與欄位條件表達。
             """{"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"fieldValue","field":"approvalDate","operator":"isBlank"}]}""",
             """{"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"fieldValue","field":"approvalDate","operator":"monthEndDays","value":"2","includeBlank":true}]}"""
         })

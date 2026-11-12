@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 /// <summary>
 /// 只供 Application tests 使用的 current validation-v6 合法摘要。
 /// 需要測 malformed carrier 時，先建立這份完整 shape，再只變異該案例的目標欄位。
-/// 2026-10-23 升 v6：資料缺漏輔助檢視多了「核准日不在期間」的原因欄，預設是能檢查的 0 筆、原因 null，其他欄位不變。
+/// 資料缺漏輔助檢視有「核准日不在期間」的原因欄，預設是能檢查的 0 筆、原因 null。
 /// </summary>
 internal static class CurrentValidationSummaryTestData
 {
@@ -93,7 +93,7 @@ internal static class CurrentValidationSummaryTestData
                         rowCountMatch = storedRowCountMatch,
                         amountMatch = storedAmountMatch
                     },
-                    // 目前驗證一定寫入 warning（可為 null）；2026-10-02 起不再接受缺這一欄的舊格式。
+                    // 目前驗證一定寫入 warning（可為 null）；不接受缺這一欄的舊格式。
                     eligibility = new
                     {
                         isEligible = storedEligibility,
@@ -123,8 +123,8 @@ internal static class CurrentValidationSummaryTestData
                     findingCount = sourceQualityFindingCount,
                     sampleRows
                 },
-                // Public首敗100911120：新版完整摘要必須有實測計數。
-                // 此合成fixture固定沒有同號多日期，補0/0而不改其他測試的完整性、明細與例外斷言。
+                // 完整摘要必須有實測計數。
+                // 此合成fixture固定沒有同號多日期，補0/0。
                 voucherNumberAcrossGlDates = new { voucherNumberCount = 0L, entryCount = 0L },
                 resultRef = new
                 {

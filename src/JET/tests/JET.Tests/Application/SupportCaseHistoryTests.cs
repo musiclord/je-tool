@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 離開案件、之後再回到同一案件時，匯出的支援日誌不能缺一開始的事件（裁定 2026-10-21-07）。每個情境先寫出完整的預期事件順序，
+/// 離開案件、之後再回到同一案件時，匯出的支援日誌不能缺一開始的事件。每個情境先寫出完整的預期事件順序，
 /// 再只讀匯出檔核對：重新開啟、沒有正常離開與寫到一半的行、紀錄檔被占用或唯讀、另一個程式開不了案件、切換案件、
 /// 刪除後重建同名案件、舊案件第一次開啟，以及寫不進去的事件超過保留上限。程式真的重新啟動與被強制結束的情境見
 /// <see cref="SupportCaseHistoryProcessTests"/>。
@@ -215,8 +215,6 @@ public sealed class SupportCaseHistoryTests
         var first = await CreateAsync(host, "sqlite", "Synthetic history first", "first-create");
         await host.DispatchAsync("log.recent", correlationId: "first-1");
         await host.DispatchAsync("project.releaseLock", correlationId: "first-leave");
-        // 第二個案件原本建 DuckDB 案件。只保留 SQLite 之後建不了，改成另一個 SQLite 案件，換案的情境與斷言不變
-        // （裁定 2026-11-06-08）；第一次失敗：Public 收據 20261106-085246006-0b8a050479f1422b8d8ffc9fcd54c83b。
         var second = await CreateAsync(host, "sqlite", "Synthetic history second", "second-create");
         await host.DispatchAsync("log.recent", correlationId: "second-1");
         await host.DispatchAsync("project.releaseLock", correlationId: "second-leave");

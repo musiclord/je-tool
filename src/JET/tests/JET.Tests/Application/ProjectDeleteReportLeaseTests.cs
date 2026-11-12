@@ -38,7 +38,7 @@ public sealed class ProjectDeleteReportLeaseTests
     [Fact]
     public async Task DeletePreview_RetiredProviderProjectDoesNotReadCatalog()
     {
-        // 原本驗證線上案件沒有權限時不讀報告索引；線上案件移除後，改驗證舊種類的案件同樣不讀索引（裁定 2026-11-06-09）。
+        // 驗證舊種類的案件不讀報告索引。
         var events = new List<string>();
         var reports = new LeaseReportStore(events) { PreviewReports = [] };
         var handler = PreviewHandler(new FakeProjectStore(Document("project-1") with
@@ -76,7 +76,7 @@ public sealed class ProjectDeleteReportLeaseTests
         var message = response.GetProperty("message").GetString()!;
         Assert.Contains("案件資料夾", message);
         Assert.DoesNotContain("快取", message);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Contains("刪除剩餘的檔案", message);
         Assert.True(response.GetProperty("ok").GetBoolean());
         Assert.Null(session.CurrentProjectId);
@@ -191,10 +191,9 @@ public sealed class ProjectDeleteReportLeaseTests
         var response = await handler.HandleAsync(payload.RootElement, CancellationToken.None);
         var responseJson = JsonSerializer.SerializeToElement(response);
 
-        // 刪除會移除整個案件資料夾，報告與底稿不是快取；保留session離開與刪除lease完成的原斷言。
-        // 首次失敗：20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+        // 刪除會移除整個案件資料夾，報告與底稿不是快取。
         Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 這句的用字已定案。
                         "案件已刪除，但案件資料夾未能完全刪除，請自行確認並刪除剩餘的檔案。",
             responseJson.GetProperty("message").GetString());
         Assert.DoesNotContain("reconcile", responseJson.GetRawText(), StringComparison.OrdinalIgnoreCase);

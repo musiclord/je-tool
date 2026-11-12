@@ -6,9 +6,8 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 第三步配對版面、單一資料夾入口、不顯示多餘的成功提示，以及總覽把流程位置和階段狀態分開的呈現層守衛。
 /// 審計事實仍只由既有 backend DTO 提供；本組只鎖 DOM、互動與可讀性。
-/// 資料預覽的半屏收合與「其他資料」選單、摘要優先的總覽與階段檢視、總覽的完成判斷，2026-10-14 起改由
-/// <c>tools/tests/frontend-journey-tables.test.cjs</c>、<c>frontend-journey-overview.test.cjs</c> 與 <c>frontend-journey-completion.test.cjs</c>
-/// 的行為測試核對；收合斷點和 app.css 一致這一條搬到 <see cref="FrontendSourceOnlyRulesTests"/>。
+/// 資料預覽的半屏收合與「其他資料」選單、摘要優先的總覽與階段檢視、總覽的完成判斷，由前端的行為測試核對；
+/// 收合斷點和 app.css 一致這一條在 <see cref="FrontendSourceOnlyRulesTests"/>。
 /// </summary>
 public sealed class FrontendUsabilityContractTests
 {
@@ -31,9 +30,8 @@ public sealed class FrontendUsabilityContractTests
         var javascript = string.Join('\n', Directory.EnumerateFiles(Path.Combine(root, "js"), "*.js", SearchOption.AllDirectories).Select(File.ReadAllText));
 
         Assert.Single(Regex.Matches(index, "data-action=\"open-project-folder\"", RegexOptions.CultureInvariant).Cast<Match>());
-        // 9/22 科目配對區新增就近開啟資料夾，報告定位由各步共用一個事件綁定。
-        // 改動原因：裁定 2026-10-08-08 移除第二步假日卡片的「開啟案件資料夾」，呼叫點由 4 處降為 3 處
-        // （頁首、科目配對各一，加上報告定位）；第一次失敗：收據 20261008-035557135-54b626343f7c4071bb97b02ddde22408。
+        // 科目配對區可就近開啟資料夾，報告定位由各步共用一個事件綁定。
+        // 呼叫點共 3 處：頁首、科目配對各一，加上報告定位。
         Assert.Equal(3, Regex.Matches(javascript, @"JetApi\.hostOpenFolder\(", RegexOptions.CultureInvariant).Count);
         Assert.Contains("hostOpenFolder({ target: 'projectFolder' })", javascript, StringComparison.Ordinal);
         Assert.Contains("data-open-report", javascript, StringComparison.Ordinal);
@@ -50,14 +48,14 @@ public sealed class FrontendUsabilityContractTests
         Assert.DoesNotContain("現在可以開始", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("進入條件已備齊", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("本步驟條件已備齊", javascript, StringComparison.Ordinal);
-        // 依裁定 2026-10-13-28，「已阻擋」改「尚無法執行」（第一次失敗：Focused 收據 20261013-141351990-49476cfa2fd741ed9b2b96ce5334e3f0）。
+        // 畫面寫「尚無法執行」，不寫「已阻擋」。
         Assert.Contains("尚無法執行：", javascript, StringComparison.Ordinal);
-        // 「符合條件不等於錯誤」與「判斷由審計員做」在 2026-09-22 改成白話後合併為同一句，整句檢查。
-        // 用語統一後，畫面不再使用「母體」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
+        // 「符合條件不等於錯誤」與「判斷由審計員做」合併為同一句白話，整句檢查。
+        // 畫面不使用「母體」。
         Assert.Contains("預篩選呈現查核期間分錄的分布與符合條件的分錄，是否需進一步查核由審計員判斷。", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("母體分布", javascript, StringComparison.Ordinal);
-        // 整體複審後，「不適用不等於零。」改成完整句，語意仍是「不適用不代表沒有符合的分錄」；舊短句不得再出現。
-        // 裁定 2026-11-03-10 改畫面用字：「不適用規則」改成「無法執行的規則」。第一次失敗：Focused 收據 20261103-075222574-7db72dd2e7f54a99b46d07d094e04c87。
+        // 「不適用不等於零。」寫成完整句，語意是「不適用不代表沒有符合的分錄」；短句不得出現。
+        // 畫面用字是「無法執行的規則」，不寫「不適用規則」。
         Assert.Contains("列在「無法執行的規則」的條件因缺少所需資料或設定而沒有執行，不代表沒有符合的分錄。", javascript, StringComparison.Ordinal);
         Assert.DoesNotContain("不適用不等於零", javascript, StringComparison.Ordinal);
     }
@@ -78,7 +76,7 @@ public sealed class FrontendUsabilityContractTests
         Assert.Contains("個可處理", progress, StringComparison.Ordinal);
         Assert.Contains("個等待前置", progress, StringComparison.Ordinal);
         Assert.DoesNotContain("個進行中", progress, StringComparison.Ordinal);
-        // 2026-10-08 新主題把藍色選取色改名為唯一重點色 --color-accent（值仍是 #1f6c9f），紅色只留給錯誤。
+        // 藍色選取色是唯一重點色 --color-accent（值是 #1f6c9f），紅色只留給錯誤。
         Assert.Matches(
             new Regex(@"\.overview-stage__location\s*\{[^}]*color:\s*var\(--color-accent\);", RegexOptions.Singleline),
             css);

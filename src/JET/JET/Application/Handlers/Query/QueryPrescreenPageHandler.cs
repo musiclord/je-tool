@@ -32,7 +32,7 @@ public sealed class QueryPrescreenPageHandler(
         }
         else
         {
-            // 尾零規則的 0 的個數和第四步預篩選同一個來源：已確認 GL 配對的控制總數（裁定 2026-11-05-25）。
+            // 尾零規則的 0 的個數和第四步預篩選同一個來源：已確認 GL 配對的控制總數。
             var glMapping = ruleKey == PrescreenRuleKeys.TrailingZeros
                 ? await repositories.MappingStates.FindAsync(projectId, DatasetKind.Gl, cancellationToken)
                 : null;

@@ -5,7 +5,7 @@ namespace JET.Tests.Domain;
 
 public sealed class JetFieldCatalogTests
 {
-    // 2026-10-22 清理技術債：目錄只給測試用的 FindGlMappingSlot 與 FindTbMappingSlot 已刪除，測試直接從槽位清單找。
+    // 測試直接從槽位清單找槽位。
     private static JetMappingSlot GlSlot(string key) => JetFieldCatalog.GlMappingSlots.Single(slot => slot.Key == key);
 
     private static JetMappingSlot TbSlot(string key) => JetFieldCatalog.TbMappingSlots.Single(slot => slot.Key == key);
@@ -26,8 +26,7 @@ public sealed class JetFieldCatalogTests
         var glAll = typeof(GlMappingKeys).GetField(nameof(GlMappingKeys.All));
         var tbAmount = typeof(TbMappingKeys).GetField(nameof(TbMappingKeys.ChangeAmount));
         var tbAll = typeof(TbMappingKeys).GetField(nameof(TbMappingKeys.All));
-        // 照樣本範本定的 GlCanonicalNames 依裁定 2026-11-03-11 刪除，輸出欄名只剩欄位目錄的 LegacyFieldName 一份；
-        // 這裡原本對樣本欄名表的檢查一起拿掉。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
+        // 輸出欄名只有欄位目錄的 LegacyFieldName 一份。
 
         Assert.NotNull(glVoucherNumber);
         Assert.True(glVoucherNumber.IsLiteral);
@@ -49,8 +48,7 @@ public sealed class JetFieldCatalogTests
     [Fact]
     public void GlDefinitions_MatchV2ContractMatrix()
     {
-        // 矩陣倒數第二欄原本是樣本欄名 CanonicalName，依裁定 2026-11-03-11 改成輸出欄名 LegacyFieldName，
-        // 沒有樣本名的傳票核准日、分錄來源模組與人工/自動分錄因此有值。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
+        // 矩陣倒數第二欄是輸出欄名 LegacyFieldName，傳票核准日、分錄來源模組與人工/自動分錄也有值。
         var expected = new[]
         {
             Slot("voucherNumber", "傳票號碼", 0, true, [], false, true,
@@ -61,7 +59,7 @@ public sealed class JetFieldCatalogTests
                 "glDate", JetFieldValueKind.Date, "gl_date", true, "總帳日期_JE", true),
             Slot("approvalDate", "傳票核准日", 3, false, [], false, true,
                 "approvalDate", JetFieldValueKind.Date, "approval_date", true, "傳票核准日_JE", true),
-            // 裁定 2026-10-08-03 移除傳票日期與回溯過帳，原本 order 4 的 voucherDate 拿掉，其餘順序值不重排。
+            // 順序值 4 空著不用，其餘順序值不重排。
             Slot("accountNumber", "會計科目編號", 5, true, [], false, true,
                 "accountNumber", JetFieldValueKind.Text, "account_number", true, "會計科目編號_JE", true),
             Slot("accountName", "會計科目名稱", 6, true, [], false, true,
@@ -76,7 +74,6 @@ public sealed class JetFieldCatalogTests
                 "approvedBy", JetFieldValueKind.Text, "approved_by", true, "傳票核准人員_JE", true),
             Slot("isManual", "人工/自動分錄", 11, false, [], false, false,
                 "isManual", JetFieldValueKind.Boolean, "is_manual", true, "人工傳票否_JE_S", false),
-            // 裁定 2026-10-13-18 把分錄金額改名為金額；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
             Slot("amount", "金額", 12, false, ["signed", "side", "flag"], false, true,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("debitAmount", "借方金額", 13, false, ["dual"], false, false,
@@ -85,14 +82,12 @@ public sealed class JetFieldCatalogTests
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
             Slot("drCr", "借貸別", 15, false, ["side", "flag"], false, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            // 裁定 2026-10-02-02：欄位配對名稱「借方標識代碼」改成「借方代碼」。
             Slot("drCrDebitCode", "借方代碼", 16, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            // 2026-10-04 加入必填貸方代碼；新增 slot，不改任何既有欄位的儲存語意。
-            // 首次失敗：Public 20261004-100911120-57efb95a0cae44beb892ec3c2d058592。
+            // 必填的貸方代碼；這個 slot 不改任何既有欄位的儲存語意。
             Slot("drCrCreditCode", "貸方代碼", 17, false, ["side", "flag"], true, false,
                 "amount", JetFieldValueKind.Amount, "amount_scaled", false, "傳票金額_JE", true),
-            // 過帳碼_JE 照舊版補回（裁定 2026-11-03-15），過帳狀態欄因此有輸出欄名。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
+            // 過帳碼_JE 照舊版補回，過帳狀態欄因此有輸出欄名。
             Slot("postingStatus", "過帳狀態", 18, false, [], false, false,
                 "postingStatus", JetFieldValueKind.Text, "posting_status", true, "過帳碼_JE", false)
         };
@@ -137,8 +132,7 @@ public sealed class JetFieldCatalogTests
     {
         Assert.Same(JetFieldCatalog.GlMappingKeys, GlMappingKeys.All);
         Assert.Same(JetFieldCatalog.TbMappingKeys, TbMappingKeys.All);
-        // 照樣本範本定的 GlCanonicalNames 依裁定 2026-11-03-11 刪除，輸出欄名只剩欄位目錄的 LegacyFieldName 一份；
-        // 這裡原本對樣本欄名表的檢查一起拿掉。第一次失敗：Build 收據 20261103-064752145-f0bd5fc4ade8407b8955b91d0b0bd760。
+        // 輸出欄名只有欄位目錄的 LegacyFieldName 一份。
 
         Assert.Equal(
             [
@@ -239,8 +233,8 @@ public sealed class JetFieldCatalogTests
         var slot = GlSlot(GlMappingKeys.PostingStatus);
         var field = JetFieldCatalog.FindGlSemanticFieldByMappingKey(GlMappingKeys.PostingStatus);
 
-        // 「前端工作流整合」已接上過帳狀態的配對控制項與 posting policy 編輯器，
-        // 故它不再是 contract-only slot；欄位語意（SQL target、nullability、非通用篩選欄）不變。
+        // 前端已接上過帳狀態的配對控制項與 posting policy 編輯器，
+        // 故它不是 contract-only slot；欄位語意（SQL target、nullability、非通用篩選欄）不變。
         Assert.True(slot.IncludeInMappingUi);
         Assert.Contains(slot, JetFieldCatalog.GlMappingUiSlots);
         Assert.Equal(

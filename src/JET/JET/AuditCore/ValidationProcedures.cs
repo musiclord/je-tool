@@ -11,13 +11,12 @@ namespace JET.AuditCore;
 ///
 /// <para><b>共用片段</b>：<see cref="UnbalancedCore"/>（voucher_balance 3 處共用的傳票彙總核心）、
 /// <see cref="UnbalancedDetailCore"/>（借貸不平傳票回接有效 GL 的 count／page 共用核心）、
-/// <see cref="InfSampleInsert"/>（INF 抽樣 INSERT 的唯一定義，方言差
-/// 取 N 列走 <see cref="ISqlDialect.LimitClause"/> 既有縫）、blank_records 四類述詞則以
+/// <see cref="InfSampleInsert"/>（INF 抽樣 INSERT 的唯一定義）、blank_records 四類述詞則以
 /// <c>BlankRecordsCategoryPredicate</c> 為中心（計數/明細/分頁三形狀共用）。</para>
 ///
 /// <para><see cref="CompletenessDiffCte"/> 為「每科目 GL/TB 彙總差異」的 CTE；GL 側只取有效分錄，
-/// TB 側取全部（TB 本身即本期變動）。兩 provider CTE 文字相同（皆 ANSI、LEFT JOIN + UNION ALL 模擬 FULL OUTER JOIN），
-/// 故抽到此處由 ValidationRunRepository 與 completenessDiff/Account page repo、科目配對匯出共用。
+/// TB 側取全部（TB 本身即本期變動）。CTE 用 LEFT JOIN 加 UNION ALL 做出 FULL OUTER JOIN 的結果，
+/// 由 ValidationRunRepository 與 completenessDiff/Account page repo、科目配對匯出共用。
 /// 輸出欄：account_number、account_name、tb_s、gl_s、not_in_tb。</para>
 /// </summary>
 public static class ValidationProcedures
@@ -48,7 +47,6 @@ public static class ValidationProcedures
     /// <summary>
     /// 同一號碼跨不同入帳日的提醒，只讀有效分錄。傳票身分與既有程序仍只看號碼；空白的傳票號碼和
     /// 空白傳票號碼類別用同一個判定（去掉頭尾空白後是空字串也算空白），不列入提醒。
-    /// countFunction 只由 provider 傳 COUNT 或 COUNT_BIG，避免 SQL Server 大量列計數溢位。
     /// </summary>
     internal static string VoucherNumberAcrossGlDatesSummary(
         ISqlDialect dialect,
@@ -76,8 +74,8 @@ public static class ValidationProcedures
         extraFilter;
 
     /// <summary>
-    /// 底稿 Step 1-1 明細：不平傳票的有效分錄依傳票號碼與總帳日期彙總借方與貸方（legacy
-    /// idea-tool.bas:6686-6691）。不平的判定沿用 <see cref="UnbalancedDetailCore"/>，只看傳票號碼。
+    /// 底稿 Step 1-1 明細：不平傳票的有效分錄依傳票號碼與總帳日期彙總借方與貸方（照舊版 JET）。
+    /// 不平的判定沿用 <see cref="UnbalancedDetailCore"/>，只看傳票號碼。
     /// 輸出欄：voucher_number、gl_date、debit_s、credit_s（貸方為非負合計）。
     /// </summary>
     public static string UnbalancedVoucherDateSummary(string schemaPrefix = "") =>
@@ -89,8 +87,7 @@ public static class ValidationProcedures
         "ORDER BY g.voucher_number, g.gl_date";
 
     /// <summary>
-    /// INF 抽樣 INSERT 的唯一定義，方言差由
-    /// <see cref="ISqlDialect"/> 渲染。母體限有效分錄。排序識別用 target 的
+    /// INF 抽樣 INSERT 的唯一定義。母體限有效分錄。排序識別用 target 的
     /// source_row_number（批次內單調穩定），不用重投影會重編的 entry_id；entry_id 只作唯一 tiebreak。
     /// 排序鍵使用 AuditCore canonical PRF（演算法第 2 版）。
     /// </summary>
@@ -111,12 +108,11 @@ public static class ValidationProcedures
         """;
     }
 
-    /// <summary>完整性差異 CTE：GL 側只取 GL，不含 GL(未納入測試)。SQLite 直接用這份。</summary>
+    /// <summary>完整性差異 CTE：GL 側只取 GL，不含 GL(未納入測試)。</summary>
     public static readonly string CompletenessDiffCte = CompletenessDiffCteFor("");
 
     /// <summary>
-    /// 完整性差異 CTE 的唯一定義。<paramref name="schemaPrefix"/> 是兩張資料表 gl、tb 前面的限定詞：
-    /// SQLite 傳空字串；參數保留給日後恢復的 SQL Server 傳 schema 限定詞。
+    /// 完整性差異 CTE 的唯一定義。
     /// 中間結果另取 gl_by_account、tb_by_account 這兩個名字，不和資料表 gl、tb 同名，
     /// 否則 SQLite 會把 CTE 裡的 FROM gl 當成引用自己。
     /// </summary>

@@ -3,7 +3,7 @@ using JET.AuditCore;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// SQLite／DuckDB 共用的 Validation workbook planning facts adapter。只計算借貸不平
+/// Validation workbook planning facts adapter。只計算借貸不平
 /// 傳票回接有效 GL 後的 detail rows；不讀取任何 detail page 或 raw JSON。
 /// </summary>
 internal sealed class LocalValidationReportPlanningFactsPort(ILocalProjectDatabase database)

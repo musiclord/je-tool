@@ -31,7 +31,7 @@ public enum FilterConditionType
     TextSet,
 
     /// <summary>
-    /// typed dynamic rule（wire <c>type:"typed"</c>，2026-08-14 契約凍結）：目前案件 committed
+    /// typed dynamic rule（wire <c>type:"typed"</c>）：目前案件 committed
     /// 的 RDE 欄位（text／date／amount）依 closed operator menu 參與進階條件。fieldId 只作
     /// registry lookup 與參數綁定，永不成為 SQL identifier。
     /// </summary>
@@ -85,14 +85,13 @@ public static class FilterScenarioLimits
         $"最多可儲存 {MaxSavedScenarios} 個篩選情境，請先移除不需要的情境。";
 
     /// <summary>
-    /// 情境名稱上限，和 SQL Server 的 <c>filter_scenario.name NVARCHAR(400)</c> 同寬；三種資料庫共用，儲存時超過就回錯誤，
-    /// 不讓 SQL Server 默默截斷（裁定 2026-10-19-26）。前端 ui-core.js 的
+    /// 情境名稱上限，儲存時超過就回錯誤。前端 ui-core.js 的
     /// FILTER_MAX_SCENARIO_NAME_LENGTH 是輸入框的鏡像，由架構測試比對。
     /// </summary>
     public const int MaxNameLength = TextStorageLimits.TextUtf16CodeUnits;
 }
 
-/// <summary>科目配對分析的三模式（見 docs/jet-guide.md 第 6 節「進階條件篩選」）。</summary>
+/// <summary>科目配對分析的三模式。</summary>
 public static class AccountPairModes
 {
     public const string Exact = "exact";
@@ -135,7 +134,7 @@ public enum TextMatchMode
 /// RevenueWithoutNormalCounterpart / ManualRevenueEntry / PreparerEqualsApprover → 無參數。
 /// UnknownJoin：wire 的 join 有值卻不是 AND/OR 時，解析層把原始值標記在這裡而不擲錯
 /// （materialize 重新解析已存 JSON 不經驗證，解析層必須容忍），由 FilterScenarioValidator
-/// 擋成 invalid_scenario——2026-07-06 收緊前未知 join 被靜默當 AND，曾掩護前端回歸。
+/// 擋成 invalid_scenario；未知 join 若被靜默當成 AND，會掩護前端回歸。
 /// </summary>
 public sealed record FilterConditionSpec(
     FilterJoin Join,
@@ -265,8 +264,7 @@ internal static class TextSetValueNormalizer
 
 /// <summary>
 /// 篩選情境來源標記（wire 欄位 scenario.source）：標明此情境是查核員手寫，
-/// 還是用了「常用篩選條件」的卡片。空／null／未知值一律視為查核員手寫（原行為）；
-/// 2026-10-29 以前的案件記的是另一個來源代碼，這一版不認得，也當成查核員手寫。
+/// 還是用了「常用篩選條件」的卡片。空／null／未知值一律視為查核員手寫。
 /// </summary>
 public static class FilterScenarioSources
 {
@@ -306,12 +304,12 @@ public sealed record FilterValidationContext(
     public AccountCategoryLabels CategoryLabels { get; init; } = AccountCategoryLabels.BuiltIn;
 
     /// <summary>
-    /// 案件有沒有上傳國定假日清單。沒有清單時第五步停用假日條件並寫原因（裁定 2026-11-05-55；原本引用 2026-10-04-01 而不檢查假日檔）。
+    /// 案件有沒有上傳國定假日清單。沒有清單時第五步停用假日條件並寫原因。
     /// null 只供沒有案件資料的獨立述詞驗證，不檢查假日檔；正式查詢由 <c>FilterValidationContextFactory</c> 帶入。
     /// </summary>
     public bool? HasHolidayCalendar { get; init; }
 
-    /// <summary>案件有沒有上傳補班日清單；沒有清單時第五步比照國定假日停用補班日條件並寫原因（裁定 2026-11-05-66）。null 的用法同上。</summary>
+    /// <summary>案件有沒有上傳補班日清單；沒有清單時第五步比照國定假日停用補班日條件並寫原因。null 的用法同上。</summary>
     public bool? HasMakeupCalendar { get; init; }
 
     /// <summary>交給規則需求表的案件事實。</summary>
@@ -353,7 +351,7 @@ public sealed record FilterValidationContext(
 /// </summary>
 public static partial class FilterScenarioValidator
 {
-    // 已移除的預篩選鍵，只用來辨認舊情境並給出刪除條件的說明；不再是可用條件。
+    // 停用的預篩選鍵，只用來辨認舊情境並給出刪除條件的說明，不是可用條件。
     private const string RetiredBackdatedPostingKey = "backdatedPosting";
 
     public static IReadOnlyList<string> Validate(FilterScenarioSpec scenario, FilterValidationContext context,
@@ -361,7 +359,7 @@ public static partial class FilterScenarioValidator
     {
         var errors = new FilterValidationErrors();
 
-        // 裁定 2026-10-29-16：情境名稱與篩選動機不再必填，留白時儲存前已依條件補上自動文字。
+        // 情境名稱與篩選動機不是必填，留白時儲存前已依條件補上自動文字。
         if (forSave && scenario.Name.Length > FilterScenarioLimits.MaxNameLength)
         {
             errors.Add($"情境名稱不可超過 {FilterScenarioLimits.MaxNameLength} 字，請縮短名稱後再儲存。");
@@ -433,7 +431,7 @@ public static partial class FilterScenarioValidator
             FilterScenarioCorruption.Add(errors, label, "condition_join_invalid");
         }
 
-        // 條件需要的案件資料只看規則需求表，第四步與前端停用說明讀同一張表（第五步不能用 GL 沒有配對的欄位，裁定 2026-10-22-05）。
+        // 條件需要的案件資料只看規則需求表，第四步與前端停用說明讀同一張表（第五步不能用 GL 沒有配對的欄位）。
         var facts = context.RuleFacts;
         var unmet = JetRuleRequirements.Unmet(JetRuleRequirements.ForFilterCondition(rule), facts);
         foreach (var prerequisite in unmet)
@@ -449,7 +447,7 @@ public static partial class FilterScenarioValidator
                 if (rule.Type == FilterConditionType.Voucher)
                 {
                     if (insideVoucher) errors.Add($"{label}：整張傳票條件中不可再加入整張傳票條件");
-                    // 借貸範圍是已拿掉的舊寫法，讀到時當成無法讀取的內容（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
+                    // 借貸範圍是已拿掉的舊寫法，讀到時當成無法讀取的內容；已儲存情境的舊寫法不讀回。
                     if (rule.Side is not null) FilterScenarioCorruption.Add(errors, label, "voucher_side_invalid");
                     if (rule.Quantifier is not ("any" or "all" or "none")) FilterScenarioCorruption.Add(errors, label, "voucher_quantifier_invalid");
                 }
@@ -462,7 +460,7 @@ public static partial class FilterScenarioValidator
                 break;
             case FilterConditionType.AccountSide:
                 ValidateCategorySelectionMode(rule, label, errors);
-                // 借貸方向與「這一側都不屬於」是已拿掉的舊寫法，讀到時當成無法讀取的內容（裁定 2026-10-30-25）。
+                // 借貸方向與「這一側都不屬於」是已拿掉的舊寫法，讀到時當成無法讀取的內容。
                 if (rule.DrCr is not null)
                     FilterScenarioCorruption.Add(errors, label, "account_side_drcr_invalid");
                 if (rule.CategoryMode is not ("is" or "isNot"))
@@ -518,7 +516,7 @@ public static partial class FilterScenarioValidator
             case FilterConditionType.RevenueWithoutNormalCounterpart:
             case FilterConditionType.ManualRevenueEntry:
             case FilterConditionType.PreparerEqualsApprover:
-                // 需要的分類與欄位都在規則需求表；缺收入科目與缺對方科目各寫一句（用字依裁定 2026-10-13-28）。
+                // 需要的分類與欄位都在規則需求表；缺收入科目與缺對方科目各寫一句。
                 break;
             case FilterConditionType.TypedField:
                 ValidateTypedField(rule, label, context, errors);
@@ -530,7 +528,7 @@ public static partial class FilterScenarioValidator
     }
 
     /// <summary>
-    /// typed 條件（2026-08-14 凍結）的完整驗證：fieldId 必須是目前案件 committed 的 RDE 欄位、
+    /// typed 條件的完整驗證：fieldId 必須是目前案件 committed 的 RDE 欄位、
     /// operator 必須屬於該欄位型別的 closed 集合、operand carrier 依 operator 種類精確匹配
     /// （single→value；between→from＋to 且 from≤to；in/notIn→values 1–100；blank 家族不得帶
     /// 任何 carrier）、amount 必填正準 amountBasis 且僅 amount 允許。錯誤一律 invalid_scenario；
@@ -570,7 +568,7 @@ public static partial class FilterScenarioValidator
         {
             if (TypedFieldOperatorSets.All.Contains(rule.TypedOperator))
             {
-                // 裁定 2026-10-19-14 改用具體說法：寫出欄位目前設定成文字、日期或金額，不用「型別」。
+                // 用具體說法：寫出欄位目前設定成文字、日期或金額，不用「型別」。
                 errors.Add($"{label}：「{field.Label}」目前設定為{RdeFieldValueTypeNames.DisplayName(field.ValueType)}，不能用「{FilterConditionLabels.TypedOperatorLabel(rule.TypedOperator)}」比較");
             }
             else
@@ -856,7 +854,7 @@ public static partial class FilterScenarioValidator
     /// </summary>
     private static void ValidatePrescreen(FilterConditionSpec rule, string label, List<string> errors)
     {
-        // 裁定 2026-10-08-03 移除傳票日期與回溯過帳；舊情境重開時明確說明這條條件要刪除。
+        // 傳票日期與回溯過帳已停用；舊情境重開時明確說明這條條件要刪除。
         if (string.Equals(rule.PrescreenKey, RetiredBackdatedPostingKey, StringComparison.Ordinal))
         {
             errors.Add($"{label}：「回溯過帳」條件已停用，請刪除此條件");
@@ -879,7 +877,7 @@ public static partial class FilterScenarioValidator
 
     internal static string ValueCountReason(int max) => $"請填 1 到 {max} 個值";
 
-    /// <summary>舊式文字、日期與數值條件的欄位：已不存在時說明欄位已移除；欄位仍在但種類不符只會是內容損毀。</summary>
+    /// <summary>舊式文字、日期與數值條件的欄位：已不存在時寫「此條件使用的欄位已不存在」；欄位仍在但種類不符只會是內容損毀。</summary>
     private static void ValidateLegacyField(FilterConditionSpec rule, GlFieldKind kind, string code, string label, List<string> errors)
     {
         if (!GlFieldWhitelist.TryResolve(rule.Field, out var column))

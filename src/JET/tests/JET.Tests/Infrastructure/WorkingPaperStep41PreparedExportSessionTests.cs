@@ -218,9 +218,7 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
         }
 
         string connectionString;
-        // 2026-10-19 起 SQLite 連線是可取消的 CancellableSqliteConnection（跨資料庫一致性第二階段）；
-        // 原本斷言 SqliteConnection 的確切型別，改成斷言現行的確切型別。第一次失敗收據：
-        // 20261019-055334911-de734c3f428a499d8256a175e93e8bbb。
+        // SQLite 連線是可取消的 CancellableSqliteConnection，這裡斷言現行的確切型別。
         using (var pooled = Assert.IsType<CancellableSqliteConnection>(
                    database.CreateConnection(projectId)))
         {
@@ -260,12 +258,7 @@ public sealed class WorkingPaperStep41PreparedExportSessionTests
     }
 
     /// <remarks>
-    /// 2026-10-02 資料庫分流簡化：分流層連同它的 typed seam 轉接與 ProviderResolutions 指標一起刪除，
-    /// handler 直接拿到該種資料庫組裡的 repository。這個測試原本經分流層準備 step4-1 session，
-    /// 改成直接用 DuckDB 的 repository 準備，並拿掉「解析 provider 恰好一次」的指標斷言（指標隨分流層一起刪除）；
-    /// 其餘連線、讀取、清理與交易斷言保留不變。第一次失敗收據（測試引用已刪除的分流類別而無法建置）：
-    /// 20261002-120244042-2aa5edaa431d4f3e89e068361d5482f5。
-    /// 只保留 SQLite 之後改用 SQLite 的 repository，資料庫種類的預期從 duckdb 換成 sqlite，其餘斷言不變（裁定 2026-11-06-08）。
+    /// 這個測試直接用 SQLite 的 repository 準備 step4-1 session，核對連線、讀取、清理與交易。
     /// </remarks>
     [Fact]
     public async Task PreparedSession_DirectRepository_UsesOneConnectionAndOneReader()

@@ -6,10 +6,9 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 完整性全科目表與差異表的分頁查詢，三個資料庫共用同一份 SQL。
+/// 完整性全科目表與差異表的分頁查詢。
 /// <para>科目編號可能空白，而且試算表與總帳各可能有一列空白科目（空值彼此不相等，所以不會合併）。
-/// 三個資料庫對空值的預設排序不同，直接用「科目編號大於上一頁最後一個」換頁，會在 DuckDB 漏掉空白科目，
-/// 在 SQLite 遇到空白科目當頁尾時讀回第一頁。這裡先依固定順序給每列一個序號：空白科目在最前，
+/// 直接用「科目編號大於上一頁最後一個」換頁，會在 SQLite 遇到空白科目當頁尾時讀回第一頁。這裡先依固定順序給每列一個序號：空白科目在最前，
 /// 試算表那一列在總帳那一列之前，其餘依科目編號；換頁只比較序號。使用者另選排序時，序號用來決定同值的先後。</para>
 /// </summary>
 internal static class CompletenessAccountPageQuery
@@ -59,7 +58,6 @@ internal static class CompletenessAccountPageQuery
                     reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
                     reader.IsDBNull(1) ? null : reader.GetString(1),
                     reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4),
-                    // 本地引擎回 BIGINT，SQL Server 的常數 0/1 是 INT。
                     Convert.ToInt64(reader.GetValue(5), CultureInfo.InvariantCulture) != 0),
                  reader.GetInt64(6)),
                 paging.HasSort ? reader.GetValue(7) : null);

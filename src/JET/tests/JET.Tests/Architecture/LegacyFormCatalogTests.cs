@@ -5,9 +5,9 @@ namespace JET.Tests.Architecture;
 
 public sealed class LegacyFormCatalogTests
 {
-    // 裁定 2026-10-08-06 重新設計自訂篩選條件：舊目錄從正式前端移除，搬到測試夾具，只供等價測試與對照使用；
-    // 正式程式與後端都不解讀目錄代號。規則沒有改，G、H、I、J、T 的名稱與說明有 7 處用語隨同日的更名
-    // 改成「總帳日期」與「GL」。
+    // 舊目錄放在測試夾具，只供等價測試與對照使用；
+    // 正式程式與後端都不解讀目錄代號。規則照舊，G、H、I、J、T 的名稱與說明有 7 處用語
+    // 寫成「總帳日期」與「GL」。
     internal static JsonObject ReadCatalog()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
@@ -38,7 +38,7 @@ public sealed class LegacyFormCatalogTests
     [Fact]
     public void ProductionFrontend_NoLongerShipsOrReadsTheCatalogue()
     {
-        // 裁定 2026-10-08-06 重新設計自訂篩選條件：正式前端不再載入目錄，程式與註解也不寫目錄代號。
+        // 正式前端不載入目錄，程式與註解也不寫目錄代號。
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "JET.slnx"))) root = root.Parent;
         var wwwroot = Path.Combine(root!.FullName, "JET", "wwwroot");

@@ -8,14 +8,14 @@
 
 | 想知道什麼 | 請看 |
 |:---|:---|
-| 首次 SAT 評估的文件與 JET 使用說明 | [`SAT/Readme.md`](SAT/Readme.md) |
+| 首次 SAT 評估的文件怎麼產生與維護 | [`../tools/harness/sat-documents/README.md`](../tools/harness/sat-documents/README.md) |
 | JET 為什麼存在、目前先服務什麼、正式環境有何限制 | [`project-context.md`](project-context.md) |
 | KCT 小組怎麼整理總帳與試算表、用舊版 JE tool 設定哪些條件 | [`kct-gl-workflow.md`](kct-gl-workflow.md) |
 | JET 是什麼、資料怎麼流動、各層怎麼分工 | [`jet-guide.md`](jet-guide.md) |
 | 用圖表查看架構、資料流程、類別介面與部署 | [架構圖表](architecture/README.md) |
 | 畫面結構、六個操作步驟與畫面用語 | [`jet-frontend-description.md`](jet-frontend-description.md) |
 | 前端與 C# 之間的 action 通道 | [`action-contract-manifest.md`](action-contract-manifest.md) |
-| 現在做到哪裡、哪些事已裁定不做或延後 | [`development-status.md`](development-status.md) |
+| 現在做到哪裡、哪些事已裁定不做、延後或決定擱置 | [`development-status.md`](development-status.md) |
 | security-audit 的安全檢查紀錄放在哪裡、怎麼閱讀 | [`security/README.md`](security/README.md) |
 | 在測試環境試用這一版前要知道的事 | [`test-environment-notes.md`](test-environment-notes.md) |
 | 開發環境、建置、發佈與開發用的預覽工具 | [`development-guide.md`](development-guide.md) |
@@ -59,7 +59,7 @@
   找不到出處的聲明刪掉或標成待確認。
 - 新名詞的准入條件：程式、UI、資料結構或外部標準本來就存在的名稱，或確實會反覆使用且能用一句白話定義的概念。
   其他情況用普通中文說清楚，不替它命名。
-- 文件長度依類型設上限：現行計畫 120 KiB；裁定總表 2,048 KiB（裁定 2026-11-06-14）；系統規格、action 契約、前端說明與名詞表 160 KiB；
+- 文件長度依類型設上限：現行計畫 1,024 KiB（裁定 2026-11-11-14）；裁定總表 2,048 KiB（裁定 2026-11-06-14）；系統規格、action 契約、前端說明與名詞表 160 KiB；
   其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限。超過上限時文件檢查失敗（裁定 2026-11-02-04），要先精簡或把已結束的內容移到歷史文件。
 
 ## 文件完成前

@@ -73,7 +73,7 @@
   // isDraft：編輯器草稿才依名稱與動機旗標產生命名來源。已儲存但沒有命名來源的舊情境原樣送回，
   // 不在儲存或移除其他情境時被記成系統產生（規格：舊情境沒有命名來源時保留原文）。
   function projectWireScenario(s, isDraft) {
-    // 條件組依畫面順序送出，不再另排任何組。
+    // 條件組依畫面順序送出，不另排任何組。
     var ordered = s.groups || [];
     var wire = {
       name: s.name,
@@ -101,7 +101,7 @@
     var source = scenarioSource(s);
     var originGroups = ordered.filter(function (g) { return (g.conditions || []).length > 0; });
     if (s.editorOrigins && !s.__restoredOrigins) { wire.editorOrigins = JSON.parse(JSON.stringify(s.editorOrigins)); }
-    // 第 2 版的編輯來源逐條記卡片代號（2026-10-29 起）；第 1 版記的是字母，這一版只原樣送回、不再讀取。
+    // 第 2 版的編輯來源逐條記卡片代號；第 1 版記的是字母，這一版只原樣送回、不讀取。
     // 舊版情境重新編輯後一律改存第 2 版，卡片要審計員重新點選（見 filter-step-saved 的 editScenario）。
     else if (hasCommonMarker(s) || s.__restoredOrigins || isDraft) {
       wire.editorOrigins = { version: 2,
@@ -215,7 +215,7 @@
           paneButton('filter', '篩選與檢視') + paneButton('saved', '已儲存情境（' + saved.length + '）') + '</div>' +
         '<section data-filter-pane="filter" id="filter-pane-filter" role="tabpanel" aria-labelledby="filter-tab-filter" data-motion-pane data-motion-key="filter-pane-filter"' + (FilterStep.viewState.workspacePane === 'filter' ? '' : ' hidden') + '>' +
           '<div class="filter-workbench"><aside class="filter-entry" tabindex="-1" aria-label="加入篩選條件">' +
-            // 多組時「加入到第 N 組」和條件總覽的標題排在同一列（裁定 2026-11-05-16）。
+            // 多組時「加入到第 N 組」和條件總覽的標題排在同一列。
             '<div class="filter-entry-heading"><h3 class="filter-entry-title">條件總覽</h3>' + conditionTargetHtml(draft) + '</div>' +
             '<div class="filter-source-tabs" role="tablist" aria-label="條件來源">' + sourceButton('common', '常用篩選條件') + sourceButton('prescreen', '預篩選') +
               sourceButton('field', '欄位條件') + '</div>' +
@@ -295,7 +295,7 @@
       label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'dateRange'; }) || {}).label || '';
       message = '起日晚於迄日';
     } else if (rule.type === 'textSet' && Array.isArray(rule.values) && rule.values.length > Ui.TEXT_SET_MAX_VALUES) {
-      // 清單超過上限時逐條寫出是哪一條條件，和欄位條件同一句（裁定 2026-10-14-01）。
+      // 清單超過上限時逐條寫出是哪一條條件，和欄位條件同一句。
       label = (Ui.FILTER_RULE_TYPES.find(function (item) { return item.value === 'textSet'; }) || {}).label || '';
       message = '請填 1 到 ' + Ui.TEXT_SET_MAX_VALUES + ' 個值';
     } else if (rule.type === 'typed' && Array.isArray(rule.values) && rule.values.length > Ui.TYPED_SET_MAX_VALUES) {
@@ -340,7 +340,7 @@
 
   // 預覽／保存前的前端引導：條件未補齊或名稱重複時，於欄位旁（紅框＋紅字）
   // 與按鈕上方（form-notice）就近提示並不送出。純呈現——後端 invalid_scenario 仍是權威。
-  // 名稱與動機不必填：留白時後端補上依條件自動帶入的文字（裁定 2026-10-29-16、2026-10-30-14）。
+  // 名稱與動機不必填：留白時後端補上依條件自動帶入的文字。
   function scenarioGate(container, includeSavedScenarios, skipDuplicateName) {
     var draft = Store.getState().filter.draft;
     var nameInput = container.querySelector('[data-bind="scenario-name"]');
@@ -441,7 +441,7 @@
     body.setAttribute('data-empty', '1');
   }
 
-  // 送出：另存副本、名稱與動機、預覽、儲存與就地標錯（原本 bind 裡的三段）。
+  // 送出：另存副本、名稱與動機、預覽、儲存與就地標錯。
   function bindSubmission(container) {
     var copyEdit = container.querySelector('[data-action="save-scenario-copy"]');
     if (copyEdit) { copyEdit.addEventListener('click', function () {
@@ -499,7 +499,7 @@
           return data.scenario;
         }).catch(function (error) { if (!acceptResponse()) { return; } previewMarked = markRuleErrors(container, error); throw error; });
       }, { inlineError: function () { return previewMarked > 0; }, completionMessage: function (scenario) {
-        // 訊息句子維持原句（裁定 2026-10-13-28）；分錄數用和預覽摘要同一個 summaryRowCount。
+        // 訊息句子維持原句；分錄數用和預覽摘要同一個 summaryRowCount。
         return scenario ? '情境預覽：符合條件 ' + Ui.countText(scenario.summaryRowCount) + ' 筆分錄，' + Ui.countText(scenario.voucherCount) + ' 張傳票。' : '';
       } });
     });
@@ -513,7 +513,7 @@
         row.classList.remove('rule-row--invalid');
         var old = row.querySelector('[data-rule-error]:not([data-motion-folding])');
         if (!old) { return; }
-        // 舊的說明收回去再拿掉，新的從條件下面長出來（裁定 2026-10-13-11：出現與消失都要有動態）。
+        // 舊的說明收回去再拿掉，新的從條件下面長出來（出現與消失都要有動態）。
         if (global.JetMotion && typeof global.JetMotion.fold === 'function') { global.JetMotion.fold(old, function () { old.remove(); }); } else { old.remove(); }
       });
       if (!error || !Array.isArray(error.details)) { return 0; }
@@ -541,7 +541,7 @@
     }
 
     // 儲存沒有送出或失敗時，原因寫在儲存按鈕上方，不只留在訊息紀錄。
-    // 清單已變更與已滿 10 個只是需要注意，用琥珀色；儲存失敗用紅色（訊息分三級，裁定 2026-10-13-15）。
+    // 清單已變更與已滿 10 個只是需要注意，用琥珀色；儲存失敗用紅色（訊息分三級）。
     function showSaveNotice(text, warning) {
       var notice = container.querySelector('[data-bind="scenario-notice"]');
       if (!notice) { return; }
@@ -552,7 +552,7 @@
     var SAVE_NOT_SENT = { notSent: true };
 
     // 回傳儲存作業的 Promise，讓「儲存並開啟」這類對話框等儲存結束再決定要不要繼續。
-    // 只送這一個情境，儲存情境才不會卡住（裁定 2026-10-13-24）：其他已存情境由後端照資料庫原樣保留，
+    // 只送這一個情境，儲存情境才不會卡住：其他已存情境由後端照資料庫原樣保留，
     // 開案時無法套用目前規則的情境不會擋住這次儲存。
     function saveScenario(asCopy) {
       syncSuggestedMetadata(container);
@@ -576,7 +576,7 @@
         var position = null;
         if (typeof editingIndex === 'number') {
           if (current.draft.__editingSavedRef !== current.savedScenarios) {
-            // 訊息面板與儲存鈕上方的提示用同一句（裁定 2026-10-13-28）。
+            // 訊息面板與儲存鈕上方的提示用同一句。
             var staleText = '已儲存的情境清單已變更，請重新選擇要編輯的情境；目前的草稿仍保留。';
             Store.addMessage(staleText, 'warn'); showSaveNotice(staleText, true);
             return Promise.resolve(SAVE_NOT_SENT);
@@ -595,7 +595,7 @@
         if (position !== null) { payload.expectedName = current.savedScenarios[editingIndex].name; }
         var saveSnapshot = filterCommitSnapshot(commitState);
         return global.JetApi.filterScenarioSave(payload).then(function (data) {
-          // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）；回應已過時就不記。
+          // 完成句由 Ui.run 接上耗時後記一則，成功時只留一則；回應已過時就不記。
           return completeScenarioSave(saveSnapshot, data, data.position - 1, authored) ? data : null;
         }).catch(function (error) {
           if (!acceptsFilterCommit(saveSnapshot)) { return; }
@@ -618,7 +618,7 @@
 
   }
 
-  // 事件綁定分到五個檔案，各綁自己畫的那一塊；開頭幾行和各段的先後照原本的 bind。
+  // 事件綁定分到五個檔案，各綁自己畫的那一塊。
   function bind(container) {
     Ui.bindReports(container);
     syncSuggestedMetadata(container);

@@ -4,7 +4,7 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 已存篩選情境的 SQLite／DuckDB 實作。整批取代在同一交易清掉舊結果與舊定義再寫入；
+/// 已存篩選情境的 SQLite 實作。整批取代在同一交易清掉舊結果與舊定義再寫入；
 /// 移除一個情境只刪它自己的定義與結果，後面的情境順序往前補。
 /// </summary>
 public sealed class LocalFilterScenarioStore(ILocalProjectDatabase database) : IFilterScenarioStore
@@ -86,7 +86,6 @@ public sealed class LocalFilterScenarioStore(ILocalProjectDatabase database) : I
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = statement;
-            // DuckDB 不接受語句沒用到的參數，只綁這一句用到的。
             if (statement.Contains("@scenarioId", StringComparison.Ordinal)) command.AddWithValue("@scenarioId", scenario.ScenarioId);
             if (statement.Contains("@position", StringComparison.Ordinal)) command.AddWithValue("@position", scenario.Position);
             await command.ExecuteNonQueryAsync(cancellationToken);

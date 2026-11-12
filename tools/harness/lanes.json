@@ -97,6 +97,7 @@
     "driverProject": "tools/harness/gui-driver/GuiDriver.csproj",
     "driverAssembly": "tools/harness/gui-driver/bin/Release/net10.0-windows/Jet.GuiDriver.dll",
     "configuration": "AgentGuiTest",
+    "buildExtension": "tools/harness/agent-gui-test/AgentGuiTest.targets",
     "scenarios": [
       {
         "name": "startup-smoke",

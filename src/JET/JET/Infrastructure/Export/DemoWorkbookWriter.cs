@@ -4,9 +4,8 @@ using JET.Application;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// Demo xlsx 寫出器（內部測試 fixture）。一般 Debug／測試維持 process-static Lazy，
-/// 每種檔案只寫一次；AgentGuiTest 可用 internal constructor 將四份確定性檔案釘在
-/// run-owned root。檔名為契約值。
+/// Demo xlsx 寫出器（內部測試 fixture）。預設維持 process-static Lazy，每種檔案只寫一次；
+/// internal constructor 把四份確定性檔案寫到指定的資料夾。檔名為契約值。
 /// 科目代號等代碼欄寫文字 cell、日期寫 DateTime、旗標寫 1/0,驗證 import reader 型別正規化。
 /// </summary>
 public sealed class DemoWorkbookWriter : IDemoFileWriter

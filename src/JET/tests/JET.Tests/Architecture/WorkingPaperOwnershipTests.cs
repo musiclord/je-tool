@@ -40,11 +40,10 @@ public sealed class WorkingPaperOwnershipTests
     }
 
     /// <remarks>
-    /// 2026-10-02 資料庫分流簡化：handler 改從作用中案件的資料庫組取 writer、planning port 與 repository，
-    /// 建構式只剩案件 store、session 與事件。原本「建構式依序收這 12 個依賴、其中 5 個欄位不得為 null」的檢查，
-    /// 改成：建構式仍只有一個且為 internal；讀原始碼確認 handler 只用到資料庫組的這 9 個屬性，型別與原本的
-    /// 建構式參數相同；原本要求非 null 的 5 個依賴，在資料庫組裡也必須是非 null 的 required 屬性。
-    /// 第一次失敗收據：20261002-115435205-3b806a89a32a4651b732bf8eb83dc088。
+    /// handler 從作用中案件的資料庫組取 writer、planning port 與 repository，
+    /// 建構式只收案件 store、session 與事件。這裡檢查：建構式只有一個且為 internal；
+    /// 讀原始碼確認 handler 只用到資料庫組的這 9 個屬性，並核對各屬性的型別；
+    /// 其中 5 個依賴在資料庫組裡必須是非 null 的 required 屬性。
     /// </remarks>
     [Fact]
     public void ProductionWorkingPaperHandler_HasOneInternalTypedConstructor()
@@ -129,19 +128,13 @@ public sealed class WorkingPaperOwnershipTests
         Assert.Null(ProductionAssembly.GetType("JET.AuditCore.ProgramMigrationState"));
     }
 
-    // 依裁定 2026-10-22-17「全部刪，測試改走正式入口」，刪除沒有計畫的公開寫出入口 IWorkingPaperWriter，
-    // 原本鎖住它還在的 PublicWorkingPaperCompatibilityContract_RemainsAvailable 一併移除，改由
-    // CompatibilityPathOwnershipTests.WorkingPaperWriter_OnlyWritesFromAPlan 鎖住它不存在。新斷言的第一次失敗是 Focused 收據
-    // 20261022-070441801-b717958da6bc461bb272ed374766bb78（篩選 OwnershipTests，18 則失敗；收據只記筆數與第一則名稱，看不出含不含這一項）；
-    // 刪掉介面後測試專案建置失敗，那次沒有保存收據。
 
     [Fact]
     public void ProductionWorkingPaperPath_UsesTypedLifecycleAndExistingStaleRefresh()
     {
         var handler = ReadProduct(
             "Application", "Handlers", "ExportWorkingPaperStreamHandler.cs");
-        // 2026-10-02 資料庫分流簡化：每種資料庫一組的 repository 組裝移到 AppCompositionRoot.Repositories.cs，
-        // composition root 改讀兩個 partial 檔合起來的內容，斷言不變。第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
+        // repository 的組裝在 AppCompositionRoot.Repositories.cs，所以 composition root 讀兩個 partial 檔合起來的內容。
         var composition = ReadProduct("AppCompositionRoot.cs")
             + Environment.NewLine
             + ReadProduct("AppCompositionRoot.Repositories.cs");
@@ -149,7 +142,7 @@ public sealed class WorkingPaperOwnershipTests
 
         Assert.Contains("ReportExportSupport.RefreshReportsAsync", handler, StringComparison.Ordinal);
         Assert.Contains("JetAuditProgram.Plan(", handler, StringComparison.Ordinal);
-        // 2026-10-02 起 AuditCore 不再提供只轉手給 port 的 ExecuteAsync；handler 直接呼叫 planning facts port。
+        // AuditCore 不提供只轉手給 port 的 ExecuteAsync；handler 直接呼叫 planning facts port。
         Assert.Contains("planningFactsPort.ExecuteAsync(", handler, StringComparison.Ordinal);
         Assert.Contains("JetAuditProgram.Finalize(", handler, StringComparison.Ordinal);
         Assert.Contains("planWriter.WriteAsync(", handler, StringComparison.Ordinal);
@@ -203,8 +196,8 @@ public sealed class WorkingPaperOwnershipTests
             nameof(global::JET.Domain.IBlankRecordsPageRepository),
             ReadProduct("Application", "Handlers", "ExportWorkingPaperStreamHandler.cs"),
             StringComparison.Ordinal);
-        // 2026-10-02 資料庫分流簡化：handler 改從資料庫組取 repository，上面的建構式、欄位與型別名稱檢查
-        // 擋不到「從資料庫組取 BlankRecordsPages」，所以補一項：handler 用到的資料庫組屬性都不是空值明細 repository。
+        // handler 從資料庫組取 repository，上面的建構式、欄位與型別名稱檢查
+        // 擋不到「從資料庫組取 BlankRecordsPages」，所以再確認：handler 用到的資料庫組屬性都不是空值明細 repository。
         var repositories = typeof(global::JET.Application.ProjectRepositories);
         Assert.DoesNotContain(
             HandlerRepositoryUsage.PropertiesUsedBy(

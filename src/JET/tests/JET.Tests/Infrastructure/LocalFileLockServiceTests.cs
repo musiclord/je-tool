@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 本地跨程序檔案鎖的 Infrastructure 驗收。兩個 service 各持有獨立 FileStream，可在同一測試程序內驗證
-/// FileShare.None 的程序間等價行為；oracle 是 2026-07-14 本地收尾正本批次二。
+/// FileShare.None 的程序間等價行為。
 /// </summary>
 public sealed class LocalFileLockServiceTests
 {
@@ -136,7 +136,6 @@ public sealed class LocalFileLockServiceTests
 
     /// <summary>
     /// 鎖檔的位置被資料夾占住時，開案寫出原因與下一步，不鎖定這個案件；資料夾移走後照常鎖定。
-    /// 第 30 步量涵蓋率時發現這段沒有測試執行到。這是新增的測試。
     /// </summary>
     [Fact]
     public async Task Acquire_WhenTheLockLocationIsAFolder_ReportsTheReason_AndWorksOnceTheFolderIsGone()
@@ -161,7 +160,6 @@ public sealed class LocalFileLockServiceTests
 
     /// <summary>
     /// 案件清單列出之後，案件資料夾被移走或刪掉，再鎖定這個案件時寫出資料夾已不在，不替它建出空的資料夾。
-    /// 第 30 步量涵蓋率時發現這段沒有測試執行到。這是新增的測試。
     /// </summary>
     [Fact]
     public async Task Acquire_WhenTheCaseFolderIsGone_ReportsThatTheCaseIsMissing_WithoutCreatingIt()

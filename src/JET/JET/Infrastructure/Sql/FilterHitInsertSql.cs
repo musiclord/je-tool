@@ -7,8 +7,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 寫入一個情境結果的唯一寫法：filter_hit 存命中的分錄，filter_hit_condition 存命中傳票裡每筆分錄符合第幾組第幾條。
-/// 儲存一個情境、整批發布與結果過期後重算都經過這裡；三種資料庫只差表名前綴與建立命令的方式。
-/// 結果在儲存情境時存好，檢視、換頁、展開與匯出都讀它（裁定 2026-10-30-33）。
+/// 儲存一個情境、整批發布與結果過期後重算都經過這裡。
+/// 結果在儲存情境時存好，檢視、換頁、展開與匯出都讀它。
 /// </summary>
 internal static class FilterHitInsertSql
 {
@@ -50,8 +50,8 @@ internal static class FilterHitInsertSql
     ];
 
     /// <summary>
-    /// 在呼叫端的交易裡寫入一個情境的命中與符合第幾組第幾條。<paramref name="createCommand"/> 依資料庫建立命令
-    /// （原本 SQL Server 會把 <c>{s}</c> 換成案件的 schema）；<paramref name="schemaPrefix"/> 是條件述詞用的表名前綴。
+    /// 在呼叫端的交易裡寫入一個情境的命中與符合第幾組第幾條。<paramref name="createCommand"/> 依資料庫建立命令；
+    /// <paramref name="schemaPrefix"/> 是條件述詞用的表名前綴。
     /// </summary>
     public static async Task InsertOneAsync(
         Func<string, DbCommand> createCommand,

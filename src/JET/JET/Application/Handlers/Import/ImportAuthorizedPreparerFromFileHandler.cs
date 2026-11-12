@@ -50,7 +50,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
 
         var request = TabularSourcePayload.Parse(payload, filePath);
         var source = new ImportSourceDescriptor(filePath, fileName, request.SheetName, null, null);
-        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒（裁定 2026-11-06-12）。
+        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒。
         var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
 
         var facts = await Task.Run(
@@ -85,7 +85,7 @@ public sealed class ImportAuthorizedPreparerFromFileHandler : IApplicationAction
             blankRowCount = result.Import.BlankRowCount,
             duplicateRowCount = result.Import.DuplicateRowCount,
             matchedPreparerCount = result.Import.MatchedPreparerCount,
-            // 和其他匯入一樣：warnings 是全部提醒，開著的檔案那則另外列一份，畫面放在清單的匯入結果旁（裁定 2026-11-06-12）。
+            // 和其他匯入一樣：warnings 是全部提醒，開著的檔案那則另外列一份，畫面放在清單的匯入結果旁。
             warnings = openElsewhereWarnings,
             openElsewhereWarnings,
             invalidatedResults = mutationState.InvalidatedResults,

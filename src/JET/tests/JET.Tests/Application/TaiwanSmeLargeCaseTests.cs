@@ -6,9 +6,9 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 一整年的合成台灣中小型製造業總帳（一萬一千多張傳票、三萬多筆分錄）與 200 個科目的試算表，
-/// 經正式 action 走完建案、匯入、配對、分類、驗證、預篩選、篩選與匯出。驗證摘要 14 項、預篩選 12 項
+/// 經正式 action 走完建案、匯入、配對、分類、驗證、預篩選、篩選與匯出。驗證摘要 14 項、預篩選 10 項
 /// 與 10 個情境的命中，逐筆和產生器依規則文字獨立算出的答案比對（SmeOracle 只用 LINQ，不呼叫 JET 的計算）。
-/// 同一份資料也是 Claude 瀏覽器主機的檢查案件，原始檔在 tools/harness/browser-host/TaiwanSme。
+/// 同一份資料也是瀏覽器主機的檢查案件，原始檔在 TestInfrastructure/TaiwanSme。
 /// </summary>
 public sealed class TaiwanSmeLargeCaseTests
 {
@@ -36,7 +36,7 @@ public sealed class TaiwanSmeLargeCaseTests
     {
         var (smeCase, _, oracle) = Fixture.Value;
 
-        // 依裁定 2026-10-11-01，合成案件至少要有 1 萬張傳票，以及 200 個科目的試算表。
+        // 合成案件至少要有 1 萬張傳票，以及 200 個科目的試算表。
         Assert.True(oracle.Population.Select(line => line.VoucherNo).Distinct().Count() >= 10_000);
         Assert.Equal(200, smeCase.Accounts.Count);
         // 期初試算表平衡；GL 內每張傳票借貸相等，所以期末試算表也平衡。
@@ -51,7 +51,7 @@ public sealed class TaiwanSmeLargeCaseTests
 
     [Theory]
     [InlineData("sqlite", "common")]
-    // 原本自訂的十個情境由 DuckDB 測；只保留 SQLite 之後改由 SQLite 測，情境不變（裁定 2026-11-06-08）。
+    // 自訂的十個情境。
     [InlineData("sqlite", "custom")]
     public async Task FullWorkflow_MatchesIndependentlyComputedAnswers(string provider, string scenarioSet)
     {
@@ -73,8 +73,7 @@ public sealed class TaiwanSmeLargeCaseTests
         // 失敗時訊息列出每一項的預期與 JET 結果，以及雙方各自多出來的前五筆分錄。
         Assert.True(log.AllMatched, log.ToString());
         // 驗證摘要 14 項、預篩選 10 項、情境 10 個，缺任何一項都代表比對沒有完整執行。
-        // 裁定 2026-10-29-27：第四步照舊版拿掉編製分錄較少的人員與使用較少的科目，預篩選由 12 項減為 10 項；
-        // 原本是 36，第一次失敗：Focused 收據 20261030-165407068-719c351124b94328bcd2dc27ed541d5b（其餘比對全部相符，只有項數差 2）。
+        // 第四步照舊版沒有編製分錄較少的人員與使用較少的科目，所以預篩選是 10 項。
         Assert.Equal(34, log.MatchedCount);
     }
 }

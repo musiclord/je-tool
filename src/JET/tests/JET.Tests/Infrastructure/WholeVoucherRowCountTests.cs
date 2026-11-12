@@ -7,7 +7,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 只用「未預期借貸組合」一個條件時，Criteria Selection 摘要與工作底稿以整張命中傳票計算分錄筆數
-/// （<see cref="JetAuditProgram.UsesLegacyWholeVoucherRows"/>）。依裁定 2026-10-16-08，第五步分開顯示
+/// （<see cref="JetAuditProgram.UsesLegacyWholeVoucherRows"/>）。第五步分開顯示
 /// 「符合條件的傳票數量」與「符合條件的分錄筆數」，數字要和過往底稿相同。這裡核對預覽、傳票清單與已存情境摘要
 /// 三條查詢，和報告寫出整張傳票列的分頁查詢是同一個集合。預期值由下面的合成資料直接數出：
 ///

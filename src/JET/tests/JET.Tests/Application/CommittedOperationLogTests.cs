@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 裁定 2026-10-19-19：資料存檔後才寫的操作紀錄寫不進去時，回報成功並附提醒，不把已生效的變更報成失敗。
+/// 資料存檔後才寫的操作紀錄寫不進去時，回報成功並附提醒，不把已生效的變更報成失敗。
 /// GL、TB 重新匯入與重新確認配對都經過這裡。
 /// </summary>
 public sealed class CommittedOperationLogTests
@@ -32,8 +32,7 @@ public sealed class CommittedOperationLogTests
         Assert.Equal("變更已儲存，但這次變更沒有寫入操作紀錄。", warning);
     }
 
-    // 獨立複審後補上：寫不進操作紀錄時要留得下原因，事件必須進得了可匯出的支援日誌，而且只帶錯誤類型
-    // （修正前的失敗收據 20261019-134343166-af3d6d04a4114657a1bebdce065a9c47：事件不在支援日誌的允許清單，被濾掉）。
+    // 寫不進操作紀錄時要留得下原因，事件必須進得了可匯出的支援日誌，而且只帶錯誤類型。
     [Fact]
     public async Task AppendFailure_IsRecordedInTheSupportLogWithOnlyTheErrorType()
     {

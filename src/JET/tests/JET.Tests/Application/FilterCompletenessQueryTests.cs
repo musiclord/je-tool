@@ -4,8 +4,6 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
-
 public sealed class FilterCompletenessQueryTests
 {
     private static readonly JsonElement Scenario = JsonDocument.Parse("""

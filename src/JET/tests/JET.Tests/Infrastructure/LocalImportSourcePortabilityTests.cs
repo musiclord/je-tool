@@ -3,7 +3,6 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
@@ -22,7 +21,7 @@ public sealed class LocalImportSourcePortabilityTests
         var database = CreateDatabase(provider, folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         var sourcePath = Path.GetFullPath(Path.Combine(root.Path, "machine-a", "imports", SourceFileName));
         var callerSuppliedFileName = Path.GetFullPath(

@@ -36,7 +36,7 @@
   }
 
   // 命中型規則（row-tag）：命中是「值得留意」而非「錯誤」。
-  // 新的預篩選結果一定帶每條規則的結果，只為舊結果缺規則鍵留下的「未執行」已拿掉（裁定 2026-11-02-10）。
+  // 預篩選結果一定帶每條規則的結果。
   function hitCountStatus(rule, tip) {
     if (rule.naReason) { return naStatus(rule); }
     if (rule.count == null) { return null; }
@@ -51,7 +51,7 @@
   function pairCountStatus(rule) {
     if (rule.naReason) { return naStatus(rule); }
     if (rule.postingCount == null && rule.approvalCount == null) { return null; }
-    // 狀態寫欄位名稱，不寫「過帳」「核准」（裁定 2026-11-03-10）；核准側沒有檢查時只寫「—」。
+    // 狀態寫欄位名稱，不寫「過帳」「核准」；核准側沒有檢查時只寫「—」。
     var approval = rule.approvalCount == null ? '傳票核准日 —' : '傳票核准日 ' + Ui.countText(rule.approvalCount) + ' 筆';
     var any = Number(rule.postingCount) > 0 || Number(rule.approvalCount) > 0;
     return {
@@ -178,7 +178,7 @@
   }
 
   // 明細晚到的內容（讀到的分錄或失敗提示）走 JetMotion：明細從「正在讀取分錄…」的高度沿彈簧長到表格的高度，
-  // 不在展開後才一下跳開（裁定 2026-10-13-11）。body 自己有 data-motion-key（detailBodyKey）。
+  // 不在展開後才一下跳開。body 自己有 data-motion-key（detailBodyKey）。
   // 展開當下同步放進去的內容不走這裡：那時外層的展開區正在由 app.css 長出來，量一次會讓它停在舊的高度。
   function morphDetailBody(body, fill) {
     if (global.JetMotion && typeof global.JetMotion.morph === 'function' && body.hasAttribute &&
@@ -200,12 +200,12 @@
   var categoryOpen = false;
   var categoryAdvanced = false;
   var accountExcelOpen = false;
-  // 「用 Excel 配對」選了有多個工作表的 Excel 檔時，先在托盤裡選工作表再匯入（裁定 2026-11-05-07）：
+  // 「用 Excel 配對」選了有多個工作表的 Excel 檔時，先在托盤裡選工作表再匯入：
   // { projectId, filePath, fileName, sheets, sheetName }；取消、匯入或換案件後清掉。
   var accountSheetPick = null;
   // 匯入的檔案正被 Excel 等程式開著時，後端另外列出的提醒（openElsewhereWarnings）：{ projectId, batchId, warnings }。
-  // 放在托盤的匯入結果上方，審計員不必打開訊息面板就看得到（裁定 2026-11-06-12）；下一次匯入成功或換案件後換掉。
-  // 提醒跟著那一次匯入的批次走：科目配對被上游修改清掉，或換成別批之後就不畫（2026-11-06 獨立複審找到的殘留）。
+  // 放在托盤的匯入結果上方，審計員不必打開訊息面板就看得到；下一次匯入成功或換案件後換掉。
+  // 提醒跟著那一次匯入的批次走：科目配對被上游修改清掉，或換成別批之後就不畫。
   var accountMappingOpenElsewhere = null;
   // 工作底稿的科目配對工作表，和 WorkingPaperSheetCatalog.AccountMapping 同名；檔案裡有它時預先選它。
   var WORKING_PAPER_ACCOUNT_MAPPING_SHEET = '自動化工具-科目配對資訊';
@@ -284,7 +284,7 @@
       // detail.pageQuery 是這張表分頁查詢的識別（DETAIL_PAGE_SPECS 的鍵）；有分頁查詢的表才提供排序與搜尋。
       var pageQuery = detail.pageQuery || null;
       var sortable = !!detail.sortAction && !!pageQuery;
-      // 金額與筆數的資料格靠右（裁定 2026-10-13-05），表頭統一靠左（裁定 2026-10-16-01）；detail.numeric 列出是數字的欄。
+      // 金額與筆數的資料格靠右，表頭統一靠左；detail.numeric 列出是數字的欄。
       var numeric = detail.numeric || [];
       var amountClass = function (index) { return numeric.indexOf(index) >= 0 ? 'preview-table__amount' : ''; };
       var thead = '<tr>' + (sortable
@@ -330,7 +330,7 @@
   }
 
   // 分頁金額一律走 Ui.money，和摘要樣本保持相同格式。
-  // 目前 num() 的呼叫點全為金額（tbAmount/glAmount/diff/debit/credit）；若日後拿它顯示計數，請改用 Ui.countText。
+  // 目前 num() 的呼叫點全為金額（tbAmount/glAmount/debit/credit）；若日後拿它顯示計數，請改用 Ui.countText。
   function num(v) { return Ui.money(v); }
 
   // 明細查詢規格：id 對應 fetchPage 與 columns，供共用分頁取得每一頁。
@@ -365,12 +365,11 @@
   // 分頁數字欄靠右，和 detailHtml 的 numeric 對齊。
   function amountColumn(cell) { return { cell: cell, className: 'preview-table__amount' }; }
 
-  // 「核准日不在期間」的明細多一欄傳票核准日，接在總帳日期後面，審計員才看得出核准日落在哪一天；其他類別不顯示這一欄
-  // （裁定 2026-11-06-13）。
+  // 「核准日不在期間」的明細多一欄傳票核准日，接在總帳日期後面，審計員才看得出核准日落在哪一天；其他類別不顯示這一欄。
   function showsApprovalDate(category) { return category === 'approvalDateNotInPeriod'; }
 
   // 空值子項對應後端 category 與固定的「異常類別」顯示字；id 形如 null-<category>，動態註冊進 DETAIL_PAGE_SPECS
-  // （columns 與既有空值 table 欄序對齊）。空白摘要只在預篩選訊號那一處呈現，這裡不再註冊它的明細頁。
+  // （columns 與既有空值 table 欄序對齊）。空白摘要只在預篩選訊號那一處呈現，這裡不註冊它的明細頁。
   function blankPageSpec(category, categoryLabel) {
     var columns = [
       function (r) { return r.voucherNumber || ''; },
@@ -389,8 +388,8 @@
     };
   }
 
-  // 後端 blankRecordsPage 白名單四 category → 「異常類別」顯示字(對齊 issuesCn map)。
-  // 空白總帳日期已改由總帳日期空白承載，不再屬於資料缺漏輔助檢視。
+  // 後端 blankRecordsPage 白名單的 category → 「異常類別」顯示字(對齊 issuesCn map)。
+  // 空白總帳日期由總帳日期空白承載，不屬於資料缺漏輔助檢視。
   DETAIL_PAGE_SPECS['null-approvalDateNotInPeriod'] = blankPageSpec('approvalDateNotInPeriod', '核准日不在期間');
   DETAIL_PAGE_SPECS['null-blankVoucherNumber'] = blankPageSpec('blankVoucherNumber', '空白傳票號碼');
   DETAIL_PAGE_SPECS['null-blankAccountNumber'] = blankPageSpec('blankAccountNumber', '空白科目編號');
@@ -416,7 +415,7 @@
     return category === 'blankGlDate' ? '總帳日期空白' : (category || '');
   }
 
-  // INF 抽樣明細改由後端欄位 metadata 驅動（固定欄 + 已提交的攸關資料元素欄位）。
+  // INF 抽樣明細由後端欄位 metadata 驅動（固定欄 + 已提交的攸關資料元素欄位）。
   var DYNAMIC_PAGE_SPECS = {
     inf: {
       label: '抽樣樣本明細',
@@ -431,7 +430,7 @@
 
   // issues 陣列（英文鍵）→ 中文顯示，以「、」接合。
   function issuesCn(issues) {
-    // 空白總帳日期已移出資料缺漏輔助檢視（改由總帳日期空白承載），故不在這份封閉類別內。
+    // 空白總帳日期不屬於資料缺漏輔助檢視（由總帳日期空白承載），故不在這份封閉類別內。
     var map = {
       accountNumber: '空白科目編號', voucherNumber: '空白傳票號碼', description: '空白摘要',
       approvalDate: '核准日不在期間'
@@ -486,8 +485,7 @@
   var VALIDATION_ITEMS = [
     {
       title: '完整性測試',
-      // 照實說明第一項比對的對象。最後一句原本照使用者原句逐字保留，
-      // 裁定 2026-10-30-20 改成要確認什麼，不寫「可能」。
+      // 照實說明第一項比對的對象。最後一句寫要確認什麼，不寫「可能」。
       desc: '先確認 JET 存下的分錄筆數與借貸合計，和確認欄位配對時算出的一樣。這一步不和來源檔自己的合計比對。再比對各科目的總帳本期借貸淨額與年度變動金額。金額不符時，要確認 GL 分錄是否完整。',
       status: function (v) {
         if (!v) { return null; }
@@ -537,7 +535,7 @@
     },
     {
       title: '借貸不平測試',
-      // 判讀句原本照使用者原件寫，裁定 2026-10-30-20 改成要確認什麼，不寫「可能」。
+      // 判讀句寫要確認什麼，不寫「可能」。
       desc: '依傳票號碼彙總借方與貸方金額，列出不相等的傳票。借貸不平時，要確認傳票號碼與金額欄位是否正確。',
       status: function (v) {
         if (!v) { return null; }
@@ -587,8 +585,8 @@
         return { kind: 'dynamicPage', pageKey: 'inf' };
       }
     },
-    // 傳票核准日不可用時後端不檢查，筆數是 null 並寫原因（裁定 2026-10-23-01）。
-    // 核准日空白的分錄照舊版也算不在期間（裁定 2026-11-05-38）。
+    // 傳票核准日不可用時後端不檢查，筆數是 null 並寫原因。
+    // 核准日空白的分錄照舊版也算不在期間。
     blankSubItem('核准日不在期間', '傳票核准日落在查核期間之外或空白的分錄。', ['approvalDate'],
       function (brt) { return Number(brt.approvalDateNotInPeriodCount); }, ['approvalDateNotInPeriod'],
       function (brt) { return brt.approvalDateNotInPeriodNaReason || null; }),
@@ -701,8 +699,8 @@
       status: function (p) {
         if (!p) { return null; }
         if (p.preparerSummary.naReason) { return naStatus(p.preparerSummary); }
-        // preparers 最多 50 列，人數改用後端的完整人數（空白人員算一組，與流程總覽同一個數字）。
-        // 新的預篩選結果一定帶這個數字，只為舊結果留下的「請重新執行預篩選」已拿掉（裁定 2026-11-02-06）。
+        // preparers 最多 50 列，人數用後端的完整人數（空白人員算一組，與流程總覽同一個數字）。
+        // 預篩選結果一定帶這個數字。
         return { tone: 'info', text: Ui.countText(p.preparerSummary.totalPreparerCount) + ' 位人員' };
       },
       detail: function (p) {
@@ -730,7 +728,7 @@
     {
       title: '較少使用之科目',
       desc: '按科目編號統計分錄筆數並由低到高排列，作為了解查核期間分錄分布與少用科目的彙總參考。',
-      // 照舊版只列依筆數排序的彙總，不另外數 11 筆以下的科目（裁定 2026-10-29-27）；狀態寫查核期間的科目數，和「依分錄編製者彙總」寫人數一致。
+      // 照舊版只列依筆數排序的彙總，不另外數 11 筆以下的科目；狀態寫查核期間的科目數，和「依分錄編製者彙總」寫人數一致。
       status: function (p) {
         if (!p) { return null; }
         return { tone: 'info', text: Ui.countText(p.rareAccounts.distinctAccountCount) + ' 個科目' };
@@ -821,7 +819,7 @@
             '<button type="button" class="btn btn--ghost" data-action="toggle-category" data-focus-key="account-settings" aria-expanded="' + categoryOpen + '">' +
               (categoryOpen ? '返回科目配對' : '分類設定') + '</button></div>' +
           // 配對方式的頁籤與內容包成一塊：和分類設定互換時整塊原地交叉淡化；換頁籤時只有內容交叉淡化，
-          // 高度平順改變，下面的預篩選跟著移動，切換時不閃（app.js 的 JetMotion，裁定 2026-10-12-02）。
+          // 高度平順改變，下面的預篩選跟著移動，切換時不閃（app.js 的 JetMotion）。
           (categoryOpen ? categoryCardHtml(state) :
             '<div class="account-methods-block" data-motion-key="account-methods">' +
             '<div class="account-methods" role="tablist" aria-label="科目配對方式">' +
@@ -871,9 +869,9 @@
       (status.tip ? ' title="' + Ui.esc(status.tip) + '"' : '') + '>' + Ui.esc(status.text) + '</span>';
   }
 
-  // 每條規則一列：標題與狀態，有明細時整列可點開。規則在做什麼不再常駐在標題下方：滑鼠停在標題上時出現，
-  // 點開後寫在明細最上方一次，常駐說明不再多寫（裁定 2026-10-29-02）。
-  // detailsBelow：並排的兩項彙總把明細接在整張清單下方、佔滿整寬，展開一邊時另一邊不會被撐高（裁定 2026-10-29-05：濫用置中會讓並排的區塊對不齊）。
+  // 每條規則一列：標題與狀態，有明細時整列可點開。規則在做什麼不常駐在標題下方：滑鼠停在標題上時出現，
+  // 點開後寫在明細最上方一次。
+  // detailsBelow：並排的兩項彙總把明細接在整張清單下方、佔滿整寬，展開一邊時另一邊不會被撐高。
   function ruleListHtml(items, runData, scope, options) {
     var view = detailView(detailRunKind(scope));
     var detailsBelow = !!(options && options.detailsBelow);
@@ -889,7 +887,7 @@
           '<span class="rule-item__title"' + (item.desc ? ' title="' + Ui.esc(item.desc) + '"' : '') + '>' + Ui.esc(item.title) + '</span>' +
         '</span>' +
         '<span class="rule-item__aside">' + ruleBadge(status) + '</span>';
-      // 有明細的項目整列都能點開，箭頭在字前面，不另外放「檢視」（裁定 2026-10-30-36：就地展開的檢視和打開資料預覽的要分得出來）；
+      // 有明細的項目整列都能點開，箭頭在字前面，不另外放「檢視」（就地展開的檢視和打開資料預覽的要分得出來）；
       // 沒有明細的項目在箭頭的位置留同樣寬的空位，標題上下對齊。
       var headHtml = detail
         ? '<button type="button" class="rule-item__head row-toggle" data-action="toggle-detail" data-scope="' + Ui.esc(scope) +
@@ -962,7 +960,7 @@
         Ui.esc(output.message) + '</p>';
     }
     if (output.status !== 'failed') { return ''; }
-    // 沒有原因時請審計員再試一次，不再說明後端沒有給原因（裁定 2026-10-14-01）。
+    // 沒有原因時請審計員再試一次，不說明後端沒有給原因。
     return '<p class="form-notice" data-account-template-status="failed" role="status">科目配對範本尚未準備好' +
       (output.reason ? '：' + Ui.esc(output.reason) : '，請再試一次。') + ' ' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-action="retry-account-template-in-excel">' +
@@ -982,7 +980,7 @@
         '<div class="rule-card__head">' +
           '<h3 class="rule-card__title">資料驗證</h3>' +
           // 每個工作面只有一把藍色主要按鈕。已經有結果、結果也沒有過期時，重新執行改成白色次要按鈕，
-          // 藍色留給現在該按的那一把（裁定 2026-11-05-22、2026-10-29-06）。
+          // 藍色留給現在該按的那一把。
           '<button type="button" class="btn' + (v && !(state.staleState && state.staleState.validation) ? ' btn--ghost' : '') +
             '" data-action="run-validate"' + (ready ? '' : ' disabled') +
             '>' + (v ? '重新執行驗證' : '執行驗證') + '</button>' +
@@ -1008,7 +1006,7 @@
   // 分類留白的科目在投影時已視為 Others（同 legacy），篩選不受影響；這裡只讓審計員看到哪些科目沒填，
   // 想改分類就到範本 C 欄填好再重新匯入。清單走 query.accountMappingBlankPage 的有界分頁。
   // 整列點開的清單和下面兩份差異清單一樣記在 mappingDifferenceView：整段重繪後照原樣打開，
-  // 已讀的列從同一份分頁狀態接回，不會一重繪就收起來（裁定 2026-10-13-11）。
+  // 已讀的列從同一份分頁狀態接回，不會一重繪就收起來。
   // 單位和下面兩份清單一樣寫「個科目」：分類留白數的是配對檔裡沒填分類的科目。
   function blankCategoryRowHtml(info) {
     if (!info || !(info.blankCategoryCount > 0)) { return ''; }
@@ -1026,8 +1024,8 @@
       '</li>';
   }
 
-  // 清單晚到的第一頁走 JetMotion：清單從「正在讀取資料…」的高度沿彈簧長到列出來的高度，不在展開後才一下跳開
-  // （裁定 2026-10-13-11）。清單本身有 data-motion-key。整段重繪時接回已讀的列不走這裡，
+  // 清單晚到的第一頁走 JetMotion：清單從「正在讀取資料…」的高度沿彈簧長到列出來的高度，不在展開後才一下跳開。
+  //清單本身有 data-motion-key。整段重繪時接回已讀的列不走這裡，
   // 那時重繪本身就在比對（容器帶 data-motion-rendering）。
   // 清單還在展開的高度轉場中（剛點開清單，本機第一頁常在轉場結束前就回來，或重新打開時同步接回已讀的列）
   // 直接放進去：[data-collapsible] 的轉場會自己長到新的高度。這時再走 JetMotion，量到的是轉場到一半的高度，
@@ -1072,7 +1070,7 @@
   function mappingDifferenceRowsHtml(info) {
     if (!info) { return ''; }
     var view = mappingDifferenceView(info);
-    // 說明過多（裁定 2026-10-10-02），兩份清單只留名稱與筆數，不再附說明句。
+    // 避免說明過多，兩份清單只留名稱與筆數，不附說明句。
     return ['mappingOnly', 'unmapped'].map(function (kind) {
       var count = view.counts[kind];
       return '<li>' +
@@ -1132,8 +1130,8 @@
     });
   }
 
-  // 「用 Excel 配對」是一個托盤：上面一排操作照做事的順序排，下面一張白紙列出匯入的結果（裁定 2026-10-30-35：
-  // 採方案丙，參考方案乙增加設計感）。主要的藍色按鈕只在還沒匯入時給「匯入科目配對檔」；會清空分類的「重建科目配對檔」收進「更多」。
+  // 「用 Excel 配對」是一個托盤：上面一排操作照做事的順序排，下面一張白紙列出匯入的結果。
+  // 主要的藍色按鈕只在還沒匯入時給「匯入科目配對檔」；會清空分類的「重建科目配對檔」收進「更多」。
   // 科目配對需要已整理的科目，不依賴驗證結果；GL 還沒確認配對時沒有科目可列，托盤只寫要先做的事。
   function accountMappingCardHtml(info, mappingReady, projectId) {
     if (!mappingReady) {
@@ -1171,7 +1169,7 @@
           '</div>' +
         '</span>' +
       '</div>';
-    // 「也可匯入」照裁定 2026-11-01-06 改回原本的字。
+    // 「也可匯入」這句的用字已定案。
     var hint = '<p class="excel-mapping__hint">在「Standardized Account Name*」欄填入分類後存檔，再' + (info ? '重新匯入' : '匯入') +
       '；也可匯入前一個案件的配對檔。' + (info ? '重新匯入會覆蓋目前全部配對。' : '') + '</p>';
     // 已匯入時一律可從右側資料預覽看已儲存的配對。「資料預覽」緊接在名稱後面，科目數和下面幾列一樣靠右對齊。
@@ -1237,7 +1235,7 @@
     return categoryDraft;
   }
 
-  // 前端引導檢查：顯示名稱必填且不重複（不分大小寫）。長度與身分規則仍由系統端裁定。
+  // 前端引導檢查：顯示名稱必填且不重複（不分大小寫）。長度與身分規則仍由系統端判定。
   function categoryProblems(rows) {
     var problems = [];
     if (rows.some(function (row) { return !row.label || !row.label.trim(); })) {
@@ -1282,7 +1280,7 @@
       return '<span class="category-row__tree" aria-hidden="true">' + cells +
         '<i class="' + (continues(depth) ? 'is-branch' : 'is-last') + '"></i></span>';
     }
-    // 科目分類的上下層級與分類用途在第一個正式版隱藏（裁定 2026-11-03-27）：開關關著時不畫「進階設定」、分類用途與上層分類，
+    // 科目分類的上下層級與分類用途在第一個正式版隱藏：開關關著時不畫「進階設定」、分類用途與上層分類，
     // 分類設定只填名稱，和舊版 JET 的科目配對一樣；新增的分類沒有上層，用途是 others。程式保留，Ui.FEATURES.categoryHierarchy
     // 改成 true 就恢復。已有上下層的分類照樣畫出縮排與連接線，移除有下層的分類照樣先確認。
     var advancedAvailable = !!Ui.FEATURES.categoryHierarchy;
@@ -1353,7 +1351,7 @@
     if (!removed) { return ''; }
     var children = rows.filter(function (row) { return row.parentCategoryId === removed.categoryId; });
     var parent = rows.find(function (row) { return row.categoryId === removed.parentCategoryId; });
-    // 確認後果而不是錯誤，用「需要注意」的琥珀色（裁定 2026-10-09-03）。
+    // 確認後果而不是錯誤，用「需要注意」的琥珀色。
     return '<div class="form-notice form-notice--warning" data-motion-key="category-removal" role="alert">移除「' + Ui.esc(removed.label) + '」後，它下面的「' +
       children.map(function (row) { return Ui.esc(row.label || '尚未命名的分類'); }).join('、') + '」會改放到' +
       (parent ? '「' + Ui.esc(parent.label) + '」底下' : '最上層') + '。' +
@@ -1386,7 +1384,7 @@
         // 草稿只存在此編輯器；就地更新衍生提示，不換掉正在組字或移動游標的 input。
         // 保存、取消、新增與移除仍走完整重繪，保存前也會重新檢查同一份草稿。
         // 提示與「取消變更」原地收放（data-collapsible、data-collapsible-inline）；收起時保留原來的字，
-        // 才看得到它收回去，不會先變成空白再消失（裁定 2026-10-13-11）。
+        // 才看得到它收回去，不會先變成空白再消失。
         var problems = categoryProblems(rows);
         var notice = card.querySelector('[data-bind="category-problems"]');
         if (problems.length) { notice.textContent = '尚需補齊：' + problems.join('、'); }
@@ -1434,7 +1432,7 @@
     var confirmRemove = card.querySelector('[data-action="confirm-category-remove"]');
     if (confirmRemove) {
       confirmRemove.addEventListener('click', function () {
-        // 確認移除後，那一列先輕微快速地晃一下再收起來，讓使用者知道哪一個分類被拿掉（裁定 2026-10-13-13）。
+        // 確認移除後，那一列先輕微快速地晃一下再收起來，讓使用者知道哪一個分類被拿掉。
         // 確認提示本身只收起來、不晃；直接按「移除分類」（沒有下層）的路徑由 app.js 統一處理。
         if (categoryRemoval && global.JetMotion && typeof global.JetMotion.removing === 'function') {
           global.JetMotion.removing({ keys: ['category-' + categoryRemoval] });
@@ -1509,8 +1507,7 @@
             return data;
           });
         }, { completionMessage: function (data) {
-          // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
-          // 這句的用字依裁定 2026-10-13-28。
+          // 完成句由 Ui.run 接上耗時後記一則；成功時只留一則。
           return data ? '科目分類已更新，共 ' + Ui.countText(data.categories.length) + ' 類；預篩選要重新執行。' : '';
         } });
       });
@@ -1712,7 +1709,7 @@
     var templateBtn = container.querySelector('[data-action="download-account-mapping-template"]');
     if (templateBtn) {
       templateBtn.addEventListener('click', function () {
-        // 操作名稱照按鈕（裁定 2026-10-13-28）；失敗原因寫在區塊內的狀態，不另外在步驟上方顯示。
+        // 操作名稱照按鈕；失敗原因寫在區塊內的狀態，不另外在步驟上方顯示。
         Ui.run('重建科目配對範本', function () {
           return exportAccountMappingTemplate(Store.getState().results.validate, false);
         }, { logCompletion: true, inlineError: templateFailureShown });
@@ -1767,17 +1764,17 @@
       });
     }
 
-    // 完成句由 Ui.run 接上耗時後記一則；沒有選檔或改成先選工作表時不記（裁定 2026-10-13-17：成功時只留一則）。
+    // 完成句由 Ui.run 接上耗時後記一則，成功時只留一則；沒有選檔或改成先選工作表時不記。
     function accountMappingCompletion(data) {
-      // 這句的用字依裁定 2026-10-13-28；沿用前一個案件的說明寫在托盤的提示句。
+      // 沿用前一個案件的說明寫在托盤的提示句。
       return data ? '科目配對匯入完成，共 ' + Ui.countText(data.rowCount) + ' 個科目。' : '';
     }
 
     // 選了 Excel 檔時先看有幾個有欄名的工作表：只有一個就直接匯入它；有多個時在托盤列出來請審計員選，
-    // 有工作底稿的「自動化工具-科目配對資訊」時預先選它（裁定 2026-11-05-07）。
+    // 有工作底稿的「自動化工具-科目配對資訊」時預先選它。
     // JET 匯出的報告都有一張隱藏的中繼資料工作表，審計員在 Excel 看不到，不列進選單。
-    // JET 自己的科目配對範本另有一張分類清單，照舊直接匯入範本那一張，不多問一次；原本只要有兩張以上就問，
-    // 提交前複審發現按「準備科目配對範本」再匯入回來這條主要路徑因此多了一步。
+    // JET 自己的科目配對範本另有一張分類清單，直接匯入範本那一張，不多問一次；
+    // 按「準備科目配對範本」再匯入回來這條主要路徑才不會多一步。
     function importAccountMappingFile() {
       var projectId = Store.getState().project && Store.getState().project.projectId;
       Ui.run('匯入科目配對範本', function () {
@@ -1812,8 +1809,8 @@
 
     function importAccountMappingSource(source) {
       return global.JetApi.importAccountMappingFromFile(source).then(function (data) {
-        // 檔案正被 Excel 開著時照樣匯入最後一次存檔的內容；提醒先記下，下面寫入狀態的那次重繪就畫在結果上方
-        // （裁定 2026-11-06-12）。訊息面板照舊另記一則。
+        // 檔案正被 Excel 開著時照樣匯入最後一次存檔的內容；提醒先記下，下面寫入狀態的那次重繪就畫在結果上方。
+        //訊息面板照舊另記一則。
         var opened = Array.isArray(data.openElsewhereWarnings) ? data.openElsewhereWarnings : [];
         var current = Store.getState().project;
         accountMappingOpenElsewhere = opened.length && current
@@ -1829,7 +1826,7 @@
           blankCategoryCount: data.blankCategoryCount
         });
         if (data.columnMappingWarning) { Store.addMessage(data.columnMappingWarning, 'warn'); }
-        // 文字檔欄位內含換行的提醒，和 GL、TB 匯入同一句、同一種顯示方式（裁定 2026-10-19-06）。
+        // 文字檔欄位內含換行的提醒，和 GL、TB 匯入同一句、同一種顯示方式。
         (data.warnings || []).forEach(function (warning) { Store.addMessage(warning, 'warn'); });
         Store.applyMutationEffects(data);
         var differences = mappingDifferenceView(Store.getState().importState.accountMapping);
@@ -1869,7 +1866,7 @@
       '<section class="rule-card rule-card--prescreen">' +
         '<div class="rule-card__head">' +
           '<h3 class="rule-card__title" id="prescreen-primary-title">預篩選</h3>' +
-          // 和資料驗證同一個做法：已經有結果、結果也沒有過期時，重新執行預篩選是白色次要按鈕（裁定 2026-11-05-22）。
+          // 和資料驗證同一個做法：已經有結果、結果也沒有過期時，重新執行預篩選是白色次要按鈕。
           '<button type="button" class="btn' + (p && !(state.staleState && state.staleState.prescreen) ? ' btn--ghost' : '') +
             '" data-action="run-prescreen"' + (canRun ? '' : ' disabled') +
             '>' + (p ? '重新執行預篩選' : '執行預篩選') + '</button>' +
@@ -1973,7 +1970,7 @@
       });
     }
 
-    // 每一種明細各有自己的查詢、排序、搜尋與游標，不再混用兩類空值資料。
+    // 每一種明細各有自己的查詢、排序、搜尋與游標，不混用兩類空值資料。
     container.querySelectorAll('[data-page-query]').forEach(function (tbody) {
       var id = tbody.getAttribute('data-page-query');
       var spec = DETAIL_PAGE_SPECS[id];
@@ -2068,9 +2065,9 @@
           return exportValidationOutputs(data);
         });
       }, { completionMessage: function (data) {
-        // 驗證結果的完成句由 Ui.run 接上整個操作的耗時後記一則（裁定 2026-10-13-17：成功時只留一則）；
+        // 驗證結果的完成句由 Ui.run 接上整個操作的耗時後記一則，成功時只留一則；
         // 報告與範本是這個操作的一部分，各自的紀錄照舊。
-        // 各項筆數已寫在下方各項結果，完成句只留一句（裁定 2026-10-13-28）。
+        // 各項筆數已寫在下方各項結果，完成句只留一句。
         return data ? '資料驗證完成' : '';
       } });
     });
@@ -2078,7 +2075,7 @@
     container.querySelector('[data-action="run-prescreen"]').addEventListener('click', function () {
       var eligibility = Ui.completenessEligibility(Store.getState().results.validate);
       if (!eligibility.isEligible) {
-        // 這句的用字依裁定 2026-10-13-28。
+        // 這句的用字已定案。
         Store.addMessage('預篩選尚無法執行：' + eligibility.reason, 'warn');
         return;
       }
@@ -2094,8 +2091,8 @@
           return data;
         });
       }, { completionMessage: function (data) {
-        // 完成句由 Ui.run 接上耗時後記一則（裁定 2026-10-13-17：成功時只留一則）。
-        // 各項筆數已寫在下方各項結果，完成句只留一句（裁定 2026-10-13-28）。
+        // 完成句由 Ui.run 接上耗時後記一則；成功時只留一則。
+        // 各項筆數已寫在下方各項結果，完成句只留一句。
         return data ? '預篩選已更新' : '';
       } });
     }

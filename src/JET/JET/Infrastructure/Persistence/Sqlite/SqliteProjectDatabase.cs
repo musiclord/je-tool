@@ -13,7 +13,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
 {
     /// <summary>
     /// 案件資料庫的現行結構，建成後標成第 20 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
-    /// 不是現行版本就請審計員刪除案件後重建（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
+    /// 不是現行版本就請審計員刪除案件後重建（案件資料庫只留現行結構）。
     /// staging 的 row_number = 批次內單調遞增排序鍵（INF 抽樣基礎），
     /// source_row_number = 來源檔內實際列號（錯誤定位），source_no 對應 import_batch_source。
     /// </summary>
@@ -62,7 +62,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
             decimal_places      INTEGER NULL,
             max_rendered_length INTEGER NOT NULL,
             has_observation     INTEGER NOT NULL CHECK (has_observation IN (0,1)),
-            -- 每一欄的來歷與對應的 JET 欄位（裁定 2026-11-03-11）；底稿與報告看這兩欄，不看欄名結尾。
+            -- 每一欄的來歷與對應的 JET 欄位；底稿與報告看這兩欄，不看欄名結尾。
             field_origin        TEXT NOT NULL CHECK (field_origin IN ('source','renamed','generated','temp')),
             jet_field           TEXT NULL,
             PRIMARY KEY (batch_id, definition_scope, ordinal)
@@ -449,7 +449,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
 
     private readonly LocalSchemaReadiness readiness = new();
 
-    /// <summary>建案時呼叫：一律重新檢查版本，新資料庫在這裡建表。只有建案會建立新的資料庫（裁定 2026-11-05-72）。</summary>
+    /// <summary>建案時呼叫：一律重新檢查版本，新資料庫在這裡建表。只有建案會建立新的資料庫。</summary>
     public Task EnsureCreatedAsync(string projectId, CancellationToken cancellationToken) =>
         readiness.EnsureCreatedAsync(
             GetDatabasePath(projectId),
@@ -477,7 +477,7 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         if (!allowCreate)
         {
             // 開案與讀寫只用已經建好的資料庫：檔案不見或是 0 位元組時比照無法開啟的案件回報，
-            // 不默默建出空的資料庫（裁定 2026-11-05-72）。
+            // 不默默建出空的資料庫。
             LocalSchemaReadiness.RequireDatabaseFile(projectId, databasePath);
         }
         else if (LocalSchemaReadiness.IsEmptyFile(databasePath))

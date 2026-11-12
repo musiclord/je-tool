@@ -5,14 +5,14 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 後端儲存條件時只保留用得到的欄位，這裡核對資料庫的部分（裁定 2026-10-15-01，原文見 <see cref="FilterConditionWireFieldsTests"/>）：
+/// 後端儲存條件時只保留用得到的欄位，這裡核對資料庫的部分（另見 <see cref="FilterConditionWireFieldsTests"/>）：
 /// 畫面照 newFilterCondition 送出帶著用不到屬性的條件，儲存後資料庫只留各類型用得到的屬性；
-/// 完整版與整理後的條件在 SQLite 與 DuckDB 預覽到完全相同的分錄，存下的命中也是同一批。
+/// 完整版與整理後的條件預覽到完全相同的分錄，存下的命中也是同一批。
 /// 合成案件只有一張傳票兩列（ReportRevisionStateTests.PrepareAsync）：摘要都是 synthetic、金額都是 10。
 /// </summary>
 public sealed class FilterScenarioSaveKeepsUsedFieldsTests
 {
-    // 畫面照 newFilterCondition 帶上的用不到屬性；2026-10-30 停用的尾數位數與筆數條件拿掉後不再帶 digits 與 maxEntries。
+    // 畫面照 newFilterCondition 帶上的用不到屬性。
     private const string Unused =
         "\"prescreenKey\":\"suspiciousKeywords\",\"values\":[],\"normalization\":\"preserve\",\"drCr\":\"debit\",\"isManual\":\"true\","
         + "\"fieldId\":\"\",\"operator\":\"\",\"amountBasis\":\"absolute\",\"value\":\"\",\"windowDays\":\"\"";

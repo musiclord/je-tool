@@ -9,9 +9,9 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// TB legacy 金額模式 OpenClose（legacy SA=2）與 OpenCloseBySide（legacy SA=4）的窄流程驗收：
-/// 匯入 → mapping.commit.tb（新模式）→ 讀回 tb.change_amount_scaled。
-/// oracle：規格（legacy idea-script.bas:11242/:11283 換算式，guide §2.2）＋手算固定資料集。
-/// 斷言鎖值＋身分（科目碼 → 變動 scaled）。scale=10000（HandlerTestHost 預設）。
+/// 匯入 TB，用這兩種模式執行 mapping.commit.tb，再讀回 tb.change_amount_scaled。
+/// oracle：規格（舊版 JET 的換算式）與手算的固定資料集。
+/// 斷言核對每個科目編號對應的變動 scaled 值。scale=10000（HandlerTestHost 預設）。
 /// </summary>
 public sealed class TbOpenCloseMappingTests
 {
@@ -26,7 +26,7 @@ public sealed class TbOpenCloseMappingTests
         }
         """;
 
-    /// <summary>期初/期末兩欄寬表（legacy 當年於 IDEA GUI 以科目碼 join 後的單一寬表；guide §2.2 操作指引）。</summary>
+    /// <summary>期初/期末兩欄寬表（legacy 當年於 IDEA GUI 以科目碼 join 後的單一寬表）。</summary>
     private static string WriteOpenCloseWorkbook()
     {
         return TestWorkbookBuilder.WriteWorkbook(ws =>

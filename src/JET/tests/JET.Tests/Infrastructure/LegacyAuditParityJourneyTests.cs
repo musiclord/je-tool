@@ -7,8 +7,6 @@ using Xunit;
 
 namespace JET.Tests.Infrastructure;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
-
 public sealed class LegacyAuditParityJourneyTests
 {
     private static IReadOnlyList<string> FullActionOrder =>
@@ -16,8 +14,8 @@ public sealed class LegacyAuditParityJourneyTests
 
     [Theory]
     [InlineData((int)LegacyAuditParityCheckpoint.Profile, 0)]
-    // 科目配對檔改到確認配對之後匯入（原因與第一次失敗的收據見 LegacyAuditParityJourney），匯入階段少一個 action，
-    // 到確認配對為止的總數不變。
+    // 科目配對檔在確認配對之後才匯入（原因見 LegacyAuditParityJourney），所以它不算在匯入這一段，
+    // 而是算在確認配對這一段。
     [InlineData((int)LegacyAuditParityCheckpoint.Import, 6)]
     [InlineData((int)LegacyAuditParityCheckpoint.Mapping, 9)]
     [InlineData((int)LegacyAuditParityCheckpoint.Validate, 11)]
@@ -64,7 +62,7 @@ public sealed class LegacyAuditParityJourneyTests
         }
     }
 
-    // 新增測試（裁定 2026-11-06-01，計畫第 30、31 步）：第一次流程匯出六份報告之後，在同一個案件、同一個測試主機上
+    // 第一次流程匯出六份報告之後，在同一個案件、同一個測試主機上
     // 依序重新開啟、重新確認 GL 配對、重新匯入 GL，每段都重新匯出六份報告。合成資料沒有舊版標準底稿，
     // 改拿第一次 JET 匯出的副本當基準，用私人案件同一個比較器與政策比；合成資料沒有內容裁決，傳空清單。
     // 情境的列數與張數、資料可靠性抽樣的母體與筆數也要和第一次相同。這段程式因此不靠私人資料也能驗證。
@@ -408,7 +406,6 @@ public sealed class LegacyAuditParityJourneyTests
                     ["drCr"] = "借方旗標",
                     ["drCrDebitCode"] = "1",
                     // Explicit two-code contract; this synthetic workbook uses 1/0.
-                    // First failure: 20261004-100911120-57efb95a0cae44beb892ec3c2d058592.
                     ["drCrCreditCode"] = "0",
                 },
                 GlAmountMode: "flag",

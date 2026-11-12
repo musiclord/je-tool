@@ -10,7 +10,7 @@ namespace JET.Infrastructure;
 
 public sealed partial class LegacyReportWriter
 {
-    // idea-script.bas 3593–3799：Validation summary 的六個條件式黃底。
+    // 舊版 JET：Validation summary 的六個條件式黃底。
     private static readonly WorkbookStylePatch ValidationSummaryDifferenceFill =
         new(FillForegroundArgb: "FFFFFF00");
 
@@ -244,7 +244,7 @@ public sealed partial class LegacyReportWriter
         string operatorId,
         CancellationToken cancellationToken)
     {
-        // 「核准日不在期間」照驗證結果寫：筆數是 null 表示驗證時傳票核准日不可用，報告寫 N/A，不再自己看配對。
+        // 「核准日不在期間」照驗證結果寫：筆數是 null 表示驗證時傳票核准日不可用，報告寫 N/A，不自己看配對。
         var approvalDateNotInPeriodCount = projection.ApprovalDateNotInPeriodCount;
         editor.RewriteWorksheetPart(
             "ValidationReport",
@@ -278,7 +278,7 @@ public sealed partial class LegacyReportWriter
                 cells.SetInlineString("E9", glBatch is null
                     ? "N/A"
                     : Path.GetFileName(glBatch.SourceFileName));
-                // 裁定 2026-11-05-33：E10 照舊版寫借貸淨額的絕對值，差額不到 0.01 時寫 0。
+                // E10 照舊版寫借貸淨額的絕對值，差額不到 0.01 時寫 0。
                 var netDifference = Math.Abs(projection.Net);
                 cells.SetNumber("E10", netDifference > 0.01m ? netDifference : 0m);
                 cells.SetNumber("E11", projection.TotalDebit);
@@ -328,7 +328,7 @@ public sealed partial class LegacyReportWriter
                     cells.SetInlineString("D23", "N/A");
                     cells.SetInlineString("E23", "未設定【傳票核准日】欄位");
                 }
-                // 裁定 2026-10-29-16：沒有 TB 時逐科目比對無法執行，比照核准日那一列寫 N/A 並註明原因。
+                // 沒有 TB 時逐科目比對無法執行，比照核准日那一列寫 N/A 並註明原因。
                 if (projection.CompletenessNaNote is { } completenessNote)
                 {
                     cells.SetInlineString("D24", "N/A");
@@ -351,7 +351,7 @@ public sealed partial class LegacyReportWriter
                     emitUnbalancedDetail
                         ? ValidationSummaryDifferenceFill
                         : null);
-                // 裁定 2026-11-05-42：主表照舊版加上工作表保護，不設密碼，和欄位資訊頁一樣。
+                // 主表照舊版加上工作表保護，不設密碼，和欄位資訊頁一樣。
                 cells.ProtectSheet();
                 cells.EnsureAllAllowedCellsWereEdited();
                 ExcelText.SaveWorksheet(part);
@@ -412,8 +412,8 @@ public sealed partial class LegacyReportWriter
                     new ReportSheetOptions(
                         PageMargins: StandardMargins,
                         DefaultRowHeight: FormalWorkbookTypography.RowHeight(FormalFieldInfoStyles.BaseFontSize)));
-                // 第一列只放隱藏的配對資料（F 到 H 欄）。以前 A1 寫舊版的版本字樣 V.2019，
-                // 使用者 2026-11-06 裁定底稿與驗證報告都拿掉（裁定 2026-11-06-11）；列號不動，配對資料的位置照舊。
+                // 第一列只放隱藏的配對資料（F 到 H 欄）。A1 不寫舊版的版本字樣 V.2019，底稿與驗證報告都一樣；
+                // 列號不動，配對資料的位置照舊。
                 var firstRow = new List<Cell>();
                 if (mappingMetadata is not null)
                 {
@@ -424,7 +424,7 @@ public sealed partial class LegacyReportWriter
                     firstRow.Add(sheet.TextCell(1, 8, mappingMetadata, 0));
                 }
                 sheet.WriteFixedRow(1, firstRow);
-                // TB 與 GL 的標題列都不合併儲存格，和底稿一致（裁定 2026-11-09-16）。
+                // TB 與 GL 的標題列都不合併儲存格，和底稿一致。
                 sheet.WriteFixedRow(2,
                     [sheet.TextCell(2, 1, "TB檔案配對前後欄位對照表", boldStyle)]);
                 WriteFieldInfoHeader(sheet, 3, headers, tbHeaderStyle, headerHeight);
@@ -1035,7 +1035,7 @@ public sealed partial class LegacyReportWriter
         CancellationToken cancellationToken,
         Action<WorkingPaperProgress>? progress)
     {
-        // ideascript 4623-4631 將不平傳票清單回接 #GL# 並 IncludeAllPFields；
+        // 舊版 JET 將不平傳票清單回接 #GL# 並 IncludeAllPFields；
         // 因此 V_Report 6 必須是所有命中傳票的完整原始 GL 分錄，而非每傳票一列 aggregate。
         await EmitRawPagedSheetsAsync(
             document,

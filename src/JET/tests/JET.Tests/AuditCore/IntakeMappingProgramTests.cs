@@ -33,8 +33,8 @@ public sealed class IntakeMappingProgramTests
                 Mode: "merge")));
 
         Assert.Equal(JetErrorCodes.UnsupportedMode, error.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送 replace 或 append，
-        // 其他值只有程式送錯資料才會出現；錯誤代碼與先後順序不變，訊息改成非預期錯誤那一句。
+        // 畫面只送 replace 或 append，
+        // 其他值只有程式送錯資料才會出現；訊息是非預期錯誤那一句。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, error.Message);
         Assert.Equal("import_mode_invalid", JetPayloadRejection.CheckOf(error));
     }
@@ -79,7 +79,7 @@ public sealed class IntakeMappingProgramTests
                 DateParseOptions.Default)));
 
         Assert.Equal(JetErrorCodes.MissingRequiredMapping, error.Code);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("尚有必填欄位未選擇來源欄：傳票號碼、總帳日期、會計科目編號、會計科目名稱、傳票摘要、金額。", error.Message);
     }
 
@@ -111,11 +111,11 @@ public sealed class IntakeMappingProgramTests
                 [new RowProjectionError(7, "amount", "bad", "不是有效金額", "JE.csv")])));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-        // 用語統一以「已儲存」為準（裁定 2026-10-02-01），審計員會看到的「保存」改為「儲存」（第一次失敗：收據 20261003-023349721-0ccefea0a80c412aa8460624eaae563a）。
-        // 同一欄同一種問題只寫一次，再依值列出列號，不再每列一整句；
-        // 每組另放進 details 並帶來源欄（第一次失敗：收據 20261003-065529947-9b08f413915748fe812bdead0a6d6d89）。
+        // 用語以「已儲存」為準，審計員會看到的訊息寫「儲存」。
+        // 同一欄同一種問題只寫一次，再依值列出列號，不是每列一整句；
+        // 每組另放進 details 並帶來源欄。
         Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 這句的用字已定案。
                         "有 1 列的值無法讀取，本次配對未儲存。來源欄「amount」有 1 列不是有效金額：「bad」在 JE.csv 第 7 列。",
             error.Message);
         var detail = Assert.Single(error.Details!);
@@ -150,12 +150,11 @@ public sealed class IntakeMappingProgramTests
     [Fact]
     public void UnsupportedFileTypeMessages_UseTheSamePunctuationAsTheOtherFileMessages()
     {
-        // 裁定 2026-10-19-22「改成和其他訊息相同」：副檔名用「」包住、用全形逗號，比照 GL、TB 選檔的同類訊息
-        // （修正前失敗：收據 20261019-151229950-9c3df916191d478296f1f8f146d3ec62）。
+        // 副檔名用「」包住、用全形逗號，比照 GL、TB 選檔的同類訊息。
         var accountMapping = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(
             new AccountMappingRequest("project", "mapping.pdf", FileExists: true, Extension: ".pdf", Mode: "replace")));
         Assert.Equal(JetErrorCodes.UnsupportedFileType, accountMapping.Code);
-        // 裁定 2026-11-03-10 改畫面用字：一律寫「科目配對範本」，兩份清單寫全名。第一次失敗：Focused 收據 20261103-075428758-51f758afe9694f489d474a15a2988511。
+        // 一律寫「科目配對範本」，兩份清單寫全名。
         Assert.Equal("不支援的檔案類型「.pdf」，科目配對範本支援 .xlsx、.csv。", accountMapping.Message);
 
         var authorizedPreparer = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(
@@ -229,7 +228,7 @@ public sealed class IntakeMappingProgramTests
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 這句的用字已定案。
                         "檔案有 2 列無法讀取：第 3 列：日期「2025/01/01」不是 2026-12-31 這種格式；第 4 列：日期空白",
             error.Message);
     }
@@ -284,9 +283,7 @@ public sealed class IntakeMappingProgramTests
     }
 
     [Fact]
-    // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-    // 原本分本機與 SQL Server 兩種寫法，後來兩者用同一句全形標點的句子；SQL Server 移除後只剩這一句（裁定 2026-11-06-08）。
-    // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+    // 這句的用字已定案。
     internal void AccountMappingProjection_PreservesProviderSpecificFailureText()
     {
         const string expected =
@@ -309,7 +306,7 @@ public sealed class IntakeMappingProgramTests
     [Fact]
     public void AuthorizedPreparerProjection_OwnsResolutionTrimBlankSkipAndDedup()
     {
-        // sourceColumn 改成必填，後端不再猜人員欄；保留正規化、略空白與去重的原斷言。
+        // 匯入人員清單必須指定 sourceColumn。
         var projection = JetAuditProgram.PrepareAuthorizedPreparerProjection(
             ["unused", "AUTHORIZED_PREPARER"], "AUTHORIZED_PREPARER");
 
@@ -323,9 +320,7 @@ public sealed class IntakeMappingProgramTests
             projection.Complete(4, "authorized.xlsx"));
     }
 
-    // 文字欄長度三種資料庫一致（裁定 2026-10-19-28）：上限照 SQL Server 欄寬，
-    // 科目編號與人員識別值 450 字、科目名稱 400 字、假日名稱 256 字；剛好等於上限照常保存，超過就整批不儲存。
-    // 第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514，超過上限的三個案例在修改前都照常匯入。
+    // 文字欄長度上限：科目編號與人員識別值 450 字、科目名稱 400 字、假日名稱 256 字；剛好等於上限照常保存，超過就整批不儲存。
     [Fact]
     public void AccountMappingProjection_TextOverStorageLimit_FailsWithRowNumbers()
     {
@@ -460,7 +455,7 @@ public sealed class IntakeMappingProgramTests
         Assert.Same(document, plan.Document);
         Assert.Equal(ProjectDocument.DefaultMoneyScale, plan.Document.MoneyScale);
         Assert.Equal(ProjectDocument.DefaultRoundingMode, plan.Document.RoundingMode);
-        // 舊案件的固定種子退路已刪除，持久化的 SampleSeed 就是實際使用的種子。
+        // 持久化的 SampleSeed 就是實際使用的種子。
         Assert.Equal(31, plan.Document.SampleSeed);
         Assert.Equal(JetAuditProgram.CurrentInfSamplingAlgorithmVersion, plan.Document.SampleSeedVersion);
     }

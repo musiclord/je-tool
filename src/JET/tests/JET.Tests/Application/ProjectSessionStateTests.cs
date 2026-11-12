@@ -8,7 +8,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// ProjectSession 與 releaseLock 的狀態轉換測試。以呼叫開始時捕捉的 projectId 作為 compare-and-clear
-/// oracle，避免延遲 release 清掉其間已切換的新案件。原本也測線上案件的心跳，心跳隨 SQL Server 移除（裁定 2026-11-06-08）。
+/// oracle，避免延遲 release 清掉其間已切換的新案件。
 /// </summary>
 public sealed class ProjectSessionStateTests
 {
@@ -163,8 +163,8 @@ public sealed class ProjectSessionStateTests
         return document.RootElement.Clone();
     }
 
-    // 2026-10-02 資料庫分流簡化：releaseLock 改從作用中案件的資料庫組取鎖服務，
-    // 測試改把替身鎖放進資料庫組再進入 session；原本用反射呼叫只設案件編號的舊 Enter(string)，該入口已移除。
+    // releaseLock 從作用中案件的資料庫組取鎖服務，
+    // 所以測試把替身鎖放進資料庫組再進入 session。
     private static ProjectSession ActiveSession(string projectId, ILockService locks)
     {
         var session = new ProjectSession();

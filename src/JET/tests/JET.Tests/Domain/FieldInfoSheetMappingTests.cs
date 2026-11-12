@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 裁定 2026-11-09-28：檔案沒有 JET 記下的隱藏配對時，從「自動化工具-檔案欄位資訊」看得見的對照表推得草稿。
+/// 檔案沒有 JET 記下的隱藏配對時，從「自動化工具-檔案欄位資訊」看得見的對照表推得草稿。
 /// 舊版 IDEA JET 與新版 JET 兩種寫法都要認得；欄名都是合成的。
 /// </summary>
 public sealed class FieldInfoSheetMappingTests
@@ -154,7 +154,7 @@ public sealed class FieldInfoSheetMappingTests
         AssertDual(result, "Old Debit", "Old Credit");
     }
 
-    // 舊版說明句的「-」一律是借方欄與貸方欄的分隔（idea-tool.bas 第 12611 到 12634 行）：
+    // 舊版說明句的「-」一律是借方欄與貸方欄的分隔：
     // 整句即使和目前某個欄名相同，或正規化後像另一個欄名，也不當成單一欄。對不上的欄名留著，由 handler 列出重選。
     [Theory]
     [InlineData("Net-Amount", new[] { "Net-Amount", "Net", "Amount" }, "Net", "Amount")]
@@ -263,7 +263,7 @@ public sealed class FieldInfoSheetMappingTests
     [Theory]
     [InlineData("Status ：過帳判斷值【Y】", new[] { "Y" }, false)]
     [InlineData("Status：過帳判斷值【 Y 】", new[] { "Y" }, false)]
-    [InlineData("Status ：過帳判斷值【XXXX】", new string[0], true)] // 舊版填 XXXX 表示空白（idea-tool.bas 第 1637 行）
+    [InlineData("Status ：過帳判斷值【XXXX】", new string[0], true)] // 舊版填 XXXX 表示空白
     [InlineData("【Status】過帳判斷值「P」「A」「p」", new[] { "P", "A" }, false)]
     [InlineData("【Status】過帳判斷值「P」，空白也算已過帳", new[] { "P" }, true)]
     [InlineData("【Status】過帳判斷值，空白也算已過帳", new string[0], true)]
@@ -337,7 +337,7 @@ public sealed class FieldInfoSheetMappingTests
             Row("Note", "時間型態", "Note_JE")), ["Region", "Due", "Cost", "Dept", "Note"]);
 
         // 「部門（Dept）」沒有和其他攸關資料元素同名，新版不會在後面補來源欄名，所以名稱本身就是「部門（Dept）」。
-        // 2026-11-10 後綴改成照寫出端的規則反推，原本預期去掉後綴，第一次失敗：Focused 20261109-175512392-5e62382e5f8f43f5ac162df005ab769d。
+        // 後綴照寫出端的規則反推。
         Assert.Equal(
             [
                 new GlRdeFieldMetadata(FieldId(1), "Region", "地區", RdeFieldValueTypeNames.Text),
@@ -463,8 +463,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // 新版說明句的欄名本身有「】」時：單一欄名去掉最外層括號再找；金額加借貸別的句子有固定的分隔，照樣讀得出來。
-    // 兩種都不套舊版「-」的規則。2026-11-10 借貸別句改成欄名可以有「】」，原本預期列出金額，
-    // 第一次失敗：Focused 20261109-175512392-5e62382e5f8f43f5ac162df005ab769d。
+    // 兩種都不套舊版「-」的規則。借貸別句的欄名可以有「】」。
     [Fact]
     public void Infer_NewVersionAmountWithBracketsInsideTheName_ReadsTheNamesWithoutTheLegacyDashRule()
     {
@@ -490,7 +489,7 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(sided.Unmatched);
     }
 
-    // 只填貸方代碼時，新版寫「貸方為「C」」；讀回貸方代碼，不要求填借方代碼。這是新增的測試。
+    // 只填貸方代碼時，新版寫「貸方為「C」」；讀回貸方代碼，不要求填借方代碼。
     [Fact]
     public void Infer_AmountWithOnlyACreditCode_ReadsTheCreditCode()
     {
@@ -511,7 +510,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // 來源欄名本身有括號時，新版的配對前欄位名稱是「【【舊】地區】」：外層括號裡的括號成對，去掉最外層；
-    // 過帳狀態的說明句也照樣讀出欄名。這是新增的測試。
+    // 過帳狀態的說明句也照樣讀出欄名。
     [Fact]
     public void Infer_SourceColumnNamesWithBrackets_AreReadWithoutTheOuterBrackets()
     {
@@ -533,7 +532,7 @@ public sealed class FieldInfoSheetMappingTests
         Assert.Empty(result.Unmatched);
     }
 
-    // 來源欄名有儲存格裡的換行時，說明句照樣讀得出欄名：過帳狀態、借貸兩欄、金額加借貸別。這是新增的測試。
+    // 來源欄名有儲存格裡的換行時，說明句照樣讀得出欄名：過帳狀態、借貸兩欄、金額加借貸別。
     [Fact]
     public void Infer_SourceColumnNamesWithLineBreaks_AreReadFromTheSentences()
     {
@@ -565,7 +564,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // 新版改名列的 A 欄一律寫「【來源欄名】」。來源欄名本身的括號不成對時（「A】」「【舊地區」），照樣只去掉最外層，
-    // 不靠模糊比對；目前資料另有正規化後相同的欄（「A」「舊地區」）時也對得回去。這是新增的測試。
+    // 不靠模糊比對；目前資料另有正規化後相同的欄（「A」「舊地區」）時也對得回去。
     [Fact]
     public void Infer_RenamedSourceWithUnpairedBrackets_DropsOnlyTheOuterBrackets()
     {
@@ -586,7 +585,7 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // 借貸方判斷欄的欄名本身整格加了【】時，原樣留著的那一列 A 欄是「【DC】」；依它的欄位型態判斷借貸標誌。
-    // 第二份另有來源欄「DC」改名成數字型態的攸關資料元素，A 欄也寫「【DC】」，仍依原樣留著、文字型態的那一列判斷。這是新增的測試。
+    // 第二份另有來源欄「DC」改名成數字型態的攸關資料元素，A 欄也寫「【DC】」，仍依原樣留著、文字型態的那一列判斷。
     [Fact]
     public void Infer_DrCrColumnNamedWithBrackets_UsesItsFieldType()
     {
@@ -611,7 +610,6 @@ public sealed class FieldInfoSheetMappingTests
     }
 
     // 攸關資料元素的「（來源欄名）」照寫出端的規則反推：名稱有兩列以上相同，或加 _JE 剛好是標準欄名，才是補上的後綴。
-    // 這是新增的測試。
     [Fact]
     public void Infer_RelevantDataElementSourceSuffix_IsRemovedOnlyWhenTheWriterWouldHaveAddedIt()
     {

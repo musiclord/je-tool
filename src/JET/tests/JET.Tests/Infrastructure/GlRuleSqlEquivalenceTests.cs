@@ -9,11 +9,9 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// GL 規則述詞的 provider 等價測試基底（guide §13 golden test 的落地形狀）。
+/// GL 規則述詞的等價測試基底。
 /// oracle：手算 ≤20 列固定 fixture（fixture 註解列出每條述詞的預期命中傳票）；
 /// 斷言鎖「值＋身分」（命中哪幾張傳票），不是只鎖筆數。
-/// 未來 SqlServer*/DuckDb* provider 只需新增子類實作 <see cref="Repository"/>
-/// 與 <see cref="ProjectId"/>，即可跑完全同一套等價斷言。
 /// </summary>
 public abstract class GlRuleSqlEquivalenceTests
 {
@@ -32,8 +30,8 @@ public abstract class GlRuleSqlEquivalenceTests
     ///   D10 2025-09-10(三) 核准 09-11        摘要「領料出庫」      借 5101 銷貨成本＋貸 4101 銷貨收入 |333.33|
     /// 科目配對（fixture 對照）：1101→Cash、2201→Receivables、4101→自訂分類（semantic role=revenue）、
     /// 5101→Others。4101 的 transitional standardized_category 刻意寫 Others；若述詞仍比較顯示文字，
-    /// 所有收入規則都會失敗，因此同一套 SQLite／SQL Server golden 會鎖住 role-based 行為。
-    /// 預篩選尾數規則的 0 的個數正式流程由 GL 算出（裁定 2026-11-05-25），這組固定答案的條件環境帶入 6：先取主單位整數，再以 10⁶ 取模；
+    /// 所有收入規則都會失敗，因此這套 golden 會鎖住 role-based 行為。
+    /// 預篩選尾數規則的 0 的個數正式流程由 GL 算出，這組固定答案的條件環境帶入 6：先取主單位整數，再以 10⁶ 取模；
     /// 只有 D06（|2,000,000.00| 的主單位整數為 2,000,000）命中。
     /// 預期命中（傳票集合）：
     ///   prepPeriodApproval → {D02}；suspiciousKeywords → {D02}（調整）；
@@ -81,7 +79,7 @@ public abstract class GlRuleSqlEquivalenceTests
         VALUES
             ('custom.0123456789abcdef0123456789abcdef', 'Custom revenue', 5, 'revenue', 0, 1);
 
-        -- 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），原本留 NULL 的列補上內建分類。
+        -- 科目配對一律以 category_id 連到分類表，每一列都帶內建分類。
         INSERT INTO account_mapping
             (batch_id, source_row_number, account_number, account_name, standardized_category, category_id)
         VALUES
@@ -104,8 +102,7 @@ public abstract class GlRuleSqlEquivalenceTests
         "2025-12-31",
         PopulationScope: GlPopulationScope.AuditPeriod)
     {
-        // 預篩選尾數規則的 0 的個數改由 GL 算出後，由條件環境帶入（裁定 2026-11-05-25）；這組固定答案照改版前的 6 個 0 設計，所以帶 6。
-        // 第一次失敗：Public 收據 20261105-084802022-bb026abaa79c492799abea536c518413。
+        // 預篩選尾數規則的 0 的個數由 GL 算出，再由條件環境帶入；這組固定答案照 6 個 0 設計，所以帶 6。
         ZerosThreshold = 6
     };
 
@@ -147,11 +144,11 @@ public abstract class GlRuleSqlEquivalenceTests
     [Fact]
     public async Task UnexpectedAccountPair_FixedFixture_HitsRevenueCreditWithoutCounterpart()
     {
-        // guide §5 否定面（2026-07-08 spec §1）＋零元邊界（2026-08-14）：貸 Revenue 且同傳票
+        // 否定面與零元邊界：貸 Revenue 且同傳票
         // 無任何「金額 > 0 的 Cash/Receivables/ReceiptInAdvance 借方」才命中，只標貸方列。
-        // 裁定 2026-10-29-29 改成照舊版 IDEA R3：傳票裡還要至少有一筆金額 > 0 的分錄（idea-tool.bas 第 8380 到 8388 行）。
+        // 照舊版 IDEA R3：傳票裡還要至少有一筆金額 > 0 的分錄。
         // D01/D02/D04–D06 有正值 Cash（1101）借方對方 → 不命中；D03 無 Revenue 貸方 → 不命中；
-        // D09 的 Cash 借方是 0 元，不算對方，但整張傳票沒有正金額分錄 → 改為不命中（原本命中；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）；
+        // D09 的 Cash 借方是 0 元，不算對方，但整張傳票沒有正金額分錄 → 不命中；
         // D10（借 5101 Others）無正常對方，借方 333.33 是正金額 → 命中。
         Assert.Equal(
             ["D10"],
@@ -211,14 +208,13 @@ public abstract class GlRuleSqlEquivalenceTests
     // 特定金額尾數比對＝整數化金額末 k 位與樣態相等（＝legacy @Right(@Str(@int(x),1,0),k)）；k≥2 須整數 ≥ 10^(k-1)。
     // 000000（k=6，下界 10^5）：D06=2,000,000 整數末 6 位 = 000000 → 命中；D09 的次單位金額（0.50／0，整數 0）
     //   位數 < 6、字串短於樣態、長度不符不相等 → 不命中。
-    // 000333：D10 整數 333 僅 3 位 < 6 → 不相等 → 空集合。跨 provider 由 [SqlServerTheory] 包裝在真 SQL Server 上同步驗證。
+    // 000333：D10 整數 333 僅 3 位 < 6 → 不相等 → 空集合。
     [Theory]
     [InlineData("000000", new[] { "D06" })]
     [InlineData("000333", new string[0])]
     public async Task TrailingDigits_FixedFixture_MajorUnitTailRequiresEnoughDigits(string pattern, string[] expectedDocs)
     {
-        // 舊式金額尾數已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），改用「金額」的「整數尾數符合」，
-        // 和舊型別呼叫同一個尾數述詞，固定答案不變。第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261（舊型別已不存在，無法編譯）。
+        // 條件用「金額」的「整數尾數符合」。
         var rule = Parsed($$"""{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["{{pattern}}"],"amountBasis":"absolute"}""");
 
         Assert.Equal(expectedDocs, await HitDocumentsAsync(rule));
@@ -255,7 +251,7 @@ public abstract class GlRuleSqlEquivalenceTests
             [], TextMatchMode.Contains, null, null, null, null, null, null,
             PairMode: AccountPairModes.DebitAnchor)
         {
-            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            // 用分類身分陣列表達這一組分類。
             DebitCategoryIds = [AccountCategoryBuiltIns.ReceivablesId]
         };
 
@@ -269,12 +265,12 @@ public abstract class GlRuleSqlEquivalenceTests
     public async Task AccountPairExact_FixedFixture_ZeroAmountDebitCountsAsDebitSide()
     {
         // 精確配對 Cash 借＋Revenue 貸：除 D03 外全部命中；
-        // D09 的 0 元 Cash 借方屬借方側（`>= 0` 裁決），改 `>` 即漏 D09。
+        // D09 的 0 元 Cash 借方屬借方側（借方側的判定是 `>= 0`），改 `>` 即漏 D09。
         var rule = new FilterConditionSpec(FilterJoin.And, FilterConditionType.AccountPair, null, null,
             [], TextMatchMode.Contains, null, null, null, null, null, null,
             PairMode: AccountPairModes.Exact)
         {
-            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            // 用分類身分陣列表達這一組分類。
             DebitCategoryIds = [AccountCategoryBuiltIns.CashId],
             CreditCategoryIds = [AccountCategoryBuiltIns.RevenueId]
         };
@@ -292,7 +288,7 @@ public abstract class GlRuleSqlEquivalenceTests
             [], TextMatchMode.Contains, null, null, null, null, null, null,
             PairMode: AccountPairModes.Exact)
         {
-            // 2026-10-02 起單選分類欄位已刪除，改用分類身分陣列表達同一組分類。
+            // 用分類身分陣列表達這一組分類。
             DebitCategoryIds = [AccountCategoryBuiltIns.ReceivablesId],
             CreditCategoryIds = [AccountCategoryBuiltIns.RevenueId]
         };
@@ -308,8 +304,8 @@ public abstract class GlRuleSqlEquivalenceTests
     [InlineData(6, new[] { "D06" })]               // 固定預設 6：只剩 D06（|2,000,000.00| 為 10^6 整數倍）
     public async Task CustomTrailingZeros_FixedFixture_FixedDigitsBoundaries(int digits, string[] expectedDocs)
     {
-        // 舊式連續零尾數已拿掉（裁定 2026-10-30-25），照它的重建方式改成同一個子條件組裡的「整數尾數符合」N 個 0
-        // 與「大於或等於 1」，固定答案不變。第一次失敗：Build 收據 20261030-080417952-c481650823f043c790a6882ec3d09261（舊型別已不存在，無法編譯）。
+        // 條件寫成同一個子條件組裡的「整數尾數符合」N 個 0
+        // 與「大於或等於 1」。
         var tail = new string('0', digits);
         var rule = Parsed($$"""{"type":"group","conditions":[{"type":"fieldValue","field":"amount","operator":"endsWithDigits","values":["{{tail}}"],"amountBasis":"absolute"},{"type":"fieldValue","field":"amount","operator":"greaterThanOrEqual","value":"1","amountBasis":"absolute"}]}""");
 

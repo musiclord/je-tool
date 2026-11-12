@@ -21,10 +21,10 @@ internal sealed record AccountComparisonFacts(long DifferenceAccountCount);
 /// </summary>
 internal static class AccountComparisonProcedure
 {
-    // 裁定 2026-10-29-16：沒有 TB 時其他步驟照常進行，只有逐科目比對不能執行，原因句照裁定 2026-10-30-16 的文字。
+    // 沒有 TB 時其他步驟照常進行，只有逐科目比對不能執行。
     internal const string MissingTbImportReason = "沒有匯入 TB，無法執行 GL 與 TB 逐科目比對。";
 
-    // 裁定 2026-11-01-06：這句的「還沒確認」改成「尚未確認」，其餘照 2026-10-30-16 確認的文字。
+    // 這句的用字已定案。
     internal const string MissingTbMappingReason = "TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。";
 
     // 驗證報告與底稿在逐科目比對無法執行時的短註記，跟原因句一一對應。

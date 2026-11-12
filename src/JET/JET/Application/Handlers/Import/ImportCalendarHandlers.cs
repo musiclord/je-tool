@@ -148,9 +148,9 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
                 File.Exists(filePath),
                 extension));
 
-        // 欄名固定在第 2 列，畫面不能改欄名列；找不到欄名時照舊說工作表是空的（2026-10-28 複審）。
+        // 欄名固定在第 2 列，畫面不能改欄名列；找不到欄名時照舊說工作表是空的。
         var request = new TabularSourceRequest(filePath, SheetName: sheetName, LeadingRowsToSkip: 1, FixedLeadingRows: true);
-        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒（裁定 2026-11-06-12）。
+        // Excel 開著的檔案照樣匯入最後一次存檔的內容，匯入完成後提醒。
         var fileName = ImportSourceFileName.Resolve(filePath, PayloadReader.GetOptionalString(payload, "fileName"));
         var openElsewhereWarnings = ImportMessages.SourceFilesOpenElsewhere(reader, [(filePath, fileName)]);
 
@@ -175,7 +175,7 @@ public abstract class ImportCalendarFromFileHandler : IApplicationActionHandler
 
         var mutationState = await WorkflowResultStateSupport.AfterMutationAsync(projectId, repositories.Results, repositories.ResultStaleStates,
             repositories.FilterScenarios, repositories.ReportStore, plan.Effects, logger);
-        // 和其他匯入一樣：warnings 是全部提醒，開著的檔案那則另外列一份，畫面放在日曆卡片的匯入結果旁（裁定 2026-11-06-12）。
+        // 和其他匯入一樣：warnings 是全部提醒，開著的檔案那則另外列一份，畫面放在日曆卡片的匯入結果旁。
         return new { count = result.Count,
             warnings = openElsewhereWarnings,
             openElsewhereWarnings,

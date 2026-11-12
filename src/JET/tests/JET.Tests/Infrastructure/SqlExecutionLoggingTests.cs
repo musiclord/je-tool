@@ -3,11 +3,10 @@ using JET.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// SQL 與 transaction 診斷日誌（TDD #1 SQL 完整命令/參數/rows_affected、#2 transaction 三事件共享 id）。
+/// SQL 與 transaction 診斷日誌（SQL 完整命令/參數/rows_affected、transaction 三事件共享 id）。
 /// 對真 SQLite temp DB + ring buffer logger 跑匯入,斷言 ring buffer 內的 sql.executed / tx.* 結構化欄位。
 /// </summary>
 public sealed class SqlExecutionLoggingTests
@@ -42,7 +41,7 @@ public sealed class SqlExecutionLoggingTests
             var folder = new JetProjectFolder(_root.Path);
             var database = new SqliteProjectDatabase(folder);
             Directory.CreateDirectory(folder.GetProjectDirectory(ProjectId));
-            // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+            // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
             database.EnsureCreatedAsync(ProjectId, CancellationToken.None).GetAwaiter().GetResult();
             Repo = new LocalImportRepository(database, _factory.CreateLogger<LocalImportRepository>());
         }
@@ -72,7 +71,7 @@ public sealed class SqlExecutionLoggingTests
         Assert.NotEmpty(sql);
         Assert.All(sql, e => Assert.Equal("sqlite", e.Fields["provider"]?.ToString()));
 
-        // staging 逐列 INSERT 改為 milestone-only（與 SqlServer 的 SqlBulkCopy 路徑事件等價）→ 不再逐筆記事件
+        // staging 逐列 INSERT 只記 milestone，不逐筆記事件
         Assert.DoesNotContain(sql, e => e.Fields["sql"]!.ToString()!.Contains("INSERT INTO pbc_gl"));
 
         // 一次性語句仍逐筆記錄：INSERT import_batch 帶 @columnsJson 參數值（欄名）、rows_affected=1
@@ -128,7 +127,7 @@ public sealed class SqlExecutionLoggingTests
             CancellationToken.None);
 
         var milestones = env.Diagnostic.Snapshot().Where(e => e.EventName == "import.milestone").ToList();
-        // staging 階段 + replace 總結兩筆 milestone（與 SqlServer SqlBulkCopy 路徑事件等價）
+        // staging 階段 + replace 總結兩筆 milestone
         Assert.Contains(milestones, e => e.Fields["phase"]?.ToString() == "staging");
         var replace = milestones.Single(e => e.Fields["phase"]?.ToString() == "replace");
         Assert.Equal(2, Convert.ToInt32(replace.Fields["rows_processed"]));     // 處理列數
@@ -137,7 +136,7 @@ public sealed class SqlExecutionLoggingTests
     }
 
     /// <summary>
-    /// TDD #2（metamorphic）：staging 逐列 INSERT 不逐筆記事件——單來源的 sql.executed 固定為 6
+    /// metamorphic：staging 逐列 INSERT 不逐筆記事件——單來源的 sql.executed 固定為 6
     /// （cleanup、batch、source、columns、counts，以及交易內讀回來源中繼資料），與母體列數無關。
     /// 故百萬列亦遠 &lt; 100 筆事件，不會灌爆 ring buffer。
     /// </summary>
@@ -154,12 +153,10 @@ public sealed class SqlExecutionLoggingTests
         await env.Repo.ReplaceBatchAsync(env.ProjectId, DatasetKind.Gl, [new ImportSourceInput(Src(), new[] { "科目", "金額" },
             Stream(rows))], CancellationToken.None);
 
-        // 首敗 20261004-105344715-0a3f9684995a4a20bcdcb2fb954649f6。
-        // 已移除的單來源入口自行組來源資訊；正式 batch 入口在 commit 前只查一次 import_batch_source。
+        // 正式 batch 入口在 commit 前只查一次 import_batch_source。
         var sql = env.Diagnostic.Snapshot().Where(e => e.EventName == "sql.executed").ToList();
         Assert.Equal(6, sql.Count); // 20 與 200 列皆為 6，不因 staging 列數增加。
-        // 裁定 2026-10-22-15 讓每個來源多存欄名在第幾列，這一句查詢多讀 header_row。
-        // 第一次失敗收據 20261024-033416453-dac33b94f62345b59d864aac174b51c2（Public）。
+        // 每個來源存有欄名在第幾列，這一句查詢也讀 header_row。
         const string expectedSourceQuery = """
             SELECT source_no, source_file_name, sheet_name, encoding, delimiter, row_count, imported_utc, header_row
             FROM import_batch_source

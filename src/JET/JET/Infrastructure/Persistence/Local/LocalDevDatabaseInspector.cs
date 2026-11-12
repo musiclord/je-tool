@@ -6,11 +6,11 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 開發階段本地引擎檢視工具（SQLite／DuckDB 共用）——**獨立唯讀路徑**（dev.db.* action 使用）：
+/// 開發用的 SQLite 檢視工具——**獨立唯讀路徑**（dev.db.* action 使用）：
 /// 以 ReadOnly 連線直讀磁碟檔，零副作用（不建 schema、不寫入），
 /// 看到的必然是已持久化資料。DB 檔不存在 → file_not_found（不建檔）。
 /// 「列出資料表」與「引擎版本」查詢走 <see cref="ISqlDialect.ListTablesSql"/>／
-/// <see cref="ISqlDialect.EngineVersionSql"/>（兩本地引擎各自表述、不在此 if-else 引擎名）；
+/// <see cref="ISqlDialect.EngineVersionSql"/>；
 /// table 名稱一律先比對該清單白名單，識別子插值只使用白名單內的名稱（雙引號 + "" 跳脫）；
 /// LIMIT/OFFSET 參數化。
 /// </summary>

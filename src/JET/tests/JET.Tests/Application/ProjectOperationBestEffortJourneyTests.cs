@@ -5,10 +5,10 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 本機案件寫操作紀錄失敗不擋作業（裁定 2026-10-02-06）。操作紀錄表損壞時，
-/// SQLite 與 DuckDB 案件的 GL 重新匯入、GL 重新配對與匯出報告都照常完成並回報成功，
-/// 失敗只記在支援日誌的 project_audit.write_failed 事件。2026-10-19 起，重新匯入與重新配對的回應
-/// 另在 warnings 附提醒（裁定 2026-10-19-19）。匯出報告同樣要提醒（裁定 2026-10-19-20），
+/// 本機案件寫操作紀錄失敗不擋作業。操作紀錄表損壞時，
+/// SQLite 案件的 GL 重新匯入、GL 重新配對與匯出報告都照常完成並回報成功，
+/// 失敗只記在支援日誌的 project_audit.write_failed 事件。重新匯入與重新配對的回應
+/// 另在 warnings 附提醒。匯出報告同樣要提醒，
 /// 四種產生報告的提醒在 ReportExportOperationLogWarningTests 檢查，這裡不重複。
 /// </summary>
 public sealed class ProjectOperationBestEffortJourneyTests
@@ -20,7 +20,6 @@ public sealed class ProjectOperationBestEffortJourneyTests
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host, databaseProvider: provider);
         var projectId = context.ProjectId;
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
         var firstBatch = await host.DispatchAsync(
             "query.dataPreview", JsonSerializer.Serialize(new { dataset = "gl", limit = 1 }));
         Assert.True(firstBatch.GetProperty("totalCount").GetInt64() > 0);
@@ -40,8 +39,7 @@ public sealed class ProjectOperationBestEffortJourneyTests
             "audit-best-effort-reimport");
         Assert.True(reimport.GetProperty("rowCount").GetInt64() > 0);
         Assert.False(string.IsNullOrWhiteSpace(reimport.GetProperty("batchId").GetString()));
-        // 裁定 2026-10-19-19：寫不進操作紀錄時回報成功並提醒。本機案件不擋作業，但同樣要提醒。
-        // 新增的斷言；修正前兩個資料庫的 warnings 都是空的（收據 20261019-125810518-202248fc37a24cb889e2ee537ada1604）。
+        // 寫不進操作紀錄時回報成功並提醒。本機案件不擋作業，但同樣要提醒。
         Assert.Contains(OperationLogNotWritten, Warnings(reimport));
 
         // GL 重新配對：投影照常完成並回報成功。
@@ -58,8 +56,6 @@ public sealed class ProjectOperationBestEffortJourneyTests
         Assert.True(recommit.GetProperty("ok").GetBoolean());
         Assert.Equal(reimport.GetProperty("batchId").GetString(), recommit.GetProperty("batchId").GetString());
         // 讀不到紀錄表時無法判斷這次算不算重新配對：不寫可能不實的紀錄，但照樣提醒這次沒有寫入操作紀錄。
-        // 這條斷言原本是 DoesNotContain；獨立複審指出它和「寫不進操作紀錄時提醒」的裁定不符，改成 Contains
-        // （修正前的失敗收據 20261019-133654138-d0d92aee886d478cae2074fd4f48c340）。
         Assert.Contains(OperationLogNotWritten, Warnings(recommit));
         var projected = recommit.GetProperty("projectedRowCount").GetInt64();
         Assert.True(projected > 0);

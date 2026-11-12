@@ -37,9 +37,10 @@ public sealed partial class WorkingPaperWriter
         };
 
     /// <summary>
-    /// 受保護工作表裡要鎖定的資料區，範圍照舊版 idea-tool.bas 第 10446 到 10800 行鎖定的儲存格（裁定 2026-11-09-15）。
+    /// 受保護工作表裡要鎖定的資料區，欄與起始列照舊版 JET 鎖定的儲存格。
     /// 程式寫的格子從 <see cref="FirstRow"/> 起往下都算；範本原有的格子只算到 <see cref="LastTemplateRow"/>，
     /// 資料沒寫到的範本空白列維持可填。資料列在這幾欄裡沒有值的格子，寫出時補成空白格一起鎖定。
+    /// 續頁照同一個範圍鎖定，其他格子和第一頁一樣可以填。
     /// </summary>
     internal sealed record WorkingPaperLockedArea(
         uint FirstRow,
@@ -73,6 +74,8 @@ public sealed partial class WorkingPaperWriter
             _continuationPrototypeStyles = new(StringComparer.Ordinal);
         private readonly Dictionary<string, DataValidations?> _templateValidations =
             new(StringComparer.Ordinal);
+        private readonly Dictionary<string, double> _templateDefaultColumnWidths =
+            new(StringComparer.Ordinal);
         private readonly List<string> _desiredNames = [];
         private readonly HashSet<string> _openedNames = new(StringComparer.Ordinal);
         private bool _topologyChanged;
@@ -94,7 +97,7 @@ public sealed partial class WorkingPaperWriter
             _localDefinedNameOwners = CaptureLocalDefinedNameOwners(_workbookPart);
         }
 
-        /// <param name="lockedArea">受保護工作表裡程式寫入的資料區；其他格子保持可填（裁定 2026-11-09-15）。</param>
+        /// <param name="lockedArea">受保護工作表裡程式寫入的資料區；其他格子保持可填。</param>
         /// <param name="keptTemplateCells">這次不寫、照範本原字保留的固定格。</param>
         internal SheetWriter OpenSheet(
             string name,
@@ -150,6 +153,13 @@ public sealed partial class WorkingPaperWriter
                     _templateValidations.Add(
                         name,
                         ReadTemplateDataValidations(part, _cancellationToken));
+                }
+                if (lockedArea is not null)
+                {
+                    // 第一頁會直接改寫範本工作表，續頁要用的預設欄寬先讀出來。
+                    _templateDefaultColumnWidths.Add(
+                        name,
+                        ReadTemplateDefaultColumnWidth(part, _cancellationToken));
                 }
                 _templateParts.Add(name, part);
                 Func<uint, uint, uint?, uint, uint>? mergeCellStyle = name is
@@ -243,11 +253,15 @@ public sealed partial class WorkingPaperWriter
                         relationship.OpenXmlPart is SpreadsheetPrinterSettingsPart)
                     .RelationshipId,
                 _templateValidations.GetValueOrDefault(prototype.SheetName),
-                lockedArea);
+                lockedArea,
+                lockedArea is null
+                    ? null
+                    : (_editor.EnsureProtectionStyle(_styles.Map(WorkingPaperStyles.Default), locked: false),
+                        _templateDefaultColumnWidths[prototype.SheetName]));
         }
 
         /// <summary>
-        /// 受保護的工作表照舊版先解鎖整張表，只鎖程式寫入的資料區（裁定 2026-11-09-15）。
+        /// 受保護的工作表照舊版先解鎖整張表，只鎖程式寫入的資料區。
         /// 程式寫的格子在資料區裡就鎖定，留給審計員填寫的 <see cref="WorkingPaperStyles.Editable"/> 例外；
         /// 範本原有的格子只在資料區的表頭範圍內鎖定。
         /// </summary>
@@ -285,6 +299,32 @@ public sealed partial class WorkingPaperWriter
                 }
             }
             return null;
+        }
+
+        /// <summary>範本工作表的預設欄寬；續頁補上的欄設定沿用這個寬度，和第一頁沒有另外設定寬度的欄一樣寬。</summary>
+        private static double ReadTemplateDefaultColumnWidth(
+            WorksheetPart part,
+            CancellationToken cancellationToken)
+        {
+            using var reader = OpenXmlReader.Create(part);
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reader.IsStartElement && reader.ElementType == typeof(SheetFormatProperties))
+                {
+                    var properties = (SheetFormatProperties)reader.LoadCurrentElement()!;
+                    if (properties.DefaultColumnWidth?.Value is double width && width > 0D)
+                    {
+                        return width;
+                    }
+                    break;
+                }
+                if (reader.ElementType == typeof(SheetData))
+                {
+                    break;
+                }
+            }
+            throw new InvalidDataException("WorkingPaper 範本工作表缺少預設欄寬。");
         }
 
         private ContinuationPrototype FindContinuationPrototype(string continuationName)
@@ -556,7 +596,7 @@ public sealed partial class WorkingPaperWriter
                 (row, column) => row >= 20 && column is >= 1 and <= 6,
                 [(1U, 1U), (2U, 1U), (3U, 1U), (7U, 1U), (15U, 2U), (17U, 2U)],
                 WorkingPaperSourceProtection),
-            // legacy 版面：B14 說明、第 16 列五欄表頭、第 17 列起明細（idea-tool.bas:10468-10483）。
+            // 舊版 JET 的版面：B14 說明、第 16 列五欄表頭、第 17 列起明細。
             WorkingPaperSheetCatalog.Step11 => RowsAndCells(
                 row => row >= 17,
                 (row, column) => row >= 17 && column is >= 2 and <= 6,
@@ -601,7 +641,7 @@ public sealed partial class WorkingPaperWriter
             {
                 UseSourceRowHeight = static row => row >= Step3FirstDataRow
             },
-            // A12 的說明句整句寫在範本裡，第一頁照範本原字（裁定 2026-11-09-12）。
+            // A12 的說明句整句寫在範本裡，第一頁照範本原字。
             WorkingPaperSheetCatalog.Step4 => RowsAndCells(
                 row => row >= 13,
                 (row, column) => row >= 13
@@ -636,7 +676,7 @@ public sealed partial class WorkingPaperWriter
                 [(1U, 1U), (2U, 1U)],
                 WorkingPaperSourceProtection,
                 mergeSourceColumnWidths: false),
-            // 舊版三張自動化工具表都整張保護（idea-tool.bas 第 10963、11101、11150 行，裁定 2026-11-09-14）。
+            // 舊版三張自動化工具表都整張保護。
             WorkingPaperSheetCatalog.FieldInfo => ReferenceData(
                 maximumDynamicColumn: 8,
                 WorkingPaperSourceProtection),

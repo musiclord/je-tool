@@ -6,9 +6,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 篩選情境的編輯來源只檢查結構，不影響條件的判斷。2026-10-29 卡片改稱常用篩選條件、拿掉字母後，
-/// 編輯來源升為第 2 版，逐條記卡片代號。裁定 2026-10-30-25 起只接受第 2 版，第 1 版當成損毀。
-/// 2026-10-30 結案前的獨立複審查到這兩件事都沒有測試，這裡補上；兩則都是新增的測試。
+/// 篩選情境的編輯來源只檢查結構，不影響條件的判斷。
+/// 編輯來源是第 2 版，逐條記卡片代號；只接受第 2 版，第 1 版當成損毀。
 /// </summary>
 public sealed class FilterEditorOriginsParserTests
 {
@@ -62,8 +61,7 @@ public sealed class FilterEditorOriginsParserTests
             FilterScenarioCorruption.ReasonsOf(exception));
     }
 
-    // 裁定 2026-10-30-25：第 1 版編輯來源的讀回拿掉，原本接受第 1 版的兩列與檢查第 1 版字母格式的兩列一起拿掉，
-    // 第 1 版改由下一則當成損毀（第一次失敗收據 20261030-072351291-9e3e967b81c8442aa4708c391db02bbf）。
+    // 第 1 版編輯來源不讀回，由下一則當成損毀。
     [Theory]
     [InlineData("""{"version":2,"groups":[{"cards":["blankDescription"]}]}""")]
     public void Parse_VersionOneKeepsAnyLegacySourceValue_AndVersionTwoAcceptsCardKeys(string origins)

@@ -13,7 +13,7 @@ namespace JET.Tests.Application;
 /// loadDemo → create → export xlsx → import.*.fromFile → calendar → mapping commit → validate）。
 /// Debug-only demo actions 由本測試專用 dispatcher 提供；正式 workflow actions 仍走 production composition。
 /// 測試以此為 deterministic 母體，並以 QueryScalarAsync 做獨立 SQL recount。
-/// SQLite 與 DuckDB 的同一組參數在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。
+/// 同一組參數在一個測試程序裡只建一次，之後每個測試複製一份（<see cref="CaseTemplates"/>）。
 /// </summary>
 internal static class DemoProjectPipeline
 {
@@ -123,7 +123,7 @@ internal static class DemoProjectPipeline
             {
                 filePath = apFile.GetProperty("filePath").GetString(),
                 fileName = apFile.GetProperty("fileName").GetString(),
-                // sourceColumn 改成必填，後端不再猜人員欄；保留原示範流程的測試目的。
+                // 匯入人員清單必須指定 sourceColumn。
                 sourceColumn = "姓名"
             }));
         }
@@ -148,7 +148,7 @@ internal static class DemoProjectPipeline
             }));
         }
 
-        // 第 7 則：GL/TB 確認會清除科目配對，所以示範分類在兩者之後建立。
+        // GL 與 TB 確認配對會清除科目配對，所以示範分類在兩者之後建立。
         if (importAccountMapping)
         {
             var amFile = await DispatchDemoFixtureAsync("demo.exportAccountMappingFile");

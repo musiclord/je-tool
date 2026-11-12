@@ -9,7 +9,6 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// SQLite 案件資料夾的可攜性驗收：整夾複製到新的案件根目錄後仍列出、載入，資料查得回。
-/// 原本也驗線上案件的清單合併與登記；只保留 SQLite 之後，線上案件的測試隨 SQL Server 一起移除（裁定 2026-11-06-08）。
 /// </summary>
 public sealed class DualSourceProjectTests
 {

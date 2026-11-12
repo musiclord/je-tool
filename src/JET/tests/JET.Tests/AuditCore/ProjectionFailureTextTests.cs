@@ -27,8 +27,8 @@ public sealed class ProjectionFailureTextTests
         ]));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-                Assert.Collection(
+        // 這句的用字已定案。
+        Assert.Collection(
             error.Details!,
             first => Assert.Equal(
                 "來源欄「人工註記」有 4 列未歸類為人工或自動：「調整」在第 2、3、568 列；「補登」在第 139 列。請回到欄位配對把這些值歸類。",
@@ -43,8 +43,8 @@ public sealed class ProjectionFailureTextTests
         Assert.DoesNotContain("「」", error.Message, StringComparison.Ordinal);
     }
 
-    // 文字欄長度三種資料庫共用上限，超過上限的值可能很長，錯誤只顯示前 50 字加「…」，分組仍用完整值，
-    // 避免誤把摘要欄配成科目名稱時，錯誤區被整段原文撐滿。第一次失敗：20261019-021336926-0f298a926fcf40d0ab0e3eb05851882d。
+    // 文字欄長度有上限，超過上限的值可能很長，錯誤只顯示前 50 字加「…」，分組仍用完整值，
+    // 避免誤把摘要欄配成科目名稱時，錯誤區被整段原文撐滿。
     [Fact]
     public void LongValue_ShowsFirstFiftyCharactersAndKeepsDistinctValues()
     {
@@ -71,7 +71,7 @@ public sealed class ProjectionFailureTextTests
         });
 
         Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 這句的用字已定案。
                         "有 573 列的值無法讀取，本次配對未儲存。以下僅列出部分的值與列號。" +
             "來源欄「金額」有 1 列不是有效金額：「abc」在第 7 列。請確認來源資料的金額格式。",
             error.Message);
@@ -89,7 +89,7 @@ public sealed class ProjectionFailureTextTests
         var detail = Assert.Single(ProjectionFailureText.Create(new ProjectionResult(0, rows)).Details!);
 
         Assert.StartsWith(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 這句的用字已定案。
                         "來源欄「代碼」有 23 列未歸類為人工或自動：「X」在第 2、3、4、5、6、7、8、9、10、11 列，共 12 列；「V1」在第 101 列；",
             detail.Message,
             StringComparison.Ordinal);
@@ -107,7 +107,7 @@ public sealed class ProjectionFailureTextTests
         var detail = Assert.Single(ProjectionFailureText.Create(new ProjectionResult(0, rows)).Details!);
 
         Assert.Equal(
-// 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+                        // 這句的用字已定案。
                         "來源欄「代碼」有 12 列未歸類為人工或自動：「轉入」在第 2、3、4、5、6、7、8、9、10、11 列等。請回到欄位配對把這些值歸類。",
             detail.Message);
     }
@@ -122,7 +122,7 @@ public sealed class ProjectionFailureTextTests
             new RowProjectionError(5, "金額", "bad", "不是有效金額", "JE-q2.csv [Q2]")
         ])).Details!);
 
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("來源欄「金額」有 3 列不是有效金額：「bad」在 JE.csv 第 7、9 列，JE-q2.csv [Q2] 第 5 列。", detail.Message);
     }
 

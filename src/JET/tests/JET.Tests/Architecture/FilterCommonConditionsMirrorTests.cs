@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Architecture;
 
 /// <summary>
-/// 裁定 2026-10-29-16：情境名稱與篩選動機留白時由後端補上自動文字，畫面帶入的文字和後端產生的必須相同。
+/// 情境名稱與篩選動機留白時由後端補上自動文字，畫面帶入的文字和後端產生的必須相同。
 /// 後端用的卡片代號、卡片名稱、評估說明與動機句首是前端 ui-core.js 的鏡像，這裡逐字比對，順序也要相同。
 /// </summary>
 public sealed class FilterCommonConditionsMirrorTests

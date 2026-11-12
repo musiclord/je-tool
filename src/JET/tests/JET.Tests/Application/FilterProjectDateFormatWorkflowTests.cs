@@ -24,9 +24,8 @@ public sealed class FilterProjectDateFormatWorkflowTests
             databaseProvider: provider, periodStart: "2024-01-01", validateForDownstream: true);
         foreach (var raw in new[] { "2025/6/11", "2025.6.11", "20250611", "114/6/11", "1140611" })
             await AssertPreviewAsync(host, DateScenario(raw), ["D1"]);
-        // 第五步的日期也不再把純數字當成 Excel 序列值（裁定 2026-10-22-11）。
-        // 「45292」原本期待命中 SERIAL 那一列（2024-01-01），現在和 2025、2025.12 一樣是無法辨識的日期，情境無效並寫出那個值。
-        // 第一次失敗：收據 20261024-044716893-6a6900c538364667949441681dcd3b6d。
+        // 第五步的日期也不把純數字當成 Excel 序列值。
+        // 「45292」和 2025、2025.12 一樣是無法辨識的日期，情境無效並寫出那個值。
         foreach (var plain in new[] { "45292", "2025", "2025.12" })
         {
             var invalid = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync("filter.preview",
@@ -83,9 +82,9 @@ public sealed class FilterProjectDateFormatWorkflowTests
         var sql = $$"""
             INSERT INTO gl
               (batch_id, source_row_number, voucher_number, gl_date, account_number, amount_scaled, debit_amount_scaled, credit_amount_scaled, dr_cr, is_excluded)
-            VALUES ('batch7', 1, 'D1', '2025-06-11', '1000', 10, 10, 0, 'DEBIT', 0),
-                   ('batch7', 2, 'D2', '2025-06-12', '1000', 10, 10, 0, 'DEBIT', 0),
-                   ('batch7', 3, 'D3', '2025-07-01', '1000', 10, 10, 0, 'DEBIT', 0);
+            VALUES ('gl-batch', 1, 'D1', '2025-06-11', '1000', 10, 10, 0, 'DEBIT', 0),
+                   ('gl-batch', 2, 'D2', '2025-06-12', '1000', 10, 10, 0, 'DEBIT', 0),
+                   ('gl-batch', 3, 'D3', '2025-07-01', '1000', 10, 10, 0, 'DEBIT', 0);
             INSERT INTO gl_rde_value (entry_id, field_id, value_type, date_value)
             SELECT entry_id, '{{RdeDateId}}', 'date', gl_date FROM gl;
             """;

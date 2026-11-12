@@ -117,7 +117,7 @@ public sealed class AccountMappingEditorTests
             """));
         await Assert.ThrowsAsync<JetActionException>(() => Save(host, "c", "unknown"));
 
-        // 借貸方向與傳票佐證改成明示寫法，保留原固定答案；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
+        // 借貸方向與傳票佐證用明示寫法。
         var scenario = JsonDocument.Parse("""
           {"name":"Direct assignment","rationale":"Synthetic","groups":[{"conditions":[
             {"type":"group","conditions":[{"type":"drCrOnly","drCr":"debit"},{"type":"accountSide","categoryMode":"is","categoryIds":["builtin.cash"]}]},

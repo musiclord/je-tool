@@ -4,8 +4,8 @@ using JET.Domain;
 namespace JET.Infrastructure;
 
 /// <summary>
-/// 衍生結果與 schema v7 stale singleton 的同交易寫入點。呼叫端提供的 schema prefix
-/// 目前只有 SQLite 的固定空字串；參數保留給日後恢復的 SQL Server 傳經驗證的 project schema。
+/// 衍生結果與 <c>result_stale_state</c> 單列狀態的同交易寫入點。呼叫端提供的 schema prefix
+/// 是 SQLite 的固定空字串。
 /// </summary>
 internal static class ResultStaleStateSql
 {

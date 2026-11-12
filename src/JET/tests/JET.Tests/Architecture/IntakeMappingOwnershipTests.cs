@@ -10,10 +10,6 @@ public sealed class IntakeMappingOwnershipTests
     [Fact]
     public void TypedIntakeMappingCoreSurface_IsInternal()
     {
-        // ProjectCreatePreflightRequest 與 ProjectCreateBackendDifferentOwnerException 只給 SQL Server 建案前的檢查用；
-        // AccountMappingFailureStyle 只用來區分本機與 SQL Server 的失敗句型。只保留 SQLite 之後三者隨之刪除，清單拿掉這三項
-        // （裁定 2026-11-06-08）。第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed，
-        // 拿掉前兩項後再跑才看到第三項：Focused 收據 20261106-085055547-a2c9a7aec0f442e09a6e43dd7e32b968。
         var expected = new[]
         {
             "JET.AuditCore.AccountMappingFacts",
@@ -75,9 +71,7 @@ public sealed class IntakeMappingOwnershipTests
     }
 
     /// <remarks>
-    /// 2026-10-02 資料庫分流簡化：建案 backend 轉接器本來就不經分流層選資料庫，分流層刪除時從
-    /// ProviderRoutingProjectCreateBackendPort 改名為 ProjectCreateBackendPort，清單跟著改名，仍要求存在且為 internal。
-    /// 第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
+    /// 建案 backend 轉接器 ProjectCreateBackendPort 要存在且為 internal。
     /// </remarks>
     [Fact]
     public void TypedIntakeMappingInfrastructureAdapters_AreInternal()
@@ -108,10 +102,7 @@ public sealed class IntakeMappingOwnershipTests
     }
 
     /// <remarks>
-    /// 2026-10-02 資料庫分流簡化：ReferenceDataFactsPort 不是分流類別，隨 Routing 資料夾刪除搬到
-    /// Infrastructure/Persistence，這裡只跟著改讀取路徑，斷言不變。第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
-    /// 只保留 SQLite 之後 SQL Server 的科目配對與授權名單倉儲已刪除，只讀本機的兩個倉儲（裁定 2026-11-06-08）；
-    /// 第一次失敗：Focused 收據 20261106-084107421-33f747f01c134f3ab499d047fcc1c3ed。
+    /// ReferenceDataFactsPort 在 Infrastructure/Persistence；倉儲只讀本機的科目配對與授權名單兩個。
     /// </remarks>
     [Fact]
     public void ReferenceDataProductionPath_UsesAuditCoreDecisionOwners()

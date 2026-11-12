@@ -74,7 +74,7 @@ public sealed class VoucherNumberAcrossGlDatesTests
     private static void AssertReuse(JsonElement summary, long numbers, long entries)
     {
         var counts = summary.GetProperty("voucherNumberAcrossGlDates");
-        // 鍵名照裁定 2026-11-01-01 改用 voucher 後，依字母排序的位置換到 entryCount 後面；比對的仍是同樣兩個鍵。
+        // 鍵名用 voucher，依字母排序時排在 entryCount 後面。
         Assert.Equal(new[] { "entryCount", "voucherNumberCount" }, counts.EnumerateObject().Select(item => item.Name).Order());
         Assert.Equal(numbers, counts.GetProperty("voucherNumberCount").GetInt64());
         Assert.Equal(entries, counts.GetProperty("entryCount").GetInt64());

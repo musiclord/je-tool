@@ -4,8 +4,6 @@ namespace JET.Tests.Architecture;
 
 public sealed class ReportExportOwnershipTests
 {
-    // 改動原因：裁定 2026-10-08-08 移除假日範本入口，ExportCalendarTemplatesHandler 隨之刪除，
-    // 原本只檢查該 handler 的測試一併移除。
 
     private static readonly System.Reflection.Assembly ProductionAssembly =
         typeof(global::JET.Domain.JetActionException).Assembly;
@@ -26,8 +24,8 @@ public sealed class ReportExportOwnershipTests
     {
         var handler = ReadTypeSource(handlerName, relativePath);
 
-        // 2026-10-02 起 AuditCore 不再提供只轉手給 port 的 ExecuteAsync，handler 直接呼叫
-        // ReportExecutionPort.ExecuteAsync。原本檢查 JetAuditProgram.ExecuteAsync( 的斷言改成檢查這個呼叫，
+        // AuditCore 不提供只轉手給 port 的 ExecuteAsync，handler 直接呼叫
+        // ReportExecutionPort.ExecuteAsync。這裡檢查這個呼叫，
         // 並要求 Plan、建立 port、執行與 Finalize 依序出現，守住同一個 AuditCore 生命週期。
         AssertAppearsInOrder(
             handler,
@@ -51,7 +49,7 @@ public sealed class ReportExportOwnershipTests
     [Fact]
     public void AccountMappingTemplateHandler_WritesWorkFileOutsideReportLifecycle()
     {
-        // 裁定 2026-09-02-05：範本是工作檔，不走報告 plan 與報告 store，也不進 manifest。
+        // 範本是工作檔，不走報告 plan 與報告 store，也不進 manifest。
         var handler = ReadTypeSource(
             "ExportAccountMappingTemplateHandler",
             "Application/Handlers/ExportAccountMappingTemplateHandler.cs");

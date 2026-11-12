@@ -2,8 +2,8 @@ namespace JET.Domain;
 
 /// <summary>
 /// 通用值條件（type:"fieldValue"）：核心文字、日期、金額欄位與已配對的攸關資料元素欄位共用同一份比較方式選單。
-/// 日期另有「每月幾日屬於」與「每月幾日不屬於」（裁定 2026-09-04-01，值為 1 到 31）；文字的「包含任一文字」
-/// 與「不包含任何文字」接受多個關鍵字（對齊 legacy 的包含就排除），開頭符合與結尾符合也一樣（裁定 2026-11-09-09）。舊 typed 型別不變。
+/// 日期另有「每月幾日屬於」與「每月幾日不屬於」（值為 1 到 31）；文字的「包含任一文字」
+/// 與「不包含任何文字」接受多個關鍵字（對齊 legacy 的包含就排除），開頭符合與結尾符合也一樣。舊 typed 型別不變。
 /// </summary>
 public static class FieldValueConditions
 {
@@ -19,15 +19,15 @@ public static class FieldValueConditions
         [DayOfMonthIn] = "每月幾日屬於", [DayOfMonthNotIn] = "每月幾日不屬於",
         ["monthStartDays"] = "每月月初天數", ["notMonthStartDays"] = "排除每月月初天數",
         ["monthEndDays"] = "每月月底天數", ["notMonthEndDays"] = "排除每月月底天數",
-        // 日曆選項的入口、選項與讀回用同一個詞（裁定 2026-11-03-10）。
+        // 日曆選項的入口、選項與讀回用同一個詞。
         ["isWeekend"] = "在週末", ["isNotWeekend"] = "不在週末",
         ["isHoliday"] = "在國定假日", ["isNotHoliday"] = "不在國定假日",
         ["isMakeupDay"] = "在補班日", ["isNotMakeupDay"] = "不在補班日",
         ["isNonBusinessDay"] = "在非營業日", ["isNotNonBusinessDay"] = "不在非營業日",
-        // 舊版「特定數字篩選」的包含與排除（裁定 2026-11-05-46），名稱照用（裁定 2026-11-05-67）。
+        // 舊版「特定數字篩選」的包含與排除，名稱照用。
         ["containsDigits"] = "整數部分包含", ["notContainsDigits"] = "整數部分不包含",
         ["endsWithDigits"] = "整數尾數符合", ["notEndsWithDigits"] = "整數尾數不符合",
-        // 尾數連續多個 0（裁定 2026-11-03-07）：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
+        // 尾數連續多個 0：值是 0 的個數，讀回寫「尾數連續「6」個 0」。
         ["endsWithZeros"] = "尾數連續", ["notEndsWithZeros"] = "尾數沒有連續",
         ["greaterThan"] = "大於", ["greaterThanOrEqual"] = "大於或等於", ["lessThan"] = "小於", ["lessThanOrEqual"] = "小於或等於",
         ["between"] = "介於", ["notBetween"] = "不介於", ["isBlank"] = "空白", ["isNotBlank"] = "非空白"
@@ -78,22 +78,22 @@ public static class FieldValueConditions
     public static bool IsTail(string? op) => op is "endsWithDigits" or "notEndsWithDigits";
 
     /// <summary>
-    /// 整數部分包含任一串數字（舊版 JET 的「特定數字篩選」，裁定 2026-11-05-46）：和整數尾數一樣只看絕對值的整數部分，
+    /// 整數部分包含任一串數字（舊版 JET 的「特定數字篩選」）：和整數尾數一樣只看絕對值的整數部分，
     /// 忽略正負號及小數；值是 1 到 <see cref="TrailingZeroThreshold.MaxCustomDigits"/> 位的數字，可以多串，以 <see cref="TailPatterns"/> 讀取。
     /// </summary>
     public static bool IsDigitContains(string? op) => op is "containsDigits" or "notContainsDigits";
 
     /// <summary>
-    /// 只看國定假日清單的兩個比較方式。沒有上傳國定假日清單時第五步停用它們並寫原因（裁定 2026-11-05-55）；
+    /// 只看國定假日清單的兩個比較方式。沒有上傳國定假日清單時第五步停用它們並寫原因；
     /// 「非營業日」也看週末，沒有清單時仍可使用。
     /// </summary>
     public static bool IsHoliday(string? op) => op is "isHoliday" or "isNotHoliday";
 
-    /// <summary>只看補班日清單的兩個比較方式；沒有上傳補班日清單時第五步比照國定假日停用並寫原因（裁定 2026-11-05-66）。</summary>
+    /// <summary>只看補班日清單的兩個比較方式；沒有上傳補班日清單時第五步比照國定假日停用並寫原因。</summary>
     public static bool IsMakeupDay(string? op) => op is "isMakeupDay" or "isNotMakeupDay";
 
     /// <summary>
-    /// 尾數連續多個 0（裁定 2026-11-03-07）：整數部分的末 N 位都是 0，整數部分為 0 的金額不符合；忽略正負號及小數。
+    /// 尾數連續多個 0：整數部分的末 N 位都是 0，整數部分為 0 的金額不符合；忽略正負號及小數。
     /// 值是 0 的個數，和尾數樣態同樣是 1 到 <see cref="TrailingZeroThreshold.MaxCustomDigits"/>。
     /// </summary>
     public static bool IsZeroRun(string? op) => op is "endsWithZeros" or "notEndsWithZeros";
@@ -117,8 +117,8 @@ public static class FieldValueConditions
             : rule.TypedValue is null ? [] : [rule.TypedValue];
 
     /// <summary>
-    /// 文字的開頭符合、結尾符合和包含一樣接受多個值（裁定 2026-11-09-09）：符合任一個就算，排除時每一個都不能符合。
-    /// 以前只收一個值，已儲存情境只帶單一 value 時視為一個值。
+    /// 文字的開頭符合、結尾符合和包含一樣接受多個值：符合任一個就算，排除時每一個都不能符合。
+    /// 已儲存情境只帶單一 value 時視為一個值。
     /// </summary>
     public static bool IsAffix(string? op) => op is "startsWith" or "notStartsWith" or "endsWith" or "notEndsWith";
 
@@ -158,8 +158,8 @@ public static partial class FilterScenarioValidator
     private static void ValidateFieldValue(FilterConditionSpec rule, string label,
         FilterValidationContext context, List<string> errors, bool fieldUnavailable)
     {
-        // 分錄方向與核心金額的「含正負號」是已拿掉的舊寫法，讀到時當成無法讀取的內容
-        // （裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。攸關資料元素的金額欄位仍可選含正負號。
+        // 分錄方向與核心金額的「含正負號」是已拿掉的舊寫法，讀到時當成無法讀取的內容；
+        // 已儲存情境的舊寫法不讀回。攸關資料元素的金額欄位仍可選含正負號。
         if (rule.DrCr is not null)
             FilterScenarioCorruption.Add(errors, label, "field_value_side_invalid");
         if (rule.FieldId is null && rule.Field == JetFieldCatalog.GlAmount && rule.AmountBasis == TypedAmountBasisNames.Signed)
@@ -243,7 +243,7 @@ public static partial class FilterScenarioValidator
             field, label, context, errors);
     }
 
-    // 子條件組的連接在畫面上只寫 AND 與 OR（裁定 2026-10-30-32），提示照畫面上的字寫；前端 filter-values.js 同一句。
+    // 子條件組的連接在畫面上只寫 AND 與 OR，提示照畫面上的字寫；前端 filter-values.js 同一句。
     private static string FieldValueListLimitReason(string? op) =>
         $"每條最多 {FilterScenarioLimits.MaxTypedInValuesPerRule} 個值。請拆成多條條件，放進子條件組，用 "
         + (op is "notIn" or "notContains" or "notStartsWith" or "notEndsWith" or "notContainsDigits" or "notEndsWithDigits" ? "AND" : "OR") + " 連接。";

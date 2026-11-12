@@ -19,13 +19,11 @@ public sealed class QueryDataPreviewHandlerTests
     {
         using var host = new HandlerTestHost();
         await InlineWorkbookProject.SetupAsync(host, ManualAutoFixture, databaseProvider: provider, manualBlankValueKind: "unclassified");
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
         var data = await host.DispatchAsync("query.dataPreview", """{"dataset":"gl"}""");
         Assert.Equal(new[] { "voucherNumber", "lineItem", "glDate", "accountNumber", "accountName", "description", "amount", "drCr", "manualAuto" },
             data.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
         Assert.Equal(new string?[] { "manual", "automatic", null }, data.GetProperty("rows").EnumerateArray().Select(r => r[8].GetString()));
-        // 資料預覽的 GL 與 GL(未納入測試) 列同一組欄位（裁定 2026-10-22-09），人工或自動分錄有配對就兩頁都列。
-        // 原本斷言 GL(未納入測試) 不列這一欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        // 資料預覽的 GL 與 GL(未納入測試) 列同一組欄位，人工或自動分錄有配對就兩頁都列。
         var excluded = await host.DispatchAsync("query.dataPreview", """{"dataset":"glExcluded"}""");
         Assert.Contains("manualAuto", excluded.GetProperty("columns").EnumerateArray().Select(c => c.GetString()));
     }
@@ -135,8 +133,8 @@ public sealed class QueryDataPreviewHandlerTests
             "query.dataPreview",
             """{ "dataset": "glExcluded" }""");
 
-        // 資料預覽依配對列欄位（裁定 2026-10-22-09）：還沒確認 GL 配對時只列核心欄位與未納入原因，
-        // 過帳狀態要有配對才列。原本斷言固定十欄、過帳狀態排第四；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        // 資料預覽依配對列欄位：還沒確認 GL 配對時只列核心欄位與未納入原因，
+        // 過帳狀態要有配對才列。
         Assert.Equal(
             [
                 "voucherNumber", "lineItem", "glDate", "accountNumber", "accountName",
@@ -145,7 +143,7 @@ public sealed class QueryDataPreviewHandlerTests
             data.GetProperty("columns").EnumerateArray().Select(column => column.GetString()).ToList());
         Assert.Equal(0, data.GetProperty("rows").GetArrayLength());
         Assert.Equal(0, data.GetProperty("totalCount").GetInt64());
-        // 裁定 2026-10-21-04 把日期不符分成三種原因，兩個計數改成四個；第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        // 日期不符分成三種原因，計數共四個。
         var stats = data.GetProperty("stats");
         Assert.Equal(0, stats.GetProperty("blankGlDateCount").GetInt64());
         Assert.Equal(0, stats.GetProperty("beforePeriodCount").GetInt64());
@@ -218,8 +216,8 @@ public sealed class QueryDataPreviewHandlerTests
             Assert.Equal("DEBIT", rows[0][7].GetString());
 
             // stats（手算 oracle）：|金額| ∈ [50, 250]、日期 01-01～01-05、傳票 2 張
-            // 資料預覽的金額固定顯示四位小數（裁定 2026-10-22-06）：統計列的金額改用字串照存下的值傳，
-            // 畫面補四位時不經過浮點數。原本斷言數字；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+            // 資料預覽的金額固定顯示四位小數：統計列的金額用字串照存下的值傳，
+            // 畫面補四位時不經過浮點數。
             var stats = data.GetProperty("stats");
             Assert.Equal("50", stats.GetProperty("amountAbsMin").GetString());
             Assert.Equal("250", stats.GetProperty("amountAbsMax").GetString());
@@ -282,11 +280,10 @@ public sealed class QueryDataPreviewHandlerTests
         Assert.Equal(1, excluded.GetProperty("rows").GetArrayLength());
         var firstRow = excluded.GetProperty("rows")[0];
         Assert.Equal("JV-200", firstRow[0].GetString());
-        // 資料預覽依配對列欄位（裁定 2026-10-22-09）：過帳狀態是選填欄位，接在核心八欄後面。
-        // 原本過帳狀態排第四欄；第一次失敗：Focused 收據 20261023-112004700-2e000bb010d54098b6c123ef7f06faf0。
+        // 資料預覽依配對列欄位：過帳狀態是選填欄位，接在核心八欄後面。
         Assert.Equal("VOID", firstRow[8].GetString());
-        // 裁定 2026-10-21-04 把日期不符分成三種原因：JV-200 的總帳日期在 2024 年查核期間之後，讀成 afterPeriod；
-        // 兩個計數改成四個。第一次失敗收據 20261021-080930829-9ee6cdc9021744a0bf40903ea77f833a。
+        // 日期不符分成三種原因：JV-200 的總帳日期在 2024 年查核期間之後，讀成 afterPeriod；
+        // 計數共四個。
         Assert.Equal("afterPeriod", firstRow[9].GetString());
         var stats = excluded.GetProperty("stats");
         Assert.Equal(0, stats.GetProperty("blankGlDateCount").GetInt64());
@@ -296,8 +293,8 @@ public sealed class QueryDataPreviewHandlerTests
     }
 
     /// <summary>
-    /// 裁定 2026-10-21-04 把 GL(未納入測試) 的「日期不符」分成總帳日期空白、早於查核期間、晚於查核期間三種原因，
-    /// 各自計數，資料預覽可以只看其中一種；GL 範圍與審計結果不變。
+    /// GL(未納入測試) 的「日期不符」分成總帳日期空白、早於查核期間、晚於查核期間三種原因，
+    /// 各自計數，資料預覽可以只看其中一種；這個分法不影響 GL 範圍與審計結果。
     /// oracle：查核期間 2025-01-01 到 2025-12-31，下列 12 列逐列手算原因。日期先於過帳狀態判斷，
     /// 所以日期不符又是草稿的列算日期原因。四種原因的筆數刻意各不相同（1、2、3、4），計數放錯欄位就會失敗。
     /// </summary>
@@ -405,7 +402,7 @@ public sealed class QueryDataPreviewHandlerTests
             """{ "dataset": "glExcluded", "exclusionReason": "postingStatus", "limit": 3, "offset": 3 }""");
         Assert.Equal(new string?[] { "JV-12" }, VoucherNumbers(secondPage));
 
-        // 原因只能是四種之一，也只適用於 GL(未納入測試)；改版前的 period 不再接受。
+        // 原因只能是四種之一，也只適用於 GL(未納入測試)；period 不接受。
         foreach (var payload in new[]
         {
             """{ "dataset": "glExcluded", "exclusionReason": "period" }""",
@@ -496,7 +493,7 @@ public sealed class QueryDataPreviewHandlerTests
         }
     }
 
-    // 裁定 2026-11-05-04：TB 與 PBC-TB 也帶 columnDetails。PBC-TB 的欄名是來源欄名，確認配對前全部是文字，
+    // TB 與 PBC-TB 也帶 columnDetails。PBC-TB 的欄名是來源欄名，確認配對前全部是文字，
     // 確認後只有配到金額位置的來源欄是金額；TB 的欄名和欄位配對畫面相同，科目編號是文字。
     [Fact]
     public async Task Preview_TbAndPbcTb_DescribeColumnsAndMarkOnlyMappedAmountSourcesAsAmounts()
@@ -665,8 +662,7 @@ public sealed class QueryDataPreviewHandlerTests
 
         // 正準名出現、Hidden 不出現（負向）。
         var canonicalNames = data.GetProperty("rows").EnumerateArray().Select(r => r[0].GetString()).ToList();
-        // 裁定 2026-10-08-04 統一全系統的資料名稱。
-        // 裁定 2026-10-13-19 把 PBC GL 改寫成 PBC-GL；第一次失敗：20261013-092449164-3847782f6c50488b86a0ac3856e606ca。
+        // 資料名稱寫成 PBC-GL。
         Assert.Contains("PBC-GL", canonicalNames);
         Assert.DoesNotContain("GL_CONTROL_TOTAL", canonicalNames);
         Assert.DoesNotContain("MESSAGE_LOG", canonicalNames);

@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// CsvDialectDetector 測試（guide §3.1.1 分隔符偵測規則）。
+/// CsvDialectDetector 測試（分隔符偵測規則）。
 /// oracle：手工 fixture（取樣文字可人工數出各候選的引號外出現次數）。
 /// 設計技術：決策表——候選 × 引號干擾 × 一致性 × 並列。
 /// </summary>
@@ -68,8 +68,8 @@ public sealed class CsvDialectDetectorTests
         Assert.Null(CsvDialectDetector.DetectDelimiter(""));
     }
 
-    // 第一行只有空白字元或分隔符時，以前被當成標頭，
-    // 偵測不到分隔符，Tab 與分號檔改用預設的逗號，整個檔讀成一欄。這種列和讀取器一樣算空白列。
+    // 第一行只有空白字元或分隔符時，和讀取器一樣算空白列，不當成標頭；
+    // 否則偵測不到分隔符，Tab 與分號檔會用預設的逗號，整個檔讀成一欄。
     [Theory]
     [InlineData("   \r\na\tb\r\n1\t2", '\t')]
     [InlineData("  \r\na;b\r\n1;2", ';')]

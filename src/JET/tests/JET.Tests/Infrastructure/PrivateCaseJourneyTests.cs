@@ -52,7 +52,7 @@ public sealed class PrivateCaseJourneyTests
         Assert.DoesNotContain("case-A", serialized, StringComparison.Ordinal);
     }
 
-    // 新增測試（裁定 2026-11-06-01）：私人案件核對接上三段後續操作時，每段匯出後都在下一段開始前交給比對，
+    // 新增測試：私人案件核對接上三段後續操作時，每段匯出後都在下一段開始前交給比對，
     // 段落順序與 PrivateCaseAcceptanceRunner 相同，每段都帶齊六份報告、抽樣與情境計數。用合成資料驗證接線。
     [Fact]
     public async Task RunAsync_WithFollowUps_HandsEachExportToVerificationBeforeNextSegment()

@@ -6,7 +6,7 @@ namespace JET.Tests.Domain;
 
 /// <summary>
 /// 欄位可用性與「規則需要什麼」表的固定答案。第四步、第五步與前端停用說明都讀這一張表，
-/// 所以表的內容、判斷順序與原因句在這裡逐字鎖住。第一次失敗：Focused 收據 20261023-031210977-4e167568cda74f58851d32f8088917e8
+/// 所以表的內容、判斷順序與原因句在這裡逐字鎖住。
 /// （46 則失敗，例如只配必填欄時，可用欄位清單沒有自動編號的傳票文件項次）。
 /// </summary>
 public sealed class JetRuleRequirementsTests
@@ -130,7 +130,7 @@ public sealed class JetRuleRequirementsTests
             PrescreenRuleKeys.NonAuthorizedPreparer,
             [Kind(JetRulePrerequisiteKind.AuthorizedPreparer), Field(JetFieldCatalog.GlCreatedBy)]
         }
-        // 編製分錄較少的人員與使用較少的科目照舊版拿掉（裁定 2026-10-29-27），這裡跟著少兩列；第一次失敗是建置失敗：收據 20261030-163008036-bb2e987946cc4c72a351610e661109c5。
+        // 照舊版，預篩選沒有編製分錄較少的人員與使用較少的科目，這裡也沒有這兩列。
     };
 
     [Theory]
@@ -217,7 +217,7 @@ public sealed class JetRuleRequirementsTests
     [Fact]
     public void Unmet_NullFacts_AreNotChecked()
     {
-        // GL 欄位清單是 null 只出現在沒有配對資料的獨立測試；假日檔是 null 表示第五步照裁定 2026-10-04-01 不擋。
+        // GL 欄位清單是 null 只出現在沒有配對資料的獨立測試；假日檔是 null 表示第五步不擋。
         var unmet = JetRuleRequirements.Unmet(
             JetRuleRequirements.PrescreenRules[PrescreenRuleKeys.HolidayApproval],
             Facts(availableGlFields: null, hasHolidayCalendar: null));
@@ -268,7 +268,7 @@ public sealed class JetRuleRequirementsTests
         },
         {
             Kind(JetRulePrerequisiteKind.HolidayCalendar),
-            // 裁定 2026-11-03-10 改畫面用字：第一次失敗：Focused 收據 20261103-075421076-cc19c4bfd21d4229bef4547bc5a222f6。
+            // 這句的用字已定案。
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳",
             "尚未上傳國定假日清單，請先在第二步「國定假日與補班日」上傳。"
         }
@@ -279,7 +279,7 @@ public sealed class JetRuleRequirementsTests
     public void Sentences_FilterReasonAndPrescreenSentence(
         JetRulePrerequisite prerequisite, string filterReason, string prescreenSentence)
     {
-        // 審計員改過的分類名稱寫新名稱（裁定 2026-10-13-23）；第四步沒有清單最後那句下一步，GL 欄位的句子另接到哪裡補。
+        // 審計員改過的分類名稱寫新名稱；第四步沒有清單最後那句下一步，GL 欄位的句子另接到哪裡補。
         var labels = AccountCategoryLabels.BuiltIn with { Revenue = "營業收入", Receivables = "應收帳款" };
 
         Assert.Equal(filterReason, JetRuleRequirements.Reason(prerequisite, labels));

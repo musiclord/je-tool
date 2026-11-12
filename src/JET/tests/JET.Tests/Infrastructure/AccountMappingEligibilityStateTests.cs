@@ -84,7 +84,7 @@ internal sealed class AccountMappingStateFixture : IAsyncDisposable
             }
 
             var categoryList = categories.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            // 科目配對一律以 category_id 連到分類表（2026-10-02 起刪除依分類名稱對應的退路），
+            // 科目配對一律以 category_id 連到分類表，沒有依分類名稱對應的退路；
             // 測試資料依分類名稱補上對應的內建分類身分。
             var targets = categoryList.Select((category, index) =>
                 $"('batch', {index + 1}, 'A{index + 1:000}', 'Account {index + 1}', '{category}', " +

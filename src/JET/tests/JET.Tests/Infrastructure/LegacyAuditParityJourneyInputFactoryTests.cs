@@ -147,8 +147,7 @@ public sealed class LegacyAuditParityJourneyInputFactoryTests
                         join = "AND",
                         conditions = new[]
                         {
-                            // 舊式關鍵字條件已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），合成情境改用「傳票摘要」的「包含任一文字」。
-                            // 這次改的是測試資料，不是因為測試失敗。
+                            // 已儲存情境的舊式關鍵字條件不讀回，合成情境用「傳票摘要」的「包含任一文字」。
                             new
                             {
                                 join = "AND",

@@ -5,10 +5,8 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 裁定 2026-10-30-19：畫面上的筆數、列數這類數量加千分位；Excel 列號、第幾組第幾條與頁碼這類位置不加。
+/// 畫面上的筆數、列數這類數量加千分位；Excel 列號、第幾組第幾條與頁碼這類位置不加。
 /// 後端產生、顯示在畫面上的訊息都經過同一個格式函式。預期文字都是手寫的固定答案。
-/// 第一次執行在新增格式函式之前，依預期因為還沒有 CountText 而編譯失敗：Focused 收據 20261031-005831162-057df29f61b04381a0097c26108cbd64；
-/// 補上格式函式、訊息還沒改之前，ProjectionFailure 那一則依預期失敗：Focused 收據 20261031-005903747-67070610b7ef42478de8cfc5c13facb4。
 /// </summary>
 public sealed class CountTextTests
 {

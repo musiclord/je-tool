@@ -251,7 +251,7 @@ public sealed class ValidateRunHandler : IApplicationActionHandler
                 blankAccountNumberCount = result.BlankAccountNumberCount,
                 blankVoucherNumberCount = result.BlankVoucherNumberCount,
                 blankDescriptionCount = result.BlankDescriptionCount,
-                // 傳票核准日不可用時筆數是 null，原因寫缺什麼、到哪裡補，畫面只顯示這一句（裁定 2026-10-23-01）。
+                // 傳票核准日不可用時筆數是 null，原因寫缺什麼、到哪裡補，畫面只顯示這一句。
                 approvalDateNotInPeriodCount = result.ApprovalDateNotInPeriodCount,
                 approvalDateNotInPeriodNaReason = plan.OutOfPeriodApprovalNaReason,
                 blankRows = result.BlankRecordRows.Select(r => (object)new

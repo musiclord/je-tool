@@ -347,8 +347,8 @@ internal static class LegacyAuditParityObservationFactory
     {
         // `SheetStat.RowsWritten` is the production contract: fixed copy, titles,
         // headers, formulas and formatted empty template rows are not data rows.
-        // Keep this test-side registry closed over the six writer families from
-        // jet-guide §7; an unknown layout must stop parity instead of falling back
+        // Keep this test-side registry closed over the six writer families;
+        // an unknown layout must stop parity instead of falling back
         // to populated-row counting.
         var series = ParseSeries(sheetName);
         using var rows = new WorksheetRowCursor(ReadRows(worksheetPart, voucherKeys));
@@ -1413,12 +1413,6 @@ internal static class LegacyAuditParityObservationFactory
             throw Error(fieldId);
         }
         return result;
-    }
-
-    private static bool RequiredBoolean(JsonElement element, string property, string fieldId)
-    {
-        var value = NullableBoolean(element, property, fieldId);
-        return value ?? throw Error(fieldId);
     }
 
     private static bool? NullableBoolean(JsonElement element, string property, string fieldId)

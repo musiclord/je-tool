@@ -13,9 +13,7 @@ public sealed class AdvancedFilterAstCompilationTests
     private static readonly FilterConditionContext Context =
         new(100, null, "2025-01-01", "2025-12-31", PopulationScope: GlPopulationScope.AuditPeriod);
 
-    // 原本用「同一傳票」比對範圍；這個寫法已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），
-    // 照它的重建方式把第一條以外的條件各自放進「整張傳票條件」並選「至少一筆符合」，斷言不變。
-    // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法改成無法讀取）。
+    // 第一條以外的條件各自放進「整張傳票條件」並選「至少一筆符合」。
     [Fact]
     public void VoucherWitnesses_BuildAnchorAndOrderedEffectiveVoucherSets()
     {
@@ -88,8 +86,7 @@ public sealed class AdvancedFilterAstCompilationTests
         var exception = Assert.Throws<JetActionException>(
             () => Builder().BuildPlan(rejected, Context));
         Assert.Equal(JetErrorCodes.InvalidScenario, exception.Code);
-        // 裁定 2026-10-30-19：訊息裡的上限是數量，加千分位。原本比對未加千分位的 2000；
-        // 改字後依預期失敗：Focused 收據 20261031-010547486-827e57fd9bfa4185b81c65114b864279。
+        // 訊息裡的上限是數量，加千分位。
         Assert.Equal(2000, FilterScenarioLimits.MaxCompiledParameters);
         Assert.Contains("超過 2,000 個", exception.Message, StringComparison.Ordinal);
     }

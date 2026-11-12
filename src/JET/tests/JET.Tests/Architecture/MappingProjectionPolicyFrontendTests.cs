@@ -5,8 +5,8 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 欄位配對步驟的標準化政策鏡像守衛（前端工作流整合）。後端 <c>mapping.commit.gl</c> 仍是
-/// 權威驗證；本組只剩核准日模式的封閉選項鏡像。互斥引導、來源值分布的取得方式與送出形狀，
-/// 2026-10-14 起改由 <c>tools/tests/frontend-journey-mapping.test.cjs</c> 在正式第三步畫面上核對。
+/// 權威驗證；本組只核對核准日模式的封閉選項鏡像。互斥引導、來源值分布的取得方式與送出形狀，
+/// 由前端測試在正式第三步畫面上核對。
 /// </summary>
 public sealed class MappingProjectionPolicyFrontendTests
 {

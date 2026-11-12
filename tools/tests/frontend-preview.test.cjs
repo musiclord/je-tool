@@ -1,6 +1,6 @@
 'use strict';
 // 測試程序的記憶體與時間上限，見 support/resource-guard.cjs（2026-10-13）。
-require('./support/resource-guard.cjs');
+require('../../src/JET/tests/frontend/support/resource-guard.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -8,7 +8,7 @@ const path = require('node:path');
 const http = require('node:http');
 const vm = require('node:vm');
 const { dispatch } = require('../harness/frontend-preview/replay.js');
-const { checkResponse } = require('./support/action-contract.cjs');
+const { checkResponse } = require('../../src/JET/tests/frontend/support/action-contract.cjs');
 const { createServer, previewHtml, previewPort } = require('../harness/frontend-preview/server.cjs');
 const { modeFrom, prepareBundle, draftFor } = require('../harness/frontend-preview/worst-case.js');
 const root = path.resolve(__dirname, '../..');

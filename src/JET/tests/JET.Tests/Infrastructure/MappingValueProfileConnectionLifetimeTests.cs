@@ -2,7 +2,6 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 public sealed class MappingValueProfileConnectionLifetimeTests
@@ -16,7 +15,7 @@ public sealed class MappingValueProfileConnectionLifetimeTests
         var database = Database(provider, folder);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await database.EnsureCreatedAsync(projectId, CancellationToken.None);
         var batch = (await new LocalImportRepository(database).ReplaceBatchAsync(
             projectId, DatasetKind.Gl,
@@ -32,7 +31,7 @@ public sealed class MappingValueProfileConnectionLifetimeTests
             await AssertFixedAnswersAsync(database, projectId, batch.BatchId);
         }
 
-        // 關閉最後一條 DuckDB 連線後，重新建立連線工廠，確認重新註冊與讀取仍使用相同答案。
+        // 關閉最後一條連線後，重新建立連線工廠，確認重新註冊與讀取仍使用相同答案。
         CollectDelegates();
         await AssertFixedAnswersAsync(Database(provider, folder), projectId, batch.BatchId);
     }
@@ -46,7 +45,7 @@ public sealed class MappingValueProfileConnectionLifetimeTests
     private static async Task AssertFixedAnswersAsync(ILocalProjectDatabase database, string projectId, string batchId)
     {
         var repository = new LocalMappingValueProfileRepository(database);
-        // 2026-10-28 查詢多了往下填補參數，這裡照原樣計數，帶 false；預期不變。
+        // 這裡照原樣計數，往下填補參數帶 false。
         var profile = await repository.GetAsync(projectId, batchId, "Mode", 10, false, CancellationToken.None);
         Assert.Equal(0, profile.BlankCount);
         Assert.Equal(2, profile.DistinctCount);

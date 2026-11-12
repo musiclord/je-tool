@@ -36,7 +36,7 @@ public interface ISupportDiagnosticLogStore
 }
 
 /// <summary>
-/// 同一案件跨次開啟的支援紀錄，存在案件資料夾內、整個案件一個檔、保留到刪除案件（裁定 2026-10-21-08）。
+/// 同一案件跨次開啟的支援紀錄，存在案件資料夾內、整個案件一個檔、保留到刪除案件。
 /// 寫入失敗不影響審計操作，只在匯出時標出缺口。
 /// </summary>
 public interface ISupportCaseHistory

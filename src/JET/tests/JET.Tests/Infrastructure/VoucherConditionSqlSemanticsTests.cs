@@ -22,8 +22,7 @@ public sealed class VoucherConditionSqlSemanticsTests
     public async Task BlankVoucher_IsNeverAWholeVoucherMatch_RegardlessOfOtherMatches(string provider, string quantifier, string value)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, VoucherSeed);
-        // 傳票條件的借貸範圍已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）；原本的 all 就是不限借貸，拿掉這個屬性，固定答案不變。
-        // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法在組成 SQL 時被擋下）。
+        // 傳票條件沒有借貸範圍這個屬性，一律不限借貸；帶這個屬性的寫法在組成 SQL 時會被擋下。
         var rule = new { type = "voucher", quantifier,
             conditions = new[] { new { type = "fieldValue", field = "description", @operator = "equals", value } } };
         string[] expected = (quantifier, value) switch
@@ -44,8 +43,8 @@ public sealed class VoucherConditionSqlSemanticsTests
     public async Task CategoryAbsence_ExcludesBlankVoucherButPreservesNamedVoucherMeaning(string provider, string side)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, VoucherSeed);
-        // 科目分類的「這一側都不屬於」與借貸方向已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回），照它的重建方式改成「整張傳票條件」的「不存在符合」，
-        // 子條件是借貸別與科目分類屬於，固定答案不變。第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法在組成 SQL 時被擋下）。
+        // 科目分類條件沒有「這一側都不屬於」與借貸方向；這裡用「整張傳票條件」的「不存在符合」表達，
+        // 子條件是借貸別與科目分類屬於。
         var cash = new { type = "accountSide", categoryMode = "is", categorySelection = "node",
             categoryIds = new[] { AccountCategoryBuiltIns.CashId } };
         object rule = side == "any"
@@ -66,8 +65,7 @@ public sealed class VoucherConditionSqlSemanticsTests
     public async Task BlankVoucher_RemainsAvailableToRowLevelConditions(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, VoucherSeed);
-        // 科目分類條件的借貸方向已拿掉（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）；原本的 any 就是不限借貸，拿掉這個屬性，固定答案不變。
-        // 第一次失敗：Focused 收據 20261030-081546753-58fab64421d94d9a9973dfa09cda1b98（舊寫法在組成 SQL 時被擋下）。
+        // 科目分類條件沒有借貸方向這個屬性，一律不限借貸；帶這個屬性的寫法在組成 SQL 時會被擋下。
         Assert.Equal(new[] { "<null>|1", "MATCH|1", "MIX|2" }, await HitsAsync(fixture, new
         { type = "accountSide", categoryMode = "is", categorySelection = "node",
             categoryIds = new[] { AccountCategoryBuiltIns.CashId } }));
@@ -78,9 +76,9 @@ public sealed class VoucherConditionSqlSemanticsTests
     public async Task UnexpectedPairAndRevenueWithoutCounterpart_ExcludeBlankRevenue_WithoutChangingCashOrZeroDebitRules(string provider)
     {
         await using var fixture = await FilterPredicateProviderFixture.CreateLocalAsync(provider, PairSeed);
-        // 裁定 2026-10-29-29 改成照舊版 IDEA R3：未預期借貸組合要求傳票裡至少有一筆金額大於 0 的分錄。
-        // ZERO-R 只有 0 元應收借方與收入貸方，沒有正金額分錄，改為不命中（原本命中；第一次失敗：Focused 收據 20261030-163342206-c1b391e5be2e46bfa36b85fdbe6b59ad）。
-        // 另加 ZERO-P：0 元應收借方之外還有其他科目的正金額借方，0 元應收照樣不算正常對方科目 → 命中，零元邊界的斷言由它保留。
+        // 照舊版 IDEA R3：未預期借貸組合要求傳票裡至少有一筆金額大於 0 的分錄。
+        // ZERO-R 只有 0 元應收借方與收入貸方，沒有正金額分錄，不命中。
+        // ZERO-P：0 元應收借方之外還有其他科目的正金額借方，0 元應收照樣不算正常對方科目，所以命中；零元邊界由它核對。
         Assert.Equal(new[] { "BAD|2", "ZERO-P|3" }, await HitsAsync(fixture,
             new { type = "prescreen", prescreenKey = "unexpectedAccountPair" }));
         Assert.Equal(new[] { "BAD|2", "CASH|2" }, await HitsAsync(fixture,

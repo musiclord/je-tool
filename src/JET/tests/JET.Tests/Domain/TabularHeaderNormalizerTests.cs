@@ -100,7 +100,7 @@ public sealed class TabularHeaderNormalizerTests
         Assert.Empty(TabularHeaderNormalizer.Normalize([]));
     }
 
-    // IsPlaceholder（guide §3.1.5）：佔位欄名 = Normalize 對空白標頭產生的 COL_{欄號}。
+    // IsPlaceholder：佔位欄名 = Normalize 對空白標頭產生的 COL_{欄號}。
     // 等價類：正準形（COL_+純數字）true；前綴缺數字 / 小寫 / 去重字尾 / 一般欄名 / 空字串 false。
     // COL_3_2 是「重複標頭去重」的產物（視為具名），不是佔位欄。
     [Theory]
@@ -118,7 +118,7 @@ public sealed class TabularHeaderNormalizerTests
         Assert.Equal(expected, TabularHeaderNormalizer.IsPlaceholder(name));
     }
 
-    // FinalizeBatchColumns（guide §3.1.5 欄位集合收斂）。oracle：規格手算。
+    // FinalizeBatchColumns（欄位集合收斂）。oracle：規格手算。
     // 等價類：具名空欄保留 / 無資料佔位欄剔除 / 有資料佔位欄保留 /
     //         範圍外 lazy 佔位欄附加 / 防衛性未知 key 仍納入。
 

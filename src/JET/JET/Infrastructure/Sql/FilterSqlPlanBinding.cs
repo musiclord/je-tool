@@ -27,7 +27,7 @@ internal static partial class FilterSqlPlanBinding
 
     /// <summary>
     /// 只綁定 <paramref name="sql"/> 用到的參數。一條條件自己的述詞只用到整個情境參數的一部分，
-    /// DuckDB 遇到語句沒用到的參數會拒絕執行，所以逐條寫入時只綁這一條用到的值。
+    /// 逐條寫入時只綁這一條用到的值。
     /// </summary>
     public static void BindParametersUsedBy(
         this FilterSqlFragmentPlan plan,

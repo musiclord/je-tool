@@ -64,7 +64,7 @@ public sealed class WorkingPaperExportCancellationTests
         Assert.Equal(reportBytes, await File.ReadAllBytesAsync(reportPath));
         Assert.Equal(manifestBytes, await File.ReadAllBytesAsync(manifestPath));
         Assert.Empty(Directory.GetFiles(folder, "*.tmp", SearchOption.AllDirectories));
-        // 原本只確認舊版的暫存檔 .report-artifacts.mutation-v1.json 不在；產品早已不寫這個檔，斷言一定通過。改成確認現行的暫存檔都沒有留下。
+        // 確認現行的暫存檔都沒有留下。
         ReportStoreTempFiles.AssertNoneLeft(folder);
         var cancelledEvents = publisher.WorkingPaperEvents.Skip(eventStart).ToArray();
         Assert.Contains(

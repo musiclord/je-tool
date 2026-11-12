@@ -49,7 +49,7 @@ internal sealed class PrivateCaseLegacyScenarioEvidenceResult
 
 internal static class PrivateCaseLegacyScenarioEvidenceVerifier
 {
-    // idea-tool.bas 在匯入後把來源傳票欄統一改成這個名稱，Criteria 明細也沿用它。
+    // 舊版 JET 在匯入後把來源傳票欄統一改成這個名稱，Criteria 明細也沿用它。
     private const string LegacyVoucherNumberHeader = "傳票號碼_JE";
 
     internal static PrivateCaseLegacyScenarioEvidenceResult Verify(

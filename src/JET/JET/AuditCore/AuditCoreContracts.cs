@@ -48,7 +48,7 @@ public sealed record AuditUserParameters(
     int SampleSize,
     string ActionName = "validate.run");
 
-/// <summary>Plan 的輸出：案件快照、執行參數與本次選中的程序裁定。</summary>
+/// <summary>Plan 的輸出：案件快照、執行參數與本次選中的程序判定。</summary>
 public sealed record AuditExecutionPlan(
     AuditProjectSnapshot ProjectSnapshot,
     AuditUserParameters UserParameters,

@@ -5,13 +5,9 @@ using static JET.Tests.Application.TaiwanSmeScenarioSupport;
 
 namespace JET.Tests.Application;
 
-// First failure: 20261014-135805134-9060396119bc4e8f8dae2eecd29f1776. Mixed-purpose input is retired; keep independent hit, amount, and report assertions.
-
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>
 /// 台灣中小企業年度查核（查核期間 2025-01-01 到 2025-12-31）的 GL 範圍、GL 與 TB 完整性、
-/// 借貸不平與空值檢查。資料全為合成，預期值依 docs/jet-guide.md 第 4 到第 6 節手算。
+/// 借貸不平與空值檢查。資料全為合成，預期值依規則手算。
 /// </summary>
 public sealed class TaiwanSmePopulationAndCompletenessTests
 {
@@ -72,7 +68,6 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
 
         var prescreen = await host.DispatchAsync("prescreen.run");
         // 預設 24 個摘要字詞含「調整」：P2、P3 共 4 列命中；P5 的「補登調整」不在 GL。
-        // 原本寫 25 個；裁定 2026-11-05-43 拿掉「帳外」後是 24 個，筆數不受影響，只改這句說明。
         Assert.Equal(4, prescreen.GetProperty("suspiciousKeywords").GetProperty("count").GetInt64());
         // 空白摘要只有 P6 第 2 列。
         Assert.Equal(1, prescreen.GetProperty("blankDescription").GetProperty("count").GetInt64());
@@ -163,7 +158,7 @@ public sealed class TaiwanSmePopulationAndCompletenessTests
         // 存下的分錄與確認配對時算出的筆數、合計一致。
         Assert.True(completeness.GetProperty("storedTotals").GetProperty("rowCountMatch").GetBoolean());
         Assert.True(completeness.GetProperty("storedTotals").GetProperty("amountMatch").GetBoolean());
-        // 有差異仍可繼續後續步驟（裁定 2026-09-17-01）。
+        // 有差異仍可繼續後續步驟。
         Assert.True(completeness.GetProperty("eligibility").GetProperty("isEligible").GetBoolean());
         // 每張傳票借貸相等：J1 105,000 = 100,000 + 5,000；J3 42,000 = 40,000 + 2,000；J4 31,500；J5 5,000 = 3,500 + 1,500；J8 52,500。
         Assert.Equal(0, validation.GetProperty("voucherBalanceTest").GetProperty("unbalancedVoucherCount").GetInt64());

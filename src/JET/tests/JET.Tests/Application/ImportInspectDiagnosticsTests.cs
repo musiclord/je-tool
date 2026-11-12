@@ -9,7 +9,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 匯入前的檢視與預覽失敗也要能從支援日誌看出階段與原因。
-/// 以前只有 import.gl.fromFile 與 import.tb.fromFile 會附上匯入診斷欄位。
+/// 不只 import.gl.fromFile 與 import.tb.fromFile，檢視與預覽也要附上匯入診斷欄位。
 /// </summary>
 public sealed class ImportInspectDiagnosticsTests
 {

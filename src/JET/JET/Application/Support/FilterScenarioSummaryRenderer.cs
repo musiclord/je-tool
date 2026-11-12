@@ -19,7 +19,7 @@ internal static class FilterScenarioSummaryRenderer
         catch (JsonException)
         {
             // 條件內容讀不出來的情境仍列在清單上，名稱與動機照存，條件組是空的；
-            // 待修正清單會寫出原因，審計員可以移除它（裁定 2026-10-13-21 與 2026-10-13-24）。
+            // 待修正清單會寫出原因，審計員可以移除它。
             // 定義裡有讀不出來的文字時也走這裡（JetJsonStorage.Parse），條件組才不會原樣放進回應、到序列化時才失敗。
         }
 

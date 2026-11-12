@@ -34,7 +34,7 @@ public sealed class BinaryExcelTableReaderTests
     [Fact]
     public async Task LeadingRowsToSkip_BeyondContent_SaysTheHeaderRowHasNoContent()
     {
-        // 2026-10-28 複審時查到：欄名列填得比內容還多時，和 .xlsx 與文字檔同一句。改程式之後才補，沒有第一次失敗的收據。
+        // 欄名列填得比內容還多時，和 .xlsx 與文字檔同一句。
         var path = Path.Combine(Path.GetTempPath(), $"jet-xls-{Guid.NewGuid():N}.xls");
         WriteBiff2WithErrorCell(path);
         try
@@ -57,7 +57,7 @@ public sealed class BinaryExcelTableReaderTests
     [Fact]
     public async Task ErrorCell_KeepsExcelErrorText_LikeXlsx()
     {
-        // 以前 #N/A 這類錯誤儲存格被讀成空白、金額變成 0；同一份活頁簿存成 .xlsx 會保留「#N/A」原文並以金額無效報錯。
+        // #N/A 這類錯誤儲存格不讀成空白、金額不變成 0；同一份活頁簿存成 .xlsx 會保留「#N/A」原文並以金額無效報錯，這裡也保留原文。
         var path = Path.Combine(Path.GetTempPath(), $"jet-xls-{Guid.NewGuid():N}.xls");
         WriteBiff2WithErrorCell(path);
         try

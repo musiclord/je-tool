@@ -5,10 +5,10 @@ namespace JET.Tests.Domain;
 
 public sealed class SuspiciousKeywordDefaultsTests
 {
-    // 裁定 2026-11-05-43：預設關鍵字回到舊版 R2 的 24 個詞，拿掉 Agent 在 2026-06-20 加的「帳外」，
-    // 所以這兩個測試不再要求「帳外」，改成確認它不在清單裡。第一次失敗：Focused 收據 20261105-105902221-f810f5ee51144db6ac8a225084bd4509。
+    // 預設關鍵字是舊版 R2 的 24 個詞，不含「帳外」；
+    // 這兩個測試確認它不在清單裡。
     [Fact]
-    public void Defaults_RetainLegacySimplifiedVariants_WithoutAgentAddedKeyword()
+    public void Defaults_RetainLegacySimplifiedVariants_WithoutOffBookKeyword()
     {
         // IDEA R2 的固定字串集合；不把繁簡轉換推廣到其他人員或科目識別值。
         foreach (var keyword in new[] { "调整", "回转", "冲销", "重分类", "避险", "重编", "错误", "计画外", "预算外" })
@@ -26,7 +26,7 @@ public sealed class SuspiciousKeywordDefaultsTests
         }
     }
 
-    // 舊版 idea-tool.bas 第 8215 行的 24 個詞，順序也相同。
+    // 舊版 JET R2 的 24 個詞，順序也相同。
     [Fact]
     public void Defaults_MatchLegacyR2KeywordsInOrder()
     {

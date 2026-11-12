@@ -26,8 +26,8 @@ internal sealed record PrescreenRequest(
     AccountCategoryLabels? CategoryLabels = null)
 {
     /// <summary>
-    /// 「分錄金額中有連續 0 的尾數」的 0 的個數，由已確認 GL 配對的控制總數算出（<see cref="TrailingZeroThreshold.FromCommittedGl"/>，
-    /// 裁定 2026-11-05-25）；計數與回應的 zerosThreshold 都用這個數字。
+    /// 「分錄金額中有連續 0 的尾數」的 0 的個數，由已確認 GL 配對的控制總數算出（<see cref="TrailingZeroThreshold.FromCommittedGl"/>）；
+    /// 計數與回應的 zerosThreshold 都用這個數字。
     /// </summary>
     public required int ZerosThreshold { get; init; }
 }
@@ -87,7 +87,7 @@ internal sealed record PrescreenFacts(
 
 /// <summary>
 /// 集中度分析（流程總覽區塊⑤）的有界呈現事實。累積占比、「其他」彙總與前五佔比一律
-/// 在此算好，前端只鏡射與格式化。整塊沿用 <c>preparer_summary</c> 的程序裁定：該程序為
+/// 在此算好，前端只鏡射與格式化。整塊沿用 <c>preparer_summary</c> 的程序判定：該程序為
 /// N/A 時本區塊亦為 N/A，且不攜帶任何數值格（與「結果為 0」語意不同，不併入同一統計）。
 /// </summary>
 internal sealed record PrescreenConcentration(
@@ -154,7 +154,7 @@ internal sealed record PrescreenResult(
 
 /// <summary>
 /// Prescreen 的 typed Infrastructure port。實作只執行 parameterized set-based SQL
-/// 與 raw reader mapping，不裁定 prerequisites、status、N/A 或固定政策值。
+/// 與 raw reader mapping，不判定 prerequisites、status、N/A 或固定政策值。
 /// </summary>
 internal interface IPrescreenFactsPort
 {
@@ -212,7 +212,7 @@ public static partial class JetAuditProgram
         ArgumentNullException.ThrowIfNull(facts);
 
         // 每條規則都讀同一份適用性判定（規則需求表）；不適用的規則不帶計數出去，核准側沒有判定時留 null，和回應的寫法一致。
-        // 以前只需要必填欄的六條規則即使判定不適用，計數也照傳；現在十二條都照同一個判定。
+        // 只需要必填欄的六條規則也一樣，十二條都照同一個判定。
         bool Runs(string key) => plan.IsApplicable(PrescreenRuleDefinitions.ByKey[key].Slug);
         var data = new PrescreenRunResult(
             PrepPeriodApprovalCount: Runs(PrescreenRuleKeys.PrepPeriodApproval) ? facts.PrepPeriodApprovalCount : 0,
@@ -302,7 +302,7 @@ public static partial class JetAuditProgram
 
     /// <summary>
     /// 集中度分析的呈現事實。適用性完全沿用 <c>preparer_summary</c> 已完成的適用性判定，
-    /// 不另立第二套裁定；不適用時整塊不帶數值。
+    /// 不另立第二套判定；不適用時整塊不帶數值。
     /// </summary>
     private static PrescreenConcentration Concentrate(
         AuditRunManifest manifest,

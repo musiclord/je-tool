@@ -23,7 +23,7 @@ internal static class LegacyWorkbookHeaderCatalog
             ["資料預先整理之說明"] = new(SpreadsheetContentHeaderRule.None, false),
             ["JE WorkingPaper說明"] = new(SpreadsheetContentHeaderRule.None, false),
             ["step1 完整性測試"] = new(SpreadsheetContentHeaderRule.Fixed(19), true),
-            // legacy 表頭在第 16 列（idea-tool.bas:10472-10476）；2026-10-02 前誤記為第 14 列。
+            // 舊版 JET 的表頭在第 16 列。
             ["step1-1 借貸不平測試"] = new(SpreadsheetContentHeaderRule.Fixed(16), true),
             ["step1-2 分錄編製人員說明"] = new(SpreadsheetContentHeaderRule.Fixed(11), true),
             [CompletenessDifference] = new(SpreadsheetContentHeaderRule.Fixed(16), true),
@@ -71,7 +71,7 @@ internal static class LegacyWorkbookHeaderCatalog
         {
             return SpreadsheetContentHeaderRule.Fixed(16);
         }
-        // Validation v4（jet-guide §7.2）：blank post date 不建 V7，改由條件式
+        // Validation v4：blank post date 不建 V7，改由條件式
         // `Source_Quality` 揭示總帳日期空白明細。
         if (IsSeries(sheetName, "Source_Quality", localizedSuffix: false))
         {

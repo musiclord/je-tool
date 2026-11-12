@@ -6,9 +6,8 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 裁定 2026-10-29-16：沒有 TB 也能往下做，逐科目比對寫無法執行和原因，由審計員在底稿說明；
-// 句子照裁定 2026-10-30-16。已匯入 TB、但配對還沒確認時的報告與底稿句子是 Claude 照同一組句子改寫，待使用者確認。
-// 第一次失敗：Focused 收據 20261030-232301388-a5c8cf28039f4bd7916e7e13f46c3c7a。
+// 沒有 TB 也能往下做，逐科目比對寫無法執行和原因，由審計員在底稿說明。
+// 已匯入 TB、但配對還沒確認時的報告與底稿句子照同一組句子改寫。
 
 /// <summary>
 /// 沒有 TB，或已匯入 TB 但還沒確認配對的案件，照審計員的順序走完資料驗證、預篩選、條件篩選、
@@ -17,7 +16,7 @@ namespace JET.Tests.Application;
 public sealed class WorkflowWithoutTbTests
 {
     private const string NotImportedReason = "沒有匯入 TB，無法執行 GL 與 TB 逐科目比對。";
-    // 裁定 2026-11-01-06 把這句的「還沒確認」改成「尚未確認」，其餘字不動；第一次失敗：Focused 收據 20261101-062343383-804cee29d9d9428f9e5f502ea4e7ae94。
+    // 這句的用字已定案，寫「尚未確認」。
     private const string NotConfirmedReason = "TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。";
     private const string NotImportedListNote = "#本案件未匯入試算表，無法執行試算表科目金額本期異動與會計分錄(JE)之推滾比對。";
     private const string NotConfirmedListNote = "#本案件試算表欄位配對尚未確認，無法執行試算表科目金額本期異動與會計分錄(JE)之推滾比對。";

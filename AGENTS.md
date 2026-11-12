@@ -56,6 +56,11 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 - 不用 `＋`、`／`、`→` 把名詞串成句子；不用兩層括號；一句只講一件事。只在讀者需要知道「這是什麼時候定的、
   取代了什麼」時才寫日期與計畫檔名，不每句都掛。
 - 驗證框架的工作用語（receipt、gate、lane、`紅燈`、`綠燈`）不進面向人的文字，改說收據、檢查、路線、通過、失敗。
+- 收據是 `tools/verify.ps1` 每次執行時留在 `artifacts/` 的紀錄，只給驗證框架與 Agent 查核用，不寫進專案文件與程式碼
+  （裁定 2026-11-11-12）。要寫驗證結果或第一次失敗時，用文字寫命令、範圍與結果，不寫收據編號。
+- `src/JET` 的原始碼會交給公司內部審查。註解只寫程式現在做什麼、為什麼這樣做；不寫裁定編號、測試收據、開發日期、
+  計畫與階段、Agent，也不寫 `docs/`、`tools/` 這些其他目錄的路徑（裁定 2026-11-10-11）。要查某則裁定落實在哪裡，
+  看 `docs/rulings.md` 的落實位置。
 - 寫完重讀一次，找形近錯字，確認讀者能一句話說出誰做了什麼、結果如何。要整段改寫或收到 style warning 時，
   依 `.agents/skills/jet-readable-docs/SKILL.md` 一段一段處理。
 
@@ -66,7 +71,10 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 - 本機 SQL Server 平時保持停止，只有使用者當次明示需要時才啟動，不因環境有連線設定就自行啟動。當次用到時，
   不論成功、失敗或中止，結束前都要停止服務並確認沒有留下 `sqlservr.exe`；步驟見 [`tools/README.md`](tools/README.md#日常資料庫測試與服務收尾)。
 - 不為了讓測試通過而放寬、刪除或跳過既有斷言，也不把預期值改成由被測程式算出來；新增測試不受此限。
-  要改既有測試時先寫明原因，並保留第一次失敗的證據。
+  要改既有測試時先寫明原因，並保留第一次失敗的證據；原因與第一次失敗的情形用文字記在 `docs/history/test-change-records.md`，
+  不寫進測試的註解。
+- 改產品行為時先寫測試，確認它因為斷言不成立而失敗，再做讓它通過的最小修改，通過後才整理程式；
+  順序與例外見 `.agents/harness/development-workflow.md` 的「測試先行的開發循環」（裁定 2026-11-10-18）。
 - 不要每次修改都跑完整 `Public`。先依改動範圍跑相關測試，失敗修正後只重跑受影響的部分；相關修改整合完成、確實需要完整驗證時再跑。
 - 測試不能干擾使用者操作電腦（使用者 2026-10-05 裁定）。`Gui` 把 JET 開在另一個 Windows 桌面，使用者看不到視窗，
   點擊與打字也不會落到 JET 上；完整執行需要幾分鐘並占用 CPU。`ReleaseCandidate` 也會執行它。日常開發用 `Public`（含前端測試）、
@@ -101,7 +109,8 @@ dotnet run --project src/JET/JET/JET.csproj -c Debug            # 啟動桌面�
 三者都沒有答案時，先問使用者。
 
 Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合。舊版的 GL 母體前處理有不一致的地方，照舊版核對時，
-要分辨是審計規則，還是舊版程式的限制。
+要分辨是審計規則，還是舊版程式的限制。新版 JET 也有部分邏輯刻意和 IDEA 版不同；比出差異時先照 `docs/jet-guide.md`
+第 17 節分類，不把刻意的更新當成 JET 缺陷修掉，分不出來時先問使用者（裁定 2026-11-11-13）。
 
 要找現行規則寫在哪裡時，先查現行 `src/` 與測試，再查 `docs/` 現行文件，最後才是 `docs/history/` 與 `legacy/`；完整順序見
 `docs/business-logic-provenance.md`。證據仍支持兩種會改變對外行為的答案時，列出差異請使用者裁定，
@@ -137,6 +146,7 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 | 大型開發如何立案、續接與關閉 | `.agents/harness/development-workflow.md` |
 | 各 AI 工具如何載入規則、平台設定與 hook | `.agents/harness/agent-compatibility.md` |
 | 前端設計模式與瀏覽器預覽 | `.agents/harness/frontend-design-mode.md` |
+| SAT 送審文件的標準、寫作界線與交接 | `.agents/harness/sat-documents.md` |
 | `data/` 工作簿、`legacy/` 與來源專案 | `docs/data-and-legacy.md` |
 | 文件寫作規範與收尾檢查 | `docs/README.md` |
 | 面向人的文字怎麼改寫 | `.agents/skills/jet-readable-docs/SKILL.md` |
@@ -152,6 +162,7 @@ Agent 不自行更動審計邏輯，基本的審計邏輯要和舊版 JET 吻合
 | 碰資料庫實作，或接回 DuckDB 與 SQL Server | `docs/jet-guide.md` 第 8 節；兩者的程式留在提交 `7e88b7b`（裁定 2026-11-06-08）；SQL Server 的延後事項、已知安全缺口與暫緩期間的修改，封存在 `docs/history/2026-10-20-sqlserver-archive.md` |
 | 與 IDEA 或 VBA 舊行為比對 | `docs/jet-guide.md` 第 17 節與 `legacy/jet-legacy-notes.md`；差異只分五類，不自創例外 |
 | 立案或接手大型開發 | `docs/development-status.md` 與 `.agents/harness/development-workflow.md` |
+| 改 `docs/SAT/` 的文件、來源或產生腳本 | `.agents/harness/sat-documents.md` 與 `tools/harness/sat-documents/README.md`；只寫公司範本要求的項目，從開發者的角度寫，審查門檻不高於公司的審查規則 |
 
 `CLAUDE.md` 與 `.github/copilot-instructions.md` 只是轉接檔。`.claude/settings.json` 與 `.codex/rules/jet.rules` 把上面的
 禁令轉成各平台的執行前攔截，兩者註冊同一份 `.agents/hooks/` 腳本；這些設定只在各自平台生效，不是規則本身。

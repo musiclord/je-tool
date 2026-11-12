@@ -9,7 +9,7 @@ namespace JET.Application;
 /// 此層只處理「形狀」（型別字串、金額轉 scaled、關鍵字分割）；
 /// 業務規則（白名單、必填、邊界）由 Domain FilterScenarioValidator 負責。
 /// 形狀錯誤一律擲 invalid_scenario。只有存檔損毀或程式送錯資料才會出現的形狀錯誤，畫面只寫
-/// <see cref="FilterScenarioCorruption.RuleMessage"/>，原因代號記進支援日誌（裁定 2026-10-13-21）；
+/// <see cref="FilterScenarioCorruption.RuleMessage"/>，原因代號記進支援日誌；
 /// 審計員看得懂、也做得到的原因（已停用的條件類型與比較方式、金額不是數字）照確認的句子寫。
 /// 條件的錯誤帶「第 N 組第 M 條」位置，儲存時才標得到那一條條件。
 /// </summary>
@@ -48,7 +48,7 @@ public static class FilterScenarioPayloadParser
         var rationale = ReadString(scenario, "rationale") ?? string.Empty;
 
         // 選填來源標記（wire 欄位 scenario.source）：ReadString 已 trim 並把空白正規化為 null，
-        // 故未知/空白來源自然落為「查核員手寫」（Domain 只認得 "common"，其餘等同 null，包括 2026-10-29 以前的舊代碼）。
+        // 故未知/空白來源自然落為「查核員手寫」（Domain 只認得 "common"，其餘等同 null，包括舊代碼）。
         var source = ReadString(scenario, "source");
 
         var groups = new List<FilterGroupSpec>();
@@ -109,7 +109,7 @@ public static class FilterScenarioPayloadParser
     }
 
     // Editing provenance is structurally checked, but never used by the rule compiler.
-    // 只接受第 2 版，逐條記卡片代號（裁定 2026-10-30-25：已儲存情境的舊寫法跟著版本檢查一起拿掉）。
+    // 只接受第 2 版，逐條記卡片代號。
     private static void ValidateEditorOrigins(JsonElement scenario, IReadOnlyList<FilterGroupSpec> groups)
     {
         if (!scenario.TryGetProperty("editorOrigins", out var origins)) return;
@@ -190,7 +190,7 @@ public static class FilterScenarioPayloadParser
             "fieldValue" => FilterConditionType.FieldValue,
             "accountSide" => FilterConditionType.AccountSide,
             // 有寫類型但目前版本沒有的，是已停用的條件類型，包括舊式關鍵字、尾數與兩種筆數條件
-            // （裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）；完全沒寫類型只會是內容損毀。
+            // （已儲存情境的舊寫法不讀回）；完全沒寫類型只會是內容損毀。
             "" => throw FilterScenarioCorruption.Exception(label, "condition_type_missing"),
             _ => throw Positioned(label, "此條件的類型已停用，請刪除此條件")
         };
@@ -242,9 +242,9 @@ public static class FilterScenarioPayloadParser
         IReadOnlyList<string>? typedValues = null;
         if (type is FilterConditionType.TypedField or FilterConditionType.FieldValue)
         {
-            // typed（2026-08-14 凍結）的 operand carrier 必須是非 null 字串；null、非字串或
+            // typed 的 operand carrier 必須是非 null 字串；null、非字串或
             // 非字串陣列在形狀層就 fail loud。原始拼法（含空白）原樣保留，closed token 的
-            // 正準性與 carrier 適用性由 Domain validator 依欄位型別裁定。
+            // 正準性與 carrier 適用性由 Domain validator 依欄位型別判定。
             fieldId = ReadTypedString(rule, "fieldId", label);
             typedOperator = ReadTypedString(rule, "operator", label);
             if (type == FilterConditionType.TypedField && typedOperator is not null && !TypedFieldOperatorSets.All.Contains(typedOperator))
@@ -498,7 +498,7 @@ public static class FilterScenarioPayloadParser
 
     /// <summary>
     /// 條件組只有同一分錄列一種比對範圍：沒寫或寫 row 時回 null，其他值原樣帶回，由驗證層當成無法讀取的內容。
-    /// 舊的 sameVoucher 也走這一條（裁定 2026-10-30-25：已儲存情境的舊寫法不再讀回）。
+    /// 舊的 sameVoucher 也走這一條（已儲存情境的舊寫法不讀回）。
     /// </summary>
     private static string? ParseUnknownMatchScope(JsonElement group)
     {

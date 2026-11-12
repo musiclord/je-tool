@@ -10,7 +10,7 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 本地案件資料夾可攜性 characterization：來源 app 關閉後整夾複製，目標根必須能完整續作。
-/// 不測、不承諾 SQLite WAL 或 DuckDB WAL 仍開啟時的熱複製。
+/// 不測、不承諾 SQLite WAL 仍開啟時的熱複製。
 /// </summary>
 public sealed class ProjectFolderPortabilityTests
 {
@@ -152,9 +152,8 @@ public sealed class ProjectFolderPortabilityTests
                 shell.RevealedPaths[0]);
             Assert.Equal(Path.GetFullPath(targetProjectDirectory), shell.RevealedPaths[1]);
 
-            // 情境定義保留、命中清空時，首頁查詢應在新根惰性補算。上游修改會清除下游（裁定 2026-10-07-03），所以
-            // 變更非工作日會連情境一起清掉，改用開案規則升版的情境整批取代製造這個狀態。
-            // 第一次失敗收據 20261007-032952783-7147565fec1c42be845dac22acf7263b。
+            // 情境定義保留、命中清空時，首頁查詢應在新根惰性補算。上游修改會清除下游，所以
+            // 變更非工作日會連情境一起清掉，這裡用開案規則升版的情境整批取代製造這個狀態。
             await SavedScenarioReplay.ReplaceLikeRuleUpgradeAsync(target, projectId, databaseProvider);
             var lazyPage = await target.DispatchAsync(
                 "query.filterHitsPage",
@@ -243,7 +242,6 @@ public sealed class ProjectFolderPortabilityTests
 
     private static async Task AssertPortableQuerySurfacesAsync(HandlerTestHost host)
     {
-        // 裁定 2026-10-08-04 統一全系統的資料名稱：資料預覽 wire key 與型別名稱同步改名。
         var preview = await host.DispatchAsync(
             "query.dataPreview",
             """{ "dataset": "gl", "limit": 5 }""");

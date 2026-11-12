@@ -13,17 +13,16 @@ namespace JET.Infrastructure;
 /// 「同一交易」內呼叫本方法清除舊結果,確保不出現「資料已換、舊結果還在」的中間態——
 /// 上游若 rollback,stale 標記與清除亦一併回退。清空後 project.load 的 validationResult、prescreenResult 自然回 null,
 /// 並以持久化 stale state 區分「要求重跑」與「從未執行」。
-/// (DELETE 為 ANSI 共通,SQLite 與 SQL Server 路徑共用同一不變量。)
 /// 失效範圍依共用政策：GL 與 TB 同層級的修改影響全部；科目配對、行事曆與授權清單
 /// 只影響 prescreen/filter。不得為了方便一律清空，否則會破壞「驗證→填 AccountMapping→預篩選」流程。
-/// 篩選命中失效時，已存篩選情境定義(filter_scenario)也在同一交易內一併刪除(上游修改清除下游,
-/// 裁定 2026-10-07-03)；stale flag 同時回到「從未執行」，因為已沒有可重跑的情境。
+/// 篩選命中失效時，已存篩選情境定義(filter_scenario)也在同一交易內一併刪除(上游修改清除下游)；
+/// stale flag 同時回到「從未執行」，因為已沒有可重跑的情境。
 ///
 /// 注意:存入筆數與合計核對的數字 <c>gl_control_total</c> **不**在此清除範圍。它的上游只有 GL target,
 /// 由 GL 投影(<see cref="LocalGlRepository"/>)在同一交易內隨
 /// target 一起 upsert 覆寫,與 gl 恆一致。若併入本共用清除,TB 投影、科目配對／行事曆／
 /// 授權清單匯入等與 GL 無關的寫入會把它連帶刪掉,使存入筆數與合計核對在常見的「先 commit GL、後 commit TB」
-/// 順序下變成全 null（這一項形同沒跑）——2026-06-22 實務稽核發現的失效範圍過廣，已收斂。
+/// 順序下變成全 null（這一項形同沒跑）。
 /// </summary>
 internal static class ResultReset
 {
@@ -70,7 +69,7 @@ internal static class ResultReset
             statements.AddRange(FilterHitInsertSql.DeleteAll(schemaPrefix));
             if (impact.InvalidateFilterScenarioDefinitions)
             {
-                // 上游修改清除下游（裁定 2026-10-07-03）：命中先清，再清全部已存情境定義。
+                // 上游修改清除下游：命中先清，再清全部已存情境定義。
                 // 兩表之間沒有外鍵，順序只為讓讀者看出命中依附情境。
                 statements.Add($"DELETE FROM {schemaPrefix}filter_scenario;");
             }

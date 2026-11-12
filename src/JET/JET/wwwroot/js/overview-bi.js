@@ -25,7 +25,7 @@
   var LABEL_FILL = '#5e5b52';
   var VALUE_FILL = '#3f3d36';
   var PLACEHOLDER_FILL = '#716e64';
-  // 圖表的提示框浮在圖表上，是和選單同一種玻璃，因為整個 JE Tool 要帶有 Liquid Glass 的質感（裁定 2026-10-12-01）；
+  // 圖表的提示框浮在圖表上，是和選單同一種玻璃，因為整個 JE Tool 要帶有 Liquid Glass 的質感；
   // 值引用 app.css 的變數，關閉透明效果或高對比時跟著改成不透明。
   var TOOLTIP_GLASS = 'background-color: var(--glass-fill) !important; border-color: transparent !important; ' +
     '-webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); border-radius: var(--radius-group) !important; ' +
@@ -122,7 +122,7 @@
     return { key: key, tick: key, range: key };
   }
 
-  // 和第五步同一個標籤函式，尾數規則知道個數時寫「金額尾數連續 N 個 0」（裁定 2026-11-05-25）。
+  // 和第五步同一個標籤函式，尾數規則知道個數時寫「金額尾數連續 N 個 0」。
   function prescreenLabel(key) { return Ui.prescreenConditionLabel(key); }
 
   function rulePeriodChartOption(rulePeriod) {
@@ -615,7 +615,7 @@
 
   /**
    * 預篩選規則全期命中分布，直接鏡射後端的 rulePeriod，不在前端自行補算分母、去重傳票或符合比例。
-   * 新的預篩選結果一定帶 rulePeriod，只為舊結果留下的降級已拿掉（裁定 2026-11-02-10）。
+   * 預篩選結果一定帶 rulePeriod，這裡沒有缺少它時的降級。
    */
   function rulePeriodHtml(prescreen) {
     if (!prescreen) {
@@ -661,7 +661,7 @@
 
   /**
    * validate.run 金額級距，直接鏡射後端的 amountDistribution，不得從 stats 或其他畫面數字在前端補算。
-   * 開案讀回的驗證結果已由後端檢查過級距，只為舊結果留下的降級已拿掉（裁定 2026-11-02-10）。
+   * 開案讀回的驗證結果已由後端檢查過級距，這裡沒有缺少級距時的降級。
    */
   function amountDistributionHtml(validation) {
     return amountDistributionSectionHtml(
@@ -709,7 +709,7 @@
   /**
    * 集中度分析區塊。prescreen＝state.results.prescreen（可為 null）。
    * 兩種降級一律以文字說明取代圖表，不以 0 冒充統計：
-   *   1) 尚未執行風險預篩選；2) 後端裁定不適用。只為舊結果留下的「沒有此統計」已拿掉（裁定 2026-11-02-10）。
+   *   1) 尚未執行風險預篩選；2) 後端判定不適用。
    */
   function concentrationHtml(prescreen, activeTab) {
     if (!prescreen) {

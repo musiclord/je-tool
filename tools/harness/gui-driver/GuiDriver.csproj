@@ -10,4 +10,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- 讀回匯出底稿的檢查放在測試專案，由單元測試核對；這裡編譯同一份原始檔。 -->
+    <Compile Include="..\..\..\src\JET\tests\JET.Tests\TestInfrastructure\GuiWorkingPaperInspection.cs" Link="GuiWorkingPaperInspection.cs" />
+  </ItemGroup>
+
 </Project>

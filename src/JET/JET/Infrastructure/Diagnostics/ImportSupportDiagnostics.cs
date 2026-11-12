@@ -84,7 +84,7 @@ internal static class ImportSupportDiagnostics
 
     /// <summary>
     /// 失敗原因分類。讀來源檔的階段（選項、標頭、資料列）先依來源格式分：Access 來源的資料介面錯誤與 ACE 沒有註冊
-    /// 不再歸成案件資料庫錯誤或未分類；.xls 解析失敗也有自己的分類。寫入資料庫的階段才看資料庫例外。
+    /// 有自己的分類，不歸成案件資料庫錯誤或未分類；.xls 解析失敗也有自己的分類。其餘再依資料庫例外與格式錯誤分類。
     /// </summary>
     private static string Cause(Exception[] chain, ImportFailureStage stage, string? format)
     {

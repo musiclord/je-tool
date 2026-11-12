@@ -15,9 +15,8 @@ public sealed class PrescreenOwnershipTests
     }
 
     /// <remarks>
-    /// 2026-10-02 資料庫分流簡化：分流層刪除後，handler 直接拿到該種資料庫組裡的實作。原本要求存在的
-    /// ProviderRoutingPrescreenFactsPort（須為 internal）與 ProviderRoutingPrescreenRunRepository（須為 public）
-    /// 已刪除，從下面兩個清單移出，改在這裡確認它們不再存在。第一次失敗收據：20261002-120525875-ce1f07f5d912434b86ce8a6eef43759e。
+    /// handler 直接拿到資料庫組裡的實作，沒有分流層。這裡確認
+    /// ProviderRoutingPrescreenFactsPort 與 ProviderRoutingPrescreenRunRepository 不存在。
     /// </remarks>
     [Theory]
     [InlineData("JET.Infrastructure.ProviderRoutingPrescreenFactsPort")]
@@ -62,8 +61,8 @@ public sealed class PrescreenOwnershipTests
         Assert.True(type!.IsPublic);
     }
 
-    // 2026-10-22 清理技術債：IPrescreenRunRepository 與 PrescreenRunInput 隨相容路徑刪除
-    //（CompatibilityPathOwnershipTests 確認它們不存在），這裡只剩 AuditCore 仍在用的 PrescreenRunResult。
+    // IPrescreenRunRepository 與 PrescreenRunInput 不存在（由 CompatibilityPathOwnershipTests 確認），
+    // 這裡只核對 AuditCore 仍在用的 PrescreenRunResult。
     [Theory]
     [InlineData("JET.Domain.PrescreenRunResult")]
     public void PublicCompatibilityContracts_RemainAvailable(string name)

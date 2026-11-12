@@ -1,8 +1,8 @@
 namespace JET.Domain;
 
 /// <summary>
-/// Typed dynamic rule（wire <c>type:"typed"</c>，2026-08-14 契約凍結）的 closed operator 語彙。
-/// 正準拼法逐字比對（Ordinal）；per-type 集合是 operator 與 RDE 欄位型別相容性的唯一權威，
+/// Typed dynamic rule（wire <c>type:"typed"</c>）的 closed operator 語彙。
+/// 正準拼法逐字比對（Ordinal）；per-type 集合是 operator 與 RDE 欄位型別相容性的唯一權威。
 /// </summary>
 public static class TypedFieldOperatorSets
 {

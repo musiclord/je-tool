@@ -212,7 +212,7 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
         var metadataContext = FilterScenarioMetadataContext.Create(document, glMapping, categorySnapshot);
         foreach (var scenarioElement in scenariosElement.EnumerateArray())
         {
-            // 裁定 2026-10-29-16：名稱或動機留白時依條件補上自動文字，和第五步畫面帶入的文字相同；
+            // 名稱或動機留白時依條件補上自動文字，和第五步畫面帶入的文字相同；
             // 去重、錯誤標示與存檔都用補上後的名稱。
             var position = saved.Count + 1;
             var canonicalDocument = FilterScenarioPayloadParser.ParseDocument(
@@ -293,12 +293,8 @@ public sealed class FilterCommitHandler : IApplicationActionHandler
 }
 
 /// <summary>
-/// Preview 與 commit 的單一 mapping-aware validation context 組裝點。
-/// 能使用哪些 GL 欄位只由欄位目錄判定（<see cref="JetFieldCatalog.AvailableGlFields"/>），每條條件需要什麼只由規則需求表判定。
-/// </summary>
-/// <summary>
-/// 第五步驗證要知道的兩份日曆清單有沒有上傳。沒有清單時，只看清單的條件停用並寫原因（國定假日照裁定 2026-11-05-55，
-/// 補班日照裁定 2026-11-05-66）。第五步的六個驗證入口都從這裡讀，不各自查。
+/// 第五步驗證要知道的兩份日曆清單有沒有上傳。沒有清單時，只看清單的條件停用並寫原因。
+/// 第五步的六個驗證入口都從這裡讀，不各自查。
 /// </summary>
 internal readonly record struct FilterCalendarLists(bool HasHolidays, bool HasMakeupDays)
 {
@@ -311,6 +307,10 @@ internal readonly record struct FilterCalendarLists(bool HasHolidays, bool HasMa
             await calendar.CountAsync(projectId, CalendarDayType.Makeup, cancellationToken) > 0);
 }
 
+/// <summary>
+/// Preview 與 commit 的單一 mapping-aware validation context 組裝點。
+/// 能使用哪些 GL 欄位只由欄位目錄判定（<see cref="JetFieldCatalog.AvailableGlFields"/>），每條條件需要什麼只由規則需求表判定。
+/// </summary>
 internal static class FilterValidationContextFactory
 {
     internal static FilterValidationContext Create(
@@ -331,7 +331,7 @@ internal static class FilterValidationContextFactory
             HasCounterpartCategory: accountMappingState?.HasCounterpart ?? false)
         {
             AvailableGlFields = JetFieldCatalog.AvailableGlFields(glMapping.Mapping, glMapping.GlOptions),
-            // 正式的六個入口都帶入案件有沒有國定假日清單與補班日清單（裁定 2026-11-05-55、2026-11-05-66）；null 只供沒有案件資料的獨立測試。
+            // 正式的六個入口都帶入案件有沒有國定假日清單與補班日清單；null 只供沒有案件資料的獨立測試。
             HasHolidayCalendar = calendarLists?.HasHolidays,
             HasMakeupCalendar = calendarLists?.HasMakeupDays,
             CategoryIds = categorySnapshot is null

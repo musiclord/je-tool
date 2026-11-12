@@ -11,14 +11,13 @@ public sealed class AuthorizedPreparerColumnResolverTests
     [InlineData("姓名")]
     public void Resolve_ReturnsExplicitlySelectedNameColumn(string header)
     {
-        // sourceColumn 改成必填，後端不再猜人員欄；保留三種人員欄名都可使用的檢查。
+        // 匯入人員清單必須指定 sourceColumn；三種人員欄名都可使用。
         Assert.Equal(header, AuthorizedPreparerColumnResolver.Resolve([header], header));
     }
 
     [Fact]
     public void Resolve_MissingSelection_RejectsInsteadOfFallingBackToFirstColumn()
     {
-        // sourceColumn 改成必填，後端不再猜人員欄；原第一欄退路改為明確拒絕，不能猜欄。
         var error = Assert.Throws<JetActionException>(() =>
             AuthorizedPreparerColumnResolver.Resolve(["欄A", "欄B"]));
         Assert.Equal(JetErrorCodes.InvalidPayload, error.Code);

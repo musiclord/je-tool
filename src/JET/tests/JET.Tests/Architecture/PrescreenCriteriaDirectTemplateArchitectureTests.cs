@@ -46,8 +46,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
         var detailPath = Slice(
             source,
             "private async Task EmitPrescreenRuleFromPlanAsync(",
-            // 裁定 2026-11-05-44 改寫摘要頁句子時拿掉了原本接在後面的 SummaryResultText，切片終點改成下一個方法，範圍仍只有明細寫出這一段。
-            // 第一次失敗：Focused 收據 20261105-105749801-cc9ac6cac3934f2a954ac0e322d4c6f3。
+            // 切片終點是下一個方法，範圍只有明細寫出這一段。
             "private async Task EmitPreparerSummaryAsync(");
 
         Assert.DoesNotContain(
@@ -85,9 +84,8 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "Infrastructure",
             "Export",
             "LegacyReportWriter.cs");
-        // 裁定 2026-11-05-48：明細頁多一欄 Final_TAG，讀明細的函式改成連同每一列是否符合條件一起回傳，
-        // 切段的起點跟著換成新的回傳型別，其餘核對不變。
-        // 第一次失敗：Focused 收據 20261105-123033930-d5150cc8f860468f85e0254b35929b48（找不到原本的函式開頭）。
+        // 明細頁有一欄 Final_TAG，讀明細的函式連同每一列是否符合條件一起回傳，
+        // 切段的起點是這個回傳型別。
         var exportPath = Slice(
             source,
             "private async Task<IReadOnlyList<SheetStat>> FillCriteriaTemplateAsync(",
@@ -106,7 +104,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             detailPath,
             StringComparison.Ordinal);
 
-        // Legacy Step4 BAS 8889 / ISM 10256 applies the <= 1,000,000 gate only
+        // Legacy JET Step4 applies the <= 1,000,000 gate only
         // to EntireColumn.AutoFit. It must never truncate or suppress detail reads.
         Assert.Equal(1, CountOccurrences(writerSource, "1_000_000"));
         AssertAppearsInOrder(
@@ -114,8 +112,8 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "await EmitRawPagedSheetsAsync(",
             "ReadCriteriaVoucherRowsAsync(",
             "RawSheetAutoFitMode.LegacyFirstTwentyWhenAtMostOneMillion,");
-        // 裁定 2026-10-29-08：10 點明細頁統一 15 點，寫死的 12.5 改由 LegacyReportStyles.ExportDatabaseRowHeight 提供；
-        // 守衛核對的仍是同一段呼叫順序，只把列高的寫法換成現行的。第一次失敗：Public 收據 20261029-032810606-bddbed6a55ca4be090640f8ba8efba67。
+        // 10 點明細頁統一 15 點，列高由 LegacyReportStyles.ExportDatabaseRowHeight 提供；
+        // 守衛核對的是這一段呼叫順序。
         AssertAppearsInOrder(
             writerSource,
             "var page = await fetchPage(",
@@ -164,7 +162,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "var unfinalizedReportPlan = JetAuditProgram.Plan(",
             "var request = new ReportWriteRequest(");
 
-        // 2026-10-22 清理技術債：報告寫出器只剩一個正式入口，handler 不再依型別挑路徑；確認它把 Finalize 後的計畫交給寫出器。
+        // 報告寫出器只有一個正式入口，handler 不依型別挑路徑；確認它把 Finalize 後的計畫交給寫出器。
         Assert.Contains(
             "writer.WriteAsync(",
             handler,
@@ -173,9 +171,8 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
             "prescreenReportPlan,",
             handler,
             StringComparison.Ordinal);
-        // 2026-10-02 資料庫分流簡化：planning port 不再是 handler 欄位，改成從作用中案件資料庫組取出的區域變數，
-        // 名稱由 _prescreenReportPlanningFactsPort 改為 prescreenReportPlanningFactsPort；另外確認它確實取自資料庫組的
-        // PrescreenReportPlanningFacts。第一次失敗收據：20261002-115541944-06075ff7b914445f85dd85660ffcf49f。
+        // planning port 不是 handler 欄位，而是從作用中案件資料庫組取出的區域變數
+        // prescreenReportPlanningFactsPort；另外確認它確實取自資料庫組的 PrescreenReportPlanningFacts。
         Assert.Contains(
             "prescreenReportPlanningFactsPort",
             lifecycle,
@@ -183,7 +180,7 @@ public sealed class PrescreenCriteriaDirectTemplateArchitectureTests
         Assert.Matches(
             @"IPrescreenReportPlanningFactsPort prescreenReportPlanningFactsPort =\s+repositories\.PrescreenReportPlanningFacts;",
             handler);
-        // 2026-10-02 起 AuditCore 不再提供只轉手給 port 的 ExecuteAsync；中間一項改成直接呼叫 planning port，
+        // AuditCore 不提供只轉手給 port 的 ExecuteAsync；中間一項是直接呼叫 planning port，
         // 仍要求 Plan、執行、Finalize 依序出現。
         AssertAppearsInOrder(
             lifecycle,

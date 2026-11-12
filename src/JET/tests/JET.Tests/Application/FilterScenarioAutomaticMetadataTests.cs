@@ -1,17 +1,16 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
+using JET.Tests.Infrastructure;
 
 namespace JET.Tests.Application;
 
-// 裁定 2026-10-29-16：自訂情境的名稱與動機留白時，用依條件自動帶入的名稱和動機補上，照樣能儲存；
-// 裁定 2026-10-30-14：常用篩選條件留白時也一樣，不再補固定文字。
-// 補上的文字要和第五步畫面自動帶入的相同，預期文字和前端測試 frontend-journey-filter-automatic-metadata.test.cjs
-// 共用 tools/tests/fixtures/filter-scenario-automatic-metadata.json。
-// 第一次失敗：Focused 收據 20261030-232334254-f59f8cb133ac46619d8de8eb3e67adff。
-// 2026-11-03 補三則：舊式文字條件的關鍵字，以及同一組裡混用且與或（只有這一組、旁邊另有一組）。混用的兩則前後端第一次就一致；
-// 文字條件那則後端照原文寫關鍵字，第一次失敗：Focused 收據 20261102-232831310-603d18ec3b6e44389dc48279599f8e91，
-// 依裁定 2026-11-03-01 改成和畫面同一寫法。
+// 自訂情境的名稱與動機留白時，用依條件自動帶入的名稱和動機補上，照樣能儲存；
+// 常用篩選條件留白時也一樣，不補固定文字。
+// 補上的文字要和第五步畫面自動帶入的相同，預期文字和前端測試
+// 共用 tests/JET.Tests/Fixtures/filter-scenario-automatic-metadata.json。
+// 案例包含舊式文字條件的關鍵字，以及同一組裡混用且與或（只有這一組、旁邊另有一組）；
+// 文字條件的關鍵字和畫面用同一寫法。
 
 /// <summary>
 /// 直接呼叫儲存情境的 action、名稱與動機留白時，後端補上的名稱與動機和畫面自動帶入的逐字相同。
@@ -21,18 +20,8 @@ public sealed class FilterScenarioAutomaticMetadataTests
 {
     public static TheoryData<string, string, string, string, string> SharedEntries()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(FixturePath(directory.FullName)))
-        {
-            directory = directory.Parent;
-        }
-
-        if (directory is null)
-        {
-            throw new DirectoryNotFoundException("Repository fixture directory was not found.");
-        }
-
-        using var file = JsonDocument.Parse(File.ReadAllText(FixturePath(directory.FullName)));
+        using var file = JsonDocument.Parse(File.ReadAllText(
+            TestRepositoryPaths.Fixture("filter-scenario-automatic-metadata.json")));
         var data = new TheoryData<string, string, string, string, string>();
         foreach (var item in file.RootElement.EnumerateArray())
         {
@@ -83,9 +72,6 @@ public sealed class FilterScenarioAutomaticMetadataTests
         Assert.Equal(expectedName, saved.GetProperty("name").GetString());
         Assert.Equal(expectedRationale, saved.GetProperty("rationale").GetString());
     }
-
-    private static string FixturePath(string root) =>
-        Path.Combine(root, "tools", "tests", "fixtures", "filter-scenario-automatic-metadata.json");
 
     private static void ConfigureGl(InlineGlWorkbookBuilder builder) =>
         builder

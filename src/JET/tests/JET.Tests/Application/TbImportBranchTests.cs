@@ -10,8 +10,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 第三個流程「TB 取代匯入」（import.tb.fromFile）的固定答案測試：每個分支至少一個方法，
-/// 合成資料固定、預期值寫死，SQLite 與 DuckDB 各跑一次。
+/// 「TB 取代匯入」（import.tb.fromFile）的固定答案測試：每個分支至少一個方法，
+/// 合成資料固定、預期值寫死。
 /// 已有測試的分支不重複：讀列途中解碼失敗的回復在 TbMutationParityTests，進度節奏的迭代器直測在 ImportProgressEventTests。
 /// </summary>
 public sealed class TbImportBranchTests
@@ -54,9 +54,8 @@ public sealed class TbImportBranchTests
             error = await Assert.ThrowsAsync<JetActionException>(() => ImportAsync(host, new { filePath = path }));
         }
 
-        // 讀取器已經把檔名寫進句子，匯入處理就不再加「來源 1/1」的前綴。
-        // 預期原本寫成一般讀取失敗、前面加來源前綴的句子，程式實際回被鎖住的專屬句子。這是新測試把預期寫錯，2026-10-25 改預期；
-        // 第一次失敗：Focused 收據 20261025-114832166-41a476b30a8445a4b44f8eecbb0a4147。
+        // 讀取器已經把檔名寫進句子，匯入處理就不加「來源 1/1」的前綴。
+        // 程式回的是檔案被鎖住的專屬句子，不是一般讀取失敗的句子。
         Assert.Equal(JetErrorCodes.FileReadError, error.Code);
         Assert.Equal("檔案「tb-locked.csv」正被其他程式開啟（例如 Excel）。請關閉該檔案後重試。", error.Message);
         await AssertUnchangedAsync(host, projectId, provider, before);
@@ -84,9 +83,8 @@ public sealed class TbImportBranchTests
             }));
         }
 
-        // 讀取器已經把檔名寫進句子，匯入處理不再加「來源 2/2」的前綴。
-        // 預期原本寫成一般讀取失敗、前面加來源前綴的句子，程式實際回被鎖住的專屬句子。這是新測試把預期寫錯，2026-10-25 改預期；
-        // 第一次失敗：Focused 收據 20261025-114832166-41a476b30a8445a4b44f8eecbb0a4147。
+        // 讀取器已經把檔名寫進句子，匯入處理不加「來源 2/2」的前綴。
+        // 程式回的是檔案被鎖住的專屬句子，不是一般讀取失敗的句子。
         Assert.Equal(JetErrorCodes.FileReadError, error.Code);
         Assert.Equal("檔案「tb-locked.csv」正被其他程式開啟（例如 Excel）。請關閉該檔案後重試。", error.Message);
         await AssertUnchangedAsync(host, projectId, provider, before);
@@ -196,7 +194,7 @@ public sealed class TbImportBranchTests
         var oldBatch = await OldTbBatchAsync(host, projectId, provider);
         var before = await SnapshotAsync(host, projectId, provider);
         var projectBytes = await File.ReadAllBytesAsync(ProjectJsonPath(host, projectId));
-        // 兩種資料庫同一招：暫存表換成只收舊批次的版本，新批次的第一列就被拒收。
+        // 暫存表換成只收舊批次的版本，新批次的第一列就被拒收。
         await ExecuteAsync(host, projectId, provider, $"""
             ALTER TABLE pbc_tb RENAME TO synthetic_tb_rows;
             CREATE TABLE pbc_tb (
@@ -273,7 +271,7 @@ public sealed class TbImportBranchTests
         Assert.Equal([$"{ProjectOperations.DataReimport}|{ProjectOperationTargetTypes.Dataset}|tb|3|1"], await ReadAuditAsync(host, projectId, provider));
     }
 
-    /// <summary>裁定 2026-10-19-19：資料已經提交，操作紀錄寫不進去時照常回報成功，只附一句提醒。</summary>
+    /// <summary>資料已經提交，操作紀錄寫不進去時照常回報成功，只附一句提醒。</summary>
     [Theory]
     [InlineData("sqlite")]
     public async Task AuditTableMissing_StillAnswersSuccess_WithTheFixedWarning(string provider)
@@ -398,9 +396,7 @@ public sealed class TbImportBranchTests
         var error = await Assert.ThrowsAsync<JetActionException>(() => ImportAsync(host, new { filePath = path, mode = "append" }));
 
         Assert.Equal(JetErrorCodes.ColumnMismatch, error.Code);
-        // 原本斷言舊句「…的欄位與已匯入的資料不一致（…）。請改用取代匯入，或先在 Excel 把兩份檔案的欄位對齊。」。
-        // 裁定 2026-11-09-22 要追加與一次匯入多個檔案共用同一句，所以改成新句；差集的寫法不變。
-        // 第一次失敗：Focused 收據 20261109-092115030-2d69d0d607084ef188cf1dc9c8454df4。
+        // 追加與一次匯入多個檔案共用同一句。
         Assert.Equal("檔案「tb-mismatch.csv」的欄位與其他來源不一致（來源多出：金額；來源缺少：科目名稱、變動金額）。本次未匯入，先前匯入的資料不受影響。請先在 Excel 把欄位對齊後再匯入。", error.Message);
         await AssertUnchangedAsync(host, projectId, provider, before);
     }
@@ -446,7 +442,7 @@ public sealed class TbImportBranchTests
 
     /// <summary>
     /// 一次選兩個欄位相同的 TB 檔，以一個 action 取代：兩個來源的列依序疊成同一個批次，第三步只配對一次；
-    /// 兩個檔案都有的科目，每一列都保留，GL 與 TB 逐科目比對把變動金額加總後再比（裁定 2026-11-09-19）。這是新加的測試。
+    /// 兩個檔案都有的科目，每一列都保留，GL 與 TB 逐科目比對把變動金額加總後再比。
     /// GL 由 PrepareAsync 佈置：1000 借 10、4000 貸 10。北區加南區：1000 是 4 + 6 = 10，和 GL 相同；
     /// 4000 是 −7 + −2 = −9，GL 是 −10，差異（TB − GL）+1。只取其中一列不加總時，1000 也會出現差異。
     /// </summary>
@@ -494,7 +490,7 @@ public sealed class TbImportBranchTests
 
     /// <summary>
     /// 一次匯入兩個 TB 檔，第二個檔的欄名和第一個不同：整批都不寫入，原本的 TB 與各項結果都不變。
-    /// 訊息和追加時共用同一句，不叫審計員改用取代匯入，因為這時本來就在取代匯入（裁定 2026-11-09-22）。這是新加的測試。
+    /// 訊息和追加時共用同一句，不叫審計員改用取代匯入，因為這時本來就在取代匯入。
     /// </summary>
     [Theory]
     [InlineData("sqlite")]
@@ -547,7 +543,7 @@ public sealed class TbImportBranchTests
     /// </summary>
     private static async Task<string> PrepareAsync(HandlerTestHost host, string provider)
     {
-        var copied = await CaseTemplates.CopyIntoAsync(host, $"phase11-tb-import:{provider}", async templateHost =>
+        var copied = await CaseTemplates.CopyIntoAsync(host, $"tb-import:{provider}", async templateHost =>
         {
             var id = await InlineWorkbookProject.SetupAsync(templateHost, builder => builder
                 .WithColumns("傳票號碼", "傳票日期", "核准日期", "科目代號", "科目名稱", "摘要", "金額", "借方旗標")
@@ -569,7 +565,7 @@ public sealed class TbImportBranchTests
     {
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
-            projectCode = "PHASE11-TB", clientName = "合成 TB 案件", operatorId = "tester",
+            projectCode = "SYNTHETIC-TB", clientName = "合成 TB 案件", operatorId = "tester",
             periodStart = "2025-01-01", periodEnd = "2025-12-31", databaseProvider = provider
         }));
         return created.GetProperty("projectId").GetString()!;

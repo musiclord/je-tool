@@ -10,7 +10,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 預期值來自裁定 2026-10-07-04，TB 修改比照 GL：
+/// TB 修改比照 GL：
 /// TB 匯入與配對確認使驗證、預篩選、命中及全部情境一起失效；失敗則整筆回復。
 /// 舊報告標成過期，已匯出的檔案不改寫。不從被測政策讀取預期值。
 /// </summary>
@@ -72,7 +72,7 @@ public sealed class TbMutationParityTests
         }
 
         var invalidated = response.GetProperty("invalidatedResults");
-        // 2026-10-08 第 7 則新增科目配對清除，TB 各種修改也必須回傳 true。
+        // 科目配對也在清除範圍內，TB 各種修改都必須回傳 true。
         Assert.Equal(new[] { "accountMapping", "filter", "filterScenarios", "prescreen", "validation" },
             invalidated.EnumerateObject().Select(item => item.Name).Order(StringComparer.Ordinal));
         Assert.All(invalidated.EnumerateObject(), item => Assert.True(item.Value.GetBoolean(), item.Name));

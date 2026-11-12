@@ -64,8 +64,8 @@ public sealed class MoneyScalingTests
         Assert.False(MoneyScaling.TryParseAmount("   ", out _));
     }
 
-    // 會計格式零（guide §3.1.2）：Excel 會計數字格式對 0 的顯示是單獨一個半形連字號，
-    // 真實 PBC 的 TB 匯出通篇如此（" -   " 經 CSV cell trim 後為 "-"）。
+    // 會計格式零：Excel 會計數字格式對 0 的顯示是單獨一個半形連字號，
+    // 會計格式匯出的 TB 通篇如此（" -   " 經 CSV cell trim 後為 "-"）。
     // 等價類：恰為 "-"（含前後空白）→ 0；帶號數字不受影響。
     [Theory]
     [InlineData("-")]
@@ -87,7 +87,7 @@ public sealed class MoneyScalingTests
         Assert.Equal(-50m, negative);
     }
 
-    // 會計零的拒絕等價類（guide §3.1.2：僅半形連字號單獨成立）：
+    // 會計零的拒絕等價類（僅半形連字號單獨成立）：
     // 連字號變體（全形、em-dash）、多字元組合一律維持拒絕。
     [Theory]
     [InlineData("--")]

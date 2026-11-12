@@ -119,14 +119,14 @@ public sealed class ProjectHandlersTests
                 """));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 前端不露出系統用詞（裁定 2026-10-19-04）：日期欄只送得出 yyyy-MM-dd，格式不對是程式送錯資料，訊息改為非預期錯誤那一句。
-        // 首次失敗：20261019-111133190-cc5d8f23cf204a278811de85e6b1e15d；改為整句比對，並核對支援日誌記下的檢查代號。
+        // 前端不露出系統用詞：日期欄只送得出 yyyy-MM-dd，格式不對是程式送錯資料，訊息用非預期錯誤那一句。
+        // 整句比對，並核對支援日誌記下的檢查代號。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("payload_date_invalid", JetPayloadRejection.CheckOf(ex));
         Assert.Null(ex.Field);
     }
 
-    // ---- 案件名稱(projectName)→ projectId/資料夾名(2026-06-22);選填,未提供回退 GUID ----
+    // ---- 案件名稱(projectName)→ projectId/資料夾名;選填,未提供回退 GUID ----
 
     private const string CreateWithProjectName =
         """
@@ -189,16 +189,6 @@ public sealed class ProjectHandlersTests
         Assert.Equal(JetErrorFields.ProjectName, ex.Field);
     }
 
-    // ---- 孤兒 schema 回歸（2026-07-07 實機回歸案例）：本機 projects/ 登記遺失、
-    // SQL Server 單庫留下前一個 session 建的專案 schema 時,同名重建的兩種路徑 ----
-
-    /// <summary>組 projectName＋provider 的建案 payload(孤兒 schema 回歸兩測共用)。</summary>
-    private static string ProjectNamePayload(string projectName, string provider) =>
-        $$"""
-        { "projectName": "{{projectName}}", "projectCode": "P", "clientName": "E", "operatorId": "op",
-          "periodStart": "2024-01-01", "periodEnd": "2024-12-31", "databaseProvider": "{{provider}}" }
-        """;
-
     [Fact]
     public async Task List_ReturnsCreatedProjectsNewestFirst()
     {
@@ -235,7 +225,7 @@ public sealed class ProjectHandlersTests
     {
         using var host = new HandlerTestHost();
 
-        // 舊版 project.json（databaseProvider 欄位出現前的形狀）→ 明確拒絕，不再猜成 sqlite。
+        // 舊版 project.json（databaseProvider 欄位出現前的形狀）要明確拒絕，不猜成 sqlite。
         var projectId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         var projectDir = Path.Combine(host.ProjectsRoot, projectId);
         Directory.CreateDirectory(projectDir);
@@ -260,9 +250,8 @@ public sealed class ProjectHandlersTests
             host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }"""));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。不寫檔名與缺了哪個設定。
-        // 裁定 2026-10-30-23：舊版案件改由設定檔版本（這裡是第 1 版）判斷，訊息寫明刪除後重建。
-        // 第一次失敗收據 20261030-070630463-47f67e5e918c4bab8e82fd87416d8e9c。
+        // 訊息不寫檔名與缺了哪個設定。
+        // 舊版案件由設定檔版本（這裡是第 1 版）判斷，訊息寫明刪除後重建。
         Assert.Equal(
             $"案件「{projectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
@@ -385,8 +374,7 @@ public sealed class ProjectHandlersTests
                 CreatePayload.Insert(CreatePayload.LastIndexOf('}'), """, "databaseProvider": "postgres" """)));
 
         Assert.Equal(JetErrorCodes.InvalidPayload, ex.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。畫面只送三種資料庫，
-        // 其他值只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現。
+        // 畫面送不出這種值，只有程式送錯資料才會出現：顯示非預期錯誤那一句，送出的值不出現。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, ex.Message);
         Assert.Equal("database_provider_unsupported", JetPayloadRejection.CheckOf(ex));
         Assert.DoesNotContain("postgres", ex.Message);

@@ -83,7 +83,7 @@ public sealed class TbRowProjectorTests
             },
             TbChangeMode.DebitCredit);
 
-        // 真實 PBC-TB（會計格式輸出，guide §3.1.2）：零以單獨連字號顯示，
+        // 會計格式輸出的 TB：零以單獨連字號顯示，
         // 借 "-"、貸 "100" → 變動 = 0 - 100 = -100。
         var row = new StagingRow(5, new Dictionary<string, string>
         {
@@ -170,7 +170,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(9, error!.SourceRowNumber);
         Assert.Equal("credit", error.Field);
         Assert.Equal("oops", error.RawValue);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -317,7 +317,7 @@ public sealed class TbRowProjectorTests
     }
 
     // 正負號語意一致性（metamorphic）：OpenClose(opening=A, closing=A+delta) 與 DirectChange(delta)
-    // 產生相同的 ChangeAmountScaled（借正貸負的本期變動同一基準，guide §2.2）。
+    // 產生相同的 ChangeAmountScaled（借正貸負的本期變動同一基準）。
     [Theory]
     [InlineData("500")]
     [InlineData("-500")]
@@ -386,7 +386,7 @@ public sealed class TbRowProjectorTests
         Assert.Equal(8, error!.SourceRowNumber);
         Assert.Equal("ccr", error.Field);
         Assert.Equal("oops", error.RawValue);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
+        // 這句的用字已定案。
         Assert.Equal("不是有效的金額。請確認來源的金額格式，或改選正確的金額欄", error.Reason);
     }
 
@@ -414,14 +414,11 @@ public sealed class TbRowProjectorTests
         Assert.Equal(11, error!.SourceRowNumber);
         Assert.Equal("change", error.Field);
         Assert.Equal("79228162514264337593543950335", error.RawValue);
-        // 預期值換成裁定 2026-10-13-28 的句子（第一次失敗：收據 20261013-130645716-968482adb634494a97e2594c7e73decf）。
-        // 裁定 2026-10-22-07 一併改寫叫審計員調整小數位數的訊息，因為案件沒有這個設定；
-        // 第一次失敗：Focused 收據 20261023-112033228-d81054521d85414bb9578fa2420d72e4。
+        // 這句的用字已定案；訊息不叫審計員調整小數位數，因為案件沒有這個設定。
         Assert.Equal("金額超出可儲存的範圍。請確認來源金額是否正確，或改選正確的金額欄", error.Reason);
     }
 
-    // 文字欄長度三種資料庫一致（裁定 2026-10-19-28）：科目編號上限 450 字、
-    // 科目名稱 400 字，和 SQL Server 欄寬相同；超過就回列錯誤，不截斷。第一次失敗：20261019-020852386-c03d4566bbee453ca11b4781aafad514。
+    // 文字欄長度：科目編號上限 450 字、科目名稱 400 字；超過就回列錯誤，不截斷。
     [Fact]
     public void TextOverStorageLimit_ReturnsRowError_AndAtLimitProjects()
     {

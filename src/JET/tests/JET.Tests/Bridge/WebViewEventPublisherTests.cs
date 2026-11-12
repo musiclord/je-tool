@@ -8,7 +8,8 @@ namespace JET.Tests.Bridge;
 
 /// <summary>
 /// 事件信封的 wire shape（manifest「Host→Web 事件」：{ event, data }、無 requestId）。
-/// 只測序列化——WebView2 marshal 屬 host chrome，走 GUI 手動驗證（jet-testing skill §1 硬邊界）。
+/// 測信封的序列化，以及 Publish 在綁定前不動作、綁定後把工作排進 UI 的 SynchronizationContext；
+/// 實際呼叫 WebView2 送出訊息不在這個測試的範圍。
 /// </summary>
 public sealed class WebViewEventPublisherTests
 {

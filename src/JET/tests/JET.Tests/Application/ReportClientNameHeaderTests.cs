@@ -5,8 +5,6 @@ using Xunit;
 
 namespace JET.Tests.Application;
 
-// 舊式關鍵字條件停用後，合成情境改用欄位關鍵字，原命中與報表斷言保留；首次失敗：20261014-135805134-9060396119bc4e8f8dae2eecd29f1776。
-
 /// <summary>合成案件的報告公司表頭、案件資料修改與既有輸出保留。</summary>
 public sealed class ReportClientNameHeaderTests
 {
@@ -41,7 +39,7 @@ public sealed class ReportClientNameHeaderTests
         await host.DispatchAsync("project.update", JsonSerializer.Serialize(new
         {
             projectId = ProjectName,
-            projectCode = "BATCH4-UPDATED",
+            projectCode = "UPDATED",
             clientName = UpdatedEntity,
             prepStartDate = "2025-12-31"
         }));
@@ -80,7 +78,7 @@ public sealed class ReportClientNameHeaderTests
         var created = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new
         {
             projectName = ProjectName,
-            projectCode = "BATCH4-ORIGINAL",
+            projectCode = "ORIGINAL",
             clientName,
             periodStart = "2025-01-01",
             periodEnd = "2025-12-31",

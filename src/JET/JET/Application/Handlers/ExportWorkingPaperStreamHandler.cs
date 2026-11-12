@@ -204,7 +204,7 @@ public sealed class ExportWorkingPaperStreamHandler : IApplicationActionHandler
                         reportProgress.WriterProgress);
                     reportProgress.FinalizingWorkbook();
                 }, document.PeriodStart, document.PeriodEnd);
-        // 正式組裝的報告清單會寫操作紀錄；經這個介面發布才拿得到寫不進操作紀錄時的提醒（裁定 2026-10-19-20）。
+        // 正式組裝的報告清單會寫操作紀錄；經這個介面發布才拿得到寫不進操作紀錄時的提醒。
         Report report;
         string? operationLogWarning = null;
         if (reportStore is IAuditedReportPublishingStore auditedStore)

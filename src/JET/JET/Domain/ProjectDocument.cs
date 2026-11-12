@@ -5,9 +5,9 @@ namespace JET.Domain;
 /// ProjectCode 和 ClientName 為選填顯示資訊；沒有提供時保存空字串，ProjectId 仍是必要的案件名稱與識別。
 /// 日期一律以 "yyyy-MM-dd" 字串保存，避免序列化時區歧義。
 /// SchemaVersion 是案件設定檔的格式版本；不是 <see cref="CurrentSchemaVersion"/> 的案件是舊版 JET 建立的，讀取時明確拒絕，
-/// 請審計員刪除後重建（裁定 2026-10-30-23：案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。
-/// DatabaseProvider 標示會計資料所在的資料庫；目前版本只支援 "sqlite"（裁定 2026-11-06-08），設定檔一定寫明，缺欄位是設定檔損壞。
-/// 以前建立的 "duckdb" 與 "sqlServer" 案件，案件清單不列出、JET 也不動它們的資料夾（裁定 2026-11-06-09）。
+/// 請審計員刪除後重建；案件資料庫只留現行結構。
+/// DatabaseProvider 標示會計資料所在的資料庫；目前版本只支援 "sqlite"，設定檔一定寫明，缺欄位是設定檔損壞。
+/// 標示為 "duckdb" 或 "sqlServer" 的案件，案件清單不列出、JET 也不動它們的資料夾。
 /// SampleSeed 為 INF 抽樣的 per-project 種子（建案時隨機生成一次、終身固定）；
 /// SampleSeedVersion 是 INF 抽樣演算法版本。兩者由建案寫入，缺任一欄位或版本不對都是設定檔損壞，
 /// 讀取 project.json 時明確拒絕，不回退固定種子或舊排序法。
@@ -132,14 +132,14 @@ public interface IProjectStore
 
     /// <summary>
     /// 這個名稱的資料夾是不是以前建立的 DuckDB 或 SQL Server 案件：設定檔記錄了 SQLite 以外的種類，
-    /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。這類案件不列在案件清單，JET 也不動它的資料夾
-    /// （裁定 2026-11-06-09）；案件清單與建案撞到同名時都用這一個判斷。判斷不出來時回 false。
+    /// 或沒有記錄種類、資料夾裡只有以前的 DuckDB 資料庫檔。這類案件不列在案件清單，JET 也不動它的資料夾；
+    /// 案件清單與建案撞到同名時都用這一個判斷。判斷不出來時回 false。
     /// </summary>
     Task<bool> IsRetiredProviderCaseAsync(string projectId, CancellationToken cancellationToken)
         => Task.FromResult(false);
 
     /// <summary>
-    /// 建案完成、資料庫已建好之後呼叫，刪掉和設定檔一起發布的建案中標記（裁定 2026-11-05-72 要求的穩健初始化）。
+    /// 建案完成、資料庫已建好之後呼叫，刪掉和設定檔一起發布的建案中標記。
     /// 沒有這個標記的實作不用做事。
     /// </summary>
     Task CompleteCreateAsync(string projectId, CancellationToken cancellationToken) => Task.CompletedTask;

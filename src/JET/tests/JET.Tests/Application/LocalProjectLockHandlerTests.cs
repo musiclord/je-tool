@@ -13,7 +13,7 @@ namespace JET.Tests.Application;
 /// </summary>
 public sealed class LocalProjectLockHandlerTests
 {
-    // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。
+    // 這句的用字已定案。
     private const string ExternalProcessLockMessage =
         "此案件已在另一個 JET 視窗中開啟，請先在該視窗離開案件後再試一次。";
 
@@ -67,7 +67,7 @@ public sealed class LocalProjectLockHandlerTests
         var held = await Assert.ThrowsAsync<JetActionException>(
             () => contender.DispatchAsync("project.load", LoadPayload(projectId)));
         Assert.Equal(JetErrorCodes.ProjectLocked, held.Code);
-        // 這句的用字依裁定 2026-10-14-01（第一次失敗：收據 20261014-012448805-68a8e8ea71bc4d6392585a586ab6b91e）。句子不再有「開啟中」，改鎖整句。
+        // 這句的用字已定案，核對整句。
         Assert.Equal(ExternalProcessLockMessage, held.Message);
 
         await owner.DispatchAsync("project.releaseLock");
@@ -122,8 +122,7 @@ public sealed class LocalProjectLockHandlerTests
             () => host.DispatchAsync("project.saveProgress", """{ "currentStep": 2 }"""));
         Assert.Equal(JetErrorCodes.NoActiveProject, noSession.Code);
 
-        // 原本同名重建改選另一個本機資料庫，驗證會重讀新的 project.json；只保留 SQLite 之後改成同名重建 SQLite 案件，
-        // 驗證刪案後的同名新案件照常建立資料庫檔（裁定 2026-11-06-08）。
+        // 同名重建 SQLite 案件，驗證刪案後的同名新案件照常建立資料庫檔。
         await host.DispatchAsync("project.create", CreatePayload(projectId, provider));
         Assert.True(File.Exists(Path.Combine(root.Path, projectId, DatabaseFileName(provider))));
     }
@@ -179,8 +178,8 @@ public sealed class LocalProjectLockHandlerTests
         using var owner = new HandlerTestHost(projectsRootPath: root.Path);
         using var contender = new HandlerTestHost(projectsRootPath: root.Path);
         var projectId = NewProjectId(provider, "reload-failure");
-        // 2026-09-02 起壞掉的報告清單不再擋載入，所以改用唯讀的 project.json 讓載入在取鎖之後、
-        // 寫回 LastOpened 時失敗；測的仍是「取鎖後失敗」的鎖行為。
+        // 壞掉的報告清單不會擋載入，所以用唯讀的 project.json 讓載入在取鎖之後、
+        // 寫回 LastOpened 時失敗；測的是「取鎖後失敗」的鎖行為。
         var projectJson = Path.Combine(root.Path, projectId, JetProjectFolder.ProjectJsonFileName);
 
         await owner.DispatchAsync("project.create", CreatePayload(projectId, provider));

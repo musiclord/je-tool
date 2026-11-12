@@ -7,9 +7,9 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 唯讀擷取檔案裡要帶入第三步的欄位配對。六份正式報表都有隱藏工作表 JET_Metadata，先讀它；
-/// 沒有時讀「自動化工具-檔案欄位資訊」F1:H1（驗證報告與工作底稿另寫的同一份配對）。裁定 2026-11-05-03。
+/// 沒有時讀「自動化工具-檔案欄位資訊」F1:H1（驗證報告與工作底稿另寫的同一份配對）。
 /// 兩種隱藏紀錄都沒有時，例如舊版 IDEA JET 的底稿，改讀同一張工作表看得見的 A 到 E 欄，交給 handler 推得草稿；
-/// 隱藏紀錄存在但格式不對時，照舊整份不帶入（裁定 2026-11-09-28、2026-11-05-14）。
+/// 隱藏紀錄存在但格式不對時，仍整份不帶入。
 /// </summary>
 public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 {
@@ -28,7 +28,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
         try
         {
-            // Excel 開著報告也讀得到最後一次存檔的內容（裁定 2026-11-06-12）。
+            // Excel 開著報告也讀得到最後一次存檔的內容。
             using var stream = SourceFileAccess.OpenRead(filePath);
             using var document = SpreadsheetDocument.Open(stream, false);
             var workbookPart = document.WorkbookPart ?? throw FieldInfoSheetMissing();
@@ -43,7 +43,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
             var payload = ReadCell(workbookPart, worksheetPart, MappingMetadataFormat.PayloadCell);
             if (string.IsNullOrWhiteSpace(marker) && string.IsNullOrWhiteSpace(versionText) && string.IsNullOrWhiteSpace(payload))
             {
-                // F1:H1 三格都空白才算沒有隱藏紀錄，改讀看得見的配對前後欄位對照表（裁定 2026-11-09-28）。
+                // F1:H1 三格都空白才算沒有隱藏紀錄，改讀看得見的配對前後欄位對照表。
                 return Task.FromResult(new MappingDraftSource(
                     null,
                     ReadFieldInfoSheet(workbookPart, worksheetPart, cancellationToken)));
@@ -51,7 +51,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
             if (!string.Equals(marker, MappingMetadataFormat.Marker, StringComparison.Ordinal))
             {
-                // 三格有內容但標記不對，算隱藏紀錄存在但格式不對，整份不帶入（裁定 2026-11-05-14）。
+                // 三格有內容但標記不對，算隱藏紀錄存在但格式不對，整份不帶入。
                 throw Invalid(InvalidFormatMessage);
             }
 
@@ -89,7 +89,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
         }
         catch (Exception ex) when (SourceFileErrors.IsInUse(ex) || ex is UnauthorizedAccessException)
         {
-            // 被其他程式獨占或沒有權限時，和其他匯入用同一句；Excel 一般開著的檔照樣讀得到（裁定 2026-11-06-12）。
+            // 被其他程式獨占或沒有權限時，和其他匯入用同一句；Excel 一般開著的檔照樣讀得到。
             throw SourceFileErrors.CannotOpen(filePath, ex);
         }
         catch (Exception ex) when (ex is IOException
@@ -101,7 +101,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
                                    or InvalidDataException
                                    or System.Xml.XmlException)
         {
-            // 損壞、設了密碼或不是 .xlsx 的檔案都走這裡，訊息只寫發生什麼事與下一步，不推測原因（裁定 2026-10-30-20）。
+            // 損壞、設了密碼或不是 .xlsx 的檔案都走這裡，訊息只寫發生什麼事與下一步，不推測原因。
             throw new JetActionException(
                 JetErrorCodes.FileReadError,
                 "無法讀取這份檔案。請改選能用 Excel 開啟的 .xlsx 工作底稿，或直接在下方選擇欄位。",
@@ -129,7 +129,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
     {
         if (!string.Equals(ReadCell(workbookPart, worksheetPart, "A1"), ReportWorkbookMetadataFormat.Marker, StringComparison.Ordinal))
         {
-            // 隱藏紀錄存在但標記不對，照舊整份不帶入（裁定 2026-11-05-14）。
+            // 隱藏紀錄存在但標記不對，照舊整份不帶入。
             throw Invalid(InvalidFormatMessage);
         }
 
@@ -174,7 +174,7 @@ public sealed class OpenXmlMappingMetadataReader : IMappingMetadataReader
 
     /// <summary>
     /// 讀「自動化工具-檔案欄位資訊」看得見的 A 到 E 欄。用 A 欄的兩個段落標題找出 TB 段與 GL 段，不靠固定列號：
-    /// 舊版 IDEA JET 在兩段之間空一列（idea-tool.bas 第 10824 到 10963 行），新版空兩列。標題下一列是表頭時跳過，
+    /// 舊版 IDEA JET 在兩段之間空一列，新版空兩列。標題下一列是表頭時跳過，
     /// 資料列讀到 A 到 E 整列空白，或遇到另一段標題為止。只回傳表格原文，配對怎麼推得由 Domain 的 FieldInfoSheetMapping 決定。
     /// </summary>
     private static FieldInfoSheet ReadFieldInfoSheet(

@@ -14,7 +14,7 @@ public static class MappingValidator
         IReadOnlyCollection<string> availableColumns)
     {
         var required = JetFieldCatalog.RequiredGlMappingKeys(spec.AmountMode);
-        // 裁定 2026-10-08-11：借貸代碼至少填一側；只填一側時，另一側是其餘所有來源值。
+        // 借貸代碼至少填一側；只填一側時，另一側是其餘所有來源值。
         if (spec.AmountMode is GlAmountMode.AmountWithSide or GlAmountMode.AmountWithFlag
             && ((spec.Mapping.TryGetValue(GlMappingKeys.DrCrDebitCode, out var debit) && !string.IsNullOrWhiteSpace(debit))
                 || (spec.Mapping.TryGetValue(GlMappingKeys.DrCrCreditCode, out var credit) && !string.IsNullOrWhiteSpace(credit))))

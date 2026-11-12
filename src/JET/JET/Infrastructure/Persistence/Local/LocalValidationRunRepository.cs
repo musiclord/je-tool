@@ -15,7 +15,6 @@ namespace JET.Infrastructure;
 public sealed class LocalValidationRunRepository(ILocalProjectDatabase database, ILogger<LocalValidationRunRepository>? logger = null)
     : IValidationFactsPort
 {
-    // 診斷 provider 標籤由方言注入（sqlite／duckdb），不再寫死。
     private readonly string _provider = database.Dialect.ProviderName;
 
     private readonly ILogger _log = logger ?? NullLogger<LocalValidationRunRepository>.Instance;
@@ -122,7 +121,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
 
     /// <summary>
     /// 讀取投影時落地的 gl_control_total raw facts（單列）。match flags 由 AuditCore
-    /// Finalize 對照目前 GL population facts 裁定；Infrastructure 不作審計判斷。
+    /// Finalize 對照目前 GL population facts 判定；Infrastructure 不作審計判斷。
     /// </summary>
     private async Task<ValidationControlTotalsFacts?> ReadControlTotalsAsync(
         DbConnection connection,
@@ -293,7 +292,7 @@ public sealed class LocalValidationRunRepository(ILocalProjectDatabase database,
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         // 四類述詞走 BlankRecordsCategoryPredicate 中心(計數/明細/分頁共用同一份;期外日期判準
-        // = approval_date，裁定 2026-06-23-01)，且全部只看納入測試的分錄。
+        // = approval_date)，且全部只看納入測試的分錄。
         // 日期為投影時正規化的 yyyy-MM-dd ISO 字串，文字比較即時間序比較。
         var columns = string.Join(",\n                ",
             BlankRecordsCategoryPredicate.All.Select(c =>

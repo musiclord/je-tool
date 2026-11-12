@@ -3,12 +3,11 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 儲存層 JSON 必須保留非 ASCII 原文（不得跳脫為 \uXXXX），
-/// 供 dev 檢視工具與 SQL JSON 函式（SQLite json_extract / SQL Server OPENJSON）直接讀取。
+/// 供 dev 檢視工具與 SQL JSON 函式（SQLite json_extract）直接讀取。
 /// </summary>
 public sealed class JsonStorageReadabilityTests
 {
@@ -93,7 +92,7 @@ public sealed class JsonStorageReadabilityTests
         var repo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+        // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var row = new StagingRow(2, new Dictionary<string, string>
@@ -123,7 +122,7 @@ public sealed class JsonStorageReadabilityTests
         var repo = new LocalImportRepository(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         var row = new StagingRow(2, new Dictionary<string, string> { ["科目代號"] = "1101" });
@@ -149,7 +148,7 @@ public sealed class JsonStorageReadabilityTests
         var store = new LocalMappingStateStore(db);
         var projectId = Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(folder.GetProjectDirectory(projectId));
-        // 照建案的做法先建表（裁定 2026-11-05-72）。
+        // 照建案的做法先建表。
         await db.EnsureCreatedAsync(projectId, CancellationToken.None);
 
         await store.SaveAsync(
@@ -196,7 +195,7 @@ public sealed class JsonStorageReadabilityTests
     /// 讀回已存 JSON 的共用解析（JetJsonStorage.Parse）：任何一處的字串或欄名是不成對代理字元的跳脫寫法時，
     /// 整份當成損壞的 JSON。System.Text.Json 自己的解析會放行，要到讀字串、讀欄名或寫出時才丟例外。
     /// 各列依序是：字串值、深層的值、陣列裡物件的欄名、根層欄名、後面接一般文字、連續兩個高位，
-    /// 以及跳脫的反斜線後面再接一個不成對的寫法。這是新增的測試。
+    /// 以及跳脫的反斜線後面再接一個不成對的寫法。
     /// </summary>
     [Theory]
     [InlineData("""{"a":"\ud800"}""")]
@@ -218,7 +217,7 @@ public sealed class JsonStorageReadabilityTests
 
     /// <summary>
     /// 讀得出來的內容照常解析：成對的跳脫寫法、反斜線本身被跳脫所以只是一般文字的寫法、
-    /// 直接寫的擴充區漢字，以及一般中文。這是新增的測試。
+    /// 直接寫的擴充區漢字，以及一般中文。
     /// </summary>
     [Fact]
     public void Parse_ReadableText_ReturnsTheDocument()

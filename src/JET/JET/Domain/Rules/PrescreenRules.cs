@@ -1,7 +1,7 @@
 namespace JET.Domain;
 
 /// <summary>
-/// 預篩選逐筆規則的回應鍵（規則說明見 docs/jet-guide.md 第 5 節「預篩選」）。十二條規則的完整定義在
+/// 預篩選逐筆規則的回應鍵。十二條規則的完整定義在
 /// <see cref="PrescreenRuleDefinitions"/>，這裡只放常數讓程式引用；preparerSummary 與 rareAccounts 是彙總規則，不可作為進階篩選的列述詞。
 /// </summary>
 public static class PrescreenRuleKeys
@@ -24,8 +24,8 @@ public static class PrescreenRuleKeys
 
 /// <summary>
 /// 分錄摘要特定描述（suspicious_keywords）的預設關鍵字
-/// 照 IDEA 版 R2 的 24 個繁簡詞，順序也相同（idea-tool.bas 第 8215 行）；比對包含任一。
-/// 2026-06-20 Agent 自己加的「帳外」照裁定 2026-11-05-43 拿掉，需要時審計員在第五步自己加。
+/// 照 IDEA 版 R2 的 24 個繁簡詞，順序也相同；比對包含任一。
+/// 需要其他關鍵字時，審計員在第五步自己加。
 /// </summary>
 public static class SuspiciousKeywordDefaults
 {
@@ -38,12 +38,11 @@ public static class SuspiciousKeywordDefaults
 }
 
 /// <summary>
-/// 預篩選「分錄金額中有連續 0 的尾數」（trailing_zeros）的 0 的個數，照 IDEA 版 JET 的 R4 由 GL 決定（裁定 2026-11-05-25）：
+/// 預篩選「分錄金額中有連續 0 的尾數」（trailing_zeros）的 0 的個數，照 IDEA 版 JET 的 R4 由 GL 決定：
 /// 列入 GL 的分錄，借方金額加總（貸方那一側算 0）除以筆數得到借方平均，平均的整數部分有幾位，0 的個數就是位數減一，
-/// 例如平均 2,391,281 是 6 個 0。算出來至少 <see cref="MinCustomDigits"/> 個、最多 <see cref="MaxCustomDigits"/> 個（裁定 2026-11-05-27）。
+/// 例如平均 2,391,281 是 6 個 0。算出來至少 <see cref="MinCustomDigits"/> 個、最多 <see cref="MaxCustomDigits"/> 個。
 /// 比對和第五步金額的「尾數連續多個 0」用同一個述詞（<c>GlRulePredicates.ZeroRun</c>），小數位不參與，整數部分為 0 不命中。
-/// 第五步「尾數連續多個 0」加入時預設同一個個數，審計員可以改成 1 到 <see cref="MaxCustomDigits"/>（裁定 2026-11-05-26）。
-/// 2026-11-05 以前這裡是固定 6 個 0 的常數。
+/// 第五步「尾數連續多個 0」加入時預設同一個個數，審計員可以改成 1 到 <see cref="MaxCustomDigits"/>。
 /// </summary>
 public static class TrailingZeroThreshold
 {

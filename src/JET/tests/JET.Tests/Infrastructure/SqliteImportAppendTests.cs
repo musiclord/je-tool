@@ -2,11 +2,10 @@ using JET.Domain;
 using JET.Infrastructure;
 using Xunit;
 
-// 改走正式批次匯入與明示投影參數；保留原始合成資料及固定答案。
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// 附加匯入（mode:"append"）的 repository 層行為（guide §3.1.4 多來源模型）。
+/// 附加匯入（mode:"append"）的 repository 層行為（多來源模型）。
 /// oracle：規格手算的小型固定資料集；斷言鎖「值＋身分」（列號集合、來源序號、欄名差集）。
 /// </summary>
 public sealed class SqliteImportAppendTests
@@ -77,7 +76,7 @@ public sealed class SqliteImportAppendTests
             ImportRepo = new LocalImportRepository(Database);
             ProjectId = Guid.NewGuid().ToString("N");
             Directory.CreateDirectory(Folder.GetProjectDirectory(ProjectId));
-            // 只有建案會建立案件資料庫，讀寫前的檢查不再順便建表（裁定 2026-11-05-72），所以照建案的做法先建表。第一次失敗收據 20261105-155959508-7b95566f0d5a426aa5145c6a92f63fc1。
+            // 只有建案會建立案件資料庫，讀寫前的檢查不順便建表，所以照建案的做法先建表。
             Database.EnsureCreatedAsync(ProjectId, CancellationToken.None).GetAwaiter().GetResult();
         }
 
@@ -277,7 +276,7 @@ public sealed class SqliteImportAppendTests
             "SELECT SUM(source_row_number) FROM gl"));
     }
 
-    // ---- 欄位集合收斂（guide §3.1.5）。oracle：規格手算的小型固定資料集。----
+    // ---- 欄位集合收斂。oracle：規格手算的小型固定資料集。----
 
     private static StagingRow RawRow(int number, params (string Key, string Value)[] cells)
     {
@@ -328,7 +327,7 @@ public sealed class SqliteImportAppendTests
         await env.ReplaceThreeRowsAsync(); // 先前匯入的批次：q1.csv，3 列
 
         // 一次取代匯入兩個來源：具名欄相同，事前比對通過；第二個來源的佔位欄 COL_8 有資料，讀完才發現欄位不同。
-        // 訊息和追加時共用同一句（裁定 2026-11-09-22），交易還原後先前匯入的批次完全不變。這是新加的測試。
+        // 訊息和追加時共用同一句，交易還原後先前匯入的批次完全不變。
         var ex = await Assert.ThrowsAsync<JetActionException>(
             () => env.ImportRepo.ReplaceBatchAsync(
                 env.ProjectId, DatasetKind.Gl,

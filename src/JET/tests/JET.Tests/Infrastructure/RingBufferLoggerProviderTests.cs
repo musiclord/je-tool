@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// 診斷日誌 ring buffer provider 的地基測試（直接對 provider,不經 LoggerFactory）。
-/// oracle:規格手算的小型固定資料集。涵蓋 TDD #5（滿載覆寫最舊不爆 memory）、scope 捕捉、exception。
+/// oracle:規格手算的小型固定資料集。涵蓋滿載覆寫最舊不爆 memory、scope 捕捉、exception。
 /// </summary>
 public sealed class RingBufferLoggerProviderTests
 {

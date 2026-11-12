@@ -91,10 +91,10 @@
           <!-- 主要流程步驟：app.js 於此注入目錄清單與進度列 -->
           <nav class="step-nav" aria-label="流程步驟" data-bind="step-nav"></nav>
 
-          <!-- 狀態 / 訊息區：搬到左欄底部；picker 視圖時 app-body 隱藏，picker 操作錯誤改由獨立 inline 回饋顯示。
+          <!-- 狀態 / 訊息區：位於左欄底部；picker 視圖時 app-body 隱藏，picker 操作錯誤由獨立 inline 回饋顯示。
                已開啟案件的歷史持久化於專案資料庫（log.append / log.recent）。
                「訊息」那一列是唯一的開關，固定在欄底；訊息清單與兩個操作從它上方長出來，收合時收回它後面，
-               所以展開後要收合，仍按同一個位置；原本展開後整塊錯位（裁定 2026-10-12-02）。 -->
+               所以展開後要收合，仍按同一個位置。 -->
           <aside class="messages messages--collapsed" aria-label="狀態與訊息" data-bind="messages-panel">
             <div class="messages__panel" id="messages-panel" aria-live="polite">
               <ul class="messages__list" data-bind="message-list"></ul>
@@ -118,7 +118,7 @@
         <section class="content" aria-label="步驟內容" data-bind="content"></section>
 
         <!-- 右欄：常駐資料預覽（頁籤切換資料表＋橫向捲動表格）。
-             picker 視圖時整個 app-body 以 hidden 隱藏，右欄一併隱藏（不再單獨切換 hidden）。
+             picker 視圖時整個 app-body 以 hidden 隱藏，右欄一併隱藏（不單獨切換 hidden）。
              data-preview.js 於 [data-bind=data-preview-body] 注入表格，於 __tabs／__note 注入頁籤與註記；
              收合狀態由 state.dataPreviewCollapsed 驅動 app.js 切 .data-preview--collapsed（純 UI）。 -->
         <aside class="data-preview" aria-label="資料預覽" data-bind="data-preview">
@@ -154,7 +154,7 @@
     <!-- 開發工具：資料庫檢視（僅 Debug 組建顯示與註冊，非審計 workflow） -->
     <details class="dev-panel" data-bind="dev-panel">
       <!-- 標題不寫資料庫種類；實際的資料庫資訊看面板內 dev-info 那一行，由後端的檢視程式回報。
-           目前只有 SQLite（裁定 2026-11-06-08）。 -->
+           目前只有 SQLite。 -->
       <summary class="dev-panel__summary">DEV — 資料庫檢視</summary>
       <div class="dev-panel__body" data-bind="dev-panel-body"></div>
     </details>
