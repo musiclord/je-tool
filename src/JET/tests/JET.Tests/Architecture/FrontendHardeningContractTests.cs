@@ -12,7 +12,7 @@ public sealed class FrontendHardeningContractTests
     [Fact]
     public void NativeWindowClose_RoutesThroughFrontendDepartureAndSharedGateFallback()
     {
-        var form = File.ReadAllText(Path.Combine(RepoRoot(), "JET", "Form1.cs"));
+        var form = File.ReadAllText(Path.Combine(SolutionRoot(), "JET", "Form1.cs"));
         var closing = ExtractCSharpMethod(form, "OnFormClosing");
         var frontendExit = ExtractCSharpMethod(form, "RequestFrontendExitAsync");
         var busyFallback = ExtractCSharpMethod(form, "NotifyBusyNativeExitAsync");
@@ -37,7 +37,7 @@ public sealed class FrontendHardeningContractTests
     [Fact]
     public void RuntimeFrontend_DoesNotExposeTestCaseLoadersInAnyConfiguration()
     {
-        var frontendRoot = Path.Combine(RepoRoot(), "JET", "wwwroot");
+        var frontendRoot = Path.Combine(SolutionRoot(), "JET", "wwwroot");
         var runtime = string.Join('\n',
             Directory.EnumerateFiles(frontendRoot, "*", SearchOption.AllDirectories)
                 .Where(path => Path.GetExtension(path) is ".html" or ".css" or ".js")
@@ -54,7 +54,7 @@ public sealed class FrontendHardeningContractTests
     [Fact]
     public void ReleaseUiStrings_UseAuditorVocabulary()
     {
-        var frontendRoot = Path.Combine(RepoRoot(), "JET", "wwwroot");
+        var frontendRoot = Path.Combine(SolutionRoot(), "JET", "wwwroot");
         var releaseSources = Directory.EnumerateFiles(frontendRoot, "*.js", SearchOption.AllDirectories)
             .Where(path => !path.EndsWith("dev-panel.js", StringComparison.OrdinalIgnoreCase))
             .Where(path => !path.EndsWith("dev-log-panel.js", StringComparison.OrdinalIgnoreCase))
@@ -168,9 +168,9 @@ public sealed class FrontendHardeningContractTests
     }
 
     private static string ReadFrontend(params string[] segments)
-        => File.ReadAllText(Path.Combine(new[] { RepoRoot(), "JET", "wwwroot" }.Concat(segments).ToArray()));
+        => File.ReadAllText(Path.Combine(new[] { SolutionRoot(), "JET", "wwwroot" }.Concat(segments).ToArray()));
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

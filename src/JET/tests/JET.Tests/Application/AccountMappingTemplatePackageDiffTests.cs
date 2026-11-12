@@ -286,7 +286,7 @@ public sealed class AccountMappingTemplatePackageDiffTests
                     "A2",
                     StringComparison.Ordinal));
             Assert.Equal(
-                "請在 C 欄選擇標準科目分類；允許分類僅限 Revenue、Receivables、Cash、Receipt in advance、Others；A、B 欄由系統產生，不應修改。",
+                "請在 C 欄選擇標準科目分類；要新增分類，請在 List 工作表的清單最後加上名稱，原有的名稱不要更改；A、B 欄由系統產生，不應修改。",
                 InlineText(instructionCell));
 
             var protection = Assert.Single(account.Root.Elements(Spreadsheet + "sheetProtection"));
@@ -299,7 +299,7 @@ public sealed class AccountMappingTemplatePackageDiffTests
             Assert.Equal("list", (string?)validation.Attribute("type"));
             Assert.Equal("1", (string?)validation.Attribute("allowBlank"));
             Assert.Equal($"C4:C{expectedRows.Count + 3}", (string?)validation.Attribute("sqref"));
-            Assert.Equal("List!$A$2:$A$6", validation.Element(Spreadsheet + "formula1")!.Value);
+            Assert.Equal("List!$A$2:$A$1048576", validation.Element(Spreadsheet + "formula1")!.Value);
             Assert.Empty(account.Root.Elements(Spreadsheet + "extLst"));
 
             Assert.Equal("A1:A6", (string?)list.Root!.Element(Spreadsheet + "dimension")!.Attribute("ref"));

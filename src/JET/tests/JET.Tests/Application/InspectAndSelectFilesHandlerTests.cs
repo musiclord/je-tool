@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// import.inspectFile 與 host.selectFiles 的契約測試（manifest 為驗收基準）。
+/// import.inspectFile 與 host.selectFiles 的契約測試。
 /// inspectFile 不需 active project——所有測試刻意不呼叫 project.create。
 /// </summary>
 public sealed class InspectAndSelectFilesHandlerTests
@@ -94,7 +94,7 @@ public sealed class InspectAndSelectFilesHandlerTests
         using var host = new HandlerTestHost();
 
         // ClosedXML 會寫 dimension：估計值 = 末列 − 標頭列 = 精確資料列數；
-        // 手刻無 dimension 的活頁簿 → null（manifest：估計值 nullable、僅顯示用）
+        // 手刻無 dimension 的活頁簿 → null（估計值 nullable、僅顯示用）
         var withDimension = TestWorkbookBuilder.WriteWorkbook(ws =>
         {
             ws.Cell(1, 1).Value = "傳票號碼";
@@ -145,7 +145,7 @@ public sealed class InspectAndSelectFilesHandlerTests
             var data = await host.DispatchAsync(
                 "import.inspectFile", JsonSerializer.Serialize(new { filePath = path }));
 
-            // 偵測結果可直接回填為 import.*.fromFile 的覆寫參數（manifest inspectFile 細節）
+            // 偵測結果可直接回填為 import.*.fromFile 的覆寫參數
             Assert.Equal("csv", data.GetProperty("fileType").GetString());
             Assert.Equal("big5", data.GetProperty("encoding").GetString());
             Assert.Equal(",", data.GetProperty("delimiter").GetString());

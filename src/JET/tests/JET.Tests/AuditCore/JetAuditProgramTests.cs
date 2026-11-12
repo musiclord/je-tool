@@ -6,7 +6,7 @@ namespace JET.Tests.AuditCore;
 
 public sealed class JetAuditProgramTests
 {
-    // 驗證計畫只接受目前的 INF 抽樣演算法版本；沒有版本的快照代表舊版 JET 建立的案件，會被拒絕。
+    // 驗證計畫只接受目前的 INF 抽樣演算法版本；沒有版本的快照代表較早版本的 JET 建立的案件，會被拒絕。
     private const int CurrentInfSamplingVersion = JetAuditProgram.CurrentInfSamplingAlgorithmVersion;
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class JetAuditProgramTests
         var exception = Assert.Throws<JetActionException>(() => JetAuditProgram.Plan(snapshot, parameters));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 開案時已擋下舊版案件，
+        // 開案時已擋下較早版本的 JET 建立的案件，
         // 驗證計畫照正常操作走不到這裡：訊息是非預期錯誤那一句，檢查代號記進支援日誌；仍拒絕執行。
         Assert.Equal(JetPayloadRejection.UnexpectedErrorMessage, exception.Message);
         Assert.Equal("inf_algorithm_version_legacy", JetPayloadRejection.CheckOf(exception));

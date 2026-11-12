@@ -8,7 +8,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// query.dataPreview 契約測試（manifest 細節段為驗收基準）。
+/// query.dataPreview 契約測試。
 /// oracle：手算的 5 列固定資料集（金額/日期皆可人工推導）。
 /// </summary>
 public sealed class QueryDataPreviewHandlerTests

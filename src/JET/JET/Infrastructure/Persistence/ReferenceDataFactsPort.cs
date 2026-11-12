@@ -27,9 +27,10 @@ internal sealed class ReferenceDataFactsPort(
             projection,
             rows,
             cancellationToken);
+        // 科目配對與新增的分類已經寫進案件；之後讀匯入狀態不受取消影響，畫面才不會把寫好的匯入當成已取消。
         var state = await accountMappingPersistence.FindStateAsync(
                 plan.Request.ProjectId,
-                cancellationToken)
+                CancellationToken.None)
             ?? throw new InvalidOperationException("科目配對匯入完成後找不到匯入狀態。");
 
         return new AccountMappingFacts(imported, state);

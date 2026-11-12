@@ -24,10 +24,10 @@ public sealed class PrivateCaseReportComparatorTests
     [InlineData("ManualEquivalent", false, false)]
     [InlineData("ManualSwapped", true, false)]
     [InlineData("ManualEmpty", true, false)]
-    public void ManualFlagNormalizationRequiresExactApprovedValues(string difference, bool approved, bool passed)
+    public void ManualFlagNormalizationRequiresTheDecisionAndEquivalentValues(string difference, bool withDecision, bool passed)
     {
         using var fixture = new SyntheticFixture(Enum.Parse<SyntheticDifference>(difference));
-        var decisions = approved ? new[] { new PrivateCaseExplicitContentDecision("step41-manual-auto",
+        var decisions = withDecision ? new[] { new PrivateCaseExplicitContentDecision("step41-manual-auto",
             LegacyAuditParityContentDimension.RowValues, PrivateCaseReportDifferencePolicy.ApprovedManualAutoDisplay) } : [];
         var result = PrivateCaseReportComparator.Compare(fixture.Pairs, PrivateCaseAcceptancePolicy.Current, decisions);
         Assert.Equal(passed, result.Passed);
@@ -193,7 +193,7 @@ public sealed class PrivateCaseReportComparatorTests
     }
 
     [Fact]
-    public void DifferencePolicy_FontScaledRowHeights_OnlyAcceptsTheApprovedHeightPerSheet()
+    public void DifferencePolicy_FontScaledRowHeights_OnlyAcceptsTheExpectedHeightPerSheet()
     {
         // 10 點明細頁列高 15 點、12 點頁 18 點。
         var group = new SpreadsheetAppearanceDifferenceGroup("V_Report 5", "row", "height", "12.5", "15", 1, "V_Report 5!row:1");

@@ -433,8 +433,8 @@ public sealed class JsonFileProjectStore(JetProjectFolder folder) : IProjectStor
 
             if (document is not null)
             {
-                // 舊版 JET 建立的案件只看設定檔版本判斷。反序列化會把缺席欄位補成建構式預設值，
-                // 所以另外檢查原始 JSON 是否真的有版本與資料庫種類兩個欄位；缺欄位是設定檔損壞，不是舊版案件。
+                // 較早版本的 JET 建立的案件只看設定檔版本判斷。反序列化會把缺席欄位補成建構式預設值，
+                // 所以另外檢查原始 JSON 是否真的有版本與資料庫種類兩個欄位；缺欄位是設定檔損壞，不算較早版本的案件。
                 if (!HasJsonProperty(json, "schemaVersion"))
                 {
                     throw ProjectReadError(projectId);

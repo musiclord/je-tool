@@ -195,7 +195,7 @@ public sealed class ProjectListLocalFirstTests
             CurrentStep: 1,
             ProjectDocument.CurrentSchemaVersion,
             provider,
-            // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
+            // 目前版本建案一定寫入 INF 抽樣種子與版本；缺這兩個欄位的設定檔會被拒絕。
             SampleSeed: 1_234_567,
             SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
 

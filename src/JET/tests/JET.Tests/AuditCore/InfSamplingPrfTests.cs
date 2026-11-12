@@ -84,7 +84,7 @@ public sealed class InfSamplingPrfTests
         var result = JetAuditProgram.ResolveInfSamplingSeed(persistedSeed, persistedVersion);
 
         Assert.False(result.IsValid);
-        // 舊版案件由設定檔版本判斷，抽樣設定不分「舊版」與「損壞」。
+        // 較早版本的 JET 建立的案件由設定檔版本判斷，抽樣設定這裡不分版本較舊與損壞。
         Assert.Equal(0L, result.Seed);
         Assert.NotNull(result.Error);
     }

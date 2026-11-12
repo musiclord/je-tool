@@ -137,14 +137,14 @@
 這兩個斷言出自[使用者回饋計畫](2026-09-17-user-feedback-and-workflow-review-plan.md)第 8 批的 L11，用意是避免暗示能處理期初與期末兩檔。
 L 開頭的編號是那份計畫引用的複審清單 `low-unverified.md` 的行號，不是使用者的裁定；裁定總表裡也查不到關於這兩句說明的裁定。
 裁定 2026-11-09-19 要 TB 和 GL 一樣寫出可以合併，所以改成檢查兩處都寫出可以合併，也都明寫不會自動配成期初與期末的期間變動。原本的用意由後一項檢查保住。
-第一次失敗留在 `Contract -ContractScenario FrontendMapping` 的收據 20261109-085046392-375ec381c4d94fd383d6c43f2076f56f。
+第一次失敗出現在 `Contract -ContractScenario FrontendMapping`。
 
 `src/JET/tests/JET.Tests/Application/TbImportBranchTests.cs` 的 `Append_WithDifferentColumns_IsRejected_AndWritesNothing` 原本逐字比對追加時的舊句。
 裁定 2026-11-09-22 要追加與一次匯入多個檔案共用同一句，所以改成比對新句。錯誤碼、差集的寫法與「原本的 TB 不變」的檢查都照舊。
-第一次失敗留在 `Focused` 的收據 20261109-092115030-2d69d0d607084ef188cf1dc9c8454df4。
+第一次失敗出現在 `Focused -Filter TbImportBranchTests`，17 個測試裡只有這一則失敗。
 
 審計員試用後，裁定 2026-11-09-23 改寫 TB 的三處說明，斷言舊句的三則前端測試跟著改。
-三則的第一次失敗都留在 `FrontendMapping` 的收據 20261109-093217918-f5c210768eb04b4ab1306a63a14f61ee：
+三則的第一次失敗都出現在同一次 `FrontendMapping`：
 
 - `tools/tests/frontend-workflow.test.cjs` 的「source preview states its ten-row boundary and TB merge guidance does not imply period-file reconciliation」，
   就是上面改過一次的那一則。改成比對新句子的三個意思：期初與期末要放在同一個檔案、不會把兩個檔案接起來、只會往下疊成一份 TB。
@@ -153,7 +153,7 @@ L 開頭的編號是那份計畫引用的複審清單 `low-unverified.md` 的行
 - `tools/tests/frontend-journey-case-setup.test.cjs` 這次新加的那一則，TB 卡片與選檔說明改成比對新句子，GL 的斷言不變。
 
 使用者驗收後，裁定 2026-11-09-24 把 TB 的三處說明改成和 GL 相同，斷言舊句的四則前端測試跟著改。
-四則的第一次失敗都留在 `FrontendMapping` 的收據 20261109-105542384-ab8e3aa26e20445c9c982d827098bce0。第四則的名稱經使用者確認改掉，其他三則的名稱不變。
+四則的第一次失敗都出現在同一次 `FrontendMapping`。第四則的名稱經使用者確認改掉，其他三則的名稱不變。
 
 - `tools/tests/frontend-journey-case-setup.test.cjs` 的「choosing GL and TB source files offers exactly the seven supported file types and the guidance names them」，
   原本斷言 TB 的選檔說明寫「同一查核期間」。改成確認 GL 與 TB 的選檔說明只差在「建立 GL」與「建立 TB」，而且 TB 不提期初、期末與查核期間。
@@ -166,23 +166,23 @@ L 開頭的編號是那份計畫引用的複審清單 `low-unverified.md` 的行
 
 ## 驗證結果
 
-- `Focused -Filter TbImportBranchTests`：16 個測試都通過，包括新加的一則。收據 20261109-084446161-cea6e1e9a5bc478ea919cd24c373fcd8。
-- `Contract -ContractScenario FrontendMapping`：第一次因上一節的既有測試失敗，改完重跑通過，收據 20261109-085306655-fe2c78b8996e44ba887390e15c2fe236。
-- `Build` 與 `Public`：都通過，收據是 20261109-085436051-793ad90965f1440b8073bba16247bd23 與 20261109-085439878-adc69e05afcf4840ab038ce2f6f46013。
+- `Focused -Filter TbImportBranchTests`：16 個測試都通過，包括新加的一則。
+- `Contract -ContractScenario FrontendMapping`：第一次因上一節的既有測試失敗，改完重跑通過。
+- `Build` 與 `Public`：都通過。
 - `Public` 開始以後，只在 `import-step.js` 加了一行註解，也改了文件，所以重跑 `FrontendMapping` 與 `Documentation`。
-  兩項都通過，收據是 20261109-090406768-60ce4df3924742c8aa635e2dc600b83d 與 20261109-090439206-e285071798c44f7187f982505d0ab130。
+  兩項都通過。
 - 瀏覽器主機：用合成案件展開第二步的 GL 與 TB，看到新的 TB 說明，主控台沒有錯誤。選檔後的說明要先開系統的檔案對話框，沒有在瀏覽器主機上看，由前端測試確認。
-- 改錯誤訊息之後：`Focused -Filter TbImportBranchTests` 第一次只有上一節那則既有測試失敗，新加的測試通過；改完斷言重跑 17 個測試都通過，
-  收據 20261109-092206610-11eb7d7a210d4800a4cc2f5e78bd0ab6。`Focused -Filter SqliteImportAppendTests` 14 個測試都通過，收據 20261109-092236934-d99bacbfdc9a4fbd91bb74385c4e25b4。
-  接著 `Documentation` 與 `Public` 都通過，收據是 20261109-092549428-5c263c7432624567817eb467c7ddb85d 與 20261109-092608981-ceda036d8d744018a5b9a8c2157eb936。
-- 依審計員意見改 TB 說明之後：`FrontendMapping` 第一次因斷言舊句的三則測試失敗，改完重跑通過，收據 20261109-093431116-3e2a5f262cfa4a4daed1db0528113139。
+- 改錯誤訊息之後：`Focused -Filter TbImportBranchTests` 第一次只有上一節那則既有測試失敗，新加的測試通過；改完斷言重跑 17 個測試都通過。
+  `Focused -Filter SqliteImportAppendTests` 14 個測試都通過。
+  接著 `Documentation` 與 `Public` 都通過。
+- 依審計員意見改 TB 說明之後：`FrontendMapping` 第一次因斷言舊句的三則測試失敗，改完重跑通過。
   這次只改前端說明、前端測試與文件，沒有重跑 `Public`；改完文件後 `Documentation` 通過。
   瀏覽器主機重新載入後，用同一個合成案件展開第二步的 TB，新的說明完整顯示，沒有蓋到「選擇來源檔」按鈕。重新載入後的請求都成功，主控台也沒有程式錯誤。
-- 驗收後把 TB 說明改成和 GL 相同之後：`FrontendMapping` 第一次因斷言舊句的四則測試失敗，收據 20261109-105542384-ab8e3aa26e20445c9c982d827098bce0；
-  改完斷言重跑，1,006 個前端測試都通過，收據 20261109-105747613-9bf55403415b493492757504cd50b6e2。這次只改前端說明、前端測試與文件，沒有重跑 `Public`。
+- 驗收後把 TB 說明改成和 GL 相同之後：`FrontendMapping` 第一次因斷言舊句的四則測試失敗；
+  改完斷言重跑，1,006 個前端測試都通過。這次只改前端說明、前端測試與文件，沒有重跑 `Public`。
   瀏覽器主機重新載入後，用合成案件展開第二步的 GL 與 TB，兩張卡片的說明逐字相同，TB 的說明一行放得下，主控台沒有錯誤。
   獨立複審確認的問題改完後，包括補上「加入」的比對與測試改名，再跑 `FrontendMapping` 與 `Documentation`，結果見下一項。
-- 複審修正後：`FrontendMapping` 的 1,006 個前端測試都通過，收據 20261109-111653573-f16a6db9ba714e24b1a7bf78cc4f1ae0。
+- 複審修正後：`FrontendMapping` 的 1,006 個前端測試都通過。
   另外在暫存資料夾複製一份前端，故意在 TB 按「加入」的說明多加一句，改過的兩則 `frontend-workflow.test.cjs` 測試都失敗，表示這一處有測試鎖住。
   改完文件後 `Documentation` 通過。
 - 沒有跑 `Gui`、`PrivateCase` 與 `Excel`。這一輪沒有改匯出與桌面程式；`Gui` 照規定留到提交或交付前再跑。

@@ -289,7 +289,7 @@ test('step five saved scenario lists read two hundred vouchers and two hundred e
     { scenarioPosition: 1, scenarioRevision: 'r1', populationScope: 'auditPeriod', voucherNumber: 'SAVED-1', cursor: null, pageSize: 200, queryRevision: 'q1' });
 });
 
-// 分錄的傳票文件項次自成一欄，表頭寫名詞表的短表頭「項次」；分錄列只寫數字，傳票列這一格留白。
+// 分錄的傳票文件項次自成一欄，表頭寫短表頭「項次」；分錄列只寫數字，傳票列這一格留白。
 test('step five voucher table shows each entry line item as a bare number in its own column', async () => {
   const f = filterJourney({ saved: [F.savedBlankDescription()] });
   f.click('[data-action="toggle-scenario"][data-index="0"]');

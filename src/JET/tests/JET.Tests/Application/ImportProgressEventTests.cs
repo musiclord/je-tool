@@ -7,9 +7,9 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// import.progress 事件（manifest「Host→Web 事件」章節）。
+/// import.progress 事件，由後端送給前端。
 /// 節奏以 WithProgress 迭代器直測（不經 WebView）；wire payload 經 HandlerTestHost
-/// 的 recording publisher 以 wire shape 斷言。oracle：manifest 事件規格（每 20,000 列一次）。
+/// 的 recording publisher 以 wire shape 斷言。oracle：事件規格（每 20,000 列一次）。
 /// </summary>
 public sealed class ImportProgressEventTests
 {
@@ -80,7 +80,7 @@ public sealed class ImportProgressEventTests
         using var host = new HandlerTestHost();
         await CreateProjectAsync(host);
 
-        // 25,000 列 → 恰好一次 import.progress（rowsRead=20000）；payload 形狀依 manifest
+        // 25,000 列 → 恰好一次 import.progress（rowsRead=20000）
         var csv = new StringBuilder("doc,amt\n");
         for (var i = 1; i <= 25_000; i++)
         {

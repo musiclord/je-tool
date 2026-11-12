@@ -70,8 +70,8 @@ internal static partial class GuiScenarios
             " && state.currentStepIndex===3 && !state.activeRequestId && !state.operationFailure" +
             " && document.querySelector('[data-bind=busy-overlay]').hidden && !document.querySelector('[data-jet-root]').inert" +
             " && document.querySelector('[data-action=cancel-operation]').hidden" +
-            " && state.messages.some(m=>m.text.startsWith('已要求取消「準備科目配對範本」'))" +
-            " && state.messages.some(m=>m.text.startsWith('準備科目配對範本已取消（'))" +
+            " && state.messages.some(m=>m.text.startsWith('已要求取消「建立科目配對範本」'))" +
+            " && state.messages.some(m=>m.text.startsWith('建立科目配對範本已取消（'))" +
             " && !!state.validationOutput.template && state.validationOutput.template.status==='failed'" +
             " && !!document.querySelector('[data-action=ensure-account-mapping-template]:not(:disabled)')");
         var templatePath = Path.Combine(projectsRoot, readyId, templateName);

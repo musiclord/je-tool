@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 前端說明「案件選擇」及 action 契約「日誌與主機整合」：兩種診斷匯出在案件載入失敗時仍可使用，
+/// 兩種診斷匯出在案件載入失敗時仍可使用，
 /// 目的地只能是合法 projectId 的既有非連結目錄，不以 project.json 能否解析為前提。
 /// </summary>
 public sealed class SupportLogUnavailableProjectTests

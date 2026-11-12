@@ -4,13 +4,13 @@ using Xunit;
 namespace JET.Tests.Domain;
 
 /// <summary>
-/// 科目配對欄位辨識（manifest import.accountMapping.fromFile 細節）：
+/// 科目配對欄位辨識（import.accountMapping.fromFile 匯入時用）：
 /// 涵蓋事務所英文標頭、中文標頭與認不出的標頭。
 /// oracle：欄位辨識規格（三欄各自判定：確切欄名優先，再比對還沒被認領的欄的關鍵字，最後照剩下的欄位順序）。
 /// </summary>
 public sealed class AccountMappingColumnResolverTests
 {
-    public static IEnumerable<object[]> K7HeaderOrders()
+    public static IEnumerable<object[]> HeaderOrders()
     {
         int[][] orders = [[0,1,2], [0,2,1], [1,0,2], [1,2,0], [2,0,1], [2,1,0]];
         string[][] names =
@@ -28,7 +28,7 @@ public sealed class AccountMappingColumnResolverTests
     }
 
     [Theory]
-    [MemberData(nameof(K7HeaderOrders))]
+    [MemberData(nameof(HeaderOrders))]
     public void ResolvesExactNamesThenUnclaimedKeywordsThenPositions(
         string[] columns, string code, string name, string category)
     {

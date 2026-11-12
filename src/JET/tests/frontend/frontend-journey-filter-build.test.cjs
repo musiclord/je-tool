@@ -44,11 +44,11 @@ function buildFixture(options = {}) {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', 'filter-vouchers.js', ...FILTER_STEP_PARTS])
     vm.runInContext(readWwwroot('js/' + file), context, { filename: file });
   vm.runInContext(exposeAt(readWwwroot('js/steps/filter-step.js'), "  Ui.registerStep('filter', render);",
-    '  window.filterBuild = { syncViewState: syncViewState, render: render, toWireDraft: toWireDraft };\n'), context, { filename: 'steps/filter-step.js' });
+    '  window.exposedFilter = { syncViewState: syncViewState, render: render, toWireDraft: toWireDraft };\n'), context, { filename: 'steps/filter-step.js' });
   window.JetApi = contractJetApi({});
   for (const action of ['filterPreview', 'queryFilterVoucherPage', 'queryFilterVoucherRowsPage'])
     window.JetApi[action] = payload => new Promise((resolve, reject) => requests.push({ action, payload, resolve, reject }));
-  const store = window.JetStore, api = window.filterBuild;
+  const store = window.JetStore, api = window.exposedFilter;
   store.setProject(project);
   store.setAccountMappingState(accountMapping);
   if (calendar) store.setCalendarState(calendar);
@@ -216,7 +216,7 @@ test('the revenue counterpart condition row explains cash and the card shows onl
   assert.equal(cardNotes(f, COUNTERPART).length, 0, 'the card shows only its name');
   f.click('[data-common-card="' + COUNTERPART + '"]');
   const row = f.$('.rule-row[data-gi="0"][data-ri="0"]');
-  assert.ok(row.querySelectorAll('.rule-explanation').some(node => node.textContent === COUNTERPART_CASH_NOTE), 'condition row shows the approved sentence');
+  assert.ok(row.querySelectorAll('.rule-explanation').some(node => node.textContent === COUNTERPART_CASH_NOTE), 'condition row shows the cash note');
   // 停用時卡片只寫停用原因。
   const blocked = buildFixture({ accountMapping: { hasAnyCategory: true, hasRevenue: true, hasCounterpart: false } });
   const blockedNotes = cardNotes(blocked, COUNTERPART).map(node => node.textContent);

@@ -1,0 +1,88 @@
+@startuml
+' JET 1.0.0.0 元件圖。範圍：執行期的元件、元件之間的介面與主要相依關係；外部元件僅列執行期載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。
+' 表示法：UML 元件圖。圓形為介面，實線接到提供介面的元件，虛線箭頭由使用端指向介面或被相依的元件；介面名稱第二行是定義該介面的模組。
+title JET 元件圖
+
+component "WinForms 主機\nJET/Program.cs、Form1.cs、AppCompositionRoot.cs\n建立視窗與 WebView2，組裝各層物件" as host
+component "Excel 範本\nJET/Templates\n8 份 Excel 範本，隨應用程式發行" as templates <<資源檔>>
+
+package "展示層" {
+  component "前端\nJET/wwwroot\n使用者介面（HTML、CSS、JavaScript）" as frontend
+  component "Bridge\nJET/Bridge\n接收前端送出的請求並分派，回傳結果與事件" as bridge
+}
+
+package "應用層" {
+  component "Application\nJET/Application\n各請求的處理常式，協調讀取、計算與儲存" as application
+}
+
+package "領域層" {
+  component "AuditCore\nJET/AuditCore\n審計規則：程序可否執行、SQL 片段與結果判定" as auditcore
+  component "Domain\nJET/Domain\n資料合約、基本型別與儲存介面" as domain
+}
+
+package "基礎設施層" {
+  component "案件資料存取\nJET/Infrastructure/Persistence、Infrastructure/Sql\n執行 SQL，讀寫 jet.db 與 project.json" as persistence
+  component "檔案存取\nJET/Infrastructure/FileIO\n讀取 Excel、文字檔與 Access 來源檔；儲存報告檔" as fileio
+  component "報告與工作底稿輸出\nJET/Infrastructure/Export\n依範本寫出 Excel 報告與工作底稿" as export
+  component "支援日誌\nJET/Infrastructure/Diagnostics\n記錄支援日誌，並寫入案件資料夾" as diagnostics
+}
+
+package "外部元件" {
+  component "Microsoft Edge WebView2 Runtime" as webview2
+  component "SQLite 原生程式庫（e_sqlite3）" as sqlite
+  component "Microsoft Access Database Engine（ACE OLE DB 16.0）" as ace
+}
+
+interface "Web 訊息通道" as WebMessageChannel
+interface "IApplicationActionHandler\n（Application 定義）" as IApplicationActionHandler
+interface "IHostShell\n（Application 定義）" as IHostShell
+interface "IJetEventPublisher\n（Application 定義）" as IJetEventPublisher
+interface "IValidationFactsPort、IProjectStore 等\n（AuditCore、Domain 定義）" as IDataAccess
+interface "ITabularFileReader、IReportStore 等\n（Domain 定義）" as ITabularFileReader
+interface "IWorkingPaperPlanWriter 等\n（AuditCore 定義）" as IWorkingPaperPlanWriter
+interface "ISupportDiagnosticLogStore\n（Domain 定義）" as ISupportDiagnosticLogStore
+interface "ISqlDialect\n（AuditCore 定義）" as ISqlDialect
+
+bridge - WebMessageChannel
+frontend ..> WebMessageChannel : requestId、action、payload
+application - IApplicationActionHandler
+bridge ..> IApplicationActionHandler : HandleAsync
+host - IHostShell
+application ..> IHostShell : 選檔、開啟資料夾、結束程式
+bridge - IJetEventPublisher
+application ..> IJetEventPublisher : 進度事件
+persistence - IDataAccess
+application ..> IDataAccess : 讀寫案件資料
+fileio - ITabularFileReader
+application ..> ITabularFileReader : 讀取來源檔、儲存報告檔
+export - IWorkingPaperPlanWriter
+application ..> IWorkingPaperPlanWriter : 寫出報告與工作底稿
+diagnostics - ISupportDiagnosticLogStore
+application ..> ISupportDiagnosticLogStore : 輸出支援日誌
+persistence - ISqlDialect
+auditcore ..> ISqlDialect : SQL 方言
+
+host ..> frontend : 載入本機頁面
+host ..> webview2 : 建立瀏覽器環境
+bridge ..> webview2 : 收發訊息
+application ..> auditcore : JetAuditProgram.Plan、Finalize
+application ..> domain : 資料合約
+auditcore ..> domain : 資料合約
+persistence ..> auditcore : 取用 SQL 片段
+export ..> auditcore : 工作底稿計畫與報告計畫
+fileio ..> auditcore : JetSchemaCatalog
+persistence ..> sqlite : Microsoft.Data.Sqlite
+fileio ..> ace : OLE DB
+export ..> templates : 讀取範本
+
+note right of host
+  啟動時建立 Bridge、Application
+  與基礎設施層各元件的物件，
+  並以建構子注入。
+end note
+note left of domain
+  Bridge 與基礎設施層各元件
+  也引用 Domain 的資料合約；
+  基礎設施層各元件之間也互相引用。
+end note
+@enduml

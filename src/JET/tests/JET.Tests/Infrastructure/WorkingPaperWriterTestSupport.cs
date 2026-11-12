@@ -57,7 +57,8 @@ internal static class WorkingPaperWriterTestSupport
         ICompletenessDiffPageRepository? completenessDiffsOverride = null,
         ICalendarExportRepository? calendarDaysOverride = null,
         IAccountMappingExportRepository? accountMappingsOverride = null,
-        IAccountMappingStore? accountMappingStateStoreOverride = null)
+        IAccountMappingStore? accountMappingStateStoreOverride = null,
+        ReportTemplateCatalog? templatesOverride = null)
     {
         var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
         var completenessAccounts = new LocalCompletenessAccountPageRepository(database);
@@ -79,7 +80,7 @@ internal static class WorkingPaperWriterTestSupport
             ?? new LocalAccountMappingRepository(database);
         var rawRows = new LocalRawGlExportRepository(database);
 
-        if (options is null && progressRowInterval == 10_000)
+        if (options is null && progressRowInterval == 10_000 && templatesOverride is null)
         {
             return new WorkingPaperWriter(
                 completenessAccounts,
@@ -110,7 +111,8 @@ internal static class WorkingPaperWriterTestSupport
             options ?? new WorkingPaperWriterOptions(),
             progressRowInterval,
             rawRows,
-            accountMappingStateStore);
+            accountMappingStateStore,
+            templates: templatesOverride);
     }
 
     internal static WorkingPaperContext ContextFor(string projectId) => new(
@@ -703,7 +705,11 @@ internal static class WorkingPaperWriterTestSupport
     // 照 Excel 決定格子樣式的順序判斷鎖定，檔案裡沒有的格子也能判斷：有格子就看格子的樣式；
     // 沒有格子時先看設了 customFormat 的列樣式，再看欄的預設樣式，都沒有時用第 0 號樣式。
     // 樣式沒有保護設定時算鎖定。
-    internal static bool IsCellLocked(WorkbookPart workbookPart, Worksheet worksheet, string cellReference)
+    internal static bool IsCellLocked(WorkbookPart workbookPart, Worksheet worksheet, string cellReference) =>
+        EffectiveCellFormat(workbookPart, worksheet, cellReference).Protection?.Locked?.Value ?? true;
+
+    // 一格實際套用的樣式，判斷順序同上；檔案裡沒有的格子也查得到。
+    internal static CellFormat EffectiveCellFormat(WorkbookPart workbookPart, Worksheet worksheet, string cellReference)
     {
         var letters = new string(cellReference.TakeWhile(char.IsAsciiLetterUpper).ToArray());
         var rowIndex = uint.Parse(cellReference[letters.Length..], CultureInfo.InvariantCulture);
@@ -722,9 +728,8 @@ internal static class WorkingPaperWriterTestSupport
                     .FirstOrDefault(item => item.Min?.Value <= columnIndex && columnIndex <= item.Max?.Value)
                     ?.Style?.Value
                 ?? 0U;
-        var format = Assert.IsType<CellFormat>(
+        return Assert.IsType<CellFormat>(
             workbookPart.WorkbookStylesPart!.Stylesheet!.CellFormats!.ElementAt(checked((int)styleIndex)));
-        return format.Protection?.Locked?.Value ?? true;
     }
 
     internal static void AssertCellNumberFormat(

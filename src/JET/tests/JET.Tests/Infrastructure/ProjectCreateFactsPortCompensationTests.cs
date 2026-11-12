@@ -284,7 +284,7 @@ public sealed class ProjectCreateFactsPortCompensationTests
             ProjectDocument.DefaultDatabaseProvider,
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             sampleSeed: 123,
-            // 目前版本建案一律寫入現行 INF 抽樣版本；版本 1 已改判為舊版 JET 案件，測試資料跟著用現行版本。
+            // 建案一律寫入現行 INF 抽樣版本；抽樣版本是 1 的設定檔不被接受，所以測試資料用現行版本。
             sampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
         return JetAuditProgram.Plan(new ProjectCreateRequest(
             document,

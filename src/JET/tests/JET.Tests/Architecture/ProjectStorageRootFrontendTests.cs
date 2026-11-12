@@ -8,7 +8,7 @@ public sealed class ProjectStorageRootFrontendTests
     [Fact]
     public void ProductSource_HasNoLegacyStorageMigrationContractOrImplementation()
     {
-        var productRoot = Path.Combine(RepoRoot(), "JET");
+        var productRoot = Path.Combine(SolutionRoot(), "JET");
         var sources = Directory
             .EnumerateFiles(productRoot, "*", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
@@ -29,7 +29,7 @@ public sealed class ProjectStorageRootFrontendTests
     [Fact]
     public void Frontend_HasNoLegacyStorageMigrationContractOrUi()
     {
-        var frontendRoot = Path.Combine(RepoRoot(), "JET", "wwwroot");
+        var frontendRoot = Path.Combine(SolutionRoot(), "JET", "wwwroot");
         var sources = Directory
             .EnumerateFiles(frontendRoot, "*", SearchOption.AllDirectories)
             .Where(path => Path.GetExtension(path) is ".js" or ".css" or ".html")
@@ -48,7 +48,7 @@ public sealed class ProjectStorageRootFrontendTests
     private static void AssertForbidden(IEnumerable<string> sources, string value)
         => Assert.DoesNotContain(sources, source => source.Contains(value, StringComparison.Ordinal));
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

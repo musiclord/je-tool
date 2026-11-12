@@ -4,7 +4,7 @@ namespace JET.Domain;
 
 /// <summary>
 /// 把 <see cref="FilterScenarioValidator"/> 的逐條訊息轉成帶位置的錯誤細節。驗證器用固定前綴
-/// 「第 N 組第 M 條：」或「第 N 組：」標示位置；仍可讀舊版的「條件群組 N 規則 M」前綴，
+/// 「第 N 組第 M 條：」或「第 N 組：」標示位置；也認得「條件群組 N 規則 M」這種前綴，
 /// 這裡只解析該前綴；解析不到的訊息位置為 null，前端就以整段訊息呈現。
 /// </summary>
 public static partial class FilterScenarioErrorDetails

@@ -7,55 +7,55 @@ toc: true
 
 | 項目 | 內容 |
 |---|---|
-| 軟體名稱與版本 | JET 1.0.0.0，首次發布。 |
-| 文件目的 | 說明 JET 的範圍、架構、相依元件、安全、測試與部署。 |
-| 讀者 | 審查 JET 的人員，以及維護 JET 的開發人員。 |
+| 軟體名稱與版本 | JET（Journal Entry Testing）1.0.0.0，首次發行。 |
+| 文件目的 | 記載 JET 的範圍、架構、第三方元件、安全、測試與部署。 |
+| 讀者 | JET 的複核人員，以及維護 JET 的開發人員。 |
 | 文件負責人 | 待填 |
-| 核准狀態 | 草稿 |
+| 核准狀態 | 待填 |
 | 複核日期 | 待填 |
 
 | 版次 | 日期 | 修訂說明 |
 |---|---|---|
-| 0.1 | 2026-11-10 | 初版。 |
+| 0.1 | 2026-11-12 | 初版。 |
 
 ## 2. Software Overview & Scope
 
-JET 是協助審計員執行分錄測試的 Windows 桌面工具。審計員匯入受查者提供的總帳與試算表，依六個步驟完成欄位配對、資料驗證、預篩選與條件篩選，最後匯出 Excel 工作底稿。
-
 | 項目 | 內容 |
 |---|---|
-| 主要功能 | 建立案件、匯入資料、欄位配對、資料驗證與測試、進階條件篩選、匯出底稿。 |
+| 業務目的 | 供審計員執行分錄測試的 Windows 桌面應用程式。審計員匯入受查者的總帳（GL）與試算表（TB），測試後匯出 Excel 工作底稿。 |
+| 主要功能 | 六個步驟：建立案件、匯入資料、欄位配對、資料驗證與測試、進階條件篩選、匯出底稿。 |
 | 使用者 | 執行分錄測試的審計員。 |
-| 系統邊界 | 在使用者電腦上單機執行。案件資料存放在本機 SQLite 資料庫，不連線遠端資料庫或外部服務。 |
-| 前提 | Windows 11 64 位元，電腦已安裝 WebView2 Runtime。來源資料由查核團隊取得。 |
-| 限制 | 匯入 Access 資料表需要電腦已有 64 位元 Access Database Engine。直接開啟同步資料夾或共用位置上的案件尚未驗證。 |
-| 不在範圍內 | JET 不判斷審計結論。案件資料的缺失與風險由審計員判斷並在底稿說明。 |
+| 系統邊界 | 單機執行。案件資料存放於本機的 SQLite 資料庫，不連線至遠端資料庫或外部服務。 |
+| 假設 | 執行環境為 Windows 11 64 位元，已安裝 WebView2 Runtime。GL 與 TB 由查核團隊向受查者取得。 |
+| 限制 | 匯入 Access 資料表須已安裝 64 位元 Access Database Engine。案件根資料夾須位於本機磁碟，不接受網路路徑。其餘見第 19 節。 |
+| 範圍外事項 | JET 不作成查核結論。案件資料的缺失與風險由審計員判斷，並於工作底稿說明。 |
 
 ## 3. Requirements & Constraints
 
 | 類別 | 需求 |
 |---|---|
-| 功能 | 六個步驟的功能見第 2 節。審計邏輯沿用舊版 IDEA JET，並依查核團隊的作業需求調整。 |
-| 效能 | 大量資料的篩選與彙總由 SQLite 處理，畫面只讀取摘要與分頁，明細每頁最多 200 筆。處理時間尚未建立基準。 |
-| 可用性與延展性 | 不適用。JET 是單機程式，沒有常駐服務；每個案件使用一個資料庫檔。 |
-| 無障礙 | 本次未訂定需求。 |
+| 功能 | 六個步驟的功能，見第 2 節。 |
+| 效能 | 資料處理方式見第 6 節的架構決策；前端僅載入摘要與分頁資料，每頁 200 筆。尚未建立效能基準，量測方式見第 14 節。 |
+| 可用性與延展性 | 不適用。JET 為單機桌面應用程式，無常駐服務；每個案件使用一個資料庫檔。 |
+| 無障礙 | 未訂定無障礙標準。文字對比的規則見 Design Principle.docx 第 2 節。 |
 | 安全 | 見第 12 節。 |
-| 相容性 | Windows 11 64 位元。匯入 Excel（.xlsx、.xlsm、.xls）、文字檔（.csv、.txt）與 Access（.mdb、.accdb），輸出 Excel（.xlsx）。 |
-| 驗收條件 | 自動測試全部通過；程式碼審查的結論為通過；SAT 測試情境全部通過。 |
+| 相容性 | Windows 11 64 位元。匯入 Excel（.xlsx、.xlsm、.xls）、文字檔（.csv、.txt）與 Access（.mdb、.accdb）；輸出 Excel（.xlsx）。 |
+| 驗收條件 | 自動化測試全數通過；程式碼複核（code review）的結論為通過或例外核准；SAT 測試情境全數通過。 |
+| 需求出處 | 審計規則沿用舊版 JET（IDEA 版），並依查核團隊的作業需求調整。 |
 
 ## 4. Technology Stack & Dependencies
 
+元件清冊與弱點查詢見第 5 節。
+
 | 項目 | 採用內容 |
 |---|---|
-| 語言與框架 | C#、.NET 10（net10.0-windows）。WinForms 提供視窗，WebView2 顯示隨程式提供的網頁。 |
-| 畫面 | HTML、CSS 與 JavaScript；圖表使用 Apache ECharts。 |
-| 資料庫 | SQLite。使用 Microsoft.Data.Sqlite 10.0.13 與 SQLitePCLRaw.bundle_e_sqlite3 3.0.5，原生 SQLite 為 3.53.4。 |
-| Excel 與 Access | DocumentFormat.OpenXml 3.5.1、ClosedXML 0.105.1、ExcelDataReader 3.9.0、System.Data.OleDb 10.0.13。 |
-| 其他套件 | Microsoft.Web.WebView2 1.0.4258.31、Microsoft.Extensions.Logging 10.0.13。 |
+| 語言與框架 | C#、.NET 10（net10.0-windows）。WinForms 視窗內嵌 WebView2，載入隨 JET 發行的本機頁面。 |
+| 前端 | HTML、CSS 與 JavaScript；圖表採用 Apache ECharts。 |
+| 資料庫 | SQLite 3.53.4，經 Microsoft.Data.Sqlite 與 SQLitePCLRaw.bundle_e_sqlite3 存取。 |
+| Excel 與 Access | DocumentFormat.OpenXml、ExcelDataReader、System.Data.OleDb；ClosedXML 僅用於 Debug 組態的示範資料檔。 |
+| 其他套件 | Microsoft.Web.WebView2、Microsoft.Extensions.Logging。 |
 | 外部服務 | 無。 |
-| 相容性限制 | 只發布 win-x64。WebView2 Runtime 與 Access Database Engine 使用電腦上已安裝的版本，不隨 JET 發布。 |
-
-完整元件清冊與相依風險見第 5 節。
+| 相容性限制 | 僅提供 win-x64 發行檔，內含 .NET 執行環境。WebView2 Runtime 與 Access Database Engine 不隨 JET 發行。 |
 
 ## 5. Dependency Security: SBOM & SCA
 
@@ -63,16 +63,19 @@ JET 是協助審計員執行分錄測試的 Windows 桌面工具。審計員匯�
 
 | 項目 | 內容 |
 |---|---|
-| 涵蓋範圍 | 產品專案直接引用 9 個 NuGet 套件，含間接引用共 23 個；另列 34 個僅供測試的套件，以及隨程式提供的 ECharts、圖示與字型。 |
-| 不涵蓋 | Windows、Office、Access Database Engine 與 WebView2 Runtime；這些元件不隨 JET 發布。 |
-| 清冊 | 直接引用的元件列在下表。套件與版本宣告在 JET/JET.csproj 與 tests/JET.Tests/JET.Tests.csproj。 |
-| 產生方式 | 依專案的套件還原結果整理，授權依各套件宣告與來源條款核對。 |
-| 格式 | 含間接引用的完整清冊，尚未以 SPDX 或 CycloneDX 格式輸出。 |
-| 對應版本 | 1.0.0.0。提交編號與發布檔識別：待填 |
+| 涵蓋範圍 | JET 程式碼儲存庫（repository）引用的第三方元件。應用程式專案直接引用 9 個 NuGet 套件，含間接引用共 23 個；測試專案另引用 34 個套件，不隨 JET 發行。前端另含 Apache ECharts、圖示與字型。 |
+| 容器 | 不適用，JET 不以容器發行。 |
+| 發行檔 | 清冊依原始碼的套件引用整理，未掃描發行檔。 |
+| 排除項目 | Windows、Microsoft Office、Access Database Engine 與 WebView2 Runtime。發行檔內含的 .NET 10 執行環境未列入清冊，其版本依建置時的 .NET SDK 而定。 |
+| 維護責任 | 開發人員於套件變更時更新清冊。 |
+| 元件識別 | 以元件名稱與版本識別；清冊未列供應商與其他識別碼。 |
+| 相依關係 | 下表為直接引用的元件；間接引用的 14 個套件未逐項列出。 |
+| 產生方式 | 未使用 SBOM 產生工具。依開發環境的套件還原結果整理，授權依各元件的宣告核對。 |
+| 格式 | 表列。尚未產出 SPDX 或 CycloneDX 格式的 SBOM。 |
+| 存放與保存期限 | 清冊列於本節；套件與版本宣告於 JET/JET.csproj 與 tests/JET.Tests/JET.Tests.csproj。存取方式與保存期限：未訂定。 |
+| 追溯 | 對應 JET 1.0.0.0。提交識別碼（commit ID）、建置識別碼與發行檔雜湊值：待填 |
 
-產品元件沒有另購商用版的要求，仍須遵守各元件的散布條件。NuGet 授權聲明尚需納入正式發布包。
-
-直接引用的元件：
+所列元件無須另購商業授權；散布時須遵守各元件的授權條款。
 
 | 元件 | 版本 | 授權 |
 |---|---|---|
@@ -82,23 +85,29 @@ JET 是協助審計員執行分錄測試的 Windows 桌面工具。審計員匯�
 | Microsoft.Data.Sqlite | 10.0.13 | MIT |
 | Microsoft.Extensions.Logging | 10.0.13 | MIT |
 | Microsoft.Extensions.Logging.Abstractions | 10.0.13 | MIT |
-| Microsoft.Web.WebView2 | 1.0.4258.31 | Microsoft 的 BSD 三條款授權 |
-| SQLitePCLRaw.bundle_e_sqlite3 | 3.0.5 | Apache-2.0 |
+| Microsoft.Web.WebView2 | 1.0.4258.31 | Microsoft WebView2 SDK 授權（BSD 三條款形式） |
+| SQLitePCLRaw.bundle_e_sqlite3 | 3.0.5 | Apache-2.0；內含的 SQLite 3.53.4 為公有領域（public domain） |
 | System.Data.OleDb | 10.0.13 | MIT |
-| Apache ECharts（含 d3.js 子元件） | 5.5.0 | Apache-2.0；d3.js 為 BSD-3-Clause |
+| Apache ECharts（含 ZRender、tslib 與 d3.js 子元件） | 5.5.0 | Apache-2.0；ZRender 與 d3.js 為 BSD-3-Clause，tslib 為 0BSD |
 | Fluent UI System Icons | 1.1.344 | MIT |
-| Noto Sans TC、Instrument Sans | 字型檔 | SIL Open Font License 1.1 |
+| Instrument Sans | Google Fonts v4 | SIL Open Font License 1.1 |
+| Noto Sans TC | 未標示 | SIL Open Font License 1.1 |
 
 ### 5.2 SCA & Remediation
 
 | 項目 | 內容 |
 |---|---|
-| 工具與範圍 | .NET SDK 的套件漏洞查詢，範圍為產品專案的直接與間接引用。 |
-| 資料來源 | 專案設定的 NuGet 套件來源所提供的公開漏洞資料。 |
-| 查詢日期與結果 | 2026-11-06 查詢成功，未列出已知漏洞。 |
-| 已處理事項 | CVE-2025-6965（CVSS 4.0 分數 7.2）影響 SQLitePCLRaw 舊原生套件 2.1.11 及以前版本，SQLite 修正版本為 3.50.2。目前使用的 SQLite 3.53.4 已高於修正版本。 |
-| 授權檢查 | 逐一核對各元件的授權與散布義務。直接引用元件的授權見 5.1。 |
-| 處理責任與期限 | 由開發人員更新套件並重新查詢。處理期限尚未訂定。 |
+| 工具與範圍 | .NET 10 SDK 的 NuGet 套件弱點查詢（dotnet package list）；範圍為應用程式專案直接與間接引用的 NuGet 套件，不含發行檔內含的 .NET 執行環境與前端元件。 |
+| 資料來源 | nuget.org 提供的公開弱點資料。 |
+| 查詢日期與結果 | 2026-11-06 查詢，未發現已知弱點。 |
+| 已處置事項 | GitHub 公告 GHSA-2m69-gcr7-jv3q：SQLitePCLRaw.lib.e_sqlite3 2.1.11 及更早的版本內含受 CVE-2025-6965（CVSS 4.0 分數 7.2）影響的 SQLite，建議升級至 SQLite 3.50.2 以上。專案直接引用 SQLitePCLRaw.bundle_e_sqlite3 3.0.5，取代 Microsoft.Data.Sqlite 10.0.13 宣告引用的 2.1.13；套件還原結果不含公告所列的套件，SQLite 為 3.53.4。 |
+| 授權檢查 | 逐一核對直接與間接引用元件的授權。直接引用元件的結果見第 5.1 節；間接引用的 14 個套件為 MIT 9 個、Apache-2.0 4 個，以及公有領域的 SQLite。 |
+| 停止維護元件的檢查 | 未執行。 |
+| 誤判 | 無。 |
+| 處置責任與期限 | 開發人員更新套件後重新查詢。處置期限：未訂定。 |
+| 複核與例外核准的責任 | 待填 |
+| 元件核准與授權政策 | 未訂定。 |
+| 合併與發行的阻擋條件 | 未訂定。 |
 | 例外核准 | 無。 |
 
 查詢命令：
@@ -111,253 +120,297 @@ dotnet package list --project JET/JET.csproj `
 
 ### 5.3 CI/CD & Release Evidence
 
-本專案沒有 CI/CD 管線，套件漏洞查詢在開發電腦執行。更新套件後重新查詢；正式發布前對最終發布檔再查一次。
+未建置 CI/CD 管線，見第 15 節。弱點查詢於開發環境執行，最近一次見第 5.2 節。
 
 | 項目 | 內容 |
 |---|---|
-| 1.0.0.0 的清冊與查詢報告 | 清冊見 5.1，查詢結果見 5.2。 |
-| 未結案事項與核准的例外 | 無。 |
+| 1.0.0.0 的元件清冊與查詢結果 | 見第 5.1 節與第 5.2 節。 |
+| 發行前的弱點查詢 | 待填 |
+| 查詢報告的保存 | 未訂定。 |
+| 發行後出現新弱點時的重新評估 | 未訂定。 |
+| 未結事項與例外核准 | 無。 |
 | 核准決定與簽核日期 | 待填 |
 
 ## 6. System Architecture
 
-![JET 系統組成](diagrams/framework.png)
+![JET 系統組成圖](diagrams/framework.png)
 
-| 部分 | 職責 |
+| 層級 | 模組 | 職責 |
+|---|---|---|
+| WinForms 主機 | Program、Form1、AppCompositionRoot | 建立 WinForms 視窗與 WebView2，並組裝各層的物件。 |
+| 展示層 | JET/wwwroot、Bridge | 前端接收審計員的輸入並呈現結果；Bridge 接收並分派前端送出的請求。 |
+| 應用層 | Application | 各請求的處理常式；協調資料的讀取、審計規則的計算與結果的儲存。 |
+| 領域層 | AuditCore、Domain | AuditCore 執行審計規則的判定與計算；Domain 定義資料合約、基本型別、規則定義（Domain/Rules）與儲存介面（Domain/Abstractions）。 |
+| 基礎設施層 | Infrastructure | SQLite 存取、來源檔讀取、報告與工作底稿輸出、日誌。 |
+
+前端與後端的請求、回應與事件經 WebView2 的 Web 訊息通道交換，見第 11 節；關閉視窗時，WinForms 主機另以指令碼呼叫前端的函式。部署模型為單機，發行資料夾複製至審計員的電腦後執行。設計假設見第 2 節。
+
+| 架構決策 | 理由與取捨 |
 |---|---|
-| 操作畫面 | WinForms 承載 WebView2，顯示隨程式提供的網頁，負責輸入與結果呈現。 |
-| 操作處理 | Bridge 接收畫面訊息，Application 安排處理順序與回應。 |
-| 審計規則 | AuditCore 與 Domain 定義計算、納入範圍及資料意義。 |
-| 資料與檔案處理 | Infrastructure 執行 SQLite 查詢、資料匯入及 Excel 輸出。 |
-| 案件資料庫 | SQLite 保存來源資料、配對結果及計算結果。 |
-| 報告與底稿 | 報告可重新產生；正式工作底稿每次匯出保留新版本，不覆寫舊檔。 |
-
-畫面與 C# 之間只透過一條訊息通道溝通：畫面送出操作名稱與參數，C# 回傳結果摘要，明細另以分頁讀取。
-
-| 設計決定 | 原因與取捨 |
-|---|---|
-| 大量資料留在 SQLite，以 SQL 篩選與彙總 | 畫面不必載入整份總帳；每次查詢都經過資料庫。 |
-| 以 WebView2 顯示畫面 | 畫面以網頁技術開發；電腦需要 WebView2 Runtime。 |
-| 單機、每案一個資料庫檔 | 不需要資料庫伺服器；搬移案件時複製整個案件資料夾。 |
-| 審計規則集中在核心模組 | 畫面與報告沿用同一份結果，不各算一套。 |
+| 篩選與彙總於 SQLite 以 SQL 執行 | 前端無須載入完整的 GL；每次查詢皆須存取資料庫。 |
+| 前端採網頁技術，由 WebView2 載入 | 使用者介面以 HTML、CSS 與 JavaScript 開發，由 Windows 內建的 WebView2 Runtime 載入；執行環境須具備 WebView2 Runtime。 |
+| 單機執行，每個案件一個資料庫檔 | 無須資料庫伺服器；案件以資料夾為單位複製與移轉。 |
+| 審計規則的判定集中於 AuditCore，規則定義置於 Domain/Rules | 前端、報告與工作底稿使用同一份計算結果。 |
 
 ## 7. Diagrams & Technical Design
 
-| 圖表 | 位置 |
-|---|---|
-| 系統組成圖 | 第 6 節 |
-| 資料表關聯圖（ERD） | Diagrams/ERD.png，文字定義為 Diagrams/ERD.txt |
-| UML 類別圖 | Diagrams/UML Diagram.png，文字定義為 Diagrams/UML Diagram.txt |
-| 循序圖與資料流程圖 | 本次未製作 |
+Diagrams 資料夾內的圖檔為 .png；文字定義為同名的 .txt，採 PlantUML 格式與 UTF-8 編碼。
 
-**圖表說明**
+| 圖表 | 內容 | 檔案 |
+|---|---|---|
+| 系統組成圖 | 系統情境（審計員、來源檔、案件資料庫與輸出檔）、各層的模組與呼叫方向。 | 第 6 節 |
+| 元件圖 | 內部元件、介面與外部元件。 | Diagrams/Structure Diagrams/Component Diagram |
+| 類別圖 | 處理資料驗證與匯出工作底稿兩項請求的主要類別。 | Diagrams/Structure Diagrams/Class Diagram |
+| 活動圖 | 「資料驗證與測試」步驟的作業流程。 | Diagrams/Behavior diagrams/Activity Diagram |
+| 實體關聯圖（ERD） | 案件資料庫的 29 張資料表與欄位。圖中的連線表示查詢時用於關聯的欄位；資料庫未宣告外鍵。 | Diagrams/ERD |
+| 開發至部署的流程圖 | 開發至正式部署的各階段。 | Workflow.xlsx |
+| 循序圖、資料流程圖、部署圖 | 未提供。部署模型見第 6 節。 | 無 |
 
-資料表關聯圖列出案件資料庫的全部資料表與欄位，依匯入來源、配對與整理後的資料、規則與結果、系統紀錄分成四組。資料表之間的線代表 SQL 查詢使用的關聯欄位；資料庫沒有宣告外鍵。
-
-UML 類別圖以「資料驗證」與「匯出工作底稿」兩項操作為例，畫出畫面送出操作後接手的主要類別。
-
-兩張圖都由現行程式產生或核對，程式改動後重新產生。
-
-**信任邊界**
-
-JET 在單一程序內執行。WebView2 只載入隨程式提供的頁面，阻擋外部導覽與新視窗。程式不對外連線，來源檔與輸出檔都由使用者在本機選取。
+信任邊界為審計員的 Windows 工作階段，JET 與 WebView2 的處理程序均於其中執行，JET 未實作網路連線。外部輸入為審計員選取的來源檔與前端送出的請求，控制見第 12.1 節。
 
 ## 8. Source Code Structure & Development Standards
 
-路徑以方案檔 JET.slnx 所在的資料夾為起點。
+以下路徑以方案檔 JET.slnx 所在的資料夾為起點。
 
 | 位置 | 內容 |
 |---|---|
-| JET.slnx | 方案檔，包含產品專案與測試專案。 |
-| JET/Form1.cs、Program.cs | 啟動視窗及 WebView2。 |
-| JET/wwwroot | 畫面、字型與圖示。 |
-| JET/Bridge、Application | 接收操作與安排處理。 |
-| JET/AuditCore、Domain | 審計規則與基本資料定義。 |
-| JET/Infrastructure | SQLite、匯入及報告輸出。 |
-| JET/Templates | 隨程式交付的八份 Excel 範本。 |
-| tests/JET.Tests | C# 單元、整合及架構測試。 |
-| tests/frontend | 畫面程式的測試，以 Node.js 執行。 |
+| JET.slnx | 方案檔，含應用程式專案與測試專案。 |
+| JET/Program.cs、Form1.cs | 進入點；建立視窗並初始化 WebView2。 |
+| JET/wwwroot | 前端的本機頁面、字型與圖示。 |
+| JET/Bridge、Application、AuditCore、Domain、Infrastructure | 各層的模組，職責見第 6 節。 |
+| JET/Templates | 隨 JET 發行的 8 份 Excel 範本。 |
+| tests/JET.Tests、tests/frontend | 後端測試與前端測試。 |
 
-| 項目 | 做法 |
+| 項目 | 內容 |
 |---|---|
-| 命名 | 同一概念在畫面、報告與程式只用一個名稱。 |
-| 程式撰寫 | 見 Design Principle。 |
-| 分支 | 單一 main 分支，未使用功能分支與 Pull Request。 |
-| 提交 | 訊息使用繁體中文，標題一行說明改了什麼，內文寫主要變更與必要原因。 |
-| 修改流程 | 修改後先執行相關測試，由專案負責人確認後提交。 |
+| 撰寫慣例 | 見 Design Principle.docx。 |
+| 命名慣例 | 見 Design Principle.docx 第 4 節。 |
+| 分支策略 | 單一 main 分支；未使用功能分支與 Pull Request。 |
+| 提交慣例 | 提交訊息以繁體中文撰寫；標題以一行摘要變更內容，內文說明主要變更與原因。 |
+| 貢獻流程 | 變更完成後執行受影響的自動化測試，經專案負責人確認後提交。 |
 
 ## 9. Development Environment & Configuration
 
-| 項目 | 用途與需求 |
+| 項目 | 用途 |
 |---|---|
-| Windows x64 | 開發及執行桌面程式。 |
-| .NET 10 SDK | 編譯 C# 與執行測試。 |
-| Node.js 26 | 執行畫面程式的測試。 |
-| Visual Studio 或 VS Code | 閱讀、偵錯及發布程式。 |
-| Microsoft Excel | 檢查產出工作簿的實際操作及相容性。 |
+| Windows 11 64 位元 | 開發與執行。 |
+| .NET 10 SDK | 建置應用程式與後端測試。 |
+| Node.js 26 | 執行前端測試。 |
+| Visual Studio 或 VS Code | 編輯、偵錯與發行。 |
+| Microsoft Excel | 開啟匯出的活頁簿，確認內容與相容性。 |
 
-以 Visual Studio 開啟 JET.slnx，或以 VS Code 開啟方案資料夾。建置與啟動：
+以 Visual Studio 開啟 JET.slnx，或以 VS Code 開啟方案資料夾。建置與執行：
 
 ```
 dotnet build JET.slnx -c Debug
 dotnet run --project JET/JET.csproj -c Debug
 ```
 
-JET 不讀取環境變數，也沒有需要填寫的密碼或金鑰。開發與正式環境使用相同的程式設定，差別只在建置組態（Debug 或 Release）。
+JET 讀取的環境變數僅 JET_PROJECTS_ROOT 一項，用於指定案件根資料夾，例如 `D:\JET`；未設定時為 `%USERPROFILE%\JET`。除各案件的設定檔 project.json（見第 10 節）外，JET 無其他設定檔，亦無密碼或金鑰。開發環境與正式環境僅建置組態不同。
 
 ## 10. Data Design & Management
 
-每個案件一個資料夾，預設位於 %USERPROFILE%\JET，內含案件設定檔、SQLite 資料庫、報告及日誌。資料表與欄位見 Diagrams/ERD.png。
+每個案件一個資料夾，位於案件根資料夾之下，內含案件設定檔 project.json、資料庫 jet.db、報告、工作底稿與支援日誌。資料表與欄位見實體關聯圖（ERD）。
 
 | 項目 | 內容 |
 |---|---|
-| 資料模型 | 來源資料原樣保存；欄位配對後另建整理過的總帳與試算表。驗證結果、預篩選結果、抽樣樣本、篩選情境與操作紀錄各有資料表。 |
-| 金額 | 以整數保存到小數第四位，顯示格式不改變計算值。 |
-| 驗證 | 匯入時檢查各來源的欄位是否一致。配對後核對存入的筆數與合計。 |
-| 結構版本 | 資料庫記錄結構版本，目前為第 20 版。版本不符時不寫入，請審計員刪除案件後重建；沒有逐版升級程序。 |
-| 保存與清除 | 案件資料留在本機，由使用者保存或刪除，JET 不自動清除。 |
-| 備份與復原 | 正常關閉 JET 後複製整個案件資料夾。 |
-| 機敏資料 | 案件資料可能含客戶機密與人員名稱，只在本機處理。支援日誌不記錄案件內容。資料庫未另行加密。 |
+| 資料模型 | 來源資料原樣保存；欄位配對確認後另建標準化的 GL 與 TB。資料驗證、預篩選、資料可靠性測試、篩選情境與操作紀錄各有資料表。 |
+| 金額 | 以整數儲存，精度至小數第 4 位；顯示格式不影響計算值。 |
+| 資料檢查 | 匯入多個來源檔時，欄位不一致則不匯入。欄位配對確認時記錄存入的筆數與借貸合計，資料驗證時核對。 |
+| 結構版本與移轉 | 資料庫結構為第 20 版。版本不符的案件無法開啟，須刪除後重新建立；未提供移轉機制。 |
+| 保存 | 案件資料留在本機，由審計員保存或刪除；JET 不自動清除。 |
+| 備份與復原 | 關閉 JET 後複製整個案件資料夾；復原時以原資料夾名稱放回案件根資料夾。資料夾名稱與案件名稱不符時無法開啟。 |
+| 機敏資料 | 案件資料可能含受查者的機密與人員名稱，僅於本機處理。支援日誌不記錄案件內容。資料庫未加密。 |
 
 ## 11. APIs & External Integrations
 
-JET 沒有對外的 API，也不呼叫外部服務。
-
-畫面與 C# 之間使用內部訊息通道，各項操作的處理程式在 JET/Application/Handlers。
+JET 未提供對外的 API，亦不呼叫外部服務。前端與後端以 WebView2 的 Web 訊息通道交換 JSON 訊息，處理常式位於 JET/Application/Handlers。
 
 | 項目 | 內容 |
 |---|---|
-| 請求 | requestId、action（操作名稱，例如 validate.run）與 payload。 |
-| 成功回應 | 相同的 requestId、ok 為 true，以及 data。 |
-| 失敗回應 | ok 為 false，error 內含固定的錯誤碼與中文訊息。 |
-| 驗證 | 不適用。通道只存在於同一個程序內，WebView2 只載入隨程式提供的頁面。 |
-| 逾時與重試 | 不適用。長時間作業顯示進度，可由使用者取消。 |
-| 版本 | 通道隨程式版本發布，不另外編號。 |
-| 檔案介面 | 以 Open XML 讀寫 Excel；以 Access Database Engine 讀取 Access 資料表。 |
+| 請求 | requestId、action（請求名稱，例如 validate.run）與 payload。 |
+| 成功回應 | 相同的 requestId、ok 為 true、data，以及供日誌對照的 correlationId。 |
+| 失敗回應 | 相同的 requestId、ok 為 false、correlationId；error 含錯誤碼 code 與中文訊息 message，並可含 field 與 details。非預期的例外回覆固定訊息。 |
+| 事件 | 後端主動送出的進度訊息，含 event 與 data，不含 requestId。 |
+| 身分驗證 | 不適用。通道僅存在於本機的 JET 與其 WebView2 之間。 |
+| 逾時與重試 | 通道未設逾時，請求失敗後不自動重送；例外為訊息的寫入（log.append），失敗時留待下次狀態變更再送出。讀取 Access 資料表的查詢逾時為 30 秒。長時間作業可由審計員取消；進度回報的範圍見 Design Principle.docx 第 1 節。 |
+| 版本 | 訊息格式不另編版本，隨 JET 的版本發行。 |
+| 整合相依 | 以 Open XML 讀取 .xlsx 與 .xlsm、寫入 .xlsx，以 ExcelDataReader 讀取 .xls，以 Access Database Engine 讀取 Access 資料表。 |
+
+範例的 requestId 與 correlationId 為示意值：
+
+```
+請求
+{ "requestId": "11111111-2222-4333-8444-555555555555",
+  "action": "system.ping", "payload": {} }
+
+成功回應
+{ "requestId": "11111111-2222-4333-8444-555555555555", "ok": true,
+  "data": { "message": "JET host bridge ok.",
+            "utcNow": "2026-11-12T08:30:00.1234567+00:00",
+            "devToolsEnabled": false },
+  "error": null,
+  "correlationId": "0123456789abcdef0123456789abcdef" }
+
+失敗回應（validate.run 的 payload 為 { "sampleSize": 0 }）
+{ "requestId": "66666666-7777-4888-8999-000000000000", "ok": false,
+  "data": null,
+  "error": { "code": "invalid_payload",
+             "message": "抽樣筆數請填入 1 到 1048524 的整數。",
+             "field": "sampleSize" },
+  "correlationId": "fedcba9876543210fedcba9876543210" }
+```
 
 ## 12. Application Security & GitHub Security
 
 ### 12.1 Application Security
 
-| 項目 | 做法 |
+| 項目 | 現行控制 |
 |---|---|
-| 身分與權限 | JET 不另設登入，以目前登入 Windows 的帳號識別操作人員。案件檔案的存取由 Windows 檔案權限控管。 |
-| 資料保護 | 案件資料只在本機處理，不傳送到外部。 |
-| 輸入驗證 | SQL 查詢值以參數傳入；欄位與排序限制在程式允許的清單。 |
-| 機密管理 | 原始碼不含密碼、金鑰或權杖。 |
-| 介面與執行期 | WebView2 限定內建網址，阻擋外部導覽與新視窗，停用網頁直接存取主程式物件。非預期錯誤不顯示內部例外原文。 |
-| 檔案輸出 | 報告先寫入暫存位置，成功後才發布；正式工作底稿不覆寫既有檔案。 |
-| 弱點通報與處理 | 待填 |
+| 身分與權限 | JET 未設登入機制，以 Windows 登入帳號識別審計員。案件檔案的存取由 Windows 檔案權限控管。 |
+| 資料保護 | 案件資料僅於本機處理，不傳送至外部。 |
+| 輸入檢查 | SQL 採參數化查詢，欄位名稱與排序鍵以允許清單（allowlist）限制；規則見 Design Principle.docx 第 6 節。 |
+| 機密管理 | 原始碼未包含密碼、金鑰或權杖。 |
+| 介面與執行期 | WebView2 主框架僅允許導覽至本機頁面，封鎖新視窗，停用主機物件（host objects）；Release 組態停用開發人員工具。前端未使用 iframe，子框架的導覽未另行限制。非預期例外的處理見第 11 節。 |
+| 檔案輸出 | 報告與工作底稿寫入案件資料夾；暫存檔、檔名與覆寫的規則見 Design Principle.docx 第 6 節。 |
+| 弱點通報與處置 | 待填 |
 
 ### 12.2 GitHub & Repository Security
 
-JET 1.0.0.0 是代碼庫的首次提交。下列設定於代碼庫建立後填入，GitHub 的掃描結果存放在 Github Security Reports 資料夾。
+尚未執行 GitHub 掃描，Github Security Reports 資料夾目前沒有檔案。第三方元件的清冊與弱點查詢見第 5 節。
 
 | 項目 | 設定 |
 |---|---|
-| 存取 | 待填 |
-| 分支保護與必要審查 | 待填 |
+| 存取權限 | 待填 |
+| 分支保護、必要複核與必要檢查 | 待填 |
 | 機密掃描與推送保護 | 待填 |
 | 程式碼掃描 | 待填 |
-| 相依套件警示與審查 | 待填 |
-| 工作流程權限 | 不適用，沒有 GitHub Actions 工作流程。 |
+| 第三方元件警示與相依性複核 | 待填 |
+| 安全警示的處理 | 待填 |
+| 工作流程權限 | 不適用，未使用 GitHub Actions。 |
 
 ## 13. Code Review
 
-審查依 Code Review/Code review rule.docx 辦理：以單元測試結果為主要驗收依據，人工審查補足程式內的固定值與業務規則。
-
-| 步驟 | 內容 |
+| 項目 | 內容 |
 |---|---|
-| 作者提交 | 變更說明、受影響的程式、程式版本、Unit test Report，以及固定值與規則清單。 |
-| 審查者確認 | 核對測試結果與涵蓋範圍，人工檢視程式，以及固定值與規則的來源。 |
-| 作者處理 | 修正發現的問題，重跑受影響的測試並更新紀錄。 |
-| 審查者記錄 | 在 Code review.xlsx 填寫結論、審查者、日期、核准的程式版本與後續事項。 |
-
-JET 1.0.0.0 是首次提交，審查範圍為全部原始碼。審查紀錄、主要功能與對應的測試，以及固定值與規則清單，記在 Code review.xlsx。結論分為通過、需修正、例外核准三種。本專案未使用 Pull Request，審查紀錄以提交編號對應程式版本。
+| 複核流程 | 見 Code Review/Code review rule.docx。 |
+| 驗收依據與測試佐證 | 全部原始碼以自動化測試驗收，結果見 Code Review/Unit test Report.xlsx。 |
+| 人工複核的範圍 | 核心審計規則，以及程式內的固定值與規則（hard-coded content）。範圍依風險決定：直接影響查核結果的規則由人工複核。 |
+| 技術檢查表與紀錄 | Code Review/Code review.xlsx，含「複核紀錄」「複核範圍」「固定值與規則」三張工作表。 |
+| 核准條件 | 複核結論為通過或例外核准時核准；結論為需修正時，於修正完成前不得合併或發行。 |
+| 安全與第三方元件變更的複核 | 安全的檢查項目見「複核紀錄」；第三方元件變更後重新執行弱點查詢，見第 5.2 節。 |
+| 發現事項的處理 | 記錄於「複核紀錄」，依 Code Review/Code review rule.docx 處理。 |
+| Pull Request | 未使用。複核紀錄以提交識別碼標示受複核的提交。 |
 
 ## 14. Testing & Quality Assurance
 
-| 測試 | 內容 |
+| 測試類型 | 內容 |
 |---|---|
-| 單元、整合與架構測試 | C# 測試，使用 xUnit v3，位於 tests/JET.Tests。 |
-| 前端測試 | 以 Node.js 內建的測試執行器載入 JET/wwwroot 的畫面程式，用模擬的頁面元素與合成的後端回應操作畫面，核對畫面內容與送出的資料，位於 tests/frontend。 |
-| 回歸測試 | 修改後重跑受影響的測試；發布前執行完整的自動測試。 |
-| 效能測試 | 未建立基準。 |
-| 安全測試 | 套件漏洞查詢與限定範圍的原始碼檢視，見第 5 節與第 12 節。 |
-| 端對端與驗收測試 | 依 SAT 測試情境逐項操作六個步驟，結果記錄在測試情境文件。 |
+| 單元測試 | tests/JET.Tests，採 xUnit v3；核對審計規則與處理常式的輸出。 |
+| 整合測試 | tests/JET.Tests；以暫存的 SQLite 案件資料庫執行匯入至匯出的流程，並讀回匯出的活頁簿。 |
+| 架構測試 | tests/JET.Tests/Architecture；以 NetArchTest 檢查各層的相依方向。 |
+| 前端測試 | tests/frontend，採 Node.js 內建的測試執行器；以模擬的 DOM 與後端回應核對顯示內容與送出的請求。 |
+| 端對端測試 | 方案內未含自動化的端對端測試。驗收測試：待填 |
+| 迴歸測試 | 變更後執行受影響的測試；發行前執行全部自動化測試。 |
+| 效能測試 | 以 1,000,000 筆合成 GL 量測完整流程的耗時與記憶體用量；未設通過門檻。不在下列命令的範圍，量測結果未列入 Unit test Report.xlsx。 |
+| 安全測試 | NuGet 套件弱點查詢，見第 5.2 節。 |
 
-自動測試全部使用合成資料。C# 測試在建置方案後執行測試專案產生的測試程式，需要方案資料夾以外的資料或檔案的三組測試以參數排除。前端測試不需要建置，以 Node.js 直接執行；一次最多同時執行 4 個測試檔，合計占用的記憶體才不會隨 CPU 核心數增加。執行的命令如下：
+測試環境為開發環境，見第 9 節。後端測試於建置後執行，前端測試無須建置。下列命令執行的測試使用合成測試資料。命令排除三組標記的測試：Scale 為效能測試，PrivateCase 與 DevelopmentRepository 須讀取方案資料夾以外的檔案。
 
 ```
 dotnet build JET.slnx -c Debug
 tests/JET.Tests/bin/Debug/net10.0-windows/JET.Tests.exe `
-  --filter-not-trait "TestProfile=PrivateCase" "TestProfile=Scale" "TestProfile=DevelopmentRepository"
+  --filter-not-trait "TestProfile=PrivateCase" "TestProfile=Scale" `
+  "TestProfile=DevelopmentRepository"
 node --test --test-concurrency=4 tests/frontend/
 ```
 
-測試結果與 C# 行涵蓋率見 Code Review/Unit test Report.xlsx。涵蓋率只計 C# 程式，不含前端 JavaScript 與原生元件。
+驗收條件為上列命令執行的測試全數通過，無失敗與略過。結果見 Code Review/Unit test Report.xlsx 的「測試結果」「核心審計規則」「程式碼涵蓋率」工作表。程式碼涵蓋率為後端的行涵蓋率（line coverage），以 Microsoft.Testing.Extensions.CodeCoverage 量測，量測時於後端測試命令另加 `--coverage --coverage-output-format cobertura --coverage-output <輸出檔>`；未訂定門檻，前端的 JavaScript 未量測。
 
 ## 15. Build, CI/CD & Deployment
 
-本專案沒有 CI/CD 管線。建置、測試與封裝在開發電腦執行。
+未建置 CI/CD 管線；建置、測試與封裝於開發環境執行。
 
 | 項目 | 內容 |
 |---|---|
-| 建置與封裝 | 以 FolderProfile 發布 Release、win-x64 的自含式單一執行檔 JET.exe，連同 wwwroot 與 Templates 資料夾一起交付。 |
-| 發布前檢查 | 自動測試全部通過後才封裝發布檔。 |
-| 環境推進與核准 | 開發測試、驗收測試、正式部署。各階段的核准：待填 |
-| 部署前提 | Windows 11 64 位元與 WebView2 Runtime。不需安裝程式，把發布資料夾放到電腦上即可執行。 |
-| 資料移轉 | 不適用。沒有伺服器資料庫，案件資料庫由程式建立。 |
-| 復原 | 換回前一版的發布資料夾。1.0.0.0 是第一版，沒有前一版。 |
-| 部署後確認 | 以一般使用者帳號開啟 JET，建立案件並走完六個步驟。 |
+| 建置與產物 | 以發行設定檔 FolderProfile 發行 Release 組態、win-x64 的獨立式單一檔案（self-contained single-file）JET.exe；發行資料夾另含 wwwroot 與 Templates。 |
+| 管線階段與環境推進 | 見 Workflow.xlsx。 |
+| 發行前檢查 | 自動化測試全數通過後封裝發行檔；第三方元件的弱點查詢見第 5.3 節。 |
+| 核准 | 待填 |
+| 先決條件 | 見第 2 節的假設。無安裝程序，發行資料夾複製至本機後執行。 |
+| 移轉順序 | 不適用，案件資料庫於建立案件時產生。 |
+| 復原 | 以前一版的發行資料夾取代。1.0.0.0 為首次發行，無前一版。 |
+| 部署後確認 | 以一般權限的 Windows 帳號執行 JET，建立案件並完成六個步驟。 |
 
 ## 16. Operations, Monitoring & Troubleshooting
 
 | 項目 | 內容 |
 |---|---|
-| 日誌 | 畫面左下角的「訊息」區顯示操作訊息，可複製紀錄或輸出支援日誌。 |
-| 指標、警示與健康檢查 | 不適用。JET 是單機桌面程式，沒有常駐服務。 |
-| 常見問題 | 報告檔無法寫入時，關閉開啟該檔案的程式，確認檔案不是唯讀後重新匯出。修改匯入資料或欄位配對後，篩選情境會被清除，需要重新設定。 |
-| 診斷 | 回報問題時附上錯誤訊息的畫面、發生前的操作步驟與「訊息」區複製的紀錄。維護人員依支援日誌定位，再以合成資料重現。 |
-| 復原 | 結果過期或讀不出來時，重新執行該步驟即可恢復；已匯出的工作底稿不受影響。 |
-| 支援 | 安裝與電腦環境由 ITS 服務台處理。功能與操作的聯絡窗口：待填 |
+| 日誌 | 使用者介面的「訊息」區顯示各項作業的訊息，可複製最近 100 則或輸出支援日誌。未處理的例外寫入 `%LOCALAPPDATA%\JET\logs`。 |
+| 指標、警示與健康檢查 | 不適用，無常駐服務。 |
+| 操作手冊與常見故障 | 報告檔無法寫入時，關閉開啟該檔案的程式，確認檔案非唯讀後重新匯出。重新匯入資料、變更欄位配對，或變更行事曆、科目配對等設定後，已儲存的篩選情境會清除。 |
+| 診斷 | 問題回報附錯誤訊息、操作步驟、複製的訊息與輸出的支援日誌。開發人員依支援日誌找出發生問題的位置，再以合成測試資料重現。 |
+| 復原 | 資料驗證結果過期或不完整時，重新執行資料驗證。已匯出的工作底稿不受影響。 |
+| 支援升級 | 待填 |
 
 ## 17. Source Code Change Log
 
-JET 1.0.0.0 是代碼庫的首次提交，沒有先前的修訂。Git 的提交紀錄見 程式修訂紀錄/git_code_changes_log.txt。
+JET 1.0.0.0 為儲存庫的首次提交，無先前的修訂。Git 提交紀錄見「程式修訂紀錄/git_code_changes_log.txt」。
 
 | 項目 | 內容 |
 |---|---|
 | 日期 | 待填 |
-| 提交 | 首次提交。提交編號：待填 |
-| 異動範圍 | 全部原始碼。 |
-| 原因與內容 | JET 1.0.0.0 首次發布，功能見第 2 節。 |
-| 相依套件異動 | 不適用。元件清冊見第 5 節。 |
-| 測試 | Code Review/Unit test Report.xlsx |
-| 相容性影響 | 不適用，沒有先前版本。 |
+| 變更單 | 待填 |
+| 提交 | 首次提交。提交識別碼：待填 |
+| 受影響模組 | 全部原始碼。 |
+| 原因與實作摘要 | 首次發行，功能見第 2 節。 |
+| 第三方元件變更 | 不適用，元件清冊見第 5.1 節。 |
+| 測試佐證 | Code Review/Unit test Report.xlsx |
+| 相容性影響 | 不適用，無先前版本。 |
 
 ## 18. Release Notes
 
-各版本的日期、內容與版本號列在 版本更新紀錄.xlsx。
+各版本的日期、說明與版本號見「版本更新紀錄.xlsx」。
 
 | 項目 | 內容 |
 |---|---|
-| 版本與日期 | 1.0.0.0，首次發布。日期：待填 |
-| 主要功能 | 完整性測試、條件篩選、匯出工作底稿。 |
-| 不相容的變更 | 不適用，這是第一個版本。 |
+| 版本與日期 | 1.0.0.0，首次發行。日期：待填 |
+| 新功能 | 六個步驟的功能，見第 2 節。 |
+| 修正、第三方元件與安全更新、不相容變更、升級說明 | 不適用，1.0.0.0 為首次發行。 |
 | 已知問題 | 見第 19 節。 |
-| 發布檔與佐證 | 待填 |
+| 發行檔與佐證 | 待填 |
 
 ## 19. Known Issues, Technical Debt & References
 
 | 事項 | 現況 |
 |---|---|
-| 資料驗證報告的「完整性測試出現差異時之指引」工作表 | 沿用舊版範本內容，改寫待與 DPP 確認。 |
-| 資料驗證報告 step1-3 的鎖定範圍 | 「step1-3 完整性測試之差異說明」受保護時，除了程式寫入的科目編號、科目名稱與差異金額，表頭區的部分空白格、資料右側 I 欄以後的格子，以及最後一筆以下的列也不能填，比舊版鎖得多；是否改成只鎖這三欄待確認。 |
-| 同步資料夾與共用位置 | 直接開啟這類位置上的案件尚未驗證。 |
-| 部署環境 | 一般使用者權限下的操作與大量資料的處理時間，尚未在部署環境的電腦上實測。 |
-| 畫面訊息通道 | 接收畫面訊息時沒有再檢查來源網址；視窗已限定只載入隨程式提供的頁面。 |
-| 授權聲明 | 第三方授權聲明檔尚未放入發布包。 |
-| 標準格式的 SBOM | 尚未輸出 SPDX 或 CycloneDX 格式。 |
+| 資料驗證報告的「完整性測試出現差異時之指引」工作表 | 沿用舊版 JET 的範本內容；改寫待確認。 |
+| 案件根資料夾位於雲端同步資料夾 | 尚未測試。 |
+| 正式環境 | 尚未於正式環境的電腦以一般權限的 Windows 帳號測試發行檔。 |
+| 建置組態 | 第 14 節的自動化測試以 Debug 組態執行，未涵蓋 Release 組態。 |
+| Web 訊息通道 | 後端未檢查訊息的來源網址。現行控制：WebView2 主框架僅允許導覽至本機頁面。 |
+| 授權聲明 | NuGet 套件的授權聲明檔尚未納入發行資料夾。 |
+| 未安裝 Access Database Engine | 無法匯入 Access 資料表；可將資料表另存為 .csv 或 .xlsx 後匯入。 |
+| 工作底稿的檔案數 | 每次匯出新增一個檔案，JET 不自動清除；案件的報告清單達 4,096 筆時，須先刪除舊檔才能再匯出。 |
 
-參考資料：[Microsoft 測試涵蓋率](https://learn.microsoft.com/dotnet/core/testing/microsoft-testing-platform-code-coverage)；[NuGet 漏洞查詢](https://learn.microsoft.com/dotnet/core/tools/dotnet-package-list)；[SQLite 漏洞公告](https://github.com/advisories/GHSA-2m69-gcr7-jv3q)；[SQLite 授權](https://www.sqlite.org/copyright.html)；[WebView2 SDK 授權](https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31/License)；[WebView2 安全建議](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/security)。
+| 用語 | 說明 |
+|---|---|
+| GL | 總帳。欄位配對確認後，指納入測試的標準化分錄。 |
+| TB | 試算表。欄位配對確認後，指標準化的試算表。 |
+| 欄位配對 | 審計員確認的 GL、TB 來源欄位對應。 |
+| 資料驗證 | 「資料驗證與測試」步驟的完整性測試、借貸不平測試、資料缺漏輔助檢視與資料可靠性測試。 |
+| 預篩選 | 「資料驗證與測試」步驟的標準化初步篩選程序。 |
+| 資料可靠性測試 | 抽樣核對攸關資料元素是否可靠的測試。 |
+| 篩選情境 | 審計員儲存的一組篩選條件，附名稱與動機。 |
+| 工作底稿 | 「匯出底稿」步驟匯出的正式底稿。 |
+
+相關文件為 Design Principle.docx 與 Code Review/Code review rule.docx。
+
+參考資料：
+
+- [Microsoft 程式碼涵蓋率](https://learn.microsoft.com/dotnet/core/testing/microsoft-testing-platform-code-coverage)
+- [NuGet 套件弱點查詢](https://learn.microsoft.com/dotnet/core/tools/dotnet-package-list)
+- [SQLite 弱點公告](https://github.com/advisories/GHSA-2m69-gcr7-jv3q)
+- [SQLite 授權](https://www.sqlite.org/copyright.html)
+- [WebView2 SDK 授權](https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31/License)
+- [WebView2 安全建議](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/security)

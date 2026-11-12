@@ -274,14 +274,14 @@ public sealed class FilterConditionRendererTests
         Assert.Equal("（傳票摘要 包含「調整」 且 金額（絕對值） ≥ 1000000） 且 僅借方", result);
     }
 
-    // ---- 舊版非營業日(I) 獨立條件組：照一般條件組讀回 ----
+    // ---- 已存情境裡兩條預篩選自成一組的非營業日條件(I)：照一般條件組讀回 ----
     // I 是組內的子條件組，讀回在括號辨識「週末過帳 或 假日過帳」。
     // 已保存的情境不轉換，舊形狀照條件樹讀回，與重開後畫面顯示的兩條預篩選一致。
 
     [Fact]
     public void OldPresetOnlyGroup_WithLeadingEmptyGroup_RendersOrdinaryOrGroup()
     {
-        // 空組被過濾（不留懸空運算子）；只剩舊版非營業日組 → 一般「或」條件組。
+        // 空組被過濾（不留懸空運算子）；只剩兩條預篩選的非營業日組 → 一般「或」條件組。
         var result = Render(new
         {
             groups = new object[]
@@ -301,7 +301,7 @@ public sealed class FilterConditionRendererTests
     [Fact]
     public void SingleAtomGroup_PlusOldPresetGroup_RendersAsSecondGroup()
     {
-        // 單組單規則接舊版非營業日組：照兩組「且」讀回，多條件的第二組加括號。
+        // 單組單規則接兩條預篩選的非營業日組：照兩組「且」讀回，多條件的第二組加括號。
         var result = Render(new
         {
             groups = new object[]
@@ -324,7 +324,7 @@ public sealed class FilterConditionRendererTests
     [Fact]
     public void MultiRuleSingleGroup_PlusOldPresetGroup_KeepsBothGroupsParenthesized()
     {
-        // 單組含 ≥2 規則接舊版非營業日組：兩組各自加括號，語意 (a 或 b) 且 (週末 或 假日) 不會被誤讀。
+        // 單組含 ≥2 規則接兩條預篩選的非營業日組：兩組各自加括號，語意 (a 或 b) 且 (週末 或 假日) 不會被誤讀。
         var result = Render(new
         {
             groups = new object[]

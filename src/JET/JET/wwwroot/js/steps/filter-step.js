@@ -102,7 +102,7 @@
     var originGroups = ordered.filter(function (g) { return (g.conditions || []).length > 0; });
     if (s.editorOrigins && !s.__restoredOrigins) { wire.editorOrigins = JSON.parse(JSON.stringify(s.editorOrigins)); }
     // 第 2 版的編輯來源逐條記卡片代號；第 1 版記的是字母，這一版只原樣送回、不讀取。
-    // 舊版情境重新編輯後一律改存第 2 版，卡片要審計員重新點選（見 filter-step-saved 的 editScenario）。
+    // 第 1 版的情境重新編輯後一律改存第 2 版，卡片要審計員重新點選（見 filter-step-saved 的 editScenario）。
     else if (hasCommonMarker(s) || s.__restoredOrigins || isDraft) {
       wire.editorOrigins = { version: 2,
         nameIsAutomatic: !s.__nameDirty, rationaleIsAutomatic: !s.__rationaleDirty, groups: originGroups.map(function (g) {

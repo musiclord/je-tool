@@ -47,7 +47,7 @@ public sealed class ProjectDeleteHandler : IApplicationActionHandler
         }
         catch (JetActionException error) when (error.Code is JetErrorCodes.FileReadError or JetErrorCodes.InvalidProjectSchema)
         {
-            // 設定檔損壞、舊版或期間無效的案件，畫面請審計員從備份還原或另建案件，舊的這份也要能從案件清單刪掉。
+            // 設定檔損壞、版本較舊或期間無效的案件，畫面請審計員從備份還原或另建案件，舊的這份也要能從案件清單刪掉。
             // 只處理確定是 SQLite 的案件；判斷不出來時維持原本的錯誤。
             var localProvider = await projectStore.FindLocalDatabaseProviderAsync(projectId, cancellationToken);
             if (localProvider is null)

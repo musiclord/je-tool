@@ -18,7 +18,7 @@ using JET.Tests.TestInfrastructure;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 五份正式報告與科目配對範本工作檔的 application 驗收測試。Oracle 來自 action manifest、
+/// 五份正式報告與科目配對範本工作檔的 application 驗收測試。Oracle 來自各匯出 action 的回應形狀、
 /// 六種工作簿的本地格式盤點與一個自含的兩列 GL/TB 母體；不讀取外部參考檔或真實帳務資料。
 /// </summary>
 public sealed class ReportExportTests(ReportExportFixture fixture)
@@ -622,6 +622,130 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
         }
     }
 
+    // 舊版 JET 先解鎖整張表，再鎖 B17:D 到「17 加差異科目數」那一列，所以比最後一筆多鎖一列。
+    // 三個差異科目寫在第 17 到 19 列，鎖定的是 B17:D20，其他格子都可以填。
+    [Fact]
+    public async Task ValidationReport_CompletenessDiffSheet_LocksOnlyDiffColumnsThroughTheRowAfterTheLastDiff()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupThreeCompletenessDiffsAsync(host);
+        var validation = await host.DispatchAsync("validate.run");
+        var resultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString()!;
+        var response = await host.DispatchAsync(
+            "export.validationReports",
+            JsonSerializer.Serialize(new { resultId }));
+        var report = FindReport(response, "validationReport");
+        var path = Path.Combine(host.ProjectsRoot, projectId, report.GetProperty("fileName").GetString()!);
+
+        using var document = SpreadsheetDocument.Open(path, false);
+        var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
+        var worksheet = WorkingPaperWriterTestSupport.WorksheetFor(document, CompletenessDiffSheet);
+
+        Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
+        Assert.Equal(
+            new[] { "1101", "1201", "4201" },
+            new[] { "B17", "B18", "B19" }
+                .Select(reference => WorkingPaperWriterTestSupport.CellFor(worksheet, reference).InnerText)
+                .ToArray());
+        Assert.All(
+            WorkingPaperWriterTestSupport.Cells(17, 20, 2, 4),
+            reference => Assert.True(
+                WorkingPaperWriterTestSupport.IsCellLocked(workbookPart, worksheet, reference),
+                $"{reference} 應鎖定。"));
+        Assert.All(
+            new[]
+            {
+                "A1", "H1", "XFD1", "F7", "G9", "A16", "B16", "H16",
+                "A17", "E17", "G17", "H17", "I17", "XFD17", "A19", "E19",
+                "A20", "E20", "I20", "A21", "B21", "D21", "E21", "B1000"
+            },
+            reference => Assert.False(
+                WorkingPaperWriterTestSupport.IsCellLocked(workbookPart, worksheet, reference),
+                $"{reference} 應可填。"));
+    }
+
+    // 接續的工作表照同一個規則：每一張鎖 B17:D 到那一張最後一筆的下一列。
+    // 寫滿的工作表最後一筆在列數上限，沒有下一列可以鎖。
+    [Fact]
+    public async Task ValidationReport_CompletenessDiffSheet_ContinuationLocksTheRowAfterItsLastDiffWhenItFits()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupThreeCompletenessDiffsAsync(host);
+        await host.DispatchAsync("validate.run");
+
+        var database = new SqliteProjectDatabase(new JetProjectFolder(host.ProjectsRoot));
+        var run = Assert.IsType<ResultRecord>(await new LocalResultStore(database).FindLatestAsync(
+            projectId, ResultKind.Validation, CancellationToken.None));
+        var writer = BuildLegacyReportWriter(host, new LegacyReportWriterOptions(18));
+        await using var stream = new MemoryStream();
+        var reportContext = new ValidationReportContext(
+            new ReportDocumentContext(
+                projectId, "測試自含案件", "2025-01-01", "2025-12-31", "2024-01-01", 10_000),
+            run.ResultId,
+            DateOnly.FromDateTime(DateTime.Now),
+            run.SummaryJson);
+        var reportProjection = ValidationReportProjectionParser.Parse(run.SummaryJson);
+        var stats = await ((IValidationReportWriter)writer).WriteAsync(
+            stream,
+            reportContext,
+            reportProjection,
+            ReportWriterTestSupport.ValidationPlan(reportContext, reportProjection),
+            new FieldInfoProjection([], []),
+            ReportWriterTestSupport.SyntheticMetadata(),
+            "tester",
+            CancellationToken.None);
+
+        // 多鎖的那一列不算資料列。
+        var continuedName = LegacyReportWriter.SeriesName(CompletenessDiffSheet, 2);
+        Assert.Equal(
+            new long[] { 2, 1 },
+            stats.SheetStats
+                .Where(item => item.SheetName is CompletenessDiffSheet || item.SheetName == continuedName)
+                .Select(item => item.RowsWritten)
+                .ToArray());
+
+        stream.Position = 0;
+        using var document = SpreadsheetDocument.Open(stream, false);
+        Assert.Empty(new OpenXmlValidator().Validate(document));
+        var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
+        var expectations = new (string Sheet, string[] Locked, string[] Fillable)[]
+        {
+            (CompletenessDiffSheet,
+                WorkingPaperWriterTestSupport.Cells(17, 18, 2, 4),
+                ["H1", "A16", "A17", "E18", "I18", "A19", "B19", "D19", "B20"]),
+            (continuedName,
+                WorkingPaperWriterTestSupport.Cells(17, 18, 2, 4),
+                ["H1", "A16", "A17", "E17", "I17", "A18", "E18", "B19", "D19"])
+        };
+        foreach (var (name, locked, fillable) in expectations)
+        {
+            var worksheet = WorkingPaperWriterTestSupport.WorksheetFor(document, name);
+            Assert.NotNull(worksheet.Elements<SheetProtection>().SingleOrDefault());
+            Assert.All(locked, reference => Assert.True(
+                WorkingPaperWriterTestSupport.IsCellLocked(workbookPart, worksheet, reference),
+                $"{name}!{reference} 應鎖定。"));
+            Assert.All(fillable, reference => Assert.False(
+                WorkingPaperWriterTestSupport.IsCellLocked(workbookPart, worksheet, reference),
+                $"{name}!{reference} 應可填。"));
+        }
+    }
+
+    private static Task<string> SetupThreeCompletenessDiffsAsync(HandlerTestHost host) =>
+        InlineWorkbookProject.SetupAsync(
+            host,
+            builder => builder
+                .WithColumns(OriginalGlHeaders)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "1101", "現金", "借方一", "100.00", 1)
+                .AddRow("JV-001", "2025-03-05", "2025-03-06", "4101", "收入一", "貸方一", "100.00", 0)
+                .AddRow("JV-002", "2025-03-06", "2025-03-07", "1201", "應收帳款", "借方二", "50.00", 1)
+                .AddRow("JV-002", "2025-03-06", "2025-03-07", "4201", "收入二", "貸方二", "50.00", 0),
+            prepStartDate: "2024-01-01",
+            configureTb: tb => tb
+                .AddRow("1101", "現金", 101)
+                .AddRow("4101", "收入一", -100)
+                .AddRow("1201", "應收帳款", 52)
+                .AddRow("4201", "收入二", -53));
+
     [Fact]
     public async Task ValidationReport_TypedWriter_UsesProjectionWithoutReadingLegacySummaryJson()
     {
@@ -1043,7 +1167,7 @@ public sealed class ReportExportTests(ReportExportFixture fixture)
     }
 
     [Fact]
-    public async Task CriteriaUsesApprovedConditionText_WhileWorkingPaperStep3EndsAtColumnE()
+    public async Task CriteriaUsesTheConditionReadbackText_WhileWorkingPaperStep3EndsAtColumnE()
     {
         using var host = new HandlerTestHost();
         // 第五步不能用 GL 沒有配對的欄位，「編製人員分錄筆數」需要傳票建立人員，

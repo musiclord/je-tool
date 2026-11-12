@@ -233,7 +233,7 @@ public sealed class SupportLogDiagnosisTests
         var text = SupportExceptionFormatter.Format(captured)!;
         Assert.StartsWith("JET.Domain.JetActionException HResult=0x80131500 code=bridge_error", text, StringComparison.Ordinal);
         Assert.Contains("System.IO.IOException HResult=0x80070020", text, StringComparison.Ordinal);
-        // 舊版每個例外只留前五層方法；這裡八層巢狀呼叫全部保留。
+        // 八層巢狀呼叫全部保留，不只留前幾層。
         Assert.Equal(8, text.Split('\n').Count(line => line.Contains("SupportLogDiagnosisTests.Nested +IL_", StringComparison.Ordinal)));
         Assert.DoesNotContain("PRIVATE", text, StringComparison.Ordinal);
     }

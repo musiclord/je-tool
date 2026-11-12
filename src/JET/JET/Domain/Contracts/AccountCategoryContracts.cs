@@ -146,6 +146,9 @@ public static class AccountCategoryInvariant
             "0123456789abcdef".AsSpan()) < 0;
     }
 
+    /// <summary>配置一個新自訂分類的身分；分類設定與科目配對匯入都由後端配置，不收畫面或檔案給的值。</summary>
+    public static string NewCustomId() => $"custom.{Guid.NewGuid():N}";
+
     private static void Invalid(string message) =>
         throw new JetActionException(JetErrorCodes.InvalidPayload, message);
 
@@ -163,26 +166,49 @@ public static class AccountCategoryCatalog
         AccountCategorySnapshot categorySnapshot,
         string? raw)
     {
-        ArgumentNullException.ThrowIfNull(categorySnapshot);
-        var value = raw?.Trim();
-        if (string.IsNullOrEmpty(value))
-        {
-            return categorySnapshot.Categories.Single(item =>
-                string.Equals(item.CategoryId, AccountCategoryBuiltIns.OthersId, StringComparison.Ordinal));
-        }
-
-        var resolved = categorySnapshot.Categories.SingleOrDefault(item =>
-            string.Equals(item.CategoryId, value, StringComparison.Ordinal)
-            || string.Equals(item.Label, value, StringComparison.OrdinalIgnoreCase));
-        if (resolved is not null)
+        if (TryResolveImportCategory(categorySnapshot, raw, out var resolved))
         {
             return resolved;
         }
 
         throw new JetActionException(
             JetErrorCodes.ProjectionFailed,
-            $"分類「{raw}」不在本案件的科目分類中（{string.Join("、", categorySnapshot.Categories.OrderBy(item => item.Ordinal).Select(item => item.Label))}），請改用清單中的分類名稱。");
+            $"分類「{raw}」不在本案件的科目分類中（{LabelList(categorySnapshot)}），請改用清單中的分類名稱。");
     }
+
+    /// <summary>
+    /// 把匯入檔分類欄的一格對到案件的分類。空白算 Others；有內容時先比分類身分與目前的分類名稱（名稱不分大小寫）。
+    /// 都對不到時，內建分類原本的英文名稱仍指向那個內建分類：內建分類可以改名，
+    /// IDEA 版 JET 的範本與沒有改過名的案件寫的是原本的名稱，照樣要歸到同一個內建分類。
+    /// 另一個案件改成的名稱這裡認不得，呼叫端會把它當成新的分類名稱。
+    /// </summary>
+    public static bool TryResolveImportCategory(
+        AccountCategorySnapshot categorySnapshot,
+        string? raw,
+        out AccountCategory category)
+    {
+        ArgumentNullException.ThrowIfNull(categorySnapshot);
+        var value = raw?.Trim();
+        var resolved = string.IsNullOrEmpty(value)
+            ? ById(AccountCategoryBuiltIns.OthersId)
+            : categorySnapshot.Categories.SingleOrDefault(item =>
+                string.Equals(item.CategoryId, value, StringComparison.Ordinal)
+                || string.Equals(item.Label, value, StringComparison.OrdinalIgnoreCase));
+        if (resolved is null && AccountCategoryBuiltIns.TryResolveLegacyLabel(value, out var builtIn))
+        {
+            resolved = ById(builtIn.CategoryId);
+        }
+
+        category = resolved!;
+        return resolved is not null;
+
+        AccountCategory? ById(string categoryId) => categorySnapshot.Categories.SingleOrDefault(item =>
+            string.Equals(item.CategoryId, categoryId, StringComparison.Ordinal));
+    }
+
+    /// <summary>案件目前的分類名稱，照顯示順序用頓號串起來，寫在匯入錯誤訊息裡。</summary>
+    public static string LabelList(AccountCategorySnapshot categorySnapshot) =>
+        string.Join("、", categorySnapshot.Categories.OrderBy(item => item.Ordinal).Select(item => item.Label));
 
     public static string LegacyLabelForSemanticRole(string semanticRole)
     {

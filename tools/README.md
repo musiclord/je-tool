@@ -165,8 +165,8 @@ Restore、Gui 與 Excel 驅動程式自己管理的程序，以及 `Mutation` �
 `Documentation` 檢查目前仍有效的文件與 AI Agent 轉接檔。缺檔、必要指向缺漏及已確認過時的事實會失敗；不自然用語只列為提醒。
 檢查哪些檔案以 `documentation-check.json` 的 `files` 為準，沒有列進去的檔案不會被檢查；現行計畫在進行期間要列進去。
 `documentation-check.json` 的 `styleWarnings` 比對固定片語，`stylePatterns` 用正規表示式抓符號代句與工作用語，程式碼不檢查。
-`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 1,024 KiB；裁定總表 2,048 KiB；系統規格、action 契約、前端說明與名詞表 160 KiB；
-其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限（裁定 2026-11-02-04，裁定總表的上限見 2026-11-06-14，現行計畫的上限見 2026-11-11-14）。
+`sizeLimits` 依文件類型設長度上限，超過就失敗：現行計畫 1,024 KiB；裁定總表 2,048 KiB；名詞表 1,024 KiB；前端說明 200,000 位元組，設定檔寫成 195.3125 KiB；系統規格與 action 契約 160 KiB；
+其他現行文件與 Agent 文件 30 KiB；歷史文件不設上限（裁定 2026-11-02-04，裁定總表的上限見 2026-11-06-14，現行計畫的上限見 2026-11-11-14，名詞表的上限見 2026-11-12-15，前端說明的上限見 2026-11-12-37）。
 `rulingLocations` 核對裁定總表「落實位置」寫的檔案都存在；`rulingReferences` 核對 `src/JET` 與 `tools` 裡寫的「裁定 編號」都是現行裁定；
 `retiredNames` 在 `src/JET/JET` 找名詞表「不再使用的名稱」列的舊名稱，註解也算；`tableNames` 核對 SQLite 建立的表都列在名詞表，
 名詞表列的表也都還存在。架構圖表另由 [`harness/architecture/`](harness/architecture/README.md) 檢查，結果寫在文件報告的

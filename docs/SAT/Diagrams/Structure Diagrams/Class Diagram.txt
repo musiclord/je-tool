@@ -1,0 +1,128 @@
+@startuml
+' JET 1.0.0.0 類別圖。範圍：前端送出 validate.run（資料驗證）與 export.workingPaperStream（匯出工作底稿）後，後端處理請求的主要類別與介面；各類別僅列主要成員。
+' 表示法：UML 類別圖。+ 為 public，- 為 private，~ 為 internal，<<static>> 為靜態類別；實線箭頭為使用，虛線箭頭為建立，虛線空心三角為實作介面。
+title JET 類別圖：資料驗證與匯出工作底稿的主要類別
+
+left to right direction
+skinparam classAttributeIconSize 0
+hide empty members
+
+package "WinForms 主機（JET）" {
+  class Form1 {
+    +Form1()
+    -InitializeWebViewAsync() : Task
+    +RequestExit() : void
+  }
+  class AppCompositionRoot <<static>> {
+    +CreateRuntime(IHostShell, IJetEventPublisher?) : JetApplicationRuntime
+  }
+}
+
+package "展示層 Bridge（JET/Bridge）" {
+  class JetWebMessageBridge {
+    +Attach() : void
+    -OnWebMessageReceived(object?, CoreWebView2WebMessageReceivedEventArgs) : void
+    +ToErrorDto(Exception) : JetErrorDto {static}
+  }
+  class ActionDispatcher {
+    +RegisteredActions : IReadOnlyCollection<string>
+    +DispatchAsync(string, JsonElement, CancellationToken, string?) : Task<object?>
+  }
+  class WebViewEventPublisher {
+    +Bind(CoreWebView2, SynchronizationContext) : void
+    +Publish(string, object) : void
+  }
+}
+
+package "應用層 Application（JET/Application）" {
+  interface IApplicationActionHandler {
+    +Action : string
+    +HandleAsync(JsonElement, CancellationToken) : Task<object?>
+  }
+  interface IHostShell {
+    +RevealInExplorerAsync(string, CancellationToken) : Task
+    +RequestExit() : void
+  }
+  interface IJetEventPublisher {
+    +Publish(string, object) : void
+  }
+  class ValidateRunHandler {
+    +Action : string = "validate.run"
+    +HandleAsync(JsonElement, CancellationToken) : Task<object?>
+  }
+  class ExportWorkingPaperStreamHandler {
+    +Action : string = "export.workingPaperStream"
+    +HandleAsync(JsonElement, CancellationToken) : Task<object?>
+  }
+  class ProjectSession {
+    +CurrentProjectId : string?
+    ~Enter(string, ProjectRepositories) : void
+    +Leave(string) : bool
+    ~RequireActive() : ActiveProject
+  }
+}
+
+package "領域層 AuditCore（JET/AuditCore）" {
+  class JetAuditProgram <<static>> {
+    ~Plan(ValidationRequest) : ValidationPlan
+    ~Finalize(ValidationPlan, ValidationFacts) : ValidationResult
+    ~Plan(WorkingPaperRequest) : WorkingPaperPlan
+    ~Finalize(WorkingPaperPlan, WorkingPaperPlanningFacts) : WorkingPaperPlan
+  }
+  class AccountComparisonProcedure <<static>> {
+    ~Plan(AccountComparisonRequest) : AccountComparisonPlan
+    ~Finalize(AccountComparisonPlan, AccountComparisonFacts) : ProcedureVerdict
+  }
+  interface IValidationFactsPort {
+    +ExecuteAsync(ValidationPlan, Func<ValidationFacts, ResultRecord>, CancellationToken) : Task<ResultRecord>
+  }
+  interface IWorkingPaperPlanWriter {
+    +WriteAsync(Stream, WorkingPaperContext, WorkingPaperPlan, CancellationToken, Action<WorkingPaperProgress>?) : Task<ExportStats>
+  }
+}
+
+package "基礎設施層 Infrastructure（JET/Infrastructure）" {
+  class LocalValidationRunRepository {
+    ~ExecuteAsync(ValidationPlan, Func<ValidationFacts, ResultRecord>, CancellationToken) : Task<ResultRecord>
+  }
+  interface ILocalProjectDatabase {
+    +Dialect : IProviderSqlDialect
+    +CreateConnection(string) : DbConnection
+    +EnsureReadyAsync(string, CancellationToken) : Task
+  }
+  class SqliteProjectDatabase {
+    +CreateConnection(string) : DbConnection
+    +EnsureReadyAsync(string, CancellationToken) : Task
+    +CheckpointAsync(string, CancellationToken) : Task
+  }
+  class WorkingPaperWriter {
+    -WriteCoreAsync(Stream, WorkingPaperContext, WorkingPaperPlan, CancellationToken, Action<WorkingPaperProgress>?) : Task<ExportStats>
+  }
+}
+
+Form1 --> AppCompositionRoot : CreateRuntime
+Form1 ..> JetWebMessageBridge : 建立
+Form1 ..> WebViewEventPublisher : 建立
+Form1 ..|> IHostShell
+AppCompositionRoot --> IHostShell : 參數 hostShell
+AppCompositionRoot ..> ActionDispatcher : 建立
+AppCompositionRoot ..> ProjectSession : 建立
+AppCompositionRoot ..> SqliteProjectDatabase : 建立
+JetWebMessageBridge --> ActionDispatcher : DispatchAsync
+WebViewEventPublisher ..|> IJetEventPublisher
+ActionDispatcher --> IApplicationActionHandler : HandleAsync
+ValidateRunHandler ..|> IApplicationActionHandler
+ExportWorkingPaperStreamHandler ..|> IApplicationActionHandler
+ValidateRunHandler --> ProjectSession : RequireActive
+ValidateRunHandler --> JetAuditProgram : Plan、Finalize
+ValidateRunHandler --> IValidationFactsPort : ExecuteAsync
+JetAuditProgram --> AccountComparisonProcedure : Plan、Finalize
+LocalValidationRunRepository ..|> IValidationFactsPort
+LocalValidationRunRepository --> ILocalProjectDatabase : CreateConnection
+SqliteProjectDatabase ..|> ILocalProjectDatabase
+ExportWorkingPaperStreamHandler --> ProjectSession : RequireActive
+ExportWorkingPaperStreamHandler --> JetAuditProgram : Plan、Finalize
+ExportWorkingPaperStreamHandler --> IWorkingPaperPlanWriter : WriteAsync
+ExportWorkingPaperStreamHandler --> IJetEventPublisher : Publish
+WorkingPaperWriter ..|> IWorkingPaperPlanWriter
+@enduml

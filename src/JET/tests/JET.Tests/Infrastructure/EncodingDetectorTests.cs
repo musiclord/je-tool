@@ -7,7 +7,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// EncodingDetector 測試。
-/// oracle：手寫 bytes fixture 與 manifest encoding 白名單。
+/// oracle：手寫 bytes fixture 與 encoding 白名單（utf-8、big5、utf-16）。
 /// 設計技術：等價分割——覆寫值（utf-8 / big5 / utf-16 / invalid）與偵測鏈（BOM / 嚴格 UTF-8 / Big5 fallback）。
 /// </summary>
 public sealed class EncodingDetectorTests

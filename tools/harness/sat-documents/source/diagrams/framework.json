@@ -1,152 +1,355 @@
 {
-  "schema_version": 1,
-  "diagram_type": "architecture",
-  "meta": {
-    "title": "JET 系統組成",
-    "locale": "zh-TW",
-    "output": "tools/harness/sat-documents/source/diagrams/framework.html",
-    "quality_profile": "showcase"
+  "title": "JET 系統組成圖",
+  "sourceRoot": "src/JET/JET",
+  "pathPrefix": "JET/",
+  "componentSpec": "component.json",
+  "host": {
+    "label": "WinForms 主機",
+    "component": "host"
   },
-  "components": [
+  "layers": [
+    {
+      "group": "presentation",
+      "label": "展示層",
+      "nodes": [
+        "frontend",
+        "bridge"
+      ]
+    },
+    {
+      "group": "applicationLayer",
+      "label": "應用層",
+      "nodes": [
+        "application"
+      ]
+    },
+    {
+      "group": "domainLayer",
+      "label": "領域層",
+      "nodes": [
+        "core"
+      ]
+    },
+    {
+      "group": "infrastructureLayer",
+      "label": "基礎設施層",
+      "nodes": [
+        "infrastructure"
+      ]
+    }
+  ],
+  "outside": [
+    "auditor",
+    "sources",
+    "database",
+    "reports"
+  ],
+  "nodes": [
     {
       "id": "auditor",
-      "type": "external",
-      "label": "審計員",
-      "sublabel": "匯入、篩選與核對",
-      "pos": [
+      "name": [
+        "審計員"
+      ],
+      "at": [
         40,
-        40
+        80
       ],
-      "size": [
-        160,
-        70
+      "evidence": [
+        {
+          "file": "wwwroot/index.html",
+          "text": "<button"
+        }
       ]
     },
     {
-      "id": "ui",
-      "type": "frontend",
-      "label": "Windows 操作畫面",
-      "sublabel": "WinForms 與 WebView2",
-      "pos": [
-        290,
-        40
+      "id": "frontend",
+      "name": [
+        "前端"
       ],
-      "size": [
-        160,
-        70
+      "showPath": true,
+      "at": [
+        200,
+        80
+      ],
+      "components": [
+        "frontend"
       ]
     },
     {
-      "id": "app",
-      "type": "backend",
-      "label": "操作處理",
-      "sublabel": "Bridge 與 Application",
-      "pos": [
-        560,
-        40
+      "id": "bridge",
+      "name": [
+        "Bridge"
       ],
-      "size": [
-        160,
-        70
+      "at": [
+        356,
+        80
+      ],
+      "components": [
+        "bridge"
+      ]
+    },
+    {
+      "id": "application",
+      "name": [
+        "Application"
+      ],
+      "at": [
+        548,
+        80
+      ],
+      "components": [
+        "application"
       ]
     },
     {
       "id": "core",
-      "type": "backend",
-      "label": "審計規則",
-      "sublabel": "AuditCore 與 Domain",
-      "pos": [
-        560,
-        220
+      "name": [
+        "AuditCore",
+        "Domain"
       ],
-      "size": [
-        160,
-        70
+      "at": [
+        548,
+        242
+      ],
+      "components": [
+        "auditcore",
+        "domain"
       ]
     },
     {
-      "id": "infra",
-      "type": "backend",
-      "label": "資料與檔案處理",
-      "sublabel": "Infrastructure",
-      "pos": [
-        290,
-        220
+      "id": "infrastructure",
+      "name": [
+        "Infrastructure"
       ],
-      "size": [
-        160,
-        70
+      "at": [
+        340,
+        242
+      ],
+      "components": [
+        "persistence",
+        "fileio",
+        "export",
+        "diagnostics"
       ]
     },
     {
-      "id": "db",
-      "type": "database",
-      "label": "SQLite 案件資料庫",
-      "sublabel": "來源資料與計算結果",
-      "pos": [
-        40,
-        220
+      "id": "sources",
+      "name": [
+        "來源檔"
       ],
-      "size": [
-        160,
-        70
+      "detail": [
+        "Excel、文字檔、Access"
+      ],
+      "at": [
+        155,
+        380
+      ],
+      "evidence": [
+        {
+          "file": "Infrastructure/FileIO/CompositeTabularFileReader.cs",
+          "text": "支援 .xlsx、.xlsm、.xls、.csv、.txt，以及 Access .mdb、.accdb。"
+        }
       ]
     },
     {
-      "id": "report",
-      "type": "external",
-      "label": "Excel 報告與底稿",
-      "sublabel": "審計員完成查核紀錄",
-      "pos": [
-        290,
-        400
+      "id": "database",
+      "name": [
+        "SQLite 案件資料庫"
       ],
-      "size": [
-        160,
-        70
+      "detail": [
+        "jet.db"
+      ],
+      "at": [
+        340,
+        380
+      ],
+      "evidence": [
+        {
+          "file": "Infrastructure/Persistence/JetProjectFolder.cs",
+          "text": "DatabaseFileName = \"jet.db\""
+        },
+        {
+          "file": "Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+          "text": "using Microsoft.Data.Sqlite;"
+        }
+      ]
+    },
+    {
+      "id": "reports",
+      "name": [
+        "Excel 報告與工作底稿"
+      ],
+      "at": [
+        534,
+        380
+      ],
+      "evidence": [
+        {
+          "file": "Infrastructure/Export/ReportTemplatePackage.cs",
+          "text": "Validation = \"ValidationReport.xlsx\""
+        },
+        {
+          "file": "Infrastructure/Export/ReportTemplatePackage.cs",
+          "text": "WorkingPaper = \"WorkingPaper.xlsx\""
+        }
       ]
     }
   ],
-  "connections": [
+  "flows": [
     {
       "from": "auditor",
-      "to": "ui",
-      "label": "操作"
+      "to": "frontend",
+      "label": [
+        "操作"
+      ],
+      "basis": [
+        {
+          "file": "wwwroot/js/app.js",
+          "text": "addEventListener('click'"
+        }
+      ]
     },
     {
-      "from": "ui",
-      "to": "app",
-      "label": "JetApi 訊息"
+      "from": "frontend",
+      "to": "bridge",
+      "label": [
+        "送出請求"
+      ],
+      "basis": [
+        {
+          "interface": "WebMessageChannel",
+          "usedBy": "frontend"
+        }
+      ]
     },
     {
-      "from": "app",
+      "from": "bridge",
+      "to": "application",
+      "label": [
+        "分派請求"
+      ],
+      "basis": [
+        {
+          "interface": "IApplicationActionHandler",
+          "usedBy": "bridge"
+        }
+      ]
+    },
+    {
+      "from": "application",
       "to": "core",
-      "label": "安排程序"
+      "label": [
+        "使用",
+        "審計規則"
+      ],
+      "basis": [
+        {
+          "dependency": {
+            "from": "application",
+            "to": "auditcore"
+          }
+        },
+        {
+          "dependency": {
+            "from": "application",
+            "to": "domain"
+          }
+        }
+      ]
     },
     {
-      "from": "core",
-      "to": "infra",
-      "label": "執行規則"
+      "from": "application",
+      "to": "infrastructure",
+      "label": [
+        "讀寫資料與檔案"
+      ],
+      "labelSide": "left",
+      "basis": [
+        {
+          "interface": "IDataAccess",
+          "usedBy": "application"
+        },
+        {
+          "interface": "ITabularFileReader",
+          "usedBy": "application"
+        },
+        {
+          "interface": "IWorkingPaperPlanWriter",
+          "usedBy": "application"
+        },
+        {
+          "interface": "ISupportDiagnosticLogStore",
+          "usedBy": "application"
+        }
+      ]
     },
     {
-      "from": "infra",
-      "to": "db",
-      "label": "讀寫資料"
+      "from": "infrastructure",
+      "to": "core",
+      "label": [
+        "取用",
+        "SQL 片段"
+      ],
+      "basis": [
+        {
+          "dependency": {
+            "from": "persistence",
+            "to": "auditcore"
+          }
+        }
+      ]
     },
     {
-      "from": "infra",
-      "to": "report",
-      "label": "匯出"
-    }
-  ],
-  "cards": [
+      "from": "infrastructure",
+      "to": "sources",
+      "label": [
+        "讀取"
+      ],
+      "labelSide": "left",
+      "basis": [
+        {
+          "component": "fileio"
+        },
+        {
+          "file": "Infrastructure/FileIO/CompositeTabularFileReader.cs",
+          "text": "class CompositeTabularFileReader(params ITabularFileReader[] readers) : ITabularFileReader"
+        }
+      ]
+    },
     {
-      "dot": "cyan",
-      "title": "使用範圍",
-      "items": [
-        "Windows x64 桌面程式",
-        "正式版只使用 SQLite",
-        "審計作業不需要 AI 連線"
+      "from": "infrastructure",
+      "to": "database",
+      "label": [
+        "讀寫"
+      ],
+      "basis": [
+        {
+          "component": "persistence"
+        },
+        {
+          "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+          "text": "connection.BeginTransactionAsync("
+        }
+      ]
+    },
+    {
+      "from": "infrastructure",
+      "to": "reports",
+      "label": [
+        "寫出"
+      ],
+      "basis": [
+        {
+          "component": "export"
+        },
+        {
+          "file": "Infrastructure/Export/WorkingPaperWriter.cs",
+          "text": ": IWorkingPaperPlanWriter, IFormalWorkingPaperPlanWriter"
+        },
+        {
+          "file": "Infrastructure/Export/LegacyReportWriter.cs",
+          "text": "partial class LegacyReportWriter("
+        }
       ]
     }
   ]

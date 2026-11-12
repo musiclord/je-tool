@@ -127,12 +127,12 @@ JET 在 WebView2 裡捲動時會頓一下。前一個 session 量到原因：電
 
 ## 驗證結果
 
-- `Focused -Filter DesignIntegrationFrontendTests`：改前端之後第一次執行，只有找 `.app-shell::before` 的兩則既有測試失敗，
-  收據 20261109-121924464-873a110df8b84be39bb100cbbf1b5b6d。改完斷言、加上新測試後通過，收據 20261109-122302090-1697006fae8d4e32a0b6c9b21c29dcd6。
+- `Focused -Filter DesignIntegrationFrontendTests`：改前端之後第一次執行，只有找 `.app-shell::before` 的兩則既有測試失敗。
+  改完斷言、加上新測試後通過。
   另外把建置出來的測試程式複製到暫存資料夾，換回改動前的 `app.css` 與 `index.html` 執行，新測試列出改動前的 12 個選擇器並失敗，表示它擋得住。
-- `Contract -ContractScenario FrontendMapping`：1,007 個前端測試都通過，包括新加的一則，收據 20261109-123958031-7fa78a2cc78242b3bd08ac42ce722c4f。
-- `Public`：4,791 個 C# 測試、1,007 個前端測試與 12 個預覽工具測試都通過，收據 20261109-124109564-efb2c2f52b444a068b20ded2887fcb88。
-- `Documentation`：改完文件後通過，沒有寫作提醒，收據 20261109-124505677-8a1b5cec59da4dc98b8e052a90e82cd6；寫入這個收據號碼後再跑一次也通過。
+- `Contract -ContractScenario FrontendMapping`：1,007 個前端測試都通過，包括新加的一則。
+- `Public`：4,791 個 C# 測試、1,007 個前端測試與 12 個預覽工具測試都通過。
+- `Documentation`：改完文件後通過，沒有寫作提醒；當時把這一次的收據號碼寫進這份計畫後再跑一次，也通過。
 - 沒有跑 `Gui`、`PrivateCase`、`Excel` 與 `Package`。這一輪沒有改匯出與桌面程式；`Gui` 照規定留到提交或交付前再跑。
   沒有用瀏覽器主機或前端預覽看畫面，外觀改用上一節在 WebView2 裡的逐像素比對確認。
 

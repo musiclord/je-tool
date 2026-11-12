@@ -100,7 +100,7 @@ public sealed class AccountMappingTemplateExportTests
 
         Assert.Equal("Account Mapping Table", ws.Cell("B1").GetString());
         Assert.Equal(
-            "請在 C 欄選擇標準科目分類；允許分類僅限 Revenue、Receivables、Cash、Receipt in advance、Others；A、B 欄由系統產生，不應修改。",
+            "請在 C 欄選擇標準科目分類；要新增分類，請在 List 工作表的清單最後加上名稱，原有的名稱不要更改；A、B 欄由系統產生，不應修改。",
             ws.Cell("A2").GetString());
 
         // 三標頭沿用內嵌 legacy 範本；逐一仍可被 AccountMappingColumnResolver keyword-match。
@@ -117,11 +117,11 @@ public sealed class AccountMappingTemplateExportTests
         Assert.True(ws.Cell("C6").IsEmpty());
 
         // C4 的 DataValidation：list 型、inCellDropdown；List!A1 保留範本靜態標題，
-        // current Domain 白名單五類必須完整落在 A2:A6（尤其 Revenue 不得被範圍排除）。
+        // 來源是 A 欄第 2 列以下整欄：五個內建分類在 A2:A6，審計員加在清單最後的名稱也選得到。
         var dv = ws.DataValidations.GetAllInRange(ws.Cell("C4").AsRange().RangeAddress).Single();
         Assert.Equal(XLAllowedValues.List, dv.AllowedValues);
         Assert.True(dv.InCellDropdown);
-        Assert.Equal("List!$A$2:$A$6", dv.Value);
+        Assert.Equal("List!$A$2:$A$1048576", dv.Value);
         var list = workbook.Worksheet("List");
         Assert.Equal("Accounts", list.Cell("A1").GetString());
         Assert.Equal(
@@ -187,7 +187,7 @@ public sealed class AccountMappingTemplateExportTests
         var validation = workbook.Worksheet("AccountMapping").DataValidations
             .GetAllInRange(workbook.Worksheet("AccountMapping").Cell("C4").AsRange().RangeAddress)
             .Single();
-        Assert.Equal("List!$A$2:$A$7", validation.Value);
+        Assert.Equal("List!$A$2:$A$1048576", validation.Value);
     }
 
     [Fact]
@@ -261,6 +261,62 @@ public sealed class AccountMappingTemplateExportTests
                     projectId,
                     "SELECT COUNT(*) FROM account_mapping WHERE category_id = @categoryId;",
                     ("@categoryId", AccountCategoryBuiltIns.OthersId)));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    // 審計員照舊版範本的做法，在 List 工作表的清單最後加上分類名稱，再回 C 欄選用；匯入後那個名稱成為案件的自訂分類。
+    [Fact]
+    public async Task Template_CategoryAddedOnListSheet_IsCoveredByDropdownAndCreatedOnImport()
+    {
+        using var host = new HandlerTestHost();
+        var projectId = await SetupGlUnionTbProjectAsync(host);
+        var rows = await SqliteRepo(host).FetchTemplateRowsAsync(
+            projectId, "2025-01-01", "2025-12-31", CancellationToken.None);
+        var path = NewTempXlsxPath();
+        try
+        {
+            await using (var output = File.Create(path))
+            {
+                await new AccountMappingTemplateWriter().WriteAsync(output, rows, CancellationToken.None);
+            }
+            using (var workbook = new XLWorkbook(path))
+            {
+                var sheet = workbook.Worksheet("AccountMapping");
+                // 下拉清單的來源是 List 工作表 A 欄第 2 列以下整欄，清單最後加上的名稱才選得到。
+                var dropdown = sheet.DataValidations.GetAllInRange(sheet.Cell("C4").AsRange().RangeAddress).Single();
+                Assert.Equal("List!$A$2:$A$1048576", dropdown.Value);
+                Assert.False(workbook.Worksheet("List").Protection.IsProtected);
+                Assert.Equal(
+                    "請在 C 欄選擇標準科目分類；要新增分類，請在 List 工作表的清單最後加上名稱，原有的名稱不要更改；A、B 欄由系統產生，不應修改。",
+                    sheet.Cell("A2").GetString());
+
+                workbook.Worksheet("List").Cell("A7").Value = "存貨";
+                sheet.Cell("C4").Value = "存貨";
+                sheet.Cell("C5").Value = AccountMappingCategories.Cash;
+                workbook.Save();
+            }
+
+            var imported = await host.DispatchAsync(
+                "import.accountMapping.fromFile",
+                JsonSerializer.Serialize(new { filePath = path, fileName = "list-sheet-category.xlsx", sheetName = "AccountMapping" }));
+
+            var added = imported.GetProperty("accountCategory").GetProperty("categories").EnumerateArray()
+                .Single(item => item.GetProperty("label").GetString() == "存貨");
+            Assert.False(added.GetProperty("isBuiltIn").GetBoolean());
+            Assert.Equal(
+                1,
+                await DemoProjectPipeline.QueryScalarAsync(
+                    host,
+                    projectId,
+                    "SELECT COUNT(*) FROM account_mapping WHERE category_id = @categoryId;",
+                    ("@categoryId", added.GetProperty("categoryId").GetString()!)));
         }
         finally
         {
@@ -452,7 +508,7 @@ public sealed class AccountMappingTemplateExportTests
                 JsonSerializer.Serialize(new { filePath = filledPath, fileName = "filled.xlsx" }));
             Assert.Equal(3, import.GetProperty("rowCount").GetInt32());
 
-            // account_mapping 落地正確：逐科目 code=category（獨立讀回，證分類白名單投影成功）。
+            // account_mapping 落地正確：逐科目 code=category（獨立讀回，核對每個科目落在檔案寫的分類）。
             var landed = await DemoProjectPipeline.QueryStringListAsync(
                 host, projectId,
                 "SELECT account_number || '=' || standardized_category FROM account_mapping ORDER BY account_number;");

@@ -89,6 +89,7 @@
 依據是裁定 2026-11-10-16、2026-11-10-17 與 2026-11-10-18。改寫前的原文附在原文紀錄的第三到第五部分，以及各部分的補充。舊版程式的行號另依裁定 2026-11-11-17 改寫，原文在第六部分。
 2026-11-11 另外查到原本就有的開發經過註解，改寫前的原文在第七部分。
 註解裡引用文件章節的寫法依裁定 2026-11-12-01 拿掉章節編號，改寫前的原文在第八部分。
+使用者 2026-11-12 回覆的幾件註解修改與註解檢查的擴充，依裁定 2026-11-12-16 到 2026-11-12-22 做，改寫前的原文在第九部分。
 
 ### 做法
 
@@ -397,22 +398,25 @@ Agent 問「底稿鎖定與原始碼整理的七項要照建議處理嗎？」�
 使用者 2026-11-11 回覆「照建議處理」（裁定 2026-11-11-20）。`K3_CASH_NOTE` 照 Agent 在建議裡提的名稱改。
 同一則建議也寫了新名稱要先寫進名詞表、經使用者確認才改；把「照建議處理」當成確認了 `COUNTERPART_CASH_NOTE` 這個名稱，是 Agent 的解讀；使用者 2026-11-12 確認照用。
 其他三組由 Agent 讀過用途後提出下表的新名稱，寫進名詞表，經使用者確認才改。
+使用者 2026-11-12 回覆「照提議改」（裁定 2026-11-12-09），同日照下表改完。
 
 路徑從 `src/JET/tests/` 起算：
 
 | 檔案 | 原本 | 改成 | 用途 | 現況 |
 |:---|:---|:---|:---|:---|
 | `frontend/frontend-journey-filter-build.test.cjs` | `K3_CASH_NOTE` | `COUNTERPART_CASH_NOTE` | 收入對方科目那張卡加入後，條件列寫的現金說明；同一個檔的 `COUNTERPART` 是這張卡的代號 | 已改，使用者 2026-11-12 確認照用 |
-| `JET.Tests/Domain/AccountMappingColumnResolverTests.cs` | `K7HeaderOrders` | `HeaderOrders` | 科目配對檔的標頭排成不同順序，以及預期認出的科目編號、科目名稱與分類欄；`JET.Tests/AuditCore/IntakeMappingProgramTests.cs` 也用 | 待使用者確認 |
-| `frontend/frontend-workflow.test.cjs` | `k6MappingDifferenceFixture` | `accountMappingCardFixture` | 畫出第四步「用 Excel 配對」的科目配對區塊，操作匯入與兩份差異清單的夾具 | 待使用者確認 |
-| `frontend/frontend-workflow.test.cjs` | 掛到 `window` 的 `k6` | `exposedAccountMappingCard` | `validate-step.js` 的 `accountMappingCardHtml` 與 `bindAccountMappingCard` | 待使用者確認 |
-| `frontend/frontend-workflow.test.cjs` | `projectId` 的 `k6` | `account-mapping-card-synthetic` | `k6MappingDifferenceFixture` 的合成案件 | 待使用者確認 |
-| `frontend/frontend-workflow.test.cjs` | 掛到 `window` 的 `k9` | `exposedFilter` | 值清單計數那則測試取用的 `filter-step.js` 函式；其他夾具掛同一個檔時也用這個名稱 | 待使用者確認 |
-| `frontend/frontend-workflow.test.cjs` | `projectId` 的 `k9-entry-synthetic` | `value-count-synthetic` | 值清單計數那則測試的合成案件 | 待使用者確認 |
+| `JET.Tests/Domain/AccountMappingColumnResolverTests.cs` | `K7HeaderOrders` | `HeaderOrders` | 科目配對檔的標頭排成不同順序，以及預期認出的科目編號、科目名稱與分類欄；`JET.Tests/AuditCore/IntakeMappingProgramTests.cs` 也用 | 已改，使用者 2026-11-12 回覆「照提議改」 |
+| `frontend/frontend-workflow.test.cjs` | `k6MappingDifferenceFixture` | `accountMappingCardFixture` | 畫出第四步「用 Excel 配對」的科目配對區塊，操作匯入與兩份差異清單的夾具 | 已改，使用者 2026-11-12 回覆「照提議改」 |
+| `frontend/frontend-workflow.test.cjs` | 掛到 `window` 的 `k6` | `exposedAccountMappingCard` | `validate-step.js` 的 `accountMappingCardHtml` 與 `bindAccountMappingCard` | 已改，使用者 2026-11-12 回覆「照提議改」 |
+| `frontend/frontend-workflow.test.cjs` | `projectId` 的 `k6` | `account-mapping-card-synthetic` | `accountMappingCardFixture` 的合成案件 | 已改，使用者 2026-11-12 回覆「照提議改」 |
+| `frontend/frontend-workflow.test.cjs` | 掛到 `window` 的 `k9` | `exposedFilter` | 值清單計數那則測試取用的 `filter-step.js` 函式；其他夾具掛同一個檔時也用這個名稱 | 已改，使用者 2026-11-12 回覆「照提議改」 |
+| `frontend/frontend-workflow.test.cjs` | `projectId` 的 `k9-entry-synthetic` | `value-count-synthetic` | 值清單計數那則測試的合成案件 | 已改，使用者 2026-11-12 回覆「照提議改」 |
 
 `K3_CASH_NOTE` 改完的檢查：改名前另存原檔，用純文字取代後和改完的檔逐位元組比對，兩者相同，只改了第 212 行的定義與兩處使用；
 同一個檔的失敗訊息沒有改。改完後 `src/`、`tools/`、`.agents/`、`.claude/`、`.codex/` 與 `.github/` 都找不到 `K3_CASH_NOTE`，
 `Contract -ContractScenario FrontendMapping` 的 1,016 個前端測試全部通過。
+
+另外三組改完的檢查：`AccountMappingColumnResolverTests.cs` 2 處、`IntakeMappingProgramTests.cs` 1 處，`frontend-workflow.test.cjs` 12 處，和 2026-11-11 調查時數到的位置相同。這三組和同一天改的其他名稱一起比對與驗證，見「2026-11-12 改的測試名稱與失敗訊息」。
 
 ### 原本就有的開發經過註解
 
@@ -450,7 +454,7 @@ brief、task、Task 加編號、鐵律、User-approved、本機參考樣本，`.
 - **前端。** `filter-step-saved.js` 的「(brief：依 highRiskSummaryScenarios 回的 position 升冪)」拿掉「brief：」。
 - **approved 與裁決。** `ReportWorkbookPresentationTests.cs` 拿掉「User-approved」；`FilterSideAndMonthWorkflowTests.cs` 與
   `TerminologyUnificationFrontendTests.cs` 共 3 行英文註解拿掉 approved；`TerminologyUnificationFrontendTests.cs` 那 2 行的 approved 是前幾輪改寫時寫的，
-  更早的原文在原文紀錄第一部分。`ApprovedUxFrontendTests.cs` 類別說明的「已核准 UX 項目」拿掉「已核准」，類別名稱沒有動。
+  更早的原文在原文紀錄第一部分。`ApprovedUxFrontendTests.cs` 類別說明的「已核准 UX 項目」拿掉「已核准」，類別名稱沒有動；類別與檔名後來在 2026-11-12 改成 `InteractionAndPresentationFrontendTests`，見「2026-11-12 改的測試名稱與失敗訊息」。
   `ExportReportHandlers.cs` 的「凍結裁決：」與 `GlRuleSqlEquivalenceTests.cs` 的「`>= 0` 裁決」改成直接寫規則。
 - **其他編號。** `DispatcherDiagnosticsTests.cs`、`RingBufferLoggerProviderTests.cs` 與 `SqlExecutionLoggingTests.cs` 共 4 行拿掉「TDD #1」這類編號，
   `UsageScenarioMutationRollbackTests.cs` 與 `UsageScenarioRetryJourneyTests.cs` 各 1 行拿掉句首的「X-03:」與「X-16:」，說明的內容照舊。
@@ -484,7 +488,7 @@ brief、task、Task 加編號、鐵律、User-approved、本機參考樣本，`.
 
 - `LayerDependencyTests.cs` 的「依賴方向鐵律」說的是各層的相依方向，是這個測試核對的內容；同一個檔的「harness 自我驗證」說的是這個測試確認分析工具真的讀到相依。
   `LegacyAuditParityObservations.cs` 的 parity harness 說的是比對程式本身。這三處都不是開發任務的用語。
-- 識別字與失敗訊息沒有動，例如 `TerminologyUnificationFrontendTests.cs` 的變數 `approvedSentence`。
+- 識別字與失敗訊息沒有動，例如 `TerminologyUnificationFrontendTests.cs` 的變數 `approvedSentence`；這個變數與三則失敗訊息後來在 2026-11-12 改掉，見「2026-11-12 改的測試名稱與失敗訊息」。
 - 註解裡的 `created_by`、`approved_by`、`approvedBy` 是欄位名稱。`ReportExportSupport.cs` 的「該 task」說的是執行中的工作。
 
 檢查：
@@ -558,28 +562,303 @@ Agent 問「註解裡 65 行 guide 與 spec 的章節引用，要拿掉編號只
 - **文件檢查。** 文件改完後跑 `Documentation`：80 份文件、0 個錯誤，6 則提醒都在這次沒有改的段落。寫完這一行後再執行一次確認，結果相同。
 - 這一輪沒有請子代理獨立複查，靠上面的腳本比對與 `Public` 確認。沒有執行 `Gui`、`Excel` 與 `PrivateCase`，沒有重新產生送審文件。沒有 stage、commit 或 push。
 
+### 2026-11-12 改的測試名稱與失敗訊息
+
+使用者 2026-11-12 對另外五件事的回覆，也是改測試裡的名稱、訊息或斷言，和上面「用計畫編號取的名稱」的三組同一天改完。
+回覆原文見首次 SAT 文件製作計畫的「2026-11-12 追加：提交前的五題與後續事項」。下面各表的路徑從 `src/JET/tests/` 起算。
+
+兩個帶 approved 的識別字（裁定 2026-11-12-10）。新名稱是 Agent 讀過用途後取的，使用者 2026-11-12 確認照用：
+
+| 檔案 | 原本 | 改成 | 用途 |
+|:---|:---|:---|:---|
+| `JET.Tests/Architecture/TerminologyUnificationFrontendTests.cs` | 變數 `approvedSentence` | `completenessMismatchSentence` | 完整性測試說明裡「金額不符時，要確認 GL 分錄是否完整。」這一句；測試確認它在 `validate-step.js` 只出現一次 |
+| `JET.Tests/Architecture/ApprovedUxFrontendTests.cs` | 類別 `ApprovedUxFrontendTests` | `InteractionAndPresentationFrontendTests`，檔名跟著改 | 讀前端原始碼，核對刪除案件對話框與切換步驟時的鍵盤焦點、Gui 測試假選檔器的標題，以及圓角與陰影的樣式 |
+
+掛到 `window` 的名稱（裁定 2026-11-12-11）。使用者作答時題目寫 17 個名稱、20 處；動手前重新搜尋 `src/JET/tests/frontend` 與 `tools/tests`，
+不是 `exposed` 開頭的有 21 個名稱、25 處，多出的是 `step4App`、`bindGroupTest`、`bindReviewedGlMapping` 與 `reviewMetadataRule`。
+掛同一個前端檔的一組函式時，沿用既有的 `exposedFilter`、`exposedImport` 與 `exposedApp`；只掛一個函式或一個區塊時另外取名，這 7 個新名稱使用者 2026-11-12 確認照用。
+每個夾具各自建立 `window`；在別的夾具的 `window` 上再掛一次時，用的名稱和已經掛上的不同。
+
+| 檔案 | 原本 | 改成 | 掛的內容 |
+|:---|:---|:---|:---|
+| `frontend/frontend-journey-filter-build.test.cjs` | `filterBuild` | `exposedFilter` | `filter-step.js` 的 `syncViewState`、`render` 與 `toWireDraft` |
+| `frontend/frontend-journey-filter-saved.test.cjs` | `importOps` | `exposedImport` | `import-step.js` 的 `applyResponse` |
+| `frontend/frontend-journey-step4.test.cjs` | `step4App` | `exposedApp` | `app.js` 的 `renderStepNav`、`renderContent` 與 `overviewStepFactsHtml` |
+| `frontend/frontend-workflow.test.cjs`、`tools/tests/frontend-development-repository.test.cjs` | `workflow` | `exposedFilter` | `scenarioLifecycleFixture` 取用的 `filter-step.js` 函式 |
+| `frontend/frontend-workflow.test.cjs` | `bindGroupTest` | `exposedBindGroupSelection` | `FilterStep.bindGroupSelection` 一個函式 |
+| `frontend/frontend-workflow.test.cjs` | `testSave` | `exposedFilter` | 儲存情境那則測試取用的 `filter-step.js` 函式 |
+| `frontend/frontend-workflow.test.cjs` | `bindReviewedGlMapping`，兩則測試各掛一次 | `exposedBindGlMapping` | 包住 `mapping-step.js` 的 `bindMappingSection`、只綁 GL 配對區塊的函式 |
+| `frontend/frontend-workflow.test.cjs` | `commonCards` | `exposedFilter` | `commonCardFixture` 取用的 `filter-step.js` 函式 |
+| `frontend/frontend-workflow.test.cjs` | `reviewMetadataRule` | `exposedRuleControlsHtml` | `FilterStep.ruleControlsHtml` 一個函式；這則測試用的 `window` 已經有 `exposedFilter` |
+| `frontend/frontend-workflow.test.cjs` | `categoryReview` | `exposedCategoryCard` | `validate-step.js` 科目分類卡片的 `categoryCardHtml`、`categoryRows`、`bindCategoryCard` 與 `bind` |
+| `frontend/frontend-workflow.test.cjs` | `categoryFilterReview` | `exposedFilter` | `categoryReviewFixture` 取用的 `filter-step.js` 函式 |
+| `frontend/frontend-workflow.test.cjs` | `calendarTest` | `exposedImport` | `import-step.js` 的 `calendarCard`、`bindCalendarCard` 與 `resetWizard` |
+| `frontend/frontend-workflow.test.cjs` | `naming` | `exposedFilter` | `namingFixture` 取用的 `filter-step.js` 函式 |
+| `frontend/frontend-workflow.test.cjs`、`frontend/support/frontend-fixtures.cjs`、`tools/tests/frontend-development-repository.test.cjs` | `remapApp` | `exposedApp` | 三個 `remapAppFixture` 各自取用的 `app.js` 函式 |
+| `frontend/support/frontend-fixtures.cjs` | `ops` | `exposedFilter` | `filterOperationFixture` 取用的 `filter-step.js` 函式；`frontend-workflow.test.cjs` 有一處讀它 |
+| `frontend/support/frontend-fixtures.cjs` | `overviewApp` | `exposedApp` | `overviewDialogFixture` 取用的 `app.js` 函式 `renderOverview`，以及開啟流程總覽的綁定 |
+| `frontend/support/frontend-fixtures.cjs` | `mappingWire` | `exposedGlCommitPayload` | `mapping-step.js` 的 `glCommitPayload` 一個函式；`frontend-mapping.test.cjs` 有 23 處用它 |
+| `frontend/support/frontend-fixtures.cjs` | `mappingEligibility` | `exposedMappingCommitEligibility` | `mapping-step.js` 的 `mappingCommitEligibility` 一個函式；`frontend-mapping.test.cjs` 有 2 處用它 |
+| `frontend/support/frontend-fixtures.cjs` | `mappingRenderApp` | `exposedApp` | `mappingRenderFixture` 取用的 `app.js` 函式 `render` 與 `renderContent` |
+| `frontend/support/frontend-fixtures.cjs` | `messagePanelApp` | `exposedApp` | `messagePanelFixture` 取用的 `app.js` 訊息面板函式，以及複製按鈕的綁定 |
+| `tools/tests/frontend-development-repository.test.cjs` | `drawMapping` | `exposedMappingRender` | `mapping-step.js` 的 `render` 一個函式 |
+
+有三個指派到 `window` 的名稱沒有改，待使用者確認。`frontend-workflow.test.cjs` 的 `commonCardFixture` 用 `window.deferred` 記下 `JetFocus.defer` 收到的回呼，它是測試替身自己的紀錄。
+`frontend-support.test.cjs` 核對 `exposeAt` 時用 `window.seam = 1;` 與 `window.after = 1;` 當插入的範例字串，這兩段字串不會被執行。三個掛的都不是產品程式的內部函式。
+瀏覽器與產品自己的名稱也照舊，例如測試替身設定的 `window.JetApi`、`window.JetFocus` 與 `window.getComputedStyle`。
+
+往上找 `JET.slnx` 的方法與例外訊息（裁定 2026-11-12-12）。28 個測試檔各有一個私有方法 `RepoRoot`，共 71 處，改成 `SolutionRoot`：
+`JET.Tests/Architecture` 25 個檔，`JET.Tests/Application` 的 `GlobalExceptionFallbackLogTests.cs` 與 `WebViewSecurityPolicyTests.cs`，以及 `JET.Tests/Infrastructure` 的 `ReportTemplateExternalRelationshipTests.cs`。
+這個方法回傳 `JET.slnx` 所在的 `src/JET`；測試專案共用的 `TestRepositoryPaths.SolutionRoot` 指的是同一個資料夾，所以沿用這個名稱。
+例外訊息「向上尋不到 JET.slnx，無法定位 repo 根。」在 `JET.Tests/Architecture` 的 15 個檔各 1 處，改成其他測試原本就用的「向上尋不到 JET.slnx。」。
+其中 `FilterTemplatesFrontendTests.cs`、`PagedTableFrontendTests.cs` 與 `PrescreenRuleRegistryTests.cs` 沒有 `RepoRoot` 方法，只改訊息。
+改之前搜尋過，這句訊息只出現在丟出例外的那一行，沒有測試比對它。
+`FilterConditionLabelMirrorTests.cs` 說明這個方法的註解原本寫「定位 repo 根」，改成「回傳方案檔所在的資料夾」，和 `SupportedActionsParityTests.cs` 的寫法一致。
+
+前端測試的三則失敗訊息（裁定 2026-11-12-13）。只改斷言失敗時印出的訊息，比對的內容不變：
+
+| 檔案 | 原本 | 改成 |
+|:---|:---|:---|
+| `frontend/frontend-journey-filter-build.test.cjs` | condition row shows the approved sentence | condition row shows the cash note |
+| `frontend/frontend-workflow.test.cjs` | saving categories clears saved scenarios as ruled on 2026-10-07 | saving categories clears the saved scenarios |
+| `frontend/frontend-workflow.test.cjs` | one match is enough; no unapproved ratio threshold | one match is enough; no ratio threshold |
+
+流程總覽測試的資料庫欄位（裁定 2026-11-12-14）。`frontend/frontend-journey-overview.test.cjs` 原本接受 SQLite、DuckDB 與 SQL Server 三種文字，收緊成只接受 SQLite。
+這是修改既有斷言，原因與第一次失敗的情形記在 [`test-change-records.md`](test-change-records.md)。
+
+改完的檢查：
+
+- **只改了上面列的地方。** 改名前把 `src/JET/tests/JET.Tests` 的 C# 原始檔、`src/JET/tests/frontend` 與 `tools/tests` 的前端測試檔另存一份。改名用腳本做，每一項都先核對出現的次數，次數不符就不寫檔。
+  改完和另存的檔比對，連同「用計畫編號取的名稱」的三組，共 41 個檔、193 行不同：C# 33 個檔，前端測試 8 個檔。每一行不同的地方都是上面列的名稱、訊息、那一句註解，或流程總覽測試的那一則斷言。
+- **找不到舊名稱。** 搜尋 `src/`、`tools/`、`.agents/`、`.claude/`、`.codex/`、`.github/` 與 `docs/`，舊名稱只剩在 `docs/history/` 的紀錄、首次 SAT 文件製作計畫記錄當時狀況的段落與使用者原話、裁定總表與名詞表寫明由哪個舊名稱改過來的地方，
+  以及架構圖來源清單裡 `ApprovedUxFrontendTests.cs` 的路徑；那份清單是提交 `40440b9` 的封存快照，下次重繪架構圖時再重新產生。
+  `GuiScenarioCoverageTests.cs` 有一個 C# 區域變數也叫 `filterBuild`，它存的是讀進來的測試檔內容，和掛到 `window` 的名稱無關，沒有改。
+- **測試。** 驗證的命令與結果見首次 SAT 文件製作計畫的「2026-11-12 追加：測試名稱、訊息與流程總覽測試的六件事」。
+
+### 2026-11-12 照使用者回覆改的註解與註解檢查
+
+使用者 2026-11-12 的回覆裡有七件和 `src/JET` 的註解有關：六件改註解或空行，一件擴充註解檢查。這一節記錄照回覆做了什麼。
+回覆原文見首次 SAT 文件製作計畫的「2026-11-12 追加：提交前的五題與後續事項」，七件依序登錄成裁定 2026-11-12-16 到 2026-11-12-22。
+下面的路徑從 `src/JET/` 起算，行號是改寫前的行號。改寫前的原文附在原文紀錄的第九部分：88 個檔、136 段、146 行。
+
+| 事項 | 檔數 | 改了多少 | 裁定 |
+|:---|---:|:---|:---|
+| 「對齊樣本」這類說法 | 6 | 18 行 | 2026-11-12-16 |
+| 「凍結契約」 | 4 | 5 行 | 2026-11-12-17 |
+| 「舊版 JET」指哪一版 | 40 | 62 行 | 2026-11-12-18 |
+| 只寫文件名稱、沒有章節編號的註解 | 37 | 54 行 | 2026-11-12-19 |
+| 底稿寫出測試的分段標題 | 3 | 改 7 行，新加 3 行 | 2026-11-12-20 |
+| 說明和方法之間的空行 | 2 | 拿掉 2 行空行 | 2026-11-12-21 |
+| 擴充註解檢查 | 1 | 只有 `SourceCommentPolicyTests.cs` | 2026-11-12-22 |
+
+有幾個檔同時在兩件裡。改註解與空行的六件不重複計算是 88 個檔：產品程式 27 個，測試 61 個。
+做的順序照測試先行：先擴充註解檢查，確認它因為現有的註解而失敗，再改註解。
+
+#### 擴充註解檢查
+
+`SourceCommentPolicyTests` 加了兩類檢查，原有的樣式與斷言沒有改。
+
+- **開發任務的用語。** 加進原有的樣式清單 `DevelopmentRecords`，和原本四類一樣整行都看，註解、字串與識別字都算。
+  抓的字樣有：接在「對齊」「皆照」「和」「舊版」後面的「樣本」、「本機參考樣本」、「樣本顯示形式」與「樣本全表」；「凍結契約」與「凍結裁決」；
+  Task 加數字再加冒號、接在「此」「本」後面的 task、TDD 加井號與數字、jet-testing、`.git/sdd`、user-approved、
+  brief 後面接冒號、「設計」或「允許」，以及 DRY 加等號與數字。Task 之後這幾種是「原本就有的開發經過註解」那一輪改掉的寫法，當時的檢查抓不到。
+- **文件章節的寫法。** 新的一組樣式 `DocumentSections`，由新方法 `Comments_DoNotCiteDocumentSections` 掃描，只看每一行從註解記號開始的部分。
+  抓的寫法有：章節符號，接在 ECMA-376 後面的不算；jet-guide、master spec、guide section 加數字；guide 或 spec 加帶小數點的編號；spec 加字母與編號，例如 `spec C.3`；
+  FD 加數字；action-contract-manifest；以及 manifest、「前端說明」、「action 契約」、frontend description 後面直接接上引號的寫法，也就是文件名稱加節名。
+  只看註解、不看字串，是因為測試輔助程式 `LegacyAuditParityComparator.cs` 用 `docs/jet-guide.md` 加章節的字串標示比對依據，那是比對時用的資料。
+- **不該擋的例子。** `PatternsLeaveOrdinaryCommentsAndDataAlone` 加 7 個例子，確認正常的用語不會被擋：「用字已定案」「可靠性樣本」「摘要樣本」「介面凍結」、`Task.WhenAll`、「該 task」與 briefing。
+  新方法 `DocumentSectionPatternsLeaveOrdinaryCommentsAndStringsAlone` 也有 7 個例子：ECMA-376 的條文編號、指報告清單的 manifest、寫到短表頭「項次」的句子、「規格手算」、
+  程式檔 `action-contract.cjs`，以及兩個寫在字串裡的文件名稱。
+- **該擋的例子。** `PatternsRecogniseEachKindOfDevelopmentRecord` 加 12 個「開發任務的用語」的例子；新方法 `DocumentSectionPatternsRecogniseEachWayOfCitingASection` 有 12 個引用章節的例子。
+
+第一次失敗分兩步確認，命令都是 `Focused` 篩選 `SourceCommentPolicyTests`：
+
+1. 只加例子、還沒加樣式時，有 2 則失敗：`PatternsRecogniseEachKindOfDevelopmentRecord` 與 `DocumentSectionPatternsRecogniseEachWayOfCitingASection`，各 12 個該擋的例子都沒有被擋。
+2. 加上樣式、還沒改註解時，選到的 30 個案例有 28 個通過、2 個失敗。`ProductAndTestSources_DoNotCarryDevelopmentRecords` 列出 21 行「開發任務的用語」：
+   寫樣本的 18 行與寫「凍結契約」的 3 行，都在下面要改的檔案裡。`Comments_DoNotCiteDocumentSections` 列出 11 行：
+   `DevDbHandlersTests.cs`、`ImportProgressEventTests.cs`、`ProjectHandlersTests.cs`、`ProjectSaveProgressHandlerTests.cs`、`SupportLogUnavailableProjectTests.cs`、
+   `WebViewEventPublisherTests.cs` 與 `frontend-mapping.test.cjs` 各 1 行，另外 4 行是這個測試檔自己的例子。
+   測試檔那 4 行把章節符號直接寫成字元，所以被自己掃到；改成跳脫寫法後不再出現。其餘 7 行照下面「只寫文件名稱的註解」改寫。
+3. 註解改完後通過：選到的 30 個案例全部通過，固定補跑的架構檢查 402 個也通過。
+
+這兩類檢查擋不到的寫法：跨兩行寫的「凍結」「契約」；只寫 manifest、後面沒有接節名的句子；單獨的「參考樣本」，因為 `SensitiveDataPolicyTests.cs` 有一筆測試資料的字串含這四個字。
+
+#### 「對齊樣本」這類說法
+
+題目寫 17 行。動手前照新加的樣式重新搜尋是 18 行：四個底稿寫出的程式檔 14 行，`LocalAccountMappingExportRepository.cs` 1 行，`WorkingPaperWriterCoverAndReferenceSheetTests.cs` 3 行。
+程式檔比先前數的 13 行多 1 行，多的是哪一行沒有回頭比對。
+逐行找「樣本」指什麼時，對照的是內嵌範本 `JET/Templates/WorkingPaper.xlsx` 與 `legacy/` 的兩份 IDEA 版程式，沒有讀 `data/` 底下的檔案。結果分三種：
+
+- **範本裡查得到，改成寫範本。** step2 表頭、step3 與 step4 固定文字的合併範圍，內嵌範本同一張工作表的同樣位置都有，註解改成「範本裡也有」。
+  step2 那一行另外補一句：攸關資料元素欄的合併範圍依欄數另外加。三張自動化工具表接在 step5 後面的順序和範本的工作表順序相同，改成「照範本的工作表順序」。
+- **和範本對不上，拿掉。** step2 的固定文字與欄標原本寫「逐字對齊樣本」。對照內嵌範本：範本的說明標題是「說明：」，程式寫「測試說明：」；註 3 在範本是第 46 列，程式寫在第 47 列；
+  第 51 列的 E、F 兩欄，程式寫「借方金額」「貸方金額」，範本是借貸方代號與「金額 - 借(貸)」。所以「逐字對齊樣本」拿掉，只留這段程式寫什麼。
+  這裡比的是程式碼和範本，沒有產生底稿看實際輸出；兩者為什麼不同，列在「還沒處理」。
+- **查不到依據，拿掉。** 日期顯示成 yyyy/MM/dd、整張表靠上對齊、step4 依情境算出欄位、科目配對依科目編號升冪、假日表的標頭，以及假日的 IS_HOLIDAY 一律寫 Y，
+  在範本與 IDEA 版程式裡都找不到能叫「樣本」的對照。這幾行只拿掉「樣本」的說法，程式做的事照寫。
+  `WorkingPaperWriter.FixedSheets.cs` 說封面 A6 的那一行原本寫「照舊版樣本底稿的外觀」，查不到是哪一份底稿，改成「A6 只保留儲存格格式，不寫字」；後半句「兩份舊版 IDEA 程式都沒有寫這一格」照舊。
+  `WorkingPaperStyles.cs` 黃色底的色碼那一行也只拿掉「對齊樣本」。內嵌範本的樣式表有同一個色碼，但沒有查是哪一格在用，所以沒有寫成照範本。
+
+| 檔案與行號 | 原本 | 改成 |
+|:---|:---|:---|
+| `JET/Infrastructure/Export/WorkingPaperWriter.Step2To41.cs` 第 2078 行 | step3 固定文字合併範圍(逐字對齊樣本)。 | step3 固定文字合併範圍,範本裡也有這幾個。 |
+| `JET/Infrastructure/Export/WorkingPaperWriter.cs` 第 367 行 | 三張「自動化工具」參考資料表(對齊樣本順序,接在 step5 後)。 | 三張「自動化工具」參考資料表(照範本的工作表順序,接在 step5 後)。 |
+| `JET/Infrastructure/Export/WorkingPaperWriter.Step2To41.cs` 第 108 行 | 測試說明 + 測試程序固定文字(逐字對齊樣本;列號/欄/合併皆照樣本)。 | 測試說明 + 測試程序固定文字。 |
+| `JET/Infrastructure/Export/WorkingPaperWriter.FixedSheets.cs` 第 269 行 | 日期由 yyyy-MM-dd 轉樣本顯示形式 yyyy/MM/dd; | 日期由 yyyy-MM-dd 轉成 yyyy/MM/dd 顯示; |
+| `JET/Infrastructure/Persistence/Local/LocalAccountMappingExportRepository.cs` 第 10 行 | 排序鍵 account_number ASC，和樣本一樣依科目升冪。 | 排序鍵 account_number ASC，依科目編號升冪。 |
+
+#### 「凍結契約」
+
+題目寫產品程式 3 行。測試 `TypedFieldRuleValidationTests.cs` 另有一處跨兩行寫「凍結」「契約」，一起改，共 5 行。每一處換成那條規定實際要求什麼：
+
+| 檔案與行號 | 原本 | 改成 |
+|:---|:---|:---|
+| `JET/Application/Support/FilterScenarioPayloadParser.cs` 第 334 行 | 凍結契約要求 operand carrier 是 | typed 條件的 operand carrier 必須是 |
+| `JET/AuditCore/GlRulePredicates.cs` 第 365 行 | amountBasis 是凍結契約的必填 closed token | 每條 money 條件都要帶 amountBasis，值只能是 signed 或 absolute |
+| `JET/Domain/Rules/FilterScenario.cs` 第 69 行 | values 上限（凍結契約：1–100 個字串） | values 上限：每條要有 1–100 個字串 |
+| `tests/JET.Tests/Domain/TypedFieldRuleValidationTests.cs` 第 55 到 56 行 | 凍結契約要求「每條 money 規則明示 amountBasis」 | 每條 money 規則都要明示 amountBasis |
+
+`FilterScenario.cs` 那一行的 1 到 100，對過同一個檔裡檢查個數的程式。
+
+#### 「舊版 JET」指哪一版
+
+用腳本只掃註解，含「舊版」的有 376 行。逐段讀前後文，分成四種：
+
+- **指 IDEA 版的 JET，照舊。** 大部分是這一種，例如 `ResultPageSorting.cs` 說可靠性樣本的順序照舊版依傳票號碼升冪。
+- **指新版 JET 較早的版本，改寫。** 連同同一句裡跟著調整的行，共 62 行、40 個檔。講案件的改成「較早版本的 JET 建立的案件」；講版本比較的改成「版本較舊」，或直接寫第幾版；
+  講以前的程式怎麼做的句子，改成只寫現在的做法。
+- **指資料或檔案的版本，照舊。** 14 行。說的是已存情境的規則版本、報告的版本這類資料自己的版本，不是 JET 的版本：
+  `validate-step.js` 第 1210 行，`frontend-journey-export.test.cjs` 第 157 行，`frontend-journey-filter-saved.test.cjs` 第 656 行，
+  `AdvancedFilterAstContractTests.cs` 第 302 行，`FilterDirectQueryStaleGuardTests.cs` 第 7 行，`FilterHandlersTests.cs` 第 932 行，`FilterHitPerScenarioTests.cs` 第 364 行，
+  `FilterScenarioRuleUpgradeTests.cs` 第 175 行，`FilterScenarioSingleChangeTests.cs` 第 793 行，`ReportRevisionStateTests.cs` 第 51 與 76 行，
+  `WorkingPaperDirectTemplateReportAtomicityTests.cs` 第 196 行，`ActionContractRuleVersionTests.cs` 第 11 行，`FilterScenarioStoreTests.cs` 第 10 行。
+- **分不出來，沒有改。** 3 行，等使用者決定：
+  - `ImportAccountMappingHandler.cs` 第 79 行說「舊版 JET 產物」與一般 CSV 仍維持第 1 列標頭。前後兩行另外寫「正式 legacy AccountMapping」與「舊範本」，看不出這三個是不是同一樣東西。
+  - `JetSchemaCatalog.cs` 第 8 行「畫面或舊版對這份資料的稱呼」。同一個檔另外提到 legacy Excel-VBA 工具，可能是 IDEA 版以外的另一個舊工具。
+  - `FieldInfoSheetRoundTripTests.cs` 第 109 行「舊版占位文字」。
+
+| 檔案與行號 | 原本 | 改成 |
+|:---|:---|:---|
+| `JET/Domain/JetActionException.cs` 第 116 行 | 找不到案件資料夾，以及舊版 JET 建立的案件時的句子。 | 找不到案件資料夾，以及案件是較早版本的 JET 建立時的句子。 |
+| `JET/Application/Handlers/Project/ProjectLoadHandler.cs` 第 73 行 | 這裡會重新檢查版本並拒絕舊版。 | 這裡會重新檢查版本，版本較舊就拒絕。 |
+| `JET/wwwroot/js/steps/filter-step.js` 第 105 行 | 舊版情境重新編輯後一律改存第 2 版 | 第 1 版的情境重新編輯後一律改存第 2 版 |
+| `JET/wwwroot/js/ui-core.js` 第 1205 行 | 未提交或舊版配對時為空陣列。 | 還沒提交，或提交的配對沒有 rdeFields 時為空陣列。 |
+| `tests/JET.Tests/Application/ProjectHandlersTests.cs` 第 228 行 | 舊版 project.json（databaseProvider 欄位出現前的形狀）要明確拒絕，不猜成 sqlite。 | 沒有 databaseProvider 欄位的 project.json 要明確拒絕，不猜成 sqlite。 |
+| `tests/JET.Tests/Application/FilterConditionRendererTests.cs` 第 277 行 | 舊版非營業日(I) 獨立條件組：照一般條件組讀回 | 已存情境裡兩條預篩選自成一組的非營業日條件(I)：照一般條件組讀回 |
+| `tests/JET.Tests/Application/SupportLogDiagnosisTests.cs` 第 236 行 | 舊版每個例外只留前五層方法；這裡八層巢狀呼叫全部保留。 | 八層巢狀呼叫全部保留，不只留前幾層。 |
+
+畫面訊息也寫「舊版 JET」。`ProjectFolderMessages.OldVersionProject` 這一句告訴審計員案件「是舊版 JET 建立的」，指的是較早版本的 JET。它是產品的字串，這次沒有改；
+`JetActionException.cs` 說明這一句的註解改成「較早版本的 JET 建立的案件，訊息裡寫『舊版 JET』」。畫面用字要不要跟著改，等使用者決定。
+英文或中英混寫的 legacy 註解只掃過、沒有改，見「還沒處理」。
+
+#### 只寫文件名稱、沒有章節編號的註解
+
+重新用腳本只掃註解。提到 manifest 的仍是 59 行、41 個檔，逐行分辨：
+
+- **指 action 契約文件的 42 行，改寫。** 大部分只拿掉括號裡或句首的文件名稱，說明照舊；文件名稱後面接著錯誤碼的，改成寫「錯誤碼」加那個代碼。
+  句子靠文件名稱才成立的，改成直接寫內容，例如 `ImportProgressEventTests.cs` 類別說明裡括號寫的文件名稱與節名，改成「由後端送給前端」。
+- **指程式自己的東西的 17 行，照舊。** 說的是報告資料夾裡那份清單，或名稱裡有 Manifest 的類別：`AuditedReportStore.cs`、`JetAuditProgram.cs`、`PrescreenProgram.cs` 3 行、`ValidationProgram.cs`、
+  `IReportStore.cs` 3 行、`ReportContracts.cs`、`ProjectReportStore.cs`、`WorkingPaperExportCancellationTests.cs`、`ReportExportOwnershipTests.cs`、`ReportKindValuesTests.cs`、
+  `EmbeddedReportTemplateFailureTests.cs`、`PrivateCaseManifest.cs` 與 `ProjectReportStoreTests.cs`。
+
+其他文件名稱另外找到 10 行，也改寫：寫「名詞表」的 4 行，`filter-vouchers.js`、`filter-step-rules.js`、`frontend-journey-step4.test.cjs` 與 `frontend-journey-tables.test.cjs` 各 1 行；
+寫 action contract 的 `WorkingPaperProgram.cs` 1 行；同時寫「前端說明」與「action 契約」的 `SupportLogUnavailableProjectTests.cs` 1 行；
+英文註解 4 行，`UsageScenarioProjectBoundaryTests.cs` 與 `frontend-workflow.test.cjs` 各 1 行，`WorkingPaperExportCapacityJourneyTests.cs` 2 行。
+另有 2 行本身沒有文件名稱，因為和相鄰的行是同一句，跟著調整，所以一共 54 行。
+
+| 檔案與行號 | 原本 | 改成 |
+|:---|:---|:---|
+| `tests/JET.Tests/Application/ImportAndMappingHandlersTests.cs` 第 202 行 | 來源多出 c、來源缺少 b（manifest column_mismatch） | 來源多出 c、來源缺少 b（錯誤碼 column_mismatch） |
+| `tests/JET.Tests/Application/ProjectHandlersTests.cs` 第 219 行 | manifest「資料庫 provider 歸屬」：本地專案固定 sqlite。 | 本地專案的資料庫 provider 固定是 sqlite。 |
+| `tests/JET.Tests/Infrastructure/EncodingDetectorTests.cs` 第 10 行 | oracle：手寫 bytes fixture 與 manifest encoding 白名單。 | oracle：手寫 bytes fixture 與 encoding 白名單（utf-8、big5、utf-16）。 |
+| `JET/AuditCore/WorkingPaperProgram.cs` 第 35 行 | 上限與順序沿用既有 action contract。 | 取自案件已存的情境，個數與順序跟著已存情境。 |
+| `JET/wwwroot/js/filter-vouchers.js` 第 202 行 | 表頭寫名詞表的短表頭「項次」 | 表頭寫短表頭「項次」 |
+| `tests/frontend/frontend-workflow.test.cjs` 第 5574 行 | Expected behavior comes from the frontend description and the action contract. | The creation page marks both audit dates as required inputs. |
+
+照舊保留的還有幾行，說的是測試讀的檔案本身，不是引用文件當依據：提到程式檔 `action-contract.cjs` 的 5 行，`ActionContractRuleVersionTests.cs` 第 10 行與 `TestProfileTraits.cs` 第 10 行，以及 `ui-core.js` 第 70 行。
+
+#### 底稿寫出測試的分段標題
+
+三個 `WorkingPaperWriter` 開頭的測試檔，逐段讀標題底下的測試方法，標題和內容不相符的改標題，測試沒有改。
+
+| 檔案與行號 | 原本的標題 | 改成 | 原因 |
+|:---|:---|:---|:---|
+| `WorkingPaperWriterCoverAndReferenceSheetTests.cs` 第 21 行 | 封面 / 固定文字三表(內容不隨母體改變) | 封面、JE WorkingPaper說明與 step5 三張固定文字的表;另有一則核對封面與 step3 的查核期間 | 寫明是哪三張表；這一段另有一則核對查核期間的測試 |
+| 同一個檔第 191 行 | 自動化工具-假期假日資訊(週末固定 + 假日/補班) | 自動化工具-假期假日資訊(週末表照案件的每週休息日,加上假日與補班) | 週末表跟著案件的每週休息日，不是固定的 |
+| 同一個檔第 378 行前 | 沒有標題 | 整本活頁簿 | 最後一則測試核對整本活頁簿，原本接在假期假日那一段底下 |
+| `WorkingPaperWriterStep1ToStep2Tests.cs` 第 20 行 | step2 可靠性(舊版 JET 的借貸代號與帶號金額) | step2 可靠性(借貸代號、帶號金額、欄寬與樣本順序);最後一則核對 step1 表頭的 A3 | 這一段還核對欄寬與樣本順序，最後一則是 step1 的 |
+| 同一個檔第 242 行 | step1 完整性(全科目) | step1 完整性(全科目);中間一則核對 step1 家族各表的欄寬 | 中間有一則核對幾張表的欄寬 |
+| 同一個檔第 385 行 | step1-1 借貸不平(條件例外表) | step1-1 借貸不平(有不平傳票才列明細);另有 step1 與 step1-1 的結論文字、step1-3 的表頭說明 | 這一段另有結論文字與 step1-3 表頭的測試 |
+| 同一個檔第 742 行 | step1-3 正準條件表 | step1-3 只在有差異科目時產生,以及鎖定範圍 | 底下的測試核對的是這兩件事 |
+| `WorkingPaperWriterStep3Step4Tests.cs` 第 20 行前 | 沒有標題 | 案件資料庫的內容讀不出來時的回報 | 檔案開頭兩則測試原本沒有標題 |
+| 同一個檔第 216 行前 | 沒有標題 | 每張工作表的列號 | `WorkingPaperSheets_RowNumbers_AreUniqueAndAscending` 原本接在 step3 那一段底下 |
+| 同一個檔第 240 行 | step4 符合高風險條件傳票(動態全 position 欄) | step4 符合高風險條件傳票(所選情境的條件欄) | 換成說明欄位是什麼 |
+
+三個新加的標題，有兩個後面各加一行空行。step2 那一行標題裡的「樣本」說的是可靠性測試抽出的樣本，不是範本。
+
+#### 說明和方法之間的空行
+
+`WorkingPaperWriter.FixedSheets.cs` 的 `EmitFieldInfoSheetAsync` 與 `WorkingPaperWriter.Step2To41.cs` 的 `WriteSubstantiveHeader`，說明和方法之間各有一行空行，拿掉。
+用腳本找整個 `src/JET` 裡說明後面隔一行空行才接成員的地方，只有這兩處。
+
+#### 檢查
+
+- **只動了註解與空行。** 動手前把 `src/JET` 的原始檔另存一份，共 1,149 個。改註解用腳本做，145 項各自先核對出現的次數，次數不是 1 就不寫檔。
+  改完用腳本把前後的檔案拆成註解與註解以外兩部分：比對的 1,125 個檔裡，註解以外不同的只有 `SourceCommentPolicyTests.cs`。
+  另外逐行比對有改的 88 個檔：有差異的行去掉註解後都相同，換行與檔頭沒有變。改寫前有差異的是 148 行，其中空行 2 行；改寫後是 151 行，其中空行 2 行。
+  這是用腳本逐字元拆出註解的近似判斷，不是 Roslyn。有 2 行的註解寫在程式後面，同一行的程式沒有變。
+- **註解檢查。** `Focused` 篩選 `SourceCommentPolicyTests`：選到的 30 個案例全部通過，固定補跑的架構檢查 402 個也通過。
+- **完整公開測試。** 註解與測試都改完後跑 `Public`：C# 5,075 個案例，前端測試 FrontendMapping 1,016 個、FrontendPreview 12 個，全部通過，建置 0 個警告。
+  C# 比上一次多 16 個，都是註解檢查新加的例子與方法。文件改完後再跑一次，結果相同。
+- **文件檢查。** 文件改完後跑 `Documentation`，結果見首次 SAT 文件製作計畫的「2026-11-12 追加：原始碼註解的七件修改」。
+- 這一輪沒有請子代理獨立複查，靠上面的腳本比對與測試確認。沒有逐句拿改寫後的註解再對一次程式，只在改寫當時讀過前後文。
+  沒有執行 `Gui`、`Excel` 與 `PrivateCase`，沒有重新產生送審文件。沒有 stage、commit 或 push。
+
+### 2026-11-12 再分辨一次的「舊版」與 legacy 註解
+
+上一節留下 3 行分不出指哪一版的「舊版」，英文或中英混寫的 legacy 註解也只掃過。使用者 2026-11-12 同意再分辨一次，分得出來的改（裁定 2026-11-12-31）。
+
+- **怎麼查的。** 子代理只讀檔案，對照 `src/JET` 的程式與測試、`legacy/` 的程式與說明、系統規格、名詞表與裁定總表，沒有讀 `data/`，沒有跑測試。
+  除了點名的 3 行，另外在 `src/JET` 的註解裡搜尋 legacy、old version、previous version、formerly、used to 等英文說法，一共看了 176 行。
+- **照舊的。** 101 行指 IDEA 版的 JET、它的範本或輸出；42 行和版本無關，例如只是提到名稱帶 Legacy 的識別字，或傳票代號剛好寫成 V1。
+  `legacyOverrides` 的 3 行等 6 行說的是較早存下的資料，但已經寫成程式現在怎麼處理，不用改。
+- **改寫成現況的 14 行。** 指新版 JET 較早的版本、資料格式或寫法。其中 7 行寫 legacy scalar 或「legacy 單選欄位」，說科目配對條件的單選分類欄位 `debitCategory`、`creditCategory` 還會被讀；
+  程式現在只讀兩個分類身分的陣列，單選欄位照未知欄位處理，所以這 7 行照現在的程式改寫。Agent 另外搜尋過 `src/JET/JET` 的 C# 與 JavaScript，沒有讀這兩個欄位的程式。
+  `FieldInfoSheetRoundTripTests.cs` 的「舊版占位文字」指較早版本的 JET 在沒有借方代碼時寫進說明句的配對鍵 `drCrDebitCode`，改寫時保留「這是為了讀較早版本寫出的檔案」這件事。
+- **寫明是哪一個的 4 行。** `JetSchemaCatalog.cs` 有 2 行只寫 legacy，補上 Excel-VBA 工具；說表名取自「舊版」的那一行改成「舊版工具(Excel-VBA 工具或 IDEA 版 JET)」，這個用字是 Agent 照名詞表「程式識別字先找舊版 VBA 或 IDEA 的用語」推的。
+  `SixReportWorkflowJourneyTests.cs` 的 legacy entry catalogue 指 2024 年篩選條件表的條件目錄，改成 the 2024 entry catalogue。
+- **分不出來、當時沒有改的 2 行。** `ImportAccountMappingHandler.cs` 的「舊版 JET 產物」：標頭在第 1 列的檔案有兩種，IDEA 版與新版底稿的「自動化工具-科目配對資訊」工作表，以及較早版本的 JET 產生的科目配對範本，查不到當時指哪一種。
+  `JetFieldCatalog.cs` 的「空白 legacy 值」：可以讀成較早版本存下的配對裡留著的空字串，也可以讀成泛指沒填的配對值。兩行的原句已經列給使用者。使用者 2026-11-12 決定改成不必分辨也成立的寫法（裁定 2026-11-12-33）：前一行改成直接寫哪些檔案的標頭在第 1 列，後一行改成「配對值空白一律當成沒有來源」。
+- **不在範圍、沒有改的 4 行。** `FilterFactsPort.cs` 2 行、`PrescreenProgram.cs` 與 `ValidationProgram.cs` 各 1 行用 compatibility 說「留著原本的做法」。它們是用 legacy 以外的字找到的，子代理也沒有核對使用端。使用者 2026-11-12 確認這次不改。
+- **原文。** 改寫前的 18 行收在原文紀錄第十部分，共 13 個檔；後來改寫的 2 行，以及畫面訊息改用字時跟著改的 1 行註解，收在第十部分的補充。
+- **檢查。** 套用時腳本逐行核對原文與縮排，對不上就不寫檔。驗證的結果寫在首次 SAT 文件製作計畫「2026-11-12 追加：使用者對十九件待決定的事的回覆」。
+
 ### 還沒處理
 
-- 「用計畫編號取的名稱」表上的三組新名稱，使用者 2026-11-12 同意照提議改，還沒動手；改完再補上檢查。
+- 三個沒有改的 `window` 指派，使用者 2026-11-12 確認不改（裁定 2026-11-12-11），見「2026-11-12 改的測試名稱與失敗訊息」。同一節新取的 9 個名稱，使用者 2026-11-12 已經確認照用。
+- 測試裡還有其他帶 approved 的名稱，不在使用者 2026-11-12 第一次回覆的範圍，當時沒有改。這一點列的 9 個 C# 測試方法與 `tools/tests` 的測試名稱，使用者同日後來同意改名，已經改完，新舊名稱見名詞表「C# 測試的名稱」一列（裁定 2026-11-12-28）；測試輔助程式的名稱照使用者的決定先不動（裁定 2026-11-12-24）。當時的紀錄如下。C# 測試方法有 `PreparationDate_WarnsAtApprovedBounds_ButAlwaysCreates`、`ApprovedOperations_AppendExactMinimalAuditEvents`、`CriteriaUsesApprovedConditionText_WhileWorkingPaperStep3EndsAtColumnE`、`MainTabs_ExposeSourceAndStandardizedPairsWithApprovedExactLabels`、`PrescreenLabels_UseTheAuthorityConstantsAndRetainExactApprovedSentences`、`Current_UsesTheThreeApprovedRules`、`Create_AnyUnapprovedAlternative_IsRejected`、`ManualFlagNormalizationRequiresExactApprovedValues` 與 `DifferencePolicy_FontScaledRowHeights_OnlyAcceptsTheApprovedHeightPerSheet`；測試輔助程式有 `LegacyAuditParityBasis.ApprovedIntentionalDifference` 與 `PrivateCaseReportDifferencePolicy` 的 `Approved` 開頭常數；`tools/tests/frontend-development-repository.test.cjs` 有一則測試名稱寫 approved assessment text。要不要改，等使用者決定。
+- 往上找 `JET.slnx` 的私有方法在 28 個測試檔各寫一份，做的事和 `TestRepositoryPaths.SolutionRoot` 相同。這次只改名稱與訊息，沒有改成共用同一份。
+- `TerminologyUnificationFrontendTests.cs` 檢查停用字樣時，先把 `completenessMismatchSentence` 那一句從 `validate-step.js` 的內容裡拿掉再掃描，旁邊的英文註解說這是唯一的例外。現在這一句不含清單上任何停用字樣，例外有沒有作用、註解要不要改，這次沒有查。
 - 架構圖的來源清單沒有刪掉 `SchemaIsolationGuardTests.cs` 的路徑；使用者 2026-11-12 決定下次重繪架構圖時再重新產生，見「刪掉的測試與樣式」。
-- 使用者 2026-11-12 對下面幾項的回覆：只寫文件名稱的註解逐行分辨後改寫；「舊版 JET」另立一輪逐段分辨；「對齊樣本」逐行對照後改寫；分段標題逐段核對；「凍結契約」改成直接寫規定的內容；「用字已定案」照舊保留；兩處空行順手拿掉；`SourceCommentPolicyTests` 照測試先行擴充。
-  除了照舊保留的那一項，都還沒動手。原話見首次 SAT 文件製作計畫的「2026-11-12 追加：提交前的五題與後續事項」。
+- 使用者 2026-11-12 回覆的七件註解修改已經做完，見「2026-11-12 照使用者回覆改的註解與註解檢查」。下面幾項是那一輪留下的：
+  - 註解檢查新加的名稱，使用者 2026-11-12 確認照用（裁定 2026-11-12-22）：測試方法 `Comments_DoNotCiteDocumentSections`、`DocumentSectionPatternsLeaveOrdinaryCommentsAndStringsAlone` 與 `DocumentSectionPatternsRecogniseEachWayOfCitingASection`，
+    樣式清單 `DocumentSections`，以及兩類樣式的名稱「開發任務的用語」與「文件章節的寫法」。
+  - （後來已經再分辨一次，見「2026-11-12 再分辨一次的『舊版』與 legacy 註解」。）當時「舊版」分不出指哪一版的 3 行沒有改：`ImportAccountMappingHandler.cs` 第 79 行、`JetSchemaCatalog.cs` 第 8 行與 `FieldInfoSheetRoundTripTests.cs` 第 109 行。
+  - 畫面訊息 `ProjectFolderMessages.OldVersionProject` 寫案件「是舊版 JET 建立的」，指的是較早版本的 JET。它是產品的字串，當時沒有改；使用者 2026-11-12 決定改成「較早版本的 JET」，已經改完（裁定 2026-11-12-32）。
+  - （後來已經再分辨一次，見同一節。）當時英文或中英混寫的 legacy 註解只掃過、沒有改。`legacy scalar` 說的是較早的條件寫法：`FilterScenarioPayloadParser.cs` 第 386 行、`FilterScenario.cs` 第 778 行、`ui-core.js` 第 2703 行、
+    `filter-step-rules.js` 第 1189 行與 `AccountPairCategorySelectionCompilationTests.cs` 第 12 行。`legacyOverrides` 在 `ui-core.js` 第 198 行與 `filter-step-sources.js` 第 250 行。
+    `JetSchemaCatalog.cs` 另外提到 legacy Excel-VBA 工具。這些行號是改寫前的行號。
+  - 底稿 step2 的程式和內嵌範本有三處不同：說明標題的文字、註 3 所在的列號，以及金額欄的欄標。這是讀 `WorkingPaperWriter.Step2To41.cs` 和範本得出的，沒有產生底稿看實際輸出，也沒有查原因。
+    這次只拿掉註解裡「逐字對齊樣本」的說法，程式沒有動。
+    使用者 2026-11-12 同意另外查原因。查到三處都只存在於程式的字串，匯出的底稿照內嵌範本，不受影響；結果記在裁定 2026-11-12-30。
+  - 其他寫「凍結」的註解不在回覆的範圍，沒有改：`BulkRowWriterTests.cs` 第 216 行的「行為凍結」，`LegacyFormWorkflowTests.cs` 第 19 與 30 行的「凍結的目錄」。
+  - 讀前後文時另外看到、沒有改的：`ui-core.js` 第 13 行的「第一個正式版先隱藏」；`ActionShapeJourney.cs` 第 602 行的字串「合成：舊版存下的條件。」，它是字串不是註解；
+    測試方法名稱 `Step13_ExistsWhenDiffPresent_WithoutRemovedStep131` 帶著已拿掉的工作表。
+  - 註解檢查擋不到的寫法見同一節的「擴充註解檢查」。
 - `OpenXmlSaxTableReaderTests.cs` 兩處提到真實 PBC 檔的註解已經改寫（裁定 2026-11-12-03）；原文帶有取自真實檔案的數值，不收進原文紀錄。
   提交前複審另外指出 4 處註解也寫「真實 PBC」，只提格式的特徵，沒有數值：`MoneyScalingTests.cs` 與 `TbRowProjectorTests.cs` 各 1 處，`ExcelDateFormatDetectorTests.cs` 2 處。
   這 4 處照同一則裁定改成不提真實檔案，只改註解；原文也沒有另外收進原文紀錄。
-- 註解裡只寫文件名稱、沒有章節編號的地方沒有改，不在裁定 2026-11-12-01 的範圍。用腳本只掃註解，提到 manifest 的有 59 行、41 個檔：
-  測試裡有些指 action 契約文件，有的還寫了節名，例如 `ImportProgressEventTests.cs`；產品程式裡有些指的是程式自己記錄的資料，例如 `IReportStore.cs` 說的是報告的清單，不是文件。
-  這 59 行沒有逐行分辨。另外 `UsageScenarioProjectBoundaryTests.cs` 與 `frontend-workflow.test.cjs` 各有 1 行寫 frontend description，
-  `WorkingPaperExportCapacityJourneyTests.cs` 有 1 行寫「The spec requires」。要不要改，等使用者決定。
 - 拿掉章節編號的 68 行只拿掉引用，沒有逐句核對留下的說明和現在的程式是否相符。
-- 註解裡的「舊版 JET」有時指 IDEA 版的 JET，有時指新版 JET 較早的版本，沒有逐段分辨。
-- 還有 17 行註解寫「對齊樣本」「樣本顯示形式」「和樣本一樣」這類說法：`WorkingPaperStyles.cs`、`WorkingPaperWriter.cs`、`WorkingPaperWriter.FixedSheets.cs` 與
-  `WorkingPaperWriter.Step2To41.cs` 共 13 行，`LocalAccountMappingExportRepository.cs` 1 行，`WorkingPaperWriterCoverAndReferenceSheetTests.cs` 3 行。
-  沒有逐行查證「樣本」指的是範本還是舊版 JET 的輸出，這次沒有改。
-- 三個底稿寫出測試檔的分段標題只拿掉 Task 編號、改了其中兩行的用字，沒有逐段核對標題和底下的測試是否相符。
-- 產品程式還有 3 行註解寫「凍結契約」：`FilterScenarioPayloadParser.cs`、`GlRulePredicates.cs` 與 `FilterScenario.cs` 各 1 行。它說的是條件格式的規定，這次沒有改。
 - 前幾輪改寫時採用的「用字已定案」這類寫法還在，含「定案」的註解共 185 行、77 個檔，其中產品程式 18 行。
   原本是 187 行、79 個檔；拿掉章節編號時，`BlankRecordsPageTests.cs` 與 `PeriodBoundingDemoTests.cs` 各 1 行的「定案語意」跟著引用一起拿掉。
-  它說的是畫面文字不能隨意改，但和這次拿掉 approved 的做法不完全一致，要不要改等使用者決定。
-- `WorkingPaperWriter.FixedSheets.cs` 與 `WorkingPaperWriter.Step2To41.cs` 各有一段說明和它說明的方法之間隔了一個空行，掛的成員是對的，只是寫法不一致，這次沒有動。
-- `SourceCommentPolicyTests` 抓不到這次改掉的寫法，這次沒有擴充檢查。
+  它說的是畫面文字不能隨意改，和拿掉 approved 的做法不完全一致。使用者 2026-11-12 決定照舊保留；註解檢查有一個例子確認這種寫法不會被擋。

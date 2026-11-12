@@ -1202,7 +1202,7 @@
     update();
   }
 
-  // 目前已提交 GL 配對的攸關資料元素欄位定義；未提交或舊版配對時為空陣列。
+  // 目前已提交 GL 配對的攸關資料元素欄位定義；還沒提交，或提交的配對沒有 rdeFields 時為空陣列。
   function committedRdeFields(state) {
     var committed = state && state.mapping ? state.mapping.gl.committed : null;
     var options = committed ? committed.options : null;
@@ -2700,7 +2700,7 @@
       pairMode: type === 'specialAccountCategoryPair' ? 'drAndCr' : 'exact',
       categorySelection: ['accountPair', 'specialAccountCategoryPair'].indexOf(type) >= 0 ? 'subtree' : undefined,
       // 借貸組合雙側一律以科目分類的分類身分陣列承載（雙側都可多選）；
-      // legacy scalar 只在回放舊定義時讀取，新規則不產生第二份單選欄位。
+      // 條件只帶這兩個陣列，不另外帶單選分類欄位。
       debitCategoryIds: ['builtin.receivables'],
       creditCategoryIds: ['builtin.revenue'],
       // typed（攸關資料元素）條件：fieldId／operator 由使用者在建構器選定，初值留空以避免

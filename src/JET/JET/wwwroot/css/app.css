@@ -7120,6 +7120,9 @@ button.category-tree__toggle:focus-visible { outline: 2px solid var(--color-acce
 .account-editor__batch { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
 .account-editor__batch > label { display: grid; gap: var(--space-2); flex: 1 1 180px; max-width: 320px; }
 .account-editor__batch select { width: 100%; }
+/* 「套用分類」選單旁的加號：只有圖示的方形按鈕，貼著選單，和右邊的「套用至已選科目」隔開。 */
+.account-editor__batch .account-editor__add-category { flex: none; width: var(--control-height); padding: 0; margin-left: calc(var(--space-1) - var(--space-3)); }
+.account-editor__batch .btn.account-editor__add-category::before { margin-left: 0; }
 .account-editor__batch > span { align-self: center; font-variant-numeric: tabular-nums; }
 .account-editor__table th:first-child { width: 88px; min-width: 88px; box-sizing: border-box; }
 .account-editor__select-all { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; margin: 0; cursor: pointer; }

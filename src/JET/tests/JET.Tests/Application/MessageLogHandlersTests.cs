@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// log.append / log.recent 契約測試（oracle：manifest 細節段）。
+/// log.append / log.recent 契約測試。
 /// 涵蓋：roundtrip wire shape、level 白名單、超長截斷、limit 夾擠、
 /// 留存上限修剪、無 active project 負向。
 /// </summary>
@@ -98,7 +98,7 @@ public sealed class MessageLogHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // 超長訊息（如 column_mismatch 雙向差集）截斷而非拒絕（manifest：上限 4000 字元）
+        // 超長訊息（如 column_mismatch 雙向差集）截斷而非拒絕（上限 4000 字元）
         var longText = new string('長', LogAppendHandler.MaxTextLength + 100);
         await host.DispatchAsync("log.append", JsonSerializer.Serialize(new { text = longText }));
 

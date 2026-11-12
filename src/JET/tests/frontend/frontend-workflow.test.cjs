@@ -52,8 +52,8 @@ function scenarioLifecycleFixture() {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('workflow', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'commonPickerHtml', 'draftRuleProblems', 'ruleSummaryLabel', 'commonDescriptionHtml', 'bind'], 'view: () => FilterStep.viewState')), context);
-  const store = window.JetStore, api = window.workflow;
+    filterStepExposure('exposedFilter', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'commonPickerHtml', 'draftRuleProblems', 'ruleSummaryLabel', 'commonDescriptionHtml', 'bind'], 'view: () => FilterStep.viewState')), context);
+  const store = window.JetStore, api = window.exposedFilter;
   store.setProject({ projectId: 'sequence-fixture' }); api.syncViewState(store.getState());
   // 卡片以代號識別。
   const item = key => window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
@@ -479,11 +479,11 @@ test('condition group selection handles the outer group but not nested rule even
   // 第五步分成五個檔案：前四個先載入，bindGroupSelection 從 FilterStep 取。
   for (const file of ['state.js', 'ui-core.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
-  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.bindGroupTest = FilterStep.bindGroupSelection;'), context);
+  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.exposedBindGroupSelection = FilterStep.bindGroupSelection;'), context);
   const handlers = {}, well = { isConnected: true, dataset: { groupIndex: '1' }, addEventListener(k, fn) { handlers[k] = fn; } };
   const outer = { closest: s => s === '[data-group-index]' ? well : null };
   well.closest = outer.closest;
-  window.bindGroupTest({ querySelectorAll: () => [well] }, (...args) => calls.push(args));
+  window.exposedBindGroupSelection({ querySelectorAll: () => [well] }, (...args) => calls.push(args));
   handlers.click({ target: outer }); assert.deepEqual(calls, [[1, true]]);
   handlers.click({ target: { closest: s => s === '.rule-row' ? {} : well } }); assert.equal(calls.length, 1);
   handlers.keydown({ target: well, key: 'Enter', preventDefault() {} });
@@ -555,38 +555,38 @@ test('saving clears the submitted draft and preview, preserves later drafts, and
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   assert.match(readFilterStep(), /function completeScenarioSave\(/);
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('testSave', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft'], 'pane: function () { return FilterStep.viewState.workspacePane; }')), context);
+    filterStepExposure('exposedFilter', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft'], 'pane: function () { return FilterStep.viewState.workspacePane; }')), context);
   const store = window.JetStore;
   store.setProject({ projectId: 'synthetic-save' });
-  window.testSave.syncViewState(store.getState());
+  window.exposedFilter.syncViewState(store.getState());
   const draft = { name: '月底分錄', rationale: '查核期末', groups: [{ conditions: [{ type: 'numRange', from: '200', to: '800' }] }] };
   draft.groups[0].join = 'AND';
   const definitionBefore = JSON.stringify(draft);
-  const wire = window.testSave.toWireDraft(draft);
+  const wire = window.exposedFilter.toWireDraft(draft);
   assert.equal(wire.groups[0].join, 'OR', 'the existing wire normalization stays unchanged');
   assert.equal(JSON.stringify(draft), definitionBefore, 'wire normalization must not rewrite visible editor state');
   store.setFilterDraft(draft);
   const preview = { count: 2, voucherCount: 1, summaryRowCount: 2, previewRows: [] };
   store.setFilterPreview(preview);
-  let snapshot = window.testSave.filterCommitSnapshot(store.getState());
+  let snapshot = window.exposedFilter.filterCommitSnapshot(store.getState());
   const saved = { name: '月底分錄', rationale: '查核期末', groups: draft.groups };
   const response = { resultRef: { revision: 1 }, scenarios: [saved], savedCount: 1 };
-  window.testSave.completeScenarioSave(snapshot, response, 0, saved);
-  assert.equal(window.testSave.pane(), 'filter');
+  window.exposedFilter.completeScenarioSave(snapshot, response, 0, saved);
+  assert.equal(window.exposedFilter.pane(), 'filter');
   assert.notEqual(store.getState().filter.draft, draft);
   assert.deepEqual(plain(store.getState().filter.draft), { name: '', rationale: '', groups: [] });
   assert.equal(store.getState().filter.preview, null);
   assert.equal(store.getState().filter.savedScenarios[0], saved);
   assert.equal(store.getFilterDraftRev(), snapshot.revision + 1, 'clearing invalidates the submitted conditions');
-  snapshot = window.testSave.filterCommitSnapshot(store.getState());
+  snapshot = window.exposedFilter.filterCommitSnapshot(store.getState());
   const changedDraft = { name: '另一草稿', rationale: '', groups: [] };
   store.setFilterDraft(changedDraft);
-  window.testSave.completeScenarioSave(snapshot, response, 0, saved);
+  window.exposedFilter.completeScenarioSave(snapshot, response, 0, saved);
   assert.equal(store.getState().filter.draft, changedDraft, 'a later draft cannot be replaced by an earlier save');
   assert.equal(changedDraft.__editingIndex, undefined);
   store.setProject({ projectId: 'different-project' });
   const before = store.getState().filter.savedScenarios;
-  window.testSave.completeScenarioSave(snapshot, response, 0, saved);
+  window.exposedFilter.completeScenarioSave(snapshot, response, 0, saved);
   assert.equal(store.getState().filter.savedScenarios, before, 'late save must not change another project');
 });
 
@@ -820,7 +820,7 @@ test('pending account categories ask before leaving the validation step and hono
   await settle(); await settle();
   assert.equal(editor.pendingCount(), 0);
   assert.equal(f.state.currentStepIndex, 4);
-  assert.equal(f.state.filter.savedScenarios.length, 0, 'saving categories clears saved scenarios as ruled on 2026-10-07');
+  assert.equal(f.state.filter.savedScenarios.length, 0, 'saving categories clears the saved scenarios');
 });
 
 // 回首頁或結束時選「不儲存」，只詢問一次就繼續離開；改動不保留是對話框寫明的結果。
@@ -1187,12 +1187,12 @@ test('account mapping file status reaches the JET tab only while preparing or af
   }
   assert.doesNotMatch(jet(), /data-account-template-status/);
 
-  f.store.setValidationOutput('template', { resultId: 'run-1', status: 'pending', message: '正在準備科目配對範本…' });
-  assert.match(jet(), /data-account-template-status="pending" role="status">正在準備科目配對範本…<\/p>/);
+  f.store.setValidationOutput('template', { resultId: 'run-1', status: 'pending', message: '正在建立科目配對範本…' });
+  assert.match(jet(), /data-account-template-status="pending" role="status">正在建立科目配對範本…<\/p>/);
   assert.match(jet(), /data-bind="account-editor"/, 'the status line does not replace the JET editor');
   assert.doesNotMatch(jet(), /retry-account-template-in-excel/);
   let html = excel();
-  assert.match(html, /data-validation-output="template" role="status">正在準備科目配對範本…<\/p>/);
+  assert.match(html, /data-validation-output="template" role="status">正在建立科目配對範本…<\/p>/);
   assert.doesNotMatch(html, /data-account-template-status/);
 
   f.store.setValidationOutput('template', { resultId: 'run-1', status: 'failed', reason: '檔案被其他程式使用 <synthetic>',
@@ -1483,7 +1483,7 @@ test('collapsing an outstanding detail deduplicates requests and a new run never
 });
 
 
-// User comment 1 supersedes the previous full-path presentation. Preserve escaping and missing-file checks.
+// The report list shows no file paths. Escaped names and the missing-file status are still shown.
 test('report metadata shows generation time and decimal MB without paths, retaining escaped names and file status', () => {
   const f = fixture();
   const html = f.window.JetUi.reportListHtml([{
@@ -1762,7 +1762,7 @@ test('authorized list zero matches warn without rejecting the successful import 
   assert.doesNotMatch(f.render().html(), /有 0 位|請確認所選的清單欄位/);
   f.store.setAuthorizedPreparerState({ rowCount: 35, sourceColumn: 'Employee ID', matchedPreparerCount: 1 });
   assert.match(f.render().html(), /有 1 位出現在 GL/);
-  assert.doesNotMatch(f.render().html(), /請確認所選的清單欄位/, 'one match is enough; no unapproved ratio threshold');
+  assert.doesNotMatch(f.render().html(), /請確認所選的清單欄位/, 'one match is enough; no ratio threshold');
 });
 
 test('authorized list old metadata is unknown and GL replacement invalidates only the comparison', () => {
@@ -1804,11 +1804,11 @@ test('GL mapping success refreshes the authorized list comparison without anothe
   };
   const source = fs.readFileSync(path.join(root, 'steps/mapping-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('mapping', render);",
-    '  window.bindReviewedGlMapping = function (container) { bindMappingSection(container, "gl", Ui.GL_FIELDS); };'), f.context);
+    '  window.exposedBindGlMapping = function (container) { bindMappingSection(container, "gl", Ui.GL_FIELDS); };'), f.context);
   let click;
   const section = { addEventListener() {}, querySelectorAll: () => [], querySelector: selector =>
     selector === '[data-action="commit-gl"]' ? { addEventListener: (_, handler) => { click = handler; } } : null };
-  f.window.bindReviewedGlMapping({ querySelector: () => section });
+  f.window.exposedBindGlMapping({ querySelector: () => section });
   click(); await settle();
   // 建立人員的配對鍵是 createdBy；第二句確認不送出舊鍵 createBy。
   assert.equal(committedPayload.mapping.createdBy, 'author');
@@ -1831,11 +1831,11 @@ test('GL mapping success without the authorized list comparison keeps the shown 
   f.window.JetApi.mappingCommitGl = async () => ({ projectedRowCount: 1 });
   const source = fs.readFileSync(path.join(root, 'steps/mapping-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('mapping', render);",
-    '  window.bindReviewedGlMapping = function (container) { bindMappingSection(container, "gl", Ui.GL_FIELDS); };'), f.context);
+    '  window.exposedBindGlMapping = function (container) { bindMappingSection(container, "gl", Ui.GL_FIELDS); };'), f.context);
   let click;
   const section = { addEventListener() {}, querySelectorAll: () => [], querySelector: selector =>
     selector === '[data-action="commit-gl"]' ? { addEventListener: (_, handler) => { click = handler; } } : null };
-  f.window.bindReviewedGlMapping({ querySelector: () => section });
+  f.window.exposedBindGlMapping({ querySelector: () => section });
   click(); await settle();
   assert.equal(f.store.getState().mapping.gl.committed.projectedRowCount, 1, 'the commit itself succeeded');
   assert.deepEqual(plain(f.store.getState().importState.authorizedPreparer), shown);
@@ -1920,8 +1920,8 @@ function commonCardFixture() {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('commonCards', ['addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'toWireDraft', 'commonCardState', 'readBackHtml', 'applyTemplate', 'scenarioGate', 'setActiveGroup', 'syncViewState', 'bind', 'commonPickerHtml'])), context);
-  const store = window.JetStore, api = window.commonCards;
+    filterStepExposure('exposedFilter', ['addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'toWireDraft', 'commonCardState', 'readBackHtml', 'applyTemplate', 'scenarioGate', 'setActiveGroup', 'syncViewState', 'bind', 'commonPickerHtml'])), context);
+  const store = window.JetStore, api = window.exposedFilter;
   store.setProject({ projectId: 'non-business-day-fixture' }); api.syncViewState(store.getState());
   const item = key => window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
   function toggle(key, remove = false) {
@@ -2610,14 +2610,14 @@ test('project update has a JetApi method and missing preparation dates point to 
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   const context = vm.createContext({ window: f.window, document: { querySelector: () => null } });
   // 第五步分成五個檔案：ruleControlsHtml 在條件列那一塊，f 的 window 已載入五個檔案，從 FilterStep 取。
-  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.reviewMetadataRule = FilterStep.ruleControlsHtml;'), context);
+  vm.runInContext(source.replace("  Ui.registerStep('filter', render);", '  window.exposedRuleControlsHtml = FilterStep.ruleControlsHtml;'), context);
   const rule = { type: 'prescreen', prescreenKey: 'prepPeriodApproval' };
-  const html = f.window.reviewMetadataRule(rule, 0, 0);
+  const html = f.window.exposedRuleControlsHtml(rule, 0, 0);
   // 這句的用字已定案。
   assert.match(html, /<p class="rule-field__hint">尚未填寫期末財報準備日，請先在第一步按「修改案件資料」填寫<\/p>/);
   assert.doesNotMatch(html, /prepStartDate|重新建立案件/);
   f.store.setProject({ projectId: 'synthetic', prepStartDate: '2024-02-01' });
-  assert.doesNotMatch(f.window.reviewMetadataRule(rule, 0, 0), /修改案件資料/);
+  assert.doesNotMatch(f.window.exposedRuleControlsHtml(rule, 0, 0), /修改案件資料/);
 });
 
 function categoryReviewDom(html) {
@@ -2652,20 +2652,20 @@ function categoryReviewFixture() {
   const context = vm.createContext({ window: f.window, document: { querySelector: selector => currentDom?.querySelector(selector) || null } });
   const source = fs.readFileSync(path.join(root, 'steps/validate-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('validate', render);",
-    '  window.categoryReview = { html: categoryCardHtml, rows: categoryRows, bind: bindCategoryCard, bindAll: bind };'), context);
+    '  window.exposedCategoryCard = { html: categoryCardHtml, rows: categoryRows, bind: bindCategoryCard, bindAll: bind };'), context);
   // 第五步分成五個檔案：前四個先載入，主檔的內部函式從 FilterStep 取。
   for (const name of ['filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, name), 'utf8'), context);
   const filter = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(filter.replace("  Ui.registerStep('filter', render);",
-    '  window.categoryFilterReview = { summary: FilterStep.ruleSummaryLabel, controls: FilterStep.ruleControlsHtml, subject: FilterStep.ruleSubjectHtml, wire: FilterStep.toWireDraft };'), context);
+    '  window.exposedFilter = { summary: FilterStep.ruleSummaryLabel, controls: FilterStep.ruleControlsHtml, subject: FilterStep.ruleSubjectHtml, wire: FilterStep.toWireDraft };'), context);
   function render() {
-    const html = f.window.categoryReview.html(f.store.getState()); currentDom = categoryReviewDom(html);
-    f.window.categoryReview.bind(currentDom);
+    const html = f.window.exposedCategoryCard.html(f.store.getState()); currentDom = categoryReviewDom(html);
+    f.window.exposedCategoryCard.bind(currentDom);
     return { html, dom: currentDom,
       click(selector) { const node = currentDom.querySelector(selector); assert.ok(node, selector + ' rendered'); node.fire(); },
       change(selector, value, event = 'change') { const node = currentDom.querySelector(selector); assert.ok(node, selector + ' rendered'); node.value = value; node.fire(event); } };
   }
-  return { ...f, api: f.window.categoryReview, filterApi: f.window.categoryFilterReview, render, focuses,
+  return { ...f, api: f.window.exposedCategoryCard, filterApi: f.window.exposedFilter, render, focuses,
     focusNow() { for (const target of focuses.splice(0)) { const element = typeof target === 'function' ? target() : target; if (element) { element.focus(); element.scrollIntoView(); } } } };
 }
 
@@ -4513,8 +4513,8 @@ test('messages added while an operation runs are written in order after it ends,
 test('calendar card has no template or folder button and keeps the upload buttons', () => {
  const f=scenarioLifecycleFixture();
  const context=vm.createContext({window:f.window,document:{querySelector:()=>null},setTimeout:()=>0,clearTimeout(){}});
- vm.runInContext(fs.readFileSync(path.join(root,'steps/import-step.js'),'utf8').replace("  Ui.registerStep('import', render);",'  window.calendarTest={calendarCard,bindCalendarCard,resetWizard};'),context);
- const api=f.window.calendarTest;
+ vm.runInContext(fs.readFileSync(path.join(root,'steps/import-step.js'),'utf8').replace("  Ui.registerStep('import', render);",'  window.exposedImport={calendarCard,bindCalendarCard,resetWizard};'),context);
+ const api=f.window.exposedImport;
  const html=api.calendarCard(null);
  assert.doesNotMatch(html,/export-calendar-templates/);
  assert.doesNotMatch(html,/open-calendar-folder/);
@@ -4529,7 +4529,7 @@ test('calendar card has no template or folder button and keeps the upload button
 });
 
 
-function k6MappingDifferenceFixture() {
+function accountMappingCardFixture() {
  const dom=treeDom(), pending=[], actions=[];
  const window={setTimeout,clearTimeout,JetFocus:{defer(){}},JetApi:contractJetApi({
   hostSelectFile:async()=>({filePath:'synthetic.csv',fileName:'synthetic.csv'}),
@@ -4537,17 +4537,17 @@ function k6MappingDifferenceFixture() {
   queryAccountMappingDifferencePage:payload=>new Promise((resolve,reject)=>pending.push({payload,resolve,reject}))})};
  const context=vm.createContext({window,document:dom.document});
  for(const file of ['state.js','ui-core.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context);
- vm.runInContext(fs.readFileSync(path.join(root,'steps/validate-step.js'),'utf8').replace("  Ui.registerStep('validate', render);",'  window.k6={accountMappingCardHtml,bindAccountMappingCard};'),context);
- const store=window.JetStore;store.setProject({projectId:'k6'});store.setAccountMappingState({batchId:'b1',rowCount:1});
+ vm.runInContext(fs.readFileSync(path.join(root,'steps/validate-step.js'),'utf8').replace("  Ui.registerStep('validate', render);",'  window.exposedAccountMappingCard={accountMappingCardHtml,bindAccountMappingCard};'),context);
+ const store=window.JetStore;store.setProject({projectId:'account-mapping-card-synthetic'});store.setAccountMappingState({batchId:'b1',rowCount:1});
  // 成功時只留一則完成訊息，由 Ui.run 接上耗時記下；替身包住正式的 Ui.run，只多記下每次作業。
  const realRun=window.JetUi.run;
  window.JetUi.run=(label,fn,options)=>{const promise=realRun(label,fn,options);actions.push(promise);return promise;};
- function render(){dom.content.innerHTML=window.k6.accountMappingCardHtml(store.getState().importState.accountMapping,true);window.k6.bindAccountMappingCard(dom.content);return dom.content;}
+ function render(){dom.content.innerHTML=window.exposedAccountMappingCard.accountMappingCardHtml(store.getState().importState.accountMapping,true);window.exposedAccountMappingCard.bindAccountMappingCard(dom.content);return dom.content;}
  return{window,store,dom,pending,actions,render};
 }
 
 test('mapping differences load only on demand, preserve paging and retry, and ignore another project',async()=>{
- const f=k6MappingDifferenceFixture();let page=f.render();
+ const f=accountMappingCardFixture();let page=f.render();
  assert.ok(page.querySelector('[data-mapping-difference="mappingOnly"]'),'render both list entries after reopening');
  assert.equal(f.pending.length,0,'rendering does not scan GL');
  page.querySelector('[data-action="import-account-mapping"]').fire('click');await settle();await Promise.all(f.actions);
@@ -4575,7 +4575,7 @@ test('mapping differences load only on demand, preserve paging and retry, and ig
 });
 
 test('mapping import shows positional warning and lets unknown difference counts be retried',async()=>{
- const f=k6MappingDifferenceFixture();
+ const f=accountMappingCardFixture();
  f.window.JetApi.importAccountMappingFromFile=async()=>({batchId:'saved',rowCount:1,hasAnyCategory:true,
   mappingOnlyCount:null,unmappedCount:null,columnMappingWarning:'依欄位順序將「c1」當成科目編號。'});
  f.render().querySelector('[data-action="import-account-mapping"]').fire('click');await settle();await Promise.all(f.actions);
@@ -4588,7 +4588,7 @@ test('mapping import shows positional warning and lets unknown difference counts
 
 // 科目配對檔的欄位內含換行提醒，和 GL、TB 一樣以需要注意的等級顯示在訊息裡。
 test('mapping import shows the quoted line-break reminder like GL and TB imports',async()=>{
- const f=k6MappingDifferenceFixture();
+ const f=accountMappingCardFixture();
  const reminder='「合成科目配對.csv」有 1 列的欄位內含換行，例如第 2 列。引號位置錯誤時，後續資料會併入同一格而使列數減少，請以 Excel 開啟原檔核對。';
  f.window.JetApi.importAccountMappingFromFile=async()=>({batchId:'saved',rowCount:1,hasAnyCategory:true,
   mappingOnlyCount:0,unmappedCount:0,warnings:[reminder]});
@@ -4608,7 +4608,7 @@ function messageLogAllowedLevels(){
 
 test('mapping import positional warning is logged at a level the message log accepts',async()=>{
  const allowed=messageLogAllowedLevels();
- const f=k6MappingDifferenceFixture();
+ const f=accountMappingCardFixture();
  f.window.JetApi.importAccountMappingFromFile=async()=>({batchId:'saved',rowCount:1,hasAnyCategory:true,
   mappingOnlyCount:0,unmappedCount:0,columnMappingWarning:'依欄位順序將「c1」當成科目編號。'});
  f.render().querySelector('[data-action="import-account-mapping"]').fire('click');await settle();await Promise.all(f.actions);
@@ -4660,9 +4660,9 @@ for (const [card, input, expected] of [
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('k9', ['addCommonToDraft', 'syncViewState', 'ruleControlsHtml', 'render', 'toWireDraft'])), context);
-  const store = window.JetStore, api = window.k9;
-  store.setProject({ projectId: 'k9-entry-synthetic' }); api.syncViewState(store.getState());
+    filterStepExposure('exposedFilter', ['addCommonToDraft', 'syncViewState', 'ruleControlsHtml', 'render', 'toWireDraft'])), context);
+  const store = window.JetStore, api = window.exposedFilter;
+  store.setProject({ projectId: 'value-count-synthetic' }); api.syncViewState(store.getState());
   const draft = store.getState().filter.draft;
   api.addCommonToDraft(draft, window.JetUi.FILTER_COMMON_CONDITIONS.find(item => item.key === card));
   const rule = draft.groups[0].conditions[0]; assert.equal(rule.type, 'fieldValue');
@@ -5420,8 +5420,8 @@ function namingFixture() {
   // 第五步分成五個檔案：前四個先載入，主檔的內部函式從 FilterStep 取。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('naming', ['refreshAutomaticMetadata', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'applyTemplate', 'toWireScenario', 'toWireDraft', 'syncViewState'])), context);
-  const store = window.JetStore, api = window.naming;
+    filterStepExposure('exposedFilter', ['refreshAutomaticMetadata', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'applyTemplate', 'toWireScenario', 'toWireDraft', 'syncViewState'])), context);
+  const store = window.JetStore, api = window.exposedFilter;
   store.setProject({ projectId: 'naming-synthetic' }); api.syncViewState(store.getState());
   // 卡片以代號識別。
   const card = key => window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
@@ -5571,7 +5571,7 @@ test('the account mapping file status is cleared when an upstream change clears 
   assert.equal(f.store.getState().validationOutput.template, null);
 });
 
-// Expected behavior comes from the frontend description and the action contract.
+// The creation page marks both audit dates as required inputs.
 test('creation renders browser-required audit dates', () => {
   const f = projectMetadataFixture(), page = f.render(validCreateValues());
   for (const field of ['periodStart', 'periodEnd']) {
@@ -5715,7 +5715,7 @@ function remapAppFixture() {
   f.dom.content.innerHTML = '<section data-bind="project-picker"></section><nav data-bind="step-nav"></nav><button data-action="app-exit"></button><button data-action="app-back-picker"></button><button data-action="cancel-operation"></button>';
   const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   vm.runInContext(source.replace("  if (document.readyState === 'loading') {",
-    '  window.remapApp = { renderPicker, overviewHtml, renderStepNav, renderContent, renderMessagesPanel, buildMessage, formatExportProgress };\n  if (document.readyState === \'loading\') {'), f.context);
+    '  window.exposedApp = { renderPicker, overviewHtml, renderStepNav, renderContent, renderMessagesPanel, buildMessage, formatExportProgress };\n  if (document.readyState === \'loading\') {'), f.context);
   function slice(start, end) { const a = source.indexOf(start), b = source.indexOf(end, a + start.length); assert.ok(a >= 0 && b > a); return source.slice(a, b); }
   vm.runInContext('var Ui = window.JetUi;\n' + slice('    var exitBtn = ', '    var openProjectFolderBtn = '), f.context);
   const started = []; f.window.JetApi.onRequestStarted = fn => started.push(fn);
@@ -5723,7 +5723,7 @@ function remapAppFixture() {
     slice('  var CANCELLABLE_ACTIONS = {', '  // 增量渲染狀態') +
     slice("    if (global.JetApi && typeof global.JetApi.onRequestStarted === 'function') {", '    // 長作業進度只更新') +
     slice("    var cancelOperationBtn = document.querySelector('[data-action=\"cancel-operation\"]');", "    document.querySelectorAll('[data-action=\"messages-toggle\"]')"), f.context);
-  return { ...f, app: f.window.remapApp, started(action, requestId) { started.forEach(fn => fn({ action, requestId })); } };
+  return { ...f, app: f.window.exposedApp, started(action, requestId) { started.forEach(fn => fn({ action, requestId })); } };
 }
 
 test('failed project loading exports the same error correlation from the picker', async () => {
@@ -6435,7 +6435,7 @@ test('examples sit in the folded tray above the condition groups with eleven pla
   assert.equal(tray().getAttribute('data-filter-disclosure'), 'templates');
   assert.equal(tray().querySelector('summary.filter-template-tray__title').textContent, '從情境範例開始');
   assert.equal(tray().hasAttribute('open'), false, 'the tray starts folded');
-  assert.deepEqual(plain(f.window.ops.view().disclosures), {});
+  assert.deepEqual(plain(f.window.exposedFilter.view().disclosures), {});
   tray().open = true; tray().fire('toggle'); f.store.touch();
   assert.equal(tray().hasAttribute('open'), true, 'the opened tray stays open after redrawing');
   assert.equal(f.$('[data-action="toggle-examples"]'), null, 'there is no button to open the examples');

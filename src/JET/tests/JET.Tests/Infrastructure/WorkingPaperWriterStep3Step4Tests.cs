@@ -17,6 +17,8 @@ namespace JET.Tests.Infrastructure;
 /// <summary>底稿寫出器：step3 條件表、step4 符合高風險條件傳票與 step4-1 傳票明細。</summary>
 public sealed class WorkingPaperWriterStep3Step4Tests
 {
+    // ================= 案件資料庫的內容讀不出來時的回報 =================
+
     [Theory]
     [InlineData("number")]
     [InlineData("date")]
@@ -110,6 +112,86 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             reference => Assert.False(sheet.Cell(reference).Style.Protection.Locked, $"{reference} 應可填。"));
     }
 
+    // 十個情境不拆列時剛好寫到第 28 列。第一個情境的條件說明超過 Excel 單格容量，拆成多列，
+    // 後面的情境就寫過第 28 列。多出的列在 B 到 E 欄也鎖定，舊版 JET 只鎖 B7:E28。
+    [Fact]
+    public async Task Step3_RowsWrittenPastRow28_AreLockedInColumnsBToE()
+    {
+        using var host = new HandlerTestHost();
+        var ctx = await DemoProjectPipeline.SetupAsync(host);
+        var validation = await host.DispatchAsync("validate.run");
+        var validationResultId = validation.GetProperty("resultRef").GetProperty("resultId").GetString();
+        var scenarios = Enumerable.Range(1, 10)
+            .Select(index => new
+            {
+                name = $"情境{index:00}",
+                rationale = "寫過第 28 列",
+                groups = new[]
+                {
+                    new
+                    {
+                        join = "and",
+                        conditions = new[]
+                        {
+                            new
+                            {
+                                join = "and",
+                                type = "fieldValue",
+                                field = "description",
+                                @operator = "startsWith",
+                                value = index == 1 ? new string('X', 33_000) : $"SYN-{index:00}",
+                                includeBlank = false
+                            }
+                        }
+                    }
+                }
+            })
+            .ToArray();
+        var saved = await host.DispatchAsync("filter.commit", JsonSerializer.Serialize(new
+        {
+            populationScope = GlPopulationScopeValues.AuditPeriod,
+            scenarios
+        }));
+        var revision = saved.GetProperty("resultRef").GetProperty("revision").GetString();
+        // 條件說明要走正式的匯出才會寫進底稿。
+        await host.DispatchAsync(
+            "export.criteriaSelectionReport",
+            JsonSerializer.Serialize(new { validationResultId, revision }));
+        var exported = await host.DispatchAsync("export.workingPaperStream", JsonSerializer.Serialize(new
+        {
+            validationResultId,
+            scenarioRevision = revision,
+            scenarioPositions = Enumerable.Range(1, 10).ToArray()
+        }));
+
+        using var workbook = new XLWorkbook(Path.Combine(
+            host.ProjectsRoot,
+            ctx.ProjectId,
+            exported.GetProperty("publishedReport").GetProperty("fileName").GetString()!));
+        var sheet = workbook.Worksheet(Step3Sheet);
+
+        var codes = ReadColumnFrom(sheet, "B", 19);
+        var continued = codes.Count(code => code == "C1（續）");
+        Assert.True(continued > 0, "第一個情境的條件說明應拆成多列。");
+        Assert.Equal(
+            new[] { "C1" }
+                .Concat(Enumerable.Repeat("C1（續）", continued))
+                .Concat(Enumerable.Range(2, 9).Select(position => $"C{position}")),
+            codes);
+        var lastRow = 18 + codes.Count;
+        Assert.True(lastRow > 28, "資料應寫過第 28 列。");
+        Assert.Equal("C10", sheet.Cell($"B{lastRow}").GetString());
+
+        Assert.True(sheet.Protection.IsProtected);
+        Assert.All(
+            Enumerable.Range(28, lastRow - 27)
+                .SelectMany(row => new[] { $"B{row}", $"C{row}", $"D{row}", $"E{row}" }),
+            reference => Assert.True(sheet.Cell(reference).Style.Protection.Locked, $"{reference} 應鎖定。"));
+        Assert.All(
+            new[] { $"A{lastRow}", $"F{lastRow}", $"B{lastRow + 1}", $"E{lastRow + 1}" },
+            reference => Assert.False(sheet.Cell(reference).Style.Protection.Locked, $"{reference} 應可填。"));
+    }
+
     /// <summary>
     /// WorkingPaper 的 step3 可見情境表固定止於 E 欄；計畫裡的條件文字不得鏡射到 F 欄。
     /// WorkingPaperContext 沒有 ScenarioConditionLogic 欄位，條件文字只在計畫裡。
@@ -133,7 +215,33 @@ public sealed class WorkingPaperWriterStep3Step4Tests
             row => Assert.True(sheet.Cell(row, 6).IsEmpty(), $"F{row} 應保持空白。"));
     }
 
-    // ================= step4 符合高風險條件傳票(動態全 position 欄)=================
+    // ================= 每張工作表的列號 =================
+
+    // step3 與 step4 的表頭有幾列分成兩三段文字。同一列只能寫出一次，列號也要由小到大；
+    // 這裡連續頁一起核對底稿的每一張工作表。
+    [Fact]
+    public async Task WorkingPaperSheets_RowNumbers_AreUniqueAndAscending()
+    {
+        using var host = new HandlerTestHost();
+        using var document =
+            await WorkingPaperWriterContinuationProtectionTests.WriteContinuationWorkingPaperAsync(host);
+
+        var problems = WorksheetsByName(document)
+            .Select(pair => (
+                Name: pair.Key,
+                Rows: pair.Value.GetFirstChild<SheetData>()!.Elements<Row>()
+                    .Select(row => row.RowIndex!.Value)
+                    .ToArray()))
+            .Where(sheet => sheet.Rows.Zip(sheet.Rows.Skip(1)).Any(pair => pair.First >= pair.Second))
+            .Select(sheet => $"{sheet.Name}: " + string.Join(
+                ",",
+                sheet.Rows.GroupBy(row => row).Where(group => group.Count() > 1).Select(group => group.Key)))
+            .ToArray();
+
+        Assert.Empty(problems);
+    }
+
+    // ================= step4 符合高風險條件傳票(所選情境的條件欄)=================
 
     [Fact]
     public async Task Step4_ConditionColumns_AllPositions_YMatchesMatchedPositions()

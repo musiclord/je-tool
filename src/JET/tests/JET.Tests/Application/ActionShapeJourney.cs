@@ -597,7 +597,7 @@ internal static class ActionShapeJourney
             });
             await PreviewAsync(templateDraft);
             await SaveAsync(templateDraft, null);
-            // 舊版存下、現在仍可編輯的條件：預篩選結果、文字值清單（每行一個值，可含逗號）、舊式攸關資料元素條件的區間，
+            // 較早版本的 JET 存下、現在仍可編輯的條件：預篩選結果、文字值清單（每行一個值，可含逗號）、舊式攸關資料元素條件的區間，
             // 以及子條件組裡的舊式條件。filter-step.js 編輯這些情境時照原樣送回（typedWireRule 只帶比較方式用到的值）。
             var olderRulesDraft = Scenario("合成舊式條件", "合成：舊版存下的條件。", new JsonArray
             {
@@ -764,7 +764,7 @@ internal static class ActionShapeJourney
                 scenarioPosition = 1, cursor = (string?)null, pageSize = 200, sort = (object?)null, search = (string?)null,
             });
 
-            // 舊案件：第三個情境改成舊版規則存下、條件用到已拿掉的攸關金額欄。開案、重新檢查、
+            // 較早版本的 JET 留下的案件：第三個情境改成用較早的規則版本存下、條件用到已拿掉的攸關金額欄。開案、重新檢查、
             // 新增與修改其他情境時都列在條件失效提示；審計員先移除新增的情境，最後移除失效的情境。
             await RewriteAsOlderScenarioAsync(projectId, 3, moneyFieldId);
             var reopened = await Send("project.load", new { projectId });
@@ -958,7 +958,7 @@ internal static class ActionShapeJourney
             await File.WriteAllTextAsync(path, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         }
 
-        // 模擬舊版 JET 存下的情境（同 FilterScenarioRuleUpgradeOnLoadTests）：把資料庫裡這個位置的情境定義改成舊的
+        // 模擬較早版本的 JET 存下的情境（同 FilterScenarioRuleUpgradeOnLoadTests）：把資料庫裡這個位置的情境定義改成舊的
         // 規則版本，再加一條指向已不存在的攸關資料元素的條件。這是畫面送不出來的狀態，只能直接改資料庫。
         async Task RewriteAsOlderScenarioAsync(string projectId, int position, string missingFieldId)
         {

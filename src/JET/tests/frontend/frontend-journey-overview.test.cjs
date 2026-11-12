@@ -259,7 +259,7 @@ test('across all six stages every visible fact appears on exactly one surface an
   assert.doesNotMatch(technical, /合成案件甲|2025-01-01|案件編號|查核期間/);
   assert.doesNotMatch(f.card().querySelector('.overview__population').textContent, /查核期間|2025-01-01/, 'the statistics do not repeat the period');
   assert.equal(f.card().querySelector('.overview__technical summary').textContent, '其他資訊');
-  assert.match(f.text(f.fact('project.database-provider')), /SQLite|DuckDB|SQL Server/);
+  assert.match(f.text(f.fact('project.database-provider')), /SQLite/);
   assert.doesNotMatch(technical, /p-ov|synthetic-logic-7/);
   assert.doesNotMatch(f.card().textContent, /執行識別碼|規則版本|技術資訊/);
   assert.deepEqual(plain(f.requests), []);

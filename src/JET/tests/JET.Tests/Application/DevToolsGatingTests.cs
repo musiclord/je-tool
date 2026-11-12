@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// 開發者工具的組建閘控（manifest system.ping / dev.db.* 細節）：
+/// 開發者工具的組建閘控（system.ping 與 dev.db.*）：
 /// Release 組建不註冊 dev.db.*、system.ping 回報 devToolsEnabled=false 供前端隱藏面板；
 /// 正式功能（query.dataPreview）不受影響。
 /// </summary>

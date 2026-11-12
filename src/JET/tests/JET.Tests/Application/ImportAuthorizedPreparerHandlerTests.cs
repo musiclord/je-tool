@@ -6,7 +6,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// import.authorizedPreparer.fromFile 黑箱驗收（manifest 細節段）：
+/// import.authorizedPreparer.fromFile 黑箱驗收：
 /// 單欄姓名 .xlsx、匯入即投影、replace-only、TRIM/空白略過/去重。
 /// oracle：自建工作簿的去重後姓名集合 + 獨立 SQL recount。
 /// </summary>

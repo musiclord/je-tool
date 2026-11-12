@@ -166,6 +166,60 @@ public sealed class AccountCategoryContractsTests
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
     }
 
+    [Fact]
+    public void TryResolveImportCategory_UnknownNameIsNotResolved_AndOriginalNameFindsRenamedBuiltIn()
+    {
+        var renamed = AccountCategoryBuiltIns.All
+            .Select(item => item.CategoryId == AccountCategoryBuiltIns.RevenueId
+                ? item with { Label = "營業收入" }
+                : item)
+            .ToArray();
+        var snapshot = new AccountCategorySnapshot(2, renamed);
+
+        Assert.False(AccountCategoryCatalog.TryResolveImportCategory(snapshot, "存貨", out _));
+
+        Assert.True(AccountCategoryCatalog.TryResolveImportCategory(snapshot, "營業收入", out var byCurrentName));
+        Assert.Equal(AccountCategoryBuiltIns.RevenueId, byCurrentName.CategoryId);
+        // 前一個案件或舊版範本的檔案寫的是內建分類原本的英文名稱。
+        Assert.True(AccountCategoryCatalog.TryResolveImportCategory(snapshot, " revenue ", out var byOriginalName));
+        Assert.Equal(AccountCategoryBuiltIns.RevenueId, byOriginalName.CategoryId);
+        Assert.True(AccountCategoryCatalog.TryResolveImportCategory(snapshot, " ", out var blank));
+        Assert.Equal(AccountCategoryBuiltIns.OthersId, blank.CategoryId);
+    }
+
+    [Fact]
+    public void TryResolveImportCategory_CaseNameWinsOverBuiltInOriginalName()
+    {
+        var custom = new AccountCategory(
+            "custom.0123456789abcdef0123456789abcdef",
+            "Revenue",
+            5,
+            AccountCategoryBuiltIns.OthersRole,
+            false);
+        var snapshot = new AccountCategorySnapshot(
+            3,
+            [
+                .. AccountCategoryBuiltIns.All.Select(item => item.CategoryId == AccountCategoryBuiltIns.RevenueId
+                    ? item with { Label = "營業收入" }
+                    : item),
+                custom
+            ]);
+
+        Assert.True(AccountCategoryCatalog.TryResolveImportCategory(snapshot, "revenue", out var resolved));
+        Assert.Equal(custom.CategoryId, resolved.CategoryId);
+    }
+
+    [Fact]
+    public void NewCustomId_IsAValidCustomId_AndDiffersEachTime()
+    {
+        var first = AccountCategoryInvariant.NewCustomId();
+        var second = AccountCategoryInvariant.NewCustomId();
+
+        Assert.True(AccountCategoryInvariant.IsCustomId(first));
+        Assert.True(AccountCategoryInvariant.IsCustomId(second));
+        Assert.NotEqual(first, second);
+    }
+
     private static bool RejectsInvalidReplacement(IReadOnlyList<AccountCategory> categories)
     {
         try

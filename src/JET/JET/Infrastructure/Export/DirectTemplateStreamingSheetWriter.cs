@@ -84,6 +84,19 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
         IReadOnlyCollection<Cell> cells,
         double? height = null)
     {
+        WriteRowCore(rowIndex, cells, height);
+        _dataRows++;
+    }
+
+    /// <summary>寫一列不算資料列的格子，例如資料下面只用來鎖定的空白列。</summary>
+    internal void WriteFixedRow(uint rowIndex, IReadOnlyCollection<Cell> cells) =>
+        WriteRowCore(rowIndex, cells, height: null);
+
+    private void WriteRowCore(
+        uint rowIndex,
+        IReadOnlyCollection<Cell> cells,
+        double? height)
+    {
         ExcelWorksheetConstraints.EnsureCell(rowIndex, 1);
         var row = new Row { RowIndex = rowIndex };
         if (height is { } value)
@@ -104,8 +117,6 @@ internal sealed class DirectTemplateStreamingSheetWriter : IDisposable
         {
             throw;
         }
-
-        _dataRows++;
     }
 
     /// <summary>寫到一半的輸出之後不再補結束標記。取消不是寫入失敗，不記工作表位置。</summary>

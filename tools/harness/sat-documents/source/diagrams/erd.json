@@ -1,23 +1,32 @@
 {
-  "title": "JET 案件資料庫（SQLite）",
+  "title": "JET 實體關聯圖（ERD）：案件資料庫",
+  "header": [
+    "JET 1.0.0.0 實體關聯圖（ERD）。範圍：案件資料庫 jet.db（SQLite，每個案件一個檔案）的全部資料表與欄位。",
+    "表示法：資訊工程（Information Engineering）表示法。欄位前的 * 表示主鍵或 NOT NULL，<<PK>> 是主鍵，<<UK>> 是唯一索引。",
+    "關聯線標示 SQL 查詢使用的關聯欄位，資料庫未宣告外鍵；「a = b」表示子資料表的 a 欄對應父資料表的 b 欄。實線表示關聯欄位屬於子資料表的主鍵，虛線表示不屬於。"
+  ],
+  "pictureNote": "虛線方框是其他分組的資料表。",
   "schemaSource": "src/JET/JET/Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+  "databaseFileEvidence": { "file": "src/JET/JET/Infrastructure/Persistence/JetProjectFolder.cs", "text": "DatabaseFileName = \"jet.db\"" },
   "groups": [
-    { "id": "import", "label": "Import sources", "tables": ["import_batch", "import_batch_source", "field_info", "pbc_gl", "pbc_tb", "pbc_account_mapping", "pbc_authorized_preparer"] },
-    { "id": "standard", "label": "Mapping and standardized data", "tables": ["field_mapping", "field_mapping_previous", "gl", "tb", "gl_control_total", "gl_rde_field", "gl_rde_value"] },
-    { "id": "rules", "label": "Rules and results", "tables": ["account_category", "account_category_path", "account_mapping", "authorized_preparer", "calendar_day", "validation_result", "prescreen_result", "inf_sample", "filter_scenario", "filter_hit", "filter_hit_condition"] },
-    { "id": "system", "label": "System records", "tables": ["schema_info", "result_stale_state", "message_log", "operation_log"] }
+    { "id": "import", "label": "匯入來源", "tables": ["import_batch", "import_batch_source", "field_info", "pbc_gl", "pbc_tb", "pbc_account_mapping", "pbc_authorized_preparer"] },
+    { "id": "standard", "label": "配對與整理後的資料", "tables": ["field_mapping", "field_mapping_previous", "gl", "tb", "gl_control_total", "gl_rde_field", "gl_rde_value"] },
+    { "id": "rules", "label": "規則與結果", "tables": ["account_category", "account_category_path", "account_mapping", "authorized_preparer", "calendar_day", "validation_result", "prescreen_result", "inf_sample", "filter_scenario", "filter_hit", "filter_hit_condition"] },
+    { "id": "system", "label": "系統紀錄", "tables": ["schema_info", "result_stale_state", "message_log", "operation_log"] }
   ],
   "relations": [
     { "from": "import_batch_source", "to": "import_batch", "label": "batch_id" },
     { "from": "field_info", "to": "import_batch", "label": "batch_id" },
     { "from": "pbc_gl", "to": "import_batch", "label": "batch_id" },
     { "from": "pbc_tb", "to": "import_batch", "label": "batch_id" },
-    { "from": "gl", "to": "import_batch", "label": "batch_id" },
-    { "from": "tb", "to": "import_batch", "label": "batch_id" },
+    { "from": "pbc_account_mapping", "to": "import_batch", "label": "batch_id" },
+    { "from": "pbc_gl", "to": "import_batch_source", "label": "batch_id, source_no" },
+    { "from": "gl", "to": "pbc_gl", "label": "batch_id, source_row_number = row_number", "oneToOne": true },
     { "from": "field_mapping_previous", "to": "field_mapping", "label": "dataset_kind", "oneToOne": true, "toOptional": true },
     { "from": "gl_rde_value", "to": "gl", "label": "entry_id" },
     { "from": "gl_rde_value", "to": "gl_rde_field", "label": "field_id" },
-    { "from": "account_category_path", "to": "account_category", "label": "ancestor_id, descendant_id" },
+    { "from": "account_category_path", "to": "account_category", "label": "ancestor_id" },
+    { "from": "account_category_path", "to": "account_category", "label": "descendant_id" },
     { "from": "account_mapping", "to": "account_category", "label": "category_id", "toOptional": true },
     { "from": "filter_hit", "to": "filter_scenario", "label": "scenario_id" },
     { "from": "filter_hit_condition", "to": "filter_scenario", "label": "scenario_id" },

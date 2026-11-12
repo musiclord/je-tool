@@ -6,7 +6,8 @@ namespace JET.Tests.Architecture;
 
 /// <summary>
 /// 原始碼的註解與文字只說明程式現在做什麼、為什麼這樣做。開發過程的紀錄另外保存，不寫進原始碼：
-/// 需求決議的編號、測試執行的編號、測試修改經過的說明，以及開發計畫的階段名稱。
+/// 需求決議的編號、測試執行的編號、測試修改經過的說明、開發計畫的階段名稱，以及開發任務的用語。
+/// 註解也不引用文件的章節：只拿到這個方案資料夾的人查不到那些文件。
 /// </summary>
 public sealed class SourceCommentPolicyTests
 {
@@ -28,7 +29,38 @@ public sealed class SourceCommentPolicyTests
             + @"|(?:(?<![A-Za-z])|(?<=[a-z]))Track ?[A-Z](?![a-z])"
             + "|第[一二三四五六七八九十]+(?:波|輪|階段)",
             RegexOptions.CultureInvariant)),
+        // 比對用的範例檔、任務說明與任務編號、開發時用的腳本與技能名稱，以及只寫「照規定」而不寫規定內容的說法。
+        // 「可靠性樣本」「摘要樣本」這類資料上的樣本，以及 C# 的 Task 型別都不算。
+        ("開發任務的用語", new Regex(
+            "(?:對齊|皆照|和|舊版)樣" + "本|本機參考樣" + "本|樣" + "本(?:顯示形式|全表)"
+            + "|凍結(?:契" + "約|裁" + "決)"
+            + "|(?<![A-Za-z])Ta" + @"sk ?\d+ ?[:：]|[此本] ?ta" + "sk(?![A-Za-z])"
+            + "|TD" + @"D ?#\d|jet-tes" + @"ting|\.git/s" + "dd|(?i:user-appro" + "ved)"
+            + "|(?<![A-Za-z])bri" + "ef(?:[：:]| ?設計| ?允許)|DR" + @"Y ?(?:閾值 ?)?= ?\d",
+            RegexOptions.CultureInvariant)),
     ];
+
+    // 只看註解的樣式：比對依據的出處字串也會寫文件名稱，那是資料，不是註解。
+    // 外部標準 ECMA-376 的條文編號可以寫；只寫 manifest 的句子多半在講程式自己記錄的報告清單，也不算。
+    private static readonly (string Name, Regex Pattern)[] DocumentSections =
+    [
+        ("文件章節的寫法", new Regex(
+            "(?<!ECMA-376 )\u00A7"
+            + "|(?i:jet-gui" + "de)|(?i:master sp" + @"ec)|(?i:gui" + @"de sections? \d)"
+            + "|(?<![A-Za-z])(?:gui" + "de|sp" + @"ec) ?\d+(?:\.\d+)+|(?<![A-Za-z])sp" + @"ec [A-Z]\.\d"
+            + "|(?<![A-Za-z])F" + @"D \d|action-contract-mani" + "fest"
+            + "|(?:(?i:mani" + "fest)|前端說" + "明|action 契" + "約|(?i:frontend descrip" + @"tion))\s*「",
+            RegexOptions.CultureInvariant)),
+    ];
+
+    private static readonly Regex CommentStart = new(@"(?<!:)//|/\*|<!--|^\s*\*", RegexOptions.CultureInvariant);
+
+    /// <summary>一行裡從註解記號開始的部分；沒有註解記號時回傳 null。網址的雙斜線不算。</summary>
+    private static string? CommentPart(string line)
+    {
+        var match = CommentStart.Match(line);
+        return match.Success ? line[match.Index..] : null;
+    }
 
     [Fact]
     public void ProductAndTestSources_DoNotCarryDevelopmentRecords()
@@ -75,6 +107,13 @@ public sealed class SourceCommentPolicyTests
     [InlineData(".AddRow(\"ROUND-1\", \"2025-03-05\", \"1101\")", false)]
     [InlineData("entry.Procedure == \"Step5_Export_Excel_TW\"", false)]
     [InlineData("public sealed class ReportBatchPublicationTests", false)]
+    [InlineData("// 這一句的用字已定案，逐字比對。", false)]
+    [InlineData("// 可靠性樣本照舊版依傳票號碼排序。", false)]
+    [InlineData("// 分頁金額一律走 Ui.money，和摘要樣本保持相同格式。", false)]
+    [InlineData("// 檔案讀取移出 UI thread，避免匯入期間介面凍結。", false)]
+    [InlineData("await Task.WhenAll(first, second);", false)]
+    [InlineData("// 該 task 結束後才釋放連線。", false)]
+    [InlineData("// 這份簡報的英文是 briefing。", false)]
     public void PatternsLeaveOrdinaryCommentsAndDataAlone(string line, bool expected)
     {
         Assert.Equal(expected, DevelopmentRecords.Any(record => record.Pattern.IsMatch(line)));
@@ -100,6 +139,18 @@ public sealed class SourceCommentPolicyTests
         var batchInData = "\"ba" + "tch9-broken\"";
         var batchInIdentifier = "const fixture = ba" + "tch8Fixture();";
         var trackInIdentifier = "var entries = Tra" + "ckWEntries();";
+        var alignedToSample = "// 表頭合併範圍(逐字對齊" + "樣本)。";
+        var sampleLayout = "// 日期轉成樣本" + "顯示形式 yyyy/MM/dd。";
+        var localSample = "/// 對本機參考" + "樣本逐字復解的 cell 內容。";
+        var frozenContract = "// amountBasis 是凍結" + "契約的必填值。";
+        var numberedTask = "// ===== Ta" + "sk 4:step3 高風險條件彙總 =====";
+        var thisTask = "// 此 ta" + "sk 尚無 handler。";
+        var numberedTdd = "/// 涵蓋 TD" + "D #5（滿載覆寫最舊）。";
+        var testingSkill = "/// 手寫 recording stub（jet-tes" + "ting skill）。";
+        var scratchScript = "/// 用 .git/s" + "dd/xlsx_inspect.py 取得。";
+        var userApproved = "// User-appro" + "ved final schema.";
+        var briefNote = "// 欄序以此為準(bri" + "ef：依 position 升冪)。";
+        var dryThreshold = "// 資料表共用骨架(DR" + "Y=3)。";
         Assert.Equal("需求決議的編號", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(decision)).Name);
         Assert.Equal("測試執行的編號", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(run)).Name);
         Assert.Equal("測試修改經過", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(history)).Name);
@@ -112,5 +163,89 @@ public sealed class SourceCommentPolicyTests
             phaseInData, batchInData, batchInIdentifier, trackInIdentifier,
         }, line =>
             Assert.Equal("計畫與階段的名稱", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(line)).Name));
+        Assert.All(new[]
+        {
+            alignedToSample, sampleLayout, localSample, frozenContract, numberedTask, thisTask,
+            numberedTdd, testingSkill, scratchScript, userApproved, briefNote, dryThreshold,
+        }, line =>
+            Assert.Equal("開發任務的用語", Assert.Single(DevelopmentRecords, record => record.Pattern.IsMatch(line)).Name));
+    }
+
+    [Fact]
+    public void Comments_DoNotCiteDocumentSections()
+    {
+        var root = TestRepositoryPaths.SolutionRoot;
+        var findings = new List<string>();
+        var scanned = 0;
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                     .Where(path => Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                     .Where(path => !Path.GetRelativePath(root, path)
+                         .Split(Path.DirectorySeparatorChar)
+                         .Any(part => part is "bin" or "obj"))
+                     .Order(StringComparer.Ordinal))
+        {
+            scanned++;
+            var lines = File.ReadAllLines(file);
+            for (var index = 0; index < lines.Length; index++)
+            {
+                if (CommentPart(lines[index]) is not { } comment)
+                {
+                    continue;
+                }
+
+                foreach (var (name, pattern) in DocumentSections)
+                {
+                    if (pattern.IsMatch(comment))
+                    {
+                        findings.Add($"{Path.GetRelativePath(root, file).Replace('\\', '/')}:{index + 1}: {name}");
+                    }
+                }
+            }
+        }
+
+        Assert.True(scanned > 500, $"只掃到 {scanned} 個檔，方案資料夾的位置可能不對。");
+        Assert.True(findings.Count == 0,
+            "註解不引用文件的章節：" + Environment.NewLine + string.Join(Environment.NewLine, findings.Take(40)));
+    }
+
+    [Theory]
+    [InlineData("// 內建 id 依 ECMA-376 \u00A718.8.30 登錄表凍結。")]
+    [InlineData("// 檔案 store 只負責暫存改名與 manifest，沒有清理功能。")]
+    [InlineData("// 表頭寫短表頭「項次」，分錄列只寫數字。")]
+    [InlineData("// 規格手算的小型固定資料集。")]
+    [InlineData("// 假後端都經過 action-contract.cjs 核對資料形狀。")]
+    [InlineData("var basis = \"docs/jet-gui" + "de.md \u00A72\";")]
+    [InlineData("var help = \"https://example.invalid/jet-gui" + "de\";")]
+    public void DocumentSectionPatternsLeaveOrdinaryCommentsAndStringsAlone(string line)
+    {
+        var comment = CommentPart(line);
+        Assert.True(comment is null || !DocumentSections.Any(record => record.Pattern.IsMatch(comment)), line);
+    }
+
+    [Fact]
+    public void DocumentSectionPatternsRecogniseEachWayOfCitingASection()
+    {
+        var sectionSign = "// 貸方錨定（gui" + "de \u00A7" + "6.1 C）。";
+        var bareSectionSign = "/// 本期母體(\u00A7" + "2:gl_date 在會計期間內)。";
+        var guideName = "// jet-gui" + "de section 7: the saved creator is kept.";
+        var guideNumber = "// gui" + "de 3.1.5 的規則：有資料的欄不丟棄。";
+        var masterSpec = "/// master sp" + "ec「匯出進度契約」：五個正式 action。";
+        var specItem = "// baseline 不觸發任何規則(sp" + "ec C.3 證明義務)。";
+        var descriptionLines = "// F" + "D 315-319: reimported sources keep their identity.";
+        var contractFile = "// action-contract-mani" + "fest: the response keeps the field id.";
+        var manifestSection = "/// import.progress 事件（mani" + "fest「Host→Web 事件」章節）。";
+        var descriptionSection = "/// 前端說" + "明「案件選擇」：兩種診斷匯出仍可使用。";
+        var blockComment = "/* ---- 來源必填（gui" + "de \u00A7" + "6.1）---- */";
+        var trailingComment = "var x = 1; // 見 sp" + "ec \u00A7" + "1";
+        Assert.All(new[]
+        {
+            sectionSign, bareSectionSign, guideName, guideNumber, masterSpec, specItem,
+            descriptionLines, contractFile, manifestSection, descriptionSection, blockComment, trailingComment,
+        }, line =>
+        {
+            var comment = CommentPart(line);
+            Assert.NotNull(comment);
+            Assert.Equal("文件章節的寫法", Assert.Single(DocumentSections, record => record.Pattern.IsMatch(comment)).Name);
+        });
     }
 }

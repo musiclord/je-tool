@@ -5,8 +5,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// project.saveProgress 契約測試（manifest「Project Persistence / Host / Dev Actions」）。
-/// oracle：manifest 規格——currentStep 為 0–5 的 6 步索引，持久化後由 project.load / project.list 回放。
+/// project.saveProgress 契約測試。
+/// oracle：規格——currentStep 為 0–5 的 6 步索引，持久化後由 project.load / project.list 回放。
 /// </summary>
 public sealed class ProjectSaveProgressHandlerTests
 {
@@ -57,7 +57,7 @@ public sealed class ProjectSaveProgressHandlerTests
         Assert.Equal(0, loaded.GetProperty("project").GetProperty("currentStep").GetInt32());
     }
 
-    // BVA：步驟索引邊界 0 與 5 為合法值（6 步模型，manifest Step Data Outline）。
+    // BVA：步驟索引邊界 0 與 5 為合法值（6 步模型）。
     [Theory]
     [InlineData(0)]
     [InlineData(5)]

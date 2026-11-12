@@ -255,8 +255,8 @@ public sealed class PrescreenConcentrationTests
     }
 
     /// <summary>
-    /// 直接落地一份「集中度欄位出現前」的 prescreen summary（同 prescreen_result 通道），
-    /// 模擬使用者以舊版本執行後才升級的 resume 情境。
+    /// 直接落地一份沒有集中度欄位的 prescreen summary（同 prescreen_result 通道），
+    /// 模擬使用者用較早版本的 JET 執行預篩選、之後才換成目前版本開案的情境。
     /// </summary>
     private static async Task SaveLegacyPrescreenSummaryAsync(HandlerTestHost host, string projectId)
     {

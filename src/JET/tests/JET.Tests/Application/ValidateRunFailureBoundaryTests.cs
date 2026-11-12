@@ -120,7 +120,7 @@ public sealed class ValidateRunFailureBoundaryTests
             CurrentStep: 3,
             SchemaVersion: ProjectDocument.CurrentSchemaVersion,
             SampleSeed: 7,
-            // 目前版本建案一定寫入 INF 抽樣種子與版本；缺欄位的文件會被當成舊版案件拒絕。
+            // 目前版本建案一定寫入 INF 抽樣種子與版本；缺這兩個欄位的設定檔會被拒絕。
             SampleSeedVersion: JetAuditProgram.CurrentInfSamplingAlgorithmVersion);
         var resultStore = new RecordingRunStore(summaryFailure);
         // summary保存由正式facts port在callback之後執行。

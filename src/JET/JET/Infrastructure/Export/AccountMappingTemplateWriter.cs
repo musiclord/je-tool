@@ -7,7 +7,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// legacy AccountMapping 版型：資料自第 4 列開始，A/B 鎖定，只有 C4:C(last) 解鎖並套分類下拉；
-/// 第二張 List 保存目前專案的科目分類 labels。production 先複製固定範本，再 forward-only 重寫兩張授權 worksheet。
+/// 第二張 List 保存目前專案的科目分類 labels，不鎖定，審計員可以在清單最後加上新的分類名稱。
+/// production 先複製固定範本，再 forward-only 重寫兩張授權 worksheet。
 /// </summary>
 public sealed class AccountMappingTemplateWriter :
     IAccountMappingTemplateWriter,
@@ -142,14 +143,13 @@ public sealed class AccountMappingTemplateWriter :
                     CreateAccountMappingRows(prototype, rows, ct),
                 InlineStringCellOverrides: new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["A2"] = "請在 C 欄選擇標準科目分類；允許分類僅限 "
-                        + string.Join("、", categories.Select(item => item.Label))
-                        + "；A、B 欄由系統產生，不應修改。"
+                    ["A2"] = "請在 C 欄選擇標準科目分類；要新增分類，請在 List 工作表的清單最後加上名稱，原有的名稱不要更改；"
+                        + "A、B 欄由系統產生，不應修改。"
                 },
                 SheetProtection: CreateSheetProtection(),
                 DataValidations: rows.Count == 0
                     ? null
-                    : CreateDataValidations(lastRow, checked((uint)categories.Count + 1)),
+                    : CreateDataValidations(lastRow),
                 RemoveTopLevelElements: new HashSet<string>(StringComparer.Ordinal)
                 {
                     "extLst"
@@ -285,7 +285,8 @@ public sealed class AccountMappingTemplateWriter :
             new XAttribute("selectLockedCells", "0"),
             new XAttribute("selectUnlockedCells", "0"));
 
-    private static XElement CreateDataValidations(uint lastRow, uint lastListRow) =>
+    // 下拉清單的來源和舊版範本一樣取 List 工作表 A 欄第 2 列以下整欄：審計員在清單最後加上的分類名稱，回到 C 欄就選得到。
+    private static XElement CreateDataValidations(uint lastRow) =>
         new(
             Spreadsheet + "dataValidations",
             new XAttribute("count", "1"),
@@ -295,7 +296,7 @@ public sealed class AccountMappingTemplateWriter :
                 new XAttribute("allowBlank", "1"),
                 new XAttribute("showErrorMessage", "1"),
                 new XAttribute("sqref", $"C4:C{lastRow}"),
-                new XElement(Spreadsheet + "formula1", $"List!$A$2:$A${lastListRow}")));
+                new XElement(Spreadsheet + "formula1", $"List!$A$2:$A${ExcelWorksheetConstraints.MaxRows}")));
 
     private static void AddStat(
         List<SheetStat> stats,

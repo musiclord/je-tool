@@ -1,47 +1,560 @@
 {
-  "title": "JET 操作處理的主要類別",
+  "title": "JET 類別圖：資料驗證與匯出工作底稿的主要類別",
+  "header": [
+    "JET 1.0.0.0 類別圖。範圍：前端送出 validate.run（資料驗證）與 export.workingPaperStream（匯出工作底稿）後，後端處理請求的主要類別與介面；各類別僅列主要成員。",
+    "表示法：UML 類別圖。+ 為 public，- 為 private，~ 為 internal，<<static>> 為靜態類別；實線箭頭為使用，虛線箭頭為建立，虛線空心三角為實作介面。"
+  ],
   "sourceRoot": "src/JET/JET",
   "groups": [
-    { "id": "host", "label": "JET (desktop host)", "classes": ["Form1", "AppCompositionRoot"] },
-    { "id": "bridge", "label": "Bridge", "classes": ["JetWebMessageBridge", "ActionDispatcher"] },
-    { "id": "application", "label": "Application", "classes": ["IApplicationActionHandler", "ValidateRunHandler", "ExportWorkingPaperStreamHandler", "ProjectSession"] },
-    { "id": "auditcore", "label": "AuditCore", "classes": ["JetAuditProgram", "AccountComparisonProcedure", "IValidationFactsPort"] },
-    { "id": "infrastructure", "label": "Infrastructure", "classes": ["LocalValidationRunRepository", "SqliteProjectDatabase", "WorkingPaperWriter"] }
+    {
+      "id": "host",
+      "label": "WinForms 主機（JET）",
+      "classes": [
+        "Form1",
+        "AppCompositionRoot"
+      ]
+    },
+    {
+      "id": "bridge",
+      "label": "展示層 Bridge（JET/Bridge）",
+      "classes": [
+        "JetWebMessageBridge",
+        "ActionDispatcher",
+        "WebViewEventPublisher"
+      ]
+    },
+    {
+      "id": "application",
+      "label": "應用層 Application（JET/Application）",
+      "classes": [
+        "IApplicationActionHandler",
+        "IHostShell",
+        "IJetEventPublisher",
+        "ValidateRunHandler",
+        "ExportWorkingPaperStreamHandler",
+        "ProjectSession"
+      ]
+    },
+    {
+      "id": "auditcore",
+      "label": "領域層 AuditCore（JET/AuditCore）",
+      "classes": [
+        "JetAuditProgram",
+        "AccountComparisonProcedure",
+        "IValidationFactsPort",
+        "IWorkingPaperPlanWriter"
+      ]
+    },
+    {
+      "id": "infrastructure",
+      "label": "基礎設施層 Infrastructure（JET/Infrastructure）",
+      "classes": [
+        "LocalValidationRunRepository",
+        "ILocalProjectDatabase",
+        "SqliteProjectDatabase",
+        "WorkingPaperWriter"
+      ]
+    }
   ],
   "classes": [
-    { "name": "Form1", "file": "Form1.cs", "declaration": "partial class Form1", "members": ["+Form1()", "-InitializeWebViewAsync() Task", "+RequestExit() void"] },
-    { "name": "AppCompositionRoot", "stereotype": "static", "file": "AppCompositionRoot.cs", "declaration": "static partial class AppCompositionRoot", "members": ["+CreateRuntime(IHostShell, IJetEventPublisher) JetApplicationRuntime"] },
-    { "name": "JetWebMessageBridge", "file": "Bridge/JetWebMessageBridge.cs", "declaration": "class JetWebMessageBridge", "members": ["+Attach() void", "-OnWebMessageReceived(object, CoreWebView2WebMessageReceivedEventArgs) void", "+ToErrorDto(Exception) JetErrorDto"] },
-    { "name": "ActionDispatcher", "file": "Bridge/ActionDispatcher.cs", "declaration": "class ActionDispatcher", "members": ["+RegisteredActions IReadOnlyCollection~string~", "+DispatchAsync(string, JsonElement) Task~object~"] },
-    { "name": "IApplicationActionHandler", "stereotype": "interface", "file": "Application/Ports/IApplicationActionHandler.cs", "declaration": "interface IApplicationActionHandler", "members": ["+Action string", "+HandleAsync(JsonElement) Task~object~"] },
-    { "name": "ValidateRunHandler", "file": "Application/Handlers/ValidateRunHandler.cs", "declaration": "class ValidateRunHandler", "members": ["+Action string = validate.run", "+HandleAsync(JsonElement) Task~object~"] },
-    { "name": "ExportWorkingPaperStreamHandler", "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs", "declaration": "class ExportWorkingPaperStreamHandler", "members": ["+Action string = export.workingPaperStream", "+HandleAsync(JsonElement) Task~object~"] },
-    { "name": "ProjectSession", "file": "Application/ProjectSession.cs", "declaration": "class ProjectSession", "members": ["+CurrentProjectId string", "~Enter(string, ProjectRepositories) void", "+Leave(string) bool", "~RequireActive() ActiveProject"] },
-    { "name": "JetAuditProgram", "stereotype": "static", "file": "AuditCore/JetAuditProgram.cs", "declaration": "static partial class JetAuditProgram", "members": ["~Plan(ValidationRequest) ValidationPlan", "~Finalize(ValidationPlan, ValidationFacts) ValidationResult", "~Plan(WorkingPaperRequest) WorkingPaperPlan"] },
-    { "name": "AccountComparisonProcedure", "stereotype": "static", "file": "AuditCore/AccountComparisonProcedure.cs", "declaration": "static class AccountComparisonProcedure", "members": ["~Plan(AccountComparisonRequest) AccountComparisonPlan", "~Finalize(AccountComparisonPlan, AccountComparisonFacts) ProcedureVerdict"] },
-    { "name": "IValidationFactsPort", "stereotype": "interface", "file": "AuditCore/ValidationProgram.cs", "declaration": "interface IValidationFactsPort", "members": ["+ExecuteAsync(ValidationPlan, Func) Task~ResultRecord~"] },
-    { "name": "LocalValidationRunRepository", "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs", "declaration": "class LocalValidationRunRepository", "members": ["+ExecuteAsync(ValidationPlan, Func) Task~ResultRecord~"] },
-    { "name": "SqliteProjectDatabase", "file": "Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs", "declaration": "class SqliteProjectDatabase", "members": ["+CreateConnection(string) DbConnection", "+EnsureReadyAsync(string) Task", "+CheckpointAsync(string) Task"] },
-    { "name": "WorkingPaperWriter", "file": "Infrastructure/Export/WorkingPaperWriter.cs", "declaration": "partial class WorkingPaperWriter", "members": ["+WriteAsync(Stream, WorkingPaperContext, WorkingPaperPlan) Task~ExportStats~"] }
+    {
+      "name": "Form1",
+      "file": "Form1.cs",
+      "declaration": "partial class Form1 : Form, IHostShell",
+      "members": [
+        {
+          "text": "+Form1()",
+          "evidence": "public Form1()"
+        },
+        {
+          "text": "-InitializeWebViewAsync() : Task",
+          "evidence": "private async Task InitializeWebViewAsync()"
+        },
+        {
+          "text": "+RequestExit() : void",
+          "evidence": "public void RequestExit()"
+        }
+      ]
+    },
+    {
+      "name": "AppCompositionRoot",
+      "stereotype": "static",
+      "file": "AppCompositionRoot.cs",
+      "declaration": "static partial class AppCompositionRoot",
+      "members": [
+        {
+          "text": "+CreateRuntime(IHostShell, IJetEventPublisher?) : JetApplicationRuntime",
+          "evidence": "public static JetApplicationRuntime CreateRuntime(IHostShell hostShell, IJetEventPublisher? eventPublisher = null)"
+        }
+      ]
+    },
+    {
+      "name": "JetWebMessageBridge",
+      "file": "Bridge/JetWebMessageBridge.cs",
+      "declaration": "class JetWebMessageBridge(CoreWebView2 webView, ActionDispatcher dispatcher)",
+      "members": [
+        {
+          "text": "+Attach() : void",
+          "evidence": "public void Attach()"
+        },
+        {
+          "text": "-OnWebMessageReceived(object?, CoreWebView2WebMessageReceivedEventArgs) : void",
+          "evidence": "private async void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)"
+        },
+        {
+          "text": "+ToErrorDto(Exception) : JetErrorDto",
+          "static": true,
+          "evidence": "public static JetErrorDto ToErrorDto(Exception exception)"
+        }
+      ]
+    },
+    {
+      "name": "ActionDispatcher",
+      "file": "Bridge/ActionDispatcher.cs",
+      "declaration": "class ActionDispatcher",
+      "members": [
+        {
+          "text": "+RegisteredActions : IReadOnlyCollection<string>",
+          "evidence": "public IReadOnlyCollection<string> RegisteredActions"
+        },
+        {
+          "text": "+DispatchAsync(string, JsonElement, CancellationToken, string?) : Task<object?>",
+          "evidence": "public async Task<object?> DispatchAsync("
+        }
+      ]
+    },
+    {
+      "name": "WebViewEventPublisher",
+      "file": "Bridge/WebViewEventPublisher.cs",
+      "declaration": "class WebViewEventPublisher : IJetEventPublisher",
+      "members": [
+        {
+          "text": "+Bind(CoreWebView2, SynchronizationContext) : void",
+          "evidence": "public void Bind(CoreWebView2 webView, SynchronizationContext uiContext)"
+        },
+        {
+          "text": "+Publish(string, object) : void",
+          "evidence": "public void Publish(string eventName, object payload)"
+        }
+      ]
+    },
+    {
+      "name": "IApplicationActionHandler",
+      "stereotype": "interface",
+      "file": "Application/Ports/IApplicationActionHandler.cs",
+      "declaration": "public interface IApplicationActionHandler",
+      "members": [
+        {
+          "text": "+Action : string",
+          "evidence": "string Action { get; }"
+        },
+        {
+          "text": "+HandleAsync(JsonElement, CancellationToken) : Task<object?>",
+          "evidence": "Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken);"
+        }
+      ]
+    },
+    {
+      "name": "IHostShell",
+      "stereotype": "interface",
+      "file": "Application/Ports/IHostShell.cs",
+      "declaration": "public interface IHostShell",
+      "members": [
+        {
+          "text": "+RevealInExplorerAsync(string, CancellationToken) : Task",
+          "evidence": "Task RevealInExplorerAsync(string path, CancellationToken cancellationToken);"
+        },
+        {
+          "text": "+RequestExit() : void",
+          "evidence": "void RequestExit();"
+        }
+      ]
+    },
+    {
+      "name": "IJetEventPublisher",
+      "stereotype": "interface",
+      "file": "Application/Ports/IJetEventPublisher.cs",
+      "declaration": "public interface IJetEventPublisher",
+      "members": [
+        {
+          "text": "+Publish(string, object) : void",
+          "evidence": "void Publish(string eventName, object payload);"
+        }
+      ]
+    },
+    {
+      "name": "ValidateRunHandler",
+      "file": "Application/Handlers/ValidateRunHandler.cs",
+      "declaration": "class ValidateRunHandler : IApplicationActionHandler",
+      "members": [
+        {
+          "text": "+Action : string = \"validate.run\"",
+          "evidence": "public string Action => \"validate.run\";"
+        },
+        {
+          "text": "+HandleAsync(JsonElement, CancellationToken) : Task<object?>",
+          "evidence": "public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)"
+        }
+      ]
+    },
+    {
+      "name": "ExportWorkingPaperStreamHandler",
+      "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+      "declaration": "class ExportWorkingPaperStreamHandler : IApplicationActionHandler",
+      "members": [
+        {
+          "text": "+Action : string = \"export.workingPaperStream\"",
+          "evidence": "public string Action => \"export.workingPaperStream\";"
+        },
+        {
+          "text": "+HandleAsync(JsonElement, CancellationToken) : Task<object?>",
+          "evidence": "public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)"
+        }
+      ]
+    },
+    {
+      "name": "ProjectSession",
+      "file": "Application/ProjectSession.cs",
+      "declaration": "class ProjectSession",
+      "members": [
+        {
+          "text": "+CurrentProjectId : string?",
+          "evidence": "public string? CurrentProjectId"
+        },
+        {
+          "text": "~Enter(string, ProjectRepositories) : void",
+          "evidence": "internal void Enter(string projectId, ProjectRepositories repositories)"
+        },
+        {
+          "text": "+Leave(string) : bool",
+          "evidence": "public bool Leave(string expectedProjectId)"
+        },
+        {
+          "text": "~RequireActive() : ActiveProject",
+          "evidence": "internal ActiveProject RequireActive()"
+        }
+      ]
+    },
+    {
+      "name": "JetAuditProgram",
+      "stereotype": "static",
+      "file": "AuditCore/JetAuditProgram.cs",
+      "declaration": "static partial class JetAuditProgram",
+      "members": [
+        {
+          "text": "~Plan(ValidationRequest) : ValidationPlan",
+          "evidence": "internal static ValidationPlan Plan(ValidationRequest request)"
+        },
+        {
+          "text": "~Finalize(ValidationPlan, ValidationFacts) : ValidationResult",
+          "evidence": "internal static ValidationResult Finalize("
+        },
+        {
+          "text": "~Plan(WorkingPaperRequest) : WorkingPaperPlan",
+          "file": "AuditCore/WorkingPaperProgram.cs",
+          "evidence": "internal static WorkingPaperPlan Plan(WorkingPaperRequest request)"
+        },
+        {
+          "text": "~Finalize(WorkingPaperPlan, WorkingPaperPlanningFacts) : WorkingPaperPlan",
+          "file": "AuditCore/WorkingPaperProgram.cs",
+          "evidence": "internal static WorkingPaperPlan Finalize("
+        }
+      ]
+    },
+    {
+      "name": "AccountComparisonProcedure",
+      "stereotype": "static",
+      "file": "AuditCore/AccountComparisonProcedure.cs",
+      "declaration": "static class AccountComparisonProcedure",
+      "members": [
+        {
+          "text": "~Plan(AccountComparisonRequest) : AccountComparisonPlan",
+          "evidence": "internal static AccountComparisonPlan Plan(AccountComparisonRequest request)"
+        },
+        {
+          "text": "~Finalize(AccountComparisonPlan, AccountComparisonFacts) : ProcedureVerdict",
+          "evidence": "internal static ProcedureVerdict Finalize("
+        }
+      ]
+    },
+    {
+      "name": "IValidationFactsPort",
+      "stereotype": "interface",
+      "file": "AuditCore/ValidationProgram.cs",
+      "declaration": "internal interface IValidationFactsPort",
+      "members": [
+        {
+          "text": "+ExecuteAsync(ValidationPlan, Func<ValidationFacts, ResultRecord>, CancellationToken) : Task<ResultRecord>",
+          "evidence": "Func<ValidationFacts, ResultRecord> finalize,"
+        }
+      ]
+    },
+    {
+      "name": "IWorkingPaperPlanWriter",
+      "stereotype": "interface",
+      "file": "AuditCore/WorkingPaperProgram.cs",
+      "declaration": "internal interface IWorkingPaperPlanWriter",
+      "members": [
+        {
+          "text": "+WriteAsync(Stream, WorkingPaperContext, WorkingPaperPlan, CancellationToken, Action<WorkingPaperProgress>?) : Task<ExportStats>",
+          "evidence": "Task<ExportStats> WriteAsync("
+        }
+      ]
+    },
+    {
+      "name": "LocalValidationRunRepository",
+      "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+      "declaration": "class LocalValidationRunRepository(ILocalProjectDatabase database",
+      "members": [
+        {
+          "text": "~ExecuteAsync(ValidationPlan, Func<ValidationFacts, ResultRecord>, CancellationToken) : Task<ResultRecord>",
+          "evidence": "internal async Task<ResultRecord> ExecuteAsync("
+        }
+      ]
+    },
+    {
+      "name": "ILocalProjectDatabase",
+      "stereotype": "interface",
+      "file": "Infrastructure/Persistence/Local/ILocalProjectDatabase.cs",
+      "declaration": "public interface ILocalProjectDatabase",
+      "members": [
+        {
+          "text": "+Dialect : IProviderSqlDialect",
+          "evidence": "IProviderSqlDialect Dialect { get; }"
+        },
+        {
+          "text": "+CreateConnection(string) : DbConnection",
+          "evidence": "DbConnection CreateConnection(string projectId);"
+        },
+        {
+          "text": "+EnsureReadyAsync(string, CancellationToken) : Task",
+          "evidence": "Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>"
+        }
+      ]
+    },
+    {
+      "name": "SqliteProjectDatabase",
+      "file": "Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+      "declaration": "class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase",
+      "members": [
+        {
+          "text": "+CreateConnection(string) : DbConnection",
+          "evidence": "public DbConnection CreateConnection(string projectId)"
+        },
+        {
+          "text": "+EnsureReadyAsync(string, CancellationToken) : Task",
+          "evidence": "public Task EnsureReadyAsync(string projectId, CancellationToken cancellationToken) =>"
+        },
+        {
+          "text": "+CheckpointAsync(string, CancellationToken) : Task",
+          "evidence": "public async Task CheckpointAsync(string projectId, CancellationToken cancellationToken)"
+        }
+      ]
+    },
+    {
+      "name": "WorkingPaperWriter",
+      "file": "Infrastructure/Export/WorkingPaperWriter.cs",
+      "declaration": "partial class WorkingPaperWriter(",
+      "members": [
+        {
+          "text": "-WriteCoreAsync(Stream, WorkingPaperContext, WorkingPaperPlan, CancellationToken, Action<WorkingPaperProgress>?) : Task<ExportStats>",
+          "evidence": "private async Task<ExportStats> WriteCoreAsync("
+        }
+      ]
+    }
   ],
   "relations": [
-    { "from": "Form1", "to": "AppCompositionRoot", "kind": "uses", "label": "CreateRuntime", "file": "Form1.cs", "evidence": "AppCompositionRoot.CreateRuntime(" },
-    { "from": "Form1", "to": "JetWebMessageBridge", "kind": "creates", "label": "creates", "file": "Form1.cs", "evidence": "new JetWebMessageBridge(" },
-    { "from": "AppCompositionRoot", "to": "ActionDispatcher", "kind": "creates", "label": "creates", "file": "AppCompositionRoot.cs", "evidence": "new ActionDispatcher(" },
-    { "from": "AppCompositionRoot", "to": "ProjectSession", "kind": "creates", "label": "creates", "file": "AppCompositionRoot.cs", "evidence": "new ProjectSession(" },
-    { "from": "AppCompositionRoot", "to": "SqliteProjectDatabase", "kind": "creates", "label": "creates", "file": "AppCompositionRoot.cs", "evidence": "new SqliteProjectDatabase(" },
-    { "from": "JetWebMessageBridge", "to": "ActionDispatcher", "kind": "uses", "label": "DispatchAsync", "file": "Bridge/JetWebMessageBridge.cs", "evidence": "dispatcher.DispatchAsync(" },
-    { "from": "ActionDispatcher", "to": "IApplicationActionHandler", "kind": "uses", "label": "HandleAsync", "file": "Bridge/ActionDispatcher.cs", "evidence": "IEnumerable<IApplicationActionHandler>" },
-    { "from": "ValidateRunHandler", "to": "IApplicationActionHandler", "kind": "implements", "file": "Application/Handlers/ValidateRunHandler.cs", "evidence": "IApplicationActionHandler" },
-    { "from": "ExportWorkingPaperStreamHandler", "to": "IApplicationActionHandler", "kind": "implements", "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs", "evidence": "IApplicationActionHandler" },
-    { "from": "ValidateRunHandler", "to": "ProjectSession", "kind": "uses", "label": "RequireActive", "file": "Application/Handlers/ValidateRunHandler.cs", "evidence": "session.RequireActive()" },
-    { "from": "ValidateRunHandler", "to": "JetAuditProgram", "kind": "uses", "label": "Plan, Finalize", "file": "Application/Handlers/ValidateRunHandler.cs", "evidence": "JetAuditProgram.Finalize(plan, facts)" },
-    { "from": "ValidateRunHandler", "to": "IValidationFactsPort", "kind": "uses", "label": "ExecuteAsync", "file": "Application/Handlers/ValidateRunHandler.cs", "evidence": "repositories.ValidationFacts.ExecuteAsync(" },
-    { "from": "JetAuditProgram", "to": "AccountComparisonProcedure", "kind": "uses", "label": "Plan, Finalize", "file": "AuditCore/JetAuditProgram.cs", "evidence": "AccountComparisonProcedure.Finalize(" },
-    { "from": "LocalValidationRunRepository", "to": "IValidationFactsPort", "kind": "implements", "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs", "evidence": ": IValidationFactsPort" },
-    { "from": "LocalValidationRunRepository", "to": "SqliteProjectDatabase", "kind": "uses", "label": "CreateConnection", "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs", "evidence": "database.CreateConnection(" },
-    { "from": "ExportWorkingPaperStreamHandler", "to": "ProjectSession", "kind": "uses", "label": "RequireActive", "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs", "evidence": "session.RequireActive()" },
-    { "from": "ExportWorkingPaperStreamHandler", "to": "JetAuditProgram", "kind": "uses", "label": "Plan, Finalize", "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs", "evidence": "JetAuditProgram.Finalize(plan, facts)" },
-    { "from": "ExportWorkingPaperStreamHandler", "to": "WorkingPaperWriter", "kind": "uses", "label": "WriteAsync", "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs", "evidence": "planWriter.WriteAsync(" }
+    {
+      "from": "Form1",
+      "to": "AppCompositionRoot",
+      "kind": "uses",
+      "label": "CreateRuntime",
+      "file": "Form1.cs",
+      "evidence": "AppCompositionRoot.CreateRuntime("
+    },
+    {
+      "from": "Form1",
+      "to": "JetWebMessageBridge",
+      "kind": "creates",
+      "tailPort": "e",
+      "file": "Form1.cs",
+      "evidence": "new JetWebMessageBridge("
+    },
+    {
+      "from": "Form1",
+      "to": "WebViewEventPublisher",
+      "kind": "creates",
+      "tailPort": "e",
+      "file": "Form1.cs",
+      "evidence": "WebViewEventPublisher _eventPublisher = new()"
+    },
+    {
+      "from": "Form1",
+      "to": "IHostShell",
+      "kind": "implements",
+      "file": "Form1.cs",
+      "evidence": "partial class Form1 : Form, IHostShell"
+    },
+    {
+      "from": "AppCompositionRoot",
+      "to": "IHostShell",
+      "kind": "uses",
+      "label": "參數 hostShell",
+      "file": "AppCompositionRoot.cs",
+      "evidence": "CreateRuntime(IHostShell hostShell"
+    },
+    {
+      "from": "AppCompositionRoot",
+      "to": "ActionDispatcher",
+      "kind": "creates",
+      "file": "AppCompositionRoot.cs",
+      "evidence": "new ActionDispatcher("
+    },
+    {
+      "from": "AppCompositionRoot",
+      "to": "ProjectSession",
+      "kind": "creates",
+      "file": "AppCompositionRoot.cs",
+      "evidence": "new ProjectSession("
+    },
+    {
+      "from": "AppCompositionRoot",
+      "to": "SqliteProjectDatabase",
+      "kind": "creates",
+      "file": "AppCompositionRoot.cs",
+      "evidence": "new SqliteProjectDatabase("
+    },
+    {
+      "from": "JetWebMessageBridge",
+      "to": "ActionDispatcher",
+      "kind": "uses",
+      "label": "DispatchAsync",
+      "tailPort": "e",
+      "headPort": "e",
+      "file": "Bridge/JetWebMessageBridge.cs",
+      "evidence": "dispatcher.DispatchAsync("
+    },
+    {
+      "from": "WebViewEventPublisher",
+      "to": "IJetEventPublisher",
+      "kind": "implements",
+      "file": "Bridge/WebViewEventPublisher.cs",
+      "evidence": "class WebViewEventPublisher : IJetEventPublisher"
+    },
+    {
+      "from": "ActionDispatcher",
+      "to": "IApplicationActionHandler",
+      "kind": "uses",
+      "label": "HandleAsync",
+      "file": "Bridge/ActionDispatcher.cs",
+      "evidence": "IEnumerable<IApplicationActionHandler>"
+    },
+    {
+      "from": "ValidateRunHandler",
+      "to": "IApplicationActionHandler",
+      "kind": "implements",
+      "file": "Application/Handlers/ValidateRunHandler.cs",
+      "evidence": "class ValidateRunHandler : IApplicationActionHandler"
+    },
+    {
+      "from": "ExportWorkingPaperStreamHandler",
+      "to": "IApplicationActionHandler",
+      "kind": "implements",
+      "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+      "evidence": "class ExportWorkingPaperStreamHandler : IApplicationActionHandler"
+    },
+    {
+      "from": "ValidateRunHandler",
+      "to": "ProjectSession",
+      "kind": "uses",
+      "label": "RequireActive",
+      "file": "Application/Handlers/ValidateRunHandler.cs",
+      "evidence": "session.RequireActive()"
+    },
+    {
+      "from": "ValidateRunHandler",
+      "to": "JetAuditProgram",
+      "kind": "uses",
+      "label": "Plan、Finalize",
+      "file": "Application/Handlers/ValidateRunHandler.cs",
+      "evidence": "JetAuditProgram.Finalize(plan, facts)"
+    },
+    {
+      "from": "ValidateRunHandler",
+      "to": "IValidationFactsPort",
+      "kind": "uses",
+      "label": "ExecuteAsync",
+      "file": "Application/Handlers/ValidateRunHandler.cs",
+      "evidence": "repositories.ValidationFacts.ExecuteAsync("
+    },
+    {
+      "from": "JetAuditProgram",
+      "to": "AccountComparisonProcedure",
+      "kind": "uses",
+      "label": "Plan、Finalize",
+      "file": "AuditCore/JetAuditProgram.cs",
+      "evidence": "AccountComparisonProcedure.Finalize("
+    },
+    {
+      "from": "LocalValidationRunRepository",
+      "to": "IValidationFactsPort",
+      "kind": "implements",
+      "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+      "evidence": ": IValidationFactsPort"
+    },
+    {
+      "from": "LocalValidationRunRepository",
+      "to": "ILocalProjectDatabase",
+      "kind": "uses",
+      "label": "CreateConnection",
+      "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+      "evidence": "database.CreateConnection("
+    },
+    {
+      "from": "SqliteProjectDatabase",
+      "to": "ILocalProjectDatabase",
+      "kind": "implements",
+      "file": "Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+      "evidence": "class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase"
+    },
+    {
+      "from": "ExportWorkingPaperStreamHandler",
+      "to": "ProjectSession",
+      "kind": "uses",
+      "label": "RequireActive",
+      "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+      "evidence": "session.RequireActive()"
+    },
+    {
+      "from": "ExportWorkingPaperStreamHandler",
+      "to": "JetAuditProgram",
+      "kind": "uses",
+      "label": "Plan、Finalize",
+      "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+      "evidence": "JetAuditProgram.Finalize(plan, facts)"
+    },
+    {
+      "from": "ExportWorkingPaperStreamHandler",
+      "to": "IWorkingPaperPlanWriter",
+      "kind": "uses",
+      "label": "WriteAsync",
+      "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+      "evidence": "planWriter.WriteAsync("
+    },
+    {
+      "from": "ExportWorkingPaperStreamHandler",
+      "to": "IJetEventPublisher",
+      "kind": "uses",
+      "label": "Publish",
+      "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+      "evidence": "new ExportProgressSession(eventPublisher"
+    },
+    {
+      "from": "WorkingPaperWriter",
+      "to": "IWorkingPaperPlanWriter",
+      "kind": "implements",
+      "file": "Infrastructure/Export/WorkingPaperWriter.cs",
+      "evidence": ": IWorkingPaperPlanWriter, IFormalWorkingPaperPlanWriter"
+    }
   ]
 }

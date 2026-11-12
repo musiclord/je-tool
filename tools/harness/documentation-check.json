@@ -70,6 +70,7 @@
     "docs/history/2026-11-06-deferred-items-plan-execution-records.md",
     "docs/history/test-change-records.md",
     "docs/history/2026-11-10-source-comment-cleanup-records.md",
+    "docs/history/2026-11-12-custom-account-category-records.md",
     "docs/history/architecture-2026-08-30/README.md",
     "docs/history/specs/2026-08-28-harness-rebuild-plan.md",
     "docs/history/specs/2026-08-29-agent-governance-and-context-plan.md",
@@ -275,13 +276,13 @@
       { "id": "size-history-exempt", "match": ["docs/history/"], "exempt": true },
       { "id": "size-current-plan", "match": ["docs/specs/"], "maxKiB": 1024 },
       { "id": "size-rulings", "match": ["docs/rulings.md"], "maxKiB": 2048 },
+      { "id": "size-glossary", "match": ["docs/glossary.md"], "maxKiB": 1024 },
+      { "id": "size-frontend-description", "match": ["docs/jet-frontend-description.md"], "maxKiB": 195.3125 },
       {
         "id": "size-reference-document",
         "match": [
           "docs/jet-guide.md",
-          "docs/action-contract-manifest.md",
-          "docs/jet-frontend-description.md",
-          "docs/glossary.md"
+          "docs/action-contract-manifest.md"
         ],
         "maxKiB": 160
       },

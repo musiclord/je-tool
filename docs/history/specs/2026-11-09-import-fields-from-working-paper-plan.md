@@ -29,10 +29,10 @@ Agent 問這次驗收涵蓋哪些計畫，使用者回覆：
 本輪接續上一個 session 的修正，處理本計畫最後一節列出的同類問題，同步 SAT 文件，完成提交前複審與驗證後，將目前工作樹的相關修改一起提交並推送。2026-11-10 已提交為 `a0e7a13` 並推送到 `origin/main`。
 公司環境驗收、人工審計複核，以及已明定延後且需要外部資料的事項，仍依各自的重啟條件處理。
 
-程式修正與提交前複審已完成。完整 `Public -CollectCoverage` 通過，5,023 個 C# 測試全部成功，前端行為 1,015 例與預覽 12 例也通過；收據為 `20261110-062311141-0e15385cdc294a4ca4f82e6479ffdd36`。
-Debug 建置包含在上述完整公開測試中。Release 封裝通過（`20261110-062416464-7f2fe460ec7e4ec2bba2187583c5b58b`）。一般權限 Gui 在隔離桌面完成 20 個情境（`20261110-062651525-89f1b76073d94db9877ef91154f85348`），清理也通過。原生 Excel 的六份合成工作簿與三項格式檢查通過（`20261110-063419683-b2ff6c6c0cb140cf9dcc2b85b938c20b`）。
+程式修正與提交前複審已完成。完整 `Public -CollectCoverage` 通過，5,023 個 C# 測試全部成功，前端行為 1,015 例與預覽 12 例也通過。
+Debug 建置包含在上述完整公開測試中。Release 封裝通過（`Package`）。一般權限 Gui 在隔離桌面完成 20 個情境，清理也通過。原生 Excel 的六份合成工作簿與三項格式檢查通過（`Excel`）。
 
-SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 頁已逐頁檢查。五份 Excel 沒有公式錯誤、外部連結或巨集；人工複核仍保留待填，未代填完成。Contract 通過（`20261110-053213380-3213866a3318408b891afc72695d75cf`）。
+SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 頁已逐頁檢查。五份 Excel 沒有公式錯誤、外部連結或巨集；人工複核仍保留待填，未代填完成。Contract 通過。
 
 複審確認的三項漏接都已修正並補測試：借方代碼剛好等於 `drCrDebitCode` 時完整帶回雙側代碼；巢狀條件缺少子條件時仍能開案並移除；結果時間無法讀取時開案照常，重新執行能恢復。
 完整公開測試也找出舊摘要回放與案件名稱大小寫的退步，已修正，相關既有斷言保留。前後端的情境回應契約已同步 `reportWarning` 與可為 null 的結果狀態。
@@ -53,17 +53,17 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
 
 ### 私人案件的驗證設定
 
-第一次 `PrivateCase` 未通過（`20261110-053056558-eef52500f4b64e9485a6dd866634a882`），已完成初次流程與三個後續流程，並通過清理。除了本機清單的去識別化代碼重複，還找到兩項轉換設定不符既有規則：單獨使用「未預期借貸組合」時，報告摘要應算整張傳票展開筆數；情境 5 的三個條件應在同一列成立。
+第一次 `PrivateCase` 未通過，已完成初次流程與三個後續流程，並通過清理。除了本機清單的去識別化代碼重複，還找到兩項轉換設定不符既有規則：單獨使用「未預期借貸組合」時，報告摘要應算整張傳票展開筆數；情境 5 的三個條件應在同一列成立。
 
 前者依 `docs/jet-guide.md` 第 6 節修正本機清單的筆數口徑；後者依裁定 2026-08-28-02 與 `.agents/harness/harness.md` 修正 `LegacyCriteriaAstPolicy`。舊版 `Step4_Routines_Tag`、`Step4_JoinDatabase`、`Step4_Tag_Collection` 及 `Step4_TW1`、`Step4_TW2` 的完整流程也支持三個條件先在同一列成立，再展開該列所屬的傳票。這是驗證設定的轉換修正，沒有修改產品審計規則。
 
-合成測試先重現情境 5 被包成傳票條件的錯誤（`20261110-055205570-4da376e648374b37b0b581faccd958b1`）。既有測試原本也要求錯誤的傳票條件，改成依裁定核對情境 5 的同列文字條件，情境 3 的傳票條件斷言全部保留。INF 的隨機列差異只使用既有的 `approved-inf-sampling` 裁定，沒有新增比較放行規則。
+合成測試先重現情境 5 被包成傳票條件的錯誤（`Focused -Filter CriteriaLog_CaseAFifthPosition_KeepsAllConditionsOnSameRow`，選到的這一個測試失敗）。既有測試原本也要求錯誤的傳票條件，改成依裁定核對情境 5 的同列文字條件，情境 3 的傳票條件斷言全部保留。INF 的隨機列差異只使用既有的 `approved-inf-sampling` 裁定，沒有新增比較放行規則。
 
-整個 `LegacyAuditParityProfileTests` 通過（`20261110-055331993-1123c15c32ce4166b6504c96aa9597bd`），之後完整公開測試也通過。再次 `PrivateCase` 的案件清單檢查通過，但內容驗收仍未通過（`20261110-055419190-7621975f2d5f42a4a11f0da9bda722ca`）。初次與三次後續操作的 INF、情境與母體比對全部通過，只剩資料驗證報告的 `V_Report 5` 的一個值不同，外觀沒有未處理差異；暫存輸出已清除。沒有使用既有的完整性決定代號放行。
+整個 `LegacyAuditParityProfileTests` 通過（`Focused`，42 個測試），之後完整公開測試也通過。再次 `PrivateCase` 的案件清單檢查通過，但內容驗收仍未通過。初次與三次後續操作的 INF、情境與母體比對全部通過，只剩資料驗證報告的 `V_Report 5` 的一個值不同，外觀沒有未處理差異；暫存輸出已清除。沒有使用既有的完整性決定代號放行。
 
-清理前的暫時診斷確認，科目編號、TB 金額、GL 金額與差額都相同，差異在科目名稱（`20261110-060818271-65186ff5cd2842b1b6de69645154893f`）。`V_Report 5` 的欄名是「會計科目名稱_TB」，舊版只從 TB 取名稱；修正前的查詢卻在 TB 沒有科目或名稱時改用 GL 名稱。出處為 `legacy/idea-tool.bas` 第 6538 到 6609 行、`ValidationProcedures.CompletenessDiffCteFor` 與 `LegacyReportWriter.Validation.cs`。全科目報表已改為只取 TB 名稱，差異頁保留原本的名稱顯示。診斷只輸出固定角色與布林，暫時程式已移除，不保留私人輸出。合成測試先重現 TB 缺名稱時誤帶 GL 名稱的錯誤（`20261110-061640554-bf7ece0a2a3348909ca7874bf8ab5a73`）；修正後相關完整性測試通過（`20261110-061817439-2d12134fd60e49b287ca085408d19c51`），既有全集、排序與分頁斷言保留，也確認差異頁仍可顯示 GL 名稱。
+清理前的暫時診斷確認，科目編號、TB 金額、GL 金額與差額都相同，差異在科目名稱（那一次 `PrivateCase` 的兩個測試裡一個失敗）。`V_Report 5` 的欄名是「會計科目名稱_TB」，舊版只從 TB 取名稱；修正前的查詢卻在 TB 沒有科目或名稱時改用 GL 名稱。出處為 `legacy/idea-tool.bas` 第 6538 到 6609 行、`ValidationProcedures.CompletenessDiffCteFor` 與 `LegacyReportWriter.Validation.cs`。全科目報表已改為只取 TB 名稱，差異頁保留原本的名稱顯示。診斷只輸出固定角色與布林，暫時程式已移除，不保留私人輸出。合成測試先重現 TB 缺名稱時誤帶 GL 名稱的錯誤（`Focused -Filter CompletenessAccountPageTests`，2 個測試裡 1 個失敗）；修正後相關完整性測試通過（`Focused -Filter Completeness`，94 個測試），既有全集、排序與分頁斷言保留，也確認差異頁仍可顯示 GL 名稱。
 
-修正後第一組正式 `PrivateCase` 全部通過（`20261110-061935451-5b0c7905a7144618a7da4c05cd6dfbad`）。初次執行及重開案件、重新確認配對、重新匯入的三次後續操作，均通過內容與版面比對，驗證清理也通過。20 份原件與來源副本的 SHA-256 都和執行前相同，本輪建立的整個設定及副本暫存目錄已刪除。
+修正後第一組正式 `PrivateCase` 全部通過。初次執行及重開案件、重新確認配對、重新匯入的三次後續操作，均通過內容與版面比對，驗證清理也通過。20 份原件與來源副本的 SHA-256 都和執行前相同，本輪建立的整個設定及副本暫存目錄已刪除。
 
 第二組依使用者的決定完成 TB「期末減期初」設定。兩份 GL 欄名與欄序相同，但既有文字紀錄無法唯一對應這兩個來源。現行驗證清單只支援可核對的單一 Excel 匯入紀錄，也未支援 CSV 沒有工作表的表示方式。因此本輪尚未執行第二組正式 `PrivateCase`；後續須先取得能逐一對應來源的匯入紀錄，再擴充清單與合成測試。沒有為了通過而造紀錄、猜來源或放寬既有檢查。
 
@@ -229,17 +229,17 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
   - 新取的程式名稱列在名詞表「由底稿匯入欄位」一列，待使用者確認；第一次漏列的名稱在複審後補上。
 - 被改的既有測試：
   - `MappingRestoreDraftHandlerTests.RestoreDraft_UnreadableReport_SaysWhatToCheckWithoutGuessing` 逐字比對讀檔失敗訊息，訊息照本計畫改寫。
-    第一次失敗：Focused `20261109-145908138-d8bb48b344bd4556930b393e6ba6b450`。
+    第一次失敗：`Focused -Filter MappingRestoreDraftHandlerTests`，9 個測試裡 1 個失敗。
   - `MappingRestoreDraftHandlerTests.FieldInfoSheetWithoutVersionText_StillCarriesTheCommittedMapping`、`OpenXmlMappingMetadataReaderTests.ReadAsync_ClosedXmlResavedWorkbook_ReadsSharedStrings`：
     讀檔的回傳型別改成 `MappingDraftSource`，改成取 `.Recorded`，斷言不變。
   - `WorkingPaperWriterCoverAndReferenceSheetTests` 兩處：新型別 `FieldInfoSheet` 和測試裡同名的工作表名稱常數撞名，改寫成完整名稱，斷言不變。
-    這兩項的第一次失敗是編譯失敗：Build `20261109-145225420-a56baf66e9a64e52951bd296df7a960e`。
+    這兩項的第一次失敗是編譯失敗：`Build` 沒有通過。
   - `frontend-journey-mapping.test.cjs` 三個測試：逐字比對的卡片提示與訊息改成比對托盤，原本斷言的行為都保留。
-    第一次失敗：FrontendMapping `20261109-144632875-cc0ec12951b84de5a13474e165c1f6ea`。
+    第一次失敗：`Contract -ContractScenario FrontendMapping` 沒有通過。
   - `OpenXmlMappingMetadataReaderTests.ReadAsync_VisibleLegacyFieldsWithoutMarker_RejectsWithoutGuessing` 那份表沒有 GL 段，改完仍回同一個錯誤代碼並通過。
     第一輪沒有改；第二次確認時改名，見下方。
-- 驗證：Build `20261109-150824187-9210f62d7ca34dccb7cd93dfc6ce4458`、Focused `FieldInfoSheetMapping` `20261109-150848872-3a35e84137ce4273a0ed2f669a434cfd`、
-  Documentation `20261109-150904291-dd8f6075f5ac4f5592e0aefb8222cf4a`、FrontendMapping `20261109-150917847-3b98733bfb64461faf431300928c1259` 都通過。
+- 驗證：Build、Focused `FieldInfoSheetMapping`、
+  Documentation、FrontendMapping 都通過。
   子代理另跑過 MappingRestoreDraft、OpenXmlMappingMetadataReader、MappingMetadata、SixReportWorkflowJourney、ActionShape 等相關測試，都通過。
 - 畫面：在瀏覽器開發主機（4246）開合成案件看托盤。主機選檔會開 Windows 的選檔視窗，出現在使用者的桌面，所以沒有走真的選檔；
   改在頁面裡模擬帶入成功與失敗的回應，看過托盤的結果、要重選的清單、失敗提示、700 像素寬，主控台沒有錯誤。
@@ -252,9 +252,9 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
   - 另一項「重新匯入 TB 後托盤的結果沒有更新」判斷不是缺陷，沒有改。
   - 這些都是本次新增的測試，直接改寫斷言：攸關資料元素的規則案例、讀檔測試的錯誤訊息。
     另外新增兩個金額規則案例與一個空對照表的端到端測試。
-  - 修正後的驗證：Build `20261109-153934912-b5c0b4eec64c4fc2b1aac9eb63294ce0`；Focused `FieldInfoSheetMapping` `20261109-154002218-240fd521c7724c33bc2e89a55628a981`、
-    `MappingRestoreDraft` `20261109-154017169-45768459e4a14ef5993136ad059cec34`、`OpenXmlMappingMetadataReader` `20261109-154038185-3c47354bb0a04402ae26e34b22227c1a`；
-    Documentation `20261109-154102608-95f376dcca8e42189aaba9ccab6c12c1`；完整 `Public` `20261109-154148839-07296fbf2d1340e587bd67ba06847179`，4,849 個測試與前端檢查都通過。
+  - 修正後的驗證：Build；Focused `FieldInfoSheetMapping`、
+    `MappingRestoreDraft`、`OpenXmlMappingMetadataReader`；
+    Documentation；完整 `Public`，4,849 個測試與前端檢查都通過。
     這輪前端沒有改，沒有另外重跑 FrontendMapping；`Public` 已含前端配對檢查。
 - 2026-11-10：另請六位檢查者逐項確認上面五項修正，並做一次整體檢查。確認後再改下面這些：
   - 金額句的修正不完整：兩邊都對不上、只對上一邊，或整句和目前某個欄名完全相同時，仍會當成單一欄。
@@ -270,7 +270,7 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
     和 `GlStagingFillDown.SourceColumns` 撞名，改名為 `ImportedColumnNames`。名詞表寫明這一列收錄的範圍，補上漏列的名稱。
   - 被改的既有測試：
     - `MappingRestoreDraftHandlerTests.RestoreDraft_UnreadableReport_SaysWhatToCheckWithoutGuessing` 逐字比對讀檔失敗訊息，訊息照上面改寫。
-      第一次失敗：Focused `20261109-161450553-bdcd04fe17194aef923a7e94213d00a8`。
+      第一次失敗：`Focused -Filter RestoreDraft_UnreadableReport`，選到的這一個測試失敗。
     - `OpenXmlMappingMetadataReaderTests.ReadAsync_VisibleLegacyFieldsWithoutMarker_RejectsWithoutGuessing` 改名為
       `ReadAsync_VisibleTableWithoutTheGlSection_ReportsMetadataMissing`，原本的錯誤代碼斷言保留，補上訊息斷言。它改前改後都通過，沒有失敗紀錄。
   - 本次新增、直接改寫的測試：三個金額案例合成一組，預期改成借貸兩欄；攸關資料元素、讀檔、空對照表與托盤失敗的測試照新訊息改寫；
@@ -279,10 +279,10 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
   - 新增的測試：金額句冒號後空白、新版同名攸關資料元素、來源欄原本就叫標準欄名、TB 段沒有配對、列號超過上限，
     兩個端到端測試（TB 段沒有配對、同名攸關資料元素帶入後確認配對），以及一個托盤先成功再失敗的前端測試。
     空對照表的端到端測試另加一份「GL 段空白而 TB 段有配對」的檔案。
-  - 修正後的驗證：Focused `FieldInfoSheetMapping` `20261109-162357506-bd9ce31c889a4c78b8340b1460cad898`、
-    `MappingRestoreDraft` `20261109-162425580-62179df37e02405194cc13b6bd21ea09`、`OpenXmlMappingMetadataReader` `20261109-162446170-747aba024c7d44b9938483139e182781`、
-    `MappingMetadata` `20261109-162458643-ae1a174d4e1b429b8b38d051e8b5118b`；FrontendMapping `20261109-162058972-7bb9c0f43e974992b80976f48c8f35a0`；
-    Documentation `20261109-162511191-b756205936c04873824cf59de72b33c4`；完整 `Public` `20261109-162612338-433df1f081b64c36b7a1d9ff007754c1`，4,859 個測試通過。
+  - 修正後的驗證：Focused `FieldInfoSheetMapping`、
+    `MappingRestoreDraft`、`OpenXmlMappingMetadataReader`、
+    `MappingMetadata`；FrontendMapping；
+    Documentation；完整 `Public`，4,859 個測試通過。
 - 2026-11-10：再請檢查者逐項確認上一輪的修正並做整體檢查，又改了下面這些：
   - 上一輪「目前資料也有這個欄名時才算同名配對」不對：舊版 A 欄和 E 欄相同都是同名配對，目前資料沒有這一欄時應該列出來請審計員重選，
     不是默默略過。上一輪排除 `_JE_S` 的依據是第 7661 行的 `Step1_Append_IsManual`，但這個函式沒有被呼叫；
@@ -302,28 +302,28 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
     行為和 `MappingSlotLabel` 不同，所以沒有合併。
   - 被改的既有測試：
     - `MappingRestoreDraftHandlerTests.RestoreDraft_UnreadableReport_SaysWhatToCheckWithoutGuessing` 逐字比對讀檔失敗訊息，訊息照上面改寫。
-      第一次失敗：Focused `20261109-170136963-bef1c5fabdf84abcaf8fa45265465d85`。
+      第一次失敗：`Focused -Filter MappingRestoreDraft`，15 個測試裡 4 個失敗。
     - `frontend-journey-mapping.test.cjs` 的「a report exported before TB was mapped…」逐字比對沒有帶入 TB 的原因句，原因句照上面改寫，其餘斷言照舊。
-      第一次失敗：FrontendMapping `20261109-170849140-d4b8bb36949c4994a1432dda2f5d9fee`。
+      第一次失敗：`Contract -ContractScenario FrontendMapping` 沒有通過。
   - 本次新增、直接改寫的測試：
     - 舊版合成底稿裡有一列 A 欄和 E 欄都是 `傳票文件項次_JE_S`，舊版寫不出這種列，從 `LegacyWorkingPaper()` 與空對照表測試的檔案拿掉；
-      同一份檔案的第一次失敗是 Focused `20261109-170136963-bef1c5fabdf84abcaf8fa45265465d85`。
+      同一份檔案的第一次失敗是上面那一次 `Focused -Filter MappingRestoreDraft`。
     - `Infer_SourceAlreadyNamedLikeTheStandardName_IsMappedWhenTheCurrentDataHasIt` 描述的是上一輪的規則，換成新版與舊版各一個測試。
-    - 金額列出來時的來源欄、同一標準欄名出現兩次的規則案例照新規則改寫，第一次失敗：Focused `20261109-170230914-a98ad1e6a2494b3ca0f42c61f79bfdef`。
-    - 空對照表的端到端測試照新訊息改寫，第一次失敗：Focused `20261109-170136963-bef1c5fabdf84abcaf8fa45265465d85`。
-    - 前端「the tray forgets what was brought in…」照新的原因句改寫，第一次失敗：FrontendMapping `20261109-170849140-d4b8bb36949c4994a1432dda2f5d9fee`。
+    - 金額列出來時的來源欄、同一標準欄名出現兩次的規則案例照新規則改寫，第一次失敗：`Focused -Filter FieldInfoSheetMapping`，54 個測試裡 6 個失敗。
+    - 空對照表的端到端測試照新訊息改寫，第一次失敗：和上面同一次 `Focused -Filter MappingRestoreDraft`。
+    - 前端「the tray forgets what was brought in…」照新的原因句改寫，第一次失敗：和上面同一次 `Contract -ContractScenario FrontendMapping`。
     - 前端「a failed file after a successful one…」照新訊息改寫並補上檔案被獨占的情形，是在那次 FrontendMapping 之後才改，假回應的句子和斷言一起換，改寫後沒有失敗紀錄。
     - 讀檔測試 `ReadAsync_RowNumberBeyondTheSheetLimit_SaysTheFileCannotBeRead` 改名為 `ReadAsync_RowNumberTooLargeToRead_SaysTheFileCannotBeRead`，
       拿掉不必要的步驟，補上訊息斷言。
   - 新增的測試：2026-11-03 以前的核准日說明句、新版欄名本身有「】」的金額句，
     讀檔的 XML 損壞、F1 到 H1 有內容但沒有標記、檔案被獨占，以及前端 `tb` 是 null 時拿掉上一份檔案的 TB 項目。
     空對照表的端到端測試另加一份只有讀不懂的列的檔案。
-  - 修正後的驗證：Focused `FieldInfoSheetMappingTests` `20261109-170705163-7142c4affceb49d79c8ca66ba77592f4`、
-    `MappingRestoreDraftHandlerTests` `20261109-170734727-695deaeb0db54715a10f326ae2de9c0d`、
-    `OpenXmlMappingMetadataReaderFieldInfoSheetTests` `20261109-170754341-484cc4255ff1466ea8691a64e44bc103`、
-    `MappingMetadataCodecTests` `20261109-170806714-17b3283a856b4ddcab4e1cf231ab5877`、`IntakeMapping` `20261109-170818238-8702f6f8fdf54bf0b74ae83bc231023c`；
-    FrontendMapping `20261109-170929629-400568c6b0194b3996c209b8f6679fc4`，都通過。
-    之後 Documentation `20261109-171422547-3d12519f85f54183a223dd0dd237e37a` 與完整 `Public` `20261109-171454588-a65213295d1143728d58a63448ddd874` 也通過，4,867 個測試。
+  - 修正後的驗證：Focused `FieldInfoSheetMappingTests`、
+    `MappingRestoreDraftHandlerTests`、
+    `OpenXmlMappingMetadataReaderFieldInfoSheetTests`、
+    `MappingMetadataCodecTests`、`IntakeMapping`；
+    FrontendMapping，都通過。
+    之後 Documentation 與完整 `Public` 也通過，4,867 個測試。
 - 2026-11-10：又請檢查者確認上一輪的修正並做整體檢查，找到的都是小問題，已改：
   - 檔案裡隱藏紀錄的 JSON 有不成對的 UTF-16 代理字元時，原本會當成讀不到檔案，改成照格式無效處理。
   - 看得見的表欄號大到超過上限時，改成照讀不到的檔案處理，不再溢位。
@@ -331,19 +331,19 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
   - 補上測試：隱藏紀錄寫了金額加借貸別卻沒有任何代碼時的拒絕訊息、`tb` 是 null 時保留重新匯入 TB 留下的項目與 TB 金額格式。
   - 前端既有測試「a report exported before TB was mapped…」原本只確認畫面沒有舊的原因句，補上也不出現新的原因句；斷言只加嚴，改前改後都通過。
   - 另請一個子代理寫來回測試 `FieldInfoSheetRoundTripTests`：照正式流程寫出欄位資訊表，只取看得見的欄，再推回配對，和當初確認的配對逐項比對。
-    第一次執行 30 個案例有 5 個不符，加案例後 31 個有 6 個不符（Focused `20261109-174755179-e0d3bf0d257b492490553770736a08ec`、`20261109-174910666-c68b8d37fb084fdeb1297be9acaa2d14`）。
+    第一次執行 30 個案例有 5 個不符，加案例後 31 個有 6 個不符（兩次都是 `Focused -Filter FieldInfoSheetRoundTripTests`）。
     子代理把其中照計畫本來就不帶的差異寫進比對規則，回報下面幾項，由主代理處理：
     - 只填貸方代碼時，說明句寫成配對鍵名稱，推不回貸方代碼。寫出端與讀取端都改，見「做法」。
     - 來源欄名本身有括號時，配對前欄位名稱與過帳狀態、金額加借貸別的說明句讀不出欄名，改成見「做法」。
     - 攸關資料元素的名稱本身以「（來源欄名）」結尾時，原本一律去掉，改成照寫出端的規則反推。
     - 補值欄位與攸關資料元素的順序推不回來，寫成已知限制。
   - 本次新增、直接改寫的測試：`FieldInfoSheetMappingTests` 的新版金額句欄名有「】」與其他攸關資料元素兩個案例，照新規則改預期，
-    第一次失敗：Focused `20261109-175512392-5e62382e5f8f43f5ac162df005ab769d`。來回測試的比對規則改成兩側代碼都填時才不帶貸方代碼。
+    第一次失敗：`Focused -Filter FieldInfoSheetMappingTests`，57 個測試裡 2 個失敗。來回測試的比對規則改成兩側代碼都填時才不帶貸方代碼。
   - 新增的測試：只填貸方代碼的讀寫、來源欄名有括號、攸關資料元素後綴的反推，以及來回測試的對應案例。
-  - 修正後的驗證：Focused `OpenXmlMappingMetadataReaderFieldInfoSheetTests` `20261109-174051481-5eefd6fbd0944384a8b7376abb446ec5`、`MappingRestoreDraftHandlerTests` `20261109-174120104-42c15bf781ca4ba3910171778538c5db`、
-    `MappingMetadataCodecTests` `20261109-174139539-de4e931f1785435b9f4bc418915065f5`、`FieldInfoSheetMappingTests` `20261109-175738623-8dd7cd0e27ea45109402792063f85329`、`FieldInfoSheetRoundTripTests` `20261109-175801020-56d2f0cfe0df4b8c836ebb44012e6ca8`、
-    `FieldInfoProjectorTests` `20261109-175812179-6ec3431c9177458a8505a6e20d68f92a`；FrontendMapping `20261109-174013096-4a64bda5cd1a4359928a0aa16cc83457`，都通過。
-    之後 Documentation `20261109-180153195-ee2f9b46112941e98896e5a2e06ef349` 與完整 `Public` `20261109-180215059-524097a53e7e4ded8f40bf1c84ba62ed` 也通過，4,906 個測試；
+  - 修正後的驗證：Focused `OpenXmlMappingMetadataReaderFieldInfoSheetTests`、`MappingRestoreDraftHandlerTests`、
+    `MappingMetadataCodecTests`、`FieldInfoSheetMappingTests`、`FieldInfoSheetRoundTripTests`、
+    `FieldInfoProjectorTests`；FrontendMapping，都通過。
+    之後 Documentation 與完整 `Public` 也通過，4,906 個測試；
     `MappingRestoreDraftHandlerTests` 經過改過的讀取規則，最後的程式由這次 `Public` 驗證。
 - 2026-11-10：另請三位檢查者從讀寫對稱、測試與影響範圍三個角度檢查上一段的修正，每個發現再由一位檢查者試著推翻。確認的項目已改：
   - 來源欄名有儲存格裡的換行時，說明句整句讀不出來。過帳狀態是上一段把欄名改成可以有「】」時造成的；金額與 TB 變動金額在這之前就讀不出來。
@@ -359,28 +359,28 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
   - 另有幾項判斷不是缺陷，沒有改：借貸代碼或過帳判斷值本身有「」」時整句讀不出來，會列出來請審計員選，不會帶入錯的配對；
     舊版底稿的來源欄名本身整格加【】會被當成新版，但查不到舊版會寫出這種欄名。
   - 新增的測試：欄名含換行、來源欄名括號不成對、判斷欄名整格加【】的規則案例與來回案例，以及列號往下推算溢位的讀檔測試。
-    測試寫好後暫時拿掉三項修正再跑一次，新的規則案例與來回案例都失敗（Focused `20261109-182522626-2d21ab170fe74bf8ab6efc562b7b45b3`、
-    `20261109-182532898-39ce987ddcef42dcae697d75dd6bed62`），還原後由下面的完整 `Public` 驗證。
-    新寫的規則案例第一次執行時，比對借貸兩欄的寫法連過帳狀態一起比，改成逐項比對（Focused `20261109-182248938-7f135d66e68343f2bddad4f0f9188fe2`；
-    `20261109-182418032-e3b31471587c4ef89baa4720b981c3b8` 是修改沒套上就重跑，失敗內容相同）。
-  - 修正後的驗證：Focused `FieldInfoSheetMappingTests` `20261109-182445204-be783205e73841adbf5f3ed4e4f119c0`、
-    `FieldInfoSheetRoundTripTests` `20261109-182308600-f060af52aadc4d9bbc5a049ac9620d65`、
-    `OpenXmlMappingMetadataReaderFieldInfoSheetTests` `20261109-182319926-c40ef44cdf7f48aeaff3d0ab5f9343e8`、
-    `MappingMetadataCodecTests` `20261109-182331730-99e5035b5080416085ea43512fdc0763`、
-    `MappingRestoreDraftHandlerTests` `20261109-182342879-c4c31982d22a4b109e888071a4e53a23`，都通過。
+    測試寫好後暫時拿掉三項修正再跑一次，新的規則案例與來回案例都失敗（`Focused -Filter FieldInfoSheetMappingTests` 的 63 個測試裡 3 個失敗，
+    `Focused -Filter FieldInfoSheetRoundTripTests` 的 33 個測試裡 3 個失敗），還原後由下面的完整 `Public` 驗證。
+    新寫的規則案例第一次執行時，比對借貸兩欄的寫法連過帳狀態一起比，改成逐項比對（`Focused -Filter FieldInfoSheetMappingTests`，63 個測試裡 1 個失敗；
+    之後有一次是修改沒套上就重跑，失敗內容相同）。
+  - 修正後的驗證：Focused `FieldInfoSheetMappingTests`、
+    `FieldInfoSheetRoundTripTests`、
+    `OpenXmlMappingMetadataReaderFieldInfoSheetTests`、
+    `MappingMetadataCodecTests`、
+    `MappingRestoreDraftHandlerTests`，都通過。
   - 最後再請兩位檢查者看這一段的修正，每個發現由另一位試著推翻。確認一項程式問題：判斷欄先比 A 欄原文時，另一個來源欄「DC」改名後 A 欄也寫「【DC】」，
     可能拿到那一列的欄位型態。改成先找原樣留著的列，並在判斷欄的規則案例加上這種檔案。其餘是文件出處：
     契約文件補上攸關資料元素名稱的已知限制，SAT 計畫交接段的完整測試收據改成下面這一次。
-  - 驗證：Focused `FieldInfoSheetMappingTests` `20261109-184056975-a3de25caccf84027883a53417244dcb4`、
-    `FieldInfoSheetRoundTripTests` `20261109-184121938-99c80b1c60e2469b8e0fdc7e109f5a1e`；完整 `Public` `20261109-184140914-a0c734e0f03e4df6a456e06d4a316944`，4,913 個測試通過。
+  - 驗證：Focused `FieldInfoSheetMappingTests`、
+    `FieldInfoSheetRoundTripTests`；完整 `Public`，4,913 個測試通過。
 - 2026-11-10：複審時另外發現一個 HEAD 就有、不屬於本計畫的問題，使用者同日要求「在這裡執行此任務：「上次確認的配對讀不出來時不擋住開案」」：
   - 重新匯入後，上次確認的配對存在 `field_mapping_previous`，重開案件與確認 GL 配對時由 `LocalMappingStateStore.FindPreviousAsync` 讀出。
     註解寫它讀不出來時當作沒有、不能擋住開案，但選項 JSON 語法錯誤或有認不得的設定時丟的 `MappingMetadataFormatException`，
     以及格式版本大到超過整數範圍時的 `OverflowException`，都沒被接住，開案因此失敗。
   - 改成這兩種也當作沒有。有效配對讀不出來時照常報錯；選項 JSON 的例外轉換不動。契約文件的 `previousMapping` 補上讀不出來時是 null。
   - 新增的測試 `MappingReimportDraftTests.UnreadablePreviousGlMapping_IsTreatedAsMissingWhenOpeningAndConfirming`：把 GL 那一份的一個欄位改成九種讀不出來的內容，
-    開案時 GL 不帶草稿、TB 那一份照常帶回，GL 也照常能確認配對。修正前有三種失敗（Focused `20261109-231047861-75f7a2abbf544af59b7c1a2dc484b07b`），
-    修正後通過（Focused `20261109-231517771-e60158d33bc3487daccfa36e2621e562`），完整 `Public` 也通過（`20261109-231637990-7e063d56c283491987c51288ca618b7e`，4,922 個測試）。
+    開案時 GL 不帶草稿、TB 那一份照常帶回，GL 也照常能確認配對。修正前有三種失敗（`Focused -Filter MappingReimportDraftTests`，11 個測試裡 3 個失敗），
+    修正後通過（`Focused -Filter MappingReimportDraftTests`，12 個測試），完整 `Public` 也通過（4,922 個測試）。
   - 之後請檢查者從這項修正本身與同類讀取點兩方面檢查，每個發現再由另一位試著推翻。確認兩項，已改：
     - 原本連開資料庫那一段也算在「讀不出來就當作沒有」的範圍裡，資料庫檔不見、是 0 位元組或結構版本不符時，
       也會當作沒有上次確認的配對，和註解寫的「開不了資料庫這類錯誤照常往外丟」不符。現在的呼叫端都先讀過有效配對，
@@ -391,10 +391,9 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
       `JsonFileProjectStore` 改成這種情形也當作設定檔讀不通；新增的測試
       `UnreadableProjectRecoveryTests.DocumentWithUnreadableText_IsListedAsUnreadable_AndCanBeDeleted` 確認清單照常列出錯誤列、
       其他案件照常開啟、用同名建案時說設定檔無法讀取，這個案件也能刪掉。
-    - 兩個新測試修正前都失敗（Focused `20261110-002157899-d71819696a5f4288a99533cc6eb800cf`、`20261110-002219639-e555e4efbb854f5caed706fea1ab490b`）。
-      修正後 `SqliteRepositoryTests`、`UnreadableProjectRecoveryTests` 與 `MappingReimportDraftTests` 都通過（Focused
-      `20261110-002316740-17692d77a71f4634b1755bef398115e3`、`20261110-002349750-fead00b7d063475f917ca27f3d8825c1`、
-      `20261110-002402121-ea1549c228e343a5ac8668bb48ca76a7`）。
+    - 兩個新測試修正前都失敗（`Focused` 各篩選這兩個測試的名稱，每次選到的 2 個案例都失敗）。
+      修正後 `SqliteRepositoryTests`、`UnreadableProjectRecoveryTests` 與 `MappingReimportDraftTests` 都通過（`Focused` 各篩選一個測試類別，
+      依序是 20、8、12 個測試）。
   - 檢查者另外確認三處同類問題。Agent 之後沒有等使用者決定就一起修了，理由是這三處都有現成的規則可照，修正不新增畫面用語：
     - 已存驗證結果的形狀檢查遇到 `infSamplingTest` 不是物件時丟出例外，沒有判成形狀不對，開案因此失敗。
       `ValidationSummaryShapeValidator` 改成先確認它是物件。
@@ -414,20 +413,19 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
       以及 `UnreadableProjectRecoveryTests` 的 `UnreadableValidationSummary_IsTreatedAsNoResult_AndCanBeRerun` 與
       `PrescreenSummaryWithUnreadableText_IsTreatedAsOutdated_AndCanBeRerun`。這一次是先改程式才補測試，
       所以另外把試寫那一行與 `infSamplingTest` 的檢查暫時關掉跑一次，確認這些測試都會失敗，再開回。
-      關掉時依序有 7、7、5、1 個失敗（Focused `20261110-021743455-db075bb398c84333a3e63cd7c3026837`、
-      `20261110-021812084-c5164588fb244f0aa686487b960ef2de`、`20261110-021822333-780d81de71c84836bea9375179753add`、
-      `20261110-021831816-26a8734523d246379e8754591c2145ca`）。開回後三個測試類別都通過（Focused
-      `20261110-021912050-42a36f0468344a0b9571385105c7e9d1`、`20261110-021931316-598a42b9480e48aca6571fc778f7abd7`、
-      `20261110-021956096-a6b98f8cce164ae18f0ee61a85aff6e4`），完整 `Public` 也通過（`20261110-022052220-9d289ef4014445189eff361228a2d965`，4,947 個測試）。
+      關掉時依序有 7、7、5、1 個失敗（`Focused` 各篩選一個測試名稱，共四次）。
+      開回後三個測試類別都通過（`Focused` 各篩選一個測試類別：`JsonStorageReadabilityTests` 12 個、
+      `FilterScenarioRuleUpgradeOnLoadTests` 15 個、`UnreadableProjectRecoveryTests` 14 個測試），
+      完整 `Public` 也通過（4,947 個測試）。
   - 同一天另請檢查者把開案、案件清單這些動作讀已存內容的地方全部看過一次，每個發現再由另一位試著推翻。其中兩項有現成的規則可照，已改：
     - 案件資料庫的版本值存成不是文字的內容時，例如二進位，開案回非預期錯誤。`SqliteProjectDatabase` 改成這種值也當成讀不出來，
       回既有的「版本資訊無法辨識」那一句。新增的測試 `LegacySchemaRejectionTests.SchemaVersionStoredAsBinary_IsRejectedAsUnreadableWithoutChangingTheFile`
-      修正前兩種內容都失敗（Focused `20261110-022857515-a8a1e676699b4b5e8240893233c49f08`），修正後整個類別 10 個測試通過
-      （`20261110-022951693-22d14ed55ee7466a9912faaf0d3d2636`）。
+      修正前兩種內容都失敗（`Focused` 篩選這個測試的名稱），修正後整個類別 10 個測試通過
+      （`Focused -Filter LegacySchemaRejectionTests`）。
     - 報告清單 `reports.json` 有一筆的檔名是「..」、「.」、`NUL` 或含空字元時，開案失敗。`ProjectReportStore` 改成這種紀錄和其他讀不懂的紀錄
       一樣不列出，判斷的條件和實際組路徑時相同。新增的測試 `ProjectReportStoreTests.ListAsync_EntryWhoseFileNameCannotBeAFileInTheFolder_IsNotListed`
-      修正前四種檔名都失敗（Focused `20261110-022915811-663afbc6046641af9550da5f62a27853`），修正後整個類別 26 個測試通過
-      （`20261110-023011274-4cb7b0257abf45baab8340804aaa9efb`）。
+      修正前四種檔名都失敗（`Focused` 篩選這個測試的名稱），修正後整個類別 26 個測試通過
+      （`Focused -Filter ProjectReportStoreTests`）。
 
     當時尚待使用者決定的項目，已在本輪接續處理，見最後一節「同類問題的處理結果」。
   - 最後請五位檢查者複審這一輪的全部修改，每個發現再由另一位試著推翻。確認七項，都已處理：
@@ -438,18 +436,18 @@ SAT 的五份 Word 與五份 Excel 已重新產生，原生 Office 匯出的 45 
       以前的 SQL Server 案件會列成錯誤列；記錄成 DuckDB 而資料夾只有 `jet.db` 的案件，刪除時會被當成 SQLite 案件刪掉。
       `JsonFileProjectStore` 改成跳過讀不出來的欄名繼續找。新增的測試
       `ProjectListLocalFirstTests.RecordedRetiredProvider_AfterAnUnreadablePropertyName_IsStillHonoured` 修正前兩種情形都失敗
-      （Focused `20261110-024839645-8e0983f2a3564856b0e22ef832a49e4c`）。
+      （`Focused` 篩選這個測試的名稱）。
     - 契約文件補上兩句：摘要不是合法 JSON 或有讀不出來的文字時，開案也把結果改回 null 並標成過期；驗證摘要缺欄或型別不對時只回 null。
     - 驗證摘要的測試補上「有讀不出來文字的兩列會標成過期」，說明把兩種狀態分開寫。
     - 情境測試裡編輯來源那一列原本用第 1 版的寫法，本來就會被判成無法讀取；改用現行寫法，讓讀不出來的文字是唯一的問題。
     - `ValidationReportProjectionParser.Parse` 與 `FilterPopulationScopeParser.ResolveSaved` 改用共用解析之後，沒有測試會在單獨換回去時失敗，
       因為現在的流程先在別處擋下。兩個測試各補一個直接呼叫的斷言；把這兩處暫時換回去，分別有 2 個與 7 個失敗
-      （Focused `20261110-024801550-28298bdb1ab841c8abc7ed20e3aab9fe`、`20261110-024828981-e17203ce73c44abf8b8c595116e464e6`），再開回。
+      （`Focused` 各篩選一個測試名稱，共兩次），再開回。
 
     修正後 `UnreadableProjectRecoveryTests`、`FilterScenarioRuleUpgradeOnLoadTests`、`ProjectListLocalFirstTests` 與 `JsonStorageReadabilityTests`
-    都通過（Focused `20261110-024929507-6d763d57313c478fa939e771a73d3ad1`、`20261110-025004501-5ce6725928434a71ac3acb487affee7c`、
-    `20261110-025030171-94238e836958432ebd6879868cf14cd0`、`20261110-025041760-974770fca649410bb18c18ed55a550f6`）。
-    全部改完之後的完整 `Public` 也通過（`20261110-025101125-fe13db39245e47ec8c60be58a0c1ac5c`，4,955 個測試）。這一輪沒有跑 `Gui`，SAT 文件也沒有同步。
+    都通過（`Focused` 各篩選一個測試類別，
+    依序是 14、15、5、12 個測試）。
+    全部改完之後的完整 `Public` 也通過（4,955 個測試）。這一輪沒有跑 `Gui`，SAT 文件也沒有同步。
 
 ## 同類問題的處理結果
 

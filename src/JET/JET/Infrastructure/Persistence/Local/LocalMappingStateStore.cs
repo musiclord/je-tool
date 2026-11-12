@@ -152,7 +152,7 @@ public sealed class LocalMappingStateStore(ILocalProjectDatabase database) : IMa
             reader.IsDBNull(5) ? null : reader.GetString(5));
     }
 
-    // 上次確認的配對那一列讀不出來時回 null。讀不出來的情形：舊版格式（JetActionException，EnsureReadableVersion）、
+    // 上次確認的配對那一列讀不出來時回 null。讀不出來的情形：格式版本不是現行版本（JetActionException，EnsureReadableVersion）、
     // 配對 JSON 壞掉（JsonException）、缺少選項或含不成對的代理字元（InvalidOperationException）、確認時間不是日期
     // （FormatException）、選項 JSON 壞掉或有認不得的設定（MappingMetadataFormatException，GlMappingOptionsJsonCodec.Decode），
     // 以及格式版本超過整數範圍（OverflowException）。這裡只解讀已經讀到的那一列，不碰資料庫本身。
@@ -258,7 +258,7 @@ internal static class MappingStateSerialization
             reader.GetInt64(5));
     }
 
-    // 目前版本只寫入第 2 版；其他版本是舊版 JET 保存的配對，不能沿用舊語意讀取。
+    // 目前版本只寫入第 2 版；其他版本是較早版本的 JET 保存的配對，不照當時的語意讀取。
     private static void EnsureReadableVersion(int formatVersion)
     {
         if (formatVersion != MappingMetadataFormat.CurrentVersion)

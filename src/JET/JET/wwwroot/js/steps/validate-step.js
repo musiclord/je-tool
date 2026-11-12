@@ -215,6 +215,8 @@
   // 新增分類的本地識別（尚未取得後端 stable ID 前只用於 DOM 對位；絕不送進 payload）。
   var categoryDraftSeq = 0;
   var categoryRemoval = null;
+  // 從「在 JET 配對」的「新增分類」按鈕進分類設定時記下來：存好後回到科目配對，並把新分類選進「套用分類」。
+  var categoryReturnToMapping = false;
   // 預篩選「篩選結果」有沒有展開；重繪時照原樣畫出來，不每次都收起。
   var prescreenSignalsOpen = false;
 
@@ -230,6 +232,7 @@
     categoryOpen = false;
     categoryAdvanced = false;
     categoryRemoval = null;
+    categoryReturnToMapping = false;
     accountExcelOpen = false;
     accountMappingOpenElsewhere = null;
     prescreenSignalsOpen = false;
@@ -949,8 +952,8 @@
       Ui.esc(output.message) + '</p>';
   }
 
-  // 「在 JET 配對」分頁只在科目配對檔正在準備或準備失敗時顯示一行狀態；已建立或已保留時不顯示，
-  // 不打擾直接在 JET 配對的審計員。完整狀態與「準備科目配對檔」仍只在「用 Excel 配對」分頁。
+  // 「在 JET 配對」分頁只在科目配對範本正在建立或建立失敗時顯示一行狀態；已建立或已保留時不顯示，
+  // 不打擾直接在 JET 配對的審計員。完整狀態與「建立科目配對範本」仍只在「用 Excel 配對」分頁。
   // data-validation-output="template" 保留給 Excel 分頁，這裡另用 data-account-template-status。
   function accountTemplateJetStatusHtml() {
     var output = Store.getState().validationOutput.template;
@@ -1131,7 +1134,7 @@
   }
 
   // 「用 Excel 配對」是一個托盤：上面一排操作照做事的順序排，下面一張白紙列出匯入的結果。
-  // 主要的藍色按鈕只在還沒匯入時給「匯入科目配對檔」；會清空分類的「重建科目配對檔」收進「更多」。
+  // 主要的藍色按鈕只在還沒匯入時給「匯入科目配對範本」；會清空分類的「重建科目配對範本」收進「更多」。
   // 科目配對需要已整理的科目，不依賴驗證結果；GL 還沒確認配對時沒有科目可列，托盤只寫要先做的事。
   function accountMappingCardHtml(info, mappingReady, projectId) {
     if (!mappingReady) {
@@ -1153,7 +1156,7 @@
     var importPrimary = !info && !pick;
     var actions =
       '<div class="excel-mapping__actions">' +
-        '<button type="button" class="btn btn--ghost" data-action="ensure-account-mapping-template">準備科目配對範本</button>' +
+        '<button type="button" class="btn btn--ghost" data-action="ensure-account-mapping-template">建立科目配對範本</button>' +
         '<button type="button" class="btn btn--ghost" data-action="open-account-mapping-folder">開啟案件資料夾</button>' +
         '<span class="excel-mapping__sep" aria-hidden="true"></span>' +
         '<button type="button" class="btn' + (importPrimary ? '' : ' btn--ghost') + '" data-action="import-account-mapping">' +
@@ -1235,11 +1238,104 @@
     return categoryDraft;
   }
 
-  // 前端引導檢查：顯示名稱必填且不重複（不分大小寫）。長度與身分規則仍由系統端判定。
+  function unnamedNewCategory(row) { return !!row.isNew && !String(row.label || '').trim(); }
+
+  // 焦點交給這一列的名稱欄，並捲到看得到的地方。
+  function focusCategoryDraftRow(rowId) {
+    if (global.JetFocus) { global.JetFocus.defer(function () {
+      var target = document.querySelector('[data-category-label="' + rowId + '"]');
+      if (target) { target.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+      return target;
+    }); }
+  }
+
+  // 在草稿最後加一列還沒命名的分類，焦點交給它的名稱欄。
+  function addCategoryDraftRow() {
+    var rows = startCategoryDraft(Store.getState());
+    categoryDraftSeq++;
+    var rowId = 'draft-' + categoryDraftSeq;
+    rows.push({ rowId: rowId, categoryId: rowId, label: '', semanticRole: 'others', isNew: true, parentCategoryId: null, isBuiltIn: false });
+    Store.touch();
+    focusCategoryDraftRow(rowId);
+  }
+
+  // 從「在 JET 配對」的「新增分類」按鈕打開分類設定。草稿裡已經有還沒命名的新分類時沿用最後那一列，
+  // 不然每按一次就多一列空白分類，全部填完或移除之前都不能儲存。那一列不一定在最後：匯入新增的分類會接在它後面。
+  function openNewCategoryFromMapping() {
+    categoryOpen = true;
+    categoryReturnToMapping = true;
+    var unnamed = startCategoryDraft(Store.getState()).filter(unnamedNewCategory);
+    if (unnamed.length) { Store.touch(); focusCategoryDraftRow(unnamed[unnamed.length - 1].rowId); }
+    else { addCategoryDraftRow(); }
+  }
+
+  // 草稿和這份已儲存的分類完全相同時放掉草稿：分類設定不再顯示還有修改沒儲存，也不會送出一次沒有差異的儲存。
+  function releaseCategoryDraftIfSameAs(saved) {
+    if (!categoryDraft) { return; }
+    var same = categoryDraft.length === saved.length && categoryDraft.every(function (row, index) {
+      var category = saved[index];
+      return !row.isNew && row.categoryId === category.categoryId && row.label === category.label &&
+        row.semanticRole === category.semanticRole && (row.parentCategoryId || null) === (category.parentCategoryId || null);
+    });
+    if (same) { categoryDraft = null; categoryRemoval = null; }
+  }
+
+  // 從「新增分類」按鈕進來、沒有命名就返回科目配對時，把還沒命名的新列拿掉，分類設定不會留著不能儲存的空白分類。
+  // 掛在那一列底下的分類改接到它的上一層，和移除分類時的做法相同。
+  function dropUnnamedNewCategories(state) {
+    if (!categoryDraft) { return; }
+    var parentOfDropped = Object.create(null);
+    categoryDraft.forEach(function (row) {
+      if (unnamedNewCategory(row)) { parentOfDropped[row.rowId] = row.parentCategoryId || null; }
+    });
+    categoryDraft = categoryDraft.filter(function (row) { return !(row.rowId in parentOfDropped); });
+    categoryDraft.forEach(function (row) {
+      while (row.parentCategoryId && row.parentCategoryId in parentOfDropped) {
+        row.parentCategoryId = parentOfDropped[row.parentCategoryId];
+      }
+    });
+    if (categoryRemoval && categoryRemoval in parentOfDropped) { categoryRemoval = null; }
+    releaseCategoryDraftIfSameAs(Ui.accountCategories(state));
+  }
+
+  // 科目配對匯入的回應帶著匯入後案件的分類清單。檔案裡有案件還沒有的分類名稱時，後端已在同一次匯入新增成自訂分類；
+  // 這裡換上新的清單，回傳這次新增的分類名稱。分類設定裡還沒儲存的草稿接上新分類、換到新版本，不整份丟掉。
+  function adoptImportedCategories(snapshot) {
+    var state = Store.getState();
+    var revision = state.accountCategory ? state.accountCategory.revision : null;
+    if (!snapshot || snapshot.revision === revision) { return []; }
+    var known = Object.create(null);
+    Ui.accountCategories(state).forEach(function (category) { known[category.categoryId] = true; });
+    var added = snapshot.categories.filter(function (category) { return !known[category.categoryId]; });
+    if (categoryDraft && categoryDraftRevision === revision) {
+      added.forEach(function (category) {
+        var row = { rowId: category.categoryId, categoryId: category.categoryId, label: category.label,
+          semanticRole: category.semanticRole, parentCategoryId: category.parentCategoryId || null, isBuiltIn: category.isBuiltIn };
+        // 草稿裡還沒儲存的新列和匯入新增的分類同名（比法和名稱不可重複的檢查相同）時，兩者是同一個分類：
+        // 那一列換成已經存好的分類，不另外多一列同名的；指向那一列的上層分類一起換。
+        var key = category.label.trim().toUpperCase();
+        var index = categoryDraft.findIndex(function (draft) {
+          return !!draft.isNew && String(draft.label || '').trim().toUpperCase() === key;
+        });
+        if (index < 0) { categoryDraft.push(row); return; }
+        var draftId = categoryDraft[index].rowId;
+        categoryDraft[index] = row;
+        categoryDraft.forEach(function (draft) {
+          if (draft.parentCategoryId === draftId) { draft.parentCategoryId = category.categoryId; }
+        });
+      });
+      categoryDraftRevision = snapshot.revision;
+      releaseCategoryDraftIfSameAs(snapshot.categories);
+    }
+    Store.setCategoryAfterSave(snapshot);
+    return added.map(function (category) { return category.label; });
+  }
+
+  // 前端引導檢查：分類名稱必填且不重複（不分大小寫）。長度與身分規則仍由系統端判定。
   function categoryProblems(rows) {
     var problems = [];
     if (rows.some(function (row) { return !row.label || !row.label.trim(); })) {
-      problems.push('每個分類都需要顯示名稱');
+      problems.push('每個分類都需要分類名稱');
     }
     var seen = {};
     var duplicated = rows.some(function (row) {
@@ -1249,11 +1345,11 @@
       seen[key] = true;
       return false;
     });
-    if (duplicated) { problems.push('顯示名稱不可重複'); }
+    if (duplicated) { problems.push('分類名稱不可重複'); }
     if (rows.some(function (row) {
       return (row.label || '').trim().length > Ui.CATEGORY_MAX_LABEL_LENGTH;
     })) {
-      problems.push('顯示名稱最多 ' + Ui.CATEGORY_MAX_LABEL_LENGTH + ' 個字');
+      problems.push('分類名稱最多 ' + Ui.CATEGORY_MAX_LABEL_LENGTH + ' 個字');
     }
     return problems;
   }
@@ -1445,26 +1541,7 @@
 
     var addBtn = card.querySelector('[data-action="add-category"]');
     if (addBtn) {
-      addBtn.addEventListener('click', function () {
-        var rows = startCategoryDraft(Store.getState());
-        categoryDraftSeq++;
-        rows.push({
-          rowId: 'draft-' + categoryDraftSeq,
-          categoryId: 'draft-' + categoryDraftSeq,
-          label: '',
-          semanticRole: 'others',
-          isNew: true,
-          parentCategoryId: null,
-          isBuiltIn: false
-        });
-        Store.touch();
-        var rowId = 'draft-' + categoryDraftSeq;
-        if (global.JetFocus) { global.JetFocus.defer(function () {
-          var target = document.querySelector('[data-category-label="' + rowId + '"]');
-          if (target) { target.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
-          return target;
-        }); }
-      });
+      addBtn.addEventListener('click', addCategoryDraftRow);
     }
 
     var resetBtn = card.querySelector('[data-action="reset-category"]');
@@ -1501,9 +1578,24 @@
             categoryDraft = null;
             categoryRemoval = null;
             categoryDraftRevision = data.revision;
+            // 從「在 JET 配對」的「新增分類」按鈕進來的：存好就回到科目配對；這次剛好新增一個分類時，直接選進「套用分類」。
+            var returning = categoryReturnToMapping;
+            if (returning) {
+              var known = Object.create(null);
+              Ui.accountCategories(state).forEach(function (category) { known[category.categoryId] = true; });
+              var created = data.categories.filter(function (category) { return !known[category.categoryId]; });
+              categoryReturnToMapping = false;
+              categoryOpen = false;
+              if (created.length === 1) { Ui.accountMappingEditor.selectCategory(created[0].categoryId); }
+            }
             // 儲存後新分類換成正式 ID，畫面上還是同一列；直接換，不當成移除再加入。
             var apply = function () { Store.setCategoryAfterSave(data); Store.applyMutationEffects(data); };
-            if (global.JetMotion) { global.JetMotion.still(apply); } else { apply(); }
+            if (global.JetMotion && !returning) { global.JetMotion.still(apply); } else { apply(); }
+            // 回到科目配對後，「儲存分類設定」已經不在畫面上；焦點交給接下來要按的地方：
+            // 有勾選科目時是「套用至已選科目」，不能按時是「套用分類」選單。
+            if (returning && global.JetFocus && global.JetFocus.deferFirst) {
+              global.JetFocus.deferFirst(['[data-account-apply]', '[data-account-bulk-category]']);
+            }
             return data;
           });
         }, { completionMessage: function (data) {
@@ -1546,7 +1638,7 @@
     var start = Store.getState(), project = start.project, generation = start.dataGeneration;
     var projectId = project.projectId;
     requireValidationOutputActive(projectId, resultId, kind !== 'template');
-    var pending = { resultId: resultId, status: 'pending', message: kind === 'template' ? '正在準備科目配對範本…' : '正在產生報告與抽樣清單…' };
+    var pending = { resultId: resultId, status: 'pending', message: kind === 'template' ? '正在建立科目配對範本…' : '正在產生報告與抽樣清單…' };
     Store.setValidationOutput(kind, pending);
     function active() {
       var current = Store.getState(), run = current.results.validate;
@@ -1639,7 +1731,7 @@
   // 此處用存在性檢查綁定，所以 bind 不必重複判斷條件。
   function bindAccountMappingCard(container) {
     bindMappingDifferenceLists(container);
-    // 「更多」是共用選單，開關與鍵盤由 Ui.bindMenus 處理，這裡只處理按下「重建科目配對檔」。
+    // 「更多」是共用選單，開關與鍵盤由 Ui.bindMenus 處理，這裡只處理按下「重建科目配對範本」。
     var card = container.querySelector('[data-bind="account-mapping-card"]');
     if (card) { Ui.bindMenus(card); }
     var folderBtn = container.querySelector('[data-action="open-account-mapping-folder"]');
@@ -1705,7 +1797,7 @@
       });
     }
 
-    // 後端以目前科目產生工作檔；不以驗證結果限制使用者準備或重建配對檔。
+    // 後端以目前科目產生工作檔；不以驗證結果限制使用者建立或重建科目配對範本。
     var templateBtn = container.querySelector('[data-action="download-account-mapping-template"]');
     if (templateBtn) {
       templateBtn.addEventListener('click', function () {
@@ -1719,7 +1811,7 @@
     var ensureTemplateBtn = container.querySelector('[data-action="ensure-account-mapping-template"]');
     if (ensureTemplateBtn) {
       ensureTemplateBtn.addEventListener('click', function () {
-        Ui.run('準備科目配對範本', function () {
+        Ui.run('建立科目配對範本', function () {
           return exportAccountMappingTemplate(Store.getState().results.validate, true);
         }, { inlineError: templateFailureShown });
       });
@@ -1764,17 +1856,23 @@
       });
     }
 
+    // 這次匯入新增的分類名稱，寫進完成句。
+    var importedNewCategories = [];
     // 完成句由 Ui.run 接上耗時後記一則，成功時只留一則；沒有選檔或改成先選工作表時不記。
     function accountMappingCompletion(data) {
       // 沿用前一個案件的說明寫在托盤的提示句。
-      return data ? '科目配對匯入完成，共 ' + Ui.countText(data.rowCount) + ' 個科目。' : '';
+      if (!data) { return ''; }
+      var added = importedNewCategories;
+      return '科目配對匯入完成，共 ' + Ui.countText(data.rowCount) + ' 個科目' +
+        (added.length ? '，新增 ' + Ui.countText(added.length) + ' 個分類（' + added.slice(0, 5).join('、') +
+          (added.length > 5 ? '等' : '') + '）' : '') + '。';
     }
 
     // 選了 Excel 檔時先看有幾個有欄名的工作表：只有一個就直接匯入它；有多個時在托盤列出來請審計員選，
     // 有工作底稿的「自動化工具-科目配對資訊」時預先選它。
     // JET 匯出的報告都有一張隱藏的中繼資料工作表，審計員在 Excel 看不到，不列進選單。
     // JET 自己的科目配對範本另有一張分類清單，直接匯入範本那一張，不多問一次；
-    // 按「準備科目配對範本」再匯入回來這條主要路徑才不會多一步。
+    // 按「建立科目配對範本」再匯入回來這條主要路徑才不會多一步。
     function importAccountMappingFile() {
       var projectId = Store.getState().project && Store.getState().project.projectId;
       Ui.run('匯入科目配對範本', function () {
@@ -1815,6 +1913,7 @@
         var current = Store.getState().project;
         accountMappingOpenElsewhere = opened.length && current
           ? { projectId: current.projectId, batchId: data.batchId, warnings: opened.slice() } : null;
+        importedNewCategories = adoptImportedCategories(data.accountCategory);
         Store.setAccountMappingState({
           batchId: data.batchId,
           rowCount: data.rowCount,
@@ -1922,8 +2021,11 @@
   }
 
   function bind(container, ready) {
-    Ui.accountMappingEditor.bind(container);
-    [['toggle-category', function () { categoryOpen = !categoryOpen; }],
+    Ui.accountMappingEditor.bind(container, { addCategory: openNewCategoryFromMapping });
+    [['toggle-category', function () {
+      if (categoryOpen && categoryReturnToMapping) { dropUnnamedNewCategories(Store.getState()); }
+      categoryOpen = !categoryOpen; categoryReturnToMapping = false;
+    }],
       ['toggle-category-advanced', function () { categoryAdvanced = !categoryAdvanced; }],
       ['select-account-jet', function () { accountExcelOpen = false; }],
       ['toggle-account-excel', function () { accountExcelOpen = true; }]].forEach(function (item) {
@@ -1932,7 +2034,7 @@
     });
     // 兩個配對方式頁籤的左右鍵、Home、End 由 ui-core.js 的共用頁籤處理，換到那一頁等於按下它。
     Ui.bindTabs(container);
-    // 「在 JET 配對」分頁的失敗狀態：切到「用 Excel 配對」，焦點交給同一區的「準備科目配對檔」。
+    // 「在 JET 配對」分頁的失敗狀態：切到「用 Excel 配對」，焦點交給同一區的「建立科目配對範本」。
     var retryTemplateInExcel = container.querySelector('[data-action="retry-account-template-in-excel"]');
     if (retryTemplateInExcel) {
       retryTemplateInExcel.addEventListener('click', function () {

@@ -274,6 +274,18 @@ GL 與 TB 的匯入或配對確認都回傳五個 true，使用同一條失效�
 兩項新筆數不存進開案摘要；清單查詢見下方 `query.accountMappingDifferencePage`。匯入完成後才讀取筆數，
 讀取失敗不撤銷匯入，兩個值回 null，支援日誌記下摘要失敗。畫面顯示「尚未核對」，展開清單時重新查詢。
 
+分類欄的值先比對案件的分類代號與分類名稱，名稱不分大小寫；再比對內建分類原本的英文名稱；留白視為 Others。
+都比對不到時，`import.accountMapping.fromFile` 把這個名稱新增成自訂分類（裁定 2026-11-12-34）：分類代號由後端配置，
+`semanticRole` 是 `others`，沒有上層，排在既有分類之後，照檔案裡第一次出現的順序；同一個名稱不分大小寫只算一個，
+只新增匯入後仍有科目使用的名稱。新分類和科目配對在同一筆交易寫入，匯入失敗時一起回復。
+回應另回 `accountCategory`，是匯入後案件的分類清單 `{ revision, categories }`，形狀和 `project.load.accountCategory` 相同；
+有新增分類時 `revision` 加 1，沒有新增時不變。JET 不讀範本的 List 工作表。
+科目配對寫進案件之後才送到的取消要求不再生效，這次匯入照樣回報完成，回應帶著匯入後的分類清單。
+這一段裡新分類的順序、同名的算法、內建分類英文名稱的歸法，以及照欄位順序時不新增，都是實作時定的，使用者 2026-11-12 看過後決定照舊
+（做法見裁定總表 2026-11-12-35）。
+分類欄是照欄位順序判斷出來的時候不新增分類：案件沒有的名稱讓整份匯入以 `projection_failed` 失敗，
+訊息請審計員先把欄名改成 `Standardized Account Name*`。新分類的名稱超過 400 個字時，那一列算無法讀取，整份匯入不儲存。
+
 `import.accountMapping.fromFile` 另可帶 `sheetName`，指定 .xlsx 裡要讀的工作表，例如工作底稿的「自動化工具-科目配對資訊」
 （裁定 2026-11-05-07）。沒有帶時照舊讀第一個工作表；文字檔帶 `sheetName` 以 `sheet_name_not_applicable` 拒絕。
 畫面選了 .xlsx 會先送 `import.inspectFile` 讀工作表清單，有欄名的工作表超過一個時請審計員選，選定後才送匯入。
@@ -864,6 +876,8 @@ Payload 的 `resultId` 是選填，畫面會附上目前驗證結果的編號，
 回應為 `{ ok, filePath, fileName, rowCount, validationResultId, disposition }`；`disposition` 為 `created`
 或 `kept`。保留原檔時不讀取其中內容，`rowCount` 為 null。審計員用 Excel 填好 `Standardized Account Name*` 欄存回原檔，再由
 `import.accountMapping.fromFile` 讀同一路徑。
+範本的 List 工作表列出案件目前的分類名稱，不鎖定；`Standardized Account Name*` 欄的下拉清單來源是 `List!$A$2:$A$1048576`，
+審計員加在清單最後的名稱可以直接選用，匯入時照上面的規則新增成自訂分類（裁定 2026-11-12-34）。
 五種報告的檔名均加入案件查核起訖日 `yyyyMMdd-yyyyMMdd`；同期間重匯維持原覆寫或版本規則。
 報告項目保留 `fullPath` 供本機定位用途，畫面只顯示檔名、建立時間與大小；此欄位不寫入索引，重開或搬移案件後重新解析。
 `fileName` 仍只有相對檔名。

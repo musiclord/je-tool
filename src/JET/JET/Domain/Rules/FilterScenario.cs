@@ -66,7 +66,7 @@ public static class FilterScenarioLimits
     /// </summary>
     public const int MaxCategoryIdsPerSide = 100;
 
-    /// <summary>typed 條件 <c>in</c>／<c>notIn</c> 的 values 上限（凍結契約：1–100 個字串）。</summary>
+    /// <summary>typed 條件 <c>in</c>／<c>notIn</c> 的 values 上限：每條要有 1–100 個字串。</summary>
     public const int MaxTypedInValuesPerRule = 100;
 
     public const int MaxCompiledParameters = 2_000;
@@ -203,7 +203,7 @@ public sealed record FilterConditionSpec(
     /// <summary>typed amount 條件必填的 `amountBasis` 原始 wire 字串（僅 amount 允許）。</summary>
     public string? AmountBasis { get; init; }
 
-    // New rules carry explicit blank handling; null on old rules preserves their original behavior.
+    // Explicit blank handling. Null means the rule was saved without this field and keeps the behavior it had then.
     public bool? IncludeBlank { get; init; }
     public string? CategoryMode { get; init; }
     public IReadOnlyList<string> CategoryIds { get; init; } = [];
@@ -775,7 +775,7 @@ public static partial class FilterScenarioValidator
     /// <summary>
     /// 科目配對分析：需科目配對已匯入；模式決定必填分類——
     /// exact 需借貸雙方、debitAnchor 只需借方、creditAnchor 只需貸方。
-    /// 每一側都是專案科目分類的分類身分的多選集合，legacy scalar 視為單元素集合。
+    /// 每一側都是專案科目分類的分類身分的多選集合；單選分類欄位不讀。
     /// </summary>
     private static void ValidateAccountPair(FilterConditionSpec rule, string label, FilterValidationContext context, List<string> errors)
     {

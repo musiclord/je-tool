@@ -12,9 +12,9 @@ namespace JET.Tests.Infrastructure;
 /// </summary>
 public sealed class LegacySchemaRejectionTests
 {
-    // 舊版案件的訊息要寫明下一步是刪除後重建。
+    // 較早版本的 JET 建立的案件，訊息要寫明下一步是刪除後重建。
     private const string LegacySchemaMessage =
-        "這個案件是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
+        "這個案件是較早版本的 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
 
     private const string V5SchemaAndData =
         """
@@ -74,7 +74,7 @@ public sealed class LegacySchemaRejectionTests
     public async Task PreviousSchemaVersion_IsRejectedAsLegacyProjectWithoutChangingTheFile(string olderVersion)
     {
         // 這裡的資料庫結構和現行相同，只把版本號改成較舊的第 14 到第 18 版；
-        // 沒有升版程式，每一版都當成舊版案件擋下，不升版。
+        // 沒有升版程式，每一版都當成較早版本的案件擋下，不升版。
         using var root = new TempProjectRoot();
         var folder = new JetProjectFolder(root.Path);
         ILocalProjectDatabase database = new SqliteProjectDatabase(folder);
@@ -202,7 +202,7 @@ public sealed class LegacySchemaRejectionTests
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        // 新資料庫直接建成現行結構，不經過升版；現行版本是第 20 版，比它舊的案件都當成舊版。
+        // 新資料庫直接建成現行結構，不經過升版；現行版本是第 20 版，版本比它小的案件都擋下。
         Assert.Equal("20", await command.ExecuteScalarAsync() as string);
         Assert.Equal("20", LocalSchemaReadiness.CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }

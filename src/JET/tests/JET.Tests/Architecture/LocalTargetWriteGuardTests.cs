@@ -12,7 +12,7 @@ public sealed partial class LocalTargetWriteGuardTests
     [Fact]
     public void SqliteAndLocalPersistence_HaveNoConcreteDirectTargetInsert()
     {
-        var persistence = Path.Combine(RepoRoot(), "JET", "Infrastructure", "Persistence");
+        var persistence = Path.Combine(SolutionRoot(), "JET", "Infrastructure", "Persistence");
         var files = new[] { "Sqlite", "Local" }
             .SelectMany(folder => Directory.EnumerateFiles(
                 Path.Combine(persistence, folder), "*.cs", SearchOption.AllDirectories))
@@ -22,7 +22,7 @@ public sealed partial class LocalTargetWriteGuardTests
 
         var violations = files
             .SelectMany(file => DirectTargetInsert().Matches(File.ReadAllText(file))
-                .Select(match => $"{Path.GetRelativePath(RepoRoot(), file)}: {match.Value}"))
+                .Select(match => $"{Path.GetRelativePath(SolutionRoot(), file)}: {match.Value}"))
             .ToArray();
 
         Assert.Empty(violations);
@@ -50,7 +50,7 @@ public sealed partial class LocalTargetWriteGuardTests
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DirectTargetInsert();
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))
@@ -59,6 +59,6 @@ public sealed partial class LocalTargetWriteGuardTests
         }
 
         return directory?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

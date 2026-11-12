@@ -5,7 +5,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// calendar.setNonWorkingDays 與 project.load 的非工作日契約(manifest)。
+/// calendar.setNonWorkingDays 與 project.load 的非工作日契約。
 /// canonical 編碼 .NET DayOfWeek 週日=0…週六=6;未設定 → 預設週六、週日。
 /// </summary>
 public sealed class CalendarNonWorkingDaysHandlerTests

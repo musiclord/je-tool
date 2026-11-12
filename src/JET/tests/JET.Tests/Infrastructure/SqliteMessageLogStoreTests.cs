@@ -4,7 +4,7 @@ using Xunit;
 namespace JET.Tests.Infrastructure;
 
 /// <summary>
-/// message_log 留存修剪（manifest：每專案保留最近 500 則）。
+/// message_log 留存修剪（每專案保留最近 500 則）。
 /// BVA：恰滿上限不修剪、超出一則即剔除最舊一則。真 SQLite，不 mock。
 /// </summary>
 public sealed class SqliteMessageLogStoreTests

@@ -17,7 +17,7 @@ namespace JET.Tests.Infrastructure;
 /// <summary>底稿寫出器：step1 家族（完整性、借貸不平、編製人員、差異說明）與 step2 抽樣。</summary>
 public sealed class WorkingPaperWriterStep1ToStep2Tests
 {
-    // ================= step2 可靠性(舊版 JET 的借貸代號與帶號金額)=================
+    // ================= step2 可靠性(借貸代號、帶號金額、欄寬與樣本順序);最後一則核對 step1 表頭的 A3 =================
 
     [Fact]
     public async Task Step2_SampleRows_LegacyDirectionAndSignedAmount_MatchInfSampleRecount()
@@ -239,7 +239,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
             StringComparison.Ordinal);
     }
 
-    // ================= step1 完整性(全科目)=================
+    // ================= step1 完整性(全科目);中間一則核對 step1 家族各表的欄寬 =================
 
     [Fact]
     public async Task Step1_ListsEveryAccount_IncludingZeroDiff()
@@ -382,7 +382,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.Equal((double)diffScaled / MoneyScale, sheet.Cell($"F{row2201}").GetDouble());
     }
 
-    // ================= step1-1 借貸不平(條件例外表)=================
+    // ================= step1-1 借貸不平(有不平傳票才列明細);另有 step1 與 step1-1 的結論文字、step1-3 的表頭說明 =================
 
     [Fact]
     public async Task Step11_UnbalancedPopulation_EmitsExceptionRow()
@@ -739,7 +739,7 @@ public sealed class WorkingPaperWriterStep1ToStep2Tests
         Assert.True(sheet.Cell($"G{row2201}").IsEmpty());
     }
 
-    // ================= step1-3 正準條件表 =================
+    // ================= step1-3 只在有差異科目時產生,以及鎖定範圍 =================
 
     [Fact]
     public async Task Step13_ExistsWhenDiffPresent_WithoutRemovedStep131()

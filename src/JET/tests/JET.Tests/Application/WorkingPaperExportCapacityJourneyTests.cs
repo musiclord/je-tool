@@ -7,7 +7,7 @@ namespace JET.Tests.Application;
 
 public sealed class WorkingPaperExportCapacityJourneyTests
 {
-    // Action contract export.workingPaperStream.
+    // export.workingPaperStream when the working-paper folder is at capacity.
     [Theory]
     [InlineData("sqlite")]
     public async Task ExportAtCapacity_ReturnsCompletePrunedCatalogAndKeepsExistingFiles(string provider)
@@ -47,7 +47,7 @@ public sealed class WorkingPaperExportCapacityJourneyTests
         var error = await Assert.ThrowsAsync<JetActionException>(() => ExportAsync(host, prepared));
         Assert.Equal(JetErrorCodes.FileReadError, error.Code);
         Assert.Contains("不需要的舊底稿", error.Message, StringComparison.Ordinal);
-        // The spec requires an actionable retry instruction, not the literal word 重試.
+        // The message must give an actionable retry instruction, not the literal word 重試.
         Assert.Contains("重新匯出", error.Message, StringComparison.Ordinal);
         Assert.Empty(WorkingPaperExportTestSupport.FindWorkingPapers(folder));
         Assert.Empty(Directory.GetFiles(folder, "*.tmp", SearchOption.AllDirectories));

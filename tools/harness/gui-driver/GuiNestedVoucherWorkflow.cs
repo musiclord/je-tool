@@ -50,8 +50,8 @@ internal static partial class GuiScenarios
         await Click("[data-bind=step-nav] [data-step-index='3']");
         // 科目分類的上下層級與分類用途在第一個正式版隱藏（裁定 2026-11-03-27）：分類設定沒有「進階設定」、分類用途與上層分類，
         // 新增的分類是平的一層、用途 others。原本這一段打開進階設定，在現金底下新增子分類；上下層的保存與查詢改由
-        // FilterNestedVoucherWorkflowTests 直接呼叫後端核對。Gui 在提交前才實跑，同一個改動的前端測試第一次失敗見
-        // FrontendMapping 收據 20261103-102610249-33dada705bc54432a817530311880e4f。
+        // FilterNestedVoucherWorkflowTests 直接呼叫後端核對。Gui 在提交前才實跑，同一個改動的前端測試第一次失敗是在
+        // FrontendMapping。
         outcome.RecordStage("nested_category_parent");
         await Click("[data-action=toggle-category]");
         await Check("!document.querySelector('[data-action=toggle-category-advanced]') && !document.querySelector('[data-category-parent]') && !document.querySelector('[data-category-role]')");
@@ -70,7 +70,7 @@ internal static partial class GuiScenarios
         await AddChild(all, "type:drCrOnly"); await Choose(opposite + " [data-rule-bind=drCr]", "credit");
         // 子條件之間的連接改成分隔線上的 AND、OR 分段切換（裁定 2026-11-05-16），原本是下拉選單：按那一格。
         // 選下拉選單算兩次操作，按一格算一次，這個情境三處共少 3 次，lanes.json 跟著改成 84
-        // （第一次失敗收據 20261106-004126295-982f6b845b43440c874f3a0b5489d229，情境照常走完，只有次數是 84）。
+        // （第一次失敗時情境照常走完，只有次數是 84）。
         await AddChild(all, "type:group"); await Click(ChildJoin(all, "OR"));
         await AddChild(condition, "field:accountNumber"); await Choose(field + " [data-value-kind]", "exact");
         await Fill(field + " [data-value-key=values]", "GUI-ABSENT-ACCOUNT"); await Choose(field + " [data-value-polarity]", "exclude");
@@ -82,7 +82,7 @@ internal static partial class GuiScenarios
         await AddChild(condition, "type:accountSide");
         await Check("!document.querySelector(\"" + classification + " [data-rule-bind=categorySelection]\") && draft.groups[0].conditions[0].conditions[1].conditions[1].conditions[2].categorySelection==='subtree'");
         // 加入子條件不會選取新的那一列，原本靠上面兩次改選取依據把選取移到這一列。選取依據隱藏後改成點這一列的標題，
-        // 核對的仍是第四層的選取與作用中的組（Gui 單跑第一次失敗收據 20261104-011753865-a946642966d64840b66660139f590996）。
+        // 核對的仍是第四層的選取與作用中的組（Gui 單跑時第一次失敗）。
         await Click(classification + " > .filter-rule-heading");
         await Check("document.querySelectorAll('.rule-row--selected').length===1 && document.querySelector('.rule-row--selected').dataset.ri==='0.1.1.2' && document.querySelector('.scenario-set--active').dataset.groupIndex==='0'");
         await Click("[data-action=preview-scenario]");
@@ -97,7 +97,7 @@ internal static partial class GuiScenarios
         await Click("[data-action=save-scenario]"); await Check("saved.length===1");
         outcome.RecordStage("nested_cancel_return_reopen_export");
         await Click("[data-filter-pane-select=saved]");
-        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
+        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗留在當時的驗證紀錄）。
         await Click(".saved-scenario .jet-menu__toggle"); await Click("[data-action=edit-scenario][data-index='0']");
         // 「選取依據」隱藏後，編輯時只改子條件組的連接再取消；原本另把選取依據改成相同分類用途。
         await Click(ChildJoin(group, "AND")); await Click("[data-action=cancel-edit-scenario]");

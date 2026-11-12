@@ -598,7 +598,7 @@ GL mapping v2 的 `approvalDateMode` 固定為三個互斥值：`unmapped` 不�
 - **標頭列**指的是第一個含有非空萃取值的列；只有樣式、沒有值的列不算。cell 依實際欄號對應。OOXML 容許省略列號或 cell 參考（`r` 屬性），缺席時就以連續計數遞補。
 - **共用字串**：`sharedStrings.xml` 會一次串流載入，只取 `<t>` 與 rich text run `<r><t>` 的文字。要特別排除 `<rPh>`（注音讀音 run）與 `<phoneticPr>`，因為台灣 ERP 匯出的活頁簿常帶注音標記，這些東西混進來會污染欄名與摘要。
 - **cell 型別**：`t="s"` 是共用字串、`t="inlineStr"`、`t="str"` 是公式的字串結果、`t="b"` 解析成 `true`/`false`、`t="d"` 依 native ISO 8601 值記為日期、`t="e"` 取錯誤原文；沒有型別屬性就當數值。公式 cell 取它的快取值 `<v>`；如果沒有快取值就視為空，因為串流讀取不會去重算公式。
-- **數值正規化**：先把 `<v>` 以 `double` 解析（容許科學記號），接著轉成 `(decimal)`，再轉成 InvariantCulture 字串（如果超出 decimal 範圍，就退回 round-trip 的 `"R"` 格式）。這裡 double 轉 decimal 的步驟會吸收浮點殘影，例如把 `535.04999999999995` 修正成 `"535.05"`，這是 staging 顯示值與金額解析能保持穩定的關鍵。
+- **數值正規化**：先把 `<v>` 以 `double` 解析（容許科學記號），接著轉成 `(decimal)`，再轉成 InvariantCulture 字串（如果超出 decimal 範圍，就退回 round-trip 的 `"R"` 格式）。這裡 double 轉 decimal 的步驟會吸收浮點殘影，例如把 `218.34999999999999` 修正成 `"218.35"`，這是 staging 顯示值與金額解析能保持穩定的關鍵。
 - **日期樣式判定**：`styles.xml` 會一次解析。如果一個數值 cell 的樣式 numFmtId 屬於日期格式，就用 `FromOADate` 轉成 `yyyy-MM-dd`。判定日期格式的依據是：numFmtId 落在內建日期 id 集合內，或自訂格式碼在「引號字面值、`[...]` 區段、反斜線跳脫」之外含有 y/m/d 記號。若格式只含 h/m/s 則視為時間值。要注意型別優先於樣式，也就是共用字串 cell 即使套了日期樣式仍然是字串。`date1904` 活頁簿的序列值要 +1462 校正。至於沒有套日期樣式的日期序列值，留待投影階段由 `DateNormalizer` 以 OADate 規則兜底處理（對應 §3.1.3 的第 4 順位）。
 - 只有樣式、沒有值的 cell（`<c s="2"/>`）視為空；全空的列直接跳過；`SourceRowNumber` 取工作表內的實際列號。
 - 工作表以名稱解析，不分大小寫；沒指定時取第一張。chartsheet 不算資料工作表，會從清單裡剔除。

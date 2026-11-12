@@ -11,7 +11,7 @@ namespace JET.Tests.Infrastructure;
 
 /// <summary>
 /// revision-level populationScope 的 golden fixture，由 SQLite 的子類別執行。
-/// Oracle 是依 manifest Filter / Criteria 與投影後有效分錄母體手算的 21 列固定資料；
+/// Oracle 是依篩選條件的規則與投影後有效分錄母體手算的 21 列固定資料；
 /// 每條斷言都鎖定 voucher_number + line_item 身分，不只比較筆數。
 /// </summary>
 public abstract class GlPopulationScopeGoldenTests

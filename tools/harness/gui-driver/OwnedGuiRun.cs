@@ -537,7 +537,7 @@ internal sealed partial class OwnedGuiRun : IDisposable
     /// 在掛到 JET 那個桌面的執行緒上找到 JET 主視窗，再交給 action 操作，例如調整大小。主視窗是 JET 行程在那個桌面上
     /// 唯一看得見、沒有擁有者的 WinForms 頂層視窗。不用 <c>Process.MainWindowHandle</c>：它取 Z 順序上第一個看得見的
     /// 頂層視窗，而另一個桌面上 Windows 的輸入指示器（<c>UAC_InputIndicatorOverlayWnd</c>）也屬於 JET 行程、排在前面。
-    /// 2026-10-15 第五步旅程因此放大了那個 90×90 的小視窗，JET 本身沒變（收據 20261015-034259534-f56aa0b0204a401ba3e9c469a2cd18a9）。
+    /// 2026-10-15 第五步旅程因此放大了那個 90×90 的小視窗，JET 本身沒變（依當時的驗證紀錄）。
     /// </summary>
     internal void OnApplicationWindow(Action<IntPtr> action)
     {

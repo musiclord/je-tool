@@ -407,8 +407,8 @@ function filterOperationFixture({ saved = [] } = {}) {
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8').replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('ops', ['syncViewState', 'render'], 'view: () => FilterStep.viewState')), context);
-  const store = window.JetStore, api = window.ops;
+    filterStepExposure('exposedFilter', ['syncViewState', 'render'], 'view: () => FilterStep.viewState')), context);
+  const store = window.JetStore, api = window.exposedFilter;
   // 第五步一次只存或刪一個情境：畫面送 filterScenarioSave、filterScenarioRemove 或 filterScenarioRecheck，只帶正在處理的那一個情境。
   // 這三個方法和 filterCommit 都記進 commits 並帶方法名稱。
   window.JetApi = contractJetApi(Object.fromEntries(['filterCommit', 'filterScenarioSave', 'filterScenarioRemove', 'filterScenarioRecheck'].map(method =>
@@ -460,7 +460,7 @@ function remapAppFixture(options = {}) {
   f.draw = (next = 'export') => { f.window.JetUi.renderStep(next, middle, f.store.getState()); return middle; };
   const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   vm.runInContext(exposeAt(source, "  if (document.readyState === 'loading') {",
-    '  window.remapApp = { renderPicker, overviewHtml, renderStepNav, renderContent, renderMessagesPanel, buildMessage, render };\n'), f.context, { filename: 'app.js' });
+    '  window.exposedApp = { renderPicker, overviewHtml, renderStepNav, renderContent, renderMessagesPanel, buildMessage, render };\n'), f.context, { filename: 'app.js' });
   function slice(start, end) { const a = source.indexOf(start), b = source.indexOf(end, a + start.length); assert.ok(a >= 0 && b > a); return source.slice(a, b); }
   vm.runInContext('var Ui = window.JetUi;\n' + slice('    var exitBtn = ', '    var cancelOperationBtn = '), f.context);
   const started = []; f.window.JetApi.onRequestStarted = fn => started.push(fn);
@@ -468,7 +468,7 @@ function remapAppFixture(options = {}) {
     slice('  var CANCELLABLE_ACTIONS = {', '  // 增量渲染狀態') +
     slice("    if (global.JetApi && typeof global.JetApi.onRequestStarted === 'function') {", '    // 長作業進度只更新') +
     slice("    var cancelOperationBtn = document.querySelector('[data-action=\"cancel-operation\"]');", "    document.querySelectorAll('[data-action=\"messages-toggle\"]')"), f.context);
-  return { ...f, app: f.window.remapApp, started(action, requestId) { started.forEach(fn => fn({ action, requestId })); } };
+  return { ...f, app: f.window.exposedApp, started(action, requestId) { started.forEach(fn => fn({ action, requestId })); } };
 }
 
 // 審計員用鍵盤開關流程總覽：用正式 index.html 的總覽標記與 app.js 正式的開啟按鈕程式。
@@ -511,10 +511,10 @@ function overviewDialogFixture({ charts = false } = {}) {
   const openerEnd = source.indexOf('    bindOverviewDialog();', openerStart);
   assert.ok(openerStart >= 0 && openerEnd > openerStart, 'overview opener seam');
   vm.runInContext(source.replace("  if (document.readyState === 'loading') {",
-    '  window.overviewApp = { renderOverview: renderOverview, bindOpen: function () {\n' + source.slice(openerStart, openerEnd) +
+    '  window.exposedApp = { renderOverview: renderOverview, bindOpen: function () {\n' + source.slice(openerStart, openerEnd) +
     '    bindOverviewDialog();\n  } };\n  if (document.readyState === \'loading\') {'), f.context, { filename: 'app.js' });
-  f.window.overviewApp.bindOpen();
-  f.store.subscribe(s => f.window.overviewApp.renderOverview(s));
+  f.window.exposedApp.bindOpen();
+  f.store.subscribe(s => f.window.exposedApp.renderOverview(s));
   return f;
 }
 
@@ -663,7 +663,7 @@ function mappingFixture() {
   } };
   const context = vm.createContext({ window, document });
   for (const file of ['state.js', 'ui-core.js', 'steps/mapping-step.js']) {
-    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8').replace("  Ui.registerStep('mapping', render);", "  window.mappingWire = glCommitPayload; window.mappingEligibility = mappingCommitEligibility; Ui.registerStep('mapping', render);"), context, { filename: file });
+    vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8').replace("  Ui.registerStep('mapping', render);", "  window.exposedGlCommitPayload = glCommitPayload; window.exposedMappingCommitEligibility = mappingCommitEligibility; Ui.registerStep('mapping', render);"), context, { filename: file });
   }
   const store = window.JetStore;
   store.setProject({ projectId: 'synthetic' });
@@ -848,8 +848,8 @@ function mappingRenderFixture(options = {}) {
   if (!f.window.CSS) f.window.CSS = { escape: cssEscape };
   if (!f.dom.document.body) f.dom.document.body = f.dom.element('body');
   vm.runInContext(exposeAt(readWwwroot('js/app.js'), "  if (document.readyState === 'loading') {",
-    '  window.mappingRenderApp = { render: render, renderContent: renderContent };\n'), f.context, { filename: 'app.js' });
-  const app = f.window.mappingRenderApp, steps = f.store.STEPS;
+    '  window.exposedApp = { render: render, renderContent: renderContent };\n'), f.context, { filename: 'app.js' });
+  const app = f.window.exposedApp, steps = f.store.STEPS;
   const mappingIndex = steps.findIndex(step => step.id === 'mapping');
   assert.ok(mappingIndex >= 0, 'mapping step exists');
   f.store.setView('workflow'); f.store.setStepIndex(mappingIndex);
@@ -882,10 +882,10 @@ function messagePanelFixture({ clipboard = 'accept' } = {}) {
   const source = readWwwroot('js/app.js');
   const binding = sliceBetween(source, '    var copyMessagesButton = ', '    var supportLogButton = ');
   vm.runInContext(exposeAt(source, "  if (document.readyState === 'loading') {",
-    '  window.messagePanelApp = { copyRecentMessages: copyRecentMessages, flushMessageWrites: flushMessageWrites,\n' +
+    '  window.exposedApp = { copyRecentMessages: copyRecentMessages, flushMessageWrites: flushMessageWrites,\n' +
     '    persistNewMessages: persistNewMessages, renderMessages: renderMessages, bindCopy: function () {\n' + binding + '    } };\n'),
   f.context, { filename: 'app.js' });
-  const app = f.window.messagePanelApp;
+  const app = f.window.exposedApp;
   app.bindCopy();
   return { ...f, app, clipboardWrites, copyCommands, copyButton: () => f.$('[data-action="messages-copy"]') };
 }

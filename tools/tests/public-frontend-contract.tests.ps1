@@ -18,7 +18,7 @@ $module = Import-Module $modulePath -Force -PassThru
     $original = (Get-Item Function:Invoke-JetChildStep).ScriptBlock
     try {
         # 2026-10-13：前端測試步驟另帶整個程序樹的記憶體上限（lanes.json 的 limits.maximumProcessTreeMemoryMegabytes），
-        # 模擬設定補上這個值並要求步驟照值帶上。改動前的第一次失敗收據：20261013-132902263-e46be90d030a479c887537b908f3d82d。
+        # 模擬設定補上這個值並要求步驟照值帶上。改動前的第一次失敗留在當時的驗證紀錄。
         function Invoke-JetChildStep {
             param($RepositoryRoot, $RunDirectory, $Name, $FileName, $Arguments, $DisplayCommand,
                 $MaximumCapturedBytes, $TimeoutSeconds, [switch]$OwnProcessTree, $EnvironmentVariablesToRemove,

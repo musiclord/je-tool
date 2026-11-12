@@ -12,7 +12,7 @@ public sealed partial class ProjectOperationLogAppendOnlySourceTests
     [Fact]
     public void Persistence_HasNoUpdateOrDeleteAgainstOperationLog()
     {
-        var persistence = Path.Combine(RepoRoot(), "JET", "Infrastructure", "Persistence");
+        var persistence = Path.Combine(SolutionRoot(), "JET", "Infrastructure", "Persistence");
         var files = Directory
             .EnumerateFiles(persistence, "*.cs", SearchOption.AllDirectories)
             .Order(StringComparer.Ordinal)
@@ -21,7 +21,7 @@ public sealed partial class ProjectOperationLogAppendOnlySourceTests
 
         var violations = files
             .SelectMany(file => OperationLogMutation().Matches(File.ReadAllText(file))
-                .Select(match => $"{Path.GetRelativePath(RepoRoot(), file)}: {match.Value}"))
+                .Select(match => $"{Path.GetRelativePath(SolutionRoot(), file)}: {match.Value}"))
             .ToArray();
 
         Assert.Empty(violations);
@@ -52,7 +52,7 @@ public sealed partial class ProjectOperationLogAppendOnlySourceTests
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OperationLogMutation();
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))
@@ -61,6 +61,6 @@ public sealed partial class ProjectOperationLogAppendOnlySourceTests
         }
 
         return directory?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

@@ -331,7 +331,7 @@ public static class FilterScenarioPayloadParser
 
     /// <summary>
     /// typed 條件的字串屬性讀取：保留原始拼法與 presence（缺欄回 null）；present 但為
-    /// null、數字、布林等非字串 JSON 值一律 fail loud——凍結契約要求 operand carrier 是
+    /// null、數字、布林等非字串 JSON 值一律 fail loud——typed 條件的 operand carrier 必須是
     /// 非 null 字串，這裡不得沿用 ReadString 的「空白正規化為 null」（會把「帶了空白值」
     /// 誤讀成「沒帶」，讓 blank operator 帶 operand 的錯誤靜默通過）。
     /// </summary>
@@ -383,9 +383,9 @@ public static class FilterScenarioPayloadParser
     }
 
     /// <summary>
-    /// 科目配對單側的分類身分陣列。回傳 null 代表 wire 沒有帶這個 key（此時才回退 legacy scalar）；
+    /// 科目配對單側的分類身分陣列。回傳 null 代表 wire 沒有帶這個 key，呼叫端當成空集合；
     /// 明示帶了空陣列是「使用者沒有選任何分類」，回傳空集合並由 validator 以 invalid_scenario 擋下，
-    /// 不得靜默回退到可能過期的 scalar。帶了陣列時 scalar 一律不參與判定。
+    /// 兩種情形都不讀單選分類欄位 debitCategory、creditCategory，那兩個欄位照未知欄位處理。
     /// </summary>
     private static IReadOnlyList<string>? ParseCategoryIds(JsonElement rule, string property, string label)
     {

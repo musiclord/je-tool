@@ -22,12 +22,12 @@ function scenarioLifecycleFixture() {
   const window = { setTimeout: () => 0, clearTimeout() {}, JetFocus: { defer() {} } };
   const document = { querySelector: () => null, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) };
   const context = vm.createContext({ window, document });
-  // 第五步拆成五個檔案：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗：FrontendMapping 收據 20261025-053146514-770b4770cad34a55a1f25bee3a62b08f。
+  // 第五步拆成五個檔案：前四個先載入，主檔的內部函式從 FilterStep 取。第一次失敗是在 FrontendMapping。
   for (const file of ['state.js', 'ui-core.js', 'filter-values.js', ...FILTER_STEP_PARTS]) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
   const source = fs.readFileSync(path.join(root, 'steps/filter-step.js'), 'utf8');
   vm.runInContext(source.replace("  Ui.registerStep('filter', render);",
-    filterStepExposure('workflow', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'commonPickerHtml', 'draftRuleProblems', 'ruleSummaryLabel', 'commonDescriptionHtml', 'bind'], 'view: () => FilterStep.viewState')), context);
-  const store = window.JetStore, api = window.workflow;
+    filterStepExposure('exposedFilter', ['completeScenarioSave', 'savedFeedbackText', 'filterCommitSnapshot', 'syncViewState', 'toWireDraft', 'addCommonToDraft', 'removeCommonFromActiveGroup', 'refreshAutomaticMetadata', 'commonPickerHtml', 'draftRuleProblems', 'ruleSummaryLabel', 'commonDescriptionHtml', 'bind'], 'view: () => FilterStep.viewState')), context);
+  const store = window.JetStore, api = window.exposedFilter;
   store.setProject({ projectId: 'sequence-fixture' }); api.syncViewState(store.getState());
   // 卡片以代號識別（2026-10-29 拿掉卡片字母，函式與常數也改名，原本依字母找卡片）。
   const item = key => window.JetUi.FILTER_COMMON_CONDITIONS.find(x => x.key === key);
@@ -39,7 +39,7 @@ function scenarioLifecycleFixture() {
   function bindRemoval(index, action = 'confirm-remove-scenario') {
     const pending = [], nodes = new Map(), actions = [];
     // 2026-10-13 第五步一次只存或刪一個情境：畫面改送 filterScenarioSave／Remove／Recheck，只帶正在處理的那一個情境；
-    // 移除改送 filterScenarioRemove，假物件補上這個方法，四支移除測試的斷言不變。第一次失敗：FrontendMapping 收據 20261013-103553346-54ebed91711946dd8ff77c3dd1be7b23。
+    // 移除改送 filterScenarioRemove，假物件補上這個方法，四支移除測試的斷言不變。第一次失敗是在 FrontendMapping。
     window.JetApi = contractJetApi(Object.fromEntries(['filterCommit', 'filterScenarioRemove', 'filterPreview', 'queryFilterVoucherPage'].map(method =>
       [method, payload => new Promise((resolve, reject) => pending.push({method, payload, resolve, reject}))])));
     window.JetUi.run = (label, fn, options) => {
@@ -66,7 +66,7 @@ function remapAppFixture() {
   f.dom.content.innerHTML = '<section data-bind="project-picker"></section><nav data-bind="step-nav"></nav><button data-action="app-exit"></button><button data-action="app-back-picker"></button><button data-action="cancel-operation"></button>';
   const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   vm.runInContext(source.replace("  if (document.readyState === 'loading') {",
-    '  window.remapApp = { renderPicker, overviewHtml, renderStepNav, renderContent, renderMessagesPanel, buildMessage, formatExportProgress };\n  if (document.readyState === \'loading\') {'), f.context);
+    '  window.exposedApp = { renderPicker, overviewHtml, renderStepNav, renderContent, renderMessagesPanel, buildMessage, formatExportProgress };\n  if (document.readyState === \'loading\') {'), f.context);
   function slice(start, end) { const a = source.indexOf(start), b = source.indexOf(end, a + start.length); assert.ok(a >= 0 && b > a); return source.slice(a, b); }
   vm.runInContext('var Ui = window.JetUi;\n' + slice('    var exitBtn = ', '    var openProjectFolderBtn = '), f.context);
   const started = []; f.window.JetApi.onRequestStarted = fn => started.push(fn);
@@ -74,13 +74,13 @@ function remapAppFixture() {
     slice('  var CANCELLABLE_ACTIONS = {', '  // 增量渲染狀態') +
     slice("    if (global.JetApi && typeof global.JetApi.onRequestStarted === 'function') {", '    // 長作業進度只更新') +
     slice("    var cancelOperationBtn = document.querySelector('[data-action=\"cancel-operation\"]');", "    document.querySelectorAll('[data-action=\"messages-toggle\"]')"), f.context);
-  return { ...f, app: f.window.remapApp, started(action, requestId) { started.forEach(fn => fn({ action, requestId })); } };
+  return { ...f, app: f.window.exposedApp, started(action, requestId) { started.forEach(fn => fn({ action, requestId })); } };
 }
 
 // 2026-10-29：測試名稱原本以字母範圍稱呼這五張卡。需求文件的表格仍以當時的項次欄列出這五列，順序和卡片清單的前五張相同，
 // 原本依項次欄找列，改成取表格的前五列依序對到前五張卡。動機的期望值原本由卡片資料組出、每行以字母開頭，
 // 改成需求文件的五句評估說明依序以換行相接（裁定 2026-10-29-11：動機不再加字母開頭）。
-test('the five cards with a default rationale reproduce the approved assessment text verbatim', () => {
+test('the five cards with a default rationale reproduce the requirement document assessment text verbatim', () => {
  const f = scenarioLifecycleFixture();
  const doc = fs.readFileSync(path.resolve(__dirname, '../../docs/kct-gl-workflow.md'), 'utf8').split('\n');
  const header = doc.findIndex(line => line.startsWith('| 項次 | 高風險分錄篩選條件 | 評估說明 |'));
@@ -105,7 +105,7 @@ function oct9GuiMappingFixture() {
   }) };
   const context = vm.createContext({ window, document: dom.document });
   for (const file of ['state.js', 'ui-core.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context);
-  vm.runInContext(fs.readFileSync(path.join(root, 'steps/mapping-step.js'), 'utf8').replace("  Ui.registerStep('mapping', render);", '  window.drawMapping = render;'), context);
+  vm.runInContext(fs.readFileSync(path.join(root, 'steps/mapping-step.js'), 'utf8').replace("  Ui.registerStep('mapping', render);", '  window.exposedMappingRender = render;'), context);
   const store = window.JetStore;
   store.setProject({ projectId: 'gui-selector-synthetic' });
   store.setImportResult('gl', { batchId: 'gui-selectors', columns: ['Approval', 'Manual'], rowCount: 1 });
@@ -114,7 +114,7 @@ function oct9GuiMappingFixture() {
   const script = source.match(/MappingPolicyProbeScript = Probe\("""([\s\S]*?)"""\);/)[1]
     .replace('/* shared GUI helpers */', 'function visible(el) { return !!el && !el.hidden; }');
   function draw() {
-    window.drawMapping(dom.content, store.getState());
+    window.exposedMappingRender(dom.content, store.getState());
     // The lightweight DOM parser does not implement native select.value initialization.
     for (const select of dom.content.querySelectorAll('select')) {
       const selected = select.querySelectorAll('option').find(option => option.hasAttribute('selected')) || select.querySelector('option');
@@ -155,7 +155,7 @@ test('GUI options-only edit targets a rendered editable code and preserves mappi
 });
 
 // 「同一傳票」併入整張傳票條件後，更新 Gui 腳本的入口；這裡只檢查腳本，不執行 Gui。
-// 舊選單斷言首次失敗：20261014-135637069-066eb7e965824f89bf2b8671156595f1。
+// 舊選單斷言的首次失敗留在當時的驗證紀錄。
 test('GUI fixture uses visible compound actions instead of a retired scope selector', () => {
   const f = filterOperationFixture(); f.click(cardSelector(BLANK)); f.click(cardSelector(TRAILING));
   const source = fs.readFileSync(path.join(__dirname, '../harness/gui-driver/GuiSideMonthWorkflow.cs'), 'utf8');

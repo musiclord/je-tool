@@ -174,7 +174,7 @@ internal static class InfSamplingPrf
         long? persistedSeed,
         int? persistedVersion)
     {
-        // 只接受目前的抽樣演算法版本；缺版本或其他版本都是設定檔損壞。舊版 JET 建立的案件在讀設定檔版本時就擋下，
+        // 只接受目前的抽樣演算法版本；缺版本或其他版本都是設定檔損壞。較早版本的 JET 建立的案件在讀設定檔版本時就擋下，
         // 目前版本不保留舊排序法，也不替缺種子的案件補固定種子。
         if (persistedVersion is null)
         {

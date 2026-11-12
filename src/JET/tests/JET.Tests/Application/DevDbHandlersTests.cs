@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// dev.db.* 的獨立唯讀語意（manifest「Project Persistence / Host / Dev Actions」）：
+/// dev.db.* 的獨立唯讀語意：
 /// 檢視必須直接讀磁碟上已持久化的資料、零副作用——不建 schema、不寫入、
 /// DB 檔不存在時回 file_not_found 而不是建檔。
 /// oracle：檔案存在性與檔案位元組（檢視前後必須完全相同）。

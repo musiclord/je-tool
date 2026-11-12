@@ -5,7 +5,7 @@ namespace JET.AuditCore;
 /// 三層結構,外加純系統表的 System 層。
 ///
 /// 注意:這是**審計語義的層**(資料從客戶提供 → 標準化暫存 → 可報導結果),不從實體表名推得。
-/// 實體表名不帶分層字首,直接取畫面或舊版對這份資料的稱呼,
+/// 實體表名不帶分層字首,直接取畫面的名稱,或舊版工具(Excel-VBA 工具或 IDEA 版 JET)對這份資料的稱呼,
 /// 例如 <c>account_mapping</c> 與 <c>calendar_day</c> 在審計語義上都是 Source(客戶提供的科目對照與假日曆)。
 /// 故本列舉表達的是審計層,以正準名(canonical)而非 physical 名分層。
 /// </summary>
@@ -45,7 +45,7 @@ internal enum SchemaAudience
 /// </summary>
 /// <param name="PhysicalName">實體表名(CREATE TABLE 的權威名)。</param>
 /// <param name="CanonicalName">正準審計名,只用於資料表摘要顯示(如 PBC-GL、GL)。資料名稱全系統統一,
-/// legacy 的 JE_PBC、TB_PBC、JE 對應 PBC-GL、PBC-TB、GL;不是 SQL 識別字或檔名。</param>
+/// legacy Excel-VBA 工具的 JE_PBC、TB_PBC、JE 對應 PBC-GL、PBC-TB、GL;不是 SQL 識別字或檔名。</param>
 /// <param name="Layer">審計三層 + System。</param>
 /// <param name="Audience">資料預覽 / 結構總覽的曝光程度。</param>
 /// <param name="Description">一句中文說明(用途 / 由來)。</param>
@@ -69,7 +69,7 @@ internal sealed record SchemaTableEntry(
 /// 新增規則 = 加一列,不是散落的 if。實體表清單以 Infrastructure 的 SchemaSql 為準逐一登錄,
 /// 漏登錄時 Infrastructure 的漂移守門測試(查 sqlite_master 比對本目錄)會失敗。
 ///
-/// 註:legacy 的 <c>COMPLETENESS_CALCULATED / DIFF / DETAIL</c>、<c>JE_IN_PERIOD /
+/// 註:legacy Excel-VBA 工具的 <c>COMPLETENESS_CALCULATED / DIFF / DETAIL</c>、<c>JE_IN_PERIOD /
 /// JE_NOT_IN_PERIOD</c>、各 <c>*_OVERVIEW</c> 是查詢時即算的**計算檢視(衍生,不落表)**
 /// (CTE 於 ValidationProcedures、或 query 層的期間切分),不是實體表,故不在本目錄內。
 /// </summary>

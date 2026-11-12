@@ -11,7 +11,7 @@ namespace JET.Tests.Application;
 public sealed class ProjectOperationLoggingJourneyTests
 {
     [Fact]
-    public async Task ApprovedOperations_AppendExactMinimalAuditEvents()
+    public async Task LoggedOperations_AppendExactMinimalAuditEvents()
     {
         using var host = new HandlerTestHost();
         var context = await DemoProjectPipeline.SetupAsync(host);

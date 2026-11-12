@@ -199,7 +199,7 @@
         return '<tr class="voucher-table__entry' + (entry.isHit ? ' voucher-table__entry--hit' : '') + (last ? ' voucher-table__entry--last' : '') + '"' +
             (entryIndex === 0 ? ' id="' + Ui.esc(entriesId(index)) + '"' : '') +
             ' data-motion-key="' + Ui.esc(id + '-entry-' + row.voucherNumber + '-' + (view.detailHistory.length + 1) + '-' + entryIndex) + '"><td></td><td></td>' +
-          // 傳票文件項次自成一欄，表頭寫名詞表的短表頭「項次」，分錄列只寫數字，傳票號碼那一格留白。
+          // 傳票文件項次自成一欄，表頭寫短表頭「項次」，分錄列只寫數字，傳票號碼那一格留白。
           cellHtml(entry.lineItem, 'voucher-table__line') +
           cellHtml(entry.glDate) + cellHtml(entry.approvalDate) +
           clipCellHtml([entry.accountNumber, entry.accountName].filter(function (value) { return value; }).join(' '), 'voucher-table__account') +

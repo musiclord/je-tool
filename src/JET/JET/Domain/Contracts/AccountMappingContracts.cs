@@ -177,20 +177,24 @@ public sealed record AccountMappingState(
 /// <summary>配對檔分類欄留白的科目（投影時已落到 Others）；供第四步列出讓審計員決定要不要補填。</summary>
 public sealed record AccountMappingBlankAccount(string AccountNumber, string? AccountName);
 
-/// <summary>匯入結果（import.accountMapping.fromFile response 形狀的來源）。</summary>
+/// <summary>
+/// 匯入結果（import.accountMapping.fromFile response 形狀的來源）。
+/// <paramref name="Categories"/> 是匯入後案件的科目分類；匯入檔帶來新的分類名稱時，已經包含這次新增的自訂分類。
+/// </summary>
 public sealed record AccountMappingImportResult(
     string BatchId,
     int RowCount,
     IReadOnlyList<string> Columns,
     string FileName,
-    DateTimeOffset ImportedUtc);
+    DateTimeOffset ImportedUtc,
+    AccountCategorySnapshot Categories);
 
 public interface IAccountMappingStore
 {
     /// <summary>
-    /// replace-only 匯入：staging 寫入、投影 target、批次紀錄在**同一 transaction**；
-    /// 分類空白列保留在 staging 並投影為 builtin.others；任一未知非空白分類使整批 rollback
-    /// （projection_failed，訊息列前 10 筆）。
+    /// replace-only 匯入：staging 寫入、投影 target、批次紀錄與新增的自訂分類在**同一 transaction**；
+    /// 分類空白列保留在 staging 並投影為 builtin.others；分類欄裡案件還沒有的名稱新增為自訂分類。
+    /// 任一列無法讀取時整批 rollback（projection_failed，訊息列前 10 筆），分類也不新增。
     /// 同一科目代號重複出現時後列覆蓋前列（last-wins 去重）。
     /// </summary>
     Task<AccountMappingImportResult> ImportAsync(

@@ -76,7 +76,7 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
                 catch (JetActionException) when (extension == ".xlsx")
                 {
                     // 正式 legacy AccountMapping 的標頭在第 3 列、資料自第 4 列；
-                    // 舊版 JET 產物／一般 CSV 仍維持第 1 列標頭。只在第 1 列無法辨識時回退兩列。
+                    // 標頭在第 1 列的檔案（例如工作底稿的「自動化工具-科目配對資訊」工作表、一般 CSV）照第 1 列讀。只在第 1 列無法辨識時回退兩列。
                     // 這兩列是舊範本固定的版面，不是審計員指定的欄名列。
                     effectiveRequest = request with { LeadingRowsToSkip = 2, FixedLeadingRows = true };
                     columns = await reader.ReadColumnsAsync(effectiveRequest, cancellationToken);
@@ -119,6 +119,12 @@ public sealed partial class ImportAccountMappingHandler : IApplicationActionHand
             hasRevenue = result.State.HasRevenue,
             hasCounterpart = result.State.HasCounterpart,
             blankCategoryCount = result.State.BlankCategoryCount,
+            // 匯入後案件的科目分類，和 project.load 的 accountCategory 同一個形狀；匯入檔帶來新的分類名稱時已經包含新增的自訂分類。
+            accountCategory = new
+            {
+                revision = result.Import.Categories.Revision,
+                categories = result.Import.Categories.Categories
+            },
             mappingOnlyCount = differences?.MappingOnlyCount,
             unmappedCount = differences?.UnmappedCount,
             columnMappingWarning = result.ColumnMappingWarning,

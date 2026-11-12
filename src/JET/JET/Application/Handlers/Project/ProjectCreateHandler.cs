@@ -97,7 +97,7 @@ public sealed class ProjectCreateHandler : IApplicationActionHandler
         var projectCode = PayloadReader.GetOptionalString(payload, "projectCode")?.Trim() ?? string.Empty;
         var clientName = PayloadReader.GetOptionalString(payload, "clientName")?.Trim() ?? string.Empty;
 
-        // 操作人員只能來自 composition root 注入的目前 Windows 身分。舊版 payload 即使仍帶
+        // 操作人員只能來自 composition root 注入的目前 Windows 身分。payload 即使帶了
         // operatorId 也不採用，避免前端欄位或其他 caller 冒名寫入案件 metadata。
         var operatorId = principal.ShortName;
         var periodStart = PayloadReader.GetRequiredDate(payload, "periodStart");

@@ -423,7 +423,7 @@ internal static partial class GuiScenarios
             using var mapping = JsonDocument.Parse(original.Draft);
             using var options = JsonDocument.Parse(original.Options);
             // DemoDataFactory 已把來源欄名改為「傳票核准日」；只同步合成來源名，完整快照比較不變。
-            // 正式Gui首次失敗：20261004-111741426-5fa862bc36134c549ff230bfdcd99efb。
+            // 正式Gui首次失敗留在當時的驗證紀錄。
             if (mapping.RootElement.GetProperty("voucherNumber").GetString() != "傳票號碼"
                 || mapping.RootElement.GetProperty("approvalDate").GetString() != "傳票核准日"
                 || options.RootElement.GetProperty("approvalDateMode").GetString() != "mapped"
@@ -465,7 +465,7 @@ internal static partial class GuiScenarios
         var original = MappingFixtureSnapshot.Capture(baseline);
         outcome.RecordStage("options-only-dirty-warning");
         // 2026-10-09 第 9 則註解：代碼改成輸入框；合成資料原值為單一字元 1，以鍵盤清空。
-        // 選取器第一次失敗：FrontendMapping 20261009-062729225-fa4549ec34744ea3a7f6257c3d49b7fa。
+        // 選取器第一次失敗是在 FrontendMapping。
         await ClickControlAsync(cdp, process, GlSection + "[data-manual-code-edit=\"manual:0\"]", outcome, cancellationToken).ConfigureAwait(false);
         await PressKeyAsync(cdp, "End", outcome, cancellationToken).ConfigureAwait(false);
         await PressKeyAsync(cdp, "Backspace", outcome, cancellationToken).ConfigureAwait(false);
@@ -565,7 +565,7 @@ internal static partial class GuiScenarios
             probe => ReadInt32(probe, "rdeCount") > 0 && ReadInt32(probe, "rdeCount") == ReadInt32(probe, "rdeAvailableCount"), cancellationToken).ConfigureAwait(false);
         // A full rerender must not leave focus on body after Select All becomes disabled.
         // 前端重畫後用 setTimeout(0) 把焦點移到第一個攸關資料元素欄位，所以等那一步執行完再判斷，最多 2 秒。
-        // 2026-10-07 起立即檢查會比延後的焦點移動早幾毫秒執行（收據 20261007-040407746-edd2654f66924d26b2a061f1aea020c8）。
+        // 2026-10-07 起立即檢查會比延後的焦點移動早幾毫秒執行（依當時的驗證紀錄）。
         const string rdeFocusScript = "!!document.activeElement?.closest('.map-options__group') && document.activeElement!==document.body && !document.activeElement.disabled";
         var rdeFocused = false;
         for (var attempt = 0; attempt < 20 && !rdeFocused; attempt++)
@@ -640,7 +640,7 @@ internal static partial class GuiScenarios
     {
         // 啟動時「讀取案件清單」還在進行，「結束 JET」依設計只提示作業進行中、不結束（ui-core.js 的 exitApp）。
         // 原本直接用初始探測的座標點擊，清單載入較慢時點擊被擋下，程式不退出，情境逾時
-        // （20261002-122109009-b118247d76634624815f06a34a7d5446、20261002-135010950-9ddf7be574464a1c94b92a40e1de14fe）。
+        // （當時有兩次執行這樣失敗）。
         // 改成先等作業結束、再依按鈕目前的位置點擊；仍要求按下後程式自行退出。
         await WaitForProbeAsync(cdp, process,
             "({idle:!window.JetStore.getState().busy,busyLabel:window.JetStore.getState().busyLabel})",
@@ -784,7 +784,7 @@ internal static partial class GuiScenarios
         // 已確認配對只在 mapping.commit.gl 成功後寫入，所以用它的借方代碼判定後端已收到這次確認。
         outcome.RecordStage("mapping-literal-direct-commit");
         // 借、貸兩碼要明確且不同；舊測把借方1改0會和貸方0重複，應被拒絕。
-        // 首次失敗：20261004-111252505-f9d81c2da7b7433884b572c1facb9c63。
+        // 首次失敗留在當時的驗證紀錄。
         // 先用四個真鍵鼠動作把貸方0改1，再沿原借方1改0的一擊提交測試；不放寬期限或預算。
         await ClickControlAsync(cdp, process, GlSection + "input[data-mapping-key=\"drCrCreditCode\"]", outcome, cancellationToken)
             .ConfigureAwait(false);
@@ -1130,7 +1130,7 @@ internal static partial class GuiScenarios
                   if (right - left < 2 || bottom - top < 2) { continue; }
                   // 滾輪落點要在這個捲動容器裡，而且從落點往上，第一個能往這個方向捲的就是這個容器。落在容器裡另一個
                   // 捲動區上（例如明細表格本身）時，Chromium 會把接連送出的滾輪都交給那個內層捲動區，這個容器一直不動
-                  // （2026-10-15 第五步旅程，第一次失敗收據 20261015-034003560-86738cd5baec447c98b8d961a893f463）。
+                  // （2026-10-15 第五步旅程第一次失敗）。
                   // 數字框會攔截滾輪，也不當落點。從可見範圍的中央往上下每隔約 16px 試，每個高度試中間、左緣、右緣；
                   // 都不行才退回第一個在容器裡的點。
                   var scrollsInside = function (target) {
@@ -1175,7 +1175,7 @@ internal static partial class GuiScenarios
         var previousY = double.NaN;
         // 滾輪和點擊一樣，要落點與捲動量連續兩次量到一樣才送出。讀完來源值時清單上方的輸入區還在收起，清單一路往上滑；
         // 只量一次就送滾輪，落點會掉到清單下面，捲動的是整個中欄，清單被捲出畫面（2026-10-28 完整 Gui 的回饋流程，
-        // 第一次失敗收據 20261028-063837442-9aad252488b74d15ac7e785c9d3124d3；2026-10-14 被 TB 區蓋住的症狀相同，很可能同因）。
+        // 當時第一次失敗；2026-10-14 被 TB 區蓋住的症狀相同，很可能同因）。
         var previousScroll = (X: double.NaN, Y: double.NaN, DeltaX: double.NaN, DeltaY: double.NaN);
         while (true)
         {
@@ -1235,8 +1235,8 @@ internal static partial class GuiScenarios
         await ClickControlAsync(cdp, process, selector, outcome, cancellationToken).ConfigureAwait(false);
         // 方向鍵會跳過停用的選項，所以要按幾次是目標前面「能選的」選項個數，不是目標的位置。
         // 2026-10-23 起 GL 沒有配對的欄位在選單裡停用，原本照位置按，子條件選單選到後面的選項
-        // （2026-10-28 跨月與巢狀傳票兩個情境，第一次失敗收據 20261028-071425870-02f055e1dbe949d9a7e96007a028cd4b
-        // 與 20261028-071837262-5a7dde054ed848f094853b061a0a3894）。目標本身停用時直接回報，不選到別的選項。
+        // （2026-10-28 跨月與巢狀傳票兩個情境都因此第一次失敗，
+        // 共兩次執行）。目標本身停用時直接回報，不選到別的選項。
         var optionPosition = await cdp.EvaluateAsync("(function () { var select = document.querySelector(" +
             JsonSerializer.Serialize(selector) + "); if (!select) { return -1; } var enabled = Array.prototype.filter.call(select.options, function (option) { return !option.disabled; });" +
             " var target = Array.prototype.find.call(select.options, function (option) { return option.value === " + JsonSerializer.Serialize(value) + "; });" +

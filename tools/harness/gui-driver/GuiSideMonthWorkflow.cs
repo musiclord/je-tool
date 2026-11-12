@@ -79,7 +79,7 @@ internal static partial class GuiScenarios
         await CaptureScreenshotAsync(cdp, outcome, ct); await Save(2);
         outcome.RecordStage("side_month_cancel_return_export_reopen");
         await Click("[data-filter-pane-select=saved]");
-        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
+        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗留在當時的驗證紀錄）。
         await Click(".saved-scenario:nth-of-type(2) .jet-menu__toggle");
         await Click("[data-action=edit-scenario][data-index='1']");
         await Choose(first + "[data-value-polarity]", "exclude"); await Click("[data-action=cancel-edit-scenario]");

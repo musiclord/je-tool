@@ -30,7 +30,7 @@ public sealed class FrontendConstantMirrorTests
     }
 
     [Fact]
-    public void PrescreenLabels_UseTheAuthorityConstantsAndRetainExactApprovedSentences()
+    public void PrescreenLabels_UseTheAuthorityConstantsAndRetainExactSentences()
     {
         // 0 的個數由 GL 算出：不知道個數時寫規則名稱，知道時寫「金額尾數連續 N 個 0」。
         Assert.Equal("分錄金額中有連續 0 的尾數", FilterConditionLabels.PrescreenKeys[PrescreenRuleKeys.TrailingZeros]);

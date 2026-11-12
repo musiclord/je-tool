@@ -162,7 +162,7 @@ public sealed class PrescreenDirectTemplatePackageTests
                 index == rowCount - 1 ? long.MinValue : -10_000))
             .ToArray();
         // 每次用新的暫存資料夾：固定放在系統暫存資料夾時，前一次執行留下的資料庫會被下一次沿用，
-        // 案件資料庫推進版本後就被當成舊版案件拒絕。
+        // 案件資料庫的版本往上改以後，留下的資料庫就被當成較早版本的案件拒絕。
         using var root = new TempProjectRoot();
         var database = new SqliteProjectDatabase(
             new JetProjectFolder(root.Path));

@@ -32,7 +32,7 @@ internal enum WorkingPaperScenarioTagScope
     HitVoucherRows
 }
 
-/// <summary>Application 已驗證且選入底稿的情境 metadata；上限與順序沿用既有 action contract。</summary>
+/// <summary>Application 已驗證且選入底稿的情境 metadata；取自案件已存的情境，個數與順序跟著已存情境。</summary>
 internal sealed record WorkingPaperScenarioSelection(
     int Position,
     string Name,

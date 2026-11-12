@@ -18,7 +18,7 @@ public sealed class FilterTemplatesFrontendTests
         {
             directory = directory.Parent;
         }
-        var root = directory?.FullName ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+        var root = directory?.FullName ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
         var path = Path.Combine(new[] { root, "JET", "wwwroot" }.Concat(parts).ToArray());
         Assert.True(File.Exists(path), $"找不到前端檔：{path}");
         return File.ReadAllText(path);

@@ -3,9 +3,12 @@ namespace JET.Domain;
 /// <summary>科目配對匯入時辨識欄位；先認領確切標頭，再用關鍵字，最後補未認領欄位。</summary>
 internal static class AccountMappingColumnMatcher
 {
+    /// <summary>科目配對範本上分類欄的欄名。</summary>
+    internal const string CategoryColumnName = "Standardized Account Name*";
+
     private static readonly string[][] ExactNames =
     [
-        ["GL_Number"], ["GL_Name"], ["Standardized Account Name*", "STANDARDIZED_ACCOUNT_NAME"]
+        ["GL_Number"], ["GL_Name"], [CategoryColumnName, "STANDARDIZED_ACCOUNT_NAME"]
     ];
 
     private static readonly string[][] Keywords =

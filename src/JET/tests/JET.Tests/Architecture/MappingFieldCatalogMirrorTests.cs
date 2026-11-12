@@ -93,12 +93,12 @@ public sealed class MappingFieldCatalogMirrorTests
 
     private static string ReadUiCore()
     {
-        var path = Path.Combine(RepoRoot(), "JET", "wwwroot", "js", "ui-core.js");
+        var path = Path.Combine(SolutionRoot(), "JET", "wwwroot", "js", "ui-core.js");
         Assert.True(File.Exists(path), $"找不到前端核心檔：{path}");
         return File.ReadAllText(path);
     }
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))
@@ -107,7 +107,7 @@ public sealed class MappingFieldCatalogMirrorTests
         }
 
         return directory?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 
     private sealed record MirrorSlot(

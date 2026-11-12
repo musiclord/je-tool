@@ -6,7 +6,7 @@ namespace JET.Tests.Infrastructure;
 public sealed class PrivateCaseAcceptancePolicyTests
 {
     [Fact]
-    public void Current_UsesTheThreeApprovedRules()
+    public void Current_UsesTheThreeAcceptanceRules()
     {
         var policy = PrivateCaseAcceptancePolicy.Current;
 
@@ -32,7 +32,7 @@ public sealed class PrivateCaseAcceptancePolicyTests
     [InlineData(1, 0, 1, 59)]
     [InlineData(1, 1, 0, 59)]
     [InlineData(1, 1, 1, 60)]
-    public void Create_AnyUnapprovedAlternative_IsRejected(
+    public void Create_AnyOtherCombination_IsRejected(
         int reportComparison,
         int infVerification,
         int cleanupMode,

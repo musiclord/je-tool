@@ -1568,7 +1568,7 @@ test('a trial-balance import response that invalidates filter results clears the
   const f = savedFixture({ saved: [savedBlankNamed('甲'), savedBlankNamed('乙')], pane: 'saved' });
   const vm = require('node:vm'), fs = require('node:fs'), path = require('node:path');
   vm.runInContext(fs.readFileSync(path.join(F.root, 'steps/import-step.js'), 'utf8')
-    .replace("  Ui.registerStep('import', render);", '  window.importOps = { applyResponse };'), f.context, { filename: 'steps/import-step.js' });
+    .replace("  Ui.registerStep('import', render);", '  window.exposedImport = { applyResponse };'), f.context, { filename: 'steps/import-step.js' });
   f.click('[data-action="toggle-scenario"][data-index="0"]'); await settle();
   // 有可用版本時展開只讀一次傳票頁。
   f.request('queryFilterVoucherPage').resolve(savedFirstPage('OLD-1')); await settle(); await settle();
@@ -1578,7 +1578,7 @@ test('a trial-balance import response that invalidates filter results clears the
   assert.equal(before.filter.savedScenarios.length, 2);
 
   // 後端對 TB 匯入回的失效清單：驗證、預篩選、篩選命中與情境定義都失效，科目配對清掉（AuditDependencyPolicy 的 TbImport）。
-  f.window.importOps.applyResponse('tb', { batchId: 'tb-synthetic', rowCount: 3, columns: ['科目代號', '科目名稱', '本期變動'],
+  f.window.exposedImport.applyResponse('tb', { batchId: 'tb-synthetic', rowCount: 3, columns: ['科目代號', '科目名稱', '本期變動'],
     sources: [{ fileName: 'synthetic-tb.xlsx' }],
     invalidatedResults: { validation: true, prescreen: true, filter: true, filterScenarios: true, accountMapping: true },
     staleState: { validation: false, prescreen: false, filter: false }, reports: [] });

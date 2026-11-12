@@ -277,7 +277,7 @@ internal static class JetFieldCatalog
 
     /// <summary>
     /// 判斷目前已提交 mapping 是否真的提供指定 GL semantic field 的來源位置。
-    /// 以目錄中的 semantic field → mapping slots 關係解析，且空白 legacy 值一律 fail closed；
+    /// 以目錄中的 semantic field → mapping slots 關係解析，配對值空白一律當成沒有來源；
     /// 不以 target 欄位存在或投影後全 NULL 猜測可用性。
     /// </summary>
     internal static bool HasMappedGlSemanticField(

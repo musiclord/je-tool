@@ -113,7 +113,7 @@ public static class FilterCompileCheck
 }
 
 /// <summary>
-/// 找不到案件資料夾，以及舊版 JET 建立的案件時的句子。
+/// 找不到案件資料夾，以及案件是較早版本的 JET 建立時的句子。
 /// 同一種情況全程式只用這幾句，不印程式代號，也不寫「可能」。
 /// </summary>
 public static class ProjectFolderMessages
@@ -136,12 +136,12 @@ public static class ProjectFolderMessages
         "這個案件資料庫的版本資訊無法辨識，目前版本無法開啟。請從備份還原案件資料夾，或用目前版本重新建立案件，再重新匯入資料。";
 
     /// <summary>
-    /// 舊版 JET 建立的案件。案件設定檔、案件資料庫與欄位配對讀到舊版內容時都用這一句，下一步是刪除後重建
+    /// 較早版本的 JET 建立的案件。案件設定檔、案件資料庫與欄位配對讀到較早版本的內容時都用這一句，下一步是刪除後重建
     /// （案件資料庫只留現行結構，版本不符時請審計員刪除後重建）。讀不到案件名稱時寫「這個案件」。
     /// </summary>
     public static string OldVersionProject(string? projectName = null) =>
         (string.IsNullOrEmpty(projectName) ? "這個案件" : $"案件「{projectName}」")
-        + "是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
+        + "是較早版本的 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。";
 
     /// <summary>
     /// 本機案件的資料庫檔案不見了。只有建案會建立資料庫，開案與讀寫都不會默默建出空的資料庫，

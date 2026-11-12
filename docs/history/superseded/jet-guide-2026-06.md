@@ -368,7 +368,7 @@ Step 5  工作底稿產出     →  Excel 多工作表
 - **標頭列** = 第一個含非空萃取值的列（只有樣式、沒有值的列不算）。cell 依實際欄號對應；OOXML 允許省略列號／cell 參考（`r` 屬性），缺席時以連續計數遞補。
 - **共用字串**：`sharedStrings.xml` 一次串流載入；只取 `<t>` 與 rich text run `<r><t>` 的文字，**排除 `<rPh>`（注音讀音 run）與 `<phoneticPr>`**——台灣 ERP 匯出的活頁簿常帶注音標記，混入會污染欄名與摘要。
 - **cell 型別**：`t="s"`（共用字串）、`t="inlineStr"`、`t="str"`（公式字串結果）、`t="b"` → `true`/`false`、`t="e"` → 錯誤原文；無型別屬性 = 數值。公式 cell 取快取值 `<v>`；無快取值視為空（串流讀取不重算公式）。
-- **數值正規化**：`<v>` 以 `double` 解析（容許科學記號）→ `(decimal)` 轉換 → InvariantCulture 字串（超出 decimal 範圍時退 round-trip `"R"` 格式）。double→decimal 轉換會吸收浮點殘影（`535.04999999999995` → `"535.05"`），這是 staging 顯示值與金額解析穩定的關鍵。
+- **數值正規化**：`<v>` 以 `double` 解析（容許科學記號）→ `(decimal)` 轉換 → InvariantCulture 字串（超出 decimal 範圍時退 round-trip `"R"` 格式）。double→decimal 轉換會吸收浮點殘影（`218.34999999999999` → `"218.35"`），這是 staging 顯示值與金額解析穩定的關鍵。
 - **日期樣式判定**：`styles.xml` 一次解析；數值 cell 的樣式 numFmtId 屬日期格式（內建日期 id 集，或自訂格式碼在引號字面值／`[...]` 區段／反斜線跳脫**之外**含 y/m/d 記號）→ `FromOADate` 轉 `yyyy-MM-dd`；僅含 h/m/s → 時間值。**型別優先於樣式**（共用字串 cell 套了日期樣式仍是字串）。`date1904` 活頁簿序列值 +1462 校正。未套日期樣式的日期序列值留待投影階段的 `DateNormalizer` 以 OADate 規則兜底（§3.1.3 第 4 順位）。
 - 只有樣式沒有值的 cell（`<c s="2"/>`）視為空；全空列跳過；`SourceRowNumber` = 工作表內實際列號。
 - 工作表以名稱解析（不分大小寫）、缺省取第一個；chartsheet 不是資料工作表，從清單剔除。

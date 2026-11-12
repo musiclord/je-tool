@@ -52,8 +52,8 @@ public sealed class TypedFieldRuleValidationTests
             { DateFieldId, "between", null, "2025-01-01", "2025-12-31", null, null },
             { DateFieldId, "isBlank", null, null, null, null, null },
             { DateFieldId, "isNotBlank", null, null, null, null, null },
-            // money：9 operators（比較 operator 必填 amountBasis；blank 家族亦必填——凍結
-            // 契約要求「每條 money 規則明示 amountBasis」，不分 operator 種類）
+            // money：9 operators（比較 operator 必填 amountBasis；blank 家族亦必填——
+            // 每條 money 規則都要明示 amountBasis，不分 operator 種類）
             { MoneyFieldId, "equals", "100.50", null, null, null, "signed" },
             { MoneyFieldId, "notEquals", "100.50", null, null, null, "absolute" },
             { MoneyFieldId, "greaterThan", "-3", null, null, null, "signed" },

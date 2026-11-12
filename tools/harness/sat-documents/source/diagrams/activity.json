@@ -1,0 +1,484 @@
+{
+  "title": "JET 活動圖：「資料驗證與測試」的作業流程",
+  "header": [
+    "JET 1.0.0.0 活動圖。範圍：審計員在「資料驗證與測試」步驟執行資料驗證，至進入「進階條件篩選」為止。",
+    "表示法：UML 活動圖。括號內的英文是前端送出的 action 名稱。"
+  ],
+  "sourceRoot": "src/JET/JET",
+  "lanes": [
+    {
+      "id": "auditor",
+      "label": "審計員"
+    },
+    {
+      "id": "jet",
+      "label": "JET"
+    }
+  ],
+  "endLane": "jet",
+  "flow": [
+    {
+      "type": "action",
+      "id": "run",
+      "lane": "auditor",
+      "text": [
+        "輸入資料可靠性測試抽樣筆數，",
+        "執行資料驗證（validate.run）"
+      ],
+      "evidence": [
+        {
+          "file": "wwwroot/js/steps/validate-step.js",
+          "text": "資料可靠性測試抽樣筆數"
+        },
+        {
+          "file": "wwwroot/js/steps/validate-step.js",
+          "text": "data-action=\"run-validate\""
+        },
+        {
+          "file": "wwwroot/js/steps/validate-step.js",
+          "text": "global.JetApi.validateRun({ sampleSize: sampleSize })"
+        },
+        {
+          "file": "wwwroot/js/jet-api.js",
+          "text": "'validate.run',"
+        }
+      ]
+    },
+    {
+      "type": "decision",
+      "id": "precheck",
+      "lane": "jet",
+      "text": [
+        "前置檢查通過？"
+      ],
+      "evidence": [
+        {
+          "file": "wwwroot/js/steps/validate-step.js",
+          "text": "sampleSize < 1 || sampleSize > 1048524"
+        },
+        {
+          "file": "Domain/ActionExecutionPolicy.cs",
+          "text": "\"validate.run\","
+        },
+        {
+          "file": "Bridge/ActionDispatcher.cs",
+          "text": "JetErrorCodes.OperationInProgress,"
+        },
+        {
+          "file": "Application/Handlers/ValidateRunHandler.cs",
+          "text": "JetAuditProgram.RequireGlMapping(glMapping is not null);"
+        }
+      ],
+      "branches": [
+        {
+          "guard": "否",
+          "flow": [
+            {
+              "type": "action",
+              "id": "reject",
+              "lane": "jet",
+              "text": [
+                "顯示原因，不執行資料驗證：",
+                "抽樣筆數非 1 至 1,048,524 的整數、",
+                "另一項作業執行中，或 GL 欄位配對未確認"
+              ],
+              "evidence": [
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "抽樣筆數請填入 1 到 1048524 的整數。"
+                },
+                {
+                  "file": "Bridge/ActionDispatcher.cs",
+                  "text": "另一項作業正在進行中，請待其完成後再操作。"
+                },
+                {
+                  "file": "AuditCore/JetAuditProgram.cs",
+                  "text": "尚未確認 GL 欄位配對，請先到第三步按「確認配對」。"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "guard": "是",
+          "flow": [
+            {
+              "type": "action",
+              "id": "population",
+              "lane": "jet",
+              "text": [
+                "開始資料庫交易，統計分錄筆數、",
+                "借貸合計與金額分布"
+              ],
+              "evidence": [
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "await connection.BeginTransactionAsync(cancellationToken);"
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "var populationSummary = await ReadPopulationSummaryAsync("
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "var amountBinCounts = await ReadAmountDistributionAsync("
+                }
+              ]
+            },
+            {
+              "type": "decision",
+              "id": "tbReady",
+              "lane": "jet",
+              "text": [
+                "已匯入 TB，且 TB",
+                "欄位配對已確認？"
+              ],
+              "evidence": [
+                {
+                  "file": "AuditCore/AccountComparisonProcedure.cs",
+                  "text": "NaReason: hasTbMapping ? null : hasTbImport ? MissingTbMappingReason : MissingTbImportReason);"
+                },
+                {
+                  "file": "AuditCore/ValidationProgram.cs",
+                  "text": "internal bool RunCompleteness =>"
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "if (plan.RunCompleteness)"
+                }
+              ],
+              "branches": [
+                {
+                  "guard": "是",
+                  "flow": [
+                    {
+                      "type": "action",
+                      "id": "accountComparison",
+                      "lane": "jet",
+                      "text": [
+                        "執行完整性測試的",
+                        "GL 與 TB 逐科目比對"
+                      ],
+                      "evidence": [
+                        {
+                          "file": "wwwroot/js/steps/validate-step.js",
+                          "text": "title: '完整性測試',"
+                        },
+                        {
+                          "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                          "text": "await ReadCompletenessAsync(connection, transaction, input, cancellationToken);"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "guard": "否",
+                  "flow": [
+                    {
+                      "type": "action",
+                      "id": "accountComparisonNotRun",
+                      "lane": "jet",
+                      "text": [
+                        "完整性測試的 GL 與 TB 逐科目比對",
+                        "記為無法執行，並記錄原因"
+                      ],
+                      "evidence": [
+                        {
+                          "file": "AuditCore/AccountComparisonProcedure.cs",
+                          "text": "沒有匯入 TB，無法執行 GL 與 TB 逐科目比對。"
+                        },
+                        {
+                          "file": "AuditCore/AccountComparisonProcedure.cs",
+                          "text": "TB 欄位配對尚未確認，無法執行 GL 與 TB 逐科目比對。"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "action",
+              "id": "otherTests",
+              "lane": "jet",
+              "text": [
+                "執行借貸不平測試、資料可靠性測試、",
+                "資料缺漏輔助檢視與總帳日期空白檢查"
+              ],
+              "evidence": [
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "title: '借貸不平測試',"
+                },
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "title: '資料可靠性測試',"
+                },
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "資料缺漏輔助檢視</h5>"
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "ValidationProcedures.UnbalancedCore()"
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "await InsertInfSampleAsync(connection, transaction, input, cancellationToken);"
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "await ReadBlankRecordsAsync("
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "await ReadSourceQualityFindingCountAsync("
+                }
+              ]
+            },
+            {
+              "type": "action",
+              "id": "finalize",
+              "lane": "jet",
+              "text": [
+                "判定各項結果（含存入筆數與合計核對），",
+                "儲存驗證結果並提交交易"
+              ],
+              "evidence": [
+                {
+                  "file": "Application/Handlers/ValidateRunHandler.cs",
+                  "text": "var validation = JetAuditProgram.Finalize(plan, facts);"
+                },
+                {
+                  "file": "AuditCore/JetAuditProgram.cs",
+                  "text": "RowCountMatch: control.EligibleSourceRowCount == gl.RowCount,"
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "await LocalResultStore.SaveWithinAsync(connection, transaction, record, cancellationToken);"
+                },
+                {
+                  "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+                  "text": "await transaction.CommitAsync(CancellationToken.None);"
+                }
+              ]
+            },
+            {
+              "type": "action",
+              "id": "reports",
+              "lane": "jet",
+              "text": [
+                "產生資料驗證報告、資料可靠性抽樣清單",
+                "與科目配對範本（export.validationReports、",
+                "export.accountMappingTemplate）"
+              ],
+              "evidence": [
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "return exportValidationOutputs(data);"
+                },
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "global.JetApi.exportValidationReports({ resultId: resultId })"
+                },
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "global.JetApi.exportAccountMappingTemplate({ resultId: resultId, onlyIfMissing: onlyIfMissing })"
+                },
+                {
+                  "file": "Application/Handlers/ExportReportHandlers.cs",
+                  "text": "public string Action => \"export.validationReports\";"
+                },
+                {
+                  "file": "Application/Handlers/ExportReportHandlers.cs",
+                  "text": "[ReportKind.InfReport] = progressSession.Start(ReportKind.InfReport)"
+                },
+                {
+                  "file": "Application/Handlers/ExportAccountMappingTemplateHandler.cs",
+                  "text": "public string Action => \"export.accountMappingTemplate\";"
+                }
+              ]
+            },
+            {
+              "type": "action",
+              "id": "review",
+              "lane": "auditor",
+              "text": [
+                "查看各項結果、",
+                "差異提醒與明細"
+              ],
+              "note": [
+                "存入筆數與合計核對未通過、",
+                "GL 與 TB 逐科目比對無法執行",
+                "或有差異時，JET 顯示提醒，",
+                "不鎖定後續步驟。"
+              ],
+              "evidence": [
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "sortAction: 'query.completenessDiffPage'"
+                },
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "sortAction: 'query.voucherBalancePage'"
+                },
+                {
+                  "file": "wwwroot/js/steps/validate-step.js",
+                  "text": "sortAction: 'query.blankRecordsPage'"
+                },
+                {
+                  "file": "AuditCore/CompletenessEligibility.cs",
+                  "text": "warnings.Add(StoredTotalsMismatchReason);"
+                },
+                {
+                  "file": "AuditCore/CompletenessEligibility.cs",
+                  "text": "warnings.Add(facts.AccountComparisonNaReason ?? AccountComparisonProcedure.MissingTbMappingReason);"
+                },
+                {
+                  "file": "AuditCore/CompletenessEligibility.cs",
+                  "text": "return new CompletenessEligibilityDecision(IsEligible: true, Reason: null,"
+                },
+                {
+                  "file": "AuditCore/CompletenessEligibility.cs",
+                  "text": "審計員可說明差異原因並繼續篩選與匯出。"
+                }
+              ]
+            },
+            {
+              "type": "decision",
+              "id": "resultUsable",
+              "lane": "jet",
+              "text": [
+                "驗證結果存在、",
+                "未過期且完整？"
+              ],
+              "evidence": [
+                {
+                  "file": "wwwroot/js/ui-core.js",
+                  "text": "var completeness = completenessEligibility(state.results.validate);"
+                },
+                {
+                  "file": "AuditCore/CompletenessEligibility.cs",
+                  "text": "return Ineligible(MissingCurrentValidationReason);"
+                },
+                {
+                  "file": "AuditCore/CompletenessEligibility.cs",
+                  "text": "return Ineligible(IncompleteValidationReason);"
+                },
+                {
+                  "file": "AuditCore/CompletenessEligibility.cs",
+                  "text": "return Ineligible(StaleValidationReason);"
+                }
+              ],
+              "branches": [
+                {
+                  "guard": "否",
+                  "flow": [
+                    {
+                      "type": "action",
+                      "id": "locked",
+                      "lane": "jet",
+                      "text": [
+                        "鎖定「進階條件篩選」並顯示原因；",
+                        "須重新執行資料驗證"
+                      ],
+                      "evidence": [
+                        {
+                          "file": "wwwroot/js/ui-core.js",
+                          "text": "missing.push(completeness.reason);"
+                        },
+                        {
+                          "file": "AuditCore/CompletenessEligibility.cs",
+                          "text": "目前資料尚無可用的資料驗證結果，請重新執行資料驗證。"
+                        },
+                        {
+                          "file": "Application/Support/CompletenessEligibilitySupport.cs",
+                          "text": "JetErrorCodes.CompletenessPrerequisiteFailed,"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "guard": "是",
+                  "flow": [
+                    {
+                      "type": "decision",
+                      "id": "wantPrescreen",
+                      "lane": "auditor",
+                      "text": [
+                        "執行預篩選？"
+                      ],
+                      "evidence": [
+                        {
+                          "file": "wwwroot/js/steps/validate-step.js",
+                          "text": "data-action=\"run-prescreen\""
+                        },
+                        {
+                          "file": "wwwroot/js/ui-core.js",
+                          "text": "missing.push('執行資料驗證');"
+                        }
+                      ],
+                      "branches": [
+                        {
+                          "guard": "是",
+                          "flow": [
+                            {
+                              "type": "action",
+                              "id": "prescreen",
+                              "lane": "jet",
+                              "text": [
+                                "執行預篩選（prescreen.run）"
+                              ],
+                              "evidence": [
+                                {
+                                  "file": "wwwroot/js/steps/validate-step.js",
+                                  "text": "global.JetApi.prescreenRun({})"
+                                },
+                                {
+                                  "file": "Application/Handlers/PrescreenRunHandler.cs",
+                                  "text": "public string Action => \"prescreen.run\";"
+                                },
+                                {
+                                  "file": "Application/Handlers/PrescreenRunHandler.cs",
+                                  "text": "await CompletenessEligibilitySupport.RequireCurrentAsync("
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "guard": "否",
+                          "flow": []
+                        }
+                      ]
+                    },
+                    {
+                      "type": "action",
+                      "id": "nextStep",
+                      "lane": "auditor",
+                      "text": [
+                        "進入「進階條件篩選」"
+                      ],
+                      "evidence": [
+                        {
+                          "file": "wwwroot/js/state.js",
+                          "text": "{ id: 'filter', label: '進階條件篩選' },"
+                        },
+                        {
+                          "file": "wwwroot/js/state.js",
+                          "text": "{ id: 'validate', label: '資料驗證與測試' },"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

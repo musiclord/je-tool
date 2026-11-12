@@ -119,7 +119,7 @@ public sealed class ProjectDatabaseCheckpointTests
             await creator.DispatchAsync("project.releaseLock");
         }
 
-        // 把版本改成舊版：開案會在讀過資料庫之後被拒絕。
+        // 把版本改成比現行版本小：開案會在讀過資料庫之後被拒絕。
         var databasePath = DatabasePath(projects, name, provider);
         await ExecuteDirectAsync(databasePath, provider, "UPDATE schema_info SET value = '19' WHERE key = 'schema_version';");
 

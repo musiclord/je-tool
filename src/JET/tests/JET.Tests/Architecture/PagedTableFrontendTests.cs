@@ -32,7 +32,7 @@ public sealed class PagedTableFrontendTests
         {
             directory = directory.Parent;
         }
-        var root = directory?.FullName ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+        var root = directory?.FullName ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
         return File.ReadAllText(Path.Combine(new[] { root, "JET", "wwwroot" }.Concat(parts).ToArray()));
     }
 

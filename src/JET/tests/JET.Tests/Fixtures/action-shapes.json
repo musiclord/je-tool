@@ -1618,6 +1618,26 @@
       "response": {
         "kind": "object",
         "fields": {
+          "accountCategory": {
+            "kind": "object",
+            "fields": {
+              "categories": {
+                "kind": "array",
+                "items": {
+                  "kind": "object",
+                  "fields": {
+                    "categoryId": "string",
+                    "isBuiltIn": "boolean",
+                    "label": "string",
+                    "ordinal": "number",
+                    "parentCategoryId": "null|string",
+                    "semanticRole": "string"
+                  }
+                }
+              },
+              "revision": "number"
+            }
+          },
           "batchId": "string",
           "blankCategoryCount": "number",
           "columnMappingWarning": "null|string",

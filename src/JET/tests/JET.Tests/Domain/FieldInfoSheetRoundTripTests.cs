@@ -106,7 +106,7 @@ public sealed class FieldInfoSheetRoundTripTests
     [Theory]
     [InlineData(GlAmountMode.AmountWithSide, "D", "C")]
     [InlineData(GlAmountMode.AmountWithFlag, "1", "2")]
-    // 實際代碼剛好與舊版占位文字相同時，明確寫出的雙側代碼仍須完整保留。
+    // 實際代碼剛好是配對鍵 drCrDebitCode 時（較早版本的 JET 在沒有借方代碼時，說明句的借方寫的就是這個配對鍵），明確寫出的雙側代碼仍須完整保留。
     [InlineData(GlAmountMode.AmountWithSide, "drCrDebitCode", "C")]
     public void SidedAmountWithBothCodes_ComesBackWithBothCodes(GlAmountMode mode, string debitCode, string creditCode)
     {

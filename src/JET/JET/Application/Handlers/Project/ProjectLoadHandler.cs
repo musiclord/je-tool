@@ -70,7 +70,7 @@ public sealed class ProjectLoadHandler : IApplicationActionHandler
         try
         {
             // 載入時完整檢查一次建表與版本；之後同一程序內的讀寫只確認檔案仍在。
-            // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本並拒絕舊版。
+            // 程式開著時用舊的備份覆蓋已關閉的案件，這裡會重新檢查版本，版本較舊就拒絕。
             // 開案不建立新的資料庫：本機案件的資料庫不見或沒有內容時，比照無法開啟的案件回報。
             SupportOperationStage.Enter("database_open");
             await repositories.DatabaseInitializer.EnsureExistingAsync(document.ProjectId, cancellationToken);

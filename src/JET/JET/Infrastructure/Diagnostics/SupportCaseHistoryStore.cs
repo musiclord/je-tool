@@ -463,7 +463,7 @@ public sealed class SupportCaseHistoryStore : ISupportCaseHistory, IDisposable
             "case support history starts here",
             new Dictionary<string, object?>(StringComparer.Ordinal)
             {
-                // case_created：案件在這個程序建立；no_earlier_record：之前沒有保存的紀錄，例如用舊版建立或紀錄檔被刪除。
+                // case_created：案件在這個程序建立；no_earlier_record：之前沒有保存的紀錄，例如案件是較早版本的 JET 建立的，或紀錄檔被刪除。
                 ["history_start"] = createdNow ? "case_created" : "no_earlier_record",
             });
 

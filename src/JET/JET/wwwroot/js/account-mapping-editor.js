@@ -87,7 +87,13 @@
         '<option value="">請選擇分類</option>' + categories.map(function (c) {
           return '<option value="' + Ui.esc(c.categoryId) + '"' + (m.category === c.categoryId ? ' selected' : '') + '>' +
             Ui.esc('　'.repeat(c.depth) + (c.depth ? '└ ' : '') + c.label) + '</option>';
-        }).join('') + '</select></label><button type="button" class="btn btn--ghost" data-account-apply' +
+        }).join('') + '</select></label>' +
+      // 要套用的分類還沒有時按選單旁的加號新增。不放進下拉選單：用方向鍵瀏覽選項時每換一項就送出 change，
+      // 選單裡放會開啟別處的項目，鍵盤使用者一移到它就被帶走。按鈕只有圖示，這一排在勾選科目後才放得下；
+      // 名稱寫在看不見的文字與滑鼠提示裡。
+      '<button type="button" class="btn btn--ghost btn--add account-editor__add-category" data-account-add-category' +
+        ' data-focus-key="account-add-category" title="新增分類"><span class="visually-hidden">新增分類</span></button>' +
+      '<button type="button" class="btn btn--ghost" data-account-apply' +
         (!m.category || !Object.keys(m.selected).length || m.loading ? ' disabled' : '') + '>套用至已選科目</button></div>' +
       (m.error ? Ui.loadFailureHtml(m.error, { 'data-account-retry': true }) : '') +
       (m.droppedCount ? '<p class="form-notice form-notice--warning" data-account-dropped role="status">有 ' + Ui.countText(m.droppedCount) +
@@ -235,13 +241,18 @@
     }, true);
     return sync;
   }
-  function bind(container) {
+  // options.addCategory：按選單旁的「新增分類」時由第四步打開分類設定的新列。
+  function bind(container, options) {
     var card = container.querySelector('[data-bind="account-editor"]');
     if (!card) { return; }
     var m = current(Store.getState());
     var syncSelection = bindAccountSelection(card, m);
     card.querySelector('[data-account-bulk-category]').addEventListener('change', function (event) {
       m.category = event.currentTarget.value; Store.touch();
+    });
+    // 勾選與待儲存的分類都留著，新分類存好後回來可以直接套用。
+    card.querySelector('[data-account-add-category]').addEventListener('click', function () {
+      if (options && options.addCategory) { options.addCategory(); }
     });
     card.querySelector('[data-account-apply]').addEventListener('click', function () {
       if (!m.category || m.loading || !Ui.accountCategories(Store.getState()).some(function (c) { return c.categoryId === m.category; })) { return; }
@@ -369,6 +380,13 @@
     });
   }
 
-  Ui.accountMappingEditor = { html: html, bind: bind, pendingCount: pendingCount, confirmPending: confirmPending };
+  // 分類設定存好新分類後，回到科目配對時把它選進「套用分類」。
+  function selectCategory(categoryId) {
+    var state = Store.getState();
+    if (state.project) { current(state).category = categoryId; }
+  }
+
+  Ui.accountMappingEditor = { html: html, bind: bind, pendingCount: pendingCount, confirmPending: confirmPending,
+    selectCategory: selectCategory };
   Ui.registerWorkflowReset(function () { model = null; });
 })(window);

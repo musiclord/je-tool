@@ -8,8 +8,8 @@ namespace JET.Tests.Architecture;
 /// <summary>
 /// 前後端 action 清單的漂移守衛：前端 <c>jet-api.js</c> 的
 /// <c>SUPPORTED_ACTIONS</c> 必須涵蓋後端 dispatcher 的 <c>RegisteredActions</c>。
-/// 前端沒有自動測試——action 改名/新增只改一邊時，前端會默默拿到 unknown action 的 bridge_error；
-/// 這條守衛把該缺口升級為 CI 可擋。
+/// action 改名或新增只改一邊時，前端會拿到 unknown action 的 bridge_error；
+/// 這個測試比對兩邊的清單，讓不一致在測試時就失敗。
 /// 後端以 enableDevTools:true 組裝（dev.* 只在 Debug 註冊；前端清單含 dev.*，由 system.ping 的
 /// devToolsEnabled 在 Release 隱藏面板，而非從清單移除）。五個 demo facade method 同樣靜態保留，
 /// 但 Release composition 不註冊其 handler；Release 的前端單邊差異必須精確等於這五項。
@@ -69,7 +69,7 @@ public sealed class SupportedActionsParityTests
     [Fact]
     public void FrontendCancellableActions_AreRegisteredAndClassified()
     {
-        var appPath = Path.Combine(RepoRoot(), "JET", "wwwroot", "js", "app.js");
+        var appPath = Path.Combine(SolutionRoot(), "JET", "wwwroot", "js", "app.js");
         var source = File.ReadAllText(appPath);
         var objectMatch = Regex.Match(
             source, @"CANCELLABLE_ACTIONS\s*=\s*\{(?<body>[^}]*)\}", RegexOptions.Singleline);
@@ -102,7 +102,7 @@ public sealed class SupportedActionsParityTests
     /// <summary>從 wwwroot/js/jet-api.js 解析 SUPPORTED_ACTIONS 陣列的字串常值（排序後回傳）。</summary>
     private static List<string> ReadFrontendSupportedActions()
     {
-        var jetApiPath = Path.Combine(RepoRoot(), "JET", "wwwroot", "js", "jet-api.js");
+        var jetApiPath = Path.Combine(SolutionRoot(), "JET", "wwwroot", "js", "jet-api.js");
         Assert.True(File.Exists(jetApiPath), $"找不到前端 API 檔：{jetApiPath}");
 
         var source = File.ReadAllText(jetApiPath);
@@ -117,7 +117,7 @@ public sealed class SupportedActionsParityTests
     }
 
     /// <summary>從測試程式所在的資料夾往上找 `JET.slnx`，回傳方案檔所在的資料夾。</summary>
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "JET.slnx")))
@@ -126,6 +126,6 @@ public sealed class SupportedActionsParityTests
         }
 
         return dir?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

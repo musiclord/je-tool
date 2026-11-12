@@ -567,7 +567,7 @@ public sealed class DesignIntegrationFrontendTests
     {
         // 要避免的情形：第二條以後的條件不飛、中欄一下跳約 900px；訊息區高度沒有在動，
         // 視窗矮時開關被推出畫面；切換常用查核條件的第一格會閃；切換頁籤時已打開的區塊會再長一次；原地換掉的區塊新的在上面；
-        // 收合目前的步驟一瞬間消失；設為主要條件沒有動態。這裡鎖住避免這些情形的做法。
+        // 收合目前的步驟一瞬間消失；清單裡的項目換了順序時沒有動態。這裡鎖住避免這些情形的做法。
         var app = ReadFrontend("js", "app.js");
         var css = ReadFrontend("css", "app.css");
         var filter = ProductSources.FilterStepFrontend();

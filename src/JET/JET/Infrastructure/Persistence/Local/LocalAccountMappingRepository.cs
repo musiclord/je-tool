@@ -7,8 +7,8 @@ namespace JET.Infrastructure;
 
 /// <summary>
 /// 科目配對的匯入與 presence 查詢（import.accountMapping.fromFile）。
-/// 與 GL/TB 匯入的差異：格式固定三欄、無欄位配對步驟——staging 寫入與
-/// target 投影在**同一 transaction**（任一列分類非法即整批 rollback）。
+/// 與 GL/TB 匯入的差異：格式固定三欄、無欄位配對步驟——staging 寫入、
+/// target 投影與新增的自訂分類在**同一 transaction**（任一列無法讀取即整批 rollback）。
 /// replace-only：科目配對是整份替換的設定檔，不做多來源合併。
 /// </summary>
 public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database)
@@ -55,9 +55,6 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
     {
         source = ImportSourceFileName.Normalize(source);
         await database.EnsureReadyAsync(projectId, cancellationToken);
-        projection ??= JetAuditProgram.PrepareAccountMappingProjection(
-            columns,
-            AccountCategoryCatalog.BuiltInSnapshot);
 
         var batchId = Guid.NewGuid().ToString("N");
         var importedUtc = DateTimeOffset.UtcNow;
@@ -66,6 +63,10 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
         await using var connection = database.CreateConnection(projectId);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        // 呼叫端沒有先準備投影時，用案件目前的科目分類解析分類欄。
+        projection ??= JetAuditProgram.PrepareAccountMappingProjection(
+            columns,
+            await LocalAccountCategoryStore.ReadWithinAsync(connection, transaction, cancellationToken));
 
         // replace 語意：同一 transaction 清除舊批次、staging 與 target。
         await using (var cleanup = connection.CreateCommand())
@@ -105,7 +106,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
                 """;
             insertBatch.AddWithValue("@batchId", batchId);
             insertBatch.AddWithValue("@kind", kindName);
-            // source_file_path 是 legacy 實體欄名；本地案件只保存可攜的檔名。
+            // source_file_path 這一欄的名稱帶 path，存的只是可攜的檔名，不是本機完整路徑。
             insertBatch.AddWithValue("@filePath", source.FileName);
             insertBatch.AddWithValue("@fileName", source.FileName);
             insertBatch.AddWithValue("@sheetName", (object?)source.SheetName ?? DBNull.Value);
@@ -157,6 +158,19 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
             throw;
         }
 
+        // 匯入檔帶來案件還沒有的分類名稱時，新分類和科目配對一起寫入，匯入失敗就一起回復。
+        // 科目配對匯入本身已經清除預篩選、篩選命中與篩選情境，這裡不必再清一次。
+        var categories = projection.CategorySnapshot;
+        if (projection.AddedCategories.Count > 0)
+        {
+            categories = await LocalAccountCategoryStore.ReplaceWithinAsync(
+                connection,
+                transaction,
+                categories.Revision,
+                [.. categories.Categories, .. projection.AddedCategories],
+                cancellationToken);
+        }
+
         await using (var insertTarget = connection.CreateCommand())
         {
             insertTarget.Transaction = transaction;
@@ -203,7 +217,7 @@ public sealed class LocalAccountMappingRepository(ILocalProjectDatabase database
 
         await transaction.CommitAsync(cancellationToken);
 
-        return new AccountMappingImportResult(batchId, rowCount, columns, source.FileName, importedUtc);
+        return new AccountMappingImportResult(batchId, rowCount, columns, source.FileName, importedUtc, categories);
     }
 
     public async Task<AccountMappingState?> FindStateAsync(string projectId, CancellationToken cancellationToken)

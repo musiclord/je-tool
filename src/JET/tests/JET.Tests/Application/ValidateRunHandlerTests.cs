@@ -284,9 +284,9 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
             .AddRow("JV-001", "2025-03-05", "1101", "現金", "借方", "100.00", 1)
             .AddRow("JV-001", "2025-03-05", "4101", "銷貨收入", "貸方", "100.00", 0));
 
-        // 模擬舊專案：把 project.json 的 sampleSeed 與版本欄位一併移除（欄位問世前的形狀）。
-        // 舊版案件由設定檔版本判斷，缺抽樣欄位但版本是現行的設定檔算損壞；
-        // 所以這裡另把設定檔版本改回舊版 JET 寫的第 1 版。
+        // 模擬較早版本的 JET 建立的案件：把 project.json 的 sampleSeed 與版本欄位一併移除。
+        // 這種案件由設定檔版本判斷，缺抽樣欄位但版本是現行的設定檔算損壞；
+        // 所以這裡另把設定檔版本改成第 1 版。
         var path = Path.Combine(host.ProjectsRoot, projectId, "project.json");
         var node = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         node.Remove("sampleSeed");
@@ -300,7 +300,7 @@ public sealed class ValidateRunHandlerTests(DemoProjectFixture fixture) : IClass
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
         // 訊息不寫檔名與缺了哪個設定，要寫明刪除後重建。
         Assert.Equal(
-            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
+            $"案件「{projectId}」是較早版本的 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
     }
 

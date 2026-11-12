@@ -192,7 +192,7 @@ public sealed class TerminologyUnificationFrontendTests
             "摘要空白", "位元組", "・", "輔助訊號"
         };
         const string lockedMark = "<span class=\"toc-item__mark toc-item__mark--locked\">·</span>";
-        var root = Path.Combine(RepoRoot(), "JET", "wwwroot");
+        var root = Path.Combine(SolutionRoot(), "JET", "wwwroot");
         var files = Directory.GetFiles(Path.Combine(root, "js"), "*.js", SearchOption.AllDirectories)
             .Where(path => !path.Contains(Path.DirectorySeparatorChar + "vendor" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             .ToList();
@@ -207,10 +207,10 @@ public sealed class TerminologyUnificationFrontendTests
             if (Path.GetRelativePath(root, file) == Path.Combine("js", "steps", "validate-step.js"))
             {
                 // 這句寫「GL 分錄」，不寫「總帳母體」。
-                const string approvedSentence = "金額不符時，要確認 GL 分錄是否完整。";
-                Assert.Contains(approvedSentence, code, StringComparison.Ordinal);
-                Assert.Equal(code.IndexOf(approvedSentence, StringComparison.Ordinal), code.LastIndexOf(approvedSentence, StringComparison.Ordinal));
-                code = code.Replace(approvedSentence, string.Empty, StringComparison.Ordinal);
+                const string completenessMismatchSentence = "金額不符時，要確認 GL 分錄是否完整。";
+                Assert.Contains(completenessMismatchSentence, code, StringComparison.Ordinal);
+                Assert.Equal(code.IndexOf(completenessMismatchSentence, StringComparison.Ordinal), code.LastIndexOf(completenessMismatchSentence, StringComparison.Ordinal));
+                code = code.Replace(completenessMismatchSentence, string.Empty, StringComparison.Ordinal);
             }
             hits.AddRange(retired.Where(term => code.Contains(term, StringComparison.Ordinal))
                 .Select(term => Path.GetFileName(file) + "：" + term));
@@ -243,7 +243,7 @@ public sealed class TerminologyUnificationFrontendTests
             "typed 條件必須指定 fieldId", "不支援 typed 條件", "不支援的 typed text", "不支援的 typed date",
             "不支援的 typed money", "要求 revision", "自訂欄位"
         };
-        var source = Path.Combine(RepoRoot(), "JET");
+        var source = Path.Combine(SolutionRoot(), "JET");
         var files = Directory.GetFiles(source, "*.cs", SearchOption.AllDirectories)
             .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
                 && !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
@@ -411,15 +411,15 @@ public sealed class TerminologyUnificationFrontendTests
         => ReadSource(new[] { "wwwroot" }.Concat(segments).ToArray());
 
     private static string ReadSource(params string[] segments)
-        => File.ReadAllText(Path.Combine(new[] { RepoRoot(), "JET" }.Concat(segments).ToArray()));
+        => File.ReadAllText(Path.Combine(new[] { SolutionRoot(), "JET" }.Concat(segments).ToArray()));
 
     private static string ReadLegacyCatalogueFixture()
-        => File.ReadAllText(Path.Combine(RepoRoot(), "tests", "JET.Tests", "Fixtures", "legacy-form-2024-1210.json"));
+        => File.ReadAllText(Path.Combine(SolutionRoot(), "tests", "JET.Tests", "Fixtures", "legacy-form-2024-1210.json"));
 
     private static string ReadRepoFile(params string[] segments)
-        => File.ReadAllText(Path.Combine(new[] { RepoRoot(), "..", ".." }.Concat(segments).ToArray()));
+        => File.ReadAllText(Path.Combine(new[] { SolutionRoot(), "..", ".." }.Concat(segments).ToArray()));
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

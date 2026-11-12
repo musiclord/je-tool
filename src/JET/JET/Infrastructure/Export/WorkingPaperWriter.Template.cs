@@ -74,8 +74,10 @@ public sealed partial class WorkingPaperWriter
             _continuationPrototypeStyles = new(StringComparer.Ordinal);
         private readonly Dictionary<string, DataValidations?> _templateValidations =
             new(StringComparer.Ordinal);
-        private readonly Dictionary<string, double> _templateDefaultColumnWidths =
+        private readonly Dictionary<string, double?> _templateDefaultColumnWidths =
             new(StringComparer.Ordinal);
+        private readonly Dictionary<string, IReadOnlyList<(uint Min, uint Max, uint Style)>>
+            _templateColumnStyles = new(StringComparer.Ordinal);
         private readonly List<string> _desiredNames = [];
         private readonly HashSet<string> _openedNames = new(StringComparer.Ordinal);
         private bool _topologyChanged;
@@ -156,7 +158,11 @@ public sealed partial class WorkingPaperWriter
                 }
                 if (lockedArea is not null)
                 {
-                    // 第一頁會直接改寫範本工作表，續頁要用的預設欄寬先讀出來。
+                    // 第一頁會直接改寫範本工作表，續頁要用的欄樣式與預設欄寬先讀出來。
+                    // 這裡不要求範本有預設欄寬，開續頁時才要求。
+                    _templateColumnStyles.Add(
+                        name,
+                        ReadTemplateColumnStyles(part, _cancellationToken));
                     _templateDefaultColumnWidths.Add(
                         name,
                         ReadTemplateDefaultColumnWidth(part, _cancellationToken));
@@ -256,8 +262,43 @@ public sealed partial class WorkingPaperWriter
                 lockedArea,
                 lockedArea is null
                     ? null
-                    : (_editor.EnsureProtectionStyle(_styles.Map(WorkingPaperStyles.Default), locked: false),
-                        _templateDefaultColumnWidths[prototype.SheetName]));
+                    : (ContinuationColumnStyles(prototype.SheetName),
+                        _templateDefaultColumnWidths[prototype.SheetName]
+                        ?? throw new InvalidDataException("WorkingPaper 範本工作表缺少預設欄寬。")));
+        }
+
+        /// <summary>
+        /// 有鎖定區的續頁各欄要套的樣式：照範本同一欄的樣式換成不鎖定的版本，和第一頁沒寫值的格子相同。
+        /// 範本沒有設定樣式的欄用 JET 寫出時的預設樣式。回傳的分段由左到右蓋滿每一欄。
+        /// </summary>
+        private IReadOnlyList<(uint Min, uint Max, uint Style)> ContinuationColumnStyles(
+            string prototypeSheetName)
+        {
+            var fallback = _editor.EnsureProtectionStyle(
+                _styles.Map(WorkingPaperStyles.Default),
+                locked: false);
+            var segments = new List<(uint Min, uint Max, uint Style)>();
+            var next = 1U;
+            foreach (var column in _templateColumnStyles[prototypeSheetName].OrderBy(item => item.Min))
+            {
+                var min = Math.Max(column.Min, next);
+                var max = Math.Min(column.Max, ExcelWorksheetConstraints.MaxColumns);
+                if (min > max)
+                {
+                    continue;
+                }
+                if (min > next)
+                {
+                    segments.Add((next, min - 1, fallback));
+                }
+                segments.Add((min, max, _editor.EnsureProtectionStyle(column.Style, locked: false)));
+                next = max + 1;
+            }
+            if (next <= ExcelWorksheetConstraints.MaxColumns)
+            {
+                segments.Add((next, ExcelWorksheetConstraints.MaxColumns, fallback));
+            }
+            return segments;
         }
 
         /// <summary>
@@ -301,8 +342,11 @@ public sealed partial class WorkingPaperWriter
             return null;
         }
 
-        /// <summary>範本工作表的預設欄寬；續頁補上的欄設定沿用這個寬度，和第一頁沒有另外設定寬度的欄一樣寬。</summary>
-        private static double ReadTemplateDefaultColumnWidth(
+        /// <summary>
+        /// 範本工作表的預設欄寬；續頁補上的欄設定沿用這個寬度，和第一頁沒有另外設定寬度的欄一樣寬。
+        /// 範本沒有寫這個值時回傳 null，只有一頁的工作表用不到它。
+        /// </summary>
+        private static double? ReadTemplateDefaultColumnWidth(
             WorksheetPart part,
             CancellationToken cancellationToken)
         {
@@ -313,18 +357,40 @@ public sealed partial class WorkingPaperWriter
                 if (reader.IsStartElement && reader.ElementType == typeof(SheetFormatProperties))
                 {
                     var properties = (SheetFormatProperties)reader.LoadCurrentElement()!;
-                    if (properties.DefaultColumnWidth?.Value is double width && width > 0D)
-                    {
-                        return width;
-                    }
-                    break;
+                    return properties.DefaultColumnWidth?.Value is double width && width > 0D
+                        ? width
+                        : null;
                 }
                 if (reader.ElementType == typeof(SheetData))
                 {
                     break;
                 }
             }
-            throw new InvalidDataException("WorkingPaper 範本工作表缺少預設欄寬。");
+            return null;
+        }
+
+        /// <summary>範本工作表各欄的預設樣式；續頁照這些樣式補欄設定，沒寫值的格子才會和第一頁同一欄一樣對齊。</summary>
+        private static IReadOnlyList<(uint Min, uint Max, uint Style)> ReadTemplateColumnStyles(
+            WorksheetPart part,
+            CancellationToken cancellationToken)
+        {
+            using var reader = OpenXmlReader.Create(part);
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reader.IsStartElement && reader.ElementType == typeof(Columns))
+                {
+                    return ((Columns)reader.LoadCurrentElement()!).Elements<Column>()
+                        .Where(column => column.Min?.Value is not null && column.Max?.Value is not null)
+                        .Select(column => (column.Min!.Value, column.Max!.Value, column.Style?.Value ?? 0U))
+                        .ToArray();
+                }
+                if (reader.ElementType == typeof(SheetData))
+                {
+                    break;
+                }
+            }
+            return [];
         }
 
         private ContinuationPrototype FindContinuationPrototype(string continuationName)

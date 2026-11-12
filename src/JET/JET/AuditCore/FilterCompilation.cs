@@ -4,8 +4,8 @@ namespace JET.AuditCore;
 
 /// <summary>
 /// 條件 AST → WHERE 片段的組譯（述詞經 <see cref="GlRulePredicates"/>，
-/// 參數經純 ordered plan）。結合律為左折疊累積括號 ((c1 OP c2) OP c3)，
-/// 與 manifest 文件化語意一致。SELECT 骨架（COUNT/LIMIT 等）由
+/// 參數經純 ordered plan）。結合律為左折疊累積括號 ((c1 OP c2) OP c3)。
+/// SELECT 骨架（COUNT/LIMIT 等）由
 /// repository 自寫——本類只負責 WHERE。
 /// </summary>
 internal sealed partial class GlFilterWhereBuilder(
@@ -169,7 +169,7 @@ internal sealed partial class GlFilterWhereBuilder(
                 return predicates.ManualAuto(parameters, rule.IsManual!.Value);
 
             case FilterConditionType.AccountPair:
-                // 雙側都是分類身分的多選集合；legacy scalar 由 Domain 投影成單元素集合。
+                // 雙側都是分類身分的多選集合，已由 Domain 去重、排序。
                 return predicates.AccountPair(
                     parameters,
                     rule.PairMode!,

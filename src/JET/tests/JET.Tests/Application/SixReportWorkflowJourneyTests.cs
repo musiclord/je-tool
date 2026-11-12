@@ -96,7 +96,7 @@ public sealed class SixReportWorkflowJourneyTests
                {"type":"voucher","quantifier":"all","conditions":[{"type":"drCrOnly","drCr":"credit"},
                  {"type":"accountSide","join":"OR","categoryMode":"is","categoryIds":["builtin.cash"],"categorySelection":"subtree"}]}]}]}]
           """).RootElement;
-        // Keep both independent answers; add A and D from the legacy entry catalogue
+        // Keep both independent answers; add A and D from the 2024 entry catalogue
         // so the native Excel round-trip also exercises their prescreen descriptions.
         // 目錄放在測試夾具。
         var scenarios = JsonNode.Parse(originalScenarios.GetRawText())!.AsArray();

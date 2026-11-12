@@ -141,7 +141,7 @@ public sealed class ImportAndMappingHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // mode 白名單：replace / append（manifest unsupported_mode）
+        // mode 白名單：replace / append（錯誤碼 unsupported_mode）
         var glPath = WriteGlWorkbook();
         try
         {
@@ -164,7 +164,7 @@ public sealed class ImportAndMappingHandlersTests
         using var host = new HandlerTestHost();
         await host.DispatchAsync("project.create", CreatePayload);
 
-        // 狀態轉換負向：第一個來源必須走 replace（manifest append 語意）
+        // 狀態轉換負向：第一個來源必須走 replace
         var glPath = WriteGlWorkbook();
         try
         {
@@ -199,7 +199,7 @@ public sealed class ImportAndMappingHandlersTests
                     "import.gl.fromFile",
                     JsonSerializer.Serialize(new { filePath = mismatchPath, mode = "append" })));
 
-            // 雙向差集都要指名：來源多出 c、來源缺少 b（manifest column_mismatch）
+            // 雙向差集都要指名：來源多出 c、來源缺少 b（錯誤碼 column_mismatch）
             Assert.Equal(JetErrorCodes.ColumnMismatch, ex.Code);
             Assert.Contains("c", ex.Message);
             Assert.Contains("b", ex.Message);
@@ -357,7 +357,7 @@ public sealed class ImportAndMappingHandlersTests
             var created = await host.DispatchAsync("project.create", CreatePayload);
             var projectId = created.GetProperty("projectId").GetString()!;
 
-            // 階段 1：第一個工作表以 replace 開批（manifest：rowCount = addedRowCount）
+            // 階段 1：第一個工作表以 replace 開批（rowCount = addedRowCount）
             var first = await host.DispatchAsync(
                 "import.gl.fromFile",
                 JsonSerializer.Serialize(new { filePath = path, sheetName = "Q1" }));
@@ -612,7 +612,7 @@ public sealed class ImportAndMappingHandlersTests
         "114/01/02,D900,5100,進貨,民國日期列,\"1,250.00\",\n" +
         "114/01/02,D900,1101,現金,民國日期列,,\"1,250.00\"\n";
 
-    // 契約：manifest import.*.fromFile 支援 .csv / .txt（.txt 視為 CSV 內容）
+    // 契約：import.*.fromFile 支援 .csv / .txt（.txt 視為 CSV 內容）
     [Theory]
     [InlineData(".csv")]
     [InlineData(".txt")]
@@ -734,7 +734,7 @@ public sealed class ImportAndMappingHandlersTests
             });
     }
 
-    // 決策表：可選欄位 × 副檔名適用性（manifest import.*.fromFile 細節），每列一個行為
+    // 決策表：可選欄位 × 副檔名適用性（import.*.fromFile），每列一個行為
     [Theory]
     [InlineData(".csv", "sheetName", "Q1")]     // sheetName 僅適用 .xlsx
     [InlineData(".csv", "encoding", "latin-1")] // encoding 白名單（utf-8/big5/utf-16）之外

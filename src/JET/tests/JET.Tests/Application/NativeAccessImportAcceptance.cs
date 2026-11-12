@@ -83,7 +83,7 @@ internal static class NativeAccessImportAcceptance
             }
             var filtered = await host.DispatchAsync("filter.preview", JsonSerializer.Serialize(new
             {
-                // The legacy keyword input is retired. Keep the fixed hit count and source-integrity assertions below.
+                // Filter on a description keyword, then check the fixed hit count and that the source file is unchanged.
                 scenario = new { groups = new[] { new { conditions = new[] { new { type = "fieldValue", field = "description", @operator = "contains", values = new[] { "合成" } } } } } }
             }));
             Assert.Equal(2, filtered.GetProperty("scenario").GetProperty("count").GetInt64());

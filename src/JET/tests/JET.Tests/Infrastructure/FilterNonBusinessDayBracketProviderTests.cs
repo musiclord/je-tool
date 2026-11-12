@@ -29,7 +29,7 @@ public sealed class FilterNonBusinessDayBracketProviderTests
           {"join":"OR","type":"prescreen","prescreenKey":"holidayPosting"}]}
         """;
 
-    // 舊版前端送出的形狀：I 自成一組、組 join 固定 AND、兩條預篩選 join 都是 OR，排在所有條件組之後。
+    // 已存情境裡較早的寫法：I 自成一組、組 join 固定 AND、兩條預篩選 join 都是 OR，排在所有條件組之後。
     private const string OldPresetGroup = """
         {"join":"AND","conditions":[
           {"join":"OR","type":"prescreen","prescreenKey":"weekendPosting"},

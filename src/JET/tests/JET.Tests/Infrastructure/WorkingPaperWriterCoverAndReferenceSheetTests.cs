@@ -18,7 +18,7 @@ namespace JET.Tests.Infrastructure;
 // 封面 A3 留白。
 public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
 {
-    // ================= 封面 / 固定文字三表(內容不隨母體改變)=================
+    // ================= 封面、JE WorkingPaper說明與 step5 三張固定文字的表;另有一則核對封面與 step3 的查核期間 =================
 
     [Fact]
     public async Task WriteAsync_EmitsCoverIntroAndStep5Sheets()
@@ -188,7 +188,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.DoesNotContain("K_R條件", ReadEntireColumn(sheet, "A"));
     }
 
-    // ================= 自動化工具-假期假日資訊(週末固定 + 假日/補班)=================
+    // ================= 自動化工具-假期假日資訊(週末表照案件的每週休息日,加上假日與補班)=================
 
     [Fact]
     public async Task CalendarInfo_FixedWeekendTable_AndHolidayMakeupCountsMatchStore()
@@ -234,7 +234,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal("Sunday", sheet.Cell("A8").GetString());
         Assert.Equal("Y", sheet.Cell("B8").GetString());
 
-        // 假日表標頭存在(逐字對齊樣本);假日筆數 == calendar store recount(獨立查 staging 表)。
+        // 假日表標頭存在;假日筆數 == calendar store recount(獨立查 staging 表)。
         var holidayHeaderRow = FindRowByColumnValue(sheet, "A", "DATE_OF_HOLIDAY", 1);
         Assert.True(holidayHeaderRow > 0, "應有假日表標頭 DATE_OF_HOLIDAY");
         Assert.Equal("HOLIDAY_NAME", sheet.Cell($"B{holidayHeaderRow}").GetString());
@@ -260,7 +260,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
             "SELECT COUNT(*) FROM calendar_day WHERE day_type = 'makeup';");
         Assert.Equal(makeupCount, (long)CountColumnFrom(sheet, "A", makeupHeaderRow + 1));
 
-        // 假日 IS_HOLIDAY 一律 Y(對齊樣本)。
+        // 假日 IS_HOLIDAY 一律 Y。
         Assert.Equal("Y", sheet.Cell($"C{holidayHeaderRow + 1}").GetString());
         Assert.Equal(longHolidayName, sheet.Cell(holidayHeaderRow + 1, 2).GetString());
         var expectedNameWidth = ExcelDisplayWidth.ToColumnWidth(
@@ -340,7 +340,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         using var workbook = await WriteAndReadAsync(host, projectId);
         var sheet = workbook.Worksheet(AccountMappingSheet);
 
-        // 第 1 列標頭(逐字對齊樣本)。
+        // 第 1 列標頭。
         Assert.Equal("GL_NUMBER", sheet.Cell("A1").GetString());
         Assert.Equal("GL_NAME", sheet.Cell("B1").GetString());
         Assert.Equal("STANDARDIZED_ACCOUNT_NAME", sheet.Cell("C1").GetString());
@@ -375,6 +375,7 @@ public sealed class WorkingPaperWriterCoverAndReferenceSheetTests
         Assert.Equal(1, notInTb);
     }
 
+    // ================= 整本活頁簿 =================
 
     [Fact]
     public async Task WriteAsync_FullWorkbook_InitializesFirstWorksheetPartWithSheetData()

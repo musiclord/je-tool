@@ -30,8 +30,9 @@
     <PackageReference Include="ExcelDataReader" Version="3.9.0" />
     <PackageReference Include="System.Data.OleDb" Version="10.0.13" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
-    <!-- 安全覆蓋:MDS 10.0.x 仍傳遞鎖定有漏洞的 SQLitePCLRaw 2.1.11(CVE-2025-6965 / GHSA-2m69-gcr7-jv3q）。
-         顯式釘到 3.0.3(內建 SQLite 3.50.4.2;3.0.1 起原生套件改名為 SourceGear.sqlite3,有漏洞的 lib.e_sqlite3 因此離開相依圖)。 -->
+    <!-- 直接引用較新的 bundle,取代 Microsoft.Data.Sqlite 間接引用的 2.1.x。原生程式庫改由 SQLite 套件提供,
+         版本不得低於 CVE-2025-6965(GHSA-2m69-gcr7-jv3q)建議的 3.50.2;公告列為受影響的
+         SQLitePCLRaw.lib.e_sqlite3 因此不在套件還原結果內。 -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <!-- 診斷日誌（第三層、dev-only）：M.E.Logging + LoggerMessage 來源產生器 -->
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.13" />

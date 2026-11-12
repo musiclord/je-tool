@@ -1,8 +1,12 @@
 using System.IO.Compression;
 using System.Xml.Linq;
+using DocumentFormat.OpenXml.Spreadsheet;
+using JET.Application;
 using JET.Domain;
 using JET.Infrastructure;
+using JET.Tests.Application;
 using Xunit;
+using static JET.Tests.Infrastructure.WorkingPaperWriterTestSupport;
 
 namespace JET.Tests.Infrastructure;
 
@@ -208,6 +212,97 @@ public sealed class EmbeddedReportTemplateFailureTests
         Assert.Equal(original.ReportId, current.ReportId);
         Assert.Equal(original.Bytes, current.Bytes);
         Assert.Equal(ReportFileState.AsPublished, current.FileState);
+    }
+
+    // 範本工作表的預設欄寬只有受保護工作表的續頁用得到。範本缺這個值時，沒有續頁的底稿照常匯出。
+    [Fact]
+    public async Task WorkingPaperTemplateWithoutDefaultColumnWidth_ExportsWhenNoProtectedSheetContinues()
+    {
+        using var templates = new TemporaryDirectory();
+        CopyWorkingPaperTemplateWithoutDefaultColumnWidth(templates.Path);
+        using var host = new HandlerTestHost();
+        var project = await DemoProjectPipeline.SetupAsync(host);
+        await host.DispatchAsync("filter.commit", ConditionColumnScenarioPayload());
+        var context = await CurrentContextForAsync(host, project.ProjectId);
+        await using var stream = new MemoryStream();
+
+        await WriteWithCurrentPlanAsync(
+            host,
+            BuildWriter(host, templatesOverride: new ReportTemplateCatalog(templates.Path)),
+            stream,
+            context,
+            CancellationToken.None);
+
+        using var document = OpenWorkingPaper(stream.ToArray());
+        var sheets = WorksheetsByName(document);
+        Assert.All(
+            new[] { Step1Sheet, Step12Sheet, Step3Sheet, Step4Sheet },
+            name => Assert.NotNull(sheets[name].Elements<SheetProtection>().SingleOrDefault()));
+    }
+
+    // 受保護的工作表有續頁時，續頁的欄設定要用這個值；範本缺了就回報範本無法填入。
+    [Fact]
+    public async Task WorkingPaperTemplateWithoutDefaultColumnWidth_ReportsFileReadErrorWhenAProtectedSheetContinues()
+    {
+        using var templates = new TemporaryDirectory();
+        CopyWorkingPaperTemplateWithoutDefaultColumnWidth(templates.Path);
+        using var host = new HandlerTestHost();
+        var projectId = await SetupContinuationProjectAsync(host);
+        await ImportContinuationReferencesAsync(host);
+        await host.DispatchAsync("filter.commit", ContinuationScenarioPayload());
+        var context = await CurrentContextForAsync(host, projectId);
+        await using var stream = new MemoryStream();
+
+        var exception = await Assert.ThrowsAsync<JetActionException>(() => WriteWithCurrentPlanAsync(
+            host,
+            BuildWriter(
+                host,
+                new WorkingPaperWriterOptions(25),
+                templatesOverride: new ReportTemplateCatalog(templates.Path)),
+            stream,
+            context,
+            CancellationToken.None));
+
+        Assert.Equal(JetErrorCodes.FileReadError, exception.Code);
+        Assert.Equal("無法填入 JET 內附的範本「WorkingPaper.xlsx」。請重新下載 JET 後再匯出。", exception.Message);
+        Assert.Contains("缺少預設欄寬", Assert.IsType<InvalidDataException>(exception.InnerException).Message);
+    }
+
+    private static void CopyWorkingPaperTemplateWithoutDefaultColumnWidth(string destinationDirectory)
+    {
+        var destination = System.IO.Path.Combine(destinationDirectory, ReportTemplateCatalog.WorkingPaper);
+        File.Copy(
+            System.IO.Path.Combine(AppContext.BaseDirectory, "Templates", ReportTemplateCatalog.WorkingPaper),
+            destination);
+        using var archive = ZipFile.Open(destination, ZipArchiveMode.Update);
+        var worksheetEntries = archive.Entries
+            .Where(entry => entry.FullName.StartsWith("xl/worksheets/", StringComparison.Ordinal)
+                && entry.FullName.EndsWith(".xml", StringComparison.Ordinal))
+            .Select(entry => entry.FullName)
+            .ToArray();
+        var removed = 0;
+        foreach (var name in worksheetEntries)
+        {
+            var entry = Assert.IsType<ZipArchiveEntry>(archive.GetEntry(name));
+            XDocument worksheet;
+            using (var input = entry.Open())
+            {
+                worksheet = XDocument.Load(input);
+            }
+            foreach (var attribute in worksheet.Descendants()
+                         .Where(element => element.Name.LocalName == "sheetFormatPr")
+                         .Select(element => element.Attribute("defaultColWidth"))
+                         .OfType<XAttribute>()
+                         .ToArray())
+            {
+                attribute.Remove();
+                removed++;
+            }
+            entry.Delete();
+            using var output = archive.CreateEntry(name).Open();
+            worksheet.Save(output);
+        }
+        Assert.True(removed > 0, "範本應該有預設欄寬可以拿掉。");
     }
 
     private static Task<ExportStats> FillValidationTemplateAsync(

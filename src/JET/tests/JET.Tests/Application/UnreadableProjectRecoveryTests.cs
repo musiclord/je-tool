@@ -173,7 +173,7 @@ public sealed class UnreadableProjectRecoveryTests
         Assert.Equal("healthy", healthy.GetProperty("project").GetProperty("projectId").GetString());
     }
 
-    // 設定檔損壞、舊版或期間無效的本機案件，畫面請審計員從備份還原或另建案件，
+    // 設定檔損壞、版本較舊或期間無效的本機案件，畫面請審計員從備份還原或另建案件，
     // 舊的這份也要能從案件清單刪掉；其他案件不受影響。
     [Theory]
     [InlineData("sqlite", "corrupt")]

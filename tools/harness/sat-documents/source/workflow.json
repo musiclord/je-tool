@@ -1,0 +1,72 @@
+{
+  "說明": [
+    "Workflow.xlsx 的來源。Build-Workflow.py 讀這個檔案，產生一張工作表。",
+    "圖形與文字方塊的 left、top、width、height 以儲存格為單位。left 的整數部分是欄的序號，A 欄是 0，小數部分是在該欄裡的比例；top 的整數部分是列的序號，第 1 列是 0。",
+    "連接線從 from 的接點出發，依序經過 bends 的折點，到 to 的接點結束，箭頭畫在終點。side 是圖形的接點，可填 top、left、bottom、right。相鄰兩點必須同欄或同列。",
+    "connectors 的 label 是這條線代表的判定結果。labels 記錄 Pass 與 Fail 的文字放在哪裡：有 cell 的寫在儲存格，有 left 與 top 的用文字方塊。"
+  ],
+  "sheet": {
+    "name": "Workflow",
+    "zoomPercent": 50,
+    "columnCount": 40,
+    "rowCount": 64,
+    "columnWidthPixels": 80,
+    "columnWidthPixelsByColumn": { "C": 89 },
+    "rowHeightPoints": 15.75,
+    "printArea": "C4:AM63"
+  },
+  "lanes": [
+    { "id": "dev", "text": "AI Team Dev", "header": "D4:U6" },
+    { "id": "qa", "text": "AI Team QA", "header": "V4:Y6" },
+    { "id": "sat-its", "text": "SAT/ITS", "header": "Z4:AM6" }
+  ],
+  "phases": [
+    { "id": "dev-testing", "text": "Dev\nTesting", "band": "C7:C32" },
+    { "id": "staging", "text": "Staging", "band": "C33:C54" },
+    { "id": "production", "text": "Production", "band": "C55:C63" }
+  ],
+  "cells": [
+    { "range": "Z7:AM32", "text": "-" }
+  ],
+  "shapes": [
+    { "id": "start", "type": "flowChartTerminator", "text": "需求產生/功能異常", "lane": "dev", "phase": "dev-testing", "left": 3.8, "top": 7.2, "width": 2.3, "height": 2.1 },
+    { "id": "dev", "type": "flowChartProcess", "text": "Dev", "lane": "dev", "phase": "dev-testing", "left": 3.8, "top": 11.9, "width": 2.3, "height": 4.2 },
+    { "id": "testing-version", "type": "flowChartDocument", "text": "Testing version", "lane": "dev", "phase": "dev-testing", "left": 3.8, "top": 18.5, "width": 2.3, "height": 4.4 },
+    { "id": "test", "type": "flowChartDecision", "text": "測試", "lane": "qa", "phase": "dev-testing", "left": 21.4, "top": 18.5, "width": 2.4, "height": 4.4 },
+    { "id": "staging-version", "type": "flowChartDocument", "text": "Staging version", "lane": "dev", "phase": "staging", "left": 3.8, "top": 36.0, "width": 2.3, "height": 4.4 },
+    { "id": "technical-document", "type": "flowChartDocument", "text": "技術文件", "lane": "dev", "phase": "staging", "left": 6.3, "top": 45.4, "width": 2.1, "height": 4.4 },
+    { "id": "code-change-log", "type": "flowChartDocument", "text": "程式修訂紀錄", "lane": "dev", "phase": "staging", "left": 9.8, "top": 45.4, "width": 2.1, "height": 4.4 },
+    { "id": "release-notes", "type": "flowChartDocument", "text": "版本更新紀錄", "lane": "dev", "phase": "staging", "left": 13.3, "top": 45.4, "width": 2.1, "height": 4.4 },
+    { "id": "user-manual", "type": "flowChartDocument", "text": "操作說明", "lane": "dev", "phase": "staging", "left": 16.8, "top": 45.4, "width": 2.1, "height": 4.4 },
+    { "id": "sat", "type": "flowChartDecision", "text": "SAT", "lane": "sat-its", "phase": "staging", "left": 25.85, "top": 40.55, "width": 2.6, "height": 4.4 },
+    { "id": "track-security", "type": "flowChartProcess", "text": "Track Security", "lane": "dev", "phase": "production", "left": 3.9, "top": 56.4, "width": 2.1, "height": 4.4 },
+    { "id": "production-version-dev-lane", "type": "flowChartDocument", "text": "Production version", "lane": "dev", "phase": "production", "left": 6.55, "top": 56.4, "width": 2.1, "height": 4.4 },
+    { "id": "production-version-sat-lane", "type": "flowChartDocument", "text": "Production version", "lane": "sat-its", "phase": "production", "left": 29.65, "top": 56.4, "width": 2.1, "height": 4.4 },
+    { "id": "deploy", "type": "flowChartProcess", "text": "Deploy", "lane": "sat-its", "phase": "production", "left": 32.95, "top": 56.4, "width": 2.1, "height": 4.4 },
+    { "id": "end", "type": "flowChartTerminator", "text": "End", "lane": "sat-its", "phase": "production", "left": 36.1, "top": 57.5, "width": 2.1, "height": 2.2 }
+  ],
+  "connectors": [
+    { "id": "start-to-dev", "from": { "shape": "start", "side": "bottom" }, "to": { "shape": "dev", "side": "top" }, "bends": [] },
+    { "id": "dev-to-testing-version", "from": { "shape": "dev", "side": "bottom" }, "to": { "shape": "testing-version", "side": "top" }, "bends": [] },
+    { "id": "testing-version-to-test", "from": { "shape": "testing-version", "side": "right" }, "to": { "shape": "test", "side": "left" }, "bends": [] },
+    { "id": "test-fail-to-dev", "label": "Fail", "from": { "shape": "test", "side": "top" }, "to": { "shape": "dev", "side": "right" }, "bends": [[22.6, 14.0]] },
+    { "id": "test-pass-to-staging-version", "label": "Pass", "from": { "shape": "test", "side": "bottom" }, "to": { "shape": "staging-version", "side": "top" }, "bends": [[22.6, 29.5], [4.95, 29.5]] },
+    { "id": "staging-version-to-technical-document", "from": { "shape": "staging-version", "side": "bottom" }, "to": { "shape": "technical-document", "side": "top" }, "bends": [[4.95, 42.75], [7.35, 42.75]] },
+    { "id": "staging-version-to-code-change-log", "from": { "shape": "staging-version", "side": "bottom" }, "to": { "shape": "code-change-log", "side": "top" }, "bends": [[4.95, 42.75], [10.85, 42.75]] },
+    { "id": "staging-version-to-release-notes", "from": { "shape": "staging-version", "side": "bottom" }, "to": { "shape": "release-notes", "side": "top" }, "bends": [[4.95, 42.75], [14.35, 42.75]] },
+    { "id": "staging-version-to-user-manual", "from": { "shape": "staging-version", "side": "bottom" }, "to": { "shape": "user-manual", "side": "top" }, "bends": [[4.95, 42.75], [17.85, 42.75]] },
+    { "id": "staging-version-to-sat", "from": { "shape": "staging-version", "side": "bottom" }, "to": { "shape": "sat", "side": "left" }, "bends": [[4.95, 42.75]] },
+    { "id": "sat-fail-to-staging-version", "label": "Fail", "from": { "shape": "sat", "side": "top" }, "to": { "shape": "staging-version", "side": "right" }, "bends": [[27.15, 38.2]] },
+    { "id": "sat-pass-to-production-version-sat-lane", "label": "Pass", "from": { "shape": "sat", "side": "right" }, "to": { "shape": "production-version-sat-lane", "side": "top" }, "bends": [[30.7, 42.75]] },
+    { "id": "sat-pass-to-production-version-dev-lane", "label": "Pass", "from": { "shape": "sat", "side": "right" }, "to": { "shape": "production-version-dev-lane", "side": "top" }, "bends": [[29.75, 42.75], [29.75, 52.0], [7.6, 52.0]] },
+    { "id": "sat-pass-to-track-security", "label": "Pass", "from": { "shape": "sat", "side": "right" }, "to": { "shape": "track-security", "side": "top" }, "bends": [[29.75, 42.75], [29.75, 52.0], [4.95, 52.0]] },
+    { "id": "production-version-to-deploy", "from": { "shape": "production-version-sat-lane", "side": "right" }, "to": { "shape": "deploy", "side": "left" }, "bends": [] },
+    { "id": "deploy-to-end", "from": { "shape": "deploy", "side": "right" }, "to": { "shape": "end", "side": "left" }, "bends": [] }
+  ],
+  "labels": [
+    { "text": "Fail", "cell": "X18", "connectors": ["test-fail-to-dev"] },
+    { "text": "Pass", "cell": "X24", "connectors": ["test-pass-to-staging-version"] },
+    { "text": "Fail", "left": 27.2, "top": 39.2, "width": 0.55, "height": 1.3, "connectors": ["sat-fail-to-staging-version"] },
+    { "text": "Pass", "left": 28.4, "top": 42.95, "width": 0.6, "height": 1.3, "connectors": ["sat-pass-to-production-version-sat-lane", "sat-pass-to-production-version-dev-lane", "sat-pass-to-track-security"] }
+  ]
+}

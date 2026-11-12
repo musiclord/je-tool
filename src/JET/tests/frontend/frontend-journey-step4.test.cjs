@@ -8,7 +8,7 @@
 //   情境 8　沒有驗證結果、舊驗證結果沒有判定、後端判定不可繼續、可繼續但沒有預篩選結果時，看預篩選卡、左側第五步與頁尾；
 //           按鈕狀態沒更新時硬按預篩選；執行預篩選並看結果的排列。
 //   情境 9　打開分類設定，新增與改名分類，名稱空白或重複，儲存失敗後重試成功；移除只被情境用到的分類；看內建分類；
-//           驗證時準備科目配對檔失敗，在「在 JET 配對」分頁看到原因並到 Excel 分頁重試；在 Excel 分頁按「預覽」。
+//           驗證時建立科目配對範本失敗，在「在 JET 配對」分頁看到原因並到 Excel 分頁重試；在 Excel 分頁按「預覽」。
 //
 // 夾具：本檔的 step4Fixture。用 support/frontend-fixtures.cjs 的假 DOM 與記錄請求的 JetApi，
 // 載入正式的 state、ui-core、各步驟腳本、data-preview 與 app.js；中欄由正式的 Ui.renderStep 畫第四步，
@@ -51,10 +51,10 @@ function step4Fixture({ mapped = true, validation = null, accountCategory = null
     'account-mapping-editor.js', ...FILTER_STEP_FILES, 'steps/export-step.js', 'data-preview.js'])
     vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
   vm.runInContext(exposeAt(readWwwroot('js/app.js'), "  if (document.readyState === 'loading') {",
-    '  window.step4App = { renderStepNav: renderStepNav, renderContent: renderContent, overviewStepFactsHtml: overviewStepFactsHtml };\n'), context, { filename: 'app.js' });
+    '  window.exposedApp = { renderStepNav: renderStepNav, renderContent: renderContent, overviewStepFactsHtml: overviewStepFactsHtml };\n'), context, { filename: 'app.js' });
   dom.content.innerHTML = '<nav data-bind="step-nav"></nav><section class="content" data-bind="content"></section>' +
     indexMarkup('<aside class="data-preview"', '</aside>') + '</aside>';
-  const store = window.JetStore, ui = window.JetUi, app = window.step4App;
+  const store = window.JetStore, ui = window.JetUi, app = window.exposedApp;
   const middle = dom.content.querySelector('[data-bind="content"]');
   ui.initDataPreview();
   store.setProject({ projectId: 'step4-synthetic', periodStart: '2025-01-01', periodEnd: '2025-12-31', prepStartDate: '2025-12-20' });
@@ -405,7 +405,7 @@ test('running validation shows the backend GL entry count, no population summary
 });
 
 test('when the stored entries disagree with the totals counted at mapping, the completeness status says so instead of naming account differences', async () => {
-  // 狀態文字照名詞表的「存入筆數與合計不一致」。
+  // 狀態文字是「存入筆數與合計不一致」。
   const f = await openStep4({ validation: validationResult({ eligibility: { isEligible: false, reason: '合成原因：存下的分錄和確認配對時算出的不一致' },
     storedTotals: { rowCountMatch: false, amountMatch: true } }) });
   const status = ruleItem(f, '完整性測試').querySelector('.rule-status').textContent;
@@ -944,7 +944,7 @@ test('a failed account mapping file shows its own reason on the JET tab, and ret
   assert.ok(f.$('[data-account-template-status]') === null, 'no status on the JET tab after success');
 });
 
-// 準備科目配對檔失敗而沒有原因時，「在 JET 配對」分頁只請審計員再試一次，逐字比對。
+// 建立科目配對範本失敗而沒有原因時，「在 JET 配對」分頁只請審計員再試一次，逐字比對。
 // 有原因時接冒號寫原因，由上一個測試確認。
 test('a failed account mapping file without a reason asks to try again on the JET tab', async () => {
   const f = await openStep4();
@@ -1049,7 +1049,7 @@ test('Excel mapping imports another chosen sheet, cancels without sending, and i
     { filePath: 'C:\\synthetic\\合成科目配對.csv', fileName: '合成科目配對.csv' });
 });
 
-// JET 匯出的科目配對範本有範本那一張、分類清單 List 與隱藏的中繼資料工作表。按「準備科目配對範本」、在 Excel 填好再匯入回來
+// JET 匯出的科目配對範本有範本那一張、分類清單 List 與隱藏的中繼資料工作表。按「建立科目配對範本」、在 Excel 填好再匯入回來
 // 是主要路徑，所以 JET 自己的範本直接匯入範本那一張，不先選工作表；審計員在 Excel 看不到的中繼資料工作表也不列進選單。
 // 範本是依名稱認的，第一列沒有欄名照樣認得。
 test('Excel mapping imports JET\'s own template sheet directly and never lists the hidden metadata sheet', async () => {
@@ -1072,6 +1072,202 @@ test('Excel mapping imports JET\'s own template sheet directly and never lists t
   f.request('hostSelectFile').resolve(WORKING_PAPER); await flush();
   f.request('importInspectFile').resolve(inspected(WORKING_PAPER_SHEETS.concat([{ name: 'JET_Metadata', columns: ['JET_REPORT_METADATA'], rowCountEstimate: 2 }]))); await flush();
   assert.deepEqual(f.$('[data-account-mapping-sheet]').querySelectorAll('option').map(option => option.textContent), ['封面', '自動化工具-科目配對資訊']);
+});
+
+// 匯入的檔案帶來案件還沒有的分類名稱時，後端在同一次匯入新增自訂分類，回應的 accountCategory 是匯入後案件的分類清單。
+// 畫面換上這份清單：完成句寫出新增了哪些分類，回到「在 JET 配對」下拉選單就選得到。
+const inventoryCategory = { categoryId: 'custom.inventory', label: '存貨', ordinal: 2, semanticRole: 'others', isBuiltIn: false, parentCategoryId: null };
+const equipmentCategory = { categoryId: 'custom.equipment', label: '固定資產', ordinal: 3, semanticRole: 'others', isBuiltIn: false, parentCategoryId: null };
+const importCsv = async (f, response) => {
+  f.click('[data-action="import-account-mapping"]'); await flush();
+  f.request('hostSelectFile').resolve({ filePath: 'C:\\synthetic\\合成科目配對.csv', fileName: '合成科目配對.csv' }); await flush();
+  f.request('importAccountMappingFromFile').resolve({ ...mappingImported, fileName: '合成科目配對.csv', ...response }); await flush();
+};
+
+test('an Excel import that brings new category names adds them to the case: the completion line names them and the JET tab offers them', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  f.click('[data-action="toggle-account-excel"]');
+  await importCsv(f, { batchId: 'am-new-category',
+    accountCategory: { revision: 3, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory, equipmentCategory]) } });
+  assert.equal(f.state().accountCategory.revision, 3);
+  assert.ok(f.state().messages.some(m => /^科目配對匯入完成，共 3 個科目，新增 2 個分類（存貨、固定資產），耗時/.test(m.text)));
+  f.click('[data-action="select-account-jet"]'); await flush();
+  assert.equal(f.$('[data-account-bulk-category] option[value="custom.inventory"]').textContent, '存貨');
+  assert.equal(f.$('[data-account-bulk-category] option[value="custom.equipment"]').textContent, '固定資產');
+
+  // 再匯入一次：分類已經在案件裡，完成句不再寫新增。
+  f.click('[data-action="toggle-account-excel"]');
+  await importCsv(f, { batchId: 'am-same-category',
+    accountCategory: { revision: 3, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory, equipmentCategory]) } });
+  const completions = f.state().messages.map(m => m.text).filter(text => text.startsWith('科目配對匯入完成'));
+  assert.equal(completions.length, 2);
+  assert.equal(completions.filter(text => /^科目配對匯入完成，共 3 個科目，耗時/.test(text)).length, 1);
+  assert.equal(completions.filter(text => text.includes('新增')).length, 1);
+});
+
+// 分類設定裡還沒儲存的修改，不因為匯入新增了分類就不見：匯入新增的分類接在草稿後面，儲存時用新的版本。
+test('an unsaved category draft survives an Excel import that adds categories and saves on the new revision', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="add-category"]');
+  f.type('[data-category-label="draft-1"]', '草稿分類');
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="toggle-account-excel"]');
+  await importCsv(f, { batchId: 'am-with-draft',
+    accountCategory: { revision: 3, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory]) } });
+  f.click('[data-action="toggle-category"]');
+  assert.equal(f.$('[data-category-label="draft-1"]').value, '草稿分類');
+  assert.equal(f.$('[data-category-label="custom.inventory"]').value, '存貨');
+  f.click('[data-action="save-category"]');
+  assert.deepEqual(plain(f.request('accountCategorySave').payload), { revision: 3, categories: [
+    { label: 'Cash', ordinal: 0, semanticRole: 'cash', parentCategoryId: null, categoryId: 'builtin.cash' },
+    { label: '銀行存款', ordinal: 1, semanticRole: 'cash', parentCategoryId: null, categoryId: 'bank' },
+    { label: '草稿分類', ordinal: 2, semanticRole: 'others', parentCategoryId: null, categoryId: 'draft-1' },
+    { label: '存貨', ordinal: 3, semanticRole: 'others', parentCategoryId: null, categoryId: 'custom.inventory' }
+  ] });
+});
+
+// 「在 JET 配對」要套用的分類還不存在時，「套用分類」那一排的「新增分類」按鈕直接帶到分類設定的新列；
+// 存好後回到科目配對，新分類已經選在下拉選單，勾好的科目可以直接套用。
+// 下拉選單只列分類：用方向鍵或 End 瀏覽選項時每換一項就送出 change，選單裡不能放會把人帶走的項目。
+test('the 新增分類 button on the JET tab opens category settings on a new row, and saving returns with the new category selected', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  const dropdown = f.$('[data-account-bulk-category]');
+  const options = dropdown.querySelectorAll('option');
+  assert.deepEqual(options.map(option => option.textContent), ['請選擇分類', 'Cash', '銀行存款']);
+  dropdown.value = options.at(-1).getAttribute('value'); dropdown.dispatch('change');
+  assert.ok(f.$('[data-bind="account-category-card"]') === null, 'browsing the dropdown never leaves the account mapping');
+  // 按鈕只有加號；名稱寫在看不見的文字與滑鼠提示裡，勾選科目後這一排才放得下。
+  assert.equal(f.text('[data-account-add-category]'), '新增分類');
+  assert.equal(f.$('[data-account-add-category]').getAttribute('title'), '新增分類');
+  assert.equal(f.$('[data-account-add-category] .visually-hidden').textContent, '新增分類');
+  f.click('[data-account-add-category]');
+  assert.ok(f.$('[data-bind="account-category-card"]') !== null, 'category settings open');
+  assert.equal(f.$('[data-category-label="draft-1"]').value, '');
+  f.type('[data-category-label="draft-1"]', '存貨');
+  f.click('[data-action="save-category"]');
+  f.request('accountCategorySave').resolve({ revision: 3, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory]),
+    invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true },
+    staleState: { validation: false, prescreen: true, filter: false }, reports: [] });
+  await flush();
+  assert.ok(f.$('[data-bind="account-category-card"]') === null, 'back on the account mapping');
+  assert.equal(f.$('[data-account-bulk-category] option[value="custom.inventory"]').hasAttribute('selected'), true);
+
+  // 從卡片右上的「分類設定」進去儲存時，留在分類設定。
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="add-category"]');
+  f.type('[data-category-label="draft-2"]', '固定資產');
+  f.click('[data-action="save-category"]');
+  f.request('accountCategorySave').resolve({ revision: 4, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory, equipmentCategory]),
+    invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true },
+    staleState: { validation: false, prescreen: true, filter: false }, reports: [] });
+  await flush();
+  assert.ok(f.$('[data-bind="account-category-card"]') !== null, 'stays in category settings');
+});
+
+// 從加號進分類設定、沒有命名就按「返回科目配對」：那一列跟著拿掉，分類設定不會留著一列不能儲存的空白分類。
+// 草稿裡最後已經有一列還沒命名的新分類時，加號沿用它，不再多加一列。
+test('the 新增分類 button leaves no unnamed row behind and never stacks blank rows', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  f.click('[data-account-add-category]');
+  assert.equal(f.$('[data-category-label="draft-1"]').value, '');
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="toggle-category"]');
+  assert.ok(f.$('[data-category-label="draft-1"]') === null, 'the unnamed row is gone');
+  assert.equal(f.$('[data-bind="category-dirty-notice"]').hasAttribute('hidden'), true, 'nothing is left to save');
+
+  // 在分類設定自己按「新增分類」留下的空白列，回到科目配對再按加號時沿用它。
+  f.click('[data-action="add-category"]');
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-account-add-category]');
+  assert.ok(f.$('[data-category-label="draft-2"]') !== null, 'the existing unnamed row is still there');
+  assert.ok(f.$('[data-category-label="draft-3"]') === null, 'no second unnamed row is added');
+
+  // 有命名的新分類不是空白列，返回時留著。
+  f.type('[data-category-label="draft-2"]', '存貨');
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="toggle-category"]');
+  assert.equal(f.$('[data-category-label="draft-2"]').value, '存貨');
+});
+
+// 分類設定裡還沒儲存的新分類，和匯入新增的分類同名時是同一個分類：草稿那一列換成已經存好的分類，不出現兩列同名。
+test('an unsaved new category with the same name as an imported one becomes that category instead of a duplicate row', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="add-category"]');
+  f.type('[data-category-label="draft-1"]', ' 存貨 ');
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="toggle-account-excel"]');
+  await importCsv(f, { batchId: 'am-same-name-as-draft',
+    accountCategory: { revision: 3, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory]) } });
+  f.click('[data-action="toggle-category"]');
+  assert.ok(f.$('[data-category-label="draft-1"]') === null, 'the draft row took the imported identity');
+  assert.deepEqual(f.$$('[data-category-label]').map(input => input.value), ['Cash', '銀行存款', '存貨']);
+  // 草稿這時和已儲存的分類相同，分類設定不再寫還有修改沒儲存，也沒有東西可以儲存。
+  assert.equal(f.$('[data-bind="category-dirty-notice"]').hasAttribute('hidden'), true);
+  assert.equal(f.$('[data-action="save-category"]').disabled, true);
+});
+
+// 還沒命名的新列不一定在草稿最後：匯入新增的分類會接在它後面。加號照樣沿用那一列，不再多加一列空白分類。
+test('the 新增分類 button reuses an unnamed row even when imported categories were appended after it', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="add-category"]');
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="toggle-account-excel"]');
+  await importCsv(f, { batchId: 'am-after-unnamed-row',
+    accountCategory: { revision: 3, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory]) } });
+  f.click('[data-action="select-account-jet"]'); await flush();
+  f.click('[data-account-add-category]');
+  assert.ok(f.$('[data-category-label="draft-1"]') !== null, 'the unnamed row is still there');
+  assert.ok(f.$('[data-category-label="draft-2"]') === null, 'no second unnamed row is added');
+  assert.deepEqual(f.$$('[data-category-label]').map(input => input.value), ['Cash', '銀行存款', '', '存貨']);
+});
+
+// 上下層級的開關打開時，別的分類可以掛在還沒命名的新列底下。返回科目配對拿掉那一列時，底下的分類改接到它的上一層，
+// 儲存送出的上層不會指向已經不存在的列。
+test('dropping the unnamed row on return re-parents the categories placed under it', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  f.ui.FEATURES.categoryHierarchy = true;
+  f.click('[data-account-add-category]');
+  f.click('[data-action="add-category"]');
+  f.type('[data-category-label="draft-2"]', '子分類');
+  f.click('[data-action="toggle-category-advanced"]');
+  const parent = f.$('[data-category-parent="draft-2"]');
+  parent.value = 'draft-1'; parent.dispatch('change');
+  f.click('[data-action="toggle-category"]');
+  f.click('[data-action="toggle-category"]');
+  assert.ok(f.$('[data-category-label="draft-1"]') === null, 'the unnamed row is gone');
+  f.click('[data-action="save-category"]');
+  assert.deepEqual(plain(f.request('accountCategorySave').payload).categories.at(-1),
+    { label: '子分類', ordinal: 2, semanticRole: 'others', parentCategoryId: null, categoryId: 'draft-2' });
+});
+
+// 從加號新增分類、存好回到科目配對後，焦點交給接下來要按的地方：有勾選科目時是「套用至已選科目」，否則是「套用分類」選單。
+test('saving a category added from the JET tab hands the focus to the apply button, or to the dropdown when nothing is ticked', async () => {
+  const f = await openStep4({ validation: validationResult(), accountCategory: CATEGORY_WITH_BANK });
+  const handed = [];
+  f.window.JetFocus = { defer() {}, deferFirst(selectors) { handed.push(selectors); } };
+  f.click('[data-account-add-category]');
+  f.type('[data-category-label="draft-1"]', '存貨');
+  f.click('[data-action="save-category"]');
+  f.request('accountCategorySave').resolve({ revision: 3, categories: CATEGORY_WITH_BANK.categories.concat([inventoryCategory]),
+    invalidatedResults: { validation: false, prescreen: true, filter: true, filterScenarios: true },
+    staleState: { validation: false, prescreen: true, filter: false }, reports: [] });
+  await flush();
+  assert.deepEqual(plain(handed), [['[data-account-apply]', '[data-account-bulk-category]']]);
+});
+
+// 按鈕叫「建立科目配對範本」，和「更多」裡的「重建科目配對範本」成對；狀態句與訊息面板用同一個名稱。
+test('the Excel tab button reads 建立科目配對範本 and its status and messages use the same name', async () => {
+  const f = await openStep4({ validation: validationResult() });
+  f.click('[data-action="toggle-account-excel"]');
+  assert.equal(f.text('[data-action="ensure-account-mapping-template"]'), '建立科目配對範本');
+  f.click('[data-action="ensure-account-mapping-template"]');
+  assert.equal(f.text('[data-validation-output="template"]'), '正在建立科目配對範本…');
+  f.request('exportAccountMappingTemplate').reject({ code: 'synthetic_failure', message: '合成：檔案被其他程式開啟' });
+  await flush();
+  assert.ok(f.state().messages.some(m => m.text.startsWith('建立科目配對範本失敗：合成：檔案被其他程式開啟')));
 });
 
 // 「用 Excel 配對」選到 Excel 正開著的檔案時照樣匯入。後端另外列出的開著檔案提醒放在托盤的匯入結果上方，

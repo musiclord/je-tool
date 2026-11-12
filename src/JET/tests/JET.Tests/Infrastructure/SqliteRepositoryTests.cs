@@ -281,16 +281,16 @@ public sealed class SqliteRepositoryTests
             await command.ExecuteNonQueryAsync();
         }
 
-        // 舊版 JET 保存的第 1 版配對不沿用舊語意讀取，而是明確告訴使用者重新建立案件。
+        // 第 1 版格式的配對是較早版本的 JET 保存的，不照當時的語意讀取，而是明確告訴使用者重新建立案件。
         var exception = await Assert.ThrowsAsync<JetActionException>(() => new LocalMappingStateStore(db).FindAsync(
             projectId,
             DatasetKind.Gl,
             CancellationToken.None));
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
-        // 舊版案件的訊息全程式用同一句，寫明刪除後重建。
+        // 較早版本的 JET 建立的案件，訊息全程式用同一句，寫明刪除後重建。
         Assert.Equal(
-            "這個案件是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
+            "這個案件是較早版本的 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
     }
 

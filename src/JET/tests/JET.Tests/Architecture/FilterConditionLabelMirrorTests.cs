@@ -161,13 +161,13 @@ public sealed class FilterConditionLabelMirrorTests
 
     private static string ReadUiCore()
     {
-        var path = Path.Combine(RepoRoot(), "JET", "wwwroot", "js", "ui-core.js");
+        var path = Path.Combine(SolutionRoot(), "JET", "wwwroot", "js", "ui-core.js");
         Assert.True(File.Exists(path), $"找不到前端核心檔：{path}");
         return File.ReadAllText(path);
     }
 
-    /// <summary>由測試組件位置向上尋 <c>JET.slnx</c>，定位 repo 根（同 SupportedActionsParityTests 的慣例）。</summary>
-    private static string RepoRoot()
+    /// <summary>從測試程式所在的資料夾往上找 <c>JET.slnx</c>，回傳方案檔所在的資料夾（同 SupportedActionsParityTests 的慣例）。</summary>
+    private static string SolutionRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "JET.slnx")))
@@ -176,6 +176,6 @@ public sealed class FilterConditionLabelMirrorTests
         }
 
         return dir?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

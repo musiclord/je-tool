@@ -327,8 +327,8 @@ public sealed class LocalImportRepository(ILocalProjectDatabase database, ILogge
                 batchId,
                 FieldInfoScope.Source,
                 cancellationToken);
-            // 每次取代匯入都會寫入欄位定義，只有舊版 JET 匯入的資料會沒有；舊版案件一律刪除後重建，
-            // 不寫讀取相容，所以和其他舊版案件用同一句。
+            // 每次取代匯入都會寫入欄位定義，只有較早版本的 JET 匯入的資料會沒有；這種案件一律刪除後重建，
+            // 不寫讀取相容，所以和其他較早版本的案件用同一句。
             if (persistedDefinitions.Count == 0)
             {
                 throw new JetActionException(

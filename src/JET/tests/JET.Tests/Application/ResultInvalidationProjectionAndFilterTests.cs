@@ -93,7 +93,8 @@ public sealed class ResultInvalidationProjectionAndFilterTests
         var badPath = Path.Combine(
             Path.GetTempPath(), "jet-invalidation-tests", Guid.NewGuid().ToString("N") + ".csv");
         Directory.CreateDirectory(Path.GetDirectoryName(badPath)!);
-        await File.WriteAllTextAsync(badPath, "科目代號,科目名稱,標準化分類\n1101,現金,Cash\n9999,神祕科目,NotACategory\n");
+        // 欄名認不出來時分類欄照欄位順序認，案件沒有的分類名稱就是非法分類。
+        await File.WriteAllTextAsync(badPath, "甲,乙,丙\n1101,現金,Cash\n9999,神祕科目,NotACategory\n");
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = badPath })));

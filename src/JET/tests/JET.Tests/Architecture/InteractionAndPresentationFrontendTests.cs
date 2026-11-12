@@ -9,7 +9,7 @@ namespace JET.Tests.Architecture;
 /// UX 項目的前端來源守衛。這些斷言只鎖交互與呈現，
 /// 不新增 wire、schema 或審計語意。
 /// </summary>
-public sealed class ApprovedUxFrontendTests
+public sealed class InteractionAndPresentationFrontendTests
 {
     [Fact]
     public void ProjectDeleteDialog_UsesSiblingNativeControlsAndCompleteKeyboardFocusLifecycle()
@@ -67,7 +67,7 @@ public sealed class ApprovedUxFrontendTests
             TestRepositoryPaths.RepositoryRoot, "tools", "harness", "agent-gui-test", "AgentGuiTestFixtures.cs"));
         var scripts = string.Join(
             "\n",
-            Directory.GetFiles(Path.Combine(RepoRoot(), "JET", "wwwroot", "js"), "*.js", SearchOption.AllDirectories)
+            Directory.GetFiles(Path.Combine(SolutionRoot(), "JET", "wwwroot", "js"), "*.js", SearchOption.AllDirectories)
                 .Select(File.ReadAllText));
         var titles = Regex.Matches(fixtures, @"private const string \w+Title = ""([^""]+)"";")
             .Select(match => match.Groups[1].Value)
@@ -135,9 +135,9 @@ public sealed class ApprovedUxFrontendTests
     }
 
     private static string ReadFrontend(params string[] segments)
-        => File.ReadAllText(Path.Combine(new[] { RepoRoot(), "JET", "wwwroot" }.Concat(segments).ToArray()));
+        => File.ReadAllText(Path.Combine(new[] { SolutionRoot(), "JET", "wwwroot" }.Concat(segments).ToArray()));
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

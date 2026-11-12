@@ -8,7 +8,7 @@ namespace JET.Tests.Architecture;
 public sealed class DataPreviewFrontendTests
 {
     [Fact]
-    public void MainTabs_ExposeSourceAndStandardizedPairsWithApprovedExactLabels()
+    public void MainTabs_ExposeSourceAndStandardizedPairsWithExactLabels()
     {
         var preview = ReadFrontend("js", "data-preview.js");
         var tabs = Regex.Match(
@@ -59,9 +59,9 @@ public sealed class DataPreviewFrontendTests
     }
 
     private static string ReadFrontend(params string[] segments)
-        => File.ReadAllText(Path.Combine(new[] { RepoRoot(), "JET", "wwwroot" }.Concat(segments).ToArray()));
+        => File.ReadAllText(Path.Combine(new[] { SolutionRoot(), "JET", "wwwroot" }.Concat(segments).ToArray()));
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

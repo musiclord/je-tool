@@ -181,12 +181,12 @@ public sealed class ReportTemplateExternalRelationshipTests
             },
             StringComparer.Ordinal);
 
-    private static string TemplateRoot() => Path.Combine(RepoRoot(), "JET", "Templates");
+    private static string TemplateRoot() => Path.Combine(SolutionRoot(), "JET", "Templates");
 
     private static string SourceTemplateRoot() => Path.GetFullPath(
-        Path.Combine(RepoRoot(), "..", "..", "data"));
+        Path.Combine(SolutionRoot(), "..", "..", "data"));
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

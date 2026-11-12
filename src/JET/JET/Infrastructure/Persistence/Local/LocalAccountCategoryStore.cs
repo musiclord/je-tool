@@ -64,7 +64,28 @@ public sealed class LocalAccountCategoryStore(ILocalProjectDatabase database) : 
             current.Categories,
             cancellationToken);
 
-        var nextRevision = checked(current.Revision + 1);
+        var saved = await ReplaceWithinAsync(connection, transaction, current.Revision, replacement, cancellationToken);
+        await ResultReset.ClearWithinAsync(
+            connection,
+            transaction,
+            cancellationToken,
+            AuditMutation.AccountCategory);
+        await transaction.CommitAsync(cancellationToken);
+        return saved;
+    }
+
+    /// <summary>
+    /// 在呼叫端的交易裡把案件的科目分類整份換成 <paramref name="replacement"/>，版本加一，並重寫上下層對照表。
+    /// 分類設定儲存與科目配對匯入新增分類都走這裡；要不要清除下游結果由呼叫端決定。
+    /// </summary>
+    internal static async Task<AccountCategorySnapshot> ReplaceWithinAsync(
+        System.Data.Common.DbConnection connection,
+        System.Data.Common.DbTransaction transaction,
+        int currentRevision,
+        IReadOnlyList<AccountCategory> replacement,
+        CancellationToken cancellationToken)
+    {
+        var nextRevision = checked(currentRevision + 1);
         await using (var delete = connection.CreateCommand())
         {
             delete.Transaction = transaction;
@@ -103,16 +124,10 @@ public sealed class LocalAccountCategoryStore(ILocalProjectDatabase database) : 
         }
 
         await AccountCategoryHierarchy.SavePathsAsync(connection, transaction, replacement, "", cancellationToken);
-        await ResultReset.ClearWithinAsync(
-            connection,
-            transaction,
-            cancellationToken,
-            AuditMutation.AccountCategory);
-        await transaction.CommitAsync(cancellationToken);
         return new AccountCategorySnapshot(nextRevision, replacement);
     }
 
-    private static async Task<AccountCategorySnapshot> ReadWithinAsync(
+    internal static async Task<AccountCategorySnapshot> ReadWithinAsync(
         System.Data.Common.DbConnection connection,
         System.Data.Common.DbTransaction transaction,
         CancellationToken cancellationToken)

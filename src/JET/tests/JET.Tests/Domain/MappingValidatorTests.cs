@@ -125,7 +125,7 @@ public sealed class MappingValidatorTests
     [Fact]
     public void LineItemAbsence_IsValid()
     {
-        // 來源可能沒有項次欄；lineItem 缺漏不可阻擋 commit（manifest: No／optional）
+        // 來源可能沒有項次欄；lineItem 缺漏不可阻擋 commit（lineItem 是選填）
         var spec = new GlMappingSpec(
             new Dictionary<string, string>
             {

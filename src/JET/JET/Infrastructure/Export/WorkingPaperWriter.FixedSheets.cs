@@ -13,7 +13,7 @@ public sealed partial class WorkingPaperWriter
 
     /// <summary>
     /// 「資料預先整理之說明」:公司名、測試期間與固定說明。
-    /// A6 照舊版樣本底稿的外觀保留儲存格格式，但不寫字；兩份舊版 IDEA 程式都沒有寫這一格。
+    /// A6 只保留儲存格格式，不寫字；兩份舊版 IDEA 程式都沒有寫這一格。
     /// </summary>
     private static void EmitCoverSheet(
         WorkingPaperWriteSession session, List<SheetStat> stats,
@@ -84,7 +84,6 @@ public sealed partial class WorkingPaperWriter
     /// 「自動化工具-檔案欄位資訊」：只接受 AuditCore finalized 的完整 target Field Info projection；
     /// TB 完整列後保留兩個 physical blank rows，再以動態列號接 GL。
     /// </summary>
-
     private async Task EmitFieldInfoSheetAsync(
         WorkingPaperWriteSession session, List<SheetStat> stats,
         WorkingPaperContext context, FieldInfoProjection projection,
@@ -266,7 +265,7 @@ public sealed partial class WorkingPaperWriter
     /// <summary>
     /// 「自動化工具-假期假日資訊」:週末表 + 假日表(calendar store holiday)+ 補班段(makeup)。
     /// 週末表照案件設定的每週休息日寫出(<see cref="WeekendRows"/>)。
-    /// 假日/補班逐日列出(日數有界):日期由 yyyy-MM-dd 轉樣本顯示形式 yyyy/MM/dd;假日 IS_HOLIDAY 一律 Y。
+    /// 假日/補班逐日列出(日數有界):日期由 yyyy-MM-dd 轉成 yyyy/MM/dd 顯示;假日 IS_HOLIDAY 一律 Y。
     /// 沒有匯入國定假日或補班日時,照舊版寫提示句,寫在原本該段標題的那一列:
     /// 舊版把假日的提示句寫在第 12 列,有補班日時又被補班標題蓋掉,所以 JET 不照舊版的列號。
     /// </summary>

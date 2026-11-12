@@ -105,7 +105,7 @@ public sealed partial class WorkingPaperWriter
         ConfigureStep2Layout(sheet, spool.Widths);
         WriteSubstantiveHeader(sheet, context, "此Report將提供測試JE母體攸關資料元素可靠性之樣本");
 
-        // 測試說明 + 測試程序固定文字(逐字對齊樣本;列號/欄/合併皆照樣本)。
+        // 測試說明 + 測試程序固定文字。
         WriteFixedLines(sheet, PlannedLines(sheetPlan, Step2HeaderLines));
         foreach (var range in Step2HeaderMerges(customFields.Count))
         {
@@ -1553,9 +1553,8 @@ public sealed partial class WorkingPaperWriter
     /// <summary>
     /// 證實測試表頭(step2/3/4 共用前三列):A1 公司名 / A2 財務報表期間 / A3 副標題。
     /// 與 step1 家族的 <see cref="WriteCommonHeader"/> 不同(那是「測試資料期間/財報準備開始日」),
-    /// 故另立——這是兩組不同的固定表頭,非可統一的重複(對齊樣本各表逐字)。
+    /// 故另立——這是兩組不同的固定表頭,非可統一的重複。
     /// </summary>
-
     private static void WriteSubstantiveHeader(
         SheetWriter sheet, WorkingPaperContext context, string subtitle, bool omitSubtitle = false)
     {
@@ -1572,16 +1571,23 @@ public sealed partial class WorkingPaperWriter
         }
     }
 
-    /// <summary>逐列寫固定文字(列號/欄/文字三元組);供 step2/3/4 表頭大段 boilerplate 共用。</summary>
+    /// <summary>
+    /// 逐列寫固定文字(列號/欄/文字三元組);供 step2/3/4 表頭大段 boilerplate 共用。
+    /// 同一列的幾段文字合成一列、照欄的順序一次寫出，工作表裡同一個列號才不會出現兩次。
+    /// </summary>
     private static void WriteFixedLines(SheetWriter sheet, IReadOnlyList<(uint Row, uint Column, string Text)> lines)
     {
-        foreach (var (row, column, text) in lines)
+        foreach (var row in lines.GroupBy(line => line.Row))
         {
-            sheet.WriteFixedRow(row, [sheet.TextCell(row, column, text, WorkingPaperStyles.Bold)]);
+            sheet.WriteFixedRow(
+                row.Key,
+                row.OrderBy(line => line.Column)
+                    .Select(line => sheet.TextCell(line.Row, line.Column, line.Text, WorkingPaperStyles.Bold))
+                    .ToArray());
         }
     }
 
-    /// <summary>step2 第 49-52 列多層欄標(逐字對齊樣本;合併範圍見 Step2HeaderMerges)。</summary>
+    /// <summary>step2 第 49-52 列多層欄標(合併範圍見 Step2HeaderMerges)。</summary>
     private static void WriteStep2ColumnHeaders(
         SheetWriter sheet,
         IReadOnlyList<string> customFields,
@@ -2009,7 +2015,7 @@ public sealed partial class WorkingPaperWriter
         (47, 3, "若有其他用在高風險條件的RDE欄位，請自行於工作表：可靠性樣本_所有欄位中複製貼上至此底稿中。"),
     ];
 
-    /// <summary>step2 表頭合併範圍(逐字對齊樣本;欄標多層合併)。</summary>
+    /// <summary>step2 表頭合併範圍(欄標多層合併)。固定的那幾個範本裡也有;攸關資料元素欄的合併範圍依欄數另外加。</summary>
     private static IReadOnlyList<string> Step2HeaderMerges(int customFieldCount)
     {
         var ranges = new List<string>
@@ -2068,7 +2074,7 @@ public sealed partial class WorkingPaperWriter
         ];
     }
 
-    /// <summary>step3 固定文字合併範圍(逐字對齊樣本)。</summary>
+    /// <summary>step3 固定文字合併範圍,範本裡也有這幾個。</summary>
     private static readonly IReadOnlyList<string> Step3HeaderMerges =
     [
         "B5:E5", "B7:E7", "A9:A12", "B9:E12", "B15:E15", "B16:E16"
@@ -2086,7 +2092,7 @@ public sealed partial class WorkingPaperWriter
         (10, 19, "有無舞弊\n或不實表達\n(Yes/No)"),
     ];
 
-    /// <summary>step4 固定文字合併範圍(逐字對齊樣本)。</summary>
+    /// <summary>step4 固定文字合併範圍,範本裡也有這幾個。</summary>
     private static readonly IReadOnlyList<string> Step4HeaderMerges =
     [
         "B5:E5", "B7:E7", "P10:R10", "S10:S11"

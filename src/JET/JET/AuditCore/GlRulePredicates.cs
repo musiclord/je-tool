@@ -362,7 +362,7 @@ internal sealed partial class GlRulePredicates(
         string op,
         int moneyScale)
     {
-        // amountBasis 是凍結契約的必填 closed token：signed 比較帶號 scaled 值、absolute 比較 ABS。
+        // 每條 money 條件都要帶 amountBasis，值只能是 signed 或 absolute：signed 比較帶號 scaled 值、absolute 比較 ABS。
         var columnExpr = rule.AmountBasis switch
         {
             TypedAmountBasisNames.Signed => "v.amount_scaled",

@@ -43,7 +43,7 @@ internal static partial class GuiScenarios
         // 情境範例 2026-11-03 移到右側條件組合上方的「從情境範例開始」托盤（裁定 2026-11-03-05），預設收起（裁定 2026-11-03-19）：
         // 第一次套用前打開，同一次開案內保持打開。第一個範例預覽後切到欄位條件分頁，確認換分頁只改畫面。
         // 原本切到自訂篩選條件並展開「金額」分類；2026-11-03 起常用查法掛在各自的欄位，收在欄位「加入」打開的選單裡（裁定 2026-11-03-37），沒有分類可展開。Gui 在提交前才實跑，
-        // 同一個改動的前端測試第一次失敗見 FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+        // 同一個改動的前端測試第一次失敗是在 FrontendMapping。
         // 階段名稱原本是 custom_examples_and_trailing_zeros，2026-11-03 拿掉舊分頁識別 custom（裁定 2026-11-03-21）。
         outcome.RecordStage("examples_and_trailing_zeros");
         // Independent fixed answers from DemoDataFactory's synthetic population and the GUI department column:
@@ -90,7 +90,7 @@ internal static partial class GuiScenarios
         // 加入時預設的個數照 IDEA 版由 GL 借方平均算出，跟著已確認的 GL 配對（裁定 2026-11-05-25、2026-11-05-26），這個合成案件不是 6。
         // 這個案件和 C# 的示範案件同樣用 DemoDataFactory 的母體，借方平均是 5 位數，所以預設是 4 個 0；
         // PrescreenRunHandlerTests.DemoTrailingZeroDigits 逐列獨立算出同一個數。先核對預設是 4，再照審計員的操作改成 6，核對原本的 30 筆；
-        // 操作多 4 次，lanes.json 跟著改（第一次失敗收據 20261106-004207370-5028a0ca032d4b0dbfb1c54cf978141b，預設是 4，一直等不到 6 而逾時）。
+        // 操作多 4 次，lanes.json 跟著改（第一次失敗時預設是 4，一直等不到 6 而逾時）。
         // 2026-11-06 提交前複審指出，原本寫成和前端存的個數比較，等於拿被測程式算出的值當預期，所以改成寫死 4。
         await AddFieldConditionAsync(cdp, "shortcut:trailingZeros", Click, ct);
         await Check("draft.groups.flatMap(g=>g.conditions).length===1 && draft.groups[0].conditions[0].type==='fieldValue' && draft.groups[0].conditions[0].operator==='endsWithZeros' && draft.groups[0].conditions[0].value==='4'");
@@ -102,7 +102,7 @@ internal static partial class GuiScenarios
         await Check("saved.length===5");
         outcome.RecordStage("legacy_form_cancel_and_export");
         await Click("[data-filter-pane-select=saved]");
-        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
+        // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗留在當時的驗證紀錄）。
         await Click(".saved-scenario .jet-menu__toggle");
         await Click("[data-action=edit-scenario][data-index='0']");
         await Fill(".rule-row[data-ri='2'] [data-value-key=values]", "GUI-RETRY");
@@ -121,7 +121,7 @@ internal static partial class GuiScenarios
         // 2026-10-14 借貸方向改用「借貸別」條件後，「借方且科目」放進同一個子條件組，讀回時本來就有「同一分錄（（僅借方 且 …））」
         // （前後端共用的 src/JET/tests/JET.Tests/Fixtures/filter-readback-sentences.json 的 explicit-direction-and-account-child-group）。
         // 原本「不含同一分錄」要防的是最外層變成同一分錄，所以改成核對開頭是同張傳票，兩個整張傳票條件各自讀回借方與貸方
-        // （第一次失敗收據 20261015-041340236-dc48b21196bd43468c13761f7322d4b9）。
+        // （第一次失敗留在當時的驗證紀錄）。
         await Check("(()=>{var text=document.querySelector('[data-bind=scenario-body-2] .scenario-readback').textContent;return text.startsWith('篩選條件：同張傳票') && text.includes('整張傳票至少一筆符合：同一分錄（（僅借方') && text.includes('整張傳票至少一筆符合：同一分錄（（僅貸方');})()");
         await CaptureScreenshotAsync(cdp, outcome, ct);
         outcome.Assertions.LegacyFormWorkflowVerified = true;

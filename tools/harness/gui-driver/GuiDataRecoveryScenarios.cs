@@ -158,7 +158,7 @@ internal static partial class GuiScenarios
         await Click("[data-filter-pane-select=filter]"); await Add("field:description");
         await Choose("[data-value-kind]", "starts"); await Choose("[data-value-polarity]", "exclude");
         // 裁定 2026-11-09-09 將開頭與結尾改為多值清單，操作改用該清單，原條件值與後續檢查不變。
-        // 首次失敗收據：20261110-052307728-25422c931dc24e96afa1df9a14bf8445；舊單值欄位已不存在。
+        // 首次失敗是完整 Gui 的 gui-extended-conditions 這一步，原因碼 recovery_control_unavailable；舊單值欄位已不存在。
         await Fill("[data-value-key=values]", "GUI-"); await Preview();
         await Check("draft.groups[0].conditions[0].operator==='notStartsWith'");
         await Choose("[data-value-kind]", "ends"); await Choose("[data-value-polarity]", "exclude");
@@ -288,7 +288,7 @@ internal static partial class GuiScenarios
         const string cleared = "state.filter.savedScenarios.length===0 && state.filter.draft.groups.length===0 && state.messages.some(m=>m.text==='前面步驟的資料已更改，已存的篩選情境已清除，請重新設定。')";
         // 第五步用到 GL 沒有配對的欄位時，使用者選了「停用並寫原因」（裁定 2026-10-22-05）：核准人員沒有配對時，
         // 「編製人員與核准人員相同」的卡片停用、收在「尚不可用」裡並寫出缺的欄位，按不下去，也就不會走到儲存。原本這裡點這張卡、
-        // 按儲存，再讀儲存失敗的說明（第一次失敗收據 20261028-070711231-27d8b512c4dc4ef5ab16939260b93d1f，停用的卡片捲動超過次數上限）。
+        // 按儲存，再讀儲存失敗的說明（第一次失敗是停用的卡片捲動超過次數上限）。
         // 2026-11-05 常用篩選條件改成清單列（裁定 2026-11-05-08），原因從卡片裡移到同一列名稱的下一行，鍵上只寫「加入」，
         // 所以改讀那一列的文字。
         const string missingApprover = "state.filter.savedScenarios.length===0 && (()=>{var j=document.querySelector('[data-common-cards] .filter-unavailable [data-common-card=preparerEqualsApprover]');" +
@@ -321,7 +321,7 @@ internal static partial class GuiScenarios
         await Check(hit + " && JSON.stringify(state.filter.savedScenarios[0])===" + definition.GetRawText());
         // 裁定 2026-10-07-03：上游修改清除下游，確認配對後已存情境清空，第五步回到預設；
         // 沒有核准人員欄位時這張卡存不進去，畫面就地說明缺的欄位。原本這裡驗證情境保留並提示缺欄、重試與返回補欄，
-        // 第一次失敗收據 20261007-041919444-f03fb3816dec4d5f9758ebd9b5d2a1f2。
+        // 第一次失敗留在當時的驗證紀錄。
         outcome.RecordStage("common_remap_clears_scenarios");
         await Click("[data-bind=step-nav] [data-step-index='2']");
         await MapApprover("");
@@ -375,12 +375,12 @@ internal static partial class GuiScenarios
         }
         // 2026-10-24 起空白摘要移出資料缺漏輔助檢視，空白傳票號碼與空白科目編號改成第 0、1 項；前端測試當時已跟著改，
         // 這裡沒有，原本的第 1 項變成科目編號的明細，筆數同樣是 206，前半段誤點也沒有失敗
-        // （第一次失敗收據 20261028-070139148-9c30e5c0b6a7443bb601207d4fe6c762，找不到第 2 項）。
+        // （第一次失敗是找不到第 2 項）。
         const string doc = "[data-bind=rule-detail-pn-0]";
         const string account = "[data-bind=rule-detail-pn-1]";
         // 裁定 2026-10-16-03：明細一律每頁至多 200 筆、用左右箭頭換頁，「載入更多」已移除。
         // 打開明細就讀第一頁 200 列，第 2 頁是剩下的 6 列；原本按兩次「載入更多」累積到 206 列，改成核對頁碼與換頁
-        // （第一次失敗收據 20261019-164820528-1585a7eae899498882912269c48d443e，找不到「載入更多」）。
+        // （第一次失敗是找不到「載入更多」）。
         const string docNext = doc + " [data-page-next]";
         const string accountNext = account + " [data-page-next]";
         string Rows(string panel, int count) => "document.querySelectorAll(" +

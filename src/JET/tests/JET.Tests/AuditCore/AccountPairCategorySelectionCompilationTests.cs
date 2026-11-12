@@ -9,7 +9,7 @@ namespace JET.Tests.AuditCore;
 /// <summary>
 /// 借貸組合雙側多選的編譯契約：查核員選取的分類身分只用來 lookup semantic role、一律綁定為參數，
 /// 商業比較仍只看 role；同一組分類的任何排列或重複都編譯出逐字相同的 SQL 與參數序列。
-/// legacy scalar 只是「單元素集合」的相容輸入，不另走一條 SQL。
+/// 單側只選一個分類時就是單元素集合，不另走一條 SQL。
 /// 空集合必須 fail closed——否定模式的 NOT EXISTS 遇到空集合會反轉成全命中。
 /// </summary>
 public sealed class AccountPairCategorySelectionCompilationTests
@@ -65,7 +65,7 @@ public sealed class AccountPairCategorySelectionCompilationTests
             []));
 
         Assert.Contains("semantic_role IN (SELECT ts.semantic_role", plan.Sql, StringComparison.Ordinal);
-        // 顯示 label 只出現在「尚未 backfill 的 legacy row」那條 join 分支，永遠不與使用者輸入比較。
+        // 科目配對一律用 category_id 連到分類表；顯示 label 不出現在比較裡，也不與使用者輸入比較。
         Assert.DoesNotContain("label = @", plan.Sql, StringComparison.Ordinal);
         Assert.All(
             plan.Parameters.Select(static parameter => (string)parameter.Value!),

@@ -34,7 +34,7 @@ public sealed class RuleLogicVersionsTests
     [Fact]
     public void BeforeApprovalDateNaDecision_ValidationResultIsStale()
     {
-        // 舊版規則邏輯的驗證結果在傳票核准日沒有配對時寫 0 筆，畫面顯示「通過」，不能當成目前結果。
+        // 規則邏輯版本較舊的驗證結果在傳票核准日沒有配對時寫 0 筆，畫面顯示「通過」，不能當成目前結果。
         var summary = """{"resultRef":{"logicVersion":"validation-2026-10-04-v5"}}""";
         Assert.False(RuleLogicVersions.IsCurrent(new ResultRecord("old", ResultKind.Validation, DateTimeOffset.UnixEpoch, summary)));
     }

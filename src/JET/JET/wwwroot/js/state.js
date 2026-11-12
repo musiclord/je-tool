@@ -851,7 +851,7 @@
       state.mapping.gl.droppedFields = (dropped && dropped.gl) || [];
       state.mapping.gl.amountMode = bundle.gl.amountMode;
       // v2 草稿另帶核准日三態、過帳狀態政策、人工／自動代碼與攸關資料元素定義。
-      // reader 已把 v1 正規化成 v2 形狀，因此這裡只做一次原子鏡像，不逐欄推導。
+      // 後端回傳的草稿一律是 v2 形狀，因此這裡只做一次原子鏡像，不逐欄推導。
       state.mapping.gl.options = {
         approvalDateMode: bundle.gl.approvalDateMode || 'unmapped',
         postingStatusPolicy: bundle.gl.postingStatusPolicy || null,

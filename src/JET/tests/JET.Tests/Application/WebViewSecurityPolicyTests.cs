@@ -44,9 +44,9 @@ public sealed class WebViewSecurityPolicyTests
     }
 
     private static string ReadProductionSource(params string[] segments)
-        => File.ReadAllText(Path.Combine(new[] { RepoRoot(), "JET" }.Concat(segments).ToArray()));
+        => File.ReadAllText(Path.Combine(new[] { SolutionRoot(), "JET" }.Concat(segments).ToArray()));
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

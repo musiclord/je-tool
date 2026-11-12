@@ -1,6 +1,6 @@
 # JET 架構與流程圖
 
-首次 SAT 的現行 SQLite 架構請看 [Technical Document](<../SAT/Technical Document.docx>) 第 6 節，資料表關聯圖與 UML 類別圖在 [Diagrams](../SAT/Diagrams/) 資料夾。
+首次 SAT 的現行 SQLite 架構請看 [Technical Document](<../SAT/Technical Document.docx>) 第 6 節，實體關聯圖、類別圖、元件圖與活動圖在 [Diagrams](../SAT/Diagrams/) 資料夾。
 
 下列詳細圖表保留原程式快照的範圍，含有已暫時移除的其他資料庫，不代表本次正式版支援範圍。
 

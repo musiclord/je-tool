@@ -161,7 +161,8 @@ public sealed class UpstreamMutationClearsFilterScenariosTests
         var hitsBefore = await CountAsync(host, prepared.Id, provider, "filter_hit");
         var badPath = Path.Combine(Path.GetTempPath(), "jet-upstream-clear-tests", Guid.NewGuid().ToString("N") + ".csv");
         Directory.CreateDirectory(Path.GetDirectoryName(badPath)!);
-        await File.WriteAllTextAsync(badPath, "科目代號,科目名稱,標準化分類\n1000,合成資產,Cash\n9999,合成科目,NotACategory\n");
+        // 欄名認不出來時分類欄照欄位順序認，案件沒有的分類名稱會讓匯入失敗。
+        await File.WriteAllTextAsync(badPath, "甲,乙,丙\n1000,合成資產,Cash\n9999,合成科目,NotACategory\n");
         try
         {
             var error = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(

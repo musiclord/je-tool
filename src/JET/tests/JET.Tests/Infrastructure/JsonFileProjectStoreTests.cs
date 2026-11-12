@@ -254,7 +254,7 @@ public sealed class JsonFileProjectStoreTests
             exception.Message);
     }
 
-    // 舊版案件只看 project.json 的設定檔版本判斷，不從 databaseProvider 缺席或 sampleSeedVersion
+    // 較早版本的 JET 建立的案件只看 project.json 的設定檔版本判斷，不從 databaseProvider 缺席或 sampleSeedVersion
     // 缺漏、小於 2 推斷。這則用設定檔版本是第 1 版的案件；那三種欄位的情況由下一則當成設定檔損壞。
     [Theory]
     [InlineData("schemaVersion", 1)]
@@ -274,7 +274,7 @@ public sealed class JsonFileProjectStoreTests
         Assert.True(node.ContainsKey(propertyName));
         if (legacyValue is null)
         {
-            // 舊版 JET 建立的 project.json 沒有這個欄位。
+            // 較早版本的 JET 建立的 project.json 沒有這個欄位。
             node.Remove(propertyName);
         }
         else
@@ -288,7 +288,7 @@ public sealed class JsonFileProjectStoreTests
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
         // 訊息不寫檔名與缺了哪個設定，要寫明刪除後重建。
         Assert.Equal(
-            $"案件「{legacy.ProjectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
+            $"案件「{legacy.ProjectId}」是較早版本的 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
         Assert.DoesNotContain(propertyName, exception.Message, StringComparison.Ordinal);
         Assert.Contains("請在案件清單刪除這個案件", exception.Message, StringComparison.Ordinal);
@@ -297,7 +297,7 @@ public sealed class JsonFileProjectStoreTests
         Assert.Equal(good.ProjectId, Assert.Single(listed).ProjectId);
     }
 
-    // 設定檔版本是現行版本、卻缺了必要欄位或抽樣版本不對，是設定檔損壞：請審計員從備份還原，不當成舊版案件。
+    // 設定檔版本是現行版本、卻缺了必要欄位或抽樣版本不對，是設定檔損壞：請審計員從備份還原，不當成較早版本的案件。
     [Theory]
     [InlineData("schemaVersion", null)]
     [InlineData("sampleSeedVersion", null)]

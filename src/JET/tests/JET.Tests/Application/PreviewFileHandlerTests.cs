@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// import.previewFile 契約測試（manifest 為驗收基準）。不需 active project——刻意不呼叫 project.create。
+/// import.previewFile 契約測試。不需 active project——刻意不呼叫 project.create。
 /// </summary>
 public sealed class PreviewFileHandlerTests
 {
@@ -96,7 +96,7 @@ public sealed class PreviewFileHandlerTests
     [Fact]
     public async Task PreviewFile_EmptyCsv_ThrowsEmptyWorkbook()
     {
-        // 空白/無標頭 CSV：讀取鏈找不到標頭列 → empty_workbook（manifest 錯誤碼約定）。
+        // 空白/無標頭 CSV：讀取鏈找不到標頭列 → empty_workbook。
         using var host = new HandlerTestHost();
         var path = TestCsvBuilder.WriteFile("   \n", TestCsvBuilder.Utf8NoBom, ".csv");
 

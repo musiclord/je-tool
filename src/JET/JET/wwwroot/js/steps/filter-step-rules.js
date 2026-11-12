@@ -294,7 +294,7 @@
   function ruleRowHtml(rule, group, gi, ri, insideVoucher) {
     if (rule.type === 'group' || rule.type === 'voucher') { return compoundRuleHtml(rule, gi, ri, insideVoucher, group); }
     var family = ruleFamily(rule);
-    // 列標題寫條件的來源，樣態下拉寫是哪一條；常用篩選條件的樣態寫卡片名稱（名詞表「常用篩選條件」一列）。
+    // 列標題寫條件的來源，樣態下拉寫是哪一條；常用篩選條件的樣態寫卡片名稱。
     var patternHeading = family === 'pattern'
       ? ({ prescreen: '預篩選條件', common: '常用篩選條件' }[patternSource(rule)] ||
           ((patternTypeOptions().find(function (item) { return item.value === rule.type; }) ||
@@ -1186,7 +1186,7 @@
       });
 
       // 分類多選：同一側的所有已勾選身分組成陣列（去重、順序不影響判定）。
-      // 陣列存在時即權威，legacy 單選欄位不再參與，故不回寫 scalar。
+      // 判定只看這個陣列，不另外寫單選分類欄位。
       row.querySelectorAll('[data-category-picker]').forEach(function (picker) {
         Ui.bindCategoryPicker(picker, Store.getState(), categoryPickerView(currentRules[ri], picker.getAttribute('data-category-picker')));
       });

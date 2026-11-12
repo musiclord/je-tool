@@ -560,6 +560,7 @@ public sealed partial class LegacyReportWriter
             $"財務報表準備期間 - 開始日 : {DisplayPrepStartDate(context.PrepStartDate)}");
         staticCells.EnsureAllAllowedCellsWereEdited();
         var cellStyles = ResolveCompletenessDiffCellStyles(editor, templateWorksheet);
+        UnlockCompletenessDiffColumns(editor, templateWorksheet);
         var continuationPrototype = (Worksheet)templateWorksheet.CloneNode(true);
 
         var partNumber = 1;
@@ -617,6 +618,19 @@ public sealed partial class LegacyReportWriter
                     cancellationToken).ConfigureAwait(false);
             }
 
+            // 舊版 JET 鎖 B17:D 到「17 加差異科目數」那一列，比最後一筆多一列；這一列補上鎖定的空白格。
+            // 最後一筆剛好寫在列數上限時沒有下一列，就不補。
+            if (rowIndex <= _continuationRowLimit)
+            {
+                sheet.WriteFixedRow(
+                    rowIndex,
+                    [
+                        DirectBlankCell(rowIndex, 2, cellStyles.AccountNumber),
+                        DirectBlankCell(rowIndex, 3, cellStyles.AccountName),
+                        DirectBlankCell(rowIndex, 4, cellStyles.Difference)
+                    ]);
+            }
+
             AddStat(stats, sheet.CloseAndSummarize(cancellationToken), progress);
             sheet.Dispose();
             sheet = null;
@@ -668,6 +682,22 @@ public sealed partial class LegacyReportWriter
             editor.EnsureProtectionStyle(Prototype(6), locked: false),
             editor.EnsureProtectionStyle(Prototype(7), locked: false),
             editor.EnsureProtectionStyle(Prototype(8), locked: false));
+    }
+
+    /// <summary>
+    /// 舊版 JET 先解鎖整張表，只鎖差異科目的 B 到 D 欄。範本各欄的預設樣式沒有寫保護設定，
+    /// 工作表保護後等於鎖定；這裡換成不鎖定的版本，沒有寫值的格子才可以填。
+    /// </summary>
+    private static void UnlockCompletenessDiffColumns(
+        DirectTemplateWorkbookEditor editor,
+        Worksheet worksheet)
+    {
+        var columns = worksheet.GetFirstChild<Columns>()
+            ?? throw new InvalidDataException("Completeness explanation template has no columns.");
+        foreach (var column in columns.Elements<Column>())
+        {
+            column.Style = editor.EnsureProtectionStyle(column.Style?.Value ?? 0U, locked: false);
+        }
     }
 
     private sealed record CompletenessDiffCellStyles(

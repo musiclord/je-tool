@@ -92,7 +92,7 @@ internal static class WorkingPaperStyles
     /// <summary>底稿一般內文的字級；step4-1 用 <see cref="Step41FontSize"/>。</summary>
     internal const double RegularFontSize = 11d;
     internal const double Step41FontSize = 12d;
-    private const string YellowHex = "FFFFFF00"; // ARGB:不透明黃(對齊樣本 bg#FFFF00)
+    private const string YellowHex = "FFFFFF00"; // ARGB:不透明黃(#FFFF00)
 
     /// <summary>組出整份 Stylesheet。一次性建構(styles.xml 恆小,DOM 即可,不需串流)。</summary>
     public static Stylesheet Build()
@@ -300,7 +300,7 @@ internal static class WorkingPaperStyles
         }
     }
 
-    /// <summary>共用 cellXf 工廠:靠上對齊(樣本全表 vertical=top),可選靠左、自動換行、指定填色。</summary>
+    /// <summary>共用 cellXf 工廠:靠上對齊,可選靠左、自動換行、指定填色。</summary>
     private static CellFormat TopAligned(
         uint fontId,
         uint fillId,

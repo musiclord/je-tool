@@ -46,15 +46,15 @@ public sealed class GlobalExceptionFallbackLogTests
         Assert.Equal("Form1.WebViewInitialization", entry["Source"]!.GetValue<string>());
         Assert.False(entry["IsTerminating"]!.GetValue<bool>());
 
-        var form = File.ReadAllText(Path.Combine(RepoRoot(), "JET", "Form1.cs"));
+        var form = File.ReadAllText(Path.Combine(SolutionRoot(), "JET", "Form1.cs"));
         var record = form.IndexOf("Program.FallbackLog?.Write(WebViewInitializationFailureSource, exception);", StringComparison.Ordinal);
         var message = form.IndexOf("WebViewInitializationFailureMessage,", StringComparison.Ordinal);
         Assert.True(record > 0 && message > record, "Form1 先寫紀錄，再顯示初始化失敗訊息。");
-        var program = File.ReadAllText(Path.Combine(RepoRoot(), "JET", "Program.cs"));
+        var program = File.ReadAllText(Path.Combine(SolutionRoot(), "JET", "Program.cs"));
         Assert.Contains("FallbackLog = fallbackLog;", program, StringComparison.Ordinal);
     }
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))

@@ -3,7 +3,7 @@
   "rows": [
     {
       "date": "待填",
-      "description": "JET 主要功能\n- 完整性測試\n- 條件篩選\n- 匯出工作底稿",
+      "description": "JET 主要功能\n- 完整性測試\n- 進階條件篩選\n- 匯出工作底稿",
       "version": "1.0.0.0"
     }
   ]

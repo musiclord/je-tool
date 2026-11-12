@@ -157,6 +157,6 @@ public sealed class PrescreenRuleRegistryTests
         {
             dir = dir.Parent;
         }
-        return dir?.FullName ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+        return dir?.FullName ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

@@ -277,7 +277,7 @@ test('primitives: restoreMappingDrafts swaps both drafts in one change and keeps
   assert.equal(state.mapping.tb.draft.account, 'NewAcct');
   assert.equal(state.mapping.gl.options.rdeFields.length, 1);
 
-  // 舊版報告沒有 v2 選項時，用固定的預設值，不沿用目前草稿的設定。
+  // 報告裡沒有 v2 選項時，用固定的預設值，不沿用目前草稿的設定。
   // 預設值包含空的往下填補欄位清單。
   store.restoreMappingDrafts({ gl: { mapping: {}, amountMode: 'dual' }, tb: { mapping: {}, changeMode: 'debitCredit' } });
   assert.deepEqual(plain(state.mapping.gl.options), {

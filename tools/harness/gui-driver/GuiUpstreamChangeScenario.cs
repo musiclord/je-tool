@@ -15,7 +15,7 @@ internal static partial class GuiScenarios
     {
         Task Click(string selector) => ClickRecoveryControlAsync(cdp, process, selector, outcome, ct);
         // 探針要定義檢查式用到的 preview：「儲存後草稿與預覽都清空」的檢查是 2026-10-14 沒有執行 Gui 時加的，
-        // 原本少了這個變數，頁面拋出 ReferenceError（第一次失敗收據 20261015-041049524-501ad449c41c4ff4b34609e9567280e0）。
+        // 原本少了這個變數，頁面拋出 ReferenceError（這是第一次失敗）。
         Task Check(string expression) => WaitForProbeAsync(cdp, process,
             "(()=>{var state=window.JetStore.getState();if(state.busy)return {idle:false,ok:false};var saved=state.filter.savedScenarios,draft=state.filter.draft,preview=state.filter.preview;return {idle:true,ok:!!(" + expression +
             "),step:state.currentStepIndex,saved:saved.length,draftGroups:draft.groups.length,papers:state.reports.filter(a=>a.kind==='workingPaper').length,notice:!!document.querySelector('[data-bind=downstream-reset-notice]'),validated:!!state.results.validate};})()",

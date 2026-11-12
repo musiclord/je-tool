@@ -1,9 +1,5 @@
-JET git code changes log
+commit 待填
+Author: 待填
+Date:   待填
 
-commit   待填
-Date     待填
-Version  1.0.0.0
-
-    首次提交 JET 1.0.0.0 的全部原始碼。
-
-    這是代碼庫的第一筆提交，全部檔案為新增，沒有先前的修訂。
+    首次提交：JET 1.0.0.0

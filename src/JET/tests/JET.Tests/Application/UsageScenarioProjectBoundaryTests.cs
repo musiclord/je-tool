@@ -32,7 +32,7 @@ public sealed class UsageScenarioProjectBoundaryTests
         Assert.Empty(Directory.GetFiles(host.ProjectsRoot, "project.json", SearchOption.AllDirectories));
     }
 
-    // frontend description picker errors and action contract support.log.export.
+    // A failed project load still lets support.log.export write a safe support log.
     [Theory]
     [InlineData("sqlite")]
     public async Task FailedProjectLoad_ExportsSafeSupportLogWithoutOpeningProject(string provider)

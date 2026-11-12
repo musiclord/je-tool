@@ -15,7 +15,7 @@ $runnerPath = Join-Path $repositoryRoot 'tools/verify.ps1'
 $harnessModulePath = Join-Path $repositoryRoot 'tools/harness/JetHarness.psm1'
 # 驗證框架模組的函式依職責分在 JetHarness.psm1 與同目錄的 JetHarness.*.ps1，後者由 psm1 用點號載入。
 # 檢查模組原文時看全部檔案；同一個檔案裡的函式維持原本的先後順序。2026-10-19 拆檔後，原本只讀 psm1 的三處檢查
-# 找不到搬走的函式，第一次失敗是 suite 20261019-125407058-e6de3ce9574a47e798b357aab0648f6a 的
+# 找不到搬走的函式，第一次失敗是當時那一次執行的
 # 「ReleaseCandidate must own, verify, and remove its short candidate workspace.」；檢查的內容沒有放寬。
 $harnessModulePartPaths = @(
     Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'tools/harness') -Filter 'JetHarness.*.ps1' -File |
@@ -304,7 +304,7 @@ try {
         ConvertFrom-Json -AsHashtable -Depth 20
     $enabledLanes = @($registry.lanes.Keys | Where-Object { [bool]$registry.lanes[$_].enabled })
     # Provider 路線隨 DuckDB 與 SQL Server 移除（裁定 2026-11-06-08），這份清單、Help 列出的路線、ReleaseCandidate 的
-    # liveProviderIncluded 與契約版本一起改；第一次失敗是 suite 20261106-092713325-5c033e8458a846358846bbe6d1804784 的
+    # liveProviderIncluded 與契約版本一起改；第一次失敗是當時那一次執行的
     # 「The enabled lanes must match the currently implemented Harness boundary.」。
     Assert-Contract -Condition ((@($enabledLanes | Sort-Object) -join ',') -ceq 'Excel,Focused,Foundation,Gui,Mutation,Package,PrivateCase,Public,ReleaseCandidate') `
         -Message 'The enabled lanes must match the currently implemented Harness boundary.'

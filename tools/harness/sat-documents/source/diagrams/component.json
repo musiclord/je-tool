@@ -1,0 +1,786 @@
+{
+  "title": "JET 元件圖",
+  "header": [
+    "JET 1.0.0.0 元件圖。範圍：執行期的元件、元件之間的介面與主要相依關係；外部元件僅列執行期載入的原生程式庫與系統元件。路徑以方案檔 JET.slnx 所在資料夾為起點。",
+    "表示法：UML 元件圖。圓形為介面，實線接到提供介面的元件，虛線箭頭由使用端指向介面或被相依的元件；介面名稱第二行是定義該介面的模組。"
+  ],
+  "sourceRoot": "src/JET/JET",
+  "pathPrefix": "JET/",
+  "groups": [
+    {
+      "id": "presentation",
+      "label": "展示層",
+      "components": [
+        "frontend",
+        "bridge"
+      ]
+    },
+    {
+      "id": "applicationLayer",
+      "label": "應用層",
+      "components": [
+        "application"
+      ]
+    },
+    {
+      "id": "domainLayer",
+      "label": "領域層",
+      "components": [
+        "auditcore",
+        "domain"
+      ]
+    },
+    {
+      "id": "infrastructureLayer",
+      "label": "基礎設施層",
+      "components": [
+        "persistence",
+        "fileio",
+        "export",
+        "diagnostics"
+      ]
+    },
+    {
+      "id": "external",
+      "label": "外部元件",
+      "external": true,
+      "components": [
+        "webview2",
+        "sqlite",
+        "ace"
+      ]
+    }
+  ],
+  "ungrouped": [
+    "host",
+    "templates"
+  ],
+  "components": [
+    {
+      "id": "host",
+      "name": "WinForms 主機",
+      "paths": [
+        "Program.cs",
+        "Form1.cs",
+        "AppCompositionRoot.cs"
+      ],
+      "role": "建立視窗與 WebView2，組裝各層物件",
+      "evidence": [
+        {
+          "file": "Program.cs",
+          "text": "() => new Form1()"
+        },
+        {
+          "file": "Form1.cs",
+          "text": "AppCompositionRoot.CreateRuntime(this, _eventPublisher)"
+        }
+      ]
+    },
+    {
+      "id": "frontend",
+      "name": "前端",
+      "paths": [
+        "wwwroot"
+      ],
+      "role": "使用者介面（HTML、CSS、JavaScript）",
+      "evidence": [
+        {
+          "file": "wwwroot/index.html",
+          "text": "<html"
+        },
+        {
+          "file": "wwwroot/js/jet-api.js",
+          "text": "invoke: invoke,"
+        }
+      ]
+    },
+    {
+      "id": "bridge",
+      "name": "Bridge",
+      "paths": [
+        "Bridge"
+      ],
+      "role": "接收前端送出的請求並分派，回傳結果與事件",
+      "evidence": [
+        {
+          "file": "Bridge/JetWebMessageBridge.cs",
+          "text": "JsonSerializer.Deserialize<JetRequestEnvelope>(e.WebMessageAsJson, JsonOptions)"
+        },
+        {
+          "file": "Bridge/ActionDispatcher.cs",
+          "text": "_handlers.TryGetValue(action, out var handler)"
+        },
+        {
+          "file": "Bridge/JetWebMessageBridge.cs",
+          "text": "Post(new JetResponseEnvelope(request.RequestId, true, data, null, correlationId));"
+        }
+      ]
+    },
+    {
+      "id": "application",
+      "name": "Application",
+      "paths": [
+        "Application"
+      ],
+      "role": "各請求的處理常式，協調讀取、計算與儲存",
+      "evidence": [
+        {
+          "file": "Application/Handlers/ValidateRunHandler.cs",
+          "text": "public string Action => \"validate.run\";"
+        },
+        {
+          "file": "Application/Handlers/ValidateRunHandler.cs",
+          "text": "repositories.ValidationFacts.ExecuteAsync("
+        }
+      ]
+    },
+    {
+      "id": "auditcore",
+      "name": "AuditCore",
+      "paths": [
+        "AuditCore"
+      ],
+      "role": "審計規則：程序可否執行、SQL 片段與結果判定",
+      "evidence": [
+        {
+          "file": "AuditCore/JetAuditProgram.cs",
+          "text": "internal static ValidationPlan Plan(ValidationRequest request)"
+        },
+        {
+          "file": "AuditCore/ValidationProcedures.cs",
+          "text": "public static string UnbalancedCore("
+        },
+        {
+          "file": "AuditCore/JetAuditProgram.cs",
+          "text": "internal static ValidationResult Finalize("
+        }
+      ]
+    },
+    {
+      "id": "domain",
+      "name": "Domain",
+      "paths": [
+        "Domain"
+      ],
+      "role": "資料合約、基本型別與儲存介面",
+      "evidence": [
+        {
+          "file": "Domain/Contracts/ResultContracts.cs",
+          "text": "public interface IResultStore"
+        },
+        {
+          "file": "Domain/ProjectDocument.cs",
+          "text": "public interface IProjectStore"
+        }
+      ]
+    },
+    {
+      "id": "persistence",
+      "name": "案件資料存取",
+      "paths": [
+        "Infrastructure/Persistence",
+        "Infrastructure/Sql"
+      ],
+      "role": "執行 SQL，讀寫 jet.db 與 project.json",
+      "evidence": [
+        {
+          "file": "Infrastructure/Persistence/JetProjectFolder.cs",
+          "text": "DatabaseFileName = \"jet.db\""
+        },
+        {
+          "file": "Infrastructure/Persistence/JetProjectFolder.cs",
+          "text": "ProjectJsonFileName = \"project.json\""
+        },
+        {
+          "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+          "text": "connection.BeginTransactionAsync("
+        }
+      ]
+    },
+    {
+      "id": "fileio",
+      "name": "檔案存取",
+      "paths": [
+        "Infrastructure/FileIO"
+      ],
+      "role": "讀取 Excel、文字檔與 Access 來源檔；儲存報告檔",
+      "evidence": [
+        {
+          "file": "Infrastructure/FileIO/OpenXmlSaxTableReader.cs",
+          "text": "class OpenXmlSaxTableReader : ITabularFileReader"
+        },
+        {
+          "file": "Infrastructure/FileIO/BinaryExcelTableReader.cs",
+          "text": "class BinaryExcelTableReader : ITabularFileReader"
+        },
+        {
+          "file": "Infrastructure/FileIO/CsvTableReader.cs",
+          "text": "class CsvTableReader : ITabularFileReader"
+        },
+        {
+          "file": "Infrastructure/FileIO/AccessTableReader.cs",
+          "text": "class AccessTableReader : ITabularFileReader"
+        },
+        {
+          "file": "Infrastructure/FileIO/ProjectReportStore.cs",
+          "text": "class ProjectReportStore : IReportStore"
+        }
+      ]
+    },
+    {
+      "id": "export",
+      "name": "報告與工作底稿輸出",
+      "paths": [
+        "Infrastructure/Export"
+      ],
+      "role": "依範本寫出 Excel 報告與工作底稿",
+      "evidence": [
+        {
+          "file": "Infrastructure/Export/WorkingPaperWriter.cs",
+          "text": "partial class WorkingPaperWriter("
+        },
+        {
+          "file": "Infrastructure/Export/ReportTemplatePackage.cs",
+          "text": "Path.Combine(AppContext.BaseDirectory, \"Templates\")"
+        }
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "name": "支援日誌",
+      "paths": [
+        "Infrastructure/Diagnostics"
+      ],
+      "role": "記錄支援日誌，並寫入案件資料夾",
+      "evidence": [
+        {
+          "file": "Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs",
+          "text": "public sealed class SupportRingBufferLoggerProvider"
+        },
+        {
+          "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
+          "text": "class SupportCaseHistoryStore : ISupportCaseHistory"
+        }
+      ]
+    },
+    {
+      "id": "templates",
+      "name": "Excel 範本",
+      "stereotype": "資源檔",
+      "paths": [
+        "Templates"
+      ],
+      "role": "8 份 Excel 範本，隨應用程式發行",
+      "fileCount": {
+        "directory": "Templates",
+        "extension": ".xlsx",
+        "count": 8
+      },
+      "evidence": [
+        {
+          "file": "JET.csproj",
+          "text": "<Content Include=\"Templates\\AccountMapping.xlsx;"
+        }
+      ]
+    },
+    {
+      "id": "webview2",
+      "name": "Microsoft Edge WebView2 Runtime",
+      "evidence": [
+        {
+          "file": "JET.csproj",
+          "text": "<PackageReference Include=\"Microsoft.Web.WebView2\""
+        }
+      ]
+    },
+    {
+      "id": "sqlite",
+      "name": "SQLite 原生程式庫（e_sqlite3）",
+      "evidence": [
+        {
+          "file": "JET.csproj",
+          "text": "<PackageReference Include=\"SQLitePCLRaw.bundle_e_sqlite3\""
+        }
+      ]
+    },
+    {
+      "id": "ace",
+      "name": "Microsoft Access Database Engine（ACE OLE DB 16.0）",
+      "evidence": [
+        {
+          "file": "Infrastructure/FileIO/AccessTableReader.cs",
+          "text": "Provider = \"Microsoft.ACE.OLEDB.16.0\""
+        }
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "WebMessageChannel",
+      "name": "Web 訊息通道",
+      "declaration": {
+        "file": "Bridge/JetWebMessageBridge.cs",
+        "text": "internal sealed record JetRequestEnvelope("
+      },
+      "providedBy": {
+        "component": "bridge",
+        "file": "Bridge/JetWebMessageBridge.cs",
+        "text": "webView.WebMessageReceived += OnWebMessageReceived;"
+      },
+      "usedBy": [
+        {
+          "component": "frontend",
+          "label": "requestId、action、payload",
+          "file": "wwwroot/js/jet-api.js",
+          "text": "global.chrome.webview.postMessage(request);"
+        }
+      ]
+    },
+    {
+      "id": "IApplicationActionHandler",
+      "name": "IApplicationActionHandler",
+      "definedIn": "Application",
+      "declaration": {
+        "file": "Application/Ports/IApplicationActionHandler.cs",
+        "text": "public interface IApplicationActionHandler"
+      },
+      "providedBy": {
+        "component": "application",
+        "file": "Application/Handlers/ValidateRunHandler.cs",
+        "text": "class ValidateRunHandler : IApplicationActionHandler"
+      },
+      "usedBy": [
+        {
+          "component": "bridge",
+          "label": "HandleAsync",
+          "file": "Bridge/ActionDispatcher.cs",
+          "text": "IEnumerable<IApplicationActionHandler> handlers,"
+        }
+      ]
+    },
+    {
+      "id": "IHostShell",
+      "name": "IHostShell",
+      "definedIn": "Application",
+      "declaration": {
+        "file": "Application/Ports/IHostShell.cs",
+        "text": "public interface IHostShell"
+      },
+      "providedBy": {
+        "component": "host",
+        "file": "Form1.cs",
+        "text": "partial class Form1 : Form, IHostShell"
+      },
+      "usedBy": [
+        {
+          "component": "application",
+          "label": "選檔、開啟資料夾、結束程式",
+          "file": "Application/Handlers/Host/HostExitAppHandler.cs",
+          "text": "hostShell.RequestExit();"
+        }
+      ]
+    },
+    {
+      "id": "IJetEventPublisher",
+      "name": "IJetEventPublisher",
+      "definedIn": "Application",
+      "declaration": {
+        "file": "Application/Ports/IJetEventPublisher.cs",
+        "text": "public interface IJetEventPublisher"
+      },
+      "providedBy": {
+        "component": "bridge",
+        "file": "Bridge/WebViewEventPublisher.cs",
+        "text": "class WebViewEventPublisher : IJetEventPublisher"
+      },
+      "usedBy": [
+        {
+          "component": "application",
+          "label": "進度事件",
+          "file": "Application/Support/ExportProgressSession.cs",
+          "text": "_eventPublisher.Publish(\"export.progress\""
+        }
+      ]
+    },
+    {
+      "id": "IDataAccess",
+      "name": "IValidationFactsPort、IProjectStore 等",
+      "definedIn": "AuditCore、Domain",
+      "declaration": {
+        "file": "AuditCore/ValidationProgram.cs",
+        "text": "internal interface IValidationFactsPort"
+      },
+      "moreDeclarations": [
+        {
+          "file": "Domain/ProjectDocument.cs",
+          "text": "public interface IProjectStore"
+        }
+      ],
+      "providedBy": {
+        "component": "persistence",
+        "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+        "text": ": IValidationFactsPort"
+      },
+      "moreProviders": [
+        {
+          "file": "Infrastructure/Persistence/JsonFileProjectStore.cs",
+          "text": "class JsonFileProjectStore(JetProjectFolder folder) : IProjectStore"
+        }
+      ],
+      "usedBy": [
+        {
+          "component": "application",
+          "label": "讀寫案件資料",
+          "file": "Application/Handlers/ValidateRunHandler.cs",
+          "text": "repositories.ValidationFacts.ExecuteAsync("
+        }
+      ]
+    },
+    {
+      "id": "ITabularFileReader",
+      "name": "ITabularFileReader、IReportStore 等",
+      "definedIn": "Domain",
+      "declaration": {
+        "file": "Domain/Contracts/ImportContracts.cs",
+        "text": "public interface ITabularFileReader"
+      },
+      "moreDeclarations": [
+        {
+          "file": "Domain/Abstractions/IReportStore.cs",
+          "text": "public interface IReportStore"
+        }
+      ],
+      "providedBy": {
+        "component": "fileio",
+        "file": "Infrastructure/FileIO/CompositeTabularFileReader.cs",
+        "text": "class CompositeTabularFileReader(params ITabularFileReader[] readers) : ITabularFileReader"
+      },
+      "moreProviders": [
+        {
+          "file": "Infrastructure/FileIO/ProjectReportStore.cs",
+          "text": "class ProjectReportStore : IReportStore"
+        }
+      ],
+      "usedBy": [
+        {
+          "component": "application",
+          "label": "讀取來源檔、儲存報告檔",
+          "file": "Application/Handlers/Import/ImportAccountMappingHandler.cs",
+          "text": "ITabularFileReader reader,",
+          "more": [
+            {
+              "file": "Application/ProjectRepositories.cs",
+              "text": "public required IReportStore ReportStore { get; init; }"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "IWorkingPaperPlanWriter",
+      "name": "IWorkingPaperPlanWriter 等",
+      "definedIn": "AuditCore",
+      "declaration": {
+        "file": "AuditCore/WorkingPaperProgram.cs",
+        "text": "internal interface IWorkingPaperPlanWriter"
+      },
+      "providedBy": {
+        "component": "export",
+        "file": "Infrastructure/Export/WorkingPaperWriter.cs",
+        "text": ": IWorkingPaperPlanWriter, IFormalWorkingPaperPlanWriter"
+      },
+      "usedBy": [
+        {
+          "component": "application",
+          "label": "寫出報告與工作底稿",
+          "file": "Application/Handlers/ExportWorkingPaperStreamHandler.cs",
+          "text": "planWriter.WriteAsync("
+        }
+      ]
+    },
+    {
+      "id": "ISupportDiagnosticLogStore",
+      "name": "ISupportDiagnosticLogStore",
+      "definedIn": "Domain",
+      "declaration": {
+        "file": "Domain/Contracts/SupportDiagnosticLogContracts.cs",
+        "text": "public interface ISupportDiagnosticLogStore"
+      },
+      "providedBy": {
+        "component": "diagnostics",
+        "file": "Infrastructure/Diagnostics/SupportRingBufferLoggerProvider.cs",
+        "text": "ISupportDiagnosticLogStore"
+      },
+      "usedBy": [
+        {
+          "component": "application",
+          "label": "輸出支援日誌",
+          "file": "Application/Handlers/DevLogHandlers.cs",
+          "text": "ISupportDiagnosticLogStore supportLog,"
+        }
+      ]
+    },
+    {
+      "id": "ISqlDialect",
+      "name": "ISqlDialect",
+      "definedIn": "AuditCore",
+      "declaration": {
+        "file": "AuditCore/ISqlDialect.cs",
+        "text": "public interface ISqlDialect"
+      },
+      "providedBy": {
+        "component": "persistence",
+        "file": "Infrastructure/Persistence/SqlDialect.cs",
+        "text": "public sealed class SqliteDialect : IProviderSqlDialect"
+      },
+      "moreProviders": [
+        {
+          "file": "Infrastructure/Persistence/SqlDialect.cs",
+          "text": "public interface IProviderSqlDialect : ISqlDialect"
+        }
+      ],
+      "usedBy": [
+        {
+          "component": "auditcore",
+          "label": "SQL 方言",
+          "file": "AuditCore/ValidationProcedures.cs",
+          "text": "ISqlDialect dialect"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "host",
+      "to": "frontend",
+      "label": "載入本機頁面",
+      "file": "Form1.cs",
+      "text": "_webView.CoreWebView2.SetVirtualHostNameToFolderMapping("
+    },
+    {
+      "from": "host",
+      "to": "webview2",
+      "label": "建立瀏覽器環境",
+      "file": "Form1.cs",
+      "text": "CoreWebView2Environment.CreateAsync("
+    },
+    {
+      "from": "bridge",
+      "to": "webview2",
+      "label": "收發訊息",
+      "file": "Bridge/JetWebMessageBridge.cs",
+      "text": "webView.PostWebMessageAsJson"
+    },
+    {
+      "from": "application",
+      "to": "auditcore",
+      "label": "JetAuditProgram.Plan、Finalize",
+      "file": "Application/Handlers/ValidateRunHandler.cs",
+      "text": "JetAuditProgram.Finalize(plan, facts)"
+    },
+    {
+      "from": "application",
+      "to": "domain",
+      "label": "資料合約",
+      "file": "Application/Handlers/ValidateRunHandler.cs",
+      "text": "using JET.Domain;"
+    },
+    {
+      "from": "auditcore",
+      "to": "domain",
+      "label": "資料合約",
+      "file": "AuditCore/JetAuditProgram.cs",
+      "text": "using JET.Domain;"
+    },
+    {
+      "from": "persistence",
+      "to": "auditcore",
+      "label": "取用 SQL 片段",
+      "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+      "text": "ValidationProcedures.UnbalancedCore()"
+    },
+    {
+      "from": "export",
+      "to": "auditcore",
+      "label": "工作底稿計畫與報告計畫",
+      "file": "Infrastructure/Export/WorkingPaperWriter.cs",
+      "text": "WorkingPaperPlan plan,",
+      "more": [
+        {
+          "file": "AuditCore/WorkingPaperProgram.cs",
+          "text": "internal sealed record WorkingPaperPlan("
+        },
+        {
+          "file": "Infrastructure/Export/LegacyReportWriter.Validation.cs",
+          "text": "ValidationReportPlan plan,"
+        },
+        {
+          "file": "AuditCore/ValidationReportProgram.cs",
+          "text": "internal sealed record ValidationReportPlan("
+        }
+      ]
+    },
+    {
+      "from": "fileio",
+      "to": "auditcore",
+      "label": "JetSchemaCatalog",
+      "file": "Infrastructure/FileIO/DataPreviewSchemaOverview.cs",
+      "text": "foreach (var entry in JetSchemaCatalog.All)",
+      "more": [
+        {
+          "file": "AuditCore/JetSchemaCatalog.cs",
+          "text": "internal static class JetSchemaCatalog"
+        }
+      ]
+    },
+    {
+      "from": "persistence",
+      "to": "sqlite",
+      "label": "Microsoft.Data.Sqlite",
+      "file": "Infrastructure/Persistence/Sqlite/SqliteProjectDatabase.cs",
+      "text": "using Microsoft.Data.Sqlite;"
+    },
+    {
+      "from": "fileio",
+      "to": "ace",
+      "label": "OLE DB",
+      "file": "Infrastructure/FileIO/AccessTableReader.cs",
+      "text": "new OleDbConnection("
+    },
+    {
+      "from": "export",
+      "to": "templates",
+      "label": "讀取範本",
+      "file": "Infrastructure/Export/ReportTemplatePackage.cs",
+      "text": "Path.Combine(AppContext.BaseDirectory, \"Templates\")"
+    }
+  ],
+  "notes": [
+    {
+      "of": "host",
+      "side": "right",
+      "lines": [
+        "啟動時建立 Bridge、Application",
+        "與基礎設施層各元件的物件，",
+        "並以建構子注入。"
+      ],
+      "covers": [
+        { "from": "host", "to": "bridge" },
+        { "from": "host", "to": "application" },
+        { "from": "host", "to": "persistence" },
+        { "from": "host", "to": "fileio" },
+        { "from": "host", "to": "export" },
+        { "from": "host", "to": "diagnostics" }
+      ],
+      "evidence": [
+        {
+          "file": "Form1.cs",
+          "text": "new JetWebMessageBridge("
+        },
+        {
+          "file": "AppCompositionRoot.cs",
+          "text": "new ActionDispatcher("
+        },
+        {
+          "file": "AppCompositionRoot.cs",
+          "text": "new ValidateRunHandler("
+        },
+        {
+          "file": "AppCompositionRoot.cs",
+          "text": "new SqliteProjectDatabase("
+        },
+        {
+          "file": "AppCompositionRoot.cs",
+          "text": "new CompositeTabularFileReader("
+        },
+        {
+          "file": "AppCompositionRoot.Repositories.cs",
+          "text": "WorkingPaperPlanWriter = CreateWorkingPaperWriter("
+        },
+        {
+          "file": "AppCompositionRoot.cs",
+          "text": "new SupportRingBufferLoggerProvider("
+        }
+      ]
+    },
+    {
+      "of": "domain",
+      "side": "left",
+      "lines": [
+        "Bridge 與基礎設施層各元件",
+        "也引用 Domain 的資料合約；",
+        "基礎設施層各元件之間也互相引用。"
+      ],
+      "covers": [
+        { "from": "bridge", "to": "domain" },
+        { "from": "persistence", "to": "domain" },
+        { "from": "fileio", "to": "domain" },
+        { "from": "export", "to": "domain" },
+        { "from": "diagnostics", "to": "domain" },
+        { "from": "persistence", "to": "fileio" },
+        { "from": "persistence", "to": "export" },
+        { "from": "persistence", "to": "diagnostics" },
+        { "from": "fileio", "to": "persistence" },
+        { "from": "fileio", "to": "export" },
+        { "from": "export", "to": "persistence" },
+        { "from": "diagnostics", "to": "persistence" },
+        { "from": "diagnostics", "to": "fileio" }
+      ],
+      "evidence": [
+        {
+          "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+          "text": "DiagnosticDb.BeginTransaction("
+        },
+        {
+          "file": "Infrastructure/FileIO/OpenXmlSaxTableReader.cs",
+          "text": "ExcelText.Decode("
+        },
+        {
+          "file": "Infrastructure/Export/LegacyReportWriter.cs",
+          "text": "LocalEngineErrors.ParseStoredObject"
+        },
+        {
+          "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
+          "text": "JetProjectFolder"
+        },
+        {
+          "file": "Bridge/ActionDispatcher.cs",
+          "text": "using JET.Domain;"
+        },
+        {
+          "file": "Infrastructure/Persistence/Local/LocalValidationRunRepository.cs",
+          "text": "using JET.Domain;"
+        },
+        {
+          "file": "Infrastructure/FileIO/CompositeTabularFileReader.cs",
+          "text": "using JET.Domain;"
+        },
+        {
+          "file": "Infrastructure/Export/WorkingPaperWriter.cs",
+          "text": "using JET.Domain;"
+        },
+        {
+          "file": "Infrastructure/Diagnostics/SupportCaseHistoryStore.cs",
+          "text": "using JET.Domain;"
+        }
+      ]
+    }
+  ],
+  "undrawn": [
+    {
+      "from": "host",
+      "to": "auditcore",
+      "reason": "AppCompositionRoot 組裝物件時引用 AuditCore 的介面型別。"
+    },
+    {
+      "from": "host",
+      "to": "domain",
+      "reason": "AppCompositionRoot 組裝物件時引用 Domain 的介面型別。"
+    },
+    {
+      "from": "export",
+      "to": "application",
+      "reason": "DemoWorkbookWriter 實作 Application 定義的 IDemoFileWriter，寫出示範資料檔。"
+    }
+  ]
+}

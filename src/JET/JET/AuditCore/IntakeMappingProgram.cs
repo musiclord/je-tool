@@ -186,11 +186,24 @@ internal sealed class AccountMappingProjection
     private readonly string codeColumn;
     private readonly string nameColumn;
     private readonly string categoryColumn;
+    private readonly bool categoryColumnFoundByPosition;
     private readonly AccountCategorySnapshot categorySnapshot;
     private readonly Dictionary<string, AccountMappingRow> projected =
         new(StringComparer.Ordinal);
+    // 匯入檔裡案件還沒有的分類名稱，照第一次出現的順序；同一個名稱不分大小寫只留第一次的寫法。
+    private readonly Dictionary<string, AccountCategory> newCategories =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> firstErrors = [];
     private int errorCount;
+
+    /// <summary>匯入前案件的科目分類；新增的分類接在這份清單後面。</summary>
+    internal AccountCategorySnapshot CategorySnapshot => categorySnapshot;
+
+    /// <summary>
+    /// 這次匯入要新增到案件的自訂分類，<see cref="Complete"/> 成功後才有內容。
+    /// 只留匯入後還有科目使用的分類，排序接在案件既有分類的最後。
+    /// </summary>
+    internal IReadOnlyList<AccountCategory> AddedCategories { get; private set; } = [];
 
     internal AccountMappingProjection(
         IReadOnlyList<string> columns,
@@ -200,10 +213,11 @@ internal sealed class AccountMappingProjection
         ArgumentNullException.ThrowIfNull(categorySnapshot);
         AccountCategoryInvariant.ValidateReplacement(categorySnapshot.Categories);
         this.categorySnapshot = categorySnapshot;
-        var resolved = AccountMappingColumnMatcher.Resolve(columns);
-        codeColumn = resolved.CodeColumn;
-        nameColumn = resolved.NameColumn;
-        categoryColumn = resolved.CategoryColumn;
+        var resolved = AccountMappingColumnMatcher.ResolveDetailed(columns);
+        codeColumn = resolved.Code.Column;
+        nameColumn = resolved.Name.Column;
+        categoryColumn = resolved.Category.Column;
+        categoryColumnFoundByPosition = resolved.Category.Method == AccountMappingColumnResolver.MatchMethod.Position;
     }
 
     internal void Observe(StagingRow row)
@@ -219,14 +233,9 @@ internal sealed class AccountMappingProjection
         }
 
         row.Values.TryGetValue(categoryColumn, out var rawCategory);
-        AccountCategory category;
-        try
+        if (!TryResolveCategory(rawCategory, out var category, out var categoryError))
         {
-            category = AccountCategoryCatalog.ResolveImportCategory(categorySnapshot, rawCategory);
-        }
-        catch (JetActionException exception)
-        {
-            AddError($"第 {row.SourceRowNumber} 列：{exception.Message}");
+            AddError($"第 {row.SourceRowNumber} 列：{categoryError}");
             return;
         }
 
@@ -283,7 +292,57 @@ internal sealed class AccountMappingProjection
                 $"科目配對範本有 {CountText.Format(errorCount)} 列無法讀取，本次匯入未儲存：{string.Join(" ", firstErrors)}");
         }
 
-        return projected.Values.ToArray();
+        var rows = projected.Values.ToArray();
+        // 同一個科目重複出現時後列蓋掉前列，只出現在被蓋掉那幾列的新分類就沒有科目使用，不新增。
+        var used = rows.Select(row => row.CategoryId).ToHashSet(StringComparer.Ordinal);
+        var nextOrdinal = categorySnapshot.Categories.Max(item => item.Ordinal) + 1;
+        AddedCategories = newCategories.Values
+            .Where(category => used.Contains(category.CategoryId))
+            .Select((category, index) => category with { Ordinal = nextOrdinal + index })
+            .ToArray();
+        return rows;
+    }
+
+    /// <summary>
+    /// 分類欄的一格先對案件已有的分類；對不到的名稱當成新的自訂分類，和舊版範本可以自行新增分類的做法一樣。
+    /// </summary>
+    private bool TryResolveCategory(string? raw, out AccountCategory category, out string error)
+    {
+        error = string.Empty;
+        if (AccountCategoryCatalog.TryResolveImportCategory(categorySnapshot, raw, out category))
+        {
+            return true;
+        }
+
+        var label = raw!.Trim();
+        if (newCategories.TryGetValue(label, out category!))
+        {
+            return true;
+        }
+
+        // 分類欄是照欄位順序認出來的時候，選到的可能不是科目配對的檔案或工作表，不把那一欄的內容當成新分類。
+        if (categoryColumnFoundByPosition)
+        {
+            error = $"分類「{label}」不在本案件的科目分類中（{AccountCategoryCatalog.LabelList(categorySnapshot)}），請改用清單中的分類名稱；"
+                + $"要新增分類，請先把這一欄的欄名改成「{AccountMappingColumnMatcher.CategoryColumnName}」。";
+            return false;
+        }
+
+        if (label.Length > AccountCategoryInvariant.MaxLabelLength)
+        {
+            error = $"分類名稱超過 {AccountCategoryInvariant.MaxLabelLength} 個字，請縮短來源資料。";
+            return false;
+        }
+
+        // 和分類設定新增的分類一樣：沒有上層，不參與收入與現金等借貸組合檢查。排序在匯入完成時才定。
+        category = new AccountCategory(
+            AccountCategoryInvariant.NewCustomId(),
+            label,
+            0,
+            AccountCategoryBuiltIns.OthersRole,
+            false);
+        newCategories.Add(label, category);
+        return true;
     }
 
     private void AddError(string message)

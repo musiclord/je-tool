@@ -696,7 +696,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.DoesNotContain(badJoin, ex.Message, StringComparison.Ordinal);
     }
 
-    // 向後相容（manifest 結合律段）：join 缺欄 / null / 空白 → 維持預設 AND，不報錯。
+    // 向後相容：join 缺欄 / null / 空白 → 維持預設 AND，不報錯。
     // 語意證明：第二條規則的 join 缺席時，命中數等於 AND 語意的獨立 recount。
     [Theory]
     [InlineData("")]
@@ -1565,7 +1565,7 @@ public sealed class FilterHandlersTests(DemoProjectFixture fixture) : IClassFixt
         Assert.Equal("invalid_scenario", ex.Code);
     }
 
-    /* ---- 常用篩選條件來源的情境豁免名稱/動機必填（manifest scenario.source）---- */
+    /* ---- 常用篩選條件來源的情境豁免名稱/動機必填（scenario.source）---- */
 
     // 常用篩選條件來源、名稱與動機皆留空；測 metadata 時用不需 mapping 前置的特定金額尾數，
     // 其他卡片的前置與命中另由 provider matrix 精確驗證。

@@ -857,7 +857,7 @@ public sealed class FilterScenarioValidatorTests
             Scenario(rules: CommonRule(FilterConditionType.PreparerEqualsApprover)), CommonMappingReady));
     }
 
-    /* ---- 常用篩選條件來源豁免名稱/動機必填（manifest scenario.source）------- */
+    /* ---- 常用篩選條件來源豁免名稱/動機必填（scenario.source）------- */
 
     private const string NameRequiredError = "情境名稱必填。";
     private const string RationaleRequiredError = "篩選動機說明必填。";

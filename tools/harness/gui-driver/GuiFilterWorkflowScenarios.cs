@@ -74,7 +74,7 @@ internal static partial class GuiScenarios
         }
         async Task Save(bool expectSuccess = true)
         {
-            // 裁定 2026-10-14-05：名稱與動機常駐，儲存成功後清空草稿與預覽；舊流程的失敗證據見 FrontendMapping 20261014-123035603-d123badefd7941119a02c58b1b431fae。
+            // 裁定 2026-10-14-05：名稱與動機常駐，儲存成功後清空草稿與預覽；舊流程的失敗證據是當時 FrontendMapping 的驗證紀錄。
             var name = await cdp.EvaluateAsync("window.JetStore.getState().filter.draft.name", ct);
             await Check("!document.querySelector('[data-save-panel]').hidden && !document.querySelector('.filter-primary-actions').hidden");
             await Check("document.querySelector('[data-action=save-scenario]').getBoundingClientRect().top-document.querySelector('[data-bind=scenario-rationale]').getBoundingClientRect().bottom>=8");
@@ -97,7 +97,7 @@ internal static partial class GuiScenarios
         {
             await Click("[data-filter-pane-select=\"saved\"]");
             var beforeHeight = await cdp.EvaluateAsync($"document.querySelector('.saved-scenario:nth-of-type({index + 1})').getBoundingClientRect().height", ct);
-            // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗收據 20261019-163612298-38cf234cbaa34b94b26c2d5cd86e20ef）。
+            // 已存情境的「操作」改成共用選單（延後事項清理計畫的同功能前端元件），按鈕從 details 的 summary 改成 .jet-menu__toggle（第一次失敗留在當時的驗證紀錄）。
             await Click($".saved-scenario:nth-of-type({index + 1}) .jet-menu__toggle");
             await Check($"Math.abs(document.querySelector('.saved-scenario:nth-of-type({index + 1})').getBoundingClientRect().height-{beforeHeight.GetRawText()})<0.5");
             await Click($"[data-action=\"edit-scenario\"][data-index=\"{index}\"]");
@@ -152,10 +152,10 @@ internal static partial class GuiScenarios
             await Click("[data-common-card=\"blankDescription\"]");
             await Check("draft.groups[0].conditions.length===1 && !draft.groups[0].conditions[0].__commonCard && draft.groups[0].conditions[0].prescreenKey==='blankDescription'");
             // 非營業日卡片加入目前條件組，不另成一組；裁定 2026-10-04-02 後改用排除補班日的非營業日判斷。
-            // 舊週末或假日預期首次失敗：20261004-113610760-9237607e6f23439fb80b30e872446291。
+            // 舊週末或假日預期的首次失敗留在當時的驗證紀錄。
             // 裁定 2026-11-03-09 拿掉只剩一條的子條件組，卡片直接加入一條「總帳日期 在非營業日」，原本核對子條件組的地方改核對這一條；
             // 讀回原本找「非營業日（排除補班日）」，2026-11-03-10 起日曆選項的讀回寫「在非營業日」。Gui 在提交前才實跑，
-            // 同一個改動的前端測試第一次失敗見 FrontendMapping 收據 20261103-101157066-e201e78933f2478c9fa86b8c916700da。
+            // 同一個改動的前端測試第一次失敗是在 FrontendMapping。
             await Click("[data-common-card=\"nonBusinessDay\"]");
             await Save();
             await Check("saved.length===2 && saved[1].groups.length===1 && saved[1].groups[0].conditions[1].type==='fieldValue' && saved[1].groups[0].conditions[1].field==='glDate' && saved[1].groups[0].conditions[1].operator==='isNonBusinessDay' && saved[1].editorOrigins.groups[0].cards.join()===',nonBusinessDay' && !('presetGroup' in saved[1].editorOrigins.groups[0])");
@@ -190,7 +190,7 @@ internal static partial class GuiScenarios
             await Click(".rule-row [data-value-options] > summary");
             // 2026-10-14 篩選條件改成每條只表達一件事後，內建「金額」的「含正負號」已停用（2026-10-30 起連停用說明一起拿掉，裁定 2026-10-30-25），
             // 畫面不再提供金額比較基準，原本選「含正負號」的那一步找不到控制項而逾時
-            // （第一次失敗收據 20261015-040206531-16972fdc1dfa43a2a82c56b3fbb7166d）。改成核對畫面不再提供這個選項、條件維持絕對值，
+            // （這是第一次失敗）。改成核對畫面不再提供這個選項、條件維持絕對值，
             // 其餘照舊：勾選空白也列入後，選項區仍開著。
             await Click(".rule-row [data-value-key=\"includeBlank\"]");
             await Check("draft.groups[0].conditions[0].amountBasis==='absolute' && !document.querySelector('.rule-row [data-value-key=amountBasis]') && draft.groups[0].conditions[0].includeBlank && draft.groups[0].conditions[0].operator==='greaterThanOrEqual' && document.querySelector('[data-value-options]').open");
@@ -198,11 +198,11 @@ internal static partial class GuiScenarios
             await AddField("field:description");
             await Fill(".rule-row [data-value-key=\"values\"]", "SYNTHETIC");
             // 介面改版後控制項變大，最小視窗（125% 縮放約 806×481）排不下同一行，文字框換到選單下一行（2026-10-14 實測，
-            // 第一次失敗收據 20261014-062933505-e5cb6897255c4899a5d30c44559f2a41）。同一行時仍要和選單垂直置中，
+            // 第一次失敗留在當時的驗證紀錄）。同一行時仍要和選單垂直置中，
             // 換行時要從條件控制項的同一條左緣開始；兩種排法都只有一行高。
             // 使用者指出輸入後突然撐高很突兀（裁定 2026-10-16-13），值清單改成固定五行高（114px）、
             // 獨占一列放在選單下方，原本「只有一行高」的檢查跟著改成核對這個排法與固定高度
-            // （第一次失敗收據 20261019-165252976-e36e0d435f404068a514af791647859b，卡在高度不超過 40px）。
+            // （第一次失敗卡在高度不超過 40px）。
             await Check("(()=>{var area=document.querySelector('textarea.value-editor__values'),t=area.getBoundingClientRect(),s=document.querySelector('[data-value-kind]').getBoundingClientRect(),c=area.closest('.rule-row').querySelector('.rule-row__controls').getBoundingClientRect();return t.top>=s.bottom && Math.abs(t.left-c.left)<1 && Math.abs(t.height-114)<1;})()");
             await Choose(".rule-row [data-value-polarity]", "exclude");
             await Check("draft.groups[0].conditions[0].operator==='notContains' && draft.groups[0].conditions[0].values[0]==='SYNTHETIC'");
@@ -264,7 +264,7 @@ internal static partial class GuiScenarios
             // Keyboard focus has an inset ring; pointer focus is not another selected condition.
             // 外框在樣式表寫的是 2px 實線、向內 2px。裝置像素比不是整數時，瀏覽器把寬度與位移捨成整數個裝置像素
             // 再回報：2026-10-02 在系統縮放 100%、WebView 縮放 1.25 的環境回報 1.6px 與 -1.6px，原本逐字比對 '2px'
-            // 的檢查因此一定失敗（第一次失敗 20261002-123148691，單跑重現 20261002-123706430）。改成比對 2px 在目前
+            // 的檢查因此一定失敗（第一次失敗後，單跑也重現）。改成比對 2px 在目前
             // 像素比下的呈現值，整數像素比時與原本完全相同；仍要求實線、向內縮、寬度等於 2px 的呈現結果。
             await Check("(()=>{var e=document.querySelector('.rule-row[data-gi=\"1\"] [data-value-kind]'),s=getComputedStyle(e),ring=Math.floor(2*devicePixelRatio+1e-6)/devicePixelRatio;return document.activeElement===e && (e.matches(':focus-visible') ? s.outlineStyle==='solid' && Math.abs(parseFloat(s.outlineWidth)-ring)<0.01 && Math.abs(parseFloat(s.outlineOffset)+ring)<0.01 : s.outlineStyle==='none') && e.closest('.rule-row').classList.contains('rule-row--selected');})()");
             await Check("(()=>{var r=document.querySelector('.value-editor__range'),a=r.querySelector('[data-value-key=from]').getBoundingClientRect(),b=r.querySelector('[data-value-key=to]').getBoundingClientRect();return r.scrollWidth<=r.clientWidth+1 && (r.closest('.value-editor').clientWidth<=320 || Math.abs(a.top-b.top)<1);})()");
@@ -282,7 +282,7 @@ internal static partial class GuiScenarios
             await Check("!document.querySelector('.rule-row[data-gi=\"1\"] [data-period-end-days]') && !document.querySelector('.rule-row[data-gi=\"1\"] [data-value-key=operator]') && !document.querySelector('.rule-row[data-gi=\"1\"] .value-blank')");
             // 「加入到第 N 組」改成條件總覽標題同一列的組號分段切換（裁定 2026-11-05-16），原本是下拉選單：按那一格的組號，
             // 核對選中的單選鈕。選下拉選單算兩次操作，按一格算一次，這個情境少 1 次，lanes.json 跟著改成 87
-            // （第一次失敗收據 20261106-002800554-352815f6d6874c08867d0a3e3cce1d84，情境照常走完，只有次數是 87）。
+            // （第一次失敗時情境照常走完，只有次數是 87）。
             await Click(".filter-target .join-toggle__option:has([data-condition-target][value=\"0\"])");
             await Check("document.querySelector('[data-condition-target]:checked').value==='0' && draft.groups[0].__active && !draft.groups[1].__active && draft.groups.length===2 && !document.querySelector('.rule-row--selected')");
             var selectionBaseline = await cdp.EvaluateAsync("JSON.stringify({rev:window.JetStore.getFilterDraftRev(),conditions:window.JetStore.getState().filter.draft.groups.map(g=>g.conditions),preview:window.JetStore.getState().filter.preview})", ct);
@@ -310,7 +310,7 @@ internal static partial class GuiScenarios
             await CaptureScreenshotAsync(cdp,outcome,ct);
             await Save();
             // 裁定 2026-10-07-07：範例文字在增減條件後改回自動，套用範例後又加了第二組，名稱與動機依目前條件重算，
-            // 不再是範例的「借現金、貸非現金」（第一次失敗收據 20261007-041440189-2762d661a1654592b1318cbe1b439b0d）。
+            // 不再是範例的「借現金、貸非現金」（第一次失敗留在當時的驗證紀錄）。
             await Check("saved.length===1 && saved[0].name!=='借現金、貸非現金' && saved[0].name.includes('借貸科目組合') && saved[0].name.includes('總帳日期') && saved[0].rationale!=='借方為現金，而整張傳票沒有貸方現金的分錄。' && saved[0].groups.length===2 && document.body.textContent.includes('每月幾日不屬於「28、31」') && document.body.textContent.includes('借貸科目組合')");
             var savedReadback = await cdp.EvaluateAsync("document.querySelector('.saved-scenario .scenario-readback').textContent", ct);
             await Check("!document.querySelector('[data-filter-pane=saved]').hidden");
@@ -321,7 +321,7 @@ internal static partial class GuiScenarios
             await Check("document.querySelector('[data-bind=high-risk-summary-vouchers] tbody tr') && document.querySelector('[data-bind=high-risk-summary-scenarios]').hidden && document.querySelector('[data-bind=high-risk-summary-vouchers] .filter-high-risk-summary-name').textContent===saved[0].name");
             // 裁定 2026-10-16-05 移除矩陣的「分錄明細」頁，這段原本切到那一頁並核對它的表格。
             // 改成切回「符合條件摘要」，核對兩個頁籤來回切換與點擊位置，並確認分錄明細頁已不存在
-            // （第一次失敗收據 20261019-162920500-452807ceeed9432b9c6b146b202fa0be，卡在找不到分錄明細頁籤）。
+            // （第一次失敗卡在找不到分錄明細頁籤）。
             await Click("[data-high-risk-summary-view=\"scenarios\"]");
             await Check("document.querySelector('[data-bind=high-risk-summary-scenarios] table') && !document.querySelector('[data-bind=high-risk-summary-scenarios]').hidden && document.querySelector('[data-bind=high-risk-summary-vouchers]').hidden && !document.querySelector('[data-high-risk-summary-view=rows]') && !document.querySelector('[data-bind=high-risk-summary-rows]')");
             await FindControlPointAsync(cdp,process,"[data-high-risk-summary-view=\"scenarios\"]",ct);
@@ -344,7 +344,7 @@ internal static partial class GuiScenarios
             await Click("[data-action=\"cancel-edit-scenario\"]");
             await Click("[data-condition-source=\"common\"]");
             // 條件卡片用主題的工作面顏色（--color-surface）。原本寫死 2026-10-08 主題的 #fdfcf8，之後配色調整改成 #fffefb，
-            // 所以改成和主題變數比對（第一次失敗收據 20261014-063958820-b984bcfa564a4f1aa8dc0a653a28d278）。
+            // 所以改成和主題變數比對（第一次失敗留在當時的驗證紀錄）。
             await Check("window.innerWidth>=1200 && window.innerWidth<=1260 && getComputedStyle(document.querySelector('.filter-workbench')).gridTemplateColumns.split(' ').length===2 && (()=>{var probe=document.createElement('div');probe.style.backgroundColor='var(--color-surface)';document.body.appendChild(probe);var surface=getComputedStyle(probe).backgroundColor;probe.remove();return getComputedStyle(document.querySelector('.filter-workspace .rule-card')).backgroundColor===surface;})()");
             await Check("!document.querySelector('[data-save-panel]').hidden");
             // 分錄明細頁移除後，改用目前選中的「符合條件摘要」核對高風險條件彙總清空後重新讀取（原因同上）。
@@ -370,8 +370,8 @@ internal static partial class GuiScenarios
             outcome.RecordAction();
             ResizeFilterWindow(1400, 1100);
             // 這裡要防的是資料預覽打開時編輯器被擠窄（2026-09-09 補上）。當時用「條件列至少 300px」代表；改版後條件列左邊留了
-            // 「選取中」的位置，同樣情況只剩約 250px，但控制項都上下排好、沒有被切掉（2026-10-14 實測，第一次失敗收據
-            // 20261014-064557973-d32c49a1530e46e883733a7bbac914c1）。所以改成直接檢查：單欄排列，而且條件列的控制項都在列內、沒有橫向溢出。
+            // 「選取中」的位置，同樣情況只剩約 250px，但控制項都上下排好、沒有被切掉（2026-10-14 實測，第一次失敗留在
+            // 當時的驗證紀錄）。所以改成直接檢查：單欄排列，而且條件列的控制項都在列內、沒有橫向溢出。
             await Check("(()=>{var w=document.querySelector('.filter-workbench'),r=w.querySelector('.rule-row'),box=r.getBoundingClientRect();var fits=Array.from(r.querySelectorAll('input,select,textarea,button')).filter(e=>e.getClientRects().length).every(e=>{var b=e.getBoundingClientRect();return b.left>=box.left-1 && b.right<=box.right+1;});return innerWidth>900 && w.clientWidth<660 && getComputedStyle(w).gridTemplateColumns.split(' ').length===1 && r.scrollWidth<=r.clientWidth+1 && fits;})()");
             await Check("(()=>{var p=document.querySelector('.data-preview').getBoundingClientRect(),m=document.querySelector('.data-preview__menu').getBoundingClientRect();return m.left>=p.left && m.right<=p.right;})()");
             // 裁定 2026-10-08-04：資料名稱全系統統一，資料預覽頁籤與選單改用 PBC-GL、GL、GL(未納入測試)。

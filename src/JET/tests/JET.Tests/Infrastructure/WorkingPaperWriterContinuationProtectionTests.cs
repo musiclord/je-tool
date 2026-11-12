@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using JET.AuditCore;
@@ -8,7 +9,10 @@ using static JET.Tests.Infrastructure.WorkingPaperWriterTestSupport;
 
 namespace JET.Tests.Infrastructure;
 
-/// <summary>底稿續頁的工作表保護：續頁只鎖和第一頁相同的資料區，其他沒寫值的格子和第一頁一樣可以填。</summary>
+/// <summary>
+/// 底稿續頁的工作表保護與欄設定：續頁只鎖和第一頁相同的資料區，其他沒寫值的格子和第一頁一樣可以填，
+/// 用的也是第一頁同一欄的預設樣式。
+/// </summary>
 public sealed class WorkingPaperWriterContinuationProtectionTests
 {
     private const uint ContinuationRowLimit = 25;
@@ -66,7 +70,72 @@ public sealed class WorkingPaperWriterContinuationProtectionTests
         }
     }
 
-    private static async Task<SpreadsheetDocument> WriteContinuationWorkingPaperAsync(HandlerTestHost host)
+    // 沒寫值的格子用欄的預設樣式。第一頁的欄樣式來自範本：垂直置中，step1-2 的 D、E 欄與 step1-3 的 D 欄另外靠右；
+    // 續頁每一欄要和第一頁同一欄相同。第 5000 列在兩頁都沒有格子。
+    [Fact]
+    public async Task ProtectedContinuationPages_UnwrittenCells_UseTheFirstPageColumnStyle()
+    {
+        using var host = new HandlerTestHost();
+        using var document = await WriteContinuationWorkingPaperAsync(host);
+        var workbookPart = Assert.IsType<WorkbookPart>(document.WorkbookPart);
+        var rightAligned = new HashSet<(string Sheet, string Column)>
+        {
+            (Step12Sheet, "D"), (Step12Sheet, "E"), (Step13Sheet, "D")
+        };
+
+        foreach (var baseName in new[] { Step1Sheet, Step11Sheet, Step12Sheet, Step13Sheet, Step4Sheet })
+        {
+            var firstPage = WorksheetFor(document, baseName);
+            var continuationName = ExcelWorksheetConstraints.ContinuationSheetName(baseName, 2);
+            var continuation = WorksheetFor(document, continuationName);
+            foreach (var column in new[] { "A", "B", "C", "D", "E", "F", "H", "P", "V", "XFD" })
+            {
+                var reference = column + "5000";
+                var expected = EffectiveCellFormat(workbookPart, firstPage, reference);
+                var actual = EffectiveCellFormat(workbookPart, continuation, reference);
+
+                Assert.Equal(VerticalAlignmentValues.Center, expected.Alignment?.Vertical?.Value);
+                Assert.Equal(
+                    rightAligned.Contains((baseName, column)),
+                    expected.Alignment?.Horizontal?.Value == HorizontalAlignmentValues.Right);
+                Assert.True(
+                    expected.OuterXml == actual.OuterXml,
+                    $"{continuationName}!{reference} 的樣式應和第一頁相同。第一頁：{expected.OuterXml}；續頁：{actual.OuterXml}");
+            }
+        }
+    }
+
+    // 欄寬設定要由左到右、不重疊，寫出的欄設定才不會有兩段蓋到同一欄。
+    [Theory]
+    [InlineData(3U, 3U)]
+    [InlineData(4U, 4U)]
+    [InlineData(5U, 6U)]
+    [InlineData(1U, 9U)]
+    public void ColumnWidths_SetOutOfOrderOrOverlapping_AreRejected(uint min, uint max)
+    {
+        using var stream = new MemoryStream();
+        using var document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook, autoSave: false);
+        var workbookPart = document.AddWorkbookPart();
+        workbookPart.Workbook = new Workbook(new Sheets());
+        var stylesPart = workbookPart.AddNewPart<WorkbookStylesPart>();
+        stylesPart.Stylesheet = new Stylesheet();
+        var styles = WorkbookStyleMap.Append(stylesPart, WorkingPaperStyles.Build());
+        using var sheet = WorkingPaperWriter.SheetWriter.CreateContinuation(
+            "合成",
+            workbookPart.AddNewPart<WorksheetPart>(),
+            styles,
+            mapCellStyle: null,
+            CancellationToken.None,
+            pageSetupRelationshipId: null);
+        sheet.SetColumnWidth(4, 5, 10);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => sheet.SetColumnWidth(min, max, 10));
+
+        // 接在後面的欄照常接受。
+        sheet.SetColumnWidth(6, 8, 10);
+    }
+
+    internal static async Task<SpreadsheetDocument> WriteContinuationWorkingPaperAsync(HandlerTestHost host)
     {
         var projectId = await SetupContinuationProjectAsync(host);
         await ImportContinuationReferencesAsync(host);

@@ -12,7 +12,7 @@ namespace JET.Tests.Application;
 /// 設計技術:狀態轉換(validate.run 落地樣本 → 走訪)+ recount oracle。
 ///   - oracle:走訪到底的筆數 == inf_sample 最新 run 的列數
 ///     == validate.run 回傳 infSamplingTest.sampleSize(demo 母體 ≥59 → 取 59)。
-///   - 小 pageSize 逼非首頁分支;斷言借/貸/日期/人員顯示欄存在(manifest 形狀)。
+///   - 小 pageSize 逼非首頁分支;斷言借/貸/日期/人員顯示欄存在。
 ///   - 最新 run 限定:跑兩次 validate.run 後走訪筆數仍 == 單次 sampleSize(不累積跨 run)。
 /// </summary>
 public sealed class InfSamplePageTests

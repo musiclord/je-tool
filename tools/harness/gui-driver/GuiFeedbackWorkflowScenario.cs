@@ -67,7 +67,7 @@ internal static partial class GuiScenarios
             value => value, value => ReadBoolean(value, "ready"), "feedback_value_profile_missing", ct);
         // The last row can land at the same boundary after focus() even without
         // scroll preservation. Use an interior row, then move it away from centre.
-        // Mutation receipt 20261004-080334931-4da41b0e73a04078bfc28ceca6901258
+        // An earlier mutation run
         // showed the old boundary-only assertion could falsely pass.
         foreach (var offset in new[] { 20, 30 })
         {
@@ -125,7 +125,7 @@ internal static partial class GuiScenarios
         await Check("feedback_account_drag_select", "document.querySelector('[data-account-select=\"0\"]').checked && document.querySelector('[data-account-select=\"1\"]').checked && document.querySelector('[data-account-selection-count]').textContent==='已選 2 個科目' && document.querySelector('[data-account-save]').disabled");
         // 放開後「清除勾選」展開，表格位置會變；每次拖曳前重新量起點與終點（2026-10-14 實跑查到舊座標落在別列）。
         // 這裡刻意不等動態結束才量：2026-10-15 這一步失敗，查到「全部取消」展開途中整排先變高再變回來，表格跟著上下跳，
-        // 是畫面本身的問題，已在共用的左右收放規則修正（第一次失敗收據 20261015-040932828-c50c827d7c324310b062000f8b13a410）。
+        // 是畫面本身的問題，已在共用的左右收放規則修正。
         dragEnd = await FindControlPointAsync(cdp, process, "[data-account-select='1']", ct);
         dragStart = await FindControlPointAsync(cdp, process, "[data-account-select='0']", ct);
         outcome.RecordAction();
@@ -136,9 +136,9 @@ internal static partial class GuiScenarios
         outcome.RecordAction();
         await cdp.DragAsync(ReadDouble(dragStart, "x"), ReadDouble(dragStart, "y"), ReadDouble(dragStart, "x"), ReadDouble(scrollProbe, "y"), ct, holdMilliseconds: 600);
         // 科目清單原本每頁 50 個；裁定 2026-10-16-03 改成明細一律每頁至多 200 筆，
-        // 這裡的上限跟著改成 200（第一次失敗收據 20261019-164752787-b26dc7814b724f918fab4e67b9494650）。按住 0.6 秒能捲多遠看畫面更新的速度，可能捲到底、整頁都選了，
+        // 這裡的上限跟著改成 200（第一次失敗留在當時的驗證紀錄）。按住 0.6 秒能捲多遠看畫面更新的速度，可能捲到底、整頁都選了，
         // 所以「全選本頁」要和實際選取一致：整頁都選是全選，否則是部分選取（2026-10-14 實跑整頁全選，
-        // 收據 20261014-071836346-5f284f26ccaa4447a4e019c23e1b53e4）。
+        // 依當時的驗證紀錄）。
         await Check("feedback_account_drag_scroll", $"(()=>{{var rows=document.querySelectorAll('[data-account-select]').length,on=document.querySelectorAll('[data-account-select]:checked').length,page=document.querySelector('[data-account-select-page]');return document.querySelector('.account-editor__table').scrollTop>{ReadDouble(scrollProbe, "scroll")}+10 && on>2 && rows<=200 && (on===rows ? page.checked && !page.indeterminate : page.indeterminate) && document.querySelector('[data-account-save]').disabled;}})()");
         // 先清除，再單選一列，讓下面連點兩下「全選本頁」每次都是部分選取、全選、全不選。
         await Click("[data-account-clear-selection]");

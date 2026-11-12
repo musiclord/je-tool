@@ -7,7 +7,7 @@ namespace JET.Tests.AuditCore;
 public sealed class IntakeMappingProgramTests
 {
     [Theory]
-    [MemberData(nameof(JET.Tests.Domain.AccountMappingColumnResolverTests.K7HeaderOrders), MemberType = typeof(JET.Tests.Domain.AccountMappingColumnResolverTests))]
+    [MemberData(nameof(JET.Tests.Domain.AccountMappingColumnResolverTests.HeaderOrders), MemberType = typeof(JET.Tests.Domain.AccountMappingColumnResolverTests))]
     public void AccountMappingProjection_UsesTheSameNamedColumnsRegardlessOfOrder(
         string[] columns, string code, string name, string category)
     {
@@ -283,24 +283,171 @@ public sealed class IntakeMappingProgramTests
     }
 
     [Fact]
-    // 這句的用字已定案。
+    public void AccountMappingProjection_NewCategoryNames_BecomeCustomCategoriesInFirstAppearanceOrder()
+    {
+        var existing = new AccountCategory(
+            "custom.0123456789abcdef0123456789abcdef",
+            "Contract assets",
+            7,
+            AccountCategoryBuiltIns.ReceivablesRole,
+            false);
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(
+            ["GL_Number", "GL_Name", "Standardized Account Name*"],
+            new AccountCategorySnapshot(4, [.. AccountCategoryBuiltIns.All, existing]));
+
+        projection.Observe(Row(4, ("GL_Number", "1301"), ("GL_Name", "商品存貨"), ("Standardized Account Name*", " 存貨 ")));
+        projection.Observe(Row(5, ("GL_Number", "1501"), ("GL_Name", "機器設備"), ("Standardized Account Name*", "Fixed assets")));
+        projection.Observe(Row(6, ("GL_Number", "1302"), ("GL_Name", "在途存貨"), ("Standardized Account Name*", "存貨")));
+        projection.Observe(Row(7, ("GL_Number", "1502"), ("GL_Name", "運輸設備"), ("Standardized Account Name*", "FIXED ASSETS")));
+        projection.Observe(Row(8, ("GL_Number", "1141"), ("GL_Name", "合約資產"), ("Standardized Account Name*", "contract assets")));
+
+        var rows = projection.Complete(rowCount: 5, fileName: "mapping.xlsx");
+
+        Assert.Collection(
+            projection.AddedCategories,
+            category =>
+            {
+                Assert.Equal("存貨", category.Label);
+                Assert.Equal(8, category.Ordinal);
+            },
+            category =>
+            {
+                Assert.Equal("Fixed assets", category.Label);
+                Assert.Equal(9, category.Ordinal);
+            });
+        Assert.All(projection.AddedCategories, category =>
+        {
+            Assert.True(AccountCategoryInvariant.IsCustomId(category.CategoryId));
+            Assert.Equal(AccountCategoryBuiltIns.OthersRole, category.SemanticRole);
+            Assert.False(category.IsBuiltIn);
+            Assert.Null(category.ParentCategoryId);
+        });
+        var inventory = projection.AddedCategories[0];
+        var fixedAssets = projection.AddedCategories[1];
+        Assert.Equal(
+            [inventory.CategoryId, fixedAssets.CategoryId, inventory.CategoryId, fixedAssets.CategoryId, existing.CategoryId],
+            rows.Select(row => row.CategoryId));
+        Assert.Equal(
+            ["存貨", "Fixed assets", "存貨", "Fixed assets", "Contract assets"],
+            rows.Select(row => row.Category));
+        Assert.All(rows.Take(4), row => Assert.Equal(AccountMappingCategories.Others, row.LegacyCategory));
+        AccountCategoryInvariant.ValidateReplacement(
+            [.. AccountCategoryBuiltIns.All, existing, .. projection.AddedCategories]);
+    }
+
+    [Fact]
+    public void AccountMappingProjection_NewCategoryOnlyOnOverwrittenRow_IsNotAdded()
+    {
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(
+            ["GL_Number", "GL_Name", "Standardized Account Name*"]);
+
+        projection.Observe(Row(4, ("GL_Number", "1301"), ("GL_Name", "商品存貨"), ("Standardized Account Name*", "存貨")));
+        projection.Observe(Row(5, ("GL_Number", "1501"), ("GL_Name", "機器設備"), ("Standardized Account Name*", "固定資產")));
+        projection.Observe(Row(6, ("GL_Number", "1301"), ("GL_Name", "商品存貨"), ("Standardized Account Name*", "Cash")));
+
+        projection.Complete(rowCount: 3, fileName: "mapping.xlsx");
+
+        var added = Assert.Single(projection.AddedCategories);
+        Assert.Equal("固定資產", added.Label);
+        Assert.Equal(5, added.Ordinal);
+    }
+
+    [Fact]
+    public void AccountMappingProjection_OriginalBuiltInName_ResolvesToRenamedBuiltIn()
+    {
+        var renamed = AccountCategoryBuiltIns.All
+            .Select(item => item.CategoryId == AccountCategoryBuiltIns.RevenueId
+                ? item with { Label = "營業收入" }
+                : item)
+            .ToArray();
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(
+            ["GL_Number", "GL_Name", "Standardized Account Name*"],
+            new AccountCategorySnapshot(2, renamed));
+
+        projection.Observe(Row(4, ("GL_Number", "4001"), ("GL_Name", "銷貨收入"), ("Standardized Account Name*", "Revenue")));
+
+        var row = Assert.Single(projection.Complete(rowCount: 1, fileName: "mapping.xlsx"));
+        Assert.Equal(AccountCategoryBuiltIns.RevenueId, row.CategoryId);
+        Assert.Equal("營業收入", row.Category);
+        Assert.Empty(projection.AddedCategories);
+    }
+
+    [Fact]
+    public void AccountMappingProjection_NewCategoryNameOverStorageLimit_FailsWithRowNumber()
+    {
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(["code", "name", "category"]);
+        projection.Observe(Row(2, ("code", "1101"), ("name", "現金"), ("category", new string('類', 400))));
+        projection.Observe(Row(3, ("code", "1102"), ("name", "銀行存款"), ("category", new string('類', 401))));
+
+        var error = Assert.Throws<JetActionException>(() => projection.Complete(2, "mapping.csv"));
+
+        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        Assert.Equal(
+            "科目配對範本有 1 列無法讀取，本次匯入未儲存：第 3 列：分類名稱超過 400 個字，請縮短來源資料。",
+            error.Message);
+    }
+
+    // 分類欄只能靠欄位順序認出來時，選到的可能不是科目配對的檔案，不把那一欄的內容當成新分類；
+    // 訊息寫出要新增分類時該怎麼做。
+    [Fact]
     internal void AccountMappingProjection_PreservesProviderSpecificFailureText()
     {
         const string expected =
-            "科目配對範本有 1 列無法讀取，本次匯入未儲存：第 7 列：分類「bad」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。";
+            "科目配對範本有 1 列無法讀取，本次匯入未儲存：第 7 列：分類「bad」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱；"
+            + "要新增分類，請先把這一欄的欄名改成「Standardized Account Name*」。";
         var projection = JetAuditProgram.PrepareAccountMappingProjection(
-            ["code", "name", "category"]);
+            ["甲", "乙", "丙"]);
+        projection.Observe(Row(
+            6,
+            ("甲", "1101"),
+            ("乙", "現金"),
+            ("丙", "Cash")));
         projection.Observe(Row(
             7,
-            ("code", "1000"),
-            ("name", "Test"),
-            ("category", "bad")));
+            ("甲", "1000"),
+            ("乙", "Test"),
+            ("丙", "bad")));
+
+        var error = Assert.Throws<JetActionException>(() =>
+            projection.Complete(2, "mapping.csv"));
+
+        Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
+        Assert.Equal(expected, error.Message);
+        Assert.Empty(projection.AddedCategories);
+    }
+
+    // 看的是分類欄怎麼認出來：科目編號與科目名稱的欄名認得出來、只有分類欄照欄位順序時，新名稱照樣不新增。
+    [Fact]
+    public void AccountMappingProjection_OnlyCategoryColumnFoundByPosition_DoesNotAddCategory()
+    {
+        const string expected =
+            "科目配對範本有 1 列無法讀取，本次匯入未儲存：第 5 列：分類「存貨」不在本案件的科目分類中（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱；"
+            + "要新增分類，請先把這一欄的欄名改成「Standardized Account Name*」。";
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(
+            ["科目代號", "科目名稱", "類別"]);
+        projection.Observe(Row(5, ("科目代號", "1301"), ("科目名稱", "商品存貨"), ("類別", "存貨")));
 
         var error = Assert.Throws<JetActionException>(() =>
             projection.Complete(1, "mapping.csv"));
 
         Assert.Equal(JetErrorCodes.ProjectionFailed, error.Code);
         Assert.Equal(expected, error.Message);
+        Assert.Empty(projection.AddedCategories);
+    }
+
+    // 分類欄的欄名認得出來時，另外兩欄照欄位順序也不影響：新名稱新增成自訂分類。
+    [Fact]
+    public void AccountMappingProjection_CategoryColumnFoundByName_AddsCategoryWhenOtherColumnsAreByPosition()
+    {
+        var projection = JetAuditProgram.PrepareAccountMappingProjection(
+            ["甲", "乙", "分類"]);
+        projection.Observe(Row(5, ("甲", "1301"), ("乙", "商品存貨"), ("分類", "存貨")));
+
+        var rows = projection.Complete(1, "mapping.csv");
+
+        var added = Assert.Single(projection.AddedCategories);
+        Assert.Equal("存貨", added.Label);
+        Assert.Equal(added.CategoryId, Assert.Single(rows).CategoryId);
     }
 
     [Fact]

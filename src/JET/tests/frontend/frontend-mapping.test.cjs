@@ -87,14 +87,14 @@ for (const mode of ['side', 'flag']) for (const codeKey of ['drCrDebitCode', 'dr
       f.store.setMappingDraft('gl', field.key, field.key + 'Source');
     f.store.setMappingDraft('gl', codeKey, 'S');
     const mapping = f.store.getState().mapping.gl;
-    assert.equal(f.window.mappingEligibility(ui.GL_FIELDS, mode, mapping, 'gl').canCommit, true);
+    assert.equal(f.window.exposedMappingCommitEligibility(ui.GL_FIELDS, mode, mapping, 'gl').canCommit, true);
     const opposite = codeKey === 'drCrDebitCode' ? 'drCrCreditCode' : 'drCrDebitCode';
-    const wire = f.window.mappingWire(mapping.draft, mode);
+    const wire = f.window.exposedGlCommitPayload(mapping.draft, mode);
     assert.equal(wire.mapping[codeKey], 'S');
     assert.equal(Object.hasOwn(wire.mapping, opposite), false);
     assert.equal(mapping.draft[opposite] || '', '');
     f.store.setMappingDraft('gl', codeKey, ' ');
-    assert.equal(f.window.mappingEligibility(ui.GL_FIELDS, mode, mapping, 'gl').canCommit, false);
+    assert.equal(f.window.exposedMappingCommitEligibility(ui.GL_FIELDS, mode, mapping, 'gl').canCommit, false);
   });
 }
 
@@ -150,7 +150,7 @@ test('approval date has one source control per view and all three states survive
       assert.match(html, /data-approval-same-date/);
       assert.equal(/data-approval-same-date[^>]* checked/.test(html), mode === 'sameAsGlDate');
     }
-    assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, mode);
+    assert.equal(f.window.exposedGlCommitPayload({}, 'dual').approvalDateMode, mode);
   }
 });
 
@@ -1400,27 +1400,27 @@ test('loaded source values survive a text-only project metadata edit', async () 
 test('creation date shortcut selects a date RDE and keeps the existing identity when replacing its source', () => {
  const f=fixture();
  f.render().change('[data-rde-created-date]', 'Other');
- let wire=f.window.mappingWire({}, 'signed');
+ let wire=f.window.exposedGlCommitPayload({}, 'signed');
  assert.deepEqual(copy(wire.rdeFields), [{sourceColumn:'Other',label:'傳票建立日',valueType:'date'}]);
  f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'Old',valueType:'text',fieldId:'rde.existing'}]});
  f.render().change('[data-rde-created-date]', 'Other');
  assert.match(f.render().html,/這個來源欄目前是「Old」欄位/);
- assert.equal(f.window.mappingWire({},'signed').rdeFields[0].label,'Old');
+ assert.equal(f.window.exposedGlCommitPayload({},'signed').rdeFields[0].label,'Old');
  f.render().click('confirm-created-date');
- assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields), [{sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.existing'}]);
+ assert.deepEqual(copy(f.window.exposedGlCommitPayload({},'signed').rdeFields), [{sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.existing'}]);
  f.render().change('[data-rde-created-date]', '__proto__');
- assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields), [{sourceColumn:'__proto__',label:'傳票建立日',valueType:'date',fieldId:'rde.existing'}]);
+ assert.deepEqual(copy(f.window.exposedGlCommitPayload({},'signed').rdeFields), [{sourceColumn:'__proto__',label:'傳票建立日',valueType:'date',fieldId:'rde.existing'}]);
  f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'Department',valueType:'text',fieldId:'rde.target'},{sourceColumn:'__proto__',label:'傳票建立日',valueType:'date',fieldId:'rde.created'}]});
- const before=copy(f.window.mappingWire({},'signed').rdeFields);
+ const before=copy(f.window.exposedGlCommitPayload({},'signed').rdeFields);
  f.render().change('[data-rde-created-date]', 'Other');
- assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields),before);
+ assert.deepEqual(copy(f.window.exposedGlCommitPayload({},'signed').rdeFields),before);
  assert.match(f.render().html,/另一個「傳票建立日」欄位會保留/);
  f.render().click('cancel-created-date');
- assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields),before);
+ assert.deepEqual(copy(f.window.exposedGlCommitPayload({},'signed').rdeFields),before);
  assert.doesNotMatch(f.render().html,/data-action="confirm-created-date"/);
  f.render().change('[data-rde-created-date]', 'Other');
  f.render().click('confirm-created-date');
- assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields), [
+ assert.deepEqual(copy(f.window.exposedGlCommitPayload({},'signed').rdeFields), [
   {sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.target'},
   {sourceColumn:'__proto__',label:'傳票建立日',valueType:'date',fieldId:'rde.created'}]);
 });
@@ -1432,7 +1432,7 @@ test('creation date confirmation cannot mutate another project or an edited fiel
  const pending=f.render();
  f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'Changed',valueType:'text',fieldId:'rde.target'}]});
  pending.click('confirm-created-date');
- assert.equal(f.window.mappingWire({},'signed').rdeFields[0].label,'Changed');
+ assert.equal(f.window.exposedGlCommitPayload({},'signed').rdeFields[0].label,'Changed');
  f.render().change('[data-rde-created-date]','Other');
  const old=f.render();f.store.setProject({projectId:'another'});
  old.click('confirm-created-date');
@@ -1444,12 +1444,12 @@ test('creation date shortcut confirms restoring date type without losing a same-
  f.store.patchGlMappingOptions({rdeFields:[{sourceColumn:'Other',label:'傳票建立日',valueType:'text',fieldId:'rde.created'}]});
  f.render().change('[data-rde-created-date]','Other');
  assert.match(f.render().html,/data-action="confirm-created-date"/);
- assert.equal(f.window.mappingWire({},'signed').rdeFields[0].valueType,'text');
+ assert.equal(f.window.exposedGlCommitPayload({},'signed').rdeFields[0].valueType,'text');
  f.render().click('confirm-created-date');
- assert.deepEqual(copy(f.window.mappingWire({},'signed').rdeFields),[{sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.created'}]);
+ assert.deepEqual(copy(f.window.exposedGlCommitPayload({},'signed').rdeFields),[{sourceColumn:'Other',label:'傳票建立日',valueType:'date',fieldId:'rde.created'}]);
 });
 
-// FD 315-319 and action-contract-manifest: reimported RDE sources retain their issued identity through the real confirmation button.
+// Reimported RDE sources retain their issued identity through the real confirmation button.
 test('reopening preserves an existing RDE field id through confirmation', async () => {
   const f = fixture(), sent = [], field = { fieldId: 'rde.keep', sourceColumn: 'Dept', label: '部門', valueType: 'text' };
   f.window.JetUi.applyLoadedProject({ project: { projectId: 'synthetic', currentStep: 2 },
@@ -1500,14 +1500,14 @@ test('layout distinguishes system numbering from a source column with the same n
     f.render().change('[data-mapping-key="lineItem"]', name);
     const draft = copy(f.store.getState().mapping.gl.draft);
     assert.equal(draft.lineItem, name);
-    assert.equal(f.window.mappingWire(draft, 'dual').mapping.lineItem, name);
+    assert.equal(f.window.exposedGlCommitPayload(draft, 'dual').mapping.lineItem, name);
     f.store.setMappingUiMode('grid'); f.render(); f.store.setMappingUiMode('classic');
     assert.match(select(), new RegExp('value="' + name + '" selected'));
   }
   f.render().change('[data-mapping-key="lineItem"]', '');
   const draft = copy(f.store.getState().mapping.gl.draft);
   assert.equal(draft.lineItem, undefined);
-  assert.equal(Object.hasOwn(f.window.mappingWire(draft, 'dual').mapping, 'lineItem'), false);
+  assert.equal(Object.hasOwn(f.window.exposedGlCommitPayload(draft, 'dual').mapping, 'lineItem'), false);
 });
 
 test('grid chooses approval sources in headers and retains same-date as a separate non-source choice', () => {
@@ -1517,18 +1517,18 @@ test('grid chooses approval sources in headers and retains same-date as a separa
   assert.doesNotMatch(page.html, /data-approval-choice/);
   assert.match(page.html, /data-approval-same-date/);
   page.toggle('[data-approval-same-date]', true);
-  assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, 'sameAsGlDate');
+  assert.equal(f.window.exposedGlCommitPayload({}, 'dual').approvalDateMode, 'sameAsGlDate');
   assert.equal(f.store.getState().mapping.gl.draft.approvalDate, undefined);
   f.store.setMappingUiMode('classic');
   assert.match(f.render().html, /value="mode:sameAsGlDate" selected/);
   f.store.setMappingUiMode('grid');
   f.render().toggle('[data-approval-same-date]', false);
-  assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, 'unmapped');
+  assert.equal(f.window.exposedGlCommitPayload({}, 'dual').approvalDateMode, 'unmapped');
   f.store.assignColumnToField('gl', 'Other', 'approvalDate', ['drCrDebitCode', 'drCrCreditCode']);
   page = f.render();
   assert.match(page.html, /value="approvalDate" selected/);
   assert.doesNotMatch(page.html, /data-approval-choice|data-approval-same-date/);
-  assert.equal(f.window.mappingWire({}, 'dual').approvalDateMode, 'mapped');
+  assert.equal(f.window.exposedGlCommitPayload({}, 'dual').approvalDateMode, 'mapped');
 });
 
 test('manual codes are editable values without X buttons and clearing an input removes only that code', () => {
@@ -1537,13 +1537,13 @@ test('manual codes are editable values without X buttons and clearing an input r
   let page = f.render();
   assert.doesNotMatch(page.html, /data-remove-code/);
   page.input('[data-manual-code-edit="manual:0"]', 'X');
-  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.manualValues), ['X', 'M,1']);
+  assert.deepEqual(copy(f.window.exposedGlCommitPayload({}, 'dual').manualAutoPolicy.manualValues), ['X', 'M,1']);
   page.input('[data-manual-code-edit="manual:0"]', '');
-  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.manualValues), ['M,1']);
+  assert.deepEqual(copy(f.window.exposedGlCommitPayload({}, 'dual').manualAutoPolicy.manualValues), ['M,1']);
   page.input('[data-manual-code-edit="manual:0"]', 'M2');
-  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.manualValues), ['M2', 'M,1']);
-  assert.deepEqual(copy(f.window.mappingWire({}, 'dual').manualAutoPolicy.automaticValues), ['A']);
-  assert.equal(f.window.mappingWire({}, 'dual').manualAutoPolicy.blankValueKind, 'unclassified');
+  assert.deepEqual(copy(f.window.exposedGlCommitPayload({}, 'dual').manualAutoPolicy.manualValues), ['M2', 'M,1']);
+  assert.deepEqual(copy(f.window.exposedGlCommitPayload({}, 'dual').manualAutoPolicy.automaticValues), ['A']);
+  assert.equal(f.window.exposedGlCommitPayload({}, 'dual').manualAutoPolicy.blankValueKind, 'unclassified');
   assert.match(f.render().html, /aria-label="人工代碼 1"/);
 });
 

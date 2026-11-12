@@ -357,7 +357,7 @@ public sealed class SupportCaseHistoryTests
         Assert.Equal("System.UnauthorizedAccessException", Field(lines[2], "error_type"));
     }
 
-    /// <summary>用目前版本建立案件後刪掉支援紀錄資料夾，等同舊版建立、從來沒有支援紀錄的案件。</summary>
+    /// <summary>用目前版本建立案件後刪掉支援紀錄資料夾，等同較早版本的 JET 建立、從來沒有支援紀錄的案件。</summary>
     private static async Task<string> CreateOldCaseAsync(string projectsRoot, string name)
     {
         string id;

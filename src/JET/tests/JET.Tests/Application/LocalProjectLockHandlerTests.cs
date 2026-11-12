@@ -8,8 +8,8 @@ namespace JET.Tests.Application;
 
 /// <summary>
 /// 本地案件跨執行個體互斥的 Application 驗收。以兩個真 <see cref="HandlerTestHost"/> 共用同一 projects root，
-/// 模擬兩個程序同時開啟同案；oracle 是 manifest 的
-/// project_locked 語意。
+/// 模擬兩個程序同時開啟同案；oracle 是錯誤碼
+/// project_locked 的語意。
 /// </summary>
 public sealed class LocalProjectLockHandlerTests
 {

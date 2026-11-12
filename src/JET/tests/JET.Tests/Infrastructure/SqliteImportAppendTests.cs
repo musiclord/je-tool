@@ -175,7 +175,7 @@ public sealed class SqliteImportAppendTests
         using var env = new Env();
         await env.ReplaceThreeRowsAsync();
 
-        // 來源把 credit 改名 extra1：差集兩個方向都必須指名（manifest column_mismatch）
+        // 來源把 credit 改名 extra1：差集兩個方向都必須指名（錯誤碼 column_mismatch）
         IReadOnlyList<string> renamed = ["doc", "date", "acc", "name", "desc", "debit", "extra1"];
 
         var ex = await Assert.ThrowsAsync<JetActionException>(

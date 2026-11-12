@@ -216,7 +216,7 @@ public sealed class ProjectHandlersTests
 
         var loaded = await host.DispatchAsync("project.load", $$"""{ "projectId": "{{projectId}}" }""");
 
-        // manifest「資料庫 provider 歸屬」：本地專案固定 sqlite。
+        // 本地專案的資料庫 provider 固定是 sqlite。
         Assert.Equal("sqlite", loaded.GetProperty("project").GetProperty("databaseProvider").GetString());
     }
 
@@ -225,7 +225,7 @@ public sealed class ProjectHandlersTests
     {
         using var host = new HandlerTestHost();
 
-        // 舊版 project.json（databaseProvider 欄位出現前的形狀）要明確拒絕，不猜成 sqlite。
+        // 沒有 databaseProvider 欄位的 project.json 要明確拒絕，不猜成 sqlite。
         var projectId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         var projectDir = Path.Combine(host.ProjectsRoot, projectId);
         Directory.CreateDirectory(projectDir);
@@ -251,9 +251,9 @@ public sealed class ProjectHandlersTests
 
         Assert.Equal(JetErrorCodes.InvalidProjectSchema, exception.Code);
         // 訊息不寫檔名與缺了哪個設定。
-        // 舊版案件由設定檔版本（這裡是第 1 版）判斷，訊息寫明刪除後重建。
+        // 較早版本的 JET 建立的案件由設定檔版本（這裡是第 1 版）判斷，訊息寫明刪除後重建。
         Assert.Equal(
-            $"案件「{projectId}」是舊版 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
+            $"案件「{projectId}」是較早版本的 JET 建立的，目前版本無法開啟。請在案件清單刪除這個案件，再用目前版本重新建立並匯入資料。",
             exception.Message);
     }
 

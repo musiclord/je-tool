@@ -619,12 +619,12 @@ public sealed class FilterBackendRuleMirrorFrontendTests
 
     private static string ReadSource(params string[] segments)
     {
-        var path = Path.Combine(new[] { RepoRoot(), "JET" }.Concat(segments).ToArray());
+        var path = Path.Combine(new[] { SolutionRoot(), "JET" }.Concat(segments).ToArray());
         Assert.True(File.Exists(path), $"找不到原始檔：{path}");
         return File.ReadAllText(path);
     }
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))
@@ -633,6 +633,6 @@ public sealed class FilterBackendRuleMirrorFrontendTests
         }
 
         return directory?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

@@ -22,13 +22,13 @@ public sealed class MappingMetadataMirrorTests
 
     private static string ReadFrontend(params string[] relativeSegments)
     {
-        var segments = new[] { RepoRoot(), "JET", "wwwroot", "js" }
+        var segments = new[] { SolutionRoot(), "JET", "wwwroot", "js" }
             .Concat(relativeSegments)
             .ToArray();
         return File.ReadAllText(Path.Combine(segments));
     }
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))
@@ -37,6 +37,6 @@ public sealed class MappingMetadataMirrorTests
         }
 
         return directory?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

@@ -7,8 +7,8 @@ using Xunit;
 namespace JET.Tests.Application;
 
 /// <summary>
-/// import.accountMapping.fromFile 黑箱驗收（manifest 細節段）：
-/// 匯入即投影、replace-only、分類白名單、解鎖未預期借貸組合。
+/// import.accountMapping.fromFile 黑箱驗收：
+/// 匯入即投影、replace-only、分類欄的新名稱新增成自訂分類、解鎖未預期借貸組合。
 /// oracle：demo 科目配對派生規格 + 獨立參數化 SQL recount。
 /// </summary>
 public sealed class ImportAccountMappingHandlerTests
@@ -254,7 +254,8 @@ public sealed class ImportAccountMappingHandlerTests
         // 關閉預設科目配對匯入:本測驗證「失敗匯入整批 rollback、不留殘骸」,需從空 target 起算。
         var context = await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
 
-        var path = WriteCsv("科目代號,科目名稱,標準化分類\n1101,現金,Cash\n9999,神祕科目,NotACategory\n");
+        // 三個欄名都認不出來，分類欄是照欄位順序認的；這時案件沒有的分類名稱不會變成新分類。
+        var path = WriteCsv("甲,乙,丙\n1101,現金,Cash\n9999,神祕科目,NotACategory\n");
 
         var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
             "import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path })));
@@ -264,17 +265,155 @@ public sealed class ImportAccountMappingHandlerTests
                         // 這句的用字已定案。
                         // 一律寫「科目配對範本」。
                         "科目配對範本有 1 列無法讀取，本次匯入未儲存："
-            // 這句的用字已定案。
             + "第 3 列：分類「NotACategory」不在本案件的科目分類中"
-            + "（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱。",
+            + "（Revenue、Receivables、Cash、Receipt in advance、Others），請改用清單中的分類名稱；"
+            + "要新增分類，請先把這一欄的欄名改成「Standardized Account Name*」。",
             ex.Message);
 
-        // 整批 rollback：target 與批次皆不留殘骸。
+        // 整批 rollback：target 與批次皆不留殘骸，分類也沒有多出來。
+        Assert.Equal(AccountCategoryBuiltIns.All.Count, await DemoProjectPipeline.QueryScalarAsync(
+            host, context.ProjectId, "SELECT COUNT(*) FROM account_category;"));
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId, "SELECT COUNT(*) FROM account_mapping;"));
         Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
             host, context.ProjectId,
             "SELECT COUNT(*) FROM import_batch WHERE dataset_kind = 'account_mapping';"));
+    }
+
+    [Fact]
+    public async Task ImportAccountMapping_NewCategoryNames_BecomeCustomCategoriesOfTheCase()
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
+        var before = (await host.DispatchAsync(
+            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }))).GetProperty("accountCategory");
+        var path = WriteCsv(
+            "科目代號,科目名稱,標準化分類\n1101,現金,Cash\n1301,商品存貨,存貨\n1302,在途存貨, 存貨 \n1501,機器設備,固定資產\n");
+
+        try
+        {
+            var data = await host.DispatchAsync(
+                "import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+
+            var snapshot = data.GetProperty("accountCategory");
+            Assert.Equal(before.GetProperty("revision").GetInt32() + 1, snapshot.GetProperty("revision").GetInt32());
+            var categories = snapshot.GetProperty("categories").EnumerateArray().ToArray();
+            Assert.Equal(
+                ["Revenue", "Receivables", "Cash", "Receipt in advance", "Others", "存貨", "固定資產"],
+                categories.Select(item => item.GetProperty("label").GetString()));
+            Assert.Equal(
+                [0, 1, 2, 3, 4, 5, 6],
+                categories.Select(item => item.GetProperty("ordinal").GetInt32()));
+            foreach (var added in categories.Skip(5))
+            {
+                Assert.True(AccountCategoryInvariant.IsCustomId(added.GetProperty("categoryId").GetString()));
+                Assert.Equal(AccountCategoryBuiltIns.OthersRole, added.GetProperty("semanticRole").GetString());
+                Assert.False(added.GetProperty("isBuiltIn").GetBoolean());
+                Assert.Equal(JsonValueKind.Null, added.GetProperty("parentCategoryId").ValueKind);
+            }
+
+            // 新分類和科目配對在同一次匯入寫進案件：兩個科目歸到「存貨」，舊版分類欄照舊寫 Others。
+            Assert.Equal(2, await DemoProjectPipeline.QueryScalarAsync(
+                host, context.ProjectId,
+                """
+                SELECT COUNT(*) FROM account_mapping m
+                JOIN account_category c ON c.category_id = m.category_id
+                WHERE c.label = '存貨' AND m.standardized_category = 'Others';
+                """));
+            Assert.Equal(7, await DemoProjectPipeline.QueryScalarAsync(
+                host, context.ProjectId, "SELECT COUNT(*) FROM account_category;"));
+            // 每個分類在上下層對照表都有自己對自己的一列，依分類篩選才找得到新分類的科目。
+            Assert.Equal(7, await DemoProjectPipeline.QueryScalarAsync(
+                host, context.ProjectId,
+                "SELECT COUNT(*) FROM account_category_path WHERE ancestor_id = descendant_id;"));
+
+            var loaded = (await host.DispatchAsync(
+                "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }))).GetProperty("accountCategory");
+            Assert.Equal(snapshot.GetRawText(), loaded.GetRawText());
+
+            // 再匯入同一個檔案：分類已經在案件裡，不重複新增，分類清單的版本也不變。
+            var again = await host.DispatchAsync(
+                "import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+            Assert.Equal(snapshot.GetRawText(), again.GetProperty("accountCategory").GetRawText());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ImportAccountMapping_NewCategoryNames_KeepExistingCustomCategories()
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
+        var before = (await host.DispatchAsync(
+            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }))).GetProperty("accountCategory");
+        var saved = await host.DispatchAsync("accountCategory.save", JsonSerializer.Serialize(new
+        {
+            revision = before.GetProperty("revision").GetInt32(),
+            categories = before.GetProperty("categories").EnumerateArray()
+                .Select(item => (object)new
+                {
+                    categoryId = item.GetProperty("categoryId").GetString(),
+                    label = item.GetProperty("label").GetString(),
+                    ordinal = item.GetProperty("ordinal").GetInt32(),
+                    semanticRole = item.GetProperty("semanticRole").GetString(),
+                    parentCategoryId = (string?)null
+                })
+                .Append(new { label = "預付款項", ordinal = 5, semanticRole = "others", parentCategoryId = (string?)null })
+                .ToArray()
+        }));
+        var existingId = saved.GetProperty("categories").EnumerateArray()
+            .Single(item => item.GetProperty("label").GetString() == "預付款項").GetProperty("categoryId").GetString();
+        var path = WriteCsv("科目代號,科目名稱,標準化分類\n1401,預付貨款,預付款項\n1301,商品存貨,存貨\n");
+
+        try
+        {
+            var data = await host.DispatchAsync(
+                "import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path }));
+
+            var categories = data.GetProperty("accountCategory").GetProperty("categories").EnumerateArray().ToArray();
+            Assert.Equal(
+                ["Revenue", "Receivables", "Cash", "Receipt in advance", "Others", "預付款項", "存貨"],
+                categories.Select(item => item.GetProperty("label").GetString()));
+            Assert.Equal(existingId, categories[5].GetProperty("categoryId").GetString());
+            Assert.Equal(
+                saved.GetProperty("revision").GetInt32() + 1,
+                data.GetProperty("accountCategory").GetProperty("revision").GetInt32());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ImportAccountMapping_FailedImportWithNewCategoryNames_AddsNoCategory()
+    {
+        using var host = new HandlerTestHost();
+        var context = await DemoProjectPipeline.SetupAsync(host, importAccountMapping: false);
+        var before = (await host.DispatchAsync(
+            "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }))).GetProperty("accountCategory");
+        var path = WriteCsv("科目代號,科目名稱,標準化分類\n1301,商品存貨,存貨\n,沒有編號的科目,固定資產\n");
+
+        try
+        {
+            var ex = await Assert.ThrowsAsync<JetActionException>(() => host.DispatchAsync(
+                "import.accountMapping.fromFile", JsonSerializer.Serialize(new { filePath = path })));
+
+            Assert.Equal("projection_failed", ex.Code);
+            Assert.Equal("科目配對範本有 1 列無法讀取，本次匯入未儲存：第 3 列：科目編號空白。", ex.Message);
+            var after = (await host.DispatchAsync(
+                "project.load", JsonSerializer.Serialize(new { projectId = context.ProjectId }))).GetProperty("accountCategory");
+            Assert.Equal(before.GetRawText(), after.GetRawText());
+            Assert.Equal(0, await DemoProjectPipeline.QueryScalarAsync(
+                host, context.ProjectId, "SELECT COUNT(*) FROM account_mapping;"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

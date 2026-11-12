@@ -52,7 +52,7 @@ public sealed class AccountCategorySaveHandler(
             {
                 do
                 {
-                    categoryId = $"custom.{Guid.NewGuid():N}";
+                    categoryId = AccountCategoryInvariant.NewCustomId();
                 }
                 while (!usedIds.Add(categoryId));
                 isBuiltIn = false;

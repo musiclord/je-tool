@@ -38,7 +38,7 @@ public sealed class ProjectCreationValidationTests
     [InlineData("2026-12-31", false)]
     [InlineData("2027-01-01", true)]
     [InlineData(null, false)]
-    public async Task PreparationDate_WarnsAtApprovedBounds_ButAlwaysCreates(string? preparationDate, bool warn)
+    public async Task PreparationDate_WarnsOutsidePeriodStartToOneYearAfterPeriodEnd_ButAlwaysCreates(string? preparationDate, bool warn)
     {
         using var host = new HandlerTestHost();
         var result = await host.DispatchAsync("project.create", JsonSerializer.Serialize(new

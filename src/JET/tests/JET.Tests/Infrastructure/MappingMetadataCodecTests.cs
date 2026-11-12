@@ -175,7 +175,7 @@ public sealed class MappingMetadataCodecTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1)] // 舊版 JET 的第 1 版 metadata 不讀取。
+    [InlineData(1)] // 第 1 版的 metadata 不讀取。
     [InlineData(3)]
     public void Decode_RejectsUnsupportedVersion(int version)
     {

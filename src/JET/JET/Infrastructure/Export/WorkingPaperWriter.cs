@@ -35,7 +35,7 @@ namespace JET.Infrastructure;
 ///   production 另以 bounded raw-row port 回填原始借貸代號與來源模組。
 ///   step3/4/4-1 的 C 欄集由本次所選情境決定——step4 用全部所選 position，
 ///   step4-1 只用所選集合中「行層命中(rowHitCount>0)」的 position。
-///   這是業務分支(對齊樣本的動態 schema):先以 scenarios 算出欄集 list(<see cref="TagColumnSet"/>),再逐列依該列
+///   這是業務分支:先以 scenarios 算出欄集 list(<see cref="TagColumnSet"/>),再逐列依該列
 ///   matchedPositions 是否含某 position 對映 Y——用 data structure 消特例,不寫「第幾欄特判」。
 ///   step4/4-1 逐頁串流,且每頁回的 matchedPositions 是「另一個 dict」(voucher 以 voucherNumber、row 以 entry_id 對齊),
 ///   step4 另備 <see cref="StreamTaggedVoucherRowsAsync"/> 把「列 + 該列命中位置」配對成串流(沿用 keyset 不全載入)；
@@ -174,7 +174,8 @@ public sealed partial class WorkingPaperWriter(
         int progressRowInterval = DefaultProgressRowInterval,
         IRawGlExportRepository? rawRows = null,
         IAccountMappingStore? accountMappingStateStore = null,
-        IResultPageRdeValuesPort? resultPageRdeValues = null)
+        IResultPageRdeValuesPort? resultPageRdeValues = null,
+        ReportTemplateCatalog? templates = null)
         : this(
             completenessAccounts,
             completenessDiffs,
@@ -191,6 +192,7 @@ public sealed partial class WorkingPaperWriter(
         _rawRows = rawRows;
         _accountMappingStateStore = accountMappingStateStore;
         _continuationRowLimit = options.ValidateAndGetLimit();
+        _templates = templates ?? ReportTemplateCatalog.Default;
         if (progressRowInterval <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(progressRowInterval));
@@ -362,7 +364,7 @@ public sealed partial class WorkingPaperWriter(
             EmitStep5Sheet(session, sheetStats, step5Plan, cancellationToken, progress);
         }
 
-        // 三張「自動化工具」參考資料表(對齊樣本順序,接在 step5 後)。三表結構各異 = 各自 emitter,不抽 god 模板。
+        // 三張「自動化工具」參考資料表(照範本的工作表順序,接在 step5 後)。三表結構各異 = 各自 emitter,不抽 god 模板。
         if (ShouldEmit(GetSheetPlan(plan, WorkingPaperSheetCatalog.FieldInfo)))
         {
             await EmitFieldInfoSheetAsync(
@@ -485,7 +487,7 @@ public sealed partial class WorkingPaperWriter(
     /// <summary>
     /// 高風險情境的欄集 data structure。把「step4 用全部所選 position」
     /// 「step4-1 只用所選集合中 rowHitCount&gt;0 的 position」
-    /// 這個業務分支(對齊樣本的動態 schema)收斂成預先算好的有序 position list,emitter 只需:
+    /// 這個業務分支收斂成預先算好的有序 position list,emitter 只需:
     /// (1) 依 list 順序加欄標 cell;(2) 逐列依該列 matchedPositions 是否含某 position 標 Y——
     /// 完全由 data structure 對映,不寫「第幾欄特判」，新增情境欄時不必改 emitter。
     ///
@@ -628,7 +630,7 @@ public sealed partial class WorkingPaperWriter(
     }
 
     /// <summary>
-    /// 行事曆日期顯示:儲存格式 yyyy-MM-dd → 樣本顯示形式 yyyy/MM/dd。
+    /// 行事曆日期顯示:儲存格式 yyyy-MM-dd → 顯示形式 yyyy/MM/dd。
     /// 非該格式者原樣返回(不臆造/不竄改;CalendarDayProjector 已保證匯入為 yyyy-MM-dd,此為防禦)。
     /// </summary>
     private static string DisplayDate(string isoDate)
@@ -662,7 +664,7 @@ public sealed partial class WorkingPaperWriter(
         private readonly List<string> _merges = [];
         private readonly DataValidations? _templateValidations;
         private readonly WorkingPaperLockedArea? _lockedArea;
-        private readonly (uint Style, double Width)? _unlockedColumns;
+        private readonly (IReadOnlyList<(uint Min, uint Max, uint Style)> Styles, double Width)? _unlockedColumns;
         private readonly (uint First, uint Last)? _lockedHeaderRows;
         private uint _nextLockedHeaderRow;
         private (uint TemplateLastRow, uint LastRow)? _validationExtension;
@@ -694,7 +696,7 @@ public sealed partial class WorkingPaperWriter(
             string? pageSetupRelationshipId = null,
             DataValidations? templateValidations = null,
             WorkingPaperLockedArea? lockedArea = null,
-            (uint Style, double Width)? unlockedColumns = null)
+            (IReadOnlyList<(uint Min, uint Max, uint Style)> Styles, double Width)? unlockedColumns = null)
         {
             _name = name;
             _templateValidations = templateValidations;
@@ -747,7 +749,7 @@ public sealed partial class WorkingPaperWriter(
                 lockedArea: lockedArea);
 
         /// <param name="unlockedColumns">
-        /// 有鎖定區的續頁用：每一欄都套上的不鎖定樣式，以及沒有設定寬度的欄要用的範本預設欄寬。
+        /// 有鎖定區的續頁用：各欄要套上的不鎖定樣式，由左到右分段蓋滿每一欄；以及沒有設定寬度的欄要用的範本預設欄寬。
         /// </param>
         internal static SheetWriter CreateContinuation(
             string name,
@@ -758,7 +760,7 @@ public sealed partial class WorkingPaperWriter(
             string? pageSetupRelationshipId,
             DataValidations? templateValidations = null,
             WorkingPaperLockedArea? lockedArea = null,
-            (uint Style, double Width)? unlockedColumns = null) =>
+            (IReadOnlyList<(uint Min, uint Max, uint Style)> Styles, double Width)? unlockedColumns = null) =>
             new(
                 name,
                 part,
@@ -804,6 +806,13 @@ public sealed partial class WorkingPaperWriter(
             if (!double.IsFinite(width) || width <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(width));
+            }
+            // 寫出欄設定時照這裡的順序一段一段寫，同一欄不能出現在兩段裡。
+            if (_columns.Count > 0 && min <= _columns[^1].Max)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(min),
+                    "Worksheet column widths must be set left to right without overlap.");
             }
 
             _columns.Add((min, max, width, hidden, bestFit));
@@ -1334,9 +1343,9 @@ public sealed partial class WorkingPaperWriter(
         }
 
         /// <summary>
-        /// 寫出欄寬設定。有鎖定區的續頁沒有範本的欄樣式，這時每一欄都套上不鎖定的樣式，
-        /// 沒有設定寬度的欄用範本的預設欄寬，沒寫值的格子才會和第一頁一樣可以填。
-        /// 欄寬設定要由左到右、不重疊。
+        /// 寫出欄寬設定。有鎖定區的續頁沒有範本的欄樣式，這時每一欄都套上第一頁同一欄的不鎖定樣式，
+        /// 沒有設定寬度的欄用範本的預設欄寬，沒寫值的格子才會和第一頁一樣可以填、對齊也相同。
+        /// 欄寬設定由左到右、不重疊，<see cref="SetColumnWidth"/> 收下時已經檢查。
         /// </summary>
         private Columns? BuildColumns()
         {
@@ -1346,44 +1355,63 @@ public sealed partial class WorkingPaperWriter(
             }
 
             var columns = new Columns();
-            var nextColumn = 1U;
-            foreach (var column in _columns)
+            if (_unlockedColumns is not { } unlocked)
             {
-                if (_unlockedColumns is { } gap && column.Min > nextColumn)
+                foreach (var column in _columns)
                 {
                     columns.Append(new Column
                     {
-                        Min = nextColumn,
-                        Max = column.Min - 1,
-                        Width = gap.Width,
-                        Style = gap.Style
+                        Min = column.Min,
+                        Max = column.Max,
+                        Width = column.Width,
+                        CustomWidth = true,
+                        Hidden = column.Hidden,
+                        BestFit = column.BestFit
                     });
                 }
-                var element = new Column
-                {
-                    Min = column.Min,
-                    Max = column.Max,
-                    Width = column.Width,
-                    CustomWidth = true,
-                    Hidden = column.Hidden,
-                    BestFit = column.BestFit
-                };
-                if (_unlockedColumns is { } unlocked)
-                {
-                    element.Style = unlocked.Style;
-                }
-                columns.Append(element);
-                nextColumn = Math.Max(nextColumn, column.Max + 1);
+                return columns;
             }
-            if (_unlockedColumns is { } tail && nextColumn <= ExcelWorksheetConstraints.MaxColumns)
+
+            // 樣式分段蓋滿每一欄。逐段配上那幾欄的寬度設定，寬度或樣式不同的地方分開寫。
+            var widthIndex = 0;
+            foreach (var segment in unlocked.Styles)
             {
-                columns.Append(new Column
+                var next = segment.Min;
+                while (next <= segment.Max)
                 {
-                    Min = nextColumn,
-                    Max = ExcelWorksheetConstraints.MaxColumns,
-                    Width = tail.Width,
-                    Style = tail.Style
-                });
+                    while (widthIndex < _columns.Count && _columns[widthIndex].Max < next)
+                    {
+                        widthIndex++;
+                    }
+                    Column element;
+                    if (widthIndex < _columns.Count && _columns[widthIndex].Min <= next)
+                    {
+                        var width = _columns[widthIndex];
+                        element = new Column
+                        {
+                            Min = next,
+                            Max = Math.Min(segment.Max, width.Max),
+                            Width = width.Width,
+                            CustomWidth = true,
+                            Hidden = width.Hidden,
+                            BestFit = width.BestFit
+                        };
+                    }
+                    else
+                    {
+                        element = new Column
+                        {
+                            Min = next,
+                            Max = widthIndex < _columns.Count
+                                ? Math.Min(segment.Max, _columns[widthIndex].Min - 1)
+                                : segment.Max,
+                            Width = unlocked.Width
+                        };
+                    }
+                    element.Style = segment.Style;
+                    columns.Append(element);
+                    next = element.Max!.Value + 1;
+                }
             }
             return columns;
         }

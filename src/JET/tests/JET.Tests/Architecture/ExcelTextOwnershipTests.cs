@@ -12,7 +12,7 @@ public sealed partial class ExcelTextOwnershipTests
     [Fact]
     public void ProductionCode_CreatesCellTextOnlyThroughExcelText()
     {
-        var product = Path.Combine(RepoRoot(), "JET");
+        var product = Path.Combine(SolutionRoot(), "JET");
         var excluded = new[] { Path.Combine(product, "bin"), Path.Combine(product, "obj") };
         var files = Directory
             .EnumerateFiles(product, "*.cs", SearchOption.AllDirectories)
@@ -24,7 +24,7 @@ public sealed partial class ExcelTextOwnershipTests
 
         var violations = files
             .SelectMany(file => DirectCellText().Matches(File.ReadAllText(file))
-                .Select(match => $"{Path.GetRelativePath(RepoRoot(), file)}: {match.Value}"))
+                .Select(match => $"{Path.GetRelativePath(SolutionRoot(), file)}: {match.Value}"))
             .ToArray();
 
         Assert.Empty(violations);
@@ -53,7 +53,7 @@ public sealed partial class ExcelTextOwnershipTests
     [GeneratedRegex(@"\bnew\s+(?:Text|InlineString)\s*\(|\+\s*""is""")]
     private static partial Regex DirectCellText();
 
-    private static string RepoRoot()
+    private static string SolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "JET.slnx")))
@@ -62,6 +62,6 @@ public sealed partial class ExcelTextOwnershipTests
         }
 
         return directory?.FullName
-            ?? throw new InvalidOperationException("向上尋不到 JET.slnx，無法定位 repo 根。");
+            ?? throw new InvalidOperationException("向上尋不到 JET.slnx。");
     }
 }

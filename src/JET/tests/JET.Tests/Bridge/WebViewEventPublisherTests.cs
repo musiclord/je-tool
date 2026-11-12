@@ -7,7 +7,7 @@ using Xunit;
 namespace JET.Tests.Bridge;
 
 /// <summary>
-/// 事件信封的 wire shape（manifest「Host→Web 事件」：{ event, data }、無 requestId）。
+/// 事件信封的 wire shape（後端送給前端的事件：{ event, data }、無 requestId）。
 /// 測信封的序列化，以及 Publish 在綁定前不動作、綁定後把工作排進 UI 的 SynchronizationContext；
 /// 實際呼叫 WebView2 送出訊息不在這個測試的範圍。
 /// </summary>
