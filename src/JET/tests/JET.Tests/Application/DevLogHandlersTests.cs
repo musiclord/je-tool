@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JET.Domain;
+using JET.Infrastructure;
 using Xunit;
 
 namespace JET.Tests.Application;
@@ -41,6 +42,40 @@ public sealed class DevLogHandlersTests
         }
 
         Assert.Contains(lines, l => l.Contains("action.start"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DevLogExportFile_StartsWithASnapshotLineDescribingTheBuildAndMonitorSettings(bool withSink)
+    {
+        using var host = new HandlerTestHost(enableDevTools: true, withDiagnosticLogFile: withSink);
+        var projectId = await CreateProjectAsync(host);
+
+        var export = await host.DispatchAsync(
+            "dev.log.exportFile",
+            JsonSerializer.Serialize(new { projectId }));
+
+        var lines = (await File.ReadAllTextAsync(export.GetProperty("filePath").GetString()!))
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(export.GetProperty("lineCount").GetInt32(), lines.Length);
+        using var header = JsonDocument.Parse(lines[0]);
+        Assert.Equal("dev.snapshot", header.RootElement.GetProperty("eventName").GetString());
+        var fields = header.RootElement.GetProperty("fields");
+        Assert.False(string.IsNullOrWhiteSpace(fields.GetProperty("app_version").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(fields.GetProperty("build_configuration").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(fields.GetProperty("module_version_id").GetString()));
+        Assert.Equal(export.GetProperty("source").GetString(), fields.GetProperty("source").GetString());
+        Assert.Equal(projectId, fields.GetProperty("filter_project_id").GetString());
+        Assert.True(fields.TryGetProperty("process_started_at", out _));
+        Assert.Equal(host.MonitorOptions.SlowSqlThreshold.TotalMilliseconds, fields.GetProperty("slow_sql_threshold_ms").GetDouble());
+        Assert.Equal(host.MonitorOptions.StillRunningAfter.TotalMilliseconds, fields.GetProperty("still_running_after_ms").GetDouble());
+        if (withSink)
+        {
+            var sinkFileName = fields.GetProperty("sink_file_name").GetString()!;
+            Assert.EndsWith(".ndjson", sinkFileName, StringComparison.Ordinal);
+            Assert.DoesNotContain(Path.DirectorySeparatorChar, sinkFileName);
+        }
     }
 
     [Fact]

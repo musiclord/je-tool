@@ -8,10 +8,12 @@ namespace JET.Infrastructure;
 /// 讓 SQLite 執行中的語句可以取消。Microsoft.Data.Sqlite 的 <see cref="SqliteCommand.Cancel"/> 不做任何事，
 /// 非同步執行也只在開始前檢查一次取消，長語句要跑完才停（實測 54.7 秒）。
 /// 這條連線建立的命令改用 <see cref="CancellableSqliteCommand"/>；設定與基底的 <c>CreateCommand</c> 相同。
+/// 有傳入監看模組時，命令在執行前後通知它，監看模組只記錄，不改變語句的執行與結果。
 /// </summary>
-internal sealed class CancellableSqliteConnection(string connectionString) : SqliteConnection(connectionString)
+internal sealed class CancellableSqliteConnection(string connectionString, ISqlStatementObserver? statementObserver = null)
+    : SqliteConnection(connectionString)
 {
-    public override SqliteCommand CreateCommand() => new CancellableSqliteCommand
+    public override SqliteCommand CreateCommand() => new CancellableSqliteCommand(statementObserver)
     {
         Connection = this,
         CommandTimeout = DefaultTimeout,
@@ -25,7 +27,11 @@ internal sealed class CancellableSqliteConnection(string connectionString) : Sql
 /// 取消只在執行呼叫期間登記，呼叫返回前解除，
 /// 不會中斷之後在同一條連線上執行的其他語句。
 /// </summary>
-internal sealed class CancellableSqliteCommand : SqliteCommand
+/// <remarks>
+/// 非同步的執行與讀取會通知 <paramref name="statementObserver"/>：開始、每次進出 SQLite、讀到幾列、完成或失敗。
+/// 通知只記錄，例外照原樣往外丟；沒有監看模組時直接略過。
+/// </remarks>
+internal sealed class CancellableSqliteCommand(ISqlStatementObserver? statementObserver) : SqliteCommand
 {
     private const int SqliteInterrupt = 9;
 
@@ -42,16 +48,11 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
         CommandBehavior behavior,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var reader = ExecuteWithInterrupt(() => ExecuteReader(behavior), cancellationToken);
-        if (cancellationToken.IsCancellationRequested)
-        {
-            // 取消在第一步剛完成時才送達，讀取器的語句仍帶著中斷旗標；不交出這個讀取器，直接回報取消。
-            DisposeAfterInterrupt(reader);
-            throw new OperationCanceledException(cancellationToken);
-        }
-
-        return Task.FromResult(reader);
+        // 直接拿 SqliteDataReader 的呼叫端自己逐列讀，讀取不經過這裡；語句在讀取器交出時就算完成。
+        var statement = SqlStatementObservation.Begin(statementObserver, this);
+        var reader = ExecuteReaderCore(behavior, statement, cancellationToken);
+        statement?.Completed();
+        return reader;
     }
 
     /// <summary>
@@ -60,8 +61,38 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
     /// </summary>
     protected override async Task<System.Data.Common.DbDataReader> ExecuteDbDataReaderAsync(
         CommandBehavior behavior,
-        CancellationToken cancellationToken) =>
-        new CancellableSqliteDataReader(await ExecuteReaderAsync(behavior, cancellationToken), this);
+        CancellationToken cancellationToken)
+    {
+        var statement = SqlStatementObservation.Begin(statementObserver, this);
+        return new CancellableSqliteDataReader(
+            await ExecuteReaderCore(behavior, statement, cancellationToken),
+            this,
+            statement);
+    }
+
+    private Task<SqliteDataReader> ExecuteReaderCore(
+        CommandBehavior behavior,
+        SqlStatementWatch? statement,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var reader = ExecuteWithInterrupt(() => ExecuteReader(behavior), cancellationToken, statement, SqlStep.Execute);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                // 取消在第一步剛完成時才送達，讀取器的語句仍帶著中斷旗標；不交出這個讀取器，直接回報取消。
+                DisposeAfterInterrupt(reader);
+                throw new OperationCanceledException(cancellationToken);
+            }
+
+            return Task.FromResult(reader);
+        }
+        catch (Exception exception) when (SqlStatementObservation.Failed(statement, exception, cancellationToken))
+        {
+            throw;
+        }
+    }
 
     public override Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
     {
@@ -70,12 +101,16 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             return Task.FromCanceled<int>(cancellationToken);
         }
 
+        var statement = SqlStatementObservation.Begin(statementObserver, this);
         try
         {
-            return Task.FromResult(ExecuteWithInterrupt(ExecuteNonQuery, cancellationToken));
+            var affected = ExecuteWithInterrupt(ExecuteNonQuery, cancellationToken, statement, SqlStep.Execute);
+            statement?.Completed();
+            return Task.FromResult(affected);
         }
         catch (Exception exception)
         {
+            SqlStatementObservation.Failed(statement, exception, cancellationToken);
             return Task.FromException<int>(exception);
         }
     }
@@ -87,22 +122,31 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             return Task.FromCanceled<object?>(cancellationToken);
         }
 
+        var statement = SqlStatementObservation.Begin(statementObserver, this);
         try
         {
-            return Task.FromResult(ExecuteWithInterrupt(ExecuteScalar, cancellationToken));
+            var value = ExecuteWithInterrupt(ExecuteScalar, cancellationToken, statement, SqlStep.Execute);
+            statement?.Completed();
+            return Task.FromResult(value);
         }
         catch (Exception exception)
         {
+            SqlStatementObservation.Failed(statement, exception, cancellationToken);
             return Task.FromException<object?>(exception);
         }
     }
 
-    internal T ExecuteWithInterrupt<T>(Func<T> execute, CancellationToken cancellationToken)
+    internal T ExecuteWithInterrupt<T>(
+        Func<T> execute,
+        CancellationToken cancellationToken,
+        SqlStatementWatch? statement = null,
+        SqlStep step = SqlStep.Execute)
     {
         // 解除登記時會等執行中的回呼結束，所以這個方法返回後不會再有中斷送到這條連線。
         using var registration = cancellationToken.Register(
             static state => ((CancellableSqliteCommand)state!).Cancel(),
             this);
+        statement?.CallStarted(step);
         try
         {
             return execute();
@@ -111,6 +155,10 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
             exception.SqliteErrorCode == SqliteInterrupt && cancellationToken.IsCancellationRequested)
         {
             throw new OperationCanceledException("作業已取消。", exception, cancellationToken);
+        }
+        finally
+        {
+            statement?.CallEnded();
         }
     }
 
@@ -132,32 +180,42 @@ internal sealed class CancellableSqliteCommand : SqliteCommand
 /// 只在每讀一列開始前檢查一次取消的話，下一列要掃過很多資料才出來時，
 /// 按取消後要等到它出來才停。其餘成員原樣交給 SQLite 的讀取器。
 /// </summary>
-internal sealed class CancellableSqliteDataReader(SqliteDataReader inner, CancellableSqliteCommand command)
+internal sealed class CancellableSqliteDataReader(
+    SqliteDataReader inner,
+    CancellableSqliteCommand command,
+    SqlStatementWatch? statement = null)
     : System.Data.Common.DbDataReader
 {
     private bool interrupted;
 
     public override Task<bool> ReadAsync(CancellationToken cancellationToken) =>
-        StepAsync(inner.Read, cancellationToken);
+        StepAsync(inner.Read, cancellationToken, countsRow: true);
 
     public override Task<bool> NextResultAsync(CancellationToken cancellationToken) =>
-        StepAsync(inner.NextResult, cancellationToken);
+        StepAsync(inner.NextResult, cancellationToken, countsRow: false);
 
-    private Task<bool> StepAsync(Func<bool> step, CancellationToken cancellationToken)
+    private Task<bool> StepAsync(Func<bool> step, CancellationToken cancellationToken, bool countsRow)
     {
         if (cancellationToken.IsCancellationRequested)
         {
+            SqlStatementObservation.Failed(statement, new OperationCanceledException(cancellationToken), cancellationToken);
             return Task.FromCanceled<bool>(cancellationToken);
         }
 
         try
         {
-            var advanced = command.ExecuteWithInterrupt(step, cancellationToken);
+            var advanced = command.ExecuteWithInterrupt(step, cancellationToken, statement, SqlStep.Read);
             if (cancellationToken.IsCancellationRequested)
             {
                 // 取消在這一列剛讀完時才送達，語句仍帶著中斷旗標；不交出這一列，直接回報取消。
                 interrupted = true;
+                SqlStatementObservation.Failed(statement, new OperationCanceledException(cancellationToken), cancellationToken);
                 return Task.FromCanceled<bool>(cancellationToken);
+            }
+
+            if (advanced && countsRow)
+            {
+                statement?.RowRead();
             }
 
             return Task.FromResult(advanced);
@@ -165,17 +223,55 @@ internal sealed class CancellableSqliteDataReader(SqliteDataReader inner, Cancel
         catch (OperationCanceledException exception)
         {
             interrupted = true;
+            SqlStatementObservation.Failed(statement, exception, cancellationToken);
             return Task.FromException<bool>(exception);
         }
         catch (Exception exception)
         {
+            SqlStatementObservation.Failed(statement, exception, cancellationToken);
             return Task.FromException<bool>(exception);
         }
     }
 
-    public override bool Read() => inner.Read();
+    public override bool Read()
+    {
+        statement?.CallStarted(SqlStep.Read);
+        try
+        {
+            var advanced = inner.Read();
+            if (advanced)
+            {
+                statement?.RowRead();
+            }
 
-    public override bool NextResult() => inner.NextResult();
+            return advanced;
+        }
+        catch (Exception exception) when (SqlStatementObservation.Failed(statement, exception, CancellationToken.None))
+        {
+            throw;
+        }
+        finally
+        {
+            statement?.CallEnded();
+        }
+    }
+
+    public override bool NextResult()
+    {
+        statement?.CallStarted(SqlStep.Read);
+        try
+        {
+            return inner.NextResult();
+        }
+        catch (Exception exception) when (SqlStatementObservation.Failed(statement, exception, CancellationToken.None))
+        {
+            throw;
+        }
+        finally
+        {
+            statement?.CallEnded();
+        }
+    }
 
     public override int Depth => inner.Depth;
 
@@ -247,19 +343,37 @@ internal sealed class CancellableSqliteDataReader(SqliteDataReader inner, Cancel
 
     public override bool IsDBNull(int ordinal) => inner.IsDBNull(ordinal);
 
-    public override void Close() => inner.Close();
+    public override void Close()
+    {
+        try
+        {
+            inner.Close();
+        }
+        finally
+        {
+            statement?.Completed();
+        }
+    }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
-            if (interrupted)
+            try
             {
-                CancellableSqliteCommand.DisposeAfterInterrupt(inner);
+                if (interrupted)
+                {
+                    CancellableSqliteCommand.DisposeAfterInterrupt(inner);
+                }
+                else
+                {
+                    inner.Dispose();
+                }
             }
-            else
+            finally
             {
-                inner.Dispose();
+                // 已經記過失敗或取消的語句，這裡不會再記一次完成。
+                statement?.Completed();
             }
         }
 

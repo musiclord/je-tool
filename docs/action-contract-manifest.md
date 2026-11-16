@@ -983,6 +983,37 @@ false 表示程式內部丟出取消例外。
 十進位碼位，例如 31 表示 U+001F。這些欄位不記儲存格文字。取消不算寫入失敗，不帶這些欄位。
 檔案錯誤帶 `io_category` 與 `win32_error`。主要工作完成或失敗後，
 更新案件步驟、刪除案件資料夾或放開工作鎖失敗時記 `action.step_failed`，`step` 寫出是哪一步。
+診斷日誌的失敗與取消紀錄也帶 `failure_stage`、報告與工作表位置，以及檔案錯誤的分類，規則和支援日誌相同。
+
+操作監看模組從旁記錄每次操作的時間花在哪裡，不改變操作的流程與結果（裁定 2026-11-16-13）。它寫進支援日誌的事件如下，
+秒數是正式程式的門檻：
+
+- `action.still_running`：操作跑超過 30 秒時記第一筆，之後每 30 秒一筆。帶 `elapsed_ms`、目前步驟 `current_stage`，
+  到目前為止的 `sql_statements`、`sql_rows_read` 與花在 SQLite 裡的 `sql_ms`，正在 SQLite 裡的語句做到哪一步 `active_sql_step`，
+  程式在這次操作期間用掉的處理器時間 `process_cpu_ms`（同時進行的其他操作也算在內），
+  和上一筆相隔的 `interval_ms` 與這段時間的 `interval_cpu_ms`，以及 `working_set_mb` 與 `managed_heap_mb`。
+  第一筆沒有上一筆，`interval_ms` 與 `interval_cpu_ms` 從操作開始算，和 `elapsed_ms`、`process_cpu_ms` 相同。
+- `action.summary`：操作結束時記一筆，寫在 `action.end`、`action.error` 或 `action.cancelled` 之後。帶 `elapsed_ms`、
+  步驟路徑 `stage_path`，每個步驟後面接開始的時間點，例如 `report_plan@0ms > report_write@1203ms`。
+  步驟超過 32 個或路徑超過 1000 字時，保留最前面與最後面的步驟，中間寫成 `(+N stages omitted)`。另帶 SQL 筆數 `sql_statements`、
+  跑太久與失敗的筆數 `sql_slow_statements` 與 `sql_failed_statements`、讀取列數 `sql_rows_read`、`sql_ms`、最久一條的 `longest_sql_ms`、
+  `process_cpu_ms` 與記憶體。操作執行中要求過取消時另帶 `cancel_requested_after_ms` 與 `cancel_latency_ms`，後者是要求取消到操作真正結束的時間。
+  操作跑超過 5 秒、有跑太久或失敗的 SQL、執行中要求過取消或記過 `action.still_running` 時，摘要才進支援日誌。
+  其餘執行過 SQL 或進入過步驟的操作，摘要只記在診斷日誌；兩者都沒有的短操作，以及開始前就已取消的操作，不記摘要。
+- `sql.slow`：一次進入 SQLite 連續超過 5 秒時記一筆，`still_running` 為 true，進入 SQLite 指執行語句或讀下一列；
+  還沒跑完時每 30 秒再記一筆。語句正常完成時花在 SQLite 裡的時間合計超過 5 秒，再記一筆 `still_running` 為 false 的紀錄；
+  被取消或出錯的語句改記 `sql.cancelled` 或 `sql.failed`。
+  帶 `sql_ms`、`sql_step`（`execute` 或 `read`）、`rows_read` 與 `elapsed_ms`；還在跑的那幾筆另帶這次進入 SQLite 的時間 `sql_call_ms`。
+- `sql.cancelled` 與 `sql.failed`：語句被取消或出錯時各記一筆，帶 `sql_step`、`sql_ms`、`rows_read` 與 `elapsed_ms`；
+  `sql.failed` 另帶 `error_type`，資料庫回報的錯誤再帶 `sqlite_error_code`。
+- `export.progress`：匯出報表的進度。換階段、換工作表或完成一張工作表時記一筆，其餘最多每 10 秒一筆。
+  帶 `report_kind`、`phase`、`sheets_completed`、`rows_written` 與 `elapsed_ms`。
+
+支援日誌的這些事件只有時間、筆數與程式寫死的代號，不含 SQL、參數值、工作表名稱或資料。
+診斷日誌另外記 SQL 文字與參數值，匯出進度另帶正在寫的工作表名稱 `sheet_name`。
+診斷日誌也在每進入一個步驟時記一筆 `action.stage_entered`，摘要多一欄 `top_sql`，列出合計最花時間的五種語句。
+慢查詢另記一筆 `sql.plan`，內容是另開一條唯讀連線執行 `EXPLAIN QUERY PLAN` 得到的執行計畫，不實際執行查詢；
+只處理單一的 SELECT 或 WITH 查詢，同一段 SQL 只做一次，做不出來時改寫 `plan_error`。
 
 例外列出整條例外鏈。每層寫型別、系統錯誤碼與可取得的位置代碼，例如 JSON 的行與位元組位置、資料庫錯誤碼；
 再列丟出處的前三層方法與所有 JET 方法的名稱和 IL 位移，其餘框架方法只寫省略幾層。不輸出例外訊息、檔案路徑或原始碼行號。
@@ -1023,6 +1054,9 @@ false 表示程式內部丟出取消例外。
 correlation、沒有案件 id。sink 不可讀時退回 ring buffer，並於回應標記 `source`。
 這份原始紀錄可能含 SQL、參數及案件資料，只能留在本機診斷；輸出固定為該案件目錄內的
 `JET-dev-log-*.txt`。兩個檔案匯出都回傳 `filePath` 與 `lineCount`，並以同目錄暫存檔完成後原子改名。
+`dev.log.exportFile` 的第一行是 `dev.snapshot`，寫出 JET 的版本、模組代號與組建設定，這次用的來源與篩選條件，
+程式的啟動時間，作業系統、.NET 版本與處理器數，JET 可使用的記憶體總量 `total_memory_mb`，以及監看模組的門檻；`lineCount` 含這一行。
+檔案 sink 只記檔名，不記完整路徑。
 
 ## 找精確欄位的位置
 

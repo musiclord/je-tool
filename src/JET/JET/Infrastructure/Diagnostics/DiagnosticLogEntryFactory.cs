@@ -61,6 +61,10 @@ internal static class DiagnosticLogEntryFactory
             }
         }
 
+        // 失敗或取消時各層記在例外上的步驟（failure_stage）、報告與工作表位置，以及檔案錯誤的分類，
+        // 和支援日誌用同一份規則，診斷日誌也看得到操作停在哪一步。
+        SupportFailureFields.Add(fields, exception);
+
         return new DiagnosticLogEntry(
             DateTimeOffset.UtcNow,
             logLevel.ToString(),

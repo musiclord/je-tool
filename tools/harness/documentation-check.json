@@ -84,6 +84,7 @@
     "docs/test-environment-notes.md",
     "docs/specs/2026-11-06-sat-initial-documents-plan.md",
     "docs/specs/2026-11-06-sqlite-only-release-plan.md",
+    "docs/specs/2026-11-16-diagnostic-log-plan.md",
     ".agents/harness/sat-documents.md",
     "tools/harness/sat-documents/README.md"
   ],

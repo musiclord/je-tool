@@ -7,8 +7,10 @@ namespace JET.Infrastructure;
 /// <summary>
 /// <see cref="ILocalProjectDatabase"/> 的 SQLite 實作：建立每個案件 jet.db 的連線，並負責建表與檢查結構版本。
 /// 每個案件一個資料庫檔，一個檔案裡只有一個案件的資料，所以資料表沒有 project_id 欄。
+/// 傳入監看模組時，這裡建立的每條連線都把語句的執行通知它；監看模組只記錄，不改變語句的執行與結果。
 /// </summary>
-public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProjectDatabase
+public sealed class SqliteProjectDatabase(JetProjectFolder folder, ISqlStatementObserver? statementObserver = null)
+    : ILocalProjectDatabase
 {
     /// <summary>
     /// 案件資料庫的現行結構，建成後標成第 20 版。只有新資料庫會執行這段；已有資料表的資料庫只檢查版本，
@@ -419,10 +421,10 @@ public sealed class SqliteProjectDatabase(JetProjectFolder folder) : ILocalProje
         return CreateConfiguredConnection(builder.ToString());
     }
 
-    private static SqliteConnection CreateConfiguredConnection(string connectionString)
+    private SqliteConnection CreateConfiguredConnection(string connectionString)
     {
         // 取消會中斷執行中的語句，見 CancellableSqliteConnection。
-        var connection = new CancellableSqliteConnection(connectionString);
+        var connection = new CancellableSqliteConnection(connectionString, statementObserver);
         // SQLite 內建的 UPPER 只轉 ASCII 字母。篩選條件與預篩選規則的比對值是用 .NET 的 ToUpperInvariant() 轉大寫，
         // 這裡把 upper 換成同一個方法，兩邊才一致。連線池裡的連線與唯讀連線都經過這裡。
         connection.CreateFunction<string?, string?>("upper", static value => value?.ToUpperInvariant(), isDeterministic: true);

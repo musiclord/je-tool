@@ -21,6 +21,7 @@ public sealed class ActionDispatcher
     private readonly Func<Exception, JetActionException?>? _engineErrorTranslator;
     private readonly ActionExecutionGate _executionGate;
     private readonly IProjectDatabaseCheckpoint? _databaseCheckpoint;
+    private readonly IOperationMonitor? _operationMonitor;
     // 同一案件同一動作上一次失敗或取消的操作識別碼，下一次開始時記成 retry_of；成功後清除。
     private readonly ConcurrentDictionary<string, string> _lastUnsuccessful = new(StringComparer.Ordinal);
 
@@ -34,7 +35,9 @@ public sealed class ActionDispatcher
         RequestCancellationRegistry? cancellationRegistry = null,
         ActionExecutionGate? executionGate = null,
         // 變更型作業結束後把當前案件資料庫的記錄檔併回；null 時不併回，自行組裝 dispatcher 的測試不受影響。
-        IProjectDatabaseCheckpoint? databaseCheckpoint = null)
+        IProjectDatabaseCheckpoint? databaseCheckpoint = null,
+        // 操作監看模組：只記錄步驟、SQL 與花掉的時間，不改變執行與結果；null 時不監看。
+        IOperationMonitor? operationMonitor = null)
     {
         var map = new Dictionary<string, IApplicationActionHandler>(StringComparer.Ordinal);
 
@@ -53,6 +56,7 @@ public sealed class ActionDispatcher
         CancellationRegistry = cancellationRegistry ?? new RequestCancellationRegistry();
         _executionGate = executionGate ?? new ActionExecutionGate();
         _databaseCheckpoint = databaseCheckpoint;
+        _operationMonitor = operationMonitor;
     }
 
     public IReadOnlyCollection<string> RegisteredActions => _handlers.Keys.ToArray();
@@ -106,6 +110,8 @@ public sealed class ActionDispatcher
             DispatcherDiagnostics.ActionStart(_logger, action);
         }
 
+        // 監看從這裡到方法返回為止，含記錄檔併回；結束時的摘要寫在 action.end、action.error 或 action.cancelled 之後。
+        using var operationWatch = _operationMonitor?.BeginOperation(action, cancellationToken);
         var exclusive = ActionExecutionPolicy.IsExclusive(action);
         IDisposable? executionLease = null;
 

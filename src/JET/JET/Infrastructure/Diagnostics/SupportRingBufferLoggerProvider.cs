@@ -101,6 +101,14 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "filter.compile_check_failed",
         // 每次建立或載入案件記一筆，帶 JET 版本與資料庫種類，不記電腦、帳號或路徑。
         SupportEventNames.CaseOpened,
+        // 操作監看模組：長時間操作的定時紀錄與摘要、跑太久或沒有正常結束的 SQL、匯出進度。
+        // 只收時間、筆數與程式寫死的步驟代號；SQL 文字、參數與執行計畫只在診斷日誌。
+        SupportEventNames.ActionStillRunning,
+        SupportEventNames.ActionSummary,
+        SupportEventNames.SqlSlow,
+        SupportEventNames.SqlCancelled,
+        SupportEventNames.SqlFailed,
+        SupportEventNames.ExportProgress,
     };
 
     private static readonly HashSet<string> AllowedFields = new(StringComparer.Ordinal)
@@ -167,6 +175,32 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
         "informational_version",
         "module_version_id",
         "build_configuration",
+        // 操作監看模組的時間與筆數。current_stage 是程式寫死的步驟代號；stage_path 依序列出這些代號與各步驟開始的毫秒數，
+        // 步驟太多時中間只寫省略幾個。匯出進度在這裡另加完成幾張表與寫了幾列，報告種類、階段與經過時間沿用上面的
+        // report_kind、phase 與 elapsed_ms；工作表名稱只留在診斷日誌。
+        "current_stage",
+        "stage_path",
+        "still_running",
+        "sql_ms",
+        "sql_call_ms",
+        "sql_step",
+        "active_sql_step",
+        "rows_read",
+        "sqlite_error_code",
+        "sql_statements",
+        "sql_slow_statements",
+        "sql_failed_statements",
+        "sql_rows_read",
+        "longest_sql_ms",
+        "cancel_requested_after_ms",
+        "cancel_latency_ms",
+        "process_cpu_ms",
+        "interval_ms",
+        "interval_cpu_ms",
+        "working_set_mb",
+        "managed_heap_mb",
+        "sheets_completed",
+        "rows_written",
     };
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull =>
@@ -254,8 +288,8 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
             return;
         }
 
-        // 輸入結構與結果版本本身就是有界的摘要，允許比一般欄位長。
-        var limit = key is "payload_shape" or "result_refs" ? 1024 : 256;
+        // 輸入結構、結果版本與步驟路徑本身就是有界的摘要，允許比一般欄位長。
+        var limit = key is "payload_shape" or "result_refs" or "stage_path" ? 1024 : 256;
         fields[key] = value switch
         {
             null => null,
@@ -291,6 +325,20 @@ internal sealed class SupportRingBufferLogger(string category, SupportRingBuffer
                 + $"condition {fields.GetValueOrDefault("condition_no") ?? "n/a"} compile check failed: {fields.GetValueOrDefault("compile_check") ?? "unknown"}",
             SupportEventNames.CaseOpened => $"case opened by {fields.GetValueOrDefault("opened_by") ?? "unknown"} "
                 + $"provider={fields.GetValueOrDefault("database_provider") ?? "unknown"}",
+            SupportEventNames.ActionStillRunning => $"action {action} still running after {fields.GetValueOrDefault("elapsed_ms") ?? 0} ms "
+                + $"at {fields.GetValueOrDefault("current_stage") ?? "unknown"}",
+            SupportEventNames.ActionSummary => $"action {action} took {fields.GetValueOrDefault("elapsed_ms") ?? 0} ms, "
+                + $"{fields.GetValueOrDefault("sql_statements") ?? 0} sql statements, {fields.GetValueOrDefault("sql_ms") ?? 0} ms in SQLite",
+            SupportEventNames.SqlSlow => Equals(fields.GetValueOrDefault("still_running"), true)
+                ? $"sql still running in SQLite for {fields.GetValueOrDefault("sql_call_ms") ?? 0} ms during {fields.GetValueOrDefault("sql_step") ?? "unknown"}"
+                : $"sql finished after {fields.GetValueOrDefault("sql_ms") ?? 0} ms in SQLite",
+            SupportEventNames.SqlCancelled => $"sql cancelled during {fields.GetValueOrDefault("sql_step") ?? "unknown"} "
+                + $"after {fields.GetValueOrDefault("elapsed_ms") ?? 0} ms",
+            SupportEventNames.SqlFailed => $"sql failed during {fields.GetValueOrDefault("sql_step") ?? "unknown"} "
+                + $"code={fields.GetValueOrDefault("sqlite_error_code") ?? "n/a"}",
+            SupportEventNames.ExportProgress => $"export {fields.GetValueOrDefault("report_kind") ?? "unknown"} "
+                + $"{fields.GetValueOrDefault("phase") ?? "unknown"} sheets_completed={fields.GetValueOrDefault("sheets_completed") ?? 0} "
+                + $"rows={fields.GetValueOrDefault("rows_written") ?? 0}",
             _ => eventName,
         };
     }

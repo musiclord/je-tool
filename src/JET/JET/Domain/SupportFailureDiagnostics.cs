@@ -86,11 +86,14 @@ public sealed record SupportFailureContext(
 /// </summary>
 public static class SupportOperationStage
 {
-    private static readonly AsyncLocal<Recorder?> Current = new();
+    private static readonly AsyncLocal<Recorder?> CurrentRecorder = new();
+
+    /// <summary>目前這次操作的紀錄；不經 dispatcher 的呼叫沒有紀錄，是 null。</summary>
+    public static Recorder? Current => CurrentRecorder.Value;
 
     public static void Enter(string stage)
     {
-        if (Current.Value is { } recorder)
+        if (CurrentRecorder.Value is { } recorder)
         {
             recorder.Stage = stage;
         }
@@ -100,18 +103,39 @@ public static class SupportOperationStage
     public static Recorder Begin()
     {
         var recorder = new Recorder();
-        Current.Value = recorder;
+        CurrentRecorder.Value = recorder;
         return recorder;
     }
 
     public sealed class Recorder
     {
         private string? _stage;
+        private Action<string>? _observer;
 
         public string? Stage
         {
             get => Volatile.Read(ref _stage);
-            internal set => Volatile.Write(ref _stage, value);
+            internal set
+            {
+                Volatile.Write(ref _stage, value);
+                if (value is not null && Volatile.Read(ref _observer) is { } observer)
+                {
+                    try
+                    {
+                        observer(value);
+                    }
+                    catch (Exception)
+                    {
+                        // 觀察者只做記錄，它出錯不影響操作本身。
+                    }
+                }
+            }
         }
+
+        /// <summary>
+        /// 讓監看模組在每次進入步驟時收到步驟代號。觀察者在呼叫 <see cref="Enter"/> 的執行緒上執行；
+        /// 它丟出的例外在這裡吞掉，不影響操作本身。
+        /// </summary>
+        public void Observe(Action<string> observer) => Volatile.Write(ref _observer, observer);
     }
 }

@@ -126,12 +126,17 @@ public sealed class SupportLogExportHandler(
 /// 只輸出屬於指定案件的行；payload 另帶 correlationId 時，同一次操作的行也一併輸出，
 /// 因為在案件清單載入或刪除失敗時案件還沒開啟，那次 action 的紀錄沒有 projectId。
 /// 檔案只寫到指定的既有案件資料夾，不接受任意路徑，也沒有其他備用的位置。只在 Debug 組建註冊。
+/// 第一行是 dev.snapshot：這份日誌出自哪個版本與組建、用了哪個來源與篩選條件、程式何時啟動、在什麼環境執行，
+/// 以及多久算跑太久的監看門檻，讀日誌的人不必另外問。回應的 lineCount 含這一行。
 /// </summary>
 public sealed class DevLogExportFileHandler(
     IDiagnosticLogStore diagnosticLog,
     string? sinkFilePath,
-    IProjectExportLocator projectLocator) : IApplicationActionHandler
+    IProjectExportLocator projectLocator,
+    IReadOnlyDictionary<string, object?>? monitorSettings = null) : IApplicationActionHandler
 {
+    private const string SnapshotEventName = "dev.snapshot";
+
     public string Action => "dev.log.exportFile";
 
     public async Task<object?> HandleAsync(JsonElement payload, CancellationToken cancellationToken)
@@ -150,16 +155,19 @@ public sealed class DevLogExportFileHandler(
             }
 
             source = "fileSink";
+            lineCount = 1;
             filePath = await ProjectLogFileWriter.WriteAsync(
                 projectLocator,
                 projectId,
                 "JET-dev-log",
-                ReadSinkLinesAsync(
-                    sinkFilePath,
-                    projectId,
-                    correlationId,
-                    () => lineCount++,
-                    cancellationToken),
+                PrependAsync(
+                    SnapshotLine(source, projectId, correlationId),
+                    ReadSinkLinesAsync(
+                        sinkFilePath,
+                        projectId,
+                        correlationId,
+                        () => lineCount++,
+                        cancellationToken)),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (
@@ -173,6 +181,7 @@ public sealed class DevLogExportFileHandler(
                     projectId,
                     correlationId))
                 .Select(DiagnosticNdjson.SerializeLine)
+                .Prepend(SnapshotLine(source, projectId, correlationId))
                 .ToArray();
             lineCount = lines.Length;
             filePath = await ProjectLogFileWriter.WriteAsync(
@@ -184,6 +193,69 @@ public sealed class DevLogExportFileHandler(
         }
 
         return new { filePath, lineCount, source };
+    }
+
+    private string SnapshotLine(string source, string projectId, string? correlationId)
+    {
+        var fields = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["app_version"] = SupportBuildInfo.AppVersion,
+            ["informational_version"] = SupportBuildInfo.InformationalVersion,
+            ["module_version_id"] = SupportBuildInfo.ModuleVersionId,
+            ["build_configuration"] = SupportBuildInfo.BuildConfiguration,
+            ["source"] = source,
+            ["filter_project_id"] = projectId,
+            ["filter_correlation_id"] = correlationId,
+            // 只記檔名：完整路徑含使用者資料夾。
+            ["sink_file_name"] = sinkFilePath is null ? null : Path.GetFileName(sinkFilePath),
+            ["process_started_at"] = ProcessStartedAt(),
+            ["os_description"] = RuntimeInformation.OSDescription,
+            ["framework_description"] = RuntimeInformation.FrameworkDescription,
+            ["processor_count"] = Environment.ProcessorCount,
+            ["total_memory_mb"] = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024 * 1024),
+        };
+        if (monitorSettings is not null)
+        {
+            foreach (var (key, value) in monitorSettings)
+            {
+                fields[key] = value;
+            }
+        }
+
+        return DiagnosticNdjson.SerializeLine(new DiagnosticLogEntry(
+            DateTimeOffset.UtcNow,
+            "Information",
+            typeof(DevLogExportFileHandler).FullName!,
+            SnapshotEventName,
+            "diagnostic log export snapshot",
+            CorrelationId: null,
+            TransactionId: null,
+            ProjectId: projectId,
+            fields,
+            Exception: null));
+    }
+
+    private static DateTimeOffset? ProcessStartedAt()
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetCurrentProcess();
+            return new DateTimeOffset(process.StartTime).ToUniversalTime();
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException
+            or System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+    }
+
+    private static async IAsyncEnumerable<string> PrependAsync(string first, IAsyncEnumerable<string> rest)
+    {
+        yield return first;
+        await foreach (var line in rest.ConfigureAwait(false))
+        {
+            yield return line;
+        }
     }
 
     private static async IAsyncEnumerable<string> ReadSinkLinesAsync(

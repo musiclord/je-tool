@@ -26,7 +26,8 @@ internal sealed class HandlerTestHost : IDisposable
         string? principalName = null,
         IJetEventPublisher? eventPublisher = null,
         string? projectsRootPath = null,
-        string? userFullName = null)
+        string? userFullName = null,
+        OperationMonitorOptions? operationMonitorOptions = null)
     {
         _root = new TempProjectRoot();
         _projectsRoot = projectsRootPath ?? _root.Path;
@@ -34,7 +35,8 @@ internal sealed class HandlerTestHost : IDisposable
         DiagnosticLogDirectory = withDiagnosticLogFile ? Path.Combine(_root.Path, "logs") : null;
         // 每個 host 預設唯一 principal，跨測試的身分互不相同；需要兩個 host 用同一個身分的測試顯式傳同一 principalName。
         Principal = principalName ?? $"test-principal-{Guid.NewGuid():N}";
-        _runtime = AppCompositionRoot.CreateRuntime(
+        MonitorOptions = operationMonitorOptions ?? QuietMonitorOptions;
+        _runtime =AppCompositionRoot.CreateRuntime(
             hostShell ?? new StubHostShell(),
             _projectsRoot,
             enableDevTools,
@@ -45,10 +47,28 @@ internal sealed class HandlerTestHost : IDisposable
             // 支援日誌所在的使用者資料目錄釘到本 host 的 temp 根之下，測試絕不碰真 %LOCALAPPDATA%\JET（比照 DiagnosticLogDirectory 作法）。
             userProfileDirectory: Path.Combine(_root.Path, "user-profile"),
             // 測試只用合成的使用者全名；沒有傳時建案者用帳號短名，不查這台電腦的 Windows 帳號。
-            userFullName: userFullName);
+            userFullName: userFullName,
+            operationMonitorOptions: MonitorOptions);
         Dispatcher = _runtime.Dispatcher;
         SupportLogDirectory = Path.Combine(_root.Path, "user-profile", "logs");
     }
+
+    /// <summary>
+    /// 沒有指定門檻時，監看模組的時間門檻都拉長到一小時：支援日誌與診斷日誌不會因為這台電腦跑得快慢，
+    /// 多出定時紀錄、慢查詢或記成 Information 的摘要。要測監看行為的測試自己傳門檻。
+    /// </summary>
+    public static OperationMonitorOptions QuietMonitorOptions { get; } = new()
+    {
+        SlowSqlThreshold = TimeSpan.FromHours(1),
+        SlowSqlRepeat = TimeSpan.FromHours(1),
+        StillRunningAfter = TimeSpan.FromHours(1),
+        StillRunningRepeat = TimeSpan.FromHours(1),
+        ExportProgressInterval = TimeSpan.FromHours(1),
+        SummaryAfter = TimeSpan.FromHours(1),
+    };
+
+    /// <summary>本 host 交給監看模組的門檻。</summary>
+    public OperationMonitorOptions MonitorOptions { get; }
 
     public ActionDispatcher Dispatcher { get; }
 

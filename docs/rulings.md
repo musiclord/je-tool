@@ -28,6 +28,7 @@
 
 | 簡稱 | 文件 |
 |:---|:---|
+| 日誌補強計畫 | [2026-11-16-diagnostic-log-plan.md](specs/2026-11-16-diagnostic-log-plan.md) |
 | Prepared by 使用者全名紀錄 | [2026-11-13-prepared-by-user-full-name-records.md](history/2026-11-13-prepared-by-user-full-name-records.md) |
 | 條件篩選報告欄名紀錄 | [2026-11-13-criteria-summary-header-records.md](history/2026-11-13-criteria-summary-header-records.md) |
 | 自訂科目分類紀錄 | [2026-11-12-custom-account-category-records.md](history/2026-11-12-custom-account-category-records.md) |
@@ -325,6 +326,7 @@
 | 2026-11-16-06 | 這台電腦是主要工作環境。不是專案必要的額外事項只留在本機，不同步到 GitHub；和機敏資料、真實案件有關的內容一律不同步。為了讓驗證框架能續接而需要的詳細紀錄，也寫在本機。做法：這類內容寫在 Git 忽略的 `local/` 或儲存庫外，忽略規則由 Agent 維護 | 另外，請確保非必要的額外事項都保留在本機環境，避免被同步至 github repo，因此我需要你管理好 .gitignore 等依賴與檔案，請視目前工作中的主機為主要工作環境，尤其是涉及到機敏資料和真實案件等，都請務必避免同步至雲端專案，如果真的要詳細記錄來維持 harness 循環的穩健性，那就寫在本機環境中，也不要同步到雲端。 | [SAT 計畫「2026-11-16：提交之後使用者的四項回覆」](specs/2026-11-06-sat-initial-documents-plan.md) | `AGENTS.md`、`.gitignore` |
 | 2026-11-16-10 | 架構圖的成品、名詞表裡 2026-11-16 新取而待確認的名稱與畫面句子，以及讓名的原始欄照舊寫「原名（來源）」，使用者看過都沒有問題：名稱與句子照用，讓名的寫法不改。使用者回覆的是 Agent 收尾回報裡的三項摘要，沒有逐一列出名稱。接續 2026-11-16-02、2026-11-16-05、2026-11-16-08 與 2026-11-16-09 | 這些目前看起來都沒有問題 | [SAT 計畫「2026-11-16：使用者確認後提交」](specs/2026-11-06-sat-initial-documents-plan.md) | `docs/glossary.md`、`docs/architecture/diagrams/index.html` |
 | 2026-11-16-11 | 已經在 GitHub 上的 `docs/history/` 與計畫檔較早的過程紀錄先留在儲存庫，不移出。接續 2026-11-16-06 | 那些檔案就沒關係了，先繼續留著 | [SAT 計畫「2026-11-16：使用者確認後提交」](specs/2026-11-06-sat-initial-documents-plan.md) | `docs/specs/2026-11-06-sat-initial-documents-plan.md` |
+| 2026-11-16-13 | 補強診斷日誌，讓測試環境交回的日誌足以判斷長時間操作的原因：長時間操作定時紀錄、SQL 太久或被中斷、匯出進度寫進日誌、診斷日誌檔頭與失敗欄位四項都做，Agent 認為有助追查的紀錄可以追加。日誌功能是獨立的模組，不寫進業務邏輯，不得因此造成邏輯或流程差異 | 其他你認為追加的日誌紀錄功能，目的是透過這些追加的功能，看能不能讓你追查出專案發生的問題原因 ... 另外，擬增加的這些日誌記錄功能請確保不要混淆原始代碼，尤其他不應該被寫在業務邏輯中，他應該是獨立於 je testing 之外的模組功能，這樣就不會擔心因為追加 log 的功能而導致邏輯或流程差異 | [日誌補強計畫「使用者原話」](specs/2026-11-16-diagnostic-log-plan.md) | `src/JET/JET/Infrastructure/Diagnostics/Monitoring/OperationMonitor.cs`、`docs/action-contract-manifest.md` |
 | 2026-11-16-12 | 提交與推送由使用者把關：沒有明確指示時不提交、不推送；來回修改的過程不各自提交，Git 歷史不要留太多快照。提交 `63d5d74` 之後的修改全部做完後提交並推送。架構圖和其他修改放在同一次提交，封裝的是依提交 `63d5d74` 重繪、使用者看過的那一版，沒有依新的提交再取一次快照；這是 Agent 照這句回覆的解讀，調整 2026-11-16-05 寫的提交次序 | 請記得我說過的，如果我沒有明確指示，請不要擅自提交與推送，尤其我不喜歡過往的 git 歷史中出現太多的快照，因為 ai agent 很喜歡來回修改並在每一次的版本都視為一次完整的開發循環，但實際上大部分都是無效的，因此最終仍需由我來把空推送與提交的關卡。不過目前測試完後沒有發現其他問題，這次你可以完善所有事項後提交推送了。 | [SAT 計畫「2026-11-16：使用者確認後提交」](specs/2026-11-06-sat-initial-documents-plan.md) | `AGENTS.md`、`docs/architecture/diagrams/manifest.json` |
 
 ## 案件與匯入

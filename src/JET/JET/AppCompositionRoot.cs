@@ -48,12 +48,11 @@ public static partial class AppCompositionRoot
         string? userProfileDirectory = null,
         Func<IApplicationActionHandler, ProjectSession, IApplicationActionHandler>? decorateHandler = null,
         Func<ActionDispatcher, CancellationToken, Task>? startupWork = null,
-        string? userFullName = null)
+        string? userFullName = null,
+        OperationMonitorOptions? operationMonitorOptions = null)
     {
         var folder = new JetProjectFolder(projectsRootPath);
         var projectStore = new JsonFileProjectStore(folder);
-        // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
-        var sqliteDatabase = new SqliteProjectDatabase(folder);
 
         // 專案工作鎖是跨程序檔案鎖。鎖的 handle 由 runtime 擁有，關閉視窗或測試的 host dispose 時一定釋放。
         var localFileLockService = new LocalFileLockService(folder);
@@ -107,17 +106,24 @@ public static partial class AppCompositionRoot
                 }
             }
         });
+        // 操作監看模組從旁記錄長時間的操作、跑太久或沒有正常結束的 SQL 與匯出進度，不改變操作的流程與結果。
+        // 它只接在 dispatcher、SQLite 命令、事件發布與進入步驟的紀錄這四個地方。
+        var operationMonitor = new OperationMonitor(loggerFactory.CreateLogger<OperationMonitor>(), operationMonitorOptions);
+        // 目前只支援 SQLite 案件，每個案件資料夾一個 jet.db。
+        var sqliteDatabase = new SqliteProjectDatabase(folder, operationMonitor);
         var baseReportStore = new ProjectReportStore(
             folder,
             logger: loggerFactory.CreateLogger<ProjectReportStore>());
         var session = new ProjectSession();
         // LoggerFactory.Create 不會釋放以執行個體加入的 provider；支援日誌最後才釋放，先寫完排隊中的案件紀錄，
         // 包括放開工作鎖的那一筆。結束 JET 時先關閉目前案件的資料庫連線，再放開案件鎖。
+        // 監看模組最先釋放：它另開的唯讀連線要在關閉案件資料庫之前結束，最後寫的紀錄也要在 logger 釋放前寫完。
         var runtimeResources = new RuntimeOwnedResources(
             supportDiagnostic,
             loggerFactory,
             localFileLockService,
-            new ProjectDatabaseShutdown(session, sqliteDatabase, loggerFactory.CreateLogger<ProjectDatabaseShutdown>()));
+            new ProjectDatabaseShutdown(session, sqliteDatabase, loggerFactory.CreateLogger<ProjectDatabaseShutdown>()),
+            operationMonitor);
 
         JetApplicationRuntime? runtime = null;
         try
@@ -149,7 +155,8 @@ public static partial class AppCompositionRoot
             var demoFileWriter = new DemoWorkbookWriter();
 #endif
             var hostDialogProjectContext = new HostDialogProjectContext(session, folder);
-            var events = eventPublisher ?? new NullEventPublisher();
+            // 發給前端的事件照原樣送出後，匯出進度另外交給監看模組寫進日誌。
+            var events = new MonitoredEventPublisher(eventPublisher ?? new NullEventPublisher(), operationMonitor);
             var cancellationRegistry = new RequestCancellationRegistry();
 
             List<IApplicationActionHandler> handlers =
@@ -260,7 +267,8 @@ public static partial class AppCompositionRoot
                 handlers.Add(new DevLogExportFileHandler(
                     diagnostic!,
                     diagnosticFile?.FilePath,
-                    folder));
+                    folder,
+                    MonitorSettings(operationMonitor.Options)));
             }
 
             if (decorateHandler is not null)
@@ -278,7 +286,8 @@ public static partial class AppCompositionRoot
                 cancellationRegistry,
                 actionExecutionGate,
                 // SQLite 案件在變更型作業結束後把記錄檔併回資料庫檔。
-                sqliteDatabase);
+                sqliteDatabase,
+                operationMonitor);
 
             runtime = new JetApplicationRuntime(dispatcher, runtimeResources);
             // 啟動工作在背景執行，視窗照常立即顯示。
@@ -325,6 +334,39 @@ public static partial class AppCompositionRoot
         catch
         {
             return Environment.UserDomainName + "\\" + Environment.UserName;
+        }
+    }
+
+    /// <summary>診斷日誌匯出檔第一行記下的監看門檻，讀日誌的人才知道多久算跑太久。</summary>
+    private static IReadOnlyDictionary<string, object?> MonitorSettings(OperationMonitorOptions options) =>
+        new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["check_interval_ms"] = options.CheckInterval.TotalMilliseconds,
+            ["slow_sql_threshold_ms"] = options.SlowSqlThreshold.TotalMilliseconds,
+            ["slow_sql_repeat_ms"] = options.SlowSqlRepeat.TotalMilliseconds,
+            ["still_running_after_ms"] = options.StillRunningAfter.TotalMilliseconds,
+            ["still_running_repeat_ms"] = options.StillRunningRepeat.TotalMilliseconds,
+            ["export_progress_interval_ms"] = options.ExportProgressInterval.TotalMilliseconds,
+            ["summary_after_ms"] = options.SummaryAfter.TotalMilliseconds,
+        };
+
+    /// <summary>
+    /// 先把事件照原樣交給原本的發布者，再讓監看模組讀匯出進度；監看模組出錯時吞掉，
+    /// 前端收到的事件與發布的結果都不變。
+    /// </summary>
+    private sealed class MonitoredEventPublisher(IJetEventPublisher inner, IOperationMonitor monitor) : IJetEventPublisher
+    {
+        public void Publish(string eventName, object payload)
+        {
+            inner.Publish(eventName, payload);
+            try
+            {
+                monitor.ObservePublishedEvent(eventName, payload);
+            }
+            catch (Exception)
+            {
+                // 監看只做記錄，不影響事件發布。
+            }
         }
     }
 
